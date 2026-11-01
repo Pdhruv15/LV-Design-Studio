@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.026', date: '2026-11-01',
+    items: [
+      { title: 'Containment layout sheets', text: 'Design CAD → Sheets → + New sheet → Containment layouts: a sheet for every level with cable trays or cable routes drawn, numbered E-CNT-. Each tray is a single line labelled like "CT 300 POWER", each cable route is dashed and tagged with its cable and size, and the legend lists the tray lengths and fittings on the sheet.', action: 'sheets', actionLabel: 'Open Sheets' },
+      { title: 'Plan sheets show when the design changes', text: 'A lighting, power, ELV or containment sheet issued from now on is flagged as changed when what it draws changes, such as a moved light or tray. Before, plan sheets were never flagged. Sheets already issued need one more issue.' },
+      { title: 'North arrow back on plan sheet PDFs', text: 'On the PDF of a plan sheet the notes box covered the north arrow. The arrow now sits beside the scale bar, clear of the notes.' }
+    ]
+  },
+  {
     version: '2.025', date: '2026-11-01',
     items: [
       { title: 'File tabs in Design CAD', text: 'Each drawing you open now has its own tab above the plan, with its level and file name. Click a tab to switch: the file is not read again, and the drawing keeps its zoom and layers. + opens another.', action: 'cad', actionLabel: 'Open Design CAD' },

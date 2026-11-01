@@ -16,6 +16,9 @@ export function plansOf(p: Project): { floor: Floor; label: string; file?: strin
   return planFloors(p).map((floor) => ({ floor, label: floorLabel(p.building, floor), file: p.cadPlans?.find((x) => onLevel(x, floor.ref))?.file }));
 }
 
+/** The plan of a level, if it has one. */
+export const planOfLevel = (p: Project, level: LevelRef) => p.cadPlans?.find((x) => onLevel(x, level));
+
 /** The level a file is the plan of. */
 export function levelOfPlan(p: Project, file: string): Floor | undefined {
   const plan = p.cadPlans?.find((x) => same(x.file, file));

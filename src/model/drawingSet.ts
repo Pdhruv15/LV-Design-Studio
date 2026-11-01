@@ -5,6 +5,10 @@ import { boardEarth } from './boardEarth';
 import { subtree } from '../calc/pfc';
 import { SHEET_MM } from '../docs/sldSheet';
 import { boardsWithoutLevel } from './levels';
+import { circuitCategory } from '../calc/loadSchedule';
+import { planOfLevel } from './cadPlans';
+import { sketchOf } from './cadSketch';
+import { planScale } from './cadUnits';
 import type { SheetMarkup } from './sheetMarkup';
 import type { SheetItems } from './sheetChanges';
 import { earthSheetTitles } from './earthRiser';
@@ -22,7 +26,7 @@ export interface DrawingSheet {
   id: string;
   number: string; // e.g. E-SLD-002
   title: string; // e.g. SLD — MDB-1
-  kind: 'system' | 'board' | 'riser' | 'earthing' | 'earthRiser' | 'earthFloor' | 'plan'; // board = one DB's circuit diagram; riser = a building's riser diagram; earthing = earthing schematic; earthRiser = a building's earthing riser diagram; earthFloor = DB earthing of one floor (or typical floors); plan = a level's lighting, power or ELV layout (src/docs/planLayout.ts)
+  kind: 'system' | 'board' | 'riser' | 'earthing' | 'earthRiser' | 'earthFloor' | 'plan'; // board = one DB's circuit diagram; riser = a building's riser diagram; earthing = earthing schematic; earthRiser = a building's earthing riser diagram; earthFloor = DB earthing of one floor (or typical floors); plan = a level's lighting, power, ELV or containment layout (src/docs/planLayout.ts)
   buildingId?: string; // riser, earth riser, floor earthing and plan sheets
   levelId?: string; // plan sheets
   plan?: PlanType; // plan sheets
@@ -94,15 +98,15 @@ export const setOf = (p: Project): DrawingSet => p.drawingSet ?? { prefix: 'E-SL
 export const RISER_PREFIX = 'E-RSR-';
 export const EARTH_PREFIX = 'E-ERT-';
 export const DB_PREFIX = 'E-DB-';
-export type PlanType = 'lighting' | 'power' | 'elv';
-/** Plan sheets count in their own sequence per layout: E-LTG-001, E-PWR-001, E-ELV-001 … */
-export const PLAN_PREFIX: Record<PlanType, string> = { lighting: 'E-LTG-', power: 'E-PWR-', elv: 'E-ELV-' };
+export type PlanType = 'lighting' | 'power' | 'elv' | 'containment';
+/** Plan sheets count in their own sequence per layout: E-LTG-001, E-PWR-001, E-ELV-001, E-CNT-001 … */
+export const PLAN_PREFIX: Record<PlanType, string> = { lighting: 'E-LTG-', power: 'E-PWR-', elv: 'E-ELV-', containment: 'E-CNT-' };
 export const sheetNumber = (set: DrawingSet, i: number, prefix = set.prefix) => `${prefix}${String((set.start ?? 1) + i).padStart(set.digits ?? 3, '0')}${set.suffix ?? ''}`;
 /** Numbers in order (prefix, start, digits, suffix); riser sheets count in
  * their own sequence (E-RSR-001 …). With manual numbers only blanks are filled. */
 export const renumber = (set: DrawingSet, force = false): DrawingSet => {
   let sld = 0, rsr = 0, ert = 0;
-  const plans: Record<PlanType, number> = { lighting: 0, power: 0, elv: 0 };
+  const plans: Record<PlanType, number> = { lighting: 0, power: 0, elv: 0, containment: 0 };
   return {
     ...set,
     sheets: set.sheets.map((s) => {
@@ -429,9 +433,34 @@ export function statusColor(status?: string): string {
 
 
 /** Fingerprint version: 2 adds the calculated values a sheet prints (TCL and demand on risers; the
- * earthing layout with pit tests; a DB's fault level, current and earthing path). A sheet keeps the
- * version it was issued with, so older issues are not flagged as changed by the new fields. */
-export const SHEET_HASH_V = 2;
+ * earthing layout with pit tests; a DB's fault level, current and earthing path); 3 adds what a plan
+ * sheet draws. A sheet keeps the version it was issued with, so older issues are not flagged as
+ * changed by the new fields. */
+export const SHEET_HASH_V = 3;
+
+/** What a plan sheet draws (fingerprint version 3), as src/docs/planLayout.ts chooses it: its scale, the level's name and
+ * rooms, then the layout's own content. A wiring tag's length counts the wired circuit's points on every level. */
+function planValues(p: Project, s: DrawingSheet): unknown {
+  const on = (d: { buildingId?: string; levelId?: string }) => d.buildingId === s.buildingId && d.levelId === s.levelId;
+  const building = p.building?.buildings.find((b) => b.id === s.buildingId), level = building?.levels.find((l) => l.id === s.levelId);
+  const base = [s.scale, building?.name, level?.name, level?.count, (p.building?.rooms ?? []).filter(on).map((r) => [r.name, r.outline])];
+  if (s.plan === 'elv') return [...base, (p.elvDevices ?? []).filter(on)];
+  const boards = p.boards.filter((b) => b.planPoint && b.level?.building === s.buildingId && b.level?.level === s.levelId);
+  const place = (b: Board) => [b.id, b.planPoint];
+  const cable = (f: Feeder) => [f.id, f.boardId, f.feedsBoardId, f.phase, f.way, f.parallel, f.cores, f.cableCsaMm2];
+  if (s.plan === 'containment') {
+    const plan = planOfLevel(p, { building: s.buildingId ?? '', level: s.levelId ?? '' });
+    const runs = plan ? sketchOf(p, plan.file).filter((it) => it.tray || it.cable) : [];
+    const routed = new Set(runs.map((it) => it.cable?.feederId));
+    return [...base, plan && planScale(p, plan.file, plan.units).factor, runs.map((it) => [it.pts, it.tray, it.cable]), boards.map(place), p.feeders.filter((f) => routed.has(f.id)).map(cable)];
+  }
+  const here = new Set((p.lvPoints ?? []).filter(on).map((d) => d.feederId));
+  const feeders = p.feeders.filter((f) => here.has(f.id) && (circuitCategory(f) === 'lighting') === (s.plan === 'lighting'));
+  const shown = new Set(feeders.map((f) => f.id)), dbs = new Set(feeders.map((f) => f.boardId)), wired = new Set((p.cadWiring ?? []).map((w) => w.feederId));
+  return [...base, boards.filter((b) => s.plan === 'power' || dbs.has(b.id)).map(place), feeders.map(cable),
+    (p.lvPoints ?? []).filter((d) => shown.has(d.feederId) && (on(d) || wired.has(d.feederId))),
+    (p.cadWiring ?? []).flatMap((w, i) => (shown.has(w.feederId) ? [[w, i % 2]] : [])), p.cadLength]; // arcs bow by their place in the list
+}
 
 /** Calculated values a sheet shows that its inputs alone don't capture (fingerprint version 2). */
 function shownValues(p: Project, s: DrawingSheet): unknown {
@@ -457,7 +486,7 @@ export function sheetHash(p: Project, set: DrawingSet, s: DrawingSheet): string 
     : s.kind === 'earthRiser' || s.kind === 'earthFloor' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.kind, b.ratedCurrentA, ...(b.earthRiser ? [b.earthRiser] : [])]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.cpcMm2]), p.earthingPlan, p.earthPitIds, p.building] }
     : s.kind === 'riser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.ratedCurrentA, b.sourceKva, b.standby, ...(s.riserStyle ? [b.kind, b.incomerDevice, b.busbarMaterial] : [])]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.parallel, f.cableType, ...(s.riserStyle ? [f.breakerRatingA, f.breakerIcuKa, f.breakerType] : [])]), p.busRisers, p.building, s.riserStyle, ...(s.riserStyle === 'byLevel' ? [set.riserBreaks?.[s.buildingId ?? '']] : [])] }
     : sheetProject(p, set, s);
-  const extra = v >= 2 ? shownValues(p, s) : undefined;
+  const extra = v >= 3 && s.kind === 'plan' ? planValues(p, s) : v >= 2 ? shownValues(p, s) : undefined;
   const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows, s.markups, ...(s.part !== undefined ? [s.part] : []), ...(extra !== undefined ? [extra] : [])]); // part / extra only where set: older sheets keep their hash
   let h = 2166136261;
   for (let i = 0; i < txt.length; i++) { h ^= txt.charCodeAt(i); h = Math.imul(h, 16777619); }

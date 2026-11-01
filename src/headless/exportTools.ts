@@ -258,7 +258,7 @@ export const EXPORT_TOOLS: Tool[] = [
     input: {
       project, drawing: z.enum(['earthing', 'sld']).default('earthing').describe('earthing = earthing schematic; sld = the drawing set of Reports → Drawings'),
       sheets: z.array(z.string()).optional().describe('drawing sld: only these sheet numbers (default all)'),
-      types: z.array(z.enum(['sld', 'panel', 'riser', 'earthing', 'plan'])).optional().describe('drawing sld: only these sheet types (sld = SLD sheets, panel = DB circuit diagrams, riser, earthing, plan = lighting / power / ELV layouts; default all)'),
+      types: z.array(z.enum(['sld', 'panel', 'riser', 'earthing', 'plan'])).optional().describe('drawing sld: only these sheet types (sld = SLD sheets, panel = DB circuit diagrams, riser, earthing, plan = lighting / power / ELV / containment layouts; default all)'),
       approvedBy, exportAnyway, mode
     },
     usesProject: true, writes: true,

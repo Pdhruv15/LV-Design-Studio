@@ -34,7 +34,7 @@ const n = (v: number) => (Math.abs(v) < 1e-9 ? '0' : v.toFixed(4).replace(/\.?0+
  * and spell out the few symbols the diagram uses. */
 export const dxfText = (s: string) =>
   s.replace(/²/g, '2').replace(/[×]/g, 'x').replace(/[·•]/g, '-').replace(/[–—−]/g, '-').replace(/±/g, '+/-').replace(/[″]/g, '"').replace(/Δ/g, 'd')
-    .replace(/[≥]/g, '>=').replace(/[≤]/g, '<=').replace(/[\r\n]+/g, ' ').replace(/[^\x20-\x7e]/g, '');
+    .replace(/[≥]/g, '>=').replace(/[≤]/g, '<=').replace(/→/g, '->').replace(/[\r\n]+/g, ' ').replace(/[^\x20-\x7e]/g, '');
 
 const positiveWidth = (width?: number) => typeof width === 'number' && Number.isFinite(width) && width > 0 ? width : 0;
 // Roman Duplex provides stronger lettering than the thin fallback font. The
