@@ -35,6 +35,7 @@ import { earthingLayout } from '../model/earthingPlan';
 import { INCOMER_DEVICES, incomerDeviceOf, type Board, type Feeder } from '../types';
 import { getArmedItem, getDragItem, setArmedItem, setDragItem, subscribeArmedItem } from '../diagram/dragItem';
 import { recordedKva, recordedText } from '../model/existing';
+import { fmtDate, fmtFixed } from '../util/format';
 import { CO_GEN_REACH, ChangeoverIncomers } from '../diagram/ChangeoverSym';
 import { atsLines, atsOf, changeoverBreakers, isInterlocked } from '../model/changeover';
 import { isFitClick, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, wheelAction, ZoomChip } from './drawingView';
@@ -256,16 +257,16 @@ export default function SystemDiagram({
   const feederTags = (id: string): Tag[] => {
     // Earth fault loop colouring: Zs against its limit on every feeder.
     const e = earthing?.get(id);
-    const earthTag: Tag[] = e ? [{ text: `Zs ${e.zsOhm.toFixed(2)} / ${e.maxZsOhm.toFixed(2)} Ω`, cls: e.status }] : [];
+    const earthTag: Tag[] = e ? [{ text: `Zs ${fmtFixed(e.zsOhm, 2)} / ${fmtFixed(e.maxZsOhm, 2)} Ω`, cls: e.status }] : [];
     const a = annotations?.feeders[id];
     if (!a || !layers) return earthTag;
     const t: (Tag | false)[] = [
-      layers.current && a.currentA !== undefined && { text: `${a.currentA.toFixed(0)} A`, cls: 'r-cur' },
-      layers.vd && a.vdTotalPct !== undefined && { text: `ΔV ${a.vdTotalPct.toFixed(2)}%`, cls: a.vdStatus ?? '' },
+      layers.current && a.currentA !== undefined && { text: `${fmtFixed(a.currentA, 0)} A`, cls: 'r-cur' },
+      layers.vd && a.vdTotalPct !== undefined && { text: `ΔV ${fmtFixed(a.vdTotalPct, 2)}%`, cls: a.vdStatus ?? '' },
       layers.fault && a.faultKA !== undefined && { text: `Ik ${a.faultKA.toFixed(1)} kA`, cls: 'r-fault' },
       layers.fault && icuShort(id),
       layers.pf && a.pf !== undefined && { text: `PF ${a.pf.toFixed(2)}`, cls: 'r-pf' },
-      layers.loading && a.loadingPct !== undefined && { text: `${a.loadingPct.toFixed(0)}% of In`, cls: a.loadingStatus ?? '' }
+      layers.loading && a.loadingPct !== undefined && { text: `${fmtFixed(a.loadingPct, 0)}% of In`, cls: a.loadingStatus ?? '' }
     ];
     return [...t.filter((x): x is Tag => !!x), ...earthTag];
   };
@@ -305,8 +306,11 @@ export default function SystemDiagram({
   /** An existing board's rows in the DEWA name box: the tag, its recorded demand, then how it was recorded. */
   const existingRows = (b: Board, max: number): string[] => {
     const kva = recordedKva(project, b), e = b.existing!;
-    const how = [e.source, e.recordedOn].filter(Boolean).join(', ');
-    return ['EXISTING', ...(kva !== undefined ? [`MD = ${Math.round(kva)} kVA${e.marginPct ? ` (+${e.marginPct} %)` : ''}`] : []), ...(how ? wrapText(how, max, 2) : [])];
+    const date = fmtDate(e.recordedOn);
+    const how = [e.source, date].filter(Boolean).join(', ');
+    // A date stays whole on its own line when the two don't fit on one.
+    const howRows = !how ? [] : how.length <= max || !e.source || !date ? wrapText(how, max, 2) : [...wrapText(`${e.source},`, max, 1), date];
+    return ['EXISTING', ...(kva !== undefined ? [`MD = ${fmtFixed(kva, 0)} kVA${e.marginPct ? ` (+${e.marginPct} %)` : ''}`] : []), ...howRows];
   };
   const nameBox = (b: Board, n: { x: number; busX1: number; busY: number }) => {
     const x1 = n.busX1 - 7;
@@ -317,8 +321,8 @@ export default function SystemDiagram({
     const isc = Number.isFinite(iscRaw) ? iscRaw : undefined;
     const loc = wrapText(`LOC : ${boardLocation(project, b) || '—'}`, max, 2);
     const rows = [
-      `TCL = ${sm.tclKw.toFixed(2)} kW`,
-      `MDL = ${sm.mdlKw.toFixed(2)} kW`,
+      `TCL = ${fmtFixed(sm.tclKw, 2)} kW`,
+      `MDL = ${fmtFixed(sm.mdlKw, 2)} kW`,
       ...loc.map((t, i) => (i ? `      ${t}` : t)),
       ...(isc !== undefined ? [`Isc = ${isc.toFixed(1)} kA`] : []),
       // Existing board: its tag and recorded maximum demand.
@@ -939,7 +943,7 @@ export default function SystemDiagram({
             {(() => {
               const t = scenario?.outage?.transformers.find((x) => x.boardId === r.board.id);
               if (!t) return null;
-              return <text x={r.x + 24} y="114" className={`res ${t.loadingPct > 100 ? 'bad' : t.loadingPct > 80 ? 'warn' : 'ok'}`}>{t.loadingPct.toFixed(0)}% loaded ({t.demandKva.toFixed(0)} kVA)</text>;
+              return <text x={r.x + 24} y="114" className={`res ${t.loadingPct > 100 ? 'bad' : t.loadingPct > 80 ? 'warn' : 'ok'}`}>{fmtFixed(t.loadingPct, 0)}% loaded ({fmtFixed(t.demandKva, 0)} kVA)</text>;
             })()}
           </g>
         ))}
@@ -1054,7 +1058,7 @@ export default function SystemDiagram({
               {shut ? <line x1={mx - 9} y1={y} x2={mx + 9} y2={y} className="ln" /> : <line x1={mx - 6} y1={y + 6} x2={mx + 6} y2={y - 6} className="ln" />}
               <text x={mx} y={y - 16} textAnchor="middle" className="b">{t.id} · {t.ratingA} A</text>
               <text x={mx} y={y + 24} textAnchor="middle" className={run ? `res ${run.loadingPct > 100 ? 'bad' : run.loadingPct > 85 ? 'warn' : 'ok'}` : 'm'}>
-                {run ? `CLOSED · ${run.currentA.toFixed(0)} A (${run.loadingPct.toFixed(0)}%)` : t.closed ? 'N/C' : 'N/O'}
+                {run ? `CLOSED · ${fmtFixed(run.currentA, 0)} A (${fmtFixed(run.loadingPct, 0)}%)` : t.closed ? 'N/C' : 'N/O'}
               </text>
             </g>
           );
@@ -1265,8 +1269,8 @@ export default function SystemDiagram({
                   <text className="b lod-name" x={n.x} y={y + 132} textAnchor="middle" data-fit-width={cadSlot - 6}>{trunc(panel?.id ?? f.id, 16)}</text>
                   <text className="m" x={n.x} y={y + 146} textAnchor="middle">{trunc(panel ? panel.name : f.name, 19)}</text>
                   <text x={n.x} y={y + 160} textAnchor="middle" data-fit-width={cadSlot - 6}>
-                    {panel ? (() => { const p = panelSummary(project, panel); return `TCL ${p.tclKw.toFixed(1)} · MDL ${p.mdlKw.toFixed(1)} kW`; })() : f.componentId && project.components?.some((c) => c.id === f.componentId) ? trunc(componentLabel(project, project.components!.find((c) => c.id === f.componentId)!, f), 30) : f.kvar ? `${f.capSteps && f.capSteps > 1 ? `${f.capSteps} × ${+(f.kvar / f.capSteps).toFixed(1)}` : f.kvar} kvar${f.detunedPct ? ` · ${f.detunedPct}% det.` : ''}` : `${dewa && !f.generation ? `TCL : ${f.loadKw.toFixed(2)}` : (f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
-                    {!layers?.current && !panel && ` · ${r ? r.ib.toFixed(0) : '–'} A`}
+                    {panel ? (() => { const p = panelSummary(project, panel); return `TCL ${fmtFixed(p.tclKw, 2)} · MDL ${fmtFixed(p.mdlKw, 2)} kW`; })() : f.componentId && project.components?.some((c) => c.id === f.componentId) ? trunc(componentLabel(project, project.components!.find((c) => c.id === f.componentId)!, f), 30) : f.kvar ? `${f.capSteps && f.capSteps > 1 ? `${f.capSteps} × ${+(f.kvar / f.capSteps).toFixed(1)}` : f.kvar} kvar${f.detunedPct ? ` · ${f.detunedPct}% det.` : ''}` : `${dewa && !f.generation ? `TCL : ${fmtFixed(f.loadKw, 2)}` : fmtFixed(f.loadKw * f.demandFactor, 0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
+                    {!layers?.current && !panel && ` · ${r ? fmtFixed(r.ib, 0) : '–'} A`}
                   </text>
                   {feederTags(f.id).map((t, i) => (
                     <text key={t.text} x={n.x} y={y + 177 + i * 13} textAnchor="middle" className={`res ${t.cls}`}>{t.text}</text>
@@ -1300,8 +1304,8 @@ export default function SystemDiagram({
           const failing = n.circuits.filter((f) => byFeeder.get(f.id)?.status !== 'ok').length;
           const circuitTags: Tag[] = n.circuits.length
             ? [
-                { text: `${n.circuits.length} circuits${dbSpareText(b)} · ${kw.toFixed(1)} kW`, cls: 'b' },
-                { text: `R ${ph.R.toFixed(1)} · Y ${ph.Y.toFixed(1)} · B ${ph.B.toFixed(1)} kW`, cls: 'm' },
+                { text: `${n.circuits.length} circuits${dbSpareText(b)} · ${fmtFixed(kw, 1)} kW`, cls: 'b' },
+                { text: `R ${fmtFixed(ph.R, 1)} · Y ${fmtFixed(ph.Y, 1)} · B ${fmtFixed(ph.B, 1)} kW`, cls: 'm' },
                 ...(failing ? [{ text: `${failing} circuit${failing > 1 ? 's' : ''} to check`, cls: status }] : [])
               ]
             : [];
@@ -1338,10 +1342,10 @@ export default function SystemDiagram({
                     {g && (
                       <>
                         <circle cx={real.genX} cy={real.headY - 40} r="14" className="gen-live" />
-                        <text x={real.genX + 15} y={real.headY - 56} className={`res ${g.loadingPct > 100 ? 'bad' : g.loadingPct > 80 ? 'warn' : 'ok'}`}>ON · {g.loadingPct.toFixed(0)}% loaded</text>
+                        <text x={real.genX + 15} y={real.headY - 56} className={`res ${g.loadingPct > 100 ? 'bad' : g.loadingPct > 80 ? 'warn' : 'ok'}`}>ON · {fmtFixed(g.loadingPct, 0)}% loaded</text>
                         {g.largestMotor && (
                           <text x={real.genX + 15} y={real.headY - 70} className={`res ${g.largestMotor.dipPct > MOTOR_START_DIP_LIMIT_PCT ? 'bad' : 'ok'}`}>
-                            {g.largestMotor.feeder.name || g.largestMotor.feeder.id} start: dip {g.largestMotor.dipPct.toFixed(0)}%
+                            {g.largestMotor.feeder.name || g.largestMotor.feeder.id} start: dip {fmtFixed(g.largestMotor.dipPct, 0)}%
                           </text>
                         )}
                       </>
@@ -1377,10 +1381,10 @@ export default function SystemDiagram({
                     {g && (
                       <>
                         <circle cx={gx} cy={gy} r="14" className="gen-live" />
-                        <text x={gx + 15} y={gy - 10} className={`res ${cls}`}>ON · {g.loadingPct.toFixed(0)}% loaded</text>
+                        <text x={gx + 15} y={gy - 10} className={`res ${cls}`}>ON · {fmtFixed(g.loadingPct, 0)}% loaded</text>
                         {m && (
                           <text x={gx + 15} y={gy + 16} className={`res ${m.dipPct > MOTOR_START_DIP_LIMIT_PCT ? 'bad' : 'ok'}`}>
-                            {m.feeder.name || m.feeder.id} start: dip {m.dipPct.toFixed(0)}%
+                            {m.feeder.name || m.feeder.id} start: dip {fmtFixed(m.dipPct, 0)}%
                           </text>
                         )}
                       </>
@@ -1429,7 +1433,7 @@ export default function SystemDiagram({
                 const { sm, rows } = nb;
                 return (
                   <g className="panel-frame">
-                    <title>{`${b.id}: TCL ${sm.tclKw.toFixed(2)} kW × DF ${sm.df.toFixed(2)} = MDL ${sm.mdlKw.toFixed(2)} kW · ${boardLocation(project, b) || 'location not set'}`}</title>
+                    <title>{`${b.id}: TCL ${fmtFixed(sm.tclKw, 2)} kW × DF ${sm.df.toFixed(2)} = MDL ${fmtFixed(sm.mdlKw, 2)} kW · ${boardLocation(project, b) || 'location not set'}`}</title>
                     <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} className="frame-ln" />
                     {gland(n.x, y1)}
                     <rect x={x1 + 5} y={y1 + 5} width={nb.w} height={18 + rows.length * 11} className="sum-box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
@@ -1560,12 +1564,12 @@ export default function SystemDiagram({
                 ...(n.terminal ? [] : circuitTags),
                 ...(b.kind === 'UPS' ? (() => {
                   const pct = upsLoadingPct(project, b);
-                  return [{ text: `UPS ${b.upsKva ?? '—'} kVA${pct !== undefined ? ` · ${pct.toFixed(0)}%` : ''}`, cls: pct === undefined ? 'm' : pct > 100 ? 'bad' : pct > 80 ? 'warn' : 'ok' }];
+                  return [{ text: `UPS ${b.upsKva ?? '—'} kVA${pct !== undefined ? ` · ${fmtFixed(pct, 0)}%` : ''}`, cls: pct === undefined ? 'm' : pct > 100 ? 'bad' : pct > 80 ? 'warn' : 'ok' }];
                 })() : []),
                 // Existing board (plain style; DEWA has it in the name box, a transformer beside its symbol): its recorded demand.
                 ...(!dewa && b.existing && recordedText(project, b) && !(!b.upstreamId && b.sourceKva) ? [{ text: recordedText(project, b)!, cls: 'm' }] : []),
                 ...boardTags(b.id),
-                ...(s.loadingPct !== undefined ? [{ text: `${s.loadingPct.toFixed(0)}% loaded`, cls: layers?.loading ? s.loadingStatus ?? 'm' : 'm' }] : [])
+                ...(s.loadingPct !== undefined ? [{ text: `${fmtFixed(s.loadingPct, 0)}% loaded`, cls: layers?.loading ? s.loadingStatus ?? 'm' : 'm' }] : [])
               ].map((t, i) => (
                 // Under the incomer label (same left edge, one line gap), clear of the busbar label.
                 <text key={t.text} x={n.x + 10} y={(incomerDeviceOf(b) && !b.standby ? n.busY - (protectionOf(b) ? 92 : 84) + 40 : n.busY - 47) + i * 13} className={`res ${t.cls}`}>{t.text}</text>

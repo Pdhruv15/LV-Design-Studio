@@ -13,6 +13,7 @@ import { boardEarth, type BoardEarth } from '../model/boardEarth';
 import { splitSld } from '../model/sldScope';
 import { deviceKind, devicePoles } from './deviceText';
 import { escapeHtmlAttr } from '../util/escape';
+import { fmtFixed } from '../util/format';
 import { panelSymbolOf } from './panelBox';
 import { symSvg, SYM_SCALE } from './symbolLibrary';
 
@@ -37,7 +38,7 @@ const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` 
 const ln = (x1: number, y1: number, x2: number, y2: number, w = 1.2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#000" stroke-width="${w}"/>`;
 const tx = (x: number, y: number, s: string, o: { anchor?: 'start' | 'middle' | 'end'; bold?: boolean; size?: number } = {}) =>
   `<text x="${x}" y="${y}" fill="#000" font-family="Arial, Helvetica, sans-serif" font-size="${o.size ?? 11}"${o.bold ? ' font-weight="bold"' : ''}${o.anchor && o.anchor !== 'start' ? ` text-anchor="${o.anchor}"` : ''}>${esc(s)}</text>`;
-const kw = (v: number) => (v > 0.005 ? v.toFixed(2) : '—');
+const kw = (v: number) => (v > 0.005 ? fmtFixed(v, 2) : '—');
 
 /** IEC 60617 switching device on a vertical line from (x, y) to (x, y + 16), as on the SLD canvas. */
 function switchSym(x: number, y: number, kind: 'breaker' | 'acb' | 'isolator' | 'nonauto'): string {
@@ -134,7 +135,7 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
     out.push(`<rect x="${x - SP / 2 + 8}" y="${BOX_Y_}" width="${SP - 16}" height="${BOX_H}" fill="none" stroke="#000" stroke-width="1"/>`);
     out.push(tx(x, BOX_Y_ + 16, circuitRef(f) ?? f.id, { anchor: 'middle', bold: true, size: 10.5 }));
     out.push(tx(x, BOX_Y_ + 30, cut(f.room || f.name || '—', 17), { anchor: 'middle', size: 10 }));
-    out.push(tx(x, BOX_Y_ + 42, f.feedsBoardId ? `→ ${f.feedsBoardId}` : `${(f.loadKw * f.demandFactor).toFixed(2)} kW`, { anchor: 'middle', size: 10 }));
+    out.push(tx(x, BOX_Y_ + 42, f.feedsBoardId ? `→ ${f.feedsBoardId}` : `${fmtFixed(f.loadKw * f.demandFactor, 2)} kW`, { anchor: 'middle', size: 10 }));
     const tag = phaseTag(f);
     out.push(tx(x, BOX_Y_ + BOX_H + 16, tag === 'RYB' ? 'RYB' : tag ? `PH ${tag}` : 'PH —', { anchor: 'middle', bold: true, size: 10.5 }));
   });
@@ -145,7 +146,7 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
     out.push(tx(x + 8, 188 + o, `${final.length} WAYS`, { size: 10 }));
     out.push(`<rect x="${left}" y="${BOX_Y + o}" width="${SP - 16}" height="${BOX_H + 18}" fill="none" stroke="#000" stroke-width="1" stroke-dasharray="6 4"/>`);
     out.push(tx(x, BOX_Y + o + 14, 'FINAL CIRCUITS', { anchor: 'middle', bold: true, size: 10.5 }));
-    out.push(tx(x, BOX_Y + o + 27, `${final.length} nos · ${kwSum.toFixed(2)} kW`, { anchor: 'middle', size: 10 }));
+    out.push(tx(x, BOX_Y + o + 27, `${final.length} nos · ${fmtFixed(kwSum, 2)} kW`, { anchor: 'middle', size: 10 }));
     out.push(tx(x, BOX_Y + o + 40, 'REFER DB LOAD', { anchor: 'middle', size: 10 }));
     out.push(tx(x, BOX_Y + o + 53, 'SCHEDULE', { anchor: 'middle', size: 10 }));
   }
@@ -153,18 +154,18 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
   // Panel summary.
   const ps = panelSummary(project, board);
   const pb = phaseBalance(project, board.id);
-  const three = (r: Record<'R' | 'Y' | 'B', number>, d: number) => `${r.R.toFixed(d)} / ${r.Y.toFixed(d)} / ${r.B.toFixed(d)}`;
+  const three = (r: Record<'R' | 'Y' | 'B', number>, d: number) => `${fmtFixed(r.R, d)} / ${fmtFixed(r.Y, d)} / ${fmtFixed(r.B, d)}`;
   const over = pb.unbalancePct > PHASE_UNBALANCE_CHECK_PCT + 1e-9;
   const rows: [string, string][] = [
     ['BOARD', cut(`${board.id}${board.name && board.name !== board.id ? ` — ${board.name}` : ''}`, 40)],
     ['LOCATION', cut(boardLocation(project, board) || '—', 40)],
     ['SUPPLY', board.upstreamId ? `From ${board.upstreamId}${opts.fromSheet ? `, sheet ${opts.fromSheet}` : ''}` : `Transformer ${board.sourceKva ?? '—'} kVA`],
-    ['TCL / DF / MDL', `${ps.tclKw.toFixed(2)} kW / ${ps.df.toFixed(2)} / ${ps.mdlKw.toFixed(2)} kW`],
-    ['DEMAND CURRENT', `${s.currentA.toFixed(1)} A${board.ratedCurrentA ? ` of ${board.ratedCurrentA} A (${(s.loadingPct ?? 0).toFixed(0)} %)` : ''}`],
+    ['TCL / DF / MDL', `${fmtFixed(ps.tclKw, 2)} kW / ${ps.df.toFixed(2)} / ${fmtFixed(ps.mdlKw, 2)} kW`],
+    ['DEMAND CURRENT', `${fmtFixed(s.currentA, 1)} A${board.ratedCurrentA ? ` of ${board.ratedCurrentA} A (${fmtFixed(s.loadingPct ?? 0, 0)} %)` : ''}`],
     ['FAULT LEVEL', `${s.faultKA.toFixed(1)} kA`],
     ['R / Y / B LOAD', `${three(pb.kw, 2)} kW`],
     ['R / Y / B CURRENT', `${three(pb.currentA, 1)} A`],
-    ['NEUTRAL CURRENT', `${pb.neutralA.toFixed(1)} A`],
+    ['NEUTRAL CURRENT', `${fmtFixed(pb.neutralA, 1)} A`],
     ['CURRENT UNBALANCE', `${pb.unbalancePct.toFixed(1)} % (check ≤ ${PHASE_UNBALANCE_CHECK_PCT} %)${over ? ' — CHECK' : ''}`],
     ...(pb.unassigned.length ? [['NO PHASE SET', `${pb.unassigned.length} single-phase circuit${pb.unassigned.length === 1 ? '' : 's'}`] as [string, string]] : []),
     ...earthRows(boardEarth(project, board))
@@ -200,7 +201,7 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
     const k = feederPhaseKw(project, f);
     tot.R += k.R; tot.Y += k.Y; tot.B += k.B;
     cell(i + 1, [circuitRef(f) ?? f.id, cut(f.feedsBoardId ? `${f.room || f.name || ''} → ${f.feedsBoardId}`.trim() : f.room || f.name || '—', 30), deviceText(f), cut(cableText(project, f), 25), String(f.lengthM),
-      kw(k.R), kw(k.Y), kw(k.B), r ? r.ib.toFixed(1) : '', r ? r.vdTotalPct.toFixed(2) : '', statusText(r)]);
+      kw(k.R), kw(k.Y), kw(k.B), r ? fmtFixed(r.ib, 1) : '', r ? fmtFixed(r.vdTotalPct, 2) : '', statusText(r)]);
   });
   cell(lines - 1, ['', 'TOTAL', '', '', '', kw(tot.R), kw(tot.Y), kw(tot.B), '', '', ''], true);
   let cx0 = tx0;

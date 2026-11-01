@@ -9,10 +9,10 @@ describe('SLD drawing export', () => {
   it('title block: project, owner, drawing data and the current revision', () => {
     const p = issueRevision({ ...sampleProject, drawing: { number: 'E-SLD-001', drawnBy: 'PG', checkedBy: 'AK' } }, { description: 'Issued for approval', date: '2026-09-28' });
     const t = titleBlockOf(p);
-    expect(t).toMatchObject({ project: 'Demonstration Project — Not for Construction', owner: 'Demo Owner', title: DEFAULT_DRAWING_TITLE, number: 'E-SLD-001', revision: 'A', date: '2026-09-28', drawnBy: 'PG', checkedBy: 'AK', scale: 'NTS' });
+    expect(t).toMatchObject({ project: 'Demonstration Project — Not for Construction', owner: 'Demo Owner', title: DEFAULT_DRAWING_TITLE, number: 'E-SLD-001', revision: 'A', date: '28 Sep 2026', drawnBy: 'PG', checkedBy: 'AK', scale: 'NTS' });
     expect(t.company).toBe('Demo Engineering Consultants'); // falls back to the consultant
-    expect(t.history).toEqual([{ id: 'A', date: '2026-09-28', description: 'Issued for approval' }]);
-    expect(titleBlockOf(sampleProject, '2026-01-01')).toMatchObject({ revision: '—', date: '2026-01-01' });
+    expect(t.history).toEqual([{ id: 'A', date: '28 Sep 2026', description: 'Issued for approval' }]);
+    expect(titleBlockOf(sampleProject, '2026-01-01')).toMatchObject({ revision: '—', date: '1 Jan 2026' });
   });
 
   it('sheet HTML: page size, the diagram and an escaped title block', () => {

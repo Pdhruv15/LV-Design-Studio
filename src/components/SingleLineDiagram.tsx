@@ -13,6 +13,7 @@ import { cableTypeOf } from '../model/cableTypes';
 import { deviceKind, devicePoles } from '../diagram/deviceText';
 import { nextPhase, phaseTag } from '../model/phases';
 import { splitSld } from '../model/sldScope';
+import { fmtFixed } from '../util/format';
 
 const SPACING = 172; // horizontal slot per feeder
 const MARGIN = 80;
@@ -125,10 +126,10 @@ export default function SingleLineDiagram({
       )}
       {summary && (
         <g className="panel-sum">
-          <title>{`${board.id}: TCL ${summary.tclKw.toFixed(2)} kW × DF ${summary.df.toFixed(2)} = MDL ${summary.mdlKw.toFixed(2)} kW`}</title>
+          <title>{`${board.id}: TCL ${fmtFixed(summary.tclKw, 2)} kW × DF ${summary.df.toFixed(2)} = MDL ${fmtFixed(summary.mdlKw, 2)} kW`}</title>
           <rect x="8" y="8" width="214" height={sumH} rx="6" className="sum-box" />
           <text x="14" y="21" className="b" style={{ textDecoration: 'underline' }}>{board.id.length > 32 ? `${board.id.slice(0, 31)}…` : board.id}</text>
-          {[...locLines, `TCL : ${summary.tclKw.toFixed(2)} kW`, `DF : ${summary.df.toFixed(2)}`, `MDL : ${summary.mdlKw.toFixed(2)} kW`].map((t, i) => (
+          {[...locLines, `TCL : ${fmtFixed(summary.tclKw, 2)} kW`, `DF : ${summary.df.toFixed(2)}`, `MDL : ${fmtFixed(summary.mdlKw, 2)} kW`].map((t, i) => (
             <text key={i} x="14" y={35 + i * 12} className="m" xmlSpace="preserve">{i > 0 && i < locLines.length ? `      ${t}` : t}</text>
           ))}
         </g>
@@ -169,7 +170,7 @@ export default function SingleLineDiagram({
                 `${runsOf(f) > 1 ? `${runsOf(f)} × ` : ''}${f.cores}C × ${f.cableCsaMm2}mm² · ${f.lengthM} m`,
                 ...(t ? [`CU/${t.code}`] : []),
                 ...(t?.armoured ? [`+1C ${cpcOf(f)}mm² ECC`] : []),
-                `Vd ${r.vdTotalPct.toFixed(1)}% total`
+                `Vd ${fmtFixed(r.vdTotalPct, 1)}% total`
               ];
               return lines.map((l, k) => (
                 <text key={k} className="m" x={x + 8} y={190 + k * 12} style={{ fontSize: 10.5 }}>{k === 1 && t ? <title>{t.label}</title> : null}{l}</text>
@@ -202,18 +203,18 @@ export default function SingleLineDiagram({
                   {name.map((l, k) => <text key={k} className="m" x={x - CARD_W / 2 + 8} y={top + 35 + k * 13}>{l}</text>)}
                   {sm ? (
                     <>
-                      <text x={x - CARD_W / 2 + 8} y={bottom - 25}>TCL {sm.tclKw.toFixed(2)} kW</text>
-                      <text x={x - CARD_W / 2 + 8} y={bottom - 12}>MDL {sm.mdlKw.toFixed(2)} kW · {r.ib.toFixed(0)} A</text>
+                      <text x={x - CARD_W / 2 + 8} y={bottom - 25}>TCL {fmtFixed(sm.tclKw, 2)} kW</text>
+                      <text x={x - CARD_W / 2 + 8} y={bottom - 12}>MDL {fmtFixed(sm.mdlKw, 2)} kW · {fmtFixed(r.ib, 0)} A</text>
                     </>
                   ) : (
                     <text x={x - CARD_W / 2 + 8} y={bottom - 12}>
-                      {r.ib.toFixed(0)} A{f.feedsBoardId ? ` · → ${f.feedsBoardId}` : ` · ${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}`}
+                      {fmtFixed(r.ib, 0)} A{f.feedsBoardId ? ` · → ${f.feedsBoardId}` : ` · ${fmtFixed(f.loadKw * f.demandFactor, 0)} kW${f.generation ? ' gen' : ''}`}
                     </text>
                   )}
                   <rect x={x - CARD_W / 2} y={bottom + 8} width={CARD_W} height="6" rx="3" fill="var(--line)" />
                   <rect x={x - CARD_W / 2} y={bottom + 8} width={Math.min(CARD_W, (CARD_W / 100) * r.loadingPct)} height="6" rx="3" fill={col} />
                   <text className="m" x={x - CARD_W / 2} y={bottom + 32}>
-                    {r.loadingPct.toFixed(0)}% of {f.breakerRatingA} A
+                    {fmtFixed(r.loadingPct, 0)}% of {f.breakerRatingA} A
                   </text>
                 </>
               );
@@ -232,7 +233,7 @@ export default function SingleLineDiagram({
             <rect x={left} y={CARD_Y} width={CARD_W} height="84" rx="6" className="box" strokeDasharray="6 4" />
             <text className="b" x={left + 8} y={CARD_Y + 19}>FINAL CIRCUITS</text>
             <text className="m" x={left + 8} y={CARD_Y + 35}>Lighting &amp; power</text>
-            <text className="m" x={left + 8} y={CARD_Y + 49}>{finals.length} circuits · {finalKw.toFixed(1)} kW</text>
+            <text className="m" x={left + 8} y={CARD_Y + 49}>{finals.length} circuits · {fmtFixed(finalKw, 1)} kW</text>
             <text x={left + 8} y={CARD_Y + 67}>Refer DB load schedule</text>
             <text className="m" x={left + 8} y={CARD_Y + 79}>{board.id}</text>
           </g>

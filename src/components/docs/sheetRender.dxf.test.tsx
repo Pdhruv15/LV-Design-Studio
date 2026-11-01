@@ -62,13 +62,13 @@ describe('drawing-set DXF export integration', () => {
     for (const f of aFiles) {
       expectPaper(f.data, 'A4');
       expect(textOf(f.data, 'E-TITLE')).toContain(a.title);
-      expect(textOf(f.data, 'E-TITLE')).toContain('2026-09-12');
+      expect(textOf(f.data, 'E-TITLE')).toContain('12 Sep 2026');
       expect(textOf(f.data, 'E-TITLE')).toContain('Designer A');
       expect(entities(f.data).some((e) => e.type === 'TEXT' && e.values.get(8) === 'E-TITLE' && e.values.get(1) === 'B')).toBe(true);
     }
     expectPaper(bFiles[0].data, 'A2');
     expect(textOf(bFiles[0].data, 'E-TITLE')).toContain(b.title);
-    expect(textOf(bFiles[0].data, 'E-TITLE')).toContain('2026-09-14');
+    expect(textOf(bFiles[0].data, 'E-TITLE')).toContain('14 Sep 2026');
     const notes = aFiles.map((f) => textOf(f.data, 'E-NOTES')).join(' ');
     for (const note of a.notes!) expect(notes).toContain(note);
     expect(textOf(bFiles[0].data, 'E-NOTES')).toContain('Board sheet requirement.');

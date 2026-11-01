@@ -46,7 +46,7 @@ describe('recorded maximum demand of an existing installation', () => {
   it('reads a current as kVA, adds the margin and describes the reading', () => {
     const b = { id: 'X', name: 'X', existing: { recordedA: 1000, marginPct: 10 } };
     expect(recordedKva(project, b)).toBeCloseTo((Math.sqrt(3) * 400 * 1000) / 1000 * 1.1, 1);
-    expect(recordedText(project, project.boards[0])).toBe('MD 610 kVA (DEWA reading, 2026-08-12)');
+    expect(recordedText(project, project.boards[0])).toBe('MD 610 kVA (DEWA reading, 12 Aug 2026)');
   });
 
   it('checks transformer spare capacity, the existing incomer, existing feeders and spare ways', () => {

@@ -8,6 +8,7 @@ import { abbreviationsIn } from './sldNotes';
 import { FIRE_NOTE } from '../model/cableRefs';
 import { markupLayerHtml, type SheetMarkup } from '../model/sheetMarkup';
 import { isRasterDataUrl } from '../util/escape';
+import { fmtDate } from '../util/format';
 
 /** The SLD as a drawing sheet: frame, the diagram scaled to fit, and a
  * title block (company, project, owner, consultant, title, drawing no.,
@@ -51,13 +52,13 @@ export function titleBlockOf(project: Project, date = new Date().toISOString().s
     title: d.title || DEFAULT_DRAWING_TITLE,
     number: d.number ?? '',
     revision: rev?.id ?? '—',
-    date: rev?.date ?? date,
+    date: fmtDate(rev?.date ?? date),
     scale: 'NTS',
     drawnBy: d.drawnBy ?? '',
     checkedBy: d.checkedBy ?? '',
     approvedBy: d.approvedBy ?? '',
     logo: isRasterDataUrl(d.logo) ? d.logo : undefined,
-    history: (project.revisions ?? []).slice(-4).reverse().map((r) => ({ id: r.id, date: r.date, description: r.description }))
+    history: (project.revisions ?? []).slice(-4).reverse().map((r) => ({ id: r.id, date: fmtDate(r.date), description: r.description }))
   };
 }
 
@@ -67,12 +68,12 @@ export function sheetTitleBlock(project: Project, one?: SheetInfo): TitleBlock {
   if (one) {
     t.number = one.no; t.title = one.title;
     if (one.rev) t.revision = one.rev;
-    if (one.date) t.date = one.date;
+    if (one.date) t.date = fmtDate(one.date);
     if (one.drawnBy) t.drawnBy = one.drawnBy;
     if (one.checkedBy) t.checkedBy = one.checkedBy;
     if (one.approvedBy) t.approvedBy = one.approvedBy;
     if (one.scale) t.scale = one.scale;
-    if (one.history?.length) t.history = one.history.slice(-4).reverse();
+    if (one.history?.length) t.history = one.history.slice(-4).reverse().map((r) => ({ ...r, date: fmtDate(r.date) }));
   }
   return t;
 }
@@ -124,7 +125,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   const status = one?.status ?? '';
   const extra: Record<string, string> = one
     ? { SheetNo: one.no, SheetTitle: one.title, SheetCount: String(one.count), SheetIndex: String(one.index), SheetSize: sheet, DrawingNo: one.no, DrawingTitle: one.title, Status: status, Scale: t.scale,
-      ...(one.rev ? { Rev: one.rev } : {}), ...(one.date ? { RevDate: one.date } : {}), ...(one.drawnBy ? { DrawnBy: one.drawnBy } : {}), ...(one.checkedBy ? { CheckedBy: one.checkedBy } : {}), ...(one.approvedBy ? { ApprovedBy: one.approvedBy } : {}) }
+      ...(one.rev ? { Rev: one.rev } : {}), ...(one.date ? { RevDate: fmtDate(one.date) } : {}), ...(one.drawnBy ? { DrawnBy: one.drawnBy } : {}), ...(one.checkedBy ? { CheckedBy: one.checkedBy } : {}), ...(one.approvedBy ? { ApprovedBy: one.approvedBy } : {}) }
     : { SheetNo: t.number, SheetTitle: t.title, SheetCount: '1', SheetIndex: '1', SheetSize: sheet, Status: '', Scale: t.scale };
   const custom = templateOf(project);
   const notes = [...(project.drawing?.notes ?? []), ...(one?.notes ?? [])];
@@ -212,7 +213,7 @@ export function pageTitleBlock(project: Project, one: SheetInfo, sheet: NonNulla
   const t = sheetTitleBlock(project, one);
   const custom = templateOf(project);
   const extra: Record<string, string> = { SheetNo: one.no, SheetTitle: one.title, SheetCount: String(one.count), SheetIndex: String(one.index), SheetSize: sheet, DrawingNo: one.no, DrawingTitle: one.title, Status: one.status ?? '', Scale: t.scale,
-    ...(one.rev ? { Rev: one.rev } : {}), ...(one.date ? { RevDate: one.date } : {}), ...(one.drawnBy ? { DrawnBy: one.drawnBy } : {}), ...(one.checkedBy ? { CheckedBy: one.checkedBy } : {}) };
+    ...(one.rev ? { Rev: one.rev } : {}), ...(one.date ? { RevDate: fmtDate(one.date) } : {}), ...(one.drawnBy ? { DrawnBy: one.drawnBy } : {}), ...(one.checkedBy ? { CheckedBy: one.checkedBy } : {}) };
   const size = custom ? templateSize(custom) : { w: 180, h: 55 }; // the standard block's rows need ≈ 53 mm at full size
   return { ...titleBlockFragment(project, t, custom, extra, one, sheet, k), w: size.w * k, h: size.h * k };
 }
