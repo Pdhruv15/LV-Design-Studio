@@ -264,7 +264,7 @@ describe('tender-format PDF BOQ', () => {
     expect(html).toContain('<tr><td>Document no.</td><td>VC-ELE-BOQ-001</td></tr>');
     expect(html).toContain('<tr><td>Status</td><td>Issued for tender</td></tr>');
     for (const name of ['P. Engineer', 'C. Lead', 'A. Director']) expect(html).toContain(name);
-    expect(html).toMatch(/@bottom-left \{ content: "VC-ELE-BOQ-001 · Draft · \d{2} \w{3} \d{4}"/);
+    expect(html).toMatch(/@bottom-left \{ content: "VC-ELE-BOQ-001 · Draft · \d{1,2} \w{3} \d{4}"/);
     expect(html).toContain('Tenderer’s name');
     expect(buildBoqHtml(project({ document: { status: 'Cost estimate' } }), priceBom([item], list), list)).not.toContain('Tenderer’s name');
   });

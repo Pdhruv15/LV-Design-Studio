@@ -6,6 +6,7 @@ import { revisionStamp } from '../model/revisions';
 import { SCHEDULE_GROUPS, scheduleGroups } from '../model/scheduleGroups';
 import { spareLabel, spareRef } from '../model/spareWays';
 import { POINT_TYPES, type Project } from '../types';
+import { fmtDate } from '../util/format';
 import { incomerCableText, incomerLabel, loadScheduleRows, remarksText } from './loadScheduleDoc';
 
 /** Your own Excel load schedule format: an .xlsx laid out as you like, with
@@ -69,7 +70,7 @@ export function templateData(project: Project, boardId: string, at = new Date())
     'project.name': project.name, 'project.voltage': project.voltageV, 'project.frequency': project.frequencyHz,
     'project.revision': revisionStamp(project),
     'project.reference': project.designReference ? `${project.designReference.name} v${project.designReference.version}` : '',
-    date: at.toLocaleDateString('en-GB'),
+    date: fmtDate(at),
     'board.id': board.id, 'board.name': board.name, 'board.location': boardLocation(project, board), 'board.fedFrom': board.upstreamId ?? '',
     'board.incomer': incomerLabel(board, incomer), 'board.incomerCable': incomerCableText(project, incomer),
     'total.R': num(connectedW.R), 'total.Y': num(connectedW.Y), 'total.B': num(connectedW.B), 'total.all': num(connectedW.R + connectedW.Y + connectedW.B),

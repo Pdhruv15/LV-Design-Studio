@@ -82,6 +82,6 @@ describe('ENG-006: Solar PV feeder follows the inverter phases', () => {
     const { project: p } = add(project(), pv(1));
     const row = cableSchedule(p).rows.find((x) => x[0] === 'C-PV-MDB')!;
     expect(String(row[5])).toMatch(/^2C/); // cores × size
-    expect(Number(row[9])).toBe(22); // Ib (A), printed to the nearest ampere (was 7)
+    expect(String(row[9])).toBe('21.7'); // Ib (A) (was 7)
   });
 });

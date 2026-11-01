@@ -2,7 +2,7 @@ import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import { statusOfText } from '../../calc/statusText';
 import type { Project } from '../../types';
-import { cableSchedule, equipmentSchedule, type Schedule } from '../../docs/schedules';
+import { cableSchedule, csvRows, equipmentSchedule, type Schedule } from '../../docs/schedules';
 import { buildReportHtml, calcReportData } from '../../docs/calcReport';
 import { issueCounts, validateReport } from '../../docs/reportValidation';
 import { scheduleHtml } from '../../docs/sheetPdf';
@@ -13,7 +13,7 @@ import { PaperPreview } from '../PaperPreview';
 import { subtree } from '../../calc/pfc';
 
 function ScheduleTable({ schedule }: { schedule: Schedule }) {
-  const cls = (v: string | number) => statusOfText(v);
+  const cls = (v: unknown) => statusOfText(v);
   return (
     <div className="table-scroll">
       <table className="schedule">
@@ -23,7 +23,7 @@ function ScheduleTable({ schedule }: { schedule: Schedule }) {
         <tbody>
           {schedule.rows.map((r, i) => (
             <tr key={i} className={schedule.totalRows?.includes(i) ? 'total' : ''}>
-              {r.map((c, j) => <td key={j} className={cls(c)}>{c}</td>)}
+              {r.map((c, j) => <td key={j} className={cls(c)}>{String(c)}</td>)}
             </tr>
           ))}
         </tbody>
@@ -37,7 +37,7 @@ type Status = (msg: string) => void;
 function ExportCsvButton({ name, schedule, onStatus, project }: { name: string; schedule: Schedule; onStatus: Status; project?: Project }) {
   return (
     <>
-      <button className="chip" onClick={async () => { const m = await saveCsv(name, schedule.headers, schedule.rows); if (m) onStatus(m); }}>
+      <button className="chip" onClick={async () => { const m = await saveCsv(name, schedule.headers, csvRows(schedule)); if (m) onStatus(m); }}>
         Export CSV (Excel)
       </button>
       {project && <button className="chip" onClick={async () => { const m = await savePdf(`${safeFileName(name)}.pdf`, scheduleHtml(project, schedule, name), { pageSize: 'A4', landscape: true, cssPages: true }); if (m) onStatus(m); }}>

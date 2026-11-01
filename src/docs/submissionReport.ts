@@ -1,16 +1,13 @@
 import ExcelJS from 'exceljs';
 import type { Project } from '../types';
 import { dueOf, isOpen, isOverdue, submissionCounts, submissionsOf, SUB_STATUS, timeText, type Submission } from '../model/submissions';
+import { DATE_NUMFMT, excelDate, fmtDate as day } from '../util/format';
 import { printDoc } from './printDoc';
 import { esc } from './report';
 
 /** Submissions as print documents: the register (landscape) with the comments and actions log,
  * and the document transmittal that goes with one submission (portrait). */
 
-const day = (iso?: string) => {
-  const d = iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00`) : undefined;
-  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : iso ?? '';
-};
 const docNumbers = (s: Submission) => (s.docs.length > 3 ? `${s.docs[0].number} … ${s.docs[s.docs.length - 1].number} (${s.docs.length})` : s.docs.map((d) => d.number).join(', '));
 const revs = (s: Submission) => [...new Set(s.docs.map((d) => d.rev).filter(Boolean))].join(', ') || '—';
 
@@ -90,14 +87,15 @@ export function buildSubmissionWorkbook(project: Project, today = new Date().toI
     { header: 'Submitted', width: 12 }, { header: 'Response due', width: 12 }, { header: 'Status', width: 22 }, { header: 'Response date', width: 12 }, { header: 'Response ref.', width: 22 }, { header: 'Time', width: 13 }, { header: 'Linked', width: 22 }];
   head(ws.getRow(1));
   for (const s of all) {
-    const row = ws.addRow([s.id, s.kind, docNumbers(s), s.title, revs(s), s.to, s.purpose, s.date, dueOf(project, s) ?? '', SUB_STATUS[s.status], s.responseDate ?? '', s.responseRef ?? '', timeText(project, s, today),
+    const due = dueOf(project, s);
+    const row = ws.addRow([s.id, s.kind, docNumbers(s), s.title, revs(s), s.to, s.purpose, excelDate(s.date), due ? excelDate(due) : '', SUB_STATUS[s.status], s.responseDate ? excelDate(s.responseDate) : '', s.responseRef ?? '', timeText(project, s, today),
       [s.resubmissionOf ? `Resubmission of ${s.resubmissionOf}` : '', s.resubmittedAs ? `Resubmitted as ${s.resubmittedAs}` : ''].filter(Boolean).join('; ')]);
-    row.eachCell({ includeEmpty: true }, (x, n) => { if (n <= 14) { x.border = box; if (isOverdue(project, s, today)) x.fill = grey; } });
+    row.eachCell({ includeEmpty: true }, (x, n) => { if (n <= 14) { x.border = box; if (isOverdue(project, s, today)) x.fill = grey; } if (n === 8 || n === 9 || n === 11) x.numFmt = DATE_NUMFMT; });
   }
   const cs = wb.addWorksheet('Comments', { views: [{ state: 'frozen', ySplit: 1 }] });
   cs.columns = [{ header: 'Ref.', width: 10 }, { header: 'No.', width: 5 }, { header: 'From', width: 18 }, { header: 'Comment', width: 60 }, { header: 'Action / response', width: 50 }, { header: 'Status', width: 9 }, { header: 'Closed', width: 12 }];
   head(cs.getRow(1));
-  for (const s of all) s.comments.forEach((c, i) => cs.addRow([s.id, i + 1, c.from ?? s.to, c.text, c.action ?? '', c.closed ? 'Closed' : 'Open', c.closed ?? '']));
+  for (const s of all) s.comments.forEach((c, i) => { cs.addRow([s.id, i + 1, c.from ?? s.to, c.text, c.action ?? '', c.closed ? 'Closed' : 'Open', c.closed ? excelDate(c.closed) : '']).getCell(7).numFmt = DATE_NUMFMT; });
   for (const w of [ws, cs]) w.getColumn(4).alignment = { wrapText: true, vertical: 'top' };
   return wb;
 }

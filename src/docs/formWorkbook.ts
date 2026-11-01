@@ -6,6 +6,7 @@ import type { Project } from '../types';
 import { buildDbSheet } from './dbSheet';
 import { buildMdSheet, hasMdSheet, MD_TITLE_METERING } from './mdSheet';
 import { revisionStamp } from '../model/revisions';
+import { fmtFixed } from '../util/format';
 import { acbText, buildTxSummary, rowCtText } from './txSummary';
 import { buildRiserForm, type RiserFormRow } from './riserForm';
 
@@ -25,6 +26,9 @@ function stamp(ws: ExcelJS.Worksheet, project: Project) {
 type Ws = ExcelJS.Worksheet;
 type Val = string | number | null | undefined;
 
+/** Display formats: a load or factor, and watts. The cells stay real numbers. */
+const TWO = '#,##0.00', WHOLE = '#,##0';
+
 const FONT = 'Arial';
 const thin: Partial<ExcelJS.Border> = { style: 'thin', color: { argb: 'FF000000' } };
 const medium: Partial<ExcelJS.Border> = { style: 'medium', color: { argb: 'FF000000' } };
@@ -37,14 +41,15 @@ function restyle(cell: ExcelJS.Cell, patch: Partial<ExcelJS.Style>) {
   cell.style = { ...cell.style, ...patch };
 }
 
-function put(ws: Ws, r: number, c: number, v: Val, o: { bold?: boolean; size?: number; align?: 'left' | 'center' | 'right'; wrap?: boolean; rotate?: boolean; border?: boolean; fill?: string } = {}) {
+function put(ws: Ws, r: number, c: number, v: Val, o: { bold?: boolean; size?: number; align?: 'left' | 'center' | 'right'; wrap?: boolean; rotate?: boolean; border?: boolean; fill?: string; numFmt?: string } = {}) {
   const cell = ws.getCell(r, c);
   cell.value = v === undefined || v === '' ? null : v;
   restyle(cell, {
     font: { name: FONT, size: o.size ?? 9, bold: !!o.bold },
     alignment: { horizontal: o.align ?? 'center', vertical: 'middle', wrapText: o.wrap ?? true, ...(o.rotate ? { textRotation: 90 } : {}) },
     ...(o.border ? { border: { ...BORDER } } : {}),
-    ...(o.fill ? { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: o.fill } } } : {})
+    ...(o.fill ? { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: o.fill } } } : {}),
+    ...(o.numFmt ? { numFmt: o.numFmt } : {})
   });
 }
 
@@ -92,6 +97,9 @@ export function addMdSheet(wb: ExcelJS.Workbook, project: Project, boardId: stri
   const WIDTH: Record<string, number> = { name: 26, sptp: 6, ACB: 6, MCCB: 7, ISOL: 6, fault: 7, cores: 9, type: 13, size: 7, ecc: 9, length: 9, R: 8, Y: 8, B: 8, tcl: 11, mdl: 12, '1-PH': 6, '3-PH': 6, CT: 7, remarks: 20 };
   s.keys.forEach((k, i) => (ws.getColumn(i + 1).width = WIDTH[k]));
   const at = (k: string) => s.keys.indexOf(k as never) + 1;
+  // The sheet model holds its loads as text for the on-screen grid; here they are numbers.
+  const isLoad = (k: string) => k === 'R' || k === 'Y' || k === 'B' || k === 'tcl' || k === 'mdl';
+  const load = (v: Val) => (v === '' || v === null || v === undefined ? null : Number(v));
 
   // Header block
   put(ws, 1, 1, 'PROJECT:', { align: 'left' }); put(ws, 1, 2, f.project, { align: 'left', bold: true }); merge(ws, 1, 2, 1, 5);
@@ -132,7 +140,7 @@ export function addMdSheet(wb: ExcelJS.Workbook, project: Project, boardId: stri
   let r = h2 + 1;
   s.rows.forEach((row, y) => {
     const line = s.data[y];
-    line.forEach((v, x) => put(ws, r, x + 1, v, { border: true, align: x === 0 || s.keys[x] === 'remarks' ? 'left' : 'center' }));
+    line.forEach((v, x) => put(ws, r, x + 1, isLoad(s.keys[x]) ? load(v) : v, { border: true, align: x === 0 || s.keys[x] === 'remarks' ? 'left' : 'center', numFmt: isLoad(s.keys[x]) ? TWO : undefined }));
     if (row.type === 'label') merge(ws, r, 1, r, n);
     if (row.type === 'incomer' && !row.feeder) merge(ws, r, at('cores'), r, at('size'));
     ws.getRow(r).height = 20;
@@ -142,14 +150,14 @@ export function addMdSheet(wb: ExcelJS.Workbook, project: Project, boardId: stri
   // Totals
   put(ws, r, 1, f.connectedTo.join('\n'), { border: true }); merge(ws, r, 1, r, at('fault'));
   put(ws, r, at('cores'), 'TOTAL CONNECTED LOAD PER PHASE', { border: true }); merge(ws, r, at('cores'), r, at('length'));
-  for (const k of ['R', 'Y', 'B', 'tcl', 'mdl', ...(f.metering ? ['1-PH', '3-PH', 'CT'] : [])]) put(ws, r, at(k), s.totals[at(k) - 1], { bold: true, border: true });
+  for (const k of ['R', 'Y', 'B', 'tcl', 'mdl', ...(f.metering ? ['1-PH', '3-PH', 'CT'] : [])]) put(ws, r, at(k), isLoad(k) ? load(s.totals[at(k) - 1]) : s.totals[at(k) - 1], { bold: true, border: true, numFmt: isLoad(k) ? TWO : undefined });
   put(ws, r, at('remarks'), 'TOTAL', { bold: true, border: true, align: 'right' });
   box(ws, r, 1, r, n);
   ws.getRow(r).height = 30;
   r++;
   put(ws, r, 1, `DEMAND FACTOR :  ${f.demandFactor.toFixed(2)}`, { bold: true }); merge(ws, r, 1, r, 3);
-  put(ws, r, 4, `MAX. DEMAND:  ${f.maxDemandKw.toFixed(2)}  KW`, { bold: true }); merge(ws, r, 4, r, 9);
-  put(ws, r, 10, `TOTAL CONNECTED LOAD :  ${f.totalConnectedKw.toFixed(2)}  KW`, { bold: true }); merge(ws, r, 10, r, 15);
+  put(ws, r, 4, `MAX. DEMAND:  ${fmtFixed(f.maxDemandKw, 2)}  KW`, { bold: true }); merge(ws, r, 4, r, 9);
+  put(ws, r, 10, `TOTAL CONNECTED LOAD :  ${fmtFixed(f.totalConnectedKw, 2)}  KW`, { bold: true }); merge(ws, r, 10, r, 15);
   put(ws, r, 16, `TOTAL BUILD UP AREA (Sq. mtr) : ${f.builtUpArea}`); merge(ws, r, 16, r, n);
   ws.getRow(r).height = 26;
   r++;
@@ -215,15 +223,15 @@ export function addTxSheet(wb: ExcelJS.Workbook, project: Project, name = 'TCL S
     for (const x of g.rows) {
       const vals: Val[] = [x.board.txRef ?? x.board.id, x.poles, x.device === 'ACB' ? acbText(x) : '', x.device === 'MCCB' ? acbText(x) : '', x.faultKa ?? '', x.cable, '', '', x.ecc,
         k(x.phases.R), k(x.phases.Y), k(x.phases.B), k(x.tclKw), x.df, k(x.mdlKw), x.meters['1-PH'] || '', x.meters['3-PH'] || '', x.meters.CT || '', rowCtText(x)];
-      vals.forEach((v, i) => put(ws, r, i + 1, v, { border: true, align: i === 0 ? 'left' : 'center' }));
+      vals.forEach((v, i) => put(ws, r, i + 1, v, { border: true, align: i === 0 ? 'left' : 'center', numFmt: i >= 9 && i <= 14 ? TWO : undefined }));
       merge(ws, r, 6, r, 8);
       ws.getRow(r).height = 22;
       r++;
     }
   }
   put(ws, r, 3, 'TOTAL CONNECTED - LOAD PER PHASE', { bold: true, align: 'left' }); merge(ws, r, 3, r, 9);
-  [s.phases.R, s.phases.Y, s.phases.B, s.tclKw].forEach((v, i) => put(ws, r, 10 + i, k(v), { bold: true, border: true }));
-  put(ws, r, 15, k(s.mdlKw), { bold: true, border: true });
+  [s.phases.R, s.phases.Y, s.phases.B, s.tclKw].forEach((v, i) => put(ws, r, 10 + i, k(v), { bold: true, border: true, numFmt: TWO }));
+  put(ws, r, 15, k(s.mdlKw), { bold: true, border: true, numFmt: TWO });
   put(ws, r, 16, s.meters['1-PH'] || '', { bold: true, border: true });
   put(ws, r, 17, s.meters['3-PH'] || '', { bold: true, border: true });
   put(ws, r, 18, s.meters.CT || '', { bold: true, border: true });
@@ -231,18 +239,18 @@ export function addTxSheet(wb: ExcelJS.Workbook, project: Project, name = 'TCL S
   ws.getRow(r).height = 30;
   r++;
   put(ws, r, 3, 'DIVERSITY FACTOR', { bold: true, align: 'left' }); merge(ws, r, 3, r, 5);
-  put(ws, r, 6, Number(s.diversity.toFixed(2)), { bold: true, border: true });
+  put(ws, r, 6, k(s.diversity), { bold: true, border: true, numFmt: TWO });
   put(ws, r, 7, 'TOTAL', { bold: true, align: 'left' });
   r += 2;
   put(ws, r, 3, 'MAX. DEMAND - 3 PHASE', { bold: true, align: 'left' }); merge(ws, r, 3, r, 5);
-  put(ws, r, 6, Number(s.mdlKw.toFixed(1)), { bold: true, border: true });
+  put(ws, r, 6, k(s.mdlKw), { bold: true, border: true, numFmt: TWO });
   put(ws, r, 7, 'kW', { align: 'left' });
   put(ws, r, 9, 'TCL =', { align: 'right' });
-  put(ws, r, 10, Number(s.tclKw.toFixed(1)), { bold: true, border: true });
+  put(ws, r, 10, k(s.tclKw), { bold: true, border: true, numFmt: TWO });
   put(ws, r, 11, 'kW', { align: 'left' });
   r++;
   put(ws, r, 8, 'TCL (DUTY)=', { align: 'right' }); merge(ws, r, 8, r, 9);
-  put(ws, r, 10, Number(s.tclDutyKw.toFixed(1)), { bold: true, border: true });
+  put(ws, r, 10, k(s.tclDutyKw), { bold: true, border: true, numFmt: TWO });
   put(ws, r, 11, 'kW', { align: 'left' });
   frame(ws, 1, 1, r, n);
   ws.pageSetup.printArea = `A1:${ws.getColumn(n).letter}${r}`;
@@ -281,19 +289,19 @@ export function addRiserSheet(wb: ExcelJS.Workbook, project: Project, riserId: s
   const k = (v: number) => Number(v.toFixed(2));
   let r = h2 + 1;
   const i = f.incomer;
-  [i.name, 'TP', i.acb ?? '', '', i.faultKa ?? '', i.busway, '', '', '', k(i.phases.R), k(i.phases.Y), k(i.phases.B), k(i.tcl), '', '', '', '', '', ''].forEach((v, x) => put(ws, r, x + 1, v, { border: true }));
+  [i.name, 'TP', i.acb ?? '', '', i.faultKa ?? '', i.busway, '', '', '', k(i.phases.R), k(i.phases.Y), k(i.phases.B), k(i.tcl), '', '', '', '', '', ''].forEach((v, x) => put(ws, r, x + 1, v, { border: true, numFmt: x >= 9 && x <= 12 ? TWO : undefined }));
   merge(ws, r, 6, r, 9); r++;
   put(ws, r, 1, 'OUTGOINGS', { border: true }); box(ws, r, 1, r, n); r++;
   const line = (x: RiserFormRow) => [x.name, x.sptp, x.acb ?? '', x.mccb ?? '', x.faultKa ?? '', x.cores ?? '', x.type ?? '', x.size ?? '', x.ecc ?? '', k(x.phases.R), k(x.phases.Y), k(x.phases.B), k(x.tcl), x.df ?? '', k(x.md ?? 0), x.meters['1-PH'], x.meters['3-PH'], x.meters.CT, x.remarks ?? ''];
-  for (const x of f.rows) { line(x).forEach((v, c) => put(ws, r, c + 1, v, { border: true, align: c === 0 ? 'left' : 'center' })); r++; }
+  for (const x of f.rows) { line(x).forEach((v, c) => put(ws, r, c + 1, v, { border: true, align: c === 0 ? 'left' : 'center', numFmt: c >= 9 && c <= 14 ? TWO : undefined })); r++; }
   put(ws, r, 5, 'TOTAL CONNECTED - LOAD PER PHASE', { bold: true, border: true }); merge(ws, r, 5, r, 9);
-  [f.totals.phases.R, f.totals.phases.Y, f.totals.phases.B, f.totals.tcl].forEach((v, c) => put(ws, r, 10 + c, k(v), { bold: true, border: true }));
+  [f.totals.phases.R, f.totals.phases.Y, f.totals.phases.B, f.totals.tcl].forEach((v, c) => put(ws, r, 10 + c, k(v), { bold: true, border: true, numFmt: TWO }));
   put(ws, r, 14, '', { border: true });
-  put(ws, r, 15, k(f.totals.md), { bold: true, border: true });
+  put(ws, r, 15, k(f.totals.md), { bold: true, border: true, numFmt: TWO });
   (['1-PH', '3-PH', 'CT'] as const).forEach((m, c) => put(ws, r, 16 + c, f.totals.meters[m], { bold: true, border: true }));
   r += 2;
-  for (const [l, v] of [['TCL (kw)', k(f.totals.tcl)], ['MDL (kw)', k(f.totals.md)], ['DF', Number(f.df.toFixed(2))]] as [string, number][]) {
-    put(ws, r, 9, l, { bold: true, border: true }); put(ws, r, 10, v, { bold: true, border: true }); r++;
+  for (const [l, v] of [['TCL (kw)', k(f.totals.tcl)], ['MDL (kw)', k(f.totals.md)], ['DF', k(f.df)]] as [string, number][]) {
+    put(ws, r, 9, l, { bold: true, border: true }); put(ws, r, 10, v, { bold: true, border: true, numFmt: TWO }); r++;
   }
   frame(ws, 1, 1, r - 1, n);
   ws.pageSetup.printArea = `A1:${ws.getColumn(n).letter}${r - 1}`;
@@ -358,7 +366,7 @@ export function addDbSheet(wb: ExcelJS.Workbook, project: Project, boardId: stri
     cols.forEach((c, i) => {
       const x = s.sheetCols.indexOf(c);
       const v = c.key === 'incomer' || c.key === 'elcb' ? null : s.data[y][x];
-      put(ws, r, i + 1, v === '' ? null : v, { border: true, size: 8, align: c.key === 'room' || c.key === 'remarks' ? 'left' : 'center', wrap: false });
+      put(ws, r, i + 1, v === '' ? null : v, { border: true, size: 8, align: c.key === 'room' || c.key === 'remarks' ? 'left' : 'center', wrap: false, numFmt: c.key === 'R' || c.key === 'Y' || c.key === 'B' ? WHOLE : undefined });
     });
     ws.getRow(r).height = 15;
     r++;
@@ -388,8 +396,8 @@ export function addDbSheet(wb: ExcelJS.Workbook, project: Project, boardId: stri
   // TOTAL (kW)
   put(ws, r, 1, null, { border: true }); merge(ws, r, 1, r, at('wpu') - 1);
   put(ws, r, at('wpu'), 'TOTAL (kW)', { bold: true, border: true, size: 8 });
-  for (const p of ['R', 'Y', 'B']) put(ws, r, at(p), s.totals[s.sheetCols.findIndex((c) => c.key === p)], { bold: true, border: true, size: 8 });
-  put(ws, r, at('remarks'), s.totals[s.sheetCols.findIndex((c) => c.key === 'remarks')], { bold: true, border: true, size: 8 });
+  for (const p of ['R', 'Y', 'B']) put(ws, r, at(p), Number(s.totals[s.sheetCols.findIndex((c) => c.key === p)]), { bold: true, border: true, size: 8, numFmt: TWO });
+  put(ws, r, at('remarks'), Number(s.totals[s.sheetCols.findIndex((c) => c.key === 'remarks')]), { bold: true, border: true, size: 8, numFmt: TWO });
   box(ws, r, 1, r, n);
   r++;
   put(ws, r, 1, s.cableText, { align: 'left', size: 8 }); merge(ws, r, 1, r, at('room'));

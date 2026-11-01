@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fig, Figure, fmtDate, fmtDateLong, fmtFixed, fmtTime, fmtUpTo } from './format';
+import { excelDate, fig, Figure, fmtDate, fmtDateLong, fmtFixed, fmtTime, fmtUpTo } from './format';
 
 describe('calculated figures', () => {
   it('prints each kind of value by its rule', () => {
@@ -65,10 +65,16 @@ describe('dates and times', () => {
   });
 
   it('leaves text that is not a date as it was typed', () => {
-    for (const typed of ['15/10/26', 'October 2026', 'TBC', '', '2026-13-45']) {
+    for (const typed of ['15/10/26', 'October 2026', 'TBC', '', '2026-13-45', '2026-02-31']) {
       expect(fmtDate(typed)).toBe(typed);
       expect(fmtDateLong(typed)).toBe(typed);
+      expect(excelDate(typed)).toBe(typed);
     }
+    expect(fmtDate(undefined)).toBe('');
+  });
+
+  it('an Excel date is a real date, on the day written in any time zone', () => {
+    expect(excelDate('2026-11-01')).toEqual(new Date(Date.UTC(2026, 10, 1)));
   });
 
   it('reads a time stamp in local time', () => {
