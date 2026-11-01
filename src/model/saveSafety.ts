@@ -7,9 +7,25 @@ export type SaveOutcome =
   | { conflict?: false; file: string; stamp?: FileStamp | null }
   | { conflict: true; file: string; disk?: FileStamp | null };
 
+// An issued copy can hold as much as the whole project, and no edit touches it: a change to one makes a new object.
+// So the same object always has the same content, and each is read once.
+const issuedHashes = new WeakMap<object, string>();
+function issuedHash(copy: unknown): string {
+  if (!copy || typeof copy !== 'object') return hashOf(String(JSON.stringify(copy)));
+  let h = issuedHashes.get(copy);
+  if (h === undefined) { h = hashOf(JSON.stringify(copy)); issuedHashes.set(copy, h); }
+  return h;
+}
+const issuedList = (list: unknown) => (Array.isArray(list) ? `[${list.map(issuedHash).join()}]` : String(JSON.stringify(list)));
+
 /** A short fingerprint of a project's content, to tell "changed" from "same again after undo". */
 export function projectFingerprint(p: Project): string {
-  const s = JSON.stringify(p);
+  const { revisions, boqRevisions, ...rest } = p;
+  return hashOf(`${issuedList(revisions)}${issuedList(boqRevisions)}${JSON.stringify(rest)}`);
+}
+
+/** A text's length and a hash of it. */
+function hashOf(s: string): string {
   let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
   for (let i = 0; i < s.length; i++) {
     const c = s.charCodeAt(i);
