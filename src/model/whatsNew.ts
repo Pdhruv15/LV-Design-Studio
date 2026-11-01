@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.016', date: '2026-11-01',
+    items: [
+      { title: 'SLD export holds the whole drawing', text: 'Export… on the SLD page could leave out boards and circuits if you were zoomed in, with no warning. The PDF, DXF, DWG and SVG now always hold the whole drawing. Please check any SLD you issued from this button since 3 October, and reissue it if parts are missing. Sheets from Design CAD → Sheets were not affected.' }
+    ]
+  },
+  {
     version: '2.015', date: '2026-11-01',
     items: [
       { title: 'Much faster on large projects', text: 'The cable schedule and calculation report now take about a second or less, even on a 500-board tower, where they could take minutes. Typing stays quick as the project grows, and SLD sheets with cable reference labels draw faster. The calculated results are the same as before.' }

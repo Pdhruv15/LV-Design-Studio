@@ -19,7 +19,7 @@ import BoardForm from './components/BoardForm';
 const BomView = lazy(() => import('./components/docs/BomView'));
 import { exportDss } from './engines/opendss/exportDss';
 const EngineCompare = lazy(() => import('./components/EngineCompare'));
-import SystemDiagram from './components/SystemDiagram';
+import SystemDiagram, { canvasDrawing } from './components/SystemDiagram';
 import BoardSheetView from './components/BoardSheetView';
 import SystemSummaryCards from './components/SystemSummaryCards';
 import BoardPanel from './components/BoardPanel';
@@ -1383,12 +1383,7 @@ export default function App() {
                   <div className={`sld-edit${sldFull ? ' full' : ''}`}>
                   {sldFull && equipment(false)}
                   <SystemDiagram
-                    cull
-                    // The design canvas is not published: the symbol legend is on the drawing sheets. The
-                    // Export dialog prints the canvas as a drawing, so the legend is drawn while it is open.
-                    hideLegend={!showExport}
-                    // Zoom-dependent detail is for the screen only: the Export dialog copies the live drawing.
-                    lod={!showExport}
+                    {...canvasDrawing(showExport)}
                     project={project}
                     calcProject={calcProject}
                     stale={staleKeys.length > 0}
