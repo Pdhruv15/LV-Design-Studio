@@ -1,5 +1,5 @@
 import { AddBoardIcon, BoardPropsIcon, TxGenSizingIcon } from './icons/elecIcons';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent as KeyEvent } from 'react';
 import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
@@ -132,7 +132,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   home: ['Project', 'Diagram & history', 'Setup'],
   concept: ['Load', 'Supply', 'Stage'],
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
-  detailed: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Calculate', 'Stage'],
+  detailed: ['Run', 'Calculate', 'Stage'],
   cad: ['File', 'Rooms', 'Cables and boards', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View', 'Sheets', 'Markup', 'On panels', 'Style', 'View', 'Issue and export', 'Wiring'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
@@ -145,47 +145,56 @@ const ADD_BOARD: { kind: BoardKind; ratingA: number }[] = [
   { kind: 'MCC', ratingA: 400 }, { kind: 'EMCC', ratingA: 400 }, { kind: 'EMDB', ratingA: 400 }
 ];
 
-/** Load schedule and SLD first, the everyday work; then the tabs in the order the design is done: concept → schematic → detailed design → documents → tender and IFC. */
-const TABS: { id: RibbonTab; label: string; icon: Icon; step?: string; stages?: DesignStage[] }[] = [
-  { id: 'schedule', label: 'Load schedule', icon: Table2 },
-  { id: 'sld', label: 'SLD', icon: Network },
+/** The design stages in the order the design is done: sub-tabs of the Stages tab, as Plan, Draw and Sheets are of Design CAD. */
+type StageTab = 'concept' | 'schematic' | 'detailed' | 'issue';
+const STAGE_TABS: { id: StageTab; label: string; stages: DesignStage[] }[] = [
+  { id: 'concept', label: '1 Concept', stages: ['concept'] },
+  { id: 'schematic', label: '2 Schematic', stages: ['schematic'] },
+  { id: 'detailed', label: '3 Detailed design', stages: ['detailed'] },
+  { id: 'issue', label: '4 Tender and IFC', stages: ['tender', 'ifc'] }
+];
+const isStageTab = (t: RibbonTab) => STAGE_TABS.some((s) => s.id === t);
+
+/** The tab row: Project, the everyday work, the Stages tab, what comes out of the design, then Standards at the far end.
+ * `sep`: a divider before the tab. */
+const TABS: { id: Exclude<RibbonTab, StageTab> | 'stages'; label: string; icon: Icon; sep?: boolean }[] = [
   { id: 'home', label: 'Project', icon: House },
+  { id: 'schedule', label: 'Load schedule', icon: Table2, sep: true },
+  { id: 'sld', label: 'SLD', icon: Network },
   { id: 'cad', label: 'Design CAD', icon: PenTool },
-  { id: 'concept', label: 'Concept', icon: ChartColumnBig, step: '1', stages: ['concept'] },
-  { id: 'schematic', label: 'Schematic', icon: Waypoints, step: '2', stages: ['schematic'] },
-  { id: 'detailed', label: 'Detailed design', icon: CircuitBoard, step: '3', stages: ['detailed'] },
-  { id: 'reports', label: 'Documents', icon: FileText },
-  { id: 'issue', label: 'Tender and IFC', icon: Stamp, step: '4', stages: ['tender', 'ifc'] },
+  { id: 'stages', label: 'Stages', icon: Waypoints, sep: true },
+  { id: 'reports', label: 'Documents', icon: FileText, sep: true },
   { id: 'cost', label: 'BOM / Cost', icon: Receipt },
   { id: 'standards', label: 'Standards', icon: Settings2 }
 ];
 
 /** The ribbon tab a project in this stage opens on. */
-export const tabForStage = (s: DesignStage): RibbonTab => TABS.find((t) => t.stages?.includes(s))!.id;
+export const tabForStage = (s: DesignStage): RibbonTab => STAGE_TABS.find((t) => t.stages.includes(s))!.id;
 
-/** Screens on each tab. A screen on several tabs (the SLD on Schematic and Detailed design) keeps the tab you are on. */
+/** Screens on each tab, so the ribbon stays where the tools that open them are. A screen on several tabs (the SLD on
+ * Project and Schematic) keeps the tab you are on. */
 const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
-  schedule: ['load-schedule'],
-  sld: ['design'],
+  schedule: ['load-schedule', 'enclosure'],
+  sld: ['design', 'panels', 'enclosure', 'engines', 'calculators'],
   home: ['projects', 'dashboard', 'help', 'parameters', 'titleblock', 'building', 'design'],
   concept: ['building', 'load-assessment', 'sizing', 'substation-area', 'space-planning', 'dashboard'],
   schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'earth-schematic', 'elv', 'inbox'],
-  detailed: ['design', 'panels', 'load-schedule', 'enclosure', 'selection', 'voltage-drop', 'earthing', 'coordination', 'engines', 'calculators'],
+  detailed: ['selection', 'voltage-drop', 'earthing', 'coordination'],
   cad: ['cad', 'drawings', 'drawing-register'],
   reports: ['load-schedule', 'cable-schedule', 'cable-tray', 'equipment', 'study-reports', 'report', 'export-centre'],
   issue: ['revisions', 'modifications', 'review', 'received-docs', 'submissions'],
   cost: ['boq'],
   standards: ['database', 'design-references']
 };
-const HOME_TAB: Partial<Record<MainView, RibbonTab>> = { building: 'concept', dashboard: 'home', design: 'sld', panels: 'detailed', 'load-schedule': 'schedule' };
+const HOME_TAB: Partial<Record<MainView, RibbonTab>> = { building: 'concept', dashboard: 'home', design: 'sld', panels: 'sld', 'load-schedule': 'schedule' };
 
 /** The page a tab shows when it is chosen and the page on screen is not one of its own. */
 const TAB_PAGE: Record<RibbonTab, MainView> = {
   schedule: 'load-schedule', sld: 'design', home: 'dashboard', concept: 'building', schematic: 'design', detailed: 'design', cad: 'cad',
   reports: 'load-schedule', issue: 'revisions', cost: 'boq', standards: 'database'
 };
-/** The page to show when a tab is chosen: the page on screen when it is on that tab (the SLD stays on Schematic and
- * Detailed design), else the tab's own page — Design CAD shows the drawing, Floor plan the plan. */
+/** The page to show when a tab is chosen: the page on screen when it is on that tab (the SLD stays on Schematic), else
+ * the tab's own page, which for Detailed design is the SLD too; Design CAD shows the drawing. */
 export const viewForTab = (t: RibbonTab, current: MainView): MainView => (TAB_VIEWS[t].includes(current) ? current : TAB_PAGE[t]);
 
 /** The ribbon tab that owns a screen, so the ribbon follows navigation
@@ -280,6 +289,37 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     };
   };
 
+  // The SLD tab's tools; the Load schedule tab shares some of them.
+  const [run, canvas, boards, equipment, selection]: Tool[][] = [
+    [{ label: 'Run', icon: Play, title: a.staleCount ? `Run calculations (F5) — ${a.staleCount} out of date` : 'Run calculations (F5) — up to date', onClick: a.onRun, stale: a.staleCount > 0 }],
+    [
+      { label: 'SLD', icon: Network, title: 'Single line diagram', onClick: go('design'), active: a.view === 'design', page: true },
+      view('drawings', 'Sheets', Files, 'The submission sheets of this design in Design CAD → Sheets: SLDs, risers and earthing, with title blocks, clouds and notes'),
+      { label: 'Select', icon: MousePointer2, title: 'Select tool — click boards and loads to select them (V)', onClick: () => { a.onView('design'); a.onTool('select'); }, active: a.view === 'design' && a.tool === 'select' },
+      { label: 'Pan', icon: Hand, title: 'Pan tool — drag to move around the diagram without selecting (H)', onClick: () => { a.onView('design'); a.onTool('pan'); }, active: a.view === 'design' && a.tool === 'pan' }
+    ],
+    [
+      { label: 'Boards', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — the arrow beside it for a DB, SMDB, MCC or EMDB with its usual rating, or Build hierarchy to create many at once`, onClick: () => a.onAddBoard(), active: a.view === 'panels', page: true, menu: boardMenu },
+      { label: 'Board', icon: BoardPropsIcon, sub: a.boardId || undefined, title: a.boardId ? `Properties of ${a.boardId}: general, supply (its transformer and feed chain), electrical, protection, location` : 'Board properties — select a board first', onClick: a.onBoardProperties, disabled: !a.boardId },
+      { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}: circuits, spare ways, R / Y / B balance`, onClick: go('load-schedule'), active: a.view === 'load-schedule', page: true },
+      { label: 'Enclosure', icon: Box, title: 'Enclosure sizing: the board\'s physical space (modules) from a supplier catalogue — candidates, dimensioned preview', onClick: go('enclosure'), active: a.view === 'enclosure', page: true }
+    ],
+    [
+      { label: 'Add load', icon: Zap, title: `Add a load ${addTo} — the arrow beside it for a motor, solar PV, EV charger or a feeder cable`, onClick: () => a.onAddFeeder({ loadType: 'general' }),
+        menu: [
+          { label: 'Load', title: `Add a load ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'general' }) },
+          { label: 'Motor', title: `Add a motor ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'motor', powerFactor: 0.86, demandFactor: 1 }) },
+          { label: 'Solar PV', title: `Add solar PV / generation ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'pv', generation: true, powerFactor: 1, demandFactor: 1 }) },
+          { label: 'EV charger', title: `Add EV charging ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'ev', powerFactor: 0.98 }) },
+          { label: 'Feeder cable', title: `Add a feeder cable ${addTo}`, onClick: () => a.onAddFeeder({}), sep: true }
+        ] }
+    ],
+    [
+      { label: 'Edit', icon: Pencil, title: sel ? `Edit ${selName}` : 'Select a board or feeder first', onClick: a.onEditSelected, disabled: !sel },
+      { label: 'Delete', icon: Trash2, title: sel ? `Delete ${selName}${sel.kind === 'board' ? ' and everything fed from it' : ''} (Delete key)` : 'Select a board or feeder first', onClick: a.onDeleteSelected, disabled: !sel }
+    ]
+  ];
+
   const stageGroups: Record<Exclude<RibbonTab, 'schedule' | 'sld'>, Tool[][]> = {
     home: [
       [
@@ -346,33 +386,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [gate('schematic')]
     ],
     detailed: [
-      [{ label: 'Run', icon: Play, title: a.staleCount ? `Run calculations (F5) — ${a.staleCount} out of date` : 'Run calculations (F5) — up to date', onClick: a.onRun, stale: a.staleCount > 0 }],
-      [
-        { label: 'SLD', icon: Network, title: 'Single line diagram', onClick: go('design'), active: a.view === 'design', page: true },
-        view('drawings', 'Sheets', Files, 'The submission sheets of this design in Design CAD → Sheets: SLDs, risers and earthing, with title blocks, clouds and notes'),
-        { label: 'Select', icon: MousePointer2, title: 'Select tool — click boards and loads to select them (V)', onClick: () => { a.onView('design'); a.onTool('select'); }, active: a.view === 'design' && a.tool === 'select' },
-        { label: 'Pan', icon: Hand, title: 'Pan tool — drag to move around the diagram without selecting (H)', onClick: () => { a.onView('design'); a.onTool('pan'); }, active: a.view === 'design' && a.tool === 'pan' }
-      ],
-      [
-        { label: 'Boards', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — the arrow beside it for a DB, SMDB, MCC or EMDB with its usual rating, or Build hierarchy to create many at once`, onClick: () => a.onAddBoard(), active: a.view === 'panels', page: true, menu: boardMenu },
-        { label: 'Board', icon: BoardPropsIcon, sub: a.boardId || undefined, title: a.boardId ? `Properties of ${a.boardId}: general, supply (its transformer and feed chain), electrical, protection, location` : 'Board properties — select a board first', onClick: a.onBoardProperties, disabled: !a.boardId },
-        { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}: circuits, spare ways, R / Y / B balance`, onClick: go('load-schedule'), active: a.view === 'load-schedule', page: true },
-        { label: 'Enclosure', icon: Box, title: 'Enclosure sizing: the board\'s physical space (modules) from a supplier catalogue — candidates, dimensioned preview', onClick: go('enclosure'), active: a.view === 'enclosure', page: true }
-      ],
-      [
-        { label: 'Add load', icon: Zap, title: `Add a load ${addTo} — the arrow beside it for a motor, solar PV, EV charger or a feeder cable`, onClick: () => a.onAddFeeder({ loadType: 'general' }),
-          menu: [
-            { label: 'Load', title: `Add a load ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'general' }) },
-            { label: 'Motor', title: `Add a motor ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'motor', powerFactor: 0.86, demandFactor: 1 }) },
-            { label: 'Solar PV', title: `Add solar PV / generation ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'pv', generation: true, powerFactor: 1, demandFactor: 1 }) },
-            { label: 'EV charger', title: `Add EV charging ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'ev', powerFactor: 0.98 }) },
-            { label: 'Feeder cable', title: `Add a feeder cable ${addTo}`, onClick: () => a.onAddFeeder({}), sep: true }
-          ] }
-      ],
-      [
-        { label: 'Edit', icon: Pencil, title: sel ? `Edit ${selName}` : 'Select a board or feeder first', onClick: a.onEditSelected, disabled: !sel },
-        { label: 'Delete', icon: Trash2, title: sel ? `Delete ${selName}${sel.kind === 'board' ? ' and everything fed from it' : ''} (Delete key)` : 'Select a board or feeder first', onClick: a.onDeleteSelected, disabled: !sel }
-      ],
+      run,
       [
         view('selection', 'Selection', ListTree, 'Breaker and cable selection'),
         view('voltage-drop', 'Voltage drop', TrendingDown, 'Voltage drop calculation: panels and equipment cables, with report'),
@@ -531,35 +545,45 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ]
     ]
   };
-  const [run, canvas, boards, equipment, selection] = stageGroups.detailed;
   const groups: Record<RibbonTab, Tool[][]> = {
     ...stageGroups,
     schedule: [run, [view('load-schedule', 'Load schedule', Table2, 'DEWA load distribution schedule per DB'), boards[1], boards[3]], equipment],
     sld: [run, canvas, boards, equipment, selection]
   };
+  const onStage = isStageTab(tab);
+  const now = <span className="stage-now" title={`The project is at ${STAGE_INFO[a.stage].label}`}>Now</span>;
+  /** Arrow keys move between the tabs of a row; Home / End to the first / last. */
+  const tabKeys = (e: KeyEvent<HTMLButtonElement>, i: number, count: number, pick: (k: number) => void) => {
+    const k = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? count - 1 : null;
+    if (k === null) return;
+    e.preventDefault();
+    const to = (k + count) % count;
+    pick(to);
+    (e.currentTarget.closest('[role="tablist"]')?.querySelectorAll('[role="tab"]')[to] as HTMLElement | undefined)?.focus();
+  };
+  /** Stages shows the stage the project is at, or stays on the stage already showing. */
+  const tabOf = (id: typeof TABS[number]['id']): RibbonTab => (id !== 'stages' ? id : onStage ? tab : tabForStage(a.stage));
 
   return (
     <div className={`ribbon${collapsed ? ' collapsed' : ''}`} ref={rootRef} data-doc-id="main-ribbon">
       <div className="ribbon-tabs" role="tablist" aria-label="Ribbon">
-        {TABS.map(({ id, label, icon: I }, ti) => (
-          <button key={id} id={`ribbon-tab-${id}`} role="tab" aria-selected={tab === id} aria-controls="ribbon-tools" tabIndex={tab === id ? 0 : -1} className={tab === id ? 'on' : ''}
-            onClick={() => { if (collapsed) setPeek(tab === id ? !peek : true); onTab(id); }}
-            onDoubleClick={toggleCollapsed} title={collapsed ? 'Click to show its tools · double-click to keep the ribbon open' : 'Double-click to collapse the ribbon (Ctrl+F1)'}
-            onKeyDown={(e) => {
-              // Arrow keys move between tabs; Home / End to the first / last.
-              const k = e.key === 'ArrowRight' ? ti + 1 : e.key === 'ArrowLeft' ? ti - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : null;
-              if (k === null) return;
-              e.preventDefault();
-              const next = TABS[(k + TABS.length) % TABS.length];
-              onTab(next.id);
-              (e.currentTarget.parentElement?.children[(k + TABS.length) % TABS.length] as HTMLElement | undefined)?.focus();
-            }}>
-            <I size={16} strokeWidth={1.8} />
-            {TABS[ti].step ? `${TABS[ti].step} ${label}` : label}
-            {TABS[ti].stages?.includes(a.stage) && <span className="stage-now" title={`The project is at ${STAGE_INFO[a.stage].label}`}>Now</span>}
-          </button>
-        ))}
-        <span className="sp" />
+        {TABS.map(({ id, label, icon: I, sep }, ti) => {
+          const on = id === 'stages' ? onStage : tab === id;
+          return (
+            <Fragment key={id}>
+              {sep && <span className="tab-sep" aria-hidden="true" />}
+              {id === 'standards' && <span className="sp" />}
+              <button id={`ribbon-tab-${id}`} role="tab" aria-selected={on} aria-controls="ribbon-tools" tabIndex={on ? 0 : -1} className={on ? 'on' : ''}
+                onClick={() => { if (collapsed) setPeek(on ? !peek : true); onTab(tabOf(id)); }}
+                onDoubleClick={toggleCollapsed} title={collapsed ? 'Click to show its tools · double-click to keep the ribbon open' : 'Double-click to collapse the ribbon (Ctrl+F1)'}
+                onKeyDown={(e) => tabKeys(e, ti, TABS.length, (k) => onTab(tabOf(TABS[k].id)))}>
+                <I size={16} strokeWidth={1.8} />
+                {label}
+                {id === 'stages' && now}
+              </button>
+            </Fragment>
+          );
+        })}
         <button className="ribbon-pin" onClick={toggleCollapsed} aria-pressed={!collapsed} aria-label={collapsed ? 'Expand the ribbon' : 'Collapse the ribbon'}
           title={collapsed ? 'Keep the ribbon open (Ctrl+F1)' : 'Collapse the ribbon to its tabs (Ctrl+F1)'}>
           {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
@@ -572,11 +596,22 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           ))}
         </div>
       )}
+      {onStage && (!collapsed || peek) && (
+        <div className="ribbon-subtabs" role="tablist" aria-label="Stages">
+          {STAGE_TABS.map(({ id, label, stages }, si) => (
+            <button key={id} id={`ribbon-tab-${id}`} role="tab" aria-selected={tab === id} aria-controls="ribbon-tools" tabIndex={tab === id ? 0 : -1} className={tab === id ? 'on' : ''}
+              onClick={() => onTab(id)} onKeyDown={(e) => tabKeys(e, si, STAGE_TABS.length, (k) => onTab(STAGE_TABS[k].id))}>
+              {label}
+              {stages.includes(a.stage) && now}
+            </button>
+          ))}
+        </div>
+      )}
       {(!collapsed || peek) && <div id="ribbon-tools" className={`ribbon-tools${collapsed ? ' peek' : ''}`} onClick={(e) => {
         // A tool was used: put the dropped-down tools away (not for buttons that open a menu of their own).
         const b = (e.target as HTMLElement).closest('button');
         if (collapsed && b && !b.hasAttribute('aria-haspopup') && !b.hasAttribute('aria-expanded')) setPeek(false);
-      }} role="toolbar" aria-label={`${TABS.find((t) => t.id === tab)?.label} tools`}>
+      }} role="toolbar" aria-label={`${[...TABS, ...STAGE_TABS].find((t) => t.id === tab)?.label} tools`}>
         {groups[tab].map((group, gi) => (tab === 'cad' && !CAD_SUB[sub].groups.includes(gi) ? null :
           <div key={gi} className="ribbon-group" role="group" aria-label={CAPTIONS[tab]?.[gi]} style={tab === 'cad' ? { order: CAD_SUB[sub].groups.indexOf(gi) + 1 } : undefined}>
             <div className="ribbon-group-btns">
@@ -606,7 +641,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             {CAPTIONS[tab]?.[gi] && <div className="ribbon-caption">{CAPTIONS[tab]![gi]}</div>}
           </div>
         ))}
-        {(tab === 'detailed' || tab === 'sld') && (
+        {tab === 'sld' && (
           <div className="ribbon-selected" title="Edit, Delete and Properties act on this">
             <span className="m">Selected</span>
             <b>{sel ? sel.id : '—'}</b>
@@ -640,7 +675,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             )}
           </div>
         )}
-        {(tab === 'detailed' || tab === 'sld') && (
+        {tab === 'sld' && (
           <div className="ribbon-group more" ref={moreRef}>
             <button
               title="More tools"

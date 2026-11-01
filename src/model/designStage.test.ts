@@ -93,6 +93,16 @@ describe('ribbon follows the stages', () => {
     expect(tabForView('design', 'home')).toBe('home'); // the SLD button on Project keeps the tab
     expect(tabForView('drawings', 'reports')).toBe('cad'); // sheets are in Design CAD → Sheets
     expect(tabForView('drawing-register')).toBe('cad');
+    // The ribbon stays on the tab whose tools opened the page.
+    expect(tabForView('panels', 'sld')).toBe('sld');
+    expect(tabForView('panels', 'schematic')).toBe('schematic');
+    expect(tabForView('panels')).toBe('sld');
+    expect(tabForView('enclosure', 'sld')).toBe('sld');
+    expect(tabForView('enclosure', 'schedule')).toBe('schedule');
+    expect(tabForView('engines', 'sld')).toBe('sld'); // More is on the SLD tab
+    expect(tabForView('calculators', 'sld')).toBe('sld');
+    expect(tabForView('selection', 'sld')).toBe('detailed');
+    expect(tabForView('design', 'detailed')).toBe('sld'); // its tools are not on Detailed design any more
   });
 
   it('shows the chosen tab\'s page unless the page on screen is on that tab', () => {

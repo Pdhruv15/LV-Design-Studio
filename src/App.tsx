@@ -279,7 +279,7 @@ export default function App() {
   const [subDraft, setSubDraft] = useState<Submission | undefined>();
   useEffect(() => onSubmissionOffer(setSubOffer), []);
   const [view, setViewState] = useState<MainView>(() => MANUAL_CAPTURE?.view ?? 'projects'); // the app starts on the projects list
-  const [ribbonTab, setRibbonTab] = useState<RibbonTab>(() => tabForView(MANUAL_CAPTURE?.view ?? 'projects', 'home'));
+  const [ribbonTab, setRibbonTab] = useState<RibbonTab>(() => (MANUAL_CAPTURE ? tabForView(MANUAL_CAPTURE.view) : 'home'));
   const [tool, setTool] = useState<DiagramTool>('select');
   const [feederPreset, setFeederPreset] = useState<Partial<Feeder>>({});
   const [boardTab, setBoardTab] = useState<BoardTab>('general');
@@ -383,10 +383,10 @@ export default function App() {
     setRibbonTab((t) => tabForView(v, t));
   };
   setViewRef.current = setView;
-  // A project opens on the ribbon tab of its design stage.
+  // A project opens on the ribbon tab of its design stage (a manual picture keeps the tab of the page it shows).
   const stageNow = stageOf(project);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- only when another project is opened, not on every stage change
-  useEffect(() => { setRibbonTab(tabForStage(stageNow)); }, [project.id]);
+  useEffect(() => { if (!MANUAL_CAPTURE) setRibbonTab(tabForStage(stageNow)); }, [project.id]);
   /** The stage gate: issue this stage's package as a revision (the new baseline) and move to the next stage. */
   async function issueStage() {
     const from = stageOf(project), to = nextStage(project);
