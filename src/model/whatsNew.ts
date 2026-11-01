@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.027', date: '2026-11-01',
+    items: [
+      { title: 'A tidier ribbon', text: 'Project now comes first, then Load schedule, SLD and Design CAD, then one Stages tab, then Documents and BOM / Cost, with Standards at the far end. The row now fits a 1,280 px screen. Before, the last tabs went out of sight until you scrolled the row sideways.' },
+      { title: 'The Stages tab', text: 'Concept, Schematic, Detailed design and Tender and IFC are now sub-tabs of Stages, the way Plan, Draw and Sheets are of Design CAD. Stages opens on the stage the project is at, marked Now, and a project still opens on its stage.' },
+      { title: 'Detailed design shows its own tools', text: 'Detailed design now has Run, Selection, Voltage drop, Earthing, Protection and Issue detailed. The SLD tools it repeated are on the SLD tab, and so is More (Load flow, Quick calcs and the rest). No tool has been removed from the app.' }
+    ]
+  },
+  {
     version: '2.026', date: '2026-11-01',
     items: [
       { title: 'Containment layout sheets', text: 'Design CAD → Sheets → + New sheet → Containment layouts: a sheet for every level with cable trays or cable routes drawn, numbered E-CNT-. Each tray is a single line labelled like "CT 300 POWER", each cable route is dashed and tagged with its cable and size, and the legend lists the tray lengths and fittings on the sheet.', action: 'sheets', actionLabel: 'Open Sheets' },

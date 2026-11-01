@@ -9,7 +9,7 @@ mappings:
       - load-schedule
     entry_points:
       - Load schedule tab
-      - Detailed design > Schedule
+      - SLD > Schedule
       - Documents > Load schedule
       - Panel tree > Load schedule
     source_files:
@@ -35,8 +35,7 @@ mappings:
       - design
     entry_points:
       - SLD tab
-      - Schematic > SLD
-      - Detailed design > SLD
+      - Stages > 2 Schematic > SLD
       - Command palette > Design (SLD)
     source_files:
       - src/components/SystemDiagram.tsx

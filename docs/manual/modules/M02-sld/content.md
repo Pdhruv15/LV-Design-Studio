@@ -25,7 +25,7 @@ Confirm:
 <a id="SLD-030"></a>
 ## Interface overview
 
-Select the **SLD** tab, the second tab in the ribbon. **Schematic > SLD** and **Detailed design > SLD** open the same canvas. The SLD work area contains:
+Select the **SLD** tab, the third tab in the ribbon. **Stages > 2 Schematic > SLD** opens the same canvas. The SLD work area contains:
 
 1. The panel tree on the left.
 2. System, board, earthing, and riser view tabs.

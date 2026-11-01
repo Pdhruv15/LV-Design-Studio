@@ -7,7 +7,7 @@ power factor correction, drawings and submission reports. Projects are plain
 JSON files, so they sync cleanly through a Google Drive / OneDrive / Dropbox
 desktop folder.
 
-**Version 2.026** (see `package.json`). The app is in active use and active
+**Version 2.027** (see `package.json`). The app is in active use and active
 development.
 
 > **Engineering status.** The calculations are first-pass design checks, not
@@ -21,12 +21,12 @@ development.
 
 ## Screenshots
 
-The built-in demo project (a 415 V villa complex). The ribbon follows the design stages: 1 Concept → 2 Schematic → 3 Detailed design → Documents → 4 Tender and IFC.
+The built-in demo project (a 415 V villa complex). The ribbon starts with Project and the everyday work (Load schedule, SLD, Design CAD). Its Stages tab holds the design stages: 1 Concept → 2 Schematic → 3 Detailed design → 4 Tender and IFC.
 
 **Overview and design stages**: each stage's checklist, the stage gate (Issue detailed design → IFC) and Back to the previous stage, with key figures below.
 ![Overview and design stages](docs/screenshots/10-overview-design-stages.png)
 
-**Single line diagram** (3 Detailed design): IEC / DEWA symbols, the panel tree on the left, and board properties on the right.
+**Single line diagram** (SLD tab): IEC / DEWA symbols, the panel tree on the left, and board properties on the right.
 ![Single line diagram](docs/screenshots/01-single-line-diagram.png)
 
 **Load schedule**: the DEWA connected load / maximum demand form for the board picked in the panel tree.

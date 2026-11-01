@@ -17,13 +17,40 @@ const render = (tab: RibbonTab, over: Partial<RibbonActions> = {}) => renderToSt
 const TABS = Object.keys(CAPTIONS) as RibbonTab[];
 
 describe('Ribbon', () => {
-  it('puts Load schedule and SLD first, each with its tools', () => {
+  it('puts Project first, then the everyday work, one Stages tab, what comes out, and Standards at the far end', () => {
     const html = render('sld');
     const order = [...html.matchAll(/id="ribbon-tab-(\w+)"/g)].map((m) => m[1]);
-    expect(order.slice(0, 3)).toEqual(['schedule', 'sld', 'home']);
+    expect(order).toEqual(['home', 'schedule', 'sld', 'cad', 'stages', 'reports', 'cost', 'standards']);
+    // Dividers between the kinds of tab, and Standards pushed to the far end.
+    expect(html.split('class="tab-sep"').length - 1).toBe(3);
+    expect(html).toMatch(/id="ribbon-tab-cost".*?<span class="sp"><\/span><button id="ribbon-tab-standards"/s);
     expect(html).toContain('Add load');
     expect(render('schedule')).toContain('Load schedule');
     expect(render('schedule')).toContain('Add load');
+  });
+
+  it('shows the four stages as sub-tabs of Stages, numbered in order, and no others', () => {
+    const subTabs = (html: string) => [...(/role="tablist" aria-label="Stages">(.*?)<\/div>/s.exec(html)?.[1] ?? '').matchAll(/id="ribbon-tab-(\w+)"/g)].map((m) => m[1]);
+    for (const stage of ['concept', 'schematic', 'detailed', 'issue'] as const) {
+      const html = render(stage);
+      expect(subTabs(html), stage).toEqual(['concept', 'schematic', 'detailed', 'issue']);
+      expect(html, stage).toMatch(/id="ribbon-tab-stages"[^>]*aria-selected="true"/);
+      expect(html, stage).toMatch(new RegExp(`id="ribbon-tab-${stage}"[^>]*aria-selected="true"`));
+    }
+    expect(render('detailed')).toMatch(/>1 Concept<.*>2 Schematic<.*>3 Detailed design<.*>4 Tender and IFC</s);
+    for (const tab of ['home', 'schedule', 'sld', 'reports', 'cost', 'standards'] as const) expect(render(tab), tab).not.toContain('ribbon-subtabs');
+    expect(render('cad')).not.toContain('aria-label="Stages"'); // Design CAD keeps its own sub-tabs
+    expect(render('sld')).toMatch(/id="ribbon-tab-stages"[^>]*aria-selected="false"/);
+  });
+
+  it('gives Detailed design only its own tools; the SLD tools and More are on the SLD tab', () => {
+    const detailed = render('detailed');
+    for (const label of ['Run', 'Selection', 'Voltage drop', 'Earthing', 'Protection', 'Issue detailed']) expect(detailed, label).toContain(`>${label}<`);
+    for (const label of ['SLD', 'Sheets', 'Select', 'Pan', 'Boards', 'Board', 'Schedule', 'Enclosure', 'Add load', 'Edit', 'Delete', 'More']) expect(detailed, label).not.toContain(`<span>${label}</span>`);
+    expect(detailed).not.toContain('ribbon-selected');
+    const sld = render('sld');
+    for (const label of ['Run', 'SLD', 'Sheets', 'Select', 'Pan', 'Boards', 'Board', 'Schedule', 'Enclosure', 'Add load', 'Edit', 'Delete', 'More']) expect(sld, label).toContain(`<span>${label}</span>`);
+    expect(sld).toContain('ribbon-selected');
   });
 
   it('captions every group on every tab', () => {
@@ -51,17 +78,26 @@ describe('Ribbon', () => {
     expect(render('schematic')).not.toContain('to review');
   });
 
-  it('marks the current design stage with a badge, separate from the selected tab', () => {
+  it('marks the current design stage with a badge, separate from the tab selected', () => {
     const html = render('home', { stage: 'schematic' });
     expect(html.split('class="stage-now"').length - 1).toBe(1);
-    expect(html).toMatch(/id="ribbon-tab-schematic"[^>]*aria-selected="false"[^>]*>.*?class="stage-now"/);
+    expect(html).toMatch(/id="ribbon-tab-stages"[^>]*aria-selected="false"[^>]*>.*?class="stage-now"/);
     expect(html).toMatch(/id="ribbon-tab-home"[^>]*aria-selected="true"/);
+    // On a stage: on Stages and on the project's stage, whichever stage is showing.
+    const other = render('concept', { stage: 'schematic' });
+    expect(other.split('class="stage-now"').length - 1).toBe(2);
+    expect(other).toMatch(/id="ribbon-tab-schematic"[^>]*aria-selected="false"[^>]*>2 Schematic<span class="stage-now"/);
+    expect(other).toMatch(/id="ribbon-tab-concept"[^>]*aria-selected="true"[^>]*>1 Concept<\/button>/);
+    // Tender and IFC are one sub-tab.
+    for (const stage of ['tender', 'ifc'] as const) expect(render('issue', { stage }), stage).toMatch(/>4 Tender and IFC<span class="stage-now"/);
   });
 
   it('links the tabs to the tools they show', () => {
+    expect(render('home').split('aria-controls="ribbon-tools"').length - 1).toBe(8);
     const html = render('detailed');
-    expect(html.split('aria-controls="ribbon-tools"').length - 1).toBe(TABS.length);
+    expect(html.split('aria-controls="ribbon-tools"').length - 1).toBe(12); // with the four stages
     expect(html).toContain('id="ribbon-tools"');
+    expect(html).toContain('aria-label="3 Detailed design tools"');
   });
 
   it('shows Design CAD as Plan (engineering) and Draw (drafting) over the same drawing', () => {
@@ -92,7 +128,7 @@ describe('Ribbon', () => {
   });
 
   it('opens the sheets from the SLD tabs', () => {
-    for (const tab of ['schematic', 'detailed'] as const) expect(render(tab), tab).toContain('in Design CAD → Sheets');
+    for (const tab of ['schematic', 'sld'] as const) expect(render(tab), tab).toContain('in Design CAD → Sheets');
   });
 
   describe('with a sheet open in Design CAD → Sheets', () => {
