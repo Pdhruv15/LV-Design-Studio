@@ -11,7 +11,6 @@ import { isRasterDataUrl } from '../util/escape';
 /** One page per building for the submission: levels with area and load,
  * flats and their meters, totals (TCL, MDL, W/m²). */
 
-const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const f2 = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const INTEGER = '#,##0', ONE_DECIMAL = '#,##0.0', TWO_DECIMALS = '#,##0.00';
@@ -46,7 +45,7 @@ export function buildingSheet(project: Project, buildingId: string): BuildingShe
     name: b.name, use: b.use ?? '', description: sum.description, floors: sum.floors, gfaM2: sum.gfaM2, buaM2: sum.buaM2, heightM: sum.heightM,
     rows: fl.map((r) => ({ tag: r.floor.tag, level: r.floor.name, kind: r.floor.level.kind, grossM2: r.grossM2, connectedKw: r.connectedKw, demandKw: r.demandKw, wPerM2: r.grossM2 ? (r.connectedKw * 1000) / r.grossM2 : 0, dbs: r.dbs.join(', ') })),
     units: [...byType.entries()].map(([type, t]) => ({ type, count: t.count, connectedKw: t.kw, meters: [...t.meters.entries()].map(([m, n]) => `${n} × ${m}`).join(', ') })),
-    meters, tclKw, mdlKw: tclKw * df, df, source: src ? `${src.id} (TCL incl. services ${f1(connectedPhaseKw(project, src.id).R + connectedPhaseKw(project, src.id).Y + connectedPhaseKw(project, src.id).B)} kW)` : undefined
+    meters, tclKw, mdlKw: tclKw * df, df, source: src ? `${src.id} (TCL incl. services ${f2(connectedPhaseKw(project, src.id).R + connectedPhaseKw(project, src.id).Y + connectedPhaseKw(project, src.id).B)} kW)` : undefined
   };
 }
 
@@ -56,10 +55,10 @@ export function buildingSummaryHtml(project: Project, ids: string[]): string {
   const page = (s: BuildingSheet) => `<section class="pg">
   <header>${logo}<div><h1>${esc(s.name)} — building load summary</h1><div class="m">${esc(project.name)} · ${esc(revisionStamp(project))}${project.info?.plotNo ? ` · Plot ${esc(project.info.plotNo)}` : ''}</div></div></header>
   <table class="kv"><tr><th>Use</th><td>${esc(s.use || '—')}</td><th>Floors</th><td>${esc(s.description || '—')} (${s.floors})</td><th>Height</th><td>${f1(s.heightM)} m</td></tr>
-  <tr><th>GFA</th><td>${f0(s.gfaM2)} m²</td><th>Built-up area</th><td>${f0(s.buaM2)} m²</td><th>Fed from</th><td>${esc(s.source ?? '—')}</td></tr></table>
+  <tr><th>GFA</th><td>${f2(s.gfaM2)} m²</td><th>Built-up area</th><td>${f2(s.buaM2)} m²</td><th>Fed from</th><td>${esc(s.source ?? '—')}</td></tr></table>
   <h2>Load per floor</h2>
   <table><thead><tr><th>Floor</th><th>Level</th><th class="n">Gross area (m²)</th><th class="n">Connected (kW)</th><th class="n">Demand (kW)</th><th class="n">W/m²</th><th>DBs</th></tr></thead><tbody>
-  ${s.rows.map((r) => `<tr><td>${esc(r.tag)}</td><td>${esc(r.level)}</td><td class="n">${r.grossM2 ? f0(r.grossM2) : '—'}</td><td class="n">${f2(r.connectedKw)}</td><td class="n">${f2(r.demandKw)}</td><td class="n">${r.wPerM2 ? f1(r.wPerM2) : '—'}</td><td class="m">${esc(r.dbs)}</td></tr>`).join('')}
+  ${s.rows.map((r) => `<tr><td>${esc(r.tag)}</td><td>${esc(r.level)}</td><td class="n">${r.grossM2 ? f2(r.grossM2) : '—'}</td><td class="n">${f2(r.connectedKw)}</td><td class="n">${f2(r.demandKw)}</td><td class="n">${r.wPerM2 ? f1(r.wPerM2) : '—'}</td><td class="m">${esc(r.dbs)}</td></tr>`).join('')}
   <tr class="b"><td colspan="3">Total connected load (TCL) of the floors</td><td class="n">${f2(s.tclKw)}</td><td class="n">${f2(s.rows.reduce((a, r) => a + r.demandKw, 0))}</td><td class="n">${s.gfaM2 ? f1((s.tclKw * 1000) / s.gfaM2) : '—'}</td><td></td></tr></tbody></table>
   ${s.units.length ? `<h2>Flats / tenants</h2><table><thead><tr><th>Unit type</th><th class="n">Units</th><th class="n">Connected (kW, all)</th><th class="n">Per unit (kW)</th><th>Meters</th></tr></thead><tbody>
   ${s.units.map((u) => `<tr><td>${esc(u.type)}</td><td class="n">${u.count}</td><td class="n">${f2(u.connectedKw)}</td><td class="n">${f2(u.connectedKw / u.count)}</td><td>${esc(u.meters)}</td></tr>`).join('')}</tbody></table>
@@ -84,13 +83,13 @@ export function buildingSummaryWorkbook(project: Project, ids: string[]): ExcelJ
     const ws = wb.addWorksheet(s.name.slice(0, 31));
     ws.addRow([`${s.name} — building load summary`]).font = { bold: true, size: 13 };
     ws.addRow([project.name, revisionStamp(project)]);
-    const summary = ws.addRow(['Use', s.use, 'Floors', `${s.description} (${s.floors})`, 'GFA (m²)', Math.round(s.gfaM2), 'BUA (m²)', Math.round(s.buaM2)]);
-    summary.getCell(6).numFmt = INTEGER; summary.getCell(8).numFmt = INTEGER;
+    const summary = ws.addRow(['Use', s.use, 'Floors', `${s.description} (${s.floors})`, 'GFA (m²)', +s.gfaM2.toFixed(2), 'BUA (m²)', +s.buaM2.toFixed(2)]);
+    summary.getCell(6).numFmt = TWO_DECIMALS; summary.getCell(8).numFmt = TWO_DECIMALS;
     ws.addRow([]);
     ws.addRow(['Floor', 'Level', 'Gross area (m²)', 'Connected (kW)', 'Demand (kW)', 'W/m²', 'DBs']).font = { bold: true };
     for (const r of s.rows) {
-      const row = ws.addRow([r.tag, r.level, r.grossM2 || null, +r.connectedKw.toFixed(2), +r.demandKw.toFixed(2), r.wPerM2 ? +r.wPerM2.toFixed(1) : null, r.dbs]);
-      row.getCell(3).numFmt = INTEGER; row.getCell(4).numFmt = TWO_DECIMALS; row.getCell(5).numFmt = TWO_DECIMALS; row.getCell(6).numFmt = ONE_DECIMAL;
+      const row = ws.addRow([r.tag, r.level, r.grossM2 ? +r.grossM2.toFixed(2) : null, +r.connectedKw.toFixed(2), +r.demandKw.toFixed(2), r.wPerM2 ? +r.wPerM2.toFixed(1) : null, r.dbs]);
+      row.getCell(3).numFmt = TWO_DECIMALS; row.getCell(4).numFmt = TWO_DECIMALS; row.getCell(5).numFmt = TWO_DECIMALS; row.getCell(6).numFmt = ONE_DECIMAL;
     }
     const total = ws.addRow(['Total', '', '', +s.tclKw.toFixed(2), +s.rows.reduce((a, r) => a + r.demandKw, 0).toFixed(2)]);
     total.font = { bold: true }; total.getCell(4).numFmt = TWO_DECIMALS; total.getCell(5).numFmt = TWO_DECIMALS;

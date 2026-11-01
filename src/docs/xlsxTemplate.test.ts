@@ -45,7 +45,7 @@ describe('templateData', () => {
     expect(d.rows.map((r) => r['row.sl'])).toEqual(s.entries.map((e) => e.sl));
     expect(d.fields['board.id']).toBe(db);
     expect(d.fields['total.all']).toBe(Math.round(s.connectedW.R + s.connectedW.Y + s.connectedW.B));
-    expect(d.fields.date).toBe('27/10/2026');
+    expect(d.fields.date).toBe('27 Oct 2026');
   });
   it('prints the ELCB label once per group, and on every row as elcbGroup', () => {
     const d = templateData(sampleProject, db, AT);
@@ -96,7 +96,7 @@ describe('fillLoadScheduleTemplate', () => {
     const { workbook } = await fillLoadScheduleTemplate(sampleProject, await template({ cover: true }), { at: AT });
     const wb = await reload(workbook);
     expect(wb.worksheets.map((w) => w.name)).toEqual(['Cover', ...all]);
-    expect(wb.getWorksheet('Cover')!.getCell('A1').value).toBe(`Project: ${sampleProject.name} — 27/10/2026`);
+    expect(wb.getWorksheet('Cover')!.getCell('A1').value).toBe(`Project: ${sampleProject.name} — 27 Oct 2026`);
   });
 
   it('says so when the template has no repeated row, and refuses a file that is not .xlsx', async () => {

@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs';
 import { routeSettings, SPACING_LABEL, trayQuantities, type TrayResult, odsSource } from '../calc/cableTray';
 import { revisionStamp } from '../model/revisions';
 import type { Project, TrayPlan } from '../types';
+import { fig, Figure } from '../util/format';
 import { lineNumbers } from './traySection';
 
 /** Cable tray schedule workbook: one sheet with every route and its
@@ -15,8 +16,8 @@ const BORDER: Partial<ExcelJS.Borders> = { top: thin, left: thin, bottom: thin, 
 const GREY = 'FFE9EDF3';
 const r1 = (v: number) => Math.round(v * 10) / 10;
 
-function row(ws: ExcelJS.Worksheet, values: (string | number | null)[], o: { bold?: boolean; fill?: string; border?: boolean } = {}) {
-  const r = ws.addRow(values);
+function row(ws: ExcelJS.Worksheet, values: (string | number | Figure | '—' | null)[], o: { bold?: boolean; fill?: string; border?: boolean } = {}) {
+  const r = ws.addRow(values.map((v) => (v instanceof Figure ? v.value : v)));
   r.eachCell({ includeEmpty: true }, (c, i) => {
     if (i > values.length) return;
     c.style = {
@@ -25,6 +26,8 @@ function row(ws: ExcelJS.Worksheet, values: (string | number | null)[], o: { bol
       ...(o.border === false ? {} : { border: { ...BORDER } }),
       ...(o.fill ? { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: o.fill } } } : {})
     };
+    const v = values[i - 1];
+    if (v instanceof Figure) c.numFmt = v.numFmt;
   });
   return r;
 }
@@ -59,14 +62,14 @@ export function buildTrayWorkbook(project: Project, plan: TrayPlan, results: Tra
     row(ws, ['No.', 'From (panel)', 'To', 'Cable', 'Path', 'No. of cables', 'OD (mm)', 'kg/m', 'Σ D (mm)'], { bold: true, fill: GREY });
     const nums = lineNumbers(r.lines);
     for (const l of r.lines) {
-      row(ws, [nums.get(l.id) ?? '', l.from, l.to, `${l.description}${l.feederId && !l.ecc ? ` (${l.feederId})` : ''}${l.missing ? ` — ${l.missing}` : ''}`, l.ecc ? '' : l.path ?? `${r.route.name} only`, l.qty, r1(l.odMm), r1(l.kgPerM), r1(l.qty * l.odMm)]);
+      row(ws, [nums.get(l.id) ?? '', l.from, l.to, `${l.description}${l.feederId && !l.ecc ? ` (${l.feederId})` : ''}${l.missing ? ` — ${l.missing}` : ''}`, l.ecc ? '' : l.path ?? `${r.route.name} only`, l.qty, r1(l.odMm), fig.weight(l.kgPerM), r1(l.qty * l.odMm)]);
     }
     const basis = e.method === 'spacing'
       ? `Single layer, spacing ${SPACING_LABEL[e.spacing]}${e.spacing === 'mm' ? ` ${e.spacingMm} mm` : ''}: Σ D ${r1(r.sumOdMm)} + spacing ${r1(r.clearanceMm)} = ${r1(r.occupiedMm)} mm`
       : `Fill ${e.fillPct} % of ${e.depthMm} mm depth: cable area ${Math.round(r.cableAreaMm2)} mm² → ${r1(r.occupiedMm)} mm`;
     const b = row(ws, ['', `${basis}; + ${e.sparePct} % spare → required ${r1(r.requiredMm)} mm`, '', '', '', '', '', '', ''], { border: false });
     ws.mergeCells(b.number, 2, b.number, 9);
-    const t = row(ws, ['', `SELECTED TRAY: ${trayText(r)} mm${r.manual ? ' (chosen)' : ''} — spare ${Math.round(r.sparePctActual)} %, cable weight ${r1(r.kgPerM)} kg/m, grouping factor ${r.groupFactor.toFixed(2)}, bend radius ≥ ${r.bendMm} mm${r.notes.length ? ` — ${r.notes.join('; ')}` : ''}`, '', '', '', '', '', '', ''], { bold: true, border: false });
+    const t = row(ws, ['', `SELECTED TRAY: ${trayText(r)} mm${r.manual ? ' (chosen)' : ''} — spare ${Math.round(r.sparePctActual)} %, cable weight ${fig.weight(r.kgPerM)} kg/m, grouping factor ${r.groupFactor.toFixed(2)}, bend radius ≥ ${r.bendMm} mm${r.notes.length ? ` — ${r.notes.join('; ')}` : ''}`, '', '', '', '', '', '', ''], { bold: true, border: false });
     ws.mergeCells(t.number, 2, t.number, 9);
   }
 
@@ -77,7 +80,7 @@ export function buildTrayWorkbook(project: Project, plan: TrayPlan, results: Tra
   sum.addRow([]);
   row(sum, ['Route', 'From', 'To', 'Panels (cables from)', 'Cables', 'Required width (mm)', 'Tray W × D (mm)', 'Spare %', 'Grouping', 'Weight (kg/m)', 'Length (m)', 'Status'], { bold: true, fill: GREY });
   for (const r of results) {
-    row(sum, [r.route.name, r.route.from ?? '', r.route.to ?? '', r.panels.join(', '), r.cableCount, Math.round(r.requiredMm), r.cableCount ? trayText(r) : '—', Math.round(r.sparePctActual), Math.round(r.groupFactor * 100) / 100, r1(r.kgPerM), r.route.lengthM ?? null, STATUS_TEXT[r.status]]);
+    row(sum, [r.route.name, r.route.from ?? '', r.route.to ?? '', r.panels.join(', '), r.cableCount, Math.round(r.requiredMm), r.cableCount ? trayText(r) : '—', Math.round(r.sparePctActual), fig.ratio(r.groupFactor), fig.weight(r.kgPerM), r.route.lengthM ?? null, STATUS_TEXT[r.status]]);
   }
   sum.addRow([]);
   row(sum, ['', `Tray BOQ — ${s.trayType}`], { bold: true, border: false });

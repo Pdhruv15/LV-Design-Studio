@@ -64,17 +64,28 @@ function dayOf(d: string | number | Date): [number, number, number] | undefined 
   const iso = typeof d === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(d.trim()) : null;
   if (iso) {
     const [y, m, day] = [+iso[1], +iso[2], +iso[3]];
-    return m >= 1 && m <= 12 && day >= 1 && day <= 31 ? [day, m - 1, y] : undefined;
+    const real = new Date(Date.UTC(y, m - 1, day)); // 2026-02-31 is not a date
+    return real.getUTCMonth() === m - 1 && real.getUTCDate() === day ? [day, m - 1, y] : undefined;
   }
   if (typeof d === 'string' && !/^\d{4}-\d{2}-\d{2}T/.test(d.trim())) return undefined;
   const t = new Date(d);
   return Number.isNaN(t.getTime()) ? undefined : [t.getDate(), t.getMonth(), t.getFullYear()];
 }
 
-/** 1 Nov 2026, the same on every computer. Text that isn't a date stays as typed. */
-export const fmtDate = (d: string | number | Date) => {
+/** 1 Nov 2026, the same on every computer. Text that isn't a date stays as typed; no date prints as nothing. */
+export const fmtDate = (d: string | number | Date | undefined) => {
+  if (d === undefined) return '';
   const p = dayOf(d);
   return p ? `${p[0]} ${MONTHS[p[1]].slice(0, 3)} ${p[2]}` : String(d);
+};
+
+/** How Excel shows `excelDate`: 1 Nov 2026. */
+export const DATE_NUMFMT = 'd mmm yyyy';
+
+/** An ISO date as an Excel cell: a real date, so a register column still sorts by date. Text that isn't a date stays as typed. */
+export const excelDate = (d: string): Date | string => {
+  const p = dayOf(d);
+  return p ? new Date(Date.UTC(p[2], p[1], p[0])) : d;
 };
 
 /** 15 October 2026, for covers and headings. Text that isn't a date stays as typed. */

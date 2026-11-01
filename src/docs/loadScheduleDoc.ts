@@ -8,6 +8,7 @@ import { polesOf } from '../calc/bom';
 import { cableTypeOf } from '../model/cableTypes';
 import { cableBuildText, feederBuild } from '../model/cableRefs';
 import { withNetwork } from '../calc/network';
+import { fmtFixed } from '../util/format';
 
 const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -97,7 +98,8 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
   const columns = pointColumns(project, board);
   const pointCols = columns.map((t) => t.value);
   const incomerText = esc(incomerLabel(board, incomer));
-  const kw = (v: number) => (v * 1000).toFixed(0);
+  const kw = (v: number) => fmtFixed(v * 1000, 0);
+  const watts = (v: string | number) => (typeof v === 'number' ? fmtFixed(v, 0) : v);
 
   // ELCB cells span their group's rows.
   const elcbCell = (i: number) => {
@@ -122,7 +124,7 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
       <td>${r.sl}</td><td><b>${r.ref}</b></td><td>${r.f.breakerRatingA}</td><td>${r.f.cableCsaMm2}</td><td>${cpcOf(r.f)}</td>
       <td class="l">${esc(r.f.room ?? r.f.name)}</td>
       ${pointCols.map((t) => `<td>${r.f.points?.[t] || ''}</td>`).join('')}
-      <td>${r.ph.R}</td><td>${r.ph.Y}</td><td>${r.ph.B}</td>
+      <td>${watts(r.ph.R)}</td><td>${watts(r.ph.Y)}</td><td>${watts(r.ph.B)}</td>
       <td class="l">${esc(remarksText(r.f))}${r.status !== 'ok' ? ` <span class="${r.status}">(${r.status === 'bad' ? 'fails check' : 'check'})</span>` : ''}</td>
     </tr>`)(e.row))
     .join('');
@@ -163,8 +165,8 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
     </thead>
     <tbody>${body}
       <tr class="total"><td colspan="${8 + pointCols.length}" style="text-align:right">TOTAL CONNECTED LOAD (W) — the circuits above</td>
-        <td class="shade">${connectedW.R.toFixed(0)}</td><td class="shade">${connectedW.Y.toFixed(0)}</td><td class="shade">${connectedW.B.toFixed(0)}</td>
-        <td class="l">${(connectedW.R + connectedW.Y + connectedW.B).toFixed(0)} W</td></tr>
+        <td class="shade">${fmtFixed(connectedW.R, 0)}</td><td class="shade">${fmtFixed(connectedW.Y, 0)}</td><td class="shade">${fmtFixed(connectedW.B, 0)}</td>
+        <td class="l">${fmtFixed(connectedW.R + connectedW.Y + connectedW.B, 0)} W</td></tr>
       <tr class="total"><td colspan="${8 + pointCols.length}" style="text-align:right">MAXIMUM DEMAND (W) — after demand factors${others.length ? `, incl. ${others.length} other way(s) not listed: ${esc(others.map((f) => f.feedsBoardId ?? f.id).join(', '))}` : ''}</td>
         <td class="shade">${kw(phaseW.R)}</td><td class="shade">${kw(phaseW.Y)}</td><td class="shade">${kw(phaseW.B)}</td>
         <td class="l">${kw(phaseW.R + phaseW.Y + phaseW.B)} W · imbalance ${imbalance.toFixed(0)} %</td></tr>

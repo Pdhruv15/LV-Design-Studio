@@ -10,6 +10,7 @@ export { printDoc };
 import { boqRevisionsOf, boqRevisionState, changeNote, CHANGE_LABEL, type BoqLine, type BoqLineChange } from '../model/boqRevisions';
 import { boqReview, SCOPE_CHECKS } from '../model/boqScope';
 import { isRasterDataUrl } from '../util/escape';
+import { fmtDate as shortDate } from '../util/format';
 
 /** The BOQ as an Excel workbook in tender format: a summary sheet, the
  * bill (item no., description, unit, qty, rate, amount, section subtotals)
@@ -87,7 +88,7 @@ export function buildBoqWorkbook(project: Project, bom: PricedBom, list?: PriceL
   const review = exportReview(project, bom);
   const state = boqRevisionState(project, bom);
   const revLabel = state.rev === undefined ? 'Draft' : `Rev ${state.rev}${state.draft ? ' (draft)' : ''}`;
-  const stamp = `BOQ ${revLabel}${state.date ? ` · ${state.date}` : ''}`;
+  const stamp = `BOQ ${revLabel}${state.date ? ` · ${shortDate(state.date)}` : ''}`;
 
   // Summary
   const sum = wb.addWorksheet('Summary', { pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
@@ -221,7 +222,7 @@ export function buildBoqWorkbook(project: Project, bom: PricedBom, list?: PriceL
   if (state.previous) {
     const prev = state.previous;
     const cw = wb.addWorksheet('Revision summary');
-    header(cw, project, `Revision summary — changes from BOQ Rev ${prev.id} (${prev.date})`, 9, stamp);
+    header(cw, project, `Revision summary — changes from BOQ Rev ${prev.id} (${shortDate(prev.date)})`, 9, stamp);
     cw.columns = [{ width: 8 }, { width: 62 }, { width: 7 }, { width: 18 }, { width: 10 }, { width: 10 }, { width: 13 }, { width: 13 }, { width: 16 }];
     cw.getRow(4).values = ['Item', 'Description', 'Unit', 'Change', `Qty Rev ${prev.id}`, `Qty Rev ${state.rev}`, `Rate Rev ${prev.id}`, `Rate Rev ${state.rev}`, `Amount change (${cur})`];
     head(cw.getRow(4));
@@ -310,10 +311,6 @@ const m2 = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, 
 
 const qtyH = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 const billId = (section: string) => `bill-${section.replace(/[^A-Za-z0-9_-]/g, '_')}`;
-const shortDate = (iso?: string) => {
-  const d = iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00`) : undefined;
-  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : iso ?? '';
-};
 
 const CURRENCY_NAMES: Record<string, string> = {
   AED: 'UAE Dirhams', SAR: 'Saudi Riyals', QAR: 'Qatari Riyals', OMR: 'Omani Rials', KWD: 'Kuwaiti Dinars', BHD: 'Bahraini Dinars',

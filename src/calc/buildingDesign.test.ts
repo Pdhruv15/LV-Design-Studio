@@ -90,7 +90,7 @@ describe('building summary sheet', async () => {
     const ws = buildingSummaryWorkbook(r, ['T1']).worksheets[0];
     expect(ws.getRow(5).values).toEqual(expect.arrayContaining(['Gross area (m²)', 'Connected (kW)', 'Demand (kW)', 'W/m²']));
     const first = ws.getRow(6);
-    expect([first.getCell(3).numFmt, first.getCell(4).numFmt, first.getCell(5).numFmt, first.getCell(6).numFmt]).toEqual(['#,##0', '#,##0.00', '#,##0.00', '#,##0.0']);
+    expect([first.getCell(3).numFmt, first.getCell(4).numFmt, first.getCell(5).numFmt, first.getCell(6).numFmt]).toEqual(['#,##0.00', '#,##0.00', '#,##0.00', '#,##0.0']);
     expect(Number(EXPORT_NUMBERS.connectedKw.toFixed(2))).toBe(12.35);
     expect(Number(EXPORT_NUMBERS.wattsPerM2.toFixed(1))).toBe(7.7);
   });

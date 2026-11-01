@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import type { Project } from '../types';
 import { additionsOf, lineAmount, netOf, omissionsOf, valueOf, variationsOf, variationTotals, VO_STATUS, type Variation } from '../model/variations';
+import { DATE_NUMFMT, excelDate, fmtDate as day } from '../util/format';
 import { amountInWords, printDoc } from './boqWorkbook';
 import { reportDoc } from './reportFrame';
 import { esc } from './report';
@@ -12,10 +13,6 @@ import { esc } from './report';
 const m2 = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const signed = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${m2(Math.abs(n))}`;
 const qty = (n?: number) => (n === undefined || !Number.isFinite(n) || n === 0 ? '' : n.toLocaleString('en-US', { maximumFractionDigits: 2 }));
-const day = (iso?: string) => {
-  const d = iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00`) : undefined;
-  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : iso ?? '';
-};
 const list = (vos: Variation[]) => vos.map((v) => v.id).join(', ');
 
 export interface VariationDocOptions {
@@ -122,8 +119,8 @@ export function buildVariationWorkbook(project: Project): ExcelJS.Workbook {
   let r = 5;
   for (const v of vos) {
     const row = ws.getRow(r++);
-    row.values = [v.id, v.title, v.instructedBy ?? '', v.reference ?? '', VO_STATUS[v.status], v.submitted ?? '', v.decided ?? '', netOf(v), v.status === 'approved' ? valueOf(v) : v.status === 'rejected' || v.status === 'withdrawn' ? 0 : null, v.foldedInto ?? ''];
-    row.eachCell({ includeEmpty: true }, (c, n) => { if (n <= 10) c.border = box; });
+    row.values = [v.id, v.title, v.instructedBy ?? '', v.reference ?? '', VO_STATUS[v.status], v.submitted ? excelDate(v.submitted) : '', v.decided ? excelDate(v.decided) : '', netOf(v), v.status === 'approved' ? valueOf(v) : v.status === 'rejected' || v.status === 'withdrawn' ? 0 : null, v.foldedInto ?? ''];
+    row.eachCell({ includeEmpty: true }, (c, n) => { if (n <= 10) c.border = box; if (n === 6 || n === 7) c.numFmt = DATE_NUMFMT; });
   }
   r++;
   const line = (label: string, value: number, bold = false) => { const row = ws.getRow(r++); row.values = ['', label, '', '', '', '', '', '', value]; row.font = { bold }; };

@@ -61,8 +61,8 @@ describe('BOQ revisions', () => {
     expect(html).toMatch(/<tr class="chg"><td><svg class="tri"[^]*?<\/svg> E\.2<\/td><td><s>Cable B<\/s>[^]*?<i>Omitted<\/i>/);
     expect(html).toContain('<section id="boq-revisions" class="page">');
     expect(html).toContain('Revision summary — Rev 1');
-    expect(html).toContain('<tr><td>Revision</td><td>Rev 1 — 01 Oct 2026</td></tr>');
-    expect(html).toMatch(/@bottom-left \{ content: "Rev 1 · 01 Oct 2026"/);
+    expect(html).toContain('<tr><td>Revision</td><td>Rev 1 — 1 Oct 2026</td></tr>');
+    expect(html).toMatch(/@bottom-left \{ content: "Rev 1 · 1 Oct 2026"/);
     // A change after the issue is the next revision, as a draft.
     const draft = buildBoqHtml(p1, bomOf([it1('a', 4, 'Cable A')], p1), list);
     expect(draft).toContain('Rev 2 (draft)');
@@ -77,6 +77,6 @@ describe('BOQ revisions', () => {
     wb.getWorksheet('BOQ')!.eachRow((row) => { if (row.number < 4) return; const v = row.getCell(9).value; if (typeof v === 'string') notes.push(`${row.getCell(1).value} ${v}`); });
     expect(notes).toEqual(['Item Revision (Rev 1)', 'E.1 △1 qty 1 → 3', 'E.2 △1 omitted (was 1 m, 20.00)']);
     expect(wb.worksheets.map((s) => s.name)).toContain('Revision summary');
-    expect(wb.getWorksheet('BOQ')!.getCell(2, 1).value).toMatch(/^Bill of quantities — BOQ Rev 1 · 2026-10-01/);
+    expect(wb.getWorksheet('BOQ')!.getCell(2, 1).value).toMatch(/^Bill of quantities — BOQ Rev 1 · 1 Oct 2026/);
   });
 });

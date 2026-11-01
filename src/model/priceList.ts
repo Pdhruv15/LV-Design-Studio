@@ -4,6 +4,7 @@ import { BOM_SECTIONS } from '../calc/bom';
 import { breakerRateAed, cableRatePerM, CURRENCY } from '../data/rates';
 import { catalog, catalogRate } from '../database/catalog';
 import { packageTarget, type BoqAction, type BoqLineScope, type BoqResponsibility } from './boqScope';
+import { fmtDate } from '../util/format';
 
 /** Your supplier rates, by BOM item key. Several catalogues can be kept
  * (e.g. Schneider, ABB, local panel builder); a project uses one and keeps a
@@ -313,7 +314,7 @@ export function pricingBasis(bom: PricedBom, list?: PriceList): PricingBasis {
     qtyChanged: n((x) => x.designQty !== undefined), designMoved: bom.changed
   };
   const lines = [
-    list ? `${b.list} item(s) priced from ${list.name}${list.date ? ` (${list.date})` : ''}.` : 'No price list selected.',
+    list ? `${b.list} item(s) priced from ${list.name}${list.date ? ` (${fmtDate(list.date)})` : ''}.` : 'No price list selected.',
     ...(b.typical ? [`${b.typical} item(s) at built-in typical rates — illustrative, replace with quoted rates.`] : []),
     ...(b.manual ? [`${b.manual} item(s) with rates entered by hand.`] : []),
     ...(b.missing ? [`${b.missing} item(s) have an unquoted supply or installation charge — the total is incomplete; known charges remain included.`] : []),

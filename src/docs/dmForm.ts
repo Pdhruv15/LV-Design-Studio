@@ -1,6 +1,7 @@
 import { dmSubstationAreas, dmType, DM_TITLE, DM_UNDERTAKING } from '../calc/dmSubstation';
 import { revisionStamp } from '../model/revisions';
 import type { DmSubstationRoom, Project } from '../types';
+import { fmtFixed } from '../util/format';
 import { esc } from './report';
 
 /** DM-D-013 in English: one A4 page per substation with the minimum room
@@ -8,7 +9,7 @@ import { esc } from './report';
  * remarks, the undertaking and the signature block — laid out like the
  * Dubai Municipality sheet. */
 
-const m = (v: number) => v.toFixed(2).replace(/\.?0+$/, '');
+const m = (v: number) => fmtFixed(v, 2);
 
 export function buildDmFormHtml(project: Project, substations: DmSubstationRoom[]): string {
   const info = project.info ?? {};

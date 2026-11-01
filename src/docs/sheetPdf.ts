@@ -2,22 +2,29 @@ import type ExcelJS from 'exceljs';
 import type { Project } from '../types';
 import { esc } from './report';
 import { revisionStamp } from '../model/revisions';
+import { fmtDate, fmtFixed } from '../util/format';
 import type { Schedule } from './schedules';
 
 /** Authority forms as PDF: the same worksheets the Excel export lays out
  * (merged cells, bold headings, column widths) printed as HTML tables, so
  * the PDF and the Excel always match. */
 
-const text = (v: ExcelJS.CellValue): string => {
+/** A number as Excel shows it: with the decimals of its format when it has one of ours (#,##0.00), else as it is. */
+const shown = (v: number, numFmt?: string) => {
+  const f = numFmt ? /^#,##0(?:\.(0+))?$/.exec(numFmt) : null;
+  return f ? fmtFixed(v, f[1]?.length ?? 0) : String(+v.toFixed(3));
+};
+
+const text = (v: ExcelJS.CellValue, numFmt?: string): string => {
   if (v === null || v === undefined) return '';
   if (typeof v === 'object') {
-    if (v instanceof Date) return v.toLocaleDateString('en-GB');
+    if (v instanceof Date) return fmtDate(v);
     if ('result' in v) return text(v.result as ExcelJS.CellValue);
     if ('richText' in v) return v.richText.map((t) => t.text).join('');
     if ('text' in v) return String(v.text);
     if ('error' in v) return String(v.error);
   }
-  return typeof v === 'number' ? String(+v.toFixed(3)) : String(v);
+  return typeof v === 'number' ? shown(v, numFmt) : String(v);
 };
 
 const addr = (a: string) => {
@@ -53,7 +60,7 @@ export function worksheetHtml(ws: ExcelJS.Worksheet): string {
       const al = cell.alignment?.horizontal ? `text-align:${cell.alignment.horizontal === 'centerContinuous' ? 'center' : cell.alignment.horizontal};` : typeof cell.value === 'number' ? 'text-align:right;' : '';
       const vert = cell.alignment?.textRotation ? ' class="v"' : '';
       const border = cell.border && Object.keys(cell.border).length ? '' : 'border-color:transparent;';
-      cells.push(`<td${sp ? `${sp.cols > 1 ? ` colspan="${sp.cols}"` : ''}${sp.rows > 1 ? ` rowspan="${sp.rows}"` : ''}` : ''}${vert} style="${bold}${bg}${fg}${al}${border}">${esc(text(cell.value)).replace(/\n/g, '<br>')}</td>`);
+      cells.push(`<td${sp ? `${sp.cols > 1 ? ` colspan="${sp.cols}"` : ''}${sp.rows > 1 ? ` rowspan="${sp.rows}"` : ''}` : ''}${vert} style="${bold}${bg}${fg}${al}${border}">${esc(text(cell.value, cell.numFmt)).replace(/\n/g, '<br>')}</td>`);
     }
     rows.push(`<tr>${cells.join('')}</tr>`);
   }

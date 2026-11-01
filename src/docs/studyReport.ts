@@ -451,7 +451,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
   const cs = cableSchedule(p);
   const inScope = new Set([...scope.ids]);
   const incomerTags = new Set(scope.incomers.map((f) => `C-${f.id}`));
-  const toCell = (c: string | number): Cell => (statusOfText(c) ? S(statusOfText(c)!) : c);
+  const toCell = (c: string | number | Figure): Cell => (statusOfText(c) ? S(statusOfText(c)!) : c);
   return {
     key, title: info.title, statuses: [],
     method: ['Schedules of the boards in scope, from the design data and the latest calculation run.'],

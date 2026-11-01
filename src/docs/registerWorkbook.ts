@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import type { Project } from '../types';
 import { sheetRev, type DrawingIssue, type DrawingSet } from '../model/drawingSet';
 import { currentRevision } from '../model/revisions';
+import { DATE_NUMFMT, excelDate, fmtDate } from '../util/format';
 
 /** The drawing register as a submission-ready Excel workbook: a heading
  * block (project, client, consultant, plot), the sheet table with borders,
@@ -31,12 +32,12 @@ function heading(ws: ExcelJS.Worksheet, title: string, span: number, company: st
   return r + 1;
 }
 
-function table(ws: ExcelJS.Worksheet, start: number, head: string[], body: (string | number)[][]) {
+function table(ws: ExcelJS.Worksheet, start: number, head: string[], body: (string | number | Date)[][]) {
   const h = ws.getRow(start);
   head.forEach((t, i) => { const c = h.getCell(i + 1); c.value = t; c.font = { bold: true }; c.fill = headFill; c.border = border; c.alignment = { vertical: 'middle', wrapText: true }; });
   body.forEach((vals, j) => {
     const row = ws.getRow(start + 1 + j);
-    vals.forEach((v, i) => { const c = row.getCell(i + 1); c.value = v; c.border = border; c.alignment = { vertical: 'top', wrapText: true }; });
+    vals.forEach((v, i) => { const c = row.getCell(i + 1); c.value = v; c.border = border; c.alignment = { vertical: 'top', wrapText: true }; if (v instanceof Date) c.numFmt = DATE_NUMFMT; });
   });
   return start + body.length;
 }
@@ -63,7 +64,7 @@ export function buildRegisterWorkbook(p: Project, set: DrawingSet): ExcelJS.Work
   const head = ['#', 'Drawing no.', 'Title', 'Size', 'Rev', 'Date', 'Status', 'Drawn', 'Checked', 'Approved', 'Scale', 'Remarks'];
   const start = heading(ws, 'DRAWING REGISTER — SINGLE LINE DIAGRAMS', head.length, company, [...infoRows(p), ['Sheets', String(set.sheets.length)]]);
   const body = set.sheets.map((s, i) => [
-    i + 1, s.number, s.title, s.size === 'auto' ? 'Auto' : s.size, sheetRev(s, rev?.id), s.date || s.history?.[s.history.length - 1]?.date || rev?.date || '',
+    i + 1, s.number, s.title, s.size === 'auto' ? 'Auto' : s.size, sheetRev(s, rev?.id), excelDate(s.date || s.history?.[s.history.length - 1]?.date || rev?.date || ''),
     s.status || set.status || '', s.drawnBy || d.drawnBy || '', s.checkedBy || d.checkedBy || '', s.approvedBy || d.approvedBy || '', s.scale || 'NTS', s.remarks ?? ''
   ]);
   const end = table(ws, start, head, body);
@@ -77,8 +78,8 @@ export function buildRegisterWorkbook(p: Project, set: DrawingSet): ExcelJS.Work
     const hs = wb.addWorksheet('Issue history');
     const hHead = ['Issue', 'Date', 'Purpose', 'Description', 'To', 'Drawing no.', 'Title', 'Rev'];
     const hStart = heading(hs, 'ISSUE HISTORY', hHead.length, company, infoRows(p));
-    const rows: (string | number)[][] = [];
-    for (const x of issues) x.sheets.forEach((s, k) => rows.push(k === 0 ? [x.id, x.date, x.purpose, x.description, x.to ?? '', s.number, s.title, s.rev] : ['', '', '', '', '', s.number, s.title, s.rev]));
+    const rows: (string | number | Date)[][] = [];
+    for (const x of issues) x.sheets.forEach((s, k) => rows.push(k === 0 ? [x.id, excelDate(x.date), x.purpose, x.description, x.to ?? '', s.number, s.title, s.rev] : ['', '', '', '', '', s.number, s.title, s.rev]));
     const hEnd = table(hs, hStart, hHead, rows);
     hs.columns.forEach((c, i) => { c.width = [9, 12, 22, 34, 14, 18, 40, 6][i]; });
     if (rows.length) hs.autoFilter = { from: { row: hStart, column: 1 }, to: { row: hEnd, column: hHead.length } };
@@ -95,7 +96,7 @@ export function buildTransmittalWorkbook(p: Project, issue: DrawingIssue): Excel
   const company = p.drawing?.company ?? p.info?.consultant ?? '';
   const head = ['#', 'Drawing no.', 'Title', 'Rev', 'Copies'];
   const start = heading(ws, `DRAWING TRANSMITTAL ${issue.id}`, head.length, company, [
-    ...infoRows(p), ['To', issue.to ?? ''], ['Date', issue.date], ['Purpose of issue', issue.purpose], ['Description', issue.description]
+    ...infoRows(p), ['To', issue.to ?? ''], ['Date', fmtDate(issue.date)], ['Purpose of issue', issue.purpose], ['Description', issue.description]
   ]);
   const end = table(ws, start, head, issue.sheets.map((s, i) => [i + 1, s.number, s.title, s.rev, '1 (PDF)']));
   ws.getCell(end + 3, 1).value = 'Issued by:';

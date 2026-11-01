@@ -7,15 +7,18 @@ import { cpcOf } from '../calc/earthing';
 import { boardSummary, boardsInSupplyOrder } from '../calc/summary';
 import { BOARD_KINDS, type Project } from '../types';
 import { feedersOn } from '../calc/network';
+import { fig, Figure } from '../util/format';
 
 export interface Schedule {
   headers: string[];
-  rows: (string | number)[][];
+  rows: (string | number | Figure)[][];
   /** Rows that are sub-totals / section headers, for styling. */
   totalRows?: number[];
 }
 
-const n = (v: number, d = 0) => (Number.isFinite(v) ? Number(v.toFixed(d)) : '—');
+/** The rows for a CSV: plain numbers, so a spreadsheet reads them as numbers. */
+export const csvRows = (s: Schedule) => s.rows.map((r) => r.map((c) => (c instanceof Figure ? c.value : c)));
+
 /** Cable schedule: every cable in the installation. */
 export function cableSchedule(project: Project): Schedule {
   const headers = [
@@ -28,7 +31,7 @@ export function cableSchedule(project: Project): Schedule {
         const r = evaluateFeeder(project, f);
         return [
           `C-${f.id}`, f.boardId, f.feedsBoardId ?? f.name, (() => { const c = cableRefOf(project, f); return `${c.ref}${c.fireRated ? ' *' : ''}`; })(), cableTypeOf(project, f).label, cableSizeText(f),
-          cpcOf(f), f.lengthM, f.trayRoute ?? '', n(r.ib), f.breakerRatingA, n(r.ampacity), n(r.vdPct, 2), n(r.vdTotalPct, 2),
+          cpcOf(f), f.lengthM, f.trayRoute ?? '', fig.current(r.ib), f.breakerRatingA, fig.current(r.ampacity), fig.pct(r.vdPct), fig.pct(r.vdTotalPct),
           STATUS_TEXT[r.status]
         ];
       })
@@ -44,13 +47,13 @@ export function equipmentSchedule(project: Project): Schedule {
     if (!b.upstreamId && b.sourceKva) {
       rows.push([
         `TX-${b.id}`, `Transformer for ${b.id}`, 'Distribution transformer', `${b.sourceKva} kVA, ${b.sourceImpedancePct ?? '—'}% Z`,
-        n(faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV), 1), '', '', boardLocation(project, b), '', '', 'Utility 11 kV', ''
+        fig.fault(faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV)), '', '', boardLocation(project, b), '', '', 'Utility 11 kV', ''
       ]);
     }
     const s = boardSummary(project, b);
     rows.push([
       b.id, b.name, BOARD_KINDS.find((k) => k.value === (b.kind ?? (b.upstreamId ? 'DB' : 'MDB')))?.label ?? '',
-      b.ratedCurrentA ? `${b.ratedCurrentA} A` : '', n(s.faultKA, 1), b.busbarMaterial ?? '', b.ipRating ?? '',
+      b.ratedCurrentA ? `${b.ratedCurrentA} A` : '', fig.fault(s.faultKA), b.busbarMaterial ?? '', b.ipRating ?? '',
       boardLocation(project, b), b.manufacturer ?? '', b.model ?? '', b.upstreamId ?? (b.sourceKva ? `TX-${b.id}` : ''), b.spd ? `SPD ${b.spd}` : ''
     ]);
   }

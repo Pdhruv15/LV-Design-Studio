@@ -48,9 +48,8 @@ const DECIMALS: [RegExp, number][] = [
 ];
 
 describe('every report column follows its rule', () => {
-  // The cable schedule section moves with the schedules, in their own change.
   const tables: Table[] = [
-    ...sections.filter((s) => s.key !== 'schedules').flatMap((s) => [...s.tables, ...(s.verification ? [s.verification] : [])]),
+    ...sections.flatMap((s) => [...s.tables, ...(s.verification ? [s.verification] : [])]),
     ...(() => { const r = buildResults(data, scope); return [...r.equipment, r.load, r.cables]; })()
   ];
 

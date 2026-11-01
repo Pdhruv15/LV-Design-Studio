@@ -4,6 +4,7 @@ import { revisionStamp } from '../model/revisions';
 import type { Project, TrayPlan } from '../types';
 import { lineNumbers, traySectionSvg } from './traySection';
 import { escapeHtmlAttr } from '../util/escape';
+import { fig } from '../util/format';
 
 /** Cable tray schedule as a printable document (PDF): each route with its
  * cables, its cross-section to scale and its sizing, then the summary and
@@ -19,7 +20,7 @@ export function buildTrayReportHtml(project: Project, plan: TrayPlan, results: T
   const routes = results.map((r) => {
     const e = routeSettings(plan, r.route);
     const nums = lineNumbers(r.lines);
-    const rows = r.lines.map((l) => `<tr${l.ecc ? ' class="ecc"' : ''}><td>${nums.get(l.id)}</td><td class="l">${esc(l.from)}</td><td class="l">${esc(l.to)}</td><td class="l">${esc(l.description)}${l.feederId && !l.ecc ? ` (${esc(l.feederId)})` : ''}</td><td class="l">${esc(l.ecc ? '' : l.path ?? `${r.route.name} only`)}</td><td>${l.qty}</td><td>${r1(l.odMm)}</td><td>${r1(l.kgPerM)}</td></tr>`).join('');
+    const rows = r.lines.map((l) => `<tr${l.ecc ? ' class="ecc"' : ''}><td>${nums.get(l.id)}</td><td class="l">${esc(l.from)}</td><td class="l">${esc(l.to)}</td><td class="l">${esc(l.description)}${l.feederId && !l.ecc ? ` (${esc(l.feederId)})` : ''}</td><td class="l">${esc(l.ecc ? '' : l.path ?? `${r.route.name} only`)}</td><td>${l.qty}</td><td>${r1(l.odMm)}</td><td>${fig.weight(l.kgPerM)}</td></tr>`).join('');
     const basis = e.method === 'spacing'
       ? `Single layer, spacing ${SPACING_LABEL[e.spacing]}${e.spacing === 'mm' ? ` ${e.spacingMm} mm` : ''}: Σ D ${r1(r.sumOdMm)} + spacing ${r1(r.clearanceMm)} = ${r1(r.occupiedMm)} mm`
       : `Fill ${e.fillPct} % of ${e.depthMm} mm: cable area ${Math.round(r.cableAreaMm2)} mm² → ${r1(r.occupiedMm)} mm`;
@@ -31,10 +32,10 @@ export function buildTrayReportHtml(project: Project, plan: TrayPlan, results: T
     ${r.cableCount ? `<figure>${traySectionSvg(r, plan, 330, true)}<figcaption>Cross-section to scale — hatched = spare</figcaption></figure>` : ''}
   </div>
   <p>${esc(basis)}; + ${e.sparePct} % spare → required ${r1(r.requiredMm)} mm.</p>
-  <p class="sel ${r.status}">Selected tray: ${trayText(r)} mm${r.manual ? ' (chosen)' : ''} — spare ${Math.round(r.sparePctActual)} %, cable weight ${r1(r.kgPerM)} kg/m, grouping factor ${r.groupFactor.toFixed(2)} (${r.loadedPerTier} per tier, ${r.arrangement}), bend radius ≥ ${r.bendMm} mm${r.notes.length ? ` — ${esc(r.notes.join('; '))}` : ''}</p>
+  <p class="sel ${r.status}">Selected tray: ${trayText(r)} mm${r.manual ? ' (chosen)' : ''} — spare ${Math.round(r.sparePctActual)} %, cable weight ${fig.weight(r.kgPerM)} kg/m, grouping factor ${r.groupFactor.toFixed(2)} (${r.loadedPerTier} per tier, ${r.arrangement}), bend radius ≥ ${r.bendMm} mm${r.notes.length ? ` — ${esc(r.notes.join('; '))}` : ''}</p>
 </section>`;
   }).join('');
-  const summary = results.map((r) => `<tr><td><b>${esc(r.route.name)}</b></td><td class="l">${esc(r.route.from ?? '')}</td><td class="l">${esc(r.route.to ?? '')}</td><td class="l">${esc(r.panels.join(', '))}</td><td>${r.cableCount}</td><td>${Math.round(r.requiredMm)}</td><td><b>${r.cableCount ? trayText(r) : '—'}</b></td><td>${Math.round(r.sparePctActual)} %</td><td>${r.groupFactor.toFixed(2)}</td><td>${r1(r.kgPerM)}</td><td>${r.route.lengthM ?? '—'}</td><td class="${r.status}">${STATUS_TEXT[r.status]}</td></tr>`).join('');
+  const summary = results.map((r) => `<tr><td><b>${esc(r.route.name)}</b></td><td class="l">${esc(r.route.from ?? '')}</td><td class="l">${esc(r.route.to ?? '')}</td><td class="l">${esc(r.panels.join(', '))}</td><td>${r.cableCount}</td><td>${Math.round(r.requiredMm)}</td><td><b>${r.cableCount ? trayText(r) : '—'}</b></td><td>${Math.round(r.sparePctActual)} %</td><td>${r.groupFactor.toFixed(2)}</td><td>${fig.weight(r.kgPerM)}</td><td>${r.route.lengthM ?? '—'}</td><td class="${r.status}">${STATUS_TEXT[r.status]}</td></tr>`).join('');
   const q = trayQuantities(results, s);
   const boq = q.map((x) => `<tr><td><b>${x.size}</b></td><td>${Math.round(x.lengthM)}</td><td>${x.bends}</td><td>${x.tees}</td><td>${x.reducers}</td><td>${x.risers}</td><td>${x.supports}</td><td>${x.couplers}</td>${s.covers ? `<td>${Math.round(x.coverM)}</td>` : ''}<td>${x.bendRadiusMm || '—'}</td><td class="l">${esc(x.routes.join(', '))}</td></tr>`).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(project.name)} — cable tray schedule</title>
