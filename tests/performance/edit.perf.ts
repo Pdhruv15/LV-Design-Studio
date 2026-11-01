@@ -4,9 +4,11 @@ import os from 'node:os';
 import v8 from 'node:v8';
 import vm from 'node:vm';
 import { createElement } from 'react';
+import { flushSync } from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { network } from '../fixtures/networks';
-import SystemDiagram from '../../src/components/SystemDiagram';
+import SystemDiagram, { canvasDrawing } from '../../src/components/SystemDiagram';
 import { boardSummary } from '../../src/calc/summary';
 import { evaluateProject } from '../../src/calc/electrical';
 import { runCalculations, staleStudies } from '../../src/calc/runs';
@@ -53,6 +55,30 @@ const STEPS: [string, (p: Project) => unknown][] = [
   ['whole SLD, cable reference labels', (p) => sld({ ...p, drawing: { ...p.drawing, cableLabels: 'ref' } })]
 ];
 
+/** One wheel notch on the design canvas with the whole drawing in view, as App.tsx draws it. */
+function zoomStep(p: Project): number {
+  const size = { left: 0, top: 0, right: 1400, bottom: 800, width: 1400, height: 800, x: 0, y: 0, toJSON: () => ({}) };
+  const rect = Element.prototype.getBoundingClientRect;
+  Element.prototype.getBoundingClientRect = () => size;
+  (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  flushSync(() => root.render(createElement(SystemDiagram, {
+    ...canvasDrawing(false), project: p, calcProject: p, results: evaluateProject(p), selectedFeederId: null, selectedBoardId: null, onSelectFeeder: noop, onSelectBoard: noop, onDrawing: noop, resizable: true
+  })));
+  const svg = host.querySelector('.sysdiag > svg')!, t: number[] = [];
+  for (let i = 0; i < 14; i++) {
+    const s = performance.now();
+    flushSync(() => { svg.dispatchEvent(new WheelEvent('wheel', { deltaY: i % 2 ? 100 : -100, clientX: 700, clientY: 400, bubbles: true, cancelable: true })); });
+    t.push(performance.now() - s);
+  }
+  root.unmount();
+  host.remove();
+  Element.prototype.getBoundingClientRect = rect;
+  return t.slice(3).sort((a, b) => a - b)[5];
+}
+
 it('edit and output benchmark', () => {
   const lines = [`Machine: ${os.cpus()[0]?.model} · ${os.cpus().length} cores · Node ${process.version} · ${new Date().toISOString()}`, ''];
   const tooSlow = new Set<string>();
@@ -69,6 +95,7 @@ it('edit and output benchmark', () => {
       t.sort((a, b) => a - b);
       lines.push(`  ${name}: ${ms(t[Math.floor((t.length - 1) / 2)])}`);
     }
+    lines.push(`  zoom step, whole drawing in view: ${ms(zoomStep(edit(base, 1)))}`);
     const stale = edit(base, 2), s = performance.now(); staleStudies(run, stale);
     lines.push(`  stale check: ${ms(performance.now() - s)}`);
     // Memory the undo history keeps: every step's project, with what the screens read after that edit.

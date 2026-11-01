@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.017', date: '2026-11-01',
+    items: [
+      { title: 'Smoother zoom on large SLDs', text: 'On a large project, zooming and panning the SLD with much of the drawing in view no longer rebuilds the whole drawing at every step. Zooming in gains the most. The drawing itself has not changed.' }
+    ]
+  },
+  {
     version: '2.016', date: '2026-11-01',
     items: [
       { title: 'SLD export holds the whole drawing', text: 'Export… on the SLD page could leave out boards and circuits if you were zoomed in, with no warning. The PDF, DXF, DWG and SVG now always hold the whole drawing. Please check any SLD you issued from this button since 3 October, and reissue it if parts are missing. Sheets from Design CAD → Sheets were not affected.' }
