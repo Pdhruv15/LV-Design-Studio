@@ -35,7 +35,7 @@ import { earthingLayout } from '../model/earthingPlan';
 import { INCOMER_DEVICES, incomerDeviceOf, type Board, type Feeder } from '../types';
 import { getArmedItem, getDragItem, setArmedItem, setDragItem, subscribeArmedItem } from '../diagram/dragItem';
 import { recordedKva, recordedText } from '../model/existing';
-import { fmtDate, fmtFixed } from '../util/format';
+import { fmtDate, fmtFixed, txt } from '../util/format';
 import { CO_GEN_REACH, ChangeoverIncomers } from '../diagram/ChangeoverSym';
 import { atsLines, atsOf, changeoverBreakers, isInterlocked } from '../model/changeover';
 import { isFitClick, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, wheelAction, ZoomChip } from './drawingView';
@@ -1696,11 +1696,11 @@ export default function SystemDiagram({
             <div className="hover-card" style={{ left, top, width: W }} {...keep}>
               <div className="hc-head"><b>{b.id}</b> <span className="m">{b.kind ?? (b.upstreamId ? 'DB' : 'MDB')}{b.ratedCurrentA ? ` · ${b.ratedCurrentA} A` : ''}</span></div>
               <dl className="hc-kv">
-                <dt>Voltage</dt><dd className={a?.voltageStatus ?? ''}>{((project.voltageV * vp) / 100).toFixed(0)} V ({vp.toFixed(1)} %)</dd>
-                <dt>Fault level Ik″</dt><dd>{(a?.faultKA ?? sm.faultKA).toFixed(1)} kA</dd>
-                <dt>Demand</dt><dd>{sm.demandKw.toFixed(1)} kW · {sm.currentA.toFixed(0)} A</dd>
-                <dt>Loading</dt><dd className={sm.loadingStatus ?? ''}>{sm.loadingPct === undefined ? 'no rating' : `${sm.loadingPct.toFixed(0)} %`}</dd>
-                <dt>TCL × DF = MDL</dt><dd>{(() => { const p = panelSummary(project, b); return `${p.tclKw.toFixed(1)} × ${p.df.toFixed(2)} = ${p.mdlKw.toFixed(1)} kW`; })()}</dd>
+                <dt>Voltage</dt><dd className={a?.voltageStatus ?? ''}>{txt.volts((project.voltageV * vp) / 100)} V ({txt.pct(vp)} %)</dd>
+                <dt>Fault level Ik″</dt><dd>{txt.fault(a?.faultKA ?? sm.faultKA)} kA</dd>
+                <dt>Demand</dt><dd>{txt.power(sm.demandKw)} kW · {txt.current(sm.currentA)} A</dd>
+                <dt>Loading</dt><dd className={sm.loadingStatus ?? ''}>{sm.loadingPct === undefined ? 'no rating' : `${txt.loading(sm.loadingPct)} %`}</dd>
+                <dt>TCL × DF = MDL</dt><dd>{(() => { const p = panelSummary(project, b); return `${txt.power(p.tclKw)} × ${p.df.toFixed(2)} = ${txt.power(p.mdlKw)} kW`; })()}</dd>
               </dl>
             </div>
           );
@@ -1715,16 +1715,16 @@ export default function SystemDiagram({
             <div className="hc-head"><b>{f.id}</b> <span className="m">{f.name}</span><span className={`hc-st ${r.status}`}>{STATUS_TEXT[r.status]}</span></div>
             <dl className="hc-kv">
               <dt>Cable</dt><dd>{runsOf(f) > 1 ? `${runsOf(f)}× ` : ''}{f.cores}C {f.cableCsaMm2} mm² · {f.lengthM} m</dd>
-              <dt>Ib / In / Iz</dt><dd className={r.protectionStatus === 'bad' || r.ampacityStatus === 'bad' ? 'bad' : ''}>{r.ib.toFixed(0)} / {f.breakerRatingA} / {izText(r.ampacity)} A</dd>
-              <dt>Voltage drop</dt><dd className={r.vdStatus}>{r.vdPct.toFixed(2)} % cable · {r.vdTotalPct.toFixed(2)} % total</dd>
-              <dt>Fault / Icu</dt><dd className={r.icuStatus === 'bad' ? 'bad' : ''}>{r.breakerFaultKA.toFixed(1)} kA / {f.breakerIcuKa} kA</dd>
+              <dt>Ib / In / Iz</dt><dd className={r.protectionStatus === 'bad' || r.ampacityStatus === 'bad' ? 'bad' : ''}>{txt.current(r.ib)} / {f.breakerRatingA} / {izText(r.ampacity)} A</dd>
+              <dt>Voltage drop</dt><dd className={r.vdStatus}>{txt.pct(r.vdPct)} % cable · {txt.pct(r.vdTotalPct)} % total</dd>
+              <dt>Fault / Icu</dt><dd className={r.icuStatus === 'bad' ? 'bad' : ''}>{txt.fault(r.breakerFaultKA)} kA / {f.breakerIcuKa} kA</dd>
             </dl>
             {reasons.length > 0 && <ul className="hc-why">{reasons.map((t) => <li key={t}>{t}</li>)}</ul>}
             {fixes.length > 0 && (
               <div className="hc-fix">
                 <span className="m">Quick fix:</span>
                 {fixes.map((x) => (
-                  <button key={x.label} className={`chip ${x.after.status}`} title={`After: Vd ${x.after.vdTotalPct.toFixed(2)} %, Iz ${izText(x.after.ampacity)} A — ${x.after.status === 'ok' ? 'passes' : 'still to check'}`}
+                  <button key={x.label} className={`chip ${x.after.status}`} title={`After: Vd ${txt.pct(x.after.vdTotalPct)} %, Iz ${izText(x.after.ampacity)} A — ${x.after.status === 'ok' ? 'passes' : 'still to check'}`}
                     onClick={() => { onFixFeeder!(f.id, x.patch, x.label); setCard(null); }}>{x.label}</button>
                 ))}
               </div>

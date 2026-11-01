@@ -5,7 +5,7 @@ import { sizeTransformers } from '../calc/txGen';
 import { applyTransformers, DEWA_TRANSFORMER_KVA, mainBoards, mainOf, moveUnder, nextRmus, planTransformers, rmuNames, setRmu, setSubstation, setTransformer, txTag } from '../model/transformers';
 import { toggleIn } from '../util/sets';
 import { txUnits } from '../model/earthingPlan';
-import { fmtFixed as fmt } from '../util/format';
+import { fmtFixed as fmt, txt } from '../util/format';
 
 
 /** Panels → Transformers: DEWA transformers (one MDB each), their loading, and which panels each one feeds. */
@@ -80,7 +80,7 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
                   <td><select value={m.sourceKva ?? ''} onChange={(e) => onChange(setTransformer(project, m.id, e.target.value ? Number(e.target.value) : undefined))}><option value="">—</option>{[...new Set([...DEWA_TRANSFORMER_KVA, ...(m.sourceKva ? [m.sourceKva] : [])])].sort((a, b) => a - b).map((v) => <option key={v} value={v}>{v}</option>)}</select></td>
                   <td><input className="bi-text" style={{ width: 90 }} defaultValue={m.substation ?? ''} key={`${m.id}-${m.substation ?? ''}`} placeholder="—" onBlur={(e) => e.target.value.trim() !== (m.substation ?? '') && onChange(setSubstation(project, m.id, e.target.value))} /></td>
                   <td><select value={m.rmu ?? ''} onChange={(e) => onChange(setRmu(project, m.id, e.target.value === '+' ? nextRmus(project, 1)[0] : e.target.value || undefined))}><option value="">—</option>{rmuNames(project).map((n) => { const full = rmuLoad(n, m.id) + unitsOf(m.id) > 2; return <option key={n} value={n} disabled={full && m.rmu !== n}>{full ? `${n} (full — max 2 TX)` : n}</option>; })}<option value="+">New RMU</option></select></td>
-                  <td>{fmt(r?.demandKva, 1)}</td>
+                  <td>{txt.power(r?.demandKva)}</td>
                   <td className={pct === undefined ? 'm' : pct > limit ? 'bad' : 'ok'}>{pct === undefined ? '—' : `${fmt(pct, 1)} %`}</td>
                   <td>{r?.recommendedKva ? `${r.split > 1 ? `${r.split} × ` : ''}${r.recommendedKva} kVA` : '—'}</td>
                   <td>{feeds} panel{feeds === 1 ? '' : 's'}</td>

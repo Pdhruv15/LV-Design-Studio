@@ -11,9 +11,8 @@ import { NumberSetting, Page } from '../ui';
 import PfcCalculator from './PfcCalculator';
 import { powerTriangleSvg, triangleFrom } from '../../calc/pfcCalc';
 import { sanitizeSvg } from '../../util/sanitize';
+import { txt } from '../../util/format';
 
-const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
-const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
 
 const HINT: Record<PfcStrategy, string> = {
   central: 'One automatic bank at the main board corrects the whole installation — the usual choice, and what DEWA looks at (PF at the intake).',
@@ -160,9 +159,9 @@ export default function PfcStudy({ project, onChange, onStatus }: { project: Pro
             <h4>{m.boardId}</h4>
             <div className="pfc-kpi">
               <span>PF <b className={m.pfBefore < target ? 'warn' : 'ok'}>{m.pfBefore.toFixed(2)}</b> → <b className={m.pfAfter >= target - 1e-6 ? 'ok' : 'warn'}>{m.pfAfter.toFixed(3)}</b></span>
-              <span>{f1(m.plannedKvar)} kvar new{m.existingKvar ? ` · ${f1(m.existingKvar)} existing` : ''}</span>
-              <span>{f0(m.kvaBefore)} → {f0(m.kvaAfter)} kVA{m.releasedKva > 0.5 ? <> · frees <b>{f0(m.releasedKva)} kVA</b></> : null}</span>
-              {m.loadingBeforePct !== undefined && <span className="m">Transformer {m.transformerKva} kVA: {f0(m.loadingBeforePct)} % → {f0(m.loadingAfterPct!)} %</span>}
+              <span>{txt.plain(m.plannedKvar, 1)} kvar new{m.existingKvar ? ` · ${txt.plain(m.existingKvar, 1)} existing` : ''}</span>
+              <span>{txt.power(m.kvaBefore)} → {txt.power(m.kvaAfter)} kVA{m.releasedKva > 0.5 ? <> · frees <b>{txt.power(m.releasedKva)} kVA</b></> : null}</span>
+              {m.loadingBeforePct !== undefined && <span className="m">Transformer {m.transformerKva} kVA: {txt.loading(m.loadingBeforePct)} % → {txt.loading(m.loadingAfterPct!)} %</span>}
             </div>
             {m.demandKw > 0 && <div className="pfcc-svg pfc-mini" dangerouslySetInnerHTML={{ __html: sanitizeSvg(powerTriangleSvg(triangleFrom(m.demandKw, m.pfBefore, m.pfAfter, target))) }} />}
           </section>
@@ -170,7 +169,7 @@ export default function PfcStudy({ project, onChange, onStatus }: { project: Pro
       </div>
 
       <div className="pfc-actions">
-        <b>{toAdd.length ? `${toAdd.length} bank${toAdd.length > 1 ? 's' : ''}, ${f1(r.totalKvar)} kvar` : 'No new capacitors needed'}</b>
+        <b>{toAdd.length ? `${toAdd.length} bank${toAdd.length > 1 ? 's' : ''}, ${txt.plain(r.totalKvar, 1)} kvar` : 'No new capacitors needed'}</b>
         {toAdd.length > 0 && <button className="chip primary" onClick={() => addToSld()}>Add all to the SLD</button>}
       </div>
 
@@ -187,17 +186,17 @@ export default function PfcStudy({ project, onChange, onStatus }: { project: Pro
                 {x.remainder && <span className="m"> (what’s left)</span>}
                 {x.notes.map((t) => <div key={t} className={`pfc-note${/leading|check harmonics/.test(t) ? ' warn' : ''}`}>{t}</div>)}
               </td>
-              <td>{f0(x.demandKw)}</td>
-              <td>{f0(x.demandKvar)}</td>
-              <td>{x.existingKvar ? f1(x.existingKvar) : '—'}</td>
-              <td>{x.downstreamKvar ? `−${f1(x.downstreamKvar)}` : '—'}</td>
+              <td>{txt.power(x.demandKw)}</td>
+              <td>{txt.power(x.demandKvar)}</td>
+              <td>{x.existingKvar ? txt.plain(x.existingKvar, 1) : '—'}</td>
+              <td>{x.downstreamKvar ? `−${txt.plain(x.downstreamKvar, 1)}` : '—'}</td>
               <td className={x.pfBefore < target ? 'warn' : 'ok'}>{x.pfBefore.toFixed(2)}</td>
-              <td>{f1(x.requiredKvar)}</td>
-              <td><b>{x.bankKvar ? (x.kind === 'load' ? `${f1(x.bankKvar)} kvar fixed` : `${f1(x.bankKvar)} kvar`) : 'Not needed'}</b>{x.steps > 1 && <div className="m">{x.steps} × {x.stepKvar} kvar</div>}</td>
+              <td>{txt.power(x.requiredKvar)}</td>
+              <td><b>{x.bankKvar ? (x.kind === 'load' ? `${txt.plain(x.bankKvar, 1)} kvar fixed` : `${txt.plain(x.bankKvar, 1)} kvar`) : 'Not needed'}</b>{x.steps > 1 && <div className="m">{x.steps} × {x.stepKvar} kvar</div>}</td>
               <td>{x.bankKvar ? `${x.detunedPct ? `${x.detunedPct} %` : 'None'} · ${x.capVoltageV} V` : '—'}</td>
               <td>{x.bankKvar ? <>{x.breakerA} A<div className="m">{x.cable}</div></> : '—'}</td>
               <td className={x.pfAfter >= target - 1e-6 || x.kind === 'load' ? 'ok' : 'warn'}>{x.pfAfter.toFixed(3)}</td>
-              <td>{f0(x.currentBeforeA)} → {f0(x.currentAfterA)}</td>
+              <td>{txt.current(x.currentBeforeA)} → {txt.current(x.currentAfterA)}</td>
               <td>{x.bankKvar > 0 && <button className="chip" title="Add this bank to the SLD" onClick={() => addToSld([x.key])}>Add to SLD</button>}</td>
             </tr>
           ))}

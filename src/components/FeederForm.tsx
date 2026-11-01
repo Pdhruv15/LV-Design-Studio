@@ -18,6 +18,7 @@ import { cables, INSTALL_METHODS, isBuried, methodOf, type InstallMethod } from 
 import { factorsText, REFERENCE_GROUND_C, REFERENCE_SOIL_KMW } from '../calc/installation';
 import { designCurrentA, feederRating, incomerBasis, izEvaluator, selectCable, upstreamVoltageDropPct, vdEvaluator, voltageDropPct } from '../calc/electrical';
 import { Modal } from './ui';
+import { txt } from '../util/format';
 
 type FeederTab = 'general' | 'cable' | 'protection' | 'metering';
 const FEEDER_TABS: [FeederTab, string][] = [['general', 'General & load'], ['cable', 'Cable'], ['protection', 'Protection'], ['metering', 'Metering']];
@@ -82,9 +83,9 @@ export default function FeederForm({
     const budgetNote = upstream > 0 ? ` (${upstream.toFixed(2)}% already used upstream, ${budget.toFixed(2)}% left)` : '';
     if (size) {
       set('cableCsaMm2', size);
-      setSuggestion(`Ib ≈ ${ib.toFixed(0)} A, In = ${f.breakerRatingA} A → ${size} mm² gives Iz ≥ In and meets the ${project.vdLimitPct}% total voltage-drop limit at ${f.lengthM} m${budgetNote}.`);
+      setSuggestion(`Ib ≈ ${txt.current(ib)} A, In = ${f.breakerRatingA} A → ${size} mm² gives Iz ≥ In and meets the ${project.vdLimitPct}% total voltage-drop limit at ${f.lengthM} m${budgetNote}.`);
     } else {
-      setSuggestion(`Ib ≈ ${ib.toFixed(0)} A, In = ${f.breakerRatingA} A — no cable up to 300 mm² gives Iz ≥ In within the voltage-drop budget${budgetNote}. Consider a shorter run, a smaller breaker, or a higher limit.`);
+      setSuggestion(`Ib ≈ ${txt.current(ib)} A, In = ${f.breakerRatingA} A — no cable up to 300 mm² gives Iz ≥ In within the voltage-drop budget${budgetNote}. Consider a shorter run, a smaller breaker, or a higher limit.`);
     }
   }
 
@@ -103,7 +104,7 @@ export default function FeederForm({
     <Modal onClose={onClose} onSubmit={submit}>
       <h3>{isNew ? 'Add feeder' : `Edit feeder: ${initial!.id}`}</h3>
       <div className="feeder-sum" aria-live="polite">
-        <span><b>{ib.toFixed(0)} A</b> design</span>
+        <span><b>{txt.current(ib)} A</b> design</span>
         <span>{f.parallel && f.parallel > 1 ? `${f.parallel} × ` : ''}{f.cores}C × {f.cableCsaMm2} mm² · {f.lengthM} m</span>
         <span>{f.breakerRatingA} A {breakerTypeOf(f) === 'MCCB' || breakerTypeOf(f) === 'ACB' ? breakerTypeOf(f) : `MCB ${breakerTypeOf(f)}`} · {f.breakerIcuKa} kA</span>
         <span className={vdTotal > project.vdLimitPct ? 'bad' : vdTotal > project.vdLimitPct * 0.85 ? 'warn' : 'ok'}>ΔV {vdTotal.toFixed(2)} % <span className="m">of {project.vdLimitPct} %</span></span>
@@ -208,7 +209,7 @@ export default function FeederForm({
             const ground = isBuried(r.method) ? `Ground ${project.groundTempC ?? REFERENCE_GROUND_C} °C · soil ${project.soilResistivityKmW ?? REFERENCE_SOIL_KMW} K·m/W (Project settings). ` : '';
             return r.missing
               ? <small className="warn">{ground}DATA REQUIRED — {r.missing}</small>
-              : <small>{ground}Iz = {r.baseA} A × {factorsText(r)}{r.runs > 1 ? ` × ${r.runs} runs` : ''} = {r.iz.toFixed(0)} A</small>;
+              : <small>{ground}Iz = {r.baseA} A × {factorsText(r)}{r.runs > 1 ? ` × ${r.runs} runs` : ''} = {txt.current(r.iz)} A</small>;
           })()}
         </label>
         <label>Cable type

@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.023', date: '2026-11-01',
+    items: [
+      { title: 'Screens follow the same number formats', text: 'Pages now write values the way the reports do, so the page and the printout match: 20,558.80 kW, 13,073.2 A, 10.70 kA and 55.6 %. The cost table writes 12,345.00. Times use the 24-hour clock and dates read 1 Nov 2026 on every computer. Large headline figures stay whole so they fit, and the boxes you type in do not change. The calculated results are unchanged.' }
+    ]
+  },
+  {
     version: '2.022', date: '2026-11-01',
     items: [
       { title: 'Drawings follow the same number formats', text: 'SLDs, board sheets and risers now write large values with a comma, such as TCL : 1,800.00 kW, 2,504 A and 2,064% loaded, and keep their short decimals so the labels still fit. A DEWA board label now reads TCL 1,518.80 · MDL 1,215.04 kW, to match the circuit labels. Title blocks write dates as 15 Oct 2026. DXF and DWG geometry does not move, and the calculated results are unchanged.' }

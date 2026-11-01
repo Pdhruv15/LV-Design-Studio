@@ -28,6 +28,7 @@ import { scheduleCircuits } from '../../calc/loadSchedule';
 import CircuitEditDialog from './CircuitEditDialog';
 import TemplateExportDialog from './TemplateExportDialog';
 import { addSpareWay, deleteSpareWay, spareLabel, spareRef, updateSpareWay } from '../../model/spareWays';
+import { fmtFixed, txt } from '../../util/format';
 
 const num = (v: string) => (v === '' ? 0 : Math.max(0, Math.round(+v) || 0));
 
@@ -187,8 +188,8 @@ export default function LoadScheduleView({
         if (!c) return null;
         return (
           <p className={`ls-rooms ${c.status}`} title="From Building information: the rooms this board serves and their room types' W/m²">
-            Serves {c.rooms.length} room{c.rooms.length === 1 ? '' : 's'} ({c.rooms.map((x) => x.room.name).slice(0, 3).join(', ')}{c.rooms.length > 3 ? '…' : ''}), {c.areaM2.toLocaleString('en-US', { maximumFractionDigits: 0 })} m²:
-            {' '}expected {c.expectedKw.toFixed(1)} kW from the room types, designed {c.scheduledKw.toFixed(1)} kW ({c.wPerM2.toFixed(1)} W/m²)
+            Serves {c.rooms.length} room{c.rooms.length === 1 ? '' : 's'} ({c.rooms.map((x) => x.room.name).slice(0, 3).join(', ')}{c.rooms.length > 3 ? '…' : ''}), {txt.size(c.areaM2)} m²:
+            {' '}expected {txt.power(c.expectedKw)} kW from the room types, designed {txt.power(c.scheduledKw)} kW ({c.wPerM2.toFixed(1)} W/m²)
             {c.status === 'warn' ? ' — check' : ' — OK'}
           </p>
         );
@@ -262,8 +263,8 @@ export default function LoadScheduleView({
             <button className="chip" disabled={data.rows.length < 2} onClick={() => onChange(balancePhases(project, board.id))} title="Lighting circuits first, then power, each starting on an ELCB section; spread over R/Y/B and renumber"><Scale size={14} /> Balance phases</button>
             <span className="sp" />
             <span>
-              Phase load (W): <b className="ph-r">R {(data.phaseW.R * 1000).toFixed(0)}</b> · <b className="ph-y">Y {(data.phaseW.Y * 1000).toFixed(0)}</b> ·{' '}
-              <b className="ph-b">B {(data.phaseW.B * 1000).toFixed(0)}</b> · imbalance{' '}
+              Phase load (W): <b className="ph-r">R {fmtFixed(data.phaseW.R * 1000, 0)}</b> · <b className="ph-y">Y {fmtFixed(data.phaseW.Y * 1000, 0)}</b> ·{' '}
+              <b className="ph-b">B {fmtFixed(data.phaseW.B * 1000, 0)}</b> · imbalance{' '}
               <b className={data.imbalance > 20 ? 'warn' : 'ok'}>{data.imbalance.toFixed(0)}%</b>
             </span>
           </div>
@@ -408,9 +409,9 @@ export default function LoadScheduleView({
                   })}
                   <tr className="total">
                     <td colSpan={7 + columns.length} style={{ textAlign: 'right' }}>TOTAL (W)</td>
-                    <td className="shade">{(data.phaseW.R * 1000).toFixed(0)}</td>
-                    <td className="shade">{(data.phaseW.Y * 1000).toFixed(0)}</td>
-                    <td className="shade">{(data.phaseW.B * 1000).toFixed(0)}</td>
+                    <td className="shade">{fmtFixed(data.phaseW.R * 1000, 0)}</td>
+                    <td className="shade">{fmtFixed(data.phaseW.Y * 1000, 0)}</td>
+                    <td className="shade">{fmtFixed(data.phaseW.B * 1000, 0)}</td>
                     <td colSpan={4} />
                   </tr>
                 </tbody>

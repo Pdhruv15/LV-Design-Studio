@@ -11,10 +11,9 @@ import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { Page } from '../ui';
 import { addG10RiserMockup } from '../../model/riserMockup';
+import { txt } from '../../util/format';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
-const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
-const f2 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 const num = (v: string) => (v.trim() === '' || Number.isNaN(+v) ? undefined : +v);
 
 const DATA_COLS: { key: keyof BusbarType; label: string }[] = [
@@ -148,13 +147,13 @@ export default function BusbarStudy({ project, onChange, onStatus }: { project: 
                         {boards.map((b) => <option key={b.id} value={b.id}>{b.id}</option>)}
                       </select>
                     </td>
-                    <td>{f.boardId ? <span title="The board's maximum demand">{r ? f1(r.kw) : '—'}</span> : <input inputMode="decimal" value={f.kw ?? ''} onChange={(e) => setFloor(f.id, { kw: num(e.target.value) })} />}</td>
+                    <td>{f.boardId ? <span title="The board's maximum demand">{r ? txt.power(r.kw) : '—'}</span> : <input inputMode="decimal" value={f.kw ?? ''} onChange={(e) => setFloor(f.id, { kw: num(e.target.value) })} />}</td>
                     <td>{f.boardId ? <span className="m">board</span> : <input inputMode="decimal" value={f.pf ?? ''} placeholder="0.9" onChange={(e) => setFloor(f.id, { pf: num(e.target.value) })} />}</td>
                     <td><input inputMode="numeric" value={f.count ?? 1} onChange={(e) => setFloor(f.id, { count: Math.max(1, Math.round(num(e.target.value) ?? 1)) })} title="Typical floors: the same tap-off repeated" /></td>
-                    <td>{r ? f0(r.currentA) : '—'}</td>
+                    <td>{r ? txt.current(r.currentA) : '—'}</td>
                     <td>{r?.tapOffA ? `${r.tapOffA} A${(f.count ?? 1) > 1 ? ` × ${f.count}` : ''}` : '—'}</td>
-                    <td>{r ? f1(r.heightM) : '—'}</td>
-                    <td className={r && r.vdPct > project.vdLimitPct / 2 ? 'warn' : ''}>{r ? `${f2(r.vdPct)} %` : '—'}</td>
+                    <td>{r ? txt.fixed(r.heightM, 1) : '—'}</td>
+                    <td className={r && r.vdPct > project.vdLimitPct / 2 ? 'warn' : ''}>{r ? `${txt.pct(r.vdPct)} %` : '—'}</td>
                     <td><button className="icon-btn" title="Remove" onClick={() => setRiser({ floors: riser.floors.filter((x) => x.id !== f.id) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                   </tr>
                 );
@@ -180,28 +179,28 @@ export default function BusbarStudy({ project, onChange, onStatus }: { project: 
                 <h4>Load</h4>
                 <dl className="kv">
                   <dt>Tap-offs</dt><dd>{res.tapOffs}</dd>
-                  <dt>Connected</dt><dd>{f0(res.connectedKw)} kW · PF {res.pf.toFixed(2)}{(res.sections[0]?.q ?? 0) < -1e-9 ? ' leading' : ''}</dd>
+                  <dt>Connected</dt><dd>{txt.power(res.connectedKw)} kW · PF {res.pf.toFixed(2)}{(res.sections[0]?.q ?? 0) < -1e-9 ? ' leading' : ''}</dd>
                   <dt>Diversity</dt><dd>{res.diversity}{riser.diversity === undefined ? ' (IEC 61439-6)' : ''}</dd>
-                  <dt>Maximum demand</dt><dd>{f0(res.demandKw)} kW · {f0(res.demandKva)} kVA</dd>
-                  <dt>Design current Ib</dt><dd><b>{f0(res.designA)} A</b></dd>
+                  <dt>Maximum demand</dt><dd>{txt.power(res.demandKw)} kW · {txt.power(res.demandKva)} kVA</dd>
+                  <dt>Design current Ib</dt><dd><b>{txt.current(res.designA)} A</b></dd>
                 </dl>
               </section>
               <section className="card">
                 <h4>Busway</h4>
                 <dl className="kv">
                   <dt>Feeding breaker In</dt><dd>{res.feederBreakerA} A</dd>
-                  <dt>Needed (÷ {res.derate.toFixed(2)} at {res.ambientC} °C)</dt><dd>{f0(res.requiredA)} A</dd>
+                  <dt>Needed (÷ {res.derate.toFixed(2)} at {res.ambientC} °C)</dt><dd>{txt.current(res.requiredA)} A</dd>
                   <dt>Selected</dt><dd><b className={res.type ? 'ok' : 'bad'}>{typeText(res)}</b></dd>
-                  {res.type && <><dt>Conductor area</dt><dd>{f0(res.type.csaMm2)} mm² per phase · {f2(res.currentDensity!)} A/mm² at Ib</dd></>}
-                  {res.type && <><dt>Short-circuit withstand</dt><dd className={res.icwOk === false ? 'bad' : res.icwOk ? 'ok' : ''}>Icw {res.type.icwKa} kA 1 s{res.faultKa !== undefined ? ` vs ${f1(res.faultKa)} kA at ${riser.sourceBoardId}` : ''}</dd></>}
-                  <dt>Vd at the top tap-off</dt><dd className={res.vdTopPct > project.vdLimitPct / 2 ? 'warn' : 'ok'}>{f2(res.vdTopPct)} % <span className="m">(riser only)</span></dd>
+                  {res.type && <><dt>Conductor area</dt><dd>{txt.plain(res.type.csaMm2)} mm² per phase · {txt.fixed(res.currentDensity!, 2)} A/mm² at Ib</dd></>}
+                  {res.type && <><dt>Short-circuit withstand</dt><dd className={res.icwOk === false ? 'bad' : res.icwOk ? 'ok' : ''}>Icw {res.type.icwKa} kA 1 s{res.faultKa !== undefined ? ` vs ${txt.fault(res.faultKa)} kA at ${riser.sourceBoardId}` : ''}</dd></>}
+                  <dt>Vd at the top tap-off</dt><dd className={res.vdTopPct > project.vdLimitPct / 2 ? 'warn' : 'ok'}>{txt.pct(res.vdTopPct)} % <span className="m">(riser only)</span></dd>
                 </dl>
               </section>
               <section className="card">
                 <h4>Physical</h4>
                 <dl className="kv">
                   {res.type && <><dt>Size (W × H)</dt><dd>{res.type.widthMm} × {res.type.heightMm} mm</dd></>}
-                  <dt>Length</dt><dd>{f1(res.lengthM)} m <span className="m">({f1(riser.feedM)} feed + {f1(res.lengthM - riser.feedM)} vertical)</span></dd>
+                  <dt>Length</dt><dd>{txt.fixed(res.lengthM, 1)} m <span className="m">({txt.fixed(riser.feedM, 1)} feed + {txt.fixed(res.lengthM - riser.feedM, 1)} vertical)</span></dd>
                   <dt>Straight lengths</dt><dd>{res.elements} × {riser.elementM} m</dd>
                   {res.weightKg !== undefined && <><dt>Weight</dt><dd>{f0(res.weightKg)} kg · {res.type!.kgPerM} kg/m <span className="m">(check the slab and the riser supports)</span></dd></>}
                   <dt>Parts</dt><dd>1 end-feed unit, 1 end cap, {riser.elbows} elbows, {res.tapOffs} tap-off units, fire barriers at each slab</dd>
@@ -214,10 +213,10 @@ export default function BusbarStudy({ project, onChange, onStatus }: { project: 
                     <thead><tr><th /><th>{MATERIAL_LABEL[riser.material]}</th><th>{MATERIAL_LABEL[alt.riser.material]}</th></tr></thead>
                     <tbody>
                       <tr><td>Rating</td><td>{res.type ? `${res.type.ratingA} A` : '—'}</td><td>{alt.type ? `${alt.type.ratingA} A` : '—'}</td></tr>
-                      <tr><td>Area / phase</td><td>{res.type ? `${f0(res.type.csaMm2)} mm²` : '—'}</td><td>{alt.type ? `${f0(alt.type.csaMm2)} mm²` : '—'}</td></tr>
+                      <tr><td>Area / phase</td><td>{res.type ? `${txt.plain(res.type.csaMm2)} mm²` : '—'}</td><td>{alt.type ? `${txt.plain(alt.type.csaMm2)} mm²` : '—'}</td></tr>
                       <tr><td>W × H</td><td>{res.type ? `${res.type.widthMm} × ${res.type.heightMm}` : '—'}</td><td>{alt.type ? `${alt.type.widthMm} × ${alt.type.heightMm}` : '—'}</td></tr>
                       <tr><td>Weight</td><td>{res.weightKg !== undefined ? `${f0(res.weightKg)} kg` : '—'}</td><td>{alt.weightKg !== undefined ? `${f0(alt.weightKg)} kg` : '—'}</td></tr>
-                      <tr><td>Vd top</td><td>{f2(res.vdTopPct)} %</td><td>{f2(alt.vdTopPct)} %</td></tr>
+                      <tr><td>Vd top</td><td>{txt.pct(res.vdTopPct)} %</td><td>{txt.pct(alt.vdTopPct)} %</td></tr>
                     </tbody>
                   </table>
                   <button className="chip" onClick={() => setRiser({ material: alt.riser.material })}>Use {MATERIAL_LABEL[alt.riser.material].toLowerCase()}</button>

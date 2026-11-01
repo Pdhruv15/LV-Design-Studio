@@ -2,6 +2,7 @@ import { Modal } from '../ui';
 import { useEffect, useRef, useState } from 'react';
 import type { Board } from '../../types';
 import { rowCtText, type TxSummaryRow } from '../../docs/txSummary';
+import { txt } from '../../util/format';
 
 const kw = (v: number) => v.toFixed(2);
 const num = (v: string) => (v.trim() === '' || Number.isNaN(+v) ? undefined : +v);
@@ -99,10 +100,10 @@ export default function TxRowEditDialog({ row, substation, onSave, onDelete, onC
       <fieldset>
         <legend>Connection load</legend>
         <div className="ce-grid">
-          {(['R', 'Y', 'B'] as const).map((ph) => (r.manual ? field(ph, `${ph}-phase kW`, { ph: '0.00' }) : shown(`${ph}-phase kW`, kw(r.phases[ph]))))}
-          {shown('TCL (kW)', kw(r.tclKw))}
+          {(['R', 'Y', 'B'] as const).map((ph) => (r.manual ? field(ph, `${ph}-phase kW`, { ph: '0.00' }) : shown(`${ph}-phase kW`, txt.power(r.phases[ph]))))}
+          {shown('TCL (kW)', txt.power(r.tclKw))}
           {field('df', 'D.F')}
-          {shown('MDL (kW)', kw(r.mdlKw))}
+          {shown('MDL (kW)', txt.power(r.mdlKw))}
         </div>
       </fieldset>
       <fieldset>

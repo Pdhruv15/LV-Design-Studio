@@ -13,6 +13,7 @@ import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { DensityPanel, GenerateDialog, LevelUnitsDialog, RoomRulesTable, ServicesDialog, UnitTypesCard } from './BuildingDesignPanels';
 import { ReuseDialog, SavePresetDialog } from './BuildingReuse';
+import { txt } from '../../util/format';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -150,11 +151,11 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
             {sum && (
               <div className="bi-kpis">
                 <span><b>{sum.description || '—'}</b> <span className="m">{sum.floors} floors{sum.basements ? ` (${sum.basements} below ground)` : ''}</span></span>
-                <span>GFA {sum.gfaM2 ? <b>{f0(sum.gfaM2)} m²</b> : <span className="m">— enter the gross area per floor, or the GFA</span>}{b.gfaM2 !== undefined && sum.gfaFromLevels ? <span className="m"> (levels: {f0(sum.gfaFromLevels)})</span> : null}</span>
-                <span>Height <b>{f1(sum.heightM)} m</b></span>
-                <span>Rooms <b>{f0(sum.roomsM2)} m²</b></span>
-                <span>Load <b>{f0(sum.connectedKw)} kW</b> connected · <b>{f0(sum.demandKw)} kW</b> demand{sum.gfaM2 ? <span className="m"> · {f1((sum.demandKw * 1000) / sum.gfaM2)} W/m² GFA</span> : null}</span>
-                {designed.dbs > 0 && <span title="Total of the DBs designed for this building's floors and flats">Designed <b>{f0(designed.kw)} kW</b> connected <span className="m">on {designed.dbs} DBs{designed.flats ? ` · ${designed.flats} flats` : ''}</span></span>}
+                <span>GFA {sum.gfaM2 ? <b>{txt.size(sum.gfaM2)} m²</b> : <span className="m">— enter the gross area per floor, or the GFA</span>}{b.gfaM2 !== undefined && sum.gfaFromLevels ? <span className="m"> (levels: {txt.size(sum.gfaFromLevels)})</span> : null}</span>
+                <span>Height <b>{txt.fixed(sum.heightM, 1)} m</b></span>
+                <span>Rooms <b>{txt.size(sum.roomsM2)} m²</b></span>
+                <span>Load <b>{txt.power(sum.connectedKw)} kW</b> connected · <b>{txt.power(sum.demandKw)} kW</b> demand{sum.gfaM2 ? <span className="m"> · {txt.fixed((sum.demandKw * 1000) / sum.gfaM2, 1)} W/m² GFA</span> : null}</span>
+                {designed.dbs > 0 && <span title="Total of the DBs designed for this building's floors and flats">Designed <b>{txt.power(designed.kw)} kW</b> connected <span className="m">on {designed.dbs} DBs{designed.flats ? ` · ${designed.flats} flats` : ''}</span></span>}
               </div>
             )}
             <button className="linkish bad" style={{ marginLeft: 0, alignSelf: 'flex-start' }} onClick={async () => {
@@ -188,8 +189,8 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
                     <td className="m">{li.elevationM >= 0 ? '+' : ''}{f1(li.elevationM)}{li.count > 1 ? ` … +${f1(li.elevationM + l.heightM * (li.count - 1))}` : ''}</td>
                     <td><button className="linkish" style={{ marginLeft: 0 }} onClick={() => setLevelFilter(levelFilter === l.id ? '' : l.id)}>{info.rooms.filter((r) => r.levelId === l.id).length}</button></td>
                     <td><button className="linkish" style={{ marginLeft: 0 }} onClick={() => setUnitsFor(l.id)} title="Flats / tenants on each of these floors">{l.units?.length ? l.units.map((u) => `${u.count} × ${info.unitTypes?.find((t) => t.id === u.unitTypeId)?.name ?? '?'}`).join(', ') : '+ flats'}</button></td>
-                    <td>{li.roomsM2 ? `${f0(li.roomsM2)} m²` : '—'}</td>
-                    <td>{li.demandKw ? <>{f0(li.demandKw)} kW{li.count > 1 ? <span className="m"> ({f1(li.perFloorDemandKw)}/floor)</span> : null}</> : '—'}</td>
+                    <td>{li.roomsM2 ? `${txt.size(li.roomsM2)} m²` : '—'}</td>
+                    <td>{li.demandKw ? <>{txt.power(li.demandKw)} kW{li.count > 1 ? <span className="m"> ({txt.power(li.perFloorDemandKw)}/floor)</span> : null}</> : '—'}</td>
                     <td><button className="icon-btn" title="Remove the level and its rooms" onClick={async () => {
                       const n = info.rooms.filter((r) => r.levelId === l.id).length;
                       if (n && !(await ask(`Remove ${l.name} and its ${n} rooms?`))) return;
@@ -229,15 +230,15 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
                     </td>
                     <td><Cell value={r.areaM2} onSet={(v) => v && setRoom(r.id, { areaM2: v })} width={80} /></td>
                     <td><Cell value={r.count ?? 1} onSet={(v) => setRoom(r.id, { count: v && v > 1 ? Math.round(v) : undefined })} width={54} /></td>
-                    <td className="m">{x.total > 1 ? `${x.total} · ${f0(x.areaM2)} m²` : `${f0(x.areaM2)} m²`}</td>
+                    <td className="m">{x.total > 1 ? `${x.total} · ${txt.size(x.areaM2)} m²` : `${txt.size(x.areaM2)} m²`}</td>
                     <td>
                       <select className="bi-sel" value={r.boardId ?? ''} onChange={(e) => setRoom(r.id, { boardId: e.target.value || undefined })}>
                         <option value="">—</option>
                         {project.boards.map((pb) => <option key={pb.id} value={pb.id}>{pb.id}</option>)}
                       </select>
                     </td>
-                    <td>{f1(x.connectedKw)} kW <span className="m">{x.type ? `${x.type.wPerM2} W/m²` : ''}</span></td>
-                    <td>{f1(x.demandKw)} kW</td>
+                    <td>{txt.power(x.connectedKw)} kW <span className="m">{x.type ? `${x.type.wPerM2} W/m²` : ''}</span></td>
+                    <td>{txt.power(x.demandKw)} kW</td>
                     <td><button className="icon-btn" title="Remove" onClick={() => set({ ...info, rooms: info.rooms.filter((y) => y.id !== r.id) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                   </tr>
                 );
@@ -264,11 +265,11 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
                 <tr key={c.boardId}>
                   <td><b>{c.boardId}</b></td>
                   <td className="m">{c.rooms.map((x) => x.room.name).slice(0, 4).join(', ')}{c.rooms.length > 4 ? ` +${c.rooms.length - 4}` : ''}</td>
-                  <td>{f0(c.areaM2)} m²</td>
-                  <td>{f1(c.expectedKw)} kW</td>
-                  <td>{f1(c.scheduledKw)} kW</td>
-                  <td>{f1(c.wPerM2)}</td>
-                  <td className={c.status}>{c.ratio === undefined ? '—' : c.status === 'ok' ? `OK (${f0(c.ratio * 100)} %)` : `Check — ${f0(c.ratio * 100)} % of expected`}</td>
+                  <td>{txt.size(c.areaM2)} m²</td>
+                  <td>{txt.power(c.expectedKw)} kW</td>
+                  <td>{txt.power(c.scheduledKw)} kW</td>
+                  <td>{txt.fixed(c.wPerM2, 1)}</td>
+                  <td className={c.status}>{c.ratio === undefined ? '—' : c.status === 'ok' ? `OK (${txt.loading(c.ratio * 100)} %)` : `Check — ${txt.loading(c.ratio * 100)} % of expected`}</td>
                 </tr>
               ))}
             </tbody>

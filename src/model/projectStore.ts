@@ -1,6 +1,7 @@
 import type { Project, ProjectStatus } from '../types';
 import { currentRevision } from './revisions';
 import type { FileStamp, SaveOutcome } from './saveSafety';
+import { fmtDate } from '../util/format';
 
 /** Saving and opening projects: JSON files in the projects folder in the
  * desktop app; in a plain browser (web version, preview) this browser's own
@@ -252,7 +253,7 @@ export function whenText(ms: number, now = Date.now()): string {
   const days = Math.floor((new Date(now).setHours(0, 0, 0, 0) - new Date(ms).setHours(0, 0, 0, 0)) / 86400000);
   if (days === 1) return 'yesterday';
   if (days < 7) return `${days} days ago`;
-  return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return fmtDate(ms);
 }
 
 /** Open project… (desktop): a file picker. Returns a file in the projects

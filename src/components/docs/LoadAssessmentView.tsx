@@ -10,9 +10,9 @@ import {
 } from '../../calc/loadAssessment';
 import { buildDashboard } from '../../calc/dashboard';
 import { createMdbFromAssessment, LA_MDB } from '../../calc/loadAssessmentMdb';
+import { txt } from '../../util/format';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
-const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
 
 /** A number cell that saves when you leave it (so typing isn't interrupted); text that
  * isn't a valid number gets a message under the cell and is not saved. */
@@ -82,7 +82,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
     const updated = res.boardIds.filter((id) => !res.createdIds.includes(id));
     const over = res.loading.filter((x) => x.pct > a.supply.maxLoadingPct);
     onStatus(`${[made, updated.length ? `Updated ${updated.join(', ')}` : ''].filter(Boolean).join('; ')}: ${res.added} feeders from the load assessment${res.boardIds.length > 1 ? `, demand balanced over ${res.boardIds.length} transformers` : ''}${res.replaced ? ` (replaced ${res.replaced})` : ''} — check the cable lengths`
-      + (res.loading.length ? `. Transformer loading ${res.loading.map((x) => `${x.boardId} ${f0(x.pct)} %`).join(', ')}` : '')
+      + (res.loading.length ? `. Transformer loading ${res.loading.map((x) => `${x.boardId} ${txt.loading(x.pct)} %`).join(', ')}` : '')
       + (over.length ? ` — over the ${a.supply.maxLoadingPct} % limit: the boards add the feeders' demand without the assessment's coincidence factor` : '')
       + (res.unused.length ? `. ${res.unused.join(', ')} no longer needed by the assessment: its assessment feeders were removed — delete it if it is empty` : '')
       + (to && r?.tx && r.tx.duty > 1 ? `. The assessment needs ${r.tx.duty} duty transformers: pick “New MDBs” to spread the feeders over them` : ''));
@@ -103,7 +103,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
   const g = a.gfaM2;
   const pctBad = Math.abs(r.pctTotal - 100) > 0.5;
   const maxDemand = Math.max(1, ...r.categories.map((c) => c.demandKw));
-  const svcKw = (k: string) => (r.services[k] ? <em>{f0(r.services[k])} kW</em> : null);
+  const svcKw = (k: string) => (r.services[k] ? <em>{txt.power(r.services[k])} kW</em> : null);
   const fac = (label: string, value: number, onSet: (v: number) => void, step = 0.1) => editFactors && <span className="la-fac">{label}<Num value={value} onSet={onSet} step={step} width={64} /></span>;
   const check = (k: keyof LaServices, label: string, hint: string, kwKey: string, factors: JSX.Element | false) => (
     <div className="la-card">
@@ -178,7 +178,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
                   <tr key={`${row.id}-${i}`}>
                     <td><Text value={row.label} onSet={(v) => setRow(i, { label: v })} /></td>
                     <td>{a.areaMode === 'pct' ? <Num value={row.pct ?? 0} onSet={(v) => setRow(i, { pct: v })} /> : <Num value={row.areaM2 ?? 0} onSet={(v) => setRow(i, { areaM2: v })} width={90} />}</td>
-                    <td className="m">{f0(rowArea(a, row))}{a.areaMode === 'm2' && g ? ` · ${f1(rowPct(a, row))} %` : ''}</td>
+                    <td className="m">{txt.size(rowArea(a, row))}{a.areaMode === 'm2' && g ? ` · ${txt.loading(rowPct(a, row))} %` : ''}</td>
                     <td><Num value={row.ltg} onSet={(v) => setRow(i, { ltg: v })} /></td>
                     <td><Num value={row.pwr} onSet={(v) => setRow(i, { pwr: v })} /></td>
                     <td><Num value={row.clg} onSet={(v) => setRow(i, { clg: v })} /></td>
@@ -189,8 +189,8 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
               </tbody>
               <tfoot><tr>
                 <td><b>Total</b></td>
-                <td className={pctBad ? 'warn' : ''}><b>{a.areaMode === 'pct' ? `${f1(r.pctTotal)} %` : f0(r.areaM2)}</b></td>
-                <td className={pctBad ? 'warn' : ''}><b>{f0(r.areaM2)}</b>{pctBad ? ` — GFA is ${f0(g)}` : ''}</td>
+                <td className={pctBad ? 'warn' : ''}><b>{a.areaMode === 'pct' ? `${txt.loading(r.pctTotal)} %` : txt.size(r.areaM2)}</b></td>
+                <td className={pctBad ? 'warn' : ''}><b>{txt.size(r.areaM2)}</b>{pctBad ? ` — GFA is ${txt.size(g)}` : ''}</td>
                 <td colSpan={5} />
               </tr></tfoot>
             </table>
@@ -291,7 +291,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
                     <td><Num value={c.kw} onSet={(v) => setCust(i, { kw: v })} /></td>
                     <td><Num value={c.diversity} onSet={(v) => setCust(i, { diversity: v })} step={0.05} width={60} /></td>
                     <td style={{ textAlign: 'center' }}><input type="checkbox" checked={c.onGenerator} onChange={(e) => setCust(i, { onGenerator: e.target.checked })} /></td>
-                    <td>{f1(c.qty * c.kw)} kW</td>
+                    <td>{txt.power(c.qty * c.kw)} kW</td>
                     <td><button className="icon-btn" title="Remove" onClick={() => patch({ custom: a.custom.filter((_, j) => j !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                   </tr>
                 ))}
@@ -306,12 +306,12 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
           <section className="card la-sec la-sticky">
             <h4><span className="la-n">4</span>Maximum demand &amp; supply</h4>
             <div className="la-kpis">
-              <div><b>{f0(r.connectedKw)}</b><span>Connected kW</span></div>
-              <div><b>{f0(r.mdKva)}</b><span>Maximum demand kVA</span></div>
+              <div><b>{txt.power(r.connectedKw)}</b><span>Connected kW</span></div>
+              <div><b>{txt.power(r.mdKva)}</b><span>Maximum demand kVA</span></div>
               <div><b>{f0(r.vaPerM2)}</b><span>VA/m² of GFA</span></div>
-              <div><b>{r.tx ? `${r.tx.count} × ${f0(r.tx.kva)}` : '—'}</b><span>Transformers kVA (≤ {f0(a.supply.maxLoadingPct)} %, {a.supply.redundancy})</span></div>
-              <div><b>{r.generatorKva ? `${r.generatorCount > 1 ? `${r.generatorCount} × ` : ''}${f0(r.generatorKva)}` : '—'}</b><span>Standby generator kVA</span></div>
-              <div><b>{r.incomerA ? f0(r.incomerA) : '—'}</b><span>LV incomer A / transformer</span></div>
+              <div><b>{r.tx ? `${r.tx.count} × ${txt.plain(r.tx.kva)}` : '—'}</b><span>Transformers kVA (≤ {f0(a.supply.maxLoadingPct)} %, {a.supply.redundancy})</span></div>
+              <div><b>{r.generatorKva ? `${r.generatorCount > 1 ? `${r.generatorCount} × ` : ''}${txt.plain(r.generatorKva)}` : '—'}</b><span>Standby generator kVA</span></div>
+              <div><b>{r.incomerA ? txt.current(r.incomerA) : '—'}</b><span>LV incomer A / transformer</span></div>
             </div>
             <table className="bi-table la-table">
               <thead><tr><th>Category</th><th>Connected kW</th><th title="Edit to change">Diversity ✎</th><th>Demand kW</th><th style={{ width: '26%' }} /></tr></thead>
@@ -319,16 +319,16 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
                 {r.categories.map((c) => (
                   <tr key={c.key}>
                     <td>{c.key.startsWith('custom:') ? `+ ${c.label}` : c.label}</td>
-                    <td>{f0(c.connectedKw)}</td>
+                    <td>{txt.power(c.connectedKw)}</td>
                     <td>{c.editable ? <Num value={c.diversity} step={0.05} width={60} onSet={(v) => patch({ diversity: { ...a.diversity, [c.key as CategoryKey]: v } })} /> : c.diversity ? c.diversity.toFixed(2) : '—'}</td>
-                    <td>{c.diversity ? f0(c.demandKw) : '—'}</td>
+                    <td>{c.diversity ? txt.power(c.demandKw) : '—'}</td>
                     <td><div className="la-bar"><i style={{ width: `${(c.demandKw / maxDemand) * 100}%` }} /></div></td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr><td><b>Sum of demands</b></td><td><b>{f0(r.connectedKw)}</b></td><td /><td><b>{f0(r.sumDemandKw)}</b></td><td /></tr>
-                <tr><td colSpan={3}>× coincidence {a.supply.coincidence}{a.supply.sparePct ? ` × spare ${1 + a.supply.sparePct / 100}` : ''} → MD</td><td><b>{f0(r.mdKw)} kW</b></td><td /></tr>
+                <tr><td><b>Sum of demands</b></td><td><b>{txt.power(r.connectedKw)}</b></td><td /><td><b>{txt.power(r.sumDemandKw)}</b></td><td /></tr>
+                <tr><td colSpan={3}>× coincidence {a.supply.coincidence}{a.supply.sparePct ? ` × spare ${1 + a.supply.sparePct / 100}` : ''} → MD</td><td><b>{txt.power(r.mdKw)} kW</b></td><td /></tr>
               </tfoot>
             </table>
             <div className={`la-flag ${r.inBand ? 'ok' : 'warn'}`}>
@@ -336,14 +336,14 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
             </div>
             {designed && designed.demandKva > 0 && (
               <div className="la-flag">
-                Designed so far (load schedules): <b>{f0(designed.demandKva)} kVA</b> demand, {f0(designed.connectedKw)} kW connected{designed.transformerKva ? `, ${f0(designed.transformerKva)} kVA of transformers` : ''} —
-                {' '}{f0((designed.demandKva / r.mdKva) * 100)} % of this assessment.
+                Designed so far (load schedules): <b>{txt.power(designed.demandKva)} kVA</b> demand, {txt.power(designed.connectedKw)} kW connected{designed.transformerKva ? `, ${txt.plain(designed.transformerKva)} kVA of transformers` : ''} —
+                {' '}{txt.loading((designed.demandKva / r.mdKva) * 100)} % of this assessment.
               </div>
             )}
 
             <div className="bi-actions">
               <select className="bi-sel" value={picked} onChange={(e) => setTarget(e.target.value)} title="Board the feeders go on">
-                <option value="">{laMdbs.length ? `Assessment MDBs (${laMdbs.join(', ')})` : r.tx && r.tx.duty > 1 ? `New MDBs (${r.tx.duty} × ${f0(r.tx.kva)} kVA transformers)` : `New MDB${r.tx ? ` (${f0(r.tx.kva)} kVA transformer)` : ''}`}</option>
+                <option value="">{laMdbs.length ? `Assessment MDBs (${laMdbs.join(', ')})` : r.tx && r.tx.duty > 1 ? `New MDBs (${r.tx.duty} × ${txt.plain(r.tx.kva)} kVA transformers)` : `New MDB${r.tx ? ` (${txt.plain(r.tx.kva)} kVA transformer)` : ''}`}</option>
                 {mains.filter((b) => !laMdbs.includes(b.id)).map((b) => <option key={b.id} value={b.id}>{b.id} — {b.name}</option>)}
               </select>
               <button className="chip primary" onClick={createMdb} title="One feeder per load category and custom load: connected kW and diversity as load and demand factor; generator-backed loads marked essential. One MDB per duty transformer, demand balanced over them">

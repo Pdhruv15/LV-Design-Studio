@@ -151,6 +151,7 @@ import { onDemand } from './util/onDemand';
 import { currentRevision, revisionStamp } from './model/revisions';
 import { useSheetUi } from './components/sld/sheetUi';
 import { markSeen, pendingReleases, RELEASES, type Release, type WhatsNewAction } from './model/whatsNew';
+import { fmtTime } from './util/format';
 type DiagramMode = 'system' | 'board' | 'earthing' | 'riser';
 
 /** Fixed, read-only start position used only by the offline manual capture command. */
@@ -345,7 +346,7 @@ export default function App() {
     });
     const created = raw.created?.length ? `Created ${raw.created.join(', ')} in the database folder. ` : '';
     const issues = parsed.issues.length ? `${parsed.issues.length} database problem(s) — see Database. ` : '';
-    setStatus(`${created}${issues}Database synced ${new Date(raw.readAt).toLocaleTimeString()}`);
+    setStatus(`${created}${issues}Database synced ${fmtTime(raw.readAt)}`);
   }
 
   function initDatabase() {
@@ -666,7 +667,7 @@ export default function App() {
       void clearRecovery(project.id);
       void clearRecovery(named.id);
       setSaveState({ kind: 'idle' });
-      setStatus(`Saved ${named.name} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+      setStatus(`Saved ${named.name} · ${fmtTime(new Date())}`);
       refreshList();
       return true;
     } catch (e) {
@@ -1667,7 +1668,7 @@ export default function App() {
         <span className="sp" />
         <span className={`calc-state ${staleKeys.length ? 'warn' : 'ok'}`} title={staleKeys.length ? `Out of date: ${stale.join(', ')}` : undefined}>
           {staleKeys.length ? <TriangleAlert size={13} aria-hidden /> : <CircleCheck size={13} aria-hidden />}
-          {staleKeys.length ? `${staleKeys.length} stud${staleKeys.length === 1 ? 'y' : 'ies'} out of date` : `Calculations up to date${run && !MANUAL_CAPTURE ? ` (${new Date(run.at).toLocaleTimeString()})` : ''}`}
+          {staleKeys.length ? `${staleKeys.length} stud${staleKeys.length === 1 ? 'y' : 'ies'} out of date` : `Calculations up to date${run && !MANUAL_CAPTURE ? ` (${fmtTime(run.at)})` : ''}`}
         </span>
         <button className={`chip run-chip${staleKeys.length ? ' stale' : ''}`} onClick={runNow} title="Run the network studies (F5)">
           <Play size={12} aria-hidden /> Run (F5)

@@ -3,6 +3,7 @@ import { cableTypeOf, cableTypeDef } from '../model/cableTypes';
 import type { Project } from '../types';
 import { cableRatePerM, breakerRateAed, CURRENCY } from '../data/rates';
 import { saveCsv } from '../util/files';
+import { fmtFixed } from '../util/format';
 
 interface Row {
   id: string; name: string; type: string; fireRated: boolean; cableCsaMm2: number; runs: number; lengthM: number;
@@ -23,11 +24,13 @@ function buildRows(results: FeederResult[], project?: Project): Row[] {
   });
 }
 
+const money = (n: number) => fmtFixed(n, 2);
+
 /** The circuit bill as CSV rows, with a grand-total row. */
 function csvRows(rows: Row[]): { headers: string[]; data: unknown[][] } {
   const headers = ['Circuit', 'Description', 'Cable type', 'Cable (mm²)', 'Length (m)', `Cable rate (${CURRENCY}/m)`, `Cable cost (${CURRENCY})`, 'Breaker (A)', `Breaker cost (${CURRENCY})`, `Total (${CURRENCY})`];
-  const data: unknown[][] = rows.map((r) => [r.id, r.name, r.type, r.runs > 1 ? `${r.runs} x ${r.cableCsaMm2}` : r.cableCsaMm2, r.lengthM, r.cableRate, r.cableCost.toFixed(0), r.breakerRatingA, r.breakerCost.toFixed(0), r.total.toFixed(0)]);
-  data.push(['', '', '', '', '', '', '', '', 'Grand total', rows.reduce((s, r) => s + r.total, 0).toFixed(0)]);
+  const data: unknown[][] = rows.map((r) => [r.id, r.name, r.type, r.runs > 1 ? `${r.runs} x ${r.cableCsaMm2}` : r.cableCsaMm2, r.lengthM, r.cableRate, r.cableCost.toFixed(2), r.breakerRatingA, r.breakerCost.toFixed(2), r.total.toFixed(2)]);
+  data.push(['', '', '', '', '', '', '', '', 'Grand total', rows.reduce((s, r) => s + r.total, 0).toFixed(2)]);
   return { headers, data };
 }
 
@@ -61,14 +64,14 @@ export default function BoqTable({ results, projectName, project }: { results: F
             {rows.map((r) => (
               <tr key={r.id}>
                 <td>{r.id}</td><td>{r.name}</td><td className={r.fireRated ? 'fr-cell' : undefined}>{r.type}</td><td>{r.runs > 1 ? `${r.runs} × ` : ''}{r.cableCsaMm2} mm²</td><td>{r.lengthM} m</td>
-                <td>{r.cableRate}/m</td><td>{r.cableCost.toFixed(0)}</td>
-                <td>{r.breakerRatingA} A</td><td>{r.breakerCost.toFixed(0)}</td>
-                <td><b>{r.total.toFixed(0)}</b></td>
+                <td>{r.cableRate}/m</td><td>{money(r.cableCost)}</td>
+                <td>{r.breakerRatingA} A</td><td>{money(r.breakerCost)}</td>
+                <td><b>{money(r.total)}</b></td>
               </tr>
             ))}
             <tr>
               <td colSpan={9} style={{ textAlign: 'right', fontWeight: 600 }}>Grand total ({CURRENCY})</td>
-              <td style={{ fontWeight: 700 }}>{grandTotal.toFixed(0)}</td>
+              <td style={{ fontWeight: 700 }}>{money(grandTotal)}</td>
             </tr>
           </tbody>
         </table>

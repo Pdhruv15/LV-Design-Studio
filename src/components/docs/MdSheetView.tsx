@@ -7,6 +7,7 @@ import { addOutgoingFeeder, deleteOutgoingFeeder, feederDeleteBlock } from '../.
 import { addSpareWay, deleteSpareWay, spareLabel } from '../../model/spareWays';
 import { revisionStamp } from '../../model/revisions';
 import ClassicGrid from '../grid/ClassicGrid';
+import { txt } from '../../util/format';
 
 /** "Details of connected load, maximum demand & kWh metering" for one
  * board, drawn like the authority form: header, the sheet, then the demand
@@ -104,8 +105,8 @@ export default function MdSheetView({ project, boardId, onChange, onStatus, onSe
         <div className="md-connected">{f.connectedTo.map((l) => <div key={l}>{l}</div>)}</div>
         <div className="md-demand">
           <span>DEMAND FACTOR: <b>{f.demandFactor.toFixed(2)}</b></span>
-          <span>MAX. DEMAND: <b>{f.maxDemandKw.toFixed(2)} kW</b></span>
-          <span>TOTAL CONNECTED LOAD: <b>{f.totalConnectedKw.toFixed(2)} kW</b></span>
+          <span>MAX. DEMAND: <b>{txt.power(f.maxDemandKw)} kW</b></span>
+          <span>TOTAL CONNECTED LOAD: <b>{txt.power(f.totalConnectedKw)} kW</b></span>
           <span>TOTAL BUILD UP AREA (Sq. mtr): {blank(f.builtUpArea)}</span>
         </div>
         <div className="md-demand">

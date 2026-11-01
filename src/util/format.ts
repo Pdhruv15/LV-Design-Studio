@@ -56,6 +56,23 @@ export const fig = {
   plain: (v: number | undefined, d = 0): number | '—' => (v === undefined || !Number.isFinite(v) ? '—' : Number(v.toFixed(d)))
 };
 
+const text = (f: (v: number | undefined) => Figure | '—') => (v: number | undefined) => String(f(v));
+
+/** The same formats as text, for a screen, which prints strings and not a `Figure`. */
+export const txt = {
+  power: text(fig.power),
+  current: text(fig.current),
+  fault: text(fig.fault),
+  pct: text(fig.pct),
+  loading: text(fig.loading),
+  volts: text(fig.volts),
+  energy: text(fig.energy),
+  size: text(fig.size),
+  weight: text(fig.weight),
+  fixed: (v: number | undefined, d: number) => String(fig.fixed(v, d)),
+  plain: (v: number | undefined, d = 0) => String(fig.plain(v, d))
+};
+
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 /** Day, month index and year. An ISO date is the day as written, never moved by the time zone; a time is read in local time.
@@ -99,3 +116,6 @@ export const fmtTime = (d: string | number | Date) => {
   const t = new Date(d);
   return `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
 };
+
+/** 1 Nov 2026, 14:05. */
+export const fmtDateTime = (d: string | number | Date) => `${fmtDate(d)}, ${fmtTime(d)}`;

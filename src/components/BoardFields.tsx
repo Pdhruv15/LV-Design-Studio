@@ -2,6 +2,7 @@ import { BOARD_KINDS, INCOMER_DEVICES, RELAY_TYPES, SPD_TYPES, type Board, type 
 import { othersKva } from '../model/existing';
 import { findFloor, floorList, levelKey } from '../model/levels';
 import { DEFAULT_TRANSFORMER_XR } from '../calc/electrical';
+import { txt } from '../util/format';
 
 /** Groups of the 'general' fields, so the edit dialog can show them as tabs. */
 export type BoardFieldGroup = 'board' | 'incomer' | 'sld' | 'location';
@@ -105,7 +106,7 @@ export default function BoardFields({ board, onChange, section, building, groups
                       </div>
                     ))}
                     <button type="button" className="chip" onClick={() => setOthers([...others, { name: '' }])}>+ Add building</button>
-                    {kept > 0 && <span className="m">Kept for them: {+kept.toFixed(1)} kVA (the higher of allocated and recorded, each)</span>}
+                    {kept > 0 && <span className="m">Kept for them: {txt.power(kept)} kVA (the higher of allocated and recorded, each)</span>}
                   </fieldset>
                 </div>
               );

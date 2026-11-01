@@ -5,6 +5,7 @@ import TccChart from '../TccChart';
 import { evaluateSelectivity } from '../../calc/protection';
 import { faultCurrentKA, impedanceToBoard } from '../../calc/electrical';
 import { Page, ResultCard, ResultCards, StatusCell, StatusCounts } from '../ui';
+import { txt } from '../../util/format';
 
 export default function CoordinationStudy({ project, board, onBoard }: { project: Project; /** Picked in the panel tree. */ board?: string; onBoard?: (id: string) => void }) {
   const incomers = project.feeders.filter((f) => f.feedsBoardId);
@@ -31,7 +32,7 @@ export default function CoordinationStudy({ project, board, onBoard }: { project
             <ResultCard label="Breaker pairs" value={String(all.length)} sub={<StatusCounts statuses={all.map((r) => r.status)} />} />
             <ResultCard label="Overload ratio under 1.6" value={String(all.filter((r) => !r.ratioOk).length)} sub="In upstream ÷ In downstream" />
             <ResultCard label="Partial short-circuit selectivity" value={String(all.filter((r) => r.shortCircuit === 'partial').length)} sub="up to the upstream no-trip threshold" />
-            {boardId && <ResultCard label={`Fault level at ${boardId}`} value={`${busFaultKA.toFixed(1)} kA`} sub="maximum, at the busbar" />}
+            {boardId && <ResultCard label={`Fault level at ${boardId}`} value={`${txt.fault(busFaultKA)} kA`} sub="maximum, at the busbar" />}
           </ResultCards>
           <label className="setting">
             Board
@@ -59,9 +60,9 @@ export default function CoordinationStudy({ project, board, onBoard }: { project
               <td>{r.downstream.id} ({r.downstream.breakerRatingA} A)</td>
               <td>{r.ratio.toFixed(2)}</td>
               <StatusCell status={r.ratioOk ? 'ok' : 'warn'}>{r.ratioOk ? '≥ 1.6' : '< 1.6'}</StatusCell>
-              <td>{r.faultKA.toFixed(1)}</td>
-              <td>{r.limitKA.toFixed(1)}</td>
-              <StatusCell status={r.shortCircuit === 'total' ? 'ok' : 'warn'}>{r.shortCircuit === 'total' ? 'Total' : `Partial to ${r.limitKA.toFixed(1)} kA`}</StatusCell>
+              <td>{txt.fault(r.faultKA)}</td>
+              <td>{txt.fault(r.limitKA)}</td>
+              <StatusCell status={r.shortCircuit === 'total' ? 'ok' : 'warn'}>{r.shortCircuit === 'total' ? 'Total' : `Partial to ${txt.fault(r.limitKA)} kA`}</StatusCell>
               <StatusCell status={r.status} />
             </tr>
           ))}

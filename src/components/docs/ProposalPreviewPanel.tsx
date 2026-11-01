@@ -5,6 +5,7 @@ import { opView } from '../../model/proposalRegister';
 import { isPreviewStale, previewProposal, type ProposalPreview } from '../../model/proposalPreview';
 import { loadPriceLists } from '../../model/priceList';
 import type { ModificationRecord } from '../../model/designChanges';
+import { fmtFixed } from '../../util/format';
 
 const TABS = ['Changed values', 'Studies affected', 'Drawings and schedules', 'BOQ quantity effect', 'Open checks and limitations'] as const;
 const f = (n: number) => (Math.round(n * 100) / 100).toLocaleString('en-US');
@@ -38,7 +39,7 @@ export default function ProposalPreviewPanel({ project, rec, onGo }: { project: 
               </tbody></table>
               <h5>Calculated results that change (proposed)</h5>
               {prev.circuits.length ? <table className="schedule"><thead><tr><th>Circuit</th><th>Panel</th><th>Result</th><th>Now</th><th>Proposed</th></tr></thead><tbody>
-                {prev.circuits.map((c, i) => <tr key={i}><td>{c.id}</td><td>{c.boardId}</td><td>{c.metric}</td><td>{f(c.from)} {c.unit}</td><td><b>{f(c.to)} {c.unit}</b></td></tr>)}
+                {prev.circuits.map((c, i) => <tr key={i}><td>{c.id}</td><td>{c.boardId}</td><td>{c.metric}</td><td>{fmtFixed(c.from, 2)} {c.unit}</td><td><b>{fmtFixed(c.to, 2)} {c.unit}</b></td></tr>)}
               </tbody></table> : <p className="m">No circuit result changes.</p>}
               {prev.statuses.length > 0 && <ul>{prev.statuses.map((s, i) => <li key={i} className={s.to === 'bad' ? 'bad' : ''}>{s.what}: {word(s.from)} → <b>{word(s.to)}</b></li>)}</ul>}
             </>
@@ -61,7 +62,7 @@ export default function ProposalPreviewPanel({ project, rec, onGo }: { project: 
             <>
               {prev.quantities.length ? <table className="schedule"><thead><tr><th>Item</th><th>Now</th><th>Proposed</th><th>Change</th><th>Cost effect</th></tr></thead><tbody>
                 {prev.quantities.map((q) => <tr key={q.key} title={q.note}><td>{q.description}</td><td>{f(q.from)} {q.unit}</td><td>{f(q.to)} {q.unit}</td><td>{q.delta > 0 ? '+' : ''}{f(q.delta)}</td>
-                  <td className={typeof q.cost === 'string' ? 'm' : ''}>{typeof q.cost === 'number' ? `${q.cost > 0 ? '+' : ''}${f(q.cost)}` : q.cost}{q.note && typeof q.cost === 'number' ? ' (estimate)' : ''}</td></tr>)}
+                  <td className={typeof q.cost === 'string' ? 'm' : ''}>{typeof q.cost === 'number' ? `${q.cost > 0 ? '+' : ''}${fmtFixed(q.cost, 2)}` : q.cost}{q.note && typeof q.cost === 'number' ? ' (estimate)' : ''}</td></tr>)}
               </tbody></table> : <p className="m">No design quantity changes.</p>}
               {prev.adjustments.map((m, i) => <p key={i} className="warn">⚠ {m}</p>)}
               <p className="m">Design quantities only. Your manual lines, quantity adjustments, wastage and prices are not changed or included.</p>

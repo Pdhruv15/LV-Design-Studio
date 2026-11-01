@@ -24,6 +24,7 @@ import { exportDrawingSet, exportEverythingZip, exportSheetsDxf, registerRows, s
 import SheetGrid from './SheetGrid';
 import { Page, Modal } from '../ui';
 import type { MainView } from '../../views';
+import { fmtDate } from '../../util/format';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 type Col = 'status' | 'rev' | 'date' | 'drawnBy' | 'checkedBy' | 'approvedBy' | 'scale';
@@ -261,8 +262,8 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
                         </td>
                         <td><select className="bi-sel" value={s.size} onChange={(e) => setSheet(s.id, { size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto</option>{PAPERS.map((z) => <option key={z.size} value={z.size}>{z.label}</option>)}</select></td>
                         <td><span className="dr-dot" style={{ background: statusColor(st) }} />{st || <span className="m">—</span>}</td>
-                        <td title={hist.length ? hist.map((h) => `Rev ${h.rev} · ${h.date} · ${h.description}`).join('\n') : 'Not issued yet'}><b>{sheetRev(s, rev?.id) || '—'}</b>{hist.length > 0 && <span className="m dr-hist"> · {hist.length} issue{hist.length > 1 ? 's' : ''}</span>}</td>
-                        <td>{s.date || hist[hist.length - 1]?.date || <span className="m">{rev?.date ?? '—'}</span>}</td>
+                        <td title={hist.length ? hist.map((h) => `Rev ${h.rev} · ${fmtDate(h.date)} · ${h.description}`).join('\n') : 'Not issued yet'}><b>{sheetRev(s, rev?.id) || '—'}</b>{hist.length > 0 && <span className="m dr-hist"> · {hist.length} issue{hist.length > 1 ? 's' : ''}</span>}</td>
+                        <td>{fmtDate(s.date || hist[hist.length - 1]?.date) || <span className="m">{rev?.date ? fmtDate(rev.date) : '—'}</span>}</td>
                         <td className="acts">
                           <button className="chip" onClick={() => setEditing(s.id)}>Edit</button>
                           <button className="chip" disabled={!drawable(s) || !!busy} onClick={() => preview1(s)}>{busy === s.id ? '…' : 'Preview'}</button>
@@ -367,7 +368,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
               <label>Authority ref.{txt(pp.authorityRef, (v) => setParam('authorityRef', v), 'DEWA / DM reference')}</label>
             </div>
             <div className="dr-line">
-              <span>Project revision: <b>{rev ? `${rev.id} — ${rev.date}` : 'not issued'}</b> <button className="linkish" onClick={() => onOpen('revisions')}>Revisions…</button></span>
+              <span>Project revision: <b>{rev ? `${rev.id} — ${fmtDate(rev.date)}` : 'not issued'}</b> <button className="linkish" onClick={() => onOpen('revisions')}>Revisions…</button></span>
               <label className="row">Title block
                 <select className="chip" value={d.titleTemplateId ?? ''} onChange={(e) => onChange({ ...project, drawing: { ...d, titleTemplateId: e.target.value || undefined } })}>
                   <option value="">Standard</option>
@@ -416,7 +417,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
               <tbody>
                 {[...(set.issues ?? [])].reverse().map((x) => (
                   <tr key={x.id}>
-                    <td><b>{x.id}</b></td><td>{x.date}</td><td><span className="dr-dot" style={{ background: statusColor(x.purpose) }} />{x.purpose}</td><td>{x.description}</td><td>{x.to}</td>
+                    <td><b>{x.id}</b></td><td>{fmtDate(x.date)}</td><td><span className="dr-dot" style={{ background: statusColor(x.purpose) }} />{x.purpose}</td><td>{x.description}</td><td>{x.to}</td>
                     <td title={x.sheets.map((s) => `${s.number} Rev ${s.rev}`).join('\n')}>{x.sheets.length}</td>
                     <td className="acts"><button className="chip" onClick={() => transmittalPdf(x)}>Transmittal PDF</button><button className="chip" onClick={() => transmittalExcel(x)}>Excel</button></td>
                   </tr>
@@ -432,7 +433,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
             <tbody>
               {set.sheets.map((s) => (
                 <tr key={s.id}><td><b>{s.number}</b></td><td>{s.title}</td>
-                  <td>{(s.history ?? []).length ? s.history!.map((h) => <div key={`${h.rev}${h.date}`}><b>{h.rev}</b> · {h.date} · {h.description}{h.issueId ? <span className="m"> ({h.issueId})</span> : null}</div>) : <span className="m">not issued</span>}</td>
+                  <td>{(s.history ?? []).length ? s.history!.map((h) => <div key={`${h.rev}${h.date}`}><b>{h.rev}</b> · {fmtDate(h.date)} · {h.description}{h.issueId ? <span className="m"> ({h.issueId})</span> : null}</div>) : <span className="m">not issued</span>}</td>
                 </tr>
               ))}
             </tbody>
@@ -529,7 +530,7 @@ function SheetPanel({ sheet: s, set, project, boards, rev, onPatch, onClose, onR
           <h4>Revision history</h4>
           {(s.history ?? []).length ? (
             <table className="ds-table"><thead><tr><th>Rev</th><th>Date</th><th>Description</th></tr></thead>
-              <tbody>{[...s.history!].reverse().map((h) => <tr key={`${h.rev}${h.date}`}><td><b>{h.rev}</b></td><td>{h.date}</td><td>{h.description}{h.issueId ? <span className="m"> ({h.issueId})</span> : null}</td></tr>)}</tbody>
+              <tbody>{[...s.history!].reverse().map((h) => <tr key={`${h.rev}${h.date}`}><td><b>{h.rev}</b></td><td>{fmtDate(h.date)}</td><td>{h.description}{h.issueId ? <span className="m"> ({h.issueId})</span> : null}</td></tr>)}</tbody>
             </table>
           ) : <p className="m">Not issued yet — the title block shows the project's revisions.</p>}
         </div>

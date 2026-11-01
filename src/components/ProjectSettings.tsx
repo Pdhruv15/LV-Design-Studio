@@ -5,6 +5,7 @@ import { Modal } from './ui';
 import { loadReferences, settingSource, type RefKey } from '../model/designReference';
 import { RuleRows, newRule } from './docs/RuleRows';
 import { ruleIssues } from '../model/designRules';
+import { fmtDate } from '../util/format';
 
 type SettingsTab = 'system' | 'targets' | 'forms' | 'schedule';
 const SETTINGS_TABS: [SettingsTab, string][] = [['system', 'System & limits'], ['targets', 'Sizing targets'], ['forms', 'Submission forms'], ['schedule', 'Load schedule']];
@@ -49,7 +50,7 @@ export default function ProjectSettings({ project, onSave, onClose }: { project:
     <Modal onClose={onClose} onSubmit={submit}>
       <h3>Project settings and design basis</h3>
       <label className="settings-name">Project name<input value={p.name} required onChange={(e) => set('name', e.target.value)} /></label>
-      {p.origin && <p className="m">{p.origin.kind === 'duplicate' ? 'Duplicated' : 'Saved as a copy'} from {p.origin.copiedFromName ? <b>{p.origin.copiedFromName}</b> : 'another project'} on {new Date(p.origin.copiedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.</p>}
+      {p.origin && <p className="m">{p.origin.kind === 'duplicate' ? 'Duplicated' : 'Saved as a copy'} from {p.origin.copiedFromName ? <b>{p.origin.copiedFromName}</b> : 'another project'} on {fmtDate(p.origin.copiedAt)}.</p>}
       <div className="tabs feeder-tabs" role="tablist">
         {SETTINGS_TABS.map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>)}
       </div>

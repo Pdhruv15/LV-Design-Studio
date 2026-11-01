@@ -17,9 +17,10 @@ import {
   type CommentCategory, type CommentSeverity, type CommentStatus, type RefKind, type ReviewComment,
   type CommentKind
 } from '../../model/reviewComments';
+import { fmtDate } from '../../util/format';
 
 const ACTION: Record<CommentStatus, string> = { open: 'Reopen', responded: 'Record response', 'awaiting-evidence': 'Request evidence', closed: 'Close (reviewer)', withdrawn: 'Withdraw…' };
-const when = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+const when = (iso: string) => fmtDate(iso);
 const FILTERS = ['active', 'all', 'closed', 'withdrawn'] as const;
 
 /** Design review comments: raised against equipment or a sheet, answered by the designer, and closed only by the reviewer.

@@ -8,6 +8,7 @@ import { boardsInSupplyOrder } from '../../calc/summary';
 import { buildUpsReportHtml } from '../../docs/upsSolarReport';
 import { safeFileName, savePdf } from '../../util/files';
 import { NumField, Page } from '../ui';
+import { txt } from '../../util/format';
 
 const f1 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 1 });
 const f0 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -118,7 +119,7 @@ function UpsCard({ project, s, upsBoardIds, onPatch, onRemove, onApply }: {
                   <td><NumField label="" value={l.w} width={70} optional placeholder={l.va ? f0(l.va * pf) : ''} onSet={(v) => setLoad(l.id, { w: v })} /></td>
                   <td><NumField label="" value={l.va} width={70} optional placeholder={l.w ? f0(l.w / pf) : ''} onSet={(v) => setLoad(l.id, { va: v })} /></td>
                   <td><NumField label="" value={l.pf} width={50} optional placeholder="0.9" min={0.1} max={1} onSet={(v) => setLoad(l.id, { pf: v })} /></td>
-                  <td>{f1(((l.w ?? (l.va ?? 0) * pf) * l.qty) / 1000)}</td>
+                  <td>{txt.power(((l.w ?? (l.va ?? 0) * pf) * l.qty) / 1000)}</td>
                   <td><button className="icon-btn" title="Remove" onClick={() => onPatch({ loads: s.loads.filter((x) => x.id !== l.id) }, true)} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                 </tr>
               );
@@ -191,14 +192,14 @@ function UpsCard({ project, s, upsBoardIds, onPatch, onRemove, onApply }: {
         <NumField label="Absorption / taper allowance" unit="h" value={s.absorptionHours ?? 0} onSet={v => onPatch({ absorptionHours: v ?? 0 })} />
       </div><p className="m">Bulk estimate at constant current plus your absorption allowance. Confirm battery charging limits and the charger profile.</p></details>
       <div className="plan-cards">
-        <div><span>Load{board ? ` (${board.id} demand)` : ''}</span><b>{f1(r.loadKva)} kVA · {f1(r.loadKw)} kW</b><small>with growth, at {s.maxLoadingPct} %: {f1(r.designKva)} kVA · {f1(r.designKw)} kW</small></div>
-        <div><span>UPS rating</span><b className={r.upsKva ? '' : 'bad'}>{r.upsKva ? `${r.upsKva} kVA · ${f1(r.upsKw!)} kW` : `> ${STANDARD_UPS_KVA[STANDARD_UPS_KVA.length - 1]} kVA`}</b><small>{r.loadingPct !== undefined ? `${f0(r.loadingPct)} % loaded today (${r.loadingBy} limit) · ${f0(r.loadingKvaPct!)} % of kVA · ${f0(r.loadingKwPct!)} % of kW` : ''}</small></div>
-        <div><span>Battery{r.busMismatch ? ` — ${+r.stringV.toFixed(2)} V string, not ${s.dcVoltage} V` : ''}</span><b className={r.busMismatch || r.batteryIssue ? 'bad' : ''}>{r.busMismatch ? 'Not valid: ' : ''}{r.blockAh ? `${r.strings > 1 ? `${r.strings} × ` : ''}${r.blocksPerString} × ${s.blockV} V ${r.blockAh} Ah` : '—'}</b><small>{r.totalBlocks} {s.chem === 'vrla' ? 'blocks' : 'modules'} · {f1(r.energyKwh)} kWh · {r.batteryBasis === 'manufacturer table' ? `${r.tableWattsPerBlock ?? '—'} W/block at ${r.tableMinutes ?? '—'} min` : `needs ${f1(r.requiredAh)} Ah`}</small></div>
+        <div><span>Load{board ? ` (${board.id} demand)` : ''}</span><b>{txt.power(r.loadKva)} kVA · {txt.power(r.loadKw)} kW</b><small>with growth, at {s.maxLoadingPct} %: {txt.power(r.designKva)} kVA · {txt.power(r.designKw)} kW</small></div>
+        <div><span>UPS rating</span><b className={r.upsKva ? '' : 'bad'}>{r.upsKva ? `${r.upsKva} kVA · ${txt.plain(r.upsKw!, 1)} kW` : `> ${STANDARD_UPS_KVA[STANDARD_UPS_KVA.length - 1]} kVA`}</b><small>{r.loadingPct !== undefined ? `${txt.loading(r.loadingPct)} % loaded today (${r.loadingBy} limit) · ${txt.loading(r.loadingKvaPct!)} % of kVA · ${txt.loading(r.loadingKwPct!)} % of kW` : ''}</small></div>
+        <div><span>Battery{r.busMismatch ? ` — ${+r.stringV.toFixed(2)} V string, not ${s.dcVoltage} V` : ''}</span><b className={r.busMismatch || r.batteryIssue ? 'bad' : ''}>{r.busMismatch ? 'Not valid: ' : ''}{r.blockAh ? `${r.strings > 1 ? `${r.strings} × ` : ''}${r.blocksPerString} × ${s.blockV} V ${r.blockAh} Ah` : '—'}</b><small>{r.totalBlocks} {s.chem === 'vrla' ? 'blocks' : 'modules'} · {txt.energy(r.energyKwh)} kWh · {r.batteryBasis === 'manufacturer table' ? `${r.tableWattsPerBlock ?? '—'} W/block at ${r.tableMinutes ?? '—'} min` : `needs ${f1(r.requiredAh)} Ah`}</small></div>
         <div><span>Backup with this battery</span><b className={!r.busMismatch && !r.batteryIssue && r.runtimeMin !== undefined && r.runtimeMin >= s.autonomyMin ? 'ok' : 'bad'}>{r.runtimeMin !== undefined ? `${f0(r.runtimeMin)} min` : '—'}</b><small>required {s.autonomyMin} min</small></div>
-        <div><span>DC side</span><b>{f0(r.dcCurrentMaxA)} A max</b><small className={r.dcBreakerNoFit ? 'bad' : ''}>{f1(r.dcKw)} kW from the battery · {r.dcBreakerNoFit ? `No suitable DC breaker in the list — ${f0(r.dcBreakerRequiredA)} A needed, largest ${r.dcBreakerMaxA} A` : r.dcBreakerA ? `battery-bus DC breaker ${r.dcBreakerA} A` : 'no DC breaker (no load)'}</small></div>
-        {s.surge && <div><span>Inverter surge check</span><b className={r.surge.status === 'pass' ? 'ok' : r.surge.status === 'fail' ? 'bad' : ''}>{r.surge.status}</b><small>{r.surge.kw !== undefined ? `${f1(r.surge.kw)} kW · ${f1(r.surge.kva!)} kVA with growth · ` : ''}{r.surge.issue}</small></div>}
-        {s.chem === 'li-ion' && <div><span>Usable SOC / BMS</span><b>{f0(r.usableFraction * 100)} % · {f1(r.usableEnergyKwh)} kWh nominal</b><small>{f1(r.stringCurrentA)} A per string · {r.bmsOk === undefined ? 'BMS not checked' : r.bmsOk ? 'continuous current within limit' : 'BMS check failed'}</small></div>}
-        {s.chargerCurrentA !== undefined && <div><span>Recharge estimate</span><b className={r.rechargeIssue ? 'bad' : ''}>{r.rechargeHours !== undefined ? `${f1(r.rechargeHours)} h` : '—'}</b><small>{f1(r.rechargeNetA ?? 0)} A available · bulk + {s.absorptionHours ?? 0} h absorption allowance</small></div>}
+        <div><span>DC side</span><b>{txt.current(r.dcCurrentMaxA)} A max</b><small className={r.dcBreakerNoFit ? 'bad' : ''}>{txt.power(r.dcKw)} kW from the battery · {r.dcBreakerNoFit ? `No suitable DC breaker in the list — ${txt.current(r.dcBreakerRequiredA)} A needed, largest ${r.dcBreakerMaxA} A` : r.dcBreakerA ? `battery-bus DC breaker ${r.dcBreakerA} A` : 'no DC breaker (no load)'}</small></div>
+        {s.surge && <div><span>Inverter surge check</span><b className={r.surge.status === 'pass' ? 'ok' : r.surge.status === 'fail' ? 'bad' : ''}>{r.surge.status}</b><small>{r.surge.kw !== undefined ? `${txt.power(r.surge.kw)} kW · ${txt.power(r.surge.kva!)} kVA with growth · ` : ''}{r.surge.issue}</small></div>}
+        {s.chem === 'li-ion' && <div><span>Usable SOC / BMS</span><b>{f0(r.usableFraction * 100)} % · {txt.energy(r.usableEnergyKwh)} kWh nominal</b><small>{txt.current(r.stringCurrentA)} A per string · {r.bmsOk === undefined ? 'BMS not checked' : r.bmsOk ? 'continuous current within limit' : 'BMS check failed'}</small></div>}
+        {s.chargerCurrentA !== undefined && <div><span>Recharge estimate</span><b className={r.rechargeIssue ? 'bad' : ''}>{r.rechargeHours !== undefined ? `${f1(r.rechargeHours)} h` : '—'}</b><small>{txt.current(r.rechargeNetA ?? 0)} A available · bulk + {s.absorptionHours ?? 0} h absorption allowance</small></div>}
       </div>
       {r.notes.length > 0 && <p className="m">{r.notes.join(' · ')}</p>}
       {r.busMismatch && <div><button className="chip" onClick={() => onPatch({ dcVoltage: +r.stringV.toFixed(2) }, true)} title="Only if the UPS, charger and BMS accept this voltage — check the manufacturer's data">Set the DC bus to {+r.stringV.toFixed(2)} V ({r.blocksPerString} × {s.blockV} V)</button></div>}

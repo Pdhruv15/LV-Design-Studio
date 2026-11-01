@@ -18,6 +18,7 @@ import { variationsOf } from '../../model/variations';
 import { toggleIn } from '../../util/sets';
 import { offerSubmission } from '../../model/submissions';
 import { boqRevisionsOf, boqRevisionState, changeNote, CHANGE_LABEL, compareLines, issueBoqRevision, linesOf, numberBom, type BoqLine, type BoqRevision } from '../../model/boqRevisions';
+import { fmtDate, fmtUpTo } from '../../util/format';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const money = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -255,7 +256,7 @@ export default function BomView({ command, project, results, me = '', onChange, 
                             {pending.get(it.key) && <span className="bom-tag" title={`Changed since BOQ Rev ${latestIssue!.id}: marked △${revisions.length} in the next issue`}>△{revisions.length} {changeNote(pending.get(it.key)!, money, qtyText)}</span>}
                           </td>
                           <td>{it.unit}</td>
-                          <td className="num">{qtyText(it.qty)}{it.designQty !== undefined && <div className="m" title="Quantity from the design">design {qtyText(it.designQty)}</div>}</td>
+                          <td className="num">{fmtUpTo(it.qty, 2)}{it.designQty !== undefined && <div className="m" title="Quantity from the design">design {fmtUpTo(it.designQty, 2)}</div>}</td>
                           <td>{it.supplyCharge && it.source !== 'excluded' ? <input className="bom-rate" inputMode="decimal" aria-label={`Supply rate: ${it.description}`} key={`${it.key}-${manual ? m?.rate : list?.rates[it.key]?.rate}`}
                             defaultValue={(manual ? m?.rate : list?.rates[it.key]?.rate) ?? ''} placeholder={it.source === 'typical' ? `${it.rate} typ.` : '—'}
                             onBlur={(e) => { const old = String((manual ? m?.rate : list?.rates[it.key]?.rate) ?? ''); if (e.target.value === old) return; if (manual) setManualRate(it.manualId!, 'rate', e.target.value); else setRate(it.key, 'rate', e.target.value, it.description); }} /> : <span className="m">—</span>}</td>
@@ -449,9 +450,9 @@ function DesignForm({ it, design, o, raw, packages, onSave, onClose }: { it: Pri
   return (
     <>
       <h3>{it.section} — design item</h3>
-      <p className="m">{raw}<br />Design quantity: <b>{qtyText(design)} {it.unit}</b>{it.where.length ? ` · ${it.where.join(', ')}` : ''}</p>
+      <p className="m">{raw}<br />Design quantity: <b>{fmtUpTo(design, 2)} {it.unit}</b>{it.where.length ? ` · ${it.where.join(', ')}` : ''}</p>
       {it.quantitySource && <p className="m">Quantity basis: {it.quantitySource}</p>}
-      {o?.designQty !== undefined && o.designQty !== design && <p className="warn">⚠ The design quantity was {qtyText(o.designQty)} when you adjusted it; now {qtyText(design)}. Saving marks it checked.</p>}
+      {o?.designQty !== undefined && o.designQty !== design && <p className="warn">⚠ The design quantity was {fmtUpTo(o.designQty, 2)} when you adjusted it; now {fmtUpTo(design, 2)}. Saving marks it checked.</p>}
       <div className="form-kv">
         <label>Your quantity <input autoFocus inputMode="decimal" value={qty} placeholder={`${qtyText(design)} (design)`} onChange={(e) => setQty(e.target.value)} /></label>
         <label style={{ gridColumn: '1 / -1' }}>Your description <textarea rows={2} value={desc} placeholder={raw} onChange={(e) => setDesc(e.target.value)} /></label>
@@ -610,7 +611,7 @@ function RevisionsPage({ revisions, bom, cur, onIssue }: { revisions: BoqRevisio
     <section className="card">
       <table className="bom-table">
         <thead><tr><th>Rev</th><th>Date</th><th>Description</th><th>Design rev</th><th>Total excl. VAT</th><th>Grand total</th><th>By</th></tr></thead>
-        <tbody>{[...revisions].reverse().map((r) => <tr key={r.id}><td><b>{r.id}</b>{r.contract && <span className="bom-tag">contract</span>}</td><td>{r.date}</td><td>{r.description}</td><td>{r.designRev ?? '—'}</td><td className="num">{money(r.total)}</td><td className="num">{money(r.grandTotal)}</td><td>{r.by ?? ''}</td></tr>)}</tbody>
+        <tbody>{[...revisions].reverse().map((r) => <tr key={r.id}><td><b>{r.id}</b>{r.contract && <span className="bom-tag">contract</span>}</td><td>{fmtDate(r.date)}</td><td>{r.description}</td><td>{r.designRev ?? '—'}</td><td className="num">{money(r.total)}</td><td className="num">{money(r.grandTotal)}</td><td>{r.by ?? ''}</td></tr>)}</tbody>
       </table>
       <div className="row" style={{ gap: 8, margin: '10px 0' }}>
         <label className="row" style={{ gap: 6 }}>Compare Rev
@@ -634,7 +635,7 @@ function RevisionsPage({ revisions, bom, cur, onIssue }: { revisions: BoqRevisio
               <td>{c.no}</td>
               <td>{c.kinds.includes('omitted') ? <s>{c.description}</s> : c.description}</td>
               <td>{c.kinds.map((k) => CHANGE_LABEL[k]).join(', ')}</td>
-              <td className="num">{c.before ? qtyText(c.before.qty) : '—'} → {c.after ? qtyText(c.after.qty) : '—'}</td>
+              <td className="num">{c.before ? fmtUpTo(c.before.qty, 2) : '—'} → {c.after ? fmtUpTo(c.after.qty, 2) : '—'}</td>
               <td className="num">{rate(c.before)} → {rate(c.after)}</td>
               <td className="num">{c.delta ? `${c.delta > 0 ? '+' : '−'}${money(Math.abs(c.delta))}` : '—'}</td>
             </tr>

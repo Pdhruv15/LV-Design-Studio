@@ -2,6 +2,7 @@ import type { Feeder, Project } from '../types';
 import { evaluateFeeder, runsOf, type FeederResult } from './electrical';
 import { cables } from './cableTable';
 import { breakerRatings, icuSteps } from './sizing';
+import { fmtFixed } from '../util/format';
 
 /** Quick fixes for a circuit that fails a check: the smallest change that
  * makes it pass, each checked with the same calculation before it's offered. */
@@ -13,11 +14,11 @@ const rank = { ok: 0, warn: 1, bad: 2 } as const;
 export function failReasons(project: Project, r: FeederResult): string[] {
   const f = r.feeder, out: string[] = [];
   if (r.rating.missing) out.push(`Cable data required: ${r.rating.missing}`);
-  else if (r.ampacityStatus === 'bad') out.push(`Cable too small: Iz ${r.ampacity.toFixed(0)} A < Ib ${r.ib.toFixed(0)} A`);
-  if (r.ib > f.breakerRatingA) out.push(`Breaker too small: Ib ${r.ib.toFixed(0)} A > In ${f.breakerRatingA} A`);
-  else if (r.protectionStatus === 'bad' && !r.rating.missing) out.push(`Cable not protected: In ${f.breakerRatingA} A > Iz ${r.ampacity.toFixed(0)} A`);
-  if (r.vdStatus !== 'ok') out.push(`Voltage drop ${r.vdTotalPct.toFixed(2)} % (limit ${project.vdLimitPct} %)`);
-  if (r.icuStatus === 'bad') out.push(`Breaking capacity: Icu ${f.breakerIcuKa} kA < fault ${r.breakerFaultKA.toFixed(1)} kA`);
+  else if (r.ampacityStatus === 'bad') out.push(`Cable too small: Iz ${fmtFixed(r.ampacity, 1)} A < Ib ${fmtFixed(r.ib, 1)} A`);
+  if (r.ib > f.breakerRatingA) out.push(`Breaker too small: Ib ${fmtFixed(r.ib, 1)} A > In ${f.breakerRatingA} A`);
+  else if (r.protectionStatus === 'bad' && !r.rating.missing) out.push(`Cable not protected: In ${f.breakerRatingA} A > Iz ${fmtFixed(r.ampacity, 1)} A`);
+  if (r.vdStatus !== 'ok') out.push(`Voltage drop ${fmtFixed(r.vdTotalPct, 2)} % (limit ${project.vdLimitPct} %)`);
+  if (r.icuStatus === 'bad') out.push(`Breaking capacity: Icu ${f.breakerIcuKa} kA < fault ${fmtFixed(r.breakerFaultKA, 2)} kA`);
   return out;
 }
 

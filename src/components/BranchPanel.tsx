@@ -5,6 +5,7 @@ import { applyBranchCopies, assemblyFrom, branchSummary, extractBranch, loadAsse
 import { floorList } from '../model/levels';
 import { levelRef } from '../model/hierarchy';
 import { useStable } from '../util/useStable';
+import { fmtDate } from '../util/format';
 
 /** Repeat branch / Assemblies tabs of Build hierarchy: copy a board with
  * everything below it to chosen floors, or insert a saved assembly — renamed
@@ -77,7 +78,7 @@ export default function BranchPanel({ mode, project, onCreate, onClose }: {
               <div className="bh-asm">
                 {assemblies.map((a) => (
                   <div key={a.id} className={`bh-row${asmId === a.id ? ' on' : ''}`} onClick={() => setAsmId(a.id)}>
-                    <span style={{ flex: 1, minWidth: 0 }}><b>{a.name}</b><br /><span className="m">{branchSummary(a.branch)} · {a.savedAt}</span>{a.note && <><br /><span className="m">{a.note}</span></>}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}><b>{a.name}</b><br /><span className="m">{branchSummary(a.branch)} · {fmtDate(a.savedAt)}</span>{a.note && <><br /><span className="m">{a.note}</span></>}</span>
                     <button className="icon-btn" title={`Delete ${a.name} from your library`} onClick={(e) => { e.stopPropagation(); removeAssembly(a.id); }} aria-label={`Delete ${a.name} from your library`}><X size={14} aria-hidden /></button>
                   </div>
                 ))}

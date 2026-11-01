@@ -19,7 +19,7 @@ describe('ENG-019 earthing: missing source loop is unknown, not zero', () => {
     expect(r.adiabatic).toBe('warn');
     expect(r.status).not.toBe('ok');
     expect(disconnectionLabel(r)).toMatch(/Not verified/);
-    expect(loopFigures(r)).toEqual({ ze: 'unknown', zs: '≥ 0.5532', fault: '≤ 397' });
+    expect(loopFigures(r)).toEqual({ ze: 'unknown', zs: '≥ 0.5532', fault: '≤ 396.6' });
     // why: 0.5 Ω more in the source would already drop If below the 320 A magnetic trip
     expect((0.95 * (400 / Math.sqrt(3))) / Math.hypot(0.5 + 0.5532, 0.0045)).toBeLessThan(320);
   });

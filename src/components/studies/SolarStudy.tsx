@@ -6,6 +6,7 @@ import { boardsInSupplyOrder } from '../../calc/summary';
 import { buildPvReportHtml } from '../../docs/upsSolarReport';
 import { safeFileName, savePdf } from '../../util/files';
 import { NumField, Page } from '../ui';
+import { txt } from '../../util/format';
 
 const f1 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 1 });
 const f0 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -37,12 +38,12 @@ export default function SolarStudy({ project, onChange, onStatus }: {
     const res = pvToSld(project, s, r, target);
     if (!res) return;
     if (res.unresolved) {
-      onStatus(`Not ${res.existing ? 'updated' : 'added'}: ${pvId} on ${target} can't be sized as one ${f1(acKw)} kW connection — ${res.unresolved}. Configure separate inverter groups / feeders explicitly.`);
+      onStatus(`Not ${res.existing ? 'updated' : 'added'}: ${pvId} on ${target} can't be sized as one ${txt.plain(acKw, 1)} kW connection — ${res.unresolved}. Configure separate inverter groups / feeders explicitly.`);
       return;
     }
     const sized = res.feeder;
     onChange(res.project, true);
-    onStatus(`${res.existing ? 'Updated' : 'Added'} ${pvId} on ${target}: ${f1(acKw)} kW ${s.inverter.phases === 1 ? `one-phase${sized.phase ? ` on ${sized.phase}` : ' (phase not set)'}` : 'three-phase'}, ${sized.breakerRatingA} A, ${sized.cores}C × ${sized.cableCsaMm2} mm² — press Run (F5)`);
+    onStatus(`${res.existing ? 'Updated' : 'Added'} ${pvId} on ${target}: ${txt.plain(acKw, 1)} kW ${s.inverter.phases === 1 ? `one-phase${sized.phase ? ` on ${sized.phase}` : ' (phase not set)'}` : 'three-phase'}, ${sized.breakerRatingA} A, ${sized.cores}C × ${sized.cableCsaMm2} mm² — press Run (F5)`);
   }
   async function exportPdf() {
     setBusy(true);
@@ -144,23 +145,23 @@ export default function SolarStudy({ project, onChange, onStatus }: {
       </div>
 
       <div className="plan-cards">
-        <div><span>Array</span><b>{r.panels} × {s.panel.pmaxW} W = {f2(r.kwp)} kWp</b><small>{r.strings} strings × {r.perString} panels</small></div>
-        <div><span>Inverters</span><b>{r.inverters} × {s.inverter.acKw} kW = {f1(acKw)} kW</b><small>DC/AC {r.dcAcRatio.toFixed(2)} · {r.stringsPerMppt} string{r.stringsPerMppt === 1 ? '' : 's'} per MPPT</small></div>
-        <div><span>Area</span><b>{f0(r.arrayAreaM2)} m² of panels</b><small>≈ {f0(r.roofNeededM2)} m² of roof at {s.roofUsePct} % use</small></div>
-        <div><span>Energy</span><b>{f0(r.dailyKwh)} kWh/day · {f0(r.annualKwh / 1000)} MWh/yr</b><small>{f0(r.specificYield)} kWh/kWp · PR {f1(r.prPct)} %</small></div>
-        <div><span>Savings / CO₂</span><b>{r.savings !== undefined ? `${f0(r.savings)} per year` : '—'}</b><small>{f1(r.co2Tonnes)} t CO₂ avoided per year</small></div>
+        <div><span>Array</span><b>{r.panels} × {s.panel.pmaxW} W = {txt.power(r.kwp)} kWp</b><small>{r.strings} strings × {r.perString} panels</small></div>
+        <div><span>Inverters</span><b>{r.inverters} × {s.inverter.acKw} kW = {txt.plain(acKw, 1)} kW</b><small>DC/AC {r.dcAcRatio.toFixed(2)} · {r.stringsPerMppt} string{r.stringsPerMppt === 1 ? '' : 's'} per MPPT</small></div>
+        <div><span>Area</span><b>{txt.size(r.arrayAreaM2)} m² of panels</b><small>≈ {txt.size(r.roofNeededM2)} m² of roof at {s.roofUsePct} % use</small></div>
+        <div><span>Energy</span><b>{txt.energy(r.dailyKwh)} kWh/day · {txt.energy(r.annualKwh / 1000)} MWh/yr</b><small>{f0(r.specificYield)} kWh/kWp · PR {f1(r.prPct)} %</small></div>
+        <div><span>Savings / CO₂</span><b>{r.savings !== undefined ? `${txt.fixed(r.savings, 2)} per year` : '—'}</b><small>{f1(r.co2Tonnes)} t CO₂ avoided per year</small></div>
         {conn && <div><span>SLD connection</span><b className={conn.ok ? '' : 'bad'}>{conn.ok ? 'Can be built' : 'Not as one connection'}</b><small className={conn.ok ? '' : 'bad'}>{conn.text}</small></div>}
-        <div><span>AC connection</span><b className={r.acBreakerNoFit ? 'bad' : ''}>{f0(r.acCurrentA)} A · {r.acBreakerNoFit ? 'No suitable breaker in the available list' : r.acBreakerA ? `${r.acBreakerA} A breaker` : 'no breaker (no generation)'}</b>{r.acBreakerNoFit && <small className="bad">needs {f0(r.acBreakerRequiredA)} A (1.25 × I); largest available {r.acBreakerMaxA} A</small>}<small>{acConnection(s, project.voltageV).text}{s.inverter.phases === 1 && r.inverters > 1 ? ` · ${r.inverters} inverters counted together on one phase connection` : ''}</small></div>
+        <div><span>AC connection</span><b className={r.acBreakerNoFit ? 'bad' : ''}>{txt.current(r.acCurrentA)} A · {r.acBreakerNoFit ? 'No suitable breaker in the available list' : r.acBreakerA ? `${r.acBreakerA} A breaker` : 'no breaker (no generation)'}</b>{r.acBreakerNoFit && <small className="bad">needs {txt.current(r.acBreakerRequiredA)} A (1.25 × I); largest available {r.acBreakerMaxA} A</small>}<small>{acConnection(s, project.voltageV).text}{s.inverter.phases === 1 && r.inverters > 1 ? ` · ${r.inverters} inverters counted together on one phase connection` : ''}</small></div>
       </div>
 
       <h3 className="section-title">String design check</h3>
       <table className="schedule pv-check">
         <thead><tr><th className="l">Check</th><th>Value</th><th>Limit</th><th>Result</th></tr></thead>
         <tbody>
-          <tr><td className="l">String Voc at {s.tMinC} °C ({r.perString} × {f2(r.vocColdV)} V)</td><td>{f0(r.perString * r.vocColdV)} V</td><td>≤ {s.inverter.maxDcV} V max DC</td>{check(r.perString * r.vocColdV <= s.inverter.maxDcV)}</tr>
-          <tr><td className="l">String Vmp at {f0(r.tCellMaxC)} °C cell ({r.perString} × {f2(r.vmpHotV)} V){vmpNote}</td><td>{f0(r.perString * r.vmpHotV)} V</td><td>≥ {s.inverter.mpptMinV} V MPPT min</td>{mpptCheck(r.perString * r.vmpHotV >= s.inverter.mpptMinV)}</tr>
-          <tr><td className="l">String Vmp at {s.tMinC} °C ({r.perString} × {f2(r.vmpColdV)} V){vmpNote}</td><td>{f0(r.perString * r.vmpColdV)} V</td><td>≤ {s.inverter.mpptMaxV} V MPPT max</td>{mpptCheck(r.perString * r.vmpColdV <= s.inverter.mpptMaxV)}</tr>
-          <tr><td className="l">MPPT input current ({r.stringsPerMppt} × 1.25 × Isc)</td><td>{f1(r.mpptCurrentA)} A</td><td>≤ {s.inverter.maxInputA} A</td>{check(r.mpptCurrentA <= s.inverter.maxInputA)}</tr>
+          <tr><td className="l">String Voc at {s.tMinC} °C ({r.perString} × {f2(r.vocColdV)} V)</td><td>{txt.volts(r.perString * r.vocColdV)} V</td><td>≤ {s.inverter.maxDcV} V max DC</td>{check(r.perString * r.vocColdV <= s.inverter.maxDcV)}</tr>
+          <tr><td className="l">String Vmp at {f0(r.tCellMaxC)} °C cell ({r.perString} × {f2(r.vmpHotV)} V){vmpNote}</td><td>{txt.volts(r.perString * r.vmpHotV)} V</td><td>≥ {s.inverter.mpptMinV} V MPPT min</td>{mpptCheck(r.perString * r.vmpHotV >= s.inverter.mpptMinV)}</tr>
+          <tr><td className="l">String Vmp at {s.tMinC} °C ({r.perString} × {f2(r.vmpColdV)} V){vmpNote}</td><td>{txt.volts(r.perString * r.vmpColdV)} V</td><td>≤ {s.inverter.mpptMaxV} V MPPT max</td>{mpptCheck(r.perString * r.vmpColdV <= s.inverter.mpptMaxV)}</tr>
+          <tr><td className="l">MPPT input current ({r.stringsPerMppt} × 1.25 × Isc)</td><td>{txt.current(r.mpptCurrentA)} A</td><td>≤ {s.inverter.maxInputA} A</td>{check(r.mpptCurrentA <= s.inverter.maxInputA)}</tr>
           <tr><td className="l">Panels per string that fit</td><td>{r.minPerString} – {r.maxPerString}</td><td>chosen {r.perString}</td>{check(r.perString >= r.minPerString && r.perString <= r.maxPerString && r.perString > 0)}</tr>
         </tbody>
       </table>
@@ -174,7 +175,7 @@ export default function SolarStudy({ project, onChange, onStatus }: {
           </select>
         </label>
         <button className="chip primary" disabled={!r.inverters} onClick={addToSld}>{existing ? `Update ${pvId}` : `Add ${pvId} to the SLD`}</button>
-        <span className="m">A generation feeder of {f1(acKw)} kW with its breaker and cable sized — it then appears in the studies and schedules.</span>
+        <span className="m">A generation feeder of {txt.plain(acKw, 1)} kW with its breaker and cable sized — it then appears in the studies and schedules.</span>
       </div>
     </Page>
   );

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { Project } from '../../types';
 import { Page } from '../ui';
 import { addDoc, baselineDoc, DISCIPLINE_LABEL, docIssues, DocError, docsOf, isSuperseded, removeDoc, setBaselineDoc, updateDoc, type DocDiscipline } from '../../model/receivedDocs';
+import { fmtDate } from '../../util/format';
 
 /** Register of documents received from others. It records number, revision and where the file is; it does not read the
  * file or turn it into design data, and marking a baseline records provenance, not approval. */
@@ -49,7 +50,7 @@ export default function ReceivedDocsView({ project, onChange, onStatus, onInbox 
           {shown.map((d) => (
             <tr key={d.id} className={isSuperseded(d) ? 'm' : ''}>
               <td>{d.id}</td><td>{d.title}{d.purpose ? <span className="m"> · {d.purpose}</span> : ''}</td><td>{d.number}</td><td>{d.revision}{isSuperseded(d) ? ` (superseded by ${d.supersededBy})` : ''}</td>
-              <td>{d.dateReceived ?? '—'}</td><td>{d.originator ?? '—'}</td><td>{DISCIPLINE_LABEL[d.discipline]}</td>
+              <td>{d.dateReceived ? fmtDate(d.dateReceived) : '—'}</td><td>{d.originator ?? '—'}</td><td>{DISCIPLINE_LABEL[d.discipline]}</td>
               <td>{d.use === 'baseline' ? <b>Baseline</b> : 'Reference only'}</td><td>{d.link ?? '—'}</td>
               <td style={{ whiteSpace: 'nowrap' }}>
                 {!isSuperseded(d) && (d.use === 'baseline' ? <button onClick={() => guard(() => onChange(setBaselineDoc(project, undefined)))}>Not baseline</button> : <button onClick={() => guard(() => onChange(setBaselineDoc(project, d.id)))}>Use as baseline</button>)}

@@ -1,5 +1,6 @@
 import { Modal } from './ui';
 import type { Release, WhatsNewAction } from '../model/whatsNew';
+import { fmtDate } from '../util/format';
 
 const ICONS: Record<WhatsNewAction | 'cli', string> = {
   cad: 'M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5zM2 2l7.586 7.586',
@@ -22,7 +23,7 @@ export default function WhatsNewDialog({ releases, from, onAction, onClose }: {
 }) {
   const newest = releases[0];
   if (!newest) return null;
-  const when = new Date(`${newest.date}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  const when = fmtDate(newest.date);
   return (
     <Modal onClose={onClose} className="modal whats-new" label="What's new">
       <h3>What's new in v{newest.version}</h3>

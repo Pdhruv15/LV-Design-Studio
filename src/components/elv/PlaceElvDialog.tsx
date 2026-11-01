@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { placeElvLoads, type ElvPlaced } from '../../calc/elvPlace';
 import type { Project } from '../../types';
 import { Modal } from '../ui';
+import { txt } from '../../util/format';
 
 /** Places the accepted ELV loads on boards: a preview with the board chosen for each load and why (the engineer can
  * pick another), the kW changes that become a proposal, and what is only listed. Nothing changes until Apply. */
@@ -42,7 +43,7 @@ export default function PlaceElvDialog({ project, me, onApply, onClose }: {
             <table className="tbl"><thead><tr><th>Load</th><th>Equipment</th><th className="num">kW</th><th>Board</th><th>Why</th><th>Circuit</th></tr></thead><tbody>
               {rows.map((c) => (
                 <tr key={c.link}>
-                  <td>{c.load.id}</td><td>{c.load.equipment}{c.load.supply === 'essential' ? <b> · essential</b> : ''}</td><td className="num">{c.load.kW.toFixed(2)}</td>
+                  <td>{c.load.id}</td><td>{c.load.equipment}{c.load.supply === 'essential' ? <b> · essential</b> : ''}</td><td className="num">{txt.power(c.load.kW)}</td>
                   <td>
                     <select value={c.boardId ?? ''} onChange={(e) => pick(c.load.id, e.target.value)} aria-label={`Board for ${c.load.id}`}>
                       {!c.boardId && <option value="">— choose —</option>}
@@ -56,7 +57,7 @@ export default function PlaceElvDialog({ project, me, onApply, onClose }: {
             </tbody></table>
           )}
           {preview.plan.notices.map((n) => <p key={n} className="warn">⚠ {n}</p>)}
-          {preview.plan.kwChanges.map((c) => <p key={c.feederId} className="warn">⚠ {c.feederId}: {c.fromKw.toFixed(2)} → {c.toKw.toFixed(2)} kW goes to Changes as a proposal. The circuit is not changed here.</p>)}
+          {preview.plan.kwChanges.map((c) => <p key={c.feederId} className="warn">⚠ {c.feederId}: {txt.power(c.fromKw)} → {txt.power(c.toKw)} kW goes to Changes as a proposal. The circuit is not changed here.</p>)}
           {preview.plan.removed.map((r) => <p key={r.feederId} className="warn">⚠ {r.feederId} ({r.name}) is no longer in the package. It is kept; delete it by hand if it is not needed.</p>)}
           {preview.plan.placeholders.map((r) => <p key={r.feederId} className="warn">⚠ Placeholder “{r.name}” ({r.feederId}) can now be deleted.</p>)}
         </div>

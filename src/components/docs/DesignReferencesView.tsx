@@ -9,8 +9,8 @@ import {
 import { RuleRows, newRule } from './RuleRows';
 import { Page } from '../ui';
 import { saveText } from '../../util/files';
+import { fmtDate } from '../../util/format';
 
-const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const show = (v: number | undefined, unit: string) => (v === undefined ? '—' : `${+v.toFixed(2)}${unit ? ` ${unit}` : ''}`);
 
 /** Standards → Design references: DEWA, IEC, BS 7671, ADDC, EtihadWE and your
@@ -141,7 +141,7 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
                   <tr key={r.id} className={r.id === saved.id ? 'sel' : ''} onClick={() => select(r.id)} style={{ cursor: 'pointer' }}>
                     <td>
                       {r.name}{r.id === project.designReference?.id && <span className="ok"> ✓</span>}
-                      <div className="m">{r.builtIn ? 'Built-in' : `v${r.version} · ${r.updatedAt}`} · <span className={r.status === 'verified' ? 'ok' : 'warn'}>{r.status === 'verified' ? 'Verified' : 'To verify'}</span></div>
+                      <div className="m">{r.builtIn ? 'Built-in' : `v${r.version} · ${fmtDate(r.updatedAt)}`} · <span className={r.status === 'verified' ? 'ok' : 'warn'}>{r.status === 'verified' ? 'Verified' : 'To verify'}</span></div>
                     </td>
                   </tr>
                 ))}

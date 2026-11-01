@@ -9,6 +9,7 @@ import { CLASS_LABEL, type ChangeClass } from '../../model/changeClass';
 import { baselineOf, clearBaseline, setBaseline } from '../../model/designBaseline';
 import { saveCsv } from '../../util/files';
 import { Page } from '../ui';
+import { fmtDate, txt } from '../../util/format';
 
 const CURRENT = 'current';
 const KIND: Record<Change['kind'], string> = { added: 'Added', removed: 'Removed', changed: 'Changed' };
@@ -110,11 +111,11 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
             {[...revisions].reverse().map((r) => (
               <tr key={r.id}>
                 <td><b>{r.id}</b>{baseline?.revision.id === r.id && <span className="chip-lite" title="The working draft is measured against this revision"> Baseline</span>}</td>
-                <td>{r.date}</td>
+                <td>{fmtDate(r.date)}</td>
                 <td>{r.description}</td>
                 <td>{r.by ?? ''}</td>
                 <td>{r.snapshot.feeders.filter(isScheduleCircuit).length}</td>
-                <td>{demandOf(r.snapshot).toFixed(1)}</td>
+                <td>{txt.power(demandOf(r.snapshot))}</td>
                 <td className="rev-actions">
                   <button className="chip" onClick={() => { setFrom(r.id); setTo(CURRENT); }}>Compare with current</button>
                   <button className="chip" disabled={baseline?.revision.id === r.id && baseline.chosen} title="Measure the working draft against this revision. Only the baseline changes — your draft and BOQ stay as they are."
@@ -167,8 +168,8 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
                 <tbody>
                   {diff.boardKw.filter((b) => Math.abs(b.to - b.from) > 1e-6).map((b) => (
                     <tr key={b.boardId}>
-                      <td>{b.boardId}</td><td>{b.from.toFixed(2)}</td><td>{b.to.toFixed(2)}</td>
-                      <td className={b.to > b.from ? 'warn' : 'ok'}>{b.to > b.from ? '+' : ''}{(b.to - b.from).toFixed(2)}</td>
+                      <td>{b.boardId}</td><td>{txt.power(b.from)}</td><td>{txt.power(b.to)}</td>
+                      <td className={b.to > b.from ? 'warn' : 'ok'}>{b.to > b.from ? '+' : ''}{txt.power(b.to - b.from)}</td>
                     </tr>
                   ))}
                 </tbody>

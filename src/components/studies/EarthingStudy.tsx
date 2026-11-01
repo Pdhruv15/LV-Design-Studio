@@ -3,6 +3,7 @@ import type { Project } from '../../types';
 import { evaluateEarthingAll, breakerTypeOf, C_MIN, disconnectionLabel, K_CPC_XLPE_CU, loopFigures } from '../../calc/earthing';
 import { FocusChip, Page, ResultCard, ResultCards, StatusCell, StatusCounts } from '../ui';
 import { subtree } from '../../calc/pfc';
+import { txt } from '../../util/format';
 
 export default function EarthingStudy({ project, onSelectFeeder, focus, onClearFocus }: { project: Project; onSelectFeeder: (id: string) => void; focus?: string | null; onClearFocus?: () => void }) {
   const all = useMemo(() => evaluateEarthingAll(project), [project]);
@@ -54,12 +55,12 @@ export default function EarthingStudy({ project, onSelectFeeder, focus, onClearF
                 <td className={r.zsOhm > r.maxZsOhm ? r.disconnection : ''}>{lf.zs}</td>
                 <td>{r.maxZsOhm.toFixed(4)}</td>
                 <td>{lf.fault}</td>
-                <td>{r.tripA.toFixed(0)}</td>
+                <td>{txt.current(r.tripA)}</td>
                 <td title={r.requiredBasis} className={r.basisSupported ? '' : 'warn'}>{r.requiredS} s</td>
                 <StatusCell status={r.disconnection}>
                   <span title={r.sourceMissing}>{disconnectionLabel(r)}</span>
                 </StatusCell>
-                <StatusCell status={r.adiabatic}><span title={r.adiabaticNote}>{r.adiabaticMinMm2.toFixed(1)}{r.runs > 1 ? <span className="m"> ({r.runs} runs, {r.cpcCurrentA.toFixed(0)} A each{r.adiabatic === 'warn' ? ', assumed sharing' : ''})</span> : null}</span></StatusCell>
+                <StatusCell status={r.adiabatic}><span title={r.adiabaticNote}>{r.adiabaticMinMm2.toFixed(1)}{r.runs > 1 ? <span className="m"> ({r.runs} runs, {txt.current(r.cpcCurrentA)} A each{r.adiabatic === 'warn' ? ', assumed sharing' : ''})</span> : null}</span></StatusCell>
                 <StatusCell status={r.status} />
               </tr>
             );

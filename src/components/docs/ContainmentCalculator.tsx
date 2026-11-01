@@ -6,6 +6,7 @@ import { containmentReportHtml } from '../../docs/containmentReport';
 import { safeFileName, savePdf } from '../../util/files';
 import { useStable } from '../../util/useStable';
 import { sanitizeSvg } from '../../util/sanitize';
+import { txt } from '../../util/format';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f2 = (n: number) => n.toFixed(2);
@@ -83,7 +84,7 @@ export default function ContainmentCalculator({ project, onChange, onStatus }: {
           <div className="result-cards">
             <div className="dash-tile"><span className="dash-label">{CONTAINMENT_LABEL[t]}</span><span className={`dash-value ${r.status === 'fail' ? 'bad' : ''}`}>{r.size}</span><span className="dash-sub">{r.fillPct ? `fill ${f0(r.fillPct)} %` : ''}{r.sparePct !== undefined ? ` · spare ${f0(r.sparePct)} %` : ''}</span></div>
             <div className="dash-tile"><span className="dash-label">Cables</span><span className="dash-value">{r.count}</span><span className="dash-sub">Σ OD {f0(r.sumOdMm)} mm · area {f0(r.areaMm2)} mm²</span></div>
-            <div className="dash-tile"><span className="dash-label">Weight</span><span className="dash-value">{f0(r.kgPerM)} kg/m</span><span className="dash-sub">for the supports</span></div>
+            <div className="dash-tile"><span className="dash-label">Weight</span><span className="dash-value">{txt.weight(r.kgPerM)} kg/m</span><span className="dash-sub">for the supports</span></div>
             {r.groupFactor !== undefined && <div className="dash-tile"><span className="dash-label">Grouping factor</span><span className="dash-value">{f2(r.groupFactor)}</span><span className="dash-sub">IEC 60364-5-52 B.52.20</span></div>}
             {r.soil && <div className="dash-tile"><span className="dash-label">Derating</span><span className={`dash-value ${r.status === 'warn' ? 'warn' : ''}`}>× {f2(r.soil.total)}</span><span className="dash-sub">ground {f2(r.soil.temp)} · soil {f2(r.soil.resistivity)} · group {f2(r.soil.group)}</span></div>}
           </div>

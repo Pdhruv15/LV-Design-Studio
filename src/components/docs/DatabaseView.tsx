@@ -4,6 +4,7 @@ import { ExternalLink, FolderOpen, RefreshCw, X } from 'lucide-react';
 import { BOOKS, DATABASE_FOLDER, type Database } from '../../database/database';
 import { Page } from '../ui';
 import StandardLoadsDialog from './StandardLoadsDialog';
+import { fmtTime } from '../../util/format';
 
 type Row = Record<string, string | number>;
 interface Col { key: string; header: string; width?: number; required?: boolean; number?: boolean; list?: string[]; help?: string }
@@ -53,7 +54,7 @@ export default function DatabaseView({ db, available, onRefresh, onApplyParamete
   const book = books.find((b) => b.id === tab)!;
   const rawBook = db.raw?.books[tab];
   const rows = (rawBook?.rows ?? []) as Row[];
-  const synced = db.raw ? new Date(db.raw.readAt).toLocaleTimeString() : '—';
+  const synced = db.raw ? fmtTime(db.raw.readAt) : '—';
   const canWrite = available && !!window.lvds?.database.write;
 
   // First time a workbook is seen on this computer: remember it silently.

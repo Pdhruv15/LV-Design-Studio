@@ -7,10 +7,10 @@ import { pfcReportHtml } from '../../docs/pfcReport';
 import { safeFileName, savePdf } from '../../util/files';
 import { useStable } from '../../util/useStable';
 import { sanitizeSvg } from '../../util/sanitize';
+import { txt } from '../../util/format';
 
 const MODES: [PfcInputMode, string][] = [['kw-pf', 'kW + PF'], ['kva-pf', 'kVA + PF'], ['vi-pf', 'V, A + PF'], ['bill', 'DEWA bill'], ['loads', 'List of loads']];
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
-const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
 
 function Num({ label, value, onSet, unit, step = 'any', title }: { label: string; value?: number; onSet: (v: number | undefined) => void; unit?: string; step?: string; title?: string }) {
   return (
@@ -83,8 +83,8 @@ export default function PfcCalculator({ project, onChange, onStatus }: { project
         {r.p <= 0 ? <section className="card"><p className="m">Enter the {input.mode === 'bill' ? 'kWh, kvarh and hours from the bill' : input.mode === 'loads' ? 'loads' : 'measured values'} on the left — the bank, diagrams and report appear here.</p></section> : <>
         <div className="result-cards">
           <div className="dash-tile"><span className="dash-label">Power factor</span><span className="dash-value"><span className={r.pf1 < input.targetPf || r.leading1 ? 'warn' : 'ok'}>{pfText(r.pf1, r.leading1, 2)}</span> → <span className={r.pf2 >= input.targetPf - 1e-9 && !r.leading2 ? 'ok' : 'warn'}>{pfText(r.pf2, r.leading2)}</span></span><span className="dash-sub">target {input.targetPf}</span></div>
-          <div className="dash-tile"><span className="dash-label">Capacitor bank</span><span className="dash-value">{r.bankKvar ? `${r.bankKvar} kvar` : 'None'}</span><span className={`dash-sub${r.bankKvar && !r.targetReached ? ' warn' : ''}`}>{r.leading1 ? 'load is leading — capacitors cannot correct it' : r.bankKvar ? `installed ${r.steps} × ${r.stepKvar} kvar · ${r.activeSteps} switched in (${r.activeKvar} kvar)${r.targetReached ? '' : ' · target not reachable'}${r.detunedPct ? ` · ${r.detunedPct} % detuned` : ''} · need ${f1(r.requiredKvar)}` : 'already at target'}</span></div>
-          <div className="dash-tile"><span className="dash-label">Load</span><span className="dash-value">{f0(r.p)} kW</span><span className="dash-sub">{f0(r.s1)} → {f0(r.s2)} kVA · frees {f0(r.releasedKva)} kVA</span></div>
+          <div className="dash-tile"><span className="dash-label">Capacitor bank</span><span className="dash-value">{r.bankKvar ? `${r.bankKvar} kvar` : 'None'}</span><span className={`dash-sub${r.bankKvar && !r.targetReached ? ' warn' : ''}`}>{r.leading1 ? 'load is leading — capacitors cannot correct it' : r.bankKvar ? `installed ${r.steps} × ${r.stepKvar} kvar · ${r.activeSteps} switched in (${r.activeKvar} kvar)${r.targetReached ? '' : ' · target not reachable'}${r.detunedPct ? ` · ${r.detunedPct} % detuned` : ''} · need ${txt.power(r.requiredKvar)}` : 'already at target'}</span></div>
+          <div className="dash-tile"><span className="dash-label">Load</span><span className="dash-value">{txt.power(r.p)} kW</span><span className="dash-sub">{txt.power(r.s1)} → {txt.power(r.s2)} kVA · frees {txt.power(r.releasedKva)} kVA</span></div>
           <div className="dash-tile"><span className="dash-label">Current</span><span className="dash-value">{f0(r.i1)} → {f0(r.i2)} A</span><span className="dash-sub">−{f0(r.currentReductionPct)} % · losses −{f0(r.lossReductionPct)} %{r.lossSavedKw !== undefined ? ` (${r.lossSavedKw.toFixed(2)} kW)` : ''}</span></div>
           {r.transformer && <div className="dash-tile"><span className="dash-label">Transformer</span><span className="dash-value">{f0(r.transformer.before)} → {f0(r.transformer.after)} %</span><span className="dash-sub">of {r.transformer.kva} kVA</span></div>}
         </div>
@@ -97,7 +97,7 @@ export default function PfcCalculator({ project, onChange, onStatus }: { project
           <h4>Bank</h4>
           <div className="pfc-kpi">
             <span>{r.detuneReason}</span>
-            <span>Capacitors rated <b>{r.capVoltageV} V</b> · bank current <b>{f0(r.bankCurrentA)} A</b>{r.breakerA ? <> · breaker <b>{r.breakerA} A</b> MCCB</> : null}</span>
+            <span>Capacitors rated <b>{r.capVoltageV} V</b> · bank current <b>{txt.current(r.bankCurrentA)} A</b>{r.breakerA ? <> · breaker <b>{r.breakerA} A</b> MCCB</> : null}</span>
             <span className="m">Other targets (with {r.stepKvar} kvar steps): {r.compare.map((c) => `PF ${c.pf.toFixed(2)} → ${c.bank} kvar${c.reached ? '' : ` (gives ${c.achievedPf.toFixed(3)}, not reached)`}`).join(' · ')}</span>
           </div>
           <details><summary>Method</summary>{r.derivation.map((d) => <div key={d}><code>{d}</code></div>)}</details>
