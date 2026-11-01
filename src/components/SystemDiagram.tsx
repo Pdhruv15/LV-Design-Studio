@@ -1,7 +1,7 @@
 import { Grid3x3, Grip, Maximize2, Minimize2, Scan, Square, ZoomIn, ZoomOut } from 'lucide-react';
 import { withNetwork } from '../calc/network';
 import { txTag } from '../model/transformers';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject } from 'react';
 import { STATUS_TEXT } from '../calc/statusText';
 import { componentLabel } from '../model/components';
 import type { DrawingInfo, Project } from '../types';
@@ -109,6 +109,19 @@ export function openingView(w: number, h: number, boxW: number, boxH: number, cx
  * open the canvas draws everything, as a drawing.
  */
 export const canvasDrawing = (exporting: boolean) => ({ cull: !exporting, lod: !exporting, hideLegend: !exporting });
+
+/** The smallest margin (drawing units) the drawing keeps around the view, so a label from just outside never leaves a gap. */
+const VIEW_MARGIN = 400;
+/** Drawn width for a view of this width: the view, half a view each side, and a margin. */
+const drawnSpan = (w: number) => w * 1.5 + VIEW_MARGIN + Math.max(w * 0.5, VIEW_MARGIN);
+/** How long after the last zoom or pan step the drawing lets go of what is far out of view. */
+const SETTLE_MS = 250;
+
+/** The zoom chip on its own: it follows every zoom step, which the drawing does not draw again for. */
+function ViewZoomChip({ view, W, subscribe, onFit }: { view: RefObject<ViewBox>; W: number; subscribe: (changed: () => void) => () => void; onFit: () => void }) {
+  const read = () => (W / view.current!.w) * 100;
+  return <ZoomChip pct={useSyncExternalStore(subscribe, read, read)} onFit={onFit} />;
+}
 
 /** DEWA wording of poles and device. */
 const dewaPoles = devicePoles;
@@ -392,10 +405,13 @@ export default function SystemDiagram({
   const W = layout.width + (legend.length ? legendW + 30 : 0);
   const H = Math.max(layout.height, legend.length ? 80 + legend.length * LEGEND_ROW : 0);
   const full: ViewBox = { x: 0, y: 0, w: W, h: H };
-  const [vb, setVb] = useState<ViewBox>(full);
+  // The view is not state: a zoom or pan step (moveVb) moves the viewBox without drawing everything again.
+  const view = useRef<ViewBox>(full);
+  const vb = view.current;
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
   const [box, setBox] = useState({ w: 0, h: 0 });
   // Visible span (drawing units) with a margin of half a screen each side, so panning shows no gaps.
-  const viewX1 = vb.x - Math.max(vb.w * 0.5, 400), viewX2 = vb.x + vb.w * 1.5 + 400;
+  const viewX1 = vb.x - Math.max(vb.w * 0.5, VIEW_MARGIN), viewX2 = vb.x + vb.w * 1.5 + VIEW_MARGIN;
   // Hover card: a circuit's or panel's results, with quick fixes for a failing circuit.
   const [card, setCard] = useState<{ kind: 'board' | 'feeder'; id: string; x: number; y: number } | null>(null);
   const hideCard = useRef<ReturnType<typeof setTimeout>>();
@@ -477,11 +493,14 @@ export default function SystemDiagram({
     return () => ro.disconnect();
   }, [lod]);
   // Screen pixels per drawing unit (the viewBox is fitted with "meet").
-  const pxPerUnit = box.w && box.h ? Math.min(box.w / vb.w, box.h / vb.h) : 1;
+  const pxAt = (v: ViewBox) => (box.w && box.h ? Math.min(box.w / v.w, box.h / v.h) : 1);
+  const pxPerUnit = pxAt(vb);
   // Text detail: 'all' (the default) shows every label at every zoom, 'auto' follows the zoom (remembered).
   const [detail, setDetail] = useState<'auto' | 'all'>(() => { try { return localStorage.getItem('lvds.sldDetail') === 'auto' ? 'auto' : 'all'; } catch { return 'all'; } });
   const toggleDetail = () => setDetail((d) => { const v = d === 'auto' ? 'all' : 'auto'; try { localStorage.setItem('lvds.sldDetail', v); } catch { /* ignore */ } return v; });
-  const lodLevel = !lod || detail === 'all' ? '' : pxPerUnit < 0.55 ? ' lod-far' : pxPerUnit < 0.8 ? ' lod-mid' : '';
+  const lodAt = (px: number) => (!lod || detail === 'all' ? '' : px < 0.55 ? ' lod-far' : px < 0.8 ? ' lod-mid' : '');
+  const lodFont = (px: number) => `${Math.min(22, 10 / px).toFixed(1)}px`;
+  const lodLevel = lodAt(pxPerUnit);
   // On screen, squeeze any label wider than its slot so it can't run over the neighbouring feeder.
   useLayoutEffect(() => {
     svgRef.current?.querySelectorAll<SVGTextElement>('text[data-dxf-max-width], text[data-fit-width]').forEach((t) => {
@@ -493,6 +512,42 @@ export default function SystemDiagram({
   });
   const drag = useRef<{ px: number; py: number; vb: ViewBox; moved: boolean } | null>(null);
 
+  const gridRef = useRef<SVGRectElement>(null);
+  const zoomChips = useRef(new Set<() => void>());
+  const subscribeZoom = useCallback((changed: () => void) => { zoomChips.current.add(changed); return () => { zoomChips.current.delete(changed); }; }, []);
+  /** Puts the view on the page. Every move comes through here, as a draw writes only what changed since the last draw. */
+  const showView = useCallback((v: ViewBox) => {
+    view.current = v;
+    svgRef.current?.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`);
+    const g = gridRef.current;
+    if (g) { g.setAttribute('x', String(v.x - v.w * 2)); g.setAttribute('y', String(v.y - v.h * 2)); g.setAttribute('width', String(v.w * 5)); g.setAttribute('height', String(v.h * 5)); }
+    zoomChips.current.forEach((changed) => changed());
+  }, []);
+  // A one-off move (Fit, the opening view, a re-fit, centring on a panel): the drawing follows at once.
+  const setVb = useCallback((next: ViewBox | ((v: ViewBox) => ViewBox)) => {
+    const was = view.current, v = typeof next === 'function' ? next(was) : next;
+    if (v.x === was.x && v.y === was.y && v.w === was.w && v.h === was.h) return;
+    showView(v);
+    redraw();
+  }, [showView]);
+  const settle = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(settle.current), []);
+  // A draw starts from the view as it is now, so it has nothing left to let go of.
+  useLayoutEffect(() => clearTimeout(settle.current));
+  // One zoom or pan step. It compares the view with this draw, so every draw replaces it (the wheel listener outlives draws).
+  const step = useRef<(v: ViewBox) => void>(() => {});
+  step.current = (v) => {
+    showView(v);
+    clearTimeout(settle.current);
+    const px = pxAt(v), level = lodAt(px);
+    // Draw again only for what the view cannot show as it stands: parts not drawn yet, or another level of detail.
+    if ((cull && (v.x - VIEW_MARGIN < viewX1 || v.x + v.w + VIEW_MARGIN > viewX2)) || level !== lodLevel || (level === ' lod-far' && lodFont(px) !== lodFont(pxPerUnit))) { redraw(); return; }
+    // Zoomed in on a large drawing: let go of what is far out of view, once when zooming stops, if that halves it.
+    const drawnWidth = Math.min(W, viewX2) - Math.max(0, viewX1);
+    if (cull && drawnWidth > 2 * Math.min(W, drawnSpan(v.w))) settle.current = setTimeout(redraw, SETTLE_MS);
+  };
+  const moveVb = useCallback((next: ViewBox | ((v: ViewBox) => ViewBox)) => step.current(typeof next === 'function' ? next(view.current) : next), []);
+
   // Re-fit when the network's overall size changes (boards/feeders added) only
   // while the whole drawing is in view: an edit keeps the user's zoom and
   // position. Another project always opens fitted.
@@ -502,7 +557,7 @@ export default function SystemDiagram({
     fitted.current = { w: W, h: H, project: project.id };
     // The design canvas opens readable (below); other diagrams open fitted.
     setVb((v) => ((!resizable && was.project !== project.id) || (v.x === 0 && v.y === 0 && v.w === was.w && v.h === was.h) ? { x: 0, y: 0, w: W, h: H } : v));
-  }, [W, H, project.id, resizable]);
+  }, [W, H, project.id, resizable, setVb]);
   // The design canvas opens with readable text (at least 10 px), once per project, after its height has settled.
   const opened = useRef<string | undefined>(undefined);
   useLayoutEffect(() => {
@@ -511,7 +566,7 @@ export default function SystemDiagram({
     if (!fullScreen && !height && autoHeight === undefined) return;
     opened.current = project.id;
     setVb(openingView(W, H, el.clientWidth, el.clientHeight, layout.roots[0]?.x));
-  }, [resizable, project.id, fullScreen, height, autoHeight, W, H, layout.roots]);
+  }, [resizable, project.id, fullScreen, height, autoHeight, W, H, layout.roots, setVb]);
 
   // Centre on a panel or circuit picked in the results below the drawing.
   const lastFocus = useRef<number | undefined>(undefined);
@@ -523,11 +578,9 @@ export default function SystemDiagram({
       : layout.feeders.find((n) => n.feeder.id === focus.id) && (() => { const n = layout.feeders.find((m) => m.feeder.id === focus.id)!; return { x: n.x, y: n.busY + 40 }; })();
     if (!pt) return;
     setVb((v) => { const w = Math.min(v.w, 1400), h = (w / v.w) * v.h; return { x: pt.x - w / 2, y: pt.y - h / 2, w, h }; });
-  }, [focus, layout]);
-  /** Zoom shown in the corner chip: 100 % = the whole drawing fitted. */
-  const zoomPct = Math.round((W / vb.w) * 100);
-  function zoom(factor: number, cx = vb.x + vb.w / 2, cy = vb.y + vb.h / 2) {
-    setVb((v) => {
+  }, [focus, layout, setVb]);
+  function zoom(factor: number, cx = view.current.x + view.current.w / 2, cy = view.current.y + view.current.h / 2) {
+    moveVb((v) => {
       const w = Math.min(Math.max(v.w * factor, 200), layout.width * 3);
       const h = (w / v.w) * v.h;
       return { x: cx - ((cx - v.x) * w) / v.w, y: cy - ((cy - v.y) * h) / v.h, w, h };
@@ -542,7 +595,7 @@ export default function SystemDiagram({
       e.preventDefault();
       const r = el.getBoundingClientRect();
       const w = wheelAction(e);
-      setVb((v) => {
+      moveVb((v) => {
         const scale = Math.max(v.w / r.width, v.h / r.height);
         if ('pan' in w) return { ...v, x: v.x + w.pan[0] * scale, y: v.y + w.pan[1] * scale };
         const cx = v.x + (e.clientX - r.left - (r.width - v.w / scale) / 2) * scale;
@@ -554,7 +607,7 @@ export default function SystemDiagram({
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [layout.width]);
+  }, [layout.width, moveVb]);
 
   // Moving what's on the diagram: press on a load, board or incomer and drag
   // it to a busbar (reconnect) or onto another feeder (place before it).
@@ -584,7 +637,7 @@ export default function SystemDiagram({
   };
 
   function onPointerDown(e: React.PointerEvent) {
-    drag.current = { px: e.clientX, py: e.clientY, vb, moved: false };
+    drag.current = { px: e.clientX, py: e.clientY, vb: view.current, moved: false };
   }
   function onPointerMove(e: React.PointerEvent) {
     const pk = pick.current;
@@ -616,7 +669,7 @@ export default function SystemDiagram({
     d.moved = true;
     const r = el.getBoundingClientRect();
     const scale = Math.max(d.vb.w / r.width, d.vb.h / r.height);
-    setVb({ ...d.vb, x: d.vb.x - dx * scale, y: d.vb.y - dy * scale });
+    moveVb({ ...d.vb, x: d.vb.x - dx * scale, y: d.vb.y - dy * scale });
   }
   function onPointerUp(e: React.PointerEvent) {
     const pk = pick.current;
@@ -737,9 +790,9 @@ export default function SystemDiagram({
         else if (k === 'out') zoom(KEY_STEP);
         else if (k === 'fit') setVb(full);
         else if (k === 'grid') nextGrid();
-        else setVb((v) => ({ ...v, x: v.x + k.pan[0] * v.w * PAN_STEP, y: v.y + k.pan[1] * v.h * PAN_STEP }));
+        else moveVb((v) => ({ ...v, x: v.x + k.pan[0] * v.w * PAN_STEP, y: v.y + k.pan[1] * v.h * PAN_STEP }));
       }}
-      style={{ ...(resizable && !fullScreen && (height ?? autoHeight) ? { height: height ?? autoHeight } : {}), ...(lodLevel === ' lod-far' ? { '--lod-fs': `${Math.min(22, 10 / pxPerUnit).toFixed(1)}px` } : {}) } as CSSProperties}
+      style={{ ...(resizable && !fullScreen && (height ?? autoHeight) ? { height: height ?? autoHeight } : {}), ...(lodLevel === ' lod-far' ? { '--lod-fs': lodFont(pxPerUnit) } : {}) } as CSSProperties}
     >
       <div className="sysdiag-tools" role="toolbar" aria-label="Diagram tools" data-doc-id="sld-display-tools">
         {(onDrawing || lod) && (
@@ -803,7 +856,7 @@ export default function SystemDiagram({
                 {grid === 'lines' && <path d="M100 0H0V100" className="grid-major" />}
               </pattern>
             </defs>
-            <rect x={vb.x - vb.w * 2} y={vb.y - vb.h * 2} width={vb.w * 5} height={vb.h * 5} fill="url(#sld-grid-major)" />
+            <rect ref={gridRef} x={vb.x - vb.w * 2} y={vb.y - vb.h * 2} width={vb.w * 5} height={vb.h * 5} fill="url(#sld-grid-major)" />
           </g>
         )}
 
@@ -1599,7 +1652,7 @@ export default function SystemDiagram({
           );
         })()}
       </svg>
-      <ZoomChip pct={zoomPct} onFit={() => setVb(full)} />
+      <ViewZoomChip view={view} W={W} subscribe={subscribeZoom} onFit={() => setVb(full)} />
       {colorBy !== 'none' && (
         <div className="heat-legend">
           <b>{COLOR_BY.find((c) => c.value === colorBy)?.label}</b>
