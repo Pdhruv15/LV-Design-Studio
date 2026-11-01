@@ -8,6 +8,7 @@ import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf } from '../calc/tx
 import { settingsOf, type Feeder } from '../types';
 import type { CalcData, Cell, Scope, Section } from './studyReport';
 import { groupBy } from '../util/sets';
+import { fig } from '../util/format';
 
 /** The standard layout of every calculation section of the design report:
  *   INPUT → DESIGN CRITERIA → METHOD → RESULT → SELECTION → VERIFICATION → STATUS
@@ -17,7 +18,6 @@ import { groupBy } from '../util/sets';
 
 const S = (s: Status): Cell => ({ v: STATUS_TEXT[s], s });
 const NC: Cell = { v: REPORT_STATUS_TEXT.nc, s: 'nc' };
-const n = (v: number, d = 0) => (Number.isFinite(v) ? Number(v.toFixed(d)) : '—');
 const worst = (xs: Status[]): Status => (xs.includes('bad') ? 'bad' : xs.includes('warn') ? 'warn' : 'ok');
 const counts = (xs: Status[]) => `${xs.filter((x) => x === 'ok').length} / ${xs.filter((x) => x === 'warn').length} / ${xs.filter((x) => x === 'bad').length}`;
 
@@ -49,9 +49,9 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
       s.verification = { title: 'Breaking capacity at each busbar', headers: ['Location', 'Ik″ busbar (kA)', 'Governing circuit', 'Ik″ at breaker (kA)', 'Icu (kA)', 'Margin (kA)', 'Breakers pass / check / fail', 'Status'],
         rows: scope.boards.map((b) => {
           const here = onBoard(b.id), fk = boardSummary(p, b).faultKA;
-          if (!here.length) return [b.id, n(fk, 1), '—', '—', '—', '—', '—', '—'];
+          if (!here.length) return [b.id, fig.fault(fk), '—', '—', '—', '—', '—', '—'];
           const g = here.reduce((a, r) => (r.feeder.breakerIcuKa / r.breakerFaultKA < a.feeder.breakerIcuKa / a.breakerFaultKA ? r : a)), st = here.map((r) => r.icuStatus);
-          return [b.id, n(fk, 1), g.feeder.id, n(g.breakerFaultKA, 1), g.feeder.breakerIcuKa, n(g.feeder.breakerIcuKa - g.breakerFaultKA, 1), counts(st), S(worst(st))];
+          return [b.id, fig.fault(fk), g.feeder.id, fig.fault(g.breakerFaultKA), g.feeder.breakerIcuKa, fig.fault(g.feeder.breakerIcuKa - g.breakerFaultKA), counts(st), S(worst(st))];
         }) };
       toAppendix(s, ['Breaker breaking capacity', 'Fault at the end of each cable']);
       break;
@@ -65,7 +65,7 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
           const here = onBoard(b.id);
           if (!here.length) return [];
           const w = here.reduce((a, r) => (r.vdTotalPct > a.vdTotalPct ? r : a));
-          return [[b.id, w.feeder.id, n(w.vdTotalPct, 2), p.vdLimitPct, n(p.vdLimitPct - w.vdTotalPct, 2), S(worst(here.map((r) => r.vdStatus)))]];
+          return [[b.id, w.feeder.id, fig.pct(w.vdTotalPct), p.vdLimitPct, fig.pct(p.vdLimitPct - w.vdTotalPct), S(worst(here.map((r) => r.vdStatus)))]];
         }) };
       toAppendix(s, ['Feeders']);
       break;
@@ -78,9 +78,9 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
       s.cards = res(circuits.filter((f) => f.feedsBoardId)).map((r) => ({
         title: `Feeder: ${r.feeder.boardId} → ${r.feeder.feedsBoardId}`,
         rows: [
-          ['Design current (Ib)', `${n(r.ib, 0)} A`], ['Protective device (In)', `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`],
-          ['Selected cable', cableSizeText(r.feeder)], ['Installation', `${r.rating.method} · derating ${factorsText(r.rating)}`], ['Derated capacity (Iz)', r.rating.missing ? `DATA REQUIRED — ${r.rating.missing}` : `${n(r.ampacity, 0)} A`],
-          ['Ib ≤ In ≤ Iz', S(r.protectionStatus)], ['Voltage drop (total)', `${n(r.vdTotalPct, 2)} % (limit ${p.vdLimitPct} %)`],
+          ['Design current (Ib)', `${fig.current(r.ib)} A`], ['Protective device (In)', `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`],
+          ['Selected cable', cableSizeText(r.feeder)], ['Installation', `${r.rating.method} · derating ${factorsText(r.rating)}`], ['Derated capacity (Iz)', r.rating.missing ? `DATA REQUIRED — ${r.rating.missing}` : `${fig.current(r.ampacity)} A`],
+          ['Ib ≤ In ≤ Iz', S(r.protectionStatus)], ['Voltage drop (total)', `${fig.pct(r.vdTotalPct)} % (limit ${p.vdLimitPct} %)`],
           ['Breaking capacity check', S(r.icuStatus)], ['Overall status', S(cableStatus(r))]
         ]
       }));
@@ -100,7 +100,7 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
           const here = onBoard(b.id);
           if (!here.length) return [];
           const st = here.map((e) => e.status);
-          return [[b.id, here.length, `${n(Math.max(...here.map((e) => e.zsOhm / e.maxZsOhm)) * 100, 0)} %`, counts(st), S(worst(st))]];
+          return [[b.id, here.length, `${fig.loading(Math.max(...here.map((e) => e.zsOhm / e.maxZsOhm)) * 100)} %`, counts(st), S(worst(st))]];
         }) };
       toAppendix(s, ['Earth fault loop']);
       break;
@@ -113,11 +113,11 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
       const tx = sizeTransformers(p, plan).filter((r) => scope.ids.has(r.board.id));
       const gen = sizeGeneratorByBoards(p, plan);
       s.criteria = [['Future growth', `${set.futureGrowthPct} %`], ['Transformer design loading', `≤ ${set.transformerMaxLoadingPct} %`], ['Generator design loading', `≤ ${set.generatorMaxLoadingPct} %`]];
-      const rows: Cell[][] = tx.map((r) => [`Transformer ${r.board.id}`, n(r.demandKva, 0), n(r.designKva, 0), r.recommendedKva ? `${r.recommendedKva} kVA` : '—',
-        r.installedKva ?? '—', r.loadingPct !== undefined ? `${n(r.loadingPct, 0)} %` : '—', r.installedKva ? n(r.installedKva - r.demandKva, 0) : '—',
+      const rows: Cell[][] = tx.map((r) => [`Transformer ${r.board.id}`, fig.power(r.demandKva), fig.power(r.designKva), r.recommendedKva ? `${r.recommendedKva} kVA` : '—',
+        r.installedKva ?? '—', r.loadingPct !== undefined ? `${fig.loading(r.loadingPct)} %` : '—', r.installedKva ? fig.power(r.installedKva - r.demandKva) : '—',
         r.adequate === false || !r.recommendedKva ? S('bad') : r.installedKva ? S('ok') : NC]);
-      if (gen.demandKw > 0 || gen.recommendedKva) rows.push(['Standby generator', n(gen.demandKva, 0), n(Math.max(gen.runningDesignKva, gen.startDesignKva), 0), gen.recommendedKva ? `${gen.recommendedKva} kVA` : '—',
-        gen.installedKva ?? '—', gen.installedKva ? `${n((gen.demandKva / gen.installedKva) * 100, 0)} %` : '—', gen.installedKva ? n(gen.installedKva - gen.demandKva, 0) : '—',
+      if (gen.demandKw > 0 || gen.recommendedKva) rows.push(['Standby generator', fig.power(gen.demandKva), fig.power(Math.max(gen.runningDesignKva, gen.startDesignKva)), gen.recommendedKva ? `${gen.recommendedKva} kVA` : '—',
+        gen.installedKva ?? '—', gen.installedKva ? `${fig.loading((gen.demandKva / gen.installedKva) * 100)} %` : '—', gen.installedKva ? fig.power(gen.installedKva - gen.demandKva) : '—',
         gen.installedOk === false || !gen.recommendedKva ? S('bad') : gen.installedKva ? S('ok') : NC]);
       s.verification = { title: 'Capacity verification', headers: ['Equipment', 'Calculated demand (kVA)', 'Required capacity (kVA)', 'Selected', 'Installed (kVA)', 'Loading', 'Spare (kVA)', 'Status'], rows };
       toAppendix(s, ['Standby generator — loads']);
@@ -143,12 +143,12 @@ export function loadSection(data: CalcData, scope: Scope, title: string): Sectio
     criteria: [['Future growth allowance', `${set.futureGrowthPct} %${p.studySettings?.futureGrowthPct === undefined ? ' (app default)' : ''}`], ['Transformer design loading', `${set.transformerMaxLoadingPct} %`]],
     method: ['Demand = connected load × demand factor for each load, summed up the network (kW and kvar separately); maximum demand kVA = √(kW² + kvar²).',
       'Required capacity = maximum demand × (1 + growth) ÷ design loading, from the transformer sizing (no further diversity applied).'],
-    summary: [{ label: 'Connected load', value: `${n(conn, 0)} kW` }, { label: 'Maximum demand', value: `${n(dem, 0)} kW` }, { label: 'Demand ÷ connected', value: conn > 0 ? String(n(dem / conn, 2)) : '—' }],
+    summary: [{ label: 'Connected load', value: `${fig.power(conn)} kW` }, { label: 'Maximum demand', value: `${fig.power(dem)} kW` }, { label: 'Demand ÷ connected', value: conn > 0 ? String(fig.ratio(dem / conn)) : '—' }],
     tables: [
       { title: 'Load at each board', headers: ['Board', 'Connected (kW)', 'Demand (kW)', 'Demand ÷ connected', 'Demand (kVA)', 'PF', 'Current (A)'],
-        rows: sums.map((s) => [s.board.id, n(s.connectedKw, 1), n(s.demandKw, 1), s.connectedKw > 0 ? n(s.demandKw / s.connectedKw, 2) : '—', n(s.demandKva, 1), n(s.powerFactor, 2), n(s.currentA, 0)]) },
+        rows: sums.map((s) => [s.board.id, fig.power(s.connectedKw), fig.power(s.demandKw), s.connectedKw > 0 ? fig.ratio(s.demandKw / s.connectedKw) : '—', fig.power(s.demandKva), fig.ratio(s.powerFactor), fig.current(s.currentA)]) },
       ...(tx.length ? [{ title: 'Design load of each main board', headers: ['Main board', 'Maximum demand (kVA)', 'Future growth', 'Required capacity (kVA)'],
-        rows: tx.map((r) => [r.board.id, n(r.demandKva, 0), `${set.futureGrowthPct} %`, n(r.designKva, 0)]) }] : [])
+        rows: tx.map((r) => [r.board.id, fig.power(r.demandKva), `${set.futureGrowthPct} %`, fig.power(r.designKva)]) }] : [])
     ]
   };
 }
@@ -168,10 +168,10 @@ export function distributionSection(data: CalcData, scope: Scope, title: string)
     summary: [{ label: 'Boards', value: String(sums.length) }, { label: 'Major feeders', value: String(major.length) }, ...(statuses.length ? [{ label: 'Checks', value: counts(statuses) + ' (pass / check / fail)', status: worst(statuses) }] : [])],
     tables: [
       { title: 'Distribution boards', headers: ['Board', 'Type', 'Fed from', 'Bus rating (A)', 'Demand (A)', 'Loading', 'Ik″ (kA)'],
-        rows: sums.map((s) => [s.board.id, s.board.kind ?? (s.board.upstreamId ? 'DB' : 'MDB'), s.board.upstreamId ?? 'Supply', s.board.ratedCurrentA ?? 'Not defined', n(s.currentA, 0),
-          s.loadingPct === undefined ? '—' : { v: `${n(s.loadingPct, 0)} %`, s: s.loadingStatus ?? 'ok' }, n(s.faultKA, 1)]) },
+        rows: sums.map((s) => [s.board.id, s.board.kind ?? (s.board.upstreamId ? 'DB' : 'MDB'), s.board.upstreamId ?? 'Supply', s.board.ratedCurrentA ?? 'Not defined', fig.current(s.currentA),
+          s.loadingPct === undefined ? '—' : { v: `${fig.loading(s.loadingPct)} %`, s: s.loadingStatus ?? 'ok' }, fig.fault(s.faultKA)]) },
       { title: 'Major feeders', headers: ['From', 'To', 'Breaker', 'Cable', 'Ib (A)', 'Iz (A)', 'Status'],
-        rows: major.map((r) => [r.feeder.boardId, r.feeder.feedsBoardId!, `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`, cableSizeText(r.feeder), n(r.ib, 0), n(r.ampacity, 0), S(worst([r.protectionStatus, r.ampacityStatus]))]) }
+        rows: major.map((r) => [r.feeder.boardId, r.feeder.feedsBoardId!, `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`, cableSizeText(r.feeder), fig.current(r.ib), fig.current(r.ampacity), S(worst([r.protectionStatus, r.ampacityStatus]))]) }
     ]
   };
 }

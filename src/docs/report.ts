@@ -1,6 +1,7 @@
 import type { Status } from '../calc/electrical';
 import type { Project } from '../types';
 import { currentRevision } from '../model/revisions';
+import { fmtDateLong } from '../util/format';
 import { PRINT, PRINT_BASE_CSS, STATUS_CSS } from './printStyles';
 
 /** Shared pieces of the plain print documents: escaping, status tallies, the black-and-white
@@ -36,7 +37,7 @@ export const ATTENTION_MAX = 10;
  * the right (doc no., rev from the current revision, date, prepared / checked / approved
  * from Parameters). Blank cells are left for signing by hand. */
 export function reportHead(project: Project, title: string, docNo?: string, extra = ''): string {
-  const date = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  const date = fmtDateLong(new Date());
   const rev = currentRevision(project);
   const prm = project.params ?? {};
   const cell = (v?: string, span = 1) => `<td${span > 1 ? ` colspan="${span}"` : ''}${v?.trim() ? '' : ' class="sig"'}>${esc(v?.trim() ?? '')}</td>`;

@@ -1,4 +1,5 @@
 import { STANDARD_BREAKER_A } from './sizing';
+import { fig } from '../util/format';
 
 /** Solar PV sizing: number of panels, inverters, string design and yield.
  *
@@ -207,7 +208,7 @@ export function sizePv(s: PvSystem, voltageV = 400): PvResult {
   const mpptTotal = inverters * inv.mppts;
   const stringsPerMppt = mpptTotal ? Math.ceil(strings / mpptTotal) : 0;
   const mpptCurrentA = stringsPerMppt * p.iscA * 1.25;
-  if (mpptCurrentA > inv.maxInputA) warn(`MPPT current ${mpptCurrentA.toFixed(1)} A > ${inv.maxInputA} A — add inverters or use more MPPTs`);
+  if (mpptCurrentA > inv.maxInputA) warn(`MPPT current ${fig.current(mpptCurrentA)} A > ${inv.maxInputA} A — add inverters or use more MPPTs`);
   const ratio = inverters ? kwp / (inverters * inv.acKw) : 0;
   if (ratio > 1.35) warn(`DC/AC ratio ${ratio.toFixed(2)} — the inverters will clip`);
   if (ratio > 0 && ratio < 0.9) warn(`DC/AC ratio ${ratio.toFixed(2)} — inverters oversized`);
@@ -221,7 +222,7 @@ export function sizePv(s: PvSystem, voltageV = 400): PvResult {
   const acBreakerMaxA = list[list.length - 1];
   const acBreakerA = acCurrentA > 0 ? list.find((b) => b >= acBreakerRequiredA - 1e-9) : undefined;
   const acBreakerNoFit = acCurrentA > 0 && acBreakerA === undefined;
-  if (acBreakerNoFit) bad(`No suitable AC breaker in the available list: ${acBreakerRequiredA.toFixed(0)} A needed (1.25 × ${acCurrentA.toFixed(0)} A), largest available ${acBreakerMaxA} A. One aggregate connection can't be protected — configure separate inverter groups / feeders explicitly.`);
+  if (acBreakerNoFit) bad(`No suitable AC breaker in the available list: ${fig.current(acBreakerRequiredA)} A needed (1.25 × ${fig.current(acCurrentA)} A), largest available ${acBreakerMaxA} A. One aggregate connection can't be protected — configure separate inverter groups / feeders explicitly.`);
   if (s.mode === 'area' && !panels) bad('The roof area is too small for one string');
 
   return {

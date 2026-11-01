@@ -36,7 +36,7 @@ describe('concept design report', () => {
     const html = buildConceptReportHtml(sampleProject);
     const supply = html.slice(html.indexOf('4. Supply'), html.indexOf('5. Space requirements'));
     if (r.rooms.some((x) => x.kva)) {
-      expect(supply).toMatch(/× [\d,]+ kVA \(from SLD\), loaded to \d+ %/);
+      expect(supply).toMatch(/× \d+ kVA \(from SLD\), loaded to [\d,]+\.\d %/);
       expect(supply).not.toContain('size them from the load assessment');
     }
   });

@@ -3,6 +3,7 @@ import { summarizeBuilding } from './building';
 import { boardTotals } from './summary';
 import { faultCurrentKA, impedanceToBoard, upstreamVoltageDropPct } from './electrical';
 import { STANDARD_BREAKER_A } from './sizing';
+import { fig } from '../util/format';
 
 /** Busbar trunking risers (busway) for high-rise buildings, instead of
  * cables: a riser from a main board up the building with a tap-off unit on
@@ -228,7 +229,7 @@ export function sizeRiser(project: Project, r: BusRiser, data: BusbarData = proj
   const lengthM = r.feedM + vertical;
   const notes: string[] = [];
   if (!type) notes.push(`Above the largest ${MATERIAL_LABEL[r.material].toLowerCase()} rating in the data — two risers, or split the floors`);
-  if (fault !== undefined && type && type.icwKa < fault) notes.push(`Fault at ${r.sourceBoardId} is ${fault.toFixed(1)} kA — above the busway's Icw ${type.icwKa} kA; take the next rating or a current-limiting breaker`);
+  if (fault !== undefined && type && type.icwKa < fault) notes.push(`Fault at ${r.sourceBoardId} is ${fig.fault(fault)} kA — above the busway's Icw ${type.icwKa} kA; take the next rating or a current-limiting breaker`);
   if (r.diversity === undefined) notes.push(`Diversity ${diversity} for ${tapOffs} tap-offs (IEC 61439-6)`);
   if (derate < 1) notes.push(`Ambient ${ambientC} °C: rating × ${derate.toFixed(2)}`);
   return {

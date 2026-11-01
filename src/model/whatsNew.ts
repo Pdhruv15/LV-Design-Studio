@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.020', date: '2026-11-01',
+    items: [
+      { title: 'Reports write every number the same way', text: 'Calculation, study, voltage drop, power factor, UPS, solar and concept reports now use one format for each kind of value, such as 20,558.80 kW, 13,073.2 A and 15 Oct 2026, so the same load reads the same in every report. Ratings stay as 1600 A and 1000 kVA, Excel cells stay real numbers, and the calculated results are unchanged. A report changes only when you print or issue it again. Schedules, drawings and screens follow in later updates.' }
+    ]
+  },
+  {
     version: '2.019', date: '2026-11-01',
     items: [
       { title: 'Large drawings open without freezing the app', text: 'Design CAD now reads DWG and DXF files in the background, so the app stays usable while a large drawing opens. When you open another drawing, the memory the last one used is given back at once, without restarting the app.', action: 'cad', actionLabel: 'Open Design CAD' }

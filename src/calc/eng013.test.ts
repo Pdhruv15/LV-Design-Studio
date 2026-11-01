@@ -19,8 +19,8 @@ describe('ENG-013: UPS loading by kVA and by kW', () => {
     expect(r.loadingPct).toBeCloseTo(100, 9);
     expect(r.loadingBy).toBe('kW');
     const html = buildUpsReportHtml(p, [ups(96000)]);
-    expect(html).toMatch(/Loading today<\/th><td><b>100 %<\/b> — governed by kW \(80 % of 120 kVA · 100 % of 96 kW\)/);
-    expect(html).not.toMatch(/Loading today<\/th><td>80 %/);
+    expect(html).toMatch(/Loading today<\/th><td><b>100\.0 %<\/b> — governed by kW \(80\.0 % of 120 kVA · 100\.0 % of 96 kW\)/);
+    expect(html).not.toMatch(/Loading today<\/th><td>80\.0 %/);
   });
 
   it('600 kW: 800 kVA / 640 kW → 75 % of kVA, 93.75 % of kW', () => {

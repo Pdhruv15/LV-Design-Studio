@@ -47,7 +47,7 @@ describe('design basis — load assessment section', () => {
     const html = buildStudyReportHtml(withLa(la()), scope, [], { title: 'T' }, {}, { designBasis: true });
     expect(html).toContain('6. Load assessment');
     const sec = html.slice(html.indexOf('6. Load assessment'));
-    for (const t of ['Residential tower', 'Area schedule', 'Service requirements', 'Load categories and maximum demand', 'within the typical band', '2 × 1,250 kVA', '1 × 1,000 kVA']) expect(sec).toContain(t);
+    for (const t of ['Residential tower', 'Area schedule', 'Service requirements', 'Load categories and maximum demand', 'within the typical band', '2 × 1250 kVA', '1 × 1000 kVA']) expect(sec).toContain(t);
     // No colour of its own: no inline styles or colour classes in the section.
     const own = designBasisSections(buildDesignBasis(withLa(la()), [])).find((s) => s.title === 'Load assessment')!.html;
     expect(own).not.toMatch(/style=|color|#[0-9a-f]{3,6}\b/i);

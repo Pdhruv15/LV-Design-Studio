@@ -6,6 +6,7 @@ import type { Section } from './studyReport';
 import pkg from '../../package.json';
 import { displayVersion } from '../model/appVersion';
 import { isRasterDataUrl } from '../util/escape';
+import { fmtDate, fmtDateLong, fmtTime } from '../util/format';
 
 /** Issue package: every document in a submission made from ONE frozen
  * calculation run, with a cover listing the contents, the unresolved checks,
@@ -36,9 +37,10 @@ export function unresolvedChecks(sections: Section[]): Unresolved[] {
       const last = t.headers.length - 1;
       const overall = /^(result|status)$/i.test(t.headers[last] ?? '');
       for (const row of t.rows) {
-        const bad = row.map((c, i) => ({ c, i })).filter(({ c, i }) => typeof c === 'object' && c.s !== 'ok' && !(overall && i === last));
-        const shown = bad.length ? bad : overall && typeof row[last] === 'object' && (row[last] as { s: Status }).s !== 'ok' ? [{ c: row[last], i: last }] : [];
-        const text = (c: (typeof row)[number]) => String(typeof c === 'object' ? c.v : c);
+        const flagged = (c: (typeof row)[number]) => typeof c === 'object' && 's' in c && c.s !== 'ok';
+        const bad = row.map((c, i) => ({ c, i })).filter(({ c, i }) => flagged(c) && !(overall && i === last));
+        const shown = bad.length ? bad : overall && flagged(row[last]) ? [{ c: row[last], i: last }] : [];
+        const text = (c: (typeof row)[number]) => String(typeof c === 'object' && 's' in c ? c.v : c);
         for (const { c, i } of shown) {
           const cell = c as { v: string | number; s: Exclude<Status, 'ok'> };
           // Only the overall result is flagged: show the row's figures so the reader sees what to check.
@@ -76,7 +78,7 @@ export function packageCoverHtml(project: Project, m: PackageMeta, parts: Packag
   const open = unresolvedChecks(sections);
   const fails = open.filter((u) => u.status === 'bad').length;
   const basis = assumptions(sections);
-  const when = new Date(m.calculatedAt).toLocaleString('en-GB', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const when = `${fmtDateLong(m.calculatedAt)} at ${fmtTime(m.calculatedAt)}`;
   const kv = (rows: [string, string | undefined][]) => `<table class="kv">${rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v || '—')}</td></tr>`).join('')}</table>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(project.name)} — issue package</title><style>
   @page { size: A4; margin: 14mm 14mm 16mm; } body { font: 10.5px/1.45 Arial, sans-serif; color: #111; margin: 0; }
@@ -91,7 +93,7 @@ export function packageCoverHtml(project: Project, m: PackageMeta, parts: Packag
   <p class="kicker">${esc(project.name)}</p>
   <h1>${esc(m.title)} — issue package</h1>
   ${kv([['Owner', info.owner], ['Consultant', info.consultant], ['Plot / area', [info.plotNo, info.area].filter(Boolean).join(' · ')], ['Document no.', m.docNo],
-    ['Revision', rev ? `${rev.id} (${rev.date})${rev.description ? ` — ${rev.description}` : ''}` : 'No revision recorded'], ['Prepared by', m.preparedBy], ['Checked by', m.checkedBy]])}
+    ['Revision', rev ? `${rev.id} (${fmtDate(rev.date)})${rev.description ? ` — ${rev.description}` : ''}` : 'No revision recorded'], ['Prepared by', m.preparedBy], ['Checked by', m.checkedBy]])}
   <h2>Calculation snapshot</h2>
   ${kv([['Snapshot ID', m.snapshot], ['Calculated', when], ['Calculation engine', `LV Design Studio ${APP_VERSION} (built-in)`], ['System', `${project.voltageV} V, 3-phase + N, ${project.frequencyHz} Hz`]])}
   <p>Every document in this package was produced from this one calculation run. The snapshot ID is printed at the foot of every page; a page with a different ID is not part of this issue.</p>

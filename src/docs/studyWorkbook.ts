@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import type { ReportStatus } from '../calc/statusText';
 import { currentRevision } from '../model/revisions';
 import type { Project } from '../types';
+import { Figure } from '../util/format';
 import type { ReportMeta } from './reportFrame';
 import { scopeText, studyInfo, type Scope, type Section } from './studyReport';
 
@@ -32,8 +33,11 @@ export function buildStudyWorkbook(project: Project, scope: Scope, sections: Sec
       h.font = { bold: true };
       h.eachCell((c) => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEF2F7' } }; });
       for (const r of t.rows) {
-        const row = ws.addRow(r.map((c) => (typeof c === 'object' ? c.v : c)));
-        r.forEach((c, i) => { if (typeof c === 'object') row.getCell(i + 1).font = { color: { argb: FILL[c.s] }, bold: c.s === 'bad' }; });
+        const row = ws.addRow(r.map((c) => (c instanceof Figure ? c.value : typeof c === 'object' ? c.v : c)));
+        r.forEach((c, i) => {
+          if (c instanceof Figure) row.getCell(i + 1).numFmt = c.numFmt;
+          else if (typeof c === 'object') row.getCell(i + 1).font = { color: { argb: FILL[c.s] }, bold: c.s === 'bad' };
+        });
       }
     }
     ws.columns.forEach((c) => { c.width = 16; });

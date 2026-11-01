@@ -7,6 +7,7 @@ import type { Project } from '../types';
 import pkg from '../../package.json';
 import { displayVersion } from '../model/appVersion';
 import { esc } from './report';
+import { fmtDate, fmtTime } from '../util/format';
 
 /** The calculation record: what a report's results were calculated from, with what, and how far they can be
  * relied on (project and file version, when, software, basis, assumptions, cable data source, input checks,
@@ -38,7 +39,7 @@ const COUNT_TEXT: Record<CableSource, string> = {
   user: 'user-entered without a manufacturer / reference document',
   manufacturer: 'manufacturer data'
 };
-const when = (ms: number) => new Date(ms).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const when = (ms: number) => `${fmtDate(ms)}, ${fmtTime(ms)}`;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export function buildCalcRecord(project: Project, i: CalcRecordInput): CalcRecord {

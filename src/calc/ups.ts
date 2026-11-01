@@ -1,6 +1,7 @@
 import { boardTotals } from './summary';
 import { STANDARD_UPS_KVA } from './sizing';
 import type { Project } from '../types';
+import { fig } from '../util/format';
 
 /** UPS and battery sizing.
  *
@@ -278,7 +279,7 @@ export function checkUpsLeading(project: Project, s: UpsSystem, selectedKva?: nu
   const totalKvar = own.kvar + others.reduce((a, u) => a + filterKvar(project, u).kvar, 0);
   const genKva = gen.standby!.kva, limitKvar = (genKva * pct) / 100;
   const fail = totalKvar > limitKvar + 1e-9;
-  const basis = `${+totalKvar.toFixed(1)} kvar leading from ${others.length ? `${others.length + 1} UPSs` : 'the UPS'} input filter${others.length ? 's' : ''} on the ${genKva} kVA generator at ${gen.id} (${+((totalKvar / genKva) * 100).toFixed(1)} %; it absorbs about ${+limitKvar.toFixed(1)} kvar, ${pct} % of its rating${s.genLeadingPct === undefined ? ', typical — confirm from its reactive capability curve' : ''})`;
+  const basis = `${fig.power(totalKvar)} kvar leading from ${others.length ? `${others.length + 1} UPSs` : 'the UPS'} input filter${others.length ? 's' : ''} on the ${genKva} kVA generator at ${gen.id} (${fig.loading((totalKvar / genKva) * 100)} %; it absorbs about ${fig.power(limitKvar)} kvar, ${pct} % of its rating${s.genLeadingPct === undefined ? ', typical — confirm from its reactive capability curve' : ''})`;
   const issue = fail
     ? `${basis}: the generator may lose voltage control at light load. Use a UPS that disconnects its input filter on generator, start lagging load first, or a larger generator.`
     : `${basis}.${own.estimate ? ` Filter kvar estimated as ${UPS_FILTER_KVAR_PCT} % of the UPS kVA — enter the datasheet value.` : ''}`;
@@ -378,7 +379,7 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
   const dcBreakerMaxA = DC_BREAKERS[DC_BREAKERS.length - 1];
   const dcBreakerA = dcCurrentMaxA > 0 ? DC_BREAKERS.find((a) => a >= dcBreakerRequiredA - 1e-9) : undefined;
   const dcBreakerNoFit = dcCurrentMaxA > 0 && dcBreakerA === undefined;
-  if (dcBreakerNoFit) notes.push(`No suitable DC breaker in the list for the battery bus: ${dcBreakerRequiredA.toFixed(0)} A needed (1.25 × ${dcCurrentMaxA.toFixed(0)} A), largest listed ${dcBreakerMaxA} A — choose a DC-rated device for this current (or a different DC arrangement) explicitly.`);
+  if (dcBreakerNoFit) notes.push(`No suitable DC breaker in the list for the battery bus: ${fig.current(dcBreakerRequiredA)} A needed (1.25 × ${fig.current(dcCurrentMaxA)} A), largest listed ${dcBreakerMaxA} A — choose a DC-rated device for this current (or a different DC arrangement) explicitly.`);
   // Runtime with the chosen battery (same factors, solved for t; rate at that t).
   let runtimeMin: number | undefined;
   if (installedAh > 0 && dcKw > 0) {

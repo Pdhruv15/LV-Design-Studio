@@ -116,7 +116,7 @@ describe('calculation sections (phase 3)', () => {
   it('load assessment and verification figures come from the calculations', () => {
     const load = secs.find((s) => s.key === 'load')!;
     const sum = buildDesignBasis(sampleProject, []).summary;
-    expect(load.summary[0].value).toBe(`${Math.round(sum.connectedKw)} kW`);
+    expect(load.summary[0].value).toBe(`${sum.connectedKw.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kW`);
     const lf = secs.find((s) => s.key === 'lf')!;
     expect(lf.verification!.rows.every((r) => r[3] === sampleProject.vdLimitPct)).toBe(true);
   });

@@ -37,6 +37,7 @@ import { buildCalcRecord, calcRecordHtml } from './calcRecord';
 import { numberSubsections, coverPageHtml, documentControlHtml, numberSections, REPORT_DOC_CSS, reportDoc, tocHtml, type ReportMeta } from './reportFrame';
 import { cableTypeOf, fireRatingIssues } from '../model/cableTypes';
 import { cableSchedule } from './schedules';
+import { fig, type Figure } from '../util/format';
 
 /** Submission reports for chosen studies on a chosen part of the network:
  * e.g. only the short circuit study, only for MDB-3 and what it feeds.
@@ -139,7 +140,8 @@ export function scopeText(project: Project, scope: Scope): string {
 
 // ---- Sections ----------------------------------------------------------------
 
-export type Cell = string | number | { v: string | number; s: ReportStatus };
+/** Text, a plain number, a calculated figure (printed with its format, a real number in Excel) or a value with a status. */
+export type Cell = string | number | Figure | { v: string | number; s: ReportStatus };
 /** `appendix`: a long detail table printed in the appendices, not in the section. */
 export interface Table { title?: string; headers: string[]; rows: Cell[][]; appendix?: boolean | import('./appendices').AppendixKind }
 export interface Section {
@@ -165,7 +167,6 @@ export interface CalcData {
 
 const LABEL: Record<Status, string> = STATUS_TEXT;
 const S = (s: Status): Cell => ({ v: LABEL[s], s });
-const n = (v: number, d = 0) => (Number.isFinite(v) ? Number(v.toFixed(d)) : '—');
 const worst = (xs: Status[]): Status => (xs.includes('bad') ? 'bad' : xs.includes('warn') ? 'warn' : 'ok');
 const tally = (xs: Status[]) => `${xs.filter((x) => x === 'ok').length} pass · ${xs.filter((x) => x === 'warn').length} warning · ${xs.filter((x) => x === 'bad').length} fail`;
 
@@ -199,16 +200,16 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
         'Motor contribution and generation are neglected.'
       ],
       summary: [
-        { label: 'Highest busbar fault', value: sums.length ? `${Math.max(...sums.map((s) => s.faultKA)).toFixed(1)} kA` : '—' },
+        { label: 'Highest busbar fault', value: sums.length ? `${fig.fault(Math.max(...sums.map((s) => s.faultKA)))} kA` : '—' },
         { label: 'Breakers checked', value: tally(statuses), status: worst(statuses) }
       ],
       tables: [
         { title: 'Fault levels at the busbars', headers: ['Board', 'Type', 'Fed from', 'Busbar rating (A)', 'Ik″ max (kA)'],
-          rows: sums.map((s) => [s.board.id, s.board.kind ?? (s.board.upstreamId ? 'DB' : 'MDB'), s.board.upstreamId ?? (s.board.sourceKva ? `Transformer ${s.board.sourceKva} kVA, ${s.board.sourceImpedancePct ?? '—'} % Z` : 'Authority supply'), s.board.ratedCurrentA ?? '—', n(s.faultKA, 1)]) },
+          rows: sums.map((s) => [s.board.id, s.board.kind ?? (s.board.upstreamId ? 'DB' : 'MDB'), s.board.upstreamId ?? (s.board.sourceKva ? `Transformer ${s.board.sourceKva} kVA, ${s.board.sourceImpedancePct ?? '—'} % Z` : 'Authority supply'), s.board.ratedCurrentA ?? '—', fig.fault(s.faultKA)]) },
         { title: 'Breaker breaking capacity', headers: ['Circuit', 'Board', 'To', 'Breaker', 'Ik″ at breaker (kA)', 'Icu (kA)', 'Margin', 'Result'],
-          rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`, n(r.breakerFaultKA, 1), r.feeder.breakerIcuKa, `${n((r.feeder.breakerIcuKa / r.breakerFaultKA - 1) * 100, 0)} %`, S(r.icuStatus)]) },
+          rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`, fig.fault(r.breakerFaultKA), r.feeder.breakerIcuKa, `${fig.pct((r.feeder.breakerIcuKa / r.breakerFaultKA - 1) * 100)} %`, S(r.icuStatus)]) },
         { title: 'Fault at the end of each cable', headers: ['Circuit', 'From', 'To', 'Cable', 'Length (m)', 'Ik at cable end (kA)'],
-          rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), cableSizeText(r.feeder), r.feeder.lengthM, n(r.endFaultKA, 2)]) }
+          rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), cableSizeText(r.feeder), r.feeder.lengthM, fig.fault(r.endFaultKA)]) }
       ]
     };
   }
@@ -229,17 +230,17 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
         `Motors: drop while starting = upstream drop + cable drop × the starter's starting-current multiple; limit ${motorStartVdLimit()} %.`
       ],
       summary: [
-        { label: 'Total demand of the scope', value: `${n(scope.roots.reduce((a, b) => a + boardSummary(p, b).demandKw, 0), 0)} kW · ${n(scope.roots.reduce((a, b) => a + boardSummary(p, b).demandKva, 0), 0)} kVA` },
+        { label: 'Total demand of the scope', value: `${fig.power(scope.roots.reduce((a, b) => a + boardSummary(p, b).demandKw, 0))} kW · ${fig.power(scope.roots.reduce((a, b) => a + boardSummary(p, b).demandKva, 0))} kVA` },
         { label: 'Lowest busbar voltage', value: sums.length ? `${Math.min(...sums.map((s) => s.voltagePct)).toFixed(2)} %` : '—' },
         { label: 'Circuits checked', value: tally(rs.map((r) => r.vdStatus)), status: worst(statuses) }
       ],
       tables: [
         { title: 'Busbars', headers: ['Board', 'Connected (kW)', 'Demand (kW)', 'Demand (kVA)', 'PF', 'Current (A)', 'Rating (A)', 'Loading', 'Voltage (V)', '% of nominal'],
-          rows: sums.map((s) => [s.board.id, n(s.connectedKw, 1), n(s.demandKw, 1), n(s.demandKva, 1), n(s.powerFactor, 2), n(s.currentA, 0), s.board.ratedCurrentA ?? '—', s.loadingPct === undefined ? '—' : { v: `${n(s.loadingPct, 0)} %`, s: s.loadingStatus ?? 'ok' }, n(s.voltageV, 1), n(s.voltagePct, 2)]) },
+          rows: sums.map((s) => [s.board.id, fig.power(s.connectedKw), fig.power(s.demandKw), fig.power(s.demandKva), fig.ratio(s.powerFactor), fig.current(s.currentA), s.board.ratedCurrentA ?? '—', s.loadingPct === undefined ? '—' : { v: `${fig.loading(s.loadingPct)} %`, s: s.loadingStatus ?? 'ok' }, fig.volts(s.voltageV), fig.pct(s.voltagePct)]) },
         { title: 'Feeders', headers: ['Circuit', 'From', 'To', 'Cable', 'Length (m)', 'Ib (A)', 'PF', 'ΔV cable (%)', 'ΔV total (%)', 'Result'],
-          rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), cableSizeText(r.feeder), r.feeder.lengthM, n(r.ib, 1), r.feeder.feedsBoardId ? n(incomerBasis(r.feeder, p).current.pf, 2) : n(r.feeder.powerFactor, 2), n(r.vdPct, 2), n(r.vdTotalPct, 2), S(r.vdStatus)]) },
+          rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), cableSizeText(r.feeder), r.feeder.lengthM, fig.current(r.ib), r.feeder.feedsBoardId ? fig.ratio(incomerBasis(r.feeder, p).current.pf) : fig.ratio(r.feeder.powerFactor), fig.pct(r.vdPct), fig.pct(r.vdTotalPct), S(r.vdStatus)]) },
         ...(starts.length ? [{ title: `Motor starting — limit ${motorStartVdLimit()} % source to motor`, headers: ['Circuit', 'From', 'Motor', 'Running ΔV total (%)', 'Starting ΔV total (%)', 'Limit (%)', 'Result'],
-          rows: starts.map((r) => [tag(r.feeder), r.from.id, r.toType, n(r.totalPct, 2), n(r.startPct!, 1), motorStartVdLimit(), S(startStatus(r))]) }] : [])
+          rows: starts.map((r) => [tag(r.feeder), r.from.id, r.toType, fig.pct(r.totalPct), fig.pct(r.startPct!), motorStartVdLimit(), S(startStatus(r))]) }] : [])
       ]
     };
   }
@@ -263,7 +264,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
       ],
       tables: [{
         title: 'Cables and breakers', headers: ['Circuit', 'From', 'To', 'Cable', 'Installation', 'Derating', 'Ib (A)', 'Breaker In (A)', 'Iz (A)', 'Ib ≤ In ≤ Iz', 'ΔV total (%)', 'Result'],
-        rows: rs.map((r, i) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), `${cableSizeText(r.feeder)} ${cableTypeOf(p, r.feeder).code} + ${cpcOf(r.feeder)} CPC`, r.rating.method, `${factorsText(r.rating)}${r.tray && r.rating.method === 'E' ? ` (tray ${r.tray.route})` : ''}`, n(r.ib, 1), `${r.feeder.breakerRatingA} ${breakerTypeOf(r.feeder)}`, n(r.ampacity, 0), r.rating.missing ? { v: REPORT_STATUS_TEXT.data, s: 'data' as const } : S(r.protectionStatus), n(r.vdTotalPct, 2), S(statuses[i])])
+        rows: rs.map((r, i) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), `${cableSizeText(r.feeder)} ${cableTypeOf(p, r.feeder).code} + ${cpcOf(r.feeder)} CPC`, r.rating.method, `${factorsText(r.rating)}${r.tray && r.rating.method === 'E' ? ` (tray ${r.tray.route})` : ''}`, fig.current(r.ib), `${r.feeder.breakerRatingA} ${breakerTypeOf(r.feeder)}`, fig.current(r.ampacity), r.rating.missing ? { v: REPORT_STATUS_TEXT.data, s: 'data' as const } : S(r.protectionStatus), fig.pct(r.vdTotalPct), S(statuses[i])])
       }]
     };
   }
@@ -283,8 +284,8 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
         ...(() => { const m = [...new Set(es.map((e) => e.sourceMissing).filter((x): x is string => !!x))]; return m.length ? [{ label: 'Not verified — supply loop incomplete', value: `${m.join('; ')} (Ze not assumed 0; Zs a minimum, If a maximum)`, status: 'warn' as const }] : []; })()],
       tables: [{
         title: 'Earth fault loop', headers: ['Circuit', 'Board', 'Breaker', 'CPC (mm²)', 'Zs (Ω)', 'Max Zs (Ω)', 'If (A)', 'Ia (A)', 'Required (s)', 'Disconnection', 'CPC min, each (mm²)', 'Result'],
-        rows: es.map((e) => [tag(e.feeder), e.feeder.boardId, `${e.feeder.breakerRatingA} A ${breakerTypeOf(e.feeder)}`, e.cpcMm2, loopFigures(e).zs, n(e.maxZsOhm, 4), loopFigures(e).fault, n(e.tripA, 0), `${e.requiredS}${e.requiredBasis.startsWith('Project rule') ? ' (project rule)' : ''}${e.basisSupported ? '' : ' (not verified)'}`,
-          { v: disconnectionLabel(e), s: e.disconnection }, { v: `${n(e.adiabaticMinMm2, 1)}${e.runs > 1 ? ` (${e.runs} runs, ${n(e.cpcCurrentA, 0)} A each${e.adiabatic === 'warn' ? ', assumed sharing' : ''})` : ''}`, s: e.adiabatic }, S(e.status)])
+        rows: es.map((e) => [tag(e.feeder), e.feeder.boardId, `${e.feeder.breakerRatingA} A ${breakerTypeOf(e.feeder)}`, e.cpcMm2, e.sourceMissing ? loopFigures(e).zs : fig.ohm(e.zsOhm), fig.ohm(e.maxZsOhm), e.sourceMissing ? (Number.isFinite(e.faultA) ? `≤ ${fig.current(e.faultA)}` : '—') : fig.current(e.faultA), fig.current(e.tripA), `${e.requiredS}${e.requiredBasis.startsWith('Project rule') ? ' (project rule)' : ''}${e.basisSupported ? '' : ' (not verified)'}`,
+          { v: disconnectionLabel(e), s: e.disconnection }, { v: `${fig.plain(e.adiabaticMinMm2, 1)}${e.runs > 1 ? ` (${e.runs} runs, ${fig.current(e.cpcCurrentA)} A each${e.adiabatic === 'warn' ? ', assumed sharing' : ''})` : ''}`, s: e.adiabatic }, S(e.status)])
       }]
     };
   }
@@ -300,7 +301,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
       key, title: info.title, statuses,
       method: [
         'Demand kW and kvar per phase (each load\'s demand factor and power factor), downstream boards included: single-phase circuits on their labelled phase R / Y / B; 3-phase loads spread evenly.',
-        `Phase current I = S ÷ U0 at nominal voltage (U0 = ${n(p.voltageV / Math.sqrt(3), 0)} V). Neutral current = phasor sum of the three phase currents, phases 120° apart, at fundamental frequency — triplen harmonics (e.g. from LED drivers and IT loads) add to the neutral and are not included.`,
+        `Phase current I = S ÷ U0 at nominal voltage (U0 = ${fig.plain(p.voltageV / Math.sqrt(3))} V). Neutral current = phasor sum of the three phase currents, phases 120° apart, at fundamental frequency — triplen harmonics (e.g. from LED drivers and IT loads) add to the neutral and are not included.`,
         `Current unbalance = largest deviation from the average phase current ÷ the average. Flagged above ${PHASE_UNBALANCE_CHECK_PCT} % (app default, not a standard's limit).`,
         'Phase balance limits: demand-based at nominal voltage. Single-phase circuits with no phase set are spread evenly, which hides their unbalance; they are listed.',
         `Unbalanced load flow: per-phase backward / forward sweep with the neutral conductor, each board's phase demand at constant power at its own voltage (cable losses not added upstream). Transformer (Dyn, Z0 ≈ Z1) as its impedance in each phase, neutral earthed at the main board, MV network infinite. Incomer phase and neutral conductors at R (${p.vdTempC !== undefined ? `${p.vdTempC} °C` : '20 °C value × 1.2'}) and X per km, neutral the size of the phase, mutual coupling neglected.`,
@@ -311,17 +312,17 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
         ...(unassigned.length ? [{ label: 'Single-phase circuits without a phase', value: `${unassigned.length} (${unassigned.slice(0, 8).map((f) => f.id).join(', ')}${unassigned.length > 8 ? ' …' : ''}) — spread evenly, unbalance may be understated`, status: 'warn' as const }] : [])],
       tables: [{
         title: 'Phase balance at each board (demand)', headers: ['Board', 'R (A)', 'Y (A)', 'B (A)', 'R / Y / B (kW)', 'Neutral (A)', 'Unbalance', 'No phase set', 'Result'],
-        rows: pb.map((x) => [x.boardId, n(x.currentA.R, 1), n(x.currentA.Y, 1), n(x.currentA.B, 1), `${n(x.kw.R, 1)} / ${n(x.kw.Y, 1)} / ${n(x.kw.B, 1)}`, n(x.neutralA, 1),
-          { v: `${n(x.unbalancePct, 1)} %`, s: x.unbalancePct > PHASE_UNBALANCE_CHECK_PCT + 1e-9 ? 'warn' : 'ok' }, x.unassigned.length ? { v: x.unassigned.length, s: 'warn' } : 0, S(x.status)])
+        rows: pb.map((x) => [x.boardId, fig.current(x.currentA.R), fig.current(x.currentA.Y), fig.current(x.currentA.B), `${fig.power(x.kw.R)} / ${fig.power(x.kw.Y)} / ${fig.power(x.kw.B)}`, fig.current(x.neutralA),
+          { v: `${fig.loading(x.unbalancePct)} %`, s: x.unbalancePct > PHASE_UNBALANCE_CHECK_PCT + 1e-9 ? 'warn' : 'ok' }, x.unassigned.length ? { v: x.unassigned.length, s: 'warn' } : 0, S(x.status)])
       }, {
         title: 'Unbalanced load flow — busbars', headers: ['Board', 'R / Y / B (V)', 'Drop R / Y / B (%)', 'Neutral (A)', 'Neutral shift (V)', 'Voltage unbalance', 'Result'],
-        rows: ub.map((x) => [x.boardId, `${n(x.voltageV.R, 1)} / ${n(x.voltageV.Y, 1)} / ${n(x.voltageV.B, 1)}`,
-          { v: `${n(x.vdPct.R, 2)} / ${n(x.vdPct.Y, 2)} / ${n(x.vdPct.B, 2)}`, s: x.vdPct[x.worstPhase] > p.vdLimitPct + 1e-9 ? 'bad' : x.vdPct[x.worstPhase] > p.vdLimitPct * 0.85 ? 'warn' : 'ok' },
-          x.neutralIz !== undefined ? { v: `${n(x.neutralA, 1)} (Iz ${n(x.neutralIz, 0)})`, s: 'bad' } : n(x.neutralA, 1), n(x.neutralShiftV, 2),
-          { v: `${n(x.unbalancePct, 2)} %`, s: x.unbalancePct > VOLTAGE_UNBALANCE_LIMIT_PCT + 1e-9 ? 'warn' : 'ok' }, S(x.status)])
+        rows: ub.map((x) => [x.boardId, `${fig.volts(x.voltageV.R)} / ${fig.volts(x.voltageV.Y)} / ${fig.volts(x.voltageV.B)}`,
+          { v: `${fig.pct(x.vdPct.R)} / ${fig.pct(x.vdPct.Y)} / ${fig.pct(x.vdPct.B)}`, s: x.vdPct[x.worstPhase] > p.vdLimitPct + 1e-9 ? 'bad' : x.vdPct[x.worstPhase] > p.vdLimitPct * 0.85 ? 'warn' : 'ok' },
+          x.neutralIz !== undefined ? { v: `${fig.current(x.neutralA)} (Iz ${fig.current(x.neutralIz)})`, s: 'bad' } : fig.current(x.neutralA), fig.fixed(x.neutralShiftV, 2),
+          { v: `${fig.pct(x.unbalancePct)} %`, s: x.unbalancePct > VOLTAGE_UNBALANCE_LIMIT_PCT + 1e-9 ? 'warn' : 'ok' }, S(x.status)])
       }, {
         title: 'Unbalanced load flow — circuits (worst phase at the far end)', headers: ['Circuit', 'Board', 'Phase', 'Lowest end voltage (V)', 'Drop from main busbar (%)', 'Result'],
-        rows: uc.map((x) => [tag(x.feeder), x.feeder.boardId, x.phase === 'RYB' ? (x.feeder.cores === 2 ? 'not set (lowest)' : '3-phase') : x.phase, n(x.endV, 1), n(x.vdPct, 2), S(x.status)])
+        rows: uc.map((x) => [tag(x.feeder), x.feeder.boardId, x.phase === 'RYB' ? (x.feeder.cores === 2 ? 'not set (lowest)' : '3-phase') : x.phase, fig.volts(x.endV), fig.pct(x.vdPct), S(x.status)])
       }]
     };
   }
@@ -339,7 +340,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
       summary: [{ label: 'Pairs checked', value: tally(statuses), status: worst(statuses) }],
       tables: [{
         title: 'Selectivity', headers: ['Upstream', 'Downstream', 'In ratio', 'Fault at downstream (kA)', 'Selectivity limit (kA)', 'Short circuit', 'Result'],
-        rows: ss.map((s) => [`${s.upstream.id} (${s.upstream.breakerRatingA} A)`, `${s.downstream.id} (${s.downstream.breakerRatingA} A)`, n(s.ratio, 2), n(s.faultKA, 1), n(s.limitKA, 1), s.shortCircuit === 'total' ? 'Total' : 'Partial', S(s.status)])
+        rows: ss.map((s) => [`${s.upstream.id} (${s.upstream.breakerRatingA} A)`, `${s.downstream.id} (${s.downstream.breakerRatingA} A)`, fig.ratio(s.ratio), fig.fault(s.faultKA), fig.fault(s.limitKA), s.shortCircuit === 'total' ? 'Total' : 'Partial', S(s.status)])
       }]
     };
   }
@@ -360,11 +361,11 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
         ...rs.map((x) => ({ label: x.riser.name, value: x.type ? `${x.type.ratingA} A ${MATERIAL_LABEL[x.riser.material].toLowerCase()}` : '—', status: st(x) }))],
       tables: [
         { title: 'Busbar risers', headers: ['Riser', 'From', 'Tap-offs', 'Demand (kW)', 'Ib (A)', 'Breaker (A)', 'Busway', 'Area / phase (mm²)', 'Icw (kA) · fault (kA)', 'Vd top (%)', 'W × H (mm)', 'Length (m)', 'Weight (kg)', 'Result'],
-          rows: rs.map((x) => [x.riser.name, x.riser.sourceBoardId ?? '—', x.tapOffs, n(x.demandKw, 0), n(x.designA, 0), x.feederBreakerA ?? '—',
+          rows: rs.map((x) => [x.riser.name, x.riser.sourceBoardId ?? '—', x.tapOffs, fig.power(x.demandKw), fig.current(x.designA), fig.plain(x.feederBreakerA),
             x.type ? `${x.type.ratingA} A ${MATERIAL_LABEL[x.riser.material]}` : 'Above the data', x.type ? x.type.csaMm2 : '—',
-            x.type ? `${x.type.icwKa} · ${x.faultKa !== undefined ? n(x.faultKa, 1) : '—'}` : '—', n(x.vdTopPct, 2), x.type ? `${x.type.widthMm} × ${x.type.heightMm}` : '—', n(x.lengthM, 1), x.weightKg !== undefined ? n(x.weightKg, 0) : '—', S(st(x))]) },
+            x.type ? `${x.type.icwKa} · ${x.faultKa !== undefined ? fig.fault(x.faultKa) : '—'}` : '—', fig.pct(x.vdTopPct), x.type ? `${x.type.widthMm} × ${x.type.heightMm}` : '—', fig.fixed(x.lengthM, 1), x.weightKg !== undefined ? fig.fixed(x.weightKg, 0) : '—', S(st(x))]) },
         ...rs.map((x) => ({ title: `${x.riser.name} — tap-offs`, headers: ['Floor', 'Board', 'Load (kW)', 'Current (A)', 'Tap-off (A)', 'Floors', 'Height (m)', 'Vd (%)'],
-          rows: x.floors.map((f) => [f.floor.name, f.floor.boardId ?? '—', n(f.kw, 1), n(f.currentA, 0), f.tapOffA ?? '—', f.floor.count ?? 1, n(f.heightM, 1), n(f.vdPct, 2)]) }))
+          rows: x.floors.map((f) => [f.floor.name, f.floor.boardId ?? '—', fig.power(f.kw), fig.current(f.currentA), f.tapOffA ?? '—', f.floor.count ?? 1, fig.fixed(f.heightM, 1), fig.pct(f.vdPct)]) }))
       ]
     };
   }
@@ -384,7 +385,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
     const genNeeded = gen.demandKw > 0 || gen.recommendedKva !== undefined;
     const genTooBig = genNeeded && gen.recommendedKva === undefined;
     const genStatus: Status | undefined = !genNeeded ? undefined : genTooBig || gen.installedOk === false ? 'bad' : 'ok';
-    const genSize = genTooBig ? `${n(Math.max(gen.runningDesignKva, gen.startDesignKva), 0)} kVA needed (${gen.governing}) — above the largest standard set` : `${gen.recommendedKva} kVA / ${n(gen.recommendedKw ?? 0, 0)} kW`;
+    const genSize = genTooBig ? `${fig.power(Math.max(gen.runningDesignKva, gen.startDesignKva))} kVA needed (${gen.governing}) — above the largest standard set` : `${gen.recommendedKva} kVA / ${fig.plain(gen.recommendedKw ?? 0)} kW`;
     const genScope = scope.all ? '' : ' (sized for the whole installation — the generator is shared)';
     const statuses = [...tx.map(txStatus), ...par.map((g) => g.status), ...ex.map((c) => c.status), ...(genStatus ? [genStatus] : [])];
     const pfcTaken = tx.some((r) => r.pfcKvar > 0);
@@ -405,40 +406,40 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
       ],
       tables: [
         { title: 'Transformers', headers: ['Main board', 'Demand (kVA)', 'PF', 'Design (kVA)', 'Recommended', 'Installed · loading', 'FLC · main breaker', 'LV fault (kA) · lowest Icu', 'Regulation', 'Result'],
-          rows: tx.map((r) => [r.board.id, n(r.demandKva, 0), n(r.pf, 2), n(r.designKva, 0),
+          rows: tx.map((r) => [r.board.id, fig.power(r.demandKva), fig.ratio(r.pf), fig.power(r.designKva),
             r.recommendedKva ? `${r.split > 1 ? `${r.split} × ` : r.n1 ? '2 × ' : ''}${r.recommendedKva} kVA${r.n1 ? ' (duty / standby)' : ''}` : '—',
-            r.installedKva ? `${r.installedKva} kVA · ${n(r.loadingPct!, 0)} %` : '—',
-            r.checks ? `${n(r.checks.flcA, 0)} A · ${r.checks.acbA} A` : '—',
-            r.checks ? `${n(r.checks.faultKa, 1)} · ${r.checks.minIcuKa ?? '—'}` : '—',
-            r.checks ? `${n(r.checks.regulationPct, 1)} %` : '—', S(txStatus(r))]) },
+            r.installedKva ? `${r.installedKva} kVA · ${fig.loading(r.loadingPct!)} %` : '—',
+            r.checks ? `${fig.current(r.checks.flcA)} A · ${r.checks.acbA} A` : '—',
+            r.checks ? `${fig.fault(r.checks.faultKa)} · ${r.checks.minIcuKa ?? '—'}` : '—',
+            r.checks ? `${fig.pct(r.checks.regulationPct)} %` : '—', S(txStatus(r))]) },
         ...par.flatMap((g) => [{ title: `Transformers in parallel — ${g.boards.join(' + ')}`, headers: ['Transformer', 'Rating · uk', 'Vector group', 'Section load (kVA)', 'Share (kVA)', 'Loading', 'Result'],
           rows: [
-            ...g.transformers.map((t) => [t.boardId, `${t.kva} kVA · ${t.impedancePct} %`, t.vectorGroup, n(t.sectionKva, 0), n(t.shareKva, 0), `${n(t.loadingPct, 0)} %`, S(t.status)]),
-            ...g.couplers.map((c) => [`Coupler ${c.tie.id}`, `${c.tie.ratingA} A`, `${c.tie.a} ↔ ${c.tie.b}`, '—', c.currentA !== undefined ? `${n(c.currentA, 0)} A` : 'ring — not worked out', c.loadingPct !== undefined ? `${n(c.loadingPct, 0)} %` : '—', S(c.status)]),
-            ['Joined busbar', `${n(g.demandKva, 0)} kVA demand`, '—', '—', '—', `fault ${n(g.faultKA, 1)} kA`, S('ok')],
+            ...g.transformers.map((t) => [t.boardId, `${t.kva} kVA · ${t.impedancePct} %`, t.vectorGroup, fig.power(t.sectionKva), fig.power(t.shareKva), `${fig.loading(t.loadingPct)} %`, S(t.status)]),
+            ...g.couplers.map((c) => [`Coupler ${c.tie.id}`, `${c.tie.ratingA} A`, `${c.tie.a} ↔ ${c.tie.b}`, '—', c.currentA !== undefined ? `${fig.current(c.currentA)} A` : 'ring — not worked out', c.loadingPct !== undefined ? `${fig.loading(c.loadingPct)} %` : '—', S(c.status)]),
+            ['Joined busbar', `${fig.power(g.demandKva)} kVA demand`, '—', '—', '—', `fault ${fig.fault(g.faultKA)} kA`, S('ok')],
             ...g.conditions.map((c) => ['Condition', c.text, '—', '—', '—', '—', S(c.status)])
           ] }]),
         ...(ex.length ? [{ title: 'Existing installation and shared supply', headers: ['Check', 'Existing + new', 'Limit', 'Result', 'Status'],
           rows: ex.map((c) => [c.item, c.value, c.limit, c.result, S(c.status)]) }] : []),
         ...(tx.some((r) => r.outage) ? [{ title: 'Bus coupler — one transformer out', headers: ['Transformer', 'Also carries', 'Load (kVA)', 'Of its rating', 'Result'],
-          rows: tx.filter((r) => r.outage).map((r) => [r.board.id, r.outage!.with, n(r.outage!.kva, 0), r.outage!.pctOfRecommended !== undefined ? `${n(r.outage!.pctOfRecommended, 0)} %` : '—', S(r.outage!.ok ? 'ok' : 'warn')]) }] : []),
+          rows: tx.filter((r) => r.outage).map((r) => [r.board.id, r.outage!.with, fig.power(r.outage!.kva), r.outage!.pctOfRecommended !== undefined ? `${fig.loading(r.outage!.pctOfRecommended)} %` : '—', S(r.outage!.ok ? 'ok' : 'warn')]) }] : []),
         ...(genNeeded ? [
           { title: `Standby generator — loads${genScope}`, headers: ['Board / circuit', 'Share', 'Demand (kW)', 'Reactive (kvar)'],
-            rows: [...gen.picks.filter((x) => !x.within && x.pct > 0).map((x) => [x.board.id + (x.auto === 'emdb' ? ' (EMDB)' : x.auto === 'standby' ? ' (ATS)' : ''), `${x.pct} %`, n(x.kw, 0), n(x.kvar, 0)]),
-              ...gen.circuits.map((f) => [`${f.id} ${f.name} (essential circuit)`, '100 %', n(f.loadKw * f.demandFactor, 0), '—'])] },
+            rows: [...gen.picks.filter((x) => !x.within && x.pct > 0).map((x) => [x.board.id + (x.auto === 'emdb' ? ' (EMDB)' : x.auto === 'standby' ? ' (ATS)' : ''), `${x.pct} %`, fig.power(x.kw), fig.power(x.kvar)]),
+              ...gen.circuits.map((f) => [`${f.id} ${f.name} (essential circuit)`, '100 %', fig.power(f.loadKw * f.demandFactor), '—'])] },
           { title: 'Standby generator — size', headers: ['Item', 'Value'],
             rows: [
-              ['Running demand', `${n(gen.demandKw, 0)} kW · ${n(gen.demandKva, 0)} kVA`],
-              ['For the running load', `${n(gen.runningDesignKva, 0)} kVA — ${gen.governing === 'kW' ? 'set by the kW (rated kW = 0.8 × kVA)' : gen.governing === 'kVA' ? 'set by the kVA' : 'running; the motor start sets the size'}`],
+              ['Running demand', `${fig.power(gen.demandKw)} kW · ${fig.power(gen.demandKva)} kVA`],
+              ['For the running load', `${fig.power(gen.runningDesignKva)} kVA — ${gen.governing === 'kW' ? 'set by the kW (rated kW = 0.8 × kVA)' : gen.governing === 'kVA' ? 'set by the kVA' : 'running; the motor start sets the size'}`],
               ...(gen.motor ? [
-                ['Largest motor start', `${gen.motor.feeder.id}: ${n(gen.motor.startingKva, 0)} kVA starting with ${n(gen.motor.baseKva, 0)} kVA already running`],
-                ['For the motor start', `${n(gen.startDesignKva, 0)} kVA (dip ${n(gen.motor.dipPct ?? 0, 1)} % on the recommended set)`]
+                ['Largest motor start', `${gen.motor.feeder.id}: ${fig.power(gen.motor.startingKva)} kVA starting with ${fig.power(gen.motor.baseKva)} kVA already running`],
+                ['For the motor start', `${fig.power(gen.startDesignKva)} kVA (dip ${fig.pct(gen.motor.dipPct ?? 0)} % on the recommended set)`]
               ] : []),
-              ['Recommended', genTooBig ? `None — ${genSize}. Consider sets in parallel or splitting the essential load.` : `${gen.recommendedKva} kVA / ${n(gen.recommendedKw!, 0)} kW at 0.8 PF`],
+              ['Recommended', genTooBig ? `None — ${genSize}. Consider sets in parallel or splitting the essential load.` : `${gen.recommendedKva} kVA / ${fig.plain(gen.recommendedKw!)} kW at 0.8 PF`],
               ['Result', S(genStatus!)],
               ...(gen.softStartKva ? [['With a soft starter on the largest motor', `${gen.softStartKva} kVA`]] : []),
-              ['Full-load current · ATS / breaker', gen.flcA !== undefined ? `${n(gen.flcA, 0)} A · ${gen.atsA ?? '—'} A` : '—'],
-              ['Installed', gen.installedKva ? `${gen.installedKva} kVA / ${n(gen.installedKva * 0.8, 0)} kW${gen.installedOk === false ? ' — too small' : ''}` : '—']
+              ['Full-load current · ATS / breaker', gen.flcA !== undefined ? `${fig.current(gen.flcA)} A · ${gen.atsA ?? '—'} A` : '—'],
+              ['Installed', gen.installedKva ? `${gen.installedKva} kVA / ${fig.plain(gen.installedKva * 0.8)} kW${gen.installedOk === false ? ' — too small' : ''}` : '—']
             ] }
         ] : [])
       ]
@@ -482,22 +483,22 @@ export function pfcSection(p: Project, scope: Scope): Section {
     ],
     summary: [
       { label: 'Target PF', value: String(r.pfTarget) },
-      { label: 'Capacitors (new)', value: `${n(kvar, 1)} kvar in ${rows.filter((x) => x.bankKvar).length} banks` },
+      { label: 'Capacitors (new)', value: `${fig.plain(kvar, 1)} kvar in ${rows.filter((x) => x.bankKvar).length} banks` },
       ...mains.map((m) => ({ label: `${m.boardId} PF`, value: `${m.pfBefore.toFixed(2)} → ${m.pfAfter.toFixed(3)}`, status: (m.pfAfter >= r.pfTarget - 1e-6 ? 'ok' : 'warn') as Status })),
-      ...mains.filter((m) => m.releasedKva > 0.5).map((m) => ({ label: `${m.boardId} capacity released`, value: `${n(m.releasedKva, 0)} kVA${m.loadingBeforePct !== undefined ? ` (transformer ${n(m.loadingBeforePct, 0)} % → ${n(m.loadingAfterPct!, 0)} %)` : ''}` }))
+      ...mains.filter((m) => m.releasedKva > 0.5).map((m) => ({ label: `${m.boardId} capacity released`, value: `${fig.power(m.releasedKva)} kVA${m.loadingBeforePct !== undefined ? ` (transformer ${fig.loading(m.loadingBeforePct)} % → ${fig.loading(m.loadingAfterPct!)} %)` : ''}` }))
     ],
     tables: [
       { title: 'Capacitor banks', headers: ['Location', 'Demand (kW)', 'Reactive (kvar)', 'Existing (kvar)', 'Banks below (kvar)', 'PF now', 'Required (kvar)', 'Bank', 'Detuning · capacitor V', 'Breaker · cable', 'PF after', 'Current (A)', 'Result'],
         rows: rows.map((x, k) => [
-          x.kind === 'load' ? `  ${x.label} (at the load)` : x.label, n(x.demandKw, 0), n(x.demandKvar, 0), x.existingKvar ? n(x.existingKvar, 1) : '—', x.downstreamKvar ? n(x.downstreamKvar, 1) : '—',
-          n(x.pfBefore, 2), n(x.requiredKvar, 1),
-          x.bankKvar ? (x.steps > 1 ? `${n(x.bankKvar, 1)} kvar (${x.steps} × ${x.stepKvar})` : `${n(x.bankKvar, 1)} kvar fixed`) : 'Not required',
+          x.kind === 'load' ? `  ${x.label} (at the load)` : x.label, fig.power(x.demandKw), fig.power(x.demandKvar), x.existingKvar ? fig.plain(x.existingKvar, 1) : '—', x.downstreamKvar ? fig.plain(x.downstreamKvar, 1) : '—',
+          fig.ratio(x.pfBefore), fig.power(x.requiredKvar),
+          x.bankKvar ? (x.steps > 1 ? `${fig.plain(x.bankKvar, 1)} kvar (${x.steps} × ${x.stepKvar})` : `${fig.plain(x.bankKvar, 1)} kvar fixed`) : 'Not required',
           x.bankKvar ? `${x.detunedPct ? `${x.detunedPct} %` : 'None'} · ${x.capVoltageV} V` : '—',
           x.bankKvar ? `${x.breakerA ?? '—'} A · ${x.cable ?? '—'}` : '—',
-          n(x.pfAfter, 3), `${n(x.currentBeforeA, 0)} → ${n(x.currentAfterA, 0)}`, S(statuses[k])
+          fig.pf3(x.pfAfter), `${fig.current(x.currentBeforeA)} → ${fig.current(x.currentAfterA)}`, S(statuses[k])
         ]) },
       { title: 'Main boards', headers: ['Main board', 'Demand (kW)', 'PF before', 'PF after', 'kVA before → after', 'Released (kVA)', 'Transformer loading'],
-        rows: mains.map((m) => [m.boardId, n(m.demandKw, 0), n(m.pfBefore, 2), n(m.pfAfter, 3), `${n(m.kvaBefore, 0)} → ${n(m.kvaAfter, 0)}`, n(m.releasedKva, 0), m.loadingBeforePct !== undefined ? `${n(m.loadingBeforePct, 0)} % → ${n(m.loadingAfterPct!, 0)} %` : '—']) },
+        rows: mains.map((m) => [m.boardId, fig.power(m.demandKw), fig.ratio(m.pfBefore), fig.pf3(m.pfAfter), `${fig.power(m.kvaBefore)} → ${fig.power(m.kvaAfter)}`, fig.power(m.releasedKva), m.loadingBeforePct !== undefined ? `${fig.loading(m.loadingBeforePct)} % → ${fig.loading(m.loadingAfterPct!)} %` : '—']) },
       ...(noted.length ? [{ title: 'Notes', headers: ['Location', 'Note'], rows: noted.flatMap((x) => x.notes.map((t) => [x.label, t])) }] : [])
     ]
   };
@@ -517,7 +518,7 @@ export function sldStudies(keys: StudyReportKind[]): StudyReportKind[] {
   return withResults.length ? withResults : keys.filter((k) => k === 'schedules');
 }
 
-export const cellHtml = (c: Cell) => (typeof c === 'object' ? `<td class="${c.s}">${statusSpan(esc(c.v))}</td>` : `<td>${esc(c)}</td>`);
+export const cellHtml = (c: Cell) => (typeof c === 'object' && 's' in c ? `<td class="${c.s}">${statusSpan(esc(c.v))}</td>` : `<td>${esc(c)}</td>`);
 export const tableHtml = (t: Table) => `${t.title ? `<h3>${esc(t.title)}</h3>` : ''}${t.rows.length
   ? `<table><thead><tr>${t.headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${t.rows.map((r) => `<tr>${r.map(cellHtml).join('')}</tr>`).join('')}</tbody></table>`
   : '<p class="note">Nothing in scope.</p>'}`;

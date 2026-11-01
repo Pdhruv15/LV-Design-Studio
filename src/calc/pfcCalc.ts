@@ -1,6 +1,7 @@
 import { capVoltage } from './pfc';
 import { rule } from '../database/catalog';
 import { breakerRatings } from './sizing';
+import { fig } from '../util/format';
 
 /** Standalone power factor correction (an existing installation, no design
  * needed): from measured values, a utility bill or a list of loads to the
@@ -83,20 +84,20 @@ export interface PfcCalcResult {
 export function loadOf(i: PfcCalcInput): { p: number; q: number; how: string[] } {
   const pf = Math.min(Math.max(i.pf ?? 0.8, 0.05), 1);
   switch (i.mode) {
-    case 'kva-pf': { const s = i.kva ?? 0; return { p: s * pf, q: s * Math.sin(Math.acos(pf)), how: [`P = S × PF = ${s} × ${pf} = ${(s * pf).toFixed(1)} kW`] }; }
-    case 'vi-pf': { const s = (SQRT3 * i.voltageV * (i.currentA ?? 0)) / 1000; return { p: s * pf, q: s * Math.sin(Math.acos(pf)), how: [`S = √3 × U × I = √3 × ${i.voltageV} × ${i.currentA ?? 0} = ${s.toFixed(1)} kVA`, `P = S × PF = ${(s * pf).toFixed(1)} kW`] }; }
+    case 'kva-pf': { const s = i.kva ?? 0; return { p: s * pf, q: s * Math.sin(Math.acos(pf)), how: [`P = S × PF = ${s} × ${pf} = ${fig.power(s * pf)} kW`] }; }
+    case 'vi-pf': { const s = (SQRT3 * i.voltageV * (i.currentA ?? 0)) / 1000; return { p: s * pf, q: s * Math.sin(Math.acos(pf)), how: [`S = √3 × U × I = √3 × ${i.voltageV} × ${i.currentA ?? 0} = ${fig.power(s)} kVA`, `P = S × PF = ${fig.power(s * pf)} kW`] }; }
     case 'bill': {
       const h = Math.max(1, i.hours ?? 720);
       const kwh = i.kwh ?? 0, kvarh = i.kvarh ?? 0;
       const pfAvg = kwh > 0 ? kwh / Math.hypot(kwh, kvarh) : 1;
-      return { p: kwh / h, q: kvarh / h, how: [`Average PF = kWh ÷ √(kWh² + kvarh²) = ${kwh} ÷ √(${kwh}² + ${kvarh}²) = ${pfAvg.toFixed(3)}`, `Average P = ${kwh} kWh ÷ ${h} h = ${(kwh / h).toFixed(1)} kW (Q = ${(kvarh / h).toFixed(1)} kvar)`] };
+      return { p: kwh / h, q: kvarh / h, how: [`Average PF = kWh ÷ √(kWh² + kvarh²) = ${kwh} ÷ √(${kwh}² + ${kvarh}²) = ${pfAvg.toFixed(3)}`, `Average P = ${kwh} kWh ÷ ${h} h = ${fig.power(kwh / h)} kW (Q = ${fig.power(kvarh / h)} kvar)`] };
     }
     case 'loads': {
       let p = 0, q = 0;
       for (const r of i.loads ?? []) { const kw = r.kw * Math.max(0, r.qty); p += kw; q += kw * tan(r.pf); }
-      return { p, q, how: [`P = Σ kW = ${p.toFixed(1)} kW; Q = Σ kW × tan φ = ${q.toFixed(1)} kvar (${(i.loads ?? []).length} loads)`] };
+      return { p, q, how: [`P = Σ kW = ${fig.power(p)} kW; Q = Σ kW × tan φ = ${fig.power(q)} kvar (${(i.loads ?? []).length} loads)`] };
     }
-    default: { const p = i.kw ?? 0; return { p, q: p * tan(pf), how: [`Q = P × tan φ1 = ${p} × tan(acos ${pf}) = ${(p * tan(pf)).toFixed(1)} kvar`] }; }
+    default: { const p = i.kw ?? 0; return { p, q: p * tan(pf), how: [`Q = P × tan φ1 = ${p} × tan(acos ${pf}) = ${fig.power(p * tan(pf))} kvar`] }; }
   }
 }
 
@@ -121,7 +122,7 @@ export function calcPfc(i: PfcCalcInput): PfcCalcResult {
   const q2 = q1 - activeKvar;
   const suggestedStepKvar = !targetReached && requiredKvar > 0 ? suggestStep(q1, requiredKvar, step) : undefined;
   if (!targetReached && requiredKvar > 0) {
-    warnings.push(`Target ${target} not achievable with ${step} kvar steps without going leading: ${activeSteps ? `${activeSteps} of ${steps} step${steps > 1 ? 's' : ''} (${activeKvar} kvar) switched in gives PF ${(p / Math.hypot(p, q2)).toFixed(3)}` : `the ${step} kvar step stays off (switching it in would give ${(q1 - step).toFixed(1)} kvar, leading), so nothing changes`}.${suggestedStepKvar ? ` A ${suggestedStepKvar} kvar step would reach it.` : ''}`);
+    warnings.push(`Target ${target} not achievable with ${step} kvar steps without going leading: ${activeSteps ? `${activeSteps} of ${steps} step${steps > 1 ? 's' : ''} (${activeKvar} kvar) switched in gives PF ${(p / Math.hypot(p, q2)).toFixed(3)}` : `the ${step} kvar step stays off (switching it in would give ${fig.power(q1 - step)} kvar, leading), so nothing changes`}.${suggestedStepKvar ? ` A ${suggestedStepKvar} kvar step would reach it.` : ''}`);
   }
   if (bankKvar > activeKvar && targetReached) warnings.push(`At this load ${activeSteps} of ${steps} steps (${activeKvar} of ${bankKvar} kvar) are switched in; the rest is spare for higher load`);
   const s2 = Math.hypot(p, q2);
@@ -145,7 +146,7 @@ export function calcPfc(i: PfcCalcInput): PfcCalcResult {
     const s = Math.hypot(p, q);
     return { steps: k, kvar, pf: s > 0 ? (q < 0 ? -p / s : p / s) : 1, kva: s, a: I(s) };
   });
-  if (q1 < -1e-9) warnings.push(`The load is net leading (capacitive): Q = ${q1.toFixed(1)} kvar, PF ${pf1.toFixed(3)} leading. Capacitors add leading kvar, so none is selected and nothing changes. A leading PF needs a different remedy (e.g. switching existing capacitors off, a shunt reactor) — not designed here.`);
+  if (q1 < -1e-9) warnings.push(`The load is net leading (capacitive): Q = ${fig.power(q1)} kvar, PF ${pf1.toFixed(3)} leading. Capacitors add leading kvar, so none is selected and nothing changes. A leading PF needs a different remedy (e.g. switching existing capacitors off, a shunt reactor) — not designed here.`);
   else if (pf1 >= target) warnings.push(`The power factor is already ${pf1.toFixed(3)} — at or above the target ${target}`);
   if (i.mode === 'bill') warnings.push('From a bill, P and Q are averages over the period (net kvarh): they can hide times of leading and lagging operation. Check a switched bank against measured load conditions before relying on it.');
   if (pf1 < rule('pfMinimum')) warnings.push(`PF ${pf1.toFixed(2)} is below the authority's ${rule('pfMinimum').toFixed(2)} minimum (Rules.xlsx)`);
@@ -166,9 +167,9 @@ export function calcPfc(i: PfcCalcInput): PfcCalcResult {
       return { pf, kvar: k, bank, activeKvar: o.k * step, achievedPf: Math.hypot(p, qa) > 0 ? p / Math.hypot(p, qa) : 1, reached: k <= 0 || o.reached };
     }),
     activeSteps, activeKvar, targetReached, suggestedStepKvar,
-    derivation: [...how, `Qc = P × (tan φ1 − tan φ2) = ${p.toFixed(1)} × (${(p > 0 ? q1 / p : 0).toFixed(3)} − ${tan(target).toFixed(3)}) = ${(p * ((p > 0 ? q1 / p : 0) - tan(target))).toFixed(1)} kvar${requiredKvar > 0 ? '' : ' → none needed (≤ 0)'}`,
+    derivation: [...how, `Qc = P × (tan φ1 − tan φ2) = ${fig.power(p)} × (${(p > 0 ? q1 / p : 0).toFixed(3)} − ${tan(target).toFixed(3)}) = ${fig.power(p * ((p > 0 ? q1 / p : 0) - tan(target)))} kvar${requiredKvar > 0 ? '' : ' → none needed (≤ 0)'}`,
       `Installed ${bankKvar} kvar = ${steps} × ${step} kvar; switched in at this load: ${activeSteps} step${activeSteps === 1 ? '' : 's'} = ${activeKvar} kvar (fewest steps reaching the target without going leading${targetReached ? '' : ' — target not reached'})`,
-      `Q2 = Q1 − switched kvar = ${q1.toFixed(1)} − ${activeKvar} = ${q2.toFixed(1)} kvar → PF2 = P ÷ √(P² + Q2²)`],
+      `Q2 = Q1 − switched kvar = ${fig.power(q1)} − ${activeKvar} = ${fig.power(q2)} kvar → PF2 = P ÷ √(P² + Q2²)`],
     warnings
   };
 }

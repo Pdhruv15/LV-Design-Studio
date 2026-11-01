@@ -6,6 +6,7 @@ import { assess, COOL_SYSTEMS, DHW_SYSTEMS, rowArea, rowPct, type LoadAssessment
 import { SCOPE_ITEMS } from '../model/brief';
 import { referenceSourceOf, type RefKey } from '../model/designReference';
 import { STUDY_DEFAULTS, settingsOf, type Project, type StudyReportKind } from '../types';
+import { fig, fmtDate } from '../util/format';
 import { esc } from './report';
 import { NOT_DEFINED, valueOrMissing } from './reportFrame';
 
@@ -112,7 +113,7 @@ export function buildDesignBasis(project: Project, studies: { key: StudyReportKi
   const hasGen = gen.demandKw > 0 || !!gen.recommendedKva || !!gen.installedKva;
   const generator = hasGen ? {
     demandKva: gen.demandKva, requiredKva: Math.max(gen.runningDesignKva, gen.startDesignKva), governing: String(gen.governing),
-    recommended: gen.recommendedKva ? `${gen.recommendedKva} kVA / ${n(gen.recommendedKw!)} kW` : undefined, installedKva: gen.installedKva,
+    recommended: gen.recommendedKva ? `${gen.recommendedKva} kVA / ${fig.plain(gen.recommendedKw!)} kW` : undefined, installedKva: gen.installedKva,
     status: (gen.installedOk === false || !gen.recommendedKva ? 'bad' : gen.installedKva ? 'ok' : 'nc') as CheckStatus
   } : undefined;
   const arrangement = mains.map((m) => {
@@ -169,7 +170,7 @@ export function buildDesignBasis(project: Project, studies: { key: StudyReportKi
   const standards = {
     project: (project.standards ?? []).map((s) => s.trim()).filter(Boolean),
     authority: brief?.authority?.trim() || undefined,
-    reference: project.designReference ? `${project.designReference.name} (version ${project.designReference.version}, applied ${new Date(project.designReference.appliedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })})` : undefined,
+    reference: project.designReference ? `${project.designReference.name} (version ${project.designReference.version}, applied ${fmtDate(project.designReference.appliedAt)})` : undefined,
     methods: METHOD_STANDARDS.filter((m) => m.studies.some((k) => keys.has(k))).map(({ standard, used }) => ({ standard, used }))
   };
 
@@ -196,7 +197,7 @@ export function buildDesignBasis(project: Project, studies: { key: StudyReportKi
       ? { parameter: 'Maximum demand factor (authority forms)', source: 'Project information', flag: NOT_DEFINED }
       : { parameter: 'Maximum demand factor (authority forms)', value: String(project.info.mdDemandFactor), source: src('mdDemandFactor', 'Project information') },
     sys.connectedKw > 0
-      ? { parameter: 'Overall demand ÷ connected load', value: `${n(sys.demandKw / sys.connectedKw, 2)} (${n(sys.demandKw)} ÷ ${n(sys.connectedKw)} kW)`, source: 'Load assessment (calculated)' }
+      ? { parameter: 'Overall demand ÷ connected load', value: `${fig.ratio(sys.demandKw / sys.connectedKw)} (${fig.power(sys.demandKw)} ÷ ${fig.power(sys.connectedKw)} kW)`, source: 'Load assessment (calculated)' }
       : { parameter: 'Overall demand ÷ connected load', source: 'Load assessment (calculated)', flag: 'No connected load' }
   ];
 
@@ -265,17 +266,17 @@ export function designBasisSections(b: DesignBasis): { title: string; html: stri
   const s = b.summary;
   const exec = `
   <div class="grid grid4">
-    <div class="kpi"><span>Connected load</span><b>${n(s.connectedKw)} kW</b></div>
-    <div class="kpi"><span>Maximum demand</span><b>${n(s.demandKw)} kW · ${n(s.demandKva)} kVA</b></div>
-    <div class="kpi"><span>Demand ÷ connected</span><b>${s.demandRatio === undefined ? valueOrMissing() : n(s.demandRatio, 2)}</b></div>
-    <div class="kpi"><span>Power factor · current</span><b>${n(s.powerFactor, 2)} · ${n(s.currentA)} A</b></div>
+    <div class="kpi"><span>Connected load</span><b>${fig.power(s.connectedKw)} kW</b></div>
+    <div class="kpi"><span>Maximum demand</span><b>${fig.power(s.demandKw)} kW · ${fig.power(s.demandKva)} kVA</b></div>
+    <div class="kpi"><span>Demand ÷ connected</span><b>${s.demandRatio === undefined ? valueOrMissing() : fig.ratio(s.demandRatio)}</b></div>
+    <div class="kpi"><span>Power factor · current</span><b>${fig.ratio(s.powerFactor)} · ${fig.current(s.currentA)} A</b></div>
   </div>
   <h3>Transformer requirement</h3>
   ${s.transformers.length ? `<table><thead><tr><th>Main board</th><th>Required (kVA)</th><th>Recommended</th><th>Installed (kVA)</th><th>Loading</th><th>Status</th></tr></thead><tbody>${s.transformers.map((t) =>
-    `<tr><td>${esc(t.board)}</td><td>${n(t.requiredKva)}</td><td>${t.recommended ? esc(t.recommended) : '<span class="bad">Above the largest standard size</span>'}</td><td>${t.installedKva ? n(t.installedKva) : valueOrMissing()}</td><td>${t.loadingPct === undefined ? '—' : `${n(t.loadingPct)} %`}</td><td class="${t.status}">${LABEL[t.status]}</td></tr>`).join('')}</tbody></table>`
+    `<tr><td>${esc(t.board)}</td><td>${fig.power(t.requiredKva)}</td><td>${t.recommended ? esc(t.recommended) : '<span class="bad">Above the largest standard size</span>'}</td><td>${t.installedKva ? fig.plain(t.installedKva) : valueOrMissing()}</td><td>${t.loadingPct === undefined ? '—' : `${fig.loading(t.loadingPct)} %`}</td><td class="${t.status}">${LABEL[t.status]}</td></tr>`).join('')}</tbody></table>`
     : '<p class="missing">No transformer is defined on any main board.</p>'}
   <h3>Generator requirement</h3>
-  ${s.generator ? `<table><thead><tr><th>Essential demand (kVA)</th><th>Rating needed (kVA)</th><th>Governed by</th><th>Recommended</th><th>Installed (kVA)</th><th>Status</th></tr></thead><tbody><tr><td>${n(s.generator.demandKva)}</td><td>${n(s.generator.requiredKva)}</td><td>${esc(s.generator.governing)}</td><td>${s.generator.recommended ? esc(s.generator.recommended) : '<span class="bad">Above the largest standard set</span>'}</td><td>${s.generator.installedKva ? n(s.generator.installedKva) : valueOrMissing()}</td><td class="${s.generator.status}">${LABEL[s.generator.status]}</td></tr></tbody></table>`
+  ${s.generator ? `<table><thead><tr><th>Essential demand (kVA)</th><th>Rating needed (kVA)</th><th>Governed by</th><th>Recommended</th><th>Installed (kVA)</th><th>Status</th></tr></thead><tbody><tr><td>${fig.power(s.generator.demandKva)}</td><td>${fig.power(s.generator.requiredKva)}</td><td>${esc(s.generator.governing)}</td><td>${s.generator.recommended ? esc(s.generator.recommended) : '<span class="bad">Above the largest standard set</span>'}</td><td>${s.generator.installedKva ? fig.plain(s.generator.installedKva) : valueOrMissing()}</td><td class="${s.generator.status}">${LABEL[s.generator.status]}</td></tr></tbody></table>`
     : '<p class="note">No standby generator: no board or essential load is on a generator.</p>'}
   <h3>Main LV distribution</h3>
   ${list(s.arrangement, 'No main board.')}
@@ -325,11 +326,10 @@ export function designBasisSections(b: DesignBasis): { title: string; html: stri
 
 /** Load assessment section: plain black and white like the rest of the report — the band check is told by its words and weight. */
 export const laBandText = (l: LoadAssessmentBasis) => `${n(l.vaPerM2)} VA/m², ${l.inBand ? 'within the typical band' : 'OUTSIDE the typical band, check the area mix and services'}`;
-export const laTxText = (t: NonNullable<LoadAssessmentBasis['tx']>) => `${t.count} × ${n(t.kva)} kVA (${t.duty} duty${t.count > t.duty ? ' + 1 standby' : ''}, ${t.redundancy})`;
-export const laGenText = (l: LoadAssessmentBasis) => (l.generator ? `${l.generator.count} × ${n(l.generator.kva)} kVA` : l.generatorKvaRequired > 0 ? 'Above the largest standard set' : 'Not required');
+export const laTxText = (t: NonNullable<LoadAssessmentBasis['tx']>) => `${t.count} × ${fig.plain(t.kva)} kVA (${t.duty} duty${t.count > t.duty ? ' + 1 standby' : ''}, ${t.redundancy})`;
+export const laGenText = (l: LoadAssessmentBasis) => (l.generator ? `${l.generator.count} × ${fig.plain(l.generator.kva)} kVA` : l.generatorKvaRequired > 0 ? 'Above the largest standard set' : 'Not required');
 
 function loadAssessmentHtml(l: LoadAssessmentBasis): string {
-  const v = (x: number | undefined, d = 0) => (x === undefined ? '—' : n(x, d));
   const spare = l.sparePct ? ` × ${n(1 + l.sparePct / 100, 2)} future spare` : '';
   return `
   <p class="note">Early-stage maximum demand from the building type, its area schedule and the services it needs, before load schedules exist (Design → Load assessment). It is not the designed load; the designed load is in the executive summary.</p>
@@ -349,29 +349,29 @@ function loadAssessmentHtml(l: LoadAssessmentBasis): string {
   ${Math.abs(l.pctTotal - 100) > 0.5 ? `<p class="warning">The area schedule adds up to ${n(l.pctTotal, 1)} % of the GFA (${n(l.areaM2)} of ${n(l.gfaM2)} m²).</p>` : ''}
   <h3>Service requirements</h3>
   ${l.services.length ? `<table><thead><tr><th>Service</th><th>Selection</th><th>Connected (kW)</th></tr></thead><tbody>${l.services.map((x) =>
-    `<tr><td>${esc(x.service)}</td><td>${esc(x.selection)}</td><td>${n(x.kw)}</td></tr>`).join('')}</tbody></table>` : '<p class="note">No services selected.</p>'}
+    `<tr><td>${esc(x.service)}</td><td>${esc(x.selection)}</td><td>${fig.power(x.kw)}</td></tr>`).join('')}</tbody></table>` : '<p class="note">No services selected.</p>'}
   ${l.notSelected.length ? `<p class="note">Not selected: ${esc(l.notSelected.join(', '))}.</p>` : ''}
   <p class="note">Booster and transfer pumps and the car park ventilation are always included, under pumps / ventilation below.</p>
   <h3>Load categories and maximum demand</h3>
   <table><thead><tr><th>Category</th><th>Connected (kW)</th><th>Diversity</th><th>Demand (kW)</th><th>On generator</th></tr></thead><tbody>${l.categories.map((c) =>
-    `<tr><td>${esc(c.label)}</td><td>${n(c.connectedKw)}</td><td>${v(c.diversity, 2)}</td><td>${v(c.demandKw)}</td><td>${c.generatorPct === undefined ? '—' : `${n(c.generatorPct)} %`}</td></tr>`).join('')}
-    <tr class="total"><td>Sum of demands</td><td>${n(l.connectedKw)}</td><td></td><td>${n(l.sumDemandKw)}</td><td></td></tr>
-    <tr><td colspan="3">× coincidence ${n(l.coincidence, 2)}${spare} = maximum demand</td><td><b>${n(l.mdKw)} kW</b></td><td></td></tr>
-    <tr><td colspan="3">÷ power factor ${n(l.pf, 2)}</td><td><b>${n(l.mdKva)} kVA</b></td><td></td></tr></tbody></table>
+    `<tr><td>${esc(c.label)}</td><td>${fig.power(c.connectedKw)}</td><td>${fig.ratio(c.diversity)}</td><td>${fig.power(c.demandKw)}</td><td>${c.generatorPct === undefined ? '—' : `${n(c.generatorPct)} %`}</td></tr>`).join('')}
+    <tr class="total"><td>Sum of demands</td><td>${fig.power(l.connectedKw)}</td><td></td><td>${fig.power(l.sumDemandKw)}</td><td></td></tr>
+    <tr><td colspan="3">× coincidence ${fig.ratio(l.coincidence)}${spare} = maximum demand</td><td><b>${fig.power(l.mdKw)} kW</b></td><td></td></tr>
+    <tr><td colspan="3">÷ power factor ${fig.ratio(l.pf)}</td><td><b>${fig.power(l.mdKva)} kVA</b></td><td></td></tr></tbody></table>
   <h3>Supply</h3>
   <div class="grid grid4">
-    <div class="kpi"><span>Maximum demand</span><b>${n(l.mdKw)} kW · ${n(l.mdKva)} kVA</b></div>
+    <div class="kpi"><span>Maximum demand</span><b>${fig.power(l.mdKw)} kW · ${fig.power(l.mdKva)} kVA</b></div>
     <div class="kpi"><span>VA/m² of GFA</span><b>${n(l.vaPerM2)} VA/m²</b></div>
-    <div class="kpi"><span>Transformers</span><b>${l.tx ? `${l.tx.count} × ${n(l.tx.kva)} kVA` : '—'}</b></div>
+    <div class="kpi"><span>Transformers</span><b>${l.tx ? `${l.tx.count} × ${fig.plain(l.tx.kva)} kVA` : '—'}</b></div>
     <div class="kpi"><span>Standby generator</span><b>${esc(laGenText(l))}</b></div>
   </div>
   <table><thead><tr><th>Item</th><th>Value</th><th>Basis</th></tr></thead><tbody>
     <tr><td>Load density</td><td${l.inBand ? '' : ' class="warn"'}>${esc(laBandText(l))}</td><td>${n(l.vaBand[0])}–${n(l.vaBand[1])} VA/m² for "${esc(l.typeLabel)}"</td></tr>
-    ${l.tx ? `<tr><td>Transformers</td><td>${esc(laTxText(l.tx))}</td><td>Each loaded to ${n(l.tx.maxLoadingPct)} % or less, largest size ${n(l.tx.maxTxKva)} kVA, ${n(l.tx.voltage)} V</td></tr>
-    <tr><td>LV incomer per transformer</td><td>${n(l.tx.incomerA)} A</td><td>${n(l.tx.kva)} kVA at ${n(l.tx.voltage)} V</td></tr>`
+    ${l.tx ? `<tr><td>Transformers</td><td>${esc(laTxText(l.tx))}</td><td>Each loaded to ${n(l.tx.maxLoadingPct)} % or less, largest size ${fig.plain(l.tx.maxTxKva)} kVA, ${fig.plain(l.tx.voltage)} V</td></tr>
+    <tr><td>LV incomer per transformer</td><td>${fig.current(l.tx.incomerA)} A</td><td>${fig.plain(l.tx.kva)} kVA at ${fig.plain(l.tx.voltage)} V</td></tr>`
     : `<tr><td>Transformers</td><td class="warn">${l.mdKva > 0 ? 'No size fits' : 'No demand'}</td><td>Check the transformer sizes, largest size and maximum loading</td></tr>`}
-    <tr><td>Essential demand</td><td>${n(l.generatorKw)} kW</td><td>Each category's demand × its share on the generator. Fire and life safety at full load.</td></tr>
-    <tr><td>Standby generator</td><td${l.generator || !l.generatorKvaRequired ? '' : ' class="warn"'}>${esc(laGenText(l))}</td><td>${n(l.generatorKvaRequired)} kVA required = ${n(l.generatorKw)} kW ÷ ${n(l.pf, 2)} pf × ${n(l.genMargin, 2)} margin</td></tr>
+    <tr><td>Essential demand</td><td>${fig.power(l.generatorKw)} kW</td><td>Each category's demand × its share on the generator. Fire and life safety at full load.</td></tr>
+    <tr><td>Standby generator</td><td${l.generator || !l.generatorKvaRequired ? '' : ' class="warn"'}>${esc(laGenText(l))}</td><td>${fig.power(l.generatorKvaRequired)} kVA required = ${fig.power(l.generatorKw)} kW ÷ ${fig.ratio(l.pf)} pf × ${fig.ratio(l.genMargin)} margin</td></tr>
   </tbody></table>
   <p class="warning">The built-in densities and factors are placeholders until you replace them with your own library. This assessment is a planning estimate. Check it against the load schedules as the design develops.</p>`;
 }

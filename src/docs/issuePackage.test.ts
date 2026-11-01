@@ -33,7 +33,7 @@ describe('issue package', () => {
   it('unresolved checks list every non-passing cell, fails first, none of them passes', () => {
     const sections = sectionsFor();
     const open = unresolvedChecks(sections);
-    const nonOkCells = sections.flatMap((s) => s.tables.flatMap((t) => t.rows.filter((r) => r.some((c) => typeof c === 'object' && c.s !== 'ok'))));
+    const nonOkCells = sections.flatMap((s) => s.tables.flatMap((t) => t.rows.filter((r) => r.some((c) => typeof c === 'object' && 's' in c && c.s !== 'ok'))));
     expect(open.length).toBeGreaterThanOrEqual(nonOkCells.length > 0 ? 1 : 0);
     expect(open.every((u) => u.status !== ('ok' as string))).toBe(true);
     const firstWarn = open.findIndex((u) => u.status === 'warn');
