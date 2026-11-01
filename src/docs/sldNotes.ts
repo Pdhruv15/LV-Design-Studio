@@ -47,10 +47,12 @@ export const ABBREVIATIONS: [string, string][] = [
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 
-/** The abbreviations that appear in the drawing's text (SVG markup). */
+/** The abbreviations that appear in the drawing's text (SVG markup). A drawing can give one its own meaning with
+ * data-abbr="CT=Cable tray": on a containment layout CT is not a current transformer. */
 export function abbreviationsIn(svg: string): [string, string][] {
   const text = [...svg.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/g)].map((m) => m[1].replace(/<[^>]+>/g, ' ')).join(' ') + ' NTS';
-  return ABBREVIATIONS.filter(([a]) => new RegExp(`(^|[^A-Za-z])${esc(a)}([^A-Za-z]|$)`).test(text));
+  const own = new Map([...svg.matchAll(/data-abbr="([^"=]+)=([^"]+)"/g)].map((m) => [m[1], m[2]]));
+  return ABBREVIATIONS.filter(([a]) => new RegExp(`(^|[^A-Za-z])${esc(a)}([^A-Za-z]|$)`).test(text)).map(([a, d]) => [a, own.get(a) ?? d]);
 }
 
 /** General notes typical of a DEWA / DM LV submission; edit them to suit. */

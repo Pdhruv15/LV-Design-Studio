@@ -11,6 +11,13 @@ describe('SLD abbreviations', () => {
     expect(a).not.toContain('MCC'); // not a substring match of MCCB etc.
     expect(a).not.toContain('UPS');
   });
+  it('lets a drawing give an abbreviation its own meaning', () => {
+    expect(abbreviationsIn('<svg><text>CT 1600/5A</text></svg>')).toContainEqual(['CT', 'Current transformer']);
+    const own = abbreviationsIn('<svg data-abbr="CT=Cable tray"><text>CT 300 POWER · DB-GF1</text></svg>');
+    expect(own).toContainEqual(['CT', 'Cable tray']);
+    expect(own).toContainEqual(['DB', 'Distribution board']);
+    expect(abbreviationsIn('<svg data-abbr="CT=Cable tray"><text>DB-GF1</text></svg>').map(([k]) => k)).not.toContain('CT'); // still only what is on the drawing
+  });
   it('prints the table on the sheet unless switched off', () => {
     const p = sampleProject;
     const svg = '<svg><text>ACB</text></svg>';

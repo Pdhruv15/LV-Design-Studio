@@ -1,19 +1,28 @@
 import { buildingInfoOf, floorsOf } from '../calc/building';
+import { cableSizeText } from '../calc/electrical';
 import { circuitCategory } from '../calc/loadSchedule';
-import { LV_PALETTE } from '../model/cadDevices';
+import { cableLabel, LV_PALETTE } from '../model/cadDevices';
+import { planOfLevel } from '../model/cadPlans';
+import { sketchOf, trayLabel, trayLength, trayLine } from '../model/cadSketch';
+import { fittingCounts, trayFittings } from '../model/cadTrayFittings';
+import { planScale as unitsOf } from '../model/cadUnits';
 import { arcPoints, levelWiring } from '../model/cadWiring';
 import { PLAN_PREFIX, renumber, startStatus, type DrawingSet, type DrawingSheet, type PlanType, type SheetSize } from '../model/drawingSet';
 import { templateOf, templateSize } from '../model/titleBlock';
 import { elvPlanSymbols } from '../components/elv/elvPlanSymbols';
-import type { Project } from '../types';
+import type { Project, SketchItem } from '../types';
 import { escapeHtmlText as esc } from '../util/escape';
+import { txt } from '../util/format';
 import { furnitureScale, SHEET_MM } from './sldSheet';
 
-/** Design CAD → Sheets → Plans: a level's lighting, power or ELV layout as a drawing sheet at a true scale (1:100 unless
- * the sheet's scale says 1:50 or 1:200), made from the design, so a design change shows on the sheet.
+/** Design CAD → Sheets → Plans: a level's lighting, power, ELV or containment layout as a drawing sheet at a true scale
+ * (1:100 unless the sheet's scale says 1:50 or 1:200), made from the design, so a design change shows on the sheet.
  * - The architect's plan (the level's room outlines and names) prints in grey, the design in black: devices, DBs, and
  *   on the lighting and power layouts each wired circuit's wiring, home run and tag (Design CAD → Plan → Wiring).
  *   Lighting circuits go on the lighting layout, every other circuit on the power layout.
+ * - The containment layout draws the tray runs and cable routes drawn on the level's plan file, with the level's DBs: a
+ *   tray is a heavy single line broken for its label ("CT 300 POWER · A", as on the plan), a route dashed and tagged
+ *   with its cable and size. The legend counts the tray lengths and fittings on the sheet.
  * - Paper: the smallest of A3, A2, A1 that holds the level at the scale. A level too big for A1 is split into parts
  *   over several sheets, each with a key plan (its part shaded) and match lines naming the sheet next to it.
  * - The drawing is in paper millimetres sized to the sheet's drawing area, so it prints at the scale. Title, scale
@@ -23,11 +32,12 @@ import { furnitureScale, SHEET_MM } from './sldSheet';
 type Pt = [number, number];
 interface Box { x0: number; y0: number; x1: number; y1: number }
 
-export const PLAN_LABEL: Record<PlanType, string> = { lighting: 'Lighting layout', power: 'Power layout', elv: 'ELV layout' };
+export const PLAN_LABEL: Record<PlanType, string> = { lighting: 'Lighting layout', power: 'Power layout', elv: 'ELV layout', containment: 'Containment layout' };
 export const PLAN_TYPES = Object.keys(PLAN_PREFIX) as PlanType[];
 const SIZES: SheetSize[] = ['A3', 'A2', 'A1'];
 const MARGIN = 4, STRIP = 14; // mm: around the plan, and the strip under it (title, scale bar, north arrow)
 const R = 1.8; // symbol radius on paper (mm)
+const TAG = 2.5; // tray and cable text on paper (mm)
 const GREY = '#8c8c8c';
 
 /** "1:50" → 50; blank → 100. */
@@ -42,8 +52,16 @@ export function drawingAreaMm(p: Project, size: SheetSize): { w: number; h: numb
   return { w: w - 36 - 92 * k, h: h - 23 - 44 * k };
 }
 
+/** Where the sheet's notes box starts across the drawing area (mm): it lies over the area's bottom right, as wide as the
+ * title block under it. */
+function notesLeftMm(p: Project, size: SheetSize): number {
+  const custom = templateOf(p);
+  return SHEET_MM[size].w - 33 - (custom ? templateSize(custom).w : 180) * furnitureScale(size, custom ? templateSize(custom) : undefined);
+}
+
 interface Mark { x: number; y: number; key: string; label: string; svg: (x: number, y: number, r: number) => string }
-interface Content { marks: Mark[]; boards: { x: number; y: number; id: string }[]; wiring: Pt[][]; homes: Pt[][]; tags: { at: Pt; text: string }[] }
+/** `trays` and `cables` are the drawn runs in metres; a cable's `text` is its tag. */
+interface Content { marks: Mark[]; boards: { x: number; y: number; id: string }[]; wiring: Pt[][]; homes: Pt[][]; tags: { at: Pt; text: string }[]; trays: SketchItem[]; cables: SketchItem[] }
 
 const ink = (body: string) => `<g fill="#fff" stroke="#000" stroke-width="0.25">${body}</g>`;
 /** An LV point's plan symbol (the CAD palette's shapes): a light is a circle with a cross, a socket a box … */
@@ -57,11 +75,29 @@ function lvSymbol(shape: string, text: string, x: number, y: number, r: number):
 const boardSymbol = (x: number, y: number) => `<g stroke="#000" stroke-width="0.25"><rect x="${x - 2.5}" y="${y - 1.25}" width="5" height="2.5" fill="#fff"/><path d="M${x - 2.5} ${y + 1.25}L${x + 2.5} ${y - 1.25}L${x + 2.5} ${y + 1.25}Z" fill="#000"/></g>`;
 
 const onLevel = (d: { buildingId: string; levelId: string }, b: string, l: string) => d.buildingId === b && d.levelId === l;
+const boardsOn = (p: Project, b: string, l: string) => p.boards.flatMap((bd) => (bd.planPoint && bd.level?.building === b && bd.level?.level === l ? [{ x: bd.planPoint.x, y: bd.planPoint.y, id: bd.id }] : []));
+
+/** The tray runs and cable routes drawn on the level's plan file, in metres, and the level's DBs when there are any. A
+ * route of a circuit no longer in the design is left off (the plan still shows it, as removed). */
+function addContainment(p: Project, out: Content, b: string, l: string) {
+  const plan = planOfLevel(p, { building: b, level: l });
+  if (!plan) return;
+  const k = unitsOf(p, plan.file, plan.units).factor;
+  for (const it of sketchOf(p, plan.file)) {
+    if (it.pts.length < 2) continue;
+    const pts = it.pts.map(([x, y]): Pt => [x * k, y * k]);
+    if (it.tray) out.trays.push({ ...it, pts });
+    const f = it.cable && p.feeders.find((x) => x.id === it.cable!.feederId);
+    if (f) out.cables.push({ ...it, pts, text: `${cableLabel(p, f).split(' · ')[0]} · ${cableSizeText(f)}` });
+  }
+  if (out.trays.length || out.cables.length) out.boards = boardsOn(p, b, l);
+}
 
 /** What the layout shows of a level, in metres on the level's plan. */
 function contentOf(p: Project, type: PlanType, b: string, l: string): Content {
-  const out: Content = { marks: [], boards: [], wiring: [], homes: [], tags: [] };
+  const out: Content = { marks: [], boards: [], wiring: [], homes: [], tags: [], trays: [], cables: [] };
   if (type === 'elv') { out.marks = elvPlanSymbols(p, b, l); return out; }
+  if (type === 'containment') { addContainment(p, out, b, l); return out; }
   const wanted = (feederId: string) => { const f = p.feeders.find((x) => x.id === feederId); return !!f && (circuitCategory(f) === 'lighting') === (type === 'lighting'); };
   for (const d of p.lvPoints ?? []) {
     if (!onLevel(d, b, l) || !wanted(d.feederId)) continue;
@@ -71,7 +107,7 @@ function contentOf(p: Project, type: PlanType, b: string, l: string): Content {
   }
   // The DBs feeding this layout's circuits, and any DB with nothing of either layout yet.
   const used = new Set(p.feeders.filter((f) => (p.lvPoints ?? []).some((d) => d.feederId === f.id && onLevel(d, b, l)) && wanted(f.id)).map((f) => f.boardId));
-  for (const bd of p.boards) if (bd.planPoint && bd.level?.building === b && bd.level?.level === l && (used.has(bd.id) || type === 'power')) out.boards.push({ x: bd.planPoint.x, y: bd.planPoint.y, id: bd.id });
+  out.boards = boardsOn(p, b, l).filter((d) => used.has(d.id) || type === 'power');
   for (const w of levelWiring(p, { building: b, level: l })) {
     if (!wanted(w.feederId)) continue;
     for (const a of w.arcs) out.wiring.push(arcPoints(a));
@@ -81,7 +117,7 @@ function contentOf(p: Project, type: PlanType, b: string, l: string): Content {
   return out;
 }
 
-const hasContent = (c: Content) => c.marks.length > 0 || c.boards.length > 0;
+const hasContent = (c: Content) => c.marks.length > 0 || c.boards.length > 0 || c.trays.length > 0 || c.cables.length > 0;
 
 /** The levels with something on the layout, in building order, with their names and the floors a typical level
  * stands for. */
@@ -103,7 +139,7 @@ export function planLevels(p: Project, type: PlanType): { buildingId: string; le
 /** The level's extent (metres): its rooms and what the layout shows, with a metre round it. */
 function extentOf(p: Project, c: Content, b: string, l: string): { box: Box; rooms: { name: string; outline: Pt[] }[] } {
   const rooms = buildingInfoOf(p).rooms.filter((r) => r.buildingId === b && r.levelId === l && r.outline && r.outline.length >= 3).map((r) => ({ name: r.name, outline: r.outline as Pt[] }));
-  const pts: Pt[] = [...rooms.flatMap((r) => r.outline), ...c.marks.map((m): Pt => [m.x, m.y]), ...c.boards.map((d): Pt => [d.x, d.y])];
+  const pts: Pt[] = [...rooms.flatMap((r) => r.outline), ...c.marks.map((m): Pt => [m.x, m.y]), ...c.boards.map((d): Pt => [d.x, d.y]), ...[...c.trays, ...c.cables].flatMap((r) => r.pts)];
   if (!pts.length) pts.push([0, 0]);
   const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
   return { rooms, box: { x0: Math.min(...xs) - 1, y0: Math.min(...ys) - 1, x1: Math.max(...xs) + 1, y1: Math.max(...ys) + 1 } };
@@ -152,6 +188,36 @@ function clip(a: Pt, b: Pt, w: Box): [Pt, Pt] | undefined {
 const within = ([x, y]: Pt, w: Box) => x >= w.x0 - 1e-9 && x <= w.x1 + 1e-9 && y >= w.y0 - 1e-9 && y <= w.y1 + 1e-9;
 const n = (v: number) => +v.toFixed(2);
 
+/** The pieces of a drawn run showing in the window, each with its length and whether it takes a label `width` long: a
+ * run split over sheets is labelled on each, unless too little of it shows there for the label to fit. */
+function shownPieces(it: SketchItem, win: Box, width: number): { run: SketchItem; m: number; labelled: boolean }[] {
+  const paths: Pt[][] = [];
+  for (let i = 0; i + 1 < it.pts.length; i++) {
+    const k = clip(it.pts[i], it.pts[i + 1], win);
+    if (!k) continue;
+    const last = paths[paths.length - 1], end = last?.[last.length - 1];
+    if (end && Math.hypot(end[0] - k[0][0], end[1] - k[0][1]) < 1e-9) last.push(k[1]); else paths.push([k[0], k[1]]);
+  }
+  const whole = paths.length === 1 && within(it.pts[0], win) && within(it.pts[it.pts.length - 1], win);
+  return paths.map((pts) => { const run = { ...it, pts }, m = trayLength(run); return { run, m, labelled: whole || m >= width }; });
+}
+
+/** A route's segments without what lies under the tray labels (each box `w` long along `rot` and `h` high, in metres): a
+ * route on a tray would otherwise strike through the tray's label. */
+function clearOf(pts: Pt[], labels: { at: Pt; rot: number; w: number }[], h: number): [Pt, Pt][] {
+  let segs = pts.slice(1).map((q, i): [Pt, Pt] => [pts[i], q]);
+  for (const { at, rot, w } of labels) {
+    const cos = Math.cos(rot), sin = Math.sin(rot), box = { x0: -w / 2, x1: w / 2, y0: -h / 2, y1: h / 2 };
+    const local = ([x, y]: Pt): Pt => [(x - at[0]) * cos + (y - at[1]) * sin, (y - at[1]) * cos - (x - at[0]) * sin];
+    const plan = ([x, y]: Pt): Pt => [at[0] + x * cos - y * sin, at[1] + x * sin + y * cos];
+    segs = segs.flatMap(([a, b]): [Pt, Pt][] => {
+      const k = clip(local(a), local(b), box);
+      return k ? ([[a, plan(k[0])], [plan(k[1]), b]] as [Pt, Pt][]).filter(([p, q]) => Math.hypot(q[0] - p[0], q[1] - p[1]) > 1e-6) : [[a, b]];
+    });
+  }
+  return segs;
+}
+
 export interface PlanDrawing { svg: string; size: SheetSize; legendSvg: string; parts: number }
 /** The sheet's plan as SVG in paper mm (the drawing area's size), with its legend; `numberOf(part)` names the sheet of
  * another part of the level for the match lines. Nothing when there is nothing to draw (or the part is gone). */
@@ -175,6 +241,39 @@ export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number
     const at: Pt = [r.outline.reduce((t, q) => t + q[0], 0) / r.outline.length, r.outline.reduce((t, q) => t + q[1], 0) / r.outline.length];
     if (within(at, win)) out.push(`<text x="${X(at[0])}" y="${n(Y(at[1]) + 3.5)}" font-size="2.6" text-anchor="middle" fill="${GREY}">${esc(r.name.toUpperCase())}</text>`);
   }
+  // The containment, black: trays heavy and broken for their labels, cable routes dashed with their tags beside the
+  // line. Tags of routes on one path stack outward rather than print over each other.
+  const h = TAG / f, taken: { x: number; y: number; w: number; a: number }[] = [], labels: string[] = [];
+  const along = (at: Pt, rot: number, off: number, text: string, stack = 0) => {
+    const a = -rot, cos = Math.cos(a), sin = Math.sin(a), w = 0.6 * TAG * text.length; // a: clockwise on paper, y being down
+    let x = X(at[0]) + off * sin, y = Y(at[1]) - off * cos;
+    const hit = (q: typeof taken[number]) => Math.abs(q.a - a) < 1e-6 && Math.abs((x - q.x) * cos + (y - q.y) * sin) < (w + q.w) / 2 && Math.abs((y - q.y) * cos - (x - q.x) * sin) < stack;
+    while (stack && taken.some(hit)) { x += stack * sin; y -= stack * cos; }
+    taken.push({ x, y, w, a });
+    labels.push(`<text x="${n(x)}" y="${n(y)}" transform="rotate(${n((a * 180) / Math.PI)} ${n(x)} ${n(y)})" font-size="${TAG}" text-anchor="middle" fill="#000">${esc(text)}</text>`);
+  };
+  const trayM = new Map<string, number>(), breaks: { at: Pt; rot: number; w: number }[] = [];
+  let trays = '', routes = '';
+  for (const it of c.trays) {
+    const text = trayLabel(it).text;
+    for (const { run, m, labelled } of shownPieces(it, win, 0.6 * h * text.length)) {
+      trayM.set(text, (trayM.get(text) ?? 0) + m);
+      trays += (labelled ? trayLine(run, h).pieces : [run.pts]).map((q) => path(q)).join('');
+      if (!labelled) continue;
+      const l = trayLabel(run);
+      along(l.at, l.rot, -0.35 * TAG, text); // centred in the break: the baseline below the line
+      breaks.push({ at: l.at, rot: l.rot, w: 0.6 * h * text.length + h });
+    }
+  }
+  for (const it of c.cables) {
+    for (const { run, labelled } of shownPieces(it, win, 0.6 * h * it.text!.length)) {
+      routes += clearOf(run.pts, breaks, h).map(([a, b]) => seg(a, b)).join('');
+      if (labelled) { const l = trayLabel(run); along(l.at, l.rot, 1.4, it.text!, 3); }
+    }
+  }
+  if (trays) out.push(`<path d="${trays}" fill="none" stroke="#000" stroke-width="0.5"/>`);
+  if (routes) out.push(`<path class="ln" d="${routes}" fill="none" stroke="#000" stroke-width="0.25" stroke-dasharray="2 1"/>`);
+  out.push(...labels);
   // The design, black: wiring and home runs (arrow at the DB), then DBs and devices on top.
   const wires = c.wiring.map((w) => path(w)).join('');
   if (wires) out.push(`<path class="ln" d="${wires}" fill="none" stroke="#000" stroke-width="0.25"/>`);
@@ -213,29 +312,34 @@ export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number
       ? `<text x="${mx}" y="${my}" transform="rotate(-90 ${mx} ${my})" dy="${x1 < area.w / 2 ? 4 : -1.5}" font-size="2.8" font-weight="700" text-anchor="middle" fill="#000">${text}</text>`
       : `<text x="${mx}" y="${n(my + (y1 < area.h / 2 ? 4 : -1.5))}" font-size="2.8" font-weight="700" text-anchor="middle" fill="#000">${text}</text>`);
   }
-  // Under the plan: title and scale, scale bar (5 segments, 50 mm long), north arrow (up the architect's plan).
+  // Under the plan: title and scale, scale bar (5 segments, 50 mm long), north arrow (up the architect's plan), both left
+  // of the notes box.
   const lv = planLevels(p, s.plan!).find((x) => x.buildingId === s.buildingId && x.levelId === s.levelId);
   const title = `${(lv?.name ?? s.levelId!).toUpperCase()} · ${PLAN_LABEL[s.plan!].toUpperCase()}${fit.parts > 1 ? ` · PART ${part + 1} OF ${fit.parts}` : ''}`;
   const by = area.h - MARGIN - STRIP + 6, barM = (50 * scale) / 1000;
   out.push(`<text x="${MARGIN}" y="${by}" font-size="4.2" font-weight="700" fill="#000">${esc(title)}</text>`,
     `<line x1="${MARGIN}" y1="${by + 1.2}" x2="${n(MARGIN + Math.min(area.w * 0.5, title.length * 2.6))}" y2="${by + 1.2}" stroke="#000" stroke-width="0.35"/>`,
     `<text x="${MARGIN}" y="${by + 6}" font-size="3" fill="#000">SCALE 1:${scale} AT ${fit.size}</text>`);
-  const sx = n(Math.max(MARGIN + 70, area.w * 0.5));
+  const nx = n(Math.min(area.w - MARGIN - 6, notesLeftMm(p, fit.size) - 6)), ny = n(by + 1);
+  const sx = n(Math.min(Math.max(MARGIN + 70, area.w * 0.5), nx - 56));
   for (let i = 0; i < 5; i++) out.push(`<rect x="${sx + i * 10}" y="${by + 2}" width="10" height="1.6" fill="${i % 2 ? '#fff' : '#000'}" stroke="#000" stroke-width="0.2"/>`);
   out.push(`<text x="${sx}" y="${by + 7}" font-size="2.5" text-anchor="middle" fill="#000">0</text>`, `<text x="${sx + 50}" y="${by + 7}" font-size="2.5" text-anchor="middle" fill="#000">${n(barM)} m</text>`);
-  const nx = n(area.w - MARGIN - 6), ny = n(by + 1);
   out.push(`<circle cx="${nx}" cy="${ny}" r="4.5" fill="none" stroke="#000" stroke-width="0.25"/>`, `<path d="M${nx} ${n(ny - 4)}L${n(nx + 2)} ${n(ny + 2.5)}L${nx} ${n(ny + 1.2)}L${n(nx - 2)} ${n(ny + 2.5)}Z" fill="#000" stroke="#000" stroke-width="0.2"/>`, `<text x="${nx}" y="${n(ny - 5.5)}" font-size="3" font-weight="700" text-anchor="middle" fill="#000">N</text>`);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n(area.w)} ${n(area.h)}" width="${n(area.w)}mm" height="${n(area.h)}mm" font-family="Arial, sans-serif">${out.join('')}</svg>`;
-  return { svg, size: fit.size, legendSvg: legendOf(s.plan!, [...counts.values()], c, win, box, rooms, fit, part), parts: fit.parts };
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n(area.w)} ${n(area.h)}" width="${n(area.w)}mm" height="${n(area.h)}mm" font-family="Arial, sans-serif"${s.plan === 'containment' ? ' data-abbr="CT=Cable tray"' : ''}>${out.join('')}</svg>`;
+  const fittings = fittingCounts(trayFittings(c.trays, 0.001).fittings.filter((x) => within(x.at, win)));
+  return { svg, size: fit.size, legendSvg: legendOf(s.plan!, [...counts.values()], c, win, box, rooms, fit, part, [...trayM], fittings), parts: fit.parts };
 }
 
-/** The legend column: the symbols on this sheet with their counts, the DB and wiring keys, and the key plan of a
- * level split over sheets. 88 mm wide, the column's width. */
-function legendOf(type: PlanType, used: { label: string; n: number; svg: Mark['svg'] }[], c: Content, win: Box, box: Box, rooms: { outline: Pt[] }[], fit: PlanFit, part: number): string {
+/** The legend column: the symbols on this sheet with their counts, the tray lengths and fittings on it, the DB, wiring
+ * and route keys, and the key plan of a level split over sheets. 88 mm wide, the column's width. */
+function legendOf(type: PlanType, used: { label: string; n: number; svg: Mark['svg'] }[], c: Content, win: Box, box: Box, rooms: { outline: Pt[] }[], fit: PlanFit, part: number, trayM: [string, number][], fittings: [string, number][]): string {
   const rows: string[] = [];
   let y = 10;
   const row = (sym: string, label: string, count = '') => { rows.push(sym, `<text x="11" y="${y + 1}" font-size="3">${esc(label)}</text>`, count ? `<text x="86" y="${y + 1}" font-size="3" text-anchor="end">${count}</text>` : ''); y += 6; };
   for (const u of used.sort((a, b) => a.label.localeCompare(b.label))) row(u.svg(4, y, R), u.label, String(u.n));
+  for (const [label, m] of trayM.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))) row(`<line x1="0.5" y1="${y}" x2="7.5" y2="${y}" stroke="#000" stroke-width="0.5"/>`, label, `${txt.fixed(m, 1)} m`);
+  for (const [label, k] of fittings) row('', label, String(k));
+  if (c.cables.length) row(`<line x1="0.5" y1="${y}" x2="7.5" y2="${y}" stroke="#000" stroke-width="0.25" stroke-dasharray="2 1"/>`, 'Cable route, with its cable and size');
   if (c.boards.some((d) => within([d.x, d.y], win))) row(boardSymbol(4, y), 'Distribution board');
   if (type !== 'elv' && c.wiring.length) row(`<line x1="0.5" y1="${y}" x2="7.5" y2="${y}" stroke="#000" stroke-width="0.25"/>`, 'Circuit wiring');
   if (type !== 'elv' && c.homes.length) row(`<line x1="0.5" y1="${y}" x2="7.5" y2="${y}" stroke="#000" stroke-width="0.35"/><path d="M7.5 ${y}L5.8 ${y - 0.7}L5.8 ${y + 0.7}Z" fill="#000"/>`, 'Home run to DB: circuit · cable · length');
@@ -261,7 +365,8 @@ export function planNotes(p: Project, s: DrawingSheet): string[] {
   return [
     ...(lv && lv.typical ? [`Typical floors ${lv.typical}: this level is drawn once and applies to each of those floors.`] : []),
     'Architect\'s plan shown grey for reference; the electrical design in black.',
-    ...(s.plan !== 'elv' ? ['Circuit tags: DB / circuit · cable · length (wiring, home run and a drop per device, with the allowance).'] : []),
+    ...(s.plan === 'lighting' || s.plan === 'power' ? ['Circuit tags: DB / circuit · cable · length (wiring, home run and a drop per device, with the allowance).'] : []),
+    ...(s.plan === 'containment' ? ['Cable trays as a single line: CT width in mm, service and tray route. Cable routes dashed, with the cable and its size.'] : []),
     'Design stage layout: positions are indicative, not for construction or shop drawings.'
   ];
 }
