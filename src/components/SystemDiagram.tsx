@@ -103,6 +103,13 @@ export function openingView(w: number, h: number, boxW: number, boxH: number, cx
   return { x: Math.min(Math.max(cx - vw / 2, 0), Math.max(w - vw, 0)), y: 0, w: vw, h: vh };
 }
 
+/**
+ * How the design canvas draws. On screen: what is in view, detail by zoom, and no symbol legend (the design canvas
+ * is not published; the legend is on the drawing sheets). The Export dialog copies the live drawing, so while it is
+ * open the canvas draws everything, as a drawing.
+ */
+export const canvasDrawing = (exporting: boolean) => ({ cull: !exporting, lod: !exporting, hideLegend: !exporting });
+
 /** DEWA wording of poles and device. */
 const dewaPoles = devicePoles;
 const dewaDevice = deviceKind;
