@@ -34,19 +34,19 @@ describe('CAD engine (Rust, WebAssembly)', () => {
     expect(gf.info.texts.some((t) => t.s === 'MAJLIS' && t.h === 300)).toBe(true);
   });
 
-  it('snaps to endpoints, midpoints, centres and intersections, on shown layers only', () => {
+  it('snaps to endpoints, midpoints, centres and intersections, on shown layers only', async () => {
     const on = new Uint8Array(gf.info.layers.length).fill(1);
-    expect(Array.from(gf.snap(110, 90, 50, SNAP.endpoint, on))).toEqual([100, 100, SNAP.endpoint]);
+    expect(Array.from(await gf.snap(110, 90, 50, SNAP.endpoint, on))).toEqual([100, 100, SNAP.endpoint]);
     // The inside face of the front wall runs 0–6200 mm (the entrance is at 6200): its midpoint is at 3100.
-    expect(Array.from(gf.snap(3120, 120, 60, SNAP.midpoint, on))).toEqual([3100, 100, SNAP.midpoint]);
+    expect(Array.from(await gf.snap(3120, 120, 60, SNAP.midpoint, on))).toEqual([3100, 100, SNAP.midpoint]);
     // The first living room light (a block) has its circle's centre at 6687.5, 7375.
-    expect(Array.from(gf.snap(6700, 7390, 100, SNAP.center, on))).toEqual([6687.5, 7375, SNAP.center]);
-    const x = gf.snap(5000 - 50, 4450, 30, SNAP.intersection, on);
+    expect(Array.from(await gf.snap(6700, 7390, 100, SNAP.center, on))).toEqual([6687.5, 7375, SNAP.center]);
+    const x = await gf.snap(5000 - 50, 4450, 30, SNAP.intersection, on);
     expect(x[2]).toBe(SNAP.intersection);
     const off = on.slice();
     off[gf.info.layers.findIndex((l) => l.name === 'A-WALL')] = 0;
-    expect(Array.from(gf.snap(-10, -90, 50, SNAP.endpoint, on))).toEqual([0, -100, SNAP.endpoint]);
-    expect(Array.from(gf.snap(-10, -90, 50, SNAP.endpoint, off))).toEqual([]); // the outside face of the wall: only on A-WALL
+    expect(Array.from(await gf.snap(-10, -90, 50, SNAP.endpoint, on))).toEqual([0, -100, SNAP.endpoint]);
+    expect(Array.from(await gf.snap(-10, -90, 50, SNAP.endpoint, off))).toEqual([]); // the outside face of the wall: only on A-WALL
   });
 
   it('opens a DWG and refuses a broken file with a clear message', async () => {

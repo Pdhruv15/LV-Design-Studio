@@ -463,15 +463,13 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
   }
 
   const toWorld = (sx: number, sy: number, v = tRef.current): Pt => [o0 + v.ox + sx / v.scale, o1 + v.oy + (size.h - sy) / v.scale];
-  function track(sx: number, sy: number) {
-    const raw = toWorld(sx, sy);
-    const v = tRef.current;
+  /** Where the cursor lands at a drawing point, given the engine's snap point there (`s`: [x, y, kind], or none). */
+  const landing = (raw: Pt, v: ViewT, s: ArrayLike<number> | null): { at: Pt; snap?: { p: Pt; kind: number } } => {
     let at = raw;
     let snap: { p: Pt; kind: number } | undefined;
     if (toggles.osnap) {
       const r = 10 / v.scale;
-      const s = view.snap(raw[0], raw[1], r, OSNAP_ALL, layersOn);
-      if (s.length === 3) snap = { p: [s[0], s[1]], kind: s[2] };
+      if (s?.length === 3) snap = { p: [s[0], s[1]], kind: s[2] };
       // Points on what was drawn in the app snap too; the nearer one wins.
       for (const e of extraSnaps) {
         const d = Math.hypot(e.x - raw[0], e.y - raw[1]);
@@ -483,9 +481,47 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     // ORTHO: straight from the last picked point (a snap point wins, as in CAD).
     const mk = marksRef.current;
     if (!snap && toggles.ortho && mk?.live && mk.points.length) at = orthoFrom(mk.points[mk.points.length - 1], at);
-    lastAt.current = { at, snap };
-    drawCursor(at, snap);
-    onCursor(at, snap ? SNAP_NAMES[snap.kind] : undefined);
+    return { at, snap };
+  };
+  const show = (l: { at: Pt; snap?: { p: Pt; kind: number } }) => {
+    lastAt.current = l;
+    drawCursor(l.at, l.snap);
+    onCursor(l.at, l.snap ? SNAP_NAMES[l.snap.kind] : undefined);
+  };
+  // The engine answers in its own worker, one question at a time. Moves made meanwhile keep only the newest question,
+  // and the cursor follows them with the last answer, while that point is still within reach.
+  const asking = useRef<{ busy: boolean; next: (() => void) | null; last: ArrayLike<number> | null }>({ busy: false, next: null, last: null });
+  useEffect(() => { asking.current = { busy: false, next: null, last: null }; }, [view, layersOn]);
+  function track(sx: number, sy: number) {
+    const raw = toWorld(sx, sy);
+    const v = tRef.current;
+    if (!toggles.osnap) { show(landing(raw, v, null)); return; }
+    const r = 10 / v.scale, q = asking.current;
+    const ask = () => {
+      q.busy = true;
+      q.next = null;
+      void view.snap(raw[0], raw[1], r, OSNAP_ALL, layersOn).then((s) => {
+        if (asking.current !== q) return; // another drawing, or other layers, by now
+        q.busy = false;
+        q.last = s;
+        if (q.next) q.next();
+        else if (mouse.current) show(landing(raw, v, s));
+      });
+    };
+    if (!q.busy) { ask(); return; }
+    q.next = ask;
+    const l = q.last;
+    show(landing(raw, v, l?.length === 3 && Math.hypot(l[0] - raw[0], l[1] - raw[1]) <= r ? l : null));
+  }
+  // A click waits for the engine's answer for where it was made, and reaches the page as the page is by then.
+  const onClickNow = useRef(onClick);
+  onClickNow.current = onClick;
+  function clickAt(sx: number, sy: number) {
+    const raw = toWorld(sx, sy);
+    const v = tRef.current;
+    const done = (s: ArrayLike<number> | null) => onClickNow.current?.(landing(raw, v, s).at, 1 / v.scale);
+    if (toggles.osnap) void view.snap(raw[0], raw[1], 10 / v.scale, OSNAP_ALL, layersOn).then(done);
+    else done(null);
   }
   // After zoom / pan: the cursor's drawing point moves, so it is tracked again. When only the marks change (a pick, the
   // cursor moving in a tool), they are redrawn without reporting the cursor back (that would loop).
@@ -556,7 +592,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
         onMouseUp={(e) => {
           const wasDrag = !!drag.current;
           drag.current = null;
-          if (!wasDrag && e.button === 0 && !space.current && lastAt.current) onClick?.(lastAt.current.at, 1 / tRef.current.scale);
+          if (!wasDrag && e.button === 0 && !space.current) { const [x, y] = mouse.current ?? local(e); clickAt(x, y); }
         }}
         onDoubleClick={(e) => { if (e.button === 1) e.preventDefault(); }}
         onAuxClick={(e) => { if (isFitClick(e)) setT(fitT()); }}

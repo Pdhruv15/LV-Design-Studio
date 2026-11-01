@@ -1,12 +1,13 @@
-import { CadDoc, exportDwg, exportDxf, initSync } from '../../../electron/cad/lvds_cad_reader.js';
 import type { CadBlock } from '../../model/cadLoads';
+import type { EngineAnswer, EngineOps } from './cadOps';
 import wasmUrl from '../../../electron/cad/lvds_cad_reader_bg.wasm?url';
 import sampleGf from '../../../electron/samples/sample-villa-gf.dxf?url';
 import sampleFf from '../../../electron/samples/sample-villa-ff.dxf?url';
 
-/** The CAD view's engine: the Rust document (engines/cad-reader/src/doc.rs, WebAssembly) run in the app window, in the
- * desktop app and the web version alike. It opens DWG / DXF and gives the drawing flattened for display (segments with
- * layer and colour, texts) and snapping. Files come from the desktop app's dialog, or the browser's file picker. */
+/** The CAD view's engine: the Rust document (engines/cad-reader/src/doc.rs, WebAssembly) run in a worker of its own, in
+ * the desktop app and the web version alike, or in the page if a worker cannot start. It opens DWG / DXF and gives the
+ * drawing flattened for display (segments with layer and colour, texts) and snapping. Files come from the desktop app's
+ * dialog, or the browser's file picker. */
 
 export interface CadLayer { name: string; rgb: number; on: boolean; count: number }
 export interface CadText { x: number; y: number; h: number; rot: number; s: string; layer: number; rgb: number; align: number }
@@ -63,15 +64,20 @@ export interface CadView {
   segColors: Uint32Array;
   /** The dash pattern of each segment: an index into info.linetypes (0 continuous). */
   segLinetypes: Uint16Array;
-  /** Nearest snap point within `r` of (x, y) (drawing units, absolute): [x, y, kind] or empty. */
-  snap: (x: number, y: number, r: number, mask: number, layersOn: Uint8Array) => Float64Array;
+  /** Where the engine runs: its own worker, or the page if a worker could not start. */
+  engine: 'worker' | 'page';
+  /** Nearest snap point within `r` of (x, y) (drawing units, absolute): [x, y, kind] or empty. Answered in the order
+   * asked, and empty once the drawing is closed. */
+  snap: (x: number, y: number, r: number, mask: number, layersOn: Uint8Array) => Promise<Float64Array>;
   /** The object under (x, y) within `tol` (drawing units, absolute) on shown layers; null when none. `closedOnly`:
    * only objects with an area (as for AREA → Object). */
-  pick: (x: number, y: number, tol: number, layersOn: Uint8Array, closedOnly?: boolean) => CadObject | null;
+  pick: (x: number, y: number, tol: number, layersOn: Uint8Array, closedOnly?: boolean) => Promise<CadObject | null>;
   /** Closed objects of model space (polylines, circles, hatches…), for rooms from outline layers. */
   outlines: () => CadObject[];
   /** Blocks inserted in model space with their attributes (fixtures with a CCT attribute: Loads from CAD). */
   blocks: () => (CadBlock & { layer: string; handle: string })[];
+  /** Ends the drawing's engine and gives back its memory. What was read stays usable; `snap` and `pick` find nothing. */
+  close: () => void;
 }
 
 /** Snap kinds, as the engine numbers them. */
@@ -83,37 +89,115 @@ export const INK = 0xff000007;
 const MAX_BYTES = 100 * 1024 * 1024;
 const SAMPLES: Record<string, string> = { 'sample-villa-gf.dxf': sampleGf, 'sample-villa-ff.dxf': sampleFf };
 
-let ready: Promise<void> | null = null;
-function engine(): Promise<void> {
-  ready ??= (async () => {
-    const desktop = window.lvds?.cadFile?.engine;
-    const bytes = desktop ? await desktop() : new Uint8Array(await (await fetch(wasmUrl)).arrayBuffer());
-    initSync({ module: bytes });
-  })().catch((e) => { ready = null; throw e; });
-  return ready;
+/** How long a new worker may take to say it is ready before the engine runs in the page instead. */
+const WORKER_START_MS = 15_000;
+
+interface Engine {
+  kind: CadView['engine'];
+  call: <K extends keyof EngineOps>(op: K, ...args: Parameters<EngineOps[K]>) => Promise<ReturnType<EngineOps[K]>>;
+  end: () => void;
 }
+
+async function engineBytes(): Promise<Uint8Array> {
+  const desktop = window.lvds?.cadFile?.engine;
+  return desktop ? desktop() : new Uint8Array(await (await fetch(wasmUrl)).arrayBuffer());
+}
+
+async function engineInPage(wasm: Uint8Array): Promise<Engine> {
+  const ops = (await import('./cadOps')).engineOps();
+  ops.init(wasm);
+  return { kind: 'page', call: async (op, ...args) => (ops[op] as (...a: unknown[]) => never)(...args), end: ops.free };
+}
+
+/** The engine in a worker of its own, or null if one cannot start here. Calls are answered in the order made. */
+async function engineInWorker(wasm: Uint8Array): Promise<Engine | null> {
+  if (typeof Worker === 'undefined') return null;
+  let worker: Worker;
+  try {
+    worker = new (await import('./cadWorker?worker&inline')).default();
+  } catch { return null; }
+  const waiting = new Map<number, { resolve: (v: never) => void; reject: (e: Error) => void }>();
+  let next = 1, stopped: string | null = null;
+  const stop = (why: string) => {
+    stopped ??= why;
+    for (const w of waiting.values()) w.reject(new Error(why));
+    waiting.clear();
+  };
+  worker.onmessage = ({ data }: MessageEvent<EngineAnswer>) => {
+    const w = waiting.get(data.id);
+    waiting.delete(data.id);
+    if ('error' in data) w?.reject(new Error(data.error)); else w?.resolve(data.value as never);
+  };
+  worker.onerror = (e) => stop(e.message || 'The CAD engine stopped.');
+  worker.onmessageerror = () => stop('The CAD engine stopped.');
+  const engine: Engine = {
+    kind: 'worker',
+    call: (op, ...args) => new Promise((resolve, reject) => {
+      if (stopped) { reject(new Error(stopped)); return; }
+      const id = next;
+      next += 1;
+      waiting.set(id, { resolve, reject });
+      worker.postMessage({ id, op, args });
+    }),
+    end: () => { worker.terminate(); stop('The drawing was closed.'); }
+  };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([engine.call('init', wasm), new Promise((_, no) => { timer = setTimeout(() => no(new Error('The CAD engine did not start.')), WORKER_START_MS); })]);
+    return engine;
+  } catch {
+    engine.end();
+    return null;
+  } finally { clearTimeout(timer); }
+}
+
+async function startEngine(): Promise<Engine> {
+  const wasm = await engineBytes();
+  return (await engineInWorker(wasm)) ?? engineInPage(wasm);
+}
+
+/** An engine for saving, shared while saves overlap (a set of sheets) and ended after the last, so its memory comes back. */
+let saving: { engine: Promise<Engine>; uses: number } | null = null;
+async function withSavingEngine<T>(run: (e: Engine) => Promise<T>): Promise<T> {
+  const s = (saving ??= { engine: startEngine(), uses: 0 });
+  s.uses += 1;
+  try {
+    return await run(await s.engine);
+  } finally {
+    s.uses -= 1;
+    if (!s.uses) {
+      if (saving === s) saving = null;
+      void s.engine.then((e) => e.end(), () => {});
+    }
+  }
+}
+
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const NO_SNAP = new Float64Array();
 
 /** Opens a drawing from its bytes. */
 export async function openDrawing(file: string, bytes: Uint8Array, path?: string): Promise<CadView> {
   if (!/\.(dwg|dxf)$/i.test(file)) throw new Error(`${file} is not a DWG or DXF file.`);
   if (!bytes.length) throw new Error(`${file} is empty.`);
   if (bytes.length > MAX_BYTES) throw new Error(`${file} is larger than ${MAX_BYTES / 1024 / 1024} MB.`);
-  await engine();
-  let doc: CadDoc;
+  const engine = await startEngine();
+  let doc: ReturnType<EngineOps['open']>;
   try {
-    doc = new CadDoc(bytes);
+    doc = await engine.call('open', bytes);
   } catch (e) {
-    throw new Error(`${file} could not be read (${e instanceof Error ? e.message : String(e)}).`);
+    engine.end();
+    throw new Error(`${file} could not be read (${message(e)}).`);
   }
-  const info = JSON.parse(doc.info()) as CadInfo;
+  const info = JSON.parse(doc.info) as CadInfo;
   let outlines: CadObject[] | undefined;
   return {
-    file, path, info, bytes,
-    segs: doc.segments(), segLayers: doc.segment_layers(), segColors: doc.segment_colors(), segLinetypes: doc.segment_linetypes(),
-    snap: (x, y, r, mask, layersOn) => doc.snap(x, y, r, mask, layersOn),
-    pick: (x, y, tol, layersOn, closedOnly = false) => { const j = doc.pick(x, y, tol, layersOn, closedOnly); return j ? (JSON.parse(j) as CadObject) : null; },
-    outlines: () => (outlines ??= JSON.parse(doc.outlines()) as CadObject[]),
-    blocks: () => JSON.parse(doc.blocks()) as (CadBlock & { layer: string; handle: string })[]
+    file, path, info, bytes, engine: engine.kind,
+    segs: doc.segs, segLayers: doc.segLayers, segColors: doc.segColors, segLinetypes: doc.segLinetypes,
+    snap: (x, y, r, mask, layersOn) => engine.call('snap', x, y, r, mask, layersOn).catch(() => NO_SNAP),
+    pick: (x, y, tol, layersOn, closedOnly = false) => engine.call('pick', x, y, tol, layersOn, closedOnly).then((j) => (j ? (JSON.parse(j) as CadObject) : null), () => null),
+    outlines: () => (outlines ??= JSON.parse(doc.outlines) as CadObject[]),
+    blocks: () => JSON.parse(doc.blocks) as (CadBlock & { layer: string; handle: string })[],
+    close: () => engine.end()
   };
 }
 
@@ -166,22 +250,24 @@ export interface DeviceOut { layer: string; x: number; y: number; r: number; tex
 /** The drawing saved as DXF with the devices and what was drawn in the app added on their own layers (the architect's
  * entities kept as read). */
 export async function drawingWithDevices(view: CadView, devices: DeviceOut[], shapes: unknown[] = [], as: 'dxf' | 'dwg' = 'dxf'): Promise<Uint8Array> {
-  await engine();
-  try {
-    // DWG: in the version the drawing came in, else AutoCAD 2018 (engines/cad-reader/src/doc.rs dwg_bytes).
-    return (as === 'dwg' ? exportDwg : exportDxf)(view.bytes, JSON.stringify(devices), JSON.stringify(shapes));
-  } catch (e) {
-    throw new Error(`The drawing could not be saved (${e instanceof Error ? e.message : String(e)}).`);
-  }
+  return withSavingEngine(async (engine) => {
+    try {
+      // DWG: in the version the drawing came in, else AutoCAD 2018 (engines/cad-reader/src/doc.rs dwg_bytes).
+      return await engine.call('save', as, view.bytes, JSON.stringify(devices), JSON.stringify(shapes));
+    } catch (e) {
+      throw new Error(`The drawing could not be saved (${message(e)}).`);
+    }
+  });
 }
 
 /** A DXF the app made (an SLD sheet) saved as DWG by the same engine: AutoCAD 2018, as it writes a drawing older than
  * 2000. Layers, title block and texts are kept as in the DXF. */
 export async function dxfToDwg(dxf: string): Promise<Uint8Array> {
-  await engine();
-  try {
-    return exportDwg(new TextEncoder().encode(dxf), '[]', '[]');
-  } catch (e) {
-    throw new Error(`The DWG could not be made (${e instanceof Error ? e.message : String(e)}).`);
-  }
+  return withSavingEngine(async (engine) => {
+    try {
+      return await engine.call('save', 'dwg', new TextEncoder().encode(dxf), '[]', '[]');
+    } catch (e) {
+      throw new Error(`The DWG could not be made (${message(e)}).`);
+    }
+  });
 }

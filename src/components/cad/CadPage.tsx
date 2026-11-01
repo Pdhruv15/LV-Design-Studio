@@ -285,7 +285,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     } else cad.say('COPY  A board is one item; place another board with Add device.');
   }
 
-  function click(at: Pt, pixel: number) {
+  async function click(at: Pt, pixel: number) {
     if (!view) return;
     const last = points[points.length - 1];
     if (tool === 'move' || tool === 'copy' || tool === 'rotate') {
@@ -319,7 +319,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     if (tool === 'link') {
       const feeder = project.feeders.find((f) => f.id === cad.cableFeeder);
       if (!feeder) { cad.say('LINK  Choose the cable first (the panel on the right).'); return; }
-      const o = view.pick(at[0], at[1], 6 * pixel, cad.layersOn);
+      const o = await view.pick(at[0], at[1], 6 * pixel, cad.layersOn);
       const pts = o ? objectPath(view, o) : [];
       if (pts.length < 2) { cad.say('LINK  That is not a line or polyline. Click a line of the drawing:'); return; }
       draw({ kind: 'pline', layer: CABLE_LAYER, pts, cable: { feederId: feeder.id } }, `Cable route of ${cableLabel(project, feeder)}: ${m(toM(pathLength(pts)))} (linked from ${view.info.layers[o!.layer]?.name ?? 'the drawing'})`);
@@ -359,7 +359,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       cad.setSelected(null);
       const sk = itemAt(sketch, at, 6 * pixel);
       if (sk) { cad.setSelected(`sk:${sk.id}`); setResult({ kind: 'sketch', it: sk }); cad.say(`LIST  ${sk.tray ? `Cable tray ${sk.tray.widthMm} mm, ${m(toM(trayLength(sk)))}${sk.tray.route ? ` on route ${sk.tray.route}` : ', no route'}` : sk.cable ? `Cable route of ${cableLabels[sk.id] ?? sk.cable.feederId}, ${m(toM(pathLength(sk.pts)))}` : sk.kind === 'pline' ? 'Polyline' : sk.kind} on ${sk.layer} (drawn here)`); return; }
-      const o = view.pick(at[0], at[1], 6 * pixel, cad.layersOn);
+      const o = await view.pick(at[0], at[1], 6 * pixel, cad.layersOn);
       setResult(o ? { kind: 'object', o } : null);
       if (o) cad.say(`LIST  ${o.kind}${o.block ? ` ${o.block}` : ''} on ${view.info.layers[o.layer]?.name ?? '?'}${o.length !== undefined && !o.closed ? `, length ${m(toM(o.length))}` : ''}${o.area !== undefined ? `, area ${m2(toM2(o.area))}` : ''}`);
     } else if (tool === 'dist') {
@@ -370,7 +370,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       setPoints([]);
     } else if (tool === 'area' || tool === 'trace') {
       if (objectMode && tool === 'area') {
-        const o = view.pick(at[0], at[1], 6 * pixel, cad.layersOn, true);
+        const o = await view.pick(at[0], at[1], 6 * pixel, cad.layersOn, true);
         if (!o || o.area === undefined) { cad.say('AREA  That is not a closed object (polyline, circle, hatch). Select a closed object:'); return; }
         const segs: Pt[] = [];
         for (let i = o.seg_start; i < o.seg_end; i += 1) segs.push([view.segs[i * 4] + view.info.origin[0], view.segs[i * 4 + 1] + view.info.origin[1]]);
@@ -403,7 +403,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       setResult({ kind: 'area', points: r.points, how: 'room', name: nameInside(r.points) });
       cad.say(`Room area = ${m2(toM2(r.area))}`);
     } else if (tool === 'name') {
-      const o = view.pick(at[0], at[1], 6 * pixel, cad.layersOn);
+      const o = await view.pick(at[0], at[1], 6 * pixel, cad.layersOn);
       const text = o?.text?.trim();
       if (!text) { cad.say('NAME  That is not a text. Click the room name on the drawing:'); return; }
       if (result?.kind === 'area' && result.how !== 'object') { setResult({ ...result, name: text }); cad.say(`NAME  ${text} — Add as room… to add it`); return; }

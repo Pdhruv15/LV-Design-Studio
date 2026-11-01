@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.019', date: '2026-11-01',
+    items: [
+      { title: 'Large drawings open without freezing the app', text: 'Design CAD now reads DWG and DXF files in the background, so the app stays usable while a large drawing opens. When you open another drawing, the memory the last one used is given back at once, without restarting the app.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.018', date: '2026-11-01',
     items: [
       { title: 'Quicker edits with many revisions', text: 'On a large project with many issued revisions, each edit no longer re-reads every revision copy to check for unsaved changes. Nothing else changes.' }
