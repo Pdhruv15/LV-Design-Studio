@@ -275,6 +275,14 @@ Before exporting:
 
 ## 8. Troubleshooting
 
+### A page says "This page hit an error"
+
+The rest of the app still works. Save your project, then select **Try again** or open another page. If it happens again, select **Copy details** and send the text with your report.
+
+### The app says "Something went wrong"
+
+The screen says whether your unsaved work was kept. Select **Reload**, then **Restore it** in the bar at the top if it is offered. What you drew in Design CAD is part of the project, so it is kept too; open the drawings again afterwards.
+
 ### A circuit shows 0 W
 
 Check its point quantities and the DB's **WATT / UNIT** row. Any used column with no watts-per-unit value contributes 0 W.

@@ -11,6 +11,7 @@ const { runJsonProcess } = require('./engineRunner.cjs');
 const safeFs = require('./safeFs.cjs');
 const { htmlToPdf, pdfSession, SHEETS } = require('./pdfRender.cjs');
 const cadFile = require('./cadFile.cjs');
+const errorLog = require('./errorLog.cjs');
 
 // `lvds` (the command line) exports drawings and PDFs through this app with --lvds-headless-export:
 // no window and none of the app's start-up, only the export (headlessExport.cjs).
@@ -58,6 +59,7 @@ function ensureProjectsFolder() {
 }
 
 let win;
+const logDir = path.join(app.getPath('userData'), 'logs');
 
 /** Every IPC handler goes through this: only the app's own page in its main window, top frame, may call. */
 const handle = trust.trustedHandler(ipcMain, () => win, isAppUrl, (channel, why) => console.warn(`[lvds] refused IPC ${channel}: ${why}`));
@@ -80,6 +82,8 @@ function createWindow() {
       webviewTag: false
     }
   });
+
+  errorLog.watchWindow(win, { dialog, version: app.getVersion(), log: (text) => errorLog.appendError(logDir, text), quit: () => app.quit() });
 
   // The app never navigates away or opens windows of its own: links to the
   // web open in the system browser, anything else is refused.
@@ -279,6 +283,9 @@ handle('recovery:write', (_evt, r) => projectFiles.writeRecovery(recoveryDir, ch
 handle('recovery:readAll', () => projectFiles.readRecoveries(recoveryDir, ensureProjectsFolder(), legacyRecoveryPath));
 handle('recovery:read', () => projectFiles.readRecoveries(recoveryDir, ensureProjectsFolder(), legacyRecoveryPath)[0] || null);
 handle('recovery:clear', (_evt, id) => (typeof id === 'string' && id ? projectFiles.clearRecovery(recoveryDir, id) : true));
+
+// ---- IPC: the error log (src/util/errorLog.ts) ----
+handle('log:error', (_evt, text) => errorLog.appendError(logDir, check.logText(text)));
 
 // ---- IPC: export a generated text file (e.g. OpenDSS script) ----
 handle('files:saveText', async (evt, args) => {

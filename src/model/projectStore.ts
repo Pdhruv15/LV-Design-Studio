@@ -202,6 +202,15 @@ export async function writeRecovery(r: Recovery): Promise<boolean> {
   }
 }
 
+export type CrashKept = 'kept' | 'waiting' | 'nothing' | 'failed';
+/** After a crash: the unsaved work as a recovery copy, unless there is none, or a recovered copy of this project is still
+ * waiting to be restored or discarded (it is never replaced unasked). */
+export async function keepUnsavedWork(s: { project: Project; saved: unknown; currentFile?: string; recoveries: Recovery[] }): Promise<CrashKept> {
+  if (s.project === s.saved) return 'nothing';
+  if (s.recoveries.some((r) => r.projectId === s.project.id)) return 'waiting';
+  return (await writeRecovery({ file: s.currentFile, at: Date.now(), project: s.project })) ? 'kept' : 'failed';
+}
+
 const valid = (r: Recovery | null | undefined): r is Recovery => !!r && !!r.project && Array.isArray(r.project.boards);
 
 /** Every recovery copy, newest first. */

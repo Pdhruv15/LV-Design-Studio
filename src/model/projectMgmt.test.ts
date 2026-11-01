@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { newProject } from '../types';
 import { sampleProject } from '../data/sampleProject';
 import { applyDefaults, applyProfile, defaultsFromProject, DEFAULT_PREFS, initialsOf, loadPrefs, savePrefs, signature, type Preferences } from './profile';
-import { clearRecovery, deleteProjectFile, emptyTrash, listProjects, listTrash, restoreProject, loadProject, metaOf, readRecoveries, recentFiles, saveProjectFile, touchRecent, whenText, writeRecovery } from './projectStore';
+import { clearRecovery, deleteProjectFile, emptyTrash, keepUnsavedWork, listProjects, listTrash, restoreProject, loadProject, metaOf, readRecoveries, recentFiles, saveProjectFile, touchRecent, whenText, writeRecovery } from './projectStore';
 import { titleBlockOf } from '../docs/sldSheet';
 
 // A small in-memory localStorage (the store falls back to it without the desktop app).
@@ -113,6 +113,32 @@ describe('saving, recovery and recent (web version storage)', () => {
     expect(left[0]).toMatchObject({ projectId: 'a', file: 'a.json' });
     await clearRecovery('a');
     expect(await readRecoveries()).toEqual([]);
+  });
+
+  it('after a crash, keeps unsaved work by the same rules as closing the window', async () => {
+    const open = { ...newProject('A'), id: 'a' };
+    expect(await keepUnsavedWork({ project: open, saved: open, recoveries: [] })).toBe('nothing');
+    expect(await readRecoveries()).toEqual([]);
+
+    const edited = { ...open, name: 'A edited' };
+    expect(await keepUnsavedWork({ project: edited, saved: open, currentFile: 'a.json', recoveries: [] })).toBe('kept');
+    const [copy] = await readRecoveries();
+    expect(copy).toMatchObject({ projectId: 'a', file: 'a.json' });
+    expect(copy.project.name).toBe('A edited');
+
+    // Restored work counts as unsaved; a copy still waiting to be restored or discarded is never replaced unasked.
+    expect(await keepUnsavedWork({ project: { ...open, name: 'A again' }, saved: null, recoveries: [copy] })).toBe('waiting');
+    expect((await readRecoveries())[0].project.name).toBe('A edited');
+
+    // Another project's waiting copy is no reason to lose this one.
+    const other = { ...newProject('B'), id: 'b' };
+    expect(await keepUnsavedWork({ project: other, saved: null, recoveries: [copy] })).toBe('kept');
+  });
+
+  it('after a crash, says so when the work could not be kept', async () => {
+    const edited = { ...newProject('A'), id: 'a' };
+    localStorage.setItem = () => { throw new Error('storage full'); };
+    expect(await keepUnsavedWork({ project: edited, saved: null, recoveries: [] })).toBe('failed');
   });
 
   it('refuses a recovery copy without a project id, and picks up the older single copy', async () => {

@@ -1,4 +1,5 @@
 import { createElement, lazy, Suspense, type Attributes, type ComponentType, type JSX, type ReactNode } from 'react';
+import { logError } from './errorLog';
 
 /** What a page shows when its code cannot be loaded. In the web version a page left open keeps running its own build,
  * and that build's files can be gone once newer builds have gone live; or there is no connection. */
@@ -13,7 +14,10 @@ function NotLoaded() {
 
 /** React's lazy, except that code which cannot be loaded leaves a message on that page. Left to fail, it would take the
  * whole app down with it, and nothing could be clicked any more. */
-export const lazyPage: typeof lazy = (load) => lazy(() => load().catch(() => ({ default: NotLoaded as never })));
+export const lazyPage: typeof lazy = (load) => lazy(() => load().catch((e: unknown) => {
+  logError('page', e, 'Loading a page');
+  return { default: NotLoaded as never };
+}));
 
 /** A component whose code loads the first time it is shown, in its own Suspense boundary, so it can be rendered
  * anywhere like a normal component. For pages and dialogs that are not needed at start-up: their code stays out of
