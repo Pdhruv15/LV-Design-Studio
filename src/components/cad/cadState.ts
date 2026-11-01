@@ -30,13 +30,27 @@ const rememberPath = (projectId: string | undefined, file: string, path?: string
 };
 
 /** What the ribbon asks of the page showing the drawing; nothing while the page is not shown. */
-export interface CadActions { save: () => void; saveDwg: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void }
-export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {} };
+export interface CadActions { save: () => void; saveDwg: () => void; close: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void }
+export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, close: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {} };
 
-/** State of the CAD view, kept by the app so the drawing stays open while other pages are shown. */
+/** A drawing open in a tab, with its layers as they were left (its zoom and pan stay with CadCanvas). */
+interface OpenDrawing { view: CadView; layersOn: Uint8Array }
+/** The drawings open, a tab each, and the one showing. */
+interface Tabs { open: OpenDrawing[]; shown: CadView | null }
+const NO_LAYERS = new Uint8Array();
+const sameFile = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+const sameBytes = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((x, i) => x === b[i]);
+/** Above this many lines open at once (about 1 GB of engine memory) the command line suggests closing some. */
+const MANY_LINES = 1_000_000;
+
+/** State of the CAD view, kept by the app so the drawings stay open while other pages are shown. */
 export function useCad(projectId: string | undefined) {
-  const [view, setViewState] = useState<CadView | null>(null);
-  const [layersOn, setLayersOn] = useState<Uint8Array>(new Uint8Array());
+  const [tabs, setTabsState] = useState<Tabs>({ open: [], shown: null });
+  // The same, as of now: what opens and closes drawings may run between renders.
+  const now = useRef(tabs);
+  const setTabs = useCallback((next: Tabs) => { now.current = next; setTabsState(next); }, []);
+  const view = tabs.shown;
+  const layersOn = tabs.open.find((d) => d.view === view)?.layersOn ?? NO_LAYERS;
   const [toggles, setToggles] = useState<CadToggles>({ snap: false, osnap: true, ortho: false, grid: false });
   const [fitKey, setFitKey] = useState(0);
   const [showLayers, setShowLayers] = useState(true);
@@ -64,21 +78,70 @@ export function useCad(projectId: string | undefined) {
   const [textAt, setTextAt] = useState<[number, number] | null>(null);
 
   const say = useCallback((line: string) => setHistory((h) => [...h.slice(-49), line]), []);
-  // Only one drawing is open: the one it replaces gives back its memory.
-  const shown = useRef<CadView | null>(null);
-  useEffect(() => () => { shown.current?.close(); shown.current = null; }, []);
-  const open = useCallback((v: CadView) => {
-    if (shown.current !== v) shown.current?.close();
-    shown.current = v;
-    setViewState(v);
-    setLayersOn(Uint8Array.from(v.info.layers.map((l) => (l.on ? 1 : 0))));
+  // Each open drawing keeps its own engine; closing it gives back that memory.
+  useEffect(() => () => { for (const d of now.current.open) d.view.close(); now.current = { open: [], shown: null }; }, []);
+  /** A drawing has been open, or the sample villa offered, since the app started: it does not come back by itself. */
+  const sampleDone = useRef(false);
+  const changeTabs = useCallback((next: Tabs) => {
+    if (next.shown !== now.current.shown) { setSelected(null); setTextAt(null); }
+    setTabs(next);
+    if (next.shown) remember(projectId, next.shown.path);
+  }, [projectId, setTabs]);
+  /** Shows the tab of an open drawing, as it was left. */
+  const show = useCallback((v: CadView) => {
+    if (now.current.open.some((d) => d.view === v)) changeTabs({ ...now.current, shown: v });
+  }, [changeTabs]);
+  /** The open drawing of a file, by name as the project keeps its plans. */
+  const tabOf = useCallback((file: string) => now.current.open.find((d) => sameFile(d.view.file, file))?.view, []);
+  /** Opens a drawing in a new tab; `replaces` (the plan it takes over from) gives up its tab. */
+  const open = useCallback((v: CadView, replaces?: CadView) => {
+    sampleDone.current = true;
+    const list = now.current.open;
+    if (list.some((d) => d.view === v)) { show(v); return; }
+    const same = list.find((d) => sameFile(d.view.file, v.file));
+    // Opened again and unchanged: its tab as it was left, and the copy just read gives back its memory.
+    if (same && same.view.path === v.path && sameBytes(same.view.bytes, v.bytes)) {
+      v.close();
+      show(same.view);
+      say(`${same.view.file} is already open`);
+      return;
+    }
+    // A file of the same name (changed, or from another folder) takes over its tab.
+    const gone = list.filter((d) => d === same || d.view === replaces);
+    for (const d of gone) d.view.close();
+    const next = list.filter((d) => !gone.includes(d));
+    next.splice(gone.length ? list.indexOf(gone[0]) : next.length, 0, { view: v, layersOn: Uint8Array.from(v.info.layers.map((l) => (l.on ? 1 : 0))) });
+    changeTabs({ open: next, shown: v });
     setFitKey((k) => k + 1);
-    remember(projectId, v.path);
     rememberPath(projectId, v.file, v.path);
     say(`Command: OPEN  ${v.file} — ${v.info.format}, ${v.info.layers.length} layers${v.info.truncated ? ' (very large: part of it shown)' : ''}`);
-  }, [projectId, say]);
-  const setLayer = useCallback((i: number, on: boolean) => setLayersOn((l) => { const n = l.slice(); n[i] = on ? 1 : 0; return n; }), []);
-  const allLayers = useCallback((on: boolean) => setLayersOn((l) => new Uint8Array(l.length).fill(on ? 1 : 0)), []);
+    const lines = next.reduce((n, d) => n + d.view.info.segments, 0);
+    if (next.length > 1 && lines > MANY_LINES) say(`${next.length} drawings open use about ${(lines / MANY_LINES).toFixed(1)} GB of memory. Close the ones you do not need (CLOSE).`);
+  }, [projectId, say, show, changeTabs]);
+  /** Closes drawings (all of them when none are named), giving back their memory: the tab to the right shows next, else
+   * the last one. What was drawn stays in the project, by file name. Returns what was done, for the status line. */
+  const close = useCallback((views?: CadView[]) => {
+    const { open: list, shown } = now.current;
+    const going = list.filter((d) => !views || views.includes(d.view));
+    if (!going.length) return undefined;
+    const left = list.filter((d) => !going.includes(d));
+    const after = list.slice(list.findIndex((d) => d.view === shown) + 1).find((d) => left.includes(d));
+    const nextShown = left.some((d) => d.view === shown) ? shown : (after ?? left[left.length - 1])?.view ?? null;
+    for (const d of going) d.view.close();
+    changeTabs({ open: left, shown: nextShown });
+    const done = `${going.length === 1 ? going[0].view.file : `${going.length} drawings`} closed. What you drew stays in the project.`;
+    say(done);
+    return done;
+  }, [say, changeTabs]);
+  /** Another project has been opened: the drawings open are the last one's plans, so none stays. The same project
+   * opened again (its version on disk, recovered work) keeps them. */
+  const projectOpened = useCallback((id: string | undefined) => { if (id !== projectId) close(); }, [projectId, close]);
+  const changeLayers = useCallback((change: (l: Uint8Array) => Uint8Array) => {
+    const t = now.current;
+    setTabs({ ...t, open: t.open.map((d) => (d.view === t.shown ? { ...d, layersOn: change(d.layersOn) } : d)) });
+  }, [setTabs]);
+  const setLayer = useCallback((i: number, on: boolean) => changeLayers((l) => { const n = l.slice(); n[i] = on ? 1 : 0; return n; }), [changeLayers]);
+  const allLayers = useCallback((on: boolean) => changeLayers((l) => new Uint8Array(l.length).fill(on ? 1 : 0)), [changeLayers]);
   const toggle = useCallback((k: keyof CadToggles) => setToggles((t) => ({ ...t, [k]: !t[k] })), []);
   // GRID (F7) steps lines → dots → off, like the SLD's grid.
   const [gridDots, setGridDots] = useState(false);
@@ -88,7 +151,7 @@ export function useCad(projectId: string | undefined) {
     else { setToggles((t) => ({ ...t, grid: false })); setGridDots(false); }
   };
 
-  return { view, open, layersOn, setLayer, allLayers, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, textAt, setTextAt };
+  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, tabOf, projectOpened, sampleDone, layersOn, setLayer, allLayers, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, textAt, setTextAt };
 }
 
 export type CadState = ReturnType<typeof useCad>;

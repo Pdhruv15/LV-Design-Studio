@@ -298,7 +298,7 @@ export default function App() {
   const [supply, setSupply] = useState<SupplyMode>('normal');
   const [showExport, setShowExport] = useState(false);
   const [showCadLoads, setShowCadLoads] = useState(false);
-  // CAD view: the drawing stays open while other pages are shown.
+  // CAD view: the drawings stay open while other pages are shown.
   const cadS = useCad(project.id);
   const openCad = async () => {
     setView('cad');
@@ -695,6 +695,7 @@ export default function App() {
     // Older files get an id and version here; opening alone never counts as an unsaved change.
     const opened = normalised(p, file);
     history.load(opened);
+    cadS.projectOpened(opened.id);
     setSaved(opened);
     fileStamp.current = file ? stamp : undefined;
     setExternal(null);
@@ -1247,7 +1248,7 @@ export default function App() {
           onSave: () => saveProject(),
           onSaveAs: () => saveAs(),
           onAnonymizedSample: () => setShowAnonymized(true),
-          cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onSave: () => cadS.actions.current.save(), onSaveDwg: () => cadS.actions.current.saveDwg(), onDelete: () => cadS.actions.current.remove(), hasSelection: !!cadS.selected, onFit: () => cadS.fit(), onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, layersOn: cadS.showLayers, hasDrawing: !!cadS.view,
+          cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onSave: () => cadS.actions.current.save(), onSaveDwg: () => cadS.actions.current.saveDwg(), onClose: () => cadS.actions.current.close(), onDelete: () => cadS.actions.current.remove(), hasSelection: !!cadS.selected, onFit: () => cadS.fit(), onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, layersOn: cadS.showLayers, hasDrawing: !!cadS.view,
             file: (() => {
               const f = cadFileMenu(project, cadS, (next, message) => { setProject(next, { step: true }); setStatus(message); }, setStatus);
               const show = (m: { label: string; title: string; onClick: () => void; sep?: boolean }[]) => m.map((x) => ({ ...x, onClick: () => { setView('cad'); x.onClick(); } }));

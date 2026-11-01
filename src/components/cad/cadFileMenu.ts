@@ -29,6 +29,8 @@ export function cadFileMenu(p: Project, cad: CadState, apply: Apply, status: (m:
   const scale = view ? planScale(p, view.file, view.info.units) : undefined;
 
   async function openFor(f: Floor, file: string | undefined, replace: boolean) {
+    const tab = file ? cad.tabOf(file) : undefined;
+    if (tab && !replace) { cad.show(tab); return; }
     const path = file ? pathOfPlan(p.id, file) : undefined;
     let v: CadView | null;
     try {
@@ -37,7 +39,7 @@ export function cadFileMenu(p: Project, cad: CadState, apply: Apply, status: (m:
         : await chooseDrawing();
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); status(msg); return; }
     if (!v) return;
-    cad.open(v);
+    cad.open(v, tab);
     status(`${v.file} opened`);
     if (levelOfPlan(p, v.file)?.key === f.key) return;
     const r = replacePlan(p, v.file, f.ref, v.info.units);

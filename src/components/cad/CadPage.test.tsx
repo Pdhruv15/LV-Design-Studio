@@ -523,3 +523,285 @@ describe('CAD view', () => {
   });
 });
 
+describe('file tabs', () => {
+  const tabs = () => [...document.querySelectorAll('.cad-tabs [role="tab"]')].map((t) => t.textContent);
+  const shown = () => document.querySelector('.cad-tabs [aria-selected="true"]')?.textContent;
+  const tabOf = (name: string) => [...document.querySelectorAll('.cad-tab')].find((t) => t.textContent?.includes(name))!;
+  const nameOf = (name: string) => tabOf(name).querySelector('[role="tab"]') as HTMLButtonElement;
+  const closeOf = (name: string) => tabOf(name).querySelector('.cad-tab-x') as HTMLButtonElement;
+  const add = () => document.querySelector('.cad-tab-add') as HTMLButtonElement;
+  const rightClick = (name: string) => act(() => { nameOf(name).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 60 })); });
+  const menu = () => document.querySelector('.cad-tab-menu');
+  const hist = () => document.querySelector('.cad-hist')?.textContent;
+  const GF = 'sample-villa-gf.dxf', FF = 'sample-villa-ff.dxf';
+  const sampleReads = () => (window.lvds!.cadFile!.sampleBytes as unknown as ReturnType<typeof vi.fn>).mock.calls.length;
+  const twoPlans: Project = {
+    ...villa,
+    building: { ...villa.building!, buildings: [{ id: 'V', name: 'Villa', levels: [{ id: 'GF', name: 'Ground', kind: 'ground', heightM: 4 }, { id: 'FF', name: 'First', kind: 'typical', heightM: 4 }] }] },
+    cadPlans: [{ building: 'V', level: 'GF', file: GF, units: 4 }, { building: 'V', level: 'FF', file: FF, units: 4 }]
+  };
+  const openAnother = async () => { await act(async () => { add().click(); }); await flush(); };
+
+  it('has a tab for each drawing with its level; + opens another, and a click switches back', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    expect(tabs()).toEqual([`Level? · ${GF}`]);
+    await openAnother();
+    expect(tabs()).toEqual([`Level? · ${GF}`, 'Level? · plan.dwg']);
+    expect(shown()).toBe('Level? · plan.dwg');
+    expect(document.body.textContent).toMatch(/plan\.dwg · DWG/);
+    await act(async () => { nameOf(GF).click(); });
+    await flush();
+    expect(state.view?.file).toBe(GF);
+    expect(shown()).toBe(`Level? · ${GF}`);
+    expect(document.body.textContent).toMatch(/sample-villa-gf\.dxf · DXF/);
+    expect(state.drawings).toHaveLength(2); // the other stays open
+  });
+
+  it('keeps the tab showing in view when the row is full', async () => {
+    const seen: string[] = [];
+    Element.prototype.scrollIntoView = vi.fn(function (this: Element) { seen.push(this.textContent ?? ''); });
+    try {
+      act(() => root.render(<Host />));
+      await flush();
+      await openAnother();
+      expect(seen[seen.length - 1]).toContain('plan.dwg');
+      await act(async () => { nameOf(GF).click(); });
+      expect(seen[seen.length - 1]).toContain(GF);
+    } finally { delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView; }
+  });
+
+  it('shows the level of a drawing that is the plan of one', async () => {
+    act(() => root.render(<Host start={twoPlans} />));
+    await flush();
+    expect(tabs()).toEqual([`Ground · ${GF}`]);
+  });
+
+  it('× closes a drawing, showing the next; the last leaves the page that offers to open one, with Reopen', async () => {
+    (window.lvds!.cadFile as { readBytes?: unknown }).readBytes = vi.fn(async (p: string) => ({ file: 'plan.dwg', path: p, bytes: bytes('tests/fixtures/cad/plan-2018.dwg') }));
+    act(() => root.render(<Host />));
+    await flush();
+    await openAnother();
+    act(() => closeOf('plan.dwg').click());
+    expect(tabs()).toEqual([`Level? · ${GF}`]);
+    expect(state.view?.file).toBe(GF);
+    expect(hist()).toBe('plan.dwg closed. What you drew stays in the project.');
+    act(() => closeOf(GF).click());
+    expect(tabs()).toEqual([]);
+    expect(state.view).toBeNull();
+    expect(document.querySelector('.cad-tabs')).toBeNull();
+    expect(button('Open drawing…')).toBeDefined();
+    expect(button('Reopen plan.dwg')).toBeDefined();
+    expect(result()).toContain('No drawing open.');
+    await act(async () => { button('Reopen plan.dwg').click(); });
+    await flush();
+    expect(tabs()).toEqual(['Level? · plan.dwg']);
+  });
+
+  it('right-click: Close, Close others and Close all; Close others is off with one tab', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await openAnother();
+    rightClick(GF);
+    expect(menu()).not.toBeNull();
+    expect((document.activeElement as HTMLElement).textContent).toBe('Close');
+    act(() => button('Close others').click());
+    expect(menu()).toBeNull();
+    expect(tabs()).toEqual([`Level? · ${GF}`]);
+    expect(state.view?.file).toBe(GF); // plan.dwg was showing and has gone; the one kept shows
+    rightClick(GF);
+    expect(button('Close others').disabled).toBe(true);
+    act(() => button('Close all').click());
+    expect(tabs()).toEqual([]);
+    await act(async () => { button('Open drawing…').click(); });
+    await flush();
+    rightClick('plan.dwg');
+    act(() => button('Close').click());
+    expect(tabs()).toEqual([]);
+  });
+
+  it('Esc or a click elsewhere shuts the menu and leaves the tool in use', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.setTool('dist'));
+    rightClick(GF);
+    act(() => { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+    expect(menu()).toBeNull();
+    expect(state.tool).toBe('dist');
+    rightClick(GF);
+    act(() => (document.querySelector('.st-cover') as HTMLElement).click());
+    expect(menu()).toBeNull();
+    expect(state.drawings).toHaveLength(1);
+    expect(state.tool).toBe('dist');
+    act(() => { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+    expect(state.tool).toBe('none'); // with the menu shut, Esc cancels the tool as before
+  });
+
+  it('CLOSE and CLOSEALL at the command line, and Close on the ribbon', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('open');
+    await flush();
+    await command('close');
+    expect(tabs()).toEqual([`Level? · ${GF}`]);
+    await command('open');
+    await flush();
+    act(() => state.actions.current.close());
+    expect(tabs()).toEqual([`Level? · ${GF}`]);
+    await command('open');
+    await flush();
+    await command('CLOSEALL');
+    expect(tabs()).toEqual([]);
+    expect(hist()).toBe('2 drawings closed. What you drew stays in the project.');
+    await command('close');
+    expect(hist()).toBe('No drawing open.');
+    await command('closeall');
+    expect(hist()).toBe('No drawing open.');
+    act(() => state.actions.current.close()); // nothing to close
+    expect(hist()).toBe('No drawing open.');
+    await command('help');
+    expect(hist()).toContain('OPEN · CLOSE · CLOSEALL');
+  });
+
+  it('arrow keys, Home and End move between tabs without panning the drawing', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await openAnother();
+    act(() => state.toggle('osnap'));
+    const key = (k: string) => act(() => { (document.activeElement as HTMLElement).dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true })); });
+    const coords = () => {
+      act(() => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('mousemove', { clientX: 300, clientY: 200, bubbles: true })); });
+      return document.querySelector('.cad-coords')?.textContent;
+    };
+    const before = coords();
+    act(() => nameOf('plan.dwg').focus());
+    key('ArrowRight');
+    expect(state.view?.file).toBe(GF);
+    expect(document.activeElement).toBe(nameOf(GF));
+    expect(nameOf(GF).tabIndex).toBe(0);
+    expect(nameOf('plan.dwg').tabIndex).toBe(-1);
+    key('ArrowLeft');
+    expect(state.view?.file).toBe('plan.dwg');
+    key('Home');
+    expect(state.view?.file).toBe(GF);
+    key('End');
+    expect(state.view?.file).toBe('plan.dwg');
+    expect(coords()).toBe(before);
+  });
+
+  it('clears what was picked or being drawn when another tab shows, and when the last one closes', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('di');
+    await clickAt(30, -80);
+    await clickAt(6170, -80);
+    expect(result()).toMatch(/Distance 6\.20 m/);
+    await openAnother();
+    expect(result()).not.toMatch(/Distance/);
+    await act(async () => { nameOf(GF).click(); });
+    await flush();
+    expect(result()).not.toMatch(/Distance/);
+    await command('li');
+    await clickAt(6687.5 + 190, 7375);
+    await flush();
+    expect(result()).toMatch(/Block · L1/);
+    await command('closeall'); // what was picked needs its drawing: it goes with it
+    await flush();
+    expect(result()).toContain('No drawing open.');
+    expect(state.view).toBeNull();
+  });
+
+  it('the Plans list marks the plans in tabs and goes to a tab without reading the file again', async () => {
+    act(() => root.render(<Host start={twoPlans} />));
+    await flush();
+    const plans = () => [...document.querySelectorAll('[aria-label="Plans of this project"] button')] as HTMLButtonElement[];
+    expect(plans().map((b) => b.textContent)).toEqual([`Ground${GF}open`, `First${FF}`]);
+    expect(plans()[0].disabled).toBe(true);
+    await act(async () => { plans()[1].click(); });
+    await flush();
+    expect(tabs()).toEqual([`Ground · ${GF}`, `First · ${FF}`]);
+    expect(plans().map((b) => b.textContent)).toEqual([`Ground${GF}open`, `First${FF}open`]);
+    const reads = sampleReads();
+    expect(plans()[0].disabled).toBe(false);
+    await act(async () => { plans()[0].click(); });
+    await flush();
+    expect(shown()).toBe(`Ground · ${GF}`);
+    expect(sampleReads()).toBe(reads);
+    expect(state.drawings).toHaveLength(2);
+    act(() => closeOf(FF).click());
+    expect(plans().map((b) => b.textContent)).toEqual([`Ground${GF}open`, `First${FF}`]);
+  });
+
+  it('the sample floor list goes to the tab of a sample already open', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    const pick = async (file: string) => {
+      const list = document.querySelector('select[aria-label="Sample floor"]') as HTMLSelectElement;
+      await act(async () => { list.value = file; list.dispatchEvent(new Event('change', { bubbles: true })); });
+      await flush();
+    };
+    await pick(FF);
+    expect(state.drawings.map((v) => v.file)).toEqual([GF, FF]);
+    const reads = sampleReads();
+    await pick(GF);
+    expect(state.view?.file).toBe(GF);
+    expect(sampleReads()).toBe(reads);
+  });
+
+  it('File → Plans goes to a tab; replacing a plan stays in its tab', async () => {
+    project = twoPlans;
+    act(() => root.render(<Host start={twoPlans} />));
+    await flush();
+    const apply = (next: Project, message: string) => onChange(next, message);
+    await act(async () => { cadFileMenu(project, state, apply, () => {}).plans[1].onClick(); });
+    await flush();
+    expect(state.drawings.map((v) => v.file)).toEqual([GF, FF]);
+    const reads = sampleReads();
+    await act(async () => { cadFileMenu(project, state, apply, () => {}).plans[0].onClick(); });
+    await flush();
+    expect(state.view?.file).toBe(GF);
+    expect(sampleReads()).toBe(reads);
+    const before = state.view!;
+    const replace = cadFileMenu(project, state, apply, () => {}).plans.find((x) => x.label.startsWith('Replace'))!;
+    await act(async () => { replace.onClick(); });
+    await flush();
+    expect(state.drawings.map((v) => v.file)).toEqual(['plan.dwg', FF]);
+    expect(state.view?.file).toBe('plan.dwg');
+    expect(state.drawings).not.toContain(before);
+  });
+
+  it('the sample villa stays closed: not when the page shows again, nor after a drawing opened from the ribbon', async () => {
+    const status = vi.fn();
+    let page: (on: boolean) => void = () => {};
+    function Pages({ startOn }: { startOn: boolean }) {
+      const cad = useCad('p1');
+      const [on, setOn] = useState(startOn);
+      state = cad;
+      page = setOn;
+      return on ? <CadPage cad={cad} project={villa} onChange={onChange} onStatus={status} /> : null;
+    }
+    act(() => root.render(<Pages startOn />));
+    await flush();
+    expect(state.view?.file).toBe(GF);
+    await command('close');
+    expect(status).toHaveBeenCalledWith(`${GF} closed. What you drew stays in the project.`);
+    await flush();
+    expect(state.view).toBeNull();
+    act(() => page(false));
+    act(() => page(true));
+    await flush();
+    expect(state.view).toBeNull();
+    expect(button('Sample villa · Ground floor')).toBeDefined(); // still offered
+    act(() => root.render(null));
+
+    act(() => root.render(<Pages startOn={false} />));
+    const v = await openDrawing('plan.dwg', bytes('tests/fixtures/cad/plan-2018.dwg'));
+    act(() => state.open(v));
+    act(() => page(true));
+    await flush();
+    await command('close');
+    await flush();
+    expect(state.view).toBeNull();
+  });
+});
+
