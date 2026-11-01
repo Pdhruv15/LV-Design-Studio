@@ -160,17 +160,252 @@ describe('the open drawing', () => {
   let cad: CadState;
   function Host() { cad = useCad('p1'); return null; }
 
-  it('closes the drawing it replaces, and the last one when the app goes', () => {
+  const named = (file: string, over: Partial<CadView> = {}) => ({ ...drawing([]), file, ...over }) as CadView;
+
+  it('keeps each drawing open in its tab, and closes them all when the app goes', () => {
     act(() => root.render(<Host />));
-    const a = drawing([]), b = drawing([]);
+    const a = named('a.dxf'), b = named('b.dxf');
     act(() => cad.open(a));
-    expect(a.close).not.toHaveBeenCalled();
     act(() => cad.open(a)); // the same one again stays open
-    expect(a.close).not.toHaveBeenCalled();
     act(() => cad.open(b));
-    expect(a.close).toHaveBeenCalledTimes(1);
+    expect(cad.drawings).toEqual([a, b]);
+    expect(cad.view).toBe(b);
+    expect(a.close).not.toHaveBeenCalled();
     expect(b.close).not.toHaveBeenCalled();
     act(() => root.render(null));
+    expect(a.close).toHaveBeenCalledTimes(1);
     expect(b.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the tab to the right when the one showing closes, else the last, and gives back each engine once', () => {
+    act(() => root.render(<Host />));
+    const [a, b, c] = ['a.dxf', 'b.dxf', 'c.dxf'].map((f) => named(f));
+    for (const v of [a, b, c]) act(() => cad.open(v));
+    act(() => cad.show(b));
+    let done: string | undefined;
+    act(() => { done = cad.close([b]); });
+    expect(done).toBe('b.dxf closed. What you drew stays in the project.');
+    expect(cad.drawings).toEqual([a, c]);
+    expect(cad.view).toBe(c);
+    expect(b.close).toHaveBeenCalledTimes(1);
+    act(() => { cad.close([c]); });
+    expect(cad.view).toBe(a);
+    act(() => { done = cad.close([c]); }); // already closed: nothing to do
+    expect(done).toBeUndefined();
+    expect(c.close).toHaveBeenCalledTimes(1);
+    act(() => { cad.close([a]); });
+    expect(cad.view).toBeNull();
+    expect(cad.drawings).toEqual([]);
+    expect(cad.layersOn).toHaveLength(0);
+    act(() => root.render(null));
+    for (const v of [a, b, c]) expect(v.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves the showing tab when another closes; Close others and Close all', () => {
+    act(() => root.render(<Host />));
+    const [a, b, c] = ['a.dxf', 'b.dxf', 'c.dxf'].map((f) => named(f));
+    for (const v of [a, b, c]) act(() => cad.open(v));
+    act(() => { cad.close([a]); });
+    expect(cad.view).toBe(c);
+    act(() => { cad.close(cad.drawings.filter((v) => v !== b)); }); // the showing tab goes: the one kept shows
+    expect(cad.drawings).toEqual([b]);
+    expect(cad.view).toBe(b);
+    const d = named('d.dxf');
+    act(() => cad.open(d));
+    let done: string | undefined;
+    act(() => { done = cad.close(); });
+    expect(done).toBe('2 drawings closed. What you drew stays in the project.');
+    expect(cad.view).toBeNull();
+  });
+
+  it('keeps each drawing\'s layers as they were left', () => {
+    act(() => root.render(<Host />));
+    const layer = (name: string, on = true) => ({ name, rgb: 0, on, count: 1 });
+    const a = named('a.dxf'), b = named('b.dxf');
+    a.info = { ...a.info, layers: [layer('0'), layer('1', false)] };
+    b.info = { ...b.info, layers: [layer('0'), layer('1'), layer('2')] };
+    act(() => cad.open(a));
+    expect([...cad.layersOn]).toEqual([1, 0]);
+    act(() => cad.setLayer(0, false));
+    act(() => cad.open(b));
+    expect([...cad.layersOn]).toEqual([1, 1, 1]);
+    act(() => cad.allLayers(false));
+    act(() => cad.show(a));
+    expect([...cad.layersOn]).toEqual([0, 0]);
+    act(() => cad.show(b));
+    expect([...cad.layersOn]).toEqual([0, 0, 0]);
+  });
+
+  it('goes to the tab of a file opened again unchanged, and gives back the copy just read', () => {
+    act(() => root.render(<Host />));
+    const a = named('a.dxf', { path: '/x/a.dxf', bytes: new Uint8Array([1, 2]) }), b = named('b.dxf');
+    act(() => cad.open(a));
+    act(() => cad.open(b));
+    const again = named('A.DXF', { path: '/x/a.dxf', bytes: new Uint8Array([1, 2]) });
+    act(() => cad.open(again));
+    expect(cad.drawings).toEqual([a, b]);
+    expect(cad.view).toBe(a);
+    expect(again.close).toHaveBeenCalledTimes(1);
+    expect(a.close).not.toHaveBeenCalled();
+    expect(cad.history[cad.history.length - 1]).toBe('a.dxf is already open');
+  });
+
+  it('lets a file changed on disk, or of the same name from another folder, take over its tab', () => {
+    act(() => root.render(<Host />));
+    const a = named('a.dxf', { path: '/x/a.dxf', bytes: new Uint8Array([1, 2]) }), b = named('b.dxf');
+    act(() => cad.open(a));
+    act(() => cad.open(b));
+    const changed = named('a.dxf', { path: '/x/a.dxf', bytes: new Uint8Array([1, 3]) });
+    act(() => cad.open(changed));
+    expect(cad.drawings).toEqual([changed, b]);
+    expect(cad.view).toBe(changed);
+    expect(a.close).toHaveBeenCalledTimes(1);
+    const moved = named('a.dxf', { path: '/y/a.dxf', bytes: new Uint8Array([1, 3]) });
+    act(() => cad.open(moved));
+    expect(cad.drawings).toEqual([moved, b]);
+    expect(changed.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('puts the next revision of a plan in the tab of the one it replaces', () => {
+    act(() => root.render(<Host />));
+    const [a, b, c] = ['a.dxf', 'b.dxf', 'c.dxf'].map((f) => named(f));
+    for (const v of [a, b, c]) act(() => cad.open(v));
+    const revB = named('b-rev2.dxf');
+    act(() => cad.open(revB, b));
+    expect(cad.drawings).toEqual([a, revB, c]);
+    expect(cad.view).toBe(revB);
+    expect(b.close).toHaveBeenCalledTimes(1);
+    // A revision whose file is already in another tab: both tabs become one.
+    const cAgain = named('c.dxf', { path: '/new/c.dxf' });
+    act(() => cad.open(cAgain, a));
+    expect(cad.drawings).toEqual([cAgain, revB]);
+    expect(a.close).toHaveBeenCalledTimes(1);
+    expect(c.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('finds a tab by file name, in any case', () => {
+    act(() => root.render(<Host />));
+    const a = named('Plan-A.dwg');
+    act(() => cad.open(a));
+    expect(cad.tabOf('plan-a.DWG')).toBe(a);
+    expect(cad.tabOf('other.dwg')).toBeUndefined();
+    expect(cad.tabOf('')).toBeUndefined();
+  });
+
+  it('closes every tab when another project opens, not when the same one is opened again', () => {
+    act(() => root.render(<Host />));
+    const a = named('a.dxf'), b = named('b.dxf');
+    act(() => cad.open(a));
+    act(() => cad.open(b));
+    act(() => cad.projectOpened('p1'));
+    expect(cad.drawings).toEqual([a, b]);
+    act(() => cad.projectOpened('p2'));
+    expect(cad.drawings).toEqual([]);
+    expect(cad.view).toBeNull();
+    expect(a.close).toHaveBeenCalledTimes(1);
+    expect(b.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('remembers the drawing showing as the one to reopen, and clears what was selected on another', () => {
+    localStorage.clear();
+    act(() => root.render(<Host />));
+    const a = named('a.dxf', { path: '/x/a.dxf' }), b = named('b.dxf', { path: '/x/b.dxf' });
+    act(() => cad.open(a));
+    act(() => cad.open(b));
+    expect(localStorage.getItem('lvds.cad.p1')).toBe('/x/b.dxf');
+    act(() => cad.setSelected('sk:1'));
+    act(() => cad.show(a));
+    expect(localStorage.getItem('lvds.cad.p1')).toBe('/x/a.dxf');
+    expect(cad.selected).toBeNull();
+    act(() => { cad.close(); });
+    expect(localStorage.getItem('lvds.cad.p1')).toBe('/x/a.dxf');
+  });
+
+  it('says when the drawings open are using a lot of memory', () => {
+    act(() => root.render(<Host />));
+    const big = (file: string) => { const v = named(file); v.info = { ...v.info, segments: 600_000 }; return v; };
+    act(() => cad.open(big('a.dxf')));
+    expect(cad.history[cad.history.length - 1]).toMatch(/^Command: OPEN {2}a\.dxf/);
+    act(() => cad.open(big('b.dxf')));
+    expect(cad.history[cad.history.length - 1]).toBe('2 drawings open use about 1.2 GB of memory. Close the ones you do not need (CLOSE).');
+  });
+});
+
+describe('where a drawing was left', () => {
+  const near = (a: [number, number] | null, b: [number, number] | null) => {
+    expect(a![0]).toBeCloseTo(b![0], 6);
+    expect(a![1]).toBeCloseTo(b![1], 6);
+  };
+  const off: CadToggles = { ...ON, osnap: false };
+  const wheel = () => act(() => { canvas().dispatchEvent(new WheelEvent('wheel', { clientX: 100, clientY: 100, deltaY: -240, bubbles: true })); });
+  const at = () => { mouse('mousemove', 300, 200); return lastCursor()[0]; };
+  const other = () => ({ ...drawing([]), file: 'other.dxf', info: { ...view.info, extents: [0, 0, 4000, 2500] } }) as unknown as CadView;
+
+  it('goes back to its zoom and pan when its tab shows again; one not moved is fitted', () => {
+    draw({ toggles: off });
+    const fitted = at();
+    wheel();
+    const zoomed = at();
+    expect(zoomed).not.toEqual(fitted);
+    const b = other();
+    draw({ toggles: off, view: b });
+    const fittedB = at();
+    expect(fittedB![0]).toBeGreaterThan(fitted![0] * 3);
+    draw({ toggles: off, view });
+    near(at(), zoomed);
+    draw({ toggles: off, view: b });
+    near(at(), fittedB);
+  });
+
+  it('keeps it when the page is left and shown again', () => {
+    draw({ toggles: off });
+    wheel();
+    const zoomed = at();
+    act(() => root.render(null));
+    draw({ toggles: off });
+    near(at(), zoomed);
+  });
+
+  it('keeps it when the window changes size; a drawing not moved is fitted again', () => {
+    let resized = () => {};
+    const stub = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class { constructor(cb: () => void) { resized = cb; } observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+    try {
+      draw({ toggles: off });
+      const model = host.querySelector('.cad-model')!;
+      const widen = (w: number) => {
+        Object.defineProperties(model, { clientWidth: { value: w, configurable: true }, clientHeight: { value: 500, configurable: true } });
+        act(() => resized());
+      };
+      const fitted = at();
+      widen(1600);
+      expect(at()).not.toEqual(fitted);
+      wheel();
+      const zoomed = at();
+      widen(900);
+      near(at(), zoomed);
+    } finally { globalThis.ResizeObserver = stub; }
+  });
+
+  it('forgets it on Fit', () => {
+    draw({ toggles: off });
+    const fitted = at();
+    wheel();
+    draw({ toggles: off, fitKey: 2 });
+    near(at(), fitted);
+    act(() => root.render(null));
+    draw({ toggles: off, fitKey: 2 });
+    near(at(), fitted);
+  });
+
+  it('forgets it on the 0 key', () => {
+    draw({ toggles: off });
+    const fitted = at();
+    wheel();
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: '0' })); });
+    near(at(), fitted);
+    act(() => root.render(null));
+    draw({ toggles: off });
+    near(at(), fitted);
   });
 });

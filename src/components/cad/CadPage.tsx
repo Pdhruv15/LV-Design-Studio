@@ -19,6 +19,7 @@ import { buildingInfoOf } from '../../calc/building';
 import { plansOf } from '../../model/cadPlans';
 import { CAD_UNITS, planScale } from '../../model/cadUnits';
 import CadLayerTable from '../CadLayerTable';
+import CadTabs from './CadTabs';
 import { planLevel, setPlanLevel } from './cadFileMenu';
 import { pathOfPlan } from './cadState';
 import { pickedRoom, putRooms, renameRoom } from '../../model/floorPlanActions';
@@ -38,7 +39,7 @@ const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.to
 const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
   { k: 'snap', label: 'SNAP', key: 'F9' }, { k: 'osnap', label: 'OSNAP', key: 'F3' }, { k: 'ortho', label: 'ORTHO', key: 'F8' }, { k: 'grid', label: 'GRID', key: 'F7' }
 ];
-const HELP = 'Commands: OPEN · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 const PROMPT: Record<CadTool, string> = {
@@ -96,6 +97,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   const [points, setPoints] = useState<Pt[]>([]);
   const [objectMode, setObjectMode] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
+  // Another drawing showing (its tab, one opened or closed): what was picked or being drawn on the last one goes.
+  const [pickedOn, setPickedOn] = useState(view);
+  if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); }
   const input = useRef<HTMLInputElement>(null);
   const last = rememberedDrawing(project.id);
   const units = planScale(project, view?.file, view?.info.units);
@@ -106,19 +110,25 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     setBusy(true);
     try {
       const v = await read();
-      if (v) { cad.open(v); onStatus(`${v.file} opened`); setResult(null); setPoints([]); } else if (missing) cad.say(missing);
+      if (v) { cad.open(v); onStatus(`${v.file} opened`); } else if (missing) cad.say(missing);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       cad.say(msg); onStatus(msg);
     } finally { setBusy(false); }
   }
   const openFile = () => void load(() => chooseDrawing());
+  /** Shows the tab of a file already open, else reads it into a new one. */
+  const showOrLoad = (file: string, read: () => Promise<CadView | null>, missing?: string) => {
+    const tab = cad.tabOf(file);
+    if (tab) cad.show(tab); else void load(read, missing);
+  };
+  const closeDrawings = (views?: CadView[]) => { const done = cad.close(views); if (done) onStatus(done); };
 
-  // While no drawing is open (and none to reopen), the sample villa is shown — a test aid (SAMPLE_PLANS).
-  const tried = useRef(false);
+  // Until a drawing has been open (and with none to reopen), the sample villa is shown — a test aid (SAMPLE_PLANS). Once
+  // closed it stays closed.
   useEffect(() => {
-    if (view || tried.current || last || !SAMPLE_PLANS.length) return;
-    tried.current = true;
+    if (view || cad.sampleDone.current || last || !SAMPLE_PLANS.length) return;
+    cad.sampleDone.current = true;
     void load(() => sampleDrawing(SAMPLE_PLANS[0].file));
   }, [view]); // eslint-disable-line react-hooks/exhaustive-deps -- once, when the page first shows no drawing
 
@@ -206,7 +216,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER}${wiring.length ? `, ${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on ${WIRING_LAYER} / ${TAG_LAYER}` : ''})`); onStatus(msg); }
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
   }
-  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll() };
+  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), close: () => { if (view) closeDrawings([view]); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll() };
   // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
   useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
 
@@ -500,6 +510,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     }
     cad.say(`Command: ${c}`);
     if (c === 'OPEN') openFile();
+    else if (c === 'CLOSE' || c === 'CLOSEALL') { if (view) closeDrawings(c === 'CLOSE' ? [view] : undefined); else cad.say('No drawing open.'); }
     else if (['FIT', 'ZE', 'Z E', 'ZOOM E', 'ZOOM EXTENTS'].includes(c)) cad.fit();
     else if (c === 'DI' || c === 'DIST' || c === 'DISTANCE') cad.setTool('dist');
     else if (c === 'AREA' || c === 'AA') cad.setTool('area');
@@ -601,6 +612,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
 
   return (
     <section className="cad">
+      <CadTabs cad={cad} project={project} busy={busy} onOpen={openFile} onClose={closeDrawings} />
       <div className="cad-work">
         {view ? (
           <div className="cad-stage">
@@ -627,7 +639,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
               {view && SAMPLE_PLANS.some((x) => x.file === view.file) && (
                 <div className="cad-sample">
                   Sample plan for testing{' '}
-                  <select aria-label="Sample floor" value={view.file} onChange={(e) => void load(() => sampleDrawing(e.target.value))}>
+                  <select aria-label="Sample floor" value={view.file} onChange={(e) => { const file = e.target.value; showOrLoad(file, () => sampleDrawing(file)); }}>
                     {SAMPLE_PLANS.map((x) => <option key={x.file} value={x.file}>{x.label}</option>)}
                   </select>
                 </div>
@@ -700,16 +712,17 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
                 <div className="cad-layers" role="list" aria-label="Plans of this project">
                   {plans.map((x) => {
                     const here = !!view && levelSet && floor?.key === x.floor.key;
-                    const canOpen = !!x.file && (SAMPLE_PLANS.some((s) => s.file === x.file) || (!!pathOfPlan(project.id, x.file) && !!window.lvds?.cadFile?.readBytes));
+                    const inTab = !!x.file && !!cad.tabOf(x.file);
+                    const canOpen = !!x.file && (inTab || SAMPLE_PLANS.some((s) => s.file === x.file) || (!!pathOfPlan(project.id, x.file) && !!window.lvds?.cadFile?.readBytes));
                     return (
                       <button key={x.floor.key} role="listitem" className={`cad-lyr${x.file ? '' : ' off'}`} aria-current={here || undefined} disabled={busy || here || (!!x.file && !canOpen)}
                         title={x.file ? (canOpen ? `Open ${x.file}` : `${x.file}: open it from Plans (its folder is not known on this computer)`) : `Open a drawing as the plan of ${x.label}`}
-                        onClick={() => void load(async () => {
+                        onClick={() => showOrLoad(x.file ?? '', async () => {
                           const v = !x.file ? await chooseDrawing() : SAMPLE_PLANS.some((s) => s.file === x.file) ? await sampleDrawing(x.file) : await reopenDrawing(pathOfPlan(project.id, x.file)!);
                           if (v && !x.file) setPlanLevel(project, v.file, x.floor, change, v.info.units);
                           return v;
                         }, 'That drawing is no longer where it was. Open it from Plans.')}>
-                        <b>{x.label}</b>{x.file ?? 'no plan'}<span className="m">{here ? 'open' : x.file ? '' : 'open…'}</span>
+                        <b>{x.label}</b>{x.file ?? 'no plan'}<span className="m">{here || inTab ? 'open' : x.file ? '' : 'open…'}</span>
                       </button>
                     );
                   })}

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
-  ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
+  ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FileX2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
 import { PenTool, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow } from 'lucide-react';
 import type { CadTool } from './cad/cadState';
 import type { BoardKind, Feeder } from '../types';
@@ -79,7 +79,7 @@ export interface RibbonActions {
   onAnonymizedSample: () => void;
   /** Design CAD's tools (src/components/cad); `file`: the File group's Plans, Level and Units (cadFileMenu.ts). */
   cad?: {
-    tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onSaveDwg: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; layersOn: boolean; hasDrawing: boolean;
+    tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onSaveDwg: () => void; onClose: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; layersOn: boolean; hasDrawing: boolean;
     file: { plans: Tool['menu']; plansSub?: string; level: string; levelTitle: string; levels: Tool['menu']; unit: string; unitTitle: string; units: Tool['menu'] };
     onRoles: () => void; rolesOn: boolean; onAddFound: () => void; onSchedules: () => void; onPlaceBoard: () => void; placingBoard: boolean;
     onCoverage: () => void; coverageOn: boolean; copyLevels: Tool['menu'];
@@ -389,7 +389,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: a.cad?.file.unit ?? 'Units', icon: Scale, sub: 'units', title: a.cad?.file.unitTitle ?? 'The units the drawing is in', onClick: () => {}, disabled: !a.cad?.hasDrawing, menu: a.cad?.file.units },
         { label: 'Layer roles', icon: Layers, title: 'What each layer is: wall, room outline, room name, tray, route… (used to find rooms and walls)', onClick: () => a.cad?.onRoles(), active: a.cad?.rolesOn, disabled: !a.cad?.hasDrawing },
         { label: 'Save DXF', icon: Save, title: 'Save the drawing as DXF with what you drew (LV-SKETCH, LV-ANNO) and the devices placed (E-LV-POINTS, E-ELV-DEVICES, E-BOARDS)', onClick: () => a.cad?.onSave(), disabled: !a.cad?.hasDrawing },
-        { label: 'Save DWG', icon: SaveAll, title: 'Save the drawing as DWG (its own version, else AutoCAD 2018) with what you drew and the devices placed, as a new file — the architect\'s drawing is not changed (SAVEDWG)', onClick: () => a.cad?.onSaveDwg(), disabled: !a.cad?.hasDrawing }
+        { label: 'Save DWG', icon: SaveAll, title: 'Save the drawing as DWG (its own version, else AutoCAD 2018) with what you drew and the devices placed, as a new file — the architect\'s drawing is not changed (SAVEDWG)', onClick: () => a.cad?.onSaveDwg(), disabled: !a.cad?.hasDrawing },
+        { label: 'Close', icon: FileX2, title: 'Close this drawing. What you drew stays in the project and comes back when the file opens again (CLOSE)', onClick: () => a.cad?.onClose(), disabled: !a.cad?.hasDrawing }
       ],
       [
         { label: 'Add found', icon: LayoutGrid, title: 'Add every room the plan outlines (closed outlines on the Room outline layers, named by the text inside) to Building information on this level — one undo step (ROOMS)', onClick: () => a.cad?.onAddFound(), disabled: !a.cad?.hasDrawing },

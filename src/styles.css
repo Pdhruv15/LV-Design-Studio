@@ -1779,6 +1779,17 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-coords{position:absolute;left:var(--space-2);top:var(--space-2);font:11px ui-monospace,Menlo,monospace;color:var(--mut);pointer-events:none}
 .cad-empty{display:grid;place-content:center;gap:var(--space-3);padding:var(--space-5);text-align:center;background:var(--bg)}
 .cad-actions{display:flex;gap:var(--space-2);flex-wrap:wrap;justify-content:center}
+.cad-tabs{flex:none;display:flex;align-items:flex-end;gap:2px;min-height:34px;padding:var(--space-1) var(--space-2) 0;background:var(--p2);border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden}
+.cad-tab{flex:none;display:flex;align-items:center;max-width:280px;height:28px;border:1px solid var(--line);border-bottom:0;border-radius:var(--radius-sm) var(--radius-sm) 0 0;color:var(--mut)}
+.cad-tab:hover{color:var(--tx)}
+.cad-tab.on{background:var(--cad-bg);border-color:var(--line-strong);box-shadow:inset 0 2px 0 var(--acc);color:var(--tx)}
+.cad-tab-name{min-width:0;height:100%;padding:0 var(--space-1) 0 var(--space-3);background:none;border:0;color:inherit;font:inherit;font-size:var(--fs-sm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.cad-tab-x,.cad-tab-add{flex:none;display:inline-flex;align-items:center;justify-content:center;padding:0;background:none;border:0;color:var(--mut);cursor:pointer}
+.cad-tab-x{width:20px;height:20px;margin-right:var(--space-1);border-radius:4px}
+.cad-tab-add{width:26px;height:26px;margin:0 0 1px var(--space-1);border-radius:var(--radius-sm)}
+.cad-tab-x:hover,.cad-tab-add:hover:not(:disabled){background:var(--line);color:var(--tx)}
+.cad-tab-add:disabled{opacity:.45;cursor:default}
+.cad-tab-menu button:disabled{opacity:.5;cursor:default;background:transparent}
 .cad-side{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-width:0;min-height:0}
 .cad-side h4{margin:0;padding:var(--space-3) var(--space-3) var(--space-1);font-size:var(--fs-xs);color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center}
 .cad-res{margin:0 var(--space-3) var(--space-2);padding:var(--space-2);border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--p2);font-size:var(--fs-sm);overflow-wrap:anywhere}

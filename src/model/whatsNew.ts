@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.025', date: '2026-11-01',
+    items: [
+      { title: 'File tabs in Design CAD', text: 'Each drawing you open now has its own tab above the plan, with its level and file name. Click a tab to switch: the file is not read again, and the drawing keeps its zoom and layers. + opens another.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Close a drawing', text: 'Use × on the tab, Close in the File group, or the CLOSE and CLOSEALL commands. Right-click a tab for Close, Close others and Close all. Closing never asks to save: what you drew, rooms and devices stay in the project and come back when the file opens again.' },
+      { title: 'Another project closes the last one\'s drawings', text: 'Opening another project now closes the drawings of the last one. Before, the old drawing stayed on screen in Design CAD, and rooms or devices added on it went into the new project.' }
+    ]
+  },
+  {
     version: '2.024', date: '2026-11-01',
     items: [
       { title: 'Licence notices in the Mac app', text: "The Mac app now carries Electron's and Chromium's licence texts, as the Windows and Linux versions already do. The app grows by about 2 MB. Nothing else changes." }

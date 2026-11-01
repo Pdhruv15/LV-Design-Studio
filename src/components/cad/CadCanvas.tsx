@@ -22,6 +22,8 @@ export interface CanvasWiring { arcs: { a: Pt; c: Pt; b: Pt }[]; home?: { a: Pt;
 export interface CadMarks { points: Pt[]; live?: boolean; closed?: boolean; area?: boolean; label?: string }
 /** View transform: screen = (world − origin − (ox, oy)) × scale, y up. */
 interface ViewT { scale: number; ox: number; oy: number }
+/** Where a drawing was zoomed or panned to: it stays there until Fit, also while its tab or the page is left. */
+const placeOf = new WeakMap<CadView, ViewT>();
 
 const OSNAP_ALL = SNAP.endpoint | SNAP.midpoint | SNAP.center | SNAP.intersection | SNAP.insertion | SNAP.node | SNAP.quadrant;
 const hex = (rgb: number) => `#${rgb.toString(16).padStart(6, '0')}`;
@@ -132,12 +134,17 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     return () => ro.disconnect();
   }, []);
 
-  // Fit (on open, on Fit / ZE, and when the window size changes before anything was moved).
+  // Fit (on open, on Fit / ZE, and when the window size changes before anything was moved); a moved drawing goes back
+  // to where it was left.
+  const fitted = useRef(fitKey);
   useEffect(() => {
+    if (fitted.current !== fitKey) { fitted.current = fitKey; placeOf.delete(view); }
     const [x0, y0, x1, y1] = view.info.extents;
     const scale = Math.min(size.w / Math.max(1e-9, x1 - x0), size.h / Math.max(1e-9, y1 - y0)) * 0.92;
-    setT({ scale, ox: (x0 + x1) / 2 - o0 - size.w / 2 / scale, oy: (y0 + y1) / 2 - o1 - size.h / 2 / scale });
+    setT(placeOf.get(view) ?? { scale, ox: (x0 + x1) / 2 - o0 - size.w / 2 / scale, oy: (y0 + y1) / 2 - o1 - size.h / 2 / scale });
   }, [view, fitKey, size.w, size.h, o0, o1]);
+  /** A zoom or pan by the user: the drawing stays there. */
+  const move = (to: (v: ViewT) => ViewT) => setT((v) => { const next = to(v); placeOf.set(view, next); return next; });
 
   const css = () => getComputedStyle(host.current ?? document.documentElement);
   const colour = (name: string, fallback: string) => css().getPropertyValue(name).trim() || fallback;
@@ -534,15 +541,16 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     const scale = Math.min(size.w / Math.max(1e-9, x1 - x0), size.h / Math.max(1e-9, y1 - y0)) * 0.92;
     return { scale, ox: (x0 + x1) / 2 - o0 - size.w / 2 / scale, oy: (y0 + y1) / 2 - o1 - size.h / 2 / scale };
   };
+  const fitNow = () => { placeOf.delete(view); setT(fitT()); };
   // + / − zoom about the middle, 0 fits, arrows pan (letters go to the command line).
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e) => {
     const k = viewKey(e, false);
     if (!k || k === 'grid') return;
     e.preventDefault();
-    if (k === 'fit') setT(fitT());
+    if (k === 'fit') fitNow();
     else if (k === 'in' || k === 'out') zoomAt(size.w / 2, size.h / 2, k === 'in' ? KEY_STEP : 1 / KEY_STEP);
-    else setT((v) => ({ ...v, ox: v.ox + (k.pan[0] * size.w * PAN_STEP) / v.scale, oy: v.oy - (k.pan[1] * size.h * PAN_STEP) / v.scale }));
+    else move((v) => ({ ...v, ox: v.ox + (k.pan[0] * size.w * PAN_STEP) / v.scale, oy: v.oy - (k.pan[1] * size.h * PAN_STEP) / v.scale }));
   };
   useEffect(() => {
     const key = (e: KeyboardEvent) => keyRef.current(e);
@@ -554,7 +562,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     const r = over.current!.getBoundingClientRect();
     return [e.clientX - r.left, e.clientY - r.top] as const;
   };
-  const zoomAt = (sx: number, sy: number, k: number) => setT((v) => {
+  const zoomAt = (sx: number, sy: number, k: number) => move((v) => {
     const [wx, wy] = [v.ox + sx / v.scale, v.oy + (size.h - sy) / v.scale];
     const scale = Math.min(1e6, Math.max(1e-6, v.scale * k));
     return { scale, ox: wx - sx / scale, oy: wy - (size.h - sy) / scale };
@@ -572,7 +580,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
           const [sx, sy] = local(e);
           // A mouse wheel and a pinch zoom; two fingers on a trackpad pan.
           const w = wheelAction(e.nativeEvent);
-          if ('pan' in w) setT((v) => ({ ...v, ox: v.ox + w.pan[0] / v.scale, oy: v.oy - w.pan[1] / v.scale }));
+          if ('pan' in w) move((v) => ({ ...v, ox: v.ox + w.pan[0] / v.scale, oy: v.oy - w.pan[1] / v.scale }));
           else zoomAt(sx, sy, w.zoom);
         }}
         onMouseDown={(e) => {
@@ -586,7 +594,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
           const [x, y] = local(e);
           mouse.current = [x, y];
           const d = drag.current;
-          if (d) setT((v) => ({ ...v, ox: d.ox - (x - d.x) / v.scale, oy: d.oy + (y - d.y) / v.scale }));
+          if (d) move((v) => ({ ...v, ox: d.ox - (x - d.x) / v.scale, oy: d.oy + (y - d.y) / v.scale }));
           else track(x, y);
         }}
         onMouseUp={(e) => {
@@ -595,10 +603,10 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
           if (!wasDrag && e.button === 0 && !space.current) { const [x, y] = mouse.current ?? local(e); clickAt(x, y); }
         }}
         onDoubleClick={(e) => { if (e.button === 1) e.preventDefault(); }}
-        onAuxClick={(e) => { if (isFitClick(e)) setT(fitT()); }}
+        onAuxClick={(e) => { if (isFitClick(e)) fitNow(); }}
         onMouseLeave={() => { drag.current = null; mouse.current = null; drawCursor(null); onCursor(null); }}
       />
-      <ZoomChip pct={(t.scale / fitT().scale) * 100} onFit={() => setT(fitT())} />
+      <ZoomChip pct={(t.scale / fitT().scale) * 100} onFit={fitNow} />
     </div>
   );
 }

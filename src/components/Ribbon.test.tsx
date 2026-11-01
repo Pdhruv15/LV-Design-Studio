@@ -72,6 +72,17 @@ describe('Ribbon', () => {
     expect(render('home')).not.toContain('ribbon-subtabs');
   });
 
+  it('has Close in the File group of Design CAD, after Save DWG and off while no drawing is open', () => {
+    const cad = (hasDrawing: boolean) => ({ hasDrawing, file: { plans: [], level: 'Ground', levelTitle: '', levels: [], unit: 'mm', unitTitle: '', units: [] }, copyLevels: [] }) as unknown as RibbonActions['cad'];
+    const close = (html: string) => html.match(/<button[^>]*title="Close this drawing[^>]*>/)?.[0];
+    const html = render('cad', { view: 'cad', cad: cad(true) });
+    expect(html.indexOf('>Close<')).toBeGreaterThan(html.indexOf('>Save DWG<'));
+    expect(close(html)).toBeDefined();
+    expect(close(html)).not.toContain('disabled');
+    expect(close(render('cad', { view: 'cad', cad: cad(false) }))).toContain('disabled');
+    expect(render('cad', { view: 'drawings', cad: cad(true), sheets: { tab: 'layout', open: false, onTab: noop } })).not.toContain('>Close<'); // on Plan and Draw, not on Sheets
+  });
+
   it('has a Sheets sub-tab in Design CAD for the sheets pages, with the register tabs', () => {
     const html = render('cad', { view: 'drawings', sheets: { tab: 'layout', open: false, onTab: noop } });
     expect(html).toMatch(/aria-selected="true"[^>]*>Sheets</);
