@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.024', date: '2026-11-01',
+    items: [
+      { title: 'Licence notices in the Mac app', text: "The Mac app now carries Electron's and Chromium's licence texts, as the Windows and Linux versions already do. The app grows by about 2 MB. Nothing else changes." }
+    ]
+  },
+  {
     version: '2.023', date: '2026-11-01',
     items: [
       { title: 'Screens follow the same number formats', text: 'Pages now write values the way the reports do, so the page and the printout match: 20,558.80 kW, 13,073.2 A, 10.70 kA and 55.6 %. The cost table writes 12,345.00. Times use the 24-hour clock and dates read 1 Nov 2026 on every computer. Large headline figures stay whole so they fit, and the boxes you type in do not change. The calculated results are unchanged.' }

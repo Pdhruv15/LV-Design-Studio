@@ -1,7 +1,7 @@
 {
   "name": "lv-design-studio",
   "productName": "LV Design Studio",
-  "version": "2.23.0",
+  "version": "2.24.0",
   "license": "(MIT OR Apache-2.0)",
   "description": "Offline LV electrical design & calculation desktop app",
   "main": "electron/main.cjs",
@@ -93,6 +93,7 @@
     "directories": {
       "output": "release"
     },
+    "afterPack": "./scripts/mac-licences.cjs",
     "fileAssociations": [
       {
         "ext": [

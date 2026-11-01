@@ -3,9 +3,12 @@ import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, wri
 import { builtinModules } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, posix, resolve, sep } from 'node:path';
+import { gunzipSync, gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error — plain ESM script without type declarations
-import { asarFiles, LOCALE_FILES, MAC_LANGUAGES, MAX_ASAR_MB, packageProblems } from '../scripts/check-package.mjs';
+import { asarFiles, badNoticesIn, LOCALE_FILES, MAC_LANGUAGES, MAC_NOTICES, MAX_ASAR_MB, NOTICES, packageProblems } from '../scripts/check-package.mjs';
+// @ts-expect-error — plain CommonJS script without type declarations
+import { afterPack, writeNotices } from '../scripts/mac-licences.cjs';
 
 // What the installed app carries. electron-builder adds production dependencies to the package unless told
 // not to, although they are all compiled into dist and dist-electron. CI lists a real package with
@@ -16,7 +19,7 @@ const pkg = JSON.parse(read('package.json')) as {
   scripts: Record<string, string>;
   dependencies: Record<string, string>;
   overrides: { exceljs: { uuid: string } };
-  build: { files: string[]; electronLanguages: string[] };
+  build: { files: string[]; electronLanguages: string[]; afterPack: string };
 };
 
 describe('package filter', () => {
@@ -46,6 +49,54 @@ describe('package filter', () => {
 
   it('keeps the compiled libraries in dependencies, so the audit of what ships (scripts/check-audit.mjs) still covers them', () => {
     for (const lib of ['docx', 'dompurify', 'exceljs', 'jszip', 'lucide-react', 'pdf-lib', 'react', 'react-dom', 'zod']) expect(pkg.dependencies, lib).toHaveProperty(lib);
+  });
+});
+
+describe("Electron's licence texts in the Mac app", () => {
+  const inTemp = (check: (dir: string) => void) => {
+    const dir = mkdtempSync(join(tmpdir(), 'lvds-notices-'));
+    try { check(dir); } finally { rmSync(dir, { recursive: true, force: true }); }
+  };
+
+  it('runs after packing, before the app is signed', () => {
+    expect(pkg.build.afterPack).toBe('./scripts/mac-licences.cjs');
+    expect(existsSync(join(root, pkg.build.afterPack))).toBe(true);
+  });
+
+  it('writes the Electron licence as it is and the Chromium list gzipped, and the package check reads them', () => {
+    inTemp((dir) => {
+      const download: Record<string, string> = { LICENSE: 'Copyright (c) Electron', 'LICENSES.chromium.html': '<html>credits</html>'.repeat(1000) };
+      writeNotices(dir, (name: string) => Buffer.from(download[name]));
+      expect(readFileSync(join(dir, 'LICENSE.electron.txt'), 'utf8')).toBe(download.LICENSE);
+      const gz = readFileSync(join(dir, 'LICENSES.chromium.html.gz'));
+      expect(gunzipSync(gz).toString()).toBe(download['LICENSES.chromium.html']);
+      expect(gz.length).toBeLessThan(download['LICENSES.chromium.html'].length / 10);
+      expect(badNoticesIn(dir, MAC_NOTICES)).toEqual([]);
+    });
+  });
+
+  it('leaves Windows and Linux alone: they keep both texts beside the app', async () => {
+    await expect(afterPack({ electronPlatformName: 'win32' })).resolves.toBeUndefined();
+    await expect(afterPack({ electronPlatformName: 'linux' })).resolves.toBeUndefined();
+  });
+
+  it('stops the build when a text is missing from the download', () => {
+    inTemp((dir) => {
+      expect(() => writeNotices(dir, () => { throw new Error('unzip: LICENSE not found'); })).toThrow('LICENSE not found');
+    });
+  });
+
+  it('finds a text that is missing, empty or not really gzipped', () => {
+    inTemp((dir) => {
+      expect(badNoticesIn(dir, NOTICES)).toEqual(NOTICES);
+      writeFileSync(join(dir, 'LICENSE.electron.txt'), '');
+      writeFileSync(join(dir, 'LICENSES.chromium.html'), 'credits');
+      expect(badNoticesIn(dir, NOTICES)).toEqual(['LICENSE.electron.txt']);
+      writeFileSync(join(dir, 'LICENSES.chromium.html.gz'), 'not gzipped');
+      expect(badNoticesIn(dir, ['LICENSES.chromium.html.gz'])).toEqual(['LICENSES.chromium.html.gz']);
+      writeFileSync(join(dir, 'LICENSES.chromium.html.gz'), gzipSync('credits'));
+      expect(badNoticesIn(dir, ['LICENSES.chromium.html.gz'])).toEqual([]);
+    });
   });
 });
 
@@ -122,7 +173,8 @@ describe('scripts/check-package.mjs', () => {
   const clean = () => ({
     files: ['package.json', 'dist/index.html', 'dist/third-party-licences.md', 'dist/assets/index-abc.js', 'dist-electron/exceljs.cjs', 'dist-electron/third-party-licences.md', 'electron/main.cjs', 'electron/cad/lvds_cad_reader_bg.wasm'],
     asarMb: 11.6,
-    languages: { locales: { found: ['en-US.pak', 'en-GB.pak'], expected: LOCALE_FILES }, framework: { found: ['en_GB.lproj', 'en.lproj'], expected: MAC_LANGUAGES } }
+    languages: { locales: { found: ['en-US.pak', 'en-GB.pak'], expected: LOCALE_FILES }, framework: { found: ['en_GB.lproj', 'en.lproj'], expected: MAC_LANGUAGES } },
+    badNotices: [] as string[]
   });
   const problems = (change: (p: ReturnType<typeof clean>) => void) => {
     const p = clean();
@@ -153,6 +205,10 @@ describe('scripts/check-package.mjs', () => {
     expect(problems((p) => p.languages.locales.found.push('de.pak'))).toContain('locales should hold only en-GB.pak, en-US.pak');
     expect(problems((p) => { p.languages.locales.found = []; })).toContain('holds 0 files');
     expect(problems((p) => p.languages.framework.found.push('en_FEMININE.lproj'))).toContain('framework should hold only');
+  });
+
+  it('finds a licence text gone', () => {
+    expect(problems((p) => p.badNotices.push('LICENSES.chromium.html.gz'))).toContain('The licence text LICENSES.chromium.html.gz is missing or unreadable');
   });
 
   it('finds an app.asar that has grown', () => {
