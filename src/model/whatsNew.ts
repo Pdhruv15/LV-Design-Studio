@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.028', date: '2026-11-01',
+    items: [
+      { title: 'Web version: a new version no longer stops the app', text: 'If a new version went live while the web version was open, opening a page not yet loaded could blank the whole app, and nothing could be clicked. The open copy now keeps working until you press New version — reload. If a page cannot be loaded at all, that page says so with a Reload button, and the rest of the app keeps working. The desktop app was not affected.' }
+    ]
+  },
+  {
     version: '2.027', date: '2026-11-01',
     items: [
       { title: 'A tidier ribbon', text: 'Project now comes first, then Load schedule, SLD and Design CAD, then one Stages tab, then Documents and BOM / Cost, with Standards at the far end. The row now fits a 1,280 px screen. Before, the last tabs went out of sight until you scrolled the row sideways.' },

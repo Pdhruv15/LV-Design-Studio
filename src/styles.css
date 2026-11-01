@@ -1412,6 +1412,8 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .dash-stage-checks .linkish{font-size:inherit;text-align:left}
 
 /* Web version strip */
+.page-not-loaded{display:grid;justify-items:start;gap:var(--space-2);max-width:68ch;padding:var(--space-4)}
+.page-not-loaded p{margin:0}
 .web-banner{display:flex;align-items:center;gap:var(--space-2) var(--space-3);flex-wrap:wrap;padding:var(--space-2) var(--gutter);background:color-mix(in srgb,var(--acc) 12%,var(--panel));border-bottom:1px solid var(--line);font-size:var(--fs-sm)}
 .web-ok{display:inline-flex;align-items:center;gap:var(--space-1);color:var(--ok)}
 .sheet-refs{display:inline-flex;gap:4px;flex-wrap:wrap;max-width:50%;overflow:hidden}.sheet-refs .chip{padding:0 var(--space-2);font-size:var(--fs-xs);min-height:20px}

@@ -35,6 +35,7 @@ const csp = (): Plugin => ({
  * written at build time, so the first visit prepares everything (including
  * the PDF / Excel libraries loaded later) and the page can say "Ready for
  * offline use" only when that worked. Not used by the desktop app. */
+const KEEP_BUILDS = 3; // older builds kept for pages left open, at about 10 MB each
 const pwa = (): Plugin => ({
   name: 'lvds-pwa',
   apply: 'build',
@@ -52,14 +53,17 @@ const pwa = (): Plugin => ({
     this.emitFile({ type: 'asset', fileName: 'sw.js', source: `// LV Design Studio — offline copy of build ${version}
 const CACHE = 'lvds-${version}';
 const FILES = ${JSON.stringify(files)};
+// A page left open keeps running the build it started with and loads its pages as they are opened, and those files leave the server when a new build goes live: the last few builds stay here for it.
+const KEEP = ${KEEP_BUILDS};
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
-self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('lvds-') && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
+self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('lvds-') && k !== CACHE).slice(0, -KEEP).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {
   const r = e.request;
   if (r.method !== 'GET' || new URL(r.url).origin !== location.origin) return;
-  // Pages: the network first (gets updates), the offline copy when there is none.
-  if (r.mode === 'navigate') { e.respondWith(fetch(r).catch(() => caches.match('index.html'))); return; }
-  e.respondWith(caches.match(r).then((hit) => hit || fetch(r)));
+  // Pages: the network first (gets updates), this build's offline copy when there is none.
+  if (r.mode === 'navigate') { e.respondWith(fetch(r).catch(() => caches.open(CACHE).then((c) => c.match('index.html')))); return; }
+  // This build's copy first, as files without a hash in their name are in every build; then an older build's.
+  e.respondWith(caches.open(CACHE).then((c) => c.match(r)).then((hit) => hit || caches.match(r)).then((hit) => hit || fetch(r)));
 });
 self.addEventListener('message', (e) => { if (e.data === 'version') e.source.postMessage({ version: '${version}', files: FILES.length, entry: '${entry}', app: '${displayVersion(pkg.version)}' }); });
 ` });
