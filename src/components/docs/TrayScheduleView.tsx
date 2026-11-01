@@ -19,6 +19,7 @@ import ClassicGrid from '../grid/ClassicGrid';
 import { Page } from '../ui';
 import ContainmentCalculator from './ContainmentCalculator';
 import { sanitizeSvg } from '../../util/sanitize';
+import { txt } from '../../util/format';
 
 const f0 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -293,7 +294,7 @@ function TrayDesignView({ project, onChange, onStatus, modeSwitch }: {
                   <td><b>{r.cableCount ? trayText(r) : '—'}</b>{r.manual && <span className="m"> (chosen)</span>}</td>
                   <td>{r.cableCount ? `${f0(r.sparePctActual)} %` : '—'}</td>
                   <td>{r.cableCount ? r.groupFactor.toFixed(2) : '—'}</td>
-                  <td>{f1(r.kgPerM)}</td>
+                  <td>{txt.weight(r.kgPerM)}</td>
                   <td>{r.route.lengthM ?? '—'}</td>
                   <td className={r.status}>{STATUS_TEXT[r.status]}</td>
                 </tr>
@@ -469,7 +470,7 @@ function RouteCard({ project, plan, res, boards, onProject, onRoute, onRemove, o
                   <td className={l.unknownSize ? 'warn' : undefined} title={l.unknownSize ? 'Size not in the cable data — next size up' : undefined}>
                     {l.ecc ? f1(l.odMm) : <Num value={c?.odMm} placeholder={f1(l.odMm)} width={52} title="Blank = from the cable data" onSet={(v) => setCable(c?.id, l.feederId, { odMm: v || undefined })} />}
                   </td>
-                  <td>{f1(l.kgPerM)}</td>
+                  <td>{txt.weight(l.kgPerM)}</td>
                   <td>{f0(l.qty * l.odMm)}</td>
                   <td>
                     {!l.ecc && (
@@ -547,7 +548,7 @@ function RouteCard({ project, plan, res, boards, onProject, onRoute, onRemove, o
             </select>
           </span>
           <b className={`tray-answer ${res.status}`}>
-            {res.cableCount ? `${trayText(res)} mm · spare ${f0(res.sparePctActual)} % · ${f1(res.kgPerM)} kg/m` : '—'}
+            {res.cableCount ? `${trayText(res)} mm · spare ${f0(res.sparePctActual)} % · ${txt.weight(res.kgPerM)} kg/m` : '—'}
           </b>
           {res.notes.length > 0 && <span className="m">{res.notes.join(' · ')}</span>}
         </div>

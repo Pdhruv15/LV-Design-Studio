@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { STATUS_TEXT } from '../calc/statusText';
 import { izText, type FeederResult } from '../calc/electrical';
+import { txt } from '../util/format';
 
 type TabKey = 'vd' | 'load' | 'sc' | 'prot';
 
@@ -65,10 +66,10 @@ export default function ResultsTable({
             <td>{f.id}</td>
             <td>{f.cableCsaMm2} mm²</td>
             <td className="num">{f.lengthM} m</td>
-            <td className="num">{r.ib.toFixed(0)}</td>
-            <td className="num">{r.vdPct.toFixed(2)}</td>
-            <td className="num">{r.vdUpstreamPct.toFixed(2)}</td>
-            {bar(r.vdTotalPct.toFixed(2), r.vdTotalPct, vdLimitPct, r.vdStatus)}
+            <td className="num">{txt.current(r.ib)}</td>
+            <td className="num">{txt.pct(r.vdPct)}</td>
+            <td className="num">{txt.pct(r.vdUpstreamPct)}</td>
+            {bar(txt.pct(r.vdTotalPct), r.vdTotalPct, vdLimitPct, r.vdStatus)}
             <td className="num">{vdLimitPct.toFixed(1)}</td>
             {statusCell(r.vdStatus)}
           </>
@@ -77,11 +78,11 @@ export default function ResultsTable({
         return (
           <>
             <td>{f.id}</td>
-            <td className="num">{f.loadKw.toFixed(0)}{f.generation ? ' (PV)' : ''}</td>
+            <td className="num">{txt.power(f.loadKw)}{f.generation ? ' (PV)' : ''}</td>
             <td className="num">{f.demandFactor.toFixed(2)}</td>
-            <td className="num">{(f.loadKw * f.demandFactor).toFixed(0)}</td>
-            <td className="num">{r.ib.toFixed(0)}</td>
-            {bar(`${r.loadingPct.toFixed(0)}%`, r.loadingPct, 100, r.loadingPct > 100 ? 'bad' : r.loadingPct > 85 ? 'warn' : 'ok')}
+            <td className="num">{txt.power(f.loadKw * f.demandFactor)}</td>
+            <td className="num">{txt.current(r.ib)}</td>
+            {bar(`${txt.loading(r.loadingPct)}%`, r.loadingPct, 100, r.loadingPct > 100 ? 'bad' : r.loadingPct > 85 ? 'warn' : 'ok')}
             {statusCell(r.loadingPct > 100 ? 'bad' : r.loadingPct > 85 ? 'warn' : 'ok')}
           </>
         );
@@ -89,10 +90,10 @@ export default function ResultsTable({
         return (
           <>
             <td>{f.id}</td>
-            <td className="num">{r.breakerFaultKA.toFixed(1)}</td>
-            {bar(`${r.breakerFaultKA.toFixed(1)} of ${f.breakerIcuKa}`, r.breakerFaultKA, f.breakerIcuKa, r.icuStatus)}
-            <td className="num">{(f.breakerIcuKa - r.breakerFaultKA).toFixed(1)}</td>
-            <td className="num">{r.endFaultKA.toFixed(1)}</td>
+            <td className="num">{txt.fault(r.breakerFaultKA)}</td>
+            {bar(`${txt.fault(r.breakerFaultKA)} of ${f.breakerIcuKa}`, r.breakerFaultKA, f.breakerIcuKa, r.icuStatus)}
+            <td className="num">{txt.fault(f.breakerIcuKa - r.breakerFaultKA)}</td>
+            <td className="num">{txt.fault(r.endFaultKA)}</td>
             {statusCell(r.icuStatus)}
           </>
         );
@@ -100,7 +101,7 @@ export default function ResultsTable({
         return (
           <>
             <td>{f.id}</td>
-            <td className="num">{r.ib.toFixed(0)}</td>
+            <td className="num">{txt.current(r.ib)}</td>
             <td className="num">{f.breakerRatingA}</td>
             <td className="num">{izText(r.ampacity)}</td>
             <td>{protectionNote(r)}</td>

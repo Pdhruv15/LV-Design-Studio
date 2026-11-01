@@ -10,6 +10,7 @@ import { safeFileName, saveText } from '../../util/files';
 import { sha256Hex } from '../../util/sha256';
 import { Page } from '../ui';
 import ElvSchedules from './ElvSchedules';
+import { txt } from '../../util/format';
 
 export const SYSTEM_LABEL: Record<ElvSystem, string> = { 'fire-alarm': 'Fire alarm', cctv: 'CCTV', 'access-control': 'Access control', ict: 'ICT', 'public-address': 'Public address' };
 
@@ -22,7 +23,7 @@ const RULE_COLUMNS: { key: keyof RoomRule; part: keyof Density; label: string; t
   { key: 'speaker', part: 'm2', label: 'Speaker per m²', title: 'One PA speaker per this floor area' }
 ];
 
-const kw = (n: number) => n.toFixed(2);
+const kw = (n: number) => txt.power(n);
 const DEVICE_COLUMNS: { label: string; of: (d: Record<string, number | undefined>) => number }[] = [
   { label: 'Det.', of: (d) => (d.smokeDetector ?? 0) + (d.heatDetector ?? 0) + (d.multiDetector ?? 0) },
   { label: 'Cam.', of: (d) => d.camera ?? 0 },

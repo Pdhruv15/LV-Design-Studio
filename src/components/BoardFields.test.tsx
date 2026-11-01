@@ -46,7 +46,7 @@ describe('BoardFields: other buildings on this supply', () => {
       { name: '', allocatedKva: 200, recordedKva: 350 },
     ]);
     expect(last.existing?.recordedKva).toBe(400);
-    expect(host.textContent).toContain('Kept for them: 950 kVA');
+    expect(host.textContent).toContain('Kept for them: 950.00 kVA');
 
     act(() => document.querySelector<HTMLButtonElement>('button[aria-label="Remove other building 1"]')!.click());
     expect(last.existing?.others).toEqual([{ name: '', allocatedKva: 200, recordedKva: 350 }]);

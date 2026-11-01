@@ -1,6 +1,7 @@
 import type { Feeder } from '../types';
 import { breakerTypeOf, instantaneousTripA } from '../calc/earthing';
 import { genericTripTimeS } from '../calc/protection';
+import { fmtUpTo, txt } from '../util/format';
 
 /** One theme token per curve (--curve-1…8 in tokens.css): the dark values are the original colours, light ones darker for white. */
 const curveColor = (n: number) => `var(--curve-${(n % 8) + 1})`;
@@ -55,7 +56,7 @@ export default function TccChart({ feeders, faultKA, bold, label, compact }: {
         {decades(T_MIN, T_MAX).map((t) => (
           <g key={`y${t}`}>
             <line x1={L} y1={y(t)} x2={W - R} y2={y(t)} className="grid" />
-            <text x={L - 6} y={y(t) + 4} textAnchor="end" className="m">{t < 1 ? t : t.toLocaleString()}</text>
+            <text x={L - 6} y={y(t) + 4} textAnchor="end" className="m">{t < 1 ? t : fmtUpTo(t, 3)}</text>
           </g>
         ))}
         <text x={(L + W - R) / 2} y={H - 6} textAnchor="middle" className="m">Current (A)</text>
@@ -63,7 +64,7 @@ export default function TccChart({ feeders, faultKA, bold, label, compact }: {
         {faultKA !== undefined && faultKA * 1000 < I_MAX && (
           <g>
             <line x1={x(faultKA * 1000)} y1={T} x2={x(faultKA * 1000)} y2={H - B} className="fault-line" />
-            <text x={x(faultKA * 1000) - 4} y={T + 12} textAnchor="end" className="m">Ik″ {faultKA.toFixed(1)} kA</text>
+            <text x={x(faultKA * 1000) - 4} y={T + 12} textAnchor="end" className="m">Ik″ {txt.fault(faultKA)} kA</text>
           </g>
         )}
         {feeders.map((f, n) => (

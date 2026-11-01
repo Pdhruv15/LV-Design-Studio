@@ -7,6 +7,7 @@ import { roomTypesOf } from '../../calc/building';
 import { unitTypeLibrary } from '../../model/buildingPreset';
 import { saveUnitTypesToLibrary, UnitLibraryDialog } from './BuildingReuse';
 import { addServices, benchOf, defaultServices, floorLoads, generateBuildingDbs, plannedDbs, roomDensities, rulesOf, lpdOf, unitLoads, type ServiceItem } from '../../calc/buildingDesign';
+import { txt } from '../../util/format';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -86,7 +87,7 @@ export function UnitTypesCard({ info, onChange, onStatus }: { info: BuildingInfo
             <div key={u.id} className="bi-unit">
               <div className="bi-unit-head">
                 <input className="bi-text" style={{ width: 150, fontWeight: 600 }} defaultValue={u.name} key={u.name} onBlur={(e) => e.target.value && setU(u.id, { name: e.target.value })} />
-                <span className="m">{f0(area)} m²</span>
+                <span className="m">{txt.size(area)} m²</span>
                 <select className="bi-sel" value={u.meter ?? ''} onChange={(e) => setU(u.id, { meter: (e.target.value || undefined) as MeterType | undefined })} title="kWh meter on the unit's incomer">
                   <option value="">Meter: by load</option>{METER_TYPES.map((m) => <option key={m} value={m}>{m}</option>)}
                 </select>
@@ -191,7 +192,7 @@ export function ServicesDialog({ project, b, onDone, onClose }: { project: Proje
       </table>
       <div className="modal-actions">
         <label className="row" style={{ gap: 6 }}>On board <select className="bi-sel" value={board} onChange={(e) => setBoard(e.target.value)}>{project.boards.map((x) => <option key={x.id} value={x.id}>{x.id}</option>)}</select></label>
-        <span className="m">{f1(total)} kW in {items.reduce((s, x) => s + x.qty, 0)} feeders</span>
+        <span className="m">{txt.power(total)} kW in {items.reduce((s, x) => s + x.qty, 0)} feeders</span>
         <span className="sp" /><button className="chip" onClick={onClose}>Cancel</button>
         <button className="chip primary" disabled={!board || !items.some((x) => x.qty)} onClick={() => { const r = addServices(project, board, items.filter((x) => x.qty > 0)); onDone(r.project, `Added ${r.added} service feeders on ${board}`); }}>Add to {board}</button>
       </div>
@@ -219,10 +220,10 @@ export function DensityPanel({ project, b }: { project: Project; b: ProjectBuild
             const v = useDensity ? (f.grossM2 ? (f.connectedKw * 1000) / f.grossM2 : 0) : f.connectedKw;
             const top = useDensity ? Math.max(...data.map((x) => (x.grossM2 ? (x.connectedKw * 1000) / x.grossM2 : 0)), 1) : max;
             return (
-              <div key={f.floor.tag} className="bi-bar-row" title={`${f.floor.name}: ${f1(f.connectedKw)} kW connected, ${f1(f.demandKw)} kW demand${f.grossM2 ? `, ${f1((f.connectedKw * 1000) / f.grossM2)} W/m²` : ''}`}>
+              <div key={f.floor.tag} className="bi-bar-row" title={`${f.floor.name}: ${txt.power(f.connectedKw)} kW connected, ${txt.power(f.demandKw)} kW demand${f.grossM2 ? `, ${f1((f.connectedKw * 1000) / f.grossM2)} W/m²` : ''}`}>
                 <span className="bi-bar-lbl">{f.floor.tag}</span>
                 <span className="bi-bar-track"><span className="bi-bar-fill" style={{ width: `${Math.max(1, (v / top) * 100)}%` }} /><span className="bi-bar-dem" style={{ width: `${Math.max(0, (useDensity ? (f.grossM2 ? (f.demandKw * 1000) / f.grossM2 : 0) : f.demandKw) / top * 100)}%` }} /></span>
-                <span className="bi-bar-val">{useDensity ? `${f1(v)} W/m²` : `${f1(v)} kW`}</span>
+                <span className="bi-bar-val">{useDensity ? `${f1(v)} W/m²` : `${txt.power(v)} kW`}</span>
               </div>
             );
           })}
@@ -236,7 +237,7 @@ export function DensityPanel({ project, b }: { project: Project; b: ProjectBuild
           {units.length > 0 && (
             <table className="bi-table compact">
               <thead><tr><th>Flat</th><th>DB</th><th>Meter</th><th>kW</th></tr></thead>
-              <tbody>{units.slice(0, 12).map((u) => <tr key={u.db}><td>{u.unit} <span className="m">{u.type}</span></td><td>{u.db}</td><td>{u.meter ?? '—'}</td><td>{f1(u.connectedKw)}</td></tr>)}</tbody>
+              <tbody>{units.slice(0, 12).map((u) => <tr key={u.db}><td>{u.unit} <span className="m">{u.type}</span></td><td>{u.db}</td><td>{u.meter ?? '—'}</td><td>{txt.power(u.connectedKw)}</td></tr>)}</tbody>
             </table>
           )}
           {units.length > 12 && <p className="m">+ {units.length - 12} more flats · meters: {Object.entries(units.reduce<Record<string, number>>((a, u) => { if (u.meter) a[u.meter] = (a[u.meter] ?? 0) + 1; return a; }, {})).map(([m, n]) => `${n} × ${m}`).join(', ')}</p>}
@@ -251,7 +252,7 @@ export function DensityPanel({ project, b }: { project: Project; b: ProjectBuild
               <tbody>
                 {shownRooms.slice(0, 80).map((r) => (
                   <tr key={r.key}>
-                    <td>{r.name}</td><td>{r.floor}</td><td>{r.db}</td><td>{f0(r.areaM2)} m²</td>
+                    <td>{r.name}</td><td>{r.floor}</td><td>{r.db}</td><td>{txt.size(r.areaM2)} m²</td>
                     <td className={r.lpdMax && r.lpd > r.lpdMax ? 'warn' : ''}>{f1(r.lpd)}</td><td className="m">{r.lpdMax ?? '—'}</td>
                     <td>{f0(r.powerW)}</td><td>{f0(r.acW)}</td><td>{f1(r.wPerM2)}</td><td className="m">{r.expectedWPerM2 ?? '—'}</td>
                     <td className={r.status}>{r.note ?? 'OK'}</td>

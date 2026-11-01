@@ -5,6 +5,7 @@ import { breakerTypeOf } from '../../calc/earthing';
 import { applyAllRecommendations, applyRecommendation, recommend, type SelectionMode } from '../../calc/sizing';
 import { FocusChip, Page, ResultCard, ResultCards, StatusCell, StatusCounts } from '../ui';
 import { subtree } from '../../calc/pfc';
+import { txt } from '../../util/format';
 
 /** Current vs recommended breaker (In, type, Icu) and cable for every
  * feeder, with Apply per row or for everything. */
@@ -54,7 +55,7 @@ export default function SelectionStudy({ project, onChange, focus, onClearFocus 
             return (
               <tr key={f.id}>
                 <td>{f.id}</td>
-                <td>{rec.ib.toFixed(0)}</td>
+                <td>{txt.current(rec.ib)}</td>
                 <StatusCell status={result.status} />
                 <td>{f.breakerRatingA} A {breakerTypeOf(f)}</td>
                 <td>{diff(`${f.breakerRatingA} A ${breakerTypeOf(f)}`, rec.breakerRatingA && `${rec.breakerRatingA} A ${rec.breakerType}`)}</td>

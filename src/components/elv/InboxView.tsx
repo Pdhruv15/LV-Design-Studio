@@ -4,6 +4,7 @@ import { decide, exchangeOf, readPackage, reviewPackage, type ChangeKind } from 
 import type { Project } from '../../types';
 import { sha256Hex } from '../../util/sha256';
 import { Page } from '../ui';
+import { fmtDateTime } from '../../util/format';
 
 export interface InboxItem { pkg: ExchangePackage; hash: string }
 
@@ -12,7 +13,7 @@ const CHANGE_LABEL: Record<ChangeKind, string> = { added: 'New', changed: 'Chang
 const NOTE: Partial<Record<PackageKind, Partial<Record<ChangeKind, string>>>> = {
   loads: { changed: 'Placed circuits: becomes a proposal in Changes', removed: 'Placed circuit is kept; listed to delete by hand' }
 };
-const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+const when = (iso: string) => fmtDateTime(iso);
 
 /** Packages from other programs (CAD, IFC, DIALux, the ELV estimate) waiting for review: what each would add, change
  * or remove, the engineer ticks what to take, and the decision is logged with the package hash (decide()). */

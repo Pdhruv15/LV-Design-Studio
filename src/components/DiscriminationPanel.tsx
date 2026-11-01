@@ -4,6 +4,7 @@ import { discriminationChain } from '../calc/protection';
 import { faultCurrentKA, impedanceToBoard } from '../calc/electrical';
 import TccChart from './TccChart';
 import { STATUS_LABEL } from './ui';
+import { txt } from '../util/format';
 
 /** Discrimination along the selected feeder's supply: its breaker against
  * the one feeding its board, and so on up to the main board, with their
@@ -33,8 +34,8 @@ export default function DiscriminationPanel({ project, feeder }: { project: Proj
             <div className="m">
               Ratio {r.ratio.toFixed(2)} {r.ratioOk ? '≥ 1.6 (overload OK)' : '< 1.6 — overload not selective'} ·{' '}
               {r.shortCircuit === 'total'
-                ? `short circuit total (limit ${r.limitKA.toFixed(1)} kA ≥ fault ${r.faultKA.toFixed(1)} kA)`
-                : `short circuit partial to ${r.limitKA.toFixed(1)} kA (fault ${r.faultKA.toFixed(1)} kA)`}
+                ? `short circuit total (limit ${txt.fault(r.limitKA)} kA ≥ fault ${txt.fault(r.faultKA)} kA)`
+                : `short circuit partial to ${txt.fault(r.limitKA)} kA (fault ${txt.fault(r.faultKA)} kA)`}
             </div>
           </li>
         ))}

@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { PROJECT_STATUSES, type Project, type ProjectStatus } from '../types';
 import { detailsOf, parseTags, type ProjectDetails } from '../model/projectList';
 import { Modal } from './ui';
+import { fmtDate } from '../util/format';
 
 /** Name, status, client, parties, plot, tags and notes of one project, edited from the Projects list. */
 export default function ProjectDetailsDialog({ file, project, onSave, onCancel }: { file: string; project: Project; onSave: (details: ProjectDetails) => void; onCancel: () => void }) {
   const d0 = detailsOf(project);
   const [d, setD] = useState({ ...d0, tags: d0.tags.join(', ') });
   const up = (k: keyof typeof d, v: string) => setD((cur) => ({ ...cur, [k]: v }));
-  const created = project.createdAt ? new Date(project.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+  const created = project.createdAt ? fmtDate(project.createdAt) : '—';
   return (
     <Modal onClose={onCancel} style={{ maxWidth: 560 }} onSubmit={(e) => { e.preventDefault(); if (d.name.trim()) onSave({ ...d, status: d.status as ProjectStatus, tags: parseTags(d.tags) }); }}>
       <h3>Project details</h3>

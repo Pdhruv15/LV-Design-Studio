@@ -5,8 +5,9 @@ import { safeFileName, saveBinary } from '../../util/files';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Project } from '../../types';
 import { autoCheckpoint, CHECKPOINTS_CHANGED, idbStore, MAX_AUTO_CHECKPOINTS, newCheckpoint, restoredFrom, saveCheckpoint, type Checkpoint, type CheckpointStore } from '../../model/checkpoints';
+import { fmtDateTime } from '../../util/format';
 
-const when = (iso: string) => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const when = (iso: string) => fmtDateTime(iso);
 
 /** Named safety copies of the working design. Not revisions: nothing issued is changed by creating or restoring one. */
 export default function CheckpointsPanel({ project, onRestore, onOpenCopy, onStatus, store: given }: {
@@ -58,7 +59,7 @@ export default function CheckpointsPanel({ project, onRestore, onOpenCopy, onSta
     if (!file) return;
     try {
       const b = await readBackup(new Uint8Array(await file.arrayBuffer()));
-      const made = new Date(b.manifest.exportedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const made = fmtDateTime(b.manifest.exportedAt);
       if (!(await ask({ title: `Import the backup of “${b.project.name}”?`, message: `Made ${made} with LV Design Studio ${b.manifest.appVersion}, with ${b.checkpoints.length} checkpoint${b.checkpoints.length === 1 ? '' : 's'}. Every file in it passed its check.`, confirmLabel: 'Import' }))) return;
       const same = !!project.id && b.project.id === project.id;
       // Two ways on: replace the open project, or (the other button, as Cancel was before) open the backup as a new project.

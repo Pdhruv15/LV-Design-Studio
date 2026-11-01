@@ -10,6 +10,7 @@ import { buildSubmissionRegisterHtml, buildSubmissionWorkbook, buildTransmittalH
 import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { Page } from '../ui';
+import { fmtDate } from '../../util/format';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const today = () => new Date().toISOString().slice(0, 10);
@@ -76,9 +77,9 @@ export default function SubmissionsView({ project, draft, me = '', onChange, onS
                       {s.docs.length > 0 && <div className="m">{s.docs.slice(0, 3).map((d) => `${d.number}${d.rev ? ` rev ${d.rev}` : ''}`).join(', ')}{s.docs.length > 3 ? ` +${s.docs.length - 3}` : ''}</div>}</td>
                     <td>{s.to}</td>
                     <td>{s.purpose}</td>
-                    <td>{s.date}</td>
+                    <td>{fmtDate(s.date)}</td>
                     <td>{dueOf(project, s) ?? '—'}</td>
-                    <td>{SUB_STATUS[s.status]}{s.responseDate && <div className="m">{s.responseDate}{s.responseRef ? ` · ${s.responseRef}` : ''}</div>}</td>
+                    <td>{SUB_STATUS[s.status]}{s.responseDate && <div className="m">{fmtDate(s.responseDate)}{s.responseRef ? ` · ${s.responseRef}` : ''}</div>}</td>
                     <td className={late ? 'warn' : undefined} style={{ whiteSpace: 'nowrap' }}>{timeText(project, s, now)}</td>
                     <td className="acts">
                       <button className="icon-btn" title={stored.has(s.id) ? 'Edit, record the response' : 'Record the response to this transmittal'} onClick={() => setEditing(s)}>✎</button>

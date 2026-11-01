@@ -12,6 +12,7 @@ import { Page } from './ui';
 import { roleOf } from '../model/emergency';
 import { BRAND_DEVICES } from '../data/brandDevices';
 import { sanitizeSvg } from '../util/sanitize';
+import { fmtDateLong } from '../util/format';
 
 const RESULT: Record<Candidate['result'], string> = { fits: 'Fits', 'too-small': 'Too small', 'not-listed': 'Not in chart', confirm: 'Confirm with supplier' };
 const CLS: Record<Candidate['result'], string> = { fits: 'ok', 'too-small': 'bad', 'not-listed': 'm', confirm: 'warn' };
@@ -151,7 +152,7 @@ function DbSizing({ project, boardId, tabs, onChange, onStatus }: Props & { tabs
     table { width: 100%; border-collapse: collapse; } th, td { border: .2mm solid #999; padding: 3px 6px; text-align: left; } th { background: #f2f2f2; width: 34%; } thead th { background: #f2f2f2; color: #000; width: auto; }
     .warn { color: #000; font-weight: 700; } svg { width: 100%; max-height: 110mm; color: #111; } .m { color: #555; }
     </style></head><body>
-    <h1>${esc(project.name)} — ${esc(panel)} enclosure size</h1><p class="m">${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} · preliminary space estimate</p>
+    <h1>${esc(project.name)} — ${esc(panel)} enclosure size</h1><p class="m">${fmtDateLong(new Date())} · preliminary space estimate</p>
     <h2>Selected enclosure</h2><table>${row('Catalogue', `${cat.supplier} — ${cat.range}, rev. ${cat.revision}`)}${row('Source', cat.source)}${row('Size', `${chosen.config.ref}${cat.family === 'modular' ? ` (${chosen.config.rows} row${chosen.config.rows === 1 ? "" : "s"} × ${chosen.config.modulesPerRow} modules)` : ''}`)}${row('Mounting', cat.family === 'modular' ? mounting : 'fabricated')}${row('Dimensions', `H ${d.h} × W ${d.w} × D ${d.d} mm`)}${row('Allowance case', chosen.rule.label)}${chosen.rule.extra ? row('Add to the estimate', chosen.rule.extra) : ''}</table>
     <h2>Space</h2><table>${row('Method', method === 'schedule' ? 'From the load schedule (device records)' : 'Manual estimate')}${row('Equipment', `${input.equipmentModules} modules`)}${row('Future spare', `${input.spareModules} modules${input.sparePct !== undefined ? ` (${input.sparePct} % of equipment)` : ''}`)}${row('Required', `${r.required} modules`)}${row('Available', `${chosen.config.grossModules} − ${chosen.rule.deductModules} = ${chosen.usable} modules (supplier figure after allowance)`)}${row('Left over', `${chosen.spareAfter} modules`)}${row('ELCB count', String(input.elcbCount))}${input.incomerA !== undefined ? row('Incomer', `${input.incomerA} A`) : ''}</table>
     ${method === 'schedule' ? `<h2>Devices</h2><table><thead><tr><th>Device</th><th>Qty</th><th>Record</th><th>Modules</th></tr></thead><tbody>${needed.map((x) => `<tr><td>${esc(x.key)} — ${esc(x.what)}</td><td>${x.count}</td><td>${x.device ? esc(`${x.device.manufacturer} ${x.device.model}`) : '<span class="warn">needs dimensions</span>'}</td><td>${x.device ? x.device.modules * x.count : '—'}</td></tr>`).join('')}</tbody></table>` : ''}

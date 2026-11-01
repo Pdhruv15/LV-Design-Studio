@@ -3,6 +3,7 @@ import { cpcOf, defaultCpcMm2, getCable } from './cableTable';
 import { DEFAULT_TRANSFORMER_XR, rOperatingOhmPerKm, runsOf, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
 import { elcbGroups, isScheduleCircuit } from './loadSchedule';
 import type { BreakerType, Feeder, Project } from '../types';
+import { fmtFixed } from '../util/format';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -192,7 +193,7 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
   // Unknown fault current and duration: the thermal check can't be decided either way.
   const adiabatic: Status = sourceMissing ? 'warn' : cpcMm2 >= adiabaticWholeMm2 ? 'ok' : cpcMm2 >= adiabaticMinMm2 ? 'warn' : 'bad';
   const adiabaticNote = runs > 1
-    ? `${runs} parallel runs: each ${cpcMm2} mm² CPC carries ${cpcCurrentA.toFixed(0)} A of the ${faultA.toFixed(0)} A end-of-circuit fault (needs ${adiabaticMinMm2.toFixed(1)} mm² each, ${(adiabaticMinMm2 * runs).toFixed(1)} of ${cpcMm2 * runs} mm² together). Assumes identical runs and lengths bonded at both ends; ${adiabatic === 'ok' ? 'one CPC alone also carries the whole fault current, so a fault within one run is covered too' : `not verified for a fault within one run, unequal runs or a shared CPC (one CPC alone would need ${adiabaticWholeMm2.toFixed(1)} mm²)`}.`
+    ? `${runs} parallel runs: each ${cpcMm2} mm² CPC carries ${fmtFixed(cpcCurrentA, 1)} A of the ${fmtFixed(faultA, 1)} A end-of-circuit fault (needs ${adiabaticMinMm2.toFixed(1)} mm² each, ${(adiabaticMinMm2 * runs).toFixed(1)} of ${cpcMm2 * runs} mm² together). Assumes identical runs and lengths bonded at both ends; ${adiabatic === 'ok' ? 'one CPC alone also carries the whole fault current, so a fault within one run is covered too' : `not verified for a fault within one run, unequal runs or a shared CPC (one CPC alone would need ${adiabaticWholeMm2.toFixed(1)} mm²)`}.`
     : undefined;
 
   const status: Status = disconnection === 'bad' || adiabatic === 'bad' ? 'bad' : disconnection === 'warn' || adiabatic === 'warn' ? 'warn' : 'ok';
@@ -229,8 +230,8 @@ export function disconnectionLabel(r: EarthingResult): string {
 }
 /** Ze, Zs and If as text: an incomplete loop shows Ze unknown, Zs as a minimum and If as a maximum. */
 export function loopFigures(r: EarthingResult, d = 4): { ze: string; zs: string; fault: string } {
-  if (!r.sourceMissing) return { ze: r.zeOhm.toFixed(d), zs: r.zsOhm.toFixed(d), fault: r.faultA.toFixed(0) };
-  return { ze: 'unknown', zs: `≥ ${r.zsOhm.toFixed(d)}`, fault: Number.isFinite(r.faultA) ? `≤ ${r.faultA.toFixed(0)}` : '—' };
+  if (!r.sourceMissing) return { ze: r.zeOhm.toFixed(d), zs: r.zsOhm.toFixed(d), fault: fmtFixed(r.faultA, 1) };
+  return { ze: 'unknown', zs: `≥ ${r.zsOhm.toFixed(d)}`, fault: Number.isFinite(r.faultA) ? `≤ ${fmtFixed(r.faultA, 1)}` : '—' };
 }
 
 const elcbCache = new WeakMap<Project, Map<string, number>>();

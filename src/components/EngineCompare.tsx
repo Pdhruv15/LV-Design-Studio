@@ -3,14 +3,15 @@ import type { Project } from '../types';
 import type { EngineFeederResult, EngineProbe, StudyResults } from '../engines/types';
 import { EXTERNAL_ENGINES, builtinEngine } from '../engines';
 import { probeEngines } from '../engines/external';
+import { fmtFixed } from '../util/format';
 
 type Key = keyof EngineFeederResult;
 
 const COLUMNS: { key: Key; label: string; digits: number; relative: boolean; tolerance: number }[] = [
-  { key: 'ib', label: 'Ib (A)', digits: 0, relative: true, tolerance: 5 },
+  { key: 'ib', label: 'Ib (A)', digits: 1, relative: true, tolerance: 5 },
   { key: 'vdTotalPct', label: 'Vd total (%)', digits: 2, relative: false, tolerance: 0.25 },
-  { key: 'breakerFaultKA', label: 'Ik″ at breaker (kA)', digits: 1, relative: true, tolerance: 5 },
-  { key: 'endFaultKA', label: 'Ik″ at cable end (kA)', digits: 1, relative: true, tolerance: 5 }
+  { key: 'breakerFaultKA', label: 'Ik″ at breaker (kA)', digits: 2, relative: true, tolerance: 5 },
+  { key: 'endFaultKA', label: 'Ik″ at cable end (kA)', digits: 2, relative: true, tolerance: 5 }
 ];
 
 /** Difference of the external engine from the built-in one: percent for
@@ -136,8 +137,8 @@ export default function EngineCompare({ project }: { project: Project }) {
                       const d = delta(a[c.key], b[c.key], c.relative);
                       const cls = d === undefined ? '' : Math.abs(d) > c.tolerance ? 'warn' : 'ok';
                       return [
-                        <td key={`${c.key}-a`}>{a[c.key]?.toFixed(c.digits) ?? '–'}</td>,
-                        <td key={`${c.key}-b`}>{b[c.key]?.toFixed(c.digits) ?? '–'}</td>,
+                        <td key={`${c.key}-a`}>{a[c.key] === undefined ? '–' : fmtFixed(a[c.key], c.digits)}</td>,
+                        <td key={`${c.key}-b`}>{b[c.key] === undefined ? '–' : fmtFixed(b[c.key], c.digits)}</td>,
                         <td key={`${c.key}-d`} className={cls}>
                           {d === undefined ? '–' : formatDelta(d, c.relative ? 1 : 2)}
                         </td>

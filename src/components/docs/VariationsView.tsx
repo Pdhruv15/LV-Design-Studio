@@ -13,6 +13,7 @@ import { buildVariationHtml, buildVariationWorkbook } from '../../docs/variation
 import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { offerSubmission } from '../../model/submissions';
+import { fmtDate } from '../../util/format';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const money = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -95,7 +96,7 @@ export default function VariationsView({ project, items, bom, cur, onChange, onS
               <td>{v.title}{v.foldedInto !== undefined && <span className="bom-tag">in BOQ Rev {v.foldedInto}</span>}</td>
               <td>{v.instructedBy ?? ''}</td>
               <td className="m">{v.reference ?? ''}</td>
-              <td>{VO_STATUS[v.status]}{v.decided ? <span className="m"> · {v.decided}</span> : v.submitted ? <span className="m"> · {v.submitted}</span> : null}</td>
+              <td>{VO_STATUS[v.status]}{v.decided ? <span className="m"> · {fmtDate(v.decided)}</span> : v.submitted ? <span className="m"> · {fmtDate(v.submitted)}</span> : null}</td>
               <td className="num">{signed(netOf(v)) || '0.00'}</td>
               <td className="num">{v.status === 'approved' ? signed(valueOf(v)) || '0.00' : v.status === 'rejected' || v.status === 'withdrawn' ? <i>Nil</i> : '—'}</td>
               <td className="acts">

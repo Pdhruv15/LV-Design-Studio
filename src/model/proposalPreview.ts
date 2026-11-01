@@ -7,6 +7,7 @@ import { impactBetween, type DesignImpact } from './designImpact';
 import { designFingerprint, withProposal, type ModificationRecord } from './designChanges';
 import { stableHash } from './proposalRules';
 import type { Status } from '../calc/electrical';
+import { fig, fmtFixed } from '../util/format';
 
 /** The preview of a proposal: what applying it would change, with results calculated fresh for both the working design and
  * the design with the proposal applied (never the stored last run), and the effect on drawings and BOQ quantities. It is
@@ -73,7 +74,8 @@ function circuitChanges(a: CalcRun, b: CalcRun): { circuits: CircuitResultChange
   return { circuits, statuses };
 }
 
-const num = (v: number | undefined, d = 1, u = '') => (v === undefined ? 'none' : `${(Math.round(v * 10 ** d) / 10 ** d).toLocaleString('en-US')}${u}`);
+const num = (v: number | undefined, d = 1, u = '') => (v === undefined ? 'none' : `${fmtFixed(v, d)}${u}`);
+const rating = (v: number | undefined, u: string) => (v === undefined ? 'none' : `${fig.plain(v)}${u}`);
 
 function upsChanges(a: Project, b: Project): UpsChange[] {
   const out: UpsChange[] = [];
@@ -83,10 +85,11 @@ function upsChanges(a: Project, b: Project): UpsChange[] {
     const r1 = sizeUps(a, u as UpsSystem), r2 = sizeUps(b, v as UpsSystem);
     const rows: UpsChange['rows'] = [];
     const cmp = (metric: string, x: number | undefined, y: number | undefined, d = 1, unit = '') => { if (differs(x, y)) rows.push({ metric, from: num(x, d, unit), to: num(y, d, unit) }); };
-    cmp('Load', r1.loadKva, r2.loadKva, 1, ' kVA'); cmp('UPS size', r1.upsKva, r2.upsKva, 0, ' kVA'); cmp('UPS loading', r1.loadingPct, r2.loadingPct, 1, ' %');
+    const ratingRow = (metric: string, x: number | undefined, y: number | undefined, unit: string) => { if (differs(x, y)) rows.push({ metric, from: rating(x, unit), to: rating(y, unit) }); };
+    cmp('Load', r1.loadKva, r2.loadKva, 2, ' kVA'); ratingRow('UPS size', r1.upsKva, r2.upsKva, ' kVA'); cmp('UPS loading', r1.loadingPct, r2.loadingPct, 1, ' %');
     cmp('Battery capacity (C10)', r1.requiredAh, r2.requiredAh, 0, ' Ah'); cmp('Strings', r1.strings, r2.strings, 0); cmp('Blocks', r1.totalBlocks, r2.totalBlocks, 0);
     cmp('Installed energy', r1.energyKwh, r2.energyKwh, 1, ' kWh'); cmp('Usable fraction', r1.usableFraction, r2.usableFraction, 2); cmp('Runtime with this battery', r1.runtimeMin, r2.runtimeMin, 0, ' min');
-    cmp('DC breaker', r1.dcBreakerA, r2.dcBreakerA, 0, ' A'); cmp('DC current', r1.dcCurrentMaxA, r2.dcCurrentMaxA, 0, ' A'); cmp('Recharge time', r1.rechargeHours, r2.rechargeHours, 1, ' h');
+    ratingRow('DC breaker', r1.dcBreakerA, r2.dcBreakerA, ' A'); cmp('DC current', r1.dcCurrentMaxA, r2.dcCurrentMaxA, 1, ' A'); cmp('Recharge time', r1.rechargeHours, r2.rechargeHours, 1, ' h');
     if (!rows.length && r1.batteryIssue === r2.batteryIssue && r1.rechargeIssue === r2.rechargeIssue) continue;
     const issues = [r2.batteryIssue, r2.rechargeIssue, r2.sourceIssue, r2.busMismatch].filter((x): x is string => !!x);
     const unverified = [r2.bmsOk === undefined ? 'BMS discharge-current compatibility is not verified (no BMS limit entered).' : '', 'Transient / manufacturer-specific behaviour is not verified by this calculation.'].filter(Boolean);

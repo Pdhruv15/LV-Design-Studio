@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import { buildRiserForm, type RiserFormRow } from '../../docs/riserForm';
 import { revisionStamp } from '../../model/revisions';
+import { txt } from '../../util/format';
 
-const kw = (v: number) => v.toFixed(2);
+const kw = (v: number) => txt.power(v);
 
 /** Bus bar riser — details of connected load / max. demand (DEWA), one riser at a time. */
 export default function RiserFormView({ project, onOpenRiser }: { project: Project; onOpenRiser: () => void }) {

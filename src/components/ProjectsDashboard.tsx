@@ -4,6 +4,7 @@ import { PROJECT_STATUSES, type ProjectStatus } from '../types';
 import { whenText, type ProjectMeta, type TrashedProject } from '../model/projectStore';
 import { facets, filterProjects, NO_FILTERS, sortProjects, type ArchiveFilter, type ListFilters, type SortBy, type SortKey } from '../model/projectList';
 import { Page } from './ui';
+import { fmtDateTime } from '../util/format';
 
 const slugOf = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const statusLabel = (s?: ProjectStatus) => PROJECT_STATUSES.find((x) => x.value === (s ?? 'design'))!.label;
@@ -142,7 +143,7 @@ export default function ProjectsDashboard({ list, recent, currentFile, currentNa
                 <td>{[m.plotNo, m.area].filter(Boolean).join(' · ')}</td>
                 <td>{m.revision ?? '—'}</td>
                 <td>{m.boards ?? ''}</td>
-                <td title={new Date(m.updatedAt).toLocaleString()}>{whenText(m.updatedAt)}{m.updatedBy ? <span className="m"> · {m.updatedBy}</span> : null}</td>
+                <td title={fmtDateTime(m.updatedAt)}>{whenText(m.updatedAt)}{m.updatedBy ? <span className="m"> · {m.updatedBy}</span> : null}</td>
                 <td className="acts">
                   <button className="icon-btn" title="Open" onClick={() => onOpen(m.file)}><FolderOpen size={14} /></button>
                   <button className="icon-btn" title="Details — name, status, client, tags, notes" onClick={() => onDetails(m.file)}><Pencil size={14} /></button>

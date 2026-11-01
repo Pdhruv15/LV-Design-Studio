@@ -5,6 +5,7 @@ import { trayGrouping } from './cableTray';
 import { feederRatingBasis, type RatingBasis } from './installation';
 import type { Board, Feeder, Project } from '../types';
 import { boardPhasePQ, type PhasePQ } from './loadSchedule';
+import { fmtFixed } from '../util/format';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -348,7 +349,7 @@ export function faultCurrentKA(z: Impedance, systemVoltageV: number, c = C_MAX):
 export type Status = 'ok' | 'warn' | 'bad';
 
 /** Iz for display: whole amps, or '—' when there is no rating for the installation method. */
-export const izText = (iz: number) => (Number.isFinite(iz) ? iz.toFixed(0) : '—');
+export const izText = (iz: number) => fmtFixed(iz, 1);
 
 export interface FeederResult {
   feeder: Feeder;

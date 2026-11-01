@@ -12,6 +12,7 @@ import { deliverableProgress, PARTY_LABEL, ROLE_LABEL, SCOPE_ITEMS } from '../..
 
 import type { MainView } from '../../views';
 import { isOverdue, submissionCounts, submissionsOf, timeText } from '../../model/submissions';
+import { fmtDate, fmtDateTime, fmtTime, txt } from '../../util/format';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -103,7 +104,7 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
         </div>
         <div className="dash-meta">
           {[['Owner', i.owner], ['Plot', i.plot], ['Area', i.area], ['Consultant', i.consultant], ['Engineer', i.engineer],
-            ['Last saved', i.updatedAt ? `${new Date(i.updatedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}${i.updatedBy ? ` · ${i.updatedBy}` : ''}` : undefined]]
+            ['Last saved', i.updatedAt ? `${fmtDateTime(i.updatedAt)}${i.updatedBy ? ` · ${i.updatedBy}` : ''}` : undefined]]
             .filter(([, v]) => v).map(([k, v]) => <span key={k}><span className="m">{k}:</span> {v}</span>)}
         </div>
       </section>
@@ -115,7 +116,7 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
         <button className="chip" onClick={() => onOpen?.('drawings')}>Drawings</button>
         <span className="sp" />
         <span className={`m dash-state ${saved ? 'ok' : 'warn'}`}>{saved ? '✓ Saved' : '● Not saved'}</span>
-        <span className={`m dash-state ${!run || stale.length ? 'warn' : 'ok'}`}>{!run ? 'Calculations not run' : stale.length ? 'Results out of date' : `✓ Calculated ${new Date(run.at).toLocaleTimeString()}`}</span>
+        <span className={`m dash-state ${!run || stale.length ? 'warn' : 'ok'}`}>{!run ? 'Calculations not run' : stale.length ? 'Results out of date' : `✓ Calculated ${fmtTime(run.at)}`}</span>
       </div>
 
       <section className="card dash-start">
@@ -130,7 +131,7 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
               <li key={x.label} className={ok ? 'ok' : 'm'}><span>{ok ? '✓' : '○'}</span>
                 {onOpen ? <button className="linkish" onClick={() => x.go === 'dashboard' ? document.getElementById('dash-todo')?.scrollIntoView({ behavior: 'smooth' }) : onOpen(x.go)}>{x.label}</button> : x.label}</li>
             ); })}</ul>
-            {c.gate && <span className="m">Issued {new Date(c.gate.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}{c.gate.by ? ` · ${c.gate.by}` : ''}</span>}
+            {c.gate && <span className="m">Issued {fmtDate(c.gate.date)}{c.gate.by ? ` · ${c.gate.by}` : ''}</span>}
           </div>
         ))}</div>
         <div className="dash-actions">
@@ -159,7 +160,7 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
                 {brief.deliverables.map(dv => (
                   <li key={dv.id}>
                     <label className="row"><input type="checkbox" checked={!!dv.done} disabled={!onChangeProject} onChange={e => onChangeProject?.({ ...project, brief: { ...brief, deliverables: brief.deliverables.map(x => x.id === dv.id ? { ...x, done: e.target.checked } : x) } })} /> <span className={dv.done ? 'm' : ''}>{dv.title}</span></label>
-                    {dv.targetDate && <span className={`m${!dv.done && dv.targetDate < new Date().toISOString().slice(0, 10) ? ' late' : ''}`}> — due {new Date(dv.targetDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                    {dv.targetDate && <span className={`m${!dv.done && dv.targetDate < new Date().toISOString().slice(0, 10) ? ' late' : ''}`}> — due {fmtDate(dv.targetDate)}</span>}
                   </li>
                 ))}
               </ul>
@@ -169,9 +170,9 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
       <div className="dash-tiles key">
         <Tile label="Maximum demand" value={`${f0(d.demandKw)} kW`} sub={<>{f0(d.demandKva)} kVA · PF {d.pf.toFixed(2)}</>} />
         <Tile label="Transformers" value={d.transformers.length ? sizesText(d.transformers.map((t) => t.kva)) : 'None'}
-          sub={d.transformers.length ? <>{f0((d.demandKva / Math.max(1, d.transformerKva)) * 100)} % loaded · {d.substations} substation{d.substations > 1 ? 's' : ''}</> : 'Set on the main board'} onClick={() => onGo({ view: 'sizing' })} />
+          sub={d.transformers.length ? <>{txt.loading((d.demandKva / Math.max(1, d.transformerKva)) * 100)} % loaded · {d.substations} substation{d.substations > 1 ? 's' : ''}</> : 'Set on the main board'} onClick={() => onGo({ view: 'sizing' })} />
         <Tile label="Generators" value={d.generators.length ? sizesText(d.generators.map((g) => g.kva)) : 'None'}
-          sub={d.generatorLoadingPct !== undefined ? <>{f0(d.generatorLoadingPct)} % loaded</> : 'Standby: on a board with an ATS'} onClick={() => onGo({ view: 'sizing' })} />
+          sub={d.generatorLoadingPct !== undefined ? <>{txt.loading(d.generatorLoadingPct)} % loaded</> : 'Standby: on a board with an ATS'} onClick={() => onGo({ view: 'sizing' })} />
         <Tile label="Studies" value={run ? (d.stale.length ? 'Out of date' : fails ? `${fails} fail` : checks ? `${checks} to check` : 'All pass') : 'Not run'}
           sub={run ? <>{passes} pass · {checks} warning · {fails} fail{stale.length ? ' · out of date' : ''}</> : 'Press Run (F5)'} onClick={stale.length || !run ? onRun : () => onGo({ view: 'report' })} />
         <Tile label="Outstanding" value={todoCounted.length ? `${todoCounted.filter((t) => t.status === 'bad').length} to fix · ${todoCounted.filter((t) => t.status !== 'bad').length} to check` : 'Nothing'} sub={todoCounted[0]?.text ?? (todoOutside.length ? `All clear · ${todoOutside.length} outside the scope` : 'All clear')} onClick={() => document.getElementById('dash-todo')?.scrollIntoView({ behavior: 'smooth' })} />
@@ -198,13 +199,13 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
           {!d.transformers.length && <p className="m">No transformer set on a main board.</p>}
           <div className="dash-meters">
             {d.transformers.map((t) => (
-              <button key={t.boardId} className="dash-meter" onClick={() => onGo({ view: 'sizing' })} title={`${t.boardId}: ${f0(t.demandKva)} kVA of ${t.kva} kVA`}>
+              <button key={t.boardId} className="dash-meter" onClick={() => onGo({ view: 'sizing' })} title={`${t.boardId}: ${txt.power(t.demandKva)} kVA of ${t.kva} kVA`}>
                 <span className="dash-bar-label">{t.boardId} <span className="m">{t.kva} kVA</span></span>
                 <span className="dash-meter-track">
                   <span className="dash-meter-fill" style={{ width: `${Math.min(100, t.loadingPct)}%` }} />
                   <span className="dash-meter-limit" style={{ left: `${t.limitPct}%` }} />
                 </span>
-                <span className="dash-bar-val">{f0(t.loadingPct)} % {t.status !== 'ok' && <span className={t.status}>{t.status === 'bad' ? '✕ over' : '⚠ above limit'}</span>}</span>
+                <span className="dash-bar-val">{txt.loading(t.loadingPct)} % {t.status !== 'ok' && <span className={t.status}>{t.status === 'bad' ? '✕ over' : '⚠ above limit'}</span>}</span>
               </button>
             ))}
           </div>

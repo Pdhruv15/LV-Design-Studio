@@ -5,6 +5,7 @@ import type { FeederResult, Status } from '../calc/electrical';
 import { boardSummary } from '../calc/summary';
 import { incomerOf, indentTarget, moveBlocked, outdentTarget, siblings } from '../model/moveBoard';
 import { groupBy } from '../util/sets';
+import { fmtFixed } from '../util/format';
 
 /** What a click on a board does on the page you're on. */
 export const TREE_HINT: Partial<Record<string, string>> = {
@@ -194,7 +195,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
           onClick={() => onPick(b.id)}
           onDoubleClick={() => onOpen(b.id)}
           onContextMenu={(e) => { e.preventDefault(); onPick(b.id); setCtx({ id: b.id, x: e.clientX, y: e.clientY }); }}
-          title={over && drag?.why ? drag.why : `${b.id} — ${b.name}${check ? ' · moved: check the incomer cable length' : ''}${i?.loading !== undefined ? ` · ${i.loading.toFixed(0)} % loaded` : ''}${i?.fails ? ` · ${i.fails} failing` : ''}\nDouble-click: open on the SLD · right-click: more${b.upstreamId ? ' · drag onto another board to supply it from there' : ''}`}
+          title={over && drag?.why ? drag.why : `${b.id} — ${b.name}${check ? ' · moved: check the incomer cable length' : ''}${i?.loading !== undefined ? ` · ${fmtFixed(i.loading, 0)} % loaded` : ''}${i?.fails ? ` · ${i.fails} failing` : ''}\nDouble-click: open on the SLD · right-click: more${b.upstreamId ? ' · drag onto another board to supply it from there' : ''}`}
         >
           <button className="tree-tw" onClick={(e) => { e.stopPropagation(); if (kids.length) toggle(b.id); }} tabIndex={-1} aria-hidden>
             {kids.length ? (open ? <ChevronDown size={13} /> : <ChevronRight size={13} />) : null}
@@ -206,7 +207,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
           {b.standby ? <span className="tree-tx" title={`${b.standby.kva} kVA standby generator (ATS)`}><Power size={11} /></span> : null}
           {check ? <span className="tree-check" title="Moved to another source — check the incomer cable length">len?</span> : null}
           <span className="sp" />
-          {i?.loading !== undefined && <span className={`tree-load ${i.loadingStatus ?? ''}`} style={{ '--pct': `${Math.min(100, Math.max(0, i.loading))}%` } as CSSProperties}>{i.loading.toFixed(0)}%</span>}
+          {i?.loading !== undefined && <span className={`tree-load ${i.loadingStatus ?? ''}`} style={{ '--pct': `${Math.min(100, Math.max(0, i.loading))}%` } as CSSProperties}>{fmtFixed(i.loading, 0)}%</span>}
         </div>
         {open && kids.length > 0 && <div role="group">{kids.map((k) => node(k, depth + 1))}</div>}
       </div>

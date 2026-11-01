@@ -6,8 +6,9 @@ import { dmSubstationAreas, DM_TITLE, DM_TYPES, dmType, substationsFromProject, 
 import { buildDmFormHtml } from '../../docs/dmForm';
 import { safeFileName, savePdf } from '../../util/files';
 import { Page } from '../ui';
+import { txt } from '../../util/format';
 
-const m = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+const m = (v: number) => txt.size(v);
 let seq = 0;
 const newId = () => `ss-${Date.now().toString(36)}-${(seq++).toString(36)}`;
 

@@ -1,4 +1,5 @@
 import { roomBoundaryAt, type Seg } from './cadBoundary';
+import { fmtFixed } from '../util/format';
 
 type Pt = [number, number];
 
@@ -37,8 +38,8 @@ export function angleDeg(a: Pt, b: Pt): number {
   return d < 0 ? d + 360 : d;
 }
 
-export const m2 = (v: number) => `${v.toFixed(2)} m²`;
-export const m = (v: number) => `${v.toFixed(2)} m`;
+export const m2 = (v: number) => `${fmtFixed(v, 2)} m²`;
+export const m = (v: number) => `${fmtFixed(v, 2)} m`;
 
 export function inside([x, y]: Pt, poly: Pt[]): boolean {
   let hit = false;

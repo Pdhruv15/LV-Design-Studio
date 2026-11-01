@@ -4,6 +4,7 @@ import { COLOR_BY, type ColorBy } from '../diagram/heatmap';
 import type { SupplyMode } from '../calc/scenario';
 import MenuButton from './MenuButton';
 import { CircleCheck, CircleX, TriangleAlert, X } from 'lucide-react';
+import { fmtTime } from '../util/format';
 
 export type ResultSource = 'builtin' | string; // or an external engine id
 
@@ -70,8 +71,8 @@ export default function DiagramResultsBar({
       {calc && (calc.stale ? (
         <button className="chip calc-chip warn" onClick={calc.onRun} title={`Out of date: ${calc.staleWhat ?? 'the studies'} — click to run (F5)`}><TriangleAlert size={13} aria-hidden /> Out of date · Run</button>
       ) : (
-        <span className={`calc-chip ${calc.fails ? 'bad' : 'ok'}`} title={`Calculations up to date${calc.at ? ` — run at ${new Date(calc.at).toLocaleTimeString()}` : ''}${calc.fails ? ` · ${calc.fails} check(s) failing — see the results below` : ''}`}>
-          {calc.fails ? <><CircleX size={13} aria-hidden /> {calc.fails} failing</> : <><CircleCheck size={13} aria-hidden /> Calculated</>}{calc.at ? <span className="m"> · {new Date(calc.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> : null}
+        <span className={`calc-chip ${calc.fails ? 'bad' : 'ok'}`} title={`Calculations up to date${calc.at ? ` — run at ${fmtTime(calc.at)}` : ''}${calc.fails ? ` · ${calc.fails} check(s) failing — see the results below` : ''}`}>
+          {calc.fails ? <><CircleX size={13} aria-hidden /> {calc.fails} failing</> : <><CircleCheck size={13} aria-hidden /> Calculated</>}{calc.at ? <span className="m"> · {fmtTime(calc.at)}</span> : null}
         </span>
       ))}
       <label className="results-src" title={note?.text}>

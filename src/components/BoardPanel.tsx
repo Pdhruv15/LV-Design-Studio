@@ -5,6 +5,7 @@ import { izText, type FeederResult } from '../calc/electrical';
 import { boardSummary } from '../calc/summary';
 import BoardFields from './BoardFields';
 import { roleOf } from '../model/emergency';
+import { txt } from '../util/format';
 
 export type BoardTab = 'general' | 'supply' | 'electrical' | 'protection' | 'location';
 type Tab = BoardTab;
@@ -99,9 +100,9 @@ export default function BoardPanel({
               <dt>Incoming feeder</dt>
               <dd>{s.incomer ? <><button className="linkish" onClick={() => onSelectFeeder(s.incomer!.id)}>{s.incomer.id}</button> · {s.incomer.cableCsaMm2} mm² × {s.incomer.lengthM} m</> : isMain ? 'Transformer secondary' : '—'}</dd>
               <dt>Fault level Ik″</dt>
-              <dd>{s.faultKA.toFixed(1)} kA</dd>
+              <dd>{txt.fault(s.faultKA)} kA</dd>
               <dt>Voltage drop</dt>
-              <dd>{(100 - s.voltagePct).toFixed(1)} % (cumulative)</dd>
+              <dd>{txt.pct(100 - s.voltagePct)} % (cumulative)</dd>
             </dl>
           </>
         )}
@@ -112,9 +113,9 @@ export default function BoardPanel({
               <dt>System voltage</dt>
               <dd>{project.voltageV} V, 3-phase</dd>
               <dt>Busbar voltage</dt>
-              <dd>{s.voltageV.toFixed(0)} V ({s.voltagePct.toFixed(1)}%)</dd>
+              <dd>{txt.volts(s.voltageV)} V ({txt.pct(s.voltagePct)}%)</dd>
               <dt>Fault level Ik″</dt>
-              <dd>{s.faultKA.toFixed(1)} kA</dd>
+              <dd>{txt.fault(s.faultKA)} kA</dd>
               <dt>Power factor</dt>
               <dd>{s.powerFactor.toFixed(2)}</dd>
               <dt>Supplied from</dt>
@@ -140,11 +141,11 @@ export default function BoardPanel({
                   <>
                     <dt>Ib ≤ In ≤ Iz</dt>
                     <dd className={incomerResult.protectionStatus}>
-                      {incomerResult.ib.toFixed(0)} ≤ {s.incomer.breakerRatingA} ≤ {izText(incomerResult.ampacity)} A
+                      {txt.current(incomerResult.ib)} ≤ {s.incomer.breakerRatingA} ≤ {izText(incomerResult.ampacity)} A
                     </dd>
                     <dt>Icu vs fault</dt>
                     <dd className={incomerResult.icuStatus}>
-                      {s.incomer.breakerIcuKa} kA vs {incomerResult.breakerFaultKA.toFixed(1)} kA
+                      {s.incomer.breakerIcuKa} kA vs {txt.fault(incomerResult.breakerFaultKA)} kA
                     </dd>
                   </>
                 )}
@@ -162,7 +163,7 @@ export default function BoardPanel({
               </>
             )}
             <dt>Busbar fault level</dt>
-            <dd>{s.faultKA.toFixed(1)} kA</dd>
+            <dd>{txt.fault(s.faultKA)} kA</dd>
           </dl>
         )}
       </div>
@@ -171,23 +172,23 @@ export default function BoardPanel({
         <h3>Loading</h3>
         <dl className="kv">
           <dt>Connected load</dt>
-          <dd>{s.connectedKw.toFixed(0)} kW</dd>
+          <dd>{txt.power(s.connectedKw)} kW</dd>
           <dt>Demand load</dt>
-          <dd>{s.demandKw.toFixed(0)} kW · {s.demandKva.toFixed(0)} kVA</dd>
+          <dd>{txt.power(s.demandKw)} kW · {txt.power(s.demandKva)} kVA</dd>
           <dt>Demand current</dt>
-          <dd>{s.currentA.toFixed(0)} A</dd>
+          <dd>{txt.current(s.currentA)} A</dd>
           {s.generationKw > 0 && (
             <>
               <dt>Generation</dt>
-              <dd>{s.generationKw.toFixed(0)} kW</dd>
+              <dd>{txt.power(s.generationKw)} kW</dd>
             </>
           )}
         </dl>
         {s.loadingPct !== undefined ? (
           <>
-            <div className="bar" aria-label={`Loading ${s.loadingPct.toFixed(0)} percent`}>
+            <div className="bar" aria-label={`Loading ${txt.loading(s.loadingPct)} percent`}>
               <span className={s.loadingStatus} style={{ width: `${Math.min(s.loadingPct, 100)}%` }} />
-              <b>{s.loadingPct.toFixed(0)}%</b>
+              <b>{txt.loading(s.loadingPct)}%</b>
             </div>
             <p className={`m ${s.loadingStatus}`}>{statusLabel[s.loadingStatus!]} of {board.ratedCurrentA} A rating</p>
           </>

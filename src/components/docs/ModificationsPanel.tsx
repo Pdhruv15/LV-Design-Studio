@@ -15,9 +15,10 @@ import { ImpactPanel } from './ChangesView';
 import type { CalcRun } from '../../calc/runs';
 import { appliedFollowUp } from '../../model/designChanges';
 import ProposalPreviewPanel from './ProposalPreviewPanel';
+import { fmtDate } from '../../util/format';
 
 const ACTION: Record<ModStatus, string> = { draft: 'Return to draft…', proposed: 'Propose', review: 'Start review', accepted: 'Accept…', rejected: 'Reject…', superseded: 'Supersede…' };
-const when = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+const when = (iso: string) => fmtDate(iso);
 
 /** Modification records: propose a design change with the reason and the exact values, preview what it touches, record a
  * decision, and apply it to the working design as one undoable step. Names are typed text, not verified identities. */

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { Project } from '../types';
 import { boardSummary, boardsInSupplyOrder, systemSummary } from '../calc/summary';
 import type { Annotations } from '../diagram/annotations';
-import { fmtFixed as fmt } from '../util/format';
+import { fmtFixed as fmt, txt } from '../util/format';
 
 
 /** System summary (totals + transformer loading gauge) and a bus voltage
@@ -54,19 +54,19 @@ export default function SystemSummaryCards({
           </svg>
           <dl className="kv">
             <dt>Connected load</dt>
-            <dd>{fmt(sys.connectedKw)} kW</dd>
+            <dd>{txt.power(sys.connectedKw)} kW</dd>
             <dt>Maximum demand</dt>
-            <dd>{fmt(sys.demandKw)} kW</dd>
+            <dd>{txt.power(sys.demandKw)} kW</dd>
             <dt>Demand kVA</dt>
-            <dd>{fmt(sys.demandKva)} kVA</dd>
+            <dd>{txt.power(sys.demandKva)} kVA</dd>
             <dt>Power factor</dt>
             <dd>{sys.powerFactor.toFixed(2)}</dd>
             <dt>Demand current</dt>
-            <dd>{fmt(sys.currentA)} A</dd>
+            <dd>{txt.current(sys.currentA)} A</dd>
             {sys.generationKw > 0 && (
               <>
                 <dt>Generation (PV)</dt>
-                <dd>{fmt(sys.generationKw)} kW</dd>
+                <dd>{txt.power(sys.generationKw)} kW</dd>
               </>
             )}
           </dl>
@@ -93,12 +93,12 @@ export default function SystemSummaryCards({
               return (
               <tr key={s.board.id} className={selectedBoardId === s.board.id ? 'sel' : ''} onClick={() => onSelectBoard(s.board.id)}>
                 <td style={{ paddingLeft: 10 + s.depth * 14 }}>{s.board.id}</td>
-                <td>{((project.voltageV * voltagePct) / 100).toFixed(0)}</td>
-                <td className={a?.voltageStatus ?? ''}>{voltagePct.toFixed(1)}%</td>
-                <td>{(a?.faultKA ?? s.faultKA).toFixed(1)}</td>
-                <td>{s.currentA.toFixed(0)}</td>
+                <td>{txt.volts((project.voltageV * voltagePct) / 100)}</td>
+                <td className={a?.voltageStatus ?? ''}>{txt.pct(voltagePct)}%</td>
+                <td>{txt.fault(a?.faultKA ?? s.faultKA)}</td>
+                <td>{txt.current(s.currentA)}</td>
                 <td className={s.loadingStatus ?? ''}>
-                  {s.loadingPct === undefined ? 'no rating' : `${s.loadingPct.toFixed(0)}%`}
+                  {s.loadingPct === undefined ? 'no rating' : `${txt.loading(s.loadingPct)}%`}
                 </td>
               </tr>
               );

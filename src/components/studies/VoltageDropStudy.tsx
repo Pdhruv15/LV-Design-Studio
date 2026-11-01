@@ -12,6 +12,7 @@ import { saveCsv, savePdf, safeFileName } from '../../util/files';
 import EditCell from '../EditCell';
 import { CheckedNum, Page, ResultCard, ResultCards, StatusCell, StatusCounts } from '../ui';
 import type { Status } from '../../calc/electrical';
+import { txt } from '../../util/format';
 
 const TEMPS: { value: string; label: string }[] = [
   { value: '', label: 'Standard (R20 × 1.2)' },
@@ -113,7 +114,7 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
         kind="text"
         value=""
         onCommit={() => undefined}
-        display={r.loadKw.toFixed(1)}
+        display={txt.power(r.loadKw)}
         locked={r.scheduleCircuits
           ? `From the ${r.toBoard.id} load schedule (${r.scheduleCircuits} circuits) — edit it there`
           : `Total demand of everything fed from ${r.toBoard.id}`}
@@ -123,7 +124,7 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
         kind="number"
         min={0}
         value={+(r.feeder.loadKw * r.feeder.demandFactor).toFixed(3)}
-        display={r.loadKw.toFixed(1)}
+        display={txt.power(r.loadKw)}
         title="Demand load (kW) — double-click to edit"
         onCommit={(v) => edit(r.feeder.id, { loadKw: r.feeder.demandFactor ? v / r.feeder.demandFactor : v })}
       />
@@ -169,13 +170,13 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
       </section>
 
       <ResultCards>
-        <ResultCard label="Worst voltage drop" value={worst ? `${worst.totalPct.toFixed(2)} %` : '—'} status={worst?.status} sub={worst ? `${worst.feeder.id} → ${worst.toName}` : 'No cables'} onClick={worst ? () => setFocusId(worst.feeder.id) : undefined} />
+        <ResultCard label="Worst voltage drop" value={worst ? `${txt.pct(worst.totalPct)} %` : '—'} status={worst?.status} sub={worst ? `${worst.feeder.id} → ${worst.toName}` : 'No cables'} onClick={worst ? () => setFocusId(worst.feeder.id) : undefined} />
         <ResultCard label="Limit" value={`${project.vdLimitPct} %`} sub={`source to load · ${tempC === undefined ? 'R20 × 1.2' : `${tempC} °C`}`} />
         <ResultCard label="Results" value={`${allRows.length} cables`} sub={<StatusCounts statuses={allRows.map((r) => r.status)} />} />
-        <ResultCard label="Longest cable" value={longest ? `${longest.feeder.lengthM} m` : '—'} sub={longest ? `${longest.feeder.id} → ${longest.toName} · ${longest.totalPct.toFixed(2)} %` : ''} onClick={longest ? () => setFocusId(longest.feeder.id) : undefined} />
+        <ResultCard label="Longest cable" value={longest ? `${longest.feeder.lengthM} m` : '—'} sub={longest ? `${longest.feeder.id} → ${longest.toName} · ${txt.pct(longest.totalPct)} %` : ''} onClick={longest ? () => setFocusId(longest.feeder.id) : undefined} />
         <ResultCard label="Motor starting" value={worstStart ? `${worstStart.startPct!.toFixed(1)} %` : '—'} status={worstStart ? (worstStart.startPct! > motorStartVdLimit() ? 'bad' : 'ok') : undefined}
           sub={worstStart ? `${worstStart.toName} · limit ${motorStartVdLimit()} %` : 'No motors selected'} onClick={worstStart ? () => setFocusId(worstStart.feeder.id) : undefined} />
-        <ResultCard label="Busbar risers" value={risers.some((r) => r.noType) ? 'Not calculated' : worstRiser ? `${worstRiser.exactTopPct.toFixed(2)} %` : '—'} status={risers.some((r) => r.noType) ? 'bad' : worstRiser?.status} sub={worstRiser ? `${worstRiser.riser.name} · top tap-off` : 'None in the project'} />
+        <ResultCard label="Busbar risers" value={risers.some((r) => r.noType) ? 'Not calculated' : worstRiser ? `${txt.pct(worstRiser.exactTopPct)} %` : '—'} status={risers.some((r) => r.noType) ? 'bad' : worstRiser?.status} sub={worstRiser ? `${worstRiser.riser.name} · top tap-off` : 'None in the project'} />
       </ResultCards>
 
       {focus && path.length > 0 && <VdProfile path={path} limit={project.vdLimitPct} title={`${focus.feeder.id} → ${focus.toName}`} isWorst={focus === worst} />}
@@ -248,22 +249,22 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
                         <EditCell kind="text" value={r.feeder.name} display={r.toName} title="Equipment name (e.g. AHU-01, isolator) — double-click to edit" onCommit={(v) => edit(r.feeder.id, { name: v || r.feeder.id })} />
                       )}
                       <td>{r.toType}</td>
-                      {fc ? <td>{r.loadKw.toFixed(1)}</td> : loadCell(r)}
+                      {fc ? <td>{txt.power(r.loadKw)}</td> : loadCell(r)}
                       {fc ? <td>{r.pf.toFixed(2)}</td> : r.vdBasis ? <td className="m" title={`Derived from the loads below ${r.feeder.feedsBoardId} (P and Q per phase) — not editable. Current on phase ${r.vdBasis.currentPhase}; drop on phase ${r.vdBasis.phase} at PF ${r.vdBasis.pf.toFixed(3)}${r.vdBasis.leading ? ' leading' : ''}.`}>{r.pf.toFixed(2)}</td> : <EditCell kind="number" min={0.1} max={1} value={r.pf} display={r.pf.toFixed(2)} onCommit={(v) => edit(r.feeder.id, { powerFactor: v })} />}
-                      <td>{r.ib.toFixed(1)}</td>
+                      <td>{txt.current(r.ib)}</td>
                       {fc ? <td>{r.threePhase ? '3-ph' : '1-ph'}</td> : <EditCell kind="select" value={String(r.feeder.cores)} options={PHASES} display={r.threePhase ? '3-ph' : '1-ph'} onCommit={(v) => edit(r.feeder.id, { cores: +v as 2 | 3 | 4 })} />}
                       {fc ? <td>{cableSizeText(r.feeder)}</td> : <EditCell kind="select" value={String(r.feeder.cableCsaMm2)} options={cableSizes} display={cableSizeText(r.feeder)} onCommit={(v) => edit(r.feeder.id, { cableCsaMm2: +v })} />}
                       {fc ? <td>{r.feeder.lengthM.toFixed(0)}</td> : <EditCell kind="number" min={1} value={r.feeder.lengthM} display={r.feeder.lengthM.toFixed(0)} onCommit={(v) => edit(r.feeder.id, { lengthM: v })} />}
                       <td>{r.mvPerAm.toFixed(3)}</td>
                       <td>{r.vdV.toFixed(2)}</td>
-                      <td>{r.vdPct.toFixed(2)}</td>
-                      <td>{r.upstreamPct.toFixed(2)}</td>
-                      <td className={r.status}><b>{r.totalPct.toFixed(2)}</b></td>
+                      <td>{txt.pct(r.vdPct)}</td>
+                      <td>{txt.pct(r.upstreamPct)}</td>
+                      <td className={r.status}><b>{txt.pct(r.totalPct)}</b></td>
                       <td>{r.limitPct.toFixed(1)}</td>
                       <td className={r.startPct !== undefined && r.startPct > motorStartVdLimit() ? 'bad' : ''} title={r.startPct !== undefined ? `Drop while starting (running drop × starting current), limit ${motorStartVdLimit()} %` : undefined}>{startText(r)}</td>
                       <StatusCell status={r.status} />
                       {fc ? <td>{r.feeder.remarks ?? ''}</td> : <EditCell kind="text" value={r.feeder.remarks ?? ''} display={r.feeder.remarks ?? ''} className="vd-remarks" onCommit={(v) => edit(r.feeder.id, { remarks: v })} />}
-                      <td>{fix ? <button className="chip vd-fix" title={`${fix.csaMm2} mm² gives ${fix.totalPct.toFixed(2)} % — click to apply (updates the SLD and schedules)`} onClick={(e) => { e.stopPropagation(); edit(r.feeder.id, { cableCsaMm2: fix.csaMm2 }); onStatus(`${r.feeder.id}: ${r.feeder.cableCsaMm2} → ${fix.csaMm2} mm² — Run (F5) to update the results`); }}>→ {fix.csaMm2} mm² <span className="m">{fix.totalPct.toFixed(2)} %</span></button> : r.status !== 'ok' && !fc ? <span className="m" title="Even the largest size fails: add parallel runs or shorten the route">runs / route</span> : null}</td>
+                      <td>{fix ? <button className="chip vd-fix" title={`${fix.csaMm2} mm² gives ${txt.pct(fix.totalPct)} % — click to apply (updates the SLD and schedules)`} onClick={(e) => { e.stopPropagation(); edit(r.feeder.id, { cableCsaMm2: fix.csaMm2 }); onStatus(`${r.feeder.id}: ${r.feeder.cableCsaMm2} → ${fix.csaMm2} mm² — Run (F5) to update the results`); }}>→ {fix.csaMm2} mm² <span className="m">{txt.pct(fix.totalPct)} %</span></button> : r.status !== 'ok' && !fc ? <span className="m" title="Even the largest size fails: add parallel runs or shorten the route">runs / route</span> : null}</td>
                       <td><button className="icon-btn" title="Show the calculation" onClick={(e) => { e.stopPropagation(); setFormulaId(formulaId === r.feeder.id ? null : r.feeder.id); }}>ƒ</button></td>
                     </tr>
                     {formulaId === r.feeder.id && <tr className="vd-formula"><td colSpan={VD_HEADERS.length + 2}>{vdFormula(calcProject, r)}</td></tr>}
@@ -304,11 +305,11 @@ function VdProfile({ path, limit, title, isWorst }: { path: VdRow[]; limit: numb
           cum += r.vdPct;
           return (
             <g key={r.feeder.id}>
-              <rect x={x + 6} y={y(cum)} width={step - 12} height={Math.max(1, y(from) - y(cum))} className={`vd-bar ${r.status}`}><title>{`${r.feeder.id}: +${r.vdPct.toFixed(2)} % → ${cum.toFixed(2)} %`}</title></rect>
+              <rect x={x + 6} y={y(cum)} width={step - 12} height={Math.max(1, y(from) - y(cum))} className={`vd-bar ${r.status}`}><title>{`${r.feeder.id}: +${txt.pct(r.vdPct)} % → ${txt.pct(cum)} %`}</title></rect>
               <rect x={x + 6} y={y(from)} width={step - 12} height={Math.max(0, y(0) - y(from))} className="vd-base" />
-              <text x={x + step / 2} y={y(cum) - 5} textAnchor="middle" className="vd-val">{cum.toFixed(2)}%</text>
+              <text x={x + step / 2} y={y(cum) - 5} textAnchor="middle" className="vd-val">{txt.pct(cum)}%</text>
               <text x={x + step / 2} y={H - B + 16} textAnchor="middle" className="vd-lbl"><title>{`${r.from.id} → ${r.toName}`}</title>{r.from.id} → {r.toName.length > 16 ? r.toName.slice(0, 15) + '…' : r.toName}</text>
-              <text x={x + step / 2} y={H - B + 30} textAnchor="middle" className="vd-sub">{cableSizeText(r.feeder)} · {r.feeder.lengthM} m · +{r.vdPct.toFixed(2)}%</text>
+              <text x={x + step / 2} y={H - B + 30} textAnchor="middle" className="vd-sub">{cableSizeText(r.feeder)} · {r.feeder.lengthM} m · +{txt.pct(r.vdPct)}%</text>
             </g>
           );
         })}
@@ -322,13 +323,13 @@ function RiserVdCard({ v }: { v: RiserVd }) {
   const diff = v.uniformTopPct - v.exactTopPct;
   return (
     <section className="card vd-riser">
-      <h4>{v.riser.name} <span className="m">from {v.riser.sourceBoardId ?? '—'} · {v.designA.toFixed(0)} A · z = {(v.zOhmPerM * 1000).toFixed(3)} mΩ/m</span></h4>
+      <h4>{v.riser.name} <span className="m">from {v.riser.sourceBoardId ?? '—'} · {txt.current(v.designA)} A · z = {(v.zOhmPerM * 1000).toFixed(3)} mΩ/m</span></h4>
       <div className="vd-riser-sum">
         <span>Concentrated length <b>{v.concentratedM.toFixed(1)} m</b> <span className="m">(feed + up to the first tap-off, full current)</span></span>
         <span>Distributed length <b>{v.distributedM.toFixed(1)} m</b> <span className="m">(first to last tap-off)</span></span>
-        <span>Upstream <b>{v.upstreamPct.toFixed(2)} %</b></span>
-        {v.noType ? <span className="bad">Not calculated — no busbar size in the data carries {v.designA.toFixed(0)} A</span> : <span>Top tap-off, floor by floor <b className={v.status}>{v.exactTopPct.toFixed(2)} %</b></span>}
-        <span title="ΔV = √3 · I · z · (Lc + Ld / 2): the load taken as spread evenly along the distributed length">Uniform-load check <b>{v.uniformTopPct.toFixed(2)} %</b> <span className="m">({diff >= 0 ? '+' : ''}{diff.toFixed(2)})</span></span>
+        <span>Upstream <b>{txt.pct(v.upstreamPct)} %</b></span>
+        {v.noType ? <span className="bad">Not calculated — no busbar size in the data carries {txt.current(v.designA)} A</span> : <span>Top tap-off, floor by floor <b className={v.status}>{txt.pct(v.exactTopPct)} %</b></span>}
+        <span title="ΔV = √3 · I · z · (Lc + Ld / 2): the load taken as spread evenly along the distributed length">Uniform-load check <b>{txt.pct(v.uniformTopPct)} %</b> <span className="m">({diff >= 0 ? '+' : ''}{txt.pct(diff)})</span></span>
       </div>
       <table className="schedule vd-table">
         <thead><tr><th>Section</th><th>Part</th><th>Length (m)</th><th>Current (A)</th><th>Vd (%)</th><th>Total at end (%)</th><th>Limit</th><th>Result</th></tr></thead>
@@ -340,9 +341,9 @@ function RiserVdCard({ v }: { v: RiserVd }) {
                 <td>{s.label}</td>
                 <td className="m">{s.kind === 'concentrated' ? 'concentrated' : 'distributed'}</td>
                 <td>{s.lengthM.toFixed(1)}</td>
-                <td>{s.currentA.toFixed(0)}</td>
+                <td>{txt.current(s.currentA)}</td>
                 <td>{s.vdPct.toFixed(3)}</td>
-                <td className={st}><b>{s.cumPct.toFixed(2)}</b></td>
+                <td className={st}><b>{txt.pct(s.cumPct)}</b></td>
                 <td>{v.limitPct.toFixed(1)}</td>
                 <StatusCell status={st} />
               </tr>

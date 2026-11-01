@@ -12,9 +12,8 @@ import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { NumberSetting, Page } from '../ui';
 import { ExistingChecksCard } from './ExistingChecks';
+import { txt } from '../../util/format';
 
-const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
-const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
 
 /** Transformer per main board and the standby generator from whole boards:
  * no circuit lists unless you ask for them. */
@@ -128,24 +127,24 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
                       <button className="linkish txg-toggle" onClick={() => setOpen(isOpen ? open.filter((x) => x !== r.board.id) : [...open, r.board.id])} title="What the demand is made of" aria-label="What the demand is made of" aria-expanded={isOpen}>{isOpen ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}</button>
                       <b>{r.board.id}</b>
                     </td>
-                    <td>{f0(r.demandKva)} kVA<div className="m">PF {r.pf.toFixed(2)}{r.pfcKvar ? ` · −${f0(r.pfcKvar)} kvar PFC` : ''}</div></td>
-                    <td>{f0(r.designKva)} kVA</td>
+                    <td>{txt.power(r.demandKva)} kVA<div className="m">PF {r.pf.toFixed(2)}{r.pfcKvar ? ` · −${txt.plain(r.pfcKvar, 1)} kvar PFC` : ''}</div></td>
+                    <td>{txt.power(r.designKva)} kVA</td>
                     <td><b>{r.recommendedKva ? `${r.split > 1 ? `${r.split} × ` : r.n1 ? '2 × ' : ''}${r.recommendedKva} kVA` : '—'}</b>{r.split > 1 && <div className="warn">Above the largest size — split into {r.split} boards</div>}</td>
-                    <td className={r.adequate === false ? 'bad' : ''}>{r.installedKva ? <>{r.installedKva} kVA<div className="m">{f0(r.loadingPct!)} % loaded{r.adequate === false ? ' — too small' : ''}</div></> : 'Not set'}</td>
-                    <td>{c ? <>{f0(c.flcA)} A<div className="m">{c.acbA >= 800 ? 'ACB' : 'MCCB'} {c.acbA} A</div></> : '—'}</td>
-                    <td className={c?.icuOk === false ? 'bad' : ''}>{c ? <>{f1(c.faultKa)} kA<div className="m">{c.impedancePct} % · lowest Icu {c.minIcuKa ?? '—'} kA</div></> : '—'}</td>
-                    <td>{c ? `${f1(c.regulationPct)} %` : '—'}</td>
+                    <td className={r.adequate === false ? 'bad' : ''}>{r.installedKva ? <>{r.installedKva} kVA<div className="m">{txt.loading(r.loadingPct!)} % loaded{r.adequate === false ? ' — too small' : ''}</div></> : 'Not set'}</td>
+                    <td>{c ? <>{txt.current(c.flcA)} A<div className="m">{c.acbA >= 800 ? 'ACB' : 'MCCB'} {c.acbA} A</div></> : '—'}</td>
+                    <td className={c?.icuOk === false ? 'bad' : ''}>{c ? <>{txt.fault(c.faultKa)} kA<div className="m">{c.impedancePct} % · lowest Icu {c.minIcuKa ?? '—'} kA</div></> : '—'}</td>
+                    <td>{c ? `${txt.pct(c.regulationPct)} %` : '—'}</td>
                     <td className={c?.busbarOk === false ? 'bad' : ''}>{c?.busbarA ? `${c.busbarA} A` : '—'}</td>
                     <td><input type="checkbox" title="Two transformers, each for the whole load" checked={r.n1} onChange={(e) => setPlan({ n1: e.target.checked ? [...plan.n1, r.board.id] : plan.n1.filter((x) => x !== r.board.id) })} /></td>
                     <td>{r.recommendedKva && r.split === 1 && (same ? <span className="ok">On the SLD</span> : <button className="chip" onClick={() => apply(r)} title="Set this transformer (kVA, typical impedance) on the SLD">Apply to SLD</button>)}</td>
                   </tr>
                   {r.outage && (
                     <tr className="sub"><td /><td colSpan={10} className={r.outage.ok ? 'm' : 'warn'}>
-                      Bus coupler: with the {r.outage.with} transformer out, this one carries {f0(r.outage.kva)} kVA{r.outage.pctOfRecommended !== undefined ? ` = ${f0(r.outage.pctOfRecommended)} % of ${r.recommendedKva} kVA` : ''}{r.outage.ok ? ' — OK' : ` — above ${plan.emergencyLoadingPct} %; shed load on outage or go a size up`}
+                      Bus coupler: with the {r.outage.with} transformer out, this one carries {txt.power(r.outage.kva)} kVA{r.outage.pctOfRecommended !== undefined ? ` = ${txt.loading(r.outage.pctOfRecommended)} % of ${r.recommendedKva} kVA` : ''}{r.outage.ok ? ' — OK' : ` — above ${plan.emergencyLoadingPct} %; shed load on outage or go a size up`}
                     </td></tr>
                   )}
                   {isOpen && r.breakdown.map((x) => (
-                    <tr key={x.id} className="sub"><td style={{ paddingLeft: 30 }}>{x.id === r.board.id ? <span className="m">{x.label}</span> : <>{x.id} <span className="m">{x.label}</span></>}</td><td>{f0(x.kva)} kVA</td><td colSpan={9} /></tr>
+                    <tr key={x.id} className="sub"><td style={{ paddingLeft: 30 }}>{x.id === r.board.id ? <span className="m">{x.label}</span> : <>{x.id} <span className="m">{x.label}</span></>}</td><td>{txt.power(x.kva)} kVA</td><td colSpan={9} /></tr>
                   ))}
                 </Fragment>
               );
@@ -181,7 +180,7 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
                     {pick?.auto && on && <span className="tag">{pick.auto === 'emdb' ? 'EMDB' : 'ATS'}</span>}
                     {on && !within && (
                       <span className="txg-pct"><input inputMode="numeric" value={pick!.pct} onChange={(e) => { const v = Math.round(+e.target.value); if (v >= 0 && v <= 100) setGenBoard(b.id, v); }} /> %
-                        <span className="m"> {f0(pick!.kw)} kW</span></span>
+                        <span className="m"> {txt.power(pick!.kw)} kW</span></span>
                     )}
                     {within && <span className="m">in {within}</span>}
                   </div>
@@ -189,33 +188,33 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
               })}
             </div>
             {gen.circuits.length > 0 && (
-              <p className="m">Also on it: {gen.circuits.map((f) => `${f.id} (${f.name}, ${f0(f.loadKw * f.demandFactor)} kW)`).join(', ')}</p>
+              <p className="m">Also on it: {gen.circuits.map((f) => `${f.id} (${f.name}, ${txt.power(f.loadKw * f.demandFactor)} kW)`).join(', ')}</p>
             )}
           </div>
           <dl className="kv">
-            <dt>Running demand</dt><dd>{f0(gen.demandKw)} kW · {f0(gen.demandKva)} kVA</dd>
+            <dt>Running demand</dt><dd>{txt.power(gen.demandKw)} kW · {txt.power(gen.demandKva)} kVA</dd>
             <dt>For the running load</dt>
             <dd className={gen.governing === 'kW' ? 'warn' : ''}>
-              kVA: {f0(gen.demandKva)} ÷ {(s.generatorMaxLoadingPct / 100).toFixed(2)} = {f0(gen.demandKva / (s.generatorMaxLoadingPct / 100))} kVA · kW: {f0(gen.demandKw)} ÷ (0.8 × {(s.generatorMaxLoadingPct / 100).toFixed(2)}) = {f0(gen.demandKw / (0.8 * s.generatorMaxLoadingPct / 100))} kVA
+              kVA: {txt.power(gen.demandKva)} ÷ {(s.generatorMaxLoadingPct / 100).toFixed(2)} = {txt.power(gen.demandKva / (s.generatorMaxLoadingPct / 100))} kVA · kW: {txt.power(gen.demandKw)} ÷ (0.8 × {(s.generatorMaxLoadingPct / 100).toFixed(2)}) = {txt.power(gen.demandKw / (0.8 * s.generatorMaxLoadingPct / 100))} kVA
               <div className="m">{gen.governing === 'kW' ? 'The kW sets the size — the set’s rated kW (0.8 × kVA) must carry the running kW' : gen.governing === 'kVA' ? 'The kVA sets the size' : 'The motor start sets the size'}</div>
             </dd>
             {gen.motor && (
               <>
                 <dt>Largest motor, started last</dt>
-                <dd>{gen.motor.feeder.id} ({starterInfo(starterOf(gen.motor.feeder)).label.toLowerCase()}): {f0(gen.motor.startingKva)} kVA starting on top of {f0(gen.motor.baseKva)} kVA running</dd>
+                <dd>{gen.motor.feeder.id} ({starterInfo(starterOf(gen.motor.feeder)).label.toLowerCase()}): {txt.power(gen.motor.startingKva)} kVA starting on top of {txt.power(gen.motor.baseKva)} kVA running</dd>
                 <dt>For the motor start</dt>
-                <dd className={gen.startDesignKva > gen.runningDesignKva ? 'warn' : ''}>{f0(gen.startDesignKva)} kVA so the dip stays ≤ {MOTOR_START_DIP_LIMIT_PCT} %{gen.startDesignKva > gen.runningDesignKva ? ' — this sets the size' : ''}</dd>
+                <dd className={gen.startDesignKva > gen.runningDesignKva ? 'warn' : ''}>{txt.power(gen.startDesignKva)} kVA so the dip stays ≤ {MOTOR_START_DIP_LIMIT_PCT} %{gen.startDesignKva > gen.runningDesignKva ? ' — this sets the size' : ''}</dd>
               </>
             )}
             <dt>Recommended</dt>
-            <dd className={gen.noFit ? 'bad' : ''}><b>{gen.recommendedKva ? `${gen.recommendedKva} kVA / ${f0(gen.recommendedKw!)} kW (rated at 0.8 PF)` : gen.noFit ? `No standard set fits — ${f0(Math.max(gen.runningDesignKva, gen.startDesignKva))} kVA needed (${gen.governing}); use sets in parallel or split the essential load` : 'Tick the boards on the generator'}</b>
-              {gen.motor?.dipPct !== undefined && <div className="m">dip ≈ {f1(gen.motor.dipPct)} % when {gen.motor.feeder.id} starts</div>}
+            <dd className={gen.noFit ? 'bad' : ''}><b>{gen.recommendedKva ? `${gen.recommendedKva} kVA / ${txt.plain(gen.recommendedKw!)} kW (rated at 0.8 PF)` : gen.noFit ? `No standard set fits — ${txt.power(Math.max(gen.runningDesignKva, gen.startDesignKva))} kVA needed (${gen.governing}); use sets in parallel or split the essential load` : 'Tick the boards on the generator'}</b>
+              {gen.motor?.dipPct !== undefined && <div className="m">dip ≈ {txt.pct(gen.motor.dipPct)} % when {gen.motor.feeder.id} starts</div>}
             </dd>
             {gen.softStartKva && <><dt>With a soft starter</dt><dd className="ok">{gen.softStartKva} kVA would do — soft starter / star-delta on {gen.motor!.feeder.id} (still meets the running kVA and kW)</dd></>}
-            {gen.flcA && <><dt>Full-load current · ATS</dt><dd>{f0(gen.flcA)} A · {gen.atsA} A ATS / breaker</dd></>}
+            {gen.flcA && <><dt>Full-load current · ATS</dt><dd>{txt.current(gen.flcA)} A · {gen.atsA} A ATS / breaker</dd></>}
             <dt>Installed</dt>
             <dd className={gen.installedOk === false ? 'bad' : ''}>
-              {gen.installedKva ? `${gen.installedKva} kVA / ${f0(gen.installedKva * 0.8)} kW${gen.installedOk === false ? ' — too small' : ''}` : 'None on the SLD'}
+              {gen.installedKva ? `${gen.installedKva} kVA / ${txt.plain(gen.installedKva * 0.8)} kW${gen.installedOk === false ? ' — too small' : ''}` : 'None on the SLD'}
               {standbyBoards.length === 1 && gen.recommendedKva && gen.installedKva !== gen.recommendedKva && <button className="chip" style={{ marginLeft: 8 }} onClick={applyGen}>Set {gen.recommendedKva} kVA on {standbyBoards[0].id}</button>}
             </dd>
           </dl>
@@ -229,7 +228,7 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
                 <tr key={f.id} onClick={() => onChange({ ...project, feeders: project.feeders.map((x) => (x.id === f.id ? { ...x, essential: !isEssential(f) } : x)) })}>
                   <td><input type="checkbox" checked={isEssential(f)} readOnly aria-label={`${f.id} essential`} /></td>
                   <td>{f.id}</td><td>{f.boardId}</td><td>{loadTypeOf(f)}</td>
-                  <td>{(f.loadKw * f.demandFactor).toFixed(0)}</td><td>{f.powerFactor.toFixed(2)}</td>
+                  <td>{txt.power(f.loadKw * f.demandFactor)}</td><td>{f.powerFactor.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>

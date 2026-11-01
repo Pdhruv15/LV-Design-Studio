@@ -1,6 +1,7 @@
 import { izText, type FeederResult } from '../calc/electrical';
 import { useState } from 'react';
 import { STATUS_TEXT } from '../calc/statusText';
+import { txt } from '../util/format';
 
 type Tab = 'general' | 'cable' | 'protection';
 const TABS: [Tab, string][] = [['general', 'General'], ['cable', 'Cable'], ['protection', 'Protection']];
@@ -37,9 +38,9 @@ export default function SidePanel({ results, selected }: { results: FeederResult
               <dt>Load</dt>
               <dd>{r.feeder.name}</dd>
               <dt>Design current</dt>
-              <dd>{r.ib.toFixed(0)} A ({r.loadingPct.toFixed(0)}%)</dd>
+              <dd>{txt.current(r.ib)} A ({txt.loading(r.loadingPct)}%)</dd>
               <dt>Voltage drop</dt>
-              <dd className={r.vdStatus}>{r.vdPct.toFixed(2)}% feeder · {r.vdTotalPct.toFixed(2)}% total</dd>
+              <dd className={r.vdStatus}>{txt.pct(r.vdPct)}% feeder · {txt.pct(r.vdTotalPct)}% total</dd>
             </dl>
           )}
           {tab === 'cable' && (
@@ -57,7 +58,7 @@ export default function SidePanel({ results, selected }: { results: FeederResult
                 </>
               )}
               <dt>Voltage drop</dt>
-              <dd className={r.vdStatus}>{r.vdPct.toFixed(2)}% feeder · {r.vdTotalPct.toFixed(2)}% total</dd>
+              <dd className={r.vdStatus}>{txt.pct(r.vdPct)}% feeder · {txt.pct(r.vdTotalPct)}% total</dd>
             </dl>
           )}
           {tab === 'protection' && (
@@ -65,11 +66,11 @@ export default function SidePanel({ results, selected }: { results: FeederResult
               <dt>Breaker</dt>
               <dd>{r.feeder.breakerRatingA} A, {r.feeder.breakerIcuKa} kA</dd>
               <dt>Ib ≤ In ≤ Iz</dt>
-              <dd className={r.protectionStatus}>{r.ib.toFixed(0)} ≤ {r.feeder.breakerRatingA} ≤ {izText(r.ampacity)} A</dd>
+              <dd className={r.protectionStatus}>{txt.current(r.ib)} ≤ {r.feeder.breakerRatingA} ≤ {izText(r.ampacity)} A</dd>
               <dt>Fault at breaker</dt>
-              <dd className={r.icuStatus}>{r.breakerFaultKA.toFixed(1)} kA vs Icu {r.feeder.breakerIcuKa} kA</dd>
+              <dd className={r.icuStatus}>{txt.fault(r.breakerFaultKA)} kA vs Icu {r.feeder.breakerIcuKa} kA</dd>
               <dt>Fault at cable end</dt>
-              <dd>{r.endFaultKA.toFixed(1)} kA</dd>
+              <dd>{txt.fault(r.endFaultKA)} kA</dd>
             </dl>
           )}
         </div>

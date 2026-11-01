@@ -28,7 +28,7 @@ describe('ENG-012: parallel CPC thermal check against the current in each CPC', 
     expect(r.adiabaticWholeMm2).toBeCloseTo(5.709329, 5);
     expect(r.adiabaticMinMm2 * 2).toBeCloseTo(r.adiabaticWholeMm2, 9); // aggregate equivalent: 5.71 of 8 mm²
     expect(r.adiabatic).toBe('warn'); // passes only on the equal-sharing assumption — not 'ok', not 'bad'
-    expect(r.adiabaticNote).toMatch(/each 4 mm² CPC carries 1291 A of the 2582 A .* 5\.7 of 8 mm² together.*not verified for a fault within one run/);
+    expect(r.adiabaticNote).toMatch(/each 4 mm² CPC carries 1,290\.9 A of the 2,581\.8 A .* 5\.7 of 8 mm² together.*not verified for a fault within one run/);
     expect(r.status).toBe('warn');
   });
 

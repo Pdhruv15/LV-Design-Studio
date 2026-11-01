@@ -6,6 +6,7 @@ import { impactBetween, type DesignImpact } from '../../model/designImpact';
 import { Page } from '../ui';
 import ModificationsPanel from './ModificationsPanel';
 import BulkEditPanel from './BulkEditPanel';
+import { fmtDate, txt } from '../../util/format';
 
 const f2 = (n: number) => (Math.round(n * 100) / 100).toLocaleString('en-US');
 const WHY = { changed: 'changed', upstream: 'fed by a changed panel', downstream: 'fed from a changed item' } as const;
@@ -32,7 +33,7 @@ export function ImpactPanel({ impact, onGo }: { impact: DesignImpact; onGo?: (v:
         {impact.demand.length > 0 && (
           <table className="schedule rev-kw">
             <thead><tr><th>Panel</th><th>Demand before (kW)</th><th>Demand after (kW)</th><th>Change</th></tr></thead>
-            <tbody>{impact.demand.map((k) => <tr key={k.boardId}><td>{k.boardId}</td><td>{f2(k.from)}</td><td>{f2(k.to)}</td><td className={k.to > k.from ? 'warn' : 'ok'}>{k.to > k.from ? '+' : ''}{f2(k.to - k.from)}</td></tr>)}</tbody>
+            <tbody>{impact.demand.map((k) => <tr key={k.boardId}><td>{k.boardId}</td><td>{txt.power(k.from)}</td><td>{txt.power(k.to)}</td><td className={k.to > k.from ? 'warn' : 'ok'}>{k.to > k.from ? '+' : ''}{txt.power(k.to - k.from)}</td></tr>)}</tbody>
           </table>
         )}
         <p className="m">Demand is added up from the loads entered; it is not a study result.</p>
@@ -83,7 +84,7 @@ export default function ChangesView({ project, me = '', run, onChange, onApply, 
         <p className="m">Nothing to compare yet: issue a revision first (Reports → Revisions). The baseline is the issued revision the draft is measured against.</p>
       ) : (
         <>
-          <p><b>Baseline: Rev {base.revision.id}</b> <span className="m">{base.revision.date}{base.revision.description ? ` · ${base.revision.description}` : ''}{base.chosen ? '' : ' · latest issued'}</span></p>
+          <p><b>Baseline: Rev {base.revision.id}</b> <span className="m">{fmtDate(base.revision.date)}{base.revision.description ? ` · ${base.revision.description}` : ''}{base.chosen ? '' : ' · latest issued'}</span></p>
           <ImpactPanel impact={impact} onGo={onGo} />
         </>
       )}

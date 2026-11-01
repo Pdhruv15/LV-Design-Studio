@@ -7,6 +7,7 @@ import { deleteBoard } from '../../model/edit';
 import { revisionStamp } from '../../model/revisions';
 import TxRowEditDialog from './TxRowEditDialog';
 import { MD_TITLE_METERING } from '../../docs/mdSheet';
+import { txt } from '../../util/format';
 
 const kw = (v: number) => v.toFixed(2);
 const num = (v: string) => (v.trim() === '' || Number.isNaN(+v) ? undefined : +v);
@@ -87,10 +88,10 @@ export default function TxSummaryView({ project, onChange, onSettings }: { proje
                   <td className="gx-in"><In value={r.ecc} ph="2X150" onSet={(v) => setSupply(r.board, { ecc: v || undefined })} /></td>
                   {(['R', 'Y', 'B'] as const).map((ph) => r.manual
                     ? <td key={ph} className="gx-in"><In value={r.phases[ph] ? kw(r.phases[ph]) : ''} ph="0.00" onSet={(v) => setBoard(r.board.id, { summaryLoad: { ...{ R: 0, Y: 0, B: 0 }, ...r.board.summaryLoad, [ph]: num(v) ?? 0 } })} /></td>
-                    : <td key={ph} className="gx-calc" title="From the boards and load schedules below">{kw(r.phases[ph])}</td>)}
-                  <td className="gx-calc"><b>{kw(r.tclKw)}</b></td>
+                    : <td key={ph} className="gx-calc" title="From the boards and load schedules below">{txt.power(r.phases[ph])}</td>)}
+                  <td className="gx-calc"><b>{txt.power(r.tclKw)}</b></td>
                   <td className="gx-in"><In value={r.df} onSet={(v) => setBoard(r.board.id, { mdDemandFactor: num(v) })} /></td>
-                  <td className="gx-calc"><b>{kw(r.mdlKw)}</b></td>
+                  <td className="gx-calc"><b>{txt.power(r.mdlKw)}</b></td>
                   {(['1-PH', '3-PH', 'CT'] as const).map((m) => r.manual
                     ? <td key={m} className="gx-in"><In value={r.meters[m] || ''} onSet={(v) => setBoard(r.board.id, { summaryMeters: { ...r.board.summaryMeters, [m]: num(v) ?? 0 } })} /></td>
                     : <td key={m} className="gx-calc" title="kWh meters of everything below">{r.meters[m] || ''}</td>)}
@@ -105,8 +106,8 @@ export default function TxSummaryView({ project, onChange, onSettings }: { proje
           <tfoot>
             <tr>
               <td colSpan={9} style={{ textAlign: 'right' }}>TOTAL CONNECTED - LOAD PER PHASE</td>
-              <td>{kw(s.phases.R)}</td><td>{kw(s.phases.Y)}</td><td>{kw(s.phases.B)}</td>
-              <td>{kw(s.tclKw)}</td><td /><td>{kw(s.mdlKw)}</td>
+              <td>{txt.power(s.phases.R)}</td><td>{txt.power(s.phases.Y)}</td><td>{txt.power(s.phases.B)}</td>
+              <td>{txt.power(s.tclKw)}</td><td /><td>{txt.power(s.mdlKw)}</td>
               <td>{s.meters['1-PH'] || ''}</td><td>{s.meters['3-PH'] || ''}</td><td>{s.meters.CT || ''}</td>
               <td className="l txs-rem">{s.ctText}</td><td />
             </tr>
@@ -125,9 +126,9 @@ export default function TxSummaryView({ project, onChange, onSettings }: { proje
       </div>
       <div className="txs-foot">
         <div><span>DIVERSITY FACTOR</span> <b className="txs-box">{s.diversity.toFixed(2)}</b> <span>TOTAL</span></div>
-        <div><span>MAX. DEMAND - 3 PHASE</span> <b className="txs-box">{s.mdlKw.toFixed(1)}</b> <span>kW</span>
-          <span className="txs-gap">TCL =</span> <b className="txs-box">{s.tclKw.toFixed(1)}</b> <span>kW</span></div>
-        <div><span className="txs-gap2">TCL (DUTY) =</span> <b className="txs-box">{s.tclDutyKw.toFixed(1)}</b> <span>kW</span>
+        <div><span>MAX. DEMAND - 3 PHASE</span> <b className="txs-box">{txt.power(s.mdlKw)}</b> <span>kW</span>
+          <span className="txs-gap">TCL =</span> <b className="txs-box">{txt.power(s.tclKw)}</b> <span>kW</span></div>
+        <div><span className="txs-gap2">TCL (DUTY) =</span> <b className="txs-box">{txt.power(s.tclDutyKw)}</b> <span>kW</span>
           <span className="m"> — TCL without the standby units (tick “Standby unit” on a feeder, e.g. a standby pump)</span></div>
         <p className="m">
           One row per transformer (main board), from everything it feeds. Breaker setting = transformer full-load current ÷ breaker rating, rounded up to 0.05, unless typed.

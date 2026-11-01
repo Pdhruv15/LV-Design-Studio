@@ -14,6 +14,7 @@ import { renderPdf, safeFileName, saveBinary, savePdf, saveText } from '../util/
 import { deviceKind, devicePoles } from '../diagram/deviceText';
 import SingleLineDiagram from './SingleLineDiagram';
 import MenuButton from './MenuButton';
+import { txt } from '../util/format';
 
 const PH = ['R', 'Y', 'B'] as const;
 
@@ -153,11 +154,11 @@ export default function BoardSheetView({ project, board, results, selected, onSe
           <div key={p} className="bs-ph">
             <b className={`ph-${p.toLowerCase()}`}>{p}</b>
             <span className="bs-track"><span className={`bs-fill ph-${p.toLowerCase()}`} style={{ width: `${(pb.currentA[p] / maxA) * 100}%` }} /></span>
-            <span>{pb.kw[p].toFixed(2)} kW · {pb.currentA[p].toFixed(1)} A</span>
+            <span>{txt.power(pb.kw[p])} kW · {txt.current(pb.currentA[p])} A</span>
           </div>
         ))}
         <div className="bs-ph-sum">
-          <span>N {pb.neutralA.toFixed(1)} A</span>
+          <span>N {txt.current(pb.neutralA)} A</span>
           <span>Unbalance <b className={over ? 'warn' : 'ok'}>{pb.unbalancePct.toFixed(1)} %</b> <span className="m">(check ≤ {PHASE_UNBALANCE_CHECK_PCT} %)</span></span>
           {pb.unassigned.length > 0 && <span className="warn" title={pb.unassigned.map((f) => f.id).join(', ')}>{pb.unassigned.length} single-phase circuit{pb.unassigned.length === 1 ? '' : 's'} with no phase</span>}
         </div>
@@ -185,15 +186,15 @@ export default function BoardSheetView({ project, board, results, selected, onSe
                   <td>{f.breakerRatingA} A {devicePoles(f)} {deviceKind(f)}</td>
                   <td>{f.cores}C × {f.cableCsaMm2} mm²</td>
                   <td className="num">{f.lengthM}</td>
-                  {PH.map((p) => <td key={p} className="num">{k[p] > 0.005 ? k[p].toFixed(2) : '—'}</td>)}
-                  <td className="num">{r.ib.toFixed(1)}</td>
-                  <td className="num">{r.vdTotalPct.toFixed(2)}</td>
+                  {PH.map((p) => <td key={p} className="num">{k[p] > 0.005 ? txt.power(k[p]) : '—'}</td>)}
+                  <td className="num">{txt.current(r.ib)}</td>
+                  <td className="num">{txt.pct(r.vdTotalPct)}</td>
                   <td className={r.status}>{r.status === 'bad' ? 'fail' : r.status === 'warn' ? 'check' : 'ok'}</td>
                 </tr>
               );
             })}
           </tbody>
-          <tfoot><tr><td /><td><b>Total</b></td><td /><td /><td />{PH.map((p) => <td key={p} className="num"><b>{own.reduce((s, r) => s + feederPhaseKw(project, r.feeder)[p], 0).toFixed(2)}</b></td>)}<td /><td /><td /></tr></tfoot>
+          <tfoot><tr><td /><td><b>Total</b></td><td /><td /><td />{PH.map((p) => <td key={p} className="num"><b>{txt.power(own.reduce((s, r) => s + feederPhaseKw(project, r.feeder)[p], 0))}</b></td>)}<td /><td /><td /></tr></tfoot>
         </table>
       </div>
     </div>

@@ -1,5 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { excelDate, fig, Figure, fmtDate, fmtDateLong, fmtFixed, fmtTime, fmtUpTo } from './format';
+import { excelDate, fig, Figure, fmtDate, fmtDateLong, fmtDateTime, fmtFixed, fmtTime, fmtUpTo, txt } from './format';
+
+describe('the same formats as text, for a screen', () => {
+  it('prints what the figures print, as plain strings', () => {
+    expect([txt.power(20558.8), txt.current(13073.2), txt.fault(10.7), txt.pct(18.5), txt.loading(2049), txt.volts(318), txt.energy(82890), txt.size(235), txt.weight(5.4), txt.fixed(3.5, 1)])
+      .toEqual(['20,558.80', '13,073.2', '10.70', '18.50', '2,049.0', '318.0', '82,890.0', '235.00', '5.40', '3.5']);
+  });
+
+  it('writes ratings as an engineer does, and a dash when there is no value', () => {
+    expect([txt.plain(1600), txt.plain(12.54, 1), txt.plain(undefined), txt.power(undefined), txt.current(NaN)]).toEqual(['1600', '12.5', '—', '—', '—']);
+    expect(txt.power(-0.001)).toBe('0.00');
+  });
+
+  it('writes a date and a time together', () => {
+    expect(fmtDateTime(new Date(2026, 10, 1, 14, 5))).toBe('1 Nov 2026, 14:05');
+  });
+});
 
 describe('calculated figures', () => {
   it('prints each kind of value by its rule', () => {

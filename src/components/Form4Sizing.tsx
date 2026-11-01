@@ -7,6 +7,7 @@ import { safeFileName, savePdf, saveText } from '../util/files';
 import { esc } from '../docs/report';
 import { Page } from './ui';
 import { sanitizeSvg } from '../util/sanitize';
+import { fmtDateLong } from '../util/format';
 
 const CONFIRM = [
   'Height and depth are fixed by the worksheet (H2100 + 100 plinth, D800) whatever the ratings.',
@@ -62,7 +63,7 @@ export default function Form4Sizing({ project, boardId, tabs, onChange, onStatus
     table { width: 100%; border-collapse: collapse; } th, td { border: .2mm solid #999; padding: 3px 6px; text-align: left; } th { background: #f2f2f2; width: 34%; } thead th { background: #f2f2f2; color: #000; width: auto; }
     .warn { color: #000; font-weight: 700; } svg { width: 100%; max-height: 120mm; color: #111; } .m { color: #555; } ul { margin: 4px 0; padding-left: 16px; }
     </style></head><body>
-    <h1>${esc(project.name)} — ${esc(panel)} Form-4 enclosure size</h1><p class="m">${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} · preliminary space estimate</p>
+    <h1>${esc(project.name)} — ${esc(panel)} Form-4 enclosure size</h1><p class="m">${fmtDateLong(new Date())} · preliminary space estimate</p>
     <h2>Enclosure</h2><table>${row('Form of separation', 'Form 4, incoming and outgoing bottom entry')}${row('Size', form4SizeText(r.dims))}${row('Rules', `${FORM4_SOURCE}, rev. ${FORM4_REVISION}`)}${row('Quantities', manual ? 'Entered or changed by hand' : 'Counted from the SLD')}${row('Stacked outgoings', `${r.stackMm} mm in ${r.sections} section${r.sections === 1 ? '' : 's'} of ${FORM4_STACK} mm`)}</table>
     <h2>Breakers</h2><table><thead><tr><th>Breaker</th><th>Qty</th><th>Each</th><th>Total</th></tr></thead><tbody>${qtyRows}</tbody></table>
     <h2>Width</h2><table><thead><tr><th>Item</th><th>mm</th></tr></thead><tbody>${r.parts.map((p) => `<tr><td>${esc(p.label)}</td><td>${p.mm}</td></tr>`).join('')}<tr><td><b>Total width</b></td><td><b>${r.widthMm}</b></td></tr></tbody></table>

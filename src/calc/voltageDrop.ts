@@ -5,6 +5,7 @@ import { isScheduleCircuit, scheduleCircuits } from './loadSchedule';
 import { boardsInSupplyOrder, loadTypeOf } from './summary';
 import { isMotor, starterInfo, starterOf } from './motor';
 import { LOAD_TYPES, type Board, type Feeder, type Project } from '../types';
+import { fmtFixed } from '../util/format';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -158,9 +159,9 @@ export function vdFormula(project: Project, r: VdRow): string {
   const k = r.threePhase ? '√3' : '2';
   const base = r.threePhase ? project.voltageV : project.voltageV / SQRT3;
   const basis = b
-    ? `Incomer, from the downstream P and Q: drop on phase ${b.phase} (${a.toFixed(1)} A, PF ${pf.toFixed(3)}${b.leading ? ' leading' : ''})${b.phase !== b.currentPhase ? `; the current ${r.ib.toFixed(1)} A is on phase ${b.currentPhase}` : ''}. `
+    ? `Incomer, from the downstream P and Q: drop on phase ${b.phase} (${fmtFixed(a, 1)} A, PF ${pf.toFixed(3)}${b.leading ? ' leading' : ''})${b.phase !== b.currentPhase ? `; the current ${fmtFixed(r.ib, 1)} A is on phase ${b.currentPhase}` : ''}. `
     : '';
-  return `${basis}ΔV = ${k} × I × L × (R cosφ + X sinφ)${runs > 1 ? ` ÷ ${runs} runs` : ''} = ${k} × ${a.toFixed(1)} A × ${(r.feeder.lengthM / 1000).toFixed(3)} km × (${r.rOhmPerKm.toFixed(3)} × ${pf.toFixed(3)} + ${r.xOhmPerKm.toFixed(3)} × ${sin.toFixed(3)}) Ω/km = ${r.vdV.toFixed(2)} V = ${r.vdPct.toFixed(2)} % of ${base.toFixed(0)} V; + ${r.upstreamPct.toFixed(2)} % upstream = ${r.totalPct.toFixed(2)} %`;
+  return `${basis}ΔV = ${k} × I × L × (R cosφ + X sinφ)${runs > 1 ? ` ÷ ${runs} runs` : ''} = ${k} × ${fmtFixed(a, 1)} A × ${(r.feeder.lengthM / 1000).toFixed(3)} km × (${r.rOhmPerKm.toFixed(3)} × ${pf.toFixed(3)} + ${r.xOhmPerKm.toFixed(3)} × ${sin.toFixed(3)}) Ω/km = ${r.vdV.toFixed(2)} V = ${fmtFixed(r.vdPct, 2)} % of ${base.toFixed(0)} V; + ${fmtFixed(r.upstreamPct, 2)} % upstream = ${fmtFixed(r.totalPct, 2)} %`;
 }
 
 /** Rows for the selected cables, in supply order. Ids that no longer exist

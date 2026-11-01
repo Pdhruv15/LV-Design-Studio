@@ -8,8 +8,8 @@ import { planToSld } from '../../model/planToSld';
 import ClassicGrid from '../grid/ClassicGrid';
 import { Page } from '../ui';
 import { spaceAreasFromRooms } from '../../calc/building';
+import { txt } from '../../util/format';
 
-const f0 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
 /** Space planning: areas (power density or specific kW) → panels →
  * transformers → RMUs, with automatic assignment and "Create SLD". */
@@ -120,8 +120,8 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
       )}
 
       <div className="plan-cards">
-        <div><span>Connected load</span><b>{f0(sum.connectedKw)} kW</b></div>
-        <div><span>Maximum demand</span><b>{f0(sum.demandKw)} kW · {f0(sum.demandKva)} kVA</b></div>
+        <div><span>Connected load</span><b>{txt.power(sum.connectedKw)} kW</b></div>
+        <div><span>Maximum demand</span><b>{txt.power(sum.demandKw)} kW · {txt.power(sum.demandKva)} kVA</b></div>
         <div><span>Transformers needed</span><b>{sum.requiredTransformers} × {sum.transformerKva} kVA</b><small>at ≤ {s.maxLoadingPct}% loading</small></div>
         <div><span>RMUs needed</span><b>{sum.requiredRmus}</b><small>max {s.maxTransformersPerRmu} transformers each</small></div>
         <div><span>In the plan</span><b>{plan.transformers.length} TX · {sum.rmus.length} RMU · {plan.panels.length} panels</b>
@@ -170,7 +170,7 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
                       </select>
                     )}
                   </td>
-                  <td>{f0(panelLoad(plan, p.id).demandKva)}</td>
+                  <td>{txt.power(panelLoad(plan, p.id).demandKva)}</td>
                   <td><button className="icon-btn" title={`Remove ${p.id}`} onClick={() => setPlan({ ...plan, panels: plan.panels.filter((x) => x.id !== p.id), areas: plan.areas.map((a) => (a.panel === p.id ? { ...a, panel: undefined } : a)) }, true)} aria-label={`Remove ${p.id}`}><X size={14} aria-hidden /></button></td>
                 </tr>
               ))}
@@ -194,8 +194,8 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
                   </td>
                   <td><input value={t.transformer.rmu ?? ''} placeholder="RMU-1" onChange={(e) => setPlan({ ...plan, transformers: plan.transformers.map((x) => (x.id === t.transformer.id ? { ...x, rmu: e.target.value || undefined } : x)) })} /></td>
                   <td>{t.panels.map((p) => p.id).join(', ') || '—'}</td>
-                  <td>{f0(t.demandKva)}</td>
-                  <td className={t.status}><b>{t.loadingPct.toFixed(0)}%</b></td>
+                  <td>{txt.power(t.demandKva)}</td>
+                  <td className={t.status}><b>{txt.loading(t.loadingPct)}%</b></td>
                   <td><button className="icon-btn" title={`Remove ${t.transformer.id}`} onClick={() => setPlan({ ...plan, transformers: plan.transformers.filter((x) => x.id !== t.transformer.id), panels: plan.panels.map((p) => (p.transformer === t.transformer.id ? { ...p, transformer: undefined } : p)) }, true)} aria-label={`Remove ${t.transformer.id}`}><X size={14} aria-hidden /></button></td>
                 </tr>
               ))}
@@ -217,13 +217,13 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
               const l = sum.transformers.find((x) => x.transformer.id === t.id)!;
               return (
                 <div key={t.id} className="plan-tx">
-                  <span className={l.status}>├─ {t.id} {t.kva} kVA ({l.loadingPct.toFixed(0)} %)</span>
+                  <span className={l.status}>├─ {t.id} {t.kva} kVA ({txt.loading(l.loadingPct)} %)</span>
                   {panelsOf(t.id).map((p) => (
                     <div key={p.id} className="plan-panel">
-                      │   ├─ {p.id} · {p.building || '—'}{p.location ? ` ${p.location}` : ''} · {f0(panelLoad(plan, p.id).demandKva)} kVA
+                      │   ├─ {p.id} · {p.building || '—'}{p.location ? ` ${p.location}` : ''} · {txt.power(panelLoad(plan, p.id).demandKva)} kVA
                       {areaNames(p.id) && <div className="plan-areas">│   │    └─ {areaNames(p.id)}</div>}
                       {childrenOf(p.id).map((c) => (
-                        <div key={c.id} className="plan-areas">│   │    ├─ {c.id} · {f0(panelLoad(plan, c.id).demandKva)} kVA{areaNames(c.id) ? ` — ${areaNames(c.id)}` : ''}</div>
+                        <div key={c.id} className="plan-areas">│   │    ├─ {c.id} · {txt.power(panelLoad(plan, c.id).demandKva)} kVA{areaNames(c.id) ? ` — ${areaNames(c.id)}` : ''}</div>
                       ))}
                     </div>
                   ))}
