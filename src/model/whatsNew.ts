@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.018', date: '2026-11-01',
+    items: [
+      { title: 'Quicker edits with many revisions', text: 'On a large project with many issued revisions, each edit no longer re-reads every revision copy to check for unsaved changes. Nothing else changes.' }
+    ]
+  },
+  {
     version: '2.017', date: '2026-11-01',
     items: [
       { title: 'Smoother zoom on large SLDs', text: 'On a large project, zooming and panning the SLD with much of the drawing in view no longer rebuilds the whole drawing at every step. Zooming in gains the most. The drawing itself has not changed.' }

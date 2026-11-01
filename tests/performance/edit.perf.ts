@@ -19,6 +19,8 @@ import { cableSchedule } from '../../src/docs/schedules';
 import { withCableRefs } from '../../src/model/cableRefs';
 import { withEarthPitIds } from '../../src/model/earthingPlan';
 import { MAX_STEPS, record, reset } from '../../src/model/history';
+import { issueRevision } from '../../src/model/revisions';
+import { projectFingerprint } from '../../src/model/saveSafety';
 import type { Project } from '../../src/types';
 
 /** What one edit costs around the calculations, and what the outputs cost: the work calc.perf.ts does not see.
@@ -96,6 +98,11 @@ it('edit and output benchmark', () => {
       lines.push(`  ${name}: ${ms(t[Math.floor((t.length - 1) / 2)])}`);
     }
     lines.push(`  zoom step, whole drawing in view: ${ms(zoomStep(edit(base, 1)))}`);
+    // The unsaved-changes check after an edit, on a project with ten issued revisions.
+    const issued = Array.from({ length: 10 }).reduce<Project>((p, _, r) => issueRevision(p, { description: `Rev ${r}` }), base);
+    projectFingerprint(issued);
+    const checks = [2, 3, 4, 5, 6].map((i) => { const p = edit(issued, i), c = performance.now(); projectFingerprint(p); return performance.now() - c; }).sort((a, b) => a - b);
+    lines.push(`  unsaved-changes check, ten revisions: ${ms(checks[2])}`);
     const stale = edit(base, 2), s = performance.now(); staleStudies(run, stale);
     lines.push(`  stale check: ${ms(performance.now() - s)}`);
     // Memory the undo history keeps: every step's project, with what the screens read after that edit.
