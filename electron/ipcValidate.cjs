@@ -5,6 +5,7 @@
 const path = require('node:path');
 const { LIMITS, assertTextWithin, assertJsonWithin } = require('./limits.cjs');
 
+const LOG_ENTRY_CHARS = 32 * 1024;
 const isObj = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
 const fail = (what) => { throw new Error(`Refused: ${what}`); };
 
@@ -53,6 +54,12 @@ function projectSaveArgs(a) {
   return { file: a.file || undefined, data: a.data, expected: a.expected, force: a.force === true };
 }
 
+/** An entry for the error log: text, cut to a sensible length. */
+function logText(v) {
+  if (typeof v !== 'string') fail('error log entry that is not text');
+  return v.slice(0, LOG_ENTRY_CHARS);
+}
+
 function recoveryArgs(r) {
   if (!isObj(r) || !isObj(r.project) || !Array.isArray(r.project.boards)) fail('recovery copy without a project');
   assertJsonWithin(r, LIMITS.projectBytes, 'The recovery copy');
@@ -99,4 +106,4 @@ function engineRequest(r) {
 /** Permissions the app's pages may be granted (everything else, e.g. camera, location, notifications, is denied). */
 const ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write']);
 
-module.exports = { defaultFileName, fileFilter, saveTextArgs, saveBinaryArgs, pdfArgs, projectSaveArgs, recoveryArgs, workbookRows, libraryData, engineRequest, ALLOWED_PERMISSIONS, PAGE_SIZES };
+module.exports = { defaultFileName, fileFilter, saveTextArgs, saveBinaryArgs, pdfArgs, projectSaveArgs, recoveryArgs, logText, workbookRows, libraryData, engineRequest, ALLOWED_PERMISSIONS, PAGE_SIZES };

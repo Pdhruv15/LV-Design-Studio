@@ -32,8 +32,18 @@ folder; web: browser storage), so one project's autosave never replaces another'
 whose project file was saved again afterwards is flagged and restoring it asks before it
 overwrites. The old single `recovery.json` is moved into the new folder on first start.
 
+**Errors.** An error on one page leaves that page with a message and Try again; the rest of the
+app keeps working, so the project can still be saved. An error that stops the whole app first
+writes a recovery copy (unless nothing is unsaved, or a copy of that project is still waiting),
+then offers Reload. In the desktop app, a window whose page dies or stops responding asks what
+to do and offers any recovery copy after reloading. What was drawn in Design CAD is part of the
+project, so it is kept too; the drawings themselves are opened again from their files. Errors
+are logged on this computer only: the last 30 in browser storage and, on the desktop, `logs/errors.log` in the app's data folder (never following a link, moved
+to `errors.old.log` above 512 KB). A page stuck in a loop in the web version can't be detected.
+
 Code: `src/model/projectMigrate.ts`, `src/model/saveSafety.ts`, `src/model/projectStore.ts`,
-`electron/projectFiles.cjs`, `src/components/SaveDialogs.tsx`.
+`electron/projectFiles.cjs`, `src/components/SaveDialogs.tsx`, `src/components/ErrorBoundary.tsx`,
+`src/util/errorLog.ts`, `electron/errorLog.cjs`.
 
 Not yet (later batches): checkpoints and portable backups, archive and trash, wizard,
 templates, received-document register.

@@ -6,7 +6,7 @@ import { exportDss } from '../engines/opendss/exportDss';
 import { EMPTY_BYTES } from '../../tests/fixtures/importExport';
 
 type Fn = (...a: unknown[]) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
-type V = Record<'defaultFileName' | 'fileFilter' | 'saveTextArgs' | 'saveBinaryArgs' | 'pdfArgs' | 'projectSaveArgs' | 'recoveryArgs' | 'workbookRows' | 'libraryData' | 'engineRequest', Fn> & { ALLOWED_PERMISSIONS: Set<string> };
+type V = Record<'defaultFileName' | 'fileFilter' | 'saveTextArgs' | 'saveBinaryArgs' | 'pdfArgs' | 'projectSaveArgs' | 'recoveryArgs' | 'logText' | 'workbookRows' | 'libraryData' | 'engineRequest', Fn> & { ALLOWED_PERMISSIONS: Set<string> };
 const check = createRequire(import.meta.url)('../../electron/ipcValidate.cjs') as V;
 
 describe('IPC payload checks (electron/ipcValidate.cjs)', () => {
@@ -34,6 +34,12 @@ describe('IPC payload checks (electron/ipcValidate.cjs)', () => {
     expect(() => check.pdfArgs({ html: '  ', pageSize: 'A1', landscape: false, cssPages: true })).toThrow('without HTML');
     expect(() => check.pdfArgs({ html: '<p/>', pageSize: { width: 1e9 } })).toThrow('sheet size');
     expect(() => check.pdfArgs({ html: 1 })).toThrow('without HTML');
+  });
+
+  it('error log entries: text only, cut to a sensible length', () => {
+    expect(check.logText('it failed')).toBe('it failed');
+    expect(check.logText('x'.repeat(100000))).toHaveLength(32 * 1024);
+    expect(() => check.logText({ text: 'x' })).toThrow('error log');
   });
 
   it('project save, recovery, workbook, library and engine payloads', () => {

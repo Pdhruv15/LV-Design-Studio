@@ -6,6 +6,7 @@ import { ask as askUser, askForm, askText, ConfirmHost, tell } from './component
 import { CircleCheck, Play, TriangleAlert, X } from 'lucide-react';
 import { Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { lazyPage as lazy } from './util/onDemand';
+import { ErrorBoundary, setCrashKeeper } from './components/ErrorBoundary';
 import { Feeder, Board, Project, newProject } from './types';
 import { sampleProject } from './data/sampleProject';
 import { evaluateProject, type Status } from './calc/electrical';
@@ -115,7 +116,7 @@ import { pasteBoard } from './model/copyBoard';
 import { draftFromOffer, onSubmissionOffer, type Submission, type SubmissionOffer } from './model/submissions';
 import { applyDefaults, applyProfile, initialsOf, loadPrefs, savePrefs, signature, type Preferences } from './model/profile';
 import { applyTheme } from './theme/theme';
-import { clearRecovery, deleteProjectFile, inDesktop, listProjects, loadProject, emptyTrash, listTrash, loadProjectStamped, readRecoveries, recentFiles, restoreProject, saveProjectFile, statProject, touchRecent, whenText, writeRecovery, type ProjectMeta, type Recovery, type TrashedProject } from './model/projectStore';
+import { clearRecovery, deleteProjectFile, inDesktop, keepUnsavedWork, listProjects, loadProject, emptyTrash, listTrash, loadProjectStamped, readRecoveries, recentFiles, restoreProject, saveProjectFile, statProject, touchRecent, whenText, writeRecovery, type ProjectMeta, type Recovery, type TrashedProject } from './model/projectStore';
 import { applyDetails, withArchived, type ProjectDetails } from './model/projectList';
 const ProjectDetailsDialog = onDemand(() => import('./components/ProjectDetailsDialog'));
 const BriefDialog = onDemand(async () => ({ default: (await import('./components/BriefEditor')).BriefDialog }));
@@ -536,6 +537,8 @@ export default function App() {
     window.addEventListener('beforeunload', onUnload);
     return () => window.removeEventListener('beforeunload', onUnload);
   }, []);
+  // A crash takes this component down, and with it what the effect above would keep on closing.
+  useEffect(() => setCrashKeeper(() => keepUnsavedWork(live.current)), []);
 
   useEffect(() => {
     document.title = `${dirty ? '● ' : ''}${project.name} — LV Design Studio v${__APP_VERSION__}`;
@@ -1323,6 +1326,7 @@ export default function App() {
         {view === 'design' && board ? (
           <>
             <main className="mid" data-doc-id="sld-workspace">
+            <ErrorBoundary level="page" resetKey={`${project.id} ${board.id}`}>
               {!!project.revisions?.length && <BaselineBar project={project} onCompare={() => setView('revisions')} onImpact={() => setView('modifications')} />}
               <section className="stage">
                 <div className="stage-head">
@@ -1499,6 +1503,7 @@ export default function App() {
                   </div>
                 )}
               </section>
+            </ErrorBoundary>
             </main>
 
             <InspectorPanel label={panel === 'board' ? 'Board properties' : 'Circuit results'}>
@@ -1517,6 +1522,7 @@ export default function App() {
           </>
         ) : (
           <main className="mid wide" data-doc-id={view === 'load-schedule' ? 'load-schedule-workspace' : undefined}>
+            <ErrorBoundary level="page" resetKey={`${project.id} ${view}`}>
             <Suspense fallback={<p className="m">Loading…</p>}>
             {view === 'load-schedule' && board && (
               <LoadScheduleView project={project} onOpenRiser={() => setView('busbar')} boardId={board.id} db={db} onBoard={(id) => setActiveBoardId(id)} onChange={setProject} onStatus={setStatus} onSettings={() => setShowSettings(true)} />
@@ -1659,6 +1665,7 @@ export default function App() {
               </>
             )}
             </Suspense>
+            </ErrorBoundary>
           </main>
         )}
       </div>

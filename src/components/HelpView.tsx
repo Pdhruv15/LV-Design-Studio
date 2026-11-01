@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import type { Project } from '../types';
 import type { CalcRun, StudyKey } from '../calc/runs';
 import type { MainView } from '../views';
 import { PHASE_LABEL, QUICK_PATHS, startChecklist, WORKFLOW, type ChecklistItem } from '../help/guide';
 import { Page } from './ui';
 import { SHORTCUTS } from './CommandPalette';
+import { errorLogText, readErrorLog } from '../util/errorLog';
 
 type Go = (v: MainView | 'settings') => void;
 
@@ -23,6 +25,19 @@ export function Checklist({ items, onGo, compact }: { items: ChecklistItem[]; on
         ))}
       </ul>
     </div>
+  );
+}
+
+/** Errors recorded on this computer, to pass on when reporting a problem. Nothing shows until there is one. */
+function ErrorLogNote() {
+  const [copied, setCopied] = useState(false);
+  const count = readErrorLog().length;
+  if (!count) return null;
+  return (
+    <p className="m u-mb-3">
+      {count} error{count === 1 ? '' : 's'} recorded on this computer.{' '}
+      <button className="chip sm" onClick={() => void navigator.clipboard?.writeText(errorLogText()).then(() => setCopied(true), () => setCopied(false))}>{copied ? 'Copied' : 'Copy error log'}</button>
+    </p>
   );
 }
 
@@ -60,6 +75,7 @@ export default function HelpView({ project, run, stale, saved, onGo, onWhatsNew 
             <li>Issue a <b>revision</b> before sending anything, so every sheet carries Rev A, B…</li>
             <li>Set your name, company, logo and defaults once in <b>Profile</b>.</li>
           </ul>
+          <ErrorLogNote />
         </section>
       </div>
       <section className="card" style={{ marginTop: 12 }}>

@@ -25,6 +25,9 @@ contextBridge.exposeInMainWorld('lvds', {
     readAll: () => ipcRenderer.invoke('recovery:readAll'),
     clear: (id) => ipcRenderer.invoke('recovery:clear', id)
   },
+  log: {
+    error: (text) => ipcRenderer.invoke('log:error', text)
+  },
   database: {
     init: (seeds) => ipcRenderer.invoke('database:init', seeds),
     read: () => ipcRenderer.invoke('database:read'),

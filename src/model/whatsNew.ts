@@ -15,6 +15,15 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.029', date: '2026-11-02',
+    items: [
+      { title: 'A message instead of a dead window', text: 'An error while drawing a screen used to blank the whole window, and nothing could be clicked. Now only that page shows a message with Try again, and the rest of the app keeps working, so you can go to another page and save.' },
+      { title: 'Unsaved work kept when the whole app has to stop', text: 'If the whole app does have to stop, it first keeps your unsaved project as a recovery copy and tells you so. Press Reload, then Restore it in the bar at the top. What you drew in Design CAD is part of the project, so it is kept too; open the drawings again afterwards.' },
+      { title: 'Desktop app: a window that stops or hangs', text: 'If the window itself stops or stops responding, the app now asks what to do, Reload or Keep waiting, instead of leaving it frozen. After a reload, any recovery copy is offered as usual.' },
+      { title: 'An error log, on this computer only', text: 'Errors are now recorded so that a problem can be traced afterwards. When there are any, Help shows how many, with Copy error log to pass them on. Nothing is sent anywhere.' }
+    ]
+  },
+  {
     version: '2.028', date: '2026-11-01',
     items: [
       { title: 'Web version: a new version no longer stops the app', text: 'If a new version went live while the web version was open, opening a page not yet loaded could blank the whole app, and nothing could be clicked. The open copy now keeps working until you press New version — reload. If a page cannot be loaded at all, that page says so with a Reload button, and the rest of the app keeps working. The desktop app was not affected.' }

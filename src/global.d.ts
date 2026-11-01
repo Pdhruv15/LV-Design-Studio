@@ -27,6 +27,8 @@ declare global {
         emptyTrash?: () => Promise<number>;
         pick: () => Promise<{ file?: string; data?: unknown; from?: string } | null>;
       };
+      /** The error log file (src/util/errorLog.ts; missing in older desktop builds). */
+      log?: { error: (text: string) => Promise<boolean> };
       /** Recovery copy of unsaved work (missing in older desktop builds). */
       recovery?: {
         write: (r: import('./model/projectStore').Recovery) => Promise<boolean>;
