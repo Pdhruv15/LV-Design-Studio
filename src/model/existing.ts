@@ -1,4 +1,5 @@
 import type { Board, OtherBuilding, Project } from '../types';
+import { fmtDate, fmtFixed } from '../util/format';
 
 /** Extension of an existing installation.
  *
@@ -74,6 +75,6 @@ export function recordedText(project: Project, b: Board): string | undefined {
   const kva = recordedKva(project, b);
   if (kva === undefined) return undefined;
   const e = b.existing!;
-  const how = [e.source, e.recordedOn].filter(Boolean).join(', ');
-  return `MD ${Math.round(kva)} kVA${e.marginPct ? ` incl. ${e.marginPct} %` : ''}${how ? ` (${how})` : ''}`;
+  const how = [e.source, fmtDate(e.recordedOn)].filter(Boolean).join(', ');
+  return `MD ${fmtFixed(kva, 0)} kVA${e.marginPct ? ` incl. ${e.marginPct} %` : ''}${how ? ` (${how})` : ''}`;
 }

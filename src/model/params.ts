@@ -3,6 +3,7 @@ import { boardLocation } from './levels';
 import { currentRevision } from './revisions';
 import { systemSummary, boardTotals, boardSummary } from '../calc/summary';
 import { builtUpAreaOf } from '../calc/building';
+import { fmtDate } from '../util/format';
 
 /** Project parameters: named values written as {Name} in title blocks,
  * notes, labels and custom text. Built-in ones come from the project; people,
@@ -41,9 +42,9 @@ export function paramList(p: Project): ParamDef[] {
     { name: 'DrawingNo', value: d.number ?? '', group: 'Project' },
     { name: 'DrawingTitle', value: d.title ?? 'SINGLE LINE DIAGRAM', group: 'Project' },
     { name: 'Rev', value: rev?.id ?? '—', group: 'Project' },
-    { name: 'RevDate', value: rev?.date ?? '', group: 'Project' },
+    { name: 'RevDate', value: fmtDate(rev?.date), group: 'Project' },
     { name: 'RevDescription', value: rev?.description ?? '', group: 'Project' },
-    { name: 'Today', value: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), group: 'Project' },
+    { name: 'Today', value: fmtDate(new Date()), group: 'Project' },
     ...PEOPLE.map((x) => ({
       name: x.name, group: 'People & dates' as const, editable: x.key, hint: x.hint,
       value: (pp[x.key] as string | undefined) ?? (x.key === 'drawnBy' ? d.drawnBy ?? '' : x.key === 'checkedBy' ? d.checkedBy ?? '' : x.key === 'approvedBy' ? d.approvedBy ?? '' : '')

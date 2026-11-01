@@ -6,6 +6,7 @@ import { runsOf } from '../calc/electrical';
 import { panelSymbolOf } from './panelBox';
 import type { SymbolId } from './symbolLibrary';
 import { sizeRiser } from '../calc/busbar';
+import { fmtFixed } from '../util/format';
 
 /** Riser diagram of one building: its levels bottom to top, each panel on
  * its level, how it's fed — busbar trunking (tap-off per floor) or cable —
@@ -91,7 +92,7 @@ export function riserLayout(project: Project, buildingId: string): RiserLayout {
     const twins = row.floors.length > 1 ? boards.filter((o) => o.id !== b.id && o.upstreamId === b.upstreamId && rowIdx(o) === rowIdx(b) && !placed.has(o.id)) : [];
     twins.forEach((t) => placed.add(t.id));
     placed.add(b.id);
-    const node: RiserNode = { board: b, x, y: yOf(b), title: twins.length ? `${b.id} …` : b.id, sub: [fmtA(b), sm.demandKw ? `${sm.demandKw.toFixed(0)} kW` : ''].filter(Boolean).join(' · '), count: twins.length ? twins.length + 1 : undefined, panel: panelSymbolOf(project, b) };
+    const node: RiserNode = { board: b, x, y: yOf(b), title: twins.length ? `${b.id} …` : b.id, sub: [fmtA(b), sm.demandKw ? `${fmtFixed(sm.demandKw, 0)} kW` : ''].filter(Boolean).join(' · '), count: twins.length ? twins.length + 1 : undefined, panel: panelSymbolOf(project, b) };
     nodes.push(node);
     used.add(node.panel ?? 'db');
     return node;

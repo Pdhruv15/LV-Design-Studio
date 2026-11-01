@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.022', date: '2026-11-01',
+    items: [
+      { title: 'Drawings follow the same number formats', text: 'SLDs, board sheets and risers now write large values with a comma, such as TCL : 1,800.00 kW, 2,504 A and 2,064% loaded, and keep their short decimals so the labels still fit. A DEWA board label now reads TCL 1,518.80 · MDL 1,215.04 kW, to match the circuit labels. Title blocks write dates as 15 Oct 2026. DXF and DWG geometry does not move, and the calculated results are unchanged.' }
+    ]
+  },
+  {
     version: '2.021', date: '2026-11-01',
     items: [
       { title: 'Schedules and forms follow the same number formats', text: 'Cable, equipment and tray schedules, DEWA load forms, DB load schedules, DM-D-013 and the building summary now write numbers the same way as the reports, such as 13,073.2 A and 16,447.04 kW. Registers and the BOQ write dates as 1 Nov 2026. In Excel, loads on the forms are now real numbers and register dates are real dates, so columns add up and sort. The calculated results are unchanged.' }

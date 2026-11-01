@@ -36,7 +36,7 @@ describe('Board view symbols', () => {
     const svg = view('SMDB-GF');
     expect(svg).toMatch(/<rect x="[\d.]+" y="238" width="24.5" height="28"/); // DB symbol at load size
     expect(svg).toContain('>DB-GF1</text>');
-    expect(svg).toMatch(/>TCL [\d.]+ kW</);
+    expect(svg).toMatch(/>TCL [\d,]+\.\d\d kW</);
     expect(svg).toMatch(/>MDL [\d.]+ kW · \d+ A</);
     expect(svg).not.toContain('→ DB-GF1');
   });

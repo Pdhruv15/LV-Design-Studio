@@ -2,6 +2,7 @@ import { pushLibrary } from '../database/librarySync';
 import type { Project } from '../types';
 import { fillParams, paramList } from './params';
 import { escapeHtmlAttr, isRasterDataUrl, num } from '../util/escape';
+import { fmtDate } from '../util/format';
 
 /** Title block templates: a grid (column widths, row heights in mm) of
  * cells that can span rows and columns. A cell holds text with {Parameters},
@@ -76,7 +77,7 @@ export function titleBlockHtml(t: TitleTemplate, p: Project, extra: Record<strin
     if (c.kind === 'logo') return isRasterDataUrl(p.drawing?.logo) ? `<img src="${esc(p.drawing!.logo)}" style="max-width:100%;max-height:100%;object-fit:contain" alt="">` : '';
     if (c.kind === 'revisions') {
       const revs = (p.revisions ?? []).slice(-4).reverse();
-      return `<table style="width:100%;border-collapse:collapse;font-size:6.5pt">${revs.length ? revs.map((r) => `<tr><td style="border:0;padding:0 1mm">${esc(r.id)}</td><td style="border:0;padding:0 1mm">${esc(r.date)}</td><td style="border:0;padding:0 1mm">${esc(r.description)}</td></tr>`).join('') : '<tr><td style="border:0">Not issued</td></tr>'}</table>`;
+      return `<table style="width:100%;border-collapse:collapse;font-size:6.5pt">${revs.length ? revs.map((r) => `<tr><td style="border:0;padding:0 1mm">${esc(r.id)}</td><td style="border:0;padding:0 1mm">${esc(fmtDate(r.date))}</td><td style="border:0;padding:0 1mm">${esc(r.description)}</td></tr>`).join('') : '<tr><td style="border:0">Not issued</td></tr>'}</table>`;
     }
     return esc(fillParams(c.text, p, extra, list)).replace(/\n/g, '<br>');
   };

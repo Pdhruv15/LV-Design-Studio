@@ -8,6 +8,7 @@ import { sizeRiser, type BusRiser } from '../calc/busbar';
 import { panelSymbolOf } from './panelBox';
 import type { SymbolId } from './symbolLibrary';
 import { U } from './riserLayout';
+import { fmtFixed } from '../util/format';
 
 /** Riser schematic with individual feeders: every panel that feeds other
  * boards (MDB, EMDB, SMDB …) is drawn as an enclosure with its busbar, and
@@ -50,7 +51,7 @@ export interface FeederRiserLayout {
   sources: FRSource[]; wires: { points: [number, number][]; standby?: boolean }[]; ats: { x: number; y: number }[]; used: Set<string>; empty: boolean
 }
 
-const kw = (v: number) => `${v < 10 ? v.toFixed(2) : v.toFixed(1)} kW`;
+const kw = (v: number) => `${fmtFixed(v, v < 10 ? 2 : 1)} kW`;
 const deviceText = (f: Feeder | undefined) => (f ? [`${f.breakerRatingA} A ${devicePoles(f)}`, `${deviceKind(f)}${f.breakerIcuKa ? ` ${f.breakerIcuKa} kA` : ''}`] : []);
 const cableText = (f: Feeder | undefined) => (f ? `${runsOf(f) > 1 ? `${runsOf(f)}× ` : ''}${f.cores}C ${f.cableCsaMm2} mm² · ${f.lengthM} m` : '');
 const INCOMER_TEXT: Record<string, string> = { MCCB: 'MCCB', 'MCCB-NA': 'MCCB (NA)', ISOL: 'Isolator', ACB: 'ACB' };
