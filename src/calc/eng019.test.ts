@@ -68,6 +68,6 @@ describe('ENG-019 earthing: missing source loop is unknown, not zero', () => {
     const html = buildReportHtml(P([{ id: 'MDB', name: 'M' }], [f]));
     expect(html).toContain('Not verified — supply loop incomplete');
     expect(html).toMatch(/no source data at MDB[^<]*\(Ze not assumed 0/);
-    expect(html).toContain('≤ 397');
+    expect(html).toContain('≤ 396.6');
   });
 });

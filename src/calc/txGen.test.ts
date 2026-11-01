@@ -118,7 +118,7 @@ describe('ENG-004: a proposed split never counts as installed transformers', () 
     const s = buildSection('sizing', { project: p, results: [], earthing: [], selectivity: [] }, scopeOf(p, { boards: [], downstream: true }));
     const row = s.tables.find((t) => t.title === 'Transformers')!.rows[0];
     expect(row[4]).toBe('2 × 1500 kVA');
-    expect(String(row[5])).toMatch(/^1500 kVA · 167 %$/);
+    expect(String(row[5])).toMatch(/^1500 kVA · 166\.7 %$/);
     expect(row[row.length - 1]).toMatchObject({ s: 'bad' });
     expect(s.statuses.filter((x) => x === 'bad').length).toBe(1);
     expect(s.summary.find((x) => x.label === 'MDB transformer')!.status).toBe('bad');

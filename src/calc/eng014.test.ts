@@ -20,9 +20,9 @@ describe('ENG-014: no suitable UPS DC breaker is reported, not clamped', () => {
     expect(r.dcBreakerRequiredA).toBeCloseTo(2374.620061, 5);
     expect(r.dcBreakerA).toBeUndefined();
     expect(r.dcBreakerNoFit).toBe(true);
-    expect(r.notes.join(' ')).toMatch(/No suitable DC breaker in the list for the battery bus: 2375 A needed .* largest listed 1600 A/);
+    expect(r.notes.join(' ')).toMatch(/No suitable DC breaker in the list for the battery bus: 2,374\.6 A needed .* largest listed 1600 A/);
     const html = buildUpsReportHtml(p, [ups(600000)]);
-    expect(html).toMatch(/No suitable DC breaker in the list — 2,?375 A needed \(1\.25 × I\), largest listed 1600 A/);
+    expect(html).toMatch(/No suitable DC breaker in the list — 2,374\.6 A needed \(1\.25 × I\), largest listed 1600 A/);
     expect(html).not.toMatch(/\/ 1600 A|undefined A/);
   });
 

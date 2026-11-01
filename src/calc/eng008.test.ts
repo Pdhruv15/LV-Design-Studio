@@ -32,9 +32,9 @@ describe('ENG-008: no suitable AC breaker is reported, never clamped', () => {
     expect(r.acBreakerA).toBeUndefined();
     expect(r.acBreakerNoFit).toBe(true);
     expect(r.status).toBe('bad');
-    expect(r.notes.join(' ')).toMatch(/No suitable AC breaker in the available list: 7668 A needed .* largest available 4000 A/);
+    expect(r.notes.join(' ')).toMatch(/No suitable AC breaker in the available list: 7,667\.9 A needed .* largest available 4000 A/);
     const html = buildPvReportHtml(project, big(5000), r);
-    expect(html).toMatch(/No suitable breaker in the available list — 7,?668 A needed \(1\.25 × I\), largest available 4000 A/);
+    expect(html).toMatch(/No suitable breaker in the available list — 7,667\.9 A needed \(1\.25 × I\), largest available 4000 A/);
     expect(html).not.toMatch(/2500 A breaker|undefined A/);
   });
 

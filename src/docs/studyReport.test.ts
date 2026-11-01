@@ -4,6 +4,7 @@ import { runCalculations } from '../calc/runs';
 import { boardSummary } from '../calc/summary';
 import { buildSection, buildStudyReportHtml, drawingProject, scopeOf, scopeText, STUDIES, type CalcData } from './studyReport';
 import { buildStudyWorkbook } from './studyWorkbook';
+import { fig } from '../util/format';
 
 const run = runCalculations(sampleProject);
 const data: CalcData = { project: run.project, results: run.results, earthing: run.earthing, selectivity: run.selectivity };
@@ -28,13 +29,13 @@ describe('study reports for part of the network', () => {
     const sc = buildSection('sc', data, scope);
     const busbars = sc.tables[0];
     expect(busbars.rows.map((r) => r[0])).toEqual([sub.id]);
-    expect(busbars.rows[0][4]).toBe(Number(boardSummary(sampleProject, sub).faultKA.toFixed(1)));
+    expect(busbars.rows[0][4]).toEqual(fig.fault(boardSummary(sampleProject, sub).faultKA));
     // Breakers: the incomer and the board's own circuits.
     const breakers = sc.tables[1].rows.map((r) => String(r[0]));
     expect(breakers[0]).toContain('(incomer)');
     expect(breakers.length).toBe(1 + scope.feeders.length);
     const lf = buildSection('lf', data, scope);
-    expect(lf.tables[0].rows[0][9]).toBe(Number(boardSummary(sampleProject, sub).voltagePct.toFixed(2)));
+    expect(lf.tables[0].rows[0][9]).toEqual(fig.pct(boardSummary(sampleProject, sub).voltagePct));
   });
 
   it('every study builds for any scope', () => {

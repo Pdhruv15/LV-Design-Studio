@@ -30,8 +30,8 @@ describe('UPS leading kvar on the standby generator', () => {
     expect(r.totalKvar).toBeCloseTo(13, 6); // 6 (estimate) + 7 (datasheet); the mains UPS is not on the generator
     expect(r.issue).toContain('may lose voltage control');
     expect(checkUpsLeading(p, b)).toMatchObject({ kvar: 7, estimate: false, status: 'fail' });
-    expect(sizeUps(p, a).notes.some((n) => n.includes('13 kvar leading'))).toBe(true);
-    expect(buildDashboard(p).todo.some((t) => t.text.includes('u1: input filters 13 kvar leading'))).toBe(true);
+    expect(sizeUps(p, a).notes.some((n) => n.includes('13.00 kvar leading'))).toBe(true);
+    expect(buildDashboard(p).todo.some((t) => t.text.includes('u1: input filters 13.00 kvar leading'))).toBe(true);
   });
 
   it('uses the generator capability when entered', () => {

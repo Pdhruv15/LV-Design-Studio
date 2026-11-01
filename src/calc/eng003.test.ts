@@ -97,7 +97,7 @@ describe('ENG-003: generator carries both kVA and kW', () => {
     const s = buildSection('sizing', { project: p, results: [], earthing: [], selectivity: [] }, scopeOf(p, { boards: [], downstream: true }));
     const gen = s.summary.find((x) => x.label.startsWith('Standby generator'))!;
     expect(gen.status).toBe('bad');
-    expect(String(gen.value)).toMatch(/2625 kVA needed \(kW\) — above the largest standard set/);
+    expect(String(gen.value)).toMatch(/2,625\.00 kVA needed \(kW\) — above the largest standard set/);
     const r = applyDrop(p, { kind: 'generator' } as never, { type: 'bus', boardId: 'MDB' });
     expect(r.project.boards[0].standby).toBeUndefined();
     expect(r.message).toMatch(/No standard generator fits MDB: it needs 2625 kVA \(kW/);

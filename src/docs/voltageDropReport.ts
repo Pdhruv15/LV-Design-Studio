@@ -11,6 +11,7 @@ import type { Project } from '../types';
 import type { RiserVd } from '../calc/busbar';
 import { motorStartVdLimit } from '../calc/voltageDrop';
 import { resistanceFactor } from '../calc/electrical';
+import { fig } from '../util/format';
 
 export const VD_HEADERS = [
   'Ref', 'From panel', 'To', 'Type', 'Load (kW)', 'PF', 'Ib (A)', 'Phase', 'Cable (Cu)', 'Length (m)',
@@ -22,16 +23,19 @@ const n = (v: number, d: number) => v.toFixed(d);
 export const cableText = (r: VdRow) => cableSizeText(r.feeder);
 
 /** Motors: drop while starting against its own limit, e.g. "11.6 / 10 — exceeds". */
-export const startText = (r: VdRow) => (r.startPct === undefined ? '' : `${n(r.startPct, 1)} / ${motorStartVdLimit()}${r.startPct > motorStartVdLimit() ? ' — exceeds' : ''}`);
+export const startText = (r: VdRow) => (r.startPct === undefined ? '' : `${fig.pct(r.startPct)} / ${motorStartVdLimit()}${r.startPct > motorStartVdLimit() ? ' — exceeds' : ''}`);
 
 /** One row of the table as text, in VD_HEADERS order. */
 export function vdCells(r: VdRow): string[] {
   return [
-    r.feeder.id, r.from.id, r.toName, r.toType, n(r.loadKw, 1), n(r.pf, 2), n(r.ib, 1), r.threePhase ? '3-ph' : '1-ph',
-    cableText(r), n(r.feeder.lengthM, 0), n(r.mvPerAm, 3), n(r.vdV, 2), n(r.vdPct, 2), n(r.upstreamPct, 2),
-    n(r.totalPct, 2), n(r.limitPct, 1), startText(r), STATUS_TEXT[r.status], [r.vdBasis && r.vdBasis.phase !== r.vdBasis.currentPhase ? `Vd on phase ${r.vdBasis.phase}: ${n(r.vdBasis.a, 1)} A at PF ${n(r.vdBasis.pf, 3)}${r.vdBasis.leading ? ' leading' : ''} (Ib on ${r.vdBasis.currentPhase})` : '', r.feeder.remarks ?? ''].filter(Boolean).join('; ')
+    r.feeder.id, r.from.id, r.toName, r.toType, String(fig.power(r.loadKw)), String(fig.ratio(r.pf)), String(fig.current(r.ib)), r.threePhase ? '3-ph' : '1-ph',
+    cableText(r), n(r.feeder.lengthM, 0), n(r.mvPerAm, 3), n(r.vdV, 2), String(fig.pct(r.vdPct)), String(fig.pct(r.upstreamPct)),
+    String(fig.pct(r.totalPct)), n(r.limitPct, 1), startText(r), STATUS_TEXT[r.status], [r.vdBasis && r.vdBasis.phase !== r.vdBasis.currentPhase ? `Vd on phase ${r.vdBasis.phase}: ${fig.current(r.vdBasis.a)} A at PF ${n(r.vdBasis.pf, 3)}${r.vdBasis.leading ? ' leading' : ''} (Ib on ${r.vdBasis.currentPhase})` : '', r.feeder.remarks ?? ''].filter(Boolean).join('; ')
   ];
 }
+
+/** The same row for a CSV: numbers without thousands separators, so a spreadsheet reads them as numbers. */
+export const vdCsvCells = (r: VdRow) => vdCells(r).map((c, i) => (NUMERIC.has(VD_HEADERS[i]) ? c.replace(/,/g, '') : c));
 
 export const scopeLabel = (project: Project, boardId: string) => {
   const b = project.boards.find((x) => x.id === boardId);
@@ -63,23 +67,23 @@ export function buildVdReportHtml(project: Project, rows: VdRow[], scope: string
 
   // Page 1: cables (and risers) that fail or need a look, worst first.
   const attention = [
-    ...rows.filter((r) => r.status !== 'ok').map((r) => ({ st: r.status, ref: r.feeder.id, path: `${r.from.id} → ${r.toName}`, vd: n(r.vdPct, 2), up: n(r.upstreamPct, 2), total: r.totalPct })),
-    ...risers.filter((v) => v.status !== 'ok').map((v) => ({ st: v.status, ref: v.riser.name, path: `Busbar riser from ${v.riser.sourceBoardId ?? '—'}`, vd: '', up: n(v.upstreamPct, 2), total: v.noType ? NaN : v.exactTopPct }))
+    ...rows.filter((r) => r.status !== 'ok').map((r) => ({ st: r.status, ref: r.feeder.id, path: `${r.from.id} → ${r.toName}`, vd: String(fig.pct(r.vdPct)), up: String(fig.pct(r.upstreamPct)), total: r.totalPct })),
+    ...risers.filter((v) => v.status !== 'ok').map((v) => ({ st: v.status, ref: v.riser.name, path: `Busbar riser from ${v.riser.sourceBoardId ?? '—'}`, vd: '', up: String(fig.pct(v.upstreamPct)), total: v.noType ? NaN : v.exactTopPct }))
   ].sort((a, b) => (a.st === b.st ? (b.total || 0) - (a.total || 0) : a.st === 'bad' ? -1 : 1));
   const shown = attention.slice(0, ATTENTION_MAX);
   const summary = `<div class="sum"><table class="grid">
     <tr><th>Cables</th><th class="n">Pass</th><th class="n">Warning</th><th class="n">Fail</th></tr>
     <tr><td>${rows.length}</td><td class="n">${t.ok}</td><td class="n">${t.warn}</td><td class="n bad">${t.bad}</td></tr>
-    <tr><th colspan="2">Highest total</th><td colspan="2" class="n">${worst ? `${n(worst.totalPct, 2)} % — ${esc(worst.from.id)} / ${esc(worst.feeder.id)}` : '—'}</td></tr>
+    <tr><th colspan="2">Highest total</th><td colspan="2" class="n">${worst ? `${fig.pct(worst.totalPct)} % — ${esc(worst.from.id)} / ${esc(worst.feeder.id)}` : '—'}</td></tr>
     <tr><th colspan="2">Limit</th><td colspan="2" class="n">${esc(limitText)}</td></tr></table>
     <div class="box"><b>${attention.length ? `Needs attention (${attention.length})` : 'Nothing needs attention — every cable is within the limit'}</b>${shown.length ? `<table class="grid">
       <tr><th>Cable</th><th>From → to</th><th class="n">This cable (%)</th><th class="n">Upstream (%)</th><th class="n">Total (%)</th><th>Result</th></tr>
-      ${shown.map((a) => `<tr><td>${esc(a.ref)}</td><td>${esc(a.path)}</td><td class="n">${a.vd}</td><td class="n">${a.up}</td><td class="n">${Number.isFinite(a.total) ? n(a.total, 2) : 'Not calculated'}</td><td class="${a.st}">${STATUS_TEXT[a.st]}</td></tr>`).join('')}</table>` : ''}
+      ${shown.map((a) => `<tr><td>${esc(a.ref)}</td><td>${esc(a.path)}</td><td class="n">${a.vd}</td><td class="n">${a.up}</td><td class="n">${Number.isFinite(a.total) ? String(fig.pct(a.total)) : 'Not calculated'}</td><td class="${a.st}">${STATUS_TEXT[a.st]}</td></tr>`).join('')}</table>` : ''}
     ${attention.length > ATTENTION_MAX ? `<p class="note">…and ${attention.length - ATTENTION_MAX} more — all ${attention.length} are listed under “Items needing attention” below.</p>` : ''}</div></div>`;
   // Every cable or riser that fails or needs a look, none left out.
   const allItems = attention.length > ATTENTION_MAX ? `<h2>Items needing attention (all ${attention.length})</h2><table class="grid"><thead>
       <tr><th>Cable</th><th>From → to</th><th class="n">This cable (%)</th><th class="n">Upstream (%)</th><th class="n">Total (%)</th><th>Result</th></tr></thead><tbody>
-      ${attention.map((a) => `<tr><td>${esc(a.ref)}</td><td>${esc(a.path)}</td><td class="n">${a.vd}</td><td class="n">${a.up}</td><td class="n">${Number.isFinite(a.total) ? n(a.total, 2) : 'Not calculated'}</td><td class="${a.st}">${statusSpan(STATUS_TEXT[a.st])}</td></tr>`).join('')}</tbody></table>` : '';
+      ${attention.map((a) => `<tr><td>${esc(a.ref)}</td><td>${esc(a.path)}</td><td class="n">${a.vd}</td><td class="n">${a.up}</td><td class="n">${Number.isFinite(a.total) ? String(fig.pct(a.total)) : 'Not calculated'}</td><td class="${a.st}">${statusSpan(STATUS_TEXT[a.st])}</td></tr>`).join('')}</tbody></table>` : '';
 
   const cols = printedColumns(rows);
   const head = `<tr>${cols.map((i) => `<th${cls(VD_HEADERS[i])}>${esc(VD_HEADERS[i])}</th>`).join('')}</tr>`;
@@ -107,10 +111,10 @@ ${allItems}
 </tbody></table>
 ${panels || '<p class="note">No cables selected.</p>'}
 ${risers.map((v) => `<h2>Busbar riser ${esc(v.riser.name)} — from ${esc(v.riser.sourceBoardId ?? '—')}</h2>
-<p>Design current ${v.designA.toFixed(0)} A · z = ${(v.zOhmPerM * 1000).toFixed(3)} mΩ/m · concentrated length ${v.concentratedM.toFixed(1)} m (full current) · distributed length ${v.distributedM.toFixed(1)} m · upstream ${v.upstreamPct.toFixed(2)} %<br>
-${v.noType ? `<b class="bad">Not calculated — no busbar size in the data carries ${v.designA.toFixed(0)} A. ${STATUS_TEXT.bad}.</b>` : `Top tap-off: floor by floor <b class="${v.status}">${v.exactTopPct.toFixed(2)} %</b> · uniformly distributed load check ΔV = √3 · I · z · (Lc + Ld/2): ${v.uniformTopPct.toFixed(2)} %`}</p>
+<p>Design current ${fig.current(v.designA)} A · z = ${(v.zOhmPerM * 1000).toFixed(3)} mΩ/m · concentrated length ${v.concentratedM.toFixed(1)} m (full current) · distributed length ${v.distributedM.toFixed(1)} m · upstream ${fig.pct(v.upstreamPct)} %<br>
+${v.noType ? `<b class="bad">Not calculated — no busbar size in the data carries ${fig.current(v.designA)} A. ${STATUS_TEXT.bad}.</b>` : `Top tap-off: floor by floor <b class="${v.status}">${fig.pct(v.exactTopPct)} %</b> · uniformly distributed load check ΔV = √3 · I · z · (Lc + Ld/2): ${fig.pct(v.uniformTopPct)} %`}</p>
 <table class="grid"><thead><tr><th>Section</th><th>Part</th><th class="n">Length (m)</th><th class="n">Current (A)</th><th class="n">Vd (%)</th><th class="n">Total at end (%)</th><th>Result</th></tr></thead><tbody>
-${v.noType ? '' : v.segments.map((g) => { const st = g.cumPct > v.limitPct ? 'bad' : g.cumPct > v.limitPct * 0.85 ? 'warn' : 'ok'; return `<tr><td>${esc(g.label)}</td><td>${g.kind}</td><td class="n">${g.lengthM.toFixed(1)}</td><td class="n">${g.currentA.toFixed(0)}</td><td class="n">${g.vdPct.toFixed(3)}</td><td class="n">${g.cumPct.toFixed(2)}</td><td class="${st}">${STATUS_TEXT[st]}</td></tr>`; }).join('')}
+${v.noType ? '' : v.segments.map((g) => { const st = g.cumPct > v.limitPct ? 'bad' : g.cumPct > v.limitPct * 0.85 ? 'warn' : 'ok'; return `<tr><td>${esc(g.label)}</td><td>${g.kind}</td><td class="n">${g.lengthM.toFixed(1)}</td><td class="n">${fig.current(g.currentA)}</td><td class="n">${g.vdPct.toFixed(3)}</td><td class="n">${fig.pct(g.cumPct)}</td><td class="${st}">${STATUS_TEXT[st]}</td></tr>`; }).join('')}
 </tbody></table>`).join('')}`;
 
   return printDoc(project, { title: `${project.name} — voltage drop calculation`, headRight: 'Voltage drop calculation',

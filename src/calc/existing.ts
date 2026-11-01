@@ -3,6 +3,7 @@ import type { FeederResult, Status } from './electrical';
 import { boardSummary, boardTotals } from './summary';
 import { existingLoad, isExisting, otherKva } from '../model/existing';
 import { txUnits } from '../model/earthingPlan';
+import { fig } from '../util/format';
 
 /** Checks of an existing installation that is being extended: does what is
  * already there still carry the recorded demand plus the new load?
@@ -42,7 +43,7 @@ export function existingChecks(project: Project, results: FeederResult[]): Exist
     const ex = existingLoad(project, b);
     const added = newDemandKva(project, b);
     const others = b.existing?.others ?? [];
-    const split = ex ? `${r0(ex.covers ? ex.kva : Math.max(0, sm.demandKva - added))} + ${r0(added)} = ${r0(sm.demandKva)} kVA` : `${r0(sm.demandKva)} kVA (no recorded MD)`;
+    const split = ex ? `${fig.power(ex.covers ? ex.kva : Math.max(0, sm.demandKva - added))} + ${fig.power(added)} = ${fig.power(sm.demandKva)} kVA` : `${fig.power(sm.demandKva)} kVA (no recorded MD)`;
     for (const o of others) {
       const kept = otherKva(o);
       out.push({
@@ -57,17 +58,17 @@ export function existingChecks(project: Project, results: FeederResult[]): Exist
       const spare = cap - sm.demandKva;
       out.push({
         kind: 'transformer', id: b.id, item: `${b.id} transformer ${b.sourceKva} kVA spare capacity`, value: split,
-        limit: `${limitPct} % of ${b.sourceKva} = ${r0(cap)} kVA`,
+        limit: `${limitPct} % of ${b.sourceKva} = ${fig.power(cap)} kVA`,
         status: spare < 0 ? 'bad' : spare < b.sourceKva * 0.05 ? 'warn' : 'ok',
-        result: spare < 0 ? `Over by ${r0(-spare)} kVA` : `${r0(spare)} kVA left`
+        result: spare < 0 ? `Over by ${fig.power(-spare)} kVA` : `${fig.power(spare)} kVA left`
       });
     }
     const rating = b.ratedCurrentA ?? (!b.upstreamId ? b.supply?.ratingA : undefined) ?? project.feeders.find((f) => f.feedsBoardId === b.id)?.breakerRatingA;
     if (rating) {
       const pct = (sm.currentA / rating) * 100;
       out.push({
-        kind: 'incomer', id: b.id, item: `${b.id} incomer / busbar ${rating} A`, value: `${r0(sm.currentA)} A (${split})`, limit: `${rating} A`,
-        status: pct > 100 ? 'bad' : pct > 80 ? 'warn' : 'ok', result: `${pct.toFixed(0)} % loaded`
+        kind: 'incomer', id: b.id, item: `${b.id} incomer / busbar ${rating} A`, value: `${fig.current(sm.currentA)} A (${split})`, limit: `${rating} A`,
+        status: pct > 100 ? 'bad' : pct > 80 ? 'warn' : 'ok', result: `${fig.loading(pct)} % loaded`
       });
     }
     const available = b.existing?.spareWays;
@@ -98,11 +99,11 @@ export function existingChecks(project: Project, results: FeederResult[]): Exist
   }
   for (const r of results.filter((x) => x.feeder.existing)) {
     const f = r.feeder;
-    const why = [r.protectionStatus === 'bad' && 'Ib ≤ In ≤ Iz not met', r.ampacityStatus === 'bad' && 'cable too small', r.icuStatus === 'bad' && 'breaking capacity too low', r.vdStatus !== 'ok' && `Vd ${r.vdTotalPct.toFixed(1)} %`].filter(Boolean);
+    const why = [r.protectionStatus === 'bad' && 'Ib ≤ In ≤ Iz not met', r.ampacityStatus === 'bad' && 'cable too small', r.icuStatus === 'bad' && 'breaking capacity too low', r.vdStatus !== 'ok' && `Vd ${fig.pct(r.vdTotalPct)} %`].filter(Boolean);
     out.push({
       kind: 'feeder', id: f.id, item: `${f.boardId} → ${f.feedsBoardId ?? f.name} (existing ${f.breakerRatingA} A, ${f.parallel && f.parallel > 1 ? `${f.parallel} × ` : ''}${f.cableCsaMm2} mm²)`,
-      value: `Ib ${r.ib.toFixed(0)} A · Iz ${r.ampacity.toFixed(0)} A · Vd ${r.vdTotalPct.toFixed(1)} %`, limit: `In ${f.breakerRatingA} A · Vd ${project.vdLimitPct} %`,
-      status: r.status, result: why.length ? why.join('; ') : `${r.loadingPct.toFixed(0)} % of breaker`
+      value: `Ib ${fig.current(r.ib)} A · Iz ${fig.current(r.ampacity)} A · Vd ${fig.pct(r.vdTotalPct)} %`, limit: `In ${f.breakerRatingA} A · Vd ${project.vdLimitPct} %`,
+      status: r.status, result: why.length ? why.join('; ') : `${fig.loading(r.loadingPct)} % of breaker`
     });
   }
   return out;

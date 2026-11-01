@@ -68,9 +68,9 @@ describe('ENG-012: parallel CPC thermal check against the current in each CPC', 
     const sec = buildSection('earth', { project: p, results: run.results, earthing: run.earthing, selectivity: run.selectivity }, scopeOf(p, { boards: [], downstream: true }));
     const row = sec.tables[0].rows.find((x) => JSON.stringify(x).includes('"F"') || x[0] === 'F' || JSON.stringify(x).includes('F'))!;
     expect(sec.tables[0].headers).toContain('CPC min, each (mm²)');
-    expect(JSON.stringify(row)).toMatch(/2\.9 \(2 runs, 1291 A each, assumed sharing\)/);
+    expect(JSON.stringify(row)).toMatch(/2\.9 \(2 runs, 1,290\.9 A each, assumed sharing\)/);
     expect(sec.method.join(' ')).toMatch(/Parallel runs: each CPC carries an equal share/);
     // The calculation report prints the study section itself: the same figures and wording.
-    expect(buildReportHtml(p)).toMatch(/2\.9 \(2 runs, 1291 A each, assumed sharing\)/);
+    expect(buildReportHtml(p)).toMatch(/2\.9 \(2 runs, 1,290\.9 A each, assumed sharing\)/);
   });
 });

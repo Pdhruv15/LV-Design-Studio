@@ -10,7 +10,8 @@ describe('revisions', () => {
     expect(currentRevision(a)!.snapshot).not.toHaveProperty('revisions');
     const b = issueRevision(a, { description: 'DEWA comments' });
     expect(b.revisions!.map((r) => r.id)).toEqual(['A', 'B']);
-    expect(revisionStamp(b)).toMatch(/^REV B · \d{4}-\d{2}-\d{2}$/);
+    expect(revisionStamp(b)).toMatch(/^REV B · \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+    expect(revisionStamp(a)).toBe('REV A · 27 Sep 2026');
     expect(revisionStamp(sampleProject)).toBe('REV A (draft)');
   });
 

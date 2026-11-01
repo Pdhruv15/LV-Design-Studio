@@ -4,6 +4,7 @@ import { esc } from './report';
 import { PRINT as P } from './printStyles';
 import { destMarker } from './outline';
 import { isRasterDataUrl } from '../util/escape';
+import { fmtDate, fmtDateLong } from '../util/format';
 
 /** The document frame of the design report: cover page, document control,
  * contents, running header / footer and the report typography. Presentation
@@ -67,14 +68,14 @@ export function reportDoc(project: Project, meta: ReportMeta): ReportDoc {
     title: meta.title,
     docNo: clean(meta.docNo),
     revision: rev?.id,
-    revisionDate: rev?.date,
-    date: meta.date ?? new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }),
+    revisionDate: rev && fmtDate(rev.date),
+    date: fmtDateLong(meta.date ?? new Date()),
     // The report's own names first, then the people named in the project parameters / drawing title block.
     preparedBy: clean(meta.preparedBy) ?? clean(params.designedBy),
     checkedBy: clean(meta.checkedBy) ?? clean(params.checkedBy) ?? clean(project.drawing?.checkedBy),
     approvedBy: clean(meta.approvedBy) ?? clean(params.approvedBy) ?? clean(project.drawing?.approvedBy),
     issueStatus: meta.issueStatus,
-    revisions: (project.revisions ?? []).map((r) => ({ id: r.id, date: r.date, description: r.description, by: r.by })),
+    revisions: (project.revisions ?? []).map((r) => ({ id: r.id, date: fmtDate(r.date), description: r.description, by: r.by })),
     logo: isRasterDataUrl(project.drawing?.logo) ? project.drawing!.logo : undefined
   };
 }

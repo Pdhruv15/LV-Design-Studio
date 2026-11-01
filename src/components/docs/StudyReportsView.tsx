@@ -463,7 +463,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
                     <table className="schedule">
                       <thead><tr>{t.headers.map((h) => <th key={h}>{h}</th>)}</tr></thead>
                       <tbody>
-                        {(issuesOnly ? t.rows.filter(isIssue) : t.rows).slice(0, 40).map((r, y) => <tr key={y}>{r.map((c, x) => (typeof c === 'object' ? <td key={x} className={c.s}>{c.v}</td> : <td key={x}>{c}</td>))}</tr>)}
+                        {(issuesOnly ? t.rows.filter(isIssue) : t.rows).slice(0, 40).map((r, y) => <tr key={y}>{r.map((c, x) => (typeof c === 'object' && 's' in c ? <td key={x} className={c.s}>{c.v}</td> : <td key={x}>{String(c)}</td>))}</tr>)}
                         {(issuesOnly ? t.rows.filter(isIssue) : t.rows).length > 40 && <tr><td colSpan={t.headers.length} className="m">Showing 40 of {(issuesOnly ? t.rows.filter(isIssue) : t.rows).length} rows here — every row is in the exports.</td></tr>}
                         {issuesOnly && t.rows.length > 0 && !t.rows.some(isIssue) && <tr><td colSpan={t.headers.length} className="m">No issues in this table</td></tr>}
                         {!t.rows.length && <tr><td colSpan={t.headers.length} className="m">Nothing in scope</td></tr>}

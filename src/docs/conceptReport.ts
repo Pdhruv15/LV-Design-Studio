@@ -6,6 +6,7 @@ import { STAGE_INFO } from '../model/designStage';
 import { laBandText, laGenText, laTxText, loadAssessmentBasis, type LoadAssessmentBasis } from './designBasis';
 import { PRINT_BASE_CSS } from './printStyles';
 import { esc } from './report';
+import { fig, fmtDate } from '../util/format';
 
 /** The concept design report: one A4 page, black and white, for the end of the concept stage — building, area
  * schedule, maximum demand, supply and the room areas the architect must reserve. Built only from figures the app
@@ -64,9 +65,9 @@ function sldTransformers(r: ConceptReport): string | undefined {
   const totalKva = tx.reduce((a, x) => a + x.transformers * x.kva!, 0);
   const groups = new Map<number, number>();
   for (const x of tx) groups.set(x.kva!, (groups.get(x.kva!) ?? 0) + x.transformers);
-  const text = [...groups].map(([kva, count]) => `${count} × ${n(kva)} kVA`).join(' + ');
+  const text = [...groups].map(([kva, count]) => `${count} × ${fig.plain(kva)} kVA`).join(' + ');
   const src = r.roomSource === 'project' ? 'Substation area' : r.roomSource;
-  const loading = r.designed && r.designed.demandKva > 0 ? `, loaded to ${n((r.designed.demandKva / totalKva) * 100)} % at ${n(r.designed.demandKva, 1)} kVA maximum demand` : '';
+  const loading = r.designed && r.designed.demandKva > 0 ? `, loaded to ${fig.loading((r.designed.demandKva / totalKva) * 100)} % at ${fig.power(r.designed.demandKva)} kVA maximum demand` : '';
   return kv([['Transformers', `${esc(text)} (from ${esc(src)})${loading}`], ['Standby generator', `<span class="missing">${TO_CONFIRM}</span>`]]);
 }
 
@@ -80,17 +81,17 @@ export function conceptReportHtml(r: ConceptReport): string {
     <tr class="total"><td>Total</td><td class="r">${n(la.pctTotal, 1)}</td><td class="r">${n(la.areaM2)}</td><td colspan="3"></td></tr></tbody></table>`
     : `<p class="missing">Area schedule ${TO_CONFIRM}.</p>`;
   const demand = la ? `<table><thead><tr><th>Category</th><th class="r">Connected (kW)</th><th class="r">Diversity</th><th class="r">Demand (kW)</th></tr></thead><tbody>${la.categories.map((c) =>
-    `<tr><td>${esc(c.label)}</td><td class="r">${n(c.connectedKw, 1)}</td><td class="r">${c.diversity === undefined ? '—' : n(c.diversity, 2)}</td><td class="r">${c.demandKw === undefined ? '—' : n(c.demandKw, 1)}</td></tr>`).join('')}
-    <tr class="total"><td>Total</td><td class="r">${n(la.connectedKw, 1)}</td><td></td><td class="r">${n(la.sumDemandKw, 1)}</td></tr></tbody></table>
-    ${kv([['Maximum demand', `<b>${n(la.mdKw, 1)} kW · ${n(la.mdKva, 1)} kVA</b> (coincidence ${n(la.coincidence, 2)}${la.sparePct ? `, ${n(la.sparePct)} % future spare` : ''}, PF ${n(la.pf, 2)})`], ['Load density', esc(laBandText(la))], ['Essential (generator) demand', `${n(la.generatorKw, 1)} kW`]])}`
-    : r.designed ? kv([['Connected load (SLD)', `${n(r.designed.connectedKw, 1)} kW`], ['Maximum demand (SLD)', `<b>${n(r.designed.demandKw, 1)} kW · ${n(r.designed.demandKva, 1)} kVA</b> (PF ${n(r.designed.pf, 2)})`]]) : '';
+    `<tr><td>${esc(c.label)}</td><td class="r">${fig.power(c.connectedKw)}</td><td class="r">${c.diversity === undefined ? '—' : n(c.diversity, 2)}</td><td class="r">${c.demandKw === undefined ? '—' : fig.power(c.demandKw)}</td></tr>`).join('')}
+    <tr class="total"><td>Total</td><td class="r">${fig.power(la.connectedKw)}</td><td></td><td class="r">${fig.power(la.sumDemandKw)}</td></tr></tbody></table>
+    ${kv([['Maximum demand', `<b>${fig.power(la.mdKw)} kW · ${fig.power(la.mdKva)} kVA</b> (coincidence ${n(la.coincidence, 2)}${la.sparePct ? `, ${n(la.sparePct)} % future spare` : ''}, PF ${n(la.pf, 2)})`], ['Load density', esc(laBandText(la))], ['Essential (generator) demand', `${fig.power(la.generatorKw)} kW`]])}`
+    : r.designed ? kv([['Connected load (SLD)', `${fig.power(r.designed.connectedKw)} kW`], ['Maximum demand (SLD)', `<b>${fig.power(r.designed.demandKw)} kW · ${fig.power(r.designed.demandKva)} kVA</b> (PF ${n(r.designed.pf, 2)})`]]) : '';
   const supply = la ? kv([
     ['Transformers', la.tx ? `${esc(laTxText(la.tx))}, each loaded to ${n(la.tx.maxLoadingPct)} % or less, ${n(la.tx.voltage)} V` : `<span class="missing">${la.mdKva > 0 ? 'No size fits — check the sizes and maximum loading' : TO_CONFIRM}</span>`],
-    ...(la.tx ? [['LV incomer per transformer', `${n(la.tx.incomerA)} A`] as [string, string]] : []),
-    ['Standby generator', `${esc(laGenText(la))}${la.generatorKvaRequired > 0 ? ` (${n(la.generatorKvaRequired)} kVA required)` : ''}`]
+    ...(la.tx ? [['LV incomer per transformer', `${fig.current(la.tx.incomerA)} A`] as [string, string]] : []),
+    ['Standby generator', `${esc(laGenText(la))}${la.generatorKvaRequired > 0 ? ` (${fig.power(la.generatorKvaRequired)} kVA required)` : ''}`]
   ]) : sldTransformers(r) ?? `<p class="missing">Transformers and generator ${TO_CONFIRM} — size them from the load assessment.</p>`;
   const rooms = r.rooms.length ? `<table class="rooms"><colgroup><col style="width:28%"><col style="width:18%"><col style="width:18%"><col style="width:18%"><col style="width:18%"></colgroup><thead><tr><th>Substation</th><th class="r">Transformers</th><th class="r">Substation / transformer room (m²)</th><th class="r">LV room (m²)</th><th class="r">Total (m²)</th></tr></thead><tbody>${r.rooms.map((x) =>
-    `<tr><td>${esc(x.name)}</td><td class="r">${x.transformers}${x.kva ? ` × ${n(x.kva)} kVA` : ''}</td>${x.error ? `<td colspan="3">${esc(x.error)}</td>` : `<td class="r">${x.substationM2 === undefined ? '—' : `min. ${n(x.substationM2, 2)}`}</td><td class="r">${x.lvM2 === undefined ? '—' : `min. ${n(x.lvM2, 2)}`}</td><td class="r">${x.totalM2 === undefined ? '—' : n(x.totalM2, 2)}</td>`}</tr>`).join('')}</tbody></table>
+    `<tr><td>${esc(x.name)}</td><td class="r">${x.transformers}${x.kva ? ` × ${fig.plain(x.kva)} kVA` : ''}</td>${x.error ? `<td colspan="3">${esc(x.error)}</td>` : `<td class="r">${x.substationM2 === undefined ? '—' : `min. ${n(x.substationM2, 2)}`}</td><td class="r">${x.lvM2 === undefined ? '—' : `min. ${n(x.lvM2, 2)}`}</td><td class="r">${x.totalM2 === undefined ? '—' : n(x.totalM2, 2)}</td>`}</tr>`).join('')}</tbody></table>
     <p class="note">Minimum areas to Dubai Municipality DM-D-013. Generator room and electrical risers: ${TO_CONFIRM}.</p>`
     : `<p class="missing">Substation and LV room areas ${TO_CONFIRM}.</p>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(pj.name)} — concept design report</title><style>
@@ -105,7 +106,7 @@ table.rooms { table-layout: fixed; }
 .ft { border-top: 1.2pt solid #000; margin-top: 4mm; padding-top: 1.5mm; display: flex; justify-content: space-between; color: #444; font-size: 7.5pt; }
 </style></head><body>
 <div class="hd"><div><h1>Concept design report — electrical</h1><div>${esc(pj.name)}${pj.plot ? `, plot ${esc(pj.plot)}` : ''}${pj.owner ? ` · Owner: ${esc(pj.owner)}` : ''}${pj.consultant ? ` · Consultant: ${esc(pj.consultant)}` : ''}</div></div>
-<div class="rt"><b>${esc(STAGE_INFO.concept.sheetStatus)}</b><br>${esc(pj.stamp)}<br>Printed ${esc(pj.date)}${pj.preparedBy ? `<br>Prepared by: ${esc(pj.preparedBy)}` : ''}</div></div>
+<div class="rt"><b>${esc(STAGE_INFO.concept.sheetStatus)}</b><br>${esc(pj.stamp)}<br>Printed ${esc(fmtDate(pj.date))}${pj.preparedBy ? `<br>Prepared by: ${esc(pj.preparedBy)}` : ''}</div></div>
 <h2>1. Building</h2>${building}
 <h2>2. Area schedule and load densities</h2>${areas}
 <h2>3. Maximum demand</h2>${demand}

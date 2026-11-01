@@ -2,6 +2,7 @@ import { AlignmentType, BorderStyle, Document, Footer, Header, HeadingLevel, Ima
 import { cableDataNotice } from '../calc/cableTable';
 import { CALC_DISCLAIMER, REPORT_STATUS_TEXT, type ReportStatus } from '../calc/statusText';
 import type { Project } from '../types';
+import { fig, fmtFixed } from '../util/format';
 import { laBandText, laGenText, laTxText } from './designBasis';
 import { NOT_DEFINED, pageFrame } from './reportFrame';
 import { planReport, scopeText, type ReportMeta, type ReportOptions, type Scope, type Section } from './studyReport';
@@ -13,8 +14,8 @@ const border = { style: BorderStyle.SINGLE, size: 4, color: '9AA6B8' };
 const borders = { top: border, bottom: border, left: border, right: border };
 
 type Cell = Section['tables'][number]['rows'][number][number];
-const cellText = (c: Cell) => (typeof c === 'object' ? String(c.v) : String(c));
-const cellColor = (c: Cell) => (typeof c === 'object' ? COLOR[c.s] : undefined);
+const cellText = (c: Cell) => (typeof c === 'object' && 's' in c ? String(c.v) : String(c));
+const cellColor = (c: Cell) => (typeof c === 'object' && 's' in c ? COLOR[c.s] : undefined);
 
 function table(headers: string[], rows: Cell[][]): Table {
   const head = new TableRow({
@@ -99,11 +100,11 @@ export function buildStudyDocx(project: Project, scope: Scope, sections: Section
   if (basisData) {
     const b = basisData, e = b.summary, n0 = (x: number, d = 0) => x.toLocaleString('en-US', { maximumFractionDigits: d });
     section(basisNo[0].number, basisNo[0].title);
-    kvT([['Connected load', `${n0(e.connectedKw)} kW`], ['Maximum demand', `${n0(e.demandKw)} kW · ${n0(e.demandKva)} kVA`], ['Demand ÷ connected', e.demandRatio === undefined ? missing() : n0(e.demandRatio, 2)], ['Power factor · current', `${n0(e.powerFactor, 2)} · ${n0(e.currentA)} A`]]);
+    kvT([['Connected load', `${fig.power(e.connectedKw)} kW`], ['Maximum demand', `${fig.power(e.demandKw)} kW · ${fig.power(e.demandKva)} kVA`], ['Demand ÷ connected', e.demandRatio === undefined ? missing() : fig.ratio(e.demandRatio)], ['Power factor · current', `${fig.ratio(e.powerFactor)} · ${fig.current(e.currentA)} A`]]);
     tbl('Transformer requirement', ['Main board', 'Required (kVA)', 'Recommended', 'Installed (kVA)', 'Loading', 'Status'],
-      e.transformers.map((t) => [t.board, n0(t.requiredKva), t.recommended ?? 'Above the largest standard size', t.installedKva ? n0(t.installedKva) : missing(), t.loadingPct === undefined ? '—' : `${n0(t.loadingPct)} %`, { v: LABEL[t.status], s: t.status }]));
+      e.transformers.map((t) => [t.board, fig.power(t.requiredKva), t.recommended ?? 'Above the largest standard size', t.installedKva ? fig.plain(t.installedKva) : missing(), t.loadingPct === undefined ? '—' : `${fig.loading(t.loadingPct)} %`, { v: LABEL[t.status], s: t.status }]));
     if (e.generator) tbl('Generator requirement', ['Essential demand (kVA)', 'Rating needed (kVA)', 'Governed by', 'Recommended', 'Installed (kVA)', 'Status'],
-      [[n0(e.generator.demandKva), n0(e.generator.requiredKva), e.generator.governing, e.generator.recommended ?? 'Above the largest standard set', e.generator.installedKva ? n0(e.generator.installedKva) : missing(), { v: LABEL[e.generator.status], s: e.generator.status }]]);
+      [[fig.power(e.generator.demandKva), fig.power(e.generator.requiredKva), e.generator.governing, e.generator.recommended ?? 'Above the largest standard set', e.generator.installedKva ? fig.plain(e.generator.installedKva) : missing(), { v: LABEL[e.generator.status], s: e.generator.status }]]);
     h3('Main LV distribution'); out.push(...bullets(e.arrangement));
     tbl('Major design findings', ['Status', 'Finding'], e.findings.map((f) => [f.status === 'info' ? LABEL.info : { v: LABEL[f.status], s: f.status }, f.text]));
     section(basisNo[1].number, basisNo[1].title);
@@ -126,28 +127,27 @@ export function buildStudyDocx(project: Project, scope: Scope, sections: Section
     const l = b.loadAssessment;
     if (l) {
       // Plain black and white: the band check is told by its words.
-      const v = (x: number | undefined, d = 0) => (x === undefined ? '—' : n0(x, d));
       section(basisNo[5].number, basisNo[5].title);
       out.push(P('Early-stage maximum demand from the building type, its area schedule and the services it needs, before load schedules exist (Design → Load assessment). It is not the designed load; the designed load is in the executive summary.', { size: 16 }));
       h3('Building');
       kvT([['Building type', l.typeLabel], ['Gross floor area above ground', `${n0(l.gfaM2)} m²`], ['Floors above ground', n0(l.floors)], ['Basement car park', l.parkingM2 ? `${n0(l.parkingM2)} m²` : 'None'],
         ['Typical maximum demand for this type', `${n0(l.vaBand[0])}–${n0(l.vaBand[1])} VA/m² of GFA`], ['Share of HVAC and special services on the generator', `${n0(l.essentialPct)} %`]]);
       tbl('Area schedule', ['Space', '% of GFA', 'Area (m²)', 'Lighting (W/m²)', 'Small power (W/m²)', 'Cooling, thermal (W/m²)', 'Dwelling'],
-        [...l.rows.map((x) => [x.label, n0(x.pct, 1), n0(x.areaM2), n0(x.ltg, 1), n0(x.pwr, 1), n0(x.clg), x.dwelling ? 'Yes' : '']), ['Total', n0(l.pctTotal, 1), n0(l.areaM2), '', '', '', '']]);
-      tbl('Service requirements', ['Service', 'Selection', 'Connected (kW)'], l.services.map((x) => [x.service, x.selection, n0(x.kw)]));
+        [...l.rows.map((x) => [x.label, fmtFixed(x.pct, 1), n0(x.areaM2), n0(x.ltg, 1), n0(x.pwr, 1), n0(x.clg), x.dwelling ? 'Yes' : '']), ['Total', fmtFixed(l.pctTotal, 1), n0(l.areaM2), '', '', '', '']]);
+      tbl('Service requirements', ['Service', 'Selection', 'Connected (kW)'], l.services.map((x) => [x.service, x.selection, fig.power(x.kw)]));
       if (l.notSelected.length) out.push(P(`Not selected: ${l.notSelected.join(', ')}.`, { size: 16 }));
       tbl('Load categories and maximum demand', ['Category', 'Connected (kW)', 'Diversity', 'Demand (kW)', 'On generator'], [
-        ...l.categories.map((c) => [c.label, n0(c.connectedKw), v(c.diversity, 2), v(c.demandKw), c.generatorPct === undefined ? '—' : `${n0(c.generatorPct)} %`]),
-        ['Sum of demands', n0(l.connectedKw), '', n0(l.sumDemandKw), ''],
-        [`× coincidence ${n0(l.coincidence, 2)}${l.sparePct ? ` × ${n0(1 + l.sparePct / 100, 2)} future spare` : ''} = maximum demand`, '', '', `${n0(l.mdKw)} kW`, ''],
-        [`÷ power factor ${n0(l.pf, 2)}`, '', '', `${n0(l.mdKva)} kVA`, '']]);
+        ...l.categories.map((c) => [c.label, fig.power(c.connectedKw), fig.ratio(c.diversity), fig.power(c.demandKw), c.generatorPct === undefined ? '—' : `${n0(c.generatorPct)} %`]),
+        ['Sum of demands', fig.power(l.connectedKw), '', fig.power(l.sumDemandKw), ''],
+        [`× coincidence ${fig.ratio(l.coincidence)}${l.sparePct ? ` × ${fig.ratio(1 + l.sparePct / 100)} future spare` : ''} = maximum demand`, '', '', `${fig.power(l.mdKw)} kW`, ''],
+        [`÷ power factor ${fig.ratio(l.pf)}`, '', '', `${fig.power(l.mdKva)} kVA`, '']]);
       tbl('Supply', ['Item', 'Value', 'Basis'], [
-        ['Maximum demand', `${n0(l.mdKw)} kW · ${n0(l.mdKva)} kVA`, ''],
+        ['Maximum demand', `${fig.power(l.mdKw)} kW · ${fig.power(l.mdKva)} kVA`, ''],
         ['Load density', laBandText(l), `${n0(l.vaBand[0])}–${n0(l.vaBand[1])} VA/m² for "${l.typeLabel}"`],
-        ...(l.tx ? [['Transformers', laTxText(l.tx), `Each loaded to ${n0(l.tx.maxLoadingPct)} % or less, largest size ${n0(l.tx.maxTxKva)} kVA, ${n0(l.tx.voltage)} V`], ['LV incomer per transformer', `${n0(l.tx.incomerA)} A`, `${n0(l.tx.kva)} kVA at ${n0(l.tx.voltage)} V`]] as Cell[][]
+        ...(l.tx ? [['Transformers', laTxText(l.tx), `Each loaded to ${n0(l.tx.maxLoadingPct)} % or less, largest size ${fig.plain(l.tx.maxTxKva)} kVA, ${fig.plain(l.tx.voltage)} V`], ['LV incomer per transformer', `${fig.current(l.tx.incomerA)} A`, `${fig.plain(l.tx.kva)} kVA at ${fig.plain(l.tx.voltage)} V`]] as Cell[][]
           : [['Transformers', l.mdKva > 0 ? 'No size fits' : 'No demand', 'Check the transformer sizes, largest size and maximum loading']]),
-        ['Essential demand', `${n0(l.generatorKw)} kW`, 'Each category\'s demand × its share on the generator. Fire and life safety at full load.'],
-        ['Standby generator', laGenText(l), `${n0(l.generatorKvaRequired)} kVA required = ${n0(l.generatorKw)} kW ÷ ${n0(l.pf, 2)} pf × ${n0(l.genMargin, 2)} margin`]]);
+        ['Essential demand', `${fig.power(l.generatorKw)} kW`, 'Each category\'s demand × its share on the generator. Fire and life safety at full load.'],
+        ['Standby generator', laGenText(l), `${fig.power(l.generatorKvaRequired)} kVA required = ${fig.power(l.generatorKw)} kW ÷ ${fig.ratio(l.pf)} pf × ${fig.ratio(l.genMargin)} margin`]]);
       out.push(P('The built-in densities and factors are placeholders until you replace them with your own library. This assessment is a planning estimate. Check it against the load schedules as the design develops.', { italics: true, size: 16 }));
     }
   }

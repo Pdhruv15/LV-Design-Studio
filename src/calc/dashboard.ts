@@ -19,6 +19,7 @@ import { sizePv } from './solar';
 import { fireRatingIssues } from '../model/cableTypes';
 import { sheetChecks } from '../model/drawingSet';
 import { currentRevision } from '../model/revisions';
+import { fig, fmtDate } from '../util/format';
 import type { MainView } from '../views';
 
 /** Everything the project dashboard shows, from the design as it is: the
@@ -110,7 +111,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
   if (risers.length) extras.push(`${risers.length} busbar riser${risers.length > 1 ? 's' : ''}, ${Math.round(risers.reduce((a, r) => a + r.lengthM, 0))} m`);
   const ups = (project.upsSystems ?? []).map((u) => sizeUps(project, u).upsKva).filter((k): k is number => !!k);
   if (ups.length) extras.push(`UPS ${ups.map((k) => `${k} kVA`).join(' + ')}`);
-  if (project.pv) { try { const pv = sizePv(project.pv, project.voltageV); if (pv.kwp) extras.push(`Solar PV ${pv.kwp.toFixed(1)} kWp`); } catch { /* incomplete PV data */ } }
+  if (project.pv) { try { const pv = sizePv(project.pv, project.voltageV); if (pv.kwp) extras.push(`Solar PV ${fig.power(pv.kwp)} kWp`); } catch { /* incomplete PV data */ } }
   if (project.boards.some((b) => b.upsKva)) extras.push(`${project.boards.filter((b) => b.upsKva).length} UPS board(s)`);
 
   // Studies (last run).
@@ -172,13 +173,13 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
     if (sw.length) todo.push({ status: 'warn', text: `${sw.length} breaker pair${sw.length > 1 ? 's' : ''} only partly selective`, go: { view: 'coordination' } });
   }
   for (const f of fireRatingIssues(project)) todo.push({ status: 'bad', text: `${f.id} (${f.name}) is life safety but not on fire-rated cable`, go: { view: 'design', feederId: f.id } });
-  for (const t of transformers) if (t.status !== 'ok') todo.push({ status: t.status, text: `${t.boardId} transformer ${t.loadingPct.toFixed(0)} % loaded (limit ${t.limitPct} %)`, go: { view: 'sizing' } });
-  for (const r of sizeTransformers(project)) if (r.checks?.icuOk === false) todo.push({ status: 'bad', text: `${r.board.id}: a breaker's Icu (${r.checks.minIcuKa} kA) is below the ${r.checks.faultKa.toFixed(1)} kA fault level`, go: { view: 'sizing' } });
-  if (gen && gen.demandKw > 0 && gen.recommendedKva === undefined) todo.push({ status: 'bad', text: `Standby generator: ${Math.max(gen.runningDesignKva, gen.startDesignKva).toFixed(0)} kVA needed (${gen.governing}) — above the largest standard set`, go: { view: 'sizing' } });
+  for (const t of transformers) if (t.status !== 'ok') todo.push({ status: t.status, text: `${t.boardId} transformer ${fig.loading(t.loadingPct)} % loaded (limit ${t.limitPct} %)`, go: { view: 'sizing' } });
+  for (const r of sizeTransformers(project)) if (r.checks?.icuOk === false) todo.push({ status: 'bad', text: `${r.board.id}: a breaker's Icu (${r.checks.minIcuKa} kA) is below the ${fig.fault(r.checks.faultKa)} kA fault level`, go: { view: 'sizing' } });
+  if (gen && gen.demandKw > 0 && gen.recommendedKva === undefined) todo.push({ status: 'bad', text: `Standby generator: ${fig.power(Math.max(gen.runningDesignKva, gen.startDesignKva))} kVA needed (${gen.governing}) — above the largest standard set`, go: { view: 'sizing' } });
   if (gen?.recommendedKva && genKva && gen.installedOk === false) todo.push({ status: 'bad', text: `Standby generator ${genKva} kVA — ${gen.recommendedKva} kVA / ${Math.round(gen.recommendedKw ?? 0)} kW needed`, go: { view: 'sizing' } });
   const pfc = planPfc(project);
-  for (const m of pfc.mains) if (m.pfBefore < pfc.pfTarget - 1e-6 && m.existingKvar === 0) todo.push({ status: 'warn', text: `${m.boardId} PF ${m.pfBefore.toFixed(2)} — no capacitor bank yet (${m.plannedKvar} kvar planned)`, go: { view: 'pfc' } });
-  for (const c of dbChecks(project)) if (c.status === 'warn' && c.ratio !== undefined) todo.push({ status: 'warn', text: `${c.boardId} designed for ${(c.ratio * 100).toFixed(0)} % of its rooms’ expected load`, go: { view: 'load-schedule', boardId: c.boardId } });
+  for (const m of pfc.mains) if (m.pfBefore < pfc.pfTarget - 1e-6 && m.existingKvar === 0) todo.push({ status: 'warn', text: `${m.boardId} PF ${m.pfBefore.toFixed(2)} — no capacitor bank yet (${fig.power(m.plannedKvar)} kvar planned)`, go: { view: 'pfc' } });
+  for (const c of dbChecks(project)) if (c.status === 'warn' && c.ratio !== undefined) todo.push({ status: 'warn', text: `${c.boardId} designed for ${fig.loading(c.ratio * 100)} % of its rooms’ expected load`, go: { view: 'load-schedule', boardId: c.boardId } });
   for (const r of risers) if (!r.type || r.icwOk === false) todo.push({ status: 'bad', text: `${r.riser.name}: ${!r.type ? 'above the busway data' : 'Icw below the fault level'}`, go: { view: 'busbar' } });
   for (const u of project.upsSystems ?? []) {
     const r = sizeUps(project, u);
@@ -193,7 +194,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
     if (!u.powerTable) add('warn', 'battery sizing uses a preliminary capacity estimate; confirm manufacturer discharge data');
     if (u.chem === 'li-ion' && r.bmsOk !== true) add(r.bmsOk === false ? 'bad' : 'warn', r.bmsOk === false ? 'BMS continuous current check failed' : 'BMS continuous current is not verified');
     if (r.surge.status !== 'pass') add(r.surge.status === 'fail' ? 'bad' : 'warn', `inverter surge ${r.surge.status}: ${r.surge.issue}`);
-    if (r.leading.status === 'fail') add('warn', `input filters ${+r.leading.totalKvar!.toFixed(1)} kvar leading, above the ${+r.leading.limitKvar!.toFixed(1)} kvar the ${r.leading.genKva} kVA generator absorbs`);
+    if (r.leading.status === 'fail') add('warn', `input filters ${fig.power(r.leading.totalKvar)} kvar leading, above the ${fig.power(r.leading.limitKvar)} kvar the ${r.leading.genKva} kVA generator absorbs`);
     if (r.rechargeIssue) add('bad', r.rechargeIssue);
     else if (u.chargerCurrentA === undefined) add('warn', 'charger and recharge time are not checked');
   }
@@ -218,7 +219,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
     info: {
       name: project.name, owner: info.owner, plot: info.plotNo, area: info.area, consultant: info.consultant,
       status: PROJECT_STATUSES.find((x) => x.value === (project.status ?? 'design'))!.label,
-      revision: rev ? `Rev ${rev.id} (${rev.date})` : undefined,
+      revision: rev ? `Rev ${rev.id} (${fmtDate(rev.date)})` : undefined,
       engineer: project.drawing?.drawnBy ?? project.createdBy, updatedBy: project.updatedBy, updatedAt: project.updatedAt
     },
     connectedKw: sys.connectedKw, demandKw: sys.demandKw, demandKva: sys.demandKva, pf: sys.powerFactor,

@@ -20,7 +20,7 @@ describe('report statuses follow every check', () => {
     const s = buildSection('cable', data, scope);
     expect(s.statuses).toContain('bad');
     expect(s.summary[0].status).toBe('bad');
-    expect(s.verification!.rows.some((r) => r.some((c) => typeof c === 'object' && c.s === 'bad'))).toBe(true);
+    expect(s.verification!.rows.some((r) => r.some((c) => typeof c === 'object' && 's' in c && c.s === 'bad'))).toBe(true);
     const html = buildStudyReportHtml(run.project, scope, [s], { title: 'T' });
     expect(html).toMatch(/<td class="bad">\d+ pass · \d+ warning · 1 fail<\/td>/);
     const v = validateReport({ project: run.project, meta: { title: 'T' }, scope, sections: [s], data, stale: [], designBasis: false, resultsSummary: false });
@@ -46,6 +46,6 @@ describe('report statuses follow every check', () => {
     const data = withResults((r) => r.feeder.id === a.feeder.id ? { ...r, breakerFaultKA: 5, feeder: { ...r.feeder, breakerIcuKa: 10 } }
       : r.feeder.id === b.feeder.id ? { ...r, breakerFaultKA: 40, feeder: { ...r.feeder, breakerIcuKa: 50 } } : r.feeder.boardId === board.id ? { ...r, breakerFaultKA: 1, feeder: { ...r.feeder, breakerIcuKa: 100 } } : r);
     const row = buildSection('sc', data, scope).verification!.rows.find((r) => r[0] === board.id)!;
-    expect(row.slice(2, 6)).toEqual([b.feeder.id, 40, 50, 10]);
+    expect(row.slice(2, 6).map(String)).toEqual([b.feeder.id, '40.00', '50', '10.00']);
   });
 });

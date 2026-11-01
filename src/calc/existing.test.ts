@@ -52,9 +52,9 @@ describe('recorded maximum demand of an existing installation', () => {
   it('checks transformer spare capacity, the existing incomer, existing feeders and spare ways', () => {
     const c = existingChecks(project, evaluateProject(project));
     const tx = c.find((x) => x.kind === 'transformer')!;
-    expect(tx.value).toBe('610 + 180 = 790 kVA');
+    expect(tx.value).toBe('610.00 + 180.00 = 790.00 kVA');
     expect(tx.status).toBe('warn'); // less than 5 % of the rating left
-    expect(tx.result).toBe('10 kVA left');
+    expect(tx.result).toBe('10.00 kVA left');
     expect(c.find((x) => x.kind === 'incomer' && x.id === 'MDB-1')!.status).toBe('ok');
     expect(c.find((x) => x.kind === 'feeder' && x.id === 'INC-OLD')).toBeDefined();
     const spare = c.find((x) => x.kind === 'spare' && x.id === 'MDB-1')!;
@@ -65,7 +65,7 @@ describe('recorded maximum demand of an existing installation', () => {
     const big: Project = { ...project, feeders: project.feeders.map((f) => (f.id === 'EXT-LOAD' ? { ...f, loadKw: 300 } : f)) };
     const tx = existingChecks(big, evaluateProject(big)).find((x) => x.kind === 'transformer')!;
     expect(tx.status).toBe('bad');
-    expect(tx.result).toMatch(/^Over by \d+ kVA$/);
+    expect(tx.result).toMatch(/^Over by \d+\.\d\d kVA$/);
   });
 });
 

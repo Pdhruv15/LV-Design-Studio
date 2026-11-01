@@ -1,6 +1,7 @@
 import { boardDemandKw } from '../calc/electrical';
 import { circuitRef, isScheduleCircuit, loadItemsText } from '../calc/loadSchedule';
 import type { Board, Feeder, Project, Revision } from '../types';
+import { fmtDate } from '../util/format';
 import { BOARD_CLASS, CLASS_LABEL, DESIGN_CLASSES, FEEDER_CLASS, INFO_ENGINEERING, PROJECT_CLASS, type ChangeClass } from './changeClass';
 import { leafChanges, pairText, same, type FieldChange } from './datasetDiff';
 import { withEarthPitIds } from './earthingPlan';
@@ -77,7 +78,7 @@ export function restoreRevision(project: Project, id: string): Project {
 /** The current revision, or — before the first issue — the letter that issue will get, marked draft. */
 export function revisionStamp(p: Project): string {
   const rev = currentRevision(p);
-  return rev ? `REV ${rev.id} · ${rev.date}` : `REV ${nextRevisionId(p)} (draft)`;
+  return rev ? `REV ${rev.id} · ${fmtDate(rev.date)}` : `REV ${nextRevisionId(p)} (draft)`;
 }
 
 // ---- Comparison ----

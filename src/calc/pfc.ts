@@ -3,6 +3,7 @@ import { settingsOf } from '../types';
 import { boardsInSupplyOrder, boardTotals, loadTypeOf } from './summary';
 import { applyRecommendation, breakerRatings, recommend } from './sizing';
 import { feedersOn } from './network';
+import { fig } from '../util/format';
 
 /** Power factor correction plan: where the capacitor banks go and how
  * they're built.
@@ -206,7 +207,7 @@ export function planPfc(project: Project, plan: PfcPlan = pfcPlanOf(project)): P
     else if (bank && !detuned && harmonic >= 0.1) notes.push(`${Math.round(harmonic * 100)} % non-linear load — check harmonics; consider a detuned bank`);
     // Light load: the first step alone mustn't take the board leading.
     const qLight = (q * plan.lightLoadPct) / 100;
-    if (bank && step > qLight) notes.push(`At ${plan.lightLoadPct} % load the reactive demand is ${qLight.toFixed(0)} kvar — a ${step} kvar step would go leading; use a smaller first step`);
+    if (bank && step > qLight) notes.push(`At ${plan.lightLoadPct} % load the reactive demand is ${fig.power(qLight)} kvar — a ${step} kvar step would go leading; use a smaller first step`);
     const isMain = !project.boards.find((b) => b.id === id)?.upstreamId;
     rows.push(makeRow({
       key: `board:${id}`, kind: 'board', boardId: id, label: id, remainder: isMain && plan.strategy !== 'central' && downstream > 0,

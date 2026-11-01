@@ -63,7 +63,7 @@ describe('new building on a shared existing supply', () => {
       ['SS-LV → Building C (other building)', 'Enter its allocated or recorded load', 'warn']
     ]);
     const tx = c.find((x) => x.kind === 'transformer')!;
-    expect(tx.value).toMatch(/^950 \+ 30\d = 12\d\d kVA$/);
+    expect(tx.value).toMatch(/^950\.00 \+ 30\d\.\d\d = 1,2\d\d\.\d\d kVA$/);
     expect(tx.status).toBe('bad'); // 80 % of 1500 = 1200 kVA
   });
 
@@ -89,7 +89,7 @@ describe('new building on a shared existing supply', () => {
     expect(buildDashboard(p, runCalculations(p)).todo.some((t) => /placeholder source impedance/.test(t.text))).toBe(false);
     // The incomer check counts what is kept for Building A.
     const inc = existingChecks(p, evaluateProject(p)).find((x) => x.kind === 'incomer')!;
-    expect(inc.value).toMatch(/700 \+ 1\d\d = \d+ kVA/);
+    expect(inc.value).toMatch(/700\.00 \+ 1\d\d\.\d\d = \d+\.\d\d kVA/);
   });
 
   it('editing the shared supply marks the results out of date', () => {

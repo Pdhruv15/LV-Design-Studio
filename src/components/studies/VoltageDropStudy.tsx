@@ -7,7 +7,7 @@ import { boardsInSupplyOrder } from '../../calc/summary';
 import { addVdCable, editVdCable, groupByPanel, motorStartVdLimit, suggestCable, vdCandidates, vdFormula, vdPath, vdRow, worstFinalCircuits, type VdEdit, type VdRow } from '../../calc/voltageDrop';
 import { riserVd, type RiserVd } from '../../calc/busbar';
 import { resistanceFactor } from '../../calc/electrical';
-import { buildVdReportHtml, scopeLabel, startText, VD_HEADERS, vdCells } from '../../docs/voltageDropReport';
+import { buildVdReportHtml, scopeLabel, startText, VD_HEADERS, vdCsvCells } from '../../docs/voltageDropReport';
 import { saveCsv, savePdf, safeFileName } from '../../util/files';
 import EditCell from '../EditCell';
 import { CheckedNum, Page, ResultCard, ResultCards, StatusCell, StatusCounts } from '../ui';
@@ -103,7 +103,7 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
     }
   }
   async function exportCsv() {
-    const m = await saveCsv(`${project.name} voltage drop ${scope || 'system'}`, VD_HEADERS, allRows.map(vdCells));
+    const m = await saveCsv(`${project.name} voltage drop ${scope || 'system'}`, VD_HEADERS, allRows.map(vdCsvCells));
     if (m) onStatus(m);
   }
 
