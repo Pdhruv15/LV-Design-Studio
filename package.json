@@ -1,7 +1,7 @@
 {
   "name": "lv-design-studio",
   "productName": "LV Design Studio",
-  "version": "2.18.0",
+  "version": "2.19.0",
   "license": "(MIT OR Apache-2.0)",
   "description": "Offline LV electrical design & calculation desktop app",
   "main": "electron/main.cjs",
@@ -24,6 +24,7 @@
     "manual:update": "npm run manual:capture && npm run manual:build && npm run check:manual",
     "bench": "vitest run -c tests/performance/vitest.config.ts",
     "test:pdf": "vitest run -c tests/pdf/vitest.config.ts",
+    "test:electron": "vitest run -c tests/electron/vitest.config.ts",
     "test:pdf:update": "UPDATE_BASELINES=1 vitest run -c tests/pdf/vitest.config.ts tests/pdf/visual.pdf.ts",
     "build:cli": "vite build -c vite.cli.config.ts",
     "build:cad": "bash scripts/build-cad.sh",

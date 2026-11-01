@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CadView } from '../../engines/cad/cadEngine';
 import type { CadToggles } from './CadCanvas';
 
@@ -64,7 +64,12 @@ export function useCad(projectId: string | undefined) {
   const [textAt, setTextAt] = useState<[number, number] | null>(null);
 
   const say = useCallback((line: string) => setHistory((h) => [...h.slice(-49), line]), []);
+  // Only one drawing is open: the one it replaces gives back its memory.
+  const shown = useRef<CadView | null>(null);
+  useEffect(() => () => { shown.current?.close(); shown.current = null; }, []);
   const open = useCallback((v: CadView) => {
+    if (shown.current !== v) shown.current?.close();
+    shown.current = v;
     setViewState(v);
     setLayersOn(Uint8Array.from(v.info.layers.map((l) => (l.on ? 1 : 0))));
     setFitKey((k) => k + 1);

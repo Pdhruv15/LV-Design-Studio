@@ -95,3 +95,6 @@ jobs:
       # Linux runners have no display: xvfb provides one.
       - name: Rendered-PDF tests
         run: xvfb-run --auto-servernum npm run test:pdf
+      # The CAD engine's worker in a hidden Electron window set up as the app's: only a real Chromium shows it starts.
+      - name: Electron tests
+        run: xvfb-run --auto-servernum npm run test:electron

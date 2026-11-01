@@ -10,6 +10,7 @@ import { cadFileMenu } from './cadFileMenu';
 import { buildingInfoOf } from '../../calc/building';
 import { trayPlanOf } from '../../calc/cableTray';
 import { openDrawing } from '../../engines/cad/cadEngine';
+import '../../engines/cad/cadOps'; // loaded ahead: the engine loads it on demand, which a busy test run can make slow
 import { sampleProject } from '../../data/sampleProject';
 import type { Project } from '../../types';
 
