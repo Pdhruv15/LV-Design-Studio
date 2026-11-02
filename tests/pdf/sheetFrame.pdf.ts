@@ -75,11 +75,12 @@ describe('printed drawing sheet: frame, revision table, title block, legend colu
 
   it('draws each divider of the drawing number and revision rows as one line, in the same place', () => {
     const block = runs(at(TB_X), at(BODY_Y), at(287) - 6);
-    const dividers = (y: number) => runs(y, at(TB + 60) - 10, at(TB + 60) + 10, false);
+    // Look within 5 px of the line: a cell's text starts 1.5 mm (≈ 8.5 px) from it, a pixel nearer on Linux fonts.
+    const dividers = (y: number) => runs(y, at(TB + 60) - 5, at(TB + 60) + 5, false);
     const [rev, drawn] = [3, 4].map((i) => dividers(Math.round((block[i][1] + block[i + 1][0]) / 2)));
     expect(rev).toHaveLength(1);
     expect(drawn).toEqual(rev);
     expect(thick(rev[0])).toBeLessThanOrEqual(3);
-    expect(runs(Math.round((block[3][1] + block[4][0]) / 2), at(TB) - 6, at(TB) + 6, false)).toHaveLength(1); // the block's left edge
+    expect(runs(Math.round((block[3][1] + block[4][0]) / 2), at(TB) - 5, at(TB) + 5, false)).toHaveLength(1); // the block's left edge
   });
 });
