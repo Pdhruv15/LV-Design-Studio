@@ -1,5 +1,7 @@
 import type { Board, Project } from '../types';
 import { boardsInSupplyOrder } from '../calc/summary';
+import { boardOf, feedersOn, perProject } from '../calc/network';
+import { isScheduleCircuit } from '../calc/loadSchedule';
 import { roleOf } from './emergency';
 
 /** Load schedule groups in submission order: TCL summary, main LV panels,
@@ -18,9 +20,8 @@ export const SCHEDULE_GROUPS: { key: ScheduleGroup; label: string }[] = [
 /** True for an explicitly emergency panel, or any panel below an EMDB. */
 function inEmergency(project: Project, b: Board): boolean {
   if (b.kind === 'EDB' || b.kind === 'EMCC' || b.kind === 'LV-EMDB') return true;
-  const byId = new Map(project.boards.map((x) => [x.id, x]));
   const seen = new Set<string>();
-  for (let x: Board | undefined = b; x && !seen.has(x.id); x = x.upstreamId ? byId.get(x.upstreamId) : undefined) {
+  for (let x: Board | undefined = b; x && !seen.has(x.id); x = x.upstreamId ? boardOf(project, x.upstreamId) : undefined) {
     seen.add(x.id);
     if (x.kind === 'EMDB' || x.kind === 'LV-EMDB') return true;
   }
@@ -35,6 +36,18 @@ export function scheduleGroupOf(project: Project, b: Board): ScheduleGroup {
   if (kind === 'SMDB') return 'smdb';
   if (kind === 'DB') return 'db';
   return 'other';
+}
+
+/** Panels whose schedule still needs filling: a DB with no circuits, or a panel with no outgoing loads. */
+export function incompleteSchedules(project: Project): Set<string> {
+  return perProject(project, 'incompleteSchedules', () => {
+    const out = new Set<string>();
+    for (const b of project.boards) {
+      const on = feedersOn(project, b.id);
+      if (scheduleGroupOf(project, b) === 'db' || ['DB', 'EDB'].includes(b.kind ?? 'DB') ? !on.some(isScheduleCircuit) : !on.length) out.add(b.id);
+    }
+    return out;
+  });
 }
 
 const EMG_ORDER: Record<string, number> = { 'LV-EMDB': -1, EMDB: 0, ESMDB: 1, EDB: 2, EMCC: 3, FP: 4 };

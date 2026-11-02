@@ -65,7 +65,6 @@ export function fingerprint(project: Project, key: StudyKey): string {
 export interface CalcRun {
   /** The project exactly as it was calculated. */
   project: Project;
-  fingerprints: Record<StudyKey, string>;
   results: FeederResult[];
   earthing: EarthingResult[];
   selectivity: SelectivityResult[];
@@ -77,13 +76,24 @@ export function runCalculations(project: Project, now = Date.now()): CalcRun {
   const t0 = performance.now();
   // One network index for the whole run: every study reuses the same walks of the board tree.
   const { results, earthing, selectivity } = withNetwork(project, () => ({ results: evaluateProject(project), earthing: evaluateEarthingAll(project), selectivity: evaluateSelectivity(project) }));
-  const fingerprints = Object.fromEntries(STUDY_KEYS.map((k) => [k, fingerprint(project, k)])) as Record<StudyKey, string>;
-  return { project, fingerprints, results, earthing, selectivity, at: now, ms: performance.now() - t0 };
+  return { project, results, earthing, selectivity, at: now, ms: performance.now() - t0 };
+}
+
+const sameList = <T extends object>(a: T[], b: T[], keys: (keyof T)[]) =>
+  a === b || (a.length === b.length && a.every((x, n) => x === b[n] || JSON.stringify(pick(x, keys)) === JSON.stringify(pick(b[n], keys))));
+const sameJson = (a: unknown, b: unknown) => a === b || JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+/** Whether two projects have the same inputs to a study: the same answer as comparing fingerprints, comparing only what was replaced. */
+function sameInputs(a: Project, b: Project, key: StudyKey): boolean {
+  const i = INPUTS[key];
+  return sameJson(pick(a, i.project), pick(b, i.project)) && sameList(a.boards, b.boards, i.boards) && sameList(a.feeders, b.feeders, i.feeders)
+    && (!(key === 'sizing' || key === 'checks' || key === 'fault' || key === 'protection') || sameJson(a.ties, b.ties))
+    && (key !== 'checks' || (sameJson(a.trays, b.trays) && sameList(a.feeders, b.feeders, ['trayRoute'])));
 }
 
 /** Studies whose inputs changed since the run (all of them before any run). */
 export function staleStudies(run: CalcRun | undefined, project: Project): StudyKey[] {
   if (!run) return [...STUDY_KEYS];
   if (run.project === project) return [];
-  return STUDY_KEYS.filter((k) => fingerprint(project, k) !== run.fingerprints[k]);
+  return STUDY_KEYS.filter((k) => !sameInputs(project, run.project, k));
 }

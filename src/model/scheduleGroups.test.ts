@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { planEmergency } from './emergency';
-import { scheduleGroups } from './scheduleGroups';
+import { incompleteSchedules, scheduleGroupOf, scheduleGroups } from './scheduleGroups';
 import { buildFormWorkbook } from '../docs/formWorkbook';
+import { scheduleCircuits } from '../calc/loadSchedule';
+import type { Board, Project } from '../types';
 
 describe('load schedule groups', () => {
   it('sample: MDB, SMDB, DB and MCC tabs in supply order', () => {
@@ -35,5 +37,28 @@ describe('load schedule groups', () => {
     const g = scheduleGroups(p);
     expect(g.mdb.map((b) => b.id)).toContain('LV-MDB-2');
     expect(g.emg.map((b) => b.id)).toEqual(['EDB-1', 'EMCC-1']);
+  });
+
+  it('marks the panels whose schedule still needs filling, as each panel tab worked it out before', () => {
+    const byTab = (p: Project, b: Board) => (scheduleGroupOf(p, b) === 'db' || ['DB', 'EDB'].includes(b.kind ?? 'DB') ? !scheduleCircuits(p, b.id).length : !p.feeders.some((f) => f.boardId === b.id));
+    const p: Project = {
+      ...sampleProject,
+      boards: [
+        ...sampleProject.boards,
+        { id: 'DB-NEW', name: 'New DB', upstreamId: 'SMDB-GF' },
+        { id: 'DB-NOWAY', name: 'DB without ways', upstreamId: 'SMDB-GF' },
+        { id: 'EDB-2', name: 'Emergency DB', kind: 'EDB', upstreamId: 'MDB-1' },
+        { id: 'MCC-2', name: 'Pumps', kind: 'MCC', upstreamId: 'MDB-1' },
+        { id: 'MCC-3', name: 'Fans', kind: 'MCC', upstreamId: 'MDB-1' }
+      ],
+      feeders: [
+        ...sampleProject.feeders,
+        { id: 'NOWAY-1', boardId: 'DB-NOWAY', name: 'Lighting', loadKw: 1, demandFactor: 1, powerFactor: 0.9, lengthM: 10, cableCsaMm2: 2.5, cores: 2, breakerRatingA: 16, breakerIcuKa: 6 },
+        { id: 'MCC-3-1', boardId: 'MCC-3', name: 'Fan 1', loadKw: 5, demandFactor: 1, powerFactor: 0.85, lengthM: 20, cableCsaMm2: 4, cores: 4, breakerRatingA: 16, breakerIcuKa: 10 }
+      ]
+    };
+    expect([...incompleteSchedules(p)].sort()).toEqual(p.boards.filter((b) => byTab(p, b)).map((b) => b.id).sort());
+    expect(incompleteSchedules(p)).toEqual(new Set(['DB-NEW', 'DB-NOWAY', 'EDB-2', 'MCC-2']));
+    expect(incompleteSchedules(sampleProject)).toEqual(new Set(sampleProject.boards.filter((b) => byTab(sampleProject, b)).map((b) => b.id)));
   });
 });
