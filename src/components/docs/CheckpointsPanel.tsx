@@ -1,6 +1,6 @@
 import { ask, askText } from '../ConfirmDialog';
 import { copyProject } from '../../model/projectMigrate';
-import { BACKUP_EXT, buildBackup, checkpointsFor, readBackup } from '../../model/projectBackup';
+import { BACKUP_EXT, buildBackup, checkpointsFor, readBackupFile } from '../../model/projectBackup';
 import { safeFileName, saveBinary } from '../../util/files';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Project } from '../../types';
@@ -58,7 +58,7 @@ export default function CheckpointsPanel({ project, onRestore, onOpenCopy, onSta
   async function importBackup(file: File | undefined) {
     if (!file) return;
     try {
-      const b = await readBackup(new Uint8Array(await file.arrayBuffer()));
+      const b = await readBackupFile(file);
       const made = fmtDateTime(b.manifest.exportedAt);
       if (!(await ask({ title: `Import the backup of “${b.project.name}”?`, message: `Made ${made} with LV Design Studio ${b.manifest.appVersion}, with ${b.checkpoints.length} checkpoint${b.checkpoints.length === 1 ? '' : 's'}. Every file in it passed its check.`, confirmLabel: 'Import' }))) return;
       const same = !!project.id && b.project.id === project.id;

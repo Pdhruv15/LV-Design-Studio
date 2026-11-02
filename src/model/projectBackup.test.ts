@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import zlib from 'node:zlib';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import JSZip from 'jszip';
-import { buildBackup, checkpointsFor, readBackup } from './projectBackup';
+import { buildBackup, checkpointsFor, readBackup, readBackupFile } from './projectBackup';
 import { autoCheckpoint, excess, MemoryStore, newCheckpoint, saveCheckpoint, type Checkpoint } from './checkpoints';
 import { sampleProject } from '../data/sampleProject';
 import type { Project } from '../types';
@@ -63,5 +64,112 @@ describe('portable project backup', () => {
     const other = newCheckpoint({ ...project, id: 'p-9' }, 'Other', { now: at(3) });
     const r = await readBackup(await buildBackup(project, [...checkpoints, other], '1.69'));
     expect(r.checkpoints.map((c) => c.label)).toEqual(['Before client comments', 'Before issuing']);
+  });
+});
+
+describe('a crafted backup cannot fill memory before it is checked', () => {
+  const MB = 1024 * 1024;
+  const enc = new TextEncoder();
+  const checkpoints = [newCheckpoint(project, 'Before issuing', { auto: true, now: at(2) })];
+  const sha = (b: Uint8Array) => crypto.subtle.digest('SHA-256', b as BufferSource).then((d) => [...new Uint8Array(d)].map((x) => x.toString(16).padStart(2, '0')).join(''));
+  const manifestFor = (files: { path: string; bytes: number; sha256: string }[]) => ({ format: 'lvds-backup', formatVersion: 1, appVersion: '9.9', exportedAt: at(0).toISOString(), project: { name: 'P' }, files });
+
+  /** A zip written by hand, to make what JSZip never writes: sizes that lie, the same entry listed many times. */
+  function rawZip(entries: { name: string; data: Uint8Array; deflated?: boolean; size?: number }[], listed = 1): Uint8Array {
+    const local: Uint8Array[] = [], central: Uint8Array[] = [];
+    let offset = 0;
+    for (const e of entries) {
+      const name = enc.encode(e.name), method = e.deflated ? 8 : 0, size = e.size ?? e.data.length;
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(8, method, true);
+      h.setUint32(18, e.data.length, true); h.setUint32(22, size, true); h.setUint16(26, name.length, true);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(10, method, true);
+      c.setUint32(20, e.data.length, true); c.setUint32(24, size, true); c.setUint16(28, name.length, true); c.setUint32(42, offset, true);
+      local.push(new Uint8Array(h.buffer), name, e.data);
+      for (let i = 0; i < listed; i++) central.push(new Uint8Array(c.buffer), name);
+      offset += 30 + name.length + e.data.length;
+    }
+    const n = entries.length * listed, cdSize = central.reduce((s, p) => s + p.length, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, n, true); end.setUint16(10, n, true); end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+    const parts = [...local, ...central, new Uint8Array(end.buffer)];
+    const out = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
+    let at = 0;
+    for (const p of parts) { out.set(p, at); at += p.length; }
+    return out;
+  }
+
+  /** Bytes unpacked per zip entry while reading, in order (JSZip unpacks every entry through internalStream). */
+  function countUnpacked(): number[] {
+    type Stream = JSZip.JSZipStreamHelper<Uint8Array>;
+    const proto = Object.getPrototypeOf(new JSZip().file('x', 'x').file('x')!) as { internalStream(type: string): Stream };
+    const real = proto.internalStream;
+    const counts: number[] = [];
+    vi.spyOn(proto, 'internalStream').mockImplementation(function (this: unknown, type: string) {
+      const i = counts.push(0) - 1;
+      return real.call(this, type).on('data', (chunk) => { counts[i] += chunk.length; });
+    });
+    return counts;
+  }
+
+  // 48 MB of zeros, deflated to about 48 KB.
+  const zeros = 48 * MB;
+  const bomb = zlib.deflateRawSync(new Uint8Array(zeros));
+  const withBomb = async (declared: number, extra: Record<string, unknown> = {}) => {
+    const m = enc.encode(JSON.stringify({ ...manifestFor([{ path: 'project.json', bytes: declared, sha256: await sha(new Uint8Array(0)) }]), ...extra }));
+    return rawZip([{ name: 'manifest.json', data: m }, { name: 'project.json', data: bomb, deflated: true, size: declared }]);
+  };
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('checks a picked file\'s size before reading it into memory', async () => {
+    const arrayBuffer = vi.fn(async () => new ArrayBuffer(0));
+    await expect(readBackupFile({ size: 200 * MB + 1, arrayBuffer } as unknown as Blob)).rejects.toThrow('larger than 200 MB');
+    expect(arrayBuffer).not.toHaveBeenCalled();
+    const good = await buildBackup(project, checkpoints, '1.69');
+    const picked = { size: good.length, arrayBuffer: async () => good.slice().buffer } as unknown as Blob;
+    expect((await readBackupFile(picked)).project).toEqual(project);
+  });
+
+  it('stops unpacking an entry as soon as it holds more than the manifest says', async () => {
+    const unpacked = countUnpacked();
+    await expect(readBackup(await withBomb(100))).rejects.toThrow('project.json in the backup is damaged');
+    expect(unpacked).toHaveLength(2); // the manifest, then project.json…
+    expect(unpacked[1]).toBeLessThan(20 * MB); // …given up within one 16 KB block of the zip, not all 48 MB
+  });
+
+  it('refuses sizes no real backup has before unpacking any file', async () => {
+    const unpacked = countUnpacked();
+    await expect(readBackup(await withBomb(zeros))).rejects.toThrow('The backup manifest is damaged'); // 1000 times its zip
+    await expect(readBackup(await withBomb(600 * MB))).rejects.toThrow('The backup unpacks to more than 512 MB');
+    expect(unpacked).toHaveLength(2); // the two manifests only
+  });
+
+  it('refuses a manifest that lists a file twice, has a bad size, or is too large, before unpacking any file', async () => {
+    const data = enc.encode(JSON.stringify(project));
+    const listed = { path: 'project.json', bytes: data.length, sha256: await sha(data) };
+    const zip = (m: unknown) => rawZip([{ name: 'manifest.json', data: enc.encode(JSON.stringify(m)) }, { name: 'project.json', data }]);
+    expect((await readBackup(zip(manifestFor([listed])))).project).toEqual(project);
+    const unpacked = countUnpacked();
+    for (const m of [manifestFor([listed, listed]), manifestFor([{ ...listed, bytes: -1 }]), manifestFor([{ ...listed, bytes: 1.5 }]), { ...manifestFor([listed]), pad: 'x'.repeat(MB) }]) {
+      await expect(readBackup(zip(m))).rejects.toThrow('The backup manifest is damaged');
+    }
+    expect(unpacked).toHaveLength(4); // each manifest, and nothing it lists
+    expect(Math.max(...unpacked)).toBeLessThan(1.1 * MB);
+  });
+
+  it('counts the zip\'s entries before JSZip reads them', async () => {
+    const load = vi.spyOn(JSZip, 'loadAsync');
+    await expect(readBackup(rawZip([{ name: 'manifest.json', data: enc.encode('{}') }], 600))).rejects.toThrow('too many files');
+    const good = await buildBackup(project, checkpoints, '1.69');
+    const prepended = new Uint8Array(good.length + 10);
+    prepended.set(good, 10);
+    await expect(readBackup(prepended)).rejects.toThrow('not a zip file');
+    expect(load).not.toHaveBeenCalled();
+    // The most a backup held before still opens: the project, 498 checkpoints, their folder and the manifest.
+    const small: Project = { ...project, boards: [], feeders: [] };
+    const many = Array.from({ length: 498 }, (_, i) => newCheckpoint(small, `c${i}`, { now: at(i) }));
+    expect((await readBackup(await buildBackup(small, many, '1.69'))).checkpoints).toHaveLength(498);
+    await expect(readBackup(await buildBackup(small, [...many, newCheckpoint(small, 'one more', { now: at(600) })], '1.69'))).rejects.toThrow('too many files');
   });
 });

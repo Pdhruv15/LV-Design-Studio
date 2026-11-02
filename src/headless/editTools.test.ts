@@ -1,4 +1,5 @@
 // @vitest-environment node
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -26,6 +27,12 @@ const read = (n: string) => fs.readFileSync(file(n), 'utf-8');
 const load = (n: string) => parseProject(read(n), `${n}.json`);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tool results are checked field by field
 const run = (name: string, args: Record<string, unknown>): Record<string, any> => callTool(toolByName(name)!, args, ctx) as Record<string, any>;
+/** Symbolic links need permission on Windows; skip there when they cannot be made. */
+const canLink = (() => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'lvds-link-'));
+  try { fs.symlinkSync(path.join(d, 'x'), path.join(d, 'y')); return true; } catch { return false; } finally { fs.rmSync(d, { recursive: true, force: true }); }
+})();
+const it_ = canLink ? it : it.skip;
 
 beforeAll(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'lvds-edit-'));
@@ -140,6 +147,60 @@ describe('backup, log and undo', () => {
     const a = run('add_panel', { project: 'Villa', kind: 'DB', id: 'DB-Y', fedFrom: 'SMDB-GF', mode: 'apply' });
     fs.writeFileSync(file('Villa'), read('Villa').replace('"Demonstration Project', '"Edited Demonstration Project')); // saved from the app
     expect(() => run('undo_change', { project: 'Villa', change: a.change, mode: 'apply' })).toThrow(/has changed since.*\.lvds-agent/);
+  });
+});
+
+describe('a log changed by someone else cannot make undo copy another file into the project', () => {
+  const SECRET = JSON.stringify({ ...villa, name: 'Secret from outside the projects folder' });
+  const sha = (t: string) => crypto.createHash('sha256').update(t).digest('hex');
+  const log = () => path.join(folder, '.lvds-agent', 'log.jsonl');
+  // A line that passes the hash check: it claims to have written the file as it is now, from the secret.
+  const forge = (id: string, backup: string, extra: Record<string, unknown> = {}) => fs.appendFileSync(log(),
+    JSON.stringify({ id, at: new Date().toISOString(), file: 'Villa.json', tool: 'add_panel', summary: 'Forged', beforeHash: sha(SECRET), afterHash: sha(read('Villa')), backup, ...extra }) + '\n');
+
+  it('leaves out lines that are not changes these tools wrote, and keeps the real ones', () => {
+    const secret = path.join(root, 'secret.json');
+    fs.writeFileSync(secret, SECRET);
+    const a = run('add_panel', { project: 'Villa', kind: 'DB', id: 'DB-T', fedFrom: 'SMDB-GF', mode: 'apply' });
+    const now = read('Villa');
+    forge('C-20990101000000-aaaa', path.relative(folder, secret)); // ../secret.json
+    forge('C-20990101000000-bbbb', secret); // absolute
+    forge('C-20990101000000-cccc', '.lvds-agent/backups/Villa/../../../../secret.json');
+    forge('../../secret', '.lvds-agent/backups/Villa/../../../secret.json');
+    forge('C-20990101000000-dddd', path.join('.lvds-agent', 'backups', 'Villa', 'C-20990101000000-dddd.json'), { afterHash: 'not a hash' });
+    forge('C-20990101000000-eeee', path.join('.lvds-agent', 'backups', 'Other', 'C-20990101000000-eeee.json')); // another project's backup
+    fs.appendFileSync(log(), 'not json\n[1, 2]\nnull\n');
+    expect(readLog(folder).map((e) => e.id)).toEqual([a.change]);
+    for (const change of ['C-20990101000000-aaaa', 'C-20990101000000-bbbb', 'C-20990101000000-cccc', '../../secret', 'C-20990101000000-eeee']) {
+      expect(() => run('undo_change', { project: 'Villa', change, mode: 'apply' })).toThrow(/No change/);
+    }
+    expect(read('Villa')).toBe(now);
+    run('undo_change', { project: 'Villa', mode: 'apply' }); // the real change is still the one undone
+    expect(read('Villa')).not.toContain('DB-T');
+  });
+
+  it_('reads only the version that change kept: not a link, not in a linked folder, not changed', () => {
+    const a = run('add_panel', { project: 'Villa', kind: 'DB', id: 'DB-U', fedFrom: 'SMDB-GF', mode: 'apply' });
+    const now = read('Villa');
+    const dir = path.join(folder, '.lvds-agent', 'backups', 'Villa');
+    const kept = path.join(dir, `${a.change}.json`);
+    const copy = path.join(root, 'outside-copy.json');
+    fs.copyFileSync(kept, copy); // the same text: only the link is wrong
+    fs.rmSync(kept);
+    fs.symlinkSync(copy, kept);
+    expect(() => run('undo_change', { project: 'Villa', mode: 'apply' })).toThrow(/missing or was changed/);
+    fs.rmSync(kept);
+    fs.writeFileSync(kept, fs.readFileSync(copy, 'utf-8').replace('Demonstration', 'Changed'));
+    expect(() => run('undo_change', { project: 'Villa', mode: 'apply' })).toThrow(/missing or was changed/);
+    fs.copyFileSync(copy, kept);
+    fs.renameSync(dir, `${dir}-real`);
+    fs.symlinkSync(`${dir}-real`, dir, 'dir');
+    expect(() => run('undo_change', { project: 'Villa', mode: 'apply' })).toThrow(/missing or was changed/);
+    expect(read('Villa')).toBe(now);
+    fs.unlinkSync(dir);
+    fs.renameSync(`${dir}-real`, dir);
+    run('undo_change', { project: 'Villa', mode: 'apply' }); // its own backup, as it was kept
+    expect(read('Villa')).not.toContain('DB-U');
   });
 });
 

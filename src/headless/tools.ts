@@ -74,7 +74,7 @@ export const TOOLS: Tool[] = [
     title: 'List projects',
     description: 'The project files in the LV Design Studio projects folder, newest first: file, name, panels, circuits, status and latest revision.',
     input: {},
-    run: (_a, ctx) => ({ folder: ctx.folder, projects: listProjects(ctx.folder) })
+    run: (_a, ctx) => ({ folder: ctx.folder, projects: listProjects(ctx.folder, ctx.anywhere) })
   },
   {
     name: 'project_summary',

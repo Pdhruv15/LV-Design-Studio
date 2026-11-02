@@ -24,7 +24,8 @@ import { elvInput, elvSettingsFor } from './elvTools';
 import type { Project } from '../types';
 import { openProject } from './project';
 import type { Tool, ToolContext } from './tools';
-import { agentDir } from './write';
+import { realAgentDir } from './write';
+import { findFile, openToAppend, readFileWithin, realDirs, writeNewFile } from './safeFiles';
 import { findRenderer, runInRenderer } from './electronExport';
 
 /** Stage 3: exports. Each export tool previews by default: the files it would make, and whether the design is ready
@@ -48,7 +49,10 @@ interface Planned { files: { name: string; about: string }[]; renderer: string; 
 interface ExportEntry { id: string; at: string; file: string; tool: string; approvedBy: string; exportedAnyway: boolean; readiness: Readiness; files: string[] }
 interface Readiness { fail: number; check: number; proposalsWaiting: string[] }
 
-const exportsLog = (folder: string) => path.join(agentDir(folder), 'exports.jsonl');
+/** The export log, in a real .lvds-agent folder. */
+const exportsLog = (folder: string) => path.join(realAgentDir(folder), 'exports.jsonl');
+/** Load schedule templates are read up to the desktop app's workbook limit (electron/limits.cjs workbookBytes). */
+const MAX_TEMPLATE_BYTES = 20 * 1024 * 1024;
 
 function readiness(p: Project): Readiness {
   const d = buildDashboard(p, runCalculations(p));
@@ -57,14 +61,6 @@ function readiness(p: Project): Readiness {
     check: d.todo.filter((t) => t.status === 'warn').length,
     proposalsWaiting: (p.modifications ?? []).filter((m) => (m.status === 'proposed' || m.status === 'review' || (m.status === 'accepted' && !m.applied))).map((m) => `${m.id} ${m.title} (${m.status}${m.status === 'accepted' ? ', not applied' : ''})`)
   };
-}
-
-/** A name not taken in the folder: "x.xlsx", else "x (2).xlsx" … */
-function freeName(dir: string, name: string): string {
-  const ext = path.extname(name), base = name.slice(0, name.length - ext.length);
-  let out = name;
-  for (let n = 2; fs.existsSync(path.join(dir, out)); n++) out = `${base} (${n})${ext}`;
-  return out;
 }
 
 /** The shared preview / approval / write path of every export tool. */
@@ -76,7 +72,8 @@ async function runExport(args: Record<string, unknown>, ctx: ToolContext, tool: 
   const files = Array.isArray(made) ? made : made.files;
   if (!files.length) throw new Error('Nothing to export from this project.');
   const stem = path.basename(file).replace(/\.json$/i, '');
-  const dir = path.join(ctx.folder, 'Exports', safeFileName(stem), new Date().toISOString().slice(0, 10));
+  const sub = ['Exports', safeFileName(stem), new Date().toISOString().slice(0, 10)];
+  const dir = path.join(ctx.folder, ...sub);
   const problems = [
     ...(ready.fail ? [`${ready.fail} item(s) fail the checks (run_checks)`] : []),
     ...(ready.proposalsWaiting.length ? [`proposals waiting in Reports → Changes: ${ready.proposalsWaiting.join('; ')}`] : [])
@@ -95,32 +92,30 @@ async function runExport(args: Record<string, unknown>, ctx: ToolContext, tool: 
   if (problems.length && args.exportAnyway !== true) throw new Error(`Not exported: ${problems.join('; ')}. Fix these first, or set exportAnyway true if the engineer decides to export as it is.`);
   const out = planned ? await planned.make() : (files as OutFile[]);
   if (!out.length) throw new Error('Nothing was made: no files to write.');
-  fs.mkdirSync(dir, { recursive: true });
-  const written: string[] = [];
-  for (const f of out) {
-    const name = freeName(dir, f.name);
-    fs.writeFileSync(path.join(dir, name), f.data);
-    written.push(path.join(dir, name));
+  // MCP and the local API: real folders only, so a link planted in the projects folder cannot send the files outside it.
+  if (ctx.anywhere) fs.mkdirSync(dir, { recursive: true });
+  else realDirs(ctx.folder, ...sub);
+  const log = openToAppend(exportsLog(ctx.folder)); // checked before anything is written
+  try {
+    const written = out.map((f) => writeNewFile(dir, f.name, f.data));
+    const entry: ExportEntry = { id: `E-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${crypto.randomBytes(2).toString('hex')}`, at: new Date().toISOString(), file: path.basename(file), tool, approvedBy: by, exportedAnyway: problems.length > 0, readiness: ready, files: written.map((w) => path.relative(ctx.folder, w)) };
+    fs.writeFileSync(log, JSON.stringify(entry) + '\n', 'utf-8');
+    return { mode: 'done', written: true, export: entry.id, approvedBy: by, ...(entry.exportedAnyway ? { exportedAnyway: problems } : {}), files: written };
+  } finally {
+    fs.closeSync(log);
   }
-  const entry: ExportEntry = { id: `E-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${crypto.randomBytes(2).toString('hex')}`, at: new Date().toISOString(), file: path.basename(file), tool, approvedBy: by, exportedAnyway: problems.length > 0, readiness: ready, files: written.map((w) => path.relative(ctx.folder, w)) };
-  fs.mkdirSync(agentDir(ctx.folder), { recursive: true });
-  fs.appendFileSync(exportsLog(ctx.folder), JSON.stringify(entry) + '\n', 'utf-8');
-  return { mode: 'done', written: true, export: entry.id, approvedBy: by, ...(entry.exportedAnyway ? { exportedAnyway: problems } : {}), files: written };
 }
 
-/** The template's full path: a path, or a name in the projects folder; MCP and the local API only read inside that folder. */
-function templateFile(ref: string, ctx: ToolContext): string {
+/** The template, read from a path or a name in the projects folder; MCP and the local API only read inside that folder. */
+function templateFile(ref: string, ctx: ToolContext): { name: string; bytes: Buffer } {
   const name = ref.trim();
   if (!name) throw new Error('Give the template: the path of your .xlsx, or its file name in the projects folder.');
   if (!/\.xlsx$/i.test(name)) throw new Error('The template must be an .xlsx file (Excel workbook).');
-  const candidates = path.isAbsolute(name) ? [name] : [path.resolve(ctx.folder, name), ...(ctx.anywhere ? [path.resolve(name)] : [])];
-  const full = candidates.find((c) => fs.existsSync(c) && fs.statSync(c).isFile());
+  const full = findFile(name, ctx);
   if (!full) throw new Error(`No template "${name}" found.`);
-  if (!ctx.anywhere) {
-    const rel = path.relative(path.resolve(ctx.folder), path.resolve(full));
-    if (rel.startsWith('..') || path.isAbsolute(rel)) throw new Error(`Only templates inside the projects folder (${ctx.folder}) can be read here.`);
-  }
-  return full;
+  const bytes = readFileWithin(full, ctx, MAX_TEMPLATE_BYTES, `Only templates inside the projects folder (${ctx.folder}) can be read here.`);
+  if (!bytes) throw new Error(`${path.basename(full)} is larger than ${MAX_TEMPLATE_BYTES / 1024 / 1024} MB.`);
+  return { name: path.basename(full), bytes };
 }
 
 const exportContext = (p: Project): ExportContext => ({ project: p, run: runCalculations(p), stale: [] });
@@ -234,8 +229,8 @@ export const EXPORT_TOOLS: Tool[] = [
       const unknown = panels?.filter((id) => !p.boards.some((b) => b.id === id));
       if (unknown?.length) throw new Error(`No panel ${unknown.join(', ')}.`);
       const tpl = templateFile(String(a.template ?? ''), ctx);
-      const { workbook, boards, warnings } = await fillLoadScheduleTemplate(p, fs.readFileSync(tpl), { boardIds: panels });
-      const stem = path.basename(tpl).replace(/\.xlsx$/i, '');
+      const { workbook, boards, warnings } = await fillLoadScheduleTemplate(p, tpl.bytes, { boardIds: panels });
+      const stem = tpl.name.replace(/\.xlsx$/i, '');
       return [{ name: `${safeFileName(`${p.name} - ${stem}`)}.xlsx`, data: await workbookBytes(workbook), about: `Excel workbook from your template, ${boards.length} DB(s): ${boards.slice(0, 8).join(', ')}${boards.length > 8 ? ' …' : ''}${warnings.length ? ` — ${warnings.join(' ')}` : ''}` }];
     })
   },

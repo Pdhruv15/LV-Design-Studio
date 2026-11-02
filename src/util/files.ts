@@ -2,10 +2,20 @@ const hasBridge = () => typeof window !== 'undefined' && !!window.lvds?.files;
 
 export const safeFileName = (s: string) => s.replace(/[^a-z0-9]+/gi, '-').replace(/(^-|-$)/g, '') || 'export';
 
-/** One CSV cell: quoted when it contains a comma, quote or newline. */
+// Text a spreadsheet may run as a formula (CSV injection): = + - or @ first, also after spaces or control characters
+// (some programs skip them), their full-width forms, or a tab or carriage return first.
+const FORMULA_START = /^[\s\p{Cc}]*[=+\-@\uff1d\uff0b\uff0d\uff20]|^[\t\r]/u;
+// Left as they are: plain numbers (-0.5, +3, 1e-7), and signs or dashes alone ("-", "--"), which hold nothing to run.
+const PLAIN_NUMBER = /^\s*[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?\s*$/i;
+const HAS_CONTENT = /[^\s\p{Cc}=+\-@\uff1d\uff0b\uff0d\uff20]/u;
+
+/** One CSV cell: quoted when it contains a comma, quote or newline, or a semicolon or tab (which start a new cell in
+ * some spreadsheets, e.g. Excel in many European languages). Text that would start a formula gets a leading
+ * apostrophe, so Excel and other spreadsheets show it as text instead of running it. */
 function cell(v: unknown): string {
-  const s = v === undefined || v === null ? '' : String(v);
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  let s = v === undefined || v === null ? '' : String(v);
+  if (typeof v !== 'number' && FORMULA_START.test(s) && HAS_CONTENT.test(s) && !PLAIN_NUMBER.test(s)) s = `'${s}`;
+  return /[",;\t\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 export function toCsv(headers: string[], rows: unknown[][]): string {

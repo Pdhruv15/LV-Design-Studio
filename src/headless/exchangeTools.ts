@@ -1,10 +1,10 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { decide, readPackage, reviewPackage, type Review } from '../exchange/inbox';
 import { openProject } from './project';
 import { edit } from './editTools';
+import { findFile, readFileWithin } from './safeFiles';
 import type { Tool, ToolContext } from './tools';
 
 /** Exchange packages from other programs (rooms from CAD / IFC, luminaires from DIALux, ELV loads): check one, review
@@ -20,16 +20,12 @@ const file = z.string().describe('Exchange package file (JSON): a path, or a fil
 export function readFile(ref: string, ctx: ToolContext) {
   const name = ref.trim();
   if (!name) throw new Error('Give the exchange package file.');
-  const candidates = path.isAbsolute(name) ? [name] : [path.resolve(ctx.folder, name), ...(ctx.anywhere ? [path.resolve(name)] : [])];
-  const full = candidates.find((c) => fs.existsSync(c) && fs.statSync(c).isFile());
+  const full = findFile(name, ctx);
   if (!full) throw new Error(`No file "${name}"${ctx.anywhere ? '' : ` in ${ctx.folder}`}.`);
-  if (!ctx.anywhere) {
-    const rel = path.relative(path.resolve(ctx.folder), path.resolve(full));
-    if (rel.startsWith('..') || path.isAbsolute(rel)) throw new Error(`Only files inside the projects folder (${ctx.folder}) can be read here.`);
-  }
-  if (fs.statSync(full).size > MAX_BYTES) throw new Error(`${path.basename(full)} is larger than 20 MB.`);
+  const bytes = readFileWithin(full, ctx, MAX_BYTES, `Only files inside the projects folder (${ctx.folder}) can be read here.`);
+  if (!bytes) throw new Error(`${path.basename(full)} is larger than 20 MB.`);
   let raw: unknown;
-  try { raw = JSON.parse(fs.readFileSync(full, 'utf-8')); } catch (e) { throw new Error(`${path.basename(full)} is not valid JSON (${(e as Error).message}).`); }
+  try { raw = JSON.parse(bytes.toString('utf-8')); } catch (e) { throw new Error(`${path.basename(full)} is not valid JSON (${(e as Error).message}).`); }
   return { raw, name: path.basename(full) };
 }
 

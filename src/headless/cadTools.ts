@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { buildingInfoOf } from '../calc/building';
@@ -11,6 +10,7 @@ import type { CadLayerMap, CadLayerRole, Project } from '../types';
 import { edit } from './editTools';
 import { planUnits } from '../model/cadUnits';
 import { openProject } from './project';
+import { confine, findFile, readFileWithin } from './safeFiles';
 import { r, type Tool, type ToolContext } from './tools';
 
 /** DWG / DXF floor plans read by the built-in reader (acadrust), without any CAD program: what a plan holds, and its
@@ -27,16 +27,14 @@ const mode = z.enum(['preview', 'apply']).default('preview').describe('preview =
 function readPlan(ref: string, ctx: ToolContext): CadPlan {
   const name = ref.trim();
   if (!name) throw new Error('Give the floor plan file (DWG or DXF).');
-  const candidates = path.isAbsolute(name) ? [name] : [path.resolve(ctx.folder, name), ...(ctx.anywhere ? [path.resolve(name)] : [])];
-  const full = candidates.find((c) => fs.existsSync(c) && fs.statSync(c).isFile());
+  const full = findFile(name, ctx);
   if (!full) throw new Error(`No file "${name}"${ctx.anywhere ? '' : ` in ${ctx.folder}`}.`);
-  if (!ctx.anywhere) {
-    const rel = path.relative(path.resolve(ctx.folder), path.resolve(full));
-    if (rel.startsWith('..') || path.isAbsolute(rel)) throw new Error(`Only files inside the projects folder (${ctx.folder}) can be read here.`);
-  }
+  const outside = `Only files inside the projects folder (${ctx.folder}) can be read here.`;
+  confine(full, ctx, outside);
   if (!/\.(dwg|dxf)$/i.test(full)) throw new Error(`${path.basename(full)} is not a DWG or DXF file.`);
-  if (fs.statSync(full).size > MAX_DRAWING_BYTES) throw new Error(`${path.basename(full)} is larger than ${MAX_DRAWING_BYTES / 1024 / 1024} MB.`);
-  const d = readCadDrawing(new Uint8Array(fs.readFileSync(full)));
+  const bytes = readFileWithin(full, ctx, MAX_DRAWING_BYTES, outside);
+  if (!bytes) throw new Error(`${path.basename(full)} is larger than ${MAX_DRAWING_BYTES / 1024 / 1024} MB.`);
+  const d = readCadDrawing(new Uint8Array(bytes));
   return { ...planFromDrawing(d), file: path.basename(full) };
 }
 
