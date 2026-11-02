@@ -115,7 +115,7 @@ import { discriminationChain } from './calc/protection';
 import { pasteBoard } from './model/copyBoard';
 import { draftFromOffer, onSubmissionOffer, type Submission, type SubmissionOffer } from './model/submissions';
 import { applyDefaults, applyProfile, initialsOf, loadPrefs, savePrefs, signature, type Preferences } from './model/profile';
-import { applyTheme } from './theme/theme';
+import { applyPalette, applyTheme } from './theme/theme';
 import { clearRecovery, deleteProjectFile, inDesktop, keepUnsavedWork, listProjects, loadProject, emptyTrash, listTrash, loadProjectStamped, readRecoveries, recentFiles, restoreProject, saveProjectFile, statProject, touchRecent, whenText, writeRecovery, type ProjectMeta, type Recovery, type TrashedProject } from './model/projectStore';
 import { applyDetails, withArchived, type ProjectDetails } from './model/projectList';
 const ProjectDetailsDialog = onDemand(() => import('./components/ProjectDetailsDialog'));
@@ -255,6 +255,7 @@ export default function App() {
   const [compare, setCompare] = useState<{ aName: string; bName: string; a: Project; b: Project } | null>(null);
   const [prefs, setPrefs] = useState<Preferences>(loadPrefs);
   useEffect(() => applyTheme(prefs.app.theme), [prefs.app.theme]);
+  useEffect(() => applyPalette(prefs.app.palette), [prefs.app.palette]);
   const [showPrefs, setShowPrefs] = useState(false);
   const [recent, setRecent] = useState<string[]>(recentFiles);
   // One recovery copy per project; the newest is offered first.

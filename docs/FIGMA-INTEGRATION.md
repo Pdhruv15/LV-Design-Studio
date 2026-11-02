@@ -6,8 +6,9 @@
 
 | Page / asset | Contents |
 |---|---|
-| Variables · `Theme/Dark` | 31 colour tokens, the dark theme (incl. `chart/curve-1…8`, added with v1.69) |
-| Variables · `Theme/Light` | the same 31 names, light values (synced with v1.69: `text/muted`, `status/ok`, `diagram/bus` darker) |
+| Variables · `Theme/Graphite Dark` | 31 colour tokens, the default theme (was `Theme/Dark`; graphite values since v2.032) |
+| Variables · `Theme/Graphite Light` | the same 31 names, drafting-paper values (was `Theme/Light`) |
+| Variables · `Theme/Blueprint Dark` / `Theme/Blueprint Light` | the same 31 names, ink-blue / blueprint-paper values (new with v2.032) |
 | Variables · `Dimension` | spacing (4–24), radius (6/9/12), control heights (32/26), font sizes (11/12/13) |
 | **Components** | Button (Default/Primary/Danger × Default/Disabled), Input (Default/Focus/Error/Disabled), Status badge (Pass/Warning/Fail), Tab, Nav item, Table cell |
 | **Screens** | Voltage drop study, dark and light, at 1280 × 800 (illustrative data) |
@@ -40,7 +41,7 @@ Sources: [Figma MCP rate limits & access](https://developers.figma.com/docs/figm
 
 - [ ] `src/theme/tokens.css`: in `:root` **and** `:root[data-theme="light"]`
 - [ ] `src/theme/tokens.test.ts` still passes (it checks contrast and that every used variable is defined)
-- [ ] Figma: same name in `Theme/Dark` **and** `Theme/Light`, scopes set, WEB code syntax `var(--name)`
+- [ ] Figma: same name in all four `Theme/*` collections, scopes set, WEB code syntax `var(--name)`
 
 ## What you need to provide
 

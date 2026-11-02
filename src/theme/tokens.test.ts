@@ -17,6 +17,11 @@ function block(selector: string): Record<string, string> {
 }
 const dark = block(':root');
 const light = { ...dark, ...block(':root[data-theme="light"]') };
+// The cascade on a blueprint root: the palette block beats the light block (same specificity,
+// later in the file), and the combined block beats both.
+const bpDark = { ...dark, ...block(':root[data-palette="blueprint"]') };
+const bpLight = { ...dark, ...block(':root[data-theme="light"]'), ...block(':root[data-palette="blueprint"]'), ...block(':root[data-palette="blueprint"][data-theme="light"]') };
+const THEMES = [['graphite dark', dark], ['graphite light', light], ['blueprint dark', bpDark], ['blueprint light', bpLight]] as const;
 
 const lum = (hex: string) => {
   const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
@@ -29,19 +34,19 @@ const over = (a: string, b: string, k: number) =>
   '#' + [1, 3, 5].map((i) => Math.round(k * parseInt(a.slice(i, i + 2), 16) + (1 - k) * parseInt(b.slice(i, i + 2), 16)).toString(16).padStart(2, '0')).join('');
 
 describe('design tokens', () => {
-  it('keeps the dark theme on the brand palette', () => {
-    // Navy, amber and slate from docs/brand; status colours unchanged.
+  it('keeps the default theme on the graphite palette', () => {
+    // Neutral charcoal with the brand amber accent (since v2.032); status colours unchanged.
     expect(dark).toMatchObject({
-      '--bg': '#0B1A2A', '--panel': '#0F2A44', '--p2': '#122E4A', '--line': '#234563', '--tx': '#E3EAF2', '--mut': '#9FB3C8',
+      '--bg': '#15171A', '--panel': '#1D2024', '--p2': '#26292E', '--line': '#353A41', '--tx': '#E6E8EB', '--mut': '#A3ABB5',
       '--acc': '#F5B301', '--bus': '#ffb347', '--ok': '#37d67a', '--warn': '#f5c04a', '--bad': '#ff5d6c',
-      '--line-strong': '#33597C', '--on-acc': '#0F2A44', '--field-line': '#5F86A8', '--field-line-hover': '#7FA3C2',
+      '--line-strong': '#4A5058', '--on-acc': '#1D2024', '--field-line': '#6C7580', '--field-line-hover': '#8A939E',
       '--space-1': '4px', '--space-2': '8px', '--space-3': '12px', '--space-4': '16px', '--space-5': '24px',
       '--control-h': '32px', '--control-h-sm': '26px', '--radius-sm': '6px', '--radius-md': '9px', '--radius-lg': '12px',
       '--fs-xs': '11px', '--fs-sm': '12px', '--fs-md': '13px'
     });
   });
 
-  it.each([['dark', dark], ['light', light]] as const)('meets WCAG AA contrast in the %s theme', (_, t) => {
+  it.each(THEMES)('meets WCAG AA contrast in the %s theme', (_, t) => {
     for (const fg of ['--tx', '--mut', '--acc', '--ok', '--warn', '--bad']) {
       for (const bg of ['--bg', '--panel', '--p2']) expect(contrast(t[fg], t[bg]), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
     }
@@ -55,6 +60,13 @@ describe('design tokens', () => {
     expect(colourish.filter((k) => !(k in lightOnly))).toEqual([]);
   });
 
+  it('gives both Blueprint blocks the same token names', () => {
+    // The combined block must re-state every token of the Blueprint dark block: it ties with the
+    // light block on specificity, so anything left out would show Blueprint dark values on light.
+    expect(Object.keys(block(':root[data-palette="blueprint"][data-theme="light"]')).sort())
+      .toEqual(Object.keys(block(':root[data-palette="blueprint"]')).sort());
+  });
+
   it('defines every custom property the stylesheet uses, with or without a fallback', () => {
     const defined = new Set<string>([...tokens.matchAll(/(--[\w-]+)\s*:/g), ...styles.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]));
     // Properties set from components (style={{ '--side-w': … }}) also count.
@@ -63,7 +75,7 @@ describe('design tokens', () => {
     expect([...new Set(used.filter((u) => !defined.has(u)))]).toEqual([]);
   });
 
-  it.each([['dark', dark], ['light', light]] as const)('keeps the SLD grid when it moves to the shared drawing surface (%s)', (_, t) => {
+  it.each(THEMES)('keeps the SLD grid when it moves to the shared drawing surface (%s)', (_, t) => {
     // The SLD drew its minor grid as --line at 55 % over --bg; the shared token is that colour, solid.
     expect(t['--canvas-grid']).toBe(over(t['--line'], t['--bg'], 0.55));
     expect([dark['--canvas-bg'], dark['--canvas-ink'], dark['--canvas-grid-major']]).toEqual(['var(--bg)', 'var(--tx)', 'var(--line)']);

@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.032', date: '2026-11-02',
+    items: [
+      { title: 'Two new colour themes', text: 'The app now has two palettes, each in dark and light: Graphite, neutral charcoal and warm drafting paper with the amber accent, and Blueprint, deep ink blue and blueprint paper with a blue accent. Graphite dark is the new default and replaces the navy look. Pick the palette and mode under Preferences → Appearance & saving. Drawings, PDF and DXF exports are unchanged: always black on white.' }
+    ]
+  },
+  {
     version: '2.031', date: '2026-11-02',
     items: [
       { title: 'SLD labels stay inside their panel', text: 'On the SLD in the DEWA style, the breaker and cable text of a panel\'s last way ran across the dashed frame into the panel beside it. Each frame is now as wide as its labels, and the next panel moves along to keep a gap between them. On screen, on sheets, in PDF and in DWG. The standard style is unchanged.' },

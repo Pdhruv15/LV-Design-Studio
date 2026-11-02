@@ -12,27 +12,35 @@ Principles, for engineering software used for hours at a time:
 
 ## Colour tokens
 
-| Token | Role | Dark | Light |
+| Token | Role | Dark (Graphite, default) | Light (Graphite) |
 |---|---|---|---|
-| `--bg` | page background behind panels | `#0B1A2A` | `#F4F6F9` |
-| `--panel` | header, sidebar, cards, dialogs | `#0F2A44` | `#ffffff` |
-| `--p2` | raised: inputs, chips, hover rows | `#122E4A` | `#EEF2F6` |
-| `--line` / `--line-strong` | dividers / hover edges | `#234563` / `#33597C` | `#D8DFE6` / `#BCC7D2` |
-| `--field-line` | form control edge (≥3:1) | `#5F86A8` | `#7A8A9A` |
-| `--tx` / `--mut` | text / secondary text | `#E3EAF2` / `#9FB3C8` | `#0F2A44` / `#51667A` |
-| `--acc` / `--on-acc` | primary action, selection, focus / text on it | `#F5B301` / `#0F2A44` | `#0F2A44` / `#ffffff` |
+| `--bg` | page background behind panels | `#15171A` | `#F5F3EF` |
+| `--panel` | header, sidebar, cards, dialogs | `#1D2024` | `#ffffff` |
+| `--p2` | raised: inputs, chips, hover rows | `#26292E` | `#EFECE5` |
+| `--line` / `--line-strong` | dividers / hover edges | `#353A41` / `#4A5058` | `#DCD7CC` / `#C2BBAC` |
+| `--field-line` | form control edge (≥3:1) | `#6C7580` | `#857E70` |
+| `--tx` / `--mut` | text / secondary text | `#E6E8EB` / `#A3ABB5` | `#272420` / `#5D574C` |
+| `--acc` / `--on-acc` | primary action, selection, focus / text on it | `#F5B301` / `#1D2024` | `#875800` / `#ffffff` |
 | `--ok` `--warn` `--bad` | pass / check / fail | `#37d67a` `#f5c04a` `#ff5d6c` | `#177336` `#8a5d00` `#cf222e` |
 | `--bus` | SLD busbars, board group labels | `#ffb347` | `#a64b07` |
 | `--res-cur` `--res-fault` `--res-pf` | SLD result labels | | |
 | `--ph-r` `--ph-y` `--ph-b` `--ph-ryb` | phase colours | | |
-| `--canvas-bg` `--canvas-ink` `--canvas-grid` `--canvas-grid-major` | the one drawing surface: SLD, riser, earthing, lux plan, Design CAD | `--bg`, `--tx`, `#16223a`, `--line` | `--bg`, `--tx`, `#e8eaef`, `--line` |
+| `--canvas-bg` `--canvas-ink` `--canvas-grid` `--canvas-grid-major` | the one drawing surface: SLD, riser, earthing, lux plan, Design CAD | `--bg`, `--tx`, `--line` at 55 % over `--bg`, `--line` | the same, from the light values |
 | `--pit-pass` `--pit-fail` `--pit-untested` | earth pit test status | mixes of `--ok`, `--bad`, `--mut` | |
 | `--curve-1` … `--curve-8` | chart series (protection curves) | original curve colours | darker, ≥ 4.8:1 on white |
 | `--backdrop`, `--shadow-pop`, `--shadow-modal`, `--shadow-palette`, `--shadow-paper`, `--shadow-drawer`, `--shadow-side`, `--row-sub` | overlays and elevation | | |
 
-**Light theme (v2, Oct 2026):** neutral cool greys, body text about 15:1 rather than near-black, status colours close to common GitHub/Fluent values. Proposal frame: Figma *Screens* page, "Light theme v2 (proposal)".
+**Palettes (v2.032, Nov 2026):** two palettes × two modes, replacing the navy pair; Graphite dark is the default. Status, result, phase, chart, pit and shadow colours are shared per mode by both palettes (light values close to common GitHub/Fluent ones, body text ~14:1 rather than near-black). Blueprint overrides surfaces and accents only (proposal frames: Figma *Screens* page, "Theme proposals — 2026-11-02"):
 
-**Contrast** (checked by `src/theme/tokens.test.ts` on every test run): all text tokens are ≥4.5:1 on `--bg`, `--panel` and `--p2` in both themes; `--field-line` is ≥3:1 on `--panel` and `--p2`.
+| Token | Blueprint dark | Blueprint light |
+|---|---|---|
+| `--bg` / `--panel` / `--p2` | `#0C1526` / `#122036` / `#172843` | `#EDF3FA` / `#ffffff` / `#E4EDF6` |
+| `--line` / `--line-strong` | `#2A4062` / `#3D587F` | `#C9D8E8` / `#A7BED6` |
+| `--tx` / `--mut` | `#DEE8F5` / `#9BAFCB` | `#142D4A` / `#4A647F` |
+| `--acc` / `--on-acc` | `#53B4FF` / `#0A1B2E` | `#1D5FBF` / `#ffffff` |
+| `--field-line` (hover) | `#5E84AE` (`#7EA2C8`) | `#74879B` (`#5C7288`) |
+
+**Contrast** (checked by `src/theme/tokens.test.ts` on every test run): all text tokens are ≥4.5:1 on `--bg`, `--panel` and `--p2` in all four palette × mode combinations; `--field-line` is ≥3:1 on `--panel` and `--p2`.
 
 **Do not** use `#fff`, `#000` or hex colours for screen UI. White and black remain correct for *paper* (drawing sheets, title-block previews, logo previews), which are white in both themes on purpose. `tokens.test.ts` lists the stylesheet rules and components allowed fixed colours and fails on a new one.
 
@@ -80,9 +88,9 @@ Figma has matching component sets for Button, Input, Status badge, Tab, Nav item
 
 ## Theme switching
 
-`Preferences → Appearance & saving → Colour theme`: **Dark** (default), **Light**, **Match system**. Stored in `lvds.preferences.app.theme` on this computer. It is not part of the project file, so sharing a project never changes a colleague's theme.
+`Preferences → Appearance & saving`: **Colour theme** — Dark (default), Light, Match system — and **Colour palette** — Graphite (default), Blueprint. Stored in `lvds.preferences.app.theme` and `.palette` on this computer. Neither is part of the project file, so sharing a project never changes a colleague's theme.
 
-`src/theme/theme.ts` sets `<html data-theme="light">` (dark = no attribute). `withPrintTheme()` wraps export code so `printableSvg()` always reads dark-palette colours and maps them to print colours. Exported SVG/PDF/DXF are byte-identical in either theme (verified, see `UI-TEST-RESULTS.md`).
+`src/theme/theme.ts` sets `<html data-theme="light">` (dark = no attribute) and `<html data-palette="blueprint">` (Graphite = no attribute). `withPrintTheme()` wraps export code so `printableSvg()` always reads the default Graphite dark palette and maps it to print colours. Exported SVG/PDF/DXF are byte-identical whichever theme is on screen (verified, see `UI-TEST-RESULTS.md`).
 
 ## Accessibility checklist for new UI
 

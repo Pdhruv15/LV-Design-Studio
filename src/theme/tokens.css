@@ -2,36 +2,47 @@
  * LV Design Studio — design tokens (single source of truth for UI colour, spacing and size).
  *
  * Mirrored in Figma: "LV Design Suite — Design System", variable collections
- * Theme/Dark, Theme/Light and Dimension. Every Figma variable carries the CSS
+ * Theme/Graphite Dark, Theme/Graphite Light, Theme/Blueprint Dark,
+ * Theme/Blueprint Light and Dimension. Every Figma variable carries the CSS
  * name below as its code syntax, so the two can be diffed name for name.
  * See docs/DESIGN-SYSTEM.md and docs/FIGMA-INTEGRATION.md.
  *
- * Themes: dark is the default (the brand palette, see docs/brand). <html data-theme="light">
- * switches to light. The "System" preference is resolved to dark or light in
- * src/theme/theme.ts, so this file only ever sees those two values.
+ * Themes (since v2.032): two palettes × two modes. Graphite dark is the default
+ * (no attribute). <html data-theme="light"> switches the mode and
+ * <html data-palette="blueprint"> the palette; src/theme/theme.ts writes both,
+ * and resolves the "Match system" preference to dark or light, so this file
+ * only ever sees those attribute values. The navy-and-amber palette up to
+ * v2.031 (docs/brand) was replaced by these two pairs.
+ *
+ * Block order matters. The light block carries what both light palettes share
+ * (status, result, phase, chart and shadow colours) plus the Graphite light
+ * surfaces. The Blueprint blocks override surfaces and accents only, and the
+ * combined block re-states every token of the Blueprint dark block because it
+ * ties with the light block on specificity and comes later.
  *
  * Exports never read these: drawings, PDFs and DXF are printed black-on-white
- * from the dark palette whatever theme is on screen (src/diagram/exportSvg.ts).
+ * from the default Graphite dark palette whatever theme is on screen
+ * (src/diagram/exportSvg.ts, withPrintTheme).
  */
 
 :root {
-  /* ---- Colour: dark (default) ---- */
-  --bg: #0B1A2A;          /* canvas behind panels; diagram background */
-  --panel: #0F2A44;       /* header, sidebar, cards, dialogs */
-  --p2: #122E4A;          /* raised: inputs, chips, hover rows */
-  --line: #234563;        /* dividers, card edges */
-  --line-strong: #33597C; /* hover edges */
-  --tx: #E3EAF2;          /* body text */
-  --mut: #9FB3C8;         /* labels, captions, table headers */
+  /* ---- Colour: Graphite dark (default) — neutral charcoal, no blue cast, brand amber ---- */
+  --bg: #15171A;          /* canvas behind panels; diagram background */
+  --panel: #1D2024;       /* header, sidebar, cards, dialogs */
+  --p2: #26292E;          /* raised: inputs, chips, hover rows */
+  --line: #353A41;        /* dividers, card edges */
+  --line-strong: #4A5058; /* hover edges */
+  --tx: #E6E8EB;          /* body text */
+  --mut: #A3ABB5;         /* labels, captions, table headers */
   --acc: #F5B301;         /* primary action, selection, focus */
-  --on-acc: #0F2A44;      /* text on --acc */
+  --on-acc: #1D2024;      /* text on --acc */
   --bus: #ffb347;         /* SLD busbars */
   --ok: #37d67a;
   --warn: #f5c04a;
   --bad: #ff5d6c;
   /* Form control edges: at least 3:1 against the panel and the field fill (WCAG non-text contrast) */
-  --field-line: #5F86A8;
-  --field-line-hover: #7FA3C2;
+  --field-line: #6C7580;
+  --field-line-hover: #8A939E;
 
   /* Diagram result labels and phase colours */
   --res-cur: #7fd1ff;
@@ -45,7 +56,7 @@
   /* Drawing surfaces: the SLD, riser, earthing, lux plan and Design CAD share one canvas and grid */
   --canvas-bg: var(--bg);
   --canvas-ink: var(--tx);         /* lines and text in the drawing's default colour */
-  --canvas-grid: #183249;          /* minor grid: --line at 55 % over --bg */
+  --canvas-grid: #272a2f;          /* minor grid: --line at 55 % over --bg */
   --canvas-grid-major: var(--line);
   /* Earth pit test status on the earthing drawing and its key */
   --pit-pass: color-mix(in srgb, var(--ok) 70%, var(--bg));
@@ -99,24 +110,25 @@
   --curve-8: #7fd1ff;
 }
 
-/* ---- Colour: light ---- neutral cool greys, no pure black text (body text ~15:1, not 17:1).
+/* ---- Mode: light — shared by both palettes (status, result, phase, chart and shadow colours)
+   plus the Graphite light surfaces: warm drafting paper, bronze accent, no pure black text.
    All text pairs >= 4.5:1, control edges >= 3:1; see DESIGN-SYSTEM.md */
 :root[data-theme="light"] {
-  --bg: #F4F6F9;
+  --bg: #F5F3EF;
   --panel: #ffffff;
-  --p2: #EEF2F6;
-  --line: #D8DFE6;
-  --line-strong: #BCC7D2;
-  --tx: #0F2A44;
-  --mut: #51667A;
-  --acc: #0F2A44;
+  --p2: #EFECE5;
+  --line: #DCD7CC;
+  --line-strong: #C2BBAC;
+  --tx: #272420;
+  --mut: #5D574C;
+  --acc: #875800;
   --on-acc: #ffffff;
   --bus: #a64b07;
   --ok: #177336;
   --warn: #8a5d00;
   --bad: #cf222e;
-  --field-line: #7A8A9A;
-  --field-line-hover: #5F7184;
+  --field-line: #857E70;
+  --field-line-hover: #6B6557;
   --res-cur: #0369a1;
   --res-fault: #c2410c;
   --res-pf: #7e22ce;
@@ -124,7 +136,7 @@
   --ph-y: #8a5d00;
   --ph-b: #1f69c9;
   --ph-ryb: #7e22ce;
-  --canvas-grid: #e5e9ef;
+  --canvas-grid: #e7e4dc;
   --backdrop: rgba(20, 32, 53, .35);
   --shadow-pop: 0 8px 24px rgba(20, 32, 53, .16);
   --shadow-modal: 0 12px 32px rgba(20, 32, 53, .18);
@@ -142,4 +154,38 @@
   --curve-6: #a16207;
   --curve-7: #c2410c;
   --curve-8: #0369a1;
+}
+
+/* ---- Palette: Blueprint dark — deep ink blue, cyan accent. Surfaces and accents only;
+   status, result, phase and chart colours come from :root. ---- */
+:root[data-palette="blueprint"] {
+  --bg: #0C1526;
+  --panel: #122036;
+  --p2: #172843;
+  --line: #2A4062;
+  --line-strong: #3D587F;
+  --tx: #DEE8F5;
+  --mut: #9BAFCB;
+  --acc: #53B4FF;
+  --on-acc: #0A1B2E;
+  --field-line: #5E84AE;
+  --field-line-hover: #7EA2C8;
+  --canvas-grid: #1d2d47;
+}
+
+/* ---- Palette: Blueprint light — blueprint paper, engineering-blue accent. Re-states every
+   token of the Blueprint dark block (same names, see tokens.test.ts). ---- */
+:root[data-palette="blueprint"][data-theme="light"] {
+  --bg: #EDF3FA;
+  --panel: #ffffff;
+  --p2: #E4EDF6;
+  --line: #C9D8E8;
+  --line-strong: #A7BED6;
+  --tx: #142D4A;
+  --mut: #4A647F;
+  --acc: #1D5FBF;
+  --on-acc: #ffffff;
+  --field-line: #74879B;
+  --field-line-hover: #5C7288;
+  --canvas-grid: #d9e4f0;
 }
