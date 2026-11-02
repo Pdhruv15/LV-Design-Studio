@@ -4,7 +4,7 @@ import { chooseProjectFile, downloadProjectFile } from './util/webApp';
 import WebBanner from './components/WebBanner';
 import { ask as askUser, askForm, askText, ConfirmHost, tell } from './components/ConfirmDialog';
 import { CircleCheck, Play, TriangleAlert, X } from 'lucide-react';
-import { Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { lazyPage as lazy } from './util/onDemand';
 import { ErrorBoundary, setCrashKeeper } from './components/ErrorBoundary';
 import { Feeder, Board, Project, newProject } from './types';
@@ -137,7 +137,8 @@ import { applyBrief, type ProjectBrief } from './model/brief';
 import { defaultsPreview } from './model/setupPreview';
 import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
 import { checkProjectShape } from './model/projectValidate';
-import { projectFingerprint, type FileStamp } from './model/saveSafety';
+import type { FileStamp } from './model/saveSafety';
+import { useUnsaved } from './model/unsaved';
 import { CompareDialog, ConflictDialog, ExternalChangeBar } from './components/SaveDialogs';
 const PreferencesDialog = onDemand(() => import('./components/PreferencesDialog'));
 import PanelTree from './components/PanelTree';
@@ -175,6 +176,9 @@ const STUDY_VIEWS: MainView[] = ['voltage-drop', 'earthing', 'selection', 'coord
 /** A project as the app holds it once opened: with its id and version, earth pit IDs and cable reference
  * numbers already in place — so opening never counts as an unsaved change (these are bookkeeping, not edits). */
 const normalised = (p: Project, file?: string): Project => withCableRefs(withEarthPitIds(migrateProject(p, file)));
+
+/** SLD labels on pages that do not show them: building them costs time on every edit. */
+const NO_LABELS: ReturnType<typeof buildAnnotations> = { feeders: {}, boards: {} };
 
 /** The shortcut modifier as the platform writes it. */
 const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
@@ -241,11 +245,7 @@ export default function App() {
   // Unsaved changes: the project differs from the one last saved or opened.
   const [saved, setSaved] = useState<Project | null>(project);
   // "Unsaved" means the content differs from what was saved — undoing back to the saved state is clean again.
-  // The comparison runs on a deferred copy so typing stays responsive; until it catches up an edit counts as unsaved.
-  const deferredProject = useDeferredValue(project);
-  const savedFp = useMemo(() => (saved ? projectFingerprint(saved) : ''), [saved]);
-  const projectFp = useMemo(() => (project === saved ? '' : projectFingerprint(deferredProject)), [deferredProject, project, saved]);
-  const dirty = project !== saved && (saved === null || deferredProject !== project || projectFp !== savedFp);
+  const dirty = useUnsaved(project, saved);
   /** What the open file was when read or last saved (desktop): a different file on disk is a conflict. */
   const fileStamp = useRef<FileStamp | null | undefined>(undefined);
   const [saveState, setSaveState] = useState<{ kind: 'idle' | 'saving' | 'failed'; msg?: string }>({ kind: 'idle' });
@@ -445,9 +445,10 @@ export default function App() {
   // Engine results are used only while they match the current project and
   // the chosen source; any edit falls back to the instant built-in values.
   const engineFresh = !!engineRun && engineRun.project === project && engineRun.results.engineId === resultSource;
+  const labelsShown = view === 'design' || view === 'drawings' || view === 'drawing-register';
   const annotations = useMemo(
-    () => buildAnnotations(calcProject, allResults, engineFresh ? engineRun!.results : undefined),
-    [calcProject, allResults, engineFresh, engineRun]
+    () => (labelsShown ? buildAnnotations(calcProject, allResults, engineFresh ? engineRun!.results : undefined) : NO_LABELS),
+    [labelsShown, calcProject, allResults, engineFresh, engineRun]
   );
   // Generator mode: the SLD shows the network as it runs on the standby
   // generators (built-in engine only).
