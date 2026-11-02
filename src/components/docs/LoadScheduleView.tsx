@@ -23,8 +23,7 @@ import { hasMdSheet } from '../../docs/mdSheet';
 import { dbChecks } from '../../calc/building';
 import TxSummaryView from './TxSummaryView';
 import RiserFormView from './RiserFormView';
-import { SCHEDULE_GROUPS, scheduleGroupOf, scheduleGroups, type ScheduleGroup } from '../../model/scheduleGroups';
-import { scheduleCircuits } from '../../calc/loadSchedule';
+import { SCHEDULE_GROUPS, scheduleGroupOf, scheduleGroups, type ScheduleGroup, incompleteSchedules } from '../../model/scheduleGroups';
 import CircuitEditDialog from './CircuitEditDialog';
 import TemplateExportDialog from './TemplateExportDialog';
 import { addSpareWay, deleteSpareWay, spareLabel, spareRef, updateSpareWay } from '../../model/spareWays';
@@ -86,7 +85,7 @@ export default function LoadScheduleView({
   const group: ScheduleGroup = scheduleGroupOf(project, board);
   const openGroup = (g: ScheduleGroup) => { setTxForm(false); const first = groups[g][0]; if (first && first.id !== board.id) onBoard(first.id); };
   /** A panel whose schedule still needs filling: a DB with no circuits, or a panel with no outgoing loads. */
-  const incomplete = (b: Board) => (scheduleGroupOf(project, b) === 'db' || ['DB', 'EDB'].includes(b.kind ?? 'DB') ? !scheduleCircuits(project, b.id).length : !project.feeders.some((f) => f.boardId === b.id));
+  const incomplete = (b: Board) => incompleteSchedules(project).has(b.id);
   const form: 'db' | 'md' | 'tx' | 'riser' = txForm ? txForm : pick?.board === board.id ? pick.form : data.rows.length || !mdAvailable ? 'db' : 'md';
   const [exporting, setExporting] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);

@@ -23,6 +23,12 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.030', date: '2026-11-02',
+    items: [
+      { title: 'Quicker load schedule on large projects', text: 'Adding, deleting and typing in the load schedule are quicker on large projects: with 200 panels, a typed number or a new circuit shows in about a quarter of the time it took before. Small projects were already quick. Editing the schedule does not recalculate the SLD; the studies wait for Run (F5) unless Auto-run is on. Results do not change. One small difference: after you undo back to what was saved, the ● unsaved mark clears a moment later.' }
+    ]
+  },
+  {
     version: '2.029', date: '2026-11-02',
     items: [
       { title: 'A message instead of a dead window', text: 'An error while drawing a screen used to blank the whole window, and nothing could be clicked. Now only that page shows a message with Try again, and the rest of the app keeps working, so you can go to another page and save.' },

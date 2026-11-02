@@ -2,6 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import SystemDiagram from '../../components/SystemDiagram';
+import LoadScheduleView from '../../components/docs/LoadScheduleView';
+import { EMPTY_DATABASE } from '../../database/database';
 import { evaluateProject } from '../electrical';
 import { boardSummary, boardsInSupplyOrder } from '../summary';
 import { runCalculations, staleStudies } from '../runs';
@@ -12,6 +14,7 @@ import { panelSummary } from '../../docs/mdSheet';
 import { cableSchedule } from '../../docs/schedules';
 import { withCableRefs } from '../../model/cableRefs';
 import { withEarthPitIds } from '../../model/earthingPlan';
+import { incompleteSchedules } from '../../model/scheduleGroups';
 import { network } from '../../../tests/fixtures/networks';
 import type { Project } from '../../types';
 
@@ -39,6 +42,7 @@ const sld = (p: Project, labels: 'ref' | 'auto') => {
   const drawn = { ...p, drawing: { ...p.drawing, cableLabels: labels } };
   return renderToStaticMarkup(<SystemDiagram project={drawn} calcProject={drawn} results={evaluateProject(drawn)} selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} onDrawing={noop} />);
 };
+const schedule = (p: Project) => renderToStaticMarkup(<LoadScheduleView project={p} boardId="B1" db={EMPTY_DATABASE} onBoard={noop} onChange={noop} onStatus={noop} onSettings={noop} />);
 
 const LIMIT = 6;
 const TIMEOUT = 300_000; // a scan inside a scan can take a while before it fails on its count
@@ -49,6 +53,8 @@ describe('work grows in step with the project', () => {
     ['the stale check after an edit', (p) => staleStudies(runCalculations(p), { ...p })],
     ['diagram labels', (p) => buildAnnotations(p, evaluateProject(p))],
     ['board summaries for the panel tree', (p) => p.boards.map((b) => boardSummary(p, b))],
+    ['"schedule not filled" marks on the panel tabs', (p) => p.boards.map((b) => incompleteSchedules(p).has(b.id))],
+    ['load schedule page', schedule],
     ['panel summaries on the SLD', (p) => p.boards.map((b) => panelSummary(p, b))],
     ['supply order', (p) => boardsInSupplyOrder(p)],
     ['SLD layout', (p) => layoutSystem(p)],
