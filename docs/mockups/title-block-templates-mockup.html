@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Title Block Templates Mockup</title>
+<style>
+:root{--bg:#0a1120;--panel:#0f1a2f;--p2:#14233f;--line:#20304f;--line-strong:#2f4570;--tx:#dbe4f5;--mut:#8093b5;--acc:#4aa8ff;--on-acc:#04101f;--ok:#37d67a;--warn:#f5c04a;--model:#1b1f27;--ink:#c9d3e3;--field:#4aa8ff}
+:root[data-theme="light"]{--bg:#eef2f8;--panel:#fff;--p2:#f3f6fb;--line:#d5dceb;--line-strong:#b5c2da;--tx:#17223a;--mut:#5a6a88;--acc:#1f6fd1;--on-acc:#fff;--ok:#16834a;--warn:#9a6a00;--model:#fbfcfe;--ink:#2b3346;--field:#1f6fd1}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#eef2f8;--panel:#fff;--p2:#f3f6fb;--line:#d5dceb;--line-strong:#b5c2da;--tx:#17223a;--mut:#5a6a88;--acc:#1f6fd1;--on-acc:#fff;--ok:#16834a;--warn:#9a6a00;--model:#fbfcfe;--ink:#2b3346;--field:#1f6fd1}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+.intro{max-width:1320px;margin:0 auto;padding:16px 16px 0}
+.intro h1{font-size:17px;margin:0 0 4px}
+.intro p{margin:0 0 6px;color:var(--mut);max-width:1000px}
+.pick{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.pick button{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--mut)}
+.pick button[aria-pressed=true]{border-color:var(--acc);color:var(--tx);background:var(--p2)}
+.pick .theme{margin-left:auto}
+.app{max-width:1320px;margin:6px auto 24px;border:1px solid var(--line-strong);border-radius:10px;overflow:hidden;background:var(--bg)}
+.bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+.bar h2{font-size:14px;margin:0 8px 0 0}
+.bar .sp{flex:1}
+.chip{background:var(--p2);border:1px solid var(--line);border-radius:999px;padding:4px 11px}
+.chip.primary{background:var(--acc);border-color:var(--acc);color:var(--on-acc)}
+.body{display:grid;grid-template-columns:minmax(0,1fr) 360px;min-height:520px}
+.main{padding:14px;overflow:auto}
+.side{border-left:1px solid var(--line);background:var(--panel);padding:12px;overflow:auto}
+.side h3{font-size:13px;margin:0 0 8px}
+.m{color:var(--mut)}
+.note{font-size:12px;color:var(--mut);margin:8px 0 0}
+table.map{width:100%;border-collapse:collapse;font-size:12px}
+table.map th{text-align:left;color:var(--mut);font-weight:600;padding:4px 6px;border-bottom:1px solid var(--line)}
+table.map td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.map select{width:100%;background:var(--p2);border:1px solid var(--line);border-radius:6px;padding:2px 4px}
+.tag{font:11px ui-monospace,Menlo,monospace;color:var(--field)}
+.kind{font-size:10px;color:var(--mut)}
+.ok{color:var(--ok)}.warn{color:var(--warn)}
+.steps{display:flex;gap:6px;margin:0 0 10px;flex-wrap:wrap}
+.steps span{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--mut)}
+.steps span.on{border-color:var(--acc);color:var(--tx)}
+.canvas{background:var(--model);border:1px solid var(--line);border-radius:8px;padding:10px}
+.canvas svg{display:block;width:100%;height:auto}
+.ribbon{display:flex;gap:2px;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.rb{min-width:64px;padding:4px 6px;border:1px solid transparent;border-radius:6px;background:none;color:var(--tx);font-size:11px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.rb.on{border-color:var(--acc);background:var(--p2)}
+.rb i{font-style:normal;font-size:15px}
+.fields{display:flex;flex-wrap:wrap;gap:4px}
+.fields span{font:11px ui-monospace,Menlo,monospace;border:1px dashed var(--field);color:var(--field);border-radius:4px;padding:2px 5px}
+.layers div{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--line);font-size:12px}
+.paper{background:#fff;color:#000;border-radius:4px;padding:12px}
+.paper svg{display:block;width:100%;height:auto}
+[hidden]{display:none!important}
+@media (max-width:860px){.body{grid-template-columns:1fr}.side{border-left:0;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<div class="intro">
+  <h1>Title block templates — proposal mockup (2026-11-02)</h1>
+  <p>Proposal only, for approval. A company's own DWG / DXF title block becomes a template: its attributes and texts are mapped to project fields, it can be edited in Design CAD, and it prints on every sheet in PDF and DWG. Today's grid designer stays.</p>
+  <div class="pick" role="group" aria-label="View">
+    <button data-view="import" aria-pressed="true">1 · Import and map fields</button>
+    <button data-view="cad" aria-pressed="false">2 · Edit in Design CAD</button>
+    <button data-view="sheet" aria-pressed="false">3 · On the printed sheet</button>
+    <button class="theme" id="theme">Light / dark</button>
+  </div>
+</div>
+
+<!-- 1 · Import and map ------------------------------------------------------------------------------------------- -->
+<div class="app" data-panel="import">
+  <div class="bar"><h2>Title block</h2><span class="m">Project → Title block · Import DWG / DXF</span><span class="sp"></span>
+    <button class="chip">Pick another block…</button><button class="chip primary">Save as template</button></div>
+  <div class="body">
+    <div class="main">
+      <div class="steps"><span>1 File: ACME-A1-TB.dwg</span><span>2 Block: ACME_TB (11 attributes, 6 texts)</span><span class="on">3 Map fields</span><span>4 Place: bottom-right inside the frame · 180 × 60 mm</span></div>
+      <div class="canvas">
+        <svg viewBox="-4 -4 728 248" aria-label="Imported company title block with its fields">
+          <g fill="none" stroke="var(--ink)" stroke-width="2">
+            <rect x="0" y="0" width="720" height="240"/>
+          </g>
+          <g fill="none" stroke="var(--ink)" stroke-width="1">
+            <path d="M200 0V240M520 0V240M200 40H520M200 96H520M200 160H520M520 48H720M520 88H720M620 48V128M520 128H720M520 176H720M586 128V176M653 128V176M0 88H200"/>
+          </g>
+          <g font-family="Arial,Helvetica,sans-serif" fill="var(--ink)">
+            <rect x="14" y="14" width="80" height="60" fill="none" stroke="var(--ink)" stroke-dasharray="4 3"/><text x="54" y="48" font-size="11" text-anchor="middle" fill="var(--mut)">LOGO</text>
+            <text x="104" y="38" font-size="15" font-weight="700">ACME</text><text x="104" y="56" font-size="10">ENGINEERING</text><text x="104" y="70" font-size="10">CONSULTANTS</text>
+            <text x="12" y="112" font-size="8.5">P.O. Box 0000, Dubai, UAE</text><text x="12" y="126" font-size="8.5">T +971 4 000 0000</text>
+            <text x="208" y="14" font-size="7">CLIENT</text><text x="208" y="54" font-size="7">PROJECT</text><text x="208" y="110" font-size="7">DRAWING TITLE</text>
+            <text x="528" y="14" font-size="7">DRAWING NO.</text><text x="528" y="62" font-size="7">REV</text><text x="628" y="62" font-size="7">SCALE</text>
+            <text x="528" y="102" font-size="7">SHEET</text><text x="628" y="102" font-size="7">DATE</text>
+            <text x="528" y="142" font-size="7">DRN</text><text x="594" y="142" font-size="7">CHK</text><text x="661" y="142" font-size="7">APP</text>
+            <text x="528" y="190" font-size="7">CONSULTANT'S STAMP</text>
+          </g>
+          <!-- Fields: attribute tags, and a plain text mapped by clicking it -->
+          <g font-family="ui-monospace,Menlo,monospace" font-size="11" fill="var(--field)">
+            <rect x="206" y="19" width="300" height="17" fill="none" stroke="var(--field)" stroke-dasharray="3 2"/><text x="212" y="32">CLIENT</text>
+            <rect x="206" y="59" width="300" height="30" fill="none" stroke="var(--field)" stroke-dasharray="3 2"/><text x="212" y="78">PROJECT_NAME</text>
+            <rect x="206" y="115" width="300" height="34" fill="none" stroke="var(--field)" stroke-dasharray="3 2"/><text x="212" y="137">DWG_TITLE</text>
+            <rect x="206" y="168" width="300" height="62" fill="none" stroke="var(--field)" stroke-width="2"/><text x="356" y="205" text-anchor="middle" font-size="14" font-family="Arial" font-weight="700">FOR CONSTRUCTION</text>
+            <rect x="526" y="19" width="186" height="24" fill="none" stroke="var(--field)" stroke-dasharray="3 2"/><text x="532" y="36">DWG_NO</text>
+            <rect x="526" y="66" width="88" height="18" fill="none" stroke="var(--field)" stroke-dasharray="3 2"/><text x="532" y="79">REV</text>
+            <rect x="626" y="66" width="88" height="18" fill="none" stroke="var(--field)" stroke-dasharray="3 2"/><text x="632" y="79">SCALE</text>
+            <rect x="526" y="106" width="88" height="18" fill="none" stroke="var(--field)" stroke-dasharray="3 2"/><text x="532" y="119">SHEET</text>
+            <rect x="626" y="106" width="88" height="18" fill="none" stroke="var(--field)" stroke-dasharray="3 2"/><text x="632" y="119">DATE</text>
+            <text x="528" y="164">DRN</text><text x="594" y="164">CHK</text><text x="661" y="164">APP</text>
+          </g>
+        </svg>
+      </div>
+      <p class="note">Dashed boxes are the block's attributes; the solid box is a plain text clicked to map it. Click any text in the block to map it, or leave it as drawn.</p>
+    </div>
+    <aside class="side">
+      <h3>Fields — 12 of 12 mapped</h3>
+      <table class="map">
+        <thead><tr><th>In the block</th><th>Fills with</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag">CLIENT</span><br><span class="kind">attribute</span></td><td><select><option>{Owner}</option></select></td></tr>
+          <tr><td><span class="tag">PROJECT_NAME</span><br><span class="kind">attribute</span></td><td><select><option>{Project}</option></select></td></tr>
+          <tr><td><span class="tag">DWG_TITLE</span><br><span class="kind">attribute</span></td><td><select><option>{SheetTitle}</option></select></td></tr>
+          <tr><td><span class="tag">DWG_NO</span><br><span class="kind">attribute</span></td><td><select><option>{SheetNo}</option></select></td></tr>
+          <tr><td><span class="tag">REV</span><br><span class="kind">attribute</span></td><td><select><option>{Rev}</option></select></td></tr>
+          <tr><td><span class="tag">SCALE</span><br><span class="kind">attribute</span></td><td><select><option>{Scale}</option></select></td></tr>
+          <tr><td><span class="tag">SHEET</span><br><span class="kind">attribute</span></td><td><select><option>{SheetIndex} of {SheetCount}</option></select></td></tr>
+          <tr><td><span class="tag">DATE</span><br><span class="kind">attribute</span></td><td><select><option>{RevDate}</option></select></td></tr>
+          <tr><td><span class="tag">DRN</span> · <span class="tag">CHK</span> · <span class="tag">APP</span><br><span class="kind">attributes</span></td><td><select><option>{DrawnBy} · {CheckedBy} · {ApprovedBy}</option></select></td></tr>
+          <tr><td><span class="tag">FOR CONSTRUCTION</span><br><span class="kind">text, clicked</span></td><td><select><option>{Status}</option></select></td></tr>
+          <tr><td><span class="tag">ACME …</span>, address<br><span class="kind">texts</span></td><td><select><option>Keep as drawn</option></select></td></tr>
+          <tr><td><span class="tag">LOGO</span><br><span class="kind">area</span></td><td><select><option>Company logo (drawing settings)</option></select></td></tr>
+        </tbody>
+      </table>
+      <p class="note"><span class="ok">✓</span> Suggested from the tag names; change any. <span class="warn">⚠</span> SHX font <i>romans.shx</i> prints as Arial: values shrink to fit their field.</p>
+      <p class="note">DWG out: the block goes back as <b>ACME_TB</b> with its attributes filled — editable in AutoCAD.</p>
+    </aside>
+  </div>
+</div>
+
+<!-- 2 · Edit in Design CAD ---------------------------------------------------------------------------------------- -->
+<div class="app" data-panel="cad" hidden>
+  <div class="bar"><h2>Design CAD</h2><span class="m">Sheets → Title block → Edit in CAD · ACME_TB · paper 1 : 1 mm</span><span class="sp"></span>
+    <button class="chip">Cancel</button><button class="chip">Save to library</button><button class="chip primary">Save as template</button></div>
+  <div class="ribbon">
+    <button class="rb"><i>╱</i>Line</button><button class="rb"><i>▭</i>Rectangle</button><button class="rb"><i>⌒</i>Arc</button><button class="rb"><i>A</i>Text</button>
+    <button class="rb on"><i>{ }</i>Field</button><button class="rb"><i>▨</i>Logo area</button><button class="rb"><i>☰</i>Revision rows</button>
+    <button class="rb"><i>⇲</i>Move</button><button class="rb"><i>⌫</i>Erase</button>
+  </div>
+  <div class="body">
+    <div class="main">
+      <div class="canvas">
+        <svg viewBox="-60 -40 840 330" aria-label="Title block on the paper canvas">
+          <g stroke="var(--line-strong)" stroke-width="0.5">
+            <path d="M-60 0H780M-60 80H780M-60 160H780M-60 240H780M0 -40V290M160 -40V290M320 -40V290M480 -40V290M640 -40V290"/>
+          </g>
+          <g fill="none" stroke="var(--ink)">
+            <rect x="0" y="0" width="720" height="240" stroke-width="2"/>
+            <path d="M200 0V240M520 0V240M200 40H520M200 96H520M200 160H520M520 48H720M520 88H720M620 48V128M520 128H720M520 176H720M586 128V176M653 128V176M0 88H200" stroke-width="1"/>
+          </g>
+          <g font-family="Arial,Helvetica,sans-serif" fill="var(--ink)">
+            <text x="104" y="38" font-size="15" font-weight="700">ACME</text><text x="104" y="56" font-size="10">ENGINEERING</text><text x="104" y="70" font-size="10">CONSULTANTS</text>
+            <text x="208" y="14" font-size="7">CLIENT</text><text x="208" y="54" font-size="7">PROJECT</text><text x="208" y="110" font-size="7">DRAWING TITLE</text><text x="528" y="14" font-size="7">DRAWING NO.</text>
+          </g>
+          <rect x="14" y="14" width="80" height="60" fill="none" stroke="var(--field)" stroke-dasharray="4 3"/><text x="54" y="48" font-size="10" text-anchor="middle" fill="var(--field)" font-family="Arial">logo area</text>
+          <g font-family="Arial,Helvetica,sans-serif" font-size="12" fill="var(--field)">
+            <text x="212" y="32">{Owner} · Demo Owner</text><text x="212" y="80" font-size="13" font-weight="700">{Project}</text><text x="212" y="140" font-size="15" font-weight="700">{SheetTitle}</text>
+            <text x="532" y="38" font-weight="700">{SheetNo} · E-SLD-001</text>
+          </g>
+          <!-- A field being placed: rubber band from the cursor -->
+          <rect x="526" y="66" width="88" height="18" fill="none" stroke="var(--field)" stroke-width="1.5"/>
+          <text x="532" y="79" font-family="Arial" font-size="12" fill="var(--field)">{Rev}</text>
+          <path d="M600 92l14 14" stroke="var(--field)" stroke-width="1.5"/><text x="618" y="114" font-size="10" fill="var(--mut)" font-family="Arial">click the field's corner · Esc to stop</text>
+          <g font-family="Arial" font-size="10" fill="var(--mut)"><text x="0" y="-12">0</text><text x="700" y="-12">180 mm</text><text x="-50" y="244">60 mm</text></g>
+        </svg>
+      </div>
+      <p class="note">The canvas is the paper at 1 : 1 mm with the sheet frame's corner. Lines snap like any Design CAD drawing; a field shows its parameter and an example value.</p>
+    </div>
+    <aside class="side">
+      <h3>Fields — click one, then its place</h3>
+      <div class="fields"><span>{SheetNo}</span><span>{SheetTitle}</span><span>{Rev}</span><span>{RevDate}</span><span>{Scale}</span><span>{SheetIndex} of {SheetCount}</span><span>{Status}</span><span>{Project}</span><span>{Owner}</span><span>{DrawnBy}</span><span>{CheckedBy}</span><span>{ApprovedBy}</span><span>{AuthorityRef}</span><span>{Plot}</span></div>
+      <p class="note">Field: height 2.5 mm · align left · shrink to fit 22 mm</p>
+      <h3 style="margin-top:14px">Layers</h3>
+      <div class="layers">
+        <div><span>TB-FRAME</span><span class="m">0.50 mm</span></div>
+        <div><span>TB-GRID</span><span class="m">0.25 mm</span></div>
+        <div><span>TB-TEXT</span><span class="m">fixed text</span></div>
+        <div><span>TB-FIELD</span><span class="m">filled per sheet</span></div>
+      </div>
+      <p class="note">Save as template: the lines, texts and fields become one template, used on the sheets and kept in the library.</p>
+    </aside>
+  </div>
+</div>
+
+<!-- 3 · On the printed sheet (black and white) -------------------------------------------------------------------- -->
+<div class="app" data-panel="sheet" hidden>
+  <div class="bar"><h2>Printed sheet</h2><span class="m">A3 · bottom of the sheet · the revision table and the company block share the band, as the standard block does</span></div>
+  <div class="main">
+    <div class="paper">
+      <svg viewBox="0 0 1180 330" aria-label="Bottom of a printed A3 sheet with the company title block filled in">
+        <g fill="none" stroke="#000">
+          <path d="M8 0V318H1172V0" stroke-width="3"/>
+          <path d="M8 78H1172" stroke-width="2"/>
+          <path d="M452 78V318" stroke-width="2"/>
+          <path d="M950 0V78" stroke-width="1"/>
+          <g stroke="#999" stroke-width="0.8"><path d="M8 102H452M8 132H452M8 162H452M8 192H452"/></g>
+          <g transform="translate(452 78)" stroke-width="1"><path d="M200 0V240M520 0V240M200 40H520M200 96H520M200 160H520M520 48H720M520 88H720M620 48V128M520 128H720M520 176H720M586 128V176M653 128V176M0 88H200"/></g>
+        </g>
+        <g font-family="Arial,Helvetica,sans-serif" fill="#000">
+          <text x="16" y="94" font-size="9" font-weight="700">REV</text><text x="70" y="94" font-size="9" font-weight="700">DATE</text><text x="170" y="94" font-size="9" font-weight="700">DESCRIPTION</text>
+          <text x="16" y="121" font-size="10">B</text><text x="70" y="121" font-size="10">20 Oct 2026</text><text x="170" y="121" font-size="10">Issued for construction</text>
+          <text x="16" y="151" font-size="10">A</text><text x="70" y="151" font-size="10">1 Oct 2026</text><text x="170" y="151" font-size="10">Issued for approval</text>
+          <text x="16" y="306" font-size="7" fill="#444">Generated by LV Design Studio</text>
+          <text x="960" y="20" font-size="9" font-weight="700">LEGEND</text><text x="20" y="30" font-size="10" fill="#444">… drawing …</text>
+          <g transform="translate(452 78)">
+            <rect x="14" y="14" width="80" height="60" fill="none" stroke="#000" stroke-width="0.8"/><text x="54" y="48" font-size="10" text-anchor="middle">logo</text>
+            <text x="104" y="38" font-size="15" font-weight="700">ACME</text><text x="104" y="56" font-size="10">ENGINEERING</text><text x="104" y="70" font-size="10">CONSULTANTS</text>
+            <text x="12" y="112" font-size="8.5">P.O. Box 0000, Dubai, UAE</text><text x="12" y="126" font-size="8.5">T +971 4 000 0000</text>
+            <text x="208" y="14" font-size="7">CLIENT</text><text x="212" y="32" font-size="11" font-weight="700">Demo Owner</text>
+            <text x="208" y="54" font-size="7">PROJECT</text><text x="212" y="78" font-size="12" font-weight="700">Demonstration Project — Not for Construction</text>
+            <text x="208" y="110" font-size="7">DRAWING TITLE</text><text x="212" y="140" font-size="14" font-weight="700">SLD — MDB-1 to MCC-1</text>
+            <text x="360" y="205" text-anchor="middle" font-size="15" font-weight="700">FOR CONSTRUCTION</text>
+            <text x="528" y="14" font-size="7">DRAWING NO.</text><text x="532" y="38" font-size="14" font-weight="700">E-SLD-001</text>
+            <text x="528" y="62" font-size="7">REV</text><text x="532" y="80" font-size="12" font-weight="700">B</text>
+            <text x="628" y="62" font-size="7">SCALE</text><text x="632" y="80" font-size="12" font-weight="700">NTS</text>
+            <text x="528" y="102" font-size="7">SHEET</text><text x="532" y="120" font-size="12" font-weight="700">1 of 2</text>
+            <text x="628" y="102" font-size="7">DATE</text><text x="632" y="120" font-size="12" font-weight="700">20 Oct 2026</text>
+            <text x="528" y="142" font-size="7">DRN</text><text x="532" y="164" font-size="11">P.G.</text>
+            <text x="594" y="142" font-size="7">CHK</text><text x="598" y="164" font-size="11">A.E.</text>
+            <text x="661" y="142" font-size="7">APP</text>
+            <text x="528" y="190" font-size="7">CONSULTANT'S STAMP</text>
+          </g>
+        </g>
+      </svg>
+    </div>
+    <p class="note">Black and white, like every printed sheet. The frame draws the foot and the right edge once; the company block's top line runs on as the band's top line, and the legend column comes down onto it.</p>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.pick [data-view]').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('.pick [data-view]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  document.querySelectorAll('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== b.dataset.view; });
+}));
+document.getElementById('theme').addEventListener('click', () => {
+  const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' : !matchMedia('(prefers-color-scheme: light)').matches;
+  r.dataset.theme = dark ? 'light' : 'dark';
+});
+</script>
+</body>
+</html>

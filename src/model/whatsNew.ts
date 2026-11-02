@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.031', date: '2026-11-02',
+    items: [
+      { title: 'SLD labels stay inside their panel', text: 'On the SLD in the DEWA style, the breaker and cable text of a panel\'s last way ran across the dashed frame into the panel beside it. Each frame is now as wide as its labels, and the next panel moves along to keep a gap between them. On screen, on sheets, in PDF and in DWG. The standard style is unchanged.' },
+      { title: 'A clearer DOL starter', text: 'The DOL and star-delta starter box is wider, so its letters no longer touch the box, and it now sits below the breaker, joined to the cable under it instead of across the breaker.' },
+      { title: 'Title block lines that meet', text: 'On drawing sheets the revision table and the title block now share one band: each line of one runs on into the other, the legend column\'s edge comes down onto the band, and the bottom and right edges are one frame line instead of a thin line beside a thick one. The same in PDF, DXF and DWG.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
     version: '2.030', date: '2026-11-02',
     items: [
       { title: 'Quicker load schedule on large projects', text: 'Adding, deleting and typing in the load schedule are quicker on large projects: with 200 panels, a typed number or a new circuit shows in about a quarter of the time it took before. Small projects were already quick. Editing the schedule does not recalculate the SLD; the studies wait for Run (F5) unless Auto-run is on. Results do not change. One small difference: after you undo back to what was saved, the ● unsaved mark clears a moment later.' }

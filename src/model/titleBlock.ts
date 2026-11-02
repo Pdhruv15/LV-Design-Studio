@@ -67,8 +67,10 @@ export const templateOf = (p: Project): TitleTemplate | undefined =>
 /** Escaped for text and quoted attributes (project data is untrusted). */
 const esc = escapeHtmlAttr;
 
-/** The block as HTML (mm units) for the drawing sheet and the preview. */
-export function titleBlockHtml(t: TitleTemplate, p: Project, extra: Record<string, string> = {}): string {
+/** The block as HTML (mm units) for the drawing sheet and the preview. `framed`: it sits in the sheet frame's corner,
+ * so its right and bottom edges are the frame's (not drawn twice) and its top and left edges are as heavy as the
+ * standard block's. */
+export function titleBlockHtml(t: TitleTemplate, p: Project, extra: Record<string, string> = {}, framed = false): string {
   const list = paramList(p);
   const covered = new Set<string>();
   for (const c of t.cells) for (let r = c.r; r < c.r + (c.rs ?? 1); r++) for (let k = c.c; k < c.c + (c.cs ?? 1); k++) if (r !== c.r || k !== c.c) covered.add(`${r},${k}`);
@@ -84,11 +86,13 @@ export function titleBlockHtml(t: TitleTemplate, p: Project, extra: Record<strin
   // Sizes and alignment come from a saved template (project data): numbers and a fixed set of words only.
   const span = (v: unknown) => Math.max(1, Math.min(99, Math.round(num(v, 1))));
   const align = (v: unknown) => (v === 'center' || v === 'right' ? v : 'left');
+  const border = (r: number, k: number, rs: number, cs: number) => `border:0.25mm solid #000${framed
+    ? `${r === 0 ? ';border-top-width:0.5mm' : ''}${k === 0 ? ';border-left-width:0.5mm' : ''}${k + cs >= t.cols.length ? ';border-right:0' : ''}${r + rs >= t.rows.length ? ';border-bottom:0' : ''}` : ''}`;
   const rows = t.rows.map((h, r) => `<tr style="height:${num(h)}mm">${t.cols.map((_, k) => {
     if (covered.has(`${r},${k}`)) return '';
     const c = at.get(`${r},${k}`);
-    if (!c) return '<td style="border:0.25mm solid #000"></td>';
-    return `<td rowspan="${span(c.rs)}" colspan="${span(c.cs)}" style="border:0.25mm solid #000;padding:0.6mm 1.2mm;vertical-align:top;text-align:${align(c.align)};overflow:hidden">${c.caption ? `<div style="font-size:5.5pt;color:#333;text-transform:uppercase;letter-spacing:.03em;text-align:left">${esc(c.caption)}</div>` : ''}<div style="font-size:${num(c.size, 8)}pt;font-weight:${c.bold ? 700 : 400};line-height:1.15">${body(c)}</div></td>`;
+    if (!c) return `<td style="${border(r, k, 1, 1)}"></td>`;
+    return `<td rowspan="${span(c.rs)}" colspan="${span(c.cs)}" style="${border(r, k, span(c.rs), span(c.cs))};padding:0.6mm 1.2mm;vertical-align:top;text-align:${align(c.align)};overflow:hidden">${c.caption ? `<div style="font-size:5.5pt;color:#333;text-transform:uppercase;letter-spacing:.03em;text-align:left">${esc(c.caption)}</div>` : ''}<div style="font-size:${num(c.size, 8)}pt;font-weight:${c.bold ? 700 : 400};line-height:1.15">${body(c)}</div></td>`;
   }).join('')}</tr>`).join('');
   const w = t.cols.reduce((a, b) => a + num(b), 0);
   return `<table style="width:${w}mm;border-collapse:collapse;table-layout:fixed;font-family:Arial,sans-serif;color:#000;background:#fff"><colgroup>${t.cols.map((c) => `<col style="width:${num(c)}mm">`).join('')}</colgroup>${rows}</table>`;

@@ -104,16 +104,23 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
     return 3.5 * k + count * height * 1.5;
   })));
   const history = t.history.length ? t.history : [{ id: '-', date: '', description: 'Not issued' }];
+  // The band along the frame's foot is as high as the title block (a template too short for the revision table makes
+  // it higher), and the revision table beside the block follows its rows. Every line is drawn once: the frame is the
+  // band's foot and outer edges, one line its top.
   const titleH = custom ? dims.h * k : rows.reduce((a, b) => a + b, 0);
   const band = Math.max(titleH, (5 + history.length * 4.5) * k);
   if (!Number.isFinite(band) || band > frame.h * 0.65 || !Number.isFinite(tbW) || tbW <= 0 || tbW >= frame.w) throw new Error('The title block is too large for the selected paper size.');
   const titleBox = { x: tbx, y: frame.y, w: tbW, h: titleH };
+  const bandTop = frame.y + band, titleTop = frame.y + titleH;
+  // A template draws its own grid, its top edge included; a revision table standing taller closes its side above it.
+  title.push({ type: 'line', layer: 'E-TITLE', x1: frame.x, y1: bandTop, x2: custom ? tbx : frame.x + frame.w, y2: bandTop });
+  if (band > titleH + 1e-6) title.push({ type: 'line', layer: 'E-TITLE', x1: tbx, y1: titleTop, x2: tbx, y2: bandTop });
   if (custom) {
     const result = templateTitleBlockDxf(custom, project, titleBox, extra, t.history);
     title.push(...result.items); warnings.push(...result.warnings); details.push(...result.details);
   } else {
-    title.push(rect('E-TITLE', titleBox));
-    let top = frame.y + band;
+    title.push({ type: 'line', layer: 'E-TITLE', x1: tbx, y1: frame.y, x2: tbx, y2: bandTop });
+    let top = bandTop;
     cells.forEach((row, i) => {
       const rh = rows[i], bottom = top - rh;
       if (i) title.push({ type: 'line', layer: 'E-TITLE', x1: tbx, y1: top, x2: tbx + tbW, y2: top });
@@ -130,14 +137,17 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
     if (t.logo) warnings.push('DXF omits the raster logo; the logo is available in the PDF.');
   }
   const rvw = frame.w - tbW;
-  title.push(rect('E-TITLE', { x: frame.x, y: frame.y, w: rvw, h: band }));
   const revCols = [0, 0.14, 0.36, 1];
-  ['REV', 'DATE', 'DESCRIPTION'].forEach((s, j) => bounded({ x: frame.x + rvw * revCols[j] + k, y: frame.y + band - 4.5 * k, w: rvw * (revCols[j + 1] - revCols[j]) - 2 * k, h: 3.5 * k }, s, 1.8 * k, s));
-  const rowH = Math.min(9 * k, (band - 5 * k) / history.length);
-  history.forEach((r, i) => {
-    const top = frame.y + band - 5 * k - i * rowH;
-    title.push({ type: 'line', layer: 'E-TITLE', x1: frame.x, y1: top, x2: frame.x + rvw, y2: top });
-    [r.id, r.date, r.description].forEach((s, j) => bounded({ x: frame.x + rvw * revCols[j] + k, y: top - rowH + 0.5 * k, w: rvw * (revCols[j + 1] - revCols[j]) - 2 * k, h: rowH - k }, s, 2 * k, `Revision ${r.id}${j === 2 ? ' description' : j === 1 ? ' date' : ''}`));
+  const blockRows = custom ? custom.rows.map((v) => v * k) : rows;
+  const revRows = blockRows.length > history.length && band === titleH ? blockRows : [5 * k, ...Array<number>(history.length).fill((band - 5 * k) / history.length)];
+  let revTop = bandTop;
+  [['REV', 'DATE', 'DESCRIPTION'], ...history.map((r) => [r.id, r.date, r.description])].forEach((row, i) => {
+    const rh = revRows[i], bottom = revTop - rh;
+    // The ruled line under the row, unless that is the frame's own foot.
+    if (bottom > frame.y + 1e-6) title.push({ type: 'line', layer: 'E-TITLE', x1: frame.x, y1: bottom, x2: frame.x + rvw, y2: bottom });
+    row.forEach((s, j) => bounded({ x: frame.x + rvw * revCols[j] + k, y: bottom + 0.5 * k, w: rvw * (revCols[j + 1] - revCols[j]) - 2 * k, h: rh - k }, s, i ? 2 * k : 1.8 * k,
+      i ? `Revision ${row[0]}${j === 2 ? ' description' : j === 1 ? ' date' : ''}` : s));
+    revTop = bottom;
   });
 
   const bodyBottom = frame.y + band + 3;
@@ -192,7 +202,8 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
     }
   };
   if (side) {
-    first.push({ type: 'line', layer: 'E-LEGEND', x1: colX, y1: bodyBottom, x2: colX, y2: bodyTop });
+    // The legend column's edge runs from the title block's top line (the band's, when the column is wider) to the frame's.
+    first.push({ type: 'line', layer: 'E-LEGEND', x1: colX, y1: colX >= tbx - 1e-6 ? titleTop : bandTop, x2: colX, y2: frame.y + frame.h });
     let top = bodyTop;
     if (legend) {
       const r = placeSvg(legend, { x: colX + 2 * k, y: bodyBottom, w: contentW, h: flow.length ? bodyH * 0.3 : bodyH }, 'E-LEGEND', false);

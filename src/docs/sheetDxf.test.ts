@@ -144,6 +144,44 @@ describe('complete paper-sized DXF sheets', () => {
     expect(() => templateTitleBlockDxf({ ...template, cells: [template.cells[0], template.cells[0]] }, project, { x: 0, y: 0, w: 180, h: 58 }, {}, [])).toThrow('overlap');
   });
 
+  it('joins the band along the foot: legend column, revisions and title block meet, and no line is drawn twice', () => {
+    const history = Array.from({ length: 4 }, (_, i) => ({ id: 'ABCD'[i], date: `2026-10-0${i + 1}`, description: `Issue ${i + 1}` }));
+    const one = { ...info, legendSvg: '<svg viewBox="0 0 10 10"></svg>', history };
+    const linesOf = (data: string) => entities(data).filter((e) => e.type === 'LINE').map((e) => ({ layer: e.v.get(8), x1: num(e, 10), y1: num(e, 20), x2: num(e, 11), y2: num(e, 21) }));
+    const near = (a: number, b: number) => Math.abs(a - b) < 0.01;
+    const frame = { x: 20, y: 10, w: 390, h: 277 };
+    const rowsAt = (lines: ReturnType<typeof linesOf>, x1: number, x2: number) => lines.filter((l) => l.layer === 'E-TITLE' && near(l.y1, l.y2) && near(l.x1, x1) && near(l.x2, x2)).map((l) => l.y1);
+    const onFrame = (l: ReturnType<typeof linesOf>[number]) => (near(l.y1, l.y2) && [frame.y, frame.y + frame.h].some((y) => near(l.y1, y)))
+      || (near(l.x1, l.x2) && [frame.x, frame.x + frame.w].some((x) => near(l.x1, x)));
+
+    // The standard block: one line along the band's top, the revisions' lines running on into the block's rows.
+    const [page] = buildSheetDxfPages(dxfExportProject, svg, 'A3', one);
+    const lines = linesOf(page.data), tbx = frame.x + frame.w - 180;
+    const top = rowsAt(lines, frame.x, frame.x + frame.w);
+    expect(top).toHaveLength(1);
+    const column = lines.find((l) => l.layer === 'E-LEGEND' && near(l.x1, l.x2))!;
+    expect(column.y1).toBeCloseTo(top[0], 2);
+    expect(column.y2).toBeCloseTo(frame.y + frame.h, 2);
+    const titleRows = rowsAt(lines, tbx, tbx + 180), revRows = rowsAt(lines, frame.x, tbx);
+    expect(titleRows).toHaveLength(5);
+    expect(revRows).toHaveLength(5); // under the header and under each of the four revisions
+    for (const y of revRows) expect(titleRows.some((t) => near(t, y)), String(y)).toBe(true);
+    expect(lines.filter((l) => near(l.x1, tbx) && near(l.x2, tbx))).toHaveLength(1); // the block's left edge, once
+    expect(lines.filter((l) => l.layer !== 'E-FRAME' && onFrame(l))).toEqual([]);
+    expect(entities(page.data).filter((e) => e.type === 'POLYLINE' && e.v.get(8) === 'E-TITLE')).toHaveLength(0);
+
+    // A template lower than the revision table: the table stands taller, closed above the template, and the legend
+    // column comes down to the template's top.
+    const low = { id: 'low', name: 'Low', cols: [180], rows: [8, 8], cells: [{ id: 'a', r: 0, c: 0, kind: 'text' as const, text: '{Project}', size: 8 }, { id: 'b', r: 1, c: 0, kind: 'text' as const, text: '{DrawingNo}', size: 8 }] };
+    const withLow: Project = { ...dxfExportProject, titleTemplates: [low], drawing: { ...dxfExportProject.drawing, titleTemplateId: low.id } };
+    const short = linesOf(buildSheetDxfPages(withLow, svg, 'A3', one)[0].data);
+    const bandTop = rowsAt(short, frame.x, tbx)[0], templateTop = frame.y + 16;
+    expect(bandTop).toBeGreaterThan(templateTop + 1);
+    const side = short.find((l) => near(l.x1, tbx) && near(l.x2, tbx))!;
+    expect([side.y1, side.y2].map((v) => +v.toFixed(2))).toEqual([templateTop, +bandTop.toFixed(2)]);
+    expect(short.find((l) => l.layer === 'E-LEGEND' && near(l.x1, l.x2))!.y1).toBeCloseTo(templateTop, 2);
+  });
+
   it('preserves values from tiny custom cells at a readable size in additional information', () => {
     const template = { id: 'tiny', name: 'Tiny', cols: [180], rows: [1], cells: [{ id: 'number', r: 0, c: 0, kind: 'text' as const, text: '{DrawingNo}', size: 8 }] };
     const project: Project = { ...dxfExportProject, titleTemplates: [template], drawing: { ...dxfExportProject.drawing, titleTemplateId: template.id } };

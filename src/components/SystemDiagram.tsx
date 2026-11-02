@@ -5,11 +5,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, u
 import { STATUS_TEXT } from '../calc/statusText';
 import { componentLabel } from '../model/components';
 import type { DrawingInfo, Project } from '../types';
-import { cableTypeOf, CABLE_TYPE_DEFS, labelCode, needsFireRated } from '../model/cableTypes';
+import { cableTypeOf, CABLE_TYPE_DEFS, labelCode } from '../model/cableTypes';
 import { cableRefOf } from '../model/cableRefs';
 import { dbSpares, spareBreaker } from '../model/spareWays';
-import { FeederSwitchSym, LEGEND_ROW, LEGEND_SYM_X, LEGEND_TEXT_X, legendEntries, legendWidth, LoadSym, polesText, rcdInSwitch, starterSymbolOf, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
-import { Sym, SYM_SCALE, type SymbolId } from '../diagram/symbolLibrary';
+import { besideScaleOf, FeederSwitchSym, LEGEND_ROW, LEGEND_SYM_X, LEGEND_TEXT_X, legendEntries, legendWidth, LoadSym, polesText, rcdInSwitch, starterSymbolOf, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
+import { Sym, SYM_BOX, SYM_SCALE, type SymbolId } from '../diagram/symbolLibrary';
 import { panelSymbolOf } from '../diagram/panelBox';
 import { izText, type FeederResult, type Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
@@ -26,7 +26,7 @@ import { cables } from '../calc/cableTable';
 import { upsLoadingPct } from '../calc/sizing';
 import { isMotor, starterInfo, starterOf } from '../calc/motor';
 import { sldDevices } from '../diagram/sldDevices';
-import { deviceKind, devicePoles } from '../diagram/deviceText';
+import { breakerText, cableLines, fireRatedWarning, icuText, incomerTexts, isolatorText, sparePoles, spareText } from '../diagram/panelLabels';
 import { cableSizeText, faultCurrentKA, impedanceToBoard, runsOf, upstreamVoltageDropPct } from '../calc/electrical';
 import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun, type OutageScenario } from '../calc/scenario';
 import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
@@ -88,6 +88,10 @@ export function earthConductorOf(project: Project, b: Board): number {
   return inc ? Math.max(16, cpcOf(inc)) : 50;
 }
 
+/** A starter box's centre below its way's busbar: under the breaker (which ends at 34), so its link meets the cable
+ * there, its top clear of the previous way's breaker text (baseline at 26) and its foot clear of the frame (at 47). */
+export const STARTER_DY = 36.5;
+
 /** Screen pixels per drawing unit at which the SLD's text shows at its drawn size (10–11 px). */
 export const READABLE_PX_PER_UNIT = 1;
 
@@ -123,10 +127,6 @@ function ViewZoomChip({ view, W, subscribe, onFit }: { view: RefObject<ViewBox>;
   const read = () => (W / view.current!.w) * 100;
   return <ZoomChip pct={useSyncExternalStore(subscribe, read, read)} onFit={onFit} />;
 }
-
-/** DEWA wording of poles and device. */
-const dewaPoles = devicePoles;
-const dewaDevice = deviceKind;
 
 /** A DB's spares and spaces for its summary on the SLD, e.g. " + 2 spare, 1 space". */
 const dbSpareText = (b: Board): string => {
@@ -250,8 +250,6 @@ export default function SystemDiagram({
   onDrawing?: (patch: Partial<DrawingInfo>) => void;
 }) {
   const iec = (project.drawing?.symbols ?? 'iec') === 'iec';
-  /** The feeder supplying a board from its upstream board. */
-  const incomingOf = (b: Board) => project.feeders.find((f) => f.feedsBoardId === b.id && f.boardId === b.upstreamId);
   // DEWA submission style: panel frames, summary boxes (LOC, TCL, DF, MDL), DEWA wording.
   const dewa = project.drawing?.sldStyle !== 'standard'; // on unless switched off
   const feederTags = (id: string): Tag[] => {
@@ -289,7 +287,9 @@ export default function SystemDiagram({
   const edit = (fn?: (id: string) => void, id?: string) => () => {
     if (tool !== 'pan' && fn && id) fn(id);
   };
-  const layout = useMemo(() => layoutSystem(project, dewa ? DEWA_EXTRA_Y : 0), [project, dewa]);
+  // Cable text as reference numbers: on the drawing sheets when chosen there, on screen with Always numbers.
+  const cableRefs = cableRefsProp ?? project.drawing?.cableLabels === 'ref';
+  const layout = useMemo(() => layoutSystem(project, dewa ? DEWA_EXTRA_Y : 0, { frames: dewa, cableRefs }), [project, dewa, cableRefs]);
   // Earth pit IDs (E1, E2 …) from the earthing plan, so the SLD and the earthing sheet agree.
   const earthPits = useMemo(() => {
     const m = new Map<string, string[]>();
@@ -403,8 +403,6 @@ export default function SystemDiagram({
 
   // The symbol legend sits to the right of the network, inside the drawing (so it exports).
   const legend = useMemo(() => (iec && !hideLegend && (project.drawing?.legend ?? true) ? legendEntries(calcProject ?? project) : []), [iec, hideLegend, project, calcProject]);
-  // Cable text as reference numbers: on the drawing sheets when chosen there, on screen with Always numbers.
-  const cableRefs = cableRefsProp ?? project.drawing?.cableLabels === 'ref';
   const legendW = legendWidth(legend);
   const W = layout.width + (legend.length ? legendW + 30 : 0);
   const H = Math.max(layout.height, legend.length ? 80 + legend.length * LEGEND_ROW : 0);
@@ -1068,7 +1066,7 @@ export default function SystemDiagram({
         {layout.spares.map((n) => {
           if (cull && (n.x < viewX1 || n.x > viewX2)) return null;
           const w = n.way, y = n.busY;
-          const poles = w.phase === 'RYB' ? 'TP' : 'SP';
+          const poles = sparePoles(w);
           if (w.kind === 'space') return (
             <g key={`${n.boardId}:${w.id}`} className={`spare-way${off(n.boardId) ? ' off' : ''}`}>
               <title>{`${n.boardId}: space (empty way, no breaker) — add or delete it on the panel's schedule`}</title>
@@ -1086,7 +1084,7 @@ export default function SystemDiagram({
               {iec ? <SwitchSym x={n.x} y={y + 18} kind={switchKindOf(f)} /> : <rect x={n.x - 6} y={y + 18} width="12" height="16" className="sym" />}
               {!iec && <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />}
               <line x1={n.x} y1={y + 34} x2={n.x} y2={y + 46} className="ln" />
-              <text className={dewa ? 'dev' : 'b'} x={n.x + 10} y={y + 28}>{w.ratingA}A {poles}{w.device ? ` ${w.device}` : ''}</text>
+              <text className={dewa ? 'dev' : 'b'} x={n.x + 10} y={y + 28}>{spareText(w)}</text>
               <text x={n.x + 10} y={y + 42} className="b">SPARE</text>
             </g>
           );
@@ -1106,6 +1104,7 @@ export default function SystemDiagram({
           const cadCableDx = f.kwhMeter && !n.childBoardId ? (f.kwhMeter === 'CT' ? 50 : 35) : 0;
           const cadCableWidth = Math.max(1, cadSlot - (cableRefs ? 26 : 12) - 7 - cadCableDx);
           const cadDeviceWidth = Math.max(1, cadSlot - 26);
+          const cable = cableLines(project, f, cableRefs);
           return (
             <g
               key={f.id}
@@ -1130,12 +1129,12 @@ export default function SystemDiagram({
                 </rect>
               )}
               {!iec && <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />}
-              {dewa ? <text x={n.x + 10} y={y + 37} className="dev-k" data-dxf-max-width={cadDeviceWidth}>{f.breakerIcuKa} kA{f.rcdMa ? ` · ${f.rcdMa}mA ELCB` : ''}</text>
+              {dewa ? <text x={n.x + 10} y={y + 37} className="dev-k" data-dxf-max-width={cadDeviceWidth}>{icuText(f)}</text>
                 : iec && <text x={n.x + 10} y={y + 41} className="acc-t" data-dxf-max-width={cadDeviceWidth}>{polesText(f)} · {f.breakerIcuKa} kA</text>}
               {dewa && <text x={n.x - 5} y={y + 13} textAnchor="end" className="acc-t way-no">{wayNo.get(f.id)}</text>}
               <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}${cableTypeOf(project, f).fireRated ? ' fr' : ''}`}
                 style={feederHeat(f.id) ? { stroke: feederHeat(f.id), strokeWidth: 3.5 } : undefined} />
-              {dewa ? <text className="dev" x={n.x + 10} y={y + 26} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA}A {dewaPoles(f)} {dewaDevice(f)}</text>
+              {dewa ? <text className="dev" x={n.x + 10} y={y + 26} data-dxf-max-width={cadDeviceWidth}>{breakerText(f)}</text>
                 : <text className="b" x={n.x + 10} y={y + 30} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA} A{f.rcdMa ? <tspan className="acc-t"> · {f.rcdMa} mA</tspan> : null}</text>}
               <text
                 className={`${dewa ? 'acc-t' : 'm'}${onPatchFeeder ? ' cable-lbl' : ''}`}
@@ -1154,17 +1153,17 @@ export default function SystemDiagram({
                 }}
               >
                 {onPatchFeeder && <title>Click to change the cable</title>}
-                {cableRefs ? `${runsOf(f) > 1 ? `${runsOf(f)}×` : ''}${f.cores}C ${f.cableCsaMm2}mm²${cableTypeOf(project, f).fireRated ? ' *' : ''}` : dewa ? `${runsOf(f) > 1 ? `${runsOf(f)}×` : ''}${f.cores}C ${f.cableCsaMm2}mm² CU/${cableTypeOf(project, f).code}`
+                {cableRefs || dewa ? cable[0]
                   : <>{runsOf(f) > 1 ? `${runsOf(f)}×` : ''}{f.cores}C × {f.cableCsaMm2}mm²{(() => { const c = labelCode(project, f); return c ? ` ${c}` : ''; })()} · {f.lengthM}m</>}
-                {needsFireRated(project, f) && !cableTypeOf(project, f).fireRated && <tspan className="res warn"> ⚠ FR</tspan>}
+                {fireRatedWarning(project, f) && <tspan className="res warn"> ⚠ FR</tspan>}
               </text>
               {cableRefs && (() => { const r = cableRefOf(project, f); return (
                 <g className="cable-ref"><title>{`Cable ${r.ref}: ${r.text}`}</title>
                   <circle cx={n.x - 13} cy={y + (dewa ? 66 : 49)} r="7.5" className="cable-ref-c" />
                   <text x={n.x - 13} y={y + (dewa ? 69 : 52)} textAnchor="middle" className="cable-ref-t">{r.ref}</text>
-                  <text x={n.x + 7} y={y + (dewa ? 68 : 63)} className="acc-t" style={{ fontSize: 8 }} data-dxf-max-width={cadCableWidth} data-dxf-dx={cadCableDx}>{f.lengthM}m</text>
+                  <text x={n.x + 7} y={y + (dewa ? 68 : 63)} className="acc-t" style={{ fontSize: 8 }} data-dxf-max-width={cadCableWidth} data-dxf-dx={cadCableDx}>{cable[1]}</text>
                 </g>); })()}
-              {dewa && !cableRefs && <text className="acc-t" style={{ fontSize: 9 }} x={n.x + 7} y={y + 70} data-dxf-max-width={cadCableWidth} data-dxf-dy={3} data-dxf-dx={cadCableDx}>{cableTypeOf(project, f).armoured ? `+1C ${cpcOf(f)}mm² ECC · ` : ''}{f.lengthM}m</text>}
+              {dewa && !cableRefs && <text className="acc-t" style={{ fontSize: 9 }} x={n.x + 7} y={y + 70} data-dxf-max-width={cadCableWidth} data-dxf-dy={3} data-dxf-dx={cadCableDx}>{cable[1]}</text>}
               {/* Accessories on the feeder, top to bottom: earth leakage (its
                   rating goes with the breaker's), metering on the right below
                   the cable text, local isolator just above the load. */}
@@ -1189,7 +1188,8 @@ export default function SystemDiagram({
                 // as its library symbol at the foot of the column.
                 const elcb = dev.elcb && !(iec && rcdInSwitch(f)) ? dev.elcb : undefined;
                 const starter = dev.starterType && !n.childBoardId ? dev.starterType : undefined;
-                // IEC: library symbols at the foot of the column, 18 apart: the undervoltage relay, then the starter.
+                // IEC: library symbols at the foot of the column, 18 apart: the undervoltage relay, then the starter. A starter's
+                // box hangs below the breaker, linked to the cable under it, clear of the breaker's blade.
                 const foot: SymbolId[] = iec ? [...(dev.extras.includes('UVR') ? ['uvr' as const] : []), ...(starter ? [starterSymbolOf(starter)] : [])] : [];
                 const items: { key: string; label: string }[] = [];
                 if (elcb) items.push({ key: 'elcb', label: elcb.label });
@@ -1199,12 +1199,16 @@ export default function SystemDiagram({
                 return (
                   <>
                     {items.map((it, i) => box(i, it.label, it.key))}
-                    {foot.map((id, i) => (
-                      <g key={id} className="acc" data-dxf-layer="DEVICE">
-                        <line x1={n.x - 8 - shiftX} y1={sy + i * 18} x2={n.x} y2={sy + i * 18} className="ln" />
-                        <Sym id={id} x={n.x - 15 - shiftX} y={sy + i * 18} s={SYM_SCALE.device} />
-                      </g>
-                    ))}
+                    {foot.map((id, i) => {
+                      const s = besideScaleOf(id, SYM_SCALE.device);
+                      const fy = s === SYM_SCALE.device ? sy + i * 18 : Math.max(sy + i * 18, y + STARTER_DY);
+                      return (
+                        <g key={id} className="acc" data-dxf-layer="DEVICE">
+                          <line x1={n.x - 8 - shiftX} y1={fy} x2={n.x} y2={fy} className="ln" />
+                          <Sym id={id} x={n.x - 8 - shiftX - (SYM_BOX.w / 2) * s} y={fy} s={s} />
+                        </g>
+                      );
+                    })}
                     {elcb && (
                       <g className="acc">
                         <title>{`Earth leakage protection${elcb.ma ? ` ${elcb.ma} mA` : ''}`}</title>
@@ -1236,7 +1240,7 @@ export default function SystemDiagram({
                   <rect x={n.x - 4} y={y + 66} width="8" height="9" className="bg-fill" />
                   <circle cx={n.x} cy={y + 67} r="1.6" className="dot" />
                   <line x1={n.x} y1={y + 75} x2={n.x - 7} y2={y + 67} className="ln" />
-                  {dewa ? <text x={n.x + 10} y={y + 79} className="acc-t" style={{ fontSize: 9 }} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA}A {dewaPoles(f)} ISOLATOR (W/P)</text> : <text x={n.x - 9} y={y + 74} textAnchor="end" className="acc-t">ISO</text>}
+                  {dewa ? <text x={n.x + 10} y={y + 79} className="acc-t" style={{ fontSize: 9 }} data-dxf-max-width={cadDeviceWidth}>{isolatorText(f)}</text> : <text x={n.x - 9} y={y + 74} textAnchor="end" className="acc-t">ISO</text>}
                 </g>
               )}
               {!n.childBoardId && (() => {
@@ -1425,7 +1429,7 @@ export default function SystemDiagram({
                 // Panel frame: busbar, outgoing ways and incomer; cables cross it at a gland mark.
                 // The panel's name box sits just inside the frame's top-left corner: name, TCL, MDL, location and
                 // the prospective fault level at the board (the breaker's own Icu is on the incomer line).
-                const x1 = n.busX1 - 7, x2 = Math.max(n.busX2 + 7, real.genX !== undefined ? real.genX + CO_GEN_REACH : -Infinity), y2 = real.busY + 47;
+                const { x1, x2 } = real.frame!, y2 = real.busY + 47;
                 const nb = nameBox(b, n);
                 const y1 = nb.top;
                 const gland = (x: number, gy: number) => <path key={`${x}-${gy}`} d={`M${x - 5} ${gy - 4} q3 4 0 8 M${x + 5} ${gy - 4} q-3 4 0 8`} className="ln" />;
@@ -1455,18 +1459,12 @@ export default function SystemDiagram({
                     <SwitchSym x={n.x} y={sy} kind={kind} />
                     {/* Rating, poles and device, then the breaking capacity: "500 A TP MCCB (NA)", "36 kA". */}
                     {(() => {
-                      const inc = incomingOf(b);
-                      const rating = inc?.breakerRatingA ?? b.ratedCurrentA;
-                      const poles = inc ? (inc.cores >= 3 ? 'TP' : 'SP') : 'TP';
+                      const t = incomerTexts(project, b)!;
                       return (
                         <>
-                          <text x={n.x + 10} y={sy + 9} className="dev">{`${rating ? `${rating} A ` : ''}${poles} ${dev === 'MCCB-NA' ? 'MCCB (NA)' : dev === 'ISOL' ? 'ISOLATOR' : dev}`}</text>
-                          {inc?.breakerIcuKa ? (() => {
-                            // Red when the breaker can't break the board's prospective fault current.
-                            const isc = faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV);
-                            const low = Number.isFinite(isc) && inc.breakerIcuKa < isc - 1e-6;
-                            return <text x={n.x + 10} y={sy + 21} className="dev-k" style={low ? { fill: 'var(--bad)' } : undefined}>{`Icu ${inc.breakerIcuKa} kA${low ? ` < Isc ${isc.toFixed(1)} kA` : ''}`}</text>;
-                          })() : null}
+                          <text x={n.x + 10} y={sy + 9} className="dev">{t.device}</text>
+                          {/* Red when the breaker can't break the board's prospective fault current. */}
+                          {t.icu && <text x={n.x + 10} y={sy + 21} className="dev-k" style={t.low ? { fill: 'var(--bad)' } : undefined}>{t.icu}</text>}
                         </>
                       );
                     })()}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CHANGEOVER_H, LEAF_W, LEVEL_H, ROOT_BUS_Y, layoutSystem } from './layout';
+import { CHANGEOVER_H, DEWA_EXTRA_Y, LEAF_W, LEVEL_H, ROOT_BUS_Y, layoutSystem } from './layout';
+import { wayReach } from './panelLabels';
 import { sampleProject } from '../data/sampleProject';
 import type { Feeder, Project } from '../types';
 
@@ -141,5 +142,49 @@ describe('room for the panel instruments', () => {
     const a = wide.boards.find((b) => b.board.id === 'A')!;
     expect(a.x - 66 - a.busX1).toBeGreaterThanOrEqual(50);
     expect(bx(wide)).toBe(bx(one)); // two ways take the same two slots
+  });
+});
+
+describe('DEWA panel frames sized to their labels', () => {
+  const framed = (p: Project, cableRefs = false) => layoutSystem(p, DEWA_EXTRA_Y, { frames: true, cableRefs });
+  const x = (l: ReturnType<typeof layoutSystem>, id: string) => l.feeders.find((f) => f.feeder.id === id)!.x;
+
+  it('reach past every label of their ways, and keep neighbouring panels apart', () => {
+    const l = framed(sampleProject);
+    const boards = l.boards.filter((b) => b.frame);
+    expect(boards.map((b) => b.board.id).sort()).toEqual(['MCC-1', 'MDB-1', 'SMDB-FF', 'SMDB-GF']);
+    for (const b of boards) {
+      for (const f of l.feeders.filter((n) => n.feeder.boardId === b.board.id)) expect(f.x + wayReach(sampleProject, f.feeder, !f.childBoardId), f.feeder.id).toBeLessThan(b.frame!.x2);
+      expect(b.frame!.x1).toBe(b.busX1 - 7);
+    }
+    for (const level of new Set(boards.map((b) => b.busY))) {
+      const row = boards.filter((b) => b.busY === level).sort((a, b) => a.frame!.x1 - b.frame!.x1);
+      for (let i = 1; i < row.length; i++) expect(row[i].frame!.x1 - row[i - 1].frame!.x2, row[i].board.id).toBeGreaterThanOrEqual(17);
+    }
+  });
+
+  it('take room only where a frame needs it: ways stay one slot apart, the standard style keeps its slots', () => {
+    const plain = layoutSystem(sampleProject), l = framed(sampleProject);
+    expect(plain.boards.some((b) => b.frame)).toBe(false);
+    expect(x(plain, 'MCC-WP') - x(plain, 'FF-LTG')).toBe(LEAF_W);
+    expect(x(l, 'MCC-WP') - x(l, 'FF-LTG')).toBeGreaterThan(LEAF_W); // SMDB-FF's last way, then MCC-1's first
+    expect(x(l, 'MCC-FP') - x(l, 'MCC-WP')).toBe(LEAF_W);
+    expect(x(l, 'FF-IT') - x(l, 'FF-OFF')).toBe(LEAF_W);
+    // The standard style draws exactly as before: every load in its own slot from the left margin.
+    for (const f of plain.feeders.filter((n) => !n.childBoardId)) expect(((f.x - 36 - LEAF_W / 2) / LEAF_W) % 1, f.feeder.id).toBe(0);
+  });
+
+  it('follow the cable text actually printed: longer cable, wider frame; cable numbers, narrower', () => {
+    const p: Project = {
+      ...base,
+      boards: [{ id: 'MDB', name: 'M' }, { id: 'S1', name: 'S1', upstreamId: 'MDB' }, { id: 'S2', name: 'S2', upstreamId: 'MDB' }],
+      feeders: [feeder('I1', 'MDB', 'S1'), feeder('I2', 'MDB', 'S2'), feeder('A', 'S1'), feeder('B', 'S2')]
+    };
+    const long: Project = { ...p, feeders: p.feeders.map((f) => (f.id === 'A' ? { ...f, parallel: 4, cableCsaMm2: 240 } : f)) };
+    const frame = (l: ReturnType<typeof layoutSystem>, id: string) => l.boards.find((b) => b.board.id === id)!.frame!;
+    const [short, wide, refs] = [framed(p), framed(long), framed(long, true)];
+    expect(frame(wide, 'S1').x2 - x(wide, 'A')).toBeGreaterThan(frame(short, 'S1').x2 - x(short, 'A'));
+    expect(frame(refs, 'S1').x2).toBeLessThan(frame(wide, 'S1').x2);
+    expect(frame(wide, 'S2').x1 - frame(wide, 'S1').x2).toBeGreaterThanOrEqual(17);
   });
 });
