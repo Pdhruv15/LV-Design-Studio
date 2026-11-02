@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { applyTheme, onScreenThemeChange, resolveTheme, screenTheme, withPrintTheme } from './theme';
+import { applyPalette, applyTheme, onScreenThemeChange, resolveTheme, screenAppearance, screenTheme, withPrintTheme } from './theme';
 import { loadPrefs } from '../model/profile';
 
 const html = () => document.documentElement;
-afterEach(() => { applyTheme('dark'); localStorage.clear(); });
+afterEach(() => { applyTheme('dark'); applyPalette('graphite'); localStorage.clear(); });
 
 describe('screen theme', () => {
   it('defaults to dark, written as no attribute', () => {
@@ -20,11 +20,24 @@ describe('screen theme', () => {
     expect(html().hasAttribute('data-theme')).toBe(false);
   });
 
-  it('reads exports with the dark palette and restores the screen theme', () => {
+  it('switches the palette, graphite written as no attribute', () => {
+    applyPalette('blueprint');
+    expect(html().getAttribute('data-palette')).toBe('blueprint');
+    expect(screenAppearance()).toBe('blueprint-dark');
     applyTheme('light');
-    const seen = withPrintTheme(() => html().getAttribute('data-theme'));
-    expect(seen).toBeNull();
+    expect(screenAppearance()).toBe('blueprint-light');
+    applyPalette(undefined);
+    expect(html().hasAttribute('data-palette')).toBe(false);
+    expect(screenAppearance()).toBe('graphite-light');
+  });
+
+  it('reads exports with the default Graphite dark palette and restores the screen theme', () => {
+    applyTheme('light');
+    applyPalette('blueprint');
+    const seen = withPrintTheme(() => [html().getAttribute('data-theme'), html().getAttribute('data-palette')]);
+    expect(seen).toEqual([null, null]);
     expect(html().getAttribute('data-theme')).toBe('light');
+    expect(html().getAttribute('data-palette')).toBe('blueprint');
   });
 
   it('restores the screen theme even when the export throws', () => {
@@ -33,7 +46,7 @@ describe('screen theme', () => {
     expect(html().getAttribute('data-theme')).toBe('light');
   });
 
-  it('reports a theme change to canvas drawing, but not the export switch and back', async () => {
+  it('reports a theme or palette change to canvas drawing, but not the export switch and back', async () => {
     const seen: string[] = [];
     const off = onScreenThemeChange((t) => seen.push(t));
     const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -44,13 +57,16 @@ describe('screen theme', () => {
     withPrintTheme(() => null);
     await flush();
     expect(seen).toEqual(['light']);
+    applyPalette('blueprint');
+    await flush();
+    expect(seen).toEqual(['light', 'light']);
     applyTheme('dark');
     await flush();
-    expect(seen).toEqual(['light', 'dark']);
+    expect(seen).toEqual(['light', 'light', 'dark']);
     off();
     applyTheme('light');
     await flush();
-    expect(seen).toEqual(['light', 'dark']);
+    expect(seen).toEqual(['light', 'light', 'dark']);
   });
 
   it('ignores an unknown stored theme', () => {
@@ -63,5 +79,15 @@ describe('screen theme', () => {
   it('keeps a valid stored theme', () => {
     localStorage.setItem('lvds.preferences', JSON.stringify({ app: { theme: 'light' } }));
     expect(loadPrefs().app.theme).toBe('light');
+  });
+
+  it('ignores an unknown stored palette', () => {
+    localStorage.setItem('lvds.preferences', JSON.stringify({ app: { palette: 'neon' } }));
+    expect(loadPrefs().app.palette).toBeUndefined();
+  });
+
+  it('keeps a valid stored palette', () => {
+    localStorage.setItem('lvds.preferences', JSON.stringify({ app: { palette: 'blueprint' } }));
+    expect(loadPrefs().app.palette).toBe('blueprint');
   });
 });

@@ -1,7 +1,8 @@
 import { STUDY_DEFAULTS, type DrawingInfo, type Project, type StudySettings } from '../types';
-import type { ThemePref } from '../theme/theme';
+import type { PalettePref, ThemePref } from '../theme/theme';
 
 const THEMES: readonly string[] = ['dark', 'light', 'system'];
+const PALETTES: readonly string[] = ['graphite', 'blueprint'];
 
 /** The user of this computer: their details go on every new project's
  * drawings and reports, and their design defaults start every new project.
@@ -37,8 +38,10 @@ export interface DesignDefaults {
 export interface AppPrefs {
   /** Minutes between recovery copies of unsaved work; 0 = off. */
   autosaveMin: number;
-  /** Screen colour theme; absent = dark (the original look). Never affects exports. */
+  /** Screen colour mode; absent = dark. Never affects exports. */
   theme?: ThemePref;
+  /** Colour palette; absent = graphite (the default look). Never affects exports. */
+  palette?: PalettePref;
 }
 
 export interface Preferences {
@@ -57,6 +60,7 @@ export function loadPrefs(): Preferences {
     if (!v || typeof v !== 'object') return DEFAULT_PREFS;
     const app = { ...DEFAULT_PREFS.app, ...v.app };
     if (app.theme !== undefined && !THEMES.includes(app.theme)) delete app.theme;
+    if (app.palette !== undefined && !PALETTES.includes(app.palette)) delete app.palette;
     return { profile: v.profile ?? {}, defaults: v.defaults ?? {}, app };
   } catch {
     return DEFAULT_PREFS;
