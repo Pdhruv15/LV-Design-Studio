@@ -3,6 +3,8 @@ import { isDbBoard, spareWaysOf } from '../model/spareWays';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import { isInterlocked } from '../model/changeover';
 import { boxedBoardIds } from './panelBox';
+import { incomerReach, spareReach, wayReach } from './panelLabels';
+import { CO_GEN_REACH } from './ChangeoverSym';
 
 /** Horizontal slot per load, vertical distance between board levels. */
 export const LEAF_W = 132;
@@ -32,6 +34,8 @@ export interface BoardNode {
   genX?: number;
   busX1: number;
   busX2: number;
+  /** DEWA style: the panel frame's left and right edges, wide enough for every label of its ways and incomer. */
+  frame?: { x1: number; x2: number };
 }
 
 export interface FeederNode {
@@ -73,8 +77,21 @@ export const DEWA_EXTRA_Y = 110;
  * kept free beside its feeders (left for the mains instruments, right for the generator incomer). */
 export const CHANGEOVER_H = 200;
 const CHANGEOVER_LEFT = 1, CHANGEOVER_RIGHT = 2;
+/** Half the busbar's reach past its outer ways, and the frame's margin past the busbar end. */
+const BUS_HALF = LEAF_W * 0.38, FRAME_OUT = 7;
+/** How far inside its slot a panel frame starts (≈ 9): neighbouring frames keep twice this between them. */
+const FRAME_INSET = LEAF_W / 2 - BUS_HALF - FRAME_OUT;
+/** Room between the end of a label and the frame line. */
+const FRAME_PAD = 6;
 
-export function layoutSystem(project: Project, extraY = 0): SystemLayout {
+export interface LayoutOptions {
+  /** DEWA style: a frame round each panel, as wide as its ways' and incomer's labels, and the room after it to match. */
+  frames?: boolean;
+  /** Cable reference numbers instead of the cable text (shorter labels). */
+  cableRefs?: boolean;
+}
+
+export function layoutSystem(project: Project, extraY = 0, opts: LayoutOptions = {}): SystemLayout {
   const rootY = ROOT_BUS_Y + extraY;
   const levelH = LEVEL_H + extraY;
   const byId = new Map(project.boards.map((b) => [b.id, b]));
@@ -113,12 +130,15 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
   const spares: SpareNode[] = [];
   const placed = new Set<string>();
 
-  const place = (board: Board, left: number, depth: number): BoardNode => {
+  /** Places a board and everything below it from `left`; returns the board and where the next one may start. */
+  const place = (board: Board, left: number, depth: number): { node: BoardNode; right: number } => {
     placed.add(board.id);
     const busY = rootY + depth * levelH;
     const co = isInterlocked(board), inst = instrumentSlot(board);
     let cursor = left + (co ? CHANGEOVER_LEFT * LEAF_W : 0) + (inst ? LEAF_W : 0);
     const xs: number[] = [];
+    // Right-hand end of the labels on this panel's ways (DEWA frames only).
+    let reach = -Infinity;
     for (const f of children(board.id)) {
       const child = subBoard(f);
       if (child && boxed.has(child.id) && !placed.has(child.id)) {
@@ -127,17 +147,21 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
         feeders.push({ feeder: f, x, busY, panelBoardId: child.id });
         boards.push({ board: child, circuits: scheduled(child.id), terminal: true, boxed: true, depth: depth + 1, x, busY: busY + BOX_DY, headY: busY + BOX_DY, busX1: x, busX2: x });
         xs.push(x);
+        if (opts.frames) reach = Math.max(reach, x + wayReach(project, f, true, opts.cableRefs));
         cursor += LEAF_W;
       } else if (child && !placed.has(child.id)) {
         const w = units(child.id, new Set());
-        const node = place(child, cursor, depth + 1);
+        const { node, right } = place(child, cursor, depth + 1);
         feeders.push({ feeder: f, x: node.x, busY, childBoardId: child.id });
         xs.push(node.x);
-        cursor += w * LEAF_W;
+        if (opts.frames) reach = Math.max(reach, node.x + wayReach(project, f, false, opts.cableRefs));
+        // A sub-board whose frame needed more room than its slots takes it.
+        cursor = Math.max(cursor + w * LEAF_W, right);
       } else {
         const x = cursor + LEAF_W / 2;
         feeders.push({ feeder: f, x, busY });
         xs.push(x);
+        if (opts.frames) reach = Math.max(reach, x + wayReach(project, f, true, opts.cableRefs));
         cursor += LEAF_W;
       }
     }
@@ -145,10 +169,11 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
       const x = cursor + LEAF_W / 2;
       spares.push({ boardId: board.id, way: w, x, busY });
       xs.push(x);
+      if (opts.frames) reach = Math.max(reach, x + spareReach(w));
       cursor += LEAF_W;
     }
     const x = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : cursor + LEAF_W / 2;
-    const half = LEAF_W * 0.38;
+    const half = BUS_HALF;
     // The generator incomer drops in beyond the last way, with room on its right for its instruments.
     const genX = co ? Math.max(cursor, x + half) + LEAF_W * 0.6 : undefined;
     const node: BoardNode = {
@@ -165,7 +190,14 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
       busX2: Math.max(x + half, xs.length ? Math.max(...xs) + half : x + half, genX !== undefined ? genX + 14 : -Infinity)
     };
     boards.push(node);
-    return node;
+    // Its slots (more when a sub-board below took more), and with a frame, room for the frame before the next panel.
+    let right = Math.max(left + units(board.id, new Set()) * LEAF_W, cursor + (co ? CHANGEOVER_RIGHT * LEAF_W : 0));
+    if (opts.frames && !node.terminal) {
+      const x2 = Math.max(node.busX2 + FRAME_OUT, genX !== undefined ? genX + CO_GEN_REACH : -Infinity, reach + FRAME_PAD, x + incomerReach(project, board) + FRAME_PAD);
+      node.frame = { x1: node.busX1 - FRAME_OUT, x2 };
+      right = Math.max(right, x2 + FRAME_INSET);
+    }
+    return { node, right };
   };
 
   const roots: BoardNode[] = [];
@@ -173,14 +205,16 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
   const rootBoards = [...project.boards.filter((b) => !b.upstreamId), ...project.boards.filter((b) => b.upstreamId && !byId.has(b.upstreamId))];
   for (const b of rootBoards) {
     if (placed.has(b.id)) continue;
-    roots.push(place(b, left, 0));
-    left += units(b.id, new Set()) * LEAF_W;
+    const { node, right } = place(b, left, 0);
+    roots.push(node);
+    left = right;
   }
   // Anything still unplaced (e.g. a board whose incomer feeder is missing).
   for (const b of project.boards) {
     if (placed.has(b.id)) continue;
-    roots.push(place(b, left, 0));
-    left += units(b.id, new Set()) * LEAF_W;
+    const { node, right } = place(b, left, 0);
+    roots.push(node);
+    left = right;
   }
 
   const maxDepth = boards.reduce((m, b) => (b.boxed ? m : Math.max(m, b.depth)), 0);

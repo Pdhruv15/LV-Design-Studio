@@ -39,6 +39,8 @@ const ISOL = [p(`${CON} ${BAR} ${BLADE}`)];
 const EARTH = (y: number, acc?: true) => p(`M20 ${y}H40M24 ${y + 4}H36M28 ${y + 8}H32`, 'ln', acc);
 const SIGNAL = (s: string) => [p('M44 40H62', 'dash', true), side(s, 34)];
 const box = (code: string): SymPrim[] => [r(16, 24, 28, 32), code.length > 2 ? t(30, 40, code) : t(30, 40, code, true)];
+/** A motor starter's code in a box less tall than the frame (18 of 32), drawn at SYM_SCALE.starter: room round the code. */
+const starterBox = (code: string): SymPrim[] => [r(16, 31, 28, 18), t(30, 40, code)];
 const panel = (code: string): SymPrim[] => [r(16, 24, 28, 32), r(16, 24, 28, 5, 'fill'), t(30, 42, code, code.length <= 2 || undefined)];
 const instrument = (letter: string, sub?: string): SymPrim[] => sub
   ? [c(30, 40, 14), t(30, 36, letter, true), t(30, 48, sub)]
@@ -68,8 +70,8 @@ export const SYMBOLS = {
   'p-mcc': { label: 'Motor control centre (MCC)', iec: '11-15', prims: panel('MCC') },
   'p-apfc': { label: 'Capacitor panel (APFC)', iec: '11-15 + 04-02-01', prims: panel('APFC') },
   // Motor starters & relays
-  dol: { label: 'DOL starter', iec: '11-15', prims: box('DOL') },
-  sd: { label: 'Star-delta starter', iec: '11-15', prims: box('Y-Δ') },
+  dol: { label: 'DOL starter', iec: '11-15', prims: starterBox('DOL') },
+  sd: { label: 'Star-delta starter', iec: '11-15', prims: starterBox('Y-Δ') },
   ss: { label: 'Soft starter', iec: '06-14', prims: [r(16, 24, 28, 32), p('M20 50H26L34 30H40'), side('SS')] },
   vfd: { label: 'Variable frequency drive (VFD)', iec: '06-14', prims: [r(16, 24, 28, 32), p('M16 56L44 24'), t(23, 33, 'f1'), t(37, 49, 'f2'), side('VFD')] },
   ol: { label: 'Thermal overload relay', iec: '07-15-21', prims: [r(16, 24, 28, 32), p('M30 24V32H24V48H30V56'), side('OL')] },
@@ -115,8 +117,10 @@ export const SYMBOL_IDS = Object.keys(SYMBOLS) as SymbolId[];
 export const PANEL_SYMBOL_IDS = SYMBOL_IDS.filter((id) => id.startsWith('p-'));
 
 /** Scale per drawing role: switching devices fill the 16-unit breaker slot,
- * loads the 28-unit load slot; the legend draws every symbol at one size. */
-export const SYM_SCALE = { device: 0.5, load: 0.875, legend: 0.6 } as const;
+ * loads the 28-unit load slot; the legend draws every symbol at one size.
+ * A starter's code box (DOL, Y-Δ) is drawn larger, here and in the legend:
+ * 22 × 14, so its 7.5 px code keeps about 3 units clear of the box. */
+export const SYM_SCALE = { device: 0.5, starter: 0.8, load: 0.875, legend: 0.6 } as const;
 
 const n = (v: number) => +v.toFixed(2);
 

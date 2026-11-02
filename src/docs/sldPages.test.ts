@@ -27,7 +27,11 @@ describe('SLD pages of the study report', () => {
   });
   it('uses the same title block as a drawing sheet', () => {
     const one = { no: 'E-1', title: 'T', count: 1, index: 1 };
-    expect(buildSldSheetHtml(sampleProject, svg, 'A3', one)).toContain(pageTitleBlock(sampleProject, one).html.trim().slice(0, 40));
+    // Cell for cell: on the sheet the block shares its rows with the revision table.
+    const cells = pageTitleBlock(sampleProject, one).html.match(/<td class="t[^"]*"[^>]*>.*?<\/td>/g)!;
+    expect(cells).toHaveLength(12);
+    const sheet = buildSldSheetHtml(sampleProject, svg, 'A3', one);
+    for (const c of cells) expect(sheet).toContain(c);
   });
 });
 

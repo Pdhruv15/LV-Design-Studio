@@ -77,7 +77,7 @@ describe('board sheet set', () => {
     const html = boardSheetHtml(run.project, pages[1]);
     expect(html).toContain(pages[1].info.no);
     expect(html).toContain(`${pages[1].boardId} SINGLE LINE DIAGRAM`);
-    expect(html).toContain('class="tb"');
+    expect(html).toContain('class="tb band"'); // the title block, in one band with the revision table
   });
   describe('DXF', () => {
     beforeAll(() => vi.stubGlobal('DOMParser', DOMParser));

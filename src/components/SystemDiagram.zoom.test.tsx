@@ -4,7 +4,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import SystemDiagram, { canvasDrawing } from './SystemDiagram';
 import { evaluateProject } from '../calc/electrical';
-import { layoutSystem } from '../diagram/layout';
+import { DEWA_EXTRA_Y, layoutSystem } from '../diagram/layout';
 import { network } from '../../tests/fixtures/networks';
 import type { Project } from '../types';
 
@@ -14,7 +14,7 @@ const noop = () => {};
 // With an id, as every real project has: the canvas opens zoomed in, once per project.
 const base = { ...network(20, 'shallow'), id: 'zoom' };
 const results = evaluateProject(base);
-const nodes = layoutSystem(base).feeders;
+const nodes = layoutSystem(base, DEWA_EXTRA_Y, { frames: true }).feeders; // as the canvas draws it (DEWA style)
 
 describe('SLD zoom and pan on the design canvas', () => {
   let host: HTMLDivElement, root: Root;

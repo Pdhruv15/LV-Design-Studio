@@ -53,6 +53,8 @@ const STARTER_SYM: Record<StarterType, SymbolId> = { DOL: 'dol', SD: 'sd', SS: '
 
 /** Library symbol for a motor starter. */
 export const starterSymbolOf = (s: StarterType): SymbolId => STARTER_SYM[s];
+/** Scale of a symbol beside a way or in the legend: a starter's code box draws at its own, larger scale. */
+export const besideScaleOf = (id: SymbolId, scale: number) => (id === 'dol' || id === 'sd' ? SYM_SCALE.starter : scale);
 
 const EQUIP_SYM: Partial<Record<LoadType, SymbolId>> = { lighting: 'lighting', sockets: 'socket', capacitor: 'capacitor', pv: 'pv', hvac: 'eq-ac', ev: 'eq-ev', it: 'eq-it' };
 
@@ -131,7 +133,7 @@ export function legendEntries(project: Project): LegendEntry[] {
   if (drawn.some((f) => f.localIsolator)) add('iso', 'Local isolator at the equipment', (x, y) => <Sym id="isolator" x={x} y={y} s={SYM_SCALE.legend} />);
   if (shown.some((b) => b.spd)) add('spd', 'Surge protection device (SPD)', (x, y) => <Sym id="spd" x={x} y={y} s={SYM_SCALE.legend} />);
   const starters = new Set(loads.map((f) => sldDevices(f).starterType).filter((t): t is StarterType => !!t));
-  for (const t of ['DOL', 'SD', 'SS', 'VFD'] as const) if (starters.has(t)) add(starterSymbolOf(t), SYMBOLS[starterSymbolOf(t)].label, (x, y) => <Sym id={starterSymbolOf(t)} x={x} y={y} s={SYM_SCALE.legend} />);
+  for (const t of ['DOL', 'SD', 'SS', 'VFD'] as const) if (starters.has(t)) add(starterSymbolOf(t), SYMBOLS[starterSymbolOf(t)].label, (x, y) => <Sym id={starterSymbolOf(t)} x={x} y={y} s={besideScaleOf(starterSymbolOf(t), SYM_SCALE.legend)} />);
   if (types.has('motor') || types.has('fire-pump')) add('m', 'Motor (FP = fire pump)', (x, y) => <LoadSym x={x} y={y} type="motor" s={SYM_SCALE.legend} />);
   if (types.has('lighting')) add('lamp', 'Lighting', (x, y) => <LoadSym x={x} y={y} type="lighting" s={SYM_SCALE.legend} />);
   if (types.has('sockets')) add('so', 'Socket outlets', (x, y) => <LoadSym x={x} y={y} type="sockets" s={SYM_SCALE.legend} />);
