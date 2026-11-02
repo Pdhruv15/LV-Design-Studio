@@ -89,10 +89,13 @@ export interface LayoutOptions {
   frames?: boolean;
   /** Cable reference numbers instead of the cable text (shorter labels). */
   cableRefs?: boolean;
+  /** Extra room above the root bus only (levels keep their spacing), e.g. for the
+   * standard-style LV earth-pit detail under a root's transformer. */
+  rootExtraY?: number;
 }
 
 export function layoutSystem(project: Project, extraY = 0, opts: LayoutOptions = {}): SystemLayout {
-  const rootY = ROOT_BUS_Y + extraY;
+  const rootY = ROOT_BUS_Y + extraY + (opts.rootExtraY ?? 0);
   const levelH = LEVEL_H + extraY;
   const byId = new Map(project.boards.map((b) => [b.id, b]));
   // Feeders of each board, split once (the layout asks for them many times).

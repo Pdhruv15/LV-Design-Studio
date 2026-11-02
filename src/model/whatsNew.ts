@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.033', date: '2026-11-02',
+    items: [
+      { title: 'Earth pits no longer overlap the transformer', text: 'On the standard-style SLD, a main board with its own transformer drew the LV earth-pit detail across the transformer symbol: the pits sat on the body-earth boundary, the spacing arrow crossed the cable note, the electrode note ran through the voltage tag, and MET collided with the result rows. The supply head is now taller and the detail has its own band below the transformer, with the earth conductor dropping clear of every label. The DEWA style is unchanged. On screen and in PDF, DXF and DWG.' }
+    ]
+  },
+  {
     version: '2.032', date: '2026-11-02',
     items: [
       { title: 'Two new colour themes', text: 'The app now has two palettes, each in dark and light: Graphite, neutral charcoal and warm drafting paper with the amber accent, and Blueprint, deep ink blue and blueprint paper with a blue accent. Graphite dark is the new default and replaces the navy look. Pick the palette and mode under Preferences → Appearance & saving. Drawings, PDF and DXF exports are unchanged: always black on white.' }

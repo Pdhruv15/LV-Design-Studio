@@ -289,7 +289,10 @@ export default function SystemDiagram({
   };
   // Cable text as reference numbers: on the drawing sheets when chosen there, on screen with Always numbers.
   const cableRefs = cableRefsProp ?? project.drawing?.cableLabels === 'ref';
-  const layout = useMemo(() => layoutSystem(project, dewa ? DEWA_EXTRA_Y : 0, { frames: dewa, cableRefs }), [project, dewa, cableRefs]);
+  // Standard style: room under a root's transformer for the LV earth-pit detail, which the
+  // DEWA head (DEWA_EXTRA_Y and the frame) already has.
+  const earthLift = !dewa && project.boards.some((b) => !b.upstreamId && hasEarthPits(b)) ? 140 : 0;
+  const layout = useMemo(() => layoutSystem(project, dewa ? DEWA_EXTRA_Y : 0, { frames: dewa, cableRefs, rootExtraY: earthLift }), [project, dewa, cableRefs, earthLift]);
   // Earth pit IDs (E1, E2 …) from the earthing plan, so the SLD and the earthing sheet agree.
   const earthPits = useMemo(() => {
     const m = new Map<string, string[]>();
@@ -961,23 +964,30 @@ export default function SystemDiagram({
           const sp = b.earthing?.spacingM ?? 6;
           const ids = lvIds?.length === pits ? ` · ${lvIds.join(', ')}` : '';
           // Keep the LV earth detail above the panel header, clear of the instruments and
-          // incomer annotations inside the panel. A terminal panel has no DEWA frame, so its
-          // detail sits in the space between the source and panel box. Keeping the geometry
-          // relative to its own board lets adjacent transformer / LV-panel sections each show
-          // their earth pits without suppressing the other section.
+          // incomer annotations inside the panel. DEWA keeps the original rows (the frame head
+          // has the room). The standard style lifts the root bus (rootExtraY) and draws the
+          // detail in its own band between the transformer's earth labels (ending at y 150) and
+          // the incomer annotations; its test link moves to the left end and the notes under the
+          // header, so the MET conductor drops straight down clear of every label, to a MET bar
+          // under the detail, left of the incomer column.
           const nb = nameBox(b, { ...r, busY: r.headY }), y1 = nb.top;
           const framed = dewa && !r.terminal;
-          const oy = framed ? y1 - 82 : r.busY - 154;
+          const oy = framed ? y1 - 82 : dewa ? r.busY - 154 : r.busY - 190;
           const ox = framed ? r.busX1 - 2 : r.x - 62;
           const detailW = framed ? nb.w : 124;
-          const pitPitch = pits > 1 ? Math.min(60, Math.max(24, (detailW - 28) / (pits - 1))) : 0;
-          const pitStart = pits > 1 ? ox + 14 : ox + Math.min(35, detailW / 2);
+          const pitTop = dewa ? 22 : 46;
+          const noteY = dewa ? 65 : 18;
+          const linkY = oy + (dewa ? 16 : 40);
+          const arrowY = oy + (dewa ? 56 : 80);
+          const pitPitch = pits > 1 ? Math.min(60, Math.max(24, (detailW - (dewa ? 28 : 40)) / (pits - 1))) : 0;
+          const pitStart = pits > 1 ? ox + (dewa ? 14 : 26) : ox + Math.min(35, detailW / 2);
           const pitXs = Array.from({ length: pits }, (_, n) => pitStart + n * pitPitch);
-          const linkY = oy + 16;
+          const tlX = ox + 6;
           const testX = ox + detailW - 8;
-          // MET: inside the main board frame, or inside the terminal panel box.
-          const metX1 = framed ? r.busX1 - 7 + nb.w + 13 : r.x + 6;
-          const metY = framed ? y1 + 20 : r.busY - 40;
+          // MET: inside the main board frame, inside the terminal panel box, or (standard
+          // style) under the detail, ending left of the incomer's result rows.
+          const metX1 = framed ? r.busX1 - 7 + nb.w + 13 : dewa ? r.x + 6 : r.x - 58;
+          const metY = framed ? y1 + 20 : dewa ? r.busY - 40 : oy + 90;
           const metMid = metX1 + 25;
           const gnd = (x: number, y: number) => (
             <>
@@ -988,9 +998,9 @@ export default function SystemDiagram({
           );
           const rod = (x: number) => (
             <g key={x} className="earth-electrode">
-              <rect x={x - 7} y={oy + 22} width="14" height="10" className="sym" />
-              <line x1={x} y1={oy + 27} x2={x} y2={oy + 46} className="ln" />
-              {gnd(x, oy + 46)}
+              <rect x={x - 7} y={oy + pitTop} width="14" height="10" className="sym" />
+              <line x1={x} y1={oy + pitTop + 5} x2={x} y2={oy + pitTop + 24} className="ln" />
+              {gnd(x, oy + pitTop + 24)}
             </g>
           );
           const nIds = pitIds(`txn:${b.id}`), bIds = pitIds(`txb:${b.id}`);
@@ -1013,24 +1023,30 @@ export default function SystemDiagram({
               )}
               <text x={ox} y={oy + 8} className="acc-t b" data-fit-width={detailW} data-dxf-max-width={detailW}>{`LV EARTH PITS (${pits} NO.)${ids}`}</text>
               {/* Pits join at one test link. From the link to the MET there is one conductor and one 90° bend. */}
-              {pitXs.map((x) => <line key={`pit-link-${x}`} x1={x} y1={oy + 22} x2={x} y2={linkY} className="ln" />)}
-              {pitXs.length > 0 && <line x1={pitXs[0]} y1={linkY} x2={testX - 5} y2={linkY} className="ln earth-pit-link" />}
-              <rect x={testX - 5} y={linkY - 4} width="10" height="8" className="sym test-link" />
-              <text x={testX + 9} y={linkY + 13} className="acc-t test-link-label" style={{ fontSize: 7 }}>TL</text>
-              <path d={`M${testX + 5} ${linkY} H${metMid} V${metY}`} className="ln earth-to-met" />
+              {pitXs.map((x) => <line key={`pit-link-${x}`} x1={x} y1={oy + pitTop} x2={x} y2={linkY} className="ln" />)}
+              {pitXs.length > 0 && (dewa
+                ? <line x1={pitXs[0]} y1={linkY} x2={testX - 5} y2={linkY} className="ln earth-pit-link" />
+                : <line x1={tlX + 5} y1={linkY} x2={pitXs[pitXs.length - 1]} y2={linkY} className="ln earth-pit-link" />)}
+              <rect x={(dewa ? testX : tlX) - 5} y={linkY - 4} width="10" height="8" className="sym test-link" />
+              {dewa
+                ? <text x={testX + 9} y={linkY + 13} className="acc-t test-link-label" style={{ fontSize: 7 }}>TL</text>
+                : <text x={tlX} y={oy + 53} textAnchor="middle" className="acc-t test-link-label" style={{ fontSize: 7 }}>TL</text>}
+              <path d={dewa ? `M${testX + 5} ${linkY} H${metMid} V${metY}` : `M${tlX} ${linkY + 4} V${metY}`} className="ln earth-to-met" />
               {pitXs.map(rod)}
               {pitXs.length > 1 && (
                 <>
-                  <line x1={pitXs[0]} y1={oy + 56} x2={pitXs[pitXs.length - 1]} y2={oy + 56} className="ln" />
-                  <path d={`M${pitXs[0]} ${oy + 56} l5 -2.5 v5 z M${pitXs[pitXs.length - 1]} ${oy + 56} l-5 -2.5 v5 z`} className="dot" />
-                  <text x={(pitXs[0] + pitXs[pitXs.length - 1]) / 2} y={oy + 54} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{sp.toFixed(1)} m (MIN)</text>
+                  <line x1={pitXs[0]} y1={arrowY} x2={pitXs[pitXs.length - 1]} y2={arrowY} className="ln" />
+                  <path d={`M${pitXs[0]} ${arrowY} l5 -2.5 v5 z M${pitXs[pitXs.length - 1]} ${arrowY} l-5 -2.5 v5 z`} className="dot" />
+                  <text x={(pitXs[0] + pitXs[pitXs.length - 1]) / 2} y={arrowY - 2} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{sp.toFixed(1)} m (MIN)</text>
                 </>
               )}
-              <text x={ox} y={oy + 65} className="acc-t" style={{ fontSize: 7.5 }} data-fit-width={detailW} data-dxf-max-width={detailW}>1C {mm}mm² CU/PVC</text>
-              <text x={ox} y={oy + 74} className="acc-t" style={{ fontSize: 7.5 }} data-fit-width={detailW} data-dxf-max-width={detailW}>MIN. {el} m ELECTRODE WITH INSPECTION PIT AND COVER</text>
+              <text x={ox} y={oy + noteY} className="acc-t" style={{ fontSize: 7.5 }} data-fit-width={detailW} data-dxf-max-width={detailW}>1C {mm}mm² CU/PVC</text>
+              <text x={ox} y={oy + noteY + 9} className="acc-t" style={{ fontSize: 7.5 }} data-fit-width={detailW} data-dxf-max-width={detailW}>MIN. {el} m ELECTRODE WITH INSPECTION PIT AND COVER</text>
               {/* Main earthing terminal in the main board */}
               <line x1={metX1} y1={metY} x2={metX1 + 50} y2={metY} className="ln met-bar" />
-              <text x={metX1 + 54} y={metY + 3} className="acc-t b">MET</text>
+              {dewa
+                ? <text x={metX1 + 54} y={metY + 3} className="acc-t b">MET</text>
+                : <text x={metX1 - 4} y={metY + 3} textAnchor="end" className="acc-t b">MET</text>}
             </g>
           );
         })}
