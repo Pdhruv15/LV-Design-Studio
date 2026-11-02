@@ -1,6 +1,8 @@
 #!/bin/bash
 # Update LV Design Studio on this Mac from GitHub: pull main, build the
-# Apple-silicon app and replace the copy in /Applications.
+# Apple-silicon app and replace the copy in /Applications. The shared folder
+# (the repository's main folder, where sessions start) moves to the latest
+# main too, keeping its uncommitted notes (scripts/update-shared-folder.sh).
 # Usage: npm run update-app   (add --force to rebuild even if nothing changed)
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -21,6 +23,9 @@ fi
 
 echo "Checking GitHub for updates…"
 git fetch -q origin main
+# The shared folder, unless this is it (main itself is pulled below).
+SHARED=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
+if [ -n "$SHARED" ] && [ "$SHARED" != "$(pwd -P)" ]; then bash scripts/update-shared-folder.sh "$SHARED" || true; fi
 BEFORE=$(git rev-parse HEAD); REMOTE=$(git rev-parse origin/main)
 INSTALLED=$(cat "$STAMP" 2>/dev/null || true)
 if [ "$INSTALLED" = "$REMOTE" ] && [ -d "$DEST" ] && [ "${1:-}" != "--force" ]; then
