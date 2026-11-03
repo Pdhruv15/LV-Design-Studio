@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emergency Lighting Mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite dark default + light */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--on-acc:#1D2024;--ok:#37d67a;--warn:#f5c04a;--bad:#ff5d6c;--field-line:#6C7580;--new:#b784ff;--plan:#8A939E;--plan-bg:#15171A;--room:rgba(245,179,1,.10);--lum:#E6E8EB}
+:root[data-theme="light"]{--bg:#F5F3EF;--panel:#fff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--on-acc:#fff;--ok:#177336;--warn:#8a5d00;--bad:#cf222e;--field-line:#857E70;--new:#7a3fd6;--plan:#857E70;--plan-bg:#fff;--room:rgba(135,88,0,.08);--lum:#272420}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#F5F3EF;--panel:#fff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--on-acc:#fff;--ok:#177336;--warn:#8a5d00;--bad:#cf222e;--field-line:#857E70;--new:#7a3fd6;--plan:#857E70;--plan-bg:#fff;--room:rgba(135,88,0,.08);--lum:#272420}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+.intro{max-width:1240px;margin:0 auto;padding:16px 16px 0}
+.intro h1{font-size:17px;margin:0 0 4px}
+.intro p{margin:0 0 6px;color:var(--mut);max-width:920px}
+.legend{font-size:12px;color:var(--mut);margin:8px 0;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.legend i{display:inline-block;width:12px;height:12px;border:2px dashed var(--new);border-radius:3px;vertical-align:-2px;margin-right:5px}
+.legend .theme{margin-left:auto;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--mut)}
+.win{max-width:1240px;margin:10px 16px 24px;background:var(--panel);border:1px solid var(--line-strong);border-radius:10px;overflow:hidden}
+@media (min-width:1272px){.win{margin:10px auto 24px}}
+.new{outline:2px dashed var(--new);outline-offset:2px;border-radius:6px}
+.head{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.head h3{margin:0;font-size:15px}
+.head .file{color:var(--mut);font-size:12px}
+.tools{display:flex;gap:4px;padding:6px 10px;border-bottom:1px solid var(--line);background:var(--p2);flex-wrap:wrap;align-items:flex-end}
+.grp{display:flex;flex-direction:column;align-items:center;gap:2px}
+.grp .row{display:flex;gap:2px}
+.grp small{font-size:10px;color:var(--mut)}
+.tool{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:66px;padding:5px 6px;border-radius:6px;border:1px solid transparent;background:none;font-size:11px;color:var(--tx)}
+.tool svg{width:20px;height:20px;stroke:var(--mut);fill:none;stroke-width:1.6}
+.tool[aria-pressed=true]{background:var(--panel);border-color:var(--acc)}
+.tool[aria-pressed=true] svg{stroke:var(--acc)}
+.sep{width:1px;align-self:stretch;background:var(--line);margin:0 4px}
+.body{display:grid;grid-template-columns:minmax(0,1fr) 360px;min-height:560px}
+@media (max-width:900px){.body{grid-template-columns:1fr}}
+.canvas{position:relative;background:var(--plan-bg);border-right:1px solid var(--line);min-height:380px}
+.canvas svg{width:100%;height:100%;display:block}
+.hint{position:absolute;left:10px;bottom:10px;background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;padding:5px 9px;font-size:12px;max-width:calc(100% - 20px)}
+.side{display:flex;flex-direction:column;min-width:0}
+.side h4{margin:0;font-size:13px;padding:10px 12px 6px;display:flex;gap:8px;align-items:baseline}
+.side h4 small{font-weight:400;color:var(--mut)}
+.sec{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;padding:8px 12px 4px;border-top:1px solid var(--line)}
+.form{display:grid;grid-template-columns:110px 1fr;gap:6px 8px;padding:0 12px 8px;align-items:center}
+.form label{color:var(--mut);font-size:12px}
+.form input,.form select{background:var(--p2);border:1px solid var(--field-line);border-radius:6px;height:28px;padding:0 8px;min-width:0;width:100%}
+.pair{display:flex;gap:6px}
+.from{font-size:11px;color:var(--mut)}
+.res{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;padding:0 12px 8px}
+.res div{display:flex;justify-content:space-between;gap:6px;border-bottom:1px solid var(--line);padding:3px 0}
+.res span{color:var(--mut);font-size:12px}
+.res b{font-weight:600}
+.warns{margin:0 12px 8px;padding:0;list-style:none;font-size:12px}
+.warns li{color:var(--warn);padding:2px 0}
+.warns li.ok{color:var(--ok)}
+.foot{display:flex;gap:8px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);flex-wrap:wrap;margin-top:auto}
+.chip{border:1px solid var(--field-line);background:var(--p2);border-radius:6px;padding:0 12px;height:30px;white-space:nowrap}
+.chip.primary{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}
+.chk{display:flex;gap:6px;align-items:center;font-size:12px;padding:0 12px 8px}
+.notes{max-width:1240px;margin:0 auto 24px;padding:0 16px;color:var(--mut);font-size:12px}
+.notes li{margin:3px 0}
+.seg{display:flex;gap:2px;padding:0 12px 8px}.seg button{flex:1;height:28px;border:1px solid var(--field-line);background:var(--p2);border-radius:6px;font-size:12px}.seg button[aria-pressed=true]{border-color:var(--acc);color:var(--acc);font-weight:600}
+</style>
+</head>
+<body>
+<div class="intro">
+  <h1>Design CAD → Plan → Devices → Emergency — mockup (2026-11-03)</h1>
+  <p>The engineer draws the <b>escape route</b> along the corridor centre line (far end to exit), marks <b>points of emphasis</b> (call points, extinguishers, stairs, exit doors) and clicks rooms that need <b>open-area</b> lighting. The app places a fitting at each exit, change of direction and point of emphasis, fills the gaps up to the fitting's spacing, adds exit and direction signs, and checks sign viewing distance and duration (BS 5266-1 / EN 1838). Nothing is read automatically from the architect's drawing.</p>
+  <div class="legend"><span><i></i>new in this proposal</span><span>Everything else is as the app is today.</span><button class="theme" id="theme">Light / dark</button></div>
+</div>
+
+<div class="win">
+  <div class="head"><h3>Design CAD</h3><span class="file">A-101 Ground floor.dwg · Level GF · Office building</span></div>
+  <div class="tools">
+    <div class="grp"><div class="row">
+      <button class="tool"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg>Add device</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 12h16M12 4v16"/></svg>Fill room</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="4"/><path d="M9 17h6M10 20h4M12 2v2"/></svg>Light room</button>
+      <button class="tool new" aria-pressed="true"><svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="10" rx="2"/><path d="M8 12h6M11 9l3 3-3 3"/></svg>Emergency</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/></svg>Coverage</button>
+    </div><small>Devices</small></div>
+  </div>
+  <div class="body">
+    <div class="canvas">
+      <svg id="plan" viewBox="0 0 34 22" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="hint" id="hint">Escape route: click its points from the far end to the exit, Enter to finish · Esc to stop</div>
+    </div>
+    <div class="side new">
+      <h4>Emergency lighting <small>BS 5266-1 / EN 1838</small></h4>
+      <div class="seg" role="group" aria-label="What to add">
+        <button aria-pressed="true" data-m="route">Escape route</button><button aria-pressed="false" data-m="open">Open area</button><button aria-pressed="false" data-m="point">Point of emphasis</button>
+      </div>
+      <div class="form">
+        <label>Point to mark</label><select><option>Fire alarm call point</option><option>Fire-fighting equipment</option><option>Exit door</option><option>Final exit (outside)</option><option>Stair (each flight)</option><option>Change of floor level</option><option>Corridor intersection</option><option>First aid point</option><option>Safety sign</option></select>
+      </div>
+      <div class="sec">Fitting <span class="from">(spacing table, at the mounting height)</span></div>
+      <div class="form">
+        <label>Type</label><select><option>Self-contained LED 3 W · non-maintained</option><option>Self-contained LED 3 W · maintained</option></select>
+        <label>Route spacing / end</label><div class="pair"><input id="rs" type="number" step="0.5" value="12"><input id="re" type="number" step="0.5" value="4"></div>
+        <label>Open spacing / wall</label><div class="pair"><input id="os" type="number" step="0.5" value="9"><input id="ow" type="number" step="0.5" value="3.5"></div>
+        <label>Exit sign</label><div class="pair"><input id="sh" type="number" step="25" value="150"><select id="lit"><option value="200">internally lit</option><option value="100">externally lit</option></select></div>
+        <label>Premises</label><select id="prem"><option value="3">People sleep / reoccupied — 3 h</option><option value="1">Immediate evacuation, not reoccupied — 1 h</option></select>
+        <label>Circuit</label><select><option>DB-GF1/L2 · Corridor lighting (unswitched)</option></select>
+      </div>
+      <div class="sec">Result</div>
+      <div class="res" id="res"></div>
+      <ul class="warns" id="warns"></ul>
+      <div class="foot"><button class="chip primary" id="place">Place</button><button class="chip">Cancel</button><span class="from">Spacings are typical until you enter the manufacturer's table</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="notes">
+  <b>Notes for the decision</b>
+  <ul>
+    <li>Fittings on the plan: counted as lighting points on the unswitched circuit (3 W each), or a new <b>Emergency</b> point column on the load schedule?</li>
+    <li>Fitting data (spacing table): from the Luminaires database sheet (new columns: emergency, route spacing, end, open spacing, wall) — or typed here per project?</li>
+    <li>Plan sheets: emergency fittings and signs on the Lighting layout sheet, or a separate <b>Emergency lighting layout</b> sheet (E-EML-)?</li>
+    <li>Engine already built and tested in this PR (src/calc/emergencyLighting.ts); this screen waits for approval.</li>
+  </ul>
+</div>
+
+<script>
+const route=[[2,3],[28,3],[28,19]], lobby=[[4,7],[16,7],[16,18],[4,18]];
+const emph=[{at:[14,2.2],k:'Fire alarm call point'},{at:[22,6.2],k:'Fire-fighting equipment'}];
+const d=(a,b)=>Math.hypot(b[0]-a[0],b[1]-a[1]),L=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
+function proj(p){let best={s:0,off:1e9},s0=0;for(let i=0;i+1<route.length;i++){const a=route[i],b=route[i+1],l=d(a,b),t=Math.max(0,Math.min(1,((p[0]-a[0])*(b[0]-a[0])+(p[1]-a[1])*(b[1]-a[1]))/(l*l))),q=L(a,b,t),o=d(q,p);if(o<best.off)best={s:s0+t*l,off:o};s0+=l;}return best;}
+function at(s){let s0=0;for(let i=0;i+1<route.length;i++){const l=d(route[i],route[i+1]);if(s<=s0+l+1e-9)return L(route[i],route[i+1],(s-s0)/l);s0+=l;}return route[route.length-1];}
+const $=id=>document.getElementById(id);
+function run(){
+  const rs=+$('rs').value,re=+$('re').value,os=+$('os').value,ow=+$('ow').value,view=+$('lit').value*+$('sh').value/1000;
+  const len=d(route[0],route[1])+d(route[1],route[2]),e=Math.min(re,len/2);
+  let st=[{s:e,w:'end'},{s:len-e,w:'end'},{s:d(route[0],route[1]),w:'direction'}],own=[];
+  for(const x of emph){const p=proj(x.at);if(p.off<=2)st.push({s:p.s,w:'emphasis'});else own.push(x.at);}
+  st.sort((a,b)=>a.s-b.s);st=st.filter((x,i)=>i===0||x.s-st[i-1].s>.5);
+  const all=[...st];for(let i=0;i+1<st.length;i++){const g=st[i+1].s-st[i].s,n=Math.ceil(g/rs-1e-9);for(let k=1;k<n;k++)all.push({s:st[i].s+g*k/n,w:'spacing'});}
+  all.sort((a,b)=>a.s-b.s);const gap=all.slice(1).reduce((m,x,i)=>Math.max(m,x.s-all[i].s),0);
+  const cell=Math.min(os,2*ow),nx=Math.ceil(12/cell-1e-9),ny=Math.ceil(11/cell-1e-9),open=[];for(let j=0;j<ny;j++)for(let i=0;i<nx;i++)open.push([4+(i+.5)*12/nx,7+(j+.5)*11/ny]);
+  const signS=[len-e,d(route[0],route[1])].sort((a,b)=>a-b),worst=Math.max(signS[0],(signS[1]-signS[0])/2,len-signS[1]);
+  const cnt=w=>all.filter(x=>x.w===w).length,total=all.length+own.length+open.length;
+  $('res').innerHTML=[['Route length',len.toFixed(2)+' m'],['Largest gap',gap.toFixed(2)+' m'],['At ends / exit',cnt('end')],['Changes of direction',cnt('direction')],['Points of emphasis',cnt('emphasis')+own.length],['To meet spacing',cnt('spacing')],['Open area (lobby 132 m²)',open.length],['Signs',2+' · '+view.toFixed(0)+' m view'],['Duration',$('prem').value+' h'],['Load',total*3+' W']].map(([a,b])=>`<div><span>${a}</span><b>${b}</b></div>`).join('');
+  const w=[];if(worst>view)w.push(`A point on the route is ${worst.toFixed(1)} m from the nearest sign — more than its ${view.toFixed(0)} m viewing distance`);if(own.length)w.push(`${own.length} point more than 2 m from the route gets its own fitting`);w.push('Spacings typical — enter the manufacturer’s spacing table');
+  $('warns').innerHTML=w.map(t=>`<li>⚠ ${t}</li>`).join('');
+  $('place').textContent=`Place ${total} fittings and 2 signs`;
+  const fit=([x,y])=>`<g stroke="var(--lum)" stroke-width=".07" fill="none"><circle cx="${x}" cy="${y}" r=".35"/><circle cx="${x}" cy="${y}" r=".12" fill="var(--lum)"/></g>`;
+  const sign=([x,y],r)=>`<g transform="translate(${x} ${y})"><rect x="-.6" y="-.35" width="1.2" height=".7" fill="var(--plan-bg)" stroke="var(--ok)" stroke-width=".08"/><path d="${r?'M-.3 0h.5M0-.2l.25.2-.25.2':'M-.3-.15v.3M-.3 0h.5'}" stroke="var(--ok)" stroke-width=".08" fill="none"/></g>`;
+  $('plan').innerHTML=`<rect width="34" height="22" fill="var(--plan-bg)"/>
+   <g stroke="var(--plan)" stroke-width=".14" fill="none"><path d="M1 1.5h29v19h-4M1 4.5h25.5v16M1 1.5v3"/><path d="M4 7h12v11H4z"/><path d="M18 7h7v6h-7z M18 14h7v5h-7z"/></g>
+   <path d="M26.5 20.5h3" stroke="var(--ok)" stroke-width=".25"/><text x="26.6" y="21.6" font-size=".6" fill="var(--ok)">EXIT</text>
+   <polygon points="${lobby.map(p=>p.join(',')).join(' ')}" fill="var(--room)"/><text x="4.4" y="17.5" font-size=".55" fill="var(--mut)">Lobby · 132 m² · open area</text>
+   <text x="18.3" y="10" font-size=".5" fill="var(--mut)">Office</text><text x="18.3" y="16.5" font-size=".5" fill="var(--mut)">Store</text>
+   <polyline points="${route.map(p=>p.join(',')).join(' ')}" fill="none" stroke="var(--acc)" stroke-width=".1" stroke-dasharray=".5 .3"/>
+   ${emph.map(x=>`<path d="M${x.at[0]-.25} ${x.at[1]-.25}l.5 .5M${x.at[0]+.25} ${x.at[1]-.25}l-.5 .5" stroke="var(--warn)" stroke-width=".08"/>`).join('')}
+   ${[...all.map(x=>at(x.s)),...own,...open].map(fit).join('')}
+   ${sign(at(len-e).map((v,i)=>i?v-0.9:v+0.9),0)}${sign([route[1][0]-1.1,route[1][1]+0.9],1)}`;
+}
+['rs','re','os','ow','sh','lit','prem'].forEach(id=>$(id).addEventListener('input',run));
+document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed',x===b));$('hint').textContent={route:'Escape route: click its points from the far end to the exit, Enter to finish · Esc to stop',open:'Open area: click inside a room (over 60 m², or one the route passes through)',point:'Point of emphasis: choose what it is, then click where it is'}[b.dataset.m];});
+$('theme').onclick=()=>{const r=document.documentElement,dd=r.dataset.theme||(matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');r.dataset.theme=dd==='light'?'dark':'light';};
+run();
+</script>
+</body>
+</html>
