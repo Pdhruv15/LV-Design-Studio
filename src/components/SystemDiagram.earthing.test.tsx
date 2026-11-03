@@ -26,21 +26,36 @@ const root = (id: string): Board => ({
 });
 
 describe('SLD main earth-pit arrangement', () => {
-  it('places the pits above the panel summary and uses one test-link route with one bend to the MET', () => {
+  it('stands the pits side by side outside the panel frame, each on its own conductor and test link from the MET', () => {
     const host = draw(sampleProject);
     const earth = host.querySelector<SVGGElement>('.earth-pit[data-board-id="MDB-1"]')!;
-    const summary = [...host.querySelectorAll<SVGRectElement>('.panel-frame .sum-box')]
-      .sort((a, b) => Number(a.getAttribute('y')) - Number(b.getAttribute('y')))[0];
-    const firstPit = earth.querySelector<SVGRectElement>('.earth-electrode rect')!;
-    const testLink = earth.querySelector<SVGRectElement>('.test-link')!;
-    const testLinkLabel = earth.querySelector<SVGTextElement>('.test-link-label')!;
-    const route = earth.querySelector<SVGPathElement>('.earth-to-met')!;
+    const met = earth.querySelector<SVGLineElement>('.met-bar')!;
+    // MDB-1's own frame and name box: the nearest ones left of its MET.
+    const nearest = (sel: string) => [...host.querySelectorAll<SVGRectElement>(sel)]
+      .filter((r) => Number(r.getAttribute('x')) < Number(met.getAttribute('x1')))
+      .sort((a, b) => Number(b.getAttribute('x')) - Number(a.getAttribute('x')))[0];
+    const frameX = Number(nearest('.panel-frame .frame-ln').getAttribute('x'));
+    const summary = nearest('.panel-frame .sum-box');
+    const pits = [...earth.querySelectorAll<SVGRectElement>('.earth-electrode rect')];
+    const links = [...earth.querySelectorAll<SVGRectElement>('.test-link')];
+    const routes = [...earth.querySelectorAll<SVGPathElement>('.earth-to-met')];
+    const n = (el: Element, a: string) => Number(el.getAttribute(a));
 
-    expect(earth.querySelectorAll('.earth-electrode')).toHaveLength(2);
-    expect(earth.querySelectorAll('.test-link')).toHaveLength(1);
-    expect(Number(firstPit.getAttribute('y')) + Number(firstPit.getAttribute('height'))).toBeLessThan(Number(summary.getAttribute('y')));
-    expect(Number(testLinkLabel.getAttribute('y'))).toBeGreaterThan(Number(testLink.getAttribute('y')) + Number(testLink.getAttribute('height')));
-    expect(route.getAttribute('d')).toMatch(/^M[\d.]+ [\d.]+ H[\d.]+ V[\d.]+$/);
+    expect(pits).toHaveLength(2);
+    expect(links).toHaveLength(2);
+    expect([...earth.querySelectorAll('.test-link-label')].map((t) => t.textContent)).toEqual(['TL1', 'TL2']);
+    // Vertical MET inside the frame, under the name box.
+    expect(n(met, 'x1')).toBe(n(met, 'x2'));
+    expect(n(met, 'x1')).toBeGreaterThan(frameX);
+    expect(n(met, 'y1')).toBeGreaterThan(n(summary, 'y') + n(summary, 'height'));
+    // Pits and test links outside the frame; pits on one line, so the spacing reads horizontally.
+    for (const el of [...pits, ...links]) expect(n(el, 'x') + n(el, 'width')).toBeLessThan(frameX);
+    expect(new Set(pits.map((p) => p.getAttribute('y'))).size).toBe(1);
+    // One straight conductor per pit, evenly spaced along the MET.
+    const ys = routes.map((r) => Number(/^M[\d.]+ ([\d.]+) H[\d.]+$/.exec(r.getAttribute('d')!)![1]));
+    const [top, bot] = [n(met, 'y1'), n(met, 'y2')];
+    expect(ys[0] - top).toBeCloseTo(ys[1] - ys[0], 5);
+    expect(bot - ys[1]).toBeCloseTo(ys[1] - ys[0], 5);
   });
 
   it('anchors the standard-style earth detail and MET to the main panel', () => {
@@ -93,5 +108,10 @@ describe('SLD main earth-pit arrangement', () => {
     expect(earth.map((g) => g.dataset.boardId)).toEqual(['MDB-1', 'MDB-2']);
     expect(earth.map((g) => g.querySelectorAll('.earth-electrode').length)).toEqual([1, 1]);
     expect(earth.map((g) => g.querySelectorAll('.test-link').length)).toEqual([1, 1]);
+    // Each board's pits stay clear of the board on its left.
+    const met2 = earth[1].querySelector<SVGLineElement>('.met-bar')!;
+    const pit2 = earth[1].querySelector<SVGRectElement>('.earth-electrode rect')!;
+    expect(Number(pit2.getAttribute('x'))).toBeGreaterThan(Number(earth[0].querySelector('.met-bar')!.getAttribute('x1')));
+    expect(Number(pit2.getAttribute('x'))).toBeLessThan(Number(met2.getAttribute('x1')));
   });
 });

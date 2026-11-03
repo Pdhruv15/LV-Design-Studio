@@ -92,6 +92,9 @@ export interface LayoutOptions {
   /** Extra room above the root bus only (levels keep their spacing), e.g. for the
    * standard-style LV earth-pit detail under a root's transformer. */
   rootExtraY?: number;
+  /** Extra room left of a root board (by id), e.g. for the DEWA-style LV earth pits drawn
+   * outside its panel frame. */
+  rootLeadX?: Map<string, number>;
 }
 
 export function layoutSystem(project: Project, extraY = 0, opts: LayoutOptions = {}): SystemLayout {
@@ -208,6 +211,7 @@ export function layoutSystem(project: Project, extraY = 0, opts: LayoutOptions =
   const rootBoards = [...project.boards.filter((b) => !b.upstreamId), ...project.boards.filter((b) => b.upstreamId && !byId.has(b.upstreamId))];
   for (const b of rootBoards) {
     if (placed.has(b.id)) continue;
+    left += opts.rootLeadX?.get(b.id) ?? 0;
     const { node, right } = place(b, left, 0);
     roots.push(node);
     left = right;
