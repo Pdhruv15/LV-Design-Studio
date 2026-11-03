@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.036', date: '2026-11-03',
+    items: [
+      { title: 'Design CAD: Light room', text: 'Plan → Devices → Light room (LUX): point at a room to see its lights, worked out by the lumen method for the room\'s own outline (L-shaped and angled rooms too). Click to keep them. Then set the target lux, ceiling, luminaire, maintenance factor and circuit, and Place puts them on the circuit. Warnings show when the room is below target, the spacing is too wide for the luminaire, or the W/m² is over the room type\'s limit. This is the average lux only; use DIALux or Relux for uniformity.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.035', date: '2026-11-03',
     items: [
       { title: 'Edit circuit in tabs', text: 'Double-clicking a load schedule circuit opens its edit window in three tabs: Loads, Protection & wiring and General. It opens on the tab of the cell you double-clicked. A line at the top shows the circuit\'s load, MCB, wire size and PASS / FAIL, and updates as you type, before you save.' },

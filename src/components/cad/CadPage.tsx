@@ -20,6 +20,8 @@ import { plansOf } from '../../model/cadPlans';
 import { CAD_UNITS, planScale } from '../../model/cadUnits';
 import CadLayerTable from '../CadLayerTable';
 import CadTabs from './CadTabs';
+import RoomLightingPanel, { lightingOf, LUX_START, type LuxSettings } from './RoomLightingPanel';
+import { placeRoomLights } from '../../model/roomLights';
 import { planLevel, setPlanLevel } from './cadFileMenu';
 import { pathOfPlan } from './cadState';
 import { pickedRoom, putRooms, renameRoom } from '../../model/floorPlanActions';
@@ -39,7 +41,7 @@ const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.to
 const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
   { k: 'snap', label: 'SNAP', key: 'F9' }, { k: 'osnap', label: 'OSNAP', key: 'F3' }, { k: 'ortho', label: 'ORTHO', key: 'F8' }, { k: 'grid', label: 'GRID', key: 'F7' }
 ];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 const PROMPT: Record<CadTool, string> = {
@@ -54,6 +56,7 @@ const PROMPT: Record<CadTool, string> = {
   link: 'LINK  Click a line of the drawing: it becomes the cable route:',
   dev: 'DEV  Specify insertion point:',
   fill: 'FILL  Click inside a room: the ELV device chosen is placed at its coverage spacing:',
+  lux: 'LUX  Point at a room to see its lights by the lumen method, click to keep them:',
   wire: 'WIRE  Click a device: its circuit is wired (or its wiring taken off):',
   move: 'MOVE  Select object, then specify base point:',
   copy: 'COPY  Select object, then specify base point:',
@@ -99,7 +102,10 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   const [result, setResult] = useState<Result | null>(null);
   // Another drawing showing (its tab, one opened or closed): what was picked or being drawn on the last one goes.
   const [pickedOn, setPickedOn] = useState(view);
-  if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); }
+  // Light room (LUX): the room kept (its lights stay previewed while the panel is edited) and the panel's settings.
+  const [luxRoom, setLuxRoom] = useState<string | null>(null);
+  const [luxSet, setLuxSet] = useState<LuxSettings>(LUX_START);
+  if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); }
   const input = useRef<HTMLInputElement>(null);
   const last = rememberedDrawing(project.id);
   const units = planScale(project, view?.file, view?.info.units);
@@ -133,7 +139,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   }, [view]); // eslint-disable-line react-hooks/exhaustive-deps -- once, when the page first shows no drawing
 
   // A tool chosen (ribbon or command line): start it afresh and say what it asks for.
-  useEffect(() => { setPoints([]); setObjectMode(false); cad.setTextAt(null); cad.say(`Command: ${PROMPT[tool]}`); }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setPoints([]); setObjectMode(false); setLuxRoom(null); cad.setTextAt(null); cad.say(`Command: ${PROMPT[tool]}`); }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Layer roles (File → Layer roles): the project's, else a guess from the layer's name and what it holds.
   const layerStats = useMemo(() => (view ? layerStatsOf(view) : []), [view]);
@@ -176,7 +182,14 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   })), [sketch, project]);
   const textH = 0.25 / units.factor;
   const rUnits = DEVICE_R_M / units.factor;
-  const ghosts: CanvasDevice[] = (elv?.symbols ?? []).filter((x) => x.ghost).map((x, i) => ({ key: `ghost${i}`, x: x.at[0], y: x.at[1], r: rUnits, shape: x.shape, text: x.text, label: '', elv: true, ghost: true }));
+  // Light room: the room kept, else the one under the pointer, with its lights by the lumen method.
+  const luxHover = tool === 'lux' && !luxRoom && cursor.at && floor ? roomAtPointOf(project, floor, cursor.at, units.factor)?.id : undefined;
+  const luxOf = tool === 'lux' ? buildingInfoOf(project).rooms.find((r) => r.id === (luxRoom ?? luxHover)) : undefined;
+  const lit = useMemo(() => (luxOf ? lightingOf(project, luxOf, luxSet) : undefined), [project, luxOf?.id, luxSet]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the room, not every pointer move
+  const ghosts: CanvasDevice[] = [
+    ...(elv?.symbols ?? []).filter((x) => x.ghost).map((x, i) => ({ key: `ghost${i}`, x: x.at[0], y: x.at[1], r: rUnits, shape: x.shape, text: x.text, label: '', elv: true, ghost: true })),
+    ...(lit?.result.points ?? []).map(([x, y], i) => ({ key: `lux${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: 'cross', text: '', label: '', ghost: true }))
+  ];
   const devices: CanvasDevice[] = cad.showDevices ? [...ghosts, ...placed.map((d) => ({
     key: d.key, x: d.x / units.factor, y: d.y / units.factor, r: d.what === 'board' ? rUnits * 2 : rUnits, shape: d.symbol.shape, text: d.symbol.text,
     label: d.what === 'lv' ? d.detail.split(' · ')[0] : d.what === 'board' ? d.label : '', selected: d.key === cad.selected, elv: d.what === 'elv'
@@ -220,6 +233,16 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
   useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
 
+  /** Light room: places the kept room's lights on the circuit chosen. */
+  function placeLux() {
+    if (!floor || !luxOf || !lit) return;
+    try {
+      const r = placeRoomLights(project, floor.ref, luxOf.id, cad.feederId, lit.result.points, luxSet.replace);
+      const f = project.feeders.find((x) => x.id === cad.feederId)!;
+      change(r.project, `${r.ids.length} light${r.ids.length === 1 ? '' : 's'} placed in ${luxOf.name} on ${circuitLabel(project, f).split(' · ')[0]} — ${Math.round(lit.result.achievedLux)} lx${r.removed ? ` (${r.removed} taken off first)` : ''} · ⌘Z to undo`);
+      setLuxRoom(null);
+    } catch (e) { cad.say(`LUX  ${e instanceof Error ? e.message : String(e)}`); }
+  }
   /** Wire circuits: every circuit with devices on this level, with a home run to its DB. */
   function wireAll() {
     if (!floor) { cad.say('WIRE  Add the building and its levels in Building information first; devices are kept per level.'); return; }
@@ -408,6 +431,13 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if (!elvItem) { cad.say('FILL  Choose an ELV device first (a detector, speaker, data outlet…) in the Devices panel.'); return; }
       const r = fillAt(project, { building: floor.ref.building, level: floor.ref.level }, elvItem.kind.elv, [at[0] * units.factor, at[1] * units.factor]);
       if (r.next) change(r.next, r.message); else cad.say(`FILL  ${r.message}`);
+    } else if (tool === 'lux') {
+      if (!floor) { cad.say('LUX  Add the building and its levels in Building information first.'); return; }
+      const room = roomAtPointOf(project, floor, at, units.factor);
+      if (!room) { cad.say('LUX  No room with an outline there: add it first (Room area, Trace or Rooms).'); return; }
+      const r = lightingOf(project, room, { ...luxSet, lux: undefined, ceil: undefined, wp: undefined });
+      setLuxRoom(room.id); setLuxSet((s) => ({ ...s, lux: undefined, ceil: undefined, wp: undefined }));
+      cad.say(r.result.invalid ? `LUX  ${room.name}: ${r.result.invalid}` : `LUX  ${room.name}: ${r.result.count} light${r.result.count === 1 ? '' : 's'} for ${r.input.targetLux} lx — set the luminaire and circuit, then Place.`);
     } else if (tool === 'room') {
       const r = roomAround(walls, at, units.factor);
       if (!r) { cad.say('ROOM AREA  No closed room around that point (open to the outside, or over 50 m across). Use AREA and click its corners.'); return; }
@@ -531,6 +561,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     else if (c === 'LR' || c === 'LINK') cad.setTool('link');
     else if (c === 'SCHED' || c === 'SCHEDULES' || c === 'UPDATE') schedules();
     else if (c === 'FILL' || c === 'FR') cad.setTool('fill');
+    else if (c === 'LUX' || c === 'LIGHTROOM') cad.setTool('lux');
     else if (c === 'WC' || c === 'WIRE' || c === 'WIRECIRCUITS') wireAll();
     else if (c === 'W1' || c === 'WIREONE') cad.setTool('wire');
     else if (c === 'TAGS') cad.setWireTags(!cad.wireTags);
@@ -675,6 +706,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
                   <span className="m">{wiring.length ? `${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on this level. Update schedules sends the lengths to the cable schedule.` : 'No circuit wired on this level yet: click a device, or use Wire circuits.'}</span>
                 </div>
               </>
+            )}
+            {tool === 'lux' && view && (
+              <RoomLightingPanel project={project} room={luxOf} lit={lit} settings={luxSet} onSettings={setLuxSet} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId} onPlace={placeLux} onCancel={() => { setLuxRoom(null); cad.say(`Command: ${PROMPT.lux}`); }} />
             )}
             {(tool === 'dev' || tool === 'move' || tool === 'fill') && view && (
               <>

@@ -4,7 +4,7 @@ import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FileX2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
-import { PenTool, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow } from 'lucide-react';
+import { PenTool, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb } from 'lucide-react';
 import type { CadTool } from './cad/cadState';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
@@ -122,7 +122,7 @@ const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
 /** The sub-tab a tool is on, so the ribbon shows the tool in use. */
 const SUB_OF: Partial<Record<CadTool, CadSub>> = {
   line: 'draw', pline: 'draw', rect: 'draw', circle: 'draw', arc: 'draw', text: 'draw', dim: 'draw', rotate: 'draw',
-  room: 'plan', trace: 'plan', name: 'plan', tray: 'plan', cable: 'plan', link: 'plan', dev: 'plan', fill: 'plan', wire: 'plan', dist: 'plan', area: 'plan'
+  room: 'plan', trace: 'plan', name: 'plan', tray: 'plan', cable: 'plan', link: 'plan', dev: 'plan', fill: 'plan', lux: 'plan', wire: 'plan', dist: 'plan', area: 'plan'
 };
 
 /** Group captions under the ribbon groups (same order as the groups). */
@@ -443,6 +443,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         { label: 'Add device', icon: CirclePlus, title: 'Place lights, sockets, a DB or ELV devices on the plan (DEV): choose it and its circuit, then click', onClick: () => a.cad?.onTool('dev'), active: a.cad?.tool === 'dev', disabled: !a.cad?.hasDrawing },
         cadTool('fill', 'Fill room', Grid3x3, 'Choose an ELV device, point at a room to see it at its coverage spacing, click to place them all (FILL)'),
+        cadTool('lux', 'Light room', Lightbulb, 'Point at a room: its luminaires by the lumen method for its outline, then placed as lights on a circuit (LUX)'),
         { label: 'Coverage', icon: CircleDashed, title: 'Show what the devices of the chosen ELV device\'s system cover, and what is not covered (COV)', onClick: () => a.cad?.onCoverage(), active: a.cad?.coverageOn, disabled: !a.cad?.hasDrawing },
         { label: 'Copy to level', icon: Copy, title: "Copy this level's devices of the chosen ELV device's system to another level, at the same plan positions", onClick: () => {}, disabled: !a.cad?.hasDrawing || !a.cad.copyLevels?.length, menu: a.cad?.copyLevels }
       ],

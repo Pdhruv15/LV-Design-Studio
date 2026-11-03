@@ -10,6 +10,13 @@ import type { BuildingRoom, Project } from '../types';
 
 type Pt = [number, number];
 
+/** Typical LED luminaires for a first layout; the manufacturer's data replaces them for submission. */
+export const LUMINAIRES: { id: string; label: string; lumens: number; watts: number; shrMax: number }[] = [
+  { id: 'dl10', label: 'Downlight 10 W · 1000 lm', lumens: 1000, watts: 10, shrMax: 1.5 },
+  { id: 'dl18', label: 'Downlight 18 W · 1800 lm', lumens: 1800, watts: 18, shrMax: 1.5 },
+  { id: 'pnl36', label: 'Panel 600 × 600 36 W · 3600 lm', lumens: 3600, watts: 36, shrMax: 1.4 }
+];
+
 export interface RoomLightingInput {
   ceilingM: number; workPlaneM: number; suspensionM: number;
   targetLux: number; lumens: number; watts: number; mf: number;
