@@ -1,5 +1,6 @@
 import { buildingInfoOf, roomTypesOf } from './building';
 import { estimateUf } from './lighting';
+import { catalog, type CatalogLuminaire } from '../database/catalog';
 import { polygonArea } from '../model/cadBoundary';
 import { inside } from '../model/cadMeasure';
 import type { BuildingRoom, Project } from '../types';
@@ -10,12 +11,15 @@ import type { BuildingRoom, Project } from '../types';
 
 type Pt = [number, number];
 
-/** Typical LED luminaires for a first layout; the manufacturer's data replaces them for submission. */
-export const LUMINAIRES: { id: string; label: string; lumens: number; watts: number; shrMax: number }[] = [
+/** Typical LED luminaires for a first layout (the start of Luminaires.xlsx); the manufacturer's data replaces them. */
+export const LUMINAIRES: CatalogLuminaire[] = [
   { id: 'dl10', label: 'Downlight 10 W · 1000 lm', lumens: 1000, watts: 10, shrMax: 1.5 },
   { id: 'dl18', label: 'Downlight 18 W · 1800 lm', lumens: 1800, watts: 18, shrMax: 1.5 },
   { id: 'pnl36', label: 'Panel 600 × 600 36 W · 3600 lm', lumens: 3600, watts: 36, shrMax: 1.4 }
 ];
+
+/** The luminaires Light room offers: Luminaires.xlsx, else the typical list. */
+export const luminairesOf = (): CatalogLuminaire[] => (catalog().luminaires.length ? catalog().luminaires : LUMINAIRES);
 
 export interface RoomLightingInput {
   ceilingM: number; workPlaneM: number; suspensionM: number;

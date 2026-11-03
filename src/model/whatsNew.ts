@@ -17,7 +17,8 @@ export const RELEASES: Release[] = [
   {
     version: '2.036', date: '2026-11-03',
     items: [
-      { title: 'Design CAD: Light room', text: 'Plan → Devices → Light room (LUX): point at a room to see its lights, worked out by the lumen method for the room\'s own outline (L-shaped and angled rooms too). Click to keep them. Then set the target lux, ceiling, luminaire, maintenance factor and circuit, and Place puts them on the circuit. Warnings show when the room is below target, the spacing is too wide for the luminaire, or the W/m² is over the room type\'s limit. This is the average lux only; use DIALux or Relux for uniformity.', action: 'cad', actionLabel: 'Open Design CAD' }
+      { title: 'Design CAD: Light room', text: 'Plan → Devices → Light room (LUX): point at a room to see its lights, worked out by the lumen method for the room\'s own outline (L-shaped and angled rooms too). Click to keep them. Then set the target lux, ceiling, luminaire, maintenance factor and circuit, and Place puts them on the circuit. Warnings show when the room is below target, the spacing is too wide for the luminaire, or the W/m² is over the room type\'s limit. This is the average lux only; use DIALux or Relux for uniformity.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Luminaires in the database', text: 'A new Luminaires sheet in the database (Luminaires.xlsx) lists the luminaires Light room offers: name, lumens, watts, the largest spacing-to-height ratio and the manufacturer. It starts with three typical LED fittings; replace them with your suppliers\' data, in Excel or on the Database page.' }
     ]
   },
   {

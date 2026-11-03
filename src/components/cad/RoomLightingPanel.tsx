@@ -1,19 +1,20 @@
 import { REFLECTANCES } from '../../calc/lighting';
-import { LUMINAIRES, roomLighting, roomLightingDefaults, type RoomLightingInput, type RoomLightingResult } from '../../calc/roomLighting';
+import { luminairesOf, roomLighting, roomLightingDefaults, type RoomLightingInput, type RoomLightingResult } from '../../calc/roomLighting';
 import { circuitLabel } from '../../model/cadDevices';
 import { m, m2 } from '../../model/cadMeasure';
 import type { BuildingRoom, Feeder, Project } from '../../types';
 
 /** Light room (LUX) settings: the luminaire and the room's values the engineer changed (blank = the room's default). */
 export interface LuxSettings { lum: string; mf: string; uf: string; refl: string; replace: boolean; lux?: string; ceil?: string; wp?: string }
-export const LUX_START: LuxSettings = { lum: LUMINAIRES[0].id, mf: '0.8', uf: '', refl: '533', replace: true };
+export const LUX_START: LuxSettings = { lum: '', mf: '0.8', uf: '', refl: '533', replace: true };
 
 const num = (s: string | undefined, d: number) => (s !== undefined && s.trim() !== '' && Number.isFinite(Number(s)) ? Number(s) : d);
 
 /** The lumen-method input for a room from its defaults and the settings, and the result. */
 export function lightingOf(p: Project, room: BuildingRoom, s: LuxSettings): { input: RoomLightingInput; result: RoomLightingResult } {
   const d = roomLightingDefaults(p, room);
-  const lum = LUMINAIRES.find((x) => x.id === s.lum) ?? LUMINAIRES[0];
+  const list = luminairesOf();
+  const lum = list.find((x) => x.id === s.lum) ?? list[0];
   const input: RoomLightingInput = {
     ...d, targetLux: num(s.lux, d.targetLux), ceilingM: num(s.ceil, d.ceilingM), workPlaneM: num(s.wp, d.workPlaneM), reflectance: s.refl,
     mf: num(s.mf, d.mf), lumens: lum.lumens, watts: lum.watts, shrMax: lum.shrMax, ...(s.uf.trim() ? { uf: num(s.uf, NaN) } : {})
@@ -38,6 +39,7 @@ export default function RoomLightingPanel({ project, room, lit, settings, onSett
   const { input, result: r } = lit;
   const set = (k: keyof LuxSettings) => (e: { target: { value: string } }) => onSettings({ ...settings, [k]: e.target.value });
   const bad = !!r.invalid;
+  const lumId = luminairesOf().find((x) => x.id === settings.lum)?.id ?? luminairesOf()[0].id;
   return (
     <>
       <h4>Light room <span className="m">{room.name} · {m2(r.areaM2)} · perimeter {m(r.perimeterM)}</span></h4>
@@ -46,7 +48,7 @@ export default function RoomLightingPanel({ project, room, lit, settings, onSett
         <label>Ceiling (m)<input aria-label="Ceiling height" type="number" step="0.1" value={settings.ceil ?? String(input.ceilingM)} onChange={set('ceil')} /></label>
         <label>Working plane (m)<input aria-label="Working plane" type="number" step="0.05" value={settings.wp ?? String(input.workPlaneM)} onChange={set('wp')} /></label>
         <label>Reflectances<select aria-label="Reflectances" value={settings.refl} onChange={set('refl')}>{REFLECTANCES.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select></label>
-        <label>Luminaire<select aria-label="Luminaire" value={settings.lum} onChange={set('lum')}>{LUMINAIRES.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</select></label>
+        <label>Luminaire (database: Luminaires)<select aria-label="Luminaire" value={lumId} onChange={set('lum')}>{luminairesOf().map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</select></label>
         <label>Maintenance factor<input aria-label="Maintenance factor" type="number" step="0.05" value={settings.mf} onChange={set('mf')} /></label>
         <label>UF (blank = estimated)<input aria-label="Utilisation factor" type="text" placeholder="estimated" value={settings.uf} onChange={set('uf')} /></label>
         <label>Circuit<select aria-label="Circuit" value={feederId} onChange={(e) => onFeeder(e.target.value)}>

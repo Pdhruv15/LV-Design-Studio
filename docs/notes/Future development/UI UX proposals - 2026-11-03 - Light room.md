@@ -18,5 +18,5 @@ Item 5 of *CAD design tools - electrical and ELV - 2026-11-03*. The engine is bu
 ## Decisions
 
 1. Screen: **approved as in the mockup** (2026-11-03). Built with the CAD side panel's own fields and buttons, no new styles.
-2. Luminaire list: not answered; v2.036 has the mockup's three typical LED luminaires (`LUMINAIRES` in `src/calc/roomLighting.ts`). Still open: a Luminaires database sheet, or typed per project.
+2. Luminaire list: **a database sheet** (user, 2026-11-03). Luminaires.xlsx (Id, Name, lm, W, SHR max, Manufacturer), on the Database page as its own tab; it starts with the three typical LED luminaires, which are also used while the sheet is empty.
 3. *Light all rooms on the level*: not answered; left for later.

@@ -744,6 +744,53 @@
       ]
     },
     {
+      "id": "luminaires",
+      "file": "Luminaires.xlsx",
+      "sheet": "Luminaires",
+      "about": [
+        "Luminaires for Design CAD → Light room (lumen method): lumens, watts and the largest spacing-to-height ratio from the manufacturer's data sheet. The app starts with typical LED values — replace them with your suppliers' data."
+      ],
+      "columns": [
+        {
+          "key": "id",
+          "header": "Id (short, no spaces)",
+          "width": 18,
+          "required": true
+        },
+        {
+          "key": "label",
+          "header": "Name",
+          "width": 34,
+          "required": true
+        },
+        {
+          "key": "lumens",
+          "header": "Luminous flux (lm)",
+          "width": 16,
+          "required": true,
+          "number": true
+        },
+        {
+          "key": "watts",
+          "header": "Power (W)",
+          "width": 11,
+          "required": true,
+          "number": true
+        },
+        {
+          "key": "shrMax",
+          "header": "SHR max",
+          "width": 10,
+          "number": true
+        },
+        {
+          "key": "manufacturer",
+          "header": "Manufacturer",
+          "width": 20
+        }
+      ]
+    },
+    {
       "id": "unitTypes",
       "file": "UnitTypes.xlsx",
       "sheet": "Unit types",
