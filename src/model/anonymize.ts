@@ -26,7 +26,7 @@ const KEEP_PROJECT = ['schemaVersion', 'voltageV', 'frequencyHz', 'ambientC', 'v
 /** Project fields rebuilt below (with ids rewritten or text removed). Everything else is dropped and listed. */
 const REBUILT_PROJECT = new Set<string>(['name', 'boards', 'feeders', 'ties', 'vdSelection', 'studySettings', 'calc', 'info', 'trays', 'updatedAt', 'id']);
 
-const BOARD_KEEP = ['sourceKva', 'sourceImpedancePct', 'sourceXr', 'kind', 'ratedCurrentA', 'busbarMaterial', 'incomerDevice', 'instruments', 'upsKva', 'spd', 'mdDemandFactor', 'pointWatts', 'elcbGroupSize', 'elcbRatingA', 'elcbSensitivityMa', 'summaryLoad', 'summaryMeters'] as const;
+const BOARD_KEEP = ['sourceKva', 'sourceImpedancePct', 'sourceXr', 'kind', 'ratedCurrentA', 'busbarMaterial', 'busbarIcwKa', 'sections', 'incomerDevice', 'instruments', 'upsKva', 'spd', 'mdDemandFactor', 'pointWatts', 'elcbGroupSize', 'elcbRatingA', 'elcbSensitivityMa', 'summaryLoad', 'summaryMeters'] as const;
 const BOARD_REBUILT = new Set<string>(['id', 'name', 'upstreamId', 'vectorGroup', 'ipRating', 'standby', 'protection', 'earthing', 'supply', 'spareWays']);
 const FEEDER_KEEP = ['loadKw', 'demandFactor', 'powerFactor', 'lengthM', 'cableCsaMm2', 'parallel', 'cores', 'breakerRatingA', 'breakerIcuKa', 'generation', 'loadType', 'breakerType', 'breakerImMultiple', 'cpcMm2', 'installMethod', 'standbyUnit', 'essential', 'phase', 'way', 'points', 'manualSize', 'starter', 'kvar', 'device', 'kwhMeter', 'circuitPurpose', 'rcdMa', 'localIsolator', 'capSteps', 'detunedPct', 'lengthToCheck', 'sizingPending'] as const;
 const FEEDER_REBUILT = new Set<string>(['id', 'boardId', 'feedsBoardId', 'name', 'cableType', 'loadItems', 'trayRoute']);

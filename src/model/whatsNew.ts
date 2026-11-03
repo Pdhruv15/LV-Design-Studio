@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.038', date: '2026-11-03',
+    items: [
+      { title: 'Busbar rating on board sheets', text: 'A board\'s busbar now reads like "200 A, 3φ 4W, 50 Hz CU BUSBAR". Enter the busbar Icw (kA for 1 s, from the panel builder) in the board\'s properties and it is printed too, with "Isc ≤ Icw" beside the fault level and a BUSBAR Icw line in the panel summary. When the Icw is below the fault level at the board, it goes on the to-do list. Nothing is assumed when it is left blank.' },
+      { title: 'Panel sections', text: 'In a board\'s properties, under On the SLD, tick Fire alarm interface, Control section, BMS section or Metering section. Each is drawn as a labelled strip at the end of the busbar on the board sheet (PDF and DXF) and listed in the panel summary.' },
+      { title: 'Busway tap-off supply', text: 'A board on a busway riser now shows "FROM <riser> (TAP-OFF)" on its board sheet, with the riser\'s source board below it, instead of only the board above.' }
+    ]
+  },
+  {
     version: '2.037', date: '2026-11-03',
     items: [
       { title: 'Design CAD: Emergency lighting', text: 'Plan → Devices → Emergency (EM), after BS 5266-1 and EN 1838. Draw each escape route from the far end to the exit (Enter to finish), click rooms for open-area lighting, and mark points of emphasis such as call points, extinguishers, exit doors and stairs. Fittings go at the ends, at each change of direction and at each point of emphasis, with the gaps split to the fitting\'s spacing. Exit and direction signs are added, and the panel warns when a sign is too far to be seen. Place puts the fittings and signs on an unswitched lighting circuit.', action: 'cad', actionLabel: 'Open Design CAD' },

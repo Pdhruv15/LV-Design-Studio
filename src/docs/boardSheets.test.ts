@@ -33,6 +33,51 @@ describe('board sheet drawing', () => {
     expect(svg).toContain('PH R');
     for (const t of ['PANEL SUMMARY', 'TCL / DF / MDL', 'R / Y / B LOAD', 'NEUTRAL CURRENT', 'CURRENT UNBALANCE', 'EARTH', 'CIRCUITS', 'TOTAL']) expect(svg).toContain(t);
   });
+  it('writes the busbar as rating, 3φ 4W, frequency and material, with Icw when entered', () => {
+    const plain = boardSheetSvg(run.project, board('SMDB-GF'), run.results).svg;
+    expect(plain).toContain('SMDB-GF · 630 A, 3φ 4W, 50 Hz CU BUSBAR</text>');
+    expect(plain).not.toContain('Icw');
+    const p = { ...run.project, boards: run.project.boards.map((b) => (b.id === 'SMDB-GF' ? { ...b, busbarIcwKa: 50 } : b)) };
+    const svg = boardSheetSvg(p, p.boards.find((b) => b.id === 'SMDB-GF')!, run.results).svg;
+    // Too long to clear the incomer line on one line: stacked, every line clear of it.
+    expect(svg).toContain('>SMDB-GF · 630 A CU BUSBAR · 3φ 4W, 50 Hz</text>');
+    expect(svg).toContain('>Icw 50 kA / 1 s</text>');
+    // On a narrow board every part gets its own line, all clear of the incomer line.
+    const mcc = { ...p, boards: p.boards.map((b) => (b.id === 'MCC-1' ? { ...b, busbarIcwKa: 35 } : b)) };
+    const narrow = boardSheetSvg(mcc, mcc.boards.find((b) => b.id === 'MCC-1')!, run.results).svg;
+    for (const t of ['MCC-1 · 400 A CU BUSBAR', '3φ 4W, 50 Hz', 'Icw 35 kA / 1 s']) expect(narrow).toContain(`>${t}</text>`);
+    expect(svg).toMatch(/Isc [\d.]+ kA ≤ Icw/);
+    expect(svg).toContain('>BUSBAR Icw<');
+    expect(svg).toContain('50 kA / 1 s — OK');
+    const low = { ...p, boards: p.boards.map((b) => (b.id === 'SMDB-GF' ? { ...b, busbarIcwKa: 1.5 } : b)) };
+    const lowSvg = boardSheetSvg(low, low.boards.find((b) => b.id === 'SMDB-GF')!, run.results).svg;
+    expect(lowSvg).toContain('>Icw 1.5 kA / 1 s</text>');
+    expect(lowSvg).toContain('&gt; Icw — CHECK');
+    expect(lowSvg).toContain('CHECK (below the fault level)');
+  });
+  it('draws ticked panel sections as labelled strips and moves the summary clear of them', () => {
+    const base = boardSheetSvg(run.project, board('SMDB-GF'), run.results).svg;
+    const p = { ...run.project, boards: run.project.boards.map((b) => (b.id === 'SMDB-GF' ? { ...b, sections: ['bms', 'fireAlarm'] as ('bms' | 'fireAlarm')[] } : b)) };
+    const svg = boardSheetSvg(p, p.boards.find((b) => b.id === 'SMDB-GF')!, run.results).svg;
+    // In the fixed order: fire alarm interface first, whatever order they were ticked in.
+    expect(svg.indexOf('>FIRE ALARM INTERFACE<')).toBeGreaterThan(0);
+    expect(svg.indexOf('>FIRE ALARM INTERFACE<')).toBeLessThan(svg.indexOf('>BMS SECTION<'));
+    expect(svg).not.toContain('CONTROL SECTION');
+    expect(svg.match(/transform="rotate\(-90 /g)).toHaveLength(2);
+    expect(svg).toContain('Fire alarm interface, BMS section');
+    const sumX = (x: string) => Number(x.match(/<text x="([\d.]+)"[^>]*>PANEL SUMMARY</)![1]);
+    expect(sumX(svg) - sumX(base)).toBe(64 + 2 * 26); // SMDB-GF's ways fill its busbar row
+    expect(base).not.toContain('SECTIONS');
+  });
+  it('names a busway tap-off as the supply of a board on a riser', () => {
+    const p = { ...run.project, busRisers: [{ id: 'R1', name: 'BB-T4-09', sourceBoardId: 'MDB-1', material: 'cu' as const, feedM: 5, floorHeightM: 4, offsetFloors: 0, elementM: 3, elbows: 2,
+      floors: [{ id: 'f1', name: 'L1', boardId: 'SMDB-GF' }] }] };
+    const svg = boardSheetSvg(p, p.boards.find((b) => b.id === 'SMDB-GF')!, run.results, { fromSheet: 'E-SLD-01' }).svg;
+    expect(svg).toContain('FROM BB-T4-09 (TAP-OFF)');
+    expect(svg).toContain('BUSWAY RISER FROM MDB-1 (SHEET E-SLD-01)');
+    expect(svg).toContain('Tap-off from BB-T4-09 (MDB-1), sheet E-SLD-01');
+    expect(boardSheetSvg(p, p.boards.find((b) => b.id === 'SMDB-FF')!, run.results).svg).toContain('FROM MDB-1');
+  });
   it('stops at final circuits: one box refers to the schedule, the circuit table still lists every way', () => {
     const own = run.project.feeders.filter((x) => x.boardId === 'DB-GF1');
     const { svg } = boardSheetSvg(run.project, board('DB-GF1'), run.results);
@@ -89,6 +134,12 @@ describe('board sheet set', () => {
         expect(dxf[0].data).toContain('PANEL SUMMARY');
         expect(dxf[0].data).toContain(p.boardId);
       }
+    });
+    it('keeps panel section labels as rotated text in the DXF', () => {
+      const p = { ...run.project, boards: run.project.boards.map((b) => (b.id === 'SMDB-GF' ? { ...b, sections: ['fireAlarm'] as 'fireAlarm'[] } : b)) };
+      const page = boardSheetPages(p, run.results).find((x) => x.boardId === 'SMDB-GF')!;
+      const data = buildSheetDxfPages(p, page.svg, 'A3', page.info)[0].data;
+      expect(data).toContain('\r\n1\r\nFIRE ALARM INTERFACE\r\n50\r\n90\r\n'); // TEXT, rotated 90°
     });
   });
 });

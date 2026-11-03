@@ -1,4 +1,4 @@
-import { BOARD_KINDS, INCOMER_DEVICES, RELAY_TYPES, SPD_TYPES, type Board, type IncomerDevice, type BuildingInfo, type EarthingPlan, type OtherBuilding } from '../types';
+import { BOARD_KINDS, INCOMER_DEVICES, PANEL_SECTIONS, RELAY_TYPES, SPD_TYPES, type Board, type IncomerDevice, type BuildingInfo, type EarthingPlan, type OtherBuilding } from '../types';
 import { othersKva } from '../model/existing';
 import { findFloor, floorList, levelKey } from '../model/levels';
 import { DEFAULT_TRANSFORMER_XR } from '../calc/electrical';
@@ -126,6 +126,11 @@ export default function BoardFields({ board, onChange, section, building, groups
               <option value="aluminium">Aluminium</option>
             </select>
           </label>
+          <label>Busbar Icw (kA, 1 s)
+            <input inputMode="decimal" value={board.busbarIcwKa ?? ''} placeholder="from the panel builder"
+              title="Rated short-time withstand current of the busbar for 1 s (IEC 61439-1). Printed on the busbar and checked against the fault level at this board."
+              onChange={(e) => set('busbarIcwKa', e.target.value === '' || Number.isNaN(+e.target.value) || +e.target.value <= 0 ? undefined : +e.target.value)} />
+          </label>
           <label>Diversity factor (DF)
             <input inputMode="decimal" value={board.mdDemandFactor ?? ''} placeholder="from its loads"
               title="This panel's own DF: MDL = TCL × DF on the SLD summary box and the MD form. Blank = its loads' maximum demand ÷ connected load."
@@ -216,6 +221,13 @@ export default function BoardFields({ board, onChange, section, building, groups
               <input type="checkbox" checked={board.instruments ?? isMain} onChange={(e) => set('instruments', e.target.checked === isMain ? undefined : e.target.checked)} />
               Ammeter + voltmeter with selector switches, R-Y-B lamps
             </label>
+            {PANEL_SECTIONS.map((x) => (
+              <label key={x.value} className="row" title="Drawn as a labelled section beside the busbar on the board sheet">
+                <input type="checkbox" checked={!!board.sections?.includes(x.value)}
+                  onChange={(e) => { const cur = board.sections ?? []; const next = e.target.checked ? PANEL_SECTIONS.map((p) => p.value).filter((v) => v === x.value || cur.includes(v)) : cur.filter((v) => v !== x.value); set('sections', next.length ? next : undefined); }} />
+                {x.label}
+              </label>
+            ))}
             <label className="row" title="Power meter on the incomer, linked to the BMS — one per incomer on a mains / generator changeover; counted in the BOQ">
               <input type="checkbox" checked={!!board.pmu} onChange={(e) => set('pmu', e.target.checked || undefined)} />
               Power meter (PMU) to BMS
