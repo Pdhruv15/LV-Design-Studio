@@ -105,7 +105,7 @@ describe('moving on the diagram', () => {
 
   it('reorders along a busbar by dropping before another feeder', () => {
     const r = applyMove(sampleProject, { kind: 'feeder', id: 'GF-HVAC' }, fd('GF-LTG'));
-    expect(order(r.project, 'SMDB-GF')).toEqual(['GF-HVAC', 'GF-LTG', 'GF-SKT', 'INC-DBGF1']);
+    expect(order(r.project, 'SMDB-GF')).toEqual(['GF-HVAC', 'GF-LTG', 'GF-SKT', 'GF-VRF', 'INC-DBGF1']);
     expect(r.message).toBe('Moved HVAC before Lighting');
   });
 

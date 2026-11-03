@@ -3,6 +3,7 @@ import { boardPhaseKw, circuitCategory, circuitRef, circuitWatts, elcbGroups, im
 import { designCurrentA, evaluateFeeder } from './electrical';
 import { addCircuit, balancePhases, deleteCircuit, updateCircuit } from '../model/schedule';
 import type { Feeder, Project } from '../types';
+import { sampleProject } from '../data/sampleProject';
 
 const U0 = 415 / Math.sqrt(3);
 
@@ -222,5 +223,13 @@ describe('design rules on the schedule', () => {
     expect(elcbGroups(p, p.boards[1])[0].sensitivityMa).toBe(300);
     p = withCircuit(p, { s13: 2 }); // way 2: same ELCB section as the lighting
     expect(elcbGroups(p, p.boards[1]).map((g) => [g.category, g.sensitivityMa])).toEqual([['mixed', 30]]);
+  });
+
+  it('splits the sample 3-phase VRF outdoor unit on SMDB-GF equally over R, Y and B', () => {
+    const vrf = sampleProject.feeders.find((f) => f.id === 'GF-VRF')!;
+    const without = boardPhaseKw({ ...sampleProject, feeders: sampleProject.feeders.filter((f) => f !== vrf) }, 'SMDB-GF');
+    const withVrf = boardPhaseKw(sampleProject, 'SMDB-GF');
+    for (const ph of ['R', 'Y', 'B'] as const) expect(withVrf[ph] - without[ph]).toBeCloseTo(5, 9);
+    expect(evaluateFeeder(sampleProject, vrf).status).toBe('ok');
   });
 });

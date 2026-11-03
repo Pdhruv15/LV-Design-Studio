@@ -15,7 +15,7 @@ describe('connected load & maximum demand sheet', () => {
 
   it('lists the incomer, OUT GOING, each outgoing feeder and a spare line', () => {
     const s = buildMdSheet(sampleProject, 'SMDB-GF');
-    expect(s.data.map((r) => r[0])).toEqual(['INCOMER', 'OUT GOING', 'LIGHTING', 'SOCKETS', 'HVAC', 'DB-GF1 (VILLA GROUND FLOOR DB)', '']);
+    expect(s.data.map((r) => r[0])).toEqual(['INCOMER', 'OUT GOING', 'LIGHTING', 'SOCKETS', 'HVAC', 'VRF OUTDOOR UNIT (3-PHASE)', 'DB-GF1 (VILLA GROUND FLOOR DB)', '']);
     expect(s.merges.A2).toEqual([s.keys.length, 1]);
     // Incomer row: the MDB's feeder to this SMDB.
     const inc = s.data[0];
@@ -79,7 +79,7 @@ describe('connected load & maximum demand sheet', () => {
       { y, x: col(s, 'size'), value: '37' },
       { y, x: col(s, 'R'), value: '99' }
     ]);
-    expect(rejected).toEqual(['I6: "37" is not a cable size from the cable table']);
+    expect(rejected).toEqual(['I7: "37" is not a cable size from the cable table']);
     const f = project.feeders.find((x) => x.id === 'INC-DBGF1')!;
     expect([f.device, f.breakerRatingA, f.cableType, f.remarks, f.cableCsaMm2]).toEqual(['ISOL', 100, 'XLPE/SWA/PVC', 'Via 100A TP isolator', 35]);
     const again = buildMdSheet(project, 'SMDB-GF');
