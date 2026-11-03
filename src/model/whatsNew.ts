@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.035', date: '2026-11-03',
+    items: [
+      { title: 'Edit circuit in tabs', text: 'Double-clicking a load schedule circuit opens its edit window in three tabs: Loads, Protection & wiring and General. It opens on the tab of the cell you double-clicked. A line at the top shows the circuit\'s load, MCB, wire size and PASS / FAIL, and updates as you type, before you save.' },
+      { title: 'Calculated results while you edit', text: 'Protection & wiring now shows the design current, cable rating, Ib ≤ In ≤ Iz, voltage drop, earth-fault disconnection and the circuit\'s ELCB, for the circuit as it will be after Save.' },
+      { title: 'Less typing on circuits', text: 'Only the point columns that fit the circuit are shown (lighting or power); More columns… shows the rest. A room name offers its usual points in one click (Bedroom, Kitchen, Bathroom…, or the same room on another DB). These are starting values, so check them. Same as… copies the points of another circuit on the DB. A circuit wired in Design CAD takes its length from the plan.' }
+    ]
+  },
+  {
     version: '2.034', date: '2026-11-03',
     items: [
       { title: 'A test link for each earth pit', text: 'On the DEWA-style SLD, a main board\'s LV earth pits now each have their own conductor and test link (TL1, TL2 …), so one pit can be tested while the others keep the board earthed. The MET is a short vertical bar inside the panel under the name box, the conductors leave the panel evenly spaced along it, and the pits stand side by side outside the panel with the minimum spacing drawn between them. On screen and in PDF, DXF and DWG.' }
