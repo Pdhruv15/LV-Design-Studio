@@ -20,7 +20,17 @@ export interface LvPoint {
   levelId: string;
   x: number; // metres on the level's plan
   y: number;
+  /** An emergency light or sign (Design CAD → Emergency): a lighting point drawn with its own symbol. */
+  emergency?: EmergencyKind;
 }
+
+export type EmergencyKind = 'fitting' | 'exit-sign' | 'direction-sign';
+/** Plan symbols of the emergency lights and signs (lighting points with `emergency` set). */
+export const EMERGENCY_ITEMS: Record<EmergencyKind, { label: string; symbol: { shape: string; text: string } }> = {
+  fitting: { label: 'Emergency light', symbol: { shape: 'circle', text: 'E' } },
+  'exit-sign': { label: 'Exit sign', symbol: { shape: 'rect', text: 'EX' } },
+  'direction-sign': { label: 'Direction sign', symbol: { shape: 'rect', text: 'DS' } }
+};
 
 /** The devices the CAD palette offers (ELV ones come from the ELV side with `kind: { elv }`). */
 export type CadDeviceKind = { lv: PointType } | { elv: string } | { board: true };
@@ -76,10 +86,10 @@ const withCount = (p: Project, feederId: string, type: PointType, delta: number)
 };
 
 /** Places an LV point on a circuit: added to the plan and counted on the circuit. */
-export function placeLvPoint(p: Project, level: LevelRef, type: PointType, feederId: string, x: number, y: number): { project: Project; id: string } {
+export function placeLvPoint(p: Project, level: LevelRef, type: PointType, feederId: string, x: number, y: number, emergency?: EmergencyKind): { project: Project; id: string } {
   if (!p.feeders.some((f) => f.id === feederId)) throw new Error('Choose the circuit the point is on.');
   const id = `P${nextLvId(p)}`;
-  const point: LvPoint = { id, type, feederId, buildingId: level.building, levelId: level.level, x, y };
+  const point: LvPoint = { id, type, feederId, buildingId: level.building, levelId: level.level, x, y, ...(emergency ? { emergency } : {}) };
   return { project: withCount({ ...p, lvPoints: [...(p.lvPoints ?? []), point] }, feederId, type, 1), id };
 }
 
@@ -111,7 +121,7 @@ export function placedOn(p: Project, level: LevelRef): PlacedItem[] {
   const roomName = (x: number, y: number) => roomAt(p, level, x, y)?.name;
   const lv = (p.lvPoints ?? []).filter((d) => d.buildingId === level.building && d.levelId === level.level).map((d): PlacedItem => {
     const f = p.feeders.find((x) => x.id === d.feederId);
-    const item = LV_PALETTE.find((x) => 'lv' in x.kind && x.kind.lv === d.type);
+    const item = d.emergency ? EMERGENCY_ITEMS[d.emergency] : LV_PALETTE.find((x) => 'lv' in x.kind && x.kind.lv === d.type);
     return { key: `lv:${d.id}`, id: d.id, what: 'lv', x: d.x, y: d.y, label: item?.label ?? d.type, detail: f ? circuitLabel(p, f) : 'circuit removed', symbol: item?.symbol ?? { shape: 'circle', text: '?' }, room: roomName(d.x, d.y) };
   });
   const boards = p.boards.filter((b) => b.planPoint && b.level?.building === level.building && b.level?.level === level.level).map((b): PlacedItem => ({

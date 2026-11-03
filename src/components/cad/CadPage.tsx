@@ -22,6 +22,10 @@ import CadLayerTable from '../CadLayerTable';
 import CadTabs from './CadTabs';
 import RoomLightingPanel, { lightingOf, LUX_START, type LuxSettings } from './RoomLightingPanel';
 import { placeRoomLights } from '../../model/roomLights';
+import EmergencyPanel, { EM_PROMPT, EM_START, emFitting, type EmSettings } from './EmergencyPanel';
+import { EMPHASIS_LABEL, emergencyLayout, OPEN_AREA_M2, type EmphasisKind } from '../../calc/emergencyLighting';
+import { placeEmergency } from '../../model/emergencyPlace';
+import { EMERGENCY_ITEMS } from '../../model/cadDevices';
 import { planLevel, setPlanLevel } from './cadFileMenu';
 import { pathOfPlan } from './cadState';
 import { pickedRoom, putRooms, renameRoom } from '../../model/floorPlanActions';
@@ -41,7 +45,7 @@ const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.to
 const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
   { k: 'snap', label: 'SNAP', key: 'F9' }, { k: 'osnap', label: 'OSNAP', key: 'F3' }, { k: 'ortho', label: 'ORTHO', key: 'F8' }, { k: 'grid', label: 'GRID', key: 'F7' }
 ];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 const PROMPT: Record<CadTool, string> = {
@@ -57,6 +61,7 @@ const PROMPT: Record<CadTool, string> = {
   dev: 'DEV  Specify insertion point:',
   fill: 'FILL  Click inside a room: the ELV device chosen is placed at its coverage spacing:',
   lux: 'LUX  Point at a room to see its lights by the lumen method, click to keep them:',
+  em: 'EM  Escape route: click its points from the far end to the exit, Enter to finish:',
   wire: 'WIRE  Click a device: its circuit is wired (or its wiring taken off):',
   move: 'MOVE  Select object, then specify base point:',
   copy: 'COPY  Select object, then specify base point:',
@@ -105,7 +110,10 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   // Light room (LUX): the room kept (its lights stay previewed while the panel is edited) and the panel's settings.
   const [luxRoom, setLuxRoom] = useState<string | null>(null);
   const [luxSet, setLuxSet] = useState<LuxSettings>(LUX_START);
-  if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); }
+  // Emergency (EM): the escape routes, points of emphasis and open-area rooms marked (metres), kept until Place or Cancel.
+  const [em, setEm] = useState<{ routes: Pt[][]; points: { at: Pt; kind: EmphasisKind }[]; rooms: string[] }>({ routes: [], points: [], rooms: [] });
+  const [emSet, setEmSet] = useState<EmSettings>(EM_START);
+  if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); setEm({ routes: [], points: [], rooms: [] }); }
   const input = useRef<HTMLInputElement>(null);
   const last = rememberedDrawing(project.id);
   const units = planScale(project, view?.file, view?.info.units);
@@ -186,9 +194,20 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   const luxHover = tool === 'lux' && !luxRoom && cursor.at && floor ? roomAtPointOf(project, floor, cursor.at, units.factor)?.id : undefined;
   const luxOf = tool === 'lux' ? buildingInfoOf(project).rooms.find((r) => r.id === (luxRoom ?? luxHover)) : undefined;
   const lit = useMemo(() => (luxOf ? lightingOf(project, luxOf, luxSet) : undefined), [project, luxOf?.id, luxSet]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the room, not every pointer move
+  // Emergency: the layout of what is marked, previewed until placed.
+  const emRooms = useMemo(() => buildingInfoOf(project).rooms.filter((r) => em.rooms.includes(r.id) && r.outline), [project, em.rooms]);
+  const emLayout = useMemo(() => { const f = emFitting(emSet); return emergencyLayout(em.routes, em.points, emRooms.map((r) => ({ name: r.name, outline: r.outline! })), f.fitting, f.signViewM); }, [em, emRooms, emSet]);
+  const emGhost = (x: number, y: number, it: { symbol: { shape: string; text: string } }, key: string): CanvasDevice => ({ key, x: x / units.factor, y: y / units.factor, r: rUnits, shape: it.symbol.shape, text: it.symbol.text, label: '', ghost: true });
+  const emGhosts: CanvasDevice[] = tool !== 'em' ? [] : [
+    ...emLayout.fittings.map((f, i) => emGhost(f.at[0], f.at[1], EMERGENCY_ITEMS.fitting, `emf${i}`)),
+    ...emLayout.signs.map((g, i) => emGhost(g.at[0], g.at[1], EMERGENCY_ITEMS[g.kind === 'exit' ? 'exit-sign' : 'direction-sign'], `ems${i}`)),
+    ...em.points.map((q, i) => emGhost(q.at[0], q.at[1], { symbol: { shape: 'square', text: 'P' } }, `emp${i}`))
+  ];
+  const emRoutes: SketchItem[] = tool !== 'em' ? [] : em.routes.map((r, i) => ({ id: `_em${i}`, layer: '', kind: 'pline', pts: r.map(([x, y]): Pt => [x / units.factor, y / units.factor]) }));
   const ghosts: CanvasDevice[] = [
     ...(elv?.symbols ?? []).filter((x) => x.ghost).map((x, i) => ({ key: `ghost${i}`, x: x.at[0], y: x.at[1], r: rUnits, shape: x.shape, text: x.text, label: '', elv: true, ghost: true })),
-    ...(lit?.result.points ?? []).map(([x, y], i) => ({ key: `lux${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: 'cross', text: '', label: '', ghost: true }))
+    ...(lit?.result.points ?? []).map(([x, y], i) => ({ key: `lux${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: 'cross', text: '', label: '', ghost: true })),
+    ...emGhosts
   ];
   const devices: CanvasDevice[] = cad.showDevices ? [...ghosts, ...placed.map((d) => ({
     key: d.key, x: d.x / units.factor, y: d.y / units.factor, r: d.what === 'board' ? rUnits * 2 : rUnits, shape: d.symbol.shape, text: d.symbol.text,
@@ -242,6 +261,25 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       change(r.project, `${r.ids.length} light${r.ids.length === 1 ? '' : 's'} placed in ${luxOf.name} on ${circuitLabel(project, f).split(' · ')[0]} — ${Math.round(lit.result.achievedLux)} lx${r.removed ? ` (${r.removed} taken off first)` : ''} · ⌘Z to undo`);
       setLuxRoom(null);
     } catch (e) { cad.say(`LUX  ${e instanceof Error ? e.message : String(e)}`); }
+  }
+  /** Emergency: the escape route being drawn becomes one of the routes. */
+  function finishRoute() {
+    if (points.length >= 2) {
+      const r = points.map(([x, y]): Pt => [x * units.factor, y * units.factor]);
+      setEm((e) => ({ ...e, routes: [...e.routes, r] }));
+      cad.say(`EM  Escape route ${em.routes.length + 1}, ${m(pathLength(points) * units.factor)} — draw another, mark points of emphasis or open areas, then Place.`);
+    } else cad.say(EM_PROMPT.route);
+    setPoints([]);
+  }
+  /** Emergency: places the fittings and signs on the circuit chosen. */
+  function placeEm() {
+    if (!floor) return;
+    try {
+      const r = placeEmergency(project, floor.ref, cad.feederId, emLayout);
+      const f = project.feeders.find((x) => x.id === cad.feederId)!;
+      change(r.project, `${r.fittings} emergency light${r.fittings === 1 ? '' : 's'} and ${r.signs} sign${r.signs === 1 ? '' : 's'} placed on ${circuitLabel(project, f).split(' · ')[0]} · ⌘Z to undo`);
+      setEm({ routes: [], points: [], rooms: [] }); setPoints([]);
+    } catch (e) { cad.say(`EM  ${e instanceof Error ? e.message : String(e)}`); }
   }
   /** Wire circuits: every circuit with devices on this level, with a home run to its DB. */
   function wireAll() {
@@ -438,6 +476,16 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       const r = lightingOf(project, room, { ...luxSet, lux: undefined, ceil: undefined, wp: undefined });
       setLuxRoom(room.id); setLuxSet((s) => ({ ...s, lux: undefined, ceil: undefined, wp: undefined }));
       cad.say(r.result.invalid ? `LUX  ${room.name}: ${r.result.invalid}` : `LUX  ${room.name}: ${r.result.count} light${r.result.count === 1 ? '' : 's'} for ${r.input.targetLux} lx — set the luminaire and circuit, then Place.`);
+    } else if (tool === 'em') {
+      if (!floor) { cad.say('EM  Add the building and its levels in Building information first.'); return; }
+      const atM: Pt = [at[0] * units.factor, at[1] * units.factor];
+      if (emSet.mode === 'route') { setPoints((p) => [...p, at]); cad.say(`EM  Specify next point of the escape route${points.length ? ', Enter to finish' : ''}:`); return; }
+      if (emSet.mode === 'point') { setEm((e) => ({ ...e, points: [...e.points, { at: atM, kind: emSet.kind }] })); cad.say(`EM  ${EMPHASIS_LABEL[emSet.kind]} marked.`); return; }
+      const room = roomAtPointOf(project, floor, at, units.factor);
+      if (!room) { cad.say('EM  No room with an outline there: add it first (Room area, Trace or Rooms).'); return; }
+      const on = em.rooms.includes(room.id);
+      setEm((e) => ({ ...e, rooms: on ? e.rooms.filter((x) => x !== room.id) : [...e.rooms, room.id] }));
+      cad.say(on ? `EM  ${room.name}: open area taken off.` : `EM  ${room.name} (${m2(room.areaM2)}): open area${room.areaM2 > OPEN_AREA_M2 ? '' : ' — 60 m² or less: needed only when an escape route passes through it'}.`);
     } else if (tool === 'room') {
       const r = roomAround(walls, at, units.factor);
       if (!r) { cad.say('ROOM AREA  No closed room around that point (open to the outside, or over 50 m across). Use AREA and click its corners.'); return; }
@@ -518,6 +566,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if ((tool === 'area' || tool === 'trace') && points.length >= 3) finishArea(points);
       else if (tool === 'pline') finishPline(false);
       else if (tool === 'tray') finishTray();
+      else if (tool === 'em') finishRoute();
       else if (tool === 'cable') finishCable();
       else if (tool === 'line') { setPoints([]); cad.say(PROMPT.line); }
       else if (tool === 'copy') { setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); }
@@ -562,6 +611,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     else if (c === 'SCHED' || c === 'SCHEDULES' || c === 'UPDATE') schedules();
     else if (c === 'FILL' || c === 'FR') cad.setTool('fill');
     else if (c === 'LUX' || c === 'LIGHTROOM') cad.setTool('lux');
+    else if (c === 'EM' || c === 'EMERGENCY') cad.setTool('em');
     else if (c === 'WC' || c === 'WIRE' || c === 'WIRECIRCUITS') wireAll();
     else if (c === 'W1' || c === 'WIREONE') cad.setTool('wire');
     else if (c === 'TAGS') cad.setWireTags(!cad.wireTags);
@@ -597,7 +647,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     }
     if (e.key === 'Enter' && !typing && (tool === 'area' || tool === 'trace') && points.length >= 3) { finishArea(points); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && (selectedItem || selSketch)) { e.preventDefault(); removeSelected(); return; }
-    if (e.key === 'Enter' && !typing && (tool === 'pline' || tool === 'tray' || tool === 'cable' || tool === 'line' || tool === 'copy')) { run(''); return; }
+    if (e.key === 'Enter' && !typing && (tool === 'pline' || tool === 'tray' || tool === 'cable' || tool === 'line' || tool === 'copy' || tool === 'em')) { run(''); return; }
     if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[a-zA-Z?]$/.test(e.key)) input.current?.focus();
   };
   useEffect(() => {
@@ -615,6 +665,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     if (tool === 'pline' && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
     if (tool === 'cable' && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
     if (tool === 'tray' && points.length) return [{ ...base, kind: 'pline', pts: [...points, cur], tray: { widthMm: cad.tray.widthMm, service: cad.tray.service } }];
+    if (tool === 'em' && emSet.mode === 'route' && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
     if (tool === 'rect' && lastPt) return [{ ...base, kind: 'pline', pts: rectangle(lastPt, cur), closed: true }];
     if (tool === 'circle' && lastPt) return [{ ...base, kind: 'circle', pts: [lastPt], r: distance(lastPt, cur) }];
     if (tool === 'arc' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
@@ -647,7 +698,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       <div className="cad-work">
         {view ? (
           <div className="cad-stage">
-            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={selSketch?.id ?? null} extraSnaps={sketchSnaps} preview={preview} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps} />
+            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={selSketch?.id ?? null} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps} />
             <div className="cad-coords">{cursor.at ? `X ${cursor.at[0].toFixed(2)}   Y ${cursor.at[1].toFixed(2)}   ${units.label}` : units.label}</div>
           </div>
         ) : (
@@ -709,6 +760,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
             )}
             {tool === 'lux' && view && (
               <RoomLightingPanel project={project} room={luxOf} lit={lit} settings={luxSet} onSettings={setLuxSet} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId} onPlace={placeLux} onCancel={() => { setLuxRoom(null); cad.say(`Command: ${PROMPT.lux}`); }} />
+            )}
+            {tool === 'em' && view && (
+              <EmergencyPanel project={project} settings={emSet} onSettings={(s) => { if (s.mode !== emSet.mode) { setPoints([]); cad.say(EM_PROMPT[s.mode]); } setEmSet(s); }} layout={emLayout} routes={em.routes.length} openRooms={emRooms.map((r) => r.name)} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId} onPlace={placeEm} onCancel={() => { setEm({ routes: [], points: [], rooms: [] }); setPoints([]); cad.say(`Command: ${PROMPT.em}`); }} />
             )}
             {(tool === 'dev' || tool === 'move' || tool === 'fill') && view && (
               <>
