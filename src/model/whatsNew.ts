@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.037', date: '2026-11-03',
+    items: [
+      { title: 'Design CAD: Emergency lighting', text: 'Plan → Devices → Emergency (EM), after BS 5266-1 and EN 1838. Draw each escape route from the far end to the exit (Enter to finish), click rooms for open-area lighting, and mark points of emphasis such as call points, extinguishers, exit doors and stairs. Fittings go at the ends, at each change of direction and at each point of emphasis, with the gaps split to the fitting\'s spacing. Exit and direction signs are added, and the panel warns when a sign is too far to be seen. Place puts the fittings and signs on an unswitched lighting circuit.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Emergency lights on the Lighting layout', text: 'Emergency lights, exit signs and direction signs have their own symbols (E, EX, DS) on the plan and on the Lighting layout sheet, each with its own line and count in the legend. On the load schedule they count as lighting points on their circuit.' }
+    ]
+  },
+  {
     version: '2.035', date: '2026-11-03',
     items: [
       { title: 'Edit circuit in tabs', text: 'Double-clicking a load schedule circuit opens its edit window in three tabs: Loads, Protection & wiring and General. It opens on the tab of the cell you double-clicked. A line at the top shows the circuit\'s load, MCB, wire size and PASS / FAIL, and updates as you type, before you save.' },

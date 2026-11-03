@@ -2,7 +2,7 @@
 
 Mockup: [cad-emergency-lighting-mockup.html](../../mockups/cad-emergency-lighting-mockup.html)
 
-Item 6 of *CAD design tools - electrical and ELV - 2026-11-03* (in PR 420). The engine is built and tested (`src/calc/emergencyLighting.ts`); the screen waits for approval.
+Item 6 of *CAD design tools - electrical and ELV - 2026-11-03* (in PR 420). The engine is built and tested (`src/calc/emergencyLighting.ts`); approved by the user on 2026-11-03 and built in v2.037 (same PR).
 
 ## Proposal
 
@@ -15,9 +15,9 @@ Item 6 of *CAD design tools - electrical and ELV - 2026-11-03* (in PR 420). The 
 - Duration: 3 h where people sleep or the building is reoccupied, 1 h only for immediate evacuation without reoccupation (BS 5266-1).
 - Result: route length, largest gap, fittings by reason, open-area fittings, signs and viewing distance, duration, load (W). **Place N fittings and M signs** puts them on the chosen (unswitched) circuit.
 
-## Decisions for the user
+## Decisions
 
-1. Approve the screen as in the mockup?
-2. Fittings on the load schedule: counted as lighting points on the unswitched circuit, or a new **Emergency** point column?
-3. Fitting spacing data: new columns in the Luminaires database sheet (emergency, route spacing, end, open spacing, wall), or typed per project?
-4. Plan sheets: on the Lighting layout sheet, or a separate **Emergency lighting layout** sheet (E-EML-)?
+1. Screen: **approved as in the mockup** (2026-11-03). Built with the CAD side panel's own fields and buttons, no new styles. The mockup's fitting *Type* (maintained / non-maintained) is left out: it changes nothing in the layout.
+2. Load schedule: not answered; built as **lighting points on the circuit** (`LvPoint.emergency` tags them). The standard load EM1 is already a lighting point; a new Emergency column would change every load schedule form and PDF. Still open.
+3. Spacing data: not answered; **typed in the panel** (typical 3 W LED values to start), kept while the page is open. Columns in the Luminaires sheet (PR 420) can follow once it is merged. Still open.
+4. Plan sheets: not answered; on the **Lighting layout** sheet with their own symbols (E, EX, DS) and legend lines. Still open.

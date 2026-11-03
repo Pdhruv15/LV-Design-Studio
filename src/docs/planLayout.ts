@@ -1,7 +1,7 @@
 import { buildingInfoOf, floorsOf } from '../calc/building';
 import { cableSizeText } from '../calc/electrical';
 import { circuitCategory } from '../calc/loadSchedule';
-import { cableLabel, LV_PALETTE } from '../model/cadDevices';
+import { cableLabel, EMERGENCY_ITEMS, LV_PALETTE } from '../model/cadDevices';
 import { planOfLevel } from '../model/cadPlans';
 import { sketchOf, trayLabel, trayLength, trayLine } from '../model/cadSketch';
 import { fittingCounts, trayFittings } from '../model/cadTrayFittings';
@@ -101,9 +101,9 @@ function contentOf(p: Project, type: PlanType, b: string, l: string): Content {
   const wanted = (feederId: string) => { const f = p.feeders.find((x) => x.id === feederId); return !!f && (circuitCategory(f) === 'lighting') === (type === 'lighting'); };
   for (const d of p.lvPoints ?? []) {
     if (!onLevel(d, b, l) || !wanted(d.feederId)) continue;
-    const pal = LV_PALETTE.find((x) => x.id === d.type);
+    const pal = d.emergency ? EMERGENCY_ITEMS[d.emergency] : LV_PALETTE.find((x) => x.id === d.type);
     const shape = pal?.symbol.shape ?? 'circle', text = pal ? pal.symbol.text : d.type.toUpperCase();
-    out.marks.push({ x: d.x, y: d.y, key: `lv:${d.type}`, label: pal?.label ?? d.type.toUpperCase(), svg: (x, y, r) => lvSymbol(shape, text, x, y, r) });
+    out.marks.push({ x: d.x, y: d.y, key: d.emergency ? `lv:em:${d.emergency}` : `lv:${d.type}`, label: pal?.label ?? d.type.toUpperCase(), svg: (x, y, r) => lvSymbol(shape, text, x, y, r) });
   }
   // The DBs feeding this layout's circuits, and any DB with nothing of either layout yet.
   const used = new Set(p.feeders.filter((f) => (p.lvPoints ?? []).some((d) => d.feederId === f.id && onLevel(d, b, l)) && wanted(f.id)).map((f) => f.boardId));

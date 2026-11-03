@@ -7,7 +7,7 @@ import type { CadToggles } from './CadCanvas';
  * (`cable`, or `link` a line of the drawing as it), placing a device (or `fill` a room with an ELV device)
  * (`dev`), wiring a circuit (`wire`, Wire one), modifying the selected object (`move`, `copy`, `rotate`), drawing (`line`, `pline`, `rect`, `circle`, `arc`)
  * or annotating (`text`, `dim`). */
-export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'wire' | 'move' | 'copy' | 'rotate' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim';
+export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'em' | 'wire' | 'move' | 'copy' | 'rotate' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim';
 
 /** Sample plans shipped with the app (electron/samples, made by scripts/make-sample-villa-plans.mjs), shown while no
  * drawing is open — a test aid. To remove: empty this list and delete the files and cad:sampleBytes. */

@@ -156,3 +156,38 @@ export const signViewingM = (heightMm: number, internallyLit = true) => ((intern
 /** BS 5266-1 duration: 3 h where people sleep, where the building is reoccupied after an evacuation, and for most
  * premises in practice; 1 h only where evacuation is immediate and the building is not reoccupied until recharged. */
 export const durationH = (sleeping: boolean, immediateEvacuation = false): 1 | 3 => (sleeping || !immediateEvacuation ? 3 : 1);
+
+export interface EmergencyLayout {
+  fittings: EmergencyFitting[];
+  signs: ExitSign[];
+  lengthM: number; // all routes
+  maxGapM: number;
+  warnings: string[];
+}
+
+/** A level's emergency lighting: every escape route (each point of emphasis goes to the route nearest to it, or gets
+ * its own fitting when no route is within 2 m), and the open areas. */
+export function emergencyLayout(routes: Pt[][], emphasis: { at: Pt; kind: EmphasisKind }[], open: { name: string; outline: Pt[] }[], fitting: EmergencyFittingData, signViewM = 30): EmergencyLayout {
+  const out: EmergencyLayout = { fittings: [], signs: [], lengthM: 0, maxGapM: 0, warnings: [] };
+  const drawn = routes.filter((r) => r.length >= 2);
+  const mine = drawn.map(() => [] as { at: Pt; kind: EmphasisKind }[]);
+  let far = 0;
+  for (const e of emphasis) {
+    const near = drawn.map((r, i) => ({ i, off: project(r, e.at).off })).sort((a, b) => a.off - b.off)[0];
+    if (near && near.off <= EMPHASIS_REACH_M) mine[near.i].push(e);
+    else { out.fittings.push({ at: round(e.at), why: 'emphasis', note: `${EMPHASIS_LABEL[e.kind]} — no escape route within ${EMPHASIS_REACH_M} m: own fitting` }); far++; }
+  }
+  drawn.forEach((r, i) => {
+    const x = escapeRoute(r, fitting, mine[i], signViewM);
+    if (x.invalid) { out.warnings.push(`Route ${i + 1}: ${x.invalid}`); return; }
+    out.fittings.push(...x.fittings); out.signs.push(...x.signs);
+    out.lengthM += x.lengthM; out.maxGapM = Math.max(out.maxGapM, x.maxGapM);
+    out.warnings.push(...x.warnings.map((w) => (drawn.length > 1 ? `Route ${i + 1}: ${w}` : w)));
+  });
+  if (far) out.warnings.push(`${far} point${far === 1 ? ' has' : 's have'} no escape route within ${EMPHASIS_REACH_M} m and get${far === 1 ? 's its' : ' their'} own fitting.`);
+  for (const o of open) {
+    const x = openArea(o.outline, fitting);
+    if (x.invalid) out.warnings.push(`${o.name}: ${x.invalid}`); else out.fittings.push(...x.fittings.map((f) => ({ ...f, note: o.name })));
+  }
+  return out;
+}

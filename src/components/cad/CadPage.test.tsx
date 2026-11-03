@@ -490,6 +490,38 @@ describe('CAD view', () => {
     expect((project.elvDevices ?? []).filter((d) => d.levelId === 'FF')).toHaveLength(onGf().length);
   });
 
+  it('lays out emergency lighting (EM): draws an escape route, an open area and a point of emphasis, then places them', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    act(() => state.actions.current.addFound());
+    const majlis = buildingInfoOf(project).rooms.find((r) => /majlis/i.test(r.name))!;
+    const [cx, cy] = majlis.outline!.reduce(([x, y], q) => [x + q[0] / majlis.outline!.length, y + q[1] / majlis.outline!.length], [0, 0]);
+    await command('EM');
+    expect(state.tool).toBe('em');
+    expect(document.body.textContent).toContain('Emergency lighting');
+    await clickAt(cx / 0.001 - 3000, cy / 0.001);
+    await clickAt(cx / 0.001 + 3000, cy / 0.001);
+    await command(''); // Enter: the route is done
+    expect(document.body.textContent).toMatch(/Escape routes1 · 6\.\d\d m/);
+    await act(async () => { button('Open area').click(); });
+    await clickAt(cx / 0.001, cy / 0.001);
+    expect(document.body.textContent).toContain(`(${majlis.name})`);
+    await act(async () => { button('Point of emphasis').click(); });
+    await clickAt(cx / 0.001, cy / 0.001 + 1000); // a call point 1 m off the route
+    const place = () => document.querySelector('.cad-devbtns .chip.primary') as HTMLButtonElement;
+    expect(place().disabled).toBe(true); // no circuit yet
+    act(() => state.setFeederId('DB-GF1-Y1'));
+    const [, nf, ns] = /Place (\d+) fittings? and (\d+) signs?/.exec(place().textContent!)!.map(Number);
+    await act(async () => { place().click(); });
+    const em = (project.lvPoints ?? []).filter((d) => d.emergency);
+    expect(em.filter((d) => d.emergency === 'fitting')).toHaveLength(nf);
+    expect(em.filter((d) => d.emergency !== 'fitting')).toHaveLength(ns);
+    expect(em.every((d) => d.type === 'ltg' && d.feederId === 'DB-GF1-Y1')).toBe(true);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe(`${nf} emergency lights and ${ns} sign${ns === 1 ? '' : 's'} placed on DB-GF1/Y1 · ⌘Z to undo`);
+    expect(place().disabled).toBe(true); // all placed: nothing marked any more
+  });
+
   it('turns a camera to face the point clicked (RO)', async () => {
     act(() => root.render(<Host />));
     await flush();
