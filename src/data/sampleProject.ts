@@ -4,6 +4,7 @@ import type { Project } from '../types';
 // (breaker In >= 1.25 x Ib, total voltage drop <= 80 % of the limit), so
 // every check passes. DB-GF1 is a villa DB built from its load schedule
 // (21 circuits, phases balanced, lighting and power on separate ELCBs;
+// SMDB-GF also feeds a 3-phase VRF outdoor unit, split equally over R/Y/B;
 // WATT/UNIT values are example user inputs). Edit anything to see the checks respond.
 export const sampleProject: Project = {
   name: 'Demonstration Project — Not for Construction',
@@ -29,6 +30,7 @@ export const sampleProject: Project = {
     {"id":"GF-LTG","boardId":"SMDB-GF","name":"Lighting","loadKw":45,"demandFactor":0.9,"powerFactor":0.9,"lengthM":30,"cableCsaMm2":16,"cores":4,"breakerRatingA":80,"breakerIcuKa":25,"loadType":"lighting","breakerType":"MCCB"},
     {"id":"GF-SKT","boardId":"SMDB-GF","name":"Sockets","loadKw":28,"demandFactor":0.6,"powerFactor":0.85,"lengthM":35,"cableCsaMm2":4,"cores":4,"breakerRatingA":40,"breakerIcuKa":25,"loadType":"sockets","breakerType":"C"},
     {"id":"GF-HVAC","boardId":"SMDB-GF","name":"HVAC","loadKw":120,"demandFactor":0.9,"powerFactor":0.85,"lengthM":40,"cableCsaMm2":95,"cores":4,"breakerRatingA":250,"breakerIcuKa":25,"loadType":"hvac","breakerType":"MCCB"},
+    {"id":"GF-VRF","boardId":"SMDB-GF","name":"VRF outdoor unit (3-phase)","loadKw":15,"demandFactor":1,"powerFactor":0.9,"lengthM":25,"cableCsaMm2":6,"cores":4,"breakerRatingA":32,"breakerIcuKa":25,"loadType":"hvac","breakerType":"C"},
     {"id":"FF-OFF","boardId":"SMDB-FF","name":"Office","loadKw":35,"demandFactor":0.8,"powerFactor":0.9,"lengthM":25,"cableCsaMm2":10,"cores":4,"breakerRatingA":63,"breakerIcuKa":25,"loadType":"sockets","breakerType":"C"},
     {"id":"FF-IT","boardId":"SMDB-FF","name":"IT room","loadKw":20,"demandFactor":1,"powerFactor":0.95,"lengthM":20,"cableCsaMm2":4,"cores":4,"breakerRatingA":40,"breakerIcuKa":25,"loadType":"it","breakerType":"C"},
     {"id":"FF-LAB","boardId":"SMDB-FF","name":"Lab","loadKw":50,"demandFactor":0.7,"powerFactor":0.85,"lengthM":30,"cableCsaMm2":16,"cores":4,"breakerRatingA":80,"breakerIcuKa":25,"loadType":"general","breakerType":"MCCB"},

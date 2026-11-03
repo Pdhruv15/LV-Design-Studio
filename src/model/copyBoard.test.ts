@@ -29,7 +29,7 @@ describe('copy / paste a board with everything below it', () => {
     expect(p.feeders.find((f) => f.feedsBoardId === 'DB-FF21')!.boardId).toBe('SMDB-FF2');
     expect(boardDemandKw(p, 'SMDB-FF2')).toBeCloseTo(boardDemandKw(sampleProject, 'SMDB-GF'), 9);
     expect(p.feeders.filter((f) => f.boardId === 'SMDB-GF')).toEqual(sampleProject.feeders.filter((f) => f.boardId === 'SMDB-GF'));
-    expect(r.message).toBe('Pasted SMDB-FF2, DB-FF21 on MDB-1: 2 boards, 5 feeders, 21 circuits');
+    expect(r.message).toBe('Pasted SMDB-FF2, DB-FF21 on MDB-1: 2 boards, 6 feeders, 21 circuits');
     expect(layoutSystem(p).boards.find((b) => b.board.id === 'SMDB-FF2')!.depth).toBe(1);
   });
 
