@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.034', date: '2026-11-03',
+    items: [
+      { title: 'A test link for each earth pit', text: 'On the DEWA-style SLD, a main board\'s LV earth pits now each have their own conductor and test link (TL1, TL2 …), so one pit can be tested while the others keep the board earthed. The MET is a short vertical bar inside the panel under the name box, the conductors leave the panel evenly spaced along it, and the pits stand side by side outside the panel with the minimum spacing drawn between them. On screen and in PDF, DXF and DWG.' }
+    ]
+  },
+  {
     version: '2.033', date: '2026-11-02',
     items: [
       { title: 'Earth pits no longer overlap the transformer', text: 'On the standard-style SLD, a main board with its own transformer drew the LV earth-pit detail across the transformer symbol: the pits sat on the body-earth boundary, the spacing arrow crossed the cable note, the electrode note ran through the voltage tag, and MET collided with the result rows. The supply head is now taller and the detail has its own band below the transformer, with the earth conductor dropping clear of every label. The DEWA style is unchanged. On screen and in PDF, DXF and DWG.' }

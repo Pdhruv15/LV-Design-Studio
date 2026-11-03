@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import SystemDiagram from '../components/SystemDiagram';
+import SystemDiagram, { sldLayout } from '../components/SystemDiagram';
 import { sampleProject } from '../data/sampleProject';
 import { evaluateProject } from '../calc/electrical';
 import { buildAnnotations, SHEET_LAYERS } from './annotations';
-import { DEWA_EXTRA_Y, layoutSystem } from './layout';
 import { textWidth } from './panelLabels';
 import { SYM_SCALE, SYMBOLS, type SymPrim } from './symbolLibrary';
 import type { Project } from '../types';
@@ -96,7 +95,7 @@ describe('DEWA panel frames on the SLD', () => {
 
 describe('DOL starter on the SLD', () => {
   const host = drawn(sampleProject);
-  const layout = layoutSystem(sampleProject, DEWA_EXTRA_Y, { frames: true });
+  const { layout } = sldLayout(sampleProject, true);
   const way = (id: string) => layout.feeders.find((f) => f.feeder.id === id)!;
   const starter = (id: string) => [...host.querySelectorAll(`[data-lv-id="feeder:${id}"] .acc`)].find((g) => g.querySelector('text')?.textContent === 'DOL')!;
 

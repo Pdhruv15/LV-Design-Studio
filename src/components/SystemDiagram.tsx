@@ -66,6 +66,43 @@ export const protectionOf = (b: Board): Board['protection'] | undefined => {
 /** Instruments and earthing default on for main boards. */
 export const hasInstruments = (b: Board) => b.instruments ?? !b.upstreamId;
 export const hasEarthPits = (b: Board) => b.earthing?.show ?? !b.upstreamId;
+/** DEWA-style LV earth pits outside a framed main board: pit pitch, the nearest pit's offset
+ * left of the frame, and the room left of that for the pit tags and notes. */
+const PIT_PITCH = 56, PIT_NEAR = 34, PIT_TAG = 30;
+/** A framed board's ammeter, voltmeter and lamps sit outside its frame when the room left of the incomer is short. */
+const instrumentsOutside = (n: { board: Board; x: number; busX1: number; terminal: boolean }) =>
+  hasInstruments(n.board) && !n.terminal && !isInterlocked(n.board) && n.x - 66 - n.busX1 < 50;
+const INSTRUMENTS_OUT = 52;
+/** LV earth pits of a main board: its own count, else the earthing plan's, else two. */
+const lvPitCount = (b: Board, planned: Map<string, string[]>) => b.earthing?.pits ?? (planned.get(`lv:${b.id}`)?.length || 2);
+const pitColumnLead = (pits: number, instOut: boolean) => PIT_NEAR + (pits - 1) * PIT_PITCH + PIT_TAG + (instOut ? INSTRUMENTS_OUT : 0);
+/** Earth pit IDs (E1, E2 …) of each earthing item key (lv:, txn:, txb: + board id) from the earthing plan. */
+export function plannedEarthPits(project: Project): Map<string, string[]> {
+  const m = new Map<string, string[]>();
+  if (!project.boards.some(hasEarthPits)) return m;
+  const L = earthingLayout(project);
+  for (const pit of L.pits) { const k = pit.itemKey.replace(/#\d+$/, ''); (m.get(k) ?? m.set(k, []).get(k)!).push(pit.id); }
+  // A transformer body without pits of its own shows the RMU body-earth pits it is connected to.
+  for (const it of L.items) { const k = it.key.replace(/#\d+$/, ''); if (it.sharesPitsOf && !m.has(k) && m.has(it.sharesPitsOf)) m.set(k, m.get(it.sharesPitsOf)!); }
+  return m;
+}
+
+/** The SLD's layout. DEWA style: a framed main board's LV earth pits stand side by side outside
+ * its frame, on the left, so the root takes that much room before it (earthLead, by board id;
+ * more when its instruments sit outside the frame). */
+export function sldLayout(project: Project, dewa: boolean, cableRefs = false, rootExtraY = 0, planned = plannedEarthPits(project)) {
+  const base = layoutSystem(project, dewa ? DEWA_EXTRA_Y : 0, { frames: dewa, cableRefs, rootExtraY });
+  const earthLead = new Map<string, number>();
+  if (dewa) {
+    for (const r of base.roots) {
+      const pits = r.frame && !r.terminal && hasEarthPits(r.board) && !isInterlocked(r.board) ? lvPitCount(r.board, planned) : 0;
+      if (pits > 0) earthLead.set(r.board.id, pitColumnLead(pits, instrumentsOutside(r)));
+    }
+  }
+  const layout = earthLead.size ? layoutSystem(project, DEWA_EXTRA_Y, { frames: true, cableRefs, rootExtraY, rootLeadX: earthLead }) : base;
+  return { layout, earthLead };
+}
+
 /** Top of a framed panel (DEWA style): the name box band above the incomer. */
 const frameTopOf = (b: Board, busY: number, rows = 4) => busY - (protectionOf(b) ? 92 : 84) - 12 - 62 - Math.max(0, rows - 4) * 11;
 /** Wraps text to lines of at most `max` characters at spaces; the last line is cut with "…". */
@@ -292,17 +329,9 @@ export default function SystemDiagram({
   // Standard style: room under a root's transformer for the LV earth-pit detail, which the
   // DEWA head (DEWA_EXTRA_Y and the frame) already has.
   const earthLift = !dewa && project.boards.some((b) => !b.upstreamId && hasEarthPits(b)) ? 140 : 0;
-  const layout = useMemo(() => layoutSystem(project, dewa ? DEWA_EXTRA_Y : 0, { frames: dewa, cableRefs, rootExtraY: earthLift }), [project, dewa, cableRefs, earthLift]);
   // Earth pit IDs (E1, E2 …) from the earthing plan, so the SLD and the earthing sheet agree.
-  const earthPits = useMemo(() => {
-    const m = new Map<string, string[]>();
-    if (!layout.roots.some((r) => hasEarthPits(r.board))) return m;
-    const L = earthingLayout(project);
-    for (const pit of L.pits) { const k = pit.itemKey.replace(/#\d+$/, ''); (m.get(k) ?? m.set(k, []).get(k)!).push(pit.id); }
-    // A transformer body without pits of its own shows the RMU body-earth pits it is connected to.
-    for (const it of L.items) { const k = it.key.replace(/#\d+$/, ''); if (it.sharesPitsOf && !m.has(k) && m.has(it.sharesPitsOf)) m.set(k, m.get(it.sharesPitsOf)!); }
-    return m;
-  }, [project, layout]);
+  const earthPits = useMemo(() => plannedEarthPits(project), [project]);
+  const { layout, earthLead } = useMemo(() => sldLayout(project, dewa, cableRefs, earthLift, earthPits), [project, dewa, cableRefs, earthLift, earthPits]);
   const pitIds = (key: string) => m2s(earthPits.get(key));
   // A framed panel's name box: as wide as the room left of the incomer allows (never across it),
   // with the location wrapped onto a second line when it doesn't fit.
@@ -958,7 +987,7 @@ export default function SystemDiagram({
           const mm = earthConductorOf(project, b);
           // Pit count and electrode from the earthing plan unless this board sets its own.
           const lvIds = earthPits.get(`lv:${b.id}`);
-          const pits = b.earthing?.pits ?? (lvIds?.length || 2);
+          const pits = lvPitCount(b, earthPits);
           if (pits <= 0) return null;
           const el = b.earthing?.electrodeM ?? project.earthingPlan?.electrodeM ?? 3;
           const sp = b.earthing?.spacingM ?? 6;
@@ -996,17 +1025,61 @@ export default function SystemDiagram({
               <line x1={x - 2} y1={y + 6} x2={x + 2} y2={y + 6} className="ln" />
             </>
           );
-          const rod = (x: number) => (
+          const rod = (x: number, top = oy + pitTop) => (
             <g key={x} className="earth-electrode">
-              <rect x={x - 7} y={oy + pitTop} width="14" height="10" className="sym" />
-              <line x1={x} y1={oy + pitTop + 5} x2={x} y2={oy + pitTop + 24} className="ln" />
-              {gnd(x, oy + pitTop + 24)}
+              <rect x={x - 7} y={top} width="14" height="10" className="sym" />
+              <line x1={x} y1={top + 5} x2={x} y2={top + 24} className="ln" />
+              {gnd(x, top + 24)}
             </g>
           );
           const nIds = pitIds(`txn:${b.id}`), bIds = pitIds(`txb:${b.id}`);
+          // DEWA framed main board: a vertical MET inside the frame under the name box, and one
+          // conductor per pit, evenly spaced along the MET, leaving the frame to its own test link
+          // and turning down to its pit. The pits stand side by side outside the frame, on the left,
+          // in the room the layout keeps there (earthLead), so the spacing reads horizontally.
+          const column = earthLead.has(b.id);
+          const lvDetail = () => {
+            const fx = r.frame!.x1;
+            const metX = fx + 12, metTop = y1 + 27 + nb.rows.length * 11, metBot = r.busY - 55;
+            const shift = instrumentsOutside(r) ? INSTRUMENTS_OUT : 0;
+            const px = (i: number) => fx - PIT_NEAR - shift - (pits - 1 - i) * PIT_PITCH;
+            const ly = (i: number) => metTop + ((i + 1) * (metBot - metTop)) / (pits + 1);
+            const top = r.busY - 46, arrowY = r.busY - 8;
+            const colX = fx - earthLead.get(b.id)! + 6, colW = fx - 6 - colX;
+            const chars = Math.floor(colW / 4.3);
+            const notes = [...wrapText(`1C ${mm}mm² CU/PVC EACH`, chars, 2), ...wrapText(`MIN. ${el} m ELECTRODE WITH INSPECTION PIT AND COVER`, chars, 3)];
+            return (
+              <>
+                <text x={colX} y={y1 + 8} className="acc-t b" data-fit-width={colW} data-dxf-max-width={colW}>{`LV EARTH PITS (${pits} NO.)`}</text>
+                {notes.map((t, i) => <text key={i} x={colX} y={y1 + 19 + i * 9} className="acc-t" style={{ fontSize: 7.5 }} data-fit-width={colW} data-dxf-max-width={colW}>{t}</text>)}
+                {pitXs.map((_, i) => {
+                  const x = px(i), y = ly(i), tl = x + 17;
+                  return (
+                    <g key={`pit-${i}`}>
+                      <path d={`M${metX} ${y} H${tl + 5}`} className="ln earth-to-met" />
+                      <rect x={tl - 5} y={y - 4} width="10" height="8" className="sym test-link" />
+                      <text x={tl} y={y + 12} textAnchor="middle" className="acc-t test-link-label" style={{ fontSize: 6.5 }}>{`TL${i + 1}`}</text>
+                      <path d={`M${tl - 5} ${y} H${x} V${top}`} className="ln earth-pit-link" />
+                      {rod(x, top)}
+                      {lvIds?.length === pits && <text x={x - 10} y={top + 8} textAnchor="end" className="acc-t" style={{ fontSize: 7 }}>{lvIds[i]}</text>}
+                    </g>
+                  );
+                })}
+                {pits > 1 && (
+                  <>
+                    <line x1={px(0)} y1={arrowY} x2={px(pits - 1)} y2={arrowY} className="ln" />
+                    <path d={`M${px(0)} ${arrowY} l5 -2.5 v5 z M${px(pits - 1)} ${arrowY} l-5 -2.5 v5 z`} className="dot" />
+                    <text x={(px(0) + px(1)) / 2} y={arrowY - 3} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{sp.toFixed(1)} m (MIN)</text>
+                  </>
+                )}
+                <line x1={metX} y1={metTop} x2={metX} y2={metBot} className="ln met-bar" />
+                <text x={metX + 4} y={metTop + 7} className="acc-t b">MET</text>
+              </>
+            );
+          };
           return (
             <g key={`earth-${b.id}`} className="acc earth-pit" data-board-id={b.id}>
-              <title>{`${b.id} main earthing: ${pits} earth pits${ids}, ${el} m electrodes, min. ${sp} m apart, 1C ${mm} mm² Cu/PVC from the MET through the test link to the linked pits${tx ? '; transformer neutral to its own pit; tank / body earth bar to the RMU earth bar (RMU body-earth pits); neutral and body not interconnected' : ''}`}</title>
+              <title>{`${b.id} main earthing: ${pits} earth pits${ids}, ${el} m electrodes, min. ${sp} m apart, 1C ${mm} mm² Cu/PVC from the MET ${column ? 'to each pit through its own test link' : 'through the test link to the linked pits'}${tx ? '; transformer neutral to its own pit; tank / body earth bar to the RMU earth bar (RMU body-earth pits); neutral and body not interconnected' : ''}`}</title>
               {tx && (
                 <g className="tx-earth">
                   {/* Neutral (star point) to its own pit, on the left */}
@@ -1021,6 +1094,7 @@ export default function SystemDiagram({
                   <text x={r.x + 44} y={146} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{`BODY EARTH${bIds ? ` · ${bIds}` : ''}`}</text>
                 </g>
               )}
+              {column ? lvDetail() : (<>
               <text x={ox} y={oy + 8} className="acc-t b" data-fit-width={detailW} data-dxf-max-width={detailW}>{`LV EARTH PITS (${pits} NO.)${ids}`}</text>
               {/* Pits join at one test link. From the link to the MET there is one conductor and one 90° bend. */}
               {pitXs.map((x) => <line key={`pit-link-${x}`} x1={x} y1={oy + pitTop} x2={x} y2={linkY} className="ln" />)}
@@ -1032,7 +1106,7 @@ export default function SystemDiagram({
                 ? <text x={testX + 9} y={linkY + 13} className="acc-t test-link-label" style={{ fontSize: 7 }}>TL</text>
                 : <text x={tlX} y={oy + 53} textAnchor="middle" className="acc-t test-link-label" style={{ fontSize: 7 }}>TL</text>}
               <path d={dewa ? `M${testX + 5} ${linkY} H${metMid} V${metY}` : `M${tlX} ${linkY + 4} V${metY}`} className="ln earth-to-met" />
-              {pitXs.map(rod)}
+              {pitXs.map((x) => rod(x))}
               {pitXs.length > 1 && (
                 <>
                   <line x1={pitXs[0]} y1={arrowY} x2={pitXs[pitXs.length - 1]} y2={arrowY} className="ln" />
@@ -1047,6 +1121,7 @@ export default function SystemDiagram({
               {dewa
                 ? <text x={metX1 + 54} y={metY + 3} className="acc-t b">MET</text>
                 : <text x={metX1 - 4} y={metY + 3} textAnchor="end" className="acc-t b">MET</text>}
+              </>)}
             </g>
           );
         })}
@@ -1060,7 +1135,8 @@ export default function SystemDiagram({
           const y = left.busY;
           const x1 = left.busX2;
           const x2 = right.busX1;
-          const mx = (x1 + x2) / 2;
+          // Clear of the right board's earth pits outside its frame (DEWA style).
+          const mx = (x1 + x2 - (earthLead.has(right.board.id) ? earthLead.get(right.board.id)! + 7 : 0)) / 2;
           const run = scenario?.outage?.tie?.id === t.id ? scenario.outage.tie : undefined;
           const shut = !!run || !!t.closed;
           return (
