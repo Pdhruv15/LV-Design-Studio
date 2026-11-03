@@ -137,3 +137,23 @@ describe('DOL starter on the SLD', () => {
     for (const b of prev) expect(overlaps(b, rectOf(starter('MCC-FP').querySelector('rect')!))).toBe(false);
   });
 });
+
+describe('new main panels side by side', () => {
+  // Two DEWA-fed MDBs added with no ways yet: each has only one slot, narrower than its supply and earth-pit labels.
+  const fresh = (style?: 'standard'): Project => ({
+    name: 'T', voltageV: 415, frequencyHz: 50, ambientC: 45, vdLimitPct: 4, updatedAt: '', feeders: [],
+    drawing: style ? { sldStyle: style } : undefined,
+    boards: ['MDB-2', 'MDB-3'].map((id) => ({ id, name: 'MDB', kind: 'MDB', supply: { fedFrom: 'DEWA', ratingA: 400, faultKa: 50 } }))
+  } as Project);
+  const parts = (host: HTMLElement, id: string) => [...host.querySelectorAll(`[data-lv-id="board:${id}"], .earth-pit[data-board-id="${id}"]`)];
+
+  for (const style of [undefined, 'standard'] as const) {
+    it(`keeps one panel's supply and earth-pit labels clear of the next (${style ?? 'DEWA'} style)`, () => {
+      const host = drawn(fresh(style));
+      const left = parts(host, 'MDB-2').flatMap((g) => [...g.querySelectorAll('text')].map(boxOf));
+      const right = parts(host, 'MDB-3').flatMap((g) => [...[...g.querySelectorAll('text')].map(boxOf), ...[...g.querySelectorAll('rect')].map(rectOf)]);
+      expect(left.length).toBeGreaterThan(3);
+      for (const a of left) for (const b of right) expect(overlaps(a, b), JSON.stringify({ a, b })).toBe(false);
+    });
+  }
+});

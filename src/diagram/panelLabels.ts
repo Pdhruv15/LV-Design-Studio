@@ -80,6 +80,24 @@ export function incomerTexts(project: Project, b: Board): { device: string; icu?
   return { device, icu: `Icu ${inc.breakerIcuKa} kA${low ? ` < Isc ${isc.toFixed(1)} kA` : ''}`, low };
 }
 
+/** The authority supply's lines right of its meter, title first (bold), as the SLD prints them (keep in step with
+ * SystemDiagram's supply header). */
+export function supplyLines(b: Board, dewa: boolean): string[] {
+  const s = b.supply;
+  if (!s) return [];
+  const from = s.fedFrom ?? 'DEWA', ct = s.ctRatio ?? b.protection?.ctRatio;
+  if (!dewa) return [`${from} supply`, `${s.ratingA ? `${s.ratingA} A ${s.device ?? ''}` : 'meter cabinet'}${s.meter ? ` · ${s.meter} meter` : ''}`];
+  return [
+    `${from} supply`, `METER CABINET${ct ? ` · CTM ${ct}` : ''}`,
+    ...(s.ratingA ? [`${s.ratingA}A TP ${s.device ?? 'MCCB'}${s.faultKa ? ` ${s.faultKa} kA` : ''}`] : []),
+    `CABLE BY ${from} · FED FROM ${from}`
+  ];
+}
+
+/** How far right of its supply line the authority supply's lines reach (they start 24 right of it). */
+export const supplyReach = (b: Board, dewa: boolean): number =>
+  Math.max(0, ...supplyLines(b, dewa).map((t, i) => 24 + (i ? textWidth(t, 11) : textWidth(t, 12, true))));
+
 /** How far right of the incomer line its labels reach: the device and its breaking capacity, or an ATS and its
  * generator (a mains / generator changeover draws its own incomers, kept clear by its slots). */
 export function incomerReach(project: Project, b: Board): number {

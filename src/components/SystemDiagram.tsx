@@ -26,7 +26,7 @@ import { cables } from '../calc/cableTable';
 import { upsLoadingPct } from '../calc/sizing';
 import { isMotor, starterInfo, starterOf } from '../calc/motor';
 import { sldDevices } from '../diagram/sldDevices';
-import { breakerText, cableLines, fireRatedWarning, icuText, incomerTexts, isolatorText, sparePoles, spareText } from '../diagram/panelLabels';
+import { breakerText, cableLines, fireRatedWarning, icuText, incomerTexts, isolatorText, sparePoles, spareText, supplyReach, textWidth } from '../diagram/panelLabels';
 import { cableSizeText, faultCurrentKA, impedanceToBoard, runsOf, upstreamVoltageDropPct } from '../calc/electrical';
 import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun, type OutageScenario } from '../calc/scenario';
 import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
@@ -91,7 +91,8 @@ export function plannedEarthPits(project: Project): Map<string, string[]> {
  * its frame, on the left, so the root takes that much room before it (earthLead, by board id;
  * more when its instruments sit outside the frame). */
 export function sldLayout(project: Project, dewa: boolean, cableRefs = false, rootExtraY = 0, planned = plannedEarthPits(project)) {
-  const base = layoutSystem(project, dewa ? DEWA_EXTRA_Y : 0, { frames: dewa, cableRefs, rootExtraY });
+  const extraY = dewa ? DEWA_EXTRA_Y : 0;
+  const base = layoutSystem(project, extraY, { frames: dewa, cableRefs, rootExtraY });
   const earthLead = new Map<string, number>();
   if (dewa) {
     for (const r of base.roots) {
@@ -99,7 +100,25 @@ export function sldLayout(project: Project, dewa: boolean, cableRefs = false, ro
       if (pits > 0) earthLead.set(r.board.id, pitColumnLead(pits, instrumentsOutside(r)));
     }
   }
-  const layout = earthLead.size ? layoutSystem(project, DEWA_EXTRA_Y, { frames: true, cableRefs, rootExtraY, rootLeadX: earthLead }) : base;
+  // The authority supply's lines and, unless framed, the LV earth-pit detail reach right of a root's
+  // incomer line further than a new panel's one slot: the next root starts clear of them.
+  const rootReach = new Map<string, number>();
+  for (const r of base.roots) {
+    const b = r.board;
+    let reach = !b.upstreamId && !b.sourceKva ? supplyReach(b, dewa) : 0;
+    const pits = hasEarthPits(b) ? lvPitCount(b, planned) : 0;
+    if (pits > 0 && !(dewa && !r.terminal)) {
+      const el = b.earthing?.electrodeM ?? project.earthingPlan?.electrodeM ?? 3;
+      const lvIds = planned.get(`lv:${b.id}`);
+      const ids = lvIds?.length === pits ? ` · ${lvIds.join(', ')}` : '';
+      // The detail starts 62 left of the incomer line; DEWA's MET label ends about 80 right of it.
+      const notes = Math.max(textWidth(`LV EARTH PITS (${pits} NO.)${ids}`, 8, true), textWidth(`1C ${earthConductorOf(project, b)}mm² CU/PVC`, 7.5),
+        textWidth(`MIN. ${el} m ELECTRODE WITH INSPECTION PIT AND COVER`, 7.5));
+      reach = Math.max(reach, notes - 62, dewa ? 80 : 0);
+    }
+    if (reach > 0) rootReach.set(b.id, reach);
+  }
+  const layout = earthLead.size || rootReach.size ? layoutSystem(project, extraY, { frames: dewa, cableRefs, rootExtraY, rootLeadX: earthLead, rootReachX: rootReach }) : base;
   return { layout, earthLead };
 }
 
