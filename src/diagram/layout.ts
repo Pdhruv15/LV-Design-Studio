@@ -83,6 +83,8 @@ const BUS_HALF = LEAF_W * 0.38, FRAME_OUT = 7;
 const FRAME_INSET = LEAF_W / 2 - BUS_HALF - FRAME_OUT;
 /** Room between the end of a label and the frame line. */
 const FRAME_PAD = 6;
+/** Room between the end of a root's supply / earth labels and the next root's slot. */
+const ROOT_LABEL_GAP = 12;
 
 export interface LayoutOptions {
   /** DEWA style: a frame round each panel, as wide as its ways' and incomer's labels, and the room after it to match. */
@@ -95,6 +97,9 @@ export interface LayoutOptions {
   /** Extra room left of a root board (by id), e.g. for the DEWA-style LV earth pits drawn
    * outside its panel frame. */
   rootLeadX?: Map<string, number>;
+  /** How far right of a root board's incomer line (by id) its supply and earth-pit labels reach, so the next
+   * root starts clear of them. A new panel with no ways has only one slot, narrower than those labels. */
+  rootReachX?: Map<string, number>;
 }
 
 export function layoutSystem(project: Project, extraY = 0, opts: LayoutOptions = {}): SystemLayout {
@@ -214,7 +219,8 @@ export function layoutSystem(project: Project, extraY = 0, opts: LayoutOptions =
     left += opts.rootLeadX?.get(b.id) ?? 0;
     const { node, right } = place(b, left, 0);
     roots.push(node);
-    left = right;
+    const reach = opts.rootReachX?.get(b.id);
+    left = reach === undefined ? right : Math.max(right, node.x + reach + ROOT_LABEL_GAP);
   }
   // Anything still unplaced (e.g. a board whose incomer feeder is missing).
   for (const b of project.boards) {
