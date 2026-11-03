@@ -490,6 +490,38 @@ describe('CAD view', () => {
     expect((project.elvDevices ?? []).filter((d) => d.levelId === 'FF')).toHaveLength(onGf().length);
   });
 
+  it('lights a room by the lumen method (LUX): keeps the room, changes the luminaire, places the lights, replaces them', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.actions.current.addFound());
+    const majlis = buildingInfoOf(project).rooms.find((r) => /majlis/i.test(r.name))!;
+    const [cx, cy] = majlis.outline!.reduce(([x, y], q) => [x + q[0] / majlis.outline!.length, y + q[1] / majlis.outline!.length], [0, 0]);
+    await command('LUX');
+    expect(state.tool).toBe('lux');
+    expect(document.body.textContent).toContain('Point at a room to see its lights');
+    await clickAt(cx / 0.001, cy / 0.001);
+    expect(document.body.textContent).toContain(`Light room ${majlis.name}`);
+    const place = () => document.querySelector('.cad-devbtns .chip.primary') as HTMLButtonElement;
+    expect(place().disabled).toBe(true); // no circuit yet
+    const lum = document.querySelector('select[aria-label="Luminaire"]') as HTMLSelectElement;
+    const before = place().textContent;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(lum, 'pnl36');
+      lum.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(place().textContent).not.toBe(before); // brighter luminaire, fewer of them
+    const n = Number(/Place (\d+)/.exec(place().textContent!)![1]);
+    act(() => state.setFeederId('DB-GF1-Y1'));
+    await act(async () => { place().click(); });
+    const lights = () => (project.lvPoints ?? []).filter((d) => d.type === 'ltg');
+    expect(lights()).toHaveLength(n);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(new RegExp(`^${n} lights? placed in ${majlis.name} on DB-GF1/Y1 — \\d+ lx · ⌘Z to undo$`));
+    await clickAt(cx / 0.001, cy / 0.001); // again: replaces, does not double
+    await act(async () => { place().click(); });
+    expect(lights()).toHaveLength(n);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toContain(`(${n} taken off first)`);
+  });
+
   it('turns a camera to face the point clicked (RO)', async () => {
     act(() => root.render(<Host />));
     await flush();

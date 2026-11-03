@@ -4,13 +4,15 @@ import type { PriceList } from '../model/priceList';
 import { forgetNetworks } from '../calc/network';
 
 /** The equipment catalogue and design rules from the database workbooks
- * (Transformers, Generators, Busbar, Equipment, RoomTypes, UnitTypes, Prices,
- * Rules). Every getter falls back to the app's built-in values when the
+ * (Transformers, Generators, Busbar, Equipment, RoomTypes, Luminaires, UnitTypes,
+ * Prices, Rules). Every getter falls back to the app's built-in values when the
  * workbook is missing or empty. */
 
 export interface CatalogTransformer { kva: number; zPct?: number; xr?: number; vectorGroup?: string; noLoadW?: number; loadLossW?: number; dims?: string; weightKg?: number; price?: number; manufacturer?: string }
 export interface CatalogGenerator { kva: number; kw?: number; xdPct?: number; fuelLph?: number; dims?: string; weightKg?: number; price?: number; manufacturer?: string }
 export interface CatalogBusbar extends BusbarType { material: 'cu' | 'al'; ratePerM?: number; manufacturer?: string }
+/** A luminaire for Light room (Luminaires.xlsx). */
+export interface CatalogLuminaire { id: string; label: string; lumens: number; watts: number; shrMax?: number; manufacturer?: string }
 export interface CatalogEquipment { category: string; description: string; rating?: string; unit?: string; price?: number; install?: number; boqKey?: string; manufacturer?: string }
 
 export interface Catalog {
@@ -19,13 +21,14 @@ export interface Catalog {
   busbar: CatalogBusbar[];
   equipment: CatalogEquipment[];
   roomTypes: RoomType[];
+  luminaires: CatalogLuminaire[]; // Luminaires.xlsx (blank = built-in typical LED list)
   unitTypes: UnitType[];
   priceLists: PriceList[];
   rules: Record<string, number>;
   cableRefs: import('../model/cableRefs').CableRef[]; // CableSchedule.xlsx (blank = built-in list)
 }
 
-export const EMPTY_CATALOG: Catalog = { transformers: [], generators: [], busbar: [], equipment: [], roomTypes: [], unitTypes: [], priceLists: [], rules: {}, cableRefs: [] };
+export const EMPTY_CATALOG: Catalog = { transformers: [], generators: [], busbar: [], equipment: [], roomTypes: [], luminaires: [], unitTypes: [], priceLists: [], rules: {}, cableRefs: [] };
 let current: Catalog = EMPTY_CATALOG;
 export const catalog = () => current;
 export function setCatalog(c: Catalog): void { current = c; forgetNetworks(); }

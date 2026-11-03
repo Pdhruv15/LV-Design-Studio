@@ -11,6 +11,7 @@ import { STANDARD_TRANSFORMER_KVA } from '../calc/sizing';
 import { typicalImpedancePct } from '../calc/txGen';
 import { fallbackRate, loadPriceLists } from '../model/priceList';
 import { roomTypesOf } from '../calc/building';
+import { LUMINAIRES, luminairesOf } from '../calc/roomLighting';
 
 const raw = (books: Record<string, Record<string, string | number>[]>): RawDatabase => ({
   folder: '/x', readAt: 0, books: Object.fromEntries(Object.entries(books).map(([id, rows]) => [id, { file: `${id}.xlsx`, rows: rows.map((r, i) => ({ _row: i + 2, ...r })) }]))
@@ -43,6 +44,22 @@ describe('database catalogue', () => {
     expect(catalog().unitTypes[0].rooms.length).toBe(2);
     expect(roomTypesOf({ buildings: [], rooms: [] })[0].id).toBe('office-open');
   });
+  it('reads luminaires for Light room, skips bad rows, and falls back to the typical list when empty', () => {
+    expect(luminairesOf()).toBe(LUMINAIRES);
+    const db = parseDatabase(raw({ luminaires: [
+      { id: 'Philips RC132', label: 'CoreLine panel 34 W', lumens: 3400, watts: 34, shrMax: 1.3, manufacturer: 'Signify' },
+      { id: 'no-flux', label: 'Missing lumens', watts: 10 },
+      { id: 'philips-rc132', label: 'Same id again', lumens: 1, watts: 1 }
+    ] }));
+    expect(db.issues.filter((i) => i.startsWith('luminaires.xlsx'))).toEqual([
+      'luminaires.xlsx row 3: Id, Name, Luminous flux (lm) and Power (W) are needed, as positive numbers — skipped',
+      'luminaires.xlsx row 4: duplicate id philips-rc132 — skipped'
+    ]);
+    applyDatabase(db);
+    expect(luminairesOf()).toEqual([{ id: 'philips-rc132', label: 'CoreLine panel 34 W', lumens: 3400, watts: 34, shrMax: 1.3, manufacturer: 'Signify' }]);
+    applyDatabase(parseDatabase(raw({})));
+    expect(luminairesOf()).toBe(LUMINAIRES);
+  });
   it('goes back to the built-in values when a workbook is emptied', () => {
     applyDatabase(parseDatabase(raw({ transformers: [{ kva: 1000 }] })));
     applyDatabase(parseDatabase(raw({})));
@@ -56,10 +73,11 @@ describe('Excel workbooks (desktop side)', () => {
   it('creates the new workbooks with a Read me, saves from the app with a backup, keeps the dropdowns', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lvdb-'));
     const { created } = await database.ensureDatabase(dir, databaseSeeds());
-    expect(created).toEqual(expect.arrayContaining(['Transformers.xlsx', 'RoomTypes.xlsx', 'Rules.xlsx', 'Prices.xlsx']));
+    expect(created).toEqual(expect.arrayContaining(['Transformers.xlsx', 'RoomTypes.xlsx', 'Luminaires.xlsx', 'Rules.xlsx', 'Prices.xlsx']));
     const read1 = await database.readDatabase(dir);
     expect(read1.books.transformers.rows.length).toBeGreaterThan(10);
     expect(read1.books.roomTypes.rows.length).toBeGreaterThan(10);
+    expect(read1.books.luminaires.rows.map((r: { lumens: number }) => r.lumens)).toEqual(LUMINAIRES.map((l) => l.lumens));
     await database.writeBook(dir, 'busbar', [{ material: 'Cu', ratingA: 800, rMohmPerM: 0.08, xMohmPerM: 0.02 }]);
     const read2 = await database.readDatabase(dir);
     expect(read2.books.busbar.rows).toHaveLength(1);

@@ -6,6 +6,7 @@ import { BUILT_IN_CABLES, cableBuildText, cableKey } from '../model/cableRefs';
 import { EMPTY_CATALOG, RULES, setCatalog, type Catalog, type CatalogBusbar } from './catalog';
 import { DEFAULT_ROOM_TYPES } from '../calc/building';
 import { DEFAULT_RULES } from '../calc/buildingDesign';
+import { LUMINAIRES } from '../calc/roomLighting';
 import { TYPICAL_BUSBAR_DATA } from '../calc/busbar';
 import { STANDARD_GENERATOR_KVA, STANDARD_TRANSFORMER_KVA } from '../calc/sizing';
 import { typicalImpedancePct } from '../calc/txGen';
@@ -192,11 +193,11 @@ export function parseDatabase(raw: RawDatabase): Database {
 const pos = (v: unknown) => { const n = num(v); return n !== undefined && !Number.isNaN(n) && n > 0 ? n : undefined; };
 const opt = (v: unknown) => { const n = num(v); return n !== undefined && !Number.isNaN(n) ? n : undefined; };
 
-/** Transformers, generators, busbar, equipment, room / unit types, prices, rules. */
+/** Transformers, generators, busbar, equipment, room / unit types, luminaires, prices, rules. */
 function parseCatalog(raw: RawDatabase, bad: (file: string, row: unknown, why: string) => void): Catalog {
   const rowsOf = (id: string) => raw.books[id]?.rows ?? [];
   const fileOf = (id: string) => raw.books[id]?.file ?? id;
-  const c: Catalog = { transformers: [], generators: [], busbar: [], equipment: [], roomTypes: [], unitTypes: [], priceLists: [], rules: {}, cableRefs: [] };
+  const c: Catalog = { transformers: [], generators: [], busbar: [], equipment: [], roomTypes: [], luminaires: [], unitTypes: [], priceLists: [], rules: {}, cableRefs: [] };
   for (const r of rowsOf('transformers')) {
     const kva = pos(r.kva);
     if (!kva) { bad(fileOf('transformers'), r._row, 'Rating (kVA) must be a positive number'); continue; }
@@ -230,6 +231,12 @@ function parseCatalog(raw: RawDatabase, bad: (file: string, row: unknown, why: s
       rules: { ltgM2PerPoint: pos(r.ltgM2PerPoint), s13M2PerPoint: pos(r.s13M2PerPoint), acM2PerUnit: pos(r.acM2PerUnit), acKwPerUnit: pos(r.acKwPerUnit), wh: opt(r.wh), cooker: opt(r.cooker), exfan: opt(r.exfan) },
       lpdMax: pos(r.lpdMax), benchWPerM2: pos(r.benchWPerM2) };
     c.roomTypes.push(t);
+  }
+  for (const r of rowsOf('luminaires')) {
+    const id = str(r.id).replace(/\s+/g, '-').toLowerCase(), label = str(r.label), lumens = pos(r.lumens), watts = pos(r.watts);
+    if (!id || !label || !lumens || !watts) { bad(fileOf('luminaires'), r._row, 'Id, Name, Luminous flux (lm) and Power (W) are needed, as positive numbers'); continue; }
+    if (c.luminaires.some((t) => t.id === id)) { bad(fileOf('luminaires'), r._row, `duplicate id ${id}`); continue; }
+    c.luminaires.push({ id, label, lumens, watts, shrMax: pos(r.shrMax), manufacturer: str(r.manufacturer) || undefined });
   }
   const units = new Map<string, UnitType>();
   for (const r of rowsOf('unitTypes')) {
@@ -318,6 +325,7 @@ export function databaseSeeds(): Record<string, (string | number)[][]> {
       ['kWh meter', 'kWh meter, CT operated, with CTs and test block', '', 'no', '', '', 'kwh:CT', '', '']
     ],
     roomTypes: DEFAULT_ROOM_TYPES.map((t) => { const r = DEFAULT_RULES[t.id] ?? {}; return [t.id, t.label, t.wPerM2, t.demandFactor, t.lux ?? '', r.ltgM2PerPoint ?? '', r.s13M2PerPoint ?? '', r.acM2PerUnit ?? '', r.acKwPerUnit ?? '', r.wh ?? '', r.cooker ?? '', r.exfan ?? '', r.lpdMax ?? '', r.benchWPerM2 ?? '']; }),
+    luminaires: LUMINAIRES.map((l) => [l.id, l.label, l.lumens, l.watts, l.shrMax ?? '', '']),
     unitTypes: [['2BR apartment', 'Living / dining', 'living', 35, ''], ['2BR apartment', 'Bedroom 1', 'bedroom', 16, ''], ['2BR apartment', 'Bedroom 2', 'bedroom', 14, ''], ['2BR apartment', 'Kitchen', 'kitchen', 10, ''], ['2BR apartment', 'Bathroom 1', 'bathroom', 5, ''], ['2BR apartment', 'Bathroom 2', 'bathroom', 4, '']],
     prices: [],
     rules: RULES.map((r) => [r.label, '', r.unit, r.key]),
