@@ -65,7 +65,7 @@ export const PROPOSABLE: Record<ModTarget, FieldDef[]> = {
   feeder: defs(FEEDER_FIELDS as [string, string][], [['loadKw', 'number'], ['demandFactor', 'number'], ['powerFactor', 'number'], ['lengthM', 'number'], ['cableCsaMm2', 'number'], ['parallel', 'number'], ['cores', 'number'],
     ['breakerRatingA', 'number'], ['breakerIcuKa', 'number'], ['breakerType', 'text'], ['breakerImMultiple', 'number'], ['cpcMm2', 'number'], ['rcdMa', 'number'], ['cableType', 'text'], ['device', 'text'],
     ['starter', 'text'], ['kvar', 'number'], ['essential', 'bool'], ['trayRoute', 'text']]),
-  board: defs(BOARD_FIELDS as [string, string][], [['ratedCurrentA', 'number'], ['sourceKva', 'number'], ['sourceImpedancePct', 'number'], ['sourceXr', 'number'], ['vectorGroup', 'text'], ['busbarMaterial', 'text'],
+  board: defs(BOARD_FIELDS as [string, string][], [['ratedCurrentA', 'number'], ['sourceKva', 'number'], ['sourceImpedancePct', 'number'], ['sourceXr', 'number'], ['vectorGroup', 'text'], ['busbarMaterial', 'text'], ['busbarIcwKa', 'number'],
     ['ipRating', 'text'], ['manufacturer', 'text'], ['model', 'text'], ['upsKva', 'number'], ['mdDemandFactor', 'number'], ['elcbSensitivityMa', 'number'], ['elcbRatingA', 'number']]),
   ups: ([['autonomyMin', 'number'], ['growthPct', 'number'], ['maxLoadingPct', 'number'], ['outputPf', 'number'], ['inverterEff', 'number'], ['dcVoltage', 'number'], ['blockV', 'number'], ['endCellV', 'number'],
     ['ageing', 'number'], ['tempFactor', 'number'], ['designMargin', 'number'], ['startSocPct', 'number'], ['minSocPct', 'number'], ['endModuleV', 'number'], ['bmsDischargeA', 'number'], ['chargerCurrentA', 'number'],

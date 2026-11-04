@@ -14,6 +14,7 @@ import { summarizeBuilding, dbChecks } from './building';
 import { sizeGeneratorByBoards, sizeTransformers } from './txGen';
 import { planPfc } from './pfc';
 import { sizeRiser } from './busbar';
+import { busbarIcwChecks } from './busbarIcw';
 import { sizeUps } from './ups';
 import { sizePv } from './solar';
 import { fireRatingIssues } from '../model/cableTypes';
@@ -180,6 +181,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
   const pfc = planPfc(project);
   for (const m of pfc.mains) if (m.pfBefore < pfc.pfTarget - 1e-6 && m.existingKvar === 0) todo.push({ status: 'warn', text: `${m.boardId} PF ${m.pfBefore.toFixed(2)} — no capacitor bank yet (${fig.power(m.plannedKvar)} kvar planned)`, go: { view: 'pfc' } });
   for (const c of dbChecks(project)) if (c.status === 'warn' && c.ratio !== undefined) todo.push({ status: 'warn', text: `${c.boardId} designed for ${fig.loading(c.ratio * 100)} % of its rooms’ expected load`, go: { view: 'load-schedule', boardId: c.boardId } });
+  for (const c of busbarIcwChecks(project)) if (!c.ok) todo.push({ status: 'bad', text: `${c.board.id}: busbar Icw ${fig.fault(c.icwKa)} kA (1 s) is below the ${fig.fault(c.faultKa)} kA fault level`, go: { view: 'design', boardId: c.board.id } });
   for (const r of risers) if (!r.type || r.icwOk === false) todo.push({ status: 'bad', text: `${r.riser.name}: ${!r.type ? 'above the busway data' : 'Icw below the fault level'}`, go: { view: 'busbar' } });
   for (const u of project.upsSystems ?? []) {
     const r = sizeUps(project, u);

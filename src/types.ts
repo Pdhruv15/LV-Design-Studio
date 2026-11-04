@@ -46,6 +46,15 @@ export const BOARD_KINDS: { value: BoardKind; label: string }[] = [
   { value: 'UPS', label: 'UPS output board' }
 ];
 
+/** Panel sections drawn as labelled strips beside the busbar on the board sheet. */
+export type PanelSection = 'fireAlarm' | 'control' | 'bms' | 'metering';
+export const PANEL_SECTIONS: { value: PanelSection; label: string }[] = [
+  { value: 'fireAlarm', label: 'Fire alarm interface' },
+  { value: 'control', label: 'Control section' },
+  { value: 'bms', label: 'BMS section' },
+  { value: 'metering', label: 'Metering section' }
+];
+
 /** Point types from the DEWA load distribution schedule, in form order. */
 export type PointType =
   | 'ltg' | 'cfan' | 'exfan' | 'shaver' | 's13' | 'wh' | 'hd' | 'cooker' | 's15' | 'wac' | 'sac' | 'pump' | 'spare1' | 'spare2'
@@ -306,6 +315,10 @@ export interface Board {
   kind?: BoardKind;
   ratedCurrentA?: number; // busbar / main device rating, used for board loading
   busbarMaterial?: 'copper' | 'aluminium';
+  /** Busbar rated short-time withstand current Icw for 1 s (kA, IEC 61439-1), from the panel builder. Checked against the board's fault level. */
+  busbarIcwKa?: number;
+  /** Separate sections drawn beside the busbar on the board sheet, e.g. a fire alarm interface. */
+  sections?: PanelSection[];
   ipRating?: string;
   location?: string; // room / place, e.g. "Elec. room 3.01" (the level is `level`)
   level?: import('./model/levels').LevelRef; // the floor, from Building information

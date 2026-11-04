@@ -1,10 +1,11 @@
 import type { Board, Feeder, Project } from '../types';
-import { incomerDeviceOf } from '../types';
+import { incomerDeviceOf, PANEL_SECTIONS } from '../types';
 import type { FeederResult } from '../calc/electrical';
 import { runsOf } from '../calc/electrical';
 import { circuitRef } from '../calc/loadSchedule';
 import { phaseBalance, PHASE_UNBALANCE_CHECK_PCT } from '../calc/phaseBalance';
 import { boardSummary } from '../calc/summary';
+import { busbarIcwCheck } from '../calc/busbarIcw';
 import { panelSummary } from '../docs/mdSheet';
 import { boardLocation } from '../model/levels';
 import { cableTypeOf } from '../model/cableTypes';
@@ -25,7 +26,7 @@ import { symSvg, SYM_SCALE } from './symbolLibrary';
 
 const SP = 120, MARGIN = 50, BUS_Y = 150, BOX_Y = 270, BOX_H = 46, ROW = 18, SUM_Y = 24;
 const PER_ROW = 12, ROW_SPAN = 230; // circuits per busbar row; height of one row
-const SUM_W = 470, GAP = 40;
+const SUM_W = 470, GAP = 40, SEC_W = 26, SEC_X = 64; // SEC_W: one panel section strip; SEC_X: past the last way's text
 const COLS: [string, number, 'start' | 'end'][] = [
   ['REF', 64, 'start'], ['DESCRIPTION', 190, 'start'], ['BREAKER', 130, 'start'], ['CABLE', 150, 'start'], ['m', 40, 'end'],
   ['R kW', 58, 'end'], ['Y kW', 58, 'end'], ['B kW', 58, 'end'], ['Ib A', 52, 'end'], ['Vd %', 52, 'end'], ['STATUS', 70, 'start']
@@ -89,6 +90,9 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
 
   // Supply and incomer.
   const s = boardSummary(project, board);
+  const icw = busbarIcwCheck(project, board);
+  const riser = board.upstreamId ? project.busRisers?.find((r) => r.floors.some((f) => f.boardId === board.id)) : undefined;
+  const sections = PANEL_SECTIONS.filter((x) => board.sections?.includes(x.value));
   const incomer = s.incomer;
   const dev = incomerDeviceOf(board);
   if (!board.upstreamId) {
@@ -100,8 +104,13 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
     const up = project.boards.find((b) => b.id === board.upstreamId);
     const upSym = up && panelSymbolOf(project, up);
     out.push(upSym ? `${symSvg(upSym, cx, 14, SYM_SCALE.legend)}${ln(cx, 14 + 16 * SYM_SCALE.legend, cx, 90)}` : ln(cx, 0, cx, 90));
-    out.push(tx(cx + 14, 14, `FROM ${board.upstreamId}${opts.fromSheet ? ` (SHEET ${opts.fromSheet})` : ''}`, { bold: true }));
-    if (incomer) out.push(tx(cx + 14, 30, `${cableText(project, incomer)} · ${incomer.lengthM} m`), tx(cx + 14, 44, `${deviceText(incomer)} at ${board.upstreamId}`));
+    // A board on a busway riser is named by its tap-off, the riser's source board below it.
+    const sheetNote = opts.fromSheet ? ` (SHEET ${opts.fromSheet})` : '';
+    const lines = riser
+      ? [`FROM ${riser.name} (TAP-OFF)`, `BUSWAY RISER FROM ${board.upstreamId}${sheetNote}`]
+      : [`FROM ${board.upstreamId}${sheetNote}`];
+    if (incomer) lines.push(`${cableText(project, incomer)} · ${incomer.lengthM} m`, `${deviceText(incomer)} at ${board.upstreamId}`);
+    lines.forEach((t, i) => out.push(tx(cx + 14, 14 + i * 15, t, { bold: !i })));
   }
   if (dev) {
     out.push(switchSym(cx, 96, dev === 'ISOL' ? 'isolator' : dev === 'ACB' ? 'acb' : dev === 'MCCB-NA' ? 'nonauto' : 'breaker'));
@@ -120,8 +129,27 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
       out.push(tx(x1, y - 8, `${board.id} BUSBAR (CONTINUED)`, { size: 10 }));
     }
   }
-  out.push(tx(x1, BUS_Y - 8, `${board.id} · ${project.voltageV} V${board.ratedCurrentA ? ` · ${board.ratedCurrentA} A` : ''} ${board.busbarMaterial === 'aluminium' ? 'AL' : 'CU'} BUSBAR`, { bold: true }));
-  out.push(tx(x2, BUS_Y - 8, `Isc ${s.faultKA.toFixed(1)} kA`, { anchor: 'end' }));
+  // One line when it clears the incomer line; else stacked upwards (busbar, then system, then Icw) as needed.
+  const mat = board.busbarMaterial === 'aluminium' ? 'AL' : 'CU', icwText = icw ? `Icw ${fmtFixed(icw.icwKa, Number.isInteger(icw.icwKa) ? 0 : 1)} kA / 1 s` : '';
+  const oneLine = `${board.id} · ${board.ratedCurrentA ? `${board.ratedCurrentA} A, ` : ''}3φ 4W, ${project.frequencyHz} Hz ${mat} BUSBAR${icw ? ` · ${icwText}` : ''}`;
+  const fits = (t: string) => x1 + t.length * 11 * 0.62 < cx - 8;
+  const label: string[] = [];
+  if (fits(oneLine)) label.push(oneLine);
+  else for (const part of [`${board.id} · ${board.ratedCurrentA ? `${board.ratedCurrentA} A ` : ''}${mat} BUSBAR`, `3φ 4W, ${project.frequencyHz} Hz`, ...(icw ? [icwText] : [])]) {
+    const joined = label.length ? `${label[label.length - 1]} · ${part}` : '';
+    if (label.length && fits(joined)) label[label.length - 1] = joined; else label.push(part);
+  }
+  label.forEach((t, i) => out.push(tx(x1, BUS_Y - 8 - (label.length - 1 - i) * 14, t, { bold: true })));
+  out.push(tx(x2, BUS_Y - 8, `Isc ${s.faultKA.toFixed(1)} kA${icw ? (icw.ok ? ' ≤ Icw' : ' > Icw — CHECK') : ''}`, { anchor: 'end' }));
+
+  // Panel sections (fire alarm interface, control, BMS…) as labelled strips at the busbar's end.
+  const secX0 = Math.max((n ? xs[Math.min(n, perRow) - 1] + SP / 2 : x2) + SEC_X, x2 + 14); // past the busbar and the last way's text
+  const secTop = BUS_Y - 28, secBottom = BOX_Y + (rowsN - 1) * ROW_SPAN + BOX_H + 24;
+  sections.forEach((x, k) => {
+    const left = secX0 + k * SEC_W, mid = left + SEC_W / 2 + 3.5, midY = (secTop + secBottom) / 2;
+    out.push(`<rect x="${left}" y="${secTop}" width="${SEC_W}" height="${secBottom - secTop}" fill="none" stroke="#000" stroke-width="1"/>`);
+    out.push(`<text x="${mid}" y="${midY}" transform="rotate(-90 ${mid} ${midY})" fill="#000" font-family="Arial, Helvetica, sans-serif" font-size="10" text-anchor="middle">${esc(x.label.toUpperCase())}</text>`);
+  });
 
   // Outgoing circuits.
   drawn.forEach((f, i) => {
@@ -159,10 +187,12 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
   const rows: [string, string][] = [
     ['BOARD', cut(`${board.id}${board.name && board.name !== board.id ? ` — ${board.name}` : ''}`, 40)],
     ['LOCATION', cut(boardLocation(project, board) || '—', 40)],
-    ['SUPPLY', board.upstreamId ? `From ${board.upstreamId}${opts.fromSheet ? `, sheet ${opts.fromSheet}` : ''}` : `Transformer ${board.sourceKva ?? '—'} kVA`],
+    ['SUPPLY', riser ? `Tap-off from ${riser.name} (${board.upstreamId})${opts.fromSheet ? `, sheet ${opts.fromSheet}` : ''}` : board.upstreamId ? `From ${board.upstreamId}${opts.fromSheet ? `, sheet ${opts.fromSheet}` : ''}` : `Transformer ${board.sourceKva ?? '—'} kVA`],
     ['TCL / DF / MDL', `${fmtFixed(ps.tclKw, 2)} kW / ${ps.df.toFixed(2)} / ${fmtFixed(ps.mdlKw, 2)} kW`],
     ['DEMAND CURRENT', `${fmtFixed(s.currentA, 1)} A${board.ratedCurrentA ? ` of ${board.ratedCurrentA} A (${fmtFixed(s.loadingPct ?? 0, 0)} %)` : ''}`],
     ['FAULT LEVEL', `${s.faultKA.toFixed(1)} kA`],
+    ...(icw ? [['BUSBAR Icw', `${fmtFixed(icw.icwKa, Number.isInteger(icw.icwKa) ? 0 : 1)} kA / 1 s — ${icw.ok ? 'OK' : 'CHECK (below the fault level)'}`] as [string, string]] : []),
+    ...(sections.length ? [['SECTIONS', sections.map((x) => x.label).join(', ')] as [string, string]] : []),
     ['R / Y / B LOAD', `${three(pb.kw, 2)} kW`],
     ['R / Y / B CURRENT', `${three(pb.currentA, 1)} A`],
     ['NEUTRAL CURRENT', `${fmtFixed(pb.neutralA, 1)} A`],
@@ -170,7 +200,7 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
     ...(pb.unassigned.length ? [['NO PHASE SET', `${pb.unassigned.length} single-phase circuit${pb.unassigned.length === 1 ? '' : 's'}`] as [string, string]] : []),
     ...earthRows(boardEarth(project, board))
   ];
-  const sx = diagramW - MARGIN + GAP; // beside the diagram
+  const sx = Math.max(diagramW - MARGIN, sections.length ? secX0 + sections.length * SEC_W : 0) + GAP; // beside the diagram and its sections
   out.push(tx(sx, SUM_Y - 8, 'PANEL SUMMARY', { bold: true, size: 12 }));
   out.push(`<rect x="${sx}" y="${SUM_Y}" width="${SUM_W}" height="${rows.length * ROW}" fill="none" stroke="#000" stroke-width="1"/>`);
   rows.forEach(([k, v], i) => {
