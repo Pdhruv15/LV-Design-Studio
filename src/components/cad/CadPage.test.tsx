@@ -711,6 +711,40 @@ describe('CAD view', () => {
     expect(items[1].pts.map((q) => q.map((v) => Math.round(v)))).toEqual([[X, -2000], [X + 4000, -2000], [X + 4000, -7000]]);
   });
 
+  it('layer manager: a drawn layer locked cannot be picked; properties of an object and Match properties', async () => {
+    const line = (id: string, layer: string, a: [number, number], b: [number, number]) => ({ id, kind: 'line' as const, layer, pts: [a, b] });
+    const X = 200000;
+    const start: Project = { ...villa, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [line('S1', 'LV-SKETCH', [X, 0], [X + 4000, 0]), line('S2', 'LV-ANNO', [X, 2000], [X + 4000, 2000])] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const pick = (label: string, value: string) => {
+      const el = document.querySelector(`[aria-label="${label}"]`) as HTMLSelectElement;
+      act(() => { Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(el, value); el.dispatchEvent(new Event('change', { bubbles: true })); });
+    };
+    await command('LM');
+    expect(document.querySelector('[aria-label="Drawn layers"]')!.textContent).toMatch(/^LayerObjectsOnLockColourLinetypeLineweightLV-SKETCH1/);
+    act(() => { (document.querySelector('[aria-label="LV-ANNO locked"]') as HTMLInputElement).click(); });
+    pick('LV-SKETCH linetype', 'dashed');
+    expect(project.cadLayerStyle).toEqual({ 'sample-villa-gf.dxf': { 'LV-ANNO': { lock: true }, 'LV-SKETCH': { lt: 'dashed' } } });
+    act(() => { button('Done').click(); });
+    await clickAt(X + 2000, 2000); // on the locked layer: not picked
+    expect(state.selected).toBeNull();
+    await clickAt(X + 2000, 0);
+    expect(state.selected).toBe('sk:S1');
+    pick('Object colour', '#ff3b30');
+    pick('Object lineweight', '0.5');
+    expect(project.cadSketch![0].items[0]).toMatchObject({ color: '#ff3b30', lw: 0.5 });
+    await command('LM');
+    act(() => { (document.querySelector('[aria-label="LV-ANNO locked"]') as HTMLInputElement).click(); });
+    act(() => { button('Done').click(); });
+    await command('MP');
+    await clickAt(X + 2000, 0);
+    await clickAt(X + 2000, 2000);
+    expect(project.cadSketch![0].items[1]).toMatchObject({ layer: 'LV-SKETCH', color: '#ff3b30', lw: 0.5 });
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('MATCHPROP  Properties copied to the line · ⌘Z to undo');
+  });
+
   it('turns a camera to face the point clicked (RO)', async () => {
     act(() => root.render(<Host />));
     await flush();

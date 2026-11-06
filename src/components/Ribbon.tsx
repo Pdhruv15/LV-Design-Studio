@@ -4,7 +4,7 @@ import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FileX2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
-import { PenTool, FileCog, BoxSelect, Paintbrush, Scissors, ArrowRightToLine, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen } from 'lucide-react';
+import { PenTool, FileCog, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, ArrowRightToLine, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen } from 'lucide-react';
 import type { CadTool } from './cad/cadState';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
@@ -79,7 +79,7 @@ export interface RibbonActions {
   onAnonymizedSample: () => void;
   /** Design CAD's tools (src/components/cad); `file`: the File group's Plans, Level and Units (cadFileMenu.ts). */
   cad?: {
-    tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onSaveDwg: () => void; onClose: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; layersOn: boolean; hasDrawing: boolean;
+    tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onSaveDwg: () => void; onClose: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; onLayerManager?: () => void; layersOn: boolean; hasDrawing: boolean;
     file: { plans: Tool['menu']; plansSub?: string; level: string; levelTitle: string; levels: Tool['menu']; unit: string; unitTitle: string; units: Tool['menu'] };
     onRoles: () => void; rolesOn: boolean; onAddFound: () => void; onSchedules: () => void; onPlaceBoard: () => void; placingBoard: boolean;
     onCoverage: () => void; coverageOn: boolean; copyLevels: Tool['menu'];
@@ -122,7 +122,7 @@ const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
 /** The sub-tab a tool is on, so the ribbon shows the tool in use. */
 const SUB_OF: Partial<Record<CadTool, CadSub>> = {
   line: 'draw', pline: 'draw', rect: 'draw', circle: 'draw', arc: 'draw', text: 'draw', dim: 'draw', rotate: 'draw',
-  mirror: 'draw', scale: 'draw', stretch: 'draw', trim: 'draw', extend: 'draw', offset: 'draw', fillet: 'draw', chamfer: 'draw', break: 'draw', join: 'draw', explode: 'draw', array: 'draw',
+  mirror: 'draw', matchprop: 'draw', scale: 'draw', stretch: 'draw', trim: 'draw', extend: 'draw', offset: 'draw', fillet: 'draw', chamfer: 'draw', break: 'draw', join: 'draw', explode: 'draw', array: 'draw',
   room: 'plan', trace: 'plan', name: 'plan', tray: 'plan', cable: 'plan', link: 'plan', dev: 'plan', fill: 'plan', lux: 'plan', em: 'plan', arl: 'plan', match: 'plan', wire: 'plan', dist: 'plan', area: 'plan'
 };
 
@@ -433,6 +433,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         cadTool('rotate', 'Rotate', RotateCw, 'Rotate (RO): select a drawn object, base point, then an angle (typed degrees or a point)'),
         cadTool('mirror', 'Mirror', FlipHorizontal2, 'Mirror (MI): pick drawn objects, Enter, then two points of the mirror line; keep the originals or not'),
         cadTool('scale', 'Scale', Scaling, 'Scale (SC): pick drawn objects, Enter, then the base point; the factor is on the right'),
+        cadTool('matchprop', 'Match properties', PaintRoller, 'Match properties (MP): click the drawn object to copy from, then each to change: layer, colour, linetype, lineweight'),
         cadTool('stretch', 'Stretch', StretchHorizontal, 'Stretch (S): a window round the points to move, then base point and second point — a tray end moves, its far end stays'),
         { label: 'Erase', icon: Eraser, title: 'Erase the selected object (E or Delete); a light or socket is taken off its circuit. The architect\'s drawing is not changed', onClick: () => a.cad?.onDelete(), disabled: !a.cad?.hasSelection }
       ],
@@ -454,6 +455,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ],
       [
         { label: 'Layers', icon: Layers, title: 'Show or hide the layers panel (LAYER)', onClick: () => a.cad?.onLayers(), active: a.cad?.layersOn },
+        { label: 'Layer manager', icon: Layers2, title: 'Layer manager (LM): each layer on, locked, its colour, linetype and lineweight — the app\'s drawn layers and the architect\'s', onClick: () => a.cad?.onLayerManager?.(), disabled: !a.cad?.hasDrawing },
         { label: 'Fit', icon: Maximize, title: 'Fit the drawing to the window (FIT / ZE, or double-click the middle button)', onClick: () => a.cad?.onFit(), disabled: !a.cad?.hasDrawing }
       ],
       [
