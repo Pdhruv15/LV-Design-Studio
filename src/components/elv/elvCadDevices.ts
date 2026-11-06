@@ -32,3 +32,27 @@ export function elvPlacedOn(p: Project, level: Level): ElvPlaced[] {
     symbol: ELV_DEVICES[d.type].symbol, room: d.roomId ? rooms.find((r) => r.id === d.roomId)?.name : undefined
   }));
 }
+
+/** Design CAD → Edit devices (src/model/deviceEdit.ts) on ELV devices. */
+export const isElvType = (t: string): t is ElvDeviceType => t in ELV_DEVICES;
+/** The devices of the same system a device can be replaced with (a smoke detector: a heat detector, not a camera). */
+export const elvAlike = (types: string[]): { id: string; label: string }[] => {
+  const systems = new Set(types.map((t) => (isElvType(t) ? ELV_DEVICES[t].system : '')));
+  if (systems.size !== 1 || systems.has('')) return [];
+  const sys = [...systems][0];
+  return (Object.keys(ELV_DEVICES) as ElvDeviceType[]).filter((t) => ELV_DEVICES[t].system === sys).map((t) => ({ id: t, label: ELV_DEVICES[t].label }));
+};
+/** A device as another of its system; null when it is already that type or the type is of another system. */
+export function replaceElv(p: Project, id: string, type: string): Project | null {
+  const d = (p.elvDevices ?? []).find((e) => e.id === id);
+  if (!d || d.type === type || !isElvType(type) || ELV_DEVICES[type].system !== ELV_DEVICES[d.type].system) return null;
+  return { ...p, elvDevices: (p.elvDevices ?? []).map((e) => (e.id === id ? { ...e, type } : e)) };
+}
+/** A copy of a device (its type and the way it faces) at a point. */
+export function copyElv(p: Project, id: string, level: Level, x: number, y: number): Project | null {
+  const d = (p.elvDevices ?? []).find((e) => e.id === id);
+  if (!d) return null;
+  return placeDevices(p, level.building, level.level, [{ type: d.type, x, y, ...(d.rotationDeg !== undefined ? { rotationDeg: d.rotationDeg } : {}) }]).project;
+}
+export const removeElvs = (p: Project, ids: string[]) => removeDevices(p, ids);
+export const placeElvAt = (p: Project, type: ElvDeviceType, level: Level, at: [number, number][]) => placeDevices(p, level.building, level.level, at.map(([x, y]) => ({ type, x, y }))).project;

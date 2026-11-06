@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.039', date: '2026-11-06',
+    items: [
+      { title: 'Design CAD: edit several devices at once', text: 'Click a device, Shift-click to add or remove one, or drag a window round devices (Plan → Edit devices → Select). Left to right picks what is inside; right to left also picks what it crosses. A toolbar opens beside them with what suits them: Align row or column, Space equally, Replace, Circuit, Match, Move, Copy and Delete. The circuit list shows each circuit\'s points after the change and warns above the Rules limit. Right-click a device for the same as a menu.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Design CAD: Array on line and Match', text: 'Array on line (ARL) places devices evenly along a line you click, by number or spacing, half a spacing from each end or on the ends. Match (MA) gives each device you click the circuit of the first one, and its type if ticked.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.038', date: '2026-11-03',
     items: [
       { title: 'Busbar rating on board sheets', text: 'A board\'s busbar now reads like "200 A, 3φ 4W, 50 Hz CU BUSBAR". Enter the busbar Icw (kA for 1 s, from the panel builder) in the board\'s properties and it is printed too, with "Isc ≤ Icw" beside the fault level and a BUSBAR Icw line in the panel summary. When the Icw is below the fault level at the board, it goes on the to-do list. Nothing is assumed when it is left blank.' },

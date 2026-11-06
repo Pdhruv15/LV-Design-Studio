@@ -12,6 +12,7 @@ import { trayPlanOf } from '../../calc/cableTray';
 import { openDrawing } from '../../engines/cad/cadEngine';
 import '../../engines/cad/cadOps'; // loaded ahead: the engine loads it on demand, which a busy test run can make slow
 import { sampleProject } from '../../data/sampleProject';
+import { placeLvPoint } from '../../model/cadDevices';
 import type { Project } from '../../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -55,15 +56,30 @@ const command = async (text: string) => {
   });
   await act(async () => { input.form!.requestSubmit(); });
 };
-/** A click on the drawing at a point in drawing units, through the fitted 800 × 500 view. */
-const clickAt = async (x: number, y: number) => {
+/** Drawing units → canvas pixels, through the fitted 800 × 500 view. */
+const screenOf = (x: number, y: number) => {
   const { extents: [x0, y0, x1, y1] } = state.view!.info;
   const scale = Math.min(800 / (x1 - x0), 500 / (y1 - y0)) * 0.92;
-  const sx = (x - (x0 + x1) / 2) * scale + 400, sy = 250 - (y - (y0 + y1) / 2) * scale;
+  return [(x - (x0 + x1) / 2) * scale + 400, 250 - (y - (y0 + y1) / 2) * scale];
+};
+/** A selection window dragged from one point to another (drawing units). */
+const dragWindow = async (a: [number, number], b: [number, number]) => {
+  const [[ax, ay], [bx, by]] = [screenOf(...a), screenOf(...b)];
+  const c = document.querySelector('canvas.cad-over')!;
+  await act(async () => {
+    c.dispatchEvent(new MouseEvent('mousedown', { clientX: ax, clientY: ay, button: 0, bubbles: true }));
+    c.dispatchEvent(new MouseEvent('mousemove', { clientX: (ax + bx) / 2, clientY: (ay + by) / 2, bubbles: true }));
+    c.dispatchEvent(new MouseEvent('mousemove', { clientX: bx, clientY: by, bubbles: true }));
+    c.dispatchEvent(new MouseEvent('mouseup', { clientX: bx, clientY: by, button: 0, bubbles: true }));
+  });
+};
+/** A click on the drawing at a point in drawing units, through the fitted 800 × 500 view. */
+const clickAt = async (x: number, y: number, shiftKey = false) => {
+  const [sx, sy] = screenOf(x, y);
   const c = document.querySelector('canvas.cad-over')!;
   await act(async () => {
     c.dispatchEvent(new MouseEvent('mousemove', { clientX: sx, clientY: sy, bubbles: true }));
-    c.dispatchEvent(new MouseEvent('mouseup', { clientX: sx, clientY: sy, button: 0, bubbles: true }));
+    c.dispatchEvent(new MouseEvent('mouseup', { clientX: sx, clientY: sy, button: 0, shiftKey, bubbles: true }));
   });
 };
 
@@ -552,6 +568,78 @@ describe('CAD view', () => {
     expect(em.every((d) => d.type === 'ltg' && d.feederId === 'DB-GF1-Y1')).toBe(true);
     expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe(`${nf} emergency lights and ${ns} sign${ns === 1 ? '' : 's'} placed on DB-GF1/Y1 · ⌘Z to undo`);
     expect(place().disabled).toBe(true); // all placed: nothing marked any more
+  });
+
+  it('picks devices with a window and Shift-click; the toolbar beside them aligns them, moves them to a circuit and deletes them', async () => {
+    const gf = { building: 'V', level: 'GF' };
+    let start = villa;
+    for (const [x, y] of [[3, 9], [6, 9.4], [9, 8.8]]) start = placeLvPoint(start, gf, 'ltg', 'DB-GF1-B2', x, y).project;
+    start = placeLvPoint(start, gf, 's13', 'DB-GF1-B2', 6, 4).project;
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const bar = () => document.querySelector('[aria-label="Edit devices"]') as HTMLElement | null;
+    const barButton = (t: string) => [...bar()!.querySelectorAll('button')].find((b) => b.textContent === t)!;
+    await dragWindow([2000, 10000], [10000, 8000]); // left to right: the three lights, not the socket
+    expect(bar()?.getAttribute('role')).toBe('toolbar');
+    expect(bar()!.textContent).toMatch(/^3 selectedAlign rowAlign columnSpace equallyReplace ▾Circuit ▾MatchMoveCopyDelete$/);
+    expect(result()).toMatch(/3 devices selected · Ground/);
+    expect(result()).toMatch(/Devices3 × LightCircuits3 × DB-GF1\/B2/);
+    await act(async () => { barButton('Align row').click(); });
+    expect(new Set(project.lvPoints!.filter((d) => d.type === 'ltg').map((d) => d.y.toFixed(2)))).toEqual(new Set(['9.07']));
+    await act(async () => { barButton('Circuit ▾').click(); });
+    const y2 = [...document.querySelectorAll('[role="option"]')].find((o) => o.textContent!.startsWith('DB-GF1/Y2'))!;
+    expect(y2.textContent).toMatch(/9 → 12 pts ⚠$/); // 8 lights and an exhaust fan, over the 10 lights allowed with 3 more
+    const b2 = villa.feeders.find((f) => f.id === 'DB-GF1-B2')!.points!.ltg!;
+    await act(async () => { (y2 as HTMLButtonElement).click(); });
+    expect(project.lvPoints!.filter((d) => d.type === 'ltg').every((d) => d.feederId === 'DB-GF1-Y2')).toBe(true);
+    expect(project.feeders.find((f) => f.id === 'DB-GF1-B2')!.points!.ltg).toBe(b2 + 3 - 3);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('CIRCUIT  3 devices on DB-GF1/Y2 (12 points; 11 of this type, over the 10 allowed) · ⌘Z to undo');
+    await clickAt(9000, 9070, true); // Shift-click takes one off
+    expect(bar()!.textContent).toMatch(/^2 selected/);
+    await clickAt(6000, 4000, true); // and adds the socket: a mixed set gets Filter
+    expect(bar()!.textContent).toMatch(/^3 selectedFilter ▾Align row/);
+    await act(async () => { barButton('Filter ▾').click(); });
+    await act(async () => { ([...document.querySelectorAll('[role="option"]')].find((o) => o.textContent!.startsWith('Light only')) as HTMLButtonElement).click(); });
+    expect(bar()!.textContent).toMatch(/^2 selected/);
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' })); });
+    expect(project.lvPoints!.map((d) => d.type)).toEqual(['ltg', 's13']);
+    expect(bar()).toBeNull();
+    await dragWindow([10000, 3000], [2000, 10000]); // right to left: crossing
+    expect(bar()!.textContent).toMatch(/^2 selected/);
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
+    expect(bar()).toBeNull();
+  });
+
+  it('right-click: the menu of a device; Replace, then Array on line and Match from the tools', async () => {
+    const gf = { building: 'V', level: 'GF' };
+    const start = placeLvPoint(placeLvPoint(villa, gf, 's13', 'DB-GF1-B6', 6, 4).project, gf, 'ltg', 'DB-GF1-Y1', 3, 9).project;
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const [sx, sy] = screenOf(6000, 4000);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); });
+    const menu = document.querySelector('[role="menu"][aria-label="Edit devices"]') as HTMLElement;
+    expect(menu.textContent).toBe('Socket 13 A · DB-GF1/B6Replace ▾Circuit ▾MatchMoveCopyDelete');
+    await act(async () => { [...menu.querySelectorAll('button')].find((b) => b.textContent === 'Replace ▾')!.click(); });
+    await act(async () => { ([...document.querySelectorAll('[role="option"]')].find((o) => o.textContent!.startsWith('Twin socket')) as HTMLButtonElement).click(); });
+    expect(project.lvPoints!.find((d) => d.x === 6)!.type).toBe('s13t');
+    expect(project.feeders.find((f) => f.id === 'DB-GF1-B6')!.points).toMatchObject({ s13: 6, s13t: 1 });
+    await command('ARL');
+    expect(state.tool).toBe('arl');
+    await clickAt(0, 12000);
+    await clickAt(10000, 12000);
+    act(() => state.setFeederId('DB-GF1-Y1'));
+    expect(document.body.textContent).toMatch(/Array on line line 10\.00 m/);
+    expect(document.body.textContent).toMatch(/Devices5 × LightSpacing2\.00 m/);
+    await command(''); // Enter places them
+    expect(project.lvPoints!.filter((d) => d.y === 12).map((d) => d.x.toFixed(2))).toEqual(['1.00', '3.00', '5.00', '7.00', '9.00']);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('ARL  5 × Light placed on DB-GF1/Y1 · ⌘Z to undo');
+    await command('MA');
+    await clickAt(3000, 9000); // from the light on Y1
+    expect(document.body.textContent).toMatch(/Match from Light · DB-GF1\/Y1/);
+    await clickAt(6000, 4000); // the twin socket takes its circuit
+    expect(project.lvPoints!.find((d) => d.x === 6)).toMatchObject({ type: 's13t', feederId: 'DB-GF1-Y1' });
   });
 
   it('turns a camera to face the point clicked (RO)', async () => {
