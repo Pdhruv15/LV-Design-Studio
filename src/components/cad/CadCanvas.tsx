@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { INK, SNAP, SNAP_NAMES, type CadView } from '../../engines/cad/cadEngine';
 import { ortho as orthoFrom } from '../../model/cadMeasure';
 import { dimensionLines, segmentsOf, trayLabel, trayLine, TRAY_TEXT_MM } from '../../model/cadSketch';
@@ -38,14 +38,24 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps }: {
+export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, windowSelect = false, onWindow, onContext, overlay }: {
   view: CadView;
   layersOn: Uint8Array;
   toggles: CadToggles;
   /** The grid (when on) as dots at the crossings instead of lines. */
   gridDots?: boolean;
-  /** A click (left button, not panning): the snapped point and the size of one screen pixel in drawing units. */
-  onClick?: (at: Pt, pixel: number) => void;
+  /** A click (left button, not panning): the snapped point, the size of one screen pixel in drawing units, and whether
+   * Shift was held. */
+  onClick?: (at: Pt, pixel: number, shift?: boolean) => void;
+  /** A left drag picks with a window (Select): its corners (drawing units, absolute), `crossing` when dragged right to
+   * left, `add` with Shift held. */
+  windowSelect?: boolean;
+  onWindow?: (a: Pt, b: Pt, crossing: boolean, add: boolean) => void;
+  /** A right click: the point (not snapped), one pixel in drawing units, and where on the canvas (CSS pixels). */
+  onContext?: (at: Pt, pixel: number, screen: Pt) => void;
+  /** HTML over the drawing (the device toolbar): given drawing units → canvas pixels, and whether a window is being
+   * dragged or the view panned (it hides meanwhile). */
+  overlay?: (toScreen: (p: Pt) => Pt, moving: boolean) => ReactNode;
   marks?: CadMarks | null;
   /** Segments of the object picked (start, end), drawn highlighted. */
   highlight?: [number, number] | null;
@@ -77,6 +87,9 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
   const tRef = useRef(t);
   tRef.current = t;
   const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+  // A window being dragged (canvas pixels); `on` once it has moved far enough not to be a click.
+  const win = useRef<{ x: number; y: number; x2: number; y2: number; on: boolean } | null>(null);
+  const [moving, setMoving] = useState(false);
   const space = useSpaceHeld(); // Space + drag pans with any tool
   const mouse = useRef<Pt | null>(null);
   const lastAt = useRef<{ at: Pt; snap?: { p: Pt; kind: number } } | null>(null);
@@ -400,12 +413,12 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, size.w, size.h);
     const { scale, ox, oy } = tRef.current;
+    const snapC = colour('--cad-snap', '#37d67a');
     const mk = marksRef.current;
     if (mk && (mk.points.length || mk.live)) {
       const pts = mk.live && at ? [...mk.points, at] : mk.points;
       const scr = pts.map((p) => [(p[0] - o0 - ox) * scale, size.h - (p[1] - o1 - oy) * scale] as Pt);
       if (scr.length) {
-        const snapC = colour('--cad-snap', '#37d67a');
         ctx.beginPath();
         ctx.moveTo(scr[0][0], scr[0][1]);
         for (const q of scr.slice(1)) ctx.lineTo(q[0], q[1]);
@@ -425,6 +438,16 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
           ctx.fillText(mk.label, q[0] + 18, q[1] - 15);
         }
       }
+    }
+    const box = win.current;
+    if (box?.on) {
+      // The selection window: solid left to right (inside), dashed right to left (crossing).
+      ctx.strokeStyle = snapC;
+      ctx.lineWidth = 1;
+      ctx.setLineDash(box.x2 < box.x ? [6, 4] : []);
+      ctx.globalAlpha = 0.12; ctx.fillStyle = ctx.strokeStyle; ctx.fillRect(Math.min(box.x, box.x2), Math.min(box.y, box.y2), Math.abs(box.x2 - box.x), Math.abs(box.y2 - box.y)); ctx.globalAlpha = 1;
+      ctx.strokeRect(Math.min(box.x, box.x2) + 0.5, Math.min(box.y, box.y2) + 0.5, Math.abs(box.x2 - box.x), Math.abs(box.y2 - box.y));
+      ctx.setLineDash([]);
     }
     const pv = previewRef.current;
     if (pv.length) {
@@ -523,10 +546,10 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
   // A click waits for the engine's answer for where it was made, and reaches the page as the page is by then.
   const onClickNow = useRef(onClick);
   onClickNow.current = onClick;
-  function clickAt(sx: number, sy: number) {
+  function clickAt(sx: number, sy: number, shift = false) {
     const raw = toWorld(sx, sy);
     const v = tRef.current;
-    const done = (s: ArrayLike<number> | null) => onClickNow.current?.(landing(raw, v, s).at, 1 / v.scale);
+    const done = (s: ArrayLike<number> | null) => onClickNow.current?.(landing(raw, v, s).at, 1 / v.scale, shift);
     if (toggles.osnap) void view.snap(raw[0], raw[1], 10 / v.scale, OSNAP_ALL, layersOn).then(done);
     else done(null);
   }
@@ -588,24 +611,33 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
             e.preventDefault();
             const [x, y] = local(e);
             drag.current = { x, y, ox: tRef.current.ox, oy: tRef.current.oy };
-          }
+            setMoving(true);
+          } else if (e.button === 0 && windowSelect) { const [x, y] = local(e); win.current = { x, y, x2: x, y2: y, on: false }; }
         }}
         onMouseMove={(e) => {
           const [x, y] = local(e);
           mouse.current = [x, y];
           const d = drag.current;
-          if (d) move((v) => ({ ...v, ox: d.ox - (x - d.x) / v.scale, oy: d.oy + (y - d.y) / v.scale }));
-          else track(x, y);
+          if (d) { move((v) => ({ ...v, ox: d.ox - (x - d.x) / v.scale, oy: d.oy + (y - d.y) / v.scale })); return; }
+          const w = win.current;
+          if (w) { w.x2 = x; w.y2 = y; if (!w.on && Math.hypot(x - w.x, y - w.y) > 4) { w.on = true; setMoving(true); } }
+          track(x, y);
         }}
         onMouseUp={(e) => {
           const wasDrag = !!drag.current;
           drag.current = null;
-          if (!wasDrag && e.button === 0 && !space.current) { const [x, y] = mouse.current ?? local(e); clickAt(x, y); }
+          const w = win.current;
+          win.current = null;
+          if (wasDrag || w?.on) setMoving(false);
+          if (w?.on) { onWindow?.(toWorld(w.x, w.y), toWorld(w.x2, w.y2), w.x2 < w.x, e.shiftKey); drawCursor(lastAt.current?.at ?? null, lastAt.current?.snap); return; }
+          if (!wasDrag && e.button === 0 && !space.current) { const [x, y] = mouse.current ?? local(e); clickAt(x, y, e.shiftKey); }
         }}
+        onContextMenu={(e) => { if (!onContext) return; e.preventDefault(); const [x, y] = local(e); onContext(toWorld(x, y), 1 / tRef.current.scale, [x, y]); }}
         onDoubleClick={(e) => { if (e.button === 1) e.preventDefault(); }}
         onAuxClick={(e) => { if (isFitClick(e)) fitNow(); }}
-        onMouseLeave={() => { drag.current = null; mouse.current = null; drawCursor(null); onCursor(null); }}
+        onMouseLeave={() => { drag.current = null; win.current = null; setMoving(false); mouse.current = null; drawCursor(null); onCursor(null); }}
       />
+      {overlay?.((p) => [(p[0] - o0 - t.ox) * t.scale, size.h - (p[1] - o1 - t.oy) * t.scale], moving)}
       <ZoomChip pct={(t.scale / fitT().scale) * 100} onFit={fitNow} />
     </div>
   );

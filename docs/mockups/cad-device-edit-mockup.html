@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Device Edit Mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite dark default + light */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--on-acc:#1D2024;--ok:#37d67a;--warn:#f5c04a;--field-line:#6C7580;--new:#b784ff;--plan:#8A939E;--plan-bg:#15171A;--dev:#E6E8EB;--sel:rgba(245,179,1,.12)}
+:root[data-theme="light"]{--bg:#F5F3EF;--panel:#fff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--on-acc:#fff;--ok:#177336;--warn:#8a5d00;--field-line:#857E70;--new:#7a3fd6;--plan:#857E70;--plan-bg:#fff;--dev:#272420;--sel:rgba(135,88,0,.10)}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#F5F3EF;--panel:#fff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--on-acc:#fff;--ok:#177336;--warn:#8a5d00;--field-line:#857E70;--new:#7a3fd6;--plan:#857E70;--plan-bg:#fff;--dev:#272420;--sel:rgba(135,88,0,.10)}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+.intro{max-width:1240px;margin:0 auto;padding:16px 16px 0}
+.intro h1{font-size:17px;margin:0 0 4px}
+.intro p{margin:0 0 6px;color:var(--mut);max-width:940px}
+.legend{font-size:12px;color:var(--mut);margin:8px 0;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.legend i{display:inline-block;width:12px;height:12px;border:2px dashed var(--new);border-radius:3px;vertical-align:-2px;margin-right:5px}
+.legend .theme{margin-left:auto;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--mut)}
+.win{max-width:1240px;margin:10px 16px 24px;background:var(--panel);border:1px solid var(--line-strong);border-radius:10px;overflow:hidden}
+@media (min-width:1272px){.win{margin:10px auto 24px}}
+.new{outline:2px dashed var(--new);outline-offset:2px;border-radius:6px}
+.head{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.head h3{margin:0;font-size:15px}
+.head .file{color:var(--mut);font-size:12px}
+.tools{display:flex;gap:4px;padding:6px 10px;border-bottom:1px solid var(--line);background:var(--p2);flex-wrap:wrap;align-items:flex-end}
+.grp{display:flex;flex-direction:column;align-items:center;gap:2px}
+.grp .row{display:flex;gap:2px;flex-wrap:wrap}
+.grp small{font-size:10px;color:var(--mut)}
+.tool{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:62px;padding:5px 6px;border-radius:6px;border:1px solid transparent;background:none;font-size:11px;color:var(--tx)}
+.tool svg{width:20px;height:20px;stroke:var(--mut);fill:none;stroke-width:1.6}
+.tool[aria-pressed=true]{background:var(--panel);border-color:var(--acc)}
+.tool[aria-pressed=true] svg{stroke:var(--acc)}
+.sep{width:1px;align-self:stretch;background:var(--line);margin:0 4px}
+.body{display:grid;grid-template-columns:minmax(0,1fr) 360px;min-height:560px}
+@media (max-width:900px){.body{grid-template-columns:1fr}}
+.canvas{position:relative;background:var(--plan-bg);border-right:1px solid var(--line);min-height:400px;cursor:crosshair;user-select:none}
+.canvas svg{width:100%;height:100%;display:block}
+.hint{position:absolute;left:10px;bottom:10px;background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;padding:5px 9px;font-size:12px;max-width:calc(100% - 20px)}
+.side{display:flex;flex-direction:column;min-width:0}
+.side h4{margin:0;font-size:13px;padding:10px 12px 6px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.side h4 small{font-weight:400;color:var(--mut)}
+.sec{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;padding:8px 12px 4px;border-top:1px solid var(--line)}
+.form{display:grid;grid-template-columns:110px 1fr;gap:6px 8px;padding:0 12px 8px;align-items:center}
+.form label{color:var(--mut);font-size:12px}
+.form input,.form select{background:var(--p2);border:1px solid var(--field-line);border-radius:6px;height:28px;padding:0 8px;min-width:0;width:100%}
+.pair{display:flex;gap:6px;align-items:center}
+.from{font-size:11px;color:var(--mut)}
+.res{display:grid;grid-template-columns:1fr;gap:2px;padding:0 12px 8px}
+.res div{display:flex;justify-content:space-between;gap:6px;border-bottom:1px solid var(--line);padding:3px 0}
+.res span{color:var(--mut);font-size:12px}
+.btns{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 8px}
+.warns{margin:0 12px 8px;padding:0;list-style:none;font-size:12px}
+.warns li{color:var(--warn);padding:2px 0}
+.warns li.ok{color:var(--ok)}
+.foot{display:flex;gap:8px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);flex-wrap:wrap;margin-top:auto}
+.chip{border:1px solid var(--field-line);background:var(--p2);border-radius:6px;padding:0 12px;height:30px;white-space:nowrap}
+.chip.primary{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}
+.chk{display:flex;gap:6px;align-items:center;font-size:12px;padding:0 12px 8px}
+.hist{border-top:1px solid var(--line);padding:5px 12px;font-size:12px;color:var(--mut);background:var(--p2);font-family:ui-monospace,Menlo,monospace}
+.ctx{position:absolute;z-index:4;display:flex;gap:2px;align-items:center;background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;padding:3px;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:default;white-space:nowrap}
+.ctx.vert{flex-direction:column;align-items:stretch}
+.ctx button{border:1px solid transparent;background:none;border-radius:5px;padding:3px 7px;font-size:12px;color:var(--tx);display:flex;gap:4px;align-items:center}
+.ctx button:hover,.ctx button[aria-expanded=true]{background:var(--p2);border-color:var(--line)}
+.ctx .what{font-size:11px;color:var(--mut);padding:0 6px}
+.ctx .bar{width:1px;align-self:stretch;background:var(--line);margin:0 2px}
+.ctx.vert .bar{width:auto;height:1px;margin:2px 0}
+.ctx .dd{position:absolute;top:calc(100% + 4px);background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;padding:3px;min-width:220px;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.ctx.vert .dd{top:0;left:calc(100% + 4px)}
+.ctx .dd button{width:100%;justify-content:space-between}
+.ctx .dd small{color:var(--mut)}
+.notes{max-width:1240px;margin:0 auto 24px;padding:0 16px;color:var(--mut);font-size:12px}
+.notes li{margin:3px 0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="intro">
+  <h1>Design CAD → Plan → Devices → Edit — mockup (2026-11-06)</h1>
+  <p><b>Click a device</b> (or drag a window round several): a small toolbar opens beside it with the edits that suit what is picked — a light, a socket, a smoke detector, the DB, or several at once. <b>Right-click</b> gives the same list as a menu at the cursor. The side panel keeps the details and warnings.</p>
+  <p>Tools to change many devices at once instead of one by one. <b>Select</b> several devices with a window, then <b>align</b> them, <b>space them equally</b>, <b>replace</b> them with another device, move them to <b>another circuit</b> or <b>match</b> another device. <b>Array on line</b> places N devices evenly along a line you draw (a corridor of lights). Every change updates the point counts on the circuits and the load schedule, as Add device does today, and is one undo step.</p>
+  <div class="legend"><span><i></i>new in this proposal</span><span>Everything else is as the app is today.</span><button class="theme" id="theme">Light / dark</button></div>
+</div>
+
+<div class="win">
+  <div class="head"><h3>Design CAD</h3><span class="file">A-101 Ground floor.dwg · Level GF · Villa</span></div>
+  <div class="tools">
+    <div class="grp"><div class="row">
+      <button class="tool"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg>Add device</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 12h16M12 4v16"/></svg>Fill room</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="4"/><path d="M9 17h6M10 20h4"/></svg>Light room</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><path d="M5 21V4h9l5 4v13"/></svg>Emergency</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/></svg>Coverage</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12"/><path d="M4 16V4h12"/></svg>Copy to level</button>
+    </div><small>Devices</small></div>
+    <span class="sep"></span>
+    <div class="grp new"><div class="row">
+      <button class="tool" data-t="sel" aria-pressed="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="14" stroke-dasharray="3 2"/><path d="M14 14l6 6M14 14v5M14 14h5"/></svg>Select</button>
+      <button class="tool" data-t="arr"><svg viewBox="0 0 24 24"><path d="M3 12h18"/><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>Array on line</button>
+      <button class="tool" data-t="match"><svg viewBox="0 0 24 24"><path d="M4 20l6-6M14 4l6 6-8 8-6-6z"/></svg>Match</button>
+    </div><small>Edit devices</small></div>
+  </div>
+  <div class="body">
+    <div class="canvas" id="cv">
+      <svg id="plan" viewBox="0 0 20 12" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="hint" id="hint"></div>
+      <div class="ctx new" id="ctx" hidden></div>
+    </div>
+
+    <!-- Selection: what is selected, then what to do with it -->
+    <div class="side new" id="pSel">
+      <h4 id="selHead">Nothing selected</h4>
+      <div class="res" id="selRes"></div>
+      <div id="selActs">
+        <div class="sec">Arrange</div>
+        <div class="btns">
+          <button class="chip" id="alH">Align in a row</button>
+          <button class="chip" id="alV">Align in a column</button>
+          <button class="chip" id="spc">Space equally</button>
+        </div>
+        <div class="sec">Change</div>
+        <div class="form">
+          <label>Replace with</label><select id="rep"><option value="">— keep —</option><option value="ltg">Light</option><option value="s13">13 A socket</option><option value="s13t">Twin socket</option><option value="cfan">Ceiling fan</option></select>
+          <label>Circuit</label><select id="cir"><option value="">— keep —</option><option value="Y1">DB-GF1/Y1 · Corridor lighting</option><option value="Y2">DB-GF1/Y2 · Living lighting</option><option value="Y3">DB-GF1/Y3 · Bedrooms lighting</option><option value="R1">DB-GF1/R1 · Living sockets</option></select>
+        </div>
+        <ul class="warns" id="selWarn"></ul>
+        <div class="foot"><button class="chip primary" id="applySel">Apply</button><button class="chip">Move</button><button class="chip">Copy</button><button class="chip">Delete</button></div>
+      </div>
+    </div>
+
+    <!-- Array on line -->
+    <div class="side new" id="pArr" hidden>
+      <h4>Array on line <small id="arrLen">click the start and the end of the line</small></h4>
+      <div class="form">
+        <label>Device</label><select id="aDev"><option value="ltg">Light</option><option value="s13">13 A socket</option><option value="smk">Smoke detector (ELV)</option></select>
+        <label>By</label><select id="aBy"><option value="n">Number</option><option value="s">Spacing</option></select>
+        <label id="aValL">Number</label><input id="aVal" type="number" value="5" step="1">
+        <label>Ends</label><select id="aEnd"><option value="half">Half a spacing from each end</option><option value="on">On the ends</option></select>
+        <label>Circuit</label><select><option>DB-GF1/Y1 · Corridor lighting</option><option>DB-GF1/Y2 · Living lighting</option></select>
+      </div>
+      <div class="res" id="arrRes"></div>
+      <div class="foot"><button class="chip primary" id="arrGo">Place 5 lights</button><button class="chip" id="arrClr">Cancel</button><span class="from">Also on the command line: ARL, then the points and a number or spacing</span></div>
+    </div>
+
+    <!-- Match -->
+    <div class="side new" id="pMatch" hidden>
+      <h4>Match <small id="mSrc">click the device to copy from</small></h4>
+      <label class="chk"><input type="checkbox" checked> Circuit (LV) / system (ELV)</label>
+      <label class="chk"><input type="checkbox"> Device type</label>
+      <div class="res" id="mRes"></div>
+      <div class="foot"><span class="from">Then click each device to change; Enter or Esc stops</span></div>
+    </div>
+  </div>
+  <div class="hist" id="hist">Ready</div>
+</div>
+
+<div class="notes">
+  <b>Notes for the decision</b>
+  <ul>
+    <li><b>Toolbar at the cursor:</b> opens just above what is picked (below it near the top edge), hides while a window is dragged, and closes with Esc or a click elsewhere. What it offers:
+      <b>Light</b> — Array on line, Replace, Circuit, Match, Move, Copy, Delete ·
+      <b>socket / other LV point</b> — Replace, Circuit, Match, Move, Copy, Delete ·
+      <b>ELV device</b> — Replace (same system), Coverage, Match, Move, Copy, Delete ·
+      <b>Board</b> — Rename, Circuits…, Move, Delete ·
+      <b>several</b> — Align row, Align column, Space equally, then what all of them have in common; a mixed set adds Filter (Lights only…). Replace and Circuit open a short list right there, Circuit with the point count after the change.</li>
+    <li><b>Right-click</b> a device: the same options as a menu at the cursor.</li>
+    <li><b>Selecting:</b> drag left to right selects what is fully inside; right to left also what the window crosses (as in AutoCAD). Shift-click adds or removes one device. Esc clears. A filter in the panel (Lights only, Sockets only…) narrows a mixed selection.</li>
+    <li><b>Align in a row / column:</b> the devices take the average Y (row) or X (column). <b>Space equally</b> keeps the two outer devices and spreads the rest evenly between them.</li>
+    <li><b>Replace:</b> LV points can become another LV point type, ELV devices another device of the same system. A type that does not suit the circuit (a socket on a lighting circuit) is warned, not blocked.</li>
+    <li><b>Circuit:</b> the points move to the other circuit; the panel shows both circuits' point counts after the change, and warns if the new circuit goes over its point limit.</li>
+    <li><b>Move, Copy, Delete</b> work on the whole selection (today one device at a time). Also <b>Rotate</b> for device symbols? Symbols are drawn upright today — not in this first version.</li>
+    <li>Selecting drawn lines, trays and routes with the same window comes with the core edit tools (Trim, Extend, Offset…) proposed next.</li>
+  </ul>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const LBL={ltg:'Light',s13:'13 A socket',s13t:'Twin socket',cfan:'Ceiling fan',smk:'Smoke detector',heat:'Heat detector',db:'Board'};
+const FAMILY=t=>t==='db'?'board':t==='smk'||t==='heat'?'elv':'lv';
+// Devices on the level (metres): a corridor with lights a little out of line, a living room
+let devs=[[2.2,5.6,'ltg','Y1'],[5.1,5.9,'ltg','Y1'],[7.4,5.5,'ltg','Y1'],[11.3,6.1,'ltg','Y2'],[13.6,5.7,'ltg','Y1'],
+ [3,2,'ltg','Y2'],[6,2.2,'ltg','Y2'],[3,9.6,'ltg','Y3'],[6.2,9.5,'ltg','Y3'],[1,1.2,'s13','R1'],[8,1.2,'s13t','R1'],
+ [4.5,3.3,'smk','FA'],[12.5,2.4,'smk','FA'],[14.8,10.6,'db','DB-GF1']].map(([x,y,t,c],i)=>({id:i,x,y,t,c}));
+let tool='sel',sel=new Set([0,1,2,3,4]),drag=null,box=null,arr=[],src=null,hist='Ready';
+const pt=e=>{const s=$('plan'),p=s.createSVGPoint();p.x=e.clientX;p.y=e.clientY;const q=p.matrixTransform(s.getScreenCTM().inverse());return[q.x,q.y];};
+function sym(d,ghost){const k=sel.has(d.id)&&!ghost,c=k?'var(--acc)':'var(--dev)',o=ghost?' opacity=".55"':'';
+  if(d.t==='ltg')return `<g stroke="${c}" stroke-width=".05"${o}><circle cx="${d.x}" cy="${d.y}" r=".25" fill="none"/><path d="M${d.x-.18} ${d.y-.18}l.36 .36M${d.x+.18} ${d.y-.18}l-.36 .36"/></g>`;
+  if(d.t==='db')return `<g stroke="${c}" stroke-width=".05"${o}><rect x="${d.x-.45}" y="${d.y-.25}" width=".9" height=".5" fill="none"/><text x="${d.x}" y="${d.y+.1}" font-size=".26" text-anchor="middle" fill="${c}" stroke="none">DB</text></g>`;
+  if(d.t==='heat')return `<g stroke="${c}" stroke-width=".05"${o}><circle cx="${d.x}" cy="${d.y}" r=".25" fill="none"/><text x="${d.x}" y="${d.y+.1}" font-size=".28" text-anchor="middle" fill="${c}" stroke="none">H</text></g>`;
+  if(d.t==='smk')return `<g stroke="${c}" stroke-width=".05"${o}><circle cx="${d.x}" cy="${d.y}" r=".25" fill="none"/><text x="${d.x}" y="${d.y+.1}" font-size=".28" text-anchor="middle" fill="${c}" stroke="none">S</text></g>`;
+  if(d.t==='cfan')return `<g stroke="${c}" stroke-width=".05"${o}><circle cx="${d.x}" cy="${d.y}" r=".25" fill="none"/><path d="M${d.x-.25} ${d.y}h.5M${d.x} ${d.y-.25}v.5"/></g>`;
+  return `<g stroke="${c}" stroke-width=".05" fill="none"${o}><path d="M${d.x-.25} ${d.y}a.25 .25 0 0 1 .5 0z"/>${d.t==='s13t'?`<path d="M${d.x-.1} ${d.y}v-.35M${d.x+.1} ${d.y}v-.35"/>`:`<path d="M${d.x} ${d.y}v-.35"/>`}</g>`;}
+function ghosts(){if(arr.length<2)return[];const[a,b]=arr,L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(L<.01)return[];
+  const by=$('aBy').value,v=+$('aVal').value,half=$('aEnd').value==='half';let n=by==='n'?Math.max(1,Math.round(v)):Math.max(1,Math.floor(L/Math.max(.1,v))+(half?0:1));
+  const out=[];for(let i=0;i<n;i++){const f=half?(i+.5)/n:(n===1?.5:i/(n-1));out.push({x:a[0]+f*(b[0]-a[0]),y:a[1]+f*(b[1]-a[1]),t:$('aDev').value});}return out;}
+function draw(){
+  const walls=`<g stroke="var(--plan)" stroke-width=".1" fill="none"><path d="M.3 .3H15.5V11.5H.3Z"/><path d="M.3 4.5H9M10.2 4.5H15.5M.3 7H4M5.2 7H15.5M9.5 .3V4.5M4.6 7V11.5"/></g>
+   <g fill="var(--mut)" font-size=".4"><text x=".7" y="3.9">Living</text><text x="12" y="6.4">Corridor</text><text x=".7" y="11">Bedroom 1</text><text x="5.1" y="11">Bedroom 2</text><text x="10" y="3.9">Kitchen</text></g>`;
+  const g=tool==='arr'?ghosts():[];
+  const line=arr.length?`<g stroke="var(--acc)" stroke-width=".04" stroke-dasharray=".2 .12"><line x1="${arr[0][0]}" y1="${arr[0][1]}" x2="${(arr[1]||arr[0])[0]}" y2="${(arr[1]||arr[0])[1]}"/></g>`:'';
+  const b=box?(()=>{const[x1,y1]=box[0],[x2,y2]=box[1],cross=x2<x1;return `<rect x="${Math.min(x1,x2)}" y="${Math.min(y1,y2)}" width="${Math.abs(x2-x1)}" height="${Math.abs(y2-y1)}" fill="var(--sel)" stroke="var(--acc)" stroke-width=".04" ${cross?'stroke-dasharray=".2 .12"':''}/>`;})():'';
+  const srcMark=src!==null?(()=>{const d=devs.find(x=>x.id===src);return `<circle cx="${d.x}" cy="${d.y}" r=".45" fill="none" stroke="var(--acc)" stroke-width=".05"/>`})():'';
+  const labels=devs.map(d=>`<text x="${d.x+.3}" y="${d.y-.25}" font-size=".24" fill="var(--mut)">${d.c}</text>`).join('');
+  $('plan').innerHTML=`<rect width="20" height="12" fill="var(--plan-bg)"/>${walls}${labels}${devs.map(d=>sym(d)).join('')}${g.map(d=>sym(d,true)).join('')}${line}${srcMark}${b}`;
+}
+function panel(){
+  $('pSel').hidden=tool!=='sel';$('pArr').hidden=tool!=='arr';$('pMatch').hidden=tool!=='match';
+  document.querySelectorAll('[data-t]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===tool));
+  $('hint').textContent={sel:'SEL  Drag a window round devices (left→right: inside; right→left: crossing) · Shift-click adds or removes · Esc clears',arr:'ARL  Array on line: click the start, then the end; type a number or spacing in the panel',match:'MA  Match: click the device to copy from, then each device to change'}[tool];
+  const s=devs.filter(d=>sel.has(d.id));
+  $('selHead').innerHTML=s.length?`${s.length} device${s.length>1?'s':''} selected <small>Level GF</small>`:'Nothing selected <small>drag a window round some devices</small>';
+  const by=(k)=>Object.entries(s.reduce((m,d)=>(m[k(d)]=(m[k(d)]||0)+1,m),{})).map(([a,n])=>`${n} × ${a}`).join(', ');
+  $('selRes').innerHTML=s.length?`<div><span>Devices</span><b>${by(d=>LBL[d.t])}</b></div><div><span>Circuits</span><b>${by(d=>d.c)}</b></div>`:'';
+  $('selActs').hidden=!s.length;
+  const w=[],rep=$('rep').value,cir=$('cir').value;
+  if(rep&&rep!=='ltg'&&cir.startsWith('Y'))w.push(`⚠ ${LBL[rep]} on a lighting circuit — check the circuit`);
+  if(rep&&rep!=='ltg'&&!cir&&s.some(d=>d.c.startsWith('Y')))w.push(`⚠ ${LBL[rep]} on a lighting circuit (${[...new Set(s.map(d=>d.c))].join(', ')}) — choose a circuit too?`);
+  if(cir){const after=devs.filter(d=>d.c===cir||sel.has(d.id)).length;w.push(after>10?`⚠ ${cir} would have ${after} points, over its 10-point limit`:`✓ ${cir}: ${after} points after the change`);}
+  $('selWarn').innerHTML=w.map(t=>`<li class="${t[0]==='✓'?'ok':''}">${t}</li>`).join('');
+  if(tool==='arr'){const g=ghosts();$('aValL').textContent=$('aBy').value==='n'?'Number':'Spacing (m)';
+    const L=arr.length===2?Math.hypot(arr[1][0]-arr[0][0],arr[1][1]-arr[0][1]):0;
+    $('arrLen').textContent=L?`line ${L.toFixed(2)} m`:arr.length?'click the end of the line':'click the start and the end of the line';
+    const sp=g.length>1?Math.hypot(g[1].x-g[0].x,g[1].y-g[0].y):L/2;
+    $('arrRes').innerHTML=g.length?`<div><span>Devices</span><b>${g.length} × ${LBL[$('aDev').value]}</b></div><div><span>Spacing</span><b>${sp.toFixed(2)} m</b></div><div><span>First from start</span><b>${Math.hypot(g[0].x-arr[0][0],g[0].y-arr[0][1]).toFixed(2)} m</b></div>`:'';
+    $('arrGo').textContent=`Place ${g.length||''} ${LBL[$('aDev').value].toLowerCase()}${g.length===1?'':'s'}`;}
+  $('hist').textContent=hist;
+}
+// Toolbar at the cursor: the edits that suit what is picked
+let ctxAt=null,dd=null;
+const CIRCUITS={Y1:'Corridor lighting',Y2:'Living lighting',Y3:'Bedrooms lighting',R1:'Living sockets'};
+const SETS={ltg:['arr','rep','cir','match','|','move','copy','del'],lv:['rep','cir','match','|','move','copy','del'],elv:['rep','cov','match','|','move','copy','del'],board:['ren','circs','|','move','del']};
+const setOf=d=>d.t==='ltg'?SETS.ltg:SETS[FAMILY(d.t)];
+const NAME={row:'Align row',col:'Align column',space:'Space equally',arr:'Array on line…',rep:'Replace ▾',cir:'Circuit ▾',cov:'Coverage',match:'Match',move:'Move',copy:'Copy',del:'Delete',ren:'Rename',circs:'Circuits…',filt:'Filter ▾'};
+function actionsFor(s){
+  let a=setOf(s[0]).filter(k=>s.every(d=>setOf(d).includes(k)));
+  if(s.length>1)a=a.filter(k=>k!=='arr'&&k!=='ren'&&k!=='circs');
+  if(new Set(s.map(d=>FAMILY(d.t))).size>1)a=a.filter(k=>k!=='rep');
+  const arrange=s.length>1?['row','col',...(s.length>2?['space']:[]),'|']:[];
+  const mixed=new Set(s.map(d=>d.t)).size>1?['filt','|']:[];
+  return [...mixed,...arrange,...a].filter((k,i,x)=>!(k==='|'&&(i===0||x[i-1]==='|')));
+}
+function ddItems(k,s){
+  if(k==='rep'){const fam=FAMILY(s[0].t),opts=fam==='elv'?['smk','heat']:['ltg','s13','s13t','cfan'];return opts.map(t=>[`rep:${t}`,LBL[t],s.every(d=>d.t===t)?'now':'']);}
+  if(k==='cir')return Object.entries(CIRCUITS).map(([c,n])=>{const now=devs.filter(d=>d.c===c).length,after=devs.filter(d=>d.c===c||sel.has(d.id)).length;return[`cir:${c}`,`DB-GF1/${c} · ${n}`,s.every(d=>d.c===c)?'now':`${now} → ${after} pts${after>10?' ⚠':''}`];});
+  if(k==='filt'){const n={};s.forEach(d=>n[d.t]=(n[d.t]||0)+1);return Object.entries(n).map(([t,c])=>[`filt:${t}`,`${LBL[t]} only`,`${c}`]);}
+  return [];
+}
+function act(k){
+  const s=S(),n=s.length,lbl=n===1?LBL[s[0].t]:`${n} devices`;
+  const [cmd,arg]=k.split(':');
+  if(cmd==='rep'){s.forEach(d=>d.t=arg);hist=`REPLACE  ${lbl} → ${LBL[arg]}${arg!=='ltg'&&s.some(d=>d.c.startsWith('Y'))?' · ⚠ on a lighting circuit':''} · ⌘Z to undo`;}
+  else if(cmd==='cir'){const after=devs.filter(d=>d.c===arg||sel.has(d.id)).length;s.forEach(d=>d.c=arg);hist=`CIRCUIT  ${lbl} on DB-GF1/${arg} (${after} points${after>10?', over the 10-point limit':''}) · ⌘Z to undo`;}
+  else if(cmd==='filt'){sel=new Set(s.filter(d=>d.t===arg).map(d=>d.id));hist=`SEL  ${sel.size} × ${LBL[arg]} kept`;}
+  else if(cmd==='row')return $('alH').click();
+  else if(cmd==='col')return $('alV').click();
+  else if(cmd==='space')return $('spc').click();
+  else if(cmd==='arr'){tool='arr';$('aDev').value=s[0].t==='ltg'?'ltg':'s13';arr=[];hist='ARL  Click the start of the line';}
+  else if(cmd==='match'){tool='match';src=s[0].id;$('mSrc').textContent=`from ${LBL[s[0].t]} on ${s[0].c} — now click the devices to change`;hist='MA  Click each device to change';}
+  else if(cmd==='del'){devs=devs.filter(d=>!sel.has(d.id));sel.clear();hist=`DELETE  ${lbl} · point counts updated · ⌘Z to undo`;}
+  else if(cmd==='move'||cmd==='copy')hist=`${cmd.toUpperCase()}  ${lbl}: base point, then the second point`;
+  else if(cmd==='cov')hist='COV  Smoke detector coverage shown for the level';
+  else if(cmd==='ren')hist='RENAME  DB-GF1: type the new name';
+  else if(cmd==='circs')hist='DB-GF1: its circuits open in the side panel';
+  dd=null;ctxAt=null;render();
+}
+function ctxbar(){
+  const el=$('ctx'),s=S();
+  if(tool!=='sel'||!s.length||drag){el.hidden=true;return;}
+  const acts=actionsFor(s),vert=!!ctxAt;
+  el.className='ctx new'+(vert?' vert':'');
+  el.innerHTML=`<span class="what">${s.length===1?`${LBL[s[0].t]} · ${s[0].c}`:`${s.length} selected`}</span><span class="bar"></span>`+
+    acts.map(k=>k==='|'?'<span class="bar"></span>':`<button data-a="${k}" ${['rep','cir','filt'].includes(k)?`aria-expanded="${dd===k}"`:''}>${NAME[k]}</button>`).join('')+
+    (dd?`<div class="dd">${ddItems(dd,s).map(([a,l,r])=>`<button data-a="${a}" ${r==='now'?'disabled':''}><span>${l}</span><small>${r}</small></button>`).join('')}</div>`:'');
+  el.hidden=false;
+  const cv=$('cv').getBoundingClientRect(),svg=$('plan'),M=svg.getScreenCTM(),P=(x,y)=>{const p=svg.createSVGPoint();p.x=x;p.y=y;const q=p.matrixTransform(M);return[q.x-cv.left,q.y-cv.top];};
+  let left,top;
+  if(vert)[left,top]=ctxAt;
+  else{const xs=s.map(d=>d.x),ys=s.map(d=>d.y),[l,t]=P(Math.min(...xs)-.4,Math.min(...ys)-.4),[,b]=P(0,Math.max(...ys)+.4);left=l;top=t-el.offsetHeight-6;if(top<4)top=b+6;}
+  left=Math.max(4,Math.min(left,cv.width-el.offsetWidth-4));top=Math.max(4,Math.min(top,cv.height-el.offsetHeight-4));
+  el.style.left=left+'px';el.style.top=top+'px';
+  const ddEl=el.querySelector('.dd');if(ddEl&&!vert){const b=el.querySelector(`[data-a="${dd}"]`);ddEl.style.left=b.offsetLeft+'px';}
+}
+$('ctx').addEventListener('mousedown',e=>e.stopPropagation());
+$('ctx').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const k=b.dataset.a;if(['rep','cir','filt'].includes(k)){dd=dd===k?null:k;ctxbar();}else act(k);});
+$('cv').addEventListener('contextmenu',e=>{e.preventDefault();if(tool!=='sel')return;const p=pt(e),hit=devs.find(d=>Math.hypot(d.x-p[0],d.y-p[1])<.35);
+  if(hit&&!sel.has(hit.id))sel=new Set([hit.id]);if(!sel.size)return;const cv=$('cv').getBoundingClientRect();ctxAt=[e.clientX-cv.left+4,e.clientY-cv.top+4];dd=null;render();});
+addEventListener('resize',()=>ctxbar());
+const render=()=>{draw();panel();ctxbar();};
+$('cv').addEventListener('mousedown',e=>{if(e.button!==0)return;const p=pt(e);ctxAt=null;dd=null;
+  if(tool==='sel'){const hit=devs.find(d=>Math.hypot(d.x-p[0],d.y-p[1])<.35);if(hit){if(e.shiftKey)sel.has(hit.id)?sel.delete(hit.id):sel.add(hit.id);else sel=new Set([hit.id]);render();return;}drag=p;box=[p,p];if(!e.shiftKey)sel.clear();render();}
+  if(tool==='arr'){arr=arr.length>=2?[p]:[...arr,p];render();}
+  if(tool==='match'){const hit=devs.find(d=>Math.hypot(d.x-p[0],d.y-p[1])<.35);if(!hit)return;if(src===null){src=hit.id;$('mSrc').textContent=`from ${LBL[hit.t]} on ${hit.c} — now click the devices to change`;}else{const s=devs.find(d=>d.id===src);hist=`MA  ${LBL[hit.t]} moved from ${hit.c} to ${s.c} · ⌘Z to undo`;hit.c=s.c;}render();}
+});
+$('cv').addEventListener('mousemove',e=>{if(drag){box=[drag,pt(e)];const[x1,y1]=drag,[x2,y2]=box[1],cross=x2<x1,[a,b,c,d]=[Math.min(x1,x2),Math.max(x1,x2),Math.min(y1,y2),Math.max(y1,y2)];
+  devs.forEach(v=>{const r=cross?.25:-.25;if(v.x>=a-r&&v.x<=b+r&&v.y>=c-r&&v.y<=d+r)sel.add(v.id);else if(!e.shiftKey)sel.delete(v.id);});render();}
+  else if(tool==='arr'&&arr.length===1){const p=pt(e);arr=[arr[0],p];draw();arr=[arr[0]];}});
+addEventListener('mouseup',()=>{if(drag){drag=null;box=null;render();}});
+addEventListener('keydown',e=>{if(e.key==='Escape'){sel.clear();arr=[];src=null;$('mSrc').textContent='click the device to copy from';render();}});
+const S=()=>devs.filter(d=>sel.has(d.id));
+$('alH').onclick=()=>{const s=S(),y=s.reduce((t,d)=>t+d.y,0)/s.length;s.forEach(d=>d.y=y);hist=`ALIGN  ${s.length} devices in a row at Y ${y.toFixed(2)} m · ⌘Z to undo`;render();};
+$('alV').onclick=()=>{const s=S(),x=s.reduce((t,d)=>t+d.x,0)/s.length;s.forEach(d=>d.x=x);hist=`ALIGN  ${s.length} devices in a column at X ${x.toFixed(2)} m · ⌘Z to undo`;render();};
+$('spc').onclick=()=>{const s=S();if(s.length<3)return;const dx=Math.max(...s.map(d=>d.x))-Math.min(...s.map(d=>d.x)),dy=Math.max(...s.map(d=>d.y))-Math.min(...s.map(d=>d.y)),k=dx>=dy?'x':'y';s.sort((a,b)=>a[k]-b[k]);const a=s[0],b=s[s.length-1];s.forEach((d,i)=>{const f=i/(s.length-1);d.x=a.x+f*(b.x-a.x);d.y=a.y+f*(b.y-a.y);});hist=`SPACE  ${s.length} devices ${(Math.hypot(b.x-a.x,b.y-a.y)/(s.length-1)).toFixed(2)} m apart · ⌘Z to undo`;render();};
+$('applySel').onclick=()=>{const s=S(),rep=$('rep').value,cir=$('cir').value;if(!rep&&!cir)return;s.forEach(d=>{if(rep)d.t=rep;if(cir)d.c=cir;});hist=`EDIT  ${s.length} devices${rep?` → ${LBL[rep]}`:''}${cir?` on ${cir}`:''} · point counts updated · ⌘Z to undo`;$('rep').value='';$('cir').value='';render();};
+['rep','cir'].forEach(id=>$(id).addEventListener('change',panel));
+['aDev','aBy','aVal','aEnd'].forEach(id=>$(id).addEventListener('input',render));
+$('aBy').addEventListener('change',()=>{$('aVal').value=$('aBy').value==='n'?5:3;render();});
+$('arrGo').onclick=()=>{const g=ghosts();if(!g.length)return;const base=devs.length;g.forEach((d,i)=>devs.push({id:base+i,x:d.x,y:d.y,t:d.t,c:d.t==='smk'?'FA':'Y1'}));hist=`ARL  ${g.length} ${LBL[g[0].t].toLowerCase()}s placed on DB-GF1/Y1 · ⌘Z to undo`;arr=[];render();};
+$('arrClr').onclick=()=>{arr=[];render();};
+document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tool=b.dataset.t;arr=[];src=null;render();});
+$('theme').onclick=()=>{const r=document.documentElement,d=r.dataset.theme||(matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');r.dataset.theme=d==='light'?'dark':'light';};
+render();
+</script>
+</body>
+</html>
