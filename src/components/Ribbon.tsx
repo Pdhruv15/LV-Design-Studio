@@ -4,7 +4,7 @@ import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FileX2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
-import { PenTool, FileCog, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, ArrowRightToLine, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen } from 'lucide-react';
+import { PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, ArrowRightToLine, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen } from 'lucide-react';
 import type { CadTool } from './cad/cadState';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
@@ -122,7 +122,7 @@ const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
 /** The sub-tab a tool is on, so the ribbon shows the tool in use. */
 const SUB_OF: Partial<Record<CadTool, CadSub>> = {
   line: 'draw', pline: 'draw', rect: 'draw', circle: 'draw', arc: 'draw', text: 'draw', dim: 'draw', rotate: 'draw',
-  mirror: 'draw', matchprop: 'draw', scale: 'draw', stretch: 'draw', trim: 'draw', extend: 'draw', offset: 'draw', fillet: 'draw', chamfer: 'draw', break: 'draw', join: 'draw', explode: 'draw', array: 'draw',
+  mirror: 'draw', matchprop: 'draw', hatch: 'draw', leader: 'draw', rtag: 'draw', north: 'draw', scale: 'draw', stretch: 'draw', trim: 'draw', extend: 'draw', offset: 'draw', fillet: 'draw', chamfer: 'draw', break: 'draw', join: 'draw', explode: 'draw', array: 'draw',
   room: 'plan', trace: 'plan', name: 'plan', tray: 'plan', cable: 'plan', link: 'plan', dev: 'plan', fill: 'plan', lux: 'plan', em: 'plan', arl: 'plan', match: 'plan', wire: 'plan', dist: 'plan', area: 'plan'
 };
 
@@ -425,7 +425,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         cadTool('pline', 'Polyline', Spline, 'Polyline (PL): click points; C or the first point closes it; Enter finishes'),
         cadTool('rect', 'Rectangle', RectangleHorizontal, 'Rectangle (REC): two opposite corners'),
         cadTool('circle', 'Circle', Circle, 'Circle (C): centre, then radius (a point or typed)'),
-        cadTool('arc', 'Arc', Rainbow, 'Arc (A): start, a point on it, end')
+        cadTool('arc', 'Arc', Rainbow, 'Arc (A): start, a point on it, end'),
+        cadTool('hatch', 'Hatch', PaintBucket, 'Hatch (H): the pattern on the right, then click inside a closed drawn object or a room')
       ],
       [
         cadTool('move', 'Move', Move, 'Move (M): select an object (drawn or a device), base point, second point'),
@@ -439,6 +440,9 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ],
       [
         cadTool('text', 'Text', Type, 'Text (T): click where it goes, type it on the command line, Enter'),
+        cadTool('leader', 'Leader', MessageSquareText, 'Leader (LE): click the arrow point, then the text point (more points bend it), type the text, Enter'),
+        cadTool('rtag', 'Room tag', Tag, 'Room tag (RT): click inside a room: its name and area'),
+        cadTool('north', 'North arrow', Navigation, 'North arrow (NORTH): click where it goes'),
         cadTool('dim', 'Dimension', MoveHorizontal, 'Dimension (DIM): two points, then where the dimension line goes; it shows the length in metres')
       ],
       [
