@@ -38,7 +38,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, windowSelect = false, onWindow, onContext, overlay }: {
+export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd }: {
   view: CadView;
   layersOn: Uint8Array;
   toggles: CadToggles;
@@ -70,7 +70,12 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
   /** ELV coverage (drawing units): what each device covers, cut at its room, and the squares not covered. */
   covers?: PlanCover[];
   gaps?: PlanCells;
-  selectedSketch?: string | null;
+  /** The drawn object(s) selected: one ID, or several. */
+  selectedSketch?: string | string[] | null;
+  /** Grips of the drawn object selected (drawing units): pressed and dragged, they reach the page on release. */
+  grips?: Pt[];
+  onGripStart?: (i: number) => void;
+  onGripEnd?: (i: number, at: Pt) => void;
   extraSnaps?: { x: number; y: number; kind: number }[];
   /** The object being drawn, following the cursor (drawn on the cursor layer). */
   preview?: SketchItem[];
@@ -87,6 +92,11 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
   const tRef = useRef(t);
   tRef.current = t;
   const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+  const isSel = (id: string) => (Array.isArray(selectedSketch) ? selectedSketch.includes(id) : id === selectedSketch);
+  // A grip being dragged (its index), and the grips as last drawn.
+  const gripping = useRef<number | null>(null);
+  const gripsRef = useRef(grips);
+  gripsRef.current = grips;
   // A window being dragged (canvas pixels); `on` once it has moved far enough not to be a click.
   const win = useRef<{ x: number; y: number; x2: number; y2: number; on: boolean } | null>(null);
   const [moving, setMoving] = useState(false);
@@ -289,8 +299,8 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     const trayH = TRAY_TEXT_MM * unitsPerMm, trayText = trayH * scale >= 4;
     for (const it of sketch) {
       if (it.kind === 'text') continue;
-      ctx.strokeStyle = it.id === selectedSketch ? selSk : skC;
-      ctx.lineWidth = (it.id === selectedSketch ? 3 : it.tray ? 2.5 : 1.5) / scale;
+      ctx.strokeStyle = isSel(it.id) ? selSk : skC;
+      ctx.lineWidth = (isSel(it.id) ? 3 : it.tray ? 2.5 : 1.5) / scale;
       ctx.beginPath();
       if (it.tray) for (const q of trayText ? trayLine(it, trayH).pieces : [it.pts]) q.forEach((p, i) => (i ? ctx.lineTo(p[0] - o0, p[1] - o1) : ctx.moveTo(p[0] - o0, p[1] - o1)));
       else for (const [a, b] of segmentsOf(it)) { ctx.moveTo(a[0] - o0, a[1] - o1); ctx.lineTo(b[0] - o0, b[1] - o1); }
@@ -386,7 +396,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
       ctx.font = `${Math.min(px, 200)}px system-ui, sans-serif`;
       ctx.textAlign = label.align;
       if (it.tray) ctx.textBaseline = 'middle'; // in the gap of the tray's line
-      ctx.fillStyle = it.id === selectedSketch ? selSk : skC;
+      ctx.fillStyle = isSel(it.id) ? selSk : skC;
       ctx.fillText(label.s, 0, 0);
       ctx.restore();
     }
@@ -448,6 +458,10 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
       ctx.globalAlpha = 0.12; ctx.fillStyle = ctx.strokeStyle; ctx.fillRect(Math.min(box.x, box.x2), Math.min(box.y, box.y2), Math.abs(box.x2 - box.x), Math.abs(box.y2 - box.y)); ctx.globalAlpha = 1;
       ctx.strokeRect(Math.min(box.x, box.x2) + 0.5, Math.min(box.y, box.y2) + 0.5, Math.abs(box.x2 - box.x), Math.abs(box.y2 - box.y));
       ctx.setLineDash([]);
+    }
+    for (const g of gripsRef.current) {
+      const gx = (g[0] - o0 - ox) * scale, gy = size.h - (g[1] - o1 - oy) * scale;
+      ctx.fillStyle = snapC; ctx.fillRect(Math.round(gx) - 4, Math.round(gy) - 4, 8, 8);
     }
     const pv = previewRef.current;
     if (pv.length) {
@@ -556,7 +570,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
   // After zoom / pan: the cursor's drawing point moves, so it is tracked again. When only the marks change (a pick, the
   // cursor moving in a tool), they are redrawn without reporting the cursor back (that would loop).
   useEffect(() => { if (mouse.current) track(mouse.current[0], mouse.current[1]); else drawCursor(null); }, [t]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { drawCursor(mouse.current ? lastAt.current?.at ?? null : null, mouse.current ? lastAt.current?.snap : undefined); }, [marks, preview, theme]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { drawCursor(mouse.current ? lastAt.current?.at ?? null : null, mouse.current ? lastAt.current?.snap : undefined); }, [marks, preview, theme, grips]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** The whole drawing in view, with a margin (FIT / ZE, 0, a double click of the wheel, the zoom chip). */
   const fitT = (): ViewT => {
@@ -612,7 +626,12 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
             const [x, y] = local(e);
             drag.current = { x, y, ox: tRef.current.ox, oy: tRef.current.oy };
             setMoving(true);
-          } else if (e.button === 0 && windowSelect) { const [x, y] = local(e); win.current = { x, y, x2: x, y2: y, on: false }; }
+          } else if (e.button === 0 && windowSelect) {
+            const [x, y] = local(e), v = tRef.current;
+            const g = gripsRef.current.findIndex((q) => Math.hypot((q[0] - o0 - v.ox) * v.scale - x, size.h - (q[1] - o1 - v.oy) * v.scale - y) <= 6);
+            if (g >= 0 && onGripStart) { gripping.current = g; onGripStart(g); setMoving(true); return; }
+            win.current = { x, y, x2: x, y2: y, on: false };
+          }
         }}
         onMouseMove={(e) => {
           const [x, y] = local(e);
@@ -628,6 +647,9 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
           drag.current = null;
           const w = win.current;
           win.current = null;
+          const g = gripping.current;
+          gripping.current = null;
+          if (g !== null) { setMoving(false); const [x, y] = mouse.current ?? local(e); onGripEnd?.(g, lastAt.current?.at ?? toWorld(x, y)); return; }
           if (wasDrag || w?.on) setMoving(false);
           if (w?.on) { onWindow?.(toWorld(w.x, w.y), toWorld(w.x2, w.y2), w.x2 < w.x, e.shiftKey); drawCursor(lastAt.current?.at ?? null, lastAt.current?.snap); return; }
           if (!wasDrag && e.button === 0 && !space.current) { const [x, y] = mouse.current ?? local(e); clickAt(x, y, e.shiftKey); }
@@ -635,7 +657,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
         onContextMenu={(e) => { if (!onContext) return; e.preventDefault(); const [x, y] = local(e); onContext(toWorld(x, y), 1 / tRef.current.scale, [x, y]); }}
         onDoubleClick={(e) => { if (e.button === 1) e.preventDefault(); }}
         onAuxClick={(e) => { if (isFitClick(e)) fitNow(); }}
-        onMouseLeave={() => { drag.current = null; win.current = null; setMoving(false); mouse.current = null; drawCursor(null); onCursor(null); }}
+        onMouseLeave={() => { drag.current = null; win.current = null; if (gripping.current !== null) { gripping.current = null; onGripEnd?.(-1, [0, 0]); } setMoving(false); mouse.current = null; drawCursor(null); onCursor(null); }}
       />
       {overlay?.((p) => [(p[0] - o0 - t.ox) * t.scale, size.h - (p[1] - o1 - t.oy) * t.scale], moving)}
       <ZoomChip pct={(t.scale / fitT().scale) * 100} onFit={fitNow} />

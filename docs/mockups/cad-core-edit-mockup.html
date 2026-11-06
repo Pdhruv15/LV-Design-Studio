@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Core Edit Tools Mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite dark default + light */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--on-acc:#1D2024;--ok:#37d67a;--warn:#f5c04a;--field-line:#6C7580;--new:#b784ff;--plan:#6b737d;--plan-bg:#15171A;--sk:#7fd1ff;--tray:#c9a0ff;--sel:rgba(245,179,1,.12)}
+:root[data-theme="light"]{--bg:#F5F3EF;--panel:#fff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--on-acc:#fff;--ok:#177336;--warn:#8a5d00;--field-line:#857E70;--new:#7a3fd6;--plan:#a39d92;--plan-bg:#fff;--sk:#0b6aa8;--tray:#6b3fb8;--sel:rgba(135,88,0,.10)}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#F5F3EF;--panel:#fff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--on-acc:#fff;--ok:#177336;--warn:#8a5d00;--field-line:#857E70;--new:#7a3fd6;--plan:#a39d92;--plan-bg:#fff;--sk:#0b6aa8;--tray:#6b3fb8;--sel:rgba(135,88,0,.10)}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+.intro{max-width:1240px;margin:0 auto;padding:16px 16px 0}
+.intro h1{font-size:17px;margin:0 0 4px}
+.intro p{margin:0 0 6px;color:var(--mut);max-width:960px}
+.legend{font-size:12px;color:var(--mut);margin:8px 0;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.legend i{display:inline-block;width:12px;height:12px;border:2px dashed var(--new);border-radius:3px;vertical-align:-2px;margin-right:5px}
+.legend .theme{margin-left:auto;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--mut)}
+.win{max-width:1240px;margin:10px 16px 24px;background:var(--panel);border:1px solid var(--line-strong);border-radius:10px;overflow:hidden}
+@media (min-width:1272px){.win{margin:10px auto 24px}}
+.new{outline:2px dashed var(--new);outline-offset:2px;border-radius:6px}
+.head{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.head h3{margin:0;font-size:15px}
+.head .file{color:var(--mut);font-size:12px}
+.subtabs{display:flex;gap:2px;padding:4px 10px 0;background:var(--p2)}
+.subtabs span{padding:4px 12px;border-radius:6px 6px 0 0;color:var(--mut);font-size:12px}
+.subtabs span.on{background:var(--panel);color:var(--tx)}
+.tools{display:flex;gap:4px;padding:6px 10px;border-bottom:1px solid var(--line);background:var(--p2);flex-wrap:wrap;align-items:flex-end}
+.grp{display:flex;flex-direction:column;align-items:center;gap:2px}
+.grp .row{display:flex;gap:2px;flex-wrap:wrap}
+.grp small{font-size:10px;color:var(--mut)}
+.tool{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:54px;padding:5px 4px;border-radius:6px;border:1px solid transparent;background:none;font-size:11px;color:var(--tx)}
+.tool svg{width:20px;height:20px;stroke:var(--mut);fill:none;stroke-width:1.6}
+.tool[aria-pressed=true]{background:var(--panel);border-color:var(--acc)}
+.tool[aria-pressed=true] svg{stroke:var(--acc)}
+.sep{width:1px;align-self:stretch;background:var(--line);margin:0 4px}
+.body{display:grid;grid-template-columns:minmax(0,1fr) 340px;min-height:560px}
+@media (max-width:900px){.body{grid-template-columns:1fr}}
+.canvas{position:relative;background:var(--plan-bg);border-right:1px solid var(--line);min-height:420px;cursor:crosshair;user-select:none}
+.canvas svg{width:100%;height:100%;display:block}
+.hint{position:absolute;left:10px;bottom:10px;background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;padding:5px 9px;font-size:12px;max-width:calc(100% - 20px)}
+.ctx{position:absolute;z-index:4;display:flex;gap:2px;align-items:center;flex-wrap:wrap;max-width:calc(100% - 8px);background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;padding:3px;box-shadow:0 4px 14px rgba(0,0,0,.35);white-space:nowrap;cursor:default;transform:translateY(-100%)}
+.ctx button{border:1px solid transparent;background:none;border-radius:5px;padding:3px 7px;font-size:12px;color:var(--tx)}
+.ctx button:hover{background:var(--p2);border-color:var(--line)}
+.ctx .what{font-size:11px;color:var(--mut);padding:0 6px}
+.ctx .bar{width:1px;align-self:stretch;background:var(--line);margin:0 2px}
+.side{display:flex;flex-direction:column;min-width:0}
+.side h4{margin:0;font-size:13px;padding:10px 12px 6px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.side h4 small{font-weight:400;color:var(--mut)}
+.sec{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;padding:8px 12px 4px;border-top:1px solid var(--line)}
+.form{display:grid;grid-template-columns:110px 1fr;gap:6px 8px;padding:0 12px 8px;align-items:center}
+.form label{color:var(--mut);font-size:12px}
+.form input,.form select{background:var(--p2);border:1px solid var(--field-line);border-radius:6px;height:28px;padding:0 8px;min-width:0;width:100%}
+.p{padding:0 12px 8px;font-size:12px;color:var(--mut)}
+.p b{color:var(--tx);font-weight:600}
+.res{display:grid;gap:2px;padding:0 12px 8px}
+.res div{display:flex;justify-content:space-between;gap:6px;border-bottom:1px solid var(--line);padding:3px 0}
+.res span{color:var(--mut);font-size:12px}
+.hist{border-top:1px solid var(--line);padding:5px 12px;font-size:12px;color:var(--mut);background:var(--p2);font-family:ui-monospace,Menlo,monospace}
+.notes{max-width:1240px;margin:0 auto 24px;padding:0 16px;color:var(--mut);font-size:12px}
+.notes li{margin:3px 0}
+table.t{border-collapse:collapse;font-size:12px;margin:6px 0}
+table.t td,table.t th{border:1px solid var(--line);padding:4px 8px;text-align:left;vertical-align:top}
+table.t th{color:var(--tx)}
+</style>
+</head>
+<body>
+<div class="intro">
+  <h1>Design CAD → Draw → Modify / Edit — core edit tools mockup (2026-11-06)</h1>
+  <p>The CAD edit tools engineers expect, for what is <b>drawn in the app</b>: lines, polylines, cable trays and cable routes. The architect's drawing is never changed, but its walls can be the <b>cutting edge</b> for Trim and the <b>boundary</b> for Extend. Pick a drawn object (click, or a window as for devices) and a toolbar beside it offers the edits that suit it; the same tools are on the ribbon and the command line with their usual AutoCAD names.</p>
+  <p><b>Try it:</b> <b>Trim</b> — click the part of the arrowed line that sticks through a wall · <b>Extend</b> — click near the short line's end · <b>Offset</b> — type 0.3, click the tray, then the side · <b>Fillet</b> — click the two cable lines · or click any drawn line for its toolbar and drag its square grips.</p>
+  <div class="legend"><span><i></i>new in this proposal</span><span>Grey: the architect's walls (not changed). Blue: lines and routes drawn in the app. Violet: a cable tray.</span><button class="theme" id="theme">Light / dark</button></div>
+</div>
+
+<div class="win">
+  <div class="head"><h3>Design CAD</h3><span class="file">A-101 Ground floor.dwg · Level GF · Villa</span></div>
+  <div class="subtabs"><span>Plan</span><span class="on">Draw</span><span>Sheets</span></div>
+  <div class="tools">
+    <div class="grp"><div class="row">
+      <button class="tool"><svg viewBox="0 0 24 24"><path d="M4 20 20 4"/></svg>Line</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><path d="M3 18 9 8l6 6 6-9"/></svg>Polyline</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="10"/></svg>Rectangle</button>
+    </div><small>Draw</small></div>
+    <span class="sep"></span>
+    <div class="grp"><div class="row">
+      <button class="tool" data-t="sel" aria-pressed="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="14" stroke-dasharray="3 2"/><path d="M14 14l6 6"/></svg>Select</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3"/></svg>Move</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12"/><path d="M4 16V4h12"/></svg>Copy</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-3-6.2M20 4v5h-5"/></svg>Rotate</button>
+      <button class="tool new" data-t="mirror"><svg viewBox="0 0 24 24"><path d="M12 3v18" stroke-dasharray="2 2"/><path d="M9 6 4 18h5zM15 6l5 12h-5z"/></svg>Mirror</button>
+      <button class="tool new" data-t="scale"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="10" height="10"/><path d="M13 11 21 3M15 3h6v6"/></svg>Scale</button>
+      <button class="tool new" data-t="stretch"><svg viewBox="0 0 24 24"><path d="M3 8h8v8H3zM11 12h10M18 9l3 3-3 3"/></svg>Stretch</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><path d="M5 19h14M7 15l8-11 4 3-8 11H7z"/></svg>Erase</button>
+    </div><small>Modify</small></div>
+    <span class="sep"></span>
+    <div class="grp new"><div class="row">
+      <button class="tool" data-t="trim"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M2 12h8" /><path d="M14 12h8" stroke-dasharray="2 2"/><path d="M17 9l3 6M20 9l-3 6"/></svg>Trim</button>
+      <button class="tool" data-t="extend"><svg viewBox="0 0 24 24"><path d="M20 2v20"/><path d="M2 12h10"/><path d="M12 12h8" stroke-dasharray="2 2"/></svg>Extend</button>
+      <button class="tool" data-t="offset"><svg viewBox="0 0 24 24"><path d="M3 8h18M3 16h18" /><path d="M12 9v6M10 13l2 2 2-2"/></svg>Offset</button>
+      <button class="tool" data-t="fillet"><svg viewBox="0 0 24 24"><path d="M4 20V10a6 6 0 0 1 6-6h10"/></svg>Fillet</button>
+      <button class="tool" data-t="chamfer"><svg viewBox="0 0 24 24"><path d="M4 20V9l5-5h11"/></svg>Chamfer</button>
+      <button class="tool" data-t="break"><svg viewBox="0 0 24 24"><path d="M2 12h8M14 12h8M10 8l4 8"/></svg>Break</button>
+      <button class="tool" data-t="join"><svg viewBox="0 0 24 24"><path d="M2 12h20"/><circle cx="12" cy="12" r="2"/></svg>Join</button>
+      <button class="tool" data-t="explode"><svg viewBox="0 0 24 24"><path d="M12 2v6M12 16v6M2 12h6M16 12h6M5 5l4 4M15 15l4 4M19 5l-4 4M9 15l-4 4"/></svg>Explode</button>
+      <button class="tool" data-t="array"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="6" height="6"/><rect x="15" y="3" width="6" height="6"/><rect x="3" y="15" width="6" height="6"/><rect x="15" y="15" width="6" height="6"/></svg>Array</button>
+    </div><small>Edit</small></div>
+  </div>
+  <div class="body">
+    <div class="canvas" id="cv">
+      <svg id="plan" viewBox="0 0 20 12" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="hint" id="hint"></div>
+      <div class="ctx new" id="ctx" hidden></div>
+    </div>
+    <div class="side new" id="side"></div>
+  </div>
+  <div class="hist" id="hist">Ready</div>
+</div>
+
+<div class="notes">
+  <b>Notes for the decision</b>
+  <table class="t">
+    <tr><th>Tool</th><th>Command</th><th>What it does (on what is drawn in the app)</th></tr>
+    <tr><td>Trim</td><td>TR</td><td>Click the part to cut away; it is cut at the nearest crossing lines — drawn lines or the architect's walls (no edges to pick first, as AutoCAD's quick mode). Shift-click extends instead.</td></tr>
+    <tr><td>Extend</td><td>EX</td><td>Click near an end; it runs on to the next line in its direction, drawn or a wall. Shift-click trims instead.</td></tr>
+    <tr><td>Offset</td><td>O</td><td>Type the distance (or T = through a point), click the object, click the side. A tray offsets as a tray of the same width and service; a cable route as a line.</td></tr>
+    <tr><td>Fillet / Chamfer</td><td>F / CHA</td><td>Two lines: the corner is joined with a radius (0 = sharp corner) or cut at a distance. On a tray run the radius is the bend's.</td></tr>
+    <tr><td>Break / Join / Explode</td><td>BR / J / X</td><td>Break a line or route at a point (or between two); join lines and polylines that meet end to end into one; explode a polyline or rectangle into lines.</td></tr>
+    <tr><td>Mirror / Scale / Stretch</td><td>MI / SC / S</td><td>Mirror about a line (keep the original: yes / no); scale about a base point by a factor; stretch moves the points inside a crossing window, so a tray run gets longer while its far end stays put.</td></tr>
+    <tr><td>Array</td><td>AR</td><td>Rectangular (rows × columns, spacing) or polar (number, angle) copies of drawn objects. Devices use Array on line (ARL, PR 424).</td></tr>
+    <tr><td>Grips</td><td>—</td><td>A drawn object picked shows square grips at its ends and corners and a grip at each mid-point: drag an end to move it, a mid-point to move that side.</td></tr>
+  </table>
+  <ul>
+    <li><b>Toolbar beside what is picked</b>, as for devices: a <b>line or route</b> — Trim, Extend, Offset, Break, Fillet, Mirror, Move, Copy, Rotate, Erase; a <b>tray</b> — Offset, Break, Fillet (bend), Width ▾, Move, Copy, Erase; <b>several</b> — Join, Mirror, Scale, Array, Move, Copy, Erase. Right-click gives the same as a menu.</li>
+    <li><b>Window selection</b> picks drawn objects and devices together; a filter in the toolbar keeps only one kind.</li>
+    <li>Trays and cable routes keep their tray route, cable and width through every edit, so <b>Update schedules</b> gives the new lengths and fittings (a fillet becomes a bend).</li>
+    <li>Ribbon: Mirror, Scale and Stretch join Modify; Trim … Array are a new <b>Edit</b> group on the Draw sub-tab. Each is one undo step.</li>
+  </ul>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+// The architect's walls (fixed) and what was drawn in the app (metres; y down in this mockup)
+const WALLS=[[[1,1],[19,1]],[[19,1],[19,11]],[[19,11],[1,11]],[[1,11],[1,1]],[[10,1],[10,6.5]],[[10,7.5],[10,11]],[[1,6],[9,6]]];
+let objs=[
+ {id:1,kind:'line',a:[2,3],b:[12,3],note:'overshoots the wall'},
+ {id:2,kind:'line',a:[3,8.5],b:[7.5,8.5],note:'short of the wall'},
+ {id:3,kind:'tray',a:[11,9],b:[18,9],w:0.3,note:'Power tray 300 mm'},
+ {id:4,kind:'line',a:[12,2.5],b:[12,5.5],note:'cable route'},
+ {id:5,kind:'line',a:[11,4.5],b:[17,4.5],note:'cable route'}
+];
+let nextId=6,tool='sel',sel=null,grip=null,step=[],hist='Ready',arcs=[];
+const P=e=>{const s=$('plan'),p=s.createSVGPoint();p.x=e.clientX;p.y=e.clientY;const q=p.matrixTransform(s.getScreenCTM().inverse());return[q.x,q.y];};
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1]],add=(a,b)=>[a[0]+b[0],a[1]+b[1]],mul=(a,k)=>[a[0]*k,a[1]*k],len=a=>Math.hypot(a[0],a[1]),cross=(a,b)=>a[0]*b[1]-a[1]*b[0];
+const lerp=(o,t)=>add(o.a,mul(sub(o.b,o.a),t));
+function hitT(o,p){const d=sub(o.b,o.a),L=d[0]*d[0]+d[1]*d[1];let t=((p[0]-o.a[0])*d[0]+(p[1]-o.a[1])*d[1])/L;t=Math.max(0,Math.min(1,t));return{t,dist:len(sub(lerp(o,t),p))};}
+function nearest(p){let best=null;for(const o of objs){const h=hitT(o,p);if(h.dist<0.35&&(!best||h.dist<best.h.dist))best={o,h};}return best;}
+// Where line o (as a ray from a, parameter t) crosses segment [c,d]
+function meet(a,b,c,d){const r=sub(b,a),s=sub(d,c),den=cross(r,s);if(Math.abs(den)<1e-9)return null;const t=cross(sub(c,a),s)/den,u=cross(sub(c,a),r)/den;return u>=-1e-9&&u<=1+1e-9?t:null;}
+const others=o=>[...WALLS,...objs.filter(x=>x!==o).map(x=>[x.a,x.b])];
+const say=t=>{hist=t;};
+function trim(o,p){
+  const tp=hitT(o,p).t,ts=others(o).map(([c,d])=>meet(o.a,o.b,c,d)).filter(t=>t!==null&&t>1e-6&&t<1-1e-6).sort((x,y)=>x-y);
+  if(!ts.length){say('TRIM  Nothing crosses it there: Erase it instead');return;}
+  const lo=[0,...ts].filter(t=>t<tp).pop(),hi=[...ts,1].find(t=>t>tp);
+  const keep=[];if(lo>0)keep.push({...o,id:o.id,b:lerp(o,lo)});if(hi<1)keep.push({...o,id:lo>0?nextId++:o.id,a:lerp(o,hi)});
+  const cut=len(sub(lerp(o,hi),lerp(o,lo)));
+  objs=objs.filter(x=>x!==o).concat(keep.map(k=>({...k,a:k.a,b:k.b})));sel=null;
+  say(`TRIM  ${cut.toFixed(2)} m cut off at ${lo>0&&hi<1?'two crossings':'the crossing'}${keep.length?'':' — nothing left'} · ⌘Z to undo`);
+}
+function extend(o,p){
+  const atB=len(sub(p,o.b))<len(sub(p,o.a)),[from,to]=atB?[o.a,o.b]:[o.b,o.a];
+  const ts=others(o).map(([c,d])=>meet(from,to,c,d)).filter(t=>t!==null&&t>1+1e-6).sort((x,y)=>x-y);
+  if(!ts.length){say('EXTEND  No line ahead to reach in that direction');return;}
+  const np=add(from,mul(sub(to,from),ts[0])),gain=len(sub(np,to));
+  if(atB)o.b=np;else o.a=np;say(`EXTEND  ${gain.toFixed(2)} m longer, to the ${WALLS.some(([c,d])=>meet(from,to,c,d)===ts[0])?'wall':'line'} · ⌘Z to undo`);
+}
+function offset(o,side){
+  const d=+$('odist').value;if(!(d>0)){say('OFFSET  Type the distance first');return;}
+  const u=sub(o.b,o.a),n=mul([-u[1],u[0]],1/len(u)),s=Math.sign(cross(u,sub(side,o.a)))||1,k=mul(n,d*s);
+  objs.push({...o,id:nextId++,a:add(o.a,k),b:add(o.b,k),note:o.kind==='tray'?o.note:'offset'});
+  say(`OFFSET  ${o.kind==='tray'?`${o.note} copied`:'Line copied'} ${d.toFixed(2)} m to the side · ⌘Z to undo`);
+}
+function fillet(o1,o2){
+  const r=+$('frad').value||0;
+  const t=meet(o1.a,o1.b,o2.a,o2.b),X=t===null?null:lerp(o1,t);
+  if(!X){say('FILLET  The two lines are parallel');return;}
+  // keep the longer side of each line from the corner
+  const far=o=>len(sub(o.a,X))>len(sub(o.b,X))?'a':'b';
+  const f1=far(o1),f2=far(o2),u1=sub(o1[f1],X),u2=sub(o2[f2],X),n1=mul(u1,1/len(u1)),n2=mul(u2,1/len(u2));
+  const ang=Math.acos(Math.max(-1,Math.min(1,n1[0]*n2[0]+n1[1]*n2[1]))),dT=r/Math.tan(ang/2);
+  const T1=add(X,mul(n1,dT)),T2=add(X,mul(n2,dT));
+  o1[f1==='a'?'b':'a']=T1;o2[f2==='a'?'b':'a']=T2;
+  if(r>0){const sweep=cross(n1,n2)>0?0:1;arcs.push({a:T1,b:T2,r,sweep});}
+  say(`FILLET  ${r>0?`radius ${r.toFixed(2)} m`:'sharp corner'} · ⌘Z to undo`);
+}
+function draw(){
+  const w=WALLS.map(([a,b])=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="var(--plan)" stroke-width=".14"/>`).join('');
+  const lab=`<g fill="var(--mut)" font-size=".38"><text x="1.4" y="1.7">Living</text><text x="1.4" y="6.7">Bedroom</text><text x="10.4" y="1.7">Kitchen</text><text x="10.4" y="10.6">Store</text></g>`;
+  const o=objs.map(x=>{const on=sel&&sel.id===x.id,c=on?'var(--acc)':x.kind==='tray'?'var(--tray)':'var(--sk)';
+    if(x.kind==='tray'){const u=sub(x.b,x.a),n=mul([-u[1],u[0]],x.w/2/len(u));return `<g stroke="${c}" stroke-width=".05"><line x1="${x.a[0]+n[0]}" y1="${x.a[1]+n[1]}" x2="${x.b[0]+n[0]}" y2="${x.b[1]+n[1]}"/><line x1="${x.a[0]-n[0]}" y1="${x.a[1]-n[1]}" x2="${x.b[0]-n[0]}" y2="${x.b[1]-n[1]}"/><line x1="${x.a[0]}" y1="${x.a[1]}" x2="${x.b[0]}" y2="${x.b[1]}" stroke-dasharray=".2 .15" stroke-width=".03"/></g>`;}
+    return `<line x1="${x.a[0]}" y1="${x.a[1]}" x2="${x.b[0]}" y2="${x.b[1]}" stroke="${c}" stroke-width="${on?.08:.06}"/>`;}).join('');
+  const ar=arcs.map(a=>`<path d="M${a.a[0]} ${a.a[1]}A${a.r} ${a.r} 0 0 ${a.sweep} ${a.b[0]} ${a.b[1]}" fill="none" stroke="var(--sk)" stroke-width=".06"/>`).join('');
+  const marks=tool==='sel'?'':(()=>{const m=[];const o1=objs.find(x=>x.id===1),o2=objs.find(x=>x.id===2);
+    if(tool==='trim'&&o1&&o1.b[0]>10.2)m.push(`<path d="M11.2 2.4l.6.6-.6.6" stroke="var(--warn)" stroke-width=".06" fill="none"/>`);
+    if(tool==='extend'&&o2&&o2.b[0]<9.8)m.push(`<path d="M8.2 8.1l.6.4-.6.4" stroke="var(--warn)" stroke-width=".06" fill="none"/>`);return m.join('');})();
+  const g=sel?[sel.a,sel.b,mul(add(sel.a,sel.b),.5)].map((q,i)=>`<rect data-g="${i}" x="${q[0]-.13}" y="${q[1]-.13}" width=".26" height=".26" fill="var(--acc)" stroke="var(--plan-bg)" stroke-width=".03" style="cursor:move"/>`).join(''):'';
+  const st=step.map(q=>`<circle cx="${q.p[0]}" cy="${q.p[1]}" r=".12" fill="var(--acc)"/>`).join('');
+  $('plan').innerHTML=`<rect width="20" height="12" fill="var(--plan-bg)"/>${w}${lab}${o}${ar}${marks}${st}${g}`;
+}
+const HINT={sel:'Click a drawn line, tray or route: a toolbar opens beside it; drag its square grips. A window picks several.',
+ trim:'TR  Click the part to cut away — it is cut at the nearest lines crossing it (drawn, or the architect\'s walls):',
+ extend:'EX  Click near the end to lengthen — it runs on to the next line or wall ahead:',
+ offset:'O  Distance on the right, then click the object, then the side to put the copy on:',
+ fillet:'F  Radius on the right (0 = sharp corner), then click the first line, then the second:',
+ chamfer:'CHA  Two distances, then click the two lines (prompt only in this mockup)',
+ break:'BR  Click where to break the line (or two points to take the part between out) — prompt only in this mockup',
+ join:'J  Pick the lines and polylines that meet end to end, Enter: they become one (prompt only in this mockup)',
+ explode:'X  Pick a polyline or rectangle: it becomes separate lines (prompt only in this mockup)',
+ array:'AR  Pick objects, then Rectangular (rows × columns, spacing) or Polar (number, angle) — prompt only in this mockup',
+ mirror:'MI  Pick objects, then two points of the mirror line; keep the originals? (prompt only in this mockup)',
+ scale:'SC  Pick objects, a base point, then a factor or a reference length (prompt only in this mockup)',
+ stretch:'S  Crossing window round the points to move, base point, second point — a tray end moves, the far end stays (prompt only in this mockup)'};
+function side(){
+  let h='';
+  if(tool==='offset')h=`<h4>Offset <small>O</small></h4><div class="form"><label>Distance (m)</label><input id="odist" type="number" step="0.05" value="0.3"></div><div class="p">A <b>tray</b> offsets as a tray of the same width, service and route; a <b>cable route</b> as a plain line (choose its cable after). <b>T</b> on the command line: through a point.</div>`;
+  else if(tool==='fillet')h=`<h4>Fillet <small>F</small></h4><div class="form"><label>Radius (m)</label><input id="frad" type="number" step="0.1" value="0.5"></div><div class="p">0 joins the two lines in a sharp corner. On a tray run the radius is the bend's, and the bend is counted as a fitting.</div>`;
+  else if(tool==='sel'&&sel){const L=len(sub(sel.b,sel.a));h=`<h4>${sel.kind==='tray'?'Cable tray':'Line'} <small>drawn here · ${sel.kind==='tray'?'E-TRAY':'LV-SKETCH'}</small></h4><div class="res"><div><span>Length</span><b>${L.toFixed(2)} m</b></div>${sel.kind==='tray'?`<div><span>Width</span><b>300 mm · power</b></div>`:''}<div><span>Start</span><b>${sel.a.map(v=>v.toFixed(2)).join(', ')} m</b></div><div><span>End</span><b>${sel.b.map(v=>v.toFixed(2)).join(', ')} m</b></div></div><div class="p">Drag a grip to change it: an end moves that end, the middle moves the whole line.</div>`;}
+  else if(tool==='trim'||tool==='extend')h=`<h4>${tool==='trim'?'Trim':'Extend'} <small>${tool==='trim'?'TR':'EX'}</small></h4><div class="p">Cutting edges and boundaries: every line on the plan — drawn in the app <b>and the architect's walls</b> (shown layers). The architect's lines are never changed.</div><div class="p">Shift-click does the other one (Trim ↔ Extend). Fence: drag across several lines to trim them all.</div>`;
+  else h=`<h4>${tool==='sel'?'Select':tool[0].toUpperCase()+tool.slice(1)}</h4><div class="p">${HINT[tool]}</div>`;
+  const keep={odist:$('odist')?.value,frad:$('frad')?.value};
+  $('side').innerHTML=h;if(keep.odist&&$('odist'))$('odist').value=keep.odist;if(keep.frad&&$('frad'))$('frad').value=keep.frad;
+}
+function ctxbar(){
+  const el=$('ctx');if(tool!=='sel'||!sel||grip){el.hidden=true;return;}
+  const acts=sel.kind==='tray'?['Offset','Break','Fillet (bend)','Width ▾','|','Move','Copy','Erase']:['Trim','Extend','Offset','Break','Fillet','Mirror','|','Move','Copy','Rotate','Erase'];
+  el.innerHTML=`<span class="what">${sel.kind==='tray'?'Cable tray · 300 mm':'Line · '+len(sub(sel.b,sel.a)).toFixed(2)+' m'}</span><span class="bar"></span>`+acts.map(a=>a==='|'?'<span class="bar"></span>':`<button data-a="${a}">${a}</button>`).join('');
+  el.hidden=false;
+  const s=$('plan'),M=s.getScreenCTM(),cv=$('cv').getBoundingClientRect(),pt=q=>{const p=s.createSVGPoint();p.x=q[0];p.y=q[1];const r=p.matrixTransform(M);return[r.x-cv.left,r.y-cv.top];};
+  const [l,t]=pt([Math.min(sel.a[0],sel.b[0]),Math.min(sel.a[1],sel.b[1])-.4]);
+  el.style.left=Math.max(4,Math.min(l,cv.width-el.offsetWidth-4))+'px';el.style.top=Math.max(el.offsetHeight+4,t)+'px';
+}
+function render(){draw();side();ctxbar();$('hint').textContent=HINT[tool];$('hist').textContent=hist;document.querySelectorAll('[data-t]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===tool));}
+$('cv').addEventListener('mousedown',e=>{
+  const g=e.target.closest&&e.target.closest('[data-g]');if(g&&sel){grip={i:+g.dataset.g,start:P(e),a:[...sel.a],b:[...sel.b]};return;}
+  const p=P(e),hit=nearest(p);
+  if(tool==='sel'){sel=hit?hit.o:null;if(sel)say(`LIST  ${sel.kind==='tray'?'Cable tray 300 mm':'Line'} ${len(sub(sel.b,sel.a)).toFixed(2)} m (drawn here)`);render();return;}
+  if(tool==='trim'||tool==='extend'){if(!hit){say(`${tool==='trim'?'TRIM':'EXTEND'}  Click a drawn line (the architect's lines are not changed)`);render();return;}(tool==='trim')!==e.shiftKey?trim(hit.o,p):extend(hit.o,p);render();return;}
+  if(tool==='offset'){if(!step.length){if(!hit){say('OFFSET  Click the object to offset');render();return;}step=[{o:hit.o,p}];say('OFFSET  Click the side to put the copy on:');}else{offset(step[0].o,p);step=[];}render();return;}
+  if(tool==='fillet'){if(!hit){say('FILLET  Click a drawn line');render();return;}if(!step.length){step=[{o:hit.o,p}];say('FILLET  Click the second line:');}else{if(hit.o!==step[0].o)fillet(step[0].o,hit.o);step=[];}render();return;}
+});
+$('cv').addEventListener('mousemove',e=>{if(!grip)return;const d=sub(P(e),grip.start);
+  if(grip.i===0)sel.a=add(grip.a,d);else if(grip.i===1)sel.b=add(grip.b,d);else{sel.a=add(grip.a,d);sel.b=add(grip.b,d);}draw();side();});
+addEventListener('mouseup',()=>{if(grip){say(`GRIP  ${grip.i===2?'Moved':'End moved'} — now ${len(sub(sel.b,sel.a)).toFixed(2)} m · ⌘Z to undo`);grip=null;render();}});
+$('ctx').addEventListener('mousedown',e=>e.stopPropagation());
+$('ctx').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a;
+  const map={Trim:'trim',Extend:'extend',Offset:'offset',Break:'break',Fillet:'fillet','Fillet (bend)':'fillet',Mirror:'mirror'};
+  if(map[a]){tool=map[a];if(a==='Offset'){step=[{o:sel,p:sel.a}];say('OFFSET  Click the side to put the copy on:');}sel=a==='Offset'?sel:null;render();return;}
+  if(a==='Erase'){objs=objs.filter(x=>x!==sel);say('ERASE  Erased · ⌘Z to undo');sel=null;render();return;}
+  say(`${a.toUpperCase().replace(' ▾','')}  ${a==='Width ▾'?'150 / 300 / 450 / 600 mm list':'base point:'} (as today)`);render();});
+addEventListener('keydown',e=>{if(e.key==='Escape'){step=[];sel=null;tool='sel';render();}});
+document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tool=b.dataset.t;step=[];if(tool!=='sel')sel=null;render();});
+$('theme').onclick=()=>{const r=document.documentElement,d=r.dataset.theme||(matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');r.dataset.theme=d==='light'?'dark':'light';};
+render();
+</script>
+</body>
+</html>

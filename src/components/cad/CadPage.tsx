@@ -33,6 +33,8 @@ import { floorLabel, floorList } from '../../model/levels';
 import type { CadLayerMap, CadLayerRole, Project } from '../../types';
 import { fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
+import { DrawnSelectionPanel, ED_START, EditToolPanel, kindOf, SketchToolbar, type EditSettings, type EditTool, type SketchEdit } from './SketchEditPanel';
+import { arrayPolar, arrayRect, breakAt, chamfer, edgesFor, explode, extend, fillet, gripMoved, gripsOf, isPath, join, mirrored, offset, scaled, sketchInWindow, stretched, trim, type Edit } from '../../model/cadEdit';
 import { ArrayPanel, ARL_START, MatchPanel, MATCH_START, SelectionPanel, type ArlSettings, type MatchSettings } from './DeviceEditPanel';
 import { alongLine, arranged, circuitAfter, copyDevices, deleteDevices, editsFor, inWindow, matchDevice, moveDevices, onBoard, placeAlong, renameBoard, replaceDevices, toCircuit, typeOf, type DeviceEdit } from '../../model/deviceEdit';
 
@@ -48,7 +50,7 @@ const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.to
 const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
   { k: 'snap', label: 'SNAP', key: 'F9' }, { k: 'osnap', label: 'OSNAP', key: 'F3' }, { k: 'ortho', label: 'ORTHO', key: 'F8' }, { k: 'grid', label: 'GRID', key: 'F7' }
 ];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 const PROMPT: Record<CadTool, string> = {
@@ -71,6 +73,18 @@ const PROMPT: Record<CadTool, string> = {
   move: 'MOVE  Select object, then specify base point:',
   copy: 'COPY  Select object, then specify base point:',
   rotate: 'ROTATE  Select object, then specify base point:',
+  mirror: 'MIRROR  Select objects (click them), Enter, then the first point of the mirror line:',
+  scale: 'SCALE  Select objects (click them), Enter, then the base point:',
+  stretch: 'STRETCH  Drag a window (right to left) round the points to move:',
+  trim: 'TRIM  Click the part to cut away (Shift-click extends):',
+  extend: 'EXTEND  Click near the end to lengthen (Shift-click trims):',
+  offset: 'OFFSET  Distance on the right; select the object to offset:',
+  fillet: 'FILLET  Radius on the right; select the first line:',
+  chamfer: 'CHAMFER  Distances on the right; select the first line:',
+  break: 'BREAK  Select the object where it breaks:',
+  join: 'JOIN  Select the lines and polylines to join, then Enter:',
+  explode: 'EXPLODE  Select a polyline or rectangle:',
+  array: 'ARRAY  Select objects (click them), Enter:',
   line: 'LINE  Specify first point:',
   pline: 'PLINE  Specify start point:',
   rect: 'RECTANG  Specify first corner point:',
@@ -92,6 +106,10 @@ const pathLength = (pts: Pt[]) => pts.slice(1).reduce((t, q, i) => t + distance(
 const DRAW_LAYER = 'LV-SKETCH', ANNO_LAYER = 'LV-ANNO';
 /** Layers of the circuit wiring and its tags (written into the DXF / DWG on save). */
 const WIRING_LAYER = 'E-LV-WIRING', TAG_LAYER = 'E-LV-TAGS';
+/** The edit tools on what was drawn (Draw → Edit, Mirror / Scale / Stretch in Modify), and those that work on objects
+ * picked first. */
+const EDIT_TOOLS: CadTool[] = ['trim', 'extend', 'offset', 'fillet', 'chamfer', 'break', 'join', 'explode', 'mirror', 'scale', 'stretch', 'array'];
+const PICK_FIRST: CadTool[] = ['join', 'mirror', 'scale', 'array'];
 const DRAW_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'rect', 'circle', 'arc', 'text', 'dim', 'move', 'copy', 'rotate'];
 
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
@@ -126,6 +144,14 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   const [matchFrom, setMatchFrom] = useState<string | null>(null);
   const [matchSet, setMatchSet] = useState<MatchSettings>(MATCH_START);
   const [renaming, setRenaming] = useState<string | null>(null);
+  // Edit tools: their settings, the first object picked (and where), objects picked first or points next, the Stretch
+  // window, the grip being dragged, and a first pick set by the toolbar before the tool starts.
+  const [edSet, setEdSet] = useState<EditSettings>(ED_START);
+  const [edStep, setEdStep] = useState<{ id: string; at: Pt } | null>(null);
+  const [edPhase, setEdPhase] = useState<'pick' | 'points'>('pick');
+  const [stretchBox, setStretchBox] = useState<[Pt, Pt] | null>(null);
+  const [gripIdx, setGripIdx] = useState<number | null>(null);
+  const preset = useRef<{ id: string; at: Pt } | null>(null);
   if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); setEm({ routes: [], points: [], rooms: [] }); setPicked([]); setMenuAt(null); }
   const input = useRef<HTMLInputElement>(null);
   const last = rememberedDrawing(project.id);
@@ -160,7 +186,13 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   }, [view]); // eslint-disable-line react-hooks/exhaustive-deps -- once, when the page first shows no drawing
 
   // A tool chosen (ribbon or command line): start it afresh and say what it asks for.
-  useEffect(() => { setPoints([]); setObjectMode(false); setLuxRoom(null); setMenuAt(null); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null); cad.say(`Command: ${PROMPT[tool]}`); }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    setPoints([]); setObjectMode(false); setLuxRoom(null); setMenuAt(null); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
+    setEdStep(preset.current); preset.current = null; setStretchBox(null);
+    const first = picked.some((k) => k.startsWith('sk:')) || !!cad.selected?.startsWith('sk:');
+    setEdPhase(first ? 'points' : 'pick');
+    cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : tool === 'join' ? 'Enter to join them:' : 'Apply on the right, or the centre for a polar array:'}` : PROMPT[tool]}`);
+  }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Layer roles (File → Layer roles): the project's, else a guess from the layer's name and what it holds.
   const layerStats = useMemo(() => (view ? layerStatsOf(view) : []), [view]);
@@ -185,12 +217,16 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   const selectedItem = placed.find((d) => d.key === cad.selected) ?? null;
   // The devices picked: several (Shift-click or a window), else the one selected.
   const pickedItems = useMemo(() => (picked.length ? placed.filter((d) => picked.includes(d.key)) : selectedItem ? [selectedItem] : []), [picked, placed, selectedItem]);
-  const pickedKeys = new Set(pickedItems.map((d) => d.key));
-  const many = pickedItems.length > 1;
   // What the engineer drew on this drawing (drawing units), its snap points, and the drawn object selected.
   const sketch = useMemo(() => (view ? sketchOf(project, view.file) : []), [project, view]);
   const sketchSnaps = useMemo(() => snapPoints(sketch), [sketch]);
   const selSketch = sketch.find((it) => `sk:${it.id}` === cad.selected) ?? null;
+  // The drawn objects picked: several, else the one selected; and everything picked.
+  const pickedSk = useMemo(() => (picked.length ? sketch.filter((it) => picked.includes(`sk:${it.id}`)) : selSketch ? [selSketch] : []), [picked, sketch, selSketch]);
+  const pickedKeys = new Set([...pickedItems.map((d) => d.key), ...pickedSk.map((it) => `sk:${it.id}`)]);
+  const many = pickedItems.length + pickedSk.length > 1;
+  // The architect's lines on shown layers: cutting edges and boundaries for Trim and Extend.
+  const drawingSegs = useMemo(() => (view && (tool === 'trim' || tool === 'extend') ? segmentsOn(view.segs, view.segLayers, view.info.origin, new Set(view.info.layers.map((_, i) => i).filter((i) => cad.layersOn[i]))) : []), [view, cad.layersOn, tool]);
   const fittings = useMemo(() => trayFittings(sketch, 0.001 / units.factor).fittings, [sketch, units.factor]);
   const cables = useMemo(() => cablesOf(project), [project]);
   // ELV: the device chosen (if an ELV one), its system for coverage and Copy to level, and the coverage / Fill preview.
@@ -255,7 +291,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   function removeSelected() {
     if (selSketch && view) { change(removeSketch(project, view.file, selSketch.id), `${selSketch.tray ? 'Cable tray' : selSketch.cable ? 'Cable route' : selSketch.kind === 'pline' ? 'Polyline' : selSketch.kind[0].toUpperCase() + selSketch.kind.slice(1)} erased · ⌘Z to undo`); cad.setSelected(null); setResult(null); return; }
     if (many) {
-      change(deleteDevices(project, pickedItems), `${pickedItems.length} devices deleted — point counts updated · ⌘Z to undo`);
+      let next = pickedItems.length ? deleteDevices(project, pickedItems) : project;
+      if (view) for (const it of pickedSk) next = removeSketch(next, view.file, it.id);
+      change(next, `${pickedItems.length + pickedSk.length} objects erased${pickedItems.length ? ' — point counts updated' : ''} · ⌘Z to undo`);
       setPicked([]); cad.setSelected(null); setResult(null); return;
     }
     if (!selectedItem) { cad.say('ERASE  Select an object first (click it).'); return; }
@@ -335,26 +373,159 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     if (r.next) change(r.next, r.message); else cad.say(`COPY  ${r.message}`);
   }
 
-  /** Picks devices: one (it is the selected object, its details on the right), several, or none. */
-  function pick(items: PlacedItem[]) {
+  /** Picks devices and drawn objects: one (it is the selected object, its details on the right), several, or none. */
+  function pick(items: PlacedItem[], sks: SketchItem[] = []) {
     setMenuAt(null);
-    if (items.length === 1) { setPicked([]); cad.setSelected(items[0].key); setResult({ kind: 'device', it: items[0] }); return; }
-    setPicked(items.map((d) => d.key)); cad.setSelected(null); setResult(null);
+    if (items.length + sks.length === 1) {
+      setPicked([]);
+      if (items.length) { cad.setSelected(items[0].key); setResult({ kind: 'device', it: items[0] }); } else { cad.setSelected(`sk:${sks[0].id}`); setResult({ kind: 'sketch', it: sks[0] }); }
+      return;
+    }
+    setPicked([...items.map((d) => d.key), ...sks.map((it) => `sk:${it.id}`)]); cad.setSelected(null); setResult(null);
   }
-  /** A window (drawing units): the devices in it, added to those picked with Shift. */
+  const picks = (n: number) => `${n} object${n === 1 ? '' : 's'} selected`;
+  /** A window (drawing units): the devices and drawn objects in it, added to those picked with Shift. Stretch keeps it
+   * as the points to move. */
   function pickWindow(a: Pt, b: Pt, crossing: boolean, add: boolean) {
+    if (tool === 'stretch') { setStretchBox([a, b]); setPoints([]); cad.say('STRETCH  Specify base point:'); return; }
     const found = inWindow(placed, [a[0] * units.factor, a[1] * units.factor], [b[0] * units.factor, b[1] * units.factor], crossing, DEVICE_R_M);
-    const items = add ? [...pickedItems, ...found.filter((d) => !pickedKeys.has(d.key))] : found;
-    pick(items);
-    cad.say(items.length ? `SEL  ${items.length} device${items.length === 1 ? '' : 's'} selected` : 'SEL  No device in the window.');
+    const foundSk = sketchInWindow(sketch, a, b, crossing);
+    const items = add || tool !== 'none' ? [...pickedItems, ...found.filter((d) => !pickedKeys.has(d.key))] : found;
+    const sks = add || tool !== 'none' ? [...pickedSk, ...foundSk.filter((it) => !pickedKeys.has(`sk:${it.id}`))] : foundSk;
+    pick(tool === 'none' ? items : [], sks);
+    const n = (tool === 'none' ? items.length : 0) + sks.length;
+    cad.say(n ? `SEL  ${picks(n)}${tool !== 'none' ? ' — Enter when done' : ''}` : 'SEL  Nothing in the window.');
   }
-  /** Right click: the menu of edits at the cursor, for the device under it (or what is picked). */
+  /** Right click: the menu of edits at the cursor, for the device or drawn object under it (or what is picked). */
   function contextAt(at: Pt, pixel: number, screen: Pt) {
     if (tool !== 'none') return;
-    const d = deviceAt(at, pixel);
+    const d = deviceAt(at, pixel), sk = d ? undefined : itemAt(sketch, at, 6 * pixel);
     if (d && !pickedKeys.has(d.key)) pick([d]);
-    if (!d && !pickedItems.length) return;
+    else if (sk && !pickedKeys.has(`sk:${sk.id}`)) pick([], [sk]);
+    if (!d && !sk && !pickedItems.length && !pickedSk.length) return;
     setMenuAt(screen);
+  }
+  const fileOf = () => view?.file ?? '';
+  /** The project with a drawn item replaced by what an edit made of it: the first keeps its ID, the rest are added. */
+  const replaced = (p: Project, it: SketchItem, items: Omit<SketchItem, 'id'>[]) => {
+    if (!items.length) return removeSketch(p, fileOf(), it.id);
+    let next = updateSketch(p, fileOf(), { ...items[0], id: it.id } as SketchItem);
+    for (const x of items.slice(1)) next = addSketch(next, fileOf(), x).project;
+    return next;
+  };
+  const added = (p: Project, items: Omit<SketchItem, 'id'>[]) => items.reduce((q, x) => addSketch(q, fileOf(), x).project, p);
+  const failed = (r: Edit, cmd: string) => { if (r.error) cad.say(`${cmd}  ${r.error}`); return !!r.error; };
+  /** An edit from the toolbar, the menu or the side panel, on the drawn objects picked. */
+  function editSketch(e: SketchEdit, arg?: string) {
+    setMenuAt(null);
+    const sks = pickedSk, one = sks.length === 1 && !pickedItems.length ? sks[0] : undefined;
+    if (e === 'filter' && arg) {
+      if (arg === 'devices') pick(pickedItems); else if (arg === 'drawn') pick([], sks); else pick([], sks.filter((it) => kindOf(it) === arg));
+      return;
+    }
+    if (e === 'width' && one?.tray && arg) { change(updateSketch(project, fileOf(), { ...one, tray: { ...one.tray, widthMm: Number(arg) } }), `Cable tray ${arg} mm · ⌘Z to undo`); return; }
+    if (e === 'erase') { removeSelected(); return; }
+    if (e === 'join') { applyJoin(); return; }
+    if (e === 'rotate' && !one) { cad.say('ROTATE  One object at a time.'); return; }
+    if (e === 'filter' || e === 'width') return;
+    if ((e === 'offset' || e === 'fillet') && one) preset.current = { id: one.id, at: gripsOf(one).find((g) => g.kind === 'mid')?.at ?? one.pts[0] };
+    cad.setTool(e);
+  }
+  /** Join: the drawn objects picked that meet end to end become one. */
+  function applyJoin() {
+    const r = join(pickedSk, 0.01 / units.factor);
+    if (failed(r, 'JOIN')) return;
+    const [first, ...rest] = pickedSk.filter((it) => r.joined!.includes(it.id));
+    let next = replaced(project, first, r.items!);
+    for (const it of rest) next = removeSketch(next, fileOf(), it.id);
+    change(next, `JOIN  ${r.joined!.length} objects joined into one polyline${pickedSk.length > r.joined!.length ? ` (${pickedSk.length - r.joined!.length} did not meet the others)` : ''} · ⌘Z to undo`);
+    pick([], []); cad.setTool('none');
+  }
+  /** Array: copies of the drawn objects picked (rectangular, or polar round `centre`). */
+  function applyArray(centre?: Pt) {
+    const f = units.factor, n = (s: string, d: number) => (Number.isFinite(Number(s)) && s.trim() !== '' ? Number(s) : d);
+    const copies = pickedSk.flatMap((it) => (edSet.polar ? arrayPolar(it, centre!, n(edSet.n, 6), n(edSet.angle, 360)) : arrayRect(it, n(edSet.rows, 2), n(edSet.cols, 3), n(edSet.dx, 1) / f, n(edSet.dy, 1) / f)));
+    if (!copies.length) { cad.say('ARRAY  Nothing to copy: more rows, columns or items.'); return; }
+    change(added(project, copies), `ARRAY  ${copies.length} cop${copies.length === 1 ? 'y' : 'ies'} made · ⌘Z to undo`);
+    pick([], []); cad.setTool('none');
+  }
+  /** A click with an edit tool (drawing units). */
+  function editClick(at: Pt, pixel: number, shiftKey: boolean) {
+    const sk = itemAt(sketch, at, 6 * pixel), f = units.factor, num = (s: string) => Number(s);
+    const cmd = tool.toUpperCase();
+    if (PICK_FIRST.includes(tool) && edPhase === 'pick') {
+      if (!sk) { cad.say(`${cmd}  Click a drawn object (the architect's drawing is not changed):`); return; }
+      const sks = pickedKeys.has(`sk:${sk.id}`) ? pickedSk.filter((x) => x.id !== sk.id) : [...pickedSk, sk];
+      pick([], sks); cad.say(`${cmd}  ${picks(sks.length)} — Enter when done`); return;
+    }
+    if (tool === 'trim' || tool === 'extend') {
+      if (!sk) { cad.say(`${cmd}  Click a drawn line (the architect's lines are not changed):`); return; }
+      const asTrim = (tool === 'trim') !== shiftKey, edges = edgesFor(sketch, sk.id, drawingSegs);
+      const r = asTrim ? trim(sk, at, edges) : extend(sk, at, edges);
+      if (failed(r, asTrim ? 'TRIM' : 'EXTEND')) return;
+      change(replaced(project, sk, r.items!), asTrim ? `TRIM  ${m(toM((r as { cut?: number }).cut ?? 0))} cut off · ⌘Z to undo` : `EXTEND  ${m(toM((r as { gain?: number }).gain ?? 0))} longer · ⌘Z to undo`);
+      return;
+    }
+    if (tool === 'explode') {
+      if (!sk) { cad.say('EXPLODE  Click a polyline or rectangle:'); return; }
+      const r = explode(sk);
+      if (!failed(r, 'EXPLODE')) change(replaced(project, sk, r.items!), `EXPLODE  ${r.items!.length} lines · ⌘Z to undo`);
+      return;
+    }
+    if (tool === 'offset' || tool === 'fillet' || tool === 'chamfer' || tool === 'break') {
+      if (!edStep) {
+        if (!sk) { cad.say(`${cmd}  Click a drawn object:`); return; }
+        setEdStep({ id: sk.id, at });
+        cad.say(tool === 'offset' ? 'OFFSET  Specify point on the side to offset:' : tool === 'break' ? 'BREAK  Specify second break point, or Enter to break here:' : `${cmd}  Select the second line:`);
+        return;
+      }
+      const first = sketch.find((x) => x.id === edStep.id);
+      setEdStep(null);
+      if (!first) return;
+      if (tool === 'offset') {
+        const r = offset(first, num(edSet.offset) / f, at);
+        if (!failed(r, 'OFFSET')) change(added(project, r.items!), `OFFSET  ${first.tray ? `Cable tray ${first.tray.widthMm} mm` : kindOf(first)} copied ${m(num(edSet.offset))} to the side · ⌘Z to undo`);
+        cad.say(PROMPT.offset); return;
+      }
+      if (tool === 'break') {
+        const r = breakAt(first, edStep.at, at);
+        if (!failed(r, 'BREAK')) change(replaced(project, first, r.items!), `BREAK  ${kindOf(first)} broken · ⌘Z to undo`);
+        return;
+      }
+      if (!sk) { cad.say(`${cmd}  Click the second line:`); setEdStep(edStep); return; }
+      const r = tool === 'fillet' ? fillet(first, edStep.at, sk, at, num(edSet.radius) / f) : chamfer(first, edStep.at, sk, at, num(edSet.d1) / f, num(edSet.d2) / f);
+      if (failed(r, cmd)) return;
+      const [a, b, ...extra] = r.items!;
+      change(added(replaced(replaced(project, first, [a]), sk, [b]), extra), `${cmd}  ${tool === 'fillet' ? (extra.length ? `radius ${m(num(edSet.radius))}` : 'sharp corner') : `${m(num(edSet.d1))} × ${m(num(edSet.d2))}`}${r.note ? ` — ${r.note}` : ''} · ⌘Z to undo`);
+      return;
+    }
+    if (tool === 'mirror') {
+      if (!points.length) { setPoints([at]); cad.say('MIRROR  Specify second point of the mirror line:'); return; }
+      const [a] = points, flipped = pickedSk.map((it) => mirrored(it, a, at));
+      let next = project;
+      pickedSk.forEach((it, i) => { next = edSet.keep ? addSketch(next, fileOf(), flipped[i]).project : updateSketch(next, fileOf(), { ...flipped[i], id: it.id } as SketchItem); });
+      change(next, `MIRROR  ${picks(pickedSk.length).replace(' selected', '')} mirrored${edSet.keep ? ', originals kept' : ''} · ⌘Z to undo`);
+      setPoints([]); pick([], []); cad.setTool('none'); return;
+    }
+    if (tool === 'scale') {
+      const k = num(edSet.factor);
+      if (!(k > 0)) { cad.say('SCALE  Type a factor above 0 on the right.'); return; }
+      change(pickedSk.reduce((q, it) => updateSketch(q, fileOf(), scaled(it, at, k)), project), `SCALE  ${picks(pickedSk.length).replace(' selected', '')} scaled × ${k} · ⌘Z to undo`);
+      pick([], []); cad.setTool('none'); return;
+    }
+    if (tool === 'array') { if (edSet.polar) applyArray(at); else cad.say('ARRAY  Rectangular: Apply on the right.'); return; }
+    if (tool === 'stretch') {
+      if (!stretchBox) { cad.say(PROMPT.stretch); return; }
+      if (!points.length) { setPoints([at]); cad.say('STRETCH  Specify second point:'); return; }
+      const [dx, dy] = [at[0] - points[0][0], at[1] - points[0][1]], [a, b] = stretchBox;
+      let next = project, n = 0;
+      for (const it of sketch) { const st = stretched(it, a, b, dx, dy); if (st) { next = updateSketch(next, fileOf(), st); n += 1; } }
+      const inBox = inWindow(placed, [a[0] * f, a[1] * f], [b[0] * f, b[1] * f], false, 0);
+      if (inBox.length && floor) next = moveDevices(next, inBox, new Map(inBox.map((d): [string, Pt] => [d.key, [d.x + dx * f, d.y + dy * f]])), floor.ref);
+      if (!n && !inBox.length) cad.say('STRETCH  Nothing has points in the window.');
+      else change(next, `STRETCH  ${n} drawn object${n === 1 ? '' : 's'}${inBox.length ? ` and ${inBox.length} device${inBox.length === 1 ? '' : 's'}` : ''} by ${m(toM(Math.hypot(dx, dy)))} · ⌘Z to undo`);
+      setPoints([]); setStretchBox(null); cad.setTool('none');
+    }
   }
   /** An edit from the toolbar, the menu or the side panel, on the devices picked. */
   function editDevices(e: DeviceEdit, arg?: string) {
@@ -465,15 +636,20 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   async function click(at: Pt, pixel: number, shiftKey = false) {
     if (!view) return;
     const last = points[points.length - 1];
-    if ((tool === 'move' || tool === 'copy') && many && floor) {
+    if (EDIT_TOOLS.includes(tool)) { editClick(at, pixel, shiftKey); return; }
+    if ((tool === 'move' || tool === 'copy') && many && (floor || !pickedItems.length)) {
       if (!points.length) { setPoints([at]); cad.say(`${tool.toUpperCase()}  Specify second point:`); return; }
-      const [dx, dy] = [(at[0] - points[0][0]) * units.factor, (at[1] - points[0][1]) * units.factor];
+      const [ux, uy] = [at[0] - points[0][0], at[1] - points[0][1]], [dx, dy] = [ux * units.factor, uy * units.factor];
+      const n = pickedItems.length + pickedSk.length;
       if (tool === 'move') {
-        change(moveDevices(project, pickedItems, new Map(pickedItems.map((d): [string, Pt] => [d.key, [d.x + dx, d.y + dy]])), floor.ref), `${pickedItems.length} devices moved · ⌘Z to undo`);
+        let next = pickedItems.length && floor ? moveDevices(project, pickedItems, new Map(pickedItems.map((d): [string, Pt] => [d.key, [d.x + dx, d.y + dy]])), floor.ref) : project;
+        for (const it of pickedSk) next = updateSketch(next, fileOf(), moved(it, ux, uy));
+        change(next, `${n} objects moved · ⌘Z to undo`);
         setPoints([]); cad.setTool('none');
       } else {
-        const r = copyDevices(project, pickedItems, dx, dy, floor.ref);
-        change(r.project, `${r.copied} device${r.copied === 1 ? '' : 's'} copied — point counts updated · Enter stops · ⌘Z to undo`);
+        const r = pickedItems.length && floor ? copyDevices(project, pickedItems, dx, dy, floor.ref) : { project, copied: 0 };
+        const next = added(r.project, pickedSk.map((it) => { const { id: _id, ...rest } = moved(it, ux, uy); return rest; }));
+        change(next, `${r.copied + pickedSk.length} object${r.copied + pickedSk.length === 1 ? '' : 's'} copied${r.copied ? ' — point counts updated' : ''} · Enter stops · ⌘Z to undo`);
       }
       return;
     }
@@ -561,9 +737,14 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     if (tool === 'none') {
       const d = deviceAt(at, pixel);
       setMenuAt(null);
+      const skHit = shiftKey && !d ? itemAt(sketch, at, 6 * pixel) : undefined;
       if (d && shiftKey) {
         const items = pickedKeys.has(d.key) ? pickedItems.filter((x) => x.key !== d.key) : [...pickedItems, d];
-        pick(items); cad.say(`SEL  ${items.length} device${items.length === 1 ? '' : 's'} selected`); return;
+        pick(items, pickedSk); cad.say(`SEL  ${picks(items.length + pickedSk.length)}`); return;
+      }
+      if (skHit) {
+        const sks = pickedKeys.has(`sk:${skHit.id}`) ? pickedSk.filter((x) => x.id !== skHit.id) : [...pickedSk, skHit];
+        pick(pickedItems, sks); cad.say(`SEL  ${picks(pickedItems.length + sks.length)}`); return;
       }
       setPicked([]);
       if (d) { cad.setSelected(d.key); setResult({ kind: 'device', it: d }); cad.say(`LIST  ${d.label}${d.detail ? ` · ${d.detail}` : ''}${d.room ? ` · ${d.room}` : ''}`); return; }
@@ -714,6 +895,19 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       else if (tool === 'em') finishRoute();
       else if (tool === 'arl' && arlAt.length && points.length >= 2) placeArl();
       else if (renaming) { setRenaming(null); cad.say('*Cancel*'); }
+      else if (tool === 'break' && edStep) {
+        const it = sketch.find((x) => x.id === edStep.id);
+        const r = it ? breakAt(it, edStep.at) : undefined;
+        setEdStep(null);
+        if (it && r && !failed(r, 'BREAK')) change(replaced(project, it, r.items!), `BREAK  ${kindOf(it)} split in two · ⌘Z to undo`);
+      }
+      else if (tool === 'join') applyJoin();
+      else if (PICK_FIRST.includes(tool) && edPhase === 'pick') {
+        if (!pickedSk.length) { cad.say(`${tool.toUpperCase()}  Pick the objects first.`); return; }
+        setEdPhase('points');
+        cad.say(tool === 'mirror' ? 'MIRROR  Specify first point of the mirror line:' : tool === 'scale' ? 'SCALE  Specify base point:' : edSet.polar ? 'ARRAY  Specify the centre:' : 'ARRAY  Apply on the right.');
+      }
+      else if (tool === 'array' && !edSet.polar && pickedSk.length) applyArray();
       else if (tool === 'cable') finishCable();
       else if (tool === 'line') { setPoints([]); cad.say(PROMPT.line); }
       else if (tool === 'copy') { setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); }
@@ -730,6 +924,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if (view) change(updateSketch(project, view.file, rotated(selSketch, points[0], a)), `Rotated ${Number(c).toFixed(2)}° · ⌘Z to undo`);
       setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); return;
     }
+    // A number typed with Offset, Fillet or Scale sets its distance, radius or factor.
+    const field: Partial<Record<CadTool, keyof EditSettings>> = { offset: 'offset', fillet: 'radius', scale: 'factor' };
+    if (field[tool] && /^\d+(\.\d+)?$/.test(c)) { setEdSet({ ...edSet, [field[tool]!]: c }); cad.say(`${tool.toUpperCase()}  ${c}`); return; }
     if (DRAW_TOOLS.includes(tool) || tool === 'dist' || tool === 'area' || tool === 'trace') {
       const p = typedPoint(raw, points[points.length - 1], cursor.at);
       if (p) { cad.say(`  ${raw}`); click(p, 1e-9); return; }
@@ -762,6 +959,18 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     else if (c === 'SEL' || c === 'SELECT') { cad.setTool('none'); cad.say('SEL  Click a device, Shift-click to add or remove, or drag a window (left to right: inside; right to left: crossing):'); }
     else if (c === 'ARL' || c === 'ARRAYLINE') cad.setTool('arl');
     else if (c === 'MA' || c === 'MATCH' || c === 'MATCHPROP') cad.setTool('match');
+    else if (c === 'TRIM' || c === 'TM') cad.setTool('trim');
+    else if (c === 'EX' || c === 'EXTEND') cad.setTool('extend');
+    else if (c === 'O' || c === 'OFFSET') cad.setTool('offset');
+    else if (c === 'F' || c === 'FILLET') cad.setTool('fillet');
+    else if (c === 'CHA' || c === 'CHAMFER') cad.setTool('chamfer');
+    else if (c === 'BR' || c === 'BREAK') cad.setTool('break');
+    else if (c === 'J' || c === 'JOIN') cad.setTool('join');
+    else if (c === 'X' || c === 'EXPLODE') cad.setTool('explode');
+    else if (c === 'MI' || c === 'MIRROR') cad.setTool('mirror');
+    else if (c === 'SC' || c === 'SCALE') cad.setTool('scale');
+    else if (c === 'S' || c === 'STRETCH') cad.setTool('stretch');
+    else if (c === 'AR' || c === 'ARRAY') cad.setTool('array');
     else if (c === 'ALIGN' || c === 'ALIGNV' || c === 'SPACE') { if (pickedItems.length < 2) cad.say(`${c}  Select two or more devices first.`); else editDevices(c === 'ALIGN' ? 'row' : c === 'ALIGNV' ? 'column' : 'space'); }
     else if (c === 'WC' || c === 'WIRE' || c === 'WIRECIRCUITS') wireAll();
     else if (c === 'W1' || c === 'WIREONE') cad.setTool('wire');
@@ -798,7 +1007,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     }
     if (e.key === 'Enter' && !typing && (tool === 'area' || tool === 'trace') && points.length >= 3) { finishArea(points); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && (selectedItem || selSketch || many)) { e.preventDefault(); removeSelected(); return; }
-    if (e.key === 'Enter' && !typing && (tool === 'pline' || tool === 'tray' || tool === 'cable' || tool === 'line' || tool === 'copy' || tool === 'em' || tool === 'arl')) { run(''); return; }
+    if (e.key === 'Enter' && !typing && (tool === 'pline' || tool === 'tray' || tool === 'cable' || tool === 'line' || tool === 'copy' || tool === 'em' || tool === 'arl' || tool === 'break' || PICK_FIRST.includes(tool))) { run(''); return; }
     if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[a-zA-Z?]$/.test(e.key)) input.current?.focus();
   };
   useEffect(() => {
@@ -849,12 +1058,26 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       <div className="cad-work">
         {view ? (
           <div className="cad-stage">
-            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={selSketch?.id ?? null} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
-              windowSelect={tool === 'none'} onWindow={pickWindow} onContext={contextAt} overlay={(toScreen, moving) => {
-                if (tool !== 'none' || !pickedItems.length || moving || !floor || !cad.showDevices) return null;
-                const xs = pickedItems.map((d) => d.x / units.factor), ys = pickedItems.map((d) => d.y / units.factor), pad = rUnits * 2;
+            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
+              windowSelect={tool === 'none' || tool === 'stretch' || (PICK_FIRST.includes(tool) && edPhase === 'pick')} onWindow={pickWindow} onContext={contextAt}
+              grips={tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
+              onGripEnd={(i, at) => {
+                setGripIdx(null);
+                if (i < 0 || !selSketch) return;
+                const next = gripMoved(selSketch, i, at);
+                change(updateSketch(project, fileOf(), next), `GRIP  ${kindOf(selSketch)} ${gripsOf(selSketch)[i]?.kind === 'mid' ? 'side moved' : 'changed'}${isPath(next) ? ` — now ${m(toM(next.pts.slice(1).reduce((t, q, k) => t + distance(next.pts[k], q), 0)))}` : ''} · ⌘Z to undo`);
+              }}
+              overlay={(toScreen, moving) => {
+                if (tool !== 'none' || moving || gripIdx !== null || (!pickedItems.length && !pickedSk.length)) return null;
+                if (!pickedSk.length && (!floor || !cad.showDevices)) return null;
+                const skPts = pickedSk.flatMap((it) => { const sg = segmentsOf(it); return sg.length ? sg.flat() : it.pts; });
+                const xs = [...pickedItems.map((d) => d.x / units.factor), ...skPts.map((q) => q[0])], ys = [...pickedItems.map((d) => d.y / units.factor), ...skPts.map((q) => q[1])], pad = rUnits * 2;
                 const [l, t] = toScreen([Math.min(...xs) - pad, Math.max(...ys) + pad]), [, b] = toScreen([0, Math.min(...ys) - pad]);
                 const at = menuAt ? { left: menuAt[0] + 4, top: menuAt[1] + 4, place: 'menu' as const } : t < 60 ? { left: Math.max(4, l), top: b + 8, place: 'below' as const } : { left: Math.max(4, l), top: t - 8, place: 'above' as const };
+                if (pickedSk.length) {
+                  const one = pickedSk.length === 1 && !pickedItems.length && isPath(pickedSk[0]) ? pickedSk[0] : undefined;
+                  return <SketchToolbar key={[...pickedKeys].join()} items={pickedSk} devices={pickedItems.length} lengthM={one ? toM(pathLength(one.pts)) : undefined} {...at} onEdit={editSketch} />;
+                }
                 return <DeviceToolbar key={[...pickedKeys].join()} project={project} items={pickedItems} edits={editsFor(project, pickedItems)} circuits={circuits} {...at} onEdit={editDevices} />;
               }} />
             <div className="cad-coords">{cursor.at ? `X ${cursor.at[0].toFixed(2)}   Y ${cursor.at[1].toFixed(2)}   ${units.label}` : units.label}</div>
@@ -873,7 +1096,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
           <aside className="cad-side">
             <h4>Result</h4>
             <div className="cad-res">
-              {many ? <SelectionPanel key={[...pickedKeys].join()} project={project} items={pickedItems} circuits={circuits} level={floor ? floorLabel(project.building, floor) : undefined} onEdit={editDevices} /> : result ? <ResultView r={result.kind === 'sketch' && selSketch ? { kind: 'sketch', it: selSketch } : result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} onMove={() => cad.setTool('move')} onRemove={removeSelected} onCopy={() => cad.setTool('copy')} onRotate={() => cad.setTool('rotate')} onAdded={() => setResult(null)} fittings={fittings} /> : view ? (
+              {many && pickedSk.length ? <DrawnSelectionPanel items={pickedSk} devices={pickedItems.length} onEdit={editSketch} /> : many ? <SelectionPanel key={[...pickedKeys].join()} project={project} items={pickedItems} circuits={circuits} level={floor ? floorLabel(project.building, floor) : undefined} onEdit={editDevices} /> : result ? <ResultView r={result.kind === 'sketch' && selSketch ? { kind: 'sketch', it: selSketch } : result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} onMove={() => cad.setTool('move')} onRemove={removeSelected} onCopy={() => cad.setTool('copy')} onRotate={() => cad.setTool('rotate')} onAdded={() => setResult(null)} fittings={fittings} /> : view ? (
                 <>{view.file}<br /><span className="m">{view.info.format} · {units.label}{units.assumed ? ' (not set in the drawing: taken as mm)' : ''} · {fmtUpTo(view.info.segments, 0)} lines · {view.info.texts.length} texts</span><br /><span className="m">{PROMPT[tool]}</span></>
               ) : <span className="m">No drawing open.</span>}
               {view && SAMPLE_PLANS.some((x) => x.file === view.file) && (
@@ -922,6 +1145,11 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
             {tool === 'arl' && view && (
               <ArrayPanel project={project} settings={arlSet} onSettings={setArlSet} palette={palette} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId}
                 lengthM={points.length >= 2 ? distance(points[0], points[1]) * units.factor : undefined} at={points.length >= 2 ? arlAt : []} onPlace={placeArl} onCancel={() => { setPoints([]); cad.say(`Command: ${PROMPT.arl}`); }} />
+            )}
+            {EDIT_TOOLS.includes(tool) && view && (
+              <EditToolPanel tool={tool as EditTool} settings={edSet} onSettings={setEdSet} picked={pickedSk.length}
+                step={edStep ? `${kindOf(sketch.find((x) => x.id === edStep.id) ?? sketch[0])} picked — ${tool === 'offset' ? 'click the side' : tool === 'break' ? 'click the second point, or Enter' : 'click the second line'}` : stretchBox ? 'Window set — click the base point, then the second point' : PICK_FIRST.includes(tool) && edPhase === 'points' ? 'Objects picked — now the points' : undefined}
+                onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
             )}
             {tool === 'match' && view && <MatchPanel from={placed.find((x) => x.key === matchFrom)} settings={matchSet} onSettings={setMatchSet} />}
             {tool === 'em' && view && (
