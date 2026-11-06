@@ -4,7 +4,7 @@ import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FileX2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
-import { PenTool, BoxSelect, Paintbrush, Scissors, ArrowRightToLine, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen } from 'lucide-react';
+import { PenTool, FileCog, BoxSelect, Paintbrush, Scissors, ArrowRightToLine, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen } from 'lucide-react';
 import type { CadTool } from './cad/cadState';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
@@ -111,12 +111,12 @@ export interface RibbonActions {
 
 /** Design CAD's sub-tabs: Plan (engineering) and Draw (drafting) over the same floor plan, and Sheets (every
  * submission sheet), as groups of the cad tab (File · Rooms · Cables and boards · Draw · Modify · Annotate · Measure ·
- * Devices · View · Sheets … · Wiring · Edit devices · Edit). Sheets is its own page (the drawings view). */
+ * Devices · View · Sheets … · Plot · Issue and export · Wiring · Edit devices · Edit). Sheets is its own page (the drawings view). */
 export type CadSub = 'plan' | 'draw' | 'sheets';
 export const CAD_SUB: Record<CadSub, { label: string; groups: number[] }> = {
-  plan: { label: 'Plan', groups: [0, 1, 2, 7, 16, 15, 6, 8] },
-  draw: { label: 'Draw', groups: [0, 3, 4, 17, 5, 8] },
-  sheets: { label: 'Sheets', groups: [9, 10, 11, 12, 13, 14] }
+  plan: { label: 'Plan', groups: [0, 1, 2, 7, 17, 16, 6, 8] },
+  draw: { label: 'Draw', groups: [0, 3, 4, 18, 5, 8] },
+  sheets: { label: 'Sheets', groups: [9, 10, 11, 12, 13, 14, 15] }
 };
 const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
 /** The sub-tab a tool is on, so the ribbon shows the tool in use. */
@@ -134,7 +134,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   concept: ['Load', 'Supply', 'Stage'],
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Calculate', 'Stage'],
-  cad: ['File', 'Rooms', 'Cables and boards', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View', 'Sheets', 'Markup', 'On panels', 'Style', 'View', 'Issue and export', 'Wiring', 'Edit devices', 'Edit'],
+  cad: ['File', 'Rooms', 'Cables and boards', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View', 'Sheets', 'Markup', 'On panels', 'Style', 'View', 'Plot', 'Issue and export', 'Wiring', 'Edit devices', 'Edit'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -478,6 +478,10 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Zoom out', icon: ZoomOut, title: onSheet ? 'Zoom out' : noSheet, onClick: () => act().zoomOut(), disabled: !onSheet },
         { label: 'Legend', icon: BookImage, title: onSheet ? 'Symbol legend in the sheets\' legend column (and on SLD exports)' : noSheet, onClick: () => sh?.onLegend?.(), active: onSheet && !!sh?.legend?.on, disabled: !onSheet || !sh?.legend?.shown },
         { label: 'Side by side', icon: Columns2, title: onSheet ? 'The design on the left with each sheet\'s panels outlined, this sheet on the right' : noSheet, onClick: () => ui?.setSide(!ui.side), active: onSheet && !!ui?.side, disabled: !onSheet }
+      ],
+      [
+        { label: 'Page setup', icon: FileCog, title: onSheet ? 'This sheet\'s page setup: paper, scale (plans), pen table, lineweights, plot stamp — or the set\'s default' : noSheet, onClick: () => act().pageSetup(), disabled: !onSheet },
+        { label: 'Pens', icon: PenLine, title: onSheet ? 'Pen tables: the width and ink each kind of line prints with; import a CTB plot style table' : noSheet, onClick: () => act().pens(), disabled: !onSheet }
       ],
       [
         { label: 'Publish', icon: Send, sub: onSheet ? sh?.publish?.label || undefined : undefined, title: onSheet ? sh?.publish?.title ?? 'Issue this sheet' : noSheet, onClick: () => act().publish(), stale: onSheet && !!sh?.publish?.changed, disabled: !onSheet },

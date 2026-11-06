@@ -11,8 +11,11 @@ export interface SheetActions {
   restyle: (p: { color?: MarkupColor; size?: number }) => void;
   publish: () => void;
   exportAs: (kind: 'pdf' | 'dxf' | 'dwg') => void;
+  /** Plot: this sheet's page setup, and the pen tables. */
+  pageSetup: () => void;
+  pens: () => void;
 }
-export const NO_SHEET_ACTIONS: SheetActions = { zoomIn: () => {}, zoomOut: () => {}, removeSelected: () => {}, restyle: () => {}, publish: () => {}, exportAs: () => {} };
+export const NO_SHEET_ACTIONS: SheetActions = { zoomIn: () => {}, zoomOut: () => {}, removeSelected: () => {}, restyle: () => {}, publish: () => {}, exportAs: () => {}, pageSetup: () => {}, pens: () => {} };
 
 /** The open sheet's tools, shared by the ribbon and the sheet and kept by the app: the markup tool with its colour and
  * letter height, the markup selected, the zoom and side by side. New markups are black, like the printed sheets. */

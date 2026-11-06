@@ -14,6 +14,7 @@ import type { Project, SketchItem } from '../types';
 import { escapeHtmlText as esc } from '../util/escape';
 import { txt } from '../util/format';
 import { furnitureScale, SHEET_MM } from './sldSheet';
+import { inkOf, pensFor, type Pen } from '../model/plotSetup';
 
 /** Design CAD → Sheets → Plans: a level's lighting, power, ELV or containment layout as a drawing sheet at a true scale
  * (1:100 unless the sheet's scale says 1:50 or 1:200), made from the design, so a design change shows on the sheet.
@@ -234,12 +235,15 @@ export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number
   const seg = (a: Pt, b: Pt) => { const k = clip(a, b, win); return k ? `M${X(k[0][0])} ${Y(k[0][1])}L${X(k[1][0])} ${Y(k[1][1])}` : ''; };
   const path = (pts: Pt[], closed = false) => (closed ? [...pts, pts[0]] : pts).slice(1).map((q, i, all) => seg(i ? all[i - 1] : pts[0], q)).join('');
   const out: string[] = [];
+  // The pens of the sheet's page setup (src/model/plotSetup.ts); by default as below.
+  const pen = pensFor(p, s), w = (q: Pen, k = 1) => n(q.w * k);
+  const archInk = pen.arch.grey === 45 ? GREY : inkOf(pen.arch);
   // The architect's plan, grey.
   const arch = rooms.map((r) => path(r.outline, true)).join('');
-  if (arch) out.push(`<path d="${arch}" fill="none" stroke="${GREY}" stroke-width="0.18"/>`);
+  if (arch) out.push(`<path d="${arch}" fill="none" stroke="${archInk}" stroke-width="${w(pen.arch)}"/>`);
   for (const r of rooms) {
     const at: Pt = [r.outline.reduce((t, q) => t + q[0], 0) / r.outline.length, r.outline.reduce((t, q) => t + q[1], 0) / r.outline.length];
-    if (within(at, win)) out.push(`<text x="${X(at[0])}" y="${n(Y(at[1]) + 3.5)}" font-size="2.6" text-anchor="middle" fill="${GREY}">${esc(r.name.toUpperCase())}</text>`);
+    if (within(at, win)) out.push(`<text x="${X(at[0])}" y="${n(Y(at[1]) + 3.5)}" font-size="2.6" text-anchor="middle" fill="${archInk}">${esc(r.name.toUpperCase())}</text>`);
   }
   // The containment, black: trays heavy and broken for their labels, cable routes dashed with their tags beside the
   // line. Tags of routes on one path stack outward rather than print over each other.
@@ -271,16 +275,16 @@ export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number
       if (labelled) { const l = trayLabel(run); along(l.at, l.rot, 1.4, it.text!, 3); }
     }
   }
-  if (trays) out.push(`<path d="${trays}" fill="none" stroke="#000" stroke-width="0.5"/>`);
-  if (routes) out.push(`<path class="ln" d="${routes}" fill="none" stroke="#000" stroke-width="0.25" stroke-dasharray="2 1"/>`);
+  if (trays) out.push(`<path d="${trays}" fill="none" stroke="${inkOf(pen.trays)}" stroke-width="${w(pen.trays)}"/>`);
+  if (routes) out.push(`<path class="ln" d="${routes}" fill="none" stroke="${inkOf(pen.routes)}" stroke-width="${w(pen.routes)}" stroke-dasharray="2 1"/>`);
   out.push(...labels);
   // The design, black: wiring and home runs (arrow at the DB), then DBs and devices on top.
   const wires = c.wiring.map((w) => path(w)).join('');
-  if (wires) out.push(`<path class="ln" d="${wires}" fill="none" stroke="#000" stroke-width="0.25"/>`);
+  if (wires) out.push(`<path class="ln" d="${wires}" fill="none" stroke="${inkOf(pen.routes)}" stroke-width="${w(pen.routes)}"/>`);
   for (const h of c.homes) {
     const d = path(h);
     if (!d) continue;
-    out.push(`<path class="ln" d="${d}" fill="none" stroke="#000" stroke-width="0.35"/>`);
+    out.push(`<path class="ln" d="${d}" fill="none" stroke="${inkOf(pen.routes)}" stroke-width="${w(pen.routes, 1.4)}"/>`);
     const [a, b] = [h[h.length - 2], h[h.length - 1]];
     if (!within(b, win)) continue;
     const ang = Math.atan2(-(b[1] - a[1]), b[0] - a[0]), bx = X(b[0]), by = Y(b[1]), back = 3.2; // stops short of the DB symbol
@@ -288,11 +292,13 @@ export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number
     out.push(`<path d="M${n(tx)} ${n(ty)}L${n(tx - 1.6 * Math.cos(ang - 0.4))} ${n(ty - 1.6 * Math.sin(ang - 0.4))}L${n(tx - 1.6 * Math.cos(ang + 0.4))} ${n(ty - 1.6 * Math.sin(ang + 0.4))}Z" fill="#000" stroke="#000" stroke-width="0.2"/>`);
   }
   for (const t of c.tags) if (within(t.at, win)) out.push(`<text x="${n(X(t.at[0]) + 1)}" y="${n(Y(t.at[1]) - 1)}" font-size="2.5" fill="#000">${esc(t.text)}</text>`);
-  for (const d of c.boards) if (within([d.x, d.y], win)) out.push(boardSymbol(X(d.x), Y(d.y)), `<text x="${n(X(d.x) + 3.2)}" y="${n(Y(d.y) - 1.8)}" font-size="2.8" font-weight="700" fill="#000">${esc(d.id)}</text>`);
+  // Devices and DBs at the devices pen (their symbols are drawn at 0.25 mm in black).
+  const dev = (svg: string) => (pen.devices.w === 0.25 && pen.devices.grey >= 100 ? svg : svg.replace(/stroke="#000" stroke-width="0\.25"/g, `stroke="${inkOf(pen.devices)}" stroke-width="${w(pen.devices)}"`));
+  for (const d of c.boards) if (within([d.x, d.y], win)) out.push(dev(boardSymbol(X(d.x), Y(d.y))), `<text x="${n(X(d.x) + 3.2)}" y="${n(Y(d.y) - 1.8)}" font-size="2.8" font-weight="700" fill="#000">${esc(d.id)}</text>`);
   const counts = new Map<string, { label: string; n: number; svg: Mark['svg'] }>();
   for (const m of c.marks) {
     if (!within([m.x, m.y], win)) continue;
-    out.push(m.svg(X(m.x), Y(m.y), R));
+    out.push(dev(m.svg(X(m.x), Y(m.y), R)));
     const k = counts.get(m.key) ?? { label: m.label, n: 0, svg: m.svg };
     counts.set(m.key, { ...k, n: k.n + 1 });
   }

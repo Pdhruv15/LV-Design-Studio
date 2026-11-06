@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plot Setup Mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite dark default + light. The sheet preview is paper: black on white. */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--on-acc:#1D2024;--ok:#37d67a;--warn:#f5c04a;--field-line:#6C7580;--new:#b784ff}
+:root[data-theme="light"]{--bg:#F5F3EF;--panel:#fff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--on-acc:#fff;--ok:#177336;--warn:#8a5d00;--field-line:#857E70;--new:#7a3fd6}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#F5F3EF;--panel:#fff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--on-acc:#fff;--ok:#177336;--warn:#8a5d00;--field-line:#857E70;--new:#7a3fd6}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+.intro{max-width:1240px;margin:0 auto;padding:16px 16px 0}
+.intro h1{font-size:17px;margin:0 0 4px}
+.intro p{margin:0 0 6px;color:var(--mut);max-width:960px}
+.legend{font-size:12px;color:var(--mut);margin:8px 0;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.legend i{display:inline-block;width:12px;height:12px;border:2px dashed var(--new);border-radius:3px;vertical-align:-2px;margin-right:5px}
+.legend .theme{margin-left:auto;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--mut)}
+.steps{max-width:1240px;margin:0 auto;padding:0 16px;display:flex;gap:6px;flex-wrap:wrap}
+.steps button{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;color:var(--mut)}
+.steps button[aria-pressed=true]{border-color:var(--acc);color:var(--tx)}
+.win{max-width:1240px;margin:10px 16px 24px;background:var(--panel);border:1px solid var(--line-strong);border-radius:10px;overflow:hidden}
+@media (min-width:1272px){.win{margin:10px auto 24px}}
+.new{outline:2px dashed var(--new);outline-offset:2px;border-radius:6px}
+.head{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.head h3{margin:0;font-size:15px}
+.head .file{color:var(--mut);font-size:12px}
+.subtabs{display:flex;gap:2px;padding:4px 10px 0;background:var(--p2)}
+.subtabs span{padding:4px 12px;border-radius:6px 6px 0 0;color:var(--mut);font-size:12px}
+.subtabs span.on{background:var(--panel);color:var(--tx)}
+.tools{display:flex;gap:4px;padding:6px 10px;border-bottom:1px solid var(--line);background:var(--p2);flex-wrap:wrap;align-items:flex-end}
+.grp{display:flex;flex-direction:column;align-items:center;gap:2px}
+.grp .row{display:flex;gap:2px;flex-wrap:wrap}
+.grp small{font-size:10px;color:var(--mut)}
+.tool{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:58px;padding:5px 4px;border-radius:6px;border:1px solid transparent;background:none;font-size:11px;color:var(--tx)}
+.tool svg{width:20px;height:20px;stroke:var(--mut);fill:none;stroke-width:1.6}
+.tool[aria-pressed=true]{background:var(--panel);border-color:var(--acc)}
+.tool[aria-pressed=true] svg{stroke:var(--acc)}
+.sep{width:1px;align-self:stretch;background:var(--line);margin:0 4px}
+.body{display:grid;grid-template-columns:minmax(0,1fr) 400px;min-height:600px}
+@media (max-width:980px){.body{grid-template-columns:1fr}}
+.stage{background:var(--p2);border-right:1px solid var(--line);display:flex;align-items:center;justify-content:center;padding:18px;min-height:420px}
+.paper{background:#fff;box-shadow:0 4px 18px rgba(0,0,0,.35);width:100%;max-width:760px}
+.paper svg{display:block;width:100%;height:auto}
+.side{display:flex;flex-direction:column;min-width:0}
+.side h4{margin:0;font-size:13px;padding:10px 12px 6px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.side h4 small{font-weight:400;color:var(--mut)}
+.sec{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;padding:8px 12px 4px;border-top:1px solid var(--line)}
+.form{display:grid;grid-template-columns:120px 1fr;gap:6px 8px;padding:0 12px 8px;align-items:center}
+.form label{color:var(--mut);font-size:12px}
+.form input,.form select{background:var(--p2);border:1px solid var(--field-line);border-radius:6px;height:28px;padding:0 8px;min-width:0;width:100%}
+.pair{display:flex;gap:6px;align-items:center}
+.p{padding:0 12px 8px;font-size:12px;color:var(--mut)}
+.chk{display:flex;gap:6px;align-items:center;font-size:12px;padding:0 12px 6px}
+.foot{display:flex;gap:8px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);flex-wrap:wrap;margin-top:auto}
+.chip{border:1px solid var(--field-line);background:var(--p2);border-radius:6px;padding:0 12px;height:30px;white-space:nowrap}
+.chip.primary{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}
+table.pens{border-collapse:collapse;width:calc(100% - 24px);margin:0 12px 8px;font-size:12px}
+table.pens th{color:var(--mut);font-weight:400;text-align:left;padding:3px 4px;border-bottom:1px solid var(--line)}
+table.pens td{padding:2px 4px;border-bottom:1px solid var(--line)}
+table.pens select{background:var(--p2);border:1px solid var(--field-line);border-radius:5px;height:24px;padding:0 4px}
+.sw{display:inline-block;width:40px;vertical-align:middle}
+.sheets{margin:0 12px 8px;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:6px}
+.sheets label{display:flex;gap:8px;align-items:center;padding:4px 8px;border-bottom:1px solid var(--line);font-size:12px}
+.sheets label span{color:var(--mut);margin-left:auto}
+.warns{margin:0 12px 8px;padding:0;list-style:none;font-size:12px}
+.warns li{color:var(--warn);padding:2px 0}
+.warns li.ok{color:var(--ok)}
+.notes{max-width:1240px;margin:0 auto 24px;padding:0 16px;color:var(--mut);font-size:12px}
+.notes li{margin:3px 0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="intro">
+  <h1>Design CAD → Sheets → Plot — page setup, pen table and publish mockup (2026-11-06)</h1>
+  <p>Each sheet gets a <b>page setup</b> (paper, orientation, scale, what is plotted), and the set has a <b>pen table</b> that decides how thick every kind of line prints — the app's own (devices, trays, cables, text, frame) and the architect's background, either one thin grey, the lineweights stored in the DWG, or a <b>CTB</b> file from your CAD folder. <b>Publish</b> then prints one sheet, the ones ticked, or all, as one PDF or one file per sheet. Printing stays black-and-white.</p>
+  <div class="legend"><span><i></i>new in this proposal</span><span>Everything else is as the app is today.</span><button class="theme" id="theme">Light / dark</button></div>
+</div>
+<div class="steps" role="group" aria-label="Screen">
+  <button data-s="page" aria-pressed="true">1 · Page setup</button>
+  <button data-s="pens" aria-pressed="false">2 · Pen table (CTB)</button>
+  <button data-s="pub" aria-pressed="false">3 · Publish</button>
+</div>
+
+<div class="win">
+  <div class="head"><h3>Design CAD</h3><span class="file">E-LTG-101 · Lighting layout — Ground floor · Villa</span></div>
+  <div class="subtabs"><span>Plan</span><span>Draw</span><span class="on">Sheets</span></div>
+  <div class="tools">
+    <div class="grp"><div class="row">
+      <button class="tool"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>All sheets</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16"/><path d="M3 16h18"/></svg>Title block</button>
+    </div><small>Sheets</small></div>
+    <span class="sep"></span>
+    <div class="grp new"><div class="row">
+      <button class="tool" data-s="page" aria-pressed="true"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18"/><path d="M5 7h14M9 3v4"/></svg>Page setup</button>
+      <button class="tool" data-s="pens"><svg viewBox="0 0 24 24"><path d="M4 6h16" stroke-width="1"/><path d="M4 12h16" stroke-width="2.2"/><path d="M4 18h16" stroke-width="3.4"/></svg>Pens</button>
+      <button class="tool" data-s="prev"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18"/><circle cx="12" cy="12" r="3"/></svg>Preview</button>
+    </div><small>Plot</small></div>
+    <span class="sep"></span>
+    <div class="grp"><div class="row">
+      <button class="tool" data-s="pub"><svg viewBox="0 0 24 24"><path d="M4 12 20 4l-4 16-4-6z"/></svg>Publish</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/></svg>PDF</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 14h6"/></svg>DXF</button>
+      <button class="tool"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M12 10v6M9 13l3 3 3-3"/></svg>DWG</button>
+    </div><small>Issue and export</small></div>
+  </div>
+  <div class="body">
+    <div class="stage"><div class="paper" id="paper"></div></div>
+
+    <!-- 1 Page setup -->
+    <div class="side new" id="pPage">
+      <h4>Page setup <small>this sheet · E-LTG-101</small></h4>
+      <div class="form">
+        <label>Use</label><select id="use"><option value="own">This sheet's own setup</option><option value="set">The set's default</option></select>
+        <label>Paper</label><select id="paperSel"><option>Auto (smallest that fits)</option><option>A4</option><option>A3</option><option>A2</option><option selected>A1</option><option>A0</option></select>
+        <label>Orientation</label><select id="orient"><option selected>Landscape</option><option>Portrait</option></select>
+        <label>Scale</label><select id="scale"><option>1:50</option><option selected>1:100</option><option>1:200</option><option>1:500</option><option>Fit to the sheet (NTS)</option></select>
+        <label>Plot area</label><select id="area"><option selected>The whole sheet</option><option>The plan only (no frame)</option><option>A window (pick two corners)</option></select>
+        <label>Pen table</label><select id="penSel"><option selected>LVDS Electrical (default)</option><option>ABC Architects.ctb (imported)</option><option>monochrome.ctb (imported)</option></select>
+        <label>Lineweights</label><select><option selected>Print them (from the pen table)</option><option>All one thin line</option></select>
+      </div>
+      <label class="chk"><input type="checkbox" checked id="stamp"> Plot stamp in the margin (file, date, revision, user)</label>
+      <ul class="warns" id="pageWarn"></ul>
+      <div class="foot"><button class="chip primary">Save setup</button><button class="chip">Save as the set's default</button><span class="p" style="padding:0">Printing is always black-and-white.</span></div>
+    </div>
+
+    <!-- 2 Pen table -->
+    <div class="side new" id="pPens" hidden>
+      <h4>Pen table <small id="penName">LVDS Electrical (default)</small></h4>
+      <div class="sec">The app's lines</div>
+      <table class="pens" id="pens"></table>
+      <div class="sec">The architect's drawing</div>
+      <div class="form">
+        <label>Background</label><select id="bg"><option value="grey">One thin grey line (0.18 mm, 50 %)</option><option value="dwg">The lineweights in the DWG's layers</option><option value="ctb">By colour, from a CTB file</option></select>
+        <label>CTB file</label><div class="pair"><input id="ctbName" value="ABC Architects.ctb" disabled><button class="chip" id="ctbBtn">Import…</button></div>
+      </div>
+      <div class="p" id="ctbInfo"></div>
+      <div class="foot"><button class="chip primary">Save pen table</button><button class="chip">Save as new…</button><button class="chip">Reset</button></div>
+    </div>
+
+    <!-- 3 Publish -->
+    <div class="side new" id="pPub" hidden>
+      <h4>Publish <small>31 sheets in the set</small></h4>
+      <div class="form">
+        <label>Sheets</label><select id="which"><option value="this">This sheet</option><option value="ticked" selected>The ones ticked below</option><option value="all">All sheets</option></select>
+        <label>Show</label><select id="kind"><option>All kinds</option><option>SLD</option><option>Board sheets</option><option>Plans</option><option>Earthing</option></select>
+      </div>
+      <div class="sheets" id="list"></div>
+      <div class="form">
+        <label>As</label><select id="as"><option>One PDF, all sheets</option><option>One PDF per sheet</option><option>DXF per sheet</option><option>DWG per sheet</option></select>
+        <label>Page setup</label><select><option selected>Each sheet's own</option><option>Override: all A3, fit (check set)</option></select>
+        <label>File names</label><select><option selected>Number - Title (E-LTG-101 - Lighting layout GF.pdf)</option><option>Number only</option></select>
+      </div>
+      <ul class="warns" id="pubWarn"></ul>
+      <div class="foot"><button class="chip primary" id="go">Publish 4 sheets</button><button class="chip">Preview</button><span class="p" style="padding:0">Readiness checks run first, as today.</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="notes">
+  <b>Notes for the decision</b>
+  <ul>
+    <li><b>Where:</b> a new <b>Plot</b> group on the Sheets sub-tab (Page setup, Pens, Preview), beside Issue and export. The Publish dialog keeps today's readiness checks and Issue, and gains the sheet list, the output kind and file names.</li>
+    <li><b>Page setup</b> is kept per sheet (blank = the set's default). Auto paper keeps today's behaviour (the smallest of A3–A1 that fits). Scale applies to plan sheets; SLD sheets stay "fit" as now.</li>
+    <li><b>Pen table</b>: one per project, chosen per sheet. Widths from the ISO series 0.13 / 0.18 / 0.25 / 0.35 / 0.5 / 0.7 / 1.0 / 1.4 / 2.0 mm, black or a grey. The defaults match what the sheets print today, so nothing changes until you edit it.</li>
+    <li><b>CTB from your CAD files</b>: a .ctb sits in the AutoCAD Plot Styles folder, not in the DWG. Import reads its 255 colours → lineweight and screening (grey); the architect's lines then print by their colour. Or use the lineweights stored on the DWG's layers. STB (named styles) later.</li>
+    <li><b>Preview</b> shows the sheet as it will print, at the pen widths (zoom to check). The same widths go into the PDF; DXF/DWG get the lineweights on their layers.</li>
+  </ul>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const W=[0.13,0.18,0.25,0.35,0.5,0.7,1.0,1.4,2.0];
+let pens=[{k:'frame',l:'Sheet frame and title block',w:0.5,g:100},{k:'devices',l:'Devices (lights, sockets, DB)',w:0.25,g:100},{k:'trays',l:'Cable trays',w:0.5,g:100},{k:'routes',l:'Cable routes and wiring',w:0.25,g:100},{k:'text',l:'Text and tags',w:0.18,g:100},{k:'dims',l:'Dimensions and leaders',w:0.13,g:100},{k:'hatch',l:'Hatches',w:0.13,g:60}];
+let step='page',bg='grey';
+const CTB={1:0.35,2:0.25,3:0.18,4:0.5,7:0.25,8:0.13,9:0.13,252:0.13};
+function sheet(){
+  const p=Object.fromEntries(pens.map(x=>[x.k,x])),k=0.9,grey=g=>{const v=Math.round(255*(1-g/100));return `rgb(${v},${v},${v})`};
+  const st=(x,dash)=>`stroke="${grey(x.g)}" stroke-width="${x.w*k*2}"${dash?` stroke-dasharray="${dash}"`:''}`;
+  const wall=bg==='grey'?`stroke="#888" stroke-width="${0.18*k*2}"`:bg==='dwg'?`stroke="#000" stroke-width="${0.35*k*2}"`:`stroke="#000" stroke-width="${CTB[7]*k*2}"`;
+  const thin=bg==='ctb'?`stroke="#000" stroke-width="${CTB[8]*k*2}"`:wall;
+  let s=`<svg viewBox="0 0 420 297" xmlns="http://www.w3.org/2000/svg"><rect width="420" height="297" fill="#fff"/>`;
+  s+=`<rect x="8" y="8" width="404" height="281" fill="none" ${st(p.frame)}/><rect x="300" y="250" width="112" height="39" fill="none" ${st(p.frame)}/><line x1="300" y1="262" x2="412" y2="262" ${st(p.frame)}/>`;
+  s+=`<text x="304" y="258" font-size="6" fill="#000">LIGHTING LAYOUT — GROUND FLOOR</text><text x="304" y="272" font-size="5" fill="#000">E-LTG-101 · Rev B · 1:100</text><text x="304" y="282" font-size="4" fill="#000">FOR APPROVAL</text>`;
+  s+=`<g fill="none" ${wall}><path d="M30 30H270V230H30Z"/><path d="M150 30V120M150 140V230M30 130H140M160 130H270"/></g><g fill="none" ${thin}><path d="M40 40h40v20h-40zM200 200h40v20h-40z"/></g>`;
+  s+=`<g fill="#000" font-size="5"><text x="36" y="125">LIVING</text><text x="160" y="125">KITCHEN</text><text x="36" y="225">BEDROOM</text></g>`;
+  s+=`<rect x="160" y="140" width="110" height="90" fill="none" stroke="none"/><path d="M162 142h106v86h-106z" fill="none" ${st(p.hatch)} stroke-dasharray="1 2"/>`;
+  s+=`<path d="M40 180H260" fill="none" ${st(p.trays)}/><path d="M40 184H260" fill="none" ${st(p.trays)}/>`;
+  s+=`<path d="M60 80 Q90 60 120 80 Q150 100 190 80" fill="none" ${st(p.routes,'3 1.5')}/>`;
+  for(const [x,y] of [[60,80],[120,80],[190,80],[230,80],[60,160],[110,160]])s+=`<g fill="#fff" ${st(p.devices)}><circle cx="${x}" cy="${y}" r="4"/><path d="M${x-2.8} ${y-2.8}l5.6 5.6M${x+2.8} ${y-2.8}l-5.6 5.6"/></g>`;
+  s+=`<rect x="262" y="196" width="10" height="6" fill="#fff" ${st(p.devices)}/><text x="64" y="74" font-size="4" fill="${grey(p.text.g)}">Y1</text><text x="124" y="74" font-size="4" fill="${grey(p.text.g)}">Y1</text>`;
+  s+=`<g ${st(p.dims)} fill="none"><path d="M30 20H270M30 17v6M270 17v6"/></g><text x="140" y="16" font-size="4" fill="#000">24000</text>`;
+  if($('stamp').checked)s+=`<text x="10" y="294" font-size="3" fill="#000">E-LTG-101 - Lighting layout GF.pdf · 2026-11-06 10:42 · Rev B · user name</text>`;
+  $('paper').innerHTML=s+`</svg>`;
+}
+function pensTable(){
+  $('pens').innerHTML=`<tr><th>Line</th><th>Width</th><th>Ink</th><th></th></tr>`+pens.map((x,i)=>`<tr><td>${x.l}</td><td><select data-i="${i}" data-f="w">${W.map(w=>`<option ${w===x.w?'selected':''}>${w.toFixed(2)}</option>`).join('')}</select></td><td><select data-i="${i}" data-f="g">${[100,80,60,40].map(g=>`<option value="${g}" ${g===x.g?'selected':''}>${g===100?'Black':g+' % grey'}</option>`).join('')}</select></td><td><svg class="sw" viewBox="0 0 40 8"><line x1="2" y1="4" x2="38" y2="4" stroke="${x.g===100?'var(--tx)':'var(--mut)'}" stroke-width="${x.w*3}"/></svg></td></tr>`).join('');
+  $('ctbInfo').textContent=bg==='ctb'?'ABC Architects.ctb: 255 colours read — colour 7 → 0.25 mm, 1 → 0.35, 3 → 0.18, 8/9/252 → 0.13 (screened grey). The architect\'s lines print by their colour.':bg==='dwg'?'The DWG\'s layers: 41 have a lineweight (A-WALL 0.35 mm, A-DOOR 0.18 mm…), 12 are "Default" → 0.25 mm.':'The background prints as today: one thin grey line, so the electrical design stands out.';
+  $('ctbBtn').disabled=bg!=='ctb';
+}
+const SHEETS=[['E-SLD-001','SLD — MDB-1','SLD',1],['E-SLD-002','SLD — SMDB-GF','SLD',0],['E-DB-101','DB-GF1 circuits','Board sheets',1],['E-DB-102','DB-FF1 circuits','Board sheets',0],['E-LTG-101','Lighting layout — GF','Plans',1],['E-LTG-102','Lighting layout — FF','Plans',1],['E-PWR-101','Power layout — GF','Plans',0],['E-EAR-001','Earthing schematic','Earthing',0]];
+function list(){
+  const k=$('kind').value;$('list').innerHTML=SHEETS.filter(s=>k==='All kinds'||s[2]===k).map(s=>`<label><input type="checkbox" data-n="${s[0]}" ${s[3]?'checked':''} ${$('which').value!=='ticked'?'disabled':''}> ${s[0]} · ${s[1]}<span>${s[2]==='Plans'?'A1 · 1:100':s[2]==='SLD'?'A1 · fit':'A3 · fit'}</span></label>`).join('');
+  pub();
+}
+function pub(){const w=$('which').value,n=w==='this'?1:w==='all'?31:SHEETS.filter(s=>s[3]).length;$('go').textContent=`Publish ${n} sheet${n===1?'':'s'}`;
+  $('pubWarn').innerHTML=w==='all'?'<li>⚠ 2 sheets not issued yet — they publish as "Not issued"</li><li class="ok">✓ Readiness checks: no problems</li>':'<li class="ok">✓ Readiness checks: no problems</li>';}
+function page(){const s=$('scale').value,pa=$('paperSel').value,w=[];
+  if(pa==='A4'&&s==='1:100')w.push('⚠ At 1:100 the ground floor (24 × 20 m) needs A3 or larger: it would be split over 2 sheets');
+  if(s.startsWith('Fit'))w.push('⚠ Fit to the sheet: the scale bar shows NTS, and measured lengths will not scale');
+  if(!w.length)w.push('✓ The plan fits A1 at 1:100 with room for the legend');
+  $('pageWarn').innerHTML=w.map(t=>`<li class="${t[0]==='✓'?'ok':''}">${t}</li>`).join('');}
+function show(s){
+  if(s==='prev')s=step;step=s;document.querySelectorAll('[data-s]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===s));
+  $('pPage').hidden=s!=='page';$('pPens').hidden=s!=='pens';$('pPub').hidden=s!=='pub';
+  pensTable();list();page();sheet();
+}
+$('pens').addEventListener('change',e=>{const t=e.target,i=+t.dataset.i;if(t.dataset.f==='w')pens[i].w=+t.value;else pens[i].g=+t.value;pensTable();sheet();});
+$('bg').addEventListener('change',e=>{bg=e.target.value;pensTable();sheet();});
+['scale','paperSel'].forEach(id=>$(id).addEventListener('change',()=>{page();}));
+$('stamp').addEventListener('change',sheet);
+$('which').addEventListener('change',list);$('kind').addEventListener('change',list);
+$('list').addEventListener('change',e=>{const n=e.target.dataset.n;const s=SHEETS.find(x=>x[0]===n);if(s)s[3]=e.target.checked?1:0;pub();});
+$('penSel').addEventListener('change',e=>{if(e.target.value.includes('ctb')){bg='ctb';$('bg').value='ctb';}sheet();});
+document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>show(b.dataset.s));
+$('theme').onclick=()=>{const r=document.documentElement,d=r.dataset.theme||(matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');r.dataset.theme=d==='light'?'dark':'light';};
+show('page');
+</script>
+</body>
+</html>

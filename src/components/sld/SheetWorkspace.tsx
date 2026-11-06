@@ -21,6 +21,7 @@ import { SHEET_MM } from '../../docs/sldSheet';
 import { addPlanSheets, PLAN_LABEL, PLAN_TYPES, planLevels } from '../../docs/planLayout';
 import { exportDrawingSet, exportEverythingZip, exportSheetsDwg, exportSheetsDxf, sheetHtml } from '../docs/sheetRender';
 import { IssueDialog } from '../docs/IssueDialog';
+import { PageSetupDialog, PenTableDialog } from '../docs/PlotDialogs';
 import SheetMarkupLayer, { type SheetAnchor } from './SheetMarkupLayer';
 import { ALL_TOOLS } from './markupTools';
 import { NO_SHEET_ACTIONS, type SheetUi } from './sheetUi';
@@ -180,6 +181,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
   const [busy, setBusy] = useState(false);
   const { zoom, setZoom, side, tool, setTool, color: mColor, setColor: setMColor, size: mSize, setSize: setMSize, selId, setSelId } = ui;
   const [publish, setPublish] = useState(false);
+  const [plotDlg, setPlotDlg] = useState<'page' | 'pens' | null>(null);
   const host = useRef<HTMLDivElement>(null);
   const space = useSpaceHeld(); // Space + drag pans, with any markup tool
   const [hostW, setHostW] = useState(900);
@@ -271,6 +273,8 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
       removeSelected,
       restyle: (p) => { if (p.color) setMColor(p.color); if (p.size) setMSize(p.size); restyle(p); },
       publish: () => setPublish(true),
+      pageSetup: () => setPlotDlg('page'),
+      pens: () => setPlotDlg('pens'),
       exportAs: (kind) => {
         if (!s) return;
         if (kind === 'pdf') void exportDrawingSet(project, set, run, false, onStatus, [s.id], false);
@@ -449,7 +453,9 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
         const t = ALL_TOOLS.find((x) => x.tool === tool);
         return t && (tool !== 'select' || selected) ? <div className="m sheet-hint">{t.label}: {t.hint}{markups.length ? ` · ${markups.length} on this sheet` : ''}</div> : null;
       })()}
-      {publish && <PublishDialog project={project} run={run} onClose={() => setPublish(false)} onChange={onChange} onStatus={onStatus} onOpen={(id) => { setPublish(false); onActive(id); }} />}
+      {publish && <PublishDialog project={project} run={run} current={s.id} onClose={() => setPublish(false)} onChange={onChange} onStatus={onStatus} onOpen={(id) => { setPublish(false); onActive(id); }} />}
+      {plotDlg === 'page' && <PageSetupDialog project={project} sheet={s} onSave={(p, m) => { onChange(p); onStatus(m); }} onClose={() => setPlotDlg(null)} />}
+      {plotDlg === 'pens' && <PenTableDialog project={project} onSave={(p, m) => { onChange(p); onStatus(m); }} onClose={() => setPlotDlg(null)} />}
     </div>
   );
 }
@@ -534,8 +540,26 @@ function CloudAdd({ boards, rev, onAdd }: { boards: string[]; rev: string; onAdd
 }
 
 /** Readiness checks, then publish: the whole set as one PDF, or issue it. */
-function PublishDialog({ project, run, onClose, onChange, onStatus, onOpen }: { project: Project; run?: CalcRun; onClose: () => void; onChange: (p: Project) => void; onStatus: (m: string) => void; onOpen: (id: string) => void }) {
+type PublishAs = 'pdf' | 'pdfEach' | 'dxf' | 'dwg';
+const PUBLISH_AS: Record<PublishAs, string> = { pdf: 'One PDF, all the sheets', pdfEach: 'One PDF per sheet', dxf: 'DXF per sheet', dwg: 'DWG per sheet' };
+
+function PublishDialog({ project, run, current, onClose, onChange, onStatus, onOpen }: { project: Project; run?: CalcRun; current?: string; onClose: () => void; onChange: (p: Project) => void; onStatus: (m: string) => void; onOpen: (id: string) => void }) {
   const set = setOf(project);
+  // Which sheets go (this one, those ticked, or all), shown by kind, and as what.
+  const [which, setWhich] = useState<'this' | 'ticked' | 'all'>('all');
+  const [kind, setKind] = useState('');
+  const [ticked, setTicked] = useState<Set<string>>(() => new Set(set.sheets.map((x) => x.id)));
+  const [as, setAs] = useState<PublishAs>('pdf');
+  const only = which === 'all' ? undefined : which === 'this' ? (current ? [current] : []) : set.sheets.filter((x) => ticked.has(x.id)).map((x) => x.id);
+  const count = only ? only.length : set.sheets.length;
+  async function go() {
+    setBusy('go');
+    try {
+      if (as === 'dxf') await exportSheetsDxf(project, set, run, onStatus, only);
+      else if (as === 'dwg') await exportSheetsDwg(project, set, run, onStatus, only);
+      else await exportDrawingSet(project, set, run, as === 'pdfEach', onStatus, only);
+    } finally { setBusy(''); }
+  }
   const [crowded, setCrowded] = useState<SheetCheck[] | null>(null);
   const [busy, setBusy] = useState('');
   const [issuing, setIssuing] = useState(false);
@@ -572,13 +596,31 @@ function PublishDialog({ project, run, onClose, onChange, onStatus, onOpen }: { 
           </li>
         ))}
       </ul>
+      <div className="cad-devform">
+        <label>Sheets<select aria-label="Sheets to publish" value={which} onChange={(e) => setWhich(e.target.value as typeof which)}>
+          {current && <option value="this">This sheet</option>}<option value="ticked">The ones ticked below</option><option value="all">All sheets</option>
+        </select></label>
+        {which === 'ticked' && (
+          <>
+            <label>Show<select aria-label="Show sheets" value={kind} onChange={(e) => setKind(e.target.value)}>
+              <option value="">All kinds</option>{[...new Set(set.sheets.map((x) => GROUP_OF[x.kind]))].map((k) => <option key={k} value={k}>{k}</option>)}
+            </select></label>
+            <div className="pub-list" role="group" aria-label="Sheets">
+              {set.sheets.filter((x) => !kind || GROUP_OF[x.kind] === kind).map((x) => (
+                <label key={x.id}><input type="checkbox" checked={ticked.has(x.id)} onChange={(e) => { const n = new Set(ticked); if (e.target.checked) n.add(x.id); else n.delete(x.id); setTicked(n); }} /> {x.number} · {x.title} <span className="m">{x.size === 'auto' ? 'auto' : x.size}{x.kind === 'plan' ? ` · ${x.scale || '1:100'}` : ''}</span></label>
+              ))}
+            </div>
+          </>
+        )}
+        <label>As<select aria-label="Publish as" value={as} onChange={(e) => setAs(e.target.value as PublishAs)}>{(Object.keys(PUBLISH_AS) as PublishAs[]).map((k) => <option key={k} value={k}>{PUBLISH_AS[k]}</option>)}</select></label>
+        <span className="m">Each sheet prints with its own page setup and pens (Plot → Page setup).</span>
+      </div>
       <div className="modal-actions">
         <button className="chip" onClick={onClose}>Close</button>
         <span className="sp" />
-        <button className="chip" disabled={!!busy || !set.sheets.length} onClick={async () => { setBusy('dxf'); try { await exportSheetsDxf(project, set, run, onStatus); } finally { setBusy(''); } }}>{busy === 'dxf' ? 'Building…' : 'DXF per sheet'}</button>
+        <button className="chip primary" disabled={!!busy || !count} onClick={() => void go()}>{busy === 'go' ? 'Building…' : `Publish ${count} sheet${count === 1 ? '' : 's'}`}</button>
         <button className="chip" disabled={!!busy || !set.sheets.length} onClick={async () => { setBusy('zip'); try { await exportEverythingZip(project, set, run, onStatus); } finally { setBusy(''); } }}>{busy === 'zip' ? 'Building…' : 'Everything (ZIP)'}</button>
-        <button className="chip" disabled={!!busy || !set.sheets.length} onClick={async () => { setBusy('set'); try { await exportDrawingSet(project, set, run, false, onStatus); } finally { setBusy(''); } }}>{busy === 'set' ? 'Building…' : 'Export set (one PDF)'}</button>
-        <button className="chip primary" disabled={!set.sheets.length} onClick={() => setIssuing(true)}>Issue all sheets…</button>
+        <button className="chip" disabled={!set.sheets.length} onClick={() => setIssuing(true)}>Issue all sheets…</button>
       </div>
       {issuing && <IssueDialog sheets={set.sheets} projectRev={rev?.id} onClose={() => setIssuing(false)} onIssue={async (o, pdf) => {
         const r = issueSheets(set, set.sheets.map((s) => s.id), o, rev?.id, (s) => sheetHash(project, set, s), (s) => sheetItems(project, set, s));

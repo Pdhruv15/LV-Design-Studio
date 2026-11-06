@@ -27,6 +27,7 @@ import { boardIncomerLabel } from '../../docs/loadScheduleDoc';
 import SingleLineDiagram from '../SingleLineDiagram';
 import { dxfToDwg } from '../../engines/cad/cadEngine';
 import { planDrawing, planNotes, planScale } from '../../docs/planLayout';
+import { diagramPenCss, inkOf, pensFor, plotOf, plotStamp } from '../../model/plotSetup';
 
 const noop = () => {};
 
@@ -173,6 +174,14 @@ export function fullSheetInfo(project: Project, set: DrawingSet, s: DrawingSheet
   const info: SheetInfo = { ...sheetInfo(set, s, set.sheets.indexOf(s)), legendSvg, ...(withMarkups && s.markups?.length ? { markups: s.markups } : {}) };
   if (s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId) { const L = dbRiserLayout({ ...project, drawingSet: set }, s.buildingId); info.sideMm = RISER_SIDE_MM; if (!L.empty) info.summary = dbRiserSummary(L); }
   if (s.kind === 'plan') { info.notes = [...planNotes(project, s), ...(info.notes ?? [])]; info.scale = `1:${planScale(s.scale)}`; }
+  // Pens and plot stamp of the sheet's page setup; nothing changes with the default pens and no stamp.
+  const pens = pensFor(project, s), setup = plotOf(project, s);
+  const css = s.kind === 'plan' ? '' : diagramPenCss(pens);
+  const plot = {
+    ...(pens.frame.w !== 0.7 ? { frame: pens.frame.w } : {}), ...(pens.title.w !== 0.25 ? { lines: pens.title.w } : {}), ...(pens.frame.grey < 100 ? { ink: inkOf(pens.frame) } : {}),
+    ...(css ? { css } : {}), ...(setup.stamp ? { stamp: plotStamp(s, s.rev || sheetRev(s) || undefined, project.drawing?.drawnBy || s.drawnBy || undefined) } : {})
+  };
+  if (Object.keys(plot).length) info.plot = plot;
   if (legend) {
     const boards = new Set(set.sheets.flatMap((x) => (x.kind === 'system' ? x.boards : [])));
     info.cables = cableRefsUsed(project, project.feeders.filter((f) => boards.has(f.boardId)));
