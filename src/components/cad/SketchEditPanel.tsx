@@ -1,6 +1,7 @@
 import { Fragment, useState } from 'react';
 import { isPath } from '../../model/cadEdit';
 import { TRAY_WIDTHS } from '../../model/cadSketch';
+import { toolAlias } from './cadCommands';
 import type { SketchItem } from '../../types';
 
 /** Design CAD → Draw → Modify / Edit: the toolbar beside drawn objects picked, the side panel of several, and the
@@ -88,7 +89,6 @@ const TITLE: Record<EditTool, string> = {
   trim: 'Trim', extend: 'Extend', offset: 'Offset', fillet: 'Fillet', chamfer: 'Chamfer', break: 'Break', join: 'Join', explode: 'Explode',
   mirror: 'Mirror', scale: 'Scale', stretch: 'Stretch', array: 'Array'
 };
-const CMD: Record<EditTool, string> = { trim: 'TRIM', extend: 'EX', offset: 'O', fillet: 'F', chamfer: 'CHA', break: 'BR', join: 'J', explode: 'X', mirror: 'MI', scale: 'SC', stretch: 'S', array: 'AR' };
 const HELP: Record<EditTool, string> = {
   trim: 'Click the part to cut away: it is cut at the nearest lines crossing it, drawn or the architect\'s (shown layers), which are never changed. Shift-click extends instead.',
   extend: 'Click near the end to lengthen: it runs on to the next line ahead, drawn or the architect\'s. Shift-click trims instead.',
@@ -118,7 +118,7 @@ export function EditToolPanel({ tool, settings, onSettings, step, picked, onAppl
   const field = (k: keyof EditSettings, label: string, step = 0.05) => <label>{label}<input aria-label={label} type="number" step={step} value={String(settings[k])} onChange={set(k)} /></label>;
   return (
     <>
-      <h4>{TITLE[tool]} <span className="m">{CMD[tool]}</span></h4>
+      <h4>{TITLE[tool]} <span className="m">{toolAlias(tool)}</span></h4>
       <div className="cad-devform">
         {tool === 'offset' && field('offset', 'Distance (m)')}
         {tool === 'fillet' && field('radius', 'Radius (m)')}
