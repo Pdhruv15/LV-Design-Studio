@@ -1254,7 +1254,7 @@ export default function App() {
           onSave: () => saveProject(),
           onSaveAs: () => saveAs(),
           onAnonymizedSample: () => setShowAnonymized(true),
-          cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onSave: () => cadS.actions.current.save(), onSaveDwg: () => cadS.actions.current.saveDwg(), onClose: () => cadS.actions.current.close(), onDelete: () => cadS.actions.current.remove(), hasSelection: !!cadS.selected, onFit: () => cadS.fit(), onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, onLayerManager: () => { setView('cad'); cadS.actions.current.layerManager(); }, onRefs: () => { setView('cad'); cadS.actions.current.refs(); }, layersOn: cadS.showLayers, hasDrawing: !!cadS.view,
+          cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onSave: () => cadS.actions.current.save(), onSaveDwg: () => cadS.actions.current.saveDwg(), onClose: () => cadS.actions.current.close(), onDelete: () => cadS.actions.current.remove(), hasSelection: !!cadS.selected, onFit: () => cadS.fit(), onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, onLayerManager: () => { setView('cad'); cadS.actions.current.layerManager(); }, onRefs: () => { setView('cad'); cadS.actions.current.refs(); }, inLayout: !!cadS.layout && view === 'cad', onLayoutCmd: (c) => { setView('cad'); cadS.actions.current.layoutCmd(c); }, layersOn: cadS.showLayers, hasDrawing: !!cadS.view,
             file: (() => {
               const f = cadFileMenu(project, cadS, (next, message) => { setProject(next, { step: true }); setStatus(message); }, setStatus);
               const show = (m: { label: string; title: string; onClick: () => void; sep?: boolean }[]) => m.map((x) => ({ ...x, onClick: () => { setView('cad'); x.onClick(); } }));
@@ -1589,7 +1589,7 @@ export default function App() {
                 }}
               />
             )}
-            {view === 'cad' && <CadPage cad={cadS} project={project} onChange={(next, message) => { setProject(next, { step: true }); setStatus(message); }} onStatus={setStatus} />}
+            {view === 'cad' && <CadPage cad={cadS} project={project} onChange={(next, message) => { setProject(next, { step: true }); setStatus(message); }} onStatus={setStatus} sheetUi={sheetUi} run={run} onSheet={(id) => { setSheetTab(id); setView('drawings'); }} />}
             {view === 'building' && <BuildingView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'load-assessment' && <LoadAssessmentView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'busbar' && <BusbarStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}

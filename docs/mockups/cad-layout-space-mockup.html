@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model and Layout Mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite dark default */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--on-acc:#1D2024;--ok:#37d67a;--warn:#f5c04a;--new:#b784ff;--bad:#ff5d6c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif}
+.wrap{max-width:420px;margin:0 auto;padding:14px 16px 24px}
+html,body{overflow-x:hidden}
+h1{font-size:16px;margin:0 0 4px}
+h2{font-size:13.5px;margin:18px 0 6px;display:flex;gap:6px;align-items:baseline}
+h2 .n{background:var(--acc);color:var(--on-acc);border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex:none}
+p{margin:0 0 6px;color:var(--mut)}
+.legend{font-size:11.5px;color:var(--mut);margin:4px 0}
+.legend i{display:inline-block;width:12px;height:12px;border:2px dashed var(--new);border-radius:3px;vertical-align:-2px;margin-right:5px}
+.card{background:var(--panel);border:1px solid var(--line-strong);border-radius:9px;overflow:hidden}
+.new{outline:2px dashed var(--new);outline-offset:1px;border-radius:5px}
+/* ribbon */
+.tabs{display:flex;flex-wrap:wrap;gap:3px;padding:6px 8px 0;font-size:11px}
+.tabs span{padding:3px 9px;border-radius:5px 5px 0 0;color:var(--mut)}
+.tabs span.on{background:var(--acc);color:var(--on-acc);font-weight:600}
+.tools{display:flex;flex-wrap:wrap;padding:6px 4px 3px;background:var(--p2);border-top:1px solid var(--line);gap:4px}
+.big{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 6px;font-size:11px;min-width:48px}
+.col{display:flex;flex-direction:column;gap:2px}
+.sm{display:flex;align-items:center;gap:5px;height:18px;padding:0 5px;font-size:11px;white-space:nowrap}
+.ic{width:16px;height:16px;border:1.5px solid var(--mut);border-radius:3px;flex:none}
+.sm .ic{width:12px;height:12px}
+.cap{font-size:10px;color:var(--mut);text-align:center;padding:0 0 4px;background:var(--p2)}
+/* manager */
+.mh{display:flex;align-items:baseline;gap:6px;padding:10px 12px 6px;border-bottom:1px solid var(--line)}
+.mh b{font-size:14px}.mh .m{color:var(--mut);font-size:11.5px}
+.acts{display:flex;flex-wrap:wrap;gap:5px;padding:8px 12px}
+.chip{border:1px solid var(--line-strong);background:var(--p2);border-radius:999px;padding:3px 10px;font-size:11.5px;color:var(--tx)}
+.chip.p{background:var(--acc);color:var(--on-acc);border-color:var(--acc);font-weight:600}
+.chip.dim{color:var(--mut)}
+.ref{border-top:1px solid var(--line);padding:8px 12px;display:grid;grid-template-columns:1fr auto;gap:2px 8px}
+.ref .nm{font-weight:600}
+.ref .pth{grid-column:1/-1;color:var(--mut);font-size:11px;word-break:break-all}
+.ref .row{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11.5px;color:var(--mut)}
+.ref .row b{color:var(--tx);font-weight:500}
+.ref.sel{background:#2b2f35}
+.st{font-size:11px;border-radius:4px;padding:1px 6px;align-self:start}
+.st.ok{color:var(--ok);border:1px solid var(--ok)}
+.st.warn{color:var(--warn);border:1px solid var(--warn)}
+.st.bad{color:var(--bad);border:1px solid var(--bad)}
+.st.off{color:var(--mut);border:1px solid var(--line-strong)}
+.tree{font-size:11px;color:var(--mut);grid-column:1/-1;padding-left:10px}
+.note{font-size:11px;color:var(--mut);padding:6px 12px 10px;border-top:1px solid var(--line)}
+/* form */
+.form{padding:8px 12px 10px;display:grid;grid-template-columns:96px 1fr;gap:6px 8px;align-items:center;font-size:12px}
+.form label{color:var(--mut)}
+.fld{border:1px solid var(--line-strong);background:var(--bg);border-radius:5px;padding:3px 7px;min-height:24px;display:flex;align-items:center;gap:6px}
+.fld .m{color:var(--mut);font-size:11px}
+.seg{display:flex;border:1px solid var(--line-strong);border-radius:5px;overflow:hidden}
+.seg span{flex:1;text-align:center;padding:3px 0;font-size:11.5px;color:var(--mut)}
+.seg span.on{background:var(--acc);color:var(--on-acc);font-weight:600}
+.bar{height:6px;background:var(--line);border-radius:3px;position:relative;flex:1}
+.bar i{position:absolute;left:0;top:0;bottom:0;width:50%;background:var(--acc);border-radius:3px}
+.tick{display:inline-block;width:12px;height:12px;border:1.5px solid var(--acc);background:var(--acc);border-radius:3px;vertical-align:-2px}
+.tick.no{background:none;border-color:var(--line-strong)}
+.hint{grid-column:1/-1;font-size:11px;color:var(--mut)}
+.foot{display:flex;justify-content:flex-end;gap:6px;padding:0 12px 10px}
+/* canvas */
+svg{display:block;width:100%;height:auto}
+.cmd{font:11px ui-monospace,Menlo,monospace;color:var(--mut);padding:5px 10px;border-top:1px solid var(--line);background:#111316}
+.cmd b{color:var(--tx);font-weight:500}
+/* layers */
+.lay{font-size:11.5px}
+.lay div{display:flex;align-items:center;gap:6px;padding:3px 12px;border-top:1px solid var(--line)}
+.lay .g{color:var(--mut);background:var(--p2)}
+.sw{width:10px;height:10px;border-radius:2px;flex:none}
+.lay .c{margin-left:auto;color:var(--mut)}
+/* sheet */
+.sheet{background:#fff;border-radius:6px;padding:6px}
+.dec{margin:0;padding-left:18px;color:var(--mut);font-size:12px}
+.dec li{margin:5px 0}
+.dec b{color:var(--tx)}
+
+/* bottom tabs + status */
+.btabs{display:flex;gap:2px;padding:0 6px;background:#111316;border-top:1px solid var(--line);font-size:11px;overflow:hidden}
+.btabs span{padding:4px 8px;color:var(--mut);border:1px solid transparent;border-top:none;border-radius:0 0 5px 5px;white-space:nowrap}
+.btabs span.on{background:var(--panel);color:var(--tx);border-color:var(--line-strong);font-weight:600}
+.btabs span.plus{color:var(--acc)}
+.status{display:flex;gap:6px;align-items:center;padding:4px 8px;font-size:10.5px;color:var(--mut);background:#111316;border-top:1px solid var(--line);flex-wrap:wrap}
+.status b{color:var(--tx);font-weight:600}
+.status .k{border:1px solid var(--line-strong);border-radius:4px;padding:0 5px}
+.status .k.on{border-color:var(--acc);color:var(--acc)}
+.paperbg{background:#5b6168;padding:10px}
+.vpt{font-size:11px;color:var(--mut);padding:6px 12px;border-top:1px solid var(--line)}
+table.lm{width:100%;border-collapse:collapse;font-size:11px}
+table.lm th{color:var(--mut);font-weight:500;text-align:left;padding:4px 6px;border-bottom:1px solid var(--line)}
+table.lm td{padding:4px 6px;border-top:1px solid var(--line)}
+table.lm .new{outline:none;background:rgba(183,132,255,.12)}
+.rowx{display:flex;gap:6px;align-items:center;padding:6px 12px;border-top:1px solid var(--line);font-size:11.5px}
+.rowx .m{color:var(--mut);margin-left:auto;font-size:11px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Design CAD → Model and layouts — mockup</h1>
+<p>As in industry CAD: you draw once in <b style="color:var(--tx)">Model</b> (real size, as today), and each sheet is a <b style="color:var(--tx)">layout</b>: a paper with its title block, and one or more viewports looking into the model at a scale. One model of a level gives its lighting, power, ELV and containment sheets.</p>
+<div class="legend"><i></i>new in this proposal · 2026-11-07 · 2D only · sheets stay black and white</div>
+
+<h2><span class="n">1</span>Model tab (today's plan, nothing else changes)</h2>
+<div class="card">
+  <svg viewBox="0 0 370 180" style="background:#15171A"><g stroke="#9aa3ad" stroke-width="1" fill="none"><rect x="20" y="15" width="330" height="150"/><line x1="140" y1="15" x2="140" y2="165"/><line x1="240" y1="15" x2="240" y2="110"/><line x1="140" y1="110" x2="350" y2="110"/><line x1="20" y1="90" x2="140" y2="90"/></g>
+<g fill="#9aa3ad" font-size="8" font-family="sans-serif"><text x="60" y="55">LIVING</text><text x="170" y="60">KITCHEN</text><text x="270" y="60">BED 1</text><text x="50" y="130">MAJLIS</text><text x="230" y="140">BED 2</text></g>
+<g fill="none" stroke="#F5B301" stroke-width="1.3"><circle cx="80" cy="40" r="5"/><circle cx="80" cy="70" r="5"/><circle cx="190" cy="40" r="5"/><circle cx="290" cy="40" r="5"/><circle cx="290" cy="85" r="5"/><circle cx="80" cy="128" r="5"/><circle cx="250" cy="132" r="5"/></g>
+<g stroke="#5fb4ff" stroke-width="1"><path d="M80 45V65M85 40H185M195 40H285M290 45V80" fill="none"/></g></svg>
+  <div class="btabs new"><span class="on">Model</span><span>E-LTG-001</span><span>E-PWR-001</span><span>E-ELV-001</span><span class="plus">+</span></div>
+  <div class="status"><span class="k on">SNAP</span><span class="k on">OSNAP</span><span class="k">ORTHO</span><span class="k">GRID</span><span>GF.dwg · DXF · mm · 1 : 1</span></div>
+</div>
+<p style="margin-top:6px">A row of tabs under the drawing: <b style="color:var(--tx)">Model</b>, then one tab per layout of this plan (its sheet number), then <b style="color:var(--tx)">+</b> for a new layout. Right-click a layout tab: Rename, Copy, Move, Delete, Page setup.</p>
+
+<h2><span class="n">2</span>A layout tab: paper, title block, viewports</h2>
+<div class="card">
+  <div class="paperbg new">
+  <svg viewBox="0 0 370 262" style="background:#fff;border-radius:2px">
+    <rect x="8" y="8" width="354" height="246" fill="none" stroke="#000" stroke-width="1.2"/>
+    <rect x="16" y="16" width="250" height="160" fill="none" stroke="#b784ff" stroke-width="1" stroke-dasharray="4 3"/>
+    <g transform="translate(18,22) scale(0.66)"><g stroke="#000" stroke-width="1" fill="none"><rect x="20" y="15" width="330" height="150"/><line x1="140" y1="15" x2="140" y2="165"/><line x1="240" y1="15" x2="240" y2="110"/><line x1="140" y1="110" x2="350" y2="110"/><line x1="20" y1="90" x2="140" y2="90"/></g>
+<g fill="#000" font-size="8" font-family="sans-serif"><text x="60" y="55">LIVING</text><text x="170" y="60">KITCHEN</text><text x="270" y="60">BED 1</text><text x="50" y="130">MAJLIS</text><text x="230" y="140">BED 2</text></g>
+<g fill="none" stroke="#000" stroke-width="1.3"><circle cx="80" cy="40" r="5"/><circle cx="80" cy="70" r="5"/><circle cx="190" cy="40" r="5"/><circle cx="290" cy="40" r="5"/><circle cx="290" cy="85" r="5"/><circle cx="80" cy="128" r="5"/><circle cx="250" cy="132" r="5"/></g>
+<g stroke="#000" stroke-width="1"><path d="M80 45V65M85 40H185M195 40H285M290 45V80" fill="none"/></g></g>
+    <text x="20" y="188" font-size="8" font-family="sans-serif" font-weight="700">GROUND FLOOR LIGHTING LAYOUT</text>
+    <text x="20" y="198" font-size="7" font-family="sans-serif">SCALE 1:100</text>
+    <rect x="16" y="206" width="90" height="42" fill="none" stroke="#b784ff" stroke-width="1" stroke-dasharray="4 3"/>
+    <g transform="translate(22,210) scale(0.22)" stroke="#000" fill="none"><rect x="20" y="15" width="330" height="150"/><rect x="20" y="15" width="330" height="150" fill="#000" fill-opacity=".15"/></g>
+    <text x="22" y="246" font-size="6" font-family="sans-serif">KEY PLAN 1:500</text>
+    <rect x="276" y="16" width="80" height="160" fill="none" stroke="#000" stroke-width=".6"/>
+    <g font-size="6" font-family="sans-serif"><text x="280" y="26" font-weight="700">NOTES</text><text x="280" y="36">1. All luminaires</text><text x="280" y="44">   on LTG circuits</text><text x="280" y="52">   as schedule.</text><text x="280" y="66" font-weight="700">LEGEND</text><circle cx="284" cy="75" r="3" fill="none" stroke="#000"/><text x="291" y="77">Downlight</text></g>
+    <rect x="276" y="184" width="80" height="64" fill="none" stroke="#000" stroke-width=".8"/>
+    <g font-size="6" font-family="sans-serif"><text x="280" y="196" font-weight="700">TITLE BLOCK</text><text x="280" y="208">Villa · Ground floor</text><text x="280" y="218">Lighting layout</text><text x="280" y="232" font-weight="700">E-LTG-001  Rev A</text><text x="280" y="242">A1 · 1:100</text></g>
+  </svg>
+  </div>
+  <div class="btabs"><span>Model</span><span class="on">E-LTG-001</span><span>E-PWR-001</span><span>E-ELV-001</span><span class="plus">+</span></div>
+  <div class="status new"><span class="k on">PAPER</span><span>Viewport 1 · <b>1:100</b> · locked</span><span>A1 · mm</span></div>
+</div>
+<p style="margin-top:6px">Dashed purple = viewport frames (on screen only; they do not print). The notes, legend, key-plan label and title block are on the paper, in mm. The plan inside the viewport is the model itself: change the model and every layout shows it.</p>
+
+<h2><span class="n">3</span>Working inside a viewport</h2>
+<div class="card">
+  <div class="rowx"><b>Double-click inside a viewport</b><span class="m">its frame turns bold</span></div>
+  <div class="rowx"><span>Draw, place devices, wire — in the model, as on the Model tab</span></div>
+  <div class="rowx"><span>Pan / zoom moves the viewport's view only when it is <b>unlocked</b></span></div>
+  <div class="rowx"><b>Double-click outside</b><span class="m">back to the paper</span></div>
+  <div class="status"><span class="k on">MODEL</span><span>in Viewport 1 · 1:100 · locked</span></div>
+  <div class="cmd">Command: <b>MS</b> (model) · <b>PS</b> (paper) · <b>MV</b> new viewport · <b>VPSCALE</b> · <b>VPLOCK</b></div>
+</div>
+
+<h2><span class="n">4</span>Viewport properties (select its frame)</h2>
+<div class="card new">
+  <div class="mh"><b>Viewport 1</b><span class="m">E-LTG-001 · Ground floor</span></div>
+  <div class="form">
+    <label>Scale</label><div class="fld">1:100 <span class="m">· 1:20 1:50 1:100 1:200 1:500 or custom</span></div>
+    <label>Locked</label><div class="seg"><span class="on">Locked</span><span>Unlocked</span></div>
+    <label>Shows</label><div class="seg"><span class="on">Lighting</span><span>Power</span><span>ELV</span><span>Cont.</span></div>
+    <span class="hint">Sets which of your layers show in this viewport (layer roles). You can still turn single layers on or off for this viewport.</span>
+    <label>References</label><div class="fld"><span class="tick"></span> STR-GF <span class="tick no" style="margin-left:8px"></span> MECH-GF</div>
+    <label>Frame prints</label><div class="fld"><span class="tick no"></span> <span class="m">no (default)</span></div>
+  </div>
+</div>
+
+<h2><span class="n">5</span>Layer manager in a layout: “This viewport” column</h2>
+<div class="card">
+  <table class="lm">
+    <tr><th>Layer</th><th>On</th><th class="new">This viewport</th><th>Print</th></tr>
+    <tr><td>A-WALL</td><td>✓</td><td class="new">✓</td><td>✓</td></tr>
+    <tr><td>E-LIGHTING</td><td>✓</td><td class="new">✓</td><td>✓</td></tr>
+    <tr><td>E-POWER</td><td>✓</td><td class="new">— frozen</td><td>✓</td></tr>
+    <tr><td>E-ELV-DEVICES</td><td>✓</td><td class="new">— frozen</td><td>✓</td></tr>
+    <tr><td>STR-GF|S-GRID</td><td>✓</td><td class="new">✓</td><td>✓</td></tr>
+  </table>
+  <div class="vpt">Frozen in this viewport only: the same layer shows in the power layout's viewport.</div>
+</div>
+
+<h2><span class="n">6</span>Ribbon: a Layout group, shown on a layout tab</h2>
+<div class="card">
+  <div class="tabs"><span>Project</span><span>Stages</span><span class="on">Design CAD</span><span>Sheets</span></div>
+  <div class="tools">
+    <div class="big"><span class="ic"></span>Plans ▾</div>
+    <div class="col new"><div class="sm"><span class="ic"></span>New layout</div><div class="sm"><span class="ic"></span>Viewport</div><div class="sm"><span class="ic"></span>Scale ▾</div></div>
+    <div class="col new"><div class="sm"><span class="ic"></span>Lock</div><div class="sm"><span class="ic"></span>Page setup</div><div class="sm"><span class="ic"></span>Plot PDF</div></div>
+  </div>
+  <div class="cap">File · <span style="color:var(--new)">Layout</span></div>
+</div>
+
+<h2><span class="n">7</span>The same layouts in Sheets</h2>
+<div class="card">
+  <div class="rowx"><b>E-LTG-001</b><span>Ground floor lighting</span><span class="m">layout of GF.dwg</span></div>
+  <div class="rowx"><b>E-PWR-001</b><span>Ground floor power</span><span class="m">layout of GF.dwg</span></div>
+  <div class="rowx"><b>E-SLD-001</b><span>Main SLD</span><span class="m">from the design</span></div>
+  <div class="vpt">A layout <b style="color:var(--tx)">is</b> a plan sheet of the drawing register: its number, revisions, issues and PDF / DXF export work as today. Today's automatic plan sheets become layouts with one viewport each (split levels keep their match lines), so nothing is lost.</div>
+</div>
+
+<h2><span class="n">8</span>Decisions for you</h2>
+<ol class="dec">
+  <li><b>Tabs:</b> Model / layout tabs under the drawing, as above? <i>(recommended)</i> Or a fourth ribbon sub-tab “Layouts”.</li>
+  <li><b>Sheets:</b> a layout is a plan sheet in the register (one list, one numbering)? <i>(recommended)</i></li>
+  <li><b>Today's plan sheets:</b> turn them into layouts automatically, keeping their numbers and revisions? <i>(recommended)</i></li>
+  <li><b>Viewport frames:</b> not printed by default? <i>(recommended)</i></li>
+  <li><b>On the paper first:</b> text, notes, leaders, clouds, lines, rectangles, legend, north arrow; more later? <i>(recommended)</i></li>
+  <li><b>Save DWG / DXF:</b> write the layouts as real paper-space layouts with viewports in phase 2, after the screens work? <i>(recommended)</i></li>
+</ol>
+</div>
+</body>
+</html>

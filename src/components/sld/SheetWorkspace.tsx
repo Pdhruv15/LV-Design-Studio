@@ -167,14 +167,23 @@ export function SheetList({ project, active, selectedBoardId, onActive, onChange
 }
 
 /** One sheet as it prints, live, with its settings beside it. */
-export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui, onChange, onStatus, onActive }: {
+/** Drawn over the page (a layout's viewport frames, src/components/cad/CadLayouts.tsx): the page's px per paper mm on
+ * screen, and the page's frame once loaded (to measure where the drawing area is). */
+export type PaperOverlay = (o: { pxPerMm: number; frame: HTMLIFrameElement | null; loaded: number }) => React.ReactNode;
+
+export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui, onChange, onStatus, onActive, bare = false, overlay }: {
   project: Project; run?: CalcRun; sheetId: string; design: React.ReactNode;
   /** Markup tool, colour, zoom and side by side: shared with the ribbon, which holds the buttons. */
   ui: SheetUi;
   /** Where the sheet settings go (the app's right panel); beside the page when absent. */
   settingsHost?: HTMLElement | null;
   onChange: (p: Project) => void; onStatus: (m: string) => void; onActive: (id: string | null) => void;
+  /** The page and its markups only (a layout tab in Design CAD): no sheet bar, no settings. */
+  bare?: boolean;
+  overlay?: PaperOverlay;
 }) {
+  const [frameEl, setFrameEl] = useState<HTMLIFrameElement | null>(null);
+  const [loaded, setLoaded] = useState(0);
   const set = setOf(project);
   const s = set.sheets.find((x) => x.id === sheetId);
   const [page, setPage] = useState<{ html: string; size: SheetSize; fits: boolean; refs: boolean } | null>(null);
@@ -301,7 +310,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
 
   return (
     <div className={`sheet-ws${side ? ' side' : ''}`}>
-      <div className="sheet-bar">
+      {!bare && <div className="sheet-bar">
         <b>{s.number}</b> <span className="m">{s.title}</span>
         {(() => {
           const r = sheetRev(s, rev?.id), st = s.status || set.status;
@@ -319,7 +328,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
           );
           return incoming.length + outgoing.length ? <span className="sheet-refs">{incoming.map((r) => chip(r, 'From'))}{outgoing.map((r) => chip(r, 'To'))}</span> : null;
         })()}
-      </div>
+      </div>}
       <div className="sheet-body">
         {side && <div className="sheet-design">{design}</div>}
         <ZoomChip pct={(scale / fit) * 100} onFit={() => setZoom('fit')} />
@@ -337,15 +346,16 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
           onAuxClick={(e) => { if (isFitClick(e)) setZoom('fit'); }}>
           {!drawable(s) ? <p className="m">Tick the panels for this sheet on the right.</p> : page ? (
             <div style={{ width: pxW * scale, height: pxH * scale, position: 'relative' }} className="sheet-paper">
-              <iframe title={s.number} srcDoc={page.html} sandbox="allow-same-origin" onLoad={(e) => setAnchors(measureAnchors(e.currentTarget, mm.w / pxW))} style={{ width: pxW, height: pxH, transform: `scale(${scale})`, transformOrigin: '0 0', border: 0, background: '#fff' }} />
+              <iframe title={s.number} srcDoc={page.html} sandbox="allow-same-origin" onLoad={(e) => { setAnchors(measureAnchors(e.currentTarget, mm.w / pxW)); setFrameEl(e.currentTarget); setLoaded((k) => k + 1); }} style={{ width: pxW, height: pxH, transform: `scale(${scale})`, transformOrigin: '0 0', border: 0, background: '#fff' }} />
               <SheetMarkupLayer markups={markups} mmW={mm.w} mmH={mm.h} width={pxW * scale} height={pxH * scale} tool={tool} color={mColor} size={mSize}
                 selected={selId} rev={nextRev(sheetRev(s, rev?.id))} onSelect={setSelId} onChange={setMarkups} onTool={setTool}
                 anchors={s.kind === 'system' ? anchors.list : []} mmPerUnit={anchors.mmPerUnit} onStatus={onStatus}
                 onPanelCloud={(c) => patch({ clouds: [...(s.clouds ?? []), c] })} onPanelArrow={(a) => patch({ arrows: [...(s.arrows ?? []), a] })} />
+              {overlay?.({ pxPerMm: (pxW * scale) / mm.w, frame: frameEl, loaded })}
             </div>
           ) : <p className="m">Drawing the sheet…</p>}
         </div>
-        {(() => {
+        {!bare && (() => {
           const settings = <>
           <details open><summary>Sheet</summary>
             <div className="form-kv">

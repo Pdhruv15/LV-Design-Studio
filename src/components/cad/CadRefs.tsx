@@ -293,7 +293,7 @@ function NumberField({ label, value, min, onSet }: { label: string; value: numbe
 }
 
 /** A reference's layers as NAME|LAYER: on, screen colour, print. */
-export function RefLayers({ r, x }: { r: CadRef; x: CadRefsState }) {
+export function RefLayers({ r, x, viewport }: { r: CadRef; x: CadRefsState; viewport?: import('./CadLayerManager').ViewportLayers }) {
   const g = x.placed.find((p) => p.ref.name === r.name)?.g ?? refGeometry(r.file);
   if (!g) return null;
   const counts = new Map<number, number>();
@@ -303,11 +303,12 @@ export function RefLayers({ r, x }: { r: CadRef; x: CadRefsState }) {
       <h4>Layers of {r.name}</h4>
       <div style={{ maxHeight: 220, overflowY: 'auto' }}>
         <table className="sched" aria-label={`Layers of ${r.name}`}>
-          <thead><tr><th>Layer</th><th>Lines</th><th>On</th><th>Print</th><th>Colour on screen</th></tr></thead>
+          <thead><tr><th>Layer</th><th>Lines</th><th>On</th>{viewport && <th>This viewport</th>}<th>Print</th><th>Colour on screen</th></tr></thead>
           <tbody>{g.layers.map((l, i) => counts.get(i) ? (
             <tr key={l.name}>
               <td>{r.name}|{l.name}</td><td>{counts.get(i)}</td>
               <td><input type="checkbox" aria-label={`${r.name}|${l.name} on`} checked={!refLayerStyle(r, l.name).hidden} onChange={(e) => x.actions.layer(r, l.name, { hidden: !e.target.checked })} /></td>
+              {viewport && <td><input type="checkbox" aria-label={`${r.name}|${l.name} in this viewport`} checked={!viewport.frozen(`${r.name}|${l.name}`)} onChange={() => viewport.toggle(`${r.name}|${l.name}`)} /></td>}
               <td><input type="checkbox" aria-label={`${r.name}|${l.name} prints`} checked={!refLayerStyle(r, l.name).noPrint} onChange={(e) => x.actions.layer(r, l.name, { noPrint: !e.target.checked })} /></td>
               <td><select aria-label={`${r.name}|${l.name} colour`} value={refLayerStyle(r, l.name).color ?? ''} onChange={(e) => x.actions.layer(r, l.name, { color: e.target.value || undefined })}>
                 {LAYER_COLOURS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}

@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.050', date: '2026-11-07',
+    items: [
+      { title: 'Design CAD: model and layouts', text: 'As in industry CAD, you draw once in Model and each sheet is a layout. Tabs under the drawing: Model, one tab per layout of the level (its sheet number), and + for a new one; right-click a layout for Rename, Copy, Move, Page setup and Delete. A layout is the sheet\'s paper with its title block and viewports onto the model: MV adds a viewport, VPSCALE and VPLOCK set its scale and lock, and a double-click inside works in the model through it (MS; PS or a double-click outside goes back). Your plan sheets are layouts already, nothing to convert.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Viewports print as placed', text: 'Each viewport can show another plan type (a power key plan on a lighting sheet), freeze layers for itself only (Layer manager → This viewport) and hide references; its frame does not print unless you tick Frame prints. Notes, callouts, clouds, lines and boxes go on the paper from the command line (T, LE, CLOUD, L, REC) with the Sheets markup tools. Sheets stay black and white.' }
+    ]
+  },
+  {
     version: '2.049', date: '2026-11-07',
     items: [
       { title: 'Bind keeps texts and hatches', text: 'Save DXF / DWG with Bind now copies a reference\'s texts and hatches into the saved copy too, not only its lines: grid labels, column marks and filled walls, on NAME$0$LAYER layers. Pattern hatches keep their pattern, scaled and turned with the reference. With a clip, a text is kept when it starts inside, a hatch when it is all inside.', action: 'cad', actionLabel: 'Open Design CAD' }

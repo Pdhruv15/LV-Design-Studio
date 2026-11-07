@@ -41,8 +41,8 @@ export const skipRef = (projectId: string | undefined, host: string, name: strin
 };
 
 /** What the ribbon asks of the page showing the drawing; nothing while the page is not shown. */
-export interface CadActions { save: () => void; saveDwg: () => void; close: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void; refs: () => void }
-export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, close: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {}, refs: () => {} };
+export interface CadActions { save: () => void; saveDwg: () => void; close: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void; refs: () => void; layoutCmd: (cmd: string) => void }
+export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, close: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {}, refs: () => {}, layoutCmd: () => {} };
 
 /** A drawing open in a tab, with its layers as they were left (its zoom and pan stay with CadCanvas). */
 interface OpenDrawing { view: CadView; layersOn: Uint8Array }
@@ -73,6 +73,11 @@ export function useCad(projectId: string | undefined) {
   const [boardId, setBoardId] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const [showDevices, setShowDevices] = useState(true);
+  // Model or a layout (paper space): the layout's sheet id (null = Model), its viewport selected, and the viewport worked in (MS).
+  const [layout, setLayoutState] = useState<string | null>(null);
+  const [vpSel, setVpSel] = useState<string | null>(null);
+  const [msVp, setMsVp] = useState<string | null>(null);
+  const setLayout = useCallback((id: string | null) => { setLayoutState(id); setVpSel(null); setMsVp(null); }, []);
   /** Cable tray runs: the width drawn, and the tray route (none until the engineer assigns one). */
   const [tray, setTray] = useState<{ widthMm: number; service: string; route: string }>({ widthMm: 300, service: 'Power', route: '' });
   /** ELV coverage shown (Devices → Coverage) for the system of the ELV device chosen. */
@@ -162,7 +167,7 @@ export function useCad(projectId: string | undefined) {
     else { setToggles((t) => ({ ...t, grid: false })); setGridDots(false); }
   };
 
-  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, tabOf, projectOpened, sampleDone, layersOn, setLayer, allLayers, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, textAt, setTextAt };
+  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, tabOf, projectOpened, sampleDone, layersOn, setLayer, allLayers, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, textAt, setTextAt, layout, setLayout, vpSel, setVpSel, msVp, setMsVp };
 }
 
 export type CadState = ReturnType<typeof useCad>;

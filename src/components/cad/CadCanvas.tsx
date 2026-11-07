@@ -40,7 +40,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap }: {
+export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView }: {
   view: CadView;
   layersOn: Uint8Array;
   toggles: CadToggles;
@@ -91,6 +91,12 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
   preview?: SketchItem[];
   /** Changes to fit the drawing to the window. */
   fitKey: number;
+  /** A layout's viewport (src/model/planViewports.ts): the drawing shows exactly this window (drawing units, absolute:
+   * x0, y0, x1, y1), not where it was left; `fixed` (a locked viewport) leaves pan and zoom off; else each pan or zoom
+   * reports the centre (drawing units, absolute) and the pixels per drawing unit. */
+  fitBox?: [number, number, number, number];
+  fixed?: boolean;
+  onView?: (centre: Pt, pxPerUnit: number) => void;
   /** The cursor in drawing units (absolute), snapped, and the snap kind's name. */
   onCursor: (at: Pt | null, snapName?: string) => void;
 }) {
@@ -180,14 +186,32 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
   // Fit (on open, on Fit / ZE, and when the window size changes before anything was moved); a moved drawing goes back
   // to where it was left.
   const fitted = useRef(fitKey);
+  const [b0, b1, b2, b3] = fitBox ?? [];
   useEffect(() => {
+    if (b0 !== undefined) {
+      const scale = Math.min(size.w / Math.max(1e-9, b2! - b0), size.h / Math.max(1e-9, b3! - b1!));
+      setT({ scale, ox: (b0 + b2!) / 2 - o0 - size.w / 2 / scale, oy: (b1! + b3!) / 2 - o1 - size.h / 2 / scale });
+      return;
+    }
     if (fitted.current !== fitKey) { fitted.current = fitKey; placeOf.delete(view); }
     const [x0, y0, x1, y1] = view.info.extents;
     const scale = Math.min(size.w / Math.max(1e-9, x1 - x0), size.h / Math.max(1e-9, y1 - y0)) * 0.92;
     setT(placeOf.get(view) ?? { scale, ox: (x0 + x1) / 2 - o0 - size.w / 2 / scale, oy: (y0 + y1) / 2 - o1 - size.h / 2 / scale });
-  }, [view, fitKey, size.w, size.h, o0, o1]);
-  /** A zoom or pan by the user: the drawing stays there. */
-  const move = (to: (v: ViewT) => ViewT) => setT((v) => { const next = to(v); placeOf.set(view, next); return next; });
+  }, [view, fitKey, size.w, size.h, o0, o1, b0, b1, b2, b3]);
+  /** A zoom or pan by the user: the drawing stays there (in a viewport: none when locked, else reported). */
+  const moved = useRef(false);
+  const move = (to: (v: ViewT) => ViewT) => {
+    if (fixed) return;
+    moved.current = true;
+    setT((v) => { const next = to(v); if (b0 === undefined) placeOf.set(view, next); return next; });
+  };
+  const onViewRef = useRef(onView);
+  onViewRef.current = onView;
+  useEffect(() => {
+    if (!moved.current || b0 === undefined) return;
+    moved.current = false;
+    onViewRef.current?.([t.ox + o0 + size.w / 2 / t.scale, t.oy + o1 + size.h / 2 / t.scale], t.scale);
+  }, [t]); // eslint-disable-line react-hooks/exhaustive-deps -- reports the user's moves only
 
   const css = () => getComputedStyle(host.current ?? document.documentElement);
   const colour = (name: string, fallback: string) => css().getPropertyValue(name).trim() || fallback;
@@ -654,7 +678,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     const scale = Math.min(size.w / Math.max(1e-9, x1 - x0), size.h / Math.max(1e-9, y1 - y0)) * 0.92;
     return { scale, ox: (x0 + x1) / 2 - o0 - size.w / 2 / scale, oy: (y0 + y1) / 2 - o1 - size.h / 2 / scale };
   };
-  const fitNow = () => { placeOf.delete(view); setT(fitT()); };
+  const fitNow = () => { if (fixed || b0 !== undefined) return; placeOf.delete(view); setT(fitT()); };
   // + / − zoom about the middle, 0 fits, arrows pan (letters go to the command line).
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e) => {

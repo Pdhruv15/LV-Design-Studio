@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CadPage from './CadPage';
 import { useCad, type CadState } from './cadState';
+import { useSheetUi } from '../sld/sheetUi';
 import { cadFileMenu } from './cadFileMenu';
 import { buildingInfoOf } from '../../calc/building';
 import { trayPlanOf } from '../../calc/cableTray';
@@ -42,9 +43,12 @@ afterEach(() => { act(() => root.unmount()); document.body.innerHTML = ''; delet
 function Host({ start = villa }: { start?: Project }) {
   const cad = useCad('p1');
   const [p, setP] = useState(start);
+  const sheetUi = useSheetUi();
   state = cad;
-  return <CadPage cad={cad} project={p} onChange={(next, msg) => { setP(next); onChange(next, msg); }} onStatus={() => {}} />;
+  return <CadPage cad={cad} project={p} onChange={(next, msg) => { setP(next); onChange(next, msg); }} onStatus={() => {}} sheetUi={sheetUi} />;
 }
+/** Waits for something on screen (a slower machine takes longer), up to 10 s. */
+const until = async (ok: () => boolean) => { for (let i = 0; i < 200 && !ok(); i += 1) await act(async () => { await new Promise((r) => setTimeout(r, 50)); }); expect(ok()).toBe(true); };
 const flush = async () => { for (let i = 0; i < 5; i += 1) await act(async () => { await new Promise((r) => setTimeout(r, 0)); }); };
 const button = (text: string) => [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === text)!;
 const result = () => document.querySelector('.cad-res')?.textContent ?? '';
@@ -1180,5 +1184,74 @@ describe('file tabs', () => {
     await flush();
     expect(project.cadRefs).toBeUndefined();
     expect(document.body.textContent).toContain('XREF  Not found on this computer: STR-GF (inside GF.dxf). References → Repath… finds it.');
+  });
+
+  it('Layouts: + makes a layout of the level; its paper has a viewport; VPSCALE and VPLOCK set it, MS works in it, MV adds one, the Layer manager has This viewport', async () => {
+    const last = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
+    const gf = { building: 'V', level: 'GF' };
+    let start: Project = { ...villa, cadPlans: [{ building: 'V', level: 'GF', file: 'sample-villa-gf.dxf', units: 4 }] };
+    for (const [x, y] of [[3, 9], [6, 9.4], [9, 8.8]]) start = placeLvPoint(start, gf, 'ltg', 'DB-GF1-B2', x, y).project;
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    const tabs = () => [...document.querySelectorAll('[aria-label="Model and layouts"] [role="tab"]')].map((t) => t.textContent);
+    expect(tabs()).toEqual(['Model']);
+    act(() => (document.querySelector('[aria-label="New layout"]') as HTMLButtonElement).click());
+    act(() => [...document.querySelectorAll('[role="menuitem"]')].find((b) => b.textContent?.startsWith('Lighting layout'))!.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    const sheet = () => project.drawingSet!.sheets.find((x) => x.kind === 'plan')!;
+    expect(sheet()).toMatchObject({ plan: 'lighting', buildingId: 'V', levelId: 'GF', number: 'E-LTG-001' });
+    expect(state.layout).toBe(sheet().id);
+    expect(tabs()).toEqual(['Model', 'E-LTG-001']);
+    expect(document.querySelector('.cad-paper')).not.toBeNull();
+    expect(document.querySelector('.cad-status')!.textContent).toMatch(/PAPERViewport 1 · 1:100 · lockedE-LTG-001 · A3 · mm/);
+    await until(() => !!document.querySelector('.cad-paper iframe'));
+    // Its frame, dashed over the paper; picked, its properties show.
+    await until(() => !!document.querySelector('.cad-vp'));
+    expect([...document.querySelectorAll('.cad-vp')].map((v) => v.getAttribute('aria-label'))).toEqual(['Viewport 1']);
+    act(() => document.querySelector('.cad-vp-edge')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 })));
+    expect(state.vpSel).toBe('vp1');
+    expect(document.querySelector('[aria-label="Viewport properties"]')!.textContent).toMatch(/^Viewport 1 E-LTG-001Scale/);
+    act(() => document.querySelector('.cad-vp-edge')!.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientX: 10, clientY: 10 })));
+    expect(sheet().viewports).toBeUndefined(); // picked, not moved
+    // VPSCALE and VPLOCK act on the only viewport; the worked-out one becomes the sheet's own.
+    await command('VPSCALE 50');
+    expect(sheet().viewports).toEqual([expect.objectContaining({ id: 'vp1', scale: 50 })]);
+    await command('VPLOCK');
+    expect(sheet().viewports![0].locked).toBe(false);
+    // MS: the drawing inside the viewport; PS back to the paper.
+    await command('MS');
+    expect(state.msVp).toBe('vp1');
+    expect(document.querySelector('.cad-status')!.textContent).toContain('MODEL');
+    await command('PS');
+    expect(state.msVp).toBeNull();
+    // MV: two corners on the paper make a second viewport at the scale of the one picked, onto the model there.
+    await command('MV');
+    const paperAt = (x: number, y: number) => act(() => document.querySelector('.cad-vps')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: x, clientY: y })));
+    paperAt(300, 300);
+    paperAt(400, 360);
+    expect(sheet().viewports!.map((v) => v.id)).toEqual(['vp1', 'vp2']);
+    expect(sheet().viewports![1]).toMatchObject({ scale: 50 });
+    expect(sheet().viewports![1].box[2]).toBeGreaterThan(2);
+    expect(state.vpSel).toBe('vp2');
+    expect(last()).toMatch(/^E-LTG-001 {2}Viewport 2 added at 1:50 · ⌘Z to undo$/);
+    // The Layer manager in a layout: This viewport freezes a drawn layer in the viewport picked only.
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Layers in this viewport…')!.click());
+    expect(document.body.textContent).toContain('Layer manager');
+    expect(document.querySelector('h3')!.textContent).toContain('Viewport 2');
+    expect([...document.querySelectorAll('[aria-label="Drawn layers"] th')].map((t) => t.textContent)).toContain('This viewport');
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Done')!.click());
+    // A paper markup from the command line: the Sheets line tool, on the paper.
+    await command('L');
+    expect(document.querySelector('.cad-hist')!.textContent).toBe('L  On the paper: drag where it goes (Esc stops).');
+    await command('MODEL');
+    expect(state.layout).toBeNull();
+    expect(document.querySelector('.cad-paper')).toBeNull();
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('.cad-ltab')].find((b) => b.textContent === 'E-LTG-001')!.click());
+    expect(state.layout).toBe(sheet().id);
+    // Delete from the tab's menu: the layout and its sheet go (undoable).
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('.cad-ltab')].find((b) => b.textContent === 'E-LTG-001')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 50, clientY: 500 })));
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((b) => b.textContent === 'Delete')!.click());
+    expect(project.drawingSet!.sheets.some((x) => x.kind === 'plan')).toBe(false);
+    expect(tabs()).toEqual(['Model']);
+    expect(state.layout).toBeNull();
   });
 });
