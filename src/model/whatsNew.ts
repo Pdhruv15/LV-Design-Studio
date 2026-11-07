@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.049', date: '2026-11-07',
+    items: [
+      { title: 'Bind keeps texts and hatches', text: 'Save DXF / DWG with Bind now copies a reference\'s texts and hatches into the saved copy too, not only its lines: grid labels, column marks and filled walls, on NAME$0$LAYER layers. Pattern hatches keep their pattern, scaled and turned with the reference. With a clip, a text is kept when it starts inside, a hatch when it is all inside.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.048', date: '2026-11-07',
     items: [
       { title: 'Plan sheets read their references', text: 'In the desktop app, a plan sheet now reads the references (Xref) it prints from where they were found on this computer, so you no longer need to open the plan in Design CAD first. A reference that cannot be read is still named in the sheet\'s notes as not printed.', action: 'sheets', actionLabel: 'Open Sheets' }

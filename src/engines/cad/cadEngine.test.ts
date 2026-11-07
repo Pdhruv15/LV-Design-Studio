@@ -2,7 +2,8 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { dxfToDwg, INK, openDrawing, SNAP, type CadView } from './cadEngine';
+import { drawingWithDevices, dxfToDwg, INK, openDrawing, readRefGeometry, SNAP, type CadView } from './cadEngine';
+import { placeRefExtras, type CadRef } from '../../model/cadRefs';
 import { buildSheetDxfPages } from '../../docs/sheetDxf';
 import { sampleProject } from '../../data/sampleProject';
 
@@ -71,6 +72,20 @@ describe('CAD engine (Rust, WebAssembly)', () => {
     expect(d.info.fills.map((f) => [f.solid, f.loops.length, f.lines.length])).toEqual([[true, 1, 0], [false, 1, 1]]);
     expect(d.info.fills[1].lines[0].angle).toBeCloseTo(Math.PI / 4);
     expect(gf.info.fills).toEqual([]); // the sample villa has none
+  });
+
+  it('keeps a reference\'s texts and fills, and Bind saves them into a copy of the plan as texts and hatches', async () => {
+    const g = await readRefGeometry('linetypes-hatches.dxf', bytes('tests/fixtures/cad/linetypes-hatches.dxf'));
+    expect(g.fills!.map((f) => [f.solid, f.loops[0].length, f.lines.length])).toEqual([[true, 4, 0], [false, 4, 1]]);
+    expect(g.fills![1].loops[0]).toEqual([[20, 20], [30, 20], [30, 30], [20, 30]]);
+    const ref: CadRef = { name: 'STR', file: 'linetypes-hatches.dxf', type: 'overlay', at: [1000, 0], scale: 1, rot: 0, fade: 50, print: true };
+    const { fills } = placeRefExtras(g, ref);
+    const shapes = [...fills.map((f) => ({ layer: 'STR$0$0', kind: 'hatch', pts: [], loops: f.loops, solid: f.solid, lines: f.lines })), { layer: 'STR$0$0', kind: 'text', pts: [[1000, 0]], text: 'GRID A', h: 2.5, rot: 0 }];
+    const saved = await openDrawing('saved.dxf', await drawingWithDevices(gf, [], shapes));
+    expect(saved.info.fills.map((f) => f.solid)).toEqual([true, false]);
+    expect(saved.info.fills[1].lines[0].angle).toBeCloseTo(Math.PI / 4);
+    expect(saved.info.texts.some((t) => t.s === 'GRID A')).toBe(true);
+    saved.close();
   });
 
   it('saves an SLD sheet as DWG with the same layers, texts and extents as its DXF', async () => {
