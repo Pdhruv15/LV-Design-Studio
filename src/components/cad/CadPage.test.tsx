@@ -1145,4 +1145,39 @@ describe('file tabs', () => {
     expect(project.cadRefs).toBeUndefined();
     expect(last()).toBe('XREF  STR-GF detached from sample-villa-gf.dxf. STR-GF.dxf is not changed · ⌘Z to undo');
   });
+
+  it('References: one named inside the opened drawing is looked for beside the plan and shown; one detached is not looked for again', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    const cadFile = (window as unknown as { lvds: { cadFile: { openBytes: ReturnType<typeof vi.fn>; readBytes?: unknown } } }).lvds.cadFile;
+    cadFile.openBytes.mockResolvedValueOnce({ file: 'GF.dxf', path: '/jobs/A/Arch/GF.dxf', bytes: bytes('tests/fixtures/cad/xref-host.dxf') });
+    const readBytes = vi.fn(async (p: string) => (p === '/jobs/A/Structure/STR-GF.dxf' ? { file: 'STR-GF.dxf', path: p, bytes: bytes('electron/samples/sample-villa-ff.dxf') } : null));
+    cadFile.readBytes = readBytes;
+    await command('open');
+    await flush();
+    expect(state.view?.file).toBe('GF.dxf');
+    // Saved as ..\Structure\STR-GF.dxf: found from the plan's folder, at the drawing's insert.
+    expect(readBytes.mock.calls[0][0]).toBe('/jobs/A/Structure/STR-GF.dxf');
+    const refs = () => project.cadRefs?.['gf.dxf'] ?? [];
+    expect(refs()).toEqual([expect.objectContaining({ name: 'STR-GF', file: 'STR-GF.dxf', type: 'overlay', at: [500, 0], found: true })]);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('XREF  Found inside GF.dxf and shown under it: STR-GF (/jobs/A/Structure/STR-GF.dxf) · ⌘Z to undo');
+    expect(localStorage.getItem('lvds.cad.paths.p1')).toContain('/jobs/A/Structure/STR-GF.dxf');
+    await command('XR');
+    expect(document.querySelector('[aria-label="References"]')!.textContent).toMatch(/STR-GFLoaded/);
+    act(() => button('Detach').click());
+    expect(refs()).toEqual([]);
+    expect(JSON.parse(localStorage.getItem('lvds.cad.refsOff.p1.gf.dxf')!)).toEqual(['STR-GF']);
+  });
+
+  it('References: one named inside the opened drawing and not found says so', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    const cadFile = (window as unknown as { lvds: { cadFile: { openBytes: ReturnType<typeof vi.fn>; readBytes?: unknown } } }).lvds.cadFile;
+    cadFile.openBytes.mockResolvedValueOnce({ file: 'GF.dxf', path: '/jobs/A/Arch/GF.dxf', bytes: bytes('tests/fixtures/cad/xref-host.dxf') });
+    cadFile.readBytes = vi.fn(async () => null);
+    await command('open');
+    await flush();
+    expect(project.cadRefs).toBeUndefined();
+    expect(document.body.textContent).toContain('XREF  Not found on this computer: STR-GF (inside GF.dxf). References → Repath… finds it.');
+  });
 });
