@@ -41,7 +41,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView }: {
+export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView }: {
   view: CadView;
   layersOn: Uint8Array;
   toggles: CadToggles;
@@ -50,6 +50,9 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
   /** A click (left button, not panning): the snapped point, the size of one screen pixel in drawing units, and whether
    * Shift was held. */
   onClick?: (at: Pt, pixel: number, shift?: boolean) => void;
+  /** Numbers are being typed on the command line (a tool is running, or something is typed there): 0 and − go there
+   * rather than fit or zoom the view. */
+  numbersTyped?: boolean;
   /** A left drag picks with a window (Select): its corners (drawing units, absolute), `crossing` when dragged right to
    * left, `add` with Shift held. */
   windowSelect?: boolean;
@@ -680,11 +683,11 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     return { scale, ox: (x0 + x1) / 2 - o0 - size.w / 2 / scale, oy: (y0 + y1) / 2 - o1 - size.h / 2 / scale };
   };
   const fitNow = () => { if (fixed || b0 !== undefined) return; placeOf.delete(view); setT(fitT()); };
-  // + / − zoom about the middle, 0 fits, arrows pan (letters go to the command line).
+  // + / − zoom about the middle, 0 fits, arrows pan (letters go to the command line, and 0 and − while numbers are typed).
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e) => {
     const k = viewKey(e, false);
-    if (!k || k === 'grid') return;
+    if (!k || k === 'grid' || (numbersTyped && (e.key === '0' || e.key === '-'))) return;
     e.preventDefault();
     if (k === 'fit') fitNow();
     else if (k === 'in' || k === 'out') zoomAt(size.w / 2, size.h / 2, k === 'in' ? KEY_STEP : 1 / KEY_STEP);

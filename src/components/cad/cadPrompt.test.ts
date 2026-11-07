@@ -36,6 +36,21 @@ describe('command line prompts', () => {
     expect(spaceEnters('ZOOM E')).toBe(false);
   });
 
+  it('lets Space end only a whole word or value: a part of a point, or a word that is no command, gets the space', () => {
+    for (const t of ['3,4', '@3,-4', '@3<45', '.5', '3.', 'L', 'line']) expect(spaceEnters(t), t).toBe(true);
+    for (const t of ['3,', '@3', '@3<', '3, 4', 'XYZ', 'DB']) expect(spaceEnters(t), t).toBe(false);
+    const opts = [{ option: 'Through', key: 'T' }, { option: 'Erase', key: 'E' }];
+    expect(spaceEnters('t', 'command', opts)).toBe(true);
+    expect(spaceEnters('through', 'command', opts)).toBe(true);
+    // TEXT height and rotation: a word there is the text, so Space types it; a number or nothing ends the input.
+    expect(spaceEnters('DB', 'value')).toBe(false);
+    expect(spaceEnters('ROOM', 'value')).toBe(false);
+    expect(spaceEnters('5', 'value')).toBe(true);
+    expect(spaceEnters('', 'value')).toBe(true);
+    expect(spaceEnters('', 'text')).toBe(false);
+    expect(spaceEnters('OFFSET', 'text')).toBe(false);
+  });
+
   it('has every command once in the F1 list', () => {
     expect(commandList()).toHaveLength(CAD_COMMANDS.length);
     expect(commandList().find((c) => c.aliases.startsWith('O ·'))).toEqual({ aliases: 'O · OFFSET', desc: 'Offset' });

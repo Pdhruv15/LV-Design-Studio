@@ -38,13 +38,26 @@ export function matchingCommands(typed: string, max = 8): { alias: string; cmd: 
 
 /** Commands that take a word after a space (VPSCALE 50, LAYOUT P, ZOOM E): Space types the space after them. */
 const TAKES_ARG = new Set(['VPSCALE', 'LAYOUT', 'LO']);
-/** Space ends the input as Enter does, except inside a command of several words or one that takes a value after it. */
-export function spaceEnters(typed: string): boolean {
+const NUM = '-?(?:\\d+\\.?\\d*|\\.\\d+)';
+/** A whole number typed (".5" and "3." count), a whole point ("x,y", "@dx,dy", "@d<angle"), as the command line takes. */
+export const isNumber = (s: string) => new RegExp(`^${NUM}$`).test(s.trim());
+const isPoint = (s: string) => new RegExp(`^@?${NUM},${NUM}$|^@${NUM}<${NUM}$`).test(s.replace(/\s+/g, ''));
+/** What Space does in the command line: `text` (TEXT contents, a leader's text, a name) always types a space; `value`
+ * (TEXT height and rotation, where a word is taken as the text) ends an empty input or a number; `command` ends an empty
+ * input or a whole word: a command, an option of the prompt, a number or a point. Anything else (a part of a point such
+ * as "3," or "@3", a word that is no command, a command that takes a value after it) gets the space. */
+export type SpaceMode = 'text' | 'value' | 'command';
+export function spaceEnters(typed: string, mode: SpaceMode = 'command', options: { option: string; key: string }[] = []): boolean {
   const t = typed.trim().toUpperCase();
+  if (mode === 'text') return false;
   if (!t) return true;
   if (/\s/.test(typed.trimStart())) return false;
+  if (isNumber(t)) return true;
+  if (mode === 'value') return false;
+  if (isPoint(t)) return true;
+  if (options.some((o) => o.key === t || o.option.toUpperCase() === t)) return true;
   if (TAKES_ARG.has(t)) return false;
-  return !CAD_COMMANDS.some((c) => c.aliases.some((a) => a.startsWith(`${t} `)));
+  return CAD_COMMANDS.some((c) => c.aliases.includes(t)) && !CAD_COMMANDS.some((c) => c.aliases.some((a) => a.startsWith(`${t} `)));
 }
 
 /** The full command list (F1): each command once, its aliases and what it does. */
