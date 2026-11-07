@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.040', date: '2026-11-06',
+    items: [
+      { title: 'Design CAD: Trim, Extend, Offset, Fillet', text: 'Draw → Edit has Trim (TRIM) and Extend (EX). Click the part to cut away or the end to lengthen: it stops at the nearest line, drawn or the architect\'s, and the architect\'s drawing is never changed. Offset (O) copies a line, tray or circle at a distance. A tray stays a tray of the same width and route. Fillet (F) and Chamfer (CHA) join two lines at their corner; two trays meet in a bend.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Design CAD: Break, Join, Explode, Mirror, Scale, Stretch, Array', text: 'Break (BR) splits a line or takes a part out. Join (J) makes lines that meet end to end one polyline. Explode (X) splits a polyline into lines. Mirror (MI), Scale (SC) and Stretch (S) are in Modify; Stretch makes a tray run longer while its far end stays. Array (AR) copies in rows and columns or round a centre.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Design CAD: grips and a toolbar for drawn objects', text: 'Click a drawn line, tray or route: square grips show at its ends and middles. Drag one to change it. A toolbar beside it has the edits that suit it, and right-click gives the same as a menu. A window or Shift-click picks several drawn objects and devices together.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.039', date: '2026-11-06',
     items: [
       { title: 'Design CAD: edit several devices at once', text: 'Click a device, Shift-click to add or remove one, or drag a window round devices (Plan → Edit devices → Select). Left to right picks what is inside; right to left also picks what it crosses. A toolbar opens beside them with what suits them: Align row or column, Space equally, Replace, Circuit, Match, Move, Copy and Delete. The circuit list shows each circuit\'s points after the change and warns above the Rules limit. Right-click a device for the same as a menu.', action: 'cad', actionLabel: 'Open Design CAD' },

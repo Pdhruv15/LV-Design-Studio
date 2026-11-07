@@ -642,6 +642,75 @@ describe('CAD view', () => {
     expect(project.lvPoints!.find((d) => d.x === 6)).toMatchObject({ type: 's13t', feederId: 'DB-GF1-Y1' });
   });
 
+  it('edits what was drawn: Trim at a drawn line, Extend to one, Offset by a typed distance, Fillet into a sharp corner', async () => {
+    const line = (id: string, a: [number, number], b: [number, number]) => ({ id, kind: 'line' as const, layer: 'LV-SKETCH', pts: [a, b] });
+    // Well clear of the plan, so only the drawn lines are edges.
+    const X = 200000, Y = 0;
+    const start: Project = { ...villa, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [
+      line('S1', [X, Y], [X + 10000, Y]), line('S2', [X + 6000, Y - 2000], [X + 6000, Y + 2000]),
+      line('S3', [X, Y + 5000], [X + 3000, Y + 5000]), line('S4', [X + 8000, Y + 3000], [X + 8000, Y + 7000])
+    ] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const item = (id: string) => project.cadSketch![0].items.find((x) => x.id === id)!;
+    const last = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
+    await command('TRIM');
+    expect(state.tool).toBe('trim');
+    await clickAt(X + 8000, Y);
+    expect(item('S1').pts).toEqual([[X, Y], [X + 6000, Y]]);
+    expect(last()).toBe('TRIM  4.00 m cut off · ⌘Z to undo');
+    await command('EX');
+    await clickAt(X + 2900, Y + 5000);
+    expect(item('S3').pts).toEqual([[X, Y + 5000], [X + 8000, Y + 5000]]);
+    expect(last()).toBe('EXTEND  5.00 m longer · ⌘Z to undo');
+    await command('O');
+    await command('0.5');
+    await clickAt(X + 3000, Y);
+    await clickAt(X + 3000, Y + 1000);
+    const copy = project.cadSketch![0].items.find((x) => x.pts[0][1] === Y + 500)!;
+    expect(copy.pts).toEqual([[X, Y + 500], [X + 6000, Y + 500]]);
+    expect(last()).toBe('OFFSET  Line copied 0.50 m to the side · ⌘Z to undo');
+    await command('F');
+    await clickAt(X + 4000, Y + 5000);
+    await clickAt(X + 8000, Y + 6500);
+    expect(item('S4').pts).toEqual([[X + 8000, Y + 5000], [X + 8000, Y + 7000]]);
+    expect(last()).toBe('FILLET  sharp corner · ⌘Z to undo');
+  });
+
+  it('picks drawn objects with a window: their toolbar joins them; a grip drag moves an end; mirror keeps the originals', async () => {
+    const line = (id: string, a: [number, number], b: [number, number]) => ({ id, kind: 'line' as const, layer: 'LV-SKETCH', pts: [a, b] });
+    const X = 200000;
+    const start: Project = { ...villa, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [line('S1', [X, 0], [X + 4000, 0]), line('S2', [X + 4000, 0], [X + 4000, 3000])] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const bar = () => document.querySelector('[aria-label="Edit drawn objects"]') as HTMLElement | null;
+    await dragWindow([X - 500, -500], [X + 4500, 3500]);
+    expect(bar()!.textContent).toBe('2 selectedJoinMirrorScaleArrayMoveCopyErase');
+    expect(result()).toMatch(/2 objects selectedDrawn2 × Line/);
+    await act(async () => { [...bar()!.querySelectorAll('button')].find((b) => b.textContent === 'Join')!.click(); });
+    expect(project.cadSketch![0].items).toEqual([{ id: 'S1', kind: 'pline', layer: 'LV-SKETCH', pts: [[X, 0], [X + 4000, 0], [X + 4000, 3000]] }]);
+    await clickAt(X + 2000, 0); // select it: its grips show
+    expect(bar()!.textContent).toMatch(/^Polyline · 7\.00 m/);
+    const [gx, gy] = screenOf(X + 4000, 3000), [tx, ty] = screenOf(X + 4000, 5000);
+    const c = document.querySelector('canvas.cad-over')!;
+    await act(async () => {
+      c.dispatchEvent(new MouseEvent('mousedown', { clientX: gx, clientY: gy, button: 0, bubbles: true }));
+      c.dispatchEvent(new MouseEvent('mousemove', { clientX: tx, clientY: ty, bubbles: true }));
+      c.dispatchEvent(new MouseEvent('mouseup', { clientX: tx, clientY: ty, button: 0, bubbles: true }));
+    });
+    expect(project.cadSketch![0].items[0].pts[2].map((v) => Math.round(v))).toEqual([X + 4000, 5000]);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('GRIP  Polyline changed — now 9.00 m · ⌘Z to undo');
+    await act(async () => { [...bar()!.querySelectorAll('button')].find((b) => b.textContent === 'Mirror')!.click(); });
+    expect(state.tool).toBe('mirror');
+    await clickAt(X, -1000);
+    await clickAt(X + 1000, -1000); // about y = −1 m
+    const items = project.cadSketch![0].items;
+    expect(items).toHaveLength(2);
+    expect(items[1].pts.map((q) => q.map((v) => Math.round(v)))).toEqual([[X, -2000], [X + 4000, -2000], [X + 4000, -7000]]);
+  });
+
   it('turns a camera to face the point clicked (RO)', async () => {
     act(() => root.render(<Host />));
     await flush();
