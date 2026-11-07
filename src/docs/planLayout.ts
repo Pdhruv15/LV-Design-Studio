@@ -4,6 +4,7 @@ import { circuitCategory } from '../calc/loadSchedule';
 import { cableLabel, EMERGENCY_ITEMS, LV_PALETTE } from '../model/cadDevices';
 import { planOfLevel } from '../model/cadPlans';
 import { printedRefs } from '../model/cadRefs';
+import { isFrozen, vpWindow, type PlanViewport } from '../model/planViewports';
 import { dimensionLines, segmentsOf, sketchOf, trayLabel, trayLength, trayLine } from '../model/cadSketch';
 import { effective, layerStylesOf, styleOf } from '../model/cadLayerStyle';
 import { annoOf, HATCH_PATTERNS, hatchFamilies } from '../model/cadAnnotate';
@@ -315,19 +316,10 @@ function drawnSvg(items: Drawn[], X: (x: number) => number, Y: (y: number) => nu
   return `<defs>${defs.join('')}</defs><g class="drawn" clip-path="url(#${id})">${body.join('')}</g>`;
 }
 
-export interface PlanDrawing { svg: string; size: SheetSize; legendSvg: string; parts: number }
-/** The sheet's plan as SVG in paper mm (the drawing area's size), with its legend; `numberOf(part)` names the sheet of
- * another part of the level for the match lines. Nothing when there is nothing to draw (or the part is gone). */
-export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number) => string | undefined = () => undefined): PlanDrawing | undefined {
-  const lay = layoutOf(p, s);
-  const part = s.part ?? 0;
-  if (!lay || part >= lay.fit.parts) return undefined;
-  const { c, drawn, refs, box, rooms, scale, fit } = lay;
-  const area = drawingAreaMm(p, fit.size);
-  const win = windowOf(box, fit, part);
-  const f = 1000 / scale;
-  const ox = MARGIN + (area.w - 2 * MARGIN - (win.x1 - win.x0) * f) / 2, oy = MARGIN + (area.h - 2 * MARGIN - STRIP - (win.y1 - win.y0) * f) / 2;
-  const X = (x: number) => n(ox + (x - win.x0) * f), Y = (y: number) => n(oy + (win.y1 - y) * f);
+/** The design of the level for one window of the model (metres), `f` paper mm per metre, placed by X and Y: references,
+ * the architect's plan, the drawn work, containment, wiring and devices, clipped to the window. `frozen` leaves out
+ * layers (drawn, and references' NAME|LAYER) for a viewport. Returns the SVG pieces and what the legend counts. */
+function contentSvg(p: Project, s: DrawingSheet, c: Content, drawn: Drawn[], refs: ReturnType<typeof refsOnSheet>, rooms: { name: string; outline: Pt[] }[], win: Box, X: (x: number) => number, Y: (y: number) => number, f: number, id: string, frozen?: (layer: string) => boolean) {
   const seg = (a: Pt, b: Pt) => { const k = clip(a, b, win); return k ? `M${X(k[0][0])} ${Y(k[0][1])}L${X(k[1][0])} ${Y(k[1][1])}` : ''; };
   const path = (pts: Pt[], closed = false) => (closed ? [...pts, pts[0]] : pts).slice(1).map((q, i, all) => seg(i ? all[i - 1] : pts[0], q)).join('');
   const out: string[] = [];
@@ -338,7 +330,7 @@ export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number
   for (const r of refs) {
     if (!r.segs) continue;
     let d = '';
-    for (let i = 0; i + 3 < r.segs.length; i += 4) d += seg([r.segs[i], r.segs[i + 1]], [r.segs[i + 2], r.segs[i + 3]]);
+    for (let i = 0; i + 3 < r.segs.length; i += 4) if (!frozen || !frozen(`${r.ref.name}|${r.layerNames?.[r.segLayers?.[i / 4] ?? 0] ?? ''}`)) d += seg([r.segs[i], r.segs[i + 1]], [r.segs[i + 2], r.segs[i + 3]]);
     if (d) out.push(`<path class="ref" d="${d}" fill="none" stroke="${inkOf(pen.refs)}" stroke-width="${w(pen.refs)}"/>`);
   }
   // The architect's plan, grey.
@@ -349,7 +341,7 @@ export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number
     if (within(at, win)) out.push(`<text x="${X(at[0])}" y="${n(Y(at[1]) + 3.5)}" font-size="2.6" text-anchor="middle" fill="${archInk}">${esc(r.name.toUpperCase())}</text>`);
   }
   // The drawn work, over the architect's plan and under the design.
-  out.push(drawnSvg(drawn, X, Y, f, win, pen, plotOf(p, s).weights === 'thin', `dw-${s.id}-${part}`.replace(/[^\w-]/g, '_')));
+  out.push(drawnSvg(frozen ? drawn.filter((d) => !frozen(d.it.layer)) : drawn, X, Y, f, win, pen, plotOf(p, s).weights === 'thin', id));
   // The containment, black: trays heavy and broken for their labels, cable routes dashed with their tags beside the
   // line. Tags of routes on one path stack outward rather than print over each other.
   const h = TAG / f, taken: { x: number; y: number; w: number; a: number }[] = [], labels: string[] = [];
@@ -407,6 +399,24 @@ export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number
     const k = counts.get(m.key) ?? { label: m.label, n: 0, svg: m.svg };
     counts.set(m.key, { ...k, n: k.n + 1 });
   }
+  return { out, counts, trayM, pen };
+}
+
+export interface PlanDrawing { svg: string; size: SheetSize; legendSvg: string; parts: number }
+/** The sheet's plan as SVG in paper mm (the drawing area's size), with its legend; `numberOf(part)` names the sheet of
+ * another part of the level for the match lines. Nothing when there is nothing to draw (or the part is gone). */
+export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number) => string | undefined = () => undefined): PlanDrawing | undefined {
+  const lay = layoutOf(p, s);
+  const part = s.part ?? 0;
+  if (!lay || part >= lay.fit.parts) return undefined;
+  const { c, drawn, refs, box, rooms, scale, fit } = lay;
+  const area = drawingAreaMm(p, fit.size);
+  const win = windowOf(box, fit, part);
+  const f = 1000 / scale;
+  const ox = MARGIN + (area.w - 2 * MARGIN - (win.x1 - win.x0) * f) / 2, oy = MARGIN + (area.h - 2 * MARGIN - STRIP - (win.y1 - win.y0) * f) / 2;
+  const X = (x: number) => n(ox + (x - win.x0) * f), Y = (y: number) => n(oy + (win.y1 - y) * f);
+  if (s.viewports?.length) return viewportDrawing(p, s, lay);
+  const { out, counts, trayM, pen } = contentSvg(p, s, c, drawn, refs, rooms, win, X, Y, f, `dw-${s.id}-${part}`.replace(/[^\w-]/g, '_'));
   // Match lines along each edge shared with another part.
   const col = part % fit.cols, row = Math.floor(part / fit.cols);
   const edges: [boolean, number, Pt, Pt][] = [
@@ -427,18 +437,74 @@ export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number
   // of the notes box.
   const lv = planLevels(p, s.plan!).find((x) => x.buildingId === s.buildingId && x.levelId === s.levelId);
   const title = `${(lv?.name ?? s.levelId!).toUpperCase()} · ${PLAN_LABEL[s.plan!].toUpperCase()}${fit.parts > 1 ? ` · PART ${part + 1} OF ${fit.parts}` : ''}`;
+  out.push(...stripSvg(p, area, fit.size, scale, title));
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n(area.w)} ${n(area.h)}" width="${n(area.w)}mm" height="${n(area.h)}mm" font-family="Arial, sans-serif"${s.plan === 'containment' ? ' data-abbr="CT=Cable tray"' : ''}>${out.join('')}</svg>`;
+  const fittings = fittingCounts(trayFittings(c.trays, 0.001).fittings.filter((x) => within(x.at, win)));
+  return { svg, size: fit.size, legendSvg: legendOf(s.plan!, [...counts.values()], c, win, box, rooms, fit, part, [...trayM], fittings, refs.filter((r) => r.segs).map((r) => ({ name: r.ref.name, ink: inkOf(pen.refs) }))), parts: fit.parts };
+}
+
+/** Under the plan: its title and scale, a scale bar (5 segments, 50 mm long) and the north arrow, left of the notes box. */
+function stripSvg(p: Project, area: { w: number; h: number }, size: SheetSize, scale: number, title: string): string[] {
+  const out: string[] = [];
   const by = area.h - MARGIN - STRIP + 6, barM = (50 * scale) / 1000;
   out.push(`<text x="${MARGIN}" y="${by}" font-size="4.2" font-weight="700" fill="#000">${esc(title)}</text>`,
     `<line x1="${MARGIN}" y1="${by + 1.2}" x2="${n(MARGIN + Math.min(area.w * 0.5, title.length * 2.6))}" y2="${by + 1.2}" stroke="#000" stroke-width="0.35"/>`,
-    `<text x="${MARGIN}" y="${by + 6}" font-size="3" fill="#000">SCALE 1:${scale} AT ${fit.size}</text>`);
-  const nx = n(Math.min(area.w - MARGIN - 6, notesLeftMm(p, fit.size) - 6)), ny = n(by + 1);
+    `<text x="${MARGIN}" y="${by + 6}" font-size="3" fill="#000">SCALE 1:${scale} AT ${size}</text>`);
+  const nx = n(Math.min(area.w - MARGIN - 6, notesLeftMm(p, size) - 6)), ny = n(by + 1);
   const sx = n(Math.min(Math.max(MARGIN + 70, area.w * 0.5), nx - 56));
   for (let i = 0; i < 5; i++) out.push(`<rect x="${sx + i * 10}" y="${by + 2}" width="10" height="1.6" fill="${i % 2 ? '#fff' : '#000'}" stroke="#000" stroke-width="0.2"/>`);
   out.push(`<text x="${sx}" y="${by + 7}" font-size="2.5" text-anchor="middle" fill="#000">0</text>`, `<text x="${sx + 50}" y="${by + 7}" font-size="2.5" text-anchor="middle" fill="#000">${n(barM)} m</text>`);
   out.push(`<circle cx="${nx}" cy="${ny}" r="4.5" fill="none" stroke="#000" stroke-width="0.25"/>`, `<path d="M${nx} ${n(ny - 4)}L${n(nx + 2)} ${n(ny + 2.5)}L${nx} ${n(ny + 1.2)}L${n(nx - 2)} ${n(ny + 2.5)}Z" fill="#000" stroke="#000" stroke-width="0.2"/>`, `<text x="${nx}" y="${n(ny - 5.5)}" font-size="3" font-weight="700" text-anchor="middle" fill="#000">N</text>`);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n(area.w)} ${n(area.h)}" width="${n(area.w)}mm" height="${n(area.h)}mm" font-family="Arial, sans-serif"${s.plan === 'containment' ? ' data-abbr="CT=Cable tray"' : ''}>${out.join('')}</svg>`;
-  const fittings = fittingCounts(trayFittings(c.trays, 0.001).fittings.filter((x) => within(x.at, win)));
-  return { svg, size: fit.size, legendSvg: legendOf(s.plan!, [...counts.values()], c, win, box, rooms, fit, part, [...trayM], fittings, refs.filter((r) => r.segs).map((r) => ({ name: r.ref.name, ink: inkOf(pen.refs) }))), parts: fit.parts };
+  return out;
+}
+
+/** A layout's viewports (src/model/planViewports.ts): those set on the sheet, else the one the level works out to (the
+ * sheet's part of the level, at its scale, centred on the paper as the sheet has always printed). Empty when the sheet
+ * names no level with something on it. */
+export function layoutViewports(p: Project, s: DrawingSheet): PlanViewport[] {
+  if (s.viewports?.length) return s.viewports;
+  const lay = layoutOf(p, s), part = s.part ?? 0;
+  if (!lay || part >= lay.fit.parts) return [];
+  const area = drawingAreaMm(p, lay.fit.size), win = windowOf(lay.box, lay.fit, part), f = 1000 / lay.scale;
+  const w = (win.x1 - win.x0) * f, h = (win.y1 - win.y0) * f;
+  const ox = MARGIN + (area.w - 2 * MARGIN - w) / 2, oy = MARGIN + (area.h - 2 * MARGIN - STRIP - h) / 2;
+  return [{ id: 'vp1', box: [n(ox), n(oy), n(w), n(h)], at: [(win.x0 + win.x1) / 2, (win.y0 + win.y1) / 2], scale: lay.scale }];
+}
+
+/** A layout's paper: its size and drawing area (mm). */
+export function layoutPaper(p: Project, s: DrawingSheet): { size: SheetSize; area: { w: number; h: number } } | undefined {
+  const lay = layoutOf(p, s);
+  if (!lay) return undefined;
+  const size = s.size !== 'auto' ? s.size : lay.fit.size;
+  return { size, area: drawingAreaMm(p, size) };
+}
+
+/** A plan sheet drawn through its viewports: each shows the model in its window at its scale, its plan type, without
+ * the layers frozen in it and the references off in it, cut at its frame (printed only when asked). The title strip
+ * and the legend follow the first viewport; no match lines (a layout places its own viewports). */
+function viewportDrawing(p: Project, s: DrawingSheet, lay: NonNullable<ReturnType<typeof layoutOf>>): PlanDrawing | undefined {
+  const paper = layoutPaper(p, s)!, { area, size } = paper;
+  const out: string[] = [], defs: string[] = [];
+  let main: ReturnType<typeof contentSvg> | undefined, mainWin: Box | undefined, mainC: Content | undefined;
+  s.viewports!.forEach((v, i) => {
+    const type = v.shows ?? s.plan!;
+    const c = type === s.plan ? lay.c : contentOf(p, type, s.buildingId!, s.levelId!);
+    const refs = v.refsOff?.length ? lay.refs.filter((r) => !v.refsOff!.includes(r.ref.name)) : lay.refs;
+    const win = vpWindow(v), f = 1000 / v.scale, cx = v.box[0] + v.box[2] / 2, cy = v.box[1] + v.box[3] / 2;
+    const X = (x: number) => n(cx + (x - v.at[0]) * f), Y = (y: number) => n(cy - (y - v.at[1]) * f);
+    const id = `vp-${s.id}-${v.id}`.replace(/[^\w-]/g, '_');
+    const r = contentSvg(p, s, c, lay.drawn, refs, lay.rooms, win, X, Y, f, `dw-${id}`, v.frozen?.length ? (l) => isFrozen(v, l) : undefined);
+    defs.push(`<clipPath id="${id}"><rect x="${v.box[0]}" y="${v.box[1]}" width="${v.box[2]}" height="${v.box[3]}"/></clipPath>`);
+    out.push(`<g class="vp" data-vp="${esc(v.id)}" clip-path="url(#${id})">${r.out.join('')}</g>`);
+    if (v.frame) out.push(`<rect x="${v.box[0]}" y="${v.box[1]}" width="${v.box[2]}" height="${v.box[3]}" fill="none" stroke="#000" stroke-width="0.35"/>`);
+    if (i === 0) { main = r; mainWin = win; mainC = c; }
+  });
+  const first = s.viewports![0], lv = planLevels(p, s.plan!).find((x) => x.buildingId === s.buildingId && x.levelId === s.levelId);
+  out.push(...stripSvg(p, area, size, first.scale, `${(lv?.name ?? s.levelId!).toUpperCase()} · ${PLAN_LABEL[s.plan!].toUpperCase()}`));
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n(area.w)} ${n(area.h)}" width="${n(area.w)}mm" height="${n(area.h)}mm" font-family="Arial, sans-serif"${s.plan === 'containment' ? ' data-abbr="CT=Cable tray"' : ''}><defs>${defs.join('')}</defs>${out.join('')}</svg>`;
+  const fittings = fittingCounts(trayFittings(mainC!.trays, 0.001).fittings.filter((x) => within(x.at, mainWin!)));
+  const one: PlanFit = { size, cols: 1, rows: 1, parts: 1 };
+  return { svg, size, legendSvg: legendOf(s.plan!, [...main!.counts.values()], mainC!, mainWin!, lay.box, lay.rooms, one, 0, [...main!.trayM], fittings, lay.refs.filter((r) => r.segs).map((r) => ({ name: r.ref.name, ink: inkOf(main!.pen.refs) }))), parts: 1 };
 }
 
 /** The legend column: the symbols on this sheet with their counts, the tray lengths and fittings on it, the DB, wiring

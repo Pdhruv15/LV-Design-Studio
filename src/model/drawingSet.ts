@@ -57,6 +57,7 @@ export interface DrawingSheet {
   issuedItems?: SheetItems; // system sheets: each panel and circuit as drawn when last issued (for Cloud the changes)
   arrows?: SheetArrow[]; // callouts with a leader arrow, on this sheet only
   markups?: SheetMarkup[]; // free markups drawn on the sheet (clouds, notes, callouts …), in paper mm
+  viewports?: import('./planViewports').PlanViewport[]; // plan sheets: the layout's viewports (blank = one worked out from the level, src/docs/planLayout.ts)
   plot?: import('./plotSetup').PlotSetup; // page setup: pen table, lineweights, plot stamp (blank = the set's default; paper and scale are size and scale)
 }
 /** A callout: text with a leader arrow pointing at a panel or a circuit. */
@@ -453,7 +454,9 @@ function planValues(p: Project, s: DrawingSheet): unknown {
   // The references it prints (their placing and layers, not their lines), only where there are some.
   const level = planOfLevel(p, { building: s.buildingId ?? '', level: s.levelId ?? '' });
   const refs = level ? refsOf(p, level.file).filter((r) => r.print && !r.unloaded) : [];
-  return refs.length ? [...withDrawn, ['refs', refs]] : withDrawn;
+  const withRefs = refs.length ? [...withDrawn, ['refs', refs]] : withDrawn;
+  // Its viewports, only where set: sheets without keep their hash.
+  return s.viewports?.length ? [...withRefs, ['viewports', s.viewports]] : withRefs;
 }
 function planDesignValues(p: Project, s: DrawingSheet): unknown {
   const on = (d: { buildingId?: string; levelId?: string }) => d.buildingId === s.buildingId && d.levelId === s.levelId;

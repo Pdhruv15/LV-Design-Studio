@@ -6,7 +6,8 @@ import { wireLevel } from '../model/cadWiring';
 import { dropRefGeometry, keepRefGeometry } from '../model/cadRefs';
 import { issueSheets, renumber, setOf, sheetChecks, sheetHash, sheetType, type DrawingSheet, type PlanType } from '../model/drawingSet';
 import type { Project, SketchItem } from '../types';
-import { addPlanSheets, drawingAreaMm, drawnTextMm, planDrawing, planLevels, planNotes, planScale } from './planLayout';
+import { addPlanSheets, drawingAreaMm, drawnTextMm, layoutPaper, layoutViewports, planDrawing, planLevels, planNotes, planScale } from './planLayout';
+import type { PlanViewport } from '../model/planViewports';
 import { buildSheetDxfPages } from './sheetDxf';
 import { buildSldSheetHtml } from './sldSheet';
 import { abbreviationsIn } from './sldNotes';
@@ -213,6 +214,45 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
     it('the drawn work alone makes no sheet', () => {
       const p = drawn({ ...villa(), lvPoints: undefined, cadWiring: undefined }, work);
       expect(planLevels(p, 'lighting')).toEqual([]);
+    });
+  });
+
+  describe('layouts (paper space) through viewports', () => {
+    const withVps = (s: DrawingSheet, viewports: PlanViewport[]): DrawingSheet => ({ ...s, viewports });
+
+    it('a sheet without viewports has one worked out from the level, and prints the same through it', () => {
+      const p = villa(), [s] = sheetOf(p).sheets;
+      const [v] = layoutViewports(p, s);
+      expect(v).toEqual({ id: 'vp1', box: [36, 38, 220, 140], at: [10, 6], scale: 100 }); // the level and 1 m around it: 22 × 14 m at 1:100, centred
+      expect(layoutPaper(p, s)).toEqual({ size: 'A3', area: drawingAreaMm(p, 'A3') });
+      const before = planDrawing(p, s)!, through = planDrawing(p, withVps(s, [v]))!;
+      expect(circles(through.svg)).toEqual(circles(before.svg));
+      expect(through.svg).toContain('data-vp="vp1"');
+      expect(through.svg).toContain('SCALE 1:100 AT A3');
+      expect(through.legendSvg).toBe(before.legendSvg);
+    });
+
+    it('a second viewport shows a key plan at 1:500; one can show another plan type, freeze a layer and print its frame', () => {
+      const p = drawn(villa(), [{ id: 'n1', kind: 'text', layer: 'E-NOTES', pts: [[2000, 2000]], text: 'NOTE A', h: 250 }, { id: 'l1', kind: 'line', layer: 'E-SKETCH', pts: [[0, 3000], [20000, 3000]] }]);
+      const [s] = sheetOf(p).sheets, [main] = layoutViewports(p, s);
+      const key: PlanViewport = { id: 'vp2', box: [10, 10, 50, 30], at: [10, 6], scale: 500, frame: true };
+      const d = planDrawing(p, withVps(s, [main, key]))!;
+      expect(circles(d.svg)).toHaveLength(6); // three lights in each
+      const inKey = circles(d.svg).filter(([x, y]) => x >= 10 && x <= 60 && y >= 10 && y <= 40);
+      expect(inKey.map(([x]) => x)).toEqual([27, 35, 43]); // 4 m apart at 1:500 = 8 mm, the light at 10 m in the middle (35 mm)
+      expect(d.svg).toContain('<rect x="10" y="10" width="50" height="30" fill="none" stroke="#000" stroke-width="0.35"/>');
+      expect(d.svg).not.toContain(`<rect x="${main.box[0]}" y="${main.box[1]}" width="${main.box[2]}" height="${main.box[3]}" fill="none" stroke="#000"`); // its frame does not print
+      expect(d.svg.match(/NOTE A/g)).toHaveLength(2);
+      const frozen = planDrawing(p, withVps(s, [main, { ...key, frozen: ['e-notes'] }]))!;
+      expect(frozen.svg.match(/NOTE A/g)).toHaveLength(1); // frozen in the key plan only
+      const power = planDrawing(p, withVps(s, [main, { ...key, shows: 'power' }]))!;
+      expect(circles(power.svg)).toHaveLength(3); // the key plan shows the power layout: no lights there
+    });
+
+    it('viewports are fingerprinted only where set', () => {
+      const p = villa(), { set, sheets: [s] } = sheetOf(p), [v] = layoutViewports(p, s);
+      expect(sheetHash(p, set, withVps(s, [v]))).not.toBe(sheetHash(p, set, s));
+      expect(sheetHash(p, set, withVps(s, [{ ...v, scale: 50 }]))).not.toBe(sheetHash(p, set, withVps(s, [v])));
     });
   });
 

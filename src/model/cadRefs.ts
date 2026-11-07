@@ -227,12 +227,12 @@ export type RefStatus = 'loaded' | 'changed' | 'unloaded' | 'missing';
 export const REF_STATUS: Record<RefStatus, string> = { loaded: 'Loaded', changed: 'Changed — reload', unloaded: 'Unloaded', missing: 'Not found' };
 
 /** The references of a plan that print on its sheets, each with its lines (metres) or why it cannot print. */
-export function printedRefs(p: Project, host: string, metresPerUnit: number): { ref: CadRef; segs?: Float64Array; missing?: boolean }[] {
+export function printedRefs(p: Project, host: string, metresPerUnit: number): { ref: CadRef; segs?: Float64Array; segLayers?: Uint16Array; layerNames?: string[]; missing?: boolean }[] {
   return refsOf(p, host).filter((r) => r.print && !r.unloaded).map((ref) => {
     const g = refGeometry(ref.file);
     if (!g) return { ref, missing: true };
-    const placed = placeRef(g, ref, true).segs;
-    return { ref, segs: placed.map((v) => v * metresPerUnit) };
+    const placed = placeRef(g, ref, true);
+    return { ref, segs: placed.segs.map((v) => v * metresPerUnit), segLayers: placed.segLayers, layerNames: g.layers.map((l) => l.name) };
   });
 }
 
