@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from '../ui';
 import { chooseDrawing, fileStamp, readRefGeometry, refGeometryOf, sampleDrawing, type CadView, type CadXref } from '../../engines/cad/cadEngine';
 import { LAYER_COLOURS } from '../../model/cadLayerStyle';
-import { boundLayerName, dropRefGeometry, keepRefGeometry, newRef, placeRef, REF_STATUS, refGeometry, refLayerStyle, refSnaps, refsOf, unitScale, updateRef, withRef, withRefLayer, withoutRef, type CadRef, type RefGeometry, type RefStatus } from '../../model/cadRefs';
-import { isSample, pathOfPlan, rememberPath } from './cadState';
+import { boundLayerName, dropRefGeometry, keepRefGeometry, newRef, placeRef, REF_STATUS, refFromXref, refGeometry, refLayerStyle, refSnaps, refsOf, updateRef, withRef, withRefLayer, withoutRef, xrefCandidates, xrefFile, type CadRef, type RefGeometry, type RefStatus } from '../../model/cadRefs';
+import { isSample, pathOfPlan, rememberPath, skipRef, skippedRefs } from './cadState';
 import type { Project } from '../../types';
 
 type Pt = [number, number];
@@ -133,7 +133,11 @@ export function useCadRefs({ project, view, tabOf, change, say }: {
     },
     reloadAll() { for (const r of refs) if (!r.unloaded) { dropRefGeometry(r.file); void load(r.file, true); } },
     unload(r: CadRef) { if (host) change(updateRef(project, host, r.name, { unloaded: r.unloaded ? undefined : true }), `XREF  ${r.name} ${r.unloaded ? 'loaded' : 'unloaded: kept in the list, not drawn'} · ⌘Z to undo`); },
-    detach(r: CadRef) { if (host) change(withoutRef(project, host, r.name), `XREF  ${r.name} detached from ${host}. ${r.file} is not changed · ⌘Z to undo`); },
+    detach(r: CadRef) {
+      if (!host) return;
+      if (r.found) skipRef(project.id, host, r.name, true);
+      change(withoutRef(project, host, r.name), `XREF  ${r.name} detached from ${host}. ${r.file} is not changed · ⌘Z to undo`);
+    },
     /** Repath: the reference (or one found inside the plan's drawing) found on this computer. */
     async repath(r: CadRef | CadXref) {
       if (!view || !host) return;
@@ -145,8 +149,8 @@ export function useCadRefs({ project, view, tabOf, change, say }: {
           change(updateRef(next, host, r.name, { unloaded: undefined }), `XREF  ${r.name} found: ${g.file} · ⌘Z to undo`);
           return;
         }
-        const ins = r.inserts[0] ?? { x: 0, y: 0, sx: 1, sy: 1, rot: 0 };
-        const ref: CadRef = { ...newRef(project, host, g.file, g.units, view.info.units), name: r.name, type: r.overlay ? 'overlay' : 'attach', at: [ins.x, ins.y], scale: +(ins.sx * unitScale(g.units, view.info.units)).toPrecision(12), rot: +((ins.rot * 180) / Math.PI).toFixed(6), found: true };
+        const ref = refFromXref(project, host, r, g.file, g.units, view.info.units);
+        skipRef(project.id, host, r.name, false);
         change(withRef(project, host, ref), `XREF  ${r.name} (found inside ${host}) shown from ${g.file}${r.inserts.length > 1 ? ` — at its first insert of ${r.inserts.length}` : ''} · ⌘Z to undo`);
       } catch (e) { say(e instanceof Error ? e.message : String(e)); }
     },
@@ -156,6 +160,60 @@ export function useCadRefs({ project, view, tabOf, change, say }: {
 
   /** References inside the plan's own drawing that are not on the plan yet (their file to be found). */
   const found = (view?.info.xrefs ?? []).filter((x) => !refs.some((r) => same(r.name, x.name)));
+
+  /** Reads a reference found inside the plan's drawing: from its tab if open, where its file was found before on this
+   * computer, else from the places xrefCandidates names (desktop). Its path is remembered when found. */
+  async function lookFor(x: CadXref, hostPath?: string): Promise<{ g: RefGeometry; path?: string } | null> {
+    const name = xrefFile(x.path, x.name);
+    const tab = tabOf(name);
+    if (tab) return { g: refGeometryOf(tab), path: tab.path };
+    const readBytes = window.lvds?.cadFile?.readBytes;
+    if (!readBytes) return null;
+    const known = pathOfPlan(project.id, name);
+    for (const path of [...(known ? [known] : []), ...xrefCandidates(x.path, x.name, hostPath)]) {
+      const bytes = await readBytes(path).catch(() => null);
+      if (!bytes) continue;
+      rememberPath(project.id, bytes.file, path);
+      return { g: await readRefGeometry(bytes.file, bytes.bytes, (await fileStamp(path)) ?? undefined), path };
+    }
+    return null;
+  }
+
+  // When a plan opens, the references inside its drawing are looked for on this computer once each, and those found
+  // are shown under it (⌘Z undoes it; one detached is not looked for again here).
+  const latest = useRef({ project, host });
+  latest.current = { project, host };
+  const looked = useRef(new Set<string>());
+  const foundKey = found.map((x) => x.name).join('|');
+  useEffect(() => {
+    if (!view || !host || !found.length) return;
+    const off = skippedRefs(project.id, host);
+    const todo = found.filter((x) => !looked.current.has(`${keyOf(host)}|${keyOf(x.name)}`) && !off.some((n) => same(n, x.name)));
+    if (!todo.length) return;
+    for (const x of todo) looked.current.add(`${keyOf(host)}|${keyOf(x.name)}`);
+    const hostPath = view.path ?? pathOfPlan(project.id, host), units = view.info.units;
+    void (async () => {
+      const hits: { x: CadXref; g: RefGeometry; path?: string }[] = [], missed: string[] = [];
+      for (const x of todo) {
+        const hit = await lookFor(x, hostPath).catch(() => null);
+        if (hit && !same(hit.g.file, host)) hits.push({ x, ...hit }); else missed.push(x.name);
+      }
+      const now = latest.current;
+      if (!same(now.host ?? '', host)) return;
+      let next = now.project;
+      const shown: string[] = [];
+      for (const h of hits) {
+        if (refsOf(next, host).some((r) => same(r.name, h.x.name))) continue;
+        keepRefGeometry(h.g);
+        tried.current.add(keyOf(h.g.file));
+        mark(h.g.file, undefined);
+        next = withRef(next, host, refFromXref(next, host, h.x, h.g.file, h.g.units, units));
+        shown.push(`${h.x.name}${h.path ? ` (${h.path})` : ''}`);
+      }
+      if (shown.length) { setTick((t) => t + 1); change(next, `XREF  Found inside ${host} and shown under it: ${shown.join(', ')} · ⌘Z to undo`); }
+      if (missed.length) say(`XREF  Not found on this computer: ${missed.join(', ')} (inside ${host}). References → Repath… finds ${missed.length > 1 ? 'them' : 'it'}.`);
+    })();
+  }, [host, foundKey]); // eslint-disable-line react-hooks/exhaustive-deps -- once per plan and its references
 
   return { refs, placed, snap, statusOf, actions, found, bound };
 }

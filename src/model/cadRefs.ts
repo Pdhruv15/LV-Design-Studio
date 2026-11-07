@@ -110,6 +110,45 @@ export function newRef(p: Project, host: string, file: string, refUnits?: number
   return { name: refName(p, host, file), file, type: 'overlay', at: [0, 0], scale: unitScale(refUnits, hostUnits), rot: 0, fade: 50, print: printsByDefault(file) };
 }
 
+/** The file name of a reference found inside the plan's drawing: from its saved path, else its name (.dwg added). */
+export function xrefFile(saved: string, name: string): string {
+  const file = saved.trim().split(/[\\/]+/).filter(Boolean).pop() || name.trim();
+  return !file || /\.(dwg|dxf)$/i.test(file) ? file : `${file}.dwg`;
+}
+
+/** Where to look for a reference found inside the plan's own drawing, first to last: the path saved in the drawing,
+ * that path from the plan's folder when it is relative (./ or ../), the file in the plan's folder, then in a folder of
+ * the plan's folder named like the saved path's last folder (e.g. Xref). Paths saved on Windows (\) work from a Mac. */
+export function xrefCandidates(saved: string, name: string, hostPath?: string): string[] {
+  const s = saved.trim(), parts = s.split(/[\\/]+/).filter(Boolean), file = xrefFile(saved, name);
+  if (!file) return [];
+  const absolute = /^([a-z]:[\\/]|[\\/])/i.test(s);
+  const out: string[] = [];
+  if (absolute && /\.(dwg|dxf)$/i.test(s)) out.push(s);
+  if (hostPath) {
+    const sep = /^[a-z]:\\|^\\\\/i.test(hostPath) || (hostPath.includes('\\') && !hostPath.startsWith('/')) ? '\\' : '/';
+    const dir = hostPath.split(/[\\/]/).slice(0, -1);
+    const at = (rel: string[]) => {
+      const d = [...dir];
+      for (const x of rel) { if (x === '..') { if (d.length > 1) d.pop(); } else if (x !== '.') d.push(x); }
+      return d.join(sep);
+    };
+    if (!absolute && parts.length > 1) out.push(at([...parts.slice(0, -1), file]));
+    out.push(at([file]));
+    const folder = parts.length > 1 ? parts[parts.length - 2] : '';
+    if (folder && folder !== '.' && folder !== '..') out.push(at([folder, file]));
+  }
+  const seen = new Set<string>();
+  return out.filter((x) => !seen.has(x.toLowerCase()) && !!seen.add(x.toLowerCase()));
+}
+
+/** A reference found inside the plan's own drawing, set up as the drawing places it (its first insert), from the file
+ * that was read for it (`file`, `refUnits`). */
+export function refFromXref(p: Project, host: string, x: { name: string; overlay: boolean; inserts: { x: number; y: number; sx: number; rot: number }[] }, file: string, refUnits?: number, hostUnits?: number): CadRef {
+  const ins = x.inserts[0] ?? { x: 0, y: 0, sx: 1, rot: 0 };
+  return { ...newRef(p, host, file, refUnits, hostUnits), name: x.name, type: x.overlay ? 'overlay' : 'attach', at: [ins.x, ins.y], scale: +(ins.sx * unitScale(refUnits, hostUnits)).toPrecision(12), rot: +((ins.rot * 180) / Math.PI).toFixed(6), found: true };
+}
+
 /** A point of the reference (its own units) on the plan (plan units): scaled, rotated, then moved to the insertion point. */
 export function refTransform(r: Pick<CadRef, 'at' | 'scale' | 'rot'>): (x: number, y: number) => Pt {
   const a = (r.rot * Math.PI) / 180, c = Math.cos(a) * r.scale, s = Math.sin(a) * r.scale;

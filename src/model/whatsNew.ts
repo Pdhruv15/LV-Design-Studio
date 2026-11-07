@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.047', date: '2026-11-07',
+    items: [
+      { title: 'Design CAD finds the references inside a plan', text: 'When you open an architect\'s DWG or DXF that names other drawings (external references), the desktop app now looks for each one: at the path saved in the drawing, from the plan\'s folder, beside the plan, and in a folder next to it named like the saved one (for example Xref). Those found are shown under the plan where the drawing places them, and ⌘Z undoes it. Those not found are named in the command line; References → Repath… finds them. One you detach is not looked for again on this computer.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.046', date: '2026-11-07',
     items: [
       { title: 'Design CAD: references (Xref)', text: 'Show another drawing under a level\'s plan without copying it in: the structure, other services or a site plan. File → References (XR) attaches one (XA) at the same origin or a picked point, with its scale worked out from the units, a rotation and a fade. The manager shows each one as Loaded, Changed — reload, Unloaded or Not found, with Reload, Unload, Detach, Repath, Clip and Bind. References found inside the architect\'s DWG are listed so a missing one can be found. You can snap to a reference but not edit it, and the file is never changed.', action: 'cad', actionLabel: 'Open Design CAD' },

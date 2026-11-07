@@ -32,6 +32,14 @@ export const rememberPath = (projectId: string | undefined, file: string, path?:
   try { if (path) localStorage.setItem(PATHS(projectId), JSON.stringify({ ...paths(projectId), [file.toLowerCase()]: path })); } catch { /* not remembered */ }
 };
 
+const SKIPPED = (projectId: string | undefined, host: string) => `lvds.cad.refsOff.${projectId ?? 'new'}.${host.toLowerCase()}`;
+/** References inside a plan's drawing that were detached on this computer: not looked for again when the plan opens. */
+export const skippedRefs = (projectId: string | undefined, host: string): string[] => { try { return JSON.parse(localStorage.getItem(SKIPPED(projectId, host)) ?? '[]') as string[]; } catch { return []; } };
+export const skipRef = (projectId: string | undefined, host: string, name: string, off: boolean) => {
+  const rest = skippedRefs(projectId, host).filter((n) => n.toLowerCase() !== name.toLowerCase());
+  try { localStorage.setItem(SKIPPED(projectId, host), JSON.stringify(off ? [...rest, name] : rest)); } catch { /* not remembered */ }
+};
+
 /** What the ribbon asks of the page showing the drawing; nothing while the page is not shown. */
 export interface CadActions { save: () => void; saveDwg: () => void; close: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void; refs: () => void }
 export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, close: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {}, refs: () => {} };

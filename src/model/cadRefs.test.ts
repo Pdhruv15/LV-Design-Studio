@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { boundLayerName, clipToOutline, dropRefGeometry, insideOutline, keepRefGeometry, newRef, placeRef, printedRefs, printsByDefault, refLayerName, refLayerStyle, refName, refSnaps, refsOf, refTransform, unitScale, updateRef, withRef, withRefLayer, withoutRef, type CadRef, type RefGeometry } from './cadRefs';
+import { boundLayerName, clipToOutline, dropRefGeometry, insideOutline, keepRefGeometry, newRef, placeRef, printedRefs, printsByDefault, refLayerName, refLayerStyle, refName, refSnaps, refsOf, refFromXref, refTransform, unitScale, updateRef, withRef, withRefLayer, withoutRef, xrefCandidates, xrefFile, type CadRef, type RefGeometry } from './cadRefs';
 import type { Project } from '../types';
 
 const p: Project = { ...sampleProject, cadRefs: undefined };
@@ -90,5 +90,22 @@ describe('references of a plan', () => {
     const [one] = printedRefs(a, 'GF.dwg', 0.001);
     expect([...one.segs!]).toEqual([0, 0, 0.01, 0, 0, 0, 0, 0.01]);
     expect(printedRefs(updateRef(a, 'GF.dwg', 'STR-GF', { unloaded: true }), 'GF.dwg', 0.001)).toEqual([]);
+  });
+
+  it('looks for a reference named inside the plan: saved path, from the plan folder, beside the plan, in its folder', () => {
+    expect(xrefFile('..\\Structure\\STR-GF.dwg', 'STR-GF')).toBe('STR-GF.dwg');
+    expect(xrefFile('', 'MECH-GF')).toBe('MECH-GF.dwg');
+    expect(xrefCandidates('..\\Structure\\STR-GF.dwg', 'STR-GF', '/jobs/A/Arch/GF.dwg')).toEqual(['/jobs/A/Structure/STR-GF.dwg', '/jobs/A/Arch/STR-GF.dwg', '/jobs/A/Arch/Structure/STR-GF.dwg']);
+    expect(xrefCandidates('C:\\Old\\Xref\\STR-GF.dwg', 'STR-GF', 'D:\\Jobs\\A\\GF.dwg')).toEqual(['C:\\Old\\Xref\\STR-GF.dwg', 'D:\\Jobs\\A\\STR-GF.dwg', 'D:\\Jobs\\A\\Xref\\STR-GF.dwg']);
+    expect(xrefCandidates('.\\STR-GF.dwg', 'STR-GF', '/jobs/GF.dwg')).toEqual(['/jobs/STR-GF.dwg']);
+    expect(xrefCandidates('', 'STR-GF', '/jobs/GF.dwg')).toEqual(['/jobs/STR-GF.dwg']);
+    expect(xrefCandidates('/srv/STR-GF.dwg', 'STR-GF')).toEqual(['/srv/STR-GF.dwg']);
+    expect(xrefCandidates('', '')).toEqual([]);
+  });
+
+  it('sets up a reference named inside the plan as the drawing places it, scaled from the units', () => {
+    const x = { name: 'STR-GF', overlay: false, inserts: [{ x: 100, y: 200, sx: 2, rot: Math.PI / 2 }] };
+    expect(refFromXref(p, 'GF.dwg', x, 'STR-GF.dwg', 6, 4)).toEqual({ name: 'STR-GF', file: 'STR-GF.dwg', type: 'attach', at: [100, 200], scale: 2000, rot: 90, fade: 50, print: true, found: true });
+    expect(refFromXref(p, 'GF.dwg', { ...x, overlay: true, inserts: [] }, 'MECH.dxf')).toMatchObject({ type: 'overlay', at: [0, 0], scale: 1, rot: 0, print: false });
   });
 });

@@ -20,9 +20,12 @@ Status: **approved 2026-11-07 ("Go ahead", all six recommended answers) and buil
 - `cad:stat` (desktop) for Changed / Not found.
 - Plan sheets: References pen (grey 30 %, 0.13 mm), legend line, a note naming the references shown or not printed.
 
+## Built (v2.047)
+
+- A reference named inside the plan's drawing is looked for when the plan opens (desktop): its tab if open, where it was found before, the saved path, that path from the plan's folder, beside the plan, and a folder of the plan's folder named like the saved one (`xrefCandidates` in `src/model/cadRefs.ts`). Found ones are shown at the drawing's first insert (⌘Z undoes it). Missing ones are named in the command line. One detached is not looked for again on this computer (`skippedRefs` in `cadState.ts`). No screen changed.
+
 ## Not built yet
 
-- A reference found inside the architect's DWG is not looked for on disk automatically: Repath… finds it.
 - Attach and Overlay act the same here; Save DWG does not write an external-reference block (Bind writes the lines).
 - Bind writes lines only (no texts or fills of the reference).
 - Plan sheets print a reference only if it was read in this session (open the plan in Design CAD first); the sheet says so in its notes.

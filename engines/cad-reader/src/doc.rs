@@ -1012,6 +1012,31 @@ mod tests {
         assert!((i.rot - PI / 2.0).abs() < 1e-12);
     }
 
+    /// A plan whose drawing names a reference (STR-GF, saved as ..\\Structure\\STR-GF.dxf): written as DXF and read again,
+    /// the reference is still listed. LVDS_WRITE_XREF_FIXTURE writes tests/fixtures/cad/xref-host.dxf (page tests).
+    #[test]
+    fn xrefs_kept_through_dxf() {
+        use acadrust::entities::{Insert, Line};
+        use acadrust::tables::BlockRecord;
+        use acadrust::types::Vector3;
+        let mut doc = CadDocument::new();
+        let mut rec = BlockRecord::new("STR-GF");
+        rec.flags.is_xref = true;
+        rec.flags.is_xref_overlay = true;
+        rec.xref_path = "..\\Structure\\STR-GF.dxf".into();
+        doc.block_records.add(rec).unwrap();
+        doc.add_entity(EntityType::Line(Line::from_points(Vector3::new(0.0, 0.0, 0.0), Vector3::new(10000.0, 0.0, 0.0)))).unwrap();
+        doc.add_entity(EntityType::Insert(Insert::new("STR-GF", Vector3::new(500.0, 0.0, 0.0)))).unwrap();
+        let bytes = acadrust::DxfWriter::new(&doc).write_to_vec().unwrap();
+        if let Ok(path) = std::env::var("LVDS_WRITE_XREF_FIXTURE") { std::fs::write(path, &bytes).unwrap(); }
+        let back = DxfReader::from_reader(Cursor::new(bytes)).and_then(|r| r.read()).unwrap();
+        let x = xrefs_of(&back);
+        assert_eq!(x.len(), 1);
+        assert_eq!((x[0].name.as_str(), x[0].path.as_str(), x[0].overlay), ("STR-GF", "..\\Structure\\STR-GF.dxf", true));
+        assert_eq!(x[0].inserts.len(), 1);
+        assert_eq!(x[0].inserts[0].x, 500.0);
+    }
+
     #[test]
     fn linetypes_and_fills() {
         let bytes = drawing();
