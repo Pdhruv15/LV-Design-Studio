@@ -21,9 +21,10 @@ export const LINETYPE_IDS = Object.keys(LINETYPES) as LinetypeId[];
 /** Lineweights (mm); 0 = Default. */
 export const LINEWEIGHTS = [0, 0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1];
 
-/** `noPrint`: the layer shows on screen but stays off the sheets. */
+/** `noPrint`: the layer shows on screen but stays off the sheets. `freeze`: hidden, not picked, left out of zoom extents
+ * and the sheets (apart from Off, which only hides). */
 /** `color`: '' / absent, a named or true colour (#rrggbb) or an index colour ('idx:8'), see cadColours.ts. */
-export interface LayerStyle { color?: string; lock?: boolean; hidden?: boolean; noPrint?: boolean; lt?: LinetypeId; lw?: number }
+export interface LayerStyle { color?: string; lock?: boolean; hidden?: boolean; freeze?: boolean; noPrint?: boolean; lt?: LinetypeId; lw?: number }
 export interface ObjectProps { color?: string; lt?: LinetypeId; lw?: number }
 
 const keyOf = (file: string) => file.trim().toLowerCase();
@@ -48,7 +49,7 @@ export function withLayerStyle(p: Project, file: string, layer: string, patch: L
 export function effective(it: SketchItem, styles: Record<string, LayerStyle>): { color?: string; dash: number[]; lw: number; hidden: boolean; lock: boolean } {
   const l = styleOf(styles, it.layer);
   const lt = it.lt ?? l.lt ?? 'continuous';
-  return { color: colourCss(it.color ?? l.color), dash: LINETYPES[lt]?.dash ?? [], lw: it.lw ?? l.lw ?? 0, hidden: !!l.hidden, lock: !!l.lock };
+  return { color: colourCss(it.color ?? l.color), dash: LINETYPES[lt]?.dash ?? [], lw: it.lw ?? l.lw ?? 0, hidden: !!l.hidden || !!l.freeze, lock: !!l.lock };
 }
 
 /** Objects with their own properties set (blank = ByLayer); `undefined` in the patch clears one. */
@@ -68,7 +69,10 @@ export function matchedProps(from: SketchItem, to: SketchItem): SketchItem {
   return withProps(to, { ...(keepLayer ? {} : { layer: from.layer }), color: from.color, lt: from.lt, lw: from.lw });
 }
 
-/** The layers a drawing's objects can go on: those of what is drawn here, then the app's usual ones. */
-export function drawnLayers(items: SketchItem[]): string[] {
-  return [...new Set([...items.map((it) => it.layer), 'LV-SKETCH', 'LV-ANNO', 'LV-HATCH'])];
+/** The layers a drawing's objects can go on: those of what is drawn here, then the app's usual ones, then the layers
+ * added in the layer palette that hold nothing yet (src/model/cadLayerState.ts). */
+export function drawnLayers(items: SketchItem[], added: string[] = []): string[] {
+  const out = [...new Set([...items.map((it) => it.layer), 'LV-SKETCH', 'LV-ANNO', 'LV-HATCH'])];
+  for (const l of added) if (!out.some((x) => x.toLowerCase() === l.toLowerCase())) out.push(l);
+  return out;
 }

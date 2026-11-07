@@ -18,12 +18,14 @@ const BEFORE: Record<string, string> = {
   RT: 'rtag', ROOMTAG: 'rtag', NORTH: 'north',
   XR: '!xref', XREF: '!xref', XREFS: '!xref', ER: '!xref', EXTERNALREFERENCES: '!xref', XA: '!xattach', XATTACH: '!xattach',
   XCLIP: '!xclip', XC: '!xclip', LM: '!layerManager', LAYERMANAGER: '!layerManager', LAYMAN: '!layerManager',
+  // Since the layer palette: LAYER opens it (as in current industrial 2D drafting products); LA still shows the Layers panel.
+  LAYER: '!layerManager', 'LAYER N': '!newLayer', 'LAYER NEW': '!newLayer', '-LAYER N': '!newLayer', CLAYER: '!clayer', LAYISO: '!layiso', LAYUNISO: '!layuniso',
   ALIGN: '!align', ALIGNV: '!align', SPACE: '!align', WC: '!wireAll', WIRE: '!wireAll', WIRECIRCUITS: '!wireAll', W1: 'wire', WIREONE: 'wire',
   TAGS: '!wireTags', COV: '!coverage', COVERAGE: '!coverage', REC: 'rect', RECTANG: 'rect', RECTANGLE: 'rect',
   C: 'circle', CIRCLE: 'circle', A: 'arc', ARC: 'arc', T: 'text', DT: 'text', TEXT: 'text', MT: 'text',
   DIM: 'dim', DIMALIGNED: 'dim', DAL: 'dim', DLI: 'dim', E: '!erase', ERASE: '!erase', DEL: '!erase', DELETE: '!erase',
   SAVE: '!save', DXFOUT: '!save', SAVEAS: '!save', SAVEDWG: '!saveDwg', DWGOUT: '!saveDwg',
-  LA: '!layers', LAYER: '!layers', LAYERS: '!layers', OS: '!osnap', OSNAP: '!osnap', GRID: '!grid', ORTHO: '!ortho', SNAP: '!snap',
+  LA: '!layers', LAYERS: '!layers', OS: '!osnap', OSNAP: '!osnap', GRID: '!grid', ORTHO: '!ortho', SNAP: '!snap',
   HELP: '!help', '?': '!help'
 };
 const outcome = (c: string) => { const x = cadCommand(c); return x && ('tool' in x ? x.tool : `!${x.action}`); };

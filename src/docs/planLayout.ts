@@ -250,7 +250,7 @@ function drawnOf(p: Project, b: string, l: string): Drawn[] {
   for (const it of sketchOf(p, plan.file)) {
     if (it.tray || it.cable || !it.pts.length) continue;
     const st = styleOf(styles, it.layer);
-    if (st.hidden || st.noPrint) continue;
+    if (st.hidden || st.freeze || st.noPrint) continue;
     const ef = effective(it, styles);
     const m: SketchItem = { ...it, pts: it.pts.map(([x, y]): Pt => [x * k, y * k]), ...(it.r !== undefined ? { r: it.r * k } : {}), ...(it.h !== undefined ? { h: it.h * k } : {}) };
     out.push({ it: m, dash: ef.dash, lw: ef.lw });

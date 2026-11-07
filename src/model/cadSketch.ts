@@ -10,7 +10,8 @@ type Pt = [number, number];
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 export const sketchOf = (p: Project, file: string): SketchItem[] => p.cadSketch?.find((s) => same(s.file, file))?.items ?? [];
 
-function withItems(p: Project, file: string, items: SketchItem[]): Project {
+/** The project with the drawing's drawn objects replaced. */
+export function withSketchItems(p: Project, file: string, items: SketchItem[]): Project {
   const rest = (p.cadSketch ?? []).filter((s) => !same(s.file, file));
   const all: CadSketch[] = items.length ? [...rest, { file, items }] : rest;
   const { cadSketch: _old, ...base } = p;
@@ -20,10 +21,10 @@ const nextId = (p: Project) => (p.cadSketch ?? []).flatMap((s) => s.items).reduc
 
 export function addSketch(p: Project, file: string, item: Omit<SketchItem, 'id'>): { project: Project; id: string } {
   const id = `S${nextId(p)}`;
-  return { project: withItems(p, file, [...sketchOf(p, file), { ...item, id } as SketchItem]), id };
+  return { project: withSketchItems(p, file, [...sketchOf(p, file), { ...item, id } as SketchItem]), id };
 }
-export const updateSketch = (p: Project, file: string, item: SketchItem) => withItems(p, file, sketchOf(p, file).map((it) => (it.id === item.id ? item : it)));
-export const removeSketch = (p: Project, file: string, id: string) => withItems(p, file, sketchOf(p, file).filter((it) => it.id !== id));
+export const updateSketch = (p: Project, file: string, item: SketchItem) => withSketchItems(p, file, sketchOf(p, file).map((it) => (it.id === item.id ? item : it)));
+export const removeSketch = (p: Project, file: string, id: string) => withSketchItems(p, file, sketchOf(p, file).filter((it) => it.id !== id));
 
 // ---- geometry
 

@@ -490,8 +490,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Copy to level', icon: Copy, title: "Copy this level's devices of the chosen ELV device's system to another level, at the same plan positions", onClick: () => {}, disabled: !a.cad?.hasDrawing || !a.cad.copyLevels?.length, menu: a.cad?.copyLevels }
       ],
       [
-        { label: 'Layers', icon: Layers, title: 'Show or hide the layers panel (LAYER)', onClick: () => a.cad?.onLayers(), active: a.cad?.layersOn },
-        { label: 'Layer manager', icon: Layers2, title: 'Layer manager (LM): each layer on, locked, its colour, linetype and lineweight — the app\'s drawn layers and the architect\'s', onClick: () => a.cad?.onLayerManager?.(), disabled: !a.cad?.hasDrawing },
+        { label: 'Layers', icon: Layers, title: 'Show or hide the layers panel (LA)', onClick: () => a.cad?.onLayers(), active: a.cad?.layersOn },
+        { label: 'Layer manager', icon: Layers2, title: 'Layer palette (LM), docked beside the drawing: each layer on, frozen, locked, its colour, linetype and lineweight — the app\'s drawn layers, the architect\'s and the references\'; new layers, the current layer, isolate and layer states', onClick: () => a.cad?.onLayerManager?.(), disabled: !a.cad?.hasDrawing },
         { label: 'Fit', icon: Maximize, title: 'Fit the drawing to the window (FIT / ZE, or double-click the middle button)', onClick: () => a.cad?.onFit(), disabled: !a.cad?.hasDrawing }
       ],
       [

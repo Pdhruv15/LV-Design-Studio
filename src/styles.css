@@ -1851,6 +1851,60 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-vp-model{position:absolute;inset:0;overflow:hidden;pointer-events:auto}
 .cad-vpform .seg{display:flex;flex-wrap:wrap}
 .cad-vpform .seg button{flex:1;padding:4px 6px}
+/* Design CAD layer palette (LM): docked left of the drawing, a dense table with icon toggles */
+.cad-work:has(> .cad-lpal){grid-template-columns:420px minmax(0,1fr) 260px}
+.cad-work:has(> .cad-lpal):not(:has(> .cad-side)){grid-template-columns:420px minmax(0,1fr)}
+.cad-lpal{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel);border-right:1px solid var(--line-strong);font-size:var(--fs-sm);outline:0}
+.cad-lp-head{display:flex;align-items:center;gap:6px;height:24px;padding:0 6px 0 8px;background:var(--p2);border-bottom:1px solid var(--line);font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.04em;color:var(--mut);white-space:nowrap;overflow:hidden}
+.cad-lp-head .sp{flex:1}
+.cad-lp-head button{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;border:0;border-radius:3px;background:none;color:var(--mut)}
+.cad-lp-head button:hover{background:var(--line);color:var(--tx)}
+.cad-lp-tb{display:flex;align-items:center;gap:1px;padding:3px 4px;border-bottom:1px solid var(--line)}
+.cad-lp-btn{display:inline-flex;align-items:center;justify-content:center;height:22px;min-width:22px;padding:0 4px;border:1px solid transparent;border-radius:3px;background:none;color:var(--tx);font-size:var(--fs-xs)}
+.cad-lp-btn:hover:not(:disabled){background:var(--p2);border-color:var(--line)}
+.cad-lp-btn:disabled{color:var(--mut);opacity:.6}
+.cad-lp-btn svg{color:var(--mut)}
+.cad-lp-sep{width:1px;align-self:stretch;margin:2px 3px;background:var(--line)}
+.cad-lp-filter{margin-left:auto;width:120px;height:20px;padding:0 6px;background:var(--bg);border:1px solid var(--field-line);border-radius:3px;color:var(--tx);font-size:var(--fs-xs)}
+.cad-lp-body{display:grid;grid-template-columns:110px minmax(0,1fr);flex:1;min-height:0}
+.cad-lp-tree{display:flex;flex-direction:column;padding:4px 0;border-right:1px solid var(--line);overflow:auto;font-size:var(--fs-xs)}
+.cad-lp-tree button{padding:2px 6px;border:0;background:none;color:var(--mut);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cad-lp-tree button.on{background:color-mix(in srgb,var(--acc) 18%,transparent);color:var(--tx)}
+.cad-lp-tf{padding:2px 6px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cad-lp-grid{overflow:auto;min-width:0}
+.cad-lp-grid table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:var(--fs-xs)}
+.cad-lp-grid th{position:sticky;top:0;z-index:1;height:20px;padding:0 4px;background:var(--p2);color:var(--mut);font-weight:500;text-align:left;border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap;overflow:hidden}
+.cad-lp-grid td{height:22px;padding:0 3px;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cad-lp-grid td:has(.cad-lp-dd),.cad-lp-grid td:has(.cad-colour){overflow:visible}
+.cad-lp-grid tr.sel td{background:color-mix(in srgb,var(--acc) 16%,transparent)}
+.cad-lp-grp td{background:var(--bg);color:var(--mut);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
+.cad-lp-grid .c{text-align:center}
+.cad-lp-grid .num{text-align:right;color:var(--mut)}
+.cad-lp-name{cursor:default;user-select:none}
+.cad-lp-name input{width:100%;height:18px;padding:0 3px;background:var(--bg);border:0;outline:1px solid var(--acc);color:var(--tx);font-size:var(--fs-xs)}
+.cad-lp-ic{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;border:0;border-radius:3px;background:none;color:var(--line-strong)}
+.cad-lp-ic:hover{background:var(--p2)}
+.cad-lp-ic.on{color:var(--mut)}
+.cad-lp-ic.bulb.on{color:var(--acc)}
+.cad-lp-na{color:var(--line-strong)}
+.cad-lp-cur{color:var(--ok)}
+.cad-lp-grid .cad-colour-btn{min-height:18px;padding:0 4px;border-color:transparent;background:none}
+.cad-lp-dd{position:relative;display:inline-block}
+.cad-lp-cell{height:18px;padding:0 3px;border:0;border-radius:3px;background:none;color:var(--tx);font-size:var(--fs-xs);white-space:nowrap}
+.cad-lp-cell:hover{background:var(--p2)}
+.cad-lp-pop{position:absolute;left:0;top:100%;z-index:60;margin-top:1px;min-width:110px;padding:2px;display:grid;background:var(--panel);border:1px solid var(--line-strong);border-radius:4px;box-shadow:var(--shadow-pop)}
+.cad-lp-pop [role=option]{height:20px;padding:0 6px;border:0;border-radius:3px;background:none;color:var(--tx);text-align:left;font-size:var(--fs-xs)}
+.cad-lp-pop [role=option]:hover,.cad-lp-pop [aria-selected=true]{background:var(--p2)}
+.cad-lp-states{width:200px;gap:2px;font-size:var(--fs-xs)}
+.cad-lp-state{display:flex;align-items:center}
+.cad-lp-state button{height:20px;border:0;border-radius:3px;background:none;color:var(--tx);font-size:var(--fs-xs)}
+.cad-lp-state button:first-child{flex:1;text-align:left;padding:0 6px}
+.cad-lp-state button:hover{background:var(--p2)}
+.cad-lp-states form{display:flex;gap:2px;padding-top:2px;border-top:1px solid var(--line)}
+.cad-lp-states input{flex:1;min-width:0;height:20px;font-size:var(--fs-xs)}
+.cad-lp-foot{display:flex;align-items:center;gap:10px;min-height:20px;padding:0 8px;background:var(--p2);border-top:1px solid var(--line);color:var(--mut);font-size:var(--fs-xs);overflow:hidden}
+.cad-lp-foot span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cad-lp-note{color:var(--warn)}
 .cad-side{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-width:0;min-height:0}
 .cad-side h4{margin:0;padding:var(--space-3) var(--space-3) var(--space-1);font-size:var(--fs-xs);color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
 .cad-res{margin:0 var(--space-3) var(--space-2);padding:var(--space-2);border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--p2);font-size:var(--fs-sm);overflow-wrap:anywhere}
@@ -1870,7 +1924,7 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-tg{border:1px solid var(--line);border-radius:4px;padding:1px 7px;background:none;color:var(--mut);font-size:var(--fs-xs)}
 .cad-tg.on{color:var(--tx);border-color:var(--acc);background:color-mix(in srgb,var(--acc) 15%,transparent)}
 .cad-status .sp{flex:1}
-@media (max-width:900px){.cad-work{grid-template-columns:1fr}.cad-side{display:none}}
+@media (max-width:900px){.cad-work{grid-template-columns:1fr}.cad-side{display:none}.cad-work:has(> .cad-lpal),.cad-work:has(> .cad-lpal):not(:has(> .cad-side)){grid-template-columns:300px minmax(0,1fr)}}
 .cad-big{font-size:16px;margin-left:var(--space-1)}
 .cad-props{display:grid;grid-template-columns:auto 1fr;gap:2px var(--space-2);margin:var(--space-2) 0 0;font-size:var(--fs-sm)}
 .cad-props dt{color:var(--mut)}

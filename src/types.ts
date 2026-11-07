@@ -557,6 +557,8 @@ export interface Project {
   /** Design CAD annotation: text height on paper (mm) and the scale the plans are annotated for. */
   cadAnno?: import('./model/cadAnnotate').AnnoSettings;
   cadLayerStyle?: Record<string, Record<string, import('./model/cadLayerStyle').LayerStyle>>;
+  /** Design CAD layer palette per drawing file: current layer, empty layers added, layer states (src/model/cadLayerState.ts). */
+  cadLayerFile?: Record<string, import('./model/cadLayerState').CadLayerFile>;
   /** How sheets print: pen tables and the set's default page setup (src/model/plotSetup.ts). */
   plot?: import('./model/plotSetup').ProjectPlot;
   /** Which drawing file is each level's plan in Design CAD (src/model/cadPlans.ts). */

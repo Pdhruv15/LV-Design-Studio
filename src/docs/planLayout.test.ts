@@ -191,6 +191,13 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
       expect(svg.indexOf('class="drawn"')).toBeLessThan(svg.indexOf('DB-GF1')); // under the design
     });
 
+    it('leaves a frozen layer off the sheet, as one that is off', () => {
+      const p = withWork({ cadLayerStyle: { 'gf.dwg': { 'LV-ANNO': { freeze: true } } } });
+      const g = /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svgOf(p))![1];
+      expect(g).not.toContain('PLANT');
+      expect(g).toContain('HELPER');
+    });
+
     it('hatches with the hatch pen inside their outline; Solid light grey; a leader\'s arrow', () => {
       const svg = svgOf(withWork());
       expect(svg).toMatch(/<clipPath id="(dw-[\w-]+-1)"><path d="M[^"]+Z"\/><\/clipPath>.*<path d="M[^"]+" clip-path="url\(#\1\)" fill="none" stroke="#666666" stroke-width="0.13"\/>/s);
