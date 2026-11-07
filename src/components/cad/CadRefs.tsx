@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from '../ui';
-import { chooseDrawing, fileStamp, readRefGeometry, refGeometryOf, sampleDrawing, type CadView, type CadXref } from '../../engines/cad/cadEngine';
+import { chooseDrawing, fileStamp, readRefGeometry, refGeometryOf, type CadView, type CadXref } from '../../engines/cad/cadEngine';
 import { LAYER_COLOURS } from '../../model/cadLayerStyle';
 import { boundLayerName, dropRefGeometry, keepRefGeometry, newRef, placeRef, REF_STATUS, refFromXref, refGeometry, refLayerStyle, refSnaps, refsOf, updateRef, withRef, withRefLayer, withoutRef, xrefCandidates, xrefFile, type CadRef, type RefGeometry, type RefStatus } from '../../model/cadRefs';
-import { isSample, pathOfPlan, rememberPath, skipRef, skippedRefs } from './cadState';
+import { pathOfPlan, rememberPath, skipRef, skippedRefs } from './cadState';
+import { readRefFile } from './refFiles';
 import type { Project } from '../../types';
 
 type Pt = [number, number];
@@ -31,15 +32,7 @@ export function useCadRefs({ project, view, tabOf, change, say }: {
   /** Reads a reference file: from its tab if open, the sample plans, else where it was found on this computer. */
   async function read(file: string): Promise<RefGeometry | null> {
     const tab = tabOf(file);
-    if (tab) return refGeometryOf(tab);
-    if (isSample(file)) {
-      const v = await sampleDrawing(file);
-      if (!v) return null;
-      try { return refGeometryOf(v); } finally { v.close(); }
-    }
-    const path = pathOfPlan(project.id, file), bytes = path ? await window.lvds?.cadFile?.readBytes?.(path) : null;
-    if (!bytes) return null;
-    return readRefGeometry(bytes.file, bytes.bytes, (await fileStamp(path)) ?? undefined);
+    return tab ? refGeometryOf(tab) : readRefFile(project.id, file);
   }
   async function load(file: string, again = false) {
     try {
