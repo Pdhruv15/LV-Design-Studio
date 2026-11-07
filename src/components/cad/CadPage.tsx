@@ -3,7 +3,8 @@ import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice, type Canv
 import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadState, type CadTool } from './cadState';
 import { cadCommand, type CadAction } from './cadCommands';
 import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
-import { promptOptions } from './cadPrompt';
+import { promptOptions, shortPrompt } from './cadPrompt';
+import CadDynInput, { type DynBox } from './CadDynInput';
 import { chooseDrawing, drawingWithDevices, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
 import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
@@ -43,7 +44,7 @@ import { exportDrawingSet } from '../docs/sheetRender';
 import { pickedRoom, putRooms, renameRoom } from '../../model/floorPlanActions';
 import { floorLabel, floorList } from '../../model/levels';
 import type { CadLayerMap, CadLayerRole, Project } from '../../types';
-import { fmtUpTo } from '../../util/format';
+import { fmtFixed, fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
 import { AnnoPanel, HatchPanel } from './AnnotatePanel';
 import { annoOf, centreOf, hatchItem, hatchOutline, HATCH_START, leaderItems, northArrowItems, roomTagItems, textUnits, type HatchSpec } from '../../model/cadAnnotate';
@@ -66,9 +67,11 @@ type Result =
 
 const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.toString(16).padStart(6, '0')}`);
 const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
-  { k: 'snap', label: 'SNAP', key: 'F9' }, { k: 'osnap', label: 'OSNAP', key: 'F3' }, { k: 'ortho', label: 'ORTHO', key: 'F8' }, { k: 'grid', label: 'GRID', key: 'F7' }
+  { k: 'snap', label: 'SNAP', key: 'F9' }, { k: 'osnap', label: 'OSNAP', key: 'F3' }, { k: 'ortho', label: 'ORTHO', key: 'F8' }, { k: 'grid', label: 'GRID', key: 'F7' }, { k: 'dyn', label: 'DYN', key: 'F12' }
 ];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer manager) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
+/** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
+const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer manager) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · DYN (F12) · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 /** Bind's count in the Save line: reference lines, texts and hatches. */
@@ -210,6 +213,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [typed, setTyped] = useState<string[]>([]);
   const [recent, setRecent] = useState<{ label: string; tool?: CadTool; text?: string }[]>([]);
   const [log, setLog] = useState<'history' | 'help' | null>(null);
+  // Dynamic input at the cursor: what is typed in its boxes, and its options list open (with the one picked).
+  const [dynVals, setDynVals] = useState<string[]>([]);
+  const [dynMenu, setDynMenu] = useState<number | null>(null);
+  const dynRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
   const [promptMenu, setPromptMenu] = useState<{ at: Pt; items: { label: string; key?: string; run: () => void }[] } | null>(null);
   // Layer manager shown, and the object Match properties copies from.
   const [showLM, setShowLM] = useState(false);
@@ -1272,9 +1279,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e: KeyboardEvent) => {
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
-    const fn: Record<string, keyof CadToggles> = { F3: 'osnap', F7: 'grid', F8: 'ortho', F9: 'snap' };
+    const fn: Record<string, keyof CadToggles> = { F3: 'osnap', F7: 'grid', F8: 'ortho', F9: 'snap', F12: 'dyn' };
     if (fn[e.key]) { e.preventDefault(); if (fn[e.key] === 'grid') cad.cycleGrid(); else cad.toggle(fn[e.key]); return; }
     if (e.key === 'F1' || e.key === 'F2') { e.preventDefault(); const k = e.key === 'F1' ? 'help' : 'history'; setLog(log === k ? null : k); return; }
+    if (dynMenu !== null && !typing && dynKey(e)) return;
     if (e.key === 'Escape' && (!typing || e.target === input.current)) {
       if (log) { setLog(null); return; }
       cancel();
@@ -1284,7 +1292,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     // Enter or Space on the drawing (not on a button or a field) works as Enter on the empty command line.
     const onControl = e.target instanceof Element && !!e.target.closest('button, a, [role="tab"], [role="menuitem"], [contenteditable="true"]');
     if ((e.key === 'Enter' || (e.key === ' ' && !textEntry)) && !typing && !onControl && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); run(''); return; }
-    if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[a-zA-Z?]$/.test(e.key)) input.current?.focus();
+    if (e.key === 'ArrowDown' && !typing && dynOptions.length) { e.preventDefault(); setDynMenu(0); return; }
+    // A number goes to the first box at the cursor (dynamic input), else to the command line, as letters do.
+    if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[0-9.]$/.test(e.key) && dynBoxes.length) { dynRefs[0].current?.focus(); return; }
+    if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[a-zA-Z?@0-9.]$/.test(e.key)) input.current?.focus();
   };
   useEffect(() => {
     const key = (e: KeyboardEvent) => keyRef.current(e);
@@ -1316,7 +1327,18 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   })();
   const liveLabel = cur && lastPt && ['line', 'pline', 'tray', 'cable', 'dim', 'move', 'copy'].includes(tool) ? `${m(toM(distance(lastPt, cur)))}  ${angleDeg(lastPt, cur).toFixed(1)}°`
     : cur && lastPt && tool === 'circle' ? `R ${m(toM(distance(lastPt, cur)))}` : undefined;
-  const marks: CadMarks | null = DRAW_TOOLS.includes(tool) && lastPt ? { points: [lastPt], live: true, label: liveLabel }
+  // Dynamic input (DYN, F12): length and angle while a point is asked for after a first one, a radius for a circle,
+  // else the distance, radius or factor of Offset, Fillet and Scale; and the prompt in short form with its options.
+  const dynOn = !!cad.toggles.dyn && tool !== 'none' && !!cur && !textEntry;
+  const dynBoxes: DynBox[] = !dynOn || !cur ? []
+    : lastPt && POINT_TOOLS.includes(tool) ? [{ label: 'Length', live: fmtFixed(toM(distance(lastPt, cur)), 2), unit: 'm' }, { label: 'Angle', live: angleDeg(lastPt, cur).toFixed(1), unit: '°' }]
+    : lastPt && tool === 'circle' ? [{ label: 'Radius', live: fmtFixed(toM(distance(lastPt, cur)), 2), unit: 'm' }]
+    : tool === 'offset' && !edStep ? [{ label: 'Distance', live: edSet.through ? 'Through' : f2(edSet.offset), unit: 'm' }]
+    : tool === 'fillet' && !edStep && !edAsk ? [{ label: 'Radius', live: f2(edSet.radius), unit: 'm' }]
+    : tool === 'scale' && edAsk === 'factor' ? [{ label: 'Factor', live: edSet.factor, unit: '×' }] : [];
+  const dynLine = cad.history[cad.history.length - 1] ?? '';
+  const dynOptions = dynOn ? promptOptions(dynLine) : [];
+  const marks: CadMarks | null = DRAW_TOOLS.includes(tool) && lastPt ? { points: [lastPt], live: true, label: dynBoxes.length ? undefined : liveLabel }
     : result?.kind === 'dist' ? { points: [result.a, result.b], label: m(toM(distance(result.a, result.b))) }
     : result?.kind === 'area' && result.how !== 'object' ? { points: result.points, closed: true, label: m2(toM2(areaOf(result.points).area)) }
     : points.length ? (() => {
@@ -1326,6 +1348,33 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return { points, live: true, area: corners, label };
     })()
     : tool === 'dist' || tool === 'area' || tool === 'trace' ? { points: [], live: false } : null;
+  useEffect(() => { setDynVals([]); setDynMenu(null); }, [tool, points.length, edStep, edAsk]);
+  /** Enter in a box at the cursor: the point at the length and angle typed (the cursor's where not typed), as a typed
+   * @length<angle; the circle's radius; or the distance, radius or factor, as typed on the command line. */
+  function dynEnter() {
+    const [a = '', b = ''] = dynVals.map((v) => v.trim());
+    setDynVals([]); dynRefs.forEach((r) => r.current?.blur());
+    if (!cur || (!a && !b)) { run(''); return; }
+    const label = dynBoxes[0]?.label;
+    if (label === 'Length' && lastPt) {
+      const d = a ? Number(a) / units.factor : distance(lastPt, cur), deg = b ? Number(b) : angleDeg(lastPt, cur);
+      if (!Number.isFinite(d) || !Number.isFinite(deg)) { cad.say('Type a length in metres and an angle in degrees.'); return; }
+      cad.say(`  ${fmtFixed(d * units.factor, 2)} m < ${fmtFixed(deg, 1)}°`);
+      void click([lastPt[0] + d * Math.cos((deg * Math.PI) / 180), lastPt[1] + d * Math.sin((deg * Math.PI) / 180)], 1e-9);
+      return;
+    }
+    if (label === 'Radius' && tool === 'circle') { const r = Number(a) / units.factor; if (r > 0) finishCircle(r); else cad.say('CIRCLE  Type a radius above 0 (metres).'); return; }
+    run(a);
+  }
+  /** Keys while the options under the prompt box are open: arrows move, Enter takes one, Esc closes. */
+  function dynKey(e: { key: string; preventDefault: () => void }): boolean {
+    if (dynMenu === null) return false;
+    const n = dynOptions.length;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setDynMenu((dynMenu + (e.key === 'ArrowDown' ? 1 : n - 1)) % n); return true; }
+    if (e.key === 'Enter') { e.preventDefault(); const o = dynOptions[dynMenu]; setDynMenu(null); if (o) run(o.key); return true; }
+    if (e.key === 'Escape') { e.preventDefault(); setDynMenu(null); return true; }
+    return false;
+  }
   const highlight: [number, number] | null = result?.kind === 'object' ? [result.o.seg_start, result.o.seg_end] : null;
   const objectArea = result?.kind === 'area' && result.how === 'object';
 
@@ -1341,8 +1390,21 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 change(updateSketch(project, fileOf(), next), `GRIP  ${kindOf(selSketch)} ${gripsOf(selSketch)[i]?.kind === 'mid' ? 'side moved' : 'changed'}${isPath(next) ? ` — now ${m(toM(next.pts.slice(1).reduce((t, q, k) => t + distance(next.pts[k], q), 0)))}` : ''} · ⌘Z to undo`);
               }}
               overlay={(toScreen, moving) => {
+                const dyn = dynOn && cur && !moving && !promptMenu ? (() => {
+                  const [x, y] = toScreen(cur);
+                  return <CadDynInput left={x + 16} top={y + 16} boxes={dynBoxes} vals={dynVals} refs={dynRefs} prompt={shortPrompt(dynLine)} options={dynOptions} menu={dynMenu !== null} hi={dynMenu ?? 0}
+                    onVals={setDynVals} onPick={(k) => { setDynMenu(null); run(k); }}
+                    onKey={(e, i) => {
+                      if (dynKey(e)) return;
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dynEnter(); }
+                      else if (e.key === 'Tab' && dynBoxes.length > 1) { e.preventDefault(); dynRefs[(i + 1) % dynBoxes.length].current?.focus(); }
+                      else if (e.key === 'ArrowDown' && dynOptions.length) { e.preventDefault(); setDynMenu(0); }
+                      else if (e.key === 'Escape') { e.preventDefault(); const typedAny = dynVals.some((v) => v); setDynVals([]); e.currentTarget.blur(); if (!typedAny) cancel(); }
+                      else if (/^[a-zA-Z@]$/.test(e.key) && !e.metaKey && !e.ctrlKey) input.current?.focus();
+                    }} />;
+                })() : null;
                 if (promptMenu && !moving) return <CadPromptMenu left={promptMenu.at[0] + 4} top={promptMenu.at[1] + 4} items={promptMenu.items} onPick={(i) => { const x = promptMenu.items[i]; setPromptMenu(null); x.run(); }} />;
-                if (tool !== 'none' || moving || gripIdx !== null || (!pickedItems.length && !pickedSk.length)) return null;
+                if (tool !== 'none' || moving || gripIdx !== null || (!pickedItems.length && !pickedSk.length)) return dyn;
                 if (!pickedSk.length && (!floor || !cad.showDevices)) return null;
                 const skPts = pickedSk.flatMap((it) => { const sg = segmentsOf(it); return sg.length ? sg.flat() : it.pts; });
                 const xs = [...pickedItems.map((d) => d.x / units.factor), ...skPts.map((q) => q[0])], ys = [...pickedItems.map((d) => d.y / units.factor), ...skPts.map((q) => q[1])], pad = rUnits * 2;

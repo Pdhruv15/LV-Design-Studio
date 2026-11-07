@@ -13,7 +13,8 @@ import { isFitClick, isPanPress, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, whee
 
 type Pt = [number, number];
 
-export interface CadToggles { snap: boolean; osnap: boolean; ortho: boolean; grid: boolean }
+/** The status bar toggles; `dyn` (dynamic input at the cursor) is the page's, the drawing does not use it. */
+export interface CadToggles { snap: boolean; osnap: boolean; ortho: boolean; grid: boolean; dyn?: boolean }
 /** What a tool draws over the drawing: picked points (drawing units, absolute), and while `live` a rubber band to the
  * cursor; `closed` outlines are shaded. */
 /** A device placed in the app, drawn over the drawing (drawing units, absolute): its symbol, letters and label. */

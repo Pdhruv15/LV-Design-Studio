@@ -49,3 +49,10 @@ export function spaceEnters(typed: string): boolean {
 
 /** The full command list (F1): each command once, its aliases and what it does. */
 export const commandList = () => CAD_COMMANDS.map((c) => ({ aliases: c.aliases.join(' · '), desc: c.desc }));
+
+/** A prompt in short form for the box at the cursor: "OFFSET  Specify offset distance or [Through/Erase/Layer]
+ * <0.30>:" → "Specify offset distance". */
+export function shortPrompt(line: string): string {
+  const t = line.replace(/^Command:\s*/, '').replace(/^[A-Z0-9?]+ {2}/, '');
+  return t.replace(/\s*(?:or\s*)?\[[^\]]*\].*$/, '').replace(/\s*<[^>]*>/, '').replace(/[:,]\s*$/, '').trim();
+}

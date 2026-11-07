@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { commandList, matchingCommands, optionKey, promptOptions, promptParts, spaceEnters } from './cadPrompt';
+import { commandList, matchingCommands, optionKey, promptOptions, promptParts, shortPrompt, spaceEnters } from './cadPrompt';
 import { CAD_COMMANDS } from './cadCommands';
 
 describe('command line prompts', () => {
@@ -39,5 +39,12 @@ describe('command line prompts', () => {
   it('has every command once in the F1 list', () => {
     expect(commandList()).toHaveLength(CAD_COMMANDS.length);
     expect(commandList().find((c) => c.aliases.startsWith('O ·'))).toEqual({ aliases: 'O · OFFSET', desc: 'Offset' });
+  });
+
+  it('shortens a prompt for the box at the cursor', () => {
+    expect(shortPrompt('Command: OFFSET  Specify offset distance or [Through/Erase/Layer] <0.30>:')).toBe('Specify offset distance');
+    expect(shortPrompt('TEXT  Specify height <2.5 mm>:')).toBe('Specify height');
+    expect(shortPrompt('PLINE  Specify next point or [Close], Enter to finish:')).toBe('Specify next point');
+    expect(shortPrompt('LINE  Specify next point or Enter to stop:')).toBe('Specify next point or Enter to stop');
   });
 });
