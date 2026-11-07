@@ -24,6 +24,14 @@ if (typeof window !== 'undefined') {
 let newer: string | null = null;
 /** The open page is an older build when the service worker's copy has another entry script than the page loaded. */
 export const isOlderBuild = (ownScript: string | undefined, swEntry: string | undefined) => !!ownScript && !!swEntry && !ownScript.endsWith(`/${swEntry}`);
+/** Whether version a ("2.050") is later than b; unknown (blank) counts as later, as before versions were sent. */
+export const isLaterVersion = (a: string | undefined, b: string) => { if (!a) return true; const [x, y] = [a, b].map((v) => v.split('.').map(Number)); return x[0] !== y[0] ? x[0] > y[0] : (x[1] ?? 0) > (y[1] ?? 0); };
+/** What the banner offers when the service worker in charge says which build it keeps: that build when it is a later
+ * one than the open page (as shown, "2.013"; blank when it does not say); nothing when it keeps this page's build or an
+ * older one (the old worker, still in charge for a moment after a newer page loaded, before the new worker takes over). */
+export function newerOffered(ownScript: string | undefined, sw: { entry?: string; app?: string } | undefined, own: string): string | null {
+  return isOlderBuild(ownScript, sw?.entry) && isLaterVersion(sw?.app, own) ? sw?.app ?? '' : null;
+}
 const ownScript = () => document.querySelector<HTMLScriptElement>('script[type="module"][src]')?.src;
 const HOUR = 3600_000;
 
@@ -47,7 +55,9 @@ export function useWebApp(): { offline: OfflineState; canInstall: boolean; insta
     const ask = () => sw.controller?.postMessage('version');
     const onMessage = (e: MessageEvent) => {
       const d = e.data as { entry?: string; app?: string } | undefined;
-      if (isOlderBuild(ownScript(), d?.entry) && newer !== (d?.app ?? '')) { newer = d?.app ?? ''; listeners.forEach((f) => f()); }
+      if (!d?.entry) return;
+      const next = newerOffered(ownScript(), d, __APP_VERSION__);
+      if (next !== newer) { newer = next; listeners.forEach((f) => f()); }
     };
     sw.addEventListener('message', onMessage);
     sw.addEventListener('controllerchange', ask);
