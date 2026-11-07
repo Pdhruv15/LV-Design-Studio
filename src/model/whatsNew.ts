@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.051', date: '2026-11-07',
+    items: [
+      { title: 'Web version: no false "New version"', text: 'Right after an update, the browser version could show "New version 2.043 — reload" while it was already running the newest version: it took the older copy kept for offline use for a newer one. It now offers Reload only for a later version, and the button goes away once the page is current.' }
+    ]
+  },
+  {
     version: '2.050', date: '2026-11-07',
     items: [
       { title: 'Design CAD: model and layouts', text: 'As in industry CAD, you draw once in Model and each sheet is a layout. Tabs under the drawing: Model, one tab per layout of the level (its sheet number), and + for a new one; right-click a layout for Rename, Copy, Move, Page setup and Delete. A layout is the sheet\'s paper with its title block and viewports onto the model: MV adds a viewport, VPSCALE and VPLOCK set its scale and lock, and a double-click inside works in the model through it (MS; PS or a double-click outside goes back). Your plan sheets are layouts already, nothing to convert.', action: 'cad', actionLabel: 'Open Design CAD' },
