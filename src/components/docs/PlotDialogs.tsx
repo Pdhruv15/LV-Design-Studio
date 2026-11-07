@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Modal } from '../ui';
 import { DEFAULT_PENS, newTableId, parseCtb, PEN_INKS, PEN_KEYS, PEN_LABEL, PEN_WIDTHS, plotOf, tableFromCtb, tablesOf, withDefaults, withTable, type PenKey, type PenTable, type PlotSetup } from '../../model/plotSetup';
-import { planScale } from '../../docs/planLayout';
+import { drawnTextMm, planScale } from '../../docs/planLayout';
 import type { DrawingSheet, SheetSize } from '../../model/drawingSet';
 import type { Project } from '../../types';
 
@@ -23,6 +23,7 @@ export function PageSetupDialog({ project, sheet, onSave, onClose }: {
   const [setup, setSetup] = useState<PlotSetup>(plotOf(project, sheet));
   const tables = tablesOf(project);
   const plan = sheet.kind === 'plan';
+  const textAt = plan ? drawnTextMm(project, sheet) : undefined;
   const sheetWith = (p: Project, s: Partial<DrawingSheet>): Project => ({ ...p, drawingSet: { ...p.drawingSet!, sheets: p.drawingSet!.sheets.map((x) => (x.id === sheet.id ? { ...x, ...s } : x)) } });
   const own = { size, ...(plan ? { scale: `1:${scale}` } : {}) };
   return (
@@ -39,6 +40,8 @@ export function PageSetupDialog({ project, sheet, onSave, onClose }: {
         <label>Lineweights<select aria-label="Lineweights" value={setup.weights ?? 'pens'} onChange={(e) => setSetup({ ...setup, weights: e.target.value as PlotSetup['weights'] })}>
           <option value="pens">Print them (from the pen table)</option><option value="thin">All one thin line</option>
         </select></label>
+        {plan && <label><input type="checkbox" checked={setup.drawn !== false} onChange={(e) => setSetup({ ...setup, drawn: e.target.checked ? undefined : false })} /> Print drawn work (lines, hatches, text)</label>}
+        {plan && setup.drawn !== false && textAt && textAt.scale !== scale && <span className="m warn">⚠ Text was drawn for 1:{textAt.scale}; this sheet is 1:{scale}, so {textAt.mm} mm text prints {+(textAt.mm * textAt.scale / scale).toFixed(1)} mm.</span>}
         <label><input type="checkbox" checked={!!setup.stamp} onChange={(e) => setSetup({ ...setup, stamp: e.target.checked })} /> Plot stamp in the margin (sheet, date and time, revision, drawn by)</label>
         <span className="m">{plan ? 'A plan too big for the paper at its scale is split over sheets. ' : 'Diagrams are scaled to fit the paper. '}Printing is always black-and-white.</span>
       </div>

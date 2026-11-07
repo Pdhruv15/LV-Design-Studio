@@ -723,7 +723,7 @@ describe('CAD view', () => {
       act(() => { Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(el, value); el.dispatchEvent(new Event('change', { bubbles: true })); });
     };
     await command('LM');
-    expect(document.querySelector('[aria-label="Drawn layers"]')!.textContent).toMatch(/^LayerObjectsOnLockColourLinetypeLineweightLV-SKETCH1/);
+    expect(document.querySelector('[aria-label="Drawn layers"]')!.textContent).toMatch(/^LayerObjectsOnLockPrintColourLinetypeLineweightLV-SKETCH1/);
     act(() => { (document.querySelector('[aria-label="LV-ANNO locked"]') as HTMLInputElement).click(); });
     pick('LV-SKETCH linetype', 'dashed');
     expect(project.cadLayerStyle).toEqual({ 'sample-villa-gf.dxf': { 'LV-ANNO': { lock: true }, 'LV-SKETCH': { lt: 'dashed' } } });

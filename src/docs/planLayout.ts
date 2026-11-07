@@ -3,7 +3,10 @@ import { cableSizeText } from '../calc/electrical';
 import { circuitCategory } from '../calc/loadSchedule';
 import { cableLabel, EMERGENCY_ITEMS, LV_PALETTE } from '../model/cadDevices';
 import { planOfLevel } from '../model/cadPlans';
-import { sketchOf, trayLabel, trayLength, trayLine } from '../model/cadSketch';
+import { dimensionLines, segmentsOf, sketchOf, trayLabel, trayLength, trayLine } from '../model/cadSketch';
+import { effective, layerStylesOf, styleOf } from '../model/cadLayerStyle';
+import { annoOf, HATCH_PATTERNS, hatchFamilies } from '../model/cadAnnotate';
+import { hatchLines } from '../model/cadDraw';
 import { fittingCounts, trayFittings } from '../model/cadTrayFittings';
 import { planScale as unitsOf } from '../model/cadUnits';
 import { arcPoints, levelWiring } from '../model/cadWiring';
@@ -14,7 +17,7 @@ import type { Project, SketchItem } from '../types';
 import { escapeHtmlText as esc } from '../util/escape';
 import { txt } from '../util/format';
 import { furnitureScale, SHEET_MM } from './sldSheet';
-import { inkOf, pensFor, type Pen } from '../model/plotSetup';
+import { inkOf, pensFor, plotOf, type Pen, type PenKey } from '../model/plotSetup';
 
 /** Design CAD → Sheets → Plans: a level's lighting, power, ELV or containment layout as a drawing sheet at a true scale
  * (1:100 unless the sheet's scale says 1:50 or 1:200), made from the design, so a design change shows on the sheet.
@@ -24,6 +27,10 @@ import { inkOf, pensFor, type Pen } from '../model/plotSetup';
  * - The containment layout draws the tray runs and cable routes drawn on the level's plan file, with the level's DBs: a
  *   tray is a heavy single line broken for its label ("CT 300 POWER · A", as on the plan), a route dashed and tagged
  *   with its cable and size. The legend counts the tray lengths and fittings on the sheet.
+ * - Every plan sheet also prints the drawn work on the level's plan file (Design CAD lines, arcs, circles, hatches, text,
+ *   dimensions, leaders, room tags), unless its page setup leaves it off: black, at each object's linetype and lineweight
+ *   (else its layer's, else the drawn-lines pen), hatches with the hatch pen (Solid light grey). Layers that are off or
+ *   set not to print stay off. The drawn work alone does not make a level's sheet.
  * - Paper: the smallest of A3, A2, A1 that holds the level at the scale. A level too big for A1 is split into parts
  *   over several sheets, each with a key plan (its part shaded) and match lines naming the sheet next to it.
  * - The drawing is in paper millimetres sized to the sheet's drawing area, so it prints at the scale. Title, scale
@@ -138,9 +145,10 @@ export function planLevels(p: Project, type: PlanType): { buildingId: string; le
 }
 
 /** The level's extent (metres): its rooms and what the layout shows, with a metre round it. */
-function extentOf(p: Project, c: Content, b: string, l: string): { box: Box; rooms: { name: string; outline: Pt[] }[] } {
+function extentOf(p: Project, c: Content, b: string, l: string, drawn: Drawn[] = []): { box: Box; rooms: { name: string; outline: Pt[] }[] } {
   const rooms = buildingInfoOf(p).rooms.filter((r) => r.buildingId === b && r.levelId === l && r.outline && r.outline.length >= 3).map((r) => ({ name: r.name, outline: r.outline as Pt[] }));
-  const pts: Pt[] = [...rooms.flatMap((r) => r.outline), ...c.marks.map((m): Pt => [m.x, m.y]), ...c.boards.map((d): Pt => [d.x, d.y]), ...[...c.trays, ...c.cables].flatMap((r) => r.pts)];
+  const pts: Pt[] = [...rooms.flatMap((r) => r.outline), ...c.marks.map((m): Pt => [m.x, m.y]), ...c.boards.map((d): Pt => [d.x, d.y]), ...[...c.trays, ...c.cables].flatMap((r) => r.pts),
+    ...drawn.flatMap(({ it }): Pt[] => (it.kind === 'circle' || it.kind === 'arc' ? [[it.pts[0][0] - (it.r ?? 0), it.pts[0][1] - (it.r ?? 0)], [it.pts[0][0] + (it.r ?? 0), it.pts[0][1] + (it.r ?? 0)]] : it.pts))];
   if (!pts.length) pts.push([0, 0]);
   const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
   return { rooms, box: { x0: Math.min(...xs) - 1, y0: Math.min(...ys) - 1, x1: Math.max(...xs) + 1, y1: Math.max(...ys) + 1 } };
@@ -159,13 +167,14 @@ export function planFit(p: Project, extent: Box, scale: number, size: 'auto' | S
 }
 
 /** The level's layout as the sheet's plan: its fit and extent, or nothing when the sheet names no level with content. */
-function layoutOf(p: Project, s: Pick<DrawingSheet, 'plan' | 'buildingId' | 'levelId' | 'scale' | 'size'>) {
+function layoutOf(p: Project, s: Pick<DrawingSheet, 'plan' | 'buildingId' | 'levelId' | 'scale' | 'size' | 'plot'>) {
   if (!s.plan || !s.buildingId || !s.levelId) return undefined;
   const c = contentOf(p, s.plan, s.buildingId, s.levelId);
   if (!hasContent(c)) return undefined;
-  const { box, rooms } = extentOf(p, c, s.buildingId, s.levelId);
+  const drawn = plotOf(p, s).drawn === false ? [] : drawnOf(p, s.buildingId, s.levelId);
+  const { box, rooms } = extentOf(p, c, s.buildingId, s.levelId, drawn);
   const scale = planScale(s.scale);
-  return { c, box, rooms, scale, fit: planFit(p, box, scale, s.size) };
+  return { c, drawn, box, rooms, scale, fit: planFit(p, box, scale, s.size) };
 }
 
 /** Part i's window on the level (metres): columns left to right, rows top to bottom. */
@@ -219,6 +228,85 @@ function clearOf(pts: Pt[], labels: { at: Pt; rot: number; w: number }[], h: num
   return segs;
 }
 
+/** A drawn object for the sheet, in metres, with its linetype (dashes in paper mm) and lineweight (mm; 0 = the pen's). */
+interface Drawn { it: SketchItem; dash: number[]; lw: number }
+
+/** The drawn work on the level's plan file: what was drawn in Design CAD other than trays and cable routes, on layers
+ * that are on and print, in metres. */
+function drawnOf(p: Project, b: string, l: string): Drawn[] {
+  const plan = planOfLevel(p, { building: b, level: l });
+  if (!plan) return [];
+  const k = unitsOf(p, plan.file, plan.units).factor, styles = layerStylesOf(p, plan.file);
+  const out: Drawn[] = [];
+  for (const it of sketchOf(p, plan.file)) {
+    if (it.tray || it.cable || !it.pts.length) continue;
+    const st = styleOf(styles, it.layer);
+    if (st.hidden || st.noPrint) continue;
+    const ef = effective(it, styles);
+    const m: SketchItem = { ...it, pts: it.pts.map(([x, y]): Pt => [x * k, y * k]), ...(it.r !== undefined ? { r: it.r * k } : {}), ...(it.h !== undefined ? { h: it.h * k } : {}) };
+    out.push({ it: m, dash: ef.dash, lw: ef.lw });
+  }
+  return out;
+}
+
+/** The annotation scale and text height (paper mm) the plan sheet's drawn text was made for, when it has any: Page
+ * setup warns when the sheet's scale differs. */
+export function drawnTextMm(p: Project, s: Pick<DrawingSheet, 'buildingId' | 'levelId'>): { scale: number; mm: number } | undefined {
+  if (!s.buildingId || !s.levelId || !drawnOf(p, s.buildingId, s.levelId).some(({ it }) => it.kind === 'text' || it.kind === 'dim')) return undefined;
+  const a = annoOf(p);
+  return { scale: a.scale, mm: a.textMm };
+}
+
+/** The drawn work in paper mm, clipped to the window: hatches (pattern lines or dots with the hatch pen, Solid light
+ * grey), lines at their linetype and lineweight (else the drawn-lines pen; all thin when the sheet prints thin), leader
+ * arrows (3 mm), and text at its drawn height. `id` keeps the sheet's clip paths apart from other sheets'. */
+function drawnSvg(items: Drawn[], X: (x: number) => number, Y: (y: number) => number, f: number, win: Box, pen: Record<PenKey, Pen>, thin: boolean, id: string): string {
+  if (!items.length) return '';
+  const P = ([x, y]: Pt) => `${X(x)} ${Y(y)}`, ink = inkOf(pen.sketch), defs: string[] = [], body: string[] = [];
+  const text = (at: Pt, s: string, h: number, rot: number, anchor: 'start' | 'middle') => {
+    if (!s || !(h > 0) || !within(at, win)) return;
+    const x = X(at[0]), y = Y(at[1]);
+    body.push(`<text x="${x}" y="${y}"${rot ? ` transform="rotate(${n((-rot * 180) / Math.PI)} ${x} ${y})"` : ''} font-size="${n(h * f)}"${anchor === 'middle' ? ' text-anchor="middle"' : ''} fill="${ink}">${esc(s)}</text>`);
+  };
+  items.forEach(({ it, dash, lw }, i) => {
+    if (it.hatch) {
+      const circle = it.kind === 'circle', r = (it.r ?? 0) * f;
+      const outline = circle ? `<circle cx="${X(it.pts[0][0])}" cy="${Y(it.pts[0][1])}" r="${n(r)}"` : `<path d="M${it.pts.map(P).join('L')}Z"`;
+      if (it.hatch.pattern === 'solid') { body.push(`${outline} fill="${inkOf({ w: 0, grey: Math.min(30, pen.hatch.grey) })}" stroke="none"/>`); return; }
+      const xs = circle ? [X(it.pts[0][0]) - r, X(it.pts[0][0]) + r] : it.pts.map((q) => X(q[0])), ys = circle ? [Y(it.pts[0][1]) - r, Y(it.pts[0][1]) + r] : it.pts.map((q) => Y(q[1]));
+      const box: [number, number, number, number] = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+      const dots = !!HATCH_PATTERNS[it.hatch.pattern].dots;
+      let d = '';
+      if (dots) {
+        const st = Math.max(0.5, it.hatch.scale);
+        if (((box[2] - box[0]) * (box[3] - box[1])) / (st * st) < 20000) for (let x = Math.ceil(box[0] / st) * st; x <= box[2]; x += st) for (let y = Math.ceil(box[1] / st) * st; y <= box[3]; y += st) d += `M${n(x)} ${n(y)}h0`;
+      } else {
+        for (const fam of hatchFamilies(it.hatch, 1)) {
+          const a = -fam.angle; // y is down on paper
+          for (const l of hatchLines({ angle: a, base: [0, 0], offset: [-Math.sin(a) * fam.step, Math.cos(a) * fam.step] }, box, 0.2, 4000)) d += `M${n(l.a[0])} ${n(l.a[1])}L${n(l.b[0])} ${n(l.b[1])}`;
+        }
+      }
+      if (!d) return;
+      defs.push(`<clipPath id="${id}-${i}">${outline}/></clipPath>`);
+      body.push(`<path d="${d}" clip-path="url(#${id}-${i})" fill="none" stroke="${inkOf(pen.hatch)}" stroke-width="${dots ? 0.35 : n(pen.hatch.w)}"${dots ? ' stroke-linecap="round"' : ''}/>`);
+      return;
+    }
+    if (it.kind === 'text') { text(it.pts[0], it.text ?? '', it.h ?? 0, it.rot ?? 0, 'start'); return; }
+    let d = '', end = '';
+    for (const [a, b] of segmentsOf(it)) { const s = P(a); d += `${s === end ? '' : `M${s}`}L${(end = P(b))}`; }
+    if (d) body.push(`<path d="${d}" fill="none" stroke="${ink}" stroke-width="${n(thin || !lw ? pen.sketch.w : lw)}"${dash.length ? ` stroke-dasharray="${dash.join(' ')}"` : ''}/>`);
+    if (it.kind === 'dim' && it.pts.length > 2) { const dl = dimensionLines(it.pts[0], it.pts[1], it.pts[2]); text(dl.text, it.text ?? '', it.h ?? dl.length * 0.04, dl.angle, 'middle'); }
+    if (it.leader && it.pts.length > 1) {
+      const ax = X(it.pts[0][0]), ay = Y(it.pts[0][1]), ang = Math.atan2(ay - Y(it.pts[1][1]), ax - X(it.pts[1][0]));
+      const tip = (s: number) => `${n(ax - 3 * Math.cos(ang + s))} ${n(ay - 3 * Math.sin(ang + s))}`;
+      body.push(`<path d="M${ax} ${ay}L${tip(-0.3)}L${tip(0.3)}Z" fill="${ink}" stroke="none"/>`);
+    }
+  });
+  if (!body.length) return '';
+  defs.push(`<clipPath id="${id}"><rect x="${X(win.x0)}" y="${Y(win.y1)}" width="${n((win.x1 - win.x0) * f)}" height="${n((win.y1 - win.y0) * f)}"/></clipPath>`);
+  return `<defs>${defs.join('')}</defs><g class="drawn" clip-path="url(#${id})">${body.join('')}</g>`;
+}
+
 export interface PlanDrawing { svg: string; size: SheetSize; legendSvg: string; parts: number }
 /** The sheet's plan as SVG in paper mm (the drawing area's size), with its legend; `numberOf(part)` names the sheet of
  * another part of the level for the match lines. Nothing when there is nothing to draw (or the part is gone). */
@@ -226,7 +314,7 @@ export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number
   const lay = layoutOf(p, s);
   const part = s.part ?? 0;
   if (!lay || part >= lay.fit.parts) return undefined;
-  const { c, box, rooms, scale, fit } = lay;
+  const { c, drawn, box, rooms, scale, fit } = lay;
   const area = drawingAreaMm(p, fit.size);
   const win = windowOf(box, fit, part);
   const f = 1000 / scale;
@@ -245,6 +333,8 @@ export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number
     const at: Pt = [r.outline.reduce((t, q) => t + q[0], 0) / r.outline.length, r.outline.reduce((t, q) => t + q[1], 0) / r.outline.length];
     if (within(at, win)) out.push(`<text x="${X(at[0])}" y="${n(Y(at[1]) + 3.5)}" font-size="2.6" text-anchor="middle" fill="${archInk}">${esc(r.name.toUpperCase())}</text>`);
   }
+  // The drawn work, over the architect's plan and under the design.
+  out.push(drawnSvg(drawn, X, Y, f, win, pen, plotOf(p, s).weights === 'thin', `dw-${s.id}-${part}`.replace(/[^\w-]/g, '_')));
   // The containment, black: trays heavy and broken for their labels, cable routes dashed with their tags beside the
   // line. Tags of routes on one path stack outward rather than print over each other.
   const h = TAG / f, taken: { x: number; y: number; w: number; a: number }[] = [], labels: string[] = [];

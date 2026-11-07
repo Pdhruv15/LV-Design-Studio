@@ -41,6 +41,13 @@ describe('pen tables and page setup', () => {
     expect(newTableId(withTable(villa, { ...heavy, id: 'pt3' }))).toBe('pt4');
   });
 
+  it('the drawn-lines and hatch pens: a table saved before them takes their defaults', () => {
+    expect([DEFAULT_PENS.pens.sketch, DEFAULT_PENS.pens.hatch]).toEqual([{ w: 0.25, grey: 100 }, { w: 0.13, grey: 60 }]);
+    const { sketch: _s, hatch: _h, ...older } = DEFAULT_PENS.pens;
+    const p: Project = { ...villa, plot: { tables: [{ id: 'pt1', name: 'Old', pens: { ...older, frame: { w: 1, grey: 100 } } as typeof DEFAULT_PENS.pens }] } };
+    expect(tablesOf(p)[1].pens).toMatchObject({ frame: { w: 1, grey: 100 }, sketch: { w: 0.25, grey: 100 }, hatch: { w: 0.13, grey: 60 } });
+  });
+
   it('a sheet takes its own setup over the set\'s default; "all one thin line" thins every pen', () => {
     const p = withDefaults(withTable(villa, { ...DEFAULT_PENS, id: 'pt1', name: 'Heavy', pens: { ...DEFAULT_PENS.pens, frame: { w: 1, grey: 100 } } }), { pens: 'pt1', stamp: true });
     const s: Pick<DrawingSheet, 'plot'> = { plot: { weights: 'thin' } };
