@@ -3,7 +3,7 @@ import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice, type Canv
 import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadState, type CadTool } from './cadState';
 import { cadCommand, type CadAction } from './cadCommands';
 import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
-import { promptOptions } from './cadPrompt';
+import { promptOptions, type SpaceMode } from './cadPrompt';
 import { chooseDrawing, drawingWithDevices, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
 import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
@@ -655,8 +655,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (tool === 'offset') {
         const d = edSet.through ? throughDistance(first, at) : num(edSet.offset) / f;
         const r = offset(first, d, at);
-        // On the current layer (where new drawing goes) unless a tray, which stays on its own.
-        const items = r.items?.map((x) => (edSet.layer === 'current' && !x.tray ? { ...x, layer: DRAW_LAYER } : x));
+        // On the current layer (where new drawing goes) unless a tray, which stays on its own. With Erase the source
+        // itself moves: a cable route stays the route of its circuit, on its layer.
+        const items = r.items?.map((x, i) => (edSet.erase && i === 0 && first.cable ? { ...x, cable: first.cable, layer: first.layer }
+          : edSet.layer === 'current' && !x.tray ? { ...x, layer: DRAW_LAYER } : x));
         if (!failed(r, 'OFFSET')) change(edSet.erase ? replaced(project, first, items!) : added(project, items!), `OFFSET  ${first.tray ? `Cable tray ${first.tray.widthMm} mm` : kindOf(first)} ${edSet.erase ? 'moved' : 'copied'} ${m(toM(d))} to the side${edSet.through ? ' (through the point)' : ''} · ⌘Z to undo`);
         cad.say(PROMPT.offset); return;
       }
@@ -1263,8 +1265,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     else if (edStep || edAsk === 'radius' || edAsk === 'd1' || edAsk === 'd2') { setEdStep(null); setEdAsk(null); cad.say('*Cancel*'); cad.say(tool === 'offset' ? PROMPT.offset : editPrompt(tool, edSet)); }
     else if (menuAt) setMenuAt(null); else if (renaming) { setRenaming(null); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); setPicked([]); }
   }
-  /** The input is text, not a command or a value: Space types a space there. */
-  const textEntry = !!renaming || !!renamingLayout || (tool === 'text' && !!cad.textAt && !textAsk?.step) || (tool === 'leader' && points.length >= 2);
+  /** What Space does in the command line: types a space in text (a name, TEXT contents, a leader's text); at TEXT's
+   * height and rotation, where a word is the text, ends only an empty input or a number; else ends a whole word. */
+  const spaceMode: SpaceMode = renaming || renamingLayout || (tool === 'text' && cad.textAt && !textAsk?.step) || (tool === 'leader' && points.length >= 2) ? 'text'
+    : tool === 'text' && cad.textAt ? 'value' : 'command';
+  // Space tapped on the drawing works as Enter when it is let go, unless it was held to pan (the mouse pressed while
+  // it was down) or long enough to repeat.
+  const spaceTap = useRef<{ dragged: boolean; repeated: boolean } | null>(null);
 
   // CAD keys while this page shows: function keys toggle, typing goes to the command line, Enter or Space ends the step
   // (with no tool, repeats the last command), Esc cancels the command (and the tool), F2 the taller history, F1 the
@@ -1272,24 +1279,52 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e: KeyboardEvent) => {
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
+    const mods = e.metaKey || e.ctrlKey || e.altKey;
     const fn: Record<string, keyof CadToggles> = { F3: 'osnap', F7: 'grid', F8: 'ortho', F9: 'snap' };
     if (fn[e.key]) { e.preventDefault(); if (fn[e.key] === 'grid') cad.cycleGrid(); else cad.toggle(fn[e.key]); return; }
-    if (e.key === 'F1' || e.key === 'F2') { e.preventDefault(); const k = e.key === 'F1' ? 'help' : 'history'; setLog(log === k ? null : k); return; }
+    // Keys in a dialog over the page (the layer manager, references…) are the dialog's.
+    if (e.defaultPrevented || (e.target instanceof Element && e.target.closest('[aria-modal="true"], [role="dialog"]'))) return;
+    if ((e.key === 'F1' || e.key === 'F2') && !mods && !e.shiftKey && (!typing || e.target === input.current)) { e.preventDefault(); const k = e.key === 'F1' ? 'help' : 'history'; setLog(log === k ? null : k); return; }
     if (e.key === 'Escape' && (!typing || e.target === input.current)) {
       if (log) { setLog(null); return; }
+      if (promptMenu) { setPromptMenu(null); return; }
       cancel();
       return;
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && (selectedItem || selSketch || many)) { e.preventDefault(); removeSelected(); return; }
-    // Enter or Space on the drawing (not on a button or a field) works as Enter on the empty command line.
+    // Enter or Space on the drawing (not on a button or a field) works as Enter on the empty command line: Enter at
+    // once, Space when it is let go (see spaceTap); once per press.
     const onControl = e.target instanceof Element && !!e.target.closest('button, a, [role="tab"], [role="menuitem"], [contenteditable="true"]');
-    if ((e.key === 'Enter' || (e.key === ' ' && !textEntry)) && !typing && !onControl && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); run(''); return; }
-    if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[a-zA-Z?]$/.test(e.key)) input.current?.focus();
+    if (e.key === ' ' && spaceMode !== 'text' && !typing && !onControl && !mods) {
+      e.preventDefault();
+      if (!e.repeat) spaceTap.current = { dragged: false, repeated: false }; else if (spaceTap.current) spaceTap.current.repeated = true;
+      return;
+    }
+    if (e.key === 'Enter' && !typing && !onControl && !mods) { e.preventDefault(); if (!e.repeat) run(''); return; }
+    if (!typing && !mods && /^[a-zA-Z?]$/.test(e.key)) input.current?.focus();
+  };
+  const keyUpRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyUpRef.current = (e: KeyboardEvent) => {
+    if (e.key !== ' ') return;
+    const tap = spaceTap.current;
+    spaceTap.current = null;
+    if (tap && !tap.dragged && !tap.repeated) run('');
   };
   useEffect(() => {
     const key = (e: KeyboardEvent) => keyRef.current(e);
+    const up = (e: KeyboardEvent) => keyUpRef.current(e);
+    // A press of the mouse while Space is down pans: then Space is not Enter.
+    const press = () => { if (spaceTap.current) spaceTap.current.dragged = true; };
+    const blur = () => { spaceTap.current = null; };
     window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
+    window.addEventListener('keyup', up);
+    window.addEventListener('mousedown', press, true);
+    window.addEventListener('pointerdown', press, true);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('keydown', key); window.removeEventListener('keyup', up);
+      window.removeEventListener('mousedown', press, true); window.removeEventListener('pointerdown', press, true); window.removeEventListener('blur', blur);
+    };
   }, []);
 
   // The object being drawn (or moved / copied / rotated), following the cursor.
@@ -1562,7 +1597,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         onMove={(x, dir) => change({ ...project, drawingSet: renumber(moveLayout(setOf(project), x.id, dir)) }, `LAYOUT  ${x.number} moved ${dir < 0 ? 'left' : 'right'} · ⌘Z to undo`)}
         onDelete={(x) => { const set = setOf(project); change({ ...project, drawingSet: { ...set, sheets: set.sheets.filter((y) => y.id !== x.id) } }, `LAYOUT  ${x.number} ${x.title} deleted (its sheet too) · ⌘Z to undo`); if (cad.layout === x.id) cad.setLayout(null); }}
         onPageSetup={(x) => onSheet?.(x.id)} />}
-      <CadCommandLine history={cad.history} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} textEntry={textEntry} log={log} onLog={setLog} onRun={run} />
+      <CadCommandLine history={cad.history} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
       <div className="cad-status">
         {TOGGLES.map((x) => (
           <button key={x.k} className={`cad-tg${cad.toggles[x.k] ? ' on' : ''}`} aria-pressed={cad.toggles[x.k]}
