@@ -28,6 +28,15 @@ import { placeEmergency } from '../../model/emergencyPlace';
 import { EMERGENCY_ITEMS } from '../../model/cadDevices';
 import { planLevel, setPlanLevel } from './cadFileMenu';
 import { pathOfPlan } from './cadState';
+import { changeViewports, layoutOverlay, layoutsOf, LayoutTabs, moveLayout, newLayout, patchViewport, ViewportPanel, vpId } from './CadLayouts';
+import { layoutPaper, layoutViewports, PLAN_LABEL, PLAN_TYPES } from '../../docs/planLayout';
+import { isFrozen, isLocked, toggleFrozen, vpName, vpToModel, vpWindow, type PlanViewport } from '../../model/planViewports';
+import { renumber, setOf, type PlanType } from '../../model/drawingSet';
+import { SheetWorkspace } from '../sld/SheetWorkspace';
+import type { MarkupTool } from '../sld/markupTools';
+import type { SheetUi } from '../sld/sheetUi';
+import type { CalcRun } from '../../calc/runs';
+import { exportDrawingSet } from '../docs/sheetRender';
 import { pickedRoom, putRooms, renameRoom } from '../../model/floorPlanActions';
 import { floorLabel, floorList } from '../../model/levels';
 import type { CadLayerMap, CadLayerRole, Project } from '../../types';
@@ -128,12 +137,20 @@ const DRAW_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'rect', 'circle
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
  * a command line and a status bar. Engine in Rust (WebAssembly), desktop and web alike. Measure a distance, an area (by
  * corners, a closed object, or inside a room), and click any object to see what it is. */
-export default function CadPage({ cad, project, onChange, onStatus }: {
+export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run: calcRun, onSheet }: {
   cad: CadState;
   project: Project;
   onChange: (next: Project, message: string) => void;
   onStatus: (m: string) => void;
+  /** The sheets' markup tools (shared with the Sheets ribbon): a layout tab's paper markups use them. */
+  sheetUi?: SheetUi;
+  /** The calculation run the sheets print. */
+  run?: CalcRun;
+  /** Page setup: the layout's sheet in Sheets. */
+  onSheet?: (sheetId: string) => void;
 }) {
+  const paperTool = sheetUi?.setTool;
+  const onPlot = (id: string) => void exportDrawingSet(project, setOf(project), calcRun, false, onStatus, [id], false);
   const { view, tool } = cad;
   const [cursor, setCursor] = useState<{ at: Pt | null; snap?: string }>({ at: null });
   const [cmd, setCmd] = useState('');
@@ -316,6 +333,56 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   };
   const change = (next: Project, message: string) => { onChange(next, message); cad.say(message); };
   const xr = useCadRefs({ project, view, tabOf: cad.tabOf, change, say: cad.say });
+
+  // Model and layouts (paper space, src/components/cad/CadLayouts.tsx): the level's layouts, the one showing, its
+  // viewports, the one picked and the one worked in (MS).
+  const [mv, setMv] = useState(false);
+  const [renamingLayout, setRenamingLayout] = useState<string | null>(null);
+  const lv = floor ? { buildingId: floor.ref.building, levelId: floor.ref.level, name: floor.name } : undefined;
+  const layouts = layoutsOf(project, lv);
+  const sheetL = cad.layout ? layouts.find((s) => s.id === cad.layout) : undefined;
+  useEffect(() => { if (cad.layout && !sheetL) cad.setLayout(null); }, [cad.layout, sheetL]); // eslint-disable-line react-hooks/exhaustive-deps -- a layout gone (deleted, another level)
+  useEffect(() => { if (!sheetL) setMv(false); }, [sheetL]);
+  const vps = sheetL ? layoutViewports(project, sheetL) : [];
+  const msV = vps.find((v) => v.id === cad.msVp), selV = vps.find((v) => v.id === cad.vpSel);
+  /** The viewport a command acts on: the one worked in, else the one picked, else the only one. */
+  const vpTarget = msV ?? selV ?? (vps.length === 1 ? vps[0] : undefined);
+  const setVps = (f: (list: PlanViewport[]) => PlanViewport[], what: string) => { if (sheetL) change(changeViewports(project, sheetL, f), `${sheetL.number || 'Layout'}  ${what} · ⌘Z to undo`); };
+  const patchVp = (v: PlanViewport, patch: Partial<PlanViewport>, what: string) => setVps((l) => patchViewport(l, v.id, patch), `${vpName(vps, v.id)}: ${what}`);
+  const addLayout = (type: PlanType) => {
+    if (!lv) { cad.say('LAYOUT  Choose the level this drawing is the plan of first (ribbon: Level).'); return; }
+    const r = newLayout(setOf(project), lv, type);
+    change({ ...project, drawingSet: r.set }, `LAYOUT  ${r.set.sheets.find((x) => x.id === r.id)?.number ?? ''} ${lv.name} · ${PLAN_LABEL[type]} — a new layout and plan sheet · ⌘Z to undo`);
+    cad.setLayout(r.id);
+  };
+  const PAPER_TOOLS: Record<string, MarkupTool> = { T: 'text', TEXT: 'text', NOTE: 'text', CLOUD: 'cloud', REVCLOUD: 'cloud', LE: 'callout', LEADER: 'callout', CALLOUT: 'callout', ARROW: 'arrow', L: 'line', LINE: 'line', REC: 'rect', RECTANG: 'rect' };
+  /** Layout commands (and LAYOUT / MODEL from the Model tab); true when the command was one. */
+  function layoutCmd(c: string): boolean {
+    const [w, arg] = c.split(' ');
+    if (w === 'LAYOUT' || w === 'LO') { addLayout(PLAN_TYPES.find((t) => t.toUpperCase().startsWith(arg ?? 'L')) ?? 'lighting'); return true; }
+    if (w === 'MODEL') { cad.setLayout(null); return true; }
+    if (!sheetL) return false;
+    if (w === 'MV' || w === 'MVIEW') { cad.setMsVp(null); setMv(true); cad.say('MVIEW  Click two corners of the new viewport on the paper:'); return true; }
+    if (w === 'MS' || w === 'MSPACE') { const v = vpTarget ?? vps[0]; if (v) { cad.setMsVp(v.id); cad.say(`MSPACE  Working in the model through ${vpName(vps, v.id)} (1:${v.scale}${isLocked(v) ? ', locked' : ''}). PS or a double-click outside returns to the paper.`); } return true; }
+    if (w === 'PS' || w === 'PSPACE') { cad.setMsVp(null); cad.say('PSPACE  On the paper.'); return true; }
+    if (w === 'VPSCALE') {
+      const v = vpTarget, k = Math.round(Number(/^(?:1:)?(\d+(?:\.\d+)?)$/.exec(arg ?? '')?.[1]));
+      if (!v) cad.say('VPSCALE  Pick a viewport first (click its frame).');
+      else if (!(k > 0)) cad.say(`VPSCALE  ${vpName(vps, v.id)} is at 1:${v.scale}. Type VPSCALE and a scale, e.g. VPSCALE 50.`);
+      else patchVp(v, { scale: k }, `scale 1:${k}`);
+      return true;
+    }
+    if (w === 'VPLOCK') { const v = vpTarget; if (!v) cad.say('VPLOCK  Pick a viewport first (click its frame).'); else patchVp(v, isLocked(v) ? { locked: false } : { locked: undefined }, isLocked(v) ? 'unlocked: pan and zoom inside it move its view' : 'locked'); return true; }
+    if (w === 'PAGESETUP') { onSheet?.(sheetL.id); return true; }
+    if (w === 'PLOT') { onPlot(sheetL.id); return true; }
+    if (!msV && PAPER_TOOLS[w] && !arg) {
+      if (!paperTool) return false;
+      paperTool(PAPER_TOOLS[w]);
+      cad.say(`${w}  On the paper: drag where it goes (Esc stops).`);
+      return true;
+    }
+    return false;
+  }
   const unitName = (insunits?: number) => CAD_UNITS.find((u) => u.code === insunits)?.id;
   async function startAttach() {
     setShowXR(false);
@@ -357,7 +424,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER}${refLines.length ? `, ${refLines.length.toLocaleString('en-GB')} reference lines bound on NAME$0$LAYER layers` : ''}${wiring.length ? `, ${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on ${WIRING_LAYER} / ${TAG_LAYER}` : ''})`); onStatus(msg); }
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
   }
-  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), close: () => { if (view) closeDrawings([view]); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM(true); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); } };
+  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), close: () => { if (view) closeDrawings([view]); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM(true); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); } };
   // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
   useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
 
@@ -955,6 +1022,12 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     const raw = text.trim();
     const c = raw.toUpperCase().replace(/\s+/g, ' ');
     // Typed input for the tool in use: the text of TEXT, a radius, an angle, a point or a distance.
+    if (renamingLayout && raw) {
+      const id = renamingLayout, set = setOf(project);
+      setRenamingLayout(null);
+      change({ ...project, drawingSet: { ...set, sheets: set.sheets.map((x) => (x.id === id ? { ...x, title: raw } : x)) } }, `LAYOUT  renamed "${raw}" · ⌘Z to undo`);
+      return;
+    }
     if (renaming && raw) {
       const id = renaming;
       setRenaming(null);
@@ -971,6 +1044,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       draw({ kind: 'text', layer: ANNO_LAYER, pts: [cad.textAt], text: raw, h: textH }, `Text "${raw}"`);
       cad.setTextAt(null); cad.say(PROMPT.text); return;
     }
+    if (c && layoutCmd(c)) return;
     if (!c) {
       if ((tool === 'area' || tool === 'trace') && points.length >= 3) finishArea(points);
       else if (tool === 'pline') finishPline(false);
@@ -1146,13 +1220,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   const highlight: [number, number] | null = result?.kind === 'object' ? [result.o.seg_start, result.o.seg_end] : null;
   const objectArea = result?.kind === 'area' && result.how === 'object';
 
-  return (
-    <section className="cad">
-      <CadTabs cad={cad} project={project} busy={busy} onOpen={openFile} onClose={closeDrawings} />
-      <div className="cad-work">
-        {view ? (
-          <div className="cad-stage">
-            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
+  /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
+  const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
+            <CadCanvas view={view!} layersOn={cad.layersOn} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
               layerStyle={styles} refs={xr.placed} refSnap={xr.snap} windowSelect={tool === 'none' || tool === 'stretch' || (PICK_FIRST.includes(tool) && edPhase === 'pick')} onWindow={pickWindow} onContext={contextAt}
               grips={tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
               onGripEnd={(i, at) => {
@@ -1173,7 +1243,42 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
                   return <SketchToolbar key={[...pickedKeys].join()} items={pickedSk} devices={pickedItems.length} lengthM={one ? toM(pathLength(one.pts)) : undefined} {...at} onEdit={editSketch} />;
                 }
                 return <DeviceToolbar key={[...pickedKeys].join()} project={project} items={pickedItems} edits={editsFor(project, pickedItems)} circuits={circuits} {...at} onEdit={editDevices} />;
-              }} />
+              }} {...vpProps} />
+  );
+
+  return (
+    <section className="cad">
+      <CadTabs cad={cad} project={project} busy={busy} onOpen={openFile} onClose={closeDrawings} />
+      <div className="cad-work">
+        {view && sheetL ? (
+          <div className="cad-stage cad-paper">
+            {sheetUi ? <SheetWorkspace bare project={project} run={calcRun} sheetId={sheetL.id} design={null} ui={sheetUi} onChange={(next) => change(next, `${sheetL.number || 'Layout'}  paper changed · ⌘Z to undo`)} onStatus={onStatus} onActive={() => {}} overlay={layoutOverlay({
+              project, sheet: sheetL, sel: cad.vpSel, ms: cad.msVp, mv,
+              onSelect: cad.setVpSel,
+              onMs: (id) => { cad.setMsVp(id); if (id) cad.setVpSel(id); cad.say(id ? `MSPACE  Working in the model through ${vpName(vps, id)}. A double-click outside (or PS) returns to the paper.` : 'PSPACE  On the paper.'); },
+              onBox: (id, box) => setVps((l) => patchViewport(l, id, { box }), `${vpName(vps, id)} moved or resized`),
+              onNew: (box) => {
+                setMv(false);
+                const base = vpTarget ?? vps[0], id = vpId(vps);
+                const at = base ? vpToModel(base, [box[0] + box[2] / 2, box[1] + box[3] / 2]) : [0, 0] as [number, number];
+                setVps((l) => [...l, { id, box, at, scale: base?.scale ?? 100 }], `${vpName([...vps, { id } as PlanViewport], id)} added at 1:${base?.scale ?? 100}`);
+                cad.setVpSel(id);
+              },
+              canvas: (v, pxPerMm) => {
+                const w = vpWindow(v), k = units.factor;
+                return drawCanvas({
+                  fitBox: [w.x0 / k, w.y0 / k, w.x1 / k, w.y1 / k], fixed: isLocked(v),
+                  onView: (c, pxPerUnit) => {
+                    const scale = Math.max(1, Math.round((1000 * pxPerMm * k) / pxPerUnit));
+                    patchVp(v, { at: [+(c[0] * k).toFixed(3), +(c[1] * k).toFixed(3)], scale }, `view moved (1:${scale})`);
+                  }
+                });
+              }
+            })} /> : <p className="m">Layouts open from the app's sheets.</p>}
+          </div>
+        ) : view ? (
+          <div className="cad-stage">
+            {drawCanvas()}
             <div className="cad-coords">{cursor.at ? `X ${cursor.at[0].toFixed(2)}   Y ${cursor.at[1].toFixed(2)}   ${units.label}` : units.label}</div>
           </div>
         ) : (
@@ -1188,6 +1293,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
         )}
         {cad.showLayers && (
           <aside className="cad-side">
+            {sheetL && selV && <ViewportPanel project={project} sheet={sheetL} vp={selV} refs={xr.refs.map((r) => r.name)} onChange={(patch, what) => patchVp(selV, patch, what)}
+              onDelete={() => { setVps((l) => l.filter((x) => x.id !== selV.id), `${vpName(vps, selV.id)} deleted${vps.length === 1 ? ' (the layout shows the level as worked out again)' : ''}`); cad.setVpSel(null); cad.setMsVp(null); }}
+              onLayers={() => setShowLM(true)} />}
             <h4>Result</h4>
             <div className="cad-res">
               {many && pickedSk.length ? <DrawnSelectionPanel items={pickedSk} devices={pickedItems.length} onEdit={editSketch} /> : many ? <SelectionPanel key={[...pickedKeys].join()} project={project} items={pickedItems} circuits={circuits} level={floor ? floorLabel(project.building, floor) : undefined} onEdit={editDevices} /> : result ? <ResultView r={result.kind === 'sketch' && selSketch ? { kind: 'sketch', it: selSketch } : result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} onMove={() => cad.setTool('move')} onRemove={removeSelected} onCopy={() => cad.setTool('copy')} onRotate={() => cad.setTool('rotate')} onAdded={() => setResult(null)} fittings={fittings} /> : view ? (
@@ -1338,6 +1446,12 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
           </aside>
         )}
       </div>
+      {view && lv && <LayoutTabs layouts={layouts} active={sheetL?.id ?? null} onPick={(id) => { cad.setLayout(id); if (id) cad.say(`LAYOUT  ${layouts.find((x) => x.id === id)?.number ?? ''} — the paper; double-click inside a viewport to work in it, MV adds one.`); }}
+        onNew={addLayout} onRename={(x) => { setRenamingLayout(x.id); cad.say(`RENAME  Type the new title of ${x.number} (now "${x.title}"):`); input.current?.focus(); }}
+        onCopy={(x) => { const r = newLayout(setOf(project), lv, x.plan ?? 'lighting', x); change({ ...project, drawingSet: r.set }, `LAYOUT  ${x.number} copied · ⌘Z to undo`); cad.setLayout(r.id); }}
+        onMove={(x, dir) => change({ ...project, drawingSet: renumber(moveLayout(setOf(project), x.id, dir)) }, `LAYOUT  ${x.number} moved ${dir < 0 ? 'left' : 'right'} · ⌘Z to undo`)}
+        onDelete={(x) => { const set = setOf(project); change({ ...project, drawingSet: { ...set, sheets: set.sheets.filter((y) => y.id !== x.id) } }, `LAYOUT  ${x.number} ${x.title} deleted (its sheet too) · ⌘Z to undo`); if (cad.layout === x.id) cad.setLayout(null); }}
+        onPageSetup={(x) => onSheet?.(x.id)} />}
       <form className="cad-cmd" onSubmit={(e) => { e.preventDefault(); run(cmd); setCmd(''); }}>
         <span className="m cad-hist">{cad.history[cad.history.length - 1] ?? 'Command: type OPEN, DI, AREA… or use the CAD ribbon'}</span>
         <span>›</span>
@@ -1350,10 +1464,16 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
             onClick={() => (x.k === 'grid' ? cad.cycleGrid() : cad.toggle(x.k))}>{x.k === 'grid' && cad.toggles.grid && cad.gridDots ? 'GRID · DOTS' : x.label}</button>
         ))}
         <span className="sp" />
-        <span>{cursor.snap ?? ''}</span>
-        <span>{view ? `${view.file} · ${view.info.format} · ${units.label} · 1 : 1` : ''}</span>
+        {sheetL ? <>
+          <button className={`cad-tg on`} aria-label={msV ? 'Model space in a viewport' : 'Paper space'} title={msV ? 'In the model through a viewport: click for the paper (PS)' : 'On the paper: click to work in a viewport (MS)'} onClick={() => run(msV ? 'PS' : 'MS')}>{msV ? 'MODEL' : 'PAPER'}</button>
+          {vpTarget && <span>{`${vpName(vps, vpTarget.id)} · 1:${vpTarget.scale}${isLocked(vpTarget) ? ' · locked' : ''}`}</span>}
+          <span>{`${sheetL.number} · ${layoutPaper(project, sheetL)?.size ?? ''} · mm`}</span>
+        </> : <>
+          <span>{cursor.snap ?? ''}</span>
+          <span>{view ? `${view.file} · ${view.info.format} · ${units.label} · 1 : 1` : ''}</span>
+        </>}
       </div>
-      {showLM && view && <LayerManager view={view} layersOn={cad.layersOn} sketch={sketch} styles={styles} onLayer={cad.setLayer} onStyle={(layer, patch) => change(withLayerStyle(project, view.file, layer, patch), `Layer ${layer} changed · ⌘Z to undo`)} onClose={() => setShowLM(false)} refs={xr} />}
+      {showLM && view && <LayerManager viewport={sheetL && vpTarget ? { name: vpName(vps, vpTarget.id), frozen: (l) => isFrozen(vpTarget, l), toggle: (l) => patchVp(vpTarget, toggleFrozen(vpTarget, l), `${l} ${isFrozen(vpTarget, l) ? 'thawed' : 'frozen'} here`) } : undefined} view={view} layersOn={cad.layersOn} sketch={sketch} styles={styles} onLayer={cad.setLayer} onStyle={(layer, patch) => change(withLayerStyle(project, view.file, layer, patch), `Layer ${layer} changed · ⌘Z to undo`)} onClose={() => setShowLM(false)} refs={xr} />}
       {showXR && view && <RefManager file={view.file} level={floor ? floorLabel(project.building, floor) : undefined} x={xr} onAttach={() => void startAttach()} onClip={startClip} onBind={() => { setShowXR(false); void saveDxf(view.info.format === 'DWG' ? 'dwg' : 'dxf', true); }} onClose={() => setShowXR(false)} />}
       {xDraft && tool !== 'xattach' && view && (
         <AttachDialog key={`${xDraft.at[0]},${xDraft.at[1]}`} draft={xDraft} level={floor ? floorLabel(project.building, floor) : undefined} units={{ ref: unitName(refGeometry(xDraft.file)?.units), plan: unitName(view.info.units) }}

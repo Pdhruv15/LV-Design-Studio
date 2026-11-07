@@ -6,7 +6,10 @@ import { RefLayers, type CadRefsState } from './CadRefs';
 
 /** Design CAD → Layer manager: the app's drawn layers (on, locked, colour, linetype, lineweight) and the architect's
  * (on, a screen colour of its own). The printed sheets stay black-and-white. */
-export function LayerManager({ view, layersOn, sketch, styles, onLayer, onStyle, onClose, refs }: {
+/** In a layout: the viewport picked, and its layers frozen there only (src/model/planViewports.ts). */
+export interface ViewportLayers { name: string; frozen: (layer: string) => boolean; toggle: (layer: string) => void }
+
+export function LayerManager({ view, layersOn, sketch, styles, onLayer, onStyle, onClose, refs, viewport }: {
   view: CadView;
   layersOn: Uint8Array;
   sketch: SketchItem[];
@@ -16,6 +19,7 @@ export function LayerManager({ view, layersOn, sketch, styles, onLayer, onStyle,
   onClose: () => void;
   /** The plan's references: their layers as NAME|LAYER (on, print, screen colour). */
   refs?: CadRefsState;
+  viewport?: ViewportLayers;
 }) {
   const colour = (name: string, value: string | undefined) => (
     <select aria-label={`${name} colour`} value={value ?? ''} onChange={(e) => onStyle(name, { color: e.target.value || undefined })}>
@@ -25,16 +29,17 @@ export function LayerManager({ view, layersOn, sketch, styles, onLayer, onStyle,
   const count = (name: string) => sketch.filter((it) => it.layer.toLowerCase() === name.toLowerCase()).length;
   return (
     <Modal onClose={onClose} className="modal" style={{ maxWidth: 860 }} label="Layer manager">
-      <h3>Layer manager <span className="m">{view.file}</span></h3>
+      <h3>Layer manager <span className="m">{view.file}{viewport ? ` · ${viewport.name}` : ''}</span></h3>
       <h4>Drawn in the app</h4>
       <table className="sched" aria-label="Drawn layers">
-        <thead><tr><th>Layer</th><th>Objects</th><th>On</th><th>Lock</th><th>Print</th><th>Colour</th><th>Linetype</th><th>Lineweight</th></tr></thead>
+        <thead><tr><th>Layer</th><th>Objects</th><th>On</th>{viewport && <th title={`Frozen in ${viewport.name} only`}>This viewport</th>}<th>Lock</th><th>Print</th><th>Colour</th><th>Linetype</th><th>Lineweight</th></tr></thead>
         <tbody>{drawnLayers(sketch).map((name) => {
           const st = styleOf(styles, name);
           return (
             <tr key={name}>
               <td>{name}</td><td>{count(name)}</td>
               <td><input type="checkbox" aria-label={`${name} on`} checked={!st.hidden} onChange={(e) => onStyle(name, { hidden: !e.target.checked })} /></td>
+              {viewport && <td><input type="checkbox" aria-label={`${name} in this viewport`} checked={!viewport.frozen(name)} onChange={() => viewport.toggle(name)} /></td>}
               <td><input type="checkbox" aria-label={`${name} locked`} checked={!!st.lock} onChange={(e) => onStyle(name, { lock: e.target.checked })} /></td>
               <td><input type="checkbox" aria-label={`${name} prints`} checked={!st.noPrint} onChange={(e) => onStyle(name, { noPrint: !e.target.checked })} /></td>
               <td>{colour(name, st.color)}</td>
@@ -61,8 +66,8 @@ export function LayerManager({ view, layersOn, sketch, styles, onLayer, onStyle,
           ))}</tbody>
         </table>
       </div>
-      {refs?.placed.map(({ ref }) => <RefLayers key={ref.name} r={ref} x={refs} />)}
-      <p className="m">Locked layers can be seen and snapped to, but not picked or edited. Untick Print to keep a layer on screen but off the plan sheets. Colours are for the screen; sheets print black-and-white with the pens (Sheets → Plot).</p>
+      {refs?.placed.map(({ ref }) => <RefLayers key={ref.name} r={ref} x={refs} viewport={viewport} />)}
+      <p className="m">{viewport ? `This viewport: untick to freeze a layer in ${viewport.name} only (it still shows in the model and in other viewports). ` : ''}Locked layers can be seen and snapped to, but not picked or edited. Untick Print to keep a layer on screen but off the plan sheets. Colours are for the screen; sheets print black-and-white with the pens (Sheets → Plot).</p>
       <div className="modal-actions"><span className="sp" /><button className="chip primary" onClick={onClose}>Done</button></div>
     </Modal>
   );

@@ -4,6 +4,7 @@ import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FileX2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
+import { Frame, LayoutTemplate, Printer } from 'lucide-react';
 import { PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen } from 'lucide-react';
 import type { CadTool } from './cad/cadState';
 import type { BoardKind, Feeder } from '../types';
@@ -84,6 +85,8 @@ export interface RibbonActions {
   /** Design CAD's tools (src/components/cad); `file`: the File group's Plans, Level and Units (cadFileMenu.ts). */
   cad?: {
     tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onSaveDwg: () => void; onClose: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; onLayerManager?: () => void; onRefs?: () => void; layersOn: boolean; hasDrawing: boolean;
+    /** A layout tab showing (paper space): the Layout group shows, its tools run these commands (LAYOUT, MV, VPSCALE n, VPLOCK, PAGESETUP, PLOT). */
+    inLayout?: boolean; vpLocked?: boolean; onLayoutCmd?: (cmd: string) => void;
     file: { plans: Tool['menu']; plansSub?: string; level: string; levelTitle: string; levels: Tool['menu']; unit: string; unitTitle: string; units: Tool['menu'] };
     onRoles: () => void; rolesOn: boolean; onAddFound: () => void; onSchedules: () => void; onPlaceBoard: () => void; placingBoard: boolean;
     onCoverage: () => void; coverageOn: boolean; copyLevels: Tool['menu'];
@@ -140,7 +143,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   concept: ['Load', 'Supply', 'Stage'],
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Calculate', 'Stage'],
-  cad: ['File', 'Rooms', 'Cables and boards', 'Draw', 'Modify', 'Annotation', 'Measure', 'Devices', 'Layers', 'Sheets', 'Markup', 'On panels', 'Style', 'View', 'Plot', 'Issue and export', 'Wiring', 'Edit devices', 'Properties'],
+  cad: ['File', 'Rooms', 'Cables and boards', 'Draw', 'Modify', 'Annotation', 'Measure', 'Devices', 'Layers', 'Sheets', 'Markup', 'On panels', 'Style', 'View', 'Plot', 'Issue and export', 'Wiring', 'Edit devices', 'Properties', 'Layout'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -221,6 +224,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const [cadSub, setCadSub] = useState<CadSub>('plan');
   // Sheets is a page of its own: shown whenever a sheets page is on screen, else Plan or Draw as last chosen.
   const sub: CadSub = SHEET_VIEWS.includes(a.view) ? 'sheets' : cadSub === 'sheets' ? 'plan' : cadSub;
+  // On a layout tab (paper space) the Layout group (19) follows File on Plan and Draw.
+  const cadGroups = (k: CadSub) => (a.cad?.inLayout && k !== 'sheets' ? [0, 19, ...CAD_SUB[k].groups.filter((g) => g !== 0)] : CAD_SUB[k].groups);
   // While the row is wider than the window, one more panel collapses; a wider window, or another sub-tab, opens them
   // all again.
   useLayoutEffect(() => {
@@ -534,6 +539,14 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ],
       [
         cadTool('matchprop', 'Match properties', PaintRoller, 'Match properties (MP): click the drawn object to copy from, then each to change: layer, colour, linetype, lineweight')
+      ],
+      [
+        { label: 'New layout', icon: LayoutTemplate, sub: 'of this level', title: 'A new layout (paper) of this level: a plan sheet with its title block and a viewport onto the model (LAYOUT)', onClick: () => {}, menu: (['Lighting', 'Power', 'ELV', 'Containment'] as const).map((t) => ({ label: `${t} layout`, title: `A new ${t.toLowerCase()} layout of this level`, onClick: () => a.cad?.onLayoutCmd?.(`LAYOUT ${t.toUpperCase()}`) })) },
+        { small: true, label: 'Viewport', icon: Frame, title: 'A new viewport: click two corners on the paper (MV)', onClick: () => a.cad?.onLayoutCmd?.('MV') },
+        { small: true, label: 'Scale', icon: Scaling, sub: 'scale', title: 'The scale of the viewport picked (VPSCALE)', onClick: () => {}, menu: [20, 50, 100, 200, 500, 1000].map((k) => ({ label: `1:${k}`, title: `Viewport at 1:${k}`, onClick: () => a.cad?.onLayoutCmd?.(`VPSCALE ${k}`) })) },
+        { small: true, label: 'Lock', icon: Lock, title: 'Lock or unlock the viewport picked: locked, pan and zoom inside it leave its view alone (VPLOCK)', onClick: () => a.cad?.onLayoutCmd?.('VPLOCK'), active: a.cad?.vpLocked },
+        { small: true, label: 'Page setup', icon: FileCog, title: 'Paper, pens and plot stamp of this layout\'s sheet (opens it in Sheets)', onClick: () => a.cad?.onLayoutCmd?.('PAGESETUP') },
+        { small: true, label: 'Plot PDF', icon: Printer, title: 'This layout\'s sheet as PDF, black and white (PLOT)', onClick: () => a.cad?.onLayoutCmd?.('PLOT') }
       ]
     ],
     reports: [
@@ -664,9 +677,9 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         if (collapsed && b && !b.hasAttribute('aria-haspopup') && !b.hasAttribute('aria-expanded')) setPeek(false);
       }} role="toolbar" aria-label={`${[...TABS, ...STAGE_TABS].find((t) => t.id === tab)?.label} tools`}>
         {groups[tab].map((group, gi) => {
-          if (tab === 'cad' && !CAD_SUB[sub].groups.includes(gi)) return null;
+          if (tab === 'cad' && !cadGroups(sub).includes(gi)) return null;
           const caption = CAPTIONS[tab]?.[gi];
-          const order = tab === 'cad' ? { order: CAD_SUB[sub].groups.indexOf(gi) + 1 } : undefined;
+          const order = tab === 'cad' ? { order: cadGroups(sub).indexOf(gi) + 1 } : undefined;
           const menuOf = (tools: Tool[]) => tools.map((t) => ({ label: t.label, title: t.title, onClick: t.onClick }));
           const popup = (key: string, items: { label: string; title: string; onClick: () => void; sep?: boolean }[]) => splitOpen === key && (
             <div className="ribbon-split-menu" role="menu" style={{ left: splitAt.x, top: splitAt.y }} onMouseDown={(e) => e.stopPropagation()}>
