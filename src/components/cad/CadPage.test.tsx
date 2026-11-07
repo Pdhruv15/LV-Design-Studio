@@ -1090,5 +1090,94 @@ describe('file tabs', () => {
     await flush();
     expect(state.view).toBeNull();
   });
-});
 
+  it('References: attaches a drawing under the plan, lists it, turns its layers off, clips, binds and detaches it', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    const lvds = (window as unknown as { lvds: { cadFile: { openBytes: ReturnType<typeof vi.fn> }; files?: unknown } }).lvds;
+    lvds.cadFile.openBytes.mockResolvedValueOnce({ file: 'STR-GF.dxf', path: '/refs/STR-GF.dxf', bytes: bytes('electron/samples/sample-villa-ff.dxf') });
+    const saveBinary = vi.fn(async () => '/plans/out.dxf');
+    lvds.files = { saveBinary };
+    const last = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
+    const refs = () => project.cadRefs?.['sample-villa-gf.dxf'] ?? [];
+    await command('XA');
+    await flush();
+    expect(document.body.textContent).toContain('Attach a reference');
+    expect((document.querySelector('[aria-label="Reference name"]') as HTMLInputElement).value).toBe('STR-GF');
+    expect((document.querySelector('[aria-label="Reference prints"]') as HTMLInputElement).checked).toBe(true); // the structure prints by default
+    act(() => button('Pick on plan').click());
+    expect(state.tool).toBe('xattach');
+    await clickAt(1000, 2000);
+    expect(document.body.textContent).toContain('Attach a reference');
+    await act(async () => { button('Attach').click(); });
+    expect(refs()).toHaveLength(1);
+    expect(refs()[0]).toMatchObject({ name: 'STR-GF', file: 'STR-GF.dxf', type: 'overlay', scale: 1, rot: 0, fade: 50, print: true });
+    expect(refs()[0].at[0]).toBeCloseTo(1000, -1);
+    expect(last()).toMatch(/^XATTACH {2}STR-GF \(STR-GF\.dxf\) on sample-villa-gf\.dxf — overlay at [\d.]+, [\d.]+, ×1, 0°, [\d,]+ lines, faded 50 % · ⌘Z to undo$/);
+    // Its layers show in the Layers panel as NAME|LAYER, and in the manager with their status.
+    const wall = [...document.querySelectorAll('button')].find((b) => b.textContent?.startsWith('STR-GF|A-WALL'))!;
+    expect(wall).toBeDefined();
+    act(() => wall.click());
+    expect(refs()[0].layers).toEqual({ 'A-WALL': { hidden: true } });
+    await command('XR');
+    expect(document.querySelector('[aria-label="References"]')!.textContent).toMatch(/STR-GFLoadedSTR-GF\.dxf/);
+    act(() => button('Unload').click());
+    expect(refs()[0].unloaded).toBe(true);
+    expect(document.querySelector('[aria-label="References"]')!.textContent).toContain('Unloaded');
+    act(() => button('Load').click());
+    act(() => button('Clip').click());
+    expect(state.tool).toBe('xclip');
+    await clickAt(0, 0);
+    await clickAt(5000, 4000);
+    await command('');
+    expect(refs()[0].clip).toEqual([[expect.any(Number), expect.any(Number)], expect.anything(), expect.anything(), expect.anything()]);
+    expect(last()).toBe('XREF  STR-GF: clipped to a rectangle · ⌘Z to undo');
+    // Bind: the saved copy gets the reference's lines on NAME$0$LAYER layers.
+    await command('XR');
+    await act(async () => { button('Bind…').click(); });
+    await flush();
+    const text = new TextDecoder().decode((saveBinary.mock.calls[0] as unknown as [{ bytes: Uint8Array; defaultName: string }])[0].bytes);
+    expect((saveBinary.mock.calls[0] as unknown as [{ defaultName: string }])[0].defaultName).toBe('sample-villa-gf - with devices and references.dxf');
+    expect(text).toContain('STR-GF$0$');
+    expect(text).not.toContain('STR-GF$0$A-WALL'); // its layer is off
+    await command('XR');
+    act(() => button('Detach').click());
+    expect(project.cadRefs).toBeUndefined();
+    expect(last()).toBe('XREF  STR-GF detached from sample-villa-gf.dxf. STR-GF.dxf is not changed · ⌘Z to undo');
+  });
+
+  it('References: one named inside the opened drawing is looked for beside the plan and shown; one detached is not looked for again', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    const cadFile = (window as unknown as { lvds: { cadFile: { openBytes: ReturnType<typeof vi.fn>; readBytes?: unknown } } }).lvds.cadFile;
+    cadFile.openBytes.mockResolvedValueOnce({ file: 'GF.dxf', path: '/jobs/A/Arch/GF.dxf', bytes: bytes('tests/fixtures/cad/xref-host.dxf') });
+    const readBytes = vi.fn(async (p: string) => (p === '/jobs/A/Structure/STR-GF.dxf' ? { file: 'STR-GF.dxf', path: p, bytes: bytes('electron/samples/sample-villa-ff.dxf') } : null));
+    cadFile.readBytes = readBytes;
+    await command('open');
+    await flush();
+    expect(state.view?.file).toBe('GF.dxf');
+    // Saved as ..\Structure\STR-GF.dxf: found from the plan's folder, at the drawing's insert.
+    expect(readBytes.mock.calls[0][0]).toBe('/jobs/A/Structure/STR-GF.dxf');
+    const refs = () => project.cadRefs?.['gf.dxf'] ?? [];
+    expect(refs()).toEqual([expect.objectContaining({ name: 'STR-GF', file: 'STR-GF.dxf', type: 'overlay', at: [500, 0], found: true })]);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('XREF  Found inside GF.dxf and shown under it: STR-GF (/jobs/A/Structure/STR-GF.dxf) · ⌘Z to undo');
+    expect(localStorage.getItem('lvds.cad.paths.p1')).toContain('/jobs/A/Structure/STR-GF.dxf');
+    await command('XR');
+    expect(document.querySelector('[aria-label="References"]')!.textContent).toMatch(/STR-GFLoaded/);
+    act(() => button('Detach').click());
+    expect(refs()).toEqual([]);
+    expect(JSON.parse(localStorage.getItem('lvds.cad.refsOff.p1.gf.dxf')!)).toEqual(['STR-GF']);
+  });
+
+  it('References: one named inside the opened drawing and not found says so', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    const cadFile = (window as unknown as { lvds: { cadFile: { openBytes: ReturnType<typeof vi.fn>; readBytes?: unknown } } }).lvds.cadFile;
+    cadFile.openBytes.mockResolvedValueOnce({ file: 'GF.dxf', path: '/jobs/A/Arch/GF.dxf', bytes: bytes('tests/fixtures/cad/xref-host.dxf') });
+    cadFile.readBytes = vi.fn(async () => null);
+    await command('open');
+    await flush();
+    expect(project.cadRefs).toBeUndefined();
+    expect(document.body.textContent).toContain('XREF  Not found on this computer: STR-GF (inside GF.dxf). References → Repath… finds it.');
+  });
+});

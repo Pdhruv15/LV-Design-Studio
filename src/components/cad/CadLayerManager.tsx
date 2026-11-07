@@ -2,10 +2,11 @@ import { Modal } from '../ui';
 import { drawnLayers, LAYER_COLOURS, LINETYPE_IDS, LINETYPES, LINEWEIGHTS, styleOf, type LayerStyle, type LinetypeId, type ObjectProps } from '../../model/cadLayerStyle';
 import type { CadView } from '../../engines/cad/cadEngine';
 import type { SketchItem } from '../../types';
+import { RefLayers, type CadRefsState } from './CadRefs';
 
 /** Design CAD → Layer manager: the app's drawn layers (on, locked, colour, linetype, lineweight) and the architect's
  * (on, a screen colour of its own). The printed sheets stay black-and-white. */
-export function LayerManager({ view, layersOn, sketch, styles, onLayer, onStyle, onClose }: {
+export function LayerManager({ view, layersOn, sketch, styles, onLayer, onStyle, onClose, refs }: {
   view: CadView;
   layersOn: Uint8Array;
   sketch: SketchItem[];
@@ -13,6 +14,8 @@ export function LayerManager({ view, layersOn, sketch, styles, onLayer, onStyle,
   onLayer: (i: number, on: boolean) => void;
   onStyle: (layer: string, patch: LayerStyle) => void;
   onClose: () => void;
+  /** The plan's references: their layers as NAME|LAYER (on, print, screen colour). */
+  refs?: CadRefsState;
 }) {
   const colour = (name: string, value: string | undefined) => (
     <select aria-label={`${name} colour`} value={value ?? ''} onChange={(e) => onStyle(name, { color: e.target.value || undefined })}>
@@ -58,6 +61,7 @@ export function LayerManager({ view, layersOn, sketch, styles, onLayer, onStyle,
           ))}</tbody>
         </table>
       </div>
+      {refs?.placed.map(({ ref }) => <RefLayers key={ref.name} r={ref} x={refs} />)}
       <p className="m">Locked layers can be seen and snapped to, but not picked or edited. Untick Print to keep a layer on screen but off the plan sheets. Colours are for the screen; sheets print black-and-white with the pens (Sheets → Plot).</p>
       <div className="modal-actions"><span className="sp" /><button className="chip primary" onClick={onClose}>Done</button></div>
     </Modal>

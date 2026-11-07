@@ -58,6 +58,8 @@ declare global {
         openBytes?: () => Promise<{ file: string; path: string; bytes: Uint8Array } | null>;
         readBytes?: (path: string) => Promise<{ file: string; path: string; bytes: Uint8Array } | null>;
         sampleBytes?: (name: string) => Promise<{ file: string; bytes: Uint8Array } | null>;
+        /** When a drawing file was last changed and its size; null when it is not there (references: Changed / Not found). */
+        stat?: (path: string) => Promise<{ mtimeMs: number; size: number } | null>;
         /** The next drawing opened from Finder / Explorer, read; null when there is none. */
         takePending?: () => Promise<{ file: string; path: string; bytes: Uint8Array } | null>;
         /** Called when a drawing is opened from Finder / Explorer while the app runs; returns the unsubscribe. */

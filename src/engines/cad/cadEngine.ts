@@ -1,5 +1,6 @@
 import type { CadBlock } from '../../model/cadLoads';
 import type { EngineAnswer, EngineOps } from './cadOps';
+import type { RefGeometry } from '../../model/cadRefs';
 import wasmUrl from '../../../electron/cad/lvds_cad_reader_bg.wasm?url';
 import sampleGf from '../../../electron/samples/sample-villa-gf.dxf?url';
 import sampleFf from '../../../electron/samples/sample-villa-ff.dxf?url';
@@ -25,7 +26,11 @@ export interface CadInfo {
   linetypes: number[][];
   /** Filled areas: solid hatches and 2D solids, or pattern hatches with their pattern lines (absolute drawing units). */
   fills: CadFill[];
+  /** External references inside the drawing: block name, saved path, overlay or attach, and where model space inserts
+   * them (drawing units; rotation in radians). Missing from an engine older than v2.046. */
+  xrefs?: CadXref[];
 }
+export interface CadXref { name: string; path: string; overlay: boolean; unloaded: boolean; inserts: { x: number; y: number; sx: number; sy: number; rot: number }[] }
 /** A filled area; its loops are ranges of drawn segments, each one closed boundary. */
 export interface CadFill {
   layer: number;
@@ -242,6 +247,26 @@ export async function sampleDrawing(name: string): Promise<CadView | null> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`The sample plan ${name} could not be loaded.`);
   return openDrawing(name, new Uint8Array(await res.arrayBuffer()));
+}
+
+/** A drawing's lines made absolute, with its layers and units, as a reference under a plan (src/model/cadRefs.ts). */
+export function refGeometryOf(v: CadView, stamp?: string): RefGeometry {
+  const [ox, oy] = v.info.origin, n = v.segLayers.length, segs = new Float64Array(n * 4);
+  for (let i = 0; i < n; i++) { segs[i * 4] = v.segs[i * 4] + ox; segs[i * 4 + 1] = v.segs[i * 4 + 1] + oy; segs[i * 4 + 2] = v.segs[i * 4 + 2] + ox; segs[i * 4 + 3] = v.segs[i * 4 + 3] + oy; }
+  return { file: v.file, units: v.info.units, segs, segLayers: Uint16Array.from(v.segLayers), layers: v.info.layers.map((l) => ({ name: l.name, rgb: l.rgb })), stamp: stamp ?? `${v.bytes.length}` };
+}
+/** A reference drawing read from its bytes. Its engine is ended once read, so a reference keeps only its lines. */
+export async function readRefGeometry(file: string, bytes: Uint8Array, stamp?: string): Promise<RefGeometry> {
+  const v = await openDrawing(file, bytes);
+  try { return refGeometryOf(v, stamp); } finally { v.close(); }
+}
+
+/** When a drawing file was last changed (desktop app only); undefined when it cannot tell, null when the file is gone. */
+export async function fileStamp(path: string | undefined): Promise<string | null | undefined> {
+  const stat = path ? window.lvds?.cadFile?.stat : undefined;
+  if (!stat || !path) return undefined;
+  const s = await stat(path).catch(() => undefined);
+  return s === undefined ? undefined : s ? `${s.mtimeMs}:${s.size}` : null;
 }
 
 /** A device written into the saved drawing: position (drawing units), radius, the letters inside and its label. */

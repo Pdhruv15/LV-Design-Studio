@@ -345,6 +345,7 @@ handle('cad:openBytes', async (evt) => {
   return { file: path.basename(file), path: file, bytes: cadFile.readDrawingBytes(file) };
 });
 handle('cad:readBytes', (_evt, file) => (isPlanFile(file) && fs.existsSync(file) ? { file: path.basename(file), path: file, bytes: cadFile.readDrawingBytes(file) } : null));
+handle('cad:stat', (_evt, file) => { if (!isPlanFile(file) || !fs.existsSync(file)) return null; const st = fs.statSync(file); return { mtimeMs: st.mtimeMs, size: st.size }; });
 handle('cad:sampleBytes', (_evt, name) => (SAMPLE_PLANS.has(name) ? { file: name, bytes: cadFile.readDrawingBytes(path.join(__dirname, 'samples', name)) } : null));
 
 

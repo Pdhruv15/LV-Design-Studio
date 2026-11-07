@@ -9,6 +9,7 @@ import { circuitCategory } from '../calc/loadSchedule';
 import { planOfLevel } from './cadPlans';
 import { sketchOf } from './cadSketch';
 import { layerStylesOf } from './cadLayerStyle';
+import { refsOf } from './cadRefs';
 import { plotOf } from './plotSetup';
 import { planScale } from './cadUnits';
 import type { SheetMarkup } from './sheetMarkup';
@@ -448,7 +449,11 @@ function planValues(p: Project, s: DrawingSheet): unknown {
   // The drawn work it prints (src/docs/planLayout.ts), only where there is some: sheets without keep their hash.
   const plan = plotOf(p, s).drawn === false ? undefined : planOfLevel(p, { building: s.buildingId ?? '', level: s.levelId ?? '' });
   const drawn = plan ? sketchOf(p, plan.file).filter((it) => !it.tray && !it.cable) : [];
-  return drawn.length ? [...v, [drawn, layerStylesOf(p, plan!.file), p.cadAnno, planScale(p, plan!.file, plan!.units).factor]] : v;
+  const withDrawn = drawn.length ? [...v, [drawn, layerStylesOf(p, plan!.file), p.cadAnno, planScale(p, plan!.file, plan!.units).factor]] : v;
+  // The references it prints (their placing and layers, not their lines), only where there are some.
+  const level = planOfLevel(p, { building: s.buildingId ?? '', level: s.levelId ?? '' });
+  const refs = level ? refsOf(p, level.file).filter((r) => r.print && !r.unloaded) : [];
+  return refs.length ? [...withDrawn, ['refs', refs]] : withDrawn;
 }
 function planDesignValues(p: Project, s: DrawingSheet): unknown {
   const on = (d: { buildingId?: string; levelId?: string }) => d.buildingId === s.buildingId && d.levelId === s.levelId;

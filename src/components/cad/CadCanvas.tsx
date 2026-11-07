@@ -40,7 +40,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {} }: {
+export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap }: {
   view: CadView;
   layersOn: Uint8Array;
   toggles: CadToggles;
@@ -82,6 +82,11 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
    * what is drawn here also on/off, linetype and lineweight (an object's own wins). */
   layerStyle?: Record<string, LayerStyle>;
   extraSnaps?: { x: number; y: number; kind: number }[];
+  /** References under the plan (src/model/cadRefs.ts): their lines (drawing units, absolute) with each line's layer,
+   * the screen colour of each layer, and how faded they show (%). Drawn under the drawing; never picked. */
+  refs?: { segs: Float64Array; segLayers: Uint16Array; colours: (string | number)[]; fade: number }[];
+  /** The nearest snap point of the references within `r` (drawing units, absolute). */
+  refSnap?: (x: number, y: number, r: number) => { p: Pt; kind: number } | undefined;
   /** The object being drawn, following the cursor (drawn on the cursor layer). */
   preview?: SketchItem[];
   /** Changes to fit the drawing to the window. */
@@ -138,6 +143,16 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     }
     return [...by.values()];
   }, [view, o0, o1]);
+  // References: a path per reference and layer, relative to the origin.
+  const refPaths = useMemo(() => refs.map((r) => {
+    const by = new Map<number, Path2D>();
+    for (let i = 0; i < r.segLayers.length; i += 1) {
+      let p = by.get(r.segLayers[i]);
+      if (!p) { p = new Path2D(); by.set(r.segLayers[i], p); }
+      p.moveTo(r.segs[i * 4] - o0, r.segs[i * 4 + 1] - o1); p.lineTo(r.segs[i * 4 + 2] - o0, r.segs[i * 4 + 3] - o1);
+    }
+    return { alpha: 1 - Math.min(90, Math.max(0, r.fade)) / 100, layers: [...by].map(([l, path]) => ({ path, colour: r.colours[l] ?? INK })) };
+  }), [refs, o0, o1]);
   // Filled areas (solid hatches and 2D solids, pattern hatches): their boundary paths and boxes, relative to the origin.
   const fills = useMemo(() => (view.info.fills ?? []).map((f) => {
     const path = new Path2D();
@@ -230,6 +245,13 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     const vx0 = ox - 2 / scale, vy0 = oy - 2 / scale, vx1 = ox + (size.w + 2) / scale, vy1 = oy + (size.h + 2) / scale;
     const onScreen = (bx: [number, number, number, number]) => bx[2] >= vx0 && bx[0] <= vx1 && bx[3] >= vy0 && bx[1] <= vy1;
     const px = 1 / scale;
+    // References first, faded, under everything of the drawing.
+    ctx.lineWidth = px;
+    for (const r of refPaths) {
+      ctx.globalAlpha = r.alpha;
+      for (const l of r.layers) { ctx.strokeStyle = typeof l.colour === 'string' ? l.colour : shade(l.colour); ctx.stroke(l.path); }
+    }
+    ctx.globalAlpha = 1;
     // Hatches under the lines: solid ones filled; pattern lines clipped to the boundary, or a light fill when they would
     // be closer than 3 pixels (or too many to draw).
     for (const f of fills) {
@@ -464,7 +486,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
         ctx.fillText(fittingLabel(f), sx + fpx * 1.2, sy - fpx * 1.2);
       }
     }
-  }, [t, size, batches, fills, layersOn, toggles.grid, view, highlight, devices, wiring, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots, layerStyle]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
+  }, [t, size, batches, fills, layersOn, toggles.grid, view, highlight, devices, wiring, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots, layerStyle, refPaths]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
 
   /** The cursor: crosshair and pick box, and the snap marker with its name. */
   function drawCursor(at: Pt | null, snap?: { p: Pt; kind: number }) {
@@ -566,6 +588,8 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     if (toggles.osnap) {
       const r = 10 / v.scale;
       if (s?.length === 3) snap = { p: [s[0], s[1]], kind: s[2] };
+      const rs = refSnap?.(raw[0], raw[1], r);
+      if (rs && (!snap || Math.hypot(rs.p[0] - raw[0], rs.p[1] - raw[1]) < Math.hypot(snap.p[0] - raw[0], snap.p[1] - raw[1]))) snap = rs;
       // Points on what was drawn in the app snap too; the nearer one wins.
       for (const e of extraSnaps) {
         const d = Math.hypot(e.x - raw[0], e.y - raw[1]);

@@ -9,8 +9,8 @@ import type { CadToggles } from './CadCanvas';
  * (`dev`), wiring a circuit (`wire`, Wire one), devices along a line (`arl`) or
  * matching another (`match`), modifying the selected object (`move`, `copy`, `rotate`, `mirror`, `scale`, `stretch`), editing what was drawn (`trim`,
  * `extend`, `offset`, `fillet`, `chamfer`, `break`, `join`, `explode`, `array`), drawing (`line`, `pline`, `rect`, `circle`, `arc`)
- * or annotating (`text`, `dim`). */
-export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'lux' | 'em' | 'arl' | 'match' | 'wire' | 'move' | 'copy' | 'rotate' | 'mirror' | 'scale' | 'stretch' | 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'array' | 'matchprop' | 'hatch' | 'leader' | 'rtag' | 'north' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim';
+ * or annotating (`text`, `dim`), or placing (`xattach`) or clipping (`xclip`) a reference. */
+export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'lux' | 'em' | 'arl' | 'match' | 'wire' | 'move' | 'copy' | 'rotate' | 'mirror' | 'scale' | 'stretch' | 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'array' | 'matchprop' | 'hatch' | 'leader' | 'rtag' | 'north' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim' | 'xattach' | 'xclip';
 
 /** Sample plans shipped with the app (electron/samples, made by scripts/make-sample-villa-plans.mjs), shown while no
  * drawing is open — a test aid. To remove: empty this list and delete the files and cad:sampleBytes. */
@@ -28,13 +28,21 @@ const PATHS = (projectId: string | undefined) => `lvds.cad.paths.${projectId ?? 
 const paths = (projectId: string | undefined): Record<string, string> => { try { return JSON.parse(localStorage.getItem(PATHS(projectId)) ?? '{}') as Record<string, string>; } catch { return {}; } };
 /** Where a plan file of the project was opened from on this computer, to open it again from Plans. */
 export const pathOfPlan = (projectId: string | undefined, file: string): string | undefined => paths(projectId)[file.toLowerCase()];
-const rememberPath = (projectId: string | undefined, file: string, path?: string) => {
+export const rememberPath = (projectId: string | undefined, file: string, path?: string) => {
   try { if (path) localStorage.setItem(PATHS(projectId), JSON.stringify({ ...paths(projectId), [file.toLowerCase()]: path })); } catch { /* not remembered */ }
 };
 
+const SKIPPED = (projectId: string | undefined, host: string) => `lvds.cad.refsOff.${projectId ?? 'new'}.${host.toLowerCase()}`;
+/** References inside a plan's drawing that were detached on this computer: not looked for again when the plan opens. */
+export const skippedRefs = (projectId: string | undefined, host: string): string[] => { try { return JSON.parse(localStorage.getItem(SKIPPED(projectId, host)) ?? '[]') as string[]; } catch { return []; } };
+export const skipRef = (projectId: string | undefined, host: string, name: string, off: boolean) => {
+  const rest = skippedRefs(projectId, host).filter((n) => n.toLowerCase() !== name.toLowerCase());
+  try { localStorage.setItem(SKIPPED(projectId, host), JSON.stringify(off ? [...rest, name] : rest)); } catch { /* not remembered */ }
+};
+
 /** What the ribbon asks of the page showing the drawing; nothing while the page is not shown. */
-export interface CadActions { save: () => void; saveDwg: () => void; close: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void }
-export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, close: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {} };
+export interface CadActions { save: () => void; saveDwg: () => void; close: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void; refs: () => void }
+export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, close: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {}, refs: () => {} };
 
 /** A drawing open in a tab, with its layers as they were left (its zoom and pan stay with CadCanvas). */
 interface OpenDrawing { view: CadView; layersOn: Uint8Array }

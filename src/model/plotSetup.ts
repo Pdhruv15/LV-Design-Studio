@@ -6,7 +6,7 @@ import type { Project } from '../types';
  * a default. Printing stays black-and-white. A CTB (colour-dependent plot style table) can be imported: the
  * pens then take the widths it gives the colours the app's DXF layers use. */
 
-export type PenKey = 'frame' | 'title' | 'arch' | 'devices' | 'trays' | 'routes' | 'sketch' | 'hatch' | 'sld' | 'bus';
+export type PenKey = 'frame' | 'title' | 'arch' | 'refs' | 'devices' | 'trays' | 'routes' | 'sketch' | 'hatch' | 'sld' | 'bus';
 /** A pen: width in mm (0 = as the drawing has it), ink in % of black (100 = black). */
 export interface Pen { w: number; grey: number }
 export interface PenTable { id: string; name: string; pens: Record<PenKey, Pen>; ctb?: string }
@@ -19,17 +19,17 @@ export interface ProjectPlot { tables?: PenTable[]; defaults?: PlotSetup }
 export const PEN_WIDTHS = [0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1, 1.4, 2];
 export const PEN_INKS = [100, 80, 60, 45, 30];
 export const PEN_LABEL: Record<PenKey, string> = {
-  frame: 'Sheet frame and title block outline', title: 'Title block, legend and table lines', arch: "Architect's plan (room outlines)",
+  frame: 'Sheet frame and title block outline', title: 'Title block, legend and table lines', arch: "Architect's plan (room outlines)", refs: 'References (other drawings under the plan)',
   devices: 'Devices and DBs', trays: 'Cable trays', routes: 'Cable routes and wiring',
   sketch: 'Your drawn lines (text, dimensions, leaders)', hatch: 'Hatch (pattern lines; Solid prints 30 %)', sld: 'SLD and diagram lines', bus: 'Busbars'
 };
 /** The colour each kind of line has on the app's DXF layers (src/docs/sheetDxf.ts): a CTB's widths go by it. */
-export const PEN_ACI: Record<PenKey, number> = { frame: 7, title: 7, arch: 8, devices: 3, trays: 3, routes: 7, sketch: 7, hatch: 8, sld: 7, bus: 1 };
+export const PEN_ACI: Record<PenKey, number> = { frame: 7, title: 7, arch: 8, refs: 9, devices: 3, trays: 3, routes: 7, sketch: 7, hatch: 8, sld: 7, bus: 1 };
 
 /** What the sheets print today; SLD lines and busbars as drawn. */
 export const DEFAULT_PENS: PenTable = {
   id: 'lvds', name: 'LVDS Electrical',
-  pens: { frame: { w: 0.7, grey: 100 }, title: { w: 0.25, grey: 100 }, arch: { w: 0.18, grey: 45 }, devices: { w: 0.25, grey: 100 }, trays: { w: 0.5, grey: 100 }, routes: { w: 0.25, grey: 100 }, sketch: { w: 0.25, grey: 100 }, hatch: { w: 0.13, grey: 60 }, sld: { w: 0, grey: 100 }, bus: { w: 0, grey: 100 } }
+  pens: { frame: { w: 0.7, grey: 100 }, title: { w: 0.25, grey: 100 }, arch: { w: 0.18, grey: 45 }, refs: { w: 0.13, grey: 30 }, devices: { w: 0.25, grey: 100 }, trays: { w: 0.5, grey: 100 }, routes: { w: 0.25, grey: 100 }, sketch: { w: 0.25, grey: 100 }, hatch: { w: 0.13, grey: 60 }, sld: { w: 0, grey: 100 }, bus: { w: 0, grey: 100 } }
 };
 export const PEN_KEYS = Object.keys(DEFAULT_PENS.pens) as PenKey[];
 /** The thinnest pen: "All one thin line". */

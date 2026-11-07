@@ -556,6 +556,8 @@ export interface Project {
   plot?: import('./model/plotSetup').ProjectPlot;
   /** Which drawing file is each level's plan in Design CAD (src/model/cadPlans.ts). */
   cadPlans?: CadPlan[];
+  /** Design CAD references (Xref): other drawings shown under each plan file (lower case) (src/model/cadRefs.ts). */
+  cadRefs?: Record<string, import('./model/cadRefs').CadRef[]>;
   /** LV points (lights, sockets…) placed on plans in the CAD view, on circuits (src/model/cadDevices.ts). */
   lvPoints?: import('./model/cadDevices').LvPoint[];
   /** Circuits wired on the CAD plans (Design CAD → Plan → Wiring), with the device order the engineer saved. */
