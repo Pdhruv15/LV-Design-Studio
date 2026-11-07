@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { badName, cannotDelete, CAD_FONTS, currentDimStyle, currentTextStyle, dimLookOf, dimStylesOf, dimText, newStyleName, textStylesOf } from './cadStyles';
-import { dimensionLines, shapesOut } from './cadSketch';
-import { arrayPolar } from './cadEdit';
+import { badName, cannotDelete, CAD_FONTS, currentDimStyle, currentTextStyle, dimLookOf, dimStylesOf, dimStylesToStore, dimText, newStyleName, STANDARD, textStylesOf, textStylesToStore } from './cadStyles';
+import { dimensionLines, dimLabel, shapesOut } from './cadSketch';
+import { arrayPolar, gripMoved, scaled } from './cadEdit';
 import { sampleProject } from '../data/sampleProject';
 import type { Project, SketchItem } from '../types';
 
@@ -21,10 +21,26 @@ describe('text and dimension styles', () => {
     const styles = dimStylesOf(p);
     const q: Project = { ...p, cadDimStyles: { styles: [...styles.styles, { ...styles.styles[0], name: 'Plans', arrow: 'closed', arrowMm: 3, unit: 'mm', decimals: 0 }], current: 'Plans' } };
     const d = dimLookOf(q, 0.001)!; // mm drawing at 1:100: 100 units per paper mm
-    expect(d.look).toEqual({ arrow: 'closed', size: 300, off: 60, ext: 125 });
+    expect(d.look).toEqual({ arrow: 'closed', size: 300, off: 60, ext: 125, unit: 'mm', decimals: 0 });
     expect(d.textH).toBe(200);
     expect(dimText(3.2, d.style)).toBe('3200');
     expect(dimText(3.256, { unit: 'm', decimals: 2 })).toBe('3.26');
+  });
+
+  it('keeps Standard only once changed: saved unchanged, nothing is kept and dimensions draw as before', () => {
+    const styles = dimStylesOf(p);
+    expect(dimStylesToStore(p, styles)).toBeUndefined();
+    const plans = { ...styles.styles[0], name: 'Plans', arrow: 'dot' as const };
+    const both = dimStylesToStore(p, { styles: [...styles.styles, plans], current: STANDARD })!;
+    expect(both).toEqual({ styles: [plans], current: 'Standard' }); // Standard left out, still current
+    const q: Project = { ...p, cadDimStyles: both };
+    expect(dimStylesOf(q).styles.map((x) => x.name)).toEqual(['Standard', 'Plans']);
+    expect(dimLookOf(q, 0.001)).toBeUndefined(); // Standard as before
+    expect(dimLookOf({ ...q, cadDimStyles: { ...both, current: 'Plans' } }, 0.001)!.look.arrow).toBe('dot');
+    const changed = { ...styles.styles[0], arrowMm: 3 };
+    expect(dimStylesToStore(p, { styles: [changed], current: STANDARD })).toEqual({ styles: [changed], current: STANDARD });
+    expect(textStylesToStore(textStylesOf(p))).toBeUndefined();
+    expect(textStylesToStore({ styles: [{ name: 'Standard', font: 'Arial', heightMm: 3 }], current: STANDARD })).toEqual({ styles: [{ name: 'Standard', font: 'Arial', heightMm: 3 }], current: STANDARD });
   });
 
   it('keeps names unique, Standard and the current style', () => {
@@ -61,12 +77,22 @@ describe('dimension looks', () => {
     expect(tick.text[1]).toBe(950);
   });
 
-  it('saves a styled dimension with its own text, as the sheets print it', () => {
-    const dim: SketchItem = { id: 'd', kind: 'dim', layer: 'LV-ANNO', pts: [[0, 0], [4000, 0], [2000, 800]], text: '4000', h: 200, look: { arrow: 'closed', size: 300, off: 60, ext: 125 } };
+  it('writes a styled dimension as measured now, after a grip edit or a scale too; scale sizes its look', () => {
+    const dim: SketchItem = { id: 'd', kind: 'dim', layer: 'LV-ANNO', pts: [[0, 0], [4000, 0], [2000, 800]], h: 200, look: { arrow: 'closed', size: 300, off: 60, ext: 125, unit: 'mm', decimals: 0 } };
     const out = shapesOut([dim], 0.001);
     expect(out.filter((s) => s.kind === 'line')).toHaveLength(9);
     expect(out.find((s) => s.kind === 'text')).toMatchObject({ text: '4000', h: 200 });
-    expect(shapesOut([{ ...dim, look: undefined }], 0.001).find((s) => s.kind === 'text')!.text).toBe('4.00');
+    const longer = gripMoved(dim, 1, [5000, 0]);
+    expect(dimLabel(longer, 0.001)).toBe('5000');
+    expect(shapesOut([longer], 0.001).find((s) => s.kind === 'text')!.text).toBe('5000');
+    const half = scaled(dim, [0, 0], 0.5);
+    expect(half.look).toEqual({ ...dim.look, size: 150, off: 30, ext: 62.5 });
+    expect(dimLabel(half, 0.001)).toBe('2000');
+    expect(dimLabel({ ...dim, text: 'TYP.' }, 0.001)).toBe('TYP.'); // typed over: kept
+    // One drawn before styles keeps its text on screen and on the sheets, and is saved as the length in metres.
+    const old: SketchItem = { id: 'o', kind: 'dim', layer: 'LV-ANNO', pts: [[0, 0], [4000, 0], [2000, 800]], text: '4.00' };
+    expect(dimLabel(old, 0.001)).toBe('4.00');
+    expect(shapesOut([old], 0.001).find((s) => s.kind === 'text')!.text).toBe('4.00');
   });
 });
 

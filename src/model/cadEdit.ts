@@ -267,7 +267,10 @@ export function mirrored(it: SketchItem, a: Pt, b: Pt): Omit<SketchItem, 'id'> {
 }
 /** Scale about a base point by a factor (radii and text heights too). */
 export function scaled(it: SketchItem, base: Pt, k: number): SketchItem {
-  return { ...it, pts: it.pts.map((q) => add(base, mul(sub(q, base), k))), ...(it.r !== undefined ? { r: it.r * k } : {}), ...(it.h !== undefined ? { h: it.h * k } : {}) };
+  return {
+    ...it, pts: it.pts.map((q) => add(base, mul(sub(q, base), k))), ...(it.r !== undefined ? { r: it.r * k } : {}), ...(it.h !== undefined ? { h: it.h * k } : {}),
+    ...(it.look ? { look: { ...it.look, size: it.look.size * k, off: it.look.off * k, ext: it.look.ext * k } } : {})
+  };
 }
 /** Stretch: the points inside the window move by (dx, dy); a circle, arc or text moves when its point is inside. */
 export function stretched(it: SketchItem, a: Pt, b: Pt, dx: number, dy: number): SketchItem | null {

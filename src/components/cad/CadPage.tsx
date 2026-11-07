@@ -6,7 +6,7 @@ import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
 import { isNumber, promptOptions, shortPrompt, spaceEnters, type SpaceMode } from './cadPrompt';
 import CadDynInput, { type DynBox } from './CadDynInput';
 import { DIALOG_TOOLS, DimStyleDialog, EditDialog, TextStyleDialog } from './CadDialogs';
-import { currentTextStyle, dimLookOf, dimStylesOf, dimText, textStylesOf } from '../../model/cadStyles';
+import { currentTextStyle, dimLookOf, dimStandardAsBefore, dimStylesOf, dimStylesToStore, textStylesOf, textStylesToStore } from '../../model/cadStyles';
 import { chooseDrawing, drawingWithDevices, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
 import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
@@ -962,7 +962,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (points.length < 2) { setPoints((p) => [...p, at]); cad.say(points.length ? 'DIM  Specify dimension line location:' : 'DIM  Specify second extension line origin:'); return; }
       const len = distance(points[0], points[1]);
       const ds = dimLookOf(project, units.factor);
-      draw({ kind: 'dim', layer: ANNO_LAYER, pts: [points[0], points[1], at], ...(ds ? { text: dimText(toM(len), ds.style), h: ds.textH, look: ds.look } : { text: toM(len).toFixed(2), h: textH * 0.8 }) }, `Dimension ${m(toM(len))}`);
+      // A dimension of a style keeps no text: it is measured (in the style's unit) wherever it is drawn or saved.
+      draw({ kind: 'dim', layer: ANNO_LAYER, pts: [points[0], points[1], at], ...(ds ? { h: ds.textH, look: ds.look } : { text: toM(len).toFixed(2), h: textH * 0.8 }) }, `Dimension ${m(toM(len))}`);
       setPoints([]); cad.say(PROMPT.dim); return;
     }
     if (tool === 'none') {
@@ -1172,14 +1173,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'trim' || tool === 'extend' || tool === 'explode' || (tool === 'stretch' && !stretchBox)) { cad.setTool('none'); return true; }
     return false;
   }
-  /** The edit tool's dialog applied: its values are the command line's, and the prompt shows them at once. */
-  function applySettings(s: EditSettings) {
-    setEdSet(s); setDlg(null);
-    const line = tool === 'offset' ? (edStep ? undefined : edAsk === 'offset' ? editPrompt(tool, s) : PROMPT.offset)
-      : tool === 'fillet' || tool === 'chamfer' ? (edStep || edAsk ? undefined : editPrompt(tool, s))
-      : tool === 'mirror' && edAsk === 'erase' ? mirrorAsk(s) : tool === 'scale' && edAsk === 'factor' ? `SCALE  Specify scale factor <${s.factor}>:` : tool === 'array' && edAsk === 'type' ? arrayType(s) : undefined;
-    if (line) cad.say(line);
-  }
+  /** The edit tool's prompt as it is now, with the values in < > as they are now: the command line shows it in place
+   * of the one said before, so a value changed in the dialog shows there at once. */
+  const promptNow = (s: EditSettings): string | undefined => (tool === 'offset' ? (edStep ? undefined : edAsk === 'offset' ? editPrompt(tool, s) : PROMPT.offset)
+    : tool === 'fillet' || tool === 'chamfer' ? (edStep ? undefined : edAsk === 'radius' ? `FILLET  Specify fillet radius <${f2(s.radius)}>:` : edAsk === 'd1' ? `CHAMFER  Specify first chamfer distance <${f2(s.d1)}>:`
+      : edAsk === 'd2' ? `CHAMFER  Specify second chamfer distance <${f2(s.d2)}>:` : editPrompt(tool, s))
+    : tool === 'mirror' && edAsk === 'erase' ? mirrorAsk(s) : tool === 'scale' && edAsk === 'factor' ? `SCALE  Specify scale factor <${s.factor}>:` : tool === 'array' && edAsk === 'type' ? arrayType(s) : undefined);
   /** Runs a recent command again (Enter or Space with no tool, Repeat in the right-click menu). */
   const repeat = (x: { tool?: CadTool; text?: string }) => { if (x.tool) cad.setTool(x.tool); else if (x.text) run(x.text); };
 
@@ -1379,7 +1378,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'arc' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
     if (tool === 'arc' && points.length === 2) { const a = arcThrough(points[0], points[1], cur); return a ? [{ ...base, ...a } as SketchItem] : []; }
     if (tool === 'dim' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
-    if (tool === 'dim' && points.length === 2) return [{ ...base, kind: 'dim', pts: [points[0], points[1], cur] }];
+    if (tool === 'dim' && points.length === 2) { const look = dimLookOf(project, units.factor)?.look; return [{ ...base, kind: 'dim', pts: [points[0], points[1], cur], ...(look ? { look } : {}) }]; }
     if ((tool === 'move' || tool === 'copy') && lastPt && selSketch) return [moved(selSketch, cur[0] - lastPt[0], cur[1] - lastPt[1])];
     if ((tool === 'move' || tool === 'copy') && lastPt) return [{ ...base, kind: 'line', pts: [lastPt, cur] }];
     if (tool === 'rotate' && lastPt && selSketch) return [rotated(selSketch, lastPt, Math.atan2(cur[1] - lastPt[1], cur[0] - lastPt[0]))];
@@ -1490,11 +1489,22 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     <section className="cad">
       <CadTabs cad={cad} project={project} busy={busy} onOpen={openFile} onClose={closeDrawings} />
       <div className="cad-work">
-        {dlg === 'edit' && DIALOG_TOOLS.includes(tool as EditTool) && <EditDialog tool={tool as EditTool} settings={edSet} onApply={applySettings} onClose={() => setDlg(null)} />}
+        {dlg === 'edit' && DIALOG_TOOLS.includes(tool as EditTool) && <EditDialog tool={tool as EditTool} settings={edSet} onPatch={(p) => setEdSet((x) => ({ ...x, ...p }))} onClose={() => setDlg(null)} />}
         {dlg === 'style' && <TextStyleDialog styles={textStylesOf(project)} annoMm={anno.textMm} onClose={() => setDlg(null)}
-          onSave={(s) => { setDlg(null); change({ ...project, cadTextStyles: s }, `STYLE  ${s.styles.length} text style${s.styles.length === 1 ? '' : 's'}, current "${s.current}" · ⌘Z to undo`); }} />}
-        {dlg === 'dimstyle' && <DimStyleDialog styles={dimStylesOf(project)} onClose={() => setDlg(null)}
-          onSave={(s) => { setDlg(null); change({ ...project, cadDimStyles: s }, `DIMSTYLE  ${s.styles.length} dimension style${s.styles.length === 1 ? '' : 's'}, current "${s.current}" · ⌘Z to undo`); }} />}
+          onSave={(s) => {
+            setDlg(null);
+            // Standard unchanged is not kept; saved with nothing changed, nothing changes.
+            const keep = textStylesToStore(s), { cadTextStyles: _t, ...rest } = project;
+            if (JSON.stringify(keep) === JSON.stringify(project.cadTextStyles)) { cad.say('STYLE  No change.'); return; }
+            change(keep ? { ...project, cadTextStyles: keep } : rest, `STYLE  ${s.styles.length} text style${s.styles.length === 1 ? '' : 's'}, current "${s.current}" · ⌘Z to undo`);
+          }} />}
+        {dlg === 'dimstyle' && <DimStyleDialog styles={dimStylesOf(project)} asBefore={dimStandardAsBefore(project)} onClose={() => setDlg(null)}
+          onSave={(s) => {
+            setDlg(null);
+            const keep = dimStylesToStore(project, s), { cadDimStyles: _d, ...rest } = project;
+            if (JSON.stringify(keep) === JSON.stringify(project.cadDimStyles)) { cad.say('DIMSTYLE  No change.'); return; }
+            change(keep ? { ...project, cadDimStyles: keep } : rest, `DIMSTYLE  ${s.styles.length} dimension style${s.styles.length === 1 ? '' : 's'}, current "${s.current}" · ⌘Z to undo`);
+          }} />}
         {view && sheetL ? (
           <div className="cad-stage cad-paper">
             {sheetUi ? <SheetWorkspace bare project={project} run={calcRun} sheetId={sheetL.id} design={null} ui={sheetUi} onChange={(next) => change(next, `${sheetL.number || 'Layout'}  paper changed · ⌘Z to undo`)} onStatus={onStatus} onActive={() => {}} overlay={layoutOverlay({
@@ -1697,7 +1707,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         onMove={(x, dir) => change({ ...project, drawingSet: renumber(moveLayout(setOf(project), x.id, dir)) }, `LAYOUT  ${x.number} moved ${dir < 0 ? 'left' : 'right'} · ⌘Z to undo`)}
         onDelete={(x) => { const set = setOf(project); change({ ...project, drawingSet: { ...set, sheets: set.sheets.filter((y) => y.id !== x.id) } }, `LAYOUT  ${x.number} ${x.title} deleted (its sheet too) · ⌘Z to undo`); if (cad.layout === x.id) cad.setLayout(null); }}
         onPageSetup={(x) => onSheet?.(x.id)} />}
-      <CadCommandLine history={cad.history} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
+      <CadCommandLine history={cad.history} live={EDIT_TOOLS.includes(tool) ? promptNow(edSet) : undefined} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
       <div className="cad-status">
         {TOGGLES.map((x) => (
           <button key={x.k} className={`cad-tg${cad.toggles[x.k] ? ' on' : ''}`} aria-pressed={cad.toggles[x.k]}

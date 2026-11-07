@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { toolAlias } from './cadCommands';
 import { EDIT_HELP, EDIT_TITLE, type EditSettings, type EditTool } from './SketchEditPanel';
+import { isNumber } from './cadPrompt';
 import { badName, cannotDelete, CAD_FONTS, DIM_ARROWS, newStyleName, STANDARD, type CadDimStyle, type CadFont, type CadStyles, type CadTextStyle, type DimArrow } from '../../model/cadStyles';
 
 /** Design CAD's compact settings dialogs: small, floating near the top-left of the drawing, moved by their title (each
@@ -9,7 +10,9 @@ import { badName, cannotDelete, CAD_FONTS, DIM_ARROWS, newStyleName, STANDARD, t
 
 type Pos = { left: number; top: number };
 const POS = (id: string) => `lvds.cad.dlg.${id}`;
-const placeOf = (id: string): Pos => { try { const p = JSON.parse(localStorage.getItem(POS(id)) ?? 'null') as Pos | null; if (p && Number.isFinite(p.left) && Number.isFinite(p.top)) return p; } catch { /* not remembered */ } return { left: 12, top: 12 }; };
+/** A place in the window: a dialog moved off it, or remembered from a larger window, comes back in view. */
+const inView = (p: Pos): Pos => ({ left: Math.min(Math.max(0, p.left), Math.max(0, window.innerWidth - 240)), top: Math.min(Math.max(0, p.top), Math.max(0, window.innerHeight - 120)) });
+const placeOf = (id: string): Pos => { try { const p = JSON.parse(localStorage.getItem(POS(id)) ?? 'null') as Pos | null; if (p && Number.isFinite(p.left) && Number.isFinite(p.top)) return inView(p); } catch { /* not remembered */ } return { left: 12, top: 12 }; };
 
 /** The dialog's frame: title (dragged to move it), body rows, and ? / Cancel / OK. */
 export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK', children }: {
@@ -28,7 +31,7 @@ export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK
       onMouseDown={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()}>
       <div className="cad-dlg-t"
         onPointerDown={(e) => { if (e.target instanceof HTMLButtonElement) return; drag.current = { x: e.clientX, y: e.clientY, at: pos, to: pos }; e.currentTarget.setPointerCapture?.(e.pointerId); }}
-        onPointerMove={(e) => { const d = drag.current; if (d) { d.to = { left: Math.max(0, d.at.left + e.clientX - d.x), top: Math.max(0, d.at.top + e.clientY - d.y) }; setPos(d.to); } }}
+        onPointerMove={(e) => { const d = drag.current; if (d) { d.to = inView({ left: d.at.left + e.clientX - d.x, top: d.at.top + e.clientY - d.y }); setPos(d.to); } }}
         onPointerUp={() => { const d = drag.current; if (d) { drag.current = null; keep(d.to); } }}>
         <b>{title}</b>{alias && <span>{alias}</span>}<i className="sp" />
         <button type="button" aria-label="Close" onClick={onClose}>×</button>
@@ -48,9 +51,20 @@ export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK
 function Row({ label, unit, children }: { label: string; unit?: string; children: ReactNode }) {
   return <label className="cad-dlg-r"><span>{label}</span><span className="cad-dlg-in">{children}{unit && <u>{unit}</u>}</span></label>;
 }
-const Num = ({ label, value, onChange, step = 0.05, unit }: { label: string; value: string | number; onChange: (v: string) => void; step?: number; unit?: string }) => (
-  <Row label={label} unit={unit}><input aria-label={label} type="number" step={step} value={String(value)} onChange={(e) => onChange(e.target.value)} /></Row>
-);
+/** A number box: the text stays as typed and each whole number (0 or more, or any when `signed`) is passed on as it is
+ * typed; a part such as "-" or nothing is let be until the box is left. A value set elsewhere (the command line) shows
+ * at once. */
+function Num({ label, value, onChange, unit, signed }: { label: string; value: string | number; onChange: (v: string) => void; unit?: string; signed?: boolean }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText((t) => (isNumber(t) && Number(t) === Number(value) ? t : String(value))), [value]);
+  const ok = (t: string) => isNumber(t) && (signed || Number(t) >= 0);
+  return (
+    <Row label={label} unit={unit}>
+      <input aria-label={label} inputMode="decimal" autoComplete="off" value={text}
+        onChange={(e) => { const t = e.target.value; setText(t); if (ok(t)) onChange(t.trim()); }} onBlur={() => { if (!ok(text)) setText(String(value)); }} />
+    </Row>
+  );
+}
 const Check = ({ label, value, onChange, disabled }: { label: string; value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) => (
   <Row label={label}><input aria-label={label} type="checkbox" checked={value} disabled={disabled} onChange={(e) => onChange(e.target.checked)} /></Row>
 );
@@ -58,15 +72,22 @@ const Check = ({ label, value, onChange, disabled }: { label: string; value: boo
 /** The tools with a settings dialog in place of the side panel. */
 export const DIALOG_TOOLS: EditTool[] = ['offset', 'fillet', 'chamfer', 'scale', 'mirror', 'array'];
 
-/** Offset, Fillet / Chamfer, Scale, Mirror and Array: the same values as the command line's (they show here as they
- * change there; OK sends these back). */
-export function EditDialog({ tool, settings, onApply, onClose }: { tool: EditTool; settings: EditSettings; onApply: (s: EditSettings) => void; onClose: () => void }) {
-  const [s, setS] = useState(settings);
-  useEffect(() => setS(settings), [settings]);
-  const set = <K extends keyof EditSettings>(k: K) => (v: EditSettings[K]) => setS((x) => ({ ...x, [k]: v }));
+/** Offset, Fillet / Chamfer, Scale, Mirror and Array: the command line's values themselves. A value changed here is
+ * used at once (and shows in the prompt); one typed on the command line shows here. OK or Enter closes; Esc, Cancel or ×
+ * put back what was changed here. */
+export function EditDialog({ tool, settings: s, onPatch, onClose }: { tool: EditTool; settings: EditSettings; onPatch: (p: Partial<EditSettings>) => void; onClose: () => void }) {
+  // For Esc: what each value was before it was changed here, and what it was changed to (a value set since on the
+  // command line is the command line's, and stays).
+  const was = useRef<Partial<EditSettings>>({}), mine = useRef<Partial<EditSettings>>({});
+  for (const k of Object.keys(was.current) as (keyof EditSettings)[]) if (s[k] !== mine.current[k]) { delete was.current[k]; delete mine.current[k]; }
+  const set = <K extends keyof EditSettings>(k: K) => (v: EditSettings[K]) => {
+    if (!(k in was.current)) was.current = { ...was.current, [k]: s[k] };
+    mine.current = { ...mine.current, [k]: v };
+    onPatch({ [k]: v } as Partial<EditSettings>);
+  };
   const n = (v: string, d: number) => (v.trim() !== '' && Number.isFinite(Number(v)) ? Math.max(1, Math.round(Number(v))) : d);
   return (
-    <CadDialog id={tool === 'chamfer' ? 'fillet' : tool} title={EDIT_TITLE[tool]} alias={toolAlias(tool)} help={EDIT_HELP[tool]} onOk={() => onApply(s)} onClose={onClose}>
+    <CadDialog id={tool === 'chamfer' ? 'fillet' : tool} title={EDIT_TITLE[tool]} alias={toolAlias(tool)} help={EDIT_HELP[tool]} onOk={onClose} onClose={() => { onPatch(was.current); onClose(); }}>
       {tool === 'offset' && <>
         <Num label="Distance" unit="m" value={s.offset} onChange={set('offset')} />
         <Check label="Through point" value={s.through} onChange={set('through')} />
@@ -76,7 +97,7 @@ export function EditDialog({ tool, settings, onApply, onClose }: { tool: EditToo
       {tool === 'fillet' && <Num label="Radius" unit="m" value={s.radius} onChange={set('radius')} />}
       {tool === 'chamfer' && <><Num label="First distance" unit="m" value={s.d1} onChange={set('d1')} /><Num label="Second distance" unit="m" value={s.d2} onChange={set('d2')} /></>}
       {(tool === 'fillet' || tool === 'chamfer') && <Row label="Trim"><select aria-label="Trim" value={s.trim ? 'yes' : 'no'} onChange={(e) => set('trim')(e.target.value === 'yes')}><option value="yes">Yes</option><option value="no">No</option></select></Row>}
-      {tool === 'scale' && <Num label="Factor" unit="×" step={0.1} value={s.factor} onChange={set('factor')} />}
+      {tool === 'scale' && <Num label="Factor" unit="×" value={s.factor} onChange={set('factor')} />}
       {tool === 'mirror' && <Check label="Erase source" value={!s.keep} onChange={(v) => set('keep')(!v)} />}
       {tool === 'array' && <>
         <div className="cad-dlg-tabs" role="tablist">
@@ -84,14 +105,14 @@ export function EditDialog({ tool, settings, onApply, onClose }: { tool: EditToo
           <button type="button" role="tab" aria-selected={s.polar} onClick={() => set('polar')(true)}>Polar</button>
         </div>
         {s.polar ? <>
-          <Num label="Number" step={1} value={s.n} onChange={set('n')} />
-          <Num label="Angle to fill" unit="°" step={15} value={s.angle} onChange={set('angle')} />
+          <Num label="Number" value={s.n} onChange={set('n')} />
+          <Num label="Angle to fill" unit="°" signed value={s.angle} onChange={set('angle')} />
           <Check label="Rotate items" value={s.rotate} onChange={set('rotate')} />
         </> : <>
-          <Num label="Rows" step={1} value={s.rows} onChange={set('rows')} />
-          <Num label="Columns" step={1} value={s.cols} onChange={set('cols')} />
-          <Num label="Row spacing" unit="m" step={0.1} value={s.dy} onChange={set('dy')} />
-          <Num label="Column spacing" unit="m" step={0.1} value={s.dx} onChange={set('dx')} />
+          <Num label="Rows" value={s.rows} onChange={set('rows')} />
+          <Num label="Columns" value={s.cols} onChange={set('cols')} />
+          <Num label="Row spacing" unit="m" signed value={s.dy} onChange={set('dy')} />
+          <Num label="Column spacing" unit="m" signed value={s.dx} onChange={set('dx')} />
           <Check label="Associative (later)" value={false} disabled onChange={() => {}} />
         </>}
         <ArrayPreview polar={s.polar} rows={n(s.rows, 2)} cols={n(s.cols, 3)} count={n(s.n, 6)} angle={Number(s.angle) || 360} />
@@ -170,20 +191,27 @@ export function TextStyleDialog({ styles, annoMm, onSave, onClose }: { styles: C
       <StyleList draft={d} sel={one.name} onSel={setSel} onDraft={setD} make={(from, name) => ({ ...from, name })} err={setMsg} />
       <NameRow draft={d} sel={one.name} onRename={(to) => { setD(renamed(d, one.name, to)); setSel(to); }} err={setMsg} />
       <Row label="Font"><select aria-label="Font" value={one.font} onChange={(e) => patch({ font: e.target.value as CadFont })}>{CAD_FONTS.map((f) => <option key={f} value={f}>{f}</option>)}</select></Row>
-      <Num label="Height" unit="mm" step={0.5} value={one.heightMm} onChange={(v) => patch({ heightMm: Math.max(0, Number(v) || 0) })} />
+      <Num label="Height" unit="mm" value={one.heightMm} onChange={(v) => patch({ heightMm: Number(v) })} />
       {msg && <p className="cad-dlg-help" role="alert">{msg}</p>}
     </CadDialog>
   );
 }
 
 /** DIMSTYLE: the project's dimension styles. */
-export function DimStyleDialog({ styles, onSave, onClose }: { styles: CadStyles<CadDimStyle>; onSave: (s: CadStyles<CadDimStyle>) => void; onClose: () => void }) {
+export function DimStyleDialog({ styles, asBefore, onSave, onClose }: {
+  styles: CadStyles<CadDimStyle>;
+  /** Standard not changed yet: it draws as before (sizes from each dimension's length) until it is. */
+  asBefore: boolean;
+  onSave: (s: CadStyles<CadDimStyle>) => void;
+  onClose: () => void;
+}) {
   const [d, setD] = useState(styles);
   const [sel, setSel] = useState(styles.current);
   const [msg, setMsg] = useState<string>();
   const one = d.styles.find((x) => x.name === sel) ?? d.styles[0];
   const patch = (p: Partial<CadDimStyle>) => setD({ ...d, styles: d.styles.map((x) => (x.name === one.name ? { ...x, ...p } : x)) });
-  const mm = (k: keyof CadDimStyle, label: string) => <Num label={label} unit="mm" step={0.25} value={one[k] as number} onChange={(v) => patch({ [k]: Math.max(0, Number(v) || 0) })} />;
+  const mm = (k: keyof CadDimStyle, label: string) => <Num label={label} unit="mm" value={one[k] as number} onChange={(v) => patch({ [k]: Number(v) })} />;
+  const standardAsBefore = asBefore && one.name === STANDARD && JSON.stringify(one) === JSON.stringify(styles.styles.find((x) => x.name === STANDARD));
   return (
     <CadDialog id="dimstyle" title="Dimension style" alias="DIMSTYLE" onOk={() => onSave(d)} onClose={onClose}
       help="New dimensions take the current style; sizes are paper mm at the annotation scale. Dimensions drawn before keep their look.">
@@ -194,8 +222,9 @@ export function DimStyleDialog({ styles, onSave, onClose }: { styles: CadStyles<
       {mm('textMm', 'Text height')}
       {mm('offsetMm', 'Offset from origin')}
       {mm('extendMm', 'Extend beyond line')}
-      <Num label="Decimal places" step={1} value={one.decimals} onChange={(v) => patch({ decimals: Math.max(0, Math.min(4, Math.round(Number(v) || 0))) })} />
+      <Num label="Decimal places" value={one.decimals} onChange={(v) => patch({ decimals: Math.min(4, Math.round(Number(v))) })} />
       <Row label="Unit"><select aria-label="Unit" value={one.unit} onChange={(e) => patch({ unit: e.target.value as CadDimStyle['unit'] })}><option value="m">m</option><option value="mm">mm</option></select></Row>
+      {standardAsBefore && <p className="cad-dlg-help" role="note">Standard draws as before (sizes follow each dimension's length) until it is changed.</p>}
       {msg && <p className="cad-dlg-help" role="alert">{msg}</p>}
     </CadDialog>
   );

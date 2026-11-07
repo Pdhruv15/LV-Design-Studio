@@ -14,6 +14,7 @@ import { openDrawing } from '../../engines/cad/cadEngine';
 import '../../engines/cad/cadOps'; // loaded ahead: the engine loads it on demand, which a busy test run can make slow
 import { sampleProject } from '../../data/sampleProject';
 import { placeLvPoint } from '../../model/cadDevices';
+import { dimLabel } from '../../model/cadSketch';
 import type { Project } from '../../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -1472,7 +1473,7 @@ describe('CAD command line', () => {
     expect((document.querySelector('.cad-dyn input[aria-label="Distance"]') as HTMLInputElement).placeholder).toBe('0.50');
   });
 
-  it('edit dialogs: Offset shows its dialog; its values and the command line are the same both ways; Enter applies, Esc closes', async () => {
+  it('edit dialogs: a value changed in the Offset dialog is used at once and shows in the prompt; the command line\'s shows in it; Esc puts back', async () => {
     await start();
     const dlg = () => document.querySelector('[role="dialog"][aria-label="Offset"]') as HTMLElement | null;
     const field = (name: string) => dlg()!.querySelector(`[aria-label="${name}"]`) as HTMLInputElement;
@@ -1480,24 +1481,33 @@ describe('CAD command line', () => {
     await command('O');
     expect(dlg()!.textContent).toMatch(/^OffsetO×DistancemThrough pointErase sourceLayer/);
     expect(document.querySelector('.cad-side')!.textContent).not.toContain('Click the object, then the side'); // the help moved behind ?
-    await command('0.4'); // the command line's value shows in the dialog
-    expect(field('Distance').value).toBe('0.4');
+    type(field('Distance'), '0.');
     type(field('Distance'), '0.6');
+    expect(hist()).toBe('Command: OFFSET  Specify offset distance or [Through/Erase/Layer] <0.60>:'); // at once, with no OK
     act(() => { field('Erase source').click(); });
-    await act(async () => { field('Distance').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
-    expect(dlg()).toBeNull();
+    await command(''); // Enter takes the 0.60
     expect(hist()).toBe('OFFSET  Select object to offset or [Exit]:');
+    expect(dlg()).not.toBeNull();
     await clickAt(X + 2000, 0);
     await clickAt(X + 2000, 1000);
     expect(last()).toBe('OFFSET  Line moved 0.60 m to the side · ⌘Z to undo');
-    await command('');
-    await command('O'); // the dialog again, with the values now
-    expect(field('Distance').value).toBe('0.6');
-    await act(async () => { (dlg()!.querySelector('[aria-label="Help"]') as HTMLButtonElement).click(); });
-    expect(dlg()!.textContent).toContain('Click the object, then the side for the copy');
+    await command('0.4'); // the command line's value shows in the dialog; the others stay
+    expect(field('Distance').value).toBe('0.4');
+    expect(field('Erase source').checked).toBe(true);
+    type(field('Distance'), '0.9');
     await act(async () => { field('Distance').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); });
     expect(dlg()).toBeNull();
     expect(state.tool).toBe('offset'); // Esc in the dialog closes only the dialog
+    await command('');
+    await command('O'); // the dialog again: Esc put back what was changed in it (the 0.4 was the command line's)
+    expect(field('Distance').value).toBe('0.4');
+    expect(field('Erase source').checked).toBe(false);
+    await act(async () => { (dlg()!.querySelector('[aria-label="Help"]') as HTMLButtonElement).click(); });
+    expect(dlg()!.textContent).toContain('Click the object, then the side for the copy');
+    type(field('Distance'), '0.5');
+    await act(async () => { field('Distance').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
+    expect(dlg()).toBeNull(); // Enter closes, keeping it
+    expect(hist()).toBe('Command: OFFSET  Specify offset distance or [Through/Erase/Layer] <0.50>:');
   });
 
   it('edit dialogs: moved by the title, they keep their place; Array has Rectangular and Polar tabs with a count', async () => {
@@ -1534,18 +1544,19 @@ describe('CAD command line', () => {
     expect(dlg()!.textContent).toContain('Standard cannot be deleted.');
     await act(async () => { btn('New').click(); });
     const h = dlg()!.querySelector('[aria-label="Height"]') as HTMLInputElement;
-    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(h, '5'); h.dispatchEvent(new Event('input', { bubbles: true })); });
+    for (const t of ['2', '2.', '2.5']) act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(h, t); h.dispatchEvent(new Event('input', { bubbles: true })); });
+    expect(h.value).toBe('2.5'); // typed one key at a time, kept as typed
     await act(async () => { btn('Set current').click(); });
     await act(async () => { btn('OK').click(); });
     expect(dlg()).toBeNull();
-    expect(project.cadTextStyles).toEqual({ styles: [{ name: 'Standard', font: 'Arial', heightMm: 0 }, { name: 'Style 1', font: 'Arial', heightMm: 5 }], current: 'Style 1' });
+    expect(project.cadTextStyles).toEqual({ styles: [{ name: 'Style 1', font: 'Arial', heightMm: 2.5 }], current: 'Style 1' }); // Standard unchanged: not kept
     expect(last()).toBe('STYLE  2 text styles, current "Style 1" · ⌘Z to undo');
     await command('T');
     await clickAt(X, 0);
     expect(hist()).toBe('TEXT  Specify rotation angle <0>:');
     await command('');
     await command('NOTE');
-    expect(items()[2]).toMatchObject({ kind: 'text', text: 'NOTE', h: 500 });
+    expect(items()[2]).toMatchObject({ kind: 'text', text: 'NOTE', h: 250 });
   });
 
   it('DIMSTYLE: closed arrows and mm with no decimals for the dimensions drawn next; older ones keep their look', async () => {
@@ -1556,14 +1567,32 @@ describe('CAD command line', () => {
     await command('D');
     const dlg = () => document.querySelector('[role="dialog"][aria-label="Dimension style"]') as HTMLElement;
     const pick = (name: string, v: string) => act(() => { const el = dlg().querySelector(`[aria-label="${name}"]`) as HTMLSelectElement | HTMLInputElement; Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value')!.set!.call(el, v); el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true })); });
+    const ok = () => act(async () => { (dlg().querySelector('.cad-dlg-ft .p') as HTMLButtonElement).click(); });
+    expect(dlg().querySelector('[role="note"]')!.textContent).toBe('Standard draws as before (sizes follow each dimension\'s length) until it is changed.');
+    const changes = onChange.mock.calls.length;
+    await ok(); // nothing changed: nothing kept, the dimensions draw as before
+    expect(onChange.mock.calls).toHaveLength(changes);
+    expect(project.cadDimStyles).toBeUndefined();
+    expect(hist()).toBe('DIMSTYLE  No change.');
+    await command('D');
     pick('Arrow', 'closed'); pick('Unit', 'mm'); pick('Decimal places', '0');
-    await act(async () => { (dlg().querySelector('.cad-dlg-ft .p') as HTMLButtonElement).click(); });
+    expect(dlg().querySelector('[role="note"]')).toBeNull();
+    await ok();
     expect(project.cadDimStyles!.styles[0]).toMatchObject({ name: 'Standard', arrow: 'closed', unit: 'mm', decimals: 0 });
     await command('DIM');
     await clickAt(X, 12000); await clickAt(X + 3000, 12000); await clickAt(X + 1500, 13000);
-    expect(items()[3]).toMatchObject({ kind: 'dim', look: { arrow: 'closed', size: 250 }, h: 200 });
-    expect(Number(items()[3].text)).toBeCloseTo(3000, -1);
+    expect(items()[3]).toMatchObject({ kind: 'dim', look: { arrow: 'closed', size: 250, unit: 'mm', decimals: 0 }, h: 200 });
+    expect(items()[3].text).toBeUndefined(); // measured wherever it is drawn or saved
+    expect(dimLabel(items()[3], 0.001)).toBe('3000');
     expect(items()[2].look).toBeUndefined();
+  });
+
+  it('edit dialogs come back in view when the place they kept is off the window', async () => {
+    localStorage.setItem('lvds.cad.dlg.scale', JSON.stringify({ left: 5000, top: -40 }));
+    await start();
+    await command('SC');
+    const d = document.querySelector('[role="dialog"][aria-label="Scale"]') as HTMLElement;
+    expect([d.style.left, d.style.top]).toEqual([`${window.innerWidth - 240}px`, '0px']);
   });
 
   it('Space held to pan does not end the step; tapped it does; held long with no tool it does not repeat', async () => {

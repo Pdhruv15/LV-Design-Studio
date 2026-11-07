@@ -67,8 +67,19 @@ export function arcThrough(s: Pt, m: Pt, e: Pt): Omit<SketchItem, 'id' | 'layer'
 }
 
 /** A dimension drawn with a dimension style (drawing units): its arrows (a tick, a closed arrow or a dot) and their
- * size, the gap left at the points measured, and how far the extension lines run past the dimension line. */
-export interface DimLook { arrow: 'tick' | 'closed' | 'dot'; size: number; off: number; ext: number }
+ * size, the gap left at the points measured, how far the extension lines run past the dimension line, and the unit and
+ * decimal places its length is written in. */
+export interface DimLook { arrow: 'tick' | 'closed' | 'dot'; size: number; off: number; ext: number; unit?: 'm' | 'mm'; decimals?: number }
+/** A length in metres as a dimension of a style writes it. */
+export const dimLength = (lengthM: number, s: { unit?: 'm' | 'mm'; decimals?: number }) =>
+  (s.unit === 'mm' ? lengthM * 1000 : lengthM).toFixed(Math.max(0, Math.min(4, Math.round(s.decimals ?? 2))));
+/** A dimension's text: its own when it has one (typed over, or one drawn before styles, which keeps the text it was
+ * drawn with), else, for one of a style, its length measured now in the style's unit and decimals. */
+export function dimLabel(it: SketchItem, metresPerUnit: number): string {
+  if (it.text) return it.text;
+  const len = dist(it.pts[0], it.pts[1]) * metresPerUnit;
+  return it.look ? dimLength(len, it.look) : len.toFixed(2);
+}
 
 /** The lines of a dimension from p1 to p2 placed through `at`: extension lines, the dimension line, its ticks (or the
  * arrows of its look), and where its text goes. Aligned with p1 → p2. With no look its sizes follow its length. */
@@ -211,9 +222,10 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[
   return [...items.flatMap((it): ShapeOut[] => {
     if (it.kind === 'dim') {
       const d = dimensionLines(it.pts[0], it.pts[1], it.pts[2], it.look);
-      // A dimension of a style keeps its text (its unit and decimals); one without is the length in metres.
+      // A dimension of a style is written as measured now (in its unit and decimals) unless typed over; one drawn
+      // before styles as the length in metres.
       return [...d.lines.map((l): ShapeOut => ({ layer: it.layer, kind: 'line', pts: l })),
-        { layer: it.layer, kind: 'text', pts: [d.text], text: it.look && it.text ? it.text : `${(d.length * metresPerUnit).toFixed(2)}`, h: it.h ?? d.length * 0.04, rot: d.angle }];
+        { layer: it.layer, kind: 'text', pts: [d.text], text: it.look ? dimLabel(it, metresPerUnit) : `${(d.length * metresPerUnit).toFixed(2)}`, h: it.h ?? d.length * 0.04, rot: d.angle }];
     }
     if (it.tray) {
       // A single line broken at the middle for its label "CT 300 POWER" (with its route once assigned).
