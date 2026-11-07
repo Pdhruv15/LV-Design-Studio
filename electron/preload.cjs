@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('lvds', {
     engine: () => ipcRenderer.invoke('cad:engine'),
     openBytes: () => ipcRenderer.invoke('cad:openBytes'),
     readBytes: (file) => ipcRenderer.invoke('cad:readBytes', file),
+    stat: (file) => ipcRenderer.invoke('cad:stat', file),
     sampleBytes: (name) => ipcRenderer.invoke('cad:sampleBytes', name),
     onPending: (cb) => {
       const listener = () => cb();

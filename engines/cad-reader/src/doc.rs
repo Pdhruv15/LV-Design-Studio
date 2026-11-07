@@ -83,6 +83,34 @@ struct Fill { layer: u16, rgb: u32, solid: bool, loops: Vec<[u32; 2]>, lines: Ve
 #[derive(Serialize)]
 struct PatLine { angle: f64, base: [f64; 2], offset: [f64; 2], dashes: Vec<f64> }
 
+/// An external reference inside the drawing: its block name, the path saved with it, overlay or attach, unloaded in
+/// the drawing, and where model space inserts it (point, scale, rotation in radians).
+#[derive(Serialize, Clone)]
+struct XrefInfo { name: String, path: String, overlay: bool, unloaded: bool, inserts: Vec<XrefInsert> }
+#[derive(Serialize, Clone)]
+struct XrefInsert { x: f64, y: f64, sx: f64, sy: f64, rot: f64 }
+
+/// The external references of a drawing, with their inserts in model space.
+fn xrefs_of(doc: &CadDocument) -> Vec<XrefInfo> {
+    let mut out: Vec<XrefInfo> = doc.block_records.iter()
+        .filter(|r| r.flags.is_xref || r.flags.is_xref_overlay || r.flags.is_external)
+        .map(|r| {
+            let path = if !r.xref_path.is_empty() { r.xref_path.clone() } else {
+                match doc.get_entity(r.block_entity_handle) { Some(EntityType::Block(b)) => b.xref_path.clone(), _ => String::new() }
+            };
+            XrefInfo { name: r.name.clone(), path, overlay: r.flags.is_xref_overlay, unloaded: r.flags.is_xref_unloaded, inserts: vec![] }
+        })
+        .collect();
+    for e in doc.model_space_entities() {
+        if let EntityType::Insert(x) = e {
+            if let Some(info) = out.iter_mut().find(|i| i.name.eq_ignore_ascii_case(&x.block_name)) {
+                info.inserts.push(XrefInsert { x: x.insert_point.x, y: x.insert_point.y, sx: x.x_scale(), sy: x.y_scale(), rot: x.rotation });
+            }
+        }
+    }
+    out
+}
+
 #[wasm_bindgen]
 pub struct CadDoc {
     format: &'static str,
@@ -102,6 +130,7 @@ pub struct CadDoc {
     layers: Vec<LayerInfo>,
     grid: Grid,
     truncated: bool,
+    xrefs: Vec<XrefInfo>,
 }
 
 struct Grid { x0: f64, y0: f64, cell: f64, nx: usize, ny: usize, segs: Vec<Vec<u32>>, pts: Vec<Vec<u32>> }
@@ -570,7 +599,7 @@ impl CadDoc {
             lt_index: HashMap::new(),
             lt: 0,
             ltscale: if doc.header.linetype_scale > 0.0 { doc.header.linetype_scale } else { 1.0 },
-            out: CadDoc { format, units: doc.header.insertion_units, origin: (0.0, 0.0), segs: vec![], seg_layer: vec![], seg_rgb: vec![], seg_real: vec![], seg_obj: vec![], seg_lt: vec![], linetypes: vec![vec![]], fills: vec![], objects: vec![], texts: vec![], snaps: vec![], layers: vec![], grid: Grid { x0: 0.0, y0: 0.0, cell: 1.0, nx: 1, ny: 1, segs: vec![vec![]], pts: vec![vec![]] }, truncated: false },
+            out: CadDoc { format, units: doc.header.insertion_units, origin: (0.0, 0.0), segs: vec![], seg_layer: vec![], seg_rgb: vec![], seg_real: vec![], seg_obj: vec![], seg_lt: vec![], linetypes: vec![vec![]], fills: vec![], objects: vec![], texts: vec![], snaps: vec![], layers: vec![], grid: Grid { x0: 0.0, y0: 0.0, cell: 1.0, nx: 1, ny: 1, segs: vec![vec![]], pts: vec![vec![]] }, truncated: false, xrefs: xrefs_of(&doc) },
         };
         for layer in doc.layers.iter() {
             let i = b.layer(&layer.name);
@@ -608,7 +637,7 @@ impl CadDoc {
             "format": self.format, "units": self.units, "origin": [self.origin.0, self.origin.1],
             "extents": [x0, y0, x1, y1], "layers": self.layers, "texts": self.texts,
             "segments": self.seg_layer.len(), "snaps": self.snaps.len(), "truncated": self.truncated,
-            "linetypes": self.linetypes, "fills": self.fills
+            "linetypes": self.linetypes, "fills": self.fills, "xrefs": self.xrefs
         }).to_string()
     }
 
@@ -955,6 +984,32 @@ mod tests {
         assert!(a.0.contains_key("E-LV-POINTS"), "the device's circle on its layer");
         assert!(after.layers.iter().any(|l| l.name == "LV-ANNO"), "the text's layer");
         assert_eq!(a.0["E-TRAY"], b.0.get("E-TRAY").copied().unwrap_or(0) + 1);
+    }
+
+    /// External references are listed with their path, overlay flag and inserts; ordinary blocks are not.
+    #[test]
+    fn xrefs_listed() {
+        use acadrust::entities::Insert;
+        use acadrust::tables::BlockRecord;
+        use acadrust::types::Vector3;
+        let mut doc = CadDocument::new();
+        let mut rec = BlockRecord::new("STR-GF");
+        rec.flags.is_xref = true;
+        rec.flags.is_xref_overlay = true;
+        rec.xref_path = "..\\Structure\\STR-GF.dwg".into();
+        doc.block_records.add(rec).unwrap();
+        doc.block_records.add(BlockRecord::new("CHAIR")).unwrap();
+        doc.add_entity(EntityType::Insert(Insert::new("STR-GF", Vector3::new(100.0, 200.0, 0.0)).with_uniform_scale(2.0).with_rotation(PI / 2.0))).unwrap();
+        doc.add_entity(EntityType::Insert(Insert::new("CHAIR", Vector3::new(0.0, 0.0, 0.0)))).unwrap();
+        let x = xrefs_of(&doc);
+        assert_eq!(x.len(), 1);
+        assert_eq!(x[0].name, "STR-GF");
+        assert_eq!(x[0].path, "..\\Structure\\STR-GF.dwg");
+        assert!(x[0].overlay && !x[0].unloaded);
+        assert_eq!(x[0].inserts.len(), 1);
+        let i = &x[0].inserts[0];
+        assert_eq!((i.x, i.y, i.sx), (100.0, 200.0, 2.0));
+        assert!((i.rot - PI / 2.0).abs() < 1e-12);
     }
 
     #[test]

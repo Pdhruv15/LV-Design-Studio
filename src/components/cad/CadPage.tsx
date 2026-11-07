@@ -36,6 +36,8 @@ import DeviceToolbar from './DeviceToolbar';
 import { AnnoPanel, HatchPanel } from './AnnotatePanel';
 import { annoOf, centreOf, hatchItem, hatchOutline, HATCH_START, leaderItems, northArrowItems, roomTagItems, textUnits, type HatchSpec } from '../../model/cadAnnotate';
 import { LayerManager, ObjectPropertiesPanel } from './CadLayerManager';
+import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
+import { refGeometry, type CadRef } from '../../model/cadRefs';
 import { drawnLayers, effective, layerStylesOf, matchedProps, withLayerStyle, withProps } from '../../model/cadLayerStyle';
 import { DrawnSelectionPanel, ED_START, EditToolPanel, kindOf, SketchToolbar, type EditSettings, type EditTool, type SketchEdit } from './SketchEditPanel';
 import { arrayPolar, arrayRect, breakAt, chamfer, edgesFor, explode, extend, fillet, gripMoved, gripsOf, isPath, join, mirrored, offset, scaled, sketchInWindow, stretched, trim, type Edit } from '../../model/cadEdit';
@@ -100,7 +102,9 @@ const PROMPT: Record<CadTool, string> = {
   circle: 'CIRCLE  Specify center point:',
   arc: 'ARC  Specify start point:',
   text: 'TEXT  Specify start point of text:',
-  dim: 'DIM  Specify first extension line origin:'
+  dim: 'DIM  Specify first extension line origin:',
+  xattach: 'XATTACH  Specify insertion point:',
+  xclip: 'XCLIP  Click the corners of the clip outline, Enter to finish (two corners: a rectangle), or O to pick a closed outline:'
 };
 /** Layer of the cable routes drawn or linked in the app. */
 const CABLE_LAYER = 'E-CABLE';
@@ -165,6 +169,11 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   const [showLM, setShowLM] = useState(false);
   const [mpFrom, setMpFrom] = useState<string | null>(null);
   const [hatchSet, setHatchSet] = useState<HatchSpec>(HATCH_START);
+  // References: the manager shown, the reference being attached (its dialog, or a point being picked for it), the one
+  // being clipped and whether its clip is a closed outline picked on the plan.
+  const [showXR, setShowXR] = useState(false);
+  const [xDraft, setXDraft] = useState<CadRef | null>(null);
+  const [xClip, setXClip] = useState<{ name: string; outline: boolean } | null>(null);
   if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); setEm({ routes: [], points: [], rooms: [] }); setPicked([]); setMenuAt(null); }
   const input = useRef<HTMLInputElement>(null);
   const last = rememberedDrawing(project.id);
@@ -306,6 +315,22 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     return best?.d;
   };
   const change = (next: Project, message: string) => { onChange(next, message); cad.say(message); };
+  const xr = useCadRefs({ project, view, tabOf: cad.tabOf, change, say: cad.say });
+  const unitName = (insunits?: number) => CAD_UNITS.find((u) => u.code === insunits)?.id;
+  async function startAttach() {
+    setShowXR(false);
+    const d = await xr.actions.attach();
+    if (d) { setXDraft(d); cad.say(`XATTACH  ${d.file}: choose where it goes, then Attach.`); }
+  }
+  function startClip(r: CadRef) { setShowXR(false); setXClip({ name: r.name, outline: false }); setPoints([]); cad.setTool('xclip'); }
+  function finishClip(pts: Pt[]) {
+    const r = xr.refs.find((x) => x.name === xClip?.name);
+    if (!r) { cad.setTool('none'); return; }
+    const outline = pts.length === 2 ? rectangle(pts[0], pts[1]) : pts;
+    if (outline.length < 3) { cad.say('XCLIP  Click two corners (a rectangle) or three or more, then Enter:'); return; }
+    xr.actions.update(r, { clip: outline }, `clipped to ${pts.length === 2 ? 'a rectangle' : `an outline of ${outline.length} corners`}`);
+    setPoints([]); setXClip(null); cad.setTool('none');
+  }
   function removeSelected() {
     if (selSketch && view) { change(removeSketch(project, view.file, selSketch.id), `${selSketch.tray ? 'Cable tray' : selSketch.cable ? 'Cable route' : selSketch.kind === 'pline' ? 'Polyline' : selSketch.kind[0].toUpperCase() + selSketch.kind.slice(1)} erased · ⌘Z to undo`); cad.setSelected(null); setResult(null); return; }
     if (many) {
@@ -319,19 +344,20 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     cad.setSelected(null); setResult(null);
   }
   /** Save DXF / Save DWG: the drawing as received with what was drawn and the devices placed, as a new file. */
-  async function saveDxf(as: 'dxf' | 'dwg' = 'dxf') {
+  async function saveDxf(as: 'dxf' | 'dwg' = 'dxf', bind = false) {
     if (!view) return;
     try {
       const out = placed.map((d) => ({ layer: d.what === 'lv' ? 'E-LV-POINTS' : d.what === 'elv' ? 'E-ELV-DEVICES' : 'E-BOARDS', x: d.x / units.factor, y: d.y / units.factor, r: rUnits * (d.what === 'board' ? 2 : 1), text: d.symbol.text, label: d.what === 'lv' ? d.detail.split(' · ')[0] : d.label }));
       const wires = wiring.flatMap((w) => [...w.arcs, ...(w.home ? [w.home] : [])].map((a) => ({ layer: WIRING_LAYER, kind: 'pline' as const, pts: arcPoints(toUnits(a)) })));
       const tags = wiring.map((w) => ({ layer: TAG_LAYER, kind: 'text' as const, pts: [[w.tagAt[0] / units.factor, w.tagAt[1] / units.factor] as Pt], text: w.tag, h: textH * 0.6, rot: 0 }));
-      const bytes = await drawingWithDevices(view, out, [...shapesOut(sketch, units.factor), ...wires, ...tags], as);
-      const name = `${view.file.replace(/\.(dwg|dxf)$/i, '')} - with devices.${as}`;
+      const refLines = bind ? xr.bound() : [];
+      const bytes = await drawingWithDevices(view, out, [...shapesOut(sketch, units.factor), ...wires, ...tags, ...refLines], as);
+      const name = `${view.file.replace(/\.(dwg|dxf)$/i, '')} - with devices${bind ? ' and references' : ''}.${as}`;
       const msg = await saveBinary(name, bytes, as === 'dwg' ? 'DWG drawing' : 'DXF drawing', as, as === 'dwg' ? 'application/acad' : 'application/dxf');
-      if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER}${wiring.length ? `, ${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on ${WIRING_LAYER} / ${TAG_LAYER}` : ''})`); onStatus(msg); }
+      if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER}${refLines.length ? `, ${refLines.length.toLocaleString('en-GB')} reference lines bound on NAME$0$LAYER layers` : ''}${wiring.length ? `, ${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on ${WIRING_LAYER} / ${TAG_LAYER}` : ''})`); onStatus(msg); }
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
   }
-  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), close: () => { if (view) closeDrawings([view]); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM(true); else cad.say('LAYER  Open a drawing first.'); } };
+  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), close: () => { if (view) closeDrawings([view]); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM(true); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); } };
   // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
   useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
 
@@ -654,6 +680,16 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   async function click(at: Pt, pixel: number, shiftKey = false) {
     if (!view) return;
     const last = points[points.length - 1];
+    if (tool === 'xattach') { if (xDraft) setXDraft({ ...xDraft, at }); cad.setTool('none'); return; }
+    if (tool === 'xclip') {
+      if (xClip?.outline) {
+        const rooms = floor ? buildingInfoOf(project).rooms.filter((q) => q.buildingId === floor.ref.building && q.levelId === floor.ref.level && (q.outline?.length ?? 0) > 2).map((q) => q.outline!.map(([x, y]): Pt => [x / units.factor, y / units.factor])) : [];
+        const o = hatchOutline(pickable, at, rooms) ?? (() => { const q = roomAround(walls, at, units.factor); return q ? { pts: q.points } : undefined; })();
+        if (!o) { cad.say('XCLIP  No closed outline around that point. Click inside one, or Esc:'); return; }
+        finishClip(o.pts); return;
+      }
+      setPoints((p) => [...p, at]); cad.say(`XCLIP  Next corner${points.length ? ', Enter to finish' : ''}:`); return;
+    }
     if (tool === 'matchprop') {
       const sk = itemAt(pickable, at, 6 * pixel), from = sketch.find((x) => x.id === mpFrom);
       if (!sk) { cad.say(from ? 'MATCHPROP  Select destination object:' : PROMPT.matchprop); return; }
@@ -925,6 +961,8 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       try { change(renameBoard(project, id, raw), `${id} renamed ${raw} · ⌘Z to undo`); } catch (e) { cad.say(`RENAME  ${e instanceof Error ? e.message : String(e)}`); }
       return;
     }
+    if (tool === 'xclip' && (c === '' || c === 'C')) { finishClip(points); return; }
+    if (tool === 'xclip' && c === 'O' && xClip) { setXClip({ ...xClip, outline: true }); setPoints([]); cad.say('XCLIP  Click inside a closed outline (a closed polyline, or a room):'); return; }
     if (tool === 'leader' && points.length >= 2 && raw) {
       if (view) change(leaderItems(points, raw, textH).reduce((q, x) => addSketch(q, view.file, x).project, project), `Leader "${raw}" · ⌘Z to undo`);
       setPoints([]); cad.say(PROMPT.leader); return;
@@ -1022,6 +1060,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     else if (c === 'LE' || c === 'LEADER' || c === 'QLEADER') cad.setTool('leader');
     else if (c === 'RT' || c === 'ROOMTAG') cad.setTool('rtag');
     else if (c === 'NORTH') cad.setTool('north');
+    else if (c === 'XR' || c === 'XREF' || c === 'XREFS' || c === 'ER' || c === 'EXTERNALREFERENCES') { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }
+    else if (c === 'XA' || c === 'XATTACH') { if (view) void startAttach(); else cad.say('XATTACH  Open a plan first.'); }
+    else if (c === 'XCLIP' || c === 'XC') { const one = xr.refs.filter((x) => !x.unloaded); if (one.length === 1) startClip(one[0]); else if (view) { setShowXR(true); cad.say('XCLIP  Choose the reference, then Clip.'); } }
     else if (c === 'LM' || c === 'LAYERMANAGER' || c === 'LAYMAN') { if (view) setShowLM(true); else cad.say('LAYER  Open a drawing first.'); }
     else if (c === 'ALIGN' || c === 'ALIGNV' || c === 'SPACE') { if (pickedItems.length < 2) cad.say(`${c}  Select two or more devices first.`); else editDevices(c === 'ALIGN' ? 'row' : c === 'ALIGNV' ? 'column' : 'space'); }
     else if (c === 'WC' || c === 'WIRE' || c === 'WIRECIRCUITS') wireAll();
@@ -1059,7 +1100,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     }
     if (e.key === 'Enter' && !typing && (tool === 'area' || tool === 'trace') && points.length >= 3) { finishArea(points); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && (selectedItem || selSketch || many)) { e.preventDefault(); removeSelected(); return; }
-    if (e.key === 'Enter' && !typing && (tool === 'pline' || tool === 'tray' || tool === 'cable' || tool === 'line' || tool === 'copy' || tool === 'em' || tool === 'arl' || tool === 'break' || tool === 'leader' || PICK_FIRST.includes(tool))) { run(''); return; }
+    if (e.key === 'Enter' && !typing && (tool === 'pline' || tool === 'tray' || tool === 'cable' || tool === 'line' || tool === 'copy' || tool === 'em' || tool === 'arl' || tool === 'break' || tool === 'leader' || tool === 'xclip' || PICK_FIRST.includes(tool))) { run(''); return; }
     if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[a-zA-Z?]$/.test(e.key)) input.current?.focus();
   };
   useEffect(() => {
@@ -1112,7 +1153,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
         {view ? (
           <div className="cad-stage">
             <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
-              layerStyle={styles} windowSelect={tool === 'none' || tool === 'stretch' || (PICK_FIRST.includes(tool) && edPhase === 'pick')} onWindow={pickWindow} onContext={contextAt}
+              layerStyle={styles} refs={xr.placed} refSnap={xr.snap} windowSelect={tool === 'none' || tool === 'stretch' || (PICK_FIRST.includes(tool) && edPhase === 'pick')} onWindow={pickWindow} onContext={contextAt}
               grips={tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
               onGripEnd={(i, at) => {
                 setGripIdx(null);
@@ -1292,6 +1333,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
                   <i style={{ background: hex(l.rgb) }} />{l.name}<span className="m">{cad.layersOn[i] ? 'on' : 'off'}</span>
                 </button>
               ) : null)}
+              {view && <RefLayersList x={xr} />}
             </div>
           </aside>
         )}
@@ -1311,7 +1353,12 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
         <span>{cursor.snap ?? ''}</span>
         <span>{view ? `${view.file} · ${view.info.format} · ${units.label} · 1 : 1` : ''}</span>
       </div>
-      {showLM && view && <LayerManager view={view} layersOn={cad.layersOn} sketch={sketch} styles={styles} onLayer={cad.setLayer} onStyle={(layer, patch) => change(withLayerStyle(project, view.file, layer, patch), `Layer ${layer} changed · ⌘Z to undo`)} onClose={() => setShowLM(false)} />}
+      {showLM && view && <LayerManager view={view} layersOn={cad.layersOn} sketch={sketch} styles={styles} onLayer={cad.setLayer} onStyle={(layer, patch) => change(withLayerStyle(project, view.file, layer, patch), `Layer ${layer} changed · ⌘Z to undo`)} onClose={() => setShowLM(false)} refs={xr} />}
+      {showXR && view && <RefManager file={view.file} level={floor ? floorLabel(project.building, floor) : undefined} x={xr} onAttach={() => void startAttach()} onClip={startClip} onBind={() => { setShowXR(false); void saveDxf(view.info.format === 'DWG' ? 'dwg' : 'dxf', true); }} onClose={() => setShowXR(false)} />}
+      {xDraft && tool !== 'xattach' && view && (
+        <AttachDialog key={`${xDraft.at[0]},${xDraft.at[1]}`} draft={xDraft} level={floor ? floorLabel(project.building, floor) : undefined} units={{ ref: unitName(refGeometry(xDraft.file)?.units), plan: unitName(view.info.units) }}
+          onPick={(d) => { setXDraft(d); cad.setTool('xattach'); }} onCancel={() => { setXDraft(null); cad.say('*Cancel*'); }} onAttach={(d) => { setXDraft(null); xr.actions.confirm(d); }} />
+      )}
     </section>
   );
 }

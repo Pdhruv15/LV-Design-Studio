@@ -3,6 +3,7 @@ import { cableSizeText } from '../calc/electrical';
 import { circuitCategory } from '../calc/loadSchedule';
 import { cableLabel, EMERGENCY_ITEMS, LV_PALETTE } from '../model/cadDevices';
 import { planOfLevel } from '../model/cadPlans';
+import { printedRefs } from '../model/cadRefs';
 import { dimensionLines, segmentsOf, sketchOf, trayLabel, trayLength, trayLine } from '../model/cadSketch';
 import { effective, layerStylesOf, styleOf } from '../model/cadLayerStyle';
 import { annoOf, HATCH_PATTERNS, hatchFamilies } from '../model/cadAnnotate';
@@ -174,7 +175,14 @@ function layoutOf(p: Project, s: Pick<DrawingSheet, 'plan' | 'buildingId' | 'lev
   const drawn = plotOf(p, s).drawn === false ? [] : drawnOf(p, s.buildingId, s.levelId);
   const { box, rooms } = extentOf(p, c, s.buildingId, s.levelId, drawn);
   const scale = planScale(s.scale);
-  return { c, drawn, box, rooms, scale, fit: planFit(p, box, scale, s.size) };
+  return { c, drawn, refs: refsOnSheet(p, s.buildingId, s.levelId), box, rooms, scale, fit: planFit(p, box, scale, s.size) };
+}
+
+/** The references of the level's plan that print (src/model/cadRefs.ts), their lines in metres; one not read in this
+ * session cannot print and says so. They do not widen the sheet: what is outside the level's extent is cut off. */
+function refsOnSheet(p: Project, b: string, l: string) {
+  const plan = planOfLevel(p, { building: b, level: l });
+  return plan ? printedRefs(p, plan.file, unitsOf(p, plan.file, plan.units).factor) : [];
 }
 
 /** Part i's window on the level (metres): columns left to right, rows top to bottom. */
@@ -314,7 +322,7 @@ export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number
   const lay = layoutOf(p, s);
   const part = s.part ?? 0;
   if (!lay || part >= lay.fit.parts) return undefined;
-  const { c, drawn, box, rooms, scale, fit } = lay;
+  const { c, drawn, refs, box, rooms, scale, fit } = lay;
   const area = drawingAreaMm(p, fit.size);
   const win = windowOf(box, fit, part);
   const f = 1000 / scale;
@@ -326,6 +334,13 @@ export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number
   // The pens of the sheet's page setup (src/model/plotSetup.ts); by default as below.
   const pen = pensFor(p, s), w = (q: Pen, k = 1) => n(q.w * k);
   const archInk = pen.arch.grey === 45 ? GREY : inkOf(pen.arch);
+  // References under everything, with the References pen (grey, thin).
+  for (const r of refs) {
+    if (!r.segs) continue;
+    let d = '';
+    for (let i = 0; i + 3 < r.segs.length; i += 4) d += seg([r.segs[i], r.segs[i + 1]], [r.segs[i + 2], r.segs[i + 3]]);
+    if (d) out.push(`<path class="ref" d="${d}" fill="none" stroke="${inkOf(pen.refs)}" stroke-width="${w(pen.refs)}"/>`);
+  }
   // The architect's plan, grey.
   const arch = rooms.map((r) => path(r.outline, true)).join('');
   if (arch) out.push(`<path d="${arch}" fill="none" stroke="${archInk}" stroke-width="${w(pen.arch)}"/>`);
@@ -423,12 +438,12 @@ export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number
   out.push(`<circle cx="${nx}" cy="${ny}" r="4.5" fill="none" stroke="#000" stroke-width="0.25"/>`, `<path d="M${nx} ${n(ny - 4)}L${n(nx + 2)} ${n(ny + 2.5)}L${nx} ${n(ny + 1.2)}L${n(nx - 2)} ${n(ny + 2.5)}Z" fill="#000" stroke="#000" stroke-width="0.2"/>`, `<text x="${nx}" y="${n(ny - 5.5)}" font-size="3" font-weight="700" text-anchor="middle" fill="#000">N</text>`);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n(area.w)} ${n(area.h)}" width="${n(area.w)}mm" height="${n(area.h)}mm" font-family="Arial, sans-serif"${s.plan === 'containment' ? ' data-abbr="CT=Cable tray"' : ''}>${out.join('')}</svg>`;
   const fittings = fittingCounts(trayFittings(c.trays, 0.001).fittings.filter((x) => within(x.at, win)));
-  return { svg, size: fit.size, legendSvg: legendOf(s.plan!, [...counts.values()], c, win, box, rooms, fit, part, [...trayM], fittings), parts: fit.parts };
+  return { svg, size: fit.size, legendSvg: legendOf(s.plan!, [...counts.values()], c, win, box, rooms, fit, part, [...trayM], fittings, refs.filter((r) => r.segs).map((r) => ({ name: r.ref.name, ink: inkOf(pen.refs) }))), parts: fit.parts };
 }
 
 /** The legend column: the symbols on this sheet with their counts, the tray lengths and fittings on it, the DB, wiring
  * and route keys, and the key plan of a level split over sheets. 88 mm wide, the column's width. */
-function legendOf(type: PlanType, used: { label: string; n: number; svg: Mark['svg'] }[], c: Content, win: Box, box: Box, rooms: { outline: Pt[] }[], fit: PlanFit, part: number, trayM: [string, number][], fittings: [string, number][]): string {
+function legendOf(type: PlanType, used: { label: string; n: number; svg: Mark['svg'] }[], c: Content, win: Box, box: Box, rooms: { outline: Pt[] }[], fit: PlanFit, part: number, trayM: [string, number][], fittings: [string, number][], refs: { name: string; ink: string }[] = []): string {
   const rows: string[] = [];
   let y = 10;
   const row = (sym: string, label: string, count = '') => { rows.push(sym, `<text x="11" y="${y + 1}" font-size="3">${esc(label)}</text>`, count ? `<text x="86" y="${y + 1}" font-size="3" text-anchor="end">${count}</text>` : ''); y += 6; };
@@ -439,6 +454,7 @@ function legendOf(type: PlanType, used: { label: string; n: number; svg: Mark['s
   if (c.boards.some((d) => within([d.x, d.y], win))) row(boardSymbol(4, y), 'Distribution board');
   if (type !== 'elv' && c.wiring.length) row(`<line x1="0.5" y1="${y}" x2="7.5" y2="${y}" stroke="#000" stroke-width="0.25"/>`, 'Circuit wiring');
   if (type !== 'elv' && c.homes.length) row(`<line x1="0.5" y1="${y}" x2="7.5" y2="${y}" stroke="#000" stroke-width="0.35"/><path d="M7.5 ${y}L5.8 ${y - 0.7}L5.8 ${y + 0.7}Z" fill="#000"/>`, 'Home run to DB: circuit · cable · length');
+  for (const r of refs) row(`<line x1="0.5" y1="${y}" x2="7.5" y2="${y}" stroke="${r.ink}" stroke-width="0.25"/>`, `${r.name} (reference)`);
   let key = '';
   if (fit.parts > 1) {
     const kw = 60, kh = Math.min(45, (kw * (box.y1 - box.y0)) / (box.x1 - box.x0)), k = Math.min(kw / (box.x1 - box.x0), kh / (box.y1 - box.y0));
@@ -455,12 +471,24 @@ function legendOf(type: PlanType, used: { label: string; n: number; svg: Mark['s
 </svg>`;
 }
 
+/** Notes for the references of the sheet's level: those printed, and those that could not be. */
+function refNotes(p: Project, s: DrawingSheet): string[] {
+  if (!s.buildingId || !s.levelId) return [];
+  const refs = refsOnSheet(p, s.buildingId, s.levelId);
+  const shown = refs.filter((r) => r.segs).map((r) => r.ref.name), missing = refs.filter((r) => r.missing).map((r) => r.ref.name);
+  return [
+    ...(shown.length ? [`References shown grey for coordination: ${shown.join(', ')}.`] : []),
+    ...(missing.length ? [`Not printed: reference${missing.length === 1 ? '' : 's'} ${missing.join(', ')} (not read in this session: open the plan in Design CAD, then print again).`] : [])
+  ];
+}
+
 /** The notes a plan sheet adds to the project's: what it shows and that it is a design-stage drawing. */
 export function planNotes(p: Project, s: DrawingSheet): string[] {
   const lv = s.plan && planLevels(p, s.plan).find((x) => x.buildingId === s.buildingId && x.levelId === s.levelId);
   return [
     ...(lv && lv.typical ? [`Typical floors ${lv.typical}: this level is drawn once and applies to each of those floors.`] : []),
     'Architect\'s plan shown grey for reference; the electrical design in black.',
+    ...refNotes(p, s),
     ...(s.plan === 'lighting' || s.plan === 'power' ? ['Circuit tags: DB / circuit · cable · length (wiring, home run and a drop per device, with the allowance).'] : []),
     ...(s.plan === 'containment' ? ['Cable trays as a single line: CT width in mm, service and tray route. Cable routes dashed, with the cable and its size.'] : []),
     'Design stage layout: positions are indicative, not for construction or shop drawings.'

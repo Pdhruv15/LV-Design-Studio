@@ -3,6 +3,7 @@ import { DOMParser } from '@xmldom/xmldom';
 import { sampleProject } from '../data/sampleProject';
 import { placeBoard, placeLvPoint } from '../model/cadDevices';
 import { wireLevel } from '../model/cadWiring';
+import { dropRefGeometry, keepRefGeometry } from '../model/cadRefs';
 import { issueSheets, renumber, setOf, sheetChecks, sheetHash, sheetType, type DrawingSheet, type PlanType } from '../model/drawingSet';
 import type { Project, SketchItem } from '../types';
 import { addPlanSheets, drawingAreaMm, drawnTextMm, planDrawing, planLevels, planNotes, planScale } from './planLayout';
@@ -212,6 +213,37 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
     it('the drawn work alone makes no sheet', () => {
       const p = drawn({ ...villa(), lvPoints: undefined, cadWiring: undefined }, work);
       expect(planLevels(p, 'lighting')).toEqual([]);
+    });
+  });
+
+  describe('references (Xref)', () => {
+    // The structure in metres: a grid line along y = 6 m and one on a layer set not to print; placed 1 m to the right.
+    const str = { name: 'STR-GF', file: 'STR-GF.dxf', type: 'overlay' as const, at: [1000, 0] as Pt, scale: 1000, rot: 0, fade: 50, print: true, layers: { 'S-BEAM': { noPrint: true } } };
+    const withRef = (over: Partial<typeof str> = {}): Project => ({ ...drawn(villa(), []), cadRefs: { 'gf.dwg': [{ ...str, ...over }] } });
+    const svgOf = (p: Project) => planDrawing(p, sheetOf(p).sheets[0])!;
+    afterAll(() => dropRefGeometry('STR-GF.dxf'));
+
+    it('prints a reference read in this session with the References pen, grey and thin, under the architect\'s plan', () => {
+      const p = withRef();
+      expect(svgOf(p).svg).not.toContain('class="ref"');
+      expect(planNotes(p, sheetOf(p).sheets[0])).toContain('Not printed: reference STR-GF (not read in this session: open the plan in Design CAD, then print again).');
+      keepRefGeometry({ file: 'STR-GF.dxf', units: 6, segs: Float64Array.from([0, 6, 18, 6, 0, 2, 18, 2]), segLayers: Uint16Array.from([0, 1]), layers: [{ name: 'S-GRID', rgb: 1 }, { name: 'S-BEAM', rgb: 2 }] });
+      const d = svgOf(p);
+      const [, path] = /<path class="ref" d="([^"]+)" fill="none" stroke="#b3b3b3" stroke-width="0.13"\/>/.exec(d.svg)!;
+      const [a, b] = pathPts(path);
+      expect(b[0] - a[0]).toBeCloseTo(180, 1); // 18 m at 1:100; the beam line (not printed) is left out
+      expect(pathPts(path)).toHaveLength(2);
+      expect(d.svg.indexOf('class="ref"')).toBeLessThan(d.svg.indexOf('MAJLIS'));
+      expect(d.legendSvg).toContain('STR-GF (reference)');
+      expect(planNotes(p, sheetOf(p).sheets[0])).toContain('References shown grey for coordination: STR-GF.');
+    });
+
+    it('a reference set not to print, or unloaded, stays off; its placing is fingerprinted only where one prints', () => {
+      expect(svgOf(withRef({ print: false })).svg).not.toContain('class="ref"');
+      expect(svgOf(withRef({ unloaded: true } as Partial<typeof str>)).svg).not.toContain('class="ref"');
+      const p = withRef(), { set, sheets: [s] } = sheetOf(p);
+      expect(sheetHash(withRef({ at: [2000, 0] }), set, s)).not.toBe(sheetHash(p, set, s));
+      expect(sheetHash(withRef({ print: false }), set, s)).toBe(sheetHash(drawn(villa(), []), set, s));
     });
   });
 

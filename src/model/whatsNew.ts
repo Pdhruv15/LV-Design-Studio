@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.046', date: '2026-11-07',
+    items: [
+      { title: 'Design CAD: references (Xref)', text: 'Show another drawing under a level\'s plan without copying it in: the structure, other services or a site plan. File → References (XR) attaches one (XA) at the same origin or a picked point, with its scale worked out from the units, a rotation and a fade. The manager shows each one as Loaded, Changed — reload, Unloaded or Not found, with Reload, Unload, Detach, Repath, Clip and Bind. References found inside the architect\'s DWG are listed so a missing one can be found. You can snap to a reference but not edit it, and the file is never changed.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'References on the plan sheets', text: 'A reference prints grey with the new References pen (Plot → Pens); structure drawings print by default, other services do not. Each reference and each of its layers (NAME|LAYER) has its own Print tick. Bind saves a copy of the plan with the references\' lines on NAME$0$LAYER layers.' }
+    ]
+  },
+  {
     version: '2.045', date: '2026-11-07',
     items: [
       { title: 'Plan sheets print what you draw', text: 'Lines, arcs, circles, hatches, text, dimensions, leaders and room tags drawn in Design CAD now print on the level\'s plan sheets, black and white, with their linetypes and lineweights. Hatches print with the new Hatch pen (Solid in light grey); lines without a lineweight use the new "Your drawn lines" pen (Plot → Pens).', action: 'sheets', actionLabel: 'Open Sheets' },

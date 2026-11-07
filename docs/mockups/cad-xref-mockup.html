@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Xref Tools Mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite dark default */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--on-acc:#1D2024;--ok:#37d67a;--warn:#f5c04a;--new:#b784ff;--bad:#ff5d6c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif}
+.wrap{max-width:420px;margin:0 auto;padding:14px 16px 24px}
+html,body{overflow-x:hidden}
+h1{font-size:16px;margin:0 0 4px}
+h2{font-size:13.5px;margin:18px 0 6px;display:flex;gap:6px;align-items:baseline}
+h2 .n{background:var(--acc);color:var(--on-acc);border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex:none}
+p{margin:0 0 6px;color:var(--mut)}
+.legend{font-size:11.5px;color:var(--mut);margin:4px 0}
+.legend i{display:inline-block;width:12px;height:12px;border:2px dashed var(--new);border-radius:3px;vertical-align:-2px;margin-right:5px}
+.card{background:var(--panel);border:1px solid var(--line-strong);border-radius:9px;overflow:hidden}
+.new{outline:2px dashed var(--new);outline-offset:1px;border-radius:5px}
+/* ribbon */
+.tabs{display:flex;flex-wrap:wrap;gap:3px;padding:6px 8px 0;font-size:11px}
+.tabs span{padding:3px 9px;border-radius:5px 5px 0 0;color:var(--mut)}
+.tabs span.on{background:var(--acc);color:var(--on-acc);font-weight:600}
+.tools{display:flex;flex-wrap:wrap;padding:6px 4px 3px;background:var(--p2);border-top:1px solid var(--line);gap:4px}
+.big{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 6px;font-size:11px;min-width:48px}
+.col{display:flex;flex-direction:column;gap:2px}
+.sm{display:flex;align-items:center;gap:5px;height:18px;padding:0 5px;font-size:11px;white-space:nowrap}
+.ic{width:16px;height:16px;border:1.5px solid var(--mut);border-radius:3px;flex:none}
+.sm .ic{width:12px;height:12px}
+.cap{font-size:10px;color:var(--mut);text-align:center;padding:0 0 4px;background:var(--p2)}
+/* manager */
+.mh{display:flex;align-items:baseline;gap:6px;padding:10px 12px 6px;border-bottom:1px solid var(--line)}
+.mh b{font-size:14px}.mh .m{color:var(--mut);font-size:11.5px}
+.acts{display:flex;flex-wrap:wrap;gap:5px;padding:8px 12px}
+.chip{border:1px solid var(--line-strong);background:var(--p2);border-radius:999px;padding:3px 10px;font-size:11.5px;color:var(--tx)}
+.chip.p{background:var(--acc);color:var(--on-acc);border-color:var(--acc);font-weight:600}
+.chip.dim{color:var(--mut)}
+.ref{border-top:1px solid var(--line);padding:8px 12px;display:grid;grid-template-columns:1fr auto;gap:2px 8px}
+.ref .nm{font-weight:600}
+.ref .pth{grid-column:1/-1;color:var(--mut);font-size:11px;word-break:break-all}
+.ref .row{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11.5px;color:var(--mut)}
+.ref .row b{color:var(--tx);font-weight:500}
+.ref.sel{background:#2b2f35}
+.st{font-size:11px;border-radius:4px;padding:1px 6px;align-self:start}
+.st.ok{color:var(--ok);border:1px solid var(--ok)}
+.st.warn{color:var(--warn);border:1px solid var(--warn)}
+.st.bad{color:var(--bad);border:1px solid var(--bad)}
+.st.off{color:var(--mut);border:1px solid var(--line-strong)}
+.tree{font-size:11px;color:var(--mut);grid-column:1/-1;padding-left:10px}
+.note{font-size:11px;color:var(--mut);padding:6px 12px 10px;border-top:1px solid var(--line)}
+/* form */
+.form{padding:8px 12px 10px;display:grid;grid-template-columns:96px 1fr;gap:6px 8px;align-items:center;font-size:12px}
+.form label{color:var(--mut)}
+.fld{border:1px solid var(--line-strong);background:var(--bg);border-radius:5px;padding:3px 7px;min-height:24px;display:flex;align-items:center;gap:6px}
+.fld .m{color:var(--mut);font-size:11px}
+.seg{display:flex;border:1px solid var(--line-strong);border-radius:5px;overflow:hidden}
+.seg span{flex:1;text-align:center;padding:3px 0;font-size:11.5px;color:var(--mut)}
+.seg span.on{background:var(--acc);color:var(--on-acc);font-weight:600}
+.bar{height:6px;background:var(--line);border-radius:3px;position:relative;flex:1}
+.bar i{position:absolute;left:0;top:0;bottom:0;width:50%;background:var(--acc);border-radius:3px}
+.tick{display:inline-block;width:12px;height:12px;border:1.5px solid var(--acc);background:var(--acc);border-radius:3px;vertical-align:-2px}
+.tick.no{background:none;border-color:var(--line-strong)}
+.hint{grid-column:1/-1;font-size:11px;color:var(--mut)}
+.foot{display:flex;justify-content:flex-end;gap:6px;padding:0 12px 10px}
+/* canvas */
+svg{display:block;width:100%;height:auto}
+.cmd{font:11px ui-monospace,Menlo,monospace;color:var(--mut);padding:5px 10px;border-top:1px solid var(--line);background:#111316}
+.cmd b{color:var(--tx);font-weight:500}
+/* layers */
+.lay{font-size:11.5px}
+.lay div{display:flex;align-items:center;gap:6px;padding:3px 12px;border-top:1px solid var(--line)}
+.lay .g{color:var(--mut);background:var(--p2)}
+.sw{width:10px;height:10px;border-radius:2px;flex:none}
+.lay .c{margin-left:auto;color:var(--mut)}
+/* sheet */
+.sheet{background:#fff;border-radius:6px;padding:6px}
+.dec{margin:0;padding-left:18px;color:var(--mut);font-size:12px}
+.dec li{margin:5px 0}
+.dec b{color:var(--tx)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Design CAD → References (Xref) — mockup</h1>
+<p>Show another drawing under a level's plan without copying it in: the structure, the other services, or the architect's next drawing. The file stays where it is; the project keeps its name and where it sits.</p>
+<div class="legend"><i></i>new in this proposal · 2026-11-07 · 2D only</div>
+
+<h2><span class="n">1</span>Plan ribbon → File group</h2>
+<div class="card">
+  <div class="tabs"><span>Project</span><span>Stages</span><span class="on">Design CAD</span><span>Sheets</span></div>
+  <div class="tools">
+    <div class="big"><span class="ic"></span>Plans ▾</div>
+    <div class="col"><div class="sm"><span class="ic"></span>GF ▾</div><div class="sm"><span class="ic"></span>mm ▾</div><div class="sm"><span class="ic"></span>Layer roles</div></div>
+    <div class="col"><div class="sm new"><span class="ic"></span>References</div><div class="sm"><span class="ic"></span>Save DXF</div><div class="sm"><span class="ic"></span>Save DWG</div></div>
+    <div class="col"><div class="sm"><span class="ic"></span>Close</div></div>
+  </div>
+  <div class="cap">File</div>
+</div>
+<p style="margin-top:6px">One small button, <b style="color:var(--tx)">References</b> (command XR). Also XA = attach. Nothing else on the ribbon moves.</p>
+
+<h2><span class="n">2</span>Reference manager (XR)</h2>
+<div class="card new">
+  <div class="mh"><b>References</b><span class="m">GF-ARCH-R04.dwg · Ground floor</span></div>
+  <div class="acts"><span class="chip p">Attach…</span><span class="chip">Reload all</span><span class="chip dim">Detach</span><span class="chip dim">Unload</span><span class="chip dim">Repath…</span><span class="chip dim">Clip</span><span class="chip dim">Bind…</span></div>
+  <div class="ref sel">
+    <span class="nm">STR-GF</span><span class="st ok">Loaded</span>
+    <span class="pth">…/Structure/STR-GF-R02.dwg</span>
+    <div class="row"><span>Overlay</span><span>at <b>0, 0</b></span><span>×<b>1</b></span><span><b>0°</b></span><span>fade <b>50 %</b></span><span>print <b>yes</b></span></div>
+  </div>
+  <div class="ref">
+    <span class="nm">MECH-GF</span><span class="st warn">Changed — reload</span>
+    <span class="pth">…/Mechanical/MECH-GF.dxf · saved 14:20 today</span>
+    <div class="row"><span>Overlay</span><span>at <b>0, 0</b></span><span>×<b>1000</b> (m → mm)</span><span>clipped</span><span>print <b>no</b></span></div>
+  </div>
+  <div class="ref">
+    <span class="nm">PLUMB-GF</span><span class="st off">Unloaded</span>
+    <span class="pth">…/Plumbing/PLUMB-GF.dwg</span>
+    <div class="row"><span>Kept in the list, not drawn, no memory used</span></div>
+  </div>
+  <div class="ref">
+    <span class="nm">GRID</span><span class="st bad">Not found</span>
+    <span class="pth">X:\Arch\Xref\GRID.dwg — found inside GF-ARCH-R04.dwg</span>
+    <div class="row"><span>Repath… to find it on this computer</span></div>
+  </div>
+  <div class="note">Detach removes a reference from this plan (⌘Z undoes it). The files are never changed. References found inside the architect's DWG are listed too, so a missing one can be found and shown.</div>
+</div>
+
+<h2><span class="n">3</span>Attach (XA)</h2>
+<div class="card new">
+  <div class="mh"><b>Attach a reference</b><span class="m">to Ground floor</span></div>
+  <div class="form">
+    <label>File</label><div class="fld">STR-GF-R02.dwg <span class="m">· DWG · mm</span></div>
+    <label>Name</label><div class="fld">STR-GF</div>
+    <label>Type</label><div class="seg"><span class="on">Overlay</span><span>Attach</span></div>
+    <span class="hint">Overlay: shown on this plan only. Attach: also comes along when this plan is saved with references and opened elsewhere.</span>
+    <label>Insert at</label><div class="seg"><span class="on">Same origin 0, 0</span><span>Pick on plan</span></div>
+    <label>Scale</label><div class="fld">1 <span class="m">· from units: mm → mm</span></div>
+    <label>Rotation</label><div class="fld">0°</div>
+    <label>Fade</label><div class="fld"><div class="bar"><i></i></div><span>50 %</span></div>
+    <label>Prints</label><div class="fld"><span class="tick"></span> on plan sheets, grey <span class="m">· References pen</span></div>
+  </div>
+  <div class="foot"><span class="chip">Cancel</span><span class="chip p">Attach</span></div>
+</div>
+
+<h2><span class="n">4</span>On the plan</h2>
+<div class="card">
+  <svg viewBox="0 0 390 230" aria-label="Plan with a structure reference">
+    <rect width="390" height="230" fill="#15171A"/>
+    <!-- reference: structural grid and columns, faded -->
+    <g stroke="#5b6066" stroke-width="0.8" stroke-dasharray="10 3 2 3">
+      <line x1="40" y1="20" x2="40" y2="210"/><line x1="150" y1="20" x2="150" y2="210"/><line x1="260" y1="20" x2="260" y2="210"/><line x1="350" y1="20" x2="350" y2="210"/>
+      <line x1="20" y1="45" x2="370" y2="45"/><line x1="20" y1="125" x2="370" y2="125"/><line x1="20" y1="195" x2="370" y2="195"/>
+    </g>
+    <g fill="#4a4f55"><rect x="35" y="40" width="10" height="10"/><rect x="145" y="40" width="10" height="10"/><rect x="255" y="40" width="10" height="10"/><rect x="345" y="40" width="10" height="10"/><rect x="35" y="120" width="10" height="10"/><rect x="145" y="120" width="10" height="10"/><rect x="255" y="120" width="10" height="10"/><rect x="345" y="120" width="10" height="10"/><rect x="35" y="190" width="10" height="10"/><rect x="145" y="190" width="10" height="10"/><rect x="255" y="190" width="10" height="10"/><rect x="345" y="190" width="10" height="10"/></g>
+    <g fill="#6b7178" font-size="8"><text x="36" y="15">A</text><text x="146" y="15">B</text><text x="256" y="15">C</text><text x="346" y="15">D</text></g>
+    <!-- host plan: walls -->
+    <g stroke="#E6E8EB" stroke-width="1.6" fill="none">
+      <path d="M40 45 H350 V195 H40 Z"/><path d="M150 45 V110 M150 140 V195 M150 125 H230 M260 125 H350"/>
+    </g>
+    <g fill="#A3ABB5" font-size="9"><text x="70" y="95">LIVING</text><text x="190" y="90">KITCHEN</text><text x="280" y="165">BED 1</text></g>
+    <!-- devices -->
+    <g stroke="#37d67a" fill="none" stroke-width="1.3"><circle cx="95" cy="80" r="6"/><circle cx="95" cy="160" r="6"/><circle cx="205" cy="80" r="6"/><circle cx="300" cy="90" r="6"/></g>
+    <!-- clip boundary of MECH -->
+    <rect x="160" y="135" width="90" height="55" fill="none" stroke="#b784ff" stroke-width="1" stroke-dasharray="4 3"/>
+    <g stroke="#3d6f8a" stroke-width="1"><path d="M165 150 H245 M165 165 H245 M205 140 V185"/></g>
+    <text x="163" y="186" fill="#b784ff" font-size="8">MECH-GF clip</text>
+    <!-- banner -->
+    <rect x="8" y="208" width="246" height="16" rx="3" fill="#26292E" stroke="#f5c04a"/>
+    <text x="14" y="219" fill="#f5c04a" font-size="9">MECH-GF changed on disk — Reload (XR)</text>
+  </svg>
+  <div class="cmd">Command: <b>XA</b> STR-GF-R02.dwg · overlay at 0,0 · 4,210 lines · faded 50 %</div>
+</div>
+<p style="margin-top:6px">References draw under the plan, faded. Snaps reach them (column centres, grid ends); they cannot be picked or edited. Clip shows only a rectangle or outline of one.</p>
+
+<h2><span class="n">5</span>Layers panel and Layer manager</h2>
+<div class="card lay">
+  <div class="g">GF-ARCH-R04.dwg <span class="c">lines</span></div>
+  <div><span class="tick"></span>A-WALL<span class="c">2,104</span></div>
+  <div class="g new">STR-GF <span class="c">reference</span></div>
+  <div><span class="tick"></span><span class="sw" style="background:#8e8e93"></span>STR-GF|S-GRID<span class="c">36</span></div>
+  <div><span class="tick"></span><span class="sw" style="background:#8e8e93"></span>STR-GF|S-COLUMN<span class="c">412</span></div>
+  <div><span class="tick no"></span><span class="sw" style="background:#48484a"></span>STR-GF|S-BEAM<span class="c">980</span></div>
+</div>
+<p style="margin-top:6px">Each reference's layers as FILE|LAYER: on/off, screen colour, print on/off — kept per plan. The reference file is not changed.</p>
+
+<h2><span class="n">6</span>Plan sheet (black and white)</h2>
+<div class="sheet">
+  <svg viewBox="0 0 390 160" aria-label="Sheet with reference in grey">
+    <rect x="1" y="1" width="388" height="158" fill="#fff" stroke="#000" stroke-width="1.4"/>
+    <g stroke="#aaa" stroke-width="0.5" stroke-dasharray="8 2 1.5 2"><line x1="30" y1="12" x2="30" y2="128"/><line x1="110" y1="12" x2="110" y2="128"/><line x1="190" y1="12" x2="190" y2="128"/><line x1="270" y1="12" x2="270" y2="128"/><line x1="16" y1="24" x2="284" y2="24"/><line x1="16" y1="118" x2="284" y2="118"/></g>
+    <g fill="#bbb"><rect x="27" y="21" width="6" height="6"/><rect x="107" y="21" width="6" height="6"/><rect x="187" y="21" width="6" height="6"/><rect x="267" y="21" width="6" height="6"/><rect x="27" y="115" width="6" height="6"/><rect x="107" y="115" width="6" height="6"/><rect x="187" y="115" width="6" height="6"/><rect x="267" y="115" width="6" height="6"/></g>
+    <path d="M30 24 H270 V118 H30 Z M110 24 V118" fill="none" stroke="#777" stroke-width="0.7"/>
+    <g fill="none" stroke="#000" stroke-width="1"><circle cx="70" cy="60" r="4"/><circle cx="70" cy="95" r="4"/><circle cx="150" cy="60" r="4"/><circle cx="230" cy="80" r="4"/><path d="M70 64 Q60 78 70 91 M74 60 Q110 45 146 60"/></g>
+    <rect x="296" y="10" width="86" height="118" fill="none" stroke="#000" stroke-width="0.5"/>
+    <g font-size="7" fill="#000"><text x="300" y="22">LEGEND</text><text x="300" y="36">○ Downlight</text><text x="300" y="48" fill="#888">— Structure (ref.)</text></g>
+    <rect x="1" y="134" width="388" height="25" fill="none" stroke="#000" stroke-width="0.7"/>
+    <text x="8" y="150" font-size="8" fill="#000">GF LIGHTING LAYOUT · 1:100 · E-101</text>
+  </svg>
+</div>
+<p style="margin-top:6px">A new <b style="color:var(--tx)">References</b> pen in Plot setup: grey 30 %, 0.13 mm by default. Tick per reference, and per layer, whether it prints. Never colour.</p>
+
+<h2><span class="n">7</span>For you to decide</h2>
+<ol class="dec">
+  <li><b>Ribbon place:</b> a small "References" button in the File group (as shown), or in View next to Layer manager?</li>
+  <li><b>Type:</b> both Overlay and Attach (Attach matters only when a saved DWG is opened elsewhere), or Overlay only for now?</li>
+  <li><b>Printing:</b> references print in grey by default — yes? Structure on, other services off?</li>
+  <li><b>Bind:</b> only into Save DXF / DWG (the saved copy gets the lines on STR-GF$0$S-GRID layers), never into the project. OK?</li>
+  <li><b>Clip:</b> rectangle and picked outline, with "show outside" (invert) later. OK?</li>
+  <li><b>Changed files:</b> desktop app checks each reference when the window comes back to the front and shows "Changed — reload". Auto-reload instead?</li>
+</ol>
+<p style="margin-top:8px">Not in this: 3D, elevations, references of images or PDFs, editing a reference in place.</p>
+</div>
+</body>
+</html>
