@@ -540,6 +540,8 @@ export interface Project {
   cadRoomTypes?: { name: string; type: string }[];
   /** What the engineer drew in the CAD view over each drawing (src/model/cadSketch.ts). */
   cadSketch?: CadSketch[];
+  /** How sheets print: pen tables and the set's default page setup (src/model/plotSetup.ts). */
+  plot?: import('./model/plotSetup').ProjectPlot;
   /** Which drawing file is each level's plan in Design CAD (src/model/cadPlans.ts). */
   cadPlans?: CadPlan[];
   /** LV points (lights, sockets…) placed on plans in the CAD view, on circuits (src/model/cadDevices.ts). */

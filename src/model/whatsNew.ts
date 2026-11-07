@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.041', date: '2026-11-07',
+    items: [
+      { title: 'Sheets: page setup and pen tables', text: 'Design CAD → Sheets → Plot has Page setup and Pens. Page setup sets each sheet\'s paper, scale (plan sheets), pen table, lineweights and an optional plot stamp, or saves them as the set\'s default. A pen table gives each kind of line its width and black or grey ink: frame, title block, architect\'s plan, devices, trays, cable routes, SLD lines and busbars. The default prints exactly as before.', action: 'sheets', actionLabel: 'Open Sheets' },
+      { title: 'Import a CTB plot style table', text: 'Pens → Import CTB… reads a .ctb from your AutoCAD Plot Styles folder. Each kind of line takes the width and screening of the colour its DXF layer uses: frame, title and cables 7, devices and trays 3, busbars 1, the architect\'s plan 8.', action: 'sheets', actionLabel: 'Open Sheets' },
+      { title: 'Publish chosen sheets', text: 'Publish now prints this sheet, the ones you tick (shown by kind), or all of them. The output is one PDF, one PDF per sheet, or DXF or DWG per sheet, each with its own page setup.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
     version: '2.040', date: '2026-11-06',
     items: [
       { title: 'Design CAD: Trim, Extend, Offset, Fillet', text: 'Draw → Edit has Trim (TRIM) and Extend (EX). Click the part to cut away or the end to lengthen: it stops at the nearest line, drawn or the architect\'s, and the architect\'s drawing is never changed. Offset (O) copies a line, tray or circle at a distance. A tray stays a tray of the same width and route. Fillet (F) and Chamfer (CHA) join two lines at their corner; two trays meet in a bend.', action: 'cad', actionLabel: 'Open Design CAD' },

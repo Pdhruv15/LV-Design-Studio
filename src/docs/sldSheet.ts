@@ -93,7 +93,10 @@ export interface SheetInfo { no: string; title: string; count: number; index: nu
   /** Notes on this sheet only (after the project's SLD notes). */
   notes?: string[];
   /** Markups drawn on this sheet (paper mm). */
-  markups?: SheetMarkup[] }
+  markups?: SheetMarkup[];
+  /** Pens (src/model/plotSetup.ts): the frame's width, the title block and table lines (mm), extra CSS for the
+   * drawing's lines, and the plot stamp printed in the margin. Blank: as always. */
+  plot?: { frame?: number; lines?: number; ink?: string; css?: string; stamp?: string } }
 
 /** The standard block's three equal columns (60 mm at full size). */
 const titleCols = (k: number) => `<col style="width:${+(60 * k).toFixed(2)}mm">`.repeat(3);
@@ -119,11 +122,12 @@ function standardTitleRows(project: Project, t: TitleBlock, one: SheetInfo | und
 export function titleBlockFragment(project: Project, t: TitleBlock, custom: ReturnType<typeof templateOf>, extra: Record<string, string>, one: SheetInfo | undefined, sheet: NonNullable<DrawingInfo['sheet']>, k: number, status = one?.status ?? ''): { css: string; html: string } {
   const mm = (v: number) => `${+(v * k).toFixed(2)}mm`;
   const px = (v: number) => `${+(v * k).toFixed(2)}px`;
+  const lw = lineScale(one), ink = one?.plot?.ink ?? '#000';
   // Heavier top and left edges; the frame's own border is the right and bottom ones.
   const css = `    .tb { position: absolute; right: 0; bottom: 0; width: ${mm(180)}; border-collapse: collapse; table-layout: fixed; }
-    .tb td.t { border: ${mm(0.25)} solid #000; padding: ${mm(1)} ${mm(1.5)}; vertical-align: top; }
-    .tb tr:first-child td { border-top: ${mm(0.5)} solid #000; }
-    .tb td.l { border-left: ${mm(0.5)} solid #000; }
+    .tb td.t { border: ${mm(0.25 * lw)} solid ${ink}; padding: ${mm(1)} ${mm(1.5)}; vertical-align: top; }
+    .tb tr:first-child td { border-top: ${mm(0.5 * lw)} solid ${ink}; }
+    .tb td.l { border-left: ${mm(0.5 * lw)} solid ${ink}; }
     .tb td.e { border-right: 0; }
     .tb tr:last-child td { border-bottom: 0; }
     .tb .k { display: block; font-size: ${px(6.5)}; color: #333; text-transform: uppercase; letter-spacing: .03em; }
@@ -136,6 +140,9 @@ export function titleBlockFragment(project: Project, t: TitleBlock, custom: Retu
     : `    <table class="tb"><colgroup>${titleCols(k)}</colgroup>${standardTitleRows(project, t, one, sheet, status).map((r) => `<tr>${r}</tr>`).join('')}</table>`;
   return { css, html };
 }
+
+/** How much heavier (or lighter) the title block and table lines print than their standard 0.25 mm. */
+const lineScale = (one?: SheetInfo) => (one?.plot?.lines ? one.plot.lines / 0.25 : 1);
 
 export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNullable<DrawingInfo['sheet']> = 'A3', one?: SheetInfo): string {
   const { w, h } = SHEET_MM[sheet];
@@ -153,6 +160,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   const k = furnitureScale(sheet, custom ? templateSize(custom) : undefined);
   const mm = (v: number) => `${+(v * k).toFixed(2)}mm`;
   const px = (v: number) => `${+(v * k).toFixed(2)}px`;
+  const lw = lineScale(one); // title block, legend and table lines at the pen width
   const tbW = custom ? templateSize(custom).w : 180;
   const cables = one?.cables ?? [];
   const legendSvg = one?.legendSvg ?? '';
@@ -188,7 +196,9 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     @page { size: ${w}mm ${h}mm; margin: 0; }
     * { box-sizing: border-box; }
     html, body { margin: 0; width: ${w}mm; height: ${h}mm; font: ${px(9)} Arial, sans-serif; color: #000; background: #fff; }
-    .frame { position: absolute; inset: 10mm 10mm 10mm 20mm; border: 0.7mm solid #000; display: flex; flex-direction: column; }
+    .frame { position: absolute; inset: 10mm 10mm 10mm 20mm; border: ${+(one?.plot?.frame ?? 0.7).toFixed(2)}mm solid ${one?.plot?.ink ?? '#000'}; display: flex; flex-direction: column; }
+    .stamp { position: absolute; left: 20mm; bottom: 4mm; font-size: 2mm; color: #000; white-space: nowrap; }${one?.plot?.css ? `
+    ${one.plot.css}` : ''}
     .body { position: relative; flex: 1; min-height: 0; }
     .drawing { position: absolute; inset: 3mm; right: calc(3mm + ${mm(csW)}); display: flex; align-items: center; justify-content: center; }
     .drawing svg { width: 100%; height: 100%; }
@@ -196,27 +206,27 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .band { position: relative; flex: none; width: 100%; font-size: ${px(8)}; }
     .tb.band { position: static; }
     .rv { position: absolute; left: 0; top: 0; height: 100%; border-collapse: collapse; table-layout: fixed; }
-    .rvx { position: absolute; border-left: ${mm(0.5)} solid #000; }
+    .rvx { position: absolute; border-left: ${mm(0.5 * lw)} solid #000; }
     .band td.r { border: 0; padding: ${mm(0.8)} ${mm(1.5)}; text-align: left; vertical-align: middle; }
-    .band tr:first-child td.r { border-top: ${mm(0.5)} solid #000; }
+    .band tr:first-child td.r { border-top: ${mm(0.5 * lw)} solid #000; }
     .band td.u { border-bottom: ${mm(0.2)} solid #999; }
     .band td.h { font-size: ${px(7)}; font-weight: 700; text-transform: uppercase; }
     .band td.gen { vertical-align: bottom; font-size: ${px(6.5)}; color: #555; }
-    .notes { position: absolute; right: 0; bottom: ${mm(3)}; font-size: ${px(8)}; border: ${mm(0.25)} solid #000; border-right: 0; padding: ${mm(1)} ${mm(2)}; background: #fff; }
+    .notes { position: absolute; right: 0; bottom: ${mm(3)}; font-size: ${px(8)}; border: ${mm(0.25 * lw)} solid #000; border-right: 0; padding: ${mm(1)} ${mm(2)}; background: #fff; }
     .notes ol { margin: ${mm(0.5)} 0 0; padding-left: ${mm(4)}; }
-    .side { position: absolute; right: 0; top: 0; width: ${mm(csW)}; bottom: ${tooShort && csW <= tbW ? `-${mm(tooShort)}` : 0}; display: flex; flex-direction: column; gap: ${mm(2)}; overflow: hidden; border-left: ${mm(0.25)} solid #000; padding: ${mm(2)}; }
+    .side { position: absolute; right: 0; top: 0; width: ${mm(csW)}; bottom: ${tooShort && csW <= tbW ? `-${mm(tooShort)}` : 0}; display: flex; flex-direction: column; gap: ${mm(2)}; overflow: hidden; border-left: ${mm(0.25 * lw)} solid #000; padding: ${mm(2)}; }
     .side .lg svg { width: 100%; height: auto; display: block; }
-    .side .sum { margin-top: auto; flex: none; border: ${mm(0.25)} solid #000; font-size: ${px(7)}; }
-    .sum b { display: block; font-size: ${px(8)}; padding: ${mm(1)} ${mm(2)}; border-bottom: ${mm(0.25)} solid #000; }
-    .sum table { width: 100%; border-collapse: collapse; } .sum td { padding: ${mm(0.3)} ${mm(2)}; border-bottom: ${mm(0.15)} solid #000; } .sum tr:last-child td { border-bottom: 0; } .sum td + td { text-align: right; font-weight: 600; width: ${mm(16)}; }
-    .side .abbr, .side .cs { position: static; width: auto; max-height: none; border: ${mm(0.25)} solid #000; column-count: 1; }
-    .abbr { position: absolute; left: 0; bottom: 0; font-size: ${px(7)}; border: ${mm(0.25)} solid #000; border-left: 0; border-bottom: 0; padding: ${mm(1)} ${mm(2)}; background: #fff; column-count: ${abbr.length > 12 ? 2 : 1}; column-gap: ${mm(4)}; }
+    .side .sum { margin-top: auto; flex: none; border: ${mm(0.25 * lw)} solid #000; font-size: ${px(7)}; }
+    .sum b { display: block; font-size: ${px(8)}; padding: ${mm(1)} ${mm(2)}; border-bottom: ${mm(0.25 * lw)} solid #000; }
+    .sum table { width: 100%; border-collapse: collapse; } .sum td { padding: ${mm(0.3)} ${mm(2)}; border-bottom: ${mm(0.15 * lw)} solid #000; } .sum tr:last-child td { border-bottom: 0; } .sum td + td { text-align: right; font-weight: 600; width: ${mm(16)}; }
+    .side .abbr, .side .cs { position: static; width: auto; max-height: none; border: ${mm(0.25 * lw)} solid #000; column-count: 1; }
+    .abbr { position: absolute; left: 0; bottom: 0; font-size: ${px(7)}; border: ${mm(0.25 * lw)} solid #000; border-left: 0; border-bottom: 0; padding: ${mm(1)} ${mm(2)}; background: #fff; column-count: ${abbr.length > 12 ? 2 : 1}; column-gap: ${mm(4)}; }
     .abbr b { display: block; column-span: all; font-size: ${px(8)}; margin-bottom: ${mm(0.5)}; }
     .abbr div { break-inside: avoid; white-space: nowrap; } .abbr span { display: inline-block; min-width: ${mm(9)}; font-weight: 600; }
-    .cs { position: absolute; right: 0; top: 0; width: ${mm(csW)}; max-height: 100%; overflow: hidden; border-left: ${mm(0.25)} solid #000; border-bottom: ${mm(0.25)} solid #000; background: #fff; font-size: ${px(7)}; }
-    .cs h5 { margin: 0; padding: ${mm(1)} ${mm(2)}; font-size: ${px(9)}; text-align: center; text-decoration: underline; border-bottom: ${mm(0.25)} solid #000; }
-    .cs table { width: 100%; border-collapse: collapse; } .cs td { border-bottom: ${mm(0.15)} solid #000; padding: ${mm(0.6)} ${mm(1)}; vertical-align: middle; }
-    .cs .n { width: ${mm(8)}; text-align: center; } .cs .n span { display: inline-block; min-width: ${mm(4.6)}; line-height: ${mm(4.2)}; border: ${mm(0.25)} solid #000; border-radius: 50%; font-weight: 700; }
+    .cs { position: absolute; right: 0; top: 0; width: ${mm(csW)}; max-height: 100%; overflow: hidden; border-left: ${mm(0.25 * lw)} solid #000; border-bottom: ${mm(0.25 * lw)} solid #000; background: #fff; font-size: ${px(7)}; }
+    .cs h5 { margin: 0; padding: ${mm(1)} ${mm(2)}; font-size: ${px(9)}; text-align: center; text-decoration: underline; border-bottom: ${mm(0.25 * lw)} solid #000; }
+    .cs table { width: 100%; border-collapse: collapse; } .cs td { border-bottom: ${mm(0.15 * lw)} solid #000; padding: ${mm(0.6)} ${mm(1)}; vertical-align: middle; }
+    .cs .n { width: ${mm(8)}; text-align: center; } .cs .n span { display: inline-block; min-width: ${mm(4.6)}; line-height: ${mm(4.2)}; border: ${mm(0.25 * lw)} solid #000; border-radius: 50%; font-weight: 700; }
     .cs p { margin: 0; padding: ${mm(1)} ${mm(2)}; font-size: ${px(7)}; }
   </style></head><body>
   <div class="frame"><div class="body">
@@ -230,7 +240,8 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   </div>
     ${band}
   </div>
-  ${markupLayerHtml(one?.markups ?? [], w, h)}
+  ${markupLayerHtml(one?.markups ?? [], w, h)}${one?.plot?.stamp ? `
+  <div class="stamp">${esc(one.plot.stamp)}</div>` : ''}
   </body></html>`;
 }
 
