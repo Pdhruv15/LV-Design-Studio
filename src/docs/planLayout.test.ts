@@ -5,7 +5,7 @@ import { placeBoard, placeLvPoint } from '../model/cadDevices';
 import { wireLevel } from '../model/cadWiring';
 import { issueSheets, renumber, setOf, sheetChecks, sheetHash, sheetType, type DrawingSheet, type PlanType } from '../model/drawingSet';
 import type { Project, SketchItem } from '../types';
-import { addPlanSheets, drawingAreaMm, planDrawing, planLevels, planNotes, planScale } from './planLayout';
+import { addPlanSheets, drawingAreaMm, drawnTextMm, planDrawing, planLevels, planNotes, planScale } from './planLayout';
 import { buildSheetDxfPages } from './sheetDxf';
 import { buildSldSheetHtml } from './sldSheet';
 import { abbreviationsIn } from './sldNotes';
@@ -158,6 +158,61 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
     expect(notes.some((n) => /not for construction/.test(n))).toBe(true);
     expect(notes.some((n) => /Circuit tags/.test(n))).toBe(true);
     expect(notes.some((n) => /Cable trays/.test(n))).toBe(false);
+  });
+
+  describe('drawn work (Design CAD lines, hatches and text) on plan sheets', () => {
+    const work: SketchItem[] = [
+      { id: 'S1', kind: 'line', layer: 'LV-SKETCH', pts: [[10000, -2000], [10000, 14000]], lt: 'center', lw: 0.35 },
+      { id: 'S2', kind: 'pline', layer: 'LV-HATCH', closed: true, pts: box(12000, 0, 20000, 4000), hatch: { pattern: 'ansi31', scale: 3, angle: 0 } },
+      { id: 'S3', kind: 'circle', layer: 'LV-HATCH', pts: [[4000, 4000]], r: 1000, hatch: { pattern: 'solid', scale: 3, angle: 0 } },
+      { id: 'S4', kind: 'text', layer: 'LV-ANNO', pts: [[2000, 10000]], text: 'PLANT <A>', h: 250, rot: 0 },
+      { id: 'S5', kind: 'pline', layer: 'LV-ANNO', pts: [[16000, 2000], [18000, 8000], [19000, 8000]], leader: true },
+      { id: 'S6', kind: 'dim', layer: 'LV-ANNO', pts: [[0, 0], [20000, 0], [10000, -1000]], text: '20.00' },
+      { id: 'S7', kind: 'text', layer: 'E-HELP', pts: [[2000, 8000]], text: 'HELPER', h: 250, rot: 0 },
+      { id: 'S8', kind: 'line', layer: 'E-OFF', pts: [[0, 6000], [20000, 6000]] }
+    ];
+    const withWork = (extra: Partial<Project> = {}) => ({ ...drawn(villa(), work), cadLayerStyle: { 'gf.dwg': { 'E-HELP': { noPrint: true }, 'E-OFF': { hidden: true } } }, ...extra });
+    const svgOf = (p: Project, plot?: DrawingSheet['plot']) => { const s = sheetOf(p).sheets[0]; return planDrawing(p, { ...s, ...(plot ? { plot } : {}) })!.svg; };
+
+    it('prints lines at their linetype and lineweight, text at its drawn height, black, over the architect\'s plan', () => {
+      const svg = svgOf(withWork());
+      const g = /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svg)![1];
+      const centre = /<path d="([^"]+)" fill="none" stroke="#000" stroke-width="0.35" stroke-dasharray="12 3 2 3"\/>/.exec(g)![1];
+      const [a, b] = pathPts(centre);
+      expect(a[1] - b[1]).toBeCloseTo(160, 1); // 16 m at 1:100, up the plan
+      expect(a[0]).toBeCloseTo(b[0], 6);
+      expect(g).toMatch(/<text x="[\d.]+" y="[\d.]+" font-size="2.5" fill="#000">PLANT &lt;A&gt;<\/text>/); // 250 mm at 1:100
+      expect(g).toMatch(/font-size="[\d.]+" text-anchor="middle" fill="#000">20.00<\/text>/); // the dimension's text
+      expect(g).not.toContain('HELPER'); // its layer set not to print
+      expect(g.match(/stroke-width="0.25"/g)).toHaveLength(2); // the dimension and the leader at the drawn-lines pen; the line on the layer that is off is left out
+      expect(svg.indexOf('class="drawn"')).toBeGreaterThan(svg.indexOf('MAJLIS')); // over the architect's plan
+      expect(svg.indexOf('class="drawn"')).toBeLessThan(svg.indexOf('DB-GF1')); // under the design
+    });
+
+    it('hatches with the hatch pen inside their outline; Solid light grey; a leader\'s arrow', () => {
+      const svg = svgOf(withWork());
+      expect(svg).toMatch(/<clipPath id="(dw-[\w-]+-1)"><path d="M[^"]+Z"\/><\/clipPath>.*<path d="M[^"]+" clip-path="url\(#\1\)" fill="none" stroke="#666666" stroke-width="0.13"\/>/s);
+      expect(svg).toMatch(/<circle cx="[\d.]+" cy="[\d.]+" r="10" fill="#b3b3b3" stroke="none"\/>/); // 1 m radius at 1:100
+      expect(svg).toMatch(/<path d="M[\d.]+ [\d.]+L[\d.]+ [\d.]+L[\d.]+ [\d.]+Z" fill="#000" stroke="none"\/>/);
+    });
+
+    it('page setup can leave it off; all one thin line thins it; it is fingerprinted only where there is some', () => {
+      const p = withWork();
+      expect(svgOf(p, { drawn: false })).not.toContain('class="drawn"');
+      expect(svgOf(p, { weights: 'thin' })).not.toContain('stroke-width="0.35" stroke-dasharray');
+      expect(svgOf(villa())).not.toContain('class="drawn"');
+      const s = sheetOf(p).sheets[0], set = sheetOf(p).set;
+      const moved: Project = { ...p, cadSketch: [{ file: 'gf.DWG', items: work.map((it) => (it.id === 'S1' ? { ...it, pts: [[11000, -2000], [11000, 14000]] as Pt[] } : it)) }] };
+      expect(sheetHash(moved, set, s)).not.toBe(sheetHash(p, set, s));
+      expect(sheetHash({ ...moved, drawingSet: undefined }, set, { ...s, plot: { drawn: false } })).toBe(sheetHash(p, set, { ...s, plot: { drawn: false } }));
+      expect(drawnTextMm(p, s)).toEqual({ scale: 100, mm: 2.5 });
+      expect(drawnTextMm(villa(), s)).toBeUndefined();
+    });
+
+    it('the drawn work alone makes no sheet', () => {
+      const p = drawn({ ...villa(), lvPoints: undefined, cadWiring: undefined }, work);
+      expect(planLevels(p, 'lighting')).toEqual([]);
+    });
   });
 
   describe('containment layout', () => {
@@ -379,8 +434,8 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
       expect(hash(drawn(p, [items[0]]))).not.toBe(h);
       expect(hash({ ...p, feeders: p.feeders.map((f) => (f.id === 'DB-GF1-Y1' ? { ...f, cableCsaMm2: 4 } : f)) })).not.toBe(h);
       expect(hash(drawn(p, items, 6))).not.toBe(h); // the plan now reads in metres
-      // What the sheet does not draw: another drawn line, and the lights.
-      expect(hash(drawn(p, [...items, { id: 'S9', kind: 'line', layer: 'LV-SKETCH', pts: [[0, 0], [5, 5]] }]))).toBe(h);
+      expect(hash(drawn(p, [...items, { id: 'S9', kind: 'line', layer: 'LV-SKETCH', pts: [[0, 0], [5, 5]] }]))).not.toBe(h); // drawn work prints too
+      // What the sheet does not draw: the lights.
       expect(hash(lightsMoved(p))).toBe(h);
     });
 

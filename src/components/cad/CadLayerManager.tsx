@@ -25,7 +25,7 @@ export function LayerManager({ view, layersOn, sketch, styles, onLayer, onStyle,
       <h3>Layer manager <span className="m">{view.file}</span></h3>
       <h4>Drawn in the app</h4>
       <table className="sched" aria-label="Drawn layers">
-        <thead><tr><th>Layer</th><th>Objects</th><th>On</th><th>Lock</th><th>Colour</th><th>Linetype</th><th>Lineweight</th></tr></thead>
+        <thead><tr><th>Layer</th><th>Objects</th><th>On</th><th>Lock</th><th>Print</th><th>Colour</th><th>Linetype</th><th>Lineweight</th></tr></thead>
         <tbody>{drawnLayers(sketch).map((name) => {
           const st = styleOf(styles, name);
           return (
@@ -33,6 +33,7 @@ export function LayerManager({ view, layersOn, sketch, styles, onLayer, onStyle,
               <td>{name}</td><td>{count(name)}</td>
               <td><input type="checkbox" aria-label={`${name} on`} checked={!st.hidden} onChange={(e) => onStyle(name, { hidden: !e.target.checked })} /></td>
               <td><input type="checkbox" aria-label={`${name} locked`} checked={!!st.lock} onChange={(e) => onStyle(name, { lock: e.target.checked })} /></td>
+              <td><input type="checkbox" aria-label={`${name} prints`} checked={!st.noPrint} onChange={(e) => onStyle(name, { noPrint: !e.target.checked })} /></td>
               <td>{colour(name, st.color)}</td>
               <td><select aria-label={`${name} linetype`} value={st.lt ?? 'continuous'} onChange={(e) => onStyle(name, { lt: e.target.value === 'continuous' ? undefined : e.target.value as LinetypeId })}>
                 {LINETYPE_IDS.map((l) => <option key={l} value={l}>{LINETYPES[l].label}</option>)}
@@ -57,7 +58,7 @@ export function LayerManager({ view, layersOn, sketch, styles, onLayer, onStyle,
           ))}</tbody>
         </table>
       </div>
-      <p className="m">Locked layers can be seen and snapped to, but not picked or edited. Colours are for the screen; sheets print black-and-white with the pens (Sheets → Plot).</p>
+      <p className="m">Locked layers can be seen and snapped to, but not picked or edited. Untick Print to keep a layer on screen but off the plan sheets. Colours are for the screen; sheets print black-and-white with the pens (Sheets → Plot).</p>
       <div className="modal-actions"><span className="sp" /><button className="chip primary" onClick={onClose}>Done</button></div>
     </Modal>
   );

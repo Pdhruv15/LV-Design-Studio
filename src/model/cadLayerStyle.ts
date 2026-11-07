@@ -26,7 +26,8 @@ export const LAYER_COLOURS: { id: string; label: string }[] = [
   { id: '#8e8e93', label: 'Grey' }, { id: '#48484a', label: 'Dark grey' }
 ];
 
-export interface LayerStyle { color?: string; lock?: boolean; hidden?: boolean; lt?: LinetypeId; lw?: number }
+/** `noPrint`: the layer shows on screen but stays off the sheets. */
+export interface LayerStyle { color?: string; lock?: boolean; hidden?: boolean; noPrint?: boolean; lt?: LinetypeId; lw?: number }
 export interface ObjectProps { color?: string; lt?: LinetypeId; lw?: number }
 
 const keyOf = (file: string) => file.trim().toLowerCase();

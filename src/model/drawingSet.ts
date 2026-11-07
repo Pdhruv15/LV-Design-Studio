@@ -8,6 +8,8 @@ import { boardsWithoutLevel } from './levels';
 import { circuitCategory } from '../calc/loadSchedule';
 import { planOfLevel } from './cadPlans';
 import { sketchOf } from './cadSketch';
+import { layerStylesOf } from './cadLayerStyle';
+import { plotOf } from './plotSetup';
 import { planScale } from './cadUnits';
 import type { SheetMarkup } from './sheetMarkup';
 import type { SheetItems } from './sheetChanges';
@@ -442,6 +444,13 @@ export const SHEET_HASH_V = 3;
 /** What a plan sheet draws (fingerprint version 3), as src/docs/planLayout.ts chooses it: its scale, the level's name and
  * rooms, then the layout's own content. A wiring tag's length counts the wired circuit's points on every level. */
 function planValues(p: Project, s: DrawingSheet): unknown {
+  const v = planDesignValues(p, s) as unknown[];
+  // The drawn work it prints (src/docs/planLayout.ts), only where there is some: sheets without keep their hash.
+  const plan = plotOf(p, s).drawn === false ? undefined : planOfLevel(p, { building: s.buildingId ?? '', level: s.levelId ?? '' });
+  const drawn = plan ? sketchOf(p, plan.file).filter((it) => !it.tray && !it.cable) : [];
+  return drawn.length ? [...v, [drawn, layerStylesOf(p, plan!.file), p.cadAnno, planScale(p, plan!.file, plan!.units).factor]] : v;
+}
+function planDesignValues(p: Project, s: DrawingSheet): unknown {
   const on = (d: { buildingId?: string; levelId?: string }) => d.buildingId === s.buildingId && d.levelId === s.levelId;
   const building = p.building?.buildings.find((b) => b.id === s.buildingId), level = building?.levels.find((l) => l.id === s.levelId);
   const base = [s.scale, building?.name, level?.name, level?.count, (p.building?.rooms ?? []).filter(on).map((r) => [r.name, r.outline])];
