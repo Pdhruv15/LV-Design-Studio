@@ -1,0 +1,564 @@
+{
+  "$id": "https://lv-design-studio/contracts/design.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "lvds.design"
+    },
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "project": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "voltageV": {
+          "type": "number"
+        },
+        "frequencyHz": {
+          "type": "number"
+        },
+        "vdLimitPct": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "voltageV",
+        "frequencyHz",
+        "vdLimitPct"
+      ],
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "app": {
+          "type": "string",
+          "const": "lvds"
+        },
+        "appVersion": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "file": {
+          "type": "string",
+          "maxLength": 260
+        }
+      },
+      "required": [
+        "app"
+      ],
+      "additionalProperties": false
+    },
+    "exportedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "calculation": {
+      "type": "object",
+      "properties": {
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of the inputs of every study"
+        }
+      },
+      "required": [
+        "fingerprint"
+      ],
+      "additionalProperties": false
+    },
+    "boards": {
+      "maxItems": 20000,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Permanent ID: unchanged by rename, move and undo"
+          },
+          "tag": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Board name as shown in the app, e.g. DB-GF1 (changes on rename)"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "kind": {
+            "description": "MDB, SMDB, DB, EDB, MCC, UPS …",
+            "type": "string",
+            "maxLength": 40
+          },
+          "upstreamUid": {
+            "description": "uid of the board that feeds it; absent for a main board",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "incomerUid": {
+            "description": "uid of the circuit that feeds it",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "level": {
+            "description": "Floor, from Building information",
+            "type": "string",
+            "maxLength": 120
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "ratedCurrentA": {
+            "type": "number"
+          },
+          "source": {
+            "description": "Transformer, main boards only",
+            "type": "object",
+            "properties": {
+              "kva": {
+                "type": "number"
+              },
+              "impedancePct": {
+                "type": "number"
+              },
+              "xr": {
+                "type": "number"
+              },
+              "vectorGroup": {
+                "type": "string",
+                "maxLength": 20
+              }
+            },
+            "required": [
+              "kva"
+            ],
+            "additionalProperties": false
+          },
+          "results": {
+            "type": "object",
+            "properties": {
+              "demandKw": {
+                "type": "number"
+              },
+              "demandKva": {
+                "type": "number"
+              },
+              "powerFactor": {
+                "type": "number"
+              },
+              "currentA": {
+                "type": "number",
+                "description": "Balanced 3-phase demand current"
+              },
+              "loadingPct": {
+                "type": "number"
+              },
+              "faultKa": {
+                "type": "number",
+                "description": "3-phase prospective fault at the busbar"
+              },
+              "voltagePct": {
+                "type": "number",
+                "description": "Busbar voltage as % of nominal"
+              }
+            },
+            "required": [
+              "demandKw",
+              "demandKva",
+              "powerFactor",
+              "currentA",
+              "faultKa",
+              "voltagePct"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "uid",
+          "tag",
+          "name",
+          "results"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "circuits": {
+      "maxItems": 200000,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Permanent ID: unchanged by rename, move and undo"
+          },
+          "tag": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Circuit ID as shown in the app (changes on rename)"
+          },
+          "boardUid": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "uid of the board it leaves"
+          },
+          "feedsBoardUid": {
+            "description": "uid of the board it feeds (incomer / sub-main)",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "ref": {
+            "description": "DB way reference, e.g. R3",
+            "type": "string",
+            "maxLength": 20
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "R",
+              "Y",
+              "B",
+              "RYB"
+            ]
+          },
+          "loadType": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "essential": {
+            "description": "Supplied by the standby generator",
+            "type": "boolean"
+          },
+          "load": {
+            "type": "object",
+            "properties": {
+              "kw": {
+                "type": "number"
+              },
+              "demandFactor": {
+                "type": "number"
+              },
+              "powerFactor": {
+                "type": "number"
+              },
+              "points": {
+                "description": "Load schedule points by type",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "number"
+                }
+              },
+              "generation": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kw",
+              "demandFactor",
+              "powerFactor"
+            ],
+            "additionalProperties": false
+          },
+          "breaker": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "maxLength": 10,
+                "description": "B, C, D (MCB), MCCB, ACB"
+              },
+              "ratingA": {
+                "type": "number"
+              },
+              "icuKa": {
+                "type": "number"
+              },
+              "rcdMa": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "type",
+              "ratingA"
+            ],
+            "additionalProperties": false
+          },
+          "cable": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "cores": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "const": 2
+                  },
+                  {
+                    "type": "number",
+                    "const": 3
+                  },
+                  {
+                    "type": "number",
+                    "const": 4
+                  }
+                ]
+              },
+              "runs": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "csaMm2": {
+                "type": "number"
+              },
+              "cpcMm2": {
+                "type": "number"
+              },
+              "lengthM": {
+                "type": "number"
+              },
+              "installMethod": {
+                "type": "string",
+                "maxLength": 20
+              }
+            },
+            "required": [
+              "type",
+              "cores",
+              "runs",
+              "csaMm2",
+              "cpcMm2",
+              "lengthM"
+            ],
+            "additionalProperties": false
+          },
+          "results": {
+            "type": "object",
+            "properties": {
+              "designCurrentA": {
+                "type": "number"
+              },
+              "ampacityA": {
+                "type": "number"
+              },
+              "loadingPct": {
+                "type": "number"
+              },
+              "vdPct": {
+                "type": "number",
+                "description": "This circuit's own cable"
+              },
+              "vdTotalPct": {
+                "type": "number",
+                "description": "Source to the end of this circuit"
+              },
+              "breakerFaultKa": {
+                "type": "number"
+              },
+              "endFaultKa": {
+                "type": "number"
+              },
+              "zsOhm": {
+                "type": "number"
+              },
+              "maxZsOhm": {
+                "type": "number"
+              },
+              "disconnectionS": {
+                "type": "number"
+              },
+              "status": {
+                "type": "object",
+                "properties": {
+                  "vd": {
+                    "type": "string",
+                    "enum": [
+                      "ok",
+                      "warn",
+                      "bad"
+                    ]
+                  },
+                  "ampacity": {
+                    "type": "string",
+                    "enum": [
+                      "ok",
+                      "bad"
+                    ]
+                  },
+                  "protection": {
+                    "type": "string",
+                    "enum": [
+                      "ok",
+                      "bad"
+                    ]
+                  },
+                  "icu": {
+                    "type": "string",
+                    "enum": [
+                      "ok",
+                      "bad"
+                    ]
+                  },
+                  "disconnection": {
+                    "type": "string",
+                    "enum": [
+                      "ok",
+                      "warn",
+                      "bad"
+                    ]
+                  },
+                  "overall": {
+                    "type": "string",
+                    "enum": [
+                      "ok",
+                      "warn",
+                      "bad"
+                    ]
+                  }
+                },
+                "required": [
+                  "vd",
+                  "ampacity",
+                  "protection",
+                  "icu",
+                  "overall"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "designCurrentA",
+              "ampacityA",
+              "loadingPct",
+              "vdPct",
+              "vdTotalPct",
+              "breakerFaultKa",
+              "endFaultKa",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "uid",
+          "tag",
+          "boardUid",
+          "name",
+          "loadType",
+          "load",
+          "breaker",
+          "cable",
+          "results"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "elvDevices": {
+      "maxItems": 200000,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Permanent device ID"
+          },
+          "type": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "buildingId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "levelId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "roomId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "x": {
+            "type": "number",
+            "description": "m on the level plan"
+          },
+          "y": {
+            "type": "number",
+            "description": "m on the level plan"
+          },
+          "rotationDeg": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "uid",
+          "type",
+          "buildingId",
+          "levelId",
+          "x",
+          "y"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "sha256": {
+      "description": "SHA-256 of the package without this field and without exportedAt, keys sorted (canonicalJson)",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "required": [
+    "schema",
+    "version",
+    "project",
+    "source",
+    "exportedAt",
+    "calculation",
+    "boards",
+    "circuits",
+    "elvDevices"
+  ],
+  "additionalProperties": false
+}
