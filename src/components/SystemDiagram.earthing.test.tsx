@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import SystemDiagram from './SystemDiagram';
 import { sampleProject } from '../data/sampleProject';
-import type { Board, Project } from '../types';
+import { newProject, type Board, type Project } from '../types';
+import { textWidth } from '../diagram/panelLabels';
 
 const noop = () => {};
 
@@ -93,6 +94,36 @@ describe('SLD main earth-pit arrangement', () => {
     expect(Number(met.getAttribute('y1'))).toBeLessThanOrEqual(Number(panel.getAttribute('y')) - 34);
   });
 
+  it('gives a new project\'s lone DEWA main board its earth detail in a band clear of the incomer', () => {
+    const project = newProject('New');
+    expect(project.drawing?.sldStyle).not.toBe('standard');
+    const host = draw(project);
+    const id = project.boards.find((b) => !b.upstreamId)!.id;
+    const earth = host.querySelector<SVGGElement>(`.earth-pit[data-board-id="${id}"]`)!;
+    const panel = host.querySelector<SVGRectElement>(`g.bd[data-lv-id="board:${id}"] rect.box`)!;
+    const panelX = Number(panel.getAttribute('x')), panelY = Number(panel.getAttribute('y'));
+    const incomerX = panelX + 62;
+    const parts = [...earth.querySelectorAll<SVGGraphicsElement>('rect, text, line')].filter((el) => !el.closest('.tx-earth'));
+    const ys = parts.map((el) => Number(el.getAttribute('y') ?? el.getAttribute('y1'))).filter(Number.isFinite);
+    // Below the transformer band and above the incomer device (34 above the panel box).
+    expect(Math.min(...ys)).toBeGreaterThan(150);
+    expect(Math.max(...ys)).toBeLessThanOrEqual(panelY - 34);
+    // Pits, test link and MET all left of the incomer line; MET outside the panel box.
+    for (const el of earth.querySelectorAll<SVGRectElement>('.earth-electrode rect, .test-link')) {
+      expect(Number(el.getAttribute('x')) + Number(el.getAttribute('width'))).toBeLessThan(incomerX);
+    }
+    // Every note ends left of the incomer line too.
+    for (const t of earth.querySelectorAll<SVGTextElement>('text')) {
+      if (t.closest('.tx-earth') || t.getAttribute('text-anchor')) continue;
+      const px = t.classList.contains('b') ? 8 : Number.parseFloat((t.getAttribute('style') ?? '').replace(/.*font-size:\s*/, '')) || 8;
+      expect(Number(t.getAttribute('x')) + textWidth(t.textContent ?? '', px, t.classList.contains('b'))).toBeLessThan(incomerX);
+    }
+    const met = earth.querySelector<SVGLineElement>('.met-bar')!;
+    expect(Number(met.getAttribute('x2'))).toBeLessThan(incomerX);
+    expect(Number(met.getAttribute('y1'))).toBeLessThan(panelY);
+    expect(earth.querySelector('.earth-to-met')!.getAttribute('d')).toMatch(/^M[\d.]+ [\d.]+ V[\d.]+$/);
+  });
+
   it('draws the planned LV earth pit for each of two adjacent transformer-fed panels', () => {
     const project: Project = {
       ...sampleProject,
@@ -112,6 +143,6 @@ describe('SLD main earth-pit arrangement', () => {
     const met2 = earth[1].querySelector<SVGLineElement>('.met-bar')!;
     const pit2 = earth[1].querySelector<SVGRectElement>('.earth-electrode rect')!;
     expect(Number(pit2.getAttribute('x'))).toBeGreaterThan(Number(earth[0].querySelector('.met-bar')!.getAttribute('x1')));
-    expect(Number(pit2.getAttribute('x'))).toBeLessThan(Number(met2.getAttribute('x1')));
+    expect(Number(pit2.getAttribute('x'))).toBeLessThan(Number(met2.getAttribute('x2')));
   });
 });

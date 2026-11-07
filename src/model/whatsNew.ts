@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.046', date: '2026-11-07',
+    items: [
+      { title: 'SLD: earth pits clear of the incomer', text: 'A main board with no outgoing panels (as in a new project) draws its LV earth pits, test link, notes and MET in their own band left of the incoming line. They no longer run into the incomer breaker, its label or the board\'s voltage and loading figures.' }
+    ]
+  },
+  {
     version: '2.045', date: '2026-11-07',
     items: [
       { title: 'Plan sheets print what you draw', text: 'Lines, arcs, circles, hatches, text, dimensions, leaders and room tags drawn in Design CAD now print on the level\'s plan sheets, black and white, with their linetypes and lineweights. Hatches print with the new Hatch pen (Solid in light grey); lines without a lineweight use the new "Your drawn lines" pen (Plot → Pens).', action: 'sheets', actionLabel: 'Open Sheets' },
