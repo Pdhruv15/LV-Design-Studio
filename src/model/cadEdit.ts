@@ -139,6 +139,13 @@ export function offset(it: SketchItem, d: number, side: Pt): Edit {
   return { items: [{ ...rest, pts: out }] };
 }
 
+/** Offset Through: the distance from a point to the object, so that its copy passes through the point. */
+export function throughDistance(it: SketchItem, p: Pt): number {
+  if (it.kind === 'circle' || it.kind === 'arc') return Math.abs(len(sub(p, it.pts[0])) - (it.r ?? 0));
+  const pts = pathOf(it);
+  return pts.length > 1 ? along(pts, chain(pts), p).off : 0;
+}
+
 /** The end segment of a path clicked, the corner X with the other one, and which point of the path moves to it. */
 function cornerEnd(it: SketchItem, click: Pt, X: Pt): { idx: number; dir: Pt; keep: number } | { error: string } {
   const pts = it.pts, c = chain(pts), seg = along(pts, c, click).seg;
