@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.044', date: '2026-11-07',
+    items: [
+      { title: 'Design CAD: the Draw ribbon fits the screen', text: 'The Draw sub-tab is laid out in the panels CAD users know: File, Draw, Modify, Annotation, Layers and Properties. Modify is a 3 × 4 grid of small buttons: Move Rotate Trim Erase / Copy Mirror Fillet Explode / Stretch Scale Array Offset. Extend is under Trim\'s arrow, Chamfer under Fillet\'s, and Break and Join under Modify ▾. On a narrow window the File panel (then Layers) folds into one button instead of the ribbon scrolling sideways.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.043', date: '2026-11-07',
     items: [
       { title: 'Design CAD: Hatch', text: 'Draw → Hatch (H): choose Solid, ANSI31, ANSI37, Net or Dots with its spacing (paper mm) and angle, then click inside a closed drawn object or a room. Use it for plant rooms, riser shafts and no-go zones.', action: 'cad', actionLabel: 'Open Design CAD' },
@@ -32,7 +38,7 @@ export const RELEASES: Release[] = [
     version: '2.041', date: '2026-11-07',
     items: [
       { title: 'Sheets: page setup and pen tables', text: 'Design CAD → Sheets → Plot has Page setup and Pens. Page setup sets each sheet\'s paper, scale (plan sheets), pen table, lineweights and an optional plot stamp, or saves them as the set\'s default. A pen table gives each kind of line its width and black or grey ink: frame, title block, architect\'s plan, devices, trays, cable routes, SLD lines and busbars. The default prints exactly as before.', action: 'sheets', actionLabel: 'Open Sheets' },
-      { title: 'Import a CTB plot style table', text: 'Pens → Import CTB… reads a .ctb from your AutoCAD Plot Styles folder. Each kind of line takes the width and screening of the colour its DXF layer uses: frame, title and cables 7, devices and trays 3, busbars 1, the architect\'s plan 8.', action: 'sheets', actionLabel: 'Open Sheets' },
+      { title: 'Import a CTB plot style table', text: 'Pens → Import CTB… reads a .ctb from your CAD program\'s plot styles folder. Each kind of line takes the width and screening of the colour its DXF layer uses: frame, title and cables 7, devices and trays 3, busbars 1, the architect\'s plan 8.', action: 'sheets', actionLabel: 'Open Sheets' },
       { title: 'Publish chosen sheets', text: 'Publish now prints this sheet, the ones you tick (shown by kind), or all of them. The output is one PDF, one PDF per sheet, or DXF or DWG per sheet, each with its own page setup.', action: 'sheets', actionLabel: 'Open Sheets' }
     ]
   },
@@ -282,7 +288,7 @@ export const RELEASES: Release[] = [
     items: [
       { title: 'Sheet tools on the ribbon', text: 'With a sheet open in Design CAD → Sheets, the ribbon has its tools: Markup (Select, Cloud, Note, Callout, Arrow, Box, Line), On panels, Style (colour, text height, Delete), View (Fit, zoom, Legend, Side by side) and Issue and export. The sheet gets the whole page; the keys are the same.', action: 'sheets', actionLabel: 'Open Sheets' },
       { title: 'Black markups', text: 'New clouds, notes and callouts are black, like the printed sheets; red and blue are still in Style → Colour.' },
-      { title: 'One sheet as DWG', text: 'Issue and export → DWG (or right-click a sheet) saves that sheet as AutoCAD 2018 DWG.' }
+      { title: 'One sheet as DWG', text: 'Issue and export → DWG (or right-click a sheet) saves that sheet as a 2018-format DWG.' }
     ]
   },
   {
@@ -299,13 +305,13 @@ export const RELEASES: Release[] = [
       { title: 'One drawing background', text: 'Design CAD now draws on the same background and grid as the SLD, riser, earthing and lux plans, in the dark and light themes. Switching theme redraws the CAD plan straight away.', action: 'cad', actionLabel: 'Open Design CAD' },
       { title: 'DWG colours you can read', text: 'Layer colours too faint on the background are shown lighter or darker with the same hue: yellow shows as gold on the light theme, blue lighter on the dark one. Saved DWG, DXF and PDF keep the original colours.' },
       { title: 'Black revision clouds on the PDF', text: 'Revision clouds and cable reference circles print black, like the rest of the drawing; riser busbar trunking prints black and shows in the busbar colour on screen.' },
-      { title: 'SLD as DWG', text: 'Export SLD drawing → DWG saves the SLD sheets as AutoCAD 2018 DWG, with the same layers and title block as the DXF; continuation sheets come in a ZIP. Made by the Design CAD engine.' }
+      { title: 'SLD as DWG', text: 'Export SLD drawing → DWG saves the SLD sheets as a 2018-format DWG, with the same layers and title block as the DXF; continuation sheets come in a ZIP. Made by the Design CAD engine.' }
     ]
   },
   {
     version: '2.2', date: '2026-10-29',
     items: [
-      { title: 'Design CAD: Save DWG', text: 'File → Save DWG (SAVEDWG) saves the plan as a DWG — in the version it came in, else AutoCAD 2018 — with what you drew, the trays and routes, and the devices placed, as a new file. The architect\'s drawing is not changed. Open it once in your CAD program to check before you send it.', action: 'cad', actionLabel: 'Open Design CAD' }
+      { title: 'Design CAD: Save DWG', text: 'File → Save DWG (SAVEDWG) saves the plan as a DWG — in the version it came in, else the 2018 format — with what you drew, the trays and routes, and the devices placed, as a new file. The architect\'s drawing is not changed. Open it once in your CAD program to check before you send it.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {

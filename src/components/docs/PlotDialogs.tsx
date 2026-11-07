@@ -90,7 +90,7 @@ export function PenTableDialog({ project, onSave, onClose }: { project: Project;
           </tr>
         ))}</tbody>
       </table>
-      <p className="m">The architect's lines on plan sheets are the room outlines. A CTB file (from the AutoCAD Plot Styles folder) gives each kind of line the width and screening of the colour of its DXF layer: frame, title and cables colour 7, devices and trays 3, busbars 1, the architect's plan 8.</p>
+      <p className="m">The architect's lines on plan sheets are the room outlines. A CTB file (from your CAD program's plot styles folder) gives each kind of line the width and screening of the colour of its DXF layer: frame, title and cables colour 7, devices and trays 3, busbars 1, the architect's plan 8.</p>
       {error && <p className="m" role="alert">⚠ {error}</p>}
       <input ref={file} type="file" accept=".ctb" hidden aria-label="CTB file" onChange={(e) => { const f = e.target.files?.[0]; if (f) void importCtb(f); e.target.value = ''; }} />
       <div className="modal-actions">

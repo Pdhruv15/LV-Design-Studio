@@ -3,7 +3,7 @@ import type { Project } from '../types';
 
 /** Design CAD → Sheets → Plot: how sheets print. A pen table gives each kind of line its width (mm on paper) and ink
  * (black, or a grey); each sheet has a page setup (its paper and scale are the sheet's own size and scale), and the set
- * a default. Printing stays black-and-white. A CTB (AutoCAD colour-dependent plot style table) can be imported: the
+ * a default. Printing stays black-and-white. A CTB (colour-dependent plot style table) can be imported: the
  * pens then take the widths it gives the colours the app's DXF layers use. */
 
 export type PenKey = 'frame' | 'title' | 'arch' | 'devices' | 'trays' | 'routes' | 'sld' | 'bus';
@@ -67,7 +67,7 @@ export function plotStamp(s: Pick<DrawingSheet, 'number' | 'title'>, rev: string
   return [`${s.number} - ${s.title}`, d, rev ? `Rev ${rev}` : '', user ?? ''].filter(Boolean).join(' · ');
 }
 
-/** The lineweights a CTB file can give (its lineweight index → mm), as AutoCAD lists them. */
+/** The lineweights a CTB file can give (its lineweight index → mm), as CAD programs list them. */
 const CTB_WEIGHTS = [0, 0.05, 0.09, 0.1, 0.13, 0.15, 0.18, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.53, 0.6, 0.65, 0.7, 0.8, 0.9, 1, 1.06, 1.2, 1.4, 1.58, 2, 2.11];
 export interface Ctb { /** By ACI colour 1–255: width in mm (undefined: the object's own) and screening (% ink). */ colours: Record<number, { w?: number; grey: number }> }
 

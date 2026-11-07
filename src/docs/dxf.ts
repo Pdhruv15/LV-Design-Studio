@@ -1,6 +1,5 @@
-/** Minimal DXF (AutoCAD R12, ASCII) writer: lines, polylines, solids, circles and
- * text on named layers. R12 opens in every CAD program (AutoCAD, BricsCAD,
- * DraftSight, LibreCAD, QCAD). Coordinates are in drawing units, y up. */
+/** Minimal DXF (R12, ASCII) writer: lines, polylines, solids, circles and
+ * text on named layers. R12 opens in every CAD program. Coordinates are in drawing units, y up. */
 
 /** Width is a physical stroke width for lines/polylines, and an exact fitted
  * baseline length for text. All widths are in the same drawing units as x/y. */
@@ -18,7 +17,7 @@ export type DxfPrimitive = (
 /** Registered application name of the extended data that carries equipment tags. */
 export const DXF_APP = 'LVDS';
 
-/** Layer → AutoCAD colour index. */
+/** Layer → CAD colour index (ACI). */
 export const DXF_LAYERS: Record<string, number> = {
   BUSBAR: 1, // red
   CABLE: 7, // white / black
@@ -39,7 +38,7 @@ export const dxfText = (s: string) =>
 const positiveWidth = (width?: number) => typeof width === 'number' && Number.isFinite(width) && width > 0 ? width : 0;
 // Roman Duplex provides stronger lettering than the thin fallback font. The
 // style name must match the font basename: LibreCAD resolves TEXT's style
-// name as its font, while AutoCAD resolves the STYLE table's SHX filename.
+// name as its font, while other CAD programs resolve the STYLE table's SHX filename.
 const TEXT_STYLE = 'ROMAND';
 type DxfTextPrimitive = Extract<DxfPrimitive, { type: 'text' }>;
 type DxfStrokePrimitive = Extract<DxfPrimitive, { type: 'line' | 'polyline' }>;

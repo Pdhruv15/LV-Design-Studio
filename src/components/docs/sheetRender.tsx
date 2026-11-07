@@ -223,7 +223,7 @@ export async function exportSheetsDxf(project: Project, set: DrawingSet, run: Ca
   }
 }
 
-/** The sheets as DWG (AutoCAD 2018, by the Design CAD engine): the DXF sheets, each saved as DWG; a ZIP when several. */
+/** The sheets as DWG (2018 format, by the Design CAD engine): the DXF sheets, each saved as DWG; a ZIP when several. */
 export async function exportSheetsDwg(project: Project, set: DrawingSet, run: CalcRun | undefined, onStatus: (m: string) => void, only?: string[]): Promise<void> {
   try {
     const files = await dxfFiles(project, set, run, only);
@@ -231,7 +231,7 @@ export async function exportSheetsDwg(project: Project, set: DrawingSet, run: Ca
     const dwg = await Promise.all(files.map(async (f) => ({ name: f.name.replace(/\.dxf$/i, '.dwg'), data: await dxfToDwg(f.data) })));
     const notice = dxfExportNotice(files);
     if (dwg.length === 1) {
-      const m = await saveBinary(dwg[0].name, dwg[0].data, 'DWG drawing (AutoCAD 2018)', 'dwg', 'application/acad');
+      const m = await saveBinary(dwg[0].name, dwg[0].data, 'DWG drawing (2018 format)', 'dwg', 'application/acad');
       if (m) onStatus(`${m}${notice ? ` — ${notice}` : ''}`);
       return;
     }

@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ribbon Fit Mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite dark default + light */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--on-acc:#1D2024;--ok:#37d67a;--warn:#f5c04a;--new:#b784ff;--bad:#ff5d6c}
+:root[data-theme="light"]{--bg:#F5F3EF;--panel:#fff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--on-acc:#fff;--ok:#177336;--warn:#8a5d00;--new:#7a3fd6;--bad:#cf222e}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#F5F3EF;--panel:#fff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--on-acc:#fff;--ok:#177336;--warn:#8a5d00;--new:#7a3fd6;--bad:#cf222e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif}
+button,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.intro{max-width:1280px;margin:0 auto;padding:16px 16px 0}
+.intro h1{font-size:17px;margin:0 0 4px}
+.intro p{margin:0 0 6px;color:var(--mut);max-width:980px}
+.bar{max-width:1280px;margin:8px auto;padding:0 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.bar button{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;color:var(--mut)}
+.bar button[aria-pressed=true]{border-color:var(--acc);color:var(--tx)}
+.bar .sp{flex:1}
+.legend i{display:inline-block;width:12px;height:12px;border:2px dashed var(--new);border-radius:3px;vertical-align:-2px;margin-right:5px}
+.frame{margin:10px auto 6px;border:1px solid var(--line-strong);border-radius:10px;overflow:hidden;background:var(--panel)}
+.tabs{display:flex;gap:4px;padding:8px 12px 0}
+.tabs span{padding:4px 14px;border-radius:6px 6px 0 0;color:var(--mut);font-size:12px}
+.tabs span.on{background:var(--acc);color:var(--on-acc);font-weight:600}
+.sub{display:flex;gap:2px;padding:0 12px;background:var(--p2);border-top:1px solid var(--line)}
+.sub span{padding:4px 12px;font-size:12px;color:var(--mut);border-bottom:2px solid transparent}
+.sub span.on{color:var(--tx);border-bottom-color:var(--acc)}
+.sub span.new{color:var(--tx);outline:2px dashed var(--new);outline-offset:-2px;border-radius:4px}
+.tools{display:flex;align-items:stretch;padding:4px 6px;background:var(--p2);border-top:1px solid var(--line);overflow-x:auto;min-height:78px}
+.grp{display:flex;flex-direction:column;gap:2px;padding:0 6px;border-right:1px solid var(--line)}
+.grp:last-child{border-right:0}
+.btns{display:flex;gap:2px;flex:1;align-items:stretch}
+.cap{font-size:10px;color:var(--mut);text-align:center;white-space:nowrap}
+.big{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:56px;min-height:52px;padding:3px 6px;border-radius:5px;border:0;background:none;font-size:11.5px;white-space:nowrap}
+.big:hover,.sm:hover{background:var(--panel)}
+.ic{width:18px;height:18px;border:1.6px solid var(--mut);border-radius:4px;flex:none;position:relative}
+.ic::after{content:"";position:absolute;left:3px;right:3px;top:7px;height:1.6px;background:var(--mut)}
+.col{display:flex;flex-direction:column;justify-content:space-between;gap:1px}
+.sm{display:flex;align-items:center;gap:6px;height:17px;padding:0 6px;border:0;background:none;border-radius:4px;font-size:11.5px;white-space:nowrap}
+.sm .ic{width:13px;height:13px;border-width:1.3px}.sm .ic::after{top:5px;left:2px;right:2px}
+.dd{font-size:9px;color:var(--mut);margin-left:-2px}
+.new{outline:2px dashed var(--new);outline-offset:1px;border-radius:6px}
+.meter{max-width:1280px;margin:0 auto 4px;padding:0 16px;font-size:12px}
+.meter b.ok{color:var(--ok)}.meter b.bad{color:var(--bad)}
+.menu{display:none}
+.notes{max-width:1280px;margin:16px auto 24px;padding:0 16px;color:var(--mut);font-size:12px}
+.notes li{margin:3px 0}
+table.cmp{border-collapse:collapse;font-size:12px;margin:8px 0}
+table.cmp td,table.cmp th{border:1px solid var(--line);padding:4px 8px;text-align:left;vertical-align:top}
+table.cmp th{color:var(--tx)}
+</style>
+</head>
+<body>
+<div class="intro">
+  <h1>Design CAD → Draw ribbon: fit without scrolling — mockup (2026-11-07)</h1>
+  <p>Today the Draw sub-tab holds about 35 full-size buttons (File, Draw, Modify, Edit, Annotate, View): 2,446 px, so it scrolls sideways on every normal screen. Four ways to fit it — pick an option and a screen width; the meter shows whether the row fits. The tools themselves, their commands and their order do not change.</p>
+  <div class="legend"><span><i></i>new in this proposal</span></div>
+</div>
+<div class="bar" role="group" aria-label="Option">
+  <button data-o="now" aria-pressed="false">Today</button>
+  <button data-o="a" aria-pressed="false">A · Small buttons in stacks</button>
+  <button data-o="b" aria-pressed="false">B · Draw and Modify sub-tabs</button>
+  <button data-o="c" aria-pressed="false">C · Grouped drop-downs</button>
+  <button data-o="d" aria-pressed="false">D · Sub-tabs + small stacks</button>
+  <button data-o="e" aria-pressed="true">E · CAD-standard Home layout (recommended)</button>
+  <span class="sp"></span>
+  <span style="color:var(--mut)">Screen</span>
+  <button data-w="1280" aria-pressed="false">1280 px (13″)</button>
+  <button data-w="1440" aria-pressed="true">1440 px</button>
+  <button data-w="1920" aria-pressed="false">1920 px</button>
+  <button id="theme">Light / dark</button>
+</div>
+<div class="meter" id="meter"></div>
+<div class="frame" id="frame">
+  <div class="tabs"><span>Project</span><span>Load schedule</span><span>SLD</span><span class="on">Design CAD</span><span>Stages</span><span>Documents</span><span>BOM / Cost</span><span>Standards</span></div>
+  <div class="sub" id="sub"></div>
+  <div class="tools" id="tools"></div>
+</div>
+<div class="frame" id="frame2" hidden>
+  <div class="sub"><span>Plan</span><span>Draw</span><span class="new on">Modify</span><span>Sheets</span></div>
+  <div class="tools" id="tools2"></div>
+</div>
+<div class="meter" id="meter2"></div>
+<div class="notes">
+  <table class="cmp">
+    <tr><th></th><th>A · Small buttons in stacks</th><th>B · Draw and Modify sub-tabs</th><th>C · Grouped drop-downs</th><th>D · Sub-tabs + small stacks</th><th>E · CAD-standard Home layout</th></tr>
+    <tr><td>How</td><td>One full-size button per group (Line, Move, Trim, Text…); the rest small, three to a column, with their names (as the usual CAD Home tab).</td><td>Draw keeps File, Draw, Annotate, View; a new <b>Modify</b> sub-tab gets Select, Modify and Edit, all full size.</td><td>Related tools share a button with ▾: Fillet ▾ (Chamfer), Break ▾ (Join, Explode), Mirror ▾ (Scale, Stretch)…</td><td>B's two sub-tabs; on Draw the File, Draw, Annotate and View groups use A's small stacks. Modify stays full size.</td><td>One Draw sub-tab laid out as the usual CAD Home tab: <b>Draw</b> (Line, Polyline, Circle ▾, Arc ▾ large), <b>Modify</b> as the usual 3 × 4 grid (Move Rotate Trim▾ Erase / Copy Mirror Fillet▾ Explode / Stretch Scale Array▾ Offset; Break and Join in the panel's ▾), <b>Annotation</b> (Text ▾, Dimension ▾ large), <b>Layers</b>, <b>Properties</b> (Match properties).</td></tr>
+    <tr><td>Width (measured)</td><td>1,534 px — scrolls below 1,600</td><td>Draw 1,386 · Modify 1,127 — Draw scrolls at 1280</td><td>1,830 px — scrolls below 1,900</td><td>Draw 912 · Modify 1,127 — fits 1280 and up</td><td><b>1,414 px — fits 1440 and up; at 1280 the File panel collapses to File ▾ and it fits</b></td></tr>
+    <tr><td>Clicks to a tool</td><td>1, all visible</td><td>1 (2 from the other sub-tab; the sub-tab follows the tool in use, as now)</td><td>1, or 2 behind a ▾</td><td>1 (2 from the other sub-tab)</td><td>1; 2 for Extend, Chamfer, Break, Join (behind ▾, exactly where CAD programs usually keep them)</td></tr>
+    <tr><td>Today</td><td colspan="5">2,446 px on one row: scrolls on every screen under 2,500 px.</td></tr>
+  </table>
+  <ul>
+    <li><b>Recommended: E</b> — engineers used to other CAD programs find every tool where they expect it: the same panel names and order (Draw, Modify, Annotation, Layers, Properties), the same 3 × 4 Modify grid, the same split buttons (Trim/Extend, Fillet/Chamfer, Array), the same large Line / Polyline / Circle / Arc, Text / Dimension. It stays one sub-tab, as CAD programs usually keep all of this on Home. Our own engineering tools (Rooms, Cables, Devices, Wiring) stay on the Plan sub-tab, as dedicated electrical CAD products keep theirs on their own tabs.</li>
+    <li>D was: It is the only one that fits a 13″ screen (1280 px) without scrolling, and the most used edit tools keep full-size buttons. Draw sub-tab: File, Draw, Annotate, View; Modify sub-tab: Select, Modify, Edit. The command line (TRIM, O, F…) and the toolbar beside a picked object stay as they are, so a tool on the other sub-tab is still one key or one click away.</li>
+    <li>On a window narrower than the row, the remaining full-size buttons shrink to small ones before anything scrolls (as Office ribbons do), so even a split screen stays usable.</li>
+    <li>Option A can also apply to the Plan sub-tab (Devices and Edit devices) and Sheets if they grow; today they fit at 1440.</li>
+    <li>Hover still shows each tool's full description with its command; small buttons keep their names, so nothing becomes icon-only.</li>
+  </ul>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+let opt='e',W=1280;
+const FILE=['Plans','Level','Units','Layer roles','Save DXF','Save DWG','Close'];
+const G={
+ file:{cap:'File',all:FILE,big:['Plans']},
+ draw:{cap:'Draw',all:['Line','Polyline','Rectangle','Circle','Arc','Hatch'],big:['Line']},
+ modify:{cap:'Modify',all:['Move','Copy','Rotate','Mirror','Scale','Match properties','Stretch','Erase'],big:['Move']},
+ edit:{cap:'Edit',all:['Trim','Extend','Offset','Fillet','Chamfer','Break','Join','Explode','Array'],big:['Trim']},
+ anno:{cap:'Annotate',all:['Text','Leader','Room tag','North arrow','Dimension'],big:['Text']},
+ view:{cap:'View',all:['Layers','Layer manager','Fit'],big:['Layers']},
+ sel:{cap:'Select',all:['Select'],big:['Select']}
+};
+const DROPS={draw:[['Line'],['Polyline'],['Rectangle','Circle','Arc'],['Hatch']],modify:[['Move'],['Copy'],['Rotate'],['Mirror','Scale','Stretch'],['Match properties'],['Erase']],edit:[['Trim','Extend'],['Offset'],['Fillet','Chamfer'],['Break','Join','Explode'],['Array']],anno:[['Text'],['Leader'],['Dimension'],['Room tag','North arrow']],file:[['Plans'],['Level'],['Units'],['Layer roles'],['Save DXF','Save DWG'],['Close']],view:[['Layers'],['Layer manager'],['Fit']]};
+const big=(l,n)=>`<button class="big${n?' new':''}" title="${l}"><span class="ic"></span>${l}</button>`;
+const sm=l=>`<button class="sm" title="${l}"><span class="ic"></span>${l}</button>`;
+function grp(k,mode){
+  const g=G[k];let inner='';
+  if(mode==='big')inner=g.all.map(l=>big(l)).join('');
+  else if(mode==='stack'){const rest=g.all.filter(l=>!g.big.includes(l));const cols=[];for(let i=0;i<rest.length;i+=3)cols.push(rest.slice(i,i+3));
+    inner=g.big.map(l=>big(l)).join('')+cols.map(c=>`<div class="col new">${c.map(sm).join('')}</div>`).join('');}
+  else if(mode==='drop')inner=DROPS[k].map(s=>s.length>1?`<button class="big new" title="${s.join(', ')}"><span class="ic"></span>${s[0]} <span class="dd">▾</span></button>`:big(s[0])).join('');
+  return `<div class="grp"><div class="btns">${inner}</div><div class="cap">${g.cap}</div></div>`;
+}
+// E: the panels, order and button sizes engineers know from the usual CAD Home tab (Draw · Modify · Annotation · Layers ·
+// Properties), our File group first. ▾ = a split button: the main tool, its arrow the related ones.
+const SPLIT=(l,more)=>`<button class="big" title="${l}: ${more}"><span class="ic"></span>${l} <span class="dd">▾</span></button>`;
+const SSM=(l,more)=>`<button class="sm" title="${l}${more?`: ${more}`:''}"><span class="ic"></span>${l}${more?' <span class="dd">▾</span>':''}</button>`;
+const col=(...xs)=>`<div class="col">${xs.join('')}</div>`;
+const panel=(cap,inner,slide)=>`<div class="grp new"><div class="btns">${inner}</div><div class="cap">${cap}${slide?' ▾':''}</div></div>`;
+function acad(collapse){
+  // Too narrow: a panel collapses to one button with ▾ that opens it (File first, then Layers), as the usual CAD do.
+  const shut=(cap)=>`<div class="grp new"><div class="btns"><button class="big" title="${cap}: opens the panel"><span class="ic"></span>${cap} <span class="dd">▾</span></button></div><div class="cap">${cap}</div></div>`;
+  return [
+    collapse>0?shut('File'):panel('File',big('Plans')+col(SSM('Level'),SSM('Units'),SSM('Layer roles'))+col(SSM('Save DXF'),SSM('Save DWG'),SSM('Close'))),
+    panel('Draw',big('Line')+big('Polyline')+SPLIT('Circle','centre-radius, 3 points')+SPLIT('Arc','3 points')+col(SSM('Rectangle'),SSM('Hatch'),SSM('Room area'))),
+    panel('Modify',col(SSM('Move'),SSM('Copy'),SSM('Stretch'))+col(SSM('Rotate'),SSM('Mirror'),SSM('Scale'))+col(SSM('Trim','Extend'),SSM('Fillet','Chamfer'),SSM('Array','Rectangular, Polar'))+col(SSM('Erase'),SSM('Explode'),SSM('Offset')),'Break, Join'),
+    panel('Annotation',SPLIT('Text','Leader')+SPLIT('Dimension','Aligned')+col(SSM('Leader'),SSM('Room tag'),SSM('North arrow'))),
+    collapse>1?shut('Layers'):panel('Layers',big('Layer manager')+col(SSM('Layers'),SSM('Fit'),'')),
+    panel('Properties',big('Match properties'))
+  ].join('');
+}
+function render(){
+  document.querySelectorAll('[data-o]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.o===opt));
+  document.querySelectorAll('[data-w]').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.w===W));
+  $('frame').style.width=Math.min(W,innerWidth-32)+'px';
+  const two=opt==='b'||opt==='d';
+  $('frame2').style.width=$('frame').style.width;
+  $('frame2').hidden=!two;
+  $('sub').innerHTML=(two?['Plan','Draw','<span class="new">Modify</span>','Sheets']:['Plan','Draw','Sheets']).map((x)=>x.startsWith('<')?x:`<span class="${x==='Draw'?'on':''}">${x}</span>`).join('');
+  const keys=['file','draw','modify','edit','anno','view'];
+  $('tools').innerHTML=opt==='now'?keys.map(k=>grp(k,'big')).join('')
+    :opt==='a'?keys.map(k=>grp(k,'stack')).join('')
+    :opt==='b'?['file','draw','anno','view'].map(k=>grp(k,'big')).join('')
+    :opt==='d'?['file','draw','anno','view'].map(k=>grp(k,'stack')).join('')
+    :opt==='e'?acad(0)
+    :keys.map(k=>grp(k,'drop')).join('');
+  $('tools2').innerHTML=two?['sel','modify','edit'].map(k=>grp(k,'big')).join(''):'';
+  const fit=(el)=>{const need=[...el.children].reduce((t,c)=>t+c.getBoundingClientRect().width,0)|0,have=el.clientWidth-12;return `<b>${need} px</b> of ${have} px — ${need<=have?'<b class="ok">fits, no scrolling</b>':`<b class="bad">scrolls ${need-have} px</b>`}`;};
+  if(opt==='e'){const t=$('tools'),w=()=>[...t.children].reduce((a,c)=>a+c.getBoundingClientRect().width,0);for(let k=1;k<=2&&w()>t.clientWidth-12;k++)t.innerHTML=acad(k);}
+  requestAnimationFrame(()=>{
+    $('meter').innerHTML=`${two?'Draw sub-tab':'Ribbon row'}: ${fit($('tools'))}`;
+    $('meter2').innerHTML=two?`Modify sub-tab: ${fit($('tools2'))}`:'';});
+}
+document.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>{opt=b.dataset.o;render();});
+document.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>{W=+b.dataset.w;render();});
+addEventListener('resize',render);
+$('theme').onclick=()=>{const r=document.documentElement,d=r.dataset.theme||(matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');r.dataset.theme=d==='light'?'dark':'light';};
+render();
+</script>
+</body>
+</html>

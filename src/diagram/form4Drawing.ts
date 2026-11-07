@@ -5,7 +5,7 @@ import { stackSections, type Form4Counts, type Form4Result } from '../calc/form4
 import { toDxf, type DxfPrimitive } from '../docs/dxf';
 import { escapeHtmlAttr } from '../util/escape';
 
-/** Layer → AutoCAD colour index. */
+/** Layer → CAD colour index (ACI). */
 export const FORM4_LAYERS: Record<string, number> = { 'F4-OUTLINE': 7, 'F4-DEVICE': 3, 'F4-CHAMBER': 8, 'F4-DIM': 4, 'F4-TEXT': 7 };
 
 const T = 60; // general text height, mm
