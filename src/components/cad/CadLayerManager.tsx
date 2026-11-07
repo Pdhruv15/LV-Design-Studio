@@ -18,15 +18,16 @@ export interface ViewportLayers { name: string; frozen: (layer: string) => boole
 export interface LayerRow extends LayerRef, LayerSnap { key: string; on: boolean; freeze: boolean; lock: boolean; print: boolean; lt?: LinetypeId; lw?: number; count: number }
 
 /** The rows of a drawing: its drawn layers, the architect's, and the references' layers in use (NAME|LAYER). */
-export function layerRows({ view, layersOn, sketch, styles, added = [], refs }: { view: CadView; layersOn: Uint8Array; sketch: SketchItem[]; styles: Record<string, LayerStyle>; added?: string[]; refs?: CadRefsState['placed'] }): LayerRow[] {
+export function layerRows({ view, layersOn, sketch, styles, added = [], current, refs }: { view: CadView; layersOn: Uint8Array; sketch: SketchItem[]; styles: Record<string, LayerStyle>; added?: string[]; current?: string; refs?: CadRefsState['placed'] }): LayerRow[] {
   const count = (name: string) => sketch.filter((it) => it.layer.toLowerCase() === name.toLowerCase()).length;
-  const drawn = drawnLayers(sketch, added).map((name): LayerRow => {
+  // The current layer always has a row, also once its last object is erased.
+  const drawn = drawnLayers(sketch, current ? [...added, current] : added).map((name): LayerRow => {
     const st = styleOf(styles, name);
     return { key: `drawn:${name}`, name, group: 'drawn', on: !st.hidden, freeze: !!st.freeze, lock: !!st.lock, print: !st.noPrint, color: st.color, lt: st.lt, lw: st.lw, count: count(name) };
   });
   const arch = view.info.layers.map((l, i): LayerRow => {
     const st = styleOf(styles, l.name);
-    return { key: `arch:${l.name}`, name: l.name, group: 'arch', on: !!layersOn[i], freeze: !!st.freeze, lock: !!st.lock, print: true, color: st.color, count: l.count };
+    return { key: `arch:${l.name}`, name: l.name, group: 'arch', drawingOn: l.on, on: !!layersOn[i], freeze: !!st.freeze, lock: !!st.lock, print: true, color: st.color, count: l.count };
   });
   const ref = (refs ?? []).flatMap(({ ref: r, g }) => {
     const counts = new Map<number, number>();

@@ -35,7 +35,9 @@ export function PropertiesPalette({ items, devices, layers, styles, current, tex
   const [vtx, setVtx] = useState(0);
   const [edit, setEdit] = useState<{ key: string; draft: string } | null>(null);
   const [note, setNote] = useState('');
-  const sel = kind ? items.filter((it) => kindLabel(it) === kind) : items;
+  // The kind chosen, while the picked objects still have it (a polyline closed becomes a closed polyline): else All.
+  const shownKind = kind && items.some((it) => kindLabel(it) === kind) ? kind : '';
+  const sel = shownKind ? items.filter((it) => kindLabel(it) === shownKind) : items;
   const choices = kindChoices(items);
   const kinds = new Set(sel.map(geomKind));
   const gk = kinds.size === 1 ? [...kinds][0] : undefined;
@@ -117,7 +119,7 @@ export function PropertiesPalette({ items, devices, layers, styles, current, tex
     <section className="cad-ppal" aria-label="Properties palette">
       <div className="cad-lp-head">Properties<span className="sp" /><button type="button" aria-label="Close the properties palette" title="Show / hide (Ctrl/Cmd+1)" onClick={onClose}><X size={13} /></button></div>
       {items.length > 0 && (
-        <select className="cad-pp-kind" aria-label="Objects shown" value={kind} onChange={(e) => { setKind(e.target.value); setEdit(null); setVtx(0); }}>
+        <select className="cad-pp-kind" aria-label="Objects shown" value={shownKind} onChange={(e) => { setKind(e.target.value); setEdit(null); setVtx(0); }}>
           {choices.map((c) => <option key={c.id} value={c.id}>{c.label} ({c.n})</option>)}
         </select>
       )}

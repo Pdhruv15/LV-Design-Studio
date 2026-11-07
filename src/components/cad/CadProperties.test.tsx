@@ -89,6 +89,21 @@ describe('Properties palette', () => {
     expect(vi.mocked(p.onItems).mock.calls[0][0]).toEqual([{ ...t, rot: Math.PI / 2 }]);
   });
 
+  it('a kind chosen that the objects no longer have (a polyline closed) goes back to All', () => {
+    const pl = (id: string): SketchItem => ({ id, kind: 'pline', layer: 'LV-SKETCH', pts: [[0, 0], [1000, 0], [1000, 1000]] });
+    const open = [pl('P1'), pl('P2')];
+    render([...open, t]);
+    const kinds = () => [...document.querySelectorAll<HTMLOptionElement>('[aria-label="Objects shown"] option')].map((o) => o.textContent);
+    const plineKind = kinds().find((k) => k!.endsWith('(2)'))!.replace(/ \(2\)$/, '');
+    const kind = el('Objects shown') as HTMLSelectElement;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(kind, plineKind); kind.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(kind.value).toBe(plineKind);
+    // The same objects, now closed: their kind changes, so the palette shows them all again.
+    render([...open.map((x) => ({ ...x, closed: true })), t]);
+    expect((el('Objects shown') as HTMLSelectElement).value).toBe('');
+    expect(document.body.textContent).toContain('Pick one kind above for its geometry.');
+  });
+
   it('a polyline steps through its vertices; a tray takes width and service, its layer stays', () => {
     const tray: SketchItem = { id: 'T1', kind: 'pline', layer: 'E-TRAY', pts: [[0, 0], [6000, 0], [6000, 3000]], tray: { widthMm: 300, route: 'TR-1' } };
     const p = render([tray]);

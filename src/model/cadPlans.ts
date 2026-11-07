@@ -33,14 +33,25 @@ export function withLevelPlan(p: Project, file: string, level: LevelRef, units?:
 }
 
 /** The project with `file` as the plan of `level` in place of its earlier plan (the architect's next revision): what
- * was drawn over the earlier plan moves to the new one. Devices are kept per level, so they stay as they are. */
+ * was drawn over the earlier plan moves to the new one, and so do its layer settings (styles, current layer, layers
+ * added, layer states). Devices are kept per level, so they stay as they are. */
 export function replacePlan(p: Project, file: string, level: LevelRef, units?: number): { project: Project; replaced?: string } {
   const before = p.cadPlans?.find((x) => onLevel(x, level))?.file;
-  const next = withLevelPlan(p, file, level, units);
+  let next = withLevelPlan(p, file, level, units);
   if (!before || same(before, file)) return { project: next };
+  next = { ...next, ...moveKey(next.cadLayerStyle, before, file, 'cadLayerStyle'), ...moveKey(next.cadLayerFile, before, file, 'cadLayerFile') };
   const old = next.cadSketch?.find((x) => same(x.file, before));
   if (!old || next.cadSketch?.some((x) => same(x.file, file))) return { project: next, replaced: before };
   return { project: { ...next, cadSketch: next.cadSketch!.map((x) => (x === old ? { ...x, file } : x)) }, replaced: before };
+}
+
+/** A record kept per drawing file (key: the name in lower case) moved from one file to another, unless the other has one. */
+function moveKey<K extends 'cadLayerStyle' | 'cadLayerFile'>(rec: Project[K], from: string, to: string, key: K): Partial<Project> {
+  const all = rec as Record<string, unknown> | undefined;
+  const a = from.trim().toLowerCase(), b = to.trim().toLowerCase();
+  if (!all || !(a in all) || b in all) return {};
+  const { [a]: moved, ...rest } = all;
+  return { [key]: { ...rest, [b]: moved } } as Partial<Project>;
 }
 
 /** The project without a plan for `level`. */

@@ -14,6 +14,7 @@ import { openDrawing } from '../../engines/cad/cadEngine';
 import '../../engines/cad/cadOps'; // loaded ahead: the engine loads it on demand, which a busy test run can make slow
 import { sampleProject } from '../../data/sampleProject';
 import { placeLvPoint } from '../../model/cadDevices';
+import { archOnOf } from '../../model/cadLayerState';
 import type { Project } from '../../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -30,6 +31,8 @@ const villa: Project = {
 };
 let root: Root, host: HTMLDivElement, state: CadState, project: Project;
 const onChange = vi.fn((p: Project, _message: string) => { project = p; });
+/** Whether the architect's layer i shows: its On, kept in the project (Layer palette or the Layers list). */
+const shown = (i: number) => archOnOf(project, state.view!.file, state.view!.info.layers)[i];
 beforeEach(() => {
   host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host); localStorage.clear(); project = villa; onChange.mockClear();
   (window as { lvds?: unknown }).lvds = { cadFile: {
@@ -102,9 +105,9 @@ describe('CAD view', () => {
     await flush();
     const wall = state.view!.info.layers.findIndex((l) => l.name === 'A-WALL');
     act(() => button('A-WALLon').click());
-    expect(state.layersOn[wall]).toBe(0);
+    expect(shown(wall)).toBe(0);
     act(() => button('All on').click());
-    expect(state.layersOn[wall]).toBe(1);
+    expect(shown(wall)).toBe(1);
     act(() => button('OSNAP').click());
     expect(state.toggles.osnap).toBe(false);
     await command('grid');
@@ -807,10 +810,10 @@ describe('CAD view', () => {
     // LAYISO: every layer but the picked object's turns off; LAYUNISO puts them back.
     await command('LAYISO');
     expect(last()).toMatch(/^LAYISO {2}E-LIGHT kept on, \d+ other layers off \(LAYUNISO puts them back\) · ⌘Z to undo$/);
-    expect(state.layersOn[wall]).toBe(0);
+    expect(shown(wall)).toBe(0);
     expect(project.cadLayerStyle![F]['LV-SKETCH']).toEqual({ hidden: true });
     await command('LAYUNISO');
-    expect(state.layersOn[wall]).toBe(1);
+    expect(shown(wall)).toBe(1);
     expect(project.cadLayerStyle).toBeUndefined();
     expect(project.cadLayerFile).toBeUndefined();
     // Rename by double-click: the objects follow.
@@ -825,17 +828,17 @@ describe('CAD view', () => {
     await command('LAYER N');
     expect(project.cadLayerFile).toEqual({ [F]: { layers: ['Layer1'] } });
     act(() => { (document.querySelector('[aria-label="A-WALL on"]') as HTMLButtonElement).click(); });
-    expect(state.layersOn[wall]).toBe(0);
+    expect(shown(wall)).toBe(0);
     act(() => { [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Layer states ▾')!.click(); });
     const sn = document.querySelector('[aria-label="New layer state name"]') as HTMLInputElement;
     act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(sn, 'No walls'); sn.dispatchEvent(new Event('input', { bubbles: true })); });
     act(() => { sn.form!.requestSubmit(); });
     expect(project.cadLayerFile![F].states).toEqual([{ name: 'No walls', layers: expect.objectContaining({ 'A-WALL': { on: false } }) }]);
     act(() => { (document.querySelector('[aria-label="A-WALL on"]') as HTMLButtonElement).click(); });
-    expect(state.layersOn[wall]).toBe(1);
+    expect(shown(wall)).toBe(1);
     act(() => { [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Layer states ▾')!.click(); });
     act(() => { [...document.querySelectorAll<HTMLButtonElement>('.cad-lp-state button')].find((b) => b.textContent === 'No walls')!.click(); });
-    expect(state.layersOn[wall]).toBe(0);
+    expect(shown(wall)).toBe(0);
   });
 
   it('properties palette: shown with a drawing open, defaults with nothing picked, geometry of a line edited in one undo step; Ctrl/Cmd+1 hides it', async () => {
