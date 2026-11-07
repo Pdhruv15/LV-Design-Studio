@@ -92,7 +92,13 @@ export function plannedEarthPits(project: Project): Map<string, string[]> {
  * more when its instruments sit outside the frame). */
 export function sldLayout(project: Project, dewa: boolean, cableRefs = false, rootExtraY = 0, planned = plannedEarthPits(project)) {
   const extraY = dewa ? DEWA_EXTRA_Y : 0;
-  const base = layoutSystem(project, extraY, { frames: dewa, cableRefs, rootExtraY });
+  let base = layoutSystem(project, extraY, { frames: dewa, cableRefs, rootExtraY });
+  // A DEWA main board with no outgoing panels has no frame head to hold its earth pits: it
+  // draws the standard-style detail in its own band, so the root bus drops by that band.
+  if (dewa && base.roots.some((r) => r.terminal && hasEarthPits(r.board) && lvPitCount(r.board, planned) > 0)) {
+    rootExtraY += EARTH_BAND_Y;
+    base = layoutSystem(project, extraY, { frames: dewa, cableRefs, rootExtraY });
+  }
   const earthLead = new Map<string, number>();
   if (dewa) {
     for (const r of base.roots) {
@@ -100,28 +106,33 @@ export function sldLayout(project: Project, dewa: boolean, cableRefs = false, ro
       if (pits > 0) earthLead.set(r.board.id, pitColumnLead(pits, instrumentsOutside(r)));
     }
   }
-  // The authority supply's lines and, unless framed, the LV earth-pit detail reach right of a root's
-  // incomer line further than a new panel's one slot: the next root starts clear of them.
+  // The authority supply's lines reach right of a root's incomer line further than a new panel's
+  // one slot: the next root starts clear of them. Unless framed, the LV earth-pit detail stands
+  // left of the incomer line, wider than the board box: the root starts that much later.
   const rootReach = new Map<string, number>();
+  const rootLead = new Map(earthLead);
   for (const r of base.roots) {
     const b = r.board;
-    let reach = !b.upstreamId && !b.sourceKva ? supplyReach(b, dewa) : 0;
-    const pits = hasEarthPits(b) ? lvPitCount(b, planned) : 0;
-    if (pits > 0 && !(dewa && !r.terminal)) {
-      const el = b.earthing?.electrodeM ?? project.earthingPlan?.electrodeM ?? 3;
-      const lvIds = planned.get(`lv:${b.id}`);
-      const ids = lvIds?.length === pits ? ` · ${lvIds.join(', ')}` : '';
-      // The detail starts 62 left of the incomer line; DEWA's MET label ends about 80 right of it.
-      const notes = Math.max(textWidth(`LV EARTH PITS (${pits} NO.)${ids}`, 8, true), textWidth(`1C ${earthConductorOf(project, b)}mm² CU/PVC`, 7.5),
-        textWidth(`MIN. ${el} m ELECTRODE WITH INSPECTION PIT AND COVER`, 7.5));
-      reach = Math.max(reach, notes - 62, dewa ? 80 : 0);
-    }
+    const reach = !b.upstreamId && !b.sourceKva ? supplyReach(b, dewa) : 0;
     if (reach > 0) rootReach.set(b.id, reach);
+    const pits = hasEarthPits(b) ? lvPitCount(b, planned) : 0;
+    if (pits > 0 && !(dewa && !r.terminal)) rootLead.set(b.id, earthDetailWidth(project, b, pits, planned.get(`lv:${b.id}`)) + EARTH_DETAIL_GAP - 62);
   }
-  const layout = earthLead.size || rootReach.size ? layoutSystem(project, extraY, { frames: dewa, cableRefs, rootExtraY, rootLeadX: earthLead, rootReachX: rootReach }) : base;
+  const layout = rootLead.size || rootReach.size ? layoutSystem(project, extraY, { frames: dewa, cableRefs, rootExtraY, rootLeadX: rootLead, rootReachX: rootReach }) : base;
   return { layout, earthLead };
 }
 
+/** Gap between an unframed LV earth-pit detail and the incomer line on its right. */
+const EARTH_DETAIL_GAP = 10;
+/** Width of an unframed LV earth-pit detail: its longest line, at least the board box's 124. */
+const earthDetailWidth = (project: Project, b: Board, pits: number, lvIds?: string[]) => {
+  const el = b.earthing?.electrodeM ?? project.earthingPlan?.electrodeM ?? 3;
+  const ids = lvIds?.length === pits ? ` · ${lvIds.join(', ')}` : '';
+  return Math.ceil(Math.max(124, textWidth(`LV EARTH PITS (${pits} NO.)${ids}`, 8, true), textWidth(`1C ${earthConductorOf(project, b)}mm² CU/PVC`, 7.5),
+    textWidth(`MIN. ${el} m ELECTRODE WITH INSPECTION PIT AND COVER`, 7.5)));
+};
+/** Lift of the root bus that gives an unframed main board's LV earth-pit detail its own band. */
+const EARTH_BAND_Y = 140;
 /** Top of a framed panel (DEWA style): the name box band above the incomer. */
 const frameTopOf = (b: Board, busY: number, rows = 4) => busY - (protectionOf(b) ? 92 : 84) - 12 - 62 - Math.max(0, rows - 4) * 11;
 /** Wraps text to lines of at most `max` characters at spaces; the last line is cut with "…". */
@@ -347,7 +358,7 @@ export default function SystemDiagram({
   const cableRefs = cableRefsProp ?? project.drawing?.cableLabels === 'ref';
   // Standard style: room under a root's transformer for the LV earth-pit detail, which the
   // DEWA head (DEWA_EXTRA_Y and the frame) already has.
-  const earthLift = !dewa && project.boards.some((b) => !b.upstreamId && hasEarthPits(b)) ? 140 : 0;
+  const earthLift = !dewa && project.boards.some((b) => !b.upstreamId && hasEarthPits(b)) ? EARTH_BAND_Y : 0;
   // Earth pit IDs (E1, E2 …) from the earthing plan, so the SLD and the earthing sheet agree.
   const earthPits = useMemo(() => plannedEarthPits(project), [project]);
   const { layout, earthLead } = useMemo(() => sldLayout(project, dewa, cableRefs, earthLift, earthPits), [project, dewa, cableRefs, earthLift, earthPits]);
@@ -1012,30 +1023,31 @@ export default function SystemDiagram({
           const sp = b.earthing?.spacingM ?? 6;
           const ids = lvIds?.length === pits ? ` · ${lvIds.join(', ')}` : '';
           // Keep the LV earth detail above the panel header, clear of the instruments and
-          // incomer annotations inside the panel. DEWA keeps the original rows (the frame head
-          // has the room). The standard style lifts the root bus (rootExtraY) and draws the
-          // detail in its own band between the transformer's earth labels (ending at y 150) and
-          // the incomer annotations; its test link moves to the left end and the notes under the
-          // header, so the MET conductor drops straight down clear of every label, to a MET bar
-          // under the detail, left of the incomer column.
+          // incomer annotations inside the panel. A framed DEWA panel keeps the original rows (the
+          // frame head has the room). Unframed (standard style, or a DEWA main board with no
+          // outgoing panels) the root bus drops (rootExtraY) and the detail takes its own band
+          // between the transformer's earth labels (ending at y 150) and the incomer device, wholly
+          // left of the incomer line (the layout leads the root by its width): notes under the
+          // header, the test link at the right end, and the MET conductor dropping straight down
+          // to a MET bar under the detail, left of the incomer column.
           const nb = nameBox(b, { ...r, busY: r.headY }), y1 = nb.top;
           const framed = dewa && !r.terminal;
-          const oy = framed ? y1 - 82 : dewa ? r.busY - 154 : r.busY - 190;
-          const ox = framed ? r.busX1 - 2 : r.x - 62;
-          const detailW = framed ? nb.w : 124;
-          const pitTop = dewa ? 22 : 46;
-          const noteY = dewa ? 65 : 18;
-          const linkY = oy + (dewa ? 16 : 40);
-          const arrowY = oy + (dewa ? 56 : 80);
-          const pitPitch = pits > 1 ? Math.min(60, Math.max(24, (detailW - (dewa ? 28 : 40)) / (pits - 1))) : 0;
-          const pitStart = pits > 1 ? ox + (dewa ? 14 : 26) : ox + Math.min(35, detailW / 2);
+          const oy = framed ? y1 - 82 : r.busY - 190;
+          const detailW = framed ? nb.w : earthDetailWidth(project, b, pits, lvIds);
+          const ox = framed ? r.busX1 - 2 : r.x - EARTH_DETAIL_GAP - detailW;
+          const pitTop = framed ? 22 : 46;
+          const noteY = framed ? 65 : 18;
+          const linkY = oy + (framed ? 16 : 40);
+          const arrowY = oy + (framed ? 56 : 80);
+          // Unframed, the last pit keeps clear of the test link and its label at the right end.
+          const pitPitch = pits > 1 ? Math.min(60, Math.max(24, (detailW - (framed ? 28 : 54)) / (pits - 1))) : 0;
+          const pitStart = pits > 1 ? ox + 14 : ox + Math.min(35, detailW / 2);
           const pitXs = Array.from({ length: pits }, (_, n) => pitStart + n * pitPitch);
-          const tlX = ox + 6;
           const testX = ox + detailW - 8;
-          // MET: inside the main board frame, inside the terminal panel box, or (standard
-          // style) under the detail, ending left of the incomer's result rows.
-          const metX1 = framed ? r.busX1 - 7 + nb.w + 13 : dewa ? r.x + 6 : r.x - 58;
-          const metY = framed ? y1 + 20 : dewa ? r.busY - 40 : oy + 90;
+          // MET: inside the main board frame, or (standard style and a DEWA main board with no
+          // outgoing panels) under the detail, ending left of the incomer's result rows.
+          const metX1 = framed ? r.busX1 - 7 + nb.w + 13 : r.x - 58;
+          const metY = framed ? y1 + 20 : oy + 90;
           const metMid = metX1 + 25;
           const gnd = (x: number, y: number) => (
             <>
@@ -1117,14 +1129,10 @@ export default function SystemDiagram({
               <text x={ox} y={oy + 8} className="acc-t b" data-fit-width={detailW} data-dxf-max-width={detailW}>{`LV EARTH PITS (${pits} NO.)${ids}`}</text>
               {/* Pits join at one test link. From the link to the MET there is one conductor and one 90° bend. */}
               {pitXs.map((x) => <line key={`pit-link-${x}`} x1={x} y1={oy + pitTop} x2={x} y2={linkY} className="ln" />)}
-              {pitXs.length > 0 && (dewa
-                ? <line x1={pitXs[0]} y1={linkY} x2={testX - 5} y2={linkY} className="ln earth-pit-link" />
-                : <line x1={tlX + 5} y1={linkY} x2={pitXs[pitXs.length - 1]} y2={linkY} className="ln earth-pit-link" />)}
-              <rect x={(dewa ? testX : tlX) - 5} y={linkY - 4} width="10" height="8" className="sym test-link" />
-              {dewa
-                ? <text x={testX + 9} y={linkY + 13} className="acc-t test-link-label" style={{ fontSize: 7 }}>TL</text>
-                : <text x={tlX} y={oy + 53} textAnchor="middle" className="acc-t test-link-label" style={{ fontSize: 7 }}>TL</text>}
-              <path d={dewa ? `M${testX + 5} ${linkY} H${metMid} V${metY}` : `M${tlX} ${linkY + 4} V${metY}`} className="ln earth-to-met" />
+              {pitXs.length > 0 && <line x1={pitXs[0]} y1={linkY} x2={testX - 5} y2={linkY} className="ln earth-pit-link" />}
+              <rect x={testX - 5} y={linkY - 4} width="10" height="8" className="sym test-link" />
+              <text x={testX + (framed ? 9 : 4)} y={linkY + (framed ? 13 : 12)} className="acc-t test-link-label" style={{ fontSize: 7 }}>TL</text>
+              <path d={framed ? `M${testX + 5} ${linkY} H${metMid} V${metY}` : `M${testX} ${linkY + 4} V${metY}`} className="ln earth-to-met" />
               {pitXs.map((x) => rod(x))}
               {pitXs.length > 1 && (
                 <>
@@ -1137,7 +1145,7 @@ export default function SystemDiagram({
               <text x={ox} y={oy + noteY + 9} className="acc-t" style={{ fontSize: 7.5 }} data-fit-width={detailW} data-dxf-max-width={detailW}>MIN. {el} m ELECTRODE WITH INSPECTION PIT AND COVER</text>
               {/* Main earthing terminal in the main board */}
               <line x1={metX1} y1={metY} x2={metX1 + 50} y2={metY} className="ln met-bar" />
-              {dewa
+              {framed
                 ? <text x={metX1 + 54} y={metY + 3} className="acc-t b">MET</text>
                 : <text x={metX1 - 4} y={metY + 3} textAnchor="end" className="acc-t b">MET</text>}
               </>)}

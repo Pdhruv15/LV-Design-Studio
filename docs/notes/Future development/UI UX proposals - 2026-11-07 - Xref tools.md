@@ -1,6 +1,6 @@
 # UI / UX — External references (Xref) in Design CAD (2026-11-07)
 
-Status: **approved 2026-11-07 ("Go ahead", all six recommended answers) and built in v2.046.** Mockup: `docs/mockups/cad-xref-mockup.html`.
+Status: **approved 2026-11-07 ("Go ahead", all six recommended answers) and built in v2.047 (v2.046 went to the DEWA earth-pit fix).** Mockup: `docs/mockups/cad-xref-mockup.html`.
 
 ## Decisions (approved)
 
@@ -11,7 +11,7 @@ Status: **approved 2026-11-07 ("Go ahead", all six recommended answers) and buil
 5. Clip: rectangle and picked outline now; invert later.
 6. Changed files: the desktop app checks when its window comes back to the front and shows "Changed — reload" (no automatic reload).
 
-## Built (v2.046)
+## Built (v2.047)
 
 - `src/model/cadRefs.ts`: references per plan file (`Project.cadRefs`), placing, unit scale, clip, layer styles, snap index, sheet lines.
 - `engines/cad-reader/src/doc.rs`: `info().xrefs` lists the external references inside a DWG/DXF (name, saved path, overlay flag, inserts).
@@ -20,7 +20,7 @@ Status: **approved 2026-11-07 ("Go ahead", all six recommended answers) and buil
 - `cad:stat` (desktop) for Changed / Not found.
 - Plan sheets: References pen (grey 30 %, 0.13 mm), legend line, a note naming the references shown or not printed.
 
-## Built (v2.047)
+### Also in v2.047: finding references
 
 - A reference named inside the plan's drawing is looked for when the plan opens (desktop): its tab if open, where it was found before, the saved path, that path from the plan's folder, beside the plan, and a folder of the plan's folder named like the saved one (`xrefCandidates` in `src/model/cadRefs.ts`). Found ones are shown at the drawing's first insert (⌘Z undoes it). Missing ones are named in the command line. One detached is not looked for again on this computer (`skippedRefs` in `cadState.ts`). No screen changed.
 
@@ -76,7 +76,7 @@ The engineer often needs other drawings under a level's plan: the structure (gri
   - `doc.rs` gets an `xrefs()` call that lists external-reference blocks (name, path, overlay flag, insertion transform).
 - **Sheets:** reference lines are only in memory, so a sheet can print a reference only while that reference is loaded. In the desktop app it can be reread from its path when the sheet is made. If a reference cannot be read, the sheet says so in its notes rather than leaving it out silently.
 - **Tests:** model functions (attach, detach, repath, unit scale, transform, clip), the engine's `xrefs()` against a fixture with an xref block, and sheet output with the References pen (`npm run test:pdf`).
-- **Version:** 2.046, with a What's new line.
+- **Version:** 2.047, with a What's new line.
 
 ## Asked of the user (answered above)
 
