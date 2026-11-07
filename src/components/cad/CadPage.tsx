@@ -49,7 +49,7 @@ import { LayerPalette, layerRows, ObjectPropertiesPanel, type LayerRow } from '.
 import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
 import { refGeometry, type CadRef } from '../../model/cadRefs';
 import { drawnLayers, effective, layerStylesOf, matchedProps, styleOf, withProps } from '../../model/cadLayerStyle';
-import { applyLayerPatch, currentLayerOf, extentsOf, isolate, layerFileOf, newLayerName, renameLayer, restoreState, unisolate, withCurrentLayer, withNewLayer, withoutLayer, withoutState, withSavedState } from '../../model/cadLayerState';
+import { applyLayerPatch, archOnOf, currentLayerOf, extentsOf, isolate, layerFileOf, newLayerName, renameLayer, restoreState, unisolate, withCurrentLayer, withNewLayer, withoutLayer, withoutState, withSavedState } from '../../model/cadLayerState';
 import { DrawnSelectionPanel, ED_START, EditToolPanel, kindOf, SketchToolbar, type EditSettings, type EditTool, type SketchEdit } from './SketchEditPanel';
 import { arrayPolar, arrayRect, breakAt, chamfer, edgesFor, explode, extend, fillet, gripMoved, gripsOf, isPath, join, mirrored, offset, scaled, sketchInWindow, stretched, trim, type Edit } from '../../model/cadEdit';
 import { ArrayPanel, ARL_START, MatchPanel, MATCH_START, SelectionPanel, type ArlSettings, type MatchSettings } from './DeviceEditPanel';
@@ -241,10 +241,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : tool === 'join' ? 'Enter to join them:' : 'Apply on the right, or the centre for a polar array:'}` : PROMPT[tool]}`);
   }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Layer palette styles. The architect's layers shown: on and not frozen; picked: shown and not locked (snapped to still).
+  // Layer palette styles. The architect's layers: On as turned on or off in the app (kept in the project, so each change is
+  // one undo step), else as the drawing has them; shown: on and not frozen; picked: shown and not locked (snapped to still).
   const styles = useMemo(() => layerStylesOf(project, view?.file), [project, view]);
   const archStyle = useMemo(() => (view ? view.info.layers.map((l) => styleOf(styles, l.name)) : []), [view, styles]);
-  const layersOn = useMemo(() => (archStyle.some((st) => st.freeze) ? cad.layersOn.map((v, i) => (v && !archStyle[i]?.freeze ? 1 : 0)) : cad.layersOn), [cad.layersOn, archStyle]);
+  const archOn = useMemo(() => (view ? archOnOf(project, view.file, view.info.layers) : new Uint8Array()), [view, project]);
+  const layersOn = useMemo(() => (archStyle.some((st) => st.freeze) ? archOn.map((v, i) => (v && !archStyle[i]?.freeze ? 1 : 0)) : archOn), [archOn, archStyle]);
   const pickOn = useMemo(() => (archStyle.some((st) => st.lock) ? layersOn.map((v, i) => (v && !archStyle[i]?.lock ? 1 : 0)) : layersOn), [layersOn, archStyle]);
   // Zoom extents leave the frozen layers out.
   const fitExtents = useMemo(() => (view && archStyle.some((st) => st.freeze) ? extentsOf(view.segs, view.segLayers, view.info.origin, (i) => !archStyle[i]?.freeze) : undefined), [view, archStyle]);
@@ -273,7 +275,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const pickedItems = useMemo(() => (picked.length ? placed.filter((d) => picked.includes(d.key)) : selectedItem ? [selectedItem] : []), [picked, placed, selectedItem]);
   // What the engineer drew on this drawing (drawing units), its snap points, and the drawn object selected.
   const sketch = useMemo(() => (view ? sketchOf(project, view.file) : []), [project, view]);
-  const sketchSnaps = useMemo(() => snapPoints(sketch), [sketch]);
+  // Snaps come from what shows: objects on layers that are off or frozen are not snapped to (locked ones are).
+  const sketchSnaps = useMemo(() => snapPoints(sketch.filter((it) => !effective(it, styles).hidden)), [sketch, styles]);
   // Objects on locked, hidden or frozen layers cannot be picked.
   const pickable = useMemo(() => sketch.filter((it) => { const e = effective(it, styles); return !e.lock && !e.hidden; }), [sketch, styles]);
   const selSketch = sketch.find((it) => `sk:${it.id}` === cad.selected) ?? null;
@@ -352,23 +355,27 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // there — each one undo step; the architect's On stays with the drawing open.
   const layerFile = layerFileOf(project, view?.file);
   const curLayer = currentLayerOf(project, view?.file);
-  const lRows = useMemo(() => (view ? layerRows({ view, layersOn: cad.layersOn, sketch, styles, added: layerFile.layers, refs: xr.placed }) : []), [view, cad.layersOn, sketch, styles, layerFile.layers, xr.placed]);
-  const layerChange = (r: { project: Project; archOn: Record<string, boolean> }, what: string) => {
+  const lRows = useMemo(() => (view ? layerRows({ view, layersOn: archOn, sketch, styles, added: layerFile.layers, current: curLayer, refs: xr.placed }) : []), [view, archOn, sketch, styles, layerFile.layers, curLayer, xr.placed]);
+  const layerChange = (next: Project, what: string) => {
     if (!view) return;
-    view.info.layers.forEach((l, i) => { if (l.name in r.archOn) cad.setLayer(i, r.archOn[l.name]); });
-    if (r.project !== project) change(r.project, `${what} · ⌘Z to undo`); else cad.say(what);
+    if (next !== project) change(next, `${what} · ⌘Z to undo`); else cad.say(what);
   };
   const layerNames = (list: { name: string }[]) => (list.length === 1 ? `Layer ${list[0].name}` : `${list.length} layers`);
   const isolateLayers = (keep: string[]) => {
     if (!view) return;
     const r = isolate(project, view.file, lRows, keep);
-    layerChange(r, `LAYISO  ${keep.join(', ')} kept on, ${r.off} other layer${r.off === 1 ? '' : 's'} off (LAYUNISO puts them back)`);
+    layerChange(r.project, `LAYISO  ${keep.join(', ')} kept on, ${r.off} other layer${r.off === 1 ? '' : 's'} off (LAYUNISO puts them back)`);
   };
   const unisolateLayers = () => {
     const r = view && unisolate(project, view.file, lRows);
-    if (!r) cad.say('LAYUNISO  Nothing is isolated.'); else layerChange(r, 'LAYUNISO  The layers are back as they were');
+    if (!r) cad.say('LAYUNISO  Nothing is isolated.'); else layerChange(r, 'LAYUNISO  The layers Isolate turned off are back on');
   };
-  const setCurrentLayer = (name: string) => { if (view) change(withCurrentLayer(project, view.file, name), `CLAYER  Current layer: ${name} · ⌘Z to undo`); };
+  // A frozen layer cannot be current (what is drawn on it would not show): every way of setting it comes here.
+  const setCurrentLayer = (name: string) => {
+    if (!view) return;
+    if (styleOf(styles, name).freeze) { cad.say(`CLAYER  ${name} is frozen: thaw it first to make it current.`); return; }
+    change(withCurrentLayer(project, view.file, name), `CLAYER  Current layer: ${name} · ⌘Z to undo`);
+  };
   const addLayer = () => {
     const name = newLayerName(lRows.map((r) => r.name));
     if (view) change(withNewLayer(project, view.file, name), `LAYER  ${name} added · ⌘Z to undo`);
@@ -1287,7 +1294,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             onIsolate={(rows: LayerRow[]) => isolateLayers(rows.map((r) => r.name))}
             onUnisolate={unisolateLayers}
             onSaveState={(name) => change(withSavedState(project, view.file, name, lRows), `Layer state ${name} saved · ⌘Z to undo`)}
-            onRestoreState={(name) => { const r = restoreState(project, view.file, name, lRows); if (r) layerChange(r, `Layer state ${name} restored`); }}
+            onRestoreState={(name) => { const r = restoreState(project, view.file, name, lRows); if (r) layerChange(r.project, `Layer state ${name} restored${r.kept ? ` (${r.kept} stays thawed: it is the current layer)` : ''}`); }}
             onDeleteState={(name) => change(withoutState(project, view.file, name), `Layer state ${name} deleted · ⌘Z to undo`)}
             onClose={() => setShowLM(false)} />
         )}
@@ -1395,7 +1402,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
             )}
             {tool === 'none' && view && pickedSk.length > 0 && (
-              <ObjectPropertiesPanel items={pickedSk} layers={drawnLayers(sketch)} onApply={(patch) => change(pickedSk.reduce((q, it) => updateSketch(q, fileOf(), withProps(it, patch)), project), `${pickedSk.length === 1 ? kindOf(pickedSk[0]) : `${pickedSk.length} objects`}: properties changed · ⌘Z to undo`)} />
+              <ObjectPropertiesPanel items={pickedSk} layers={drawnLayers(sketch, [...(layerFile.layers ?? []), curLayer])} onApply={(patch) => change(pickedSk.reduce((q, it) => updateSketch(q, fileOf(), withProps(it, patch)), project), `${pickedSk.length === 1 ? kindOf(pickedSk[0]) : `${pickedSk.length} objects`}: properties changed · ⌘Z to undo`)} />
             )}
             {tool === 'hatch' && view && <HatchPanel spec={hatchSet} onSpec={setHatchSet} />}
             {(tool === 'text' || tool === 'dim' || tool === 'leader' || tool === 'rtag' || tool === 'north') && view && (
@@ -1470,7 +1477,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 </div>
               </>
             )}
-            <h4>Layers {view && <span className="cad-lyr-all"><button onClick={() => cad.allLayers(true)}>All on</button></span>}</h4>
+            <h4>Layers {view && <span className="cad-lyr-all"><button onClick={() => layerChange(applyLayerPatch(project, view.file, lRows.filter((r) => r.group === 'arch'), { on: true }), 'LAYER  All layers on')}>All on</button></span>}</h4>
             <div className="cad-layers">
               {view && placed.length > 0 && (
                 <button className={`cad-lyr${cad.showDevices ? '' : ' off'}`} aria-pressed={cad.showDevices} onClick={() => cad.setShowDevices(!cad.showDevices)}>
@@ -1478,8 +1485,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 </button>
               )}
               {view?.info.layers.map((l, i) => l.count > 0 || view.info.texts.some((t) => t.layer === i) ? (
-                <button key={l.name} className={`cad-lyr${cad.layersOn[i] ? '' : ' off'}`} aria-pressed={!!cad.layersOn[i]} title={`${fmtUpTo(l.count, 0)} lines`} onClick={() => cad.setLayer(i, !cad.layersOn[i])}>
-                  <i style={{ background: hex(l.rgb) }} />{l.name}<span className="m">{cad.layersOn[i] ? 'on' : 'off'}</span>
+                <button key={l.name} className={`cad-lyr${archOn[i] ? '' : ' off'}`} aria-pressed={!!archOn[i]} title={`${fmtUpTo(l.count, 0)} lines`} onClick={() => layerChange(applyLayerPatch(project, view.file, [{ name: l.name, group: 'arch', drawingOn: l.on }], { on: !archOn[i] }), `Layer ${l.name} ${archOn[i] ? 'off' : 'on'}`)}>
+                  <i style={{ background: hex(l.rgb) }} />{l.name}<span className="m">{archOn[i] ? 'on' : 'off'}</span>
                 </button>
               ) : null)}
               {view && <RefLayersList x={xr} />}

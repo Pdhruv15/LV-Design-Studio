@@ -36,4 +36,14 @@ describe('plans of each level', () => {
     expect(replacePlan(p, 'A-101.dwg', GF).replaced).toBeUndefined(); // the same file: nothing replaced
     expect(replacePlan(project(), 'A-102.dwg', FF)).toEqual({ project: withLevelPlan(project(), 'A-102.dwg', FF) });
   });
+
+  it('moves the layer settings of the earlier plan to the revised one', () => {
+    const p = { ...withLevelPlan(project(), 'A-101.dwg', GF), cadLayerStyle: { 'a-101.dwg': { 'E-LIGHT': { freeze: true } } }, cadLayerFile: { 'a-101.dwg': { current: 'E-LIGHT', states: [] } } };
+    const r = replacePlan(p, 'A-101 rev B.dwg', GF).project;
+    expect(r.cadLayerStyle).toEqual({ 'a-101 rev b.dwg': { 'E-LIGHT': { freeze: true } } });
+    expect(r.cadLayerFile).toEqual({ 'a-101 rev b.dwg': { current: 'E-LIGHT', states: [] } });
+    // The revised plan already has its own: kept as it is.
+    const own = { ...p, cadLayerStyle: { ...p.cadLayerStyle, 'a-101 rev b.dwg': { 'A-WALL': { lock: true } } } };
+    expect(replacePlan(own, 'A-101 rev B.dwg', GF).project.cadLayerStyle).toEqual(own.cadLayerStyle);
+  });
 });

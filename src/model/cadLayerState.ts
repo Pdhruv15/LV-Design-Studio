@@ -5,17 +5,21 @@ import { sketchOf, withSketchItems } from './cadSketch';
 import { planOfLevel } from './cadPlans';
 
 /** Design CAD → Layer palette: what is kept per drawing file besides the layer styles (src/model/cadLayerStyle.ts) —
- * the current layer, the drawn layers added that hold nothing yet, the layer states saved under a name, and the set
- * Isolate turned off (Unisolate puts it back). Absent = as before: LV-SKETCH current, no states. The architect's
- * layers are never renamed or deleted; their On stays with the drawing open (it is not kept in the project). */
+ * the current layer, the drawn layers added that hold nothing yet, the layer states saved under a name, the layers
+ * Isolate turned off (Unisolate turns them back on), and the architect's layers turned on or off in the app (`archOn`,
+ * by name, over the drawing's own setting). Keeping On in the project makes every change one undo step, and a layer
+ * turned off stays off when the drawing opens again; the drawing itself is never changed. Absent = as before:
+ * LV-SKETCH current, no states, the architect's layers as the drawing has them. The architect's layers are never
+ * renamed or deleted. */
 
 export interface LayerSnap { on: boolean; freeze?: boolean; lock?: boolean; color?: string }
 export interface LayerStateSet { name: string; layers: Record<string, LayerSnap> }
-export interface CadLayerFile { current?: string; layers?: string[]; states?: LayerStateSet[]; iso?: Record<string, LayerSnap> }
+export interface CadLayerFile { current?: string; layers?: string[]; states?: LayerStateSet[]; iso?: string[]; archOn?: Record<string, boolean> }
 
 /** Where a row of the palette comes from: a drawn layer, one of the architect's, or a reference's (NAME|LAYER). */
 export type LayerGroup = 'drawn' | 'arch' | 'ref';
-export interface LayerRef { name: string; group: LayerGroup; ref?: string; layer?: string }
+/** `drawingOn`: for the architect's layers, On as the drawing has it (a change back to it drops the app's own setting). */
+export interface LayerRef { name: string; group: LayerGroup; ref?: string; layer?: string; drawingOn?: boolean }
 /** A change from the palette; a key present with `undefined` (colour, linetype, lineweight) goes back to ByLayer. */
 export interface LayerPatch { on?: boolean; freeze?: boolean; lock?: boolean; print?: boolean; color?: string; lt?: LinetypeId; lw?: number }
 
@@ -27,6 +31,14 @@ const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 const keyOf = (file: string) => file.trim().toLowerCase();
 
 export const layerFileOf = (p: Project, file: string | undefined): CadLayerFile => (file ? p.cadLayerFile?.[keyOf(file)] ?? {} : {});
+/** Which of the architect's layers show (1) or not (0), in the drawing's order: as turned on or off in the app, else as
+ * the drawing has them. Frozen layers are left to the caller (they stay hidden whatever On says). */
+export function archOnOf(p: Project, file: string | undefined, layers: { name: string; on: boolean }[]): Uint8Array {
+  const set = layerFileOf(p, file).archOn;
+  if (!set || !Object.keys(set).length) return Uint8Array.from(layers.map((l) => (l.on ? 1 : 0)));
+  const byName = new Map(Object.entries(set).map(([k, v]) => [k.toLowerCase(), v]));
+  return Uint8Array.from(layers.map((l) => ((byName.get(l.name.toLowerCase()) ?? l.on) ? 1 : 0)));
+}
 /** The project with the drawing's layer record changed (blank fields drop out; an empty record is removed). */
 export function withLayerFile(p: Project, file: string, patch: Partial<CadLayerFile>): Project {
   const all = { ...(p.cadLayerFile ?? {}) };
@@ -88,7 +100,7 @@ export function renameLayer(p: Project, file: string, from: string, to: string, 
     current: f.current && ren(f.current),
     layers: f.layers?.map(ren),
     states: f.states?.map((s) => ({ ...s, layers: keys(s.layers)! })),
-    iso: keys(f.iso)
+    iso: Array.isArray(f.iso) ? f.iso.map(ren) : undefined
   });
   // The layouts of this plan: a layer frozen in one of their viewports stays frozen there.
   if (q.drawingSet?.sheets.some((s) => s.viewports?.some((v) => v.frozen?.some((l) => same(l, from))))) {
@@ -111,15 +123,15 @@ export function deleteRefusal(r: LayerRef, objects: number, current: string): st
 export function withoutLayer(p: Project, file: string, name: string): Project {
   const f = layerFileOf(p, file);
   const q = withLayerStyle(p, file, name, { color: undefined, lock: undefined, hidden: undefined, noPrint: undefined, lt: undefined, lw: undefined, freeze: undefined });
-  return withLayerFile(q, file, { layers: f.layers?.filter((l) => !same(l, name)) });
+  return withLayerFile(q, file, { layers: f.layers?.filter((l) => !same(l, name)), iso: Array.isArray(f.iso) ? f.iso.filter((l) => !same(l, name)) : undefined });
 }
 
-/** A change made on one or more rows at once. The architect's On is the drawing's (returned in `archOn`, by name); a
- * reference's layers take On, Print and colour only; the architect's On, Freeze, Lock and colour. */
-export function applyLayerPatch(p: Project, file: string, rows: LayerRef[], patch: LayerPatch): { project: Project; archOn: Record<string, boolean> } {
-  const archOn: Record<string, boolean> = {};
+/** A change made on one or more rows at once. A reference's layers take On, Print and colour only; the architect's On,
+ * Freeze, Lock and colour (their On kept in `archOn`). */
+export function applyLayerPatch(p: Project, file: string, rows: LayerRef[], patch: LayerPatch): Project {
   let q = p;
   const has = (k: keyof LayerPatch) => k in patch;
+  const archOn: Record<string, boolean | undefined> = {};
   for (const r of rows) {
     if (r.group === 'ref') {
       const s: Parameters<typeof withRefLayer>[4] = {};
@@ -130,7 +142,7 @@ export function applyLayerPatch(p: Project, file: string, rows: LayerRef[], patc
       continue;
     }
     const s: LayerStyle = {};
-    if (has('on')) { if (r.group === 'arch') archOn[r.name] = !!patch.on; else s.hidden = !patch.on; }
+    if (has('on')) { if (r.group === 'arch') archOn[r.name] = r.drawingOn === !!patch.on ? undefined : !!patch.on; else s.hidden = !patch.on; }
     if (has('freeze')) s.freeze = patch.freeze;
     if (has('lock')) s.lock = patch.lock;
     if (has('color')) s.color = patch.color;
@@ -141,23 +153,31 @@ export function applyLayerPatch(p: Project, file: string, rows: LayerRef[], patc
     }
     if (Object.keys(s).length) q = withLayerStyle(q, file, r.name, s);
   }
-  return { project: q, archOn };
+  if (Object.keys(archOn).length) {
+    const before = layerFileOf(q, file).archOn ?? {};
+    const kept = Object.entries(before).filter(([k]) => !Object.keys(archOn).some((n) => same(n, k)));
+    const set = [...kept, ...Object.entries(archOn).filter((e): e is [string, boolean] => e[1] !== undefined)];
+    q = withLayerFile(q, file, { archOn: set.length ? Object.fromEntries(set) : undefined });
+  }
+  return q;
 }
 
 /** What a layer state keeps of each row: On, Freeze, Lock and colour. */
 export const snapshotOf = (rows: (LayerRef & LayerSnap)[]): Record<string, LayerSnap> =>
   Object.fromEntries(rows.map((r) => [r.name, { on: r.on, ...(r.freeze ? { freeze: true } : {}), ...(r.lock ? { lock: true } : {}), ...(r.color ? { color: r.color } : {}) }]));
-/** The rows put back as the snapshot has them (rows it does not name stay as they are). */
-export function restoreSnapshot(p: Project, file: string, rows: LayerRef[], snap: Record<string, LayerSnap>) {
-  const archOn: Record<string, boolean> = {};
-  let q = p;
+/** The rows put back as the snapshot has them (rows it does not name stay as they are). The current layer is never
+ * frozen: it stays thawed, so new objects do not go on a layer that cannot be seen (`kept` names it). */
+export function restoreSnapshot(p: Project, file: string, rows: LayerRef[], snap: Record<string, LayerSnap>): { project: Project; kept?: string } {
+  let q = p, kept: string | undefined;
+  const current = currentLayerOf(p, file);
   for (const r of rows) {
     const s = snap[r.name] ?? Object.entries(snap).find(([k]) => same(k, r.name))?.[1];
     if (!s) continue;
-    const res = applyLayerPatch(q, file, [r], { on: s.on, freeze: s.freeze, lock: s.lock, color: s.color });
-    q = res.project; Object.assign(archOn, res.archOn);
+    const freeze = s.freeze && !(r.group === 'drawn' && same(r.name, current));
+    if (s.freeze && !freeze) kept = r.name;
+    q = applyLayerPatch(q, file, [r], { on: s.on, freeze, lock: s.lock, color: s.color });
   }
-  return { project: q, archOn };
+  return { project: q, kept };
 }
 
 /** Layer states: saved under a name (the same name replaces it), restored, deleted. */
@@ -165,25 +185,29 @@ export function withSavedState(p: Project, file: string, name: string, rows: (La
   const list = (layerFileOf(p, file).states ?? []).filter((s) => !same(s.name, name));
   return withLayerFile(p, file, { states: [...list, { name: name.trim(), layers: snapshotOf(rows) }] });
 }
-export function restoreState(p: Project, file: string, name: string, rows: LayerRef[]) {
+export function restoreState(p: Project, file: string, name: string, rows: LayerRef[]): { project: Project; kept?: string } | undefined {
   const s = layerFileOf(p, file).states?.find((x) => same(x.name, name));
   return s ? restoreSnapshot(p, file, rows, s.layers) : undefined;
 }
 export const withoutState = (p: Project, file: string, name: string) => withLayerFile(p, file, { states: layerFileOf(p, file).states?.filter((s) => !same(s.name, name)) });
 
-/** Isolate: every layer but those kept turns off; the set before is kept for Unisolate. */
+/** Isolate: every layer but those kept turns off; the layers it turned off are kept for Unisolate. */
 export function isolate(p: Project, file: string, rows: (LayerRef & LayerSnap)[], keep: string[]) {
   const others = rows.filter((r) => !keep.some((k) => same(k, r.name)) && r.on);
-  const res = applyLayerPatch(p, file, others, { on: false });
-  return { ...res, project: withLayerFile(res.project, file, { iso: snapshotOf(rows) }), off: others.length };
+  const before = isoOf(p, file);
+  const q = applyLayerPatch(p, file, others, { on: false });
+  return { project: withLayerFile(q, file, { iso: [...before, ...others.map((r) => r.name).filter((n) => !before.some((b) => same(b, n)))] }), off: others.length };
 }
-/** Unisolate: the layers as they were before Isolate (undefined when nothing was isolated). */
-export function unisolate(p: Project, file: string, rows: LayerRef[]) {
-  const iso = layerFileOf(p, file).iso;
-  if (!iso) return undefined;
-  const res = restoreSnapshot(p, file, rows, iso);
-  return { ...res, project: withLayerFile(res.project, file, { iso: undefined }) };
+/** Unisolate: the layers Isolate turned off back on — only those, and only their On (undefined when nothing was
+ * isolated). What changed since (a colour, a lock, a layer turned off by hand) stays as it is. */
+export function unisolate(p: Project, file: string, rows: LayerRef[]): Project | undefined {
+  const iso = isoOf(p, file);
+  if (!iso.length) return undefined;
+  const back = rows.filter((r) => iso.some((n) => same(n, r.name)));
+  return withLayerFile(applyLayerPatch(p, file, back, { on: true }), file, { iso: undefined });
 }
+/** The layers Isolate turned off (an older record that is not a list counts as none). */
+const isoOf = (p: Project, file: string): string[] => { const v = layerFileOf(p, file).iso; return Array.isArray(v) ? v : []; };
 
 /** Zoom extents without frozen layers: the box of the architect's lines on the layers kept, in drawing units (the
  * lines are relative to the origin). Undefined when none is kept. */
