@@ -745,6 +745,38 @@ describe('CAD view', () => {
     expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('MATCHPROP  Properties copied to the line · ⌘Z to undo');
   });
 
+  it('hatches a closed object, adds a leader with its text, a room tag and a north arrow', async () => {
+    const X = 200000;
+    const start: Project = { ...villa, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [{ id: 'S1', kind: 'pline', layer: 'LV-SKETCH', closed: true, pts: [[X, 0], [X + 4000, 0], [X + 4000, 3000], [X, 3000]] }] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const items = () => project.cadSketch![0].items;
+    const last = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
+    await command('H');
+    expect(document.body.textContent).toContain('Hatch H');
+    await clickAt(X + 1000, 1000);
+    expect(items()[1]).toEqual({ id: 'S2', kind: 'pline', layer: 'LV-HATCH', closed: true, pts: items()[0].pts, hatch: { pattern: 'ansi31', scale: 3, angle: 0 } });
+    expect(last()).toBe('Hatch ANSI31, 12.00 m² · ⌘Z to undo');
+    await command('LE');
+    await clickAt(X + 2000, 1500);
+    await clickAt(X + 6000, 4000);
+    await command('DB-GF1');
+    expect(items().slice(2).map((x) => [x.kind, x.leader ?? false, x.text ?? ''])).toEqual([['line', true, ''], ['text', false, 'DB-GF1']]);
+    expect(items()[3].h).toBeCloseTo(250, 6); // 2.5 mm at 1:100 on a mm drawing
+    act(() => state.actions.current.addFound());
+    const room = buildingInfoOf(project).rooms.find((r) => r.outline)!;
+    const [cx, cy] = room.outline!.reduce(([x, y], q) => [x + q[0] / room.outline!.length, y + q[1] / room.outline!.length], [0, 0]);
+    await command('RT');
+    await clickAt(cx / 0.001, cy / 0.001);
+    expect(last()).toBe(`Room tag ${room.name} · ⌘Z to undo`);
+    expect(items().slice(-2).map((x) => x.text)).toEqual([room.name.toUpperCase(), `${room.areaM2.toFixed(2)} m²`]);
+    await command('NORTH');
+    await clickAt(X + 8000, 8000);
+    expect(items().slice(-3).map((x) => x.kind)).toEqual(['circle', 'pline', 'text']);
+    expect(state.tool).toBe('none');
+  });
+
   it('turns a camera to face the point clicked (RO)', async () => {
     act(() => root.render(<Host />));
     await flush();

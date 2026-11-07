@@ -7,6 +7,7 @@ import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from '../../model/cadDraw';
 import type { SketchItem } from '../../types';
 import { effective, styleOf, type LayerStyle } from '../../model/cadLayerStyle';
+import { hatchFamilies, HATCH_PATTERNS } from '../../model/cadAnnotate';
 import { onScreenThemeChange, screenAppearance } from '../../theme/theme';
 import { isFitClick, isPanPress, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, wheelAction, ZoomChip } from '../drawingView';
 
@@ -309,6 +310,36 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
       if (it.kind === 'text') continue;
       const ef = effective(it, layerStyle);
       if (ef.hidden) continue;
+      if (it.hatch) {
+        // A hatch: its outline filled solid (faint) or with its pattern's lines (or dots), clipped to the outline.
+        const outline = new Path2D();
+        if (it.kind === 'circle') outline.arc(it.pts[0][0] - o0, it.pts[0][1] - o1, it.r ?? 0, 0, 2 * Math.PI);
+        else it.pts.forEach((q, i) => (i ? outline.lineTo(q[0] - o0, q[1] - o1) : outline.moveTo(q[0] - o0, q[1] - o1)));
+        outline.closePath();
+        const col = isSel(it.id) ? selSk : ef.color ?? skC;
+        ctx.save();
+        ctx.clip(outline);
+        const xs = it.kind === 'circle' ? [it.pts[0][0] - (it.r ?? 0), it.pts[0][0] + (it.r ?? 0)] : it.pts.map((q) => q[0]);
+        const ys = it.kind === 'circle' ? [it.pts[0][1] - (it.r ?? 0), it.pts[0][1] + (it.r ?? 0)] : it.pts.map((q) => q[1]);
+        const bx: [number, number, number, number] = [Math.min(...xs) - o0, Math.min(...ys) - o1, Math.max(...xs) - o0, Math.max(...ys) - o1];
+        const perMm = 100 * unitsPerMm;
+        if (it.hatch.pattern === 'solid') { ctx.globalAlpha = 0.3; ctx.fillStyle = col; ctx.fill(outline); ctx.globalAlpha = 1; }
+        else if (HATCH_PATTERNS[it.hatch.pattern].dots) {
+          const st = Math.max(0.2, it.hatch.scale) * perMm, dsz = 2 / scale;
+          if ((bx[2] - bx[0]) * (bx[3] - bx[1]) / (st * st) < 40000 && st * scale >= 3) {
+            ctx.fillStyle = col;
+            for (let x = Math.ceil(bx[0] / st) * st; x <= bx[2]; x += st) for (let y = Math.ceil(bx[1] / st) * st; y <= bx[3]; y += st) ctx.fillRect(x - dsz / 2, y - dsz / 2, dsz, dsz);
+          }
+        } else {
+          ctx.strokeStyle = col; ctx.lineWidth = 1 / scale; ctx.beginPath();
+          for (const f of hatchFamilies(it.hatch, perMm)) {
+            for (const l of hatchLines({ angle: f.angle, base: [0, 0], offset: [-Math.sin(f.angle) * f.step, Math.cos(f.angle) * f.step] }, bx, 3 / scale)) { ctx.moveTo(l.a[0], l.a[1]); ctx.lineTo(l.b[0], l.b[1]); }
+          }
+          ctx.stroke();
+        }
+        ctx.restore();
+        if (!isSel(it.id)) continue; // a hatch shows its outline only when picked
+      }
       ctx.strokeStyle = isSel(it.id) ? selSk : ef.color ?? skC;
       ctx.lineWidth = (isSel(it.id) ? 3 : ef.lw ? Math.max(1.5, ef.lw * 6) : it.tray ? 2.5 : 1.5) / scale;
       ctx.beginPath();
@@ -318,6 +349,14 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
       else if (ef.dash.length && ef.dash.reduce((t, v) => t + v, 0) * ltScale * scale >= 4) ctx.setLineDash(ef.dash.map((v) => v * ltScale));
       ctx.stroke();
       ctx.setLineDash([]);
+      if (it.leader && it.pts.length > 1) {
+        // The leader's arrow at its first point, 3 mm long on paper at 1:100.
+        const [a, b] = [it.pts[0], it.pts[1]], ang = Math.atan2(a[1] - b[1], a[0] - b[0]), hd = 3 * ltScale;
+        ctx.beginPath(); ctx.moveTo(a[0] - o0, a[1] - o1);
+        ctx.lineTo(a[0] - o0 - hd * Math.cos(ang - 0.3), a[1] - o1 - hd * Math.sin(ang - 0.3));
+        ctx.lineTo(a[0] - o0 - hd * Math.cos(ang + 0.3), a[1] - o1 - hd * Math.sin(ang + 0.3));
+        ctx.closePath(); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
+      }
     }
     // Circuit wiring: arcs in the devices' colour, the home run ending in an arrow at the DB.
     const lvC = colour('--cad-dev', '#f5c04a');

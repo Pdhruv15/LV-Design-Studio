@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.043', date: '2026-11-07',
+    items: [
+      { title: 'Design CAD: Hatch', text: 'Draw → Hatch (H): choose Solid, ANSI31, ANSI37, Net or Dots with its spacing (paper mm) and angle, then click inside a closed drawn object or a room. Use it for plant rooms, riser shafts and no-go zones.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Design CAD: leader, room tag, north arrow and text height', text: 'Annotate has Leader (LE: an arrowed line and its text), Room tag (RT: the room\'s name and area) and North arrow. Text height is set in paper mm at the plan scale (2.5 mm at 1:100), for Text, Dimension and these tools.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.042', date: '2026-11-07',
     items: [
       { title: 'Design CAD: layer manager', text: 'View → Layer manager (LM) lists the layers drawn in the app, each with on, lock, colour, linetype and lineweight, and the architect\'s layers with on and a colour of their own on screen. Objects on a locked layer can be seen and snapped to, but not picked or edited.', action: 'cad', actionLabel: 'Open Design CAD' },

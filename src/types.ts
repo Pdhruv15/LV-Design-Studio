@@ -429,6 +429,10 @@ export interface SketchItem {
   color?: string;
   lt?: import('./model/cadLayerStyle').LinetypeId;
   lw?: number;
+  /** A hatch: the closed outline is filled with this pattern (src/model/cadAnnotate.ts). */
+  hatch?: import('./model/cadAnnotate').HatchSpec;
+  /** A leader: an arrow at the first point. */
+  leader?: boolean;
 }
 export interface CadSketch { file: string; items: SketchItem[] }
 /** A level's plan in Design CAD: the drawing file (name only) that shows the level, and the units it says it is in
@@ -545,6 +549,8 @@ export interface Project {
   /** What the engineer drew in the CAD view over each drawing (src/model/cadSketch.ts). */
   cadSketch?: CadSketch[];
   /** Design CAD layer manager: each drawing's layer styles by file (lower case) and layer name. */
+  /** Design CAD annotation: text height on paper (mm) and the scale the plans are annotated for. */
+  cadAnno?: import('./model/cadAnnotate').AnnoSettings;
   cadLayerStyle?: Record<string, Record<string, import('./model/cadLayerStyle').LayerStyle>>;
   /** How sheets print: pen tables and the set's default page setup (src/model/plotSetup.ts). */
   plot?: import('./model/plotSetup').ProjectPlot;

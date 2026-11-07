@@ -33,6 +33,8 @@ import { floorLabel, floorList } from '../../model/levels';
 import type { CadLayerMap, CadLayerRole, Project } from '../../types';
 import { fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
+import { AnnoPanel, HatchPanel } from './AnnotatePanel';
+import { annoOf, centreOf, hatchItem, hatchOutline, HATCH_START, leaderItems, northArrowItems, roomTagItems, textUnits, type HatchSpec } from '../../model/cadAnnotate';
 import { LayerManager, ObjectPropertiesPanel } from './CadLayerManager';
 import { drawnLayers, effective, layerStylesOf, matchedProps, withLayerStyle, withProps } from '../../model/cadLayerStyle';
 import { DrawnSelectionPanel, ED_START, EditToolPanel, kindOf, SketchToolbar, type EditSettings, type EditTool, type SketchEdit } from './SketchEditPanel';
@@ -52,7 +54,7 @@ const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.to
 const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
   { k: 'snap', label: 'SNAP', key: 'F9' }, { k: 'osnap', label: 'OSNAP', key: 'F3' }, { k: 'ortho', label: 'ORTHO', key: 'F8' }, { k: 'grid', label: 'GRID', key: 'F7' }
 ];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · MP (match properties) · LM (layer manager) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer manager) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 const PROMPT: Record<CadTool, string> = {
@@ -72,6 +74,10 @@ const PROMPT: Record<CadTool, string> = {
   arl: 'ARL  Array on line: click the start of the line:',
   match: 'MA  Match: click the device to copy from:',
   matchprop: 'MATCHPROP  Select the source object:',
+  hatch: 'HATCH  Pick an internal point (inside a closed object or a room):',
+  leader: 'LEADER  Specify leader arrow point:',
+  rtag: 'ROOMTAG  Click inside a room:',
+  north: 'NORTH  Specify insertion point:',
   wire: 'WIRE  Click a device: its circuit is wired (or its wiring taken off):',
   move: 'MOVE  Select object, then specify base point:',
   copy: 'COPY  Select object, then specify base point:',
@@ -158,6 +164,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   // Layer manager shown, and the object Match properties copies from.
   const [showLM, setShowLM] = useState(false);
   const [mpFrom, setMpFrom] = useState<string | null>(null);
+  const [hatchSet, setHatchSet] = useState<HatchSpec>(HATCH_START);
   if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); setEm({ routes: [], points: [], rooms: [] }); setPicked([]); setMenuAt(null); }
   const input = useRef<HTMLInputElement>(null);
   const last = rememberedDrawing(project.id);
@@ -250,7 +257,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     const f = project.feeders.find((x) => x.id === it.cable!.feederId);
     return [it.id, f ? cableLabel(project, f).split(' · ')[0] : `${it.cable!.feederId} (removed)`];
   })), [sketch, project]);
-  const textH = 0.25 / units.factor;
+  // Annotation text height: paper mm at the annotation scale (2.5 mm at 1:100 = 0.25 m), in drawing units.
+  const anno = annoOf(project);
+  const textH = textUnits(anno, units.factor);
   const rUnits = DEVICE_R_M / units.factor;
   // Light room: the room kept, else the one under the pointer, with its lights by the lumen method.
   const luxHover = tool === 'lux' && !luxRoom && cursor.at && floor ? roomAtPointOf(project, floor, cursor.at, units.factor)?.id : undefined;
@@ -744,6 +753,22 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       return;
     }
     if (tool === 'text') { cad.setTextAt(at); cad.say('TEXT  Enter text (then Enter):'); input.current?.focus(); return; }
+    if (tool === 'hatch') {
+      const rooms = floor ? buildingInfoOf(project).rooms.filter((r) => r.buildingId === floor.ref.building && r.levelId === floor.ref.level && (r.outline?.length ?? 0) > 2).map((r) => r.outline!.map(([x, y]): Pt => [x / units.factor, y / units.factor])) : [];
+      const o = hatchOutline(pickable, at, rooms) ?? (() => { const r = roomAround(walls, at, units.factor); return r ? { pts: r.points, from: 'room' as const } : undefined; })();
+      if (!o) { cad.say('HATCH  No closed object or room around that point: draw a closed polyline first.'); return; }
+      draw(hatchItem(o, hatchSet), `Hatch ${hatchSet.pattern.toUpperCase()}${o.from === 'room' ? ' in the room' : ''}${'circle' in o && o.circle ? '' : `, ${m2(toM2(areaOf(o.pts).area))}`}`);
+      return;
+    }
+    if (tool === 'leader') { setPoints((p) => [...p, at]); cad.say(points.length ? 'LEADER  Next point, or type the text and Enter:' : 'LEADER  Specify next point:'); if (points.length) input.current?.focus(); return; }
+    if (tool === 'rtag') {
+      const room = roomAtPoint(at);
+      if (!room) { cad.say('ROOMTAG  No room with an outline there: add it first (Room area, Trace or Rooms).'); return; }
+      const c = centreOf(room.outline!.map(([x, y]): Pt => [x / units.factor, y / units.factor]));
+      if (view) change(roomTagItems(room.name, room.areaM2, c, textH).reduce((q, x) => addSketch(q, view.file, x).project, project), `Room tag ${room.name} · ⌘Z to undo`);
+      return;
+    }
+    if (tool === 'north') { if (view) change(northArrowItems(at, textH).reduce((q, x) => addSketch(q, view.file, x).project, project), 'North arrow · ⌘Z to undo'); cad.setTool('none'); return; }
     if (tool === 'dim') {
       if (points.length < 2) { setPoints((p) => [...p, at]); cad.say(points.length ? 'DIM  Specify dimension line location:' : 'DIM  Specify second extension line origin:'); return; }
       const len = distance(points[0], points[1]);
@@ -900,6 +925,10 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       try { change(renameBoard(project, id, raw), `${id} renamed ${raw} · ⌘Z to undo`); } catch (e) { cad.say(`RENAME  ${e instanceof Error ? e.message : String(e)}`); }
       return;
     }
+    if (tool === 'leader' && points.length >= 2 && raw) {
+      if (view) change(leaderItems(points, raw, textH).reduce((q, x) => addSketch(q, view.file, x).project, project), `Leader "${raw}" · ⌘Z to undo`);
+      setPoints([]); cad.say(PROMPT.leader); return;
+    }
     if (tool === 'text' && cad.textAt && raw) {
       draw({ kind: 'text', layer: ANNO_LAYER, pts: [cad.textAt], text: raw, h: textH }, `Text "${raw}"`);
       cad.setTextAt(null); cad.say(PROMPT.text); return;
@@ -926,6 +955,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       else if (tool === 'array' && !edSet.polar && pickedSk.length) applyArray();
       else if (tool === 'cable') finishCable();
       else if (tool === 'line') { setPoints([]); cad.say(PROMPT.line); }
+      else if (tool === 'leader') { if (points.length >= 2 && view) change(addSketch(project, view.file, leaderItems(points, '', textH)[0]).project, 'Leader · ⌘Z to undo'); setPoints([]); cad.say(PROMPT.leader); }
       else if (tool === 'copy') { setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); }
       return;
     }
@@ -988,6 +1018,10 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     else if (c === 'S' || c === 'STRETCH') cad.setTool('stretch');
     else if (c === 'AR' || c === 'ARRAY') cad.setTool('array');
     else if (c === 'MP' || c === 'MATCHPROP' || c === 'PAINTER') cad.setTool('matchprop');
+    else if (c === 'H' || c === 'HATCH' || c === 'BH') cad.setTool('hatch');
+    else if (c === 'LE' || c === 'LEADER' || c === 'QLEADER') cad.setTool('leader');
+    else if (c === 'RT' || c === 'ROOMTAG') cad.setTool('rtag');
+    else if (c === 'NORTH') cad.setTool('north');
     else if (c === 'LM' || c === 'LAYERMANAGER' || c === 'LAYMAN') { if (view) setShowLM(true); else cad.say('LAYER  Open a drawing first.'); }
     else if (c === 'ALIGN' || c === 'ALIGNV' || c === 'SPACE') { if (pickedItems.length < 2) cad.say(`${c}  Select two or more devices first.`); else editDevices(c === 'ALIGN' ? 'row' : c === 'ALIGNV' ? 'column' : 'space'); }
     else if (c === 'WC' || c === 'WIRE' || c === 'WIRECIRCUITS') wireAll();
@@ -1025,7 +1059,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     }
     if (e.key === 'Enter' && !typing && (tool === 'area' || tool === 'trace') && points.length >= 3) { finishArea(points); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && (selectedItem || selSketch || many)) { e.preventDefault(); removeSelected(); return; }
-    if (e.key === 'Enter' && !typing && (tool === 'pline' || tool === 'tray' || tool === 'cable' || tool === 'line' || tool === 'copy' || tool === 'em' || tool === 'arl' || tool === 'break' || PICK_FIRST.includes(tool))) { run(''); return; }
+    if (e.key === 'Enter' && !typing && (tool === 'pline' || tool === 'tray' || tool === 'cable' || tool === 'line' || tool === 'copy' || tool === 'em' || tool === 'arl' || tool === 'break' || tool === 'leader' || PICK_FIRST.includes(tool))) { run(''); return; }
     if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[a-zA-Z?]$/.test(e.key)) input.current?.focus();
   };
   useEffect(() => {
@@ -1040,6 +1074,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   const preview: SketchItem[] = !cur ? [] : (() => {
     const base = { id: '_', layer: '' };
     if (tool === 'line' && lastPt) return [{ ...base, kind: 'line', pts: [lastPt, cur] }];
+    if (tool === 'leader' && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
     if (tool === 'pline' && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
     if (tool === 'cable' && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
     if (tool === 'tray' && points.length) return [{ ...base, kind: 'pline', pts: [...points, cur], tray: { widthMm: cad.tray.widthMm, service: cad.tray.service } }];
@@ -1171,6 +1206,11 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
             )}
             {tool === 'none' && view && pickedSk.length > 0 && (
               <ObjectPropertiesPanel items={pickedSk} layers={drawnLayers(sketch)} onApply={(patch) => change(pickedSk.reduce((q, it) => updateSketch(q, fileOf(), withProps(it, patch)), project), `${pickedSk.length === 1 ? kindOf(pickedSk[0]) : `${pickedSk.length} objects`}: properties changed · ⌘Z to undo`)} />
+            )}
+            {tool === 'hatch' && view && <HatchPanel spec={hatchSet} onSpec={setHatchSet} />}
+            {(tool === 'text' || tool === 'dim' || tool === 'leader' || tool === 'rtag' || tool === 'north') && view && (
+              <AnnoPanel anno={anno} onAnno={(a) => onChange({ ...project, cadAnno: a }, `Annotation: ${a.textMm} mm text at 1:${a.scale}`)}
+                {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Two points, then where the dimension line goes.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
             )}
             {tool === 'matchprop' && view && <><h4>Match properties <span className="m">MP</span></h4><div className="cad-devform"><span className="m">{mpFrom ? 'Click each object to give it the layer, colour, linetype and lineweight of the first; Esc stops. Trays and cable routes keep their layers.' : 'Click the object to copy from.'}</span></div></>}
             {tool === 'match' && view && <MatchPanel from={placed.find((x) => x.key === matchFrom)} settings={matchSet} onSettings={setMatchSet} />}
