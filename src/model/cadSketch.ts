@@ -180,7 +180,7 @@ export function itemAt(items: SketchItem[], at: Pt, tol: number): SketchItem | u
 }
 
 /** Drawn items as the engine writes them into a DXF (drawing units). */
-export interface ShapeOut { layer: string; kind: 'line' | 'pline' | 'circle' | 'arc' | 'text'; pts: Pt[]; closed?: boolean; r?: number; a0?: number; a1?: number; text?: string; h?: number; rot?: number }
+export interface ShapeOut { layer: string; kind: 'line' | 'pline' | 'circle' | 'arc' | 'text' | 'hatch'; pts: Pt[]; closed?: boolean; r?: number; a0?: number; a1?: number; text?: string; h?: number; rot?: number; loops?: Pt[][]; solid?: boolean; lines?: { angle: number; base: Pt; offset: Pt; dashes: number[] }[] }
 export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[] {
   const unitsPerMm = 0.001 / metresPerUnit;
   const { fittings } = trayFittings(items, unitsPerMm);

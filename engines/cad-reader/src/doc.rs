@@ -828,7 +828,7 @@ impl CadDoc {
 #[derive(serde::Deserialize)]
 struct DeviceOut { layer: String, x: f64, y: f64, r: f64, text: String, label: String }
 
-/// Something drawn in the app: line / polyline (pts), circle (centre, r), arc (centre, r, a0 → a1 radians), text.
+/// Something drawn in the app: line / polyline (pts), circle (centre, r), arc (centre, r, a0 → a1 radians), text, hatch.
 #[derive(serde::Deserialize)]
 struct ShapeOut {
     layer: String,
@@ -841,13 +841,21 @@ struct ShapeOut {
     #[serde(default)] text: String,
     #[serde(default)] h: f64,
     #[serde(default)] rot: f64,
+    /// Hatch: closed boundary loops, solid or with its pattern lines (a reference's fill, bound into the saved copy).
+    #[serde(default)] loops: Vec<Vec<(f64, f64)>>,
+    #[serde(default)] solid: bool,
+    #[serde(default)] lines: Vec<PatLineOut>,
 }
+
+/// A hatch pattern line: angle (radians), base point, offset between lines, dashes (+ dash, − gap, 0 dot).
+#[derive(serde::Deserialize)]
+struct PatLineOut { angle: f64, base: (f64, f64), offset: (f64, f64), #[serde(default)] dashes: Vec<f64> }
 
 /// The drawing (DWG or DXF) with what was drawn and the devices placed in the app added on their own layers: each
 /// device as a circle with its letters inside and its label (circuit or type) beside it. The architect's entities are
 /// kept as read.
 fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Result<CadDocument, String> {
-    use acadrust::entities::{Arc, Circle, Line, LwPolyline, LwVertex, Text};
+    use acadrust::entities::{Arc, BoundaryEdge, BoundaryPath, Circle, Hatch, HatchPattern, HatchPatternLine, HatchPatternType, Line, LwPolyline, LwVertex, PolylineEdge, Text};
     use acadrust::tables::Layer;
     use acadrust::types::{Vector2, Vector3};
     let (mut doc, _) = read(bytes)?;
@@ -875,6 +883,22 @@ fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Resu
                 let mut t = Text::new();
                 t.value = sh.text.clone(); t.insertion_point = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); t.height = sh.h; t.rotation = sh.rot; t.common.layer = sh.layer.clone();
                 EntityType::Text(t)
+            }
+            "hatch" if sh.loops.iter().any(|l| l.len() >= 3) => {
+                let mut h = if sh.solid || sh.lines.is_empty() { Hatch::solid() } else {
+                    let mut pat = HatchPattern::new("LVDS_REF");
+                    for l in &sh.lines { pat.add_line(HatchPatternLine { angle: l.angle, base_point: Vector2::new(l.base.0, l.base.1), offset: Vector2::new(l.offset.0, l.offset.1), dash_lengths: l.dashes.clone() }); }
+                    let mut h = Hatch::with_pattern(pat);
+                    h.pattern_type = HatchPatternType::Custom;
+                    h
+                };
+                for l in sh.loops.iter().filter(|l| l.len() >= 3) {
+                    let mut path = BoundaryPath::new();
+                    path.add_edge(BoundaryEdge::Polyline(PolylineEdge::new(l.iter().map(|p| Vector2::new(p.0, p.1)).collect(), true)));
+                    h.add_path(path);
+                }
+                h.common.layer = sh.layer.clone();
+                EntityType::Hatch(Box::new(h))
             }
             _ => continue,
         };
@@ -1014,6 +1038,19 @@ mod tests {
 
     /// A plan whose drawing names a reference (STR-GF, saved as ..\\Structure\\STR-GF.dxf): written as DXF and read again,
     /// the reference is still listed. LVDS_WRITE_XREF_FIXTURE writes tests/fixtures/cad/xref-host.dxf (page tests).
+    /// Bind: a reference's fills go into the saved copy as hatches, solid or with their pattern lines, and are read again.
+    #[test]
+    fn hatch_shapes_saved() {
+        let before = CadDoc::new(drawing()).unwrap().fills.len();
+        let sq = r#"[[100,0],[110,0],[110,10],[100,10]]"#;
+        let shapes = format!(r#"[{{"layer":"STR$0$S-FILL","kind":"hatch","pts":[],"loops":[{sq}],"solid":true}},{{"layer":"STR$0$S-HATCH","kind":"hatch","pts":[],"loops":[{sq}],"lines":[{{"angle":0.785398,"base":[0,0],"offset":[-2,2],"dashes":[]}}]}},{{"layer":"X","kind":"hatch","pts":[],"loops":[[[0,0],[1,1]]]}}]"#);
+        let doc = with_additions(drawing(), "[]", &shapes).unwrap();
+        let bytes = acadrust::DxfWriter::new(&doc).write_to_vec().unwrap();
+        let d = CadDoc::new(bytes).unwrap();
+        assert_eq!(d.fills.len(), before + 2); // the one with a loop of two points is left out
+        assert!(d.layers.iter().any(|l| l.name == "STR$0$S-HATCH"));
+    }
+
     #[test]
     fn xrefs_kept_through_dxf() {
         use acadrust::entities::{Insert, Line};

@@ -68,6 +68,12 @@ const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
 const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer manager) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
+/** Bind's count in the Save line: reference lines, texts and hatches. */
+const boundText = (shapes: { kind: string }[]) => {
+  const n = (k: string) => shapes.filter((x) => x.kind === k).length, en = (v: number) => v.toLocaleString('en-GB');
+  const [l, t, h] = [n('line'), n('text'), n('hatch')];
+  return [`${en(l)} reference line${l === 1 ? '' : 's'}`, t ? `${en(t)} text${t === 1 ? '' : 's'}` : '', h ? `${en(h)} hatch${h === 1 ? '' : 'es'}` : ''].filter(Boolean).join(', ');
+};
 const PROMPT: Record<CadTool, string> = {
   none: 'Click an object to see what it is.',
   dist: 'DI  Specify first point:',
@@ -421,7 +427,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       const bytes = await drawingWithDevices(view, out, [...shapesOut(sketch, units.factor), ...wires, ...tags, ...refLines], as);
       const name = `${view.file.replace(/\.(dwg|dxf)$/i, '')} - with devices${bind ? ' and references' : ''}.${as}`;
       const msg = await saveBinary(name, bytes, as === 'dwg' ? 'DWG drawing' : 'DXF drawing', as, as === 'dwg' ? 'application/acad' : 'application/dxf');
-      if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER}${refLines.length ? `, ${refLines.length.toLocaleString('en-GB')} reference lines bound on NAME$0$LAYER layers` : ''}${wiring.length ? `, ${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on ${WIRING_LAYER} / ${TAG_LAYER}` : ''})`); onStatus(msg); }
+      if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER}${refLines.length ? `, ${boundText(refLines)} bound on NAME$0$LAYER layers` : ''}${wiring.length ? `, ${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on ${WIRING_LAYER} / ${TAG_LAYER}` : ''})`); onStatus(msg); }
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
   }
   cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), close: () => { if (view) closeDrawings([view]); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM(true); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); } };

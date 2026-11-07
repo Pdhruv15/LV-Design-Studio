@@ -1144,6 +1144,7 @@ describe('file tabs', () => {
     expect((saveBinary.mock.calls[0] as unknown as [{ defaultName: string }])[0].defaultName).toBe('sample-villa-gf - with devices and references.dxf');
     expect(text).toContain('STR-GF$0$');
     expect(text).not.toContain('STR-GF$0$A-WALL'); // its layer is off
+    expect(document.body.textContent).toContain('2 reference lines bound on NAME$0$LAYER layers'); // inside the clip; no text or hatch there
     await command('XR');
     act(() => button('Detach').click());
     expect(project.cadRefs).toBeUndefined();
