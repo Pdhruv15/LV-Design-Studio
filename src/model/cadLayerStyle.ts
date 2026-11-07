@@ -1,4 +1,5 @@
 import type { Project, SketchItem } from '../types';
+import { colourCss } from './cadColours';
 
 /** Design CAD → Layer manager and object properties: how each layer of a drawing shows (on, locked, colour, linetype,
  * lineweight), kept in the project per drawing file, and what a drawn object has of its own (ByLayer when blank). The
@@ -19,14 +20,9 @@ export const LINETYPES: Record<LinetypeId, { label: string; dash: number[] }> = 
 export const LINETYPE_IDS = Object.keys(LINETYPES) as LinetypeId[];
 /** Lineweights (mm); 0 = Default. */
 export const LINEWEIGHTS = [0, 0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1];
-/** Screen colours a layer can take (the printed sheet stays black-and-white). */
-export const LAYER_COLOURS: { id: string; label: string }[] = [
-  { id: '', label: 'As drawn' }, { id: '#ffffff', label: 'White / black' }, { id: '#ff3b30', label: 'Red' }, { id: '#ffcc00', label: 'Yellow' },
-  { id: '#34c759', label: 'Green' }, { id: '#32ade6', label: 'Cyan' }, { id: '#0a84ff', label: 'Blue' }, { id: '#bf5af2', label: 'Magenta' },
-  { id: '#8e8e93', label: 'Grey' }, { id: '#48484a', label: 'Dark grey' }
-];
 
 /** `noPrint`: the layer shows on screen but stays off the sheets. */
+/** `color`: '' / absent, a named or true colour (#rrggbb) or an index colour ('idx:8'), see cadColours.ts. */
 export interface LayerStyle { color?: string; lock?: boolean; hidden?: boolean; noPrint?: boolean; lt?: LinetypeId; lw?: number }
 export interface ObjectProps { color?: string; lt?: LinetypeId; lw?: number }
 
@@ -52,7 +48,7 @@ export function withLayerStyle(p: Project, file: string, layer: string, patch: L
 export function effective(it: SketchItem, styles: Record<string, LayerStyle>): { color?: string; dash: number[]; lw: number; hidden: boolean; lock: boolean } {
   const l = styleOf(styles, it.layer);
   const lt = it.lt ?? l.lt ?? 'continuous';
-  return { color: it.color ?? l.color, dash: LINETYPES[lt]?.dash ?? [], lw: it.lw ?? l.lw ?? 0, hidden: !!l.hidden, lock: !!l.lock };
+  return { color: colourCss(it.color ?? l.color), dash: LINETYPES[lt]?.dash ?? [], lw: it.lw ?? l.lw ?? 0, hidden: !!l.hidden, lock: !!l.lock };
 }
 
 /** Objects with their own properties set (blank = ByLayer); `undefined` in the patch clears one. */

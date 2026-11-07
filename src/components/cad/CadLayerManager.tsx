@@ -1,8 +1,9 @@
 import { Modal } from '../ui';
-import { drawnLayers, LAYER_COLOURS, LINETYPE_IDS, LINETYPES, LINEWEIGHTS, styleOf, type LayerStyle, type LinetypeId, type ObjectProps } from '../../model/cadLayerStyle';
+import { drawnLayers, LINETYPE_IDS, LINETYPES, LINEWEIGHTS, styleOf, type LayerStyle, type LinetypeId, type ObjectProps } from '../../model/cadLayerStyle';
 import type { CadView } from '../../engines/cad/cadEngine';
 import type { SketchItem } from '../../types';
 import { RefLayers, type CadRefsState } from './CadRefs';
+import { ColourPicker } from './ColourPicker';
 
 /** Design CAD → Layer manager: the app's drawn layers (on, locked, colour, linetype, lineweight) and the architect's
  * (on, a screen colour of its own). The printed sheets stay black-and-white. */
@@ -21,10 +22,8 @@ export function LayerManager({ view, layersOn, sketch, styles, onLayer, onStyle,
   refs?: CadRefsState;
   viewport?: ViewportLayers;
 }) {
-  const colour = (name: string, value: string | undefined) => (
-    <select aria-label={`${name} colour`} value={value ?? ''} onChange={(e) => onStyle(name, { color: e.target.value || undefined })}>
-      {LAYER_COLOURS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-    </select>
+  const colour = (name: string, value: string | undefined, blank = 'ByLayer') => (
+    <ColourPicker label={`${name} colour`} value={value} blank={blank} onChange={(c) => onStyle(name, { color: c })} />
   );
   const count = (name: string) => sketch.filter((it) => it.layer.toLowerCase() === name.toLowerCase()).length;
   return (
@@ -61,7 +60,7 @@ export function LayerManager({ view, layersOn, sketch, styles, onLayer, onStyle,
             <tr key={l.name}>
               <td>{l.name}</td><td>{l.count}</td>
               <td><input type="checkbox" aria-label={`${l.name} on`} checked={!!layersOn[i]} onChange={(e) => onLayer(i, e.target.checked)} /></td>
-              <td>{colour(l.name, styleOf(styles, l.name).color)}</td>
+              <td>{colour(l.name, styleOf(styles, l.name).color, 'As drawn')}</td>
             </tr>
           ))}</tbody>
         </table>
@@ -85,9 +84,7 @@ export function ObjectPropertiesPanel({ items, layers, onApply }: { items: Sketc
           {one('layer') === undefined && <option value="">(several)</option>}
           {layers.map((l) => <option key={l} value={l}>{l}</option>)}
         </select></label>
-        <label>Colour<select aria-label="Object colour" value={one('color') ?? ''} onChange={(e) => onApply({ color: e.target.value || undefined })}>
-          {LAYER_COLOURS.map((c) => <option key={c.id} value={c.id}>{c.id ? c.label : 'ByLayer'}</option>)}
-        </select></label>
+        <label>Colour<ColourPicker label="Object colour" value={one('color')} varies={new Set(items.map((it) => it.color ?? '')).size > 1} onChange={(c) => onApply({ color: c })} /></label>
         <label>Linetype<select aria-label="Object linetype" value={one('lt') ?? ''} onChange={(e) => onApply({ lt: (e.target.value || undefined) as LinetypeId | undefined })}>
           <option value="">ByLayer</option>{LINETYPE_IDS.map((l) => <option key={l} value={l}>{LINETYPES[l].label}</option>)}
         </select></label>
