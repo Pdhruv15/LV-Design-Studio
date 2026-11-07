@@ -66,22 +66,44 @@ export function arcThrough(s: Pt, m: Pt, e: Pt): Omit<SketchItem, 'id' | 'layer'
   return { kind: 'arc', pts: [c.c], r: c.r, a0, a1 };
 }
 
-/** The lines of a dimension from p1 to p2 placed through `at`: extension lines, the dimension line, its ticks, and where
- * its text goes. Aligned with p1 → p2. */
-export function dimensionLines(p1: Pt, p2: Pt, at: Pt): { lines: [Pt, Pt][]; text: Pt; angle: number; length: number } {
+/** A dimension drawn with a dimension style (drawing units): its arrows (a tick, a closed arrow or a dot) and their
+ * size, the gap left at the points measured, and how far the extension lines run past the dimension line. */
+export interface DimLook { arrow: 'tick' | 'closed' | 'dot'; size: number; off: number; ext: number }
+
+/** The lines of a dimension from p1 to p2 placed through `at`: extension lines, the dimension line, its ticks (or the
+ * arrows of its look), and where its text goes. Aligned with p1 → p2. With no look its sizes follow its length. */
+export function dimensionLines(p1: Pt, p2: Pt, at: Pt, look?: DimLook): { lines: [Pt, Pt][]; text: Pt; angle: number; length: number } {
   const len = dist(p1, p2) || 1e-9;
   const ux = (p2[0] - p1[0]) / len, uy = (p2[1] - p1[1]) / len; // along
   const nx = -uy, ny = ux; // across
-  const off = (at[0] - p1[0]) * nx + (at[1] - p1[1]) * ny;
+  const off = (at[0] - p1[0]) * nx + (at[1] - p1[1]) * ny, side = Math.sign(off || 1);
   const d1: Pt = [p1[0] + nx * off, p1[1] + ny * off], d2: Pt = [p2[0] + nx * off, p2[1] + ny * off];
-  const ext = Math.sign(off || 1) * len * 0.02;
-  const tick = len * 0.015;
-  const ticks = [d1, d2].map((d): [Pt, Pt] => [[d[0] - (ux + nx) * tick, d[1] - (uy + ny) * tick], [d[0] + (ux + nx) * tick, d[1] + (uy + ny) * tick]]);
+  const ext = side * (look ? look.ext : len * 0.02);
+  const gap = look ? side * Math.min(look.off, Math.abs(off)) : 0;
+  const at2 = (d: Pt, a: number, b: number): Pt => [d[0] + ux * a + nx * b, d[1] + uy * a + ny * b];
+  const ends: [Pt, Pt][] = [];
+  if (!look || look.arrow === 'tick') {
+    const tick = look ? look.size / (2 * Math.SQRT2) : len * 0.015;
+    for (const d of [d1, d2]) ends.push([at2(d, -tick, -tick), at2(d, tick, tick)]);
+  } else if (look.arrow === 'closed') {
+    // Each arrow points out to its end: a triangle as lines, so it prints and saves the same.
+    for (const [d, dir] of [[d1, 1], [d2, -1]] as const) {
+      const a = at2(d, dir * look.size, look.size / 6), b = at2(d, dir * look.size, -look.size / 6);
+      ends.push([d, a], [a, b], [b, d]);
+    }
+  } else {
+    const r = look.size / 4, k = 12;
+    for (const d of [d1, d2]) for (let i = 0; i < k; i += 1) {
+      const t0 = (2 * Math.PI * i) / k, t1 = (2 * Math.PI * (i + 1)) / k;
+      ends.push([at2(d, r * Math.cos(t0), r * Math.sin(t0)), at2(d, r * Math.cos(t1), r * Math.sin(t1))]);
+    }
+  }
   let angle = Math.atan2(uy, ux);
   if (angle > Math.PI / 2 || angle < -Math.PI / 2) angle += Math.PI; // keep the text readable
+  const lift = side * (look ? look.size * 0.5 : len * 0.015);
   return {
-    lines: [[p1, [d1[0] + nx * ext, d1[1] + ny * ext]], [p2, [d2[0] + nx * ext, d2[1] + ny * ext]], [d1, d2], ...ticks],
-    text: [(d1[0] + d2[0]) / 2 + nx * Math.sign(off || 1) * len * 0.015, (d1[1] + d2[1]) / 2 + ny * Math.sign(off || 1) * len * 0.015],
+    lines: [[[p1[0] + nx * gap, p1[1] + ny * gap], [d1[0] + nx * ext, d1[1] + ny * ext]], [[p2[0] + nx * gap, p2[1] + ny * gap], [d2[0] + nx * ext, d2[1] + ny * ext]], [d1, d2], ...ends],
+    text: [(d1[0] + d2[0]) / 2 + nx * lift, (d1[1] + d2[1]) / 2 + ny * lift],
     angle, length: len
   };
 }
@@ -100,7 +122,7 @@ export function segmentsOf(it: SketchItem): [Pt, Pt][] {
   if (it.kind === 'line' || it.kind === 'pline') poly(it.pts, !!it.closed);
   else if (it.kind === 'circle') arc(it.pts[0], it.r ?? 0, 0, 2 * Math.PI);
   else if (it.kind === 'arc') arc(it.pts[0], it.r ?? 0, it.a0 ?? 0, it.a1 ?? 0);
-  else if (it.kind === 'dim') out.push(...dimensionLines(it.pts[0], it.pts[1], it.pts[2]).lines);
+  else if (it.kind === 'dim') out.push(...dimensionLines(it.pts[0], it.pts[1], it.pts[2], it.look).lines);
   return out;
 }
 
@@ -188,9 +210,10 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[
   const fittingTexts = fittings.map((f): ShapeOut => ({ layer: TRAY_LAYER, kind: 'text', pts: [[f.at[0] + 120 * unitsPerMm, f.at[1] + 120 * unitsPerMm]], text: fittingLabel(f), h: 100 * unitsPerMm, rot: 0 }));
   return [...items.flatMap((it): ShapeOut[] => {
     if (it.kind === 'dim') {
-      const d = dimensionLines(it.pts[0], it.pts[1], it.pts[2]);
+      const d = dimensionLines(it.pts[0], it.pts[1], it.pts[2], it.look);
+      // A dimension of a style keeps its text (its unit and decimals); one without is the length in metres.
       return [...d.lines.map((l): ShapeOut => ({ layer: it.layer, kind: 'line', pts: l })),
-        { layer: it.layer, kind: 'text', pts: [d.text], text: `${(d.length * metresPerUnit).toFixed(2)}`, h: it.h ?? d.length * 0.04, rot: d.angle }];
+        { layer: it.layer, kind: 'text', pts: [d.text], text: it.look && it.text ? it.text : `${(d.length * metresPerUnit).toFixed(2)}`, h: it.h ?? d.length * 0.04, rot: d.angle }];
     }
     if (it.tray) {
       // A single line broken at the middle for its label "CT 300 POWER" (with its route once assigned).

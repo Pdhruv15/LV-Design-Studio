@@ -285,11 +285,17 @@ export function arrayRect(it: SketchItem, rows: number, cols: number, dx: number
   }
   return out;
 }
-/** Polar array: `n` in all (the original first) over `angleDeg` about a centre; a full circle shares it out evenly. */
-export function arrayPolar(it: SketchItem, centre: Pt, n: number, angleDeg: number): Omit<SketchItem, 'id'>[] {
+/** Polar array: `n` in all (the original first) over `angleDeg` about a centre; a full circle shares it out evenly.
+ * With `rotate` off each copy keeps the original's direction: it moves to where its first point turns to. */
+export function arrayPolar(it: SketchItem, centre: Pt, n: number, angleDeg: number, rotate = true): Omit<SketchItem, 'id'>[] {
   const count = Math.max(1, Math.round(n)), full = Math.abs(Math.abs(angleDeg) - 360) < 1e-9;
   const step = ((angleDeg * Math.PI) / 180) / (full ? count : Math.max(1, count - 1));
-  return Array.from({ length: count - 1 }, (_, i) => { const { id: _id, ...r } = rotated(it, centre, step * (i + 1)); return r; });
+  return Array.from({ length: count - 1 }, (_, i) => {
+    const { id: _id, ...r } = rotated(it, centre, step * (i + 1));
+    if (rotate) return r;
+    const d = sub(r.pts[0], it.pts[0]), { id: _i, ...rest } = it;
+    return { ...rest, pts: it.pts.map((q) => add(q, d)) };
+  });
 }
 
 /** Grips of a drawn item: its points (ends and corners, a centre, a text's place) and each segment's middle. */
