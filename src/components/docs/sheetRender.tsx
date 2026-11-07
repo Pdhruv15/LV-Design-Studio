@@ -27,6 +27,7 @@ import { boardIncomerLabel } from '../../docs/loadScheduleDoc';
 import SingleLineDiagram from '../SingleLineDiagram';
 import { dxfToDwg } from '../../engines/cad/cadEngine';
 import { planDrawing, planNotes, planScale } from '../../docs/planLayout';
+import { readSheetRefs } from '../cad/refFiles';
 import { diagramPenCss, inkOf, pensFor, plotOf, plotStamp } from '../../model/plotSetup';
 
 const noop = () => {};
@@ -38,7 +39,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
   document.body.appendChild(host);
   const root = createRoot(host);
   try {
-    if (s.kind === 'plan') { const d = planOf(project, set, s); return d && { svg: d.svg, w: SHEET_MM[d.size].w, h: SHEET_MM[d.size].h }; }
+    if (s.kind === 'plan') { await readSheetRefs(project, s.buildingId, s.levelId); const d = planOf(project, set, s); return d && { svg: d.svg, w: SHEET_MM[d.size].w, h: SHEET_MM[d.size].h }; }
     if (s.kind === 'earthing') return earthingDrawing(project, undefined, true, { mono: true }); // printed sheet: black and white
     if (s.kind === 'earthRiser' || s.kind === 'earthFloor') {
       if (!s.buildingId) return undefined;

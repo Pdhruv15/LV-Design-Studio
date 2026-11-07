@@ -24,11 +24,15 @@ Status: **approved 2026-11-07 ("Go ahead", all six recommended answers) and buil
 
 - A reference named inside the plan's drawing is looked for when the plan opens (desktop): its tab if open, where it was found before, the saved path, that path from the plan's folder, beside the plan, and a folder of the plan's folder named like the saved one (`xrefCandidates` in `src/model/cadRefs.ts`). Found ones are shown at the drawing's first insert (⌘Z undoes it). Missing ones are named in the command line. One detached is not looked for again on this computer (`skippedRefs` in `cadState.ts`). No screen changed.
 
+### v2.048: sheets read references
+
+- A plan sheet reads the references it prints that were not read yet, from where they were found on this computer (`readSheetRefs` in `src/components/cad/refFiles.ts`, called from `renderSheet`). One that cannot be read is still named in the sheet's notes.
+
 ## Not built yet
 
 - Attach and Overlay act the same here; Save DWG does not write an external-reference block (Bind writes the lines).
 - Bind writes lines only (no texts or fills of the reference).
-- Plan sheets print a reference only if it was read in this session (open the plan in Design CAD first); the sheet says so in its notes.
+- Web version: plan sheets print a reference only if it was read in this session (the desktop app reads it from disk since v2.048).
 - Web version: a reference's file is not kept after a reload of the page; Repath… picks it again.
 - Clip invert ("show outside").
 
