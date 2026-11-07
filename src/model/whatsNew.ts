@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.042', date: '2026-11-07',
+    items: [
+      { title: 'Design CAD: layer manager', text: 'View → Layer manager (LM) lists the layers drawn in the app, each with on, lock, colour, linetype and lineweight, and the architect\'s layers with on and a colour of their own on screen. Objects on a locked layer can be seen and snapped to, but not picked or edited.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Design CAD: object properties and Match properties', text: 'Pick drawn objects to set their layer, colour, linetype (dashed, hidden, center, dot…) and lineweight in the side panel; blank is ByLayer. Match properties (MP) copies them from one object to others; trays and cable routes keep their own layers.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.041', date: '2026-11-07',
     items: [
       { title: 'Sheets: page setup and pen tables', text: 'Design CAD → Sheets → Plot has Page setup and Pens. Page setup sets each sheet\'s paper, scale (plan sheets), pen table, lineweights and an optional plot stamp, or saves them as the set\'s default. A pen table gives each kind of line its width and black or grey ink: frame, title block, architect\'s plan, devices, trays, cable routes, SLD lines and busbars. The default prints exactly as before.', action: 'sheets', actionLabel: 'Open Sheets' },

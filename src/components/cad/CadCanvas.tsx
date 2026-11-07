@@ -6,6 +6,7 @@ import type { PlanCells, PlanCover } from '../elv/elvOverlay';
 import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from '../../model/cadDraw';
 import type { SketchItem } from '../../types';
+import { effective, styleOf, type LayerStyle } from '../../model/cadLayerStyle';
 import { onScreenThemeChange, screenAppearance } from '../../theme/theme';
 import { isFitClick, isPanPress, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, wheelAction, ZoomChip } from '../drawingView';
 
@@ -38,7 +39,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd }: {
+export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {} }: {
   view: CadView;
   layersOn: Uint8Array;
   toggles: CadToggles;
@@ -76,6 +77,9 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
   grips?: Pt[];
   onGripStart?: (i: number) => void;
   onGripEnd?: (i: number, at: Pt) => void;
+  /** Layer manager styles by layer name (src/model/cadLayerStyle.ts): a screen colour for the drawing's layers; for
+   * what is drawn here also on/off, linetype and lineweight (an object's own wins). */
+  layerStyle?: Record<string, LayerStyle>;
   extraSnaps?: { x: number; y: number; kind: number }[];
   /** The object being drawn, following the cursor (drawn on the cursor layer). */
   preview?: SketchItem[];
@@ -181,6 +185,9 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     const bg = colour('--cad-bg', '#15171A'), ink = colour('--cad-ink', '#E6E8EB');
     // Stored colours too faint on this background are drawn lighter or darker (each worked out once per draw).
     const bgRgb = cssRgb(bg), shown = new Map<number, string>();
+    // A layer given a colour in the layer manager shows in it.
+    const layerColour: Record<number, string> = {};
+    view.info.layers.forEach((l, i) => { const c = styleOf(layerStyle, l.name).color; if (c) layerColour[i] = c; });
     const shade = (rgb: number) => {
       if (rgb === INK) return ink;
       let v = shown.get(rgb);
@@ -250,7 +257,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     const dashes = view.info.linetypes ?? [];
     for (const b of batches) {
       if (!layersOn[b.layer] || !onScreen(b.box)) continue;
-      ctx.strokeStyle = shade(b.rgb);
+      ctx.strokeStyle = layerColour[b.layer] ?? shade(b.rgb);
       // A linetype too fine to see at this zoom (repeat under 4 pixels) is drawn continuous, as CAD does.
       const dash = b.lt ? dashArray(dashes[b.lt] ?? [], px) : [];
       ctx.setLineDash(dash.length && patternLength(dash) * scale >= 4 ? dash : []);
@@ -297,14 +304,18 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     const { fittings } = trayFittings(sketch, unitsPerMm);
     const skC = colour('--cad-sketch', '#7fd1ff'), selSk = colour('--cad-snap', '#37d67a');
     const trayH = TRAY_TEXT_MM * unitsPerMm, trayText = trayH * scale >= 4;
+    const ltScale = 100 * unitsPerMm; // linetype dashes in paper mm at 1:100
     for (const it of sketch) {
       if (it.kind === 'text') continue;
-      ctx.strokeStyle = isSel(it.id) ? selSk : skC;
-      ctx.lineWidth = (isSel(it.id) ? 3 : it.tray ? 2.5 : 1.5) / scale;
+      const ef = effective(it, layerStyle);
+      if (ef.hidden) continue;
+      ctx.strokeStyle = isSel(it.id) ? selSk : ef.color ?? skC;
+      ctx.lineWidth = (isSel(it.id) ? 3 : ef.lw ? Math.max(1.5, ef.lw * 6) : it.tray ? 2.5 : 1.5) / scale;
       ctx.beginPath();
       if (it.tray) for (const q of trayText ? trayLine(it, trayH).pieces : [it.pts]) q.forEach((p, i) => (i ? ctx.lineTo(p[0] - o0, p[1] - o1) : ctx.moveTo(p[0] - o0, p[1] - o1)));
       else for (const [a, b] of segmentsOf(it)) { ctx.moveTo(a[0] - o0, a[1] - o1); ctx.lineTo(b[0] - o0, b[1] - o1); }
       if (it.cable) ctx.setLineDash([10 / scale, 5 / scale]); // a cable route: dashed
+      else if (ef.dash.length && ef.dash.reduce((t, v) => t + v, 0) * ltScale * scale >= 4) ctx.setLineDash(ef.dash.map((v) => v * ltScale));
       ctx.stroke();
       ctx.setLineDash([]);
     }
@@ -388,6 +399,8 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
         : it.cable && labels[it.id] ? (() => { const l = trayLabel(it); return { at: l.at, s: labels[it.id], h: 120 * unitsPerMm, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
         : null;
       if (!label || !label.s) continue;
+      const lef = effective(it, layerStyle);
+      if (lef.hidden) continue;
       const px = label.h * scale;
       if (px < 4) continue;
       ctx.save();
@@ -396,7 +409,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
       ctx.font = `${Math.min(px, 200)}px system-ui, sans-serif`;
       ctx.textAlign = label.align;
       if (it.tray) ctx.textBaseline = 'middle'; // in the gap of the tray's line
-      ctx.fillStyle = isSel(it.id) ? selSk : skC;
+      ctx.fillStyle = isSel(it.id) ? selSk : lef.color ?? skC;
       ctx.fillText(label.s, 0, 0);
       ctx.restore();
     }
@@ -412,7 +425,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
         ctx.fillText(fittingLabel(f), sx + fpx * 1.2, sy - fpx * 1.2);
       }
     }
-  }, [t, size, batches, fills, layersOn, toggles.grid, view, highlight, devices, wiring, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
+  }, [t, size, batches, fills, layersOn, toggles.grid, view, highlight, devices, wiring, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots, layerStyle]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
 
   /** The cursor: crosshair and pick box, and the snap marker with its name. */
   function drawCursor(at: Pt | null, snap?: { p: Pt; kind: number }) {

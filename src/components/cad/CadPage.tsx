@@ -33,6 +33,8 @@ import { floorLabel, floorList } from '../../model/levels';
 import type { CadLayerMap, CadLayerRole, Project } from '../../types';
 import { fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
+import { LayerManager, ObjectPropertiesPanel } from './CadLayerManager';
+import { drawnLayers, effective, layerStylesOf, matchedProps, withLayerStyle, withProps } from '../../model/cadLayerStyle';
 import { DrawnSelectionPanel, ED_START, EditToolPanel, kindOf, SketchToolbar, type EditSettings, type EditTool, type SketchEdit } from './SketchEditPanel';
 import { arrayPolar, arrayRect, breakAt, chamfer, edgesFor, explode, extend, fillet, gripMoved, gripsOf, isPath, join, mirrored, offset, scaled, sketchInWindow, stretched, trim, type Edit } from '../../model/cadEdit';
 import { ArrayPanel, ARL_START, MatchPanel, MATCH_START, SelectionPanel, type ArlSettings, type MatchSettings } from './DeviceEditPanel';
@@ -50,7 +52,7 @@ const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.to
 const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
   { k: 'snap', label: 'SNAP', key: 'F9' }, { k: 'osnap', label: 'OSNAP', key: 'F3' }, { k: 'ortho', label: 'ORTHO', key: 'F8' }, { k: 'grid', label: 'GRID', key: 'F7' }
 ];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · MP (match properties) · LM (layer manager) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 const PROMPT: Record<CadTool, string> = {
@@ -69,6 +71,7 @@ const PROMPT: Record<CadTool, string> = {
   em: 'EM  Escape route: click its points from the far end to the exit, Enter to finish:',
   arl: 'ARL  Array on line: click the start of the line:',
   match: 'MA  Match: click the device to copy from:',
+  matchprop: 'MATCHPROP  Select the source object:',
   wire: 'WIRE  Click a device: its circuit is wired (or its wiring taken off):',
   move: 'MOVE  Select object, then specify base point:',
   copy: 'COPY  Select object, then specify base point:',
@@ -152,6 +155,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   const [stretchBox, setStretchBox] = useState<[Pt, Pt] | null>(null);
   const [gripIdx, setGripIdx] = useState<number | null>(null);
   const preset = useRef<{ id: string; at: Pt } | null>(null);
+  // Layer manager shown, and the object Match properties copies from.
+  const [showLM, setShowLM] = useState(false);
+  const [mpFrom, setMpFrom] = useState<string | null>(null);
   if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); setEm({ routes: [], points: [], rooms: [] }); setPicked([]); setMenuAt(null); }
   const input = useRef<HTMLInputElement>(null);
   const last = rememberedDrawing(project.id);
@@ -188,7 +194,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   // A tool chosen (ribbon or command line): start it afresh and say what it asks for.
   useEffect(() => {
     setPoints([]); setObjectMode(false); setLuxRoom(null); setMenuAt(null); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
-    setEdStep(preset.current); preset.current = null; setStretchBox(null);
+    setEdStep(preset.current); preset.current = null; setStretchBox(null); setMpFrom(null);
     const first = picked.some((k) => k.startsWith('sk:')) || !!cad.selected?.startsWith('sk:');
     setEdPhase(first ? 'points' : 'pick');
     cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : tool === 'join' ? 'Enter to join them:' : 'Apply on the right, or the centre for a polar array:'}` : PROMPT[tool]}`);
@@ -220,6 +226,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   // What the engineer drew on this drawing (drawing units), its snap points, and the drawn object selected.
   const sketch = useMemo(() => (view ? sketchOf(project, view.file) : []), [project, view]);
   const sketchSnaps = useMemo(() => snapPoints(sketch), [sketch]);
+  // Layer manager styles; objects on locked or hidden layers cannot be picked.
+  const styles = useMemo(() => layerStylesOf(project, view?.file), [project, view]);
+  const pickable = useMemo(() => sketch.filter((it) => { const e = effective(it, styles); return !e.lock && !e.hidden; }), [sketch, styles]);
   const selSketch = sketch.find((it) => `sk:${it.id}` === cad.selected) ?? null;
   // The drawn objects picked: several, else the one selected; and everything picked.
   const pickedSk = useMemo(() => (picked.length ? sketch.filter((it) => picked.includes(`sk:${it.id}`)) : selSketch ? [selSketch] : []), [picked, sketch, selSketch]);
@@ -313,7 +322,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER}${wiring.length ? `, ${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on ${WIRING_LAYER} / ${TAG_LAYER}` : ''})`); onStatus(msg); }
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
   }
-  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), close: () => { if (view) closeDrawings([view]); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll() };
+  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), close: () => { if (view) closeDrawings([view]); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM(true); else cad.say('LAYER  Open a drawing first.'); } };
   // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
   useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
 
@@ -389,7 +398,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   function pickWindow(a: Pt, b: Pt, crossing: boolean, add: boolean) {
     if (tool === 'stretch') { setStretchBox([a, b]); setPoints([]); cad.say('STRETCH  Specify base point:'); return; }
     const found = inWindow(placed, [a[0] * units.factor, a[1] * units.factor], [b[0] * units.factor, b[1] * units.factor], crossing, DEVICE_R_M);
-    const foundSk = sketchInWindow(sketch, a, b, crossing);
+    const foundSk = sketchInWindow(pickable, a, b, crossing);
     const items = add || tool !== 'none' ? [...pickedItems, ...found.filter((d) => !pickedKeys.has(d.key))] : found;
     const sks = add || tool !== 'none' ? [...pickedSk, ...foundSk.filter((it) => !pickedKeys.has(`sk:${it.id}`))] : foundSk;
     pick(tool === 'none' ? items : [], sks);
@@ -399,7 +408,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   /** Right click: the menu of edits at the cursor, for the device or drawn object under it (or what is picked). */
   function contextAt(at: Pt, pixel: number, screen: Pt) {
     if (tool !== 'none') return;
-    const d = deviceAt(at, pixel), sk = d ? undefined : itemAt(sketch, at, 6 * pixel);
+    const d = deviceAt(at, pixel), sk = d ? undefined : itemAt(pickable, at, 6 * pixel);
     if (d && !pickedKeys.has(d.key)) pick([d]);
     else if (sk && !pickedKeys.has(`sk:${sk.id}`)) pick([], [sk]);
     if (!d && !sk && !pickedItems.length && !pickedSk.length) return;
@@ -451,7 +460,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   }
   /** A click with an edit tool (drawing units). */
   function editClick(at: Pt, pixel: number, shiftKey: boolean) {
-    const sk = itemAt(sketch, at, 6 * pixel), f = units.factor, num = (s: string) => Number(s);
+    const sk = itemAt(pickable, at, 6 * pixel), f = units.factor, num = (s: string) => Number(s);
     const cmd = tool.toUpperCase();
     if (PICK_FIRST.includes(tool) && edPhase === 'pick') {
       if (!sk) { cad.say(`${cmd}  Click a drawn object (the architect's drawing is not changed):`); return; }
@@ -609,7 +618,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   const selectAt = (at: Pt, pixel: number): boolean => {
     const d = deviceAt(at, pixel);
     if (d) { cad.setSelected(d.key); setResult({ kind: 'device', it: d }); return true; }
-    const sk = itemAt(sketch, at, 6 * pixel);
+    const sk = itemAt(pickable, at, 6 * pixel);
     if (sk) { cad.setSelected(`sk:${sk.id}`); setResult({ kind: 'sketch', it: sk }); return true; }
     return false;
   };
@@ -636,6 +645,13 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   async function click(at: Pt, pixel: number, shiftKey = false) {
     if (!view) return;
     const last = points[points.length - 1];
+    if (tool === 'matchprop') {
+      const sk = itemAt(pickable, at, 6 * pixel), from = sketch.find((x) => x.id === mpFrom);
+      if (!sk) { cad.say(from ? 'MATCHPROP  Select destination object:' : PROMPT.matchprop); return; }
+      if (!from || sk.id === from.id) { setMpFrom(sk.id); cad.say('MATCHPROP  Select destination object(s):'); return; }
+      change(updateSketch(project, fileOf(), matchedProps(from, sk)), `MATCHPROP  Properties copied to the ${kindOf(sk).toLowerCase()} · ⌘Z to undo`);
+      return;
+    }
     if (EDIT_TOOLS.includes(tool)) { editClick(at, pixel, shiftKey); return; }
     if ((tool === 'move' || tool === 'copy') && many && (floor || !pickedItems.length)) {
       if (!points.length) { setPoints([at]); cad.say(`${tool.toUpperCase()}  Specify second point:`); return; }
@@ -671,7 +687,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     }
     if (tool === 'move' || tool === 'copy' || tool === 'rotate') {
       if (!selSketch && !selectedItem) {
-        if (selectAt(at, pixel)) cad.say(tool === 'rotate' && !itemAt(sketch, at, 6 * pixel) ? 'ROTATE  Click where it faces:' : `${tool.toUpperCase()}  Specify base point:`); else cad.say(`${tool.toUpperCase()}  Select object:`);
+        if (selectAt(at, pixel)) cad.say(tool === 'rotate' && !itemAt(pickable, at, 6 * pixel) ? 'ROTATE  Click where it faces:' : `${tool.toUpperCase()}  Specify base point:`); else cad.say(`${tool.toUpperCase()}  Select object:`);
         return;
       }
       if (tool === 'rotate' && !selSketch) {
@@ -737,7 +753,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     if (tool === 'none') {
       const d = deviceAt(at, pixel);
       setMenuAt(null);
-      const skHit = shiftKey && !d ? itemAt(sketch, at, 6 * pixel) : undefined;
+      const skHit = shiftKey && !d ? itemAt(pickable, at, 6 * pixel) : undefined;
       if (d && shiftKey) {
         const items = pickedKeys.has(d.key) ? pickedItems.filter((x) => x.key !== d.key) : [...pickedItems, d];
         pick(items, pickedSk); cad.say(`SEL  ${picks(items.length + pickedSk.length)}`); return;
@@ -749,7 +765,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       setPicked([]);
       if (d) { cad.setSelected(d.key); setResult({ kind: 'device', it: d }); cad.say(`LIST  ${d.label}${d.detail ? ` · ${d.detail}` : ''}${d.room ? ` · ${d.room}` : ''}`); return; }
       cad.setSelected(null);
-      const sk = itemAt(sketch, at, 6 * pixel);
+      const sk = itemAt(pickable, at, 6 * pixel);
       if (sk) { cad.setSelected(`sk:${sk.id}`); setResult({ kind: 'sketch', it: sk }); cad.say(`LIST  ${sk.tray ? `Cable tray ${sk.tray.widthMm} mm, ${m(toM(trayLength(sk)))}${sk.tray.route ? ` on route ${sk.tray.route}` : ', no route'}` : sk.cable ? `Cable route of ${cableLabels[sk.id] ?? sk.cable.feederId}, ${m(toM(pathLength(sk.pts)))}` : sk.kind === 'pline' ? 'Polyline' : sk.kind} on ${sk.layer} (drawn here)`); return; }
       const o = await view.pick(at[0], at[1], 6 * pixel, cad.layersOn);
       setResult(o ? { kind: 'object', o } : null);
@@ -971,6 +987,8 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     else if (c === 'SC' || c === 'SCALE') cad.setTool('scale');
     else if (c === 'S' || c === 'STRETCH') cad.setTool('stretch');
     else if (c === 'AR' || c === 'ARRAY') cad.setTool('array');
+    else if (c === 'MP' || c === 'MATCHPROP' || c === 'PAINTER') cad.setTool('matchprop');
+    else if (c === 'LM' || c === 'LAYERMANAGER' || c === 'LAYMAN') { if (view) setShowLM(true); else cad.say('LAYER  Open a drawing first.'); }
     else if (c === 'ALIGN' || c === 'ALIGNV' || c === 'SPACE') { if (pickedItems.length < 2) cad.say(`${c}  Select two or more devices first.`); else editDevices(c === 'ALIGN' ? 'row' : c === 'ALIGNV' ? 'column' : 'space'); }
     else if (c === 'WC' || c === 'WIRE' || c === 'WIRECIRCUITS') wireAll();
     else if (c === 'W1' || c === 'WIREONE') cad.setTool('wire');
@@ -1059,7 +1077,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
         {view ? (
           <div className="cad-stage">
             <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
-              windowSelect={tool === 'none' || tool === 'stretch' || (PICK_FIRST.includes(tool) && edPhase === 'pick')} onWindow={pickWindow} onContext={contextAt}
+              layerStyle={styles} windowSelect={tool === 'none' || tool === 'stretch' || (PICK_FIRST.includes(tool) && edPhase === 'pick')} onWindow={pickWindow} onContext={contextAt}
               grips={tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
               onGripEnd={(i, at) => {
                 setGripIdx(null);
@@ -1151,6 +1169,10 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
                 step={edStep ? `${kindOf(sketch.find((x) => x.id === edStep.id) ?? sketch[0])} picked — ${tool === 'offset' ? 'click the side' : tool === 'break' ? 'click the second point, or Enter' : 'click the second line'}` : stretchBox ? 'Window set — click the base point, then the second point' : PICK_FIRST.includes(tool) && edPhase === 'points' ? 'Objects picked — now the points' : undefined}
                 onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
             )}
+            {tool === 'none' && view && pickedSk.length > 0 && (
+              <ObjectPropertiesPanel items={pickedSk} layers={drawnLayers(sketch)} onApply={(patch) => change(pickedSk.reduce((q, it) => updateSketch(q, fileOf(), withProps(it, patch)), project), `${pickedSk.length === 1 ? kindOf(pickedSk[0]) : `${pickedSk.length} objects`}: properties changed · ⌘Z to undo`)} />
+            )}
+            {tool === 'matchprop' && view && <><h4>Match properties <span className="m">MP</span></h4><div className="cad-devform"><span className="m">{mpFrom ? 'Click each object to give it the layer, colour, linetype and lineweight of the first; Esc stops. Trays and cable routes keep their layers.' : 'Click the object to copy from.'}</span></div></>}
             {tool === 'match' && view && <MatchPanel from={placed.find((x) => x.key === matchFrom)} settings={matchSet} onSettings={setMatchSet} />}
             {tool === 'em' && view && (
               <EmergencyPanel project={project} settings={emSet} onSettings={(s) => { if (s.mode !== emSet.mode) { setPoints([]); cad.say(EM_PROMPT[s.mode]); } setEmSet(s); }} layout={emLayout} routes={em.routes.length} openRooms={emRooms.map((r) => r.name)} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId} onPlace={placeEm} onCancel={() => { setEm({ routes: [], points: [], rooms: [] }); setPoints([]); cad.say(`Command: ${PROMPT.em}`); }} />
@@ -1249,6 +1271,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
         <span>{cursor.snap ?? ''}</span>
         <span>{view ? `${view.file} · ${view.info.format} · ${units.label} · 1 : 1` : ''}</span>
       </div>
+      {showLM && view && <LayerManager view={view} layersOn={cad.layersOn} sketch={sketch} styles={styles} onLayer={cad.setLayer} onStyle={(layer, patch) => change(withLayerStyle(project, view.file, layer, patch), `Layer ${layer} changed · ⌘Z to undo`)} onClose={() => setShowLM(false)} />}
     </section>
   );
 }

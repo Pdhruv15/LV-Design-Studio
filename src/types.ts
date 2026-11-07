@@ -425,6 +425,10 @@ export interface SketchItem {
   tray?: { widthMm: number; service?: string; route?: string };
   /** A cable route (a polyline on E-CABLE): the feeder whose cable runs along it. */
   cable?: { feederId: string };
+  /** Its own colour (screen), linetype and lineweight (mm); blank = ByLayer (src/model/cadLayerStyle.ts). */
+  color?: string;
+  lt?: import('./model/cadLayerStyle').LinetypeId;
+  lw?: number;
 }
 export interface CadSketch { file: string; items: SketchItem[] }
 /** A level's plan in Design CAD: the drawing file (name only) that shows the level, and the units it says it is in
@@ -540,6 +544,8 @@ export interface Project {
   cadRoomTypes?: { name: string; type: string }[];
   /** What the engineer drew in the CAD view over each drawing (src/model/cadSketch.ts). */
   cadSketch?: CadSketch[];
+  /** Design CAD layer manager: each drawing's layer styles by file (lower case) and layer name. */
+  cadLayerStyle?: Record<string, Record<string, import('./model/cadLayerStyle').LayerStyle>>;
   /** How sheets print: pen tables and the set's default page setup (src/model/plotSetup.ts). */
   plot?: import('./model/plotSetup').ProjectPlot;
   /** Which drawing file is each level's plan in Design CAD (src/model/cadPlans.ts). */
