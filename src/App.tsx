@@ -136,6 +136,7 @@ const ExportCentre = lazy(() => import('./components/docs/ExportCentre'));
 import { applyBrief, type ProjectBrief } from './model/brief';
 import { defaultsPreview } from './model/setupPreview';
 import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
+import { withUids } from './model/stableIds';
 import { checkProjectShape } from './model/projectValidate';
 import type { FileStamp } from './model/saveSafety';
 import { useUnsaved } from './model/unsaved';
@@ -206,7 +207,7 @@ export default function App() {
   const setProject: typeof history.set = useCallback((value, opts) => setHistory((prev) => {
     const before = withEarthPitIds(prev);
     const next = typeof value === 'function' ? value(before) : value;
-    return withEarthPitIds(next, before);
+    return withUids(withEarthPitIds(next, before), before);
   }, opts), [setHistory]);
   // SLD tabs: null = Design (the working canvas), else a drawing sheet.
   const [sheetTab, setSheetTab] = useState<string | null>(null);

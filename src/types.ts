@@ -1,4 +1,5 @@
 import { CURRENT_SCHEMA, newProjectId } from './model/projectMigrate';
+import { withUids } from './model/stableIds';
 import type { AppliedReference } from './model/designReference';
 import type { DesignRule } from './model/designRules';
 export type FeederStatus = 'ok' | 'warn' | 'bad';
@@ -194,6 +195,8 @@ export type Phase = 'R' | 'Y' | 'B' | 'RYB';
 
 export interface Feeder {
   id: string;
+  /** Permanent ID: kept through rename, move and undo; a copy gets a new one (model/stableIds). */
+  uid?: string;
   boardId: string;
   name: string;
   loadKw: number;
@@ -305,6 +308,8 @@ export interface OtherBuilding {
 
 export interface Board {
   id: string;
+  /** Permanent ID: kept through rename, move and undo; a copy gets a new one (model/stableIds). */
+  uid?: string;
   name: string;
   upstreamId?: string; // parent board id, or undefined for the main board
   sourceKva?: number; // only set on the main board (transformer rating)
@@ -1024,7 +1029,7 @@ export const settingsOf = (p: Project): Required<StudySettings> => ({ ...STUDY_D
 
 export function newProject(name: string): Project {
   const now = new Date().toISOString();
-  return {
+  return withUids({
     id: newProjectId(),
     schemaVersion: CURRENT_SCHEMA,
     createdAt: now,
@@ -1039,5 +1044,5 @@ export function newProject(name: string): Project {
     boards: [{ id: 'MDB-1', name: 'Main Distribution Board', kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 5, ratedCurrentA: 1600 }],
     feeders: [],
     updatedAt: new Date().toISOString()
-  };
+  });
 }
