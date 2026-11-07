@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice, type CanvasWiring } from './CadCanvas';
 import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadState, type CadTool } from './cadState';
+import { cadCommand, type CadAction } from './cadCommands';
 import { chooseDrawing, drawingWithDevices, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
 import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
@@ -1096,74 +1097,36 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (p) { cad.say(`  ${raw}`); click(p, 1e-9); return; }
     }
     cad.say(`Command: ${c}`);
-    if (c === 'OPEN') openFile();
-    else if (c === 'CLOSE' || c === 'CLOSEALL') { if (view) closeDrawings(c === 'CLOSE' ? [view] : undefined); else cad.say('No drawing open.'); }
-    else if (['FIT', 'ZE', 'Z E', 'ZOOM E', 'ZOOM EXTENTS'].includes(c)) cad.fit();
-    else if (c === 'DI' || c === 'DIST' || c === 'DISTANCE') cad.setTool('dist');
-    else if (c === 'AREA' || c === 'AA') cad.setTool('area');
-    else if (c === 'O' && tool === 'area') { setObjectMode(true); setPoints([]); cad.say('AREA  Select a closed object:'); }
-    else if (c === 'RA' || c === 'ROOM' || c === 'ROOMAREA') cad.setTool('room');
-    else if (c === 'ROOMS' || c === 'ADDROOMS') addFound();
-    else if (c === 'TR' || c === 'TRACE') cad.setTool('trace');
-    else if (c === 'PN' || c === 'NAME') cad.setTool('name');
-    else if (c === 'LI' || c === 'LIST') cad.setTool('none');
-    else if (c === 'DEV' || c === 'DEVICE' || c === 'INSERT' || c === 'I') cad.setTool('dev');
-    else if (c === 'M' || c === 'MOVE') cad.setTool('move');
-    else if (c === 'CO' || c === 'CP' || c === 'COPY') cad.setTool('copy');
-    else if (c === 'RO' || c === 'ROTATE') cad.setTool('rotate');
-    else if (c === 'L' || c === 'LINE') cad.setTool('line');
-    else if (c === 'PL' || c === 'PLINE' || c === 'POLYLINE') cad.setTool('pline');
-    else if (c === 'CT' || c === 'TRAY' || c === 'CABLETRAY') cad.setTool('tray');
-    else if (c === 'CR' || c === 'ROUTE' || c === 'CABLEROUTE') cad.setTool('cable');
-    else if (c === 'LR' || c === 'LINK') cad.setTool('link');
-    else if (c === 'SCHED' || c === 'SCHEDULES' || c === 'UPDATE') schedules();
-    else if (c === 'FILL' || c === 'FR') cad.setTool('fill');
-    else if (c === 'LUX' || c === 'LIGHTROOM') cad.setTool('lux');
-    else if (c === 'EM' || c === 'EMERGENCY') cad.setTool('em');
-    else if (c === 'SEL' || c === 'SELECT') { cad.setTool('none'); cad.say('SEL  Click a device, Shift-click to add or remove, or drag a window (left to right: inside; right to left: crossing):'); }
-    else if (c === 'ARL' || c === 'ARRAYLINE') cad.setTool('arl');
-    else if (c === 'MA' || c === 'MATCH' || c === 'MATCHPROP') cad.setTool('match');
-    else if (c === 'TRIM' || c === 'TM') cad.setTool('trim');
-    else if (c === 'EX' || c === 'EXTEND') cad.setTool('extend');
-    else if (c === 'O' || c === 'OFFSET') cad.setTool('offset');
-    else if (c === 'F' || c === 'FILLET') cad.setTool('fillet');
-    else if (c === 'CHA' || c === 'CHAMFER') cad.setTool('chamfer');
-    else if (c === 'BR' || c === 'BREAK') cad.setTool('break');
-    else if (c === 'J' || c === 'JOIN') cad.setTool('join');
-    else if (c === 'X' || c === 'EXPLODE') cad.setTool('explode');
-    else if (c === 'MI' || c === 'MIRROR') cad.setTool('mirror');
-    else if (c === 'SC' || c === 'SCALE') cad.setTool('scale');
-    else if (c === 'S' || c === 'STRETCH') cad.setTool('stretch');
-    else if (c === 'AR' || c === 'ARRAY') cad.setTool('array');
-    else if (c === 'MP' || c === 'MATCHPROP' || c === 'PAINTER') cad.setTool('matchprop');
-    else if (c === 'H' || c === 'HATCH' || c === 'BH') cad.setTool('hatch');
-    else if (c === 'LE' || c === 'LEADER' || c === 'QLEADER') cad.setTool('leader');
-    else if (c === 'RT' || c === 'ROOMTAG') cad.setTool('rtag');
-    else if (c === 'NORTH') cad.setTool('north');
-    else if (c === 'XR' || c === 'XREF' || c === 'XREFS' || c === 'ER' || c === 'EXTERNALREFERENCES') { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }
-    else if (c === 'XA' || c === 'XATTACH') { if (view) void startAttach(); else cad.say('XATTACH  Open a plan first.'); }
-    else if (c === 'XCLIP' || c === 'XC') { const one = xr.refs.filter((x) => !x.unloaded); if (one.length === 1) startClip(one[0]); else if (view) { setShowXR(true); cad.say('XCLIP  Choose the reference, then Clip.'); } }
-    else if (c === 'LM' || c === 'LAYERMANAGER' || c === 'LAYMAN') { if (view) setShowLM(true); else cad.say('LAYER  Open a drawing first.'); }
-    else if (c === 'ALIGN' || c === 'ALIGNV' || c === 'SPACE') { if (pickedItems.length < 2) cad.say(`${c}  Select two or more devices first.`); else editDevices(c === 'ALIGN' ? 'row' : c === 'ALIGNV' ? 'column' : 'space'); }
-    else if (c === 'WC' || c === 'WIRE' || c === 'WIRECIRCUITS') wireAll();
-    else if (c === 'W1' || c === 'WIREONE') cad.setTool('wire');
-    else if (c === 'TAGS') cad.setWireTags(!cad.wireTags);
-    else if (c === 'COV' || c === 'COVERAGE') cad.setCoverage(!cad.coverage);
-    else if (c === 'REC' || c === 'RECTANG' || c === 'RECTANGLE') cad.setTool('rect');
-    else if (c === 'C' || c === 'CIRCLE') cad.setTool('circle');
-    else if (c === 'A' || c === 'ARC') cad.setTool('arc');
-    else if (c === 'T' || c === 'DT' || c === 'TEXT' || c === 'MT') cad.setTool('text');
-    else if (c === 'DIM' || c === 'DIMALIGNED' || c === 'DAL' || c === 'DLI') cad.setTool('dim');
-    else if (c === 'E' || c === 'ERASE' || c === 'DEL' || c === 'DELETE') removeSelected();
-    else if (c === 'SAVE' || c === 'DXFOUT' || c === 'SAVEAS') void saveDxf();
-    else if (c === 'SAVEDWG' || c === 'DWGOUT') void saveDxf('dwg');
-    else if (c === 'LA' || c === 'LAYER' || c === 'LAYERS') cad.setShowLayers(!cad.showLayers);
-    else if (c === 'OS' || c === 'OSNAP') cad.toggle('osnap');
-    else if (c === 'GRID') cad.cycleGrid();
-    else if (c === 'ORTHO') cad.toggle('ortho');
-    else if (c === 'SNAP') cad.toggle('snap');
-    else if (c === 'HELP' || c === '?') cad.say(HELP);
-    else cad.say(`Unknown command "${c}". ${HELP}`);
+    if (c === 'O' && tool === 'area') { setObjectMode(true); setPoints([]); cad.say('AREA  Select a closed object:'); return; }
+    const act: Record<CadAction, () => void> = {
+      open: () => openFile(),
+      close: () => { if (view) closeDrawings(c === 'CLOSE' ? [view] : undefined); else cad.say('No drawing open.'); },
+      fit: () => cad.fit(),
+      addRooms: () => addFound(),
+      schedules: () => schedules(),
+      select: () => { cad.setTool('none'); cad.say('SEL  Click a device, Shift-click to add or remove, or drag a window (left to right: inside; right to left: crossing):'); },
+      xref: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); },
+      xattach: () => { if (view) void startAttach(); else cad.say('XATTACH  Open a plan first.'); },
+      xclip: () => { const one = xr.refs.filter((x) => !x.unloaded); if (one.length === 1) startClip(one[0]); else if (view) { setShowXR(true); cad.say('XCLIP  Choose the reference, then Clip.'); } },
+      layerManager: () => { if (view) setShowLM(true); else cad.say('LAYER  Open a drawing first.'); },
+      align: () => { if (pickedItems.length < 2) cad.say(`${c}  Select two or more devices first.`); else editDevices(c === 'ALIGN' ? 'row' : c === 'ALIGNV' ? 'column' : 'space'); },
+      wireAll: () => wireAll(),
+      wireTags: () => cad.setWireTags(!cad.wireTags),
+      coverage: () => cad.setCoverage(!cad.coverage),
+      erase: () => removeSelected(),
+      save: () => void saveDxf(),
+      saveDwg: () => void saveDxf('dwg'),
+      layers: () => cad.setShowLayers(!cad.showLayers),
+      osnap: () => cad.toggle('osnap'),
+      grid: () => cad.cycleGrid(),
+      ortho: () => cad.toggle('ortho'),
+      snap: () => cad.toggle('snap'),
+      help: () => cad.say(HELP)
+    };
+    const command = cadCommand(c);
+    if (!command) cad.say(`Unknown command "${c}". ${HELP}`);
+    else if ('tool' in command) cad.setTool(command.tool);
+    else act[command.action]();
   }
 
   // CAD keys while this page shows: function keys toggle, typing goes to the command line, Enter closes an area, Esc

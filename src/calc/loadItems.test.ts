@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { circuitWatts, dominantLoadType, itemizedTypes, loadItemsText, missingWatts, normalizeLoadItems, pointsWithItems, wattUnitText } from './loadSchedule';
 import { buildBom } from './bom';
 import { addCircuit, updateCircuit } from '../model/schedule';
-import { migrateProject } from '../model/projectMigrate';
+import { CURRENT_SCHEMA, migrateProject } from '../model/projectMigrate';
+import { withUids } from '../model/stableIds';
 import { projectInputIssues } from '../model/projectValidate';
 import { applySheetEdits, buildDbSheet, isEditable } from '../docs/dbSheet';
 import { loadScheduleCsv } from '../docs/loadScheduleDoc';
@@ -112,9 +113,9 @@ describe('mixed-wattage load items', () => {
 
   it('opening a file brings itemized counts in line; files without items are untouched', () => {
     const { p, f } = mixed();
-    const stale = { ...p, id: 'x', schemaVersion: 1, createdAt: 'now', feeders: p.feeders.map((x) => (x.id === f.id ? { ...x, points: { ltg: 3 } } : x)) };
+    const stale = { ...p, id: 'x', schemaVersion: CURRENT_SCHEMA, createdAt: 'now', feeders: p.feeders.map((x) => (x.id === f.id ? { ...x, points: { ltg: 3 } } : x)) };
     expect(migrateProject(stale).feeders.find((x) => x.id === f.id)!.points?.ltg).toBe(10);
-    const plain = { ...base(), id: 'y', schemaVersion: 1, createdAt: 'now' };
+    const plain = withUids({ ...base(), id: 'y', schemaVersion: CURRENT_SCHEMA, createdAt: 'now' });
     expect(migrateProject(plain)).toBe(plain);
   });
 

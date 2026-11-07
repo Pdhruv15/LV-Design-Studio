@@ -1,13 +1,17 @@
 import type { Feeder, Project } from '../types';
 import { pointsWithItems } from '../calc/loadSchedule';
+import { withUids } from './stableIds';
 
 /** Project identity, file-format version and copying.
  *
  * Every project has a stable `id` (so recovery, history and copies can refer
  * to it whatever its file is called), a `schemaVersion`, and a `createdAt`.
  * Older files get these when they are opened; nothing is written until the
- * user saves. */
-export const CURRENT_SCHEMA = 1;
+ * user saves.
+ *
+ * Version 2: boards and circuits carry a permanent `uid` (model/stableIds). An older
+ * app opens a version 2 file read-only, so it cannot save it without the uids. */
+export const CURRENT_SCHEMA = 2;
 
 const fnv = (s: string): string => {
   let h = 2166136261;
@@ -31,10 +35,10 @@ export const isFutureSchema = (p: Project): boolean => (p.schemaVersion ?? 0) > 
 export function migrateProject(p0: Project, file?: string): Project {
   if (isFutureSchema(p0)) return p0; // never rewrite what this version does not understand
   const p = withItemCounts(p0);
-  if (p.id && p.schemaVersion === CURRENT_SCHEMA && p.createdAt) return p;
+  if (p.id && p.schemaVersion === CURRENT_SCHEMA && p.createdAt) return withUids(p);
   const firstRevision = p.revisions?.[0]?.date;
   const created = p.createdAt ?? (firstRevision && !Number.isNaN(Date.parse(firstRevision)) ? new Date(firstRevision).toISOString() : p.updatedAt);
-  return { ...p, id: p.id ?? (file ? legacyIdFor(file) : newProjectId()), schemaVersion: CURRENT_SCHEMA, createdAt: created };
+  return withUids({ ...p, id: p.id ?? (file ? legacyIdFor(file) : newProjectId()), schemaVersion: CURRENT_SCHEMA, createdAt: created });
 }
 
 /** Circuits with mixed load items: each itemized point count equals the sum of its items

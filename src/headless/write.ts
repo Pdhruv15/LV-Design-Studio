@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Project } from '../types';
+import { withUids } from '../model/stableIds';
 import { unsavedCopyInApp } from './project';
 import { areRealDirs, MAX_PROJECT_BYTES, openToAppend, readFileLimited, realDirs } from './safeFiles';
 
@@ -127,9 +128,11 @@ export function commitText(folder: string, file: string, readText: string, text:
   }
 }
 
-/** Writes the project as the app does (2-space JSON). */
-export const commitProject = (folder: string, file: string, readText: string, next: Project, tool: string, summary: string, client?: string) =>
-  commitText(folder, file, readText, JSON.stringify(next, null, 2), tool, summary, next, undefined, client);
+/** Writes the project as the app does (2-space JSON), with a uid on every new or copied board and circuit. */
+export function commitProject(folder: string, file: string, readText: string, next0: Project, tool: string, summary: string, client?: string) {
+  const next = withUids(next0);
+  return commitText(folder, file, readText, JSON.stringify(next, null, 2), tool, summary, next, undefined, client);
+}
 
 /** Puts back the version from before a change. Only when the file is still exactly what that change wrote, and the
  * backup that change kept is still what it was. */
