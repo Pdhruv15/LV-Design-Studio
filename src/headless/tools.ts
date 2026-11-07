@@ -28,6 +28,16 @@ export interface ToolContext {
   anywhere: boolean;
   /** Tools that change a project are offered (MCP / API started with --write; always on the command line, where they still preview by default). */
   write?: boolean;
+  /** MCP: the AI client that called, from its own initialize message (clientLabel). Recorded on changes, proposals and
+   * exports so the engineer can see which program made them. Absent on the command line and the local API. */
+  client?: string;
+}
+
+/** A client's name and version as sent in MCP initialize: untrusted text, so letters, digits and a few marks only, and short. */
+export function clientLabel(info: { name?: unknown; version?: unknown } | undefined): string | undefined {
+  const clean = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/[^\p{L}\p{N} ._\-()/+]/gu, '').replace(/\s+/g, ' ').trim().slice(0, max) : '');
+  const name = clean(info?.name, 60), version = clean(info?.version, 20);
+  return name ? (version ? `${name} ${version}` : name) : undefined;
 }
 
 export interface Tool {

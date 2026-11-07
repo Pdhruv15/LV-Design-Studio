@@ -41,6 +41,8 @@ export interface ChangeEntry {
   backup: string;
   /** For an undo: the change it reversed. */
   undoes?: string;
+  /** The AI client that made the change (MCP), as it named itself. */
+  client?: string;
 }
 
 export class WriteRefused extends Error {}
@@ -73,13 +75,13 @@ function changeEntry(folder: string, line: string): ChangeEntry | undefined {
   let e: Partial<Record<keyof ChangeEntry, unknown>>;
   try { e = JSON.parse(line); } catch { return undefined; }
   if (!e || typeof e !== 'object' || Array.isArray(e)) return undefined;
-  const { id, at, file, tool, summary, beforeHash, afterHash, backup, undoes } = e;
+  const { id, at, file, tool, summary, beforeHash, afterHash, backup, undoes, client } = e;
   if (typeof id !== 'string' || !ID.test(id) || typeof file !== 'string' || !file || /[\\/]/.test(file)) return undefined;
   if (typeof at !== 'string' || typeof tool !== 'string' || typeof summary !== 'string') return undefined;
   if (typeof beforeHash !== 'string' || !HASH.test(beforeHash) || typeof afterHash !== 'string' || !HASH.test(afterHash)) return undefined;
   if (typeof backup !== 'string' || !sameRelPath(backup, path.relative(folder, backupPath(folder, file, id)))) return undefined;
   if (undoes !== undefined && (typeof undoes !== 'string' || !ID.test(undoes))) return undefined;
-  return { id, at, file, tool, summary, beforeHash, afterHash, backup, ...(undoes ? { undoes } : {}) };
+  return { id, at, file, tool, summary, beforeHash, afterHash, backup, ...(undoes ? { undoes } : {}), ...(typeof client === 'string' && client ? { client: client.slice(0, 100) } : {}) };
 }
 
 /** The changes in the log, oldest first; lines that are not changes these tools wrote are left out. */
@@ -104,7 +106,7 @@ function pruneBackups(dir: string): void {
 }
 
 /** Writes `text` over the project file that was read as `readText`, keeping a backup and logging the change. */
-export function commitText(folder: string, file: string, readText: string, text: string, tool: string, summary: string, project: Project, undoes?: string): ChangeEntry {
+export function commitText(folder: string, file: string, readText: string, text: string, tool: string, summary: string, project: Project, undoes?: string, client?: string): ChangeEntry {
   const blocked = writeBlocked(project, file, readText);
   if (blocked) throw new WriteRefused(blocked);
   const name = path.basename(file);
@@ -116,7 +118,7 @@ export function commitText(folder: string, file: string, readText: string, text:
     const backupFull = backupPath(folder, name, id);
     fs.writeFileSync(backupFull, readText, { encoding: 'utf-8', flag: 'wx' });
     writeAtomic(file, text);
-    const entry: ChangeEntry = { id, at: at.toISOString(), file: name, tool, summary, beforeHash: sha(readText), afterHash: sha(text), backup: path.relative(folder, backupFull), ...(undoes ? { undoes } : {}) };
+    const entry: ChangeEntry = { id, at: at.toISOString(), file: name, tool, summary, beforeHash: sha(readText), afterHash: sha(text), backup: path.relative(folder, backupFull), ...(undoes ? { undoes } : {}), ...(client ? { client } : {}) };
     fs.writeFileSync(log, JSON.stringify(entry) + '\n', 'utf-8');
     pruneBackups(dir);
     return entry;
@@ -126,12 +128,12 @@ export function commitText(folder: string, file: string, readText: string, text:
 }
 
 /** Writes the project as the app does (2-space JSON). */
-export const commitProject = (folder: string, file: string, readText: string, next: Project, tool: string, summary: string) =>
-  commitText(folder, file, readText, JSON.stringify(next, null, 2), tool, summary, next);
+export const commitProject = (folder: string, file: string, readText: string, next: Project, tool: string, summary: string, client?: string) =>
+  commitText(folder, file, readText, JSON.stringify(next, null, 2), tool, summary, next, undefined, client);
 
 /** Puts back the version from before a change. Only when the file is still exactly what that change wrote, and the
  * backup that change kept is still what it was. */
-export function undoChange(folder: string, file: string, readText: string, project: Project, changeId?: string): ChangeEntry {
+export function undoChange(folder: string, file: string, readText: string, project: Project, changeId?: string, client?: string): ChangeEntry {
   const name = path.basename(file);
   const mine = readLog(folder).filter((e) => e.file === name);
   const undone = new Set(mine.map((e) => e.undoes).filter(Boolean));
@@ -145,5 +147,5 @@ export function undoChange(folder: string, file: string, readText: string, proje
   let before: string | undefined;
   try { if (areRealDirs(folder, AGENT, 'backups', stemOf(name))) before = readFileLimited(kept, MAX_PROJECT_BYTES)?.toString('utf-8'); } catch { /* missing or not a file */ }
   if (before === undefined || sha(before) !== target.beforeHash) throw new WriteRefused(`The earlier version of ${name} kept by ${target.id} is missing or was changed, so it is not put back.`);
-  return commitText(folder, file, readText, before, 'undo_change', `Undo ${target.id}: ${target.summary}`, project, target.id);
+  return commitText(folder, file, readText, before, 'undo_change', `Undo ${target.id}: ${target.summary}`, project, target.id, client);
 }

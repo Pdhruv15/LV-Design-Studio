@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { callTool, offeredTools, type ToolContext } from './tools';
+import { callTool, clientLabel, offeredTools, type ToolContext } from './tools';
 import { redactPaths } from './project';
 
 /** MCP server over stdio: an AI client (Claude Desktop, Claude Code, or a local model through any MCP
@@ -25,7 +25,7 @@ export function createMcp(ctx: ToolContext, version: string): McpServer {
         : { title: t.title, readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
     }, async (args: Record<string, unknown>) => {
       try {
-        return { content: [{ type: 'text' as const, text: JSON.stringify(await callTool(t, args, ctx)) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify(await callTool(t, args, { ...ctx, client: clientLabel(server.server.getClientVersion()) ?? 'unnamed MCP client' })) }] };
       } catch (e) {
         return { isError: true, content: [{ type: 'text' as const, text: redactPaths((e as Error).message, ctx.folder) }] };
       }

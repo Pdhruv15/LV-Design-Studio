@@ -7,7 +7,7 @@ import { devicesOn, newElvDevice, placeDevices, removeDevices } from '../elv/pla
 import { elvSchedules } from '../elv/schedules';
 import { buildingInfoOf } from '../calc/building';
 import { findLevel } from './cadTools';
-import { AUTHOR, edit } from './editTools';
+import { authorOf, edit } from './editTools';
 import type { Project } from '../types';
 import { readFile } from './exchangeTools';
 import { openProject } from './project';
@@ -156,7 +156,7 @@ export const ELV_TOOLS: Tool[] = [
       const by = typeof a.approvedBy === 'string' ? a.approvedBy.trim() : '';
       if (a.mode === 'apply' && by.length < 2) throw new Error('Applying needs approvedBy: the name of the engineer who approved the placement.');
       return edit(a, ctx, 'elv_place_loads', a.mode === 'apply', (p) => {
-        const { project: next, plan, added, proposal: mod } = placeElvLoads(p, (a.boards as Record<string, string> | undefined) ?? {}, AUTHOR, by || undefined);
+        const { project: next, plan, added, proposal: mod } = placeElvLoads(p, (a.boards as Record<string, string> | undefined) ?? {}, authorOf(ctx), by || undefined);
         const warnings = [
           ...plan.notices,
           ...plan.unplaced.map((u) => `${u.load.id} not placed: ${u.why}. Give its board with boards.`),
