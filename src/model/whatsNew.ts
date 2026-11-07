@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.050', date: '2026-11-07',
+    items: [
+      { title: 'Design CAD: model and layouts', text: 'As in industry CAD, you draw once in Model and each sheet is a layout. Tabs under the drawing: Model, one tab per layout of the level (its sheet number), and + for a new one; right-click a layout for Rename, Copy, Move, Page setup and Delete. A layout is the sheet\'s paper with its title block and viewports onto the model: MV adds a viewport, VPSCALE and VPLOCK set its scale and lock, and a double-click inside works in the model through it (MS; PS or a double-click outside goes back). Your plan sheets are layouts already, nothing to convert.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Viewports print as placed', text: 'Each viewport can show another plan type (a power key plan on a lighting sheet), freeze layers for itself only (Layer manager → This viewport) and hide references; its frame does not print unless you tick Frame prints. Notes, callouts, clouds, lines and boxes go on the paper from the command line (T, LE, CLOUD, L, REC) with the Sheets markup tools. Sheets stay black and white.' }
+    ]
+  },
+  {
     version: '2.048', date: '2026-11-07',
     items: [
       { title: 'Plan sheets read their references', text: 'In the desktop app, a plan sheet now reads the references (Xref) it prints from where they were found on this computer, so you no longer need to open the plan in Design CAD first. A reference that cannot be read is still named in the sheet\'s notes as not printed.', action: 'sheets', actionLabel: 'Open Sheets' }

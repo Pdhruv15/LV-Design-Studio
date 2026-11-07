@@ -1,6 +1,26 @@
 # UI / UX — Model space and layout (paper) space in Design CAD (2026-11-07)
 
-Status: **proposal, waiting for approval.** Mockup: `docs/mockups/cad-layout-space-mockup.html` (artifact: https://claude.ai/artifact/MECw4xynMvz82sJQYsbaHu).
+Status: **approved 2026-11-07 ("Yes, all six", the recommended answers) and phase 1 built in v2.050.** Mockup: `docs/mockups/cad-layout-space-mockup.html` (artifact: https://claude.ai/artifact/MECw4xynMvz82sJQYsbaHu).
+
+## Built (v2.050, phase 1)
+
+- `src/model/planViewports.ts`: `PlanViewport` on plan sheets (`DrawingSheet.viewports`), window and paper ↔ model maths, lock, freeze, ids.
+- `src/docs/planLayout.ts`: `contentSvg` draws the design for one window; `viewportDrawing` prints a layout through its viewports (plan type, frozen layers, references off, frame when asked); `layoutViewports` works out the one viewport of a sheet without any, which prints as before; `stripSvg` (title, scale bar, north arrow) shared.
+- `src/components/cad/CadLayouts.tsx`: Model / layout tabs (new, rename, copy, move, page setup, delete), the viewport frames over the paper (pick, move, resize, MV, double-click for MS / PS), Viewport properties.
+- `CadCanvas`: `fitBox`, `fixed`, `onView`, so the drawing opens inside a viewport (locked: no pan or zoom; unlocked: its view follows).
+- The layout's paper is the Sheets page (`SheetWorkspace` with `bare` and `overlay`); paper markups use the Sheets tools from the command line (T, LE, CLOUD, ARROW, L, REC).
+- Layer manager: This viewport column (drawn layers and reference layers).
+- Ribbon: a Layout group after File on a layout tab (New layout, Viewport, Scale, Lock, Page setup, Plot PDF).
+- Commands: LAYOUT (LO) [type], MODEL, MV, MS, PS, VPSCALE n, VPLOCK, PAGESETUP, PLOT.
+
+### Not built yet
+
+- Phase 2: Save DXF / DWG with real paper-space layouts and viewports.
+- Paper markups are placed with the Sheets tools (from the command line); editing or deleting one is in Sheets.
+- The drawing inside a viewport uses the CAD canvas colours (dark), not white paper.
+- Viewports are rectangles only. A legend and north arrow come with the sheet (the title strip follows the first viewport); they are not placed by hand yet.
+- Deleting the last viewport brings back the worked-out one.
+- Checked only by tests: the screens were not opened in the real app (project rules).
 
 ## Why
 

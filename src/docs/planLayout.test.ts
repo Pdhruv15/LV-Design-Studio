@@ -243,6 +243,8 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
       expect(d.svg).toContain('<rect x="10" y="10" width="50" height="30" fill="none" stroke="#000" stroke-width="0.35"/>');
       expect(d.svg).not.toContain(`<rect x="${main.box[0]}" y="${main.box[1]}" width="${main.box[2]}" height="${main.box[3]}" fill="none" stroke="#000"`); // its frame does not print
       expect(d.svg.match(/NOTE A/g)).toHaveLength(2);
+      expect(d.svg.match(/>DB-GF1</g)).toHaveLength(1); // the key plan (1:500 beside 1:100) leaves the DB name and circuit tags out
+      expect(d.svg.match(/DB-GF1\/Y1 · /g)).toHaveLength(1);
       const frozen = planDrawing(p, withVps(s, [main, { ...key, frozen: ['e-notes'] }]))!;
       expect(frozen.svg.match(/NOTE A/g)).toHaveLength(1); // frozen in the key plan only
       const power = planDrawing(p, withVps(s, [main, { ...key, shows: 'power' }]))!;
