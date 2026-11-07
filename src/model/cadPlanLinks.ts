@@ -22,7 +22,7 @@ export function withLinks(project: Project, links: CadPlanLinks): Project {
   return all.length ? { ...base, cadPlanLinks: all } : base;
 }
 
-/** The drawing with the links written as LVDS tags ("route:<id>", "tray:<name>", "place:<id>"), as OpenCADStudio wrote
+/** The drawing with the links written as LVDS tags ("route:<id>", "tray:<name>", "place:<id>"), as an external drawing program wrote
  * them into the drawing, so the plan reading and auto-linking work unchanged. Links made here win over tags in the file. */
 export function linkedDrawing(d: CadDrawing, links: CadPlanLinks): CadDrawing {
   const places = new Map(Object.entries(links.places ?? {}).filter(([, p]) => p.handle).map(([id, p]) => [p.handle!, id]));

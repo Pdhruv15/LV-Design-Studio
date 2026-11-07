@@ -94,6 +94,12 @@ export function renamePanels(project: Project, pairs: { from: string; to: string
   const rekey = <T,>(o: Record<string, T> | undefined) => (o ? Object.fromEntries(Object.entries(o).map(([k, v]) => [earthKey(k), v])) : o);
   if (project.earthingPlan) next.earthingPlan = { ...next.earthingPlan, ...(project.earthingPlan.pits ? { pits: rekey(project.earthingPlan.pits) } : {}), ...(project.earthingPlan.unlinked ? { unlinked: project.earthingPlan.unlinked.map(earthKey) } : {}) };
   if (project.earthPitIds) next.earthPitIds = rekey(project.earthPitIds);
+  // Floor plan links: cable routes name the circuit (handle → circuit) and placed boards are keyed by the panel.
+  if (project.cadPlanLinks) next.cadPlanLinks = project.cadPlanLinks.map((l) => ({
+    ...l,
+    ...(l.routes ? { routes: Object.fromEntries(Object.entries(l.routes).map(([h, f]) => [h, feederMap.get(f) ?? f])) } : {}),
+    ...(l.places ? { places: Object.fromEntries(Object.entries(l.places).map(([id, x]) => [map.get(id) ?? id, x])) } : {})
+  }));
   return {
     ...next,
     ...(project.ties ? { ties: project.ties.map((t) => ({ ...t, a: map.get(t.a) ?? t.a, b: map.get(t.b) ?? t.b })) } : {}),
