@@ -79,7 +79,7 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
       if (!levels.length) { onStatus('No ELV devices placed on the floor plans yet: place them in Design CAD first.'); return; }
       const files = levels.map((lv) => ({ name: `${safeFileName(`${project.name} ELV ${lv.name}`)}.dxf`, data: planDxf(project, lv) }));
       let m: string | null;
-      if (files.length === 1) m = await saveText(files[0].name, files[0].data, 'DXF drawing (AutoCAD R12)', 'dxf');
+      if (files.length === 1) m = await saveText(files[0].name, files[0].data, 'DXF drawing (R12)', 'dxf');
       else {
         const zip = new (await import('jszip')).default();
         files.forEach((f) => zip.file(f.name, f.data));

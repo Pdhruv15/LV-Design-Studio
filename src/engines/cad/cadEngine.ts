@@ -252,7 +252,7 @@ export interface DeviceOut { layer: string; x: number; y: number; r: number; tex
 export async function drawingWithDevices(view: CadView, devices: DeviceOut[], shapes: unknown[] = [], as: 'dxf' | 'dwg' = 'dxf'): Promise<Uint8Array> {
   return withSavingEngine(async (engine) => {
     try {
-      // DWG: in the version the drawing came in, else AutoCAD 2018 (engines/cad-reader/src/doc.rs dwg_bytes).
+      // DWG: in the version the drawing came in, else the 2018 format (engines/cad-reader/src/doc.rs dwg_bytes).
       return await engine.call('save', as, view.bytes, JSON.stringify(devices), JSON.stringify(shapes));
     } catch (e) {
       throw new Error(`The drawing could not be saved (${message(e)}).`);
@@ -260,7 +260,7 @@ export async function drawingWithDevices(view: CadView, devices: DeviceOut[], sh
   });
 }
 
-/** A DXF the app made (an SLD sheet) saved as DWG by the same engine: AutoCAD 2018, as it writes a drawing older than
+/** A DXF the app made (an SLD sheet) saved as DWG by the same engine, in the 2018 format, as it writes a drawing older than
  * 2000. Layers, title block and texts are kept as in the DXF. */
 export async function dxfToDwg(dxf: string): Promise<Uint8Array> {
   return withSavingEngine(async (engine) => {

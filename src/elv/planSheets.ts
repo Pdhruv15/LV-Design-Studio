@@ -123,7 +123,7 @@ export function levelUnits(p: Project, lv: PlanLevel): string {
   return fromFile ?? (all.length === 1 ? all[0] : 'mm');
 }
 
-/** The level's ELV devices as DXF (AutoCAD R12) in the plan's own units on its origin, so it lies on the architect's
+/** The level's ELV devices as DXF (R12) in the plan's own units on its origin, so it lies on the architect's
  * drawing: room outlines on A-ELV-ROOMS, each system's symbols on its own layer, each device tagged with its ID. */
 export function planDxf(p: Project, lv: PlanLevel, units = levelUnits(p, lv)): string {
   const mm = 1 / (UNIT_M[units] ?? 0.001), r = 0.15 * mm; // symbols 300 mm across: 3 mm on paper at 1:100

@@ -1307,6 +1307,13 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 
 /* Ribbon split button (Add board ▾) */
 .ribbon-split{position:relative;display:inline-flex;align-items:stretch}
+/* Small buttons, three to a column (the CAD-standard panels), and a panel caption that opens its less used tools. */
+.ribbon-stack{display:flex;flex-direction:column;justify-content:center;gap:1px}
+.ribbon-group .ribbon-stack button{flex-direction:row;justify-content:flex-start;gap:6px;min-width:0;min-height:0;height:20px;padding:0 6px;font-size:var(--fs-xs)}
+.ribbon-stack .ribbon-split{align-self:flex-start}
+.ribbon-stack .ribbon-split-arrow{height:20px}
+.ribbon-group .ribbon-caption-more{display:block;min-width:0;min-height:0;padding:1px 0 0;border:0;background:none;cursor:pointer;font-size:var(--fs-xs);color:var(--mut);text-align:center;letter-spacing:.02em;line-height:1.2;white-space:nowrap;border-radius:var(--radius-sm)}
+.ribbon-group .ribbon-caption-more:hover,.ribbon-group .ribbon-caption-more[aria-expanded="true"]{color:var(--tx);background:var(--panel)}
 .ribbon-split > button:first-child{padding-right:4px}
 .ribbon-split-arrow{min-width:0 !important;padding:0 2px !important;align-self:center;height:28px}
 .ribbon-menu-label{display:inline-flex;align-items:center;gap:2px}

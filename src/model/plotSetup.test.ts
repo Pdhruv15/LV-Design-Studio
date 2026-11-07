@@ -15,7 +15,7 @@ const villa: Project = {
   ...sampleProject, lvPoints: undefined, cadWiring: undefined, cadSketch: undefined, elvDevices: undefined, drawingSet: undefined, plot: undefined,
   building: { buildings: [{ id: 'V', name: 'Villa', levels: [{ id: 'GF', name: 'Ground floor', kind: 'ground', heightM: 4 }] }], rooms: [{ id: 'r1', buildingId: 'V', levelId: 'GF', name: 'Hall', type: 'lobby', areaM2: 120, outline: [[0, 0], [12, 0], [12, 10], [0, 10]] }] }
 };
-/** A CTB file as AutoCAD writes it: a text header, then the plot styles compressed with zlib. */
+/** A CTB file as CAD programs write it: a text header, then the plot styles compressed with zlib. */
 function ctbFile(styles: Record<number, { lw?: number; scr?: number }>): Uint8Array {
   const body = Array.from({ length: 255 }, (_, i) => {
     const c = styles[i + 1] ?? {};

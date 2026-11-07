@@ -79,12 +79,12 @@ export default function Form4Sizing({ project, boardId, tabs, onChange, onStatus
   async function exportDxf() {
     if (!r.widthMm) return;
     const title = `${project.name} - ${panel} Form-4 enclosure ${form4SizeText(r.dims)}`;
-    const m = await saveText(`${safeFileName(`${project.name} ${panel} Form-4 enclosure`)}.dxf`, form4Dxf(counts, r, title), 'DXF drawing (AutoCAD R12)', 'dxf');
+    const m = await saveText(`${safeFileName(`${project.name} ${panel} Form-4 enclosure`)}.dxf`, form4Dxf(counts, r, title), 'DXF drawing (R12)', 'dxf');
     if (m) onStatus(m);
   }
 
   return (
-    <Page title="Enclosure sizing" actions={<><button className="chip" disabled={!r.widthMm} onClick={exportDxf} title="Front and plan views, 1:1 in mm, AutoCAD R12">Export DXF</button> <button className="chip" disabled={!r.widthMm} onClick={exportSheet}>Export size sheet</button></>} intro="Form-4 MDB / SMDB line-up (incoming and outgoing bottom entry) from the owner's worksheet: cubicle widths for incomers, risers, capacitor bank and large outgoings, plus stacked sections of 1800 mm for the smaller outgoings and their cable chambers. Height H2100 + 100 plinth and depth D800 are fixed. A preliminary space estimate.">
+    <Page title="Enclosure sizing" actions={<><button className="chip" disabled={!r.widthMm} onClick={exportDxf} title="Front and plan views, 1:1 in mm, R12">Export DXF</button> <button className="chip" disabled={!r.widthMm} onClick={exportSheet}>Export size sheet</button></>} intro="Form-4 MDB / SMDB line-up (incoming and outgoing bottom entry) from the owner's worksheet: cubicle widths for incomers, risers, capacitor bank and large outgoings, plus stacked sections of 1800 mm for the smaller outgoings and their cable chambers. Height H2100 + 100 plinth and depth D800 are fixed. A preliminary space estimate.">
       {tabs}
       {!boards.length ? <p className="warn">This project has no MDB or SMDB yet.</p> : <>
         <div className="f4-layout">

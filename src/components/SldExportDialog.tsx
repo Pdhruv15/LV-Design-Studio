@@ -54,8 +54,8 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
         // DWG: the same sheets, each DXF saved as DWG by the CAD engine.
         const dwg = kind === 'dwg' ? await Promise.all(files.map(async (f) => ({ name: f.name.replace(/\.dxf$/i, '.dwg'), data: await dxfToDwg(f.data) }))) : null;
         if (files.length === 1) {
-          m = dwg ? await saveBinary(dwg[0].name, dwg[0].data, 'DWG drawing (AutoCAD 2018)', 'dwg', 'application/acad')
-            : await saveText(files[0].name, files[0].data, 'DXF drawing (AutoCAD R12)', 'dxf');
+          m = dwg ? await saveBinary(dwg[0].name, dwg[0].data, 'DWG drawing (2018 format)', 'dwg', 'application/acad')
+            : await saveText(files[0].name, files[0].data, 'DXF drawing (R12)', 'dxf');
         } else {
           const zip = new (await import('jszip')).default();
           (dwg ?? files).forEach((f) => zip.file(f.name, f.data));
@@ -96,8 +96,8 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
       <ExportBar scope={`System diagram · ${d.sheet ?? 'A3'} landscape · as on screen`} revision={<span title="From Documents → Revisions">{t.revision} · {t.date}</span>}
         lead={<button className="chip" onClick={() => { onSave(d); onClose(); }}>Save details</button>}>
         <button className="chip" disabled={!!busy} onClick={() => run('svg')}>{busy === 'svg' ? 'Exporting…' : 'SVG'}</button>
-        <button className="chip" disabled={!!busy} onClick={() => run('dxf')} title="AutoCAD R12 DXF at the selected paper size, with editable layers and title block. Additional notes and schedules are included as continuation sheets in a ZIP.">{busy === 'dxf' ? 'Exporting…' : `DXF ${d.sheet ?? 'A3'} (CAD)`}</button>
-        <button className="chip" disabled={!!busy} onClick={() => run('dwg')} title="AutoCAD 2018 DWG with the same sheets, layers and title block as the DXF. Continuation sheets are included in a ZIP.">{busy === 'dwg' ? 'Exporting…' : 'DWG'}</button>
+        <button className="chip" disabled={!!busy} onClick={() => run('dxf')} title="R12 DXF at the selected paper size, with editable layers and title block. Additional notes and schedules are included as continuation sheets in a ZIP.">{busy === 'dxf' ? 'Exporting…' : `DXF ${d.sheet ?? 'A3'} (CAD)`}</button>
+        <button className="chip" disabled={!!busy} onClick={() => run('dwg')} title="2018-format DWG with the same sheets, layers and title block as the DXF. Continuation sheets are included in a ZIP.">{busy === 'dwg' ? 'Exporting…' : 'DWG'}</button>
         <button className="chip primary" disabled={!!busy} onClick={() => run('pdf')}>{busy === 'pdf' ? 'Exporting…' : `PDF ${d.sheet ?? 'A3'}`}</button>
       </ExportBar>
     </Modal>

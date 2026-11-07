@@ -79,7 +79,7 @@ describe('CAD engine (Rust, WebAssembly)', () => {
     const [page] = buildSheetDxfPages(sampleProject, svg, 'A3');
     const asDxf = await openDrawing('SLD.dxf', new TextEncoder().encode(page.data));
     const dwg = await dxfToDwg(page.data);
-    expect(new TextDecoder().decode(dwg.slice(0, 6))).toBe('AC1032'); // AutoCAD 2018
+    expect(new TextDecoder().decode(dwg.slice(0, 6))).toBe('AC1032'); // the 2018 format
     const asDwg = await openDrawing('SLD.dwg', dwg);
     expect(asDwg.info.format).toBe('DWG');
     expect(asDwg.info.layers.map((l) => l.name)).toEqual(expect.arrayContaining(['E-FRAME', 'E-TITLE']));

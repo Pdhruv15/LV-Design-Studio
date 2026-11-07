@@ -34,7 +34,7 @@ export const MARKUP_COLORS: Record<MarkupColor, { css: string; dxf: number; laye
   blue: { css: '#0050c8', dxf: 5, layer: 'E-MARKUP-BLUE' },
   black: { css: '#000000', dxf: 7, layer: 'E-MARKUP-BLACK' }
 };
-/** DXF layers (name → AutoCAD colour) the markups use. */
+/** DXF layers (name → CAD colour index) the markups use. */
 export const MARKUP_LAYERS: Record<string, number> = Object.fromEntries(Object.values(MARKUP_COLORS).map((c) => [c.layer, c.dxf]));
 
 export const MARKUP_LABEL: Record<MarkupKind, string> = { cloud: 'Revision cloud', rect: 'Box', line: 'Line', arrow: 'Arrow', text: 'Note', callout: 'Callout' };
