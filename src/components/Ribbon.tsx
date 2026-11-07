@@ -4,7 +4,7 @@ import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FileX2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
-import { PenTool, BoxSelect, Paintbrush, Scissors, ArrowRightToLine, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen } from 'lucide-react';
+import { PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, ArrowRightToLine, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen } from 'lucide-react';
 import type { CadTool } from './cad/cadState';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
@@ -79,7 +79,7 @@ export interface RibbonActions {
   onAnonymizedSample: () => void;
   /** Design CAD's tools (src/components/cad); `file`: the File group's Plans, Level and Units (cadFileMenu.ts). */
   cad?: {
-    tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onSaveDwg: () => void; onClose: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; layersOn: boolean; hasDrawing: boolean;
+    tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onSaveDwg: () => void; onClose: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; onLayerManager?: () => void; layersOn: boolean; hasDrawing: boolean;
     file: { plans: Tool['menu']; plansSub?: string; level: string; levelTitle: string; levels: Tool['menu']; unit: string; unitTitle: string; units: Tool['menu'] };
     onRoles: () => void; rolesOn: boolean; onAddFound: () => void; onSchedules: () => void; onPlaceBoard: () => void; placingBoard: boolean;
     onCoverage: () => void; coverageOn: boolean; copyLevels: Tool['menu'];
@@ -111,18 +111,18 @@ export interface RibbonActions {
 
 /** Design CAD's sub-tabs: Plan (engineering) and Draw (drafting) over the same floor plan, and Sheets (every
  * submission sheet), as groups of the cad tab (File · Rooms · Cables and boards · Draw · Modify · Annotate · Measure ·
- * Devices · View · Sheets … · Wiring · Edit devices · Edit). Sheets is its own page (the drawings view). */
+ * Devices · View · Sheets … · Plot · Issue and export · Wiring · Edit devices · Edit). Sheets is its own page (the drawings view). */
 export type CadSub = 'plan' | 'draw' | 'sheets';
 export const CAD_SUB: Record<CadSub, { label: string; groups: number[] }> = {
-  plan: { label: 'Plan', groups: [0, 1, 2, 7, 16, 15, 6, 8] },
-  draw: { label: 'Draw', groups: [0, 3, 4, 17, 5, 8] },
-  sheets: { label: 'Sheets', groups: [9, 10, 11, 12, 13, 14] }
+  plan: { label: 'Plan', groups: [0, 1, 2, 7, 17, 16, 6, 8] },
+  draw: { label: 'Draw', groups: [0, 3, 4, 18, 5, 8] },
+  sheets: { label: 'Sheets', groups: [9, 10, 11, 12, 13, 14, 15] }
 };
 const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
 /** The sub-tab a tool is on, so the ribbon shows the tool in use. */
 const SUB_OF: Partial<Record<CadTool, CadSub>> = {
   line: 'draw', pline: 'draw', rect: 'draw', circle: 'draw', arc: 'draw', text: 'draw', dim: 'draw', rotate: 'draw',
-  mirror: 'draw', scale: 'draw', stretch: 'draw', trim: 'draw', extend: 'draw', offset: 'draw', fillet: 'draw', chamfer: 'draw', break: 'draw', join: 'draw', explode: 'draw', array: 'draw',
+  mirror: 'draw', matchprop: 'draw', hatch: 'draw', leader: 'draw', rtag: 'draw', north: 'draw', scale: 'draw', stretch: 'draw', trim: 'draw', extend: 'draw', offset: 'draw', fillet: 'draw', chamfer: 'draw', break: 'draw', join: 'draw', explode: 'draw', array: 'draw',
   room: 'plan', trace: 'plan', name: 'plan', tray: 'plan', cable: 'plan', link: 'plan', dev: 'plan', fill: 'plan', lux: 'plan', em: 'plan', arl: 'plan', match: 'plan', wire: 'plan', dist: 'plan', area: 'plan'
 };
 
@@ -134,7 +134,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   concept: ['Load', 'Supply', 'Stage'],
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Calculate', 'Stage'],
-  cad: ['File', 'Rooms', 'Cables and boards', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View', 'Sheets', 'Markup', 'On panels', 'Style', 'View', 'Issue and export', 'Wiring', 'Edit devices', 'Edit'],
+  cad: ['File', 'Rooms', 'Cables and boards', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View', 'Sheets', 'Markup', 'On panels', 'Style', 'View', 'Plot', 'Issue and export', 'Wiring', 'Edit devices', 'Edit'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -425,7 +425,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         cadTool('pline', 'Polyline', Spline, 'Polyline (PL): click points; C or the first point closes it; Enter finishes'),
         cadTool('rect', 'Rectangle', RectangleHorizontal, 'Rectangle (REC): two opposite corners'),
         cadTool('circle', 'Circle', Circle, 'Circle (C): centre, then radius (a point or typed)'),
-        cadTool('arc', 'Arc', Rainbow, 'Arc (A): start, a point on it, end')
+        cadTool('arc', 'Arc', Rainbow, 'Arc (A): start, a point on it, end'),
+        cadTool('hatch', 'Hatch', PaintBucket, 'Hatch (H): the pattern on the right, then click inside a closed drawn object or a room')
       ],
       [
         cadTool('move', 'Move', Move, 'Move (M): select an object (drawn or a device), base point, second point'),
@@ -433,11 +434,15 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         cadTool('rotate', 'Rotate', RotateCw, 'Rotate (RO): select a drawn object, base point, then an angle (typed degrees or a point)'),
         cadTool('mirror', 'Mirror', FlipHorizontal2, 'Mirror (MI): pick drawn objects, Enter, then two points of the mirror line; keep the originals or not'),
         cadTool('scale', 'Scale', Scaling, 'Scale (SC): pick drawn objects, Enter, then the base point; the factor is on the right'),
+        cadTool('matchprop', 'Match properties', PaintRoller, 'Match properties (MP): click the drawn object to copy from, then each to change: layer, colour, linetype, lineweight'),
         cadTool('stretch', 'Stretch', StretchHorizontal, 'Stretch (S): a window round the points to move, then base point and second point — a tray end moves, its far end stays'),
         { label: 'Erase', icon: Eraser, title: 'Erase the selected object (E or Delete); a light or socket is taken off its circuit. The architect\'s drawing is not changed', onClick: () => a.cad?.onDelete(), disabled: !a.cad?.hasSelection }
       ],
       [
         cadTool('text', 'Text', Type, 'Text (T): click where it goes, type it on the command line, Enter'),
+        cadTool('leader', 'Leader', MessageSquareText, 'Leader (LE): click the arrow point, then the text point (more points bend it), type the text, Enter'),
+        cadTool('rtag', 'Room tag', Tag, 'Room tag (RT): click inside a room: its name and area'),
+        cadTool('north', 'North arrow', Navigation, 'North arrow (NORTH): click where it goes'),
         cadTool('dim', 'Dimension', MoveHorizontal, 'Dimension (DIM): two points, then where the dimension line goes; it shows the length in metres')
       ],
       [
@@ -454,6 +459,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ],
       [
         { label: 'Layers', icon: Layers, title: 'Show or hide the layers panel (LAYER)', onClick: () => a.cad?.onLayers(), active: a.cad?.layersOn },
+        { label: 'Layer manager', icon: Layers2, title: 'Layer manager (LM): each layer on, locked, its colour, linetype and lineweight — the app\'s drawn layers and the architect\'s', onClick: () => a.cad?.onLayerManager?.(), disabled: !a.cad?.hasDrawing },
         { label: 'Fit', icon: Maximize, title: 'Fit the drawing to the window (FIT / ZE, or double-click the middle button)', onClick: () => a.cad?.onFit(), disabled: !a.cad?.hasDrawing }
       ],
       [
@@ -478,6 +484,10 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Zoom out', icon: ZoomOut, title: onSheet ? 'Zoom out' : noSheet, onClick: () => act().zoomOut(), disabled: !onSheet },
         { label: 'Legend', icon: BookImage, title: onSheet ? 'Symbol legend in the sheets\' legend column (and on SLD exports)' : noSheet, onClick: () => sh?.onLegend?.(), active: onSheet && !!sh?.legend?.on, disabled: !onSheet || !sh?.legend?.shown },
         { label: 'Side by side', icon: Columns2, title: onSheet ? 'The design on the left with each sheet\'s panels outlined, this sheet on the right' : noSheet, onClick: () => ui?.setSide(!ui.side), active: onSheet && !!ui?.side, disabled: !onSheet }
+      ],
+      [
+        { label: 'Page setup', icon: FileCog, title: onSheet ? 'This sheet\'s page setup: paper, scale (plans), pen table, lineweights, plot stamp — or the set\'s default' : noSheet, onClick: () => act().pageSetup(), disabled: !onSheet },
+        { label: 'Pens', icon: PenLine, title: onSheet ? 'Pen tables: the width and ink each kind of line prints with; import a CTB plot style table' : noSheet, onClick: () => act().pens(), disabled: !onSheet }
       ],
       [
         { label: 'Publish', icon: Send, sub: onSheet ? sh?.publish?.label || undefined : undefined, title: onSheet ? sh?.publish?.title ?? 'Issue this sheet' : noSheet, onClick: () => act().publish(), stale: onSheet && !!sh?.publish?.changed, disabled: !onSheet },

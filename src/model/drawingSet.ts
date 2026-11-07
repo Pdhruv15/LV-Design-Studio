@@ -54,6 +54,7 @@ export interface DrawingSheet {
   issuedItems?: SheetItems; // system sheets: each panel and circuit as drawn when last issued (for Cloud the changes)
   arrows?: SheetArrow[]; // callouts with a leader arrow, on this sheet only
   markups?: SheetMarkup[]; // free markups drawn on the sheet (clouds, notes, callouts …), in paper mm
+  plot?: import('./plotSetup').PlotSetup; // page setup: pen table, lineweights, plot stamp (blank = the set's default; paper and scale are size and scale)
 }
 /** A callout: text with a leader arrow pointing at a panel or a circuit. */
 export interface SheetArrow { target: string; text: string; dir: 'ne' | 'nw' | 'se' | 'sw'; len?: number } // target: board id, or "f:" + feeder id

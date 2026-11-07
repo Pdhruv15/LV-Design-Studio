@@ -1791,6 +1791,8 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-model{position:absolute;inset:0}
 .cad-layer{position:absolute;inset:0;display:block}
 .cad-over{cursor:none}
+.pub-list{display:flex;flex-direction:column;max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--radius-sm)}
+.pub-list label{display:flex;gap:var(--space-2);align-items:center;padding:2px var(--space-2);border-bottom:1px solid var(--line)}
 .cad-ctx{position:absolute;z-index:5;display:flex;gap:2px;align-items:center;max-width:calc(100% - 8px);flex-wrap:wrap;padding:3px;background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--radius-md);box-shadow:var(--shadow-pop);font-size:var(--fs-sm);white-space:nowrap}
 .cad-ctx.above{transform:translateY(-100%)}
 .cad-ctx.vert{flex-direction:column;align-items:stretch;flex-wrap:nowrap}
@@ -1818,7 +1820,7 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-tab-add:disabled{opacity:.45;cursor:default}
 .cad-tab-menu button:disabled{opacity:.5;cursor:default;background:transparent}
 .cad-side{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-width:0;min-height:0}
-.cad-side h4{margin:0;padding:var(--space-3) var(--space-3) var(--space-1);font-size:var(--fs-xs);color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center}
+.cad-side h4{margin:0;padding:var(--space-3) var(--space-3) var(--space-1);font-size:var(--fs-xs);color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
 .cad-res{margin:0 var(--space-3) var(--space-2);padding:var(--space-2);border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--p2);font-size:var(--fs-sm);overflow-wrap:anywhere}
 .cad-sample{margin-top:var(--space-2);font-weight:600}
 .cad-lyr-all{margin-left:auto;text-transform:none;letter-spacing:0}

@@ -711,6 +711,72 @@ describe('CAD view', () => {
     expect(items[1].pts.map((q) => q.map((v) => Math.round(v)))).toEqual([[X, -2000], [X + 4000, -2000], [X + 4000, -7000]]);
   });
 
+  it('layer manager: a drawn layer locked cannot be picked; properties of an object and Match properties', async () => {
+    const line = (id: string, layer: string, a: [number, number], b: [number, number]) => ({ id, kind: 'line' as const, layer, pts: [a, b] });
+    const X = 200000;
+    const start: Project = { ...villa, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [line('S1', 'LV-SKETCH', [X, 0], [X + 4000, 0]), line('S2', 'LV-ANNO', [X, 2000], [X + 4000, 2000])] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const pick = (label: string, value: string) => {
+      const el = document.querySelector(`[aria-label="${label}"]`) as HTMLSelectElement;
+      act(() => { Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(el, value); el.dispatchEvent(new Event('change', { bubbles: true })); });
+    };
+    await command('LM');
+    expect(document.querySelector('[aria-label="Drawn layers"]')!.textContent).toMatch(/^LayerObjectsOnLockColourLinetypeLineweightLV-SKETCH1/);
+    act(() => { (document.querySelector('[aria-label="LV-ANNO locked"]') as HTMLInputElement).click(); });
+    pick('LV-SKETCH linetype', 'dashed');
+    expect(project.cadLayerStyle).toEqual({ 'sample-villa-gf.dxf': { 'LV-ANNO': { lock: true }, 'LV-SKETCH': { lt: 'dashed' } } });
+    act(() => { button('Done').click(); });
+    await clickAt(X + 2000, 2000); // on the locked layer: not picked
+    expect(state.selected).toBeNull();
+    await clickAt(X + 2000, 0);
+    expect(state.selected).toBe('sk:S1');
+    pick('Object colour', '#ff3b30');
+    pick('Object lineweight', '0.5');
+    expect(project.cadSketch![0].items[0]).toMatchObject({ color: '#ff3b30', lw: 0.5 });
+    await command('LM');
+    act(() => { (document.querySelector('[aria-label="LV-ANNO locked"]') as HTMLInputElement).click(); });
+    act(() => { button('Done').click(); });
+    await command('MP');
+    await clickAt(X + 2000, 0);
+    await clickAt(X + 2000, 2000);
+    expect(project.cadSketch![0].items[1]).toMatchObject({ layer: 'LV-SKETCH', color: '#ff3b30', lw: 0.5 });
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('MATCHPROP  Properties copied to the line · ⌘Z to undo');
+  });
+
+  it('hatches a closed object, adds a leader with its text, a room tag and a north arrow', async () => {
+    const X = 200000;
+    const start: Project = { ...villa, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [{ id: 'S1', kind: 'pline', layer: 'LV-SKETCH', closed: true, pts: [[X, 0], [X + 4000, 0], [X + 4000, 3000], [X, 3000]] }] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const items = () => project.cadSketch![0].items;
+    const last = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
+    await command('H');
+    expect(document.body.textContent).toContain('Hatch H');
+    await clickAt(X + 1000, 1000);
+    expect(items()[1]).toEqual({ id: 'S2', kind: 'pline', layer: 'LV-HATCH', closed: true, pts: items()[0].pts, hatch: { pattern: 'ansi31', scale: 3, angle: 0 } });
+    expect(last()).toBe('Hatch ANSI31, 12.00 m² · ⌘Z to undo');
+    await command('LE');
+    await clickAt(X + 2000, 1500);
+    await clickAt(X + 6000, 4000);
+    await command('DB-GF1');
+    expect(items().slice(2).map((x) => [x.kind, x.leader ?? false, x.text ?? ''])).toEqual([['line', true, ''], ['text', false, 'DB-GF1']]);
+    expect(items()[3].h).toBeCloseTo(250, 6); // 2.5 mm at 1:100 on a mm drawing
+    act(() => state.actions.current.addFound());
+    const room = buildingInfoOf(project).rooms.find((r) => r.outline)!;
+    const [cx, cy] = room.outline!.reduce(([x, y], q) => [x + q[0] / room.outline!.length, y + q[1] / room.outline!.length], [0, 0]);
+    await command('RT');
+    await clickAt(cx / 0.001, cy / 0.001);
+    expect(last()).toBe(`Room tag ${room.name} · ⌘Z to undo`);
+    expect(items().slice(-2).map((x) => x.text)).toEqual([room.name.toUpperCase(), `${room.areaM2.toFixed(2)} m²`]);
+    await command('NORTH');
+    await clickAt(X + 8000, 8000);
+    expect(items().slice(-3).map((x) => x.kind)).toEqual(['circle', 'pline', 'text']);
+    expect(state.tool).toBe('none');
+  });
+
   it('turns a camera to face the point clicked (RO)', async () => {
     act(() => root.render(<Host />));
     await flush();
