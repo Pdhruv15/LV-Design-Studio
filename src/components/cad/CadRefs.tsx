@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from '../ui';
 import { chooseDrawing, fileStamp, readRefGeometry, refGeometryOf, type CadView, type CadXref } from '../../engines/cad/cadEngine';
-import { LAYER_COLOURS } from '../../model/cadLayerStyle';
+import { colourCss } from '../../model/cadColours';
+import { ColourPicker } from './ColourPicker';
 import type { ShapeOut } from '../../model/cadSketch';
 import { boundLayerName, dropRefGeometry, keepRefGeometry, newRef, placeRef, placeRefExtras, REF_STATUS, refFromXref, refGeometry, refLayerStyle, refSnaps, refsOf, updateRef, withRef, withRefLayer, withoutRef, xrefCandidates, xrefFile, type CadRef, type RefGeometry, type RefStatus } from '../../model/cadRefs';
 import { pathOfPlan, rememberPath, skipRef, skippedRefs } from './cadState';
@@ -76,7 +77,7 @@ export function useCadRefs({ project, view, tabOf, change, say }: {
     const g = !r.unloaded ? refGeometry(r.file) : undefined;
     if (!g) return [];
     const p = placeRef(g, r);
-    return [{ ref: r, g, ...p, colours: g.layers.map((l) => refLayerStyle(r, l.name).color || l.rgb), fade: r.fade }];
+    return [{ ref: r, g, ...p, colours: g.layers.map((l) => colourCss(refLayerStyle(r, l.name).color) || l.rgb), fade: r.fade }];
   }), [refs, tick]); // eslint-disable-line react-hooks/exhaustive-deps -- geometry is kept outside React; tick follows it
   const snap = useMemo(() => refSnaps(placed), [placed]);
 
@@ -310,9 +311,7 @@ export function RefLayers({ r, x, viewport }: { r: CadRef; x: CadRefsState; view
               <td><input type="checkbox" aria-label={`${r.name}|${l.name} on`} checked={!refLayerStyle(r, l.name).hidden} onChange={(e) => x.actions.layer(r, l.name, { hidden: !e.target.checked })} /></td>
               {viewport && <td><input type="checkbox" aria-label={`${r.name}|${l.name} in this viewport`} checked={!viewport.frozen(`${r.name}|${l.name}`)} onChange={() => viewport.toggle(`${r.name}|${l.name}`)} /></td>}
               <td><input type="checkbox" aria-label={`${r.name}|${l.name} prints`} checked={!refLayerStyle(r, l.name).noPrint} onChange={(e) => x.actions.layer(r, l.name, { noPrint: !e.target.checked })} /></td>
-              <td><select aria-label={`${r.name}|${l.name} colour`} value={refLayerStyle(r, l.name).color ?? ''} onChange={(e) => x.actions.layer(r, l.name, { color: e.target.value || undefined })}>
-                {LAYER_COLOURS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select></td>
+              <td><ColourPicker label={`${r.name}|${l.name} colour`} value={refLayerStyle(r, l.name).color} blank="As drawn" onChange={(c) => x.actions.layer(r, l.name, { color: c })} /></td>
             </tr>
           ) : null)}</tbody>
         </table>
@@ -334,7 +333,7 @@ export function RefLayersList({ x }: { x: CadRefsState }) {
               const st = refLayerStyle(ref, l.name);
               return (
                 <button key={l.name} className={`cad-lyr${st.hidden ? ' off' : ''}`} aria-pressed={!st.hidden} onClick={() => x.actions.layer(ref, l.name, { hidden: !st.hidden })}>
-                  <i style={{ background: st.color || (l.rgb === 0xff000007 ? 'var(--cad-ink)' : `#${l.rgb.toString(16).padStart(6, '0').slice(-6)}`), opacity: 1 - ref.fade / 100 }} />{ref.name}|{l.name}<span className="m">{st.hidden ? 'off' : 'on'}</span>
+                  <i style={{ background: colourCss(st.color) || (l.rgb === 0xff000007 ? 'var(--cad-ink)' : `#${l.rgb.toString(16).padStart(6, '0').slice(-6)}`), opacity: 1 - ref.fade / 100 }} />{ref.name}|{l.name}<span className="m">{st.hidden ? 'off' : 'on'}</span>
                 </button>
               );
             })() : null)}

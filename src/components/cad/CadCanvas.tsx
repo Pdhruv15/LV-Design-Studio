@@ -7,6 +7,7 @@ import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from '../../model/cadDraw';
 import type { SketchItem } from '../../types';
 import { effective, styleOf, type LayerStyle } from '../../model/cadLayerStyle';
+import { colourCss } from '../../model/cadColours';
 import { hatchFamilies, HATCH_PATTERNS } from '../../model/cadAnnotate';
 import { onScreenThemeChange, screenAppearance } from '../../theme/theme';
 import { isFitClick, isPanPress, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, wheelAction, ZoomChip } from '../drawingView';
@@ -227,7 +228,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     const bgRgb = cssRgb(bg), shown = new Map<number, string>();
     // A layer given a colour in the layer manager shows in it.
     const layerColour: Record<number, string> = {};
-    view.info.layers.forEach((l, i) => { const c = styleOf(layerStyle, l.name).color; if (c) layerColour[i] = c; });
+    view.info.layers.forEach((l, i) => { const c = colourCss(styleOf(layerStyle, l.name).color); if (c) layerColour[i] = c; });
     const shade = (rgb: number) => {
       if (rgb === INK) return ink;
       let v = shown.get(rgb);

@@ -731,12 +731,24 @@ describe('CAD view', () => {
     act(() => { (document.querySelector('[aria-label="LV-ANNO locked"]') as HTMLInputElement).click(); });
     pick('LV-SKETCH linetype', 'dashed');
     expect(project.cadLayerStyle).toEqual({ 'sample-villa-gf.dxf': { 'LV-ANNO': { lock: true }, 'LV-SKETCH': { lt: 'dashed' } } });
+    // Index colour by number: open the colour cell, type 8, Enter.
+    act(() => { (document.querySelector('[aria-label="LV-SKETCH colour"]') as HTMLButtonElement).click(); });
+    const num = document.querySelector('[aria-label="LV-SKETCH colour number or RGB"]') as HTMLInputElement;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(num, '8'); num.dispatchEvent(new Event('input', { bubbles: true })); });
+    act(() => { num.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+    expect(project.cadLayerStyle!['sample-villa-gf.dxf']['LV-SKETCH']).toEqual({ lt: 'dashed', color: 'idx:8' });
+    expect(document.querySelector('[aria-label="LV-SKETCH colour"]')!.textContent).toBe('Grey (8)');
+    // And from the grid: colour 130.
+    act(() => { (document.querySelector('[aria-label="LV-SKETCH colour"]') as HTMLButtonElement).click(); });
+    act(() => { (document.querySelector('[aria-label="LV-SKETCH colour picker"] [aria-label="Colour 130"]') as HTMLButtonElement).click(); });
+    expect(project.cadLayerStyle!['sample-villa-gf.dxf']['LV-SKETCH'].color).toBe('idx:130');
     act(() => { button('Done').click(); });
     await clickAt(X + 2000, 2000); // on the locked layer: not picked
     expect(state.selected).toBeNull();
     await clickAt(X + 2000, 0);
     expect(state.selected).toBe('sk:S1');
-    pick('Object colour', '#ff3b30');
+    act(() => { (document.querySelector('[aria-label="Object colour"]') as HTMLButtonElement).click(); });
+    act(() => { (document.querySelector('[aria-label="Object colour picker"] [aria-label="Red"]') as HTMLButtonElement).click(); });
     pick('Object lineweight', '0.5');
     expect(project.cadSketch![0].items[0]).toMatchObject({ color: '#ff3b30', lw: 0.5 });
     await command('LM');

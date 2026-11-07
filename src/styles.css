@@ -1887,3 +1887,16 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-devform{display:grid;gap:var(--space-2);padding:0 var(--space-3) var(--space-2)}
 .cad-devform label{display:grid;gap:2px;font-size:var(--fs-xs);color:var(--mut)}
 .cad-devbtns{display:flex;gap:var(--space-2);margin-top:var(--space-2)}
+/* Design CAD colour picker: index colours 1–255 and true colour */
+.cad-colour{position:relative;display:inline-block}
+.cad-colour-btn{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-xs);padding:1px 6px;min-height:20px;border:1px solid var(--field-line);border-radius:3px;background:var(--p2);color:var(--tx);cursor:pointer;white-space:nowrap}
+.cad-colour-btn i{width:12px;height:12px;border:1px solid var(--line);border-radius:2px;flex:none}
+.cad-colour-btn i.none{background:repeating-linear-gradient(45deg,transparent 0 2px,var(--line) 2px 3px)}
+.cad-colour-pop{position:absolute;z-index:60;top:100%;left:0;margin-top:2px;padding:6px;display:grid;gap:5px;background:var(--panel);border:1px solid var(--line);border-radius:4px;box-shadow:var(--shadow-pop);width:max-content}
+.cad-colour-row{display:flex;align-items:center;gap:2px}
+.cad-colour-row input:not([type=color]){width:170px;font-size:var(--fs-xs)}
+.cad-colour-row input[type=color]{width:26px;height:20px;padding:0;border:1px solid var(--line)}
+.cad-colour-grid{display:grid;grid-template-columns:repeat(24,12px);gap:1px}
+.cad-colour-cell{width:12px;height:12px;padding:0;border:1px solid var(--line-strong);border-radius:1px;cursor:pointer}
+.cad-colour-row .cad-colour-cell{width:14px;height:14px}
+.cad-colour-cell.on{outline:2px solid var(--accent);outline-offset:0}
