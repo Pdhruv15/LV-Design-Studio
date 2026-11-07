@@ -47,7 +47,7 @@ const mode = z.enum(['preview', 'export']).default('preview').describe('preview 
 interface OutFile { name: string; data: string | Uint8Array; about: string }
 /** Files made only once the export is approved (in Electron): the preview lists what they will be. */
 interface Planned { files: { name: string; about: string }[]; renderer: string; make: () => Promise<OutFile[]> }
-interface ExportEntry { id: string; at: string; file: string; tool: string; approvedBy: string; exportedAnyway: boolean; readiness: Readiness; files: string[] }
+interface ExportEntry { id: string; at: string; file: string; tool: string; approvedBy: string; exportedAnyway: boolean; readiness: Readiness; files: string[]; client?: string }
 interface Readiness { fail: number; check: number; proposalsWaiting: string[] }
 
 /** The export log, in a real .lvds-agent folder. */
@@ -99,7 +99,7 @@ async function runExport(args: Record<string, unknown>, ctx: ToolContext, tool: 
   const log = openToAppend(exportsLog(ctx.folder)); // checked before anything is written
   try {
     const written = out.map((f) => writeNewFile(dir, f.name, f.data));
-    const entry: ExportEntry = { id: `E-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${crypto.randomBytes(2).toString('hex')}`, at: new Date().toISOString(), file: path.basename(file), tool, approvedBy: by, exportedAnyway: problems.length > 0, readiness: ready, files: written.map((w) => path.relative(ctx.folder, w)) };
+    const entry: ExportEntry = { id: `E-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${crypto.randomBytes(2).toString('hex')}`, at: new Date().toISOString(), file: path.basename(file), tool, approvedBy: by, exportedAnyway: problems.length > 0, readiness: ready, files: written.map((w) => path.relative(ctx.folder, w)), ...(ctx.client ? { client: ctx.client } : {}) };
     fs.writeFileSync(log, JSON.stringify(entry) + '\n', 'utf-8');
     return { mode: 'done', written: true, export: entry.id, approvedBy: by, ...(entry.exportedAnyway ? { exportedAnyway: problems } : {}), files: written };
   } finally {
