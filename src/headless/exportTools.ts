@@ -18,6 +18,7 @@ import { numberBom } from '../model/boqRevisions';
 import { priceBom } from '../model/priceList';
 import { safeFileName } from '../util/files';
 import { roomsExport } from '../exchange/inbox';
+import { designExport } from '../exchange/designExport';
 import { estimateElv } from '../elv/estimate';
 import { elvLoadsPackage } from '../elv/package';
 import { elvInput, elvSettingsFor } from './elvTools';
@@ -283,6 +284,17 @@ export const EXPORT_TOOLS: Tool[] = [
       const name = `${safeFileName(p.name || 'project')}-rooms.json`;
       const pkg = roomsExport(p, new Date().toISOString(), (t) => crypto.createHash('sha256').update(t).digest('hex'), p.name);
       return [{ name, data: JSON.stringify(pkg, null, 2), about: `rooms package, ${pkg.items.length} room${pkg.items.length === 1 ? '' : 's'}` }];
+    })
+  },
+  {
+    name: 'export_design_package',
+    title: 'Export the electrical design as JSON',
+    description: 'The electrical design as one JSON file (contract lvds.design version 1, contracts/design.schema.json) for BIM add-ins and scripts: boards, circuits (breaker, cable, length, load) and ELV devices, each with its permanent uid and its tag, and the results of a calculation made now (design current, voltage drop, fault levels, Zs, pass / fail). Key on uid: tags change on rename. Preview first; exporting needs approvedBy.',
+    input: { project, approvedBy, exportAnyway, mode },
+    usesProject: true, writes: true,
+    run: (a, ctx) => runExport(a, ctx, 'export_design_package', (p) => {
+      const pkg = designExport(p, { exportedAt: new Date().toISOString(), sha256: (t) => crypto.createHash('sha256').update(t).digest('hex') });
+      return [{ name: `${safeFileName(p.name || 'project')}-design.json`, data: JSON.stringify(pkg, null, 2), about: `design package, ${pkg.boards.length} boards, ${pkg.circuits.length} circuits, ${pkg.elvDevices.length} ELV devices` }];
     })
   },
   {
