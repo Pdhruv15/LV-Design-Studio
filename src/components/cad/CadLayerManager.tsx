@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { Check, Lightbulb, LightbulbOff, Lock, LockOpen, Plus, Printer, Snowflake, Sun, Trash2, X } from 'lucide-react';
-import { drawnLayers, LINETYPE_IDS, LINETYPES, LINEWEIGHTS, styleOf, type LayerStyle, type LinetypeId, type ObjectProps } from '../../model/cadLayerStyle';
+import { drawnLayers, LINETYPE_IDS, LINETYPES, LINEWEIGHTS, styleOf, type LayerStyle, type LinetypeId } from '../../model/cadLayerStyle';
 import { deleteRefusal, matchesFilter, renameRefusal, type LayerPatch, type LayerRef, type LayerSnap, type LayerStateSet } from '../../model/cadLayerState';
 import { refLayerStyle } from '../../model/cadRefs';
 import type { CadView } from '../../engines/cad/cadEngine';
@@ -270,30 +270,5 @@ export function LayerPalette({ file, rows, current, states, isolated, viewport, 
         {note && <span className="cad-lp-note">{note}</span>}
       </div>
     </section>
-  );
-}
-
-/** Properties of the drawn objects picked: layer, colour, linetype and lineweight (ByLayer when blank). */
-export function ObjectPropertiesPanel({ items, layers, onApply }: { items: SketchItem[]; layers: string[]; onApply: (patch: ObjectProps & { layer?: string }) => void }) {
-  const one = <K extends 'layer' | 'color' | 'lt' | 'lw'>(k: K) => { const v = new Set(items.map((it) => it[k])); return v.size === 1 ? [...v][0] : undefined; };
-  const trays = items.some((it) => it.tray || it.cable);
-  return (
-    <>
-      <h4>Properties <span className="m">{items.length} object{items.length === 1 ? '' : 's'}</span></h4>
-      <div className="cad-devform">
-        <label>Layer<select aria-label="Object layer" value={one('layer') ?? ''} disabled={trays} title={trays ? 'Trays and cable routes stay on their own layers' : undefined} onChange={(e) => e.target.value && onApply({ layer: e.target.value })}>
-          {one('layer') === undefined && <option value="">(several)</option>}
-          {layers.map((l) => <option key={l} value={l}>{l}</option>)}
-        </select></label>
-        <label>Colour<ColourPicker label="Object colour" value={one('color')} varies={new Set(items.map((it) => it.color ?? '')).size > 1} onChange={(c) => onApply({ color: c })} /></label>
-        <label>Linetype<select aria-label="Object linetype" value={one('lt') ?? ''} onChange={(e) => onApply({ lt: (e.target.value || undefined) as LinetypeId | undefined })}>
-          <option value="">ByLayer</option>{LINETYPE_IDS.map((l) => <option key={l} value={l}>{LINETYPES[l].label}</option>)}
-        </select></label>
-        <label>Lineweight<select aria-label="Object lineweight" value={one('lw') ?? ''} onChange={(e) => onApply({ lw: e.target.value === '' ? undefined : Number(e.target.value) })}>
-          <option value="">ByLayer</option>{LINEWEIGHTS.filter(Boolean).map((w) => <option key={w} value={w}>{w.toFixed(2)} mm</option>)}
-        </select></label>
-        <span className="m">Match properties (MP) copies these from one object to others.</span>
-      </div>
-    </>
   );
 }

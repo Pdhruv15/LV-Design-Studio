@@ -45,10 +45,11 @@ import { fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
 import { AnnoPanel, HatchPanel } from './AnnotatePanel';
 import { annoOf, centreOf, hatchItem, hatchOutline, HATCH_START, leaderItems, northArrowItems, roomTagItems, textUnits, type HatchSpec } from '../../model/cadAnnotate';
-import { LayerPalette, layerRows, ObjectPropertiesPanel, type LayerRow } from './CadLayerManager';
+import { LayerPalette, layerRows, type LayerRow } from './CadLayerManager';
+import { PropertiesPalette } from './CadProperties';
 import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
 import { refGeometry, type CadRef } from '../../model/cadRefs';
-import { drawnLayers, effective, layerStylesOf, matchedProps, styleOf, withProps } from '../../model/cadLayerStyle';
+import { drawnLayers, effective, layerStylesOf, matchedProps, styleOf } from '../../model/cadLayerStyle';
 import { applyLayerPatch, currentLayerOf, extentsOf, isolate, layerFileOf, newLayerName, renameLayer, restoreState, unisolate, withCurrentLayer, withNewLayer, withoutLayer, withoutState, withSavedState } from '../../model/cadLayerState';
 import { DrawnSelectionPanel, ED_START, EditToolPanel, kindOf, SketchToolbar, type EditSettings, type EditTool, type SketchEdit } from './SketchEditPanel';
 import { arrayPolar, arrayRect, breakAt, chamfer, edgesFor, explode, extend, fillet, gripMoved, gripsOf, isPath, join, mirrored, offset, scaled, sketchInWindow, stretched, trim, type Edit } from '../../model/cadEdit';
@@ -192,6 +193,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const preset = useRef<{ id: string; at: Pt } | null>(null);
   // Layer palette shown, and the object Match properties copies from.
   const [showLM, setShowLM] = useState(false);
+  // The properties palette (Ctrl/Cmd+1): shown while a drawing is open, unless hidden.
+  const [showProps, setShowProps] = useState(true);
   const [mpFrom, setMpFrom] = useState<string | null>(null);
   const [hatchSet, setHatchSet] = useState<HatchSpec>(HATCH_START);
   // References: the manager shown, the reference being attached (its dialog, or a point being picked for it), the one
@@ -1187,6 +1190,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   keyRef.current = (e: KeyboardEvent) => {
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
     const fn: Record<string, keyof CadToggles> = { F3: 'osnap', F7: 'grid', F8: 'ortho', F9: 'snap' };
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === '1') { e.preventDefault(); setShowProps((v) => !v); return; }
     if (fn[e.key]) { e.preventDefault(); if (fn[e.key] === 'grid') cad.cycleGrid(); else cad.toggle(fn[e.key]); return; }
     if (e.key === 'Escape' && (!typing || e.target === input.current)) {
       setCmd(''); input.current?.blur();
@@ -1332,8 +1336,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             </div>
           </div>
         )}
-        {cad.showLayers && (
+        {(cad.showLayers || (showProps && view)) && (
           <aside className="cad-side">
+            {showProps && view && (
+              <PropertiesPalette key={pickedSk.map((it) => it.id).join()} items={pickedSk} devices={pickedItems.length} layers={drawnLayers(sketch, layerFile.layers)} styles={styles} current={curLayer} textMm={anno.textMm} k={units.factor}
+                onItems={(next, what) => change(next.reduce((q, it) => updateSketch(q, fileOf(), it), project), `${what} · ⌘Z to undo`)}
+                onCurrent={setCurrentLayer} onTextMm={(mm) => change({ ...project, cadAnno: { ...anno, textMm: mm } }, `Annotation: ${mm} mm text at 1:${anno.scale} · ⌘Z to undo`)}
+                onClose={() => setShowProps(false)} />
+            )}
+            {cad.showLayers && <>
             {sheetL && selV && <ViewportPanel project={project} sheet={sheetL} vp={selV} refs={xr.refs.map((r) => r.name)} onChange={(patch, what) => patchVp(selV, patch, what)}
               onDelete={() => { setVps((l) => l.filter((x) => x.id !== selV.id), `${vpName(vps, selV.id)} deleted${vps.length === 1 ? ' (the layout shows the level as worked out again)' : ''}`); cad.setVpSel(null); cad.setMsVp(null); }}
               onLayers={() => setShowLM(true)} />}
@@ -1393,9 +1404,6 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               <EditToolPanel tool={tool as EditTool} settings={edSet} onSettings={setEdSet} picked={pickedSk.length}
                 step={edStep ? `${kindOf(sketch.find((x) => x.id === edStep.id) ?? sketch[0])} picked — ${tool === 'offset' ? 'click the side' : tool === 'break' ? 'click the second point, or Enter' : 'click the second line'}` : stretchBox ? 'Window set — click the base point, then the second point' : PICK_FIRST.includes(tool) && edPhase === 'points' ? 'Objects picked — now the points' : undefined}
                 onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
-            )}
-            {tool === 'none' && view && pickedSk.length > 0 && (
-              <ObjectPropertiesPanel items={pickedSk} layers={drawnLayers(sketch)} onApply={(patch) => change(pickedSk.reduce((q, it) => updateSketch(q, fileOf(), withProps(it, patch)), project), `${pickedSk.length === 1 ? kindOf(pickedSk[0]) : `${pickedSk.length} objects`}: properties changed · ⌘Z to undo`)} />
             )}
             {tool === 'hatch' && view && <HatchPanel spec={hatchSet} onSpec={setHatchSet} />}
             {(tool === 'text' || tool === 'dim' || tool === 'leader' || tool === 'rtag' || tool === 'north') && view && (
@@ -1484,6 +1492,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               ) : null)}
               {view && <RefLayersList x={xr} />}
             </div>
+            </>}
           </aside>
         )}
       </div>
