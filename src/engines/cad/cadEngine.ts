@@ -249,13 +249,19 @@ export async function sampleDrawing(name: string): Promise<CadView | null> {
   return openDrawing(name, new Uint8Array(await res.arrayBuffer()));
 }
 
-/** A drawing's lines made absolute, with its layers and units, as a reference under a plan (src/model/cadRefs.ts). */
+/** A drawing's lines made absolute, with its layers, units, texts and fills, as a reference under a plan (src/model/cadRefs.ts). */
 export function refGeometryOf(v: CadView, stamp?: string): RefGeometry {
   const [ox, oy] = v.info.origin, n = v.segLayers.length, segs = new Float64Array(n * 4);
   for (let i = 0; i < n; i++) { segs[i * 4] = v.segs[i * 4] + ox; segs[i * 4 + 1] = v.segs[i * 4 + 1] + oy; segs[i * 4 + 2] = v.segs[i * 4 + 2] + ox; segs[i * 4 + 3] = v.segs[i * 4 + 3] + oy; }
-  return { file: v.file, units: v.info.units, segs, segLayers: Uint16Array.from(v.segLayers), layers: v.info.layers.map((l) => ({ name: l.name, rgb: l.rgb })), stamp: stamp ?? `${v.bytes.length}` };
+  const texts = v.info.texts.map((t) => ({ x: t.x, y: t.y, h: t.h, rot: t.rot, s: t.s, layer: t.layer }));
+  const fills = (v.info.fills ?? []).map((f) => ({
+    layer: f.layer, solid: f.solid,
+    loops: f.loops.map(([a, z]) => Array.from({ length: z - a }, (_, k): [number, number] => [segs[(a + k) * 4], segs[(a + k) * 4 + 1]])),
+    lines: f.lines.map((l) => ({ angle: l.angle, base: l.base, offset: l.offset, dashes: l.dashes }))
+  }));
+  return { file: v.file, units: v.info.units, segs, segLayers: Uint16Array.from(v.segLayers), layers: v.info.layers.map((l) => ({ name: l.name, rgb: l.rgb })), stamp: stamp ?? `${v.bytes.length}`, texts, fills };
 }
-/** A reference drawing read from its bytes. Its engine is ended once read, so a reference keeps only its lines. */
+/** A reference drawing read from its bytes. Its engine is ended once read, so a reference keeps only its lines, texts and fills. */
 export async function readRefGeometry(file: string, bytes: Uint8Array, stamp?: string): Promise<RefGeometry> {
   const v = await openDrawing(file, bytes);
   try { return refGeometryOf(v, stamp); } finally { v.close(); }

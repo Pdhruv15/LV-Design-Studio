@@ -196,7 +196,16 @@ export interface RefGeometry {
   layers: { name: string; rgb: number }[];
   /** When the file was last changed, where the desktop app can tell; the size as a fallback. */
   stamp?: string;
+  /** Its texts and filled areas (its own units, absolute), kept for Bind. */
+  texts?: RefText[];
+  fills?: RefFill[];
 }
+/** A text of a reference: insertion point, height, rotation (radians), the text, its layer (an index). */
+export interface RefText { x: number; y: number; h: number; rot: number; s: string; layer: number }
+/** A hatch pattern line: angle (radians), base point, offset between lines, dashes (+ dash, − gap, 0 dot). */
+export interface RefPatLine { angle: number; base: Pt; offset: Pt; dashes: number[] }
+/** A filled area of a reference: its closed boundary loops, solid or with its pattern lines, its layer (an index). */
+export interface RefFill { layer: number; solid: boolean; loops: Pt[][]; lines: RefPatLine[] }
 /** A reference placed on its plan: lines in plan units (absolute), clipped, on the layers that show; the layer of each
  * (an index into the geometry's layers). */
 export interface PlacedRef { segs: Float64Array; segLayers: Uint16Array }
@@ -214,6 +223,26 @@ export function placeRef(g: RefGeometry, r: CadRef, forPrint = false): PlacedRef
     for (const [p, q] of clip ? clipToOutline(a, b, clip) : [[a, b] as [Pt, Pt]]) { out.push(p[0], p[1], q[0], q[1]); lay.push(li); }
   }
   return { segs: Float64Array.from(out), segLayers: Uint16Array.from(lay) };
+}
+
+/** The reference's texts and fills on the plan, for Bind: transformed (text heights, pattern spacing and dashes scaled,
+ * angles turned), without layers that are off. With a clip outline, a text shows when its insertion point is inside,
+ * a fill when all its corners are (its boundary lines are cut like the other lines). */
+export function placeRefExtras(g: RefGeometry, r: CadRef): { texts: RefText[]; fills: RefFill[] } {
+  const T = refTransform(r), clip = r.clip && r.clip.length >= 3 ? r.clip : undefined, a = (r.rot * Math.PI) / 180;
+  const c = Math.cos(a) * r.scale, sn = Math.sin(a) * r.scale, turn = ([x, y]: Pt): Pt => [x * c - y * sn, x * sn + y * c];
+  const off = g.layers.map((l) => !!refLayerStyle(r, l.name).hidden);
+  const texts = (g.texts ?? []).flatMap((t): RefText[] => {
+    const [x, y] = T(t.x, t.y);
+    return off[t.layer] || (clip && !insideOutline([x, y], clip)) ? [] : [{ ...t, x, y, h: t.h * r.scale, rot: t.rot + a }];
+  });
+  const fills = (g.fills ?? []).flatMap((f): RefFill[] => {
+    if (off[f.layer]) return [];
+    const loops = f.loops.map((l) => l.map(([x, y]) => T(x, y)));
+    if (clip && !loops.every((l) => l.every((p) => insideOutline(p, clip)))) return [];
+    return [{ ...f, loops, lines: f.lines.map((l) => ({ angle: l.angle + a, base: T(...l.base), offset: turn(l.offset), dashes: l.dashes.map((d) => d * r.scale) })) }];
+  });
+  return { texts, fills };
 }
 
 /** References read in this session, by file (lower case), so the plan sheets can print them. */

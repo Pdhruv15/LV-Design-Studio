@@ -28,10 +28,13 @@ Status: **approved 2026-11-07 ("Go ahead", all six recommended answers) and buil
 
 - A plan sheet reads the references it prints that were not read yet, from where they were found on this computer (`readSheetRefs` in `src/components/cad/refFiles.ts`, called from `renderSheet`). One that cannot be read is still named in the sheet's notes.
 
+### v2.049: Bind keeps texts and hatches
+
+- A reference keeps its texts and fills when read (`refGeometryOf`); Bind writes them as TEXT and HATCH (solid, or its pattern lines as a custom pattern) on NAME$0$LAYER layers (`placeRefExtras` in `src/model/cadRefs.ts`; the engine's `hatch` shape in `doc.rs`). With a clip, a text is kept when its insertion point is inside, a hatch when all its corners are.
+
 ## Not built yet
 
 - Attach and Overlay act the same here; Save DWG does not write an external-reference block (Bind writes the lines).
-- Bind writes lines only (no texts or fills of the reference).
 - Web version: plan sheets print a reference only if it was read in this session (the desktop app reads it from disk since v2.048).
 - Web version: a reference's file is not kept after a reload of the page; Repath… picks it again.
 - Clip invert ("show outside").

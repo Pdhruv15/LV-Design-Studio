@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from '../ui';
 import { chooseDrawing, fileStamp, readRefGeometry, refGeometryOf, type CadView, type CadXref } from '../../engines/cad/cadEngine';
 import { LAYER_COLOURS } from '../../model/cadLayerStyle';
-import { boundLayerName, dropRefGeometry, keepRefGeometry, newRef, placeRef, REF_STATUS, refFromXref, refGeometry, refLayerStyle, refSnaps, refsOf, updateRef, withRef, withRefLayer, withoutRef, xrefCandidates, xrefFile, type CadRef, type RefGeometry, type RefStatus } from '../../model/cadRefs';
+import type { ShapeOut } from '../../model/cadSketch';
+import { boundLayerName, dropRefGeometry, keepRefGeometry, newRef, placeRef, placeRefExtras, REF_STATUS, refFromXref, refGeometry, refLayerStyle, refSnaps, refsOf, updateRef, withRef, withRefLayer, withoutRef, xrefCandidates, xrefFile, type CadRef, type RefGeometry, type RefStatus } from '../../model/cadRefs';
 import { pathOfPlan, rememberPath, skipRef, skippedRefs } from './cadState';
 import { readRefFile } from './refFiles';
 import type { Project } from '../../types';
 
-type Pt = [number, number];
 const keyOf = (file: string) => file.trim().toLowerCase();
 const same = (a: string, b: string) => keyOf(a) === keyOf(b);
 const fmt = (v: number) => String(+v.toFixed(4));
@@ -95,10 +95,14 @@ export function useCadRefs({ project, view, tabOf, change, say }: {
     } finally { v.close(); }
   }
 
-  /** Lines of the loaded references for Save DXF / DWG with Bind: on NAME$0$LAYER layers. */
-  const bound = () => placed.flatMap((x) => {
-    const out: { layer: string; kind: 'line'; pts: Pt[] }[] = [];
-    for (let i = 0; i < x.segLayers.length; i++) out.push({ layer: boundLayerName(x.ref, x.g.layers[x.segLayers[i]]?.name ?? '0'), kind: 'line', pts: [[x.segs[i * 4], x.segs[i * 4 + 1]], [x.segs[i * 4 + 2], x.segs[i * 4 + 3]]] });
+  /** Lines, texts and hatches of the loaded references for Save DXF / DWG with Bind: on NAME$0$LAYER layers. */
+  const bound = (): ShapeOut[] => placed.flatMap((x) => {
+    const layer = (i: number) => boundLayerName(x.ref, x.g.layers[i]?.name ?? '0');
+    const out: ShapeOut[] = [];
+    for (let i = 0; i < x.segLayers.length; i++) out.push({ layer: layer(x.segLayers[i]), kind: 'line', pts: [[x.segs[i * 4], x.segs[i * 4 + 1]], [x.segs[i * 4 + 2], x.segs[i * 4 + 3]]] });
+    const { texts, fills } = placeRefExtras(x.g, x.ref);
+    for (const t of texts) out.push({ layer: layer(t.layer), kind: 'text', pts: [[t.x, t.y]], text: t.s, h: t.h, rot: t.rot });
+    for (const f of fills) out.push({ layer: layer(f.layer), kind: 'hatch', pts: [], loops: f.loops, solid: f.solid, lines: f.lines });
     return out;
   });
 
