@@ -3,7 +3,7 @@ import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice, type Canv
 import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadState, type CadTool } from './cadState';
 import { cadCommand, type CadAction } from './cadCommands';
 import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
-import { promptOptions, shortPrompt } from './cadPrompt';
+import { isNumber, promptOptions, shortPrompt, spaceEnters, type SpaceMode } from './cadPrompt';
 import CadDynInput, { type DynBox } from './CadDynInput';
 import { DIALOG_TOOLS, DimStyleDialog, EditDialog, TextStyleDialog } from './CadDialogs';
 import { currentTextStyle, dimLookOf, dimStylesOf, dimText, textStylesOf } from '../../model/cadStyles';
@@ -667,8 +667,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (tool === 'offset') {
         const d = edSet.through ? throughDistance(first, at) : num(edSet.offset) / f;
         const r = offset(first, d, at);
-        // On the current layer (where new drawing goes) unless a tray, which stays on its own.
-        const items = r.items?.map((x) => (edSet.layer === 'current' && !x.tray ? { ...x, layer: DRAW_LAYER } : x));
+        // On the current layer (where new drawing goes) unless a tray, which stays on its own. With Erase the source
+        // itself moves: a cable route stays the route of its circuit, on its layer.
+        const items = r.items?.map((x, i) => (edSet.erase && i === 0 && first.cable ? { ...x, cable: first.cable, layer: first.layer }
+          : edSet.layer === 'current' && !x.tray ? { ...x, layer: DRAW_LAYER } : x));
         if (!failed(r, 'OFFSET')) change(edSet.erase ? replaced(project, first, items!) : added(project, items!), `OFFSET  ${first.tray ? `Cable tray ${first.tray.widthMm} mm` : kindOf(first)} ${edSet.erase ? 'moved' : 'copied'} ${m(toM(d))} to the side${edSet.through ? ' (through the point)' : ''} · ⌘Z to undo`);
         cad.say(PROMPT.offset); return;
       }
@@ -1107,7 +1109,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
    * (the value in < >, else the end of the step, then of the tool). True when it was one. */
   function editInput(typedC: string): boolean {
     const opt = promptOptions(cad.history[cad.history.length - 1] ?? '').find((o) => o.option.toUpperCase() === typedC);
-    const c = opt ? opt.key : typedC, num = /^\d+(\.\d+)?$/.test(c) ? c : undefined, CMD = tool.toUpperCase();
+    const c = opt ? opt.key : typedC, num = isNumber(c) && !c.startsWith('-') ? String(Number(c)) : undefined, CMD = tool.toUpperCase();
     if (tool === 'offset') {
       if (num) { setEdSet({ ...edSet, offset: num, through: false }); setEdAsk(null); cad.say(`OFFSET  Distance ${f2(num)} m`); if (!edStep) cad.say(PROMPT.offset); return true; }
       if (edStep) { if (c) return false; setEdStep(null); cad.say(PROMPT.offset); return true; }
@@ -1205,7 +1207,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       setPoints([]); cad.say(PROMPT.leader); return;
     }
     // TEXT: its height (paper mm) and rotation (degrees) after the point, then the text. A word typed at either is the text.
-    if (tool === 'text' && cad.textAt && textAsk?.step && (!c || /^-?\d+(\.\d+)?$/.test(c))) {
+    if (tool === 'text' && cad.textAt && textAsk?.step && (!c || isNumber(c))) {
       const n = c ? Number(c) : undefined;
       if (textAsk.step === 'height') { setTextAsk({ ...textAsk, step: 'rot', mm: n && n > 0 ? n : textAsk.mm }); cad.say(`TEXT  Specify rotation angle <${textAsk.rot}>:`); }
       else { setTextAsk({ ...textAsk, step: null, rot: n ?? textAsk.rot }); cad.say('TEXT  Enter text:'); }
@@ -1233,18 +1235,18 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return;
     }
     if (tool === 'pline' && c === 'C' && points.length >= 3) { finishPline(true); return; }
-    if (tool === 'circle' && points.length === 1 && /^-?[\d.]+$/.test(c)) { finishCircle(Number(c)); return; }
-    if (tool === 'rotate' && !selSketch && selectedItem?.what === 'elv' && /^-?[\d.]+$/.test(c)) {
+    if (tool === 'circle' && points.length === 1 && isNumber(c)) { finishCircle(Number(c)); return; }
+    if (tool === 'rotate' && !selSketch && selectedItem?.what === 'elv' && isNumber(c)) {
       const r = rotateElv(project, selectedItem.id, Number(c));
       change(r.next, r.message); cad.setSelected(null); setResult(null); cad.setTool('none'); return;
     }
-    if (tool === 'rotate' && selSketch && points.length === 1 && /^-?[\d.]+$/.test(c)) {
+    if (tool === 'rotate' && selSketch && points.length === 1 && isNumber(c)) {
       const a = (Number(c) * Math.PI) / 180;
       if (view) change(updateSketch(project, view.file, rotated(selSketch, points[0], a)), `Rotated ${Number(c).toFixed(2)}° · ⌘Z to undo`);
       setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); return;
     }
     // A number typed with Scale (before its base point) sets the factor.
-    if (tool === 'scale' && /^\d+(\.\d+)?$/.test(c)) { setEdSet({ ...edSet, factor: c }); cad.say(`SCALE  Factor ${c}`); return; }
+    if (tool === 'scale' && isNumber(c) && !c.startsWith('-')) { const k = String(Number(c)); setEdSet({ ...edSet, factor: k }); cad.say(`SCALE  Factor ${k}`); return; }
     if (DRAW_TOOLS.includes(tool) || tool === 'dist' || tool === 'area' || tool === 'trace') {
       const p = typedPoint(raw, points[points.length - 1], cursor.at);
       if (p) { cad.say(`  ${raw}`); click(p, 1e-9); return; }
@@ -1293,8 +1295,16 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     else if (edStep || edAsk === 'radius' || edAsk === 'd1' || edAsk === 'd2') { setEdStep(null); setEdAsk(null); cad.say('*Cancel*'); cad.say(tool === 'offset' ? PROMPT.offset : editPrompt(tool, edSet)); }
     else if (menuAt) setMenuAt(null); else if (renaming) { setRenaming(null); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); setPicked([]); }
   }
-  /** The input is text, not a command or a value: Space types a space there. */
-  const textEntry = !!renaming || !!renamingLayout || (tool === 'text' && !!cad.textAt && !textAsk?.step) || (tool === 'leader' && points.length >= 2);
+  /** What Space does in the command line: types a space in text (a name, TEXT contents, a leader's text); at TEXT's
+   * height and rotation, where a word is the text, ends only an empty input or a number; else ends a whole word. */
+  const spaceMode: SpaceMode = renaming || renamingLayout || (tool === 'text' && cad.textAt && !textAsk?.step) || (tool === 'leader' && points.length >= 2) ? 'text'
+    : tool === 'text' && cad.textAt ? 'value' : 'command';
+  /** Numbers typed go to the command line (or the box at the cursor) rather than the view's keys (0 fits, − zooms out):
+   * while a tool is running or something is typed there. */
+  const valuesTyped = tool !== 'none' || cmd !== '';
+  // Space tapped on the drawing works as Enter when it is let go, unless it was held to pan (the mouse pressed while
+  // it was down) or long enough to repeat.
+  const spaceTap = useRef<{ dragged: boolean; repeated: boolean } | null>(null);
 
   // CAD keys while this page shows: function keys toggle, typing goes to the command line, Enter or Space ends the step
   // (with no tool, repeats the last command), Esc cancels the command (and the tool), F2 the taller history, F1 the
@@ -1302,28 +1312,55 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e: KeyboardEvent) => {
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
+    const mods = e.metaKey || e.ctrlKey || e.altKey;
     const fn: Record<string, keyof CadToggles> = { F3: 'osnap', F7: 'grid', F8: 'ortho', F9: 'snap', F12: 'dyn' };
     if (fn[e.key]) { e.preventDefault(); if (fn[e.key] === 'grid') cad.cycleGrid(); else cad.toggle(fn[e.key]); return; }
-    if (e.key === 'F1' || e.key === 'F2') { e.preventDefault(); const k = e.key === 'F1' ? 'help' : 'history'; setLog(log === k ? null : k); return; }
-    if (dynMenu !== null && !typing && dynKey(e)) return;
+    // Keys in a dialog over the page (the layer manager, references…) are the dialog's.
+    if (e.defaultPrevented || (e.target instanceof Element && e.target.closest('[aria-modal="true"], [role="dialog"]'))) return;
+    if ((e.key === 'F1' || e.key === 'F2') && !mods && !e.shiftKey && (!typing || e.target === input.current)) { e.preventDefault(); const k = e.key === 'F1' ? 'help' : 'history'; setLog(log === k ? null : k); return; }
     if (e.key === 'Escape' && (!typing || e.target === input.current)) {
       if (log) { setLog(null); return; }
+      if (promptMenu) { setPromptMenu(null); return; }
       cancel();
       return;
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && (selectedItem || selSketch || many)) { e.preventDefault(); removeSelected(); return; }
-    // Enter or Space on the drawing (not on a button or a field) works as Enter on the empty command line.
+    // Enter or Space on the drawing (not on a button or a field) works as Enter on the empty command line: Enter at
+    // once, Space when it is let go (see spaceTap); once per press.
     const onControl = e.target instanceof Element && !!e.target.closest('button, a, [role="tab"], [role="menuitem"], [contenteditable="true"]');
-    if ((e.key === 'Enter' || (e.key === ' ' && !textEntry)) && !typing && !onControl && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); run(''); return; }
-    if (e.key === 'ArrowDown' && !typing && dynOptions.length) { e.preventDefault(); setDynMenu(0); return; }
-    // A number goes to the first box at the cursor (dynamic input), else to the command line, as letters do.
-    if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[0-9.]$/.test(e.key) && dynBoxes.length) { dynRefs[0].current?.focus(); return; }
-    if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[a-zA-Z?@0-9.]$/.test(e.key)) input.current?.focus();
+    if (e.key === ' ' && spaceMode !== 'text' && !typing && !onControl && !mods) {
+      e.preventDefault();
+      if (!e.repeat) spaceTap.current = { dragged: false, repeated: false }; else if (spaceTap.current) spaceTap.current.repeated = true;
+      return;
+    }
+    if (e.key === 'Enter' && !typing && !onControl && !mods) { e.preventDefault(); if (!e.repeat) run(''); return; }
+    // A number (0 too: it fits the view only with no tool and nothing typed), a point or a minus goes to the first box
+    // at the cursor (dynamic input), else to the command line, while a tool is running or something is typed there.
+    if (!typing && !mods && /^[0-9.,-]$/.test(e.key) && valuesTyped) { (dynBoxes.length ? dynRefs[0] : input).current?.focus(); return; }
+    if (!typing && !mods && /^[a-zA-Z?@]$/.test(e.key)) input.current?.focus();
+  };
+  const keyUpRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyUpRef.current = (e: KeyboardEvent) => {
+    if (e.key !== ' ') return;
+    const tap = spaceTap.current;
+    spaceTap.current = null;
+    if (tap && !tap.dragged && !tap.repeated) run('');
   };
   useEffect(() => {
     const key = (e: KeyboardEvent) => keyRef.current(e);
+    const up = (e: KeyboardEvent) => keyUpRef.current(e);
+    // A press of the mouse while Space is down pans: then Space is not Enter.
+    const press = () => { if (spaceTap.current) spaceTap.current.dragged = true; };
+    const blur = () => { spaceTap.current = null; };
     window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
+    window.addEventListener('keyup', up);
+    window.addEventListener('mousedown', press, true);
+    window.addEventListener('pointerdown', press, true);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('keydown', key); window.removeEventListener('keyup', up);
+      window.removeEventListener('mousedown', press, true); window.removeEventListener('pointerdown', press, true); window.removeEventListener('blur', blur);
+    };
   }, []);
 
   // The object being drawn (or moved / copied / rotated), following the cursor.
@@ -1352,7 +1389,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     : cur && lastPt && tool === 'circle' ? `R ${m(toM(distance(lastPt, cur)))}` : undefined;
   // Dynamic input (DYN, F12): length and angle while a point is asked for after a first one, a radius for a circle,
   // else the distance, radius or factor of Offset, Fillet and Scale; and the prompt in short form with its options.
-  const dynOn = !!cad.toggles.dyn && tool !== 'none' && !!cur && !textEntry;
+  const dynOn = !!cad.toggles.dyn && tool !== 'none' && !!cur && spaceMode !== 'text';
   const dynBoxes: DynBox[] = !dynOn || !cur ? []
     : lastPt && POINT_TOOLS.includes(tool) ? [{ label: 'Length', live: fmtFixed(toM(distance(lastPt, cur)), 2), unit: 'm' }, { label: 'Angle', live: angleDeg(lastPt, cur).toFixed(1), unit: '°' }]
     : lastPt && tool === 'circle' ? [{ label: 'Radius', live: fmtFixed(toM(distance(lastPt, cur)), 2), unit: 'm' }]
@@ -1379,14 +1416,21 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     setDynVals([]); dynRefs.forEach((r) => r.current?.blur());
     if (!cur || (!a && !b)) { run(''); return; }
     const label = dynBoxes[0]?.label;
+    // A point typed in a box ("x,y", "@dx,dy", "@d<angle") works as on the command line, in drawing units.
+    if (/[,<@]/.test(a)) {
+      const p = label === 'Length' || label === 'Radius' ? typedPoint(a, lastPt, cur) : undefined;
+      if (p) { cad.say(`  ${a}`); void click(p, 1e-9); }
+      else cad.say(label === 'Length' || label === 'Radius' ? `  ${a}: type a point as x,y, @dx,dy or @distance<angle (drawing units), or a length in metres.` : `${tool.toUpperCase()}  Type the ${label?.toLowerCase() ?? 'value'} as a number.`);
+      return;
+    }
     if (label === 'Length' && lastPt) {
+      if ((a && !isNumber(a)) || (b && !isNumber(b))) { cad.say('Type a length in metres and an angle in degrees.'); return; }
       const d = a ? Number(a) / units.factor : distance(lastPt, cur), deg = b ? Number(b) : angleDeg(lastPt, cur);
-      if (!Number.isFinite(d) || !Number.isFinite(deg)) { cad.say('Type a length in metres and an angle in degrees.'); return; }
       cad.say(`  ${fmtFixed(d * units.factor, 2)} m < ${fmtFixed(deg, 1)}°`);
       void click([lastPt[0] + d * Math.cos((deg * Math.PI) / 180), lastPt[1] + d * Math.sin((deg * Math.PI) / 180)], 1e-9);
       return;
     }
-    if (label === 'Radius' && tool === 'circle') { const r = Number(a) / units.factor; if (r > 0) finishCircle(r); else cad.say('CIRCLE  Type a radius above 0 (metres).'); return; }
+    if (label === 'Radius' && tool === 'circle') { const r = isNumber(a) ? Number(a) / units.factor : NaN; if (r > 0) finishCircle(r); else cad.say('CIRCLE  Type a radius above 0 (metres).'); return; }
     run(a);
   }
   /** Keys while the options under the prompt box are open: arrows move, Enter takes one, Esc closes. */
@@ -1404,7 +1448,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
             <CadCanvas view={view!} layersOn={cad.layersOn} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
-              layerStyle={styles} refs={xr.placed} refSnap={xr.snap} windowSelect={tool === 'none' || tool === 'stretch' || (PICK_FIRST.includes(tool) && edPhase === 'pick')} onWindow={pickWindow} onContext={contextAt}
+              numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={xr.snap} windowSelect={tool === 'none' || tool === 'stretch' || (PICK_FIRST.includes(tool) && edPhase === 'pick')} onWindow={pickWindow} onContext={contextAt}
               grips={tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
               onGripEnd={(i, at) => {
                 setGripIdx(null);
@@ -1416,10 +1460,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 const dyn = dynOn && cur && !moving && !promptMenu ? (() => {
                   const [x, y] = toScreen(cur);
                   return <CadDynInput left={x + 16} top={y + 16} boxes={dynBoxes} vals={dynVals} refs={dynRefs} prompt={shortPrompt(dynLine)} options={dynOptions} menu={dynMenu !== null} hi={dynMenu ?? 0}
-                    onVals={setDynVals} onPick={(k) => { setDynMenu(null); run(k); }}
+                    onVals={setDynVals} onPick={(k) => { setDynMenu(null); run(k); }} onBlur={() => setDynMenu(null)}
                     onKey={(e, i) => {
                       if (dynKey(e)) return;
-                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dynEnter(); }
+                      // Enter, or Space after a whole value (not inside a point being typed), once per press.
+                      if (e.key === 'Enter' || (e.key === ' ' && spaceEnters(dynVals[i] ?? ''))) { e.preventDefault(); if (!e.repeat) dynEnter(); }
                       else if (e.key === 'Tab' && dynBoxes.length > 1) { e.preventDefault(); dynRefs[(i + 1) % dynBoxes.length].current?.focus(); }
                       else if (e.key === 'ArrowDown' && dynOptions.length) { e.preventDefault(); setDynMenu(0); }
                       else if (e.key === 'Escape') { e.preventDefault(); const typedAny = dynVals.some((v) => v); setDynVals([]); e.currentTarget.blur(); if (!typedAny) cancel(); }
@@ -1652,7 +1697,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         onMove={(x, dir) => change({ ...project, drawingSet: renumber(moveLayout(setOf(project), x.id, dir)) }, `LAYOUT  ${x.number} moved ${dir < 0 ? 'left' : 'right'} · ⌘Z to undo`)}
         onDelete={(x) => { const set = setOf(project); change({ ...project, drawingSet: { ...set, sheets: set.sheets.filter((y) => y.id !== x.id) } }, `LAYOUT  ${x.number} ${x.title} deleted (its sheet too) · ⌘Z to undo`); if (cad.layout === x.id) cad.setLayout(null); }}
         onPageSetup={(x) => onSheet?.(x.id)} />}
-      <CadCommandLine history={cad.history} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} textEntry={textEntry} log={log} onLog={setLog} onRun={run} />
+      <CadCommandLine history={cad.history} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
       <div className="cad-status">
         {TOGGLES.map((x) => (
           <button key={x.k} className={`cad-tg${cad.toggles[x.k] ? ' on' : ''}`} aria-pressed={cad.toggles[x.k]}

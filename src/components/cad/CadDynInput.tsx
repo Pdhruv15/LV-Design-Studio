@@ -5,7 +5,7 @@ export interface DynBox { label: string; live: string; unit: string }
 
 /** Dynamic input at the cursor: the boxes asked for (length and angle while a point is asked for, else a distance,
  * radius or factor), what was typed in them, and the prompt in short form with ↓ for its options (Down opens them). */
-export default function CadDynInput({ left, top, boxes, vals, refs, prompt, options, menu, hi, onVals, onKey, onPick }: {
+export default function CadDynInput({ left, top, boxes, vals, refs, prompt, options, menu, hi, onVals, onKey, onPick, onBlur }: {
   left: number;
   top: number;
   boxes: DynBox[];
@@ -18,6 +18,8 @@ export default function CadDynInput({ left, top, boxes, vals, refs, prompt, opti
   onVals: (vals: string[]) => void;
   onKey: (e: KeyboardEvent<HTMLInputElement>, i: number) => void;
   onPick: (key: string) => void;
+  /** A box let go: its options list closes (Down opens it again from a box). */
+  onBlur: () => void;
 }) {
   return (
     <div className="cad-dyn" style={{ left, top }} aria-label="Dynamic input">
@@ -26,7 +28,7 @@ export default function CadDynInput({ left, top, boxes, vals, refs, prompt, opti
           {boxes.map((b, i) => (
             <label key={b.label} className={vals[i] ? 'on' : undefined}>
               <input ref={refs[i]} aria-label={b.label} value={vals[i] ?? ''} placeholder={b.live} size={Math.max(4, (vals[i] || b.live).length)} autoComplete="off" spellCheck={false}
-                onChange={(e) => onVals(boxes.map((_, k) => (k === i ? e.target.value : vals[k] ?? '')))} onKeyDown={(e) => onKey(e, i)} />
+                onChange={(e) => onVals(boxes.map((_, k) => (k === i ? e.target.value : vals[k] ?? '')))} onKeyDown={(e) => onKey(e, i)} onBlur={onBlur} />
               <u>{b.unit}</u>
             </label>
           ))}
