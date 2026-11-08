@@ -1977,14 +1977,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   );
 
   // The properties dock (Ctrl/Cmd+1 folds it): in place of the Panels list, on the left (or the right, ⇄), as wide as
-  // dragged. What is picked, its properties and details first; then the tool's own settings, plans and layers.
+  // dragged. Only what is picked: its properties and details. The drawing column (`info`) stands on the other side.
   // What is picked, named in the dock's header.
   const pickedName = many ? `${pickedSk.length + pickedItems.length} picked`
     : selSketch ? kindOf(selSketch)
     : result?.kind === 'device' ? result.it.label
     : result?.kind === 'object' ? `${result.o.kind}${result.o.block ? ` · ${result.o.block}` : ''}` : '';
   const dockCol = showProps ? `${dockState.w}px` : '26px';
-  const workColumns = [dockSide === 'left' ? dockCol : '', showLM && view ? '420px' : '', 'minmax(0,1fr)', dockSide === 'right' ? dockCol : ''].filter(Boolean).join(' ');
+  const workColumns = [dockSide === 'left' ? dockCol : '260px', showLM && view ? '420px' : '', 'minmax(0,1fr)', dockSide === 'right' ? dockCol : '260px'].filter(Boolean).join(' ');
   const dock = !showProps ? (
     <aside className="cad-dock folded" aria-label="Properties (folded)">
       <button type="button" aria-label="Show the properties palette" title="Properties (Ctrl/Cmd+1)" onClick={() => setShowProps(true)}>{dockSide === 'left' ? '»' : '«'}<b>Properties</b></button>
@@ -2005,9 +2005,24 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                   onItems={(next, what) => change(next.reduce((q, it) => updateSketch(q, fileOf(), it), project), `${what} · ⌘Z to undo`)}
                   onCurrent={setCurrentLayer} newProps={newProps} onNewProps={setProps} onTextMm={(mm) => change({ ...project, cadAnno: { ...anno, textMm: mm } }, `Annotation: ${mm} mm text at 1:${anno.scale} · ⌘Z to undo`)}
                   bare />}
-          <h4>{pickedName ? 'Selected' : result ? 'Result' : 'Drawing'}{pickedName && <span className="m">{pickedName}</span>}</h4>
+          {(pickedName || result) && <>
+          <h4>{pickedName ? 'Selected' : 'Result'}{pickedName && <span className="m">{pickedName}</span>}</h4>
           <div className="cad-res">
-            {many && pickedSk.length ? <DrawnSelectionPanel items={pickedSk} devices={pickedItems.length} onEdit={editSketch} /> : many ? <SelectionPanel key={[...pickedKeys].join()} project={project} items={pickedItems} circuits={circuits} level={floor ? floorLabel(project.building, floor) : undefined} onEdit={editDevices} /> : result ? <ResultView r={result.kind === 'sketch' && selSketch ? { kind: 'sketch', it: selSketch } : result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} onMove={() => cad.setTool('move')} onRemove={removeSelected} onCopy={() => cad.setTool('copy')} onRotate={() => cad.setTool('rotate')} onAdded={() => setResult(null)} fittings={fittings} /> : view ? (
+            {many && pickedSk.length ? <DrawnSelectionPanel items={pickedSk} devices={pickedItems.length} onEdit={editSketch} /> : many ? <SelectionPanel key={[...pickedKeys].join()} project={project} items={pickedItems} circuits={circuits} level={floor ? floorLabel(project.building, floor) : undefined} onEdit={editDevices} /> : result ? <ResultView r={result.kind === 'sketch' && selSketch ? { kind: 'sketch', it: selSketch } : result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} onMove={() => cad.setTool('move')} onRemove={removeSelected} onCopy={() => cad.setTool('copy')} onRotate={() => cad.setTool('rotate')} onAdded={() => setResult(null)} fittings={fittings} /> : null}
+          </div>
+          </>}
+      </div>
+      <span className={`cad-dock-grip ${dockSide}`} role="separator" aria-orientation="vertical" aria-label="Palette width" onPointerDown={startDockDrag} />
+    </aside>
+  );
+  // The drawing column, on the other side of the drawing from the properties dock: the drawing itself, the tool's own
+  // settings, plans, layer roles and layers — kept apart from the properties of what is picked.
+  const info = (
+    <aside className={`cad-side cad-info ${dockSide === 'left' ? 'right' : 'left'}`} aria-label="Drawing">
+      <div className="cad-dock-b">
+          <h4>Drawing</h4>
+          <div className="cad-res">
+            {view ? (
               <>{view.file}<br /><span className="m">{view.info.format} · {units.label}{units.assumed ? ' (not set in the drawing: taken as mm)' : ''} · {fmtUpTo(view.info.segments, 0)} lines · {view.info.texts.length} texts</span><br /><span className="m">{editPrompt(tool, edSet)}</span></>
             ) : <span className="m">No drawing open.</span>}
             {view && SAMPLE_PLANS.some((x) => x.file === view.file) && (
@@ -2152,16 +2167,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
           </div>
           </>}
       </div>
-      <span className={`cad-dock-grip ${dockSide}`} role="separator" aria-orientation="vertical" aria-label="Palette width" onPointerDown={startDockDrag} />
     </aside>
   );
-  const on = (k: keyof CadToggles) => (k === 'lwt' ? cad.toggles.lwt !== false : !!cad.toggles[k]);
+  const on =(k: keyof CadToggles) => (k === 'lwt' ? cad.toggles.lwt !== false : !!cad.toggles[k]);
   const fileLists = dsTab ? cadFileMenu(project, cad, (next, message) => onChange(next, message), onStatus) : null;
   return (
     <section className="cad" ref={page}>
       <CadTabs cad={cad} project={project} busy={busy} onOpen={openFile} onClose={closeDrawings} />
       <div className="cad-work" style={{ gridTemplateColumns: workColumns }}>
-        {dockSide === 'left' && dock}
+        {dockSide === 'left' ? dock : info}
         {showLM && view && (
           <LayerPalette file={view.file} rows={lRows} current={curLayer} states={layerFile.states ?? []} isolated={!!layerFile.iso}
             viewport={sheetL && vpTarget ? { name: vpName(vps, vpTarget.id), frozen: (l) => isFrozen(vpTarget, l), toggle: (l) => patchVp(vpTarget, toggleFrozen(vpTarget, l), `${l} ${isFrozen(vpTarget, l) ? 'thawed' : 'frozen'} here`) } : undefined}
@@ -2254,7 +2268,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             </div>
           </div>
         )}
-        {dockSide === 'right' && dock}
+        {dockSide === 'right' ? dock : info}
       </div>
       {view && lv && <LayoutTabs layouts={layouts} active={sheetL?.id ?? null} onPick={(id) => { cad.setLayout(id); if (id) cad.say(`LAYOUT  ${layouts.find((x) => x.id === id)?.number ?? ''} — the paper; double-click inside a viewport to work in it, MV adds one.`); }}
         onNew={addLayout} onRename={(x) => { setRenamingLayout(x.id); cad.say(`RENAME  Type the new title of ${x.number} (now "${x.title}"):`); input.current?.focus(); }}

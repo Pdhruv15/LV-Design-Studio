@@ -2170,6 +2170,7 @@ describe('Design CAD File: Save, Save As, Close and Drafting settings', () => {
 describe('Design CAD properties dock', () => {
   const dock = () => document.querySelector('.cad-dock') as HTMLElement;
   const head = () => document.querySelector('.cad-dock-h')?.textContent ?? '';
+  const info = () => document.querySelector('.cad-info') as HTMLElement;
   const press = (label: string) => act(() => { (document.querySelector(`.cad-dock button[aria-label="${label}"]`) as HTMLButtonElement).click(); });
 
   it('stands left of the drawing and shows what is picked: nothing, the architect\'s object, a device', async () => {
@@ -2178,7 +2179,11 @@ describe('Design CAD properties dock', () => {
     expect(document.querySelector('.cad-work')!.firstElementChild).toBe(dock());
     expect(dock().className).toContain('left');
     expect(head()).toContain('No selection');
-    expect(dock().textContent).toContain('sample-villa-gf.dxf'); // the drawing, with nothing picked
+    expect(document.querySelector('.cad-work')!.lastElementChild).toBe(info()); // the drawing in its own column
+    expect(info().textContent).toContain('sample-villa-gf.dxf');
+    expect(info().textContent).toContain('Layers');
+    expect(dock().textContent).not.toContain('sample-villa-gf.dxf'); // not mixed into the properties
+    expect(dock().textContent).not.toContain('All on');
     expect(dock().querySelector('[aria-label="Properties palette"]')).not.toBeNull(); // defaults for new objects
     await clickAt(6687.5 + 190, 7375); // the architect's light block
     expect(head()).toContain('Block · L1');
@@ -2203,6 +2208,7 @@ describe('Design CAD properties dock', () => {
     expect(dock().className).not.toContain('folded');
     press('Dock on the right');
     expect(document.querySelector('.cad-work')!.lastElementChild).toBe(dock());
+    expect(document.querySelector('.cad-work')!.firstElementChild).toBe(info()); // the drawing column swaps over
     expect(JSON.parse(localStorage.getItem('lvds.cad.dock')!)).toMatchObject({ side: 'right' });
     act(() => root.unmount());
     root = createRoot(host);
