@@ -1876,6 +1876,19 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-log{position:absolute;left:0;right:0;bottom:100%;z-index:6;max-height:212px;overflow:auto;padding:4px var(--space-3);background:var(--panel);border-top:1px solid var(--line-strong);box-shadow:var(--shadow-pop);color:var(--mut);line-height:17px}
 .cad-log div{white-space:pre-wrap}
 .cad-log b{color:var(--tx);font-weight:600}
+.cad-dyn{position:absolute;z-index:4;display:flex;flex-direction:column;align-items:flex-start;gap:2px;pointer-events:none;font:11.5px ui-monospace,Menlo,monospace}
+.cad-dyn-row{display:flex;gap:3px}
+.cad-dyn-row label{display:flex;align-items:center;gap:2px;padding:0 4px;background:var(--panel);border:1px solid var(--line-strong);border-radius:2px;color:var(--mut)}
+.cad-dyn-row label.on,.cad-dyn-row label:focus-within{border-color:var(--acc);background:var(--bg);color:var(--tx)}
+.cad-dyn-row input{width:auto;min-width:0;padding:0;background:none;border:0;outline:0;color:var(--tx);font:inherit;text-align:right}
+.cad-dyn-row input::placeholder{color:var(--mut)}
+.cad-dyn-row u{text-decoration:none;color:var(--mut)}
+.cad-dyn-prompt{padding:1px 6px;background:var(--panel);border:1px solid var(--line-strong);border-radius:2px;color:var(--tx);white-space:nowrap}
+.cad-dyn-prompt small{color:var(--mut)}
+.cad-dyn-menu{display:flex;flex-direction:column;min-width:120px;padding:2px;background:var(--panel);border:1px solid var(--line-strong);border-radius:3px;box-shadow:var(--shadow-pop);pointer-events:auto}
+.cad-dyn-menu button{display:flex;justify-content:space-between;gap:var(--space-3);height:20px;align-items:center;padding:0 8px;background:none;border:0;border-radius:2px;color:var(--tx);font:inherit;text-align:left}
+.cad-dyn-menu button:hover,.cad-dyn-menu button[aria-selected=true]{background:var(--p2)}
+.cad-dyn-menu b{color:var(--acc);font-weight:600}
 .cad-log-x{position:sticky;top:0;float:right;padding:0 4px;background:none;border:0;color:var(--mut);font:inherit}
 .cad-cmd input{flex:1;min-width:120px;background:transparent;border:0;outline:0;color:var(--tx);font:inherit}
 .cad-status{display:flex;align-items:center;gap:var(--space-1);padding:4px var(--space-2);background:var(--p2);border-top:1px solid var(--line);font-size:var(--fs-xs);color:var(--mut)}

@@ -1283,6 +1283,7 @@ describe('CAD command line', () => {
   const items = () => project.cadSketch![0].items;
   const last = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
   const option = (name: string) => [...document.querySelectorAll<HTMLButtonElement>('.cad-hist .cad-opt')].find((b) => b.textContent === name)!;
+  const hover = (x: number, y: number) => { const [sx, sy] = screenOf(x, y); return act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('mousemove', { clientX: sx, clientY: sy, bubbles: true })); }); };
   const start = async (p: Project = two) => { project = p; act(() => root.render(<Host start={p} />)); await flush(); act(() => state.toggle('osnap')); };
 
   it('shows three earlier lines, the prompt with its options, one line for an unknown command, F1 the list and F2 the history', async () => {
@@ -1435,6 +1436,54 @@ describe('CAD command line', () => {
     expect(state.tool).toBe('fillet');
   });
 
+  it('dynamic input: a number typed goes to the length box at the cursor, Tab to the angle, Enter places the point; F12 turns it off', async () => {
+    await start();
+    const box = (name: string) => document.querySelector(`.cad-dyn input[aria-label="${name}"]`) as HTMLInputElement | null;
+    const type = (el: HTMLInputElement, text: string) => act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, text); el.dispatchEvent(new Event('input', { bubbles: true })); });
+    await command('L');
+    await hover(X, 9000);
+    expect(document.querySelector('.cad-dyn-prompt')!.textContent).toBe('Specify first point');
+    expect(box('Length')).toBeNull();
+    await clickAt(X, 10000);
+    expect(box('Length')!.placeholder).toBe('0.00');
+    expect(document.querySelector('.cad-status button[aria-pressed="true"][title="DYN (F12)"]')).not.toBeNull();
+    key('3');
+    expect(document.activeElement).toBe(box('Length'));
+    type(box('Length')!, '3');
+    key('Tab', box('Length')!);
+    expect(document.activeElement).toBe(box('Angle'));
+    type(box('Angle')!, '90');
+    await act(async () => { box('Angle')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
+    expect(items()[2].pts.map((q) => q.map((v) => Math.round(v)))).toEqual([[X, 10000], [X, 13000]]);
+    key('F12');
+    expect(state.toggles.dyn).toBe(false);
+    expect(document.querySelector('.cad-dyn')).toBeNull();
+    key('F12');
+    expect(document.querySelector('.cad-dyn')).not.toBeNull();
+  });
+
+  it('dynamic input: Offset asks its distance at the cursor; Down in the box opens the prompt options', async () => {
+    await start();
+    await command('O');
+    await hover(X + 20000, 20000);
+    const box = document.querySelector('.cad-dyn input[aria-label="Distance"]') as HTMLInputElement;
+    expect(box.placeholder).toBe('0.30');
+    expect(document.querySelector('.cad-dyn-prompt')!.textContent).toBe('Specify offset distance ↓');
+    key('ArrowDown'); // on the drawing: it pans, as before
+    expect(document.querySelector('.cad-dyn-menu')).toBeNull();
+    act(() => box.focus());
+    key('ArrowDown', box);
+    expect([...document.querySelectorAll('.cad-dyn-menu button')].map((b) => b.textContent)).toEqual(['Through T', 'Erase E', 'Layer L']);
+    key('ArrowDown', box);
+    key('Enter', box);
+    expect(hist()).toBe('OFFSET  Specify offset distance or [Through/Erase/Layer] <0.30>:');
+    expect(earlier()[2]).toBe('OFFSET  Erase source after offsetting: Yes');
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(box, '0.5'); box.dispatchEvent(new Event('input', { bubbles: true })); });
+    await act(async () => { box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
+    expect(hist()).toBe('OFFSET  Select object to offset or [Exit]:');
+    expect((document.querySelector('.cad-dyn input[aria-label="Distance"]') as HTMLInputElement).placeholder).toBe('0.50');
+  });
+
   it('Space held to pan does not end the step; tapped it does; held long with no tool it does not repeat', async () => {
     await start();
     await command('PL');
@@ -1534,6 +1583,35 @@ describe('CAD command line', () => {
     await clickAt(X + 2000, 1000);
     expect(items()).toEqual([{ id: 'C1', kind: 'pline', layer: 'E-CABLE', pts: [[X, 300], [X + 4000, 300]], cable: { feederId: 'DB-GF1-Y1' } }]);
     expect(last()).toBe('OFFSET  Cable route moved 0.30 m to the side · ⌘Z to undo');
+  });
+
+  it('numbers typed: 0 goes to the box with a tool running (it fits the view only with none); ".5" is 0.5; a point typed in a box works', async () => {
+    await start();
+    const zero = () => { const e = new KeyboardEvent('keydown', { key: '0', bubbles: true, cancelable: true }); act(() => { window.dispatchEvent(e); }); return e.defaultPrevented; };
+    const input = document.querySelector('input[aria-label="Command"]') as HTMLInputElement;
+    act(() => input.blur());
+    expect(zero()).toBe(true); // no tool: the view fits
+    expect(document.activeElement).not.toBe(input);
+    await command('O');
+    await hover(X + 20000, 20000);
+    act(() => input.blur());
+    expect(zero()).toBe(false); // typed, not a fit
+    expect(document.activeElement).toBe(document.querySelector('.cad-dyn input[aria-label="Distance"]'));
+    await command('.5');
+    expect(earlier()[2]).toBe('OFFSET  Distance 0.50 m');
+    expect((document.querySelector('.cad-dyn input[aria-label="Distance"]') as HTMLInputElement).placeholder).toBe('0.50');
+    await command('');
+    act(() => state.setTool('none'));
+    await command('L');
+    await clickAt(X, 10000);
+    const len = document.querySelector('.cad-dyn input[aria-label="Length"]') as HTMLInputElement;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(len, '@0,2000'); len.dispatchEvent(new Event('input', { bubbles: true })); });
+    await act(async () => { len.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
+    expect(items()[2].pts.map((q) => q.map((v) => Math.round(v)))).toEqual([[X, 10000], [X, 12000]]); // drawing units, as on the command line
+    const len2 = document.querySelector('.cad-dyn input[aria-label="Length"]') as HTMLInputElement;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(len2, '3,'); len2.dispatchEvent(new Event('input', { bubbles: true })); });
+    await act(async () => { len2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
+    expect(hist()).toBe('  3,: type a point as x,y, @dx,dy or @distance<angle (drawing units), or a length in metres.');
   });
 });
 

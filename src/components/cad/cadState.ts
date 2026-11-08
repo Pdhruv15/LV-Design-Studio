@@ -62,7 +62,7 @@ export function useCad(projectId: string | undefined) {
   const setTabs = useCallback((next: Tabs) => { now.current = next; setTabsState(next); }, []);
   const view = tabs.shown;
   const layersOn = tabs.open.find((d) => d.view === view)?.layersOn ?? NO_LAYERS;
-  const [toggles, setToggles] = useState<CadToggles>({ snap: false, osnap: true, ortho: false, grid: false });
+  const [toggles, setToggles] = useState<CadToggles>({ snap: false, osnap: true, ortho: false, grid: false, dyn: true });
   const [fitKey, setFitKey] = useState(0);
   const [showLayers, setShowLayers] = useState(true);
   const [history, setHistory] = useState<string[]>([]);
