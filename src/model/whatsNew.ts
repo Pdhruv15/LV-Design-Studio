@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.057', date: '2026-11-08',
+    items: [
+      { title: 'Properties on the left in Design CAD', text: 'Design CAD shows the Properties palette where the Panels list was (Panels stays on SLD, the load schedule and the other pages), and the column on the right is gone, so the drawing is wider. Pick anything and the palette shows it: a line\'s layer, colour and geometry, a device\'s circuit, room and position, a tray\'s width and route, or the architect\'s object with its layer and size. With nothing picked: the defaults for new objects and the drawing. The tool you are using, the plans and the layers follow below. Drag its edge to widen it, ⇄ docks it on the right, « or Ctrl/Cmd+1 folds it to a strip.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'LVCAD', text: 'Design CAD\'s first sub-tab is now called LVCAD (it was Drafting).' }
+    ]
+  },
+  {
     version: '2.056', date: '2026-11-08',
     items: [
       { title: 'Design CAD File menu', text: 'File has Open, Close, Save, Save As, Export and Publish. Open lists a drawing file, the drawing open last and the plan of each level; Close closes this drawing, all, or all but this one. Save writes again to the copy you saved last (keeping the one before as .bak); the first time it is Save As, where you name the copy, choose DWG or DXF and its version (back to 2000, or DXF R12), and what goes in. The architect\'s drawing is never changed. A drawing changed since it was saved shows ● on its tab, and Close asks first.', action: 'cad', actionLabel: 'Open Design CAD' },

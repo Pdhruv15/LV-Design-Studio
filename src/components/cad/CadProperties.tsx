@@ -14,7 +14,7 @@ import { ColourPicker } from './ColourPicker';
 const VARIES = '__varies';
 type Shown = number | string | undefined | 'varies';
 
-export function PropertiesPalette({ items, devices, layers, styles, current, newProps = {}, textMm, k, onItems, onCurrent, onNewProps, onTextMm, onClose }: {
+export function PropertiesPalette({ items, devices, layers, styles, current, newProps = {}, textMm, k, onItems, onCurrent, onNewProps, onTextMm, onClose, bare }: {
   items: SketchItem[];
   /** Devices picked with them (their own panel edits them). */
   devices: number;
@@ -32,7 +32,9 @@ export function PropertiesPalette({ items, devices, layers, styles, current, new
   /** New objects' colour, linetype or lineweight set (a key with `undefined`: back to ByLayer). */
   onNewProps?: (patch: ObjectProps) => void;
   onTextMm: (mm: number) => void;
-  onClose: () => void;
+  onClose?: () => void;
+  /** Inside the properties dock, which has the title and the fold button: no header of its own. */
+  bare?: boolean;
 }) {
   const [kind, setKind] = useState('');
   const [fold, setFold] = useState<Record<string, boolean>>({});
@@ -121,7 +123,7 @@ export function PropertiesPalette({ items, devices, layers, styles, current, new
   const trays = sel.some((it) => it.tray || it.cable);
   return (
     <section className="cad-ppal" aria-label="Properties palette">
-      <div className="cad-lp-head">Properties<span className="sp" /><button type="button" aria-label="Close the properties palette" title="Show / hide (Ctrl/Cmd+1)" onClick={onClose}><X size={13} /></button></div>
+      {!bare && <div className="cad-lp-head">Properties<span className="sp" /><button type="button" aria-label="Close the properties palette" title="Show / hide (Ctrl/Cmd+1)" onClick={onClose}><X size={13} /></button></div>}
       {items.length > 0 && (
         <select className="cad-pp-kind" aria-label="Objects shown" value={shownKind} onChange={(e) => { setKind(e.target.value); setEdit(null); setVtx(0); }}>
           {choices.map((c) => <option key={c.id} value={c.id}>{c.label} ({c.n})</option>)}

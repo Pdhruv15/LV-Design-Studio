@@ -106,12 +106,12 @@ describe('Ribbon', () => {
 
   it('opens Design CAD on Drafting, its panels in the order the user chose, with File beside the sub-tabs', () => {
     const html = render('cad', { view: 'cad', cad: cad() });
-    expect(subTabs(html)).toEqual(['Drafting', 'Electrical, ELV &amp; sheets']);
+    expect(subTabs(html)).toEqual(['LVCAD', 'Electrical, ELV &amp; sheets']);
     expect(html).toMatch(/id="ribbon-cad-drafting"[^>]*aria-selected="true"/);
     expect(groupsOf(html)).toEqual(['Draw', 'Modify', 'Annotate', 'Layers', 'Properties', 'Measure']);
     // With labels every tool is named and needs about twice the room: the panels take four sub-tabs.
     const all = render('cad', { view: 'cad', cad: cad({ labels: true }) });
-    expect(subTabs(all)).toEqual(['Drafting', 'Layers &amp; properties', 'Electrical &amp; ELV', 'Sheets']);
+    expect(subTabs(all)).toEqual(['LVCAD', 'Layers &amp; properties', 'Electrical &amp; ELV', 'Sheets']);
     expect(groupsOf(all)).toEqual(['Draw', 'Modify', 'Annotate']);
     expect(html).toContain('title="Open, save and close drawings; the level and units of the drawing"'); // File, a menu
     expect(html).toMatch(/aria-haspopup="menu" aria-expanded="false" title="Open, save and close drawings/);

@@ -1180,7 +1180,8 @@ export default function App() {
                     onEditComponent={(id) => setEditComponent(id ? project.components?.find((c) => c.id === id) ?? null : newComponent(`c${Date.now().toString(36)}`))}
                     onDeleteComponent={(id) => setProject((p) => ({ ...p, components: (p.components ?? []).filter((c) => c.id !== id), feeders: p.feeders.map((f) => (f.componentId === id ? { ...f, componentId: undefined, componentValues: undefined } : f)) }), { step: true })} />
   );
-  const showTree = !['projects', 'dashboard', 'help', 'parameters', 'titleblock', 'database', 'design-references', 'calculators'].includes(view);
+  // Design CAD has its properties palette there instead: the Panels list is for SLD, the load schedule and the rest.
+  const showTree = !['projects', 'dashboard', 'help', 'parameters', 'titleblock', 'database', 'design-references', 'calculators', 'cad'].includes(view);
 
   return (
     <div className={`app-root${home ? ' home' : ''}`} data-doc-id="app-shell">
