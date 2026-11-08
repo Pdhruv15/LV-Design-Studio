@@ -104,4 +104,21 @@ describe('properties palette: several objects, shown and typed values', () => {
     const t: SketchItem = { id: 'X1', kind: 'text', layer: 'LV-ANNO', pts: [[0, 0]], text: 'A' };
     expect(kindChoices([line, { ...line, id: 'S2' }, t])).toEqual([{ id: '', label: 'All', n: 3 }, { id: 'Line', label: 'Line', n: 2 }, { id: 'Text', label: 'Text', n: 1 }]);
   });
+
+  it('shows and sets an ellipse\'s radii and rotation, and a revision cloud\'s arc length (metres)', () => {
+    const e: SketchItem = { id: 'E', kind: 'ellipse', layer: 'L', pts: [[1000, 0]], ax: [4000, 0], ratio: 0.5 };
+    expect(geomKind(e)).toBe('ellipse');
+    expect(geometryRows('ellipse', [e]).map((d) => d.key)).toEqual(['cx', 'cy', 'rx', 'ry', 'ang']);
+    expect([propValue(e, 'rx', 0.001), propValue(e, 'ry', 0.001), propValue(e, 'ang', 0.001)]).toEqual([4, 2, 0]);
+    expect(withProp(e, 'ry', 3, 0.001)).toMatchObject({ ax: [4000, 0], ratio: 0.75 });
+    const swapped = withProp(e, 'ry', 5, 0.001)!; // the minor now longer: it is the major
+    expect([swapped.ax!.map((v) => +v.toFixed(6) + 0), swapped.ratio]).toEqual([[0, 5000], 0.8]);
+    expect(withProp(e, 'ang', 90, 0.001)!.ax!.map((v) => +v.toFixed(6) + 0)).toEqual([0, 4000]);
+    const cloud: SketchItem = { id: 'C', kind: 'pline', layer: 'LV-ANNO', pts: [[0, 0], [10000, 0], [10000, 4000], [0, 4000]], closed: true, cloud: 1500 };
+    expect(geomKind(cloud)).toBe('cloud');
+    expect(propValue(cloud, 'arc', 0.001)).toBe(1.5);
+    expect(withProp(cloud, 'arc', 2, 0.001)!.cloud).toBe(2000);
+    expect(withProp(e, 'arc', 2, 0.001)).toBeUndefined();
+  });
 });
+

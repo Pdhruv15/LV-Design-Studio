@@ -21,7 +21,8 @@ const unit = (a: Pt): Pt => { const l = len(a) || 1; return [a[0] / l, a[1] / l]
 const EPS = 1e-9;
 
 /** Lines and polylines (trays and cable routes are polylines): the ones Trim, Extend, Break and Fillet work on. */
-export const isPath = (it: Pick<SketchItem, 'kind'>) => it.kind === 'line' || it.kind === 'pline';
+/** A line or polyline the path tools work on (a revision cloud's sides are arcs: it is not one). */
+export const isPath = (it: Pick<SketchItem, 'kind' | 'cloud'>) => (it.kind === 'line' || it.kind === 'pline') && !it.cloud;
 /** The points of a path, the first repeated at the end when closed. */
 const pathOf = (it: SketchItem): Pt[] => (it.closed && it.pts.length > 2 ? [...it.pts, it.pts[0]] : it.pts);
 const chain = (pts: Pt[]) => pts.reduce<number[]>((c, q, i) => [...c, i ? c[i - 1] + len(sub(q, pts[i - 1])) : 0], []);
@@ -251,6 +252,7 @@ export function join(items: SketchItem[], tol: number): Edit & { joined?: string
 
 /** Explode: a polyline (or rectangle) into its lines. A tray's lines stay trays; a cable route stays one route. */
 export function explode(it: SketchItem): Edit {
+  if (it.cloud) return { error: 'A revision cloud stays one object: erase it and draw it again to change it.' };
   if (it.kind !== 'pline' && !(it.kind === 'line' && it.pts.length > 2)) return { error: 'Explode works on polylines and rectangles.' };
   if (it.cable) return { error: 'A cable route stays one line: Break it instead.' };
   const pts = pathOf(it);
@@ -263,12 +265,15 @@ export function mirrored(it: SketchItem, a: Pt, b: Pt): Omit<SketchItem, 'id'> {
   const { id: _id, ...rest } = it;
   const pts = it.pts.map((q) => reflect(q, a, b));
   if (it.kind === 'arc') { const th = Math.atan2(b[1] - a[1], b[0] - a[0]); return { ...rest, pts, a0: 2 * th - (it.a1 ?? 0), a1: 2 * th - (it.a0 ?? 0) }; }
+  // An ellipse's axis is a direction: mirrored as one.
+  if (it.kind === 'ellipse' && it.ax) return { ...rest, pts, ax: sub(reflect(add(it.pts[0], it.ax), a, b), pts[0]) };
   return { ...rest, pts };
 }
 /** Scale about a base point by a factor (radii and text heights too). */
 export function scaled(it: SketchItem, base: Pt, k: number): SketchItem {
   return {
     ...it, pts: it.pts.map((q) => add(base, mul(sub(q, base), k))), ...(it.r !== undefined ? { r: it.r * k } : {}), ...(it.h !== undefined ? { h: it.h * k } : {}),
+    ...(it.ax ? { ax: mul(it.ax, k) } : {}), ...(it.cloud !== undefined ? { cloud: it.cloud * k } : {}),
     ...(it.look ? { look: { ...it.look, size: it.look.size * k, off: it.look.off * k, ext: it.look.ext * k } } : {})
   };
 }
@@ -308,6 +313,8 @@ export function gripsOf(it: SketchItem): { at: Pt; kind: 'point' | 'mid' | 'radi
     return [...it.pts.map((at) => ({ at, kind: 'point' as const })), ...pts.slice(1).map((q, i) => ({ at: mul(add(pts[i], q), 0.5), kind: 'mid' as const }))];
   }
   if (it.kind === 'circle') return [{ at: it.pts[0], kind: 'point' }, { at: add(it.pts[0], [it.r ?? 0, 0]), kind: 'radius' }];
+  // An ellipse: its centre, the end of its major axis and of its minor axis.
+  if (it.kind === 'ellipse' && it.ax) { const k = it.ratio ?? 1; return [{ at: it.pts[0], kind: 'point' }, { at: add(it.pts[0], it.ax), kind: 'radius' }, { at: add(it.pts[0], [-it.ax[1] * k, it.ax[0] * k]), kind: 'radius' }]; }
   return it.pts.map((at) => ({ at, kind: 'point' as const }));
 }
 /** The item with grip `i` dragged to `to`: a point moves; a middle moves its segment; a circle's radius grip sizes it;
@@ -316,7 +323,16 @@ export function gripMoved(it: SketchItem, i: number, to: Pt): SketchItem {
   const g = gripsOf(it)[i];
   if (!g) return it;
   const d = sub(to, g.at);
+  if (it.kind === 'ellipse' && it.ax && g.kind === 'radius') {
+    // The major axis's grip turns and sizes it (the minor keeps its length); the minor's sizes the minor.
+    const a = len(it.ax), b = a * (it.ratio ?? 1), v = sub(to, it.pts[0]);
+    if (i === 1) { const na = Math.max(EPS, len(v)); return na >= b ? { ...it, ax: v, ratio: b / na } : { ...it, ax: mul([-v[1], v[0]], b / na), ratio: na / b }; }
+    const nb = Math.max(EPS, Math.abs((v[0] * -it.ax[1] + v[1] * it.ax[0]) / a));
+    return nb <= a ? { ...it, ratio: nb / a } : { ...it, ax: mul([-it.ax[1], it.ax[0]], nb / a), ratio: a / nb };
+  }
   if (g.kind === 'radius') return { ...it, r: Math.max(EPS, len(sub(to, it.pts[0]))) };
+  // A revision cloud's corner moves alone (the cloud follows its outline).
+  if (it.cloud && g.kind === 'point') return { ...it, pts: it.pts.map((q, k) => (k === i ? to : q)) };
   if (!isPath(it)) return it.kind === 'dim' ? { ...it, pts: it.pts.map((q, k) => (k === i ? to : q)) } : { ...it, pts: it.pts.map((q) => add(q, d)) };
   if (g.kind === 'point') return { ...it, pts: it.pts.map((q, k) => (k === i ? to : q)) };
   const s = i - it.pts.length, n = it.pts.length;

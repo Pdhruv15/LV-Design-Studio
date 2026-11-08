@@ -12,7 +12,7 @@ import { boundaryOfPiece, cropItems, cropNote, cropPieces, type CropBoundary, ty
 import { erasedOf, shownView, withErased, type ErasedParts } from '../../model/cadErased';
 import { CIRCUIT_ATTRIBUTES } from '../../model/cadLoads';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
-import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
+import { addSketch, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimensionLines, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
 import { trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
@@ -52,7 +52,7 @@ import type { CadLayerMap, CadLayerRole, Project } from '../../types';
 import { fmtFixed, fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
 import { AnnoPanel, HatchPanel } from './AnnotatePanel';
-import { annoOf, centreOf, hatchItem, hatchOutline, HATCH_START, leaderItems, northArrowItems, roomTagItems, textUnits, type HatchSpec } from '../../model/cadAnnotate';
+import { annoOf, centreOf, hatchItem, hatchOutline, HATCH_START, leaderItems, northArrowItems, roomTagItems, textUnits, unitsPerPaperMm, type HatchSpec } from '../../model/cadAnnotate';
 import { LayerPalette, layerRows, type LayerRow } from './CadLayerManager';
 import { PropertiesPalette } from './CadProperties';
 import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
@@ -128,7 +128,14 @@ const PROMPT: Record<CadTool, string> = {
   line: 'LINE  Specify first point:',
   pline: 'PLINE  Specify start point:',
   rect: 'RECTANG  Specify first corner point:',
-  circle: 'CIRCLE  Specify center point:',
+  circle: 'CIRCLE  Specify center point or [2P/3P]:',
+  circle2p: 'CIRCLE  Specify first end of the diameter:',
+  circle3p: 'CIRCLE  Specify first point on the circle:',
+  circled: 'CIRCLE  Specify center point (then the diameter):',
+  arcsce: 'ARC  Specify start point (then the centre, then the end, anticlockwise):',
+  polygon: 'POLYGON  Specify center (type a number first for the sides), or [Inscribed/Circumscribed]:',
+  ellipse: 'ELLIPSE  Specify center, or [Axis end]:',
+  revcloud: 'REVCLOUD  Specify first corner, or [Polygonal], or type the arc length:',
   arc: 'ARC  Specify start point:',
   text: 'TEXT  Specify start point of text:',
   dim: 'DIM  Specify first extension line origin:',
@@ -169,7 +176,7 @@ const WIRING_LAYER = 'E-LV-WIRING', TAG_LAYER = 'E-LV-TAGS';
  * picked first. */
 const EDIT_TOOLS: CadTool[] = ['trim', 'extend', 'offset', 'fillet', 'chamfer', 'break', 'join', 'explode', 'mirror', 'scale', 'stretch', 'array'];
 const PICK_FIRST: CadTool[] = ['join', 'mirror', 'scale', 'array'];
-const DRAW_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'rect', 'circle', 'arc', 'text', 'dim', 'move', 'copy', 'rotate'];
+const DRAW_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'rect', 'circle', 'arc', 'text', 'dim', 'move', 'copy', 'rotate', 'polygon', 'ellipse', 'circle2p', 'circle3p', 'circled', 'arcsce', 'revcloud'];
 
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
  * a command line and a status bar. Engine in Rust (WebAssembly), desktop and web alike. Measure a distance, an area (by
@@ -219,6 +226,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // Edit devices: several devices picked (Shift-click or a window; one device is cad.selected), the menu at the cursor
   // after a right click (canvas pixels), Array on line and Match settings, and the board being renamed.
   const [picked, setPicked] = useState<string[]>([]);
+  // Options of the drawing tools: a polygon's sides and whether its corners (inscribed) or its sides' middles
+  // (circumscribed) are on the circle; a revision cloud by points (Polygonal) and its arc length typed (drawing units);
+  // an ellipse by the two ends of an axis; a circle by its diameter (D after the centre).
+  const [polySides, setPolySides] = useState(4);
+  const [polyIn, setPolyIn] = useState(true);
+  const [cloudPoly, setCloudPoly] = useState(false);
+  const [cloudArc, setCloudArc] = useState<number | null>(null);
+  const [ellAxis, setEllAxis] = useState(false);
+  const [circleDia, setCircleDia] = useState(false);
   const [menuAt, setMenuAt] = useState<Pt | null>(null);
   const [arlSet, setArlSet] = useState<ArlSettings>(ARL_START);
   const [matchFrom, setMatchFrom] = useState<string | null>(null);
@@ -295,6 +311,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   useEffect(() => {
     const pre = preset.current;
     setPoints([]); setObjectMode(false); setLuxRoom(null); setMenuAt(null); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
+    setCloudPoly(false); setEllAxis(false); setCircleDia(false);
     setEdStep(pre); preset.current = null; setStretchBox(null); setMpFrom(null);
     const first = picked.some((k) => k.startsWith('sk:')) || !!cad.selected?.startsWith('sk:');
     setEdPhase(first ? 'points' : 'pick');
@@ -1137,6 +1154,46 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       else { draw({ ...a, layer: curLayer, ...newProps } as Omit<SketchItem, 'id'>, `Arc radius ${m(toM(a.r ?? 0))}`); setPoints([]); cad.say(PROMPT.arc); }
       return;
     }
+    if (tool === 'circle2p') {
+      if (!last) { setPoints([at]); cad.say('CIRCLE  Specify other end of the diameter:'); return; }
+      const q = circle2P(last, at);
+      if (q.r > 0) draw({ kind: 'circle', layer: curLayer, pts: [q.c], r: q.r, ...newProps }, `Circle radius ${m(toM(q.r))}`);
+      setPoints([]); cad.say(PROMPT.circle2p); return;
+    }
+    if (tool === 'circle3p') {
+      if (points.length < 2) { setPoints((p) => [...p, at]); cad.say(points.length ? 'CIRCLE  Specify third point on the circle:' : 'CIRCLE  Specify second point on the circle:'); return; }
+      const q = circleThrough(points[0], points[1], at);
+      if (!q) { cad.say('CIRCLE  The three points are in line; pick another third point.'); return; }
+      draw({ kind: 'circle', layer: curLayer, pts: [q.c], r: q.r, ...newProps }, `Circle radius ${m(toM(q.r))}`);
+      setPoints([]); cad.say(PROMPT.circle3p); return;
+    }
+    if (tool === 'circled') {
+      if (!last) { setPoints([at]); cad.say('CIRCLE  Specify diameter (a point, or type it):'); return; }
+      finishCircle(distance(last, at) / 2); return;
+    }
+    if (tool === 'arcsce') {
+      if (points.length < 2) { setPoints((p) => [...p, at]); cad.say(points.length ? 'ARC  Specify end point (anticlockwise):' : 'ARC  Specify center point:'); return; }
+      const a = arcStartCentreEnd(points[0], points[1], at);
+      if (!a) cad.say('ARC  Pick an end point away from the centre.');
+      else { draw({ ...a, layer: curLayer, ...newProps } as Omit<SketchItem, 'id'>, `Arc radius ${m(toM(a.r ?? 0))}`); setPoints([]); cad.say(PROMPT.arcsce); }
+      return;
+    }
+    if (tool === 'polygon') {
+      if (!last) { setPoints([at]); cad.say(`POLYGON  Specify radius (a point, or type it), or [Inscribed/Circumscribed] <${polyIn ? 'I' : 'C'}>:`); return; }
+      finishPolygon(at); return;
+    }
+    if (tool === 'ellipse') {
+      if (points.length < 2) { setPoints((p) => [...p, at]); cad.say(points.length ? 'ELLIPSE  Specify distance to the other axis:' : ellAxis ? 'ELLIPSE  Specify other end of the axis:' : 'ELLIPSE  Specify end of the axis:'); return; }
+      finishEllipse(at); return;
+    }
+    if (tool === 'revcloud') {
+      if (cloudPoly) {
+        if (points.length >= 3 && distance(at, points[0]) <= 8 * pixel) { finishCloud(points); return; }
+        setPoints((p) => [...p, at]); cad.say(`REVCLOUD  Specify next point${points.length >= 2 ? ', Enter or C to close' : ''}:`); return;
+      }
+      if (!last) { setPoints([at]); cad.say('REVCLOUD  Specify opposite corner:'); return; }
+      finishCloud(rectangle(last, at)); return;
+    }
     if (tool === 'text') {
       // The current text style's height, else (0) asked each time from the annotation text height.
       const style = currentTextStyle(project);
@@ -1306,7 +1363,32 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   function finishCircle(r: number) {
     if (!points[0] || r <= 0) return;
     draw({ kind: 'circle', layer: curLayer, pts: [points[0]], r, ...newProps }, `Circle radius ${m(toM(r))}`);
-    setPoints([]); cad.say(PROMPT.circle);
+    setPoints([]); setCircleDia(false); cad.say(PROMPT[tool] ?? PROMPT.circle);
+  }
+  /** A regular polygon round the centre clicked, its corners (or its sides' middles) on the circle through `at`. */
+  function finishPolygon(at: Pt) {
+    const c = points[0];
+    if (!c || distance(c, at) <= 0) return;
+    draw({ kind: 'pline', layer: curLayer, pts: polygonPts(c, at, polySides, polyIn), closed: true, ...newProps }, `Polygon of ${polySides} sides, ${polyIn ? 'inscribed in' : 'circumscribed about'} radius ${m(toM(distance(c, at)))}`);
+    setPoints([]); cad.say(PROMPT.polygon);
+  }
+  /** An ellipse: from its centre and one axis's end, or from that axis's two ends; `other` gives the other axis. */
+  function finishEllipse(other: Pt) {
+    const [a, b] = points;
+    if (!a || !b) return;
+    const e = ellAxis ? ellipseOf([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], b, other) : ellipseOf(a, b, other);
+    if (!e) { cad.say('ELLIPSE  The other axis has no length; pick a point away from the first axis.'); return; }
+    const r = Math.hypot(e.ax![0], e.ax![1]);
+    draw({ ...e, layer: curLayer, ...newProps } as Omit<SketchItem, 'id'>, `Ellipse ${m(toM(2 * r))} × ${m(toM(2 * r * (e.ratio ?? 1)))}`);
+    setPoints([]); setEllAxis(false); cad.say(PROMPT.ellipse);
+  }
+  /** A revision cloud round the outline (a rectangle, or the points clicked) on the annotation layer: its arcs as typed,
+   * else 15 mm long on paper at the annotation scale. */
+  function finishCloud(outline: Pt[]) {
+    const arc = cloudArc ?? 15 * unitsPerPaperMm(anno, units.factor);
+    if (outline.length < 3 || areaOf(outline).area <= 0) { cad.say('REVCLOUD  The outline has no area; pick another corner.'); return; }
+    draw({ kind: 'pline', layer: ANNO_LAYER, pts: outline, closed: true, cloud: arc }, `Revision cloud, arcs ${m(toM(arc))} long`);
+    setPoints([]); cad.say(PROMPT.revcloud);
   }
 
   /** Typed input for an edit tool: an option of its prompt (the capital letters, or the word), a value, or Enter alone
@@ -1438,6 +1520,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (!c) {
       if ((tool === 'area' || tool === 'trace') && points.length >= 3) finishArea(points);
       else if (tool === 'pline') finishPline(false);
+      else if (tool === 'revcloud' && cloudPoly && points.length >= 3) finishCloud(points);
       else if (tool === 'tray') finishTray();
       else if (tool === 'em') finishRoute();
       else if (tool === 'arl' && arlAt.length && points.length >= 2) placeArl();
@@ -1450,7 +1533,31 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return;
     }
     if (tool === 'pline' && c === 'C' && points.length >= 3) { finishPline(true); return; }
-    if (tool === 'circle' && points.length === 1 && isNumber(c)) { finishCircle(Number(c)); return; }
+    if (tool === 'circle' && points.length === 1 && isNumber(c)) { finishCircle(circleDia ? Number(c) / 2 : Number(c)); return; }
+    if (tool === 'circled' && points.length === 1 && isNumber(c)) { finishCircle(Number(c) / 2); return; }
+    if (tool === 'circle' && !points.length && (c === '2P' || c === '3P')) { cad.setTool(c === '2P' ? 'circle2p' : 'circle3p'); return; }
+    if (tool === 'circle' && points.length === 1 && (c === 'D' || c === 'DIAMETER')) { setCircleDia(true); cad.say('CIRCLE  Specify diameter (a point, or type it):'); return; }
+    if (tool === 'polygon' && !points.length && /^\d+$/.test(c)) {
+      const n = Number(c);
+      if (n >= 3 && n <= 64) { setPolySides(n); cad.say(`POLYGON  ${n} sides. Specify center:`); } else cad.say('POLYGON  Type 3 to 64 sides.');
+      return;
+    }
+    if (tool === 'polygon' && (c === 'I' || c === 'C' || c === 'INSCRIBED' || c === 'CIRCUMSCRIBED')) {
+      const ins = c.startsWith('I');
+      setPolyIn(ins); cad.say(`POLYGON  ${ins ? 'Corners on the circle (inscribed)' : 'Sides touching the circle (circumscribed)'}`); return;
+    }
+    if (tool === 'polygon' && points.length === 1 && isNumber(c) && Number(c) > 0) { finishPolygon([points[0][0] + Number(c), points[0][1]]); return; }
+    if (tool === 'ellipse' && !points.length && (c === 'A' || c === 'AXIS')) { setEllAxis(true); cad.say('ELLIPSE  Specify end of the axis:'); return; }
+    if (tool === 'ellipse' && !points.length && (c === 'C' || c === 'CENTER' || c === 'CENTRE')) { setEllAxis(false); cad.say('ELLIPSE  Specify center:'); return; }
+    if (tool === 'ellipse' && points.length === 2 && isNumber(c) && Number(c) > 0) {
+      // The other axis's half-length typed: a point that far across the first axis.
+      const [a, b] = points, ctr: Pt = ellAxis ? [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] : a, l = distance(ctr, b) || 1;
+      finishEllipse([ctr[0] - ((b[1] - ctr[1]) / l) * Number(c), ctr[1] + ((b[0] - ctr[0]) / l) * Number(c)]); return;
+    }
+    if (tool === 'revcloud' && !points.length && (c === 'P' || c === 'POLYGONAL')) { setCloudPoly(true); cad.say('REVCLOUD  Specify first point:'); return; }
+    if (tool === 'revcloud' && !points.length && (c === 'R' || c === 'RECTANGULAR')) { setCloudPoly(false); cad.say(PROMPT.revcloud); return; }
+    if (tool === 'revcloud' && !points.length && isNumber(c) && Number(c) > 0) { setCloudArc(Number(c)); cad.say(`REVCLOUD  Arcs ${m(toM(Number(c)))} long. Specify first corner:`); return; }
+    if (tool === 'revcloud' && cloudPoly && c === 'C' && points.length >= 3) { finishCloud(points); return; }
     if (tool === 'rotate' && !selSketch && selectedItem?.what === 'elv' && isNumber(c)) {
       const r = rotateElv(project, selectedItem.id, Number(c));
       change(r.next, r.message); cad.setSelected(null); setResult(null); cad.setTool('none'); return;
@@ -1611,6 +1718,20 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'circle' && lastPt) return [{ ...base, kind: 'circle', pts: [lastPt], r: distance(lastPt, cur) }];
     if (tool === 'arc' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
     if (tool === 'arc' && points.length === 2) { const a = arcThrough(points[0], points[1], cur); return a ? [{ ...base, ...a } as SketchItem] : []; }
+    if (tool === 'circle2p' && lastPt) { const q = circle2P(lastPt, cur); return [{ ...base, kind: 'circle', pts: [q.c], r: q.r }]; }
+    if (tool === 'circled' && lastPt) return [{ ...base, kind: 'circle', pts: [lastPt], r: distance(lastPt, cur) / 2 }];
+    if (tool === 'circle3p' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
+    if (tool === 'circle3p' && points.length === 2) { const q = circleThrough(points[0], points[1], cur); return q ? [{ ...base, kind: 'circle', pts: [q.c], r: q.r }] : []; }
+    if (tool === 'arcsce' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
+    if (tool === 'arcsce' && points.length === 2) { const a = arcStartCentreEnd(points[0], points[1], cur); return a ? [{ ...base, ...a } as SketchItem] : []; }
+    if (tool === 'polygon' && lastPt && distance(lastPt, cur) > 0) return [{ ...base, kind: 'pline', pts: polygonPts(lastPt, cur, polySides, polyIn), closed: true }];
+    if (tool === 'ellipse' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
+    if (tool === 'ellipse' && points.length === 2) {
+      const [a, b] = points, e = ellAxis ? ellipseOf([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], b, cur) : ellipseOf(a, b, cur);
+      return e ? [{ ...base, ...e } as SketchItem] : [{ ...base, kind: 'line', pts: [a, b] }];
+    }
+    if (tool === 'revcloud' && cloudPoly && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
+    if (tool === 'revcloud' && lastPt) { const o = rectangle(lastPt, cur); return areaOf(o).area > 0 ? [{ ...base, kind: 'pline', pts: o, closed: true, cloud: cloudArc ?? 15 * unitsPerPaperMm(anno, units.factor) }] : []; }
     if (tool === 'dim' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
     if (tool === 'dim' && points.length === 2) { const look = dimLookOf(project, units.factor)?.look; return [{ ...base, kind: 'dim', pts: [points[0], points[1], cur], ...(look ? { look } : {}) }]; }
     if ((tool === 'move' || tool === 'copy') && lastPt && selSketch) return [moved(selSketch, cur[0] - lastPt[0], cur[1] - lastPt[1])];
@@ -2044,7 +2165,8 @@ function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, o
   if (r.kind === 'sketch') {
     const it = r.it;
     const len = segmentsOf(it).reduce((t, [a, b]) => t + distance(a, b), 0);
-    const name = { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', text: 'Text', dim: 'Dimension' }[it.kind];
+    const name = kindOf(it);
+    const ellipseArea = it.kind === 'ellipse' && it.ax ? Math.PI * Math.hypot(it.ax[0], it.ax[1]) ** 2 * (it.ratio ?? 1) : 0;
     return (
       <>
         <div><b>{name}</b> <span className="m">drawn here · {it.layer}</span></div>
@@ -2052,8 +2174,9 @@ function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, o
           {it.kind === 'text' && <><dt>Text</dt><dd>{it.text}</dd></>}
           {it.kind === 'dim' && <><dt>Measures</dt><dd>{m(toM(dimensionLines(it.pts[0], it.pts[1], it.pts[2]).length))}</dd></>}
           {it.r !== undefined && <><dt>Radius</dt><dd>{m(toM(it.r))}</dd></>}
-          {it.kind !== 'text' && it.kind !== 'dim' && <><dt>{it.closed || it.kind === 'circle' ? 'Perimeter' : 'Length'}</dt><dd>{m(toM(len))}</dd></>}
+          {it.kind !== 'text' && it.kind !== 'dim' && <><dt>{it.closed || it.kind === 'circle' || it.kind === 'ellipse' ? 'Perimeter' : 'Length'}</dt><dd>{m(toM(len))}</dd></>}
           {it.closed && <><dt>Area</dt><dd>{m2(toM2(areaOf(it.pts).area))}</dd></>}
+          {it.kind === 'ellipse' && <><dt>Area</dt><dd>{m2(toM2(ellipseArea))}</dd></>}
         </dl>
         <div className="cad-devbtns"><button className="chip" onClick={onMove}>Move</button><button className="chip" onClick={onCopy}>Copy</button><button className="chip" onClick={onRotate}>Rotate</button><button className="chip" onClick={onRemove}>Erase</button></div>
       </>

@@ -415,7 +415,7 @@ export interface CadLayerMap { layer: string; role: CadLayerRole }
  * dimension line). */
 export interface SketchItem {
   id: string;
-  kind: 'line' | 'pline' | 'circle' | 'arc' | 'text' | 'dim';
+  kind: 'line' | 'pline' | 'circle' | 'arc' | 'text' | 'dim' | 'ellipse';
   layer: string;
   pts: [number, number][];
   closed?: boolean;
@@ -440,6 +440,11 @@ export interface SketchItem {
   leader?: boolean;
   /** A dimension drawn with a dimension style: its arrows, gap and extension (src/model/cadStyles.ts). */
   look?: import('./model/cadSketch').DimLook;
+  /** An ellipse (centre in pts[0]): its major axis from the centre, and the minor axis as a fraction of it (0–1). */
+  ax?: [number, number];
+  ratio?: number;
+  /** A revision cloud: a closed polyline drawn as arcs bulging out of it, each about this long (drawing units). */
+  cloud?: number;
 }
 export interface CadSketch { file: string; items: SketchItem[] }
 /** A level's plan in Design CAD: the drawing file (name only) that shows the level, and the units it says it is in

@@ -2,6 +2,7 @@ import type { SketchItem } from '../types';
 import { HATCH_START, type HatchPattern } from './cadAnnotate';
 import type { LinetypeId } from './cadLayerStyle';
 import type { Edit } from './cadEdit';
+import { ellipsePoints } from './cadSketch';
 
 /** Design CAD → CROP: a true crop of a block (or of drawn items), not a clip. The block's geometry is cut along a closed
  * boundary (rectangle, polygon, circle, or a closed polyline with arcs); what is inside stays as real geometry (sketch
@@ -291,6 +292,8 @@ export function linetypeOf(name: string | undefined): LinetypeId | undefined {
 }
 /** A drawing colour (0xRRGGBB, or the foreground) as the app writes it. */
 export const colourOf = (rgb: number | undefined): string | undefined => (rgb === undefined ? undefined : rgb === 0xff000007 ? 'idx:7' : `#${(rgb & 0xffffff).toString(16).padStart(6, '0')}`);
+/** Points around a drawn ellipse when it is cut (about 1e-4 of its size between chord and curve). */
+const ELLIPSE_STEPS = 256;
 const HATCHES: Record<string, HatchPattern> = { SOLID: 'solid', ANSI31: 'ansi31', ANSI37: 'ansi37', NET: 'net', DOTS: 'dots' };
 
 type Item = Omit<SketchItem, 'id'>;
@@ -416,6 +419,8 @@ function piecesOfItem(it: SketchItem): CadPiece[] {
     case 'arc': return [{ ...s, kind: 'arc', c: it.pts[0], r: it.r ?? 0, a0: it.a0 ?? 0, a1: it.a1 ?? 0 }];
     case 'text': return [{ ...s, kind: 'text', at: it.pts[0], h: it.h ?? 0, rot: it.rot ?? 0, text: it.text ?? '' }];
     case 'dim': return it.pts.map((p): CadPiece => ({ ...s, kind: 'point', at: p }));
+    // A drawn ellipse cut comes as a polyline within the chord tolerance (there is no elliptical arc item).
+    case 'ellipse': return it.ax ? [{ ...s, kind: 'pline', pts: ellipsePoints(it, ELLIPSE_STEPS).map(([x, y]): V3 => [x, y, 0]), closed: true }] : [];
   }
 }
 /** Crops drawn items along a boundary. Each kept piece keeps its item's layer, colour, linetype, tray or cable; hatches
@@ -426,7 +431,7 @@ export function cropItems(items: SketchItem[], boundary: CropBoundary, side: Cro
   if (typeof edges === 'string') return { error: edges };
   const keepIn = side === 'inside', skipped: string[] = [];
   const out = items.flatMap((it): Item[] => {
-    const { id: _id, kind: _k, pts: _p, closed: _c, r: _r, a0: _a0, a1: _a1, ...rest } = it;
+    const { id: _id, kind: _k, pts: _p, closed: _c, r: _r, a0: _a0, a1: _a1, ax: _ax, ratio: _ratio, ...rest } = it;
     if (it.kind === 'dim' || it.hatch) {
       const loop = it.hatch && it.kind === 'circle' ? [{ k: 'a', c: it.pts[0], r: it.r ?? 0, s: 0, w: TAU } as Curve] : plineCurves(it.pts.map(([x, y]): V3 => [x, y, 0]), !!it.hatch);
       const all = it.kind === 'dim' ? it.pts.every((p) => inside(edges, p, tol) === keepIn) : keptShare(loop, edges, keepIn, tol) > 1 - 1e-9;
@@ -434,6 +439,8 @@ export function cropItems(items: SketchItem[], boundary: CropBoundary, side: Cro
       if (it.kind === 'dim' ? it.pts.some((p) => inside(edges, p, tol) === keepIn) : keptShare(loop, edges, keepIn, tol) > 1e-9) skipped.push(it.kind === 'dim' ? 'dimension' : 'hatch');
       return [];
     }
+    // A drawn ellipse wholly on the kept side stays as it is.
+    if (it.kind === 'ellipse' && it.ax && keptShare(plineCurves(ellipsePoints(it, ELLIPSE_STEPS).map(([x, y]): V3 => [x, y, 0]), true), edges, keepIn, tol) > 1 - 1e-9) { const { id: _i, ...keep } = it; return [keep]; }
     return piecesOfItem(it).flatMap((p) => cropPiece(p, edges, keepIn, tol, skipped)).map((x) => {
       const { layer: _l, ...g } = x;
       return { ...rest, ...g };

@@ -81,7 +81,7 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
 
   it('has the drafting panels in the order the user chose; with labels the panels take four sub-tabs; each tool is on one', () => {
     const { rerender } = show();
-    expect(['Draw', 'Annotate', 'Measure'].map(tools)).toEqual([['Line', 'Polyline', 'Circle', 'Arc', 'Rectangle', 'Hatch'], ['Text', 'Dimension', 'Leader', 'Room tag', 'North arrow'], ['Measure']]);
+    expect(['Draw', 'Annotate', 'Measure'].map(tools)).toEqual([['Line', 'Polyline', 'Circle', 'Arc', 'Rectangle', 'Ellipse', 'Hatch'], ['Text', 'Dimension', 'Leader', 'Room tag', 'North arrow', 'Revision cloud'], ['Measure']]);
     const look = (subTabs: string[]) => {
       const seen: string[] = [];
       const panels: Record<string, (string | null)[]> = {};
@@ -115,6 +115,15 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
     expect(cad.onTool).toHaveBeenLastCalledWith('extend');
     fromList('Fillet', 'Chamfer (CHA)');
     expect(cad.onTool).toHaveBeenLastCalledWith('chamfer');
+    // The other forms of Circle, Arc and Rectangle are under their arrows.
+    for (const [t, form, id] of [['Circle', '2 points', 'circle2p'], ['Circle', '3 points', 'circle3p'], ['Circle', 'Centre, diameter', 'circled'], ['Arc', 'Start, centre, end', 'arcsce'], ['Rectangle', 'Polygon (POL)', 'polygon']]) {
+      fromList(t, form);
+      expect(cad.onTool, form).toHaveBeenLastCalledWith(id);
+    }
+    click(tool('Ellipse'));
+    expect(cad.onTool).toHaveBeenLastCalledWith('ellipse');
+    click(tool('Revision cloud'));
+    expect(cad.onTool).toHaveBeenLastCalledWith('revcloud');
     fromList('Text', 'Text style… (ST)');
     fromList('Dimension', 'Dimension style… (D)');
     for (const t of ['Layer off', 'Freeze', 'Lock', 'Isolate', 'Make current', 'All on', 'Thaw all', 'Unlock', 'Unisolate']) click(tool(t));

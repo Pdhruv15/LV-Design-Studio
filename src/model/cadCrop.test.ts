@@ -168,6 +168,16 @@ describe('CROP: drawn items', () => {
     expect(r.items).toEqual([{ kind: 'pline', layer: 'E-CABLE', pts: [[0, 5], [5, 5], [5, 10]], cable: { feederId: 'F1' }, lw: 0.35 }]);
   });
 
+  it('a drawn ellipse wholly inside stays as it is; one crossing the outline is cut as a polyline', () => {
+    const e = { id: 'S2', kind: 'ellipse' as const, layer: 'LV-SKETCH', pts: [[5, 5]] as P2[], ax: [3, 0] as P2, ratio: 0.5 };
+    expect(cropItems([e], rect).items).toEqual([{ kind: 'ellipse', layer: 'LV-SKETCH', pts: [[5, 5]], ax: [3, 0], ratio: 0.5 }]);
+    const cut = cropItems([{ ...e, pts: [[10, 5]] }], rect).items!;
+    expect(cut).toHaveLength(1);
+    expect(cut[0]).toMatchObject({ kind: 'pline', layer: 'LV-SKETCH' });
+    expect(cut[0].ax).toBeUndefined();
+    for (const [x] of cut[0].pts) expect(x).toBeLessThanOrEqual(10 + 1e-9);
+  });
+
   it('a closed drawn polyline or circle is an outline', () => {
     expect(boundaryOfItem({ kind: 'pline', pts: [[0, 0], [1, 0], [1, 1]], closed: true })).toEqual({ kind: 'polygon', pts: [[0, 0], [1, 0], [1, 1]] });
     expect(boundaryOfItem({ kind: 'circle', pts: [[0, 0]], r: 2 })).toEqual({ kind: 'circle', c: [0, 0], r: 2 });

@@ -7,12 +7,13 @@ type Pt = [number, number];
  * what links to it (schedules, fittings, circuits by feeder) stays. Several objects take the same value each. */
 
 /** The kind a value belongs to: the Geometry section shows when all the objects are of one of these. */
-export type GeomKind = 'line' | 'pline' | 'circle' | 'arc' | 'tray' | 'cable' | 'text' | 'dim';
-export const geomKind = (it: SketchItem): GeomKind => (it.tray ? 'tray' : it.cable ? 'cable' : it.kind);
+export type GeomKind = 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'cloud' | 'tray' | 'cable' | 'text' | 'dim';
+export const geomKind = (it: SketchItem): GeomKind => (it.tray ? 'tray' : it.cable ? 'cable' : it.cloud ? 'cloud' : it.kind);
 /** What an object is, as the palette and the toolbar beside it name it. */
-export const kindLabel = (it: SketchItem) => (it.tray ? 'Cable tray' : it.cable ? 'Cable route' : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', text: 'Text', dim: 'Dimension' }[it.kind]);
+export const kindLabel = (it: SketchItem) => (it.tray ? 'Cable tray' : it.cable ? 'Cable route' : it.cloud ? 'Revision cloud'
+  : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', ellipse: 'Ellipse', text: 'Text', dim: 'Dimension' }[it.kind]);
 
-export type PropKey = 'sx' | 'sy' | 'ex' | 'ey' | 'len' | 'ang' | 'cx' | 'cy' | 'r' | 'a0' | 'a1' | 'vx' | 'vy' | 'closed' | 'width' | 'service'
+export type PropKey = 'sx' | 'sy' | 'ex' | 'ey' | 'len' | 'ang' | 'cx' | 'cy' | 'r' | 'a0' | 'a1' | 'rx' | 'ry' | 'arc' | 'vx' | 'vy' | 'closed' | 'width' | 'service'
   | 'text' | 'h' | 'rot' | 'measured' | 'override';
 export interface PropDef { key: PropKey; label: string; unit?: 'm' | 'deg'; ro?: boolean; text?: boolean }
 
@@ -28,6 +29,8 @@ export function geometryRows(kind: GeomKind, items: SketchItem[]): PropDef[] {
     case 'line': return [L('sx', 'Start X'), L('sy', 'Start Y'), L('ex', 'End X'), L('ey', 'End Y'), L('len', 'Length', { ro: !straight }), A('ang', 'Angle', { ro: !straight })];
     case 'circle': return [L('cx', 'Centre X'), L('cy', 'Centre Y'), L('r', 'Radius')];
     case 'arc': return [L('cx', 'Centre X'), L('cy', 'Centre Y'), L('r', 'Radius'), A('a0', 'Start angle'), A('a1', 'End angle')];
+    case 'ellipse': return [L('cx', 'Centre X'), L('cy', 'Centre Y'), L('rx', 'Major radius'), L('ry', 'Minor radius'), A('ang', 'Rotation')];
+    case 'cloud': return [L('vx', 'X'), L('vy', 'Y'), L('len', 'Outline length', { ro: true }), L('arc', 'Arc length')];
     case 'pline': return [L('vx', 'X'), L('vy', 'Y'), L('len', 'Length', { ro: true }), T('closed', 'Closed')];
     case 'tray': return [T('width', 'Width'), T('service', 'Service'), L('vx', 'X'), L('vy', 'Y'), L('len', 'Length', { ro: true })];
     case 'cable': return [L('vx', 'X'), L('vy', 'Y'), L('len', 'Length', { ro: true })];
@@ -56,7 +59,10 @@ export function propValue(it: SketchItem, key: PropKey, k: number, v = 0): numbe
     case 'ex': return last[0] * k;
     case 'ey': return last[1] * k;
     case 'len': return len(p, it.closed) * k;
-    case 'ang': return deg(Math.atan2(last[1] - p[0][1], last[0] - p[0][0]));
+    case 'ang': return it.kind === 'ellipse' ? deg(Math.atan2(it.ax?.[1] ?? 0, it.ax?.[0] ?? 1)) : deg(Math.atan2(last[1] - p[0][1], last[0] - p[0][0]));
+    case 'rx': return it.ax ? Math.hypot(it.ax[0], it.ax[1]) * k : undefined;
+    case 'ry': return it.ax ? Math.hypot(it.ax[0], it.ax[1]) * (it.ratio ?? 1) * k : undefined;
+    case 'arc': return it.cloud !== undefined ? it.cloud * k : undefined;
     case 'cx': return p[0][0] * k;
     case 'cy': return p[0][1] * k;
     case 'r': return (it.r ?? 0) * k;
@@ -90,6 +96,12 @@ export function withProp(it: SketchItem, key: PropKey, value: number | string, k
     case 'vx': return num ? at(vIdx(it, v), u) : undefined;
     case 'vy': return num ? at(vIdx(it, v), undefined, u) : undefined;
     case 'len': case 'ang': {
+      // An ellipse's rotation: its major axis turned to the angle.
+      if (key === 'ang' && it.kind === 'ellipse') {
+        if (!num || !it.ax) return undefined;
+        const r = Math.hypot(it.ax[0], it.ax[1]);
+        return { ...it, ax: [r * Math.cos(rad(n)), r * Math.sin(rad(n))] };
+      }
       if (!num || it.kind !== 'line' || p.length !== 2) return undefined;
       const a = key === 'ang' ? rad(n) : Math.atan2(p[1][1] - p[0][1], p[1][0] - p[0][0]);
       const l = key === 'len' ? u : Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]);
@@ -97,6 +109,15 @@ export function withProp(it: SketchItem, key: PropKey, value: number | string, k
       return at(1, p[0][0] + l * Math.cos(a), p[0][1] + l * Math.sin(a));
     }
     case 'r': return num && u > 0 && (it.kind === 'circle' || it.kind === 'arc') ? { ...it, r: u } : undefined;
+    // An ellipse's radii: the major one keeps the minor's length (the longer stays the major axis).
+    case 'rx': case 'ry': {
+      if (!num || !(u > 0) || it.kind !== 'ellipse' || !it.ax) return undefined;
+      const a = Math.hypot(it.ax[0], it.ax[1]), b = a * (it.ratio ?? 1);
+      const [na, nb] = key === 'rx' ? [u, b] : [a, u];
+      const [ma, mb] = na >= nb ? [na, nb] : [nb, na], th = Math.atan2(it.ax[1], it.ax[0]) + (na >= nb ? 0 : Math.PI / 2);
+      return { ...it, ax: [ma * Math.cos(th), ma * Math.sin(th)], ratio: mb / ma };
+    }
+    case 'arc': return num && u > 0 && it.cloud !== undefined ? { ...it, cloud: u } : undefined;
     case 'a0': return num && it.kind === 'arc' ? { ...it, a0: rad(n) } : undefined;
     case 'a1': return num && it.kind === 'arc' ? { ...it, a1: rad(n) } : undefined;
     case 'closed': {

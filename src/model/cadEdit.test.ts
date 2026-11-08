@@ -158,4 +158,25 @@ describe('Mirror, Scale, Stretch, Array, grips, window', () => {
     expect(sketchInWindow(items, [4, 6], [0, 0], true).map((x) => x.id)).toEqual(['S1', 'S2', 'S3']);
     expect(pathLength(items[1])).toBe(6);
   });
+
+  it('mirrors, scales and grips an ellipse by its axis; the path tools leave a revision cloud alone', () => {
+    const e: SketchItem = { id: 'E', kind: 'ellipse', layer: 'L', pts: [[10, 0]], ax: [4, 0], ratio: 0.5 };
+    const m = mirrored(e, [0, 0], [0, 1]); // about the y axis
+    expect(m.pts).toEqual([[-10, 0]]);
+    expect(m.ax!.map((v) => +v.toFixed(9) + 0)).toEqual([-4, 0]);
+    expect(scaled(e, [0, 0], 2)).toMatchObject({ pts: [[20, 0]], ax: [8, 0], ratio: 0.5 });
+    expect(gripsOf(e).map((g) => [g.at, g.kind])).toEqual([[[10, 0], 'point'], [[14, 0], 'radius'], [[10, 2], 'radius']]);
+    expect(gripMoved(e, 1, [10, 6])).toMatchObject({ ax: [0, 6], ratio: 2 / 6 }); // turned and longer; the minor keeps 2
+    expect(gripMoved(e, 2, [10, 3]).ratio).toBe(0.75);
+    const big = gripMoved(e, 2, [10, 8]); // the minor now the longer: the axes swap
+    expect([big.ax!.map((v) => +v.toFixed(9) + 0), big.ratio]).toEqual([[0, 8], 0.5]);
+    expect(gripMoved(e, 0, [0, 0]).pts).toEqual([[0, 0]]);
+    const cloud: SketchItem = { id: 'C', kind: 'pline', layer: 'LV-ANNO', pts: [[0, 0], [10, 0], [10, 4], [0, 4]], closed: true, cloud: 2 };
+    expect(trim(cloud, [5, 0], walls).error).toBe('Trim works on lines, polylines, trays and cable routes.');
+    expect(offset(cloud, 1, [5, -2]).error).toBe('Offset works on lines, polylines, circles, arcs, trays and cable routes.');
+    expect(explode(cloud).error).toBe('A revision cloud stays one object: erase it and draw it again to change it.');
+    expect(scaled(cloud, [0, 0], 2).cloud).toBe(4);
+    expect(gripMoved(cloud, 2, [12, 6]).pts).toEqual([[0, 0], [10, 0], [12, 6], [0, 4]]); // a corner moves alone
+  });
 });
+
