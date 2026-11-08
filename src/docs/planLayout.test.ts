@@ -191,6 +191,13 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
       expect(svg.indexOf('class="drawn"')).toBeLessThan(svg.indexOf('DB-GF1')); // under the design
     });
 
+    it('leaves a frozen layer off the sheet, as one that is off', () => {
+      const p = withWork({ cadLayerStyle: { 'gf.dwg': { 'LV-ANNO': { freeze: true } } } });
+      const g = /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svgOf(p))![1];
+      expect(g).not.toContain('PLANT');
+      expect(g).toContain('HELPER');
+    });
+
     it('prints a dimension of a style at its paper sizes, with its length measured in its unit', () => {
       const dim: SketchItem = { id: 'D1', kind: 'dim', layer: 'LV-ANNO', pts: [[0, 0], [20000, 0], [10000, -1000]], h: 200, look: { arrow: 'closed', size: 250, off: 60, ext: 125, unit: 'mm', decimals: 0 } };
       const g = /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svgOf(drawn(villa(), [dim])))![1];

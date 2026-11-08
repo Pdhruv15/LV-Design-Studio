@@ -5,7 +5,7 @@ import type { CadTool } from './cadState';
  * the text of TEXT), O in AREA (object) and the layout commands are read before these, on the page. */
 
 /** Commands that run something on the page rather than start a tool. */
-export type CadAction = 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager'
+export type CadAction = 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'layiso' | 'layuniso'
   | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
   | 'textStyle' | 'dimStyle';
 
@@ -59,7 +59,11 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['XR', 'XREF', 'XREFS', 'ER', 'EXTERNALREFERENCES'], desc: 'References', action: 'xref' },
   { aliases: ['XA', 'XATTACH'], desc: 'Attach a reference', action: 'xattach' },
   { aliases: ['XCLIP', 'XC'], desc: 'Clip a reference', action: 'xclip' },
-  { aliases: ['LM', 'LAYERMANAGER', 'LAYMAN'], desc: 'Layer manager', action: 'layerManager' },
+  { aliases: ['LM', 'LAYER', 'LAYERMANAGER', 'LAYMAN'], desc: 'Layer palette on or off', action: 'layerManager' },
+  { aliases: ['LAYER N', 'LAYER NEW', '-LAYER N'], desc: 'New layer', action: 'newLayer' },
+  { aliases: ['CLAYER'], desc: 'Current layer (CLAYER and a name sets it)', action: 'clayer' },
+  { aliases: ['LAYISO'], desc: 'Isolate the layers of the objects picked', action: 'layiso' },
+  { aliases: ['LAYUNISO'], desc: 'Layers back as before Isolate', action: 'layuniso' },
   { aliases: ['ALIGN', 'ALIGNV', 'SPACE'], desc: 'Align or space the devices selected', action: 'align' },
   { aliases: ['WC', 'WIRE', 'WIRECIRCUITS'], desc: 'Wire circuits', action: 'wireAll' },
   { aliases: ['W1', 'WIREONE'], desc: 'Wire one', tool: 'wire' },
@@ -75,7 +79,7 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['E', 'ERASE', 'DEL', 'DELETE'], desc: 'Erase', action: 'erase' },
   { aliases: ['SAVE', 'DXFOUT', 'SAVEAS'], desc: 'Save as DXF', action: 'save' },
   { aliases: ['SAVEDWG', 'DWGOUT'], desc: 'Save as DWG', action: 'saveDwg' },
-  { aliases: ['LA', 'LAYER', 'LAYERS'], desc: 'Layers on or off', action: 'layers' },
+  { aliases: ['LA', 'LAYERS'], desc: 'Layers on or off', action: 'layers' },
   { aliases: ['OS', 'OSNAP'], desc: 'Object snap (F3)', action: 'osnap' },
   { aliases: ['GRID'], desc: 'Grid (F7)', action: 'grid' },
   { aliases: ['ORTHO'], desc: 'Ortho (F8)', action: 'ortho' },

@@ -562,6 +562,8 @@ export interface Project {
   cadTextStyles?: import('./model/cadStyles').CadStyles<import('./model/cadStyles').CadTextStyle>;
   cadDimStyles?: import('./model/cadStyles').CadStyles<import('./model/cadStyles').CadDimStyle>;
   cadLayerStyle?: Record<string, Record<string, import('./model/cadLayerStyle').LayerStyle>>;
+  /** Design CAD layer palette per drawing file: current layer, empty layers added, layer states (src/model/cadLayerState.ts). */
+  cadLayerFile?: Record<string, import('./model/cadLayerState').CadLayerFile>;
   /** How sheets print: pen tables and the set's default page setup (src/model/plotSetup.ts). */
   plot?: import('./model/plotSetup').ProjectPlot;
   /** Which drawing file is each level's plan in Design CAD (src/model/cadPlans.ts). */

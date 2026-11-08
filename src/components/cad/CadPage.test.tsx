@@ -14,6 +14,7 @@ import { openDrawing } from '../../engines/cad/cadEngine';
 import '../../engines/cad/cadOps'; // loaded ahead: the engine loads it on demand, which a busy test run can make slow
 import { sampleProject } from '../../data/sampleProject';
 import { placeLvPoint } from '../../model/cadDevices';
+import { archOnOf } from '../../model/cadLayerState';
 import { dimLabel } from '../../model/cadSketch';
 import type { Project } from '../../types';
 
@@ -31,6 +32,8 @@ const villa: Project = {
 };
 let root: Root, host: HTMLDivElement, state: CadState, project: Project;
 const onChange = vi.fn((p: Project, _message: string) => { project = p; });
+/** Whether the architect's layer i shows: its On, kept in the project (Layer palette or the Layers list). */
+const shown = (i: number) => archOnOf(project, state.view!.file, state.view!.info.layers)[i];
 beforeEach(() => {
   host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host); localStorage.clear(); project = villa; onChange.mockClear();
   (window as { lvds?: unknown }).lvds = { cadFile: {
@@ -103,9 +106,9 @@ describe('CAD view', () => {
     await flush();
     const wall = state.view!.info.layers.findIndex((l) => l.name === 'A-WALL');
     act(() => button('A-WALLon').click());
-    expect(state.layersOn[wall]).toBe(0);
+    expect(shown(wall)).toBe(0);
     act(() => button('All on').click());
-    expect(state.layersOn[wall]).toBe(1);
+    expect(shown(wall)).toBe(1);
     act(() => button('OSNAP').click());
     expect(state.toggles.osnap).toBe(false);
     await command('grid');
@@ -730,9 +733,13 @@ describe('CAD view', () => {
       act(() => { Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(el, value); el.dispatchEvent(new Event('change', { bubbles: true })); });
     };
     await command('LM');
-    expect(document.querySelector('[aria-label="Drawn layers"]')!.textContent).toMatch(/^LayerObjectsOnLockPrintColourLinetypeLineweightLV-SKETCH1/);
-    act(() => { (document.querySelector('[aria-label="LV-ANNO locked"]') as HTMLInputElement).click(); });
-    pick('LV-SKETCH linetype', 'dashed');
+    // The layer palette docks beside the drawing: one table, drawn layers first.
+    await until(() => !!document.querySelector('[aria-label="Layer palette"]'));
+    expect(document.querySelector('[aria-label="Layers"]')!.textContent).toMatch(/^NameOnFrLkColourLinetypeWeightPr#Drawn in the appLV-SKETCH/);
+    expect(document.querySelector('[aria-label="Layer palette"] [role="status"]')!.textContent).toMatch(/^Current layer: LV-SKETCH · \d+ layers$/);
+    act(() => { (document.querySelector('[aria-label="LV-ANNO locked"]') as HTMLButtonElement).click(); });
+    act(() => { (document.querySelector('[aria-label="LV-SKETCH linetype"]') as HTMLButtonElement).click(); });
+    act(() => { [...document.querySelectorAll<HTMLButtonElement>('[aria-label="LV-SKETCH linetype list"] [role="option"]')].find((b) => b.textContent === 'Dashed')!.click(); });
     expect(project.cadLayerStyle).toEqual({ 'sample-villa-gf.dxf': { 'LV-ANNO': { lock: true }, 'LV-SKETCH': { lt: 'dashed' } } });
     // Index colour by number: open the colour cell, type 8, Enter.
     act(() => { (document.querySelector('[aria-label="LV-SKETCH colour"]') as HTMLButtonElement).click(); });
@@ -745,7 +752,8 @@ describe('CAD view', () => {
     act(() => { (document.querySelector('[aria-label="LV-SKETCH colour"]') as HTMLButtonElement).click(); });
     act(() => { (document.querySelector('[aria-label="LV-SKETCH colour picker"] [aria-label="Colour 130"]') as HTMLButtonElement).click(); });
     expect(project.cadLayerStyle!['sample-villa-gf.dxf']['LV-SKETCH'].color).toBe('idx:130');
-    act(() => { button('Done').click(); });
+    act(() => { (document.querySelector('[aria-label="Close the layer palette"]') as HTMLButtonElement).click(); });
+    expect(document.querySelector('[aria-label="Layer palette"]')).toBeNull();
     await clickAt(X + 2000, 2000); // on the locked layer: not picked
     expect(state.selected).toBeNull();
     await clickAt(X + 2000, 0);
@@ -755,13 +763,83 @@ describe('CAD view', () => {
     pick('Object lineweight', '0.5');
     expect(project.cadSketch![0].items[0]).toMatchObject({ color: '#ff3b30', lw: 0.5 });
     await command('LM');
-    act(() => { (document.querySelector('[aria-label="LV-ANNO locked"]') as HTMLInputElement).click(); });
-    act(() => { button('Done').click(); });
+    act(() => { (document.querySelector('[aria-label="LV-ANNO locked"]') as HTMLButtonElement).click(); });
+    await command('LM'); // LM again closes it
+    expect(document.querySelector('[aria-label="Layer palette"]')).toBeNull();
     await command('MP');
     await clickAt(X + 2000, 0);
     await clickAt(X + 2000, 2000);
     expect(project.cadSketch![0].items[1]).toMatchObject({ layer: 'LV-SKETCH', color: '#ff3b30', lw: 0.5 });
     expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('MATCHPROP  Properties copied to the line · ⌘Z to undo');
+  });
+
+  it('layer palette: new objects go on the current layer; freeze, isolate, rename and states from the palette and the command line', async () => {
+    const X = 200000, F = 'sample-villa-gf.dxf';
+    const start: Project = { ...villa, cadSketch: [{ file: F, items: [{ id: 'S1', kind: 'line', layer: 'E-LIGHT', pts: [[X, 0], [X + 4000, 0]] }] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const items = () => project.cadSketch![0].items;
+    const last = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
+    const wall = state.view!.info.layers.findIndex((l) => l.name === 'A-WALL');
+    // CLAYER: lines, rectangles, circles … go on it; a tray or text keeps its own layer.
+    await command('CLAYER e-light');
+    expect(project.cadLayerFile).toEqual({ [F]: { current: 'E-LIGHT' } });
+    await command('L');
+    await clickAt(X, 1000);
+    await clickAt(X + 3000, 1000);
+    await command('');
+    expect(items()[1]).toMatchObject({ kind: 'line', layer: 'E-LIGHT' });
+    act(() => state.setTool('none'));
+    await command('CLAYER A-WALL');
+    expect(document.querySelector('.cad-hist')!.textContent).toBe('CLAYER  A-WALL is the architect\'s; new objects go on the app\'s drawn layers.');
+    // The palette stays open beside the drawing, which is still in use.
+    await command('LM');
+    await until(() => !!document.querySelector('[aria-label="Layer palette"]'));
+    expect(document.querySelector('[aria-label="Layer palette"] [role="status"]')!.textContent).toMatch(/^Current layer: E-LIGHT · \d+ layers$/);
+    act(() => { (document.querySelector('[aria-label="E-LIGHT frozen"]') as HTMLButtonElement).click(); });
+    expect(document.querySelector('[aria-label="Layer palette"] [role="status"]')!.textContent).toContain('E-LIGHT is the current layer; it cannot be frozen.');
+    await command('CLAYER LV-SKETCH');
+    expect(project.cadLayerFile).toBeUndefined();
+    act(() => { (document.querySelector('[aria-label="E-LIGHT frozen"]') as HTMLButtonElement).click(); });
+    expect(project.cadLayerStyle).toEqual({ [F]: { 'E-LIGHT': { freeze: true } } });
+    await clickAt(X + 2000, 0); // frozen: not picked
+    expect(state.selected).toBeNull();
+    act(() => { (document.querySelector('[aria-label="E-LIGHT frozen"]') as HTMLButtonElement).click(); });
+    await clickAt(X + 2000, 0);
+    expect(state.selected).toBe('sk:S1');
+    // LAYISO: every layer but the picked object's turns off; LAYUNISO puts them back.
+    await command('LAYISO');
+    expect(last()).toMatch(/^LAYISO {2}E-LIGHT kept on, \d+ other layers off \(LAYUNISO puts them back\) · ⌘Z to undo$/);
+    expect(shown(wall)).toBe(0);
+    expect(project.cadLayerStyle![F]['LV-SKETCH']).toEqual({ hidden: true });
+    await command('LAYUNISO');
+    expect(shown(wall)).toBe(1);
+    expect(project.cadLayerStyle).toBeUndefined();
+    expect(project.cadLayerFile).toBeUndefined();
+    // Rename by double-click: the objects follow.
+    const name = (n: string) => [...document.querySelectorAll<HTMLElement>('.cad-lp-name')].find((td) => td.textContent === n)!;
+    act(() => { name('E-LIGHT').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); });
+    const input = document.querySelector('[aria-label="Layer name"]') as HTMLInputElement;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'E-LIGHT-SW'); input.dispatchEvent(new Event('input', { bubbles: true })); });
+    act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+    expect(items().map((it) => it.layer)).toEqual(['E-LIGHT-SW', 'E-LIGHT-SW']);
+    expect(last()).toBe('Layer E-LIGHT renamed E-LIGHT-SW · ⌘Z to undo');
+    // LAYER N adds an empty layer; a layer state saved and restored.
+    await command('LAYER N');
+    expect(project.cadLayerFile).toEqual({ [F]: { layers: ['Layer1'] } });
+    act(() => { (document.querySelector('[aria-label="A-WALL on"]') as HTMLButtonElement).click(); });
+    expect(shown(wall)).toBe(0);
+    act(() => { [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Layer states ▾')!.click(); });
+    const sn = document.querySelector('[aria-label="New layer state name"]') as HTMLInputElement;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(sn, 'No walls'); sn.dispatchEvent(new Event('input', { bubbles: true })); });
+    act(() => { sn.form!.requestSubmit(); });
+    expect(project.cadLayerFile![F].states).toEqual([{ name: 'No walls', layers: expect.objectContaining({ 'A-WALL': { on: false } }) }]);
+    act(() => { (document.querySelector('[aria-label="A-WALL on"]') as HTMLButtonElement).click(); });
+    expect(shown(wall)).toBe(1);
+    act(() => { [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Layer states ▾')!.click(); });
+    act(() => { [...document.querySelectorAll<HTMLButtonElement>('.cad-lp-state button')].find((b) => b.textContent === 'No walls')!.click(); });
+    expect(shown(wall)).toBe(0);
   });
 
   it('hatches a closed object, adds a leader with its text, a room tag and a north arrow', async () => {
@@ -1250,10 +1328,9 @@ describe('file tabs', () => {
     expect(last()).toMatch(/^E-LTG-001 {2}Viewport 2 added at 1:50 · ⌘Z to undo$/);
     // The Layer manager in a layout: This viewport freezes a drawn layer in the viewport picked only.
     act(() => [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Layers in this viewport…')!.click());
-    expect(document.body.textContent).toContain('Layer manager');
-    expect(document.querySelector('h3')!.textContent).toContain('Viewport 2');
-    expect([...document.querySelectorAll('[aria-label="Drawn layers"] th')].map((t) => t.textContent)).toContain('This viewport');
-    act(() => [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Done')!.click());
+    expect(document.querySelector('.cad-lp-head')!.textContent).toContain('Viewport 2');
+    expect([...document.querySelectorAll('[aria-label="Layers"] th')].map((t) => t.textContent)).toContain('VP');
+    act(() => (document.querySelector('[aria-label="Close the layer palette"]') as HTMLButtonElement).click());
     // A paper markup from the command line: the Sheets line tool, on the paper.
     await command('L');
     expect(document.querySelector('.cad-hist')!.textContent).toBe('L  On the paper: drag where it goes (Esc stops).');
@@ -1656,6 +1733,23 @@ describe('CAD command line', () => {
     expect(items()).toHaveLength(2); // the polyline behind it goes on
     key('Escape', dlg);
     expect(document.querySelector('[aria-label="References"]')).toBeNull();
+    expect(state.tool).toBe('pline');
+    await clickAt(X + 2000, 12000);
+    key('Enter');
+    expect(items()[2]).toMatchObject({ kind: 'pline', pts: [[X, 10000], [X + 2000, 10000], [X + 2000, 12000]] });
+  });
+
+  it('Enter and Space on a row of the layer palette are the palette\'s', async () => {
+    await start();
+    await command('PL');
+    await clickAt(X, 10000);
+    await clickAt(X + 2000, 10000);
+    await command('LM');
+    await until(() => !!document.querySelector('[aria-label="Layer palette"]'));
+    const row = document.querySelector('[aria-label="Layer palette"] .cad-lp-name') as HTMLElement;
+    key('Enter', row);
+    tap(' ', row);
+    expect(items()).toHaveLength(2); // the polyline goes on
     expect(state.tool).toBe('pline');
     await clickAt(X + 2000, 12000);
     key('Enter');

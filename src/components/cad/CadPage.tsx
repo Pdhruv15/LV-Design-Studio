@@ -50,10 +50,11 @@ import { fmtFixed, fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
 import { AnnoPanel, HatchPanel } from './AnnotatePanel';
 import { annoOf, centreOf, hatchItem, hatchOutline, HATCH_START, leaderItems, northArrowItems, roomTagItems, textUnits, type HatchSpec } from '../../model/cadAnnotate';
-import { LayerManager, ObjectPropertiesPanel } from './CadLayerManager';
+import { LayerPalette, layerRows, ObjectPropertiesPanel, type LayerRow } from './CadLayerManager';
 import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
 import { refGeometry, type CadRef } from '../../model/cadRefs';
-import { drawnLayers, effective, layerStylesOf, matchedProps, withLayerStyle, withProps } from '../../model/cadLayerStyle';
+import { drawnLayers, effective, layerStylesOf, matchedProps, styleOf, withProps } from '../../model/cadLayerStyle';
+import { applyLayerPatch, archOnOf, currentLayerOf, extentsOf, isolate, layerFileOf, newLayerName, renameLayer, restoreState, unisolate, withCurrentLayer, withNewLayer, withoutLayer, withoutState, withSavedState } from '../../model/cadLayerState';
 import { DrawnSelectionPanel, ED_START, EditToolPanel, kindOf, SketchToolbar, type EditSettings, type EditTool, type SketchEdit } from './SketchEditPanel';
 import { arrayPolar, arrayRect, breakAt, chamfer, edgesFor, explode, extend, fillet, gripMoved, gripsOf, isPath, join, mirrored, offset, scaled, sketchInWindow, stretched, throughDistance, trim, type Edit } from '../../model/cadEdit';
 import { ArrayPanel, ARL_START, MatchPanel, MATCH_START, SelectionPanel, type ArlSettings, type MatchSettings } from './DeviceEditPanel';
@@ -73,7 +74,7 @@ const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
 ];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer manager) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · DYN (F12) · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · DYN (F12) · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 /** Bind's count in the Save line: reference lines, texts and hatches. */
@@ -222,7 +223,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // The settings dialog shown: the edit tool's, or the text or dimension styles.
   const [dlg, setDlg] = useState<'edit' | 'style' | 'dimstyle' | null>(null);
   const [promptMenu, setPromptMenu] = useState<{ at: Pt; items: { label: string; key?: string; run: () => void }[] } | null>(null);
-  // Layer manager shown, and the object Match properties copies from.
+  // Layer palette shown, and the object Match properties copies from.
   const [showLM, setShowLM] = useState(false);
   const [mpFrom, setMpFrom] = useState<string | null>(null);
   const [hatchSet, setHatchSet] = useState<HatchSpec>(HATCH_START);
@@ -277,6 +278,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? (tool === 'array' ? arrayType(edSet) : `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : 'Enter to join them:'}`) : pre && tool === 'offset' ? OFFSET_SIDE : editPrompt(tool, edSet)}`);
   }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Layer palette styles. The architect's layers: On as turned on or off in the app (kept in the project, so each change is
+  // one undo step), else as the drawing has them; shown: on and not frozen; picked: shown and not locked (snapped to still).
+  const styles = useMemo(() => layerStylesOf(project, view?.file), [project, view]);
+  const archStyle = useMemo(() => (view ? view.info.layers.map((l) => styleOf(styles, l.name)) : []), [view, styles]);
+  const archOn = useMemo(() => (view ? archOnOf(project, view.file, view.info.layers) : new Uint8Array()), [view, project]);
+  const layersOn = useMemo(() => (archStyle.some((st) => st.freeze) ? archOn.map((v, i) => (v && !archStyle[i]?.freeze ? 1 : 0)) : archOn), [archOn, archStyle]);
+  const pickOn = useMemo(() => (archStyle.some((st) => st.lock) ? layersOn.map((v, i) => (v && !archStyle[i]?.lock ? 1 : 0)) : layersOn), [layersOn, archStyle]);
+  // Zoom extents leave the frozen layers out.
+  const fitExtents = useMemo(() => (view && archStyle.some((st) => st.freeze) ? extentsOf(view.segs, view.segLayers, view.info.origin, (i) => !archStyle[i]?.freeze) : undefined), [view, archStyle]);
   // Layer roles (File → Layer roles): the project's, else a guess from the layer's name and what it holds.
   const layerStats = useMemo(() => (view ? layerStatsOf(view) : []), [view]);
   const roles = useMemo(() => layerMapFor(project, layerStats), [project, layerStats]);
@@ -284,10 +294,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const walls = useMemo(() => {
     if (!view) return [];
     const wallNames = layersWith(roles, 'wall');
-    const shown = view.info.layers.map((_, i) => i).filter((i) => cad.layersOn[i]);
+    const shown = view.info.layers.map((_, i) => i).filter((i) => layersOn[i]);
     const named = shown.filter((i) => wallNames.has(view.info.layers[i].name.toLowerCase()));
     return segmentsOn(view.segs, view.segLayers, view.info.origin, new Set(named.length ? named : shown));
-  }, [view, cad.layersOn, roles]);
+  }, [view, layersOn, roles]);
 
   // Devices are kept per level, in metres on its plan: the level this drawing shows, and what is placed on it.
   const floors = floorList(project.building).filter((f) => !f.ref.index);
@@ -302,9 +312,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const pickedItems = useMemo(() => (picked.length ? placed.filter((d) => picked.includes(d.key)) : selectedItem ? [selectedItem] : []), [picked, placed, selectedItem]);
   // What the engineer drew on this drawing (drawing units), its snap points, and the drawn object selected.
   const sketch = useMemo(() => (view ? sketchOf(project, view.file) : []), [project, view]);
-  const sketchSnaps = useMemo(() => snapPoints(sketch), [sketch]);
-  // Layer manager styles; objects on locked or hidden layers cannot be picked.
-  const styles = useMemo(() => layerStylesOf(project, view?.file), [project, view]);
+  // Snaps come from what shows: objects on layers that are off or frozen are not snapped to (locked ones are).
+  const sketchSnaps = useMemo(() => snapPoints(sketch.filter((it) => !effective(it, styles).hidden)), [sketch, styles]);
+  // Objects on locked, hidden or frozen layers cannot be picked.
   const pickable = useMemo(() => sketch.filter((it) => { const e = effective(it, styles); return !e.lock && !e.hidden; }), [sketch, styles]);
   const selSketch = sketch.find((it) => `sk:${it.id}` === cad.selected) ?? null;
   // The drawn objects picked: several, else the one selected; and everything picked.
@@ -312,7 +322,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const pickedKeys = new Set([...pickedItems.map((d) => d.key), ...pickedSk.map((it) => `sk:${it.id}`)]);
   const many = pickedItems.length + pickedSk.length > 1;
   // The architect's lines on shown layers: cutting edges and boundaries for Trim and Extend.
-  const drawingSegs = useMemo(() => (view && (tool === 'trim' || tool === 'extend') ? segmentsOn(view.segs, view.segLayers, view.info.origin, new Set(view.info.layers.map((_, i) => i).filter((i) => cad.layersOn[i]))) : []), [view, cad.layersOn, tool]);
+  const drawingSegs = useMemo(() => (view && (tool === 'trim' || tool === 'extend') ? segmentsOn(view.segs, view.segLayers, view.info.origin, new Set(view.info.layers.map((_, i) => i).filter((i) => layersOn[i]))) : []), [view, layersOn, tool]);
   const fittings = useMemo(() => trayFittings(sketch, 0.001 / units.factor).fittings, [sketch, units.factor]);
   const cables = useMemo(() => cablesOf(project), [project]);
   // ELV: the device chosen (if an ELV one), its system for coverage and Copy to level, and the coverage / Fill preview.
@@ -377,6 +387,37 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   };
   const change = (next: Project, message: string) => { onChange(next, message); cad.say(message); };
   const xr = useCadRefs({ project, view, tabOf: cad.tabOf, change, say: cad.say });
+
+  // Layer palette (LM): the drawing's layer record (current layer, layers added, states), its rows, and the changes made
+  // there — each one undo step; the architect's On stays with the drawing open.
+  const layerFile = layerFileOf(project, view?.file);
+  const curLayer = currentLayerOf(project, view?.file);
+  const lRows = useMemo(() => (view ? layerRows({ view, layersOn: archOn, sketch, styles, added: layerFile.layers, current: curLayer, refs: xr.placed }) : []), [view, archOn, sketch, styles, layerFile.layers, curLayer, xr.placed]);
+  const layerChange = (next: Project, what: string) => {
+    if (!view) return;
+    if (next !== project) change(next, `${what} · ⌘Z to undo`); else cad.say(what);
+  };
+  const layerNames = (list: { name: string }[]) => (list.length === 1 ? `Layer ${list[0].name}` : `${list.length} layers`);
+  const isolateLayers = (keep: string[]) => {
+    if (!view) return;
+    const r = isolate(project, view.file, lRows, keep);
+    layerChange(r.project, `LAYISO  ${keep.join(', ')} kept on, ${r.off} other layer${r.off === 1 ? '' : 's'} off (LAYUNISO puts them back)`);
+  };
+  const unisolateLayers = () => {
+    const r = view && unisolate(project, view.file, lRows);
+    if (!r) cad.say('LAYUNISO  Nothing is isolated.'); else layerChange(r, 'LAYUNISO  The layers Isolate turned off are back on');
+  };
+  // A frozen layer cannot be current (what is drawn on it would not show): every way of setting it comes here.
+  const setCurrentLayer = (name: string) => {
+    if (!view) return;
+    if (styleOf(styles, name).freeze) { cad.say(`CLAYER  ${name} is frozen: thaw it first to make it current.`); return; }
+    change(withCurrentLayer(project, view.file, name), `CLAYER  Current layer: ${name} · ⌘Z to undo`);
+  };
+  const addLayer = () => {
+    const name = newLayerName(lRows.map((r) => r.name));
+    if (view) change(withNewLayer(project, view.file, name), `LAYER  ${name} added · ⌘Z to undo`);
+    return name;
+  };
 
   // Model and layouts (paper space, src/components/cad/CadLayouts.tsx): the level's layouts, the one showing, its
   // viewports, the one picked and the one worked in (MS).
@@ -468,7 +509,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER}${refLines.length ? `, ${boundText(refLines)} bound on NAME$0$LAYER layers` : ''}${wiring.length ? `, ${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on ${WIRING_LAYER} / ${TAG_LAYER}` : ''})`); onStatus(msg); }
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
   }
-  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), close: () => { if (view) closeDrawings([view]); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM(true); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); } };
+  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), close: () => { if (view) closeDrawings([view]); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); } };
   // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
   useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
 
@@ -775,7 +816,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   /** The room name inside an outline: a text on a layer named like room names, else any text inside. */
   const nameInside = (poly: Pt[]) => {
-    const texts = (view?.info.texts ?? []).filter((t) => cad.layersOn[t.layer] && inside([t.x, t.y], poly));
+    const texts = (view?.info.texts ?? []).filter((t) => layersOn[t.layer] && inside([t.x, t.y], poly));
     const named = texts.find((t) => /ROOM|RM|NAME|SPACE/i.test(view!.info.layers[t.layer]?.name ?? ''));
     return (named ?? texts[0])?.s.trim();
   };
@@ -900,14 +941,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return;
     }
     if (tool === 'line') {
-      if (last) draw({ kind: 'line', layer: DRAW_LAYER, pts: [last, at] }, `Line ${m(toM(distance(last, at)))}`);
+      if (last) draw({ kind: 'line', layer: curLayer, pts: [last, at] }, `Line ${m(toM(distance(last, at)))}`);
       setPoints([at]); cad.say('LINE  Specify next point or Enter to stop:'); return;
     }
     if (tool === 'tray' || tool === 'cable') { setPoints((p) => [...p, at]); cad.say(`${tool === 'tray' ? 'TRAY' : 'ROUTE'}  Specify next point${points.length ? ', Enter to finish' : ''}:`); return; }
     if (tool === 'link') {
       const feeder = project.feeders.find((f) => f.id === cad.cableFeeder);
       if (!feeder) { cad.say('LINK  Choose the cable first (the panel on the right).'); return; }
-      const o = await view.pick(at[0], at[1], 6 * pixel, cad.layersOn);
+      const o = await view.pick(at[0], at[1], 6 * pixel, pickOn);
       const pts = o ? objectPath(view, o) : [];
       if (pts.length < 2) { cad.say('LINK  That is not a line or polyline. Click a line of the drawing:'); return; }
       draw({ kind: 'pline', layer: CABLE_LAYER, pts, cable: { feederId: feeder.id } }, `Cable route of ${cableLabel(project, feeder)}: ${m(toM(pathLength(pts)))} (linked from ${view.info.layers[o!.layer]?.name ?? 'the drawing'})`);
@@ -920,7 +961,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'rect') {
       if (!last) { setPoints([at]); cad.say('RECTANG  Specify other corner point:'); return; }
       const pts = rectangle(last, at);
-      draw({ kind: 'pline', layer: DRAW_LAYER, pts, closed: true }, `Rectangle ${m(toM(Math.abs(at[0] - last[0])))} × ${m(toM(Math.abs(at[1] - last[1])))}`);
+      draw({ kind: 'pline', layer: curLayer, pts, closed: true }, `Rectangle ${m(toM(Math.abs(at[0] - last[0])))} × ${m(toM(Math.abs(at[1] - last[1])))}`);
       setPoints([]); cad.say(PROMPT.rect); return;
     }
     if (tool === 'circle') {
@@ -931,7 +972,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (points.length < 2) { setPoints((p) => [...p, at]); cad.say(points.length ? 'ARC  Specify end point:' : 'ARC  Specify second point:'); return; }
       const a = arcThrough(points[0], points[1], at);
       if (!a) cad.say('ARC  The three points are in line; pick another end point.');
-      else { draw({ ...a, layer: DRAW_LAYER } as Omit<SketchItem, 'id'>, `Arc radius ${m(toM(a.r ?? 0))}`); setPoints([]); cad.say(PROMPT.arc); }
+      else { draw({ ...a, layer: curLayer } as Omit<SketchItem, 'id'>, `Arc radius ${m(toM(a.r ?? 0))}`); setPoints([]); cad.say(PROMPT.arc); }
       return;
     }
     if (tool === 'text') {
@@ -983,7 +1024,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       cad.setSelected(null);
       const sk = itemAt(pickable, at, 6 * pixel);
       if (sk) { cad.setSelected(`sk:${sk.id}`); setResult({ kind: 'sketch', it: sk }); cad.say(`LIST  ${sk.tray ? `Cable tray ${sk.tray.widthMm} mm, ${m(toM(trayLength(sk)))}${sk.tray.route ? ` on route ${sk.tray.route}` : ', no route'}` : sk.cable ? `Cable route of ${cableLabels[sk.id] ?? sk.cable.feederId}, ${m(toM(pathLength(sk.pts)))}` : sk.kind === 'pline' ? 'Polyline' : sk.kind} on ${sk.layer} (drawn here)`); return; }
-      const o = await view.pick(at[0], at[1], 6 * pixel, cad.layersOn);
+      const o = await view.pick(at[0], at[1], 6 * pixel, pickOn);
       setResult(o ? { kind: 'object', o } : null);
       if (o) cad.say(`LIST  ${o.kind}${o.block ? ` ${o.block}` : ''} on ${view.info.layers[o.layer]?.name ?? '?'}${o.length !== undefined && !o.closed ? `, length ${m(toM(o.length))}` : ''}${o.area !== undefined ? `, area ${m2(toM2(o.area))}` : ''}`);
     } else if (tool === 'dist') {
@@ -994,7 +1035,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       setPoints([]);
     } else if (tool === 'area' || tool === 'trace') {
       if (objectMode && tool === 'area') {
-        const o = await view.pick(at[0], at[1], 6 * pixel, cad.layersOn, true);
+        const o = await view.pick(at[0], at[1], 6 * pixel, pickOn, true);
         if (!o || o.area === undefined) { cad.say('AREA  That is not a closed object (polyline, circle, hatch). Select a closed object:'); return; }
         const segs: Pt[] = [];
         for (let i = o.seg_start; i < o.seg_end; i += 1) segs.push([view.segs[i * 4] + view.info.origin[0], view.segs[i * 4 + 1] + view.info.origin[1]]);
@@ -1044,7 +1085,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       setResult({ kind: 'area', points: r.points, how: 'room', name: nameInside(r.points) });
       cad.say(`Room area = ${m2(toM2(r.area))}`);
     } else if (tool === 'name') {
-      const o = await view.pick(at[0], at[1], 6 * pixel, cad.layersOn);
+      const o = await view.pick(at[0], at[1], 6 * pixel, pickOn);
       const text = o?.text?.trim();
       if (!text) { cad.say('NAME  That is not a text. Click the room name on the drawing:'); return; }
       if (result?.kind === 'area' && result.how !== 'object') { setResult({ ...result, name: text }); cad.say(`NAME  ${text} — Add as room… to add it`); return; }
@@ -1065,7 +1106,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (!floor) { cad.say('ROOMS  Add the building and its levels in Building information first; rooms are kept per level.'); return; }
     if (!roles.some((r) => r.role === 'room')) { cad.say('ROOMS  No layer has the role Room outline: set it in File → Layer roles, or use Click inside / Trace.'); cad.setShowRoles(true); return; }
     const code = CAD_UNITS.find((u) => u.id === units.unit)!.code;
-    const { rooms, zones } = roomsFromPlan(planOfView(view, code, cad.layersOn), roles, project.cadLength);
+    const { rooms, zones } = roomsFromPlan(planOfView(view, code, layersOn), roles, project.cadLength);
     if (!rooms.length) { cad.say('ROOMS  No closed outlines on the room-outline layers that are shown. Use Click inside or Trace.'); return; }
     const { project: next } = putRooms(project, rooms.map((r) => ({ ...r, file: view.file })), floor.ref, roles);
     const label = floorLabel(project.building, floor);
@@ -1073,7 +1114,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   }
 
   function finishPline(closed: boolean) {
-    if (points.length >= 2) draw({ kind: 'pline', layer: DRAW_LAYER, pts: points, closed }, `Polyline (${points.length} points${closed ? ', closed' : ''})`);
+    if (points.length >= 2) draw({ kind: 'pline', layer: curLayer, pts: points, closed }, `Polyline (${points.length} points${closed ? ', closed' : ''})`);
     setPoints([]); cad.say(PROMPT.pline);
   }
   /** A cable route along the points clicked, for the cable chosen. */
@@ -1102,7 +1143,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   }
   function finishCircle(r: number) {
     if (!points[0] || r <= 0) return;
-    draw({ kind: 'circle', layer: DRAW_LAYER, pts: [points[0]], r }, `Circle radius ${m(toM(r))}`);
+    draw({ kind: 'circle', layer: curLayer, pts: [points[0]], r }, `Circle radius ${m(toM(r))}`);
     setPoints([]); cad.say(PROMPT.circle);
   }
 
@@ -1219,6 +1260,18 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     if (!renaming && EDIT_TOOLS.includes(tool) && editInput(c)) return;
     if (c && layoutCmd(c)) { setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30)); return; }
+    // CLAYER and a layer's name: new lines, polylines, rectangles, circles and arcs go on it.
+    const cl = /^CLAYER\s+(.+)$/i.exec(raw.trim());
+    if (cl && view) {
+      setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30));
+      const want = cl[1].trim(), row = lRows.find((r) => r.name.toLowerCase() === want.toLowerCase());
+      cad.say(`Command: CLAYER ${want}`);
+      if (!row) cad.say(`CLAYER  There is no layer ${want}. Add it with New layer in the layer palette (LM).`);
+      else if (row.group !== 'drawn') cad.say(`CLAYER  ${row.name} is ${row.group === 'arch' ? 'the architect\'s' : 'a reference\'s'}; new objects go on the app's drawn layers.`);
+      else if (row.freeze) cad.say(`CLAYER  ${row.name} is frozen; thaw it first.`);
+      else setCurrentLayer(row.name);
+      return;
+    }
     if (!c) {
       if ((tool === 'area' || tool === 'trace') && points.length >= 3) finishArea(points);
       else if (tool === 'pline') finishPline(false);
@@ -1262,7 +1315,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       xref: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); },
       xattach: () => { if (view) void startAttach(); else cad.say('XATTACH  Open a plan first.'); },
       xclip: () => { const one = xr.refs.filter((x) => !x.unloaded); if (one.length === 1) startClip(one[0]); else if (view) { setShowXR(true); cad.say('XCLIP  Choose the reference, then Clip.'); } },
-      layerManager: () => { if (view) setShowLM(true); else cad.say('LAYER  Open a drawing first.'); },
+      layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); },
+      newLayer: () => { if (!view) { cad.say('LAYER  Open a drawing first.'); return; } setShowLM(true); const n = addLayer(); cad.say(`LAYER  ${n} added. Double-click its name in the layer palette (or F2) to rename it.`); },
+      clayer: () => cad.say(`CLAYER  Current layer: ${curLayer}. Type CLAYER and a layer name to change it, e.g. CLAYER ${curLayer}.`),
+      layiso: () => {
+        const keep = [...new Set([...pickedSk.map((it) => it.layer), ...(result?.kind === 'object' && view?.info.layers[result.o.layer] ? [view.info.layers[result.o.layer].name] : [])])];
+        if (!view) cad.say('LAYISO  Open a drawing first.'); else if (!keep.length) cad.say('LAYISO  Pick the objects whose layers stay on first (or select layers in the layer palette, then Iso).'); else isolateLayers(keep);
+      },
+      layuniso: () => unisolateLayers(),
       align: () => { if (pickedItems.length < 2) cad.say(`${c}  Select two or more devices first.`); else editDevices(c === 'ALIGN' ? 'row' : c === 'ALIGNV' ? 'column' : 'space'); },
       wireAll: () => wireAll(),
       wireTags: () => cad.setWireTags(!cad.wireTags),
@@ -1324,9 +1384,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return;
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && (selectedItem || selSketch || many)) { e.preventDefault(); removeSelected(); return; }
-    // Enter or Space on the drawing (not on a button or a field) works as Enter on the empty command line: Enter at
-    // once, Space when it is let go (see spaceTap); once per press.
-    const onControl = e.target instanceof Element && !!e.target.closest('button, a, [role="tab"], [role="menuitem"], [contenteditable="true"]');
+    // Enter or Space on the drawing (not on a button, a field or the layer palette) works as Enter on the empty command
+    // line: Enter at once, Space when it is let go (see spaceTap); once per press.
+    const onControl = e.target instanceof Element && !!e.target.closest('button, a, [role="tab"], [role="menuitem"], [contenteditable="true"], .cad-lpal');
     if (e.key === ' ' && spaceMode !== 'text' && !typing && !onControl && !mods) {
       e.preventDefault();
       if (!e.repeat) spaceTap.current = { dragged: false, repeated: false }; else if (spaceTap.current) spaceTap.current.repeated = true;
@@ -1446,7 +1506,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
-            <CadCanvas view={view!} layersOn={cad.layersOn} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
+            <CadCanvas view={view!} layersOn={layersOn} extents={fitExtents} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
               numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={xr.snap} windowSelect={tool === 'none' || tool === 'stretch' || (PICK_FIRST.includes(tool) && edPhase === 'pick')} onWindow={pickWindow} onContext={contextAt}
               grips={tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
               onGripEnd={(i, at) => {
@@ -1489,6 +1549,26 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     <section className="cad">
       <CadTabs cad={cad} project={project} busy={busy} onOpen={openFile} onClose={closeDrawings} />
       <div className="cad-work">
+        {showLM && view && (
+          <LayerPalette file={view.file} rows={lRows} current={curLayer} states={layerFile.states ?? []} isolated={!!layerFile.iso}
+            viewport={sheetL && vpTarget ? { name: vpName(vps, vpTarget.id), frozen: (l) => isFrozen(vpTarget, l), toggle: (l) => patchVp(vpTarget, toggleFrozen(vpTarget, l), `${l} ${isFrozen(vpTarget, l) ? 'thawed' : 'frozen'} here`) } : undefined}
+            onApply={(rows, patch) => layerChange(applyLayerPatch(project, view.file, rows, patch), `${layerNames(rows)} changed`)}
+            onNew={addLayer}
+            onRename={(from, to) => {
+              const r = renameLayer(project, view.file, from, to, lRows.map((x) => x.name));
+              if ('error' in r) return r.error;
+              change(r.project, `Layer ${from} renamed ${to} · ⌘Z to undo`);
+              return undefined;
+            }}
+            onDelete={(rows) => change(rows.reduce((q, r) => withoutLayer(q, view.file, r.name), project), `${layerNames(rows)} deleted · ⌘Z to undo`)}
+            onCurrent={setCurrentLayer}
+            onIsolate={(rows: LayerRow[]) => isolateLayers(rows.map((r) => r.name))}
+            onUnisolate={unisolateLayers}
+            onSaveState={(name) => change(withSavedState(project, view.file, name, lRows), `Layer state ${name} saved · ⌘Z to undo`)}
+            onRestoreState={(name) => { const r = restoreState(project, view.file, name, lRows); if (r) layerChange(r.project, `Layer state ${name} restored${r.kept ? ` (${r.kept} stays thawed: it is the current layer)` : ''}`); }}
+            onDeleteState={(name) => change(withoutState(project, view.file, name), `Layer state ${name} deleted · ⌘Z to undo`)}
+            onClose={() => setShowLM(false)} />
+        )}
         {dlg === 'edit' && DIALOG_TOOLS.includes(tool as EditTool) && <EditDialog tool={tool as EditTool} settings={edSet} onPatch={(p) => setEdSet((x) => ({ ...x, ...p }))} onClose={() => setDlg(null)} />}
         {dlg === 'style' && <TextStyleDialog styles={textStylesOf(project)} annoMm={anno.textMm} onClose={() => setDlg(null)}
           onSave={(s) => {
@@ -1609,7 +1689,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
             )}
             {tool === 'none' && view && pickedSk.length > 0 && (
-              <ObjectPropertiesPanel items={pickedSk} layers={drawnLayers(sketch)} onApply={(patch) => change(pickedSk.reduce((q, it) => updateSketch(q, fileOf(), withProps(it, patch)), project), `${pickedSk.length === 1 ? kindOf(pickedSk[0]) : `${pickedSk.length} objects`}: properties changed · ⌘Z to undo`)} />
+              <ObjectPropertiesPanel items={pickedSk} layers={drawnLayers(sketch, [...(layerFile.layers ?? []), curLayer])} onApply={(patch) => change(pickedSk.reduce((q, it) => updateSketch(q, fileOf(), withProps(it, patch)), project), `${pickedSk.length === 1 ? kindOf(pickedSk[0]) : `${pickedSk.length} objects`}: properties changed · ⌘Z to undo`)} />
             )}
             {tool === 'hatch' && view && <HatchPanel spec={hatchSet} onSpec={setHatchSet} />}
             {(tool === 'text' || tool === 'dim' || tool === 'leader' || tool === 'rtag' || tool === 'north') && view && (
@@ -1684,7 +1764,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 </div>
               </>
             )}
-            <h4>Layers {view && <span className="cad-lyr-all"><button onClick={() => cad.allLayers(true)}>All on</button></span>}</h4>
+            <h4>Layers {view && <span className="cad-lyr-all"><button onClick={() => layerChange(applyLayerPatch(project, view.file, lRows.filter((r) => r.group === 'arch'), { on: true }), 'LAYER  All layers on')}>All on</button></span>}</h4>
             <div className="cad-layers">
               {view && placed.length > 0 && (
                 <button className={`cad-lyr${cad.showDevices ? '' : ' off'}`} aria-pressed={cad.showDevices} onClick={() => cad.setShowDevices(!cad.showDevices)}>
@@ -1692,8 +1772,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 </button>
               )}
               {view?.info.layers.map((l, i) => l.count > 0 || view.info.texts.some((t) => t.layer === i) ? (
-                <button key={l.name} className={`cad-lyr${cad.layersOn[i] ? '' : ' off'}`} aria-pressed={!!cad.layersOn[i]} title={`${fmtUpTo(l.count, 0)} lines`} onClick={() => cad.setLayer(i, !cad.layersOn[i])}>
-                  <i style={{ background: hex(l.rgb) }} />{l.name}<span className="m">{cad.layersOn[i] ? 'on' : 'off'}</span>
+                <button key={l.name} className={`cad-lyr${archOn[i] ? '' : ' off'}`} aria-pressed={!!archOn[i]} title={`${fmtUpTo(l.count, 0)} lines`} onClick={() => layerChange(applyLayerPatch(project, view.file, [{ name: l.name, group: 'arch', drawingOn: l.on }], { on: !archOn[i] }), `Layer ${l.name} ${archOn[i] ? 'off' : 'on'}`)}>
+                  <i style={{ background: hex(l.rgb) }} />{l.name}<span className="m">{archOn[i] ? 'on' : 'off'}</span>
                 </button>
               ) : null)}
               {view && <RefLayersList x={xr} />}
@@ -1724,7 +1804,6 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
           <span>{view ? `${view.file} · ${view.info.format} · ${units.label} · 1 : 1` : ''}</span>
         </>}
       </div>
-      {showLM && view && <LayerManager viewport={sheetL && vpTarget ? { name: vpName(vps, vpTarget.id), frozen: (l) => isFrozen(vpTarget, l), toggle: (l) => patchVp(vpTarget, toggleFrozen(vpTarget, l), `${l} ${isFrozen(vpTarget, l) ? 'thawed' : 'frozen'} here`) } : undefined} view={view} layersOn={cad.layersOn} sketch={sketch} styles={styles} onLayer={cad.setLayer} onStyle={(layer, patch) => change(withLayerStyle(project, view.file, layer, patch), `Layer ${layer} changed · ⌘Z to undo`)} onClose={() => setShowLM(false)} refs={xr} />}
       {showXR && view && <RefManager file={view.file} level={floor ? floorLabel(project.building, floor) : undefined} x={xr} onAttach={() => void startAttach()} onClip={startClip} onBind={() => { setShowXR(false); void saveDxf(view.info.format === 'DWG' ? 'dwg' : 'dxf', true); }} onClose={() => setShowXR(false)} />}
       {xDraft && tool !== 'xattach' && view && (
         <AttachDialog key={`${xDraft.at[0]},${xDraft.at[1]}`} draft={xDraft} level={floor ? floorLabel(project.building, floor) : undefined} units={{ ref: unitName(refGeometry(xDraft.file)?.units), plan: unitName(view.info.units) }}

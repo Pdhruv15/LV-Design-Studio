@@ -196,7 +196,6 @@ describe('the open drawing', () => {
     act(() => { cad.close([a]); });
     expect(cad.view).toBeNull();
     expect(cad.drawings).toEqual([]);
-    expect(cad.layersOn).toHaveLength(0);
     act(() => root.render(null));
     for (const v of [a, b, c]) expect(v.close).toHaveBeenCalledTimes(1);
   });
@@ -216,24 +215,6 @@ describe('the open drawing', () => {
     act(() => { done = cad.close(); });
     expect(done).toBe('2 drawings closed. What you drew stays in the project.');
     expect(cad.view).toBeNull();
-  });
-
-  it('keeps each drawing\'s layers as they were left', () => {
-    act(() => root.render(<Host />));
-    const layer = (name: string, on = true) => ({ name, rgb: 0, on, count: 1 });
-    const a = named('a.dxf'), b = named('b.dxf');
-    a.info = { ...a.info, layers: [layer('0'), layer('1', false)] };
-    b.info = { ...b.info, layers: [layer('0'), layer('1'), layer('2')] };
-    act(() => cad.open(a));
-    expect([...cad.layersOn]).toEqual([1, 0]);
-    act(() => cad.setLayer(0, false));
-    act(() => cad.open(b));
-    expect([...cad.layersOn]).toEqual([1, 1, 1]);
-    act(() => cad.allLayers(false));
-    act(() => cad.show(a));
-    expect([...cad.layersOn]).toEqual([0, 0]);
-    act(() => cad.show(b));
-    expect([...cad.layersOn]).toEqual([0, 0, 0]);
   });
 
   it('goes to the tab of a file opened again unchanged, and gives back the copy just read', () => {

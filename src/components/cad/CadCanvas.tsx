@@ -42,7 +42,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView }: {
+export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents }: {
   view: CadView;
   layersOn: Uint8Array;
   toggles: CadToggles;
@@ -86,6 +86,8 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
   /** Layer manager styles by layer name (src/model/cadLayerStyle.ts): a screen colour for the drawing's layers; for
    * what is drawn here also on/off, linetype and lineweight (an object's own wins). */
   layerStyle?: Record<string, LayerStyle>;
+  /** Zoom extents in place of the drawing's (frozen layers left out, src/model/cadLayerState.ts). */
+  extents?: [number, number, number, number];
   extraSnaps?: { x: number; y: number; kind: number }[];
   /** References under the plan (src/model/cadRefs.ts): their lines (drawing units, absolute) with each line's layer,
    * the screen colour of each layer, and how faded they show (%). Drawn under the drawing; never picked. */
@@ -191,6 +193,9 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
   // Fit (on open, on Fit / ZE, and when the window size changes before anything was moved); a moved drawing goes back
   // to where it was left.
   const fitted = useRef(fitKey);
+  // Read on a fit only: freezing a layer does not move the view.
+  const fitExt = useRef(extents);
+  fitExt.current = extents;
   const [b0, b1, b2, b3] = fitBox ?? [];
   useEffect(() => {
     if (b0 !== undefined) {
@@ -199,7 +204,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
       return;
     }
     if (fitted.current !== fitKey) { fitted.current = fitKey; placeOf.delete(view); }
-    const [x0, y0, x1, y1] = view.info.extents;
+    const [x0, y0, x1, y1] = fitExt.current ?? view.info.extents;
     const scale = Math.min(size.w / Math.max(1e-9, x1 - x0), size.h / Math.max(1e-9, y1 - y0)) * 0.92;
     setT(placeOf.get(view) ?? { scale, ox: (x0 + x1) / 2 - o0 - size.w / 2 / scale, oy: (y0 + y1) / 2 - o1 - size.h / 2 / scale });
   }, [view, fitKey, size.w, size.h, o0, o1, b0, b1, b2, b3]);

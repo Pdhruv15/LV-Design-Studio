@@ -44,11 +44,10 @@ export const skipRef = (projectId: string | undefined, host: string, name: strin
 export interface CadActions { save: () => void; saveDwg: () => void; close: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void; refs: () => void; layoutCmd: (cmd: string) => void }
 export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, close: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {}, refs: () => {}, layoutCmd: () => {} };
 
-/** A drawing open in a tab, with its layers as they were left (its zoom and pan stay with CadCanvas). */
-interface OpenDrawing { view: CadView; layersOn: Uint8Array }
+/** A drawing open in a tab (its zoom and pan stay with CadCanvas; its layers' On is kept in the project, cadLayerState). */
+interface OpenDrawing { view: CadView }
 /** The drawings open, a tab each, and the one showing. */
 interface Tabs { open: OpenDrawing[]; shown: CadView | null }
-const NO_LAYERS = new Uint8Array();
 const sameFile = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 const sameBytes = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((x, i) => x === b[i]);
 /** Above this many lines open at once (about 1 GB of engine memory) the command line suggests closing some. */
@@ -61,7 +60,6 @@ export function useCad(projectId: string | undefined) {
   const now = useRef(tabs);
   const setTabs = useCallback((next: Tabs) => { now.current = next; setTabsState(next); }, []);
   const view = tabs.shown;
-  const layersOn = tabs.open.find((d) => d.view === view)?.layersOn ?? NO_LAYERS;
   const [toggles, setToggles] = useState<CadToggles>({ snap: false, osnap: true, ortho: false, grid: false, dyn: true });
   const [fitKey, setFitKey] = useState(0);
   const [showLayers, setShowLayers] = useState(true);
@@ -126,7 +124,7 @@ export function useCad(projectId: string | undefined) {
     const gone = list.filter((d) => d === same || d.view === replaces);
     for (const d of gone) d.view.close();
     const next = list.filter((d) => !gone.includes(d));
-    next.splice(gone.length ? list.indexOf(gone[0]) : next.length, 0, { view: v, layersOn: Uint8Array.from(v.info.layers.map((l) => (l.on ? 1 : 0))) });
+    next.splice(gone.length ? list.indexOf(gone[0]) : next.length, 0, { view: v });
     changeTabs({ open: next, shown: v });
     setFitKey((k) => k + 1);
     rememberPath(projectId, v.file, v.path);
@@ -152,12 +150,6 @@ export function useCad(projectId: string | undefined) {
   /** Another project has been opened: the drawings open are the last one's plans, so none stays. The same project
    * opened again (its version on disk, recovered work) keeps them. */
   const projectOpened = useCallback((id: string | undefined) => { if (id !== projectId) close(); }, [projectId, close]);
-  const changeLayers = useCallback((change: (l: Uint8Array) => Uint8Array) => {
-    const t = now.current;
-    setTabs({ ...t, open: t.open.map((d) => (d.view === t.shown ? { ...d, layersOn: change(d.layersOn) } : d)) });
-  }, [setTabs]);
-  const setLayer = useCallback((i: number, on: boolean) => changeLayers((l) => { const n = l.slice(); n[i] = on ? 1 : 0; return n; }), [changeLayers]);
-  const allLayers = useCallback((on: boolean) => changeLayers((l) => new Uint8Array(l.length).fill(on ? 1 : 0)), [changeLayers]);
   const toggle = useCallback((k: keyof CadToggles) => setToggles((t) => ({ ...t, [k]: !t[k] })), []);
   // GRID (F7) steps lines → dots → off, like the SLD's grid.
   const [gridDots, setGridDots] = useState(false);
@@ -167,7 +159,7 @@ export function useCad(projectId: string | undefined) {
     else { setToggles((t) => ({ ...t, grid: false })); setGridDots(false); }
   };
 
-  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, tabOf, projectOpened, sampleDone, layersOn, setLayer, allLayers, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, textAt, setTextAt, layout, setLayout, vpSel, setVpSel, msVp, setMsVp };
+  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, tabOf, projectOpened, sampleDone, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, textAt, setTextAt, layout, setLayout, vpSel, setVpSel, msVp, setMsVp };
 }
 
 export type CadState = ReturnType<typeof useCad>;
