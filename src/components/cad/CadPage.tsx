@@ -8,7 +8,8 @@ import CadDynInput, { type DynBox } from './CadDynInput';
 import { DIALOG_TOOLS, DimStyleDialog, EditDialog, TextStyleDialog } from './CadDialogs';
 import { currentTextStyle, dimLookOf, dimStandardAsBefore, dimStylesOf, dimStylesToStore, textStylesOf, textStylesToStore } from '../../model/cadStyles';
 import { chooseDrawing, drawingWithDevices, explodeObjects, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
-import { boundaryOfPiece, cropItems, cropNote, cropPieces, type CropBoundary, type CropSide } from '../../model/cadCrop';
+import { boundaryOfPiece, cropItems, cropNote, cropPieces, hatchLookup, type CropBoundary, type CropSide } from '../../model/cadCrop';
+import { parsePat, specWith, withPatterns } from '../../model/cadHatch';
 import { erasedOf, shownView, withErased, type ErasedParts } from '../../model/cadErased';
 import { CIRCUIT_ATTRIBUTES } from '../../model/cadLoads';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
@@ -675,6 +676,16 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const q = roomAround(walls, at, units.factor);
     return q ? { kind: 'polygon', pts: q.points } : undefined;
   }
+  /** HATCH → Import .pat…: the file's patterns join the project's (one of the same name replaced); the first is picked. */
+  function importPat(text: string, name: string) {
+    const { patterns, errors } = parsePat(text);
+    const left = errors.length ? ` ${errors.length} problem${errors.length === 1 ? '' : 's'}: ${errors[0]}${errors.length > 1 ? ' …' : ''}` : '';
+    if (!patterns.length) { cad.say(`HATCH  No patterns read from ${name}.${left}`); return; }
+    const msg = `HATCH  ${patterns.length} pattern${patterns.length === 1 ? '' : 's'} imported from ${name}, kept with the project.${left} · ⌘Z to undo`;
+    onChange({ ...project, cadPatterns: withPatterns(project.cadPatterns, patterns) }, msg);
+    cad.say(msg);
+    setHatchSet(specWith(hatchSet, patterns[0]));
+  }
   /** CROP: cuts the block (or drawn items) along the outline; the kept pieces become drawn items, the block is erased. */
   async function doCrop(side: CropSide) {
     if (!view || !crop?.target || !crop.outline) return;
@@ -688,7 +699,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         change(next, `CROP  ${cropNote(r)} · ${its.length} drawn object${its.length === 1 ? '' : 's'} replaced · ⌘Z to undo`);
       } else {
         const { pieces, truncated } = await explodeObjects(view, [target.handle]);
-        const r = cropPieces(pieces[target.handle] ?? [], outline, side);
+        // Hatches keep the drawing's pattern lines (at 1:100, as drawn hatches are spaced).
+        const r = cropPieces(pieces[target.handle] ?? [], outline, side, hatchLookup(view, 0.1 / units.factor));
         if (r.error) { again(r.error); return; }
         const next = r.items!.reduce((q, x) => addSketch(q, file, x).project, withErased(project, file, [target.handle]));
         change(next, `CROP  ${cropNote(r)}${truncated ? ' (a very large array: its first 200,000 pieces)' : ''} · original block erased · ⌘Z to undo`);
@@ -2077,7 +2089,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               step={edStep ? `${kindOf(sketch.find((x) => x.id === edStep.id) ?? sketch[0])} picked — ${tool === 'offset' ? 'click the side' : tool === 'break' ? 'click the second point, or Enter' : 'click the second line'}` : stretchBox ? 'Window set — click the base point, then the second point' : PICK_FIRST.includes(tool) && edPhase === 'points' ? 'Objects picked — now the points' : undefined}
               onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
           )}
-          {tool === 'hatch' && view && <HatchPanel spec={hatchSet} onSpec={setHatchSet} />}
+          {tool === 'hatch' && view && <HatchPanel spec={hatchSet} onSpec={setHatchSet} patterns={project.cadPatterns} onImport={importPat} />}
           {(tool === 'text' || tool === 'dim' || tool === 'leader' || tool === 'rtag' || tool === 'north') && view && (
             <AnnoPanel anno={anno} onAnno={(a) => onChange({ ...project, cadAnno: a }, `Annotation: ${a.textMm} mm text at 1:${a.scale}`)}
               {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Two points, then where the dimension line goes.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />

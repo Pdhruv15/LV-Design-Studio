@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boundaryOfItem, cropItems, cropNote, cropPieces, itemLength, linetypeOf, pieceLength, type CadPiece, type CropBoundary } from './cadCrop';
+import { boundaryOfItem, cropItems, cropNote, cropPieces, hatchLookup, itemLength, linetypeOf, pieceLength, type CadPiece, type CropBoundary } from './cadCrop';
 import type { SketchItem } from '../types';
 
 type P2 = [number, number];
@@ -150,6 +150,23 @@ describe('CROP: texts, hatches, solids, dimensions', () => {
     // Outside: a hatch around the cut-out would cover it.
     const around: CadPiece = { ...S, kind: 'hatch', solid: true, pattern: 'SOLID', loops: [[[-5, -5, 0], [15, -5, 0], [15, 15, 0], [-5, 15, 0]]] };
     expect(cropNote(cropPieces([around], rect, 'outside'))).toMatch(/1 hatch crossing/);
+  });
+
+  it('a pattern hatch keeps the open drawing\'s pattern lines, found by layer and outline; else its name\'s pattern', () => {
+    const h = (pattern: string): CadPiece => ({ ...S, kind: 'hatch', solid: false, pattern, loops: [[[2, 2, 0], [6, 2, 0], [6, 6, 0], [2, 6, 0]]] });
+    // The drawing: origin (1, 1), the same square as segments relative to it, its pattern 45° lines 0.5 apart.
+    const sq = [[1, 1], [5, 1], [5, 5], [1, 5]], segs = sq.flatMap((p, i) => [...p, ...sq[(i + 1) % 4]]);
+    const a = Math.PI / 4, lines = [{ angle: a, base: [7, 7] as P2, offset: [-Math.sin(a) * 0.5, Math.cos(a) * 0.5] as P2, dashes: [0.25, -0.25] }];
+    const view = { info: { origin: [1, 1] as P2, extents: [0, 0, 100, 100] as [number, number, number, number], layers: [{ name: 'X' }, { name: 'E-LIGHT' }], fills: [{ layer: 1, rgb: 0, solid: false, loops: [[0, 4]] as [number, number][], lines }] }, segs };
+    const look = hatchLookup(view as never, 0.1); // 0.1 units per paper mm: lines 5 mm apart
+    const [it] = cropPieces([h('MYGRID')], rect, 'inside', look).items!;
+    expect(it.hatch).toMatchObject({ pattern: 'MYGRID', angle: 0, custom: { name: 'MYGRID' } });
+    expect(it.hatch!.scale).toBeCloseTo(5, 9);
+    const [l] = it.hatch!.custom!.lines;
+    close([l.angle, ...l.base, ...l.offset, ...l.dashes], [45, 0, 0, 0, 1, 0.5, -0.5]);
+    // Another layer, or no drawing: the built-in pattern of its name, else ANSI31.
+    expect(cropPieces([{ ...h('BRICK'), layer: 'X' }], rect, 'inside', look).items![0].hatch).toEqual({ pattern: 'brick', scale: 3, angle: 0 });
+    expect(items([h('MYGRID')])[0].hatch).toEqual({ pattern: 'ansi31', scale: 3, angle: 0 });
   });
 
   it('a dimension (a group) is kept whole or not at all', () => {

@@ -1,22 +1,36 @@
+import { useRef } from 'react';
 import { HATCH_IDS, HATCH_PATTERNS, type AnnoSettings, type HatchPattern, type HatchSpec } from '../../model/cadAnnotate';
-import { patternOf } from '../../model/cadHatch';
+import { customLabel, defOf, specWith, type CustomPattern } from '../../model/cadHatch';
 
 /** Design CAD → Hatch and the annotation tools' side panels. */
 
 const SCALES = [50, 100, 200, 500];
 
-/** Hatch: pattern, spacing and angle. */
-export function HatchPanel({ spec, onSpec }: { spec: HatchSpec; onSpec: (s: HatchSpec) => void }) {
+/** Hatch: pattern (built in, then the project's own from .pat files), spacing and angle; Import .pat… adds patterns. */
+export function HatchPanel({ spec, onSpec, patterns = [], onImport }: { spec: HatchSpec; onSpec: (s: HatchSpec) => void; patterns?: CustomPattern[]; onImport?: (text: string, file: string) => void }) {
+  const file = useRef<HTMLInputElement>(null), def = defOf(spec);
+  const value = spec.custom ? `custom:${spec.custom.name}` : spec.pattern;
+  const pick = (v: string) => {
+    const c = v.startsWith('custom:') ? patterns.find((p) => p.name === v.slice(7)) : undefined;
+    onSpec(c ? specWith(spec, c) : { scale: spec.scale, angle: spec.angle, pattern: v as HatchPattern });
+  };
   return (
     <>
       <h4>Hatch <span className="m">H</span></h4>
       <div className="cad-devform">
-        <label>Pattern<select aria-label="Hatch pattern" value={spec.pattern} onChange={(e) => onSpec({ ...spec, pattern: e.target.value as HatchPattern })}>
+        <label>Pattern<select aria-label="Hatch pattern" value={value} onChange={(e) => pick(e.target.value)}>
           {HATCH_IDS.map((h) => <option key={h} value={h}>{HATCH_PATTERNS[h].label}</option>)}
+          {/* A drawing's pattern being used, not in the project's list. */}
+          {spec.custom && !patterns.some((p) => p.name === spec.custom!.name) && <option value={value}>{customLabel(spec.custom)}</option>}
+          {patterns.map((p) => <option key={p.name} value={`custom:${p.name}`}>{customLabel(p)}</option>)}
         </select></label>
-        {spec.pattern !== 'solid' && <label>Spacing (paper mm)<input aria-label="Hatch spacing" type="number" step="0.5" min="0.5" value={spec.scale} onChange={(e) => onSpec({ ...spec, scale: Number(e.target.value) || 3 })} /></label>}
-        {spec.pattern !== 'solid' && !patternOf(spec.pattern).noAngle && <label>Angle (°)<input aria-label="Hatch angle" type="number" step="15" value={spec.angle} onChange={(e) => onSpec({ ...spec, angle: Number(e.target.value) || 0 })} /></label>}
+        {!def.solid && <label>Spacing (paper mm)<input aria-label="Hatch spacing" type="number" step="0.5" min="0.5" value={spec.scale} onChange={(e) => onSpec({ ...spec, scale: Number(e.target.value) || 3 })} /></label>}
+        {!def.solid && !def.noAngle && <label>Angle (°)<input aria-label="Hatch angle" type="number" step="15" value={spec.angle} onChange={(e) => onSpec({ ...spec, angle: Number(e.target.value) || 0 })} /></label>}
         <span className="m">Click inside a closed drawn object (polyline, rectangle, circle) or a room: the area is hatched on LV-HATCH. Plant rooms, risers, no-go zones.</span>
+        {onImport && <>
+          <input ref={file} type="file" accept=".pat" hidden aria-label="Hatch pattern file" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onImport(await f.text(), f.name); }} />
+          <button className="chip" onClick={() => file.current?.click()}>Import .pat…</button>
+        </>}
       </div>
     </>
   );
