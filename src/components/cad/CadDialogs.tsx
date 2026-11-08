@@ -12,7 +12,7 @@ type Pos = { left: number; top: number };
 const POS = (id: string) => `lvds.cad.dlg.${id}`;
 /** A place in the window: a dialog moved off it, or remembered from a larger window, comes back in view. */
 const inView = (p: Pos): Pos => ({ left: Math.min(Math.max(0, p.left), Math.max(0, window.innerWidth - 240)), top: Math.min(Math.max(0, p.top), Math.max(0, window.innerHeight - 120)) });
-const placeOf = (id: string): Pos => { try { const p = JSON.parse(localStorage.getItem(POS(id)) ?? 'null') as Pos | null; if (p && Number.isFinite(p.left) && Number.isFinite(p.top)) return inView(p); } catch { /* not remembered */ } return { left: 12, top: 12 }; };
+const placeOf = (id: string): Pos => { try { const p = JSON.parse(localStorage.getItem(POS(id)) ?? 'null') as Pos | null; if (p && Number.isFinite(p.left) && Number.isFinite(p.top)) return inView(p); } catch { /* not remembered */ } return { left: 12 + (document.querySelector<HTMLElement>('.cad-work > .cad-dock.left')?.offsetWidth ?? 0), top: 12 }; };
 
 /** The dialog's frame: title (dragged to move it), body rows, and ? / Cancel / OK. */
 export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK', wide, extra, children }: {

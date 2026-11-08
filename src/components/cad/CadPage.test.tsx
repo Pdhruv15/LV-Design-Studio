@@ -2166,3 +2166,48 @@ describe('Design CAD File: Save, Save As, Close and Drafting settings', () => {
     expect(back.info.segments).toBe(4);
   });
 });
+
+describe('Design CAD properties dock', () => {
+  const dock = () => document.querySelector('.cad-dock') as HTMLElement;
+  const head = () => document.querySelector('.cad-dock-h')?.textContent ?? '';
+  const press = (label: string) => act(() => { (document.querySelector(`.cad-dock button[aria-label="${label}"]`) as HTMLButtonElement).click(); });
+
+  it('stands left of the drawing and shows what is picked: nothing, the architect\'s object, a device', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    expect(document.querySelector('.cad-work')!.firstElementChild).toBe(dock());
+    expect(dock().className).toContain('left');
+    expect(head()).toContain('No selection');
+    expect(dock().textContent).toContain('sample-villa-gf.dxf'); // the drawing, with nothing picked
+    expect(dock().querySelector('[aria-label="Properties palette"]')).not.toBeNull(); // defaults for new objects
+    await clickAt(6687.5 + 190, 7375); // the architect's light block
+    expect(head()).toContain('Block · L1');
+    expect(dock().textContent).toMatch(/LayerE-LIGHT/);
+    expect(dock().querySelector('[aria-label="Properties palette"]')).toBeNull(); // nothing of it to edit
+    act(() => state.toggle('osnap'));
+    act(() => { state.setDevice('camera'); state.setTool('dev'); });
+    await clickAt(5000, 5000);
+    act(() => state.setTool('none'));
+    await clickAt(5000, 5000);
+    expect(head()).toMatch(/Camera/i);
+    expect(dock().textContent).toMatch(/Room/);
+    expect(dock().textContent).toMatch(/Position/);
+  });
+
+  it('folds to a strip and opens again; docks on the right and remembers it', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    press('Fold the properties palette');
+    expect(dock().className).toContain('folded');
+    press('Show the properties palette');
+    expect(dock().className).not.toContain('folded');
+    press('Dock on the right');
+    expect(document.querySelector('.cad-work')!.lastElementChild).toBe(dock());
+    expect(JSON.parse(localStorage.getItem('lvds.cad.dock')!)).toMatchObject({ side: 'right' });
+    act(() => root.unmount());
+    root = createRoot(host);
+    act(() => root.render(<Host />));
+    await flush();
+    expect(dock().className).toContain('right');
+  });
+});

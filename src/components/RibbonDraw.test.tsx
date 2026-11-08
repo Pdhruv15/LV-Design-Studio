@@ -61,7 +61,7 @@ const item = (label: string) => [...document.querySelectorAll('[role="menuitem"]
 describe('Design CAD ribbon: sub-tabs by use', () => {
   it('opens on Drafting the first time, then on the sub-tab used last; a running tool shows its sub-tab', () => {
     show();
-    expect(selected()).toBe('Drafting');
+    expect(selected()).toBe('LVCAD');
     pick(ELEC);
     expect(localStorage.getItem('lvds.cadSub')).toBe('elec');
     act(() => root.unmount());
@@ -69,7 +69,7 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
     const again = show();
     expect(selected()).toBe(ELEC);
     again.rerender({ tool: 'text' });
-    expect(selected()).toBe('Drafting');
+    expect(selected()).toBe('LVCAD');
     again.rerender({ tool: 'tray' });
     expect(selected()).toBe(ELEC);
     localStorage.setItem('lvds.cadSub', 'page'); // a sub-tab of v2.053: the one with the sheet set now
@@ -89,20 +89,20 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
       expect(seen.filter((x, i) => seen.indexOf(x) !== i)).toEqual([]); // no tool twice
       return { panels, seen };
     };
-    const shown = look(['Drafting', ELEC]);
-    expect(shown.panels).toEqual({ Drafting: DRAFTING, [ELEC]: ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Reference', 'Sheet set', 'Layouts'] });
+    const shown = look(['LVCAD', ELEC]);
+    expect(shown.panels).toEqual({ LVCAD: DRAFTING, [ELEC]: ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Reference', 'Sheet set', 'Layouts'] });
     expect(shown.seen).not.toContain('Object snap'); // the status bar's toggles stay on the status bar
     rerender({ labels: true });
-    const all = look(['Drafting', 'Layers & properties', 'Electrical & ELV', 'Sheets']);
+    const all = look(['LVCAD', 'Layers & properties', 'Electrical & ELV', 'Sheets']);
     expect(all.panels).toEqual({
-      Drafting: ['Draw', 'Modify', 'Annotate'], 'Layers & properties': ['Layers', 'Properties', 'Measure'],
+      LVCAD: ['Draw', 'Modify', 'Annotate'], 'Layers & properties': ['Layers', 'Properties', 'Measure'],
       'Electrical & ELV': ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring'], Sheets: ['Reference', 'Sheet set', 'Layouts']
     });
     expect([...all.seen].sort()).toEqual([...shown.seen].sort()); // the same tools, only arranged otherwise
     // The place is kept: Layers & properties with labels is Drafting as shown, and back.
     pick('Layers & properties');
     rerender({ labels: false });
-    expect(selected()).toBe('Drafting');
+    expect(selected()).toBe('LVCAD');
     rerender({ labels: true });
     expect(selected()).toBe('Layers & properties');
   });
@@ -133,7 +133,7 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
     click(tool('Attach'));
     click(tool('Clip'));
     expect((cad.onCommand as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0])).toEqual(['STYLE', 'DIMSTYLE', 'LAYOFF', 'LAYFRZ', 'LAYLCK', 'LAYISO', 'LAYMCUR', 'LAYON', 'LAYTHW', 'LAYULK', 'LAYUNISO', 'LAYER N', 'XATTACH', 'XCLIP']);
-    pick('Drafting');
+    pick('LVCAD');
     click(tool('Measure'));
     expect(cad.onTool).toHaveBeenLastCalledWith('dist');
     fromList('Measure', 'Area (AREA)');
@@ -298,12 +298,12 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     rerender({ labels: true });
     expect(selected()).toBe('Sheets');
     expect(groups()).toEqual(['Sheet', 'Sheet set', 'Plot', 'Issue and export']);
-    pick('Drafting');
+    pick('LVCAD');
     expect(groups()).toEqual(['Markup', 'On panels']); // drawing on a sheet is its markup
     rerender({ labels: false });
     expect(selected()).toBe(ELEC);
     expect(onView).not.toHaveBeenCalled();
-    pick('Drafting');
+    pick('LVCAD');
     expect(onView).toHaveBeenLastCalledWith('cad'); // the drafting sub-tab shows the drawing
   });
 
@@ -329,7 +329,7 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     rerender({ labels: true, onPaper: true });
     pick('Sheets');
     expect(groups()).toEqual(['Reference', 'Sheet set', 'Layouts', 'Viewports']);
-    pick('Drafting');
+    pick('LVCAD');
     expect(groups()).toEqual(['Draw', 'Modify', 'Markup']);
   });
 

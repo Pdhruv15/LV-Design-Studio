@@ -155,12 +155,12 @@ export interface CadTab { id: string; label: string; groups: number[]; sheet?: n
  * sub-tabs. On a layout's paper, the markup takes the place of Annotate. File (open, save, close) is a menu beside them. */
 export const CAD_TABS: Record<'named' | 'labels', CadTab[]> = {
   named: [
-    { id: 'drafting', label: 'Drafting', groups: [G.draw, G.modify, G.annotate, G.layers, G.props, G.measure], paper: [G.draw, G.modify, G.markup, G.layers, G.props, G.measure], sheet: [] },
+    { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.annotate, G.layers, G.props, G.measure], paper: [G.draw, G.modify, G.markup, G.layers, G.props, G.measure], sheet: [] },
     { id: 'elec', label: 'Electrical, ELV & sheets', groups: [G.rooms, G.cables, G.devices, G.editDevices, G.wiring, G.reference, G.sheetSet, G.layouts], layout: [G.viewports],
       sheet: [G.markup, G.onPanels, G.sheet, G.sheetSet, G.plot, G.issue] }
   ],
   labels: [
-    { id: 'drafting', label: 'Drafting', groups: [G.draw, G.modify, G.annotate], paper: [G.draw, G.modify, G.markup], sheet: [G.markup, G.onPanels] },
+    { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.annotate], paper: [G.draw, G.modify, G.markup], sheet: [G.markup, G.onPanels] },
     { id: 'layers', label: 'Layers & properties', groups: [G.layers, G.props, G.measure], sheet: [] },
     { id: 'elec', label: 'Electrical & ELV', groups: [G.rooms, G.cables, G.devices, G.editDevices, G.wiring], sheet: [] },
     { id: 'sheets', label: 'Sheets', groups: [G.reference, G.sheetSet, G.layouts], layout: [G.viewports], sheet: [G.sheet, G.sheetSet, G.plot, G.issue] }

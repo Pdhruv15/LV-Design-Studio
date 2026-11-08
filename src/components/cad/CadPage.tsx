@@ -80,6 +80,8 @@ type Result =
   | { kind: 'sketch'; it: SketchItem };
 
 const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.toString(16).padStart(6, '0')}`);
+/** The properties dock's width: default and limits (px), and where its side and width are kept. */
+const DOCK_W = 280, DOCK_MIN = 220, DOCK_MAX = 480, DOCK_KEY = 'lvds.cad.dock';
 const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab }[] = [
   { k: 'snap', label: 'SNAP', key: 'F9', tab: 'snap' }, { k: 'osnap', label: 'OSNAP', key: 'F3', tab: 'osnap' }, { k: 'polar', label: 'POLAR', key: 'F10', tab: 'polar' }, { k: 'otrack', label: 'OTRACK', key: 'F11', tab: 'polar' },
   { k: 'ortho', label: 'ORTHO', key: 'F8', tab: 'polar' }, { k: 'grid', label: 'GRID', key: 'F7', tab: 'snap' }, { k: 'dyn', label: 'DYN', key: 'F12', tab: 'dyn' }, { k: 'lwt', label: 'LWT', key: 'LWT', tab: 'cursor' }
@@ -312,6 +314,21 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // closes them once saved.
   const [closing, setClosing] = useState<CadView[] | null>(null);
   const closeAfterSave = useRef<CadView[] | null>(null);
+  // The properties dock: its side and width, kept on this computer.
+  const [dockState, setDockState] = useState<{ side: 'left' | 'right'; w: number }>(() => {
+    try { const d = JSON.parse(localStorage.getItem(DOCK_KEY) ?? 'null') as { side?: string; w?: number } | null; return { side: d?.side === 'right' ? 'right' : 'left', w: Math.max(DOCK_MIN, Math.min(DOCK_MAX, Number(d?.w) || DOCK_W)) }; }
+    catch { return { side: 'left', w: DOCK_W }; }
+  });
+  const setDock = (p: Partial<typeof dockState>) => setDockState((d) => { const n = { ...d, ...p }; try { localStorage.setItem(DOCK_KEY, JSON.stringify(n)); } catch { /* not kept */ } return n; });
+  const dockSide = dockState.side;
+  /** Dragging the dock's inner edge widens or narrows it (DOCK_MIN–DOCK_MAX px). */
+  const startDockDrag = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const x0 = e.clientX, w0 = dockState.w, sign = dockSide === 'left' ? 1 : -1;
+    const move = (ev: PointerEvent) => setDock({ w: Math.max(DOCK_MIN, Math.min(DOCK_MAX, Math.round(w0 + sign * (ev.clientX - x0)))) });
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  };
   const closeNow = (views?: CadView[]) => { setClosing(null); closeAfterSave.current = null; const done = cad.close(views); if (done) onStatus(done); };
   const closeDrawings = (views?: CadView[]) => {
     const going = views ?? cad.drawings;
@@ -1959,12 +1976,192 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               }} {...vpProps} />
   );
 
+  // The properties dock (Ctrl/Cmd+1 folds it): in place of the Panels list, on the left (or the right, ⇄), as wide as
+  // dragged. What is picked, its properties and details first; then the tool's own settings, plans and layers.
+  // What is picked, named in the dock's header.
+  const pickedName = many ? `${pickedSk.length + pickedItems.length} picked`
+    : selSketch ? kindOf(selSketch)
+    : result?.kind === 'device' ? result.it.label
+    : result?.kind === 'object' ? `${result.o.kind}${result.o.block ? ` · ${result.o.block}` : ''}` : '';
+  const dockCol = showProps ? `${dockState.w}px` : '26px';
+  const workColumns = [dockSide === 'left' ? dockCol : '', showLM && view ? '420px' : '', 'minmax(0,1fr)', dockSide === 'right' ? dockCol : ''].filter(Boolean).join(' ');
+  const dock = !showProps ? (
+    <aside className="cad-dock folded" aria-label="Properties (folded)">
+      <button type="button" aria-label="Show the properties palette" title="Properties (Ctrl/Cmd+1)" onClick={() => setShowProps(true)}>{dockSide === 'left' ? '»' : '«'}<b>Properties</b></button>
+    </aside>
+  ) : (
+    <aside className={`cad-side cad-dock ${dockSide}`} aria-label="Properties">
+      <div className="cad-dock-h">
+        <b>Properties</b><span className="m">{pickedName || (view ? 'No selection' : '')}</span><span className="sp" />
+        <button type="button" title="Layer palette (LM)" disabled={!view} onClick={() => setShowLM((v) => !v)}>Layers</button>
+        <button type="button" aria-label={`Dock on the ${dockSide === 'left' ? 'right' : 'left'}`} title={`Dock on the ${dockSide === 'left' ? 'right' : 'left'}`} onClick={() => setDock({ side: dockSide === 'left' ? 'right' : 'left' })}>⇄</button>
+        <button type="button" aria-label="Fold the properties palette" title="Fold (Ctrl/Cmd+1)" onClick={() => setShowProps(false)}>{dockSide === 'left' ? '«' : '»'}</button>
+      </div>
+      <div className="cad-dock-b">
+            {sheetL && selV && <ViewportPanel project={project} sheet={sheetL} vp={selV} refs={xr.refs.map((r) => r.name)} onChange={(patch, what) => patchVp(selV, patch, what)}
+            onDelete={() => { setVps((l) => l.filter((x) => x.id !== selV.id), `${vpName(vps, selV.id)} deleted${vps.length === 1 ? ' (the layout shows the level as worked out again)' : ''}`); cad.setVpSel(null); cad.setMsVp(null); }}
+            onLayers={() => setShowLM(true)} />}
+          {view && (pickedSk.length > 0 || !pickedName) && <PropertiesPalette key={pickedSk.map((it) => it.id).join()} items={pickedSk} devices={pickedItems.length} layers={drawnLayers(sketch, [...(layerFile.layers ?? []), curLayer])} styles={styles} current={curLayer} textMm={anno.textMm} k={units.factor}
+                  onItems={(next, what) => change(next.reduce((q, it) => updateSketch(q, fileOf(), it), project), `${what} · ⌘Z to undo`)}
+                  onCurrent={setCurrentLayer} newProps={newProps} onNewProps={setProps} onTextMm={(mm) => change({ ...project, cadAnno: { ...anno, textMm: mm } }, `Annotation: ${mm} mm text at 1:${anno.scale} · ⌘Z to undo`)}
+                  bare />}
+          <h4>{pickedName ? 'Selected' : result ? 'Result' : 'Drawing'}{pickedName && <span className="m">{pickedName}</span>}</h4>
+          <div className="cad-res">
+            {many && pickedSk.length ? <DrawnSelectionPanel items={pickedSk} devices={pickedItems.length} onEdit={editSketch} /> : many ? <SelectionPanel key={[...pickedKeys].join()} project={project} items={pickedItems} circuits={circuits} level={floor ? floorLabel(project.building, floor) : undefined} onEdit={editDevices} /> : result ? <ResultView r={result.kind === 'sketch' && selSketch ? { kind: 'sketch', it: selSketch } : result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} onMove={() => cad.setTool('move')} onRemove={removeSelected} onCopy={() => cad.setTool('copy')} onRotate={() => cad.setTool('rotate')} onAdded={() => setResult(null)} fittings={fittings} /> : view ? (
+              <>{view.file}<br /><span className="m">{view.info.format} · {units.label}{units.assumed ? ' (not set in the drawing: taken as mm)' : ''} · {fmtUpTo(view.info.segments, 0)} lines · {view.info.texts.length} texts</span><br /><span className="m">{editPrompt(tool, edSet)}</span></>
+            ) : <span className="m">No drawing open.</span>}
+            {view && SAMPLE_PLANS.some((x) => x.file === view.file) && (
+              <div className="cad-sample">
+                Sample plan for testing{' '}
+                <select aria-label="Sample floor" value={view.file} onChange={(e) => { const file = e.target.value; showOrLoad(file, () => sampleDrawing(file)); }}>
+                  {SAMPLE_PLANS.map((x) => <option key={x.file} value={x.file}>{x.label}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+          {tool === 'tray' && view && (
+            <>
+              <h4>Cable tray</h4>
+              <div className="cad-devform">
+                <TrayFields project={project} widthMm={cad.tray.widthMm} service={cad.tray.service} route={cad.tray.route} onChange={(t) => cad.setTray({ ...cad.tray, ...t })} />
+                <span className="m">Click the run's points, Enter to finish. The route can be left for later. End a run on another tray for a tee; a run of another width in line makes a reducer.</span>
+              </div>
+              <Fittings fittings={fittings} title="Fittings on this plan" />
+            </>
+          )}
+          {(tool === 'cable' || tool === 'link') && view && (
+            <>
+              <h4>Cable route</h4>
+              <div className="cad-devform">
+                <label>Cable<select aria-label="Cable" value={cad.cableFeeder} onChange={(e) => cad.setCableFeeder(e.target.value)}>
+                  <option value="">Choose a cable…</option>
+                  {cables.map((f) => <option key={f.id} value={f.id}>{cableLabel(project, f)}</option>)}
+                </select></label>
+                <span className="m">{tool === 'cable' ? 'Click the route\'s points, Enter to finish.' : 'Click a line or polyline of the drawing (e.g. on a cable layer).'} Update schedules then gives the cable its length, and the tray routes it runs along.</span>
+              </div>
+            </>
+          )}
+          {tool === 'wire' && view && (
+            <>
+              <h4>Wiring</h4>
+              <div className="cad-devform">
+                {wiring.map((w) => <span key={w.feederId} className="m">{w.tag}{w.warning ? ` — ${w.warning}` : ''}</span>)}
+                <span className="m">{wiring.length ? `${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on this level. Update schedules sends the lengths to the cable schedule.` : 'No circuit wired on this level yet: click a device, or use Wire circuits.'}</span>
+              </div>
+            </>
+          )}
+          {tool === 'lux' && view && (
+            <RoomLightingPanel project={project} room={luxOf} lit={lit} settings={luxSet} onSettings={setLuxSet} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId} onPlace={placeLux} onCancel={() => { setLuxRoom(null); cad.say(`Command: ${PROMPT.lux}`); }} />
+          )}
+          {tool === 'arl' && view && (
+            <ArrayPanel project={project} settings={arlSet} onSettings={setArlSet} palette={palette} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId}
+              lengthM={points.length >= 2 ? distance(points[0], points[1]) * units.factor : undefined} at={points.length >= 2 ? arlAt : []} onPlace={placeArl} onCancel={() => { setPoints([]); cad.say(`Command: ${PROMPT.arl}`); }} />
+          )}
+          {EDIT_TOOLS.includes(tool) && !DIALOG_TOOLS.includes(tool as EditTool) && view && (
+            <EditToolPanel tool={tool as EditTool} settings={edSet} onSettings={setEdSet} picked={pickedSk.length}
+              step={edStep ? `${kindOf(sketch.find((x) => x.id === edStep.id) ?? sketch[0])} picked — ${tool === 'offset' ? 'click the side' : tool === 'break' ? 'click the second point, or Enter' : 'click the second line'}` : stretchBox ? 'Window set — click the base point, then the second point' : PICK_FIRST.includes(tool) && edPhase === 'points' ? 'Objects picked — now the points' : undefined}
+              onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
+          )}
+          {tool === 'hatch' && view && <HatchPanel spec={hatchSet} onSpec={setHatchSet} />}
+          {(tool === 'text' || tool === 'dim' || tool === 'leader' || tool === 'rtag' || tool === 'north') && view && (
+            <AnnoPanel anno={anno} onAnno={(a) => onChange({ ...project, cadAnno: a }, `Annotation: ${a.textMm} mm text at 1:${a.scale}`)}
+              {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Two points, then where the dimension line goes.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
+          )}
+          {tool === 'matchprop' && view && <><h4>Match properties <span className="m">MP</span></h4><div className="cad-devform"><span className="m">{mpFrom ? 'Click each object to give it the layer, colour, linetype and lineweight of the first; Esc stops. Trays and cable routes keep their layers.' : 'Click the object to copy from.'}</span></div></>}
+          {tool === 'match' && view && <MatchPanel from={placed.find((x) => x.key === matchFrom)} settings={matchSet} onSettings={setMatchSet} />}
+          {tool === 'em' && view && (
+            <EmergencyPanel project={project} settings={emSet} onSettings={(s) => { if (s.mode !== emSet.mode) { setPoints([]); cad.say(EM_PROMPT[s.mode]); } setEmSet(s); }} layout={emLayout} routes={em.routes.length} openRooms={emRooms.map((r) => r.name)} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId} onPlace={placeEm} onCancel={() => { setEm({ routes: [], points: [], rooms: [] }); setPoints([]); cad.say(`Command: ${PROMPT.em}`); }} />
+          )}
+          {(tool === 'dev' || tool === 'move' || tool === 'fill') && view && (
+            <>
+              <h4>Devices</h4>
+              <div className="cad-pal" role="group" aria-label="Device to place">
+                {palette.map((x) => (
+                  <button key={x.id} aria-pressed={cad.device === x.id} className={'elv' in x.kind ? 'elv' : 'lv'} onClick={() => { cad.setDevice(x.id); if (tool !== 'fill' || !('elv' in x.kind)) cad.setTool('dev'); }}>{x.symbol.text || '●'}<span>{x.label}</span></button>
+                ))}
+              </div>
+              <div className="cad-devform">
+                {floors.length > 0 && (
+                  <label>This drawing shows<select aria-label="Level of this drawing" value={floor?.key} onChange={(e) => { const f = floors.find((x) => x.key === e.target.value); if (f && view) setPlanLevel(project, view.file, f, change, view.info.units); }}>{floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}</select></label>
+                )}
+                {'lv' in item.kind && (
+                  <label>Circuit<select aria-label="Circuit" value={cad.feederId} onChange={(e) => cad.setFeederId(e.target.value)}>
+                    <option value="">Choose a circuit…</option>
+                    {circuits.map((f) => <option key={f.id} value={f.id}>{circuitLabel(project, f)}</option>)}
+                  </select></label>
+                )}
+                {'board' in item.kind && (
+                  <label>Board<select aria-label="Board" value={cad.boardId} onChange={(e) => cad.setBoardId(e.target.value)}>
+                    <option value="">Choose a board…</option>
+                    {project.boards.map((b) => <option key={b.id} value={b.id}>{b.id} · {b.name}</option>)}
+                  </select></label>
+                )}
+                {!floors.length && <p className="m">Add the building and its levels in Building information first; devices are kept per level.</p>}
+                <span className="m">{placed.length} device{placed.length === 1 ? '' : 's'} on this level</span>
+                {elvItem && <span className="m">{elvItem.label}{coverageNote(elvItem.kind.elv)} · {SYSTEM_LABEL[elvSystem]}{cad.coverage && elv ? ` · ${elv.coverage.filter((c) => c.gaps.length).length} room${elv.coverage.filter((c) => c.gaps.length).length === 1 ? '' : 's'} not fully covered` : ''}</span>}
+              </div>
+            </>
+          )}
+          {plans.length > 0 && (
+            <>
+              <h4>Plans</h4>
+              <div className="cad-layers" role="list" aria-label="Plans of this project">
+                {plans.map((x) => {
+                  const here = !!view && levelSet && floor?.key === x.floor.key;
+                  const inTab = !!x.file && !!cad.tabOf(x.file);
+                  const canOpen = !!x.file && (inTab || SAMPLE_PLANS.some((s) => s.file === x.file) || (!!pathOfPlan(project.id, x.file) && !!window.lvds?.cadFile?.readBytes));
+                  return (
+                    <button key={x.floor.key} role="listitem" className={`cad-lyr${x.file ? '' : ' off'}`} aria-current={here || undefined} disabled={busy || here || (!!x.file && !canOpen)}
+                      title={x.file ? (canOpen ? `Open ${x.file}` : `${x.file}: open it from Plans (its folder is not known on this computer)`) : `Open a drawing as the plan of ${x.label}`}
+                      onClick={() => showOrLoad(x.file ?? '', async () => {
+                        const v = !x.file ? await chooseDrawing() : SAMPLE_PLANS.some((s) => s.file === x.file) ? await sampleDrawing(x.file) : await reopenDrawing(pathOfPlan(project.id, x.file)!);
+                        if (v && !x.file) setPlanLevel(project, v.file, x.floor, change, v.info.units);
+                        return v;
+                      }, 'That drawing is no longer where it was. Open it from Plans.')}>
+                      <b>{x.label}</b>{x.file ?? 'no plan'}<span className="m">{here || inTab ? 'open' : x.file ? '' : 'open…'}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+          {view && cad.showRoles && (
+            <>
+              <h4>Layer roles</h4>
+              <div>
+                <CadLayerTable layers={layerStats} roles={roles}
+                  onChange={(layer: string, role: CadLayerRole) => change(withLayerMap(project, roles.map((x) => (x.layer === layer ? { ...x, role } : x))), `Layer ${layer}: ${role} · ⌘Z to undo`)}
+                  onApplyMap={(m: CadLayerMap[]) => change(withLayerMap(project, m), 'Layer template applied · ⌘Z to undo')} />
+              </div>
+            </>
+          )}
+          {cad.showLayers && <>
+          <h4>Layers {view && <span className="cad-lyr-all"><button onClick={() => layerChange(applyLayerPatch(project, view.file, lRows.filter((r) => r.group === 'arch'), { on: true }), 'LAYER  All layers on')}>All on</button></span>}</h4>
+          <div className="cad-layers">
+            {view && placed.length > 0 && (
+              <button className={`cad-lyr${cad.showDevices ? '' : ' off'}`} aria-pressed={cad.showDevices} onClick={() => cad.setShowDevices(!cad.showDevices)}>
+                <i style={{ background: 'var(--cad-dev)' }} />Devices placed in the app<span className="m">{cad.showDevices ? 'on' : 'off'}</span>
+              </button>
+            )}
+            {view?.info.layers.map((l, i) => l.count > 0 || view.info.texts.some((t) => t.layer === i) ? (
+              <button key={l.name} className={`cad-lyr${archOn[i] ? '' : ' off'}`} aria-pressed={!!archOn[i]} title={`${fmtUpTo(l.count, 0)} lines`} onClick={() => layerChange(applyLayerPatch(project, view.file, [{ name: l.name, group: 'arch', drawingOn: l.on }], { on: !archOn[i] }), `Layer ${l.name} ${archOn[i] ? 'off' : 'on'}`)}>
+                <i style={{ background: hex(l.rgb) }} />{l.name}<span className="m">{archOn[i] ? 'on' : 'off'}</span>
+              </button>
+            ) : null)}
+            {view && <RefLayersList x={xr} />}
+          </div>
+          </>}
+      </div>
+      <span className={`cad-dock-grip ${dockSide}`} role="separator" aria-orientation="vertical" aria-label="Palette width" onPointerDown={startDockDrag} />
+    </aside>
+  );
   const on = (k: keyof CadToggles) => (k === 'lwt' ? cad.toggles.lwt !== false : !!cad.toggles[k]);
   const fileLists = dsTab ? cadFileMenu(project, cad, (next, message) => onChange(next, message), onStatus) : null;
   return (
     <section className="cad" ref={page}>
       <CadTabs cad={cad} project={project} busy={busy} onOpen={openFile} onClose={closeDrawings} />
-      <div className="cad-work">
+      <div className="cad-work" style={{ gridTemplateColumns: workColumns }}>
+        {dockSide === 'left' && dock}
         {showLM && view && (
           <LayerPalette file={view.file} rows={lRows} current={curLayer} states={layerFile.states ?? []} isolated={!!layerFile.iso}
             viewport={sheetL && vpTarget ? { name: vpName(vps, vpTarget.id), frozen: (l) => isFrozen(vpTarget, l), toggle: (l) => patchVp(vpTarget, toggleFrozen(vpTarget, l), `${l} ${isFrozen(vpTarget, l) ? 'thawed' : 'frozen'} here`) } : undefined}
@@ -2057,165 +2254,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             </div>
           </div>
         )}
-        {(cad.showLayers || (showProps && view)) && (
-          <aside className="cad-side">
-            {showProps && view && (
-              <PropertiesPalette key={pickedSk.map((it) => it.id).join()} items={pickedSk} devices={pickedItems.length} layers={drawnLayers(sketch, [...(layerFile.layers ?? []), curLayer])} styles={styles} current={curLayer} textMm={anno.textMm} k={units.factor}
-                onItems={(next, what) => change(next.reduce((q, it) => updateSketch(q, fileOf(), it), project), `${what} · ⌘Z to undo`)}
-                onCurrent={setCurrentLayer} newProps={newProps} onNewProps={setProps} onTextMm={(mm) => change({ ...project, cadAnno: { ...anno, textMm: mm } }, `Annotation: ${mm} mm text at 1:${anno.scale} · ⌘Z to undo`)}
-                onClose={() => setShowProps(false)} />
-            )}
-            {cad.showLayers && <>
-            {sheetL && selV && <ViewportPanel project={project} sheet={sheetL} vp={selV} refs={xr.refs.map((r) => r.name)} onChange={(patch, what) => patchVp(selV, patch, what)}
-              onDelete={() => { setVps((l) => l.filter((x) => x.id !== selV.id), `${vpName(vps, selV.id)} deleted${vps.length === 1 ? ' (the layout shows the level as worked out again)' : ''}`); cad.setVpSel(null); cad.setMsVp(null); }}
-              onLayers={() => setShowLM(true)} />}
-            <h4>Result</h4>
-            <div className="cad-res">
-              {many && pickedSk.length ? <DrawnSelectionPanel items={pickedSk} devices={pickedItems.length} onEdit={editSketch} /> : many ? <SelectionPanel key={[...pickedKeys].join()} project={project} items={pickedItems} circuits={circuits} level={floor ? floorLabel(project.building, floor) : undefined} onEdit={editDevices} /> : result ? <ResultView r={result.kind === 'sketch' && selSketch ? { kind: 'sketch', it: selSketch } : result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} onMove={() => cad.setTool('move')} onRemove={removeSelected} onCopy={() => cad.setTool('copy')} onRotate={() => cad.setTool('rotate')} onAdded={() => setResult(null)} fittings={fittings} /> : view ? (
-                <>{view.file}<br /><span className="m">{view.info.format} · {units.label}{units.assumed ? ' (not set in the drawing: taken as mm)' : ''} · {fmtUpTo(view.info.segments, 0)} lines · {view.info.texts.length} texts</span><br /><span className="m">{editPrompt(tool, edSet)}</span></>
-              ) : <span className="m">No drawing open.</span>}
-              {view && SAMPLE_PLANS.some((x) => x.file === view.file) && (
-                <div className="cad-sample">
-                  Sample plan for testing{' '}
-                  <select aria-label="Sample floor" value={view.file} onChange={(e) => { const file = e.target.value; showOrLoad(file, () => sampleDrawing(file)); }}>
-                    {SAMPLE_PLANS.map((x) => <option key={x.file} value={x.file}>{x.label}</option>)}
-                  </select>
-                </div>
-              )}
-            </div>
-            {tool === 'tray' && view && (
-              <>
-                <h4>Cable tray</h4>
-                <div className="cad-devform">
-                  <TrayFields project={project} widthMm={cad.tray.widthMm} service={cad.tray.service} route={cad.tray.route} onChange={(t) => cad.setTray({ ...cad.tray, ...t })} />
-                  <span className="m">Click the run's points, Enter to finish. The route can be left for later. End a run on another tray for a tee; a run of another width in line makes a reducer.</span>
-                </div>
-                <Fittings fittings={fittings} title="Fittings on this plan" />
-              </>
-            )}
-            {(tool === 'cable' || tool === 'link') && view && (
-              <>
-                <h4>Cable route</h4>
-                <div className="cad-devform">
-                  <label>Cable<select aria-label="Cable" value={cad.cableFeeder} onChange={(e) => cad.setCableFeeder(e.target.value)}>
-                    <option value="">Choose a cable…</option>
-                    {cables.map((f) => <option key={f.id} value={f.id}>{cableLabel(project, f)}</option>)}
-                  </select></label>
-                  <span className="m">{tool === 'cable' ? 'Click the route\'s points, Enter to finish.' : 'Click a line or polyline of the drawing (e.g. on a cable layer).'} Update schedules then gives the cable its length, and the tray routes it runs along.</span>
-                </div>
-              </>
-            )}
-            {tool === 'wire' && view && (
-              <>
-                <h4>Wiring</h4>
-                <div className="cad-devform">
-                  {wiring.map((w) => <span key={w.feederId} className="m">{w.tag}{w.warning ? ` — ${w.warning}` : ''}</span>)}
-                  <span className="m">{wiring.length ? `${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on this level. Update schedules sends the lengths to the cable schedule.` : 'No circuit wired on this level yet: click a device, or use Wire circuits.'}</span>
-                </div>
-              </>
-            )}
-            {tool === 'lux' && view && (
-              <RoomLightingPanel project={project} room={luxOf} lit={lit} settings={luxSet} onSettings={setLuxSet} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId} onPlace={placeLux} onCancel={() => { setLuxRoom(null); cad.say(`Command: ${PROMPT.lux}`); }} />
-            )}
-            {tool === 'arl' && view && (
-              <ArrayPanel project={project} settings={arlSet} onSettings={setArlSet} palette={palette} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId}
-                lengthM={points.length >= 2 ? distance(points[0], points[1]) * units.factor : undefined} at={points.length >= 2 ? arlAt : []} onPlace={placeArl} onCancel={() => { setPoints([]); cad.say(`Command: ${PROMPT.arl}`); }} />
-            )}
-            {EDIT_TOOLS.includes(tool) && !DIALOG_TOOLS.includes(tool as EditTool) && view && (
-              <EditToolPanel tool={tool as EditTool} settings={edSet} onSettings={setEdSet} picked={pickedSk.length}
-                step={edStep ? `${kindOf(sketch.find((x) => x.id === edStep.id) ?? sketch[0])} picked — ${tool === 'offset' ? 'click the side' : tool === 'break' ? 'click the second point, or Enter' : 'click the second line'}` : stretchBox ? 'Window set — click the base point, then the second point' : PICK_FIRST.includes(tool) && edPhase === 'points' ? 'Objects picked — now the points' : undefined}
-                onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
-            )}
-            {tool === 'hatch' && view && <HatchPanel spec={hatchSet} onSpec={setHatchSet} />}
-            {(tool === 'text' || tool === 'dim' || tool === 'leader' || tool === 'rtag' || tool === 'north') && view && (
-              <AnnoPanel anno={anno} onAnno={(a) => onChange({ ...project, cadAnno: a }, `Annotation: ${a.textMm} mm text at 1:${a.scale}`)}
-                {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Two points, then where the dimension line goes.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
-            )}
-            {tool === 'matchprop' && view && <><h4>Match properties <span className="m">MP</span></h4><div className="cad-devform"><span className="m">{mpFrom ? 'Click each object to give it the layer, colour, linetype and lineweight of the first; Esc stops. Trays and cable routes keep their layers.' : 'Click the object to copy from.'}</span></div></>}
-            {tool === 'match' && view && <MatchPanel from={placed.find((x) => x.key === matchFrom)} settings={matchSet} onSettings={setMatchSet} />}
-            {tool === 'em' && view && (
-              <EmergencyPanel project={project} settings={emSet} onSettings={(s) => { if (s.mode !== emSet.mode) { setPoints([]); cad.say(EM_PROMPT[s.mode]); } setEmSet(s); }} layout={emLayout} routes={em.routes.length} openRooms={emRooms.map((r) => r.name)} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId} onPlace={placeEm} onCancel={() => { setEm({ routes: [], points: [], rooms: [] }); setPoints([]); cad.say(`Command: ${PROMPT.em}`); }} />
-            )}
-            {(tool === 'dev' || tool === 'move' || tool === 'fill') && view && (
-              <>
-                <h4>Devices</h4>
-                <div className="cad-pal" role="group" aria-label="Device to place">
-                  {palette.map((x) => (
-                    <button key={x.id} aria-pressed={cad.device === x.id} className={'elv' in x.kind ? 'elv' : 'lv'} onClick={() => { cad.setDevice(x.id); if (tool !== 'fill' || !('elv' in x.kind)) cad.setTool('dev'); }}>{x.symbol.text || '●'}<span>{x.label}</span></button>
-                  ))}
-                </div>
-                <div className="cad-devform">
-                  {floors.length > 0 && (
-                    <label>This drawing shows<select aria-label="Level of this drawing" value={floor?.key} onChange={(e) => { const f = floors.find((x) => x.key === e.target.value); if (f && view) setPlanLevel(project, view.file, f, change, view.info.units); }}>{floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}</select></label>
-                  )}
-                  {'lv' in item.kind && (
-                    <label>Circuit<select aria-label="Circuit" value={cad.feederId} onChange={(e) => cad.setFeederId(e.target.value)}>
-                      <option value="">Choose a circuit…</option>
-                      {circuits.map((f) => <option key={f.id} value={f.id}>{circuitLabel(project, f)}</option>)}
-                    </select></label>
-                  )}
-                  {'board' in item.kind && (
-                    <label>Board<select aria-label="Board" value={cad.boardId} onChange={(e) => cad.setBoardId(e.target.value)}>
-                      <option value="">Choose a board…</option>
-                      {project.boards.map((b) => <option key={b.id} value={b.id}>{b.id} · {b.name}</option>)}
-                    </select></label>
-                  )}
-                  {!floors.length && <p className="m">Add the building and its levels in Building information first; devices are kept per level.</p>}
-                  <span className="m">{placed.length} device{placed.length === 1 ? '' : 's'} on this level</span>
-                  {elvItem && <span className="m">{elvItem.label}{coverageNote(elvItem.kind.elv)} · {SYSTEM_LABEL[elvSystem]}{cad.coverage && elv ? ` · ${elv.coverage.filter((c) => c.gaps.length).length} room${elv.coverage.filter((c) => c.gaps.length).length === 1 ? '' : 's'} not fully covered` : ''}</span>}
-                </div>
-              </>
-            )}
-            {plans.length > 0 && (
-              <>
-                <h4>Plans</h4>
-                <div className="cad-layers" role="list" aria-label="Plans of this project">
-                  {plans.map((x) => {
-                    const here = !!view && levelSet && floor?.key === x.floor.key;
-                    const inTab = !!x.file && !!cad.tabOf(x.file);
-                    const canOpen = !!x.file && (inTab || SAMPLE_PLANS.some((s) => s.file === x.file) || (!!pathOfPlan(project.id, x.file) && !!window.lvds?.cadFile?.readBytes));
-                    return (
-                      <button key={x.floor.key} role="listitem" className={`cad-lyr${x.file ? '' : ' off'}`} aria-current={here || undefined} disabled={busy || here || (!!x.file && !canOpen)}
-                        title={x.file ? (canOpen ? `Open ${x.file}` : `${x.file}: open it from Plans (its folder is not known on this computer)`) : `Open a drawing as the plan of ${x.label}`}
-                        onClick={() => showOrLoad(x.file ?? '', async () => {
-                          const v = !x.file ? await chooseDrawing() : SAMPLE_PLANS.some((s) => s.file === x.file) ? await sampleDrawing(x.file) : await reopenDrawing(pathOfPlan(project.id, x.file)!);
-                          if (v && !x.file) setPlanLevel(project, v.file, x.floor, change, v.info.units);
-                          return v;
-                        }, 'That drawing is no longer where it was. Open it from Plans.')}>
-                        <b>{x.label}</b>{x.file ?? 'no plan'}<span className="m">{here || inTab ? 'open' : x.file ? '' : 'open…'}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-            {view && cad.showRoles && (
-              <>
-                <h4>Layer roles</h4>
-                <div>
-                  <CadLayerTable layers={layerStats} roles={roles}
-                    onChange={(layer: string, role: CadLayerRole) => change(withLayerMap(project, roles.map((x) => (x.layer === layer ? { ...x, role } : x))), `Layer ${layer}: ${role} · ⌘Z to undo`)}
-                    onApplyMap={(m: CadLayerMap[]) => change(withLayerMap(project, m), 'Layer template applied · ⌘Z to undo')} />
-                </div>
-              </>
-            )}
-            <h4>Layers {view && <span className="cad-lyr-all"><button onClick={() => layerChange(applyLayerPatch(project, view.file, lRows.filter((r) => r.group === 'arch'), { on: true }), 'LAYER  All layers on')}>All on</button></span>}</h4>
-            <div className="cad-layers">
-              {view && placed.length > 0 && (
-                <button className={`cad-lyr${cad.showDevices ? '' : ' off'}`} aria-pressed={cad.showDevices} onClick={() => cad.setShowDevices(!cad.showDevices)}>
-                  <i style={{ background: 'var(--cad-dev)' }} />Devices placed in the app<span className="m">{cad.showDevices ? 'on' : 'off'}</span>
-                </button>
-              )}
-              {view?.info.layers.map((l, i) => l.count > 0 || view.info.texts.some((t) => t.layer === i) ? (
-                <button key={l.name} className={`cad-lyr${archOn[i] ? '' : ' off'}`} aria-pressed={!!archOn[i]} title={`${fmtUpTo(l.count, 0)} lines`} onClick={() => layerChange(applyLayerPatch(project, view.file, [{ name: l.name, group: 'arch', drawingOn: l.on }], { on: !archOn[i] }), `Layer ${l.name} ${archOn[i] ? 'off' : 'on'}`)}>
-                  <i style={{ background: hex(l.rgb) }} />{l.name}<span className="m">{archOn[i] ? 'on' : 'off'}</span>
-                </button>
-              ) : null)}
-              {view && <RefLayersList x={xr} />}
-            </div>
-            </>}
-          </aside>
-        )}
+        {dockSide === 'right' && dock}
       </div>
       {view && lv && <LayoutTabs layouts={layouts} active={sheetL?.id ?? null} onPick={(id) => { cad.setLayout(id); if (id) cad.say(`LAYOUT  ${layouts.find((x) => x.id === id)?.number ?? ''} — the paper; double-click inside a viewport to work in it, MV adds one.`); }}
         onNew={addLayout} onRename={(x) => { setRenamingLayout(x.id); cad.say(`RENAME  Type the new title of ${x.number} (now "${x.title}"):`); input.current?.focus(); }}

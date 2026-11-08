@@ -1995,6 +1995,21 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-lyr i{width:10px;height:10px;border-radius:2px;flex:none;border:1px solid var(--line)}
 .cad-lyr .m{margin-left:auto;font-size:var(--fs-xs)}
 .cad-lyr.off{opacity:.45}
+.cad-dock{position:relative}
+.cad-dock.left{border-left:0;border-right:1px solid var(--line)}
+.cad-dock-h{display:flex;align-items:center;gap:6px;min-height:30px;padding:4px 6px 4px var(--space-3);border-bottom:1px solid var(--line);font-size:var(--fs-sm)}
+.cad-dock-h .m{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs)}
+.cad-dock-h .sp{flex:1}
+.cad-dock-h button{flex:none;height:20px;padding:0 6px;border:1px solid var(--line);border-radius:3px;background:none;color:var(--tx);font-size:var(--fs-xs)}
+.cad-dock-b{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column}
+.cad-dock-b .cad-ppal{max-height:none;flex:none}
+.cad-dock-b .cad-layers{flex:none;overflow:visible}
+.cad-dock-grip{position:absolute;top:0;bottom:0;width:6px;cursor:col-resize;z-index:3;touch-action:none}
+.cad-dock-grip.left{right:-3px}
+.cad-dock-grip.right{left:-3px}
+.cad-dock.folded{display:flex;flex-direction:column;align-items:center;background:var(--panel);border-right:1px solid var(--line)}
+.cad-dock.folded button{display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px 0;border:0;background:none;color:var(--mut);font-size:var(--fs-xs)}
+.cad-dock.folded b{writing-mode:vertical-rl;transform:rotate(180deg);color:var(--tx)}
 .cad-cmdbox{flex:none;position:relative;background:var(--panel);border-top:1px solid var(--line);font:12px ui-monospace,Menlo,monospace}
 .cad-hist-prev{min-height:51px;padding:3px var(--space-3) 0;color:var(--mut);line-height:17px;display:flex;flex-direction:column;justify-content:flex-end}
 .cad-hist-prev div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
