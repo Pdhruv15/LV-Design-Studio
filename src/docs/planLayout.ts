@@ -7,8 +7,8 @@ import { printedRefs } from '../model/cadRefs';
 import { isFrozen, vpWindow, type PlanViewport } from '../model/planViewports';
 import { dimensionLines, dimLabel, segmentsOf, sketchOf, trayLabel, trayLength, trayLine } from '../model/cadSketch';
 import { effective, layerStylesOf, styleOf } from '../model/cadLayerStyle';
-import { annoOf, HATCH_PATTERNS, hatchFamilies } from '../model/cadAnnotate';
-import { hatchLines } from '../model/cadDraw';
+import { annoOf } from '../model/cadAnnotate';
+import { dotsOnly, hatchDots, hatchStrokes, mirroredY, patternOf, placedLines } from '../model/cadHatch';
 import { fittingCounts, trayFittings } from '../model/cadTrayFittings';
 import { planScale as unitsOf } from '../model/cadUnits';
 import { arcPoints, levelWiring } from '../model/cadWiring';
@@ -284,23 +284,25 @@ function drawnSvg(items: Drawn[], X: (x: number) => number, Y: (y: number) => nu
     if (it.hatch) {
       const circle = it.kind === 'circle', r = (it.r ?? 0) * f;
       const outline = circle ? `<circle cx="${X(it.pts[0][0])}" cy="${Y(it.pts[0][1])}" r="${n(r)}"` : `<path d="M${it.pts.map(P).join('L')}Z"`;
-      if (it.hatch.pattern === 'solid') { body.push(`${outline} fill="${inkOf({ w: 0, grey: Math.min(30, pen.hatch.grey) })}" stroke="none"/>`); return; }
+      if (patternOf(it.hatch.pattern).solid) { body.push(`${outline} fill="${inkOf({ w: 0, grey: Math.min(30, pen.hatch.grey) })}" stroke="none"/>`); return; }
       const xs = circle ? [X(it.pts[0][0]) - r, X(it.pts[0][0]) + r] : it.pts.map((q) => X(q[0])), ys = circle ? [Y(it.pts[0][1]) - r, Y(it.pts[0][1]) + r] : it.pts.map((q) => Y(q[1]));
       const box: [number, number, number, number] = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
-      const dots = !!HATCH_PATTERNS[it.hatch.pattern].dots;
-      let d = '';
-      if (dots) {
-        const st = Math.max(0.5, it.hatch.scale);
-        if (((box[2] - box[0]) * (box[3] - box[1])) / (st * st) < 20000) for (let x = Math.ceil(box[0] / st) * st; x <= box[2]; x += st) for (let y = Math.ceil(box[1] / st) * st; y <= box[3]; y += st) d += `M${n(x)} ${n(y)}h0`;
-      } else {
-        for (const fam of hatchFamilies(it.hatch, 1)) {
-          const a = -fam.angle; // y is down on paper
-          for (const l of hatchLines({ angle: a, base: [0, 0], offset: [-Math.sin(a) * fam.step, Math.cos(a) * fam.step] }, box, 0.2, 4000)) d += `M${n(l.a[0])} ${n(l.a[1])}L${n(l.b[0])} ${n(l.b[1])}`;
-        }
+      // One path for the continuous lines, one per dashed family (its dash array), one for the dots; y is down on paper.
+      let lines = '', dots = '';
+      const dashed: string[] = [];
+      for (const fam of mirroredY(placedLines(it.hatch, 1))) {
+        if (dotsOnly(fam)) { for (const [x, y] of hatchDots(fam, box, 0.2, 20000)) dots += `M${n(x)} ${n(y)}h0`; continue; }
+        const { lines: ls, dash } = hatchStrokes(fam, box, 0.2, 4000, 0.2);
+        const d = ls.map((l) => `M${n(l.a[0])} ${n(l.a[1])}L${n(l.b[0])} ${n(l.b[1])}`).join('');
+        if (!d) continue;
+        if (dash.length) dashed.push(`<path d="${d}" clip-path="url(#${id}-${i})" fill="none" stroke="${inkOf(pen.hatch)}" stroke-width="${n(pen.hatch.w)}" stroke-dasharray="${dash.map(n).join(' ')}"/>`);
+        else lines += d;
       }
-      if (!d) return;
+      if (!lines && !dots && !dashed.length) return;
       defs.push(`<clipPath id="${id}-${i}">${outline}/></clipPath>`);
-      body.push(`<path d="${d}" clip-path="url(#${id}-${i})" fill="none" stroke="${inkOf(pen.hatch)}" stroke-width="${dots ? 0.35 : n(pen.hatch.w)}"${dots ? ' stroke-linecap="round"' : ''}/>`);
+      if (lines) body.push(`<path d="${lines}" clip-path="url(#${id}-${i})" fill="none" stroke="${inkOf(pen.hatch)}" stroke-width="${n(pen.hatch.w)}"/>`);
+      body.push(...dashed);
+      if (dots) body.push(`<path d="${dots}" clip-path="url(#${id}-${i})" fill="none" stroke="${inkOf(pen.hatch)}" stroke-width="0.35" stroke-linecap="round"/>`);
       return;
     }
     if (it.kind === 'text') { text(it.pts[0], it.text ?? '', it.h ?? 0, it.rot ?? 0, 'start'); return; }

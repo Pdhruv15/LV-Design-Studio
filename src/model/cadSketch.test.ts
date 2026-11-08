@@ -118,6 +118,20 @@ describe('cable tray runs', () => {
     expect(+q.r.toFixed(9)).toBe(1);
   });
 
+  it('saves a hatch as a hatch with its outline and pattern lines at 1:100, Solid as solid, a circle as its outline', () => {
+    const sq: [number, number][] = [[0, 0], [1000, 0], [1000, 1000], [0, 1000]];
+    const [h] = shapesOut([{ id: 'H', kind: 'pline', layer: 'LV-HATCH', closed: true, pts: sq, hatch: { pattern: 'ansi31', scale: 3, angle: 0 } }], 0.001);
+    expect(h).toMatchObject({ layer: 'LV-HATCH', kind: 'hatch', loops: [sq], solid: false });
+    expect(h.lines).toHaveLength(1);
+    expect(h.lines![0].angle).toBeCloseTo(Math.PI / 4, 9);
+    expect(Math.hypot(...h.lines![0].offset)).toBeCloseTo(300, 9); // 3 mm at 1:100 in a mm drawing
+    const [s] = shapesOut([{ id: 'S', kind: 'circle', layer: 'LV-HATCH', pts: [[0, 0]], r: 500, hatch: { pattern: 'solid', scale: 3, angle: 0 } }], 0.001);
+    expect(s).toMatchObject({ kind: 'hatch', solid: true });
+    expect(s.lines).toBeUndefined();
+    expect(s.loops![0]).toHaveLength(128);
+    expect(s.loops![0].every(([x, y]) => Math.abs(Math.hypot(x, y) - 500) < 1e-9)).toBe(true);
+  });
+
   it('makes an ellipse from its centre and the ends of its axes, the longer the major one', () => {
     expect(ellipseOf([0, 0], [10, 0], [3, 4])).toEqual({ kind: 'ellipse', pts: [[0, 0]], ax: [10, 0], ratio: 0.4 });
     const tall = ellipseOf([0, 0], [4, 0], [0, 10])!;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { annoOf, centreOf, hatchFamilies, hatchItem, hatchOutline, leaderItems, northArrowItems, roomTagItems, textUnits, unitsPerPaperMm } from './cadAnnotate';
+import { annoOf, centreOf, hatchItem, hatchOutline, leaderItems, northArrowItems, roomTagItems, textUnits, unitsPerPaperMm } from './cadAnnotate';
+import { placedLines } from './cadHatch';
 import type { SketchItem } from '../types';
 
 type Pt = [number, number];
@@ -22,8 +23,9 @@ describe('hatch', () => {
     expect(hatchItem({ pts: [[0, 0], [1, 0], [1, 1]] }, spec)).toEqual({ kind: 'pline', layer: 'LV-HATCH', pts: [[0, 0], [1, 0], [1, 1]], closed: true, hatch: spec });
     const perMm = unitsPerPaperMm({ textMm: 2.5, scale: 100 }, 0.001); // mm drawing: 100 units per paper mm
     expect(perMm).toBe(100);
-    expect(hatchFamilies(spec, perMm).map((f) => [+(f.angle * 180 / Math.PI).toFixed(6), f.step])).toEqual([[60, 300], [150, 300]]);
-    expect(hatchFamilies({ ...spec, pattern: 'solid' }, perMm)).toEqual([]);
+    const step = (o: Pt, a: number) => Math.hypot(o[0], o[1]) * Math.cos(Math.atan2(o[1], o[0]) - a - Math.PI / 2);
+    expect(placedLines(spec, perMm).map((f) => [+(f.angle * 180 / Math.PI).toFixed(6), +step(f.offset, f.angle).toFixed(6)])).toEqual([[60, 300], [150, 300]]);
+    expect(placedLines({ ...spec, pattern: 'solid' }, perMm)).toEqual([]);
   });
 });
 
