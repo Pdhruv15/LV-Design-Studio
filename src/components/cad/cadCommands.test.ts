@@ -25,7 +25,7 @@ const BEFORE: Record<string, string> = {
   ALIGN: '!align', ALIGNV: '!align', SPACE: '!align', WC: '!wireAll', WIRE: '!wireAll', WIRECIRCUITS: '!wireAll', W1: 'wire', WIREONE: 'wire',
   TAGS: '!wireTags', COV: '!coverage', COVERAGE: '!coverage', REC: 'rect', RECTANG: 'rect', RECTANGLE: 'rect',
   C: 'circle', CIRCLE: 'circle', A: 'arc', ARC: 'arc', T: 'text', DT: 'text', TEXT: 'text', MT: 'text',
-  DIM: 'dim', DIMALIGNED: 'dim', DAL: 'dim', DLI: 'dim', E: '!erase', ERASE: '!erase', DEL: '!erase', DELETE: '!erase',
+  DIM: 'dim', DIMALIGNED: 'dim', DAL: 'dim', DLI: 'dimlin', E: '!erase', ERASE: '!erase', DEL: '!erase', DELETE: '!erase',
   SAVE: '!save', SAVEDWG: '!saveDwg', DWGOUT: '!saveDwg',
   LA: '!layers', LAYERS: '!layers', OSNAP: '!osnap', GRID: '!grid', ORTHO: '!ortho', SNAP: '!snap',
   HELP: '!help', '?': '!help'
@@ -36,7 +36,9 @@ const ADDED: Record<string, string> = { ST: '!textStyle', STYLE: '!textStyle', D
   // (it toggled object snap, as OSNAP and F3 still do).
   SAVEAS: '!saveAs', DXFOUT: '!saveAs', QSAVE: '!save', CLOSEOTHERS: '!closeOthers', EXPORT: '!export', EXPORTPDF: '!exportPdf', PNGOUT: '!pngOut',
   WBLOCK: '!wblock', W: '!wblock', PUBLISH: '!publish', DS: '!dsettings', DSETTINGS: '!dsettings', SE: '!dsettings', OS: '!osnapSettings',
-  POLAR: '!polar', OTRACK: '!otrack', LWT: '!lwt', LWDISPLAY: '!lwt' };
+  POLAR: '!polar', OTRACK: '!otrack', LWT: '!lwt', LWDISPLAY: '!lwt',
+  // Linear, continued and baseline dimensions (DLI was the aligned one until then).
+  DIMLINEAR: 'dimlin', DCO: 'dimcont', DIMCONTINUE: 'dimcont', DBA: 'dimbase', DIMBASELINE: 'dimbase' };
 const outcome = (c: string) => { const x = cadCommand(c); return x && ('tool' in x ? x.tool : `!${x.action}`); };
 
 describe('Design CAD typed commands', () => {

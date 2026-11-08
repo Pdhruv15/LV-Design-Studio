@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Annotate Sub-tab Mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite dark default + light */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--on-acc:#1D2024;--ok:#37d67a;--new:#b784ff}
+:root[data-theme="light"]{--bg:#F5F3EF;--panel:#fff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--on-acc:#fff;--ok:#177336;--new:#7a3fd6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif}
+button,select,input{font:inherit;color:inherit}
+.wrap{max-width:1320px;margin:0 auto;padding:16px}
+h1{font-size:17px;margin:0 0 4px}h2{font-size:14px;margin:22px 0 6px}
+p{margin:0 0 6px;color:var(--mut);max-width:1000px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+.bar button{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;color:var(--mut);cursor:pointer}
+.bar button[aria-pressed=true]{border-color:var(--acc);color:var(--tx)}
+.legend i{display:inline-block;width:12px;height:12px;border:2px dashed var(--new);border-radius:3px;vertical-align:-2px;margin-right:5px}
+.frame{border:1px solid var(--line-strong);border-radius:10px;overflow:hidden;background:var(--panel)}
+.tabs{display:flex;gap:4px;padding:8px 12px 0}
+.tabs span{padding:4px 14px;border-radius:6px 6px 0 0;color:var(--mut);font-size:12px}
+.tabs span.on{background:var(--acc);color:var(--on-acc);font-weight:600}
+.sub{display:flex;gap:2px;padding:0 12px;background:var(--p2);border-top:1px solid var(--line)}
+.sub span{padding:4px 12px;font-size:12px;color:var(--mut);border-bottom:2px solid transparent}
+.sub span.on{color:var(--tx);border-bottom-color:var(--acc)}
+.tools{display:flex;align-items:stretch;padding:4px 6px;background:var(--p2);border-top:1px solid var(--line);overflow-x:auto;min-height:84px}
+.grp{display:flex;flex-direction:column;gap:2px;padding:0 6px;border-right:1px solid var(--line)}
+.grp:last-child{border-right:0}
+.btns{display:flex;gap:4px;flex:1;align-items:stretch}
+.cap{font-size:10px;color:var(--mut);text-align:center;white-space:nowrap}
+.big{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:56px;min-height:56px;padding:3px 6px;border-radius:5px;border:0;background:none;font-size:11.5px;white-space:nowrap}
+.big:hover,.sm:hover{background:var(--panel)}
+.ic{width:18px;height:18px;border:1.6px solid var(--mut);border-radius:4px;flex:none;position:relative}
+.ic::after{content:"";position:absolute;left:3px;right:3px;top:7px;height:1.6px;background:var(--mut)}
+.col{display:flex;flex-direction:column;justify-content:space-between;gap:2px}
+.sm{display:flex;align-items:center;gap:6px;height:18px;padding:0 6px;border:0;background:none;border-radius:4px;font-size:11.5px;white-space:nowrap}
+.sm .ic{width:13px;height:13px;border-width:1.3px}.sm .ic::after{top:5px;left:2px;right:2px}
+.fld{display:flex;align-items:center;gap:4px;height:20px;font-size:11.5px;white-space:nowrap}
+.fld select,.fld input{height:20px;padding:0 4px;background:var(--panel);border:1px solid var(--line);border-radius:4px;font-size:11.5px}
+.fld input{width:56px}
+.dd{font-size:9px;color:var(--mut)}
+.new{outline:2px dashed var(--new);outline-offset:1px;border-radius:6px}
+.hide{display:none!important}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px}
+.card{border:1px solid var(--line-strong);border-radius:10px;background:var(--panel);padding:12px}
+.card h3{margin:0 0 8px;font-size:13px}
+.form{display:grid;grid-template-columns:130px 1fr;gap:6px 10px;align-items:center;font-size:12px}
+.form select,.form input{background:var(--p2);border:1px solid var(--line);border-radius:4px;padding:2px 6px}
+.chk{display:flex;gap:12px;flex-wrap:wrap}
+.btnrow{display:flex;justify-content:flex-end;gap:6px;margin-top:10px}
+.btnrow button{border:1px solid var(--line);background:var(--p2);border-radius:5px;padding:4px 12px}
+.btnrow button.pri{background:var(--acc);color:var(--on-acc);border-color:var(--acc)}
+/* Paper preview: black and white, as printed */
+.paper{background:#fff;color:#000;border-radius:4px;padding:12px;font:11px/1.3 Arial,sans-serif}
+.paper table{border-collapse:collapse;width:100%}
+.paper td,.paper th{border:1px solid #000;padding:2px 6px;text-align:left}
+.paper th{font-weight:bold}
+.paper .t{font-weight:bold;text-align:center;border:1px solid #000;padding:3px}
+.sym{display:inline-block;width:14px;height:14px;border:1.2px solid #000;border-radius:50%;vertical-align:-3px}
+.sym.sq{border-radius:0}.sym.x{border-radius:50%;background:linear-gradient(45deg,transparent 46%,#000 46% 54%,transparent 54%),linear-gradient(-45deg,transparent 46%,#000 46% 54%,transparent 54%)}
+.notes{color:var(--mut);font-size:12px}
+.notes li{margin:3px 0}
+table.cmp{border-collapse:collapse;font-size:12px;margin:8px 0;width:100%}
+table.cmp td,table.cmp th{border:1px solid var(--line);padding:4px 8px;text-align:left;vertical-align:top}
+.pill{display:inline-block;padding:0 6px;border-radius:999px;font-size:11px;border:1px solid var(--line)}
+.p1{border-color:var(--ok);color:var(--ok)}.p2{border-color:var(--acc);color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Design CAD → Annotate sub-tab — mockup (2026-11-08)</h1>
+  <p>Design CAD's ribbon has two sub-tabs today: <b>LVCAD</b> (Draw, Modify, Annotate, Layers, Properties, Measure) and <b>Electrical, ELV &amp; sheets</b> (Rooms, Cables, Devices, Edit devices, Wiring, Reference, Sheet set, Layouts). Annotate is one group on LVCAD: Text ▾, Dimension ▾, Leader, Room tag, North arrow and Revision cloud. This mockup adds an <b>Annotate</b> sub-tab between them. LVCAD and Electrical keep every tool they have today, so nothing moves. The new sub-tab has the full set (Text, Dimensions, Leaders, Tables, Markup, Annotation scale), plus tables and legends filled from the project's data.</p>
+  <div class="bar">
+    <button data-v="now" aria-pressed="false">Today: LVCAD</button>
+    <button data-v="elec" aria-pressed="false">Today: Electrical, ELV &amp; sheets</button>
+    <button data-v="new" aria-pressed="true">Proposed: Annotate (new sub-tab)</button>
+    <button id="bTheme">Light / dark</button>
+    <span class="legend"><i></i>new in this proposal</span>
+  </div>
+
+  <div class="frame">
+    <div class="tabs"><span>Home</span><span>Design</span><span class="on">Design CAD</span><span>Reports</span><span>Issue</span></div>
+    <div class="sub v-now v-elec hide"><span>File ▾</span><span class="lv">LVCAD</span><span class="el">Electrical, ELV &amp; sheets</span></div>
+    <div class="sub v-new"><span>File ▾</span><span class="lv">LVCAD</span><span class="an new">Annotate</span><span class="el">Electrical, ELV &amp; sheets</span></div>
+
+    <!-- Today: LVCAD (unchanged by this proposal) -->
+    <div class="tools v-now hide">
+      <div class="grp"><div class="btns"><button class="big"><span class="ic"></span>Line</button><button class="big"><span class="ic"></span>Polyline</button><button class="big"><span class="ic"></span>Circle <span class="dd">▾</span></button><button class="big"><span class="ic"></span>Arc <span class="dd">▾</span></button><div class="col"><button class="sm"><span class="ic"></span>Rectangle <span class="dd">▾</span></button><button class="sm"><span class="ic"></span>Ellipse</button><button class="sm"><span class="ic"></span>Hatch</button></div></div><div class="cap">Draw</div></div>
+      <div class="grp"><div class="btns"><div class="col"><button class="sm"><span class="ic"></span>Move</button><button class="sm"><span class="ic"></span>Copy</button><button class="sm"><span class="ic"></span>Stretch</button></div><div class="col"><button class="sm"><span class="ic"></span>Rotate</button><button class="sm"><span class="ic"></span>Mirror</button><button class="sm"><span class="ic"></span>Scale</button></div><div class="col"><button class="sm"><span class="ic"></span>Trim <span class="dd">▾</span></button><button class="sm"><span class="ic"></span>Fillet <span class="dd">▾</span></button><button class="sm"><span class="ic"></span>Array <span class="dd">▾</span></button></div><div class="col"><button class="sm"><span class="ic"></span>Erase</button><button class="sm"><span class="ic"></span>Explode</button><button class="sm"><span class="ic"></span>Offset</button></div></div><div class="cap">Modify</div></div>
+      <div class="grp"><div class="btns"><button class="big"><span class="ic"></span>Text <span class="dd">▾</span></button><button class="big"><span class="ic"></span>Dimension <span class="dd">▾</span></button><button class="big"><span class="ic"></span>Leader</button><div class="col"><button class="sm"><span class="ic"></span>Room tag</button><button class="sm"><span class="ic"></span>North arrow</button><button class="sm"><span class="ic"></span>Revision cloud</button></div></div><div class="cap">Annotate</div></div>
+      <div class="grp"><div class="btns"><button class="big"><span class="ic"></span>Layers <span class="dd">▾</span></button><div class="col"><div class="fld"><select><option>LV-POWER</option></select></div><button class="sm"><span class="ic"></span>Layer off</button><button class="sm"><span class="ic"></span>Freeze</button></div><div class="col"><button class="sm"><span class="ic"></span>All on</button><button class="sm"><span class="ic"></span>Thaw all</button><button class="sm"><span class="ic"></span>Lock</button></div><div class="col"><button class="sm"><span class="ic"></span>Unlock</button><button class="sm"><span class="ic"></span>Isolate</button><button class="sm"><span class="ic"></span>Unisolate</button></div><div class="col"><button class="sm"><span class="ic"></span>Make current</button><button class="sm"><span class="ic"></span>Layer roles</button></div></div><div class="cap">Layers</div></div>
+      <div class="grp"><div class="btns"><button class="big"><span class="ic"></span>Match properties</button><div class="col"><div class="fld"><select><option>ByLayer colour</option></select></div><div class="fld"><select><option>ByLayer linetype</option></select></div><div class="fld"><select><option>ByLayer weight</option></select></div></div></div><div class="cap">Properties</div></div>
+      <div class="grp"><div class="btns"><button class="big"><span class="ic"></span>Measure <span class="dd">▾</span></button></div><div class="cap">Measure</div></div>
+    </div>
+    <!-- Today: Electrical, ELV & sheets (unchanged by this proposal) -->
+    <div class="tools v-elec hide">
+      <div class="grp"><div class="btns"><button class="big"><span class="ic"></span>Room area</button><button class="big"><span class="ic"></span>Trace room</button><button class="big"><span class="ic"></span>Add rooms</button></div><div class="cap">Rooms</div></div>
+      <div class="grp"><div class="btns"><button class="big"><span class="ic"></span>Cable tray</button><button class="big"><span class="ic"></span>Cable route</button><button class="big"><span class="ic"></span>Link</button></div><div class="cap">Cables</div></div>
+      <div class="grp"><div class="btns"><button class="big"><span class="ic"></span>Device</button><button class="big"><span class="ic"></span>Fill room</button><button class="big"><span class="ic"></span>Light room</button><button class="big"><span class="ic"></span>Emergency</button></div><div class="cap">Devices</div></div>
+      <div class="grp"><div class="btns"><button class="big"><span class="ic"></span>Array line</button><button class="big"><span class="ic"></span>Match</button><button class="big"><span class="ic"></span>Align</button></div><div class="cap">Edit devices</div></div>
+      <div class="grp"><div class="btns"><button class="big"><span class="ic"></span>Wire circuits</button><button class="big"><span class="ic"></span>Tags</button></div><div class="cap">Wiring</div></div>
+      <div class="grp"><div class="btns"><button class="big"><span class="ic"></span>Xrefs</button><button class="big"><span class="ic"></span>Attach</button><button class="big"><span class="ic"></span>Clip</button></div><div class="cap">Reference</div></div>
+      <div class="grp"><div class="btns"><button class="big"><span class="ic"></span>Sheets</button><button class="big"><span class="ic"></span>Publish</button></div><div class="cap">Sheet set</div></div>
+      <div class="grp"><div class="btns"><button class="big"><span class="ic"></span>Layouts</button></div><div class="cap">Layouts</div></div>
+    </div>
+    <!-- Proposed -->
+    <div class="tools v-new">
+      <div class="grp"><div class="btns">
+        <button class="big"><span class="ic"></span>Text <span class="dd">▾</span></button>
+        <button class="big new"><span class="ic"></span>Notes <span class="dd">▾</span></button>
+        <div class="col">
+          <div class="fld new"><select aria-label="Text style"><option>Standard</option><option>Notes 3.5</option><option>Titles 5</option></select></div>
+          <div class="fld new"><input value="2.5" aria-label="Text height"> mm</div>
+          <button class="sm new"><span class="ic"></span>Find and replace</button>
+        </div>
+      </div><div class="cap">Text</div></div>
+
+      <div class="grp"><div class="btns">
+        <button class="big"><span class="ic"></span>Dimension <span class="dd">▾</span></button>
+        <div class="col">
+          <div class="fld new"><select aria-label="Dimension style"><option>Standard</option><option>Setting out mm</option></select></div>
+          <button class="sm new"><span class="ic"></span>Linear <span class="dd">▾</span></button>
+          <button class="sm new"><span class="ic"></span>Continue <span class="dd">▾</span></button>
+        </div>
+        <div class="col">
+          <div class="fld new"><select aria-label="Dimension layer"><option>Layer: LV-DIMS</option><option>Layer: current</option></select></div>
+          <button class="sm new"><span class="ic"></span>Quick dimension</button>
+          <button class="sm new"><span class="ic"></span>Space evenly</button>
+        </div>
+      </div><div class="cap">Dimensions</div></div>
+
+      <div class="grp"><div class="btns">
+        <button class="big"><span class="ic"></span>Leader <span class="dd">▾</span></button>
+        <div class="col">
+          <div class="fld new"><select aria-label="Leader style"><option>Standard</option><option>Circuit tag</option></select></div>
+          <button class="sm new"><span class="ic"></span>Add arrow</button>
+          <button class="sm new"><span class="ic"></span>Align notes</button>
+        </div>
+        <div class="col">
+          <button class="sm"><span class="ic"></span>Room tag</button>
+          <button class="sm new"><span class="ic"></span>Tag all rooms</button>
+          <button class="sm"><span class="ic"></span>North arrow</button>
+        </div>
+      </div><div class="cap">Leaders and tags</div></div>
+
+      <div class="grp"><div class="btns">
+        <button class="big new"><span class="ic"></span>Table <span class="dd">▾</span></button>
+        <div class="col">
+          <button class="sm new"><span class="ic"></span>Symbol legend</button>
+          <button class="sm new"><span class="ic"></span>From project data…</button>
+          <button class="sm new"><span class="ic"></span>Update tables</button>
+        </div>
+      </div><div class="cap">Tables</div></div>
+
+      <div class="grp"><div class="btns">
+        <button class="big new"><span class="ic"></span>Mask</button>
+        <button class="big"><span class="ic"></span>Revision cloud</button>
+      </div><div class="cap">Markup</div></div>
+
+      <div class="grp"><div class="btns">
+        <div class="col">
+          <div class="fld"><select aria-label="Annotation scale"><option>For plans at 1:100</option><option>1:50</option><option>1:200</option></select></div>
+          <button class="sm new"><span class="ic"></span>Add scale to selected</button>
+          <button class="sm new"><span class="ic"></span>Remove scale</button>
+        </div>
+      </div><div class="cap">Annotation scale</div></div>
+    </div>
+  </div>
+
+  <h2>Under the arrows</h2>
+  <table class="cmp">
+    <tr><th>Button</th><th>Main tool</th><th>Under ▾</th></tr>
+    <tr><td>Text ▾</td><td>Text (T) — one line, as today</td><td>Text style… (ST)</td></tr>
+    <tr><td>Notes ▾ <span class="pill p1">new</span></td><td>Notes (MT): drag a box, type several lines; they wrap at the box width</td><td>Numbered notes (1., 2., 3. …), Bold title line, Insert standard notes… (from a saved list, e.g. "All wiring in 2.5 mm² unless noted")</td></tr>
+    <tr><td>Dimension ▾</td><td>Aligned (DIM), as today</td><td>Linear, Angular, Radius, Diameter, Dimension style… (D)</td></tr>
+    <tr><td>Linear ▾ <span class="pill p1">new</span></td><td>Horizontal or vertical, by where the line is dragged (DLI)</td><td>Horizontal only, Vertical only</td></tr>
+    <tr><td>Continue ▾ <span class="pill p1">new</span></td><td>Continue (DCO): chain from the last dimension — socket spacing along a wall</td><td>Baseline (DBA): every dimension from the same start point</td></tr>
+    <tr><td>Leader ▾</td><td>Leader (LE), as today</td><td>Leader style… (arrow, landing, text box)</td></tr>
+    <tr><td>Table ▾ <span class="pill p1">new</span></td><td>Table (TB): rows × columns, click where it goes, type in the cells</td><td>Symbol legend, Board schedule, Circuit list, Cable schedule, Table style…</td></tr>
+  </table>
+
+  <h2>Dialogs and what is drawn</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>Table → From project data… <span class="pill p1">new</span></h3>
+      <div class="form">
+        <span>Table</span><select><option>Symbol legend (devices on this plan)</option><option>Board schedule</option><option>Circuit list (this level)</option><option>Cable schedule (this level)</option></select>
+        <span>Board</span><select disabled><option>— (all on this plan)</option></select>
+        <span>Columns</span><span class="chk"><label><input type="checkbox" checked> Symbol</label><label><input type="checkbox" checked> Description</label><label><input type="checkbox" checked> Qty</label><label><input type="checkbox"> Mounting height</label></span>
+        <span>Text style</span><select><option>Standard</option></select>
+        <span>Keep linked</span><label><input type="checkbox" checked> Update when the project changes (Update tables)</label>
+      </div>
+      <div class="btnrow"><button>Cancel</button><button class="pri">Place</button></div>
+      <p style="margin-top:8px">Click where its top-left corner goes. Drawn on LV-ANNO as lines and text, so it prints and saves to DXF / DWG like any other drawn object.</p>
+    </div>
+
+    <div class="card">
+      <h3>What is drawn (paper, black and white)</h3>
+      <div class="paper">
+        <div class="t">SYMBOL LEGEND — LEVEL 1</div>
+        <table>
+          <tr><th style="width:44px">Symbol</th><th>Description</th><th style="width:40px">Qty</th></tr>
+          <tr><td><span class="sym x"></span></td><td>LED downlight 18 W</td><td>42</td></tr>
+          <tr><td><span class="sym"></span></td><td>Twin switched socket outlet 13 A</td><td>36</td></tr>
+          <tr><td><span class="sym sq"></span></td><td>Isolator 20 A, 2-pole</td><td>4</td></tr>
+          <tr><td><span class="sym x" style="border-width:2px"></span></td><td>Emergency luminaire, 3 h maintained</td><td>9</td></tr>
+        </table>
+      </div>
+      <p style="margin-top:8px">Quantities are the devices on this plan. When a device is added or removed, the table shows a "needs update" mark until Update tables runs (one undo step).</p>
+    </div>
+
+    <div class="card">
+      <h3>Notes (MT) — on the drawing</h3>
+      <div class="paper">
+        <b><u>GENERAL NOTES</u></b><br>
+        1. All dimensions are in millimetres unless stated otherwise.<br>
+        2. Socket outlets at 450 mm above FFL; switches at 1200 mm.<br>
+        3. Final circuits in 2.5 mm² unless noted on the circuit list.<br>
+        4. Refer to the board schedules for protective devices.
+      </div>
+      <p style="margin-top:8px">One object: move, copy and erase it as one. Double-click to edit the text on the command line's box. Width handles change where it wraps.</p>
+    </div>
+
+    <div class="card">
+      <h3>Mask <span class="pill p1">new</span></h3>
+      <p>Click a closed object, or pick points round an area: a white (paper-colour) fill that hides what lies under it, so a tag or note stays readable over trays, hatches and the architectural underlay. Its outline shows only when picked or when "Show mask frames" is on. Prints white.</p>
+      <h3 style="margin-top:12px">Annotation scale <span class="pill p2">later</span></h3>
+      <p>Text, dimensions, leaders and tables picked get one more plan scale (for example 1:50 as well as 1:100). A layout viewport at 1:50 shows them at their 1:50 size, so the same note prints 2.5 mm high in both viewports.</p>
+    </div>
+  </div>
+
+  <h2>Not proposed</h2>
+  <ul class="notes">
+    <li><b>Centre mark / centre line</b>: for machined parts and section drawings; little use on electrical plans.</li>
+    <li><b>Spell check</b>: needs an offline dictionary; can come later with Find and replace.</li>
+    <li><b>Link to a spreadsheet file</b>: "From project data" covers what electrical plans need; an Excel link can follow if asked for.</li>
+  </ul>
+</div>
+<script>
+function show(v){ ['now','elec','new'].forEach(k=>document.querySelectorAll('.v-'+k).forEach(e=>e.classList.toggle('hide',k!==v)));
+  document.querySelectorAll('.sub span').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('.sub:not(.hide) '+(v==='elec'?'.el':v==='new'?'.an':'.lv')).forEach(e=>e.classList.add('on'));
+  document.querySelectorAll('[data-v]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v)); }
+document.querySelectorAll('[data-v]').forEach(x=>x.onclick=()=>show(x.dataset.v));
+document.getElementById('bTheme').onclick=()=>{const r=document.documentElement;r.dataset.theme=r.dataset.theme==='light'?'dark':'light';};
+show('new');
+</script>
+</body>
+</html>

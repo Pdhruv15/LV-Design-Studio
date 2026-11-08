@@ -1,4 +1,5 @@
 import type { SketchItem } from '../types';
+import { dimMeasure } from './cadSketch';
 
 type Pt = [number, number];
 
@@ -48,7 +49,7 @@ const len = (pts: Pt[], closed?: boolean) => pts.slice(1).reduce((t, q, i) => t 
 const deg = (a: number) => (((a * 180) / Math.PI) % 360 + 360) % 360;
 const rad = (d: number) => (d * Math.PI) / 180;
 const vIdx = (it: SketchItem, v: number) => Math.max(0, Math.min(it.pts.length - 1, v));
-const measuredOf = (it: SketchItem) => (it.pts.length >= 2 ? Math.hypot(it.pts[1][0] - it.pts[0][0], it.pts[1][1] - it.pts[0][1]) : 0);
+const measuredOf = (it: SketchItem) => dimMeasure(it);
 
 /** A value of an object: metres or degrees as a number, else text (undefined when it has none). */
 export function propValue(it: SketchItem, key: PropKey, k: number, v = 0): number | string | undefined {
