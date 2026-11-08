@@ -50,10 +50,11 @@ import { fmtFixed, fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
 import { AnnoPanel, HatchPanel } from './AnnotatePanel';
 import { annoOf, centreOf, hatchItem, hatchOutline, HATCH_START, leaderItems, northArrowItems, roomTagItems, textUnits, type HatchSpec } from '../../model/cadAnnotate';
-import { LayerPalette, layerRows, ObjectPropertiesPanel, type LayerRow } from './CadLayerManager';
+import { LayerPalette, layerRows, type LayerRow } from './CadLayerManager';
+import { PropertiesPalette } from './CadProperties';
 import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
 import { refGeometry, type CadRef } from '../../model/cadRefs';
-import { drawnLayers, effective, layerStylesOf, matchedProps, styleOf, withProps } from '../../model/cadLayerStyle';
+import { drawnLayers, effective, layerStylesOf, matchedProps, styleOf } from '../../model/cadLayerStyle';
 import { applyLayerPatch, archOnOf, currentLayerOf, extentsOf, isolate, layerFileOf, newLayerName, renameLayer, restoreState, unisolate, withCurrentLayer, withNewLayer, withoutLayer, withoutState, withSavedState } from '../../model/cadLayerState';
 import { DrawnSelectionPanel, ED_START, EditToolPanel, kindOf, SketchToolbar, type EditSettings, type EditTool, type SketchEdit } from './SketchEditPanel';
 import { arrayPolar, arrayRect, breakAt, chamfer, edgesFor, explode, extend, fillet, gripMoved, gripsOf, isPath, join, mirrored, offset, scaled, sketchInWindow, stretched, throughDistance, trim, type Edit } from '../../model/cadEdit';
@@ -225,6 +226,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [promptMenu, setPromptMenu] = useState<{ at: Pt; items: { label: string; key?: string; run: () => void }[] } | null>(null);
   // Layer palette shown, and the object Match properties copies from.
   const [showLM, setShowLM] = useState(false);
+  // The properties palette (Ctrl/Cmd+1): shown while a drawing is open, unless hidden.
+  const [showProps, setShowProps] = useState(true);
   const [mpFrom, setMpFrom] = useState<string | null>(null);
   const [hatchSet, setHatchSet] = useState<HatchSpec>(HATCH_START);
   // References: the manager shown, the reference being attached (its dialog, or a point being picked for it), the one
@@ -1373,6 +1376,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
     const mods = e.metaKey || e.ctrlKey || e.altKey;
     const fn: Record<string, keyof CadToggles> = { F3: 'osnap', F7: 'grid', F8: 'ortho', F9: 'snap', F12: 'dyn' };
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === '1') { e.preventDefault(); setShowProps((v) => !v); return; }
     if (fn[e.key]) { e.preventDefault(); if (fn[e.key] === 'grid') cad.cycleGrid(); else cad.toggle(fn[e.key]); return; }
     // Keys in a dialog over the page (the layer manager, references…) are the dialog's.
     if (e.defaultPrevented || (e.target instanceof Element && e.target.closest('[aria-modal="true"], [role="dialog"]'))) return;
@@ -1384,9 +1388,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return;
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && (selectedItem || selSketch || many)) { e.preventDefault(); removeSelected(); return; }
-    // Enter or Space on the drawing (not on a button, a field or the layer palette) works as Enter on the empty command
-    // line: Enter at once, Space when it is let go (see spaceTap); once per press.
-    const onControl = e.target instanceof Element && !!e.target.closest('button, a, [role="tab"], [role="menuitem"], [contenteditable="true"], .cad-lpal');
+    // Enter or Space on the drawing (not on a button, a field or a palette) works as Enter on the empty command line:
+    // Enter at once, Space when it is let go (see spaceTap); once per press.
+    const onControl = e.target instanceof Element && !!e.target.closest('button, a, [role="tab"], [role="menuitem"], [contenteditable="true"], .cad-lpal, .cad-ppal');
     if (e.key === ' ' && spaceMode !== 'text' && !typing && !onControl && !mods) {
       e.preventDefault();
       if (!e.repeat) spaceTap.current = { dragged: false, repeated: false }; else if (spaceTap.current) spaceTap.current.repeated = true;
@@ -1626,8 +1630,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             </div>
           </div>
         )}
-        {cad.showLayers && (
+        {(cad.showLayers || (showProps && view)) && (
           <aside className="cad-side">
+            {showProps && view && (
+              <PropertiesPalette key={pickedSk.map((it) => it.id).join()} items={pickedSk} devices={pickedItems.length} layers={drawnLayers(sketch, [...(layerFile.layers ?? []), curLayer])} styles={styles} current={curLayer} textMm={anno.textMm} k={units.factor}
+                onItems={(next, what) => change(next.reduce((q, it) => updateSketch(q, fileOf(), it), project), `${what} · ⌘Z to undo`)}
+                onCurrent={setCurrentLayer} onTextMm={(mm) => change({ ...project, cadAnno: { ...anno, textMm: mm } }, `Annotation: ${mm} mm text at 1:${anno.scale} · ⌘Z to undo`)}
+                onClose={() => setShowProps(false)} />
+            )}
+            {cad.showLayers && <>
             {sheetL && selV && <ViewportPanel project={project} sheet={sheetL} vp={selV} refs={xr.refs.map((r) => r.name)} onChange={(patch, what) => patchVp(selV, patch, what)}
               onDelete={() => { setVps((l) => l.filter((x) => x.id !== selV.id), `${vpName(vps, selV.id)} deleted${vps.length === 1 ? ' (the layout shows the level as worked out again)' : ''}`); cad.setVpSel(null); cad.setMsVp(null); }}
               onLayers={() => setShowLM(true)} />}
@@ -1687,9 +1698,6 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               <EditToolPanel tool={tool as EditTool} settings={edSet} onSettings={setEdSet} picked={pickedSk.length}
                 step={edStep ? `${kindOf(sketch.find((x) => x.id === edStep.id) ?? sketch[0])} picked — ${tool === 'offset' ? 'click the side' : tool === 'break' ? 'click the second point, or Enter' : 'click the second line'}` : stretchBox ? 'Window set — click the base point, then the second point' : PICK_FIRST.includes(tool) && edPhase === 'points' ? 'Objects picked — now the points' : undefined}
                 onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
-            )}
-            {tool === 'none' && view && pickedSk.length > 0 && (
-              <ObjectPropertiesPanel items={pickedSk} layers={drawnLayers(sketch, [...(layerFile.layers ?? []), curLayer])} onApply={(patch) => change(pickedSk.reduce((q, it) => updateSketch(q, fileOf(), withProps(it, patch)), project), `${pickedSk.length === 1 ? kindOf(pickedSk[0]) : `${pickedSk.length} objects`}: properties changed · ⌘Z to undo`)} />
             )}
             {tool === 'hatch' && view && <HatchPanel spec={hatchSet} onSpec={setHatchSet} />}
             {(tool === 'text' || tool === 'dim' || tool === 'leader' || tool === 'rtag' || tool === 'north') && view && (
@@ -1778,6 +1786,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               ) : null)}
               {view && <RefLayersList x={xr} />}
             </div>
+            </>}
           </aside>
         )}
       </div>

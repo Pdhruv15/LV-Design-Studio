@@ -696,7 +696,9 @@ describe('CAD view', () => {
     const bar = () => document.querySelector('[aria-label="Edit drawn objects"]') as HTMLElement | null;
     await dragWindow([X - 500, -500], [X + 4500, 3500]);
     expect(bar()!.textContent).toBe('2 selectedJoinMirrorScaleArrayMoveCopyErase');
-    expect(result()).toMatch(/2 objects selectedDrawn2 × Line/);
+    expect(result()).toMatch(/^2 objects selectedJoin/);
+    // The properties palette counts them by kind.
+    expect([...document.querySelectorAll('[aria-label="Objects shown"] option')].map((o) => o.textContent)).toEqual(['All (2)', 'Line (2)']);
     await act(async () => { [...bar()!.querySelectorAll('button')].find((b) => b.textContent === 'Join')!.click(); });
     expect(project.cadSketch![0].items).toEqual([{ id: 'S1', kind: 'pline', layer: 'LV-SKETCH', pts: [[X, 0], [X + 4000, 0], [X + 4000, 3000]] }]);
     await clickAt(X + 2000, 0); // select it: its grips show
@@ -840,6 +842,35 @@ describe('CAD view', () => {
     act(() => { [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Layer states ▾')!.click(); });
     act(() => { [...document.querySelectorAll<HTMLButtonElement>('.cad-lp-state button')].find((b) => b.textContent === 'No walls')!.click(); });
     expect(shown(wall)).toBe(0);
+  });
+
+  it('properties palette: shown with a drawing open, defaults with nothing picked, geometry of a line edited in one undo step; Ctrl/Cmd+1 hides it', async () => {
+    const X = 200000, F = 'sample-villa-gf.dxf';
+    const start: Project = { ...villa, cadSketch: [{ file: F, items: [{ id: 'S1', kind: 'line', layer: 'LV-SKETCH', pts: [[X, 0], [X + 4000, 0]] }] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const pal = () => document.querySelector('[aria-label="Properties palette"]');
+    await until(() => !!pal());
+    expect(pal()!.textContent).toContain('Text height2.5 mm');
+    await clickAt(X + 2000, 0);
+    expect(state.selected).toBe('sk:S1');
+    await until(() => !!document.querySelector('[aria-label="Objects shown"]'));
+    const endX = () => document.querySelector('[aria-label="End X"]') as HTMLElement;
+    expect(endX().textContent).toBe(((X + 4000) / 1000).toFixed(2));
+    act(() => { (endX() as HTMLButtonElement).click(); });
+    const input = endX() as HTMLInputElement;
+    const calls = onChange.mock.calls.length;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, String((X + 6000) / 1000)); input.dispatchEvent(new Event('input', { bubbles: true })); });
+    act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+    expect(onChange.mock.calls.length).toBe(calls + 1);
+    expect(project.cadSketch![0].items[0]).toEqual({ id: 'S1', kind: 'line', layer: 'LV-SKETCH', pts: [[X, 0], [X + 6000, 0]] });
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe(`Line: end x ${((X + 6000) / 1000).toFixed(2)} · ⌘Z to undo`);
+    // Ctrl/Cmd+1 hides and shows it.
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', metaKey: true, bubbles: true })); });
+    expect(pal()).toBeNull();
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', ctrlKey: true, bubbles: true })); });
+    expect(pal()).not.toBeNull();
   });
 
   it('hatches a closed object, adds a leader with its text, a room tag and a north arrow', async () => {
@@ -1739,7 +1770,7 @@ describe('CAD command line', () => {
     expect(items()[2]).toMatchObject({ kind: 'pline', pts: [[X, 10000], [X + 2000, 10000], [X + 2000, 12000]] });
   });
 
-  it('Enter and Space on a row of the layer palette are the palette\'s', async () => {
+  it('Enter and Space on a row of the layer palette, or on the properties palette, are the palette\'s', async () => {
     await start();
     await command('PL');
     await clickAt(X, 10000);
@@ -1750,6 +1781,10 @@ describe('CAD command line', () => {
     key('Enter', row);
     tap(' ', row);
     expect(items()).toHaveLength(2); // the polyline goes on
+    const props = document.querySelector('[aria-label="Properties palette"]') as HTMLElement;
+    key('Enter', props);
+    tap(' ', props);
+    expect(items()).toHaveLength(2); // nor on the properties palette
     expect(state.tool).toBe('pline');
     await clickAt(X + 2000, 12000);
     key('Enter');

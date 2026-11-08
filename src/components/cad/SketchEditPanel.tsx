@@ -1,5 +1,6 @@
 import { Fragment, useState } from 'react';
 import { isPath } from '../../model/cadEdit';
+import { kindLabel } from '../../model/cadProps';
 import { TRAY_WIDTHS } from '../../model/cadSketch';
 import { toolAlias } from './cadCommands';
 import type { SketchItem } from '../../types';
@@ -19,7 +20,7 @@ const LABEL: Record<SketchEdit, string> = {
   filter: 'Filter ▾', trim: 'Trim', extend: 'Extend', offset: 'Offset', break: 'Break', fillet: 'Fillet', mirror: 'Mirror', scale: 'Scale', array: 'Array',
   join: 'Join', width: 'Width ▾', move: 'Move', copy: 'Copy', rotate: 'Rotate', erase: 'Erase'
 };
-export const kindOf = (it: SketchItem) => (it.tray ? 'Cable tray' : it.cable ? 'Cable route' : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', text: 'Text', dim: 'Dimension' }[it.kind]);
+export const kindOf = kindLabel;
 
 /** What the toolbar offers for the drawn objects picked (and devices with them: then only Filter, Move, Copy, Erase). */
 export function sketchEditsFor(items: SketchItem[], devices: number): SketchEdit[] {
@@ -71,18 +72,14 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, onEdi
   );
 }
 
-/** Several objects picked with drawn ones among them: what they are, and the edits for them all. */
+/** Several objects picked with drawn ones among them: how many, and the edits for them all (the properties palette
+ * counts them by kind). */
 export function DrawnSelectionPanel({ items, devices, onEdit }: { items: SketchItem[]; devices: number; onEdit: (e: SketchEdit) => void }) {
-  const n = new Map<string, number>();
-  for (const it of items) n.set(kindOf(it), (n.get(kindOf(it)) ?? 0) + 1);
   const edits = sketchEditsFor(items, devices).filter((e) => e !== 'filter' && e !== 'width');
   return (
     <>
       <div><b>{items.length + devices} objects selected</b></div>
-      <dl className="cad-props" aria-label="Objects selected">
-        <dt>Drawn</dt><dd>{[...n].map(([k, c]) => `${c} × ${k}`).join(', ')}</dd>
-        {devices > 0 && <><dt>Devices</dt><dd>{devices}</dd></>}
-      </dl>
+      {devices > 0 && <dl className="cad-props" aria-label="Objects selected"><dt>Devices</dt><dd>{devices}</dd></dl>}
       <div className="cad-devbtns">{edits.map((e) => <button key={e} className="chip" onClick={() => onEdit(e)}>{LABEL[e]}</button>)}</div>
     </>
   );

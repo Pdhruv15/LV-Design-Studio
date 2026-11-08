@@ -1905,6 +1905,30 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-lp-foot{display:flex;align-items:center;gap:10px;min-height:20px;padding:0 8px;background:var(--p2);border-top:1px solid var(--line);color:var(--mut);font-size:var(--fs-xs);overflow:hidden}
 .cad-lp-foot span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cad-lp-note{color:var(--warn)}
+/* Design CAD properties palette (Ctrl/Cmd+1): top of the right column, two columns of 20 px rows */
+.cad-ppal{display:flex;flex-direction:column;flex:0 1 auto;max-height:60%;min-height:0;border-bottom:1px solid var(--line-strong);font-size:var(--fs-xs)}
+.cad-pp-kind{margin:4px 6px;height:22px;font-size:var(--fs-xs)}
+.cad-pp-body{flex:1;min-height:0;overflow:auto}
+.cad-pp-sec{display:flex;align-items:center;gap:4px;width:100%;height:20px;padding:0 6px;border:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--p2);color:var(--mut);font-size:var(--fs-xs);font-weight:600;text-align:left}
+.cad-pp-kv{display:grid}
+.cad-pp-row{display:grid;grid-template-columns:96px minmax(0,1fr);height:20px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.cad-pp-row .k{display:flex;align-items:center;padding:0 6px;color:var(--mut);border-right:1px solid color-mix(in srgb,var(--line) 55%,transparent);white-space:nowrap;overflow:hidden}
+.cad-pp-row .v{display:flex;align-items:center;min-width:0;padding:0 2px;white-space:nowrap}
+.cad-pp-row .v .ro{padding:0 4px;color:var(--mut);margin-left:auto}
+.cad-pp-row select,.cad-pp-row input{width:100%;height:18px;min-height:0;padding:0 3px;font-size:var(--fs-xs)}
+.cad-pp-row input{background:var(--bg);border:0;outline:1px solid var(--acc);outline-offset:-1px;color:var(--tx)}
+.cad-pp-row input.r{text-align:right}
+.cad-pp-row select.by{color:var(--mut)}
+.cad-pp-row .cad-colour-btn{min-height:18px;padding:0 4px;border-color:transparent;background:none}
+.cad-pp-val{width:100%;height:18px;padding:0 4px;border:0;border-radius:2px;background:none;color:var(--tx);font-size:var(--fs-xs);text-align:left;overflow:hidden;text-overflow:ellipsis}
+.cad-pp-val.r{text-align:right}
+.cad-pp-val:hover{background:var(--p2)}
+.cad-pp-vr{color:var(--warn)}
+.cad-pp-by{padding:0 4px;color:var(--mut)}
+.cad-pp-vtx{display:flex;align-items:center;gap:4px;margin-left:auto}
+.cad-pp-vtx button{height:18px;padding:0 4px;border:0;border-radius:2px;background:none;color:var(--tx);font-size:10px}
+.cad-pp-vtx button:disabled{color:var(--line-strong)}
+.cad-pp-note{padding:4px 6px}
 .cad-side{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-width:0;min-height:0}
 .cad-side h4{margin:0;padding:var(--space-3) var(--space-3) var(--space-1);font-size:var(--fs-xs);color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
 .cad-res{margin:0 var(--space-3) var(--space-2);padding:var(--space-2);border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--p2);font-size:var(--fs-sm);overflow-wrap:anywhere}
