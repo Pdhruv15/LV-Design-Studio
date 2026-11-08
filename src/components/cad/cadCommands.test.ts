@@ -17,7 +17,7 @@ const BEFORE: Record<string, string> = {
   MP: 'matchprop', PAINTER: 'matchprop', H: 'hatch', HATCH: 'hatch', BH: 'hatch', LE: 'leader', LEADER: 'leader', QLEADER: 'leader',
   RT: 'rtag', ROOMTAG: 'rtag', NORTH: 'north',
   XR: '!xref', XREF: '!xref', XREFS: '!xref', ER: '!xref', EXTERNALREFERENCES: '!xref', XA: '!xattach', XATTACH: '!xattach',
-  XCLIP: '!xclip', XC: '!xclip', LM: '!layerManager', LAYERMANAGER: '!layerManager', LAYMAN: '!layerManager',
+  XCLIP: '!xclip', XC: '!xclip', CROP: 'crop', BCROP: 'crop', LM: '!layerManager', LAYERMANAGER: '!layerManager', LAYMAN: '!layerManager',
   // Since the layer palette: LAYER opens it (as in current industrial 2D drafting products); LA still shows the Layers panel.
   LAYER: '!layerManager', 'LAYER N': '!newLayer', 'LAYER NEW': '!newLayer', '-LAYER N': '!newLayer', CLAYER: '!clayer', LAYISO: '!layiso', LAYUNISO: '!layuniso',
   LAYOFF: '!layoff', LAYFRZ: '!layfrz', LAYLCK: '!laylck', LAYULK: '!layulk', LAYMCUR: '!laymcur', LAYON: '!layon', LAYTHW: '!laythw',
