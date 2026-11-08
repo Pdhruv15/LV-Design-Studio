@@ -1,4 +1,5 @@
 import { inside } from './cadMeasure';
+import { ellipsePoints } from './cadSketch';
 import type { Project, SketchItem } from '../types';
 
 /** Design CAD → Hatch and annotation (drawing units): a hatch is a closed outline filled with a pattern; a leader an
@@ -31,7 +32,7 @@ export const unitsPerPaperMm = (a: AnnoSettings, metresPerUnit: number) => a.sca
 export const textUnits = (a: AnnoSettings, metresPerUnit: number) => a.textMm * unitsPerPaperMm(a, metresPerUnit);
 
 const area = (pts: Pt[]) => Math.abs(pts.reduce((t, q, i) => { const r = pts[(i + 1) % pts.length]; return t + q[0] * r[1] - r[0] * q[1]; }, 0)) / 2;
-/** What to hatch around a point: the smallest closed drawn object around it (polyline, rectangle or circle), else the
+/** What to hatch around a point: the smallest closed drawn object around it (polyline, rectangle, circle or ellipse), else the
  * smallest room outline (drawing units) around it. */
 export function hatchOutline(items: SketchItem[], at: Pt, rooms: Pt[][]): { pts: Pt[]; circle?: { c: Pt; r: number }; from: 'object' | 'room' } | undefined {
   let best: { a: number; pts: Pt[]; circle?: { c: Pt; r: number } } | undefined;
@@ -40,6 +41,12 @@ export function hatchOutline(items: SketchItem[], at: Pt, rooms: Pt[][]): { pts:
     if (it.kind === 'circle' && it.r && Math.hypot(at[0] - it.pts[0][0], at[1] - it.pts[0][1]) < it.r) {
       const a = Math.PI * it.r * it.r;
       if (!best || a < best.a) best = { a, pts: it.pts, circle: { c: it.pts[0], r: it.r } };
+    } else if (it.kind === 'ellipse' && it.ax) {
+      // An ellipse: hatched as the closed outline round it.
+      const pts = ellipsePoints(it);
+      if (!inside(at, pts)) continue;
+      const a = Math.PI * Math.hypot(it.ax[0], it.ax[1]) ** 2 * (it.ratio ?? 1);
+      if (!best || a < best.a) best = { a, pts };
     } else if ((it.kind === 'pline' || it.kind === 'line') && it.closed && it.pts.length > 2 && inside(at, it.pts)) {
       const a = area(it.pts);
       if (!best || a < best.a) best = { a, pts: it.pts };

@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.055', date: '2026-11-08',
+    items: [
+      { title: 'More ways to draw', text: 'Draw has Ellipse (EL): its centre, the end of one axis, then the other axis, or A for the two ends of an axis. Polygon (POL) is under Rectangle\'s arrow: type the number of sides, then the centre and the radius (I: corners on it, C: sides touching it). Circle\'s arrow draws one by its diameter, two points or three points (or type 2P, 3P, or D after the centre); Arc\'s draws one by its start, centre and end.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Revision clouds', text: 'Annotate → Revision cloud (REVCLOUD): two corners round the change, or P and its points. The arcs are 15 mm long on paper at the annotation scale, or type a length first. Clouds and ellipses are saved as such in DXF and DWG, print on the plan sheets, and can be moved, copied, rotated, mirrored and scaled; drag a cloud\'s corner to reshape it.' }
+    ]
+  },
+  {
     version: '2.054', date: '2026-11-08',
     items: [
       { title: 'Design CAD: the Drafting tab', text: 'Design CAD opens on Drafting: Draw, Modify, Annotate, Layers, Properties and Measure in one tab, laid out as drafting programs usually are. The main tools carry their name under the icon; the others are small icons with their name, typed command and what they do on hover. Electrical, ELV & sheets has the rooms, trays and cable routes, devices, wiring, references, the sheet set and layouts, and on the sheets pages every sheet tool. Show labels names every tool; the tools then take four sub-tabs.', action: 'cad', actionLabel: 'Open Design CAD' },

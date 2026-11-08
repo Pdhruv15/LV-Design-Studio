@@ -38,6 +38,7 @@ export function rotated(it: SketchItem, c: Pt, a: number): SketchItem {
   const pts = it.pts.map((q) => rot(q, c, a));
   if (it.kind === 'arc') return { ...it, pts, a0: (it.a0 ?? 0) + a, a1: (it.a1 ?? 0) + a };
   if (it.kind === 'text') return { ...it, pts, rot: (it.rot ?? 0) + a };
+  if (it.kind === 'ellipse' && it.ax) return { ...it, pts, ax: rot(it.ax, [0, 0], a) };
   return { ...it, pts };
 }
 
@@ -65,6 +66,60 @@ export function arcThrough(s: Pt, m: Pt, e: Pt): Omit<SketchItem, 'id' | 'layer'
   // Anticlockwise from a0 to a1 must pass the middle point; else the arc runs the other way.
   if (norm(am - a0) > norm(a1 - a0)) [a0, a1] = [a1, a0];
   return { kind: 'arc', pts: [c.c], r: c.r, a0, a1 };
+}
+
+/** The circle with two points at the ends of a diameter. */
+export const circle2P = (a: Pt, b: Pt): { c: Pt; r: number } => ({ c: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], r: dist(a, b) / 2 });
+/** An arc from its start, round its centre, anticlockwise to the direction of `end` (its radius is the start's). */
+export function arcStartCentreEnd(s: Pt, c: Pt, e: Pt): Omit<SketchItem, 'id' | 'layer'> | undefined {
+  const r = dist(s, c);
+  if (r < 1e-9 || dist(e, c) < 1e-9) return undefined;
+  return { kind: 'arc', pts: [c], r, a0: Math.atan2(s[1] - c[1], s[0] - c[0]), a1: Math.atan2(e[1] - c[1], e[0] - c[0]) };
+}
+/** A regular polygon of `n` sides round a centre: its corners on the circle through `at` (inscribed), or the middles
+ * of its sides there (circumscribed); one corner (or side middle) towards `at`. */
+export function polygonPts(c: Pt, at: Pt, n: number, inscribed = true): Pt[] {
+  const r0 = dist(c, at), a0 = Math.atan2(at[1] - c[1], at[0] - c[0]);
+  const r = inscribed ? r0 : r0 / Math.cos(Math.PI / n), start = inscribed ? a0 : a0 + Math.PI / n;
+  return Array.from({ length: n }, (_, i) => [c[0] + r * Math.cos(start + (2 * Math.PI * i) / n), c[1] + r * Math.sin(start + (2 * Math.PI * i) / n)] as Pt);
+}
+/** An ellipse from its centre, the end of one axis, and a point at the distance of the other: the longer is the major
+ * axis. Undefined when either is nil. */
+export function ellipseOf(c: Pt, axisEnd: Pt, other: Pt): Omit<SketchItem, 'id' | 'layer'> | undefined {
+  const u: Pt = [axisEnd[0] - c[0], axisEnd[1] - c[1]], a = Math.hypot(u[0], u[1]);
+  if (a < 1e-9) return undefined;
+  const b = Math.abs(((other[0] - c[0]) * -u[1] + (other[1] - c[1]) * u[0]) / a);
+  if (b < 1e-9) return undefined;
+  if (b <= a) return { kind: 'ellipse', pts: [c], ax: u, ratio: b / a };
+  return { kind: 'ellipse', pts: [c], ax: [(-u[1] / a) * b, (u[0] / a) * b], ratio: a / b };
+}
+/** An ellipse's outline, `n` points round it (as a closed outline). */
+export function ellipsePoints(it: Pick<SketchItem, 'pts' | 'ax' | 'ratio'>, n = 72): Pt[] {
+  const c = it.pts[0], [ux, uy] = it.ax ?? [0, 0], k = it.ratio ?? 1, vx = -uy * k, vy = ux * k;
+  return Array.from({ length: n }, (_, i) => { const t = (2 * Math.PI * i) / n; return [c[0] + ux * Math.cos(t) + vx * Math.sin(t), c[1] + uy * Math.cos(t) + vy * Math.sin(t)] as Pt; });
+}
+/** The bulge of a revision cloud's arcs: the tangent of a quarter of their angle (0.5: about 106°). */
+export const CLOUD_BULGE = 0.5;
+/** A revision cloud's arcs: each side of its outline split into pieces about `cloud` long; each piece an arc bulging out
+ * of the outline. The points in order (closed) and the bulge after each (positive: anticlockwise). */
+export function cloudLobes(it: Pick<SketchItem, 'pts' | 'cloud'>): { pts: Pt[]; bulge: number } {
+  const o = it.pts, n = o.length, step = Math.max(it.cloud ?? 0, 1e-9);
+  const area = o.reduce((t, q, i) => { const r = o[(i + 1) % n]; return t + q[0] * r[1] - r[0] * q[1]; }, 0);
+  const pts: Pt[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const a = o[i], b = o[(i + 1) % n], k = Math.max(1, Math.round(dist(a, b) / step));
+    for (let j = 0; j < k; j += 1) pts.push([a[0] + ((b[0] - a[0]) * j) / k, a[1] + ((b[1] - a[1]) * j) / k]);
+  }
+  // Anticlockwise outline: out is to the right of each side, which a positive bulge bulges to.
+  return { pts, bulge: area >= 0 ? CLOUD_BULGE : -CLOUD_BULGE };
+}
+/** The arc from a to b of a bulge: centre, radius and its angles anticlockwise. */
+export function bulgeArc(a: Pt, b: Pt, bulge: number): { c: Pt; r: number; a0: number; a1: number } {
+  const th = 4 * Math.atan(Math.abs(bulge)), chord = dist(a, b) || 1e-9, r = chord / (2 * Math.sin(th / 2));
+  const ux = (b[0] - a[0]) / chord, uy = (b[1] - a[1]) / chord, h = r * Math.cos(th / 2) * Math.sign(bulge);
+  const c: Pt = [(a[0] + b[0]) / 2 - uy * h, (a[1] + b[1]) / 2 + ux * h];
+  const ang = (q: Pt) => Math.atan2(q[1] - c[1], q[0] - c[0]);
+  return bulge > 0 ? { c, r, a0: ang(a), a1: ang(b) } : { c, r, a0: ang(b), a1: ang(a) };
 }
 
 /** A dimension drawn with a dimension style (drawing units): its arrows (a tick, a closed arrow or a dot) and their
@@ -131,7 +186,9 @@ export function segmentsOf(it: SketchItem): [Pt, Pt][] {
     const pts = Array.from({ length: n + 1 }, (_, i) => [c[0] + r * Math.cos(a0 + (s * i) / n), c[1] + r * Math.sin(a0 + (s * i) / n)] as Pt);
     poly(pts, false);
   };
-  if (it.kind === 'line' || it.kind === 'pline') poly(it.pts, !!it.closed);
+  if (it.cloud) { const { pts, bulge } = cloudLobes(it); pts.forEach((a, i) => { const q = bulgeArc(a, pts[(i + 1) % pts.length], bulge); arc(q.c, q.r, q.a0, q.a1); }); }
+  else if (it.kind === 'line' || it.kind === 'pline') poly(it.pts, !!it.closed);
+  else if (it.kind === 'ellipse') poly(ellipsePoints(it), true);
   else if (it.kind === 'circle') arc(it.pts[0], it.r ?? 0, 0, 2 * Math.PI);
   else if (it.kind === 'arc') arc(it.pts[0], it.r ?? 0, it.a0 ?? 0, it.a1 ?? 0);
   else if (it.kind === 'dim') out.push(...dimensionLines(it.pts[0], it.pts[1], it.pts[2], it.look).lines);
@@ -174,15 +231,20 @@ export function trayLine(it: SketchItem, h: number): { pieces: Pt[][]; textAt: P
 /** Length of a tray run along its centreline (drawing units). */
 export const trayLength = (it: SketchItem) => it.pts.slice(1).reduce((t, p, i) => t + dist(it.pts[i], p), 0);
 
-/** Points the cursor snaps to on drawn items: endpoint (1), midpoint (2), centre (4), insertion (16). */
+/** Points the cursor snaps to on drawn items: endpoint (1), midpoint (2), centre (4), insertion (16), quadrant (64). */
 export function snapPoints(items: SketchItem[]): { x: number; y: number; kind: number }[] {
   const out: { x: number; y: number; kind: number }[] = [];
   for (const it of items) {
     if (it.kind === 'line' || it.kind === 'pline') {
       it.pts.forEach((q) => out.push({ x: q[0], y: q[1], kind: 1 }));
       const n = it.pts.length;
-      for (let i = 0; i + 1 < n + (it.closed ? 1 : 0); i += 1) { const a = it.pts[i], b = it.pts[(i + 1) % n]; out.push({ x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2, kind: 2 }); }
+      // A cloud's sides are arcs: no middles of its outline.
+      if (!it.cloud) for (let i = 0; i + 1 < n + (it.closed ? 1 : 0); i += 1) { const a = it.pts[i], b = it.pts[(i + 1) % n]; out.push({ x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2, kind: 2 }); }
     } else if (it.kind === 'circle') out.push({ x: it.pts[0][0], y: it.pts[0][1], kind: 4 });
+    else if (it.kind === 'ellipse') {
+      const c = it.pts[0], [ux, uy] = it.ax ?? [0, 0], k = it.ratio ?? 1;
+      out.push({ x: c[0], y: c[1], kind: 4 }, ...[[ux, uy], [-ux, -uy], [-uy * k, ux * k], [uy * k, -ux * k]].map(([dx, dy]) => ({ x: c[0] + dx, y: c[1] + dy, kind: 64 })));
+    }
     else if (it.kind === 'arc') {
       const c = it.pts[0], r = it.r ?? 0;
       out.push({ x: c[0], y: c[1], kind: 4 }, { x: c[0] + r * Math.cos(it.a0 ?? 0), y: c[1] + r * Math.sin(it.a0 ?? 0), kind: 1 }, { x: c[0] + r * Math.cos(it.a1 ?? 0), y: c[1] + r * Math.sin(it.a1 ?? 0), kind: 1 });
@@ -214,7 +276,7 @@ export function itemAt(items: SketchItem[], at: Pt, tol: number): SketchItem | u
 }
 
 /** Drawn items as the engine writes them into a DXF (drawing units). */
-export interface ShapeOut { layer: string; kind: 'line' | 'pline' | 'circle' | 'arc' | 'text' | 'hatch'; pts: Pt[]; closed?: boolean; r?: number; a0?: number; a1?: number; text?: string; h?: number; rot?: number; loops?: Pt[][]; solid?: boolean; lines?: { angle: number; base: Pt; offset: Pt; dashes: number[] }[] }
+export interface ShapeOut { layer: string; kind: 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'text' | 'hatch'; pts: Pt[]; closed?: boolean; bulges?: number[]; r?: number; a0?: number; a1?: number; axis?: Pt; ratio?: number; text?: string; h?: number; rot?: number; loops?: Pt[][]; solid?: boolean; lines?: { angle: number; base: Pt; offset: Pt; dashes: number[] }[] }
 export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[] {
   const unitsPerMm = 0.001 / metresPerUnit;
   const { fittings } = trayFittings(items, unitsPerMm);
@@ -234,6 +296,9 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[
       return [...pieces.map((q): ShapeOut => ({ layer: it.layer, kind: 'pline', pts: q })), { layer: it.layer, kind: 'text', pts: [textAt], text: l.text, h, rot: l.rot }];
     }
     if (it.kind === 'line' && it.pts.length > 2) return [{ layer: it.layer, kind: 'pline', pts: it.pts }];
+    // A revision cloud as one closed polyline of arcs; an ellipse as an ellipse.
+    if (it.cloud) { const c = cloudLobes(it); return [{ layer: it.layer, kind: 'pline', pts: c.pts, closed: true, bulges: c.pts.map(() => c.bulge) }]; }
+    if (it.kind === 'ellipse') return it.ax ? [{ layer: it.layer, kind: 'ellipse', pts: it.pts, axis: it.ax, ratio: it.ratio ?? 1 }] : [];
     return [{ layer: it.layer, kind: it.kind, pts: it.pts, closed: it.closed, r: it.r, a0: it.a0, a1: it.a1, text: it.text, h: it.h, rot: it.rot }];
   }), ...fittingTexts];
 }

@@ -828,13 +828,20 @@ impl CadDoc {
 #[derive(serde::Deserialize)]
 struct DeviceOut { layer: String, x: f64, y: f64, r: f64, text: String, label: String }
 
-/// Something drawn in the app: line / polyline (pts), circle (centre, r), arc (centre, r, a0 → a1 radians), text, hatch.
+/// Something drawn in the app: line / polyline (pts, and the bulge of the segment after each point), circle (centre, r),
+/// arc (centre, r, a0 → a1 radians), ellipse (centre, its major axis from the centre, the minor axis as a fraction of
+/// it, a0 → a1 parameters), text, hatch.
 #[derive(serde::Deserialize)]
 struct ShapeOut {
     layer: String,
     kind: String,
     pts: Vec<(f64, f64)>,
     #[serde(default)] closed: bool,
+    /// Polyline: the tangent of a quarter of the arc of the segment after each point (0, or none: straight).
+    #[serde(default)] bulges: Vec<f64>,
+    /// Ellipse: its major axis, from the centre, and the minor axis as a fraction of it.
+    #[serde(default)] axis: (f64, f64),
+    #[serde(default)] ratio: f64,
     #[serde(default)] r: f64,
     #[serde(default)] a0: f64,
     #[serde(default)] a1: f64,
@@ -855,7 +862,7 @@ struct PatLineOut { angle: f64, base: (f64, f64), offset: (f64, f64), #[serde(de
 /// device as a circle with its letters inside and its label (circuit or type) beside it. The architect's entities are
 /// kept as read.
 fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Result<CadDocument, String> {
-    use acadrust::entities::{Arc, BoundaryEdge, BoundaryPath, Circle, Hatch, HatchPattern, HatchPatternLine, HatchPatternType, Line, LwPolyline, LwVertex, PolylineEdge, Text};
+    use acadrust::entities::{Arc, BoundaryEdge, BoundaryPath, Circle, Ellipse, Hatch, HatchPattern, HatchPatternLine, HatchPatternType, Line, LwPolyline, LwVertex, PolylineEdge, Text};
     use acadrust::tables::Layer;
     use acadrust::types::{Vector2, Vector3};
     let (mut doc, _) = read(bytes)?;
@@ -868,7 +875,7 @@ fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Resu
             "line" if sh.pts.len() == 2 => { let mut l = Line::from_coords(sh.pts[0].0, sh.pts[0].1, 0.0, sh.pts[1].0, sh.pts[1].1, 0.0); l.common.layer = sh.layer.clone(); EntityType::Line(l) }
             "line" | "pline" if sh.pts.len() >= 2 => {
                 let mut l = LwPolyline::new();
-                l.vertices = sh.pts.iter().map(|p| LwVertex::new(Vector2::new(p.0, p.1))).collect();
+                l.vertices = sh.pts.iter().enumerate().map(|(i, p)| { let mut v = LwVertex::new(Vector2::new(p.0, p.1)); v.bulge = sh.bulges.get(i).copied().unwrap_or(0.0); v }).collect();
                 l.is_closed = sh.closed;
                 l.common.layer = sh.layer.clone();
                 EntityType::LwPolyline(l)
@@ -878,6 +885,15 @@ fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Resu
                 let mut a = Arc::new();
                 a.center = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); a.radius = sh.r; a.start_angle = sh.a0; a.end_angle = sh.a1; a.common.layer = sh.layer.clone();
                 EntityType::Arc(a)
+            }
+            "ellipse" if !sh.pts.is_empty() && sh.ratio > 0.0 && sh.axis != (0.0, 0.0) => {
+                let mut e = Ellipse::new();
+                e.center = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0);
+                e.major_axis = Vector3::new(sh.axis.0, sh.axis.1, 0.0);
+                e.minor_axis_ratio = sh.ratio.min(1.0);
+                if sh.a0 != sh.a1 { e.start_parameter = sh.a0; e.end_parameter = sh.a1; }
+                e.common.layer = sh.layer.clone();
+                EntityType::Ellipse(e)
             }
             "text" if !sh.pts.is_empty() && !sh.text.is_empty() => {
                 let mut t = Text::new();
@@ -1049,6 +1065,23 @@ mod tests {
         let d = CadDoc::new(bytes).unwrap();
         assert_eq!(d.fills.len(), before + 2); // the one with a loop of two points is left out
         assert!(d.layers.iter().any(|l| l.name == "STR$0$S-HATCH"));
+    }
+
+    /// An ellipse and a polyline with arc segments (a revision cloud) are saved as such, and read back.
+    #[test]
+    fn ellipse_and_bulges_saved() {
+        let shapes = r#"[{"layer":"LV-SKETCH","kind":"ellipse","pts":[[100,50]],"axis":[30,40],"ratio":0.5},{"layer":"LV-ANNO","kind":"pline","pts":[[0,0],[10,0],[10,10]],"closed":true,"bulges":[0.5,0.5,0.5]}]"#;
+        let doc = with_additions(drawing(), "[]", shapes).unwrap();
+        let bytes = acadrust::DxfWriter::new(&doc).write_to_vec().unwrap();
+        let (back, _) = read(bytes).unwrap();
+        let ell = back.entities().find_map(|e| if let EntityType::Ellipse(x) = e { Some(x) } else { None }).expect("the ellipse");
+        assert_eq!((ell.center.x, ell.center.y, ell.major_axis.x, ell.major_axis.y), (100.0, 50.0, 30.0, 40.0));
+        assert!((ell.minor_axis_ratio - 0.5).abs() < 1e-9 && (ell.end_parameter - 2.0 * PI).abs() < 1e-9);
+        let cloud = back.entities().find_map(|e| if let EntityType::LwPolyline(x) = e { if x.common.layer == "LV-ANNO" { Some(x) } else { None } } else { None }).expect("the cloud");
+        assert!(cloud.is_closed);
+        assert_eq!(cloud.vertices.iter().map(|v| v.bulge).collect::<Vec<_>>(), vec![0.5, 0.5, 0.5]);
+        // Read for the screen, the ellipse is a closed outline of many points.
+        assert!(CadDoc::new(acadrust::DxfWriter::new(&doc).write_to_vec().unwrap()).is_ok());
     }
 
     #[test]
