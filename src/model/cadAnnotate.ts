@@ -1,24 +1,15 @@
 import { inside } from './cadMeasure';
 import { ellipsePoints } from './cadSketch';
 import type { Project, SketchItem } from '../types';
+import type { HatchSpec } from './cadHatch';
 
 /** Design CAD → Hatch and annotation (drawing units): a hatch is a closed outline filled with a pattern; a leader an
  * arrowed line with its text; a room tag the room's name and area; a north arrow. Text sizes are paper mm at the
  * annotation scale (2.5 mm at 1:100 = 0.25 m on the plan). */
 
 type Pt = [number, number];
-export type HatchPattern = 'solid' | 'ansi31' | 'ansi37' | 'net' | 'dots';
-/** A pattern's line families (degrees, before the hatch's own angle); dots are a grid of points. */
-export const HATCH_PATTERNS: Record<HatchPattern, { label: string; lines: number[]; dots?: boolean }> = {
-  solid: { label: 'Solid', lines: [] },
-  ansi31: { label: 'ANSI31 (45° lines)', lines: [45] },
-  ansi37: { label: 'ANSI37 (cross 45°)', lines: [45, 135] },
-  net: { label: 'Net (square grid)', lines: [0, 90] },
-  dots: { label: 'Dots', lines: [], dots: true }
-};
-export const HATCH_IDS = Object.keys(HATCH_PATTERNS) as HatchPattern[];
-/** A hatch: pattern, line spacing (paper mm at the annotation scale) and angle (degrees). */
-export interface HatchSpec { pattern: HatchPattern; scale: number; angle: number }
+// The patterns themselves: src/model/cadHatch.ts.
+export { HATCH_IDS, HATCH_PATTERNS, type HatchPattern, type HatchSpec } from './cadHatch';
 export const HATCH_START: HatchSpec = { pattern: 'ansi31', scale: 3, angle: 0 };
 export const HATCH_LAYER = 'LV-HATCH', ANNO = 'LV-ANNO';
 
@@ -59,11 +50,6 @@ export function hatchOutline(items: SketchItem[], at: Pt, rooms: Pt[][]): { pts:
 /** The hatch as a drawn object on LV-HATCH: a closed polyline (or circle) with its pattern. */
 export function hatchItem(o: { pts: Pt[]; circle?: { c: Pt; r: number } }, spec: HatchSpec): Omit<SketchItem, 'id'> {
   return o.circle ? { kind: 'circle', layer: HATCH_LAYER, pts: [o.circle.c], r: o.circle.r, hatch: spec } : { kind: 'pline', layer: HATCH_LAYER, pts: o.pts, closed: true, hatch: spec };
-}
-/** A hatch's line families as the canvas draws them: angle (radians) and spacing (drawing units). */
-export function hatchFamilies(spec: HatchSpec, perMm: number): { angle: number; step: number }[] {
-  const step = Math.max(0.2, spec.scale) * perMm;
-  return HATCH_PATTERNS[spec.pattern].lines.map((d) => ({ angle: ((d + spec.angle) * Math.PI) / 180, step }));
 }
 
 /** A leader: the arrowed line through its points (the arrow at the first) and its text beside the last. */

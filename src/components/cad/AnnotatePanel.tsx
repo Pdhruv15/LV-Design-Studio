@@ -1,4 +1,5 @@
 import { HATCH_IDS, HATCH_PATTERNS, type AnnoSettings, type HatchPattern, type HatchSpec } from '../../model/cadAnnotate';
+import { patternOf } from '../../model/cadHatch';
 
 /** Design CAD → Hatch and the annotation tools' side panels. */
 
@@ -14,7 +15,7 @@ export function HatchPanel({ spec, onSpec }: { spec: HatchSpec; onSpec: (s: Hatc
           {HATCH_IDS.map((h) => <option key={h} value={h}>{HATCH_PATTERNS[h].label}</option>)}
         </select></label>
         {spec.pattern !== 'solid' && <label>Spacing (paper mm)<input aria-label="Hatch spacing" type="number" step="0.5" min="0.5" value={spec.scale} onChange={(e) => onSpec({ ...spec, scale: Number(e.target.value) || 3 })} /></label>}
-        {spec.pattern !== 'solid' && spec.pattern !== 'dots' && <label>Angle (°)<input aria-label="Hatch angle" type="number" step="15" value={spec.angle} onChange={(e) => onSpec({ ...spec, angle: Number(e.target.value) || 0 })} /></label>}
+        {spec.pattern !== 'solid' && !patternOf(spec.pattern).noAngle && <label>Angle (°)<input aria-label="Hatch angle" type="number" step="15" value={spec.angle} onChange={(e) => onSpec({ ...spec, angle: Number(e.target.value) || 0 })} /></label>}
         <span className="m">Click inside a closed drawn object (polyline, rectangle, circle) or a room: the area is hatched on LV-HATCH. Plant rooms, risers, no-go zones.</span>
       </div>
     </>
