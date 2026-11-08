@@ -1872,7 +1872,9 @@ describe('CAD command line', () => {
     expect(project.cadDimStyles).toBeUndefined();
     expect(hist()).toBe('DIMSTYLE  No change.');
     await command('D');
-    pick('Arrow', 'closed'); pick('Unit', 'mm'); pick('Decimal places', '0');
+    pick('Arrow', 'closed');
+    act(() => { (dlg().querySelector('[role="tab"]:nth-child(3)') as HTMLButtonElement).click(); }); // Units
+    pick('Unit', 'mm'); pick('Decimal places', '0');
     expect(dlg().querySelector('[role="note"]')).toBeNull();
     await ok();
     expect(project.cadDimStyles!.styles[0]).toMatchObject({ name: 'Standard', arrow: 'closed', unit: 'mm', decimals: 0 });

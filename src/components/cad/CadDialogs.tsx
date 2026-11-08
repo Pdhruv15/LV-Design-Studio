@@ -2,7 +2,10 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { toolAlias } from './cadCommands';
 import { EDIT_HELP, EDIT_TITLE, type EditSettings, type EditTool } from './SketchEditPanel';
 import { isNumber } from './cadPrompt';
-import { badName, cannotDelete, CAD_FONTS, DIM_ARROWS, newStyleName, STANDARD, type CadDimStyle, type CadFont, type CadStyles, type CadTextStyle, type DimArrow } from '../../model/cadStyles';
+import { badName, cannotDelete, CAD_FONTS, DIM_ARROWS, DIM_TEXT_ALONG, DIM_TEXT_POS, DIM_UNITS, lookOf, newStyleName, STANDARD, type CadDimStyle, type CadFont, type CadStyles, type CadTextStyle, type DimArrow, type DimTextAlong, type DimTextPos, type DimUnit } from '../../model/cadStyles';
+import { dimOf } from '../../model/cadSketch';
+import { mergeImported, readDxfDimStyles } from '../../model/dxfDimStyles';
+import type { SketchItem } from '../../types';
 
 /** Design CAD's compact settings dialogs: small, floating near the top-left of the drawing, moved by their title (each
  * remembers its place on this computer), a label and its value on one row, help behind "?". Enter applies and closes;
@@ -210,25 +213,99 @@ export function DimStyleDialog({ styles, asBefore, onSave, onClose }: {
 }) {
   const [d, setD] = useState(styles);
   const [sel, setSel] = useState(styles.current);
+  const [tab, setTab] = useState<DimTab>('lines');
   const [msg, setMsg] = useState<string>();
+  const [note, setNote] = useState<string>();
+  const fileRef = useRef<HTMLInputElement>(null);
   const one = d.styles.find((x) => x.name === sel) ?? d.styles[0];
   const patch = (p: Partial<CadDimStyle>) => setD({ ...d, styles: d.styles.map((x) => (x.name === one.name ? { ...x, ...p } : x)) });
   const mm = (k: keyof CadDimStyle, label: string) => <Num label={label} unit="mm" value={one[k] as number} onChange={(v) => patch({ [k]: Number(v) })} />;
+  const check = (k: 'hideExt1' | 'hideExt2' | 'textFlat' | 'trimZeros' | 'comma', label: string) => <Check label={label} value={one[k]} onChange={(v) => patch({ [k]: v })} />;
+  const arrows = (label: string, value: string, set: (v: string) => void, same?: boolean) => (
+    <Row label={label}><select aria-label={label} value={value} onChange={(e) => set(e.target.value)}>{same && <option value="same">As first</option>}{DIM_ARROWS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></Row>
+  );
   const standardAsBefore = asBefore && one.name === STANDARD && JSON.stringify(one) === JSON.stringify(styles.styles.find((x) => x.name === STANDARD));
+  const importFile = async (f: File) => {
+    try {
+      const got = readDxfDimStyles(await f.text());
+      if (!got.styles.length) { setNote(undefined); setMsg(`${f.name} has no dimension styles.`); return; }
+      const added = mergeImported(d.styles.map((x) => x.name), got.styles.map((x) => x.style), f.name);
+      setD({ ...d, styles: [...d.styles, ...added] });
+      const cur = got.current ? added[got.styles.findIndex((x) => x.style.name === got.current)] : undefined;
+      setSel((cur ?? added[0]).name);
+      const notes = got.styles.flatMap((x, i) => x.notes.map((n) => `${added[i].name}: ${n}`));
+      setMsg(undefined);
+      setNote(`Imported ${added.length} style${added.length === 1 ? '' : 's'} from ${f.name}: ${added.map((x) => x.name).join(', ')}.${notes.length ? ` ${notes.join('; ')}.` : ''} OK keeps them.`);
+    } catch (e) { setNote(undefined); setMsg((e as Error).message); }
+  };
   return (
-    <CadDialog id="dimstyle" title="Dimension style" alias="DIMSTYLE" onOk={() => onSave(d)} onClose={onClose}
-      help="New dimensions take the current style; sizes are paper mm at the annotation scale. Dimensions drawn before keep their look.">
+    <CadDialog id="dimstyle" title="Dimension style" alias="DIMSTYLE" onOk={() => onSave(d)} onClose={onClose} help={DIM_HELP[tab]}
+      extra={<>
+        <button type="button" onClick={() => fileRef.current?.click()}>Import DXF…</button>
+        <input ref={fileRef} type="file" accept=".dxf" hidden aria-label="Import dimension styles" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void importFile(f); }} />
+      </>}>
       <StyleList draft={d} sel={one.name} onSel={setSel} onDraft={setD} make={(from, name) => ({ ...from, name })} err={setMsg} />
       <NameRow draft={d} sel={one.name} onRename={(to) => { setD(renamed(d, one.name, to)); setSel(to); }} err={setMsg} />
-      <Row label="Arrow"><select aria-label="Arrow" value={one.arrow} onChange={(e) => patch({ arrow: e.target.value as DimArrow })}>{DIM_ARROWS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></Row>
-      {mm('arrowMm', 'Arrow size')}
-      {mm('textMm', 'Text height')}
-      {mm('offsetMm', 'Offset from origin')}
-      {mm('extendMm', 'Extend beyond line')}
-      <Num label="Decimal places" value={one.decimals} onChange={(v) => patch({ decimals: Math.min(4, Math.round(Number(v))) })} />
-      <Row label="Unit"><select aria-label="Unit" value={one.unit} onChange={(e) => patch({ unit: e.target.value as CadDimStyle['unit'] })}><option value="m">m</option><option value="mm">mm</option></select></Row>
+      <DimPreview s={one} />
+      <div className="cad-dlg-tabs" role="tablist" aria-label="Dimension style">
+        {DIM_TABS.map((x) => <button key={x.k} type="button" role="tab" aria-selected={tab === x.k} onClick={() => setTab(x.k)}>{x.label}</button>)}
+      </div>
+      {tab === 'lines' && <>
+        <div className="cad-dlg-sec">Arrows</div>
+        {arrows('Arrow', one.arrow, (v) => patch({ arrow: v as DimArrow }))}
+        {arrows('Second arrow', one.arrow2, (v) => patch({ arrow2: v as CadDimStyle['arrow2'] }), true)}
+        {mm('arrowMm', 'Arrow size')}
+        <div className="cad-dlg-sec">Lines</div>
+        {mm('offsetMm', 'Offset from origin')}
+        {mm('extendMm', 'Extend beyond line')}
+        {mm('dleMm', 'Line past extension lines')}
+        {check('hideExt1', 'Hide extension line 1')}
+        {check('hideExt2', 'Hide extension line 2')}
+      </>}
+      {tab === 'text' && <>
+        {mm('textMm', 'Text height')}
+        <Row label="Vertical"><select aria-label="Vertical" value={one.textPos} onChange={(e) => patch({ textPos: e.target.value as DimTextPos })}>{DIM_TEXT_POS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></Row>
+        <Row label="Along the line"><select aria-label="Along the line" value={one.textAlong} onChange={(e) => patch({ textAlong: e.target.value as DimTextAlong })}>{DIM_TEXT_ALONG.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></Row>
+        {mm('gapMm', 'Gap from line')}
+        {check('textFlat', 'Text always horizontal')}
+      </>}
+      {tab === 'units' && <>
+        <Row label="Unit"><select aria-label="Unit" value={one.unit} onChange={(e) => patch({ unit: e.target.value as DimUnit })}>{DIM_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select></Row>
+        <Num label="Decimal places" value={one.decimals} onChange={(v) => patch({ decimals: Math.min(4, Math.round(Number(v))) })} />
+        <Num label="Round to (0 = off)" unit={one.unit} value={one.round} onChange={(v) => patch({ round: Number(v) })} />
+        <Num label="Measurement scale" unit="×" value={one.scale} onChange={(v) => { if (Number(v) > 0) patch({ scale: Number(v) }); }} />
+        {check('trimZeros', 'Drop trailing zeros')}
+        {check('comma', 'Decimal comma')}
+        <Row label="Prefix"><input aria-label="Prefix" value={one.prefix} onChange={(e) => patch({ prefix: e.target.value })} /></Row>
+        <Row label="Suffix"><input aria-label="Suffix" value={one.suffix} placeholder=" m" onChange={(e) => patch({ suffix: e.target.value })} /></Row>
+      </>}
       {standardAsBefore && <p className="cad-dlg-help" role="note">Standard draws as before (sizes follow each dimension's length) until it is changed.</p>}
+      {note && <p className="cad-dlg-help" role="status">{note}</p>}
       {msg && <p className="cad-dlg-help" role="alert">{msg}</p>}
     </CadDialog>
+  );
+}
+
+type DimTab = 'lines' | 'text' | 'units';
+const DIM_TABS: { k: DimTab; label: string }[] = [{ k: 'lines', label: 'Lines & arrows' }, { k: 'text', label: 'Text' }, { k: 'units', label: 'Units' }];
+const DIM_HELP: Record<DimTab, string> = {
+  lines: 'New dimensions take the current style; sizes are paper mm at the annotation scale. Dimensions drawn before keep their look. Import DXF reads the dimension styles of a drawing from another CAD program.',
+  text: 'Outside: over the line on the side away from the points, as before. Above and below are as the text reads; centred breaks the line round it.',
+  units: 'The length measured, in the unit, times the measurement scale; rounded to the step (in the unit) when set. Prefix and suffix are written before and after it.'
+};
+
+/** The selected style on a 3.20 m dimension, at paper size. */
+function DimPreview({ s }: { s: CadDimStyle }) {
+  const h = s.textMm > 0 ? s.textMm : 2.5;
+  const it: SketchItem = { id: 'preview', kind: 'dim', layer: '', pts: [[0, 0], [40, 0], [20, 8]], look: lookOf(s, 1), h };
+  const g = dimOf(it, 3.2 / 40), P = (q: [number, number]) => `${q[0].toFixed(2)} ${(-q[1]).toFixed(2)}`;
+  const x = g.text[0].toFixed(2), y = (-g.text[1]).toFixed(2);
+  return (
+    <div className="cad-dlg-prev" aria-label={`Preview: ${g.label}`}>
+      <svg viewBox="-6 -18 52 22" width="156" height="66" aria-hidden="true">
+        <path d={g.lines.map(([a, b]) => `M${P(a)}L${P(b)}`).join('')} fill="none" stroke="currentColor" strokeWidth="0.25" />
+        <text x={x} y={y} fontSize={h} textAnchor="middle" fill="currentColor" transform={g.angle ? `rotate(${((-g.angle * 180) / Math.PI).toFixed(2)} ${x} ${y})` : undefined}>{g.label}</text>
+      </svg>
+    </div>
   );
 }

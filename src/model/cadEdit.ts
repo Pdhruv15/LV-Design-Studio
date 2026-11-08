@@ -1,4 +1,4 @@
-import { rotated, segmentsOf } from './cadSketch';
+import { rotated, scaleLook, segmentsOf } from './cadSketch';
 import type { SketchItem } from '../types';
 
 /** Design CAD → Draw → Modify / Edit: Trim, Extend, Offset, Fillet, Chamfer, Break, Join, Explode, Mirror, Scale, Stretch,
@@ -274,7 +274,7 @@ export function scaled(it: SketchItem, base: Pt, k: number): SketchItem {
   return {
     ...it, pts: it.pts.map((q) => add(base, mul(sub(q, base), k))), ...(it.r !== undefined ? { r: it.r * k } : {}), ...(it.h !== undefined ? { h: it.h * k } : {}),
     ...(it.ax ? { ax: mul(it.ax, k) } : {}), ...(it.cloud !== undefined ? { cloud: it.cloud * k } : {}),
-    ...(it.look ? { look: { ...it.look, size: it.look.size * k, off: it.look.off * k, ext: it.look.ext * k } } : {})
+    ...(it.look ? { look: scaleLook(it.look, k) } : {})
   };
 }
 /** Stretch: the points inside the window move by (dx, dy); a circle, arc or text moves when its point is inside. */

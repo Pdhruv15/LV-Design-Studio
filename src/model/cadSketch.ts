@@ -122,13 +122,49 @@ export function bulgeArc(a: Pt, b: Pt, bulge: number): { c: Pt; r: number; a0: n
   return bulge > 0 ? { c, r, a0: ang(a), a1: ang(b) } : { c, r, a0: ang(b), a1: ang(a) };
 }
 
-/** A dimension drawn with a dimension style (drawing units): its arrows (a tick, a closed arrow or a dot) and their
- * size, the gap left at the points measured, how far the extension lines run past the dimension line, and the unit and
- * decimal places its length is written in. */
-export interface DimLook { arrow: 'tick' | 'closed' | 'dot'; size: number; off: number; ext: number; unit?: 'm' | 'mm'; decimals?: number }
+/** The ends a dimension line can have: the usual CAD arrowheads, drawn as lines (filled ones filled with lines) so
+ * they print and save the same. */
+export type DimArrow = 'closed' | 'filled' | 'open' | 'open30' | 'open90' | 'tick' | 'archTick' | 'dot' | 'dotFilled' | 'dotSmall' | 'box' | 'boxFilled' | 'none';
+export type DimUnit = 'm' | 'cm' | 'mm';
+/** How a dimension writes its length: unit and decimal places, a measurement scale (DIMLFAC), rounding to a step (in
+ * the unit), trailing zeros dropped, a decimal comma, and text before and after. */
+export interface DimFormat { unit?: DimUnit; decimals?: number; scale?: number; round?: number; trimZeros?: boolean; comma?: boolean; prefix?: string; suffix?: string }
+/** A dimension drawn with a dimension style (drawing units): its arrows (a tick, a closed arrow, a dot…; the second
+ * end's when it differs) and their size, the gap left at the points measured, how far the extension lines run past
+ * the dimension line, how the length is written, and where the text goes. Fields left out draw as before they were
+ * added: text over the line on the side away from the points, aligned with it and centred along it. */
+export interface DimLook extends DimFormat {
+  arrow: DimArrow; size: number; off: number; ext: number;
+  arrow2?: DimArrow;
+  /** Above the line (as the text reads), centred in a break of it, or below it. */
+  textPos?: 'above' | 'centered' | 'below';
+  /** Next to the first or the second extension line rather than centred. */
+  textAlong?: 'first' | 'second';
+  /** Text horizontal whatever the line's angle. */
+  textFlat?: boolean;
+  /** Gap between the text and the dimension line. */
+  gap?: number;
+  /** The dimension line past the extension lines (with ticks). */
+  dle?: number;
+  hideExt1?: boolean;
+  hideExt2?: boolean;
+}
+const UNIT_PER_M: Record<DimUnit, number> = { m: 1, cm: 100, mm: 1000 };
 /** A length in metres as a dimension of a style writes it. */
-export const dimLength = (lengthM: number, s: { unit?: 'm' | 'mm'; decimals?: number }) =>
-  (s.unit === 'mm' ? lengthM * 1000 : lengthM).toFixed(Math.max(0, Math.min(4, Math.round(s.decimals ?? 2))));
+export function dimLength(lengthM: number, s: DimFormat): string {
+  const dec = Math.max(0, Math.min(4, Math.round(s.decimals ?? 2)));
+  let v = lengthM * UNIT_PER_M[s.unit ?? 'm'] * (s.scale && s.scale > 0 ? s.scale : 1);
+  if (s.round && s.round > 0) v = Math.round(v / s.round) * s.round;
+  let t = v.toFixed(dec);
+  if (/^-0(\.0*)?$/.test(t)) t = t.slice(1);
+  if (s.trimZeros && t.includes('.')) t = t.replace(/\.?0+$/, '');
+  if (s.comma) t = t.replace('.', ',');
+  return `${s.prefix ?? ''}${t}${s.suffix ?? ''}`;
+}
+/** A look at k times its size (scaled, or in metres for the sheets). */
+export const scaleLook = (l: DimLook, k: number): DimLook => ({
+  ...l, size: l.size * k, off: l.off * k, ext: l.ext * k, ...(l.gap !== undefined ? { gap: l.gap * k } : {}), ...(l.dle !== undefined ? { dle: l.dle * k } : {})
+});
 /** A dimension's text: its own when it has one (typed over, or one drawn before styles, which keeps the text it was
  * drawn with), else, for one of a style, its length measured now in the style's unit and decimals. */
 export function dimLabel(it: SketchItem, metresPerUnit: number): string {
@@ -137,9 +173,59 @@ export function dimLabel(it: SketchItem, metresPerUnit: number): string {
   return it.look ? dimLength(len, it.look) : len.toFixed(2);
 }
 
+/** The lines of one arrowhead with its tip at d, pointing out along dir (at2 steps along and across the line). */
+function arrowLines(kind: DimArrow, d: Pt, dir: number, size: number, at2: (d: Pt, a: number, b: number) => Pt): [Pt, Pt][] {
+  const out: [Pt, Pt][] = [];
+  const circle = (r: number) => {
+    const k = 12;
+    for (let i = 0; i < k; i += 1) {
+      const t0 = (2 * Math.PI * i) / k, t1 = (2 * Math.PI * (i + 1)) / k;
+      out.push([at2(d, r * Math.cos(t0), r * Math.sin(t0)), at2(d, r * Math.cos(t1), r * Math.sin(t1))]);
+    }
+  };
+  const vee = (half: number, fill: boolean) => {
+    const a = at2(d, dir * size, half), b = at2(d, dir * size, -half);
+    out.push([d, a], [b, d]);
+    if (fill) { out.push([a, b]); for (let i = 1; i < 6; i += 1) out.push([d, at2(d, dir * size, half - (2 * half * i) / 6)]); }
+  };
+  switch (kind) {
+    case 'tick': case 'archTick': {
+      const t = size / (2 * Math.SQRT2);
+      out.push([at2(d, -t, -t), at2(d, t, t)]);
+      // The architectural tick drawn heavier: two more strokes beside it.
+      if (kind === 'archTick') { const w = size * 0.05; out.push([at2(d, -t + w, -t), at2(d, t + w, t)], [at2(d, -t - w, -t), at2(d, t - w, t)]); }
+      break;
+    }
+    case 'closed': {
+      const a = at2(d, dir * size, size / 6), b = at2(d, dir * size, -size / 6);
+      out.push([d, a], [a, b], [b, d]);
+      break;
+    }
+    case 'filled': vee(size / 6, true); break;
+    case 'open': vee(size / 6, false); break;
+    case 'open30': vee(size * Math.tan(Math.PI / 12), false); break;
+    case 'open90': vee(size, false); break;
+    case 'dot': circle(size / 4); break;
+    case 'dotFilled': for (const f of [1, 0.75, 0.5, 0.25]) circle((size / 4) * f); break;
+    case 'dotSmall': for (const f of [1, 0.5]) circle((size / 8) * f); break;
+    case 'box': case 'boxFilled': {
+      const h = size / 4, c = [at2(d, -h, -h), at2(d, h, -h), at2(d, h, h), at2(d, -h, h)];
+      c.forEach((q, i) => out.push([q, c[(i + 1) % 4]]));
+      if (kind === 'boxFilled') for (let i = 1; i < 4; i += 1) out.push([at2(d, -h + (h * i) / 2, -h), at2(d, -h + (h * i) / 2, h)]);
+      break;
+    }
+    case 'none': break;
+  }
+  return out;
+}
+
+/** A dimension's text as laid out (drawing units): for a break in the line, or to keep horizontal text clear of it. */
+export interface DimTextBox { w: number; h: number }
+
 /** The lines of a dimension from p1 to p2 placed through `at`: extension lines, the dimension line, its ticks (or the
- * arrows of its look), and where its text goes. Aligned with p1 → p2. With no look its sizes follow its length. */
-export function dimensionLines(p1: Pt, p2: Pt, at: Pt, look?: DimLook): { lines: [Pt, Pt][]; text: Pt; angle: number; length: number } {
+ * arrows of its look), and where its text goes (the middle of its baseline). Aligned with p1 → p2. With no look its
+ * sizes follow its length. */
+export function dimensionLines(p1: Pt, p2: Pt, at: Pt, look?: DimLook, box?: DimTextBox): { lines: [Pt, Pt][]; text: Pt; angle: number; length: number } {
   const len = dist(p1, p2) || 1e-9;
   const ux = (p2[0] - p1[0]) / len, uy = (p2[1] - p1[1]) / len; // along
   const nx = -uy, ny = ux; // across
@@ -149,34 +235,62 @@ export function dimensionLines(p1: Pt, p2: Pt, at: Pt, look?: DimLook): { lines:
   const gap = look ? side * Math.min(look.off, Math.abs(off)) : 0;
   const at2 = (d: Pt, a: number, b: number): Pt => [d[0] + ux * a + nx * b, d[1] + uy * a + ny * b];
   const ends: [Pt, Pt][] = [];
-  if (!look || look.arrow === 'tick') {
-    const tick = look ? look.size / (2 * Math.SQRT2) : len * 0.015;
+  if (!look) {
+    const tick = len * 0.015;
     for (const d of [d1, d2]) ends.push([at2(d, -tick, -tick), at2(d, tick, tick)]);
-  } else if (look.arrow === 'closed') {
-    // Each arrow points out to its end: a triangle as lines, so it prints and saves the same.
-    for (const [d, dir] of [[d1, 1], [d2, -1]] as const) {
-      const a = at2(d, dir * look.size, look.size / 6), b = at2(d, dir * look.size, -look.size / 6);
-      ends.push([d, a], [a, b], [b, d]);
-    }
+  } else ends.push(...arrowLines(look.arrow, d1, 1, look.size, at2), ...arrowLines(look.arrow2 ?? look.arrow, d2, -1, look.size, at2));
+  let lineAngle = Math.atan2(uy, ux);
+  if (lineAngle > Math.PI / 2 || lineAngle < -Math.PI / 2) lineAngle += Math.PI; // keep the text readable
+  const angle = look?.textFlat ? 0 : lineAngle;
+  const size = look ? look.size : len * 0.015;
+  const w = box?.w ?? 0, h = box?.h ?? 0, tgap = look?.gap ?? size * 0.25;
+  // Along the line: centred, or next to an extension line (inside its arrow). Horizontal text takes up its width
+  // along a horizontal line and its height along a vertical one.
+  const half = look?.textFlat ? (Math.abs(ux) * w) / 2 + Math.abs(uy) * h * 0.35 : w / 2;
+  const s = look?.textAlong === 'first' ? Math.min(len / 2, size * 1.5 + half) : look?.textAlong === 'second' ? Math.max(len / 2, len - size * 1.5 - half) : len / 2;
+  const base: Pt = [d1[0] + ux * s, d1[1] + uy * s];
+  const pos = look?.textPos;
+  let text: Pt;
+  if (!pos) {
+    const lift = side * size * 0.5;
+    text = [base[0] + nx * lift, base[1] + ny * lift];
   } else {
-    const r = look.size / 4, k = 12;
-    for (const d of [d1, d2]) for (let i = 0; i < k; i += 1) {
-      const t0 = (2 * Math.PI * i) / k, t1 = (2 * Math.PI * (i + 1)) / k;
-      ends.push([at2(d, r * Math.cos(t0), r * Math.sin(t0)), at2(d, r * Math.cos(t1), r * Math.sin(t1))]);
-    }
+    // The side of the line that is up as the text reads, and how far the text's middle sits from the line.
+    const upx = -Math.sin(lineAngle), upy = Math.cos(lineAngle);
+    const clear = pos === 'centered' ? 0 : (tgap + (look?.textFlat ? (Math.abs(upx) * w) / 2 + Math.abs(upy) * h * 0.35 : h * 0.35)) * (pos === 'below' ? -1 : 1);
+    // The baseline sits 0.35 of the height below the middle, as the text reads.
+    const bx = -Math.sin(angle), by = Math.cos(angle);
+    text = [base[0] + upx * clear - bx * h * 0.35, base[1] + upy * clear - by * h * 0.35];
   }
-  let angle = Math.atan2(uy, ux);
-  if (angle > Math.PI / 2 || angle < -Math.PI / 2) angle += Math.PI; // keep the text readable
-  const lift = side * (look ? look.size * 0.5 : len * 0.015);
-  return {
-    lines: [[[p1[0] + nx * gap, p1[1] + ny * gap], [d1[0] + nx * ext, d1[1] + ny * ext]], [[p2[0] + nx * gap, p2[1] + ny * gap], [d2[0] + nx * ext, d2[1] + ny * ext]], [d1, d2], ...ends],
-    text: [(d1[0] + d2[0]) / 2 + nx * lift, (d1[1] + d2[1]) / 2 + ny * lift],
-    angle, length: len
-  };
+  // The dimension line: past the extension lines by dle, broken round centred text.
+  const dle = look?.dle ?? 0, a0 = -dle, a1 = len + dle;
+  const dimLine: [Pt, Pt][] = [];
+  if (pos === 'centered' && (w > 0 || h > 0)) {
+    const g = half + tgap;
+    if (s - g > a0) dimLine.push([at2(d1, a0, 0), at2(d1, s - g, 0)]);
+    if (s + g < a1) dimLine.push([at2(d1, s + g, 0), at2(d1, a1, 0)]);
+  } else dimLine.push(dle ? [at2(d1, a0, 0), at2(d1, a1, 0)] : [d1, d2]);
+  const extLines: [Pt, Pt][] = [];
+  if (!look?.hideExt1) extLines.push([[p1[0] + nx * gap, p1[1] + ny * gap], [d1[0] + nx * ext, d1[1] + ny * ext]]);
+  if (!look?.hideExt2) extLines.push([[p2[0] + nx * gap, p2[1] + ny * gap], [d2[0] + nx * ext, d2[1] + ny * ext]]);
+  return { lines: [...extLines, ...dimLine, ...ends], text, angle, length: len };
 }
 
-/** The straight pieces an item is drawn with (arcs and circles stepped every 5°). */
-export function segmentsOf(it: SketchItem): [Pt, Pt][] {
+/** About how wide text of height h is (the sheets print it in Arial). */
+export const textWidth = (s: string, h: number) => s.length * h * 0.6;
+/** A dimension item laid out, its text measured with metresPerUnit: its lines, where its text goes, the text and its
+ * height. */
+export function dimOf(it: SketchItem, metresPerUnit: number) {
+  const look = it.look;
+  const label = look ? dimLabel(it, metresPerUnit) : it.text ?? '';
+  const h = it.h ?? dist(it.pts[0], it.pts[1]) * 0.04;
+  const box = look && (look.textPos || look.textAlong) ? { w: textWidth(label, h), h } : undefined;
+  return { ...dimensionLines(it.pts[0], it.pts[1], it.pts[2], look, box), label, h };
+}
+
+/** The straight pieces an item is drawn with (arcs and circles stepped every 5°). A dimension's text is measured with
+ * metresPerUnit (for the break round centred text). */
+export function segmentsOf(it: SketchItem, metresPerUnit = 0.001): [Pt, Pt][] {
   const out: [Pt, Pt][] = [];
   const poly = (pts: Pt[], closed: boolean) => { for (let i = 0; i + 1 < pts.length; i += 1) out.push([pts[i], pts[i + 1]]); if (closed && pts.length > 2) out.push([pts[pts.length - 1], pts[0]]); };
   const arc = (c: Pt, r: number, a0: number, a1: number) => {
@@ -191,7 +305,7 @@ export function segmentsOf(it: SketchItem): [Pt, Pt][] {
   else if (it.kind === 'ellipse') poly(ellipsePoints(it), true);
   else if (it.kind === 'circle') arc(it.pts[0], it.r ?? 0, 0, 2 * Math.PI);
   else if (it.kind === 'arc') arc(it.pts[0], it.r ?? 0, it.a0 ?? 0, it.a1 ?? 0);
-  else if (it.kind === 'dim') out.push(...dimensionLines(it.pts[0], it.pts[1], it.pts[2], it.look).lines);
+  else if (it.kind === 'dim') out.push(...dimOf(it, metresPerUnit).lines);
   return out;
 }
 
@@ -284,11 +398,11 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[
   const fittingTexts = fittings.map((f): ShapeOut => ({ layer: TRAY_LAYER, kind: 'text', pts: [[f.at[0] + 120 * unitsPerMm, f.at[1] + 120 * unitsPerMm]], text: fittingLabel(f), h: 100 * unitsPerMm, rot: 0 }));
   return [...items.flatMap((it): ShapeOut[] => {
     if (it.kind === 'dim') {
-      const d = dimensionLines(it.pts[0], it.pts[1], it.pts[2], it.look);
+      const d = dimOf(it, metresPerUnit);
       // A dimension of a style is written as measured now (in its unit and decimals) unless typed over; one drawn
       // before styles as the length in metres.
       return [...d.lines.map((l): ShapeOut => ({ layer: it.layer, kind: 'line', pts: l })),
-        { layer: it.layer, kind: 'text', pts: [d.text], text: it.look ? dimLabel(it, metresPerUnit) : `${(d.length * metresPerUnit).toFixed(2)}`, h: it.h ?? d.length * 0.04, rot: d.angle }];
+        { layer: it.layer, kind: 'text', pts: [d.text], text: it.look ? d.label : `${(d.length * metresPerUnit).toFixed(2)}`, h: d.h, rot: d.angle }];
     }
     if (it.tray) {
       // A single line broken at the middle for its label "CT 300 POWER" (with its route once assigned).
