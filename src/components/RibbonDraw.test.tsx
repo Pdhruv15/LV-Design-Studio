@@ -28,10 +28,10 @@ const sheets = (over: Partial<NonNullable<RibbonActions['sheets']>> = {}): Ribbo
 /** The ribbon on Design CAD with a drawing open; `over` changes Design CAD's actions, `a` the rest. */
 function show(over: Partial<Cad> = {}, a: Partial<RibbonActions> = {}) {
   const cad = {
-    tool: 'none', onTool: vi.fn(), onOpen: vi.fn(), onSave: vi.fn(), onSaveDwg: vi.fn(), onClose: vi.fn(), onDelete: noop, hasSelection: false, onFit: noop, onLayers: noop, layersOn: true, hasDrawing: true,
+    tool: 'none', onTool: vi.fn(), onOpen: vi.fn(), onSave: vi.fn(), onSaveDwg: vi.fn(), onClose: vi.fn(), onDelete: noop, hasSelection: false, onLayers: noop, layersOn: true, hasDrawing: true,
     file: { plans: [{ label: 'Ground floor · gf.dwg', title: 'Open gf.dwg', onClick: vi.fn() }], level: 'Ground floor', levelTitle: 'The level', levels: [{ label: 'Ground floor', title: '', onClick: noop }], unit: 'mm', unitTitle: 'The units', units: [{ label: 'Millimetres ✓', title: '', onClick: noop }] },
     onRoles: noop, rolesOn: false, onAddFound: noop, onSchedules: noop, onPlaceBoard: noop, placingBoard: false, onCoverage: noop, coverageOn: false, copyLevels: [], onWireAll: noop, onTags: noop, tagsOn: false,
-    onCommand: vi.fn(), onLayoutCmd: vi.fn(), onLabels: vi.fn(), onToggle: vi.fn(), toggles: { snap: false, osnap: true, ortho: false, grid: false, dyn: true }, onProps: vi.fn(), onHistory: vi.fn(), ...over
+    onCommand: vi.fn(), onLayoutCmd: vi.fn(), onLabels: vi.fn(), onProps: vi.fn(), onLayerManager: vi.fn(), onSetProps: vi.fn(), info: INFO, ...over
   } as Cad;
   let props = { ...BASE, cad, ...a } as unknown as RibbonActions;
   act(() => root.render(<Ribbon tab="cad" onTab={noop} a={props} />));
@@ -47,17 +47,21 @@ const tools = (name: string) => [...group(name).querySelectorAll('button[aria-la
 const tool = (name: string) => document.querySelector(`#ribbon-tools button[aria-label="${name}"]`) as HTMLButtonElement;
 /** Every tool shown, by name (icons only: its name for screen readers; with labels: the name under it). */
 const names = () => [...document.querySelectorAll('#ribbon-tools button')].map((b) => b.getAttribute('aria-label') ?? b.querySelector('span')?.textContent).filter((x): x is string => !!x);
-const DRAW = ['Lines', 'Curves', 'Fill', 'Transform', 'Shape', 'Pattern', 'Erase', 'Properties', 'Text', 'Dimensions', 'Leaders', 'Marks', 'Layers', 'Visibility', 'Roles', 'Navigate', 'Palettes', 'Display'];
+const DRAFTING = ['Draw', 'Modify', 'Annotate', 'Layers', 'Properties', 'Measure'];
 const ELEC = 'Electrical, ELV & sheets';
+/** The drawing's layers as the page tells the ribbon: two drawn layers, one frozen; nothing picked. */
+const INFO = { layers: [{ name: 'LV-SKETCH', color: '#ffffff', on: true, freeze: false, lock: false }, { name: 'E-POWER', color: '#00ffff', on: false, freeze: false, lock: true }, { name: 'E-OLD', on: true, freeze: true, lock: false }], current: 'LV-SKETCH', picked: 0, props: {} };
+/** A split tool's arrow, then an item of its list. */
+const fromList = (tool: string, item: string) => { click(document.querySelector(`#ribbon-tools button[title="${tool}: more options"]`)!); click([...document.querySelectorAll('[role="menuitem"]')].find((b) => b.textContent === item)!); };
 const click = (b: Element) => act(() => { (b as HTMLButtonElement).click(); });
 const fileButton = () => document.querySelector('.ribbon-file > button') as HTMLButtonElement;
 const items = () => [...document.querySelectorAll('[role="menu"][aria-label="File"] > button, [role="menu"][aria-label="File"] > .ribbon-file-sub > button')].map((b) => b.querySelector('span')!.textContent);
 const item = (label: string) => [...document.querySelectorAll('[role="menuitem"]')].find((b) => (b.querySelector('span')?.textContent ?? b.textContent) === label) as HTMLButtonElement;
 
 describe('Design CAD ribbon: sub-tabs by use', () => {
-  it('opens on Draw the first time, then on the sub-tab used last; a running tool shows its sub-tab', () => {
+  it('opens on Drafting the first time, then on the sub-tab used last; a running tool shows its sub-tab', () => {
     show();
-    expect(selected()).toBe('Draw');
+    expect(selected()).toBe('Drafting');
     pick(ELEC);
     expect(localStorage.getItem('lvds.cadSub')).toBe('elec');
     act(() => root.unmount());
@@ -65,16 +69,19 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
     const again = show();
     expect(selected()).toBe(ELEC);
     again.rerender({ tool: 'text' });
-    expect(selected()).toBe('Draw');
+    expect(selected()).toBe('Drafting');
     again.rerender({ tool: 'tray' });
+    expect(selected()).toBe(ELEC);
+    localStorage.setItem('lvds.cadSub', 'page'); // a sub-tab of v2.053: the one with the sheet set now
+    act(() => root.unmount());
+    root = createRoot(host);
+    show();
     expect(selected()).toBe(ELEC);
   });
 
-  it('with icons only the tools fill each sub-tab in turn; with labels each kind has its own; each tool is on one', () => {
+  it('has the drafting panels in the order the user chose; with labels the panels take four sub-tabs; each tool is on one', () => {
     const { rerender } = show();
-    expect(['Lines', 'Curves', 'Fill'].map(tools)).toEqual([['Line', 'Polyline', 'Rectangle'], ['Circle', 'Arc'], ['Hatch']]);
-    expect(tools('Transform')).toEqual(['Move', 'Copy', 'Rotate', 'Mirror', 'Scale', 'Stretch']);
-    expect(tools('Shape')).toEqual(['Trim', 'Extend', 'Offset', 'Fillet', 'Chamfer', 'Break', 'Join', 'Explode']);
+    expect(['Draw', 'Annotate', 'Measure'].map(tools)).toEqual([['Line', 'Polyline', 'Circle', 'Arc', 'Rectangle', 'Hatch'], ['Text', 'Dimension', 'Leader', 'Room tag', 'North arrow'], ['Measure']]);
     const look = (subTabs: string[]) => {
       const seen: string[] = [];
       const panels: Record<string, (string | null)[]> = {};
@@ -82,47 +89,46 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
       expect(seen.filter((x, i) => seen.indexOf(x) !== i)).toEqual([]); // no tool twice
       return { panels, seen };
     };
-    const icons = look(['Draw', ELEC]);
-    expect(icons.panels).toEqual({ Draw: DRAW, [ELEC]: ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Measure', 'Reference', 'Sheet set', 'Layouts'] });
+    const shown = look(['Drafting', ELEC]);
+    expect(shown.panels).toEqual({ Drafting: DRAFTING, [ELEC]: ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Reference', 'Sheet set', 'Layouts'] });
+    expect(shown.seen).not.toContain('Object snap'); // the status bar's toggles stay on the status bar
     rerender({ labels: true });
-    const named = look(['Draw', 'Modify', 'Annotate', 'Insert', 'Layers', 'View', 'Page setup', 'Tools', 'Electrical & ELV']);
-    expect(named.panels).toEqual({
-      Draw: ['Lines', 'Curves', 'Fill'], Modify: ['Transform', 'Shape', 'Pattern', 'Erase', 'Properties'], Annotate: ['Text', 'Dimensions', 'Leaders', 'Marks'], Insert: ['Reference'],
-      Layers: ['Layers', 'Visibility', 'Roles'], View: ['Navigate', 'Palettes', 'Display'], 'Page setup': ['Sheet set', 'Layouts'], Tools: ['Measure'],
-      'Electrical & ELV': ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring']
+    const all = look(['Drafting', 'Layers & properties', 'Electrical & ELV', 'Sheets']);
+    expect(all.panels).toEqual({
+      Drafting: ['Draw', 'Modify', 'Annotate'], 'Layers & properties': ['Layers', 'Properties', 'Measure'],
+      'Electrical & ELV': ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring'], Sheets: ['Reference', 'Sheet set', 'Layouts']
     });
-    expect([...named.seen].sort()).toEqual([...icons.seen].sort()); // the same tools, only arranged otherwise
-    // The place is kept: Modify with labels is on Draw with icons only, and back.
-    pick('Modify');
+    expect([...all.seen].sort()).toEqual([...shown.seen].sort()); // the same tools, only arranged otherwise
+    // The place is kept: Layers & properties with labels is Drafting as shown, and back.
+    pick('Layers & properties');
     rerender({ labels: false });
-    expect(selected()).toBe('Draw');
+    expect(selected()).toBe('Drafting');
     rerender({ labels: true });
-    expect(selected()).toBe('Modify');
+    expect(selected()).toBe('Layers & properties');
   });
 
-  it('runs each tool\'s command; a tool with only a list opens it from the whole button', () => {
+  it('runs each tool\'s command; a tool\'s other forms are under its arrow, the panel\'s less used tools under its caption', () => {
     const { cad } = show();
     click(tool('Offset'));
     expect(cad.onTool).toHaveBeenLastCalledWith('offset');
-    click(tool('Extend'));
+    fromList('Trim', 'Extend (EX)');
     expect(cad.onTool).toHaveBeenLastCalledWith('extend');
-    click(tool('Text style'));
-    click(tool('Dimension style'));
-    click(tool('New layer'));
-    click(tool('Isolate'));
-    click(tool('Unisolate'));
+    fromList('Fillet', 'Chamfer (CHA)');
+    expect(cad.onTool).toHaveBeenLastCalledWith('chamfer');
+    fromList('Text', 'Text style… (ST)');
+    fromList('Dimension', 'Dimension style… (D)');
+    for (const t of ['Layer off', 'Freeze', 'Lock', 'Isolate', 'Make current', 'All on', 'Thaw all', 'Unlock', 'Unisolate']) click(tool(t));
+    click(document.querySelector('button[title="More layers tools: New layer, Layers panel"]')!);
+    click(item('New layer'));
     pick(ELEC);
     click(tool('Attach'));
     click(tool('Clip'));
-    expect((cad.onCommand as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0])).toEqual(['STYLE', 'DIMSTYLE', 'LAYER N', 'LAYISO', 'LAYUNISO', 'XATTACH', 'XCLIP']);
-    pick('Draw');
-    click(tool('Grid'));
-    click(tool('Dynamic input'));
-    expect((cad.onToggle as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0])).toEqual(['grid', 'dyn']);
-    expect(tool('Object snap').getAttribute('aria-pressed')).toBe('true');
-    click(tool('Properties'));
-    click(tool('Command history'));
-    expect([cad.onProps, cad.onHistory].map((f) => (f as ReturnType<typeof vi.fn>).mock.calls.length)).toEqual([1, 1]);
+    expect((cad.onCommand as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0])).toEqual(['STYLE', 'DIMSTYLE', 'LAYOFF', 'LAYFRZ', 'LAYLCK', 'LAYISO', 'LAYMCUR', 'LAYON', 'LAYTHW', 'LAYULK', 'LAYUNISO', 'LAYER N', 'XATTACH', 'XCLIP']);
+    pick('Drafting');
+    click(tool('Measure'));
+    expect(cad.onTool).toHaveBeenLastCalledWith('dist');
+    fromList('Measure', 'Area (AREA)');
+    expect(cad.onTool).toHaveBeenLastCalledWith('area');
     pick(ELEC);
     const layout = tool('New layout');
     expect(layout.getAttribute('aria-haspopup')).toBe('menu');
@@ -131,14 +137,47 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
     expect(cad.onLayoutCmd).toHaveBeenLastCalledWith('LAYOUT POWER');
     expect(tool('Page setup').disabled).toBe(true); // a layout's: open a layout tab first
   });
+
+  it('shows the current layer and lists the drawn layers to make another current (not a frozen one)', () => {
+    const { cad } = show();
+    const list = document.querySelector('.ribbon-layer') as HTMLButtonElement;
+    expect(list.querySelector('.nm')!.textContent).toBe('LV-SKETCH');
+    click(list);
+    const rows = [...document.querySelectorAll('[role="menu"][aria-label="Layers"] [role="menuitemradio"]')] as HTMLButtonElement[];
+    expect(rows.map((b) => [b.textContent, b.getAttribute('aria-checked'), b.disabled])).toEqual([['LV-SKETCH', 'true', false], ['E-POWER', 'false', false], ['E-OLD', 'false', true]]);
+    click(rows[1]);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('CLAYER E-POWER');
+    click(list);
+    click(item('Layer palette… (LM)'));
+    expect(cad.onLayerManager).toHaveBeenCalledTimes(1);
+  });
+
+  it('sets the colour, linetype and lineweight of new objects, or of the objects picked; the palette from beside the caption', () => {
+    const { cad, rerender } = show();
+    const lt = document.querySelector('select[aria-label="Linetype of new objects"]') as HTMLSelectElement;
+    expect(lt.value).toBe('');
+    act(() => { lt.value = 'dashed'; lt.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(cad.onSetProps).toHaveBeenLastCalledWith({ lt: 'dashed' });
+    rerender({ info: { ...INFO, picked: 2, props: { lw: 'varies', lt: 'center' } } });
+    const lw = document.querySelector('select[aria-label="Lineweight of the 2 objects picked"]') as HTMLSelectElement;
+    expect(lw.value).toBe('__varies');
+    expect((document.querySelector('select[aria-label="Linetype of the 2 objects picked"]') as HTMLSelectElement).value).toBe('center');
+    act(() => { lw.value = ''; lw.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(cad.onSetProps).toHaveBeenLastCalledWith({ lw: undefined }); // ByLayer
+    const launch = document.querySelector('.ribbon-launch') as HTMLButtonElement;
+    expect(launch.getAttribute('aria-pressed')).toBe('false');
+    click(launch);
+    expect(cad.onProps).toHaveBeenCalledTimes(1);
+  });
 });
 
-describe('Design CAD ribbon: icons only, the name on hover', () => {
+describe('Design CAD ribbon: the main tools named, every tool\'s name on hover', () => {
   it('shows a tool\'s name, command and what it does after a short rest, and hides it when the mouse leaves', () => {
     vi.useFakeTimers();
     show();
     const offset = tool('Offset');
-    expect(offset.textContent).toBe(''); // the icon only
+    expect(offset.textContent).toBe(''); // a small tool: the icon only
+    expect(tool('Line').textContent).toBe('Line'); // a main tool: its name under it
     act(() => { offset.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); });
     act(() => { vi.advanceTimersByTime(399); });
     expect(document.querySelector('#ribbon-tip')).toBeNull();
@@ -171,19 +210,19 @@ describe('Design CAD ribbon: icons only, the name on hover', () => {
     expect(document.querySelector('#ribbon-tip b')!.textContent).toBe('Line (L)');
   });
 
-  it('Show labels puts each name under its icon, three small tools to a column (two with icons only)', () => {
+  it('Show labels names every tool; three small tools to a column either way', () => {
     const { cad, rerender } = show();
     const box = document.querySelector('.ribbon-labels input') as HTMLInputElement;
     expect(box.checked).toBe(false);
     act(() => { box.click(); });
     expect(cad.onLabels).toHaveBeenLastCalledWith(true);
     rerender({ labels: true });
-    pick('Modify');
-    const cols = [...group('Shape').querySelectorAll('.ribbon-stack')].map((c) => [...c.querySelectorAll('button span')].map((s) => s.textContent));
-    expect(cols).toEqual([['Trim', 'Extend', 'Offset'], ['Fillet', 'Chamfer', 'Break'], ['Join', 'Explode']]);
-    expect(group('Shape').querySelector('button[title^="Offset (O)"]')).not.toBeNull();
+    const cols = () => [...group('Modify').querySelectorAll('.ribbon-stack')].map((c) => [...c.querySelectorAll('button')].filter((b) => !b.classList.contains('ribbon-split-arrow')).map((b) => b.getAttribute('aria-label') ?? b.querySelector('span')?.textContent));
+    expect(cols()).toEqual([['Move', 'Copy', 'Stretch'], ['Rotate', 'Mirror', 'Scale'], ['Trim', 'Fillet', 'Array'], ['Erase', 'Explode', 'Offset']]);
+    expect(group('Modify').querySelector('button[title^="Offset (O)"]')).not.toBeNull();
     rerender({ labels: false });
-    expect([...group('Shape').querySelectorAll('.ribbon-stack')].map((c) => c.querySelectorAll('button').length)).toEqual([2, 2, 2, 2]);
+    expect(cols()).toEqual([['Move', 'Copy', 'Stretch'], ['Rotate', 'Mirror', 'Scale'], ['Trim', 'Fillet', 'Array'], ['Erase', 'Explode', 'Offset']]);
+    expect(group('Modify').querySelector('button[title^="Offset (O)"]')).toBeNull(); // the app's own tooltip instead
   });
 });
 
@@ -219,7 +258,7 @@ describe('Design CAD ribbon: File', () => {
 });
 
 describe('Design CAD ribbon: sheets and layouts', () => {
-  it('on the sheets pages: every sheet tool on the sheets\' sub-tab, and Draw goes back to the drawing; with labels, Page setup, Annotate and View', () => {
+  it('on the sheets pages: every sheet tool on the sheets\' sub-tab, and Drafting goes back to the drawing; with labels, Sheets and Drafting', () => {
     const onView = vi.fn();
     const { rerender } = show({}, { view: 'drawings', onView, sheets: sheets({ ui: sheetUi({ tool: 'cloud' }) }) });
     expect(selected()).toBe(ELEC);
@@ -231,16 +270,14 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     expect(tool('Delete').disabled).toBe(true); // nothing selected
     expect(tool('Side by side').disabled).toBe(false);
     rerender({ labels: true });
-    expect(selected()).toBe('Page setup');
-    expect(groups()).toEqual(['Sheet set', 'Plot', 'Issue and export']);
-    pick('Annotate');
-    expect(groups()).toEqual(['Markup', 'On panels']);
-    pick('View');
-    expect(groups()).toEqual(['Sheet']);
+    expect(selected()).toBe('Sheets');
+    expect(groups()).toEqual(['Sheet', 'Sheet set', 'Plot', 'Issue and export']);
+    pick('Drafting');
+    expect(groups()).toEqual(['Markup', 'On panels']); // drawing on a sheet is its markup
     rerender({ labels: false });
     expect(selected()).toBe(ELEC);
     expect(onView).not.toHaveBeenCalled();
-    pick('Draw');
+    pick('Drafting');
     expect(onView).toHaveBeenLastCalledWith('cad'); // the drafting sub-tab shows the drawing
   });
 
@@ -254,23 +291,23 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     expect(tool('Panel cloud').disabled).toBe(true);
   });
 
-  it('on a layout: the paper\'s markup on Draw, the drawing\'s annotation in the model; layouts and viewports beside the sheet set', () => {
+  it('on a layout: the paper\'s markup in place of Annotate, the drawing\'s annotation in the model; layouts and viewports beside the sheet set', () => {
     const { rerender } = show({ inLayout: true, onPaper: true }, { sheets: sheets({ open: false, kind: 'plan' }) });
-    expect(groups()).toEqual(DRAW.flatMap((g) => (g === 'Text' ? ['Markup'] : ['Dimensions', 'Leaders', 'Marks'].includes(g) ? [] : [g])));
+    expect(groups()).toEqual(DRAFTING.map((g) => (g === 'Annotate' ? 'Markup' : g)));
     expect(tool('Cloud').disabled).toBe(false);
     rerender({ onPaper: false }); // working in the model through a viewport
-    expect(groups()).toEqual(DRAW);
+    expect(groups()).toEqual(DRAFTING);
     pick(ELEC);
     expect(groups().slice(-3)).toEqual(['Sheet set', 'Layouts', 'Viewports']);
     expect(tool('Page setup').disabled).toBe(false);
     rerender({ labels: true, onPaper: true });
-    pick('Page setup');
-    expect(groups()).toEqual(['Sheet set', 'Layouts', 'Viewports']);
-    pick('Annotate');
-    expect(groups()).toEqual(['Markup']);
+    pick('Sheets');
+    expect(groups()).toEqual(['Reference', 'Sheet set', 'Layouts', 'Viewports']);
+    pick('Drafting');
+    expect(groups()).toEqual(['Draw', 'Modify', 'Markup']);
   });
 
-  it('a window too narrow for the row folds its panels from the right, one at a time; with icons only, to one icon each', () => {
+  it('a window too narrow for the row folds its panels from the right, one at a time, each to one tool named for it', () => {
     vi.useFakeTimers();
     let wide = 2000;
     const SHUT = 'button[aria-label$=": its tools"], button[title$=": its tools"]';
@@ -280,9 +317,9 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     pick(ELEC);
     const shut = () => [...document.querySelectorAll(SHUT)].map((b) => b.getAttribute('aria-label') ?? b.textContent);
     expect(shut()).toEqual(['Layouts: its tools', 'Viewports: its tools']);
-    // One icon and no caption under it; the panel's name and tools on hover.
+    // One tool with the panel's name under its icon, no caption under it; the panel's tools on hover.
     expect(group('Viewports').querySelector('.ribbon-caption')).toBeNull();
-    expect(tool('Viewports: its tools').textContent).toBe('');
+    expect(tool('Viewports: its tools').textContent).toBe('Viewports');
     act(() => { tool('Viewports: its tools').dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); });
     act(() => { vi.advanceTimersByTime(400); });
     expect(document.querySelector('#ribbon-tip')!.textContent).toBe('ViewportsIts tools: Viewport, Scale, Lock');
@@ -298,7 +335,7 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     wide = 2000;
     rerender({ labels: true });
     expect(selected()).toBe('Electrical & ELV');
-    expect(shut()).toEqual(['Edit devices ▾', 'Wiring ▾']);
+    expect(shut()).toEqual(['Edit devices', 'Wiring']);
     expect(group('Wiring').querySelector('.ribbon-caption')!.textContent).toBe('Wiring');
     click(document.querySelector('button[title="Wiring: its tools"]')!);
     expect([...document.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent)).toEqual(['Wire circuits', 'Wire one', 'Tags']);

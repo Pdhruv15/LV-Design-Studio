@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CadView } from '../../engines/cad/cadEngine';
 import type { CadToggles } from './CadCanvas';
+import type { ObjectProps } from '../../model/cadLayerStyle';
 
 /** The tool working on the drawing: none (Select: a click inspects the object under it, Shift-click or a window picks
  * several devices or drawn objects), a measuring tool, a room tool (`room`
@@ -41,9 +42,20 @@ export const skipRef = (projectId: string | undefined, host: string, name: strin
 };
 
 /** What the ribbon asks of the page showing the drawing; nothing while the page is not shown. */
-/** What the ribbon runs on the page; `command` runs a command as if typed on the command line (TEXTSTYLE, LAYISO…). */
-export interface CadActions { save: () => void; saveDwg: () => void; close: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void; refs: () => void; layoutCmd: (cmd: string) => void; command: (text: string) => void; reopen: () => void }
-export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, close: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {}, refs: () => {}, layoutCmd: () => {}, command: () => {}, reopen: () => {} };
+/** What the ribbon runs on the page; `command` runs a command as if typed on the command line (TEXTSTYLE, LAYISO…);
+ * `setProps` sets the colour, linetype or lineweight of the drawn objects picked, or of new objects when none is. */
+export interface CadActions { save: () => void; saveDwg: () => void; close: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void; refs: () => void; layoutCmd: (cmd: string) => void; command: (text: string) => void; reopen: () => void; setProps: (patch: ObjectProps) => void }
+export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, close: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {}, refs: () => {}, layoutCmd: () => {}, command: () => {}, reopen: () => {}, setProps: () => {} };
+
+/** What the ribbon shows of the drawing on the page: its layers (colour as CSS) and the current one, and the colour,
+ * linetype and lineweight of the drawn objects picked (`picked` of them; 'varies' when they differ) or of new objects. */
+export interface CadRibbonInfo {
+  /** The drawn layers (those new objects can go on). */
+  layers: { name: string; color?: string; on: boolean; freeze: boolean; lock: boolean }[];
+  current: string;
+  picked: number;
+  props: { [K in keyof ObjectProps]: ObjectProps[K] | 'varies' };
+}
 
 /** A drawing open in a tab (its zoom and pan stay with CadCanvas; its layers' On is kept in the project, cadLayerState). */
 interface OpenDrawing { view: CadView }
@@ -157,6 +169,8 @@ export function useCad(projectId: string | undefined) {
   const [log, setLog] = useState<'history' | 'help' | null>(null);
   // What the ribbon asked of the page while another page was shown: it runs once the page is there (it loads lazily).
   const pending = useRef<((a: CadActions) => void) | null>(null);
+  // The layers and properties the ribbon shows, as the page last had them (null with no drawing).
+  const [ribbonInfo, setRibbonInfo] = useState<CadRibbonInfo | null>(null);
   // GRID (F7) steps lines → dots → off, like the SLD's grid.
   const [gridDots, setGridDots] = useState(false);
   const cycleGrid = () => {
@@ -165,7 +179,7 @@ export function useCad(projectId: string | undefined) {
     else { setToggles((t) => ({ ...t, grid: false })); setGridDots(false); }
   };
 
-  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, tabOf, projectOpened, sampleDone, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, pending, showProps, setShowProps, log, setLog, textAt, setTextAt, layout, setLayout, vpSel, setVpSel, msVp, setMsVp };
+  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, tabOf, projectOpened, sampleDone, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, pending, ribbonInfo, setRibbonInfo, showProps, setShowProps, log, setLog, textAt, setTextAt, layout, setLayout, vpSel, setVpSel, msVp, setMsVp };
 }
 
 export type CadState = ReturnType<typeof useCad>;

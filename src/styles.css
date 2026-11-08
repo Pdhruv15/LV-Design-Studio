@@ -1313,6 +1313,7 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .ribbon-stack .ribbon-split{align-self:flex-start}
 .ribbon-stack .ribbon-split-arrow{height:20px}
 .ribbon-group .ribbon-caption-more{display:block;min-width:0;min-height:0;padding:1px 0 0;border:0;background:none;cursor:pointer;font-size:var(--fs-xs);color:var(--mut);text-align:center;letter-spacing:.02em;line-height:1.2;white-space:nowrap;border-radius:var(--radius-sm)}
+.ribbon-group .ribbon-caption-more svg{vertical-align:-1px;margin-left:2px}
 .ribbon-group .ribbon-caption-more:hover,.ribbon-group .ribbon-caption-more[aria-expanded="true"]{color:var(--tx);background:var(--panel)}
 .ribbon-split > button:first-child{padding-right:4px}
 .ribbon-split-arrow{min-width:0 !important;padding:0 2px !important;align-self:center;height:28px}
@@ -1322,16 +1323,42 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .ribbon-split-menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
 .ribbon-sub{font-size:var(--fs-xs);color:var(--mut);margin-top:-3px;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ribbon-split-menu button:hover,.ribbon-split-menu button:focus-visible{background:color-mix(in srgb,var(--acc) 18%,transparent)}
-/* Design CAD: icons only (Show labels off) — the main tools of a panel full height, the rest two to a column; the name,
-   typed command and what a tool does show in a tooltip under it. */
-.ribbon.cad-icons .ribbon-group button{min-width:0;min-height:0;width:30px;height:46px;padding:0;gap:0}
-.ribbon.cad-icons .ribbon-group .ribbon-stack button{width:22px;height:22px;padding:0;justify-content:center}
-.ribbon.cad-icons .ribbon-stack{display:grid;grid-template-rows:repeat(2,22px);gap:2px;align-content:center}
-.ribbon.cad-icons .ribbon-stack .ribbon-split{align-self:auto}
-.ribbon.cad-icons .ribbon-split > button:first-child{padding-right:0}
-.ribbon.cad-icons .ribbon-group .ribbon-split-arrow{width:12px;height:22px}
-.ribbon.cad-icons .ribbon-stack .ribbon-split-arrow{height:22px}
-.ribbon.cad-icons .ribbon-group .ribbon-caption-more{width:auto;height:auto}
+/* Design CAD as shown (Show labels off): the main tools of a panel as tall as three small ones, named under the icon;
+   the others icons only, three to a column (two under the current layer list); the name, typed command and what a tool
+   does show in a tooltip under it. */
+.ribbon.cad-named .ribbon-group-btns{height:76px}
+.ribbon.cad-named .ribbon-group-btns > button,.ribbon.cad-named .ribbon-group-btns > .ribbon-split > button:first-child{min-width:44px;min-height:0;height:76px;padding:8px 4px 0;gap:5px;justify-content:flex-start;font-size:var(--fs-xs)}
+.ribbon.cad-named .ribbon-group-btns > .ribbon-split > .ribbon-split-arrow{width:12px;height:76px}
+.ribbon.cad-named .ribbon-group-btns > button > span,.ribbon.cad-named .ribbon-group-btns > .ribbon-split > button:first-child > span{max-width:64px;white-space:normal;line-height:1.15;text-align:center}
+.ribbon.cad-named .ribbon-stack{display:grid;grid-template-rows:repeat(3,24px);gap:2px;align-content:start;justify-content:start}
+.ribbon.cad-named .ribbon-rows .ribbon-stack{grid-template-rows:repeat(2,24px)}
+.ribbon.cad-named .ribbon-group .ribbon-stack button{min-width:0;width:24px;height:24px;padding:0;justify-content:center}
+.ribbon.cad-named .ribbon-stack .ribbon-split{align-self:auto}
+.ribbon.cad-named .ribbon-stack .ribbon-split > button:first-child{padding-right:0}
+.ribbon.cad-named .ribbon-group .ribbon-stack .ribbon-split-arrow{width:10px;height:24px}
+.ribbon.cad-named .ribbon-group .ribbon-caption-more{width:auto;height:auto}
+/* Layers: the current layer list over two rows of tools. Properties: the colour, linetype and lineweight lists. A
+   caption's ↘ shows the panel's palette. */
+.ribbon-block{display:flex;flex-direction:column;gap:2px}
+.ribbon-rows{display:flex;gap:2px}
+.ribbon-side{display:flex;flex-direction:column;gap:2px}
+.ribbon-group .ribbon-layer{flex-direction:row;justify-content:flex-start;gap:5px;min-width:0;min-height:0;width:152px;height:24px;padding:0 6px;border:1px solid var(--line-strong);background:var(--bg);font-size:var(--fs-xs)}
+.ribbon-layer .sw,.ribbon-layer-menu .sw{width:10px;height:10px;border:1px solid var(--line);border-radius:2px;flex:none}
+.ribbon-layer .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.ribbon-layer .st{display:flex;gap:2px;color:var(--mut)}
+.ribbon-layer-menu{max-height:60vh;overflow:auto}
+.ribbon-split-menu.ribbon-layer-menu button{display:flex;align-items:center;gap:6px}
+.ribbon-layer-menu button[aria-checked="true"]{font-weight:600}
+.ribbon-layer-menu button:disabled{opacity:.45;cursor:not-allowed}
+.ribbon-prop{display:flex;align-items:center;gap:4px;width:114px;height:24px}
+.ribbon-prop .cad-colour{flex:1;min-width:0}
+.ribbon-group .ribbon-prop .cad-colour-btn{flex-direction:row;justify-content:flex-start;min-width:0;min-height:0;width:100%;height:24px;padding:0 6px;font-size:var(--fs-xs)}
+.ribbon .ribbon-prop .cad-colour-pop{position:fixed;top:auto;left:auto}
+.ribbon-prop select{flex:1;min-width:0;height:24px;font-size:var(--fs-xs)}
+.ribbon-prop .pv{width:16px;flex:none;border-top:1.5px dashed var(--tx)}
+.ribbon-prop .pv.lw{border-top:3px solid var(--tx)}
+.ribbon-group .ribbon-launch{display:inline-flex;flex-direction:row;align-items:center;justify-content:center;min-width:0;min-height:0;width:14px;height:14px;padding:0;margin-left:4px;border:1px solid var(--line-strong);border-radius:2px;vertical-align:middle}
+.ribbon-group .ribbon-launch.on{background:var(--acc);color:var(--on-acc)}
 .ribbon-tip{position:fixed;z-index:210;max-width:250px;padding:6px 8px;background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--radius-sm);box-shadow:var(--shadow-pop);font-size:var(--fs-sm);line-height:1.35;color:var(--mut);pointer-events:none}
 .ribbon-tip b{display:block;color:var(--tx);font-weight:600}
 /* Design CAD's sub-tab row: File (a menu), the sub-tabs, and Show labels at the end. */

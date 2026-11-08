@@ -775,6 +775,67 @@ describe('CAD view', () => {
     expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('MATCHPROP  Properties copied to the line · ⌘Z to undo');
   });
 
+  it('layer tools by picking (off, freeze, lock, unlock, make current; all on, thaw all), new objects\' properties, what the ribbon is told, and Fit', async () => {
+    const X = 200000, F = 'sample-villa-gf.dxf';
+    const start: Project = { ...villa, cadSketch: [{ file: F, items: [{ id: 'S1', kind: 'line', layer: 'E-LIGHT', pts: [[X, 0], [X + 4000, 0]] }] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const last = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
+    const said = () => document.querySelector('.cad-hist')!.textContent;
+    // The ribbon is told the drawn layers, the current one and the properties of new objects.
+    expect(state.ribbonInfo).toMatchObject({ current: 'LV-SKETCH', picked: 0, props: {} });
+    expect(state.ribbonInfo!.layers.map((l) => l.name)).toEqual(expect.arrayContaining(['LV-SKETCH', 'E-LIGHT']));
+    expect(state.ribbonInfo!.layers.map((l) => l.name)).not.toContain('A-WALL'); // the architect's cannot be current
+    await command('LAYOFF');
+    expect(said()).toBe('LAYOFF  Pick an object on the layer first, then LAYOFF.');
+    await clickAt(X + 2000, 0);
+    expect(state.selected).toBe('sk:S1');
+    await command('LAYLCK');
+    expect(last()).toBe('LAYLCK  Layer E-LIGHT locked · ⌘Z to undo');
+    expect(project.cadLayerStyle).toEqual({ [F]: { 'E-LIGHT': { lock: true } } });
+    await command('LAYULK');
+    expect(project.cadLayerStyle).toBeUndefined();
+    await command('LAYMCUR');
+    expect(project.cadLayerFile).toEqual({ [F]: { current: 'E-LIGHT' } });
+    await command('LAYFRZ');
+    expect(said()).toBe('LAYFRZ  Nothing to change (E-LIGHT is the current layer: not frozen).');
+    await command('CLAYER LV-SKETCH');
+    await command('LAYFRZ');
+    expect(last()).toBe('LAYFRZ  Layer E-LIGHT frozen · ⌘Z to undo');
+    expect(state.selected).toBeNull(); // out of sight: no longer picked
+    await command('LAYTHW');
+    expect(last()).toBe('LAYTHW  Layer E-LIGHT thawed · ⌘Z to undo');
+    await clickAt(X + 2000, 0);
+    await command('LAYOFF');
+    expect(last()).toBe('LAYOFF  Layer E-LIGHT off · ⌘Z to undo');
+    await command('LAYON');
+    expect(last()).toMatch(/^LAYON {2}(Layer E-LIGHT|\d+ layers) on · ⌘Z to undo$/);
+    expect(project.cadLayerStyle).toBeUndefined();
+    // Nothing picked: the lineweight chosen is for new objects, and the next line takes it.
+    act(() => state.actions.current.setProps({ lw: 0.5 }));
+    expect(last()).toBe('Lineweight of new objects: 0.50 mm · ⌘Z to undo');
+    expect(state.ribbonInfo!.props).toEqual({ lw: 0.5 });
+    expect((document.querySelector('select[aria-label="Lineweight of new objects"]') as HTMLSelectElement).value).toBe('0.5'); // the palette shows it too
+    await command('L');
+    await clickAt(X, 1000);
+    await clickAt(X + 3000, 1000);
+    await command('');
+    act(() => state.setTool('none'));
+    const items = () => project.cadSketch![0].items;
+    expect(items()[1]).toMatchObject({ kind: 'line', layer: 'LV-SKETCH', lw: 0.5 });
+    // Objects picked: the same list changes them, and the ribbon shows theirs.
+    await clickAt(X + 1500, 1000);
+    expect(state.ribbonInfo).toMatchObject({ picked: 1, props: { lw: 0.5 } });
+    act(() => state.actions.current.setProps({ color: '#ff3b30' }));
+    expect(items()[1]).toMatchObject({ color: '#ff3b30', lw: 0.5 });
+    expect(last()).toBe('Colour Red: 1 object · ⌘Z to undo');
+    // Fit is on the status bar.
+    const before = state.fitKey;
+    act(() => button('FIT').click());
+    expect(state.fitKey).toBe(before + 1);
+  });
+
   it('layer palette: new objects go on the current layer; freeze, isolate, rename and states from the palette and the command line', async () => {
     const X = 200000, F = 'sample-villa-gf.dxf';
     const start: Project = { ...villa, cadSketch: [{ file: F, items: [{ id: 'S1', kind: 'line', layer: 'E-LIGHT', pts: [[X, 0], [X + 4000, 0]] }] }] };

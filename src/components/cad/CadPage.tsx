@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice, type CanvasWiring } from './CadCanvas';
-import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadState, type CadTool } from './cadState';
+import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadRibbonInfo, type CadState, type CadTool } from './cadState';
 import { cadCommand, type CadAction } from './cadCommands';
 import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
 import { isNumber, promptOptions, shortPrompt, spaceEnters, type SpaceMode } from './cadPrompt';
@@ -54,8 +54,9 @@ import { LayerPalette, layerRows, type LayerRow } from './CadLayerManager';
 import { PropertiesPalette } from './CadProperties';
 import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
 import { refGeometry, type CadRef } from '../../model/cadRefs';
-import { drawnLayers, effective, layerStylesOf, matchedProps, styleOf } from '../../model/cadLayerStyle';
-import { applyLayerPatch, archOnOf, currentLayerOf, extentsOf, isolate, layerFileOf, newLayerName, renameLayer, restoreState, unisolate, withCurrentLayer, withNewLayer, withoutLayer, withoutState, withSavedState } from '../../model/cadLayerState';
+import { drawnLayers, effective, layerStylesOf, LINETYPES, matchedProps, styleOf, withProps, type ObjectProps } from '../../model/cadLayerStyle';
+import { colourCss, colourLabel } from '../../model/cadColours';
+import { applyLayerPatch, archOnOf, currentLayerOf, extentsOf, isolate, layerFileOf, layersToChange, newLayerName, newPropsOf, renameLayer, restoreState, unisolate, withCurrentLayer, withNewLayer, withNewProps, withoutLayer, withoutState, withSavedState, type LayerPatch } from '../../model/cadLayerState';
 import { DrawnSelectionPanel, ED_START, EditToolPanel, kindOf, SketchToolbar, type EditSettings, type EditTool, type SketchEdit } from './SketchEditPanel';
 import { arrayPolar, arrayRect, breakAt, chamfer, edgesFor, explode, extend, fillet, gripMoved, gripsOf, isPath, join, mirrored, offset, scaled, sketchInWindow, stretched, throughDistance, trim, type Edit } from '../../model/cadEdit';
 import { ArrayPanel, ARL_START, MatchPanel, MATCH_START, SelectionPanel, type ArlSettings, type MatchSettings } from './DeviceEditPanel';
@@ -400,7 +401,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (!view) return;
     if (next !== project) change(next, `${what} · ⌘Z to undo`); else cad.say(what);
   };
-  const layerNames = (list: { name: string }[]) => (list.length === 1 ? `Layer ${list[0].name}` : `${list.length} layers`);
+  // The same name can be a drawn layer and one of the architect's: it counts once.
+  const layerNames = (list: { name: string }[]) => { const n = new Set(list.map((r) => r.name.toLowerCase())).size; return n === 1 ? `Layer ${list[0].name}` : `${n} layers`; };
   const isolateLayers = (keep: string[]) => {
     if (!view) return;
     const r = isolate(project, view.file, lRows, keep);
@@ -421,6 +423,47 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (view) change(withNewLayer(project, view.file, name), `LAYER  ${name} added · ⌘Z to undo`);
     return name;
   };
+  // The layers of the objects picked: the drawn objects', and the architect's object clicked.
+  const pickedLayers = () => [...new Set([...pickedSk.map((it) => it.layer), ...(result?.kind === 'object' && view?.info.layers[result.o.layer] ? [view.info.layers[result.o.layer].name] : [])])];
+  /** LAYOFF, LAYFRZ, LAYLCK, LAYULK: the layers of the objects picked, all at once; what goes out of sight is unpicked. */
+  const layerCmd = (cmd: string, patch: Pick<LayerPatch, 'on' | 'freeze' | 'lock'>, done: string) => {
+    if (!view) { cad.say(`${cmd}  Open a drawing first.`); return; }
+    const names = pickedLayers();
+    if (!names.length) { cad.say(`${cmd}  Pick an object on the layer first, then ${cmd}.`); return; }
+    const { rows, skipped } = layersToChange(lRows, names, patch, curLayer);
+    const note = skipped ? ` (${skipped} is the current layer: not frozen)` : '';
+    if (!rows.length) { cad.say(`${cmd}  Nothing to change${note}.`); return; }
+    layerChange(applyLayerPatch(project, view.file, rows, patch), `${cmd}  ${layerNames(rows)} ${done}${note}`);
+    if (patch.on === false || patch.freeze) { setPicked([]); cad.setSelected(null); setResult(null); }
+  };
+  /** LAYON, LAYTHW: every layer on, every layer thawed. */
+  const allLayers = (cmd: string, patch: Pick<LayerPatch, 'on' | 'freeze'>, done: string) => {
+    if (!view) { cad.say(`${cmd}  Open a drawing first.`); return; }
+    const rows = lRows.filter((r) => ('on' in patch ? !r.on : r.freeze));
+    if (!rows.length) cad.say(`${cmd}  Every layer is ${done} already.`); else layerChange(applyLayerPatch(project, view.file, rows, patch), `${cmd}  ${layerNames(rows)} ${done}`);
+  };
+  // Colour, linetype and lineweight: of the drawn objects picked, or of new objects while none is (absent = ByLayer).
+  const newProps = useMemo(() => newPropsOf(project, view?.file), [project, view?.file]);
+  const propLabel = (patch: ObjectProps) => ('color' in patch ? colourLabel(patch.color) : 'lt' in patch ? (patch.lt ? LINETYPES[patch.lt].label : 'ByLayer') : patch.lw === undefined ? 'ByLayer' : `${patch.lw.toFixed(2)} mm`);
+  const setProps = (patch: ObjectProps) => {
+    if (!view) { cad.say('Open a drawing first.'); return; }
+    const what = 'color' in patch ? 'Colour' : 'lt' in patch ? 'Linetype' : 'Lineweight';
+    if (pickedSk.length) change(pickedSk.reduce((q, it) => updateSketch(q, view.file, withProps(it, patch)), project), `${what} ${propLabel(patch)}: ${pickedSk.length} object${pickedSk.length === 1 ? '' : 's'} · ⌘Z to undo`);
+    else change(withNewProps(project, view.file, patch), `${what} of new objects: ${propLabel(patch)} · ⌘Z to undo`);
+  };
+  // What the ribbon shows of this drawing (Layers and Properties): set when it changes, cleared on leaving the page.
+  const ribbonInfo = useMemo<CadRibbonInfo | null>(() => {
+    if (!view) return null;
+    const shared = <K extends keyof ObjectProps>(k: K): ObjectProps[K] | 'varies' => { const v = new Set(pickedSk.map((it) => it[k])); return v.size > 1 ? 'varies' : [...v][0]; };
+    return {
+      layers: lRows.filter((r) => r.group === 'drawn').map((r) => ({ name: r.name, color: colourCss(r.color), on: r.on, freeze: r.freeze, lock: r.lock })), current: curLayer, picked: pickedSk.length,
+      props: pickedSk.length ? { color: shared('color'), lt: shared('lt'), lw: shared('lw') } : newProps
+    };
+  }, [view, lRows, curLayer, pickedSk, newProps]);
+  // Set by what it says, not by identity: the page draws on every mouse move, and the ribbon redraws with what it sets.
+  const ribbonKey = JSON.stringify(ribbonInfo);
+  useEffect(() => { cad.setRibbonInfo(ribbonInfo); }, [ribbonKey]); // eslint-disable-line react-hooks/exhaustive-deps -- by value
+  useEffect(() => () => cad.setRibbonInfo(null), []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
 
   // Model and layouts (paper space, src/components/cad/CadLayouts.tsx): the level's layouts, the one showing, its
   // viewports, the one picked and the one worked in (MS).
@@ -512,7 +555,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER}${refLines.length ? `, ${boundText(refLines)} bound on NAME$0$LAYER layers` : ''}${wiring.length ? `, ${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on ${WIRING_LAYER} / ${TAG_LAYER}` : ''})`); onStatus(msg); }
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
   }
-  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), close: () => { if (view) closeDrawings([view]); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); }, command: (t) => run(t), reopen: () => { if (last) void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.'); } };
+  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), close: () => { if (view) closeDrawings([view]); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); }, command: (t) => run(t), setProps, reopen: () => { if (last) void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.'); } };
   // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
   useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
   // A ribbon command given while another page was shown runs now that the page is here.
@@ -946,7 +989,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return;
     }
     if (tool === 'line') {
-      if (last) draw({ kind: 'line', layer: curLayer, pts: [last, at] }, `Line ${m(toM(distance(last, at)))}`);
+      if (last) draw({ kind: 'line', layer: curLayer, pts: [last, at], ...newProps }, `Line ${m(toM(distance(last, at)))}`);
       setPoints([at]); cad.say('LINE  Specify next point or Enter to stop:'); return;
     }
     if (tool === 'tray' || tool === 'cable') { setPoints((p) => [...p, at]); cad.say(`${tool === 'tray' ? 'TRAY' : 'ROUTE'}  Specify next point${points.length ? ', Enter to finish' : ''}:`); return; }
@@ -966,7 +1009,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'rect') {
       if (!last) { setPoints([at]); cad.say('RECTANG  Specify other corner point:'); return; }
       const pts = rectangle(last, at);
-      draw({ kind: 'pline', layer: curLayer, pts, closed: true }, `Rectangle ${m(toM(Math.abs(at[0] - last[0])))} × ${m(toM(Math.abs(at[1] - last[1])))}`);
+      draw({ kind: 'pline', layer: curLayer, pts, closed: true, ...newProps }, `Rectangle ${m(toM(Math.abs(at[0] - last[0])))} × ${m(toM(Math.abs(at[1] - last[1])))}`);
       setPoints([]); cad.say(PROMPT.rect); return;
     }
     if (tool === 'circle') {
@@ -977,7 +1020,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (points.length < 2) { setPoints((p) => [...p, at]); cad.say(points.length ? 'ARC  Specify end point:' : 'ARC  Specify second point:'); return; }
       const a = arcThrough(points[0], points[1], at);
       if (!a) cad.say('ARC  The three points are in line; pick another end point.');
-      else { draw({ ...a, layer: curLayer } as Omit<SketchItem, 'id'>, `Arc radius ${m(toM(a.r ?? 0))}`); setPoints([]); cad.say(PROMPT.arc); }
+      else { draw({ ...a, layer: curLayer, ...newProps } as Omit<SketchItem, 'id'>, `Arc radius ${m(toM(a.r ?? 0))}`); setPoints([]); cad.say(PROMPT.arc); }
       return;
     }
     if (tool === 'text') {
@@ -1119,7 +1162,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   }
 
   function finishPline(closed: boolean) {
-    if (points.length >= 2) draw({ kind: 'pline', layer: curLayer, pts: points, closed }, `Polyline (${points.length} points${closed ? ', closed' : ''})`);
+    if (points.length >= 2) draw({ kind: 'pline', layer: curLayer, pts: points, closed, ...newProps }, `Polyline (${points.length} points${closed ? ', closed' : ''})`);
     setPoints([]); cad.say(PROMPT.pline);
   }
   /** A cable route along the points clicked, for the cable chosen. */
@@ -1148,7 +1191,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   }
   function finishCircle(r: number) {
     if (!points[0] || r <= 0) return;
-    draw({ kind: 'circle', layer: curLayer, pts: [points[0]], r }, `Circle radius ${m(toM(r))}`);
+    draw({ kind: 'circle', layer: curLayer, pts: [points[0]], r, ...newProps }, `Circle radius ${m(toM(r))}`);
     setPoints([]); cad.say(PROMPT.circle);
   }
 
@@ -1324,10 +1367,20 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       newLayer: () => { if (!view) { cad.say('LAYER  Open a drawing first.'); return; } setShowLM(true); const n = addLayer(); cad.say(`LAYER  ${n} added. Double-click its name in the layer palette (or F2) to rename it.`); },
       clayer: () => cad.say(`CLAYER  Current layer: ${curLayer}. Type CLAYER and a layer name to change it, e.g. CLAYER ${curLayer}.`),
       layiso: () => {
-        const keep = [...new Set([...pickedSk.map((it) => it.layer), ...(result?.kind === 'object' && view?.info.layers[result.o.layer] ? [view.info.layers[result.o.layer].name] : [])])];
+        const keep = pickedLayers();
         if (!view) cad.say('LAYISO  Open a drawing first.'); else if (!keep.length) cad.say('LAYISO  Pick the objects whose layers stay on first (or select layers in the layer palette, then Iso).'); else isolateLayers(keep);
       },
       layuniso: () => unisolateLayers(),
+      layoff: () => layerCmd('LAYOFF', { on: false }, 'off'),
+      layfrz: () => layerCmd('LAYFRZ', { freeze: true }, 'frozen'),
+      laylck: () => layerCmd('LAYLCK', { lock: true }, 'locked'),
+      layulk: () => layerCmd('LAYULK', { lock: false }, 'unlocked'),
+      laymcur: () => {
+        const names = pickedLayers();
+        if (!view) cad.say('LAYMCUR  Open a drawing first.'); else if (names.length !== 1) cad.say(names.length ? 'LAYMCUR  Pick objects on one layer only.' : 'LAYMCUR  Pick an object on the layer first, then LAYMCUR.'); else run(`CLAYER ${names[0]}`);
+      },
+      layon: () => allLayers('LAYON', { on: true }, 'on'),
+      laythw: () => allLayers('LAYTHW', { freeze: false }, 'thawed'),
       align: () => { if (pickedItems.length < 2) cad.say(`${c}  Select two or more devices first.`); else editDevices(c === 'ALIGN' ? 'row' : c === 'ALIGNV' ? 'column' : 'space'); },
       wireAll: () => wireAll(),
       wireTags: () => cad.setWireTags(!cad.wireTags),
@@ -1637,7 +1690,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             {showProps && view && (
               <PropertiesPalette key={pickedSk.map((it) => it.id).join()} items={pickedSk} devices={pickedItems.length} layers={drawnLayers(sketch, [...(layerFile.layers ?? []), curLayer])} styles={styles} current={curLayer} textMm={anno.textMm} k={units.factor}
                 onItems={(next, what) => change(next.reduce((q, it) => updateSketch(q, fileOf(), it), project), `${what} · ⌘Z to undo`)}
-                onCurrent={setCurrentLayer} onTextMm={(mm) => change({ ...project, cadAnno: { ...anno, textMm: mm } }, `Annotation: ${mm} mm text at 1:${anno.scale} · ⌘Z to undo`)}
+                onCurrent={setCurrentLayer} newProps={newProps} onNewProps={setProps} onTextMm={(mm) => change({ ...project, cadAnno: { ...anno, textMm: mm } }, `Annotation: ${mm} mm text at 1:${anno.scale} · ⌘Z to undo`)}
                 onClose={() => setShowProps(false)} />
             )}
             {cad.showLayers && <>
@@ -1805,6 +1858,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             title={x.k === 'grid' ? `Grid: ${!cad.toggles.grid ? 'off' : cad.gridDots ? 'dots' : 'lines'} (${x.key}: lines, dots, off)` : `${x.label} (${x.key})`}
             onClick={() => (x.k === 'grid' ? cad.cycleGrid() : cad.toggle(x.k))}>{x.k === 'grid' && cad.toggles.grid && cad.gridDots ? 'GRID · DOTS' : x.label}</button>
         ))}
+        <button className="cad-tg" title="Fit the drawing to the window (FIT / ZE, or double-click the middle button)" disabled={!view} onClick={() => cad.fit()}>FIT</button>
         <span className="sp" />
         {sheetL ? <>
           <button className={`cad-tg on`} aria-label={msV ? 'Model space in a viewport' : 'Paper space'} title={msV ? 'In the model through a viewport: click for the paper (PS)' : 'On the paper: click to work in a viewport (MS)'} onClick={() => run(msV ? 'PS' : 'MS')}>{msV ? 'MODEL' : 'PAPER'}</button>
