@@ -154,6 +154,39 @@ describe('CAD view', () => {
     expect(result()).toMatch(/CCTDB-GF1\/R1/);
   });
 
+  it('crops a light block (CROP): asks first as it is on a circuit, cuts it at a window and erases it, in one change (one ⌘Z)', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    const last = () => state.history[state.history.length - 1];
+    await command('CROP');
+    expect(last()).toMatch(/CROP {2}Select a block to crop:/);
+    await clickAt(6687.5 + 190, 7375); // on the light's circle
+    await until(() => /Crop it\? \[Yes\/No\]/.test(last()));
+    expect(last()).toMatch(/on circuit DB-GF1\/R1/);
+    await command('Y');
+    expect(last()).toMatch(/\[Circle\/Object\]/);
+    // A window over the left half of the light: its circle cut at the window's right side.
+    await command('6400,7100');
+    await command('6687.5,7650');
+    await command('');
+    expect(last()).toBe('CROP  [Inside/Outside] <Inside>:');
+    await command('');
+    await until(() => onChange.mock.calls.length > 0);
+    const [next, msg] = onChange.mock.calls[onChange.mock.calls.length - 1];
+    expect(msg).toMatch(/^CROP {2}\d+ pieces? kept.* · original block erased · ⌘Z to undo$/);
+    const erased = next.cadErased?.['sample-villa-gf.dxf'] ?? [];
+    expect(erased).toHaveLength(1);
+    const items = next.cadSketch?.find((s) => s.file === 'sample-villa-gf.dxf')?.items ?? [];
+    expect(items.length).toBeGreaterThan(0);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(items.every((it) => state.view!.info.layers.some((l) => l.name === it.layer))).toBe(true); // on the drawing's own layers
+    expect(items.some((it) => it.kind === 'arc')).toBe(true);
+    for (const it of items.filter((x) => x.kind === 'line' || x.kind === 'pline')) for (const [x] of it.pts) expect(x).toBeLessThanOrEqual(6687.5 + 1e-6);
+    // The block is no longer picked: a click where it was finds what is under it, not the light.
+    await clickAt(6687.5 + 190, 7375);
+    expect(result()).not.toMatch(/CCTDB-GF1\/R1/);
+  });
+
   it('finds a room area from the walls and adds it to Building information', async () => {
     act(() => root.render(<Host />));
     await flush();

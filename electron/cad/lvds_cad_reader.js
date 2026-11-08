@@ -193,6 +193,31 @@ export class CadDoc {
         }
     }
     /**
+     * Marks model-space objects erased in the app (CROP), by handle (hex, JSON array), replacing the last list: they
+     * are no longer picked or snapped to. Answers what the view leaves out, as JSON {objects: [id], ranges: [[seg_start,
+     * seg_end]]}; the drawing itself is not changed.
+     * @param {string} handles_json
+     * @returns {string}
+     */
+    set_erased(handles_json) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passStringToWasm0(handles_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+            const len0 = WASM_VECTOR_LEN;
+            wasm.caddoc_set_erased(retptr, this.__wbg_ptr, ptr0, len0);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            deferred2_0 = r0;
+            deferred2_1 = r1;
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_export(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
      * The snap point nearest (x, y) within r (drawing units): [x, y, kind], or empty. `mask` chooses the kinds,
      * `layers_on` (one byte per layer, 1 = shown) leaves out hidden layers.
      * @param {number} x
@@ -221,12 +246,49 @@ export class CadDoc {
 if (Symbol.dispose) CadDoc.prototype[Symbol.dispose] = CadDoc.prototype.free;
 
 /**
+ * The exact pieces of model-space objects (CROP), by handle, as JSON {pieces: {handle: [piece]}, truncated} — see
+ * doc/explode.rs. Read from the drawing's bytes, like saving, so the open view keeps no second copy of the drawing.
+ * @param {Uint8Array} bytes
+ * @param {string} handles_json
+ * @returns {string}
+ */
+export function explodeObjects(bytes, handles_json) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(handles_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.explodeObjects(retptr, ptr0, len0, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr3 = r0;
+        var len3 = r1;
+        if (r3) {
+            ptr3 = 0; len3 = 0;
+            throw takeObject(r2);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
  * @param {Uint8Array} bytes
  * @param {string} devices_json
  * @param {string} shapes_json
+ * @param {string} erased_json
  * @returns {Uint8Array}
  */
-export function exportDwg(bytes, devices_json, shapes_json) {
+export function exportDwg(bytes, devices_json, shapes_json, erased_json) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export2);
@@ -235,7 +297,9 @@ export function exportDwg(bytes, devices_json, shapes_json) {
         const len1 = WASM_VECTOR_LEN;
         const ptr2 = passStringToWasm0(shapes_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
         const len2 = WASM_VECTOR_LEN;
-        wasm.exportDwg(retptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        const ptr3 = passStringToWasm0(erased_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const len3 = WASM_VECTOR_LEN;
+        wasm.exportDwg(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -243,9 +307,9 @@ export function exportDwg(bytes, devices_json, shapes_json) {
         if (r3) {
             throw takeObject(r2);
         }
-        var v4 = getArrayU8FromWasm0(r0, r1).slice();
+        var v5 = getArrayU8FromWasm0(r0, r1).slice();
         wasm.__wbindgen_export(r0, r1 * 1, 1);
-        return v4;
+        return v5;
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
     }
@@ -256,9 +320,10 @@ export function exportDwg(bytes, devices_json, shapes_json) {
  * @param {Uint8Array} bytes
  * @param {string} devices_json
  * @param {string} shapes_json
+ * @param {string} erased_json
  * @returns {Uint8Array}
  */
-export function exportDxf(bytes, devices_json, shapes_json) {
+export function exportDxf(bytes, devices_json, shapes_json, erased_json) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export2);
@@ -267,7 +332,9 @@ export function exportDxf(bytes, devices_json, shapes_json) {
         const len1 = WASM_VECTOR_LEN;
         const ptr2 = passStringToWasm0(shapes_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
         const len2 = WASM_VECTOR_LEN;
-        wasm.exportDxf(retptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        const ptr3 = passStringToWasm0(erased_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const len3 = WASM_VECTOR_LEN;
+        wasm.exportDxf(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -275,9 +342,9 @@ export function exportDxf(bytes, devices_json, shapes_json) {
         if (r3) {
             throw takeObject(r2);
         }
-        var v4 = getArrayU8FromWasm0(r0, r1).slice();
+        var v5 = getArrayU8FromWasm0(r0, r1).slice();
         wasm.__wbindgen_export(r0, r1 * 1, 1);
-        return v4;
+        return v5;
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
     }

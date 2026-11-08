@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { INK, SNAP, SNAP_NAMES, type CadView } from '../../engines/cad/cadEngine';
+import type { ErasedParts } from '../../model/cadErased';
 import { ortho as orthoFrom } from '../../model/cadMeasure';
 import { dimensionLines, dimLabel, segmentsOf, trayLabel, trayLine, TRAY_TEXT_MM } from '../../model/cadSketch';
 import type { PlanCells, PlanCover } from '../elv/elvOverlay';
@@ -42,8 +43,10 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents }: {
+export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents }: {
   view: CadView;
+  /** Objects of the drawing erased in the app (CROP): their lines, texts and fills are not drawn. */
+  hidden?: ErasedParts;
   layersOn: Uint8Array;
   toggles: CadToggles;
   /** The grid (when on) as dots at the crossings instead of lines. */
@@ -137,6 +140,12 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
 
   // Lines batched per layer, colour, linetype and tile of the drawing (so what is off screen is not drawn), in drawing
   // units relative to the origin; a segment that goes on from the last one continues its path (dashes run on).
+  const gone = useMemo(() => {
+    if (!hidden?.ranges.length) return null;
+    const segs = new Uint8Array(view.segLayers.length);
+    for (const [a, z] of hidden.ranges) segs.fill(1, a, z);
+    return { segs, objects: new Set(hidden.objects) };
+  }, [view, hidden]);
   const batches = useMemo(() => {
     type Batch = { layer: number; rgb: number; lt: number; path: Path2D; box: [number, number, number, number]; end: [number, number] };
     const by = new Map<string, Batch>();
@@ -144,6 +153,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     const [e0, e1, e2, e3] = view.info.extents;
     const ext: [number, number, number, number] = [e0 - o0, e1 - o1, e2 - o0, e3 - o1];
     for (let i = 0; i < segLayers.length; i += 1) {
+      if (gone?.segs[i]) continue;
       const [x1, y1, x2, y2] = [segs[i * 4], segs[i * 4 + 1], segs[i * 4 + 2], segs[i * 4 + 3]];
       const lt = segLinetypes?.[i] ?? 0;
       const key = `${segLayers[i]}:${segColors[i]}:${lt}:${tileOf((x1 + x2) / 2, (y1 + y2) / 2, ext)}`;
@@ -155,7 +165,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
       b.box = [Math.min(b.box[0], x1, x2), Math.min(b.box[1], y1, y2), Math.max(b.box[2], x1, x2), Math.max(b.box[3], y1, y2)];
     }
     return [...by.values()];
-  }, [view, o0, o1]);
+  }, [view, gone, o0, o1]);
   // References: a path per reference and layer, relative to the origin.
   const refPaths = useMemo(() => refs.map((r) => {
     const by = new Map<number, Path2D>();
@@ -167,7 +177,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     return { alpha: 1 - Math.min(90, Math.max(0, r.fade)) / 100, layers: [...by].map(([l, path]) => ({ path, colour: r.colours[l] ?? INK })) };
   }), [refs, o0, o1]);
   // Filled areas (solid hatches and 2D solids, pattern hatches): their boundary paths and boxes, relative to the origin.
-  const fills = useMemo(() => (view.info.fills ?? []).map((f) => {
+  const fills = useMemo(() => (view.info.fills ?? []).filter((f) => !gone || !f.loops.some(([a]) => gone.segs[a])).map((f) => {
     const path = new Path2D();
     let box: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity];
     for (const [a, z] of f.loops) {
@@ -180,7 +190,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
       path.closePath();
     }
     return { ...f, path, box };
-  }), [view]);
+  }), [view, gone]);
 
   useEffect(() => {
     const el = host.current;
@@ -457,7 +467,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     ctx.textBaseline = 'alphabetic';
     let drawn = 0;
     for (const tx of view.info.texts) {
-      if (!layersOn[tx.layer]) continue;
+      if (!layersOn[tx.layer] || (gone && tx.o !== undefined && gone.objects.has(tx.o))) continue;
       const px = tx.h * scale;
       if (px < 4 || drawn > 6000) continue;
       const sx = (tx.x - o0 - ox) * scale, sy = size.h - (tx.y - o1 - oy) * scale;
@@ -520,7 +530,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
         ctx.fillText(fittingLabel(f), sx + fpx * 1.2, sy - fpx * 1.2);
       }
     }
-  }, [t, size, batches, fills, layersOn, toggles.grid, view, highlight, devices, wiring, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots, layerStyle, refPaths]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
+  }, [t, size, batches, fills, gone, layersOn, toggles.grid, view, highlight, devices, wiring, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots, layerStyle, refPaths]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
 
   /** The cursor: crosshair and pick box, and the snap marker with its name. */
   function drawCursor(at: Pt | null, snap?: { p: Pt; kind: number }) {

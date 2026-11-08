@@ -1,4 +1,4 @@
-import { CadDoc, exportDwg, exportDxf, initSync } from '../../../electron/cad/lvds_cad_reader.js';
+import { CadDoc, explodeObjects, exportDwg, exportDxf, initSync } from '../../../electron/cad/lvds_cad_reader.js';
 
 /** What the CAD engine does, wherever it runs: in a worker of its own (cadWorker.ts), or in the page when a worker
  * cannot start (cadEngine.ts). One set of these holds one open drawing. */
@@ -12,7 +12,11 @@ export function engineOps() {
     },
     snap: (x: number, y: number, r: number, mask: number, layersOn: Uint8Array) => (doc ? doc.snap(x, y, r, mask, layersOn) : new Float64Array()),
     pick: (x: number, y: number, tol: number, layersOn: Uint8Array, closedOnly: boolean) => (doc ? doc.pick(x, y, tol, layersOn, closedOnly) : ''),
-    save: (as: 'dxf' | 'dwg', bytes: Uint8Array, devices: string, shapes: string) => (as === 'dwg' ? exportDwg : exportDxf)(bytes, devices, shapes),
+    save: (as: 'dxf' | 'dwg', bytes: Uint8Array, devices: string, shapes: string, erased = '[]') => (as === 'dwg' ? exportDwg : exportDxf)(bytes, devices, shapes, erased),
+    /** Objects of the open drawing erased in the app (CROP): no longer picked or snapped to. */
+    erase: (handles: string) => (doc ? doc.set_erased(handles) : '{"objects":[],"ranges":[]}'),
+    /** The exact pieces of objects of a drawing (its bytes), by handle (CROP). */
+    explode: (bytes: Uint8Array, handles: string) => explodeObjects(bytes, handles),
     free() { doc?.free(); doc = null; }
   };
 }

@@ -13,6 +13,8 @@ use std::f64::consts::PI;
 use std::io::Cursor;
 use wasm_bindgen::prelude::*;
 
+mod explode;
+
 /// Snap kinds (bits of the snap mask).
 pub const ENDPOINT: u32 = 1;
 pub const MIDPOINT: u32 = 2;
@@ -74,7 +76,7 @@ struct ObjInfo {
     seg_end: u32,
 }
 
-struct SnapPoint { x: f64, y: f64, kind: u32, layer: u16 }
+struct SnapPoint { x: f64, y: f64, kind: u32, layer: u16, o: u32 }
 
 /// A filled area: a solid hatch or 2D solid (`solid`), or a pattern hatch with its pattern lines (drawing units,
 /// absolute). Its loops are ranges of drawn segments (`seg_start..seg_end`), each one closed boundary.
@@ -131,6 +133,8 @@ pub struct CadDoc {
     grid: Grid,
     truncated: bool,
     xrefs: Vec<XrefInfo>,
+    /// Model-space objects erased in the app (CROP): not picked or snapped to (see `set_erased`).
+    erased: Vec<bool>,
 }
 
 struct Grid { x0: f64, y0: f64, cell: f64, nx: usize, ny: usize, segs: Vec<Vec<u32>>, pts: Vec<Vec<u32>> }
@@ -219,7 +223,7 @@ impl<'a> Builder<'a> {
 
     fn snap(&mut self, t: &Affine, p: (f64, f64), kind: u32, l: u16) {
         let (x, y) = t.apply(p.0, p.1);
-        if x.is_finite() && y.is_finite() { self.out.snaps.push(SnapPoint { x, y, kind, layer: l }); }
+        if x.is_finite() && y.is_finite() { self.out.snaps.push(SnapPoint { x, y, kind, layer: l, o: self.current }); }
     }
 
     fn polyline(&mut self, t: &Affine, pts: &[(f64, f64, f64)], closed: bool, l: u16, rgb: u32) {
@@ -599,7 +603,7 @@ impl CadDoc {
             lt_index: HashMap::new(),
             lt: 0,
             ltscale: if doc.header.linetype_scale > 0.0 { doc.header.linetype_scale } else { 1.0 },
-            out: CadDoc { format, units: doc.header.insertion_units, origin: (0.0, 0.0), segs: vec![], seg_layer: vec![], seg_rgb: vec![], seg_real: vec![], seg_obj: vec![], seg_lt: vec![], linetypes: vec![vec![]], fills: vec![], objects: vec![], texts: vec![], snaps: vec![], layers: vec![], grid: Grid { x0: 0.0, y0: 0.0, cell: 1.0, nx: 1, ny: 1, segs: vec![vec![]], pts: vec![vec![]] }, truncated: false, xrefs: xrefs_of(&doc) },
+            out: CadDoc { format, units: doc.header.insertion_units, origin: (0.0, 0.0), segs: vec![], seg_layer: vec![], seg_rgb: vec![], seg_real: vec![], seg_obj: vec![], seg_lt: vec![], linetypes: vec![vec![]], fills: vec![], objects: vec![], texts: vec![], snaps: vec![], layers: vec![], grid: Grid { x0: 0.0, y0: 0.0, cell: 1.0, nx: 1, ny: 1, segs: vec![vec![]], pts: vec![vec![]] }, truncated: false, xrefs: xrefs_of(&doc), erased: vec![] },
         };
         for layer in doc.layers.iter() {
             let i = b.layer(&layer.name);
@@ -686,7 +690,7 @@ impl CadDoc {
         for cy in cy0..=cy1 {
             for cx in cx0..=cx1 {
                 for &s in &g.segs[cy * g.nx + cx] {
-                    if !seen.insert(s) || !on(self.seg_layer[s as usize]) || !wanted(self.seg_obj[s as usize]) { continue; }
+                    if !seen.insert(s) || !on(self.seg_layer[s as usize]) || !wanted(self.seg_obj[s as usize]) || self.gone(self.seg_obj[s as usize]) { continue; }
                     let (x1, y1, x2, y2) = self.seg_at(s as usize);
                     let (dx, dy) = (x2 - x1, y2 - y1);
                     let l2 = dx * dx + dy * dy;
@@ -697,7 +701,7 @@ impl CadDoc {
             }
         }
         for t in &self.texts {
-            if closed_only || !on(t.layer) || t.h <= 0.0 { continue; }
+            if closed_only || !on(t.layer) || t.h <= 0.0 || self.gone(t.o) { continue; }
             let w = 0.6 * t.h * t.s.chars().count() as f64;
             let (sin, cos) = t.rot.sin_cos();
             let (px, py) = ((x - t.x) * cos + (y - t.y) * sin, -(x - t.x) * sin + (y - t.y) * cos);
@@ -708,7 +712,7 @@ impl CadDoc {
             // Inside a block (a board symbol, a fitting) but not on its lines: the smallest block around the point.
             let mut inside: Option<(f64, u32)> = None;
             for (i, o) in self.objects.iter().enumerate() {
-                if o.kind != "Block" || o.seg_end <= o.seg_start || !on(o.layer) { continue; }
+                if o.kind != "Block" || o.seg_end <= o.seg_start || !on(o.layer) || self.gone(i as u32) { continue; }
                 let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
                 for sgi in o.seg_start..o.seg_end {
                     let (a, b, c, d) = self.seg_at(sgi as usize);
@@ -726,6 +730,17 @@ impl CadDoc {
         let mut v = serde_json::to_value(o).unwrap_or_default();
         v["id"] = serde_json::json!(id);
         v.to_string()
+    }
+
+    /// Marks model-space objects erased in the app (CROP), by handle (hex, JSON array), replacing the last list: they
+    /// are no longer picked or snapped to. Answers what the view leaves out, as JSON {objects: [id], ranges: [[seg_start,
+    /// seg_end]]}; the drawing itself is not changed.
+    pub fn set_erased(&mut self, handles_json: &str) -> String {
+        let handles: Vec<String> = serde_json::from_str::<Vec<String>>(handles_json).unwrap_or_default().iter().map(|h| h.trim().to_uppercase()).collect();
+        self.erased = self.objects.iter().map(|o| handles.contains(&o.handle)).collect();
+        let ids: Vec<usize> = (0..self.objects.len()).filter(|i| self.erased[*i]).collect();
+        let ranges: Vec<[u32; 2]> = ids.iter().map(|i| [self.objects[*i].seg_start, self.objects[*i].seg_end]).collect();
+        serde_json::json!({ "objects": ids, "ranges": ranges }).to_string()
     }
 
     /// The snap point nearest (x, y) within r (drawing units): [x, y, kind], or empty. `mask` chooses the kinds,
@@ -748,9 +763,9 @@ impl CadDoc {
                 let i = cy * g.nx + cx;
                 for &p in &g.pts[i] {
                     let s = &self.snaps[p as usize];
-                    if s.kind & mask != 0 && on(s.layer) { consider(s.x, s.y, s.kind, &mut best); }
+                    if s.kind & mask != 0 && on(s.layer) && !self.gone(s.o) { consider(s.x, s.y, s.kind, &mut best); }
                 }
-                if mask & INTERSECTION != 0 { segs.extend(g.segs[i].iter().copied().filter(|s| self.seg_real[*s as usize] && on(self.seg_layer[*s as usize]))); }
+                if mask & INTERSECTION != 0 { segs.extend(g.segs[i].iter().copied().filter(|s| self.seg_real[*s as usize] && on(self.seg_layer[*s as usize]) && !self.gone(self.seg_obj[*s as usize]))); }
             }
         }
         if mask & INTERSECTION != 0 {
@@ -768,6 +783,8 @@ impl CadDoc {
 }
 
 impl CadDoc {
+    fn gone(&self, o: u32) -> bool { self.erased.get(o as usize).copied().unwrap_or(false) }
+
     fn seg_at(&self, i: usize) -> (f64, f64, f64, f64) { (self.segs[i * 4], self.segs[i * 4 + 1], self.segs[i * 4 + 2], self.segs[i * 4 + 3]) }
 
     fn cross(&self, i: usize, j: usize) -> Option<(f64, f64)> {
@@ -861,7 +878,7 @@ struct PatLineOut { angle: f64, base: (f64, f64), offset: (f64, f64), #[serde(de
 /// The drawing (DWG or DXF) with what was drawn and the devices placed in the app added on their own layers: each
 /// device as a circle with its letters inside and its label (circuit or type) beside it. The architect's entities are
 /// kept as read.
-fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Result<CadDocument, String> {
+fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_json: &str) -> Result<CadDocument, String> {
     use acadrust::entities::{Arc, BoundaryEdge, BoundaryPath, Circle, Ellipse, Hatch, HatchPattern, HatchPatternLine, HatchPatternType, Line, LwPolyline, LwVertex, PolylineEdge, Text};
     use acadrust::tables::Layer;
     use acadrust::types::{Vector2, Vector3};
@@ -869,6 +886,14 @@ fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Resu
     let devices: Vec<DeviceOut> = serde_json::from_str(devices_json).map_err(|e| e.to_string())?;
     let shapes: Vec<ShapeOut> = if shapes_json.is_empty() { vec![] } else { serde_json::from_str(shapes_json).map_err(|e| e.to_string())? };
     let err = |e: acadrust::DxfError| e.to_string();
+    // Objects erased in the app (CROP: the block cut is replaced by its kept pieces) are left out of the copy saved.
+    let erased: Vec<String> = if erased_json.is_empty() { vec![] } else { serde_json::from_str(erased_json).map_err(|e| e.to_string())? };
+    for h in &erased {
+        if let Ok(v) = u64::from_str_radix(h.trim(), 16) {
+            let h = acadrust::types::Handle::from(v);
+            if doc.model_space_entities().any(|e| e.common().handle == h) { doc.remove_entity(h); }
+        }
+    }
     for sh in &shapes {
         if !doc.layers.contains(&sh.layer) { doc.layers.add(Layer::new(sh.layer.clone())).map_err(err)?; }
         let e = match sh.kind.as_str() {
@@ -942,23 +967,33 @@ fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Resu
 
 /// The drawing saved as DXF with the app's additions (see `with_additions`).
 #[wasm_bindgen(js_name = exportDxf)]
-pub fn export_dxf(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Result<Vec<u8>, JsError> {
-    let doc = with_additions(bytes, devices_json, shapes_json).map_err(|e| JsError::new(&e))?;
+pub fn export_dxf(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_json: &str) -> Result<Vec<u8>, JsError> {
+    let doc = with_additions(bytes, devices_json, shapes_json, erased_json).map_err(|e| JsError::new(&e))?;
     acadrust::DxfWriter::new(&doc).write_to_vec().map_err(|e| JsError::new(&e.to_string()))
 }
 
 /// The drawing saved as DWG with the app's additions: in the version it was read in (a DWG), else AutoCAD 2018; a
 /// version older than 2000 is written as 2018.
-fn dwg_bytes(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Result<Vec<u8>, String> {
+fn dwg_bytes(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_json: &str) -> Result<Vec<u8>, String> {
     use acadrust::types::DxfVersion;
-    let mut doc = with_additions(bytes, devices_json, shapes_json)?;
+    let mut doc = with_additions(bytes, devices_json, shapes_json, erased_json)?;
     if doc.version < DxfVersion::AC1015 || doc.version == DxfVersion::Unknown { doc.version = DxfVersion::AC1032; }
     acadrust::DwgWriter::write_to_vec(&doc).map_err(|e| e.to_string())
 }
 
 #[wasm_bindgen(js_name = exportDwg)]
-pub fn export_dwg(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Result<Vec<u8>, JsError> {
-    dwg_bytes(bytes, devices_json, shapes_json).map_err(|e| JsError::new(&e))
+pub fn export_dwg(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_json: &str) -> Result<Vec<u8>, JsError> {
+    dwg_bytes(bytes, devices_json, shapes_json, erased_json).map_err(|e| JsError::new(&e))
+}
+
+/// The exact pieces of model-space objects (CROP), by handle, as JSON {pieces: {handle: [piece]}, truncated} — see
+/// doc/explode.rs. Read from the drawing's bytes, like saving, so the open view keeps no second copy of the drawing.
+#[wasm_bindgen(js_name = explodeObjects)]
+pub fn explode_objects(bytes: Vec<u8>, handles_json: &str) -> Result<String, JsError> {
+    let (doc, _) = read(bytes).map_err(|e| JsError::new(&e))?;
+    let handles: Vec<String> = serde_json::from_str(handles_json).map_err(|e| JsError::new(&e.to_string()))?;
+    let (pieces, truncated) = explode::explode(&doc, &handles);
+    Ok(serde_json::json!({ "pieces": pieces, "truncated": truncated }).to_string())
 }
 
 #[cfg(test)]
@@ -1006,7 +1041,7 @@ mod tests {
     fn dwg_round_trip() {
         for (name, bytes) in [("plan-2018.dwg", fixture("plan-2018.dwg")), ("plan-2004.dwg", fixture("plan-2004.dwg")), ("sample-villa-gf.dxf", sample("sample-villa-gf.dxf")), ("linetypes-hatches.dxf", fixture("linetypes-hatches.dxf"))] {
             let before = CadDoc::new(bytes.clone()).unwrap();
-            let out = dwg_bytes(bytes.clone(), "[]", "").unwrap_or_else(|e| panic!("{name}: {e}"));
+            let out = dwg_bytes(bytes.clone(), "[]", "", "").unwrap_or_else(|e| panic!("{name}: {e}"));
             assert!(out.starts_with(b"AC10"), "{name}: not a DWG");
             let after = CadDoc::new(out).unwrap_or_else(|_| panic!("{name}: the DWG written does not read back"));
             assert_eq!(facts(&before), facts(&after), "{name}");
@@ -1018,7 +1053,7 @@ mod tests {
         let devices = r#"[{"layer":"E-LV-POINTS","x":1000,"y":1000,"r":200,"text":"","label":"DB-GF1/R1"}]"#;
         let shapes = r#"[{"layer":"E-TRAY","kind":"pline","pts":[[0,0],[5000,0]]},{"layer":"LV-ANNO","kind":"text","pts":[[0,0]],"text":"CT 300","h":150}]"#;
         let before = CadDoc::new(bytes.clone()).unwrap();
-        let after = CadDoc::new(dwg_bytes(bytes, devices, shapes).unwrap()).unwrap();
+        let after = CadDoc::new(dwg_bytes(bytes, devices, shapes, "").unwrap()).unwrap();
         let (b, a) = (facts(&before), facts(&after));
         assert_eq!(a.1, b.1 + 2, "the label and the text added");
         assert!(a.0.contains_key("E-LV-POINTS"), "the device's circle on its layer");
@@ -1060,7 +1095,7 @@ mod tests {
         let before = CadDoc::new(drawing()).unwrap().fills.len();
         let sq = r#"[[100,0],[110,0],[110,10],[100,10]]"#;
         let shapes = format!(r#"[{{"layer":"STR$0$S-FILL","kind":"hatch","pts":[],"loops":[{sq}],"solid":true}},{{"layer":"STR$0$S-HATCH","kind":"hatch","pts":[],"loops":[{sq}],"lines":[{{"angle":0.785398,"base":[0,0],"offset":[-2,2],"dashes":[]}}]}},{{"layer":"X","kind":"hatch","pts":[],"loops":[[[0,0],[1,1]]]}}]"#);
-        let doc = with_additions(drawing(), "[]", &shapes).unwrap();
+        let doc = with_additions(drawing(), "[]", &shapes, "").unwrap();
         let bytes = acadrust::DxfWriter::new(&doc).write_to_vec().unwrap();
         let d = CadDoc::new(bytes).unwrap();
         assert_eq!(d.fills.len(), before + 2); // the one with a loop of two points is left out
@@ -1071,7 +1106,7 @@ mod tests {
     #[test]
     fn ellipse_and_bulges_saved() {
         let shapes = r#"[{"layer":"LV-SKETCH","kind":"ellipse","pts":[[100,50]],"axis":[30,40],"ratio":0.5},{"layer":"LV-ANNO","kind":"pline","pts":[[0,0],[10,0],[10,10]],"closed":true,"bulges":[0.5,0.5,0.5]}]"#;
-        let doc = with_additions(drawing(), "[]", shapes).unwrap();
+        let doc = with_additions(drawing(), "[]", shapes, "").unwrap();
         let bytes = acadrust::DxfWriter::new(&doc).write_to_vec().unwrap();
         let (back, _) = read(bytes).unwrap();
         let ell = back.entities().find_map(|e| if let EntityType::Ellipse(x) = e { Some(x) } else { None }).expect("the ellipse");

@@ -60,6 +60,7 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['XR', 'XREF', 'XREFS', 'ER', 'EXTERNALREFERENCES'], desc: 'References', action: 'xref' },
   { aliases: ['XA', 'XATTACH'], desc: 'Attach a reference', action: 'xattach' },
   { aliases: ['XCLIP', 'XC'], desc: 'Clip a reference', action: 'xclip' },
+  { aliases: ['CROP', 'BCROP'], desc: 'Crop a block: cut it along an outline', tool: 'crop' },
   { aliases: ['LM', 'LAYER', 'LAYERMANAGER', 'LAYMAN'], desc: 'Layer palette on or off', action: 'layerManager' },
   { aliases: ['LAYER N', 'LAYER NEW', '-LAYER N'], desc: 'New layer', action: 'newLayer' },
   { aliases: ['CLAYER'], desc: 'Current layer (CLAYER and a name sets it)', action: 'clayer' },

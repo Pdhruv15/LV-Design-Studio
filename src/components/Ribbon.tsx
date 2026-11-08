@@ -5,7 +5,7 @@ import {
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
 import { Frame, LayoutTemplate, Printer, Crop, Plus, ChevronRight, LightbulbOff, Snowflake, LockOpen, Focus, CircleCheck, Layers3, ArrowDownRight, Cloud } from 'lucide-react';
-import { PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen } from 'lucide-react';
+import { PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen , SquareScissors } from 'lucide-react';
 import type { CadRibbonInfo, CadTool } from './cad/cadState';
 import { ColourPicker } from './cad/ColourPicker';
 import { LINETYPE_IDS, LINETYPES, LINEWEIGHTS, type LinetypeId, type ObjectProps } from '../model/cadLayerStyle';
@@ -170,7 +170,7 @@ const GROUP_OF: Partial<Record<CadTool, number>> = {
   line: G.draw, pline: G.draw, rect: G.draw, circle: G.draw, arc: G.draw, hatch: G.draw, polygon: G.draw, ellipse: G.draw, circle2p: G.draw, circle3p: G.draw, circled: G.draw, arcsce: G.draw, revcloud: G.annotate,
   move: G.modify, copy: G.modify, rotate: G.modify, mirror: G.modify, scale: G.modify, stretch: G.modify, trim: G.modify, extend: G.modify, offset: G.modify, fillet: G.modify, chamfer: G.modify, break: G.modify, join: G.modify, explode: G.modify, array: G.modify,
   text: G.annotate, dim: G.annotate, leader: G.annotate, rtag: G.annotate, north: G.annotate, matchprop: G.props, dist: G.measure, area: G.measure,
-  xattach: G.reference, xclip: G.reference, room: G.rooms, trace: G.rooms, name: G.rooms, tray: G.cables, cable: G.cables, link: G.cables,
+  xattach: G.reference, xclip: G.reference, crop: G.reference, room: G.rooms, trace: G.rooms, name: G.rooms, tray: G.cables, cable: G.cables, link: G.cables,
   dev: G.devices, fill: G.devices, lux: G.devices, em: G.devices, arl: G.editDevices, match: G.editDevices, wire: G.wiring
 };
 /** The sub-tabs of v2.053 and v2.054, kept on this computer: the panel each stands for now. */
@@ -658,6 +658,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         { ...cadCmd('Attach', FilePlus2, 'XA', 'Attach a reference (XA): another drawing shown under this plan — the structure, other services, a site plan; its file is never changed', 'XATTACH') },
         sm(cadCmd('Clip', Crop, 'XCLIP', 'Clip a reference (XCLIP): show part of it only, inside a window or a closed outline')),
+        sm({ ...cadCmd('Crop', SquareScissors, 'CROP', 'Crop a block (CROP): cut it along a window, circle or closed outline — what is inside stays as drawn lines, the rest is deleted, not hidden'), active: a.cad?.tool === 'crop' }),
         sm({ label: 'References', icon: Paperclip, cmd: 'XR', title: 'References (XR): other drawings shown under this plan — the structure, other services, a site plan. Attach (XA), reload, unload, detach, repath, clip, bind; the files are never changed', onClick: () => a.cad?.onRefs?.(), disabled: !a.cad?.hasDrawing })
       ],
       // The sheet set, layouts and viewports; the open sheet's page setup and export.

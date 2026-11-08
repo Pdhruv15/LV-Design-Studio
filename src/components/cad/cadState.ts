@@ -10,11 +10,11 @@ import type { ObjectProps } from '../../model/cadLayerStyle';
  * (`dev`), wiring a circuit (`wire`, Wire one), devices along a line (`arl`) or
  * matching another (`match`), modifying the selected object (`move`, `copy`, `rotate`, `mirror`, `scale`, `stretch`), editing what was drawn (`trim`,
  * `extend`, `offset`, `fillet`, `chamfer`, `break`, `join`, `explode`, `array`), drawing (`line`, `pline`, `rect`, `circle`, `arc`)
- * or annotating (`text`, `dim`), or placing (`xattach`) or clipping (`xclip`) a reference. More drawing tools: `polygon`,
+ * or annotating (`text`, `dim`), or placing (`xattach`) or clipping (`xclip`) a reference, or cropping a block (`crop`). More drawing tools: `polygon`,
  * `ellipse`, the circle by two or three points (`circle2p`, `circle3p`) or by its diameter (`circled`), the arc by start,
  * centre and end (`arcsce`), and the revision cloud (`revcloud`). */
 export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'lux' | 'em' | 'arl' | 'match' | 'wire' | 'move' | 'copy' | 'rotate' | 'mirror' | 'scale' | 'stretch' | 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'array' | 'matchprop' | 'hatch' | 'leader' | 'rtag' | 'north' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim' | 'xattach' | 'xclip'
-  | 'polygon' | 'ellipse' | 'circle2p' | 'circle3p' | 'circled' | 'arcsce' | 'revcloud';
+  | 'polygon' | 'ellipse' | 'circle2p' | 'circle3p' | 'circled' | 'arcsce' | 'revcloud' | 'crop';
 
 /** Sample plans shipped with the app (electron/samples, made by scripts/make-sample-villa-plans.mjs), shown while no
  * drawing is open — a test aid. To remove: empty this list and delete the files and cad:sampleBytes. */

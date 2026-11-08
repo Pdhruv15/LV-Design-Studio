@@ -42,18 +42,30 @@ export class CadDoc {
      */
     segments(): Float32Array;
     /**
+     * Marks model-space objects erased in the app (CROP), by handle (hex, JSON array), replacing the last list: they
+     * are no longer picked or snapped to. Answers what the view leaves out, as JSON {objects: [id], ranges: [[seg_start,
+     * seg_end]]}; the drawing itself is not changed.
+     */
+    set_erased(handles_json: string): string;
+    /**
      * The snap point nearest (x, y) within r (drawing units): [x, y, kind], or empty. `mask` chooses the kinds,
      * `layers_on` (one byte per layer, 1 = shown) leaves out hidden layers.
      */
     snap(x: number, y: number, r: number, mask: number, layers_on: Uint8Array): Float64Array;
 }
 
-export function exportDwg(bytes: Uint8Array, devices_json: string, shapes_json: string): Uint8Array;
+/**
+ * The exact pieces of model-space objects (CROP), by handle, as JSON {pieces: {handle: [piece]}, truncated} — see
+ * doc/explode.rs. Read from the drawing's bytes, like saving, so the open view keeps no second copy of the drawing.
+ */
+export function explodeObjects(bytes: Uint8Array, handles_json: string): string;
+
+export function exportDwg(bytes: Uint8Array, devices_json: string, shapes_json: string, erased_json: string): Uint8Array;
 
 /**
  * The drawing saved as DXF with the app's additions (see `with_additions`).
  */
-export function exportDxf(bytes: Uint8Array, devices_json: string, shapes_json: string): Uint8Array;
+export function exportDxf(bytes: Uint8Array, devices_json: string, shapes_json: string, erased_json: string): Uint8Array;
 
 /**
  * WebAssembly entry point: the drawing's bytes → JSON (see `read_json`).
@@ -74,9 +86,11 @@ export interface InitOutput {
     readonly caddoc_segment_layers: (a: number, b: number) => void;
     readonly caddoc_segment_linetypes: (a: number, b: number) => void;
     readonly caddoc_segments: (a: number, b: number) => void;
+    readonly caddoc_set_erased: (a: number, b: number, c: number, d: number) => void;
     readonly caddoc_snap: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
-    readonly exportDwg: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
-    readonly exportDxf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly explodeObjects: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly exportDwg: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
+    readonly exportDxf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly readDrawing: (a: number, b: number, c: number) => void;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
     readonly __wbindgen_export: (a: number, b: number, c: number) => void;

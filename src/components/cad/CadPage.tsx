@@ -7,7 +7,10 @@ import { isNumber, promptOptions, shortPrompt, spaceEnters, type SpaceMode } fro
 import CadDynInput, { type DynBox } from './CadDynInput';
 import { DIALOG_TOOLS, DimStyleDialog, EditDialog, TextStyleDialog } from './CadDialogs';
 import { currentTextStyle, dimLookOf, dimStandardAsBefore, dimStylesOf, dimStylesToStore, textStylesOf, textStylesToStore } from '../../model/cadStyles';
-import { chooseDrawing, drawingWithDevices, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
+import { chooseDrawing, drawingWithDevices, explodeObjects, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
+import { boundaryOfPiece, cropItems, cropNote, cropPieces, type CropBoundary, type CropSide } from '../../model/cadCrop';
+import { erasedOf, shownView, withErased, type ErasedParts } from '../../model/cadErased';
+import { CIRCUIT_ATTRIBUTES } from '../../model/cadLoads';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
 import { addSketch, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimensionLines, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
 import { trayPlanOf } from '../../calc/cableTray';
@@ -18,7 +21,7 @@ import { copyTo, coverageNote, elvLayer, fillAt, rotate as rotateElv, SYSTEM_LAB
 import { saveBinary } from '../../util/files';
 import { angleDeg, areaOf, distance, inside, m, m2, roomAround, segmentsOn } from '../../model/cadMeasure';
 import { layerMapFor, layersWith, roomsFromPlan, withLayerMap } from '../../model/cadRooms';
-import { layerStatsOf, objectPath, planOfView } from '../../model/cadViewPlan';
+import { layerStatsOf, objectPath, outlinePoints, planOfView } from '../../model/cadViewPlan';
 import { planDrawings, scheduleSummary, updateSchedules } from '../../model/cadPlanSchedules';
 import { arcPoints, levelWiring, toggleWiring, wireLevel, type WiringArc } from '../../model/cadWiring';
 import { buildingInfoOf } from '../../calc/building';
@@ -76,7 +79,7 @@ const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
 ];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · DYN (F12) · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · DYN (F12) · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 /** Bind's count in the Save line: reference lines, texts and hatches. */
@@ -137,7 +140,8 @@ const PROMPT: Record<CadTool, string> = {
   text: 'TEXT  Specify start point of text:',
   dim: 'DIM  Specify first extension line origin:',
   xattach: 'XATTACH  Specify insertion point:',
-  xclip: 'XCLIP  Click the corners of the clip outline, Enter to finish (two corners: a rectangle), or [Object] to pick a closed outline:'
+  xclip: 'XCLIP  Click the corners of the clip outline, Enter to finish (two corners: a rectangle), or [Object] to pick a closed outline:',
+  crop: 'CROP  Select a block to crop:'
 };
 const f2 = (s: string) => (s.trim() !== '' && Number.isFinite(Number(s)) ? Number(s).toFixed(2) : s);
 /** The first prompt of a tool, with the edit tools' options and their values now (Enter takes the one in < >). */
@@ -148,6 +152,11 @@ function editPrompt(tool: CadTool, s: EditSettings): string {
   return PROMPT[tool];
 }
 const OFFSET_SIDE = 'OFFSET  Specify point on side to offset:';
+const CROP_OUTLINE = 'CROP  Click the corners of the crop outline, Enter to finish (two corners: a rectangle), or [Circle/Object]:';
+const NO_PARTS: ErasedParts = { objects: [], ranges: [] };
+/** CROP: the block of the drawing (or the drawn items) being cut, and where the command is. */
+type CropTarget = { handle: string; label: string } | { items: string[]; label: string };
+type CropState = { step: 'pick' | 'confirm' | 'outline' | 'centre' | 'radius' | 'object' | 'side'; target?: CropTarget; centre?: Pt; outline?: CropBoundary };
 const arrayType = (s: EditSettings) => `ARRAY  Enter array type [Rectangular/Polar] <${s.polar ? 'Polar' : 'Rectangular'}>:`;
 const mirrorAsk = (s: EditSettings) => `MIRROR  Erase source objects? [Yes/No] <${s.keep ? 'No' : 'Yes'}>:`;
 /** Layer of the cable routes drawn or linked in the app. */
@@ -187,6 +196,19 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const paperTool = sheetUi?.setTool;
   const onPlot = (id: string) => void exportDrawingSet(project, setOf(project), calcRun, false, onStatus, [id], false);
   const { view, tool } = cad;
+  // Objects of the drawing erased by CROP: the engine no longer picks or snaps to them, the canvas leaves them out, and
+  // `drawn` is the drawing without them (rooms, walls, cutting edges, texts).
+  const erasedKey = (view ? erasedOf(project, view.file) : []).join(',');
+  const [erasedParts, setErasedParts] = useState<{ view: CadView; key: string; parts: ErasedParts } | null>(null);
+  useEffect(() => {
+    if (!view || (!erasedKey && erasedParts?.view !== view)) return;
+    let live = true;
+    void view.erase(erasedKey ? erasedKey.split(',') : []).then((parts) => { if (live) setErasedParts({ view, key: erasedKey, parts }); }, () => {});
+    return () => { live = false; };
+  }, [view, erasedKey]); // eslint-disable-line react-hooks/exhaustive-deps -- by value
+  const hidden = erasedParts && erasedParts.view === view && erasedParts.key === erasedKey ? erasedParts.parts : NO_PARTS;
+  const drawn = useMemo(() => (view && erasedKey ? shownView(view, hidden, erasedKey.split(',')) : view), [view, hidden, erasedKey]);
+  const [crop, setCrop] = useState<CropState | null>(null);
   const [cursor, setCursor] = useState<{ at: Pt | null; snap?: string }>({ at: null });
   const [cmd, setCmd] = useState('');
   const [busy, setBusy] = useState(false);
@@ -296,7 +318,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     setEdAsk(tool === 'offset' && !pre ? 'offset' : tool === 'array' && first ? 'type' : null); setTextAsk(null); setPromptMenu(null);
     setDlg((d) => (DIALOG_TOOLS.includes(tool as EditTool) ? 'edit' : d === 'edit' ? null : d));
     if (tool !== 'none' && tool !== 'xattach' && tool !== 'xclip') { const label = PROMPT[tool].split(' ')[0]; setRecent((r) => [{ label, tool }, ...r.filter((x) => x.label !== label)].slice(0, 8)); }
+    setCrop(tool === 'crop' ? { step: 'pick' } : null);
     cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? (tool === 'array' ? arrayType(edSet) : `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : 'Enter to join them:'}`) : pre && tool === 'offset' ? OFFSET_SIDE : editPrompt(tool, edSet)}`);
+    // CROP with drawn items picked first: they are what is cut.
+    if (tool === 'crop' && first) { const ids = picked.length ? picked.filter((k) => k.startsWith('sk:')).map((k) => k.slice(3)) : [cad.selected!.slice(3)]; setCrop({ step: 'outline', target: { items: ids, label: `${ids.length} drawn object${ids.length === 1 ? '' : 's'}` } }); cad.say(CROP_OUTLINE); }
   }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Layer palette styles. The architect's layers: On as turned on or off in the app (kept in the project, so each change is
@@ -309,16 +334,16 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // Zoom extents leave the frozen layers out.
   const fitExtents = useMemo(() => (view && archStyle.some((st) => st.freeze) ? extentsOf(view.segs, view.segLayers, view.info.origin, (i) => !archStyle[i]?.freeze) : undefined), [view, archStyle]);
   // Layer roles (File → Layer roles): the project's, else a guess from the layer's name and what it holds.
-  const layerStats = useMemo(() => (view ? layerStatsOf(view) : []), [view]);
+  const layerStats = useMemo(() => (drawn ? layerStatsOf(drawn) : []), [drawn]);
   const roles = useMemo(() => layerMapFor(project, layerStats), [project, layerStats]);
   // Walls for Room area: shown layers whose role is Wall, else every shown layer.
   const walls = useMemo(() => {
-    if (!view) return [];
+    if (!view || !drawn) return [];
     const wallNames = layersWith(roles, 'wall');
     const shown = view.info.layers.map((_, i) => i).filter((i) => layersOn[i]);
     const named = shown.filter((i) => wallNames.has(view.info.layers[i].name.toLowerCase()));
-    return segmentsOn(view.segs, view.segLayers, view.info.origin, new Set(named.length ? named : shown));
-  }, [view, layersOn, roles]);
+    return segmentsOn(drawn.segs, drawn.segLayers, drawn.info.origin, new Set(named.length ? named : shown));
+  }, [view, drawn, layersOn, roles]);
 
   // Devices are kept per level, in metres on its plan: the level this drawing shows, and what is placed on it.
   const floors = floorList(project.building).filter((f) => !f.ref.index);
@@ -343,7 +368,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const pickedKeys = new Set([...pickedItems.map((d) => d.key), ...pickedSk.map((it) => `sk:${it.id}`)]);
   const many = pickedItems.length + pickedSk.length > 1;
   // The architect's lines on shown layers: cutting edges and boundaries for Trim and Extend.
-  const drawingSegs = useMemo(() => (view && (tool === 'trim' || tool === 'extend') ? segmentsOn(view.segs, view.segLayers, view.info.origin, new Set(view.info.layers.map((_, i) => i).filter((i) => layersOn[i]))) : []), [view, layersOn, tool]);
+  const drawingSegs = useMemo(() => (drawn && (tool === 'trim' || tool === 'extend') ? segmentsOn(drawn.segs, drawn.segLayers, drawn.info.origin, new Set(drawn.info.layers.map((_, i) => i).filter((i) => layersOn[i]))) : []), [drawn, layersOn, tool]);
   const fittings = useMemo(() => trayFittings(sketch, 0.001 / units.factor).fittings, [sketch, units.factor]);
   const cables = useMemo(() => cablesOf(project), [project]);
   // ELV: the device chosen (if an ELV one), its system for coverage and Copy to level, and the coverage / Fill preview.
@@ -546,6 +571,94 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     xr.actions.update(r, { clip: outline }, `clipped to ${pts.length === 2 ? 'a rectangle' : `an outline of ${outline.length} corners`}`);
     setPoints([]); setXClip(null); cad.setTool('none');
   }
+  /** CROP: a click picks the block (or a drawn item), a corner, the circle's centre or radius, or a closed object. */
+  async function cropClick(at: Pt, pixel: number) {
+    if (!view || !crop) return;
+    if (crop.step === 'pick') {
+      const sk = itemAt(pickable, at, 6 * pixel);
+      if (sk) { setCrop({ step: 'outline', target: { items: [sk.id], label: '1 drawn object' } }); cad.say(CROP_OUTLINE); return; }
+      const o = await view.pick(at[0], at[1], 6 * pixel, pickOn);
+      if (!o || o.kind !== 'Block') { cad.say(o ? `CROP  That is a ${o.kind.toLowerCase()}, not a block (references: XCLIP). Select a block to crop:` : 'CROP  No block there. Select a block to crop:'); return; }
+      const target = { handle: o.handle, label: o.block ?? 'The block' };
+      const cct = Object.entries(o.attrs ?? {}).find(([k, v]) => CIRCUIT_ATTRIBUTES.includes(k.toUpperCase()) && v.trim());
+      if (cct) { setCrop({ step: 'confirm', target }); cad.say(`CROP  ${target.label} is on circuit ${cct[1]} (counted in Loads from CAD). Cropped, it is plain geometry and no longer counts as a load. Crop it? [Yes/No] <No>:`); return; }
+      setCrop({ step: 'outline', target }); cad.say(CROP_OUTLINE); return;
+    }
+    if (crop.step === 'outline') { setPoints((p) => [...p, at]); cad.say(`CROP  Next corner${points.length ? ', Enter to finish' : ''}:`); return; }
+    if (crop.step === 'centre') { setCrop({ ...crop, step: 'radius', centre: at }); cad.say('CROP  Radius of the circle (click or type):'); return; }
+    if (crop.step === 'radius' && crop.centre) { cropOutline({ kind: 'circle', c: crop.centre, r: distance(crop.centre, at) }); return; }
+    if (crop.step === 'object') {
+      const b = await outlineAround(at);
+      if (!b) { cad.say('CROP  No closed outline around that point. Click inside one, or Esc:'); return; }
+      cropOutline(b);
+    }
+  }
+  /** CROP: what is typed — Yes / No, Enter (finish the corners), Circle, Object, a corner, a radius, Inside / Outside. */
+  function cropTyped(c: string, raw: string): boolean {
+    if (!crop) return false;
+    if (crop.step === 'confirm') {
+      if (c === 'Y' || c === 'YES') { setCrop({ ...crop, step: 'outline' }); cad.say(CROP_OUTLINE); } else { cad.say('CROP  Not cropped.'); cad.setTool('none'); }
+      return true;
+    }
+    if (crop.step === 'outline') {
+      if (c === '') {
+        const outline = points.length === 2 ? rectangle(points[0], points[1]) : points;
+        if (outline.length < 3) { cad.say('CROP  Click two corners (a rectangle) or three or more, then Enter:'); return true; }
+        cropOutline({ kind: 'polygon', pts: outline }); return true;
+      }
+      if (c === 'C' || c === 'CIRCLE') { setPoints([]); setCrop({ ...crop, step: 'centre' }); cad.say('CROP  Centre of the circle:'); return true; }
+      if (c === 'O' || c === 'OBJECT') { setPoints([]); setCrop({ ...crop, step: 'object' }); cad.say('CROP  Click inside a closed polyline, circle or room:'); return true; }
+      const p = typedPoint(raw, points[points.length - 1], cursor.at);
+      if (p) { setPoints((q) => [...q, p]); cad.say(`CROP  Next corner, Enter to finish:`); return true; }
+      return false;
+    }
+    if (crop.step === 'radius' && crop.centre && isNumber(c) && Number(c) > 0) { cropOutline({ kind: 'circle', c: crop.centre, r: Number(c) }); return true; }
+    if (crop.step === 'side') {
+      if (c === '' || c === 'I' || c === 'INSIDE') { void doCrop('inside'); return true; }
+      if (c === 'O' || c === 'OUTSIDE') { void doCrop('outside'); return true; }
+      cad.say('CROP  [Inside/Outside] <Inside>:'); return true;
+    }
+    return c === '';
+  }
+  function cropOutline(b: CropBoundary) { setPoints([]); setCrop((q) => (q ? { ...q, step: 'side', outline: b } : q)); cad.say('CROP  [Inside/Outside] <Inside>:'); }
+  /** The smallest closed outline around a point: a closed drawn item, a room, or a closed object of the drawing (its
+   * arcs kept exact, from the engine). */
+  async function outlineAround(at: Pt): Promise<CropBoundary | undefined> {
+    if (!view || !drawn) return undefined;
+    const rooms = floor ? buildingInfoOf(project).rooms.filter((q) => q.buildingId === floor.ref.building && q.levelId === floor.ref.level && (q.outline?.length ?? 0) > 2).map((q) => q.outline!.map(([x, y]): Pt => [x / units.factor, y / units.factor])) : [];
+    const h = hatchOutline(pickable, at, rooms);
+    const mine = h ? { a: h.circle ? Math.PI * h.circle.r ** 2 : areaOf(h.pts).area, b: (h.circle ? { kind: 'circle', ...h.circle } : { kind: 'polygon', pts: h.pts }) as CropBoundary } : undefined;
+    const around = drawn.outlines().filter((o) => pickOn[o.layer] && o.area !== undefined && (!mine || o.area < mine.a) && inside(at, outlinePoints(drawn, o))).sort((p, q) => p.area! - q.area!)[0];
+    if (around) {
+      const { pieces } = await explodeObjects(view, [around.handle]);
+      const b = pieces[around.handle]?.map(boundaryOfPiece).find(Boolean);
+      if (b) return b;
+    }
+    if (mine) return mine.b;
+    const q = roomAround(walls, at, units.factor);
+    return q ? { kind: 'polygon', pts: q.points } : undefined;
+  }
+  /** CROP: cuts the block (or drawn items) along the outline; the kept pieces become drawn items, the block is erased. */
+  async function doCrop(side: CropSide) {
+    if (!view || !crop?.target || !crop.outline) return;
+    const { target, outline } = crop, file = view.file;
+    const again = (why: string) => { cad.say(`CROP  ${why}`); setCrop({ ...crop, step: 'outline', outline: undefined }); cad.say(CROP_OUTLINE); };
+    try {
+      if ('items' in target) {
+        const its = sketch.filter((x) => target.items.includes(x.id)), r = cropItems(its, outline, side);
+        if (r.error) { again(r.error); return; }
+        const next = r.items!.reduce((q, x) => addSketch(q, file, x).project, its.reduce((q, x) => removeSketch(q, file, x.id), project));
+        change(next, `CROP  ${cropNote(r)} · ${its.length} drawn object${its.length === 1 ? '' : 's'} replaced · ⌘Z to undo`);
+      } else {
+        const { pieces, truncated } = await explodeObjects(view, [target.handle]);
+        const r = cropPieces(pieces[target.handle] ?? [], outline, side);
+        if (r.error) { again(r.error); return; }
+        const next = r.items!.reduce((q, x) => addSketch(q, file, x).project, withErased(project, file, [target.handle]));
+        change(next, `CROP  ${cropNote(r)}${truncated ? ' (a very large array: its first 200,000 pieces)' : ''} · original block erased · ⌘Z to undo`);
+      }
+    } catch (e) { cad.say(`CROP  ${e instanceof Error ? e.message : String(e)}`); }
+    setCrop(null); setPicked([]); cad.setSelected(null); setResult(null); cad.setTool('none');
+  }
   function removeSelected() {
     if (selSketch && view) { change(removeSketch(project, view.file, selSketch.id), `${selSketch.tray ? 'Cable tray' : selSketch.cable ? 'Cable route' : selSketch.kind === 'pline' ? 'Polyline' : selSketch.kind[0].toUpperCase() + selSketch.kind.slice(1)} erased · ⌘Z to undo`); cad.setSelected(null); setResult(null); return; }
     if (many) {
@@ -566,7 +679,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       const wires = wiring.flatMap((w) => [...w.arcs, ...(w.home ? [w.home] : [])].map((a) => ({ layer: WIRING_LAYER, kind: 'pline' as const, pts: arcPoints(toUnits(a)) })));
       const tags = wiring.map((w) => ({ layer: TAG_LAYER, kind: 'text' as const, pts: [[w.tagAt[0] / units.factor, w.tagAt[1] / units.factor] as Pt], text: w.tag, h: textH * 0.6, rot: 0 }));
       const refLines = bind ? xr.bound() : [];
-      const bytes = await drawingWithDevices(view, out, [...shapesOut(sketch, units.factor), ...wires, ...tags, ...refLines], as);
+      const bytes = await drawingWithDevices(view, out, [...shapesOut(sketch, units.factor), ...wires, ...tags, ...refLines], as, erasedKey ? erasedKey.split(',') : []);
       const name = `${view.file.replace(/\.(dwg|dxf)$/i, '')} - with devices${bind ? ' and references' : ''}.${as}`;
       const msg = await saveBinary(name, bytes, as === 'dwg' ? 'DWG drawing' : 'DXF drawing', as, as === 'dwg' ? 'application/acad' : 'application/dxf');
       if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER}${refLines.length ? `, ${boundText(refLines)} bound on NAME$0$LAYER layers` : ''}${wiring.length ? `, ${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on ${WIRING_LAYER} / ${TAG_LAYER}` : ''})`); onStatus(msg); }
@@ -881,7 +994,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   /** The room name inside an outline: a text on a layer named like room names, else any text inside. */
   const nameInside = (poly: Pt[]) => {
-    const texts = (view?.info.texts ?? []).filter((t) => layersOn[t.layer] && inside([t.x, t.y], poly));
+    const texts = (drawn?.info.texts ?? []).filter((t) => layersOn[t.layer] && inside([t.x, t.y], poly));
     const named = texts.find((t) => /ROOM|RM|NAME|SPACE/i.test(view!.info.layers[t.layer]?.name ?? ''));
     return (named ?? texts[0])?.s.trim();
   };
@@ -933,6 +1046,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     setPromptMenu(null);
     const last = points[points.length - 1];
     if (tool === 'xattach') { if (xDraft) setXDraft({ ...xDraft, at }); cad.setTool('none'); return; }
+    if (tool === 'crop' && crop) { await cropClick(at, pixel); return; }
     if (tool === 'xclip') {
       if (xClip?.outline) {
         const rooms = floor ? buildingInfoOf(project).rooms.filter((q) => q.buildingId === floor.ref.building && q.levelId === floor.ref.level && (q.outline?.length ?? 0) > 2).map((q) => q.outline!.map(([x, y]): Pt => [x / units.factor, y / units.factor])) : [];
@@ -1211,7 +1325,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (!floor) { cad.say('ROOMS  Add the building and its levels in Building information first; rooms are kept per level.'); return; }
     if (!roles.some((r) => r.role === 'room')) { cad.say('ROOMS  No layer has the role Room outline: set it in File → Layer roles, or use Click inside / Trace.'); cad.setShowRoles(true); return; }
     const code = CAD_UNITS.find((u) => u.id === units.unit)!.code;
-    const { rooms, zones } = roomsFromPlan(planOfView(view, code, layersOn), roles, project.cadLength);
+    const { rooms, zones } = roomsFromPlan(planOfView(drawn ?? view, code, layersOn), roles, project.cadLength);
     if (!rooms.length) { cad.say('ROOMS  No closed outlines on the room-outline layers that are shown. Use Click inside or Trace.'); return; }
     const { project: next } = putRooms(project, rooms.map((r) => ({ ...r, file: view.file })), floor.ref, roles);
     const label = floorLabel(project.building, floor);
@@ -1370,6 +1484,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       try { change(renameBoard(project, id, raw), `${id} renamed ${raw} · ⌘Z to undo`); } catch (e) { cad.say(`RENAME  ${e instanceof Error ? e.message : String(e)}`); }
       return;
     }
+    if (tool === 'crop' && crop && cropTyped(c, raw)) return;
     if (tool === 'xclip' && (c === '' || c === 'C')) { finishClip(points); return; }
     if (tool === 'xclip' && c === 'O' && xClip) { setXClip({ ...xClip, outline: true }); setPoints([]); cad.say('XCLIP  Click inside a closed outline (a closed polyline, or a room):'); return; }
     if (tool === 'leader' && points.length >= 2 && raw) {
@@ -1686,7 +1801,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
-            <CadCanvas view={view!} layersOn={layersOn} extents={fitExtents} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
+            <CadCanvas view={view!} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
               numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={xr.snap} windowSelect={tool === 'none' || tool === 'stretch' || (PICK_FIRST.includes(tool) && edPhase === 'pick')} onWindow={pickWindow} onContext={contextAt}
               grips={tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
               onGripEnd={(i, at) => {
