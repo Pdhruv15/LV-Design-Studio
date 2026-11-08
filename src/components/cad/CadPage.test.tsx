@@ -213,6 +213,44 @@ describe('CAD view', () => {
     expect(onChange.mock.calls[0][1]).toMatch(/added to Ground · ⌘Z to undo$/);
   });
 
+  it('erases an object of the opened drawing (Delete), by handle, and RESTOREDWG brings it back', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    const last = () => state.history[state.history.length - 1];
+    await clickAt(6687.5 + 190, 7375); // on the light's circle
+    expect(result()).toMatch(/Block · L1/);
+    expect(button('Erase')).toBeTruthy();
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' })); });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][1]).toMatch(/^Block L1 on E-LIGHT erased \(the drawing file is unchanged.* · ⌘Z to undo$/);
+    expect(project.cadErased?.['sample-villa-gf.dxf']).toHaveLength(1);
+    expect(project.cadSketch ?? []).toEqual([]); // nothing drawn in its place
+    await flush();
+    await clickAt(6687.5 + 190, 7375);
+    expect(result()).not.toMatch(/Block · L1/);
+    await command('RESTOREDWG');
+    expect(last()).toMatch(/^RESTOREDWG {2}1 erased drawing object back/);
+    expect(project.cadErased?.['sample-villa-gf.dxf'] ?? []).toEqual([]);
+    await flush();
+    await clickAt(6687.5 + 190, 7375);
+    expect(result()).toMatch(/Block · L1/);
+    await command('RESTOREDWG');
+    expect(last()).toBe('RESTOREDWG  Nothing of this drawing is erased.');
+  });
+
+  it('picks several objects of the opened drawing with Shift-click and erases them in one change (E)', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await clickAt(6687.5 + 190, 7375); // the light block
+    await clickAt(2500, 150, true); // the kitchen outline, added
+    expect(state.history[state.history.length - 1]).toBe('SEL  2 objects selected');
+    await command('E');
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][1]).toMatch(/^2 objects erased/);
+    const erased = project.cadErased?.['sample-villa-gf.dxf'] ?? [];
+    expect(new Set(erased).size).toBe(2);
+  });
+
   it('measures the area of a closed object (AREA, O)', async () => {
     act(() => root.render(<Host />));
     await flush();

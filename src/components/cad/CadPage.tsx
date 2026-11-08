@@ -9,7 +9,7 @@ import { DIALOG_TOOLS, DimStyleDialog, EditDialog, TextStyleDialog } from './Cad
 import { currentTextStyle, dimLookOf, dimStandardAsBefore, dimStylesOf, dimStylesToStore, textStylesOf, textStylesToStore } from '../../model/cadStyles';
 import { chooseDrawing, drawingWithDevices, explodeObjects, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
 import { boundaryOfPiece, cropItems, cropNote, cropPieces, type CropBoundary, type CropSide } from '../../model/cadCrop';
-import { erasedOf, shownView, withErased, type ErasedParts } from '../../model/cadErased';
+import { erasedOf, restoredErased, shownView, withErased, type ErasedParts } from '../../model/cadErased';
 import { CIRCUIT_ATTRIBUTES } from '../../model/cadLoads';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
 import { addSketch, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimMeasure, linearDir, nextDim, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
@@ -88,7 +88,7 @@ const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab 
 ];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 /** Bind's count in the Save line: reference lines, texts and hatches. */
@@ -405,7 +405,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const selSketch = sketch.find((it) => `sk:${it.id}` === cad.selected) ?? null;
   // The drawn objects picked: several, else the one selected; and everything picked.
   const pickedSk = useMemo(() => (picked.length ? sketch.filter((it) => picked.includes(`sk:${it.id}`)) : selSketch ? [selSketch] : []), [picked, sketch, selSketch]);
-  const pickedKeys = new Set([...pickedItems.map((d) => d.key), ...pickedSk.map((it) => `sk:${it.id}`)]);
+  // Objects of the opened drawing picked (Shift-click, kept as `dw:<handle>` in picked), else the one clicked. Erasing
+  // them only lists their handles (project.cadErased): the drawing file is never changed.
+  const dwObjects = useRef(new Map<string, { file: string; o: CadObject }>());
+  const pickedDw = useMemo(() => (picked.length ? picked.flatMap((k) => { const x = k.startsWith('dw:') ? dwObjects.current.get(k) : undefined; return x && x.file === view?.file ? [x.o] : []; })
+    : result?.kind === 'object' ? [result.o] : []), [picked, result, view]);
+  const dwHighlight = useMemo(() => pickedDw.map((o): [number, number] => [o.seg_start, o.seg_end]), [pickedDw]);
+  const pickedKeys = new Set([...pickedItems.map((d) => d.key), ...pickedSk.map((it) => `sk:${it.id}`), ...pickedDw.map((o) => `dw:${o.handle}`)]);
   const many = pickedItems.length + pickedSk.length > 1;
   // The architect's lines on shown layers: cutting edges and boundaries for Trim and Extend.
   const drawingSegs = useMemo(() => (drawn && (tool === 'trim' || tool === 'extend') ? segmentsOn(drawn.segs, drawn.segLayers, drawn.info.origin, new Set(drawn.info.layers.map((_, i) => i).filter((i) => layersOn[i]))) : []), [drawn, layersOn, tool]);
@@ -699,7 +705,18 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     } catch (e) { cad.say(`CROP  ${e instanceof Error ? e.message : String(e)}`); }
     setCrop(null); setPicked([]); cad.setSelected(null); setResult(null); cad.setTool('none');
   }
+  /** What an object of the opened drawing is called in a message: "Line on A-WALL", "Block L1 on E-LIGHT". */
+  const dwLabel = (o: CadObject) => `${o.kind}${o.block ? ` ${o.block}` : ''} on ${view?.info.layers[o.layer]?.name ?? '?'}`;
   function removeSelected() {
+    // Objects of the opened drawing (with any devices and drawn objects picked too): erased by handle, in one change.
+    if (pickedDw.length && view) {
+      let next = withErased(project, view.file, pickedDw.map((o) => o.handle));
+      if (pickedItems.length) next = deleteDevices(next, pickedItems);
+      for (const it of pickedSk) next = removeSketch(next, view.file, it.id);
+      const n = pickedDw.length + pickedItems.length + pickedSk.length;
+      change(next, `${n === 1 ? dwLabel(pickedDw[0]) : `${n} objects`} erased (the drawing file is unchanged; RESTOREDWG brings erased drawing objects back)${pickedItems.length ? ' — point counts updated' : ''} · ⌘Z to undo`);
+      setPicked([]); cad.setSelected(null); setResult(null); return;
+    }
     if (selSketch && view) { change(removeSketch(project, view.file, selSketch.id), `${selSketch.tray ? 'Cable tray' : selSketch.cable ? 'Cable route' : selSketch.kind === 'pline' ? 'Polyline' : selSketch.kind[0].toUpperCase() + selSketch.kind.slice(1)} erased · ⌘Z to undo`); cad.setSelected(null); setResult(null); return; }
     if (many) {
       let next = pickedItems.length ? deleteDevices(project, pickedItems) : project;
@@ -875,8 +892,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   }
 
   /** Picks devices and drawn objects: one (it is the selected object, its details on the right), several, or none. */
-  function pick(items: PlacedItem[], sks: SketchItem[] = []) {
+  function pick(items: PlacedItem[], sks: SketchItem[] = [], dws: CadObject[] = []) {
     setMenuAt(null);
+    if (dws.length === 1 && !items.length && !sks.length) { setPicked([]); cad.setSelected(null); setResult({ kind: 'object', o: dws[0] }); return; }
+    if (dws.length) {
+      for (const o of dws) dwObjects.current.set(`dw:${o.handle}`, { file: view?.file ?? '', o });
+      setPicked([...items.map((d) => d.key), ...sks.map((it) => `sk:${it.id}`), ...dws.map((o) => `dw:${o.handle}`)]); cad.setSelected(null); setResult(null);
+      return;
+    }
     if (items.length + sks.length === 1) {
       setPicked([]);
       if (items.length) { cad.setSelected(items[0].key); setResult({ kind: 'device', it: items[0] }); } else { cad.setSelected(`sk:${sks[0].id}`); setResult({ kind: 'sketch', it: sks[0] }); }
@@ -898,8 +921,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     cad.say(n ? `SEL  ${picks(n)}${tool !== 'none' ? ' — Enter when done' : ''}` : 'SEL  Nothing in the window.');
   }
   /** Right click: with a tool running, Enter (with a short menu when the prompt has options); with none, the menu of
-   * edits for the device or drawn object under it (or what is picked), else Repeat and the recent commands. */
-  function contextAt(at: Pt, pixel: number, screen: Pt) {
+   * edits for the device or drawn object under it (or what is picked), Erase for an object of the opened drawing, else
+   * Repeat and the recent commands. */
+  async function contextAt(at: Pt, pixel: number, screen: Pt) {
     setPromptMenu(null);
     if (tool !== 'none') {
       const opts = promptOptions(cad.history[cad.history.length - 1] ?? '');
@@ -911,6 +935,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (d && !pickedKeys.has(d.key)) pick([d]);
     else if (sk && !pickedKeys.has(`sk:${sk.id}`)) pick([], [sk]);
     if (!d && !sk && !pickedItems.length && !pickedSk.length) {
+      // An object of the opened drawing: picked (if it was not), with Erase (run as it then stands, through the actions).
+      const o = view ? await view.pick(at[0], at[1], 6 * pixel, pickOn) : null;
+      if (o && !pickedKeys.has(`dw:${o.handle}`)) pick([], [], [o]);
+      if (o || pickedDw.length) { setPromptMenu({ at: screen, items: [{ label: 'Erase', run: () => cad.actions.current.remove() }] }); return; }
       if (recent.length) setPromptMenu({ at: screen, items: recent.slice(0, 6).map((x, i) => ({ label: i ? x.label : `Repeat ${x.label}`, run: () => repeat(x) })) });
       return;
     }
@@ -1376,11 +1404,17 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       const skHit = shiftKey && !d ? itemAt(pickable, at, 6 * pixel) : undefined;
       if (d && shiftKey) {
         const items = pickedKeys.has(d.key) ? pickedItems.filter((x) => x.key !== d.key) : [...pickedItems, d];
-        pick(items, pickedSk); cad.say(`SEL  ${picks(items.length + pickedSk.length)}`); return;
+        pick(items, pickedSk, pickedDw); cad.say(`SEL  ${picks(items.length + pickedSk.length + pickedDw.length)}`); return;
       }
       if (skHit) {
         const sks = pickedKeys.has(`sk:${skHit.id}`) ? pickedSk.filter((x) => x.id !== skHit.id) : [...pickedSk, skHit];
-        pick(pickedItems, sks); cad.say(`SEL  ${picks(pickedItems.length + sks.length)}`); return;
+        pick(pickedItems, sks, pickedDw); cad.say(`SEL  ${picks(pickedItems.length + sks.length + pickedDw.length)}`); return;
+      }
+      // Shift-click on an object of the opened drawing adds it to what is picked (or takes it off).
+      const dwHit = shiftKey && !d ? await view.pick(at[0], at[1], 6 * pixel, pickOn) : null;
+      if (dwHit) {
+        const dws = pickedKeys.has(`dw:${dwHit.handle}`) ? pickedDw.filter((o) => o.handle !== dwHit.handle) : [...pickedDw, dwHit];
+        pick(pickedItems, pickedSk, dws); cad.say(`SEL  ${picks(pickedItems.length + pickedSk.length + dws.length)}`); return;
       }
       setPicked([]);
       if (d) { cad.setSelected(d.key); setResult({ kind: 'device', it: d }); cad.say(`LIST  ${d.label}${d.detail ? ` · ${d.detail}` : ''}${d.room ? ` · ${d.room}` : ''}`); return; }
@@ -1752,6 +1786,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       wireTags: () => cad.setWireTags(!cad.wireTags),
       coverage: () => cad.setCoverage(!cad.coverage),
       erase: () => removeSelected(),
+      restoreDwg: () => {
+        const n = view ? erasedOf(project, view.file).length : 0;
+        if (!view || !n) { cad.say('RESTOREDWG  Nothing of this drawing is erased.'); return; }
+        setPicked([]); setResult(null);
+        change(restoredErased(project, view.file), `RESTOREDWG  ${n} erased drawing object${n === 1 ? '' : 's'} back · ⌘Z to undo`);
+      },
       save: () => void saveNow(),
       saveDwg: () => startSaveAs('dwg'),
       saveAs: () => startSaveAs(c === 'DXFOUT' ? 'dxf' : undefined),
@@ -1820,7 +1860,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       cancel();
       return;
     }
-    if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && (selectedItem || selSketch || many)) { e.preventDefault(); removeSelected(); return; }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && (selectedItem || selSketch || many || pickedDw.length)) { e.preventDefault(); removeSelected(); return; }
     // Enter or Space on the drawing (not on a button, a field or a palette) works as Enter on the empty command line:
     // Enter at once, Space when it is let go (see spaceTap); once per press.
     const onControl = e.target instanceof Element && !!e.target.closest('button, a, [role="tab"], [role="menuitem"], [contenteditable="true"], .cad-lpal, .cad-ppal');
@@ -1955,7 +1995,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (e.key === 'Escape') { e.preventDefault(); setDynMenu(null); return true; }
     return false;
   }
-  const highlight: [number, number] | null = result?.kind === 'object' ? [result.o.seg_start, result.o.seg_end] : null;
+  const highlight = dwHighlight;
   const objectArea = result?.kind === 'area' && result.how === 'object';
 
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
@@ -2440,6 +2480,7 @@ function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, o
         {o.vertices !== undefined && <><dt>Vertices</dt><dd>{o.vertices}{o.closed ? ' · closed' : ''}</dd></>}
         {Object.entries(o.attrs ?? {}).map(([k, v]) => <><dt key={`k${k}`}>{k}</dt><dd key={`v${k}`}>{v || '—'}</dd></>)}
       </dl>
+      <div className="cad-devbtns"><button className="chip" onClick={onRemove}>Erase</button></div>
     </>
   );
 }

@@ -20,6 +20,13 @@ export function withErased(p: Project, file: string, handles: string[]): Project
   return { ...p, cadErased: { ...(p.cadErased ?? {}), [keyOf(file)]: list } };
 }
 
+/** The project with every object erased in a plan file back (RESTOREDWG). */
+export function restoredErased(p: Project, file: string): Project {
+  if (!erasedOf(p, file).length) return p;
+  const { [keyOf(file)]: _gone, ...rest } = p.cadErased ?? {};
+  return { ...p, cadErased: Object.keys(rest).length ? rest : undefined };
+}
+
 /** The drawing as shown with its erased objects left out. Segment indices are kept (fills and outlines refer to them):
  * an erased segment is drawn as nothing (both ends at its start, which a butt-capped stroke does not show). */
 export function shownView(v: CadView, parts: ErasedParts, handles: string[]): CadView {
