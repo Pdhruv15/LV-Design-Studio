@@ -10,8 +10,11 @@ import type { SketchItem } from '../../types';
 
 export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase';
 export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array';
-export interface EditSettings { offset: string; radius: string; d1: string; d2: string; keep: boolean; factor: string; polar: boolean; rows: string; cols: string; dx: string; dy: string; n: string; angle: string }
-export const ED_START: EditSettings = { offset: '0.3', radius: '0', d1: '0.5', d2: '0.5', keep: true, factor: '2', polar: false, rows: '2', cols: '3', dx: '1', dy: '1', n: '6', angle: '360' };
+/** Offset `through` a point (the copy passes through it), `erase` the source, the copies on the `source` layer or the
+ * `current` one; Fillet and Chamfer `trim` the lines to the corner (else they stay and the arc or line is added); a
+ * polar array can `rotate` its copies (else they keep the original's direction). */
+export interface EditSettings { offset: string; through: boolean; erase: boolean; layer: 'source' | 'current'; radius: string; d1: string; d2: string; trim: boolean; keep: boolean; factor: string; polar: boolean; rotate: boolean; rows: string; cols: string; dx: string; dy: string; n: string; angle: string }
+export const ED_START: EditSettings = { offset: '0.3', through: false, erase: false, layer: 'source', radius: '0', d1: '0.5', d2: '0.5', trim: true, keep: true, factor: '2', polar: false, rotate: true, rows: '2', cols: '3', dx: '1', dy: '1', n: '6', angle: '360' };
 
 const LABEL: Record<SketchEdit, string> = {
   filter: 'Filter ▾', trim: 'Trim', extend: 'Extend', offset: 'Offset', break: 'Break', fillet: 'Fillet', mirror: 'Mirror', scale: 'Scale', array: 'Array',
@@ -82,11 +85,11 @@ export function DrawnSelectionPanel({ items, devices, onEdit }: { items: SketchI
   );
 }
 
-const TITLE: Record<EditTool, string> = {
+export const EDIT_TITLE: Record<EditTool, string> = {
   trim: 'Trim', extend: 'Extend', offset: 'Offset', fillet: 'Fillet', chamfer: 'Chamfer', break: 'Break', join: 'Join', explode: 'Explode',
   mirror: 'Mirror', scale: 'Scale', stretch: 'Stretch', array: 'Array'
 };
-const HELP: Record<EditTool, string> = {
+export const EDIT_HELP: Record<EditTool, string> = {
   trim: 'Click the part to cut away: it is cut at the nearest lines crossing it, drawn or the architect\'s (shown layers), which are never changed. Shift-click extends instead.',
   extend: 'Click near the end to lengthen: it runs on to the next line ahead, drawn or the architect\'s. Shift-click trims instead.',
   offset: 'Click the object, then the side for the copy. A tray is copied as a tray of the same width and route; a cable route as a plain line.',
@@ -98,7 +101,7 @@ const HELP: Record<EditTool, string> = {
   mirror: 'Pick the objects (click them, then Enter), then two points of the mirror line.',
   scale: 'Pick the objects (click them, then Enter), then the base point.',
   stretch: 'Drag a window round the points to move (right to left), then the base point and the second point. A tray end moves, its far end stays.',
-  array: 'Pick the objects (click them, then Enter); rectangular copies go with Apply, polar ones round the centre clicked.'
+  array: 'Pick the objects (click them, then Enter), then Rectangular or Polar on the command line: rectangular copies are made at once, polar ones round the centre clicked.'
 };
 
 /** The side panel of an edit tool: what it does, its distances, and what has been picked so far. */
@@ -115,7 +118,7 @@ export function EditToolPanel({ tool, settings, onSettings, step, picked, onAppl
   const field = (k: keyof EditSettings, label: string, step = 0.05) => <label>{label}<input aria-label={label} type="number" step={step} value={String(settings[k])} onChange={set(k)} /></label>;
   return (
     <>
-      <h4>{TITLE[tool]} <span className="m">{toolAlias(tool)}</span></h4>
+      <h4>{EDIT_TITLE[tool]} <span className="m">{toolAlias(tool)}</span></h4>
       <div className="cad-devform">
         {tool === 'offset' && field('offset', 'Distance (m)')}
         {tool === 'fillet' && field('radius', 'Radius (m)')}
@@ -128,7 +131,7 @@ export function EditToolPanel({ tool, settings, onSettings, step, picked, onAppl
             {settings.polar ? <>{field('n', 'Number in all', 1)}{field('angle', 'Angle to fill (°)', 15)}</> : <>{field('rows', 'Rows', 1)}{field('cols', 'Columns', 1)}{field('dx', 'Column spacing (m)', 0.1)}{field('dy', 'Row spacing (m)', 0.1)}</>}
           </>
         )}
-        <span className="m">{HELP[tool]}</span>
+        <span className="m">{EDIT_HELP[tool]}</span>
         {step && <span className="m">{step}</span>}
         {(tool === 'join' || tool === 'mirror' || tool === 'scale' || tool === 'array') && <span className="m">{picked} object{picked === 1 ? '' : 's'} picked</span>}
         {onApply && <div className="cad-devbtns"><button className="chip primary" disabled={!picked} onClick={onApply}>{tool === 'join' ? 'Join' : 'Apply'}</button></div>}

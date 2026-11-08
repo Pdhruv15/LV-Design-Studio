@@ -1792,7 +1792,7 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 /* Design CAD draws on the shared drawing surface; its colours are read from these on each draw (CadCanvas.tsx). */
 .cad{--cad-bg:var(--canvas-bg);--cad-ink:var(--canvas-ink);--cad-grid:var(--canvas-grid);--cad-grid-major:var(--canvas-grid-major);--cad-sketch:var(--res-cur);--cad-cross:var(--canvas-ink);--cad-snap:var(--ok);--cad-dev:var(--warn);--cad-elv:var(--acc);display:flex;flex-direction:column;height:100%;min-height:520px;border-top:1px solid var(--line)}
 .mid > .cad{flex:1 1 auto}
-.cad-work{display:grid;grid-template-columns:minmax(0,1fr) 260px;flex:1;min-height:0}
+.cad-work{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 260px;flex:1;min-height:0}
 .cad-work:has(> :only-child){grid-template-columns:minmax(0,1fr)}
 .cad-stage{position:relative;min-height:0;overflow:hidden;background:var(--cad-bg)}
 .cad-model{position:absolute;inset:0}
@@ -1941,8 +1941,63 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-lyr i{width:10px;height:10px;border-radius:2px;flex:none;border:1px solid var(--line)}
 .cad-lyr .m{margin-left:auto;font-size:var(--fs-xs)}
 .cad-lyr.off{opacity:.45}
-.cad-cmd{display:flex;align-items:center;gap:var(--space-2);padding:5px var(--space-3);background:var(--panel);border-top:1px solid var(--line);font:12px ui-monospace,Menlo,monospace}
-.cad-hist{flex:0 1 auto;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cad-cmdbox{flex:none;position:relative;background:var(--panel);border-top:1px solid var(--line);font:12px ui-monospace,Menlo,monospace}
+.cad-hist-prev{min-height:51px;padding:3px var(--space-3) 0;color:var(--mut);line-height:17px;display:flex;flex-direction:column;justify-content:flex-end}
+.cad-hist-prev div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cad-cmd{display:flex;align-items:center;gap:var(--space-2);padding:5px var(--space-3);background:var(--panel);border-top:1px solid color-mix(in srgb,var(--line) 60%,transparent);font:inherit}
+.cad-hist{flex:0 1 auto;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cad-opt{padding:0;background:none;border:0;color:var(--acc);font:inherit;text-decoration:underline dotted;text-underline-offset:2px;cursor:pointer}
+.cad-ac{position:absolute;left:var(--space-3);bottom:100%;z-index:6;display:flex;flex-direction:column;min-width:220px;padding:2px;background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--radius-sm);box-shadow:var(--shadow-pop)}
+.cad-ac button{display:flex;justify-content:space-between;gap:var(--space-3);height:18px;align-items:center;padding:0 6px;background:none;border:0;border-radius:2px;color:var(--tx);font:inherit;text-align:left}
+.cad-ac button:hover,.cad-ac button[aria-selected=true]{background:var(--p2)}
+.cad-ac small{color:var(--mut)}
+.cad-log{position:absolute;left:0;right:0;bottom:100%;z-index:6;max-height:212px;overflow:auto;padding:4px var(--space-3);background:var(--panel);border-top:1px solid var(--line-strong);box-shadow:var(--shadow-pop);color:var(--mut);line-height:17px}
+.cad-log div{white-space:pre-wrap}
+.cad-log b{color:var(--tx);font-weight:600}
+.cad-dyn{position:absolute;z-index:4;display:flex;flex-direction:column;align-items:flex-start;gap:2px;pointer-events:none;font:11.5px ui-monospace,Menlo,monospace}
+.cad-dyn-row{display:flex;gap:3px}
+.cad-dyn-row label{display:flex;align-items:center;gap:2px;padding:0 4px;background:var(--panel);border:1px solid var(--line-strong);border-radius:2px;color:var(--mut)}
+.cad-dyn-row label.on,.cad-dyn-row label:focus-within{border-color:var(--acc);background:var(--bg);color:var(--tx)}
+.cad-dyn-row input{width:auto;min-width:0;padding:0;background:none;border:0;outline:0;color:var(--tx);font:inherit;text-align:right}
+.cad-dyn-row input::placeholder{color:var(--mut)}
+.cad-dyn-row u{text-decoration:none;color:var(--mut)}
+.cad-dyn-prompt{padding:1px 6px;background:var(--panel);border:1px solid var(--line-strong);border-radius:2px;color:var(--tx);white-space:nowrap}
+.cad-dyn-prompt small{color:var(--mut)}
+.cad-dyn-menu{display:flex;flex-direction:column;min-width:120px;padding:2px;background:var(--panel);border:1px solid var(--line-strong);border-radius:3px;box-shadow:var(--shadow-pop);pointer-events:auto}
+.cad-dyn-menu button{display:flex;justify-content:space-between;gap:var(--space-3);height:20px;align-items:center;padding:0 8px;background:none;border:0;border-radius:2px;color:var(--tx);font:inherit;text-align:left}
+.cad-dyn-menu button:hover,.cad-dyn-menu button[aria-selected=true]{background:var(--p2)}
+.cad-dyn-menu b{color:var(--acc);font-weight:600}
+.cad-dlg{position:absolute;z-index:7;width:236px;background:var(--panel);border:1px solid var(--line-strong);border-radius:4px;box-shadow:var(--shadow-pop);font-size:12px;color:var(--tx)}
+.cad-dlg-t{display:flex;align-items:center;gap:6px;height:22px;padding:0 3px 0 8px;background:var(--p2);border-bottom:1px solid var(--line);font-size:11.5px;cursor:move;user-select:none;touch-action:none}
+.cad-dlg-t span{color:var(--mut)}
+.cad-dlg-t .sp{flex:1}
+.cad-dlg-t button{width:18px;height:18px;padding:0;background:none;border:0;border-radius:3px;color:var(--mut);font:inherit;cursor:pointer}
+.cad-dlg-t button:hover{background:var(--panel);color:var(--tx)}
+.cad-dlg-rows{padding:4px 0}
+.cad-dlg-r{display:grid;grid-template-columns:1fr 96px;align-items:center;height:22px;padding:0 8px;color:var(--mut)}
+.cad-dlg-in{display:flex;align-items:center;justify-content:flex-end;gap:3px;color:var(--tx)}
+.cad-dlg-in input:not([type=checkbox]),.cad-dlg-in select{width:100%;min-width:0;height:18px;padding:0 4px;background:var(--bg);border:1px solid var(--field-line);border-radius:2px;color:var(--tx);font:11.5px ui-monospace,Menlo,monospace;text-align:right}
+.cad-dlg-in select{text-align:left;font-family:inherit}
+.cad-dlg-in input:focus,.cad-dlg-in select:focus{outline:0;border-color:var(--acc)}
+.cad-dlg-in u{flex:none;min-width:10px;color:var(--mut);text-decoration:none;font:11.5px ui-monospace,Menlo,monospace}
+.cad-dlg-tabs{display:flex;margin:-4px 0 4px;border-bottom:1px solid var(--line)}
+.cad-dlg-tabs button{flex:1;height:20px;background:none;border:0;color:var(--mut);font:inherit;font-size:11.5px}
+.cad-dlg-tabs button[aria-selected=true]{color:var(--tx);box-shadow:inset 0 -2px 0 var(--acc)}
+.cad-dlg-prev{display:flex;align-items:center;justify-content:center;gap:var(--space-2);padding:4px 8px;color:var(--mut)}
+.cad-dlg-grid{display:grid;gap:3px}
+.cad-dlg-grid i{display:block;width:8px;height:8px;border:1px solid var(--mut)}
+.cad-dlg-list{display:flex;flex-direction:column;max-height:88px;overflow:auto;margin:0 8px 4px;border:1px solid var(--line);border-radius:2px;background:var(--bg)}
+.cad-dlg-list button{display:flex;justify-content:space-between;height:20px;align-items:center;padding:0 6px;background:none;border:0;color:var(--tx);font:inherit;text-align:left}
+.cad-dlg-list button[aria-selected=true]{background:var(--p2)}
+.cad-dlg-list small{color:var(--mut)}
+.cad-dlg-btns{display:flex;gap:4px;padding:0 8px 4px}
+.cad-dlg-btns button,.cad-dlg-ft button{height:20px;padding:0 10px;background:none;border:1px solid var(--line-strong);border-radius:3px;color:var(--tx);font:inherit;font-size:11.5px}
+.cad-dlg-btns button:disabled{color:var(--mut)}
+.cad-dlg-help{margin:0;padding:4px 8px;color:var(--mut);font-size:11.5px;line-height:1.35;border-top:1px solid var(--line)}
+.cad-dlg-ft{display:flex;gap:4px;justify-content:flex-end;padding:4px 6px;border-top:1px solid var(--line)}
+.cad-dlg-ft .q{width:20px;margin-right:auto;padding:0}
+.cad-dlg-ft .p{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}
+.cad-log-x{position:sticky;top:0;float:right;padding:0 4px;background:none;border:0;color:var(--mut);font:inherit}
 .cad-cmd input{flex:1;min-width:120px;background:transparent;border:0;outline:0;color:var(--tx);font:inherit}
 .cad-status{display:flex;align-items:center;gap:var(--space-1);padding:4px var(--space-2);background:var(--p2);border-top:1px solid var(--line);font-size:var(--fs-xs);color:var(--mut)}
 .cad-tg{border:1px solid var(--line);border-radius:4px;padding:1px 7px;background:none;color:var(--mut);font-size:var(--fs-xs)}

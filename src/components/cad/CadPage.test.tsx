@@ -15,6 +15,7 @@ import '../../engines/cad/cadOps'; // loaded ahead: the engine loads it on deman
 import { sampleProject } from '../../data/sampleProject';
 import { placeLvPoint } from '../../model/cadDevices';
 import { archOnOf } from '../../model/cadLayerState';
+import { dimLabel } from '../../model/cadSketch';
 import type { Project } from '../../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -715,6 +716,8 @@ describe('CAD view', () => {
     expect(state.tool).toBe('mirror');
     await clickAt(X, -1000);
     await clickAt(X + 1000, -1000); // about y = −1 m
+    expect(document.querySelector('.cad-hist')!.textContent).toBe('MIRROR  Erase source objects? [Yes/No] <No>:');
+    await command(''); // Enter: No, the originals stay
     const items = project.cadSketch![0].items;
     expect(items).toHaveLength(2);
     expect(items[1].pts.map((q) => q.map((v) => Math.round(v)))).toEqual([[X, -2000], [X + 4000, -2000], [X + 4000, -7000]]);
@@ -1375,3 +1378,492 @@ describe('file tabs', () => {
     expect(state.layout).toBeNull();
   });
 });
+
+describe('CAD command line', () => {
+  const line = (id: string, a: [number, number], b: [number, number]) => ({ id, kind: 'line' as const, layer: 'LV-SKETCH', pts: [a, b] });
+  const X = 200000;
+  const two: Project = { ...villa, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [line('S1', [X, 0], [X + 4000, 0]), line('S2', [X + 6000, 1000], [X + 6000, 5000])] }] };
+  const hist = () => document.querySelector('.cad-hist')!.textContent;
+  const earlier = () => [...document.querySelectorAll('.cad-hist-prev div')].map((d) => d.textContent);
+  const key = (k: string, target: EventTarget = window, more: KeyboardEventInit = {}) => act(() => { target.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...more })); });
+  const keyUp = (k: string, target: EventTarget = window) => act(() => { target.dispatchEvent(new KeyboardEvent('keyup', { key: k, code: k === ' ' ? 'Space' : k, bubbles: true, cancelable: true })); });
+  /** A key pressed and let go (Space works as Enter when it is let go). */
+  const tap = (k: string, target: EventTarget = window) => { key(k, target, { code: k === ' ' ? 'Space' : k }); keyUp(k, target); };
+  const items = () => project.cadSketch![0].items;
+  const last = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
+  const option = (name: string) => [...document.querySelectorAll<HTMLButtonElement>('.cad-hist .cad-opt')].find((b) => b.textContent === name)!;
+  const hover = (x: number, y: number) => { const [sx, sy] = screenOf(x, y); return act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('mousemove', { clientX: sx, clientY: sy, bubbles: true })); }); };
+  const start = async (p: Project = two) => { project = p; act(() => root.render(<Host start={p} />)); await flush(); act(() => state.toggle('osnap')); };
+
+  it('shows three earlier lines, the prompt with its options, one line for an unknown command, F1 the list and F2 the history', async () => {
+    await start();
+    await command('xyz');
+    expect(hist()).toBe('Unknown command "XYZ". Press F1 for the list.');
+    await command('O');
+    expect(hist()).toBe('Command: OFFSET  Specify offset distance or [Through/Erase/Layer] <0.30>:');
+    expect(earlier()).toHaveLength(3);
+    expect(earlier().slice(1)).toEqual(['Unknown command "XYZ". Press F1 for the list.', 'Command: O']);
+    expect([...document.querySelectorAll('.cad-hist .cad-opt')].map((b) => b.textContent)).toEqual(['Through', 'Erase', 'Layer']);
+    key('F1');
+    expect(document.querySelector('[aria-label="Command list (F1)"]')!.textContent).toContain('O · OFFSET  Offset');
+    key('Escape');
+    expect(document.querySelector('.cad-log')).toBeNull();
+    expect(state.tool).toBe('offset'); // Esc closed the list only
+    key('F2');
+    expect(document.querySelector('[aria-label="Command history (F2)"]')!.textContent).toContain('Unknown command "XYZ"');
+    key('F2');
+    expect(document.querySelector('.cad-log')).toBeNull();
+  });
+
+  it('Offset: an option clicked works as typed, Enter takes the value in < >, then Enter ends the tool and repeats it', async () => {
+    await start();
+    await command('O');
+    await act(async () => { option('Erase').click(); });
+    expect(earlier()[2]).toBe('OFFSET  Erase source after offsetting: Yes');
+    expect(hist()).toBe('OFFSET  Specify offset distance or [Through/Erase/Layer] <0.30>:');
+    await command(''); // the 0.30 in < >
+    expect(hist()).toBe('OFFSET  Select object to offset or [Exit]:');
+    await clickAt(X + 2000, 0);
+    expect(hist()).toBe('OFFSET  Specify point on side to offset:');
+    await clickAt(X + 2000, 1000);
+    expect(items()).toHaveLength(2); // the source moved, none added
+    expect(items()[0]).toMatchObject({ id: 'S1', pts: [[X, 300], [X + 4000, 300]] });
+    expect(last()).toBe('OFFSET  Line moved 0.30 m to the side · ⌘Z to undo');
+    await command('');
+    expect(state.tool).toBe('none');
+    await command(''); // Enter with no tool: the last command again
+    expect(state.tool).toBe('offset');
+    key('Escape');
+    act(() => { (document.querySelector('input[aria-label="Command"]') as HTMLInputElement).blur(); });
+    tap(' '); // Space works as Enter
+    expect(state.tool).toBe('offset');
+  });
+
+  it('Offset Through: the copy passes through the point clicked; Layer puts it on the current layer', async () => {
+    const onLayer: Project = { ...two, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [{ ...line('S1', [X, 0], [X + 4000, 0]), layer: 'A-OTHER' }] }] };
+    await start(onLayer);
+    await command('O');
+    await command('T');
+    expect(hist()).toBe('OFFSET  Specify offset distance or [Through/Erase/Layer] <Through>:');
+    await command('LAYER'); // the option's word works as its key
+    await command('');
+    await clickAt(X + 2000, 0);
+    expect(hist()).toBe('OFFSET  Specify through point:');
+    await clickAt(X + 1000, 750);
+    expect(items()[1].layer).toBe('LV-SKETCH');
+    expect(items()[1].pts.flat().map((v) => Math.round(v))).toEqual([X, 750, X + 4000, 750]);
+    expect(last()).toBe('OFFSET  Line copied 0.75 m to the side (through the point) · ⌘Z to undo');
+  });
+
+  it('Fillet: Radius asks for the radius, Trim No keeps the lines and adds the arc', async () => {
+    await start();
+    await command('F');
+    expect(hist()).toBe('Command: FILLET  Select first object or [Radius/Trim] <R 0.00>:');
+    await command('R');
+    expect(hist()).toBe('FILLET  Specify fillet radius <0.00>:');
+    await command('0.5');
+    expect(hist()).toBe('FILLET  Select first object or [Radius/Trim] <R 0.50>:');
+    await command('T');
+    expect(hist()).toBe('FILLET  Select first object or [Radius/Trim] <R 0.50, No trim>:');
+    await clickAt(X + 3000, 0);
+    expect(hist()).toBe('FILLET  Select second object:');
+    await clickAt(X + 6000, 2000);
+    expect(items().slice(0, 2).map((x) => x.pts)).toEqual([[[X, 0], [X + 4000, 0]], [[X + 6000, 1000], [X + 6000, 5000]]]);
+    expect(items()[2]).toMatchObject({ kind: 'arc', r: 500 });
+    expect(last()).toBe('FILLET  radius 0.50 m, lines not trimmed · ⌘Z to undo');
+  });
+
+  it('Scale asks for the factor after the base point; Array asks its type', async () => {
+    await start();
+    await dragWindow([X - 500, -500], [X + 6500, 5500]);
+    await act(async () => { [...document.querySelectorAll('[aria-label="Edit drawn objects"] button')].find((b) => b.textContent === 'Scale')!.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(hist()).toBe('Command: SCALE  Specify base point:');
+    await clickAt(X, 0);
+    expect(hist()).toBe('SCALE  Specify scale factor <2>:');
+    await command('0.5');
+    expect(items()[0].pts).toEqual([[X, 0], [X + 2000, 0]]);
+    expect(last()).toBe('SCALE  2 objects scaled × 0.5 · ⌘Z to undo');
+    await command('AR');
+    await clickAt(X + 1000, 0);
+    await command('');
+    expect(hist()).toBe('ARRAY  Enter array type [Rectangular/Polar] <Rectangular>:');
+    await command('');
+    expect(last()).toBe('ARRAY  5 copies made · ⌘Z to undo');
+  });
+
+  it('TEXT asks height and rotation after its point; a word typed there is the text', async () => {
+    await start();
+    await command('T');
+    await clickAt(X, 0);
+    expect(hist()).toBe('TEXT  Specify height <2.5 mm>:');
+    await command('5');
+    expect(hist()).toBe('TEXT  Specify rotation angle <0>:');
+    await command('90');
+    expect(hist()).toBe('TEXT  Enter text:');
+    await command('DB ROOM');
+    expect(items()[2]).toMatchObject({ kind: 'text', text: 'DB ROOM', h: 500 });
+    expect(items()[2].rot).toBeCloseTo(Math.PI / 2, 6);
+    await clickAt(X, 2000);
+    await command('KITCHEN');
+    expect(items()[3]).toMatchObject({ kind: 'text', text: 'KITCHEN', h: 250 });
+  });
+
+  it('lists matching commands while typing (Tab picks), and Up recalls the commands typed before', async () => {
+    await start();
+    const input = document.querySelector('input[aria-label="Command"]') as HTMLInputElement;
+    const type = (text: string) => act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, text); input.dispatchEvent(new Event('input', { bubbles: true })); });
+    type('OF');
+    expect(document.querySelector('[aria-label="Matching commands"]')!.textContent).toMatch(/^OFFSETOffset/);
+    key('Tab', input);
+    expect(input.value).toBe('OFFSET');
+    await act(async () => { input.form!.requestSubmit(); });
+    expect(state.tool).toBe('offset');
+    await command('GRID');
+    key('ArrowUp', input);
+    expect(input.value).toBe('GRID');
+    key('ArrowUp', input);
+    expect(input.value).toBe('OFFSET');
+    key('ArrowDown', input);
+    expect(input.value).toBe('GRID');
+  });
+
+  it('right-click: with a tool, Enter and the prompt options; with none and nothing under it, Repeat and the recent commands', async () => {
+    await start();
+    const right = (x: number, y: number) => { const [sx, sy] = screenOf(x, y); return act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); }); };
+    const menu = () => [...document.querySelectorAll('[aria-label="Command menu"] button')];
+    await command('GRID');
+    await command('F');
+    await right(X + 20000, 20000);
+    expect(menu().map((b) => b.textContent)).toEqual(['Enter', 'RadiusR', 'TrimT', 'Cancel']);
+    await act(async () => { (menu()[2] as HTMLButtonElement).click(); });
+    expect(hist()).toBe('FILLET  Select first object or [Radius/Trim] <R 0.00, No trim>:');
+    await command('');
+    expect(state.tool).toBe('none');
+    await right(X + 20000, 20000);
+    expect(menu().map((b) => b.textContent)).toEqual(['Repeat FILLET', 'GRID']);
+    await act(async () => { (menu()[0] as HTMLButtonElement).click(); });
+    expect(state.tool).toBe('fillet');
+  });
+
+  it('dynamic input: a number typed goes to the length box at the cursor, Tab to the angle, Enter places the point; F12 turns it off', async () => {
+    await start();
+    const box = (name: string) => document.querySelector(`.cad-dyn input[aria-label="${name}"]`) as HTMLInputElement | null;
+    const type = (el: HTMLInputElement, text: string) => act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, text); el.dispatchEvent(new Event('input', { bubbles: true })); });
+    await command('L');
+    await hover(X, 9000);
+    expect(document.querySelector('.cad-dyn-prompt')!.textContent).toBe('Specify first point');
+    expect(box('Length')).toBeNull();
+    await clickAt(X, 10000);
+    expect(box('Length')!.placeholder).toBe('0.00');
+    expect(document.querySelector('.cad-status button[aria-pressed="true"][title="DYN (F12)"]')).not.toBeNull();
+    key('3');
+    expect(document.activeElement).toBe(box('Length'));
+    type(box('Length')!, '3');
+    key('Tab', box('Length')!);
+    expect(document.activeElement).toBe(box('Angle'));
+    type(box('Angle')!, '90');
+    await act(async () => { box('Angle')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
+    expect(items()[2].pts.map((q) => q.map((v) => Math.round(v)))).toEqual([[X, 10000], [X, 13000]]);
+    key('F12');
+    expect(state.toggles.dyn).toBe(false);
+    expect(document.querySelector('.cad-dyn')).toBeNull();
+    key('F12');
+    expect(document.querySelector('.cad-dyn')).not.toBeNull();
+  });
+
+  it('dynamic input: Offset asks its distance at the cursor; Down in the box opens the prompt options', async () => {
+    await start();
+    await command('O');
+    await hover(X + 20000, 20000);
+    const box = document.querySelector('.cad-dyn input[aria-label="Distance"]') as HTMLInputElement;
+    expect(box.placeholder).toBe('0.30');
+    expect(document.querySelector('.cad-dyn-prompt')!.textContent).toBe('Specify offset distance ↓');
+    key('ArrowDown'); // on the drawing: it pans, as before
+    expect(document.querySelector('.cad-dyn-menu')).toBeNull();
+    act(() => box.focus());
+    key('ArrowDown', box);
+    expect([...document.querySelectorAll('.cad-dyn-menu button')].map((b) => b.textContent)).toEqual(['Through T', 'Erase E', 'Layer L']);
+    key('ArrowDown', box);
+    key('Enter', box);
+    expect(hist()).toBe('OFFSET  Specify offset distance or [Through/Erase/Layer] <0.30>:');
+    expect(earlier()[2]).toBe('OFFSET  Erase source after offsetting: Yes');
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(box, '0.5'); box.dispatchEvent(new Event('input', { bubbles: true })); });
+    await act(async () => { box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
+    expect(hist()).toBe('OFFSET  Select object to offset or [Exit]:');
+    expect((document.querySelector('.cad-dyn input[aria-label="Distance"]') as HTMLInputElement).placeholder).toBe('0.50');
+  });
+
+  it('edit dialogs: a value changed in the Offset dialog is used at once and shows in the prompt; the command line\'s shows in it; Esc puts back', async () => {
+    await start();
+    const dlg = () => document.querySelector('[role="dialog"][aria-label="Offset"]') as HTMLElement | null;
+    const field = (name: string) => dlg()!.querySelector(`[aria-label="${name}"]`) as HTMLInputElement;
+    const type = (el: HTMLInputElement, text: string) => act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, text); el.dispatchEvent(new Event('input', { bubbles: true })); });
+    await command('O');
+    expect(dlg()!.textContent).toMatch(/^OffsetO×DistancemThrough pointErase sourceLayer/);
+    expect(document.querySelector('.cad-side')!.textContent).not.toContain('Click the object, then the side'); // the help moved behind ?
+    type(field('Distance'), '0.');
+    type(field('Distance'), '0.6');
+    expect(hist()).toBe('Command: OFFSET  Specify offset distance or [Through/Erase/Layer] <0.60>:'); // at once, with no OK
+    act(() => { field('Erase source').click(); });
+    await command(''); // Enter takes the 0.60
+    expect(hist()).toBe('OFFSET  Select object to offset or [Exit]:');
+    expect(dlg()).not.toBeNull();
+    await clickAt(X + 2000, 0);
+    await clickAt(X + 2000, 1000);
+    expect(last()).toBe('OFFSET  Line moved 0.60 m to the side · ⌘Z to undo');
+    await command('0.4'); // the command line's value shows in the dialog; the others stay
+    expect(field('Distance').value).toBe('0.4');
+    expect(field('Erase source').checked).toBe(true);
+    type(field('Distance'), '0.9');
+    await act(async () => { field('Distance').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); });
+    expect(dlg()).toBeNull();
+    expect(state.tool).toBe('offset'); // Esc in the dialog closes only the dialog
+    await command('');
+    await command('O'); // the dialog again: Esc put back what was changed in it (the 0.4 was the command line's)
+    expect(field('Distance').value).toBe('0.4');
+    expect(field('Erase source').checked).toBe(false);
+    await act(async () => { (dlg()!.querySelector('[aria-label="Help"]') as HTMLButtonElement).click(); });
+    expect(dlg()!.textContent).toContain('Click the object, then the side for the copy');
+    type(field('Distance'), '0.5');
+    await act(async () => { field('Distance').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
+    expect(dlg()).toBeNull(); // Enter closes, keeping it
+    expect(hist()).toBe('Command: OFFSET  Specify offset distance or [Through/Erase/Layer] <0.50>:');
+  });
+
+  it('edit dialogs: moved by the title, they keep their place; Array has Rectangular and Polar tabs with a count', async () => {
+    await start();
+    await command('AR');
+    const dlg = () => document.querySelector('[role="dialog"][aria-label="Array"]') as HTMLElement;
+    expect(dlg().style.left).toBe('12px');
+    const title = dlg().querySelector('.cad-dlg-t')!;
+    await act(async () => {
+      title.dispatchEvent(new MouseEvent('pointerdown', { clientX: 20, clientY: 20, bubbles: true }));
+      title.dispatchEvent(new MouseEvent('pointermove', { clientX: 120, clientY: 70, bubbles: true }));
+      title.dispatchEvent(new MouseEvent('pointerup', { clientX: 120, clientY: 70, bubbles: true }));
+    });
+    expect([dlg().style.left, dlg().style.top]).toEqual(['112px', '62px']);
+    expect(dlg().querySelector('.cad-dlg-prev')!.textContent).toBe('2 × 3 = 6 in all');
+    await act(async () => { [...dlg().querySelectorAll('[role="tab"]')].find((b) => b.textContent === 'Polar')!.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(dlg().textContent).toContain('Rotate items');
+    expect(dlg().querySelector('.cad-dlg-prev')!.textContent).toBe('6 in all');
+    await act(async () => { (dlg().querySelector('.cad-dlg-ft .p') as HTMLButtonElement).click(); });
+    key('Escape');
+    await command('AR');
+    expect([dlg().style.left, dlg().style.top]).toEqual(['112px', '62px']);
+    expect(dlg().querySelector('[role="tab"][aria-selected="true"]')!.textContent).toBe('Polar');
+  });
+
+  it('STYLE: a new text style set current, kept in the project; TEXT then takes its height without asking', async () => {
+    await start();
+    await command('STYLE');
+    const dlg = () => document.querySelector('[role="dialog"][aria-label="Text style"]') as HTMLElement | null;
+    expect(dlg()!.querySelector('[aria-label="Styles"]')!.textContent).toBe('Standardcurrent');
+    expect([...dlg()!.querySelectorAll('[aria-label="Font"] option')].map((o) => o.textContent)).toEqual(['Arial']);
+    const btn = (t: string) => [...dlg()!.querySelectorAll('button')].find((b) => b.textContent === t) as HTMLButtonElement;
+    await act(async () => { btn('Delete').click(); });
+    expect(dlg()!.textContent).toContain('Standard cannot be deleted.');
+    await act(async () => { btn('New').click(); });
+    const h = dlg()!.querySelector('[aria-label="Height"]') as HTMLInputElement;
+    for (const t of ['2', '2.', '2.5']) act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(h, t); h.dispatchEvent(new Event('input', { bubbles: true })); });
+    expect(h.value).toBe('2.5'); // typed one key at a time, kept as typed
+    await act(async () => { btn('Set current').click(); });
+    await act(async () => { btn('OK').click(); });
+    expect(dlg()).toBeNull();
+    expect(project.cadTextStyles).toEqual({ styles: [{ name: 'Style 1', font: 'Arial', heightMm: 2.5 }], current: 'Style 1' }); // Standard unchanged: not kept
+    expect(last()).toBe('STYLE  2 text styles, current "Style 1" · ⌘Z to undo');
+    await command('T');
+    await clickAt(X, 0);
+    expect(hist()).toBe('TEXT  Specify rotation angle <0>:');
+    await command('');
+    await command('NOTE');
+    expect(items()[2]).toMatchObject({ kind: 'text', text: 'NOTE', h: 250 });
+  });
+
+  it('DIMSTYLE: closed arrows and mm with no decimals for the dimensions drawn next; older ones keep their look', async () => {
+    await start();
+    await command('DIM');
+    await clickAt(X, 10000); await clickAt(X + 3000, 10000); await clickAt(X + 1500, 11000);
+    expect(items()[2].look).toBeUndefined();
+    await command('D');
+    const dlg = () => document.querySelector('[role="dialog"][aria-label="Dimension style"]') as HTMLElement;
+    const pick = (name: string, v: string) => act(() => { const el = dlg().querySelector(`[aria-label="${name}"]`) as HTMLSelectElement | HTMLInputElement; Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value')!.set!.call(el, v); el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true })); });
+    const ok = () => act(async () => { (dlg().querySelector('.cad-dlg-ft .p') as HTMLButtonElement).click(); });
+    expect(dlg().querySelector('[role="note"]')!.textContent).toBe('Standard draws as before (sizes follow each dimension\'s length) until it is changed.');
+    const changes = onChange.mock.calls.length;
+    await ok(); // nothing changed: nothing kept, the dimensions draw as before
+    expect(onChange.mock.calls).toHaveLength(changes);
+    expect(project.cadDimStyles).toBeUndefined();
+    expect(hist()).toBe('DIMSTYLE  No change.');
+    await command('D');
+    pick('Arrow', 'closed'); pick('Unit', 'mm'); pick('Decimal places', '0');
+    expect(dlg().querySelector('[role="note"]')).toBeNull();
+    await ok();
+    expect(project.cadDimStyles!.styles[0]).toMatchObject({ name: 'Standard', arrow: 'closed', unit: 'mm', decimals: 0 });
+    await command('DIM');
+    await clickAt(X, 12000); await clickAt(X + 3000, 12000); await clickAt(X + 1500, 13000);
+    expect(items()[3]).toMatchObject({ kind: 'dim', look: { arrow: 'closed', size: 250, unit: 'mm', decimals: 0 }, h: 200 });
+    expect(items()[3].text).toBeUndefined(); // measured wherever it is drawn or saved
+    expect(dimLabel(items()[3], 0.001)).toBe('3000');
+    expect(items()[2].look).toBeUndefined();
+  });
+
+  it('edit dialogs come back in view when the place they kept is off the window', async () => {
+    localStorage.setItem('lvds.cad.dlg.scale', JSON.stringify({ left: 5000, top: -40 }));
+    await start();
+    await command('SC');
+    const d = document.querySelector('[role="dialog"][aria-label="Scale"]') as HTMLElement;
+    expect([d.style.left, d.style.top]).toEqual([`${window.innerWidth - 240}px`, '0px']);
+  });
+
+  it('Space held to pan does not end the step; tapped it does; held long with no tool it does not repeat', async () => {
+    await start();
+    await command('PL');
+    await clickAt(X, 10000);
+    await clickAt(X + 2000, 10000);
+    act(() => { (document.querySelector('input[aria-label="Command"]') as HTMLInputElement).blur(); });
+    const c = document.querySelector('canvas.cad-over')!, [sx, sy] = screenOf(X + 1000, 10000);
+    key(' ', window, { code: 'Space' });
+    await act(async () => {
+      c.dispatchEvent(new MouseEvent('mousedown', { clientX: sx, clientY: sy, button: 0, bubbles: true }));
+      c.dispatchEvent(new MouseEvent('mousemove', { clientX: sx + 40, clientY: sy + 20, bubbles: true }));
+      c.dispatchEvent(new MouseEvent('mouseup', { clientX: sx + 40, clientY: sy + 20, button: 0, bubbles: true }));
+    });
+    keyUp(' ');
+    expect(items()).toHaveLength(2); // the polyline goes on (the view was panned)
+    await command('@0,2000');
+    tap(' ');
+    expect(items()[2]).toMatchObject({ kind: 'pline', pts: [[X, 10000], [X + 2000, 10000], [X + 2000, 12000]] });
+    act(() => state.setTool('none'));
+    await command('GRID');
+    expect([state.toggles.grid, state.gridDots]).toEqual([true, false]);
+    act(() => { (document.querySelector('input[aria-label="Command"]') as HTMLInputElement).blur(); });
+    key(' ', window, { code: 'Space' });
+    key(' ', window, { code: 'Space', repeat: true });
+    key(' ', window, { code: 'Space', repeat: true });
+    keyUp(' ');
+    expect(state.gridDots).toBe(false); // held: not a repeat of GRID
+    tap(' ');
+    expect(state.gridDots).toBe(true);
+  });
+
+  it('Esc with the right-click menu open closes the menu only; Enter in a dialog over the page is the dialog\'s', async () => {
+    await start();
+    await command('PL');
+    await clickAt(X, 10000);
+    await clickAt(X + 2000, 10000);
+    const [sx, sy] = screenOf(X + 20000, 20000);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); });
+    expect(document.querySelector('[aria-label="Command menu"]')).not.toBeNull();
+    key('Escape');
+    expect(document.querySelector('[aria-label="Command menu"]')).toBeNull();
+    expect(hist()).toBe('PLINE  Specify next point or [Close], Enter to finish:'); // not cancelled
+    await command('XR'); // the references dialog over the page
+    const dlg = document.querySelector('[aria-label="References"]') as HTMLElement;
+    key('Enter', dlg);
+    tap(' ', dlg);
+    expect(items()).toHaveLength(2); // the polyline behind it goes on
+    key('Escape', dlg);
+    expect(document.querySelector('[aria-label="References"]')).toBeNull();
+    expect(state.tool).toBe('pline');
+    await clickAt(X + 2000, 12000);
+    key('Enter');
+    expect(items()[2]).toMatchObject({ kind: 'pline', pts: [[X, 10000], [X + 2000, 10000], [X + 2000, 12000]] });
+  });
+
+  it('Enter and Space on a row of the layer palette, or on the properties palette, are the palette\'s', async () => {
+    await start();
+    await command('PL');
+    await clickAt(X, 10000);
+    await clickAt(X + 2000, 10000);
+    await command('LM');
+    await until(() => !!document.querySelector('[aria-label="Layer palette"]'));
+    const row = document.querySelector('[aria-label="Layer palette"] .cad-lp-name') as HTMLElement;
+    key('Enter', row);
+    tap(' ', row);
+    expect(items()).toHaveLength(2); // the polyline goes on
+    const props = document.querySelector('[aria-label="Properties palette"]') as HTMLElement;
+    key('Enter', props);
+    tap(' ', props);
+    expect(items()).toHaveLength(2); // nor on the properties palette
+    expect(state.tool).toBe('pline');
+    await clickAt(X + 2000, 12000);
+    key('Enter');
+    expect(items()[2]).toMatchObject({ kind: 'pline', pts: [[X, 10000], [X + 2000, 10000], [X + 2000, 12000]] });
+  });
+
+  it('F1 and F2 not with Ctrl or ⌘, nor in another field; Space takes the command picked in the list', async () => {
+    await start();
+    key('F1', window, { ctrlKey: true });
+    key('F1', window, { metaKey: true });
+    key('F2', document.querySelector('select[aria-label="Sample floor"]')!);
+    expect(document.querySelector('.cad-log')).toBeNull();
+    const input = document.querySelector('input[aria-label="Command"]') as HTMLInputElement;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'OF'); input.dispatchEvent(new Event('input', { bubbles: true })); });
+    key('ArrowDown', input);
+    expect(document.querySelector('[aria-label="Matching commands"] [aria-selected="true"]')!.textContent).toMatch(/^OFFSET/);
+    key(' ', input);
+    expect(state.tool).toBe('offset');
+  });
+
+  it('TEXT: at the height and rotation a word typed gets its space; a number takes Space as Enter', async () => {
+    await start();
+    const input = document.querySelector('input[aria-label="Command"]') as HTMLInputElement;
+    const type = (text: string) => act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, text); input.dispatchEvent(new Event('input', { bubbles: true })); });
+    const space = () => { const e = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }); act(() => { input.dispatchEvent(e); }); return e.defaultPrevented; };
+    await command('T');
+    await clickAt(X, 0);
+    type('DB');
+    expect(space()).toBe(false); // the space is typed
+    expect(items()).toHaveLength(2);
+    type('5');
+    expect(space()).toBe(true);
+    expect(hist()).toBe('TEXT  Specify rotation angle <0>:');
+    type('DB');
+    expect(space()).toBe(false);
+    await command('DB ROOM');
+    expect(items()[2]).toMatchObject({ kind: 'text', text: 'DB ROOM', h: 500 });
+  });
+
+  it('Offset with Erase moves a cable route: it stays the route of its circuit, on its layer', async () => {
+    const route: Project = { ...two, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [{ id: 'C1', kind: 'pline', layer: 'E-CABLE', pts: [[X, 0], [X + 4000, 0]], cable: { feederId: 'DB-GF1-Y1' } }] }] };
+    await start(route);
+    await command('O');
+    await command('E');
+    await command('L'); // Layer: current — the route keeps its own
+    await command('');
+    await clickAt(X + 2000, 0);
+    await clickAt(X + 2000, 1000);
+    expect(items()).toEqual([{ id: 'C1', kind: 'pline', layer: 'E-CABLE', pts: [[X, 300], [X + 4000, 300]], cable: { feederId: 'DB-GF1-Y1' } }]);
+    expect(last()).toBe('OFFSET  Cable route moved 0.30 m to the side · ⌘Z to undo');
+  });
+
+  it('numbers typed: 0 goes to the box with a tool running (it fits the view only with none); ".5" is 0.5; a point typed in a box works', async () => {
+    await start();
+    const zero = () => { const e = new KeyboardEvent('keydown', { key: '0', bubbles: true, cancelable: true }); act(() => { window.dispatchEvent(e); }); return e.defaultPrevented; };
+    const input = document.querySelector('input[aria-label="Command"]') as HTMLInputElement;
+    act(() => input.blur());
+    expect(zero()).toBe(true); // no tool: the view fits
+    expect(document.activeElement).not.toBe(input);
+    await command('O');
+    await hover(X + 20000, 20000);
+    act(() => input.blur());
+    expect(zero()).toBe(false); // typed, not a fit
+    expect(document.activeElement).toBe(document.querySelector('.cad-dyn input[aria-label="Distance"]'));
+    await command('.5');
+    expect(earlier()[2]).toBe('OFFSET  Distance 0.50 m');
+    expect((document.querySelector('.cad-dyn input[aria-label="Distance"]') as HTMLInputElement).placeholder).toBe('0.50');
+    await command('');
+    act(() => state.setTool('none'));
+    await command('L');
+    await clickAt(X, 10000);
+    const len = document.querySelector('.cad-dyn input[aria-label="Length"]') as HTMLInputElement;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(len, '@0,2000'); len.dispatchEvent(new Event('input', { bubbles: true })); });
+    await act(async () => { len.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
+    expect(items()[2].pts.map((q) => q.map((v) => Math.round(v)))).toEqual([[X, 10000], [X, 12000]]); // drawing units, as on the command line
+    const len2 = document.querySelector('.cad-dyn input[aria-label="Length"]') as HTMLInputElement;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(len2, '3,'); len2.dispatchEvent(new Event('input', { bubbles: true })); });
+    await act(async () => { len2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
+    expect(hist()).toBe('  3,: type a point as x,y, @dx,dy or @distance<angle (drawing units), or a length in metres.');
+  });
+});
+

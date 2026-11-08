@@ -68,6 +68,16 @@ describe('properties palette: geometry in metres and degrees', () => {
     expect(withProp(o, 'override', '', k)!.text).toBe('4.20'); // blank: the measured value again
     expect(textRows('dim').find((x) => x.key === 'measured')!.ro).toBe(true);
   });
+
+  it('a dimension of a style: its text is measured until typed over; blank measures it again in its unit', () => {
+    const d: SketchItem = { id: 'D2', kind: 'dim', layer: 'LV-ANNO', pts: [[0, 0], [4200, 0], [2100, -500]], h: 200, look: { arrow: 'closed', size: 250, off: 60, ext: 125, unit: 'mm', decimals: 0 } };
+    expect(propValue(d, 'override', k)).toBe('');
+    const o = withProp(d, 'override', '4.20', k)!; // typed over, even with what it measures in metres
+    expect([o.text, propValue(o, 'override', k)]).toEqual(['4.20', '4.20']);
+    const back = withProp(o, 'override', ' ', k)!;
+    expect('text' in back).toBe(false); // measured again: 4200 in its style
+    expect(back.look).toEqual(d.look);
+  });
 });
 
 describe('properties palette: several objects, shown and typed values', () => {

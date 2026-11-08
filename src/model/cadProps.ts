@@ -71,7 +71,8 @@ export function propValue(it: SketchItem, key: PropKey, k: number, v = 0): numbe
     case 'h': return it.h !== undefined ? it.h * k : undefined;
     case 'rot': return deg(it.rot ?? 0);
     case 'measured': return measuredOf(it) * k;
-    case 'override': return it.text !== undefined && it.text !== (measuredOf(it) * k).toFixed(2) ? it.text : '';
+    // A dimension of a style has text only when typed over; one drawn before styles keeps its length as its text.
+    case 'override': return it.look ? it.text ?? '' : it.text !== undefined && it.text !== (measuredOf(it) * k).toFixed(2) ? it.text : '';
   }
 }
 
@@ -114,7 +115,14 @@ export function withProp(it: SketchItem, key: PropKey, value: number | string, k
     case 'text': return it.kind === 'text' && String(value).trim() ? { ...it, text: String(value) } : undefined;
     case 'h': return num && u > 0 && (it.kind === 'text' || it.kind === 'dim') ? { ...it, h: u } : undefined;
     case 'rot': return num && it.kind === 'text' ? { ...it, rot: rad(n) } : undefined;
-    case 'override': return it.kind === 'dim' ? { ...it, text: String(value).trim() || (measuredOf(it) * k).toFixed(2) } : undefined;
+    case 'override': {
+      if (it.kind !== 'dim') return undefined;
+      const t = String(value).trim();
+      if (t) return { ...it, text: t };
+      // Blank: one of a style is measured again in its unit and decimals; one drawn before styles gets its length.
+      if (it.look) { const { text: _t, ...rest } = it; return rest; }
+      return { ...it, text: (measuredOf(it) * k).toFixed(2) };
+    }
     default: return undefined;
   }
 }
