@@ -2069,6 +2069,7 @@ describe('Design CAD File: Save, Save As, Close and Drafting settings', () => {
     expect(dirtyMark()).not.toBeNull(); // changed since saved: ● on its tab
     await command('save');
     const d = dialog('Save As')!;
+    expect(d.closest('.cad-work')).not.toBeNull();
     expect((d.querySelector('input[aria-label="File name"]') as HTMLInputElement).value).toBe('sample-villa-gf - with devices');
     set(d.querySelector('input[aria-label="File name"]') as HTMLInputElement, 'villa-copy');
     set(d.querySelector('select[aria-label="Format"]') as HTMLSelectElement, 'dxf:R12');
@@ -2102,6 +2103,7 @@ describe('Design CAD File: Save, Save As, Close and Drafting settings', () => {
     await command('');
     await command('close');
     const d = dialog('Close sample-villa-gf.dxf')!;
+    expect(d.closest('.cad-work')).not.toBeNull();
     expect(d.textContent).toContain('changes since last saved');
     await press(d, 'Cancel');
     expect(state.view?.file).toBe('sample-villa-gf.dxf');
@@ -2116,6 +2118,7 @@ describe('Design CAD File: Save, Save As, Close and Drafting settings', () => {
     await command('OS');
     let d = dialog('Drafting settings')!;
     expect(d.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toBe('Object snap');
+    expect(d.closest('.cad-work'), 'over the drawing, not under the ribbon').not.toBeNull();
     tick(d, '⊥  Perpendicular');
     await press(d, 'Cancel');
     expect(onPrefs).not.toHaveBeenCalled();
