@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import Ribbon, { CAPTIONS, type RibbonActions, type RibbonTab } from './Ribbon';
-import { NO_SHEET_ACTIONS, type SheetUi } from './sld/sheetUi';
+import Ribbon, { CAPTIONS, tipOf, type RibbonActions, type RibbonTab } from './Ribbon';
 
 const noop = () => {};
 const actions = (over: Partial<RibbonActions> = {}): RibbonActions => ({
@@ -100,63 +99,54 @@ describe('Ribbon', () => {
     expect(html).toContain('aria-label="3 Detailed design tools"');
   });
 
-  it('shows Design CAD as Plan (engineering) and Draw (drafting) over the same drawing', () => {
-    const html = render('cad');
-    expect(html).toContain('ribbon-subtabs');
-    for (const c of ['File', 'Rooms', 'Cables and boards', 'Devices', 'Measure', 'Layers']) expect(html).toContain(`aria-label="${c}"`);
-    for (const c of ['Draw', 'Modify', 'Annotation', 'Properties']) expect(html).not.toContain(`aria-label="${c}"`);
+  /** Design CAD's actions with a drawing open (or not), every action a no-op. */
+  const cad = (over: Partial<NonNullable<RibbonActions['cad']>> = {}) => ({ hasDrawing: true, file: { plans: [], level: 'Ground', levelTitle: '', levels: [], unit: 'mm', unitTitle: '', units: [] }, copyLevels: [], ...over }) as unknown as RibbonActions['cad'];
+  const subTabs = (html: string) => [...(/role="tablist" aria-label="Design CAD">(.*?)<\/div>/s.exec(html)?.[1] ?? '').matchAll(/role="tab"[^>]*>([^<]+)</g)].map((m) => m[1]);
+  const groupsOf = (html: string) => [...html.matchAll(/role="group" aria-label="([^"]+)"/g)].map((m) => m[1]);
+
+  it('shows Design CAD\'s sub-tabs by use, with File beside them; it opens on Draw, the tools that create geometry', () => {
+    const html = render('cad', { view: 'cad', cad: cad() });
+    expect(subTabs(html)).toEqual(['Draw', 'Modify', 'Annotate', 'Insert', 'Layers', 'View', 'Page setup', 'Tools', 'Electrical &amp; ELV']);
+    expect(html).toMatch(/id="ribbon-cad-draw"[^>]*aria-selected="true"/);
+    expect(groupsOf(html)).toEqual(['Lines', 'Curves', 'Fill']);
+    expect(html).toContain('title="Open, save and close drawings; the level and units of the drawing"'); // File, a menu
+    expect(html).toMatch(/aria-haspopup="menu" aria-expanded="false" title="Open, save and close drawings/);
+    expect(html).toContain('Show labels');
     expect(render('home')).not.toContain('ribbon-subtabs');
   });
 
-  it('has Close in the File group of Design CAD, after Save DWG and off while no drawing is open', () => {
-    const cad = (hasDrawing: boolean) => ({ hasDrawing, file: { plans: [], level: 'Ground', levelTitle: '', levels: [], unit: 'mm', unitTitle: '', units: [] }, copyLevels: [] }) as unknown as RibbonActions['cad'];
-    const close = (html: string) => html.match(/<button[^>]*title="Close this drawing[^>]*>/)?.[0];
-    const html = render('cad', { view: 'cad', cad: cad(true) });
-    expect(html.indexOf('>Close<')).toBeGreaterThan(html.indexOf('>Save DWG<'));
-    expect(close(html)).toBeDefined();
-    expect(close(html)).not.toContain('disabled');
-    expect(close(render('cad', { view: 'cad', cad: cad(false) }))).toContain('disabled');
-    expect(render('cad', { view: 'drawings', cad: cad(true), sheets: { tab: 'layout', open: false, onTab: noop } })).not.toContain('>Close<'); // on Plan and Draw, not on Sheets
+  it('shows the tools as icons only, the name for screen readers; Show labels puts the names back', () => {
+    const icons = render('cad', { view: 'cad', cad: cad() });
+    expect(icons).toContain('aria-label="Line"');
+    expect(icons).not.toContain('<span>Line</span>');
+    expect(icons).not.toContain('title="Line (L)'); // the tooltip is the app's own, not the browser's
+    expect(icons).toContain('class="ribbon cad-icons"');
+    const named = render('cad', { view: 'cad', cad: cad({ labels: true }) });
+    expect(named).toContain('<span>Line</span>');
+    expect(named).toContain('title="Line (L): click points');
+    expect(named).not.toContain('cad-icons');
+    expect(named).toMatch(/<label class="ribbon-labels"[^>]*><input type="checkbox"[^>]*checked=""/);
+    expect(render('sld')).toContain('<span>Add load</span>'); // the other tabs keep their names
   });
 
-  it('has a Sheets sub-tab in Design CAD for the sheets pages, with the register tabs', () => {
-    const html = render('cad', { view: 'drawings', sheets: { tab: 'layout', open: false, onTab: noop } });
-    expect(html).toMatch(/aria-selected="true"[^>]*>Sheets</);
-    for (const label of ['All sheets', 'Layout', 'Title block', 'Issues']) expect(html).toContain(`>${label}<`);
-    expect(html).not.toContain('>Save DWG<'); // floor-plan tools stay on Plan and Draw
-    expect(render('cad', { view: 'cad' })).not.toContain('>All sheets<');
+  it('on the sheets pages shows Page setup: the sheet set, and the open sheet\'s page setup and export', () => {
+    const html = render('cad', { view: 'drawings', cad: cad(), sheets: { tab: 'layout', open: false, onTab: noop } });
+    expect(html).toMatch(/id="ribbon-cad-page"[^>]*aria-selected="true"/);
+    expect(groupsOf(html)).toEqual(['Sheet set', 'Plot', 'Issue and export']);
+    for (const label of ['All sheets', 'Layout', 'Title block', 'Issues', 'Page setup', 'Pens', 'Publish', 'PDF', 'DXF', 'DWG']) expect(html, label).toContain(`aria-label="${label}"`);
+    expect(subTabs(html)).not.toContain('Sheets');
+    expect(subTabs(html)).not.toContain('Plan');
   });
 
   it('opens the sheets from the SLD tabs', () => {
-    for (const tab of ['schematic', 'sld'] as const) expect(render(tab), tab).toContain('in Design CAD → Sheets');
+    for (const tab of ['schematic', 'sld'] as const) expect(render(tab), tab).toContain('(Design CAD → Page setup → Sheet set)');
   });
 
-  describe('with a sheet open in Design CAD → Sheets', () => {
-    const ui = (over: Partial<SheetUi> = {}): SheetUi => ({ tool: 'select', setTool: noop, color: 'black', setColor: noop, size: 3.5, setSize: noop, selId: null, setSelId: noop,
-      zoom: 'fit', setZoom: noop, pct: '64 %', setPct: noop, side: false, setSide: noop, actions: { current: NO_SHEET_ACTIONS }, ...over });
-    const sheets = (over: Partial<NonNullable<RibbonActions['sheets']>> = {}): RibbonActions['sheets'] => ({ tab: 'sheets', open: true, onTab: noop, ui: ui(), kind: 'system',
-      publish: { label: 'Rev C…', title: 'Changed since Rev B was issued', changed: true }, legend: { on: true, shown: true }, onLegend: noop, ...over });
-    /** The opening tag of the ribbon button labelled `label`. */
-    const button = (html: string, label: string) => html.match(new RegExp(`<button[^>]*>(?:(?!</button>).)*?<span>${label}</span>`))?.[0].match(/^<button[^>]*>/)?.[0] ?? '';
-
-    it('has the markup, style, view and issue tools in the ribbon', () => {
-      const html = render('cad', { view: 'drawings', sheets: sheets({ ui: ui({ tool: 'cloud' }) }) });
-      for (const g of ['Markup', 'On panels', 'Style', 'Issue and export']) expect(html).toContain(`aria-label="${g}"`);
-      expect(button(html, 'Cloud')).toContain('aria-pressed="true"');
-      expect(button(html, 'Panel cloud')).not.toContain('disabled');
-      expect(html).toContain('<span class="ribbon-sub">Black</span>'); // new markups are black
-      expect(html).toContain('<span class="ribbon-sub">Rev C…</span>');
-      expect(button(html, 'Publish')).toContain('stale');
-      for (const l of ['Fit', 'PDF', 'DXF', 'DWG', 'Side by side']) expect(button(html, l), l).not.toContain('disabled');
-      expect(button(html, 'Delete')).toContain('disabled'); // nothing selected
-    });
-
-    it('keeps panel tools to system SLD sheets, and greys the sheet tools with no sheet open', () => {
-      expect(button(render('cad', { view: 'drawings', sheets: sheets({ kind: 'earthing' }) }), 'Panel cloud')).toContain('disabled');
-      const none = render('cad', { view: 'drawings', sheets: sheets({ open: false }) });
-      for (const l of ['Cloud', 'Colour', 'Fit', 'Publish', 'DWG']) expect(button(none, l), l).toContain('disabled');
-      expect(button(none, 'All sheets')).not.toContain('disabled');
-    });
+  it('gives an icon-only tool a tooltip: its name and command in bold, then what it does', () => {
+    expect(tipOf({ label: 'Offset', cmd: 'O', title: 'Offset (O): the distance on the right, click the object' })).toEqual({ head: 'Offset (O)', text: 'The distance on the right, click the object' });
+    expect(tipOf({ label: 'Layer palette', cmd: 'LM', title: 'Layer palette (LM), docked beside the drawing' })).toEqual({ head: 'Layer palette (LM)', text: 'Docked beside the drawing' });
+    expect(tipOf({ label: 'Erase', cmd: 'E', title: 'Erase the selected object (E or Delete)' })).toEqual({ head: 'Erase (E)', text: 'Erase the selected object (E or Delete)' });
+    expect(tipOf({ label: 'Colour', title: 'Colour of new markups', sub: 'Black' })).toEqual({ head: 'Colour · Black', text: 'Colour of new markups' });
   });
 });
 

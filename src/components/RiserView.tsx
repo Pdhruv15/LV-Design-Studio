@@ -54,7 +54,7 @@ export default function RiserView({ project, onChange, onStatus, onOpenSheet }: 
             </select>
           )}
           <span className="sp" />
-          <button className="chip" disabled={empty || (!!existing && !onOpenSheet)} onClick={() => (existing ? onOpenSheet?.(existing.id) : addSheet())} title="A sheet in Design CAD → Sheets with its title block, drawing number and legend (PDF, DXF)">{existing ? (onOpenSheet ? `Open sheet — ${existing.number}` : `In drawings — ${existing.number}`) : 'Add to sheet'}</button>
+          <button className="chip" disabled={empty || (!!existing && !onOpenSheet)} onClick={() => (existing ? onOpenSheet?.(existing.id) : addSheet())} title="A sheet of the drawing set (Design CAD → Page setup → Sheet set) with its title block, drawing number and legend (PDF, DXF)">{existing ? (onOpenSheet ? `Open sheet — ${existing.number}` : `In drawings — ${existing.number}`) : 'Add to sheet'}</button>
           <button className="chip" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(0.5, +(z / 1.25).toFixed(2)))}>−</button>
           <button className="chip" onClick={() => setZoom(1)}>Fit</button>
           <button className="chip" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(4, +(z * 1.25).toFixed(2)))}>+</button>

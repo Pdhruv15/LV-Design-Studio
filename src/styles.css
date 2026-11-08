@@ -1322,6 +1322,33 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .ribbon-split-menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
 .ribbon-sub{font-size:var(--fs-xs);color:var(--mut);margin-top:-3px;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ribbon-split-menu button:hover,.ribbon-split-menu button:focus-visible{background:color-mix(in srgb,var(--acc) 18%,transparent)}
+/* Design CAD: icons only (Show labels off) — the main tools of a panel full height, the rest two to a column; the name,
+   typed command and what a tool does show in a tooltip under it. */
+.ribbon.cad-icons .ribbon-group button{min-width:0;min-height:0;width:30px;height:46px;padding:0;gap:0}
+.ribbon.cad-icons .ribbon-group .ribbon-stack button{width:22px;height:22px;padding:0;justify-content:center}
+.ribbon.cad-icons .ribbon-stack{display:grid;grid-template-rows:repeat(2,22px);gap:2px;align-content:center}
+.ribbon.cad-icons .ribbon-stack .ribbon-split{align-self:auto}
+.ribbon.cad-icons .ribbon-split > button:first-child{padding-right:0}
+.ribbon.cad-icons .ribbon-group .ribbon-split-arrow{width:12px;height:22px}
+.ribbon.cad-icons .ribbon-stack .ribbon-split-arrow{height:22px}
+.ribbon.cad-icons .ribbon-group .ribbon-caption-more{width:auto;height:auto}
+.ribbon-tip{position:fixed;z-index:210;max-width:250px;padding:6px 8px;background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--radius-sm);box-shadow:var(--shadow-pop);font-size:var(--fs-sm);line-height:1.35;color:var(--mut);pointer-events:none}
+.ribbon-tip b{display:block;color:var(--tx);font-weight:600}
+/* Design CAD's sub-tab row: File (a menu), the sub-tabs, and Show labels at the end. */
+.ribbon-subtabs-list{display:flex;gap:2px}
+.ribbon-subtabs .ribbon-file{position:relative;display:flex;align-items:stretch;margin-right:var(--space-2)}
+.ribbon-subtabs .ribbon-file > button{color:var(--tx)}
+.ribbon-subtabs .ribbon-file > button.on{border-bottom-color:var(--acc)}
+.ribbon-file-menu{position:absolute;top:100%;left:0;z-index:60;display:grid;min-width:220px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow-pop)}
+.ribbon-file-menu.side{top:-5px;left:100%;margin-left:2px}
+.ribbon-file-menu button{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:var(--space-3);width:100%;cursor:pointer;padding:6px 10px;border-radius:5px;font-size:var(--fs-sm);color:var(--tx);white-space:nowrap}
+.ribbon-file-menu button > span:first-child{flex:1}
+.ribbon-file-menu button .k{color:var(--mut);font-size:var(--fs-xs)}
+.ribbon-file-menu button:hover:not(:disabled),.ribbon-file-menu button:focus-visible,.ribbon-file-menu button[aria-expanded="true"]{background:color-mix(in srgb,var(--acc) 18%,transparent)}
+.ribbon-file-menu button:disabled{opacity:.45;cursor:not-allowed}
+.ribbon-file-menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+.ribbon-file-sub{position:relative}
+.ribbon-labels{display:flex;align-items:center;gap:4px;font-size:var(--fs-xs);color:var(--mut);white-space:nowrap}
 /* Equipment palette cards: icon · name · value, protection underneath; actions overlay the right edge */
 .palette-resize{position:absolute;top:0;right:-3px;width:6px;height:100%;cursor:col-resize;z-index:2}
 .palette-item{align-items:flex-start}

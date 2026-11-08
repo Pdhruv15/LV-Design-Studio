@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.053', date: '2026-11-08',
+    items: [
+      { title: 'Design CAD: tools grouped by use', text: 'Design CAD\'s sub-tabs follow what you are doing: Draw (the tools that create geometry), Modify (the tools that change it), Annotate, Insert, Layers, View, Page setup, Tools, and Electrical & ELV for rooms, trays, cable routes, devices and wiring. Plan and Sheets are gone: their tools are on these sub-tabs, and the sheet set opens from Page setup → Sheet set. File, left of the sub-tabs, opens, saves and closes drawings and sets the level and units. Design CAD opens on the sub-tab you used last.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Icons only, the name on hover', text: 'Each Design CAD tool shows its icon only, so every tool fits. Rest the cursor on one for its name, typed command and what it does, or tick Show labels (also in Preferences → App) to see the names. Tools that worked only as typed commands are now buttons too: Extend, Chamfer, Text style, Dimension style, Attach and Clip a reference, New layer, Isolate and Unisolate, the properties palette, the command history, and the snap and grid toggles.' }
+    ]
+  },
+  {
     version: '2.052', date: '2026-11-08',
     items: [
       { title: 'Design CAD: layer palette', text: 'The layer manager is now a palette docked beside the drawing (LM or LAYER; LA still shows the Layers list). Each layer has On, Freeze, Lock, Print, colour, linetype and lineweight, with New, Delete and rename (double-click or F2). Double-click the first column, or type CLAYER and a name, to make a layer current; LAYISO keeps only the layers of what you pick and LAYUNISO brings the others back; layer states save and restore a set. A layer of the architect\'s plan turned off now stays off when the drawing opens again; the drawing file is not changed.', action: 'cad', actionLabel: 'Open Design CAD' },

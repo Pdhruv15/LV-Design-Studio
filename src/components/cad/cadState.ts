@@ -41,8 +41,9 @@ export const skipRef = (projectId: string | undefined, host: string, name: strin
 };
 
 /** What the ribbon asks of the page showing the drawing; nothing while the page is not shown. */
-export interface CadActions { save: () => void; saveDwg: () => void; close: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void; refs: () => void; layoutCmd: (cmd: string) => void }
-export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, close: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {}, refs: () => {}, layoutCmd: () => {} };
+/** What the ribbon runs on the page; `command` runs a command as if typed on the command line (TEXTSTYLE, LAYISO…). */
+export interface CadActions { save: () => void; saveDwg: () => void; close: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void; refs: () => void; layoutCmd: (cmd: string) => void; command: (text: string) => void; reopen: () => void }
+export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, close: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {}, refs: () => {}, layoutCmd: () => {}, command: () => {}, reopen: () => {} };
 
 /** A drawing open in a tab (its zoom and pan stay with CadCanvas; its layers' On is kept in the project, cadLayerState). */
 interface OpenDrawing { view: CadView }
@@ -151,6 +152,11 @@ export function useCad(projectId: string | undefined) {
    * opened again (its version on disk, recovered work) keeps them. */
   const projectOpened = useCallback((id: string | undefined) => { if (id !== projectId) close(); }, [projectId, close]);
   const toggle = useCallback((k: keyof CadToggles) => setToggles((t) => ({ ...t, [k]: !t[k] })), []);
+  // The properties palette shown (Ctrl+1), and the taller command history (F2) or the command list (F1).
+  const [showProps, setShowProps] = useState(true);
+  const [log, setLog] = useState<'history' | 'help' | null>(null);
+  // What the ribbon asked of the page while another page was shown: it runs once the page is there (it loads lazily).
+  const pending = useRef<((a: CadActions) => void) | null>(null);
   // GRID (F7) steps lines → dots → off, like the SLD's grid.
   const [gridDots, setGridDots] = useState(false);
   const cycleGrid = () => {
@@ -159,7 +165,7 @@ export function useCad(projectId: string | undefined) {
     else { setToggles((t) => ({ ...t, grid: false })); setGridDots(false); }
   };
 
-  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, tabOf, projectOpened, sampleDone, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, textAt, setTextAt, layout, setLayout, vpSel, setVpSel, msVp, setMsVp };
+  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, tabOf, projectOpened, sampleDone, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, pending, showProps, setShowProps, log, setLog, textAt, setTextAt, layout, setLayout, vpSel, setVpSel, msVp, setMsVp };
 }
 
 export type CadState = ReturnType<typeof useCad>;
