@@ -3,10 +3,12 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEv
 import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
-  ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FileX2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
-import { Frame, LayoutTemplate, Printer } from 'lucide-react';
+  ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
+import { Frame, LayoutTemplate, Printer, ArrowRightToLine, TriangleRight, CaseSensitive, SlidersHorizontal, Crop, PanelRight, Magnet, Hash, Plus, Crosshair, TextCursorInput, ChevronRight } from 'lucide-react';
 import { PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen } from 'lucide-react';
 import type { CadTool } from './cad/cadState';
+import type { CadToggles } from './cad/CadCanvas';
+import { toolAlias } from './cad/cadCommands';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
 import type { DrawingsTab } from './docs/DrawingsView';
@@ -43,12 +45,16 @@ interface Tool {
   small?: boolean;
   /** In the panel's ▾ under its caption instead of on the row (the less used tools of a panel). */
   more?: boolean;
+  /** Its typed command, shown in bold with the name in an icon-only tool's tooltip (e.g. O for Offset). */
+  cmd?: string;
+  /** The whole button opens its `menu` (it has no action of its own). */
+  menuOnly?: boolean;
 }
 
 export interface RibbonActions {
   view: MainView;
   onView: (v: MainView) => void;
-  /** Design CAD → Sheets: the register tab shown when no sheet is open, and choosing one; with a sheet open, its tools
+  /** The sheets pages of Design CAD: the register tab shown when no sheet is open, and choosing one; with a sheet open, its tools
    * (shared with the sheet), its kind, the markup selected, what Publish would issue, and the symbol legend. */
   sheets?: {
     tab: DrawingsTab; open: boolean; onTab: (t: DrawingsTab) => void;
@@ -82,11 +88,22 @@ export interface RibbonActions {
   onSaveAs: () => void;
   /** Export anonymized sample (a copy without client, site or people, for sharing an issue). */
   onAnonymizedSample: () => void;
-  /** Design CAD's tools (src/components/cad); `file`: the File group's Plans, Level and Units (cadFileMenu.ts). */
+  /** Design CAD's tools (src/components/cad); `file`: the File menu's Plans, Level and Units (cadFileMenu.ts). */
   cad?: {
     tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onSaveDwg: () => void; onClose: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; onLayerManager?: () => void; onRefs?: () => void; layersOn: boolean; hasDrawing: boolean;
-    /** A layout tab showing (paper space): the Layout group shows, its tools run these commands (LAYOUT, MV, VPSCALE n, VPLOCK, PAGESETUP, PLOT). */
+    /** A layout tab showing (paper space): Page setup has its viewports; its tools run these commands (LAYOUT, MV, VPSCALE n, VPLOCK, PAGESETUP, PLOT). */
     inLayout?: boolean; vpLocked?: boolean; onLayoutCmd?: (cmd: string) => void;
+    /** On a layout's paper (not working in the model through a viewport): Annotate's markup tools draw on it. */
+    onPaper?: boolean;
+    /** A command as if typed on the command line (STYLE, LAYISO, XATTACH, CLOSEALL…). */
+    onCommand?: (text: string) => void;
+    /** The drawing open last on this computer, while it is not open: File → Reopen. */
+    reopen?: { label: string; title: string; onClick: () => void };
+    /** View: the palettes, and the toggles of the status bar. */
+    propsOn?: boolean; onProps?: () => void; historyOn?: boolean; onHistory?: () => void;
+    toggles?: CadToggles; gridDots?: boolean; onToggle?: (k: keyof CadToggles) => void;
+    /** The tools' names under their icons (Show labels, also in Preferences → App); off: icons only, the name on hover. */
+    labels?: boolean; onLabels?: (on: boolean) => void;
     file: { plans: Tool['menu']; plansSub?: string; level: string; levelTitle: string; levels: Tool['menu']; unit: string; unitTitle: string; units: Tool['menu'] };
     onRoles: () => void; rolesOn: boolean; onAddFound: () => void; onSchedules: () => void; onPlaceBoard: () => void; placingBoard: boolean;
     onCoverage: () => void; coverageOn: boolean; copyLevels: Tool['menu'];
@@ -116,24 +133,44 @@ export interface RibbonActions {
   onConceptReport: () => void;
 }
 
-/** Design CAD's sub-tabs: Plan (engineering) and Draw (drafting) over the same floor plan, and Sheets (every
- * submission sheet), as groups of the cad tab (File · Rooms · Cables and boards · Draw · Modify · Annotate · Measure ·
- * Devices · View · Sheets … · Plot · Issue and export · Wiring · Edit devices · Edit). Sheets is its own page (the drawings view). */
-export type CadSub = 'plan' | 'draw' | 'sheets';
-export const CAD_SUB: Record<CadSub, { label: string; groups: number[] }> = {
-  plan: { label: 'Plan', groups: [0, 1, 2, 7, 17, 16, 6, 8] },
-  draw: { label: 'Draw', groups: [0, 3, 4, 5, 8, 18] },
-  sheets: { label: 'Sheets', groups: [9, 10, 11, 12, 13, 14, 15] }
+/** Design CAD's sub-tabs, by what the engineer is doing: creating (Draw) apart from changing (Modify), then Annotate,
+ * Insert, Layers, View, Page setup, Tools, and the engineering tools on the plan (Electrical & ELV). `groups` are the
+ * cad tab's groups (CAPTIONS.cad) on the drawing. On the sheets pages a sub-tab with `sheet` shows those instead (the
+ * open sheet's tools), on a layout's paper one with `paper` shows those (its markup), and on a layout `layout` follows
+ * `groups`. File (open, save, close) is a menu beside them. */
+export type CadSub = 'draw' | 'modify' | 'annotate' | 'insert' | 'layers' | 'view' | 'page' | 'tools' | 'elec';
+export const CAD_SUB: Record<CadSub, { label: string; groups: number[]; sheet?: number[]; paper?: number[]; layout?: number[] }> = {
+  draw: { label: 'Draw', groups: [0, 1, 2] },
+  modify: { label: 'Modify', groups: [3, 4, 5, 6, 7] },
+  annotate: { label: 'Annotate', groups: [8, 9, 10, 11], sheet: [12, 13], paper: [12] },
+  insert: { label: 'Insert', groups: [14] },
+  layers: { label: 'Layers', groups: [15, 16, 17] },
+  view: { label: 'View', groups: [18, 19, 20], sheet: [21] },
+  page: { label: 'Page setup', groups: [22, 23], sheet: [22, 25, 26], layout: [24] },
+  tools: { label: 'Tools', groups: [27] },
+  elec: { label: 'Electrical & ELV', groups: [28, 29, 30, 31, 32] }
 };
-/** On a window too narrow for a sub-tab's row, its panels collapse to one button each, in this order (File first). */
-const COLLAPSE: Partial<Record<CadSub, number[]>> = { draw: [0, 8], plan: [0, 8] };
+const CAD_SUBS = Object.keys(CAD_SUB) as CadSub[];
 const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
-/** The sub-tab a tool is on, so the ribbon shows the tool in use. */
+/** The sub-tab a tool is on, so the ribbon shows the tool in use (a typed command moves it there). */
 const SUB_OF: Partial<Record<CadTool, CadSub>> = {
-  line: 'draw', pline: 'draw', rect: 'draw', circle: 'draw', arc: 'draw', text: 'draw', dim: 'draw', rotate: 'draw',
-  mirror: 'draw', matchprop: 'draw', hatch: 'draw', leader: 'draw', rtag: 'draw', north: 'draw', scale: 'draw', stretch: 'draw', trim: 'draw', extend: 'draw', offset: 'draw', fillet: 'draw', chamfer: 'draw', break: 'draw', join: 'draw', explode: 'draw', array: 'draw',
-  room: 'plan', trace: 'plan', name: 'plan', tray: 'plan', cable: 'plan', link: 'plan', dev: 'plan', fill: 'plan', lux: 'plan', em: 'plan', arl: 'plan', match: 'plan', wire: 'plan', dist: 'plan', area: 'plan'
+  line: 'draw', pline: 'draw', rect: 'draw', circle: 'draw', arc: 'draw', hatch: 'draw',
+  move: 'modify', copy: 'modify', rotate: 'modify', mirror: 'modify', scale: 'modify', stretch: 'modify', trim: 'modify', extend: 'modify', offset: 'modify', fillet: 'modify', chamfer: 'modify', break: 'modify', join: 'modify', explode: 'modify', array: 'modify', matchprop: 'modify',
+  text: 'annotate', dim: 'annotate', leader: 'annotate', rtag: 'annotate', north: 'annotate',
+  xattach: 'insert', xclip: 'insert', dist: 'tools', area: 'tools',
+  room: 'elec', trace: 'elec', name: 'elec', tray: 'elec', cable: 'elec', link: 'elec', dev: 'elec', fill: 'elec', lux: 'elec', em: 'elec', arl: 'elec', match: 'elec', wire: 'elec'
 };
+const SUB_KEY = 'lvds.cadSub';
+/** The sub-tab Design CAD opens on: the one used last on this computer, Draw the first time. */
+const firstSub = (): CadSub => { try { const v = localStorage.getItem(SUB_KEY); return CAD_SUBS.find((k) => k === v) ?? 'draw'; } catch { return 'draw'; } };
+
+/** The tooltip of an icon-only tool: its name and typed command (and its state, such as a colour) in bold, then what
+ * it does: its title, less a leading "Name (CMD): " that the bold line already says. */
+export function tipOf(t: Pick<Tool, 'label' | 'title' | 'cmd' | 'sub'>): { head: string; text: string } {
+  const lead = t.cmd ? `${t.label} (${t.cmd})` : undefined;
+  const rest = lead && t.title.startsWith(lead) ? t.title.slice(lead.length).replace(/^[:,]?\s*/, '') : t.title;
+  return { head: `${lead ?? t.label}${t.sub ? ` · ${t.sub}` : ''}`, text: rest.charAt(0).toUpperCase() + rest.slice(1) };
+}
 
 /** Group captions under the ribbon groups (same order as the groups). */
 export const CAPTIONS: Record<RibbonTab, string[]> = {
@@ -143,7 +180,9 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   concept: ['Load', 'Supply', 'Stage'],
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Calculate', 'Stage'],
-  cad: ['File', 'Rooms', 'Cables and boards', 'Draw', 'Modify', 'Annotation', 'Measure', 'Devices', 'Layers', 'Sheets', 'Markup', 'On panels', 'Style', 'View', 'Plot', 'Issue and export', 'Wiring', 'Edit devices', 'Properties', 'Layout'],
+  cad: ['Lines', 'Curves', 'Fill', 'Transform', 'Shape', 'Pattern', 'Erase', 'Properties', 'Text', 'Dimensions', 'Leaders', 'Marks', 'Markup', 'On panels', 'Reference',
+    'Layers', 'Visibility', 'Roles', 'Navigate', 'Palettes', 'Display', 'Sheet', 'Sheet set', 'Layouts', 'Viewports', 'Plot', 'Issue and export', 'Measure',
+    'Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -218,24 +257,58 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const [moreOpen, setMoreOpen] = useState(false);
   const [menuLeft, setMenuLeft] = useState(0);
   const [splitOpen, setSplitOpen] = useState<string | null>(null);
-  // A window too narrow for the row: this many of the sub-tab's panels collapse to one button each (COLLAPSE order).
+  // A window too narrow for the row: this many of the sub-tab's panels collapse to one button each, from the right.
   const [shut, setShut] = useState(0);
   const toolsRef = useRef<HTMLDivElement>(null);
-  const [cadSub, setCadSub] = useState<CadSub>('plan');
-  // Sheets is a page of its own: shown whenever a sheets page is on screen, else Plan or Draw as last chosen.
-  const sub: CadSub = SHEET_VIEWS.includes(a.view) ? 'sheets' : cadSub === 'sheets' ? 'plan' : cadSub;
-  // On a layout tab (paper space) the Layout group (19) follows File on Plan and Draw.
-  const cadGroups = (k: CadSub) => (a.cad?.inLayout && k !== 'sheets' ? [0, 19, ...CAD_SUB[k].groups.filter((g) => g !== 0)] : CAD_SUB[k].groups);
+  // Design CAD's sub-tab, kept for next time. A sheets page (opened from Documents, the SLD, Sheet set) on a sub-tab
+  // with no sheet tools shows Page setup.
+  const onSheets = SHEET_VIEWS.includes(a.view);
+  const [cadSub, setCadSub] = useState<CadSub>(firstSub);
+  const sub: CadSub = onSheets && !CAD_SUB[cadSub].sheet ? 'page' : cadSub;
+  useEffect(() => { if (sub !== cadSub) setCadSub(sub); }, [sub, cadSub]);
+  useEffect(() => { try { localStorage.setItem(SUB_KEY, sub); } catch { /* not kept */ } }, [sub]);
+  const labels = !!a.cad?.labels;
+  // The groups a sub-tab shows: on the sheets pages the open sheet's (where it has them), on a layout's paper its
+  // markup, on a layout its own as well.
+  const cadGroups = (k: CadSub) => {
+    const c = CAD_SUB[k];
+    return onSheets && c.sheet ? c.sheet : a.view === 'cad' && a.cad?.onPaper && c.paper ? c.paper : [...c.groups, ...(a.cad?.inLayout ? c.layout ?? [] : [])];
+  };
+  const shown = tab === 'cad' ? cadGroups(sub) : [];
+  const folded = [...shown].reverse().slice(0, shut);
   // While the row is wider than the window, one more panel collapses; a wider window, or another sub-tab, opens them
   // all again.
   useLayoutEffect(() => {
     const el = toolsRef.current;
-    if (el && tab === 'cad' && el.scrollWidth > el.clientWidth + 1 && shut < (COLLAPSE[sub]?.length ?? 0)) setShut(shut + 1);
-  }, [tab, sub, shut]);
+    if (el && tab === 'cad' && el.scrollWidth > el.clientWidth + 1 && shut < shown.length) setShut(shut + 1);
+  }, [tab, sub, shut, shown.length]);
   useEffect(() => { const open = () => setShut(0); window.addEventListener('resize', open); return () => window.removeEventListener('resize', open); }, []);
-  useEffect(() => setShut(0), [tab, sub]);
+  useEffect(() => setShut(0), [tab, sub, onSheets, labels]);
   const cadToolNow = a.cad?.tool;
   useEffect(() => { const s = cadToolNow && SUB_OF[cadToolNow]; if (s) setCadSub(s); }, [cadToolNow]);
+  // File: open, save and close drawings, the level and units of this one (a menu, with lists beside it).
+  const [fileOpen, setFileOpen] = useState(false);
+  const [fileList, setFileList] = useState<'plans' | 'levels' | 'units' | null>(null);
+  const fileRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!fileOpen) return;
+    const away = (e: MouseEvent) => !fileRef.current?.contains(e.target as Node) && setFileOpen(false);
+    // Esc closes the menu only, not the command running on the drawing.
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); setFileOpen(false); } };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc); };
+  }, [fileOpen]);
+  // Icon-only tools: the name, typed command and what it does, under the tool after a short rest (at once on focus
+  // from the keyboard).
+  const [tip, setTip] = useState<{ x: number; y: number; head: string; text: string; of: string } | null>(null);
+  const tipTimer = useRef<number | undefined>(undefined);
+  const tipEl = useRef<HTMLElement | null>(null);
+  // A tooltip shown a moment ago: the next tool's shows at once (the cursor running along the icons).
+  const tipOn = useRef(false), tipGone = useRef(0);
+  const hideTip = () => { window.clearTimeout(tipTimer.current); tipEl.current = null; if (tipOn.current) tipGone.current = Date.now(); tipOn.current = false; setTip(null); };
+  useEffect(() => () => window.clearTimeout(tipTimer.current), []);
+  useEffect(() => { window.clearTimeout(tipTimer.current); setTip(null); }, [tab, sub, labels]);
   const [splitAt, setSplitAt] = useState({ x: 0, y: 0 });
   // Collapsed: only the tabs show; a tab click drops its tools over the page until a tool is used or you click elsewhere.
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem('lvds.ribbonCollapsed') === '1'; } catch { return false; } });
@@ -277,13 +350,19 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const addTo = `to ${a.boardId}`;
   const view = (v: MainView, label: string, icon: Icon, title: string): Tool => ({ label, icon, title, onClick: go(v), active: a.view === v, page: true });
   const sm = (t: Tool): Tool => ({ ...t, small: true });
-  const cadTool = (t: CadTool, label: string, icon: Icon, title: string): Tool => ({ label, icon, title, onClick: () => a.cad?.onTool(t), active: a.cad?.tool === t, disabled: !a.cad?.hasDrawing });
-  // The open sheet's tools (Design CAD → Sheets); greyed while no sheet is open.
-  const sh = a.sheets, ui = sh?.ui, onSheet = !!sh?.open && !!ui && SHEET_VIEWS.includes(a.view), act = () => ui!.actions.current;
-  const noSheet = 'Open a sheet first';
+  const cadTool = (t: CadTool, label: string, icon: Icon, title: string, cmd = toolAlias(t)): Tool => ({ label, icon, title, cmd, onClick: () => a.cad?.onTool(t), active: a.cad?.tool === t, disabled: !a.cad?.hasDrawing });
+  /** A tool that runs a command as if typed on the command line. */
+  const cadCmd = (label: string, icon: Icon, cmd: string, title: string, text = cmd): Tool => ({ label, icon, cmd, title, onClick: () => a.cad?.onCommand?.(text), disabled: !a.cad?.hasDrawing || !a.cad.onCommand });
+  /** A toggle of the status bar (F3, F7…). */
+  const toggleTool = (k: keyof CadToggles, label: string, icon: Icon, cmd: string, title: string, sub?: string): Tool => ({ label, icon, cmd, title, sub, small: true, onClick: () => a.cad?.onToggle?.(k), active: !!a.cad?.toggles?.[k], disabled: !a.cad?.onToggle });
+  // The sheet tools (the sheets pages of Design CAD); greyed while no sheet is open. The markup tools also draw on a
+  // layout's paper.
+  const sh = a.sheets, ui = sh?.ui, act = () => ui!.actions.current;
+  const onSheet = !!ui && (SHEET_VIEWS.includes(a.view) ? !!sh?.open : a.view === 'cad' && !!a.cad?.onPaper);
+  const noSheet = SHEET_VIEWS.includes(a.view) || !a.cad?.inLayout ? 'Open a sheet first' : 'On the paper: PS returns to it from the model';
   const markTool = (id: string): Tool => {
     const t = ALL_TOOLS.find((x) => x.tool === id)!, panelOnly = t.tool === 'pcloud' || t.tool === 'parrow';
-    return { label: t.label, icon: t.icon, title: !onSheet ? noSheet : panelOnly && sh?.kind !== 'system' ? 'On system SLD sheets' : `${t.label} (${t.key}): ${t.hint}`,
+    return { label: t.label, icon: t.icon, cmd: t.key, title: !onSheet ? noSheet : panelOnly && sh?.kind !== 'system' ? 'On system SLD sheets' : `${t.label} (${t.key}): ${t.hint}`,
       onClick: () => { ui?.setTool(t.tool); if (t.tool !== 'select') ui?.setSelId(null); }, active: onSheet && ui?.tool === t.tool, disabled: !onSheet || (panelOnly && sh?.kind !== 'system') };
   };
   const colour: MarkupColor = sh?.selected?.color ?? ui?.color ?? 'black';
@@ -318,7 +397,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     [{ label: 'Run', icon: Play, title: a.staleCount ? `Run calculations (F5) — ${a.staleCount} out of date` : 'Run calculations (F5) — up to date', onClick: a.onRun, stale: a.staleCount > 0 }],
     [
       { label: 'SLD', icon: Network, title: 'Single line diagram', onClick: go('design'), active: a.view === 'design', page: true },
-      view('drawings', 'Sheets', Files, 'The submission sheets of this design in Design CAD → Sheets: SLDs, risers and earthing, with title blocks, clouds and notes'),
+      view('drawings', 'Sheets', Files, 'The submission sheets of this design (Design CAD → Page setup → Sheet set): SLDs, risers and earthing, with title blocks, clouds and notes'),
       { label: 'Select', icon: MousePointer2, title: 'Select tool — click boards and loads to select them (V)', onClick: () => { a.onView('design'); a.onTool('select'); }, active: a.view === 'design' && a.tool === 'select' },
       { label: 'Pan', icon: Hand, title: 'Pan tool — drag to move around the diagram without selecting (H)', onClick: () => { a.onView('design'); a.onTool('pan'); }, active: a.view === 'design' && a.tool === 'pan' }
     ],
@@ -394,7 +473,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Boards', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — the arrow beside it for an SMDB, MCC or EMDB with its usual rating, or Build hierarchy to create many at once`, onClick: () => a.onAddBoard(), page: true, menu: boardMenu },
         view('panels', 'Build hierarchy', ListTree, 'Panels: create by count, edit levels and connections in one list, rename by level; typical floors, repeat group, templates'),
         view('design', 'SLD', Network, 'Single line diagram — main boards and risers at this stage'),
-        view('drawings', 'Sheets', Files, 'The submission sheets of this design in Design CAD → Sheets: SLDs, risers and earthing, with title blocks, clouds and notes'),
+        view('drawings', 'Sheets', Files, 'The submission sheets of this design (Design CAD → Page setup → Sheet set): SLDs, risers and earthing, with title blocks, clouds and notes'),
         view('busbar', 'Busbar riser', AlignVerticalSpaceAround, 'Busbar trunking risers for high-rise buildings: rating (Cu / Al), area, voltage drop per floor, size and weight')
       ],
       [
@@ -420,89 +499,55 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [gate('detailed')]
     ],
     cad: [
-      [
-        view('cad', 'Design CAD', PenTool, 'Design CAD: the plan of each level opened natively — model space, snaps, layers, command line'),
-        { label: 'Plans', icon: FolderOpen, sub: a.cad?.file.plansSub, title: 'Open a DWG / DXF drawing; the arrow: the plan of each level of the project (open it, or open one for a level without)', onClick: () => a.cad?.onOpen(), menu: a.cad?.file.plans?.length ? a.cad.file.plans : undefined },
-        { small: true, label: a.cad?.file.level ?? 'Level', icon: Building2, sub: 'level', title: a.cad?.file.levelTitle ?? 'The level the drawing is the plan of', onClick: () => {}, disabled: !a.cad?.hasDrawing || !a.cad.file.levels?.length, menu: a.cad?.file.levels },
-        { small: true, label: a.cad?.file.unit ?? 'Units', icon: Scale, sub: 'units', title: a.cad?.file.unitTitle ?? 'The units the drawing is in', onClick: () => {}, disabled: !a.cad?.hasDrawing, menu: a.cad?.file.units },
-        { small: true, label: 'Layer roles', icon: Layers, title: 'What each layer is: wall, room outline, room name, tray, route… (used to find rooms and walls)', onClick: () => a.cad?.onRoles(), active: a.cad?.rolesOn, disabled: !a.cad?.hasDrawing },
-        { small: true, label: 'References', icon: Paperclip, title: 'References (XR): other drawings shown under this plan — the structure, other services, a site plan. Attach (XA), reload, unload, detach, repath, clip, bind; the files are never changed', onClick: () => a.cad?.onRefs?.(), disabled: !a.cad?.hasDrawing },
-        { small: true, label: 'Save DXF', icon: Save, title: 'Save the drawing as DXF with what you drew (LV-SKETCH, LV-ANNO) and the devices placed (E-LV-POINTS, E-ELV-DEVICES, E-BOARDS)', onClick: () => a.cad?.onSave(), disabled: !a.cad?.hasDrawing },
-        { small: true, label: 'Save DWG', icon: SaveAll, title: 'Save the drawing as DWG (its own version, else the 2018 format) with what you drew and the devices placed, as a new file — the architect\'s drawing is not changed (SAVEDWG)', onClick: () => a.cad?.onSaveDwg(), disabled: !a.cad?.hasDrawing },
-        { small: true, label: 'Close', icon: FileX2, title: 'Close this drawing. What you drew stays in the project and comes back when the file opens again (CLOSE)', onClick: () => a.cad?.onClose(), disabled: !a.cad?.hasDrawing }
-      ],
-      [
-        { label: 'Add found', icon: LayoutGrid, title: 'Add every room the plan outlines (closed outlines on the Room outline layers, named by the text inside) to Building information on this level — one undo step (ROOMS)', onClick: () => a.cad?.onAddFound(), disabled: !a.cad?.hasDrawing },
-        cadTool('room', 'Click inside', MousePointerClick, 'Click inside a room: its outline from the walls (doors closed), its area — then Add (RA)'),
-        cadTool('trace', 'Trace', PenLine, 'Click the corners of a room, Enter to close — then Add (TR)'),
-        cadTool('name', 'Pick name', Type, 'Click the room name on the drawing: it names the room found, or renames the room it is in (PN)')
-      ],
-      [
-        cadTool('tray', 'Cable tray', Rows3, 'Draw a cable tray run (CT): its points, Enter to finish, at the width chosen; the tray route can be assigned later'),
-        cadTool('cable', 'Cable route', Cable, 'Draw the route of a cable (CR): choose the cable, click its points, Enter to finish'),
-        cadTool('link', 'Link route', Route, 'Click a line or polyline of the drawing: it becomes the chosen cable\'s route (LR)'),
-        { label: 'Place board', icon: CircuitBoard, title: 'Place a board on the plan: its room, level and position (Add device → DB)', onClick: () => a.cad?.onPlaceBoard(), active: a.cad?.placingBoard, disabled: !a.cad?.hasDrawing },
-        { label: 'Update schedules', icon: ListChecks, title: 'From the trays and cable routes on every level\'s plan: tray route lengths and fittings (tray schedule and BOQ), cable lengths, and the tray routes each cable runs along — one undo step (SCHED)', onClick: () => a.cad?.onSchedules(), disabled: !a.cad?.hasDrawing }
-      ],
+      // Draw: tools that create geometry.
       [
         cadTool('line', 'Line', Slash, 'Line (L): click points; type a length, x,y or @dx,dy; Enter stops'),
         cadTool('pline', 'Polyline', Spline, 'Polyline (PL): click points; C or the first point closes it; Enter finishes'),
-        cadTool('circle', 'Circle', Circle, 'Circle (C): centre, then radius (a point or typed)'),
-        cadTool('arc', 'Arc', Rainbow, 'Arc (A): start, a point on it, end'),
-        sm(cadTool('rect', 'Rectangle', RectangleHorizontal, 'Rectangle (REC): two opposite corners')),
-        sm(cadTool('hatch', 'Hatch', PaintBucket, 'Hatch (H): the pattern on the right, then click inside a closed drawn object or a room'))
+        sm(cadTool('rect', 'Rectangle', RectangleHorizontal, 'Rectangle (REC): two opposite corners'))
       ],
       [
-        // Modify, as the CAD-standard 3 × 4 grid (filled by column): Move Rotate Trim Erase / Copy Mirror Fillet Explode /
-        // Stretch Scale Array Offset; Extend and Chamfer under the arrows of Trim and Fillet, Break and Join in Modify ▾.
-        sm(cadTool('move', 'Move', Move, 'Move (M): select an object (drawn or a device), base point, second point')),
-        sm(cadTool('copy', 'Copy', Copy, 'Copy (CO): select, base point, then as many copies as you click; Enter stops. A copied light or socket is counted on its circuit')),
-        sm(cadTool('stretch', 'Stretch', StretchHorizontal, 'Stretch (S): a window round the points to move, then base point and second point — a tray end moves, its far end stays')),
+        cadTool('circle', 'Circle', Circle, 'Circle (C): centre, then radius (a point or typed)'),
+        cadTool('arc', 'Arc', Rainbow, 'Arc (A): start, a point on it, end')
+      ],
+      [cadTool('hatch', 'Hatch', PaintBucket, 'Hatch (H): the pattern on the right, then click inside a closed drawn object or a room')],
+      // Modify: tools that change what is drawn.
+      [
+        cadTool('move', 'Move', Move, 'Move (M): select an object (drawn or a device), base point, second point'),
+        cadTool('copy', 'Copy', Copy, 'Copy (CO): select, base point, then as many copies as you click; Enter stops. A copied light or socket is counted on its circuit'),
         sm(cadTool('rotate', 'Rotate', RotateCw, 'Rotate (RO): select a drawn object, base point, then an angle (typed degrees or a point)')),
         sm(cadTool('mirror', 'Mirror', FlipHorizontal2, 'Mirror (MI): pick drawn objects, Enter, then two points of the mirror line; keep the originals or not')),
         sm(cadTool('scale', 'Scale', Scaling, 'Scale (SC): pick drawn objects, Enter, then the base point; the factor is on the right')),
-        { ...sm(cadTool('trim', 'Trim', Scissors, 'Trim (TRIM): click the part to cut away — cut at the nearest lines crossing it, drawn or the architect\'s (never changed); Shift-click extends')), active: a.cad?.tool === 'trim' || a.cad?.tool === 'extend', menu: [{ label: 'Extend', title: 'Extend (EX): click near an end — it runs on to the next line or wall ahead', onClick: () => a.cad?.onTool('extend') }] },
-        { ...sm(cadTool('fillet', 'Fillet', CornerUpRight, 'Fillet (F): click two lines near the corner; joined with the radius on the right (0 = sharp corner; trays meet in a bend)')), active: a.cad?.tool === 'fillet' || a.cad?.tool === 'chamfer', menu: [{ label: 'Chamfer', title: 'Chamfer (CHA): click two lines; the corner is cut at the two distances on the right', onClick: () => a.cad?.onTool('chamfer') }] },
-        sm(cadTool('array', 'Array', Grid2x2, 'Array (AR): pick drawn objects, Enter; rectangular copies (Apply) or polar round a centre clicked')),
-        { ...{ label: 'Erase', icon: Eraser, title: 'Erase the selected object (E or Delete); a light or socket is taken off its circuit. The architect\'s drawing is not changed', onClick: () => a.cad?.onDelete(), disabled: !a.cad?.hasSelection }, small: true },
-        sm(cadTool('explode', 'Explode', Ungroup, 'Explode (X): click a polyline or rectangle: separate lines')),
-        sm(cadTool('offset', 'Offset', Rows2, 'Offset (O): the distance on the right, click the object, then the side; a tray is copied as a tray of the same width and route')),
-        { ...cadTool('break', 'Break', Unlink2, 'Break (BR): click the object where it breaks, then a second point (the part between goes), or Enter to split it there'), more: true },
-        { ...cadTool('join', 'Join', Link2, 'Join (J): pick lines and polylines that meet end to end, then Enter: one polyline'), more: true }
+        sm(cadTool('stretch', 'Stretch', StretchHorizontal, 'Stretch (S): a window round the points to move, then base point and second point — a tray end moves, its far end stays'))
       ],
       [
+        sm(cadTool('trim', 'Trim', Scissors, 'Trim (TRIM): click the part to cut away — cut at the nearest lines crossing it, drawn or the architect\'s (never changed); Shift-click extends')),
+        sm(cadTool('extend', 'Extend', ArrowRightToLine, 'Extend (EX): click near an end — it runs on to the next line or wall ahead')),
+        sm(cadTool('offset', 'Offset', Rows2, 'Offset (O): the distance on the right, click the object, then the side; a tray is copied as a tray of the same width and route')),
+        sm(cadTool('fillet', 'Fillet', CornerUpRight, 'Fillet (F): click two lines near the corner; joined with the radius on the right (0 = sharp corner; trays meet in a bend)')),
+        sm(cadTool('chamfer', 'Chamfer', TriangleRight, 'Chamfer (CHA): click two lines; the corner is cut at the two distances on the right')),
+        sm(cadTool('break', 'Break', Unlink2, 'Break (BR): click the object where it breaks, then a second point (the part between goes), or Enter to split it there')),
+        sm(cadTool('join', 'Join', Link2, 'Join (J): pick lines and polylines that meet end to end, then Enter: one polyline')),
+        sm(cadTool('explode', 'Explode', Ungroup, 'Explode (X): click a polyline or rectangle: separate lines'))
+      ],
+      [cadTool('array', 'Array', Grid2x2, 'Array (AR): pick drawn objects, Enter; rectangular copies (Apply) or polar round a centre clicked')],
+      [{ label: 'Erase', icon: Eraser, cmd: 'E', title: 'Erase the selected object (E or Delete); a light or socket is taken off its circuit. The architect\'s drawing is not changed', onClick: () => a.cad?.onDelete(), disabled: !a.cad?.hasSelection }],
+      [cadTool('matchprop', 'Match properties', PaintRoller, 'Match properties (MP): click the drawn object to copy from, then each to change: layer, colour, linetype, lineweight')],
+      // Annotate: tools that explain the drawing, and the markup of the open sheet or a layout's paper.
+      [
         cadTool('text', 'Text', Type, 'Text (T): click where it goes, type it on the command line, Enter'),
-        cadTool('dim', 'Dimension', MoveHorizontal, 'Dimension (DIM): two points, then where the dimension line goes; it shows the length in metres'),
-        sm(cadTool('leader', 'Leader', MessageSquareText, 'Leader (LE): click the arrow point, then the text point (more points bend it), type the text, Enter')),
+        sm(cadCmd('Text style', CaseSensitive, 'ST', 'Text style (ST): named text styles with their height on paper; new text takes the current one', 'STYLE'))
+      ],
+      [
+        cadTool('dim', 'Dimension', MoveHorizontal, 'Dimension (DIM): two points, then where the dimension line goes; it shows the length in the unit of its dimension style'),
+        sm(cadCmd('Dimension style', SlidersHorizontal, 'D', 'Dimension style (D): the arrows, sizes, unit and decimals of new dimensions', 'DIMSTYLE'))
+      ],
+      [cadTool('leader', 'Leader', MessageSquareText, 'Leader (LE): click the arrow point, then the text point (more points bend it), type the text, Enter')],
+      [
         sm(cadTool('rtag', 'Room tag', Tag, 'Room tag (RT): click inside a room: its name and area')),
         sm(cadTool('north', 'North arrow', Navigation, 'North arrow (NORTH): click where it goes'))
       ],
       [
-        { label: 'Distance', icon: Ruler, title: 'Measure the distance between two snapped points (DI); ORTHO keeps it straight', onClick: () => a.cad?.onTool('dist'), active: a.cad?.tool === 'dist', disabled: !a.cad?.hasDrawing },
-        { label: 'Area', icon: Square, title: 'Area and perimeter from snapped corners, or a closed object (AREA, then O)', onClick: () => a.cad?.onTool('area'), active: a.cad?.tool === 'area', disabled: !a.cad?.hasDrawing }
-      ],
-      [
-        { label: 'Add device', icon: CirclePlus, title: 'Place lights, sockets, a DB or ELV devices on the plan (DEV): choose it and its circuit, then click', onClick: () => a.cad?.onTool('dev'), active: a.cad?.tool === 'dev', disabled: !a.cad?.hasDrawing },
-        cadTool('fill', 'Fill room', Grid3x3, 'Choose an ELV device, point at a room to see it at its coverage spacing, click to place them all (FILL)'),
-        cadTool('lux', 'Light room', Lightbulb, 'Point at a room: its luminaires by the lumen method for its outline, then placed as lights on a circuit (LUX)'),
-        cadTool('em', 'Emergency', DoorOpen, 'Emergency lighting (BS 5266-1 / EN 1838): draw the escape routes, mark the points of emphasis and open areas; fittings and exit signs are placed at their spacing (EM)'),
-        { label: 'Coverage', icon: CircleDashed, title: 'Show what the devices of the chosen ELV device\'s system cover, and what is not covered (COV)', onClick: () => a.cad?.onCoverage(), active: a.cad?.coverageOn, disabled: !a.cad?.hasDrawing },
-        { label: 'Copy to level', icon: Copy, title: "Copy this level's devices of the chosen ELV device's system to another level, at the same plan positions", onClick: () => {}, disabled: !a.cad?.hasDrawing || !a.cad.copyLevels?.length, menu: a.cad?.copyLevels }
-      ],
-      [
-        { label: 'Layers', icon: Layers, title: 'Show or hide the layers panel (LA)', onClick: () => a.cad?.onLayers(), active: a.cad?.layersOn },
-        { label: 'Layer manager', icon: Layers2, title: 'Layer palette (LM), docked beside the drawing: each layer on, frozen, locked, its colour, linetype and lineweight — the app\'s drawn layers, the architect\'s and the references\'; new layers, the current layer, isolate and layer states', onClick: () => a.cad?.onLayerManager?.(), disabled: !a.cad?.hasDrawing },
-        { label: 'Fit', icon: Maximize, title: 'Fit the drawing to the window (FIT / ZE, or double-click the middle button)', onClick: () => a.cad?.onFit(), disabled: !a.cad?.hasDrawing }
-      ],
-      [
-        { label: 'All sheets', icon: Files, title: 'Every submission sheet: the register with filters, bulk changes, thumbnails and export (PDF, DXF, Excel)', onClick: () => a.sheets?.onTab('sheets'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'sheets', page: true },
-        { label: 'Layout', icon: LayoutGrid, title: 'How sheets are made and what they show: panels per sheet, values printed, legend', onClick: () => a.sheets?.onTab('layout'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'layout', page: true },
-        { label: 'Title block', icon: PanelBottom, title: 'Title block and drawing numbering of the set', onClick: () => a.sheets?.onTab('titleblock'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'titleblock', page: true },
-        { label: 'Issues', icon: Stamp, title: 'Issue sheets: revisions and transmittals', onClick: () => a.sheets?.onTab('issues'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'issues', page: true }
-      ],
-      ['select', 'cloud', 'text', 'callout', 'arrow', 'rect', 'line'].map(markTool),
-      ['pcloud', 'parrow'].map(markTool),
-      [
+        ...['select', 'cloud', 'text', 'callout', 'arrow', 'rect', 'line'].map(markTool),
         { label: 'Colour', icon: Palette, sub: named(colour), title: onSheet ? 'Colour of new markups and of the one selected: click for the next, the arrow to choose' : noSheet,
           onClick: () => setColour(COLOURS[(COLOURS.indexOf(colour) + 1) % COLOURS.length]), disabled: !onSheet,
           menu: COLOURS.map((c) => ({ label: named(c), title: `${named(c)} markups`, onClick: () => setColour(c) })) },
@@ -510,12 +555,60 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           disabled: !onSheet || !textual, menu: MARKUP_SIZES.map((z) => ({ label: `${z} mm`, title: `Letters ${z} mm high`, onClick: () => act().restyle({ size: z }) })) },
         { label: 'Delete', icon: Trash2, title: onSheet ? 'Delete the selected markup (Delete key)' : noSheet, onClick: () => act().removeSelected(), disabled: !onSheet || !sh?.selected }
       ],
+      ['pcloud', 'parrow'].map(markTool),
+      // Insert: other drawings shown under the plan.
+      [
+        { ...cadCmd('Attach', FilePlus2, 'XA', 'Attach a reference (XA): another drawing shown under this plan — the structure, other services, a site plan; its file is never changed', 'XATTACH') },
+        sm(cadCmd('Clip', Crop, 'XCLIP', 'Clip a reference (XCLIP): show part of it only, inside a window or a closed outline')),
+        sm({ label: 'References', icon: Paperclip, cmd: 'XR', title: 'References (XR): other drawings shown under this plan — the structure, other services, a site plan. Attach (XA), reload, unload, detach, repath, clip, bind; the files are never changed', onClick: () => a.cad?.onRefs?.(), disabled: !a.cad?.hasDrawing })
+      ],
+      // Layers.
+      [
+        { label: 'Layer palette', icon: Layers2, cmd: 'LM', title: 'Layer palette (LM), docked beside the drawing: each layer on, frozen, locked, its colour, linetype and lineweight — the app\'s drawn layers, the architect\'s and the references\'; new layers, the current layer, isolate and layer states', onClick: () => a.cad?.onLayerManager?.(), disabled: !a.cad?.hasDrawing },
+        sm(cadCmd('New layer', Plus, 'LAYER N', 'New layer (LAYER N): a new drawn layer in the layer palette, to rename'))
+      ],
+      [
+        sm(cadCmd('Isolate', Layers, 'LAYISO', 'Isolate (LAYISO): only the layers of the objects picked stay on')),
+        sm(cadCmd('Unisolate', Layers2, 'LAYUNISO', 'Unisolate (LAYUNISO): the layers Isolate turned off come back on'))
+      ],
+      [{ label: 'Layer roles', icon: Layers, title: 'What each layer is: wall, room outline, room name, tray, route… (used to find rooms and walls)', onClick: () => a.cad?.onRoles(), active: a.cad?.rolesOn, disabled: !a.cad?.hasDrawing }],
+      // View: looking at the drawing.
+      [{ label: 'Fit', icon: Maximize, cmd: 'FIT', title: 'Fit the drawing to the window (FIT / ZE, or double-click the middle button)', onClick: () => a.cad?.onFit(), disabled: !a.cad?.hasDrawing }],
+      [
+        sm({ label: 'Layers', icon: Layers, cmd: 'LA', title: 'Show or hide the layers panel (LA)', onClick: () => a.cad?.onLayers(), active: a.cad?.layersOn }),
+        sm({ label: 'Properties', icon: PanelRight, cmd: 'Ctrl+1', title: 'Show or hide the properties palette (Ctrl+1 or ⌘1): the layer, colour and shape of the objects picked', onClick: () => a.cad?.onProps?.(), active: a.cad?.propsOn, disabled: !a.cad?.hasDrawing || !a.cad.onProps }),
+        sm({ label: 'Command history', icon: History, cmd: 'F2', title: 'The taller command history over the command line (F2)', onClick: () => a.cad?.onHistory?.(), active: a.cad?.historyOn, disabled: !a.cad?.hasDrawing || !a.cad.onHistory })
+      ],
+      [
+        toggleTool('osnap', 'Object snap', Magnet, 'F3', 'Snap to the ends, middles, centres and crossings of what is drawn (F3, OSNAP)'),
+        toggleTool('grid', 'Grid', Hash, 'F7', 'Grid lines, then dots, then off (F7, GRID)', a.cad?.toggles?.grid ? (a.cad.gridDots ? 'dots' : 'lines') : undefined),
+        toggleTool('ortho', 'Ortho', Plus, 'F8', 'Lines and moves at 0° and 90° only (F8, ORTHO)'),
+        toggleTool('snap', 'Snap', Crosshair, 'F9', 'The cursor steps on the grid (F9, SNAP)'),
+        toggleTool('dyn', 'Dynamic input', TextCursorInput, 'F12', 'Boxes at the cursor for the length and angle of the next point while a tool runs (F12)')
+      ],
       [
         { label: 'Fit', icon: Maximize, sub: onSheet ? ui?.pct : undefined, title: onSheet ? 'Fit the sheet to the window (F) · Ctrl/⌘ + scroll to zoom' : noSheet, onClick: () => ui?.setZoom('fit'), active: onSheet && ui?.zoom === 'fit', disabled: !onSheet },
         { label: 'Zoom in', icon: ZoomIn, title: onSheet ? 'Zoom in' : noSheet, onClick: () => act().zoomIn(), disabled: !onSheet },
         { label: 'Zoom out', icon: ZoomOut, title: onSheet ? 'Zoom out' : noSheet, onClick: () => act().zoomOut(), disabled: !onSheet },
         { label: 'Legend', icon: BookImage, title: onSheet ? 'Symbol legend in the sheets\' legend column (and on SLD exports)' : noSheet, onClick: () => sh?.onLegend?.(), active: onSheet && !!sh?.legend?.on, disabled: !onSheet || !sh?.legend?.shown },
         { label: 'Side by side', icon: Columns2, title: onSheet ? 'The design on the left with each sheet\'s panels outlined, this sheet on the right' : noSheet, onClick: () => ui?.setSide(!ui.side), active: onSheet && !!ui?.side, disabled: !onSheet }
+      ],
+      // Page setup: preparing it for paper — the sheet set, layouts and viewports; the open sheet's page setup and export.
+      [
+        { label: 'All sheets', icon: Files, title: 'Every submission sheet: the register with filters, bulk changes, thumbnails and export (PDF, DXF, Excel)', onClick: () => a.sheets?.onTab('sheets'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'sheets', page: true },
+        { label: 'Layout', icon: LayoutGrid, title: 'How sheets are made and what they show: panels per sheet, values printed, legend', onClick: () => a.sheets?.onTab('layout'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'layout', page: true },
+        { label: 'Title block', icon: PanelBottom, title: 'Title block and drawing numbering of the set', onClick: () => a.sheets?.onTab('titleblock'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'titleblock', page: true },
+        { label: 'Issues', icon: Stamp, title: 'Issue sheets: revisions and transmittals', onClick: () => a.sheets?.onTab('issues'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'issues', page: true }
+      ],
+      [
+        { label: 'New layout', icon: LayoutTemplate, cmd: 'LAYOUT', sub: 'of this level', title: 'A new layout (paper) of this level: a plan sheet with its title block and a viewport onto the model (LAYOUT)', onClick: () => {}, menuOnly: true, disabled: !a.cad?.hasDrawing, menu: (['Lighting', 'Power', 'ELV', 'Containment'] as const).map((t) => ({ label: `${t} layout`, title: `A new ${t.toLowerCase()} layout of this level`, onClick: () => a.cad?.onLayoutCmd?.(`LAYOUT ${t.toUpperCase()}`) })) },
+        sm({ label: 'Page setup', icon: FileCog, cmd: 'PAGESETUP', title: a.cad?.inLayout ? 'Paper, pens and plot stamp of this layout\'s sheet (opens it in the sheets)' : 'Open a layout tab first', onClick: () => a.cad?.onLayoutCmd?.('PAGESETUP'), disabled: !a.cad?.inLayout }),
+        sm({ label: 'Plot PDF', icon: Printer, cmd: 'PLOT', title: a.cad?.inLayout ? 'This layout\'s sheet as PDF, black and white (PLOT)' : 'Open a layout tab first', onClick: () => a.cad?.onLayoutCmd?.('PLOT'), disabled: !a.cad?.inLayout })
+      ],
+      [
+        { label: 'Viewport', icon: Frame, cmd: 'MV', title: 'A new viewport: click two corners on the paper (MV)', onClick: () => a.cad?.onLayoutCmd?.('MV') },
+        sm({ label: 'Scale', icon: Scaling, cmd: 'VPSCALE', title: 'The scale of the viewport picked (VPSCALE)', onClick: () => {}, menuOnly: true, menu: [20, 50, 100, 200, 500, 1000].map((k) => ({ label: `1:${k}`, title: `Viewport at 1:${k}`, onClick: () => a.cad?.onLayoutCmd?.(`VPSCALE ${k}`) })) }),
+        sm({ label: 'Lock', icon: Lock, cmd: 'VPLOCK', title: 'Lock or unlock the viewport picked: locked, pan and zoom inside it leave its view alone (VPLOCK)', onClick: () => a.cad?.onLayoutCmd?.('VPLOCK'), active: a.cad?.vpLocked })
       ],
       [
         { label: 'Page setup', icon: FileCog, title: onSheet ? 'This sheet\'s page setup: paper, scale (plans), pen table, lineweights, plot stamp — or the set\'s default' : noSheet, onClick: () => act().pageSetup(), disabled: !onSheet },
@@ -527,26 +620,42 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'DXF', icon: FileCode, title: onSheet ? 'This sheet as DXF (R12, editable layers)' : noSheet, onClick: () => act().exportAs('dxf'), disabled: !onSheet },
         { label: 'DWG', icon: FileDown, title: onSheet ? 'This sheet as DWG (2018 format)' : noSheet, onClick: () => act().exportAs('dwg'), disabled: !onSheet }
       ],
+      // Tools: measuring.
       [
-        { label: 'Wire circuits', icon: Workflow, sub: 'all on this level', title: 'Wire every circuit with devices on this level: arcs between its devices in circuit order and a home run to its DB, tagged with the circuit, cable and length; Update schedules gives the cable schedule the lengths (WC)', onClick: () => a.cad?.onWireAll(), disabled: !a.cad?.hasDrawing },
-        { ...cadTool('wire', 'Wire one', Plug, 'Click a device: its circuit is wired, or its wiring is taken off when it is wired (W1)'), sub: 'pick a device' },
-        { label: 'Tags', icon: Tags, sub: a.cad?.tagsOn ? 'on' : 'off', title: 'Show or hide the wiring tags (DB-GF1/L3 · 2C × 1.5 mm² · 23 m) on the plan', onClick: () => a.cad?.onTags(), active: a.cad?.tagsOn, disabled: !a.cad?.hasDrawing }
+        { label: 'Distance', icon: Ruler, cmd: 'DI', title: 'Measure the distance between two snapped points (DI); ORTHO keeps it straight', onClick: () => a.cad?.onTool('dist'), active: a.cad?.tool === 'dist', disabled: !a.cad?.hasDrawing },
+        { label: 'Area', icon: Square, cmd: 'AREA', title: 'Area and perimeter from snapped corners, or a closed object (AREA, then O)', onClick: () => a.cad?.onTool('area'), active: a.cad?.tool === 'area', disabled: !a.cad?.hasDrawing }
+      ],
+      // Electrical & ELV: how the plan feeds the design (rooms, cables and trays, devices, wiring).
+      [
+        { label: 'Add found', icon: LayoutGrid, cmd: 'ROOMS', title: 'Add every room the plan outlines (closed outlines on the Room outline layers, named by the text inside) to Building information on this level — one undo step (ROOMS)', onClick: () => a.cad?.onAddFound(), disabled: !a.cad?.hasDrawing },
+        cadTool('room', 'Click inside', MousePointerClick, 'Click inside a room: its outline from the walls (doors closed), its area — then Add (RA)'),
+        cadTool('trace', 'Trace', PenLine, 'Click the corners of a room, Enter to close — then Add (TR)'),
+        cadTool('name', 'Pick name', Type, 'Click the room name on the drawing: it names the room found, or renames the room it is in (PN)')
       ],
       [
-        cadTool('none', 'Select', BoxSelect, 'Select devices (SEL): click one, Shift-click to add or remove, or drag a window — left to right picks what is inside, right to left also what it crosses; a toolbar beside them has the edits that suit them'),
+        cadTool('tray', 'Cable tray', Rows3, 'Draw a cable tray run (CT): its points, Enter to finish, at the width chosen; the tray route can be assigned later'),
+        cadTool('cable', 'Cable route', Cable, 'Draw the route of a cable (CR): choose the cable, click its points, Enter to finish'),
+        cadTool('link', 'Link route', Route, 'Click a line or polyline of the drawing: it becomes the chosen cable\'s route (LR)'),
+        { label: 'Place board', icon: CircuitBoard, title: 'Place a board on the plan: its room, level and position (Add device → DB)', onClick: () => a.cad?.onPlaceBoard(), active: a.cad?.placingBoard, disabled: !a.cad?.hasDrawing },
+        { label: 'Update schedules', icon: ListChecks, cmd: 'SCHED', title: 'From the trays and cable routes on every level\'s plan: tray route lengths and fittings (tray schedule and BOQ), cable lengths, and the tray routes each cable runs along — one undo step (SCHED)', onClick: () => a.cad?.onSchedules(), disabled: !a.cad?.hasDrawing }
+      ],
+      [
+        { label: 'Add device', icon: CirclePlus, cmd: 'DEV', title: 'Place lights, sockets, a DB or ELV devices on the plan (DEV): choose it and its circuit, then click', onClick: () => a.cad?.onTool('dev'), active: a.cad?.tool === 'dev', disabled: !a.cad?.hasDrawing },
+        cadTool('fill', 'Fill room', Grid3x3, 'Choose an ELV device, point at a room to see it at its coverage spacing, click to place them all (FILL)'),
+        cadTool('lux', 'Light room', Lightbulb, 'Point at a room: its luminaires by the lumen method for its outline, then placed as lights on a circuit (LUX)'),
+        cadTool('em', 'Emergency', DoorOpen, 'Emergency lighting (BS 5266-1 / EN 1838): draw the escape routes, mark the points of emphasis and open areas; fittings and exit signs are placed at their spacing (EM)'),
+        { label: 'Coverage', icon: CircleDashed, cmd: 'COV', title: 'Show what the devices of the chosen ELV device\'s system cover, and what is not covered (COV)', onClick: () => a.cad?.onCoverage(), active: a.cad?.coverageOn, disabled: !a.cad?.hasDrawing },
+        { label: 'Copy to level', icon: Copy, title: "Copy this level's devices of the chosen ELV device's system to another level, at the same plan positions", onClick: () => {}, menuOnly: true, disabled: !a.cad?.hasDrawing || !a.cad.copyLevels?.length, menu: a.cad?.copyLevels }
+      ],
+      [
+        cadTool('none', 'Select', BoxSelect, 'Select devices (SEL): click one, Shift-click to add or remove, or drag a window — left to right picks what is inside, right to left also what it crosses; a toolbar beside them has the edits that suit them', 'SEL'),
         cadTool('arl', 'Array on line', Ellipsis, 'Array on line (ARL): click the start and the end of a line; N devices evenly along it, by number or spacing, on a circuit'),
         cadTool('match', 'Match', Paintbrush, 'Match (MA): click the device to copy from, then each device to change: its circuit, and its type if chosen')
       ],
       [
-        cadTool('matchprop', 'Match properties', PaintRoller, 'Match properties (MP): click the drawn object to copy from, then each to change: layer, colour, linetype, lineweight')
-      ],
-      [
-        { label: 'New layout', icon: LayoutTemplate, sub: 'of this level', title: 'A new layout (paper) of this level: a plan sheet with its title block and a viewport onto the model (LAYOUT)', onClick: () => {}, menu: (['Lighting', 'Power', 'ELV', 'Containment'] as const).map((t) => ({ label: `${t} layout`, title: `A new ${t.toLowerCase()} layout of this level`, onClick: () => a.cad?.onLayoutCmd?.(`LAYOUT ${t.toUpperCase()}`) })) },
-        { small: true, label: 'Viewport', icon: Frame, title: 'A new viewport: click two corners on the paper (MV)', onClick: () => a.cad?.onLayoutCmd?.('MV') },
-        { small: true, label: 'Scale', icon: Scaling, sub: 'scale', title: 'The scale of the viewport picked (VPSCALE)', onClick: () => {}, menu: [20, 50, 100, 200, 500, 1000].map((k) => ({ label: `1:${k}`, title: `Viewport at 1:${k}`, onClick: () => a.cad?.onLayoutCmd?.(`VPSCALE ${k}`) })) },
-        { small: true, label: 'Lock', icon: Lock, title: 'Lock or unlock the viewport picked: locked, pan and zoom inside it leave its view alone (VPLOCK)', onClick: () => a.cad?.onLayoutCmd?.('VPLOCK'), active: a.cad?.vpLocked },
-        { small: true, label: 'Page setup', icon: FileCog, title: 'Paper, pens and plot stamp of this layout\'s sheet (opens it in Sheets)', onClick: () => a.cad?.onLayoutCmd?.('PAGESETUP') },
-        { small: true, label: 'Plot PDF', icon: Printer, title: 'This layout\'s sheet as PDF, black and white (PLOT)', onClick: () => a.cad?.onLayoutCmd?.('PLOT') }
+        { label: 'Wire circuits', icon: Workflow, cmd: 'WC', sub: 'all on this level', title: 'Wire every circuit with devices on this level: arcs between its devices in circuit order and a home run to its DB, tagged with the circuit, cable and length; Update schedules gives the cable schedule the lengths (WC)', onClick: () => a.cad?.onWireAll(), disabled: !a.cad?.hasDrawing },
+        { ...cadTool('wire', 'Wire one', Plug, 'Click a device: its circuit is wired, or its wiring is taken off when it is wired (W1)'), sub: 'pick a device' },
+        { label: 'Tags', icon: Tags, cmd: 'TAGS', sub: a.cad?.tagsOn ? 'on' : 'off', title: 'Show or hide the wiring tags (DB-GF1/L3 · 2C × 1.5 mm² · 23 m) on the plan', onClick: () => a.cad?.onTags(), active: a.cad?.tagsOn, disabled: !a.cad?.hasDrawing }
       ]
     ],
     reports: [
@@ -556,7 +665,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('cable-tray', 'Cable trays', Rows3, 'Cable tray schedule: routes A, B, C… with the cables on each and the tray size'),
         view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards')
       ],
-      [view('drawings', 'Drawings', Files, 'Opens Design CAD → Sheets: every submission sheet and the register — panels per sheet, status, revisions, title block, issues and transmittals, PDF / DXF / Excel exports'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('export-centre', 'Export centre', FileDown, 'Every PDF document in one list: tick what you need and export a zip or one bookmarked PDF')]
+      [view('drawings', 'Drawings', Files, 'Opens the drawing set in Design CAD (Page setup → Sheet set): every submission sheet and the register — panels per sheet, status, revisions, title block, issues and transmittals, PDF / DXF / Excel exports'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('export-centre', 'Export centre', FileDown, 'Every PDF document in one list: tick what you need and export a zip or one bookmarked PDF')]
     ],
     issue: [
       [
@@ -627,9 +736,69 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   };
   /** Stages shows the stage the project is at, or stays on the stage already showing. */
   const tabOf = (id: typeof TABS[number]['id']): RibbonTab => (id !== 'stages' ? id : onStage ? tab : tabForStage(a.stage));
+  /** A Design CAD sub-tab chosen: on the sheets pages one with sheet tools stays there; the others show the drawing. */
+  const pickSub = (k: CadSub) => { setCadSub(k); if (!(onSheets && CAD_SUB[k].sheet) && a.view !== 'cad') a.onView('cad'); };
+  /** The tooltip of the tool `el` (its name and command in data-tip-head, what it does in data-tip-text). */
+  const showTip = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    tipOn.current = true;
+    setTip({ x: Math.max(4, Math.min(r.left, window.innerWidth - 264)), y: r.bottom + 6, of: el.getAttribute('aria-label') ?? '', head: el.dataset.tipHead ?? '', text: el.dataset.tipText ?? '' });
+  };
+  // The cursor rests on a tool, greyed ones too (a disabled button gets no mouse events of its own, so the toolbar
+  // watches for them).
+  const iconMode = tab === 'cad' && !labels;
+  const overTool = (e: React.MouseEvent<HTMLElement>) => {
+    const b = (e.target as Element).closest<HTMLElement>('[data-tip-head]');
+    if (!b || b === tipEl.current) return;
+    window.clearTimeout(tipTimer.current);
+    tipEl.current = b;
+    if (Date.now() - tipGone.current < 500) showTip(b);
+    else tipTimer.current = window.setTimeout(() => showTip(b), 400);
+  };
+  const offTool = (e: React.MouseEvent<HTMLElement>) => {
+    const b = (e.target as Element).closest('[data-tip-head]');
+    if (b && !(e.relatedTarget instanceof Node && b.contains(e.relatedTarget))) hideTip();
+  };
+  const fromKeyboard = (el: HTMLElement) => { try { return el.matches(':focus-visible'); } catch { return false; } };
+  /** File: open, save and close drawings; the plans of each level, and this drawing's level and units, as lists beside it. */
+  const fileMenu = () => {
+    const c = a.cad, has = !!c?.hasDrawing;
+    const run = (fn?: () => void) => () => { setFileOpen(false); fn?.(); };
+    const item = (label: string, cmd: string, title: string, fn: (() => void) | undefined, off = false) => (
+      <button key={label} role="menuitem" title={title} disabled={off || !fn} onClick={run(fn)} onMouseEnter={() => setFileList(null)}><span>{label}</span><span className="k">{cmd}</span></button>
+    );
+    const list = (key: 'plans' | 'levels' | 'units', label: string, title: string, items: Tool['menu'], off = false) => (
+      <div key={key} className="ribbon-file-sub">
+        <button role="menuitem" title={title} aria-haspopup="menu" aria-expanded={fileList === key} disabled={off || !items?.length}
+          onClick={() => setFileList(fileList === key ? null : key)} onMouseEnter={() => setFileList(key)}
+          onKeyDown={(e) => { if (e.key === 'ArrowRight') { e.preventDefault(); setFileList(key); } }}><span>{label}</span><ChevronRight size={12} strokeWidth={1.8} aria-hidden /></button>
+        {fileList === key && items && (
+          <div className="ribbon-file-menu side" role="menu" aria-label={label}>
+            {items.map((m) => <Fragment key={m.label}>{m.sep && <hr />}<button role="menuitem" title={m.title} onClick={run(m.onClick)}>{m.label}</button></Fragment>)}
+          </div>
+        )}
+      </div>
+    );
+    return (
+      <div className="ribbon-file-menu" role="menu" aria-label="File">
+        {item('Open…', 'OPEN', 'Open a DWG / DXF drawing', c?.onOpen)}
+        {list('plans', 'Plans of each level', 'The plan of each level of the project: open it, or open one for a level without', c?.file.plans)}
+        {c?.reopen && item(c.reopen.label, '', c.reopen.title, c.reopen.onClick)}
+        <hr />
+        {item('Save DXF', 'SAVE', 'Save the drawing as DXF with what you drew (LV-SKETCH, LV-ANNO) and the devices placed (E-LV-POINTS, E-ELV-DEVICES, E-BOARDS)', c?.onSave, !has)}
+        {item('Save DWG', 'SAVEDWG', 'Save the drawing as DWG (its own version, else the 2018 format) with what you drew and the devices placed, as a new file — the architect\'s drawing is not changed', c?.onSaveDwg, !has)}
+        <hr />
+        {item('Close', 'CLOSE', 'Close this drawing. What you drew stays in the project and comes back when the file opens again', c?.onClose, !has)}
+        {item('Close all', 'CLOSEALL', 'Close every drawing open. What you drew stays in the project', c?.onCommand ? () => c.onCommand!('CLOSEALL') : undefined, !has)}
+        <hr />
+        {list('levels', `Level: ${c?.file.level ?? '—'}`, c?.file.levelTitle || 'The level the drawing is the plan of', c?.file.levels, !has)}
+        {list('units', `Units: ${c?.file.unit ?? '—'}`, c?.file.unitTitle || 'The units the drawing is in', c?.file.units, !has)}
+      </div>
+    );
+  };
 
   return (
-    <div className={`ribbon${collapsed ? ' collapsed' : ''}`} ref={rootRef} data-doc-id="main-ribbon">
+    <div className={`ribbon${collapsed ? ' collapsed' : ''}${tab === 'cad' && !labels ? ' cad-icons' : ''}`} ref={rootRef} data-doc-id="main-ribbon">
       <div className="ribbon-tabs" role="tablist" aria-label="Ribbon">
         {TABS.map(({ id, label, icon: I, sep }, ti) => {
           const on = id === 'stages' ? onStage : tab === id;
@@ -654,10 +823,22 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         </button>
       </div>
       {tab === 'cad' && (!collapsed || peek) && (
-        <div className="ribbon-subtabs" role="tablist" aria-label="Design CAD">
-          {(Object.keys(CAD_SUB) as CadSub[]).map((k) => (
-            <button key={k} role="tab" aria-selected={sub === k} className={sub === k ? 'on' : ''} onClick={() => { setCadSub(k); if (k === 'sheets') a.onView('drawings'); else if (a.view !== 'cad') a.onView('cad'); }}>{CAD_SUB[k].label}</button>
-          ))}
+        <div className="ribbon-subtabs">
+          <div className="ribbon-file" ref={fileRef}>
+            <button type="button" className={fileOpen ? 'on' : ''} aria-haspopup="menu" aria-expanded={fileOpen} title="Open, save and close drawings; the level and units of the drawing"
+              onClick={() => { setFileOpen(!fileOpen); setFileList(null); }}><FolderOpen size={14} strokeWidth={1.8} aria-hidden />File<ChevronDown size={12} strokeWidth={1.8} aria-hidden /></button>
+            {fileOpen && fileMenu()}
+          </div>
+          <div className="ribbon-subtabs-list" role="tablist" aria-label="Design CAD">
+            {CAD_SUBS.map((k, i) => (
+              <button key={k} id={`ribbon-cad-${k}`} role="tab" aria-selected={sub === k} tabIndex={sub === k ? 0 : -1} className={sub === k ? 'on' : ''}
+                onClick={() => pickSub(k)} onKeyDown={(e) => tabKeys(e, i, CAD_SUBS.length, (j) => pickSub(CAD_SUBS[j]))}>{CAD_SUB[k].label}</button>
+            ))}
+          </div>
+          <span className="sp" />
+          <label className="ribbon-labels" title="The name of each tool under its icon (also in Preferences → App)">
+            <input type="checkbox" checked={labels} disabled={!a.cad?.onLabels} onChange={(e) => a.cad?.onLabels?.(e.target.checked)} />Show labels
+          </label>
         </div>
       )}
       {onStage && (!collapsed || peek) && (
@@ -671,15 +852,15 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           ))}
         </div>
       )}
-      {(!collapsed || peek) && <div id="ribbon-tools" ref={toolsRef} className={`ribbon-tools${collapsed ? ' peek' : ''}`} onClick={(e) => {
+      {(!collapsed || peek) && <div id="ribbon-tools" ref={toolsRef} className={`ribbon-tools${collapsed ? ' peek' : ''}`} onMouseOver={iconMode ? overTool : undefined} onMouseOut={iconMode ? offTool : undefined} onClick={(e) => {
         // A tool was used: put the dropped-down tools away (not for buttons that open a menu of their own).
         const b = (e.target as HTMLElement).closest('button');
         if (collapsed && b && !b.hasAttribute('aria-haspopup') && !b.hasAttribute('aria-expanded')) setPeek(false);
       }} role="toolbar" aria-label={`${[...TABS, ...STAGE_TABS].find((t) => t.id === tab)?.label} tools`}>
         {groups[tab].map((group, gi) => {
-          if (tab === 'cad' && !cadGroups(sub).includes(gi)) return null;
+          if (tab === 'cad' && !shown.includes(gi)) return null;
           const caption = CAPTIONS[tab]?.[gi];
-          const order = tab === 'cad' ? { order: cadGroups(sub).indexOf(gi) + 1 } : undefined;
+          const order = tab === 'cad' ? { order: shown.indexOf(gi) + 1 } : undefined;
           const menuOf = (tools: Tool[]) => tools.map((t) => ({ label: t.label, title: t.title, onClick: t.onClick }));
           const popup = (key: string, items: { label: string; title: string; onClick: () => void; sep?: boolean }[]) => splitOpen === key && (
             <div className="ribbon-split-menu" role="menu" style={{ left: splitAt.x, top: splitAt.y }} onMouseDown={(e) => e.stopPropagation()}>
@@ -688,7 +869,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           );
           const opener = (key: string) => (e: React.MouseEvent<HTMLElement>) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setSplitAt({ x: r.left, y: r.bottom + 2 }); setSplitOpen(splitOpen === key ? null : key); };
           // Collapsed for a narrow window: one button with the panel's name; its tools in a menu.
-          if (tab === 'cad' && (COLLAPSE[sub] ?? []).slice(0, shut).includes(gi)) {
+          if (tab === 'cad' && folded.includes(gi)) {
             const G = group[0]?.icon ?? ChevronDown;
             return (
               <div key={gi} className="ribbon-group" role="group" aria-label={caption} style={order}>
@@ -700,12 +881,22 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
               </div>
             );
           }
-          const button = ({ label, icon: I, title, onClick, active, disabled, stale, page, menu, sub, small }: Tool) => {
+          // Design CAD shows icons only (the name, command and what it does on hover), unless Show labels is on.
+          const icons = tab === 'cad' && !labels;
+          const button = (t: Tool) => {
+            const { label, icon: I, title, onClick, active, disabled, stale, page, menu, sub, small, menuOnly } = t;
+            const openList = (e: React.MouseEvent<HTMLElement>) => { e.stopPropagation(); const r = (e.currentTarget.closest('.ribbon-split') ?? e.currentTarget).getBoundingClientRect(); setSplitAt({ x: r.left, y: r.bottom + 2 }); setSplitOpen(splitOpen === label ? null : label); };
+            const said = icons ? tipOf(t) : undefined;
+            const hint = said ? {
+              'aria-label': label, 'aria-describedby': tip?.of === label ? 'ribbon-tip' : undefined, 'data-tip-head': said.head, 'data-tip-text': said.text, onBlur: hideTip,
+              onFocus: (e: React.FocusEvent<HTMLButtonElement>) => { if (fromKeyboard(e.currentTarget)) showTip(e.currentTarget); }
+            } : { title };
             const btn = (
-              <button key={label} className={`${active ? (page ? 'page-on' : 'on') : ''}${stale ? ' stale' : ''}`} title={title} aria-pressed={page ? undefined : active} aria-current={page && active ? 'page' : undefined} disabled={disabled} onClick={onClick}>
-                <I size={small ? 15 : 20} strokeWidth={1.6} />
-                <span>{label}</span>
-                {sub && !small && <span className="ribbon-sub">{sub}</span>}
+              <button key={label} className={`${active ? (page ? 'page-on' : 'on') : ''}${stale ? ' stale' : ''}`} {...hint} aria-pressed={page || menuOnly ? undefined : active} aria-current={page && active ? 'page' : undefined}
+                aria-haspopup={menuOnly ? 'menu' : undefined} aria-expanded={menuOnly ? splitOpen === label : undefined} disabled={disabled} onClick={(e) => { hideTip(); if (menuOnly && menu) openList(e); else onClick(); }}>
+                <I size={icons ? (small ? 16 : 18) : small ? 15 : 20} strokeWidth={1.6} />
+                {!icons && <span>{label}</span>}
+                {sub && !small && !icons && <span className="ribbon-sub">{sub}</span>}
               </button>
             );
             if (!menu) return btn;
@@ -713,16 +904,18 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
               <span key={label} className="ribbon-split">
                 {btn}
                 <button className="ribbon-split-arrow" title={`${label}: more options`} aria-haspopup="menu" aria-expanded={splitOpen === label} disabled={disabled}
-                  onClick={(e) => { e.stopPropagation(); const r = (e.currentTarget.parentElement ?? e.currentTarget).getBoundingClientRect(); setSplitAt({ x: r.left, y: r.bottom + 2 }); setSplitOpen(splitOpen === label ? null : label); }}><ChevronDown size={small ? 12 : 14} strokeWidth={1.8} aria-hidden /></button>
+                  onClick={openList}><ChevronDown size={small ? 12 : 14} strokeWidth={1.8} aria-hidden /></button>
                 {popup(label, menu)}
               </span>
             );
           };
-          // Small buttons go three to a column, in order; the panel's less used tools wait in its caption's ▾.
+          // Small buttons go three to a column (two with icons only), in order; the panel's less used tools wait in its
+          // caption's ▾.
           const row: React.ReactNode[] = [];
           let stack: Tool[] = [];
+          const per = icons ? 2 : 3;
           const flush = () => { if (stack.length) row.push(<div key={`s${row.length}`} className="ribbon-stack">{stack.map(button)}</div>); stack = []; };
-          for (const t of group.filter((x) => !x.more)) { if (t.small) { stack.push(t); if (stack.length === 3) flush(); } else { flush(); row.push(button(t)); } }
+          for (const t of group.filter((x) => !x.more)) { if (t.small) { stack.push(t); if (stack.length === per) flush(); } else { flush(); row.push(button(t)); } }
           flush();
           const extra = group.filter((x) => x.more);
           return (
@@ -797,6 +990,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           </div>
         )}
       </div>}
+      {tip && <div className="ribbon-tip" role="tooltip" id="ribbon-tip" style={{ left: tip.x, top: tip.y }}><b>{tip.head}</b>{tip.text}</div>}
     </div>
   );
 }

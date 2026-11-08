@@ -42,6 +42,8 @@ export interface AppPrefs {
   theme?: ThemePref;
   /** Colour palette; absent = graphite (the default look). Never affects exports. */
   palette?: PalettePref;
+  /** Design CAD's ribbon shows each tool's name under its icon (Show labels); absent = icons only, the name on hover. */
+  cadLabels?: boolean;
 }
 
 export interface Preferences {

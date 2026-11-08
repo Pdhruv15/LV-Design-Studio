@@ -216,7 +216,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [textAsk, setTextAsk] = useState<{ step: 'height' | 'rot' | null; mm: number; rot: number } | null>(null);
   const [typed, setTyped] = useState<string[]>([]);
   const [recent, setRecent] = useState<{ label: string; tool?: CadTool; text?: string }[]>([]);
-  const [log, setLog] = useState<'history' | 'help' | null>(null);
+  const { log, setLog } = cad;
   // Dynamic input at the cursor: what is typed in its boxes, and its options list open (with the one picked).
   const [dynVals, setDynVals] = useState<string[]>([]);
   const [dynMenu, setDynMenu] = useState<number | null>(null);
@@ -227,7 +227,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // Layer palette shown, and the object Match properties copies from.
   const [showLM, setShowLM] = useState(false);
   // The properties palette (Ctrl/Cmd+1): shown while a drawing is open, unless hidden.
-  const [showProps, setShowProps] = useState(true);
+  const { showProps, setShowProps } = cad;
   const [mpFrom, setMpFrom] = useState<string | null>(null);
   const [hatchSet, setHatchSet] = useState<HatchSpec>(HATCH_START);
   // References: the manager shown, the reference being attached (its dialog, or a point being picked for it), the one
@@ -512,9 +512,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER}${refLines.length ? `, ${boundText(refLines)} bound on NAME$0$LAYER layers` : ''}${wiring.length ? `, ${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on ${WIRING_LAYER} / ${TAG_LAYER}` : ''})`); onStatus(msg); }
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
   }
-  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), close: () => { if (view) closeDrawings([view]); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); } };
+  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), close: () => { if (view) closeDrawings([view]); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); }, command: (t) => run(t), reopen: () => { if (last) void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.'); } };
   // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
   useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
+  // A ribbon command given while another page was shown runs now that the page is here.
+  useEffect(() => { const fn = cad.pending.current; if (fn) { cad.pending.current = null; fn(cad.actions.current); } });
 
   /** Light room: places the kept room's lights on the circuit chosen. */
   function placeLux() {

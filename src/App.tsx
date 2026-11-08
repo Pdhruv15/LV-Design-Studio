@@ -147,7 +147,7 @@ import { moveBoard, moveSummary, reorderBoard } from './model/moveBoard';
 const ProjectsDashboard = lazy(() => import('./components/ProjectsDashboard'));
 import { NameDialog, UnsavedDialog } from './components/FileDialogs';
 import type { BoardKind, ProjectStatus } from './types';
-import { useCad } from './components/cad/cadState';
+import { rememberedDrawing, useCad, type CadActions } from './components/cad/cadState';
 import { cadFileMenu, planLevel } from './components/cad/cadFileMenu';
 import { plansOf } from './model/cadPlans';
 import { chooseDrawing, openDrawing } from './engines/cad/cadEngine';
@@ -304,6 +304,13 @@ export default function App() {
   const [showCadLoads, setShowCadLoads] = useState(false);
   // CAD view: the drawings stay open while other pages are shown.
   const cadS = useCad(project.id);
+  /** Runs an action of the CAD page; from another page (the sheets) it shows the drawing first and runs once the page
+   * is there. */
+  const cadDo = (fn: (x: CadActions) => void) => { if (view === 'cad') fn(cadS.actions.current); else { cadS.pending.current = fn; setView('cad'); } };
+  // File → Reopen: the drawing open last on this computer while it is not open (desktop only, as on the start screen).
+  const cadLast = rememberedDrawing(project.id), cadLastFile = cadLast?.split(/[\\/]/).pop();
+  const cadReopen = cadLast && cadLastFile && window.lvds?.cadFile?.readBytes && !cadS.drawings.some((d) => d.file.toLowerCase() === cadLastFile.toLowerCase())
+    ? { label: `Reopen ${cadLastFile}`, title: `Open ${cadLast} again: the drawing open last`, onClick: () => cadDo((x) => x.reopen()) } : undefined;
   const openCad = async () => {
     setView('cad');
     try { const v = await chooseDrawing(); if (v) { cadS.open(v); setStatus(`${v.file} opened`); } } catch (e) { setStatus(e instanceof Error ? e.message : String(e)); }
@@ -1230,7 +1237,7 @@ export default function App() {
         a={{
           view,
           onView: setView,
-          sheets: sheetRibbon,
+          sheets: { ...sheetRibbon, selected: (view === 'cad' && cadS.layout ? setOf(project).sheets.find((x) => x.id === cadS.layout) : openSheet)?.markups?.find((m) => m.id === sheetUi.selId) },
           onBom: (cmd) => { setView('boq'); setBomCmd((c) => ({ cmd, n: (c?.n ?? 0) + 1 })); },
           hasPriceList: !!project.priceList,
           tool,
@@ -1255,20 +1262,26 @@ export default function App() {
           onSave: () => saveProject(),
           onSaveAs: () => saveAs(),
           onAnonymizedSample: () => setShowAnonymized(true),
-          cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onSave: () => cadS.actions.current.save(), onSaveDwg: () => cadS.actions.current.saveDwg(), onClose: () => cadS.actions.current.close(), onDelete: () => cadS.actions.current.remove(), hasSelection: !!cadS.selected, onFit: () => cadS.fit(), onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, onLayerManager: () => { setView('cad'); cadS.actions.current.layerManager(); }, onRefs: () => { setView('cad'); cadS.actions.current.refs(); }, inLayout: !!cadS.layout && view === 'cad', onLayoutCmd: (c) => { setView('cad'); cadS.actions.current.layoutCmd(c); }, layersOn: cadS.showLayers, hasDrawing: !!cadS.view,
+          cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onSave: () => cadDo((x) => x.save()), onSaveDwg: () => cadDo((x) => x.saveDwg()), onClose: () => cadDo((x) => x.close()), onDelete: () => cadDo((x) => x.remove()), hasSelection: !!cadS.selected, onFit: () => cadS.fit(), onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, onLayerManager: () => cadDo((x) => x.layerManager()), onRefs: () => cadDo((x) => x.refs()), inLayout: !!cadS.layout && view === 'cad', onLayoutCmd: (c) => cadDo((x) => x.layoutCmd(c)),
+            onPaper: !!cadS.layout && view === 'cad' && !cadS.msVp, onCommand: (c) => cadDo((x) => x.command(c)),
+            reopen: cadReopen,
+            propsOn: cadS.showProps, onProps: () => { cadS.setShowProps(!cadS.showProps); setView('cad'); },
+            historyOn: cadS.log === 'history', onHistory: () => { cadS.setLog(cadS.log === 'history' ? null : 'history'); setView('cad'); },
+            toggles: cadS.toggles, gridDots: cadS.gridDots, onToggle: (k) => { if (k === 'grid') cadS.cycleGrid(); else cadS.toggle(k); },
+            labels: !!prefs.app.cadLabels, onLabels: (on) => { const p = { ...prefs, app: { ...prefs.app, cadLabels: on || undefined } }; setPrefs(p); savePrefs(p); }, layersOn: cadS.showLayers, hasDrawing: !!cadS.view,
             file: (() => {
               const f = cadFileMenu(project, cadS, (next, message) => { setProject(next, { step: true }); setStatus(message); }, setStatus);
               const show = (m: { label: string; title: string; onClick: () => void; sep?: boolean }[]) => m.map((x) => ({ ...x, onClick: () => { setView('cad'); x.onClick(); } }));
               return { ...f, plans: show(f.plans), levels: show(f.levels), units: show(f.units) };
             })(),
-            onRoles: () => { cadS.setShowRoles(!cadS.showRoles); cadS.setShowLayers(true); setView('cad'); }, rolesOn: cadS.showRoles && cadS.showLayers, onAddFound: () => { setView('cad'); cadS.actions.current.addFound(); },
-            onSchedules: () => { setView('cad'); cadS.actions.current.schedules(); },
+            onRoles: () => { cadS.setShowRoles(!cadS.showRoles); cadS.setShowLayers(true); setView('cad'); }, rolesOn: cadS.showRoles && cadS.showLayers, onAddFound: () => cadDo((x) => x.addFound()),
+            onSchedules: () => cadDo((x) => x.schedules()),
             onPlaceBoard: () => { cadS.setDevice('db'); cadS.setTool('dev'); setView('cad'); }, placingBoard: cadS.tool === 'dev' && cadS.device === 'db',
             onCoverage: () => { cadS.setCoverage(!cadS.coverage); setView('cad'); }, coverageOn: cadS.coverage,
-            onWireAll: () => { setView('cad'); cadS.actions.current.wireAll(); }, onTags: () => { cadS.setWireTags(!cadS.wireTags); setView('cad'); }, tagsOn: cadS.wireTags,
+            onWireAll: () => cadDo((x) => x.wireAll()), onTags: () => { cadS.setWireTags(!cadS.wireTags); setView('cad'); }, tagsOn: cadS.wireTags,
             copyLevels: (() => {
               const here = planLevel(project, cadS.view?.file).floor;
-              return view === 'cad' && here ? plansOf(project).filter((x) => x.floor.key !== here.key).map((x) => ({ label: x.label, title: `Copy to ${x.label}`, onClick: () => cadS.actions.current.copyTo(x.floor.key) })) : [];
+              return view === 'cad' && here ? plansOf(project).filter((x) => x.floor.key !== here.key).map((x) => ({ label: x.label, title: `Copy to ${x.label}`, onClick: () => cadDo((a) => a.copyTo(x.floor.key)) })) : [];
             })() },
           onProfile: () => setShowPrefs(true),
           onChooseFolder: chooseFolder,

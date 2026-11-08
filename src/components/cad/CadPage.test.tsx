@@ -1379,6 +1379,30 @@ describe('file tabs', () => {
   });
 });
 
+describe('CAD page actions from the ribbon', () => {
+  it('a command given while another page showed (the sheets) runs once the page is there', async () => {
+    let showPage: (on: boolean) => void = () => {};
+    function Later() {
+      const cad = useCad('p1');
+      const [on, setOn] = useState(false);
+      const sheetUi = useSheetUi();
+      state = cad;
+      showPage = setOn;
+      return on ? <CadPage cad={cad} project={villa} onChange={onChange} onStatus={() => {}} sheetUi={sheetUi} /> : null;
+    }
+    act(() => root.render(<Later />));
+    const ran = vi.fn((x: Parameters<NonNullable<CadState['pending']['current']>>[0]) => x.command('GRID'));
+    state.pending.current = ran;
+    expect(state.toggles.grid).toBe(false);
+    act(() => showPage(true));
+    await until(() => ran.mock.calls.length > 0);
+    expect(ran).toHaveBeenCalledTimes(1);
+    expect(state.pending.current).toBeNull();
+    expect(state.toggles.grid).toBe(true); // GRID ran on the page, as if typed
+    expect(state.history.slice(-1)[0]).toBe('Command: GRID');
+  });
+});
+
 describe('CAD command line', () => {
   const line = (id: string, a: [number, number], b: [number, number]) => ({ id, kind: 'line' as const, layer: 'LV-SKETCH', pts: [a, b] });
   const X = 200000;
