@@ -29,6 +29,8 @@ import { commitProject, readLog, undoChange, WriteRefused } from './write';
  * also needs the name of the engineer who approved it. Exports are in exportTools.ts. */
 
 export const AUTHOR = 'AI assistant (lvds)';
+/** The author of a proposal: the AI client by its own name when it gave one (MCP). */
+export const authorOf = (ctx: ToolContext): string => (ctx.client ? `${AUTHOR} via ${ctx.client}` : AUTHOR);
 const project = z.string().describe('Project file name in the projects folder, as given by list_projects');
 const preview = (other: 'apply' | 'propose') => z.enum(['preview', other]).default('preview').describe(`preview = show what would change, nothing is written; ${other} = ${other === 'apply' ? 'change the project file (a backup is kept; undo_change puts it back)' : 'add the proposal to Reports → Changes for the engineer to accept and apply in the app'}`);
 
@@ -65,7 +67,7 @@ export function edit(args: Record<string, unknown>, ctx: ToolContext, tool: stri
   };
   if (!write) return { mode: 'preview', written: false, ...result, next: 'Nothing was written. Call again with mode apply / propose to make the change.' };
   if (out.next === p) return { mode: 'done', written: false, ...result };
-  const entry = commitProject(ctx.folder, file, text, out.next, tool, out.summary);
+  const entry = commitProject(ctx.folder, file, text, out.next, tool, out.summary, ctx.client);
   return { mode: 'done', written: true, change: entry.id, file: path.basename(file), ...result, note: `Undo with undo_change (change ${entry.id}). If the project is open in the app, open it again to see the change.` };
 }
 
@@ -87,11 +89,11 @@ const BOARD_RATING: Record<BoardKind, number> = { MC: 400, 'LV-ACB': 1600, MDB: 
 export interface ValueChange { target: ModTarget; id?: string; field: string; value: unknown }
 
 /** A proposal (status proposed) with these changes, checked by the app's own rules. */
-export function proposal(p: Project, title: string, reason: string, changes: ValueChange[]) {
+export function proposal(p: Project, title: string, reason: string, changes: ValueChange[], author = AUTHOR) {
   if (!changes.length) throw new Error('Nothing to propose: no value would change.');
-  let rec = newModification(p, { title, reason, author: AUTHOR });
+  let rec = newModification(p, { title, reason, author });
   for (const c of changes) rec = addOp(p, rec, c.target, c.target === 'project' ? undefined : c.id, c.field, c.value);
-  const t = transition(p, rec, 'proposed', { by: AUTHOR });
+  const t = transition(p, rec, 'proposed', { by: author });
   if (!t.ok) throw new Error(t.error);
   return t.record;
 }
@@ -101,7 +103,7 @@ function proposeTool(args: Record<string, unknown>, ctx: ToolContext, tool: stri
   // Only the record is written; the checks show the design as it would be once the engineer applies it.
   const res = edit(args, ctx, tool, write, (p) => {
     const m = make(p);
-    const rec = proposal(p, m.title, m.reason, m.changes);
+    const rec = proposal(p, m.title, m.reason, m.changes, authorOf(ctx));
     return {
       next: withRecord(p, rec),
       designAfter: withProposal(p, rec),
@@ -171,7 +173,7 @@ export const EDIT_TOOLS: Tool[] = [
         if (f.sizingPending) warnings.push(`${f.id}: after applying, untick "sizing pending" on the circuit in the app`);
       }
       if (!changes.length) throw new Error(inScope.length ? `The ${inScope.length} circuit(s) in scope already pass with their present sizes (or nothing standard fits: ${warnings.join('; ') || 'none'}).` : 'No circuits in scope.');
-      return { title: `Size ${new Set(changes.map((c) => c.id)).size} circuit(s)${panel ? ` on ${panel}` : ''}`, reason: `Cable and breaker selection by the app's sizing rules (scope: ${scope}), proposed by ${AUTHOR}.`, changes, warnings };
+      return { title: `Size ${new Set(changes.map((c) => c.id)).size} circuit(s)${panel ? ` on ${panel}` : ''}`, reason: `Cable and breaker selection by the app's sizing rules (scope: ${scope}), proposed by ${authorOf(ctx)}.`, changes, warnings };
     })
   },
   {
@@ -368,7 +370,7 @@ export const EDIT_TOOLS: Tool[] = [
       const target = a.change ? log.find((e) => e.id === a.change) : [...log].reverse().find((e) => !e.undoes && !undone.has(e.id));
       if (!target) throw new WriteRefused(a.change ? `No change ${String(a.change)} for ${name}.` : `No change to undo for ${name}.`);
       if (a.mode !== 'apply') return { mode: 'preview', written: false, wouldUndo: { change: target.id, at: target.at, summary: target.summary }, next: 'Call again with mode apply to put it back.' };
-      const e = undoChange(ctx.folder, file, text, p, target.id);
+      const e = undoChange(ctx.folder, file, text, p, target.id, ctx.client);
       return { mode: 'done', written: true, change: e.id, summary: e.summary, note: 'If the project is open in the app, open it again to see it.' };
     }
   }

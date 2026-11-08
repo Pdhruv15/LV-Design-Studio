@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { INK, SNAP, SNAP_NAMES, type CadView } from '../../engines/cad/cadEngine';
 import { ortho as orthoFrom } from '../../model/cadMeasure';
-import { dimensionLines, segmentsOf, trayLabel, trayLine, TRAY_TEXT_MM } from '../../model/cadSketch';
+import { dimensionLines, dimLabel, segmentsOf, trayLabel, trayLine, TRAY_TEXT_MM } from '../../model/cadSketch';
 import type { PlanCells, PlanCover } from '../elv/elvOverlay';
 import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from '../../model/cadDraw';
@@ -14,7 +14,8 @@ import { isFitClick, isPanPress, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, whee
 
 type Pt = [number, number];
 
-export interface CadToggles { snap: boolean; osnap: boolean; ortho: boolean; grid: boolean }
+/** The status bar toggles; `dyn` (dynamic input at the cursor) is the page's, the drawing does not use it. */
+export interface CadToggles { snap: boolean; osnap: boolean; ortho: boolean; grid: boolean; dyn?: boolean }
 /** What a tool draws over the drawing: picked points (drawing units, absolute), and while `live` a rubber band to the
  * cursor; `closed` outlines are shaded. */
 /** A device placed in the app, drawn over the drawing (drawing units, absolute): its symbol, letters and label. */
@@ -41,7 +42,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents }: {
+export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents }: {
   view: CadView;
   layersOn: Uint8Array;
   toggles: CadToggles;
@@ -50,6 +51,9 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
   /** A click (left button, not panning): the snapped point, the size of one screen pixel in drawing units, and whether
    * Shift was held. */
   onClick?: (at: Pt, pixel: number, shift?: boolean) => void;
+  /** Numbers are being typed on the command line (a tool is running, or something is typed there): 0 and − go there
+   * rather than fit or zoom the view. */
+  numbersTyped?: boolean;
   /** A left drag picks with a window (Select): its corners (drawing units, absolute), `crossing` when dragged right to
    * left, `add` with Shift held. */
   windowSelect?: boolean;
@@ -485,7 +489,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     }
     for (const it of sketch) {
       const label = it.kind === 'text' ? { at: it.pts[0], s: it.text ?? '', h: it.h ?? 0, rot: it.rot ?? 0, align: 'left' as CanvasTextAlign }
-        : it.kind === 'dim' ? (() => { const d = dimensionLines(it.pts[0], it.pts[1], it.pts[2]); return { at: d.text, s: it.text ?? '', h: it.h ?? d.length * 0.04, rot: d.angle, align: 'center' as CanvasTextAlign }; })()
+        : it.kind === 'dim' ? (() => { const d = dimensionLines(it.pts[0], it.pts[1], it.pts[2], it.look); return { at: d.text, s: it.look ? dimLabel(it, 0.001 / unitsPerMm) : it.text ?? '', h: it.h ?? d.length * 0.04, rot: d.angle, align: 'center' as CanvasTextAlign }; })()
         : it.tray ? (() => { const l = trayLabel(it); return { at: l.at, s: l.text, h: trayH, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
         : it.cable && labels[it.id] ? (() => { const l = trayLabel(it); return { at: l.at, s: labels[it.id], h: 120 * unitsPerMm, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
         : null;
@@ -685,11 +689,11 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     return { scale, ox: (x0 + x1) / 2 - o0 - size.w / 2 / scale, oy: (y0 + y1) / 2 - o1 - size.h / 2 / scale };
   };
   const fitNow = () => { if (fixed || b0 !== undefined) return; placeOf.delete(view); setT(fitT()); };
-  // + / − zoom about the middle, 0 fits, arrows pan (letters go to the command line).
+  // + / − zoom about the middle, 0 fits, arrows pan (letters go to the command line, and 0 and − while numbers are typed).
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e) => {
     const k = viewKey(e, false);
-    if (!k || k === 'grid') return;
+    if (!k || k === 'grid' || (numbersTyped && (e.key === '0' || e.key === '-'))) return;
     e.preventDefault();
     if (k === 'fit') fitNow();
     else if (k === 'in' || k === 'out') zoomAt(size.w / 2, size.h / 2, k === 'in' ? KEY_STEP : 1 / KEY_STEP);

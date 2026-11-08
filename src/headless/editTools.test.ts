@@ -11,7 +11,7 @@ import { sampleProject } from '../data/sampleProject';
 import { evaluateProject } from '../calc/electrical';
 import { applyModification, transition } from '../model/designChanges';
 import type { Project } from '../types';
-import { callTool, offeredTools, toolByName, type ToolContext } from './tools';
+import { callTool, clientLabel, offeredTools, toolByName, type ToolContext } from './tools';
 import { parseProject } from './project';
 import { readLog, writeBlocked } from './write';
 import { createApi, newApiToken } from './api';
@@ -233,6 +233,28 @@ describe('servers', () => {
     expect((await list(false)).some((t) => t.name === 'add_panel')).toBe(false);
     const w = await list(true);
     expect(w.find((t) => t.name === 'add_panel')!.annotations?.readOnlyHint).toBe(false);
+  });
+  it('MCP: changes, proposals and the log name the AI client that made them', async () => {
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: 'Test <b>Client</b>\n', version: '9.9' });
+    await Promise.all([createMcp({ folder, anywhere: false, write: true }, '1').connect(a), client.connect(b)]);
+    try {
+      const added = await client.callTool({ name: 'add_panel', arguments: { project: 'Villa', kind: 'DB', fedFrom: 'SMDB-GF', mode: 'apply' } });
+      expect(added.isError).toBeFalsy();
+      expect(readLog(folder).slice(-1)[0]).toMatchObject({ tool: 'add_panel', client: 'Test bClient/b 9.9' });
+      const sized = await client.callTool({ name: 'size_circuits', arguments: { project: 'Failing', mode: 'propose' } });
+      expect(sized.isError).toBeFalsy();
+      const rec = load('Failing').modifications!.slice(-1)[0];
+      expect(rec.author).toBe('AI assistant (lvds) via Test bClient/b 9.9');
+      expect(readLog(folder).slice(-1)[0].client).toBe('Test bClient/b 9.9');
+    } finally { await client.close(); }
+  });
+  it('a client name is cleaned and kept short; the command line names no client', () => {
+    expect(clientLabel({ name: 'x'.repeat(200), version: '1' })).toBe(`${'x'.repeat(60)} 1`);
+    expect(clientLabel({ name: '\u0007<>' })).toBeUndefined();
+    expect(clientLabel(undefined)).toBeUndefined();
+    run('add_panel', { project: 'Villa', kind: 'DB', fedFrom: 'SMDB-GF', mode: 'apply' });
+    expect(readLog(folder).slice(-1)[0].client).toBeUndefined();
   });
   it('API: a change needs POST with JSON', async () => {
     const token = newApiToken(), auth = { Authorization: `Bearer ${token}` };

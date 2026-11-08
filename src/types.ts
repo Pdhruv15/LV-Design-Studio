@@ -438,6 +438,8 @@ export interface SketchItem {
   hatch?: import('./model/cadAnnotate').HatchSpec;
   /** A leader: an arrow at the first point. */
   leader?: boolean;
+  /** A dimension drawn with a dimension style: its arrows, gap and extension (src/model/cadStyles.ts). */
+  look?: import('./model/cadSketch').DimLook;
 }
 export interface CadSketch { file: string; items: SketchItem[] }
 /** A level's plan in Design CAD: the drawing file (name only) that shows the level, and the units it says it is in
@@ -556,6 +558,9 @@ export interface Project {
   /** Design CAD layer manager: each drawing's layer styles by file (lower case) and layer name. */
   /** Design CAD annotation: text height on paper (mm) and the scale the plans are annotated for. */
   cadAnno?: import('./model/cadAnnotate').AnnoSettings;
+  /** Design CAD text and dimension styles, and the current one of each (absent: one "Standard", as before). */
+  cadTextStyles?: import('./model/cadStyles').CadStyles<import('./model/cadStyles').CadTextStyle>;
+  cadDimStyles?: import('./model/cadStyles').CadStyles<import('./model/cadStyles').CadDimStyle>;
   cadLayerStyle?: Record<string, Record<string, import('./model/cadLayerStyle').LayerStyle>>;
   /** Design CAD layer palette per drawing file: current layer, empty layers added, layer states (src/model/cadLayerState.ts). */
   cadLayerFile?: Record<string, import('./model/cadLayerState').CadLayerFile>;
