@@ -9,8 +9,10 @@ import type { SketchItem } from '../../types';
 
 export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase';
 export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array';
-export interface EditSettings { offset: string; radius: string; d1: string; d2: string; keep: boolean; factor: string; polar: boolean; rows: string; cols: string; dx: string; dy: string; n: string; angle: string }
-export const ED_START: EditSettings = { offset: '0.3', radius: '0', d1: '0.5', d2: '0.5', keep: true, factor: '2', polar: false, rows: '2', cols: '3', dx: '1', dy: '1', n: '6', angle: '360' };
+/** Offset `through` a point (the copy passes through it), `erase` the source, the copies on the `source` layer or the
+ * `current` one; Fillet and Chamfer `trim` the lines to the corner (else they stay and the arc or line is added). */
+export interface EditSettings { offset: string; through: boolean; erase: boolean; layer: 'source' | 'current'; radius: string; d1: string; d2: string; trim: boolean; keep: boolean; factor: string; polar: boolean; rows: string; cols: string; dx: string; dy: string; n: string; angle: string }
+export const ED_START: EditSettings = { offset: '0.3', through: false, erase: false, layer: 'source', radius: '0', d1: '0.5', d2: '0.5', trim: true, keep: true, factor: '2', polar: false, rows: '2', cols: '3', dx: '1', dy: '1', n: '6', angle: '360' };
 
 const LABEL: Record<SketchEdit, string> = {
   filter: 'Filter ▾', trim: 'Trim', extend: 'Extend', offset: 'Offset', break: 'Break', fillet: 'Fillet', mirror: 'Mirror', scale: 'Scale', array: 'Array',

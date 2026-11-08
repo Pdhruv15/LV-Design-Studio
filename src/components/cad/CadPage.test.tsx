@@ -710,6 +710,8 @@ describe('CAD view', () => {
     expect(state.tool).toBe('mirror');
     await clickAt(X, -1000);
     await clickAt(X + 1000, -1000); // about y = −1 m
+    expect(document.querySelector('.cad-hist')!.textContent).toBe('MIRROR  Erase source objects? [Yes/No] <No>:');
+    await command(''); // Enter: No, the originals stay
     const items = project.cadSketch![0].items;
     expect(items).toHaveLength(2);
     expect(items[1].pts.map((q) => q.map((v) => Math.round(v)))).toEqual([[X, -2000], [X + 4000, -2000], [X + 4000, -7000]]);
@@ -1267,3 +1269,271 @@ describe('file tabs', () => {
     expect(state.layout).toBeNull();
   });
 });
+
+describe('CAD command line', () => {
+  const line = (id: string, a: [number, number], b: [number, number]) => ({ id, kind: 'line' as const, layer: 'LV-SKETCH', pts: [a, b] });
+  const X = 200000;
+  const two: Project = { ...villa, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [line('S1', [X, 0], [X + 4000, 0]), line('S2', [X + 6000, 1000], [X + 6000, 5000])] }] };
+  const hist = () => document.querySelector('.cad-hist')!.textContent;
+  const earlier = () => [...document.querySelectorAll('.cad-hist-prev div')].map((d) => d.textContent);
+  const key = (k: string, target: EventTarget = window, more: KeyboardEventInit = {}) => act(() => { target.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...more })); });
+  const keyUp = (k: string, target: EventTarget = window) => act(() => { target.dispatchEvent(new KeyboardEvent('keyup', { key: k, code: k === ' ' ? 'Space' : k, bubbles: true, cancelable: true })); });
+  /** A key pressed and let go (Space works as Enter when it is let go). */
+  const tap = (k: string, target: EventTarget = window) => { key(k, target, { code: k === ' ' ? 'Space' : k }); keyUp(k, target); };
+  const items = () => project.cadSketch![0].items;
+  const last = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
+  const option = (name: string) => [...document.querySelectorAll<HTMLButtonElement>('.cad-hist .cad-opt')].find((b) => b.textContent === name)!;
+  const start = async (p: Project = two) => { project = p; act(() => root.render(<Host start={p} />)); await flush(); act(() => state.toggle('osnap')); };
+
+  it('shows three earlier lines, the prompt with its options, one line for an unknown command, F1 the list and F2 the history', async () => {
+    await start();
+    await command('xyz');
+    expect(hist()).toBe('Unknown command "XYZ". Press F1 for the list.');
+    await command('O');
+    expect(hist()).toBe('Command: OFFSET  Specify offset distance or [Through/Erase/Layer] <0.30>:');
+    expect(earlier()).toHaveLength(3);
+    expect(earlier().slice(1)).toEqual(['Unknown command "XYZ". Press F1 for the list.', 'Command: O']);
+    expect([...document.querySelectorAll('.cad-hist .cad-opt')].map((b) => b.textContent)).toEqual(['Through', 'Erase', 'Layer']);
+    key('F1');
+    expect(document.querySelector('[aria-label="Command list (F1)"]')!.textContent).toContain('O · OFFSET  Offset');
+    key('Escape');
+    expect(document.querySelector('.cad-log')).toBeNull();
+    expect(state.tool).toBe('offset'); // Esc closed the list only
+    key('F2');
+    expect(document.querySelector('[aria-label="Command history (F2)"]')!.textContent).toContain('Unknown command "XYZ"');
+    key('F2');
+    expect(document.querySelector('.cad-log')).toBeNull();
+  });
+
+  it('Offset: an option clicked works as typed, Enter takes the value in < >, then Enter ends the tool and repeats it', async () => {
+    await start();
+    await command('O');
+    await act(async () => { option('Erase').click(); });
+    expect(earlier()[2]).toBe('OFFSET  Erase source after offsetting: Yes');
+    expect(hist()).toBe('OFFSET  Specify offset distance or [Through/Erase/Layer] <0.30>:');
+    await command(''); // the 0.30 in < >
+    expect(hist()).toBe('OFFSET  Select object to offset or [Exit]:');
+    await clickAt(X + 2000, 0);
+    expect(hist()).toBe('OFFSET  Specify point on side to offset:');
+    await clickAt(X + 2000, 1000);
+    expect(items()).toHaveLength(2); // the source moved, none added
+    expect(items()[0]).toMatchObject({ id: 'S1', pts: [[X, 300], [X + 4000, 300]] });
+    expect(last()).toBe('OFFSET  Line moved 0.30 m to the side · ⌘Z to undo');
+    await command('');
+    expect(state.tool).toBe('none');
+    await command(''); // Enter with no tool: the last command again
+    expect(state.tool).toBe('offset');
+    key('Escape');
+    act(() => { (document.querySelector('input[aria-label="Command"]') as HTMLInputElement).blur(); });
+    tap(' '); // Space works as Enter
+    expect(state.tool).toBe('offset');
+  });
+
+  it('Offset Through: the copy passes through the point clicked; Layer puts it on the current layer', async () => {
+    const onLayer: Project = { ...two, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [{ ...line('S1', [X, 0], [X + 4000, 0]), layer: 'A-OTHER' }] }] };
+    await start(onLayer);
+    await command('O');
+    await command('T');
+    expect(hist()).toBe('OFFSET  Specify offset distance or [Through/Erase/Layer] <Through>:');
+    await command('LAYER'); // the option's word works as its key
+    await command('');
+    await clickAt(X + 2000, 0);
+    expect(hist()).toBe('OFFSET  Specify through point:');
+    await clickAt(X + 1000, 750);
+    expect(items()[1].layer).toBe('LV-SKETCH');
+    expect(items()[1].pts.flat().map((v) => Math.round(v))).toEqual([X, 750, X + 4000, 750]);
+    expect(last()).toBe('OFFSET  Line copied 0.75 m to the side (through the point) · ⌘Z to undo');
+  });
+
+  it('Fillet: Radius asks for the radius, Trim No keeps the lines and adds the arc', async () => {
+    await start();
+    await command('F');
+    expect(hist()).toBe('Command: FILLET  Select first object or [Radius/Trim] <R 0.00>:');
+    await command('R');
+    expect(hist()).toBe('FILLET  Specify fillet radius <0.00>:');
+    await command('0.5');
+    expect(hist()).toBe('FILLET  Select first object or [Radius/Trim] <R 0.50>:');
+    await command('T');
+    expect(hist()).toBe('FILLET  Select first object or [Radius/Trim] <R 0.50, No trim>:');
+    await clickAt(X + 3000, 0);
+    expect(hist()).toBe('FILLET  Select second object:');
+    await clickAt(X + 6000, 2000);
+    expect(items().slice(0, 2).map((x) => x.pts)).toEqual([[[X, 0], [X + 4000, 0]], [[X + 6000, 1000], [X + 6000, 5000]]]);
+    expect(items()[2]).toMatchObject({ kind: 'arc', r: 500 });
+    expect(last()).toBe('FILLET  radius 0.50 m, lines not trimmed · ⌘Z to undo');
+  });
+
+  it('Scale asks for the factor after the base point; Array asks its type', async () => {
+    await start();
+    await dragWindow([X - 500, -500], [X + 6500, 5500]);
+    await act(async () => { [...document.querySelectorAll('[aria-label="Edit drawn objects"] button')].find((b) => b.textContent === 'Scale')!.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(hist()).toBe('Command: SCALE  Specify base point:');
+    await clickAt(X, 0);
+    expect(hist()).toBe('SCALE  Specify scale factor <2>:');
+    await command('0.5');
+    expect(items()[0].pts).toEqual([[X, 0], [X + 2000, 0]]);
+    expect(last()).toBe('SCALE  2 objects scaled × 0.5 · ⌘Z to undo');
+    await command('AR');
+    await clickAt(X + 1000, 0);
+    await command('');
+    expect(hist()).toBe('ARRAY  Enter array type [Rectangular/Polar] <Rectangular>:');
+    await command('');
+    expect(last()).toBe('ARRAY  5 copies made · ⌘Z to undo');
+  });
+
+  it('TEXT asks height and rotation after its point; a word typed there is the text', async () => {
+    await start();
+    await command('T');
+    await clickAt(X, 0);
+    expect(hist()).toBe('TEXT  Specify height <2.5 mm>:');
+    await command('5');
+    expect(hist()).toBe('TEXT  Specify rotation angle <0>:');
+    await command('90');
+    expect(hist()).toBe('TEXT  Enter text:');
+    await command('DB ROOM');
+    expect(items()[2]).toMatchObject({ kind: 'text', text: 'DB ROOM', h: 500 });
+    expect(items()[2].rot).toBeCloseTo(Math.PI / 2, 6);
+    await clickAt(X, 2000);
+    await command('KITCHEN');
+    expect(items()[3]).toMatchObject({ kind: 'text', text: 'KITCHEN', h: 250 });
+  });
+
+  it('lists matching commands while typing (Tab picks), and Up recalls the commands typed before', async () => {
+    await start();
+    const input = document.querySelector('input[aria-label="Command"]') as HTMLInputElement;
+    const type = (text: string) => act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, text); input.dispatchEvent(new Event('input', { bubbles: true })); });
+    type('OF');
+    expect(document.querySelector('[aria-label="Matching commands"]')!.textContent).toMatch(/^OFFSETOffset/);
+    key('Tab', input);
+    expect(input.value).toBe('OFFSET');
+    await act(async () => { input.form!.requestSubmit(); });
+    expect(state.tool).toBe('offset');
+    await command('GRID');
+    key('ArrowUp', input);
+    expect(input.value).toBe('GRID');
+    key('ArrowUp', input);
+    expect(input.value).toBe('OFFSET');
+    key('ArrowDown', input);
+    expect(input.value).toBe('GRID');
+  });
+
+  it('right-click: with a tool, Enter and the prompt options; with none and nothing under it, Repeat and the recent commands', async () => {
+    await start();
+    const right = (x: number, y: number) => { const [sx, sy] = screenOf(x, y); return act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); }); };
+    const menu = () => [...document.querySelectorAll('[aria-label="Command menu"] button')];
+    await command('GRID');
+    await command('F');
+    await right(X + 20000, 20000);
+    expect(menu().map((b) => b.textContent)).toEqual(['Enter', 'RadiusR', 'TrimT', 'Cancel']);
+    await act(async () => { (menu()[2] as HTMLButtonElement).click(); });
+    expect(hist()).toBe('FILLET  Select first object or [Radius/Trim] <R 0.00, No trim>:');
+    await command('');
+    expect(state.tool).toBe('none');
+    await right(X + 20000, 20000);
+    expect(menu().map((b) => b.textContent)).toEqual(['Repeat FILLET', 'GRID']);
+    await act(async () => { (menu()[0] as HTMLButtonElement).click(); });
+    expect(state.tool).toBe('fillet');
+  });
+
+  it('Space held to pan does not end the step; tapped it does; held long with no tool it does not repeat', async () => {
+    await start();
+    await command('PL');
+    await clickAt(X, 10000);
+    await clickAt(X + 2000, 10000);
+    act(() => { (document.querySelector('input[aria-label="Command"]') as HTMLInputElement).blur(); });
+    const c = document.querySelector('canvas.cad-over')!, [sx, sy] = screenOf(X + 1000, 10000);
+    key(' ', window, { code: 'Space' });
+    await act(async () => {
+      c.dispatchEvent(new MouseEvent('mousedown', { clientX: sx, clientY: sy, button: 0, bubbles: true }));
+      c.dispatchEvent(new MouseEvent('mousemove', { clientX: sx + 40, clientY: sy + 20, bubbles: true }));
+      c.dispatchEvent(new MouseEvent('mouseup', { clientX: sx + 40, clientY: sy + 20, button: 0, bubbles: true }));
+    });
+    keyUp(' ');
+    expect(items()).toHaveLength(2); // the polyline goes on (the view was panned)
+    await command('@0,2000');
+    tap(' ');
+    expect(items()[2]).toMatchObject({ kind: 'pline', pts: [[X, 10000], [X + 2000, 10000], [X + 2000, 12000]] });
+    act(() => state.setTool('none'));
+    await command('GRID');
+    expect([state.toggles.grid, state.gridDots]).toEqual([true, false]);
+    act(() => { (document.querySelector('input[aria-label="Command"]') as HTMLInputElement).blur(); });
+    key(' ', window, { code: 'Space' });
+    key(' ', window, { code: 'Space', repeat: true });
+    key(' ', window, { code: 'Space', repeat: true });
+    keyUp(' ');
+    expect(state.gridDots).toBe(false); // held: not a repeat of GRID
+    tap(' ');
+    expect(state.gridDots).toBe(true);
+  });
+
+  it('Esc with the right-click menu open closes the menu only; Enter in a dialog over the page is the dialog\'s', async () => {
+    await start();
+    await command('PL');
+    await clickAt(X, 10000);
+    await clickAt(X + 2000, 10000);
+    const [sx, sy] = screenOf(X + 20000, 20000);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); });
+    expect(document.querySelector('[aria-label="Command menu"]')).not.toBeNull();
+    key('Escape');
+    expect(document.querySelector('[aria-label="Command menu"]')).toBeNull();
+    expect(hist()).toBe('PLINE  Specify next point or [Close], Enter to finish:'); // not cancelled
+    await command('XR'); // the references dialog over the page
+    const dlg = document.querySelector('[aria-label="References"]') as HTMLElement;
+    key('Enter', dlg);
+    tap(' ', dlg);
+    expect(items()).toHaveLength(2); // the polyline behind it goes on
+    key('Escape', dlg);
+    expect(document.querySelector('[aria-label="References"]')).toBeNull();
+    expect(state.tool).toBe('pline');
+    await clickAt(X + 2000, 12000);
+    key('Enter');
+    expect(items()[2]).toMatchObject({ kind: 'pline', pts: [[X, 10000], [X + 2000, 10000], [X + 2000, 12000]] });
+  });
+
+  it('F1 and F2 not with Ctrl or ⌘, nor in another field; Space takes the command picked in the list', async () => {
+    await start();
+    key('F1', window, { ctrlKey: true });
+    key('F1', window, { metaKey: true });
+    key('F2', document.querySelector('select[aria-label="Sample floor"]')!);
+    expect(document.querySelector('.cad-log')).toBeNull();
+    const input = document.querySelector('input[aria-label="Command"]') as HTMLInputElement;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'OF'); input.dispatchEvent(new Event('input', { bubbles: true })); });
+    key('ArrowDown', input);
+    expect(document.querySelector('[aria-label="Matching commands"] [aria-selected="true"]')!.textContent).toMatch(/^OFFSET/);
+    key(' ', input);
+    expect(state.tool).toBe('offset');
+  });
+
+  it('TEXT: at the height and rotation a word typed gets its space; a number takes Space as Enter', async () => {
+    await start();
+    const input = document.querySelector('input[aria-label="Command"]') as HTMLInputElement;
+    const type = (text: string) => act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, text); input.dispatchEvent(new Event('input', { bubbles: true })); });
+    const space = () => { const e = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }); act(() => { input.dispatchEvent(e); }); return e.defaultPrevented; };
+    await command('T');
+    await clickAt(X, 0);
+    type('DB');
+    expect(space()).toBe(false); // the space is typed
+    expect(items()).toHaveLength(2);
+    type('5');
+    expect(space()).toBe(true);
+    expect(hist()).toBe('TEXT  Specify rotation angle <0>:');
+    type('DB');
+    expect(space()).toBe(false);
+    await command('DB ROOM');
+    expect(items()[2]).toMatchObject({ kind: 'text', text: 'DB ROOM', h: 500 });
+  });
+
+  it('Offset with Erase moves a cable route: it stays the route of its circuit, on its layer', async () => {
+    const route: Project = { ...two, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [{ id: 'C1', kind: 'pline', layer: 'E-CABLE', pts: [[X, 0], [X + 4000, 0]], cable: { feederId: 'DB-GF1-Y1' } }] }] };
+    await start(route);
+    await command('O');
+    await command('E');
+    await command('L'); // Layer: current — the route keeps its own
+    await command('');
+    await clickAt(X + 2000, 0);
+    await clickAt(X + 2000, 1000);
+    expect(items()).toEqual([{ id: 'C1', kind: 'pline', layer: 'E-CABLE', pts: [[X, 300], [X + 4000, 300]], cable: { feederId: 'DB-GF1-Y1' } }]);
+    expect(last()).toBe('OFFSET  Cable route moved 0.30 m to the side · ⌘Z to undo');
+  });
+});
+

@@ -1,0 +1,58 @@
+import { describe, expect, it } from 'vitest';
+import { commandList, matchingCommands, optionKey, promptOptions, promptParts, spaceEnters } from './cadPrompt';
+import { CAD_COMMANDS } from './cadCommands';
+
+describe('command line prompts', () => {
+  it('takes the capital letters of an option as its key', () => {
+    expect(['Through', 'Erase', 'Layer', 'eXit', 'Yes', 'No', 'Object'].map(optionKey)).toEqual(['T', 'E', 'L', 'X', 'Y', 'N', 'O']);
+    expect(optionKey('polar')).toBe('P');
+  });
+
+  it('cuts a prompt into its text and options, keeping the text as written', () => {
+    const line = 'OFFSET  Specify offset distance or [Through/Erase/Layer] <0.30>:';
+    const parts = promptParts(line);
+    expect(parts.map((p) => ('option' in p ? p.option : p.text)).join('')).toBe(line);
+    expect(promptOptions(line)).toEqual([{ option: 'Through', key: 'T' }, { option: 'Erase', key: 'E' }, { option: 'Layer', key: 'L' }]);
+    expect(promptParts('LINE  Specify first point:')).toEqual([{ text: 'LINE  Specify first point:' }]);
+    expect(promptOptions('Command: MIRROR  Erase source objects? [Yes/No] <No>:').map((o) => o.key)).toEqual(['Y', 'N']);
+  });
+
+  it('lists the commands matching what is typed, the alias typed first', () => {
+    expect(matchingCommands('OF')[0]).toMatchObject({ alias: 'OFFSET' });
+    expect(matchingCommands('O')[0].alias).toBe('O');
+    expect(matchingCommands('O').map((x) => x.alias)).toContain('OPEN');
+    expect(matchingCommands('0.5')).toEqual([]);
+    expect(matchingCommands('@1,2')).toEqual([]);
+    expect(matchingCommands('ZZZ')).toEqual([]);
+  });
+
+  it('lets Space end the input, except in a command of several words or one taking a value', () => {
+    expect(spaceEnters('')).toBe(true);
+    expect(spaceEnters('OFFSET')).toBe(true);
+    expect(spaceEnters('0.5')).toBe(true);
+    expect(spaceEnters('ZOOM')).toBe(false);
+    expect(spaceEnters('Z')).toBe(false);
+    expect(spaceEnters('VPSCALE')).toBe(false);
+    expect(spaceEnters('ZOOM E')).toBe(false);
+  });
+
+  it('lets Space end only a whole word or value: a part of a point, or a word that is no command, gets the space', () => {
+    for (const t of ['3,4', '@3,-4', '@3<45', '.5', '3.', 'L', 'line']) expect(spaceEnters(t), t).toBe(true);
+    for (const t of ['3,', '@3', '@3<', '3, 4', 'XYZ', 'DB']) expect(spaceEnters(t), t).toBe(false);
+    const opts = [{ option: 'Through', key: 'T' }, { option: 'Erase', key: 'E' }];
+    expect(spaceEnters('t', 'command', opts)).toBe(true);
+    expect(spaceEnters('through', 'command', opts)).toBe(true);
+    // TEXT height and rotation: a word there is the text, so Space types it; a number or nothing ends the input.
+    expect(spaceEnters('DB', 'value')).toBe(false);
+    expect(spaceEnters('ROOM', 'value')).toBe(false);
+    expect(spaceEnters('5', 'value')).toBe(true);
+    expect(spaceEnters('', 'value')).toBe(true);
+    expect(spaceEnters('', 'text')).toBe(false);
+    expect(spaceEnters('OFFSET', 'text')).toBe(false);
+  });
+
+  it('has every command once in the F1 list', () => {
+    expect(commandList()).toHaveLength(CAD_COMMANDS.length);
+    expect(commandList().find((c) => c.aliases.startsWith('O ·'))).toEqual({ aliases: 'O · OFFSET', desc: 'Offset' });
+  });
+});

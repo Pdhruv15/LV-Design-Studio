@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice, type CanvasWiring } from './CadCanvas';
 import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadState, type CadTool } from './cadState';
 import { cadCommand, type CadAction } from './cadCommands';
+import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
+import { promptOptions, type SpaceMode } from './cadPrompt';
 import { chooseDrawing, drawingWithDevices, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
 import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
@@ -50,7 +52,7 @@ import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
 import { refGeometry, type CadRef } from '../../model/cadRefs';
 import { drawnLayers, effective, layerStylesOf, matchedProps, withLayerStyle, withProps } from '../../model/cadLayerStyle';
 import { DrawnSelectionPanel, ED_START, EditToolPanel, kindOf, SketchToolbar, type EditSettings, type EditTool, type SketchEdit } from './SketchEditPanel';
-import { arrayPolar, arrayRect, breakAt, chamfer, edgesFor, explode, extend, fillet, gripMoved, gripsOf, isPath, join, mirrored, offset, scaled, sketchInWindow, stretched, trim, type Edit } from '../../model/cadEdit';
+import { arrayPolar, arrayRect, breakAt, chamfer, edgesFor, explode, extend, fillet, gripMoved, gripsOf, isPath, join, mirrored, offset, scaled, sketchInWindow, stretched, throughDistance, trim, type Edit } from '../../model/cadEdit';
 import { ArrayPanel, ARL_START, MatchPanel, MATCH_START, SelectionPanel, type ArlSettings, type MatchSettings } from './DeviceEditPanel';
 import { alongLine, arranged, circuitAfter, copyDevices, deleteDevices, editsFor, inWindow, matchDevice, moveDevices, onBoard, placeAlong, renameBoard, replaceDevices, toCircuit, typeOf, type DeviceEdit } from '../../model/deviceEdit';
 
@@ -100,18 +102,18 @@ const PROMPT: Record<CadTool, string> = {
   move: 'MOVE  Select object, then specify base point:',
   copy: 'COPY  Select object, then specify base point:',
   rotate: 'ROTATE  Select object, then specify base point:',
-  mirror: 'MIRROR  Select objects (click them), Enter, then the first point of the mirror line:',
-  scale: 'SCALE  Select objects (click them), Enter, then the base point:',
+  mirror: 'MIRROR  Select objects (click them), then Enter:',
+  scale: 'SCALE  Select objects (click them), then Enter:',
   stretch: 'STRETCH  Drag a window (right to left) round the points to move:',
   trim: 'TRIM  Click the part to cut away (Shift-click extends):',
   extend: 'EXTEND  Click near the end to lengthen (Shift-click trims):',
-  offset: 'OFFSET  Distance on the right; select the object to offset:',
-  fillet: 'FILLET  Radius on the right; select the first line:',
-  chamfer: 'CHAMFER  Distances on the right; select the first line:',
+  offset: 'OFFSET  Select object to offset or [Exit]:',
+  fillet: 'FILLET  Select first object or [Radius/Trim]:',
+  chamfer: 'CHAMFER  Select first line or [Distance/Trim]:',
   break: 'BREAK  Select the object where it breaks:',
   join: 'JOIN  Select the lines and polylines to join, then Enter:',
   explode: 'EXPLODE  Select a polyline or rectangle:',
-  array: 'ARRAY  Select objects (click them), Enter:',
+  array: 'ARRAY  Select objects (click them), then Enter:',
   line: 'LINE  Specify first point:',
   pline: 'PLINE  Specify start point:',
   rect: 'RECTANG  Specify first corner point:',
@@ -120,8 +122,19 @@ const PROMPT: Record<CadTool, string> = {
   text: 'TEXT  Specify start point of text:',
   dim: 'DIM  Specify first extension line origin:',
   xattach: 'XATTACH  Specify insertion point:',
-  xclip: 'XCLIP  Click the corners of the clip outline, Enter to finish (two corners: a rectangle), or O to pick a closed outline:'
+  xclip: 'XCLIP  Click the corners of the clip outline, Enter to finish (two corners: a rectangle), or [Object] to pick a closed outline:'
 };
+const f2 = (s: string) => (s.trim() !== '' && Number.isFinite(Number(s)) ? Number(s).toFixed(2) : s);
+/** The first prompt of a tool, with the edit tools' options and their values now (Enter takes the one in < >). */
+function editPrompt(tool: CadTool, s: EditSettings): string {
+  if (tool === 'offset') return `OFFSET  Specify offset distance or [Through/Erase/Layer] <${s.through ? 'Through' : f2(s.offset)}>:`;
+  if (tool === 'fillet') return `FILLET  Select first object or [Radius/Trim] <R ${f2(s.radius)}${s.trim ? '' : ', No trim'}>:`;
+  if (tool === 'chamfer') return `CHAMFER  Select first line or [Distance/Trim] <${f2(s.d1)}, ${f2(s.d2)}${s.trim ? '' : ', No trim'}>:`;
+  return PROMPT[tool];
+}
+const OFFSET_SIDE = 'OFFSET  Specify point on side to offset:';
+const arrayType = (s: EditSettings) => `ARRAY  Enter array type [Rectangular/Polar] <${s.polar ? 'Polar' : 'Rectangular'}>:`;
+const mirrorAsk = (s: EditSettings) => `MIRROR  Erase source objects? [Yes/No] <${s.keep ? 'No' : 'Yes'}>:`;
 /** Layer of the cable routes drawn or linked in the app. */
 const CABLE_LAYER = 'E-CABLE';
 /** The smallest room of a level whose outline (metres) is around a point (drawing units, `k` metres per unit). */
@@ -189,6 +202,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [stretchBox, setStretchBox] = useState<[Pt, Pt] | null>(null);
   const [gripIdx, setGripIdx] = useState<number | null>(null);
   const preset = useRef<{ id: string; at: Pt } | null>(null);
+  // The command line: the question an edit tool asks (a distance, a radius, Yes / No…), the height and rotation TEXT
+  // asks after its point, the commands typed before (Up / Down), the recent commands (Enter with no tool repeats the
+  // first), the taller history (F2) or the command list (F1), and the right-click menu of the prompt.
+  const [edAsk, setEdAsk] = useState<'offset' | 'radius' | 'd1' | 'd2' | 'erase' | 'factor' | 'type' | null>(null);
+  const [textAsk, setTextAsk] = useState<{ step: 'height' | 'rot' | null; mm: number; rot: number } | null>(null);
+  const [typed, setTyped] = useState<string[]>([]);
+  const [recent, setRecent] = useState<{ label: string; tool?: CadTool; text?: string }[]>([]);
+  const [log, setLog] = useState<'history' | 'help' | null>(null);
+  const [promptMenu, setPromptMenu] = useState<{ at: Pt; items: { label: string; key?: string; run: () => void }[] } | null>(null);
   // Layer manager shown, and the object Match properties copies from.
   const [showLM, setShowLM] = useState(false);
   const [mpFrom, setMpFrom] = useState<string | null>(null);
@@ -233,11 +255,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   // A tool chosen (ribbon or command line): start it afresh and say what it asks for.
   useEffect(() => {
+    const pre = preset.current;
     setPoints([]); setObjectMode(false); setLuxRoom(null); setMenuAt(null); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
-    setEdStep(preset.current); preset.current = null; setStretchBox(null); setMpFrom(null);
+    setEdStep(pre); preset.current = null; setStretchBox(null); setMpFrom(null);
     const first = picked.some((k) => k.startsWith('sk:')) || !!cad.selected?.startsWith('sk:');
     setEdPhase(first ? 'points' : 'pick');
-    cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : tool === 'join' ? 'Enter to join them:' : 'Apply on the right, or the centre for a polar array:'}` : PROMPT[tool]}`);
+    setEdAsk(tool === 'offset' && !pre ? 'offset' : tool === 'array' && first ? 'type' : null); setTextAsk(null); setPromptMenu(null);
+    if (tool !== 'none' && tool !== 'xattach' && tool !== 'xclip') { const label = PROMPT[tool].split(' ')[0]; setRecent((r) => [{ label, tool }, ...r.filter((x) => x.label !== label)].slice(0, 8)); }
+    cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? (tool === 'array' ? arrayType(edSet) : `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : 'Enter to join them:'}`) : pre && tool === 'offset' ? OFFSET_SIDE : editPrompt(tool, edSet)}`);
   }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Layer roles (File → Layer roles): the project's, else a guess from the layer's name and what it holds.
@@ -514,13 +539,23 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const n = (tool === 'none' ? items.length : 0) + sks.length;
     cad.say(n ? `SEL  ${picks(n)}${tool !== 'none' ? ' — Enter when done' : ''}` : 'SEL  Nothing in the window.');
   }
-  /** Right click: the menu of edits at the cursor, for the device or drawn object under it (or what is picked). */
+  /** Right click: with a tool running, Enter (with a short menu when the prompt has options); with none, the menu of
+   * edits for the device or drawn object under it (or what is picked), else Repeat and the recent commands. */
   function contextAt(at: Pt, pixel: number, screen: Pt) {
-    if (tool !== 'none') return;
+    setPromptMenu(null);
+    if (tool !== 'none') {
+      const opts = promptOptions(cad.history[cad.history.length - 1] ?? '');
+      if (!opts.length) { run(''); return; }
+      setPromptMenu({ at: screen, items: [{ label: 'Enter', run: () => run('') }, ...opts.map((o) => ({ label: o.option, key: o.key, run: () => run(o.key) })), { label: 'Cancel', run: cancel }] });
+      return;
+    }
     const d = deviceAt(at, pixel), sk = d ? undefined : itemAt(pickable, at, 6 * pixel);
     if (d && !pickedKeys.has(d.key)) pick([d]);
     else if (sk && !pickedKeys.has(`sk:${sk.id}`)) pick([], [sk]);
-    if (!d && !sk && !pickedItems.length && !pickedSk.length) return;
+    if (!d && !sk && !pickedItems.length && !pickedSk.length) {
+      if (recent.length) setPromptMenu({ at: screen, items: recent.slice(0, 6).map((x, i) => ({ label: i ? x.label : `Repeat ${x.label}`, run: () => repeat(x) })) });
+      return;
+    }
     setMenuAt(screen);
   }
   const fileOf = () => view?.file ?? '';
@@ -560,12 +595,29 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     pick([], []); cad.setTool('none');
   }
   /** Array: copies of the drawn objects picked (rectangular, or polar round `centre`). */
-  function applyArray(centre?: Pt) {
+  function applyArray(centre?: Pt, polar = edSet.polar) {
     const f = units.factor, n = (s: string, d: number) => (Number.isFinite(Number(s)) && s.trim() !== '' ? Number(s) : d);
-    const copies = pickedSk.flatMap((it) => (edSet.polar ? arrayPolar(it, centre!, n(edSet.n, 6), n(edSet.angle, 360)) : arrayRect(it, n(edSet.rows, 2), n(edSet.cols, 3), n(edSet.dx, 1) / f, n(edSet.dy, 1) / f)));
+    const copies = pickedSk.flatMap((it) => (polar ? arrayPolar(it, centre!, n(edSet.n, 6), n(edSet.angle, 360)) : arrayRect(it, n(edSet.rows, 2), n(edSet.cols, 3), n(edSet.dx, 1) / f, n(edSet.dy, 1) / f)));
     if (!copies.length) { cad.say('ARRAY  Nothing to copy: more rows, columns or items.'); return; }
     change(added(project, copies), `ARRAY  ${copies.length} cop${copies.length === 1 ? 'y' : 'ies'} made · ⌘Z to undo`);
     pick([], []); cad.setTool('none');
+  }
+  /** Mirror: the drawn objects picked about the line from `a` to `b`, the originals erased or kept. */
+  function applyMirror(a: Pt, b: Pt, erase: boolean) {
+    const flipped = pickedSk.map((it) => mirrored(it, a, b));
+    let next = project;
+    pickedSk.forEach((it, i) => { next = erase ? updateSketch(next, fileOf(), { ...flipped[i], id: it.id } as SketchItem) : addSketch(next, fileOf(), flipped[i]).project; });
+    change(next, `MIRROR  ${picks(pickedSk.length).replace(' selected', '')} mirrored${erase ? '' : ', originals kept'} · ⌘Z to undo`);
+    setEdSet({ ...edSet, keep: !erase }); setEdAsk(null);
+    setPoints([]); pick([], []); cad.setTool('none');
+  }
+  /** Scale: the drawn objects picked by a factor about the base point. */
+  function applyScale(base: Pt, factor: string) {
+    const k = Number(factor);
+    if (!(k > 0)) { cad.say(`SCALE  The factor must be above 0. Specify scale factor <${edSet.factor}>:`); return; }
+    change(pickedSk.reduce((q, it) => updateSketch(q, fileOf(), scaled(it, base, k)), project), `SCALE  ${picks(pickedSk.length).replace(' selected', '')} scaled × ${k} · ⌘Z to undo`);
+    setEdSet({ ...edSet, factor }); setEdAsk(null);
+    setPoints([]); pick([], []); cad.setTool('none');
   }
   /** A click with an edit tool (drawing units). */
   function editClick(at: Pt, pixel: number, shiftKey: boolean) {
@@ -593,16 +645,21 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'offset' || tool === 'fillet' || tool === 'chamfer' || tool === 'break') {
       if (!edStep) {
         if (!sk) { cad.say(`${cmd}  Click a drawn object:`); return; }
-        setEdStep({ id: sk.id, at });
-        cad.say(tool === 'offset' ? 'OFFSET  Specify point on the side to offset:' : tool === 'break' ? 'BREAK  Specify second break point, or Enter to break here:' : `${cmd}  Select the second line:`);
+        setEdStep({ id: sk.id, at }); setEdAsk(null);
+        cad.say(tool === 'offset' ? (edSet.through ? 'OFFSET  Specify through point:' : OFFSET_SIDE) : tool === 'break' ? 'BREAK  Specify second break point <split here>:' : `${cmd}  Select second object:`);
         return;
       }
       const first = sketch.find((x) => x.id === edStep.id);
       setEdStep(null);
       if (!first) return;
       if (tool === 'offset') {
-        const r = offset(first, num(edSet.offset) / f, at);
-        if (!failed(r, 'OFFSET')) change(added(project, r.items!), `OFFSET  ${first.tray ? `Cable tray ${first.tray.widthMm} mm` : kindOf(first)} copied ${m(num(edSet.offset))} to the side · ⌘Z to undo`);
+        const d = edSet.through ? throughDistance(first, at) : num(edSet.offset) / f;
+        const r = offset(first, d, at);
+        // On the current layer (where new drawing goes) unless a tray, which stays on its own. With Erase the source
+        // itself moves: a cable route stays the route of its circuit, on its layer.
+        const items = r.items?.map((x, i) => (edSet.erase && i === 0 && first.cable ? { ...x, cable: first.cable, layer: first.layer }
+          : edSet.layer === 'current' && !x.tray ? { ...x, layer: DRAW_LAYER } : x));
+        if (!failed(r, 'OFFSET')) change(edSet.erase ? replaced(project, first, items!) : added(project, items!), `OFFSET  ${first.tray ? `Cable tray ${first.tray.widthMm} mm` : kindOf(first)} ${edSet.erase ? 'moved' : 'copied'} ${m(toM(d))} to the side${edSet.through ? ' (through the point)' : ''} · ⌘Z to undo`);
         cad.say(PROMPT.offset); return;
       }
       if (tool === 'break') {
@@ -614,24 +671,26 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       const r = tool === 'fillet' ? fillet(first, edStep.at, sk, at, num(edSet.radius) / f) : chamfer(first, edStep.at, sk, at, num(edSet.d1) / f, num(edSet.d2) / f);
       if (failed(r, cmd)) return;
       const [a, b, ...extra] = r.items!;
-      change(added(replaced(replaced(project, first, [a]), sk, [b]), extra), `${cmd}  ${tool === 'fillet' ? (extra.length ? `radius ${m(num(edSet.radius))}` : 'sharp corner') : `${m(num(edSet.d1))} × ${m(num(edSet.d2))}`}${r.note ? ` — ${r.note}` : ''} · ⌘Z to undo`);
+      // No trim: the lines stay as they are, only the arc (or the chamfer line) is added.
+      if (!edSet.trim && !extra.length) { cad.say(`${cmd}  Nothing to add with no trim at 0: set the ${tool === 'fillet' ? 'radius' : 'distances'} first.`); return; }
+      change(edSet.trim ? added(replaced(replaced(project, first, [a]), sk, [b]), extra) : added(project, extra), `${cmd}  ${tool === 'fillet' ? (extra.length ? `radius ${m(num(edSet.radius))}` : 'sharp corner') : `${m(num(edSet.d1))} × ${m(num(edSet.d2))}`}${edSet.trim ? '' : ', lines not trimmed'}${r.note ? ` — ${r.note}` : ''} · ⌘Z to undo`);
       return;
     }
     if (tool === 'mirror') {
       if (!points.length) { setPoints([at]); cad.say('MIRROR  Specify second point of the mirror line:'); return; }
-      const [a] = points, flipped = pickedSk.map((it) => mirrored(it, a, at));
-      let next = project;
-      pickedSk.forEach((it, i) => { next = edSet.keep ? addSketch(next, fileOf(), flipped[i]).project : updateSketch(next, fileOf(), { ...flipped[i], id: it.id } as SketchItem); });
-      change(next, `MIRROR  ${picks(pickedSk.length).replace(' selected', '')} mirrored${edSet.keep ? ', originals kept' : ''} · ⌘Z to undo`);
-      setPoints([]); pick([], []); cad.setTool('none'); return;
+      // Then: erase the originals? A click takes the answer in < >, as Enter does.
+      if (edAsk === 'erase') { applyMirror(points[0], points[1], !edSet.keep); return; }
+      setPoints([points[0], at]); setEdAsk('erase'); cad.say(mirrorAsk(edSet)); return;
     }
     if (tool === 'scale') {
-      const k = num(edSet.factor);
-      if (!(k > 0)) { cad.say('SCALE  Type a factor above 0 on the right.'); return; }
-      change(pickedSk.reduce((q, it) => updateSketch(q, fileOf(), scaled(it, at, k)), project), `SCALE  ${picks(pickedSk.length).replace(' selected', '')} scaled × ${k} · ⌘Z to undo`);
-      pick([], []); cad.setTool('none'); return;
+      if (edAsk === 'factor' && points.length) { applyScale(points[0], edSet.factor); return; }
+      setPoints([at]); setEdAsk('factor'); cad.say(`SCALE  Specify scale factor <${edSet.factor}>:`); return;
     }
-    if (tool === 'array') { if (edSet.polar) applyArray(at); else cad.say('ARRAY  Rectangular: Apply on the right.'); return; }
+    if (tool === 'array') {
+      if (edAsk === 'type') { cad.say(arrayType(edSet)); return; }
+      if (edSet.polar) applyArray(at, true); else { setEdAsk('type'); cad.say(arrayType(edSet)); }
+      return;
+    }
     if (tool === 'stretch') {
       if (!stretchBox) { cad.say(PROMPT.stretch); return; }
       if (!points.length) { setPoints([at]); cad.say('STRETCH  Specify second point:'); return; }
@@ -753,6 +812,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   async function click(at: Pt, pixel: number, shiftKey = false) {
     if (!view) return;
+    setPromptMenu(null);
     const last = points[points.length - 1];
     if (tool === 'xattach') { if (xDraft) setXDraft({ ...xDraft, at }); cad.setTool('none'); return; }
     if (tool === 'xclip') {
@@ -843,7 +903,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     if (tool === 'pline') {
       if (points.length >= 3 && distance(at, points[0]) <= 8 * pixel) { finishPline(true); return; }
-      setPoints((p) => [...p, at]); cad.say('PLINE  Specify next point, C to close, Enter to finish:'); return;
+      setPoints((p) => [...p, at]); cad.say('PLINE  Specify next point or [Close], Enter to finish:'); return;
     }
     if (tool === 'rect') {
       if (!last) { setPoints([at]); cad.say('RECTANG  Specify other corner point:'); return; }
@@ -862,7 +922,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       else { draw({ ...a, layer: DRAW_LAYER } as Omit<SketchItem, 'id'>, `Arc radius ${m(toM(a.r ?? 0))}`); setPoints([]); cad.say(PROMPT.arc); }
       return;
     }
-    if (tool === 'text') { cad.setTextAt(at); cad.say('TEXT  Enter text (then Enter):'); input.current?.focus(); return; }
+    if (tool === 'text') { cad.setTextAt(at); setTextAsk({ step: 'height', mm: anno.textMm, rot: 0 }); cad.say(`TEXT  Specify height <${anno.textMm} mm>:`); input.current?.focus(); return; }
     if (tool === 'hatch') {
       const rooms = floor ? buildingInfoOf(project).rooms.filter((r) => r.buildingId === floor.ref.building && r.levelId === floor.ref.level && (r.outline?.length ?? 0) > 2).map((r) => r.outline!.map(([x, y]): Pt => [x / units.factor, y / units.factor])) : [];
       const o = hatchOutline(pickable, at, rooms) ?? (() => { const r = roomAround(walls, at, units.factor); return r ? { pts: r.points, from: 'room' as const } : undefined; })();
@@ -1025,9 +1085,80 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     setPoints([]); cad.say(PROMPT.circle);
   }
 
+  /** Typed input for an edit tool: an option of its prompt (the capital letters, or the word), a value, or Enter alone
+   * (the value in < >, else the end of the step, then of the tool). True when it was one. */
+  function editInput(typedC: string): boolean {
+    const opt = promptOptions(cad.history[cad.history.length - 1] ?? '').find((o) => o.option.toUpperCase() === typedC);
+    const c = opt ? opt.key : typedC, num = /^\d+(\.\d+)?$/.test(c) ? c : undefined, CMD = tool.toUpperCase();
+    if (tool === 'offset') {
+      if (num) { setEdSet({ ...edSet, offset: num, through: false }); setEdAsk(null); cad.say(`OFFSET  Distance ${f2(num)} m`); if (!edStep) cad.say(PROMPT.offset); return true; }
+      if (edStep) { if (c) return false; setEdStep(null); cad.say(PROMPT.offset); return true; }
+      if (edAsk === 'offset') {
+        if (!c) { setEdAsk(null); cad.say(PROMPT.offset); return true; }
+        const s: EditSettings | undefined = c === 'T' ? { ...edSet, through: !edSet.through } : c === 'E' ? { ...edSet, erase: !edSet.erase } : c === 'L' ? { ...edSet, layer: edSet.layer === 'source' ? 'current' : 'source' } : undefined;
+        if (!s) return false;
+        setEdSet(s);
+        cad.say(c === 'T' ? `OFFSET  Through point: ${s.through ? 'Yes' : 'No'}` : c === 'E' ? `OFFSET  Erase source after offsetting: ${s.erase ? 'Yes' : 'No'}` : `OFFSET  Copies on the ${s.layer === 'source' ? "source object's layer" : `current layer (${DRAW_LAYER})`}`);
+        cad.say(editPrompt('offset', s)); return true;
+      }
+      if (!c || c === 'E') { cad.setTool('none'); return true; }
+      return false;
+    }
+    if (tool === 'fillet' || tool === 'chamfer') {
+      const fil = tool === 'fillet';
+      if (edAsk === 'radius' || edAsk === 'd1' || edAsk === 'd2') {
+        if (c && !num) return false;
+        const s = num ? { ...edSet, [edAsk]: num } : edSet;
+        setEdSet(s);
+        if (edAsk === 'd1') { setEdAsk('d2'); cad.say(`CHAMFER  Specify second chamfer distance <${f2(s.d2)}>:`); return true; }
+        setEdAsk(null); cad.say(editPrompt(tool, s)); return true;
+      }
+      if (num) { const s = fil ? { ...edSet, radius: num } : { ...edSet, d1: num, d2: num }; setEdSet(s); cad.say(edStep ? `${CMD}  ${fil ? 'Radius' : 'Distances'} ${f2(num)} m` : editPrompt(tool, s)); return true; }
+      if (!edStep && c === (fil ? 'R' : 'D')) { setEdAsk(fil ? 'radius' : 'd1'); cad.say(fil ? `FILLET  Specify fillet radius <${f2(edSet.radius)}>:` : `CHAMFER  Specify first chamfer distance <${f2(edSet.d1)}>:`); return true; }
+      if (!edStep && c === 'T') { const s = { ...edSet, trim: !edSet.trim }; setEdSet(s); cad.say(`${CMD}  Trim: ${s.trim ? 'Yes' : 'No'}`); cad.say(editPrompt(tool, s)); return true; }
+      if (!c) { if (edStep) { setEdStep(null); cad.say(editPrompt(tool, edSet)); } else cad.setTool('none'); return true; }
+      return false;
+    }
+    if (tool === 'mirror' && edAsk === 'erase' && points.length === 2) {
+      if (c && c !== 'Y' && c !== 'N') return false;
+      applyMirror(points[0], points[1], c ? c === 'Y' : !edSet.keep); return true;
+    }
+    if (tool === 'scale' && edAsk === 'factor' && points.length) {
+      if (c && !num) return false;
+      applyScale(points[0], num ?? edSet.factor); return true;
+    }
+    if (tool === 'array' && edAsk === 'type') {
+      if (c === 'R' || (!c && !edSet.polar)) { setEdSet({ ...edSet, polar: false }); applyArray(undefined, false); return true; }
+      if (c === 'P' || !c) { setEdSet({ ...edSet, polar: true }); setEdAsk(null); cad.say('ARRAY  Specify center point of array:'); return true; }
+      return false;
+    }
+    if (c) return false;
+    if (tool === 'break') {
+      const it = edStep && sketch.find((x) => x.id === edStep.id);
+      const r = it ? breakAt(it, edStep.at) : undefined;
+      if (!edStep) { cad.setTool('none'); return true; }
+      setEdStep(null);
+      if (it && r && !failed(r, 'BREAK')) change(replaced(project, it, r.items!), `BREAK  ${kindOf(it)} split in two · ⌘Z to undo`);
+      return true;
+    }
+    if (tool === 'join') { applyJoin(); return true; }
+    if (PICK_FIRST.includes(tool) && edPhase === 'pick') {
+      if (!pickedSk.length) { cad.say(`${CMD}  Pick the objects first.`); return true; }
+      setEdPhase('points');
+      if (tool === 'array') { setEdAsk('type'); cad.say(arrayType(edSet)); } else cad.say(tool === 'mirror' ? 'MIRROR  Specify first point of the mirror line:' : 'SCALE  Specify base point:');
+      return true;
+    }
+    if (tool === 'array' && !edSet.polar && pickedSk.length) { applyArray(); return true; }
+    if (tool === 'trim' || tool === 'extend' || tool === 'explode' || (tool === 'stretch' && !stretchBox)) { cad.setTool('none'); return true; }
+    return false;
+  }
+  /** Runs a recent command again (Enter or Space with no tool, Repeat in the right-click menu). */
+  const repeat = (x: { tool?: CadTool; text?: string }) => { if (x.tool) cad.setTool(x.tool); else if (x.text) run(x.text); };
+
   function run(text: string) {
     const raw = text.trim();
     const c = raw.toUpperCase().replace(/\s+/g, ' ');
+    setPromptMenu(null);
     // Typed input for the tool in use: the text of TEXT, a radius, an angle, a point or a distance.
     if (renamingLayout && raw) {
       const id = renamingLayout, set = setOf(project);
@@ -1047,11 +1178,20 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (view) change(leaderItems(points, raw, textH).reduce((q, x) => addSketch(q, view.file, x).project, project), `Leader "${raw}" · ⌘Z to undo`);
       setPoints([]); cad.say(PROMPT.leader); return;
     }
-    if (tool === 'text' && cad.textAt && raw) {
-      draw({ kind: 'text', layer: ANNO_LAYER, pts: [cad.textAt], text: raw, h: textH }, `Text "${raw}"`);
-      cad.setTextAt(null); cad.say(PROMPT.text); return;
+    // TEXT: its height (paper mm) and rotation (degrees) after the point, then the text. A word typed at either is the text.
+    if (tool === 'text' && cad.textAt && textAsk?.step && (!c || /^-?\d+(\.\d+)?$/.test(c))) {
+      const n = c ? Number(c) : undefined;
+      if (textAsk.step === 'height') { setTextAsk({ ...textAsk, step: 'rot', mm: n && n > 0 ? n : textAsk.mm }); cad.say(`TEXT  Specify rotation angle <${textAsk.rot}>:`); }
+      else { setTextAsk({ ...textAsk, step: null, rot: n ?? textAsk.rot }); cad.say('TEXT  Enter text:'); }
+      return;
     }
-    if (c && layoutCmd(c)) return;
+    if (tool === 'text' && cad.textAt && raw) {
+      const t = textAsk ?? { mm: anno.textMm, rot: 0 };
+      draw({ kind: 'text', layer: ANNO_LAYER, pts: [cad.textAt], text: raw, h: textUnits({ ...anno, textMm: t.mm }, units.factor), ...(t.rot ? { rot: (t.rot * Math.PI) / 180 } : {}) }, `Text "${raw}"`);
+      cad.setTextAt(null); setTextAsk(null); cad.say(PROMPT.text); return;
+    }
+    if (!renaming && EDIT_TOOLS.includes(tool) && editInput(c)) return;
+    if (c && layoutCmd(c)) { setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30)); return; }
     if (!c) {
       if ((tool === 'area' || tool === 'trace') && points.length >= 3) finishArea(points);
       else if (tool === 'pline') finishPline(false);
@@ -1059,23 +1199,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       else if (tool === 'em') finishRoute();
       else if (tool === 'arl' && arlAt.length && points.length >= 2) placeArl();
       else if (renaming) { setRenaming(null); cad.say('*Cancel*'); }
-      else if (tool === 'break' && edStep) {
-        const it = sketch.find((x) => x.id === edStep.id);
-        const r = it ? breakAt(it, edStep.at) : undefined;
-        setEdStep(null);
-        if (it && r && !failed(r, 'BREAK')) change(replaced(project, it, r.items!), `BREAK  ${kindOf(it)} split in two · ⌘Z to undo`);
-      }
-      else if (tool === 'join') applyJoin();
-      else if (PICK_FIRST.includes(tool) && edPhase === 'pick') {
-        if (!pickedSk.length) { cad.say(`${tool.toUpperCase()}  Pick the objects first.`); return; }
-        setEdPhase('points');
-        cad.say(tool === 'mirror' ? 'MIRROR  Specify first point of the mirror line:' : tool === 'scale' ? 'SCALE  Specify base point:' : edSet.polar ? 'ARRAY  Specify the centre:' : 'ARRAY  Apply on the right.');
-      }
-      else if (tool === 'array' && !edSet.polar && pickedSk.length) applyArray();
       else if (tool === 'cable') finishCable();
       else if (tool === 'line') { setPoints([]); cad.say(PROMPT.line); }
       else if (tool === 'leader') { if (points.length >= 2 && view) change(addSketch(project, view.file, leaderItems(points, '', textH)[0]).project, 'Leader · ⌘Z to undo'); setPoints([]); cad.say(PROMPT.leader); }
       else if (tool === 'copy') { setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); }
+      else if (tool === 'none' && recent[0]) repeat(recent[0]);
       return;
     }
     if (tool === 'pline' && c === 'C' && points.length >= 3) { finishPline(true); return; }
@@ -1089,9 +1217,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (view) change(updateSketch(project, view.file, rotated(selSketch, points[0], a)), `Rotated ${Number(c).toFixed(2)}° · ⌘Z to undo`);
       setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); return;
     }
-    // A number typed with Offset, Fillet or Scale sets its distance, radius or factor.
-    const field: Partial<Record<CadTool, keyof EditSettings>> = { offset: 'offset', fillet: 'radius', scale: 'factor' };
-    if (field[tool] && /^\d+(\.\d+)?$/.test(c)) { setEdSet({ ...edSet, [field[tool]!]: c }); cad.say(`${tool.toUpperCase()}  ${c}`); return; }
+    // A number typed with Scale (before its base point) sets the factor.
+    if (tool === 'scale' && /^\d+(\.\d+)?$/.test(c)) { setEdSet({ ...edSet, factor: c }); cad.say(`SCALE  Factor ${c}`); return; }
     if (DRAW_TOOLS.includes(tool) || tool === 'dist' || tool === 'area' || tool === 'trace') {
       const p = typedPoint(raw, points[points.length - 1], cursor.at);
       if (p) { cad.say(`  ${raw}`); click(p, 1e-9); return; }
@@ -1121,35 +1248,83 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       grid: () => cad.cycleGrid(),
       ortho: () => cad.toggle('ortho'),
       snap: () => cad.toggle('snap'),
-      help: () => cad.say(HELP)
+      help: () => { cad.say(HELP); setLog('help'); }
     };
     const command = cadCommand(c);
-    if (!command) cad.say(`Unknown command "${c}". ${HELP}`);
+    if (command) setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30));
+    if (command && 'action' in command && command.action !== 'help') setRecent((r) => [{ label: c, text: c }, ...r.filter((x) => x.label !== c)].slice(0, 8));
+    if (!command) cad.say(`Unknown command "${c}". Press F1 for the list.`);
     else if ('tool' in command) cad.setTool(command.tool);
     else act[command.action]();
   }
 
-  // CAD keys while this page shows: function keys toggle, typing goes to the command line, Enter closes an area, Esc
-  // cancels the command (and the tool).
+  /** Esc: the step, then the tool, then what is picked (the history or command list, and a menu, close first). */
+  function cancel() {
+    setCmd(''); input.current?.blur(); setPromptMenu(null);
+    if (points.length || objectMode || cad.textAt) { setPoints([]); setObjectMode(false); cad.setTextAt(null); setTextAsk(null); setEdAsk(null); cad.say('*Cancel*'); }
+    else if (edStep || edAsk === 'radius' || edAsk === 'd1' || edAsk === 'd2') { setEdStep(null); setEdAsk(null); cad.say('*Cancel*'); cad.say(tool === 'offset' ? PROMPT.offset : editPrompt(tool, edSet)); }
+    else if (menuAt) setMenuAt(null); else if (renaming) { setRenaming(null); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); setPicked([]); }
+  }
+  /** What Space does in the command line: types a space in text (a name, TEXT contents, a leader's text); at TEXT's
+   * height and rotation, where a word is the text, ends only an empty input or a number; else ends a whole word. */
+  const spaceMode: SpaceMode = renaming || renamingLayout || (tool === 'text' && cad.textAt && !textAsk?.step) || (tool === 'leader' && points.length >= 2) ? 'text'
+    : tool === 'text' && cad.textAt ? 'value' : 'command';
+  // Space tapped on the drawing works as Enter when it is let go, unless it was held to pan (the mouse pressed while
+  // it was down) or long enough to repeat.
+  const spaceTap = useRef<{ dragged: boolean; repeated: boolean } | null>(null);
+
+  // CAD keys while this page shows: function keys toggle, typing goes to the command line, Enter or Space ends the step
+  // (with no tool, repeats the last command), Esc cancels the command (and the tool), F2 the taller history, F1 the
+  // command list.
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e: KeyboardEvent) => {
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
+    const mods = e.metaKey || e.ctrlKey || e.altKey;
     const fn: Record<string, keyof CadToggles> = { F3: 'osnap', F7: 'grid', F8: 'ortho', F9: 'snap' };
     if (fn[e.key]) { e.preventDefault(); if (fn[e.key] === 'grid') cad.cycleGrid(); else cad.toggle(fn[e.key]); return; }
+    // Keys in a dialog over the page (the layer manager, references…) are the dialog's.
+    if (e.defaultPrevented || (e.target instanceof Element && e.target.closest('[aria-modal="true"], [role="dialog"]'))) return;
+    if ((e.key === 'F1' || e.key === 'F2') && !mods && !e.shiftKey && (!typing || e.target === input.current)) { e.preventDefault(); const k = e.key === 'F1' ? 'help' : 'history'; setLog(log === k ? null : k); return; }
     if (e.key === 'Escape' && (!typing || e.target === input.current)) {
-      setCmd(''); input.current?.blur();
-      if (points.length || objectMode || cad.textAt) { setPoints([]); setObjectMode(false); cad.setTextAt(null); cad.say('*Cancel*'); } else if (menuAt) setMenuAt(null); else if (renaming) { setRenaming(null); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); setPicked([]); }
+      if (log) { setLog(null); return; }
+      if (promptMenu) { setPromptMenu(null); return; }
+      cancel();
       return;
     }
-    if (e.key === 'Enter' && !typing && (tool === 'area' || tool === 'trace') && points.length >= 3) { finishArea(points); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && (selectedItem || selSketch || many)) { e.preventDefault(); removeSelected(); return; }
-    if (e.key === 'Enter' && !typing && (tool === 'pline' || tool === 'tray' || tool === 'cable' || tool === 'line' || tool === 'copy' || tool === 'em' || tool === 'arl' || tool === 'break' || tool === 'leader' || tool === 'xclip' || PICK_FIRST.includes(tool))) { run(''); return; }
-    if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[a-zA-Z?]$/.test(e.key)) input.current?.focus();
+    // Enter or Space on the drawing (not on a button or a field) works as Enter on the empty command line: Enter at
+    // once, Space when it is let go (see spaceTap); once per press.
+    const onControl = e.target instanceof Element && !!e.target.closest('button, a, [role="tab"], [role="menuitem"], [contenteditable="true"]');
+    if (e.key === ' ' && spaceMode !== 'text' && !typing && !onControl && !mods) {
+      e.preventDefault();
+      if (!e.repeat) spaceTap.current = { dragged: false, repeated: false }; else if (spaceTap.current) spaceTap.current.repeated = true;
+      return;
+    }
+    if (e.key === 'Enter' && !typing && !onControl && !mods) { e.preventDefault(); if (!e.repeat) run(''); return; }
+    if (!typing && !mods && /^[a-zA-Z?]$/.test(e.key)) input.current?.focus();
+  };
+  const keyUpRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyUpRef.current = (e: KeyboardEvent) => {
+    if (e.key !== ' ') return;
+    const tap = spaceTap.current;
+    spaceTap.current = null;
+    if (tap && !tap.dragged && !tap.repeated) run('');
   };
   useEffect(() => {
     const key = (e: KeyboardEvent) => keyRef.current(e);
+    const up = (e: KeyboardEvent) => keyUpRef.current(e);
+    // A press of the mouse while Space is down pans: then Space is not Enter.
+    const press = () => { if (spaceTap.current) spaceTap.current.dragged = true; };
+    const blur = () => { spaceTap.current = null; };
     window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
+    window.addEventListener('keyup', up);
+    window.addEventListener('mousedown', press, true);
+    window.addEventListener('pointerdown', press, true);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('keydown', key); window.removeEventListener('keyup', up);
+      window.removeEventListener('mousedown', press, true); window.removeEventListener('pointerdown', press, true); window.removeEventListener('blur', blur);
+    };
   }, []);
 
   // The object being drawn (or moved / copied / rotated), following the cursor.
@@ -1201,6 +1376,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 change(updateSketch(project, fileOf(), next), `GRIP  ${kindOf(selSketch)} ${gripsOf(selSketch)[i]?.kind === 'mid' ? 'side moved' : 'changed'}${isPath(next) ? ` — now ${m(toM(next.pts.slice(1).reduce((t, q, k) => t + distance(next.pts[k], q), 0)))}` : ''} · ⌘Z to undo`);
               }}
               overlay={(toScreen, moving) => {
+                if (promptMenu && !moving) return <CadPromptMenu left={promptMenu.at[0] + 4} top={promptMenu.at[1] + 4} items={promptMenu.items} onPick={(i) => { const x = promptMenu.items[i]; setPromptMenu(null); x.run(); }} />;
                 if (tool !== 'none' || moving || gripIdx !== null || (!pickedItems.length && !pickedSk.length)) return null;
                 if (!pickedSk.length && (!floor || !cad.showDevices)) return null;
                 const skPts = pickedSk.flatMap((it) => { const sg = segmentsOf(it); return sg.length ? sg.flat() : it.pts; });
@@ -1268,7 +1444,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             <h4>Result</h4>
             <div className="cad-res">
               {many && pickedSk.length ? <DrawnSelectionPanel items={pickedSk} devices={pickedItems.length} onEdit={editSketch} /> : many ? <SelectionPanel key={[...pickedKeys].join()} project={project} items={pickedItems} circuits={circuits} level={floor ? floorLabel(project.building, floor) : undefined} onEdit={editDevices} /> : result ? <ResultView r={result.kind === 'sketch' && selSketch ? { kind: 'sketch', it: selSketch } : result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} onMove={() => cad.setTool('move')} onRemove={removeSelected} onCopy={() => cad.setTool('copy')} onRotate={() => cad.setTool('rotate')} onAdded={() => setResult(null)} fittings={fittings} /> : view ? (
-                <>{view.file}<br /><span className="m">{view.info.format} · {units.label}{units.assumed ? ' (not set in the drawing: taken as mm)' : ''} · {fmtUpTo(view.info.segments, 0)} lines · {view.info.texts.length} texts</span><br /><span className="m">{PROMPT[tool]}</span></>
+                <>{view.file}<br /><span className="m">{view.info.format} · {units.label}{units.assumed ? ' (not set in the drawing: taken as mm)' : ''} · {fmtUpTo(view.info.segments, 0)} lines · {view.info.texts.length} texts</span><br /><span className="m">{editPrompt(tool, edSet)}</span></>
               ) : <span className="m">No drawing open.</span>}
               {view && SAMPLE_PLANS.some((x) => x.file === view.file) && (
                 <div className="cad-sample">
@@ -1421,11 +1597,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         onMove={(x, dir) => change({ ...project, drawingSet: renumber(moveLayout(setOf(project), x.id, dir)) }, `LAYOUT  ${x.number} moved ${dir < 0 ? 'left' : 'right'} · ⌘Z to undo`)}
         onDelete={(x) => { const set = setOf(project); change({ ...project, drawingSet: { ...set, sheets: set.sheets.filter((y) => y.id !== x.id) } }, `LAYOUT  ${x.number} ${x.title} deleted (its sheet too) · ⌘Z to undo`); if (cad.layout === x.id) cad.setLayout(null); }}
         onPageSetup={(x) => onSheet?.(x.id)} />}
-      <form className="cad-cmd" onSubmit={(e) => { e.preventDefault(); run(cmd); setCmd(''); }}>
-        <span className="m cad-hist">{cad.history[cad.history.length - 1] ?? 'Command: type OPEN, DI, AREA… or use the CAD ribbon'}</span>
-        <span>›</span>
-        <input ref={input} aria-label="Command" value={cmd} placeholder="Type a command" onChange={(e) => setCmd(e.target.value)} />
-      </form>
+      <CadCommandLine history={cad.history} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
       <div className="cad-status">
         {TOGGLES.map((x) => (
           <button key={x.k} className={`cad-tg${cad.toggles[x.k] ? ' on' : ''}`} aria-pressed={cad.toggles[x.k]}
