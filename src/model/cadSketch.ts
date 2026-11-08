@@ -40,6 +40,7 @@ export function rotated(it: SketchItem, c: Pt, a: number): SketchItem {
   if (it.kind === 'arc') return { ...it, pts, a0: (it.a0 ?? 0) + a, a1: (it.a1 ?? 0) + a };
   if (it.kind === 'text') return { ...it, pts, rot: (it.rot ?? 0) + a };
   if (it.kind === 'ellipse' && it.ax) return { ...it, pts, ax: rot(it.ax, [0, 0], a) };
+  if (it.kind === 'dim' && it.dir !== undefined) return { ...it, pts, dir: it.dir + a };
   return { ...it, pts };
 }
 
@@ -170,9 +171,14 @@ export const scaleLook = (l: DimLook, k: number): DimLook => ({
  * drawn with), else, for one of a style, its length measured now in the style's unit and decimals. */
 export function dimLabel(it: SketchItem, metresPerUnit: number): string {
   if (it.text) return it.text;
-  const len = dist(it.pts[0], it.pts[1]) * metresPerUnit;
+  const len = dimMeasure(it) * metresPerUnit;
   return it.look ? dimLength(len, it.look) : len.toFixed(2);
 }
+
+/** What a dimension measures (drawing units): its points' distance, or for a linear one the distance along its line. */
+export const dimMeasure = (it: Pick<SketchItem, 'pts' | 'dir'>): number => it.pts.length < 2 ? 0
+  : it.dir === undefined ? dist(it.pts[0], it.pts[1])
+    : Math.abs((it.pts[1][0] - it.pts[0][0]) * Math.cos(it.dir) + (it.pts[1][1] - it.pts[0][1]) * Math.sin(it.dir));
 
 /** The lines of one arrowhead with its tip at d, pointing out along dir (at2 steps along and across the line). */
 function arrowLines(kind: DimArrow, d: Pt, dir: number, size: number, at2: (d: Pt, a: number, b: number) => Pt): [Pt, Pt][] {
@@ -224,16 +230,25 @@ function arrowLines(kind: DimArrow, d: Pt, dir: number, size: number, at2: (d: P
 export interface DimTextBox { w: number; h: number }
 
 /** The lines of a dimension from p1 to p2 placed through `at`: extension lines, the dimension line, its ticks (or the
- * arrows of its look), and where its text goes (the middle of its baseline). Aligned with p1 → p2. With no look its
- * sizes follow its length. */
-export function dimensionLines(p1: Pt, p2: Pt, at: Pt, look?: DimLook, box?: DimTextBox): { lines: [Pt, Pt][]; text: Pt; angle: number; length: number } {
-  const len = dist(p1, p2) || 1e-9;
-  const ux = (p2[0] - p1[0]) / len, uy = (p2[1] - p1[1]) / len; // along
+ * arrows of its look), and where its text goes (the middle of its baseline). Aligned with p1 → p2, or with a linear
+ * dimension's line at angle `dir` (its extension lines square to it). With no look its sizes follow its length. */
+export function dimensionLines(p1: Pt, p2: Pt, at: Pt, look?: DimLook, box?: DimTextBox, dir?: number): { lines: [Pt, Pt][]; text: Pt; angle: number; length: number } {
+  let ux: number, uy: number, len: number;
+  if (dir === undefined) { len = dist(p1, p2) || 1e-9; ux = (p2[0] - p1[0]) / len; uy = (p2[1] - p1[1]) / len; } // along
+  else {
+    ux = Math.cos(dir); uy = Math.sin(dir);
+    const s = (p2[0] - p1[0]) * ux + (p2[1] - p1[1]) * uy;
+    if (s < 0) { ux = -ux; uy = -uy; }
+    len = Math.abs(s) || 1e-9;
+  }
   const nx = -uy, ny = ux; // across
-  const off = (at[0] - p1[0]) * nx + (at[1] - p1[1]) * ny, side = Math.sign(off || 1);
-  const d1: Pt = [p1[0] + nx * off, p1[1] + ny * off], d2: Pt = [p2[0] + nx * off, p2[1] + ny * off];
-  const ext = side * (look ? look.ext : len * 0.02);
-  const gap = look ? side * Math.min(look.off, Math.abs(off)) : 0;
+  // How far p2 is across the line from p1 (0 when aligned); the dimension line's side is away from both points.
+  const t2 = dir === undefined ? 0 : (p2[0] - p1[0]) * nx + (p2[1] - p1[1]) * ny;
+  const off = (at[0] - p1[0]) * nx + (at[1] - p1[1]) * ny, side = Math.sign((off - t2 / 2) || 1);
+  const d1: Pt = [p1[0] + nx * off, p1[1] + ny * off], d2: Pt = [p2[0] + nx * (off - t2), p2[1] + ny * (off - t2)];
+  // Each extension line runs from its point towards the dimension line and past it.
+  const s1 = Math.sign(off || 1), s2 = Math.sign((off - t2) || 1), extLen = look ? look.ext : len * 0.02;
+  const gap1 = look ? s1 * Math.min(look.off, Math.abs(off)) : 0, gap2 = look ? s2 * Math.min(look.off, Math.abs(off - t2)) : 0;
   const at2 = (d: Pt, a: number, b: number): Pt => [d[0] + ux * a + nx * b, d[1] + uy * a + ny * b];
   const ends: [Pt, Pt][] = [];
   if (!look) {
@@ -272,8 +287,8 @@ export function dimensionLines(p1: Pt, p2: Pt, at: Pt, look?: DimLook, box?: Dim
     if (s + g < a1) dimLine.push([at2(d1, s + g, 0), at2(d1, a1, 0)]);
   } else dimLine.push(dle ? [at2(d1, a0, 0), at2(d1, a1, 0)] : [d1, d2]);
   const extLines: [Pt, Pt][] = [];
-  if (!look?.hideExt1) extLines.push([[p1[0] + nx * gap, p1[1] + ny * gap], [d1[0] + nx * ext, d1[1] + ny * ext]]);
-  if (!look?.hideExt2) extLines.push([[p2[0] + nx * gap, p2[1] + ny * gap], [d2[0] + nx * ext, d2[1] + ny * ext]]);
+  if (!look?.hideExt1) extLines.push([[p1[0] + nx * gap1, p1[1] + ny * gap1], [d1[0] + nx * s1 * extLen, d1[1] + ny * s1 * extLen]]);
+  if (!look?.hideExt2) extLines.push([[p2[0] + nx * gap2, p2[1] + ny * gap2], [d2[0] + nx * s2 * extLen, d2[1] + ny * s2 * extLen]]);
   return { lines: [...extLines, ...dimLine, ...ends], text, angle, length: len };
 }
 
@@ -284,9 +299,35 @@ export const textWidth = (s: string, h: number) => s.length * h * 0.6;
 export function dimOf(it: SketchItem, metresPerUnit: number) {
   const look = it.look;
   const label = look ? dimLabel(it, metresPerUnit) : it.text ?? '';
-  const h = it.h ?? dist(it.pts[0], it.pts[1]) * 0.04;
+  const h = it.h ?? dimMeasure(it) * 0.04;
   const box = look && (look.textPos || look.textAlong) ? { w: textWidth(label, h), h } : undefined;
-  return { ...dimensionLines(it.pts[0], it.pts[1], it.pts[2], look, box), label, h };
+  return { ...dimensionLines(it.pts[0], it.pts[1], it.pts[2], look, box, it.dir), label, h };
+}
+
+/** A linear dimension's line from where it is dragged: horizontal when the point is above or below the two points,
+ * vertical when it is beside them (whichever it is further out of the box round them). */
+export function linearDir(p1: Pt, p2: Pt, at: Pt): number {
+  const out = (k: 0 | 1) => Math.abs(at[k] - (p1[k] + p2[k]) / 2) - Math.abs(p2[k] - p1[k]) / 2;
+  return out(1) >= out(0) ? 0 : Math.PI / 2;
+}
+
+/** The angle of a dimension's line: a linear one's own, an aligned one's along its points. */
+export const dimDir = (it: Pick<SketchItem, 'pts' | 'dir'>): number => it.dir ?? Math.atan2(it.pts[1][1] - it.pts[0][1], it.pts[1][0] - it.pts[0][0]);
+
+/** The next dimension of a chain from `base` to the point `to`, parallel to it with the same look:
+ * - continue: from its second point, its line in line with the base's;
+ * - baseline: from its first point, its line `spacing` further out than the base's.
+ * Undefined when `to` measures nothing along the line. */
+export function nextDim(base: SketchItem, to: Pt, mode: 'continue' | 'baseline', spacing: number): Omit<SketchItem, 'id'> | undefined {
+  const [p1, p2, at] = base.pts;
+  const dir = dimDir(base), ux = Math.cos(dir), uy = Math.sin(dir), nx = -uy, ny = ux;
+  const from = mode === 'continue' ? p2 : p1;
+  if (Math.abs((to[0] - from[0]) * ux + (to[1] - from[1]) * uy) < 1e-9) return undefined;
+  // Across the line from p1: the base's line, and p2. Baseline steps out on the side away from the points.
+  const off = (at[0] - p1[0]) * nx + (at[1] - p1[1]) * ny, t2 = (p2[0] - p1[0]) * nx + (p2[1] - p1[1]) * ny;
+  const o = mode === 'continue' ? off : off + Math.sign((off - t2 / 2) || 1) * spacing;
+  const { id: _id, text: _text, ...rest } = base;
+  return { ...rest, pts: [from, to, [p1[0] + nx * o, p1[1] + ny * o]], dir };
 }
 
 /** The straight pieces an item is drawn with (arcs and circles stepped every 5°). A dimension's text is measured with
