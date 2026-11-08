@@ -1997,6 +1997,7 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-lyr.off{opacity:.45}
 .cad-dock{position:relative}
 .cad-dock.left{border-left:0;border-right:1px solid var(--line)}
+.cad-info.left{border-left:0;border-right:1px solid var(--line)}
 .cad-dock-h{display:flex;align-items:center;gap:6px;min-height:30px;padding:4px 6px 4px var(--space-3);border-bottom:1px solid var(--line);font-size:var(--fs-sm)}
 .cad-dock-h .m{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs)}
 .cad-dock-h .sp{flex:1}
