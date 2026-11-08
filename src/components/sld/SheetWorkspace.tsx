@@ -553,12 +553,14 @@ function CloudAdd({ boards, rev, onAdd }: { boards: string[]; rev: string; onAdd
 type PublishAs = 'pdf' | 'pdfEach' | 'dxf' | 'dwg';
 const PUBLISH_AS: Record<PublishAs, string> = { pdf: 'One PDF, all the sheets', pdfEach: 'One PDF per sheet', dxf: 'DXF per sheet', dwg: 'DWG per sheet' };
 
-function PublishDialog({ project, run, current, onClose, onChange, onStatus, onOpen }: { project: Project; run?: CalcRun; current?: string; onClose: () => void; onChange: (p: Project) => void; onStatus: (m: string) => void; onOpen: (id: string) => void }) {
+/** Publish: the sheets of the drawing set (all, this one or those ticked) as PDF, DXF or DWG; `ticked` starts with these
+ * sheets ticked and chosen (Design CAD: the layouts of the drawing open). */
+export function PublishDialog({ project, run, current, ticked: first, onClose, onChange, onStatus, onOpen }: { project: Project; run?: CalcRun; current?: string; ticked?: string[]; onClose: () => void; onChange: (p: Project) => void; onStatus: (m: string) => void; onOpen: (id: string) => void }) {
   const set = setOf(project);
   // Which sheets go (this one, those ticked, or all), shown by kind, and as what.
-  const [which, setWhich] = useState<'this' | 'ticked' | 'all'>('all');
+  const [which, setWhich] = useState<'this' | 'ticked' | 'all'>(first?.length ? 'ticked' : 'all');
   const [kind, setKind] = useState('');
-  const [ticked, setTicked] = useState<Set<string>>(() => new Set(set.sheets.map((x) => x.id)));
+  const [ticked, setTicked] = useState<Set<string>>(() => new Set(first?.length ? first : set.sheets.map((x) => x.id)));
   const [as, setAs] = useState<PublishAs>('pdf');
   const only = which === 'all' ? undefined : which === 'this' ? (current ? [current] : []) : set.sheets.filter((x) => ticked.has(x.id)).map((x) => x.id);
   const count = only ? only.length : set.sheets.length;

@@ -70,6 +70,8 @@ declare global {
         saveText: (opts: { defaultName: string; content: string; filterName: string; extensions: string[] }) => Promise<string | null>;
         /** Shows a save dialog and writes the bytes; resolves to the saved path, or null if cancelled. Missing in older desktop builds. */
         saveBinary?: (opts: { defaultName: string; bytes: Uint8Array; filterName: string; extensions: string[] }) => Promise<string | null>;
+        /** Writes over a DWG / DXF chosen in a save dialog this session (Design CAD Save); `bak` keeps the previous copy. */
+        overwriteBinary?: (opts: { file: string; bytes: Uint8Array; bak: boolean }) => Promise<string>;
         /** Shows a save dialog and renders the HTML to an A4 landscape PDF; resolves to the saved path, or null if cancelled. */
         /** Renders HTML to PDF bytes without a dialog (to merge parts). Missing in older desktop builds. */
         pdfBytes?: (opts: { html: string; pageSize?: 'A4' | 'A3' | 'A3 portrait' | 'A2' | 'A1'; landscape?: boolean; cssPages?: boolean }) => Promise<Uint8Array>;

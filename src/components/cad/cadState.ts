@@ -47,8 +47,17 @@ export const skipRef = (projectId: string | undefined, host: string, name: strin
 /** What the ribbon asks of the page showing the drawing; nothing while the page is not shown. */
 /** What the ribbon runs on the page; `command` runs a command as if typed on the command line (TEXTSTYLE, LAYISO…);
  * `setProps` sets the colour, linetype or lineweight of the drawn objects picked, or of new objects when none is. */
-export interface CadActions { save: () => void; saveDwg: () => void; close: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void; refs: () => void; layoutCmd: (cmd: string) => void; command: (text: string) => void; reopen: () => void; setProps: (patch: ObjectProps) => void }
-export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, close: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {}, refs: () => {}, layoutCmd: () => {}, command: () => {}, reopen: () => {}, setProps: () => {} };
+export interface CadActions { save: () => void; saveDwg: () => void; saveAs: () => void; exportAs: (kind: CadExport) => void; publish: () => void; settings: (tab?: DraftTab) => void; close: () => void; closeOthers: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void; refs: () => void; layoutCmd: (cmd: string) => void; command: (text: string) => void; reopen: () => void; setProps: (patch: ObjectProps) => void }
+export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, saveAs: () => {}, exportAs: () => {}, publish: () => {}, settings: () => {}, close: () => {}, closeOthers: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {}, refs: () => {}, layoutCmd: () => {}, command: () => {}, reopen: () => {}, setProps: () => {} };
+
+/** File → Export: a PDF of the view or of the layout, a PNG image, the objects picked as DXF, the devices placed or the
+ * cable routes' lengths as Excel. */
+export type CadExport = 'pdfView' | 'pdfLayout' | 'png' | 'wblock' | 'devices' | 'cables';
+/** The tabs of the Drafting settings dialog (DS). */
+export type DraftTab = 'snap' | 'polar' | 'osnap' | 'dyn' | 'select' | 'cursor' | 'units';
+/** Where a drawing was last saved this session (Save writes there again): the file name and path (none for a browser
+ * download), as what and in which version, and what went in. */
+export interface SavedCopy { name: string; path?: string; as: 'dwg' | 'dxf'; version: string; drawn: boolean; devices: boolean; wiring: boolean; bind: boolean }
 
 /** What the ribbon shows of the drawing on the page: its layers (colour as CSS) and the current one, and the colour,
  * linetype and lineweight of the drawn objects picked (`picked` of them; 'varies' when they differ) or of new objects. */
@@ -76,7 +85,16 @@ export function useCad(projectId: string | undefined) {
   const now = useRef(tabs);
   const setTabs = useCallback((next: Tabs) => { now.current = next; setTabsState(next); }, []);
   const view = tabs.shown;
-  const [toggles, setToggles] = useState<CadToggles>({ snap: false, osnap: true, ortho: false, grid: false, dyn: true });
+  const [toggles, setToggles] = useState<CadToggles>({ snap: false, osnap: true, ortho: false, grid: false, dyn: true, polar: false, otrack: false, lwt: true });
+  // Drawings changed since they were last saved (by file name, lower case), and where each was saved this session.
+  const [dirty, setDirty] = useState<ReadonlySet<string>>(() => new Set());
+  const markDirty = useCallback((file: string, on = true) => setDirty((d) => {
+    const k = file.toLowerCase();
+    if (d.has(k) === on) return d;
+    const n = new Set(d); if (on) n.add(k); else n.delete(k); return n;
+  }), []);
+  const isDirty = useCallback((file: string) => dirty.has(file.toLowerCase()), [dirty]);
+  const saved = useRef(new Map<string, SavedCopy>());
   const [fitKey, setFitKey] = useState(0);
   const [showLayers, setShowLayers] = useState(true);
   const [history, setHistory] = useState<string[]>([]);
@@ -157,16 +175,17 @@ export function useCad(projectId: string | undefined) {
     const left = list.filter((d) => !going.includes(d));
     const after = list.slice(list.findIndex((d) => d.view === shown) + 1).find((d) => left.includes(d));
     const nextShown = left.some((d) => d.view === shown) ? shown : (after ?? left[left.length - 1])?.view ?? null;
-    for (const d of going) d.view.close();
+    for (const d of going) { d.view.close(); markDirty(d.view.file, false); }
     changeTabs({ open: left, shown: nextShown });
     const done = `${going.length === 1 ? going[0].view.file : `${going.length} drawings`} closed. What you drew stays in the project.`;
     say(done);
     return done;
-  }, [say, changeTabs]);
+  }, [say, changeTabs, markDirty]);
   /** Another project has been opened: the drawings open are the last one's plans, so none stays. The same project
    * opened again (its version on disk, recovered work) keeps them. */
   const projectOpened = useCallback((id: string | undefined) => { if (id !== projectId) close(); }, [projectId, close]);
-  const toggle = useCallback((k: keyof CadToggles) => setToggles((t) => ({ ...t, [k]: !t[k] })), []);
+  // ORTHO and POLAR turn each other off, as they ask for different directions.
+  const toggle = useCallback((k: keyof CadToggles) => setToggles((t) => ({ ...t, [k]: !t[k], ...(k === 'ortho' && !t.ortho ? { polar: false } : k === 'polar' && !t.polar ? { ortho: false } : {}) })), []);
   // The properties palette shown (Ctrl+1), and the taller command history (F2) or the command list (F1).
   const [showProps, setShowProps] = useState(true);
   const [log, setLog] = useState<'history' | 'help' | null>(null);
@@ -182,7 +201,7 @@ export function useCad(projectId: string | undefined) {
     else { setToggles((t) => ({ ...t, grid: false })); setGridDots(false); }
   };
 
-  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, tabOf, projectOpened, sampleDone, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, pending, ribbonInfo, setRibbonInfo, showProps, setShowProps, log, setLog, textAt, setTextAt, layout, setLayout, vpSel, setVpSel, msVp, setMsVp };
+  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, markDirty, isDirty, dirty, saved, setGridDots, setToggles, tabOf, projectOpened, sampleDone, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, pending, ribbonInfo, setRibbonInfo, showProps, setShowProps, log, setLog, textAt, setTextAt, layout, setLayout, vpSel, setVpSel, msVp, setMsVp };
 }
 
 export type CadState = ReturnType<typeof useCad>;

@@ -219,20 +219,23 @@ export class CadDoc {
     }
     /**
      * The snap point nearest (x, y) within r (drawing units): [x, y, kind], or empty. `mask` chooses the kinds,
-     * `layers_on` (one byte per layer, 1 = shown) leaves out hidden layers.
+     * `layers_on` (one byte per layer, 1 = shown) leaves out hidden layers; (fx, fy) is the last point picked, for
+     * PERPENDICULAR (NaN when there is none).
      * @param {number} x
      * @param {number} y
      * @param {number} r
      * @param {number} mask
      * @param {Uint8Array} layers_on
+     * @param {number} fx
+     * @param {number} fy
      * @returns {Float64Array}
      */
-    snap(x, y, r, mask, layers_on) {
+    snap(x, y, r, mask, layers_on, fx, fy) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
             const ptr0 = passArray8ToWasm0(layers_on, wasm.__wbindgen_export2);
             const len0 = WASM_VECTOR_LEN;
-            wasm.caddoc_snap(retptr, this.__wbg_ptr, x, y, r, mask, ptr0, len0);
+            wasm.caddoc_snap(retptr, this.__wbg_ptr, x, y, r, mask, ptr0, len0, fx, fy);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var v2 = getArrayF64FromWasm0(r0, r1).slice();
@@ -286,9 +289,10 @@ export function explodeObjects(bytes, handles_json) {
  * @param {string} devices_json
  * @param {string} shapes_json
  * @param {string} erased_json
+ * @param {string} version
  * @returns {Uint8Array}
  */
-export function exportDwg(bytes, devices_json, shapes_json, erased_json) {
+export function exportDwg(bytes, devices_json, shapes_json, erased_json, version) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export2);
@@ -299,7 +303,9 @@ export function exportDwg(bytes, devices_json, shapes_json, erased_json) {
         const len2 = WASM_VECTOR_LEN;
         const ptr3 = passStringToWasm0(erased_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
         const len3 = WASM_VECTOR_LEN;
-        wasm.exportDwg(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+        const ptr4 = passStringToWasm0(version, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const len4 = WASM_VECTOR_LEN;
+        wasm.exportDwg(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -307,23 +313,24 @@ export function exportDwg(bytes, devices_json, shapes_json, erased_json) {
         if (r3) {
             throw takeObject(r2);
         }
-        var v5 = getArrayU8FromWasm0(r0, r1).slice();
+        var v6 = getArrayU8FromWasm0(r0, r1).slice();
         wasm.__wbindgen_export(r0, r1 * 1, 1);
-        return v5;
+        return v6;
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
     }
 }
 
 /**
- * The drawing saved as DXF with the app's additions (see `with_additions`).
+ * The drawing saved as DXF with the app's additions (see `with_additions`), in `version` (see `version_of`) or its own.
  * @param {Uint8Array} bytes
  * @param {string} devices_json
  * @param {string} shapes_json
  * @param {string} erased_json
+ * @param {string} version
  * @returns {Uint8Array}
  */
-export function exportDxf(bytes, devices_json, shapes_json, erased_json) {
+export function exportDxf(bytes, devices_json, shapes_json, erased_json, version) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export2);
@@ -334,7 +341,9 @@ export function exportDxf(bytes, devices_json, shapes_json, erased_json) {
         const len2 = WASM_VECTOR_LEN;
         const ptr3 = passStringToWasm0(erased_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
         const len3 = WASM_VECTOR_LEN;
-        wasm.exportDxf(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+        const ptr4 = passStringToWasm0(version, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const len4 = WASM_VECTOR_LEN;
+        wasm.exportDxf(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -342,9 +351,9 @@ export function exportDxf(bytes, devices_json, shapes_json, erased_json) {
         if (r3) {
             throw takeObject(r2);
         }
-        var v5 = getArrayU8FromWasm0(r0, r1).slice();
+        var v6 = getArrayU8FromWasm0(r0, r1).slice();
         wasm.__wbindgen_export(r0, r1 * 1, 1);
-        return v5;
+        return v6;
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
     }

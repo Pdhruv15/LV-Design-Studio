@@ -15,15 +15,17 @@ const inView = (p: Pos): Pos => ({ left: Math.min(Math.max(0, p.left), Math.max(
 const placeOf = (id: string): Pos => { try { const p = JSON.parse(localStorage.getItem(POS(id)) ?? 'null') as Pos | null; if (p && Number.isFinite(p.left) && Number.isFinite(p.top)) return inView(p); } catch { /* not remembered */ } return { left: 12, top: 12 }; };
 
 /** The dialog's frame: title (dragged to move it), body rows, and ? / Cancel / OK. */
-export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK', children }: {
-  id: string; title: string; alias?: string; help?: string; onOk: () => void; onClose: () => void; okLabel?: string; children: ReactNode;
+export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK', wide, extra, children }: {
+  id: string; title: string; alias?: string; help?: string; onOk: () => void; onClose: () => void; okLabel?: string;
+  /** A wider dialog (Drafting settings, Save As), and buttons before Cancel. */
+  wide?: boolean; extra?: ReactNode; children: ReactNode;
 }) {
   const [pos, setPos] = useState<Pos>(() => placeOf(id));
   const [showHelp, setShowHelp] = useState(false);
   const drag = useRef<{ x: number; y: number; at: Pos; to: Pos } | null>(null);
   const keep = (p: Pos) => { try { localStorage.setItem(POS(id), JSON.stringify(p)); } catch { /* not remembered */ } };
   return (
-    <div className="cad-dlg" role="dialog" aria-label={title} style={pos}
+    <div className={`cad-dlg${wide ? ' wide' : ''}`} role="dialog" aria-label={title} style={pos}
       onKeyDown={(e) => {
         if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); }
         else if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) { e.preventDefault(); e.stopPropagation(); onOk(); }
@@ -40,6 +42,7 @@ export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK
       {showHelp && help && <p className="cad-dlg-help">{help}</p>}
       <div className="cad-dlg-ft">
         {help && <button type="button" className="q" aria-label="Help" aria-pressed={showHelp} onClick={() => setShowHelp(!showHelp)}>?</button>}
+        {extra}
         <button type="button" onClick={onClose}>Cancel</button>
         <button type="button" className="p" onClick={onOk}>{okLabel}</button>
       </div>
@@ -48,13 +51,13 @@ export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK
 }
 
 /** A row: its label, and the value with its unit. */
-function Row({ label, unit, children }: { label: string; unit?: string; children: ReactNode }) {
+export function Row({ label, unit, children }: { label: string; unit?: string; children: ReactNode }) {
   return <label className="cad-dlg-r"><span>{label}</span><span className="cad-dlg-in">{children}{unit && <u>{unit}</u>}</span></label>;
 }
 /** A number box: the text stays as typed and each whole number (0 or more, or any when `signed`) is passed on as it is
  * typed; a part such as "-" or nothing is let be until the box is left. A value set elsewhere (the command line) shows
  * at once. */
-function Num({ label, value, onChange, unit, signed }: { label: string; value: string | number; onChange: (v: string) => void; unit?: string; signed?: boolean }) {
+export function Num({ label, value, onChange, unit, signed }: { label: string; value: string | number; onChange: (v: string) => void; unit?: string; signed?: boolean }) {
   const [text, setText] = useState(String(value));
   useEffect(() => setText((t) => (isNumber(t) && Number(t) === Number(value) ? t : String(value))), [value]);
   const ok = (t: string) => isNumber(t) && (signed || Number(t) >= 0);
@@ -65,7 +68,7 @@ function Num({ label, value, onChange, unit, signed }: { label: string; value: s
     </Row>
   );
 }
-const Check = ({ label, value, onChange, disabled }: { label: string; value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) => (
+export const Check = ({ label, value, onChange, disabled }: { label: string; value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) => (
   <Row label={label}><input aria-label={label} type="checkbox" checked={value} disabled={disabled} onChange={(e) => onChange(e.target.checked)} /></Row>
 );
 

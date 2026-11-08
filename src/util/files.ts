@@ -46,13 +46,19 @@ export async function saveText(defaultName: string, content: string, filterName:
 /** Saves binary content (e.g. an .xlsx workbook) through the desktop save
  * dialog, or downloads it in a plain browser. */
 export async function saveBinary(defaultName: string, bytes: Uint8Array, filterName: string, ext: string, mime: string): Promise<string | null> {
+  return (await saveBinaryAt(defaultName, bytes, filterName, ext, mime))?.message ?? null;
+}
+/** As saveBinary, with where it went: the path chosen (desktop), or none (a browser download); null when cancelled. */
+export async function saveBinaryAt(defaultName: string, bytes: Uint8Array, filterName: string, ext: string, mime: string): Promise<{ message: string; path?: string; name: string } | null> {
   const save = typeof window !== 'undefined' ? window.lvds?.files?.saveBinary : undefined;
   if (!save) {
     browserDownload(defaultName, bytes as BlobPart, mime);
-    return `Downloaded ${defaultName}`;
+    return { message: `Downloaded ${defaultName}`, name: defaultName };
   }
   const saved = await save({ defaultName, bytes, filterName, extensions: [ext] });
-  return saved ? `Saved ${saved.split(/[\\/]/).pop()}` : null;
+  if (!saved) return null;
+  const name = saved.split(/[\\/]/).pop() ?? defaultName;
+  return { message: `Saved ${name}`, path: saved, name };
 }
 
 export const saveCsv = (baseName: string, headers: string[], rows: unknown[][]) =>

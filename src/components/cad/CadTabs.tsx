@@ -50,7 +50,7 @@ export default function CadTabs({ cad, project, busy, onOpen, onClose }: {
                   cad.show(drawings[to]);
                   (e.currentTarget.closest('.cad-tabs')?.querySelectorAll('[role="tab"]')[to] as HTMLElement | undefined)?.focus();
                 }}>
-                <span className="m">{floor && set ? floor.name : 'Level?'} · </span>{v.file}
+                <span className="m">{floor && set ? floor.name : 'Level?'} · </span>{v.file}{cad.isDirty(v.file) && <span className="cad-tab-dirty" aria-label="changed since saved" title="Changed since saved">●</span>}
               </button>
               <button className="cad-tab-x" aria-label={`Close ${v.file}`} title="Close this drawing (CLOSE). What you drew stays in the project." onClick={() => onClose([v])}><X size={12} strokeWidth={2} /></button>
             </div>

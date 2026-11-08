@@ -23,6 +23,10 @@ pub const INTERSECTION: u32 = 8;
 pub const INSERTION: u32 = 16;
 pub const NODE: u32 = 32;
 pub const QUADRANT: u32 = 64;
+/// The point on a line or curve nearest the cursor.
+pub const NEAREST: u32 = 128;
+/// The foot of the perpendicular from the last point picked onto a line or curve.
+pub const PERPENDICULAR: u32 = 256;
 
 /// Colour for "foreground" (index 7: white on dark, black on light), decided by the view.
 const INK: u32 = 0xFF00_0007;
@@ -744,20 +748,23 @@ impl CadDoc {
     }
 
     /// The snap point nearest (x, y) within r (drawing units): [x, y, kind], or empty. `mask` chooses the kinds,
-    /// `layers_on` (one byte per layer, 1 = shown) leaves out hidden layers.
-    pub fn snap(&self, x: f64, y: f64, r: f64, mask: u32, layers_on: &[u8]) -> Vec<f64> {
+    /// `layers_on` (one byte per layer, 1 = shown) leaves out hidden layers; (fx, fy) is the last point picked, for
+    /// PERPENDICULAR (NaN when there is none).
+    pub fn snap(&self, x: f64, y: f64, r: f64, mask: u32, layers_on: &[u8], fx: f64, fy: f64) -> Vec<f64> {
         let on = |l: u16| layers_on.get(l as usize).map_or(true, |v| *v != 0);
         let mut best: Option<(f64, f64, f64, u32)> = None;
         let consider = |px: f64, py: f64, kind: u32, best: &mut Option<(f64, f64, f64, u32)>| {
             let d = ((px - x).powi(2) + (py - y).powi(2)).sqrt();
             // Prefer the more specific kind at (almost) the same distance: endpoint and intersection over midpoint etc.
-            let rank = match kind { ENDPOINT | INTERSECTION => 0.0, CENTER | INSERTION | NODE => 0.05, _ => 0.1 } * r;
+            let rank = match kind { ENDPOINT | INTERSECTION => 0.0, CENTER | INSERTION | NODE | PERPENDICULAR => 0.05, NEAREST => 0.3, _ => 0.1 } * r;
             if d <= r && best.map_or(true, |b| d + rank < b.2) { *best = Some((px, py, d + rank, kind)); }
         };
         let g = &self.grid;
         let (cx0, cy0) = g.cell_of(x - r, y - r);
         let (cx1, cy1) = g.cell_of(x + r, y + r);
         let mut segs: Vec<u32> = Vec::new();
+        let mut near: Vec<u32> = Vec::new();
+        let on_seg = mask & (NEAREST | PERPENDICULAR) != 0;
         for cy in cy0..=cy1 {
             for cx in cx0..=cx1 {
                 let i = cy * g.nx + cx;
@@ -765,6 +772,7 @@ impl CadDoc {
                     let s = &self.snaps[p as usize];
                     if s.kind & mask != 0 && on(s.layer) && !self.gone(s.o) { consider(s.x, s.y, s.kind, &mut best); }
                 }
+                if on_seg { near.extend(g.segs[i].iter().copied().filter(|s| on(self.seg_layer[*s as usize]) && !self.gone(self.seg_obj[*s as usize]))); }
                 if mask & INTERSECTION != 0 { segs.extend(g.segs[i].iter().copied().filter(|s| self.seg_real[*s as usize] && on(self.seg_layer[*s as usize]) && !self.gone(self.seg_obj[*s as usize]))); }
             }
         }
@@ -775,6 +783,26 @@ impl CadDoc {
             for i in 0..segs.len() {
                 for j in i + 1..segs.len() {
                     if let Some((px, py)) = self.cross(segs[i] as usize, segs[j] as usize) { consider(px, py, INTERSECTION, &mut best); }
+                }
+            }
+        }
+        if on_seg {
+            near.sort_unstable();
+            near.dedup();
+            near.truncate(2000);
+            let from = fx.is_finite() && fy.is_finite();
+            for &k in &near {
+                let (x1, y1, x2, y2) = self.seg_at(k as usize);
+                let (dx, dy) = (x2 - x1, y2 - y1);
+                let len2 = dx * dx + dy * dy;
+                if len2 < 1e-18 { continue; }
+                if mask & NEAREST != 0 {
+                    let t = (((x - x1) * dx + (y - y1) * dy) / len2).clamp(0.0, 1.0);
+                    consider(x1 + t * dx, y1 + t * dy, NEAREST, &mut best);
+                }
+                if from && mask & PERPENDICULAR != 0 {
+                    let t = ((fx - x1) * dx + (fy - y1) * dy) / len2;
+                    if (-1e-9..=1.0 + 1e-9).contains(&t) { consider(x1 + t * dx, y1 + t * dy, PERPENDICULAR, &mut best); }
                 }
             }
         }
@@ -965,25 +993,39 @@ fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_
     Ok(doc)
 }
 
-/// The drawing saved as DXF with the app's additions (see `with_additions`).
-#[wasm_bindgen(js_name = exportDxf)]
-pub fn export_dxf(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_json: &str) -> Result<Vec<u8>, JsError> {
-    let doc = with_additions(bytes, devices_json, shapes_json, erased_json).map_err(|e| JsError::new(&e))?;
-    acadrust::DxfWriter::new(&doc).write_to_vec().map_err(|e| JsError::new(&e.to_string()))
+/// A file version asked for by its year ("2018", "2013", "2010", "2007", "2004", "2000", "R12"); "" or anything else is
+/// none (the drawing's own).
+fn version_of(v: &str) -> Option<acadrust::types::DxfVersion> {
+    use acadrust::types::DxfVersion;
+    match v.trim().to_uppercase().as_str() {
+        "2018" => Some(DxfVersion::AC1032), "2013" => Some(DxfVersion::AC1027), "2010" => Some(DxfVersion::AC1024),
+        "2007" => Some(DxfVersion::AC1021), "2004" => Some(DxfVersion::AC1018), "2000" => Some(DxfVersion::AC1015),
+        "R12" => Some(DxfVersion::AC1009), _ => None,
+    }
 }
 
-/// The drawing saved as DWG with the app's additions: in the version it was read in (a DWG), else AutoCAD 2018; a
-/// version older than 2000 is written as 2018.
-fn dwg_bytes(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_json: &str) -> Result<Vec<u8>, String> {
+/// The drawing saved as DXF with the app's additions (see `with_additions`), in `version` (see `version_of`) or its own.
+#[wasm_bindgen(js_name = exportDxf)]
+pub fn export_dxf(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_json: &str, version: &str) -> Result<Vec<u8>, JsError> {
+    let doc = with_additions(bytes, devices_json, shapes_json, erased_json).map_err(|e| JsError::new(&e))?;
+    let w = acadrust::DxfWriter::new(&doc);
+    let w = match version_of(version) { Some(v) => w.with_version(v), None => w };
+    w.write_to_vec().map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// The drawing saved as DWG with the app's additions: in `version` (2000 or later), else the version it was read in (a
+/// DWG), else AutoCAD 2018; a version older than 2000 is written as 2018.
+fn dwg_bytes(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_json: &str, version: &str) -> Result<Vec<u8>, String> {
     use acadrust::types::DxfVersion;
     let mut doc = with_additions(bytes, devices_json, shapes_json, erased_json)?;
+    if let Some(v) = version_of(version) { doc.version = v; }
     if doc.version < DxfVersion::AC1015 || doc.version == DxfVersion::Unknown { doc.version = DxfVersion::AC1032; }
     acadrust::DwgWriter::write_to_vec(&doc).map_err(|e| e.to_string())
 }
 
 #[wasm_bindgen(js_name = exportDwg)]
-pub fn export_dwg(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_json: &str) -> Result<Vec<u8>, JsError> {
-    dwg_bytes(bytes, devices_json, shapes_json, erased_json).map_err(|e| JsError::new(&e))
+pub fn export_dwg(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_json: &str, version: &str) -> Result<Vec<u8>, JsError> {
+    dwg_bytes(bytes, devices_json, shapes_json, erased_json, version).map_err(|e| JsError::new(&e))
 }
 
 /// The exact pieces of model-space objects (CROP), by handle, as JSON {pieces: {handle: [piece]}, truncated} — see
@@ -1041,7 +1083,7 @@ mod tests {
     fn dwg_round_trip() {
         for (name, bytes) in [("plan-2018.dwg", fixture("plan-2018.dwg")), ("plan-2004.dwg", fixture("plan-2004.dwg")), ("sample-villa-gf.dxf", sample("sample-villa-gf.dxf")), ("linetypes-hatches.dxf", fixture("linetypes-hatches.dxf"))] {
             let before = CadDoc::new(bytes.clone()).unwrap();
-            let out = dwg_bytes(bytes.clone(), "[]", "", "").unwrap_or_else(|e| panic!("{name}: {e}"));
+            let out = dwg_bytes(bytes.clone(), "[]", "", "", "").unwrap_or_else(|e| panic!("{name}: {e}"));
             assert!(out.starts_with(b"AC10"), "{name}: not a DWG");
             let after = CadDoc::new(out).unwrap_or_else(|_| panic!("{name}: the DWG written does not read back"));
             assert_eq!(facts(&before), facts(&after), "{name}");
@@ -1053,12 +1095,33 @@ mod tests {
         let devices = r#"[{"layer":"E-LV-POINTS","x":1000,"y":1000,"r":200,"text":"","label":"DB-GF1/R1"}]"#;
         let shapes = r#"[{"layer":"E-TRAY","kind":"pline","pts":[[0,0],[5000,0]]},{"layer":"LV-ANNO","kind":"text","pts":[[0,0]],"text":"CT 300","h":150}]"#;
         let before = CadDoc::new(bytes.clone()).unwrap();
-        let after = CadDoc::new(dwg_bytes(bytes, devices, shapes, "").unwrap()).unwrap();
+        let after = CadDoc::new(dwg_bytes(bytes, devices, shapes, "", "").unwrap()).unwrap();
         let (b, a) = (facts(&before), facts(&after));
         assert_eq!(a.1, b.1 + 2, "the label and the text added");
         assert!(a.0.contains_key("E-LV-POINTS"), "the device's circle on its layer");
         assert!(after.layers.iter().any(|l| l.name == "LV-ANNO"), "the text's layer");
         assert_eq!(a.0["E-TRAY"], b.0.get("E-TRAY").copied().unwrap_or(0) + 1);
+    }
+
+    /// Nearest and perpendicular snaps on a line, and a DXF / DWG saved in the version asked for.
+    #[test]
+    fn nearest_perpendicular_and_versions() {
+        let mut doc = acadrust::CadDocument::new();
+        doc.add_entity(EntityType::Line(Line::from_coords(0.0, 0.0, 0.0, 100.0, 0.0, 0.0))).unwrap();
+        let bytes = acadrust::DxfWriter::new(&doc).write_to_vec().unwrap();
+        let d = CadDoc::new(bytes.clone()).unwrap();
+        let on = vec![1u8; 8];
+        let n = d.snap(42.0, 3.0, 5.0, NEAREST, &on, f64::NAN, f64::NAN);
+        assert_eq!((n[0].round(), n[1].round(), n[2] as u32), (42.0, 0.0, NEAREST));
+        let p = d.snap(31.0, 2.0, 5.0, PERPENDICULAR, &on, 30.0, 50.0);
+        assert_eq!((p[0].round(), p[1].round(), p[2] as u32), (30.0, 0.0, PERPENDICULAR));
+        assert!(d.snap(31.0, 2.0, 5.0, PERPENDICULAR, &on, f64::NAN, f64::NAN).is_empty(), "no last point, no perpendicular");
+        // The endpoint wins over the nearest point beside it.
+        assert_eq!(d.snap(1.0, 1.0, 5.0, ENDPOINT | NEAREST, &on, f64::NAN, f64::NAN)[2] as u32, ENDPOINT);
+        let r12 = String::from_utf8_lossy(&export_dxf(bytes.clone(), "[]", "[]", "[]", "R12").unwrap()).to_string();
+        assert!(r12.contains("AC1009"), "R12 DXF");
+        let dwg = dwg_bytes(bytes, "[]", "[]", "[]", "2004").unwrap();
+        assert!(dwg.starts_with(b"AC1018"), "DWG 2004");
     }
 
     /// External references are listed with their path, overlay flag and inserts; ordinary blocks are not.

@@ -76,7 +76,7 @@ export interface CadView {
   engine: 'worker' | 'page';
   /** Nearest snap point within `r` of (x, y) (drawing units, absolute): [x, y, kind] or empty. Answered in the order
    * asked, and empty once the drawing is closed. */
-  snap: (x: number, y: number, r: number, mask: number, layersOn: Uint8Array) => Promise<Float64Array>;
+  snap: (x: number, y: number, r: number, mask: number, layersOn: Uint8Array, from?: [number, number]) => Promise<Float64Array>;
   /** The object under (x, y) within `tol` (drawing units, absolute) on shown layers; null when none. `closedOnly`:
    * only objects with an area (as for AREA → Object). */
   pick: (x: number, y: number, tol: number, layersOn: Uint8Array, closedOnly?: boolean) => Promise<CadObject | null>;
@@ -92,8 +92,8 @@ export interface CadView {
 }
 
 /** Snap kinds, as the engine numbers them. */
-export const SNAP = { endpoint: 1, midpoint: 2, center: 4, intersection: 8, insertion: 16, node: 32, quadrant: 64 } as const;
-export const SNAP_NAMES: Record<number, string> = { 1: 'Endpoint', 2: 'Midpoint', 4: 'Centre', 8: 'Intersection', 16: 'Insertion', 32: 'Node', 64: 'Quadrant' };
+export const SNAP = { endpoint: 1, midpoint: 2, center: 4, intersection: 8, insertion: 16, node: 32, quadrant: 64, nearest: 128, perpendicular: 256 } as const;
+export const SNAP_NAMES: Record<number, string> = { 1: 'Endpoint', 2: 'Midpoint', 4: 'Centre', 8: 'Intersection', 16: 'Insertion', 32: 'Node', 64: 'Quadrant', 128: 'Nearest', 256: 'Perpendicular' };
 /** Colour of "foreground" lines (index 7): white on a dark model space, black on a light one. */
 export const INK = 0xff000007;
 
@@ -204,7 +204,7 @@ export async function openDrawing(file: string, bytes: Uint8Array, path?: string
   return {
     file, path, info, bytes, engine: engine.kind,
     segs: doc.segs, segLayers: doc.segLayers, segColors: doc.segColors, segLinetypes: doc.segLinetypes,
-    snap: (x, y, r, mask, layersOn) => engine.call('snap', x, y, r, mask, layersOn).catch(() => NO_SNAP),
+    snap: (x, y, r, mask, layersOn, from) => engine.call('snap', x, y, r, mask, layersOn, from?.[0] ?? NaN, from?.[1] ?? NaN).catch(() => NO_SNAP),
     pick: (x, y, tol, layersOn, closedOnly = false) => engine.call('pick', x, y, tol, layersOn, closedOnly).then((j) => (j ? (JSON.parse(j) as CadObject) : null), () => null),
     outlines: () => (outlines ??= JSON.parse(doc.outlines) as CadObject[]),
     blocks: () => JSON.parse(doc.blocks) as (CadBlock & { layer: string; handle: string })[],
@@ -287,12 +287,13 @@ export interface DeviceOut { layer: string; x: number; y: number; r: number; tex
 
 /** The drawing saved as DXF with the devices and what was drawn in the app added on their own layers (the architect's
  * entities kept as read). */
-export async function drawingWithDevices(view: CadView, devices: DeviceOut[], shapes: unknown[] = [], as: 'dxf' | 'dwg' = 'dxf', erased: string[] = []): Promise<Uint8Array> {
+/** `version`: the file version by year ('2018' … '2000', 'R12' for DXF), or '' for the drawing's own. */
+export async function drawingWithDevices(view: Pick<CadView, 'bytes'>, devices: DeviceOut[], shapes: unknown[] = [], as: 'dxf' | 'dwg' = 'dxf', erased: string[] = [], version = ''): Promise<Uint8Array> {
   return withSavingEngine(async (engine) => {
     try {
       // DWG: in the version the drawing came in, else the 2018 format (engines/cad-reader/src/doc.rs dwg_bytes).
       // Objects erased in the app (CROP) are left out of the copy saved; the drawing file itself is never changed.
-      return await engine.call('save', as, view.bytes, JSON.stringify(devices), JSON.stringify(shapes), JSON.stringify(erased));
+      return await engine.call('save', as, view.bytes, JSON.stringify(devices), JSON.stringify(shapes), JSON.stringify(erased), version);
     } catch (e) {
       throw new Error(`The drawing could not be saved (${message(e)}).`);
     }

@@ -50,6 +50,14 @@ describe('CAD engine (Rust, WebAssembly)', () => {
     expect(Array.from(await gf.snap(-10, -90, 50, SNAP.endpoint, off))).toEqual([]); // the outside face of the wall: only on A-WALL
   });
 
+  it('snaps to the nearest point on a line, and the perpendicular from the last point picked', async () => {
+    const on = new Uint8Array(gf.info.layers.length).fill(1);
+    // The inside face of the front wall (y = 100, x 0–6200).
+    expect(Array.from(await gf.snap(2400, 130, 60, SNAP.nearest, on))).toEqual([2400, 100, SNAP.nearest]);
+    expect(Array.from(await gf.snap(2450, 130, 60, SNAP.perpendicular, on, [2400, 2000]))).toEqual([2400, 100, SNAP.perpendicular]);
+    expect(Array.from(await gf.snap(2450, 130, 60, SNAP.perpendicular, on))).toEqual([]); // no last point
+  });
+
   it('opens a DWG and refuses a broken file with a clear message', async () => {
     const dwg = await openDrawing('plan.dwg', bytes('tests/fixtures/cad/plan-2018.dwg'));
     expect(dwg.info.format).toBe('DWG');

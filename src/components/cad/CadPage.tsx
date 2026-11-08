@@ -18,7 +18,7 @@ import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTr
 import type { SketchItem } from '../../types';
 import { ELV_PALETTE, elvPlacedOn, elvSystemOf, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
 import { copyTo, coverageNote, elvLayer, fillAt, rotate as rotateElv, SYSTEM_LABEL } from '../../components/elv/elvPlan';
-import { saveBinary } from '../../util/files';
+import { saveBinary, saveBinaryAt, savePdf } from '../../util/files';
 import { angleDeg, areaOf, distance, inside, m, m2, roomAround, segmentsOn } from '../../model/cadMeasure';
 import { layerMapFor, layersWith, roomsFromPlan, withLayerMap } from '../../model/cadRooms';
 import { layerStatsOf, objectPath, outlinePoints, planOfView } from '../../model/cadViewPlan';
@@ -36,12 +36,18 @@ import { EMPHASIS_LABEL, emergencyLayout, OPEN_AREA_M2, type EmphasisKind } from
 import { placeEmergency } from '../../model/emergencyPlace';
 import { EMERGENCY_ITEMS } from '../../model/cadDevices';
 import { planLevel, setPlanLevel } from './cadFileMenu';
-import { pathOfPlan } from './cadState';
+import { pathOfPlan, type CadExport, type DraftTab, type SavedCopy } from './cadState';
+import CadDraftSettings from './CadDraftSettings';
+import CadSaveAs, { CloseUnsaved } from './CadSaveAs';
+import { cadFileMenu } from './cadFileMenu';
+import { DRAFT_DEFAULTS, type DraftSettings } from '../../model/cadDraft';
+import { CABLE_HEAD, cableRows, DEVICE_HEAD, deviceRows } from '../../model/cadExports';
+import { toDxf } from '../../docs/dxf';
 import { changeViewports, layoutOverlay, layoutsOf, LayoutTabs, moveLayout, newLayout, patchViewport, ViewportPanel, vpId } from './CadLayouts';
 import { layoutPaper, layoutViewports, PLAN_LABEL, PLAN_TYPES } from '../../docs/planLayout';
 import { isFrozen, isLocked, toggleFrozen, vpName, vpToModel, vpWindow, type PlanViewport } from '../../model/planViewports';
 import { renumber, setOf, type PlanType } from '../../model/drawingSet';
-import { SheetWorkspace } from '../sld/SheetWorkspace';
+import { PublishDialog, SheetWorkspace } from '../sld/SheetWorkspace';
 import type { MarkupTool } from '../sld/markupTools';
 import type { SheetUi } from '../sld/sheetUi';
 import type { CalcRun } from '../../calc/runs';
@@ -74,12 +80,13 @@ type Result =
   | { kind: 'sketch'; it: SketchItem };
 
 const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.toString(16).padStart(6, '0')}`);
-const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
-  { k: 'snap', label: 'SNAP', key: 'F9' }, { k: 'osnap', label: 'OSNAP', key: 'F3' }, { k: 'ortho', label: 'ORTHO', key: 'F8' }, { k: 'grid', label: 'GRID', key: 'F7' }, { k: 'dyn', label: 'DYN', key: 'F12' }
+const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab }[] = [
+  { k: 'snap', label: 'SNAP', key: 'F9', tab: 'snap' }, { k: 'osnap', label: 'OSNAP', key: 'F3', tab: 'osnap' }, { k: 'polar', label: 'POLAR', key: 'F10', tab: 'polar' }, { k: 'otrack', label: 'OTRACK', key: 'F11', tab: 'polar' },
+  { k: 'ortho', label: 'ORTHO', key: 'F8', tab: 'polar' }, { k: 'grid', label: 'GRID', key: 'F7', tab: 'snap' }, { k: 'dyn', label: 'DYN', key: 'F12', tab: 'dyn' }, { k: 'lwt', label: 'LWT', key: 'LWT', tab: 'cursor' }
 ];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · DYN (F12) · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 /** Bind's count in the Save line: reference lines, texts and hatches. */
@@ -181,8 +188,12 @@ const DRAW_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'rect', 'circle
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
  * a command line and a status bar. Engine in Rust (WebAssembly), desktop and web alike. Measure a distance, an area (by
  * corners, a closed object, or inside a room), and click any object to see what it is. */
-export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run: calcRun, onSheet }: {
+export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run: calcRun, onSheet, draft = DRAFT_DEFAULTS, autosaveMin = 2, onPrefs }: {
   cad: CadState;
+  /** Drafting settings (DS), and the project's recovery-copy minutes, kept in Preferences by the app. */
+  draft?: DraftSettings;
+  autosaveMin?: number;
+  onPrefs?: (p: { draft: DraftSettings; autosaveMin: number }) => void;
   project: Project;
   onChange: (next: Project, message: string) => void;
   onStatus: (m: string) => void;
@@ -297,7 +308,16 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const tab = cad.tabOf(file);
     if (tab) cad.show(tab); else void load(read, missing);
   };
-  const closeDrawings = (views?: CadView[]) => { const done = cad.close(views); if (done) onStatus(done); };
+  // Closing drawings changed since they were saved asks first (Save / Don't save / Cancel); a Save As started from there
+  // closes them once saved.
+  const [closing, setClosing] = useState<CadView[] | null>(null);
+  const closeAfterSave = useRef<CadView[] | null>(null);
+  const closeNow = (views?: CadView[]) => { setClosing(null); closeAfterSave.current = null; const done = cad.close(views); if (done) onStatus(done); };
+  const closeDrawings = (views?: CadView[]) => {
+    const going = views ?? cad.drawings;
+    if (going.some((v) => cad.isDirty(v.file))) { setClosing(going); return; }
+    closeNow(views);
+  };
 
   // Until a drawing has been open (and with none to reopen), the sample villa is shown — a test aid (SAMPLE_PLANS). Once
   // closed it stays closed.
@@ -431,7 +451,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     return best?.d;
   };
-  const change = (next: Project, message: string) => { onChange(next, message); cad.say(message); };
+  const change = (next: Project, message: string) => { onChange(next, message); cad.say(message); if (view) cad.markDirty(view.file); };
   const xr = useCadRefs({ project, view, tabOf: cad.tabOf, change, say: cad.say });
 
   // Layer palette (LM): the drawing's layer record (current layer, layers added, states), its rows, and the changes made
@@ -671,21 +691,108 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     change(selectedItem.what === 'elv' ? removeElv(project, selectedItem.id) : removeItem(project, selectedItem), `${selectedItem.label} deleted${selectedItem.what === 'lv' ? ` — taken off ${selectedItem.detail.split(' · ')[0]}` : ''} · ⌘Z to undo`);
     cad.setSelected(null); setResult(null);
   }
-  /** Save DXF / Save DWG: the drawing as received with what was drawn and the devices placed, as a new file. */
-  async function saveDxf(as: 'dxf' | 'dwg' = 'dxf', bind = false) {
-    if (!view) return;
+  /** Save / Save As: the drawing as received with what was drawn, the devices placed and the wiring (as chosen), as a
+   * copy — the architect's drawing is never written. `again` writes over the copy saved before (the desktop app: only a
+   * file chosen in its save dialog this session); `keep` records it as where Save goes next. */
+  async function writeCopy(c: SavedCopy, again: boolean, keep = true): Promise<boolean> {
+    if (!view) return false;
     try {
-      const out = placed.map((d) => ({ layer: d.what === 'lv' ? 'E-LV-POINTS' : d.what === 'elv' ? 'E-ELV-DEVICES' : 'E-BOARDS', x: d.x / units.factor, y: d.y / units.factor, r: rUnits * (d.what === 'board' ? 2 : 1), text: d.symbol.text, label: d.what === 'lv' ? d.detail.split(' · ')[0] : d.label }));
-      const wires = wiring.flatMap((w) => [...w.arcs, ...(w.home ? [w.home] : [])].map((a) => ({ layer: WIRING_LAYER, kind: 'pline' as const, pts: arcPoints(toUnits(a)) })));
-      const tags = wiring.map((w) => ({ layer: TAG_LAYER, kind: 'text' as const, pts: [[w.tagAt[0] / units.factor, w.tagAt[1] / units.factor] as Pt], text: w.tag, h: textH * 0.6, rot: 0 }));
-      const refLines = bind ? xr.bound() : [];
-      const bytes = await drawingWithDevices(view, out, [...shapesOut(sketch, units.factor), ...wires, ...tags, ...refLines], as, erasedKey ? erasedKey.split(',') : []);
-      const name = `${view.file.replace(/\.(dwg|dxf)$/i, '')} - with devices${bind ? ' and references' : ''}.${as}`;
-      const msg = await saveBinary(name, bytes, as === 'dwg' ? 'DWG drawing' : 'DXF drawing', as, as === 'dwg' ? 'application/acad' : 'application/dxf');
-      if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER}${refLines.length ? `, ${boundText(refLines)} bound on NAME$0$LAYER layers` : ''}${wiring.length ? `, ${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on ${WIRING_LAYER} / ${TAG_LAYER}` : ''})`); onStatus(msg); }
+      const out = !c.devices ? [] : placed.map((d) => ({ layer: d.what === 'lv' ? 'E-LV-POINTS' : d.what === 'elv' ? 'E-ELV-DEVICES' : 'E-BOARDS', x: d.x / units.factor, y: d.y / units.factor, r: rUnits * (d.what === 'board' ? 2 : 1), text: d.symbol.text, label: d.what === 'lv' ? d.detail.split(' · ')[0] : d.label }));
+      const wired = c.wiring ? wiring : [];
+      const wires = wired.flatMap((w) => [...w.arcs, ...(w.home ? [w.home] : [])].map((a) => ({ layer: WIRING_LAYER, kind: 'pline' as const, pts: arcPoints(toUnits(a)) })));
+      const tags = wired.map((w) => ({ layer: TAG_LAYER, kind: 'text' as const, pts: [[w.tagAt[0] / units.factor, w.tagAt[1] / units.factor] as Pt], text: w.tag, h: textH * 0.6, rot: 0 }));
+      const refLines = c.bind ? xr.bound() : [];
+      const drawn = c.drawn ? sketch : [];
+      const bytes = await drawingWithDevices(view, out, [...shapesOut(drawn, units.factor), ...wires, ...tags, ...refLines], c.as, erasedKey ? erasedKey.split(',') : [], c.version);
+      const over = again && c.path ? window.lvds?.files?.overwriteBinary : undefined;
+      let r: { message: string; path?: string; name: string } | null;
+      if (over && c.path) { await over({ file: c.path, bytes, bak: draft.keepBak }); r = { message: `Saved ${c.name}`, path: c.path, name: c.name }; }
+      else r = await saveBinaryAt(c.name, bytes, c.as === 'dwg' ? 'DWG drawing' : 'DXF drawing', c.as, c.as === 'dwg' ? 'application/acad' : 'application/dxf');
+      if (!r) return false;
+      if (keep) { cad.saved.current.set(view.file.toLowerCase(), { ...c, name: r.name, path: r.path }); cad.markDirty(view.file, false); }
+      cad.say(`SAVE  ${r.message} (${out.length} device${out.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${drawn.length} drawn object${drawn.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER}${refLines.length ? `, ${boundText(refLines)} bound on NAME$0$LAYER layers` : ''}${wired.length ? `, ${wired.length} circuit${wired.length === 1 ? '' : 's'} wired on ${WIRING_LAYER} / ${TAG_LAYER}` : ''})`);
+      onStatus(r.message);
+      return true;
+    } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); return false; }
+  }
+  const [saveAs, setSaveAs] = useState<SavedCopy | null>(null);
+  /** What Save As starts with for this drawing: the copy saved last, else a new name in the format set (DS). */
+  const copyOf = (as?: 'dwg' | 'dxf', bind = false): SavedCopy | null => {
+    if (!view) return null;
+    const last = cad.saved.current.get(view.file.toLowerCase());
+    const own = /^DXF/i.test(view.info.format) ? 'dxf' : 'dwg';
+    const fmt = as ?? last?.as ?? (draft.saveFormat === 'own' ? own : draft.saveFormat);
+    const base = last ? last.name.replace(/\.(dwg|dxf)$/i, '') : `${view.file.replace(/\.(dwg|dxf)$/i, '')} - with devices${bind ? ' and references' : ''}`;
+    return { ...(last ?? { drawn: true, devices: true, wiring: true }), bind: bind || !!last?.bind, path: last?.path, name: `${base}.${fmt}`, as: fmt, version: as && as !== last?.as ? '' : last?.version ?? '' };
+  };
+  const startSaveAs = (as?: 'dwg' | 'dxf', bind = false) => { const c = copyOf(as, bind); if (c) { setSaveAs(c); cad.say('SAVEAS  The file name, format and what goes in:'); } else cad.say('SAVEAS  Open a drawing first.'); };
+  /** Save: to the copy saved last; the first time, Save As. */
+  const saveNow = async () => {
+    if (!view) { cad.say('SAVE  Open a drawing first.'); return false; }
+    const c = cad.saved.current.get(view.file.toLowerCase());
+    if (!c) { startSaveAs(); return false; }
+    return writeCopy(c, true);
+  };
+  // File → Export: what is on screen (PDF in black and white, or PNG), the objects picked, or the lists of the plan.
+  const page = useRef<HTMLElement>(null);
+  /** The drawing as on screen, as a PNG data URL; `print`: black lines on white, for the PDF. */
+  const viewImage = (print: boolean): string | null => {
+    const c = page.current?.querySelector<HTMLCanvasElement>('canvas.cad-layer');
+    if (!c || !c.width) return null;
+    try {
+      if (!print) return c.toDataURL('image/png');
+      const o = document.createElement('canvas');
+      o.width = c.width; o.height = c.height;
+      const ctx = o.getContext('2d');
+      if (!ctx) return null;
+      const bg = c.getContext('2d')?.getImageData(0, 0, 1, 1).data;
+      const dark = !bg || bg[0] + bg[1] + bg[2] < 384;
+      ctx.filter = `grayscale(1)${dark ? ' invert(1)' : ''} contrast(1.4)`;
+      ctx.drawImage(c, 0, 0);
+      return o.toDataURL('image/png');
+    } catch { return null; }
+  };
+  async function exportAs(kind: CadExport) {
+    if (!view) { cad.say('EXPORT  Open a drawing first.'); return; }
+    const base = view.file.replace(/\.(dwg|dxf)$/i, '');
+    const say = (m: string | null) => { if (m) { cad.say(`EXPORT  ${m}`); onStatus(m); } };
+    try {
+      if (kind === 'pdfLayout') { if (sheetL) { onPlot(sheetL.id); cad.say(`EXPORT  ${sheetL.number} with its page setup`); } else cad.say('EXPORT  Open a layout tab first (PDF of this layout).'); return; }
+      if (kind === 'pdfView' || kind === 'png') {
+        const img = viewImage(kind === 'pdfView');
+        if (!img) { cad.say('EXPORT  The view could not be read.'); return; }
+        if (kind === 'png') { const bin = atob(img.split(',')[1]); say(await saveBinary(`${base}.png`, Uint8Array.from(bin, (ch) => ch.charCodeAt(0)), 'PNG image', 'png', 'image/png')); return; }
+        const esc = (t: string) => t.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]!);
+        const title = `${view.file}${floor ? ` · ${floorLabel(project.building, floor)}` : ''} · ${new Date().toISOString().slice(0, 10)}`;
+        say(await savePdf(`${base}.pdf`, `<!doctype html><html><head><meta charset="utf-8"><title>${esc(view.file)}</title><style>body{margin:0;font:10pt sans-serif;color:black}img{display:block;max-width:100%;max-height:180mm;margin:0 auto;border:0.3mm solid black}p{margin:2mm 0}</style></head><body><p>${esc(title)}</p><img src="${img}" alt=""></body></html>`, { pageSize: 'A3', landscape: true }));
+        return;
+      }
+      if (kind === 'wblock') {
+        const items = pickedSk.length ? pickedSk : selSketch ? [selSketch] : [];
+        if (!items.length && !pickedItems.length) { cad.say('WBLOCK  Pick the drawn objects or devices first, then WBLOCK.'); return; }
+        const devs = pickedItems.map((d) => ({ layer: d.what === 'lv' ? 'E-LV-POINTS' : d.what === 'elv' ? 'E-ELV-DEVICES' : 'E-BOARDS', x: d.x / units.factor, y: d.y / units.factor, r: rUnits * (d.what === 'board' ? 2 : 1), text: d.symbol.text, label: d.what === 'lv' ? d.detail.split(' · ')[0] : d.label }));
+        const bytes = await drawingWithDevices({ bytes: new TextEncoder().encode(toDxf([])) }, devs, shapesOut(items, units.factor), 'dxf');
+        say(await saveBinary(`${base} - objects.dxf`, bytes, 'DXF drawing', 'dxf', 'application/dxf'));
+        return;
+      }
+      const { default: ExcelJS } = await import('exceljs');
+      const { workbookBytes } = await import('../../docs/formWorkbook');
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet(kind === 'devices' ? 'Devices' : 'Cable routes');
+      ws.addRow([`${view.file}${floor ? ` · ${floorLabel(project.building, floor)}` : ''}`]);
+      ws.addRow(kind === 'devices' ? DEVICE_HEAD : CABLE_HEAD).font = { bold: true };
+      const rows = kind === 'devices' ? deviceRows(placed) : cableRows(sketch, (id) => cableLabels[id] ?? id, units.factor);
+      for (const r of rows) ws.addRow(r);
+      ws.columns.forEach((col) => { col.width = 18; });
+      if (!rows.length) { cad.say(`EXPORT  No ${kind === 'devices' ? 'devices placed' : 'cable routes drawn'} on this plan.`); return; }
+      say(await saveBinary(`${base} - ${kind === 'devices' ? 'devices' : 'cable routes'}.xlsx`, await workbookBytes(wb), 'Excel workbook', 'xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'));
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
   }
-  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), close: () => { if (view) closeDrawings([view]); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); }, command: (t) => run(t), setProps, reopen: () => { if (last) void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.'); } };
+  // Drafting settings (DS) open at a tab; Publish (the sheets of this drawing's layouts ticked).
+  const [dsTab, setDsTab] = useState<DraftTab | null>(null);
+  const [publishing, setPublishing] = useState(false)
+;
+  cad.actions.current = { save: () => void saveNow(), saveDwg: () => startSaveAs('dwg'), saveAs: () => startSaveAs(), exportAs: (k) => void exportAs(k), publish: () => setPublishing(true), settings: (t) => setDsTab(t ?? 'snap'), close: () => { if (view) closeDrawings([view]); }, closeOthers: () => { if (view) closeDrawings(cad.drawings.filter((v) => v !== view)); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); }, command: (t) => run(t), setProps, reopen: () => { if (last) void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.'); } };
   // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
   useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
   // A ribbon command given while another page was shown runs now that the page is here.
@@ -1608,8 +1715,20 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       wireTags: () => cad.setWireTags(!cad.wireTags),
       coverage: () => cad.setCoverage(!cad.coverage),
       erase: () => removeSelected(),
-      save: () => void saveDxf(),
-      saveDwg: () => void saveDxf('dwg'),
+      save: () => void saveNow(),
+      saveDwg: () => startSaveAs('dwg'),
+      saveAs: () => startSaveAs(c === 'DXFOUT' ? 'dxf' : undefined),
+      closeOthers: () => { if (view) closeDrawings(cad.drawings.filter((v) => v !== view)); else cad.say('No drawing open.'); },
+      export: () => cad.say('EXPORT  EXPORTPDF (PDF of this view) · PNGOUT (image) · WBLOCK (the objects picked, as DXF) · or File → Export for the layout PDF and the device and cable lists.'),
+      exportPdf: () => void exportAs('pdfView'),
+      pngOut: () => void exportAs('png'),
+      wblock: () => void exportAs('wblock'),
+      publish: () => setPublishing(true),
+      dsettings: () => setDsTab('snap'),
+      osnapSettings: () => setDsTab('osnap'),
+      polar: () => cad.toggle('polar'),
+      otrack: () => cad.toggle('otrack'),
+      lwt: () => cad.toggle('lwt'),
       layers: () => cad.setShowLayers(!cad.showLayers),
       osnap: () => cad.toggle('osnap'),
       grid: () => cad.cycleGrid(),
@@ -1652,7 +1771,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   keyRef.current = (e: KeyboardEvent) => {
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
     const mods = e.metaKey || e.ctrlKey || e.altKey;
-    const fn: Record<string, keyof CadToggles> = { F3: 'osnap', F7: 'grid', F8: 'ortho', F9: 'snap', F12: 'dyn' };
+    const fn: Record<string, keyof CadToggles> = { F3: 'osnap', F7: 'grid', F8: 'ortho', F9: 'snap', F10: 'polar', F11: 'otrack', F12: 'dyn' };
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === '1') { e.preventDefault(); setShowProps((v) => !v); return; }
     if (fn[e.key]) { e.preventDefault(); if (fn[e.key] === 'grid') cad.cycleGrid(); else cad.toggle(fn[e.key]); return; }
     // Keys in a dialog over the page (the layer manager, references…) are the dialog's.
@@ -1744,14 +1863,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // Dynamic input (DYN, F12): length and angle while a point is asked for after a first one, a radius for a circle,
   // else the distance, radius or factor of Offset, Fillet and Scale; and the prompt in short form with its options.
   const dynOn = !!cad.toggles.dyn && tool !== 'none' && !!cur && spaceMode !== 'text';
-  const dynBoxes: DynBox[] = !dynOn || !cur ? []
+  const dynBoxes: DynBox[] = !dynOn || !cur || !draft.dynBoxes ? []
     : lastPt && POINT_TOOLS.includes(tool) ? [{ label: 'Length', live: fmtFixed(toM(distance(lastPt, cur)), 2), unit: 'm' }, { label: 'Angle', live: angleDeg(lastPt, cur).toFixed(1), unit: '°' }]
     : lastPt && tool === 'circle' ? [{ label: 'Radius', live: fmtFixed(toM(distance(lastPt, cur)), 2), unit: 'm' }]
     : tool === 'offset' && !edStep ? [{ label: 'Distance', live: edSet.through ? 'Through' : f2(edSet.offset), unit: 'm' }]
     : tool === 'fillet' && !edStep && !edAsk ? [{ label: 'Radius', live: f2(edSet.radius), unit: 'm' }]
     : tool === 'scale' && edAsk === 'factor' ? [{ label: 'Factor', live: edSet.factor, unit: '×' }] : [];
   const dynLine = cad.history[cad.history.length - 1] ?? '';
-  const dynOptions = dynOn ? promptOptions(dynLine) : [];
+  const dynOptions = dynOn && draft.dynOptions ? promptOptions(dynLine) : [];
   const marks: CadMarks | null = DRAW_TOOLS.includes(tool) && lastPt ? { points: [lastPt], live: true, label: dynBoxes.length ? undefined : liveLabel }
     : result?.kind === 'dist' ? { points: [result.a, result.b], label: m(toM(distance(result.a, result.b))) }
     : result?.kind === 'area' && result.how !== 'object' ? { points: result.points, closed: true, label: m2(toM2(areaOf(result.points).area)) }
@@ -1801,9 +1920,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
-            <CadCanvas view={view!} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
+            <CadCanvas view={view!} draft={draft} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
               numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={xr.snap} windowSelect={tool === 'none' || tool === 'stretch' || (PICK_FIRST.includes(tool) && edPhase === 'pick')} onWindow={pickWindow} onContext={contextAt}
-              grips={tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
+              grips={draft.grips && tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
               onGripEnd={(i, at) => {
                 setGripIdx(null);
                 if (i < 0 || !selSketch) return;
@@ -1813,7 +1932,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               overlay={(toScreen, moving) => {
                 const dyn = dynOn && cur && !moving && !promptMenu ? (() => {
                   const [x, y] = toScreen(cur);
-                  return <CadDynInput left={x + 16} top={y + 16} boxes={dynBoxes} vals={dynVals} refs={dynRefs} prompt={shortPrompt(dynLine)} options={dynOptions} menu={dynMenu !== null} hi={dynMenu ?? 0}
+                  return <CadDynInput left={x + 16} top={y + 16} boxes={dynBoxes} vals={dynVals} refs={dynRefs} prompt={draft.dynPrompt ? shortPrompt(dynLine) : ''} options={dynOptions} menu={dynMenu !== null} hi={dynMenu ?? 0}
                     onVals={setDynVals} onPick={(k) => { setDynMenu(null); run(k); }} onBlur={() => setDynMenu(null)}
                     onKey={(e, i) => {
                       if (dynKey(e)) return;
@@ -1840,8 +1959,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               }} {...vpProps} />
   );
 
+  const on = (k: keyof CadToggles) => (k === 'lwt' ? cad.toggles.lwt !== false : !!cad.toggles[k]);
+  const fileLists = dsTab ? cadFileMenu(project, cad, (next, message) => onChange(next, message), onStatus) : null;
   return (
-    <section className="cad">
+    <section className="cad" ref={page}>
       <CadTabs cad={cad} project={project} busy={busy} onOpen={openFile} onClose={closeDrawings} />
       <div className="cad-work">
         {showLM && view && (
@@ -2090,11 +2211,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       <CadCommandLine history={cad.history} live={EDIT_TOOLS.includes(tool) ? promptNow(edSet) : undefined} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
       <div className="cad-status">
         {TOGGLES.map((x) => (
-          <button key={x.k} className={`cad-tg${cad.toggles[x.k] ? ' on' : ''}`} aria-pressed={cad.toggles[x.k]}
-            title={x.k === 'grid' ? `Grid: ${!cad.toggles.grid ? 'off' : cad.gridDots ? 'dots' : 'lines'} (${x.key}: lines, dots, off)` : `${x.label} (${x.key})`}
-            onClick={() => (x.k === 'grid' ? cad.cycleGrid() : cad.toggle(x.k))}>{x.k === 'grid' && cad.toggles.grid && cad.gridDots ? 'GRID · DOTS' : x.label}</button>
+          <button key={x.k} className={`cad-tg${on(x.k) ? ' on' : ''}`} aria-pressed={on(x.k)}
+            title={`${x.k === 'grid' ? `Grid: ${!cad.toggles.grid ? 'off' : cad.gridDots ? 'dots' : 'lines'} (${x.key}: lines, dots, off)` : x.k === 'lwt' ? 'Show lineweights (LWT)' : `${x.label} (${x.key})`} — right-click for its settings`}
+            onClick={() => (x.k === 'grid' ? cad.cycleGrid() : cad.toggle(x.k))} onContextMenu={(e) => { e.preventDefault(); setDsTab(x.tab); }}>{x.k === 'grid' && cad.toggles.grid && cad.gridDots ? 'GRID · DOTS' : x.label}</button>
         ))}
         <button className="cad-tg" title="Fit the drawing to the window (FIT / ZE, or double-click the middle button)" disabled={!view} onClick={() => cad.fit()}>FIT</button>
+        <button className="cad-tg" aria-label="Drafting settings" title="Drafting settings (DS): snap, grid, tracking, object snap, dynamic input, selection, cursor, units" onClick={() => setDsTab('snap')}>⚙</button>
         <span className="sp" />
         {sheetL ? <>
           <button className={`cad-tg on`} aria-label={msV ? 'Model space in a viewport' : 'Paper space'} title={msV ? 'In the model through a viewport: click for the paper (PS)' : 'On the paper: click to work in a viewport (MS)'} onClick={() => run(msV ? 'PS' : 'MS')}>{msV ? 'MODEL' : 'PAPER'}</button>
@@ -2105,7 +2227,22 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
           <span>{view ? `${view.file} · ${view.info.format} · ${units.label} · 1 : 1` : ''}</span>
         </>}
       </div>
-      {showXR && view && <RefManager file={view.file} level={floor ? floorLabel(project.building, floor) : undefined} x={xr} onAttach={() => void startAttach()} onClip={startClip} onBind={() => { setShowXR(false); void saveDxf(view.info.format === 'DWG' ? 'dwg' : 'dxf', true); }} onClose={() => setShowXR(false)} />}
+      {saveAs && view && <CadSaveAs key={view.file} initial={saveAs} own={view.info.format} hasRefs={xr.refs.length > 0} onClose={() => { setSaveAs(null); closeAfterSave.current = null; }}
+        onSave={(c) => { setSaveAs(null); const after = closeAfterSave.current; void writeCopy(c, false).then((ok) => { if (ok && after) closeNow(after); }); }} />}
+      {closing && <CloseUnsaved files={closing.filter((v) => cad.isDirty(v.file)).map((v) => v.file)} canSave={!!view && closing.filter((v) => cad.isDirty(v.file)).every((v) => v === view)}
+        onClose={() => setClosing(null)} onDiscard={() => closeNow(closing)}
+        onSave={() => { const going = closing; setClosing(null); if (view && cad.saved.current.get(view.file.toLowerCase())) void saveNow().then((ok) => { if (ok) closeNow(going); }); else { closeAfterSave.current = going; startSaveAs(); } }} />}
+      {dsTab && fileLists && <CadDraftSettings tab={dsTab} draft={draft} toggles={cad.toggles} gridDots={cad.gridDots} level={fileLists.level} levels={fileLists.levels} unit={fileLists.unit} units={fileLists.units} autosaveMin={autosaveMin}
+        onClose={() => setDsTab(null)}
+        onApply={(x) => {
+          setDsTab(null);
+          cad.setToggles(x.toggles); cad.setGridDots(x.gridDots);
+          onPrefs?.({ draft: x.draft, autosaveMin: Math.max(0, Math.min(60, x.autosaveMin)) });
+          x.level?.onClick(); x.unit?.onClick();
+          cad.say('DSETTINGS  Drafting settings changed.');
+        }} />}
+      {publishing && <PublishDialog project={project} run={calcRun} current={sheetL?.id} ticked={layouts.map((x) => x.id)} onClose={() => setPublishing(false)} onChange={(p) => onChange(p, 'Sheets issued · ⌘Z to undo')} onStatus={onStatus} onOpen={(id) => { setPublishing(false); onSheet?.(id); }} />}
+      {showXR && view && <RefManager file={view.file} level={floor ? floorLabel(project.building, floor) : undefined} x={xr} onAttach={() => void startAttach()} onClip={startClip} onBind={() => { setShowXR(false); const c = copyOf(/^DXF/i.test(view.info.format) ? 'dxf' : 'dwg', true); if (c) void writeCopy({ ...c, path: undefined }, false, false); }} onClose={() => setShowXR(false)} />}
       {xDraft && tool !== 'xattach' && view && (
         <AttachDialog key={`${xDraft.at[0]},${xDraft.at[1]}`} draft={xDraft} level={floor ? floorLabel(project.building, floor) : undefined} units={{ ref: unitName(refGeometry(xDraft.file)?.units), plan: unitName(view.info.units) }}
           onPick={(d) => { setXDraft(d); cad.setTool('xattach'); }} onCancel={() => { setXDraft(null); cad.say('*Cancel*'); }} onAttach={(d) => { setXDraft(null); xr.actions.confirm(d); }} />

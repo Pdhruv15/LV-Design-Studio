@@ -34,6 +34,14 @@ function saveBinaryArgs(a) {
   return { defaultName: defaultFileName(a.defaultName), bytes: Buffer.from(ArrayBuffer.isView(a.bytes) ? a.bytes.buffer.slice(a.bytes.byteOffset, a.bytes.byteOffset + a.bytes.byteLength) : a.bytes), filter: fileFilter(a.filterName, a.extensions) };
 }
 
+/** Design CAD Save over a copy saved earlier: an absolute DWG / DXF path, the bytes (as for saveBinary), and whether
+ * the previous copy is kept as .bak. Whether the path may be written is the main process's (one the user chose). */
+function overwriteBinaryArgs(a) {
+  if (!isObj(a) || typeof a.file !== 'string' || !path.isAbsolute(a.file) || !/\.(dwg|dxf)$/i.test(a.file)) fail('overwrite without a drawing path');
+  const { bytes } = saveBinaryArgs({ defaultName: 'x.dxf', bytes: a.bytes, filterName: 'Drawing', extensions: ['dxf'] });
+  return { file: a.file, bytes, bak: !!a.bak };
+}
+
 const PAGE_SIZES = ['A4', 'A3', 'A3 portrait', 'A2', 'A1'];
 
 /** HTML → PDF options: HTML text, a known sheet size, true/false flags. */
@@ -106,4 +114,4 @@ function engineRequest(r) {
 /** Permissions the app's pages may be granted (everything else, e.g. camera, location, notifications, is denied). */
 const ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write']);
 
-module.exports = { defaultFileName, fileFilter, saveTextArgs, saveBinaryArgs, pdfArgs, projectSaveArgs, recoveryArgs, logText, workbookRows, libraryData, engineRequest, ALLOWED_PERMISSIONS, PAGE_SIZES };
+module.exports = { defaultFileName, fileFilter, saveTextArgs, saveBinaryArgs, overwriteBinaryArgs, pdfArgs, projectSaveArgs, recoveryArgs, logText, workbookRows, libraryData, engineRequest, ALLOWED_PERMISSIONS, PAGE_SIZES };

@@ -2051,6 +2051,13 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-dlg-ft{display:flex;gap:4px;justify-content:flex-end;padding:4px 6px;border-top:1px solid var(--line)}
 .cad-dlg-ft .q{width:20px;margin-right:auto;padding:0}
 .cad-dlg-ft .p{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}
+.cad-dlg.wide{width:380px}
+.cad-dlg.wide .cad-dlg-r{grid-template-columns:1fr 170px}
+.cad-dlg-tabs.wrap{flex-wrap:wrap;margin-top:0}
+.cad-dlg-tabs.wrap button{flex:none;padding:0 8px}
+.cad-dlg-sec{padding:6px 8px 2px;color:var(--mut);font-size:11px}
+.cad-dlg-note{margin:0;padding:2px 8px 4px;color:var(--mut);font-size:11px;line-height:1.35}
+.cad-tab-dirty{color:var(--acc);margin-left:4px}
 .cad-log-x{position:sticky;top:0;float:right;padding:0 4px;background:none;border:0;color:var(--mut);font:inherit}
 .cad-cmd input{flex:1;min-width:120px;background:transparent;border:0;outline:0;color:var(--tx);font:inherit}
 .cad-status{display:flex;align-items:center;gap:var(--space-1);padding:4px var(--space-2);background:var(--p2);border-top:1px solid var(--line);font-size:var(--fs-xs);color:var(--mut)}
