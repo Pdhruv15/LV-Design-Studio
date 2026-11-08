@@ -1985,6 +1985,21 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             onDeleteState={(name) => change(withoutState(project, view.file, name), `Layer state ${name} deleted · ⌘Z to undo`)}
             onClose={() => setShowLM(false)} />
         )}
+        {/* Save As, Close with changes and Drafting settings float over the drawing, as the other CAD dialogs do. */}
+        {saveAs && view && <CadSaveAs key={view.file} initial={saveAs} own={view.info.format} hasRefs={xr.refs.length > 0} onClose={() => { setSaveAs(null); closeAfterSave.current = null; }}
+          onSave={(c) => { setSaveAs(null); const after = closeAfterSave.current; void writeCopy(c, false).then((ok) => { if (ok && after) closeNow(after); }); }} />}
+        {closing && <CloseUnsaved files={closing.filter((v) => cad.isDirty(v.file)).map((v) => v.file)} canSave={!!view && closing.filter((v) => cad.isDirty(v.file)).every((v) => v === view)}
+          onClose={() => setClosing(null)} onDiscard={() => closeNow(closing)}
+          onSave={() => { const going = closing; setClosing(null); if (view && cad.saved.current.get(view.file.toLowerCase())) void saveNow().then((ok) => { if (ok) closeNow(going); }); else { closeAfterSave.current = going; startSaveAs(); } }} />}
+        {dsTab && fileLists && <CadDraftSettings tab={dsTab} draft={draft} toggles={cad.toggles} gridDots={cad.gridDots} level={fileLists.level} levels={fileLists.levels} unit={fileLists.unit} units={fileLists.units} autosaveMin={autosaveMin}
+          onClose={() => setDsTab(null)}
+          onApply={(x) => {
+            setDsTab(null);
+            cad.setToggles(x.toggles); cad.setGridDots(x.gridDots);
+            onPrefs?.({ draft: x.draft, autosaveMin: Math.max(0, Math.min(60, x.autosaveMin)) });
+            x.level?.onClick(); x.unit?.onClick();
+            cad.say('DSETTINGS  Drafting settings changed.');
+          }} />}
         {dlg === 'edit' && DIALOG_TOOLS.includes(tool as EditTool) && <EditDialog tool={tool as EditTool} settings={edSet} onPatch={(p) => setEdSet((x) => ({ ...x, ...p }))} onClose={() => setDlg(null)} />}
         {dlg === 'style' && <TextStyleDialog styles={textStylesOf(project)} annoMm={anno.textMm} onClose={() => setDlg(null)}
           onSave={(s) => {
@@ -2227,20 +2242,6 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
           <span>{view ? `${view.file} · ${view.info.format} · ${units.label} · 1 : 1` : ''}</span>
         </>}
       </div>
-      {saveAs && view && <CadSaveAs key={view.file} initial={saveAs} own={view.info.format} hasRefs={xr.refs.length > 0} onClose={() => { setSaveAs(null); closeAfterSave.current = null; }}
-        onSave={(c) => { setSaveAs(null); const after = closeAfterSave.current; void writeCopy(c, false).then((ok) => { if (ok && after) closeNow(after); }); }} />}
-      {closing && <CloseUnsaved files={closing.filter((v) => cad.isDirty(v.file)).map((v) => v.file)} canSave={!!view && closing.filter((v) => cad.isDirty(v.file)).every((v) => v === view)}
-        onClose={() => setClosing(null)} onDiscard={() => closeNow(closing)}
-        onSave={() => { const going = closing; setClosing(null); if (view && cad.saved.current.get(view.file.toLowerCase())) void saveNow().then((ok) => { if (ok) closeNow(going); }); else { closeAfterSave.current = going; startSaveAs(); } }} />}
-      {dsTab && fileLists && <CadDraftSettings tab={dsTab} draft={draft} toggles={cad.toggles} gridDots={cad.gridDots} level={fileLists.level} levels={fileLists.levels} unit={fileLists.unit} units={fileLists.units} autosaveMin={autosaveMin}
-        onClose={() => setDsTab(null)}
-        onApply={(x) => {
-          setDsTab(null);
-          cad.setToggles(x.toggles); cad.setGridDots(x.gridDots);
-          onPrefs?.({ draft: x.draft, autosaveMin: Math.max(0, Math.min(60, x.autosaveMin)) });
-          x.level?.onClick(); x.unit?.onClick();
-          cad.say('DSETTINGS  Drafting settings changed.');
-        }} />}
       {publishing && <PublishDialog project={project} run={calcRun} current={sheetL?.id} ticked={layouts.map((x) => x.id)} onClose={() => setPublishing(false)} onChange={(p) => onChange(p, 'Sheets issued · ⌘Z to undo')} onStatus={onStatus} onOpen={(id) => { setPublishing(false); onSheet?.(id); }} />}
       {showXR && view && <RefManager file={view.file} level={floor ? floorLabel(project.building, floor) : undefined} x={xr} onAttach={() => void startAttach()} onClip={startClip} onBind={() => { setShowXR(false); const c = copyOf(/^DXF/i.test(view.info.format) ? 'dxf' : 'dwg', true); if (c) void writeCopy({ ...c, path: undefined }, false, false); }} onClose={() => setShowXR(false)} />}
       {xDraft && tool !== 'xattach' && view && (
