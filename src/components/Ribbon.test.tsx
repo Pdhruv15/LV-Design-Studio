@@ -104,11 +104,16 @@ describe('Ribbon', () => {
   const subTabs = (html: string) => [...(/role="tablist" aria-label="Design CAD">(.*?)<\/div>/s.exec(html)?.[1] ?? '').matchAll(/role="tab"[^>]*>([^<]+)</g)].map((m) => m[1]);
   const groupsOf = (html: string) => [...html.matchAll(/role="group" aria-label="([^"]+)"/g)].map((m) => m[1]);
 
-  it('shows Design CAD\'s sub-tabs by use, with File beside them; it opens on Draw, the tools that create geometry', () => {
+  it('fills Design CAD\'s sub-tabs in turn with icons only, File beside them; it opens on Draw, the drafting', () => {
     const html = render('cad', { view: 'cad', cad: cad() });
-    expect(subTabs(html)).toEqual(['Draw', 'Modify', 'Annotate', 'Insert', 'Layers', 'View', 'Page setup', 'Tools', 'Electrical &amp; ELV']);
+    expect(subTabs(html)).toEqual(['Draw', 'Electrical, ELV &amp; sheets']);
     expect(html).toMatch(/id="ribbon-cad-draw"[^>]*aria-selected="true"/);
-    expect(groupsOf(html)).toEqual(['Lines', 'Curves', 'Fill']);
+    expect(groupsOf(html)).toEqual(['Lines', 'Curves', 'Fill', 'Transform', 'Shape', 'Pattern', 'Erase', 'Properties', 'Text', 'Dimensions', 'Leaders', 'Marks',
+      'Layers', 'Visibility', 'Roles', 'Navigate', 'Palettes', 'Display']);
+    // With labels the names need about twice the room: a sub-tab for each kind of tool.
+    const named = render('cad', { view: 'cad', cad: cad({ labels: true }) });
+    expect(subTabs(named)).toEqual(['Draw', 'Modify', 'Annotate', 'Insert', 'Layers', 'View', 'Page setup', 'Tools', 'Electrical &amp; ELV']);
+    expect(groupsOf(named)).toEqual(['Lines', 'Curves', 'Fill']);
     expect(html).toContain('title="Open, save and close drawings; the level and units of the drawing"'); // File, a menu
     expect(html).toMatch(/aria-haspopup="menu" aria-expanded="false" title="Open, save and close drawings/);
     expect(html).toContain('Show labels');
@@ -129,17 +134,20 @@ describe('Ribbon', () => {
     expect(render('sld')).toContain('<span>Add load</span>'); // the other tabs keep their names
   });
 
-  it('on the sheets pages shows Page setup: the sheet set, and the open sheet\'s page setup and export', () => {
-    const html = render('cad', { view: 'drawings', cad: cad(), sheets: { tab: 'layout', open: false, onTab: noop } });
-    expect(html).toMatch(/id="ribbon-cad-page"[^>]*aria-selected="true"/);
-    expect(groupsOf(html)).toEqual(['Sheet set', 'Plot', 'Issue and export']);
+  it('on the sheets pages shows every sheet tool on the sheets\' sub-tab; with labels, Page setup: the sheet set, page setup and export', () => {
+    const sheets = { tab: 'layout', open: false, onTab: noop } as RibbonActions['sheets'];
+    const html = render('cad', { view: 'drawings', cad: cad(), sheets });
+    expect(html).toMatch(/id="ribbon-cad-elec"[^>]*aria-selected="true"/);
+    expect(groupsOf(html)).toEqual(['Markup', 'On panels', 'Sheet', 'Sheet set', 'Plot', 'Issue and export']);
     for (const label of ['All sheets', 'Layout', 'Title block', 'Issues', 'Page setup', 'Pens', 'Publish', 'PDF', 'DXF', 'DWG']) expect(html, label).toContain(`aria-label="${label}"`);
-    expect(subTabs(html)).not.toContain('Sheets');
-    expect(subTabs(html)).not.toContain('Plan');
+    const named = render('cad', { view: 'drawings', cad: cad({ labels: true }), sheets });
+    expect(named).toMatch(/id="ribbon-cad-page"[^>]*aria-selected="true"/);
+    expect(groupsOf(named)).toEqual(['Sheet set', 'Plot', 'Issue and export']);
+    for (const h of [html, named]) expect(subTabs(h)).not.toContain('Sheets');
   });
 
   it('opens the sheets from the SLD tabs', () => {
-    for (const tab of ['schematic', 'sld'] as const) expect(render(tab), tab).toContain('(Design CAD → Page setup → Sheet set)');
+    for (const tab of ['schematic', 'sld'] as const) expect(render(tab), tab).toContain('(Design CAD → Sheet set)');
   });
 
   it('gives an icon-only tool a tooltip: its name and command in bold, then what it does', () => {

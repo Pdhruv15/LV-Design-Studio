@@ -152,7 +152,7 @@ export default function PreferencesDialog({ prefs, project, onSave, onApplyToPro
             </select>
           </label>
           <p className="m">Changes the screen only. Drawings, PDFs and DXF files are always produced black on white.</p>
-          <label className="row"><input type="checkbox" checked={!!p.app.cadLabels} onChange={(e) => setP((x) => ({ ...x, app: { ...x.app, cadLabels: e.target.checked || undefined } }))} /> Design CAD: show the name of each tool under its icon</label>
+          <label className="row"><input type="checkbox" checked={!!p.app.cadLabels} onChange={(e) => setP((x) => ({ ...x, app: { ...x.app, cadLabels: e.target.checked || undefined } }))} /> Design CAD: show the name of each tool under its icon (each kind of tool then has a tab of its own)</label>
           <label>Recovery copy of unsaved work
             <select value={p.app.autosaveMin} onChange={(e) => setP((x) => ({ ...x, app: { ...x.app, autosaveMin: +e.target.value } }))}>
               <option value={1}>Every minute</option>

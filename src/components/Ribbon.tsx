@@ -133,13 +133,13 @@ export interface RibbonActions {
   onConceptReport: () => void;
 }
 
-/** Design CAD's sub-tabs, by what the engineer is doing: creating (Draw) apart from changing (Modify), then Annotate,
+/** Design CAD's tools by what the engineer is doing: creating (Draw) apart from changing (Modify), then Annotate,
  * Insert, Layers, View, Page setup, Tools, and the engineering tools on the plan (Electrical & ELV). `groups` are the
- * cad tab's groups (CAPTIONS.cad) on the drawing. On the sheets pages a sub-tab with `sheet` shows those instead (the
+ * cad tab's groups (CAPTIONS.cad) on the drawing. On the sheets pages a part with `sheet` shows those instead (the
  * open sheet's tools), on a layout's paper one with `paper` shows those (its markup), and on a layout `layout` follows
- * `groups`. File (open, save, close) is a menu beside them. */
-export type CadSub = 'draw' | 'modify' | 'annotate' | 'insert' | 'layers' | 'view' | 'page' | 'tools' | 'elec';
-export const CAD_SUB: Record<CadSub, { label: string; groups: number[]; sheet?: number[]; paper?: number[]; layout?: number[] }> = {
+ * `groups`. */
+export type CadPart = 'draw' | 'modify' | 'annotate' | 'insert' | 'layers' | 'view' | 'page' | 'tools' | 'elec';
+export const CAD_PART: Record<CadPart, { label: string; groups: number[]; sheet?: number[]; paper?: number[]; layout?: number[] }> = {
   draw: { label: 'Draw', groups: [0, 1, 2] },
   modify: { label: 'Modify', groups: [3, 4, 5, 6, 7] },
   annotate: { label: 'Annotate', groups: [8, 9, 10, 11], sheet: [12, 13], paper: [12] },
@@ -150,10 +150,24 @@ export const CAD_SUB: Record<CadSub, { label: string; groups: number[]; sheet?: 
   tools: { label: 'Tools', groups: [27] },
   elec: { label: 'Electrical & ELV', groups: [28, 29, 30, 31, 32] }
 };
-const CAD_SUBS = Object.keys(CAD_SUB) as CadSub[];
+const CAD_PARTS = Object.keys(CAD_PART) as CadPart[];
+/** A Design CAD sub-tab: its parts in order, and on the sheets pages `sheet` in place of its parts' sheet tools. Its id is
+ * its first part's. */
+export interface CadTab { id: CadPart; label: string; parts: CadPart[]; sheet?: number[] }
+/** Design CAD's sub-tabs. With icons only the parts fill each tab in turn, as much as a 1366 px window holds: Draw has
+ * the drafting (draw, modify, annotate, layers, view), the second the electrical and ELV tools, measuring, references
+ * and the sheets, and on the sheets pages every sheet tool. With Show labels the names need about twice the room, so
+ * each part has a tab of its own. File (open, save, close) is a menu beside them. */
+export const CAD_TABS: Record<'icons' | 'labels', CadTab[]> = {
+  icons: [
+    { id: 'draw', label: 'Draw', parts: ['draw', 'modify', 'annotate', 'layers', 'view'], sheet: [] },
+    { id: 'elec', label: 'Electrical, ELV & sheets', parts: ['elec', 'tools', 'insert', 'page'], sheet: [12, 13, 21, 22, 25, 26] }
+  ],
+  labels: CAD_PARTS.map((p) => ({ id: p, label: CAD_PART[p].label, parts: [p] }))
+};
 const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
-/** The sub-tab a tool is on, so the ribbon shows the tool in use (a typed command moves it there). */
-const SUB_OF: Partial<Record<CadTool, CadSub>> = {
+/** The part a tool is in, so the ribbon shows the tool in use (a typed command moves it there). */
+const PART_OF: Partial<Record<CadTool, CadPart>> = {
   line: 'draw', pline: 'draw', rect: 'draw', circle: 'draw', arc: 'draw', hatch: 'draw',
   move: 'modify', copy: 'modify', rotate: 'modify', mirror: 'modify', scale: 'modify', stretch: 'modify', trim: 'modify', extend: 'modify', offset: 'modify', fillet: 'modify', chamfer: 'modify', break: 'modify', join: 'modify', explode: 'modify', array: 'modify', matchprop: 'modify',
   text: 'annotate', dim: 'annotate', leader: 'annotate', rtag: 'annotate', north: 'annotate',
@@ -161,8 +175,9 @@ const SUB_OF: Partial<Record<CadTool, CadSub>> = {
   room: 'elec', trace: 'elec', name: 'elec', tray: 'elec', cable: 'elec', link: 'elec', dev: 'elec', fill: 'elec', lux: 'elec', em: 'elec', arl: 'elec', match: 'elec', wire: 'elec'
 };
 const SUB_KEY = 'lvds.cadSub';
-/** The sub-tab Design CAD opens on: the one used last on this computer, Draw the first time. */
-const firstSub = (): CadSub => { try { const v = localStorage.getItem(SUB_KEY); return CAD_SUBS.find((k) => k === v) ?? 'draw'; } catch { return 'draw'; } };
+/** The sub-tab Design CAD opens on: the one used last on this computer (kept as a part, so it holds with or without
+ * labels), Draw the first time. */
+const firstSub = (): CadPart => { try { const v = localStorage.getItem(SUB_KEY); return CAD_PARTS.find((k) => k === v) ?? 'draw'; } catch { return 'draw'; } };
 
 /** The tooltip of an icon-only tool: its name and typed command (and its state, such as a colour) in bold, then what
  * it does: its title, less a leading "Name (CMD): " that the bold line already says. */
@@ -260,20 +275,25 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   // A window too narrow for the row: this many of the sub-tab's panels collapse to one button each, from the right.
   const [shut, setShut] = useState(0);
   const toolsRef = useRef<HTMLDivElement>(null);
-  // Design CAD's sub-tab, kept for next time. A sheets page (opened from Documents, the SLD, Sheet set) on a sub-tab
-  // with no sheet tools shows Page setup.
+  // Design CAD's sub-tab, kept for next time as the part chosen (the tab holding it shows, with or without labels). A
+  // sheets page (opened from Documents, the SLD, Sheet set) on a sub-tab with no sheet tools shows the one with Page
+  // setup, and stays there.
   const onSheets = SHEET_VIEWS.includes(a.view);
-  const [cadSub, setCadSub] = useState<CadSub>(firstSub);
-  const sub: CadSub = onSheets && !CAD_SUB[cadSub].sheet ? 'page' : cadSub;
-  useEffect(() => { if (sub !== cadSub) setCadSub(sub); }, [sub, cadSub]);
-  useEffect(() => { try { localStorage.setItem(SUB_KEY, sub); } catch { /* not kept */ } }, [sub]);
   const labels = !!a.cad?.labels;
-  // The groups a sub-tab shows: on the sheets pages the open sheet's (where it has them), on a layout's paper its
-  // markup, on a layout its own as well.
-  const cadGroups = (k: CadSub) => {
-    const c = CAD_SUB[k];
-    return onSheets && c.sheet ? c.sheet : a.view === 'cad' && a.cad?.onPaper && c.paper ? c.paper : [...c.groups, ...(a.cad?.inLayout ? c.layout ?? [] : [])];
-  };
+  const cadTabs = CAD_TABS[labels ? 'labels' : 'icons'];
+  const tabWith = (p: CadPart) => cadTabs.find((t) => t.parts.includes(p)) ?? cadTabs[0];
+  const sheetGroups = (t: CadTab) => t.sheet ?? t.parts.flatMap((p) => CAD_PART[p].sheet ?? []);
+  const [cadSub, setCadSub] = useState<CadPart>(firstSub);
+  const forced = onSheets && !sheetGroups(tabWith(cadSub)).length;
+  const sub = tabWith(forced ? 'page' : cadSub);
+  useEffect(() => { if (forced) setCadSub('page'); }, [forced]);
+  useEffect(() => { try { localStorage.setItem(SUB_KEY, cadSub); } catch { /* not kept */ } }, [cadSub]);
+  // The groups a sub-tab shows: on the sheets pages the open sheet's, on a layout's paper its parts' markup, on a
+  // layout their own as well.
+  const cadGroups = (t: CadTab) => (onSheets ? sheetGroups(t) : t.parts.flatMap((p) => {
+    const c = CAD_PART[p];
+    return a.view === 'cad' && a.cad?.onPaper && c.paper ? c.paper : [...c.groups, ...(a.cad?.inLayout ? c.layout ?? [] : [])];
+  }));
   const shown = tab === 'cad' ? cadGroups(sub) : [];
   const folded = [...shown].reverse().slice(0, shut);
   // While the row is wider than the window, one more panel collapses; a wider window, or another sub-tab, opens them
@@ -281,11 +301,11 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   useLayoutEffect(() => {
     const el = toolsRef.current;
     if (el && tab === 'cad' && el.scrollWidth > el.clientWidth + 1 && shut < shown.length) setShut(shut + 1);
-  }, [tab, sub, shut, shown.length]);
+  }, [tab, sub.id, shut, shown.length]);
   useEffect(() => { const open = () => setShut(0); window.addEventListener('resize', open); return () => window.removeEventListener('resize', open); }, []);
-  useEffect(() => setShut(0), [tab, sub, onSheets, labels]);
+  useEffect(() => setShut(0), [tab, sub.id, onSheets, labels]);
   const cadToolNow = a.cad?.tool;
-  useEffect(() => { const s = cadToolNow && SUB_OF[cadToolNow]; if (s) setCadSub(s); }, [cadToolNow]);
+  useEffect(() => { const s = cadToolNow && PART_OF[cadToolNow]; if (s) setCadSub(s); }, [cadToolNow]);
   // File: open, save and close drawings, the level and units of this one (a menu, with lists beside it).
   const [fileOpen, setFileOpen] = useState(false);
   const [fileList, setFileList] = useState<'plans' | 'levels' | 'units' | null>(null);
@@ -397,7 +417,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     [{ label: 'Run', icon: Play, title: a.staleCount ? `Run calculations (F5) — ${a.staleCount} out of date` : 'Run calculations (F5) — up to date', onClick: a.onRun, stale: a.staleCount > 0 }],
     [
       { label: 'SLD', icon: Network, title: 'Single line diagram', onClick: go('design'), active: a.view === 'design', page: true },
-      view('drawings', 'Sheets', Files, 'The submission sheets of this design (Design CAD → Page setup → Sheet set): SLDs, risers and earthing, with title blocks, clouds and notes'),
+      view('drawings', 'Sheets', Files, 'The submission sheets of this design (Design CAD → Sheet set): SLDs, risers and earthing, with title blocks, clouds and notes'),
       { label: 'Select', icon: MousePointer2, title: 'Select tool — click boards and loads to select them (V)', onClick: () => { a.onView('design'); a.onTool('select'); }, active: a.view === 'design' && a.tool === 'select' },
       { label: 'Pan', icon: Hand, title: 'Pan tool — drag to move around the diagram without selecting (H)', onClick: () => { a.onView('design'); a.onTool('pan'); }, active: a.view === 'design' && a.tool === 'pan' }
     ],
@@ -473,7 +493,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Boards', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — the arrow beside it for an SMDB, MCC or EMDB with its usual rating, or Build hierarchy to create many at once`, onClick: () => a.onAddBoard(), page: true, menu: boardMenu },
         view('panels', 'Build hierarchy', ListTree, 'Panels: create by count, edit levels and connections in one list, rename by level; typical floors, repeat group, templates'),
         view('design', 'SLD', Network, 'Single line diagram — main boards and risers at this stage'),
-        view('drawings', 'Sheets', Files, 'The submission sheets of this design (Design CAD → Page setup → Sheet set): SLDs, risers and earthing, with title blocks, clouds and notes'),
+        view('drawings', 'Sheets', Files, 'The submission sheets of this design (Design CAD → Sheet set): SLDs, risers and earthing, with title blocks, clouds and notes'),
         view('busbar', 'Busbar riser', AlignVerticalSpaceAround, 'Busbar trunking risers for high-rise buildings: rating (Cu / Al), area, voltage drop per floor, size and weight')
       ],
       [
@@ -665,7 +685,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('cable-tray', 'Cable trays', Rows3, 'Cable tray schedule: routes A, B, C… with the cables on each and the tray size'),
         view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards')
       ],
-      [view('drawings', 'Drawings', Files, 'Opens the drawing set in Design CAD (Page setup → Sheet set): every submission sheet and the register — panels per sheet, status, revisions, title block, issues and transmittals, PDF / DXF / Excel exports'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('export-centre', 'Export centre', FileDown, 'Every PDF document in one list: tick what you need and export a zip or one bookmarked PDF')]
+      [view('drawings', 'Drawings', Files, 'Opens the drawing set in Design CAD (Sheet set): every submission sheet and the register — panels per sheet, status, revisions, title block, issues and transmittals, PDF / DXF / Excel exports'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('export-centre', 'Export centre', FileDown, 'Every PDF document in one list: tick what you need and export a zip or one bookmarked PDF')]
     ],
     issue: [
       [
@@ -737,7 +757,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   /** Stages shows the stage the project is at, or stays on the stage already showing. */
   const tabOf = (id: typeof TABS[number]['id']): RibbonTab => (id !== 'stages' ? id : onStage ? tab : tabForStage(a.stage));
   /** A Design CAD sub-tab chosen: on the sheets pages one with sheet tools stays there; the others show the drawing. */
-  const pickSub = (k: CadSub) => { setCadSub(k); if (!(onSheets && CAD_SUB[k].sheet) && a.view !== 'cad') a.onView('cad'); };
+  const pickSub = (t: CadTab) => { setCadSub(t.id); if (!(onSheets && sheetGroups(t).length) && a.view !== 'cad') a.onView('cad'); };
   /** The tooltip of the tool `el` (its name and command in data-tip-head, what it does in data-tip-text). */
   const showTip = (el: HTMLElement) => {
     const r = el.getBoundingClientRect();
@@ -760,6 +780,12 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     if (b && !(e.relatedTarget instanceof Node && b.contains(e.relatedTarget))) hideTip();
   };
   const fromKeyboard = (el: HTMLElement) => { try { return el.matches(':focus-visible'); } catch { return false; } };
+  /** An icon-only button: its name for screen readers, and the app's tooltip (`head` in bold, then `text`) on a rest of
+   * the mouse or on keyboard focus. */
+  const tipAttrs = (name: string, head: string, text: string) => ({
+    'aria-label': name, 'aria-describedby': tip?.of === name ? 'ribbon-tip' : undefined, 'data-tip-head': head, 'data-tip-text': text, onBlur: hideTip,
+    onFocus: (e: React.FocusEvent<HTMLButtonElement>) => { if (fromKeyboard(e.currentTarget)) showTip(e.currentTarget); }
+  });
   /** File: open, save and close drawings; the plans of each level, and this drawing's level and units, as lists beside it. */
   const fileMenu = () => {
     const c = a.cad, has = !!c?.hasDrawing;
@@ -830,13 +856,13 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             {fileOpen && fileMenu()}
           </div>
           <div className="ribbon-subtabs-list" role="tablist" aria-label="Design CAD">
-            {CAD_SUBS.map((k, i) => (
-              <button key={k} id={`ribbon-cad-${k}`} role="tab" aria-selected={sub === k} tabIndex={sub === k ? 0 : -1} className={sub === k ? 'on' : ''}
-                onClick={() => pickSub(k)} onKeyDown={(e) => tabKeys(e, i, CAD_SUBS.length, (j) => pickSub(CAD_SUBS[j]))}>{CAD_SUB[k].label}</button>
+            {cadTabs.map((t, i) => (
+              <button key={t.id} id={`ribbon-cad-${t.id}`} role="tab" aria-selected={sub.id === t.id} tabIndex={sub.id === t.id ? 0 : -1} className={sub.id === t.id ? 'on' : ''}
+                onClick={() => pickSub(t)} onKeyDown={(e) => tabKeys(e, i, cadTabs.length, (j) => pickSub(cadTabs[j]))}>{t.label}</button>
             ))}
           </div>
           <span className="sp" />
-          <label className="ribbon-labels" title="The name of each tool under its icon (also in Preferences → App)">
+          <label className="ribbon-labels" title="The name of each tool under its icon; the names need more room, so each kind of tool gets a tab of its own (also in Preferences → App)">
             <input type="checkbox" checked={labels} disabled={!a.cad?.onLabels} onChange={(e) => a.cad?.onLabels?.(e.target.checked)} />Show labels
           </label>
         </div>
@@ -861,23 +887,31 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           if (tab === 'cad' && !shown.includes(gi)) return null;
           const caption = CAPTIONS[tab]?.[gi];
           const order = tab === 'cad' ? { order: shown.indexOf(gi) + 1 } : undefined;
-          const menuOf = (tools: Tool[]) => tools.map((t) => ({ label: t.label, title: t.title, onClick: t.onClick }));
+          // A tool that only opens a list (New layout, viewport Scale, Copy to level) is in the menu as that list.
+          const menuOf = (tools: Tool[]) => tools.flatMap((t, k) => (t.menuOnly && t.menu
+            ? t.menu.map((m, i) => ({ ...m, label: `${t.label}: ${m.label}`, sep: k > 0 && i === 0 }))
+            : [{ label: t.label, title: t.title, onClick: t.onClick }]));
           const popup = (key: string, items: { label: string; title: string; onClick: () => void; sep?: boolean }[]) => splitOpen === key && (
             <div className="ribbon-split-menu" role="menu" style={{ left: splitAt.x, top: splitAt.y }} onMouseDown={(e) => e.stopPropagation()}>
               {items.map((m) => <span key={m.label} style={{ display: 'contents' }}>{m.sep && <hr />}<button role="menuitem" title={m.title} onClick={() => { setSplitOpen(null); m.onClick(); }}>{m.label}</button></span>)}
             </div>
           );
           const opener = (key: string) => (e: React.MouseEvent<HTMLElement>) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setSplitAt({ x: r.left, y: r.bottom + 2 }); setSplitOpen(splitOpen === key ? null : key); };
-          // Collapsed for a narrow window: one button with the panel's name; its tools in a menu.
+          // Collapsed for a narrow window: one button with the panel's name; its tools in a menu. With icons only it is
+          // one icon and no caption, its name and tools on hover, so the fold makes room.
           if (tab === 'cad' && folded.includes(gi)) {
             const G = group[0]?.icon ?? ChevronDown;
+            const live = group.filter((t) => !t.disabled);
+            const face = iconMode ? tipAttrs(`${caption}: its tools`, caption ?? '', live.length ? `Its tools: ${live.map((t) => t.label).join(', ')}` : 'Its tools are greyed for now') : { title: `${caption}: its tools` };
             return (
               <div key={gi} className="ribbon-group" role="group" aria-label={caption} style={order}>
                 <div className="ribbon-group-btns">
-                  <button title={`${caption}: its tools`} aria-haspopup="menu" aria-expanded={splitOpen === `shut:${gi}`} onClick={opener(`shut:${gi}`)}><G size={20} strokeWidth={1.6} /><span>{caption} ▾</span></button>
-                  {popup(`shut:${gi}`, menuOf(group.filter((t) => !t.disabled)))}
+                  <button {...face} aria-haspopup="menu" aria-expanded={splitOpen === `shut:${gi}`} onClick={(e) => { hideTip(); opener(`shut:${gi}`)(e); }}>
+                    <G size={iconMode ? 18 : 20} strokeWidth={1.6} />{iconMode ? <ChevronDown size={10} strokeWidth={1.8} aria-hidden /> : <span>{caption} ▾</span>}
+                  </button>
+                  {popup(`shut:${gi}`, menuOf(live))}
                 </div>
-                {caption && <div className="ribbon-caption">{caption}</div>}
+                {caption && !iconMode && <div className="ribbon-caption">{caption}</div>}
               </div>
             );
           }
@@ -887,10 +921,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             const { label, icon: I, title, onClick, active, disabled, stale, page, menu, sub, small, menuOnly } = t;
             const openList = (e: React.MouseEvent<HTMLElement>) => { e.stopPropagation(); const r = (e.currentTarget.closest('.ribbon-split') ?? e.currentTarget).getBoundingClientRect(); setSplitAt({ x: r.left, y: r.bottom + 2 }); setSplitOpen(splitOpen === label ? null : label); };
             const said = icons ? tipOf(t) : undefined;
-            const hint = said ? {
-              'aria-label': label, 'aria-describedby': tip?.of === label ? 'ribbon-tip' : undefined, 'data-tip-head': said.head, 'data-tip-text': said.text, onBlur: hideTip,
-              onFocus: (e: React.FocusEvent<HTMLButtonElement>) => { if (fromKeyboard(e.currentTarget)) showTip(e.currentTarget); }
-            } : { title };
+            const hint = said ? tipAttrs(label, said.head, said.text) : { title };
             const btn = (
               <button key={label} className={`${active ? (page ? 'page-on' : 'on') : ''}${stale ? ' stale' : ''}`} {...hint} aria-pressed={page || menuOnly ? undefined : active} aria-current={page && active ? 'page' : undefined}
                 aria-haspopup={menuOnly ? 'menu' : undefined} aria-expanded={menuOnly ? splitOpen === label : undefined} disabled={disabled} onClick={(e) => { hideTip(); if (menuOnly && menu) openList(e); else onClick(); }}>

@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.054', date: '2026-11-08',
+    items: [
+      { title: 'Design CAD: fuller tabs', text: 'With icons only, Design CAD\'s tools now fill two tabs instead of nine half-empty ones. Draw has the drafting: draw, modify, annotate, layers and view. Electrical, ELV & sheets has rooms, trays and cable routes, devices and wiring, then Measure, references, the sheet set and layouts; on the sheets pages it has every sheet tool. Show labels keeps a tab for each kind of tool, as the names need about twice the room.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Narrow windows', text: 'When the window is too narrow, the right-most panels of a tab fold to one icon each; hover for the panel\'s tools and click for the list. New layout, viewport Scale and Copy to level now work from a folded panel too.' }
+    ]
+  },
+  {
     version: '2.053', date: '2026-11-08',
     items: [
       { title: 'Design CAD: tools grouped by use', text: 'Design CAD\'s sub-tabs follow what you are doing: Draw (the tools that create geometry), Modify (the tools that change it), Annotate, Insert, Layers, View, Page setup, Tools, and Electrical & ELV for rooms, trays, cable routes, devices and wiring. Plan and Sheets are gone: their tools are on these sub-tabs, and the sheet set opens from Page setup → Sheet set. File, left of the sub-tabs, opens, saves and closes drawings and sets the level and units. Design CAD opens on the sub-tab you used last.', action: 'cad', actionLabel: 'Open Design CAD' },

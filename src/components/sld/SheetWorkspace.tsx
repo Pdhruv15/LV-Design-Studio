@@ -123,7 +123,7 @@ export function SheetList({ project, active, selectedBoardId, onActive, onChange
               <button key={`p${t}`} title="A sheet at 1:100 for every level with something on this layout; a level too big for A1 goes over several sheets with a key plan" onClick={() => {
                 close();
                 const r = addPlanSheets(set, project, t);
-                if (!r.ids.length) { onStatus(planLevels(project, t).length ? `Every level's ${PLAN_LABEL[t].toLowerCase()} is in the set` : `Nothing placed for the ${PLAN_LABEL[t].toLowerCase()} yet (Design CAD → Electrical & ELV)`); return; }
+                if (!r.ids.length) { onStatus(planLevels(project, t).length ? `Every level's ${PLAN_LABEL[t].toLowerCase()} is in the set` : `Nothing placed for the ${PLAN_LABEL[t].toLowerCase()} yet (Design CAD → ${t === 'containment' ? 'Cables and boards' : 'Devices'})`); return; }
                 save(r.set); onActive(r.ids[0]); onStatus(`${r.ids.length} ${PLAN_LABEL[t].toLowerCase()} sheet(s) added`);
               }}>{PLAN_LABEL[t]}s — all levels</button>
             ))}
