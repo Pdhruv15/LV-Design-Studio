@@ -4,6 +4,7 @@ import type { LibraryLoad } from '../database/database';
 import { applyCadLoads, pullCadLoads, type CadLoadPull } from '../model/cadLoads';
 import type { CadView } from '../engines/cad/cadEngine';
 import type { CadBlock } from '../model/cadLoads';
+import { erasedOf } from '../model/cadErased';
 import type { CadBlockMap, Project } from '../types';
 
 /** Loads from a CAD floor plan: fixture blocks on the drawing open in Design CAD are counted per circuit
@@ -39,7 +40,8 @@ export default function CadLoadsDialog({ project, library, view, onOpenCad, onAp
     setNote('');
     try { await run(); } catch (e) { setNote(e instanceof Error ? e.message : String(e)); } finally { setBusy(''); }
   }
-  const read = () => act('pull', async () => { if (view) setBlocks(view.blocks()); setSkip(new Set()); });
+  // Blocks erased in Design CAD (CROP) are plain lines now: not counted.
+  const read = () => act('pull', async () => { if (view) { const gone = new Set(erasedOf(project, view.file)); setBlocks(view.blocks().filter((b) => !gone.has(b.handle.toUpperCase()))); } setSkip(new Set()); });
   const rowOf = (block: string) => map.find((r) => r.block.toLowerCase() === block.toLowerCase());
   const mapBlock = (block: string, reference: string, per = rowOf(block)?.per) =>
     setMap((m) => [...m.filter((r) => r.block.toLowerCase() !== block.toLowerCase()), ...(reference ? [{ block, reference, ...(per && per > 1 ? { per } : {}) }] : [])]);

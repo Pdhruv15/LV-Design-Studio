@@ -570,6 +570,10 @@ export interface Project {
   cadPlans?: CadPlan[];
   /** Design CAD references (Xref): other drawings shown under each plan file (lower case) (src/model/cadRefs.ts). */
   cadRefs?: Record<string, import('./model/cadRefs').CadRef[]>;
+  /** Objects of each plan file (lower case) erased in Design CAD, by handle: a block cut with CROP, replaced by its kept
+   * pieces. The drawing file is never changed; the view, picking, rooms, Loads from CAD and SAVE leave them out
+   * (src/model/cadErased.ts). */
+  cadErased?: Record<string, string[]>;
   /** LV points (lights, sockets…) placed on plans in the CAD view, on circuits (src/model/cadDevices.ts). */
   lvPoints?: import('./model/cadDevices').LvPoint[];
   /** Circuits wired on the CAD plans (Design CAD → Plan → Wiring), with the device order the engineer saved. */

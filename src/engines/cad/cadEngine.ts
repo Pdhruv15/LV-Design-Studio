@@ -1,6 +1,8 @@
 import type { CadBlock } from '../../model/cadLoads';
 import type { EngineAnswer, EngineOps } from './cadOps';
 import type { RefGeometry } from '../../model/cadRefs';
+import type { CadPiece } from '../../model/cadCrop';
+import type { ErasedParts } from '../../model/cadErased';
 import wasmUrl from '../../../electron/cad/lvds_cad_reader_bg.wasm?url';
 import sampleGf from '../../../electron/samples/sample-villa-gf.dxf?url';
 import sampleFf from '../../../electron/samples/sample-villa-ff.dxf?url';
@@ -11,7 +13,8 @@ import sampleFf from '../../../electron/samples/sample-villa-ff.dxf?url';
  * dialog, or the browser's file picker. */
 
 export interface CadLayer { name: string; rgb: number; on: boolean; count: number }
-export interface CadText { x: number; y: number; h: number; rot: number; s: string; layer: number; rgb: number; align: number }
+/** A text of the drawing; `o` is the model-space object it belongs to (its index, as `CadObject.id`). */
+export interface CadText { x: number; y: number; h: number; rot: number; s: string; layer: number; rgb: number; align: number; o?: number }
 export interface CadInfo {
   format: 'DWG' | 'DXF';
   units: number; // INSUNITS
@@ -81,6 +84,9 @@ export interface CadView {
   outlines: () => CadObject[];
   /** Blocks inserted in model space with their attributes (fixtures with a CCT attribute: Loads from CAD). */
   blocks: () => (CadBlock & { layer: string; handle: string })[];
+  /** Marks objects erased in the app (CROP), by handle, replacing the last list: they are no longer picked or snapped
+   * to. Answers which objects (ids) and segment ranges the view leaves out (src/model/cadErased.ts). */
+  erase: (handles: string[]) => Promise<ErasedParts>;
   /** Ends the drawing's engine and gives back its memory. What was read stays usable; `snap` and `pick` find nothing. */
   close: () => void;
 }
@@ -202,6 +208,7 @@ export async function openDrawing(file: string, bytes: Uint8Array, path?: string
     pick: (x, y, tol, layersOn, closedOnly = false) => engine.call('pick', x, y, tol, layersOn, closedOnly).then((j) => (j ? (JSON.parse(j) as CadObject) : null), () => null),
     outlines: () => (outlines ??= JSON.parse(doc.outlines) as CadObject[]),
     blocks: () => JSON.parse(doc.blocks) as (CadBlock & { layer: string; handle: string })[],
+    erase: (handles) => engine.call('erase', JSON.stringify(handles)).then((j) => JSON.parse(j) as ErasedParts),
     close: () => engine.end()
   };
 }
@@ -280,13 +287,26 @@ export interface DeviceOut { layer: string; x: number; y: number; r: number; tex
 
 /** The drawing saved as DXF with the devices and what was drawn in the app added on their own layers (the architect's
  * entities kept as read). */
-export async function drawingWithDevices(view: CadView, devices: DeviceOut[], shapes: unknown[] = [], as: 'dxf' | 'dwg' = 'dxf'): Promise<Uint8Array> {
+export async function drawingWithDevices(view: CadView, devices: DeviceOut[], shapes: unknown[] = [], as: 'dxf' | 'dwg' = 'dxf', erased: string[] = []): Promise<Uint8Array> {
   return withSavingEngine(async (engine) => {
     try {
       // DWG: in the version the drawing came in, else the 2018 format (engines/cad-reader/src/doc.rs dwg_bytes).
-      return await engine.call('save', as, view.bytes, JSON.stringify(devices), JSON.stringify(shapes));
+      // Objects erased in the app (CROP) are left out of the copy saved; the drawing file itself is never changed.
+      return await engine.call('save', as, view.bytes, JSON.stringify(devices), JSON.stringify(shapes), JSON.stringify(erased));
     } catch (e) {
       throw new Error(`The drawing could not be saved (${message(e)}).`);
+    }
+  });
+}
+
+/** The exact pieces of objects of a drawing, by handle (CROP): a block insert gives what it draws, nested blocks and
+ * arrays expanded (engines/cad-reader/src/doc/explode.rs). Read from the drawing's bytes by the saving engine. */
+export async function explodeObjects(view: Pick<CadView, 'bytes'>, handles: string[]): Promise<{ pieces: Record<string, CadPiece[]>; truncated: boolean }> {
+  return withSavingEngine(async (engine) => {
+    try {
+      return JSON.parse(await engine.call('explode', view.bytes, JSON.stringify(handles))) as { pieces: Record<string, CadPiece[]>; truncated: boolean };
+    } catch (e) {
+      throw new Error(`The block could not be read (${message(e)}).`);
     }
   });
 }
