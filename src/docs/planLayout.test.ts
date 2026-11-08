@@ -191,6 +191,16 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
       expect(svg.indexOf('class="drawn"')).toBeLessThan(svg.indexOf('DB-GF1')); // under the design
     });
 
+    it('prints a dimension of a style at its paper sizes, with its length measured in its unit', () => {
+      const dim: SketchItem = { id: 'D1', kind: 'dim', layer: 'LV-ANNO', pts: [[0, 0], [20000, 0], [10000, -1000]], h: 200, look: { arrow: 'closed', size: 250, off: 60, ext: 125, unit: 'mm', decimals: 0 } };
+      const g = /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svgOf(drawn(villa(), [dim])))![1];
+      expect(g).toMatch(/font-size="2" text-anchor="middle" fill="#000">20000<\/text>/); // 200 mm at 1:100
+      const pts = pathPts(/<path d="([^"]+)"/.exec(g)![1]);
+      const lens = pts.slice(1).map((q, i) => Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1]));
+      expect(lens.some((l) => Math.abs(l - Math.hypot(2.5, 2.5 / 6)) < 0.01)).toBe(true); // the arrow's side: 250 mm, 2.5 mm on paper
+      expect(Math.max(...lens)).toBeLessThan(201); // nothing longer than the dimension line (20 m = 200 mm)
+    });
+
     it('hatches with the hatch pen inside their outline; Solid light grey; a leader\'s arrow', () => {
       const svg = svgOf(withWork());
       expect(svg).toMatch(/<clipPath id="(dw-[\w-]+-1)"><path d="M[^"]+Z"\/><\/clipPath>.*<path d="M[^"]+" clip-path="url\(#\1\)" fill="none" stroke="#666666" stroke-width="0.13"\/>/s);

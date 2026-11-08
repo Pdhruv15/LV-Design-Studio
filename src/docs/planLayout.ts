@@ -5,7 +5,7 @@ import { cableLabel, EMERGENCY_ITEMS, LV_PALETTE } from '../model/cadDevices';
 import { planOfLevel } from '../model/cadPlans';
 import { printedRefs } from '../model/cadRefs';
 import { isFrozen, vpWindow, type PlanViewport } from '../model/planViewports';
-import { dimensionLines, segmentsOf, sketchOf, trayLabel, trayLength, trayLine } from '../model/cadSketch';
+import { dimensionLines, dimLabel, segmentsOf, sketchOf, trayLabel, trayLength, trayLine } from '../model/cadSketch';
 import { effective, layerStylesOf, styleOf } from '../model/cadLayerStyle';
 import { annoOf, HATCH_PATTERNS, hatchFamilies } from '../model/cadAnnotate';
 import { hatchLines } from '../model/cadDraw';
@@ -252,7 +252,10 @@ function drawnOf(p: Project, b: string, l: string): Drawn[] {
     const st = styleOf(styles, it.layer);
     if (st.hidden || st.noPrint) continue;
     const ef = effective(it, styles);
-    const m: SketchItem = { ...it, pts: it.pts.map(([x, y]): Pt => [x * k, y * k]), ...(it.r !== undefined ? { r: it.r * k } : {}), ...(it.h !== undefined ? { h: it.h * k } : {}) };
+    const m: SketchItem = {
+      ...it, pts: it.pts.map(([x, y]): Pt => [x * k, y * k]), ...(it.r !== undefined ? { r: it.r * k } : {}), ...(it.h !== undefined ? { h: it.h * k } : {}),
+      ...(it.look ? { look: { ...it.look, size: it.look.size * k, off: it.look.off * k, ext: it.look.ext * k } } : {})
+    };
     out.push({ it: m, dash: ef.dash, lw: ef.lw });
   }
   return out;
@@ -304,7 +307,7 @@ function drawnSvg(items: Drawn[], X: (x: number) => number, Y: (y: number) => nu
     let d = '', end = '';
     for (const [a, b] of segmentsOf(it)) { const s = P(a); d += `${s === end ? '' : `M${s}`}L${(end = P(b))}`; }
     if (d) body.push(`<path d="${d}" fill="none" stroke="${ink}" stroke-width="${n(thin || !lw ? pen.sketch.w : lw)}"${dash.length ? ` stroke-dasharray="${dash.join(' ')}"` : ''}/>`);
-    if (it.kind === 'dim' && it.pts.length > 2) { const dl = dimensionLines(it.pts[0], it.pts[1], it.pts[2]); text(dl.text, it.text ?? '', it.h ?? dl.length * 0.04, dl.angle, 'middle'); }
+    if (it.kind === 'dim' && it.pts.length > 2) { const dl = dimensionLines(it.pts[0], it.pts[1], it.pts[2], it.look); text(dl.text, it.look ? dimLabel(it, 1) : it.text ?? '', it.h ?? dl.length * 0.04, dl.angle, 'middle'); }
     if (it.leader && it.pts.length > 1) {
       const ax = X(it.pts[0][0]), ay = Y(it.pts[0][1]), ang = Math.atan2(ay - Y(it.pts[1][1]), ax - X(it.pts[1][0]));
       const tip = (s: number) => `${n(ax - 3 * Math.cos(ang + s))} ${n(ay - 3 * Math.sin(ang + s))}`;

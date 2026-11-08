@@ -4,8 +4,11 @@ import { commandList, matchingCommands, promptOptions, promptParts, spaceEnters,
 /** Design CAD's command line: three lines of history, the prompt with its options (a click works as typing the key),
  * the input with the commands matching what is typed (Tab or the arrows pick one), Up / Down in the empty input for
  * the commands typed before, and the taller history (F2) or the command list (F1) over the drawing. */
-export default function CadCommandLine({ history, cmd, setCmd, inputRef, typed, space, log, onLog, onRun }: {
+export default function CadCommandLine({ history, live, cmd, setCmd, inputRef, typed, space, log, onLog, onRun }: {
   history: string[];
+  /** The prompt as it is now (an edit tool's, with its values now): shown in place of the last message when that is the
+   * same prompt said with other values. */
+  live?: string;
   cmd: string;
   setCmd: (s: string) => void;
   inputRef: RefObject<HTMLInputElement>;
@@ -21,7 +24,9 @@ export default function CadCommandLine({ history, cmd, setCmd, inputRef, typed, 
   const [hi, setHi] = useState(-1);
   const [back, setBack] = useState(-1);
   const matches = space !== 'command' || back >= 0 ? [] : matchingCommands(cmd);
-  const last = history[history.length - 1];
+  const said = history[history.length - 1];
+  const before = (s: string) => s.replace(/^Command:\s*/, '').split(' <')[0];
+  const last = said !== undefined && live && live !== said && before(said) === before(live) ? `${said.startsWith('Command: ') ? 'Command: ' : ''}${live}` : said;
   // The taller history opens at its newest line.
   const logRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (log === 'history' && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [log, history.length]);

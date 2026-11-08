@@ -26,12 +26,14 @@ const BEFORE: Record<string, string> = {
   LA: '!layers', LAYER: '!layers', LAYERS: '!layers', OS: '!osnap', OSNAP: '!osnap', GRID: '!grid', ORTHO: '!ortho', SNAP: '!snap',
   HELP: '!help', '?': '!help'
 };
+// Added since: the text and dimension styles (STYLE, DIMSTYLE).
+const ADDED: Record<string, string> = { ST: '!textStyle', STYLE: '!textStyle', D: '!dimStyle', DST: '!dimStyle', DIMSTY: '!dimStyle', DIMSTYLE: '!dimStyle' };
 const outcome = (c: string) => { const x = cadCommand(c); return x && ('tool' in x ? x.tool : `!${x.action}`); };
 
 describe('Design CAD typed commands', () => {
   it('resolves every alias to the same tool or action as before, and no others', () => {
-    for (const [c, was] of Object.entries(BEFORE)) expect(outcome(c), c).toBe(was);
-    expect(CAD_COMMANDS.flatMap((x) => x.aliases).sort()).toEqual(Object.keys(BEFORE).sort());
+    for (const [c, was] of Object.entries({ ...BEFORE, ...ADDED })) expect(outcome(c), c).toBe(was);
+    expect(CAD_COMMANDS.flatMap((x) => x.aliases).sort()).toEqual(Object.keys({ ...BEFORE, ...ADDED }).sort());
   });
 
   it('lists each alias once, upper case', () => {
