@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CAD Underlays and Calibration Mockup</title>
+<style>
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--on:#1D2024;--ok:#37d67a;--warn:#f5c04a;--bad:#ff5d6c;--new:#b784ff}
+*{box-sizing:border-box}html,body{margin:0;overflow-x:hidden;background:var(--bg);color:var(--tx);font:13px/1.42 -apple-system,"Segoe UI",system-ui,sans-serif}.wrap{max-width:660px;margin:auto;padding:16px 18px 32px}h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:22px 0 7px;display:flex;align-items:center;gap:7px}h2 b{display:inline-flex;width:20px;height:20px;border-radius:50%;align-items:center;justify-content:center;background:var(--acc);color:var(--on);font-size:11px}p{margin:0 0 7px;color:var(--mut)}.legend{font-size:11.5px}.legend i{display:inline-block;width:12px;height:12px;border:2px dashed var(--new);border-radius:3px;vertical-align:-2px;margin-right:5px}.card{background:var(--panel);border:1px solid var(--strong);border-radius:9px;overflow:hidden}.proposed{outline:2px dashed var(--new);outline-offset:2px}.head{padding:9px 12px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:7px}.head strong{font-size:14px}.mut{color:var(--mut);font-size:11.5px}.tools,.actions{display:flex;flex-wrap:wrap;gap:5px;padding:8px 12px;background:var(--p2)}.chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border:1px solid var(--strong);border-radius:999px;color:var(--tx);font-size:11.5px}.chip.primary{background:var(--acc);border-color:var(--acc);color:var(--on);font-weight:650}.chip.off{color:#707780}.dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}.dot.warn{background:var(--warn)}.dot.bad{background:var(--bad)}.row{display:grid;grid-template-columns:minmax(115px,1fr) 88px 104px;gap:6px 10px;padding:9px 12px;border-top:1px solid var(--line);align-items:center}.row.sel{background:#292d33}.name{font-weight:650}.path{grid-column:1/-1;color:var(--mut);font-size:11px;word-break:break-word}.details{grid-column:1/-1;color:var(--mut);font-size:11.5px;display:flex;gap:5px 12px;flex-wrap:wrap}.status{justify-self:start;border:1px solid var(--ok);color:var(--ok);border-radius:4px;padding:1px 6px;font-size:10.5px}.status.warn{border-color:var(--warn);color:var(--warn)}.status.bad{border-color:var(--bad);color:var(--bad)}.kind{color:var(--mut);font-size:11px}.note{padding:7px 12px;border-top:1px solid var(--line);color:var(--mut);font-size:11px}.form{display:grid;grid-template-columns:108px minmax(0,1fr);gap:7px 9px;padding:11px 12px;align-items:center}.form label{color:var(--mut);font-size:12px}.field{min-height:27px;border:1px solid var(--strong);border-radius:5px;background:var(--bg);padding:4px 7px;display:flex;align-items:center;justify-content:space-between;gap:6px}.field em{font-style:normal;color:var(--mut);font-size:11px}.switch{display:flex;border:1px solid var(--strong);border-radius:5px;overflow:hidden}.switch span{padding:4px 8px;flex:1;text-align:center;color:var(--mut);font-size:11.5px}.switch span.on{background:var(--acc);color:var(--on);font-weight:650}.check{width:13px;height:13px;border:1px solid var(--acc);border-radius:3px;background:var(--acc);box-shadow:inset 0 0 0 3px var(--panel);flex:none}.check.empty{background:transparent;border-color:var(--strong);box-shadow:none}.hint{grid-column:1/-1;color:var(--mut);font-size:11px;padding-top:1px}.foot{padding:0 12px 11px;display:flex;justify-content:flex-end;gap:6px}.pages{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:11px 12px}.page{border:1px solid var(--strong);border-radius:5px;background:#eef0f2;color:#15171A;padding:5px;height:98px;position:relative}.page.sel{outline:3px solid var(--acc)}.page svg{width:100%;height:72px}.page span{position:absolute;bottom:3px;left:5px;font-size:10px}.canvas svg{display:block;width:100%;height:auto}.cmd{padding:6px 10px;border-top:1px solid var(--line);background:#111316;color:var(--mut);font:11px ui-monospace,Menlo,monospace}.cmd strong{color:var(--tx)}.cal{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px}.metric{border:1px solid var(--line);border-radius:6px;padding:7px 8px}.metric small{display:block;color:var(--mut);font-size:10.5px}.metric strong{font-size:13px}.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;padding:10px 12px}.step{border:1px solid var(--strong);border-radius:6px;padding:7px;text-align:center;color:var(--mut);font-size:10.5px}.step.on{border-color:var(--acc);color:var(--tx)}.step b{display:block;color:inherit;font-size:11.5px;margin-bottom:2px}.error{margin:0 12px 10px;padding:7px 8px;border-left:3px solid var(--bad);background:#2b2023;color:#ffc1c8;font-size:11.5px}.decisions{margin:0;padding:4px 18px 10px 31px;color:var(--mut)}.decisions li{margin:7px 0}.decisions strong{color:var(--tx)}.sheet{background:#fff;border-radius:6px;padding:7px}.sheet svg{display:block;width:100%;height:auto}@media(max-width:520px){.pages{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:1fr auto}.kind{grid-column:1}.form{grid-template-columns:1fr}.form label{margin-top:3px}.flow{grid-template-columns:1fr 1fr}.cal{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1>Design CAD — PDF / image underlays and calibration</h1>
+  <p>Proposal only. The source stays as an external local file; the project keeps page and placement settings, never the source bytes or absolute path.</p>
+  <div class="legend"><i></i>proposed screen or control · 2D only · 2026-11-08</div>
+
+  <h2><b>1</b>References (XR) stays the one home</h2>
+  <section class="card proposed">
+    <div class="head"><strong>References</strong><span class="mut">Ground floor · Model</span></div>
+    <div class="actions"><span class="chip primary">Attach… ▾</span><span class="chip">Reload</span><span class="chip">Unload</span><span class="chip">Repath…</span><span class="chip">Calibrate</span><span class="chip">Clip</span><span class="chip">Detach</span></div>
+    <div class="row">
+      <span class="name">STR-GF</span><span class="kind">Drawing</span><span class="status">Loaded</span>
+      <span class="path">STR-GF-R02.dwg</span><span class="details"><span>at 0, 0</span><span>×1</span><span>fade 50 %</span><span>vector snaps</span></span>
+    </div>
+    <div class="row sel">
+      <span class="name">ARCH-GF-PDF</span><span class="kind">PDF · page 3</span><span class="status warn">Uncalibrated</span>
+      <span class="path">Architectural plans R06.pdf · local external source</span><span class="details"><span>monochrome</span><span>fade 60 %</span><span>print off</span><span>snaps off until calibrated</span></span>
+    </div>
+    <div class="row">
+      <span class="name">SITE-SCAN</span><span class="kind">Image</span><span class="status bad">Not found</span>
+      <span class="path">Site survey scan.tif · Repath… asks you to choose the moved file</span><span class="details"><span>placement and calibration kept</span><span>source file never changed</span></span>
+    </div>
+    <div class="note">Attach… offers Drawing reference or PDF / image underlay. If a level has no drawing, Plans → New plan from PDF / image… makes an empty 2D host for it.</div>
+  </section>
+
+  <h2><b>2</b>Choose one PDF page</h2>
+  <section class="card proposed">
+    <div class="head"><strong>Choose a page</strong><span class="mut">Architectural plans R06.pdf · 12 pages · offline</span></div>
+    <div class="pages">
+      <div class="page"><svg viewBox="0 0 80 72"><g fill="none" stroke="#777" stroke-width="1"><rect x="7" y="6" width="66" height="57"/><path d="M12 16h55M12 25h26v28H12zm32 0h23v14H44zm0 18h23v20H44z"/></g></svg><span>1 · Cover</span></div>
+      <div class="page"><svg viewBox="0 0 80 72"><g fill="none" stroke="#777" stroke-width="1"><rect x="7" y="6" width="66" height="57"/><path d="M12 12h56M18 18v38m14-38v38m14-38v38m14-38v38M12 28h56M12 45h56"/></g></svg><span>2 · Site</span></div>
+      <div class="page sel"><svg viewBox="0 0 80 72"><g fill="none" stroke="#444" stroke-width="1"><rect x="7" y="6" width="66" height="57"/><path d="M12 12h56v45H12zM31 12v45M31 33h37M49 33v24M12 44h19"/><circle cx="21" cy="23" r="4"/><circle cx="42" cy="23" r="4"/><circle cx="58" cy="44" r="4"/></g></svg><span>3 · Ground floor</span></div>
+      <div class="page"><svg viewBox="0 0 80 72"><g fill="none" stroke="#777" stroke-width="1"><rect x="7" y="6" width="66" height="57"/><path d="M13 13h54v44H13zM39 13v44M13 34h54M24 13v21M51 34v23"/></g></svg><span>4 · First floor</span></div>
+    </div>
+    <div class="foot"><span class="chip">Cancel</span><span class="chip primary">Use page 3</span></div>
+  </section>
+  <p>PNG, JPEG, WebP, BMP and single-page TIFF skip this step. The same PDF can be attached again for another page.</p>
+
+  <h2><b>3</b>Place with an explicit transform</h2>
+  <section class="card proposed">
+    <div class="head"><strong>Attach underlay</strong><span class="mut">to Ground floor</span></div>
+    <div class="form">
+      <label>Source</label><div class="field"><span>Architectural plans R06.pdf</span><em>page 3</em></div>
+      <label>Name</label><div class="field"><span>ARCH-GF-PDF</span></div>
+      <label>Insertion</label><div class="switch"><span>0, 0</span><span class="on">Pick on plan</span><span>Type X/Y</span></div>
+      <label>Rotation</label><div class="field"><span>0°</span><em>Pick angle</em></div>
+      <label>Scale</label><div class="switch"><span>Type factor</span><span class="on">Calibrate after placement</span></div>
+      <label>Display</label><div class="field"><span style="display:flex;gap:7px;align-items:center"><i class="check"></i>Monochrome</span><span>Fade 60 %</span></div>
+      <label>Plan sheets</label><div class="field"><span style="display:flex;gap:7px;align-items:center"><i class="check empty"></i>Print underlay</span><em>always grayscale</em></div>
+      <span class="hint">The underlay may be placed before calibration, but it is marked Uncalibrated and cannot provide snaps.</span>
+    </div>
+    <div class="foot"><span class="chip">Cancel</span><span class="chip primary">Place</span></div>
+  </section>
+
+  <h2><b>4</b>Calibrate from two known points (UC)</h2>
+  <section class="card proposed canvas">
+    <svg viewBox="0 0 620 300" aria-label="Underlay calibration on a floor plan">
+      <rect width="620" height="300" fill="#15171A"/>
+      <g opacity=".43" filter="grayscale(1)" fill="none" stroke="#d3d7da" stroke-width="1.4">
+        <path d="M62 38H550V255H62Z M197 38V255 M197 137H550 M367 137V255 M62 192H197"/>
+        <path d="M83 62h92v54H83zM221 61h120v57H221zM388 61h135v56H388zM222 159h120v70H222zM389 159h134v70H389z"/>
+        <path d="M62 28V18M550 28V18M62 23H550" stroke-dasharray="5 3"/>
+      </g>
+      <g stroke="#F5B301" fill="none" stroke-width="2"><circle cx="62" cy="23" r="6"/><circle cx="550" cy="23" r="6"/><path d="M70 23H542" stroke-dasharray="6 4"/></g>
+      <g fill="#F5B301" font-size="11"><text x="53" y="13">1</text><text x="548" y="13">2</text><text x="280" y="17">known 12.00 m</text></g>
+      <g stroke="#37d67a" fill="none" stroke-width="1.7"><circle cx="130" cy="89" r="7"/><circle cx="281" cy="88" r="7"/><circle cx="455" cy="88" r="7"/><path d="M130 96Q130 145 281 159"/></g>
+      <rect x="12" y="264" width="596" height="25" rx="4" fill="#26292E" stroke="#F5B301"/>
+      <text x="22" y="281" fill="#E6E8EB" font-size="12" font-family="ui-monospace,Menlo,monospace">UC  Enter known length: 12 m  ·  first point remains fixed</text>
+    </svg>
+    <div class="flow"><div class="step"><b>1 · First point</b>anchor picked</div><div class="step"><b>2 · Second point</b>baseline picked</div><div class="step on"><b>3 · Known length</b>12 m</div><div class="step"><b>4 · Confirm</b>Enter to apply</div></div>
+    <div class="cal"><div class="metric"><small>Picked source distance</small><strong>1,684.2 page points</strong></div><div class="metric"><small>Result</small><strong>12.00 m · scale ×7.125</strong></div></div>
+    <div class="error">If the points coincide or the length is zero: “Calibration needs two distinct points and a length greater than zero.” The command stays open for correction.</div>
+  </section>
+  <p>Escape goes back one active pick, then cancels. Enter accepts typed input or the confirmation. Calibration is one undo step.</p>
+
+  <h2><b>5</b>Snaps and changed-source safety</h2>
+  <section class="card">
+    <div class="row">
+      <span class="name"><span class="dot"></span> Vector PDF</span><span class="kind">calibrated</span><span class="status">Vector snaps on</span>
+      <span class="path">Only verified stroked path endpoints, midpoints and intersections; transforms and clipping applied.</span>
+    </div>
+    <div class="row">
+      <span class="name"><span class="dot warn"></span> Scanned PDF / image</span><span class="kind">pixels</span><span class="status warn">No snaps</span>
+      <span class="path">No OCR, edge detection or guessed linework. Two calibration points can still be picked freely.</span>
+    </div>
+    <div class="row">
+      <span class="name"><span class="dot bad"></span> Source changed</span><span class="kind">manual reload</span><span class="status bad">Verify calibration</span>
+      <span class="path">The old display stays until Reload. Snaps stay off until calibration is confirmed or redone.</span>
+    </div>
+    <div class="note">If the file moves, Repath… opens a file dialog. Page, placement, clip and calibration settings remain; the app never searches arbitrary folders or edits the source.</div>
+  </section>
+
+  <h2><b>6</b>Plan-sheet behavior remains black-and-white</h2>
+  <div class="sheet">
+    <svg viewBox="0 0 620 220" aria-label="Black and white plan sheet with underlay">
+      <rect x="1" y="1" width="618" height="218" fill="#fff" stroke="#000"/>
+      <g opacity=".26" fill="none" stroke="#111" stroke-width="1"><path d="M35 25H430V171H35Z M154 25V171 M154 91H430 M292 91V171 M35 130H154"/><path d="M54 42h84v37H54zM174 42h99v37h-99zM310 42h97v37h-97zM174 109h98v45h-98zM310 109h98v45h-98z"/></g>
+      <g fill="none" stroke="#000" stroke-width="1.3"><circle cx="96" cy="60" r="6"/><circle cx="218" cy="60" r="6"/><circle cx="355" cy="60" r="6"/><path d="M96 66Q130 98 212 109"/></g>
+      <rect x="451" y="18" width="145" height="153" fill="none" stroke="#000"/><g fill="#000" font-size="10"><text x="462" y="38">GROUND FLOOR PLAN</text><text x="462" y="57">Underlay: ARCH-GF-PDF</text><text x="462" y="73">Page 3 · calibrated</text><text x="462" y="89">Printed in grayscale</text><text x="462" y="142">E-101 · 1:100</text></g>
+      <rect x="1" y="185" width="618" height="34" fill="none" stroke="#000"/><text x="14" y="207" fill="#000" font-size="11">No colour output · underlay below design linework · source remains external</text>
+    </svg>
+  </div>
+  <p>Print is off by default. If enabled, the underlay is grayscale regardless of its screen setting. Save DXF/DWG omits it in the first build and reports that omission.</p>
+
+  <h2><b>7</b>Approval choices</h2>
+  <section class="card">
+    <ol class="decisions">
+      <li>Reverse the earlier decision and build underlays now: <strong>yes recommended</strong>.</li>
+      <li>Use the existing References manager: <strong>yes recommended</strong>.</li>
+      <li>Allow an empty 2D host for PDF/image-only levels: <strong>yes recommended</strong>.</li>
+      <li>Allow uncalibrated placement, clearly marked, with snaps off: <strong>yes recommended</strong>.</li>
+      <li>Snaps from verified vector PDF paths only, fail closed: <strong>recommended</strong>.</li>
+      <li>Monochrome on, fade 60 %, print off; print always grayscale: <strong>recommended</strong>.</li>
+      <li>Include single-page TIFF with PNG/JPEG/WebP/BMP: <strong>recommended</strong>.</li>
+      <li>Changed sources reload manually and require calibration verification: <strong>recommended</strong>.</li>
+    </ol>
+  </section>
+</main>
+</body>
+</html>
