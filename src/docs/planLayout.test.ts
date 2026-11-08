@@ -215,6 +215,14 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
       expect(svg).toMatch(/<path d="M[\d.]+ [\d.]+L[\d.]+ [\d.]+L[\d.]+ [\d.]+Z" fill="#000" stroke="none"\/>/);
     });
 
+    it('prints a dashed pattern with its dashes and a dotted one as dots, both inside the outline', () => {
+      const brick: SketchItem = { id: 'B1', kind: 'pline', layer: 'LV-HATCH', closed: true, pts: box(12000, 0, 20000, 4000), hatch: { pattern: 'brick', scale: 3, angle: 0 } };
+      const gravel: SketchItem = { ...brick, id: 'G1', pts: box(0, 0, 8000, 4000), hatch: { pattern: 'gravel', scale: 3, angle: 0 } };
+      const svg = svgOf(drawn(villa(), [brick, gravel]));
+      expect(svg).toMatch(/<path d="M[^"]+" clip-path="url\(#(dw-[\w-]+-0)\)" fill="none" stroke="#666666" stroke-width="0.13"\/><path d="M[^"]+" clip-path="url\(#\1\)" fill="none" stroke="#666666" stroke-width="0.13" stroke-dasharray="3 3"\/>/); // courses, then joints
+      expect(svg).toMatch(/<path d="(M[\d.-]+ [\d.-]+h0)+" clip-path="url\(#dw-[\w-]+-1\)" fill="none" stroke="#666666" stroke-width="0.35" stroke-linecap="round"\/>/);
+    });
+
     it('page setup can leave it off; all one thin line thins it; it is fingerprinted only where there is some', () => {
       const p = withWork();
       expect(svgOf(p, { drawn: false })).not.toContain('class="drawn"');

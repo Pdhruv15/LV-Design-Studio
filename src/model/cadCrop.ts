@@ -1,5 +1,6 @@
 import type { SketchItem } from '../types';
-import { HATCH_START, type HatchPattern } from './cadAnnotate';
+import { HATCH_START } from './cadAnnotate';
+import { patternByName } from './cadHatch';
 import type { LinetypeId } from './cadLayerStyle';
 import type { Edit } from './cadEdit';
 import { ellipsePoints } from './cadSketch';
@@ -294,7 +295,6 @@ export function linetypeOf(name: string | undefined): LinetypeId | undefined {
 export const colourOf = (rgb: number | undefined): string | undefined => (rgb === undefined ? undefined : rgb === 0xff000007 ? 'idx:7' : `#${(rgb & 0xffffff).toString(16).padStart(6, '0')}`);
 /** Points around a drawn ellipse when it is cut (about 1e-4 of its size between chord and curve). */
 const ELLIPSE_STEPS = 256;
-const HATCHES: Record<string, HatchPattern> = { SOLID: 'solid', ANSI31: 'ansi31', ANSI37: 'ansi37', NET: 'net', DOTS: 'dots' };
 
 type Item = Omit<SketchItem, 'id'>;
 const styled = (s: PieceStyle): Pick<SketchItem, 'layer' | 'color' | 'lt'> => {
@@ -362,7 +362,7 @@ function cropPiece(p: CadPiece, edges: Curve[], keepIn: boolean, tol: number, sk
       const covers = !keepIn && loops.some((l) => inside(l, at(edges[0], 0), tol));
       if (kept.some((k) => k < 1 - 1e-9) || covers) { skipped.push('hatch'); return []; }
       if (loops.length > 1) skipped.push('hatch island');
-      const pattern = HATCHES[p.pattern.trim().toUpperCase()] ?? (p.solid ? 'solid' : 'ansi31');
+      const pattern = patternByName(p.pattern) ?? (p.solid ? 'solid' : 'ansi31');
       return [{ ...base, kind: 'pline', pts: loopPoints(loops[0]), closed: true, hatch: p.solid ? { pattern: 'solid', scale: 1, angle: 0 } : { ...HATCH_START, pattern } }];
     }
     case 'group': {

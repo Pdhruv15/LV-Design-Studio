@@ -284,6 +284,17 @@ describe('Design CAD ribbon: File', () => {
 });
 
 describe('Design CAD ribbon: sheets and layouts', () => {
+  it('opens the active sheet PDF preview in the desktop app', () => {
+    const previewPdf = vi.fn();
+    vi.stubGlobal('lvds', { files: { pdfBytes: vi.fn() } });
+    try {
+      show({}, { view: 'drawings', sheets: sheets({ ui: sheetUi({ actions: { current: { ...NO_SHEET_ACTIONS, previewPdf } } }) }) });
+      expect(tool('Preview').disabled).toBe(false);
+      click(tool('Preview'));
+      expect(previewPdf).toHaveBeenCalledOnce();
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   it('on the sheets pages: every sheet tool on the sheets\' sub-tab, and Drafting goes back to the drawing; with labels, Sheets and Drafting', () => {
     const onView = vi.fn();
     const { rerender } = show({}, { view: 'drawings', onView, sheets: sheets({ ui: sheetUi({ tool: 'cloud' }) }) });

@@ -22,6 +22,7 @@ import { addPlanSheets, PLAN_LABEL, PLAN_TYPES, planLevels } from '../../docs/pl
 import { exportDrawingSet, exportEverythingZip, exportSheetsDwg, exportSheetsDxf, sheetHtml } from '../docs/sheetRender';
 import { IssueDialog } from '../docs/IssueDialog';
 import { PageSetupDialog, PenTableDialog } from '../docs/PlotDialogs';
+import { SheetPdfPreview } from '../docs/SheetPdfPreview';
 import SheetMarkupLayer, { type SheetAnchor } from './SheetMarkupLayer';
 import { ALL_TOOLS } from './markupTools';
 import { NO_SHEET_ACTIONS, type SheetUi } from './sheetUi';
@@ -190,7 +191,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
   const [busy, setBusy] = useState(false);
   const { zoom, setZoom, side, tool, setTool, color: mColor, setColor: setMColor, size: mSize, setSize: setMSize, selId, setSelId } = ui;
   const [publish, setPublish] = useState(false);
-  const [plotDlg, setPlotDlg] = useState<'page' | 'pens' | null>(null);
+  const [plotDlg, setPlotDlg] = useState<'page' | 'pens' | 'preview' | null>(null);
   const host = useRef<HTMLDivElement>(null);
   const space = useSpaceHeld(); // Space + drag pans, with any markup tool
   const [hostW, setHostW] = useState(900);
@@ -284,6 +285,10 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
       publish: () => setPublish(true),
       pageSetup: () => setPlotDlg('page'),
       pens: () => setPlotDlg('pens'),
+      previewPdf: () => {
+        if (s && drawable(s)) setPlotDlg('preview');
+        else onStatus('No drawable sheet to preview');
+      },
       exportAs: (kind) => {
         if (!s) return;
         if (kind === 'pdf') void exportDrawingSet(project, set, run, false, onStatus, [s.id], false);
@@ -464,8 +469,9 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
         return t && (tool !== 'select' || selected) ? <div className="m sheet-hint">{t.label}: {t.hint}{markups.length ? ` · ${markups.length} on this sheet` : ''}</div> : null;
       })()}
       {publish && <PublishDialog project={project} run={run} current={s.id} onClose={() => setPublish(false)} onChange={onChange} onStatus={onStatus} onOpen={(id) => { setPublish(false); onActive(id); }} />}
-      {plotDlg === 'page' && <PageSetupDialog project={project} sheet={s} onSave={(p, m) => { onChange(p); onStatus(m); }} onClose={() => setPlotDlg(null)} />}
+      {plotDlg === 'page' && <PageSetupDialog project={project} sheet={s} run={run} onSave={(p, m) => { onChange(p); onStatus(m); }} onClose={() => setPlotDlg(null)} />}
       {plotDlg === 'pens' && <PenTableDialog project={project} onSave={(p, m) => { onChange(p); onStatus(m); }} onClose={() => setPlotDlg(null)} />}
+      {plotDlg === 'preview' && <SheetPdfPreview project={project} sheet={s} run={run} onClose={() => setPlotDlg(null)} />}
     </div>
   );
 }

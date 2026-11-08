@@ -10,7 +10,7 @@ import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } fr
 import type { SketchItem } from '../../types';
 import { effective, styleOf, type LayerStyle } from '../../model/cadLayerStyle';
 import { colourCss } from '../../model/cadColours';
-import { hatchFamilies, HATCH_PATTERNS } from '../../model/cadAnnotate';
+import { dotsOnly, hatchDots, hatchStrokes, patternOf, placedLines } from '../../model/cadHatch';
 import { onScreenThemeChange, screenAppearance } from '../../theme/theme';
 import { isFitClick, isPanPress, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, wheelAction, ZoomChip } from '../drawingView';
 
@@ -404,19 +404,20 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         const ys = it.kind === 'circle' ? [it.pts[0][1] - (it.r ?? 0), it.pts[0][1] + (it.r ?? 0)] : it.pts.map((q) => q[1]);
         const bx: [number, number, number, number] = [Math.min(...xs) - o0, Math.min(...ys) - o1, Math.max(...xs) - o0, Math.max(...ys) - o1];
         const perMm = 100 * unitsPerMm;
-        if (it.hatch.pattern === 'solid') { ctx.globalAlpha = 0.3; ctx.fillStyle = col; ctx.fill(outline); ctx.globalAlpha = 1; }
-        else if (HATCH_PATTERNS[it.hatch.pattern].dots) {
-          const st = Math.max(0.2, it.hatch.scale) * perMm, dsz = 2 / scale;
-          if ((bx[2] - bx[0]) * (bx[3] - bx[1]) / (st * st) < 40000 && st * scale >= 3) {
-            ctx.fillStyle = col;
-            for (let x = Math.ceil(bx[0] / st) * st; x <= bx[2]; x += st) for (let y = Math.ceil(bx[1] / st) * st; y <= bx[3]; y += st) ctx.fillRect(x - dsz / 2, y - dsz / 2, dsz, dsz);
+        if (patternOf(it.hatch.pattern).solid) { ctx.globalAlpha = 0.3; ctx.fillStyle = col; ctx.fill(outline); ctx.globalAlpha = 1; }
+        else {
+          // Each line family: dots as small squares, else lines (dashed when the dashes are 4 pixels or more).
+          const dsz = 2 / scale;
+          ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineWidth = 1 / scale;
+          for (const f of placedLines(it.hatch, perMm)) {
+            if (dotsOnly(f)) { for (const [x, y] of hatchDots(f, bx, 3 / scale, 40000)) ctx.fillRect(x - dsz / 2, y - dsz / 2, dsz, dsz); continue; }
+            const { lines, dash } = hatchStrokes(f, bx, 3 / scale, 1500, 1 / scale);
+            ctx.setLineDash(dash.length && patternLength(dash) * scale >= 4 ? dash : []);
+            ctx.beginPath();
+            for (const l of lines) { ctx.moveTo(l.a[0], l.a[1]); ctx.lineTo(l.b[0], l.b[1]); }
+            ctx.stroke();
           }
-        } else {
-          ctx.strokeStyle = col; ctx.lineWidth = 1 / scale; ctx.beginPath();
-          for (const f of hatchFamilies(it.hatch, perMm)) {
-            for (const l of hatchLines({ angle: f.angle, base: [0, 0], offset: [-Math.sin(f.angle) * f.step, Math.cos(f.angle) * f.step] }, bx, 3 / scale)) { ctx.moveTo(l.a[0], l.a[1]); ctx.lineTo(l.b[0], l.b[1]); }
-          }
-          ctx.stroke();
+          ctx.setLineDash([]);
         }
         ctx.restore();
         if (!isSel(it.id)) continue; // a hatch shows its outline only when picked

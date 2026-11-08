@@ -29,8 +29,9 @@ export function hatchLines(line: { angle: number; base: Pt; offset: Pt }, box: [
   const corners: Pt[] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
   const dot = (p: Pt, v: Pt) => p[0] * v[0] + p[1] * v[1];
   const ds = corners.map((c) => dot(c, n)), d0 = dot(line.base, n);
-  let k0 = Math.ceil((Math.min(...ds) - d0) / step), k1 = Math.floor((Math.max(...ds) - d0) / step);
-  if (k0 > k1) [k0, k1] = [k1, k0];
+  // The lines' numbers across the box (a negative step counts them the other way).
+  const q0 = (Math.min(...ds) - d0) / step, q1 = (Math.max(...ds) - d0) / step;
+  const k0 = Math.ceil(Math.min(q0, q1)), k1 = Math.floor(Math.max(q0, q1));
   if (k1 - k0 + 1 > max) return [];
   const out: { a: Pt; b: Pt; phase: number }[] = [];
   for (let k = k0; k <= k1; k += 1) {

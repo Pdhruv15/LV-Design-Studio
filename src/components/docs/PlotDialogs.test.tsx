@@ -11,9 +11,11 @@ import { pensFor, withTable, DEFAULT_PENS } from '../../model/plotSetup';
 import type { Project } from '../../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+const preview = vi.hoisted(() => vi.fn());
+vi.mock('./SheetPdfPreview', () => ({ canPreviewSheetPdf: () => true, SheetPdfPreview: (props: unknown) => { preview(props); return null; } }));
 let root: Root, host: HTMLDivElement;
 beforeEach(() => { host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host); });
-afterEach(() => { act(() => root.unmount()); document.body.innerHTML = ''; });
+afterEach(() => { act(() => root.unmount()); document.body.innerHTML = ''; preview.mockClear(); });
 
 const villa: Project = {
   ...sampleProject, drawingSet: undefined, plot: undefined,
@@ -58,6 +60,25 @@ describe('Plot dialogs', () => {
     expect(document.querySelector('.warn')).toBeNull(); // drawn for 1:100, the sheet is 1:100
     choose('Scale', '50');
     expect(document.querySelector('.warn')!.textContent).toBe('⚠ Text was drawn for 1:100; this sheet is 1:50, so 2.5 mm text prints 5 mm.');
+  });
+
+  it('previews draft page setup without saving it', () => {
+    const lit = placeLvPoint(villa, { building: 'V', level: 'GF' }, 'ltg', 'DB-GF1-Y1', 6, 5).project;
+    const { set, ids } = addPlanSheets(setOf(lit), lit, 'lighting');
+    const sheet = set.sheets.find((s) => s.id === ids[0])!;
+    const onSave = vi.fn();
+    act(() => root.render(<PageSetupDialog project={{ ...lit, drawingSet: set }} sheet={sheet} onSave={onSave} onClose={() => {}} />));
+    choose('Paper', 'A3 portrait');
+    choose('Scale', '200');
+    choose('Lineweights', 'thin');
+    act(() => button('Preview').click());
+    expect(preview.mock.lastCall![0].project.drawingSet.sheets.find((s: { id: string }) => s.id === sheet.id)).toMatchObject({
+      size: 'A3 portrait', scale: '1:200', plot: { weights: 'thin' }
+    });
+    expect(sheet.size).not.toBe('A3 portrait');
+    expect(onSave).not.toHaveBeenCalled();
+    act(() => preview.mock.lastCall![0].onClose());
+    expect((document.querySelector('[aria-label="Paper"]') as HTMLSelectElement).value).toBe('A3 portrait');
   });
 
   it('pen tables: a width and an ink changed and saved; saved as a new table', () => {
