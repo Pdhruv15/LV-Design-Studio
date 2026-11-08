@@ -20,6 +20,7 @@ const BEFORE: Record<string, string> = {
   XCLIP: '!xclip', XC: '!xclip', LM: '!layerManager', LAYERMANAGER: '!layerManager', LAYMAN: '!layerManager',
   // Since the layer palette: LAYER opens it (as in current industrial 2D drafting products); LA still shows the Layers panel.
   LAYER: '!layerManager', 'LAYER N': '!newLayer', 'LAYER NEW': '!newLayer', '-LAYER N': '!newLayer', CLAYER: '!clayer', LAYISO: '!layiso', LAYUNISO: '!layuniso',
+  POL: 'polygon', POLYGON: 'polygon', EL: 'ellipse', ELLIPSE: 'ellipse', REVCLOUD: 'revcloud',
   LAYOFF: '!layoff', LAYFRZ: '!layfrz', LAYLCK: '!laylck', LAYULK: '!layulk', LAYMCUR: '!laymcur', LAYON: '!layon', LAYTHW: '!laythw',
   ALIGN: '!align', ALIGNV: '!align', SPACE: '!align', WC: '!wireAll', WIRE: '!wireAll', WIRECIRCUITS: '!wireAll', W1: 'wire', WIREONE: 'wire',
   TAGS: '!wireTags', COV: '!coverage', COVERAGE: '!coverage', REC: 'rect', RECTANG: 'rect', RECTANGLE: 'rect',

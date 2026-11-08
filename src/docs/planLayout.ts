@@ -150,7 +150,7 @@ export function planLevels(p: Project, type: PlanType): { buildingId: string; le
 function extentOf(p: Project, c: Content, b: string, l: string, drawn: Drawn[] = []): { box: Box; rooms: { name: string; outline: Pt[] }[] } {
   const rooms = buildingInfoOf(p).rooms.filter((r) => r.buildingId === b && r.levelId === l && r.outline && r.outline.length >= 3).map((r) => ({ name: r.name, outline: r.outline as Pt[] }));
   const pts: Pt[] = [...rooms.flatMap((r) => r.outline), ...c.marks.map((m): Pt => [m.x, m.y]), ...c.boards.map((d): Pt => [d.x, d.y]), ...[...c.trays, ...c.cables].flatMap((r) => r.pts),
-    ...drawn.flatMap(({ it }): Pt[] => (it.kind === 'circle' || it.kind === 'arc' ? [[it.pts[0][0] - (it.r ?? 0), it.pts[0][1] - (it.r ?? 0)], [it.pts[0][0] + (it.r ?? 0), it.pts[0][1] + (it.r ?? 0)]] : it.pts))];
+    ...drawn.flatMap(({ it }): Pt[] => (it.kind === 'circle' || it.kind === 'arc' ? [[it.pts[0][0] - (it.r ?? 0), it.pts[0][1] - (it.r ?? 0)], [it.pts[0][0] + (it.r ?? 0), it.pts[0][1] + (it.r ?? 0)]] : it.kind === 'ellipse' ? segmentsOf(it).flat() : it.pts))];
   if (!pts.length) pts.push([0, 0]);
   const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
   return { rooms, box: { x0: Math.min(...xs) - 1, y0: Math.min(...ys) - 1, x1: Math.max(...xs) + 1, y1: Math.max(...ys) + 1 } };

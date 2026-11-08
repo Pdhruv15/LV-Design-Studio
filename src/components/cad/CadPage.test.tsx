@@ -236,6 +236,54 @@ describe('CAD view', () => {
     expect(document.querySelector('.cad-hist')?.textContent).toMatch(/1 circuit wired on E-LV-WIRING \/ E-LV-TAGS\)/);
   });
 
+  it('draws polygons, circles by 2 or 3 points or a diameter, arcs by start, centre and end, ellipses and revision clouds, and saves them as such', async () => {
+    const saveBinary = vi.fn(async () => '/plans/out.dxf');
+    (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveBinary };
+    const X = 200000;
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const at = (x: number, y: number) => command(`${x},${y}`);
+    const last = () => { const it = project.cadSketch![0].items; return it[it.length - 1]; };
+    const near = (q: number[]) => q.map((v) => +v.toFixed(6) + 0);
+    // Each tool repeats until another starts or Esc (C while Polygon runs is its Circumscribed option).
+    const esc = () => act(() => state.setTool('none'));
+    // A hexagon of radius 1000 m round (X, 0): six sides typed first.
+    await command('POL'); await command('6'); await at(X, 0); await at(X + 1000, 0);
+    expect(last()).toMatchObject({ kind: 'pline', layer: 'LV-SKETCH', closed: true });
+    expect(last().pts.map(near)).toEqual([[X + 1000, 0], [X + 500, 866.025404], [X - 500, 866.025404], [X - 1000, 0], [X - 500, -866.025404], [X + 500, -866.025404]]);
+    // Circles: by the ends of a diameter (2P), by three points (3P), by the centre and a diameter typed (D).
+    esc(); await command('C'); await command('2P');
+    expect(state.tool).toBe('circle2p');
+    await at(X, 3000); await at(X + 2000, 3000);
+    expect(last()).toMatchObject({ kind: 'circle', pts: [[X + 1000, 3000]], r: 1000 });
+    esc(); await command('C'); await command('3P'); await at(X, 6000); await at(X + 2000, 6000); await at(X + 1000, 7000);
+    expect([near(last().pts[0]), +last().r!.toFixed(6)]).toEqual([[X + 1000, 6000], 1000]);
+    esc(); await command('C'); await at(X, 9000); await command('D'); await command('3000');
+    expect(last()).toMatchObject({ kind: 'circle', pts: [[X, 9000]], r: 1500 });
+    // An arc from its start, round its centre, to its end (a quarter, anticlockwise).
+    act(() => state.setTool('arcsce'));
+    await at(X + 1000, 12000); await at(X, 12000); await at(X, 13000);
+    expect([last().kind, last().r, last().a0, +last().a1!.toFixed(9)]).toEqual(['arc', 1000, 0, +(Math.PI / 2).toFixed(9)]);
+    // Ellipses: centre, the end of an axis, the other half-axis typed; then by the two ends of an axis (A).
+    esc(); await command('EL'); await at(X, 15000); await at(X + 2000, 15000); await command('500');
+    expect(last()).toMatchObject({ kind: 'ellipse', pts: [[X, 15000]], ax: [2000, 0], ratio: 0.25 });
+    esc(); await command('EL'); await command('A'); await at(X, 18000); await at(X + 4000, 18000); await command('1000');
+    expect(last()).toMatchObject({ kind: 'ellipse', pts: [[X + 2000, 18000]], ax: [2000, 0], ratio: 0.5 });
+    // Revision clouds on the annotation layer: a rectangle with arcs typed 500 long; then round points (P).
+    esc(); await command('REVCLOUD'); await command('500'); await at(X, 21000); await at(X + 3000, 23000);
+    expect(last()).toMatchObject({ kind: 'pline', layer: 'LV-ANNO', closed: true, cloud: 500, pts: [[X, 21000], [X + 3000, 21000], [X + 3000, 23000], [X, 23000]] });
+    esc(); await command('REVCLOUD'); await command('P'); await at(X, 25000); await at(X + 2000, 25000); await at(X + 1000, 27000); await command('');
+    expect(last()).toMatchObject({ kind: 'pline', layer: 'LV-ANNO', closed: true, pts: [[X, 25000], [X + 2000, 25000], [X + 1000, 27000]] });
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(/^Revision cloud, arcs [\d.]+ m long · ⌘Z to undo$/);
+    // Saved: an ELLIPSE, and the clouds as polylines with their arcs (bulges, group 42).
+    esc(); await command('save');
+    await flush();
+    const text = new TextDecoder().decode((saveBinary.mock.calls[0] as unknown as [{ bytes: Uint8Array }])[0].bytes);
+    expect(text.match(/\nELLIPSE\r?\n/g)).toHaveLength(2);
+    expect(text).toMatch(/\n\s*42\r?\n\s*0\.5\r?\n/);
+  });
+
   it('places an ELV device and saves the drawing as DXF with the devices on their layers', async () => {
     const saveBinary = vi.fn(async () => '/plans/out.dxf');
     (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveBinary };

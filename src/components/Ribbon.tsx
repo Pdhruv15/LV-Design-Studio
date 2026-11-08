@@ -1,10 +1,10 @@
-import { AddBoardIcon, BoardPropsIcon, TxGenSizingIcon } from './icons/elecIcons';
+import { AddBoardIcon, BoardPropsIcon, EllipseIcon, TxGenSizingIcon } from './icons/elecIcons';
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as KeyEvent } from 'react';
 import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
-import { Frame, LayoutTemplate, Printer, Crop, Plus, ChevronRight, LightbulbOff, Snowflake, LockOpen, Focus, CircleCheck, Layers3, ArrowDownRight } from 'lucide-react';
+import { Frame, LayoutTemplate, Printer, Crop, Plus, ChevronRight, LightbulbOff, Snowflake, LockOpen, Focus, CircleCheck, Layers3, ArrowDownRight, Cloud } from 'lucide-react';
 import { PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen } from 'lucide-react';
 import type { CadRibbonInfo, CadTool } from './cad/cadState';
 import { ColourPicker } from './cad/ColourPicker';
@@ -167,7 +167,7 @@ export const CAD_TABS: Record<'named' | 'labels', CadTab[]> = {
 const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
 /** The panel a tool is on, so the ribbon shows the tool in use (a typed command moves it there). */
 const GROUP_OF: Partial<Record<CadTool, number>> = {
-  line: G.draw, pline: G.draw, rect: G.draw, circle: G.draw, arc: G.draw, hatch: G.draw,
+  line: G.draw, pline: G.draw, rect: G.draw, circle: G.draw, arc: G.draw, hatch: G.draw, polygon: G.draw, ellipse: G.draw, circle2p: G.draw, circle3p: G.draw, circled: G.draw, arcsce: G.draw, revcloud: G.annotate,
   move: G.modify, copy: G.modify, rotate: G.modify, mirror: G.modify, scale: G.modify, stretch: G.modify, trim: G.modify, extend: G.modify, offset: G.modify, fillet: G.modify, chamfer: G.modify, break: G.modify, join: G.modify, explode: G.modify, array: G.modify,
   text: G.annotate, dim: G.annotate, leader: G.annotate, rtag: G.annotate, north: G.annotate, matchprop: G.props, dist: G.measure, area: G.measure,
   xattach: G.reference, xclip: G.reference, room: G.rooms, trace: G.rooms, name: G.rooms, tray: G.cables, cable: G.cables, link: G.cables,
@@ -533,9 +533,14 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         cadTool('line', 'Line', Slash, 'Line (L): click points; type a length, x,y or @dx,dy; Enter stops'),
         cadTool('pline', 'Polyline', Spline, 'Polyline (PL): click points; C or the first point closes it; Enter finishes'),
-        cadTool('circle', 'Circle', Circle, 'Circle (C): centre, then radius (a point or typed)'),
-        cadTool('arc', 'Arc', Rainbow, 'Arc (A): start, a point on it, end'),
-        sm(cadTool('rect', 'Rectangle', RectangleHorizontal, 'Rectangle (REC): two opposite corners')),
+        withList(cadTool('circle', 'Circle', Circle, 'Circle (C): centre, then radius (a point or typed; D for the diameter). The arrow: by its diameter, two or three points'), [
+          ['circle', 'Centre, radius (C)', 'Centre, then radius'], ['circled', 'Centre, diameter', 'Centre, then the diameter'],
+          ['circle2p', '2 points', 'The two ends of a diameter'], ['circle3p', '3 points', 'Three points on the circle']]),
+        withList(cadTool('arc', 'Arc', Rainbow, 'Arc (A): start, a point on it, end. The arrow: start, centre, end'), [
+          ['arc', '3 points (A)', 'Start, a point on it, end'], ['arcsce', 'Start, centre, end', 'Start, the centre, then the end (anticlockwise)']]),
+        sm(withList(cadTool('rect', 'Rectangle', RectangleHorizontal, 'Rectangle (REC): two opposite corners. The arrow: polygon'), [
+          ['rect', 'Rectangle (REC)', 'Two opposite corners'], ['polygon', 'Polygon (POL)', 'The number of sides, the centre, then the radius (I: corners on it, C: sides touching it)']])),
+        sm(cadTool('ellipse', 'Ellipse', EllipseIcon, 'Ellipse (EL): centre, the end of one axis, then the other axis; A for the two ends of an axis')),
         sm(cadTool('hatch', 'Hatch', PaintBucket, 'Hatch (H): the pattern on the right, then click inside a closed drawn object or a room'))
       ],
       // Modify: three rows by four, column by column (Move, Copy, Stretch · Rotate, Mirror, Scale · Trim, Fillet, Array ·
@@ -569,7 +574,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           { label: 'Dimension style… (D)', title: 'The arrows, sizes, unit and decimals of new dimensions', onClick: () => a.cad?.onCommand?.('DIMSTYLE') }] },
         cadTool('leader', 'Leader', MessageSquareText, 'Leader (LE): click the arrow point, then the text point (more points bend it), type the text, Enter'),
         sm(cadTool('rtag', 'Room tag', Tag, 'Room tag (RT): click inside a room: its name and area')),
-        sm(cadTool('north', 'North arrow', Navigation, 'North arrow (NORTH): click where it goes'))
+        sm(cadTool('north', 'North arrow', Navigation, 'North arrow (NORTH): click where it goes')),
+        sm(cadTool('revcloud', 'Revision cloud', Cloud, 'Revision cloud (REVCLOUD): two corners, or P and the points round the change; arcs 15 mm long on paper, or type a length'))
       ],
       // Layers: the layer palette; the current layer list (PANEL) over two rows of five, column by column (Off, Freeze,
       // Lock, Isolate, Make current · All on, Thaw all, Unlock, Unisolate, Layer roles); New layer and the layers panel

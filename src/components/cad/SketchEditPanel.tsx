@@ -30,6 +30,7 @@ export function sketchEditsFor(items: SketchItem[], devices: number): SketchEdit
   if (it.tray) return ['offset', 'break', 'fillet', 'width', 'move', 'copy', 'erase'];
   if (isPath(it)) return ['trim', 'extend', 'offset', 'break', 'fillet', 'mirror', 'move', 'copy', 'rotate', 'erase'];
   if (it.kind === 'circle' || it.kind === 'arc') return ['offset', 'mirror', 'scale', 'move', 'copy', 'rotate', 'erase'];
+  if (it.kind === 'ellipse' || it.cloud) return ['mirror', 'scale', 'move', 'copy', 'rotate', 'erase'];
   return ['move', 'copy', 'rotate', 'erase'];
 }
 

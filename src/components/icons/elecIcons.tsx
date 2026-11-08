@@ -34,3 +34,10 @@ export const TxGenSizingIcon = (p: P) => (
     <path d="M7 18l2.5 2.5L15 15" />
   </Svg>
 );
+
+/** Ellipse (Design CAD → Draw). */
+export const EllipseIcon = (p: P) => (
+  <Svg {...p}>
+    <ellipse cx="12" cy="12" rx="9.5" ry="5.5" transform="rotate(-20 12 12)" />
+  </Svg>
+);
