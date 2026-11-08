@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.056', date: '2026-11-08',
+    items: [
+      { title: 'Design CAD File menu', text: 'File has Open, Close, Save, Save As, Export and Publish. Open lists a drawing file, the drawing open last and the plan of each level; Close closes this drawing, all, or all but this one. Save writes again to the copy you saved last (keeping the one before as .bak); the first time it is Save As, where you name the copy, choose DWG or DXF and its version (back to 2000, or DXF R12), and what goes in. The architect\'s drawing is never changed. A drawing changed since it was saved shows ● on its tab, and Close asks first.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Export and Publish from Design CAD', text: 'File → Export: a PDF of the view (black on white) or of the layout, an image, the objects picked as a DXF of their own (WBLOCK), and the device list and cable route lengths of the plan as Excel. File → Publish opens Publish with this drawing\'s layouts ticked.' },
+      { title: 'Drafting settings', text: 'Type DS, click ⚙ on the status bar, or right-click a status-bar toggle: snap and grid spacing, polar tracking (F10) and its angles, object snap tracking (F11), the snap modes (now with Nearest and Perpendicular), dynamic input, selection window and grips, crosshair, aperture and marker sizes, lineweights (LWT), and the drawing\'s level and units (moved here from File).' }
+    ]
+  },
+  {
     version: '2.055', date: '2026-11-08',
     items: [
       { title: 'More ways to draw', text: 'Draw has Ellipse (EL): its centre, the end of one axis, then the other axis, or A for the two ends of an axis. Polygon (POL) is under Rectangle\'s arrow: type the number of sides, then the centre and the radius (I: corners on it, C: sides touching it). Circle\'s arrow draws one by its diameter, two points or three points (or type 2P, 3P, or D after the centre); Arc\'s draws one by its start, centre and end.', action: 'cad', actionLabel: 'Open Design CAD' },

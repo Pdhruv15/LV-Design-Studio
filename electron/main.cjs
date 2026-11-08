@@ -301,6 +301,8 @@ handle('files:saveText', async (evt, args) => {
 });
 
 // ---- IPC: export a generated binary file (e.g. an .xlsx workbook) ----
+// Drawings (DWG / DXF) the user chose in a save dialog this session: Design CAD's Save may write over these, and only these.
+const chosenDrawings = new Set();
 handle('files:saveBinary', async (evt, args) => {
   const { defaultName, bytes, filter } = check.saveBinaryArgs(args);
   const result = await dialog.showSaveDialog(ownerOf(evt), {
@@ -310,7 +312,16 @@ handle('files:saveBinary', async (evt, args) => {
   });
   if (result.canceled || !result.filePath) return null;
   fs.writeFileSync(result.filePath, bytes);
+  if (/\.(dwg|dxf)$/i.test(result.filePath)) chosenDrawings.add(path.resolve(result.filePath));
   return result.filePath;
+});
+handle('files:overwriteBinary', async (_evt, args) => {
+  const { file, bytes, bak } = check.overwriteBinaryArgs(args);
+  const target = path.resolve(file);
+  if (!chosenDrawings.has(target)) throw new Error('Save can only write over a drawing saved with Save As in this session.');
+  if (bak && fs.existsSync(target)) fs.copyFileSync(target, target.replace(/\.(dwg|dxf)$/i, '.bak'));
+  fs.writeFileSync(target, bytes);
+  return target;
 });
 
 // ---- IPC: drawings (DWG / DXF) for Design CAD, which reads them with its own engine in the window ----

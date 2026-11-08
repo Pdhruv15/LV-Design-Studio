@@ -480,7 +480,7 @@ mod tests {
         let gone: serde_json::Value = serde_json::from_str(&view.set_erased(&format!("[\"{h}\"]"))).unwrap();
         assert_eq!(gone["objects"].as_array().unwrap().len(), 1);
         assert!(view.pick(0.0, 0.0, 1.0, &on, false).is_empty(), "an erased block is not picked");
-        assert!(view.snap(100.0, 0.0, 5.0, 0xFF, &on).is_empty(), "nor snapped to");
+        assert!(view.snap(100.0, 0.0, 5.0, 0xFF, &on, f64::NAN, f64::NAN).is_empty(), "nor snapped to");
         let saved = super::super::with_additions(bytes, "[]", "[]", &format!("[\"{h}\"]")).unwrap();
         let out = acadrust::DxfWriter::new(&saved).write_to_vec().unwrap();
         let after: Vec<serde_json::Value> = serde_json::from_str(&super::super::CadDoc::new(out).unwrap().blocks()).unwrap();

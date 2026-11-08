@@ -17,6 +17,7 @@ import { placeLvPoint } from '../../model/cadDevices';
 import { archOnOf } from '../../model/cadLayerState';
 import { dimLabel } from '../../model/cadSketch';
 import type { Project } from '../../types';
+import { DRAFT_DEFAULTS, type DraftSettings } from '../../model/cadDraft';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 // jsdom has no canvas drawing or resize observer: drawing is skipped, the page still works (the view is 800 × 500).
@@ -32,6 +33,7 @@ const villa: Project = {
 };
 let root: Root, host: HTMLDivElement, state: CadState, project: Project;
 const onChange = vi.fn((p: Project, _message: string) => { project = p; });
+const onPrefs = vi.fn((_p: { draft: DraftSettings; autosaveMin: number }) => {});
 /** Whether the architect's layer i shows: its On, kept in the project (Layer palette or the Layers list). */
 const shown = (i: number) => archOnOf(project, state.view!.file, state.view!.info.layers)[i];
 beforeEach(() => {
@@ -48,8 +50,10 @@ function Host({ start = villa }: { start?: Project }) {
   const cad = useCad('p1');
   const [p, setP] = useState(start);
   const sheetUi = useSheetUi();
+  const [draft, setDraft] = useState(DRAFT_DEFAULTS);
   state = cad;
-  return <CadPage cad={cad} project={p} onChange={(next, msg) => { setP(next); onChange(next, msg); }} onStatus={() => {}} sheetUi={sheetUi} />;
+  return <CadPage cad={cad} project={p} onChange={(next, msg) => { setP(next); onChange(next, msg); }} onStatus={() => {}} sheetUi={sheetUi}
+    draft={draft} onPrefs={(x) => { setDraft(x.draft); onPrefs(x); }} />;
 }
 /** Waits for something on screen (a slower machine takes longer), up to 10 s. */
 const until = async (ok: () => boolean) => { for (let i = 0; i < 200 && !ok(); i += 1) await act(async () => { await new Promise((r) => setTimeout(r, 50)); }); expect(ok()).toBe(true); };
@@ -63,6 +67,13 @@ const command = async (text: string) => {
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
   await act(async () => { input.form!.requestSubmit(); });
+};
+/** SAVE / SAVEDWG the first time: Save As opens, and its Save is pressed as it starts. */
+const saveCmd = async (text: string) => {
+  await command(text);
+  const ok = [...document.querySelectorAll('[role="dialog"][aria-label="Save As"] button')].find((b) => b.textContent === 'Save') as HTMLButtonElement | undefined;
+  expect(ok, 'Save As opens').toBeTruthy();
+  await act(async () => { ok!.click(); });
 };
 /** Drawing units → canvas pixels, through the fitted 800 × 500 view. */
 const screenOf = (x: number, y: number) => {
@@ -261,7 +272,7 @@ describe('CAD view', () => {
     await command('SCHED');
     const m = /· (\d+) m wired/.exec(onChange.mock.calls[2][1])![1];
     expect(project.feeders.find((f) => f.id === 'DB-GF1-Y1')!.lengthM).toBe(Number(m));
-    await command('save');
+    await saveCmd('save');
     await flush();
     const text = new TextDecoder().decode((saveBinary.mock.calls[0] as unknown as [{ bytes: Uint8Array }])[0].bytes);
     expect(text).toContain('E-LV-WIRING');
@@ -310,7 +321,7 @@ describe('CAD view', () => {
     expect(last()).toMatchObject({ kind: 'pline', layer: 'LV-ANNO', closed: true, pts: [[X, 25000], [X + 2000, 25000], [X + 1000, 27000]] });
     expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(/^Revision cloud, arcs [\d.]+ m long · ⌘Z to undo$/);
     // Saved: an ELLIPSE, and the clouds as polylines with their arcs (bulges, group 42).
-    esc(); await command('save');
+    esc(); await saveCmd('save');
     await flush();
     const text = new TextDecoder().decode((saveBinary.mock.calls[0] as unknown as [{ bytes: Uint8Array }])[0].bytes);
     expect(text.match(/\nELLIPSE\r?\n/g)).toHaveLength(2);
@@ -325,7 +336,7 @@ describe('CAD view', () => {
     act(() => { state.setDevice('smoke-detector'); state.setTool('dev'); state.toggle('osnap'); });
     await clickAt(3000, 8000);
     expect(project.elvDevices).toEqual([expect.objectContaining({ type: 'smoke-detector', x: expect.closeTo(3, 6), y: expect.closeTo(8, 6) })]);
-    await command('save');
+    await saveCmd('save');
     await flush();
     const arg = (saveBinary.mock.calls[0] as unknown as [{ defaultName: string; bytes: Uint8Array }])[0];
     expect(arg.defaultName).toBe('sample-villa-gf - with devices.dxf');
@@ -417,7 +428,7 @@ describe('CAD view', () => {
     await command('rec');
     await clickAt(6000, 6000);
     await clickAt(9000, 8000);
-    await command('save');
+    await saveCmd('save');
     await flush();
     const text = new TextDecoder().decode((saveBinary.mock.calls[0] as unknown as [{ bytes: Uint8Array }])[0].bytes);
     expect(text).toContain('LV-SKETCH');
@@ -522,7 +533,7 @@ describe('CAD view', () => {
     const service = document.querySelector('.cad-res select[aria-label="Tray service"]') as HTMLSelectElement;
     act(() => { service.value = 'ELV'; service.dispatchEvent(new Event('change', { bubbles: true })); });
     expect(project.cadSketch![0].items[0].tray).toEqual({ widthMm: 450, service: 'ELV' });
-    await command('save');
+    await saveCmd('save');
     await flush();
     const text = new TextDecoder().decode((saveBinary.mock.calls[0] as unknown as [{ bytes: Uint8Array }])[0].bytes);
     expect(text).toContain('E-TRAY');
@@ -1068,7 +1079,7 @@ describe('CAD view', () => {
     await command('rec');
     await clickAt(6000, 6000);
     await clickAt(9000, 8000);
-    await command('SAVEDWG');
+    await saveCmd('SAVEDWG');
     await flush();
     const call = (saveBinary.mock.calls[0] as unknown as [{ defaultName: string; bytes: Uint8Array }])[0];
     expect(call.defaultName).toBe('sample-villa-gf - with devices.dwg');
@@ -1721,7 +1732,7 @@ describe('CAD command line', () => {
     expect(box('Length')).toBeNull();
     await clickAt(X, 10000);
     expect(box('Length')!.placeholder).toBe('0.00');
-    expect(document.querySelector('.cad-status button[aria-pressed="true"][title="DYN (F12)"]')).not.toBeNull();
+    expect(document.querySelector('.cad-status button[aria-pressed="true"][title^="DYN (F12)"]')).not.toBeNull();
     key('3');
     expect(document.activeElement).toBe(box('Length'));
     type(box('Length')!, '3');
@@ -2033,3 +2044,122 @@ describe('CAD command line', () => {
   });
 });
 
+
+describe('Design CAD File: Save, Save As, Close and Drafting settings', () => {
+  const dialog = (name: string) => document.querySelector(`[role="dialog"][aria-label="${name}"]`) as HTMLElement | null;
+  const press = async (d: HTMLElement, label: string) => { const b = [...d.querySelectorAll('button')].find((x) => x.textContent === label) as HTMLButtonElement; expect(b, label).toBeTruthy(); await act(async () => { b.click(); }); await flush(); };
+  const set = (el: HTMLInputElement | HTMLSelectElement, value: string) => act(() => {
+    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, 'value')!.set!.call(el, value);
+    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));
+  });
+  const tick = (d: HTMLElement, label: string) => act(() => { (d.querySelector(`input[aria-label="${label}"]`) as HTMLInputElement).click(); });
+  const dirtyMark = () => document.querySelector('.cad-tab-dirty');
+
+  it('Save the first time is Save As (name, format and version); after that Save writes over that copy, keeping a .bak', async () => {
+    const saveBinary = vi.fn(async () => '/plans/villa-copy.dxf');
+    const overwriteBinary = vi.fn(async ({ file }: { file: string }) => file);
+    (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveBinary, overwriteBinary };
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    await command('rec');
+    await clickAt(6000, 6000);
+    await clickAt(9000, 8000);
+    expect(dirtyMark()).not.toBeNull(); // changed since saved: ● on its tab
+    await command('save');
+    const d = dialog('Save As')!;
+    expect((d.querySelector('input[aria-label="File name"]') as HTMLInputElement).value).toBe('sample-villa-gf - with devices');
+    set(d.querySelector('input[aria-label="File name"]') as HTMLInputElement, 'villa-copy');
+    set(d.querySelector('select[aria-label="Format"]') as HTMLSelectElement, 'dxf:R12');
+    await press(d, 'Save');
+    const first = (saveBinary.mock.calls[0] as unknown as [{ defaultName: string; bytes: Uint8Array }])[0];
+    expect(first.defaultName).toBe('villa-copy.dxf');
+    expect(new TextDecoder().decode(first.bytes)).toContain('AC1009');
+    expect(dirtyMark()).toBeNull();
+    await command('rec');
+    await clickAt(6500, 6500);
+    await clickAt(8000, 7000);
+    expect(dirtyMark()).not.toBeNull();
+    await command('save');
+    await flush();
+    expect(dialog('Save As')).toBeNull();
+    expect(saveBinary).toHaveBeenCalledTimes(1);
+    expect(overwriteBinary).toHaveBeenCalledTimes(1);
+    const again = (overwriteBinary.mock.calls[0] as unknown as [{ file: string; bytes: Uint8Array; bak: boolean }])[0];
+    expect([again.file, again.bak]).toEqual(['/plans/villa-copy.dxf', true]);
+    expect(new TextDecoder().decode(again.bytes)).toContain('AC1009'); // the same version again
+    expect(dirtyMark()).toBeNull();
+  });
+
+  it('Close asks first when the drawing changed since saved: Cancel keeps it, Don\'t save closes it', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    await command('l');
+    await clickAt(6000, 6000);
+    await clickAt(9000, 6000);
+    await command('');
+    await command('close');
+    const d = dialog('Close sample-villa-gf.dxf')!;
+    expect(d.textContent).toContain('changes since last saved');
+    await press(d, 'Cancel');
+    expect(state.view?.file).toBe('sample-villa-gf.dxf');
+    await command('close');
+    await press(dialog('Close sample-villa-gf.dxf')!, "Don't save");
+    expect(state.view).toBeNull();
+  });
+
+  it('DS opens the Drafting settings at a tab; OK changes the toggles and the settings, Cancel nothing', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('OS');
+    let d = dialog('Drafting settings')!;
+    expect(d.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toBe('Object snap');
+    tick(d, '⊥  Perpendicular');
+    await press(d, 'Cancel');
+    expect(onPrefs).not.toHaveBeenCalled();
+    await command('DS');
+    d = dialog('Drafting settings')!;
+    await act(async () => { ([...d.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Polar tracking') as HTMLButtonElement).click(); });
+    tick(d, 'Polar tracking on');
+    set(d.querySelector('select[aria-label="Increment angle"]') as HTMLSelectElement, '30');
+    set(d.querySelector('input[aria-label="Extra angles"]') as HTMLInputElement, '15, 400');
+    await act(async () => { ([...d.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Cursor') as HTMLButtonElement).click(); });
+    set(d.querySelector('input[aria-label="Snap aperture"]') as HTMLInputElement, '14');
+    await press(d, 'OK');
+    expect(dialog('Drafting settings')).toBeNull();
+    expect(state.toggles.polar).toBe(true);
+    expect(onPrefs.mock.calls[0][0].draft).toMatchObject({ polarInc: 30, polarExtra: [15], aperturePx: 14 });
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F8' })); });
+    expect([state.toggles.ortho, state.toggles.polar]).toEqual([true, false]); // ORTHO and POLAR turn each other off
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F11' })); });
+    expect(state.toggles.otrack).toBe(true);
+    // Right-click on a status-bar toggle: its settings.
+    await act(async () => { document.querySelector('.cad-status button[title^="Grid:"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); });
+    expect(dialog('Drafting settings')!.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toBe('Snap & grid');
+  });
+
+  it('WBLOCK saves the objects picked as a DXF of their own; with none picked it says what to do', async () => {
+    const saveBinary = vi.fn(async () => '/plans/objects.dxf');
+    (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveBinary };
+    act(() => root.render(<Host />));
+    await flush();
+    await command('WBLOCK');
+    expect(document.querySelector('.cad-hist')?.textContent).toMatch(/WBLOCK {2}Pick the drawn objects/);
+    act(() => state.toggle('osnap'));
+    await command('rec');
+    await clickAt(6000, 6000);
+    await clickAt(9000, 8000);
+    act(() => state.setTool('none'));
+    await dragWindow([5000, 5000], [10000, 9000]);
+    await command('WBLOCK');
+    await flush();
+    await until(() => saveBinary.mock.calls.length > 0);
+    const out = (saveBinary.mock.calls[0] as unknown as [{ defaultName: string; bytes: Uint8Array }])[0];
+    expect(out.defaultName).toBe('sample-villa-gf - objects.dxf');
+    const back = await openDrawing('objects.dxf', out.bytes);
+    expect(back.info.layers.find((l) => l.name === 'LV-SKETCH')?.count).toBe(4);
+    expect(back.info.segments).toBe(4);
+  });
+});

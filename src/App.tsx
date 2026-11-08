@@ -148,6 +148,7 @@ const ProjectsDashboard = lazy(() => import('./components/ProjectsDashboard'));
 import { NameDialog, UnsavedDialog } from './components/FileDialogs';
 import type { BoardKind, ProjectStatus } from './types';
 import { rememberedDrawing, useCad, type CadActions } from './components/cad/cadState';
+import { draftSettings } from './model/cadDraft';
 import { cadFileMenu, planLevel } from './components/cad/cadFileMenu';
 import { plansOf } from './model/cadPlans';
 import { chooseDrawing, openDrawing } from './engines/cad/cadEngine';
@@ -304,6 +305,7 @@ export default function App() {
   const [showCadLoads, setShowCadLoads] = useState(false);
   // CAD view: the drawings stay open while other pages are shown.
   const cadS = useCad(project.id);
+  const cadDraft = useMemo(() => draftSettings(prefs.app.cadDraft), [prefs.app.cadDraft]);
   /** Runs an action of the CAD page; from another page (the sheets) it shows the drawing first and runs once the page
    * is there. */
   const cadDo = (fn: (x: CadActions) => void) => { if (view === 'cad') fn(cadS.actions.current); else { cadS.pending.current = fn; setView('cad'); } };
@@ -1262,7 +1264,7 @@ export default function App() {
           onSave: () => saveProject(),
           onSaveAs: () => saveAs(),
           onAnonymizedSample: () => setShowAnonymized(true),
-          cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onSave: () => cadDo((x) => x.save()), onSaveDwg: () => cadDo((x) => x.saveDwg()), onClose: () => cadDo((x) => x.close()), onDelete: () => cadDo((x) => x.remove()), hasSelection: !!cadS.selected, onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, onLayerManager: () => cadDo((x) => x.layerManager()), onRefs: () => cadDo((x) => x.refs()), inLayout: !!cadS.layout && view === 'cad', onLayoutCmd: (c) => cadDo((x) => x.layoutCmd(c)),
+          cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onSave: () => cadDo((x) => x.save()), onSaveDwg: () => cadDo((x) => x.saveDwg()), onClose: () => cadDo((x) => x.close()), onSaveAs: () => cadDo((x) => x.saveAs()), onCloseOthers: () => cadDo((x) => x.closeOthers()), onExport: (k) => cadDo((x) => x.exportAs(k)), onPublish: () => cadDo((x) => x.publish()), onSettings: () => cadDo((x) => x.settings()), onDelete: () => cadDo((x) => x.remove()), hasSelection: !!cadS.selected, onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, onLayerManager: () => cadDo((x) => x.layerManager()), onRefs: () => cadDo((x) => x.refs()), inLayout: !!cadS.layout && view === 'cad', onLayoutCmd: (c) => cadDo((x) => x.layoutCmd(c)),
             onPaper: !!cadS.layout && view === 'cad' && !cadS.msVp, onCommand: (c) => cadDo((x) => x.command(c)),
             reopen: cadReopen,
             propsOn: cadS.showProps, onProps: () => { cadS.setShowProps(!cadS.showProps); setView('cad'); },
@@ -1602,7 +1604,7 @@ export default function App() {
                 }}
               />
             )}
-            {view === 'cad' && <CadPage cad={cadS} project={project} onChange={(next, message) => { setProject(next, { step: true }); setStatus(message); }} onStatus={setStatus} sheetUi={sheetUi} run={run} onSheet={(id) => { setSheetTab(id); setView('drawings'); }} />}
+            {view === 'cad' && <CadPage cad={cadS} project={project} draft={cadDraft} autosaveMin={prefs.app.autosaveMin} onPrefs={(x) => { const p = { ...prefs, app: { ...prefs.app, cadDraft: x.draft, autosaveMin: x.autosaveMin } }; setPrefs(p); savePrefs(p); }} onChange={(next, message) => { setProject(next, { step: true }); setStatus(message); }} onStatus={setStatus} sheetUi={sheetUi} run={run} onSheet={(id) => { setSheetTab(id); setView('drawings'); }} />}
             {view === 'building' && <BuildingView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'load-assessment' && <LoadAssessmentView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'busbar' && <BusbarStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}

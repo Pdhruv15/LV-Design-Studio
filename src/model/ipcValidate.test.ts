@@ -6,7 +6,7 @@ import { exportDss } from '../engines/opendss/exportDss';
 import { EMPTY_BYTES } from '../../tests/fixtures/importExport';
 
 type Fn = (...a: unknown[]) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
-type V = Record<'defaultFileName' | 'fileFilter' | 'saveTextArgs' | 'saveBinaryArgs' | 'pdfArgs' | 'projectSaveArgs' | 'recoveryArgs' | 'logText' | 'workbookRows' | 'libraryData' | 'engineRequest', Fn> & { ALLOWED_PERMISSIONS: Set<string> };
+type V = Record<'defaultFileName' | 'fileFilter' | 'saveTextArgs' | 'saveBinaryArgs' | 'overwriteBinaryArgs' | 'pdfArgs' | 'projectSaveArgs' | 'recoveryArgs' | 'logText' | 'workbookRows' | 'libraryData' | 'engineRequest', Fn> & { ALLOWED_PERMISSIONS: Set<string> };
 const check = createRequire(import.meta.url)('../../electron/ipcValidate.cjs') as V;
 
 describe('IPC payload checks (electron/ipcValidate.cjs)', () => {
@@ -27,6 +27,15 @@ describe('IPC payload checks (electron/ipcValidate.cjs)', () => {
     expect([...b.bytes]).toEqual([2, 3]);
     expect(() => check.saveBinaryArgs({ defaultName: 'a', bytes: 'text', extensions: ['xlsx'] })).toThrow('without bytes');
     expect(() => check.saveBinaryArgs({ defaultName: 'a.xlsx', bytes: EMPTY_BYTES, extensions: ['xlsx'] })).toThrow('empty binary export');
+  });
+
+  it('Design CAD Save over a copy: an absolute DWG / DXF path and bytes only', () => {
+    const abs = process.platform === 'win32' ? 'C:\\plans\\GF.dwg' : '/plans/GF.dwg';
+    const o = check.overwriteBinaryArgs({ file: abs, bytes: new Uint8Array([7]), bak: 1 });
+    expect([o.file, [...o.bytes], o.bak]).toEqual([abs, [7], true]);
+    expect(() => check.overwriteBinaryArgs({ file: 'GF.dwg', bytes: new Uint8Array([7]) })).toThrow('without a drawing path');
+    expect(() => check.overwriteBinaryArgs({ file: '/plans/notes.txt', bytes: new Uint8Array([7]) })).toThrow('without a drawing path');
+    expect(() => check.overwriteBinaryArgs({ file: abs, bytes: EMPTY_BYTES })).toThrow('empty binary export');
   });
 
   it('PDF options: HTML text, a known sheet size, defaults as before', () => {

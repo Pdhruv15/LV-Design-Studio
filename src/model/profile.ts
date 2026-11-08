@@ -44,6 +44,8 @@ export interface AppPrefs {
   palette?: PalettePref;
   /** Design CAD's ribbon shows each tool's name under its icon (Show labels); absent = icons only, the name on hover. */
   cadLabels?: boolean;
+  /** Design CAD drafting settings (DS), checked when read (model/cadDraft draftSettings); absent = the defaults. */
+  cadDraft?: unknown;
 }
 
 export interface Preferences {

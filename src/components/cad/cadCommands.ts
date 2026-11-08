@@ -8,13 +8,14 @@ import type { CadTool } from './cadState';
 export type CadAction = 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'layiso' | 'layuniso'
   | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
   | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
-  | 'textStyle' | 'dimStyle';
+  | 'textStyle' | 'dimStyle' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt';
 
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
 
 export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['OPEN'], desc: 'Open a drawing', action: 'open' },
   { aliases: ['CLOSE', 'CLOSEALL'], desc: 'Close the drawing, or all of them', action: 'close' },
+  { aliases: ['CLOSEOTHERS'], desc: 'Close all drawings but this one', action: 'closeOthers' },
   { aliases: ['FIT', 'ZE', 'Z E', 'ZOOM E', 'ZOOM EXTENTS'], desc: 'Zoom to the whole drawing', action: 'fit' },
   { aliases: ['DI', 'DIST', 'DISTANCE'], desc: 'Measure a distance', tool: 'dist' },
   { aliases: ['AREA', 'AA'], desc: 'Measure an area', tool: 'area' },
@@ -89,10 +90,21 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['ST', 'STYLE'], desc: 'Text style', action: 'textStyle' },
   { aliases: ['D', 'DST', 'DIMSTY', 'DIMSTYLE'], desc: 'Dimension style', action: 'dimStyle' },
   { aliases: ['E', 'ERASE', 'DEL', 'DELETE'], desc: 'Erase', action: 'erase' },
-  { aliases: ['SAVE', 'DXFOUT', 'SAVEAS'], desc: 'Save as DXF', action: 'save' },
-  { aliases: ['SAVEDWG', 'DWGOUT'], desc: 'Save as DWG', action: 'saveDwg' },
+  { aliases: ['SAVE', 'QSAVE'], desc: 'Save to the copy saved last (the first time: Save As)', action: 'save' },
+  { aliases: ['SAVEAS', 'DXFOUT'], desc: 'Save As: name, format and version', action: 'saveAs' },
+  { aliases: ['SAVEDWG', 'DWGOUT'], desc: 'Save As DWG', action: 'saveDwg' },
+  { aliases: ['EXPORT'], desc: 'The Export list', action: 'export' },
+  { aliases: ['EXPORTPDF'], desc: 'Export a PDF of this view', action: 'exportPdf' },
+  { aliases: ['PNGOUT'], desc: 'Export an image (PNG) of this view', action: 'pngOut' },
+  { aliases: ['WBLOCK', 'W'], desc: 'Export the objects picked as DXF', action: 'wblock' },
+  { aliases: ['PUBLISH'], desc: 'Publish the sheets', action: 'publish' },
+  { aliases: ['DS', 'DSETTINGS', 'SE'], desc: 'Drafting settings', action: 'dsettings' },
   { aliases: ['LA', 'LAYERS'], desc: 'Layers on or off', action: 'layers' },
-  { aliases: ['OS', 'OSNAP'], desc: 'Object snap (F3)', action: 'osnap' },
+  { aliases: ['OSNAP'], desc: 'Object snap (F3)', action: 'osnap' },
+  { aliases: ['OS'], desc: 'Object snap settings', action: 'osnapSettings' },
+  { aliases: ['POLAR'], desc: 'Polar tracking (F10)', action: 'polar' },
+  { aliases: ['OTRACK'], desc: 'Object snap tracking (F11)', action: 'otrack' },
+  { aliases: ['LWT', 'LWDISPLAY'], desc: 'Show lineweights', action: 'lwt' },
   { aliases: ['GRID'], desc: 'Grid (F7)', action: 'grid' },
   { aliases: ['ORTHO'], desc: 'Ortho (F8)', action: 'ortho' },
   { aliases: ['SNAP'], desc: 'Snap (F9)', action: 'snap' },

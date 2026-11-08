@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
 import { Frame, LayoutTemplate, Printer, Crop, Plus, ChevronRight, LightbulbOff, Snowflake, LockOpen, Focus, CircleCheck, Layers3, ArrowDownRight, Cloud } from 'lucide-react';
 import { PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen , SquareScissors } from 'lucide-react';
-import type { CadRibbonInfo, CadTool } from './cad/cadState';
+import type { CadExport, CadRibbonInfo, CadTool } from './cad/cadState';
 import { ColourPicker } from './cad/ColourPicker';
 import { LINETYPE_IDS, LINETYPES, LINEWEIGHTS, type LinetypeId, type ObjectProps } from '../model/cadLayerStyle';
 import { toolAlias } from './cad/cadCommands';
@@ -41,7 +41,7 @@ interface Tool {
   /** Small second line under the label (e.g. the board it acts on). */
   sub?: string;
   /** Split button: the arrow part offers these; `sep` draws a line above an item. */
-  menu?: { label: string; title: string; onClick: () => void; sep?: boolean }[];
+  menu?: { label: string; title: string; onClick: () => void; sep?: boolean; disabled?: boolean }[];
   /** A small button: icon and label on one line, three to a column (the CAD-standard panels). */
   small?: boolean;
   /** In the panel's ▾ under its caption instead of on the row (the less used tools of a panel). */
@@ -91,7 +91,9 @@ export interface RibbonActions {
   onAnonymizedSample: () => void;
   /** Design CAD's tools (src/components/cad); `file`: the File menu's Plans, Level and Units (cadFileMenu.ts). */
   cad?: {
-    tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onSaveDwg: () => void; onClose: () => void; onDelete: () => void; hasSelection: boolean; onLayers: () => void; onLayerManager?: () => void; onRefs?: () => void; layersOn: boolean; hasDrawing: boolean;
+    tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onSaveDwg: () => void; onClose: () => void;
+    /** File: Save As, Close all but this one, Export, Publish; and the Drafting settings (DS). */
+    onSaveAs?: () => void; onCloseOthers?: () => void; onExport?: (kind: CadExport) => void; onPublish?: () => void; onSettings?: () => void; onDelete: () => void; hasSelection: boolean; onLayers: () => void; onLayerManager?: () => void; onRefs?: () => void; layersOn: boolean; hasDrawing: boolean;
     /** A layout tab showing (paper space): Page setup has its viewports; its tools run these commands (LAYOUT, MV, VPSCALE n, VPLOCK, PAGESETUP, PLOT). */
     inLayout?: boolean; vpLocked?: boolean; onLayoutCmd?: (cmd: string) => void;
     /** On a layout's paper (not working in the model through a viewport): Annotate's markup tools draw on it. */
@@ -316,7 +318,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   }, [cadToolNow]); // eslint-disable-line react-hooks/exhaustive-deps -- a tool started moves the ribbon; the mode alone does not
   // File: open, save and close drawings, the level and units of this one (a menu, with lists beside it).
   const [fileOpen, setFileOpen] = useState(false);
-  const [fileList, setFileList] = useState<'plans' | 'levels' | 'units' | null>(null);
+  const [fileList, setFileList] = useState<'open' | 'close' | 'export' | null>(null);
   const fileRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!fileOpen) return;
@@ -797,39 +799,55 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     'aria-label': name, 'aria-describedby': tip?.of === name ? 'ribbon-tip' : undefined, 'data-tip-head': head, 'data-tip-text': text, onBlur: hideTip,
     onFocus: (e: React.FocusEvent<HTMLButtonElement>) => { if (fromKeyboard(e.currentTarget)) showTip(e.currentTarget); }
   });
-  /** File: open, save and close drawings; the plans of each level, and this drawing's level and units, as lists beside it. */
+  /** File: Open ▸ (a drawing file, the plan of a level, the drawing open last), Close ▸, Save, Save As…, Export ▸ and
+   * Publish…. The level and units of the drawing are in the Drafting settings (DS). */
   const fileMenu = () => {
     const c = a.cad, has = !!c?.hasDrawing;
     const run = (fn?: () => void) => () => { setFileOpen(false); fn?.(); };
     const item = (label: string, cmd: string, title: string, fn: (() => void) | undefined, off = false) => (
       <button key={label} role="menuitem" title={title} disabled={off || !fn} onClick={run(fn)} onMouseEnter={() => setFileList(null)}><span>{label}</span><span className="k">{cmd}</span></button>
     );
-    const list = (key: 'plans' | 'levels' | 'units', label: string, title: string, items: Tool['menu'], off = false) => (
+    const list = (key: 'open' | 'close' | 'export', label: string, cmd: string, title: string, items: Tool['menu'], off = false) => (
       <div key={key} className="ribbon-file-sub">
         <button role="menuitem" title={title} aria-haspopup="menu" aria-expanded={fileList === key} disabled={off || !items?.length}
           onClick={() => setFileList(fileList === key ? null : key)} onMouseEnter={() => setFileList(key)}
-          onKeyDown={(e) => { if (e.key === 'ArrowRight') { e.preventDefault(); setFileList(key); } }}><span>{label}</span><ChevronRight size={12} strokeWidth={1.8} aria-hidden /></button>
+          onKeyDown={(e) => { if (e.key === 'ArrowRight') { e.preventDefault(); setFileList(key); } }}><span>{label}</span><span className="k">{cmd}</span><ChevronRight size={12} strokeWidth={1.8} aria-hidden /></button>
         {fileList === key && items && (
           <div className="ribbon-file-menu side" role="menu" aria-label={label}>
-            {items.map((m) => <Fragment key={m.label}>{m.sep && <hr />}<button role="menuitem" title={m.title} onClick={run(m.onClick)}>{m.label}</button></Fragment>)}
+            {items.map((m) => <Fragment key={m.label}>{m.sep && <hr />}<button role="menuitem" title={m.title} disabled={m.disabled} onClick={run(m.onClick)}>{m.label}</button></Fragment>)}
           </div>
         )}
       </div>
     );
+    const ex = (kind: CadExport) => (c?.onExport ? () => c.onExport!(kind) : undefined);
+    const openItems: Tool['menu'] = [
+      ...(c?.onOpen ? [{ label: 'Drawing file… (DWG / DXF)', title: 'Open a DWG / DXF drawing (OPEN)', onClick: c.onOpen }] : []),
+      ...(c?.reopen ? [{ label: c.reopen.label, title: c.reopen.title, onClick: c.reopen.onClick }] : []),
+      ...(c?.file.plans ?? []).map((m, i) => ({ ...m, sep: i === 0 || m.sep }))
+    ];
+    const closeItems: Tool['menu'] = c ? [
+      { label: 'This drawing', title: 'Close this drawing (CLOSE). What you drew stays in the project', onClick: c.onClose },
+      { label: 'All drawings', title: 'Close every drawing open (CLOSEALL). What you drew stays in the project', onClick: () => c.onCommand?.('CLOSEALL') },
+      { label: 'All but this one', title: 'Close the other drawings (CLOSEOTHERS)', onClick: () => c.onCloseOthers?.() }
+    ] : [];
+    const exportItems: Tool['menu'] = c?.onExport ? [
+      { label: 'PDF of this view…', title: 'What is on screen, black on white, A3 (EXPORTPDF)', onClick: ex('pdfView')! },
+      { label: 'PDF of this layout…', title: 'The layout tab showing, with its page setup', onClick: ex('pdfLayout')!, disabled: !c.inLayout },
+      { label: 'Image (PNG)…', title: 'What is on screen, as on screen (PNGOUT)', onClick: ex('png')! },
+      { label: 'Selected objects as DXF…', title: 'The drawn objects and devices picked, as a new DXF (WBLOCK)', onClick: ex('wblock')!, sep: true },
+      { label: 'Device list (Excel)…', title: 'The devices placed on this plan: kind, circuit or board, room, position', onClick: ex('devices')! },
+      { label: 'Cable route lengths (Excel)…', title: 'Each cable\'s routes drawn on this plan and their length', onClick: ex('cables')! }
+    ] : [];
     return (
       <div className="ribbon-file-menu" role="menu" aria-label="File">
-        {item('Open…', 'OPEN', 'Open a DWG / DXF drawing', c?.onOpen)}
-        {list('plans', 'Plans of each level', 'The plan of each level of the project: open it, or open one for a level without', c?.file.plans)}
-        {c?.reopen && item(c.reopen.label, '', c.reopen.title, c.reopen.onClick)}
+        {list('open', 'Open', 'OPEN', 'Open a drawing file, the plan of a level, or the drawing open last', openItems)}
+        {list('close', 'Close', 'CLOSE', 'Close this drawing, all of them, or all but this one. What you drew stays in the project', closeItems, !has)}
         <hr />
-        {item('Save DXF', 'SAVE', 'Save the drawing as DXF with what you drew (LV-SKETCH, LV-ANNO) and the devices placed (E-LV-POINTS, E-ELV-DEVICES, E-BOARDS)', c?.onSave, !has)}
-        {item('Save DWG', 'SAVEDWG', 'Save the drawing as DWG (its own version, else the 2018 format) with what you drew and the devices placed, as a new file — the architect\'s drawing is not changed', c?.onSaveDwg, !has)}
+        {item('Save', 'SAVE', 'Save to the copy saved last; the first time, Save As. The architect\'s drawing is not changed', c?.onSave, !has)}
+        {item('Save As…', 'SAVEAS', 'The file name, DWG or DXF and its version, and what goes in: what you drew, the devices placed, the wiring, references bound', c?.onSaveAs, !has)}
         <hr />
-        {item('Close', 'CLOSE', 'Close this drawing. What you drew stays in the project and comes back when the file opens again', c?.onClose, !has)}
-        {item('Close all', 'CLOSEALL', 'Close every drawing open. What you drew stays in the project', c?.onCommand ? () => c.onCommand!('CLOSEALL') : undefined, !has)}
-        <hr />
-        {list('levels', `Level: ${c?.file.level ?? '—'}`, c?.file.levelTitle || 'The level the drawing is the plan of', c?.file.levels, !has)}
-        {list('units', `Units: ${c?.file.unit ?? '—'}`, c?.file.unitTitle || 'The units the drawing is in', c?.file.units, !has)}
+        {list('export', 'Export', 'EXPORT', 'A PDF of the view or the layout, an image, the objects picked as DXF, or the device and cable lists', exportItems, !has)}
+        {item('Publish…', 'PUBLISH', 'Publish the sheets: this drawing\'s layouts ticked, as PDF, DXF or DWG', c?.onPublish)}
       </div>
     );
   };

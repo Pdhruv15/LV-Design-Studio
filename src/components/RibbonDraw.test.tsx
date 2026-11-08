@@ -236,29 +236,46 @@ describe('Design CAD ribbon: the main tools named, every tool\'s name on hover',
 });
 
 describe('Design CAD ribbon: File', () => {
-  it('holds open, the plans of each level, save, close and close all, and the level and units; greyed with no drawing', () => {
-    show({ hasDrawing: false });
+  const sub = (label: string) => document.querySelector(`[role="menu"][aria-label="${label}"]`);
+  const subItems = (label: string) => [...sub(label)!.querySelectorAll('button')].map((b) => b.textContent);
+  const hover = (label: string) => act(() => { item(label).dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); });
+
+  it('holds Open, Close, Save, Save As, Export and Publish; greyed with no drawing but Open and Publish', () => {
+    show({ hasDrawing: false, onSaveAs: vi.fn(), onExport: vi.fn(), onPublish: vi.fn(), onCloseOthers: vi.fn() });
     click(fileButton());
-    expect(items()).toEqual(['Open…', 'Plans of each level', 'Save DXF', 'Save DWG', 'Close', 'Close all', 'Level: Ground floor', 'Units: mm']);
-    const off = ['Save DXF', 'Save DWG', 'Close', 'Close all', 'Level: Ground floor', 'Units: mm'];
+    expect(items()).toEqual(['Open', 'Close', 'Save', 'Save As…', 'Export', 'Publish…']);
+    const off = ['Close', 'Save', 'Save As…', 'Export'];
     for (const label of items()) expect(item(label!).disabled, label!).toBe(off.includes(label!));
   });
 
-  it('runs what is picked and closes; the plans and units are lists beside it; Esc closes it, not the command', () => {
-    const { cad } = show({ reopen: { label: 'Reopen gf.dwg', title: 'Open it again', onClick: vi.fn() } });
+  it('runs what is picked and closes; Open, Close and Export are lists beside it; Esc closes it, not the command', () => {
+    const { cad } = show({ reopen: { label: 'Reopen gf.dwg', title: 'Open it again', onClick: vi.fn() }, onSaveAs: vi.fn(), onExport: vi.fn(), onPublish: vi.fn(), onCloseOthers: vi.fn() });
     click(fileButton());
-    expect(items()).toContain('Reopen gf.dwg');
-    click(item('Close all'));
-    expect(cad.onCommand).toHaveBeenLastCalledWith('CLOSEALL');
-    expect(document.querySelector('[role="menu"][aria-label="File"]')).toBeNull();
-    click(fileButton());
-    act(() => { item('Plans of each level').dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); });
+    hover('Open');
+    expect(subItems('Open')).toEqual(['Drawing file… (DWG / DXF)', 'Reopen gf.dwg', 'Ground floor · gf.dwg']);
     click(item('Ground floor · gf.dwg'));
     expect(cad.file.plans![0].onClick).toHaveBeenCalledTimes(1);
     expect(document.querySelector('[role="menu"][aria-label="File"]')).toBeNull();
     click(fileButton());
-    click(item('Units: mm'));
-    expect(document.querySelector('[role="menu"][aria-label="Units: mm"]')!.textContent).toBe('Millimetres ✓');
+    hover('Close');
+    expect(subItems('Close')).toEqual(['This drawing', 'All drawings', 'All but this one']);
+    click(item('All drawings'));
+    expect(cad.onCommand).toHaveBeenLastCalledWith('CLOSEALL');
+    click(fileButton()); hover('Close'); click(item('All but this one'));
+    expect(cad.onCloseOthers).toHaveBeenCalledTimes(1);
+    click(fileButton()); click(item('Save'));
+    expect(cad.onSave).toHaveBeenCalledTimes(1);
+    click(fileButton()); click(item('Save As…'));
+    expect(cad.onSaveAs).toHaveBeenCalledTimes(1);
+    click(fileButton()); click(item('Publish…'));
+    expect(cad.onPublish).toHaveBeenCalledTimes(1);
+    click(fileButton());
+    hover('Export');
+    expect(subItems('Export')).toEqual(['PDF of this view…', 'PDF of this layout…', 'Image (PNG)…', 'Selected objects as DXF…', 'Device list (Excel)…', 'Cable route lengths (Excel)…']);
+    expect(item('PDF of this layout…').disabled).toBe(true); // no layout tab showing
+    click(item('Device list (Excel)…'));
+    expect(cad.onExport).toHaveBeenLastCalledWith('devices');
+    click(fileButton());
     const esc = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
     act(() => { document.dispatchEvent(esc); });
     expect(esc.defaultPrevented).toBe(true);
