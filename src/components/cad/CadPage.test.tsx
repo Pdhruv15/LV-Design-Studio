@@ -15,7 +15,7 @@ import '../../engines/cad/cadOps'; // loaded ahead: the engine loads it on deman
 import { sampleProject } from '../../data/sampleProject';
 import { placeLvPoint } from '../../model/cadDevices';
 import { archOnOf } from '../../model/cadLayerState';
-import { dimLabel } from '../../model/cadSketch';
+import { dimLabel, dimMeasure } from '../../model/cadSketch';
 import type { Project } from '../../types';
 import { DRAFT_DEFAULTS, type DraftSettings } from '../../model/cadDraft';
 
@@ -1856,6 +1856,31 @@ describe('CAD command line', () => {
     expect(items()[2]).toMatchObject({ kind: 'text', text: 'NOTE', h: 250 });
   });
 
+  it('DLI, DCO and DBA: a horizontal dimension of two points on a slope, a chain in line with it, then one stepped out', async () => {
+    await start();
+    await command('DCO');
+    await clickAt(X, 20000);
+    expect(hist()).toBe('DIMCONTINUE  No dimension on this drawing to go on from: draw one first (DIM or DLI).');
+    await command('DLI');
+    await clickAt(X, 10000); await clickAt(X + 3000, 11000); await clickAt(X + 1500, 13000);
+    expect(items()[2]).toMatchObject({ kind: 'dim', layer: 'LV-ANNO', dir: 0, text: '3.00' });
+    expect(last()).toContain('Linear dimension');
+    expect(dimMeasure(items()[2])).toBeCloseTo(3000, 3);
+    await command('DCO');
+    await clickAt(X + 5000, 10500);
+    expect(items()[3]).toMatchObject({ kind: 'dim', dir: 0, text: '2.00' });
+    expect(items()[3].pts.slice(0, 2)).toEqual([[X + 3000, 11000], [X + 5000, 10500]]);
+    expect(items()[3].pts[2][1]).toBeCloseTo(13000, 3); // in line with the first
+    await clickAt(X + 6000, 10500); // goes on from the one just drawn
+    expect(items()[4].pts[0]).toEqual([X + 5000, 10500]);
+    expect(hist()).toBe('DIMCONTINUE  Specify second extension line origin (from the last dimension):');
+    await command('DBA');
+    await clickAt(X + 8000, 10000);
+    expect(items()[5].pts[0]).toEqual([X + 5000, 10500]); // from the last one's first point
+    expect(items()[5].text).toBe('3.00');
+    expect(items()[5].pts[2][1]).toBeGreaterThan(13000); // one step further out
+  });
+
   it('DIMSTYLE: closed arrows and mm with no decimals for the dimensions drawn next; older ones keep their look', async () => {
     await start();
     await command('DIM');
@@ -1872,7 +1897,9 @@ describe('CAD command line', () => {
     expect(project.cadDimStyles).toBeUndefined();
     expect(hist()).toBe('DIMSTYLE  No change.');
     await command('D');
-    pick('Arrow', 'closed'); pick('Unit', 'mm'); pick('Decimal places', '0');
+    pick('Arrow', 'closed');
+    act(() => { (dlg().querySelector('[role="tab"]:nth-child(3)') as HTMLButtonElement).click(); }); // Units
+    pick('Unit', 'mm'); pick('Decimal places', '0');
     expect(dlg().querySelector('[role="note"]')).toBeNull();
     await ok();
     expect(project.cadDimStyles!.styles[0]).toMatchObject({ name: 'Standard', arrow: 'closed', unit: 'mm', decimals: 0 });

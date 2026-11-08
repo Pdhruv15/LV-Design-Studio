@@ -1,4 +1,4 @@
-import { rotated, segmentsOf } from './cadSketch';
+import { rotated, scaleLook, segmentsOf } from './cadSketch';
 import type { SketchItem } from '../types';
 
 /** Design CAD → Draw → Modify / Edit: Trim, Extend, Offset, Fillet, Chamfer, Break, Join, Explode, Mirror, Scale, Stretch,
@@ -267,6 +267,8 @@ export function mirrored(it: SketchItem, a: Pt, b: Pt): Omit<SketchItem, 'id'> {
   if (it.kind === 'arc') { const th = Math.atan2(b[1] - a[1], b[0] - a[0]); return { ...rest, pts, a0: 2 * th - (it.a1 ?? 0), a1: 2 * th - (it.a0 ?? 0) }; }
   // An ellipse's axis is a direction: mirrored as one.
   if (it.kind === 'ellipse' && it.ax) return { ...rest, pts, ax: sub(reflect(add(it.pts[0], it.ax), a, b), pts[0]) };
+  // A linear dimension's line is a direction too.
+  if (it.kind === 'dim' && it.dir !== undefined) { const th = Math.atan2(b[1] - a[1], b[0] - a[0]); return { ...rest, pts, dir: 2 * th - it.dir }; }
   return { ...rest, pts };
 }
 /** Scale about a base point by a factor (radii and text heights too). */
@@ -274,7 +276,7 @@ export function scaled(it: SketchItem, base: Pt, k: number): SketchItem {
   return {
     ...it, pts: it.pts.map((q) => add(base, mul(sub(q, base), k))), ...(it.r !== undefined ? { r: it.r * k } : {}), ...(it.h !== undefined ? { h: it.h * k } : {}),
     ...(it.ax ? { ax: mul(it.ax, k) } : {}), ...(it.cloud !== undefined ? { cloud: it.cloud * k } : {}),
-    ...(it.look ? { look: { ...it.look, size: it.look.size * k, off: it.look.off * k, ext: it.look.ext * k } } : {})
+    ...(it.look ? { look: scaleLook(it.look, k) } : {})
   };
 }
 /** Stretch: the points inside the window move by (dx, dy); a circle, arc or text moves when its point is inside. */

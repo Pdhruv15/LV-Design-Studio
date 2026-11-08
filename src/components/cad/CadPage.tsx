@@ -13,7 +13,7 @@ import { parsePat, specWith, withPatterns } from '../../model/cadHatch';
 import { erasedOf, shownView, withErased, type ErasedParts } from '../../model/cadErased';
 import { CIRCUIT_ATTRIBUTES } from '../../model/cadLoads';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
-import { addSketch, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimensionLines, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
+import { addSketch, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimMeasure, linearDir, nextDim, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
 import { trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
@@ -88,7 +88,7 @@ const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab 
   { k: 'ortho', label: 'ORTHO', key: 'F8', tab: 'polar' }, { k: 'grid', label: 'GRID', key: 'F7', tab: 'snap' }, { k: 'dyn', label: 'DYN', key: 'F12', tab: 'dyn' }, { k: 'lwt', label: 'LWT', key: 'LWT', tab: 'cursor' }
 ];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
-const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
+const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
 const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
@@ -149,6 +149,9 @@ const PROMPT: Record<CadTool, string> = {
   arc: 'ARC  Specify start point:',
   text: 'TEXT  Specify start point of text:',
   dim: 'DIM  Specify first extension line origin:',
+  dimlin: 'DIMLINEAR  Specify first extension line origin:',
+  dimcont: 'DIMCONTINUE  Specify second extension line origin (from the last dimension):',
+  dimbase: 'DIMBASELINE  Specify second extension line origin (from the last dimension):',
   xattach: 'XATTACH  Specify insertion point:',
   xclip: 'XCLIP  Click the corners of the clip outline, Enter to finish (two corners: a rectangle), or [Object] to pick a closed outline:',
   crop: 'CROP  Select a block to crop:'
@@ -186,7 +189,7 @@ const WIRING_LAYER = 'E-LV-WIRING', TAG_LAYER = 'E-LV-TAGS';
  * picked first. */
 const EDIT_TOOLS: CadTool[] = ['trim', 'extend', 'offset', 'fillet', 'chamfer', 'break', 'join', 'explode', 'mirror', 'scale', 'stretch', 'array'];
 const PICK_FIRST: CadTool[] = ['join', 'mirror', 'scale', 'array'];
-const DRAW_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'rect', 'circle', 'arc', 'text', 'dim', 'move', 'copy', 'rotate', 'polygon', 'ellipse', 'circle2p', 'circle3p', 'circled', 'arcsce', 'revcloud'];
+const DRAW_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'rect', 'circle', 'arc', 'text', 'dim', 'dimlin', 'dimcont', 'dimbase', 'move', 'copy', 'rotate', 'polygon', 'ellipse', 'circle2p', 'circle3p', 'circled', 'arcsce', 'revcloud'];
 
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
  * a command line and a status bar. Engine in Rust (WebAssembly), desktop and web alike. Measure a distance, an area (by
@@ -1143,6 +1146,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     setPoints([]);
   }
 
+  /** The dimension Continue and Baseline go on from: the last one drawn on this drawing. */
+  const lastDim = useMemo(() => { for (let i = sketch.length - 1; i >= 0; i -= 1) if (sketch[i].kind === 'dim' && sketch[i].pts.length > 2) return sketch[i]; return undefined; }, [sketch]);
+  /** The next dimension of the chain to `to`: baseline ones step out by 3.75 mm on paper (ISO), or 1.5 × their text. */
+  const chainDim = (base: SketchItem, to: Pt) => nextDim(base, to, tool === 'dimcont' ? 'continue' : 'baseline', Math.max(3.75 * unitsPerPaperMm(anno, units.factor), 1.5 * (base.h ?? 0)));
   const draw = (item: Omit<SketchItem, 'id'>, what: string) => {
     if (!view) return;
     const { project: next, id } = addSketch(project, view.file, item);
@@ -1354,13 +1361,26 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return;
     }
     if (tool === 'north') { if (view) change(northArrowItems(at, textH).reduce((q, x) => addSketch(q, view.file, x).project, project), 'North arrow · ⌘Z to undo'); cad.setTool('none'); return; }
-    if (tool === 'dim') {
-      if (points.length < 2) { setPoints((p) => [...p, at]); cad.say(points.length ? 'DIM  Specify dimension line location:' : 'DIM  Specify second extension line origin:'); return; }
-      const len = distance(points[0], points[1]);
+    if (tool === 'dim' || tool === 'dimlin') {
+      const name = tool === 'dim' ? 'DIM' : 'DIMLINEAR';
+      if (points.length < 2) { setPoints((p) => [...p, at]); cad.say(points.length ? `${name}  Specify dimension line location:` : `${name}  Specify second extension line origin:`); return; }
+      // Linear: horizontal or vertical by where the line is dragged; it measures along that line.
+      const dir = tool === 'dimlin' ? linearDir(points[0], points[1], at) : undefined;
+      const len = dimMeasure({ pts: points, dir });
       const ds = dimLookOf(project, units.factor);
       // A dimension of a style keeps no text: it is measured (in the style's unit) wherever it is drawn or saved.
-      draw({ kind: 'dim', layer: ANNO_LAYER, pts: [points[0], points[1], at], ...(ds ? { h: ds.textH, look: ds.look } : { text: toM(len).toFixed(2), h: textH * 0.8 }) }, `Dimension ${m(toM(len))}`);
-      setPoints([]); cad.say(PROMPT.dim); return;
+      draw({ kind: 'dim', layer: ANNO_LAYER, pts: [points[0], points[1], at], ...(dir !== undefined ? { dir } : {}), ...(ds ? { h: ds.textH, look: ds.look } : { text: toM(len).toFixed(2), h: textH * 0.8 }) }, `${dir === undefined ? 'Dimension' : 'Linear dimension'} ${m(toM(len))}`);
+      setPoints([]); cad.say(PROMPT[tool]); return;
+    }
+    if (tool === 'dimcont' || tool === 'dimbase') {
+      const name = tool === 'dimcont' ? 'DIMCONTINUE' : 'DIMBASELINE';
+      if (!lastDim) { cad.say(`${name}  No dimension on this drawing to go on from: draw one first (DIM or DLI).`); return; }
+      const next = chainDim(lastDim, at);
+      if (!next) { cad.say(`${name}  That point measures nothing along the dimension line.`); return; }
+      const len = dimMeasure(next);
+      // One drawn before dimension styles carries its length as text: so does the next.
+      draw(next.look ? next : { ...next, text: toM(len).toFixed(2) }, `${tool === 'dimcont' ? 'Continued' : 'Baseline'} dimension ${m(toM(len))}`);
+      cad.say(PROMPT[tool]); return;
     }
     if (tool === 'none') {
       const d = deviceAt(at, pixel);
@@ -1882,12 +1902,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'revcloud' && lastPt) { const o = rectangle(lastPt, cur); return areaOf(o).area > 0 ? [{ ...base, kind: 'pline', pts: o, closed: true, cloud: cloudArc ?? 15 * unitsPerPaperMm(anno, units.factor) }] : []; }
     if (tool === 'dim' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
     if (tool === 'dim' && points.length === 2) { const look = dimLookOf(project, units.factor)?.look; return [{ ...base, kind: 'dim', pts: [points[0], points[1], cur], ...(look ? { look } : {}) }]; }
+    if (tool === 'dimlin' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
+    if (tool === 'dimlin' && points.length === 2) { const look = dimLookOf(project, units.factor)?.look; return [{ ...base, kind: 'dim', pts: [points[0], points[1], cur], dir: linearDir(points[0], points[1], cur), ...(look ? { look } : {}) }]; }
+    if ((tool === 'dimcont' || tool === 'dimbase') && lastDim) { const n = chainDim(lastDim, cur); return n ? [{ ...n, id: '_' }] : []; }
     if ((tool === 'move' || tool === 'copy') && lastPt && selSketch) return [moved(selSketch, cur[0] - lastPt[0], cur[1] - lastPt[1])];
     if ((tool === 'move' || tool === 'copy') && lastPt) return [{ ...base, kind: 'line', pts: [lastPt, cur] }];
     if (tool === 'rotate' && lastPt && selSketch) return [rotated(selSketch, lastPt, Math.atan2(cur[1] - lastPt[1], cur[0] - lastPt[0]))];
     return [];
   })();
-  const liveLabel = cur && lastPt && ['line', 'pline', 'tray', 'cable', 'dim', 'move', 'copy'].includes(tool) ? `${m(toM(distance(lastPt, cur)))}  ${angleDeg(lastPt, cur).toFixed(1)}°`
+  const liveLabel = cur && lastPt && ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy'].includes(tool) ? `${m(toM(distance(lastPt, cur)))}  ${angleDeg(lastPt, cur).toFixed(1)}°`
     : cur && lastPt && tool === 'circle' ? `R ${m(toM(distance(lastPt, cur)))}` : undefined;
   // Dynamic input (DYN, F12): length and angle while a point is asked for after a first one, a radius for a circle,
   // else the distance, radius or factor of Offset, Fillet and Scale; and the prompt in short form with its options.
@@ -2090,9 +2113,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
           )}
           {tool === 'hatch' && view && <HatchPanel spec={hatchSet} onSpec={setHatchSet} patterns={project.cadPatterns} onImport={importPat} />}
-          {(tool === 'text' || tool === 'dim' || tool === 'leader' || tool === 'rtag' || tool === 'north') && view && (
+          {(tool === 'text' || tool === 'dim' || tool === 'dimlin' || tool === 'dimcont' || tool === 'dimbase' || tool === 'leader' || tool === 'rtag' || tool === 'north') && view && (
             <AnnoPanel anno={anno} onAnno={(a) => onChange({ ...project, cadAnno: a }, `Annotation: ${a.textMm} mm text at 1:${a.scale}`)}
-              {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Two points, then where the dimension line goes.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
+              {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Two points, then where the dimension line goes.' }, dimlin: { title: 'Linear dimension', cmd: 'DLI', help: 'Two points, then where the dimension line goes: above or below them it is horizontal, beside them vertical.' }, dimcont: { title: 'Continue dimension', cmd: 'DCO', help: 'Click each next point: a dimension from the last one\'s second point, in line with it. Esc stops.' }, dimbase: { title: 'Baseline dimension', cmd: 'DBA', help: 'Click each next point: a dimension from the last one\'s first point, one step further out. Esc stops.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
           )}
           {tool === 'matchprop' && view && <><h4>Match properties <span className="m">MP</span></h4><div className="cad-devform"><span className="m">{mpFrom ? 'Click each object to give it the layer, colour, linetype and lineweight of the first; Esc stops. Trays and cable routes keep their layers.' : 'Click the object to copy from.'}</span></div></>}
           {tool === 'match' && view && <MatchPanel from={placed.find((x) => x.key === matchFrom)} settings={matchSet} onSettings={setMatchSet} />}
@@ -2375,7 +2398,7 @@ function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, o
         <div><b>{name}</b> <span className="m">drawn here · {it.layer}</span></div>
         <dl className="cad-props">
           {it.kind === 'text' && <><dt>Text</dt><dd>{it.text}</dd></>}
-          {it.kind === 'dim' && <><dt>Measures</dt><dd>{m(toM(dimensionLines(it.pts[0], it.pts[1], it.pts[2]).length))}</dd></>}
+          {it.kind === 'dim' && <><dt>Measures</dt><dd>{m(toM(dimMeasure(it)))}</dd></>}
           {it.r !== undefined && <><dt>Radius</dt><dd>{m(toM(it.r))}</dd></>}
           {it.kind !== 'text' && it.kind !== 'dim' && <><dt>{it.closed || it.kind === 'circle' || it.kind === 'ellipse' ? 'Perimeter' : 'Length'}</dt><dd>{m(toM(len))}</dd></>}
           {it.closed && <><dt>Area</dt><dd>{m2(toM2(areaOf(it.pts).area))}</dd></>}

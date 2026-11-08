@@ -440,6 +440,9 @@ export interface SketchItem {
   leader?: boolean;
   /** A dimension drawn with a dimension style: its arrows, gap and extension (src/model/cadStyles.ts). */
   look?: import('./model/cadSketch').DimLook;
+  /** A linear dimension: the angle of its dimension line (radians; 0 horizontal, π/2 vertical). It measures the points'
+   * distance along that line. Left out: aligned with its two points. */
+  dir?: number;
   /** An ellipse (centre in pts[0]): its major axis from the centre, and the minor axis as a fraction of it (0–1). */
   ax?: [number, number];
   ratio?: number;
