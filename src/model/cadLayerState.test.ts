@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { applyLayerPatch, archOnOf, currentLayerOf, deleteRefusal, extentsOf, isolate, layerFileOf, matchesFilter, newLayerName, renameLayer, renameRefusal, restoreState, unisolate, withCurrentLayer, withNewLayer, withoutLayer, withoutState, withSavedState, type LayerRef, type LayerSnap } from './cadLayerState';
+import { applyLayerPatch, archOnOf, currentLayerOf, deleteRefusal, layersToChange, newPropsOf, withNewProps, extentsOf, isolate, layerFileOf, matchesFilter, newLayerName, renameLayer, renameRefusal, restoreState, unisolate, withCurrentLayer, withNewLayer, withoutLayer, withoutState, withSavedState, type LayerRef, type LayerSnap } from './cadLayerState';
 import { drawnLayers, effective, layerStylesOf, withLayerStyle } from './cadLayerStyle';
 import { refsOf } from './cadRefs';
 import { sketchOf } from './cadSketch';
@@ -182,5 +182,25 @@ describe('layer palette: freeze, on, isolate and states', () => {
     expect(extentsOf(segs, [0, 1], [1000, 2000], () => true)).toEqual([1000, 2000, 1200, 2300]);
     expect(extentsOf(segs, [0, 1], [1000, 2000], (l) => l !== 1)).toEqual([1000, 2000, 1010, 2005]);
     expect(extentsOf(segs, [0, 1], [0, 0], () => false)).toBeUndefined();
+  });
+
+  it('a layer command by picking changes only the layers not already so, and never freezes the current layer', () => {
+    const r = rows(base);
+    expect(layersToChange(r, ['e-light', 'A-WALL'], { on: false }, 'LV-SKETCH').rows.map((x) => x.name)).toEqual(['E-LIGHT', 'A-WALL']);
+    const locked = rows(withLayerStyle(base, F, 'E-LIGHT', { lock: true }));
+    expect(layersToChange(locked, ['E-LIGHT'], { lock: true }, 'LV-SKETCH').rows).toEqual([]); // already locked
+    expect(layersToChange(locked, ['E-LIGHT'], { lock: false }, 'LV-SKETCH').rows.map((x) => x.name)).toEqual(['E-LIGHT']);
+    expect(layersToChange(r, ['LV-SKETCH', 'E-LIGHT'], { freeze: true }, 'LV-SKETCH')).toMatchObject({ rows: [{ name: 'E-LIGHT' }], skipped: 'LV-SKETCH' });
+    expect(layersToChange(r, ['LV-SKETCH'], { on: false }, 'LV-SKETCH').rows.map((x) => x.name)).toEqual(['LV-SKETCH']); // off is allowed
+  });
+
+  it('keeps the colour, linetype and lineweight of new objects per drawing file; ByLayer drops one', () => {
+    expect(newPropsOf(base, F)).toEqual({});
+    const red = withNewProps(base, F, { color: '#ff3b30' });
+    const both = withNewProps(red, F, { lw: 0.5 });
+    expect(newPropsOf(both, F)).toEqual({ color: '#ff3b30', lw: 0.5 });
+    expect(newPropsOf(both, 'other.dwg')).toEqual({});
+    expect(layerFileOf(withNewProps(withCurrentLayer(both, F, 'E-LIGHT'), F, { color: undefined }), F)).toEqual({ current: 'E-LIGHT', props: { lw: 0.5 } });
+    expect(withNewProps(withNewProps(both, F, { color: undefined }), F, { lw: undefined }).cadLayerFile).toBeUndefined(); // all ByLayer: nothing kept
   });
 });

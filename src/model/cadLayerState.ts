@@ -1,5 +1,5 @@
 import type { Project, SketchItem } from '../types';
-import { styleOf, withLayerStyle, layerStylesOf, type LayerStyle, type LinetypeId } from './cadLayerStyle';
+import { styleOf, withLayerStyle, layerStylesOf, type LayerStyle, type LinetypeId, type ObjectProps } from './cadLayerStyle';
 import { withRefLayer } from './cadRefs';
 import { sketchOf, withSketchItems } from './cadSketch';
 import { planOfLevel } from './cadPlans';
@@ -14,7 +14,8 @@ import { planOfLevel } from './cadPlans';
 
 export interface LayerSnap { on: boolean; freeze?: boolean; lock?: boolean; color?: string }
 export interface LayerStateSet { name: string; layers: Record<string, LayerSnap> }
-export interface CadLayerFile { current?: string; layers?: string[]; states?: LayerStateSet[]; iso?: string[]; archOn?: Record<string, boolean> }
+/** `props`: the colour, linetype and lineweight new objects take (absent = ByLayer). */
+export interface CadLayerFile { current?: string; layers?: string[]; states?: LayerStateSet[]; iso?: string[]; archOn?: Record<string, boolean>; props?: ObjectProps }
 
 /** Where a row of the palette comes from: a drawn layer, one of the architect's, or a reference's (NAME|LAYER). */
 export type LayerGroup = 'drawn' | 'arch' | 'ref';
@@ -52,6 +53,22 @@ export function withLayerFile(p: Project, file: string, patch: Partial<CadLayerF
 /** The layer new lines, polylines, rectangles, circles and arcs go on. */
 export const currentLayerOf = (p: Project, file: string | undefined) => layerFileOf(p, file).current ?? DEFAULT_LAYER;
 export const withCurrentLayer = (p: Project, file: string, name: string) => withLayerFile(p, file, { current: same(name, DEFAULT_LAYER) ? undefined : name });
+/** The colour, linetype and lineweight new lines, polylines, rectangles, circles and arcs take (absent = ByLayer). */
+export const newPropsOf = (p: Project, file: string | undefined): ObjectProps => layerFileOf(p, file).props ?? {};
+/** New objects' colour, linetype or lineweight set; a key present with `undefined` goes back to ByLayer. */
+export function withNewProps(p: Project, file: string, patch: ObjectProps): Project {
+  const next = Object.fromEntries(Object.entries({ ...newPropsOf(p, file), ...patch }).filter(([, v]) => v !== undefined && v !== '')) as ObjectProps;
+  return withLayerFile(p, file, { props: Object.keys(next).length ? next : undefined });
+}
+
+/** The layers of the objects picked that a layer command changes: those not already as asked, and for Freeze not the
+ * current layer (what is drawn on it would not show). `skipped` names a current layer left out. */
+export function layersToChange<R extends LayerRef & LayerSnap>(rows: R[], names: string[], patch: Pick<LayerPatch, 'on' | 'freeze' | 'lock'>, current: string): { rows: R[]; skipped?: string } {
+  const picked = rows.filter((r) => names.some((n) => same(n, r.name)));
+  const skipped = patch.freeze ? picked.find((r) => same(r.name, current))?.name : undefined;
+  const changes = (r: R) => ('on' in patch && r.on !== patch.on) || ('freeze' in patch && !!r.freeze !== patch.freeze) || ('lock' in patch && !!r.lock !== patch.lock);
+  return { rows: picked.filter((r) => !(skipped && same(r.name, skipped)) && changes(r)), skipped };
+}
 
 /** A typed filter: * for any run of characters, ? for one; without either, the text anywhere in the name. Case ignored. */
 export function matchesFilter(name: string, pattern: string): boolean {

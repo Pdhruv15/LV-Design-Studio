@@ -14,19 +14,23 @@ import { ColourPicker } from './ColourPicker';
 const VARIES = '__varies';
 type Shown = number | string | undefined | 'varies';
 
-export function PropertiesPalette({ items, devices, layers, styles, current, textMm, k, onItems, onCurrent, onTextMm, onClose }: {
+export function PropertiesPalette({ items, devices, layers, styles, current, newProps = {}, textMm, k, onItems, onCurrent, onNewProps, onTextMm, onClose }: {
   items: SketchItem[];
   /** Devices picked with them (their own panel edits them). */
   devices: number;
   layers: string[];
   styles: Record<string, LayerStyle>;
   current: string;
+  /** The colour, linetype and lineweight new lines, polylines, rectangles, circles and arcs take (absent = ByLayer). */
+  newProps?: ObjectProps;
   /** Annotation text height on paper (mm), for new text. */
   textMm: number;
   /** Metres per drawing unit. */
   k: number;
   onItems: (next: SketchItem[], what: string) => void;
   onCurrent: (layer: string) => void;
+  /** New objects' colour, linetype or lineweight set (a key with `undefined`: back to ByLayer). */
+  onNewProps?: (patch: ObjectProps) => void;
   onTextMm: (mm: number) => void;
   onClose: () => void;
 }) {
@@ -126,9 +130,23 @@ export function PropertiesPalette({ items, devices, layers, styles, current, tex
       <div className="cad-pp-body">
         {!items.length ? section('general', 'General', <>
           {row('Layer', <select aria-label="Current layer" value={current} onChange={(e) => onCurrent(e.target.value)}>{layers.map((l) => <option key={l} value={l}>{l}</option>)}</select>, 'New lines, polylines, rectangles, circles and arcs go on the current layer.')}
-          {row('Colour', byLayer, 'New objects take their layer\'s colour, linetype and lineweight.')}
-          {row('Linetype', byLayer)}
-          {row('Lineweight', byLayer)}
+          {onNewProps ? <>
+            {row('Colour', <ColourPicker label="Colour of new objects" value={newProps.color} onChange={(c) => onNewProps({ color: c })} />, 'New lines, polylines, rectangles, circles and arcs take this colour (also on the ribbon: Properties).')}
+            {row('Linetype', (
+              <select aria-label="Linetype of new objects" className={!newProps.lt ? 'by' : undefined} value={newProps.lt ?? ''} onChange={(e) => onNewProps({ lt: (e.target.value || undefined) as LinetypeId | undefined })}>
+                <option value="">ByLayer</option>{LINETYPE_IDS.map((l) => <option key={l} value={l}>{LINETYPES[l].label}</option>)}
+              </select>
+            ))}
+            {row('Lineweight', (
+              <select aria-label="Lineweight of new objects" className={newProps.lw === undefined ? 'by' : undefined} value={newProps.lw ?? ''} onChange={(e) => onNewProps({ lw: e.target.value === '' ? undefined : Number(e.target.value) })}>
+                <option value="">ByLayer</option>{LINEWEIGHTS.filter(Boolean).map((w) => <option key={w} value={w}>{w.toFixed(2)} mm</option>)}
+              </select>
+            ))}
+          </> : <>
+            {row('Colour', byLayer, 'New objects take their layer\'s colour, linetype and lineweight.')}
+            {row('Linetype', byLayer)}
+            {row('Lineweight', byLayer)}
+          </>}
           {row('Print', <span className="cad-pp-by">{styleOf(styles, current).noPrint ? 'No' : 'Yes'} (layer)</span>)}
           {row('Text height', edit?.key === 'textMm' ? (
             <input autoFocus aria-label="Text height" className="r" value={edit.draft} onChange={(e) => setEdit({ key: 'textMm', draft: e.target.value })}

@@ -15,6 +15,15 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.054', date: '2026-11-08',
+    items: [
+      { title: 'Design CAD: the Drafting tab', text: 'Design CAD opens on Drafting: Draw, Modify, Annotate, Layers, Properties and Measure in one tab, laid out as drafting programs usually are. The main tools carry their name under the icon; the others are small icons with their name, typed command and what they do on hover. Electrical, ELV & sheets has the rooms, trays and cable routes, devices, wiring, references, the sheet set and layouts, and on the sheets pages every sheet tool. Show labels names every tool; the tools then take four sub-tabs.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Layers from the ribbon', text: 'The current layer is on the ribbon, with a list of the drawn layers to make another current. Pick objects, then Layer off, Freeze, Lock, Unlock or Make current act on their layers (LAYOFF, LAYFRZ, LAYLCK, LAYULK, LAYMCUR); All on and Thaw all act on every layer (LAYON, LAYTHW).' },
+      { title: 'Colour, linetype and lineweight of new objects', text: 'The three lists beside Match properties change the drawn objects picked or, with nothing picked, the lines, polylines, rectangles, circles and arcs you draw next. The properties palette shows and sets the same while nothing is picked. The ↘ beside Properties shows the palette.' },
+      { title: 'Fit on the status bar, and narrow windows', text: 'Fit is on the status bar under the drawing, beside SNAP, OSNAP, ORTHO, GRID and DYN. When the window is too narrow, the right-most panels fold to one tool each, named for the panel; New layout, viewport Scale and Copy to level work from a folded panel too.' }
+    ]
+  },
+  {
     version: '2.053', date: '2026-11-08',
     items: [
       { title: 'Design CAD: tools grouped by use', text: 'Design CAD\'s sub-tabs follow what you are doing: Draw (the tools that create geometry), Modify (the tools that change it), Annotate, Insert, Layers, View, Page setup, Tools, and Electrical & ELV for rooms, trays, cable routes, devices and wiring. Plan and Sheets are gone: their tools are on these sub-tabs, and the sheet set opens from Page setup → Sheet set. File, left of the sub-tabs, opens, saves and closes drawings and sets the level and units. Design CAD opens on the sub-tab you used last.', action: 'cad', actionLabel: 'Open Design CAD' },

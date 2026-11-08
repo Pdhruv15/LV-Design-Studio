@@ -6,6 +6,7 @@ import type { CadTool } from './cadState';
 
 /** Commands that run something on the page rather than start a tool. */
 export type CadAction = 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'layiso' | 'layuniso'
+  | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
   | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
   | 'textStyle' | 'dimStyle';
 
@@ -64,6 +65,13 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['CLAYER'], desc: 'Current layer (CLAYER and a name sets it)', action: 'clayer' },
   { aliases: ['LAYISO'], desc: 'Isolate the layers of the objects picked', action: 'layiso' },
   { aliases: ['LAYUNISO'], desc: 'Layers back as before Isolate', action: 'layuniso' },
+  { aliases: ['LAYOFF'], desc: 'Turn off the layers of the objects picked', action: 'layoff' },
+  { aliases: ['LAYFRZ'], desc: 'Freeze the layers of the objects picked', action: 'layfrz' },
+  { aliases: ['LAYLCK'], desc: 'Lock the layers of the objects picked', action: 'laylck' },
+  { aliases: ['LAYULK'], desc: 'Unlock the layers of the objects picked', action: 'layulk' },
+  { aliases: ['LAYMCUR'], desc: 'Make the layer of the object picked current', action: 'laymcur' },
+  { aliases: ['LAYON'], desc: 'Turn every layer on', action: 'layon' },
+  { aliases: ['LAYTHW'], desc: 'Thaw every layer', action: 'laythw' },
   { aliases: ['ALIGN', 'ALIGNV', 'SPACE'], desc: 'Align or space the devices selected', action: 'align' },
   { aliases: ['WC', 'WIRE', 'WIRECIRCUITS'], desc: 'Wire circuits', action: 'wireAll' },
   { aliases: ['W1', 'WIREONE'], desc: 'Wire one', tool: 'wire' },

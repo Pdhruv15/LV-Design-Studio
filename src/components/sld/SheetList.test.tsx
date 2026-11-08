@@ -48,6 +48,6 @@ describe('+ New sheet → Plans', () => {
     open(villa);
     act(() => button('Containment layouts — all levels')!.click());
     expect(onChange).not.toHaveBeenCalled();
-    expect(onStatus).toHaveBeenCalledWith('Nothing placed for the containment layout yet (Design CAD → Electrical & ELV)');
+    expect(onStatus).toHaveBeenCalledWith('Nothing placed for the containment layout yet (Design CAD → Cables and boards)');
   });
 });

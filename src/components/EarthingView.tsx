@@ -152,7 +152,7 @@ export default function EarthingView({ project, onChange, onSheets, embedded = f
         <button className={`chip${drawer ? ' on' : ''}`} aria-pressed={drawer} onClick={() => setDrawer(!drawer)} title="Pits per equipment, electrode, conductor and bonding">Settings {drawer ? <ChevronLeft size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}</button>
         {onSheets && (
           <button className="chip" disabled={tab === 'riser' || tab === 'floor' ? !riserB : !L.pits.length}
-            title="Open this sheet in the drawing set (Design CAD → Page setup → Sheet set): title block, clouds and notes, PDF / DXF / DWG (added to the set the first time)"
+            title="Open this sheet in the drawing set (Design CAD → Sheet set): title block, clouds and notes, PDF / DXF / DWG (added to the set the first time)"
             onClick={() => (tab === 'riser' || tab === 'floor' ? onSheets(tab === 'floor' ? 'earthFloor' : 'earthRiser', riserB?.id, part) : onSheets('earthing'))}>Sheets</button>
         )}
       </>);
