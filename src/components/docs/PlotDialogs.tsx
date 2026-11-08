@@ -2,8 +2,10 @@ import { useRef, useState } from 'react';
 import { Modal } from '../ui';
 import { DEFAULT_PENS, newTableId, parseCtb, PEN_INKS, PEN_KEYS, PEN_LABEL, PEN_WIDTHS, plotOf, tableFromCtb, tablesOf, withDefaults, withTable, type PenKey, type PenTable, type PlotSetup } from '../../model/plotSetup';
 import { drawnTextMm, planScale } from '../../docs/planLayout';
-import type { DrawingSheet, SheetSize } from '../../model/drawingSet';
+import { drawable, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
+import type { CalcRun } from '../../calc/runs';
 import type { Project } from '../../types';
+import { canPreviewSheetPdf, SheetPdfPreview } from './SheetPdfPreview';
 
 /** Design CAD → Sheets → Plot: the page setup of a sheet and the project's pen tables. */
 
@@ -11,9 +13,10 @@ const SIZES: ('auto' | SheetSize)[] = ['auto', 'A4', 'A3', 'A3 portrait', 'A2', 
 const SCALES = [50, 100, 200, 500];
 
 /** Page setup: the sheet's paper, scale (plan sheets), pen table, lineweights and plot stamp; or the set's default. */
-export function PageSetupDialog({ project, sheet, onSave, onClose }: {
+export function PageSetupDialog({ project, sheet, run, onSave, onClose }: {
   project: Project;
   sheet: DrawingSheet;
+  run?: CalcRun;
   /** The project with the sheet's setup (or the set's default) saved. */
   onSave: (next: Project, message: string) => void;
   onClose: () => void;
@@ -21,12 +24,13 @@ export function PageSetupDialog({ project, sheet, onSave, onClose }: {
   const [size, setSize] = useState(sheet.size);
   const [scale, setScale] = useState(planScale(sheet.scale));
   const [setup, setSetup] = useState<PlotSetup>(plotOf(project, sheet));
+  const [preview, setPreview] = useState<Project>();
   const tables = tablesOf(project);
   const plan = sheet.kind === 'plan';
   const textAt = plan ? drawnTextMm(project, sheet) : undefined;
   const sheetWith = (p: Project, s: Partial<DrawingSheet>): Project => ({ ...p, drawingSet: { ...p.drawingSet!, sheets: p.drawingSet!.sheets.map((x) => (x.id === sheet.id ? { ...x, ...s } : x)) } });
   const own = { size, ...(plan ? { scale: `1:${scale}` } : {}) };
-  return (
+  return (<>
     <Modal onClose={onClose} className="modal" style={{ maxWidth: 520 }} label="Page setup">
       <h3>Page setup <span className="m">{sheet.number} · {sheet.title}</span></h3>
       <div className="cad-devform">
@@ -47,12 +51,14 @@ export function PageSetupDialog({ project, sheet, onSave, onClose }: {
       </div>
       <div className="modal-actions">
         <button className="chip" onClick={onClose}>Cancel</button>
+        {canPreviewSheetPdf() && drawable(sheet) && <button className="chip" onClick={() => setPreview(sheetWith(project, { ...own, plot: setup }))}>Preview</button>}
         <span className="sp" />
         <button className="chip" onClick={() => { onSave(sheetWith(withDefaults(project, setup), { ...own, plot: undefined }), `Page setup: the set's default is now ${tables.find((t) => t.id === (setup.pens ?? tables[0].id))?.name} · ⌘Z to undo`); onClose(); }}>Save as the set's default</button>
         <button className="chip primary" onClick={() => { onSave(sheetWith(project, { ...own, plot: setup }), `Page setup of ${sheet.number} saved · ⌘Z to undo`); onClose(); }}>Save for this sheet</button>
       </div>
     </Modal>
-  );
+    {preview && <SheetPdfPreview project={preview} sheet={sheet} run={run} onClose={() => setPreview(undefined)} />}
+  </>);
 }
 
 /** Pen tables: each kind of line's width and ink; a CTB file can be imported as a table. */

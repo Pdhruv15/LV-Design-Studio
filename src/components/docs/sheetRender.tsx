@@ -318,13 +318,18 @@ export async function exportDrawingSet(project: Project, set: DrawingSet, run: C
       onStatus(`Saved ${n} of ${pages.length} sheets${!toBytes && !each ? ' (one PDF per sheet — the combined set needs the desktop app)' : ''}`);
       return;
     }
-    const d = await drawingSetPdfParts(project, set, run, toBytes, only, withRegister);
-    const bytes = await (await import('../../docs/mergePdf')).mergePdfs(d.parts, `${project.name} · SLD set · ${revisionStamp(project)}`, d.titles);
-    const m = await saveBinary(`${safeFileName(`${project.name} SLD drawing set`)}.pdf`, bytes, 'PDF', 'pdf', 'application/pdf');
+    const d = await renderDrawingSetPdf(project, set, run, toBytes, only, withRegister);
+    const m = await saveBinary(d.name, d.bytes, 'PDF', 'pdf', 'application/pdf');
     if (m) onStatus(`${m} — ${d.sheets} sheets${d.register ? ' + register' : ''}`);
   } catch (e) {
     onStatus(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
   }
+}
+
+export async function renderDrawingSetPdf(project: Project, set: DrawingSet, run: CalcRun | undefined, toBytes: Parameters<typeof drawingSetPdfParts>[3], only?: string[], withRegister = !only) {
+  const { parts, titles, sheets, register } = await drawingSetPdfParts(project, set, run, toBytes, only, withRegister);
+  const bytes = await (await import('../../docs/mergePdf')).mergePdfs(parts, `${project.name} · SLD set · ${revisionStamp(project)}`, titles);
+  return { bytes, name: `${safeFileName(`${project.name} SLD drawing set`)}.pdf`, sheets, register };
 }
 
 export { registerRows };
