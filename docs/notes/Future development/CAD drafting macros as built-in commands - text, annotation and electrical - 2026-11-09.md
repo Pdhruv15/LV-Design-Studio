@@ -225,5 +225,21 @@ for the steps named.
   left end of its baseline as the insertion point, as drafting programs write it (CAD engine, Rust). The reader now
   puts any text with an alignment other than left-baseline at its alignment point, brought down to its baseline, so
   texts read from the architect's drawings sit where that drawing put them (they were drawn at the baseline before).
-- Still to come in batch 1: TALIGN (A2), TCASE (A5), TPREFIX / TSUFFIX (A6), TORIENT (A8), TCEN (A10), TCOPY (A11),
-  RTALL (A14).
+
+### Batch 1, part 2 (v2.060, branch `feat/cad-text-tools-2`, on part 1)
+
+All on the texts picked first, then Enter, then the value on the command line; one undo step; other objects picked
+are left as they are (`src/model/cadText.ts`, pure, with tests; the flows in `CadPage.tsx`).
+
+- **TA / TALIGN** (A2): `Align [Left/Right/Centre/Top/Bottom/Spacing] <Left>:`, then the text (its matching box edge)
+  or point clicked or typed; Spacing asks the gap on paper in mm (default 1.5 × the first text's height) and spaces the
+  texts' centres down the page, the topmost staying.
+- **TC / TCASE** (A5): `Case [Upper/Lower/Title/Sentence] <Upper>:`.
+- **TPREFIX / TPRE, TSUFFIX / TSUF** (A6): the words typed, spaces at the ends kept ("EX. ").
+- **TOR / TORIENT** (A8): `Readable from [Bottom/Right/Both] <Both>:`, each text turned about its box's centre.
+- **TCEN / TCENTRE / TCENTER** (A10): one text, two points (clicked or typed): its centre goes to their midpoint.
+- **TCOPY / TCP** (A11): the texts picked take the words of the text clicked next.
+- **RTALL / ROOMTAGALL** (A14): `Tag [All rooms/Untagged only] <Untagged>:` on the open plan's level; a room counts as
+  tagged when a drawn text with its name lies inside its outline.
+- Not built: ribbon entries and right-click items (optional in the proposal); TSUM (A12) and TXT2MTXT (A13) are
+  batch 6.

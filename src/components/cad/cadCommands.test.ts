@@ -40,7 +40,9 @@ const ADDED: Record<string, string> = { ST: '!textStyle', STYLE: '!textStyle', D
   // Linear, continued and baseline dimensions (DLI was the aligned one until then).
   DIMLINEAR: 'dimlin', DCO: 'dimcont', DIMCONTINUE: 'dimcont', DBA: 'dimbase', DIMBASELINE: 'dimbase',
   // Text tools: justify and text height on the texts picked.
-  TJ: 'tjust', TJUST: 'tjust', JUSTIFYTEXT: 'tjust', TH: 'th', TXTHEIGHT: 'th', TEXTHEIGHT: 'th' };
+  TJ: 'tjust', TJUST: 'tjust', JUSTIFYTEXT: 'tjust', TH: 'th', TXTHEIGHT: 'th', TEXTHEIGHT: 'th',
+  TA: 'talign', TALIGN: 'talign', TC: 'tcase', TCASE: 'tcase', TPREFIX: 'tprefix', TPRE: 'tprefix', TSUFFIX: 'tsuffix', TSUF: 'tsuffix',
+  TORIENT: 'torient', TOR: 'torient', TCEN: 'tcen', TCENTRE: 'tcen', TCENTER: 'tcen', TCOPY: 'tcopy', TCP: 'tcopy', RTALL: 'rtall', ROOMTAGALL: 'rtall' };
 const outcome = (c: string) => { const x = cadCommand(c); return x && ('tool' in x ? x.tool : `!${x.action}`); };
 
 describe('Design CAD typed commands', () => {
