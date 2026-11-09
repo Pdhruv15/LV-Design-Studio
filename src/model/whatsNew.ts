@@ -15,6 +15,16 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.058', date: '2026-11-09',
+    items: [
+      { title: 'Output tab in Design CAD', text: 'Design CAD has a new Output sub-tab with everything that gets a drawing onto paper or out of the app: Plot, Preview, Page setups, Pen tables and Printers; Publish and Batch plot; and PDF, DXF, DWG and Register. Plot, Publish and export are no longer on Electrical, ELV & sheets.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Plot to a printer', text: 'Output → Plot sends the open layout or sheet to PDF or to a printer installed on this computer, with copies, a named page setup or its own paper, scale and pens. Tick Keep to save the settings as the sheet\'s page setup. Output → Printers chooses where plots go. Printing stays black-and-white.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Named page setups', text: 'Output → Page setups keeps page setups by name (for example "A1 1:100 PDF"): paper, scale for plans, pen table, lineweights, plot stamp and printer. Apply to… gives one to many sheets at once, and editing it later changes every sheet that uses it.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Batch plot', text: 'Output → Batch plot plots many layouts and sheets in one run, in the order you set, each with its own page setup for that run, to one PDF, a PDF each or a printer. Save the list with the project and run it again later.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Register to Excel', text: 'Output → Register saves the sheet register as an Excel workbook.' }
+    ]
+  },
+  {
     version: '2.057', date: '2026-11-08',
     items: [
       { title: 'Properties on the left in Design CAD', text: 'Design CAD shows the Properties palette where the Panels list was (Panels stays on SLD, the load schedule and the other pages), and the column on the right is gone, so the drawing is wider. Pick anything and the palette shows it: a line\'s layer, colour and geometry, a device\'s circuit, room and position, a tray\'s width and route, or the architect\'s object with its layer and size. With nothing picked: the defaults for new objects and the drawing. The tool you are using, the plans and the layers follow below. Drag its edge to widen it, ⇄ docks it on the right, « or Ctrl/Cmd+1 folds it to a strip.', action: 'cad', actionLabel: 'Open Design CAD' },

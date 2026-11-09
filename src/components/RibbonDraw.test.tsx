@@ -144,7 +144,8 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
     click(layout);
     click(item('Power layout'));
     expect(cad.onLayoutCmd).toHaveBeenLastCalledWith('LAYOUT POWER');
-    expect(tool('Page setup').disabled).toBe(true); // a layout's: open a layout tab first
+    pick('Output');
+    expect(tool('Plot').disabled).toBe(true); // no layout or sheet open
   });
 
   it('shows the current layer and lists the drawn layers to make another current (not a frozen one)', () => {
@@ -284,11 +285,30 @@ describe('Design CAD ribbon: File', () => {
 });
 
 describe('Design CAD ribbon: sheets and layouts', () => {
+  it('Output: plot and publish one sheet or many, and export; the project-wide tools work with no sheet open', () => {
+    const output = { onPlot: vi.fn(), onSetups: vi.fn(), onPrinters: vi.fn(), onBatch: vi.fn(), onRegister: vi.fn() };
+    const pens = vi.fn();
+    show({}, { view: 'drawings', output, sheets: sheets({ ui: sheetUi({ actions: { current: { ...NO_SHEET_ACTIONS, pens } } }) }) });
+    pick('Output');
+    expect(selected()).toBe('Output');
+    for (const [l, f] of [['Plot', output.onPlot], ['Page setups', output.onSetups], ['Printers', output.onPrinters], ['Batch plot', output.onBatch], ['Register', output.onRegister], ['Pen tables', pens]] as const) {
+      click(tool(l));
+      expect(f, l).toHaveBeenCalledOnce();
+    }
+    act(() => root.unmount());
+    root = createRoot(host);
+    show({}, { view: 'drawings', output, sheets: sheets({ open: false }) });
+    pick('Output');
+    expect(tool('Plot').disabled).toBe(true);
+    for (const l of ['Page setups', 'Printers', 'Batch plot', 'Register']) expect(tool(l).disabled, l).toBe(false);
+  });
+
   it('opens the active sheet PDF preview in the desktop app', () => {
     const previewPdf = vi.fn();
     vi.stubGlobal('lvds', { files: { pdfBytes: vi.fn() } });
     try {
       show({}, { view: 'drawings', sheets: sheets({ ui: sheetUi({ actions: { current: { ...NO_SHEET_ACTIONS, previewPdf } } }) }) });
+      pick('Output');
       expect(tool('Preview').disabled).toBe(false);
       click(tool('Preview'));
       expect(previewPdf).toHaveBeenCalledOnce();
@@ -299,16 +319,19 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     const onView = vi.fn();
     const { rerender } = show({}, { view: 'drawings', onView, sheets: sheets({ ui: sheetUi({ tool: 'cloud' }) }) });
     expect(selected()).toBe(ELEC);
-    expect(groups()).toEqual(['Markup', 'On panels', 'Sheet', 'Sheet set', 'Plot', 'Issue and export']);
+    expect(groups()).toEqual(['Markup', 'On panels', 'Sheet', 'Sheet set']);
+    pick('Output');
+    expect(groups()).toEqual(['Plot', 'Publish', 'Export']);
     expect(tool('Publish').className).toContain('stale');
     for (const l of ['PDF', 'DXF', 'DWG']) expect(tool(l).disabled, l).toBe(false);
+    pick(ELEC);
     expect(tool('Cloud').getAttribute('aria-pressed')).toBe('true');
     expect(tool('Panel cloud').disabled).toBe(false);
     expect(tool('Delete').disabled).toBe(true); // nothing selected
     expect(tool('Side by side').disabled).toBe(false);
     rerender({ labels: true });
     expect(selected()).toBe('Sheets');
-    expect(groups()).toEqual(['Sheet', 'Sheet set', 'Plot', 'Issue and export']);
+    expect(groups()).toEqual(['Sheet', 'Sheet set']);
     pick('LVCAD');
     expect(groups()).toEqual(['Markup', 'On panels']); // drawing on a sheet is its markup
     rerender({ labels: false });
@@ -321,7 +344,10 @@ describe('Design CAD ribbon: sheets and layouts', () => {
   it('greys the sheet tools with no sheet open, and keeps panel tools to system SLD sheets', () => {
     show({}, { view: 'drawings', sheets: sheets({ open: false }) });
     expect(tool('All sheets').disabled).toBe(false);
-    for (const l of ['Publish', 'DWG', 'Cloud', 'Colour']) expect(tool(l).disabled, l).toBe(true);
+    for (const l of ['Cloud', 'Colour']) expect(tool(l).disabled, l).toBe(true);
+    pick('Output');
+    for (const l of ['Plot', 'Publish', 'Pen tables', 'DWG']) expect(tool(l).disabled, l).toBe(true);
+    pick(ELEC);
     act(() => root.unmount());
     root = createRoot(host);
     show({}, { view: 'drawings', sheets: sheets({ kind: 'earthing' }) });
@@ -336,7 +362,6 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     expect(groups()).toEqual(DRAFTING);
     pick(ELEC);
     expect(groups().slice(-3)).toEqual(['Sheet set', 'Layouts', 'Viewports']);
-    expect(tool('Page setup').disabled).toBe(false);
     rerender({ labels: true, onPaper: true });
     pick('Sheets');
     expect(groups()).toEqual(['Reference', 'Sheet set', 'Layouts', 'Viewports']);
@@ -362,7 +387,7 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     expect(document.querySelector('#ribbon-tip')!.textContent).toBe('ViewportsIts tools: Viewport, Scale, Lock');
     // A tool that only opens a list is there as its list.
     click(tool('Layouts: its tools'));
-    expect([...document.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent)).toEqual(['New layout: Lighting layout', 'New layout: Power layout', 'New layout: ELV layout', 'New layout: Containment layout', 'Page setup', 'Plot PDF']);
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent)).toEqual(['New layout: Lighting layout', 'New layout: Power layout', 'New layout: ELV layout', 'New layout: Containment layout']);
     click(item('New layout: Power layout'));
     expect(cad.onLayoutCmd).toHaveBeenLastCalledWith('LAYOUT POWER');
     wide = 1500;

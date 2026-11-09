@@ -106,12 +106,12 @@ describe('Ribbon', () => {
 
   it('opens Design CAD on Drafting, its panels in the order the user chose, with File beside the sub-tabs', () => {
     const html = render('cad', { view: 'cad', cad: cad() });
-    expect(subTabs(html)).toEqual(['LVCAD', 'Electrical, ELV &amp; sheets']);
+    expect(subTabs(html)).toEqual(['LVCAD', 'Electrical, ELV &amp; sheets', 'Output']);
     expect(html).toMatch(/id="ribbon-cad-drafting"[^>]*aria-selected="true"/);
     expect(groupsOf(html)).toEqual(['Draw', 'Modify', 'Annotate', 'Layers', 'Properties', 'Measure']);
     // With labels every tool is named and needs about twice the room: the panels take four sub-tabs.
     const all = render('cad', { view: 'cad', cad: cad({ labels: true }) });
-    expect(subTabs(all)).toEqual(['LVCAD', 'Layers &amp; properties', 'Electrical &amp; ELV', 'Sheets']);
+    expect(subTabs(all)).toEqual(['LVCAD', 'Layers &amp; properties', 'Electrical &amp; ELV', 'Sheets', 'Output']);
     expect(groupsOf(all)).toEqual(['Draw', 'Modify', 'Annotate']);
     expect(html).toContain('title="Open, save and close drawings; the level and units of the drawing"'); // File, a menu
     expect(html).toMatch(/aria-haspopup="menu" aria-expanded="false" title="Open, save and close drawings/);
@@ -153,11 +153,11 @@ describe('Ribbon', () => {
     const sheets = { tab: 'layout', open: false, onTab: noop } as RibbonActions['sheets'];
     const html = render('cad', { view: 'drawings', cad: cad(), sheets });
     expect(html).toMatch(/id="ribbon-cad-elec"[^>]*aria-selected="true"/);
-    expect(groupsOf(html)).toEqual(['Markup', 'On panels', 'Sheet', 'Sheet set', 'Plot', 'Issue and export']);
-    for (const label of ['All sheets', 'Layout', 'Title block', 'Issues', 'Page setup', 'Pens', 'Publish', 'PDF', 'DXF', 'DWG']) expect(html, label).toContain(`aria-label="${label}"`);
+    expect(groupsOf(html)).toEqual(['Markup', 'On panels', 'Sheet', 'Sheet set']);
+    for (const label of ['All sheets', 'Layout', 'Title block', 'Issues']) expect(html, label).toContain(`aria-label="${label}"`);
     const all = render('cad', { view: 'drawings', cad: cad({ labels: true }), sheets });
     expect(all).toMatch(/id="ribbon-cad-drafting"[^>]*aria-selected="true"/);
-    expect(groupsOf(all)).toEqual(['Markup', 'On panels']); // Sheets has the sheet's view, the sheet set, plot and export
+    expect(groupsOf(all)).toEqual(['Markup', 'On panels']); // Sheets has the sheet's view and the sheet set; Output plot and export
   });
 
   it('opens the sheets from the SLD tabs', () => {

@@ -105,6 +105,7 @@ const SldExportDialog = lazy(() => import('./components/SldExportDialog'));
 const CadLoadsDialog = lazy(() => import('./components/CadLoadsDialog'));
 const CadPage = lazy(() => import('./components/cad/CadPage'));
 const WhatsNewDialog = lazy(() => import('./components/WhatsNewDialog'));
+const OutputDialogs = lazy(() => import('./components/docs/OutputDialogs').then((m) => ({ default: m.OutputHost })));
 const PasteBoardDialog = onDemand(() => import('./components/PasteBoardDialog'));
 const EnclosureSizing = lazy(() => import('./components/EnclosureSizing'));
 const EarthingView = onDemand(() => import('./components/EarthingView'), <p className="m">Loading…</p>);
@@ -155,6 +156,7 @@ import { chooseDrawing, openDrawing } from './engines/cad/cadEngine';
 import { onDemand } from './util/onDemand';
 import { currentRevision, revisionStamp } from './model/revisions';
 import { useSheetUi } from './components/sld/sheetUi';
+import type { OutputDialog } from './components/docs/outputHost';
 import { markSeen, pendingReleases, RELEASES, type Release, type WhatsNewAction } from './model/whatsNew';
 import { fmtTime } from './util/format';
 type DiagramMode = 'system' | 'board' | 'earthing' | 'riser';
@@ -320,6 +322,8 @@ export default function App() {
   // What's new: the releases this computer has not seen yet, shown once after an update; Help opens it again.
   const [whatsNew, setWhatsNew] = useState<Release[]>(() => pendingReleases(__APP_VERSION__));
   const closeWhatsNew = () => { markSeen(__APP_VERSION__); setWhatsNew([]); };
+  // Design CAD → Output: the dialog open, and the sheet Plot acts on (the open sheet, or the layout's on its paper).
+  const [outputDlg, setOutputDlg] = useState<OutputDialog | null>(null);
   const whatsNewAction = (a: WhatsNewAction) => {
     closeWhatsNew();
     if (a === 'sheets') { setSheetTab(null); setDrawingsTab('sheets'); setView('drawings'); return; }
@@ -1285,6 +1289,7 @@ export default function App() {
               const here = planLevel(project, cadS.view?.file).floor;
               return view === 'cad' && here ? plansOf(project).filter((x) => x.floor.key !== here.key).map((x) => ({ label: x.label, title: `Copy to ${x.label}`, onClick: () => cadDo((a) => a.copyTo(x.floor.key)) })) : [];
             })() },
+          output: { onPlot: () => setOutputDlg('plot'), onSetups: () => setOutputDlg('setups'), onPrinters: () => setOutputDlg('printers'), onBatch: () => setOutputDlg('batch'), onRegister: () => setOutputDlg('register') },
           onProfile: () => setShowPrefs(true),
           onChooseFolder: chooseFolder,
           folderLabel: hasBridge ? `Folder: ${projectsFolder.split(/[\\/]/).pop() || 'choose…'}` : 'This browser',
@@ -1772,6 +1777,10 @@ export default function App() {
       )}
       {whatsNew.length > 0 && (
         <Suspense fallback={null}><WhatsNewDialog releases={whatsNew} onAction={whatsNewAction} onClose={closeWhatsNew} /></Suspense>
+      )}
+      {outputDlg && (
+        <Suspense fallback={null}><OutputDialogs which={outputDlg} project={project} run={run} sheetId={view === 'cad' && cadS.layout ? cadS.layout : openSheet?.id}
+          onChange={(next, message) => { setProject(next, { step: true }); setStatus(message); }} onStatus={setStatus} onClose={() => setOutputDlg(null)} /></Suspense>
       )}
       {showCadLoads && (
         <Suspense fallback={null}><CadLoadsDialog

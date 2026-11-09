@@ -1,7 +1,7 @@
 import type { DrawingSheet } from './drawingSet';
 import type { Project } from '../types';
 
-/** Design CAD → Sheets → Plot: how sheets print. A pen table gives each kind of line its width (mm on paper) and ink
+/** Design CAD → Output: how sheets print. A pen table gives each kind of line its width (mm on paper) and ink
  * (black, or a grey); each sheet has a page setup (its paper and scale are the sheet's own size and scale), and the set
  * a default. Printing stays black-and-white. A CTB (colour-dependent plot style table) can be imported: the
  * pens then take the widths it gives the colours the app's DXF layers use. */
@@ -12,8 +12,14 @@ export interface Pen { w: number; grey: number }
 export interface PenTable { id: string; name: string; pens: Record<PenKey, Pen>; ctb?: string }
 /** A sheet's page setup (blank = the set's default): the pen table, whether lineweights print, the plot stamp, and
  * whether a plan sheet prints the drawn work (Design CAD lines, hatches and text; blank = it does). */
-export interface PlotSetup { pens?: string; weights?: 'pens' | 'thin'; stamp?: boolean; drawn?: boolean }
-export interface ProjectPlot { tables?: PenTable[]; defaults?: PlotSetup }
+export interface PlotSetup { pens?: string; weights?: 'pens' | 'thin'; stamp?: boolean; drawn?: boolean; /** The named page setup applied (its ID); blank: the sheet's own. */ named?: string }
+/** A named page setup (Output → Page setups): paper, scale for plan sheets, how it prints and the printer, kept by name
+ * and applied to many sheets at once. A sheet it was applied to follows it when it is edited. */
+export interface NamedSetup { id: string; name: string; size: DrawingSheet['size']; /** Plan sheets, e.g. 100 for 1:100. */ scale?: number; plot: Omit<PlotSetup, 'named'>; /** A printer's name; blank: PDF. */ printer?: string }
+/** A saved batch plot (Output → Batch plot): the sheets in order, each with its page setup (blank: the sheet's own), and
+ * where they go. */
+export interface BatchList { id: string; name: string; rows: { sheet: string; setup?: string }[]; output: 'one' | 'each' | 'printer'; printer?: string; copies?: number }
+export interface ProjectPlot { tables?: PenTable[]; defaults?: PlotSetup; setups?: NamedSetup[]; batches?: BatchList[] }
 
 /** ISO pen widths (mm). */
 export const PEN_WIDTHS = [0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1, 1.4, 2];
@@ -114,3 +120,50 @@ export function withTable(p: Project, t: PenTable): Project {
 export const withDefaults = (p: Project, d: PlotSetup): Project => ({ ...p, plot: { ...(p.plot ?? {}), defaults: d } });
 /** An ID for a new table. */
 export const newTableId = (p: Project) => `pt${(p.plot?.tables ?? []).reduce((m, t) => Math.max(m, Number(/^pt(\d+)$/.exec(t.id)?.[1] ?? 0)), 0) + 1}`;
+
+/** An ID for a new named setup or batch list: `prefix` and the next number. */
+export function nextId(list: { id: string }[] | undefined, prefix: string): string {
+  const re = new RegExp(`^${prefix}(\\d+)$`);
+  return `${prefix}${(list ?? []).reduce((m, x) => Math.max(m, Number(re.exec(x.id)?.[1] ?? 0)), 0) + 1}`;
+}
+export const setupsOf = (p: Project): NamedSetup[] => p.plot?.setups ?? [];
+export const batchesOf = (p: Project): BatchList[] => p.plot?.batches ?? [];
+/** The sheets a named setup was applied to (and still follow it). */
+export const setupUsers = (p: Project, id: string): DrawingSheet[] => (p.drawingSet?.sheets ?? []).filter((s) => s.plot?.named === id);
+
+const withSheets = (p: Project, f: (s: DrawingSheet) => DrawingSheet): Project => (p.drawingSet ? { ...p, drawingSet: { ...p.drawingSet, sheets: p.drawingSet.sheets.map(f) } } : p);
+/** A sheet with a named setup: its paper, its scale when it is a plan, and how it prints. */
+export function sheetWithSetup(s: DrawingSheet, n: NamedSetup): DrawingSheet {
+  return { ...s, size: n.size, ...(s.kind === 'plan' && n.scale ? { scale: `1:${n.scale}` } : {}), plot: { ...n.plot, named: n.id } };
+}
+/** The project with a named setup applied to these sheets. */
+export function applySetup(p: Project, id: string, sheetIds: string[]): Project {
+  const n = setupsOf(p).find((x) => x.id === id);
+  return n ? withSheets(p, (s) => (sheetIds.includes(s.id) ? sheetWithSetup(s, n) : s)) : p;
+}
+/** The project with a named setup saved (added, or in place of the one with its ID); the sheets that follow it take
+ * the change. */
+export function withSetup(p: Project, n: NamedSetup): Project {
+  const list = setupsOf(p);
+  const next: Project = { ...p, plot: { ...(p.plot ?? {}), setups: list.some((x) => x.id === n.id) ? list.map((x) => (x.id === n.id ? n : x)) : [...list, n] } };
+  return withSheets(next, (s) => (s.plot?.named === n.id ? sheetWithSetup(s, n) : s));
+}
+/** The project without a named setup; its sheets keep what it gave them as their own. Batch rows using it go back to the
+ * sheet's own setup. */
+export function withoutSetup(p: Project, id: string): Project {
+  const batches = p.plot?.batches?.map((b) => ({ ...b, rows: b.rows.map((r) => (r.setup === id ? { sheet: r.sheet } : r)) }));
+  const next: Project = { ...p, plot: { ...(p.plot ?? {}), setups: setupsOf(p).filter((x) => x.id !== id), ...(batches ? { batches } : {}) } };
+  return withSheets(next, (s) => (s.plot?.named === id ? { ...s, plot: { ...s.plot, named: undefined } } : s));
+}
+/** The project with a batch list saved (added, or in place of the one with its ID), or without it. */
+export function withBatch(p: Project, b: BatchList): Project {
+  const list = batchesOf(p);
+  return { ...p, plot: { ...(p.plot ?? {}), batches: list.some((x) => x.id === b.id) ? list.map((x) => (x.id === b.id ? b : x)) : [...list, b] } };
+}
+export const withoutBatch = (p: Project, id: string): Project => ({ ...p, plot: { ...(p.plot ?? {}), batches: batchesOf(p).filter((x) => x.id !== id) } });
+/** The project as a batch plots it: each row's sheet with the row's named setup, for this run only. */
+export function projectForBatch(p: Project, rows: BatchList['rows']): Project {
+  const by = new Map(setupsOf(p).map((n) => [n.id, n]));
+  const of = new Map(rows.filter((r) => r.setup && by.has(r.setup)).map((r) => [r.sheet, by.get(r.setup!)!]));
+  return withSheets(p, (s) => (of.has(s.id) ? sheetWithSetup(s, of.get(s.id)!) : s));
+}

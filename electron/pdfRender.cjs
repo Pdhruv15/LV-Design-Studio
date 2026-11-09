@@ -40,4 +40,36 @@ async function htmlToPdf({ html, pageSize, landscape, cssPages }) {
   }
 }
 
-module.exports = { htmlToPdf, pdfSession, SHEETS };
+/** Sheet sizes in microns for a printer (Electron's print takes A3/A4 by name, others as width × height). */
+const MICRONS = { A1: { width: 841000, height: 594000 }, A2: { width: 594000, height: 420000 }, 'A3 portrait': { width: 297000, height: 420000 } };
+
+/** The printers this computer has: name, the name shown, and whether it is the system's default. */
+async function printerList(webContents) {
+  const list = await webContents.getPrintersAsync();
+  return list.map((p) => ({ name: p.name, displayName: p.displayName || p.name, isDefault: !!p.isDefault }));
+}
+
+/** args: checked by ipcValidate.printArgs. Prints the HTML on a printer the system lists, with no dialog, in the same
+ * locked-down hidden window as the PDFs; resolves when the printer has the job. */
+async function htmlToPrinter({ html, pageSize, landscape, deviceName, copies }, printers) {
+  if (!printers.some((p) => p.name === deviceName)) throw new Error(`No printer named ${deviceName}`);
+  const win = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, javascript: false, webSecurity: true, session: pdfSession() } });
+  win.webContents.on('will-navigate', (e) => e.preventDefault());
+  const tmpDir = safeFs.makePrivateTempDir('lvds-print-');
+  try {
+    const tmp = path.join(tmpDir, 'sheet.html');
+    safeFs.writeNewFile(tmp, html);
+    await win.loadFile(tmp);
+    const size = MICRONS[pageSize];
+    await new Promise((resolve, reject) => win.webContents.print(
+      { silent: true, deviceName, copies, printBackground: true, color: false, landscape: size ? size.width > size.height : landscape, pageSize: size ?? pageSize, margins: { marginType: 'none' } },
+      (ok, why) => (ok ? resolve() : reject(new Error(why || 'The printer refused the job')))
+    ));
+    return true;
+  } finally {
+    win.destroy();
+    safeFs.removeDir(tmpDir);
+  }
+}
+
+module.exports = { htmlToPdf, htmlToPrinter, printerList, pdfSession, SHEETS };

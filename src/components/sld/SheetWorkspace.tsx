@@ -631,7 +631,7 @@ export function PublishDialog({ project, run, current, ticked: first, onClose, o
           </>
         )}
         <label>As<select aria-label="Publish as" value={as} onChange={(e) => setAs(e.target.value as PublishAs)}>{(Object.keys(PUBLISH_AS) as PublishAs[]).map((k) => <option key={k} value={k}>{PUBLISH_AS[k]}</option>)}</select></label>
-        <span className="m">Each sheet prints with its own page setup and pens (Plot → Page setup).</span>
+        <span className="m">Each sheet prints with its own page setup and pens (Output → Page setups).</span>
       </div>
       <div className="modal-actions">
         <button className="chip" onClick={onClose}>Close</button>

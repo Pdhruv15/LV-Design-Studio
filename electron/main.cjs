@@ -9,7 +9,7 @@ const trust = require('./trust.cjs');
 const { LIMITS, readTextFileLimited, readJsonLimited } = require('./limits.cjs');
 const { runJsonProcess } = require('./engineRunner.cjs');
 const safeFs = require('./safeFs.cjs');
-const { htmlToPdf, pdfSession, SHEETS } = require('./pdfRender.cjs');
+const { htmlToPdf, htmlToPrinter, printerList, pdfSession, SHEETS } = require('./pdfRender.cjs');
 const cadFile = require('./cadFile.cjs');
 const errorLog = require('./errorLog.cjs');
 
@@ -425,6 +425,10 @@ handle('files:savePdf', async (evt, args) => {
 
 // ---- IPC: HTML → PDF bytes (no dialog), to merge several parts into one file ----
 handle('files:pdfBytes', (_evt, args) => htmlToPdf(check.pdfArgs(args)));
+
+// ---- IPC: printers (Design CAD → Output): the list, and a sheet printed on one of them with no dialog ----
+handle('files:printers', (evt) => printerList(evt.sender));
+handle('files:printHtml', async (evt, args) => htmlToPrinter(check.printArgs(args), await printerList(evt.sender)));
 
 // ---- IPC: external calculation engines (Python helper) ----
 // engines/python/lvds_engine.py runs OpenDSS (OpenDSSDirect.py) and

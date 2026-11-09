@@ -6,7 +6,7 @@ import { buildSldSheetHtml } from '../docs/sldSheet';
 import { placeLvPoint } from './cadDevices';
 import { setOf, type DrawingSheet } from './drawingSet';
 import {
-  DEFAULT_PENS, diagramPenCss, inkOf, newTableId, parseCtb, pensFor, plotOf, plotStamp, tableFromCtb, tablesOf, withDefaults, withTable
+  applySetup, DEFAULT_PENS, diagramPenCss, inkOf, newTableId, nextId, projectForBatch, setupUsers, withBatch, withoutBatch, withoutSetup, withSetup, parseCtb, pensFor, plotOf, plotStamp, tableFromCtb, tablesOf, withDefaults, withTable
 } from './plotSetup';
 import type { Project } from '../types';
 
@@ -62,6 +62,43 @@ describe('pen tables and page setup', () => {
     expect(diagramPenCss(DEFAULT_PENS.pens)).toBe(''); // as drawn
     expect(diagramPenCss({ ...DEFAULT_PENS.pens, bus: { w: 1, grey: 100 } })).toBe('.drawing svg .bus{stroke-width:3.78px!important;vector-effect:non-scaling-stroke;}');
     expect(plotStamp({ number: 'E-LTG-101', title: 'Lighting GF' }, 'B', 'PG', new Date(2026, 10, 6, 9, 5))).toBe('E-LTG-101 - Lighting GF · 2026-11-06 09:05 · Rev B · PG');
+  });
+});
+
+describe('named page setups and batch lists', () => {
+  const two = (): Project => ({ ...villa, drawingSet: { ...setOf(villa), sheets: [
+    { id: 's1', kind: 'plan', number: 'E-201', title: 'GF Lighting', size: 'auto', scale: '1:100' } as DrawingSheet,
+    { id: 's2', kind: 'system', number: 'E-001', title: 'Main SLD', size: 'A3' } as DrawingSheet
+  ] } });
+  const a1 = { id: 'ps1', name: 'A1 1:100 PDF', size: 'A1' as const, scale: 100, plot: { weights: 'thin' as const } };
+  it('applied to sheets, a setup gives them its paper, plan scale and pens; editing it moves them along', () => {
+    let p = withSetup(two(), a1);
+    const [l, pw] = setOf(p).sheets;
+    p = applySetup(p, 'ps1', [l.id]);
+    const s = setOf(p).sheets.find((x) => x.id === l.id)!;
+    expect([s.size, s.scale, s.plot]).toEqual(['A1', '1:100', { weights: 'thin', named: 'ps1' }]);
+    expect(setupUsers(p, 'ps1').map((x) => x.id)).toEqual([l.id]);
+    expect(setOf(p).sheets.find((x) => x.id === pw.id)!.plot?.named).toBeUndefined();
+    p = withSetup(p, { ...a1, size: 'A2', scale: 50 });
+    expect(setOf(p).sheets.find((x) => x.id === l.id)!.size).toBe('A2');
+    expect(setOf(p).sheets.find((x) => x.id === l.id)!.scale).toBe('1:50');
+    expect(nextId(p.plot?.setups, 'ps')).toBe('ps2');
+  });
+  it('deleting a setup leaves its sheets as they were, as their own; batch rows go back to the sheet\'s own', () => {
+    let p = withSetup(two(), a1);
+    const id = setOf(p).sheets[0].id;
+    p = withBatch(applySetup(p, 'ps1', [id]), { id: 'b1', name: 'Tender', rows: [{ sheet: id, setup: 'ps1' }], output: 'one' });
+    p = withoutSetup(p, 'ps1');
+    const s = setOf(p).sheets[0];
+    expect([s.size, s.plot?.weights, s.plot?.named]).toEqual(['A1', 'thin', undefined]);
+    expect(p.plot?.batches?.[0].rows).toEqual([{ sheet: id }]);
+    expect(withoutBatch(p, 'b1').plot?.batches).toEqual([]);
+  });
+  it('a batch plots each row with its setup for that run only', () => {
+    const p = withSetup(two(), a1), [l, pw] = setOf(p).sheets;
+    const run = projectForBatch(p, [{ sheet: l.id, setup: 'ps1' }, { sheet: pw.id }]);
+    expect(setOf(run).sheets.map((x) => x.size)).toEqual(['A1', 'A3']);
+    expect(setOf(p).sheets[0].size).toBe(l.size);
   });
 });
 
