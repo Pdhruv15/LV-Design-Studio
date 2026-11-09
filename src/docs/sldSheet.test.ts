@@ -202,3 +202,23 @@ describe('legend strip and columns', () => {
     expect(legendColsFor({ legendCols: 1 }, 'A1', labels)).toBe(1);
   });
 });
+
+/** The set's legend sheet: no drawing; the legend across the sheet, then the abbreviations and the general notes. */
+describe('legend sheet', () => {
+  it('lays the legend, abbreviations and notes out across the sheet, with no column and no drawing', () => {
+    const legend = '<svg viewBox="0 0 1600 200" data-w="1600" data-h="200"></svg>';
+    const html = buildSldSheetHtml({ ...sampleProject, drawing: { ...sampleProject.drawing, notes: ['GENERAL NOTE ONE.'] } }, '', 'A3', { ...one, legendSvg: legend, legendSheet: true, abbreviations: [['ACB', 'Air circuit breaker'], ['MCCB', 'Moulded case circuit breaker']] }), doc = parse(html);
+    expect(doc.querySelector('.lgsheet .lg svg')).not.toBeNull();
+    expect(doc.querySelector('.lgsheet .abbr')).not.toBeNull();
+    expect(doc.querySelector('.lgsheet .notes')).not.toBeNull();
+    expect(doc.querySelector('.side')).toBeNull();
+    expect(doc.querySelector('.drawing')).toBeNull();
+    expect(html).toContain('GENERAL NOTE ONE.');
+    expect(legendColumnFits(sampleProject, '', 'A3', { ...one, legendSvg: legend, legendSheet: true })).toBe(true);
+  });
+  it('a sheet that refers to the legend sheet prints no abbreviations of its own', () => {
+    const doc = parse(buildSldSheetHtml(sampleProject, svg, 'A3', { ...one, legendSvg: '', abbreviations: [], notes: ['LEGEND AND ABBREVIATIONS: SEE E-SLD-000'] }));
+    expect(doc.querySelector('.abbr')).toBeNull();
+    expect(doc.querySelector('.notes')!.textContent).toContain('SEE E-SLD-000');
+  });
+});

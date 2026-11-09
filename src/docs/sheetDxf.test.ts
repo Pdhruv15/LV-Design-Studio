@@ -308,3 +308,29 @@ describe('legend strip in DXF', () => {
     expectPaperBounds(data, SHEET_MM.A3.w, SHEET_MM.A3.h);
   });
 });
+
+describe('legend sheet and schedule table in DXF', () => {
+  beforeAll(() => vi.stubGlobal('DOMParser', DOMParser));
+  afterAll(() => vi.unstubAllGlobals());
+  it('the legend sheet: the legend across the top, abbreviations and notes in columns under it, nothing drawn', () => {
+    const legend = '<svg viewBox="0 0 1600 120" data-w="1600" data-h="120"><text x="64" y="53" style="font-size:10.5px">Busbar</text></svg>';
+    const data = buildSheetDxf({ ...dxfExportProject, drawing: { ...dxfExportProject.drawing, notes: ['GENERAL NOTE ONE.'] } }, '', 'A3', { ...info, legendSvg: legend, legendSheet: true, abbreviations: [['ACB', 'Air circuit breaker']] });
+    const texts = entities(data).filter((e) => e.type === 'TEXT');
+    const busbar = texts.find((e) => e.v.get(1) === 'Busbar')!, abbr = texts.find((e) => e.v.get(1)?.startsWith('ACB'))!, note = texts.find((e) => e.v.get(1)?.includes('GENERAL NOTE'))!;
+    expect(num(busbar, 20)).toBeGreaterThan(num(abbr, 20)); // the legend above the abbreviations
+    expect(note).toBeDefined();
+    expect(texts.some((e) => e.v.get(1) === 'MDB ACB CT XLPE')).toBe(false); // no drawing
+    expectPaperBounds(data, SHEET_MM.A3.w, SHEET_MM.A3.h);
+  });
+  it('a table under the drawing: its title, head and rows as text, the drawing above it', () => {
+    const table = { title: 'LOAD DISTRIBUTION SCHEDULE — DB-1', lines: ['DB: DB-1 — Ground floor'], head: ['Sl.', 'Cct', 'Room / area', 'R (W)'], rows: [['1', 'R1', 'Kitchen', '600'], ['2', 'Y1', 'Lounge', '400']], foot: [['', '', 'TOTAL (W)', '1000']], widths: [3, 4, 14, 5], left: [2] };
+    const data = buildSheetDxf(dxfExportProject, svg, 'A3', { ...info, table });
+    const texts = entities(data).filter((e) => e.type === 'TEXT');
+    const kitchen = texts.find((e) => e.v.get(1) === 'Kitchen')!, title = texts.find((e) => e.v.get(1)?.startsWith('LOAD DISTRIBUTION'))!, diagram = texts.find((e) => e.v.get(1) === 'MDB ACB CT XLPE')!;
+    expect(kitchen).toBeDefined();
+    expect(num(title, 20)).toBeGreaterThan(num(kitchen, 20));
+    expect(num(diagram, 20)).toBeGreaterThan(num(title, 20));
+    expect(num(kitchen, 20)).toBeGreaterThan(10 + 44);
+    expectPaperBounds(data, SHEET_MM.A3.w, SHEET_MM.A3.h);
+  });
+});

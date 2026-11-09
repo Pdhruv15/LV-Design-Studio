@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.064', date: '2026-11-09',
+    items: [
+      { title: 'Legend sheet', text: 'Design CAD → Sheets → + New sheet → Legend, abbreviations and notes adds one sheet, numbered before the SLDs (E-SLD-000), with every symbol of the project\'s SLD across the sheet, the abbreviations of the whole SLD and the general notes. The SLD and board sheets then carry no legend or abbreviations of their own: their notes say "LEGEND AND ABBREVIATIONS: SEE E-SLD-000" and the drawing takes the whole width. Riser and earthing sheets keep their own legends.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Board sheet with schedule', text: '+ New sheet → Board sheet with schedule adds, for the picked DB or every DB with circuits, a sheet with the DB\'s circuit diagram and its load distribution schedule under it: Sl., circuit, ELCB group, MCB, wire and ECC sizes, room, points, R / Y / B watts and remarks, with the totals and maximum demand, the incomer, location and watt per unit above. A board sheet\'s settings have a Load schedule under the diagram switch. The schedule prints in the PDF and the DXF / DWG and counts in the sheet\'s fingerprint.' }
+    ]
+  },
+  {
     version: '2.063', date: '2026-11-09',
     items: [
       { title: 'Sheet furniture: revision rows, legend strip, a block per sheet kind', text: 'Sheet furniture (Design CAD → Sheets → Title block & numbering, and each sheet\'s settings) has more choices: a revision table of 6 or 8 lines, blank ones ruled, beside the title block; the legend in a strip along the foot of the drawing area, or in two columns of the right column (on A2 and A1 when it is long, or always); and, for riser and earthing sheets, the legend and notes in the sheet\'s column instead of inside the drawing, their schedules staying where they are. Title block & numbering can also give the riser and earthing sheets, the plan sheets or the report pages a title block of their own. As before, nothing changes until a value is chosen, and PDF and DXF / DWG agree.', action: 'cad', actionLabel: 'Open Design CAD' }

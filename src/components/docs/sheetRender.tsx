@@ -27,7 +27,9 @@ import RiserDiagram, { RiserLegendSvg } from '../../diagram/RiserDiagram';
 import { riserLayout } from '../../diagram/riserLayout';
 import FeederRiserDiagram, { FeederRiserLegendSvg } from '../../diagram/FeederRiserDiagram';
 import { feederRiserLayout } from '../../diagram/feederRiserLayout';
-import { boardIncomerLabel } from '../../docs/loadScheduleDoc';
+import { boardIncomerLabel, scheduleTable } from '../../docs/loadScheduleDoc';
+import { tableHeightMm } from '../../docs/sheetTable';
+import { abbreviationsIn } from '../../docs/sldNotes';
 import SingleLineDiagram from '../SingleLineDiagram';
 import { dxfToDwg } from '../../engines/cad/cadEngine';
 import { planDrawing, planNotes, planScale } from '../../docs/planLayout';
@@ -166,16 +168,35 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
     if (!d) return undefined;
     return { html: sheetHtmlFrom(project, set, s, d.svg, d.size, false, d.legendSvg, withMarkups), size: d.size, fits: true, columnFits: true, refs: false, svg: d.svg, legendSvg: d.legendSvg };
   }
+  const fz = furnitureOf(set, s), min = minMmPerPx(fz), tm = fz.textMm;
+  if (s.kind === 'legend') {
+    // The set's legend sheet: every symbol of the project's SLD across the sheet, the abbreviations of the whole SLD,
+    // the general notes; A3 unless chosen, A2 when the legend would take more than half of A3.
+    const whole = { ...s, kind: 'system' as const, boards: project.boards.map((b) => b.id) };
+    const drawn = await renderSheet(project, set, whole, run, false);
+    const abbr = project.drawing?.abbreviations === false ? [] : abbreviationsIn(drawn?.svg ?? '');
+    const labels = legendLabels(project, set, whole);
+    const innerOf = (size: SheetSize) => SHEET_MM[size].w - 30 - 6 - 4;
+    const tall = legendHeightMm(labels, innerOf('A3'), tm, stripColumns(innerOf('A3'))) > 0.5 * (SHEET_MM.A3.h - 70);
+    const size: SheetSize = s.size === 'auto' ? (tall ? 'A2' : 'A3') : s.size;
+    const legendSvg = labels.length ? await legendOf(project, innerOf(size), tm, stripColumns(innerOf(size))) : '';
+    const info = fullSheetInfo(project, set, s, false, legendSvg, withMarkups);
+    info.legendSheet = true; info.abbreviations = abbr;
+    return { html: buildSldSheetHtml(project, '', size, info), size, fits: true, columnFits: true, refs: false, svg: '', legendSvg, info };
+  }
   const mode = s.cableLabels ?? project.drawing?.cableLabels ?? 'auto';
   let refs = mode === 'ref' && s.kind === 'system';
   let r = await renderSheet(project, set, s, run, refs);
   if (!r) return undefined;
-  const fz = furnitureOf(set, s), min = minMmPerPx(fz), tm = fz.textMm;
+  // With a legend sheet in the set, the SLD and board sheets refer to it instead of carrying a legend and abbreviations.
+  const legendSheet = s.kind === 'system' || s.kind === 'board' ? set.sheets.find((x) => x.kind === 'legend') : undefined;
+  // A board sheet's load schedule under its diagram takes room from the drawing's height.
+  const table = s.kind === 'board' && s.schedule && s.boards[0] && project.boards.some((b) => b.id === s.boards[0]) ? scheduleTable(project, s.boards[0]) : undefined;
   // The legend's place: a strip along the foot of the drawing area takes room from its height (as high as the legend
   // is on A3's width; a wider paper makes it shorter), two columns in the right column take room from its width.
-  const labels = r.legendItems ? r.legendItems.map((e) => e.label) : legendLabels(project, set, s);
+  const labels = legendSheet ? [] : r.legendItems ? r.legendItems.map((e) => e.label) : legendLabels(project, set, s);
   const strip = fz.legendPlace === 'strip' && labels.length > 0;
-  const reserveH = strip ? legendHeightMm(labels, stripInnerMm('A3'), tm, stripColumns(stripInnerMm('A3'))) + 6 : 0;
+  const reserveH = (strip ? legendHeightMm(labels, stripInnerMm('A3'), tm, stripColumns(stripInnerMm('A3'))) + 6 : 0) + (table ? tableHeightMm(table, tm) + 2 : 0);
   let a = autoSize(r.w, r.h, reserveOf(s), min, reserveH);
   let size = s.size === 'auto' ? a.size : s.size;
   const cols = strip ? 1 : legendColsFor(fz, size, labels);
@@ -186,12 +207,14 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
     r = (await renderSheet(project, set, s, run, true)) ?? r;
   }
   const colMm = strip ? stripInnerMm(size) : cols === 2 ? sideInnerMm(2 * SIDE_MM) : legendColMm(s), drawCols = strip ? stripColumns(colMm) : cols;
-  const legendSvg = r.legendItems ? stringLegendSvg(r.legendItems, colMm, tm, drawCols) : s.kind === 'system' ? await legendOf(sheetProject(project, set, s), colMm, tm, drawCols) : s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId ? (project.drawing?.legend === false ? '' : dbRiserLegend(dbRiserLayout({ ...project, drawingSet: set }, s.buildingId), s.part ?? 0, colMm, tm)) : s.kind === 'riser' && s.buildingId ? await riserLegendOf(project, s.buildingId, s.riserStyle === 'feeders', colMm, tm, drawCols) : '';
+  const legendSvg = legendSheet ? '' : r.legendItems ? stringLegendSvg(r.legendItems, colMm, tm, drawCols) : s.kind === 'system' ? await legendOf(sheetProject(project, set, s), colMm, tm, drawCols) : s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId ? (project.drawing?.legend === false ? '' : dbRiserLegend(dbRiserLayout({ ...project, drawingSet: set }, s.buildingId), s.part ?? 0, colMm, tm)) : s.kind === 'riser' && s.buildingId ? await riserLegendOf(project, s.buildingId, s.riserStyle === 'feeders', colMm, tm, drawCols) : '';
   const info = fullSheetInfo(project, set, s, refs || withLegend, legendSvg, withMarkups);
   if (strip && legendSvg) info.legendStrip = true;
   if (cols === 2 && legendSvg) info.sideMm = 2 * SIDE_MM;
   // A drawing's notes handed to the sheet print first in its NOTES box, in the column unless the notes have a place.
   if (r.notes?.length) { info.notes = [...r.notes, ...(info.notes ?? [])]; if (!fz.notesPlace) info.furniture = { ...(info.furniture ?? {}), notesPlace: 'column' }; }
+  if (legendSheet) { info.abbreviations = []; info.notes = [`LEGEND AND ABBREVIATIONS: SEE ${legendSheet.number}`, ...(info.notes ?? [])]; }
+  if (table) info.table = table;
   const html = buildSldSheetHtml(project, r.svg, size, info);
   // Readable on the paper actually used (a chosen A3 can be too small too); and the legend column holds its contents.
   return { html, size, fits: scaleOn(size, r.w, r.h, reserveW, reserveH) >= min, columnFits: legendColumnFits(project, r.svg, size, info), refs, svg: r.svg, legendSvg, info };

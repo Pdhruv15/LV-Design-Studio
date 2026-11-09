@@ -259,7 +259,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
                         <td><b>{s.number}</b></td>
                         <td>
                           {txt(s.title, (v) => v && setSheet(s.id, { title: v }), '', 260)}
-                          <div className="m dr-panels">{s.kind === 'earthing' ? 'Earthing schematic (from Design → Earth pits)' : s.kind === 'plan' ? `${PLAN_LABEL[s.plan ?? 'lighting']} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'} (from Design CAD)` : s.kind === 'riser' ? `${s.riserStyle === 'byLevel' ? 'DB riser by level' : s.riserStyle ? 'Riser schematic' : 'Riser diagram'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}` : s.kind === 'earthRiser' || s.kind === 'earthFloor' ? `${s.kind === 'earthRiser' ? 'Earthing riser' : 'Floor earthing'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}${s.part ? ` · part ${s.part + 1}` : ''}` : s.kind === 'board' ? `${s.boards[0]} circuit diagram` : s.boards.length ? s.boards.join(', ') : <span className="warn">no panels — Edit to tick them</span>}</div>
+                          <div className="m dr-panels">{s.kind === 'legend' ? 'Legend, abbreviations and notes of the set' : s.kind === 'earthing' ? 'Earthing schematic (from Design → Earth pits)' : s.kind === 'plan' ? `${PLAN_LABEL[s.plan ?? 'lighting']} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'} (from Design CAD)` : s.kind === 'riser' ? `${s.riserStyle === 'byLevel' ? 'DB riser by level' : s.riserStyle ? 'Riser schematic' : 'Riser diagram'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}` : s.kind === 'earthRiser' || s.kind === 'earthFloor' ? `${s.kind === 'earthRiser' ? 'Earthing riser' : 'Floor earthing'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}${s.part ? ` · part ${s.part + 1}` : ''}` : s.kind === 'board' ? `${s.boards[0]} circuit diagram` : s.boards.length ? s.boards.join(', ') : <span className="warn">no panels — Edit to tick them</span>}</div>
                         </td>
                         <td><select className="bi-sel" value={s.size} onChange={(e) => setSheet(s.id, { size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto</option>{PAPERS.map((z) => <option key={z.size} value={z.size}>{z.label}</option>)}</select></td>
                         <td><span className="dr-dot" style={{ background: statusColor(st) }} />{st || <span className="m">—</span>}</td>
@@ -530,7 +530,7 @@ function SheetPanel({ sheet: s, set, project, boards, rev, onPatch, onClose, onR
           <p className="m">Blank fields use the project's value (shown in grey).</p>
 
           <h4>Panels on this sheet</h4>
-          {s.kind === 'board' ? <p>{s.boards[0]} <span className="m">— circuit diagram of this DB</span></p> : (<>
+          {s.kind === 'board' ? <p>{s.boards[0]} <span className="m">— circuit diagram of this DB{s.schedule ? ' with its load schedule' : ''}</span></p> : s.kind === 'legend' ? <p className="m">The set's legend, abbreviations and notes</p> : (<>
             <p className="m">Panels not ticked are drawn on their own sheet; feeders to them end in “to … — sheet N”.</p>
             <div className="ds-pick">
               {boards.map((b) => {

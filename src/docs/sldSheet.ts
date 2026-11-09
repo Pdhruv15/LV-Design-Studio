@@ -2,6 +2,7 @@ import { currentRevision } from '../model/revisions';
 import { cableDataNotice } from '../calc/cableTable';
 import type { DrawingInfo, Project } from '../types';
 import type { SheetFurniture } from '../model/drawingSet';
+import { tableHeightMm, type SheetTable } from './sheetTable';
 import { esc } from './report';
 import { templateKindOf, templateOf, templateSize, titleBlockHtml } from '../model/titleBlock';
 import { fillParams } from '../model/params';
@@ -106,7 +107,13 @@ export interface SheetInfo { no: string; title: string; count: number; index: nu
   /** The sheet's kind (src/model/drawingSet.ts DrawingSheet), for a title block chosen per kind of sheet. */
   kind?: string;
   /** The legend goes in a strip along the foot of the drawing area (drawn for stripInnerMm), not in the column. */
-  legendStrip?: boolean }
+  legendStrip?: boolean;
+  /** The set's legend sheet: no drawing; the legend across the sheet, then the abbreviations and the general notes. */
+  legendSheet?: boolean;
+  /** The abbreviations to print, when not those found in the drawing (the legend sheet's, or none on a sheet that refers to it). */
+  abbreviations?: [string, string][];
+  /** A table under the drawing (a board sheet's load schedule, src/docs/sheetTable.ts). */
+  table?: SheetTable }
 
 /** The legend column (legend, cable schedule, abbreviations, summary): its width and padding, mm at scale 1. A DB riser
  * sheet's narrower column is RISER_SIDE_MM (src/model/drawingSet.ts). */
@@ -179,7 +186,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     : { SheetNo: t.number, SheetTitle: t.title, SheetCount: '1', SheetIndex: '1', SheetSize: sheet, Status: '', Scale: t.scale };
   const custom = templateOf(project, templateKindOf(one?.kind));
   const notes = [...(project.drawing?.notes ?? []), ...(one?.notes ?? [])];
-  const abbr = project.drawing?.abbreviations === false ? [] : abbreviationsIn(svg);
+  const abbr = one?.abbreviations ?? (project.drawing?.abbreviations === false ? [] : abbreviationsIn(svg));
   const history = t.history.length ? t.history : [{ id: '—', date: '', description: 'Not issued' }];
   // Sheet furniture (title block, revision table, abbreviations, notes) at its standard size.
   const k = furnitureScale(sheet, custom ? templateSize(custom) : undefined);
@@ -193,7 +200,8 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   // ABBREVIATIONS — one width, one alignment. Without a column (single
   // SLD export) the abbreviations stay bottom left.
   const summary = one?.summary;
-  const side = !!one && (!!legendSvg || cables.length > 0 || abbr.length > 0 || !!summary);
+  const legendSheet = !!one?.legendSheet;
+  const side = !!one && !legendSheet && (!!legendSvg || cables.length > 0 || abbr.length > 0 || !!summary);
   const csW = side ? one?.sideMm ?? SIDE_MM : 0; // legend column width (mm at scale 1)
   const fz = one?.furniture ?? {}, tm = fz.textMm ?? LEGEND_TEXT_MM; // the column's text height
   const zones = zonesOn(fz, sheet), nx = zoneFields(w - FRAME_W), ny = zoneFields(h - FRAME_H);
@@ -203,6 +211,8 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   const stripH = strip ? (Number(legendSvg.match(/data-h="([\d.]+)"/)?.[1] ?? 0) / (LEGEND_LABEL_PX / tm)) + 2 * SIDE_PAD_MM : 0;
   const notesInColumn = (fz.notesPlace === 'column' || strip) && side;
   const notesW = Math.min(fz.notesWidthMm ?? tbW, (w - FRAME_W - 6) / k);
+  // A table under the drawing (a board sheet's load schedule): the drawing moves up by its height.
+  const table = one?.table, tableH = table ? tableHeightMm(table, tm) : 0;
   const fire = cables.some((c) => c.fireRated);
   const { css: tbCss, html: tbHtml } = titleBlockFragment(project, t, custom, extra, one, sheet, k);
   // The revision table and the title block share the band along the frame's foot, row for row, so each line of one runs
@@ -229,7 +239,8 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     const col = (v: number) => `<col style="width:${+v.toFixed(2)}mm">`;
     return `<table class="tb band"><colgroup>${col(revW * 0.1)}${col(revW * 0.18)}<col>${titleCols(k)}</colgroup>${standardTitleRows(project, t, one, sheet, status).map((r, i, all) => `<tr>${revCells(i, all.length)}${r}</tr>`).join('')}</table>`;
   })();
-  const notesHtml = notes.length ? `<div class="notes"${notesInColumn ? '' : ` style="width:${mm(notesW)}"`}><b>NOTES</b><ol>${notes.map((n) => `<li>${esc(fillParams(n, project))}</li>`).join('')}</ol></div>` : '';
+  const notesHtml = notes.length ? `<div class="notes"${notesInColumn || legendSheet ? '' : ` style="width:${mm(notesW)}"`}><b>NOTES</b><ol>${notes.map((n) => `<li>${esc(fillParams(n, project))}</li>`).join('')}</ol></div>` : '';
+  const abbrHtml = `<div class="abbr"><b>ABBREVIATIONS</b>${abbr.map(([a, d]) => `<div><span>${esc(a)}</span>${esc(d)}</div>`).join('')}</div>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(t.number || t.title)}</title><style>
     @page { size: ${w}mm ${h}mm; margin: 0; }
     * { box-sizing: border-box; }
@@ -238,7 +249,14 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .stamp { position: absolute; left: 20mm; bottom: ${zones ? 1.5 : 4}mm; font-size: 2mm; color: #000; white-space: nowrap; }${one?.plot?.css ? `
     ${one.plot.css}` : ''}
     .body { position: relative; flex: 1; min-height: 0; }
-    .drawing { position: absolute; inset: 3mm; right: calc(3mm + ${mm(csW)}); bottom: ${mm(3 + stripH)}; display: flex; align-items: center; justify-content: center; }
+    .drawing { position: absolute; inset: 3mm; right: calc(3mm + ${mm(csW)}); bottom: ${mm(3 + stripH + tableH)}; display: flex; align-items: center; justify-content: center; }
+    .tbl { position: absolute; left: 3mm; right: calc(3mm + ${mm(csW)}); bottom: ${mm(3 + stripH)}; height: ${mm(tableH)}; font-size: ${mm(tm)}; overflow: hidden; }
+    .tbl h5 { margin: 0 0 ${mm(1)}; font-size: ${mm(tm)}; font-weight: 700; } .tbl p { margin: 0; line-height: ${mm(3.6 * tm / 2.5)}; }
+    .tbl table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: ${mm(1)}; } .tbl th, .tbl td { border: ${mm(0.18 * lw)} solid #000; padding: 0 ${mm(0.8)}; height: ${mm(4.4 * tm / 2.5)}; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 400; }
+    .tbl th { font-weight: 700; white-space: normal; height: auto; line-height: 1.1; padding-top: ${mm(0.4)}; padding-bottom: ${mm(0.4)}; } .tbl td.l { text-align: left; } .tbl tr.f td { font-weight: 700; }
+    .lgsheet { position: absolute; inset: 3mm; display: flex; flex-direction: column; gap: ${mm(3)}; overflow: hidden; }
+    .lgsheet .abbr, .lgsheet .notes { position: static; width: auto; border: ${mm(0.25 * lw)} solid #000; }
+    .lgsheet .abbr { column-count: ${abbr.length > 24 ? 3 : abbr.length > 8 ? 2 : 1}; }
     .strip { position: absolute; left: 0; right: ${mm(csW)}; bottom: 0; height: ${mm(stripH)}; padding: ${mm(SIDE_PAD_MM)}; border-top: ${mm(0.25 * lw)} solid #000; background: #fff; }
     .lg svg { width: 100%; height: auto; display: block; }
     .drawing svg { width: 100%; height: 100%; }
@@ -252,7 +270,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .band td.u { border-bottom: ${mm(0.2)} solid #999; }
     .band td.h { font-size: ${px(7)}; font-weight: 700; text-transform: uppercase; }
     .band td.gen { vertical-align: bottom; font-size: ${px(6.5)}; color: #555; }
-    .notes { position: absolute; right: 0; bottom: ${mm(3)}; font-size: ${mm(tm)}; border: ${mm(0.25 * lw)} solid #000; border-right: 0; padding: ${mm(1)} ${mm(2)}; background: #fff; }
+    .notes { position: absolute; right: 0; bottom: ${mm(3 + stripH + tableH)}; font-size: ${mm(tm)}; border: ${mm(0.25 * lw)} solid #000; border-right: 0; padding: ${mm(1)} ${mm(2)}; background: #fff; }
     .side .notes { position: static; border-right: ${mm(0.25 * lw)} solid #000; }
     .notes ol { margin: ${mm(0.5)} 0 0; padding-left: ${mm(4)}; }
     .side { position: absolute; right: 0; top: 0; width: ${mm(csW)}; bottom: ${tooShort && csW <= tbW ? `-${mm(tooShort)}` : 0}; display: flex; flex-direction: column; gap: ${mm(2)}; overflow: hidden; border-left: ${mm(0.25 * lw)} solid #000; padding: ${mm(SIDE_PAD_MM)}; }
@@ -276,16 +294,17 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .zl span, .zr span { border-left: 0; border-top: 0.35mm solid #000; } .zl span:first-child, .zr span:first-child { border-top: 0; }
     .cm { position: absolute; background: #000; }
   </style></head><body>
-  <div class="frame"><div class="body">
-    <div class="drawing">${svg}</div>
+  <div class="frame"><div class="body">${legendSheet ? `
+    <div class="lgsheet">${legendSvg ? `<div class="lg">${legendSvg}</div>` : ''}${abbr.length ? abbrHtml : ''}${notesHtml}</div>` : `
+    <div class="drawing">${svg}</div>${table ? tableHtml(table) : ''}`}
     ${strip ? `<div class="strip"><div class="lg">${legendSvg}</div></div>` : ''}
     ${side ? `<div class="side">${legendSvg && !strip ? `<div class="lg">${legendSvg}</div>` : ''}` : ''}
     ${cables.length ? `<div class="cs"><h5>CABLE SCHEDULE</h5><table>${cables.map((c) => `<tr><td class="n"><span>${c.ref}</span></td><td>${esc(c.text)}</td></tr>`).join('')}</table>${fire ? `<p><b>NOTE:</b> ${esc(FIRE_NOTE)}</p>` : ''}</div>` : ''}
-    ${abbr.length ? `<div class="abbr"><b>ABBREVIATIONS</b>${abbr.map(([a, d]) => `<div><span>${esc(a)}</span>${esc(d)}</div>`).join('')}</div>` : ''}
+    ${abbr.length && !legendSheet ? abbrHtml : ''}
     ${notesInColumn ? notesHtml : ''}
     ${summary ? `<div class="sum"><b>${esc(summary.title)}</b><table>${summary.rows.map(([a, v]) => `<tr><td>${esc(a)}</td><td>${esc(v)}</td></tr>`).join('')}</table></div>` : ''}
     ${side ? '</div>' : ''}
-    ${notesInColumn ? '' : notesHtml}
+    ${notesInColumn || legendSheet ? '' : notesHtml}
   </div>
     ${band}
   </div>
@@ -296,6 +315,13 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
 }
 
 const FRAME_W = 30, FRAME_H = 20, BAND = 44;
+
+/** A sheet table (src/docs/sheetTable.ts) as HTML: title, lines, head, rows and totals. */
+function tableHtml(t: SheetTable): string {
+  const total = t.widths.reduce((a, b) => a + b, 0);
+  const cell = (v: string, i: number, tag = 'td') => `<${tag}${t.left.includes(i) ? ' class="l"' : ''}>${esc(v)}</${tag}>`;
+  return `<div class="tbl"><h5>${esc(t.title)}</h5>${t.lines.map((l) => `<p>${esc(l)}</p>`).join('')}<table><colgroup>${t.widths.map((w) => `<col style="width:${+((w / total) * 100).toFixed(2)}%">`).join('')}</colgroup><thead><tr>${t.head.map((h, i) => cell(h, i, 'th')).join('')}</tr></thead><tbody>${t.rows.map((r) => `<tr>${r.map((v, i) => cell(v, i)).join('')}</tr>`).join('')}${t.foot.map((r) => `<tr class="f">${r.map((v, i) => cell(v, i)).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
 
 /** Zone references (ISO 5457): fields of about 50 mm along the frame, numbered along the top and bottom, lettered down
  * the sides, in a 5 mm strip outside the frame. */
@@ -312,9 +338,10 @@ function centringHtml(w: number, h: number): string {
  * the cable schedule, the abbreviations and the summary, each at 2.5 mm text, against the drawing area's height. The
  * column clips what does not fit (overflow hidden), so a sheet whose column is full wants a larger paper. */
 export function legendColumnFits(project: Project, svg: string, sheet: NonNullable<DrawingInfo['sheet']>, one: SheetInfo): boolean {
+  if (one.legendSheet) return true;
   const fz = one.furniture ?? {}, tm = fz.textMm ?? LEGEND_TEXT_MM, r = tm / LEGEND_TEXT_MM; // rows grow with the text
   const legendH = one.legendStrip ? 0 : Number(one.legendSvg?.match(/data-h="([\d.]+)"/)?.[1] ?? 0) / (LEGEND_LABEL_PX / tm);
-  const cables = one.cables ?? [], abbr = project.drawing?.abbreviations === false ? [] : abbreviationsIn(svg);
+  const cables = one.cables ?? [], abbr = one.abbreviations ?? (project.drawing?.abbreviations === false ? [] : abbreviationsIn(svg));
   const notes = fz.notesPlace === 'column' || (one.legendStrip && one.legendSvg) ? [...(project.drawing?.notes ?? []), ...(one.notes ?? [])].filter((n) => n.trim()).length : 0;
   const parts = [legendH, cables.length ? (7 + cables.length * 5.2 + (cables.some((c) => c.fireRated) ? 5 : 0)) * r : 0, abbr.length ? (6 + abbr.length * 3.6) * r : 0, one.summary ? (6 + one.summary.rows.length * 3.6) * r : 0, notes ? (6 + notes * 4) * r : 0];
   const need = parts.reduce((a, b) => a + b, 0) + parts.filter(Boolean).length * 2 + 2 * SIDE_PAD_MM;

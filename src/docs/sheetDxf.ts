@@ -3,6 +3,7 @@ import { svgToDxf } from '../diagram/exportSvg';
 import { toDxf, type DxfPrimitive } from './dxf';
 import { furnitureScale, sheetTitleBlock, SHEET_MM, zoneFields, zonesOn, type SheetInfo } from './sldSheet';
 import { LEGEND_LABEL_PX, LEGEND_TEXT_MM } from '../diagram/legendLayout';
+import { TABLE_LINE_MM, TABLE_ROW_MM, TABLE_TITLE_MM, tableHeightMm, type SheetTable } from './sheetTable';
 import { abbreviationsIn } from './sldNotes';
 import { fillParams } from '../model/params';
 import { FIRE_NOTE } from '../model/cableRefs';
@@ -175,14 +176,15 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   };
   const cables = one?.cables ?? [];
   if (cables.length) section('CABLE SCHEDULE', [...cables.map((c) => `(${c.ref})${c.fireRated ? ' *' : ''}  ${c.text}`), ...(cables.some((c) => c.fireRated) ? [`NOTE: ${FIRE_NOTE}`] : [])]);
-  const abbr = project.drawing?.abbreviations === false ? [] : abbreviationsIn(svg);
+  const abbr = one?.abbreviations ?? (project.drawing?.abbreviations === false ? [] : abbreviationsIn(svg));
   if (abbr.length) section('ABBREVIATIONS', abbr.map(([a, d]) => `${a}   ${d}`));
   const notes = [...(project.drawing?.notes ?? []), ...(one?.notes ?? [])].filter((n) => n.trim()).map((n, i) => `${i + 1}. ${fillParams(n, project, extra)}`);
   if (notes.length) section('NOTES', notes, 'E-NOTES');
   if (details.length) section('TITLE BLOCK DETAILS', details.map((d) => `${d.label}: ${d.value}`), 'E-NOTES');
   if (one?.summary) section(one.summary.title, one.summary.rows.map(([a, v]) => `${a}   ${v}`));
   const legend = one?.legendSvg ?? '';
-  const side = !!(legend || flow.length);
+  const legendSheet = !!one?.legendSheet;
+  const side = !legendSheet && !!(legend || flow.length);
   // Sheet furniture outside the frame: zone references in a 5 mm strip (numbers along the top and bottom, letters down
   // the sides, fields of about 50 mm) and centring marks, on every page of the sheet.
   const outside: DxfPrimitive[] = [];
@@ -248,9 +250,20 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
     }
     writeColumn(first, colX, top, bodyBottom);
   }
+  if (legendSheet) {
+    // The legend across the sheet, then the abbreviations and notes in columns under it; nothing else is drawn.
+    const legendH = legend ? Number(legend.match(/data-h="([\d.]+)"/)?.[1] ?? 0) / (LEGEND_LABEL_PX / tm) * k : 0;
+    let top = bodyTop;
+    if (legend) { first.push(...placeSvg(legend, { x: frame.x + 3, y: bodyTop - legendH, w: frame.w - 6, h: legendH }, 'E-LEGEND', false).items); top -= legendH + 3 * k; }
+    const columns = Math.max(1, Math.floor((frame.w - 6) / colW));
+    for (let j = 0; j < columns && cursor < flow.length; j++) writeColumn(first, frame.x + 3 + j * colW, top, bodyBottom);
+  }
+  // A table under the drawing (a board sheet's load schedule), as high as the PDF prints it.
+  const table = one?.table, tableH = table ? tableHeightMm(table, tm) * k : 0;
+  if (table) first.push(...tableDxf(table, { x: frame.x + 3, y: bodyBottom, w: frame.w - 6 - (side ? colW : 0), h: tableH }, tm * k, k));
   const hasContinuation = cursor < flow.length;
   const noticeH = hasContinuation ? Math.max(5, 4 * k) : 0;
-  const drawing = placeSvg(svg, { x: frame.x + 3, y: bodyBottom + noticeH + stripH, w: frame.w - 6 - (side ? colW : 0), h: bodyH - noticeH - stripH });
+  const drawing = legendSheet || !svg.trim() ? { items: [] as DxfPrimitive[] } : placeSvg(svg, { x: frame.x + 3, y: bodyBottom + noticeH + stripH + tableH, w: frame.w - 6 - (side ? colW : 0), h: bodyH - noticeH - stripH - tableH });
   first.push(...drawing.items);
   first.push(...markupDxf(one?.markups ?? [], h)); // after the drawing, so they sit on top
   if (drawing.items.some((p) => p.type === 'text' && p.text.trim() && p.height < 1.5)) warnings.push('Some diagram labels are smaller than 1.5 mm; use a larger paper size or split the drawing for readability.');
@@ -270,6 +283,31 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
     pages.slice(1).forEach((page, i) => page.push(...textInBox('E-NOTES', { x: frame.x + 3, y: bodyTop - noticeH, w: frame.w - 6, h: noticeH }, `${t.number || 'SLD'} - CONTINUATION ${i + 1} OF ${pages.length - 1}`, headingCap)));
   }
   return { items: pages, warnings: [...new Set(warnings)] };
+}
+
+/** A sheet table (src/docs/sheetTable.ts) as lines and text: title and lines above, then the grid, from the top of
+ * its box down. cap: the text height; k: the furniture scale. */
+function tableDxf(t: SheetTable, box: DxfBox, cap: number, k: number): DxfPrimitive[] {
+  const out: DxfPrimitive[] = [], layer = 'E-NOTES';
+  const total = t.widths.reduce((a, b) => a + b, 0), widths = t.widths.map((w) => (w / total) * box.w);
+  let y = box.y + box.h - 2 * k;
+  out.push(...textInBox(layer, { x: box.x, y: y - TABLE_TITLE_MM * k, w: box.w, h: TABLE_TITLE_MM * k }, t.title, cap)); y -= TABLE_TITLE_MM * k;
+  for (const l of t.lines) { out.push(...textInBox(layer, { x: box.x, y: y - TABLE_LINE_MM * k, w: box.w, h: TABLE_LINE_MM * k }, l, cap * 0.9)); y -= TABLE_LINE_MM * k; }
+  const rh = TABLE_ROW_MM * (cap / (2.5 * k)) * k, rows = [t.head, ...t.rows, ...t.foot], top = y;
+  rows.forEach((r) => {
+    let x = box.x;
+    r.forEach((v, i) => {
+      if (v) out.push(...textInBox(layer, { x: x + 0.6 * k, y: y - rh + 0.4 * k, w: widths[i] - 1.2 * k, h: rh - 0.8 * k }, v, cap * 0.9, t.left.includes(i) ? 'left' : 'center'));
+      x += widths[i];
+    });
+    y -= rh;
+    out.push({ type: 'line', layer, x1: box.x, y1: y, x2: box.x + box.w, y2: y });
+  });
+  out.push({ type: 'line', layer, x1: box.x, y1: top, x2: box.x + box.w, y2: top });
+  let x = box.x;
+  for (const w of widths) { out.push({ type: 'line', layer, x1: x, y1: top, x2: x, y2: y }); x += w; }
+  out.push({ type: 'line', layer, x1: box.x + box.w, y1: top, x2: box.x + box.w, y2: y });
+  return out;
 }
 
 /** Frame, title block, notes and legend belong to no equipment: they are tagged with their sheet

@@ -9,6 +9,7 @@ import { cableTypeOf } from '../model/cableTypes';
 import { cableBuildText, feederBuild } from '../model/cableRefs';
 import { withNetwork } from '../calc/network';
 import { fmtFixed } from '../util/format';
+import type { SheetTable } from './sheetTable';
 
 const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -89,6 +90,36 @@ function loadScheduleRowsOf(project: Project, boardId: string) {
   const others = project.feeders.filter((f) => f.boardId === boardId && !scheduled.has(f.id));
   const phaseW = boardPhaseKw(project, boardId);
   return { board, incomer, groups, rows, entries, phaseW, connectedW, others, imbalance: imbalancePct(phaseW) };
+}
+
+/** The DB's load schedule as a table for its board sheet (src/docs/sheetTable.ts): the same rows as the schedule
+ * document, flat (the incomer and watt per unit above the table, the ELCB group in a column, totals at the foot). */
+export function scheduleTable(project: Project, boardId: string): SheetTable {
+  const { board, incomer, entries, phaseW, connectedW, others, imbalance } = loadScheduleRows(project, boardId);
+  const columns = pointColumns(project, board);
+  const w = (v: string | number) => (typeof v === 'number' ? fmtFixed(v, 0) : v);
+  const kw = (v: number) => fmtFixed(v * 1000, 0);
+  const elcb = (e: (typeof entries)[number], i: number) => (e.group && entries.findIndex((x) => x.group === e.group) === i ? `ELCB-${e.group.index} ${e.group.label}` : '');
+  const rows = entries.map((e, i) => (e.type === 'spare'
+    ? [String(e.sl), spareRef(e.spare), elcb(e, i), e.spare.kind === 'spare' ? String(e.spare.ratingA) : '', '', '', spareLabel(e.spare), ...columns.map(() => ''), '', '', '', e.spare.remarks ?? '']
+    : [String(e.sl), e.row.ref, elcb(e, i), String(e.row.f.breakerRatingA), String(e.row.f.cableCsaMm2), String(cpcOf(e.row.f)), e.row.f.room ?? e.row.f.name ?? '', ...columns.map((t) => String(e.row.f.points?.[t.value] || '')), w(e.row.ph.R), w(e.row.ph.Y), w(e.row.ph.B), `${remarksText(e.row.f)}${e.row.status !== 'ok' ? ` (${e.row.status === 'bad' ? 'fails check' : 'check'})` : ''}`]));
+  const blank = (n: number) => Array<string>(n).fill('');
+  const foot = [
+    [...blank(6), 'TOTAL CONNECTED LOAD (W)', ...columns.map(() => ''), fmtFixed(connectedW.R, 0), fmtFixed(connectedW.Y, 0), fmtFixed(connectedW.B, 0), `${fmtFixed(connectedW.R + connectedW.Y + connectedW.B, 0)} W`],
+    [...blank(6), `MAXIMUM DEMAND (W)${others.length ? `, incl. ${others.length} other way(s)` : ''}`, ...columns.map(() => ''), kw(phaseW.R), kw(phaseW.Y), kw(phaseW.B), `${kw(phaseW.R + phaseW.Y + phaseW.B)} W · imbalance ${imbalance.toFixed(0)} %`]
+  ];
+  return {
+    title: `LOAD DISTRIBUTION SCHEDULE — ${board.id} (3-phase, ${project.voltageV} V)`,
+    lines: [
+      `DB: ${board.id} — ${board.name} · FED FROM: ${board.upstreamId ?? '—'} · INCOMER: ${incomerLabel(board, incomer) || '—'} · LOCATION: ${boardLocation(project, board)}`,
+      incomerCableText(project, incomer),
+      ...(columns.length ? [`WATT / UNIT: ${columns.map((t) => `${t.label} ${wattUnitText(project, board, t.value)}`).join(' · ')}`] : [])
+    ],
+    head: ['Sl.', 'Cct', 'ELCB', 'MCB A', 'Wire mm²', 'ECC mm²', 'Room / area', ...columns.map((t) => t.label), 'R (W)', 'Y (W)', 'B (W)', 'Remarks'],
+    rows, foot,
+    widths: [3, 4, 10, 4, 5, 5, 12, ...columns.map(() => 4.5), 5, 5, 5, 14],
+    left: [2, 6, 7 + columns.length + 3]
+  };
 }
 
 /** Print-ready HTML reproducing the DEWA "Load Distribution Schedule"
