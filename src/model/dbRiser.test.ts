@@ -221,7 +221,7 @@ describe('DB riser by level', () => {
     p.ties = [];
     const legend = dbRiserLegend(dbRiserLayout(p, B));
     expect(legend).toContain('LEGEND');
-    expect(legend).toContain('viewBox="0 0 290 ');
+    expect(legend).toContain('viewBox="0 0 243.6 '); // drawn for the 62 mm column's 58 mm: its 10.5 px labels print at 2.5 mm
     expect(legend).toContain('Main panel with busbar');
     expect(legend).toContain('Automatic transfer switch (ATS)');
     expect(legend).toContain('Standby generator');

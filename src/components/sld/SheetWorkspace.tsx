@@ -594,6 +594,7 @@ export function PublishDialog({ project, run, current, ticked: first, onClose, o
         if (!drawable(s)) continue;
         const r = await sheetHtml(project, set, s, run).catch(() => undefined);
         if (r && !r.fits) out.push({ level: 'warn', text: `${s.number} is crowded even on A1 — split it`, sheetId: s.id });
+        else if (r && !r.columnFits) out.push({ level: 'warn', text: `${s.number}: the legend column is full on ${r.size} — choose a larger paper`, sheetId: s.id });
       }
       if (!stop) setCrowded(out);
     })();

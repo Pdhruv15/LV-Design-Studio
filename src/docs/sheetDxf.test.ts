@@ -239,3 +239,18 @@ describe('complete paper-sized DXF sheets', () => {
     expect(() => buildSheetDxfPages(dxfExportProject, '<svg viewBox="0 0 0 160"/>', 'A4', info)).toThrow('invalid SVG viewBox');
   });
 });
+
+describe('legend column text at 2.5 mm', () => {
+  beforeAll(() => vi.stubGlobal('DOMParser', DOMParser));
+  afterAll(() => vi.unstubAllGlobals());
+  it('writes the legend at the scale it was drawn for (10.5 px labels → 1.8 mm cap height, 2.5 mm text) and the schedule at 2.5 mm', () => {
+    // A legend drawn for the 88 mm inner column: 4.2 px per mm, one label at 10.5 px.
+    const legend = '<svg viewBox="0 0 369.6 66" data-w="369.6" data-h="66"><text x="64" y="53" style="font-size:10.5px">Busbar</text></svg>';
+    const data = buildSheetDxf(dxfExportProject, svg, 'A3', { ...info, legendSvg: legend, cables: [{ ref: 1, text: '4C × 70 mm² XLPE/SWA/PVC Cu' }] });
+    const texts = entities(data).filter((e) => e.type === 'TEXT');
+    const busbar = texts.find((e) => e.v.get(1) === 'Busbar')!;
+    expect(num(busbar, 40)).toBeCloseTo(10.5 * 0.72 / 4.2, 2); // 1.8 mm: the DXF height of 2.5 mm text
+    const schedule = texts.find((e) => e.v.get(1)?.includes('4C'))!;
+    expect(num(schedule, 40)).toBeCloseTo(2.5, 6);
+  });
+});

@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.059', date: '2026-11-09',
+    items: [
+      { title: 'Legends print at 2.5 mm', text: 'The legend on every drawing sheet (SLD, risers, DB riser) is drawn for its column, so its labels print at 2.5 mm, the ISO minimum, whatever the labels say: a long label takes two lines instead of making the whole legend smaller. The cable schedule, abbreviations, notes, board summary and the revision table print at 2.5 mm too (they were about 2 mm), on the PDF and in the DXF and DWG files. A sheet whose legend column is now too full for its paper says so in Publish; choose a larger paper for it.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.058', date: '2026-11-09',
     items: [
       { title: 'Output tab in Design CAD', text: 'Design CAD has a new Output sub-tab with everything that gets a drawing onto paper or out of the app: Plot, Preview, Page setups, Pen tables and Printers; Publish and Batch plot; and PDF, DXF, DWG and Register. Plot, Publish and export are no longer on Electrical, ELV & sheets.', action: 'cad', actionLabel: 'Open Design CAD' },
