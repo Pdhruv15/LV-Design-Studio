@@ -15,10 +15,22 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.062', date: '2026-11-09',
+    version: '2.064', date: '2026-11-09',
     items: [
       { title: 'Numbered texts and keynotes in Design CAD', text: 'TCOUNT (TNUM): type a prefix, the start number (01 keeps two digits), the step and a suffix, then click where each numbered text goes (L01, L02 …, centred on the click); U takes the last one back, S renumbers the texts picked in the order picked. KN (KEYNOTE): the number, where it goes and its note; it draws a numbered hexagon and a line in a KEYNOTES legend (the first time it asks where the legend starts; the next lines follow under it).', action: 'cad', actionLabel: 'Open Design CAD' },
       { title: 'Frames and masks round texts', text: 'TFRAME puts a circle, box or hexagon round the texts picked, sized from their height, moving and scaling with them (None takes it off). TMASK fills the box under a text in the paper colour so it reads over hatches, trays and underlays. Both are in the Properties palette too, and save to DXF and DWG (the mask as a solid hatch on LV-MASK).' }
+    ]
+  },
+  {
+    version: '2.063', date: '2026-11-09',
+    items: [
+      { title: 'Sheet furniture: revision rows, legend strip, a block per sheet kind', text: 'Sheet furniture (Design CAD → Sheets → Title block & numbering, and each sheet\'s settings) has more choices: a revision table of 6 or 8 lines, blank ones ruled, beside the title block; the legend in a strip along the foot of the drawing area, or in two columns of the right column (on A2 and A1 when it is long, or always); and, for riser and earthing sheets, the legend and notes in the sheet\'s column instead of inside the drawing, their schedules staying where they are. Title block & numbering can also give the riser and earthing sheets, the plan sheets or the report pages a title block of their own. As before, nothing changes until a value is chosen, and PDF and DXF / DWG agree.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.062', date: '2026-11-09',
+    items: [
+      { title: 'Sheet furniture', text: 'Design CAD → Sheets → Title block & numbering has a Sheet furniture section for what prints around the drawing on every sheet: zone references in the margin (off, on A2 and A1, or on every paper), centring marks, the legend column\'s text height (2.5 or 3.5 mm), the notes above the title block or in the legend column and the width of the notes box, and the smallest height the drawing\'s text may print at before a sheet counts as crowded (1.8 mm as before, 2.5 or 3.5). Each open sheet has the same choices in its settings, blank meaning as the set. Left alone, the sheets print as before. The PDF and the DXF / DWG files follow the same choices.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {

@@ -254,3 +254,57 @@ describe('legend column text at 2.5 mm', () => {
     expect(num(schedule, 40)).toBeCloseTo(2.5, 6);
   });
 });
+
+describe('sheet furniture in DXF', () => {
+  beforeAll(() => vi.stubGlobal('DOMParser', DOMParser));
+  afterAll(() => vi.unstubAllGlobals());
+  it('zone references and centring marks on E-FRAME, only when asked', () => {
+    const plain = buildSheetDxf(dxfExportProject, svg, 'A3', info);
+    expect(textOf(plain, 'E-FRAME')).toBe('');
+    const data = buildSheetDxf(dxfExportProject, svg, 'A3', { ...info, furniture: { zones: 'all', centring: true } });
+    const texts = entities(data).filter((e) => e.type === 'TEXT' && e.v.get(8) === 'E-FRAME').map((e) => e.v.get(1));
+    expect(texts.filter((t) => /^\d+$/.test(t!))).toHaveLength(16); // 1–8 top and bottom
+    expect(texts.filter((t) => /^[A-Z]$/.test(t!))).toHaveLength(12); // A–F each side
+    expect(texts).toContain('8');
+    expect(texts).not.toContain('9');
+    // The four centring marks are 0.7 mm wide: a line with a width is written as a filled SOLID strip.
+    const solids = (d: string) => entities(d).filter((e) => e.v.get(8) === 'E-FRAME' && e.type === 'SOLID').length;
+    expect(solids(data)).toBe(solids(plain) + 4);
+    expectPaperBounds(data, SHEET_MM.A3.w, SHEET_MM.A3.h);
+  });
+  it('the column\'s text follows the set\'s 3.5 mm', () => {
+    const data = buildSheetDxf(dxfExportProject, svg, 'A3', { ...info, cables: [{ ref: 1, text: '4C × 70 mm² XLPE' }], furniture: { textMm: 3.5 } });
+    const row = entities(data).find((e) => e.type === 'TEXT' && e.v.get(1)?.includes('4C'))!;
+    expect(num(row, 40)).toBeCloseTo(3.5, 6);
+  });
+});
+
+describe('revision rows in DXF', () => {
+  beforeAll(() => vi.stubGlobal('DOMParser', DOMParser));
+  afterAll(() => vi.unstubAllGlobals());
+  it('8 fixed lines pad the issues with blank rows and keep every text on the paper', () => {
+    const history = [{ id: 'A', date: '2026-10-01', description: 'Issue 1' }, { id: 'B', date: '2026-10-02', description: 'Issue 2' }];
+    const data = buildSheetDxf(dxfExportProject, svg, 'A3', { ...info, history, furniture: { revRows: 8 } });
+    const titles = entities(data).filter((e) => e.type === 'TEXT' && e.v.get(8) === 'E-TITLE').map((e) => e.v.get(1));
+    expect(titles).toContain('Issue 2');
+    // Eight lines of (44 - 5) / 8 mm under the 5 mm header: eight ruled lines across the revision area besides the header's.
+    const rules = entities(data).filter((e) => e.type === 'LINE' && e.v.get(8) === 'E-TITLE' && num(e, 10) === 20 && Math.abs(num(e, 20) - num(e, 21)) < 1e-6);
+    expect(rules.length).toBeGreaterThanOrEqual(8);
+    expectPaperBounds(data, SHEET_MM.A3.w, SHEET_MM.A3.h);
+  });
+});
+
+describe('legend strip in DXF', () => {
+  beforeAll(() => vi.stubGlobal('DOMParser', DOMParser));
+  afterAll(() => vi.unstubAllGlobals());
+  it('places the legend along the foot of the drawing area and the drawing above it', () => {
+    const legend = '<svg viewBox="0 0 1234.8 150" data-w="1234.8" data-h="150"><text x="64" y="53" style="font-size:10.5px">Busbar</text></svg>';
+    const data = buildSheetDxf(dxfExportProject, svg, 'A3', { ...info, legendSvg: legend, legendStrip: true });
+    const texts = entities(data).filter((e) => e.type === 'TEXT');
+    const busbar = texts.find((e) => e.v.get(1) === 'Busbar')!, diagram = texts.find((e) => e.v.get(1) === 'MDB ACB CT XLPE')!;
+    expect(num(busbar, 40)).toBeCloseTo(10.5 * 0.72 / 4.2, 2); // still 2.5 mm text
+    expect(num(busbar, 20)).toBeLessThan(num(diagram, 20)); // below the drawing
+    expect(num(busbar, 20)).toBeGreaterThan(10 + 44); // above the band
+    expectPaperBounds(data, SHEET_MM.A3.w, SHEET_MM.A3.h);
+  });
+});

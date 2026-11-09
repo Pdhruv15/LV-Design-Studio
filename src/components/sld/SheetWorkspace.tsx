@@ -22,6 +22,7 @@ import { addPlanSheets, PLAN_LABEL, PLAN_TYPES, planLevels } from '../../docs/pl
 import { exportDrawingSet, exportEverythingZip, exportSheetsDwg, exportSheetsDxf, sheetHtml } from '../docs/sheetRender';
 import { IssueDialog } from '../docs/IssueDialog';
 import { PageSetupDialog, PenTableDialog } from '../docs/PlotDialogs';
+import { FurnitureFields } from '../docs/FurnitureFields';
 import { SheetPdfPreview } from '../docs/SheetPdfPreview';
 import SheetMarkupLayer, { type SheetAnchor } from './SheetMarkupLayer';
 import { ALL_TOOLS } from './markupTools';
@@ -422,6 +423,12 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
             <textarea className="sheet-notes" rows={4} defaultValue={(s.notes ?? []).join('\n')} key={(s.notes ?? []).join('|')} placeholder={'One note per line, e.g.\nRefer to E-SLD-002 for SMDB-FF.'}
               onBlur={(e) => { const n = e.target.value.split('\n').map((x) => x.trim()).filter(Boolean); if (n.join('|') !== (s.notes ?? []).join('|')) patch({ notes: n.length ? n : undefined }); }} />
             <p className="m">Printed in the NOTES box after the project's SLD notes.</p>
+          </details>
+          <details><summary>Sheet furniture{s.furniture ? ' (this sheet)' : ''}</summary>
+            <div className="form-kv">
+              <FurnitureFields value={s.furniture ?? {}} base={set.furniture ?? {}} onChange={(f) => patch({ furniture: Object.keys(f).length ? f : undefined })} />
+            </div>
+            <p className="m">Blank: as the set (Title block & numbering). What prints around the drawing on this sheet only.</p>
           </details>
           {s.kind === 'system' && (
             <details><summary>Revision clouds ({(s.clouds ?? []).length})</summary>

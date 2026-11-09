@@ -131,6 +131,13 @@ describe('DB riser by level', () => {
     expect(L.pages.length).toBeGreaterThan(1);
     expect(L.pages.flat()).toEqual(L.rows.map((r) => r.index));
     expect(dbRiserDrawing(p, B, {}, 99).pages).toBe(L.pages.length);
+    // The sheet's column can take the notes: the riser table stays in the drawing.
+    const inColumn = dbRiserDrawing(p, B, { furniture: 'column' }, 0);
+    expect(inColumn.svg).not.toContain('>NOTES<');
+    expect(inColumn.svg).toContain('>Riser<');
+    expect(inColumn.notes!.length).toBeGreaterThanOrEqual(2);
+    expect(inColumn.notes![0]).toMatch(/^Boxes give the board references/);
+    expect(dbRiserDrawing(p, B, {}, 0).notes).toBeUndefined();
   });
 
   it('draws a busbar riser with tap-offs, passing floors with no dot, ended by a T-bar', () => {

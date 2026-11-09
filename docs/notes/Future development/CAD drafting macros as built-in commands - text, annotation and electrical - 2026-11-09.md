@@ -244,7 +244,7 @@ are left as they are (`src/model/cadText.ts`, pure, with tests; the flows in `Ca
 - Not built: ribbon entries and right-click items (optional in the proposal); TSUM (A12) and TXT2MTXT (A13) are
   batch 6.
 
-### Batch 2 (v2.062, branch `feat/cad-text-numbering`)
+### Batch 2 (v2.064, branch `feat/cad-text-numbering`)
 
 - **TFRAME** (A7): pick texts, Enter, `Frame [Circle/Box/Hexagon/None] <Circle>:`. A text item has an optional `frame`;
   the frame is drawn 0.3 × the height clear of the text's box, turned with it, from its height and words, so Move,

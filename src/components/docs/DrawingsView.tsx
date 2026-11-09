@@ -12,7 +12,7 @@ import {
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
 import { sheetItems } from '../../model/sheetChanges';
-import { loadTemplateLibrary } from '../../model/titleBlock';
+import { loadTemplateLibrary, STANDARD_BLOCK, TEMPLATE_KINDS } from '../../model/titleBlock';
 /** Excel export loads ExcelJS only when used (this view is part of the SLD workspace, loaded at start). */
 const excel = async () => ({ ...(await import('../../docs/formWorkbook')), ...(await import('../../docs/registerWorkbook')) });
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
@@ -22,6 +22,7 @@ import { submissionForIssue } from '../../model/submissions';
 import { PLAN_LABEL } from '../../docs/planLayout';
 import { exportDrawingSet, exportEverythingZip, exportSheetsDxf, registerRows, sheetHtml, SheetPreview } from './sheetRender';
 import SheetGrid from './SheetGrid';
+import { FurnitureFields } from './FurnitureFields';
 import { Page, Modal } from '../ui';
 import type { MainView } from '../../views';
 import { fmtDate } from '../../util/format';
@@ -377,6 +378,17 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
                 <button className="linkish" onClick={() => onOpen('titleblock')}>Design…</button>
               </label>
             </div>
+            <div className="dr-line">
+              {TEMPLATE_KINDS.map(([kind, label]) => (
+                <label key={kind} className="row">{label}
+                  <select className="chip" value={d.titleTemplateByKind?.[kind] ?? ''} onChange={(e) => { const by = { ...(d.titleTemplateByKind ?? {}) }; if (e.target.value) by[kind] = e.target.value; else delete by[kind]; onChange({ ...project, drawing: { ...d, titleTemplateByKind: Object.keys(by).length ? by : undefined } }); }}>
+                    <option value="">Same</option>
+                    <option value={STANDARD_BLOCK}>Standard</option>
+                    {[...(project.titleTemplates ?? []), ...loadTemplateLibrary().filter((t) => !(project.titleTemplates ?? []).some((x) => x.id === t.id))].map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </label>
+              ))}
+            </div>
           </section>
           <section className="card">
             <h4>Numbering</h4>
@@ -400,6 +412,13 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
               </label>
             </div>
             <p className="m">In a custom title block use {'{SheetNo}'}, {'{SheetTitle}'}, {'{SheetIndex}'} of {'{SheetCount}'}, {'{Status}'}, {'{Rev}'}, {'{RevDate}'}, {'{DrawnBy}'}, {'{CheckedBy}'}, {'{ApprovedBy}'}, {'{Scale}'}.</p>
+          </section>
+          <section className="card">
+            <h4>Sheet furniture — every sheet of the set</h4>
+            <div className="form-kv">
+              <FurnitureFields value={set.furniture ?? {}} onChange={(f) => save({ ...set, furniture: Object.keys(f).length ? f : undefined })} />
+            </div>
+            <p className="m">What prints around the drawing: zone references in the margin, centring marks, the legend column's text height, where the notes go, and the smallest text a drawing may print at before its sheet counts as crowded. Left as they are, the sheets print as before. A sheet can choose otherwise in its own settings.</p>
           </section>
         </div>
       )}

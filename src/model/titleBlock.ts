@@ -61,8 +61,20 @@ export function standardTemplate(): TitleTemplate {
   };
 }
 
-export const templateOf = (p: Project): TitleTemplate | undefined =>
-  p.drawing?.titleTemplateId ? p.titleTemplates?.find((t) => t.id === p.drawing!.titleTemplateId) : undefined;
+/** The sheets a title block can be chosen for apart from the rest: SLD and board sheets, riser and earthing sheets,
+ * plan sheets, the SLD pages of the reports. */
+export type TemplateKind = 'sld' | 'riser' | 'plan' | 'report';
+export const TEMPLATE_KINDS: [TemplateKind, string][] = [['sld', 'SLD and board sheets'], ['riser', 'Riser and earthing sheets'], ['plan', 'Plan sheets'], ['report', 'Report pages']];
+export const templateKindOf = (kind?: string): TemplateKind => (kind === 'plan' ? 'plan' : kind === 'riser' || kind === 'earthing' || kind === 'earthRiser' || kind === 'earthFloor' ? 'riser' : 'sld');
+/** In titleTemplateByKind: the standard block for this kind of sheet (the starting template's own id is 'standard'). */
+export const STANDARD_BLOCK = 'standard-block';
+/** The template the sheets use: the one chosen for this kind of sheet (STANDARD_BLOCK for the standard block), else the
+ * project's. */
+export function templateOf(p: Project, kind?: TemplateKind): TitleTemplate | undefined {
+  const own = kind ? p.drawing?.titleTemplateByKind?.[kind] : undefined;
+  const id = own ?? p.drawing?.titleTemplateId;
+  return id && id !== STANDARD_BLOCK ? p.titleTemplates?.find((t) => t.id === id) : undefined;
+}
 
 /** Escaped for text and quoted attributes (project data is untrusted). */
 const esc = escapeHtmlAttr;

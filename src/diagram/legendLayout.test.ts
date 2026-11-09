@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LEGEND_FOOT, LEGEND_HEAD, LEGEND_LINE, LEGEND_PX_PER_MM, LEGEND_SHEET_ROW, legendLineY, legendPxFor, legendRows, wrapLabel } from './legendLayout';
+import { LEGEND_FOOT, LEGEND_GAP, LEGEND_HEAD, LEGEND_LINE, LEGEND_PX_PER_MM, LEGEND_SHEET_ROW, legendHeightMm, legendLineY, legendPxFor, legendRows, plainNotes, stringLegendSvg, stripColumns, wrapLabel } from './legendLayout';
 
 /** A sheet legend is drawn for its column's width, so its 10.5 px labels print at 2.5 mm, and labels wrap instead of
  * the legend shrinking to fit the longest one. */
@@ -35,5 +35,48 @@ describe('legend layout', () => {
   it('with a generous width nothing wraps (the design canvas legend)', () => {
     const { rows } = legendRows([{ label: 'Earth leakage protection (RCD / ELR toroid), device named beside it' }], 1000, 64);
     expect(rows[0].lines).toHaveLength(1);
+  });
+});
+
+describe('legend text height', () => {
+  it('a 3.5 mm legend is drawn at 3 px per mm, so the same 10.5 px labels print taller', () => {
+    expect(legendPxFor(88, 3.5)).toBeCloseTo(264, 6);
+    expect(legendPxFor(88, 2.5)).toBeCloseTo(legendPxFor(88), 6);
+  });
+});
+
+describe('legend columns and strips', () => {
+  const labels = Array.from({ length: 10 }, (_, i) => ({ label: `Entry ${i + 1}` }));
+  it('two columns share the entries evenly and halve the height; the second column starts after the gap', () => {
+    const one = legendRows(labels, legendPxFor(180), 64, 1), two = legendRows(labels, legendPxFor(180), 64, 2);
+    expect(one.rows.every((r) => r.x === 0)).toBe(true);
+    expect(two.rows.filter((r) => r.x === 0)).toHaveLength(5);
+    expect(two.rows.filter((r) => r.x > 0)).toHaveLength(5);
+    expect(two.rows[5].x).toBeCloseTo((legendPxFor(180) - LEGEND_GAP) / 2 + LEGEND_GAP, 6);
+    expect(two.h).toBe(LEGEND_HEAD + 5 * LEGEND_SHEET_ROW + LEGEND_FOOT);
+    expect(one.h).toBe(LEGEND_HEAD + 10 * LEGEND_SHEET_ROW + LEGEND_FOOT);
+  });
+  it('knows a legend\'s printed height without drawing it, and how many columns a strip takes', () => {
+    expect(legendHeightMm(labels.map((l) => l.label), 88)).toBeCloseTo((LEGEND_HEAD + 10 * LEGEND_SHEET_ROW + LEGEND_FOOT) / 4.2, 6);
+    expect(legendHeightMm(labels.map((l) => l.label), 88, 3.5)).toBeCloseTo((LEGEND_HEAD + 10 * LEGEND_SHEET_ROW + LEGEND_FOOT) / 3, 6);
+    expect(legendHeightMm([], 88)).toBe(0);
+    expect(stripColumns(420 - 30 - 92 - 4)).toBe(3); // A3 beside the column
+    expect(stripColumns(841 - 30 - 92 - 4)).toBe(7); // A1
+  });
+});
+
+describe('string legends and drawing notes', () => {
+  it('draws string items as the SLD legend is drawn: the column\'s width, 10.5 px labels, the rows of the layout', () => {
+    const items = [{ key: 'a', label: 'Transformer', draw: (x: number, y: number) => `<circle cx="${x}" cy="${y}" r="5"/>` }, { key: 'b', label: 'A tall symbol', draw: () => '<g/>', h: 70 }];
+    const svg = stringLegendSvg(items, 88);
+    expect(svg).toContain(`data-w="${legendPxFor(88)}"`);
+    expect(svg).toContain(`data-h="${LEGEND_HEAD + LEGEND_SHEET_ROW + 70 + LEGEND_FOOT}"`); // the tall row keeps its 70 px
+    expect(svg).toContain('font-size="10.5"');
+    expect(svg).toContain(`<circle cx="34" cy="${LEGEND_HEAD + 17}" r="5"/>`);
+    expect(svg).toContain('>Transformer</text>');
+    expect(stringLegendSvg([], 88)).toBe('');
+  });
+  it('hands drawing notes to the sheet without their heading and numbering', () => {
+    expect(plainNotes(['NOTES', '1. FIRST.', '2. SECOND.', '', 'NOT SHOWN: X.'])).toEqual(['FIRST.', 'SECOND.', 'NOT SHOWN: X.']);
   });
 });
