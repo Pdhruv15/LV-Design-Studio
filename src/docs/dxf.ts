@@ -8,11 +8,20 @@ export type DxfPrimitive = (
   | { type: 'polyline'; layer: string; points: [number, number][]; closed?: boolean; width?: number }
   | { type: 'circle'; layer: string; x: number; y: number; r: number }
   | { type: 'text'; layer: string; x: number; y: number; height: number; text: string; align?: 'left' | 'center' | 'right'; rotation?: number; width?: number }
+  | { type: 'insert'; layer: string; name: string; x: number; y: number; scale?: number; rotation?: number; block: DxfBlock; attribs: DxfAttrib[]; extent?: [[number, number], [number, number]] }
 ) & {
   /** Equipment tag ("feeder:<id>", "board:<id>"), written as extended data under DXF_APP so a CAD
    * program can tell which board or feeder each object belongs to (and later update or measure it). */
   tag?: string;
 };
+/** A block definition written to the BLOCKS section (a company title block): its geometry about its base point (0, 0)
+ * and its attribute definitions, so an INSERT of it carries editable ATTRIB values in CAD. */
+export interface DxfBlock { name: string; items: DxfPrimitive[]; attdefs: DxfAttdef[] }
+export interface DxfAttdef { tag: string; prompt: string; value: string; x: number; y: number; height: number; align?: 'left' | 'center' | 'right'; rotation?: number }
+/** An attribute of an INSERT: its value where it prints (drawing coordinates). */
+export interface DxfAttrib { tag: string; value: string; x: number; y: number; height: number; align?: 'left' | 'center' | 'right'; rotation?: number }
+/** A block name as DXF allows it: letters, digits, _ - $, at most 31 characters. */
+export const dxfBlockName = (name: string) => (name.toUpperCase().replace(/[^A-Z0-9_$-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 31) || 'TITLE_BLOCK');
 
 /** Registered application name of the extended data that carries equipment tags. */
 export const DXF_APP = 'LVDS';
@@ -109,6 +118,7 @@ function fittedBaseline(i: DxfTextPrimitive): { start: [number, number]; end: [n
 }
 
 function boundsPoints(i: DxfPrimitive): [number, number][] {
+  if (i.type === 'insert') return i.extent ?? [[i.x, i.y]];
   if (i.type === 'line' || i.type === 'polyline') {
     const points: [number, number][] = i.type === 'line' ? [[i.x1, i.y1], [i.x2, i.y2]] : i.points;
     return positiveWidth(i.width) ? strokeQuads(i).flat() : points;
@@ -186,29 +196,56 @@ export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number
     }
   };
 
-  g(0, 'SECTION'); g(2, 'ENTITIES');
-  for (const i of items) {
+  // Block definitions of the inserts, each once.
+  const blocks = new Map<string, DxfBlock>();
+  for (const i of items) if (i.type === 'insert' && !blocks.has(i.name)) blocks.set(i.name, i.block);
+  const textEntity = (kind: 'TEXT' | 'ATTDEF' | 'ATTRIB', layer: string, x: number, y: number, height: number, value: string, align?: 'left' | 'center' | 'right', rotation?: number, tag?: string, prompt?: string) => {
+    g(0, kind); g(8, layer); g(7, TEXT_STYLE); g(10, x); g(20, y); g(30, 0); g(40, height); g(1, dxfText(value));
+    if (rotation) g(50, rotation);
+    const h = align === 'center' ? 1 : align === 'right' ? 2 : 0;
+    if (h) { g(72, h); g(11, x); g(21, y); g(31, 0); }
+    if (kind !== 'TEXT') { if (kind === 'ATTDEF') g(3, prompt ?? tag ?? ''); g(2, tag ?? ''); g(70, 0); }
+  };
+  const entity = (i: DxfPrimitive) => {
     if (i.type === 'line') {
       if (positiveWidth(i.width)) solids(i);
       else { g(0, 'LINE'); g(8, i.layer); g(10, i.x1); g(20, i.y1); g(30, 0); g(11, i.x2); g(21, i.y2); g(31, 0); xdata(i.tag); }
     } else if (i.type === 'circle') {
       g(0, 'CIRCLE'); g(8, i.layer); g(10, i.x); g(20, i.y); g(30, 0); g(40, i.r); xdata(i.tag);
     } else if (i.type === 'polyline') {
-      if (i.points.length < 2) continue;
+      if (i.points.length < 2) return;
       if (positiveWidth(i.width)) solids(i);
       else polyline(i.layer, i.points, !!i.closed, i.tag);
-    } else {
-      const text = dxfText(i.text);
-      if (!text.trim()) continue;
+    } else if (i.type === 'text') {
+      if (!dxfText(i.text).trim()) return;
       const fit = positiveWidth(i.width) ? fittedBaseline(i) : undefined;
-      g(0, 'TEXT'); g(8, i.layer); g(7, TEXT_STYLE); g(10, fit?.start[0] ?? i.x); g(20, fit?.start[1] ?? i.y); g(30, 0); g(40, i.height); g(1, text);
+      g(0, 'TEXT'); g(8, i.layer); g(7, TEXT_STYLE); g(10, fit?.start[0] ?? i.x); g(20, fit?.start[1] ?? i.y); g(30, 0); g(40, i.height); g(1, dxfText(i.text));
       if (i.rotation) g(50, i.rotation);
       const h = i.align === 'center' ? 1 : i.align === 'right' ? 2 : 0;
       if (fit) { g(72, 5); g(73, 0); g(11, fit.end[0]); g(21, fit.end[1]); g(31, 0); }
       else if (h) { g(72, h); g(11, i.x); g(21, i.y); g(31, 0); }
       xdata(i.tag);
+    } else {
+      // INSERT with its attributes following (66 = 1), closed by SEQEND.
+      g(0, 'INSERT'); g(8, i.layer); if (i.attribs.length) g(66, 1); g(2, i.name); g(10, i.x); g(20, i.y); g(30, 0);
+      const sc = i.scale ?? 1; g(41, sc); g(42, sc); g(43, sc); if (i.rotation) g(50, i.rotation); xdata(i.tag);
+      for (const a of i.attribs) textEntity('ATTRIB', i.layer, a.x, a.y, a.height, a.value, a.align, a.rotation, a.tag);
+      if (i.attribs.length) { g(0, 'SEQEND'); g(8, i.layer); }
     }
+  };
+  if (blocks.size) {
+    g(0, 'SECTION'); g(2, 'BLOCKS');
+    for (const b of blocks.values()) {
+      g(0, 'BLOCK'); g(8, '0'); g(2, b.name); g(70, b.attdefs.length ? 2 : 0); g(10, 0); g(20, 0); g(30, 0); g(3, b.name);
+      for (const it of b.items) if (it.type !== 'insert') entity(it);
+      for (const a of b.attdefs) textEntity('ATTDEF', 'E-TITLE', a.x, a.y, a.height, a.value, a.align, a.rotation, a.tag, a.prompt);
+      g(0, 'ENDBLK'); g(8, '0');
+    }
+    g(0, 'ENDSEC');
   }
+
+  g(0, 'SECTION'); g(2, 'ENTITIES');
+  for (const i of items) entity(i);
   g(0, 'ENDSEC');
   g(0, 'EOF');
   return out.join('\r\n') + '\r\n';

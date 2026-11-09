@@ -222,3 +222,14 @@ describe('legend sheet', () => {
     expect(doc.querySelector('.notes')!.textContent).toContain('SEE E-SLD-000');
   });
 });
+
+describe('drawn title block on a sheet', () => {
+  it('prints the imported block as SVG in the frame\'s corner with the sheet\'s values in its fields', () => {
+    const drawn = { id: 'tb-d', name: 'ACME', kind: 'drawn' as const, cols: [], rows: [], cells: [], size: { w: 180, h: 44 }, shapes: [{ kind: 'line' as const, x1: 0, y1: 0, x2: 180, y2: 0 }], texts: [{ id: 't1', x: 100, y: 40, h: 3.5, text: '{SheetNo}', tag: 'DWG_NO' }] };
+    const p: Project = { ...sampleProject, titleTemplates: [drawn], drawing: { ...sampleProject.drawing, titleTemplateId: 'tb-d' } };
+    const html = buildSldSheetHtml(p, svg, 'A3', one), doc = parse(html);
+    expect(doc.querySelector('.tbx svg')).not.toBeNull();
+    expect(html).toContain('>E-SLD-001</text>');
+    expect([...doc.querySelectorAll('.band .rv tr')]).toHaveLength(6); // the revision table divides the 44 mm block's height
+  });
+});

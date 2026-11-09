@@ -131,3 +131,32 @@ describe('CAD engine (Rust, WebAssembly)', () => {
     expect(asDwg.info.extents.map(Math.round)).toEqual(asDxf.info.extents.map(Math.round));
   });
 });
+
+describe('company title block as a block with attributes (round trip through the engine)', () => {
+  const drawn = {
+    id: 'tb-d', name: 'ACME block', kind: 'drawn' as const, cols: [], rows: [], cells: [], size: { w: 180, h: 44 },
+    shapes: [{ kind: 'line' as const, x1: 0, y1: 0, x2: 180, y2: 0 }, { kind: 'line' as const, x1: 0, y1: 44, x2: 180, y2: 44 }, { kind: 'circle' as const, cx: 10, cy: 10, r: 4 }],
+    texts: [{ id: 't1', x: 5, y: 40, h: 2.5, text: 'ACME CONSULTANTS' }, { id: 't2', x: 100, y: 40, h: 3.5, text: '{SheetNo}', tag: 'DWG_NO', orig: 'E-000' }, { id: 't3', x: 150, y: 20, h: 2.5, text: '{Rev}' }]
+  };
+  it('the DXF the app writes opens with the block, its attributes read, and converts to DWG; exploding the insert gives the block back as a template', async () => {
+    const { drawnTitleBlockDxf } = await import('../../docs/titleBlockDxf');
+    const { toDxf } = await import('../../docs/dxf');
+    const { drawnFromPieces } = await import('../../model/titleBlockImport');
+    const { explodeObjects } = await import('./cadEngine');
+    const items = drawnTitleBlockDxf(drawn, sampleProject, { x: 230, y: 10, w: 180, h: 44 }, { SheetNo: 'E-SLD-001', Rev: 'B' }).items;
+    const dxf = toDxf([{ type: 'polyline', layer: 'E-FRAME', closed: true, points: [[0, 0], [420, 0], [420, 297], [0, 297]] }, ...items], { 'E-FRAME': 7, 'E-TITLE': 7 });
+    for (const [name, data] of [['sheet.dxf', new TextEncoder().encode(dxf)], ['sheet.dwg', await dxfToDwg(dxf)]] as const) {
+      const v = await openDrawing(name, data);
+      const ins = v.blocks().find((b) => b.block === 'TB_ACME_BLOCK');
+      expect(ins, name).toBeDefined();
+      expect(ins!.attributes, name).toMatchObject({ DWG_NO: 'E-SLD-001', REV: 'B' });
+      expect(v.info.texts.some((t) => t.s === 'ACME CONSULTANTS'), name).toBe(true);
+      // Importing it again: the insert's pieces make a drawn template of the block's size, its attributes fields.
+      const { pieces } = await explodeObjects(v, [ins!.handle]);
+      const back = drawnFromPieces(pieces[ins!.handle] ?? Object.values(pieces).flat(), v.info.units, 'back');
+      expect(back.size!.w, name).toBeCloseTo(180, 0);
+      expect(back.texts!.find((t) => t.tag === 'DWG_NO'), name).toMatchObject({ text: '{SheetNo}', orig: 'E-SLD-001' });
+      v.close();
+    }
+  });
+});
