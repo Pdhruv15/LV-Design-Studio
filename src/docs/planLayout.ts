@@ -8,6 +8,7 @@ import { isFrozen, vpWindow, type PlanViewport } from '../model/planViewports';
 import { dimOf, scaleLook, segmentsOf, sketchOf, trayLabel, trayLength, trayLine } from '../model/cadSketch';
 import { effective, layerStylesOf, styleOf } from '../model/cadLayerStyle';
 import { annoOf } from '../model/cadAnnotate';
+import { textBaseAt } from '../model/cadText';
 import { dotsOnly, hatchDots, hatchStrokes, mirroredY, defOf, placedLines } from '../model/cadHatch';
 import { fittingCounts, trayFittings } from '../model/cadTrayFittings';
 import { planScale as unitsOf } from '../model/cadUnits';
@@ -275,10 +276,10 @@ export function drawnTextMm(p: Project, s: Pick<DrawingSheet, 'buildingId' | 'le
 function drawnSvg(items: Drawn[], X: (x: number) => number, Y: (y: number) => number, f: number, win: Box, pen: Record<PenKey, Pen>, thin: boolean, id: string): string {
   if (!items.length) return '';
   const P = ([x, y]: Pt) => `${X(x)} ${Y(y)}`, ink = inkOf(pen.sketch), defs: string[] = [], body: string[] = [];
-  const text = (at: Pt, s: string, h: number, rot: number, anchor: 'start' | 'middle') => {
+  const text = (at: Pt, s: string, h: number, rot: number, anchor: 'start' | 'middle' | 'end') => {
     if (!s || !(h > 0) || !within(at, win)) return;
     const x = X(at[0]), y = Y(at[1]);
-    body.push(`<text x="${x}" y="${y}"${rot ? ` transform="rotate(${n((-rot * 180) / Math.PI)} ${x} ${y})"` : ''} font-size="${n(h * f)}"${anchor === 'middle' ? ' text-anchor="middle"' : ''} fill="${ink}">${esc(s)}</text>`);
+    body.push(`<text x="${x}" y="${y}"${rot ? ` transform="rotate(${n((-rot * 180) / Math.PI)} ${x} ${y})"` : ''} font-size="${n(h * f)}"${anchor !== 'start' ? ` text-anchor="${anchor}"` : ''} fill="${ink}">${esc(s)}</text>`);
   };
   items.forEach(({ it, dash, lw }, i) => {
     if (it.hatch) {
@@ -305,7 +306,7 @@ function drawnSvg(items: Drawn[], X: (x: number) => number, Y: (y: number) => nu
       if (dots) body.push(`<path d="${dots}" clip-path="url(#${id}-${i})" fill="none" stroke="${inkOf(pen.hatch)}" stroke-width="0.35" stroke-linecap="round"/>`);
       return;
     }
-    if (it.kind === 'text') { text(it.pts[0], it.text ?? '', it.h ?? 0, it.rot ?? 0, 'start'); return; }
+    if (it.kind === 'text') { const b = textBaseAt(it); text(b.at, it.text ?? '', it.h ?? 0, it.rot ?? 0, b.align === 'center' ? 'middle' : b.align === 'right' ? 'end' : 'start'); return; }
     let d = '', end = '';
     for (const [a, b] of segmentsOf(it, 1)) { const s = P(a); d += `${s === end ? '' : `M${s}`}L${(end = P(b))}`; }
     if (d) body.push(`<path d="${d}" fill="none" stroke="${ink}" stroke-width="${n(thin || !lw ? pen.sketch.w : lw)}"${dash.length ? ` stroke-dasharray="${dash.join(' ')}"` : ''}/>`);

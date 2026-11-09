@@ -86,6 +86,8 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['EL', 'ELLIPSE'], desc: 'Ellipse', tool: 'ellipse' },
   { aliases: ['REVCLOUD'], desc: 'Revision cloud', tool: 'revcloud' },
   { aliases: ['T', 'DT', 'TEXT', 'MT'], desc: 'Text', tool: 'text' },
+  { aliases: ['TJ', 'TJUST', 'JUSTIFYTEXT'], desc: 'Justify the texts picked without moving them', tool: 'tjust' },
+  { aliases: ['TH', 'TXTHEIGHT', 'TEXTHEIGHT'], desc: 'Text height on paper (mm) of the texts picked, or for new text', tool: 'th' },
   { aliases: ['DIM', 'DIMALIGNED', 'DAL'], desc: 'Aligned dimension', tool: 'dim' },
   { aliases: ['DLI', 'DIMLINEAR'], desc: 'Linear dimension (horizontal or vertical)', tool: 'dimlin' },
   { aliases: ['DCO', 'DIMCONTINUE'], desc: 'Continue dimension', tool: 'dimcont' },

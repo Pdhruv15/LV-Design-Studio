@@ -416,6 +416,44 @@ describe('CAD view', () => {
     expect(Number(sk()[5].text)).toBeCloseTo(3, 1);
   });
 
+  it('TJUST justifies the texts picked without moving them; TXTHEIGHT sets their height on paper, or the height for new text', async () => {
+    const X = 200000, F = 'sample-villa-gf.dxf';
+    // "DB ROOM" 250 high (2.5 mm at 1:100): 1,050 wide from the left end of its baseline at (X, 0).
+    const start: Project = { ...villa, cadSketch: [{ file: F, items: [{ id: 'T1', kind: 'text', layer: 'LV-ANNO', pts: [[X, 0]], text: 'DB ROOM', h: 250 }] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const it = () => project.cadSketch![0].items[0];
+    await clickAt(X + 300, 100);
+    expect(state.selected).toBe('sk:T1');
+    await command('tj');
+    expect(state.history[state.history.length - 1]).toContain('TJUST  Justify [Left/Centre/Right/TL/TC/TR/ML/MC/MR/BL/BC/BR] <Left>:');
+    await command('mc');
+    expect(it().just).toBe('MC');
+    expect(it().pts[0][0]).toBeCloseTo(X + 525, 6); expect(it().pts[0][1]).toBeCloseTo(125, 6);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('TJUST  1 text justified middle centre · ⌘Z to undo');
+    // Its box is where it was: a click at the old spot still picks it, and Properties shows the justification.
+    act(() => state.setSelected(null));
+    await clickAt(X + 300, 100);
+    expect(state.selected).toBe('sk:T1');
+    await until(() => !!document.querySelector('[aria-label="Justify"]'));
+    expect((document.querySelector('[aria-label="Justify"]') as HTMLSelectElement).value).toBe('MC');
+    await command('th');
+    expect(state.history[state.history.length - 1]).toContain('<2.5>:');
+    await command('5');
+    expect(it().h).toBe(500);
+    expect(it().pts[0][0]).toBeCloseTo(X + 525, 6);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('TXTHEIGHT  1 object 5 mm on paper at 1:100 · ⌘Z to undo');
+    // With nothing picked: the height for new text.
+    act(() => state.setSelected(null));
+    await command('th');
+    await command('');
+    expect(state.history[state.history.length - 1]).toContain('for new text');
+    await command('3.5');
+    expect(project.cadAnno?.textMm).toBe(3.5);
+    expect(it().h).toBe(500);
+  });
+
   it('moves, copies, rotates and erases what was drawn, and copies a light onto its circuit', async () => {
     act(() => root.render(<Host />));
     await flush();
