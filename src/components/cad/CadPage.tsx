@@ -60,6 +60,7 @@ import { fmtFixed, fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
 import { AnnoPanel, HatchPanel } from './AnnotatePanel';
 import { annoOf, centreOf, hatchItem, hatchOutline, HATCH_START, leaderItems, northArrowItems, roomTagItems, textUnits, unitsPerPaperMm, type HatchSpec } from '../../model/cadAnnotate';
+import { ISO_TEXT_MM, justLabel, parseJust, rejustified, withTextHeight } from '../../model/cadText';
 import { LayerPalette, layerRows, type LayerRow } from './CadLayerManager';
 import { PropertiesPalette } from './CadProperties';
 import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
@@ -89,7 +90,7 @@ const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab 
 ];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · TJ (justify texts) · TH (text height) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 /** Bind's count in the Save line: reference lines, texts and hatches. */
@@ -118,6 +119,8 @@ const PROMPT: Record<CadTool, string> = {
   hatch: 'HATCH  Pick an internal point (inside a closed object or a room):',
   leader: 'LEADER  Specify leader arrow point:',
   rtag: 'ROOMTAG  Click inside a room:',
+  tjust: 'TJUST  Select texts (click, Shift-click or a window), then Enter:',
+  th: 'TXTHEIGHT  Select texts and dimensions, then Enter (Enter with none: the height for new text):',
   north: 'NORTH  Specify insertion point:',
   wire: 'WIRE  Click a device: its circuit is wired (or its wiring taken off):',
   move: 'MOVE  Select object, then specify base point:',
@@ -187,8 +190,12 @@ const DRAW_LAYER = 'LV-SKETCH', ANNO_LAYER = 'LV-ANNO';
 const WIRING_LAYER = 'E-LV-WIRING', TAG_LAYER = 'E-LV-TAGS';
 /** The edit tools on what was drawn (Draw → Edit, Mirror / Scale / Stretch in Modify), and those that work on objects
  * picked first. */
-const EDIT_TOOLS: CadTool[] = ['trim', 'extend', 'offset', 'fillet', 'chamfer', 'break', 'join', 'explode', 'mirror', 'scale', 'stretch', 'array'];
-const PICK_FIRST: CadTool[] = ['join', 'mirror', 'scale', 'array'];
+const EDIT_TOOLS: CadTool[] = ['trim', 'extend', 'offset', 'fillet', 'chamfer', 'break', 'join', 'explode', 'mirror', 'scale', 'stretch', 'array', 'tjust', 'th'];
+const PICK_FIRST: CadTool[] = ['join', 'mirror', 'scale', 'array', 'tjust', 'th'];
+/** The text tools: on the texts picked first, then a value on the command line. */
+const TEXT_TOOLS: CadTool[] = ['tjust', 'th'];
+const TJUST_PROMPT = (now: string) => `TJUST  Justify [Left/Centre/Right/TL/TC/TR/ML/MC/MR/BL/BC/BR] <${now}>:`;
+const TH_PROMPT = (mm: number, forNew: boolean) => `TXTHEIGHT  Height on paper (mm)${forNew ? ' for new text' : ''} ${ISO_TEXT_MM.join(' · ')} <${mm}>:`;
 const DRAW_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'rect', 'circle', 'arc', 'text', 'dim', 'dimlin', 'dimcont', 'dimbase', 'move', 'copy', 'rotate', 'polygon', 'ellipse', 'circle2p', 'circle3p', 'circled', 'arcsce', 'revcloud'];
 
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
@@ -360,7 +367,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     setDlg((d) => (DIALOG_TOOLS.includes(tool as EditTool) ? 'edit' : d === 'edit' ? null : d));
     if (tool !== 'none' && tool !== 'xattach' && tool !== 'xclip') { const label = PROMPT[tool].split(' ')[0]; setRecent((r) => [{ label, tool }, ...r.filter((x) => x.label !== label)].slice(0, 8)); }
     setCrop(tool === 'crop' ? { step: 'pick' } : null);
-    cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? (tool === 'array' ? arrayType(edSet) : `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : 'Enter to join them:'}`) : pre && tool === 'offset' ? OFFSET_SIDE : editPrompt(tool, edSet)}`);
+    cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? (tool === 'array' ? arrayType(edSet) : TEXT_TOOLS.includes(tool) ? textToolPrompt(tool) : `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : 'Enter to join them:'}`) : pre && tool === 'offset' ? OFFSET_SIDE : editPrompt(tool, edSet)}`);
     // CROP with drawn items picked first: they are what is cut.
     if (tool === 'crop' && first) { const ids = picked.length ? picked.filter((k) => k.startsWith('sk:')).map((k) => k.slice(3)) : [cad.selected!.slice(3)]; setCrop({ step: 'outline', target: { items: ids, label: `${ids.length} drawn object${ids.length === 1 ? '' : 's'}` } }); cad.say(CROP_OUTLINE); }
   }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1628,6 +1635,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (c === 'P' || !c) { setEdSet({ ...edSet, polar: true }); setEdAsk(null); cad.say('ARRAY  Specify center point of array:'); return true; }
       return false;
     }
+    // A text tool with its texts picked: the justification or height typed (Enter: the default).
+    if (TEXT_TOOLS.includes(tool) && edPhase === 'points') { textToolInput(c); return true; }
     if (c) return false;
     if (tool === 'break') {
       const it = edStep && sketch.find((x) => x.id === edStep.id);
@@ -1639,9 +1648,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     if (tool === 'join') { applyJoin(); return true; }
     if (PICK_FIRST.includes(tool) && edPhase === 'pick') {
-      if (!pickedSk.length) { cad.say(`${CMD}  Pick the objects first.`); return true; }
+      // TXTHEIGHT with nothing picked asks the height for new text.
+      if (!pickedSk.length && tool !== 'th') { cad.say(`${CMD}  Pick the ${tool === 'tjust' ? 'texts' : 'objects'} first.`); return true; }
       setEdPhase('points');
-      if (tool === 'array') { setEdAsk('type'); cad.say(arrayType(edSet)); } else cad.say(tool === 'mirror' ? 'MIRROR  Specify first point of the mirror line:' : 'SCALE  Specify base point:');
+      if (tool === 'array') { setEdAsk('type'); cad.say(arrayType(edSet)); } else if (TEXT_TOOLS.includes(tool)) cad.say(textToolPrompt(tool)); else cad.say(tool === 'mirror' ? 'MIRROR  Specify first point of the mirror line:' : 'SCALE  Specify base point:');
       return true;
     }
     if (tool === 'array' && !edSet.polar && pickedSk.length) { applyArray(); return true; }
@@ -1833,6 +1843,37 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (!command) cad.say(`Unknown command "${c}". Press F1 for the list.`);
     else if ('tool' in command) cad.setTool(command.tool);
     else act[command.action]();
+  }
+
+  /** The prompt of a text tool once the texts are picked: the first one's justification or height on paper as the default. */
+  function textToolPrompt(t: CadTool): string {
+    const texts = pickedSk.filter((it) => it.kind === 'text');
+    if (t === 'tjust') return TJUST_PROMPT(justLabel(texts[0]?.just));
+    const sized = pickedSk.filter((it) => it.kind === 'text' || it.kind === 'dim'), h = sized[0]?.h;
+    return TH_PROMPT(h ? Math.round((h / unitsPerPaperMm(anno, units.factor)) * 100) / 100 : anno.textMm, !sized.length);
+  }
+  /** What is typed at a text tool's prompt (Enter: the default): TJUST moves each text's anchor on its box; TXTHEIGHT
+   * sets the height of the texts and dimensions picked, or of new text when none is. One undo step. */
+  function textToolInput(c: string) {
+    const texts = pickedSk.filter((it) => it.kind === 'text'), others = pickedSk.length - texts.length;
+    const left = (n: number) => (n ? ` (${n} other object${n === 1 ? '' : 's'} left as ${n === 1 ? 'it is' : 'they are'})` : '');
+    if (tool === 'tjust') {
+      const j = c ? parseJust(c) : texts[0]?.just ?? 'L';
+      if (!j) { cad.say(`TJUST  "${c}" is not a justification. ${textToolPrompt(tool)}`); return; }
+      let next = project;
+      for (const it of texts) next = updateSketch(next, fileOf(), rejustified(it, j));
+      change(next, `TJUST  ${texts.length} text${texts.length === 1 ? '' : 's'} justified ${justLabel(j).toLowerCase()}${left(others)} · ⌘Z to undo`);
+      cad.setTool('none'); return;
+    }
+    const sized = pickedSk.filter((it) => it.kind === 'text' || it.kind === 'dim');
+    const mm = c ? Number(c) : sized[0]?.h ? Math.round((sized[0].h / unitsPerPaperMm(anno, units.factor)) * 100) / 100 : anno.textMm;
+    if (c && (!isNumber(c) || !(mm > 0))) { cad.say(`TXTHEIGHT  Type the height on paper in mm. ${textToolPrompt(tool)}`); return; }
+    if (!sized.length) { change({ ...project, cadAnno: { ...anno, textMm: mm } }, `TXTHEIGHT  New text ${mm} mm on paper at 1:${anno.scale} · ⌘Z to undo`); cad.setTool('none'); return; }
+    const h = textUnits({ ...anno, textMm: mm }, units.factor);
+    let next = project;
+    for (const it of sized) next = updateSketch(next, fileOf(), withTextHeight(it, h));
+    change(next, `TXTHEIGHT  ${sized.length} object${sized.length === 1 ? '' : 's'} ${mm} mm on paper at 1:${anno.scale}${left(pickedSk.length - sized.length)} · ⌘Z to undo`);
+    cad.setTool('none');
   }
 
   /** Esc: the step, then the tool, then what is picked (the history or command list, and a menu, close first). */
@@ -2149,7 +2190,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
           )}
           {EDIT_TOOLS.includes(tool) && !DIALOG_TOOLS.includes(tool as EditTool) && view && (
             <EditToolPanel tool={tool as EditTool} settings={edSet} onSettings={setEdSet} picked={pickedSk.length}
-              step={edStep ? `${kindOf(sketch.find((x) => x.id === edStep.id) ?? sketch[0])} picked — ${tool === 'offset' ? 'click the side' : tool === 'break' ? 'click the second point, or Enter' : 'click the second line'}` : stretchBox ? 'Window set — click the base point, then the second point' : PICK_FIRST.includes(tool) && edPhase === 'points' ? 'Objects picked — now the points' : undefined}
+              step={edStep ? `${kindOf(sketch.find((x) => x.id === edStep.id) ?? sketch[0])} picked — ${tool === 'offset' ? 'click the side' : tool === 'break' ? 'click the second point, or Enter' : 'click the second line'}` : stretchBox ? 'Window set — click the base point, then the second point' : PICK_FIRST.includes(tool) && edPhase === 'points' ? (TEXT_TOOLS.includes(tool) ? 'Picked — type the value on the command line' : 'Objects picked — now the points') : undefined}
               onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
           )}
           {tool === 'hatch' && view && <HatchPanel spec={hatchSet} onSpec={setHatchSet} patterns={project.cadPatterns} onImport={importPat} />}

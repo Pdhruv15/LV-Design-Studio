@@ -4,6 +4,7 @@ import type { ErasedParts } from '../../model/cadErased';
 import { ortho as orthoFrom } from '../../model/cadMeasure';
 import { DRAFT_DEFAULTS, otrack, polarAngles, polarTrack, snapToSpacing, type DraftSettings } from '../../model/cadDraft';
 import { dimOf, segmentsOf, trayLabel, trayLine, TRAY_TEXT_MM } from '../../model/cadSketch';
+import { textBaseAt } from '../../model/cadText';
 import type { PlanCells, PlanCover } from '../elv/elvOverlay';
 import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from '../../model/cadDraw';
@@ -514,7 +515,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       ctx.fillText(w.tag.s, (w.tag.at[0] - o0 - ox) * scale + 6, size.h - (w.tag.at[1] - o1 - oy) * scale - 6);
     }
     for (const it of sketch) {
-      const label = it.kind === 'text' ? { at: it.pts[0], s: it.text ?? '', h: it.h ?? 0, rot: it.rot ?? 0, align: 'left' as CanvasTextAlign }
+      const label = it.kind === 'text' ? (() => { const b = textBaseAt(it); return { at: b.at, s: it.text ?? '', h: it.h ?? 0, rot: it.rot ?? 0, align: b.align as CanvasTextAlign }; })()
         : it.kind === 'dim' ? (() => { const d = dimOf(it, 0.001 / unitsPerMm); return { at: d.text, s: d.label, h: d.h, rot: d.angle, align: 'center' as CanvasTextAlign }; })()
         : it.tray ? (() => { const l = trayLabel(it); return { at: l.at, s: l.text, h: trayH, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
         : it.cable && labels[it.id] ? (() => { const l = trayLabel(it); return { at: l.at, s: labels[it.id], h: 120 * unitsPerMm, rot: l.rot, align: 'center' as CanvasTextAlign }; })()

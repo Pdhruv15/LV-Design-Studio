@@ -38,7 +38,9 @@ const ADDED: Record<string, string> = { ST: '!textStyle', STYLE: '!textStyle', D
   WBLOCK: '!wblock', W: '!wblock', PUBLISH: '!publish', DS: '!dsettings', DSETTINGS: '!dsettings', SE: '!dsettings', OS: '!osnapSettings',
   POLAR: '!polar', OTRACK: '!otrack', LWT: '!lwt', LWDISPLAY: '!lwt',
   // Linear, continued and baseline dimensions (DLI was the aligned one until then).
-  DIMLINEAR: 'dimlin', DCO: 'dimcont', DIMCONTINUE: 'dimcont', DBA: 'dimbase', DIMBASELINE: 'dimbase' };
+  DIMLINEAR: 'dimlin', DCO: 'dimcont', DIMCONTINUE: 'dimcont', DBA: 'dimbase', DIMBASELINE: 'dimbase',
+  // Text tools: justify and text height on the texts picked.
+  TJ: 'tjust', TJUST: 'tjust', JUSTIFYTEXT: 'tjust', TH: 'th', TXTHEIGHT: 'th', TEXTHEIGHT: 'th' };
 const outcome = (c: string) => { const x = cadCommand(c); return x && ('tool' in x ? x.tool : `!${x.action}`); };
 
 describe('Design CAD typed commands', () => {

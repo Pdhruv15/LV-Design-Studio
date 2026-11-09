@@ -96,6 +96,26 @@ describe('CAD engine (Rust, WebAssembly)', () => {
     saved.close();
   });
 
+  it('saves justified texts with their alignment, and reads them back anchored on their baseline', async () => {
+    const shapes = [
+      { layer: 'LV-ANNO', kind: 'text', pts: [[1000, 500]], text: 'JUST-MC', h: 250, rot: 0, just: 'MC' },
+      { layer: 'LV-ANNO', kind: 'text', pts: [[3000, 500]], text: 'JUST-TR', h: 250, rot: Math.PI / 2, just: 'TR' },
+      { layer: 'LV-ANNO', kind: 'text', pts: [[5000, 500]], text: 'JUST-L', h: 250, rot: 0 }
+    ];
+    for (const as of ['dxf', 'dwg'] as const) {
+      const saved = await openDrawing(`just.${as}`, await drawingWithDevices(gf, [], shapes, as));
+      // Middle centre: read centred, half a height below the anchor.
+      const mc = saved.info.texts.find((t) => t.s === 'JUST-MC')!;
+      expect([mc.align, mc.x, mc.y, mc.h], as).toEqual([1, 1000, 375, 250]);
+      // Top right, up the page: the baseline is a height to the right of the anchor.
+      const tr = saved.info.texts.find((t) => t.s === 'JUST-TR')!;
+      expect(tr.align, as).toBe(2); expect(tr.x, as).toBeCloseTo(3250, 6); expect(tr.y, as).toBeCloseTo(500, 6); expect(tr.rot, as).toBeCloseTo(Math.PI / 2, 6);
+      const l = saved.info.texts.find((t) => t.s === 'JUST-L')!;
+      expect([l.align, l.x, l.y], as).toEqual([0, 5000, 500]);
+      saved.close();
+    }
+  });
+
   it('saves an SLD sheet as DWG with the same layers, texts and extents as its DXF', async () => {
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500"><line x1="40" y1="60" x2="700" y2="60" stroke="#000000"/>'
       + '<rect x="100" y="120" width="80" height="40" fill="none" stroke="#000000"/><text x="110" y="200" font-size="12">MDB-01</text></svg>';

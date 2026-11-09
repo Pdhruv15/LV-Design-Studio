@@ -398,10 +398,17 @@ impl<'a> Builder<'a> {
                 }
             }
             EntityType::Text(x) => {
-                let left = x.alignment_point.is_none() || matches!(x.horizontal_alignment, acadrust::entities::TextHorizontalAlignment::Left);
-                let at = if left { (x.insertion_point.x, x.insertion_point.y) } else { let p = x.alignment_point.unwrap(); (p.x, p.y) };
-                let align = match x.horizontal_alignment { acadrust::entities::TextHorizontalAlignment::Left => 0, acadrust::entities::TextHorizontalAlignment::Right => 2, _ => 1 };
-                self.text(t, at, x.height, x.rotation, x.value.clone(), l, rgb, if left { 0 } else { align });
+                use acadrust::entities::{TextHorizontalAlignment as H, TextVerticalAlignment as V};
+                // Left on the baseline: at its insertion point. Anything else: at its alignment point, brought down to
+                // the baseline (a height from the top, half from the middle) so every text is read baseline-anchored.
+                let plain = x.alignment_point.is_none() || (matches!(x.horizontal_alignment, H::Left) && matches!(x.vertical_alignment, V::Baseline));
+                let (at, align) = if plain { ((x.insertion_point.x, x.insertion_point.y), 0) } else {
+                    let p = x.alignment_point.unwrap();
+                    let down = match x.vertical_alignment { V::Top => x.height, V::Middle => x.height / 2.0, _ => if matches!(x.horizontal_alignment, H::Middle) { x.height / 2.0 } else { 0.0 } };
+                    let (sin, cos) = x.rotation.sin_cos();
+                    ((p.x + down * sin, p.y - down * cos), match x.horizontal_alignment { H::Left => 0, H::Right => 2, _ => 1 })
+                };
+                self.text(t, at, x.height, x.rotation, x.value.clone(), l, rgb, align);
             }
             EntityType::MText(x) => {
                 let s = parse_mtext(&x.value, true).to_plain_text();
@@ -893,6 +900,8 @@ struct ShapeOut {
     #[serde(default)] text: String,
     #[serde(default)] h: f64,
     #[serde(default)] rot: f64,
+    /// Text: where its anchor sits on its box (L, C, R on the baseline; TL … BR), blank or L for the left end of the baseline.
+    #[serde(default)] just: String,
     /// Hatch: closed boundary loops, solid or with its pattern lines (a reference's fill, bound into the saved copy).
     #[serde(default)] loops: Vec<Vec<(f64, f64)>>,
     #[serde(default)] solid: bool,
@@ -949,8 +958,21 @@ fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_
                 EntityType::Ellipse(e)
             }
             "text" if !sh.pts.is_empty() && !sh.text.is_empty() => {
+                use acadrust::entities::{TextHorizontalAlignment as H, TextVerticalAlignment as V};
                 let mut t = Text::new();
                 t.value = sh.text.clone(); t.insertion_point = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); t.height = sh.h; t.rotation = sh.rot; t.common.layer = sh.layer.clone();
+                let just = sh.just.to_uppercase();
+                if !just.is_empty() && just != "L" {
+                    let (row, col) = if just.len() == 1 { ("", just.as_str()) } else { just.split_at(1) };
+                    let (fx, h) = match col { "C" => (0.5, H::Center), "R" => (1.0, H::Right), _ => (0.0, H::Left) };
+                    let (fy, v) = match row { "T" => (1.0, V::Top), "M" => (0.5, V::Middle), "B" => (0.0, V::Bottom), _ => (0.0, V::Baseline) };
+                    t.horizontal_alignment = h; t.vertical_alignment = v;
+                    t.alignment_point = Some(t.insertion_point);
+                    // The left end of the baseline, from the text's approximate width (0.6 × height per character).
+                    let w = 0.6 * sh.h * sh.text.chars().count() as f64;
+                    let (sin, cos) = sh.rot.sin_cos();
+                    t.insertion_point = Vector3::new(sh.pts[0].0 - fx * w * cos + fy * sh.h * sin, sh.pts[0].1 - fx * w * sin - fy * sh.h * cos, 0.0);
+                }
                 EntityType::Text(t)
             }
             "hatch" if sh.loops.iter().any(|l| l.len() >= 3) => {
