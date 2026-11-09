@@ -15,15 +15,22 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.062', date: '2026-11-09',
+    version: '2.063', date: '2026-11-09',
     items: [
       { title: 'Sheet furniture: revision rows, legend strip, a block per sheet kind', text: 'Sheet furniture (Design CAD → Sheets → Title block & numbering, and each sheet\'s settings) has more choices: a revision table of 6 or 8 lines, blank ones ruled, beside the title block; the legend in a strip along the foot of the drawing area, or in two columns of the right column (on A2 and A1 when it is long, or always); and, for riser and earthing sheets, the legend and notes in the sheet\'s column instead of inside the drawing, their schedules staying where they are. Title block & numbering can also give the riser and earthing sheets, the plan sheets or the report pages a title block of their own. As before, nothing changes until a value is chosen, and PDF and DXF / DWG agree.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {
-    version: '2.061', date: '2026-11-09',
+    version: '2.062', date: '2026-11-09',
     items: [
       { title: 'Sheet furniture', text: 'Design CAD → Sheets → Title block & numbering has a Sheet furniture section for what prints around the drawing on every sheet: zone references in the margin (off, on A2 and A1, or on every paper), centring marks, the legend column\'s text height (2.5 or 3.5 mm), the notes above the title block or in the legend column and the width of the notes box, and the smallest height the drawing\'s text may print at before a sheet counts as crowded (1.8 mm as before, 2.5 or 3.5). Each open sheet has the same choices in its settings, blank meaning as the set. Left alone, the sheets print as before. The PDF and the DXF / DWG files follow the same choices.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.061', date: '2026-11-09',
+    items: [
+      { title: 'Text tools in Design CAD', text: 'Pick texts, type the command, Enter, then the value. TA (TALIGN) lines them up Left, Right, Centre, Top or Bottom on a text or point you click, or Spacing sets them evenly down the page a gap apart on paper. TC (TCASE): Upper, Lower, Title or Sentence. TPREFIX and TSUFFIX add words before or after each. TOR (TORIENT) turns each about its centre to read from the bottom or the right. TCEN centres one text between two points. TCOPY gives the texts picked the words of another text you click. Each is one undo step.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Tag all rooms', text: 'RTALL (ROOMTAGALL) places a room tag (name and area) in every room of the level that has none yet; A tags them all again.' }
     ]
   },
   {

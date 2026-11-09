@@ -60,7 +60,7 @@ import { fmtFixed, fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
 import { AnnoPanel, HatchPanel } from './AnnotatePanel';
 import { annoOf, centreOf, hatchItem, hatchOutline, HATCH_START, leaderItems, northArrowItems, roomTagItems, textUnits, unitsPerPaperMm, type HatchSpec } from '../../model/cadAnnotate';
-import { ISO_TEXT_MM, justLabel, parseJust, rejustified, withTextHeight } from '../../model/cadText';
+import { alignedTo, alignEdge, cased, centredAt, ISO_TEXT_MM, justLabel, oriented, parseJust, rejustified, spaced, untaggedRooms, withTextHeight, type AlignMode, type CaseMode, type OrientMode } from '../../model/cadText';
 import { LayerPalette, layerRows, type LayerRow } from './CadLayerManager';
 import { PropertiesPalette } from './CadProperties';
 import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
@@ -90,7 +90,7 @@ const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab 
 ];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · TJ (justify texts) · TH (text height) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · RTALL (tag all rooms) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 /** Bind's count in the Save line: reference lines, texts and hatches. */
@@ -120,6 +120,14 @@ const PROMPT: Record<CadTool, string> = {
   leader: 'LEADER  Specify leader arrow point:',
   rtag: 'ROOMTAG  Click inside a room:',
   tjust: 'TJUST  Select texts (click, Shift-click or a window), then Enter:',
+  talign: 'TALIGN  Select texts (click, Shift-click or a window), then Enter:',
+  tcase: 'TCASE  Select texts, then Enter:',
+  tprefix: 'TPREFIX  Select texts, then Enter:',
+  tsuffix: 'TSUFFIX  Select texts, then Enter:',
+  torient: 'TORIENT  Select texts, then Enter:',
+  tcen: 'TCEN  Select the text, then Enter:',
+  tcopy: 'TCOPY  Select the texts to change, then Enter:',
+  rtall: 'ROOMTAGALL  Tag [All rooms/Untagged only] <Untagged>:',
   th: 'TXTHEIGHT  Select texts and dimensions, then Enter (Enter with none: the height for new text):',
   north: 'NORTH  Specify insertion point:',
   wire: 'WIRE  Click a device: its circuit is wired (or its wiring taken off):',
@@ -190,10 +198,13 @@ const DRAW_LAYER = 'LV-SKETCH', ANNO_LAYER = 'LV-ANNO';
 const WIRING_LAYER = 'E-LV-WIRING', TAG_LAYER = 'E-LV-TAGS';
 /** The edit tools on what was drawn (Draw → Edit, Mirror / Scale / Stretch in Modify), and those that work on objects
  * picked first. */
-const EDIT_TOOLS: CadTool[] = ['trim', 'extend', 'offset', 'fillet', 'chamfer', 'break', 'join', 'explode', 'mirror', 'scale', 'stretch', 'array', 'tjust', 'th'];
-const PICK_FIRST: CadTool[] = ['join', 'mirror', 'scale', 'array', 'tjust', 'th'];
-/** The text tools: on the texts picked first, then a value on the command line. */
-const TEXT_TOOLS: CadTool[] = ['tjust', 'th'];
+const EDIT_TOOLS: CadTool[] = ['trim', 'extend', 'offset', 'fillet', 'chamfer', 'break', 'join', 'explode', 'mirror', 'scale', 'stretch', 'array', 'tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy'];
+const PICK_FIRST: CadTool[] = ['join', 'mirror', 'scale', 'array', 'tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy'];
+/** The text tools: on the texts picked first, then a value on the command line (TCEN and TCOPY: points or a text clicked). */
+const TEXT_TOOLS: CadTool[] = ['tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy'];
+const TALIGN_PROMPT = 'TALIGN  Align [Left/Right/Centre/Top/Bottom/Spacing] <Left>:';
+const TCASE_PROMPT = 'TCASE  Case [Upper/Lower/Title/Sentence] <Upper>:';
+const TORIENT_PROMPT = 'TORIENT  Readable from [Bottom/Right/Both] <Both>:';
 const TJUST_PROMPT = (now: string) => `TJUST  Justify [Left/Centre/Right/TL/TC/TR/ML/MC/MR/BL/BC/BR] <${now}>:`;
 const TH_PROMPT = (mm: number, forNew: boolean) => `TXTHEIGHT  Height on paper (mm)${forNew ? ' for new text' : ''} ${ISO_TEXT_MM.join(' · ')} <${mm}>:`;
 const DRAW_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'rect', 'circle', 'arc', 'text', 'dim', 'dimlin', 'dimcont', 'dimbase', 'move', 'copy', 'rotate', 'polygon', 'ellipse', 'circle2p', 'circle3p', 'circled', 'arcsce', 'revcloud'];
@@ -277,6 +288,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // first), the taller history (F2) or the command list (F1), and the right-click menu of the prompt.
   const [edAsk, setEdAsk] = useState<'offset' | 'radius' | 'd1' | 'd2' | 'erase' | 'factor' | 'type' | null>(null);
   const [textAsk, setTextAsk] = useState<{ step: 'height' | 'rot' | null; mm: number; rot: number } | null>(null);
+  // TALIGN after its texts: the edge chosen and what it waits for (the text or point to line up with, or the gap).
+  const [tAsk, setTAsk] = useState<{ mode: AlignMode | 'spacing'; step: 'ref' | 'gap' } | null>(null);
   const [typed, setTyped] = useState<string[]>([]);
   const [recent, setRecent] = useState<{ label: string; tool?: CadTool; text?: string }[]>([]);
   const { log, setLog } = cad;
@@ -363,7 +376,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     setEdStep(pre); preset.current = null; setStretchBox(null); setMpFrom(null);
     const first = picked.some((k) => k.startsWith('sk:')) || !!cad.selected?.startsWith('sk:');
     setEdPhase(first ? 'points' : 'pick');
-    setEdAsk(tool === 'offset' && !pre ? 'offset' : tool === 'array' && first ? 'type' : null); setTextAsk(null); setPromptMenu(null);
+    setEdAsk(tool === 'offset' && !pre ? 'offset' : tool === 'array' && first ? 'type' : null); setTextAsk(null); setTAsk(null); setPromptMenu(null);
     setDlg((d) => (DIALOG_TOOLS.includes(tool as EditTool) ? 'edit' : d === 'edit' ? null : d));
     if (tool !== 'none' && tool !== 'xattach' && tool !== 'xclip') { const label = PROMPT[tool].split(' ')[0]; setRecent((r) => [{ label, tool }, ...r.filter((x) => x.label !== label)].slice(0, 8)); }
     setCrop(tool === 'crop' ? { step: 'pick' } : null);
@@ -1033,6 +1046,23 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       const sks = pickedKeys.has(`sk:${sk.id}`) ? pickedSk.filter((x) => x.id !== sk.id) : [...pickedSk, sk];
       pick([], sks); cad.say(`${cmd}  ${picks(sks.length)} — Enter when done`); return;
     }
+    if (tool === 'talign' && tAsk?.step === 'ref') {
+      const mode = tAsk.mode as AlignMode, texts = pickedSk.filter((it) => it.kind === 'text');
+      const ref = sk?.kind === 'text' ? alignEdge(sk, mode) : mode === 'top' || mode === 'bottom' ? at[1] : at[0];
+      changeTexts('TALIGN', texts.filter((it) => it.id !== sk?.id).map((it) => alignedTo(it, mode, ref)), `lined up ${mode} on ${sk?.kind === 'text' ? `"${sk.text}"` : 'the point'}`); return;
+    }
+    if (tool === 'tcen' && edPhase === 'points') {
+      const texts = pickedSk.filter((it) => it.kind === 'text');
+      if (texts.length !== 1) { cad.say(textToolPrompt(tool)); return; }
+      if (!points.length) { setPoints([at]); cad.say('TCEN  Specify second point:'); return; }
+      const mid: Pt = [(points[0][0] + at[0]) / 2, (points[0][1] + at[1]) / 2];
+      setPoints([]); changeTexts('TCEN', [centredAt(texts[0], mid)], 'centred between the points'); return;
+    }
+    if (tool === 'tcopy' && edPhase === 'points') {
+      if (sk?.kind !== 'text') { cad.say('TCOPY  Click a drawn text to copy the words from:'); return; }
+      const texts = pickedSk.filter((it) => it.kind === 'text' && it.id !== sk.id);
+      changeTexts('TCOPY', texts.map((it) => ({ ...it, text: sk.text })), `given the words "${sk.text}"`); return;
+    }
     if (tool === 'trim' || tool === 'extend') {
       if (!sk) { cad.say(`${cmd}  Click a drawn line (the architect's lines are not changed):`); return; }
       const asTrim = (tool === 'trim') !== shiftKey, edges = edgesFor(sketch, sk.id, drawingSegs);
@@ -1636,7 +1666,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return false;
     }
     // A text tool with its texts picked: the justification or height typed (Enter: the default).
-    if (TEXT_TOOLS.includes(tool) && edPhase === 'points') { textToolInput(c); return true; }
+    // (TCEN, TCOPY and TALIGN's reference take clicks or typed points, not words.)
+    const clicks = ((tool === 'tcen' || tool === 'tcopy') || (tool === 'talign' && tAsk?.step === 'ref')) && !!c;
+    if (TEXT_TOOLS.includes(tool) && edPhase === 'points' && !clicks) { textToolInput(c); return true; }
     if (c) return false;
     if (tool === 'break') {
       const it = edStep && sketch.find((x) => x.id === edStep.id);
@@ -1697,6 +1729,16 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (textAsk.step === 'height') { setTextAsk({ ...textAsk, step: 'rot', mm: n && n > 0 ? n : textAsk.mm }); cad.say(`TEXT  Specify rotation angle <${textAsk.rot}>:`); }
       else { setTextAsk({ ...textAsk, step: null, rot: n ?? textAsk.rot }); cad.say('TEXT  Enter text:'); }
       return;
+    }
+    if ((tool === 'tprefix' || tool === 'tsuffix') && edPhase === 'points') {
+      if (!raw) { cad.say(`${tool.toUpperCase()}  Nothing added.`); cad.setTool('none'); return; }
+      const texts = pickedSk.filter((it) => it.kind === 'text');
+      // As typed, spaces at the ends included ("EX. " before a name).
+      changeTexts(tool.toUpperCase(), texts.map((it) => ({ ...it, text: tool === 'tprefix' ? `${text}${it.text ?? ''}` : `${it.text ?? ''}${text}` })), `with "${text}" ${tool === 'tprefix' ? 'before' : 'after'}`); return;
+    }
+    if (tool === 'rtall') {
+      const key = promptOptions(PROMPT.rtall).find((o) => o.option.toUpperCase() === c)?.key ?? c;
+      if (key === '' || key === 'A' || key === 'U') { tagAllRooms(key === 'A'); return; }
     }
     if (tool === 'text' && cad.textAt && raw) {
       const t = textAsk ?? { mm: anno.textMm, rot: 0 };
@@ -1769,7 +1811,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     // A number typed with Scale (before its base point) sets the factor.
     if (tool === 'scale' && isNumber(c) && !c.startsWith('-')) { const k = String(Number(c)); setEdSet({ ...edSet, factor: k }); cad.say(`SCALE  Factor ${k}`); return; }
-    if (DRAW_TOOLS.includes(tool) || tool === 'dist' || tool === 'area' || tool === 'trace') {
+    if (DRAW_TOOLS.includes(tool) || tool === 'dist' || tool === 'area' || tool === 'trace' || (tool === 'tcen' && edPhase === 'points') || (tool === 'talign' && tAsk?.step === 'ref')) {
       const p = typedPoint(raw, points[points.length - 1], cursor.at);
       if (p) { cad.say(`  ${raw}`); click(p, 1e-9); return; }
     }
@@ -1849,9 +1891,27 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   function textToolPrompt(t: CadTool): string {
     const texts = pickedSk.filter((it) => it.kind === 'text');
     if (t === 'tjust') return TJUST_PROMPT(justLabel(texts[0]?.just));
-    const sized = pickedSk.filter((it) => it.kind === 'text' || it.kind === 'dim'), h = sized[0]?.h;
-    return TH_PROMPT(h ? Math.round((h / unitsPerPaperMm(anno, units.factor)) * 100) / 100 : anno.textMm, !sized.length);
+    if (t === 'th') {
+      const sized = pickedSk.filter((it) => it.kind === 'text' || it.kind === 'dim'), h = sized[0]?.h;
+      return TH_PROMPT(h ? Math.round((h / unitsPerPaperMm(anno, units.factor)) * 100) / 100 : anno.textMm, !sized.length);
+    }
+    if (t === 'talign') return TALIGN_PROMPT;
+    if (t === 'tcase') return TCASE_PROMPT;
+    if (t === 'torient') return TORIENT_PROMPT;
+    if (t === 'tprefix' || t === 'tsuffix') return `${t.toUpperCase()}  Type the words to add ${t === 'tprefix' ? 'before' : 'after'} each text, Enter:`;
+    if (t === 'tcen') return texts.length === 1 ? 'TCEN  Specify first point:' : `TCEN  Pick one text (${texts.length} picked).`;
+    return 'TCOPY  Click the text to copy the words from:';
   }
+  /** The texts picked changed by a text tool, as one undo step; the other objects picked are left as they are. */
+  function changeTexts(name: string, texts: SketchItem[], what: string) {
+    const others = pickedSk.length - texts.length;
+    let next = project;
+    for (const it of texts) next = updateSketch(next, fileOf(), it);
+    change(next, `${name}  ${texts.length} text${texts.length === 1 ? '' : 's'} ${what}${others ? ` (${others} other object${others === 1 ? '' : 's'} left as ${others === 1 ? 'it is' : 'they are'})` : ''} · ⌘Z to undo`);
+    cad.setTool('none');
+  }
+  /** The gap TALIGN's Spacing offers: 1.5 × the first text's height, in paper mm. */
+  const spacingDefault = () => { const h = pickedSk.find((it) => it.kind === 'text')?.h; return Math.round(((h ? h / unitsPerPaperMm(anno, units.factor) : anno.textMm) * 1.5) * 100) / 100; };
   /** What is typed at a text tool's prompt (Enter: the default): TJUST moves each text's anchor on its box; TXTHEIGHT
    * sets the height of the texts and dimensions picked, or of new text when none is. One undo step. */
   function textToolInput(c: string) {
@@ -1865,6 +1925,29 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       change(next, `TJUST  ${texts.length} text${texts.length === 1 ? '' : 's'} justified ${justLabel(j).toLowerCase()}${left(others)} · ⌘Z to undo`);
       cad.setTool('none'); return;
     }
+    if (tool === 'tcase') {
+      const mode = ({ U: 'upper', L: 'lower', T: 'title', S: 'sentence' } as Record<string, CaseMode>)[c || 'U'];
+      if (!mode) { cad.say(`TCASE  "${c}" is not a case. ${TCASE_PROMPT}`); return; }
+      changeTexts('TCASE', texts.map((it) => ({ ...it, text: cased(it.text ?? '', mode) })), `in ${mode} case`); return;
+    }
+    if (tool === 'torient') {
+      const mode = ({ B: 'bottom', R: 'right', BO: 'both' } as Record<string, OrientMode>)[c || 'BO'];
+      if (!mode) { cad.say(`TORIENT  "${c}" is not a side. ${TORIENT_PROMPT}`); return; }
+      changeTexts('TORIENT', texts.map((it) => oriented(it, mode)), `readable from the ${mode === 'both' ? 'bottom or the right' : mode}`); return;
+    }
+    if (tool === 'talign') {
+      if (tAsk?.step === 'gap') {
+        const mm = c ? Number(c) : spacingDefault();
+        if (c && (!isNumber(c) || !(mm > 0))) { cad.say(`TALIGN  Type the gap on paper in mm <${spacingDefault()}>:`); return; }
+        changeTexts('TALIGN', spaced(texts, mm * unitsPerPaperMm(anno, units.factor)), `spaced ${mm} mm apart on paper`); return;
+      }
+      if (tAsk) { cad.say('TALIGN  Click the text to line up with, or a point:'); return; }
+      const mode = ({ L: 'left', R: 'right', C: 'centre', T: 'top', B: 'bottom', S: 'spacing' } as Record<string, AlignMode | 'spacing'>)[c || 'L'];
+      if (!mode) { cad.say(`TALIGN  "${c}" is not an edge. ${TALIGN_PROMPT}`); return; }
+      if (mode === 'spacing') { setTAsk({ mode, step: 'gap' }); cad.say(`TALIGN  Gap between texts on paper (mm) <${spacingDefault()}>:`); return; }
+      setTAsk({ mode, step: 'ref' }); cad.say(`TALIGN  ${mode[0].toUpperCase()}${mode.slice(1)}: click the text to line up with, or a point:`); return;
+    }
+    if (tool === 'tcen' || tool === 'tcopy') { cad.say(textToolPrompt(tool)); return; }
     const sized = pickedSk.filter((it) => it.kind === 'text' || it.kind === 'dim');
     const mm = c ? Number(c) : sized[0]?.h ? Math.round((sized[0].h / unitsPerPaperMm(anno, units.factor)) * 100) / 100 : anno.textMm;
     if (c && (!isNumber(c) || !(mm > 0))) { cad.say(`TXTHEIGHT  Type the height on paper in mm. ${textToolPrompt(tool)}`); return; }
@@ -1873,6 +1956,19 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     let next = project;
     for (const it of sized) next = updateSketch(next, fileOf(), withTextHeight(it, h));
     change(next, `TXTHEIGHT  ${sized.length} object${sized.length === 1 ? '' : 's'} ${mm} mm on paper at 1:${anno.scale}${left(pickedSk.length - sized.length)} · ⌘Z to undo`);
+    cad.setTool('none');
+  }
+
+  /** ROOMTAGALL: a room tag (name and area at the centre) for every room of the level with an outline, or only those
+   * with no tag yet, as one undo step. */
+  function tagAllRooms(all: boolean) {
+    if (!floor || !view) { cad.say('ROOMTAGALL  Open a level\'s plan first (Plans).'); cad.setTool('none'); return; }
+    const rooms = buildingInfoOf(project).rooms.filter((r) => r.buildingId === floor.ref.building && r.levelId === floor.ref.level && (r.outline?.length ?? 0) >= 3);
+    const todo = all ? rooms : untaggedRooms(rooms, sketch, units.factor, inside);
+    if (!todo.length) { cad.say(rooms.length ? 'ROOMTAGALL  Every room of the level is tagged.' : 'ROOMTAGALL  No room with an outline on this level: add them first (Room area, Trace or Rooms).'); cad.setTool('none'); return; }
+    let next = project;
+    for (const r of todo) for (const it of roomTagItems(r.name, r.areaM2, centreOf(r.outline!.map(([x, y]): Pt => [x / units.factor, y / units.factor])), textH)) next = addSketch(next, view.file, it).project;
+    change(next, `ROOMTAGALL  ${todo.length} room tag${todo.length === 1 ? '' : 's'} · ⌘Z to undo`);
     cad.setTool('none');
   }
 
@@ -1885,7 +1981,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   }
   /** What Space does in the command line: types a space in text (a name, TEXT contents, a leader's text); at TEXT's
    * height and rotation, where a word is the text, ends only an empty input or a number; else ends a whole word. */
-  const spaceMode: SpaceMode = renaming || renamingLayout || (tool === 'text' && cad.textAt && !textAsk?.step) || (tool === 'leader' && points.length >= 2) ? 'text'
+  const spaceMode: SpaceMode = renaming || renamingLayout || (tool === 'text' && cad.textAt && !textAsk?.step) || (tool === 'leader' && points.length >= 2) || ((tool === 'tprefix' || tool === 'tsuffix') && edPhase === 'points') ? 'text'
     : tool === 'text' && cad.textAt ? 'value' : 'command';
   /** Numbers typed go to the command line (or the box at the cursor) rather than the view's keys (0 fits, − zooms out):
    * while a tool is running or something is typed there. */
@@ -2194,9 +2290,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
           )}
           {tool === 'hatch' && view && <HatchPanel spec={hatchSet} onSpec={setHatchSet} patterns={project.cadPatterns} onImport={importPat} />}
-          {(tool === 'text' || tool === 'dim' || tool === 'dimlin' || tool === 'dimcont' || tool === 'dimbase' || tool === 'leader' || tool === 'rtag' || tool === 'north') && view && (
+          {(tool === 'text' || tool === 'dim' || tool === 'dimlin' || tool === 'dimcont' || tool === 'dimbase' || tool === 'leader' || tool === 'rtag' || tool === 'rtall' || tool === 'north') && view && (
             <AnnoPanel anno={anno} onAnno={(a) => onChange({ ...project, cadAnno: a }, `Annotation: ${a.textMm} mm text at 1:${a.scale}`)}
-              {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Two points, then where the dimension line goes.' }, dimlin: { title: 'Linear dimension', cmd: 'DLI', help: 'Two points, then where the dimension line goes: above or below them it is horizontal, beside them vertical.' }, dimcont: { title: 'Continue dimension', cmd: 'DCO', help: 'Click each next point: a dimension from the last one\'s second point, in line with it. Esc stops.' }, dimbase: { title: 'Baseline dimension', cmd: 'DBA', help: 'Click each next point: a dimension from the last one\'s first point, one step further out. Esc stops.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
+              {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Two points, then where the dimension line goes.' }, dimlin: { title: 'Linear dimension', cmd: 'DLI', help: 'Two points, then where the dimension line goes: above or below them it is horizontal, beside them vertical.' }, dimcont: { title: 'Continue dimension', cmd: 'DCO', help: 'Click each next point: a dimension from the last one\'s second point, in line with it. Esc stops.' }, dimbase: { title: 'Baseline dimension', cmd: 'DBA', help: 'Click each next point: a dimension from the last one\'s first point, one step further out. Esc stops.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, rtall: { title: 'Tag all rooms', cmd: 'RTALL', help: 'Enter tags every room of the level with no tag yet; A tags them all again.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
           )}
           {tool === 'matchprop' && view && <><h4>Match properties <span className="m">MP</span></h4><div className="cad-devform"><span className="m">{mpFrom ? 'Click each object to give it the layer, colour, linetype and lineweight of the first; Esc stops. Trays and cable routes keep their layers.' : 'Click the object to copy from.'}</span></div></>}
           {tool === 'match' && view && <MatchPanel from={placed.find((x) => x.key === matchFrom)} settings={matchSet} onSettings={setMatchSet} />}

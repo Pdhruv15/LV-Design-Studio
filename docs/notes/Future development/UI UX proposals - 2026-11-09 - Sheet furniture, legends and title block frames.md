@@ -1,8 +1,8 @@
 # UI / UX proposal — Sheet furniture, legends and title block frames (2026-11-09)
 
-Status: **step 1 (Legend at ISO height) approved by the user on 2026-11-09 and built in v2.059 (branch `feat/legend-iso-height`, PR 468); step 2 (Sheet furniture settings) approved 2026-11-09 ("Yes, step 2 next"): its first part built as v2.060 on branch `feat/sheet-furniture` (PR 470, merged into the step 1 branch, not main) and the rest ("Yes, finish step 2") on branch `feat/sheet-furniture-2`; both reach main together as v2.061 and v2.062 (2.060 went to the text tools); steps 3–5 wait.**
+Status: **step 1 (Legend at ISO height) approved by the user on 2026-11-09 and built in v2.059 (branch `feat/legend-iso-height`, PR 468); step 2 (Sheet furniture settings) approved 2026-11-09 ("Yes, step 2 next"): its first part built as v2.060 on branch `feat/sheet-furniture` (PR 470, merged into the step 1 branch, not main) and the rest ("Yes, finish step 2") on branch `feat/sheet-furniture-2`; both reach main together as v2.062 and v2.063 (2.060 went to the text tools); steps 3–5 wait.**
 
-## Built in v2.062 (step 2, second part)
+## Built in v2.063 (step 2, second part)
 
 - **Revision rows** 6 or 8: a table of its own rows beside the standard block too (as a template already had), blank lines ruled, the band growing when 8 lines need 45 mm; the title block values take the latest N issues. PDF and DXF.
 - **Title block per sheet kind** (`drawing.titleTemplateByKind`, `templateOf(p, kind)`): SLD and board sheets, riser and earthing sheets, plan sheets, report pages, each "Same", "Standard" or a template; a second row under the Title block choice on Title block & numbering.
@@ -12,13 +12,13 @@ Status: **step 1 (Legend at ISO height) approved by the user on 2026-11-09 and b
 - Not done: a Legend sheet (step 3), the Board sheet with schedule (step 3), the title block frame as a CAD block (step 4), the legend table object (step 5). D3–D5 defaults remain today's output; the user can set them per set.
 
 
-## Built in v2.061 (step 2, first part: the settings)
+## Built in v2.062 (step 2, first part: the settings)
 
 - `SheetFurniture` on the drawing set and on each sheet (`src/model/drawingSet.ts`, `furnitureOf`, `minMmPerPx`); a blank value is today's output, so nothing changes until a value is chosen.
 - Choices: zone references (off / A2 and A1 / every paper; ISO 5457 fields of ≈ 50 mm, numbered along the top and bottom, lettered down the sides, in a 5 mm strip outside the frame), centring marks (10 mm, 0.7 mm), legend and column text 2.5 or 3.5 mm (the legend is drawn for it), notes above the title block (width in mm) or in the legend column, smallest drawing text 1.8 (as before) / 2.5 / 3.5 mm (the Fit's limit; Auto paper and the crowded check follow it).
 - UI: a *Sheet furniture* card on Design CAD → Sheets → Title block & numbering (the set), and a *Sheet furniture* group in the open sheet's settings (this sheet; blank = as the set): `src/components/docs/FurnitureFields.tsx`. The Properties palette of the mockup was not used: the sheets page keeps its settings panel on the right, where paper, status and notes already are.
 - PDF (`sldSheet.ts`) and DXF / DWG (`sheetDxf.ts`) follow the same values; the plot stamp moves under the zone strip.
-- The rest of step 2 (revision rows, a title block per sheet kind, the legend strip and columns, the risers' and earthing drawings' legend and notes in the column) followed in v2.062, above.
+- The rest of step 2 (revision rows, a title block per sheet kind, the legend strip and columns, the risers' and earthing drawings' legend and notes in the column) followed in v2.063, above.
 
 
 ## Built in v2.059 (step 1, legend and column at 2.5 mm)

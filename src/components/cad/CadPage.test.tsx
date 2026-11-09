@@ -454,6 +454,81 @@ describe('CAD view', () => {
     expect(it().h).toBe(500);
   });
 
+  it('text tools on the texts picked: TCASE, TPREFIX, TALIGN, TCEN, TCOPY; ROOMTAGALL tags the rooms not tagged yet', async () => {
+    const X = 200000, F = 'sample-villa-gf.dxf';
+    // T1 "db room" (1,050 wide) at the left end of its baseline (X, 0); T2 "L1" at (X + 400, 1000); T3 "SOCKETS" centred on (X, 3000).
+    const start: Project = { ...villa, cadSketch: [{ file: F, items: [
+      { id: 'T1', kind: 'text', layer: 'LV-ANNO', pts: [[X, 0]], text: 'db room', h: 250 },
+      { id: 'T2', kind: 'text', layer: 'LV-ANNO', pts: [[X + 400, 1000]], text: 'L1', h: 250 },
+      { id: 'T3', kind: 'text', layer: 'LV-ANNO', pts: [[X, 3000]], text: 'SOCKETS', h: 250, just: 'MC' }
+    ] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const it = (id: string) => project.cadSketch![0].items.find((x) => x.id === id)!;
+    const last = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
+    await dragWindow([X - 100, -100], [X + 2000, 1300]); // T1 and T2
+    await command('tc');
+    expect(state.history[state.history.length - 1]).toContain('TCASE  Case [Upper/Lower/Title/Sentence] <Upper>:');
+    await command('title');
+    expect([it('T1').text, it('T2').text]).toEqual(['Db Room', 'L1']);
+    expect(last()).toBe('TCASE  2 texts in title case · ⌘Z to undo');
+    await command('tprefix');
+    await command('EX. ');
+    expect([it('T1').text, it('T2').text]).toEqual(['EX. Db Room', 'EX. L1']);
+    await command('tsuffix');
+    await command('/GF');
+    expect(it('T2').text).toBe('EX. L1/GF');
+    // Line up on the left edge of T3's box (X − 525).
+    await command('ta');
+    expect(state.history[state.history.length - 1]).toContain('TALIGN  Align [Left/Right/Centre/Top/Bottom/Spacing] <Left>:');
+    await command('l');
+    await clickAt(X, 3000);
+    expect(it('T1').pts[0][0]).toBeCloseTo(X - 525, 6); expect(it('T1').pts[0][1]).toBe(0);
+    expect(it('T2').pts[0][0]).toBeCloseTo(X - 525, 6); expect(it('T2').pts[0][1]).toBe(1000);
+    expect(it('T3').pts[0]).toEqual([X, 3000]);
+    expect(last()).toBe('TALIGN  2 texts lined up left on "SOCKETS" · ⌘Z to undo');
+    // Space the two picked 5 mm apart on paper (500 units at 1:100): T2 (centre y 1125) stays on top, T1's centre goes to 625.
+    await command('ta');
+    await command('s');
+    expect(state.history[state.history.length - 1]).toContain('Gap between texts on paper (mm) <3.75>:');
+    await command('5');
+    expect(it('T2').pts[0][1]).toBe(1000);
+    expect(it('T1').pts[0][1]).toBeCloseTo(500, 6);
+    expect(last()).toBe('TALIGN  2 texts spaced 5 mm apart on paper · ⌘Z to undo');
+    // TCEN: one text between two typed points.
+    act(() => { state.setSelected(null); });
+    await clickAt(X - 525 + 150, 1100); // inside T2's box
+    expect(state.selected).toBe('sk:T2');
+    await command('tcen');
+    expect(state.history[state.history.length - 1]).toContain('TCEN  Specify first point:');
+    await command(`${X},5000`);
+    await command(`${X + 2000},5000`);
+    const w2 = 0.6 * 250 * it('T2').text!.length;
+    expect(it('T2').pts[0][0]).toBeCloseTo(X + 1000 - w2 / 2, 6); expect(it('T2').pts[0][1]).toBeCloseTo(5000 - 125, 6);
+    // TCOPY: T2 takes T3's words.
+    await command('tcopy');
+    await clickAt(X, 3000);
+    expect(it('T2').text).toBe('SOCKETS');
+    expect(last()).toBe('TCOPY  1 text given the words "SOCKETS" · ⌘Z to undo');
+    // ROOMTAGALL: the plan's rooms found, every one tagged once; again: nothing to do; A tags them all again.
+    act(() => state.actions.current.addFound());
+    const rooms = buildingInfoOf(project).rooms.length;
+    expect(rooms).toBe(6);
+    const texts = () => project.cadSketch![0].items.filter((x) => x.kind === 'text').length;
+    await command('rtall');
+    expect(state.history[state.history.length - 1]).toContain('ROOMTAGALL  Tag [All rooms/Untagged only] <Untagged>:');
+    await command('');
+    expect(texts()).toBe(3 + 2 * rooms);
+    expect(last()).toBe('ROOMTAGALL  6 room tags · ⌘Z to undo');
+    await command('rtall');
+    await command('');
+    expect(state.history.slice(-2)).toContain('ROOMTAGALL  Every room of the level is tagged.');
+    await command('rtall');
+    await command('a');
+    expect(texts()).toBe(3 + 4 * rooms);
+  });
+
   it('moves, copies, rotates and erases what was drawn, and copies a light onto its circuit', async () => {
     act(() => root.render(<Host />));
     await flush();

@@ -70,3 +70,73 @@ export function justDxf(j: TextJust | undefined): { h: 0 | 1 | 2; v: 0 | 1 | 2 |
   const t = j ?? 'L', col = t.length === 1 ? t : t.slice(1), row = t.length === 1 ? '' : t[0];
   return { h: col === 'C' ? 1 : col === 'R' ? 2 : 0, v: row === 'T' ? 3 : row === 'M' ? 2 : row === 'B' ? 1 : 0 };
 }
+
+// ---- the text tools on texts picked (TALIGN, TCASE, TORIENT, TCEN, TCOPY)
+
+const movedBy = (it: SketchItem, dx: number, dy: number): SketchItem => ({ ...it, pts: it.pts.map((q): Pt => [q[0] + dx, q[1] + dy]) });
+/** The text's box in the drawing's axes: the extremes of its corners. */
+export function textBounds(it: SketchItem): { x0: number; y0: number; x1: number; y1: number } {
+  const c = textCorners(it), xs = c.map((q) => q[0]), ys = c.map((q) => q[1]);
+  return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+}
+/** The centre of the text's box. */
+export const textCentre = (it: SketchItem): Pt => anchorFor(it, 'MC');
+
+export type CaseMode = 'upper' | 'lower' | 'title' | 'sentence';
+/** The words in another case: Title capitalises each word, Sentence the first letter only. */
+export function cased(s: string, mode: CaseMode): string {
+  if (mode === 'upper') return s.toUpperCase();
+  if (mode === 'lower') return s.toLowerCase();
+  const low = s.toLowerCase();
+  if (mode === 'sentence') return low.replace(/^(\s*)(\S)/, (_m, a: string, b: string) => a + b.toUpperCase());
+  return low.replace(/(^|[\s(\-/]+)([a-z])/g, (_m, a: string, b: string) => a + b.toUpperCase());
+}
+
+export type OrientMode = 'bottom' | 'right' | 'both';
+/** The angle (radians) a text reads at: `bottom` 0, `right` up the page (90°), `both` the same line turned so it reads
+ * from the bottom or the right (−90° < angle ≤ 90°), as drafting programs keep text readable. */
+export function readableAngle(a: number, mode: OrientMode): number {
+  if (mode === 'bottom') return 0;
+  if (mode === 'right') return Math.PI / 2;
+  let r = ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  if (r > Math.PI / 2 + 1e-9 && r <= 1.5 * Math.PI + 1e-9) r -= Math.PI;
+  else if (r > 1.5 * Math.PI) r -= 2 * Math.PI;
+  return Math.abs(r) < 1e-12 ? 0 : r;
+}
+/** The text turned about its box's centre to a readable angle (the centre stays, the anchor follows). */
+export function oriented(it: SketchItem, mode: OrientMode): SketchItem {
+  const a = readableAngle(it.rot ?? 0, mode);
+  if (Math.abs(a - (it.rot ?? 0)) < 1e-12) return it;
+  const mc = rejustified(it, 'MC'), { rot: _r, ...rest } = mc;
+  return rejustified({ ...rest, ...(a ? { rot: a } : {}) }, it.just ?? 'L');
+}
+/** The text moved so that its box's centre is at a point. */
+export function centredAt(it: SketchItem, at: Pt): SketchItem {
+  const c = textCentre(it);
+  return movedBy(it, at[0] - c[0], at[1] - c[1]);
+}
+
+export type AlignMode = 'left' | 'right' | 'centre' | 'top' | 'bottom';
+/** A text's edge for an alignment: its box's left, right or centre x, or its top or bottom y. */
+export function alignEdge(it: SketchItem, mode: AlignMode): number {
+  const b = textBounds(it);
+  return mode === 'left' ? b.x0 : mode === 'right' ? b.x1 : mode === 'centre' ? (b.x0 + b.x1) / 2 : mode === 'top' ? b.y1 : b.y0;
+}
+/** The text moved so that its edge is at `ref` (an x for left / right / centre, a y for top / bottom). */
+export function alignedTo(it: SketchItem, mode: AlignMode, ref: number): SketchItem {
+  const d = ref - alignEdge(it, mode);
+  return mode === 'top' || mode === 'bottom' ? movedBy(it, 0, d) : movedBy(it, d, 0);
+}
+/** Texts spaced evenly down the page: the topmost stays, each next one's centre `gap` below the one before (drawing
+ * units), in the order of their centres from the top. */
+export function spaced(texts: SketchItem[], gap: number): SketchItem[] {
+  const order = [...texts].sort((a, b) => textCentre(b)[1] - textCentre(a)[1]);
+  if (!order.length) return [];
+  const top = textCentre(order[0])[1];
+  return order.map((it, i) => movedBy(it, 0, top - i * gap - textCentre(it)[1]));
+}
+/** Rooms of a level (outlines in metres) that have no room tag yet: no drawn text with the room's name inside its
+ * outline (the tag's anchor in drawing units × k = metres). */
+export function untaggedRooms<R extends { name: string; outline?: Pt[] }>(rooms: R[], texts: SketchItem[], k: number, inside: (p: Pt, poly: Pt[]) => boolean): R[] {
+  return rooms.filter((r) => (r.outline?.length ?? 0) >= 3 && !texts.some((it) => it.kind === 'text' && it.text === r.name.toUpperCase() && inside([it.pts[0][0] * k, it.pts[0][1] * k], r.outline!)));
+}
