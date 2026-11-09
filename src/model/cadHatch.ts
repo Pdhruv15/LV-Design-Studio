@@ -49,17 +49,109 @@ export const patternOf = (id: string): PatternDef => (HATCH_PATTERNS as Record<s
 /** The built-in pattern a drawing's pattern name stands for (SOLID, ANSI31, BRICK…), if any. */
 export const patternByName = (name: string): HatchPattern | undefined => HATCH_IDS.find((id) => id === name.trim().toLowerCase());
 
-/** A hatch: pattern, line spacing (paper mm at the annotation scale) and angle (degrees). */
-export interface HatchSpec { pattern: HatchPattern; scale: number; angle: number }
+/** A pattern from a .pat file or from a drawing: its name, its description and its lines in pattern units (the first
+ * family's lines are one unit apart, so the hatch's spacing means the same as for the built-in patterns). It is kept
+ * with each hatch drawn with it, and in the project's list of patterns. */
+export interface CustomPattern { name: string; label?: string; lines: PatternLine[]; solid?: boolean }
+
+/** A hatch: pattern, line spacing (paper mm at the annotation scale) and angle (degrees); a pattern not built in
+ * carries its lines. */
+export interface HatchSpec { pattern: HatchPattern | (string & {}); scale: number; angle: number; custom?: CustomPattern }
+
+/** Limits on a pattern read from a file or a project (more would be a mistake, and slow to draw). */
+const MAX_LINES = 32, MAX_DASHES = 16, NAME = /^[A-Za-z0-9_$.\- ]{1,31}$/;
+const finite = (...v: number[]) => v.every(Number.isFinite);
+/** A pattern from a file or a project that can be drawn: a name, 1–32 line families with finite numbers, lines a
+ * step apart, at most 16 dashes each. */
+export function validCustom(c: CustomPattern | undefined): c is CustomPattern {
+  if (!c || typeof c.name !== 'string' || !NAME.test(c.name) || !Array.isArray(c.lines)) return false;
+  if (c.solid) return true;
+  return c.lines.length > 0 && c.lines.length <= MAX_LINES && c.lines.every((l) => Array.isArray(l?.base) && Array.isArray(l.offset) && Array.isArray(l.dashes)
+    && l.dashes.length <= MAX_DASHES && finite(l.angle, l.base[0], l.base[1], l.offset[0], l.offset[1], ...l.dashes) && Math.abs(l.offset[1]) > 1e-9);
+}
+/** What a hatch is drawn with: its own pattern when it carries a valid one, else the built-in (ANSI31 if unknown). */
+export const defOf = (spec: Pick<HatchSpec, 'pattern' | 'custom'>): PatternDef =>
+  (validCustom(spec.custom) ? { label: customLabel(spec.custom), lines: spec.custom.lines, ...(spec.custom.solid ? { solid: true } : {}) } : patternOf(spec.pattern));
+/** A custom pattern as listed: "NAME (description)". */
+export const customLabel = (c: CustomPattern) => (c.label ? `${c.name} (${c.label})` : c.name);
+
+/** Pattern lines rescaled so the first family's lines are one unit apart, and that spacing; undefined without one. */
+function normalised(lines: PatternLine[]): { lines: PatternLine[]; step: number } | undefined {
+  const s = lines.map((l) => Math.abs(l.offset[1])).find((v) => v > 1e-12);
+  if (!s) return undefined;
+  const k = (v: number) => v / s;
+  return { step: s, lines: lines.map((l) => ({ angle: l.angle, base: [k(l.base[0]), k(l.base[1])], offset: [k(l.offset[0]), k(l.offset[1])], dashes: l.dashes.map(k) })) };
+}
+
+/** The patterns of a .pat file (the text format of CAD programs' hatch pattern files):
+ *
+ *     *NAME, description
+ *     angle, x-origin, y-origin, delta-x, delta-y [, dash, …]
+ *
+ * with `;` comments. Each pattern is rescaled to pattern units; SOLID is a solid fill. Lines that cannot be read are
+ * reported (with their line number) and that pattern left out. */
+export function parsePat(text: string): { patterns: CustomPattern[]; errors: string[] } {
+  const patterns: CustomPattern[] = [], errors: string[] = [];
+  if (text.length > 2_000_000) return { patterns, errors: ['The file is larger than 2 MB: not a hatch pattern file.'] };
+  let cur: { name: string; label?: string; lines: PatternLine[]; bad: boolean; at: number } | undefined;
+  const flush = () => {
+    if (!cur || cur.bad) return;
+    if (cur.name.toUpperCase() === 'SOLID') { patterns.push({ name: cur.name, ...(cur.label ? { label: cur.label } : {}), lines: [], solid: true }); return; }
+    const n = normalised(cur.lines);
+    if (!cur.lines.length || !n) { errors.push(`Line ${cur.at}: ${cur.name} has no pattern lines.`); return; }
+    if (cur.lines.length > MAX_LINES) { errors.push(`Line ${cur.at}: ${cur.name} has more than ${MAX_LINES} line families.`); return; }
+    patterns.push({ name: cur.name, ...(cur.label ? { label: cur.label } : {}), lines: n.lines });
+  };
+  text.replace(/^\uFEFF/, '').split(/\r?\n/).forEach((raw, i) => {
+    const line = raw.replace(/;.*$/, '').trim(), at = i + 1;
+    if (!line) return;
+    if (line.startsWith('*')) {
+      flush();
+      const comma = line.indexOf(','), name = (comma < 0 ? line.slice(1) : line.slice(1, comma)).trim(), label = comma < 0 ? '' : line.slice(comma + 1).trim();
+      const bad = !NAME.test(name) || patterns.some((p) => p.name.toUpperCase() === name.toUpperCase());
+      if (bad) errors.push(`Line ${at}: “${name.slice(0, 40)}” ${NAME.test(name) ? 'is in the file twice: the first is kept' : 'is not a pattern name (letters, digits, _ $ . - up to 31)'}.`);
+      cur = { name, ...(label ? { label: label.slice(0, 80) } : {}), lines: [], bad, at };
+      return;
+    }
+    if (!cur) { errors.push(`Line ${at}: a pattern line before any *NAME.`); return; }
+    if (cur.bad) return;
+    const v = line.split(',').map((s) => Number(s.trim()));
+    if (v.length < 5 || !finite(...v)) { errors.push(`Line ${at} (${cur.name}): not five numbers or more.`); cur.bad = true; return; }
+    if (v.length - 5 > MAX_DASHES) { errors.push(`Line ${at} (${cur.name}): more than ${MAX_DASHES} dashes.`); cur.bad = true; return; }
+    if (Math.abs(v[4]) < 1e-12 && cur.name.toUpperCase() !== 'SOLID') { errors.push(`Line ${at} (${cur.name}): no distance between its lines (delta-y 0).`); cur.bad = true; return; }
+    cur.lines.push({ angle: v[0], base: [v[1], v[2]], offset: [v[3], v[4]], dashes: v.slice(5) });
+  });
+  flush();
+  return { patterns, errors };
+}
+
+/** A project's patterns with these added; one of the same name (any case) is replaced. At most 500. */
+export function withPatterns(list: CustomPattern[] | undefined, add: CustomPattern[]): CustomPattern[] {
+  const key = (c: CustomPattern) => c.name.toUpperCase(), names = new Set(add.map(key));
+  return [...(list ?? []).filter((c) => !names.has(key(c))), ...add].slice(0, 500);
+}
+/** A hatch spec for a project pattern, keeping the spacing and angle. */
+export const specWith = (spec: HatchSpec, c: CustomPattern): HatchSpec => ({ ...spec, pattern: c.name, custom: c });
 
 /** A pattern line placed: angle (radians), base point, the step to the next line and dashes, in the units given. */
 export interface PlacedLine { angle: number; base: Pt; offset: Pt; dashes: number[] }
 const rot = ([x, y]: Pt, a: number): Pt => [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
 
+/** A drawing's hatch (pattern lines placed in drawing units, as the drawing keeps them) as a hatch spec with its own
+ * pattern, its spacing in paper mm at `unit` drawing units per paper mm; undefined when its lines cannot be drawn. */
+export function specFromLines(name: string, lines: PlacedLine[], unit: number): HatchSpec | undefined {
+  if (!lines.length || !(unit > 0)) return undefined;
+  const b0 = lines[0].base;
+  const frame = lines.map((l): PatternLine => ({ angle: (l.angle * 180) / Math.PI, base: [l.base[0] - b0[0], l.base[1] - b0[1]], offset: rot(l.offset, -l.angle), dashes: l.dashes }));
+  const n = normalised(frame);
+  const custom: CustomPattern = { name: NAME.test(name.trim()) ? name.trim() : 'DRAWING', lines: n?.lines ?? [] };
+  return n && validCustom(custom) ? { pattern: custom.name, scale: n.step / unit, angle: 0, custom } : undefined;
+}
+
 /** A hatch's pattern lines at its spacing and angle, `unit` drawing units per paper mm (empty for Solid). The same
  * lines go to the screen, the plan sheets and SAVE (DXF / DWG). */
 export function placedLines(spec: HatchSpec, unit: number): PlacedLine[] {
-  const def = patternOf(spec.pattern);
+  const def = defOf(spec);
   if (def.solid) return [];
   const s = Math.max(0.2, spec.scale) * unit, r = def.noAngle ? 0 : (spec.angle * Math.PI) / 180;
   return def.lines.map((l) => {

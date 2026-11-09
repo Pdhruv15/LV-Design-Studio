@@ -10,7 +10,7 @@ import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } fr
 import type { SketchItem } from '../../types';
 import { effective, styleOf, type LayerStyle } from '../../model/cadLayerStyle';
 import { colourCss } from '../../model/cadColours';
-import { dotsOnly, hatchDots, hatchStrokes, patternOf, placedLines } from '../../model/cadHatch';
+import { dotsOnly, hatchDots, hatchStrokes, defOf, placedLines } from '../../model/cadHatch';
 import { onScreenThemeChange, screenAppearance } from '../../theme/theme';
 import { isFitClick, isPanPress, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, wheelAction, ZoomChip } from '../drawingView';
 
@@ -404,7 +404,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         const ys = it.kind === 'circle' ? [it.pts[0][1] - (it.r ?? 0), it.pts[0][1] + (it.r ?? 0)] : it.pts.map((q) => q[1]);
         const bx: [number, number, number, number] = [Math.min(...xs) - o0, Math.min(...ys) - o1, Math.max(...xs) - o0, Math.max(...ys) - o1];
         const perMm = 100 * unitsPerMm;
-        if (patternOf(it.hatch.pattern).solid) { ctx.globalAlpha = 0.3; ctx.fillStyle = col; ctx.fill(outline); ctx.globalAlpha = 1; }
+        if (defOf(it.hatch).solid) { ctx.globalAlpha = 0.3; ctx.fillStyle = col; ctx.fill(outline); ctx.globalAlpha = 1; }
         else {
           // Each line family: dots as small squares, else lines (dashed when the dashes are 4 pixels or more).
           const dsz = 2 / scale;

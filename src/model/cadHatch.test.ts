@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { hatchLines } from './cadDraw';
-import { dotsOnly, hatchDots, hatchStrokes, HATCH_IDS, mirroredY, patternByName, patternOf, placedLines, type HatchSpec } from './cadHatch';
+import { customLabel, defOf, dotsOnly, hatchDots, hatchStrokes, HATCH_IDS, mirroredY, parsePat, patternByName, patternOf, placedLines, specFromLines, specWith, validCustom, withPatterns, type HatchSpec } from './cadHatch';
 
 type Pt = [number, number];
 const box: [number, number, number, number] = [0, 0, 60, 40];
@@ -59,6 +59,71 @@ describe('hatch patterns', () => {
     // Each line on paper is the drawing's line reflected: its points reflected lie on a line of the family.
     const n: Pt = [-Math.sin(l.angle), Math.cos(l.angle)];
     for (const p of b) { const k = (p[0] * n[0] + p[1] * n[1]) / 3; expect(Math.abs(k - Math.round(k))).toBeLessThan(1e-6); }
+  });
+
+  it('reads a .pat file: patterns rescaled to their first spacing, SOLID solid, bad patterns reported and left out', () => {
+    const pat = [
+      '\uFEFF;; Office patterns',
+      '*MYBRICK, Brick courses ; a comment',
+      '0, 0,0, 0,6.35',
+      '90, 0,0, 6.35,-6.35, 6.35,-6.35',
+      '*SOLID, Solid fill',
+      '45, 0,0, 0,.125',
+      '*BAD NAME!, x',
+      '0, 0,0, 0,1',
+      '*SHORT',
+      '0, 0,0',
+      '*FLAT',
+      '0, 0,0, 1,0',
+      '*mybrick, again',
+      '0, 0,0, 0,1',
+      '*EMPTY'
+    ].join('\r\n');
+    const { patterns, errors } = parsePat(pat);
+    expect(patterns.map((p) => p.name)).toEqual(['MYBRICK', 'SOLID']);
+    expect(patterns[0]).toEqual({ name: 'MYBRICK', label: 'Brick courses', lines: [{ angle: 0, base: [0, 0], offset: [0, 1], dashes: [] }, { angle: 90, base: [0, 0], offset: [1, -1], dashes: [1, -1] }] });
+    expect(patterns[1]).toMatchObject({ name: 'SOLID', solid: true });
+    expect(errors).toEqual([
+      'Line 7: “BAD NAME!” is not a pattern name (letters, digits, _ $ . - up to 31).',
+      'Line 10 (SHORT): not five numbers or more.',
+      'Line 12 (FLAT): no distance between its lines (delta-y 0).',
+      'Line 13: “mybrick” is in the file twice: the first is kept.',
+      'Line 15: EMPTY has no pattern lines.'
+    ]);
+    expect(parsePat('0, 0,0, 0,1').errors).toEqual(['Line 1: a pattern line before any *NAME.']);
+    expect(parsePat('x'.repeat(2_000_001)).errors[0]).toMatch(/larger than 2 MB/);
+  });
+
+  it('a hatch with its own pattern draws it at its spacing; one that is not valid draws as ANSI31', () => {
+    const [mine] = parsePat('*MYBRICK\n0, 0,0, 0,6.35\n90, 0,0, 6.35,-6.35, 6.35,-6.35').patterns;
+    const s = specWith(spec('ansi31', 0), mine);
+    expect(s).toMatchObject({ pattern: 'MYBRICK', scale: 3, custom: mine });
+    expect(defOf(s).label).toBe('MYBRICK');
+    expect(placedLines(s, 1).map((l) => l.dashes)).toEqual([[], [3, -3]]);
+    expect(placedLines(s, 1)).toEqual(placedLines(spec('brick'), 1)); // the same as the built-in brick
+    const broken = { ...s, custom: { ...mine, lines: [{ ...mine.lines[0], offset: [0, NaN] as Pt }] } };
+    expect(validCustom(broken.custom)).toBe(false);
+    expect(defOf(broken)).toBe(patternOf('ansi31'));
+    expect(validCustom({ ...mine, lines: Array(33).fill(mine.lines[0]) })).toBe(false);
+  });
+
+  it('the project\'s patterns: one of the same name (any case) is replaced', () => {
+    const p = (name: string, label?: string) => ({ name, ...(label ? { label } : {}), lines: [{ angle: 0, base: [0, 0] as Pt, offset: [0, 1] as Pt, dashes: [] }] });
+    expect(withPatterns([p('A'), p('B', 'old')], [p('b', 'new'), p('C')]).map((c) => customLabel(c))).toEqual(['A', 'b (new)', 'C']);
+  });
+
+  it('a drawing\'s hatch lines become the same pattern again at the same spacing', () => {
+    const lines = placedLines(spec('earth', 30), 100);
+    const s = specFromLines('EARTH', lines, 100)!;
+    expect(s.scale).toBeCloseTo(1.5, 9); // its first lines are half a unit apart
+    const again = placedLines(s, 100);
+    again.forEach((l, i) => {
+      expect(l.angle).toBeCloseTo(lines[i].angle, 9);
+      [0, 1].forEach((k) => { expect(l.offset[k]).toBeCloseTo(lines[i].offset[k], 6); expect(l.base[k]).toBeCloseTo(lines[i].base[k] - lines[0].base[k], 6); });
+      l.dashes.forEach((d, j) => expect(d).toBeCloseTo(lines[i].dashes[j], 6));
+    });
+    expect(specFromLines('X', [], 100)).toBeUndefined();
+    expect(specFromLines('bad name!', lines, 100)!.pattern).toBe('DRAWING');
   });
 
   it('a drawing\'s pattern name finds the built-in one; unknown ids draw as ANSI31', () => {
