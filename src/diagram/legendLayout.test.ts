@@ -37,3 +37,10 @@ describe('legend layout', () => {
     expect(rows[0].lines).toHaveLength(1);
   });
 });
+
+describe('legend text height', () => {
+  it('a 3.5 mm legend is drawn at 3 px per mm, so the same 10.5 px labels print taller', () => {
+    expect(legendPxFor(88, 3.5)).toBeCloseTo(264, 6);
+    expect(legendPxFor(88, 2.5)).toBeCloseTo(legendPxFor(88), 6);
+  });
+});

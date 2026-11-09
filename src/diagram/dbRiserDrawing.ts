@@ -399,11 +399,11 @@ const LEGEND: { key: string; label: string; draw: (x: number, y: number) => stri
 ];
 
 /** The legend of one sheet (printable SVG, in the sheet's side column): only what is drawn on it. */
-export function dbRiserLegend(L: DbRiserLayout, part = 0, widthMm = 58): string {
+export function dbRiserLegend(L: DbRiserLayout, part = 0, widthMm = 58, textMm?: number): string {
   if (L.empty) return '';
   const used = usedOn(L, part), items = LEGEND.filter((e) => used.has(e.key));
   // Drawn for the sheet's column (widthMm, its inner width): the labels print at 2.5 mm and wrap (src/diagram/legendLayout.ts).
-  const W = legendPxFor(widthMm);
+  const W = legendPxFor(widthMm, textMm);
   const { rows, h } = legendRows(items, W, 42);
   const body = rows.map(({ entry: e, lines, y }) => `<g transform="translate(22 ${y}) scale(0.62)">${e.draw(0, 0)}</g>` + lines.map((l, j) => text(42, legendLineY(y, lines.length, j), l)).join('')).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${h}" width="${W}" height="${h}" font-family="Arial" font-size="${LEGEND_LABEL_PX}" fill="#111"><rect x="0.5" y="0.5" width="${W - 1}" height="${h - 1}" fill="#fff" stroke="#111" stroke-width="1"/>${text(12, 22, 'LEGEND', 'font-weight="bold"')}${ln(0, 32, W, 32, 1)}${body}</svg>`;

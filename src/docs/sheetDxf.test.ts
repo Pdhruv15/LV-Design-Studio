@@ -254,3 +254,27 @@ describe('legend column text at 2.5 mm', () => {
     expect(num(schedule, 40)).toBeCloseTo(2.5, 6);
   });
 });
+
+describe('sheet furniture in DXF', () => {
+  beforeAll(() => vi.stubGlobal('DOMParser', DOMParser));
+  afterAll(() => vi.unstubAllGlobals());
+  it('zone references and centring marks on E-FRAME, only when asked', () => {
+    const plain = buildSheetDxf(dxfExportProject, svg, 'A3', info);
+    expect(textOf(plain, 'E-FRAME')).toBe('');
+    const data = buildSheetDxf(dxfExportProject, svg, 'A3', { ...info, furniture: { zones: 'all', centring: true } });
+    const texts = entities(data).filter((e) => e.type === 'TEXT' && e.v.get(8) === 'E-FRAME').map((e) => e.v.get(1));
+    expect(texts.filter((t) => /^\d+$/.test(t!))).toHaveLength(16); // 1–8 top and bottom
+    expect(texts.filter((t) => /^[A-Z]$/.test(t!))).toHaveLength(12); // A–F each side
+    expect(texts).toContain('8');
+    expect(texts).not.toContain('9');
+    // The four centring marks are 0.7 mm wide: a line with a width is written as a filled SOLID strip.
+    const solids = (d: string) => entities(d).filter((e) => e.v.get(8) === 'E-FRAME' && e.type === 'SOLID').length;
+    expect(solids(data)).toBe(solids(plain) + 4);
+    expectPaperBounds(data, SHEET_MM.A3.w, SHEET_MM.A3.h);
+  });
+  it('the column\'s text follows the set\'s 3.5 mm', () => {
+    const data = buildSheetDxf(dxfExportProject, svg, 'A3', { ...info, cables: [{ ref: 1, text: '4C × 70 mm² XLPE' }], furniture: { textMm: 3.5 } });
+    const row = entities(data).find((e) => e.type === 'TEXT' && e.v.get(1)?.includes('4C'))!;
+    expect(num(row, 40)).toBeCloseTo(3.5, 6);
+  });
+});

@@ -12,8 +12,8 @@ export const LEGEND_HEAD = 32, LEGEND_SHEET_ROW = 26, LEGEND_LINE = 13, LEGEND_F
 /** Average width of a 10.5 px Arial character; labels are mostly lower case. */
 const CHAR_PX = 5.9;
 
-/** The width of a sheet legend for a column of the given inner width (mm). */
-export const legendPxFor = (widthMm: number) => Math.round(widthMm * LEGEND_PX_PER_MM * 10) / 10;
+/** The width of a sheet legend for a column of the given inner width (mm), its labels printing at textMm. */
+export const legendPxFor = (widthMm: number, textMm = LEGEND_TEXT_MM) => Math.round(widthMm * (LEGEND_LABEL_PX / textMm) * 10) / 10;
 
 /** Splits a label at spaces into lines no wider than maxPx; a single word longer than that stands alone. */
 export function wrapLabel(label: string, maxPx: number): string[] {

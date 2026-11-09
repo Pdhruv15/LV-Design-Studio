@@ -50,10 +50,10 @@ export const FEEDER_RISER_LEGEND: { key: string; label: string; draw: (x: number
   { key: 'standby', label: 'Standby supply', draw: (x, y) => <line x1={x - 0.7 * U} y1={y} x2={x + 0.7 * U} y2={y} className="ln riser-standby" /> }
 ];
 
-export function FeederRiserLegendSvg({ used, widthMm }: { used: Set<string>; widthMm?: number }) {
+export function FeederRiserLegendSvg({ used, widthMm, textMm }: { used: Set<string>; widthMm?: number; textMm?: number }) {
   const items = FEEDER_RISER_LEGEND.filter((e) => used.has(e.key));
   // For a sheet's legend column (widthMm) the labels print at 2.5 mm and wrap (src/diagram/legendLayout.ts).
-  const W = widthMm ? legendPxFor(widthMm) : 300;
+  const W = widthMm ? legendPxFor(widthMm, textMm) : 300;
   const { rows, h } = legendRows(items, W, 64);
   return (
     <div className="sysdiag riser">

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { standardTemplate, titleBlockHtml } from '../model/titleBlock';
 import type { Project } from '../types';
-import { buildSldSheetHtml, legendColumnFits } from './sldSheet';
+import { buildSldSheetHtml, legendColumnFits, zoneFields } from './sldSheet';
 
 /** The band along a drawing sheet's foot: the revision table and the title block share its rows, and the frame draws
  * its foot and right edge, so every line meets and none is drawn twice. The printed check is tests/pdf/sheetFrame.pdf.ts. */
@@ -85,5 +85,55 @@ describe('legend column at 2.5 mm', () => {
     expect(legendColumnFits(sampleProject, svg, 'A1', info)).toBe(true);
     expect(legendColumnFits(sampleProject, svg, 'A3', { ...one, legendSvg: legendAt(32 + 8 * 26 + 8) })).toBe(true);
     expect(legendColumnFits(sampleProject, svg, 'A3', { ...one, legendSvg: '' })).toBe(true);
+  });
+});
+
+/** Sheet furniture (src/model/drawingSet.ts SheetFurniture): zone references and centring marks in the margin, the
+ * column's text height, and where the notes go. Nothing changes until a value is set. */
+describe('sheet furniture', () => {
+  const info = { ...one, cables: [{ ref: 1, text: '4C × 70 mm²' }], notes: ['A note'] };
+  it('prints nothing new by default', () => {
+    const html = buildSldSheetHtml(sampleProject, svg, 'A3', info), doc = parse(html);
+    expect(doc.querySelectorAll('.zn, .cm')).toHaveLength(0);
+    expect(doc.querySelector('.side .notes')).toBeNull();
+    expect(doc.querySelector<HTMLElement>('.notes')!.style.width).toBe('180mm');
+  });
+  it('zone references: 8 numbered fields along an A3 frame, 6 lettered down its sides, in a 5 mm strip outside the frame', () => {
+    const doc = parse(buildSldSheetHtml(sampleProject, svg, 'A3', { ...info, furniture: { zones: 'all' } }));
+    expect([...doc.querySelectorAll('.zt span')].map((e) => e.textContent)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
+    expect([...doc.querySelectorAll('.zl span')].map((e) => e.textContent)).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
+    expect(doc.querySelectorAll('.zb span')).toHaveLength(8);
+    expect(doc.querySelectorAll('.zr span')).toHaveLength(6);
+    expect(zoneFields(841 - 30)).toBe(16); // A1
+    expect(zoneFields(297 - 30)).toBe(5); // A4
+  });
+  it('"A2 and A1" leaves A3 alone', () => {
+    expect(parse(buildSldSheetHtml(sampleProject, svg, 'A3', { ...info, furniture: { zones: 'large' } })).querySelectorAll('.zn')).toHaveLength(0);
+    expect(parse(buildSldSheetHtml(sampleProject, svg, 'A2', { ...info, furniture: { zones: 'large' } })).querySelectorAll('.zn')).toHaveLength(4);
+  });
+  it('centring marks: four 10 mm marks at the frame\'s middle', () => {
+    const marks = [...parse(buildSldSheetHtml(sampleProject, svg, 'A3', { ...info, furniture: { centring: true } })).querySelectorAll<HTMLElement>('.cm')];
+    expect(marks).toHaveLength(4);
+    expect(marks[0].style.left).toBe('215mm'); // 20 + 390 / 2
+    expect(marks[2].style.top).toBe('148.5mm');
+  });
+  it('notes in the legend column, or above the title block at a chosen width', () => {
+    const doc = parse(buildSldSheetHtml(sampleProject, svg, 'A3', { ...info, furniture: { notesPlace: 'column' } }));
+    expect(doc.querySelector('.side .notes')).not.toBeNull();
+    expect(doc.querySelector('.body > .notes')).toBeNull();
+    expect(parse(buildSldSheetHtml(sampleProject, svg, 'A3', { ...info, furniture: { notesWidthMm: 120 } })).querySelector<HTMLElement>('.notes')!.style.width).toBe('120mm');
+    // Without a legend column (no legend, cable schedule or abbreviations) the notes stay above the title block.
+    const bare: Project = { ...sampleProject, drawing: { ...sampleProject.drawing, abbreviations: false } };
+    expect(parse(buildSldSheetHtml(bare, svg, 'A3', { ...one, legendSvg: '', notes: ['A note'], furniture: { notesPlace: 'column' } })).querySelector('.body > .notes')).not.toBeNull();
+  });
+  it('3.5 mm text sizes the column, the notes and the band, and asks more of the paper', () => {
+    const html = buildSldSheetHtml(sampleProject, svg, 'A3', { ...info, furniture: { textMm: 3.5 } });
+    for (const sel of ['.band {', '.notes {', '.cs {']) {
+      const rule = html.slice(html.indexOf(`\n    ${sel}`));
+      expect(rule.slice(0, rule.indexOf('}'))).toContain('font-size: 3.5mm');
+    }
+    const legend = `<svg viewBox="0 0 264 ${32 + 22 * 26 + 8}" data-w="264" data-h="${32 + 22 * 26 + 8}"></svg>`; // 22 rows drawn for 3.5 mm ≈ 204 mm
+    expect(legendColumnFits(sampleProject, svg, 'A3', { ...info, legendSvg: legend, furniture: { textMm: 3.5 } })).toBe(false);
+    expect(legendColumnFits(sampleProject, svg, 'A2', { ...info, legendSvg: legend, furniture: { textMm: 3.5 } })).toBe(true);
   });
 });
