@@ -42,10 +42,10 @@ export const RISER_LEGEND: { key: string; label: string; draw: (x: number, y: nu
 ];
 
 /** The riser legend on its own (the sheet's legend column). */
-export function RiserLegendSvg({ used, widthMm }: { used: Set<string>; widthMm?: number }) {
+export function RiserLegendSvg({ used, widthMm, textMm }: { used: Set<string>; widthMm?: number; textMm?: number }) {
   const items = RISER_LEGEND.filter((e) => used.has(e.key));
   // For a sheet's legend column (widthMm) the labels print at 2.5 mm and wrap (src/diagram/legendLayout.ts).
-  const W = widthMm ? legendPxFor(widthMm) : 300;
+  const W = widthMm ? legendPxFor(widthMm, textMm) : 300;
   const { rows, h } = legendRows(items, W, 64);
   return (
     <div className="sysdiag riser">

@@ -1,7 +1,8 @@
 import type { DrawingInfo, Project } from '../types';
 import { svgToDxf } from '../diagram/exportSvg';
 import { toDxf, type DxfPrimitive } from './dxf';
-import { furnitureScale, sheetTitleBlock, SHEET_MM, type SheetInfo } from './sldSheet';
+import { furnitureScale, sheetTitleBlock, SHEET_MM, zoneFields, zonesOn, type SheetInfo } from './sldSheet';
+import { LEGEND_TEXT_MM } from '../diagram/legendLayout';
 import { abbreviationsIn } from './sldNotes';
 import { fillParams } from '../model/params';
 import { FIRE_NOTE } from '../model/cableRefs';
@@ -155,8 +156,9 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   const bodyH = bodyTop - bodyBottom;
   const colW = Math.min((one?.sideMm ?? 92) * k, frame.w * 0.4);
   const contentW = colW - 4 * k;
-  // Column text at 2.5 mm (ISO 3098), as the PDF prints it; A4 alone shrinks it with the furniture.
-  const cap = Math.max(1.5, 2.5 * k), headingCap = Math.max(1.8, 2.5 * k);
+  // Column text at 2.5 mm (ISO 3098) or the set's 3.5 mm, as the PDF prints it; A4 alone shrinks it with the furniture.
+  const fz = one?.furniture ?? {}, tm = fz.textMm ?? LEGEND_TEXT_MM;
+  const cap = Math.max(1.5, tm * k), headingCap = Math.max(1.8, tm * k);
   const step = Math.max(3.1 * k, cap * 1.5), headingStep = Math.max(4 * k, headingCap * 1.5);
   const flow: FlowLine[] = [];
   const section = (heading: string, values: string[], layer = 'E-LEGEND') => {
@@ -178,8 +180,30 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   if (one?.summary) section(one.summary.title, one.summary.rows.map(([a, v]) => `${a}   ${v}`));
   const legend = one?.legendSvg ?? '';
   const side = !!(legend || flow.length);
+  // Sheet furniture outside the frame: zone references in a 5 mm strip (numbers along the top and bottom, letters down
+  // the sides, fields of about 50 mm) and centring marks, on every page of the sheet.
+  const outside: DxfPrimitive[] = [];
+  if (zonesOn(fz, size)) {
+    const nx = zoneFields(frame.w), ny = zoneFields(frame.h), cw = frame.w / nx, ch = frame.h / ny, th = 2.5;
+    outside.push(rect('E-FRAME', { x: frame.x - 5, y: frame.y - 5, w: frame.w + 10, h: frame.h + 10 }));
+    for (let i = 0; i < nx; i++) {
+      const x = frame.x + i * cw;
+      if (i) outside.push({ type: 'line', layer: 'E-FRAME', x1: x, y1: frame.y - 5, x2: x, y2: frame.y }, { type: 'line', layer: 'E-FRAME', x1: x, y1: frame.y + frame.h, x2: x, y2: frame.y + frame.h + 5 });
+      for (const y of [frame.y - 5, frame.y + frame.h]) outside.push({ type: 'text', layer: 'E-FRAME', x: x + cw / 2, y: y + (5 - th) / 2, height: th, text: String(i + 1), align: 'center' });
+    }
+    for (let i = 0; i < ny; i++) {
+      const yTop = frame.y + frame.h - i * ch; // lettered from the top
+      if (i) outside.push({ type: 'line', layer: 'E-FRAME', x1: frame.x - 5, y1: yTop, x2: frame.x, y2: yTop }, { type: 'line', layer: 'E-FRAME', x1: frame.x + frame.w, y1: yTop, x2: frame.x + frame.w + 5, y2: yTop });
+      for (const x of [frame.x - 2.5, frame.x + frame.w + 2.5]) outside.push({ type: 'text', layer: 'E-FRAME', x, y: yTop - ch / 2 - th / 2, height: th, text: String.fromCharCode(65 + i), align: 'center' });
+    }
+  }
+  if (fz.centring) {
+    const cx = frame.x + frame.w / 2, cy = h / 2;
+    outside.push({ type: 'line', layer: 'E-FRAME', x1: cx, y1: h, x2: cx, y2: h - 10, width: 0.7 }, { type: 'line', layer: 'E-FRAME', x1: cx, y1: 0, x2: cx, y2: 10, width: 0.7 },
+      { type: 'line', layer: 'E-FRAME', x1: 0, y1: cy, x2: 10, y2: cy, width: 0.7 }, { type: 'line', layer: 'E-FRAME', x1: w, y1: cy, x2: w - 10, y2: cy, width: 0.7 });
+  }
   const pages: DxfPrimitive[][] = [];
-  const base = () => [rect('E-FRAME', { x: 0, y: 0, w, h }), rect('E-FRAME', frame), ...title];
+  const base = () => [rect('E-FRAME', { x: 0, y: 0, w, h }), rect('E-FRAME', frame), ...outside, ...title];
   const first = base(); pages.push(first);
   const colX = frame.x + frame.w - colW;
   let cursor = 0;

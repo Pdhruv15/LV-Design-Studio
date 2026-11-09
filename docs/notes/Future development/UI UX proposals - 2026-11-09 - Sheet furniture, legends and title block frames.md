@@ -1,6 +1,15 @@
 # UI / UX proposal — Sheet furniture, legends and title block frames (2026-11-09)
 
-Status: **step 1 (Legend at ISO height) approved by the user on 2026-11-09 and built in v2.059 (branch `feat/legend-iso-height`); steps 2–5 wait for approval.**
+Status: **step 1 (Legend at ISO height) approved by the user on 2026-11-09 and built in v2.059 (branch `feat/legend-iso-height`, PR 468); step 2 (Sheet furniture settings) approved 2026-11-09 ("Yes, step 2 next") and its first part built in v2.060 (branch `feat/sheet-furniture`); the rest of step 2 and steps 3–5 wait.**
+
+## Built in v2.060 (step 2, first part: the settings)
+
+- `SheetFurniture` on the drawing set and on each sheet (`src/model/drawingSet.ts`, `furnitureOf`, `minMmPerPx`); a blank value is today's output, so nothing changes until a value is chosen.
+- Choices: zone references (off / A2 and A1 / every paper; ISO 5457 fields of ≈ 50 mm, numbered along the top and bottom, lettered down the sides, in a 5 mm strip outside the frame), centring marks (10 mm, 0.7 mm), legend and column text 2.5 or 3.5 mm (the legend is drawn for it), notes above the title block (width in mm) or in the legend column, smallest drawing text 1.8 (as before) / 2.5 / 3.5 mm (the Fit's limit; Auto paper and the crowded check follow it).
+- UI: a *Sheet furniture* card on Design CAD → Sheets → Title block & numbering (the set), and a *Sheet furniture* group in the open sheet's settings (this sheet; blank = as the set): `src/components/docs/FurnitureFields.tsx`. The Properties palette of the mockup was not used: the sheets page keeps its settings panel on the right, where paper, status and notes already are.
+- PDF (`sldSheet.ts`) and DXF / DWG (`sheetDxf.ts`) follow the same values; the plot stamp moves under the zone strip.
+- **Still to build of step 2:** revision table rows (6 / 8: the band's rows are the title block's rows today, so a taller band is needed), a title block per sheet kind, the legend in two columns or as a bottom strip, the risers' and earthing drawings' notes and schedules moved into the column. D3 (fixed revision rows) and D4 / D5 defaults are therefore still open: today's output stays the default.
+
 
 ## Built in v2.059 (step 1, legend and column at 2.5 mm)
 

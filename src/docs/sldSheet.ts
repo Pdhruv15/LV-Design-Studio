@@ -1,11 +1,12 @@
 import { currentRevision } from '../model/revisions';
 import { cableDataNotice } from '../calc/cableTable';
 import type { DrawingInfo, Project } from '../types';
+import type { SheetFurniture } from '../model/drawingSet';
 import { esc } from './report';
 import { templateOf, templateSize, titleBlockHtml } from '../model/titleBlock';
 import { fillParams } from '../model/params';
 import { abbreviationsIn } from './sldNotes';
-import { LEGEND_PX_PER_MM } from '../diagram/legendLayout';
+import { LEGEND_LABEL_PX, LEGEND_TEXT_MM } from '../diagram/legendLayout';
 import { FIRE_NOTE } from '../model/cableRefs';
 import { markupLayerHtml, type SheetMarkup } from '../model/sheetMarkup';
 import { isRasterDataUrl, num } from '../util/escape';
@@ -97,7 +98,10 @@ export interface SheetInfo { no: string; title: string; count: number; index: nu
   markups?: SheetMarkup[];
   /** Pens (src/model/plotSetup.ts): the frame's width, the title block and table lines (mm), extra CSS for the
    * drawing's lines, and the plot stamp printed in the margin. Blank: as always. */
-  plot?: { frame?: number; lines?: number; ink?: string; css?: string; stamp?: string } }
+  plot?: { frame?: number; lines?: number; ink?: string; css?: string; stamp?: string };
+  /** What prints around the drawing (src/model/drawingSet.ts SheetFurniture): zone references, centring marks, the
+   * column's text height, where the notes go. Blank: as always. */
+  furniture?: SheetFurniture }
 
 /** The legend column (legend, cable schedule, abbreviations, summary): its width and padding, mm at scale 1. A DB riser
  * sheet's narrower column is RISER_SIDE_MM (src/model/drawingSet.ts). */
@@ -177,6 +181,10 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   const summary = one?.summary;
   const side = !!one && (!!legendSvg || cables.length > 0 || abbr.length > 0 || !!summary);
   const csW = side ? one?.sideMm ?? SIDE_MM : 0; // legend column width (mm at scale 1)
+  const fz = one?.furniture ?? {}, tm = fz.textMm ?? LEGEND_TEXT_MM; // the column's text height
+  const zones = zonesOn(fz, sheet), nx = zoneFields(w - FRAME_W), ny = zoneFields(h - FRAME_H);
+  const notesInColumn = fz.notesPlace === 'column' && side;
+  const notesW = Math.min(fz.notesWidthMm ?? tbW, (w - FRAME_W - 6) / k);
   const fire = cables.some((c) => c.fireRated);
   const { css: tbCss, html: tbHtml } = titleBlockFragment(project, t, custom, extra, one, sheet, k);
   // The revision table and the title block share the band along the frame's foot, row for row, so each line of one runs
@@ -199,18 +207,19 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     const col = (v: number) => `<col style="width:${+v.toFixed(2)}mm">`;
     return `<table class="tb band"><colgroup>${col(revW * 0.1)}${col(revW * 0.18)}<col>${titleCols(k)}</colgroup>${standardTitleRows(project, t, one, sheet, status).map((r, i, all) => `<tr>${revCells(i, all.length)}${r}</tr>`).join('')}</table>`;
   })();
+  const notesHtml = notes.length ? `<div class="notes"${notesInColumn ? '' : ` style="width:${mm(notesW)}"`}><b>NOTES</b><ol>${notes.map((n) => `<li>${esc(fillParams(n, project))}</li>`).join('')}</ol></div>` : '';
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(t.number || t.title)}</title><style>
     @page { size: ${w}mm ${h}mm; margin: 0; }
     * { box-sizing: border-box; }
     html, body { margin: 0; width: ${w}mm; height: ${h}mm; font: ${px(9)} Arial, sans-serif; color: #000; background: #fff; }
     .frame { position: absolute; inset: 10mm 10mm 10mm 20mm; border: ${+(one?.plot?.frame ?? 0.7).toFixed(2)}mm solid ${one?.plot?.ink ?? '#000'}; display: flex; flex-direction: column; }
-    .stamp { position: absolute; left: 20mm; bottom: 4mm; font-size: 2mm; color: #000; white-space: nowrap; }${one?.plot?.css ? `
+    .stamp { position: absolute; left: 20mm; bottom: ${zones ? 1.5 : 4}mm; font-size: 2mm; color: #000; white-space: nowrap; }${one?.plot?.css ? `
     ${one.plot.css}` : ''}
     .body { position: relative; flex: 1; min-height: 0; }
     .drawing { position: absolute; inset: 3mm; right: calc(3mm + ${mm(csW)}); display: flex; align-items: center; justify-content: center; }
     .drawing svg { width: 100%; height: 100%; }
     ${tbCss}
-    .band { position: relative; flex: none; width: 100%; font-size: ${mm(2.5)}; }
+    .band { position: relative; flex: none; width: 100%; font-size: ${mm(tm)}; }
     .tb.band { position: static; }
     .rv { position: absolute; left: 0; top: 0; height: 100%; border-collapse: collapse; table-layout: fixed; }
     .rvx { position: absolute; border-left: ${mm(0.5 * lw)} solid #000; }
@@ -219,34 +228,43 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .band td.u { border-bottom: ${mm(0.2)} solid #999; }
     .band td.h { font-size: ${px(7)}; font-weight: 700; text-transform: uppercase; }
     .band td.gen { vertical-align: bottom; font-size: ${px(6.5)}; color: #555; }
-    .notes { position: absolute; right: 0; bottom: ${mm(3)}; font-size: ${mm(2.5)}; border: ${mm(0.25 * lw)} solid #000; border-right: 0; padding: ${mm(1)} ${mm(2)}; background: #fff; }
+    .notes { position: absolute; right: 0; bottom: ${mm(3)}; font-size: ${mm(tm)}; border: ${mm(0.25 * lw)} solid #000; border-right: 0; padding: ${mm(1)} ${mm(2)}; background: #fff; }
+    .side .notes { position: static; border-right: ${mm(0.25 * lw)} solid #000; }
     .notes ol { margin: ${mm(0.5)} 0 0; padding-left: ${mm(4)}; }
     .side { position: absolute; right: 0; top: 0; width: ${mm(csW)}; bottom: ${tooShort && csW <= tbW ? `-${mm(tooShort)}` : 0}; display: flex; flex-direction: column; gap: ${mm(2)}; overflow: hidden; border-left: ${mm(0.25 * lw)} solid #000; padding: ${mm(SIDE_PAD_MM)}; }
     .side .lg svg { width: 100%; height: auto; display: block; }
-    .side .sum { margin-top: auto; flex: none; border: ${mm(0.25 * lw)} solid #000; font-size: ${mm(2.5)}; }
-    .sum b { display: block; font-size: ${mm(2.5)}; padding: ${mm(1)} ${mm(2)}; border-bottom: ${mm(0.25 * lw)} solid #000; }
+    .side .sum { margin-top: auto; flex: none; border: ${mm(0.25 * lw)} solid #000; font-size: ${mm(tm)}; }
+    .sum b { display: block; font-size: ${mm(tm)}; padding: ${mm(1)} ${mm(2)}; border-bottom: ${mm(0.25 * lw)} solid #000; }
     .sum table { width: 100%; border-collapse: collapse; } .sum td { padding: ${mm(0.3)} ${mm(2)}; border-bottom: ${mm(0.15 * lw)} solid #000; } .sum tr:last-child td { border-bottom: 0; } .sum td + td { text-align: right; font-weight: 600; width: ${mm(16)}; }
     .side .abbr, .side .cs { position: static; width: auto; max-height: none; border: ${mm(0.25 * lw)} solid #000; column-count: 1; }
-    .abbr { position: absolute; left: 0; bottom: 0; font-size: ${mm(2.5)}; border: ${mm(0.25 * lw)} solid #000; border-left: 0; border-bottom: 0; padding: ${mm(1)} ${mm(2)}; background: #fff; column-count: ${abbr.length > 12 ? 2 : 1}; column-gap: ${mm(4)}; }
-    .abbr b { display: block; column-span: all; font-size: ${mm(2.5)}; margin-bottom: ${mm(0.5)}; }
+    .abbr { position: absolute; left: 0; bottom: 0; font-size: ${mm(tm)}; border: ${mm(0.25 * lw)} solid #000; border-left: 0; border-bottom: 0; padding: ${mm(1)} ${mm(2)}; background: #fff; column-count: ${abbr.length > 12 ? 2 : 1}; column-gap: ${mm(4)}; }
+    .abbr b { display: block; column-span: all; font-size: ${mm(tm)}; margin-bottom: ${mm(0.5)}; }
     .abbr div { break-inside: avoid; white-space: nowrap; } .abbr span { display: inline-block; min-width: ${mm(9)}; font-weight: 600; }
-    .cs { position: absolute; right: 0; top: 0; width: ${mm(csW)}; max-height: 100%; overflow: hidden; border-left: ${mm(0.25 * lw)} solid #000; border-bottom: ${mm(0.25 * lw)} solid #000; background: #fff; font-size: ${mm(2.5)}; }
-    .cs h5 { margin: 0; padding: ${mm(1)} ${mm(2)}; font-size: ${mm(2.5)}; text-align: center; text-decoration: underline; border-bottom: ${mm(0.25 * lw)} solid #000; }
+    .cs { position: absolute; right: 0; top: 0; width: ${mm(csW)}; max-height: 100%; overflow: hidden; border-left: ${mm(0.25 * lw)} solid #000; border-bottom: ${mm(0.25 * lw)} solid #000; background: #fff; font-size: ${mm(tm)}; }
+    .cs h5 { margin: 0; padding: ${mm(1)} ${mm(2)}; font-size: ${mm(tm)}; text-align: center; text-decoration: underline; border-bottom: ${mm(0.25 * lw)} solid #000; }
     .cs table { width: 100%; border-collapse: collapse; } .cs td { border-bottom: ${mm(0.15 * lw)} solid #000; padding: ${mm(0.6)} ${mm(1)}; vertical-align: middle; }
     .cs .n { width: ${mm(8)}; text-align: center; } .cs .n span { display: inline-block; min-width: ${mm(4.6)}; line-height: ${mm(4.2)}; border: ${mm(0.25 * lw)} solid #000; border-radius: 50%; font-weight: 700; }
-    .cs p { margin: 0; padding: ${mm(1)} ${mm(2)}; font-size: ${mm(2.5)}; }
+    .cs p { margin: 0; padding: ${mm(1)} ${mm(2)}; font-size: ${mm(tm)}; }
+    .zn { position: absolute; display: flex; font-size: 2.5mm; line-height: 1; color: #000; }
+    .zt { left: ${FRAME_W - 10}mm; right: 10mm; top: 5mm; height: 5mm; border-top: 0.35mm solid #000; } .zb { left: ${FRAME_W - 10}mm; right: 10mm; bottom: 5mm; height: 5mm; border-bottom: 0.35mm solid #000; }
+    .zl { top: 10mm; bottom: 10mm; left: ${FRAME_W - 15}mm; width: 5mm; flex-direction: column; border-left: 0.35mm solid #000; } .zr { top: 10mm; bottom: 10mm; right: 5mm; width: 5mm; flex-direction: column; border-right: 0.35mm solid #000; }
+    .zn span { flex: 1; display: flex; align-items: center; justify-content: center; border-left: 0.35mm solid #000; } .zn span:first-child { border-left: 0; }
+    .zl span, .zr span { border-left: 0; border-top: 0.35mm solid #000; } .zl span:first-child, .zr span:first-child { border-top: 0; }
+    .cm { position: absolute; background: #000; }
   </style></head><body>
   <div class="frame"><div class="body">
     <div class="drawing">${svg}</div>
     ${side ? `<div class="side">${legendSvg ? `<div class="lg">${legendSvg}</div>` : ''}` : ''}
     ${cables.length ? `<div class="cs"><h5>CABLE SCHEDULE</h5><table>${cables.map((c) => `<tr><td class="n"><span>${c.ref}</span></td><td>${esc(c.text)}</td></tr>`).join('')}</table>${fire ? `<p><b>NOTE:</b> ${esc(FIRE_NOTE)}</p>` : ''}</div>` : ''}
     ${abbr.length ? `<div class="abbr"><b>ABBREVIATIONS</b>${abbr.map(([a, d]) => `<div><span>${esc(a)}</span>${esc(d)}</div>`).join('')}</div>` : ''}
+    ${notesInColumn ? notesHtml : ''}
     ${summary ? `<div class="sum"><b>${esc(summary.title)}</b><table>${summary.rows.map(([a, v]) => `<tr><td>${esc(a)}</td><td>${esc(v)}</td></tr>`).join('')}</table></div>` : ''}
     ${side ? '</div>' : ''}
-    ${notes.length ? `<div class="notes" style="width:${mm(tbW)}"><b>NOTES</b><ol>${notes.map((n) => `<li>${esc(fillParams(n, project))}</li>`).join('')}</ol></div>` : ''}
+    ${notesInColumn ? '' : notesHtml}
   </div>
     ${band}
   </div>
+  ${zones ? `<div class="zn zt">${zoneCells(nx)}</div><div class="zn zb">${zoneCells(nx)}</div><div class="zn zl">${zoneCells(ny, true)}</div><div class="zn zr">${zoneCells(ny, true)}</div>` : ''}${fz.centring ? centringHtml(w, h) : ''}
   ${markupLayerHtml(one?.markups ?? [], w, h)}${one?.plot?.stamp ? `
   <div class="stamp">${esc(one.plot.stamp)}</div>` : ''}
   </body></html>`;
@@ -254,13 +272,26 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
 
 const FRAME_W = 30, FRAME_H = 20, BAND = 44;
 
+/** Zone references (ISO 5457): fields of about 50 mm along the frame, numbered along the top and bottom, lettered down
+ * the sides, in a 5 mm strip outside the frame. */
+export const zoneFields = (frameMm: number) => Math.max(2, Math.round(frameMm / 50));
+export const zonesOn = (f: SheetFurniture, sheet: NonNullable<DrawingInfo['sheet']>) => f.zones === 'all' || (f.zones === 'large' && (sheet === 'A2' || sheet === 'A1'));
+const zoneCells = (n: number, letters = false) => Array.from({ length: n }, (_, i) => `<span>${letters ? String.fromCharCode(65 + i) : i + 1}</span>`).join('');
+/** Centring marks: 10 mm lines in from the paper's edges at the frame's middle. */
+function centringHtml(w: number, h: number): string {
+  const cx = +(FRAME_W - 10 + (w - FRAME_W) / 2).toFixed(2), cy = +(h / 2).toFixed(2);
+  return `<div class="cm" style="left:${cx}mm;top:0;width:0.7mm;height:10mm"></div><div class="cm" style="left:${cx}mm;bottom:0;width:0.7mm;height:10mm"></div><div class="cm" style="top:${cy}mm;left:0;height:0.7mm;width:10mm"></div><div class="cm" style="top:${cy}mm;right:0;height:0.7mm;width:10mm"></div>`;
+}
+
 /** Whether the legend column's contents fit the paper: the legend (drawn at LEGEND_PX_PER_MM, so its height is known),
  * the cable schedule, the abbreviations and the summary, each at 2.5 mm text, against the drawing area's height. The
  * column clips what does not fit (overflow hidden), so a sheet whose column is full wants a larger paper. */
 export function legendColumnFits(project: Project, svg: string, sheet: NonNullable<DrawingInfo['sheet']>, one: SheetInfo): boolean {
-  const legendH = Number(one.legendSvg?.match(/data-h="([\d.]+)"/)?.[1] ?? 0) / LEGEND_PX_PER_MM;
+  const fz = one.furniture ?? {}, tm = fz.textMm ?? LEGEND_TEXT_MM, r = tm / LEGEND_TEXT_MM; // rows grow with the text
+  const legendH = Number(one.legendSvg?.match(/data-h="([\d.]+)"/)?.[1] ?? 0) / (LEGEND_LABEL_PX / tm);
   const cables = one.cables ?? [], abbr = project.drawing?.abbreviations === false ? [] : abbreviationsIn(svg);
-  const parts = [legendH, cables.length ? 7 + cables.length * 5.2 + (cables.some((c) => c.fireRated) ? 5 : 0) : 0, abbr.length ? 6 + abbr.length * 3.6 : 0, one.summary ? 6 + one.summary.rows.length * 3.6 : 0];
+  const notes = fz.notesPlace === 'column' ? [...(project.drawing?.notes ?? []), ...(one.notes ?? [])].filter((n) => n.trim()).length : 0;
+  const parts = [legendH, cables.length ? (7 + cables.length * 5.2 + (cables.some((c) => c.fireRated) ? 5 : 0)) * r : 0, abbr.length ? (6 + abbr.length * 3.6) * r : 0, one.summary ? (6 + one.summary.rows.length * 3.6) * r : 0, notes ? (6 + notes * 4) * r : 0];
   const need = parts.reduce((a, b) => a + b, 0) + parts.filter(Boolean).length * 2 + 2 * SIDE_PAD_MM;
   const custom = templateOf(project);
   const k = furnitureScale(sheet, custom ? templateSize(custom) : undefined);

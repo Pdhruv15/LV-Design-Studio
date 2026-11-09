@@ -1896,10 +1896,10 @@ export default function SystemDiagram({
 /** The symbol legend on its own (the drawing sheets' legend column). widthMm: the column's inner width; the legend is
  * drawn for it (src/diagram/legendLayout.ts), so its labels print at 2.5 mm and wrap instead of shrinking. Without it,
  * as wide as its longest label. */
-export function LegendSvg({ project, widthMm }: { project: Project; widthMm?: number }) {
+export function LegendSvg({ project, widthMm, textMm }: { project: Project; widthMm?: number; textMm?: number }) {
   const legend = legendEntries(project);
   if (!legend.length) return null;
-  const W = widthMm ? legendPxFor(widthMm) : legendWidth(legend);
+  const W = widthMm ? legendPxFor(widthMm, textMm) : legendWidth(legend);
   const { rows, h } = legendRows(legend, W, LEGEND_TEXT_X);
   return (
     <div className="sysdiag">

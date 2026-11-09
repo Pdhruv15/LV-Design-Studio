@@ -6,7 +6,7 @@ import type { CalcRun } from '../../calc/runs';
 import { evaluateProject } from '../../calc/electrical';
 import { buildAnnotations, SHEET_LAYERS } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
-import { autoSize, drawable, LEGEND_RESERVE_MM, RISER_SIDE_MM, MIN_MM_PER_PX, fromSheetLabels, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
+import { autoSize, drawable, furnitureOf, LEGEND_RESERVE_MM, RISER_SIDE_MM, minMmPerPx, fromSheetLabels, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
 import { buildSldSheetHtml, legendColumnFits, sideInnerMm, type SheetInfo } from '../../docs/sldSheet';
 import { buildSheetDxfPages } from '../../docs/sheetDxf';
 import { dxfExportNotice, namedDxfFiles, uniqueDxfFiles, type DxfFile } from '../../docs/dxfFiles';
@@ -103,14 +103,14 @@ export const sheetInfo = (set: DrawingSet, s: DrawingSheet, i: number): SheetInf
 });
 
 /** The symbol legend of what's drawn on this sheet, as printable SVG drawn for the legend column's inner width (mm). */
-async function legendOf(drawing: Project, widthMm: number): Promise<string> {
+async function legendOf(drawing: Project, widthMm: number, textMm?: number): Promise<string> {
   if (drawing.drawing?.symbols === 'simple' || drawing.drawing?.legend === false) return '';
   const host = document.createElement('div');
   host.style.cssText = 'position:fixed;left:-30000px;top:0;pointer-events:none';
   document.body.appendChild(host);
   const root = createRoot(host);
   try {
-    flushSync(() => root.render(<LegendSvg project={drawing} widthMm={widthMm} />));
+    flushSync(() => root.render(<LegendSvg project={drawing} widthMm={widthMm} textMm={textMm} />));
     await new Promise((r) => requestAnimationFrame(() => r(null)));
     const svg = host.querySelector<SVGSVGElement>('svg');
     return svg ? printableSvg(svg, Number(svg.dataset.w), Number(svg.dataset.h)) : '';
@@ -118,7 +118,7 @@ async function legendOf(drawing: Project, widthMm: number): Promise<string> {
 }
 
 /** The riser symbols used on a building's riser sheet, as printable SVG drawn for the legend column's inner width (mm). */
-async function riserLegendOf(project: Project, buildingId: string, feeders: boolean, widthMm: number): Promise<string> {
+async function riserLegendOf(project: Project, buildingId: string, feeders: boolean, widthMm: number, textMm?: number): Promise<string> {
   const used = feeders ? feederRiserLayout(project, buildingId).used : riserLayout(project, buildingId).used;
   if (!used.size) return '';
   const host = document.createElement('div');
@@ -126,7 +126,7 @@ async function riserLegendOf(project: Project, buildingId: string, feeders: bool
   document.body.appendChild(host);
   const root = createRoot(host);
   try {
-    flushSync(() => root.render(feeders ? <FeederRiserLegendSvg used={used} widthMm={widthMm} /> : <RiserLegendSvg used={used} widthMm={widthMm} />));
+    flushSync(() => root.render(feeders ? <FeederRiserLegendSvg used={used} widthMm={widthMm} textMm={textMm} /> : <RiserLegendSvg used={used} widthMm={widthMm} textMm={textMm} />));
     await new Promise((r) => requestAnimationFrame(() => r(null)));
     const svg = host.querySelector<SVGSVGElement>('svg');
     return svg ? printableSvg(svg, Number(svg.dataset.w), Number(svg.dataset.h)) : '';
@@ -155,18 +155,19 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
   let refs = mode === 'ref' && s.kind === 'system';
   let r = await renderSheet(project, set, s, run, refs);
   if (!r) return undefined;
-  const a = autoSize(r.w, r.h, reserveOf(s));
+  const fz = furnitureOf(set, s), min = minMmPerPx(fz);
+  const a = autoSize(r.w, r.h, reserveOf(s), min);
   const size = s.size === 'auto' ? a.size : s.size;
   if (mode === 'auto' && s.kind === 'system' && (!a.fits || scaleOn(size, r.w, r.h, reserveOf(s)) < REF_BELOW_MM_PER_PX)) {
     refs = true;
     r = (await renderSheet(project, set, s, run, true)) ?? r;
   }
-  const colMm = legendColMm(s);
-  const legendSvg = s.kind === 'system' ? await legendOf(sheetProject(project, set, s), colMm) : s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId ? (project.drawing?.legend === false ? '' : dbRiserLegend(dbRiserLayout({ ...project, drawingSet: set }, s.buildingId), s.part ?? 0, colMm)) : s.kind === 'riser' && s.buildingId ? await riserLegendOf(project, s.buildingId, s.riserStyle === 'feeders', colMm) : '';
+  const colMm = legendColMm(s), tm = fz.textMm;
+  const legendSvg = s.kind === 'system' ? await legendOf(sheetProject(project, set, s), colMm, tm) : s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId ? (project.drawing?.legend === false ? '' : dbRiserLegend(dbRiserLayout({ ...project, drawingSet: set }, s.buildingId), s.part ?? 0, colMm, tm)) : s.kind === 'riser' && s.buildingId ? await riserLegendOf(project, s.buildingId, s.riserStyle === 'feeders', colMm, tm) : '';
   const info = fullSheetInfo(project, set, s, refs || withLegend, legendSvg, withMarkups);
   const html = buildSldSheetHtml(project, r.svg, size, info);
   // Readable on the paper actually used (a chosen A3 can be too small too); and the legend column holds its contents.
-  return { html, size, fits: scaleOn(size, r.w, r.h, reserveOf(s)) >= MIN_MM_PER_PX, columnFits: legendColumnFits(project, r.svg, size, info), refs, svg: r.svg, legendSvg };
+  return { html, size, fits: scaleOn(size, r.w, r.h, reserveOf(s)) >= min, columnFits: legendColumnFits(project, r.svg, size, info), refs, svg: r.svg, legendSvg };
 }
 
 /** Sheet HTML from a drawn SVG (legend: every cable number used in the set). */
@@ -177,6 +178,8 @@ export function sheetHtmlFrom(project: Project, set: DrawingSet, s: DrawingSheet
 /** Title block values, legend and cable schedule of one sheet (PDF and DXF). */
 export function fullSheetInfo(project: Project, set: DrawingSet, s: DrawingSheet, legend: boolean, legendSvg = '', withMarkups = true): SheetInfo {
   const info: SheetInfo = { ...sheetInfo(set, s, set.sheets.indexOf(s)), legendSvg, ...(withMarkups && s.markups?.length ? { markups: s.markups } : {}) };
+  const fz = furnitureOf(set, s);
+  if (Object.keys(fz).length) info.furniture = fz;
   if (s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId) { const L = dbRiserLayout({ ...project, drawingSet: set }, s.buildingId); info.sideMm = RISER_SIDE_MM; if (!L.empty) info.summary = dbRiserSummary(L); }
   if (s.kind === 'plan') { info.notes = [...planNotes(project, s), ...(info.notes ?? [])]; info.scale = `1:${planScale(s.scale)}`; }
   // Pens and plot stamp of the sheet's page setup; nothing changes with the default pens and no stamp.

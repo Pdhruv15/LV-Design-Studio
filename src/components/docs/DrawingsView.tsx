@@ -22,6 +22,7 @@ import { submissionForIssue } from '../../model/submissions';
 import { PLAN_LABEL } from '../../docs/planLayout';
 import { exportDrawingSet, exportEverythingZip, exportSheetsDxf, registerRows, sheetHtml, SheetPreview } from './sheetRender';
 import SheetGrid from './SheetGrid';
+import { FurnitureFields } from './FurnitureFields';
 import { Page, Modal } from '../ui';
 import type { MainView } from '../../views';
 import { fmtDate } from '../../util/format';
@@ -400,6 +401,13 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
               </label>
             </div>
             <p className="m">In a custom title block use {'{SheetNo}'}, {'{SheetTitle}'}, {'{SheetIndex}'} of {'{SheetCount}'}, {'{Status}'}, {'{Rev}'}, {'{RevDate}'}, {'{DrawnBy}'}, {'{CheckedBy}'}, {'{ApprovedBy}'}, {'{Scale}'}.</p>
+          </section>
+          <section className="card">
+            <h4>Sheet furniture — every sheet of the set</h4>
+            <div className="form-kv">
+              <FurnitureFields value={set.furniture ?? {}} onChange={(f) => save({ ...set, furniture: Object.keys(f).length ? f : undefined })} />
+            </div>
+            <p className="m">What prints around the drawing: zone references in the margin, centring marks, the legend column's text height, where the notes go, and the smallest text a drawing may print at before its sheet counts as crowded. Left as they are, the sheets print as before. A sheet can choose otherwise in its own settings.</p>
           </section>
         </div>
       )}
