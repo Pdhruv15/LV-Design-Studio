@@ -33,7 +33,7 @@ const sheet = (id: string, patch: Partial<DrawingSheet> = {}): DrawingSheet => (
   boards: [dxfExportProject.boards[0].id], size: 'A3', ...patch
 });
 const prepared = (s: DrawingSheet, size: SheetSize, refs = false): PreparedSheet => ({
-  s, size, refs, svg, html: '', fits: true, legendSvg: ''
+  s, size, refs, svg, html: '', fits: true, columnFits: true, legendSvg: ''
 });
 const longNotes = (prefix: string) => Array.from({ length: 70 }, (_, i) => `${prefix}${i + 1}: verify all feeder connections before energising the equipment and retain this requirement.`);
 

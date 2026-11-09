@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { standardTemplate, titleBlockHtml } from '../model/titleBlock';
 import type { Project } from '../types';
-import { buildSldSheetHtml } from './sldSheet';
+import { buildSldSheetHtml, legendColumnFits } from './sldSheet';
 
 /** The band along a drawing sheet's foot: the revision table and the title block share its rows, and the frame draws
  * its foot and right edge, so every line meets and none is drawn twice. The printed check is tests/pdf/sheetFrame.pdf.ts. */
@@ -61,5 +61,29 @@ describe('drawing sheet band', () => {
     const close = doc.querySelector<HTMLElement>('.rvx')!;
     expect([close.style.bottom, close.style.height]).toEqual(['16mm', `${rise}mm`]);
     expect(html).toContain(`bottom: -${rise}mm;`); // the legend column comes down to the template
+  });
+});
+
+/** The legend column prints at 2.5 mm (ISO 3098): the legend is drawn for the column's width, and the cable schedule,
+ * abbreviations, summary, notes and revision table use 2.5 mm text instead of 7–8 px (1.9–2.1 mm). */
+describe('legend column at 2.5 mm', () => {
+  const legendAt = (h: number) => `<svg viewBox="0 0 369.6 ${h}" data-w="369.6" data-h="${h}"></svg>`;
+
+  it('sets the column texts, the notes and the revision band at 2.5 mm on A3–A1, scaled with the furniture on A4', () => {
+    const html = buildSldSheetHtml(sampleProject, svg, 'A3', { ...one, cables: [{ ref: 1, text: '4C × 70 mm²' }], notes: ['A note'] });
+    for (const sel of ['.band {', '.notes {', '.abbr {', '.cs {', '.cs h5 {', '.cs p {', '.side .sum {']) {
+      const rule = html.slice(html.indexOf(`\n    ${sel}`)); // the rule at a line's start (not ".side .cs {")
+      expect(rule.slice(0, rule.indexOf('}'))).toContain('font-size: 2.5mm');
+    }
+    const a4 = buildSldSheetHtml(sampleProject, svg, 'A4', { ...one, cables: [{ ref: 1, text: '4C × 70 mm²' }] });
+    expect(a4).toMatch(/\.cs \{[^}]*font-size: (1\.\d+|2\.[0-4]\d*)mm/);
+  });
+
+  it('knows when the column is full: a long legend fits A1 but not A3', () => {
+    const info = { ...one, legendSvg: legendAt(32 + 30 * 26 + 8), cables: [{ ref: 1, text: '4C × 70 mm²' }] }; // 30 one-line rows ≈ 193 mm
+    expect(legendColumnFits(sampleProject, svg, 'A3', info)).toBe(false);
+    expect(legendColumnFits(sampleProject, svg, 'A1', info)).toBe(true);
+    expect(legendColumnFits(sampleProject, svg, 'A3', { ...one, legendSvg: legendAt(32 + 8 * 26 + 8) })).toBe(true);
+    expect(legendColumnFits(sampleProject, svg, 'A3', { ...one, legendSvg: '' })).toBe(true);
   });
 });

@@ -3,6 +3,7 @@ import type { Project } from '../types';
 import { U } from './riserLayout';
 import { RiserSym } from './RiserDiagram';
 import { PANEL_SYMBOL_IDS, Sym, SYM_SCALE, SYMBOLS } from './symbolLibrary';
+import { legendLineY, legendPxFor, legendRows } from './legendLayout';
 import { COL, feederRiserLayout, type FeederRiserLayout, type LeafSymbol } from './feederRiserLayout';
 
 /** Board symbols of the riser schematic, from the riser's unit U (1.6U × 0.9U). */
@@ -49,9 +50,11 @@ export const FEEDER_RISER_LEGEND: { key: string; label: string; draw: (x: number
   { key: 'standby', label: 'Standby supply', draw: (x, y) => <line x1={x - 0.7 * U} y1={y} x2={x + 0.7 * U} y2={y} className="ln riser-standby" /> }
 ];
 
-export function FeederRiserLegendSvg({ used }: { used: Set<string> }) {
+export function FeederRiserLegendSvg({ used, widthMm }: { used: Set<string>; widthMm?: number }) {
   const items = FEEDER_RISER_LEGEND.filter((e) => used.has(e.key));
-  const W = 300, rowH = 1.5 * U, h = 46 + items.length * rowH;
+  // For a sheet's legend column (widthMm) the labels print at 2.5 mm and wrap (src/diagram/legendLayout.ts).
+  const W = widthMm ? legendPxFor(widthMm) : 300;
+  const { rows, h } = legendRows(items, W, 64);
   return (
     <div className="sysdiag riser">
       <svg viewBox={`0 0 ${W} ${h}`} width={W} height={h} data-w={W} data-h={h}>
@@ -59,8 +62,8 @@ export function FeederRiserLegendSvg({ used }: { used: Set<string> }) {
           <rect x="0" y="0" width={W} height={h} rx="4" className="legend-box" />
           <text x="12" y="22" className="b">LEGEND</text>
           <line x1="0" y1="32" x2={W} y2="32" className="ln" />
-          {items.map((e, i) => (
-            <g key={e.key}>{e.draw(34, 32 + 0.95 * U + i * rowH)}<text x="64" y={32 + 0.95 * U + i * rowH + 4} className="legend-t">{e.label}</text></g>
+          {rows.map(({ entry: e, lines, y }) => (
+            <g key={e.key}>{e.draw(34, y)}{lines.map((l, j) => <text key={j} x="64" y={legendLineY(y, lines.length, j)} className="legend-t">{l}</text>)}</g>
           ))}
         </g>
       </svg>
