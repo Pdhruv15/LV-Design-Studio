@@ -425,6 +425,8 @@ export interface SketchItem {
   text?: string;
   h?: number;
   rot?: number;
+  /** A text: where its anchor (pts[0]) sits on its box (src/model/cadText.ts); left out: the left end of its baseline. */
+  just?: import('./model/cadText').TextJust;
   /** A cable tray run (a polyline along its centreline): its width, what it carries, and the tray route it is on, once
    * assigned. */
   tray?: { widthMm: number; service?: string; route?: string };

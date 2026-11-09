@@ -58,6 +58,19 @@ describe('drawing in the CAD view', () => {
     expect(out.filter((s) => s.layer === 'LV-ANNO' && s.kind === 'text')[0].text).toBe('4.00');
     expect(out.filter((s) => s.layer === 'LV-ANNO' && s.kind === 'line').length).toBe(5);
   });
+
+  it('picks a justified text by its box, and writes its justification for the DXF', () => {
+    // "TAG" 250 high, 450 wide, anchored at its middle centre: its box runs 775–1225 × 375–625.
+    const mc: SketchItem = { id: 'T1', kind: 'text', layer: 'LV-ANNO', pts: [[1000, 500]], text: 'TAG', h: 250, just: 'MC' };
+    expect(itemAt([mc], [800, 400], 10)?.id).toBe('T1');
+    expect(itemAt([mc], [1200, 600], 10)?.id).toBe('T1');
+    expect(itemAt([mc], [1000, 700], 10)).toBeUndefined();
+    expect(itemAt([mc], [700, 500], 10)).toBeUndefined();
+    expect(snapPoints([mc])).toContainEqual({ x: 1000, y: 500, kind: 16 });
+    const [out] = shapesOut([mc], 0.001);
+    expect(out).toMatchObject({ kind: 'text', pts: [[1000, 500]], text: 'TAG', h: 250, just: 'MC' });
+    expect('just' in shapesOut([{ ...mc, just: undefined }], 0.001)[0]).toBe(false);
+  });
 });
 
 describe('cable tray runs', () => {

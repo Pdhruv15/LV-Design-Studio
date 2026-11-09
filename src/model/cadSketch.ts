@@ -1,5 +1,6 @@
 import { fittingLabel, trayFittings } from './cadTrayFittings';
 import { defOf, placedLines } from './cadHatch';
+import { textBox, textWidth } from './cadText';
 import type { CadSketch, Project, SketchItem } from '../types';
 
 type Pt = [number, number];
@@ -292,8 +293,7 @@ export function dimensionLines(p1: Pt, p2: Pt, at: Pt, look?: DimLook, box?: Dim
   return { lines: [...extLines, ...dimLine, ...ends], text, angle, length: len };
 }
 
-/** About how wide text of height h is (the sheets print it in Arial). */
-export const textWidth = (s: string, h: number) => s.length * h * 0.6;
+export { textWidth };
 /** A dimension item laid out, its text measured with metresPerUnit: its lines, where its text goes, the text and its
  * height. */
 export function dimOf(it: SketchItem, metresPerUnit: number) {
@@ -421,8 +421,9 @@ export function itemAt(items: SketchItem[], at: Pt, tol: number): SketchItem | u
   for (const it of items) {
     let d = Infinity;
     if (it.kind === 'text') {
-      const h = it.h ?? 1, w = 0.6 * h * (it.text ?? '').length;
-      const a = -(it.rot ?? 0), x = at[0] - it.pts[0][0], y = at[1] - it.pts[0][1];
+      // By its box, wherever its anchor sits on it (justification).
+      const { origin, w, h } = textBox(it);
+      const a = -(it.rot ?? 0), x = at[0] - origin[0], y = at[1] - origin[1];
       const px = x * Math.cos(a) - y * Math.sin(a), py = x * Math.sin(a) + y * Math.cos(a);
       d = px >= -tol && px <= w + tol && py >= -tol && py <= h + tol ? 0 : Infinity;
     } else for (const [a, b] of segmentsOf(it)) d = Math.min(d, segDist(at, a, b));
@@ -432,7 +433,7 @@ export function itemAt(items: SketchItem[], at: Pt, tol: number): SketchItem | u
 }
 
 /** Drawn items as the engine writes them into a DXF (drawing units). */
-export interface ShapeOut { layer: string; kind: 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'text' | 'hatch'; pts: Pt[]; closed?: boolean; bulges?: number[]; r?: number; a0?: number; a1?: number; axis?: Pt; ratio?: number; text?: string; h?: number; rot?: number; loops?: Pt[][]; solid?: boolean; lines?: { angle: number; base: Pt; offset: Pt; dashes: number[] }[] }
+export interface ShapeOut { layer: string; kind: 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'text' | 'hatch'; pts: Pt[]; closed?: boolean; bulges?: number[]; r?: number; a0?: number; a1?: number; axis?: Pt; ratio?: number; text?: string; h?: number; rot?: number; just?: string; loops?: Pt[][]; solid?: boolean; lines?: { angle: number; base: Pt; offset: Pt; dashes: number[] }[] }
 export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[] {
   const unitsPerMm = 0.001 / metresPerUnit;
   const { fittings } = trayFittings(items, unitsPerMm);
@@ -463,7 +464,7 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[
     // A revision cloud as one closed polyline of arcs; an ellipse as an ellipse.
     if (it.cloud) { const c = cloudLobes(it); return [{ layer: it.layer, kind: 'pline', pts: c.pts, closed: true, bulges: c.pts.map(() => c.bulge) }]; }
     if (it.kind === 'ellipse') return it.ax ? [{ layer: it.layer, kind: 'ellipse', pts: it.pts, axis: it.ax, ratio: it.ratio ?? 1 }] : [];
-    return [{ layer: it.layer, kind: it.kind, pts: it.pts, closed: it.closed, r: it.r, a0: it.a0, a1: it.a1, text: it.text, h: it.h, rot: it.rot }];
+    return [{ layer: it.layer, kind: it.kind, pts: it.pts, closed: it.closed, r: it.r, a0: it.a0, a1: it.a1, text: it.text, h: it.h, rot: it.rot, ...(it.just ? { just: it.just } : {}) }];
   }), ...fittingTexts];
 }
 

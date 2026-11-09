@@ -1,5 +1,6 @@
 import type { SketchItem } from '../types';
 import { dimMeasure } from './cadSketch';
+import { parseJust, rejustified } from './cadText';
 
 type Pt = [number, number];
 
@@ -15,7 +16,7 @@ export const kindLabel = (it: SketchItem) => (it.tray ? 'Cable tray' : it.cable 
   : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', ellipse: 'Ellipse', text: 'Text', dim: 'Dimension' }[it.kind]);
 
 export type PropKey = 'sx' | 'sy' | 'ex' | 'ey' | 'len' | 'ang' | 'cx' | 'cy' | 'r' | 'a0' | 'a1' | 'rx' | 'ry' | 'arc' | 'vx' | 'vy' | 'closed' | 'width' | 'service'
-  | 'text' | 'h' | 'rot' | 'measured' | 'override';
+  | 'text' | 'h' | 'rot' | 'just' | 'measured' | 'override';
 export interface PropDef { key: PropKey; label: string; unit?: 'm' | 'deg'; ro?: boolean; text?: boolean }
 
 const L = (key: PropKey, label: string, more: Partial<PropDef> = {}): PropDef => ({ key, label, unit: 'm', ...more });
@@ -40,7 +41,7 @@ export function geometryRows(kind: GeomKind, items: SketchItem[]): PropDef[] {
 }
 /** The Text rows: contents, height and rotation; for a dimension its measured value and the text shown over it. */
 export function textRows(kind: GeomKind): PropDef[] {
-  if (kind === 'text') return [T('text', 'Contents'), L('h', 'Height'), A('rot', 'Rotation')];
+  if (kind === 'text') return [T('text', 'Contents'), L('h', 'Height'), A('rot', 'Rotation'), T('just', 'Justify')];
   if (kind === 'dim') return [L('measured', 'Measured', { ro: true }), T('override', 'Text override'), L('h', 'Text height')];
   return [];
 }
@@ -72,6 +73,7 @@ export function propValue(it: SketchItem, key: PropKey, k: number, v = 0): numbe
     case 'vx': return p[vIdx(it, v)][0] * k;
     case 'vy': return p[vIdx(it, v)][1] * k;
     case 'closed': return it.closed ? 'Yes' : 'No';
+    case 'just': return it.kind === 'text' ? it.just ?? 'L' : undefined;
     case 'width': return it.tray ? String(it.tray.widthMm) : undefined;
     case 'service': return it.tray?.service ?? '';
     case 'text': return it.text ?? '';
@@ -137,6 +139,7 @@ export function withProp(it: SketchItem, key: PropKey, value: number | string, k
     case 'text': return it.kind === 'text' && String(value).trim() ? { ...it, text: String(value) } : undefined;
     case 'h': return num && u > 0 && (it.kind === 'text' || it.kind === 'dim') ? { ...it, h: u } : undefined;
     case 'rot': return num && it.kind === 'text' ? { ...it, rot: rad(n) } : undefined;
+    case 'just': { const j = parseJust(String(value)); return j && it.kind === 'text' ? rejustified(it, j) : undefined; }
     case 'override': {
       if (it.kind !== 'dim') return undefined;
       const t = String(value).trim();

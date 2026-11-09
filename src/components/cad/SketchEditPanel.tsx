@@ -9,7 +9,7 @@ import type { SketchItem } from '../../types';
  * settings of the edit tools (distances typed in metres). */
 
 export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase';
-export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array';
+export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array' | 'tjust' | 'th';
 /** Offset `through` a point (the copy passes through it), `erase` the source, the copies on the `source` layer or the
  * `current` one; Fillet and Chamfer `trim` the lines to the corner (else they stay and the arc or line is added); a
  * polar array can `rotate` its copies (else they keep the original's direction). */
@@ -88,7 +88,7 @@ export function DrawnSelectionPanel({ items, devices, onEdit }: { items: SketchI
 
 export const EDIT_TITLE: Record<EditTool, string> = {
   trim: 'Trim', extend: 'Extend', offset: 'Offset', fillet: 'Fillet', chamfer: 'Chamfer', break: 'Break', join: 'Join', explode: 'Explode',
-  mirror: 'Mirror', scale: 'Scale', stretch: 'Stretch', array: 'Array'
+  mirror: 'Mirror', scale: 'Scale', stretch: 'Stretch', array: 'Array', tjust: 'Justify text', th: 'Text height'
 };
 export const EDIT_HELP: Record<EditTool, string> = {
   trim: 'Click the part to cut away: it is cut at the nearest lines crossing it, drawn or the architect\'s (shown layers), which are never changed. Shift-click extends instead.',
@@ -102,7 +102,9 @@ export const EDIT_HELP: Record<EditTool, string> = {
   mirror: 'Pick the objects (click them, then Enter), then two points of the mirror line.',
   scale: 'Pick the objects (click them, then Enter), then the base point.',
   stretch: 'Drag a window round the points to move (right to left), then the base point and the second point. A tray end moves, its far end stays.',
-  array: 'Pick the objects (click them, then Enter), then Rectangular or Polar on the command line: rectangular copies are made at once, polar ones round the centre clicked.'
+  array: 'Pick the objects (click them, then Enter), then Rectangular or Polar on the command line: rectangular copies are made at once, polar ones round the centre clicked.',
+  tjust: 'Pick the texts (click them, then Enter), then the justification on the command line (Left, Centre, Right, or TL … BR): each text stays where it is; only its anchor point moves on it.',
+  th: 'Pick the texts and dimensions (click them, then Enter), then the height on paper in mm (1.8, 2.5, 3.5, 5, 7, 10): each keeps its anchor point. Enter with nothing picked sets the height for new text.'
 };
 
 /** The side panel of an edit tool: what it does, its distances, and what has been picked so far. */
