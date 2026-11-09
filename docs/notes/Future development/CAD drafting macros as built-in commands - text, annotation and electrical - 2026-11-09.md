@@ -210,7 +210,7 @@ for the steps named.
 
 ## Built
 
-### Batch 1, part 1 (v2.059, branch `feat/cad-text-tools`)
+### Batch 1, part 1 (v2.060, branch `feat/cad-text-tools`)
 
 - **Text justification** (A3): a text item has an optional `just` (L, C, R, TL … BR; `src/model/cadText.ts`), its anchor
   `pts[0]` sitting there on its box; left out, it is the left end of the baseline as before. The canvas and the plan
@@ -226,7 +226,7 @@ for the steps named.
   puts any text with an alignment other than left-baseline at its alignment point, brought down to its baseline, so
   texts read from the architect's drawings sit where that drawing put them (they were drawn at the baseline before).
 
-### Batch 1, part 2 (v2.060, branch `feat/cad-text-tools-2`, on part 1)
+### Batch 1, part 2 (v2.061, branch `feat/cad-text-tools-2`, on part 1)
 
 All on the texts picked first, then Enter, then the value on the command line; one undo step; other objects picked
 are left as they are (`src/model/cadText.ts`, pure, with tests; the flows in `CadPage.tsx`).
