@@ -15,9 +15,15 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.059', date: '2026-11-09',
+    version: '2.060', date: '2026-11-09',
     items: [
       { title: 'Justify text and set its height in Design CAD', text: 'Pick texts and type TJ (TJUST): Left, Centre, Right or TL … BR moves each text\'s anchor on its box without moving the text on the plan, and the Properties palette has a Justify row. TH (TXTHEIGHT) sets the height on paper (mm) of the texts and dimensions picked, keeping their anchor, with the ISO series 1.8 · 2.5 · 3.5 · 5 · 7 · 10 offered; with nothing picked it sets the height for new text. Justified texts save with their alignment in DXF and DWG, and texts read from a drawing with another alignment now sit where that drawing put them.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.059', date: '2026-11-09',
+    items: [
+      { title: 'Legends print at 2.5 mm', text: 'The legend on every drawing sheet (SLD, risers, DB riser) is drawn for its column, so its labels print at 2.5 mm, the ISO minimum, whatever the labels say: a long label takes two lines instead of making the whole legend smaller. The cable schedule, abbreviations, notes, board summary and the revision table print at 2.5 mm too (they were about 2 mm), on the PDF and in the DXF and DWG files. A sheet whose legend column is now too full for its paper says so in Publish; choose a larger paper for it.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {

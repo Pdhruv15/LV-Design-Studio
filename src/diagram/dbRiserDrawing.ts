@@ -1,5 +1,6 @@
 import type { Project } from '../types';
 import type { DrawingSet } from '../model/drawingSet';
+import { LEGEND_LABEL_PX, legendLineY, legendPxFor, legendRows } from './legendLayout';
 import { cablesAtGap, dbRiserLayout, entryHeight, ENTRY_H, hasSourceBand, MAIN_H, refLines, ROW_MIN_H, SOURCE_H, type DbRiserLayout, type DbRiserMain, type DbRiserRun, type KindCount, type RowEntry } from '../model/dbRiser';
 
 /** One sheet of a building's "Boards by level" riser (printable SVG, black and white).
@@ -398,12 +399,14 @@ const LEGEND: { key: string; label: string; draw: (x: number, y: number) => stri
 ];
 
 /** The legend of one sheet (printable SVG, in the sheet's side column): only what is drawn on it. */
-export function dbRiserLegend(L: DbRiserLayout, part = 0): string {
+export function dbRiserLegend(L: DbRiserLayout, part = 0, widthMm = 58): string {
   if (L.empty) return '';
   const used = usedOn(L, part), items = LEGEND.filter((e) => used.has(e.key));
-  const W = 290, rowH = 20, h = 38 + items.length * rowH; // in the 62 mm column, its text prints at 2 mm
-  const body = items.map((e, i) => { const y = 32 + 13 + i * rowH; return `<g transform="translate(22 ${y}) scale(0.62)">${e.draw(0, 0)}</g>` + text(42, y + 3.5, e.label); }).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${h}" width="${W}" height="${h}" font-family="Arial" font-size="10" fill="#111"><rect x="0.5" y="0.5" width="${W - 1}" height="${h - 1}" fill="#fff" stroke="#111" stroke-width="1"/>${text(12, 22, 'LEGEND', 'font-weight="bold"')}${ln(0, 32, W, 32, 1)}${body}</svg>`;
+  // Drawn for the sheet's column (widthMm, its inner width): the labels print at 2.5 mm and wrap (src/diagram/legendLayout.ts).
+  const W = legendPxFor(widthMm);
+  const { rows, h } = legendRows(items, W, 42);
+  const body = rows.map(({ entry: e, lines, y }) => `<g transform="translate(22 ${y}) scale(0.62)">${e.draw(0, 0)}</g>` + lines.map((l, j) => text(42, legendLineY(y, lines.length, j), l)).join('')).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${h}" width="${W}" height="${h}" font-family="Arial" font-size="${LEGEND_LABEL_PX}" fill="#111"><rect x="0.5" y="0.5" width="${W - 1}" height="${h - 1}" fill="#fff" stroke="#111" stroke-width="1"/>${text(12, 22, 'LEGEND', 'font-weight="bold"')}${ln(0, 32, W, 32, 1)}${body}</svg>`;
 }
 
 /** Sheet numbers of the building's riser sheets, bottom first. */

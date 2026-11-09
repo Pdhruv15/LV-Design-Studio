@@ -7,7 +7,7 @@ import { evaluateProject } from '../../calc/electrical';
 import { buildAnnotations, SHEET_LAYERS } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
 import { autoSize, drawable, LEGEND_RESERVE_MM, RISER_SIDE_MM, MIN_MM_PER_PX, fromSheetLabels, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
-import { buildSldSheetHtml, type SheetInfo } from '../../docs/sldSheet';
+import { buildSldSheetHtml, legendColumnFits, sideInnerMm, type SheetInfo } from '../../docs/sldSheet';
 import { buildSheetDxfPages } from '../../docs/sheetDxf';
 import { dxfExportNotice, namedDxfFiles, uniqueDxfFiles, type DxfFile } from '../../docs/dxfFiles';
 import { currentRevision, revisionStamp } from '../../model/revisions';
@@ -102,23 +102,23 @@ export const sheetInfo = (set: DrawingSet, s: DrawingSheet, i: number): SheetInf
   notes: s.notes?.filter((n) => n.trim())
 });
 
-/** The symbol legend of what's drawn on this sheet, as printable SVG. */
-async function legendOf(drawing: Project): Promise<string> {
+/** The symbol legend of what's drawn on this sheet, as printable SVG drawn for the legend column's inner width (mm). */
+async function legendOf(drawing: Project, widthMm: number): Promise<string> {
   if (drawing.drawing?.symbols === 'simple' || drawing.drawing?.legend === false) return '';
   const host = document.createElement('div');
   host.style.cssText = 'position:fixed;left:-30000px;top:0;pointer-events:none';
   document.body.appendChild(host);
   const root = createRoot(host);
   try {
-    flushSync(() => root.render(<LegendSvg project={drawing} />));
+    flushSync(() => root.render(<LegendSvg project={drawing} widthMm={widthMm} />));
     await new Promise((r) => requestAnimationFrame(() => r(null)));
     const svg = host.querySelector<SVGSVGElement>('svg');
     return svg ? printableSvg(svg, Number(svg.dataset.w), Number(svg.dataset.h)) : '';
   } finally { root.unmount(); host.remove(); }
 }
 
-/** The riser symbols used on a building's riser sheet, as printable SVG. */
-async function riserLegendOf(project: Project, buildingId: string, feeders = false): Promise<string> {
+/** The riser symbols used on a building's riser sheet, as printable SVG drawn for the legend column's inner width (mm). */
+async function riserLegendOf(project: Project, buildingId: string, feeders: boolean, widthMm: number): Promise<string> {
   const used = feeders ? feederRiserLayout(project, buildingId).used : riserLayout(project, buildingId).used;
   if (!used.size) return '';
   const host = document.createElement('div');
@@ -126,7 +126,7 @@ async function riserLegendOf(project: Project, buildingId: string, feeders = fal
   document.body.appendChild(host);
   const root = createRoot(host);
   try {
-    flushSync(() => root.render(feeders ? <FeederRiserLegendSvg used={used} /> : <RiserLegendSvg used={used} />));
+    flushSync(() => root.render(feeders ? <FeederRiserLegendSvg used={used} widthMm={widthMm} /> : <RiserLegendSvg used={used} widthMm={widthMm} />));
     await new Promise((r) => requestAnimationFrame(() => r(null)));
     const svg = host.querySelector<SVGSVGElement>('svg');
     return svg ? printableSvg(svg, Number(svg.dataset.w), Number(svg.dataset.h)) : '';
@@ -138,16 +138,18 @@ async function riserLegendOf(project: Project, buildingId: string, feeders = fal
  * (a large SLD squeezed onto the paper). */
 export const REF_BELOW_MM_PER_PX = 0.25;
 const reserveOf = (s: DrawingSheet) => (s.kind === 'board' ? 0 : s.kind === 'riser' && s.riserStyle === 'byLevel' ? RISER_SIDE_MM : LEGEND_RESERVE_MM);
+/** The inner width of the sheet's legend column, which its legend is drawn for (labels at 2.5 mm). */
+const legendColMm = (s: DrawingSheet) => sideInnerMm(s.kind === 'riser' && s.riserStyle === 'byLevel' ? RISER_SIDE_MM : undefined);
 
 /** The finished sheet (frame, drawing, title block) as HTML, with its size.
  * withLegend: show the CABLE SCHEDULE even if this sheet itself has full
  * cable text (another sheet of the set uses numbers). */
-export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingSheet, run?: CalcRun, withLegend = false, withMarkups = true): Promise<{ html: string; size: SheetSize; fits: boolean; refs: boolean; svg: string; legendSvg: string } | undefined> {
+export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingSheet, run?: CalcRun, withLegend = false, withMarkups = true): Promise<{ html: string; size: SheetSize; fits: boolean; columnFits: boolean; refs: boolean; svg: string; legendSvg: string } | undefined> {
   if (s.kind === 'plan') {
     // Drawn at its scale on the paper it needs (or the chosen one).
     const d = planOf(project, set, s);
     if (!d) return undefined;
-    return { html: sheetHtmlFrom(project, set, s, d.svg, d.size, false, d.legendSvg, withMarkups), size: d.size, fits: true, refs: false, svg: d.svg, legendSvg: d.legendSvg };
+    return { html: sheetHtmlFrom(project, set, s, d.svg, d.size, false, d.legendSvg, withMarkups), size: d.size, fits: true, columnFits: true, refs: false, svg: d.svg, legendSvg: d.legendSvg };
   }
   const mode = s.cableLabels ?? project.drawing?.cableLabels ?? 'auto';
   let refs = mode === 'ref' && s.kind === 'system';
@@ -159,10 +161,12 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
     refs = true;
     r = (await renderSheet(project, set, s, run, true)) ?? r;
   }
-  const legendSvg = s.kind === 'system' ? await legendOf(sheetProject(project, set, s)) : s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId ? (project.drawing?.legend === false ? '' : dbRiserLegend(dbRiserLayout({ ...project, drawingSet: set }, s.buildingId), s.part ?? 0)) : s.kind === 'riser' && s.buildingId ? await riserLegendOf(project, s.buildingId, s.riserStyle === 'feeders') : '';
-  const html = sheetHtmlFrom(project, set, s, r.svg, size, refs || withLegend, legendSvg, withMarkups);
-  // Readable on the paper actually used (a chosen A3 can be too small too).
-  return { html, size, fits: scaleOn(size, r.w, r.h, reserveOf(s)) >= MIN_MM_PER_PX, refs, svg: r.svg, legendSvg };
+  const colMm = legendColMm(s);
+  const legendSvg = s.kind === 'system' ? await legendOf(sheetProject(project, set, s), colMm) : s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId ? (project.drawing?.legend === false ? '' : dbRiserLegend(dbRiserLayout({ ...project, drawingSet: set }, s.buildingId), s.part ?? 0, colMm)) : s.kind === 'riser' && s.buildingId ? await riserLegendOf(project, s.buildingId, s.riserStyle === 'feeders', colMm) : '';
+  const info = fullSheetInfo(project, set, s, refs || withLegend, legendSvg, withMarkups);
+  const html = buildSldSheetHtml(project, r.svg, size, info);
+  // Readable on the paper actually used (a chosen A3 can be too small too); and the legend column holds its contents.
+  return { html, size, fits: scaleOn(size, r.w, r.h, reserveOf(s)) >= MIN_MM_PER_PX, columnFits: legendColumnFits(project, r.svg, size, info), refs, svg: r.svg, legendSvg };
 }
 
 /** Sheet HTML from a drawn SVG (legend: every cable number used in the set). */
@@ -275,7 +279,7 @@ export async function exportEverythingZip(project: Project, set: DrawingSet, run
 }
 
 /** Every sheet as one PDF (register first, when on) or a PDF per sheet. */
-export interface PreparedSheet { s: DrawingSheet; html: string; size: SheetSize; fits: boolean; refs: boolean; svg: string; legendSvg: string }
+export interface PreparedSheet { s: DrawingSheet; html: string; size: SheetSize; fits: boolean; columnFits: boolean; refs: boolean; svg: string; legendSvg: string }
 /** The sheets as they print, for every export (one PDF, PDF per sheet, DXF,
  * ZIP): drawn from the current design, and when any sheet uses cable
  * numbers the CABLE SCHEDULE goes on every SLD sheet. */

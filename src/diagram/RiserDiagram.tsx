@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { Project } from '../types';
 import { riserLayout, U, ROW_H, type RiserLayout } from './riserLayout';
 import { PANEL_SYMBOL_IDS, Sym, SYM_SCALE, SYMBOLS } from './symbolLibrary';
+import { legendLineY, legendPxFor, legendRows } from './legendLayout';
 
 /** IEC 60617 symbols for the riser diagram, all from one unit U so they
  * scale together (none bigger or smaller than the others). */
@@ -41,9 +42,11 @@ export const RISER_LEGEND: { key: string; label: string; draw: (x: number, y: nu
 ];
 
 /** The riser legend on its own (the sheet's legend column). */
-export function RiserLegendSvg({ used }: { used: Set<string> }) {
+export function RiserLegendSvg({ used, widthMm }: { used: Set<string>; widthMm?: number }) {
   const items = RISER_LEGEND.filter((e) => used.has(e.key));
-  const W = 300, rowH = 1.5 * U, h = 46 + items.length * rowH;
+  // For a sheet's legend column (widthMm) the labels print at 2.5 mm and wrap (src/diagram/legendLayout.ts).
+  const W = widthMm ? legendPxFor(widthMm) : 300;
+  const { rows, h } = legendRows(items, W, 64);
   return (
     <div className="sysdiag riser">
       <svg viewBox={`0 0 ${W} ${h}`} width={W} height={h} data-w={W} data-h={h}>
@@ -51,8 +54,8 @@ export function RiserLegendSvg({ used }: { used: Set<string> }) {
           <rect x="0" y="0" width={W} height={h} rx="4" className="legend-box" />
           <text x="12" y="22" className="b">LEGEND</text>
           <line x1="0" y1="32" x2={W} y2="32" className="ln" />
-          {items.map((e, i) => (
-            <g key={e.key}>{e.draw(34, 32 + 0.95 * U + i * rowH)}<text x="64" y={32 + 0.95 * U + i * rowH + 4} className="legend-t">{e.label}</text></g>
+          {rows.map(({ entry: e, lines, y }) => (
+            <g key={e.key}>{e.draw(34, y)}{lines.map((l, j) => <text key={j} x="64" y={legendLineY(y, lines.length, j)} className="legend-t">{l}</text>)}</g>
           ))}
         </g>
       </svg>

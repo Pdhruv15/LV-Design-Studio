@@ -210,7 +210,7 @@ for the steps named.
 
 ## Built
 
-### Batch 1, part 1 (v2.059, branch `feat/cad-text-tools`)
+### Batch 1, part 1 (v2.060, branch `feat/cad-text-tools`)
 
 - **Text justification** (A3): a text item has an optional `just` (L, C, R, TL … BR; `src/model/cadText.ts`), its anchor
   `pts[0]` sitting there on its box; left out, it is the left end of the baseline as before. The canvas and the plan

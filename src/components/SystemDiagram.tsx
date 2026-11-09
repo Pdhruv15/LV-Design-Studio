@@ -9,6 +9,7 @@ import { cableTypeOf, CABLE_TYPE_DEFS, labelCode } from '../model/cableTypes';
 import { cableRefOf } from '../model/cableRefs';
 import { dbSpares, spareBreaker } from '../model/spareWays';
 import { besideScaleOf, FeederSwitchSym, LEGEND_ROW, LEGEND_SYM_X, LEGEND_TEXT_X, legendEntries, legendWidth, LoadSym, polesText, rcdInSwitch, starterSymbolOf, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
+import { legendLineY, legendPxFor, legendRows } from '../diagram/legendLayout';
 import { Sym, SYM_BOX, SYM_SCALE, type SymbolId } from '../diagram/symbolLibrary';
 import { panelSymbolOf } from '../diagram/panelBox';
 import { izText, type FeederResult, type Status } from '../calc/electrical';
@@ -1892,12 +1893,14 @@ export default function SystemDiagram({
   );
 }
 
-/** The symbol legend on its own (the drawing sheets' legend column). */
-export function LegendSvg({ project }: { project: Project }) {
+/** The symbol legend on its own (the drawing sheets' legend column). widthMm: the column's inner width; the legend is
+ * drawn for it (src/diagram/legendLayout.ts), so its labels print at 2.5 mm and wrap instead of shrinking. Without it,
+ * as wide as its longest label. */
+export function LegendSvg({ project, widthMm }: { project: Project; widthMm?: number }) {
   const legend = legendEntries(project);
   if (!legend.length) return null;
-  const h = 46 + legend.length * LEGEND_ROW;
-  const W = legendWidth(legend);
+  const W = widthMm ? legendPxFor(widthMm) : legendWidth(legend);
+  const { rows, h } = legendRows(legend, W, LEGEND_TEXT_X);
   return (
     <div className="sysdiag">
       <svg viewBox={`0 0 ${W} ${h}`} width={W} height={h} data-w={W} data-h={h}>
@@ -1905,10 +1908,10 @@ export function LegendSvg({ project }: { project: Project }) {
           <rect x="0" y="0" width={W} height={h} rx="4" className="legend-box" />
           <text x="12" y="22" className="b">LEGEND</text>
           <line x1="0" y1="32" x2={W} y2="32" className="ln" />
-          {legend.map((e, i) => (
+          {rows.map(({ entry: e, lines, y }) => (
             <g key={e.key}>
-              {e.draw(LEGEND_SYM_X, 32 + 20 + i * LEGEND_ROW)}
-              <text x={LEGEND_TEXT_X} y={32 + 24 + i * LEGEND_ROW} className="legend-t">{e.label}</text>
+              {e.draw(LEGEND_SYM_X, y)}
+              {lines.map((l, j) => <text key={j} x={LEGEND_TEXT_X} y={legendLineY(y, lines.length, j)} className="legend-t">{l}</text>)}
             </g>
           ))}
         </g>
