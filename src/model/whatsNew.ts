@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.061', date: '2026-11-09',
+    items: [
+      { title: 'Text tools in Design CAD', text: 'Pick texts, type the command, Enter, then the value. TA (TALIGN) lines them up Left, Right, Centre, Top or Bottom on a text or point you click, or Spacing sets them evenly down the page a gap apart on paper. TC (TCASE): Upper, Lower, Title or Sentence. TPREFIX and TSUFFIX add words before or after each. TOR (TORIENT) turns each about its centre to read from the bottom or the right. TCEN centres one text between two points. TCOPY gives the texts picked the words of another text you click. Each is one undo step.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Tag all rooms', text: 'RTALL (ROOMTAGALL) places a room tag (name and area) in every room of the level that has none yet; A tags them all again.' }
+    ]
+  },
+  {
     version: '2.060', date: '2026-11-09',
     items: [
       { title: 'Justify text and set its height in Design CAD', text: 'Pick texts and type TJ (TJUST): Left, Centre, Right or TL … BR moves each text\'s anchor on its box without moving the text on the plan, and the Properties palette has a Justify row. TH (TXTHEIGHT) sets the height on paper (mm) of the texts and dimensions picked, keeping their anchor, with the ISO series 1.8 · 2.5 · 3.5 · 5 · 7 · 10 offered; with nothing picked it sets the height for new text. Justified texts save with their alignment in DXF and DWG, and texts read from a drawing with another alignment now sit where that drawing put them.', action: 'cad', actionLabel: 'Open Design CAD' }
