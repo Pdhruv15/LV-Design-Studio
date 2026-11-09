@@ -6,7 +6,7 @@ import { exportDss } from '../engines/opendss/exportDss';
 import { EMPTY_BYTES } from '../../tests/fixtures/importExport';
 
 type Fn = (...a: unknown[]) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
-type V = Record<'defaultFileName' | 'fileFilter' | 'saveTextArgs' | 'saveBinaryArgs' | 'overwriteBinaryArgs' | 'pdfArgs' | 'projectSaveArgs' | 'recoveryArgs' | 'logText' | 'workbookRows' | 'libraryData' | 'engineRequest', Fn> & { ALLOWED_PERMISSIONS: Set<string> };
+type V = Record<'defaultFileName' | 'fileFilter' | 'saveTextArgs' | 'saveBinaryArgs' | 'overwriteBinaryArgs' | 'pdfArgs' | 'printArgs' | 'projectSaveArgs' | 'recoveryArgs' | 'logText' | 'workbookRows' | 'libraryData' | 'engineRequest', Fn> & { ALLOWED_PERMISSIONS: Set<string> };
 const check = createRequire(import.meta.url)('../../electron/ipcValidate.cjs') as V;
 
 describe('IPC payload checks (electron/ipcValidate.cjs)', () => {
@@ -43,6 +43,14 @@ describe('IPC payload checks (electron/ipcValidate.cjs)', () => {
     expect(() => check.pdfArgs({ html: '  ', pageSize: 'A1', landscape: false, cssPages: true })).toThrow('without HTML');
     expect(() => check.pdfArgs({ html: '<p/>', pageSize: { width: 1e9 } })).toThrow('sheet size');
     expect(() => check.pdfArgs({ html: 1 })).toThrow('without HTML');
+  });
+
+  it('printing: the sheet HTML, a printer name, 1–99 copies', () => {
+    expect(check.printArgs({ html: '<p/>', pageSize: 'A1', deviceName: 'Office', copies: 2 })).toEqual({ html: '<p/>', pageSize: 'A1', landscape: true, deviceName: 'Office', copies: 2 });
+    expect(() => check.printArgs({ html: '<p/>', deviceName: '', copies: 1 })).toThrow('without a printer');
+    expect(() => check.printArgs({ html: '<p/>', deviceName: 'Office', copies: 0 })).toThrow('copies');
+    expect(() => check.printArgs({ html: '<p/>', deviceName: 'Office', copies: 1.5 })).toThrow('copies');
+    expect(() => check.printArgs({ html: '', deviceName: 'Office', copies: 1 })).toThrow('without HTML');
   });
 
   it('error log entries: text only, cut to a sensible length', () => {

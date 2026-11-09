@@ -7,7 +7,7 @@ import type { CalcRun } from '../../calc/runs';
 import type { Project } from '../../types';
 import { canPreviewSheetPdf, SheetPdfPreview } from './SheetPdfPreview';
 
-/** Design CAD → Sheets → Plot: the page setup of a sheet and the project's pen tables. */
+/** Design CAD → Output: the page setup of a sheet and the project's pen tables. */
 
 const SIZES: ('auto' | SheetSize)[] = ['auto', 'A4', 'A3', 'A3 portrait', 'A2', 'A1'];
 const SCALES = [50, 100, 200, 500];
@@ -23,7 +23,7 @@ export function PageSetupDialog({ project, sheet, run, onSave, onClose }: {
 }) {
   const [size, setSize] = useState(sheet.size);
   const [scale, setScale] = useState(planScale(sheet.scale));
-  const [setup, setSetup] = useState<PlotSetup>(plotOf(project, sheet));
+  const [setup, setSetup] = useState<PlotSetup>(() => ({ ...plotOf(project, sheet), named: undefined })); // edited here, the sheet's own
   const [preview, setPreview] = useState<Project>();
   const tables = tablesOf(project);
   const plan = sheet.kind === 'plan';

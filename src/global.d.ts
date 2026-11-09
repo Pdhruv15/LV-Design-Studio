@@ -75,6 +75,10 @@ declare global {
         /** Shows a save dialog and renders the HTML to an A4 landscape PDF; resolves to the saved path, or null if cancelled. */
         /** Renders HTML to PDF bytes without a dialog (to merge parts). Missing in older desktop builds. */
         pdfBytes?: (opts: { html: string; pageSize?: 'A4' | 'A3' | 'A3 portrait' | 'A2' | 'A1'; landscape?: boolean; cssPages?: boolean }) => Promise<Uint8Array>;
+        /** The printers this computer has (Design CAD → Output → Printers). Missing in older desktop builds. */
+        printers?: () => Promise<{ name: string; displayName: string; isDefault: boolean }[]>;
+        /** Prints HTML on a listed printer with no dialog (Output → Plot); rejects with the printer's reason. */
+        printHtml?: (opts: { html: string; deviceName: string; copies: number; pageSize?: 'A4' | 'A3' | 'A3 portrait' | 'A2' | 'A1'; landscape?: boolean }) => Promise<boolean>;
         savePdf: (opts: { defaultName: string; html: string; pageSize?: 'A4' | 'A3' | 'A3 portrait' | 'A2' | 'A1'; landscape?: boolean; cssPages?: boolean }) => Promise<string | null>;
       };
     };

@@ -4,7 +4,7 @@ import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
-import { Frame, LayoutTemplate, Printer, Crop, Plus, ChevronRight, LightbulbOff, Snowflake, LockOpen, Focus, CircleCheck, Layers3, ArrowDownRight, Cloud, FileSearch } from 'lucide-react';
+import { Frame, LayoutTemplate, Printer, Crop, Plus, ChevronRight, LightbulbOff, Snowflake, LockOpen, Focus, CircleCheck, Layers3, ArrowDownRight, Cloud, FileSearch, ListOrdered } from 'lucide-react';
 import { PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen , SquareScissors } from 'lucide-react';
 import type { CadExport, CadRibbonInfo, CadTool } from './cad/cadState';
 import { ColourPicker } from './cad/ColourPicker';
@@ -115,6 +115,8 @@ export interface RibbonActions {
     onCoverage: () => void; coverageOn: boolean; copyLevels: Tool['menu'];
     onWireAll: () => void; onTags: () => void; tagsOn: boolean;
   };
+  /** Design CAD → Output: the dialogs that work without an open sheet (Plot needs one). */
+  output?: { onPlot: () => void; onSetups: () => void; onPrinters: () => void; onBatch: () => void; onRegister: () => void };
   onProfile: () => void;
   onChooseFolder: () => void;
   folderLabel: string;
@@ -144,7 +146,7 @@ export interface RibbonActions {
  * Sheet) and the engineering and sheet-set panels. */
 const G = {
   draw: 0, modify: 1, annotate: 2, layers: 3, props: 4, measure: 5, markup: 6, onPanels: 7, sheet: 8,
-  rooms: 9, cables: 10, devices: 11, editDevices: 12, wiring: 13, reference: 14, sheetSet: 15, layouts: 16, viewports: 17, plot: 18, issue: 19
+  rooms: 9, cables: 10, devices: 11, editDevices: 12, wiring: 13, reference: 14, sheetSet: 15, layouts: 16, viewports: 17, plot: 18, publish: 19, export: 20
 } as const;
 /** A Design CAD sub-tab: its panels on the drawing; on the sheets pages `sheet` instead (none: the sub-tab with the
  * sheet set shows), on a layout's paper `paper` instead, and on a layout `layout` after them. */
@@ -157,13 +159,15 @@ export const CAD_TABS: Record<'named' | 'labels', CadTab[]> = {
   named: [
     { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.annotate, G.layers, G.props, G.measure], paper: [G.draw, G.modify, G.markup, G.layers, G.props, G.measure], sheet: [] },
     { id: 'elec', label: 'Electrical, ELV & sheets', groups: [G.rooms, G.cables, G.devices, G.editDevices, G.wiring, G.reference, G.sheetSet, G.layouts], layout: [G.viewports],
-      sheet: [G.markup, G.onPanels, G.sheet, G.sheetSet, G.plot, G.issue] }
+      sheet: [G.markup, G.onPanels, G.sheet, G.sheetSet] },
+    { id: 'output', label: 'Output', groups: [G.plot, G.publish, G.export], sheet: [G.plot, G.publish, G.export] }
   ],
   labels: [
     { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.annotate], paper: [G.draw, G.modify, G.markup], sheet: [G.markup, G.onPanels] },
     { id: 'layers', label: 'Layers & properties', groups: [G.layers, G.props, G.measure], sheet: [] },
     { id: 'elec', label: 'Electrical & ELV', groups: [G.rooms, G.cables, G.devices, G.editDevices, G.wiring], sheet: [] },
-    { id: 'sheets', label: 'Sheets', groups: [G.reference, G.sheetSet, G.layouts], layout: [G.viewports], sheet: [G.sheet, G.sheetSet, G.plot, G.issue] }
+    { id: 'sheets', label: 'Sheets', groups: [G.reference, G.sheetSet, G.layouts], layout: [G.viewports], sheet: [G.sheet, G.sheetSet] },
+    { id: 'output', label: 'Output', groups: [G.plot, G.publish, G.export], sheet: [G.plot, G.publish, G.export] }
   ]
 };
 const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
@@ -206,7 +210,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Calculate', 'Stage'],
   cad: ['Draw', 'Modify', 'Annotate', 'Layers', 'Properties', 'Measure', 'Markup', 'On panels', 'Sheet',
-    'Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Reference', 'Sheet set', 'Layouts', 'Viewports', 'Plot', 'Issue and export'],
+    'Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Reference', 'Sheet set', 'Layouts', 'Viewports', 'Plot', 'Publish', 'Export'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -674,25 +678,32 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         sm({ label: 'Issues', icon: Stamp, title: 'Issue sheets: revisions and transmittals', onClick: () => a.sheets?.onTab('issues'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'issues', page: true })
       ],
       [
-        { label: 'New layout', icon: LayoutTemplate, cmd: 'LAYOUT', sub: 'of this level', title: 'A new layout (paper) of this level: a plan sheet with its title block and a viewport onto the model (LAYOUT)', onClick: () => {}, menuOnly: true, disabled: !a.cad?.hasDrawing, menu: (['Lighting', 'Power', 'ELV', 'Containment'] as const).map((t) => ({ label: `${t} layout`, title: `A new ${t.toLowerCase()} layout of this level`, onClick: () => a.cad?.onLayoutCmd?.(`LAYOUT ${t.toUpperCase()}`) })) },
-        sm({ label: 'Page setup', icon: FileCog, cmd: 'PAGESETUP', title: a.cad?.inLayout ? 'Paper, pens and plot stamp of this layout\'s sheet (opens it in the sheets)' : 'Open a layout tab first', onClick: () => a.cad?.onLayoutCmd?.('PAGESETUP'), disabled: !a.cad?.inLayout }),
-        sm({ label: 'Plot PDF', icon: Printer, cmd: 'PLOT', title: a.cad?.inLayout ? 'This layout\'s sheet as PDF, black and white (PLOT)' : 'Open a layout tab first', onClick: () => a.cad?.onLayoutCmd?.('PLOT'), disabled: !a.cad?.inLayout })
+        { label: 'New layout', icon: LayoutTemplate, cmd: 'LAYOUT', sub: 'of this level', title: 'A new layout (paper) of this level: a plan sheet with its title block and a viewport onto the model (LAYOUT)', onClick: () => {}, menuOnly: true, disabled: !a.cad?.hasDrawing, menu: (['Lighting', 'Power', 'ELV', 'Containment'] as const).map((t) => ({ label: `${t} layout`, title: `A new ${t.toLowerCase()} layout of this level`, onClick: () => a.cad?.onLayoutCmd?.(`LAYOUT ${t.toUpperCase()}`) })) }
       ],
       [
         { label: 'Viewport', icon: Frame, cmd: 'MV', title: 'A new viewport: click two corners on the paper (MV)', onClick: () => a.cad?.onLayoutCmd?.('MV') },
         sm({ label: 'Scale', icon: Scaling, cmd: 'VPSCALE', title: 'The scale of the viewport picked (VPSCALE)', onClick: () => {}, menuOnly: true, menu: [20, 50, 100, 200, 500, 1000].map((k) => ({ label: `1:${k}`, title: `Viewport at 1:${k}`, onClick: () => a.cad?.onLayoutCmd?.(`VPSCALE ${k}`) })) }),
         sm({ label: 'Lock', icon: Lock, cmd: 'VPLOCK', title: 'Lock or unlock the viewport picked: locked, pan and zoom inside it leave its view alone (VPLOCK)', onClick: () => a.cad?.onLayoutCmd?.('VPLOCK'), active: a.cad?.vpLocked })
       ],
+      // Output: plot one layout or sheet and its setup; publish many; export files for others.
       [
-        { label: 'Page setup', icon: FileCog, title: onSheet ? 'This sheet\'s page setup: paper, scale (plans), pen table, lineweights, plot stamp — or the set\'s default' : noSheet, onClick: () => act().pageSetup(), disabled: !onSheet },
-        { label: 'Pens', icon: PenLine, title: onSheet ? 'Pen tables: the width and ink each kind of line prints with; import a CTB plot style table' : noSheet, onClick: () => act().pens(), disabled: !onSheet },
-        { label: 'Preview', icon: FileSearch, title: onSheet ? 'Preview the plotted PDF in the desktop app' : noSheet, onClick: () => act().previewPdf(), disabled: !onSheet || !window.lvds?.files?.pdfBytes }
+        { label: 'Plot', icon: Printer, cmd: 'PLOT', title: onSheet ? 'Plot this layout or sheet to PDF or a printer, with a named page setup or its own, copies and pens (PLOT)' : noSheet, onClick: () => a.output?.onPlot(), disabled: !onSheet || !a.output },
+        { label: 'Preview', icon: FileSearch, title: onSheet ? 'How it will print: the plotted PDF at the pen widths and greys' : noSheet, onClick: () => act().previewPdf(), disabled: !onSheet || !window.lvds?.files?.pdfBytes },
+        sm({ label: 'Page setups', icon: FileCog, cmd: 'PAGESETUP', title: 'Named page setups of the project (paper, scale, pens, printer): make them and apply one to many layouts and sheets (PAGESETUP)', onClick: () => a.output?.onSetups(), disabled: !a.output,
+          menu: [{ label: 'Named page setups…', title: 'Make named page setups and apply one to many layouts and sheets', onClick: () => a.output?.onSetups(), disabled: !a.output },
+            { label: 'This sheet\'s page setup…', title: onSheet ? 'This sheet\'s own paper, scale (plans), pens, lineweights and plot stamp, or save them as the set\'s default' : noSheet, onClick: () => act().pageSetup(), disabled: !onSheet }] }),
+        sm({ label: 'Pen tables', icon: PenLine, title: onSheet ? 'Pen tables: the width and ink each kind of line prints with; import a CTB plot style table' : noSheet, onClick: () => act().pens(), disabled: !onSheet }),
+        sm({ label: 'Printers', icon: Settings2, title: 'The printers on this computer and the built-in PDF: where plots go', onClick: () => a.output?.onPrinters(), disabled: !a.output })
       ],
       [
         { label: 'Publish', icon: Send, sub: onSheet ? sh?.publish?.label || undefined : undefined, title: onSheet ? sh?.publish?.title ?? 'Issue this sheet' : noSheet, onClick: () => act().publish(), stale: onSheet && !!sh?.publish?.changed, disabled: !onSheet },
+        { label: 'Batch plot', icon: ListOrdered, cmd: 'BATCHPLOT', title: 'Many layouts and sheets in one run, each with its page setup, to one PDF, a PDF each or a printer; save the list and run it again (BATCHPLOT)', onClick: () => a.output?.onBatch(), disabled: !a.output }
+      ],
+      [
         { label: 'PDF', icon: FileText, title: onSheet ? 'This sheet as PDF' : noSheet, onClick: () => act().exportAs('pdf'), disabled: !onSheet },
         { label: 'DXF', icon: FileCode, title: onSheet ? 'This sheet as DXF (R12, editable layers)' : noSheet, onClick: () => act().exportAs('dxf'), disabled: !onSheet },
-        { label: 'DWG', icon: FileDown, title: onSheet ? 'This sheet as DWG (2018 format)' : noSheet, onClick: () => act().exportAs('dwg'), disabled: !onSheet }
+        { label: 'DWG', icon: FileDown, title: onSheet ? 'This sheet as DWG (2018 format)' : noSheet, onClick: () => act().exportAs('dwg'), disabled: !onSheet },
+        { label: 'Register', icon: FileSpreadsheet, title: 'The sheet register as an Excel workbook', onClick: () => a.output?.onRegister(), disabled: !a.output }
       ]
     ],
     reports: [

@@ -54,6 +54,15 @@ function pdfArgs(a) {
   return { defaultName: defaultFileName(a.defaultName, 'report.pdf'), html: a.html, pageSize, landscape: a.landscape === undefined ? true : !!a.landscape, cssPages: !!a.cssPages };
 }
 
+/** Plot to a printer: the sheet's HTML, a printer name the system listed (checked again in main), 1–99 copies and a
+ * known sheet size. */
+function printArgs(a) {
+  const { html, pageSize, landscape } = pdfArgs(a);
+  if (typeof a.deviceName !== 'string' || !a.deviceName.trim() || a.deviceName.length > 256) fail('printing without a printer');
+  const copies = Number.isInteger(a.copies) && a.copies >= 1 && a.copies <= 99 ? a.copies : fail('number of copies');
+  return { html, pageSize, landscape, deviceName: a.deviceName, copies };
+}
+
 /** Project save: the project data must look like a project; file, expected and force as their types. */
 function projectSaveArgs(a) {
   if (!isObj(a) || !isObj(a.data) || !Array.isArray(a.data.boards) || !Array.isArray(a.data.feeders)) fail('saving something that is not a project');
@@ -114,4 +123,4 @@ function engineRequest(r) {
 /** Permissions the app's pages may be granted (everything else, e.g. camera, location, notifications, is denied). */
 const ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write']);
 
-module.exports = { defaultFileName, fileFilter, saveTextArgs, saveBinaryArgs, overwriteBinaryArgs, pdfArgs, projectSaveArgs, recoveryArgs, logText, workbookRows, libraryData, engineRequest, ALLOWED_PERMISSIONS, PAGE_SIZES };
+module.exports = { defaultFileName, fileFilter, saveTextArgs, saveBinaryArgs, overwriteBinaryArgs, pdfArgs, printArgs, projectSaveArgs, recoveryArgs, logText, workbookRows, libraryData, engineRequest, ALLOWED_PERMISSIONS, PAGE_SIZES };

@@ -46,7 +46,7 @@ const TIP = {
   on: 'On: shown and picked. Off hides a layer; it still counts for zoom extents.',
   freeze: 'Freeze: hidden, not picked, and left out of zoom extents and the plan sheets.',
   lock: 'Locked layers can be seen and snapped to, but not picked or edited.',
-  colour: 'Colours are for the screen; sheets print black-and-white with the pens (Sheets → Plot).',
+  colour: 'Colours are for the screen; sheets print black-and-white with the pens (Output → Pen tables).',
   print: 'Untick Print to keep a layer on screen but off the plan sheets.',
   count: 'Objects on the layer (lines for the architect\'s and references\' layers).'
 };

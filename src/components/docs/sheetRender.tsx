@@ -326,6 +326,19 @@ export async function exportDrawingSet(project: Project, set: DrawingSet, run: C
   }
 }
 
+/** The sheets sent to a printer (Output → Plot, Batch plot), each on its own paper size, in the set's order. */
+export async function printSheets(project: Project, set: DrawingSet, run: CalcRun | undefined, only: string[], deviceName: string, copies: number, onStatus: (m: string) => void): Promise<void> {
+  const print = window.lvds?.files?.printHtml;
+  if (!print) { onStatus('Printing needs the desktop app — plot to PDF instead'); return; }
+  try {
+    const pages = await prepareSheets(project, set, run, only);
+    for (const p of pages) await print({ html: p.html, deviceName, copies, pageSize: p.size, landscape: p.size !== 'A3 portrait' });
+    onStatus(`Sent ${pages.length} sheet${pages.length === 1 ? '' : 's'} to ${deviceName}${copies > 1 ? `, ${copies} copies` : ''}`);
+  } catch (e) {
+    onStatus(`Printing failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
 export async function renderDrawingSetPdf(project: Project, set: DrawingSet, run: CalcRun | undefined, toBytes: Parameters<typeof drawingSetPdfParts>[3], only?: string[], withRegister = !only) {
   const { parts, titles, sheets, register } = await drawingSetPdfParts(project, set, run, toBytes, only, withRegister);
   const bytes = await (await import('../../docs/mergePdf')).mergePdfs(parts, `${project.name} · SLD set · ${revisionStamp(project)}`, titles);
