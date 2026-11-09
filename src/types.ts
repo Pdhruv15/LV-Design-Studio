@@ -427,6 +427,11 @@ export interface SketchItem {
   rot?: number;
   /** A text: where its anchor (pts[0]) sits on its box (src/model/cadText.ts); left out: the left end of its baseline. */
   just?: import('./model/cadText').TextJust;
+  /** A text's frame (a circle, box or hexagon round it) and mask (paper-colour fill under it) (src/model/cadText.ts). */
+  frame?: import('./model/cadText').TextFrame;
+  mask?: boolean;
+  /** A keynote: its number on the bubble, or on a line of the legend (n 0: the legend's title). */
+  kn?: { n: number; legend?: true };
   /** A cable tray run (a polyline along its centreline): its width, what it carries, and the tray route it is on, once
    * assigned. */
   tray?: { widthMm: number; service?: string; route?: string };

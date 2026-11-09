@@ -30,7 +30,7 @@ export type CadPiece = PieceStyle & (
   | { kind: 'arc'; c: P2; r: number; a0: number; a1: number }
   | { kind: 'circle'; c: P2; r: number }
   | { kind: 'pline'; pts: V3[]; closed: boolean }
-  | { kind: 'text'; at: P2; h: number; rot: number; text: string; tag?: string; just?: import('./cadText').TextJust }
+  | { kind: 'text'; at: P2; h: number; rot: number; text: string; tag?: string; just?: import('./cadText').TextJust; frame?: import('./cadText').TextFrame; mask?: boolean }
   | { kind: 'hatch'; loops: V3[][]; solid: boolean; pattern: string }
   | { kind: 'solid'; pts: P2[] }
   | { kind: 'point'; at: P2 }
@@ -348,7 +348,7 @@ function cropPiece(p: CadPiece, edges: Curve[], keepIn: boolean, tol: number, sk
     case 'arc': { let w = p.a1 - p.a0; while (w <= 0) w += TAU; return curves([{ k: 'a', c: p.c, r: p.r, s: p.a0, w }], false); }
     case 'circle': return p.r > tol ? curves([{ k: 'a', c: p.c, r: p.r, s: 0, w: TAU }], true) : [];
     case 'pline': return curves(plineCurves(p.pts, p.closed), p.closed);
-    case 'text': return inside(edges, p.at, tol) === keepIn ? [{ ...base, kind: 'text', pts: [p.at], text: p.text, h: p.h, rot: p.rot, ...(p.just ? { just: p.just } : {}) }] : [];
+    case 'text': return inside(edges, p.at, tol) === keepIn ? [{ ...base, kind: 'text', pts: [p.at], text: p.text, h: p.h, rot: p.rot, ...(p.just ? { just: p.just } : {}), ...(p.frame ? { frame: p.frame } : {}), ...(p.mask ? { mask: true } : {}) }] : [];
     case 'point': if (inside(edges, p.at, tol) === keepIn) skipped.push('point'); return [];
     case 'solid': {
       const loop = plineCurves(p.pts.map(([x, y]): V3 => [x, y, 0]), true);
@@ -447,7 +447,7 @@ function piecesOfItem(it: SketchItem): CadPiece[] {
     case 'line': case 'pline': return it.pts.length === 2 && !it.closed ? [{ ...s, kind: 'line', a: it.pts[0], b: it.pts[1] }] : [{ ...s, kind: 'pline', pts: it.pts.map(([x, y]): V3 => [x, y, 0]), closed: !!it.closed }];
     case 'circle': return [{ ...s, kind: 'circle', c: it.pts[0], r: it.r ?? 0 }];
     case 'arc': return [{ ...s, kind: 'arc', c: it.pts[0], r: it.r ?? 0, a0: it.a0 ?? 0, a1: it.a1 ?? 0 }];
-    case 'text': return [{ ...s, kind: 'text', at: it.pts[0], h: it.h ?? 0, rot: it.rot ?? 0, text: it.text ?? '', ...(it.just ? { just: it.just } : {}) }];
+    case 'text': return [{ ...s, kind: 'text', at: it.pts[0], h: it.h ?? 0, rot: it.rot ?? 0, text: it.text ?? '', ...(it.just ? { just: it.just } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.mask ? { mask: true } : {}) }];
     case 'dim': return it.pts.map((p): CadPiece => ({ ...s, kind: 'point', at: p }));
     // A drawn ellipse cut comes as a polyline within the chord tolerance (there is no elliptical arc item).
     case 'ellipse': return it.ax ? [{ ...s, kind: 'pline', pts: ellipsePoints(it, ELLIPSE_STEPS).map(([x, y]): V3 => [x, y, 0]), closed: true }] : [];

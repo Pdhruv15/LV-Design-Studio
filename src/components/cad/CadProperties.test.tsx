@@ -79,7 +79,7 @@ describe('Properties palette', () => {
     expect(document.body.textContent).toContain('Pick one kind above for its geometry.');
     const kind = el('Objects shown') as HTMLSelectElement;
     act(() => { Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(kind, 'Text'); kind.dispatchEvent(new Event('change', { bubbles: true })); });
-    expect(rowText().slice(5)).toEqual(['Contents=DB-1', 'Height=0.25', 'Rotation=0.0°', 'Justify=Left']);
+    expect(rowText().slice(5)).toEqual(['Contents=DB-1', 'Height=0.25', 'Rotation=0.0°', 'Justify=Left', 'Frame=None', 'Mask=No']);
     expect(rowText()[4]).toBe('Print=No (layer)');
     act(() => { [...document.querySelectorAll<HTMLButtonElement>('.cad-pp-sec')].find((s) => s.textContent === '▾ General')!.click(); });
     expect(rowText()[0]).toBe('Contents=DB-1');

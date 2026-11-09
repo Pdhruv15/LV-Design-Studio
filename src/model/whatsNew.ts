@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.062', date: '2026-11-09',
+    items: [
+      { title: 'Numbered texts and keynotes in Design CAD', text: 'TCOUNT (TNUM): type a prefix, the start number (01 keeps two digits), the step and a suffix, then click where each numbered text goes (L01, L02 …, centred on the click); U takes the last one back, S renumbers the texts picked in the order picked. KN (KEYNOTE): the number, where it goes and its note; it draws a numbered hexagon and a line in a KEYNOTES legend (the first time it asks where the legend starts; the next lines follow under it).', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Frames and masks round texts', text: 'TFRAME puts a circle, box or hexagon round the texts picked, sized from their height, moving and scaling with them (None takes it off). TMASK fills the box under a text in the paper colour so it reads over hatches, trays and underlays. Both are in the Properties palette too, and save to DXF and DWG (the mask as a solid hatch on LV-MASK).' }
+    ]
+  },
+  {
     version: '2.061', date: '2026-11-09',
     items: [
       { title: 'Text tools in Design CAD', text: 'Pick texts, type the command, Enter, then the value. TA (TALIGN) lines them up Left, Right, Centre, Top or Bottom on a text or point you click, or Spacing sets them evenly down the page a gap apart on paper. TC (TCASE): Upper, Lower, Title or Sentence. TPREFIX and TSUFFIX add words before or after each. TOR (TORIENT) turns each about its centre to read from the bottom or the right. TCEN centres one text between two points. TCOPY gives the texts picked the words of another text you click. Each is one undo step.', action: 'cad', actionLabel: 'Open Design CAD' },

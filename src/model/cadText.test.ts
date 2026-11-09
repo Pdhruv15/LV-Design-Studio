@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alignEdge, alignedTo, anchorFor, cased, centredAt, ISO_TEXT_MM, justDxf, justFractions, oriented, parseJust, readableAngle, rejustified, spaced, textBaseAt, textBounds, textBox, textCentre, textCorners, untaggedRooms, withTextHeight } from './cadText';
+import { alignEdge, alignedTo, anchorFor, cased, centredAt, ISO_TEXT_MM, justDxf, justFractions, keynoteItems, legendNext, nextKeynote, numberText, oriented, padOf, parseFrame, parseJust, readableAngle, rejustified, spaced, textBaseAt, textBounds, textBox, textCentre, textCorners, textFrameOf, untaggedRooms, withTextHeight } from './cadText';
 import type { SketchItem } from '../types';
 
 // "DB-01" at 250 high: 5 × 0.6 × 250 = 750 wide, anchored at the left end of its baseline.
@@ -134,5 +134,46 @@ describe('text tools on the texts picked', () => {
     const inside = (p: [number, number], poly: [number, number][]) => p[0] >= Math.min(...poly.map((q) => q[0])) && p[0] <= Math.max(...poly.map((q) => q[0])) && p[1] >= 0 && p[1] <= 4;
     expect(untaggedRooms(rooms, [tag], 0.001, inside).map((r) => r.name)).toEqual(['Kitchen']);
     expect(untaggedRooms(rooms, [], 0.001, inside).map((r) => r.name)).toEqual(['Majlis', 'Kitchen']);
+  });
+});
+
+describe('frames, numbering and keynotes', () => {
+  const t: SketchItem = { id: 't', kind: 'text', layer: 'LV-ANNO', pts: [[1000, 2000]], text: 'L1', h: 250, just: 'MC' }; // box 300 × 250 about (1000, 2000)
+
+  it('frames a text round its box: a circle, a box or a hexagon, 0.3 h clear', () => {
+    expect(textFrameOf(t)).toBeUndefined();
+    const c = textFrameOf({ ...t, frame: 'circle' })!.circle!;
+    close(c.c, [1000, 2000]); expect(c.r).toBeCloseTo(Math.hypot(150, 125) + 75, 9);
+    const b = textFrameOf({ ...t, frame: 'box' })!.pts!;
+    expect(b).toHaveLength(4); close(b[0], [1000 - 225, 2000 - 200]); close(b[2], [1225, 2200]);
+    const hx = textFrameOf({ ...t, frame: 'hexagon' })!.pts!;
+    expect(hx).toHaveLength(6); close(hx[0], [1000 + c.r, 2000]); close(hx[3], [1000 - c.r, 2000]);
+    // Turned with the text: the box's first corner follows the rotation.
+    const up = textFrameOf({ ...t, frame: 'box', rot: Math.PI / 2 })!.pts!;
+    close(up[0], [1000 + 200, 2000 - 225]);
+    expect(parseFrame('h')).toBe('hexagon'); expect(parseFrame('None')).toBe('none'); expect(parseFrame('x')).toBeUndefined();
+  });
+
+  it('numbers texts with a prefix, zero padding and a suffix', () => {
+    expect(numberText('L', 7, 0, '')).toBe('L7');
+    expect(numberText('DB-GF-', 7, 2, '/A')).toBe('DB-GF-07/A');
+    expect(padOf('01')).toBe(2); expect(padOf('1')).toBe(0); expect(padOf('007')).toBe(3); expect(padOf('')).toBe(0);
+  });
+
+  it('keynotes: the next number, the legend\'s next line, and what a keynote adds', () => {
+    expect(nextKeynote([])).toBe(1);
+    const first = keynoteItems(1, [500, 500], 'Fire rated wall', 250, 'LV-ANNO', [], [5000, 9000]);
+    expect(first).toHaveLength(3);
+    expect(first[0]).toMatchObject({ kind: 'text', text: '1', just: 'MC', frame: 'hexagon', kn: { n: 1 } });
+    expect(first[1]).toMatchObject({ text: 'KEYNOTES', pts: [[5000, 8750]], kn: { n: 0, legend: true } });
+    expect(first[2]).toMatchObject({ text: '1  Fire rated wall', pts: [[5000, 8750 - 400]], kn: { n: 1, legend: true } });
+    const items = first.map((x, i) => ({ ...x, id: `K${i}` }) as SketchItem);
+    expect(nextKeynote(items)).toBe(2);
+    expect(legendNext(items)).toEqual({ at: [5000, 8350 - 400], h: 250 });
+    const second = keynoteItems(2, [900, 900], 'Existing DB', 250, 'LV-ANNO', items);
+    expect(second).toHaveLength(2);
+    expect(second[1]).toMatchObject({ text: '2  Existing DB', pts: [[5000, 7950]] });
+    // No legend yet and no place for it: the bubble alone.
+    expect(keynoteItems(1, [0, 0], 'x', 250, 'LV-ANNO', [])).toHaveLength(1);
   });
 });
