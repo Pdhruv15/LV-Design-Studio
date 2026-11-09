@@ -7,7 +7,7 @@ import type { CadTool } from './cadState';
 /** Commands that run something on the page rather than start a tool. */
 export type CadAction = 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'layiso' | 'layuniso'
   | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
-  | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
+  | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
   | 'textStyle' | 'dimStyle' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt';
 
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
@@ -93,6 +93,7 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['ST', 'STYLE'], desc: 'Text style', action: 'textStyle' },
   { aliases: ['D', 'DST', 'DIMSTY', 'DIMSTYLE'], desc: 'Dimension style', action: 'dimStyle' },
   { aliases: ['E', 'ERASE', 'DEL', 'DELETE'], desc: 'Erase', action: 'erase' },
+  { aliases: ['RESTOREDWG'], desc: 'Bring back the objects of the drawing erased here', action: 'restoreDwg' },
   { aliases: ['SAVE', 'QSAVE'], desc: 'Save to the copy saved last (the first time: Save As)', action: 'save' },
   { aliases: ['SAVEAS', 'DXFOUT'], desc: 'Save As: name, format and version', action: 'saveAs' },
   { aliases: ['SAVEDWG', 'DWGOUT'], desc: 'Save As DWG', action: 'saveDwg' },

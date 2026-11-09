@@ -25,7 +25,7 @@ const BEFORE: Record<string, string> = {
   ALIGN: '!align', ALIGNV: '!align', SPACE: '!align', WC: '!wireAll', WIRE: '!wireAll', WIRECIRCUITS: '!wireAll', W1: 'wire', WIREONE: 'wire',
   TAGS: '!wireTags', COV: '!coverage', COVERAGE: '!coverage', REC: 'rect', RECTANG: 'rect', RECTANGLE: 'rect',
   C: 'circle', CIRCLE: 'circle', A: 'arc', ARC: 'arc', T: 'text', DT: 'text', TEXT: 'text', MT: 'text',
-  DIM: 'dim', DIMALIGNED: 'dim', DAL: 'dim', DLI: 'dimlin', E: '!erase', ERASE: '!erase', DEL: '!erase', DELETE: '!erase',
+  DIM: 'dim', DIMALIGNED: 'dim', DAL: 'dim', DLI: 'dimlin', E: '!erase', ERASE: '!erase', DEL: '!erase', DELETE: '!erase', RESTOREDWG: '!restoreDwg',
   SAVE: '!save', SAVEDWG: '!saveDwg', DWGOUT: '!saveDwg',
   LA: '!layers', LAYERS: '!layers', OSNAP: '!osnap', GRID: '!grid', ORTHO: '!ortho', SNAP: '!snap',
   HELP: '!help', '?': '!help'

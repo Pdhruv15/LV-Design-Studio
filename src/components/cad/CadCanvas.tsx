@@ -70,8 +70,8 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
    * dragged or the view panned (it hides meanwhile). */
   overlay?: (toScreen: (p: Pt) => Pt, moving: boolean) => ReactNode;
   marks?: CadMarks | null;
-  /** Segments of the object picked (start, end), drawn highlighted. */
-  highlight?: [number, number] | null;
+  /** Segments of the objects picked (start, end each), drawn highlighted. */
+  highlight?: [number, number][];
   devices?: CanvasDevice[];
   wiring?: CanvasWiring[];
   /** What the engineer drew (drawing units), the one selected, and their snap points. */
@@ -346,9 +346,9 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       ctx.stroke(b.path);
     }
     ctx.setLineDash([]);
-    if (highlight && highlight[1] > highlight[0]) {
+    if (highlight?.some(([a, z]) => z > a)) {
       const p = new Path2D();
-      for (let i = highlight[0]; i < highlight[1]; i += 1) { p.moveTo(view.segs[i * 4], view.segs[i * 4 + 1]); p.lineTo(view.segs[i * 4 + 2], view.segs[i * 4 + 3]); }
+      for (const [a, z] of highlight) for (let i = a; i < z; i += 1) { p.moveTo(view.segs[i * 4], view.segs[i * 4 + 1]); p.lineTo(view.segs[i * 4 + 2], view.segs[i * 4 + 3]); }
       ctx.strokeStyle = colour('--cad-snap', '#37d67a');
       ctx.lineWidth = 3 / scale;
       ctx.stroke(p);

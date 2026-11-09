@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { erasedOf, shownView, withErased } from './cadErased';
+import { erasedOf, restoredErased, shownView, withErased } from './cadErased';
 import type { CadView } from '../engines/cad/cadEngine';
 import type { Project } from '../types';
 
@@ -11,6 +11,15 @@ describe('Objects erased in Design CAD (CROP)', () => {
     expect(erasedOf(q, 'GF.DWG')).toEqual(['1A', '2B']);
     expect(erasedOf(q, 'FF.dwg')).toEqual([]);
     expect(erasedOf(p, 'GF.dwg')).toEqual([]);
+  });
+
+  it('come back per plan file (RESTOREDWG), the other files kept', () => {
+    const q = withErased(withErased(p, 'GF.dwg', ['1A']), 'FF.dwg', ['2B']);
+    const r = restoredErased(q, 'gf.DWG');
+    expect(erasedOf(r, 'GF.dwg')).toEqual([]);
+    expect(erasedOf(r, 'FF.dwg')).toEqual(['2B']);
+    expect(restoredErased(restoredErased(r, 'FF.dwg'), 'FF.dwg').cadErased).toBeUndefined();
+    expect(restoredErased(p, 'GF.dwg')).toBe(p);
   });
 
   it('are left out of the view: lines drawn as nothing (indices kept), texts, fills, blocks and outlines', () => {
