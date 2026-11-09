@@ -11,6 +11,11 @@ describe('FurnitureFields', () => {
     expect(html).toContain('<option value="" selected="">Off</option>');
     expect(html).toContain('<option value="" selected="">2.5 mm</option>');
     expect(html).toContain('1.8 mm (as before)');
+    expect(html).toContain('The issues, up to 4');
+    expect(html).toContain('>8 lines<');
+    expect(html).toContain('Strip along the foot');
+    expect(html).toContain('Legend and notes in the column');
+    expect(html).toContain('Auto (two on A2 and A1 when long)');
     expect(html).not.toContain('As the set');
   });
   it('for a sheet, the blank choices name the set\'s values', () => {

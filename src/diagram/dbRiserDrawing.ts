@@ -1,6 +1,6 @@
 import type { Project } from '../types';
 import type { DrawingSet } from '../model/drawingSet';
-import { LEGEND_LABEL_PX, legendLineY, legendPxFor, legendRows } from './legendLayout';
+import { plainNotes, stringLegendSvg, type LegendItem } from './legendLayout';
 import { cablesAtGap, dbRiserLayout, entryHeight, ENTRY_H, hasSourceBand, MAIN_H, refLines, ROW_MIN_H, SOURCE_H, type DbRiserLayout, type DbRiserMain, type DbRiserRun, type KindCount, type RowEntry } from '../model/dbRiser';
 
 /** One sheet of a building's "Boards by level" riser (printable SVG, black and white).
@@ -117,10 +117,14 @@ function entryBoxes(e: RowEntry, g: Group, y: number): string {
 export interface DbRiserOpts {
   /** Sheet numbers of the riser's sheets (bottom first), for the match lines and riser table. */
   sheetNos?: string[];
+  /** The sheet's legend column takes the notes (returned, not drawn); the riser table stays in the drawing. */
+  furniture?: 'column';
 }
+/** A drawing whose legend items and notes the sheet may print in its column instead. */
+export interface DrawnFurniture { legendItems?: LegendItem[]; notes?: string[] }
 
 /** One sheet of the riser (part 0 = the bottom sheet). */
-export function dbRiserDrawing(project: Project, buildingId: string, opts: DbRiserOpts = {}, part = 0, given?: DbRiserLayout): { svg: string; w: number; h: number; pages: number } {
+export function dbRiserDrawing(project: Project, buildingId: string, opts: DbRiserOpts = {}, part = 0, given?: DbRiserLayout): { svg: string; w: number; h: number; pages: number } & DrawnFurniture {
   const L = given ?? dbRiserLayout(project, buildingId);
   if (L.empty) {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 120" width="600" height="120" font-family="Arial" font-size="10" fill="#111"><rect width="600" height="120" fill="#fff"/>${text(20, 60, 'No panels on this building’s levels yet — set each panel’s Level.')}</svg>`;
@@ -340,16 +344,18 @@ export function dbRiserDrawing(project: Project, buildingId: string, opts: DbRis
     ...(L.unplaced.length ? [`No level, not counted or drawn: ${L.unplaced.slice(0, 12).join(', ')}${L.unplaced.length > 12 ? ` and ${L.unplaced.length - 12} more` : ''}.`] : []),
     ...(L.looseTapOffs.length ? [`Tap-offs with a load and no board, not drawn: ${L.looseTapOffs.join(', ')}.`] : [])
   ];
-  lines.push(text(20, y, 'NOTES', 'font-size="9" font-weight="bold"'));
-  notes.forEach((t, i) => lines.push(text(20, y + 15 + i * 13, `${i + 1}. ${t}`, 'font-size="8.5"')));
-  y += 15 + notes.length * 13 + 12;
+  if (opts.furniture !== 'column') {
+    lines.push(text(20, y, 'NOTES', 'font-size="9" font-weight="bold"'));
+    notes.forEach((t, i) => lines.push(text(20, y + 15 + i * 13, `${i + 1}. ${t}`, 'font-size="8.5"')));
+    y += 15 + notes.length * 13 + 12;
+  }
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${y}" width="${W}" height="${y}" font-family="Arial" font-size="10" fill="#111">
   <rect width="${W}" height="${y}" fill="#fff"/>
   ${lines.join('\n')}
   ${over.join('\n')}
 </svg>`;
-  return { svg, w: W, h: y, pages: L.pages.length };
+  return { svg, w: W, h: y, pages: L.pages.length, ...(opts.furniture === 'column' ? { notes: plainNotes(notes) } : {}) };
 }
 
 /** What is drawn on one sheet, for its legend. */
@@ -403,10 +409,7 @@ export function dbRiserLegend(L: DbRiserLayout, part = 0, widthMm = 58, textMm?:
   if (L.empty) return '';
   const used = usedOn(L, part), items = LEGEND.filter((e) => used.has(e.key));
   // Drawn for the sheet's column (widthMm, its inner width): the labels print at 2.5 mm and wrap (src/diagram/legendLayout.ts).
-  const W = legendPxFor(widthMm, textMm);
-  const { rows, h } = legendRows(items, W, 42);
-  const body = rows.map(({ entry: e, lines, y }) => `<g transform="translate(22 ${y}) scale(0.62)">${e.draw(0, 0)}</g>` + lines.map((l, j) => text(42, legendLineY(y, lines.length, j), l)).join('')).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${h}" width="${W}" height="${h}" font-family="Arial" font-size="${LEGEND_LABEL_PX}" fill="#111"><rect x="0.5" y="0.5" width="${W - 1}" height="${h - 1}" fill="#fff" stroke="#111" stroke-width="1"/>${text(12, 22, 'LEGEND', 'font-weight="bold"')}${ln(0, 32, W, 32, 1)}${body}</svg>`;
+  return stringLegendSvg(items.map((e) => ({ key: e.key, label: e.label, draw: (x, y) => `<g transform="translate(${x} ${y}) scale(0.62)">${e.draw(0, 0)}</g>` })), widthMm, textMm, 1, 22, 42);
 }
 
 /** Sheet numbers of the building's riser sheets, bottom first. */

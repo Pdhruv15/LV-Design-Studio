@@ -1,9 +1,10 @@
-import { FURNITURE_TEXT_MM, MIN_TEXT_MM, type SheetFurniture } from '../../model/drawingSet';
+import { FURNITURE_TEXT_MM, MIN_TEXT_MM, REV_ROWS, type SheetFurniture } from '../../model/drawingSet';
 
 /** The sheet furniture choices (what prints around the drawing): for the set, where a blank value is today's output,
  * and for one sheet, where a blank value follows the set (base = the set's values, named in the blank option). */
 export const ZONE_LABEL: Record<NonNullable<SheetFurniture['zones']>, string> = { off: 'Off', large: 'A2 and A1', all: 'Every paper' };
 export const NOTES_LABEL: Record<NonNullable<SheetFurniture['notesPlace']>, string> = { block: 'Above the title block', column: 'In the legend column' };
+export const LEGEND_PLACE_LABEL: Record<NonNullable<SheetFurniture['legendPlace']>, string> = { column: 'Right column', strip: 'Strip along the foot' };
 const minTextLabel = (v: number) => (v === MIN_TEXT_MM[0] ? `${v} mm (as before)` : `${v} mm`);
 
 export function FurnitureFields({ value, base, onChange }: { value: SheetFurniture; base?: SheetFurniture; onChange: (f: SheetFurniture) => void }) {
@@ -26,11 +27,23 @@ export function FurnitureFields({ value, base, onChange }: { value: SheetFurnitu
       <label>Legend and column text<select value={value.textMm ?? ''} onChange={(e) => set('textMm', num(e.target.value) as SheetFurniture['textMm'])}>
         {blank(`${base?.textMm ?? FURNITURE_TEXT_MM[0]} mm`)}{FURNITURE_TEXT_MM.map((v) => <option key={v} value={v}>{v} mm</option>)}
       </select></label>
+      <label>Legend<select value={value.legendPlace ?? ''} onChange={(e) => set('legendPlace', (e.target.value || undefined) as SheetFurniture['legendPlace'])}>
+        {blank(LEGEND_PLACE_LABEL[base?.legendPlace ?? 'column'])}{(Object.keys(LEGEND_PLACE_LABEL) as (keyof typeof LEGEND_PLACE_LABEL)[]).map((z) => <option key={z} value={z}>{LEGEND_PLACE_LABEL[z]}</option>)}
+      </select></label>
+      <label>Legend columns<select value={value.legendCols ?? ''} onChange={(e) => set('legendCols', num(e.target.value) as SheetFurniture['legendCols'])}>
+        {blank(base?.legendCols ? String(base.legendCols) : 'Auto (two on A2 and A1 when long)')}<option value={1}>1</option><option value={2}>2</option>
+      </select></label>
       <label>Notes<select value={value.notesPlace ?? ''} onChange={(e) => set('notesPlace', (e.target.value || undefined) as SheetFurniture['notesPlace'])}>
         {blank(NOTES_LABEL[base?.notesPlace ?? 'block'])}{(Object.keys(NOTES_LABEL) as (keyof typeof NOTES_LABEL)[]).map((z) => <option key={z} value={z}>{NOTES_LABEL[z]}</option>)}
       </select></label>
       <label>Notes box width (mm)<input className="bi-text" inputMode="decimal" defaultValue={value.notesWidthMm ?? ''} key={`nw${value.notesWidthMm ?? ''}`} placeholder={base?.notesWidthMm ? `As the set (${base.notesWidthMm})` : 'As the title block'}
         onBlur={(e) => { const v = num(e.target.value.trim()); if (v !== value.notesWidthMm && (v === undefined || (Number.isFinite(v) && v > 0))) set('notesWidthMm', v); }} /></label>
+      <label>Revision rows<select value={value.revRows ?? ''} onChange={(e) => set('revRows', num(e.target.value) as SheetFurniture['revRows'])}>
+        {blank(base?.revRows ? `${base.revRows} lines` : 'The issues, up to 4')}{REV_ROWS.map((v) => <option key={v} value={v}>{v} lines</option>)}
+      </select></label>
+      <label>Risers and earthing<select value={value.riserFurniture ?? ''} onChange={(e) => set('riserFurniture', (e.target.value || undefined) as SheetFurniture['riserFurniture'])}>
+        {blank(base?.riserFurniture === 'column' ? 'Legend and notes in the column' : 'Legend and notes in the drawing')}<option value="drawing">Legend and notes in the drawing</option><option value="column">Legend and notes in the column</option>
+      </select></label>
       <label>Smallest drawing text<select value={value.minTextMm ?? ''} onChange={(e) => set('minTextMm', num(e.target.value))}>
         {blank(minTextLabel(base?.minTextMm ?? MIN_TEXT_MM[0]))}{MIN_TEXT_MM.map((v) => <option key={v} value={v}>{minTextLabel(v)}</option>)}
       </select></label>

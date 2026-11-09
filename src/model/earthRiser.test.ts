@@ -58,6 +58,18 @@ describe('earthing riser', () => {
     expect(pages).toBe(1);
     for (const tag of ['EB-EL-A-GF', 'EB-EL-A-L03', 'GROUND FLOOR', 'LEVEL-03', 'CONNECTED TO LV ROOM', '1C 150 MM² G/Y PVC', '1C 95 MM² G/Y PVC']) expect(svg).toContain(tag);
     expect((svg.match(/>TL</g) ?? []).length).toBe(2 * FLOORS + 2); // two per bar, and the legend's bar
+    // The sheet's column can take the legend and notes: the schedule stays, the drawing is narrower on the right.
+    const inColumn = earthRiserDrawing(r.project, r.buildingId, { mono: true, furniture: 'column' });
+    expect(inColumn.svg).not.toContain('>LEGEND<');
+    expect(inColumn.svg).not.toContain('>NOTES<');
+    expect(inColumn.svg).toContain('FLOOR EARTH BAR SCHEDULE');
+    expect(inColumn.legendItems!.map((e) => e.label)[2]).toBe('Cable terminal on the bar');
+    expect(inColumn.notes![0]).toMatch(/^A FLOOR EARTH BAR WITH TWO TEST LINKS/);
+    expect(inColumn.h).toBeLessThanOrEqual(earthRiserDrawing(r.project, r.buildingId, { mono: true }).h);
+    const floor = earthFloorDrawing(r.project, r.buildingId, { mono: true, furniture: 'column' });
+    expect(floor.svg).not.toContain('>NOTES<');
+    expect(floor.svg).toContain('PANEL EARTHING SCHEDULE');
+    expect(floor.notes![0]).toMatch(/^EACH SMDB \/ DB EARTH BAR/);
     expect(svg).not.toContain('SMDB-1<'); // panels are on the floor earthing sheets
     expect(svg).not.toMatch(/#1a7f37|#5b6b82|#c0392b/i); // printed sheet is black and white
   });

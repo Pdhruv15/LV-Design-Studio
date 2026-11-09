@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { standardTemplate, titleBlockHtml } from '../model/titleBlock';
+import { STANDARD_BLOCK, standardTemplate, templateKindOf, templateOf, titleBlockHtml } from '../model/titleBlock';
 import type { Project } from '../types';
-import { buildSldSheetHtml, legendColumnFits, zoneFields } from './sldSheet';
+import { buildSldSheetHtml, legendColsFor, legendColumnFits, stripInnerMm, zoneFields } from './sldSheet';
 
 /** The band along a drawing sheet's foot: the revision table and the title block share its rows, and the frame draws
  * its foot and right edge, so every line meets and none is drawn twice. The printed check is tests/pdf/sheetFrame.pdf.ts. */
@@ -135,5 +135,70 @@ describe('sheet furniture', () => {
     const legend = `<svg viewBox="0 0 264 ${32 + 22 * 26 + 8}" data-w="264" data-h="${32 + 22 * 26 + 8}"></svg>`; // 22 rows drawn for 3.5 mm ≈ 204 mm
     expect(legendColumnFits(sampleProject, svg, 'A3', { ...info, legendSvg: legend, furniture: { textMm: 3.5 } })).toBe(false);
     expect(legendColumnFits(sampleProject, svg, 'A2', { ...info, legendSvg: legend, furniture: { textMm: 3.5 } })).toBe(true);
+  });
+});
+
+/** Revision rows (sheet furniture): the issues in the title block's rows as always, or a fixed 6 or 8 lines in a table
+ * of its own rows beside the block, blank lines included; a title block chosen per kind of sheet. */
+describe('revision rows and a title block per sheet kind', () => {
+  it('6 lines beside the standard block share its 44 mm band: 8 rows of 5.5 mm', () => {
+    const doc = parse(buildSldSheetHtml(sampleProject, svg, 'A3', { ...one, furniture: { revRows: 6 } }));
+    const rows = [...doc.querySelectorAll('.band.cb .rv tr')];
+    expect(rows).toHaveLength(8);
+    expect(rows.map((r) => (r as HTMLElement).style.height)).toEqual(Array(8).fill('5.5mm'));
+    expect(doc.querySelector<HTMLElement>('.band.cb')!.style.height).toBe('44mm');
+    expect(rows.slice(1, 5).map((r) => r.querySelector('td.r')!.textContent)).toEqual(['D', 'C', 'B', 'A']);
+    expect(rows[5].querySelectorAll('td.r.u')).toHaveLength(3); // a blank line, ruled like the others
+    expect(doc.querySelector('table.tb.band')).toBeNull(); // not the shared table
+    expect(doc.querySelector('.band.cb table.tb')).not.toBeNull(); // the standard block stands in the band
+  });
+  it('8 lines need 45 mm: the band grows by 1 mm and the table is closed down to the block', () => {
+    const doc = parse(buildSldSheetHtml(sampleProject, svg, 'A3', { ...one, furniture: { revRows: 8 } }));
+    expect(doc.querySelectorAll('.band.cb .rv tr')).toHaveLength(10);
+    expect(doc.querySelector<HTMLElement>('.band.cb')!.style.height).toBe('45mm');
+    expect(doc.querySelector<HTMLElement>('.rvx')!.style.height).toBe('1mm');
+  });
+  it('the issues as always without the setting: the shared table', () => {
+    expect(parse(buildSldSheetHtml(sampleProject, svg, 'A3', one)).querySelectorAll('table.tb.band tr')).toHaveLength(6);
+  });
+  it('a block per kind: the riser sheets take a template while the SLD keeps the standard block, or the other way round', () => {
+    const t = standardTemplate();
+    const byKind: Project = { ...sampleProject, titleTemplates: [t], drawing: { ...sampleProject.drawing, titleTemplateByKind: { riser: t.id } } };
+    expect(parse(buildSldSheetHtml(byKind, svg, 'A3', { ...one, kind: 'earthRiser' })).querySelector('.tbx')).not.toBeNull();
+    expect(parse(buildSldSheetHtml(byKind, svg, 'A3', { ...one, kind: 'system' })).querySelector('table.tb.band')).not.toBeNull();
+    const allButPlans: Project = { ...sampleProject, titleTemplates: [t], drawing: { ...sampleProject.drawing, titleTemplateId: t.id, titleTemplateByKind: { plan: STANDARD_BLOCK } } };
+    expect(templateOf(allButPlans, 'plan')).toBeUndefined();
+    expect(templateOf(allButPlans, 'sld')?.id).toBe(t.id);
+    expect(templateOf(allButPlans)?.id).toBe(t.id);
+    expect(templateKindOf('earthFloor')).toBe('riser');
+    expect(templateKindOf('board')).toBe('sld');
+  });
+});
+
+/** The legend in a strip along the foot of the drawing area, or in two columns of the right column. */
+describe('legend strip and columns', () => {
+  const labels = Array.from({ length: 30 }, (_, i) => `Entry ${i + 1}`);
+  it('a strip takes its height from the legend, moves the drawing up and the notes into the column', () => {
+    const legend = '<svg viewBox="0 0 1234.8 150" data-w="1234.8" data-h="150"></svg>'; // drawn for A3's 294 mm strip, 150 px ≈ 35.7 mm
+    const html = buildSldSheetHtml(sampleProject, svg, 'A3', { ...one, legendSvg: legend, legendStrip: true, notes: ['A note'] }), doc = parse(html);
+    expect(doc.querySelector('.strip .lg svg')).not.toBeNull();
+    expect(doc.querySelector('.side .lg')).toBeNull();
+    expect(doc.querySelector('.side .notes')).not.toBeNull();
+    expect(html).toMatch(/\.strip \{[^}]*height: 39\.71mm/); // 35.71 + 2 × 2 mm padding
+    expect(html).toMatch(/\.drawing \{[^}]*bottom: 42\.71mm/);
+    expect(stripInnerMm('A3')).toBe(294);
+  });
+  it('two columns widen the right column to 184 mm and split the abbreviations in two', () => {
+    const html = buildSldSheetHtml(sampleProject, svg, 'A2', { ...one, sideMm: 184 });
+    expect(html).toMatch(/\.side \{[^}]*width: 184mm/);
+    expect(html).toMatch(/\.side \.abbr \{ column-count: 2/);
+    expect(buildSldSheetHtml(sampleProject, svg, 'A2', one)).toMatch(/\.side \.abbr \{ column-count: 1/);
+  });
+  it('picks two columns on A2 and A1 when one column would be taller than half the drawing area, else one; the setting wins', () => {
+    expect(legendColsFor({}, 'A3', labels)).toBe(1);
+    expect(legendColsFor({}, 'A2', labels)).toBe(2); // 30 rows ≈ 195 mm > half of A2's 350 mm
+    expect(legendColsFor({}, 'A2', labels.slice(0, 8))).toBe(1);
+    expect(legendColsFor({ legendCols: 2 }, 'A3', labels.slice(0, 3))).toBe(2);
+    expect(legendColsFor({ legendCols: 1 }, 'A1', labels)).toBe(1);
   });
 });

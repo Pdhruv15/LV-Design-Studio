@@ -1,4 +1,6 @@
 import type { Project } from '../types';
+import { plainNotes } from './legendLayout';
+import type { DrawnFurniture } from './dbRiserDrawing';
 import { earthRiserLayout, floorGroups, floorIndex, riserPages, type EarthRiserBoard, type EarthRiserFloor, type EarthRiserLayout, type RiserRow } from '../model/earthRiser';
 import { earthSheetNo } from '../model/boardEarth';
 import { earthingLayout } from '../model/earthingPlan';
@@ -96,6 +98,8 @@ function table(out: string[], x: number, y: number, cols: number[], rows: string
 export interface EarthSheetOpts {
   mono?: boolean;
   working?: boolean;
+  /** The sheet's legend column takes the legend and notes (returned, not drawn); the schedules stay in the drawing. */
+  furniture?: 'column';
   /** Sheet numbers of the riser's sheets (bottom first), for the match lines. */
   riserNos?: string[];
   /** Sheet number of the floor earthing sheet of a floor (by floor key). */
@@ -103,7 +107,7 @@ export interface EarthSheetOpts {
 }
 
 /** One sheet of the earth riser (part 0 = the bottom sheet). */
-export function earthRiserDrawing(project: Project, buildingId: string, opts: EarthSheetOpts = {}, part = 0, given?: EarthRiserLayout): { svg: string; w: number; h: number; pages: number } {
+export function earthRiserDrawing(project: Project, buildingId: string, opts: EarthSheetOpts = {}, part = 0, given?: EarthRiserLayout): { svg: string; w: number; h: number; pages: number } & DrawnFurniture {
   const EL = earthingLayout(project);
   const L = given ?? earthRiserLayout(project, buildingId, EL);
   const pages = riserPages(L);
@@ -209,8 +213,10 @@ export function earthRiserDrawing(project: Project, buildingId: string, opts: Ea
     if (!L.mains.length) out.push(text(lx - 6, y + 18, 'NO MAIN BOARD FEEDS THIS BUILDING', `text-anchor="end" font-size="8.5" fill="${RED}" font-weight="bold"`));
   }
 
-  // Right column: legend, notes, floor earth bar schedule.
+  // Right column: legend, notes, floor earth bar schedule (the legend and notes go to the sheet's column when asked).
   let ry = TOP - 60;
+  const inColumn = opts.furniture === 'column';
+  let furniture: DrawnFurniture = {};
   if (!opts.working) {
     const RX = X1 + 10, RW = W - RX - 30;
     const legend: [string, string, number][] = [
@@ -224,8 +230,10 @@ export function earthRiserDrawing(project: Project, buildingId: string, opts: Ea
       body += `<g transform="translate(0 ${cy})">${sym}</g>${text(122, cy + 3, t, 'font-size="9"')}`;
       ly += rh;
     }
-    out.push(`<g transform="translate(${RX} ${ry})"><rect x="0" y="0" width="${RW}" height="${ly + 8}" fill="#fff" stroke="#111"/>${text(10, 18, 'LEGEND', 'font-weight="bold"')}${ln(0, 24, RW, 24, 0.6)}${body}</g>`);
-    ry += ly + 28;
+    if (!inColumn) {
+      out.push(`<g transform="translate(${RX} ${ry})"><rect x="0" y="0" width="${RW}" height="${ly + 8}" fill="#fff" stroke="#111"/>${text(10, 18, 'LEGEND', 'font-weight="bold"')}${ln(0, 24, RW, 24, 0.6)}${body}</g>`);
+      ry += ly + 28;
+    }
     const pits = L.mains.map((m) => `${m.meb} → ${m.pits.map(tagOf).join(', ') || 'NO PIT'}`).join('; ');
     const notes = [
       lanes.length > 1
@@ -241,10 +249,15 @@ export function earthRiserDrawing(project: Project, buildingId: string, opts: Ea
       ...(L.noRiser.length ? [`NOT SHOWN — NO RISER SERVES THEIR LEVEL: ${L.noRiser.join(', ')}.`] : []),
       ...(L.wrongRiser.length ? [`CHOSEN RISER DOES NOT SERVE THEIR LEVEL — EARTHED TO THE FIRST RISER THAT DOES: ${L.wrongRiser.join(', ')}.`] : [])
     ].map((t, i) => (/^\d+\. /.test(t) ? t : `${i + 1}. ${t}`));
-    out.push(text(RX, ry, 'NOTES', 'font-weight="bold"'));
-    notes.splice(0, notes.length, ...wrap(notes, 98));
-    notes.forEach((t, i) => out.push(text(RX, ry + 16 + i * 14, t, 'font-size="8.5"')));
-    ry += 16 + notes.length * 14 + 24;
+    if (inColumn) {
+      // The symbols are drawn 0–120 wide about x = 60 of their group.
+      furniture = { legendItems: legend.map(([sym, label, rh], i) => ({ key: `r${i}`, label, draw: (x: number, y: number) => `<g transform="translate(${x - 60} ${y})">${sym}</g>`, ...(rh > 26 ? { h: rh } : {}) })), notes: plainNotes(notes) };
+    } else {
+      out.push(text(RX, ry, 'NOTES', 'font-weight="bold"'));
+      notes.splice(0, notes.length, ...wrap(notes, 98));
+      notes.forEach((t, i) => out.push(text(RX, ry + 16 + i * 14, t, 'font-size="8.5"')));
+      ry += 16 + notes.length * 14 + 24;
+    }
     out.push(text(RX, ry, 'FLOOR EARTH BAR SCHEDULE', 'font-weight="bold"'));
     const cols = [0.3, 0.3, 0.18, 0.22].map((f) => f * RW);
     const rows = [['Level', 'Floor earth bar', 'Panels', 'Floor sheet']];
@@ -261,11 +274,11 @@ export function earthRiserDrawing(project: Project, buildingId: string, opts: Ea
 
   const h = Math.max(bottom, ry) + 30;
   const sub = `Floor earth bar on every level, earth cable bar to bar${pages.length > 1 ? ` — sheet ${pageIx + 1} of ${pages.length}` : ''}${L.style === 'typical' ? ' — typical floors grouped' : ''}`;
-  return { ...svgOf(`EARTHING RISER DIAGRAM — ${L.buildingName.toUpperCase()}`, sub, W, h, out, opts.mono), pages: pages.length };
+  return { ...svgOf(`EARTHING RISER DIAGRAM — ${L.buildingName.toUpperCase()}`, sub, W, h, out, opts.mono), pages: pages.length, ...furniture };
 }
 
 /** Floor earthing sheet: one floor (or typical group) of the building (part = group, lowest first). */
-export function earthFloorDrawing(project: Project, buildingId: string, opts: EarthSheetOpts = {}, part = 0, given?: EarthRiserLayout): { svg: string; w: number; h: number; groups: number } {
+export function earthFloorDrawing(project: Project, buildingId: string, opts: EarthSheetOpts = {}, part = 0, given?: EarthRiserLayout): { svg: string; w: number; h: number; groups: number } & DrawnFurniture {
   const L = given ?? earthRiserLayout(project, buildingId);
   const groups = floorGroups(L);
   const g = groups[Math.min(part, groups.length - 1)];
@@ -320,6 +333,7 @@ export function earthFloorDrawing(project: Project, buildingId: string, opts: Ea
     out.push(text(cx + 4, ly - 3, `1C ${b.cpcMm2 ?? '—'} mm² G/Y`, 'font-size="8"'));
   });
   let y = febY + BAR_H + 60;
+  let floorNotes: string[] | undefined;
 
   if (!opts.working) {
     const notes = [
@@ -329,8 +343,11 @@ export function earthFloorDrawing(project: Project, buildingId: string, opts: Ea
       `3. FLOOR EARTH BAR ON THE RISER EARTH CABLE (${L.tape.toUpperCase()}) THROUGH ITS TEST LINKS — SEE THE EARTHING RISER DIAGRAM.`,
       ...(g.typical ? ['4. TYPICAL: EACH LEVEL OF THE GROUP IS EARTHED AS DRAWN, WITH ITS OWN PANELS AND FLOOR EARTH BAR (SCHEDULE).'] : [])
     ];
-    notes.forEach((t, i) => out.push(text(40, y + i * 14, t, `font-size="8.5"${i ? '' : ' font-weight="bold"'}`)));
-    y += notes.length * 14 + 30;
+    if (opts.furniture === 'column') floorNotes = plainNotes(notes);
+    else {
+      notes.forEach((t, i) => out.push(text(40, y + i * 14, t, `font-size="8.5"${i ? '' : ' font-weight="bold"'}`)));
+      y += notes.length * 14 + 30;
+    }
     out.push(text(40, y - 10, 'PANEL EARTHING SCHEDULE', 'font-weight="bold" font-size="11"'));
     const lv = (fl: EarthRiserFloor) => (fl.floor.tag === 'G' ? 'GF' : fl.floor.tag === 'R' ? 'RF' : fl.floor.tag);
     if (!g.typical) {
@@ -351,7 +368,7 @@ export function earthFloorDrawing(project: Project, buildingId: string, opts: Ea
     }
   }
   const h = y + 20;
-  return { ...svgOf(`FLOOR EARTHING — ${L.buildingName.toUpperCase()}`, 'SMDB / DB earth bars to the floor earth bar', W, h, out, opts.mono), groups: groups.length };
+  return { ...svgOf(`FLOOR EARTHING — ${L.buildingName.toUpperCase()}`, 'SMDB / DB earth bars to the floor earth bar', W, h, out, opts.mono), groups: groups.length, ...(floorNotes ? { notes: floorNotes } : {}) };
 }
 
 /** Sheet numbers for the match lines and cross references, from the drawing set. */

@@ -56,7 +56,7 @@ export const planScale = (s?: string) => { const n = Number(/1\s*:\s*(\d+)/.exec
 /** The drawing area of a sheet (mm) beside the legend column and above the title block, as src/docs/sldSheet.ts lays
  * it out: the plan is drawn to exactly this size so it prints at its scale. */
 export function drawingAreaMm(p: Project, size: SheetSize): { w: number; h: number } {
-  const custom = templateOf(p);
+  const custom = templateOf(p, 'plan');
   const k = furnitureScale(size, custom ? templateSize(custom) : undefined);
   const { w, h } = SHEET_MM[size];
   return { w: w - 36 - 92 * k, h: h - 23 - 44 * k };
@@ -65,7 +65,7 @@ export function drawingAreaMm(p: Project, size: SheetSize): { w: number; h: numb
 /** Where the sheet's notes box starts across the drawing area (mm): it lies over the area's bottom right, as wide as the
  * title block under it. */
 function notesLeftMm(p: Project, size: SheetSize): number {
-  const custom = templateOf(p);
+  const custom = templateOf(p, 'plan');
   return SHEET_MM[size].w - 33 - (custom ? templateSize(custom).w : 180) * furnitureScale(size, custom ? templateSize(custom) : undefined);
 }
 

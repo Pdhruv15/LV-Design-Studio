@@ -1896,11 +1896,11 @@ export default function SystemDiagram({
 /** The symbol legend on its own (the drawing sheets' legend column). widthMm: the column's inner width; the legend is
  * drawn for it (src/diagram/legendLayout.ts), so its labels print at 2.5 mm and wrap instead of shrinking. Without it,
  * as wide as its longest label. */
-export function LegendSvg({ project, widthMm, textMm }: { project: Project; widthMm?: number; textMm?: number }) {
+export function LegendSvg({ project, widthMm, textMm, cols = 1 }: { project: Project; widthMm?: number; textMm?: number; cols?: number }) {
   const legend = legendEntries(project);
   if (!legend.length) return null;
   const W = widthMm ? legendPxFor(widthMm, textMm) : legendWidth(legend);
-  const { rows, h } = legendRows(legend, W, LEGEND_TEXT_X);
+  const { rows, h } = legendRows(legend, W, LEGEND_TEXT_X, widthMm ? cols : 1);
   return (
     <div className="sysdiag">
       <svg viewBox={`0 0 ${W} ${h}`} width={W} height={h} data-w={W} data-h={h}>
@@ -1908,10 +1908,10 @@ export function LegendSvg({ project, widthMm, textMm }: { project: Project; widt
           <rect x="0" y="0" width={W} height={h} rx="4" className="legend-box" />
           <text x="12" y="22" className="b">LEGEND</text>
           <line x1="0" y1="32" x2={W} y2="32" className="ln" />
-          {rows.map(({ entry: e, lines, y }) => (
+          {rows.map(({ entry: e, lines, y, x }) => (
             <g key={e.key}>
-              {e.draw(LEGEND_SYM_X, y)}
-              {lines.map((l, j) => <text key={j} x={LEGEND_TEXT_X} y={legendLineY(y, lines.length, j)} className="legend-t">{l}</text>)}
+              {e.draw(LEGEND_SYM_X + x, y)}
+              {lines.map((l, j) => <text key={j} x={LEGEND_TEXT_X + x} y={legendLineY(y, lines.length, j)} className="legend-t">{l}</text>)}
             </g>
           ))}
         </g>

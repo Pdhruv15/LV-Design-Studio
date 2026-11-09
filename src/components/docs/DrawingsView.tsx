@@ -12,7 +12,7 @@ import {
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
 import { sheetItems } from '../../model/sheetChanges';
-import { loadTemplateLibrary } from '../../model/titleBlock';
+import { loadTemplateLibrary, STANDARD_BLOCK, TEMPLATE_KINDS } from '../../model/titleBlock';
 /** Excel export loads ExcelJS only when used (this view is part of the SLD workspace, loaded at start). */
 const excel = async () => ({ ...(await import('../../docs/formWorkbook')), ...(await import('../../docs/registerWorkbook')) });
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
@@ -377,6 +377,17 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
                 </select>
                 <button className="linkish" onClick={() => onOpen('titleblock')}>Design…</button>
               </label>
+            </div>
+            <div className="dr-line">
+              {TEMPLATE_KINDS.map(([kind, label]) => (
+                <label key={kind} className="row">{label}
+                  <select className="chip" value={d.titleTemplateByKind?.[kind] ?? ''} onChange={(e) => { const by = { ...(d.titleTemplateByKind ?? {}) }; if (e.target.value) by[kind] = e.target.value; else delete by[kind]; onChange({ ...project, drawing: { ...d, titleTemplateByKind: Object.keys(by).length ? by : undefined } }); }}>
+                    <option value="">Same</option>
+                    <option value={STANDARD_BLOCK}>Standard</option>
+                    {[...(project.titleTemplates ?? []), ...loadTemplateLibrary().filter((t) => !(project.titleTemplates ?? []).some((x) => x.id === t.id))].map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </label>
+              ))}
             </div>
           </section>
           <section className="card">

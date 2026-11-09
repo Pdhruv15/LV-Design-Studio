@@ -1,4 +1,5 @@
 import type { Project } from '../types';
+import { plainNotes, type LegendItem } from './legendLayout';
 import { earthingLayout, genTag, kindInfo, pitStatus, txUnits, unitKey, unitName, type EarthItem, type EarthLayout } from '../model/earthingPlan';
 import { mainBoards, txTag } from '../model/transformers';
 import { obstaclesFromSvg, placeTags, type CableTag } from './tagPlacer';
@@ -122,7 +123,7 @@ export function pitTags(project: Project, L: EarthLayout = earthingLayout(projec
   return tagOf;
 }
 
-export function earthingDrawing(project: Project, L: EarthLayout = earthingLayout(project), includeSchedule = true, opts: { mono?: boolean; working?: boolean } = {}): { svg: string; w: number; h: number } {
+export function earthingDrawing(project: Project, L: EarthLayout = earthingLayout(project), includeSchedule = true, opts: { mono?: boolean; working?: boolean; /** The sheet's legend column takes the legend and notes (returned, not drawn); the pit schedule stays. */ furniture?: 'column' } = {}): { svg: string; w: number; h: number; legendItems?: LegendItem[]; notes?: string[] } {
   const out: string[] = [];
   /** Cable size tags, placed at the end clear of everything else. */
   const tags: CableTag[] = [];
@@ -475,7 +476,8 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
     if (line) lines.push(line);
     return lines;
   };
-  let tableY = ly + legendH + 40;
+  const inColumn = opts.furniture === 'column';
+  let tableY = ly + (inColumn ? 0 : legendH) + 40;
   let schedule = `<text x="${tableX}" y="${tableY - 10}" font-size="12" font-weight="bold">EARTH PIT SCHEDULE</text>`;
   const row = (cells: string[], heading = false) => {
     const lines = cells.map((s, i) => wrap(s, columns[i]));
@@ -497,15 +499,18 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
     row([`${p.id} ${tagOf.get(p.id) ?? ''}`.trim(), `${it.equipment} / ${it.point}`, `${kindInfo(p.kind).label} / ${it.group}`, `${kindInfo(p.kind).limitOhm} ohm`, `1C ${mm} mm² Cu/PVC, ${L.electrodeM} m Cu-bonded rod`,
       p.measured === undefined ? blank || 'Not tested' : `${p.measured} ohm`, [p.date, p.by].filter(Boolean).join(', ') || blank, st === 'pass' ? 'PASS' : st === 'fail' ? 'FAIL' : blank]);
   }
-  const h = includeSchedule ? tableY + 20 : opts.working ? ly + 10 : ly + legendH + 20;
+  const h = includeSchedule ? tableY + 20 : opts.working || inColumn ? ly + 10 : ly + legendH + 20;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" font-family="Arial" font-size="10" fill="#111">
   <rect width="${w}" height="${h}" fill="#fff"/>
   <text x="${w / 2}" y="30" text-anchor="middle" font-size="14" font-weight="bold">EARTHING SCHEMATIC DIAGRAM</text><text x="${w / 2}" y="44" text-anchor="middle" font-size="9" fill="#5b6b82">Earthing system: ${esc(L.system.name)}</text>
   ${out.join('\n')}
-  ${opts.working ? '' : `${legend}
+  ${opts.working || inColumn ? '' : `${legend}
   ${noteSvg}`}
   ${includeSchedule ? schedule : ''}
 </svg>`;
   // Printed sheet: every colour to black, tints to white.
-  return { svg: opts.mono ? svg.replace(/#(1a7f37|1d4f8f|5b6b82|b86b2b|c0392b)/gi, '#111').replace(/#(e8f5ec|fdecea)/gi, '#fff') : svg, w, h };
+  const mono = (s: string) => (opts.mono ? s.replace(/#(1a7f37|1d4f8f|5b6b82|b86b2b|c0392b)/gi, '#111').replace(/#(e8f5ec|fdecea)/gi, '#fff') : s);
+  // The legend's symbols are drawn 8–44 wide about x = 26 of their group, for a row of rh px.
+  const legendItems = rows.map(([sym, label, rh], i): LegendItem => ({ key: `e${i}`, label, draw: (x, y) => mono(`<g transform="translate(${x - 26} ${y})">${sym}</g>`), ...(rh > 26 ? { h: rh } : {}) }));
+  return { svg: mono(svg), w, h, ...(inColumn ? { legendItems, notes: plainNotes(notes) } : {}) };
 }

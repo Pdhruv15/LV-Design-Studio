@@ -2,11 +2,11 @@ import type { DrawingInfo, Project } from '../types';
 import { svgToDxf } from '../diagram/exportSvg';
 import { toDxf, type DxfPrimitive } from './dxf';
 import { furnitureScale, sheetTitleBlock, SHEET_MM, zoneFields, zonesOn, type SheetInfo } from './sldSheet';
-import { LEGEND_TEXT_MM } from '../diagram/legendLayout';
+import { LEGEND_LABEL_PX, LEGEND_TEXT_MM } from '../diagram/legendLayout';
 import { abbreviationsIn } from './sldNotes';
 import { fillParams } from '../model/params';
 import { FIRE_NOTE } from '../model/cableRefs';
-import { templateOf, templateSize } from '../model/titleBlock';
+import { templateKindOf, templateOf, templateSize } from '../model/titleBlock';
 import { templateTitleBlockDxf, type TitleDetail } from './titleBlockDxf';
 import { textInBox, textWidth, wrapDxfText, type DxfBox } from './dxfLayout';
 import { MARKUP_LAYERS, markupDxf } from '../model/sheetMarkup';
@@ -65,7 +65,7 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   const { w, h } = SHEET_MM[size];
   const frame = { x: 20, y: 10, w: w - 30, h: h - 20 };
   const t = sheetTitleBlock(project, one);
-  const custom = templateOf(project);
+  const custom = templateOf(project, templateKindOf(one?.kind));
   const dims = custom ? templateSize(custom) : { w: 180, h: 44 };
   if (custom && [...custom.cols, ...custom.rows].some((v) => !Number.isFinite(v) || v <= 0)) throw new Error('The title block needs positive row heights and column widths.');
   const k = furnitureScale(size, dims);
@@ -104,7 +104,10 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
     const count = Math.min(3, Math.max(1, wrapDxfText(value, tbW * span / 3 - 3 * k, height).length));
     return 3.5 * k + count * height * 1.5;
   })));
-  const history = t.history.length ? t.history : [{ id: '-', date: '', description: 'Not issued' }];
+  // The revision lines: the issues (up to 4), or the fixed 6 or 8 of the sheet furniture, blank ones included.
+  const issued = t.history.length ? t.history : [{ id: '-', date: '', description: 'Not issued' }];
+  const revLines = one?.furniture?.revRows ?? issued.length;
+  const history = [...issued.slice(0, revLines), ...Array.from({ length: Math.max(0, revLines - issued.length) }, () => ({ id: '', date: '', description: '' }))];
   // The band along the frame's foot is as high as the title block (a template too short for the revision table makes
   // it higher), and the revision table beside the block follows its rows. Every line is drawn once: the frame is the
   // band's foot and outer edges, one line its top.
@@ -226,11 +229,18 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
       y -= height; cursor++;
     }
   };
+  // The legend in a strip along the foot of the drawing area (as the PDF): as high as it was drawn, plus its padding.
+  const strip = !!legend && !!one?.legendStrip;
+  const stripH = strip ? (Number(legend.match(/data-h="([\d.]+)"/)?.[1] ?? 0) / (LEGEND_LABEL_PX / tm) + 4) * k : 0;
+  if (strip) {
+    first.push({ type: 'line', layer: 'E-LEGEND', x1: frame.x, y1: bodyBottom + stripH, x2: colX, y2: bodyBottom + stripH });
+    first.push(...placeSvg(legend, { x: frame.x + 2 * k, y: bodyBottom + 2 * k, w: frame.w - (side ? colW : 0) - 4 * k, h: stripH - 4 * k }, 'E-LEGEND', false).items);
+  }
   if (side) {
     // The legend column's edge runs from the title block's top line (the band's, when the column is wider) to the frame's.
     first.push({ type: 'line', layer: 'E-LEGEND', x1: colX, y1: colX >= tbx - 1e-6 ? titleTop : bandTop, x2: colX, y2: frame.y + frame.h });
     let top = bodyTop;
-    if (legend) {
+    if (legend && !strip) {
       // Drawn for the column's width (src/diagram/legendLayout.ts), so at that width its labels are 2.5 mm; the
       // schedules and notes take the room below, and what does not fit goes on a continuation sheet.
       const r = placeSvg(legend, { x: colX + 2 * k, y: bodyBottom, w: contentW, h: bodyH }, 'E-LEGEND', false);
@@ -240,7 +250,7 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   }
   const hasContinuation = cursor < flow.length;
   const noticeH = hasContinuation ? Math.max(5, 4 * k) : 0;
-  const drawing = placeSvg(svg, { x: frame.x + 3, y: bodyBottom + noticeH, w: frame.w - 6 - (side ? colW : 0), h: bodyH - noticeH });
+  const drawing = placeSvg(svg, { x: frame.x + 3, y: bodyBottom + noticeH + stripH, w: frame.w - 6 - (side ? colW : 0), h: bodyH - noticeH - stripH });
   first.push(...drawing.items);
   first.push(...markupDxf(one?.markups ?? [], h)); // after the drawing, so they sit on top
   if (drawing.items.some((p) => p.type === 'text' && p.text.trim() && p.height < 1.5)) warnings.push('Some diagram labels are smaller than 1.5 mm; use a larger paper size or split the drawing for readability.');

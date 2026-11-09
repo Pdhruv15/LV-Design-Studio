@@ -50,11 +50,11 @@ export const FEEDER_RISER_LEGEND: { key: string; label: string; draw: (x: number
   { key: 'standby', label: 'Standby supply', draw: (x, y) => <line x1={x - 0.7 * U} y1={y} x2={x + 0.7 * U} y2={y} className="ln riser-standby" /> }
 ];
 
-export function FeederRiserLegendSvg({ used, widthMm, textMm }: { used: Set<string>; widthMm?: number; textMm?: number }) {
+export function FeederRiserLegendSvg({ used, widthMm, textMm, cols = 1 }: { used: Set<string>; widthMm?: number; textMm?: number; cols?: number }) {
   const items = FEEDER_RISER_LEGEND.filter((e) => used.has(e.key));
   // For a sheet's legend column (widthMm) the labels print at 2.5 mm and wrap (src/diagram/legendLayout.ts).
   const W = widthMm ? legendPxFor(widthMm, textMm) : 300;
-  const { rows, h } = legendRows(items, W, 64);
+  const { rows, h } = legendRows(items, W, 64, widthMm ? cols : 1);
   return (
     <div className="sysdiag riser">
       <svg viewBox={`0 0 ${W} ${h}`} width={W} height={h} data-w={W} data-h={h}>
@@ -62,8 +62,8 @@ export function FeederRiserLegendSvg({ used, widthMm, textMm }: { used: Set<stri
           <rect x="0" y="0" width={W} height={h} rx="4" className="legend-box" />
           <text x="12" y="22" className="b">LEGEND</text>
           <line x1="0" y1="32" x2={W} y2="32" className="ln" />
-          {rows.map(({ entry: e, lines, y }) => (
-            <g key={e.key}>{e.draw(34, y)}{lines.map((l, j) => <text key={j} x="64" y={legendLineY(y, lines.length, j)} className="legend-t">{l}</text>)}</g>
+          {rows.map(({ entry: e, lines, y, x }) => (
+            <g key={e.key}>{e.draw(34 + x, y)}{lines.map((l, j) => <text key={j} x={64 + x} y={legendLineY(y, lines.length, j)} className="legend-t">{l}</text>)}</g>
           ))}
         </g>
       </svg>

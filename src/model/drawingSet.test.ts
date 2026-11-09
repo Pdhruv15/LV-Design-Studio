@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { addEarthingSheet, addRiserSheet, addSheet, autoSheets, autoSize, issueSheets, renumber, sheetProject, sheetsByCount, furnitureOf, minMmPerPx, MIN_MM_PER_PX } from './drawingSet';
+import { addEarthingSheet, addRiserSheet, addSheet, autoSheets, autoSize, issueSheets, renumber, sheetProject, sheetsByCount, furnitureOf, minMmPerPx, MIN_MM_PER_PX, scaleOn } from './drawingSet';
 import type { Project } from '../types';
 
 const two: Project = { ...sampleProject, boards: [...sampleProject.boards, { id: 'MDB-2', name: 'MDB 2', kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 5 }] };
@@ -119,5 +119,13 @@ describe('sheet furniture', () => {
     expect(autoSize(1800, 700).size).toBe('A3');
     expect(autoSize(1800, 700, 0, minMmPerPx({ minTextMm: 2.5 })).size).toBe('A2');
     expect(autoSize(9000, 3000, 0, minMmPerPx({ minTextMm: 3.5 })).fits).toBe(false);
+  });
+});
+
+describe('room for a legend strip', () => {
+  it('a strip at the foot takes height from the drawing area, so a drawing that just fits A3 moves to A2', () => {
+    expect(autoSize(1200, 1100).size).toBe('A3');
+    expect(autoSize(1200, 1100, 0, MIN_MM_PER_PX, 40).size).toBe('A2');
+    expect(scaleOn('A3', 1200, 1100, 0, 40)).toBeLessThan(scaleOn('A3', 1200, 1100));
   });
 });
