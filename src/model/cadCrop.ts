@@ -1,6 +1,7 @@
 import type { SketchItem } from '../types';
 import { HATCH_START } from './cadAnnotate';
-import { patternByName } from './cadHatch';
+import { patternByName, specFromLines, type HatchSpec } from './cadHatch';
+import type { CadInfo } from '../engines/cad/cadEngine';
 import type { LinetypeId } from './cadLayerStyle';
 import type { Edit } from './cadEdit';
 import { ellipsePoints } from './cadSketch';
@@ -336,7 +337,7 @@ const boundaryPoints = (b: CropBoundary): P2[] => (b.kind === 'circle' ? [[b.c[0
 export const cropTolerance = (pts: P2[]) => 1e-9 * Math.max(spanOf(pts), 1e-3);
 
 /** One exploded piece cropped: the sketch items kept (empty when none), or why it is not kept. */
-function cropPiece(p: CadPiece, edges: Curve[], keepIn: boolean, tol: number, skipped: string[]): Item[] {
+function cropPiece(p: CadPiece, edges: Curve[], keepIn: boolean, tol: number, skipped: string[], hatchOf?: HatchLookup): Item[] {
   const base = styled(p);
   const curves = (path: Curve[], closed: boolean): Item[] => {
     const { runs, whole } = cropPath(path, closed, edges, keepIn, tol);
@@ -362,11 +363,14 @@ function cropPiece(p: CadPiece, edges: Curve[], keepIn: boolean, tol: number, sk
       const covers = !keepIn && loops.some((l) => inside(l, at(edges[0], 0), tol));
       if (kept.some((k) => k < 1 - 1e-9) || covers) { skipped.push('hatch'); return []; }
       if (loops.length > 1) skipped.push('hatch island');
+      // A pattern hatch keeps the drawing's own pattern lines where the open drawing has them, else the built-in pattern
+      // of its name, else ANSI31.
+      const pts = loopPoints(loops[0]), own = p.solid ? undefined : hatchOf?.(p.layer, pts, p.pattern);
       const pattern = patternByName(p.pattern) ?? (p.solid ? 'solid' : 'ansi31');
-      return [{ ...base, kind: 'pline', pts: loopPoints(loops[0]), closed: true, hatch: p.solid ? { pattern: 'solid', scale: 1, angle: 0 } : { ...HATCH_START, pattern } }];
+      return [{ ...base, kind: 'pline', pts, closed: true, hatch: p.solid ? { pattern: 'solid', scale: 1, angle: 0 } : own ?? { ...HATCH_START, pattern } }];
     }
     case 'group': {
-      const sub: string[] = [], items = p.items.map((x) => ({ x, out: cropPiece(x, edges, keepIn, tol, sub) }));
+      const sub: string[] = [], items = p.items.map((x) => ({ x, out: cropPiece(x, edges, keepIn, tol, sub, hatchOf) }));
       // Kept as one when wholly on the kept side: every piece kept and none cut.
       const whole = items.every(({ x, out }) => x.kind === 'point' || (out.length > 0 && sameLength(x, out)));
       if (!whole) { if (items.some(({ out }) => out.length)) skipped.push('dimension'); return []; }
@@ -399,14 +403,40 @@ export function itemLength(it: Pick<SketchItem, 'kind' | 'pts' | 'closed' | 'r' 
   return pts.reduce((s, q, i) => (i ? s + dist(q, pts[i - 1]) : 0), 0);
 }
 
+/** A cropped hatch's own pattern, found by its layer and outline (drawing units), with its pattern name. */
+export type HatchLookup = (layer: string, loop: P2[], name: string) => HatchSpec | undefined;
+type FillsOf = { info: Pick<CadInfo, 'origin' | 'extents' | 'layers' | 'fills'>; segs: ArrayLike<number> };
+/** The open drawing's pattern hatches as a lookup for CROP: a hatch piece takes the pattern lines of the drawing's
+ * hatch on the same layer whose outer outline has the same box (within 1 % of its size), at `unit` drawing units per
+ * paper mm. The exploded pieces have the outline but not the pattern lines. */
+export function hatchLookup(view: FillsOf, unit: number): HatchLookup {
+  const { origin, extents, layers, fills } = view.info;
+  const near = 1e-6 * Math.max(extents[2] - extents[0], extents[3] - extents[1], 0);
+  const boxes = (fills ?? []).filter((f) => !f.solid && f.lines.length && f.loops.length).map((f) => {
+    const [a, z] = f.loops[0], b = [Infinity, Infinity, -Infinity, -Infinity];
+    for (let i = a; i < z; i += 1) for (const k of [0, 2]) {
+      const x = view.segs[i * 4 + k] + origin[0], y = view.segs[i * 4 + k + 1] + origin[1];
+      b[0] = Math.min(b[0], x); b[1] = Math.min(b[1], y); b[2] = Math.max(b[2], x); b[3] = Math.max(b[3], y);
+    }
+    return { layer: layers[f.layer]?.name, b, lines: f.lines };
+  });
+  return (layer, loop, name) => {
+    if (!loop.length) return undefined;
+    const xs = loop.map((q) => q[0]), ys = loop.map((q) => q[1]), b = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+    const tol = Math.max(0.01 * Math.max(b[2] - b[0], b[3] - b[1]), near, 1e-9);
+    const hit = boxes.find((f) => f.layer === layer && f.b.every((v, i) => Math.abs(v - b[i]) <= tol));
+    return hit ? specFromLines(name, hit.lines, unit) : undefined;
+  };
+}
+
 /** Crops exploded pieces (a block of the drawing) along a boundary: the sketch items that stay, or why it cannot be
  * done. Inside keeps what is inside (on the boundary counts as inside); Outside what is outside. */
-export function cropPieces(pieces: CadPiece[], boundary: CropBoundary, side: CropSide = 'inside'): CropResult {
+export function cropPieces(pieces: CadPiece[], boundary: CropBoundary, side: CropSide = 'inside', hatchOf?: HatchLookup): CropResult {
   const tol = cropTolerance([...boundaryPoints(boundary), ...pieces.flatMap(piecePoints)]);
   const edges = boundaryEdges(boundary, tol);
   if (typeof edges === 'string') return { error: edges };
   const skipped: string[] = [];
-  const items = pieces.flatMap((p) => cropPiece(p, edges, side === 'inside', tol, skipped));
+  const items = pieces.flatMap((p) => cropPiece(p, edges, side === 'inside', tol, skipped, hatchOf));
   return { items, kept: items.length, skipped, ...(items.length ? {} : { note: `Nothing of it is ${side} the outline.` }) };
 }
 

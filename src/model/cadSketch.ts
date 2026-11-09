@@ -1,5 +1,5 @@
 import { fittingLabel, trayFittings } from './cadTrayFittings';
-import { patternOf, placedLines } from './cadHatch';
+import { defOf, placedLines } from './cadHatch';
 import type { CadSketch, Project, SketchItem } from '../types';
 
 type Pt = [number, number];
@@ -456,7 +456,7 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[
       const loop: Pt[] = it.kind === 'circle'
         ? Array.from({ length: 128 }, (_, i): Pt => [it.pts[0][0] + (it.r ?? 0) * Math.cos((i * 2 * Math.PI) / 128), it.pts[0][1] + (it.r ?? 0) * Math.sin((i * 2 * Math.PI) / 128)])
         : it.pts;
-      const solid = !!patternOf(it.hatch.pattern).solid;
+      const solid = !!defOf(it.hatch).solid;
       return [{ layer: it.layer, kind: 'hatch', pts: [], loops: [loop], solid, ...(solid ? {} : { lines: placedLines(it.hatch, 100 * unitsPerMm) }) }];
     }
     if (it.kind === 'line' && it.pts.length > 2) return [{ layer: it.layer, kind: 'pline', pts: it.pts }];

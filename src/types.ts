@@ -566,6 +566,8 @@ export interface Project {
   /** Design CAD layer manager: each drawing's layer styles by file (lower case) and layer name. */
   /** Design CAD annotation: text height on paper (mm) and the scale the plans are annotated for. */
   cadAnno?: import('./model/cadAnnotate').AnnoSettings;
+  /** Design CAD hatch patterns imported from .pat files, offered with the built-in ones (src/model/cadHatch.ts). */
+  cadPatterns?: import('./model/cadHatch').CustomPattern[];
   /** Design CAD text and dimension styles, and the current one of each (absent: one "Standard", as before). */
   cadTextStyles?: import('./model/cadStyles').CadStyles<import('./model/cadStyles').CadTextStyle>;
   cadDimStyles?: import('./model/cadStyles').CadStyles<import('./model/cadStyles').CadDimStyle>;

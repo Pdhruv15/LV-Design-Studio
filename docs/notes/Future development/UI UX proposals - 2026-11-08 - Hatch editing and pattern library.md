@@ -69,10 +69,25 @@ All print in black and white; Solid stays light grey on sheets.
 3. D.1–D.2 (edit a placed hatch, match properties) — one PR, after UI approval.
 4. C.4–C.5, D.3–D.5 — later.
 
+## Status (2026-11-08)
+
+- **Step 1 built** (A.1–A.3, A.5, B): 18 patterns, dashes and dots on screen and sheets, SAVE writes the pattern.
+  Islands (A.4) are not built yet.
+- **Step 2 built** (C.1–C.3):
+  - **Import .pat…** button in the Hatch panel (placed there, like Import CTB… in Pen tables). Bad lines are reported
+    on the command line with their line numbers; that pattern is left out.
+  - Imported patterns are kept in the project (`Project.cadPatterns`) and listed after the built-in ones. Each hatch
+    also carries its own pattern lines, so a project or drawing sent to someone else draws the same.
+  - CROP of a block keeps the drawing's own pattern lines (found by layer and outline in the open drawing), so a hatch
+    is no longer turned into ANSI31. This includes hatches the app saved earlier (named `LVDS_REF` in the file).
+  - Spacing for an imported pattern is the distance between its first family's lines in paper mm.
+- **Engine limit:** the saved pattern name stays `LVDS_REF`; writing the real name needs a change in
+  `engines/cad-reader` and a new engine build (no Rust toolchain on this machine).
+
 ## For the user to decide
 
-1. Is adding the new patterns to the existing Pattern list acceptable (it changes the list's options only)?
-2. Where should "Import .pat" and "Export .pat" live: in the Hatch panel, or in Drafting settings?
+1. ~~Is adding the new patterns to the existing Pattern list acceptable?~~ Yes (2026-11-08).
+2. ~~Where should "Import .pat" live?~~ In the Hatch panel for now; "Export .pat" is still open.
 3. Should an office library folder (C.5) be built, or are project-saved patterns enough?
 4. Associative hatches (D.3): wanted now, or later?
 5. Should pattern swatch previews (D.5) be added to the Pattern list?
