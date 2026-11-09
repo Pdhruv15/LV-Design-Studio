@@ -59,7 +59,25 @@ export interface DrawingSheet {
   markups?: SheetMarkup[]; // free markups drawn on the sheet (clouds, notes, callouts …), in paper mm
   viewports?: import('./planViewports').PlanViewport[]; // plan sheets: the layout's viewports (blank = one worked out from the level, src/docs/planLayout.ts)
   plot?: import('./plotSetup').PlotSetup; // page setup: pen table, lineweights, plot stamp (blank = the set's default; paper and scale are size and scale)
+  furniture?: SheetFurniture; // what prints around the drawing, this sheet only (blank = the set's)
 }
+/** Sheet furniture: what prints around the drawing. The set's values apply to every sheet and a sheet can override any;
+ * a blank value is today's output (src/docs/sldSheet.ts, src/docs/sheetDxf.ts). */
+export interface SheetFurniture {
+  zones?: 'off' | 'large' | 'all'; // zone references in the margin (ISO 5457): none, on A2 and A1 only, on every paper
+  centring?: boolean; // centring marks on the four edges
+  textMm?: 2.5 | 3.5; // the legend's and the legend column's text height
+  notesPlace?: 'block' | 'column'; // NOTES above the title block (as always) or in the legend column
+  notesWidthMm?: number; // width of the NOTES box above the title block (blank: the title block's)
+  minTextMm?: number; // the smallest height the drawing's 9 px text may print at before the sheet is crowded: 1.8 (as always), 2.5, 3.5
+  revRows?: 6 | 8; // revision table lines, blank ones included (blank: the issues, up to 4, in the title block's rows)
+  legendPlace?: 'column' | 'strip'; // the legend in the right column (as always) or in a strip along the foot of the drawing area
+  legendCols?: 1 | 2; // legend columns in the right column (blank: two on A2 and A1 when one would be taller than half the drawing area)
+  riserFurniture?: 'drawing' | 'column'; // the riser and earthing drawings' legend and notes: inside the drawing (as always) or in the sheet's legend column; their schedules stay in the drawing
+}
+export const REV_ROWS = [6, 8] as const;
+export const FURNITURE_TEXT_MM = [2.5, 3.5] as const;
+export const MIN_TEXT_MM = [1.8, 2.5, 3.5] as const;
 /** A callout: text with a leader arrow pointing at a panel or a circuit. */
 export interface SheetArrow { target: string; text: string; dir: 'ne' | 'nw' | 'se' | 'sw'; len?: number } // target: board id, or "f:" + feeder id
 /** A revision cloud around panels, or around circuits (feeder ids), on one sheet, with its revision triangle. */
@@ -93,7 +111,13 @@ export interface DrawingSet {
   dbPrefix?: string; // board sheets (Design ▸ Board ▸ Export sheets), one per board (default E-DB-)
   status?: string; // default status of every sheet
   issues?: DrawingIssue[]; // transmittals, oldest first
+  furniture?: SheetFurniture; // what prints around the drawing on every sheet (a sheet can override any value)
 }
+
+/** A sheet's furniture: the set's values, then the sheet's own. */
+export const furnitureOf = (set: DrawingSet, s?: Pick<DrawingSheet, 'furniture'>): SheetFurniture => ({ ...(set.furniture ?? {}), ...(s?.furniture ?? {}) });
+/** The smallest drawing scale (mm per px) a sheet accepts: its smallest text height over the SLD's 9 px tag text. */
+export const minMmPerPx = (f: SheetFurniture) => +((f.minTextMm ?? MIN_TEXT_MM[0]) / 9).toFixed(4);
 
 export const SHEET_STATUSES = ['FOR CONCEPT REVIEW', 'FOR SCHEMATIC REVIEW', 'FOR APPROVAL', 'FOR AUTHORITY SUBMISSION', 'FOR TENDER', 'FOR CONSTRUCTION', 'AS-BUILT', 'PRELIMINARY'];
 
@@ -329,9 +353,9 @@ export function sheetProject(p: Project, set: DrawingSet, sheet: DrawingSheet): 
 export const MIN_MM_PER_PX = 0.2;
 /** Drawing scale (mm per px) on a paper size; reserveW = width taken by the
  * legend column (mm). */
-export function scaleOn(size: SheetSize, widthPx: number, heightPx: number, reserveW = 0): number {
+export function scaleOn(size: SheetSize, widthPx: number, heightPx: number, reserveW = 0, reserveH = 0): number {
   const { w, h } = SHEET_MM[size];
-  return Math.min((w - 36 - reserveW) / widthPx, (h - 20 - 48) / heightPx);
+  return Math.min((w - 36 - reserveW) / widthPx, (h - 20 - 48 - reserveH) / heightPx);
 }
 /** Room kept for the legend column (legend, cable schedule, abbreviations). */
 export const LEGEND_RESERVE_MM = 80;
@@ -339,12 +363,12 @@ export const LEGEND_RESERVE_MM = 80;
 export const RISER_SIDE_MM = 62;
 /** Auto paper: standard A3 landscape, or A3 portrait for a drawing taller than wide, scaled down as far as it stays
  * readable; only then larger paper. Never smaller than A3 (A4 stays a choice on the sheet). */
-export function autoSize(widthPx: number, heightPx: number, reserveW = 0): { size: SheetSize; scale: number; fits: boolean } {
+export function autoSize(widthPx: number, heightPx: number, reserveW = 0, min = MIN_MM_PER_PX, reserveH = 0): { size: SheetSize; scale: number; fits: boolean } {
   for (const size of [heightPx > widthPx ? 'A3 portrait' : 'A3', 'A2', 'A1'] as SheetSize[]) {
-    const scale = scaleOn(size, widthPx, heightPx, reserveW);
-    if (scale >= MIN_MM_PER_PX) return { size, scale, fits: true };
+    const scale = scaleOn(size, widthPx, heightPx, reserveW, reserveH);
+    if (scale >= min) return { size, scale, fits: true };
   }
-  return { size: 'A1', scale: scaleOn('A1', widthPx, heightPx, reserveW), fits: false };
+  return { size: 'A1', scale: scaleOn('A1', widthPx, heightPx, reserveW, reserveH), fits: false };
 }
 
 /** One sheet's line in the drawing register (src/docs/drawingRegister.ts). */

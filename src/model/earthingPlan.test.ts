@@ -67,6 +67,17 @@ describe('earthing schematic', () => {
     expect(drawing.svg).toContain('Not tested');
     expect(drawing.svg).toContain('Cu-bonded rod');
     expect(earthingDrawing(project, undefined, false).svg).not.toContain('EARTH PIT SCHEDULE');
+    // The sheet's column can take the legend and notes: the schedule stays, the legend's 15 items and 8 notes come back.
+    const inColumn = earthingDrawing(project, undefined, true, { mono: true, furniture: 'column' });
+    expect(inColumn.svg).toContain('EARTH PIT SCHEDULE');
+    expect(inColumn.svg).not.toContain('>LEGEND<');
+    expect(inColumn.svg).not.toContain('>NOTES<');
+    expect(inColumn.legendItems).toHaveLength(15);
+    expect(inColumn.legendItems![0].label).toContain('RMU');
+    expect(inColumn.notes).toHaveLength(8);
+    expect(inColumn.notes![0]).toMatch(/^EARTHING SYSTEM:/);
+    expect(inColumn.h).toBeLessThan(drawing.h);
+    expect(earthingDrawing(project).legendItems).toBeUndefined();
     vi.stubGlobal('DOMParser', DOMParser);
     try {
       const dxf = toDxf(svgToDxf(drawing.svg, drawing.h));

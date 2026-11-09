@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { addEarthingSheet, addRiserSheet, addSheet, autoSheets, autoSize, issueSheets, renumber, sheetProject, sheetsByCount } from './drawingSet';
+import { addEarthingSheet, addRiserSheet, addSheet, autoSheets, autoSize, issueSheets, renumber, sheetProject, sheetsByCount, furnitureOf, minMmPerPx, MIN_MM_PER_PX, scaleOn } from './drawingSet';
 import type { Project } from '../types';
 
 const two: Project = { ...sampleProject, boards: [...sampleProject.boards, { id: 'MDB-2', name: 'MDB 2', kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 5 }] };
@@ -102,5 +102,30 @@ describe('new sheet status', () => {
     const { set, id } = addSheet({ prefix: 'E-SLD-', sheets: [] }, [], 'A');
     const out = issueSheets(set, [id], { date: '2026-10-12', purpose: 'FOR APPROVAL', description: '', bump: true });
     expect(out.set.sheets[0].rev).toBe('A');
+  });
+});
+
+describe('sheet furniture', () => {
+  it('a sheet takes the set\'s values and overrides any of them; blank is today\'s output', () => {
+    const set = { prefix: 'E-SLD-', sheets: [], furniture: { zones: 'large' as const, textMm: 3.5 as const } };
+    expect(furnitureOf(set)).toEqual({ zones: 'large', textMm: 3.5 });
+    expect(furnitureOf(set, { furniture: { zones: 'off', centring: true } })).toEqual({ zones: 'off', textMm: 3.5, centring: true });
+    expect(furnitureOf({ prefix: 'E-SLD-', sheets: [] })).toEqual({});
+  });
+  it('the smallest drawing text sets the scale a paper must reach: 1.8 mm over 9 px text is today\'s 0.2 mm per px', () => {
+    expect(minMmPerPx({})).toBe(MIN_MM_PER_PX);
+    expect(minMmPerPx({ minTextMm: 2.5 })).toBeCloseTo(0.2778, 4);
+    // A drawing that just fits A3 at 1.8 mm needs A2 at 2.5 mm.
+    expect(autoSize(1800, 700).size).toBe('A3');
+    expect(autoSize(1800, 700, 0, minMmPerPx({ minTextMm: 2.5 })).size).toBe('A2');
+    expect(autoSize(9000, 3000, 0, minMmPerPx({ minTextMm: 3.5 })).fits).toBe(false);
+  });
+});
+
+describe('room for a legend strip', () => {
+  it('a strip at the foot takes height from the drawing area, so a drawing that just fits A3 moves to A2', () => {
+    expect(autoSize(1200, 1100).size).toBe('A3');
+    expect(autoSize(1200, 1100, 0, MIN_MM_PER_PX, 40).size).toBe('A2');
+    expect(scaleOn('A3', 1200, 1100, 0, 40)).toBeLessThan(scaleOn('A3', 1200, 1100));
   });
 });
