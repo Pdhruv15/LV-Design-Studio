@@ -146,8 +146,8 @@ export interface RibbonActions {
  * Annotate, Layers, Properties, Measure, in the order of the layout the user chose), the sheet's (Markup, On panels,
  * Sheet) and the engineering and sheet-set panels. */
 const G = {
-  draw: 0, modify: 1, annotate: 2, layers: 3, props: 4, measure: 5, markup: 6, onPanels: 7, sheet: 8,
-  rooms: 9, cables: 10, devices: 11, editDevices: 12, wiring: 13, reference: 14, sheetSet: 15, layouts: 16, viewports: 17, plot: 18, publish: 19, export: 20
+  draw: 0, modify: 1, annotate: 2, blocks: 3, layers: 4, props: 5, measure: 6, markup: 7, onPanels: 8, sheet: 9,
+  rooms: 10, cables: 11, devices: 12, editDevices: 13, wiring: 14, reference: 15, sheetSet: 16, layouts: 17, viewports: 18, plot: 19, publish: 20, export: 21
 } as const;
 /** A Design CAD sub-tab: its panels on the drawing; on the sheets pages `sheet` instead (none: the sub-tab with the
  * sheet set shows), on a layout's paper `paper` instead, and on a layout `layout` after them. */
@@ -160,13 +160,13 @@ export interface CadTab { id: string; label: string; groups: number[]; sheet?: n
  * sub-tabs. On a layout's paper, the markup takes the place of Annotate. File (open, save, close) is a menu beside them. */
 export const CAD_TABS: Record<'named' | 'labels', CadTab[]> = {
   named: [
-    { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.annotate, G.layers, G.props, G.measure], paper: [G.draw, G.modify, G.markup, G.layers, G.props, G.measure], sheet: [], smallNamed: true },
+    { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.annotate, G.blocks, G.layers, G.props, G.measure], paper: [G.draw, G.modify, G.markup, G.layers, G.props, G.measure], sheet: [], smallNamed: true },
     { id: 'elec', label: 'Electrical, ELV & sheets', groups: [G.rooms, G.cables, G.devices, G.editDevices, G.wiring, G.reference, G.sheetSet, G.layouts], layout: [G.viewports],
       sheet: [G.markup, G.onPanels, G.sheet, G.sheetSet] },
     { id: 'output', label: 'Output', groups: [G.plot, G.publish, G.export], sheet: [G.plot, G.publish, G.export] }
   ],
   labels: [
-    { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.annotate], paper: [G.draw, G.modify, G.markup], sheet: [G.markup, G.onPanels] },
+    { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.annotate, G.blocks], paper: [G.draw, G.modify, G.markup], sheet: [G.markup, G.onPanels] },
     { id: 'layers', label: 'Layers & properties', groups: [G.layers, G.props, G.measure], sheet: [] },
     { id: 'elec', label: 'Electrical & ELV', groups: [G.rooms, G.cables, G.devices, G.editDevices, G.wiring], sheet: [] },
     { id: 'sheets', label: 'Sheets', groups: [G.reference, G.sheetSet, G.layouts], layout: [G.viewports], sheet: [G.sheet, G.sheetSet] },
@@ -178,7 +178,7 @@ const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
 const GROUP_OF: Partial<Record<CadTool, number>> = {
   point: G.draw, divide: G.draw, measure: G.draw, line: G.draw, pline: G.draw, rect: G.draw, circle: G.draw, arc: G.draw, hatch: G.draw, polygon: G.draw, ellipse: G.draw, circle2p: G.draw, circle3p: G.draw, circled: G.draw, arcsce: G.draw, revcloud: G.annotate,
   move: G.modify, copy: G.modify, rotate: G.modify, mirror: G.modify, scale: G.modify, stretch: G.modify, trim: G.modify, extend: G.modify, offset: G.modify, fillet: G.modify, chamfer: G.modify, break: G.modify, join: G.modify, explode: G.modify, array: G.modify,
-  text: G.annotate, mtext: G.annotate, draworder: G.modify, texttofront: G.modify, dim: G.annotate, dimlin: G.annotate, dimcont: G.annotate, dimbase: G.annotate, leader: G.annotate, rtag: G.annotate, north: G.annotate, keynote: G.annotate,
+  text: G.annotate, mtext: G.annotate, draworder: G.modify, texttofront: G.modify, block: G.blocks, blockpick: G.blocks, dim: G.annotate, dimlin: G.annotate, dimcont: G.annotate, dimbase: G.annotate, leader: G.annotate, rtag: G.annotate, north: G.annotate, keynote: G.annotate,
   tcount: G.annotate, tjust: G.annotate, th: G.annotate, talign: G.annotate, tcase: G.annotate, tframe: G.annotate, tmask: G.annotate, tcopy: G.annotate, matchprop: G.props, dist: G.measure, area: G.measure,
   xattach: G.reference, xclip: G.reference, crop: G.reference, room: G.rooms, trace: G.rooms, name: G.rooms, tray: G.cables, cable: G.cables, link: G.cables,
   dev: G.devices, fill: G.devices, lux: G.devices, em: G.devices, arl: G.editDevices, match: G.editDevices, wire: G.wiring
@@ -226,7 +226,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   concept: ['Load', 'Supply', 'Stage'],
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Calculate', 'Stage'],
-  cad: ['Draw', 'Modify', 'Annotate', 'Layers', 'Properties', 'Measure and view', 'Markup', 'On panels', 'Sheet',
+  cad: ['Draw', 'Modify', 'Annotate', 'Blocks', 'Layers', 'Properties', 'Measure and view', 'Markup', 'On panels', 'Sheet',
     'Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Reference', 'Sheet set', 'Layouts', 'Viewports', 'Plot', 'Publish', 'Export'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
@@ -623,6 +623,10 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         sm(cadTool('revcloud', 'Revision cloud', Cloud, 'Revision cloud (REVCLOUD): two corners, or P and the points round the change; arcs 15 mm long on paper, or type a length')),
         sm(cadCmd('Text style', CaseSensitive, 'ST', 'Text style (ST): named text styles with their height on paper; new text takes the current one', 'STYLE')),
         sm(cadCmd('Dim style', SlidersHorizontal, 'D', 'Dimension style (D): the arrows, sizes, unit and decimals of new dimensions', 'DIMSTYLE'))
+      ],
+      // Blocks (S9 of the 2D gap plan): the drawing's own blocks. Create first; Insert and the palette come with S10.
+      [
+        sm({ label: 'Create', icon: Box, cmd: 'B', title: 'Create block (B): name it, pick its base point and objects', onClick: () => a.cad?.onCommand?.('BLOCK'), disabled: !a.cad?.hasDrawing })
       ],
       // Layers: the layer palette; the current layer list (PANEL) over two rows of three, column by column (Off, All on ·
       // Freeze, Thaw all · Lock, Unlock), then Isolate, Unisolate and Make current beside them; Layer roles, New layer and

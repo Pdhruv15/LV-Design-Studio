@@ -5,6 +5,7 @@ import { isNumber } from './cadPrompt';
 import { badName, cannotDelete, CAD_FONTS, DIM_ARROWS, DIM_TEXT_ALONG, DIM_TEXT_POS, DIM_UNITS, lookOf, newStyleName, STANDARD, type CadDimStyle, type CadFont, type CadStyles, type CadTextStyle, type DimArrow, type DimTextAlong, type DimTextPos, type DimUnit } from '../../model/cadStyles';
 import { dimOf } from '../../model/cadSketch';
 import { POINT_SHAPES, pointMark, type PointStyle } from '../../model/cadPoints';
+import { blockNameError } from '../../model/cadBlocks';
 import { mergeImported, readDxfDimStyles } from '../../model/dxfDimStyles';
 import type { SketchItem } from '../../types';
 
@@ -342,6 +343,76 @@ export function PointStyleDialog({ style, onSave, onClose }: { style: PointStyle
         <label><input type="radio" name="cad-ptsize" aria-label="Size relative to screen" checked={d.relative} onChange={() => setD({ ...d, relative: true })} /> Relative to screen</label>
         <label><input type="radio" name="cad-ptsize" aria-label="Size in absolute units" checked={!d.relative} onChange={() => setD({ ...d, relative: false })} /> In absolute units</label>
       </Row>
+    </CadDialog>
+  );
+}
+
+/** What the Block definition dialog holds while it is open (S9 of the Design CAD 2D gap plan): the name, the base
+ * point (drawing units), the ids of the drawn objects, what becomes of them, and a description. `picking` is set while
+ * the dialog steps aside for a point or objects to be picked on the drawing; `redefine` while it asks about a name
+ * already defined. */
+export interface BlockDraft { name: string; base: [number, number] | null; ids: string[]; mode: 'retain' | 'convert' | 'delete'; description: string; picking?: 'base' | 'objects'; redefine?: boolean }
+
+const BLOCK_HELP = 'A block is a named group of drawn objects you can insert again (Insert comes with the next step). The base point is where it is held when inserted. Convert to block replaces the objects with one insert; Retain leaves them as they are; Delete takes them away. The name cannot contain < > / \\ " : ; ? * | = or `.';
+/** BLOCK: a block defined from drawn objects: Name (the drawing's blocks listed to redefine one), Base point (Pick point,
+ * X, Y in metres), Objects (Select objects, the count, Retain / Convert to block / Delete), Description, the drawing's
+ * units, OK · Cancel. Redefining asks first. */
+export function BlockDialog({ draft, names, archNames, units, k, onDraft, onPick, onOk, onClose }: {
+  draft: BlockDraft;
+  /** The drawing's own blocks (one can be redefined) and the architect's (which cannot). */
+  names: string[];
+  archNames: string[];
+  /** The drawing's unit, as shown. */
+  units: string;
+  /** Metres per drawing unit. */
+  k: number;
+  onDraft: (d: BlockDraft) => void;
+  onPick: (what: 'base' | 'objects') => void;
+  onOk: () => void;
+  onClose: () => void;
+}) {
+  const nameErr = blockNameError(draft.name, archNames);
+  const exists = !nameErr && names.some((n) => n.toLowerCase() === draft.name.trim().toLowerCase());
+  const [xy, setXy] = useState<[string, string]>([draft.base ? (draft.base[0] * k).toFixed(3) : '', draft.base ? (draft.base[1] * k).toFixed(3) : '']);
+  useEffect(() => { setXy([draft.base ? (draft.base[0] * k).toFixed(3) : '', draft.base ? (draft.base[1] * k).toFixed(3) : '']); }, [draft.base, k]);
+  const coord = (i: 0 | 1, v: string) => {
+    const next: [string, string] = i === 0 ? [v, xy[1]] : [xy[0], v];
+    setXy(next);
+    const x = Number(next[0].replace(',', '.')), y = Number(next[1].replace(',', '.'));
+    if (Number.isFinite(x) && Number.isFinite(y) && next[0].trim() && next[1].trim()) onDraft({ ...draft, base: [x / k, y / k] });
+  };
+  const ok = () => { if (nameErr || !draft.base || !draft.ids.length) return; if (exists && !draft.redefine) onDraft({ ...draft, redefine: true }); else onOk(); };
+  const why = nameErr ?? (!draft.base ? 'Pick or type the base point.' : !draft.ids.length ? 'Select the objects.' : undefined);
+  return (
+    <CadDialog id="block" title="Block definition" alias="BLOCK" onOk={ok} onClose={onClose}
+      help={BLOCK_HELP}>
+      <Row label="Name">
+        <input aria-label="Block name" list="cad-block-names" value={draft.name} autoFocus onChange={(e) => onDraft({ ...draft, name: e.target.value, redefine: false })} />
+        <datalist id="cad-block-names">{names.map((n) => <option key={n} value={n} />)}</datalist>
+      </Row>
+      <Row label="Base point">
+        <button type="button" className="chip" onClick={() => onPick('base')}>Pick point</button>
+        <input aria-label="Base X" className="r" value={xy[0]} placeholder="X" onChange={(e) => coord(0, e.target.value)} />
+        <input aria-label="Base Y" className="r" value={xy[1]} placeholder="Y" onChange={(e) => coord(1, e.target.value)} />
+        <span className="m">m</span>
+      </Row>
+      <Row label="Objects">
+        <button type="button" className="chip" onClick={() => onPick('objects')}>Select objects</button>
+        <span className="m" aria-label="Objects selected">{draft.ids.length} selected</span>
+      </Row>
+      <Row label="">
+        {([['retain', 'Retain'], ['convert', 'Convert to block'], ['delete', 'Delete']] as const).map(([id, label]) => (
+          <label key={id}><input type="radio" name="cad-block-mode" aria-label={label} checked={draft.mode === id} onChange={() => onDraft({ ...draft, mode: id })} /> {label}</label>
+        ))}
+      </Row>
+      <Row label="Description"><input aria-label="Block description" value={draft.description} onChange={(e) => onDraft({ ...draft, description: e.target.value })} /></Row>
+      <Row label="Units"><span className="m">{units}</span></Row>
+      {draft.redefine && exists ? (
+        <p className="cad-dlg-help" role="alert">Block "{draft.name.trim()}" exists. Redefine it?
+          <button type="button" className="chip" onClick={onOk}>Yes</button>
+          <button type="button" className="chip" onClick={() => onDraft({ ...draft, redefine: false })}>No</button>
+        </p>
+      ) : why ? <p className="cad-dlg-help" role="status">{why}</p> : null}
     </CadDialog>
   );
 }

@@ -27,7 +27,7 @@ const BEFORE: Record<string, string> = {
   LAYOFF: '!layoff', LAYFRZ: '!layfrz', LAYLCK: '!laylck', LAYULK: '!layulk', LAYMCUR: '!laymcur', LAYON: '!layon', LAYTHW: '!laythw',
   ALIGN: '!align', ALIGNV: '!align', SPACE: '!align', WC: '!wireAll', WIRE: '!wireAll', WIRECIRCUITS: '!wireAll', W1: 'wire', WIREONE: 'wire',
   TAGS: '!wireTags', COV: '!coverage', COVERAGE: '!coverage', REC: 'rect', RECTANG: 'rect', RECTANGLE: 'rect',
-  C: 'circle', CIRCLE: 'circle', A: 'arc', ARC: 'arc', T: 'text', DT: 'text', TEXT: 'text', MT: 'mtext', MTEXT: 'mtext', DR: 'draworder', DRAWORDER: 'draworder', TEXTTOFRONT: 'texttofront', PO: 'point', POINT: 'point', DIV: 'divide', DIVIDE: 'divide', ME: 'measure', MEASURE: 'measure', PTYPE: '!pointStyle', DDPTYPE: '!pointStyle', ED: 'textedit', TEXTEDIT: 'textedit', DDEDIT: 'textedit',
+  C: 'circle', CIRCLE: 'circle', A: 'arc', ARC: 'arc', T: 'text', DT: 'text', TEXT: 'text', MT: 'mtext', MTEXT: 'mtext', DR: 'draworder', DRAWORDER: 'draworder', TEXTTOFRONT: 'texttofront', PO: 'point', POINT: 'point', DIV: 'divide', DIVIDE: 'divide', ME: 'measure', MEASURE: 'measure', PTYPE: '!pointStyle', DDPTYPE: '!pointStyle', B: '!blockDialog', BLOCK: '!blockDialog', '-BLOCK': 'block', ED: 'textedit', TEXTEDIT: 'textedit', DDEDIT: 'textedit',
   DIM: 'dim', DIMALIGNED: 'dim', DAL: 'dim', DLI: 'dimlin', E: '!erase', ERASE: '!erase', DEL: '!erase', DELETE: '!erase', RESTOREDWG: '!restoreDwg',
   SAVE: '!save', SAVEDWG: '!saveDwg', DWGOUT: '!saveDwg',
   LA: '!layers', LAYERS: '!layers', OSNAP: '!osnap', GRID: '!grid', ORTHO: '!ortho', SNAP: '!snap',

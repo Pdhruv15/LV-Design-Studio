@@ -412,10 +412,11 @@ export type CadLayerRole = 'room' | 'room-name' | 'wall' | 'tray' | 'route' | 'f
 export interface CadLayerMap { layer: string; role: CadLayerRole }
 /** An object drawn in the CAD view, in drawing units: a line (or connected lines), polyline, circle (centre, r), arc
  * (centre, r, a0 → a1 anticlockwise, radians), text (insertion, height, rotation), note (mtext: a paragraph text in a
- * box), dimension (p1, p2, a point on the dimension line) or point (pts[0], shown with the drawing's point style). */
+ * box), dimension (p1, p2, a point on the dimension line), point (pts[0], shown with the drawing's point style) or insert
+ * (one of the drawing's own blocks at pts[0], turned by rot and scaled by sc; src/model/cadBlocks.ts). */
 export interface SketchItem {
   id: string;
-  kind: 'line' | 'pline' | 'circle' | 'arc' | 'text' | 'dim' | 'ellipse' | 'mtext' | 'point';
+  kind: 'line' | 'pline' | 'circle' | 'arc' | 'text' | 'dim' | 'ellipse' | 'mtext' | 'point' | 'insert';
   layer: string;
   pts: [number, number][];
   closed?: boolean;
@@ -433,6 +434,9 @@ export interface SketchItem {
   note?: import('./model/cadMtext').NotePara[];
   w?: number;
   lsp?: number;
+  /** An insert: the name of the block it places, and its scale (1 when left out). */
+  block?: string;
+  sc?: number;
   /** A text's frame (a circle, box or hexagon round it) and mask (paper-colour fill under it) (src/model/cadText.ts). */
   frame?: import('./model/cadText').TextFrame;
   mask?: boolean;
@@ -590,6 +594,8 @@ export interface Project {
   /** Design CAD text and dimension styles, and the current one of each (absent: one "Standard", as before). */
   cadTextStyles?: import('./model/cadStyles').CadStyles<import('./model/cadStyles').CadTextStyle>;
   cadDimStyles?: import('./model/cadStyles').CadStyles<import('./model/cadStyles').CadDimStyle>;
+  /** The drawing's own blocks (BLOCK), per drawing file: each a name and the drawn objects it is made of (src/model/cadBlocks.ts). */
+  cadBlockDefs?: import('./model/cadBlocks').CadBlockTable[];
   /** How drawn points are shown (PTYPE): their shape and size (src/model/cadPoints.ts); left out: a dot, 5 % of the view. */
   cadPointStyle?: import('./model/cadPoints').PointStyle;
   cadLayerStyle?: Record<string, Record<string, import('./model/cadLayerStyle').LayerStyle>>;

@@ -2899,7 +2899,7 @@ describe('CAD 2D gap plan: TEXTEDIT, a double-click on a text or dimension to ty
     act(() => state.toggle('osnap'));
     await rightClickAt(X + 300, 100);
     const menu = () => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"][aria-label="Edit drawn objects"] button')];
-    expect(menu().map((b) => b.textContent)).toEqual(['Edit text', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    expect(menu().map((b) => b.textContent)).toEqual(['Edit text', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸']);
     await act(async () => { menu()[0].click(); });
     expect(box()!.value).toBe('DB ROOM');
     await keyBox('Escape');
@@ -2940,7 +2940,8 @@ describe('CAD 2D gap plan: MTEXT, notes in a box with their lines wrapped to its
     }
   });
   const setField = (label: string, value: string) => act(() => {
-    const el = document.querySelector(`[aria-label="${label}"]`) as HTMLInputElement | HTMLSelectElement;
+    // The editor's own field (the Properties palette has a Justify of its own for a note).
+    const el = (document.querySelector(`.cad-ntedit [aria-label="${label}"]`) ?? document.querySelector(`[aria-label="${label}"]`)) as HTMLInputElement | HTMLSelectElement;
     if (el instanceof HTMLSelectElement) { el.value = value; el.dispatchEvent(new Event('change', { bubbles: true })); }
     else { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, value); el.dispatchEvent(new Event('input', { bubbles: true })); }
   });
@@ -3049,7 +3050,7 @@ describe('CAD 2D gap plan: MTEXT, notes in a box with their lines wrapped to its
     act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
     expect(state.tool).toBe('none');
     await rightClickAt(X + 500, 5900);
-    expect(menuLabels()).toEqual(['Edit text', 'Width…', 'Justify ▸', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    expect(menuLabels()).toEqual(['Edit text', 'Width…', 'Justify ▸', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸']);
     await act(async () => { button('Width…').click(); });
     expect(last()).toBe('MTEXT  Width (m) <3.00>:');
     await command('4');
@@ -3153,7 +3154,7 @@ describe('CAD 2D gap plan: DRAWORDER and TEXTTOFRONT, the order the drawn object
     project = start;
     act(() => state.toggle('osnap'));
     await rightClickAt(X + 6000, 0);
-    expect(menuLabels()).toEqual(['Trim', 'Extend', 'Offset', 'Break', 'Fillet', 'Mirror', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    expect(menuLabels()).toEqual(['Trim', 'Extend', 'Offset', 'Break', 'Fillet', 'Mirror', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸']);
     await act(async () => { button('Draw order ▸').click(); });
     expect(options().map((b) => b.textContent)).toEqual(['Bring to front', 'Send to back', 'Above object', 'Under object']);
     await act(async () => { options()[1].click(); });
@@ -3243,5 +3244,130 @@ describe('CAD 2D gap plan: POINT, DIVIDE, MEASURE and the point style', () => {
     expect(dlg()).toBeNull();
     expect(project.cadPointStyle).toEqual({ mode: 35, size: 300, relative: false });
     expect(onChange.mock.calls[0][1]).toBe('PTYPE  Points shown as cross in a circle, 300 drawing units · ⌘Z to undo');
+  });
+});
+
+describe('CAD 2D gap plan: BLOCK, a block from drawn objects', () => {
+  const last = () => state.history[state.history.length - 1];
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const items = () => sketchOf(project, F);
+  const defs = () => project.cadBlockDefs?.find((t) => t.file === F)?.defs ?? [];
+  const dlg = () => document.querySelector('[role="dialog"][aria-label="Block definition"]');
+  const field = (label: string) => document.querySelector(`[aria-label="${label}"]`) as HTMLInputElement;
+  const setField = (label: string, value: string) => act(() => {
+    const el = field(label);
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, value);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const rightClickAt = async (x: number, y: number) => {
+    const [sx, sy] = screenOf(x, y);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); });
+  };
+  // A rectangle with a text in it (a board symbol), and a line apart from them.
+  const start: Project = { ...villa, cadSketch: [{ file: F, items: [
+    { id: 'R', kind: 'pline', layer: 'LV-SKETCH', closed: true, pts: [[X, 0], [X + 400, 0], [X + 400, 300], [X, 300]] },
+    { id: 'T', kind: 'text', layer: 'LV-ANNO', pts: [[X + 50, 100]], text: 'DB', h: 100 },
+    { id: 'L', kind: 'line', layer: 'LV-SKETCH', pts: [[X + 2000, 0], [X + 3000, 0]] }
+  ] }] };
+
+  it('-BLOCK: the name, the base point, the objects, Enter: the block is defined and the objects become one insert, which picks and explodes as one', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('-block');
+    expect(last()).toBe('Command: BLOCK  Block name:');
+    await command('DB/A');
+    expect(last()).toBe('BLOCK  A block name cannot contain < > / \\ " : ; ? * | = or `. Block name:');
+    await command('DB-A');
+    expect(last()).toBe('BLOCK  Specify base point:');
+    await command(`${X},0`);
+    expect(last()).toBe('BLOCK  Select objects — Enter when done:');
+    await clickAt(X + 200, 0);
+    await clickAt(X + 100, 150);
+    expect(last()).toBe('BLOCK  2 objects selected — Enter when done');
+    await command('');
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][1]).toBe('BLOCK  "DB-A" defined from 2 objects and inserted · ⌘Z to undo');
+    expect(defs().map((d) => [d.name, d.items.length, d.units])).toEqual([['DB-A', 2, 4]]);
+    expect(defs()[0].items[0].pts).toEqual([[0, 0], [400, 0], [400, 300], [0, 300]]);
+    expect(items().map((it) => [it.id, it.kind, it.block])).toEqual([['L', 'line', undefined], ['S1', 'insert', 'DB-A']]);
+    expect(items()[1].pts).toEqual([[X, 0]]);
+    expect(state.tool).toBe('none');
+    // The insert picks as one object where its block shows, and explodes back into the objects.
+    await clickAt(X + 100, 150);
+    expect(state.selected).toBe('sk:S1');
+    await command('x');
+    await clickAt(X + 200, 0);
+    expect(last()).toBe('EXPLODE  2 objects · ⌘Z to undo');
+    expect(items().map((it) => [it.kind, it.pts[0]])).toEqual([['line', [X + 2000, 0]], ['pline', [X, 0]], ['text', [X + 50, 100]]]);
+  });
+
+  it('B: the Block definition dialog, stepping aside to pick the objects and the base point; Retain keeps the objects; a name defined asks before redefining', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('b');
+    expect(dlg()).not.toBeNull();
+    expect(dlg()!.textContent).toContain('Type a name for the block.');
+    await setField('Block name', 'DB-A');
+    expect(dlg()!.textContent).toContain('Pick or type the base point.');
+    expect(document.querySelector('[aria-label="Objects selected"]')!.textContent).toBe('0 selected');
+    await act(async () => { button('Select objects').click(); });
+    expect(dlg()).toBeNull();
+    expect(last()).toBe('Command: BLOCK  Select objects — Enter when done:');
+    await clickAt(X + 200, 0);
+    await clickAt(X + 100, 150);
+    await command('');
+    expect(dlg()).not.toBeNull();
+    expect(document.querySelector('[aria-label="Objects selected"]')!.textContent).toBe('2 selected');
+    await act(async () => { button('Pick point').click(); });
+    expect(dlg()).toBeNull();
+    expect(last()).toBe('Command: BLOCK  Specify base point:');
+    await clickAt(X, 0);
+    expect(dlg()).not.toBeNull();
+    expect(field('Base X').value).toBe('200.000');
+    expect(field('Base Y').value).toBe('0.000');
+    expect(dlg()!.textContent).toContain('millimetres');
+    await act(async () => { field('Retain').click(); });
+    await setField('Block description', 'Board symbol');
+    await act(async () => { (document.querySelector('.cad-dlg-ft .p') as HTMLButtonElement).click(); });
+    expect(dlg()).toBeNull();
+    expect(onChange.mock.calls[0][1]).toBe('BLOCK  "DB-A" defined from 2 objects · ⌘Z to undo');
+    expect(defs().map((d) => [d.name, d.description, d.items.length])).toEqual([['DB-A', 'Board symbol', 2]]);
+    expect(items().map((it) => it.kind)).toEqual(['pline', 'text', 'line']); // Retain: the objects stay, nothing inserted
+    // The same name again (case aside) asks first; Yes redefines it, the earlier insert then shows the new objects.
+    await command('b');
+    await setField('Block name', 'db-a');
+    await act(async () => { button('Select objects').click(); });
+    await clickAt(X + 2500, 0);
+    await command('');
+    await setField('Base X', '202');
+    await setField('Base Y', '0');
+    await act(async () => { (document.querySelector('.cad-dlg-ft .p') as HTMLButtonElement).click(); });
+    expect(dlg()).not.toBeNull();
+    expect(dlg()!.textContent).toContain('Block "db-a" exists. Redefine it?');
+    await act(async () => { button('Yes').click(); });
+    expect(dlg()).toBeNull();
+    expect(defs().map((d) => [d.name, d.items.length])).toEqual([['db-a', 1]]);
+    expect(items().map((it) => [it.kind, it.block])).toEqual([['pline', undefined], ['text', undefined], ['insert', 'db-a']]); // Convert: the line became an insert
+  });
+
+  it('the right-click menu of drawn objects has Make block…, opening the dialog with them as its objects', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await rightClickAt(X + 2500, 0);
+    const labels = [...document.querySelectorAll('[role="menu"] button')].map((b) => b.textContent);
+    expect(labels.slice(labels.indexOf('Erase'))).toEqual(['Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    await act(async () => { button('Make block…').click(); });
+    expect(dlg()).not.toBeNull();
+    expect(document.querySelector('[aria-label="Objects selected"]')!.textContent).toBe('1 selected');
+    expect(field('Base X').value).toBe('202.000');
+    await act(async () => { button('Cancel').click(); });
+    expect(dlg()).toBeNull();
+    expect(onChange).toHaveBeenCalledTimes(0);
   });
 });

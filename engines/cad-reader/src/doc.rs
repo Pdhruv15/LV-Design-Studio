@@ -907,6 +907,12 @@ struct ShapeOut {
     #[serde(default)] lsp: f64,
     /// The point style pseudo-shape: PDMODE (its PDSIZE comes in `r`).
     #[serde(default)] mode: i16,
+    /// An insert: its block's name and scale; a block definition (`blockdef`): its name, units, description (`text`) and
+    /// objects.
+    #[serde(default)] name: String,
+    #[serde(default)] sc: f64,
+    #[serde(default)] units: i16,
+    #[serde(default)] items: Vec<ShapeOut>,
     /// Hatch: closed boundary loops, solid or with its pattern lines (a reference's fill, bound into the saved copy).
     #[serde(default)] loops: Vec<Vec<(f64, f64)>>,
     #[serde(default)] solid: bool,
@@ -919,11 +925,116 @@ struct PatLineOut { angle: f64, base: (f64, f64), offset: (f64, f64), #[serde(de
 
 /// The drawing (DWG or DXF) with what was drawn and the devices placed in the app added on their own layers: each
 /// device as a circle with its letters inside and its label (circuit or type) beside it. The architect's entities are
+
+/// A drawn shape as a DXF entity (none for a kind the writer does not know).
+fn entity_of(sh: &ShapeOut) -> Option<EntityType> {
+    use acadrust::entities::{Arc, BoundaryEdge, BoundaryPath, Circle, Ellipse, Hatch, HatchPattern, HatchPatternLine, HatchPatternType, Line, LwPolyline, LwVertex, MText, Point, PolylineEdge, Text};
+    use acadrust::types::{Vector2, Vector3};
+    Some(match sh.kind.as_str() {
+        "line" if sh.pts.len() == 2 => { let mut l = Line::from_coords(sh.pts[0].0, sh.pts[0].1, 0.0, sh.pts[1].0, sh.pts[1].1, 0.0); l.common.layer = sh.layer.clone(); EntityType::Line(l) }
+        "line" | "pline" if sh.pts.len() >= 2 => {
+            let mut l = LwPolyline::new();
+            l.vertices = sh.pts.iter().enumerate().map(|(i, p)| { let mut v = LwVertex::new(Vector2::new(p.0, p.1)); v.bulge = sh.bulges.get(i).copied().unwrap_or(0.0); v }).collect();
+            l.is_closed = sh.closed;
+            l.common.layer = sh.layer.clone();
+            EntityType::LwPolyline(l)
+        }
+        "circle" if !sh.pts.is_empty() => { let mut c = Circle::new(); c.center = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); c.radius = sh.r; c.common.layer = sh.layer.clone(); EntityType::Circle(c) }
+        "arc" if !sh.pts.is_empty() => {
+            let mut a = Arc::new();
+            a.center = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); a.radius = sh.r; a.start_angle = sh.a0; a.end_angle = sh.a1; a.common.layer = sh.layer.clone();
+            EntityType::Arc(a)
+        }
+        "ellipse" if !sh.pts.is_empty() && sh.ratio > 0.0 && sh.axis != (0.0, 0.0) => {
+            let mut e = Ellipse::new();
+            e.center = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0);
+            e.major_axis = Vector3::new(sh.axis.0, sh.axis.1, 0.0);
+            e.minor_axis_ratio = sh.ratio.min(1.0);
+            if sh.a0 != sh.a1 { e.start_parameter = sh.a0; e.end_parameter = sh.a1; }
+            e.common.layer = sh.layer.clone();
+            EntityType::Ellipse(e)
+        }
+        "text" if !sh.pts.is_empty() && !sh.text.is_empty() => {
+            use acadrust::entities::{TextHorizontalAlignment as H, TextVerticalAlignment as V};
+            let mut t = Text::new();
+            t.value = sh.text.clone(); t.insertion_point = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); t.height = sh.h; t.rotation = sh.rot; t.common.layer = sh.layer.clone();
+            let just = sh.just.to_uppercase();
+            if !just.is_empty() && just != "L" {
+                let (row, col) = if just.len() == 1 { ("", just.as_str()) } else { just.split_at(1) };
+                let (fx, h) = match col { "C" => (0.5, H::Center), "R" => (1.0, H::Right), _ => (0.0, H::Left) };
+                let (fy, v) = match row { "T" => (1.0, V::Top), "M" => (0.5, V::Middle), "B" => (0.0, V::Bottom), _ => (0.0, V::Baseline) };
+                t.horizontal_alignment = h; t.vertical_alignment = v;
+                t.alignment_point = Some(t.insertion_point);
+                // The left end of the baseline, from the text's approximate width (0.6 × height per character).
+                let w = 0.6 * sh.h * sh.text.chars().count() as f64;
+                let (sin, cos) = sh.rot.sin_cos();
+                t.insertion_point = Vector3::new(sh.pts[0].0 - fx * w * cos + fy * sh.h * sin, sh.pts[0].1 - fx * w * sin - fy * sh.h * cos, 0.0);
+            }
+            EntityType::Text(t)
+        }
+        "point" if !sh.pts.is_empty() => { let mut p = Point::new(); p.location = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); p.common.layer = sh.layer.clone(); EntityType::Point(p) }
+        "mtext" if !sh.pts.is_empty() && !sh.text.is_empty() => {
+            use acadrust::entities::mtext::AttachmentPoint as A;
+            let mut t = MText::new();
+            t.value = sh.text.clone(); t.insertion_point = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); t.height = sh.h; t.rotation = sh.rot; t.common.layer = sh.layer.clone();
+            t.rectangle_width = sh.w.max(0.0);
+            if sh.lsp > 0.0 { t.line_spacing_factor = sh.lsp; }
+            t.attachment_point = match sh.just.to_uppercase().as_str() {
+                "TC" => A::TopCenter, "TR" => A::TopRight, "ML" => A::MiddleLeft, "MC" => A::MiddleCenter, "MR" => A::MiddleRight,
+                "BL" => A::BottomLeft, "BC" => A::BottomCenter, "BR" => A::BottomRight, _ => A::TopLeft,
+            };
+            EntityType::MText(Box::new(t))
+        }
+        "hatch" if sh.loops.iter().any(|l| l.len() >= 3) => {
+            let mut h = if sh.solid || sh.lines.is_empty() { Hatch::solid() } else {
+                let mut pat = HatchPattern::new("LVDS_REF");
+                for l in &sh.lines { pat.add_line(HatchPatternLine { angle: l.angle, base_point: Vector2::new(l.base.0, l.base.1), offset: Vector2::new(l.offset.0, l.offset.1), dash_lengths: l.dashes.clone() }); }
+                let mut h = Hatch::with_pattern(pat);
+                h.pattern_type = HatchPatternType::Custom;
+                h
+            };
+            for l in sh.loops.iter().filter(|l| l.len() >= 3) {
+                let mut path = BoundaryPath::new();
+                path.add_edge(BoundaryEdge::Polyline(PolylineEdge::new(l.iter().map(|p| Vector2::new(p.0, p.1)).collect(), true)));
+                h.add_path(path);
+            }
+            h.common.layer = sh.layer.clone();
+            EntityType::Hatch(Box::new(h))
+        }
+        _ => return None,
+    })
+}
+
+/// One of the drawing's own blocks as a BLOCK record: its objects get handles and the record as their owner, as the
+/// library does for model space. A record of that name already in the drawing is kept as it is.
+fn define_block(doc: &mut CadDocument, sh: &ShapeOut) -> Result<(), String> {
+    use acadrust::tables::BlockRecord;
+    use std::sync::Arc;
+    if doc.block_records.contains(&sh.name) { return Ok(()); }
+    let mut rec = BlockRecord::new(sh.name.clone());
+    rec.handle = doc.allocate_handle();
+    rec.block_entity_handle = doc.allocate_handle();
+    rec.block_end_handle = doc.allocate_handle();
+    rec.units = sh.units;
+    rec.description = sh.text.clone();
+    rec.explodable = true;
+    for sub in &sh.items {
+        let Some(mut e) = entity_of(sub) else { continue };
+        let h = doc.allocate_handle();
+        e.as_entity_mut().set_handle(h);
+        e.common_mut().owner_handle = rec.handle;
+        rec.entity_handles.push(h);
+        doc.restore_entity_arc(Arc::new(e));
+    }
+    doc.block_records.add(rec).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// kept as read.
 fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_json: &str) -> Result<CadDocument, String> {
-    use acadrust::entities::{Arc, BoundaryEdge, BoundaryPath, Circle, Ellipse, Hatch, HatchPattern, HatchPatternLine, HatchPatternType, Line, LwPolyline, LwVertex, MText, Point, PolylineEdge, Text};
+    use acadrust::entities::{Circle, Insert, Text};
     use acadrust::tables::Layer;
-    use acadrust::types::{Vector2, Vector3};
+    use acadrust::types::Vector3;
     let (mut doc, _) = read(bytes)?;
     let devices: Vec<DeviceOut> = serde_json::from_str(devices_json).map_err(|e| e.to_string())?;
     let shapes: Vec<ShapeOut> = if shapes_json.is_empty() { vec![] } else { serde_json::from_str(shapes_json).map_err(|e| e.to_string())? };
@@ -941,77 +1052,16 @@ fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_
         if sh.kind == "pointstyle" { doc.header.point_display_mode = sh.mode; doc.header.point_display_size = sh.r; continue; }
         if !doc.layers.contains(&sh.layer) { doc.layers.add(Layer::new(sh.layer.clone())).map_err(err)?; }
         let e = match sh.kind.as_str() {
-            "line" if sh.pts.len() == 2 => { let mut l = Line::from_coords(sh.pts[0].0, sh.pts[0].1, 0.0, sh.pts[1].0, sh.pts[1].1, 0.0); l.common.layer = sh.layer.clone(); EntityType::Line(l) }
-            "line" | "pline" if sh.pts.len() >= 2 => {
-                let mut l = LwPolyline::new();
-                l.vertices = sh.pts.iter().enumerate().map(|(i, p)| { let mut v = LwVertex::new(Vector2::new(p.0, p.1)); v.bulge = sh.bulges.get(i).copied().unwrap_or(0.0); v }).collect();
-                l.is_closed = sh.closed;
-                l.common.layer = sh.layer.clone();
-                EntityType::LwPolyline(l)
+            // One of the drawing's own blocks: a BLOCK record with its objects (left as it is when the drawing has one
+            // of that name already, say from an earlier save), then nothing to add here.
+            "blockdef" if !sh.name.is_empty() => { define_block(&mut doc, sh)?; continue; }
+            // An insert of one of them.
+            "insert" if !sh.pts.is_empty() && !sh.name.is_empty() => {
+                let mut i = Insert::new(sh.name.clone(), Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0)).with_uniform_scale(if sh.sc > 0.0 { sh.sc } else { 1.0 }).with_rotation(sh.rot);
+                i.common.layer = sh.layer.clone();
+                EntityType::Insert(i)
             }
-            "circle" if !sh.pts.is_empty() => { let mut c = Circle::new(); c.center = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); c.radius = sh.r; c.common.layer = sh.layer.clone(); EntityType::Circle(c) }
-            "arc" if !sh.pts.is_empty() => {
-                let mut a = Arc::new();
-                a.center = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); a.radius = sh.r; a.start_angle = sh.a0; a.end_angle = sh.a1; a.common.layer = sh.layer.clone();
-                EntityType::Arc(a)
-            }
-            "ellipse" if !sh.pts.is_empty() && sh.ratio > 0.0 && sh.axis != (0.0, 0.0) => {
-                let mut e = Ellipse::new();
-                e.center = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0);
-                e.major_axis = Vector3::new(sh.axis.0, sh.axis.1, 0.0);
-                e.minor_axis_ratio = sh.ratio.min(1.0);
-                if sh.a0 != sh.a1 { e.start_parameter = sh.a0; e.end_parameter = sh.a1; }
-                e.common.layer = sh.layer.clone();
-                EntityType::Ellipse(e)
-            }
-            "text" if !sh.pts.is_empty() && !sh.text.is_empty() => {
-                use acadrust::entities::{TextHorizontalAlignment as H, TextVerticalAlignment as V};
-                let mut t = Text::new();
-                t.value = sh.text.clone(); t.insertion_point = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); t.height = sh.h; t.rotation = sh.rot; t.common.layer = sh.layer.clone();
-                let just = sh.just.to_uppercase();
-                if !just.is_empty() && just != "L" {
-                    let (row, col) = if just.len() == 1 { ("", just.as_str()) } else { just.split_at(1) };
-                    let (fx, h) = match col { "C" => (0.5, H::Center), "R" => (1.0, H::Right), _ => (0.0, H::Left) };
-                    let (fy, v) = match row { "T" => (1.0, V::Top), "M" => (0.5, V::Middle), "B" => (0.0, V::Bottom), _ => (0.0, V::Baseline) };
-                    t.horizontal_alignment = h; t.vertical_alignment = v;
-                    t.alignment_point = Some(t.insertion_point);
-                    // The left end of the baseline, from the text's approximate width (0.6 × height per character).
-                    let w = 0.6 * sh.h * sh.text.chars().count() as f64;
-                    let (sin, cos) = sh.rot.sin_cos();
-                    t.insertion_point = Vector3::new(sh.pts[0].0 - fx * w * cos + fy * sh.h * sin, sh.pts[0].1 - fx * w * sin - fy * sh.h * cos, 0.0);
-                }
-                EntityType::Text(t)
-            }
-            "point" if !sh.pts.is_empty() => { let mut p = Point::new(); p.location = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); p.common.layer = sh.layer.clone(); EntityType::Point(p) }
-            "mtext" if !sh.pts.is_empty() && !sh.text.is_empty() => {
-                use acadrust::entities::mtext::AttachmentPoint as A;
-                let mut t = MText::new();
-                t.value = sh.text.clone(); t.insertion_point = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); t.height = sh.h; t.rotation = sh.rot; t.common.layer = sh.layer.clone();
-                t.rectangle_width = sh.w.max(0.0);
-                if sh.lsp > 0.0 { t.line_spacing_factor = sh.lsp; }
-                t.attachment_point = match sh.just.to_uppercase().as_str() {
-                    "TC" => A::TopCenter, "TR" => A::TopRight, "ML" => A::MiddleLeft, "MC" => A::MiddleCenter, "MR" => A::MiddleRight,
-                    "BL" => A::BottomLeft, "BC" => A::BottomCenter, "BR" => A::BottomRight, _ => A::TopLeft,
-                };
-                EntityType::MText(Box::new(t))
-            }
-            "hatch" if sh.loops.iter().any(|l| l.len() >= 3) => {
-                let mut h = if sh.solid || sh.lines.is_empty() { Hatch::solid() } else {
-                    let mut pat = HatchPattern::new("LVDS_REF");
-                    for l in &sh.lines { pat.add_line(HatchPatternLine { angle: l.angle, base_point: Vector2::new(l.base.0, l.base.1), offset: Vector2::new(l.offset.0, l.offset.1), dash_lengths: l.dashes.clone() }); }
-                    let mut h = Hatch::with_pattern(pat);
-                    h.pattern_type = HatchPatternType::Custom;
-                    h
-                };
-                for l in sh.loops.iter().filter(|l| l.len() >= 3) {
-                    let mut path = BoundaryPath::new();
-                    path.add_edge(BoundaryEdge::Polyline(PolylineEdge::new(l.iter().map(|p| Vector2::new(p.0, p.1)).collect(), true)));
-                    h.add_path(path);
-                }
-                h.common.layer = sh.layer.clone();
-                EntityType::Hatch(Box::new(h))
-            }
-            _ => continue,
+            _ => match entity_of(sh) { Some(e) => e, None => continue },
         };
         doc.add_entity(e).map_err(err)?;
     }
@@ -1159,6 +1209,26 @@ mod tests {
         assert!(a.0.contains_key("E-LV-POINTS"), "the device's circle on its layer");
         assert!(after.layers.iter().any(|l| l.name == "LV-ANNO"), "the text's layer");
         assert_eq!(a.0["E-TRAY"], b.0.get("E-TRAY").copied().unwrap_or(0) + 1);
+    }
+
+    /// The drawing's own blocks: a BLOCK record with its objects and an INSERT of it, read back as one block, its
+    /// objects shown where the insert puts them; a record of a name the drawing has already is left alone.
+    #[test]
+    fn own_blocks_written() {
+        let shapes = r#"[{"layer":"","kind":"blockdef","pts":[],"name":"DB-A","units":4,"text":"Board symbol","items":[{"layer":"0","kind":"line","pts":[[0,0],[400,0]]},{"layer":"LV-ANNO","kind":"text","pts":[[50,100]],"text":"DB","h":100}]},{"layer":"E-POWER","kind":"insert","pts":[[3000,3000]],"name":"DB-A","sc":2,"rot":0}]"#;
+        for (name, bytes) in [("dwg", dwg_bytes(sample("sample-villa-gf.dxf"), "[]", shapes, "", "").unwrap()), ("dxf", export_dxf(sample("sample-villa-gf.dxf"), "[]", shapes, "[]", "").unwrap().to_vec())] {
+            let after = CadDoc::new(bytes).unwrap_or_else(|_| panic!("{name}: the drawing written does not read back"));
+            let inserts: Vec<&ObjInfo> = after.objects.iter().filter(|o| o.block.as_deref() == Some("DB-A")).collect();
+            assert_eq!(inserts.len(), 1, "{name}: one insert of the block");
+            assert_eq!(after.layers.get(inserts[0].layer as usize).map(|l| l.name.as_str()), Some("E-POWER"), "{name}");
+            // The block's text, scaled by 2 and moved to the insert: at (3100, 3200), 200 high.
+            let t = after.texts.iter().find(|t| t.s == "DB").unwrap_or_else(|| panic!("{name}: the block's text"));
+            assert_eq!((t.x.round(), t.y.round(), t.h.round()), (3100.0, 3200.0, 200.0), "{name}");
+        }
+        // Saving the drawing that has the block already keeps that record (no second DB-A).
+        let once = dwg_bytes(sample("sample-villa-gf.dxf"), "[]", shapes, "", "").unwrap();
+        let twice = CadDoc::new(dwg_bytes(once, "[]", shapes, "", "").unwrap()).unwrap();
+        assert_eq!(twice.objects.iter().filter(|o| o.block.as_deref() == Some("DB-A")).count(), 2, "two inserts, one record");
     }
 
     /// Nearest and perpendicular snaps on a line, and a DXF / DWG saved in the version asked for.

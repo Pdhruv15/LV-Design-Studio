@@ -10,15 +10,15 @@ type Pt = [number, number];
  * what links to it (schedules, fittings, circuits by feeder) stays. Several objects take the same value each. */
 
 /** The kind a value belongs to: the Geometry section shows when all the objects are of one of these. */
-export type GeomKind = 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'cloud' | 'tray' | 'cable' | 'text' | 'mtext' | 'dim' | 'dimang' | 'point';
+export type GeomKind = 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'cloud' | 'tray' | 'cable' | 'text' | 'mtext' | 'dim' | 'dimang' | 'point' | 'insert';
 export const geomKind = (it: SketchItem): GeomKind => (it.tray ? 'tray' : it.cable ? 'cable' : it.cloud ? 'cloud' : it.dimKind === 'angular' ? 'dimang' : it.kind);
 /** What an object is, as the palette and the toolbar beside it name it. */
 export const kindLabel = (it: SketchItem) => (it.tray ? 'Cable tray' : it.cable ? 'Cable route' : it.cloud ? 'Revision cloud'
   : it.kind === 'dim' ? (it.dimKind ? { radius: 'Radius dimension', diameter: 'Diameter dimension', angular: 'Angular dimension' }[it.dimKind] : 'Dimension')
-  : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', ellipse: 'Ellipse', text: 'Text', mtext: 'Note', point: 'Point' }[it.kind]);
+  : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', ellipse: 'Ellipse', text: 'Text', mtext: 'Note', point: 'Point', insert: 'Block' }[it.kind]); 
 
 export type PropKey = 'sx' | 'sy' | 'ex' | 'ey' | 'len' | 'ang' | 'cx' | 'cy' | 'r' | 'a0' | 'a1' | 'rx' | 'ry' | 'arc' | 'vx' | 'vy' | 'closed' | 'width' | 'service'
-  | 'text' | 'h' | 'rot' | 'just' | 'frame' | 'mask' | 'measured' | 'override' | 'boxw' | 'attach';
+  | 'text' | 'h' | 'rot' | 'just' | 'frame' | 'mask' | 'measured' | 'override' | 'boxw' | 'attach' | 'block' | 'bscale';
 export interface PropDef { key: PropKey; label: string; unit?: 'm' | 'deg'; ro?: boolean; text?: boolean }
 
 const L = (key: PropKey, label: string, more: Partial<PropDef> = {}): PropDef => ({ key, label, unit: 'm', ...more });
@@ -39,6 +39,7 @@ export function geometryRows(kind: GeomKind, items: SketchItem[]): PropDef[] {
     case 'tray': return [T('width', 'Width'), T('service', 'Service'), L('vx', 'X'), L('vy', 'Y'), L('len', 'Length', { ro: true })];
     case 'cable': return [L('vx', 'X'), L('vy', 'Y'), L('len', 'Length', { ro: true })];
     case 'point': return [L('sx', 'X'), L('sy', 'Y')];
+    case 'insert': return [T('block', 'Block', { ro: true }), L('sx', 'X'), L('sy', 'Y'), { key: 'bscale', label: 'Scale' }, A('rot', 'Rotation')];
     default: return [];
   }
 }
@@ -86,6 +87,8 @@ export function propValue(it: SketchItem, key: PropKey, k: number, v = 0): numbe
     case 'service': return it.tray?.service ?? '';
     case 'text': return it.kind === 'mtext' ? plainText(it) : it.text ?? '';
     case 'boxw': return it.kind === 'mtext' ? (it.w ?? 0) * k : undefined;
+    case 'block': return it.kind === 'insert' ? it.block ?? '' : undefined;
+    case 'bscale': return it.kind === 'insert' ? it.sc ?? 1 : undefined;
     case 'attach': return it.kind === 'mtext' ? it.just ?? 'TL' : undefined;
     case 'h': return it.h !== undefined ? it.h * k : undefined;
     case 'rot': return deg(it.rot ?? 0);
@@ -151,7 +154,8 @@ export function withProp(it: SketchItem, key: PropKey, value: number | string, k
     case 'h': return num && u > 0 && (it.kind === 'text' || it.kind === 'mtext' || it.kind === 'dim') ? { ...it, h: u } : undefined;
     case 'boxw': { if (!num || it.kind !== 'mtext') return undefined; const { w: _w, ...rest } = it; return u > 0 ? { ...rest, w: u } : rest; }
     case 'attach': { const j = parseAttach(String(value)); return j && it.kind === 'mtext' ? noteAttached(it, j) : undefined; }
-    case 'rot': return num && (it.kind === 'text' || it.kind === 'mtext') ? { ...it, rot: rad(n) } : undefined;
+    case 'rot': return num && (it.kind === 'text' || it.kind === 'mtext' || it.kind === 'insert') ? { ...it, rot: rad(n) } : undefined;
+    case 'bscale': return num && n > 0 && it.kind === 'insert' ? { ...it, sc: n } : undefined;
     case 'just': { const j = parseJust(String(value)); return j && it.kind === 'text' ? rejustified(it, j) : undefined; }
     case 'frame': { const f = parseFrame(String(value)); if (!f || it.kind !== 'text') return undefined; const { frame: _f, ...rest } = it; return f === 'none' ? rest : { ...rest, frame: f }; }
     case 'mask': { if (it.kind !== 'text') return undefined; const { mask: _m, ...rest } = it; return String(value) === 'Yes' ? { ...rest, mask: true } : rest; }

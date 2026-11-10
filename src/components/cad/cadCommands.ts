@@ -8,7 +8,7 @@ import type { CadTool } from './cadState';
 export type CadAction = 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'layiso' | 'layuniso'
   | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
   | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
-  | 'textStyle' | 'dimStyle' | 'pointStyle' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
+  | 'textStyle' | 'dimStyle' | 'pointStyle' | 'blockDialog' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
   | 'copyClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave' | 'zoomPrev' | 'qselect';
 
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
@@ -127,6 +127,8 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['DAN', 'DIMANGULAR'], desc: 'Angular dimension: two lines, an arc, or a vertex and two points, then where the arc goes', tool: 'dimang' },
   { aliases: ['ST', 'STYLE'], desc: 'Text style', action: 'textStyle' },
   { aliases: ['PTYPE', 'DDPTYPE'], desc: 'Point style', action: 'pointStyle' },
+  { aliases: ['B', 'BLOCK'], desc: 'Create a block from drawn objects (the dialog)', action: 'blockDialog' },
+  { aliases: ['-BLOCK'], desc: 'Create a block on the command line: name, base point, objects', tool: 'block' },
   { aliases: ['D', 'DST', 'DIMSTY', 'DIMSTYLE'], desc: 'Dimension style', action: 'dimStyle' },
   { aliases: ['E', 'ERASE', 'DEL', 'DELETE'], desc: 'Erase', action: 'erase' },
   { aliases: ['RESTOREDWG'], desc: 'Bring back the objects of the drawing erased here', action: 'restoreDwg' },

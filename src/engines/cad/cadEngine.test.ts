@@ -6,7 +6,8 @@ import { drawingWithDevices, dxfToDwg, INK, openDrawing, readRefGeometry, SNAP, 
 import { placeRefExtras, type CadRef } from '../../model/cadRefs';
 import { buildSheetDxfPages } from '../../docs/sheetDxf';
 import { sampleProject } from '../../data/sampleProject';
-import { shapesOut, pointStyleOut } from '../../model/cadSketch';
+import { shapesOut, pointStyleOut, blockDefsOut } from '../../model/cadSketch';
+import type { CadBlockDef } from '../../model/cadBlocks';
 import type { SketchItem } from '../../types';
 
 const root = path.resolve(__dirname, '../../..');
@@ -129,6 +130,22 @@ describe('CAD engine (Rust, WebAssembly)', () => {
       expect(lines.map((t) => [t.s, t.h, t.x]), as).toEqual([['GENERAL NOTES', 250, 1000], ['Second line', 250, 1000]]);
       expect(lines[0].y, as).toBeCloseTo(2750, 6);
       expect(lines[1].y, as).toBeCloseTo(3000 - 2.66 * 250, 6); // the reader spaces an MTEXT's lines 1.66 heights apart
+      saved.close();
+    }
+  });
+
+  it('saves the drawing\'s own blocks as BLOCK records and INSERT entities, read back as one block showing its objects', async () => {
+    const def: CadBlockDef = { name: 'DB-A', units: 4, description: 'Board symbol', items: [{ id: 'r', kind: 'line', layer: '0', pts: [[0, 0], [400, 0]] }, { id: 't', kind: 'text', layer: 'LV-ANNO', pts: [[50, 100]], text: 'DB', h: 100 }] };
+    const ins: SketchItem = { id: 'b', kind: 'insert', layer: 'E-POWER', pts: [[3000, 3000]], block: 'DB-A', sc: 2 };
+    const shapes = [...shapesOut([ins], 0.001), ...blockDefsOut([def], 0.001)];
+    expect(shapes[0]).toEqual({ layer: 'E-POWER', kind: 'insert', pts: [[3000, 3000]], name: 'DB-A', sc: 2, rot: 0 });
+    expect(shapes[1]).toMatchObject({ kind: 'blockdef', name: 'DB-A', units: 4, text: 'Board symbol' });
+    expect(shapes[1].items!.map((x) => x.kind)).toEqual(['line', 'text']);
+    for (const as of ['dxf', 'dwg'] as const) {
+      const saved = await openDrawing(`blocks.${as}`, await drawingWithDevices(gf, [], shapes, as));
+      expect(saved.blocks().filter((b) => b.block === 'DB-A').map((b) => b.layer), as).toEqual(['E-POWER']);
+      const t = saved.info.texts.find((x) => x.s === 'DB')!;
+      expect([t.x, t.y, t.h], as).toEqual([3100, 3200, 200]);
       saved.close();
     }
   });

@@ -7,6 +7,7 @@ import { dimOf, segmentsOf, trayLabel, trayLine, TRAY_TEXT_MM } from '../../mode
 import { textBaseAt, textCorners } from '../../model/cadText';
 import { noteBox } from '../../model/cadMtext';
 import { POINT_STYLE_DEFAULT, pointMark, pointRadius, type PointStyle } from '../../model/cadPoints';
+import { expandAll, type CadBlockDef } from '../../model/cadBlocks';
 import type { PlanCells, PlanCover } from '../elv/elvOverlay';
 import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from '../../model/cadDraw';
@@ -52,7 +53,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS, zoom, onZoomMenu, onDouble, pointStyle = POINT_STYLE_DEFAULT }: {
+export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch: sketchIn = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS, zoom, onZoomMenu, onDouble, pointStyle = POINT_STYLE_DEFAULT, blocks = [] }: {
   view: CadView;
   /** Objects of the drawing erased in the app (CROP): their lines, texts and fills are not drawn. */
   hidden?: ErasedParts;
@@ -127,6 +128,8 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   draft?: DraftSettings;
   /** How drawn points are shown (PTYPE). */
   pointStyle?: PointStyle;
+  /** The drawing's own blocks: an insert among the drawn objects is drawn as what its block shows. */
+  blocks?: CadBlockDef[];
 }) {
   const host = useRef<HTMLDivElement>(null);
   const base = useRef<HTMLCanvasElement>(null);
@@ -136,7 +139,9 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   const tRef = useRef(t);
   tRef.current = t;
   const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
-  const isSel = (id: string) => (Array.isArray(selectedSketch) ? selectedSketch.includes(id) : id === selectedSketch);
+  // The drawn objects with each insert replaced by what its block shows; a block's object carries the insert's id first.
+  const sketch = useMemo(() => expandAll(sketchIn, blocks), [sketchIn, blocks]);
+  const isSel = (id0: string) => { const id = id0.split(':')[0]; return Array.isArray(selectedSketch) ? selectedSketch.includes(id) : id === selectedSketch; };
   // A grip being dragged (its index), and the grips as last drawn.
   const gripping = useRef<number | null>(null);
   const gripsRef = useRef(grips);

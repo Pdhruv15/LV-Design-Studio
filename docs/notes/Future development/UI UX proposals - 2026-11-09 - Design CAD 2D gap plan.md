@@ -5,8 +5,32 @@ section is built in its own branch and PR, in the order of "CLAUDE-CODE-STEPS - 
 Anything not written here stays as it is today. **Built:** S1 (v2.068, `feat/cad-clipboard`); S2, S3 and S4 together
 (v2.076, `feat/cad-gap-steps-1-4`, at the user's "go ahead" on 2026-11-10); S5 (v2.077, `feat/cad-text-inplace-edit`,
 "Yes, Step 5" on 2026-11-10); S6 (v2.078, `feat/cad-mtext`, "Yes, Step 6" on 2026-11-10); S7 (v2.079,
-`feat/cad-draworder`, "Yes, Step 7" on 2026-11-10); S8 (v2.080, `feat/cad-point-divide-measure`, "Yes, Step 8" on 2026-11-10) — see
-the end of this note.
+`feat/cad-draworder`, "Yes, Step 7" on 2026-11-10); S8 (v2.080, `feat/cad-point-divide-measure`, "Yes, Step 8" on 2026-11-10); S9 (v2.081,
+`feat/cad-block-define`, "Yes, Step 9" on 2026-11-10) — see the end of this note.
+
+## Built in v2.081 (S9)
+
+- **S9** `src/model/cadBlocks.ts` (tested): a block (`CadBlockDef`: name, units, description, its objects relative to
+  the base point, explodable) is kept per drawing in `cadBlockDefs`; an insert is a drawn object of `kind: 'insert'`
+  (`block` name, `sc` scale, `rot`). `expandInsert` gives what an insert shows (scaled, turned, moved; objects on layer
+  0 and those with no colour, linetype or lineweight of their own take the insert's; blocks in blocks eight deep), and
+  the canvas, the plan sheets, picking, snapping (insertion point and the objects' snaps), window selection, EXPLODE
+  (the objects as drawn objects of their own) and CROP (kept whole) go through it. Project files move to schema
+  version 3 (an older app opens them read-only, since it would show a drawing without its blocks). **B / BLOCK** open
+  the **Block definition** dialog: Name (the drawing's blocks listed), Base point (Pick point · X · Y in metres),
+  Objects (Select objects, the count, Retain / **Convert to block** / Delete), Description, Units, OK · Cancel; a name
+  defined already asks `Block "…" exists. Redefine it? Yes / No`; the architect's block names and the forbidden
+  characters are refused. The dialog steps aside while a point or the objects are picked (Enter ends the objects).
+  **-BLOCK**: `Block name:` → `Specify base point:` → `Select objects — Enter when done:`, then Convert. **Ribbon:** a
+  **Blocks** panel between Annotate and Layers with **Create** (B). **Right-click** with drawn objects picked: **Make
+  block…**. Properties of an insert: Block (read only), X, Y, Scale, Rotation. DXF / DWG: a BLOCK record per block
+  (its objects with the record as owner) and INSERT entities (`engines/cad-reader/src/doc.rs`, the WebAssembly
+  rebuilt); a record the drawing already has of that name is kept as it is, so a drawing saved and saved again holds
+  the block once. **Decisions taken:** inserts scale uniformly (one `sc`; the DXF INSERT gets equal X and Y scales);
+  MIRROR turns an insert to face the mirror line but does not flip its block; trays and cable routes cannot go into a
+  block (they belong to the schedules); the name check also refuses the architect's block names, which the app does
+  not redefine; the Blocks panel shows in the model, not on a layout's paper; Insert / the Blocks palette (S10) and attributes (S11) stay next. The missing Properties rows of notes
+  from S6 were added on its branch while building this step.
 
 ## Built in v2.080 (S8)
 
