@@ -1,6 +1,6 @@
 import type { SketchItem } from '../types';
 import { dimMeasure } from './cadSketch';
-import { parseJust, rejustified } from './cadText';
+import { parseFrame, parseJust, rejustified } from './cadText';
 
 type Pt = [number, number];
 
@@ -16,7 +16,7 @@ export const kindLabel = (it: SketchItem) => (it.tray ? 'Cable tray' : it.cable 
   : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', ellipse: 'Ellipse', text: 'Text', dim: 'Dimension' }[it.kind]);
 
 export type PropKey = 'sx' | 'sy' | 'ex' | 'ey' | 'len' | 'ang' | 'cx' | 'cy' | 'r' | 'a0' | 'a1' | 'rx' | 'ry' | 'arc' | 'vx' | 'vy' | 'closed' | 'width' | 'service'
-  | 'text' | 'h' | 'rot' | 'just' | 'measured' | 'override';
+  | 'text' | 'h' | 'rot' | 'just' | 'frame' | 'mask' | 'measured' | 'override';
 export interface PropDef { key: PropKey; label: string; unit?: 'm' | 'deg'; ro?: boolean; text?: boolean }
 
 const L = (key: PropKey, label: string, more: Partial<PropDef> = {}): PropDef => ({ key, label, unit: 'm', ...more });
@@ -41,7 +41,7 @@ export function geometryRows(kind: GeomKind, items: SketchItem[]): PropDef[] {
 }
 /** The Text rows: contents, height and rotation; for a dimension its measured value and the text shown over it. */
 export function textRows(kind: GeomKind): PropDef[] {
-  if (kind === 'text') return [T('text', 'Contents'), L('h', 'Height'), A('rot', 'Rotation'), T('just', 'Justify')];
+  if (kind === 'text') return [T('text', 'Contents'), L('h', 'Height'), A('rot', 'Rotation'), T('just', 'Justify'), T('frame', 'Frame'), T('mask', 'Mask')];
   if (kind === 'dim') return [L('measured', 'Measured', { ro: true }), T('override', 'Text override'), L('h', 'Text height')];
   return [];
 }
@@ -74,6 +74,8 @@ export function propValue(it: SketchItem, key: PropKey, k: number, v = 0): numbe
     case 'vy': return p[vIdx(it, v)][1] * k;
     case 'closed': return it.closed ? 'Yes' : 'No';
     case 'just': return it.kind === 'text' ? it.just ?? 'L' : undefined;
+    case 'frame': return it.kind === 'text' ? it.frame ?? 'none' : undefined;
+    case 'mask': return it.kind === 'text' ? (it.mask ? 'Yes' : 'No') : undefined;
     case 'width': return it.tray ? String(it.tray.widthMm) : undefined;
     case 'service': return it.tray?.service ?? '';
     case 'text': return it.text ?? '';
@@ -140,6 +142,8 @@ export function withProp(it: SketchItem, key: PropKey, value: number | string, k
     case 'h': return num && u > 0 && (it.kind === 'text' || it.kind === 'dim') ? { ...it, h: u } : undefined;
     case 'rot': return num && it.kind === 'text' ? { ...it, rot: rad(n) } : undefined;
     case 'just': { const j = parseJust(String(value)); return j && it.kind === 'text' ? rejustified(it, j) : undefined; }
+    case 'frame': { const f = parseFrame(String(value)); if (!f || it.kind !== 'text') return undefined; const { frame: _f, ...rest } = it; return f === 'none' ? rest : { ...rest, frame: f }; }
+    case 'mask': { if (it.kind !== 'text') return undefined; const { mask: _m, ...rest } = it; return String(value) === 'Yes' ? { ...rest, mask: true } : rest; }
     case 'override': {
       if (it.kind !== 'dim') return undefined;
       const t = String(value).trim();

@@ -15,10 +15,17 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.064', date: '2026-11-09',
+    version: '2.065', date: '2026-11-10',
     items: [
       { title: 'Legend sheet', text: 'Design CAD → Sheets → + New sheet → Legend, abbreviations and notes adds one sheet, numbered before the SLDs (E-SLD-000), with every symbol of the project\'s SLD across the sheet, the abbreviations of the whole SLD and the general notes. The SLD and board sheets then carry no legend or abbreviations of their own: their notes say "LEGEND AND ABBREVIATIONS: SEE E-SLD-000" and the drawing takes the whole width. Riser and earthing sheets keep their own legends.', action: 'cad', actionLabel: 'Open Design CAD' },
       { title: 'Board sheet with schedule', text: '+ New sheet → Board sheet with schedule adds, for the picked DB or every DB with circuits, a sheet with the DB\'s circuit diagram and its load distribution schedule under it: Sl., circuit, ELCB group, MCB, wire and ECC sizes, room, points, R / Y / B watts and remarks, with the totals and maximum demand, the incomer, location and watt per unit above. A board sheet\'s settings have a Load schedule under the diagram switch. The schedule prints in the PDF and the DXF / DWG and counts in the sheet\'s fingerprint.' }
+    ]
+  },
+  {
+    version: '2.064', date: '2026-11-09',
+    items: [
+      { title: 'Numbered texts and keynotes in Design CAD', text: 'TCOUNT (TNUM): type a prefix, the start number (01 keeps two digits), the step and a suffix, then click where each numbered text goes (L01, L02 …, centred on the click); U takes the last one back, S renumbers the texts picked in the order picked. KN (KEYNOTE): the number, where it goes and its note; it draws a numbered hexagon and a line in a KEYNOTES legend (the first time it asks where the legend starts; the next lines follow under it).', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Frames and masks round texts', text: 'TFRAME puts a circle, box or hexagon round the texts picked, sized from their height, moving and scaling with them (None takes it off). TMASK fills the box under a text in the paper colour so it reads over hatches, trays and underlays. Both are in the Properties palette too, and save to DXF and DWG (the mask as a solid hatch on LV-MASK).' }
     ]
   },
   {
