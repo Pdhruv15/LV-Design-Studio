@@ -178,7 +178,7 @@ const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
 const GROUP_OF: Partial<Record<CadTool, number>> = {
   line: G.draw, pline: G.draw, rect: G.draw, circle: G.draw, arc: G.draw, hatch: G.draw, polygon: G.draw, ellipse: G.draw, circle2p: G.draw, circle3p: G.draw, circled: G.draw, arcsce: G.draw, revcloud: G.annotate,
   move: G.modify, copy: G.modify, rotate: G.modify, mirror: G.modify, scale: G.modify, stretch: G.modify, trim: G.modify, extend: G.modify, offset: G.modify, fillet: G.modify, chamfer: G.modify, break: G.modify, join: G.modify, explode: G.modify, array: G.modify,
-  text: G.annotate, dim: G.annotate, dimlin: G.annotate, dimcont: G.annotate, dimbase: G.annotate, leader: G.annotate, rtag: G.annotate, north: G.annotate, keynote: G.annotate,
+  text: G.annotate, mtext: G.annotate, dim: G.annotate, dimlin: G.annotate, dimcont: G.annotate, dimbase: G.annotate, leader: G.annotate, rtag: G.annotate, north: G.annotate, keynote: G.annotate,
   tcount: G.annotate, tjust: G.annotate, th: G.annotate, talign: G.annotate, tcase: G.annotate, tframe: G.annotate, tmask: G.annotate, tcopy: G.annotate, matchprop: G.props, dist: G.measure, area: G.measure,
   xattach: G.reference, xclip: G.reference, crop: G.reference, room: G.rooms, trace: G.rooms, name: G.rooms, tray: G.cables, cable: G.cables, link: G.cables,
   dev: G.devices, fill: G.devices, lux: G.devices, em: G.devices, arl: G.editDevices, match: G.editDevices, wire: G.wiring
@@ -186,6 +186,7 @@ const GROUP_OF: Partial<Record<CadTool, number>> = {
 /** Under Text's arrow: Text and Numbered text, then the tools that change the texts picked (typed-only before v2.072). */
 const TEXT_TOOLS: [CadTool, string, string][] = [
   ['text', 'Text (T)', 'Click where it goes, type it, Enter'],
+  ['mtext', 'Notes (MT)', 'Two corners for the box, then type; lines wrap to its width'],
   ['tcount', 'Numbered text (TCOUNT)', 'Prefix, start, step, suffix, then click to place each, or renumber the texts picked'],
   ['tjust', 'Justify (TJ)', 'Justify the texts picked without moving them'],
   ['th', 'Height (TH)', 'Text height on paper (mm) of the texts picked, or for new text'],
@@ -594,7 +595,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       // markup takes its place.
       [
         { ...cadTool('text', 'Text', Type, 'Text (T): click where it goes, type it on the command line, Enter. The arrow: numbered text and the text tools'),
-          active: TEXT_TOOLS.some(([k]) => a.cad?.tool === k), menu: TEXT_TOOLS.map(([k, label, title], i) => ({ label, title, onClick: () => a.cad?.onTool(k), sep: i === 2 })) },
+          active: TEXT_TOOLS.some(([k]) => a.cad?.tool === k), menu: TEXT_TOOLS.map(([k, label, title], i) => ({ label, title, onClick: () => a.cad?.onTool(k), sep: i === 3 })) },
         { ...cadTool('dim', 'Dimension', MoveHorizontal, 'Dimension (DIM): two points, then where the dimension line goes; it shows the length in the unit of its dimension style'), menu: [
           { label: 'Aligned (DIM)', title: 'Two points, then where the dimension line goes', onClick: () => a.cad?.onTool('dim') },
           { label: 'Linear (DLI)', title: 'Two points, then where the dimension line goes: horizontal above or below them, vertical beside them', onClick: () => a.cad?.onTool('dimlin') },

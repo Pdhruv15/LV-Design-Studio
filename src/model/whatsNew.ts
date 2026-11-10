@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.078', date: '2026-11-10',
+    items: [
+      { title: 'Notes in Design CAD: paragraphs in a box (MT)', text: 'MT (MTEXT), or Notes under the Text arrow: click two corners for the box, then type in it. Enter starts a new line and the lines wrap to the box\'s width. The small bar above the box has B and U for bold and underlined words, the height on paper, the justification (top left … bottom right) and OK; Ctrl/⌘+Enter or OK keeps the note, Esc leaves it as it was. Drag the grip at the box\'s right edge to change its width. A double-click on a note opens it again (ED works too); its right-click menu has Edit text, Width… and Justify. Notes move, copy, rotate, scale and mirror with the other drawn objects, show in the Properties palette (contents, height, width, rotation, justify), explode into one text per line, print on the plan sheets and save to DXF and DWG as a multiline text with its box.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.077', date: '2026-11-10',
     items: [
       { title: 'Double-click a text or dimension to edit it in place', text: 'In Design CAD, a double-click on a drawn text, a leader\'s text or a dimension opens a box over it, at its height and angle, with the text selected: type, then Enter keeps it (one undo step), Esc leaves it as it was, a click outside keeps it. ED (TEXTEDIT, DDEDIT) asks for the object instead, and stays for the next one; Edit text is on the right-click menu of a text or dimension. A dimension\'s typed text is its override: <> in it stands for the measured value ("<> mm" keeps measuring as the points move), and blank gives the measure back. A text on a locked layer is refused.', action: 'cad', actionLabel: 'Open Design CAD' }

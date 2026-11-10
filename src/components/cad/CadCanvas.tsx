@@ -5,6 +5,7 @@ import { ortho as orthoFrom } from '../../model/cadMeasure';
 import { DRAFT_DEFAULTS, otrack, polarAngles, polarTrack, snapToSpacing, type DraftSettings } from '../../model/cadDraft';
 import { dimOf, segmentsOf, trayLabel, trayLine, TRAY_TEXT_MM } from '../../model/cadSketch';
 import { textBaseAt, textCorners } from '../../model/cadText';
+import { noteBox } from '../../model/cadMtext';
 import type { PlanCells, PlanCover } from '../elv/elvOverlay';
 import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from '../../model/cadDraw';
@@ -397,7 +398,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     const trayH = TRAY_TEXT_MM * unitsPerMm, trayText = trayH * scale >= 4;
     const ltScale = 100 * unitsPerMm; // linetype dashes in paper mm at 1:100
     for (const it of sketch) {
-      if (it.kind === 'text' && !it.frame) continue; // a framed text's frame is drawn here with the lines
+      if ((it.kind === 'text' && !it.frame) || it.kind === 'mtext') continue; // a framed text's frame is drawn here with the lines; notes below
       const ef = effective(it, layerStyle);
       if (ef.hidden) continue;
       if (it.hatch) {
@@ -523,6 +524,27 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       ctx.fillText(w.tag.s, (w.tag.at[0] - o0 - ox) * scale + 6, size.h - (w.tag.at[1] - o1 - oy) * scale - 6);
     }
     for (const it of sketch) {
+      if (it.kind === 'mtext') {
+        // A note: its lines from the top left of its box, each piece in its weight, underlined ones with a rule; the box
+        // outlined while it is picked.
+        const nef = effective(it, layerStyle);
+        if (nef.hidden) continue;
+        const b = noteBox(it);
+        if (b.h * scale < 4) continue;
+        ctx.save();
+        ctx.translate((b.tl[0] - o0 - ox) * scale, size.h - (b.tl[1] - o1 - oy) * scale);
+        ctx.rotate(-(it.rot ?? 0));
+        ctx.fillStyle = isSel(it.id) ? selSk : nef.color ?? skC; ctx.textAlign = 'left';
+        for (const line of b.lines) for (const seg of line.segs) {
+          const sp = Math.min(seg.h * scale, 200);
+          ctx.font = `${seg.b ? '700 ' : ''}${sp}px system-ui, sans-serif`;
+          ctx.fillText(seg.s, seg.x * scale, line.y * scale);
+          if (seg.u) ctx.fillRect(seg.x * scale, line.y * scale + sp * 0.12, seg.w * scale, Math.max(1, sp * 0.06));
+        }
+        if (isSel(it.id)) { ctx.strokeStyle = selSk; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.strokeRect(0, 0, b.w * scale, b.H * scale); ctx.setLineDash([]); }
+        ctx.restore();
+        continue;
+      }
       const label = it.kind === 'text' ? (() => { const b = textBaseAt(it); return { at: b.at, s: it.text ?? '', h: it.h ?? 0, rot: it.rot ?? 0, align: b.align as CanvasTextAlign }; })()
         : it.kind === 'dim' ? (() => { const d = dimOf(it, 0.001 / unitsPerMm); return { at: d.text, s: d.label, h: d.h, rot: d.angle, align: 'center' as CanvasTextAlign }; })()
         : it.tray ? (() => { const l = trayLabel(it); return { at: l.at, s: l.text, h: trayH, rot: l.rot, align: 'center' as CanvasTextAlign }; })()

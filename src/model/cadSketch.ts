@@ -1,6 +1,7 @@
 import { fittingLabel, trayFittings } from './cadTrayFittings';
 import { defOf, placedLines } from './cadHatch';
 import { MASK_LAYER, textBox, textCorners, textFrameOf, textWidth } from './cadText';
+import { noteCorners, noteHit, toDxfMtext } from './cadMtext';
 import type { CadSketch, Project, SketchItem } from '../types';
 
 type Pt = [number, number];
@@ -39,7 +40,7 @@ export const moved = (it: SketchItem, dx: number, dy: number): SketchItem => ({ 
 export function rotated(it: SketchItem, c: Pt, a: number): SketchItem {
   const pts = it.pts.map((q) => rot(q, c, a));
   if (it.kind === 'arc') return { ...it, pts, a0: (it.a0 ?? 0) + a, a1: (it.a1 ?? 0) + a };
-  if (it.kind === 'text') return { ...it, pts, rot: (it.rot ?? 0) + a };
+  if (it.kind === 'text' || it.kind === 'mtext') return { ...it, pts, rot: (it.rot ?? 0) + a };
   if (it.kind === 'ellipse' && it.ax) return { ...it, pts, ax: rot(it.ax, [0, 0], a) };
   if (it.kind === 'dim' && it.dir !== undefined) return { ...it, pts, dir: it.dir + a };
   return { ...it, pts };
@@ -501,6 +502,8 @@ export function snapPoints(items: SketchItem[]): { x: number; y: number; kind: n
       const c = it.pts[0], r = it.r ?? 0;
       out.push({ x: c[0], y: c[1], kind: 4 }, { x: c[0] + r * Math.cos(it.a0 ?? 0), y: c[1] + r * Math.sin(it.a0 ?? 0), kind: 1 }, { x: c[0] + r * Math.cos(it.a1 ?? 0), y: c[1] + r * Math.sin(it.a1 ?? 0), kind: 1 });
     } else if (it.kind === 'text') out.push({ x: it.pts[0][0], y: it.pts[0][1], kind: 16 });
+    // A note: its anchor, and the corners of its box.
+    else if (it.kind === 'mtext') out.push({ x: it.pts[0][0], y: it.pts[0][1], kind: 16 }, ...noteCorners(it).map((q) => ({ x: q[0], y: q[1], kind: 1 })));
     else if (it.kind === 'dim') out.push({ x: it.pts[0][0], y: it.pts[0][1], kind: 1 }, { x: it.pts[1][0], y: it.pts[1][1], kind: 1 });
   }
   return out;
@@ -522,14 +525,15 @@ export function itemAt(items: SketchItem[], at: Pt, tol: number): SketchItem | u
       const a = -(it.rot ?? 0), x = at[0] - origin[0], y = at[1] - origin[1];
       const px = x * Math.cos(a) - y * Math.sin(a), py = x * Math.sin(a) + y * Math.cos(a);
       d = px >= -tol && px <= w + tol && py >= -tol && py <= h + tol ? 0 : Infinity;
-    } else for (const [a, b] of segmentsOf(it)) d = Math.min(d, segDist(at, a, b));
+    } else if (it.kind === 'mtext') d = noteHit(it, at, tol) ? 0 : Infinity;
+    else for (const [a, b] of segmentsOf(it)) d = Math.min(d, segDist(at, a, b));
     if (d <= tol && (!best || d < best.d)) best = { it, d };
   }
   return best?.it;
 }
 
 /** Drawn items as the engine writes them into a DXF (drawing units). */
-export interface ShapeOut { layer: string; kind: 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'text' | 'hatch'; pts: Pt[]; closed?: boolean; bulges?: number[]; r?: number; a0?: number; a1?: number; axis?: Pt; ratio?: number; text?: string; h?: number; rot?: number; just?: string; loops?: Pt[][]; solid?: boolean; lines?: { angle: number; base: Pt; offset: Pt; dashes: number[] }[] }
+export interface ShapeOut { layer: string; kind: 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'text' | 'mtext' | 'hatch'; pts: Pt[]; closed?: boolean; bulges?: number[]; r?: number; a0?: number; a1?: number; axis?: Pt; ratio?: number; text?: string; h?: number; rot?: number; just?: string; w?: number; lsp?: number; loops?: Pt[][]; solid?: boolean; lines?: { angle: number; base: Pt; offset: Pt; dashes: number[] }[] }
 export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[] {
   const unitsPerMm = 0.001 / metresPerUnit;
   const { fittings } = trayFittings(items, unitsPerMm);
@@ -560,6 +564,8 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[
     // A revision cloud as one closed polyline of arcs; an ellipse as an ellipse.
     if (it.cloud) { const c = cloudLobes(it); return [{ layer: it.layer, kind: 'pline', pts: c.pts, closed: true, bulges: c.pts.map(() => c.bulge) }]; }
     if (it.kind === 'ellipse') return it.ax ? [{ layer: it.layer, kind: 'ellipse', pts: it.pts, axis: it.ax, ratio: it.ratio ?? 1 }] : [];
+    // A note as an MTEXT: its words with their codes, the box's width and attachment.
+    if (it.kind === 'mtext') return [{ layer: it.layer, kind: 'mtext', pts: it.pts, text: toDxfMtext(it.note ?? []), h: it.h, rot: it.rot, just: it.just ?? 'TL', w: it.w ?? 0, lsp: it.lsp ?? 1 }];
     if (it.kind === 'text') {
       // Its mask (a solid hatch on LV-MASK, written before it so it lies under), the text, then its frame.
       const f = textFrameOf(it);

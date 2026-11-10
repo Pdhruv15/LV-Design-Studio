@@ -4,7 +4,29 @@ Status: **approved by the user on 2026-11-09** as the UI/UX spec for the next De
 section is built in its own branch and PR, in the order of "CLAUDE-CODE-STEPS - Design CAD 2D.md" (Step N builds SN).
 Anything not written here stays as it is today. **Built:** S1 (v2.068, `feat/cad-clipboard`); S2, S3 and S4 together
 (v2.076, `feat/cad-gap-steps-1-4`, at the user's "go ahead" on 2026-11-10); S5 (v2.077, `feat/cad-text-inplace-edit`,
-"Yes, Step 5" on 2026-11-10) — see the end of this note.
+"Yes, Step 5" on 2026-11-10); S6 (v2.078, `feat/cad-mtext`, "Yes, Step 6" on 2026-11-10) — see the end of this note.
+
+## Built in v2.078 (S6)
+
+- **S6** `src/model/cadMtext.ts` (tested in `cadMtext.test.ts`): a note is `kind: 'mtext'` on `SketchItem` with its
+  paragraphs of plain, bold and underlined runs (`note`, never HTML), its box width `w`, line spacing `lsp` (lines
+  5/3 of the height apart at 1) and `just` as its attachment (the nine positions, TL by default); the lines wrap to the
+  width with the same 0.6 × height per letter that measures texts, so the canvas, the plan sheets and the PDF read
+  alike. `CadNoteEdit.tsx` is the editor over the box: the bar with **B**, **U**, Height (mm on paper), Justify and
+  **OK**; Enter a new line, Ctrl/⌘+Enter or OK keeps the words, Esc leaves them, a click outside keeps them; the grip
+  at the right edge drags the width. **MT / MTEXT**: `MTEXT  First corner:` → `MTEXT  Opposite corner or
+  [Height/Justify/Width]:` (H and J set the new note's height and attachment for the session, W takes the width typed
+  in metres instead of the corner). **Notes (MT)** sits under Annotate › Text ▾ after Text (T). A double-click, ED /
+  TEXTEDIT and **Edit text** open the editor on a note; its right-click menu adds **Width…** (metres, typed on the
+  command line) and **Justify ▸** (the nine positions, the box staying where it is). Snaps: the anchor and the box's
+  corners; grips: the anchor and a width handle; Move, Copy, Rotate, Scale, Mirror, Stretch, CROP (whole or not at
+  all) and MATCHPROP as for texts; Properties: Contents (plain lines), Height, Width, Rotation, Justify; EXPLODE gives
+  one single-line text per line. DXF / DWG save a native MTEXT with its width, attachment and the `\P \L \l \H \f`
+  codes (`engines/cad-reader/src/doc.rs`, the WebAssembly rebuilt); `fromDxfMtext` reads such codes back for a later
+  import. **Decisions taken:** numbered and bulleted paragraphs are in the model and the codes but not on the bar
+  (they stay in the Annotate sub-tab proposal, with saved standard notes); a note takes no text style of its own
+  (texts have none either, only the style's height); TBSAVE leaves notes out of a title block template; a note on a
+  locked layer is refused like a text.
 
 ## Built in v2.077 (S5)
 

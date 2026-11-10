@@ -118,6 +118,21 @@ describe('CAD engine (Rust, WebAssembly)', () => {
     }
   });
 
+  it('saves a note as one MTEXT with its box, attachment and codes, read back as a text per line', async () => {
+    const items: SketchItem[] = [{ id: 'n', kind: 'mtext', layer: 'LV-ANNO', pts: [[1000, 3000]], h: 250, w: 3000, note: [{ runs: [{ s: 'GENERAL ', b: true }, { s: 'NOTES' }] }, { runs: [{ s: 'Second line', u: true }] }] }];
+    const shapes = shapesOut(items, 0.001);
+    expect(shapes).toEqual([{ layer: 'LV-ANNO', kind: 'mtext', pts: [[1000, 3000]], text: '{\\fArial|b1|i0;GENERAL }NOTES\\P\\LSecond line\\l', h: 250, rot: undefined, just: 'TL', w: 3000, lsp: 1 }]);
+    for (const as of ['dxf', 'dwg'] as const) {
+      const saved = await openDrawing(`note.${as}`, await drawingWithDevices(gf, [], shapes, as));
+      // The reader lists an MTEXT line by line under its top left corner, the codes gone.
+      const lines = saved.info.texts.filter((t) => t.s === 'GENERAL NOTES' || t.s === 'Second line');
+      expect(lines.map((t) => [t.s, t.h, t.x]), as).toEqual([['GENERAL NOTES', 250, 1000], ['Second line', 250, 1000]]);
+      expect(lines[0].y, as).toBeCloseTo(2750, 6);
+      expect(lines[1].y, as).toBeCloseTo(3000 - 2.66 * 250, 6); // the reader spaces an MTEXT's lines 1.66 heights apart
+      saved.close();
+    }
+  });
+
   it('saves radius and angular dimensions as their lines, an arc and their text, in DXF and DWG', async () => {
     const look = { arrow: 'closed' as const, size: 90, off: 20, ext: 50, unit: 'm' as const, decimals: 2 };
     const items: SketchItem[] = [
