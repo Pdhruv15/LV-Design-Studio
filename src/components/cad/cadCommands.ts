@@ -8,7 +8,8 @@ import type { CadTool } from './cadState';
 export type CadAction = 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'layiso' | 'layuniso'
   | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
   | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
-  | 'textStyle' | 'dimStyle' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt' | 'tbSave';
+  | 'textStyle' | 'dimStyle' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
+  | 'copyClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave';
 
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
 
@@ -27,6 +28,10 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['DEV', 'DEVICE', 'INSERT', 'I'], desc: 'Add a device', tool: 'dev' },
   { aliases: ['M', 'MOVE'], desc: 'Move', tool: 'move' },
   { aliases: ['CO', 'CP', 'COPY'], desc: 'Copy', tool: 'copy' },
+  { aliases: ['COPYCLIP'], desc: 'Copy the drawn objects picked to the clipboard (Ctrl+C)', action: 'copyClip' },
+  { aliases: ['COPYBASE'], desc: 'Copy to the clipboard with a base point (Ctrl+Shift+C)', action: 'copyBase' },
+  { aliases: ['PASTECLIP'], desc: 'Paste from the clipboard at a point (Ctrl+V)', action: 'pasteClip' },
+  { aliases: ['PASTEORIG'], desc: 'Paste from the clipboard at the same coordinates, into another drawing', action: 'pasteOrig' },
   { aliases: ['RO', 'ROTATE'], desc: 'Rotate', tool: 'rotate' },
   { aliases: ['L', 'LINE'], desc: 'Line', tool: 'line' },
   { aliases: ['PL', 'PLINE', 'POLYLINE'], desc: 'Polyline', tool: 'pline' },
