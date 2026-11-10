@@ -9,6 +9,7 @@ import { dimOf, scaleLook, segmentsOf, sketchOf, trayLabel, trayLength, trayLine
 import { effective, layerStylesOf, styleOf } from '../model/cadLayerStyle';
 import { annoOf } from '../model/cadAnnotate';
 import { textBaseAt, textCorners } from '../model/cadText';
+import { noteBox, noteSegAt } from '../model/cadMtext';
 import { dotsOnly, hatchDots, hatchStrokes, mirroredY, defOf, placedLines } from '../model/cadHatch';
 import { fittingCounts, trayFittings } from '../model/cadTrayFittings';
 import { planScale as unitsOf } from '../model/cadUnits';
@@ -282,10 +283,10 @@ export function drawnTextMm(p: Project, s: Pick<DrawingSheet, 'buildingId' | 'le
 function drawnSvg(items: Drawn[], X: (x: number) => number, Y: (y: number) => number, f: number, win: Box, pen: Record<PenKey, Pen>, thin: boolean, id: string): string {
   if (!items.length) return '';
   const P = ([x, y]: Pt) => `${X(x)} ${Y(y)}`, ink = inkOf(pen.sketch), defs: string[] = [], body: string[] = [];
-  const text = (at: Pt, s: string, h: number, rot: number, anchor: 'start' | 'middle' | 'end') => {
+  const text = (at: Pt, s: string, h: number, rot: number, anchor: 'start' | 'middle' | 'end', look: { b?: boolean; u?: boolean } = {}) => {
     if (!s || !(h > 0) || !within(at, win)) return;
     const x = X(at[0]), y = Y(at[1]);
-    body.push(`<text x="${x}" y="${y}"${rot ? ` transform="rotate(${n((-rot * 180) / Math.PI)} ${x} ${y})"` : ''} font-size="${n(h * f)}"${anchor !== 'start' ? ` text-anchor="${anchor}"` : ''} fill="${ink}">${esc(s)}</text>`);
+    body.push(`<text x="${x}" y="${y}"${rot ? ` transform="rotate(${n((-rot * 180) / Math.PI)} ${x} ${y})"` : ''} font-size="${n(h * f)}"${anchor !== 'start' ? ` text-anchor="${anchor}"` : ''}${look.b ? ' font-weight="bold"' : ''}${look.u ? ' text-decoration="underline"' : ''} fill="${ink}">${esc(s)}</text>`);
   };
   items.forEach(({ it, dash, lw }, i) => {
     if (it.hatch) {
@@ -310,6 +311,12 @@ function drawnSvg(items: Drawn[], X: (x: number) => number, Y: (y: number) => nu
       if (lines) body.push(`<path d="${lines}" clip-path="url(#${id}-${i})" fill="none" stroke="${inkOf(pen.hatch)}" stroke-width="${n(pen.hatch.w)}"/>`);
       body.push(...dashed);
       if (dots) body.push(`<path d="${dots}" clip-path="url(#${id}-${i})" fill="none" stroke="${inkOf(pen.hatch)}" stroke-width="0.35" stroke-linecap="round"/>`);
+      return;
+    }
+    if (it.kind === 'mtext') {
+      // A note: each piece of each line at its place, bold and underlined as drawn.
+      const b = noteBox(it);
+      for (const line of b.lines) for (const seg of line.segs) text(noteSegAt(b, line, seg), seg.s, seg.h, it.rot ?? 0, 'start', seg);
       return;
     }
     if (it.kind === 'text') {

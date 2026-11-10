@@ -2,13 +2,14 @@ import { Fragment, useState } from 'react';
 import { isPath } from '../../model/cadEdit';
 import { kindLabel } from '../../model/cadProps';
 import { TRAY_WIDTHS } from '../../model/cadSketch';
+import { attachOf, NOTE_ATTACHES } from '../../model/cadMtext';
 import { toolAlias } from './cadCommands';
 import type { SketchItem } from '../../types';
 
 /** Design CAD → Draw → Modify / Edit: the toolbar beside drawn objects picked, the side panel of several, and the
  * settings of the edit tools (distances typed in metres). */
 
-export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase' | 'clipboard' | 'similar' | 'qselect' | 'edtext';
+export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase' | 'clipboard' | 'similar' | 'qselect' | 'edtext' | 'ntwidth' | 'ntjust';
 export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'tframe' | 'tmask';
 /** Offset `through` a point (the copy passes through it), `erase` the source, the copies on the `source` layer or the
  * `current` one; Fillet and Chamfer `trim` the lines to the corner (else they stay and the arc or line is added); a
@@ -18,7 +19,7 @@ export const ED_START: EditSettings = { offset: '0.3', through: false, erase: fa
 
 const LABEL: Record<SketchEdit, string> = {
   filter: 'Filter ▾', trim: 'Trim', extend: 'Extend', offset: 'Offset', break: 'Break', fillet: 'Fillet', mirror: 'Mirror', scale: 'Scale', array: 'Array',
-  join: 'Join', width: 'Width ▾', move: 'Move', copy: 'Copy', rotate: 'Rotate', erase: 'Erase', clipboard: 'Clipboard ▸', similar: 'Select similar', qselect: 'Quick select…', edtext: 'Edit text'
+  join: 'Join', width: 'Width ▾', move: 'Move', copy: 'Copy', rotate: 'Rotate', erase: 'Erase', clipboard: 'Clipboard ▸', similar: 'Select similar', qselect: 'Quick select…', edtext: 'Edit text', ntwidth: 'Width…', ntjust: 'Justify ▸'
 };
 export const kindOf = kindLabel;
 
@@ -54,14 +55,16 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, canPa
   canPaste?: boolean;
   onEdit: (e: SketchEdit, arg?: string) => void;
 }) {
-  const [open, setOpen] = useState<'filter' | 'width' | 'clipboard' | null>(null);
+  const [open, setOpen] = useState<'filter' | 'width' | 'clipboard' | 'ntjust' | null>(null);
   const one = items.length === 1 && !devices ? items[0] : undefined;
-  // The menu at the cursor adds Edit text for one text or dimension (S5 of the 2D gap plan), Select similar and Quick
-  // select… (S3) and Clipboard ▸ (S1).
-  const edits: SketchEdit[] = [...(place === 'menu' && (one?.kind === 'text' || one?.kind === 'dim') ? ['edtext' as const] : []), ...sketchEditsFor(items, devices),
+  // The menu at the cursor adds Edit text for one text or dimension (S5 of the 2D gap plan), with Width… and Justify ▸
+  // for a note (S6), Select similar and Quick select… (S3) and Clipboard ▸ (S1).
+  const edits: SketchEdit[] = [...(place === 'menu' && (one?.kind === 'text' || one?.kind === 'dim') ? ['edtext' as const] : place === 'menu' && one?.kind === 'mtext' ? ['edtext' as const, 'ntwidth' as const, 'ntjust' as const] : []), ...sketchEditsFor(items, devices),
     ...(place === 'menu' ? ['similar' as const, 'qselect' as const, 'clipboard' as const] : [])];
   const list: { id: string; label: string; now?: boolean; key?: string; off?: boolean }[] = open === 'clipboard'
     ? CLIPBOARD.map((x) => ({ id: x.id, label: x.label, key: x.key, off: x.paste && !canPaste }))
+    : open === 'ntjust' && one
+    ? NOTE_ATTACHES.map((j) => ({ id: j.id, label: j.label, now: attachOf(one) === j.id }))
     : open === 'width'
     ? TRAY_WIDTHS.map((w) => ({ id: String(w), label: `${w} mm`, now: one?.tray?.widthMm === w }))
     : open === 'filter' ? (devices ? [{ id: 'devices', label: 'Devices only' }, { id: 'drawn', label: 'Drawn only' }]
@@ -74,11 +77,11 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, canPa
       {edits.map((e) => (
         <Fragment key={e}>
           {e === 'move' && <span className="cad-ctx-bar" />}
-          <button aria-expanded={e === 'filter' || e === 'width' || e === 'clipboard' ? open === e : undefined} onClick={() => (e === 'filter' || e === 'width' || e === 'clipboard' ? setOpen(open === e ? null : e) : onEdit(e))}>{LABEL[e]}</button>
+          <button aria-expanded={e === 'filter' || e === 'width' || e === 'clipboard' || e === 'ntjust' ? open === e : undefined} onClick={() => (e === 'filter' || e === 'width' || e === 'clipboard' || e === 'ntjust' ? setOpen(open === e ? null : e) : onEdit(e))}>{LABEL[e]}</button>
         </Fragment>
       ))}
       {open && (
-        <div className="cad-ctx-list" role="listbox" aria-label={open === 'width' ? 'Width' : open === 'clipboard' ? 'Clipboard' : 'Filter'}>
+        <div className="cad-ctx-list" role="listbox" aria-label={open === 'width' ? 'Width' : open === 'clipboard' ? 'Clipboard' : open === 'ntjust' ? 'Justify' : 'Filter'}>
           {list.map((x) => <button key={x.id} role="option" aria-selected={!!x.now} disabled={x.now || x.off} onClick={() => { setOpen(null); onEdit(open, x.id); }}><span>{x.label}</span><small>{x.now ? 'now' : x.key ?? ''}</small></button>)}
         </div>
       )}

@@ -15,6 +15,8 @@ import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
 import { isNumber, promptOptions, shortPrompt, spaceEnters, type SpaceMode } from './cadPrompt';
 import CadDynInput, { type DynBox } from './CadDynInput';
 import CadTextEdit from './CadTextEdit';
+import CadNoteEdit from './CadNoteEdit';
+import { attachLabel, attachOf, noteAttached, noteBox, noteWithWidth, parseAttach, plainText, type NoteAttach, type NotePara } from '../../model/cadMtext';
 import { DIALOG_TOOLS, DimStyleDialog, EditDialog, TextStyleDialog } from './CadDialogs';
 import { currentTextStyle, dimLookOf, dimStandardAsBefore, dimStylesOf, dimStylesToStore, textStylesOf, textStylesToStore } from '../../model/cadStyles';
 import { chooseDrawing, drawingWithDevices, explodeObjects, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
@@ -103,7 +105,7 @@ const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab 
 ];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · ED (edit a text or dimension in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · DRA (radius) · DDI (diameter) · DAN (angular) · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · ED (edit a text or dimension in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · DRA (radius) · DDI (diameter) · DAN (angular) · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 /** Bind's count in the Save line: reference lines, texts and hatches. */
@@ -182,6 +184,7 @@ const PROMPT: Record<CadTool, string> = {
   revcloud: 'REVCLOUD  Specify first corner, or [Polygonal], or type the arc length:',
   arc: 'ARC  Specify start point:',
   text: 'TEXT  Specify start point of text:',
+  mtext: 'MTEXT  First corner:',
   dim: 'DIM  Specify first extension line origin:',
   dimlin: 'DIMLINEAR  Specify first extension line origin:',
   dimcont: 'DIMCONTINUE  Specify second extension line origin (from the last dimension):',
@@ -229,6 +232,9 @@ const EDIT_TOOLS: CadTool[] = ['trim', 'extend', 'offset', 'fillet', 'chamfer', 
 const PICK_FIRST: CadTool[] = ['join', 'mirror', 'scale', 'array', 'tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy', 'tframe', 'tmask'];
 /** The text tools: on the texts picked first, then a value on the command line (TCEN and TCOPY: points or a text clicked). */
 const TEXT_TOOLS: CadTool[] = ['tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy', 'tframe', 'tmask'];
+const MTEXT_CORNER = 'MTEXT  Opposite corner or [Height/Justify/Width]:';
+const MTEXT_JUST = (j?: NoteAttach) => `MTEXT  Justify [TL/TC/TR/ML/MC/MR/BL/BC/BR] <${j ?? 'TL'}>:`;
+const MTEXT_TYPE = (isNew: boolean) => `MTEXT  Type the note (Enter starts a new line); Ctrl/⌘+Enter or OK keeps it, Esc ${isNew ? 'cancels' : 'leaves it as it was'}:`;
 const TFRAME_PROMPT = 'TFRAME  Frame [Circle/Box/Hexagon/None] <Circle>:';
 const TMASK_PROMPT = 'TMASK  Mask behind the text [Yes/No] <Yes>:';
 const TCOUNT_PLACE = 'TCOUNT  Place text or [Select existing/Undo]:';
@@ -318,6 +324,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // first), the taller history (F2) or the command list (F1), and the right-click menu of the prompt.
   const [edAsk, setEdAsk] = useState<'offset' | 'radius' | 'd1' | 'd2' | 'erase' | 'factor' | 'type' | null>(null);
   const [textAsk, setTextAsk] = useState<{ step: 'height' | 'rot' | null; mm: number; rot: number } | null>(null);
+  /** MTEXT (S6 of the 2D gap plan): the note being typed in its box (a new one, not drawn yet, has no id), what the
+   * second prompt asks (or Width… from the right-click menu), and the height and justification chosen for new notes. */
+  const [edNote, setEdNote] = useState<{ id?: string; draft: SketchItem } | null>(null);
+  const [mtAsk, setMtAsk] = useState<{ step: 'height' | 'just' | 'width' | 'ntwidth'; id?: string } | null>(null);
+  const [mtSet, setMtSet] = useState<{ mm?: number; just?: NoteAttach }>({});
   // TALIGN after its texts: the edge chosen and what it waits for (the text or point to line up with, or the gap).
   const [tAsk, setTAsk] = useState<{ mode: AlignMode | 'spacing'; step: 'ref' | 'gap' } | null>(null);
   // TCOUNT: its prefix, number, step, digits and suffix, what it asks for next, and the texts placed (for Undo).
@@ -425,7 +436,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     setEdStep(pre); preset.current = null; setStretchBox(null); setMpFrom(null);
     const first = picked.some((k) => k.startsWith('sk:')) || !!cad.selected?.startsWith('sk:');
     setEdPhase(first ? 'points' : 'pick');
-    setEdAsk(tool === 'offset' && !pre ? 'offset' : tool === 'array' && first ? 'type' : null); setTextAsk(null); setTAsk(null); setPromptMenu(null);
+    setEdAsk(tool === 'offset' && !pre ? 'offset' : tool === 'array' && first ? 'type' : null); setTextAsk(null); setTAsk(null); setPromptMenu(null); setMtAsk(null); setEdNote(null);
     setTc(tool === 'tcount' ? { step: 'prefix', prefix: '', n: 1, inc: 1, pad: 0, suffix: '', placed: [] } : null);
     setKn(tool === 'keynote' ? { step: 'number', n: nextKeynote(sketch) } : null);
     setDlg((d) => (DIALOG_TOOLS.includes(tool as EditTool) ? 'edit' : d === 'edit' ? null : d));
@@ -1024,9 +1035,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** TEXTEDIT (ED, a double-click on the object, Edit text on its right-click menu): the box over a drawn text or
    * dimension to type over it (S5 of the Design CAD 2D gap plan). One on a locked layer is refused. */
   function startTextEdit(it: SketchItem) {
-    if (it.kind !== 'text' && it.kind !== 'dim') { cad.say(`TEXTEDIT  That is a ${kindOf(it).toLowerCase()}, not a text or dimension. Select a text or dimension:`); return; }
+    if (it.kind !== 'text' && it.kind !== 'dim' && it.kind !== 'mtext') { cad.say(`TEXTEDIT  That is a ${kindOf(it).toLowerCase()}, not a text or dimension. Select a text or dimension:`); return; }
     if (effective(it, styles).lock) { cad.say(`TEXTEDIT  ${kindOf(it)} on layer ${it.layer}, which is locked: unlock it first (LAYULK).`); return; }
     setMenuAt(null); setPicked([]); cad.setSelected(`sk:${it.id}`); setResult({ kind: 'sketch', it });
+    // A note opens its own editor (MTEXT, S6).
+    if (it.kind === 'mtext') { setEdNote({ id: it.id, draft: it }); cad.say(MTEXT_TYPE(false)); return; }
     setEdText({ id: it.id, value: it.text ?? '' });
     cad.say(it.kind === 'dim' ? 'TEXTEDIT  Type the dimension\'s text (<> stands for the measured value; blank gives it back), Enter:' : 'TEXTEDIT  Type the text, Enter (Esc keeps it as it was):');
   }
@@ -1040,11 +1053,38 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     else if (!commit) cad.say('*Cancel*');
     if (tool === 'textedit') cad.say(PROMPT.textedit);
   }
-  /** A left double-click on a drawn text or dimension, with no tool running, opens its box. */
+  /** A left double-click on a drawn text, dimension or note, with no tool running, opens its box. */
   function doubleClick(at: Pt, pixel: number) {
-    if (!view || (tool !== 'none' && tool !== 'textedit') || edText) return;
+    if (!view || (tool !== 'none' && tool !== 'textedit') || edText || edNote) return;
     const it = itemAt(sketch.filter((x) => !effective(x, styles).hidden), at, 6 * pixel);
-    if (it && (it.kind === 'text' || it.kind === 'dim')) startTextEdit(it);
+    if (it && (it.kind === 'text' || it.kind === 'dim' || it.kind === 'mtext')) startTextEdit(it);
+  }
+  /** The height on paper (mm) a new note takes: as set with H, else the current text style's, else the annotation height. */
+  const mtMm = () => mtSet.mm ?? (currentTextStyle(project).heightMm || anno.textMm);
+  /** MTEXT: the box from its two corners (its top left and its width; the words set its height) opens the editor for a
+   * new note, justified as chosen with J (top left by default). */
+  function openNote(a: Pt, b: Pt) {
+    const mm = mtMm(), h = tb ? mm : textUnits({ ...anno, textMm: mm }, units.factor), w = Math.max(2 * h, Math.abs(b[0] - a[0]));
+    const base: SketchItem = { id: 'new', kind: 'mtext', layer: tb ? TB_LAYERS.text : ANNO_LAYER, pts: [[Math.min(a[0], b[0]), Math.max(a[1], b[1])]], note: [{ runs: [] }], h, w };
+    setPoints([]); setMtAsk(null);
+    setEdNote({ draft: mtSet.just ? noteAttached(base, mtSet.just) : base });
+    cad.say(MTEXT_TYPE(true));
+  }
+  /** The note's editor closed: OK, Ctrl/⌘+Enter or a click outside keep the words (one undo step: a new note is drawn,
+   * an old one changed, with the height, justification and width set in its bar), Esc leaves things as they were. */
+  function endNoteEdit(commit: boolean, paras: NotePara[] = []) {
+    const ed = edNote;
+    setEdNote(null);
+    if (!ed) return;
+    const words = paras.some((p) => p.runs.length);
+    if (!commit) cad.say('*Cancel*');
+    else if (!ed.id) { const { id: _id, ...rest } = ed.draft; if (words) draw({ ...rest, note: paras }, 'Note'); else cad.say('MTEXT  Nothing typed: no note drawn.'); }
+    else {
+      const was = sketch.find((x) => x.id === ed.id), next = words ? { ...ed.draft, note: paras } : ed.draft;
+      if (was && JSON.stringify(next) !== JSON.stringify(was)) change(updateSketch(project, fileOf(), next), 'MTEXT  Note changed · ⌘Z to undo');
+      else if (!words) cad.say('MTEXT  Nothing typed: the note is as it was.');
+    }
+    if (tool === 'mtext') cad.setTool('none');
   }
   /** Right click: with a tool running, Enter (with a short menu when the prompt has options); with none, the menu of
    * edits for the device or drawn object under it (or what is picked), Erase for an object of the opened drawing, else
@@ -1094,6 +1134,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (e === 'width' && one?.tray && arg) { change(updateSketch(project, fileOf(), { ...one, tray: { ...one.tray, widthMm: Number(arg) } }), `Cable tray ${arg} mm · ⌘Z to undo`); return; }
     if (e === 'clipboard') { if (arg) run(arg === 'copy' ? 'COPYCLIP' : arg === 'copybase' ? 'COPYBASE' : arg === 'paste' ? 'PASTECLIP' : 'PASTEORIG'); return; }
     if (e === 'edtext') { if (one) startTextEdit(one); return; }
+    if (e === 'ntwidth') { if (one?.kind === 'mtext') { setMtAsk({ step: 'ntwidth', id: one.id }); cad.say(`MTEXT  Width (m) <${toM(noteBox(one).w).toFixed(2)}>:`); input.current?.focus(); } return; }
+    if (e === 'ntjust') { const j = arg ? parseAttach(arg) : undefined; if (one?.kind === 'mtext' && j) change(updateSketch(project, fileOf(), noteAttached(one, j)), `MTEXT  Note justified ${attachLabel(j).toLowerCase()} · ⌘Z to undo`); return; }
     if (e === 'similar') { run('SELECTSIMILAR'); return; }
     if (e === 'qselect') { run('QSELECT'); return; }
     if (e === 'erase') { removeSelected(); return; }
@@ -1175,7 +1217,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'explode') {
       if (!sk) { cad.say('EXPLODE  Click a polyline or rectangle:'); return; }
       const r = explode(sk);
-      if (!failed(r, 'EXPLODE')) change(replaced(project, sk, r.items!), `EXPLODE  ${r.items!.length} lines · ⌘Z to undo`);
+      if (!failed(r, 'EXPLODE')) change(replaced(project, sk, r.items!), `EXPLODE  ${r.items!.length} ${sk.kind === 'mtext' ? 'texts' : 'lines'} · ⌘Z to undo`);
       return;
     }
     if (tool === 'offset' || tool === 'fillet' || tool === 'chamfer' || tool === 'break') {
@@ -1698,6 +1740,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (!last) { setPoints([at]); cad.say('REVCLOUD  Specify opposite corner:'); return; }
       finishCloud(rectangle(last, at)); return;
     }
+    if (tool === 'mtext') {
+      if (edNote) return; // the words are being typed: the box takes the clicks
+      if (!last) { setPoints([at]); setMtAsk(null); cad.say(MTEXT_CORNER); return; }
+      openNote(last, at); return;
+    }
     if (tool === 'text') {
       // A title block field from the Properties palette: placed as it is.
       if (cad.textPreset) {
@@ -2010,6 +2057,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const raw = text.trim();
     const c = raw.toUpperCase().replace(/\s+/g, ' ');
     setPromptMenu(null);
+    // Width… on a note's right-click menu: the box's new width in metres (its left edge stays).
+    if (mtAsk?.step === 'ntwidth' && mtAsk.id) {
+      const it = sketch.find((x) => x.id === mtAsk.id), n = Number(raw.replace(',', '.'));
+      if (!raw || !it) { setMtAsk(null); cad.say('*Cancel*'); return; }
+      if (!(n > 0)) { cad.say('MTEXT  Type the width in metres.'); return; }
+      setMtAsk(null); change(updateSketch(project, fileOf(), noteWithWidth(it, n / units.factor)), `MTEXT  Note ${m(n)} wide · ⌘Z to undo`); return;
+    }
     // Typed input for the tool in use: the text of TEXT, a radius, an angle, a point or a distance.
     if (renamingLayout && raw) {
       const id = renamingLayout, set = setOf(project);
@@ -2036,6 +2090,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (textAsk.step === 'height') { setTextAsk({ ...textAsk, step: 'rot', mm: n && n > 0 ? n : textAsk.mm }); cad.say(`TEXT  Specify rotation angle <${textAsk.rot}>:`); }
       else { setTextAsk({ ...textAsk, step: null, rot: n ?? textAsk.rot }); cad.say('TEXT  Enter text:'); }
       return;
+    }
+    // MTEXT at the second corner: H, J or W, then the value asked for; a point typed is the corner.
+    if (tool === 'mtext' && points.length === 1 && !edNote) {
+      if (mtAsk?.step === 'height') { const n = Number(c); if (c && !(n > 0)) { cad.say(`MTEXT  Height on paper (mm) <${mtMm()}>:`); return; } if (n > 0) setMtSet({ ...mtSet, mm: n }); setMtAsk(null); cad.say(MTEXT_CORNER); return; }
+      if (mtAsk?.step === 'just') { const j = c ? parseAttach(c) : mtSet.just ?? 'TL'; if (!j) { cad.say(`MTEXT  "${c}" is not a justification. ${MTEXT_JUST(mtSet.just)}`); return; } setMtSet({ ...mtSet, just: j }); setMtAsk(null); cad.say(MTEXT_CORNER); return; }
+      if (mtAsk?.step === 'width') { const n = Number(raw.replace(',', '.')); if (!(n > 0)) { cad.say('MTEXT  Width (m):'); return; } openNote(points[0], [points[0][0] + n / units.factor, points[0][1]]); return; }
+      if (c === 'H') { setMtAsk({ step: 'height' }); cad.say(`MTEXT  Height on paper (mm) <${mtMm()}>:`); return; }
+      if (c === 'J') { setMtAsk({ step: 'just' }); cad.say(MTEXT_JUST(mtSet.just)); return; }
+      if (c === 'W') { setMtAsk({ step: 'width' }); cad.say('MTEXT  Width (m):'); return; }
     }
     if (tool === 'zoom') { zoomOption(c || 'W'); return; }
     if (tool === 'zoomscale') {
@@ -2372,7 +2435,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** Esc: the step, then the tool, then what is picked (the history or command list, and a menu, close first). */
   function cancel() {
     setCmd(''); input.current?.blur(); setPromptMenu(null);
-    if (points.length || objectMode || cad.textAt) { setPoints([]); setObjectMode(false); cad.setTextAt(null); setTextAsk(null); setEdAsk(null); cad.say('*Cancel*'); }
+    if (edNote) { setEdNote(null); cad.say('*Cancel*'); if (tool === 'mtext') cad.setTool('none'); }
+    else if (points.length || objectMode || cad.textAt || mtAsk) { setPoints([]); setObjectMode(false); cad.setTextAt(null); setTextAsk(null); setEdAsk(null); setMtAsk(null); cad.say('*Cancel*'); }
     else if (edStep || edAsk === 'radius' || edAsk === 'd1' || edAsk === 'd2') { setEdStep(null); setEdAsk(null); cad.say('*Cancel*'); cad.say(tool === 'offset' ? PROMPT.offset : editPrompt(tool, edSet)); }
     else if (menuAt) setMenuAt(null); else if (renaming) { setRenaming(null); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); setPicked([]); }
   }
@@ -2470,6 +2534,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'tray' && points.length) return [{ ...base, kind: 'pline', pts: [...points, cur], tray: { widthMm: cad.tray.widthMm, service: cad.tray.service } }];
     if (tool === 'em' && emSet.mode === 'route' && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
     if (tool === 'rect' && lastPt) return [{ ...base, kind: 'pline', pts: rectangle(lastPt, cur), closed: true }];
+    if (tool === 'mtext' && lastPt && !edNote) return [{ ...base, kind: 'pline', pts: rectangle(lastPt, cur), closed: true }];
     if (tool === 'zoomwin' && lastPt) return [{ ...base, kind: 'pline', pts: rectangle(lastPt, cur), closed: true }];
     if ((tool === 'dimrad' || tool === 'dimdia') && radPick) return [{ ...base, ...radialItem(radPick, cur, tool === 'dimrad' ? 'radius' : 'diameter') }];
     if (tool === 'dimang' && angPick) {
@@ -2576,6 +2641,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 change(updateSketch(project, fileOf(), next), `GRIP  ${kindOf(selSketch)} ${gripsOf(selSketch)[i]?.kind === 'mid' ? 'side moved' : 'changed'}${isPath(next) ? ` — now ${m(toM(next.pts.slice(1).reduce((t, q, k) => t + distance(next.pts[k], q), 0)))}` : ''} · ⌘Z to undo`);
               }}
               overlay={(toScreen, moving) => {
+                if (edNote) {
+                  // The note's editor over its box: its top left corner, width, letter and line heights on the screen, at its angle.
+                  const d = edNote.draft, b = noteBox(d), o = toScreen(b.tl), e = toScreen([b.tl[0] + b.w * b.u[0], b.tl[1] + b.w * b.u[1]]), up = toScreen([b.tl[0] - b.h * b.v[0], b.tl[1] - b.h * b.v[1]]);
+                  const px = Math.hypot(up[0] - o[0], up[1] - o[1]), perMm = tb ? 1 : unitsPerPaperMm(anno, units.factor);
+                  return <CadNoteEdit key={edNote.id ?? 'new'} left={o[0]} top={o[1]} w={Math.hypot(e[0] - o[0], e[1] - o[1])} h={px} lineH={(px * b.lineH) / b.h} rot={d.rot ?? 0} note={d.note ?? []}
+                    heightMm={Math.round((b.h / perMm) * 100) / 100} attach={attachOf(d)} unitsPerPx={b.h / Math.max(px, 1e-9)}
+                    onHeightMm={(v) => setEdNote({ ...edNote, draft: { ...d, h: v * perMm } })} onAttach={(j) => setEdNote({ ...edNote, draft: noteAttached(d, j) })} onWidth={(wu) => setEdNote({ ...edNote, draft: noteWithWidth(d, wu) })}
+                    onCommit={(paras) => endNoteEdit(true, paras)} onCancel={() => endNoteEdit(false)} />;
+                }
                 const edIt = edText ? sketch.find((x) => x.id === edText.id) : undefined;
                 if (edText && edIt) {
                   // The box over the text: at the left end of its baseline, as high and wide as the text on the screen, at
@@ -2722,9 +2796,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
           )}
           {tool === 'hatch' && view && <HatchPanel spec={hatchSet} onSpec={setHatchSet} patterns={project.cadPatterns} onImport={importPat} />}
-          {(tool === 'text' || tool === 'dim' || tool === 'dimlin' || tool === 'dimcont' || tool === 'dimbase' || tool === 'leader' || tool === 'rtag' || tool === 'rtall' || tool === 'north') && view && (
+          {(tool === 'text' || tool === 'mtext' || tool === 'dim' || tool === 'dimlin' || tool === 'dimcont' || tool === 'dimbase' || tool === 'leader' || tool === 'rtag' || tool === 'rtall' || tool === 'north') && view && (
             <AnnoPanel anno={anno} onAnno={(a) => onChange({ ...project, cadAnno: a }, `Annotation: ${a.textMm} mm text at 1:${a.scale}`)}
-              {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Two points, then where the dimension line goes.' }, dimlin: { title: 'Linear dimension', cmd: 'DLI', help: 'Two points, then where the dimension line goes: above or below them it is horizontal, beside them vertical.' }, dimcont: { title: 'Continue dimension', cmd: 'DCO', help: 'Click each next point: a dimension from the last one\'s second point, in line with it. Esc stops.' }, dimbase: { title: 'Baseline dimension', cmd: 'DBA', help: 'Click each next point: a dimension from the last one\'s first point, one step further out. Esc stops.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, rtall: { title: 'Tag all rooms', cmd: 'RTALL', help: 'Enter tags every room of the level with no tag yet; A tags them all again.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
+              {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, mtext: { title: 'Notes', cmd: 'MT', help: 'Two corners for the box, then type; lines wrap to its width.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Two points, then where the dimension line goes.' }, dimlin: { title: 'Linear dimension', cmd: 'DLI', help: 'Two points, then where the dimension line goes: above or below them it is horizontal, beside them vertical.' }, dimcont: { title: 'Continue dimension', cmd: 'DCO', help: 'Click each next point: a dimension from the last one\'s second point, in line with it. Esc stops.' }, dimbase: { title: 'Baseline dimension', cmd: 'DBA', help: 'Click each next point: a dimension from the last one\'s first point, one step further out. Esc stops.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, rtall: { title: 'Tag all rooms', cmd: 'RTALL', help: 'Enter tags every room of the level with no tag yet; A tags them all again.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
           )}
           {tool === 'matchprop' && view && <><h4>Match properties <span className="m">MP</span></h4><div className="cad-devform"><span className="m">{mpFrom ? 'Click each object to give it the layer, colour, linetype and lineweight of the first; Esc stops. Trays and cable routes keep their layers.' : 'Click the object to copy from.'}</span></div></>}
           {tool === 'match' && view && <MatchPanel from={placed.find((x) => x.key === matchFrom)} settings={matchSet} onSettings={setMatchSet} />}
@@ -3015,6 +3089,7 @@ function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, o
         <div><b>{name}</b> <span className="m">drawn here · {it.layer}</span></div>
         <dl className="cad-props">
           {it.kind === 'text' && <><dt>Text</dt><dd>{it.text}</dd></>}
+          {it.kind === 'mtext' && <><dt>Note</dt><dd>{plainText(it)}</dd></>}
           {it.kind === 'dim' && <><dt>Measures</dt><dd>{m(toM(dimMeasure(it)))}</dd></>}
           {it.r !== undefined && <><dt>Radius</dt><dd>{m(toM(it.r))}</dd></>}
           {it.kind !== 'text' && it.kind !== 'dim' && <><dt>{it.closed || it.kind === 'circle' || it.kind === 'ellipse' ? 'Perimeter' : 'Length'}</dt><dd>{m(toM(len))}</dd></>}

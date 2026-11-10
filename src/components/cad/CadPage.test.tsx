@@ -16,9 +16,10 @@ import { sampleProject } from '../../data/sampleProject';
 import { placeLvPoint } from '../../model/cadDevices';
 import { archOnOf } from '../../model/cadLayerState';
 import { dimLabel, dimMeasure, sketchOf } from '../../model/cadSketch';
+import { explodeNote, noteBox } from '../../model/cadMtext';
 import { openTitleBlockInCad, TB_LAYERS } from '../../model/titleBlockCad';
 import type { TitleTemplate } from '../../model/titleBlock';
-import type { Project } from '../../types';
+import type { Project, SketchItem } from '../../types';
 import { DRAFT_DEFAULTS, type DraftSettings } from '../../model/cadDraft';
 import { clearClip } from './cadClipboardStore';
 
@@ -2909,5 +2910,165 @@ describe('CAD 2D gap plan: TEXTEDIT, a double-click on a text or dimension to ty
     await command('');
     await rightClickAt(X + 1000, 6000);
     expect(menu().map((b) => b.textContent)).not.toContain('Edit text');
+  });
+});
+
+describe('CAD 2D gap plan: MTEXT, notes in a box with their lines wrapped to its width', () => {
+  const last = () => state.history[state.history.length - 1];
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const editor = () => document.querySelector('.cad-ntedit') as HTMLDivElement | null;
+  const words = () => document.querySelector('[aria-label="Note text"]') as HTMLDivElement | null;
+  const items = () => sketchOf(project, F);
+  const dblClickAt = async (x: number, y: number) => {
+    const [sx, sy] = screenOf(x, y);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('dblclick', { clientX: sx, clientY: sy, button: 0, bubbles: true })); });
+  };
+  const rightClickAt = async (x: number, y: number) => {
+    const [sx, sy] = screenOf(x, y);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); });
+  };
+  const keyWords = (key: string, more: KeyboardEventInit = {}) => act(() => { words()!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...more })); });
+  /** What is typed in the box: a block per line, a word in <b> or <u> for bold or underline (as the box keeps them). */
+  const typeWords = (lines: (string | [string, 'b' | 'u'])[][]) => act(() => {
+    const el = words()!;
+    el.replaceChildren();
+    for (const l of lines) {
+      const d = document.createElement('div');
+      for (const r of l) { if (typeof r === 'string') d.appendChild(document.createTextNode(r)); else { const e = document.createElement(r[1]); e.textContent = r[0]; d.appendChild(e); } }
+      if (!l.length) d.appendChild(document.createElement('br'));
+      el.appendChild(d);
+    }
+  });
+  const setField = (label: string, value: string) => act(() => {
+    const el = document.querySelector(`[aria-label="${label}"]`) as HTMLInputElement | HTMLSelectElement;
+    if (el instanceof HTMLSelectElement) { el.value = value; el.dispatchEvent(new Event('change', { bubbles: true })); }
+    else { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, value); el.dispatchEvent(new Event('input', { bubbles: true })); }
+  });
+  const menuLabels = () => [...document.querySelectorAll('[role="menu"] button')].map((b) => b.textContent);
+  const N1: SketchItem = { id: 'N1', kind: 'mtext', layer: 'LV-ANNO', pts: [[X, 6000]], h: 250, w: 3000, note: [{ runs: [{ s: 'GENERAL NOTES', b: true }] }, { runs: [{ s: 'LSZH cables' }] }] };
+  // A note of two lines in a 3 m box at (X, 6000), and one on a locked layer below it.
+  const start: Project = { ...villa, cadSketch: [{ file: F, items: [N1, { ...N1, id: 'N2', layer: 'LV-LOCKED', pts: [[X, 3000]] }] }], cadLayerStyle: { [F]: { 'LV-LOCKED': { lock: true } } } };
+
+  it('MT: two corners (H and J first, if wanted) open the editor over the box; Ctrl/⌘+Enter draws the note in one undo step, Esc draws nothing', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('mt');
+    expect(last()).toBe('Command: MTEXT  First corner:');
+    await clickAt(X, 0);
+    expect(last()).toBe('MTEXT  Opposite corner or [Height/Justify/Width]:');
+    await command('j');
+    expect(last()).toBe('MTEXT  Justify [TL/TC/TR/ML/MC/MR/BL/BC/BR] <TL>:');
+    await command('tc');
+    expect(last()).toBe('MTEXT  Opposite corner or [Height/Justify/Width]:');
+    await command('h');
+    expect(last()).toBe('MTEXT  Height on paper (mm) <2.5>:');
+    await command('3.5');
+    expect(editor()).toBeNull();
+    await clickAt(X + 3000, -1000);
+    expect(editor()).not.toBeNull();
+    expect(last()).toBe('MTEXT  Type the note (Enter starts a new line); Ctrl/⌘+Enter or OK keeps it, Esc cancels:');
+    // The bar shows the height and justification chosen; the box sits at the top left corner, 3 m wide, not turned.
+    expect((document.querySelector('[aria-label="Height (mm on paper)"]') as HTMLInputElement).value).toBe('3.5');
+    expect((document.querySelector('[aria-label="Justify"]') as HTMLSelectElement).value).toBe('TC');
+    const [sx, sy] = screenOf(X, 0), [ex] = screenOf(X + 3000, 0);
+    expect(parseFloat(editor()!.style.left)).toBeCloseTo(sx, 0); expect(parseFloat(editor()!.style.top)).toBeCloseTo(sy, 0);
+    expect(parseFloat(editor()!.style.width)).toBeCloseTo(ex - sx, 0);
+    expect(editor()!.style.transform).toBe('rotate(0rad)');
+    await typeWords([[['GENERAL NOTES', 'b']], ['All cables to be ', ['LSZH', 'u'], ' unless noted'], []]);
+    await keyWords('Enter', { metaKey: true });
+    expect(editor()).toBeNull();
+    expect(items().filter((it) => it.kind === 'mtext' && it.id === 'S1')).toEqual([{
+      id: 'S1', kind: 'mtext', layer: 'LV-ANNO', pts: [[X + 1500, 0]], h: 350, w: 3000, just: 'TC',
+      note: [{ runs: [{ s: 'GENERAL NOTES', b: true }] }, { runs: [{ s: 'All cables to be ' }, { s: 'LSZH', u: true }, { s: ' unless noted' }] }]
+    }]);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][1]).toBe('Note · ⌘Z to undo');
+    expect(state.tool).toBe('none');
+    // Esc in the box: nothing drawn, the command ends.
+    await command('mt');
+    await clickAt(X, -5000);
+    await clickAt(X + 2000, -6000);
+    expect(editor()).not.toBeNull();
+    await keyWords('Escape');
+    expect(editor()).toBeNull();
+    expect(state.history.slice(-2)[0]).toBe('*Cancel*');
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(state.tool).toBe('none');
+  });
+
+  it('a double-click opens the note\'s words; the bar\'s height and justification apply with OK; Esc keeps it; EXPLODE gives a text per line', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await dblClickAt(X + 500, 5900);
+    expect(editor()).not.toBeNull();
+    expect(words()!.textContent).toBe('GENERAL NOTESLSZH cables');
+    expect(words()!.querySelector('b')?.textContent).toBe('GENERAL NOTES');
+    expect(state.selected).toBe('sk:N1');
+    expect(last()).toBe('MTEXT  Type the note (Enter starts a new line); Ctrl/⌘+Enter or OK keeps it, Esc leaves it as it was:');
+    await keyWords('Escape');
+    expect(editor()).toBeNull();
+    expect(items()[0]).toEqual(N1);
+    expect(last()).toBe('*Cancel*');
+    expect(onChange).toHaveBeenCalledTimes(0);
+    await dblClickAt(X + 500, 5900);
+    await setField('Justify', 'MC');
+    await setField('Height (mm on paper)', '5');
+    await act(async () => { button('OK').click(); });
+    expect(editor()).toBeNull();
+    const after = items()[0];
+    expect([after.just, after.h, after.w, after.note]).toEqual(['MC', 500, 3000, N1.note]);
+    // Justified middle centre, the anchor went to the centre of the 2-line box (250 + 416.7 high); taller letters then grow it about that centre.
+    expect(after.pts[0][0]).toBeCloseTo(X + 1500); expect(after.pts[0][1]).toBeCloseTo(6000 - (250 + 1250 / 3) / 2, 6);
+    expect(noteBox(after).lines.length).toBe(4);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][1]).toBe('MTEXT  Note changed · ⌘Z to undo');
+    // EXPLODE: the lines as drawn (wrapped at 3 m with 5 mm letters) become single-line texts.
+    const lines = explodeNote(after);
+    await command('x');
+    await clickAt(X + 500, 5900);
+    expect(last()).toBe(`EXPLODE  ${lines.length} texts · ⌘Z to undo`);
+    expect(items().filter((it) => it.layer === 'LV-ANNO').map((it) => [it.kind, it.text])).toEqual(lines.map((l) => ['text', l.text]));
+  });
+
+  it('right-click on a note: Edit text, Width… (typed in metres) and Justify ▸; a note on a locked layer is refused', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    // The locked one: ED and a double-click both refuse it.
+    await command('ed');
+    await clickAt(X + 500, 2900);
+    expect(last()).toBe('TEXTEDIT  Note on layer LV-LOCKED, which is locked: unlock it first (LAYULK).');
+    expect(editor()).toBeNull();
+    await dblClickAt(X + 500, 2900);
+    expect(editor()).toBeNull();
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
+    expect(state.tool).toBe('none');
+    await rightClickAt(X + 500, 5900);
+    expect(menuLabels()).toEqual(['Edit text', 'Width…', 'Justify ▸', 'Move', 'Copy', 'Rotate', 'Erase', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    await act(async () => { button('Width…').click(); });
+    expect(last()).toBe('MTEXT  Width (m) <3.00>:');
+    await command('4');
+    expect(items()[0].w).toBe(4000);
+    expect(items()[0].pts).toEqual([[X, 6000]]);
+    expect(onChange.mock.calls[0][1]).toMatch(/^MTEXT {2}Note 4\.00 m wide/);
+    await rightClickAt(X + 500, 5900);
+    await act(async () => { button('Justify ▸').click(); });
+    const opt = [...document.querySelectorAll('[role="listbox"][aria-label="Justify"] [role="option"]')].find((b) => b.textContent?.startsWith('Bottom right')) as HTMLButtonElement;
+    await act(async () => { opt.click(); });
+    expect(items()[0].just).toBe('BR');
+    expect(noteBox(items()[0]).tl[0]).toBeCloseTo(X); expect(noteBox(items()[0]).tl[1]).toBeCloseTo(6000);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    // Edit text opens the editor too.
+    await rightClickAt(X + 500, 5900);
+    await act(async () => { button('Edit text').click(); });
+    expect(editor()).not.toBeNull();
+    await keyWords('Escape');
+    expect(editor()).toBeNull();
+    expect(onChange).toHaveBeenCalledTimes(2);
   });
 });

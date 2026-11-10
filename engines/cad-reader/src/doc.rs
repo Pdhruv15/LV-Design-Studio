@@ -902,6 +902,9 @@ struct ShapeOut {
     #[serde(default)] rot: f64,
     /// Text: where its anchor sits on its box (L, C, R on the baseline; TL … BR), blank or L for the left end of the baseline.
     #[serde(default)] just: String,
+    /// Multiline text (mtext): the width of its box (0: as wide as its longest line) and its line spacing factor.
+    #[serde(default)] w: f64,
+    #[serde(default)] lsp: f64,
     /// Hatch: closed boundary loops, solid or with its pattern lines (a reference's fill, bound into the saved copy).
     #[serde(default)] loops: Vec<Vec<(f64, f64)>>,
     #[serde(default)] solid: bool,
@@ -916,7 +919,7 @@ struct PatLineOut { angle: f64, base: (f64, f64), offset: (f64, f64), #[serde(de
 /// device as a circle with its letters inside and its label (circuit or type) beside it. The architect's entities are
 /// kept as read.
 fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_json: &str) -> Result<CadDocument, String> {
-    use acadrust::entities::{Arc, BoundaryEdge, BoundaryPath, Circle, Ellipse, Hatch, HatchPattern, HatchPatternLine, HatchPatternType, Line, LwPolyline, LwVertex, PolylineEdge, Text};
+    use acadrust::entities::{Arc, BoundaryEdge, BoundaryPath, Circle, Ellipse, Hatch, HatchPattern, HatchPatternLine, HatchPatternType, Line, LwPolyline, LwVertex, MText, PolylineEdge, Text};
     use acadrust::tables::Layer;
     use acadrust::types::{Vector2, Vector3};
     let (mut doc, _) = read(bytes)?;
@@ -974,6 +977,18 @@ fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_
                     t.insertion_point = Vector3::new(sh.pts[0].0 - fx * w * cos + fy * sh.h * sin, sh.pts[0].1 - fx * w * sin - fy * sh.h * cos, 0.0);
                 }
                 EntityType::Text(t)
+            }
+            "mtext" if !sh.pts.is_empty() && !sh.text.is_empty() => {
+                use acadrust::entities::mtext::AttachmentPoint as A;
+                let mut t = MText::new();
+                t.value = sh.text.clone(); t.insertion_point = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); t.height = sh.h; t.rotation = sh.rot; t.common.layer = sh.layer.clone();
+                t.rectangle_width = sh.w.max(0.0);
+                if sh.lsp > 0.0 { t.line_spacing_factor = sh.lsp; }
+                t.attachment_point = match sh.just.to_uppercase().as_str() {
+                    "TC" => A::TopCenter, "TR" => A::TopRight, "ML" => A::MiddleLeft, "MC" => A::MiddleCenter, "MR" => A::MiddleRight,
+                    "BL" => A::BottomLeft, "BC" => A::BottomCenter, "BR" => A::BottomRight, _ => A::TopLeft,
+                };
+                EntityType::MText(Box::new(t))
             }
             "hatch" if sh.loops.iter().any(|l| l.len() >= 3) => {
                 let mut h = if sh.solid || sh.lines.is_empty() { Hatch::solid() } else {
@@ -1115,11 +1130,14 @@ mod tests {
         }
         let bytes = sample("sample-villa-gf.dxf");
         let devices = r#"[{"layer":"E-LV-POINTS","x":1000,"y":1000,"r":200,"text":"","label":"DB-GF1/R1"}]"#;
-        let shapes = r#"[{"layer":"E-TRAY","kind":"pline","pts":[[0,0],[5000,0]]},{"layer":"LV-ANNO","kind":"text","pts":[[0,0]],"text":"CT 300","h":150}]"#;
+        let shapes = r#"[{"layer":"E-TRAY","kind":"pline","pts":[[0,0],[5000,0]]},{"layer":"LV-ANNO","kind":"text","pts":[[0,0]],"text":"CT 300","h":150},{"layer":"LV-ANNO","kind":"mtext","pts":[[0,2000]],"text":"{\\fArial|b1|i0;NOTES}\\PLine two","h":150,"just":"MC","w":1800,"lsp":1}]"#;
         let before = CadDoc::new(bytes.clone()).unwrap();
         let after = CadDoc::new(dwg_bytes(bytes, devices, shapes, "", "").unwrap()).unwrap();
         let (b, a) = (facts(&before), facts(&after));
-        assert_eq!(a.1, b.1 + 2, "the label and the text added");
+        assert_eq!(a.1, b.1 + 4, "the label, the text and the note's two lines added");
+        // The note is one MTEXT, read back as a plain text per line, the codes gone.
+        let lines: Vec<&str> = after.texts.iter().filter(|t| t.s == "NOTES" || t.s == "Line two").map(|t| t.s.as_str()).collect();
+        assert_eq!(lines, ["NOTES", "Line two"]);
         assert!(a.0.contains_key("E-LV-POINTS"), "the device's circle on its layer");
         assert!(after.layers.iter().any(|l| l.name == "LV-ANNO"), "the text's layer");
         assert_eq!(a.0["E-TRAY"], b.0.get("E-TRAY").copied().unwrap_or(0) + 1);

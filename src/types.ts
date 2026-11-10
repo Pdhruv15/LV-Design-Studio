@@ -411,11 +411,11 @@ export interface CadBlockMap { block: string; reference: string; per?: number }
 export type CadLayerRole = 'room' | 'room-name' | 'wall' | 'tray' | 'route' | 'fixture' | 'board' | 'ignore';
 export interface CadLayerMap { layer: string; role: CadLayerRole }
 /** An object drawn in the CAD view, in drawing units: a line (or connected lines), polyline, circle (centre, r), arc
- * (centre, r, a0 → a1 anticlockwise, radians), text (insertion, height, rotation) or dimension (p1, p2, a point on the
- * dimension line). */
+ * (centre, r, a0 → a1 anticlockwise, radians), text (insertion, height, rotation), note (mtext: a paragraph text in a
+ * box) or dimension (p1, p2, a point on the dimension line). */
 export interface SketchItem {
   id: string;
-  kind: 'line' | 'pline' | 'circle' | 'arc' | 'text' | 'dim' | 'ellipse';
+  kind: 'line' | 'pline' | 'circle' | 'arc' | 'text' | 'dim' | 'ellipse' | 'mtext';
   layer: string;
   pts: [number, number][];
   closed?: boolean;
@@ -427,6 +427,12 @@ export interface SketchItem {
   rot?: number;
   /** A text: where its anchor (pts[0]) sits on its box (src/model/cadText.ts); left out: the left end of its baseline. */
   just?: import('./model/cadText').TextJust;
+  /** A note (mtext, a paragraph text in a box): its paragraphs of plain, bold and underlined runs, its box's width
+   * (drawing units; none: as wide as its longest line) and its line spacing (1: lines 5/3 of the height apart). Its
+   * anchor (pts[0]) sits at `just` on the box, TL when left out (src/model/cadMtext.ts). */
+  note?: import('./model/cadMtext').NotePara[];
+  w?: number;
+  lsp?: number;
   /** A text's frame (a circle, box or hexagon round it) and mask (paper-colour fill under it) (src/model/cadText.ts). */
   frame?: import('./model/cadText').TextFrame;
   mask?: boolean;
