@@ -4,6 +4,7 @@ import { LINETYPE_IDS, LINETYPES, LINEWEIGHTS, styleOf, withProps, type LayerSty
 import { geometryRows, geomKind, kindChoices, kindLabel, parseTyped, sharedValue, shownValue, textRows, withProp, type PropDef } from '../../model/cadProps';
 import { TRAY_SERVICES, TRAY_WIDTHS } from '../../model/cadSketch';
 import { TEXT_FRAMES, TEXT_JUSTS } from '../../model/cadText';
+import { NOTE_ATTACHES } from '../../model/cadMtext';
 import type { SketchItem } from '../../types';
 import { ColourPicker } from './ColourPicker';
 
@@ -90,6 +91,7 @@ export function PropertiesPalette({ items, devices, layers, styles, current, new
       const opts = def.key === 'width' ? [...new Set([...TRAY_WIDTHS.map(String), ...(typeof v === 'string' && v !== 'varies' ? [v] : [])])].map((w) => [w, `${w} mm`])
         : def.key === 'service' ? [['', 'None'], ...[...new Set([...TRAY_SERVICES, ...(typeof v === 'string' && v && v !== 'varies' ? [v] : [])])].map((s) => [s, s])]
         : def.key === 'just' ? TEXT_JUSTS.map((j) => [j.id, j.label])
+        : def.key === 'attach' ? NOTE_ATTACHES.map((j) => [j.id, j.label])
         : def.key === 'frame' ? TEXT_FRAMES.map((f) => [f.id, f.label])
         : [['Yes', 'Yes'], ['No', 'No']];
       return row(def.label, (
@@ -213,4 +215,4 @@ export function PropertiesPalette({ items, devices, layers, styles, current, new
     </section>
   );
 }
-const SELECTS = new Set(['width', 'service', 'closed', 'just', 'frame', 'mask']);
+const SELECTS = new Set(['width', 'service', 'closed', 'just', 'frame', 'mask', 'attach']);
