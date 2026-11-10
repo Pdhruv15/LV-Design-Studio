@@ -138,6 +138,7 @@ export function unsafeReason(raw: Record<string, unknown>): string | undefined {
         for (const x of (t.texts ?? []) as unknown[]) if (!isObj(x) || !isNum(x.x) || !isNum(x.y) || !isNum(x.h) || typeof x.text !== 'string') return `title block ${String(t.name ?? '')}: a text is not valid`;
         for (const x of (t.shapes ?? []) as unknown[]) if (!isObj(x) || !['line', 'poly', 'circle'].includes(x.kind as string)) return `title block ${String(t.name ?? '')}: a shape has an unknown kind`;
         // A whole border: its paper is one the sheets print, its drawing area numbers.
+        if (t.logo !== undefined && (!isObj(t.logo) || !['x', 'y', 'w', 'h'].every((k) => isNum((t.logo as Record<string, unknown>)[k])))) return `title block ${String(t.name ?? '')}: the logo area is not valid`;
         if (t.border !== undefined && (!isObj(t.border) || !['A4', 'A3', 'A3 portrait', 'A2', 'A1'].includes(t.border.paper as string) || !isObj(t.border.area) || !['x', 'y', 'w', 'h'].every((k) => isNum((t.border as { area: Record<string, unknown> }).area[k])))) return `title block ${String(t.name ?? '')}: the border is not valid`;
       }
       for (const c of t.cells) {
