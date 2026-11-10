@@ -15,10 +15,16 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.084', date: '2026-11-10',
+    version: '2.086', date: '2026-11-10',
     items: [
       { title: 'Boards with no outgoing ways drawn as a board symbol', text: 'On the SLD, a board with nothing below it yet now ends its incoming line on a board symbol (busbar and ways inside; one way for a DB, control rows for a package panel), with its name, kind and loading beside it and "NO OUTGOING WAYS" or its load-schedule circuits underneath, inside a dashed panel frame in DEWA style like the other panels. No more line running past the box.' },
       { title: 'Tidier earthing with several transformers', text: 'Each transformer\'s LV earth-pit detail now stands next to its own incomer: the electrode note is on two lines, the test link sits by the incomer, and the MET no longer runs through the "415 V" label. SLDs with many transformers are narrower.' }
+    ]
+  },
+  {
+    version: '2.084', date: '2026-11-10',
+    items: [
+      { title: 'Approved makes, specification references and preambles in the BOQ', text: 'BOQ → Makes & preambles: up to three approved makes and a specification clause per equipment category (MCCB, cables, tray, luminaires…), and a preamble for the bill and each section. Save it as an office list and load it on other projects; a line can have its own makes in its pencil dialog. The Excel BOQ gains Spec ref. and Approved makes columns after Location, and the PDF prints them under each description.' }
     ]
   },
   {

@@ -6,7 +6,7 @@ import type { FeederResult } from '../../calc/electrical';
 import { buildBom, BOM_SECTIONS } from '../../calc/bom';
 import {
   designQty, validVat, EXTRA_SECTIONS, EXTRAS, fallbackPriceEntry, loadPriceLists, newPriceList, nextSectionId, priceBom, savePriceLists, sectionTitles,
-  type BoqCustom, type BoqDocument, type BoqOverride, type ManualItem, type PriceList, type PricedBom, type PricedItem
+  type BoqCustom, type BoqDocument, type BoqOverride, type LineMakesOverride, type ManualItem, type PriceList, type PricedBom, type PricedItem
 } from '../../model/priceList';
 import { boqReview, SCOPE_CHECKS, scopeSummary, type BoqLineScope } from '../../model/boqScope';
 import { boqBookmarks, buildBoqHtml, buildBoqWorkbook, buildPriceTemplate, readPriceWorkbook } from '../../docs/boqWorkbook';
@@ -19,6 +19,8 @@ import { toggleIn } from '../../util/sets';
 import { offerSubmission } from '../../model/submissions';
 import { boqRevisionsOf, boqRevisionState, changeNote, CHANGE_LABEL, compareLines, issueBoqRevision, linesOf, numberBom, type BoqLine, type BoqRevision } from '../../model/boqRevisions';
 import { fmtDate, fmtUpTo } from '../../util/format';
+import { categoryOf, cleanMakes } from '../../model/boqMakes';
+import BoqMakesForm from './BoqMakesForm';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const money = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -34,6 +36,7 @@ type Dialog =
   | { kind: 'wastage' }
   | { kind: 'markup' }
   | { kind: 'document' }
+  | { kind: 'makes' }
   | { kind: 'issue' };
 
 /** BOM / Cost → Bill of quantities: everything in the design rolled up by
@@ -51,6 +54,11 @@ export default function BomView({ command, project, results, me = '', onChange, 
   const items = useMemo(() => buildBom(project), [project]);
   const revisions = boqRevisionsOf(project);
   const bom = useMemo(() => numberBom(priceBom(items, list, custom), project.boqRevisions), [items, list, custom, project.boqRevisions]);
+  const usedCategories = useMemo(() => {
+    const n: Record<string, number> = {};
+    for (const it of bom.items) { const c = categoryOf(it.key); if (c) n[c] = (n[c] ?? 0) + 1; }
+    return n;
+  }, [bom.items]);
   const latestIssue = revisions[revisions.length - 1];
   const pending = useMemo(() => new Map(latestIssue ? compareLines(latestIssue.lines, linesOf(bom)).map((c) => [c.key, c]) : []), [latestIssue, bom]);
   const review = useMemo(() => boqReview(project, bom), [project, bom]);
@@ -184,7 +192,7 @@ export default function BomView({ command, project, results, me = '', onChange, 
           <button className={`chip${!dialog && tab === 'changes' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'changes'} onClick={() => showTab('changes')}>Revisions{latestIssue ? ` (Rev ${latestIssue.id}${pending.size ? ` + ${pending.size} changes` : ''})` : ''}</button>
           <button className={`chip${!dialog && tab === 'variations' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'variations'} onClick={() => showTab('variations')}>Variations{variationsOf(project).length ? ` (${variationsOf(project).length})` : ''}</button>
           <button className={`chip${!dialog && tab === 'circuits' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'circuits'} onClick={() => showTab('circuits')}>Per circuit</button>
-          {dialog && <button className="chip on" type="button">{dialog.kind === 'item' || dialog.kind === 'design' ? 'Edit item' : dialog.kind === 'extras' ? 'Extra scope' : dialog.kind === 'section' ? 'Section' : dialog.kind === 'wastage' ? 'Wastage' : dialog.kind === 'document' ? 'BOQ document' : dialog.kind === 'issue' ? 'Issue revision' : 'Markup'}</button>}
+          {dialog && <button className="chip on" type="button">{dialog.kind === 'item' || dialog.kind === 'design' ? 'Edit item' : dialog.kind === 'extras' ? 'Extra scope' : dialog.kind === 'section' ? 'Section' : dialog.kind === 'wastage' ? 'Wastage' : dialog.kind === 'document' ? 'BOQ document' : dialog.kind === 'makes' ? 'Makes & preambles' : dialog.kind === 'issue' ? 'Issue revision' : 'Markup'}</button>}
         </div>
         <span className="sp" />
         <button className="chip" onClick={() => setDialog({ kind: 'item', item: newItem(), isNew: true })}>+ Item</button>
@@ -201,6 +209,7 @@ export default function BomView({ command, project, results, me = '', onChange, 
         <label>Currency <input className="bi-text" style={{ width: 60 }} value={cur} onChange={(e) => edit({ currency: e.target.value })} /></label>
         <button className="chip" onClick={() => setDialog({ kind: 'markup' })}>Markup {list?.markupPct ?? 0} % · Discount {custom?.discountPct ?? 0} % · VAT {validVat(custom?.vatPct)} %</button>
         <button className="chip" onClick={() => setDialog({ kind: 'document' })}>{custom?.document?.docNo ? `Doc ${custom.document.docNo}` : 'BOQ document…'}</button>
+        <button className="chip" onClick={() => setDialog({ kind: 'makes' })} title="Approved makes, specification references and section preambles">Makes &amp; preambles ({Object.keys(usedCategories).filter((c) => custom?.makes?.categories[c]?.makes.length).length} / {Object.keys(usedCategories).length})</button>
         <select className="chip" value="" onChange={(e) => e.target.value && applySavedList(e.target.value)}>
           <option value="">Use a saved price list…</option>
           {library.map((l) => <option key={l.id} value={l.id}>{l.name} ({Object.keys(l.rates).length} rates, {l.date})</option>)}
@@ -310,6 +319,8 @@ export default function BomView({ command, project, results, me = '', onChange, 
               onSave={(mk, d, v) => { onChange({ ...project, priceList: { ...(list ?? newPriceList()), markupPct: mk }, boq: { ...custom, discountPct: d || undefined, vatPct: v } }); setDialog(null); }} onClose={() => setDialog(null)} />}
             {dialog.kind === 'issue' && <IssueForm next={String(revisions.length)} latest={latestIssue?.id} changes={pending.size} netChange={latestIssue ? bom.total - latestIssue.total : undefined} total={bom.total} cur={cur} unchanged={!!latestIssue && !pending.size && Math.abs(latestIssue.grandTotal - bom.grandTotal) < 0.005} me={me}
               onSave={(r) => { onChange(issueBoqRevision(project, bom, r, cur)); setDialog(null); setTab('changes'); onStatus(`BOQ Rev ${revisions.length} issued — export the PDF or Excel BOQ to send it`); }} onClose={() => setDialog(null)} />}
+            {dialog.kind === 'makes' && <BoqMakesForm value={custom?.makes} used={usedCategories} titles={Object.fromEntries(bom.sections.map((s) => [s.section, s.title]))} onStatus={onStatus}
+              onSave={(makes) => { setCustom({ makes }); setDialog(null); }} onClose={() => setDialog(null)} />}
             {dialog.kind === 'document' && <DocumentForm value={custom?.document ?? {}} fallback={{ preparedBy: project.params?.designedBy, checkedBy: project.params?.checkedBy ?? project.drawing?.checkedBy, approvedBy: project.params?.approvedBy ?? project.drawing?.approvedBy }}
               onSave={(document) => { setCustom({ document }); setDialog(null); }} onClose={() => setDialog(null)} />}
           </div>
@@ -405,6 +416,19 @@ function ScopeFields({ value, onChange, currentKey, packages }: { value: BoqLine
   </>;
 }
 
+/** A line's own approved makes ("A / B / C") and specification reference; empty uses its category's. */
+function MakesFields({ value, onChange, fallback }: { value: LineMakesOverride; onChange: (v: LineMakesOverride) => void; fallback?: { makes?: string; specRef?: string } }) {
+  const [text, setText] = useState((value.makes ?? []).join(' / '));
+  return <div className="form-kv">
+    <label>Approved makes <input value={text} placeholder={fallback?.makes ?? 'Make A / Make B / Make C'} onChange={(e) => { setText(e.target.value); onChange({ ...value, makes: e.target.value.split('/') }); }} /></label>
+    <label>Spec ref. <input value={value.specRef ?? ''} placeholder={fallback?.specRef ?? 'e.g. 26 28 16 cl. 2.2'} onChange={(e) => onChange({ ...value, specRef: e.target.value })} /></label>
+  </div>;
+}
+const cleanOwn = (v: LineMakesOverride): LineMakesOverride => {
+  const makes = cleanMakes(v.makes);
+  return { makes: makes.length ? makes : undefined, specRef: v.specRef?.trim() || undefined };
+};
+
 function Actions({ onClose, onSave, ok = true, extra }: { onClose: () => void; onSave: () => void; ok?: boolean; extra?: React.ReactNode }) {
   return <div className="modal-actions">{extra}<span className="sp" /><button className="chip" onClick={onClose}>Cancel</button><button className="chip primary" disabled={!ok} onClick={onSave}>Save</button></div>;
 }
@@ -434,8 +458,9 @@ function ItemForm({ item, isNew, titles, packages, onSave, onDelete, onClose }: 
         <label style={{ gridColumn: '1 / -1' }}>Note <input value={m.note ?? ''} onChange={(e) => setM({ ...m, note: e.target.value || undefined })} placeholder="e.g. as per spec clause 16.4" /></label>
       </div>
       <ScopeFields value={m} onChange={(scope) => setM({ ...m, ...scope })} currentKey={`manual:${m.id}`} packages={packages} />
+      <MakesFields value={m} onChange={(own) => setM({ ...m, ...own })} />
       {q === 0 && <p className="warn">Enter a measured quantity before tender. Zero keeps this line as an unmeasured scope item.</p>}
-      <Actions onClose={onClose} ok={ok} onSave={() => onSave({ ...m, description: m.description.trim(), qty: q!, rate: r, labour: l })}
+      <Actions onClose={onClose} ok={ok} onSave={() => onSave({ ...m, ...cleanOwn(m), description: m.description.trim(), qty: q!, rate: r, labour: l })}
         extra={!isNew && <button className="chip bad" onClick={onDelete}>Delete item</button>} />
     </>
   );
@@ -446,6 +471,7 @@ function DesignForm({ it, design, o, raw, packages, onSave, onClose }: { it: Pri
   const [desc, setDesc] = useState(o?.description ?? '');
   const [excluded, setExcluded] = useState(!!o?.excluded);
   const [scope, setScope] = useState<BoqLineScope>({ action: it.action, supplyBy: it.supplyBy, installBy: it.installBy, evidence: o?.evidence, includedIn: o?.includedIn });
+  const [own, setOwn] = useState<LineMakesOverride>({ makes: o?.makes, specRef: o?.specRef });
   const n = numOr(qty);
   return (
     <>
@@ -459,8 +485,9 @@ function DesignForm({ it, design, o, raw, packages, onSave, onClose }: { it: Pri
         <label className="row" style={{ gridColumn: '1 / -1' }}><input type="checkbox" checked={excluded} onChange={(e) => setExcluded(e.target.checked)} style={{ width: 'auto' }} /> Entire item by others — exclude supply and installation</label>
       </div>
       <ScopeFields value={scope} onChange={setScope} currentKey={it.key} packages={packages} />
+      <MakesFields value={own} onChange={setOwn} fallback={it} />
       <Actions onClose={onClose} ok={!Number.isNaN(n) && (n === undefined || n >= 0)}
-        onSave={() => onSave({ ...scope, qty: n, description: desc.trim() || undefined, excluded: excluded || undefined, designQty: design })}
+        onSave={() => onSave({ ...scope, ...cleanOwn(own), qty: n, description: desc.trim() || undefined, excluded: excluded || undefined, designQty: design })}
         extra={o && <button className="chip" onClick={() => onSave(undefined)}>Back to the design</button>} />
     </>
   );
