@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.080', date: '2026-11-10',
+    items: [
+      { title: 'Approved makes, specification references and preambles in the BOQ', text: 'BOQ → Makes & preambles: up to three approved makes and a specification clause per equipment category (MCCB, cables, tray, luminaires…), and a preamble for the bill and each section. Save it as an office list and load it on other projects; a line can have its own makes in its pencil dialog. The Excel BOQ gains Spec ref. and Approved makes columns after Location, and the PDF prints them under each description.' }
+    ]
+  },
+  {
     version: '2.077', date: '2026-11-10',
     items: [
       { title: 'Double-click a text or dimension to edit it in place', text: 'In Design CAD, a double-click on a drawn text, a leader\'s text or a dimension opens a box over it, at its height and angle, with the text selected: type, then Enter keeps it (one undo step), Esc leaves it as it was, a click outside keeps it. ED (TEXTEDIT, DDEDIT) asks for the object instead, and stays for the next one; Edit text is on the right-click menu of a text or dimension. A dimension\'s typed text is its override: <> in it stands for the measured value ("<> mm" keeps measuring as the points move), and blank gives the measure back. A text on a locked layer is refused.', action: 'cad', actionLabel: 'Open Design CAD' }

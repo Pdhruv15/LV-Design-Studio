@@ -5,6 +5,7 @@ import { breakerRateAed, cableRatePerM, CURRENCY } from '../data/rates';
 import { catalog, catalogRate } from '../database/catalog';
 import { packageTarget, type BoqAction, type BoqLineScope, type BoqResponsibility } from './boqScope';
 import { fmtDate } from '../util/format';
+import { lineMakes, type BoqMakeList } from './boqMakes';
 
 /** Your supplier rates, by BOM item key. Several catalogues can be kept
  * (e.g. Schneider, ABB, local panel builder); a project uses one and keeps a
@@ -103,8 +104,10 @@ function typicalRate(kind: string, a: string[]): number | undefined {
 }
 
 /** Your own BOQ lines and adjustments, kept with the project. */
-export interface ManualItem extends BoqLineScope { id: string; section: string; description: string; unit: string; qty: number; rate?: number; labour?: number; note?: string }
-export interface BoqOverride extends BoqLineScope { qty?: number; description?: string; excluded?: boolean; designQty?: number /* design qty when you set it */ }
+/** A line's own approved makes and specification reference, in place of its category's. */
+export interface LineMakesOverride { makes?: string[]; specRef?: string }
+export interface ManualItem extends BoqLineScope, LineMakesOverride { id: string; section: string; description: string; unit: string; qty: number; rate?: number; labour?: number; note?: string }
+export interface BoqOverride extends BoqLineScope, LineMakesOverride { qty?: number; description?: string; excluded?: boolean; designQty?: number /* design qty when you set it */ }
 export interface BoqCustom {
   projectType?: 'fit-out' | 'new-installation';
   includeSchedulePoints?: boolean;
@@ -117,6 +120,7 @@ export interface BoqCustom {
   discountPct?: number;
   vatPct?: number; // VAT on the total after markup and discount, e.g. 5 (UAE)
   document?: BoqDocument; // cover page and footer of the PDF BOQ
+  makes?: BoqMakeList; // approved makes, specification references and preambles (copy of an office list)
 }
 
 /** Document control of the PDF BOQ: number, status and sign-off names. */
@@ -148,6 +152,8 @@ export interface PricedItem extends BomItem {
   missingRate: boolean;
   includedIn?: string;
   evidence?: string;
+  makes?: string; // "A / B / C or approved equal"
+  specRef?: string; // specification clause
 }
 export interface PricedBom {
   items: PricedItem[];
@@ -219,11 +225,11 @@ export function priceBom(items: BomItem[], list?: PriceList, custom?: BoqCustom)
     const extra = { designQty: o?.qty !== undefined && o.qty !== design ? design : undefined, changed: o?.designQty !== undefined && o.designQty !== design };
     const e = list?.rates[raw.key];
     const fb = e ? undefined : fallbackPriceEntry(raw.key);
-    return { ...applyScope({ ...it, quantitySource: o?.qty !== undefined ? `${raw.quantitySource ?? 'Design model'}; BOQ quantity override` : raw.quantitySource }, o ?? {}, e ?? fb, e ? 'list' : fb ? 'typical' : 'missing', o?.excluded), ...extra };
+    return { ...applyScope({ ...it, quantitySource: o?.qty !== undefined ? `${raw.quantitySource ?? 'Design model'}; BOQ quantity override` : raw.quantitySource }, o ?? {}, e ?? fb, e ? 'list' : fb ? 'typical' : 'missing', o?.excluded), ...extra, ...lineMakes(raw.key, custom?.makes, o) };
   });
   for (const m of custom?.manual ?? []) {
     const scoped = applyScope({ key: `manual:${m.id}`, section: m.section, description: m.description, unit: m.unit, qty: m.qty, where: [], quantitySource: 'Manual quantity' }, m, { rate: m.rate, labour: m.labour }, 'manual');
-    priced.push({ ...scoped, manualId: m.id, note: [m.note, scoped.note].filter(Boolean).join(' · ') || undefined });
+    priced.push({ ...scoped, manualId: m.id, note: [m.note, scoped.note].filter(Boolean).join(' · ') || undefined, ...lineMakes(scoped.key, custom?.makes, m) });
   }
   // Evaluate against the unsuppressed snapshot so package chains are order-independent.
   const packageResults = priced.map((it) => packageTarget(it, priced));
