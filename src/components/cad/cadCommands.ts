@@ -8,7 +8,7 @@ import type { CadTool } from './cadState';
 export type CadAction = 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'layiso' | 'layuniso'
   | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
   | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
-  | 'textStyle' | 'dimStyle' | 'pointStyle' | 'blockDialog' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
+  | 'textStyle' | 'dimStyle' | 'pointStyle' | 'blockDialog' | 'blocksPalette' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
   | 'copyClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave' | 'zoomPrev' | 'qselect';
 
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
@@ -29,7 +29,9 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['TR', 'TRACE'], desc: 'Trace a room', tool: 'trace' },
   { aliases: ['PN', 'NAME'], desc: 'Pick a room name', tool: 'name' },
   { aliases: ['LI', 'LIST'], desc: 'Inspect', tool: 'none' },
-  { aliases: ['DEV', 'DEVICE', 'INSERT', 'I'], desc: 'Add a device', tool: 'dev' },
+  { aliases: ['DEV', 'DEVICE'], desc: 'Add a device', tool: 'dev' },
+  { aliases: ['I', 'INSERT'], desc: 'The Blocks palette: insert one of the drawing\'s blocks, a recent one or one from the library folder', action: 'blocksPalette' },
+  { aliases: ['-INSERT'], desc: 'Insert a block by name on the command line', tool: 'insert' },
   { aliases: ['M', 'MOVE'], desc: 'Move', tool: 'move' },
   { aliases: ['CO', 'CP', 'COPY'], desc: 'Copy', tool: 'copy' },
   { aliases: ['COPYCLIP'], desc: 'Copy the drawn objects picked to the clipboard (Ctrl+C)', action: 'copyClip' },

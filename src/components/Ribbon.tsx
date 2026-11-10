@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
 import { BringToFront, Frame, LayoutTemplate, Printer, Crop, Plus, ChevronRight, LightbulbOff, Snowflake, LockOpen, Focus, CircleCheck, Layers3, ArrowDownRight, Cloud, FileSearch, ListOrdered } from 'lucide-react';
 import { ListFilter, PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen , SquareScissors } from 'lucide-react';
-import { Dot, Divide, Target, Pentagon, ArrowRightToLine, TriangleRight, Hexagon, CaseSensitive, LandPlot, ScanSearch, Expand, SlidersHorizontal, DraftingCompass } from 'lucide-react';
+import { Package, Dot, Divide, Target, Pentagon, ArrowRightToLine, TriangleRight, Hexagon, CaseSensitive, LandPlot, ScanSearch, Expand, SlidersHorizontal, DraftingCompass } from 'lucide-react';
 import type { CadExport, CadRibbonInfo, CadTool } from './cad/cadState';
 import { ColourPicker } from './cad/ColourPicker';
 import { LINETYPE_IDS, LINETYPES, LINEWEIGHTS, type LinetypeId, type ObjectProps } from '../model/cadLayerStyle';
@@ -105,6 +105,8 @@ export interface RibbonActions {
     reopen?: { label: string; title: string; onClick: () => void };
     /** The properties palette shown (↘ beside the Properties caption). */
     propsOn?: boolean; onProps?: () => void;
+    /** The Blocks palette shown (Insert on the Blocks panel). */
+    blocksOn?: boolean;
     /** The drawing's layers and the current one, and the colour, linetype and lineweight of the objects picked or of new
      * objects (the page sets them, CadPage); `onSetProps` changes one of the three. */
     info?: CadRibbonInfo | null; onSetProps?: (patch: ObjectProps) => void;
@@ -178,7 +180,7 @@ const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
 const GROUP_OF: Partial<Record<CadTool, number>> = {
   point: G.draw, divide: G.draw, measure: G.draw, line: G.draw, pline: G.draw, rect: G.draw, circle: G.draw, arc: G.draw, hatch: G.draw, polygon: G.draw, ellipse: G.draw, circle2p: G.draw, circle3p: G.draw, circled: G.draw, arcsce: G.draw, revcloud: G.annotate,
   move: G.modify, copy: G.modify, rotate: G.modify, mirror: G.modify, scale: G.modify, stretch: G.modify, trim: G.modify, extend: G.modify, offset: G.modify, fillet: G.modify, chamfer: G.modify, break: G.modify, join: G.modify, explode: G.modify, array: G.modify,
-  text: G.annotate, mtext: G.annotate, draworder: G.modify, texttofront: G.modify, block: G.blocks, blockpick: G.blocks, dim: G.annotate, dimlin: G.annotate, dimcont: G.annotate, dimbase: G.annotate, leader: G.annotate, rtag: G.annotate, north: G.annotate, keynote: G.annotate,
+  text: G.annotate, mtext: G.annotate, draworder: G.modify, texttofront: G.modify, block: G.blocks, blockpick: G.blocks, insert: G.blocks, dim: G.annotate, dimlin: G.annotate, dimcont: G.annotate, dimbase: G.annotate, leader: G.annotate, rtag: G.annotate, north: G.annotate, keynote: G.annotate,
   tcount: G.annotate, tjust: G.annotate, th: G.annotate, talign: G.annotate, tcase: G.annotate, tframe: G.annotate, tmask: G.annotate, tcopy: G.annotate, matchprop: G.props, dist: G.measure, area: G.measure,
   xattach: G.reference, xclip: G.reference, crop: G.reference, room: G.rooms, trace: G.rooms, name: G.rooms, tray: G.cables, cable: G.cables, link: G.cables,
   dev: G.devices, fill: G.devices, lux: G.devices, em: G.devices, arl: G.editDevices, match: G.editDevices, wire: G.wiring
@@ -626,6 +628,9 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ],
       // Blocks (S9 of the 2D gap plan): the drawing's own blocks. Create first; Insert and the palette come with S10.
       [
+        { label: 'Insert', icon: Package, cmd: 'I', title: 'Insert (I): the Blocks palette — blocks of this drawing, recent ones and the library folder', onClick: () => a.cad?.onCommand?.('INSERT'), active: !!a.cad?.blocksOn, disabled: !a.cad?.hasDrawing, menu: [
+          ...(a.cad?.info?.blocks ?? []).slice(0, 12).map((n) => ({ label: n, title: `Insert "${n}": click where it goes`, onClick: () => a.cad?.onCommand?.(`-INSERT ${n}`) })),
+          { label: 'More blocks…', title: 'The Blocks palette: this drawing\'s blocks, recent ones and the library folder', onClick: () => a.cad?.onCommand?.('INSERT'), sep: (a.cad?.info?.blocks?.length ?? 0) > 0 }] },
         sm({ label: 'Create', icon: Box, cmd: 'B', title: 'Create block (B): name it, pick its base point and objects', onClick: () => a.cad?.onCommand?.('BLOCK'), disabled: !a.cad?.hasDrawing })
       ],
       // Layers: the layer palette; the current layer list (PANEL) over two rows of three, column by column (Off, All on ·

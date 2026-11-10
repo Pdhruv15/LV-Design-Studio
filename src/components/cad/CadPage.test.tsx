@@ -17,6 +17,7 @@ import { placeLvPoint } from '../../model/cadDevices';
 import { archOnOf } from '../../model/cadLayerState';
 import { dimLabel, dimMeasure, sketchOf } from '../../model/cadSketch';
 import { explodeNote, noteBox } from '../../model/cadMtext';
+import type { CadBlockDef } from '../../model/cadBlocks';
 import { openTitleBlockInCad, TB_LAYERS } from '../../model/titleBlockCad';
 import type { TitleTemplate } from '../../model/titleBlock';
 import type { Project, SketchItem } from '../../types';
@@ -3201,7 +3202,11 @@ describe('CAD 2D gap plan: POINT, DIVIDE, MEASURE and the point style', () => {
     await clickAt(X + 5000, 0);
     expect(last()).toBe('DIVIDE  Number of segments or [Block]:');
     await command('b');
-    expect(last()).toBe('DIVIDE  Blocks come with BLOCK and INSERT (Steps 9 and 10 of the 2D gap plan); points for now. DIVIDE  Number of segments or [Block]:');
+    expect(last()).toBe('DIVIDE  Block name:');
+    await command('nope');
+    expect(last()).toBe('DIVIDE  No block "nope" in this drawing or Recent. Block name:');
+    await command(''); // no name: back to the number
+    expect(last()).toBe('DIVIDE  Number of segments or [Block]:');
     await command('1');
     expect(last()).toBe('DIVIDE  A whole number of 2 or more. DIVIDE  Number of segments or [Block]:');
     await command('5');
@@ -3369,5 +3374,111 @@ describe('CAD 2D gap plan: BLOCK, a block from drawn objects', () => {
     await act(async () => { button('Cancel').click(); });
     expect(dlg()).toBeNull();
     expect(onChange).toHaveBeenCalledTimes(0);
+  });
+});
+
+describe('CAD 2D gap plan: INSERT and the Blocks palette', () => {
+  const last = () => state.history[state.history.length - 1];
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const items = () => sketchOf(project, F);
+  const inserts = () => items().filter((it) => it.kind === 'insert');
+  const palette = () => document.querySelector('[aria-label="Blocks palette"]');
+  const pickBlock = (name: string) => act(async () => { (document.querySelector(`.cad-bk-item[aria-label="${name}"]`) as HTMLButtonElement).click(); });
+  const tick = (label: string) => act(async () => { (document.querySelector(`input[aria-label="${label}"]`) as HTMLInputElement).click(); });
+  const rightClickAt = async (x: number, y: number) => {
+    const [sx, sy] = screenOf(x, y);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); });
+  };
+  const def: CadBlockDef = { name: 'DB-A', units: 4, items: [{ id: 'r', kind: 'pline', layer: '0', closed: true, pts: [[0, 0], [400, 0], [400, 300], [0, 300]] }, { id: 't', kind: 'text', layer: 'LV-ANNO', pts: [[50, 100]], text: 'DB', h: 100 }] };
+  // A 10 m line, and one block defined.
+  const start: Project = { ...villa, cadSketch: [{ file: F, items: [{ id: 'L', kind: 'line', layer: 'LV-SKETCH', pts: [[X, 0], [X + 10000, 0]] }] }], cadBlockDefs: [{ file: F, defs: [def] }] };
+
+  it('I opens the palette; a block clicked waits at the cursor and goes where the click is, scaled and turned as set; Repeat keeps placing; Explode places its objects', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    expect(palette()).toBeNull();
+    await command('i');
+    expect(palette()).not.toBeNull();
+    expect(state.tool).toBe('none');
+    // The drawing's own block first, then the architect's blocks (the sample villa has several).
+    const names = [...document.querySelectorAll('[role="list"][aria-label="Current drawing"] button')].map((b) => b.getAttribute('aria-label'));
+    expect(names[0]).toBe('DB-A');
+    expect(names.length).toBeGreaterThan(1);
+    await pickBlock('DB-A');
+    expect(state.tool).toBe('insert');
+    expect(last()).toBe('Command: INSERT  Insertion point or [Scale/Rotate]:');
+    await command('s');
+    expect(last()).toBe('INSERT  Scale <1>:');
+    await command('2');
+    expect(last()).toBe('INSERT  Insertion point or [Scale/Rotate]:');
+    await command('r');
+    await command('90');
+    await clickAt(X + 3000, 2000);
+    expect(inserts()).toHaveLength(1);
+    expect(inserts()[0]).toMatchObject({ kind: 'insert', block: 'DB-A', sc: 2, rot: Math.PI / 2 });
+    expect(inserts()[0].pts[0].map(Math.round)).toEqual([X + 3000, 2000]);
+    expect(onChange.mock.calls[0][1]).toMatch(/^INSERT {2}"DB-A" at /);
+    expect(state.tool).toBe('none');
+    expect(JSON.parse(localStorage.getItem('lvds.cad.recentBlocks')!).map((d: CadBlockDef) => d.name)).toEqual(['DB-A']);
+    // Repeat placement: a click for each; Esc stops.
+    await tick('Repeat placement');
+    await pickBlock('DB-A');
+    await clickAt(X + 5000, 2000);
+    await clickAt(X + 6000, 2000);
+    expect(inserts()).toHaveLength(3);
+    expect(state.tool).toBe('insert');
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
+    expect(state.tool).toBe('none');
+    // Explode: the block's objects go in, not an insert.
+    await tick('Repeat placement');
+    await tick('Explode');
+    await pickBlock('DB-A');
+    await clickAt(X + 8000, 2000);
+    expect(inserts()).toHaveLength(3);
+    expect(items().slice(-2).map((it) => [it.kind, it.text])).toEqual([['pline', undefined], ['text', 'DB']]);
+    expect(onChange.mock.calls[3][1]).toMatch(/^INSERT {2}"DB-A", exploded, at /);
+    await act(async () => { (document.querySelector('[aria-label="Close the Blocks palette"]') as HTMLButtonElement).click(); });
+    expect(palette()).toBeNull();
+  });
+
+  it('-INSERT by name (also what Insert\'s arrow sends); DIVIDE\'s Block option sets blocks out, aligned; Select all of this block', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('-insert');
+    expect(last()).toBe('Command: INSERT  Block name:');
+    await command('nope');
+    expect(last()).toBe('INSERT  No block "nope" in this drawing or Recent. Block name:');
+    await command('DB-A');
+    expect(last()).toBe('INSERT  Insertion point or [Scale/Rotate]:');
+    await command(`${X + 1000},1000`);
+    expect(inserts().map((it) => it.pts[0])).toEqual([[X + 1000, 1000]]);
+    expect(state.tool).toBe('none');
+    await command('-insert DB-A');
+    expect(last()).toBe('Command: INSERT  Insertion point or [Scale/Rotate]:');
+    await clickAt(X + 2000, 1000);
+    expect(inserts()).toHaveLength(2);
+    // DIVIDE with Block: the name, aligned or not, then the number of parts.
+    await command('div');
+    await clickAt(X + 5000, 0);
+    await command('b');
+    expect(last()).toBe('DIVIDE  Block name:');
+    await command('DB-A');
+    expect(last()).toBe('DIVIDE  Align block with object? [Yes/No] <Yes>:');
+    await command('');
+    expect(last()).toBe('DIVIDE  Number of segments:');
+    await command('5');
+    expect(inserts()).toHaveLength(6);
+    expect(inserts().slice(2).map((it) => [it.pts[0][0] - X, it.block, it.rot])).toEqual([[2000, 'DB-A', undefined], [4000, 'DB-A', undefined], [6000, 'DB-A', undefined], [8000, 'DB-A', undefined]]);
+    expect(onChange.mock.calls[2][1]).toBe('DIVIDE  4 "DB-A" blocks on the line · ⌘Z to undo');
+    // The right-click menu of a block starts with Select all of this block.
+    await rightClickAt(X + 1000, 1150);
+    const labels = [...document.querySelectorAll('[role="menu"] button')].map((b) => b.textContent);
+    expect(labels[0]).toBe('Select all of this block');
+    await act(async () => { button('Select all of this block').click(); });
+    expect(last()).toBe('SELECT  Every "DB-A" block picked');
   });
 });

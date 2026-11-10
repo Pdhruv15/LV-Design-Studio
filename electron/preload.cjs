@@ -60,6 +60,8 @@ contextBridge.exposeInMainWorld('lvds', {
     readBytes: (file) => ipcRenderer.invoke('cad:readBytes', file),
     stat: (file) => ipcRenderer.invoke('cad:stat', file),
     sampleBytes: (name) => ipcRenderer.invoke('cad:sampleBytes', name),
+    chooseBlockFolder: () => ipcRenderer.invoke('cad:chooseBlockFolder'),
+    listFolder: (folder) => ipcRenderer.invoke('cad:listFolder', folder),
     onPending: (cb) => {
       const listener = () => cb();
       ipcRenderer.on('cad:pending', listener);

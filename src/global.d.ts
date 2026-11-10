@@ -72,6 +72,9 @@ declare global {
         openBytes?: () => Promise<{ file: string; path: string; bytes: Uint8Array } | null>;
         readBytes?: (path: string) => Promise<{ file: string; path: string; bytes: Uint8Array } | null>;
         sampleBytes?: (name: string) => Promise<{ file: string; bytes: Uint8Array } | null>;
+        /** The Blocks palette's library: a folder of DWG / DXF files chosen in a dialog (null when cancelled), or one listed again by its path (null when gone). */
+        chooseBlockFolder?: () => Promise<{ folder: string; files: { file: string; path: string }[] } | null>;
+        listFolder?: (folder: string) => Promise<{ folder: string; files: { file: string; path: string }[] } | null>;
         /** When a drawing file was last changed and its size; null when it is not there (references: Changed / Not found). */
         stat?: (path: string) => Promise<{ mtimeMs: number; size: number } | null>;
         /** The next drawing opened from Finder / Explorer, read; null when there is none. */

@@ -136,7 +136,7 @@ describe('Ribbon', () => {
   });
 
   it('lays Modify out in three rows, column by column, Layers under its current layer list, Match beside its lists', () => {
-    const html = render('cad', { view: 'cad', cad: cad({ info: { layers: [{ name: 'E-LIGHTING', color: '#ff0000', on: true, freeze: false, lock: false }], current: 'E-LIGHTING', picked: 0, props: { lw: 0.35 } } }) });
+    const html = render('cad', { view: 'cad', cad: cad({ info: { blocks: [], layers: [{ name: 'E-LIGHTING', color: '#ff0000', on: true, freeze: false, lock: false }], current: 'E-LIGHTING', picked: 0, props: { lw: 0.35 } } }) });
     const panel = (name: string) => new RegExp(`aria-label="${name}"[^>]*>(.*?)</div><(?:div|button) class="ribbon-caption`, 's').exec(html)?.[1] ?? '';
     const cols = (body: string) => [...body.matchAll(/class="ribbon-stack">(.*?)<\/div>/gs)].map((m) => [...m[1].matchAll(/aria-label="([^"]+)"/g)].map((x) => x[1]).filter((n) => !n.endsWith('more options')));
     expect(cols(panel('Modify'))).toEqual([['Move', 'Copy', 'Stretch'], ['Rotate', 'Mirror', 'Scale'], ['Trim', 'Extend', 'Break'], ['Fillet', 'Chamfer', 'Join'], ['Offset', 'Array', 'Explode'], ['Erase']]);

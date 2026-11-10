@@ -6,7 +6,33 @@ Anything not written here stays as it is today. **Built:** S1 (v2.068, `feat/cad
 (v2.076, `feat/cad-gap-steps-1-4`, at the user's "go ahead" on 2026-11-10); S5 (v2.077, `feat/cad-text-inplace-edit`,
 "Yes, Step 5" on 2026-11-10); S6 (v2.078, `feat/cad-mtext`, "Yes, Step 6" on 2026-11-10); S7 (v2.079,
 `feat/cad-draworder`, "Yes, Step 7" on 2026-11-10); S8 (v2.080, `feat/cad-point-divide-measure`, "Yes, Step 8" on 2026-11-10); S9 (v2.081,
-`feat/cad-block-define`, "Yes, Step 9" on 2026-11-10) — see the end of this note.
+`feat/cad-block-define`, "Yes, Step 9" on 2026-11-10); S10 (v2.082, `feat/cad-block-insert`, "Yes, Step 10" on 2026-11-10) — see
+the end of this note.
+
+## Built in v2.082 (S10)
+
+- **S10** `src/model/cadBlockLibrary.ts` (tested): Recent (the twelve blocks inserted lately, kept on this computer
+  with their objects, so they insert into another drawing too; the storage guarded), a block from a whole drawing
+  file (`defFromGeometry`: its lines, texts and fills about its origin, named after the file), a block from one of the
+  architect's blocks (`defFromPieces`: what the engine explodes an insert of it into, about its lowest left corner —
+  the drawing's block records give the app no geometry of their own), the small black-and-white pictures and the
+  search. `BlocksPalette.tsx` docks beside the drawing like the layer palette: tabs **Current drawing** (this
+  drawing's blocks, then the architect's) · **Recent** · **Library**; a search box; the grid of previews with names;
+  below: Insertion point (**Pick on plan** ticked, else X · Y and Insert), Scale (number; **Uniform** ticked and fixed,
+  since inserts scale uniformly), Rotation (°), **Repeat placement**, **Explode**. Library: **Folder…** chooses a local
+  folder of DWG / DXF files on the desktop (remembered on this computer; `cad:chooseBlockFolder` / `cad:listFolder`
+  IPC), the files chosen one by one on the web. A click, or a drag onto the drawing, places the block: one insert (or
+  its objects with Explode), one undo step; a block from Recent, the library or the architect's goes into the
+  drawing's blocks as it is placed. **I / INSERT** show the palette (and close it); **DEV / DEVICE** alone add a
+  device now. **-INSERT**: `INSERT  Block name:` → `INSERT  Insertion point or [Scale/Rotate]:` (S and R ask their
+  values; a point typed places it); `-INSERT <name>` (what Insert's arrow sends) skips the name. **Ribbon:** Blocks ›
+  **Insert** (the palette; its ▾ lists the drawing's blocks, twelve at most, then **More blocks…**) beside Create.
+  **DIVIDE / MEASURE [Block]**: the block's name, `Align block with object? [Yes/No] <Yes>:`, then the number or
+  length: a block at each point, turned along the object when aligned. **Right-click** on a block: **Select all of
+  this block** (Edit block and Edit attributes come with S25 and S11). **Decisions taken:** Recent keeps a block's
+  objects, not just its name, so it can be inserted elsewhere; a block from the library is the drawing's model
+  space flattened to lines, texts and fills; the library folder lives in the palette (Folder…), remembered per
+  computer, not in Preferences; the Blocks palette is not offered on a layout's paper.
 
 ## Built in v2.081 (S9)
 

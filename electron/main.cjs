@@ -358,6 +358,13 @@ handle('cad:openBytes', async (evt) => {
 });
 handle('cad:readBytes', (_evt, file) => (isPlanFile(file) && fs.existsSync(file) ? { file: path.basename(file), path: file, bytes: cadFile.readDrawingBytes(file) } : null));
 handle('cad:stat', (_evt, file) => { if (!isPlanFile(file) || !fs.existsSync(file)) return null; const st = fs.statSync(file); return { mtimeMs: st.mtimeMs, size: st.size }; });
+// The Blocks palette's library: a folder of DWG / DXF files chosen in a dialog, or listed again by its path.
+handle('cad:chooseBlockFolder', async (evt) => {
+  const result = await dialog.showOpenDialog(ownerOf(evt), { title: 'Choose the folder of block drawings (one DWG or DXF per block)', properties: ['openDirectory'] });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return cadFile.listDrawingFolder(result.filePaths[0]);
+});
+handle('cad:listFolder', (_evt, folder) => (typeof folder === 'string' && fs.existsSync(folder) && fs.statSync(folder).isDirectory() ? cadFile.listDrawingFolder(folder) : null));
 handle('cad:sampleBytes', (_evt, name) => (SAMPLE_PLANS.has(name) ? { file: name, bytes: cadFile.readDrawingBytes(path.join(__dirname, 'samples', name)) } : null));
 
 

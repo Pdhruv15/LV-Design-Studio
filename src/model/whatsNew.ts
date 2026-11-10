@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.082', date: '2026-11-10',
+    items: [
+      { title: 'Insert blocks: the Blocks palette (I)', text: 'I (INSERT), or Insert on the Blocks panel, opens the Blocks palette beside the drawing: Current drawing (this drawing\'s blocks, and the architect\'s), Recent (the twelve inserted lately) and Library (Folder… chooses a folder of DWG / DXF files, each one block). Search, pick a block, then click where it goes, or drag it onto the drawing; set its scale and rotation, Repeat placement for several, Explode to place its objects instead. Insert\'s arrow lists the drawing\'s blocks by name; -INSERT takes the name on the command line, with Scale and Rotate. DIVIDE and MEASURE now take Block: a block at each point, aligned with the object or not. INSERT and I no longer add a device: DEV and DEVICE do, as the ribbon\'s device buttons always did.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.081', date: '2026-11-10',
     items: [
       { title: 'Your own blocks in Design CAD (B)', text: 'B (BLOCK), Create on the new Blocks panel, or Make block… on the right-click menu of drawn objects: name the block, pick its base point and its objects, and choose whether the objects stay, become one block (the default) or go. -BLOCK does the same on the command line. A block shows as the objects it was made of; it moves, copies, rotates and scales as one, explodes back into its objects, prints on the plan sheets and saves to DXF and DWG as a block with its inserts. Inserting a block again, with the Blocks palette, comes next.', action: 'cad', actionLabel: 'Open Design CAD' }

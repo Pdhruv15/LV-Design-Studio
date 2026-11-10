@@ -53,7 +53,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch: sketchIn = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS, zoom, onZoomMenu, onDouble, pointStyle = POINT_STYLE_DEFAULT, blocks = [] }: {
+export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch: sketchIn = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS, zoom, onZoomMenu, onDouble, pointStyle = POINT_STYLE_DEFAULT, blocks = [], onDrop }: {
   view: CadView;
   /** Objects of the drawing erased in the app (CROP): their lines, texts and fills are not drawn. */
   hidden?: ErasedParts;
@@ -130,6 +130,8 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   pointStyle?: PointStyle;
   /** The drawing's own blocks: an insert among the drawn objects is drawn as what its block shows. */
   blocks?: CadBlockDef[];
+  /** A block dragged from the Blocks palette dropped on the drawing: where, and its name. */
+  onDrop?: (at: Pt, name: string) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const base = useRef<HTMLCanvasElement>(null);
@@ -866,7 +868,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     return () => window.removeEventListener('keydown', key);
   }, []);
 
-  const local = (e: React.MouseEvent | React.WheelEvent) => {
+  const local = (e: React.MouseEvent | React.WheelEvent | React.DragEvent) => {
     const r = over.current!.getBoundingClientRect();
     return [e.clientX - r.left, e.clientY - r.top] as const;
   };
@@ -877,7 +879,8 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   });
 
   return (
-    <div ref={host} className="cad-model">
+    <div ref={host} className="cad-model" onDragOver={onDrop ? (e) => { if (e.dataTransfer.types.includes('text/lvds-block')) e.preventDefault(); } : undefined}
+      onDrop={onDrop ? (e) => { const name = e.dataTransfer.getData('text/lvds-block'); if (!name) return; e.preventDefault(); const [x, y] = local(e); onDrop(toWorld(x, y), name); } : undefined}>
       <canvas ref={base} className="cad-layer" style={{ width: size.w, height: size.h }} aria-hidden="true" />
       <canvas
         ref={over}

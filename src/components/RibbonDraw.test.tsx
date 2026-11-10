@@ -50,7 +50,7 @@ const names = () => [...document.querySelectorAll('#ribbon-tools button')].map((
 const DRAFTING = ['Draw', 'Modify', 'Annotate', 'Blocks', 'Layers', 'Properties', 'Measure and view'];
 const ELEC = 'Electrical, ELV & sheets';
 /** The drawing's layers as the page tells the ribbon: two drawn layers, one frozen; nothing picked. */
-const INFO = { layers: [{ name: 'LV-SKETCH', color: '#ffffff', on: true, freeze: false, lock: false }, { name: 'E-POWER', color: '#00ffff', on: false, freeze: false, lock: true }, { name: 'E-OLD', on: true, freeze: true, lock: false }], current: 'LV-SKETCH', picked: 0, props: {} };
+const INFO = { blocks: ['DB-A', 'DB-B'], layers: [{ name: 'LV-SKETCH', color: '#ffffff', on: true, freeze: false, lock: false }, { name: 'E-POWER', color: '#00ffff', on: false, freeze: false, lock: true }, { name: 'E-OLD', on: true, freeze: true, lock: false }], current: 'LV-SKETCH', picked: 0, props: {} };
 /** A split tool's arrow, then an item of its list. */
 const fromList = (tool: string, item: string) => { click(document.querySelector(`#ribbon-tools button[title="${tool}: more options"]`)!); click([...document.querySelectorAll('[role="menuitem"]')].find((b) => b.textContent === item)!); };
 const click = (b: Element) => act(() => { (b as HTMLButtonElement).click(); });
@@ -459,7 +459,13 @@ describe('Points (S8 of the Design CAD 2D gap plan)', () => {
 describe('Blocks (S9 of the Design CAD 2D gap plan)', () => {
   it('has a Blocks panel between Annotate and Layers with Create, which opens the Block definition', () => {
     const { cad } = show();
-    expect(tools('Blocks')).toEqual(['Create']);
+    expect(tools('Blocks')).toEqual(['Insert', 'Create']);
+    click(tool('Insert'));
+    expect(cad.onCommand).toHaveBeenLastCalledWith('INSERT');
+    fromList('Insert', 'DB-A');
+    expect(cad.onCommand).toHaveBeenLastCalledWith('-INSERT DB-A');
+    fromList('Insert', 'More blocks…');
+    expect(cad.onCommand).toHaveBeenLastCalledWith('INSERT');
     click(tool('Create'));
     expect(cad.onCommand).toHaveBeenLastCalledWith('BLOCK');
   });
