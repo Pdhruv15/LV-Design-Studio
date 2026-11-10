@@ -98,3 +98,16 @@ describe('Notes: the DXF MTEXT codes', () => {
     expect(p[2].runs).toEqual([{ s: 'next', h: 2.5 }]);
   });
 });
+
+describe('Notes in the Properties palette', () => {
+  it('shows contents as plain lines, the height, width, rotation and justification, and sets them', async () => {
+    const { propValue, textRows, withProp } = await import('./cadProps');
+    expect(textRows('mtext').map((d) => d.key)).toEqual(['text', 'h', 'boxw', 'rot', 'attach']);
+    expect(propValue(note, 'text', 0.001)).toBe(plainText(note));
+    expect([propValue(note, 'boxw', 0.001), propValue(note, 'attach', 0.001)]).toEqual([1.5, 'TL']);
+    expect(withProp(note, 'text', 'ONE\nTWO', 0.001)!.note).toEqual([{ runs: [{ s: 'ONE' }] }, { runs: [{ s: 'TWO' }] }]);
+    expect(withProp(note, 'boxw', 2, 0.001)!.w).toBe(2000);
+    expect(withProp(note, 'attach', 'Middle centre', 0.001)!.just).toBe('MC');
+    expect(withProp(note, 'h', 0.3, 0.001)!.h).toBe(300);
+  });
+});
