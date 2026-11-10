@@ -1399,7 +1399,7 @@ export default function SystemDiagram({
                   {feederTags(f.id).map((t, i) => (
                     <text key={t.text} x={n.x} y={y + 177 + i * 13} textAnchor="middle" className={`res ${t.cls}`}>{t.text}</text>
                   ))}
-                  <circle cx={n.x + 22} cy={y + 78} r="4" style={{ fill: `var(--${status})` }} />
+                  <circle cx={n.x + 22} cy={y + 78} r="4" className="status-dot" style={{ fill: `var(--${status})` }} />
                 </>
                 );
               })()}
@@ -1597,7 +1597,7 @@ export default function SystemDiagram({
                   <rect x={n.x - 62} y={n.busY - 58} width="124" height="36" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
                   <text className="b lod-name" x={n.x - 54} y={n.busY - 42}>{trunc(b.id, 14)}</text>
                   <text className="m" x={n.x - 54} y={n.busY - 28}>{`${b.kind ?? (b.upstreamId ? 'DB' : 'MDB')}${b.existing ? ' · EXISTING' : ''}`}</text>
-                  <circle cx={n.x + 52} cy={n.busY - 46} r="4" style={{ fill: `var(--${status})` }} />
+                  <circle cx={n.x + 52} cy={n.busY - 46} r="4" className="status-dot" style={{ fill: `var(--${status})` }} />
                 </>
               )}
               {/* Busbar description at its right-hand end, the same wording on every panel:
