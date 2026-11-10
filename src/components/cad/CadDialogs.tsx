@@ -4,6 +4,7 @@ import { EDIT_HELP, EDIT_TITLE, type EditSettings, type EditTool } from './Sketc
 import { isNumber } from './cadPrompt';
 import { badName, cannotDelete, CAD_FONTS, DIM_ARROWS, DIM_TEXT_ALONG, DIM_TEXT_POS, DIM_UNITS, lookOf, newStyleName, STANDARD, type CadDimStyle, type CadFont, type CadStyles, type CadTextStyle, type DimArrow, type DimTextAlong, type DimTextPos, type DimUnit } from '../../model/cadStyles';
 import { dimOf } from '../../model/cadSketch';
+import { POINT_SHAPES, pointMark, type PointStyle } from '../../model/cadPoints';
 import { mergeImported, readDxfDimStyles } from '../../model/dxfDimStyles';
 import type { SketchItem } from '../../types';
 
@@ -307,5 +308,40 @@ function DimPreview({ s }: { s: CadDimStyle }) {
         <text x={x} y={y} fontSize={h} textAnchor="middle" fill="currentColor" transform={g.angle ? `rotate(${((-g.angle * 180) / Math.PI).toFixed(2)} ${x} ${y})` : undefined}>{g.label}</text>
       </svg>
     </div>
+  );
+}
+
+/** A point shape as a small picture for the Point style dialog. */
+function PointGlyph({ mode }: { mode: number }) {
+  const mk = pointMark(mode), r = 7, c = 10;
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden>
+      {mk.lines.map(([a, b], i) => <line key={i} x1={c + a[0] * r} y1={c - a[1] * r} x2={c + b[0] * r} y2={c - b[1] * r} stroke="currentColor" strokeWidth="1.2" />)}
+      {mk.circle && <circle cx={c} cy={c} r={r} fill="none" stroke="currentColor" strokeWidth="1.2" />}
+      {mk.dot && <circle cx={c} cy={c} r="1.6" fill="currentColor" />}
+    </svg>
+  );
+}
+
+/** PTYPE: how drawn points are shown: one of twenty shapes, and a size relative to the screen or in drawing units
+ * (S8 of the Design CAD 2D gap plan). */
+export function PointStyleDialog({ style, onSave, onClose }: { style: PointStyle; onSave: (s: PointStyle) => void; onClose: () => void }) {
+  const [d, setD] = useState(style);
+  const [size, setSize] = useState(String(style.size));
+  const ok = () => { const n = Number(size.replace(',', '.')); onSave({ ...d, size: n > 0 ? n : style.size }); };
+  return (
+    <CadDialog id="ptype" title="Point style" alias="PTYPE" onOk={ok} onClose={onClose}
+      help="Every drawn point (POINT, DIVIDE, MEASURE) is shown and printed with this shape. Size relative to screen: a percentage of the view's height, so points keep their size as you zoom (2 mm across on the sheets). Size in absolute units: drawing units, so they scale with the plan. Saved to DXF / DWG as PDMODE and PDSIZE.">
+      <div className="cad-ptype-grid" role="radiogroup" aria-label="Point shape">
+        {POINT_SHAPES.map((s) => (
+          <button key={s.id} type="button" role="radio" aria-checked={d.mode === s.id} aria-label={s.label} title={s.label} onClick={() => setD({ ...d, mode: s.id })}><PointGlyph mode={s.id} /></button>
+        ))}
+      </div>
+      <Num label="Point size" value={size} onChange={setSize} unit={d.relative ? '%' : 'units'} />
+      <Row label="Size">
+        <label><input type="radio" name="cad-ptsize" aria-label="Size relative to screen" checked={d.relative} onChange={() => setD({ ...d, relative: true })} /> Relative to screen</label>
+        <label><input type="radio" name="cad-ptsize" aria-label="Size in absolute units" checked={!d.relative} onChange={() => setD({ ...d, relative: false })} /> In absolute units</label>
+      </Row>
+    </CadDialog>
   );
 }

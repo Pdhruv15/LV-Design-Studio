@@ -6,6 +6,7 @@ import { DRAFT_DEFAULTS, otrack, polarAngles, polarTrack, snapToSpacing, type Dr
 import { dimOf, segmentsOf, trayLabel, trayLine, TRAY_TEXT_MM } from '../../model/cadSketch';
 import { textBaseAt, textCorners } from '../../model/cadText';
 import { noteBox } from '../../model/cadMtext';
+import { POINT_STYLE_DEFAULT, pointMark, pointRadius, type PointStyle } from '../../model/cadPoints';
 import type { PlanCells, PlanCover } from '../elv/elvOverlay';
 import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from '../../model/cadDraw';
@@ -51,7 +52,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS, zoom, onZoomMenu, onDouble }: {
+export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS, zoom, onZoomMenu, onDouble, pointStyle = POINT_STYLE_DEFAULT }: {
   view: CadView;
   /** Objects of the drawing erased in the app (CROP): their lines, texts and fills are not drawn. */
   hidden?: ErasedParts;
@@ -124,6 +125,8 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   onCursor: (at: Pt | null, snapName?: string) => void;
   /** Drafting settings (DS): snap modes and spacing, grid, polar angles, aperture, cursor and grip sizes. */
   draft?: DraftSettings;
+  /** How drawn points are shown (PTYPE). */
+  pointStyle?: PointStyle;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const base = useRef<HTMLCanvasElement>(null);
@@ -454,6 +457,17 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       const ef = effective(it, layerStyle);
       if (ef.hidden) continue;
       if ((it.kind === 'text' && !it.frame) || it.kind === 'mtext') { drawLabel(it); continue; } // a framed text's frame is drawn with the lines first
+      if (it.kind === 'point') {
+        // A point: its style's marker about it, sized to the screen or in drawing units (never under 3 pixels).
+        const r = Math.max(pointRadius(pointStyle, size.h / scale), 1.5 / scale), mk = pointMark(pointStyle.mode), px0 = it.pts[0][0] - o0, py0 = it.pts[0][1] - o1;
+        ctx.strokeStyle = isSel(it.id) ? selSk : ef.color ?? skC; ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = (isSel(it.id) ? 3 : 1.5) / scale;
+        ctx.beginPath();
+        for (const [a, b] of mk.lines) { ctx.moveTo(px0 + a[0] * r, py0 + a[1] * r); ctx.lineTo(px0 + b[0] * r, py0 + b[1] * r); }
+        if (mk.circle) { ctx.moveTo(px0 + r, py0); ctx.arc(px0, py0, r, 0, 2 * Math.PI); }
+        ctx.stroke();
+        if (mk.dot) { ctx.beginPath(); ctx.arc(px0, py0, Math.max(r * 0.2, 2 / scale), 0, 2 * Math.PI); ctx.fill(); }
+        continue;
+      }
       if (it.hatch) {
         // A hatch: its outline filled solid (faint) or with its pattern's lines (or dots), clipped to the outline.
         const outline = new Path2D();
@@ -589,7 +603,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         ctx.fillText(fittingLabel(f), sx + fpx * 1.2, sy - fpx * 1.2);
       }
     }
-  }, [t, size, batches, fills, gone, layersOn, toggles.grid, toggles.lwt, draft.gridMm, draft.gridMajor, view, highlight, devices, wiring, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots, layerStyle, refPaths]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
+  }, [t, size, batches, fills, gone, layersOn, toggles.grid, toggles.lwt, draft.gridMm, draft.gridMajor, view, highlight, devices, wiring, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots, layerStyle, refPaths, pointStyle]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
 
   /** The cursor: crosshair and pick box, and the snap marker with its name. */
   function drawCursor(at: Pt | null, snap?: { p: Pt; kind: number }, guide?: Landing['guide']) {

@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.080', date: '2026-11-10',
+    items: [
+      { title: 'Points, Divide and Measure out in Design CAD', text: 'PO (POINT) draws a point at each click until Enter. DIV (DIVIDE) picks a line, polyline, arc, circle or ellipse and the number of parts: a point at each division. ME (MEASURE) picks an object and a length in metres: a point every length from the end nearer the click. Points snap with Node, move and copy like other drawn objects, print on the plan sheets and save to DXF and DWG as POINT entities. PTYPE opens the Point style dialog: twenty shapes (dot, plus, cross, tick, in a circle or square) and a size relative to the screen or in drawing units. All four are under Draw ▾.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.079', date: '2026-11-10',
     items: [
       { title: 'Draw order in Design CAD (DR)', text: 'DR (DRAWORDER), or Draw order under Modify ▾: pick the drawn objects, Enter, then Front, Back, Above or Under (Above and Under then ask for the reference object). The order is the paint order, so a solid hatch sent to the back no longer hides the symbols and texts over it, on the screen, on the plan sheets and in the DXF and DWG saved. TEXTTOFRONT brings the texts, dimensions or leaders over everything else. With drawn objects picked, the right-click menu has Draw order ▸.', action: 'cad', actionLabel: 'Open Design CAD' }

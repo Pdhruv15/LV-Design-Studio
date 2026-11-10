@@ -412,10 +412,10 @@ export type CadLayerRole = 'room' | 'room-name' | 'wall' | 'tray' | 'route' | 'f
 export interface CadLayerMap { layer: string; role: CadLayerRole }
 /** An object drawn in the CAD view, in drawing units: a line (or connected lines), polyline, circle (centre, r), arc
  * (centre, r, a0 → a1 anticlockwise, radians), text (insertion, height, rotation), note (mtext: a paragraph text in a
- * box) or dimension (p1, p2, a point on the dimension line). */
+ * box), dimension (p1, p2, a point on the dimension line) or point (pts[0], shown with the drawing's point style). */
 export interface SketchItem {
   id: string;
-  kind: 'line' | 'pline' | 'circle' | 'arc' | 'text' | 'dim' | 'ellipse' | 'mtext';
+  kind: 'line' | 'pline' | 'circle' | 'arc' | 'text' | 'dim' | 'ellipse' | 'mtext' | 'point';
   layer: string;
   pts: [number, number][];
   closed?: boolean;
@@ -590,6 +590,8 @@ export interface Project {
   /** Design CAD text and dimension styles, and the current one of each (absent: one "Standard", as before). */
   cadTextStyles?: import('./model/cadStyles').CadStyles<import('./model/cadStyles').CadTextStyle>;
   cadDimStyles?: import('./model/cadStyles').CadStyles<import('./model/cadStyles').CadDimStyle>;
+  /** How drawn points are shown (PTYPE): their shape and size (src/model/cadPoints.ts); left out: a dot, 5 % of the view. */
+  cadPointStyle?: import('./model/cadPoints').PointStyle;
   cadLayerStyle?: Record<string, Record<string, import('./model/cadLayerStyle').LayerStyle>>;
   /** Design CAD layer palette per drawing file: current layer, empty layers added, layer states (src/model/cadLayerState.ts). */
   cadLayerFile?: Record<string, import('./model/cadLayerState').CadLayerFile>;

@@ -3170,3 +3170,79 @@ describe('CAD 2D gap plan: DRAWORDER and TEXTTOFRONT, the order the drawn object
     expect(state.tool).toBe('none');
   });
 });
+
+describe('CAD 2D gap plan: POINT, DIVIDE, MEASURE and the point style', () => {
+  const last = () => state.history[state.history.length - 1];
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const points = () => sketchOf(project, F).filter((it) => it.kind === 'point').map((it) => [Math.round(it.pts[0][0] - X), Math.round(it.pts[0][1])]);
+  // A 10 m line.
+  const start: Project = { ...villa, cadSketch: [{ file: F, items: [{ id: 'L', kind: 'line', layer: 'LV-SKETCH', pts: [[X, 0], [X + 10000, 0]] }] }] };
+
+  it('PO draws a point at each click until Enter; DIV and ME set points out along the object clicked', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('po');
+    expect(last()).toBe('Command: POINT  Specify a point:');
+    await clickAt(X + 1000, 3000);
+    await clickAt(X + 2000, 3000);
+    expect(points()).toEqual([[1000, 3000], [2000, 3000]]);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange.mock.calls[1][1]).toBe('Point · ⌘Z to undo');
+    expect(last()).toBe('POINT  Specify a point:');
+    await command('');
+    expect(state.tool).toBe('none');
+    // DIVIDE: the object, then the number of parts (Block waits for Steps 9 and 10); one undo step for all the points.
+    await command('div');
+    expect(last()).toBe('Command: DIVIDE  Select object to divide:');
+    await clickAt(X + 8000, 8000);
+    expect(last()).toBe('DIVIDE  Click a line, polyline, arc, circle or ellipse:');
+    await clickAt(X + 5000, 0);
+    expect(last()).toBe('DIVIDE  Number of segments or [Block]:');
+    await command('b');
+    expect(last()).toBe('DIVIDE  Blocks come with BLOCK and INSERT (Steps 9 and 10 of the 2D gap plan); points for now. DIVIDE  Number of segments or [Block]:');
+    await command('1');
+    expect(last()).toBe('DIVIDE  A whole number of 2 or more. DIVIDE  Number of segments or [Block]:');
+    await command('5');
+    expect(points().slice(2)).toEqual([[2000, 0], [4000, 0], [6000, 0], [8000, 0]]);
+    expect(onChange).toHaveBeenCalledTimes(3);
+    expect(onChange.mock.calls[2][1]).toBe('DIVIDE  4 points on the line · ⌘Z to undo');
+    expect(state.tool).toBe('none');
+    // MEASURE: from the end nearer the click, every length typed in metres.
+    await command('me');
+    await clickAt(X + 9000, 0);
+    expect(last()).toBe('MEASURE  Segment length or [Block]:');
+    await command('3');
+    expect(points().slice(6)).toEqual([[7000, 0], [4000, 0], [1000, 0]]);
+    expect(onChange.mock.calls[3][1]).toBe('MEASURE  3 points on the line · ⌘Z to undo');
+    await command('me');
+    await clickAt(X + 5000, 0);
+    await command('20');
+    expect(last()).toMatch(/^MEASURE {2}The line is shorter than 20/);
+    expect(onChange).toHaveBeenCalledTimes(4);
+  });
+
+  it('PTYPE: the Point style dialog sets the shape and the size, relative to the screen or in drawing units', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    await command('ptype');
+    expect(last()).toBe('PTYPE  Points shown as dot');
+    const dlg = () => document.querySelector('[role="dialog"][aria-label="Point style"]');
+    expect(dlg()).not.toBeNull();
+    expect(document.querySelectorAll('[role="radiogroup"][aria-label="Point shape"] [role="radio"]')).toHaveLength(20);
+    expect((document.querySelector('[role="radio"][aria-label="Dot"]') as HTMLButtonElement).getAttribute('aria-checked')).toBe('true');
+    await act(async () => { (document.querySelector('[role="radio"][aria-label="Cross in a circle"]') as HTMLButtonElement).click(); });
+    await act(async () => {
+      const el = document.querySelector('input[aria-label="Point size"]') as HTMLInputElement;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, '300');
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => { (document.querySelector('input[aria-label="Size in absolute units"]') as HTMLInputElement).click(); });
+    await act(async () => { (document.querySelector('.cad-dlg-ft .p') as HTMLButtonElement).click(); });
+    expect(dlg()).toBeNull();
+    expect(project.cadPointStyle).toEqual({ mode: 35, size: 300, relative: false });
+    expect(onChange.mock.calls[0][1]).toBe('PTYPE  Points shown as cross in a circle, 300 drawing units · ⌘Z to undo');
+  });
+});
