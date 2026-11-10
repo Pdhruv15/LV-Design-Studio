@@ -1,5 +1,5 @@
 import { buildingInfoOf } from '../calc/building';
-import { placeLvPoint, removeLvPoint } from './cadDevices';
+import { placeLvPoint, removeLvPoint, type PointLuminaire } from './cadDevices';
 import { inside } from './cadMeasure';
 import type { LevelRef } from './levels';
 import type { Project } from '../types';
@@ -7,7 +7,7 @@ import type { Project } from '../types';
 /** Placing a room's lighting layout (src/calc/roomLighting.ts) as light points on one circuit. With `replace`, the
  * lights already inside the room's outline on that level are taken off first (from whichever circuit they are on), so
  * running it again after a change does not double the room. */
-export function placeRoomLights(p: Project, level: LevelRef, roomId: string, feederId: string, points: [number, number][], replace = false): { project: Project; ids: string[]; removed: number } {
+export function placeRoomLights(p: Project, level: LevelRef, roomId: string, feederId: string, points: [number, number][], replace = false, luminaire?: PointLuminaire): { project: Project; ids: string[]; removed: number } {
   const room = buildingInfoOf(p).rooms.find((r) => r.id === roomId);
   if (!room?.outline || room.outline.length < 3) throw new Error('The room has no outline on the plan: pick or trace it first.');
   if (room.buildingId !== level.building || room.levelId !== level.level) throw new Error(`Room ${room.name} is not on this level.`);
@@ -20,7 +20,7 @@ export function placeRoomLights(p: Project, level: LevelRef, roomId: string, fee
   }
   const ids: string[] = [];
   for (const [x, y] of points) {
-    const r = placeLvPoint(next, level, 'ltg', feederId, x, y);
+    const r = placeLvPoint(next, level, 'ltg', feederId, x, y, undefined, luminaire);
     next = r.project;
     ids.push(r.id);
   }

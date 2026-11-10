@@ -83,6 +83,8 @@ function typicalRate(kind: string, a: string[]): number | undefined {
     case 'earth-pit': return 1800;
     case 'earth-link': return 450;
     case 'met': return 900;
+    case 'luminaire': return 40 + 8 * (n(1) || 0); // by watts
+    case 'em': return a[0] === 'fitting' ? 180 : 250;
     // Panels and conductor-metre wiring always need a real quote (no starting rate).
     case 'cpc': case 'ecc': return perM(n(0));
     case 'gland': return GLAND_AED[a[0]];

@@ -895,7 +895,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   function placeLux() {
     if (!floor || !luxOf || !lit) return;
     try {
-      const r = placeRoomLights(project, floor.ref, luxOf.id, cad.feederId, lit.result.points, luxSet.replace);
+      const r = placeRoomLights(project, floor.ref, luxOf.id, cad.feederId, lit.result.points, luxSet.replace, lit.luminaire);
       const f = project.feeders.find((x) => x.id === cad.feederId)!;
       change(r.project, `${r.ids.length} light${r.ids.length === 1 ? '' : 's'} placed in ${luxOf.name} on ${circuitLabel(project, f).split(' · ')[0]} — ${Math.round(lit.result.achievedLux)} lx${r.removed ? ` (${r.removed} taken off first)` : ''} · ⌘Z to undo`);
       setLuxRoom(null);
@@ -1269,7 +1269,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (!copy) { change(selectedItem.what === 'elv' ? moveElv(project, selectedItem.id, x, y) : moveItem(project, selectedItem, x, y, floor.ref), `${selectedItem.label} moved · ⌘Z to undo`); return; }
     if (selectedItem.what === 'lv') {
       const src = (project.lvPoints ?? []).find((p) => p.id === selectedItem.id)!;
-      change(placeLvPoint(project, floor.ref, src.type, src.feederId, x, y).project, `${selectedItem.label} copied onto ${selectedItem.detail.split(' · ')[0]} · ⌘Z to undo`);
+      change(placeLvPoint(project, floor.ref, src.type, src.feederId, x, y, src.emergency, src.luminaire).project, `${selectedItem.label} copied onto ${selectedItem.detail.split(' · ')[0]} · ⌘Z to undo`);
     } else if (selectedItem.what === 'elv') {
       const src = (project.elvDevices ?? []).find((p) => p.id === selectedItem.id)!;
       change(placeElv(project, src.type, floor.ref, x, y).project, `${selectedItem.label} copied · ⌘Z to undo`);

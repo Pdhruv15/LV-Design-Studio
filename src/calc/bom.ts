@@ -14,6 +14,7 @@ import { mainBoards, txTag } from '../model/transformers';
 import { sizeRoute, trayPlanOf, trayQuantities } from './cableTray';
 import { elcbGroups, normalizeLoadItems, pointLabel, scheduleCircuits } from './loadSchedule';
 import { atsOf, changeoverBreakers, incomersOf } from '../model/changeover';
+import { luminaireSchedule } from '../model/luminaireSchedule';
 
 /** Bill of materials: every item the design already knows about, rolled up
  * into tender BOQ sections. Each item has a stable key, so a price list
@@ -245,6 +246,13 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     add('F', `gland:${g}:${!t.armoured ? 'A2' : 'CW'}`, `Cable gland size ${g}, ${!t.armoured ? 'A2 (unarmoured)' : 'CW (armoured)'} with shroud`, 'no', 2 * runs, f.boardId);
     add('F', `lug:${f.cableCsaMm2}`, `Crimp lug ${f.cableCsaMm2} mm² Cu`, 'no', 2 * runs * f.cores, f.boardId);
     if (t.armoured) add('F', `lug:${cpc}`, `Crimp lug ${cpc} mm² Cu`, 'no', 2 * runs, f.boardId);
+  }
+
+  // Luminaires and emergency fittings placed on the plans, by type (the luminaire schedule); the lighting point
+  // itself (wiring, switch) stays a load schedule point.
+  for (const t of luminaireSchedule(p)) {
+    for (const [board, n] of Object.entries(t.byBoard)) add('J', t.key, `Luminaire type ${t.code}: ${t.description} — supply and fix, counted on the plans`, 'no', n, board,
+      { quantitySource: 'Luminaires placed on the CAD plans (luminaire schedule)' });
   }
 
   // Point counts are opt-in: a design load does not establish who supplies the equipment.
