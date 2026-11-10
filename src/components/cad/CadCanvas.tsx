@@ -50,7 +50,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS, zoom, onZoomMenu }: {
+export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS, zoom, onZoomMenu, onDouble }: {
   view: CadView;
   /** Objects of the drawing erased in the app (CROP): their lines, texts and fills are not drawn. */
   hidden?: ErasedParts;
@@ -70,6 +70,8 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   onWindow?: (a: Pt, b: Pt, crossing: boolean, add: boolean) => void;
   /** A right click: the point (not snapped), one pixel in drawing units, and where on the canvas (CSS pixels). */
   onContext?: (at: Pt, pixel: number, screen: Pt) => void;
+  /** A left double-click (the wheel's still fits the view): where, in drawing units, and a pixel's size there. */
+  onDouble?: (at: Pt, pixel: number) => void;
   /** HTML over the drawing (the device toolbar): given drawing units → canvas pixels, and whether a window is being
    * dragged or the view panned (it hides meanwhile). */
   overlay?: (toScreen: (p: Pt) => Pt, moving: boolean) => ReactNode;
@@ -877,7 +879,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
           if (!wasDrag && e.button === 0 && !space.current) { const [x, y] = mouse.current ?? local(e); clickAt(x, y, e.shiftKey); }
         }}
         onContextMenu={(e) => { if (!onContext) return; e.preventDefault(); const [x, y] = local(e); onContext(toWorld(x, y), 1 / tRef.current.scale, [x, y]); }}
-        onDoubleClick={(e) => { if (e.button === 1) e.preventDefault(); }}
+        onDoubleClick={(e) => { if (e.button === 1) e.preventDefault(); else if (e.button === 0 && onDouble && !space.current) { const [x, y] = local(e); onDouble(toWorld(x, y), 1 / tRef.current.scale); } }}
         onAuxClick={(e) => { if (isFitClick(e)) fitNow(); }}
         onMouseLeave={() => { drag.current = null; win.current = null; if (gripping.current !== null) { gripping.current = null; onGripEnd?.(-1, [0, 0]); } setMoving(false); mouse.current = null; drawCursor(null); onCursor(null); }}
       />

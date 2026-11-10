@@ -97,6 +97,7 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['EL', 'ELLIPSE'], desc: 'Ellipse', tool: 'ellipse' },
   { aliases: ['REVCLOUD'], desc: 'Revision cloud', tool: 'revcloud' },
   { aliases: ['T', 'DT', 'TEXT', 'MT'], desc: 'Text', tool: 'text' },
+  { aliases: ['ED', 'TEXTEDIT', 'DDEDIT'], desc: 'Edit a text or dimension in place (or double-click it)', tool: 'textedit' },
   { aliases: ['TJ', 'TJUST', 'JUSTIFYTEXT'], desc: 'Justify the texts picked without moving them', tool: 'tjust' },
   { aliases: ['TH', 'TXTHEIGHT', 'TEXTHEIGHT'], desc: 'Text height on paper (mm) of the texts picked, or for new text', tool: 'th' },
   { aliases: ['TA', 'TALIGN'], desc: 'Line up the texts picked on a text or point, or space them evenly', tool: 'talign' },

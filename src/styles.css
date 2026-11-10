@@ -2033,6 +2033,7 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-log{position:absolute;left:0;right:0;bottom:100%;z-index:6;max-height:212px;overflow:auto;padding:4px var(--space-3);background:var(--panel);border-top:1px solid var(--line-strong);box-shadow:var(--shadow-pop);color:var(--mut);line-height:17px}
 .cad-log div{white-space:pre-wrap}
 .cad-log b{color:var(--tx);font-weight:600}
+.cad-edtext{position:absolute;z-index:4;box-sizing:content-box;min-width:40px;padding:0 2px;background:var(--bg);border:1px solid var(--acc);border-radius:2px;color:var(--tx);outline:0;font-family:system-ui,sans-serif;line-height:1;transform-origin:0 100%}
 .cad-dyn{position:absolute;z-index:4;display:flex;flex-direction:column;align-items:flex-start;gap:2px;pointer-events:none;font:11.5px ui-monospace,Menlo,monospace}
 .cad-dyn-row{display:flex;gap:3px}
 .cad-dyn-row label{display:flex;align-items:center;gap:2px;padding:0 4px;background:var(--panel);border:1px solid var(--line-strong);border-radius:2px;color:var(--mut)}

@@ -14,6 +14,7 @@ import { clipPayload, clipText, lowerLeft, parseClip, pastedItems, withPasted, t
 import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
 import { isNumber, promptOptions, shortPrompt, spaceEnters, type SpaceMode } from './cadPrompt';
 import CadDynInput, { type DynBox } from './CadDynInput';
+import CadTextEdit from './CadTextEdit';
 import { DIALOG_TOOLS, DimStyleDialog, EditDialog, TextStyleDialog } from './CadDialogs';
 import { currentTextStyle, dimLookOf, dimStandardAsBefore, dimStylesOf, dimStylesToStore, textStylesOf, textStylesToStore } from '../../model/cadStyles';
 import { chooseDrawing, drawingWithDevices, explodeObjects, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
@@ -22,7 +23,7 @@ import { parsePat, specWith, withPatterns } from '../../model/cadHatch';
 import { erasedOf, restoredErased, shownView, withErased, type ErasedParts } from '../../model/cadErased';
 import { CIRCUIT_ATTRIBUTES } from '../../model/cadLoads';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
-import { addSketch, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimLabel, dimMeasure, linearDir, nextDim, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
+import { addSketch, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimLabel, dimMeasure, dimOf, linearDir, nextDim, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch, withText } from '../../model/cadSketch';
 import { trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
@@ -70,7 +71,7 @@ import { fmtFixed, fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
 import { AnnoPanel, HatchPanel } from './AnnotatePanel';
 import { annoOf, centreOf, hatchItem, hatchOutline, HATCH_START, leaderItems, northArrowItems, roomTagItems, textUnits, unitsPerPaperMm, type HatchSpec } from '../../model/cadAnnotate';
-import { alignedTo, alignEdge, cased, centredAt, ISO_TEXT_MM, justLabel, keynoteItems, legendNext, nextKeynote, numberText, oriented, padOf, parseFrame, parseJust, rejustified, spaced, untaggedRooms, withTextHeight, type AlignMode, type CaseMode, type OrientMode } from '../../model/cadText';
+import { alignedTo, alignEdge, cased, centredAt, ISO_TEXT_MM, justLabel, keynoteItems, legendNext, nextKeynote, numberText, oriented, padOf, parseFrame, parseJust, rejustified, spaced, textBox, textWidth, untaggedRooms, withTextHeight, type AlignMode, type CaseMode, type OrientMode } from '../../model/cadText';
 import { LayerPalette, layerRows, type LayerRow } from './CadLayerManager';
 import { PropertiesPalette } from './CadProperties';
 import { isTbFile, LOGO_BOX, logoItems, saveTitleBlockFromCad, TB_FIELDS, TB_LAYERS, tbIdOf } from '../../model/titleBlockCad';
@@ -102,7 +103,7 @@ const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab 
 ];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · DRA (radius) · DDI (diameter) · DAN (angular) · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · ED (edit a text or dimension in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · DRA (radius) · DDI (diameter) · DAN (angular) · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 /** Bind's count in the Save line: reference lines, texts and hatches. */
@@ -188,6 +189,7 @@ const PROMPT: Record<CadTool, string> = {
   dimrad: 'DIMRADIUS  Select arc or circle:',
   dimdia: 'DIMDIAMETER  Select arc or circle:',
   dimang: 'DIMANGULAR  Select arc, circle, line or <specify vertex>:',
+  textedit: 'TEXTEDIT  Select a text or dimension:',
   xattach: 'XATTACH  Specify insertion point:',
   xclip: 'XCLIP  Click the corners of the clip outline, Enter to finish (two corners: a rectangle), or [Object] to pick a closed outline:',
   crop: 'CROP  Select a block to crop:'
@@ -337,6 +339,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // ZOOM Window / Scale / Previous asked of the canvas (S2 of the 2D gap plan); what DIMRADIUS / DIMDIAMETER and
   // DIMANGULAR have picked so far (S4); what SELECTSIMILAR matches besides kind and layer (S3).
   const [zoomReq, setZoomReq] = useState<ZoomReq | undefined>();
+  /** TEXTEDIT: the drawn text or dimension being typed over in the box on the canvas, and what is typed so far. */
+  const [edText, setEdText] = useState<{ id: string; value: string } | null>(null);
   const [radPick, setRadPick] = useState<{ c: Pt; r: number } | null>(null);
   const [angPick, setAngPick] = useState<{ seg1?: [Pt, Pt]; at1?: Pt; v?: Pt; p1?: Pt; p2?: Pt; vertex?: true } | null>(null);
   const [ssOpts, setSsOpts] = useState<SimilarOpts>({ colour: false, linetype: false });
@@ -427,12 +431,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     setDlg((d) => (DIALOG_TOOLS.includes(tool as EditTool) ? 'edit' : d === 'edit' ? null : d));
     if (tool !== 'none' && tool !== 'xattach' && tool !== 'xclip') { const label = PROMPT[tool].split(' ')[0]; setRecent((r) => [{ label, tool }, ...r.filter((x) => x.label !== label)].slice(0, 8)); }
     setCrop(tool === 'crop' ? { step: 'pick' } : null);
-    setRadPick(null); setAngPick(null); setSsAsk(false);
+    setRadPick(null); setAngPick(null); setSsAsk(false); setEdText(null);
     cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? (tool === 'array' ? arrayType(edSet) : TEXT_TOOLS.includes(tool) ? textToolPrompt(tool) : `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : 'Enter to join them:'}`) : pre && tool === 'offset' ? OFFSET_SIDE : editPrompt(tool, edSet)}`);
     // CROP with drawn items picked first: they are what is cut.
     if (tool === 'crop' && first) { const ids = picked.length ? picked.filter((k) => k.startsWith('sk:')).map((k) => k.slice(3)) : [cad.selected!.slice(3)]; setCrop({ step: 'outline', target: { items: ids, label: `${ids.length} drawn object${ids.length === 1 ? '' : 's'}` } }); cad.say(CROP_OUTLINE); }
     // SELECTSIMILAR with drawn objects picked first: they are the pattern. ZOOM needs the model view.
     if (tool === 'selsim' && first) applySimilar();
+    // TEXTEDIT with one text or dimension picked first: its box opens at once.
+    if (tool === 'textedit' && first) { const one = pickedSk.length === 1 ? pickedSk[0] : pickedSk.length ? undefined : selSketch; if (one) startTextEdit(one); }
     if ((tool === 'zoom' || tool === 'zoomwin' || tool === 'zoomscale') && zoomRefused()) cad.setTool('none');
   }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1015,6 +1021,31 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const n = (tool === 'none' ? items.length : 0) + sks.length;
     cad.say(n ? `SEL  ${picks(n)}${tool !== 'none' ? ' — Enter when done' : ''}` : 'SEL  Nothing in the window.');
   }
+  /** TEXTEDIT (ED, a double-click on the object, Edit text on its right-click menu): the box over a drawn text or
+   * dimension to type over it (S5 of the Design CAD 2D gap plan). One on a locked layer is refused. */
+  function startTextEdit(it: SketchItem) {
+    if (it.kind !== 'text' && it.kind !== 'dim') { cad.say(`TEXTEDIT  That is a ${kindOf(it).toLowerCase()}, not a text or dimension. Select a text or dimension:`); return; }
+    if (effective(it, styles).lock) { cad.say(`TEXTEDIT  ${kindOf(it)} on layer ${it.layer}, which is locked: unlock it first (LAYULK).`); return; }
+    setMenuAt(null); setPicked([]); cad.setSelected(`sk:${it.id}`); setResult({ kind: 'sketch', it });
+    setEdText({ id: it.id, value: it.text ?? '' });
+    cad.say(it.kind === 'dim' ? 'TEXTEDIT  Type the dimension\'s text (<> stands for the measured value; blank gives it back), Enter:' : 'TEXTEDIT  Type the text, Enter (Esc keeps it as it was):');
+  }
+  /** The box closed: Enter or a click outside keep what was typed (one undo step), Esc leaves the object as it was. */
+  function endTextEdit(commit: boolean) {
+    const ed = edText;
+    setEdText(null);
+    if (!ed) return;
+    const it = sketch.find((x) => x.id === ed.id), next = it && commit ? withText(it, ed.value, units.factor) : it;
+    if (it && next && next !== it) change(updateSketch(project, fileOf(), next), `TEXTEDIT  ${it.kind === 'dim' ? (next.text === undefined ? 'Dimension measured again' : `Dimension text "${next.text}"`) : `Text "${next.text}"`} · ⌘Z to undo`);
+    else if (!commit) cad.say('*Cancel*');
+    if (tool === 'textedit') cad.say(PROMPT.textedit);
+  }
+  /** A left double-click on a drawn text or dimension, with no tool running, opens its box. */
+  function doubleClick(at: Pt, pixel: number) {
+    if (!view || (tool !== 'none' && tool !== 'textedit') || edText) return;
+    const it = itemAt(sketch.filter((x) => !effective(x, styles).hidden), at, 6 * pixel);
+    if (it && (it.kind === 'text' || it.kind === 'dim')) startTextEdit(it);
+  }
   /** Right click: with a tool running, Enter (with a short menu when the prompt has options); with none, the menu of
    * edits for the device or drawn object under it (or what is picked), Erase for an object of the opened drawing, else
    * Repeat and the recent commands. */
@@ -1062,6 +1093,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     if (e === 'width' && one?.tray && arg) { change(updateSketch(project, fileOf(), { ...one, tray: { ...one.tray, widthMm: Number(arg) } }), `Cable tray ${arg} mm · ⌘Z to undo`); return; }
     if (e === 'clipboard') { if (arg) run(arg === 'copy' ? 'COPYCLIP' : arg === 'copybase' ? 'COPYBASE' : arg === 'paste' ? 'PASTECLIP' : 'PASTEORIG'); return; }
+    if (e === 'edtext') { if (one) startTextEdit(one); return; }
     if (e === 'similar') { run('SELECTSIMILAR'); return; }
     if (e === 'qselect') { run('QSELECT'); return; }
     if (e === 'erase') { removeSelected(); return; }
@@ -1458,6 +1490,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (!sk) { cad.say('SELECTSIMILAR  Nothing there: click a drawn object, or Enter with those picked:'); return; }
       const sks = pickedKeys.has(`sk:${sk.id}`) ? pickedSk.filter((x) => x.id !== sk.id) : [...pickedSk, sk];
       pick([], sks); cad.say(`SEL  ${picks(sks.length)} — Enter when done`); return;
+    }
+    if (tool === 'textedit') {
+      const sk = itemAt(sketch.filter((x) => !effective(x, styles).hidden), at, 6 * pixel);
+      if (sk) startTextEdit(sk); else cad.say('TEXTEDIT  Nothing there. Select a text or dimension:');
+      return;
     }
     if (tool === 'dimrad' || tool === 'dimdia') {
       const name = tool === 'dimrad' ? 'DIMRADIUS' : 'DIMDIAMETER';
@@ -2530,7 +2567,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
             <CadCanvas view={view!} draft={draft} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
-              numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={xr.snap} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} zoom={zoomReq} onZoomMenu={zoomMenu}
+              numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={xr.snap} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={draft.grips && tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
               onGripEnd={(i, at) => {
                 setGripIdx(null);
@@ -2539,6 +2576,18 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 change(updateSketch(project, fileOf(), next), `GRIP  ${kindOf(selSketch)} ${gripsOf(selSketch)[i]?.kind === 'mid' ? 'side moved' : 'changed'}${isPath(next) ? ` — now ${m(toM(next.pts.slice(1).reduce((t, q, k) => t + distance(next.pts[k], q), 0)))}` : ''} · ⌘Z to undo`);
               }}
               overlay={(toScreen, moving) => {
+                const edIt = edText ? sketch.find((x) => x.id === edText.id) : undefined;
+                if (edText && edIt) {
+                  // The box over the text: at the left end of its baseline, as high and wide as the text on the screen, at
+                  // its angle (a dimension's text sits centred on its baseline point).
+                  const b = edIt.kind === 'text' ? { ...textBox(edIt), rot: edIt.rot ?? 0 } : (() => {
+                    const d = dimOf(edIt, units.factor), w = textWidth(d.label, d.h);
+                    return { origin: [d.text[0] - (w / 2) * Math.cos(d.angle), d.text[1] - (w / 2) * Math.sin(d.angle)] as Pt, w, h: d.h, rot: d.angle };
+                  })();
+                  const o = toScreen(b.origin), e = toScreen([b.origin[0] + b.w * Math.cos(b.rot), b.origin[1] + b.w * Math.sin(b.rot)]), u = toScreen([b.origin[0] - b.h * Math.sin(b.rot), b.origin[1] + b.h * Math.cos(b.rot)]);
+                  return <CadTextEdit left={o[0]} top={o[1]} w={Math.hypot(e[0] - o[0], e[1] - o[1])} h={Math.hypot(u[0] - o[0], u[1] - o[1])} rot={b.rot} value={edText.value}
+                    onChange={(v) => setEdText({ ...edText, value: v })} onCommit={() => endTextEdit(true)} onCancel={() => endTextEdit(false)} />;
+                }
                 const dyn = dynOn && cur && !moving && !promptMenu ? (() => {
                   const [x, y] = toScreen(cur);
                   return <CadDynInput left={x + 16} top={y + 16} boxes={dynBoxes} vals={dynVals} refs={dynRefs} prompt={draft.dynPrompt ? shortPrompt(dynLine) : ''} options={dynOptions} menu={dynMenu !== null} hi={dynMenu ?? 0}
