@@ -115,7 +115,7 @@ export function sldLayout(project: Project, dewa: boolean, cableRefs = false, ro
   const rootLead = new Map(earthLead);
   for (const r of base.roots) {
     const b = r.board;
-    const reach = Math.max(!b.upstreamId && !b.sourceKva ? supplyReach(b, dewa) : 0, r.terminal ? boardSymbolReach(project, b) : 0);
+    const reach = Math.max(!b.upstreamId && !b.sourceKva ? supplyReach(b, dewa) : 0, r.terminal ? boardSymbolReach(project, b) + (dewa ? BOARD_FRAME_PAD : 0) : 0);
     if (reach > 0) rootReach.set(b.id, reach);
     const pits = hasEarthPits(b) ? lvPitCount(b, planned) : 0;
     if (pits > 0 && !(dewa && !r.terminal)) rootLead.set(b.id, earthDetailWidth(project, b, pits, planned.get(`lv:${b.id}`)) + EARTH_DETAIL_GAP - 62);
@@ -130,6 +130,9 @@ const EARTH_DETAIL_GAP = 10;
 const electrodeNote = (el: number) => [`MIN. ${el} m ELECTRODE WITH`, 'INSPECTION PIT AND COVER'];
 /** An unframed detail's test link: this far left of the incomer line, clear of the voltage label. */
 const EARTH_TL_IN = 50;
+/** An unframed detail's last pit stands this far left of the incomer line: clear of the test link,
+ * and outside the dashed frame of a DEWA board with no outgoing ways (which holds the MET). */
+const EARTH_PITS_IN = 96;
 /** Width of an unframed LV earth-pit detail: its longest line, at least the board box's 124, and
  * room for its pits (24 apart) left of the test link. Narrow, so it stands by its own incomer
  * and not by the transformer on its left. */
@@ -137,7 +140,7 @@ const earthDetailWidth = (project: Project, b: Board, pits: number, lvIds?: stri
   const el = b.earthing?.electrodeM ?? project.earthingPlan?.electrodeM ?? 3;
   const ids = lvIds?.length === pits ? ` · ${lvIds.join(', ')}` : '';
   return Math.ceil(Math.max(124, textWidth(`LV EARTH PITS (${pits} NO.)${ids}`, 8, true), textWidth(`1C ${earthConductorOf(project, b)}mm² CU/PVC`, 7.5),
-    ...electrodeNote(el).map((t) => textWidth(t, 7.5)), (pits - 1) * 24 + 80));
+    ...electrodeNote(el).map((t) => textWidth(t, 7.5)), (pits - 1) * 24 + EARTH_PITS_IN + 4));
 };
 /** Lift of the root bus that gives an unframed main board's LV earth-pit detail its own band. */
 const EARTH_BAND_Y = 140;
@@ -213,6 +216,9 @@ const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…
 
 /** Side of the board symbol a board with no outgoing ways is drawn as. */
 const BOARD_SYM = 44;
+/** DEWA style, its dashed panel frame: from this far left of the incomer line (room for the MET),
+ * and this far past its text on the right and below. */
+const BOARD_FRAME_IN = 86, BOARD_FRAME_PAD = 8;
 /** How far right of its incomer line a board symbol's labels reach: the incomer device, or the
  * name and the tags beside the symbol (allowing for a three-figure phase-load line). */
 const boardSymbolReach = (project: Project, b: Board) => Math.max(incomerReach(project, b),
@@ -448,7 +454,7 @@ export default function SystemDiagram({
   const boardsBox = (ids: string[], pad: number) => {
     const ns = layout.boards.filter((n) => ids.includes(n.board.id));
     if (!ns.length) return null;
-    const x1 = Math.min(...ns.map((n) => (n.terminal ? n.x - 66 : n.busX1 - 12))) - pad;
+    const x1 = Math.min(...ns.map((n) => (n.terminal ? n.x - BOARD_FRAME_IN - 4 : n.busX1 - 12))) - pad;
     const x2 = Math.max(...ns.map((n) => (n.terminal ? n.x + 135 : Math.max(n.busX2 + 12, n.x + 135, n.genX !== undefined ? n.genX + CO_GEN_REACH + 5 : -Infinity)))) + pad;
     const y1 = Math.min(...ns.map((n) => n.headY - (dewa ? 165 : 70))) - pad;
     const y2 = Math.max(...ns.map((n) => n.busY + (n.terminal ? 10 : 120))) + pad;
@@ -1080,7 +1086,7 @@ export default function SystemDiagram({
           const arrowY = oy + (framed ? 56 : 84);
           // Unframed, the test link stands left of the voltage label, and the last pit keeps clear of it.
           const testX = framed ? ox + detailW - 8 : r.x - EARTH_TL_IN;
-          const pitPitch = pits > 1 ? Math.min(60, Math.max(24, (framed ? detailW - 28 : testX - 26 - ox - 14) / (pits - 1))) : 0;
+          const pitPitch = pits > 1 ? Math.min(60, Math.max(24, (framed ? detailW - 28 : r.x - EARTH_PITS_IN - ox - 14) / (pits - 1))) : 0;
           const pitStart = pits > 1 ? ox + 14 : ox + Math.min(35, detailW / 2);
           const pitXs = Array.from({ length: pits }, (_, n) => pitStart + n * pitPitch);
           // MET: inside the main board frame, or (standard style and a DEWA main board with no
@@ -1730,8 +1736,22 @@ export default function SystemDiagram({
                 // No busbar: the tags follow the name and kind beside the board symbol, then what the
                 // board feeds (its final circuits on the load schedule), or that it feeds nothing yet.
                 const tx = n.x + BOARD_SYM / 2 + 8, ty = (i: number) => n.busY - 14 + i * 13;
+                // DEWA: a dashed panel frame as on the other panels, holding the incomer device (and on a
+                // main board its voltage label and the MET), the symbol and its text; the incomer
+                // crosses it at a gland mark.
+                const rows = tags.length + Math.max(1, circuitTags.length);
+                const isRoot = layout.roots.some((r) => r.board.id === b.id);
+                const fy1 = n.busY - (b.standby ? 148 : isRoot ? 114 : incomerDeviceOf(b) ? (protectionOf(b) ? 92 : 84) + 10 : 70);
+                const fy2 = ty(rows - 1) + 4 + BOARD_FRAME_PAD, fx1 = n.x - BOARD_FRAME_IN, fx2 = n.x + BOARD_FRAME_PAD + Math.max(incomerReach(project, b),
+                  BOARD_SYM / 2 + 8 + Math.max(textWidth(trunc(b.id, 14), 12, true), textWidth('NO OUTGOING WAYS', 10.5), ...[...tags, ...circuitTags].map((t) => textWidth(t.text, 10.5, true))));
                 return (
                   <>
+                    {dewa && (
+                      <g className="panel-frame board-frame">
+                        <rect x={fx1} y={fy1} width={fx2 - fx1} height={fy2 - fy1} className="frame-ln" />
+                        <path d={`M${n.x - 5} ${fy1 - 4} q3 4 0 8 M${n.x + 5} ${fy1 - 4} q-3 4 0 8`} className="ln" />
+                      </g>
+                    )}
                     {tags.map((t, i) => <text key={t.text} x={tx} y={ty(i)} className={`res ${t.cls}`}>{t.text}</text>)}
                     {circuitTags.length > 0 ? (
                       <g className="sched" onDoubleClick={(e) => { e.stopPropagation(); edit(onOpenSchedule, b.id)(); }}>

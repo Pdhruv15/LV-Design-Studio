@@ -45,6 +45,31 @@ describe('SLD board with no outgoing ways', () => {
     });
   }
 
+  it('frames it with a dashed panel frame in DEWA style, holding the incomer, voltage label and MET, pits outside', () => {
+    const host = draw(project([root('MDB-6'), root('MDB-7')]));
+    const frame = board(host, 'MDB-7').querySelector<SVGRectElement>('.board-frame rect.frame-ln')!;
+    const [x1, y1] = [n(frame, 'x'), n(frame, 'y')], [x2, y2] = [x1 + n(frame, 'width'), y1 + n(frame, 'height')];
+    const inside = (x: number, y: number) => x > x1 && x < x2 && y > y1 && y < y2;
+    const g = board(host, 'MDB-7');
+    const sym = g.querySelector<SVGRectElement>('.board-sym rect.box')!;
+    expect(inside(n(sym, 'x'), n(sym, 'y'))).toBe(true);
+    expect(inside(n(sym, 'x') + n(sym, 'width'), n(sym, 'y') + n(sym, 'height'))).toBe(true);
+    for (const t of g.querySelectorAll<SVGTextElement>('text')) expect(inside(n(t, 'x') + textWidth(t.textContent!, 11, true), n(t, 'y'))).toBe(true);
+    const x = n(sym, 'x') + n(sym, 'width') / 2;
+    const volt = [...host.querySelectorAll<SVGTextElement>('g.tx text.m')].find((t) => / V$/.test(t.textContent ?? '') && n(t, 'x') === x - 8)!;
+    expect(inside(n(volt, 'x') - textWidth(volt.textContent!, 11), n(volt, 'y') - 10)).toBe(true);
+    const earth = host.querySelector('.earth-pit[data-board-id="MDB-7"]')!;
+    const met = earth.querySelector('.met-bar')!;
+    expect(inside(n(met, 'x1'), n(met, 'y1')) && inside(n(met, 'x2'), n(met, 'y1'))).toBe(true);
+    for (const pit of earth.querySelectorAll<SVGRectElement>('.earth-electrode rect')) expect(n(pit, 'x') + n(pit, 'width')).toBeLessThan(x1);
+    // The previous board's frame ends before this board's earth detail starts.
+    const prev = board(host, 'MDB-6').querySelector<SVGRectElement>('.board-frame rect.frame-ln')!;
+    const left = Math.min(...[...earth.querySelectorAll('text, rect')].filter((el) => !el.closest('.tx-earth')).map((el) => n(el, 'x')));
+    expect(n(prev, 'x') + n(prev, 'width')).toBeLessThan(left);
+    // Standard style draws no panel frames.
+    expect(draw(project([root('MDB-6')], [], 'standard')).querySelector('.board-frame')).toBeNull();
+  });
+
   it('lists its final circuits from the load schedule instead of "no outgoing ways"', () => {
     const f = (id: string, way: number): Feeder => ({ ...sampleProject.feeders[0], id, boardId: 'MDB-6', feedsBoardId: undefined, phase: 'R', way });
     const host = draw(project([root('MDB-6')], [f('C1', 1), f('C2', 2)]));
