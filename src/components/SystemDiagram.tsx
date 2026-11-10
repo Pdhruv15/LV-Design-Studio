@@ -1575,7 +1575,8 @@ export default function SystemDiagram({
                 return (
                   <g className="acc">
                     <title>{`Incomer: ${INCOMER_DEVICES.find((d) => d.value === dev)!.label}`}</title>
-                    <rect x={n.x - 2} y={sy - 1} width="4" height="19" className="bg-fill" />
+                    {/* Mask the line only over the symbol body (sy … sy + 16), so the blade's pivot meets the line below. */}
+                    <rect x={n.x - 2} y={sy - 1} width="4" height="17" className="bg-fill" />
                     <SwitchSym x={n.x} y={sy} kind={kind} />
                     {/* Rating, poles and device, then the breaking capacity: "500 A TP MCCB (NA)", "36 kA". */}
                     {(() => {
