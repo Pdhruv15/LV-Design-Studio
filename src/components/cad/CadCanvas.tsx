@@ -4,7 +4,7 @@ import type { ErasedParts } from '../../model/cadErased';
 import { ortho as orthoFrom } from '../../model/cadMeasure';
 import { DRAFT_DEFAULTS, otrack, polarAngles, polarTrack, snapToSpacing, type DraftSettings } from '../../model/cadDraft';
 import { dimOf, segmentsOf, trayLabel, trayLine, TRAY_TEXT_MM } from '../../model/cadSketch';
-import { textBaseAt } from '../../model/cadText';
+import { textBaseAt, textCorners } from '../../model/cadText';
 import type { PlanCells, PlanCover } from '../elv/elvOverlay';
 import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from '../../model/cadDraw';
@@ -389,7 +389,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     const trayH = TRAY_TEXT_MM * unitsPerMm, trayText = trayH * scale >= 4;
     const ltScale = 100 * unitsPerMm; // linetype dashes in paper mm at 1:100
     for (const it of sketch) {
-      if (it.kind === 'text') continue;
+      if (it.kind === 'text' && !it.frame) continue; // a framed text's frame is drawn here with the lines
       const ef = effective(it, layerStyle);
       if (ef.hidden) continue;
       if (it.hatch) {
@@ -529,6 +529,12 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       ctx.translate((label.at[0] - o0 - ox) * scale, size.h - (label.at[1] - o1 - oy) * scale);
       ctx.rotate(-label.rot);
       ctx.font = `${Math.min(px, 200)}px system-ui, sans-serif`;
+      if (it.kind === 'text' && it.mask) {
+        // The mask: its box in the background colour, under the text (over the lines and hatches drawn before).
+        ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = bg; ctx.beginPath();
+        textCorners(it).forEach((q, i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, (q[0] - o0 - ox) * scale, size.h - (q[1] - o1 - oy) * scale));
+        ctx.closePath(); ctx.fill(); ctx.restore();
+      }
       ctx.textAlign = label.align;
       if (it.tray) ctx.textBaseline = 'middle'; // in the gap of the tray's line
       ctx.fillStyle = isSel(it.id) ? selSk : lef.color ?? skC;

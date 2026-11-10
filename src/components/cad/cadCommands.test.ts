@@ -42,7 +42,8 @@ const ADDED: Record<string, string> = { ST: '!textStyle', STYLE: '!textStyle', D
   // Text tools: justify and text height on the texts picked.
   TJ: 'tjust', TJUST: 'tjust', JUSTIFYTEXT: 'tjust', TH: 'th', TXTHEIGHT: 'th', TEXTHEIGHT: 'th',
   TA: 'talign', TALIGN: 'talign', TC: 'tcase', TCASE: 'tcase', TPREFIX: 'tprefix', TPRE: 'tprefix', TSUFFIX: 'tsuffix', TSUF: 'tsuffix',
-  TORIENT: 'torient', TOR: 'torient', TCEN: 'tcen', TCENTRE: 'tcen', TCENTER: 'tcen', TCOPY: 'tcopy', TCP: 'tcopy', RTALL: 'rtall', ROOMTAGALL: 'rtall' };
+  TORIENT: 'torient', TOR: 'torient', TCEN: 'tcen', TCENTRE: 'tcen', TCENTER: 'tcen', TCOPY: 'tcopy', TCP: 'tcopy', RTALL: 'rtall', ROOMTAGALL: 'rtall',
+  TFRAME: 'tframe', TMASK: 'tmask', TCOUNT: 'tcount', TNUM: 'tcount', KN: 'keynote', KEYNOTE: 'keynote' };
 const outcome = (c: string) => { const x = cadCommand(c); return x && ('tool' in x ? x.tool : `!${x.action}`); };
 
 describe('Design CAD typed commands', () => {
