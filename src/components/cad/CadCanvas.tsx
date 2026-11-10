@@ -7,7 +7,7 @@ import { dimOf, segmentsOf, trayLabel, trayLine, TRAY_TEXT_MM } from '../../mode
 import { textBaseAt, textCorners } from '../../model/cadText';
 import { noteBox } from '../../model/cadMtext';
 import { POINT_STYLE_DEFAULT, pointMark, pointRadius, type PointStyle } from '../../model/cadPoints';
-import { expandAll, type CadBlockDef } from '../../model/cadBlocks';
+import { attdefAsText, expandAll, type CadBlockDef } from '../../model/cadBlocks';
 import type { PlanCells, PlanCover } from '../elv/elvOverlay';
 import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from '../../model/cadDraw';
@@ -142,7 +142,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   tRef.current = t;
   const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
   // The drawn objects with each insert replaced by what its block shows; a block's object carries the insert's id first.
-  const sketch = useMemo(() => expandAll(sketchIn, blocks), [sketchIn, blocks]);
+  const sketch = useMemo(() => expandAll(sketchIn, blocks).map((it) => (it.kind === 'attdef' ? attdefAsText(it) : it)), [sketchIn, blocks]);
   const isSel = (id0: string) => { const id = id0.split(':')[0]; return Array.isArray(selectedSketch) ? selectedSketch.includes(id) : id === selectedSketch; };
   // A grip being dragged (its index), and the grips as last drawn.
   const gripping = useRef<number | null>(null);

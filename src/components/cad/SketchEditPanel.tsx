@@ -9,7 +9,7 @@ import type { SketchItem } from '../../types';
 /** Design CAD → Draw → Modify / Edit: the toolbar beside drawn objects picked, the side panel of several, and the
  * settings of the edit tools (distances typed in metres). */
 
-export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase' | 'clipboard' | 'similar' | 'qselect' | 'edtext' | 'ntwidth' | 'ntjust' | 'draworder' | 'mkblock' | 'selblock';
+export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase' | 'clipboard' | 'similar' | 'qselect' | 'edtext' | 'ntwidth' | 'ntjust' | 'draworder' | 'mkblock' | 'selblock' | 'edatt';
 export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'tframe' | 'tmask' | 'draworder' | 'texttofront';
 /** Offset `through` a point (the copy passes through it), `erase` the source, the copies on the `source` layer or the
  * `current` one; Fillet and Chamfer `trim` the lines to the corner (else they stay and the arc or line is added); a
@@ -19,7 +19,7 @@ export const ED_START: EditSettings = { offset: '0.3', through: false, erase: fa
 
 const LABEL: Record<SketchEdit, string> = {
   filter: 'Filter ▾', trim: 'Trim', extend: 'Extend', offset: 'Offset', break: 'Break', fillet: 'Fillet', mirror: 'Mirror', scale: 'Scale', array: 'Array',
-  join: 'Join', width: 'Width ▾', move: 'Move', copy: 'Copy', rotate: 'Rotate', erase: 'Erase', clipboard: 'Clipboard ▸', similar: 'Select similar', qselect: 'Quick select…', edtext: 'Edit text', ntwidth: 'Width…', ntjust: 'Justify ▸', draworder: 'Draw order ▸', mkblock: 'Make block…', selblock: 'Select all of this block'
+  join: 'Join', width: 'Width ▾', move: 'Move', copy: 'Copy', rotate: 'Rotate', erase: 'Erase', clipboard: 'Clipboard ▸', similar: 'Select similar', qselect: 'Quick select…', edtext: 'Edit text', ntwidth: 'Width…', ntjust: 'Justify ▸', draworder: 'Draw order ▸', mkblock: 'Make block…', selblock: 'Select all of this block', edatt: 'Edit attributes'
 };
 export const kindOf = kindLabel;
 
@@ -49,7 +49,7 @@ export const DRAW_ORDER: { id: 'front' | 'back' | 'above' | 'under'; label: stri
 const OPENERS = new Set<SketchEdit>(['filter', 'width', 'clipboard', 'ntjust', 'draworder']);
 
 /** The toolbar beside the drawn objects picked (or the menu at the cursor, with Clipboard ▸ too). */
-export function SketchToolbar({ items, devices, lengthM, left, top, place, canPaste, onEdit }: {
+export function SketchToolbar({ items, devices, lengthM, left, top, place, canPaste, withAtts, onEdit }: {
   items: SketchItem[];
   /** Devices picked with them. */
   devices: number;
@@ -60,13 +60,15 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, canPa
   place: 'above' | 'below' | 'menu';
   /** Something is on the clipboard to paste. */
   canPaste?: boolean;
+  /** Whether a block has attributes to edit (its right-click menu then offers Edit attributes). */
+  withAtts?: (it: SketchItem) => boolean;
   onEdit: (e: SketchEdit, arg?: string) => void;
 }) {
   const [open, setOpen] = useState<'filter' | 'width' | 'clipboard' | 'ntjust' | 'draworder' | null>(null);
   const one = items.length === 1 && !devices ? items[0] : undefined;
   // The menu at the cursor adds Edit text for one text or dimension (S5 of the 2D gap plan), with Width… and Justify ▸
   // for a note (S6), Draw order ▸ for drawn objects (S7), Select similar and Quick select… (S3) and Clipboard ▸ (S1).
-  const edits: SketchEdit[] = [...(place === 'menu' && (one?.kind === 'text' || one?.kind === 'dim') ? ['edtext' as const] : place === 'menu' && one?.kind === 'mtext' ? ['edtext' as const, 'ntwidth' as const, 'ntjust' as const] : place === 'menu' && one?.kind === 'insert' ? ['selblock' as const] : []), ...sketchEditsFor(items, devices),
+  const edits: SketchEdit[] = [...(place === 'menu' && (one?.kind === 'text' || one?.kind === 'dim') ? ['edtext' as const] : place === 'menu' && one?.kind === 'mtext' ? ['edtext' as const, 'ntwidth' as const, 'ntjust' as const] : place === 'menu' && one?.kind === 'insert' ? [...(one.attrs || withAtts?.(one) ? ['edatt' as const] : []), 'selblock' as const] : []), ...sketchEditsFor(items, devices),
     ...(place === 'menu' && items.length && !devices ? ['draworder' as const, ...(items.some((it) => !it.tray && !it.cable) ? ['mkblock' as const] : [])] : []), ...(place === 'menu' ? ['similar' as const, 'qselect' as const, 'clipboard' as const] : [])];
   const list: { id: string; label: string; now?: boolean; key?: string; off?: boolean }[] = open === 'clipboard'
     ? CLIPBOARD.map((x) => ({ id: x.id, label: x.label, key: x.key, off: x.paste && !canPaste }))

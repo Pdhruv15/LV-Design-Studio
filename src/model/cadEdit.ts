@@ -291,7 +291,7 @@ export function stretched(it: SketchItem, a: Pt, b: Pt, dx: number, dy: number):
   const [x0, y0, x1, y1] = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
   const inBox = (q: Pt) => q[0] >= x0 && q[0] <= x1 && q[1] >= y0 && q[1] <= y1;
   if (!it.pts.some(inBox)) return null;
-  if (it.kind === 'circle' || it.kind === 'arc' || it.kind === 'text' || it.kind === 'mtext' || it.kind === 'point' || it.kind === 'insert') return { ...it, pts: it.pts.map((q) => add(q, [dx, dy])) };
+  if (it.kind === 'circle' || it.kind === 'arc' || it.kind === 'text' || it.kind === 'mtext' || it.kind === 'point' || it.kind === 'insert' || it.kind === 'attdef') return { ...it, pts: it.pts.map((q) => add(q, [dx, dy])) };
   return { ...it, pts: it.pts.map((q) => (inBox(q) ? add(q, [dx, dy]) : q)) };
 }
 /** Rectangular array: rows × columns of copies, `dx` / `dy` apart (the original is the first). */

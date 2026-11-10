@@ -9,7 +9,7 @@ const BEFORE: Record<string, string> = {
   DRA: 'dimrad', DIMRADIUS: 'dimrad', DDI: 'dimdia', DIMDIAMETER: 'dimdia', DAN: 'dimang', DIMANGULAR: 'dimang',
   DI: 'dist', DIST: 'dist', DISTANCE: 'dist', AREA: 'area', AA: 'area', RA: 'room', ROOM: 'room', ROOMAREA: 'room',
   ROOMS: '!addRooms', ADDROOMS: '!addRooms', TR: 'trace', TRACE: 'trace', PN: 'name', NAME: 'name', LI: 'none', LIST: 'none',
-  DEV: 'dev', DEVICE: 'dev', INSERT: '!blocksPalette', I: '!blocksPalette', '-INSERT': 'insert', M: 'move', MOVE: 'move', CO: 'copy', CP: 'copy', COPY: 'copy',
+  DEV: 'dev', DEVICE: 'dev', INSERT: '!blocksPalette', I: '!blocksPalette', '-INSERT': 'insert', ATT: '!attDef', ATTDEF: '!attDef', ATE: 'attedit', ATTEDIT: 'attedit', EATTEDIT: 'attedit', ATTEXT: '!attExport', M: 'move', MOVE: 'move', CO: 'copy', CP: 'copy', COPY: 'copy',
   RO: 'rotate', ROTATE: 'rotate', L: 'line', LINE: 'line', PL: 'pline', PLINE: 'pline', POLYLINE: 'pline',
   CT: 'tray', TRAY: 'tray', CABLETRAY: 'tray', CR: 'cable', ROUTE: 'cable', CABLEROUTE: 'cable', LR: 'link', LINK: 'link',
   SCHED: '!schedules', SCHEDULES: '!schedules', UPDATE: '!schedules', FILL: 'fill', FR: 'fill', LUX: 'lux', LIGHTROOM: 'lux',

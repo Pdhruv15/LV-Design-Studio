@@ -913,11 +913,21 @@ struct ShapeOut {
     #[serde(default)] sc: f64,
     #[serde(default)] units: i16,
     #[serde(default)] items: Vec<ShapeOut>,
+    /// An attribute definition (`attdef`): its tag, prompt and modes (its default in `text`); an insert's attributes
+    /// (`atts`), each an attdef-like shape with its value in `text`.
+    #[serde(default)] tag: String,
+    #[serde(default)] prompt: String,
+    #[serde(default)] flags: AttFlagsOut,
+    #[serde(default)] atts: Vec<ShapeOut>,
     /// Hatch: closed boundary loops, solid or with its pattern lines (a reference's fill, bound into the saved copy).
     #[serde(default)] loops: Vec<Vec<(f64, f64)>>,
     #[serde(default)] solid: bool,
     #[serde(default)] lines: Vec<PatLineOut>,
 }
+
+/// An attribute's modes.
+#[derive(serde::Deserialize, Default)]
+struct AttFlagsOut { #[serde(default)] invisible: bool, #[serde(default)] constant: bool, #[serde(default)] verify: bool, #[serde(default)] preset: bool, #[serde(default)] lock: bool }
 
 /// A hatch pattern line: angle (radians), base point, offset between lines, dashes (+ dash, − gap, 0 dot).
 #[derive(serde::Deserialize)]
@@ -984,6 +994,13 @@ fn entity_of(sh: &ShapeOut) -> Option<EntityType> {
                 "BL" => A::BottomLeft, "BC" => A::BottomCenter, "BR" => A::BottomRight, _ => A::TopLeft,
             };
             EntityType::MText(Box::new(t))
+        }
+        "attdef" if !sh.pts.is_empty() && !sh.tag.is_empty() => {
+            use acadrust::entities::AttributeDefinition;
+            let mut a = AttributeDefinition::new(sh.tag.clone(), sh.prompt.clone(), sh.text.clone());
+            a.insertion_point = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); a.height = sh.h; a.rotation = sh.rot; a.common.layer = sh.layer.clone();
+            a.flags.invisible = sh.flags.invisible; a.flags.constant = sh.flags.constant; a.flags.verify = sh.flags.verify; a.flags.preset = sh.flags.preset; a.flags.locked_position = sh.flags.lock;
+            EntityType::AttributeDefinition(a)
         }
         "hatch" if sh.loops.iter().any(|l| l.len() >= 3) => {
             let mut h = if sh.solid || sh.lines.is_empty() { Hatch::solid() } else {
@@ -1059,6 +1076,14 @@ fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_
             "insert" if !sh.pts.is_empty() && !sh.name.is_empty() => {
                 let mut i = Insert::new(sh.name.clone(), Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0)).with_uniform_scale(if sh.sc > 0.0 { sh.sc } else { 1.0 }).with_rotation(sh.rot);
                 i.common.layer = sh.layer.clone();
+                // Its attributes (ATTRIB entities, ended by SEQEND): each as placed, with its value.
+                for a in sh.atts.iter().filter(|a| !a.tag.is_empty() && !a.pts.is_empty()) {
+                    use acadrust::entities::AttributeEntity;
+                    let mut at = AttributeEntity::new(a.tag.clone(), a.text.clone());
+                    at.insertion_point = Vector3::new(a.pts[0].0, a.pts[0].1, 0.0); at.height = a.h; at.rotation = a.rot; at.common.layer = a.layer.clone();
+                    at.flags.invisible = a.flags.invisible; at.flags.constant = a.flags.constant; at.flags.verify = a.flags.verify; at.flags.preset = a.flags.preset; at.flags.locked_position = a.flags.lock;
+                    i.attributes.push(at);
+                }
                 EntityType::Insert(i)
             }
             _ => match entity_of(sh) { Some(e) => e, None => continue },
@@ -1224,6 +1249,14 @@ mod tests {
             // The block's text, scaled by 2 and moved to the insert: at (3100, 3200), 200 high.
             let t = after.texts.iter().find(|t| t.s == "DB").unwrap_or_else(|| panic!("{name}: the block's text"));
             assert_eq!((t.x.round(), t.y.round(), t.h.round()), (3100.0, 3200.0, 200.0), "{name}");
+        }
+        // Attributes: an ATTDEF in the block, the insert's ATTRIB with its value, read back as the insert's attribute;
+        // an invisible one is kept too, a constant one with its fixed value.
+        let att_shapes = r#"[{"layer":"","kind":"blockdef","pts":[],"name":"LT","units":4,"items":[{"layer":"0","kind":"circle","pts":[[0,0]],"r":100},{"layer":"0","kind":"attdef","pts":[[150,0]],"text":"L1","h":50,"tag":"CIRCUIT","prompt":"Circuit"},{"layer":"0","kind":"attdef","pts":[[150,-80]],"text":"36","h":40,"tag":"WATTS","flags":{"invisible":true}},{"layer":"0","kind":"attdef","pts":[[0,150]],"text":"LED","h":40,"tag":"TYPE","flags":{"constant":true}}]},{"layer":"E-LIGHTING","kind":"insert","pts":[[5000,3000]],"name":"LT","sc":1,"rot":0,"atts":[{"layer":"E-LIGHTING","kind":"attdef","pts":[[5150,3000]],"text":"DB1/L3","h":50,"tag":"CIRCUIT"},{"layer":"E-LIGHTING","kind":"attdef","pts":[[5150,2920]],"text":"18","h":40,"tag":"WATTS","flags":{"invisible":true}},{"layer":"E-LIGHTING","kind":"attdef","pts":[[5000,3150]],"text":"LED","h":40,"tag":"TYPE","flags":{"constant":true}}]}]"#;
+        for (name, bytes) in [("dwg", dwg_bytes(sample("sample-villa-gf.dxf"), "[]", att_shapes, "", "").unwrap()), ("dxf", export_dxf(sample("sample-villa-gf.dxf"), "[]", att_shapes, "[]", "").unwrap().to_vec())] {
+            let after = CadDoc::new(bytes).unwrap_or_else(|_| panic!("{name}: the drawing with attributes does not read back"));
+            let ins = after.objects.iter().find(|o| o.block.as_deref() == Some("LT")).unwrap_or_else(|| panic!("{name}: the insert"));
+            assert_eq!((ins.attrs.get("CIRCUIT").map(String::as_str), ins.attrs.get("WATTS").map(String::as_str), ins.attrs.get("TYPE").map(String::as_str)), (Some("DB1/L3"), Some("18"), Some("LED")), "{name}");
         }
         // Saving the drawing that has the block already keeps that record (no second DB-A).
         let once = dwg_bytes(sample("sample-villa-gf.dxf"), "[]", shapes, "", "").unwrap();

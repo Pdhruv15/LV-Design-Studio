@@ -34,6 +34,16 @@ export function blockNameError(name: string, archNames: string[] = []): string |
   if (archNames.some((n) => same(n, t))) return `The drawing already has a block "${t}" of its own: choose another name.`;
   return undefined;
 }
+/** An attribute definition drawn as text: on the drawing it shows its tag (in a block, its value). */
+export const attdefAsText = (it: SketchItem, value?: string): SketchItem => ({ ...it, kind: 'text', text: value ?? it.tag ?? '' });
+/** The attribute definitions of a block, in the order they were drawn (the order of the prompts). */
+export const attdefsOf = (def: CadBlockDef | undefined): SketchItem[] => (def?.items ?? []).filter((it) => it.kind === 'attdef' && !!it.tag);
+/** Those asked for on insert: not constant, not preset. */
+export const askedAttdefs = (def: CadBlockDef | undefined): SketchItem[] => attdefsOf(def).filter((it) => !it.att?.constant && !it.att?.preset);
+/** An attribute's value on an insert: the one set, else the definition's default (a constant one is always its default). */
+export const attrValue = (ins: Pick<SketchItem, 'attrs'>, ad: SketchItem): string => (ad.att?.constant ? ad.text ?? '' : ins.attrs?.[ad.tag ?? ''] ?? ad.text ?? '');
+/** The insert's words (its attribute values), for FIND and the Properties palette. */
+export const insertPlainText = (ins: SketchItem, def: CadBlockDef | undefined) => attdefsOf(def).map((ad) => attrValue(ins, ad)).filter(Boolean).join('\n');
 /** Whether an object can go into a block: trays and cable routes cannot (they belong to the schedules). */
 export const blockable = (it: SketchItem) => !it.tray && !it.cable;
 
@@ -72,7 +82,10 @@ export function expandInsert(it: SketchItem, defs: CadBlockDef[], depth = 0): Sk
   const def = blockDefOf(defs, it.block);
   if (!def || depth >= MAX_DEPTH) return [];
   const k = it.sc && it.sc > 0 ? it.sc : 1, a = it.rot ?? 0;
-  return def.items.flatMap((child) => {
+  return def.items.flatMap((child0) => {
+    // An attribute: its value as text where the definition sits; an invisible one is not drawn.
+    if (child0.kind === 'attdef') { if (child0.att?.invisible) return []; }
+    const child = child0.kind === 'attdef' ? attdefAsText(child0, attrValue(it, child0)) : child0;
     const own = placed(child, k, a, it.pts[0]);
     const styled: SketchItem = {
       ...own, id: `${it.id}:${child.id}`, layer: child.layer === '0' ? it.layer : child.layer,
@@ -80,6 +93,13 @@ export function expandInsert(it: SketchItem, defs: CadBlockDef[], depth = 0): Sk
     };
     return styled.kind === 'insert' ? expandInsert(styled, defs, depth + 1) : [styled];
   });
+}
+/** The attributes of an insert as placed on the drawing, invisible ones included: for the DXF's ATTRIB entities. */
+export function attributePlacements(it: SketchItem, defs: CadBlockDef[]): { ad: SketchItem; value: string; at: SketchItem }[] {
+  const def = blockDefOf(defs, it.block);
+  if (!def) return [];
+  const k = it.sc && it.sc > 0 ? it.sc : 1, a = it.rot ?? 0;
+  return attdefsOf(def).map((ad) => ({ ad, value: attrValue(it, ad), at: placed({ ...ad, layer: ad.layer === '0' ? it.layer : ad.layer }, k, a, it.pts[0]) }));
 }
 /** The drawn objects with every insert replaced by what it shows (for the canvas and the sheets). */
 export const expandAll = (items: SketchItem[], defs: CadBlockDef[]): SketchItem[] => (defs.length ? items.flatMap((it) => (it.kind === 'insert' ? expandInsert(it, defs) : [it])) : items);

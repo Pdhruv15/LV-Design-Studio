@@ -138,7 +138,7 @@ describe('CAD engine (Rust, WebAssembly)', () => {
     const def: CadBlockDef = { name: 'DB-A', units: 4, description: 'Board symbol', items: [{ id: 'r', kind: 'line', layer: '0', pts: [[0, 0], [400, 0]] }, { id: 't', kind: 'text', layer: 'LV-ANNO', pts: [[50, 100]], text: 'DB', h: 100 }] };
     const ins: SketchItem = { id: 'b', kind: 'insert', layer: 'E-POWER', pts: [[3000, 3000]], block: 'DB-A', sc: 2 };
     const shapes = [...shapesOut([ins], 0.001), ...blockDefsOut([def], 0.001)];
-    expect(shapes[0]).toEqual({ layer: 'E-POWER', kind: 'insert', pts: [[3000, 3000]], name: 'DB-A', sc: 2, rot: 0 });
+    expect(shapes[0]).toEqual({ layer: 'E-POWER', kind: 'insert', pts: [[3000, 3000]], name: 'DB-A', sc: 2, rot: 0, atts: [] });
     expect(shapes[1]).toMatchObject({ kind: 'blockdef', name: 'DB-A', units: 4, text: 'Board symbol' });
     expect(shapes[1].items!.map((x) => x.kind)).toEqual(['line', 'text']);
     for (const as of ['dxf', 'dwg'] as const) {
@@ -146,6 +146,18 @@ describe('CAD engine (Rust, WebAssembly)', () => {
       expect(saved.blocks().filter((b) => b.block === 'DB-A').map((b) => b.layer), as).toEqual(['E-POWER']);
       const t = saved.info.texts.find((x) => x.s === 'DB')!;
       expect([t.x, t.y, t.h], as).toEqual([3100, 3200, 200]);
+      saved.close();
+    }
+  });
+
+  it('saves a block\'s attribute definitions and an insert\'s values as ATTDEF and ATTRIB entities, read back on the insert', async () => {
+    const def: CadBlockDef = { name: 'LT', units: 4, items: [{ id: 'c', kind: 'circle', layer: '0', pts: [[0, 0]], r: 100 }, { id: 'a', kind: 'attdef', layer: '0', pts: [[150, 0]], tag: 'CIRCUIT', prompt: 'Circuit', text: 'L1', h: 50 }, { id: 'w', kind: 'attdef', layer: '0', pts: [[150, -80]], tag: 'WATTS', text: '36', h: 40, att: { invisible: true } }] };
+    const ins: SketchItem = { id: 'b', kind: 'insert', layer: 'E-LIGHTING', pts: [[5000, 3000]], block: 'LT', attrs: { CIRCUIT: 'DB1/L3' } };
+    const shapes = [...shapesOut([ins], 0.001, [def]), ...blockDefsOut([def], 0.001)];
+    expect(shapes[0].atts!.map((a) => [a.tag, a.text, a.pts[0], a.flags!.invisible])).toEqual([['CIRCUIT', 'DB1/L3', [5150, 3000], false], ['WATTS', '36', [5150, 2920], true]]);
+    for (const as of ['dxf', 'dwg'] as const) {
+      const saved = await openDrawing(`atts.${as}`, await drawingWithDevices(gf, [], shapes, as));
+      expect(saved.blocks().find((b) => b.block === 'LT')?.attributes, as).toEqual({ CIRCUIT: 'DB1/L3', WATTS: '36' });
       saved.close();
     }
   });

@@ -19,7 +19,7 @@ import type { ObjectProps } from '../../model/cadLayerStyle';
  * with a legend line; `rtall` tags every room of the level. */
 export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'lux' | 'em' | 'arl' | 'match' | 'wire' | 'move' | 'copy' | 'rotate' | 'mirror' | 'scale' | 'stretch' | 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'array' | 'matchprop' | 'hatch' | 'leader' | 'rtag' | 'north' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim' | 'xattach' | 'xclip'
   | 'polygon' | 'ellipse' | 'circle2p' | 'circle3p' | 'circled' | 'arcsce' | 'revcloud' | 'crop'
-  | 'dimlin' | 'dimcont' | 'dimbase' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'rtall' | 'tframe' | 'tmask' | 'tcount' | 'keynote' | 'mtext' | 'draworder' | 'texttofront' | 'point' | 'divide' | 'measure' | 'block' | 'blockpick' | 'insert' | 'copybase' | 'paste'
+  | 'dimlin' | 'dimcont' | 'dimbase' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'rtall' | 'tframe' | 'tmask' | 'tcount' | 'keynote' | 'mtext' | 'draworder' | 'texttofront' | 'point' | 'divide' | 'measure' | 'block' | 'blockpick' | 'insert' | 'attedit' | 'attpick' | 'copybase' | 'paste'
   | 'zoom' | 'zoomwin' | 'zoomscale' | 'selsim' | 'dimrad' | 'dimdia' | 'dimang' | 'textedit';
 
 /** Sample plans shipped with the app (electron/samples, made by scripts/make-sample-villa-plans.mjs), shown while no
@@ -58,7 +58,7 @@ export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, saveA
 
 /** File → Export: a PDF of the view or of the layout, a PNG image, the objects picked as DXF, the devices placed or the
  * cable routes' lengths as Excel. */
-export type CadExport = 'pdfView' | 'pdfLayout' | 'png' | 'wblock' | 'devices' | 'cables';
+export type CadExport = 'pdfView' | 'pdfLayout' | 'png' | 'wblock' | 'devices' | 'cables' | 'attributes' | 'attributesCsv';
 /** The tabs of the Drafting settings dialog (DS). */
 export type DraftTab = 'snap' | 'polar' | 'osnap' | 'dyn' | 'select' | 'cursor' | 'units';
 /** Where a drawing was last saved this session (Save writes there again): the file name and path (none for a browser

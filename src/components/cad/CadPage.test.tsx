@@ -3482,3 +3482,108 @@ describe('CAD 2D gap plan: INSERT and the Blocks palette', () => {
     expect(last()).toBe('SELECT  Every "DB-A" block picked');
   });
 });
+
+describe('CAD 2D gap plan: block attributes (ATTDEF, INSERT prompts, ATTEDIT)', () => {
+  const last = () => state.history[state.history.length - 1];
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const items = () => sketchOf(project, F);
+  const dlg = (name: string) => document.querySelector(`[role="dialog"][aria-label="${name}"]`);
+  const field = (label: string) => document.querySelector(`[aria-label="${label}"]`) as HTMLInputElement;
+  const setField = (label: string, value: string) => act(() => {
+    const el = field(label);
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, value);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const ok = () => act(async () => { (document.querySelector('.cad-dlg-ft .p') as HTMLButtonElement).click(); });
+  const dblClickAt = async (x: number, y: number) => {
+    const [sx, sy] = screenOf(x, y);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('dblclick', { clientX: sx, clientY: sy, button: 0, bubbles: true })); });
+  };
+  const light: CadBlockDef = { name: 'LIGHT', units: 4, items: [
+    { id: 'c', kind: 'circle', layer: '0', pts: [[0, 0]], r: 150 },
+    { id: 'a1', kind: 'attdef', layer: '0', pts: [[200, 0]], tag: 'CIRCUIT', prompt: 'Circuit', text: 'L1', h: 100 },
+    { id: 'a2', kind: 'attdef', layer: '0', pts: [[200, -150]], tag: 'WATTS', prompt: 'Load (W)', text: '36', h: 80, att: { invisible: true } },
+    { id: 'a3', kind: 'attdef', layer: '0', pts: [[0, 200]], tag: 'TYPE', text: 'LED', h: 80, att: { constant: true } }
+  ] };
+  const start: Project = { ...villa, cadSketch: [{ file: F, items: [{ id: 'R', kind: 'pline', layer: 'LV-SKETCH', closed: true, pts: [[X, 0], [X + 400, 0], [X + 400, 300], [X, 300]] }] }], cadBlockDefs: [{ file: F, defs: [light] }] };
+
+  it('ATTDEF draws an attribute definition (shown as its tag); BLOCK takes it; the Properties palette edits an insert\'s values', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('att');
+    expect(dlg('Attribute definition')).not.toBeNull();
+    expect(dlg('Attribute definition')!.textContent).toContain('Type a tag');
+    await setField('Tag', 'db ref');
+    await setField('Prompt', 'Board reference');
+    await setField('Default', 'DB-1');
+    await act(async () => { button('Pick on plan').click(); });
+    expect(dlg('Attribute definition')).toBeNull();
+    expect(last()).toBe('Command: ATTDEF  Specify insertion point:');
+    await clickAt(X + 50, 100);
+    expect(dlg('Attribute definition')).not.toBeNull();
+    expect(field('Insertion X').value).toBe('200.050');
+    await act(async () => { field('Invisible').click(); });
+    await ok();
+    expect(dlg('Attribute definition')).toBeNull();
+    const ad = items().find((it) => it.kind === 'attdef')!;
+    expect(ad).toMatchObject({ tag: 'DB_REF', prompt: 'Board reference', text: 'DB-1', h: 250, att: { invisible: true } });
+    expect(ad.pts[0].map(Math.round)).toEqual([X + 50, 100]);
+    expect(onChange.mock.calls[0][1]).toBe('Attribute DB_REF · ⌘Z to undo');
+    // The definition picks by its tag's box, and goes into a block with the rectangle.
+    await command('-block');
+    await command('BOARD');
+    await command(`${X},0`);
+    await clickAt(X + 200, 0);
+    await clickAt(X + 100, 150);
+    expect(last()).toBe('BLOCK  2 objects selected — Enter when done');
+    await command('');
+    const def = project.cadBlockDefs!.find((t) => t.file === F)!.defs.find((d) => d.name === 'BOARD')!;
+    expect(def.items.map((it) => it.kind)).toEqual(['pline', 'attdef']);
+    expect(def.items[1].pts[0].map(Math.round)).toEqual([50, 100]);
+  });
+
+  it('inserting a block with attributes asks each prompt on the command line (Enter keeps the default); the values show, invisible ones do not; a double-click edits them', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('-insert LIGHT');
+    await clickAt(X + 2000, 2000);
+    expect(last()).toBe('INSERT  Circuit <L1>:');
+    expect(items().filter((it) => it.kind === 'insert')).toHaveLength(0);
+    await command('DB1/L3');
+    expect(last()).toBe('INSERT  Load (W) <36>:');
+    await command('');
+    const ins = items().find((it) => it.kind === 'insert')!;
+    expect(ins).toMatchObject({ block: 'LIGHT', attrs: { CIRCUIT: 'DB1/L3', WATTS: '36' } });
+    expect(state.tool).toBe('none');
+    // What shows: the circle, the circuit and the constant type; not the invisible load.
+    const { expandInsert } = await import('../../model/cadBlocks');
+    expect(expandInsert(ins, [light]).map((x) => [x.kind, x.text])).toEqual([['circle', undefined], ['text', 'DB1/L3'], ['text', 'LED']]);
+    // A double-click on the block: the Edit attributes dialog; a value typed and OK is one undo step.
+    await dblClickAt(X + 2150, 2000);
+    expect(dlg('Edit attributes')).not.toBeNull();
+    expect(dlg('Edit attributes')!.textContent).toContain('LIGHT');
+    expect(field('Value of CIRCUIT').value).toBe('DB1/L3');
+    await setField('Value of CIRCUIT', 'DB1/L4');
+    await setField('Value of WATTS', '18');
+    await ok();
+    expect(dlg('Edit attributes')).toBeNull();
+    expect(items().find((it) => it.kind === 'insert')!.attrs).toEqual({ CIRCUIT: 'DB1/L4', WATTS: '18' });
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange.mock.calls[1][1]).toBe('ATTEDIT  "LIGHT" attributes · ⌘Z to undo');
+    // ATE picks the block too; Esc leaves it.
+    await command('ate');
+    expect(last()).toBe('Command: ATTEDIT  Select a block:');
+    await clickAt(X + 8000, 8000);
+    expect(last()).toBe('ATTEDIT  Select a block:');
+    await clickAt(X + 2150, 2000);
+    expect(dlg('Edit attributes')).not.toBeNull();
+    expect(state.tool).toBe('none');
+    await act(async () => { button('Cancel').click(); });
+    expect(dlg('Edit attributes')).toBeNull();
+    expect(onChange).toHaveBeenCalledTimes(2);
+  });
+});

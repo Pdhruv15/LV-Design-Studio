@@ -185,6 +185,16 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
       expect(lifted.indexOf('<circle')).toBeGreaterThan(lifted.indexOf('PLANT'));
     });
 
+    it('prints an attribute definition as its tag, and an insert\'s attribute values where they sit (S11)', () => {
+      const ad: SketchItem = { id: 'A1', kind: 'attdef', layer: 'LV-ANNO', pts: [[2000, 2000]], tag: 'DB_REF', text: 'DB-1', h: 250 };
+      const ins: SketchItem = { id: 'B1', kind: 'insert', layer: 'LV-SKETCH', pts: [[5000, 5000]], block: 'LT', attrs: { CIRCUIT: 'DB1/L3' } };
+      const defs = [{ name: 'LT', items: [{ id: 'a', kind: 'attdef' as const, layer: '0', pts: [[0, 0]] as [number, number][], tag: 'CIRCUIT', text: 'L1', h: 250 }, { id: 'w', kind: 'attdef' as const, layer: '0', pts: [[0, -400]] as [number, number][], tag: 'WATTS', text: '36', h: 250, att: { invisible: true as const } }] }];
+      const g = /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svgOf({ ...withWork(), ...drawn(villa(), [ad, ins]), cadBlockDefs: [{ file: 'GF.dwg', defs }] }))![1];
+      expect(g).toMatch(/>DB_REF<\/text>/);
+      expect(g).toMatch(/>DB1\/L3<\/text>/);
+      expect(g).not.toMatch(/>36<\/text>/);
+    });
+
     it('prints an insert as what its block shows, at the insert\'s place and scale (S9)', () => {
       const ins: SketchItem = { id: 'B1', kind: 'insert', layer: 'LV-SKETCH', pts: [[5000, 5000]], block: 'DB-A', sc: 2 };
       const p: Project = { ...withWork(), ...drawn(villa(), [ins]), cadBlockDefs: [{ file: 'GF.dwg', defs: [{ name: 'DB-A', items: [

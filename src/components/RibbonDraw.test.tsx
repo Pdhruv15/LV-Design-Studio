@@ -268,7 +268,7 @@ describe('Design CAD ribbon: File', () => {
     expect(cad.onPublish).toHaveBeenCalledTimes(1);
     click(fileButton());
     hover('Export');
-    expect(subItems('Export')).toEqual(['PDF of this view…', 'PDF of this layout…', 'Image (PNG)…', 'Selected objects as DXF…', 'Device list (Excel)…', 'Cable route lengths (Excel)…']);
+    expect(subItems('Export')).toEqual(['PDF of this view…', 'PDF of this layout…', 'Image (PNG)…', 'Selected objects as DXF…', 'Device list (Excel)…', 'Cable route lengths (Excel)…', 'Block attributes (Excel)…']);
     expect(item('PDF of this layout…').disabled).toBe(true); // no layout tab showing
     click(item('Device list (Excel)…'));
     expect(cad.onExport).toHaveBeenLastCalledWith('devices');
@@ -459,7 +459,12 @@ describe('Points (S8 of the Design CAD 2D gap plan)', () => {
 describe('Blocks (S9 of the Design CAD 2D gap plan)', () => {
   it('has a Blocks panel between Annotate and Layers with Create, which opens the Block definition', () => {
     const { cad } = show();
-    expect(tools('Blocks')).toEqual(['Insert', 'Create']);
+    expect(tools('Blocks')).toEqual(['Insert', 'Create', 'Attribute']);
+    click(tool('Attribute'));
+    expect(cad.onCommand).toHaveBeenLastCalledWith('ATTDEF');
+    click(document.querySelector('button[title^="More blocks tools"]')!);
+    click([...document.querySelectorAll('[role="menuitem"]')].find((b) => b.textContent === 'Edit attributes')!);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('EATTEDIT');
     click(tool('Insert'));
     expect(cad.onCommand).toHaveBeenLastCalledWith('INSERT');
     fromList('Insert', 'DB-A');

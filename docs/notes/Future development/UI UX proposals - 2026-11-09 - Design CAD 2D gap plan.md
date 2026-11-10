@@ -6,8 +6,35 @@ Anything not written here stays as it is today. **Built:** S1 (v2.068, `feat/cad
 (v2.076, `feat/cad-gap-steps-1-4`, at the user's "go ahead" on 2026-11-10); S5 (v2.077, `feat/cad-text-inplace-edit`,
 "Yes, Step 5" on 2026-11-10); S6 (v2.078, `feat/cad-mtext`, "Yes, Step 6" on 2026-11-10); S7 (v2.079,
 `feat/cad-draworder`, "Yes, Step 7" on 2026-11-10); S8 (v2.080, `feat/cad-point-divide-measure`, "Yes, Step 8" on 2026-11-10); S9 (v2.081,
-`feat/cad-block-define`, "Yes, Step 9" on 2026-11-10); S10 (v2.082, `feat/cad-block-insert`, "Yes, Step 10" on 2026-11-10) — see
-the end of this note.
+`feat/cad-block-define`, "Yes, Step 9" on 2026-11-10); S10 (v2.082, `feat/cad-block-insert`, "Yes, Step 10" on 2026-11-10); S11 (v2.083,
+`feat/cad-block-attributes`, "Yes, Step 11" on 2026-11-10) — see the end of this note.
+
+## Built in v2.083 (S11)
+
+- **S11** An attribute definition is a drawn object of `kind: 'attdef'` (`tag`, `prompt`, its default in `text`, the
+  text's `h`, `rot`, `just`, and `att` modes: invisible, constant, verify, preset, lock, mlines); on the drawing it shows
+  its tag. An insert keeps its values in `attrs` by tag (constant and preset ones are not stored). `expandInsert`
+  shows each attribute as text with its value where the definition sits (invisible ones not drawn); the canvas, the
+  plan sheets and PDF, picking and snapping follow (`src/model/cadBlocks.ts`, `cadAttributes.ts`, tested). **ATT /
+  ATTDEF** open the **Attribute definition** dialog: Mode (Invisible · Constant · Verify · Preset · Lock position ·
+  Multiple lines), Attribute (Tag · Prompt · Default; the tag upper case, no spaces), Text (Justify · Text style ·
+  Height · Rotation), Insertion point (Pick on plan / X · Y), OK · Cancel; BLOCK takes the definition among its
+  objects. **On insert** each attribute not constant or preset is asked on the command line, `INSERT  <prompt>
+  <default>:`, Enter keeping the default — or all in one dialog when **Attribute prompts in a dialog** is ticked
+  (Drafting settings › Dynamic input). **ATE / ATTEDIT / EATTEDIT** (`ATTEDIT  Select a block:`), a double-click on a
+  block with attributes, or **Edit attributes** on its right-click menu open the **Edit attributes** dialog: the block
+  name; tabs Attribute (Tag · Prompt · Value, the value typed; a constant one shown fixed) · Text options (style,
+  height, justify of the attribute picked — in the block's definition, so every insert follows) · Properties (the
+  insert's layer and colour); OK · Cancel · Apply; one undo step each. The Properties palette lists an insert's values
+  (Attributes section). **ATTEXT** asks `Format [Csv/Excel] <Excel>:` and writes every attribute of every insert —
+  block, tag, value, layer, X, Y and the feeder a CIRCUIT / CCT / CKT value names (by id or name; a report only, the
+  load schedule is never changed); File › Export has **Block attributes (Excel)…**. **Ribbon:** Blocks › small
+  **Attribute** (ATT); Edit attributes (EATTEDIT) under the panel's ▾. DXF / DWG: ATTDEF entities in the BLOCK record,
+  ATTRIB entities after each INSERT (the writer ends them with SEQEND), modes kept (`engines/cad-reader/src/doc.rs`,
+  the WebAssembly rebuilt; round-trip test with an invisible and a constant one). **Decisions taken:** Text options
+  edit the attribute in the block's definition (inserts have no text overrides of their own); Verify asks nothing
+  more (kept for the DXF only); the text style stays Standard (the only font); the extraction's circuit matching
+  is a column of the table, not a change to the schedule.
 
 ## Built in v2.082 (S10)
 
