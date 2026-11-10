@@ -11,6 +11,7 @@ import { annoOf } from '../model/cadAnnotate';
 import { textBaseAt, textCorners } from '../model/cadText';
 import { noteBox, noteSegAt } from '../model/cadMtext';
 import { pointMark, pointStyleOf } from '../model/cadPoints';
+import { attdefAsText, blockDefsOf, expandAll } from '../model/cadBlocks';
 import { dotsOnly, hatchDots, hatchStrokes, mirroredY, defOf, placedLines } from '../model/cadHatch';
 import { fittingCounts, trayFittings } from '../model/cadTrayFittings';
 import { planScale as unitsOf } from '../model/cadUnits';
@@ -257,7 +258,9 @@ function drawnOf(p: Project, b: string, l: string): Drawn[] {
   if (!plan) return [];
   const k = unitsOf(p, plan.file, plan.units).factor, styles = layerStylesOf(p, plan.file), ps = pointStyleOf(p);
   const out: Drawn[] = [];
-  for (const it of sketchOf(p, plan.file)) {
+  // An insert prints as what its block shows.
+  for (const it0 of expandAll(sketchOf(p, plan.file), blockDefsOf(p, plan.file))) {
+    const it = it0.kind === 'attdef' ? attdefAsText(it0) : it0; // an attribute definition prints as its tag
     if (it.tray || it.cable || !it.pts.length) continue;
     const st = styleOf(styles, it.layer);
     if (st.hidden || st.freeze || st.noPrint) continue;

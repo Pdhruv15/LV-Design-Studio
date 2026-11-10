@@ -5,8 +5,85 @@ section is built in its own branch and PR, in the order of "CLAUDE-CODE-STEPS - 
 Anything not written here stays as it is today. **Built:** S1 (v2.068, `feat/cad-clipboard`); S2, S3 and S4 together
 (v2.076, `feat/cad-gap-steps-1-4`, at the user's "go ahead" on 2026-11-10); S5 (v2.077, `feat/cad-text-inplace-edit`,
 "Yes, Step 5" on 2026-11-10); S6 (v2.078, `feat/cad-mtext`, "Yes, Step 6" on 2026-11-10); S7 (v2.079,
-`feat/cad-draworder`, "Yes, Step 7" on 2026-11-10); S8 (v2.080, `feat/cad-point-divide-measure`, "Yes, Step 8" on 2026-11-10) — see
-the end of this note.
+`feat/cad-draworder`, "Yes, Step 7" on 2026-11-10); S8 (v2.080, `feat/cad-point-divide-measure`, "Yes, Step 8" on 2026-11-10); S9 (v2.081,
+`feat/cad-block-define`, "Yes, Step 9" on 2026-11-10); S10 (v2.082, `feat/cad-block-insert`, "Yes, Step 10" on 2026-11-10); S11 (v2.083,
+`feat/cad-block-attributes`, "Yes, Step 11" on 2026-11-10) — see the end of this note.
+
+## Built in v2.083 (S11)
+
+- **S11** An attribute definition is a drawn object of `kind: 'attdef'` (`tag`, `prompt`, its default in `text`, the
+  text's `h`, `rot`, `just`, and `att` modes: invisible, constant, verify, preset, lock, mlines); on the drawing it shows
+  its tag. An insert keeps its values in `attrs` by tag (constant and preset ones are not stored). `expandInsert`
+  shows each attribute as text with its value where the definition sits (invisible ones not drawn); the canvas, the
+  plan sheets and PDF, picking and snapping follow (`src/model/cadBlocks.ts`, `cadAttributes.ts`, tested). **ATT /
+  ATTDEF** open the **Attribute definition** dialog: Mode (Invisible · Constant · Verify · Preset · Lock position ·
+  Multiple lines), Attribute (Tag · Prompt · Default; the tag upper case, no spaces), Text (Justify · Text style ·
+  Height · Rotation), Insertion point (Pick on plan / X · Y), OK · Cancel; BLOCK takes the definition among its
+  objects. **On insert** each attribute not constant or preset is asked on the command line, `INSERT  <prompt>
+  <default>:`, Enter keeping the default — or all in one dialog when **Attribute prompts in a dialog** is ticked
+  (Drafting settings › Dynamic input). **ATE / ATTEDIT / EATTEDIT** (`ATTEDIT  Select a block:`), a double-click on a
+  block with attributes, or **Edit attributes** on its right-click menu open the **Edit attributes** dialog: the block
+  name; tabs Attribute (Tag · Prompt · Value, the value typed; a constant one shown fixed) · Text options (style,
+  height, justify of the attribute picked — in the block's definition, so every insert follows) · Properties (the
+  insert's layer and colour); OK · Cancel · Apply; one undo step each. The Properties palette lists an insert's values
+  (Attributes section). **ATTEXT** asks `Format [Csv/Excel] <Excel>:` and writes every attribute of every insert —
+  block, tag, value, layer, X, Y and the feeder a CIRCUIT / CCT / CKT value names (by id or name; a report only, the
+  load schedule is never changed); File › Export has **Block attributes (Excel)…**. **Ribbon:** Blocks › small
+  **Attribute** (ATT); Edit attributes (EATTEDIT) under the panel's ▾. DXF / DWG: ATTDEF entities in the BLOCK record,
+  ATTRIB entities after each INSERT (the writer ends them with SEQEND), modes kept (`engines/cad-reader/src/doc.rs`,
+  the WebAssembly rebuilt; round-trip test with an invisible and a constant one). **Decisions taken:** Text options
+  edit the attribute in the block's definition (inserts have no text overrides of their own); Verify asks nothing
+  more (kept for the DXF only); the text style stays Standard (the only font); the extraction's circuit matching
+  is a column of the table, not a change to the schedule.
+
+## Built in v2.082 (S10)
+
+- **S10** `src/model/cadBlockLibrary.ts` (tested): Recent (the twelve blocks inserted lately, kept on this computer
+  with their objects, so they insert into another drawing too; the storage guarded), a block from a whole drawing
+  file (`defFromGeometry`: its lines, texts and fills about its origin, named after the file), a block from one of the
+  architect's blocks (`defFromPieces`: what the engine explodes an insert of it into, about its lowest left corner —
+  the drawing's block records give the app no geometry of their own), the small black-and-white pictures and the
+  search. `BlocksPalette.tsx` docks beside the drawing like the layer palette: tabs **Current drawing** (this
+  drawing's blocks, then the architect's) · **Recent** · **Library**; a search box; the grid of previews with names;
+  below: Insertion point (**Pick on plan** ticked, else X · Y and Insert), Scale (number; **Uniform** ticked and fixed,
+  since inserts scale uniformly), Rotation (°), **Repeat placement**, **Explode**. Library: **Folder…** chooses a local
+  folder of DWG / DXF files on the desktop (remembered on this computer; `cad:chooseBlockFolder` / `cad:listFolder`
+  IPC), the files chosen one by one on the web. A click, or a drag onto the drawing, places the block: one insert (or
+  its objects with Explode), one undo step; a block from Recent, the library or the architect's goes into the
+  drawing's blocks as it is placed. **I / INSERT** show the palette (and close it); **DEV / DEVICE** alone add a
+  device now. **-INSERT**: `INSERT  Block name:` → `INSERT  Insertion point or [Scale/Rotate]:` (S and R ask their
+  values; a point typed places it); `-INSERT <name>` (what Insert's arrow sends) skips the name. **Ribbon:** Blocks ›
+  **Insert** (the palette; its ▾ lists the drawing's blocks, twelve at most, then **More blocks…**) beside Create.
+  **DIVIDE / MEASURE [Block]**: the block's name, `Align block with object? [Yes/No] <Yes>:`, then the number or
+  length: a block at each point, turned along the object when aligned. **Right-click** on a block: **Select all of
+  this block** (Edit block and Edit attributes come with S25 and S11). **Decisions taken:** Recent keeps a block's
+  objects, not just its name, so it can be inserted elsewhere; a block from the library is the drawing's model
+  space flattened to lines, texts and fills; the library folder lives in the palette (Folder…), remembered per
+  computer, not in Preferences; the Blocks palette is not offered on a layout's paper.
+
+## Built in v2.081 (S9)
+
+- **S9** `src/model/cadBlocks.ts` (tested): a block (`CadBlockDef`: name, units, description, its objects relative to
+  the base point, explodable) is kept per drawing in `cadBlockDefs`; an insert is a drawn object of `kind: 'insert'`
+  (`block` name, `sc` scale, `rot`). `expandInsert` gives what an insert shows (scaled, turned, moved; objects on layer
+  0 and those with no colour, linetype or lineweight of their own take the insert's; blocks in blocks eight deep), and
+  the canvas, the plan sheets, picking, snapping (insertion point and the objects' snaps), window selection, EXPLODE
+  (the objects as drawn objects of their own) and CROP (kept whole) go through it. Project files move to schema
+  version 3 (an older app opens them read-only, since it would show a drawing without its blocks). **B / BLOCK** open
+  the **Block definition** dialog: Name (the drawing's blocks listed), Base point (Pick point · X · Y in metres),
+  Objects (Select objects, the count, Retain / **Convert to block** / Delete), Description, Units, OK · Cancel; a name
+  defined already asks `Block "…" exists. Redefine it? Yes / No`; the architect's block names and the forbidden
+  characters are refused. The dialog steps aside while a point or the objects are picked (Enter ends the objects).
+  **-BLOCK**: `Block name:` → `Specify base point:` → `Select objects — Enter when done:`, then Convert. **Ribbon:** a
+  **Blocks** panel between Annotate and Layers with **Create** (B). **Right-click** with drawn objects picked: **Make
+  block…**. Properties of an insert: Block (read only), X, Y, Scale, Rotation. DXF / DWG: a BLOCK record per block
+  (its objects with the record as owner) and INSERT entities (`engines/cad-reader/src/doc.rs`, the WebAssembly
+  rebuilt); a record the drawing already has of that name is kept as it is, so a drawing saved and saved again holds
+  the block once. **Decisions taken:** inserts scale uniformly (one `sc`; the DXF INSERT gets equal X and Y scales);
+  MIRROR turns an insert to face the mirror line but does not flip its block; trays and cable routes cannot go into a
+  block (they belong to the schedules); the name check also refuses the architect's block names, which the app does
+  not redefine; the Blocks panel shows in the model, not on a layout's paper; Insert / the Blocks palette (S10) and attributes (S11) stay next. The missing Properties rows of notes
+  from S6 were added on its branch while building this step.
 
 ## Built in v2.080 (S8)
 

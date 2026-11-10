@@ -185,6 +185,28 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
       expect(lifted.indexOf('<circle')).toBeGreaterThan(lifted.indexOf('PLANT'));
     });
 
+    it('prints an attribute definition as its tag, and an insert\'s attribute values where they sit (S11)', () => {
+      const ad: SketchItem = { id: 'A1', kind: 'attdef', layer: 'LV-ANNO', pts: [[2000, 2000]], tag: 'DB_REF', text: 'DB-1', h: 250 };
+      const ins: SketchItem = { id: 'B1', kind: 'insert', layer: 'LV-SKETCH', pts: [[5000, 5000]], block: 'LT', attrs: { CIRCUIT: 'DB1/L3' } };
+      const defs = [{ name: 'LT', items: [{ id: 'a', kind: 'attdef' as const, layer: '0', pts: [[0, 0]] as [number, number][], tag: 'CIRCUIT', text: 'L1', h: 250 }, { id: 'w', kind: 'attdef' as const, layer: '0', pts: [[0, -400]] as [number, number][], tag: 'WATTS', text: '36', h: 250, att: { invisible: true as const } }] }];
+      const g = /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svgOf({ ...withWork(), ...drawn(villa(), [ad, ins]), cadBlockDefs: [{ file: 'GF.dwg', defs }] }))![1];
+      expect(g).toMatch(/>DB_REF<\/text>/);
+      expect(g).toMatch(/>DB1\/L3<\/text>/);
+      expect(g).not.toMatch(/>36<\/text>/);
+    });
+
+    it('prints an insert as what its block shows, at the insert\'s place and scale (S9)', () => {
+      const ins: SketchItem = { id: 'B1', kind: 'insert', layer: 'LV-SKETCH', pts: [[5000, 5000]], block: 'DB-A', sc: 2 };
+      const p: Project = { ...withWork(), ...drawn(villa(), [ins]), cadBlockDefs: [{ file: 'GF.dwg', defs: [{ name: 'DB-A', items: [
+        { id: 'r', kind: 'pline', layer: '0', closed: true, pts: [[0, 0], [400, 0], [400, 300], [0, 300]] }, { id: 't', kind: 'text', layer: 'LV-ANNO', pts: [[50, 100]], text: 'DB', h: 100 }] }] }] };
+      const g = /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svgOf(p))![1];
+      // At 1:100: the 0.8 × 0.6 m rectangle is 8 × 6 mm on paper, the text 2 mm high.
+      const m = /<path d="M([\d.]+) ([\d.]+)L([\d.]+) ([\d.]+)L([\d.]+) ([\d.]+)L([\d.]+) ([\d.]+)L/.exec(g)!;
+      expect(Number(m[3]) - Number(m[1])).toBeCloseTo(8);
+      expect(Number(m[6]) - Number(m[4])).toBeCloseTo(-6);
+      expect(g).toMatch(/font-size="2"[^>]*>DB<\/text>/);
+    });
+
     it('prints drawn points with the point style: 2 mm across when sized to the screen, else at their size in the drawing\'s units (S8)', () => {
       const pt: SketchItem = { id: 'P1', kind: 'point', layer: 'LV-SKETCH', pts: [[5000, 5000]] };
       const group = (p: Project) => /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svgOf(p))![1];

@@ -19,7 +19,7 @@ import type { ObjectProps } from '../../model/cadLayerStyle';
  * with a legend line; `rtall` tags every room of the level. */
 export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'lux' | 'em' | 'arl' | 'match' | 'wire' | 'move' | 'copy' | 'rotate' | 'mirror' | 'scale' | 'stretch' | 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'array' | 'matchprop' | 'hatch' | 'leader' | 'rtag' | 'north' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim' | 'xattach' | 'xclip'
   | 'polygon' | 'ellipse' | 'circle2p' | 'circle3p' | 'circled' | 'arcsce' | 'revcloud' | 'crop'
-  | 'dimlin' | 'dimcont' | 'dimbase' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'rtall' | 'tframe' | 'tmask' | 'tcount' | 'keynote' | 'mtext' | 'draworder' | 'texttofront' | 'point' | 'divide' | 'measure' | 'copybase' | 'paste'
+  | 'dimlin' | 'dimcont' | 'dimbase' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'rtall' | 'tframe' | 'tmask' | 'tcount' | 'keynote' | 'mtext' | 'draworder' | 'texttofront' | 'point' | 'divide' | 'measure' | 'block' | 'blockpick' | 'insert' | 'attedit' | 'attpick' | 'copybase' | 'paste'
   | 'zoom' | 'zoomwin' | 'zoomscale' | 'selsim' | 'dimrad' | 'dimdia' | 'dimang' | 'textedit';
 
 /** Sample plans shipped with the app (electron/samples, made by scripts/make-sample-villa-plans.mjs), shown while no
@@ -58,7 +58,7 @@ export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, saveA
 
 /** File → Export: a PDF of the view or of the layout, a PNG image, the objects picked as DXF, the devices placed or the
  * cable routes' lengths as Excel. */
-export type CadExport = 'pdfView' | 'pdfLayout' | 'png' | 'wblock' | 'devices' | 'cables';
+export type CadExport = 'pdfView' | 'pdfLayout' | 'png' | 'wblock' | 'devices' | 'cables' | 'attributes' | 'attributesCsv';
 /** The tabs of the Drafting settings dialog (DS). */
 export type DraftTab = 'snap' | 'polar' | 'osnap' | 'dyn' | 'select' | 'cursor' | 'units';
 /** Where a drawing was last saved this session (Save writes there again): the file name and path (none for a browser
@@ -73,6 +73,8 @@ export interface CadRibbonInfo {
   current: string;
   picked: number;
   props: { [K in keyof ObjectProps]: ObjectProps[K] | 'varies' };
+  /** The drawing's own blocks, for Insert's arrow (S10 of the 2D gap plan). */
+  blocks: string[];
 }
 
 /** A drawing open in a tab (its zoom and pan stay with CadCanvas; its layers' On is kept in the project, cadLayerState). */
@@ -103,6 +105,8 @@ export function useCad(projectId: string | undefined) {
   const saved = useRef(new Map<string, SavedCopy>());
   const [fitKey, setFitKey] = useState(0);
   const [showLayers, setShowLayers] = useState(true);
+  /** The Blocks palette (INSERT), docked beside the drawing like the layer palette. */
+  const [showBlocks, setShowBlocks] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [tool, setTool] = useState<CadTool>('none');
   // Devices: what Add device places, on which circuit / board, the device selected (the level is the plan's: cadPlans).
@@ -209,7 +213,7 @@ export function useCad(projectId: string | undefined) {
     else { setToggles((t) => ({ ...t, grid: false })); setGridDots(false); }
   };
 
-  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, markDirty, isDirty, dirty, saved, setGridDots, setToggles, tabOf, projectOpened, sampleDone, toggles, toggle, gridDots, textPreset, setTextPreset, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, pending, ribbonInfo, setRibbonInfo, showProps, setShowProps, log, setLog, textAt, setTextAt, layout, setLayout, vpSel, setVpSel, msVp, setMsVp };
+  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, markDirty, isDirty, dirty, saved, setGridDots, setToggles, tabOf, projectOpened, sampleDone, toggles, toggle, gridDots, textPreset, setTextPreset, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, showBlocks, setShowBlocks, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, pending, ribbonInfo, setRibbonInfo, showProps, setShowProps, log, setLog, textAt, setTextAt, layout, setLayout, vpSel, setVpSel, msVp, setMsVp };
 }
 
 export type CadState = ReturnType<typeof useCad>;

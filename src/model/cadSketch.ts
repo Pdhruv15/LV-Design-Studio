@@ -3,6 +3,7 @@ import { defOf, placedLines } from './cadHatch';
 import { MASK_LAYER, textBox, textCorners, textFrameOf, textWidth } from './cadText';
 import { noteCorners, noteHit, toDxfMtext } from './cadMtext';
 import { pdsizeOf, type PointStyle } from './cadPoints';
+import { attdefAsText, attributePlacements, expandInsert, type CadBlockDef } from './cadBlocks';
 import type { CadSketch, Project, SketchItem } from '../types';
 
 type Pt = [number, number];
@@ -41,7 +42,7 @@ export const moved = (it: SketchItem, dx: number, dy: number): SketchItem => ({ 
 export function rotated(it: SketchItem, c: Pt, a: number): SketchItem {
   const pts = it.pts.map((q) => rot(q, c, a));
   if (it.kind === 'arc') return { ...it, pts, a0: (it.a0 ?? 0) + a, a1: (it.a1 ?? 0) + a };
-  if (it.kind === 'text' || it.kind === 'mtext') return { ...it, pts, rot: (it.rot ?? 0) + a };
+  if (it.kind === 'text' || it.kind === 'mtext' || it.kind === 'insert' || it.kind === 'attdef') return { ...it, pts, rot: (it.rot ?? 0) + a };
   if (it.kind === 'ellipse' && it.ax) return { ...it, pts, ax: rot(it.ax, [0, 0], a) };
   if (it.kind === 'dim' && it.dir !== undefined) return { ...it, pts, dir: it.dir + a };
   return { ...it, pts };
@@ -429,7 +430,9 @@ export function nextDim(base: SketchItem, to: Pt, mode: 'continue' | 'baseline',
 
 /** The straight pieces an item is drawn with (arcs and circles stepped every 5°). A dimension's text is measured with
  * metresPerUnit (for the break round centred text). */
-export function segmentsOf(it: SketchItem, metresPerUnit = 0.001): [Pt, Pt][] {
+export function segmentsOf(it: SketchItem, metresPerUnit = 0.001, defs: CadBlockDef[] = []): [Pt, Pt][] {
+  // An insert: the segments of what its block shows.
+  if (it.kind === 'insert') return expandInsert(it, defs).flatMap((x) => segmentsOf(x, metresPerUnit, defs));
   const out: [Pt, Pt][] = [];
   const poly = (pts: Pt[], closed: boolean) => { for (let i = 0; i + 1 < pts.length; i += 1) out.push([pts[i], pts[i + 1]]); if (closed && pts.length > 2) out.push([pts[pts.length - 1], pts[0]]); };
   const arc = (c: Pt, r: number, a0: number, a1: number) => {
@@ -486,7 +489,7 @@ export function trayLine(it: SketchItem, h: number): { pieces: Pt[][]; textAt: P
 export const trayLength = (it: SketchItem) => it.pts.slice(1).reduce((t, p, i) => t + dist(it.pts[i], p), 0);
 
 /** Points the cursor snaps to on drawn items: endpoint (1), midpoint (2), centre (4), insertion (16), quadrant (64). */
-export function snapPoints(items: SketchItem[]): { x: number; y: number; kind: number }[] {
+export function snapPoints(items: SketchItem[], defs: CadBlockDef[] = []): { x: number; y: number; kind: number }[] {
   const out: { x: number; y: number; kind: number }[] = [];
   for (const it of items) {
     if (it.kind === 'line' || it.kind === 'pline') {
@@ -504,6 +507,9 @@ export function snapPoints(items: SketchItem[]): { x: number; y: number; kind: n
       out.push({ x: c[0], y: c[1], kind: 4 }, { x: c[0] + r * Math.cos(it.a0 ?? 0), y: c[1] + r * Math.sin(it.a0 ?? 0), kind: 1 }, { x: c[0] + r * Math.cos(it.a1 ?? 0), y: c[1] + r * Math.sin(it.a1 ?? 0), kind: 1 });
     } else if (it.kind === 'text') out.push({ x: it.pts[0][0], y: it.pts[0][1], kind: 16 });
     else if (it.kind === 'point') out.push({ x: it.pts[0][0], y: it.pts[0][1], kind: 32 }); // node
+    else if (it.kind === 'attdef') out.push({ x: it.pts[0][0], y: it.pts[0][1], kind: 16 });
+    // An insert: its insertion point, and the snaps of what its block shows.
+    else if (it.kind === 'insert') out.push({ x: it.pts[0][0], y: it.pts[0][1], kind: 16 }, ...snapPoints(expandInsert(it, defs), defs));
     // A note: its anchor, and the corners of its box.
     else if (it.kind === 'mtext') out.push({ x: it.pts[0][0], y: it.pts[0][1], kind: 16 }, ...noteCorners(it).map((q) => ({ x: q[0], y: q[1], kind: 1 })));
     else if (it.kind === 'dim') out.push({ x: it.pts[0][0], y: it.pts[0][1], kind: 1 }, { x: it.pts[1][0], y: it.pts[1][1], kind: 1 });
@@ -512,7 +518,7 @@ export function snapPoints(items: SketchItem[]): { x: number; y: number; kind: n
 }
 
 /** The drawn item nearest the point within `tol` (drawing units), or undefined. Texts by their box. */
-export function itemAt(items: SketchItem[], at: Pt, tol: number): SketchItem | undefined {
+export function itemAt(items: SketchItem[], at: Pt, tol: number, defs: CadBlockDef[] = []): SketchItem | undefined {
   let best: { it: SketchItem; d: number } | undefined;
   const segDist = (p: Pt, a: Pt, b: Pt) => {
     const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
@@ -529,6 +535,9 @@ export function itemAt(items: SketchItem[], at: Pt, tol: number): SketchItem | u
       d = px >= -tol && px <= w + tol && py >= -tol && py <= h + tol ? 0 : Infinity;
     } else if (it.kind === 'mtext') d = noteHit(it, at, tol) ? 0 : Infinity;
     else if (it.kind === 'point') d = dist(at, it.pts[0]);
+    else if (it.kind === 'insert') d = itemAt(expandInsert(it, defs), at, tol, defs) ? 0 : Infinity;
+    // An attribute definition on the drawing: by the box of its tag.
+    else if (it.kind === 'attdef') d = itemAt([attdefAsText(it)], at, tol) ? 0 : Infinity;
     else for (const [a, b] of segmentsOf(it)) d = Math.min(d, segDist(at, a, b));
     if (d <= tol && (!best || d < best.d)) best = { it, d };
   }
@@ -536,8 +545,8 @@ export function itemAt(items: SketchItem[], at: Pt, tol: number): SketchItem | u
 }
 
 /** Drawn items as the engine writes them into a DXF (drawing units). */
-export interface ShapeOut { layer: string; kind: 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'text' | 'mtext' | 'hatch' | 'point' | 'pointstyle'; pts: Pt[]; mode?: number; closed?: boolean; bulges?: number[]; r?: number; a0?: number; a1?: number; axis?: Pt; ratio?: number; text?: string; h?: number; rot?: number; just?: string; w?: number; lsp?: number; loops?: Pt[][]; solid?: boolean; lines?: { angle: number; base: Pt; offset: Pt; dashes: number[] }[] }
-export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[] {
+export interface ShapeOut { layer: string; kind: 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'text' | 'mtext' | 'hatch' | 'point' | 'pointstyle' | 'insert' | 'blockdef' | 'attdef'; pts: Pt[]; mode?: number; name?: string; sc?: number; units?: number; items?: ShapeOut[]; tag?: string; prompt?: string; flags?: { invisible?: boolean; constant?: boolean; verify?: boolean; preset?: boolean; lock?: boolean }; atts?: ShapeOut[]; closed?: boolean; bulges?: number[]; r?: number; a0?: number; a1?: number; axis?: Pt; ratio?: number; text?: string; h?: number; rot?: number; just?: string; w?: number; lsp?: number; loops?: Pt[][]; solid?: boolean; lines?: { angle: number; base: Pt; offset: Pt; dashes: number[] }[] }
+export function shapesOut(items: SketchItem[], metresPerUnit: number, defs: CadBlockDef[] = []): ShapeOut[] {
   const unitsPerMm = 0.001 / metresPerUnit;
   const { fittings } = trayFittings(items, unitsPerMm);
   // Tray fittings are written as their labels at the joint ("Tee 300 × 150").
@@ -568,6 +577,12 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[
     if (it.cloud) { const c = cloudLobes(it); return [{ layer: it.layer, kind: 'pline', pts: c.pts, closed: true, bulges: c.pts.map(() => c.bulge) }]; }
     if (it.kind === 'ellipse') return it.ax ? [{ layer: it.layer, kind: 'ellipse', pts: it.pts, axis: it.ax, ratio: it.ratio ?? 1 }] : [];
     if (it.kind === 'point') return [{ layer: it.layer, kind: 'point', pts: it.pts }];
+    // An insert of one of the drawing's blocks (the BLOCK records go with blockDefsOut).
+    if (it.kind === 'insert') return it.block ? [{ layer: it.layer, kind: 'insert', pts: it.pts, name: it.block, sc: it.sc ?? 1, rot: it.rot ?? 0,
+      // Its attributes as placed (ATTRIB entities after the INSERT), each with its value.
+      atts: attributePlacements(it, defs).map(({ ad, value, at }): ShapeOut => ({ ...attdefOut(at), text: value, tag: ad.tag })) }] : [];
+    // An attribute definition (ATTDEF): its tag, prompt, default and modes, drawn as text.
+    if (it.kind === 'attdef') return [attdefOut(it)];
     // A note as an MTEXT: its words with their codes, the box's width and attachment.
     if (it.kind === 'mtext') return [{ layer: it.layer, kind: 'mtext', pts: it.pts, text: toDxfMtext(it.note ?? []), h: it.h, rot: it.rot, just: it.just ?? 'TL', w: it.w ?? 0, lsp: it.lsp ?? 1 }];
     if (it.kind === 'text') {
@@ -581,6 +596,9 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[
   }), ...fittingTexts];
 }
 
+const attdefOut = (it: SketchItem): ShapeOut => ({ layer: it.layer, kind: 'attdef', pts: it.pts, text: it.text ?? '', h: it.h, rot: it.rot ?? 0, just: it.just ?? '', tag: it.tag ?? '', prompt: it.prompt ?? '', flags: { invisible: !!it.att?.invisible, constant: !!it.att?.constant, verify: !!it.att?.verify, preset: !!it.att?.preset, lock: !!it.att?.lock } });
+/** The drawing's own blocks as BLOCK records for the DXF: each with its objects (relative to the base point). */
+export const blockDefsOut = (defs: CadBlockDef[], metresPerUnit: number): ShapeOut[] => defs.map((d) => ({ layer: '', kind: 'blockdef', pts: [], name: d.name, units: d.units ?? 0, text: d.description ?? '', items: shapesOut(d.items, metresPerUnit, defs) }));
 /** The drawing's point style for the DXF header ($PDMODE, $PDSIZE), written with the shapes. */
 export const pointStyleOut = (s: PointStyle): ShapeOut => ({ layer: '', kind: 'pointstyle', pts: [], mode: s.mode, r: pdsizeOf(s) });
 

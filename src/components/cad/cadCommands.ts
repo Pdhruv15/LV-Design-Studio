@@ -8,7 +8,7 @@ import type { CadTool } from './cadState';
 export type CadAction = 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'layiso' | 'layuniso'
   | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
   | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
-  | 'textStyle' | 'dimStyle' | 'pointStyle' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
+  | 'textStyle' | 'dimStyle' | 'pointStyle' | 'blockDialog' | 'blocksPalette' | 'attDef' | 'attExport' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
   | 'copyClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave' | 'zoomPrev' | 'qselect';
 
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
@@ -29,7 +29,12 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['TR', 'TRACE'], desc: 'Trace a room', tool: 'trace' },
   { aliases: ['PN', 'NAME'], desc: 'Pick a room name', tool: 'name' },
   { aliases: ['LI', 'LIST'], desc: 'Inspect', tool: 'none' },
-  { aliases: ['DEV', 'DEVICE', 'INSERT', 'I'], desc: 'Add a device', tool: 'dev' },
+  { aliases: ['DEV', 'DEVICE'], desc: 'Add a device', tool: 'dev' },
+  { aliases: ['I', 'INSERT'], desc: 'The Blocks palette: insert one of the drawing\'s blocks, a recent one or one from the library folder', action: 'blocksPalette' },
+  { aliases: ['-INSERT'], desc: 'Insert a block by name on the command line', tool: 'insert' },
+  { aliases: ['ATT', 'ATTDEF'], desc: 'Attribute definition: a tag, prompt and default value, drawn as text for a block', action: 'attDef' },
+  { aliases: ['ATE', 'ATTEDIT', 'EATTEDIT'], desc: 'Edit the attributes of a block', tool: 'attedit' },
+  { aliases: ['ATTEXT'], desc: 'The attributes of every block as a table (CSV or Excel)', action: 'attExport' },
   { aliases: ['M', 'MOVE'], desc: 'Move', tool: 'move' },
   { aliases: ['CO', 'CP', 'COPY'], desc: 'Copy', tool: 'copy' },
   { aliases: ['COPYCLIP'], desc: 'Copy the drawn objects picked to the clipboard (Ctrl+C)', action: 'copyClip' },
@@ -127,6 +132,8 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['DAN', 'DIMANGULAR'], desc: 'Angular dimension: two lines, an arc, or a vertex and two points, then where the arc goes', tool: 'dimang' },
   { aliases: ['ST', 'STYLE'], desc: 'Text style', action: 'textStyle' },
   { aliases: ['PTYPE', 'DDPTYPE'], desc: 'Point style', action: 'pointStyle' },
+  { aliases: ['B', 'BLOCK'], desc: 'Create a block from drawn objects (the dialog)', action: 'blockDialog' },
+  { aliases: ['-BLOCK'], desc: 'Create a block on the command line: name, base point, objects', tool: 'block' },
   { aliases: ['D', 'DST', 'DIMSTY', 'DIMSTYLE'], desc: 'Dimension style', action: 'dimStyle' },
   { aliases: ['E', 'ERASE', 'DEL', 'DELETE'], desc: 'Erase', action: 'erase' },
   { aliases: ['RESTOREDWG'], desc: 'Bring back the objects of the drawing erased here', action: 'restoreDwg' },

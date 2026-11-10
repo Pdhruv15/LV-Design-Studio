@@ -5,6 +5,9 @@ import { isNumber } from './cadPrompt';
 import { badName, cannotDelete, CAD_FONTS, DIM_ARROWS, DIM_TEXT_ALONG, DIM_TEXT_POS, DIM_UNITS, lookOf, newStyleName, STANDARD, type CadDimStyle, type CadFont, type CadStyles, type CadTextStyle, type DimArrow, type DimTextAlong, type DimTextPos, type DimUnit } from '../../model/cadStyles';
 import { dimOf } from '../../model/cadSketch';
 import { POINT_SHAPES, pointMark, type PointStyle } from '../../model/cadPoints';
+import { askedAttdefs, attdefsOf, attrValue, blockNameError, type CadBlockDef } from '../../model/cadBlocks';
+import { cleanTag } from '../../model/cadAttributes';
+import { TEXT_JUSTS, type TextJust } from '../../model/cadText';
 import { mergeImported, readDxfDimStyles } from '../../model/dxfDimStyles';
 import type { SketchItem } from '../../types';
 
@@ -342,6 +345,205 @@ export function PointStyleDialog({ style, onSave, onClose }: { style: PointStyle
         <label><input type="radio" name="cad-ptsize" aria-label="Size relative to screen" checked={d.relative} onChange={() => setD({ ...d, relative: true })} /> Relative to screen</label>
         <label><input type="radio" name="cad-ptsize" aria-label="Size in absolute units" checked={!d.relative} onChange={() => setD({ ...d, relative: false })} /> In absolute units</label>
       </Row>
+    </CadDialog>
+  );
+}
+
+/** What the Block definition dialog holds while it is open (S9 of the Design CAD 2D gap plan): the name, the base
+ * point (drawing units), the ids of the drawn objects, what becomes of them, and a description. `picking` is set while
+ * the dialog steps aside for a point or objects to be picked on the drawing; `redefine` while it asks about a name
+ * already defined. */
+export interface BlockDraft { name: string; base: [number, number] | null; ids: string[]; mode: 'retain' | 'convert' | 'delete'; description: string; picking?: 'base' | 'objects'; redefine?: boolean }
+
+const BLOCK_HELP = 'A block is a named group of drawn objects you can insert again (Insert comes with the next step). The base point is where it is held when inserted. Convert to block replaces the objects with one insert; Retain leaves them as they are; Delete takes them away. The name cannot contain < > / \\ " : ; ? * | = or `.';
+/** BLOCK: a block defined from drawn objects: Name (the drawing's blocks listed to redefine one), Base point (Pick point,
+ * X, Y in metres), Objects (Select objects, the count, Retain / Convert to block / Delete), Description, the drawing's
+ * units, OK · Cancel. Redefining asks first. */
+export function BlockDialog({ draft, names, archNames, units, k, onDraft, onPick, onOk, onClose }: {
+  draft: BlockDraft;
+  /** The drawing's own blocks (one can be redefined) and the architect's (which cannot). */
+  names: string[];
+  archNames: string[];
+  /** The drawing's unit, as shown. */
+  units: string;
+  /** Metres per drawing unit. */
+  k: number;
+  onDraft: (d: BlockDraft) => void;
+  onPick: (what: 'base' | 'objects') => void;
+  onOk: () => void;
+  onClose: () => void;
+}) {
+  const nameErr = blockNameError(draft.name, archNames);
+  const exists = !nameErr && names.some((n) => n.toLowerCase() === draft.name.trim().toLowerCase());
+  const [xy, setXy] = useState<[string, string]>([draft.base ? (draft.base[0] * k).toFixed(3) : '', draft.base ? (draft.base[1] * k).toFixed(3) : '']);
+  useEffect(() => { setXy([draft.base ? (draft.base[0] * k).toFixed(3) : '', draft.base ? (draft.base[1] * k).toFixed(3) : '']); }, [draft.base, k]);
+  const coord = (i: 0 | 1, v: string) => {
+    const next: [string, string] = i === 0 ? [v, xy[1]] : [xy[0], v];
+    setXy(next);
+    const x = Number(next[0].replace(',', '.')), y = Number(next[1].replace(',', '.'));
+    if (Number.isFinite(x) && Number.isFinite(y) && next[0].trim() && next[1].trim()) onDraft({ ...draft, base: [x / k, y / k] });
+  };
+  const ok = () => { if (nameErr || !draft.base || !draft.ids.length) return; if (exists && !draft.redefine) onDraft({ ...draft, redefine: true }); else onOk(); };
+  const why = nameErr ?? (!draft.base ? 'Pick or type the base point.' : !draft.ids.length ? 'Select the objects.' : undefined);
+  return (
+    <CadDialog id="block" title="Block definition" alias="BLOCK" onOk={ok} onClose={onClose}
+      help={BLOCK_HELP}>
+      <Row label="Name">
+        <input aria-label="Block name" list="cad-block-names" value={draft.name} autoFocus onChange={(e) => onDraft({ ...draft, name: e.target.value, redefine: false })} />
+        <datalist id="cad-block-names">{names.map((n) => <option key={n} value={n} />)}</datalist>
+      </Row>
+      <Row label="Base point">
+        <button type="button" className="chip" onClick={() => onPick('base')}>Pick point</button>
+        <input aria-label="Base X" className="r" value={xy[0]} placeholder="X" onChange={(e) => coord(0, e.target.value)} />
+        <input aria-label="Base Y" className="r" value={xy[1]} placeholder="Y" onChange={(e) => coord(1, e.target.value)} />
+        <span className="m">m</span>
+      </Row>
+      <Row label="Objects">
+        <button type="button" className="chip" onClick={() => onPick('objects')}>Select objects</button>
+        <span className="m" aria-label="Objects selected">{draft.ids.length} selected</span>
+      </Row>
+      <Row label="">
+        {([['retain', 'Retain'], ['convert', 'Convert to block'], ['delete', 'Delete']] as const).map(([id, label]) => (
+          <label key={id}><input type="radio" name="cad-block-mode" aria-label={label} checked={draft.mode === id} onChange={() => onDraft({ ...draft, mode: id })} /> {label}</label>
+        ))}
+      </Row>
+      <Row label="Description"><input aria-label="Block description" value={draft.description} onChange={(e) => onDraft({ ...draft, description: e.target.value })} /></Row>
+      <Row label="Units"><span className="m">{units}</span></Row>
+      {draft.redefine && exists ? (
+        <p className="cad-dlg-help" role="alert">Block "{draft.name.trim()}" exists. Redefine it?
+          <button type="button" className="chip" onClick={onOk}>Yes</button>
+          <button type="button" className="chip" onClick={() => onDraft({ ...draft, redefine: false })}>No</button>
+        </p>
+      ) : why ? <p className="cad-dlg-help" role="status">{why}</p> : null}
+    </CadDialog>
+  );
+}
+
+/** What the Attribute definition dialog holds (ATTDEF, S11 of the Design CAD 2D gap plan): the modes, tag, prompt
+ * and default, the text's justification, style, height (mm on paper) and rotation, and the insertion point (drawing
+ * units; `picking` while the dialog steps aside for a click on the plan). */
+export interface AttDraft {
+  modes: { invisible: boolean; constant: boolean; verify: boolean; preset: boolean; lock: boolean; mlines: boolean };
+  tag: string; prompt: string; def: string;
+  just: TextJust; style: string; heightMm: number; rot: number;
+  at: [number, number] | null; picking?: boolean;
+}
+export const ATT_DRAFT: AttDraft = { modes: { invisible: false, constant: false, verify: false, preset: false, lock: false, mlines: false }, tag: '', prompt: '', def: '', just: 'L', style: 'Standard', heightMm: 2.5, rot: 0, at: null };
+
+/** ATTDEF: an attribute definition for a block: Mode · Attribute (Tag, Prompt, Default) · Text (Justify, Text style,
+ * Height, Rotation) · Insertion point (Pick on plan, X · Y) · OK · Cancel. */
+export function AttDefDialog({ draft, styles, k, onDraft, onPick, onOk, onClose }: {
+  draft: AttDraft;
+  /** The project's text styles' names. */
+  styles: string[];
+  /** Metres per drawing unit. */
+  k: number;
+  onDraft: (d: AttDraft) => void;
+  onPick: () => void;
+  onOk: () => void;
+  onClose: () => void;
+}) {
+  const [xy, setXy] = useState<[string, string]>([draft.at ? (draft.at[0] * k).toFixed(3) : '', draft.at ? (draft.at[1] * k).toFixed(3) : '']);
+  useEffect(() => { setXy([draft.at ? (draft.at[0] * k).toFixed(3) : '', draft.at ? (draft.at[1] * k).toFixed(3) : '']); }, [draft.at, k]);
+  const coord = (i: 0 | 1, v: string) => {
+    const next: [string, string] = i === 0 ? [v, xy[1]] : [xy[0], v];
+    setXy(next);
+    const x = Number(next[0].replace(',', '.')), y = Number(next[1].replace(',', '.'));
+    if (Number.isFinite(x) && Number.isFinite(y) && next[0].trim() && next[1].trim()) onDraft({ ...draft, at: [x / k, y / k] });
+  };
+  const mode = (key: keyof AttDraft['modes'], label: string) => <Check key={key} label={label} value={draft.modes[key]} onChange={(v) => onDraft({ ...draft, modes: { ...draft.modes, [key]: v } })} />;
+  const why = !cleanTag(draft.tag) ? 'Type a tag (letters, digits, no spaces).' : !draft.at ? 'Pick or type the insertion point.' : !(draft.heightMm > 0) ? 'The height must be above 0.' : undefined;
+  return (
+    <CadDialog id="attdef" title="Attribute definition" alias="ATTDEF" onOk={() => { if (!why) onOk(); }} onClose={onClose}
+      help="An attribute is a tag drawn as text in a block: when the block is inserted, its value is asked (the prompt, with the default) and shown in place of the tag. Invisible: not drawn. Constant: never asked, the default always. Preset: not asked, the default taken. Lock position keeps its place. Make the block with BLOCK, the attribute among its objects.">
+      <div className="cad-dlg-sec">Mode</div>
+      {mode('invisible', 'Invisible')}{mode('constant', 'Constant')}{mode('verify', 'Verify')}{mode('preset', 'Preset')}{mode('lock', 'Lock position')}{mode('mlines', 'Multiple lines')}
+      <div className="cad-dlg-sec">Attribute</div>
+      <Row label="Tag"><input aria-label="Tag" value={draft.tag} autoFocus onChange={(e) => onDraft({ ...draft, tag: e.target.value })} onBlur={() => onDraft({ ...draft, tag: cleanTag(draft.tag) })} /></Row>
+      <Row label="Prompt"><input aria-label="Prompt" value={draft.prompt} onChange={(e) => onDraft({ ...draft, prompt: e.target.value })} /></Row>
+      <Row label="Default"><input aria-label="Default" value={draft.def} onChange={(e) => onDraft({ ...draft, def: e.target.value })} /></Row>
+      <div className="cad-dlg-sec">Text</div>
+      <Row label="Justify"><select aria-label="Justify" value={draft.just} onChange={(e) => onDraft({ ...draft, just: e.target.value as TextJust })}>{TEXT_JUSTS.map((j) => <option key={j.id} value={j.id}>{j.label}</option>)}</select></Row>
+      <Row label="Text style"><select aria-label="Text style" value={draft.style} onChange={(e) => onDraft({ ...draft, style: e.target.value })}>{styles.map((s) => <option key={s} value={s}>{s}</option>)}</select></Row>
+      <Num label="Height" unit="mm" value={draft.heightMm} onChange={(v) => onDraft({ ...draft, heightMm: Number(v) })} />
+      <Num label="Rotation" unit="°" value={draft.rot} onChange={(v) => onDraft({ ...draft, rot: Number(v) || 0 })} signed />
+      <div className="cad-dlg-sec">Insertion point</div>
+      <Row label="">
+        <button type="button" className="chip" onClick={onPick}>Pick on plan</button>
+        <input aria-label="Insertion X" className="r" value={xy[0]} placeholder="X" onChange={(e) => coord(0, e.target.value)} />
+        <input aria-label="Insertion Y" className="r" value={xy[1]} placeholder="Y" onChange={(e) => coord(1, e.target.value)} />
+        <span className="m">m</span>
+      </Row>
+      {why && <p className="cad-dlg-help" role="status">{why}</p>}
+    </CadDialog>
+  );
+}
+
+type AttTab = 'values' | 'text' | 'props';
+/** EATTEDIT (a double-click on a block with attributes): the block's name; Attribute (Tag · Prompt · Value, the value
+ * typed), Text options (style, height, justify of the attribute picked, in its block's definition) and Properties
+ * (the insert's layer and colour); OK · Cancel · Apply. */
+export function AttEditDialog({ insert, def, k, layers, onApply, onClose }: {
+  insert: SketchItem;
+  def: CadBlockDef;
+  k: number;
+  layers: string[];
+  /** The insert (its values, layer, colour) and the block's definition as edited; the dialog stays open when `keep`. */
+  onApply: (ins: SketchItem, def: CadBlockDef, keep: boolean) => void;
+  onClose: () => void;
+}) {
+  const [ins, setIns] = useState(insert);
+  const [d, setD] = useState(def);
+  const [tab, setTab] = useState<AttTab>('values');
+  const ads = attdefsOf(d);
+  const [sel, setSel] = useState(ads[0]?.tag ?? '');
+  const one = ads.find((a) => a.tag === sel) ?? ads[0];
+  const setValue = (tag: string, v: string) => setIns({ ...ins, attrs: { ...ins.attrs, [tag]: v } });
+  const patchAd = (p: Partial<SketchItem>) => one && setD({ ...d, items: d.items.map((it) => (it.id === one.id ? { ...it, ...p } : it)) });
+  return (
+    <CadDialog id="attedit" title="Edit attributes" alias="EATTEDIT" onOk={() => onApply(ins, d, false)} onClose={onClose} wide
+      extra={<button type="button" className="chip" onClick={() => onApply(ins, d, true)}>Apply</button>}
+      help="The values of this block's attributes: click a value and type. Text options change the attribute's text in the block's definition, so every insert of the block follows. Properties set the insert's layer and colour. Apply keeps the dialog open.">
+      <Row label="Block"><b>{d.name}</b></Row>
+      <div className="cad-dlg-tabs" role="tablist">
+        {([['values', 'Attribute'], ['text', 'Text options'], ['props', 'Properties']] as [AttTab, string][]).map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>)}
+      </div>
+      {tab === 'values' && (
+        <table className="cad-att-table" aria-label="Attributes">
+          <thead><tr><th>Tag</th><th>Prompt</th><th>Value</th></tr></thead>
+          <tbody>
+            {ads.map((a) => (
+              <tr key={a.id} aria-selected={a.tag === one?.tag} onClick={() => setSel(a.tag ?? '')}>
+                <td>{a.tag}</td><td>{a.prompt}</td>
+                <td>{a.att?.constant ? <span className="m" title="Constant: its default always">{a.text}</span>
+                  : <input aria-label={`Value of ${a.tag}`} value={attrValue(ins, a)} onChange={(e) => setValue(a.tag ?? '', e.target.value)} />}</td>
+              </tr>
+            ))}
+            {!ads.length && <tr><td colSpan={3} className="m">This block has no attributes.</td></tr>}
+          </tbody>
+        </table>
+      )}
+      {tab === 'text' && one && <>
+        <Row label="Attribute"><select aria-label="Attribute" value={one.tag} onChange={(e) => setSel(e.target.value)}>{ads.map((a) => <option key={a.id} value={a.tag}>{a.tag}</option>)}</select></Row>
+        <Row label="Text style"><span className="m">Standard</span></Row>
+        <Num label="Height" unit="m" value={Math.round((one.h ?? 0) * k * 1000) / 1000} onChange={(v) => { const n = Number(v); if (n > 0) patchAd({ h: n / k }); }} />
+        <Row label="Justify"><select aria-label="Attribute justify" value={one.just ?? 'L'} onChange={(e) => patchAd({ just: e.target.value === 'L' ? undefined : e.target.value as TextJust })}>{TEXT_JUSTS.map((j) => <option key={j.id} value={j.id}>{j.label}</option>)}</select></Row>
+      </>}
+      {tab === 'props' && <>
+        <Row label="Layer"><select aria-label="Block layer" value={ins.layer} onChange={(e) => setIns({ ...ins, layer: e.target.value })}>{[...new Set([...layers, ins.layer])].map((l) => <option key={l} value={l}>{l}</option>)}</select></Row>
+        <Row label="Colour"><input aria-label="Block colour" value={ins.color ?? ''} placeholder="ByLayer" onChange={(e) => { const { color: _c, ...rest } = ins; setIns(e.target.value.trim() ? { ...ins, color: e.target.value.trim() } : rest); }} /></Row>
+      </>}
+    </CadDialog>
+  );
+}
+
+/** The prompts of a block with attributes, asked together when Drafting settings has "Attribute prompts in a dialog". */
+export function AttPromptDialog({ def, values, onOk, onClose }: { def: CadBlockDef; values: Record<string, string>; onOk: (values: Record<string, string>) => void; onClose: () => void }) {
+  const [v, setV] = useState(values);
+  const asked = askedAttdefs(def);
+  return (
+    <CadDialog id="attprompt" title={`Insert ${def.name}`} alias="INSERT" onOk={() => onOk(v)} onClose={onClose} help="The block's attributes, each with its default; Enter keeps them.">
+      {asked.map((a, i) => <Row key={a.id} label={a.prompt || a.tag || ''}><input aria-label={a.tag} autoFocus={i === 0} value={v[a.tag ?? ''] ?? a.text ?? ''} onChange={(e) => setV({ ...v, [a.tag ?? '']: e.target.value })} /></Row>)}
     </CadDialog>
   );
 }

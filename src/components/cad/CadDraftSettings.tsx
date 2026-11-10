@@ -90,6 +90,7 @@ export default function CadDraftSettings({ tab: first = 'snap', draft, toggles, 
         <Check label="Length and angle boxes" value={d.dynBoxes} onChange={(v) => patch({ dynBoxes: v })} />
         <Check label="The prompt at the cursor" value={d.dynPrompt} onChange={(v) => patch({ dynPrompt: v })} />
         <Check label="The options list" value={d.dynOptions} onChange={(v) => patch({ dynOptions: v })} />
+        <Check label="Attribute prompts in a dialog" value={!!d.attDialog} onChange={(v) => patch({ attDialog: v })} />
         <p className="cad-dlg-note">A point typed: x,y from the last point; # before it for an absolute point; @ for relative; length&lt;angle for polar.</p>
       </>}
       {tab === 'select' && <>
