@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.067', date: '2026-11-10',
+    items: [
+      { title: 'Draw your title block in Design CAD', text: 'Project → Title block → Edit in CAD opens the block as a drawing of its own at 1 : 1 mm, inside an A3 frame for reference: its lines on TB-FRAME and TB-GRID, its texts on TB-TEXT and its fields on TB-FIELD, all the app\'s own objects, so Line, Rectangle, Circle, Text, Move, Trim, Offset and the other tools work on them. The standard block or a grid block opens as a drawn copy. With nothing picked, the Properties palette lists the fields: click one ({SheetNo}, {Rev}, {Project} …), then where it goes. TBSAVE, or Save as template on the palette, turns the drawing back into the template, which then prints on the sheets that use it and goes to DWG as a block with attributes.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.066', date: '2026-11-10',
     items: [
       { title: 'Your company\'s title block from a DWG or DXF', text: 'Project → Title block → Import DWG / DXF… reads a company title block drawn in CAD: the whole drawing, or one of its inserted blocks. Its lines and texts become a template; its attributes and placeholders (DWG_NO, TITLE, REV, DATE, DRN, CHK, APP, SCALE, SHEET …) become fields filled from the project and the sheet, and any text can be mapped to a field in the Texts and fields list. The block prints on every sheet in the PDF as drawn, and goes to DXF and DWG as a block with attributes, so a CAD program keeps its values editable. Grid templates and the standard block are unchanged.' }

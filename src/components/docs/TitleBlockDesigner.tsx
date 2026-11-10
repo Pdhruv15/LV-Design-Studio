@@ -19,7 +19,7 @@ const PX = 3.2; // preview px per mm
  * logo or the revision table; merge / split cells, add rows and columns,
  * set sizes. Save several templates, pick the one the SLD sheet uses, keep
  * them as your library or share them as a file. */
-export default function TitleBlockDesigner({ project, onChange, onStatus, onParams }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void; onParams: () => void }) {
+export default function TitleBlockDesigner({ project, onChange, onStatus, onParams, onEditInCad }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void; onParams: () => void; /** Opens the template in Design CAD (a drawn copy of a grid template) to draw on it. */ onEditInCad?: (t: TitleTemplate) => void }) {
   const templates = project.titleTemplates ?? [];
   const [sel, setSel] = useState(templates[0]?.id ?? '');
   const t = templates.find((x) => x.id === sel) ?? templates[0];
@@ -92,6 +92,7 @@ export default function TitleBlockDesigner({ project, onChange, onStatus, onPara
         </select>
         <button className="chip" onClick={() => create(standardTemplate(), `Title block ${templates.length + 1}`)}>New</button>
         <button className="chip" title="Your company's title block from a DWG or DXF: its lines and texts, its attributes mapped to the project" onClick={() => void importFromCad()}>Import DWG / DXF…</button>
+        {onEditInCad && <button className="chip" title="Draw on this block in Design CAD at 1 : 1 mm (a grid block becomes a drawn copy first); TBSAVE or the palette's Save as template brings it back" onClick={() => onEditInCad(t)}>Edit in CAD</button>}
         <button className="chip" onClick={() => create(t, `${t.name} (copy)`)}>Duplicate</button>
         <button className={`chip${t.id === active ? '' : ' primary'}`} onClick={() => onChange({ ...project, drawing: { ...project.drawing, titleTemplateId: t.id === active ? undefined : t.id } })}>
           {t.id === active ? 'Use the standard block instead' : 'Use on the SLD'}

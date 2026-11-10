@@ -31,7 +31,7 @@ const BEFORE: Record<string, string> = {
   HELP: '!help', '?': '!help'
 };
 // Added since: the text and dimension styles (STYLE, DIMSTYLE).
-const ADDED: Record<string, string> = { ST: '!textStyle', STYLE: '!textStyle', D: '!dimStyle', DST: '!dimStyle', DIMSTY: '!dimStyle', DIMSTYLE: '!dimStyle',
+const ADDED: Record<string, string> = { ST: '!textStyle', STYLE: '!textStyle', D: '!dimStyle', DST: '!dimStyle', DIMSTY: '!dimStyle', DIMSTYLE: '!dimStyle', TBSAVE: '!tbSave',
   // The File menu and Drafting settings: SAVEAS / DXFOUT open Save As (they were Save DXF), OS opens the Object snap tab
   // (it toggled object snap, as OSNAP and F3 still do).
   SAVEAS: '!saveAs', DXFOUT: '!saveAs', QSAVE: '!save', CLOSEOTHERS: '!closeOthers', EXPORT: '!export', EXPORTPDF: '!exportPdf', PNGOUT: '!pngOut',

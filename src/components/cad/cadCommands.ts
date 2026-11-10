@@ -8,7 +8,7 @@ import type { CadTool } from './cadState';
 export type CadAction = 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'layiso' | 'layuniso'
   | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
   | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
-  | 'textStyle' | 'dimStyle' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt';
+  | 'textStyle' | 'dimStyle' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt' | 'tbSave';
 
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
 
@@ -109,6 +109,7 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['E', 'ERASE', 'DEL', 'DELETE'], desc: 'Erase', action: 'erase' },
   { aliases: ['RESTOREDWG'], desc: 'Bring back the objects of the drawing erased here', action: 'restoreDwg' },
   { aliases: ['SAVE', 'QSAVE'], desc: 'Save to the copy saved last (the first time: Save As)', action: 'save' },
+  { aliases: ['TBSAVE'], desc: 'Title block drawing: save the drawn objects as its template', action: 'tbSave' },
   { aliases: ['SAVEAS', 'DXFOUT'], desc: 'Save As: name, format and version', action: 'saveAs' },
   { aliases: ['SAVEDWG', 'DWGOUT'], desc: 'Save As DWG', action: 'saveDwg' },
   { aliases: ['EXPORT'], desc: 'The Export list', action: 'export' },

@@ -129,6 +129,8 @@ export function useCad(projectId: string | undefined) {
   const actions = useRef<CadActions>(NO_ACTIONS);
   /** Text being typed for the TEXT tool: where it goes (drawing units). */
   const [textAt, setTextAt] = useState<[number, number] | null>(null);
+  // A text placed at the next click as it is (a title block field from the Properties palette): its words, height and layer.
+  const [textPreset, setTextPreset] = useState<{ text: string; h: number; layer: string } | null>(null);
 
   const say = useCallback((line: string) => setHistory((h) => [...h.slice(-49), line]), []);
   // Each open drawing keeps its own engine; closing it gives back that memory.
@@ -136,7 +138,7 @@ export function useCad(projectId: string | undefined) {
   /** A drawing has been open, or the sample villa offered, since the app started: it does not come back by itself. */
   const sampleDone = useRef(false);
   const changeTabs = useCallback((next: Tabs) => {
-    if (next.shown !== now.current.shown) { setSelected(null); setTextAt(null); }
+    if (next.shown !== now.current.shown) { setSelected(null); setTextAt(null); setTextPreset(null); }
     setTabs(next);
     if (next.shown) remember(projectId, next.shown.path);
   }, [projectId, setTabs]);
@@ -206,7 +208,7 @@ export function useCad(projectId: string | undefined) {
     else { setToggles((t) => ({ ...t, grid: false })); setGridDots(false); }
   };
 
-  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, markDirty, isDirty, dirty, saved, setGridDots, setToggles, tabOf, projectOpened, sampleDone, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, pending, ribbonInfo, setRibbonInfo, showProps, setShowProps, log, setLog, textAt, setTextAt, layout, setLayout, vpSel, setVpSel, msVp, setMsVp };
+  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, markDirty, isDirty, dirty, saved, setGridDots, setToggles, tabOf, projectOpened, sampleDone, toggles, toggle, gridDots, textPreset, setTextPreset, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, pending, ribbonInfo, setRibbonInfo, showProps, setShowProps, log, setLog, textAt, setTextAt, layout, setLayout, vpSel, setVpSel, msVp, setMsVp };
 }
 
 export type CadState = ReturnType<typeof useCad>;

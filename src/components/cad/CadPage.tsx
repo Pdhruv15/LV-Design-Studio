@@ -63,6 +63,7 @@ import { annoOf, centreOf, hatchItem, hatchOutline, HATCH_START, leaderItems, no
 import { alignedTo, alignEdge, cased, centredAt, ISO_TEXT_MM, justLabel, keynoteItems, legendNext, nextKeynote, numberText, oriented, padOf, parseFrame, parseJust, rejustified, spaced, untaggedRooms, withTextHeight, type AlignMode, type CaseMode, type OrientMode } from '../../model/cadText';
 import { LayerPalette, layerRows, type LayerRow } from './CadLayerManager';
 import { PropertiesPalette } from './CadProperties';
+import { isTbFile, saveTitleBlockFromCad, TB_FIELDS, TB_LAYERS, tbIdOf } from '../../model/titleBlockCad';
 import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
 import { refGeometry, type CadRef } from '../../model/cadRefs';
 import { drawnLayers, effective, layerStylesOf, LINETYPES, matchedProps, styleOf, withProps, type ObjectProps } from '../../model/cadLayerStyle';
@@ -326,6 +327,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const input = useRef<HTMLInputElement>(null);
   const last = rememberedDrawing(project.id);
   const units = planScale(project, view?.file, view?.info.units);
+  // A title block drawing (Project → Title block → Edit in CAD): millimetres at 1 : 1, texts at their height on the TB layers.
+  const tb = isTbFile(view?.file);
   const toM = (v: number) => v * units.factor;
   const toM2 = (v: number) => v * units.factor * units.factor;
 
@@ -1432,6 +1435,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       finishCloud(rectangle(last, at)); return;
     }
     if (tool === 'text') {
+      // A title block field from the Properties palette: placed as it is.
+      if (cad.textPreset) { const pre = cad.textPreset; draw({ kind: 'text', layer: pre.layer, pts: [at], text: pre.text, h: pre.h }, `Field ${pre.text}`); cad.setTextPreset(null); cad.say(PROMPT.text); return; }
       // The current text style's height, else (0) asked each time from the annotation text height.
       const style = currentTextStyle(project);
       cad.setTextAt(at);
@@ -1787,7 +1792,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     if (tool === 'text' && cad.textAt && raw) {
       const t = textAsk ?? { mm: anno.textMm, rot: 0 };
-      draw({ kind: 'text', layer: ANNO_LAYER, pts: [cad.textAt], text: raw, h: textUnits({ ...anno, textMm: t.mm }, units.factor), ...(t.rot ? { rot: (t.rot * Math.PI) / 180 } : {}) }, `Text "${raw}"`);
+      draw({ kind: 'text', layer: tb ? (/\{[^}]+\}/.test(raw) ? TB_LAYERS.field : TB_LAYERS.text) : ANNO_LAYER, pts: [cad.textAt], text: raw, h: tb ? t.mm : textUnits({ ...anno, textMm: t.mm }, units.factor), ...(t.rot ? { rot: (t.rot * Math.PI) / 180 } : {}) }, `Text "${raw}"`);
       cad.setTextAt(null); setTextAsk(null); cad.say(PROMPT.text); return;
     }
     if (!renaming && EDIT_TOOLS.includes(tool) && editInput(c)) return;
@@ -1864,6 +1869,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (c === 'O' && tool === 'area') { setObjectMode(true); setPoints([]); cad.say('AREA  Select a closed object:'); return; }
     const act: Record<CadAction, () => void> = {
       open: () => openFile(),
+      tbSave: () => { if (!view || !tbIdOf(view.file)) { cad.say('TBSAVE  Not a title block drawing: open one with Project → Title block → Edit in CAD.'); return; } const r = saveTitleBlockFromCad(project, view.file); if (r.project !== project) change(r.project, r.message); else cad.say(r.message); },
       close: () => { if (view) closeDrawings(c === 'CLOSE' ? [view] : undefined); else cad.say('No drawing open.'); },
       fit: () => cad.fit(),
       addRooms: () => addFound(),
@@ -2321,6 +2327,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
           {view && (pickedSk.length > 0 || !pickedName) && <PropertiesPalette key={pickedSk.map((it) => it.id).join()} items={pickedSk} devices={pickedItems.length} layers={drawnLayers(sketch, [...(layerFile.layers ?? []), curLayer])} styles={styles} current={curLayer} textMm={anno.textMm} k={units.factor}
                   onItems={(next, what) => change(next.reduce((q, it) => updateSketch(q, fileOf(), it), project), `${what} · ⌘Z to undo`)}
                   onCurrent={setCurrentLayer} newProps={newProps} onNewProps={setProps} onTextMm={(mm) => change({ ...project, cadAnno: { ...anno, textMm: mm } }, `Annotation: ${mm} mm text at 1:${anno.scale} · ⌘Z to undo`)}
+                  titleBlock={tb ? { name: project.titleTemplates?.find((x) => x.id === tbIdOf(view.file))?.name ?? '', fields: TB_FIELDS, onField: (f) => { cad.setTextPreset({ text: f, h: 2.5, layer: TB_LAYERS.field }); cad.setTool('text'); cad.say(`TEXT  Click where ${f} goes:`); }, onSave: () => { const r = saveTitleBlockFromCad(project, view.file); if (r.project !== project) change(r.project, r.message); else cad.say(r.message); } } : undefined}
                   bare />}
           {(pickedName || result) && <>
           <h4>{pickedName ? 'Selected' : 'Result'}{pickedName && <span className="m">{pickedName}</span>}</h4>

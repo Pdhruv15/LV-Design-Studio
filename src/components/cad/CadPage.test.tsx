@@ -15,7 +15,9 @@ import '../../engines/cad/cadOps'; // loaded ahead: the engine loads it on deman
 import { sampleProject } from '../../data/sampleProject';
 import { placeLvPoint } from '../../model/cadDevices';
 import { archOnOf } from '../../model/cadLayerState';
-import { dimLabel, dimMeasure } from '../../model/cadSketch';
+import { dimLabel, dimMeasure, sketchOf } from '../../model/cadSketch';
+import { openTitleBlockInCad, TB_LAYERS } from '../../model/titleBlockCad';
+import type { TitleTemplate } from '../../model/titleBlock';
 import type { Project } from '../../types';
 import { DRAFT_DEFAULTS, type DraftSettings } from '../../model/cadDraft';
 
@@ -2473,5 +2475,43 @@ describe('Design CAD properties dock', () => {
     act(() => root.render(<Host />));
     await flush();
     expect(dock().className).toContain('right');
+  });
+});
+
+describe('title block drawing (Project → Title block → Edit in CAD)', () => {
+  const drawn: TitleTemplate = {
+    id: 'tb-d', name: 'ACME', kind: 'drawn', cols: [], rows: [], cells: [], size: { w: 180, h: 44 },
+    shapes: [{ kind: 'line', x1: 0, y1: 0, x2: 180, y2: 0 }, { kind: 'line', x1: 0, y1: 44, x2: 180, y2: 44 }, { kind: 'line', x1: 0, y1: 0, x2: 0, y2: 44 }, { kind: 'line', x1: 180, y1: 0, x2: 180, y2: 44 }],
+    texts: [{ id: 't1', x: 5, y: 40, h: 2.5, text: 'ACME CONSULTANTS' }, { id: 't2', x: 100, y: 40, h: 3.5, text: '{SheetNo}', tag: 'DWG_NO' }]
+  };
+  it('opens the block at 1 : 1 mm, places a field from the palette at a click, and TBSAVE writes the drawing back into the template', async () => {
+    const r = openTitleBlockInCad({ ...villa, titleTemplates: [drawn] }, drawn);
+    act(() => root.render(<Host start={r.project} />));
+    await flush();
+    const v = await openDrawing(r.file, new TextEncoder().encode(r.dxf));
+    act(() => state.open(v));
+    await flush();
+    expect(state.view?.file).toBe(r.file);
+    expect(state.view?.info.units).toBe(4);
+    await until(() => !!button('Save as template'));
+    // A field chip starts the text tool with the field preset; the next click places it on TB-FIELD at 2.5 mm.
+    const chip = [...document.querySelectorAll('button')].find((b) => b.textContent === '{Rev}')!;
+    await act(async () => { chip.click(); });
+    expect(state.tool).toBe('text');
+    await clickAt(300, 30);
+    await flush();
+    const p1 = onChange.mock.calls[onChange.mock.calls.length - 1][0] as Project;
+    const placed = sketchOf(p1, r.file).find((it) => it.text === '{Rev}');
+    expect(placed).toMatchObject({ kind: 'text', layer: TB_LAYERS.field, h: 2.5 });
+    expect(placed!.pts[0].map(Math.round)).toEqual([300, 30]);
+    // Back into the template: its size from the drawn outline, the new field among its texts.
+    await command('TBSAVE');
+    await flush();
+    const p2 = onChange.mock.calls[onChange.mock.calls.length - 1][0] as Project;
+    const saved = p2.titleTemplates!.find((t) => t.id === 'tb-d')!;
+    expect(saved.size).toEqual({ w: 180, h: 44 });
+    expect(saved.texts!.map((t) => t.text).sort()).toEqual(['ACME CONSULTANTS', '{Rev}', '{SheetNo}']);
+    expect(saved.texts!.find((t) => t.text === '{SheetNo}')).toMatchObject({ tag: 'DWG_NO' });
+    expect(saved.texts!.find((t) => t.text === '{Rev}')).toMatchObject({ x: 90, y: 14, h: 2.5 });
   });
 });
