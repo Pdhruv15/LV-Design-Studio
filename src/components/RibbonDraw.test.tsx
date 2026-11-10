@@ -47,10 +47,10 @@ const tools = (name: string) => [...group(name).querySelectorAll('button[aria-la
 const tool = (name: string) => document.querySelector(`#ribbon-tools button[aria-label="${name}"]`) as HTMLButtonElement;
 /** Every tool shown, by name (icons only: its name for screen readers; with labels: the name under it). */
 const names = () => [...document.querySelectorAll('#ribbon-tools button')].map((b) => b.getAttribute('aria-label') ?? b.querySelector('span')?.textContent).filter((x): x is string => !!x);
-const DRAFTING = ['Draw', 'Modify', 'Annotate', 'Layers', 'Properties', 'Measure and view'];
+const DRAFTING = ['Draw', 'Modify', 'Annotate', 'Blocks', 'Layers', 'Properties', 'Measure and view'];
 const ELEC = 'Electrical, ELV & sheets';
 /** The drawing's layers as the page tells the ribbon: two drawn layers, one frozen; nothing picked. */
-const INFO = { layers: [{ name: 'LV-SKETCH', color: '#ffffff', on: true, freeze: false, lock: false }, { name: 'E-POWER', color: '#00ffff', on: false, freeze: false, lock: true }, { name: 'E-OLD', on: true, freeze: true, lock: false }], current: 'LV-SKETCH', picked: 0, props: {} };
+const INFO = { blocks: ['DB-A', 'DB-B'], layers: [{ name: 'LV-SKETCH', color: '#ffffff', on: true, freeze: false, lock: false }, { name: 'E-POWER', color: '#00ffff', on: false, freeze: false, lock: true }, { name: 'E-OLD', on: true, freeze: true, lock: false }], current: 'LV-SKETCH', picked: 0, props: {} };
 /** A split tool's arrow, then an item of its list. */
 const fromList = (tool: string, item: string) => { click(document.querySelector(`#ribbon-tools button[title="${tool}: more options"]`)!); click([...document.querySelectorAll('[role="menuitem"]')].find((b) => b.textContent === item)!); };
 const click = (b: Element) => act(() => { (b as HTMLButtonElement).click(); });
@@ -96,7 +96,7 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
     rerender({ labels: true });
     const all = look(['LVCAD', 'Layers & properties', 'Electrical & ELV', 'Sheets']);
     expect(all.panels).toEqual({
-      LVCAD: ['Draw', 'Modify', 'Annotate'], 'Layers & properties': ['Layers', 'Properties', 'Measure and view'],
+      LVCAD: ['Draw', 'Modify', 'Annotate', 'Blocks'], 'Layers & properties': ['Layers', 'Properties', 'Measure and view'],
       'Electrical & ELV': ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring'], Sheets: ['Reference', 'Sheet set', 'Layouts']
     });
     expect([...all.seen].sort()).toEqual([...shown.seen].sort()); // the same tools, only arranged otherwise
@@ -118,7 +118,7 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
     }
     // The other forms of Circle, Arc, Text and Dimension are under their arrows.
     for (const [t, form, id] of [['Circle', '2 points', 'circle2p'], ['Circle', '3 points', 'circle3p'], ['Circle', 'Centre, diameter', 'circled'], ['Arc', 'Start, centre, end', 'arcsce'],
-      ['Text', 'Numbered text (TCOUNT)', 'tcount'], ['Text', 'Justify (TJ)', 'tjust'], ['Text', 'Copy words (TCOPY)', 'tcopy'], ['Dimension', 'Linear (DLI)', 'dimlin']]) {
+      ['Text', 'Notes (MT)', 'mtext'], ['Text', 'Numbered text (TCOUNT)', 'tcount'], ['Text', 'Justify (TJ)', 'tjust'], ['Text', 'Copy words (TCOPY)', 'tcopy'], ['Dimension', 'Linear (DLI)', 'dimlin']]) {
       fromList(t, form);
       expect(cad.onTool, form).toHaveBeenLastCalledWith(id);
     }
@@ -271,7 +271,7 @@ describe('Design CAD ribbon: File', () => {
     expect(cad.onPublish).toHaveBeenCalledTimes(1);
     click(fileButton());
     hover('Export');
-    expect(subItems('Export')).toEqual(['PDF of this view…', 'PDF of this layout…', 'Image (PNG)…', 'Selected objects as DXF…', 'Device list (Excel)…', 'Cable route lengths (Excel)…']);
+    expect(subItems('Export')).toEqual(['PDF of this view…', 'PDF of this layout…', 'Image (PNG)…', 'Selected objects as DXF…', 'Device list (Excel)…', 'Cable route lengths (Excel)…', 'Block attributes (Excel)…']);
     expect(item('PDF of this layout…').disabled).toBe(true); // no layout tab showing
     click(item('Device list (Excel)…'));
     expect(cad.onExport).toHaveBeenLastCalledWith('devices');
@@ -379,7 +379,7 @@ describe('Design CAD ribbon: sheets and layouts', () => {
 
   it('on a layout: the paper\'s markup in place of Annotate, the drawing\'s annotation in the model; layouts and viewports beside the sheet set', () => {
     const { rerender } = show({ inLayout: true, onPaper: true }, { sheets: sheets({ open: false, kind: 'plan' }) });
-    expect(groups()).toEqual(DRAFTING.map((g) => (g === 'Annotate' ? 'Markup' : g)));
+    expect(groups()).toEqual(DRAFTING.filter((g) => g !== 'Blocks').map((g) => (g === 'Annotate' ? 'Markup' : g))); // blocks are the model's
     expect(tool('Cloud').disabled).toBe(false);
     rerender({ onPaper: false }); // working in the model through a viewport
     expect(groups()).toEqual(DRAFTING);
@@ -424,5 +424,57 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     expect(group('Wiring').querySelector('.ribbon-caption')!.textContent).toBe('Wiring');
     click(document.querySelector('button[title="Wiring: its tools"]')!);
     expect([...document.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent)).toEqual(['Wire circuits', 'Wire one', 'Tags']);
+  });
+});
+
+describe('Draw order (S7 of the Design CAD 2D gap plan)', () => {
+  it('lists Draw order\'s entries under Modify ▾ after a separator; each runs its command', () => {
+    const { cad } = show();
+    click(document.querySelector('button[title^="More modify tools"]')!);
+    const items = () => [...document.querySelectorAll('[role="menuitem"]')] as HTMLButtonElement[];
+    expect(items().map((b) => b.textContent)).toEqual(['Quick select…', 'Draw order: Bring to front', 'Draw order: Send to back', 'Draw order: Above object', 'Draw order: Under object', 'Draw order: Text to front (TEXTTOFRONT)']);
+    expect(document.querySelectorAll('.ribbon-split-menu hr')).toHaveLength(1);
+    click(items()[2]);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('DRAWORDER B');
+    click(document.querySelector('button[title^="More modify tools"]')!);
+    click(items()[5]);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('TEXTTOFRONT');
+  });
+});
+
+describe('Points (S8 of the Design CAD 2D gap plan)', () => {
+  it('lists Point, Divide, Measure out and Point style… under Draw ▾', () => {
+    const { cad } = show();
+    click(document.querySelector('button[title^="More draw tools"]')!);
+    const items = () => [...document.querySelectorAll('[role="menuitem"]')] as HTMLButtonElement[];
+    expect(items().map((b) => b.textContent)).toEqual(['Point', 'Divide', 'Measure out', 'Point style…']);
+    click(items()[0]);
+    expect(cad.onTool).toHaveBeenLastCalledWith('point');
+    click(document.querySelector('button[title^="More draw tools"]')!);
+    click(items()[2]);
+    expect(cad.onTool).toHaveBeenLastCalledWith('measure');
+    click(document.querySelector('button[title^="More draw tools"]')!);
+    click(items()[3]);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('PTYPE');
+  });
+});
+
+describe('Blocks (S9 of the Design CAD 2D gap plan)', () => {
+  it('has a Blocks panel between Annotate and Layers with Create, which opens the Block definition', () => {
+    const { cad } = show();
+    expect(tools('Blocks')).toEqual(['Insert', 'Create', 'Attribute']);
+    click(tool('Attribute'));
+    expect(cad.onCommand).toHaveBeenLastCalledWith('ATTDEF');
+    click(document.querySelector('button[title^="More blocks tools"]')!);
+    click([...document.querySelectorAll('[role="menuitem"]')].find((b) => b.textContent === 'Edit attributes')!);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('EATTEDIT');
+    click(tool('Insert'));
+    expect(cad.onCommand).toHaveBeenLastCalledWith('INSERT');
+    fromList('Insert', 'DB-A');
+    expect(cad.onCommand).toHaveBeenLastCalledWith('-INSERT DB-A');
+    fromList('Insert', 'More blocks…');
+    expect(cad.onCommand).toHaveBeenLastCalledWith('INSERT');
+    click(tool('Create'));
+    expect(cad.onCommand).toHaveBeenLastCalledWith('BLOCK');
   });
 });

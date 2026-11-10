@@ -48,7 +48,13 @@ function readDrawingBytes(file) {
   return new Uint8Array(fs.readFileSync(file));
 }
 
+/** The DWG / DXF files of a folder (the Blocks palette's library), by name; at most 500. */
+function listDrawingFolder(folder) {
+  const names = fs.readdirSync(folder, { withFileTypes: true }).filter((d) => d.isFile() && /\.(dwg|dxf)$/i.test(d.name)).map((d) => d.name).sort((a, b) => a.localeCompare(b)).slice(0, 500);
+  return { folder, files: names.map((file) => ({ file, path: path.join(folder, file) })) };
+}
+
 /** The engine itself (WebAssembly), for the CAD view in the window. */
 const engineBytes = () => new Uint8Array(fs.readFileSync(path.join(CAD_DIR, 'lvds_cad_reader_bg.wasm')));
 
-module.exports = { readDrawingFile, readDrawingBytes, engineBytes, MAX_BYTES };
+module.exports = { readDrawingFile, readDrawingBytes, listDrawingFolder, engineBytes, MAX_BYTES };

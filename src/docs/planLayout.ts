@@ -9,6 +9,9 @@ import { dimOf, scaleLook, segmentsOf, sketchOf, trayLabel, trayLength, trayLine
 import { effective, layerStylesOf, styleOf } from '../model/cadLayerStyle';
 import { annoOf } from '../model/cadAnnotate';
 import { textBaseAt, textCorners } from '../model/cadText';
+import { noteBox, noteSegAt } from '../model/cadMtext';
+import { pointMark, pointStyleOf } from '../model/cadPoints';
+import { attdefAsText, blockDefsOf, expandAll } from '../model/cadBlocks';
 import { dotsOnly, hatchDots, hatchStrokes, mirroredY, defOf, placedLines } from '../model/cadHatch';
 import { fittingCounts, trayFittings } from '../model/cadTrayFittings';
 import { planScale as unitsOf } from '../model/cadUnits';
@@ -245,16 +248,19 @@ function clearOf(pts: Pt[], labels: { at: Pt; rot: number; w: number }[], h: num
 }
 
 /** A drawn object for the sheet, in metres, with its linetype (dashes in paper mm) and lineweight (mm; 0 = the pen's). */
-interface Drawn { it: SketchItem; dash: number[]; lw: number }
+/** A drawn point carries its style: the marker's shape, and its radius in metres when sized in drawing units. */
+interface Drawn { it: SketchItem; dash: number[]; lw: number; pt?: { mode: number; r?: number } }
 
 /** The drawn work on the level's plan file: what was drawn in Design CAD other than trays and cable routes, on layers
  * that are on and print, in metres. */
 function drawnOf(p: Project, b: string, l: string): Drawn[] {
   const plan = planOfLevel(p, { building: b, level: l });
   if (!plan) return [];
-  const k = unitsOf(p, plan.file, plan.units).factor, styles = layerStylesOf(p, plan.file);
+  const k = unitsOf(p, plan.file, plan.units).factor, styles = layerStylesOf(p, plan.file), ps = pointStyleOf(p);
   const out: Drawn[] = [];
-  for (const it of sketchOf(p, plan.file)) {
+  // An insert prints as what its block shows.
+  for (const it0 of expandAll(sketchOf(p, plan.file), blockDefsOf(p, plan.file))) {
+    const it = it0.kind === 'attdef' ? attdefAsText(it0) : it0; // an attribute definition prints as its tag
     if (it.tray || it.cable || !it.pts.length) continue;
     const st = styleOf(styles, it.layer);
     if (st.hidden || st.freeze || st.noPrint) continue;
@@ -263,7 +269,7 @@ function drawnOf(p: Project, b: string, l: string): Drawn[] {
       ...it, pts: it.pts.map(([x, y]): Pt => [x * k, y * k]), ...(it.r !== undefined ? { r: it.r * k } : {}), ...(it.h !== undefined ? { h: it.h * k } : {}),
       ...(it.look ? { look: scaleLook(it.look, k) } : {})
     };
-    out.push({ it: m, dash: ef.dash, lw: ef.lw });
+    out.push({ it: m, dash: ef.dash, lw: ef.lw, ...(it.kind === 'point' ? { pt: { mode: ps.mode, ...(ps.relative ? {} : { r: (ps.size * k) / 2 }) } } : {}) });
   }
   return out;
 }
@@ -282,12 +288,22 @@ export function drawnTextMm(p: Project, s: Pick<DrawingSheet, 'buildingId' | 'le
 function drawnSvg(items: Drawn[], X: (x: number) => number, Y: (y: number) => number, f: number, win: Box, pen: Record<PenKey, Pen>, thin: boolean, id: string): string {
   if (!items.length) return '';
   const P = ([x, y]: Pt) => `${X(x)} ${Y(y)}`, ink = inkOf(pen.sketch), defs: string[] = [], body: string[] = [];
-  const text = (at: Pt, s: string, h: number, rot: number, anchor: 'start' | 'middle' | 'end') => {
+  const text = (at: Pt, s: string, h: number, rot: number, anchor: 'start' | 'middle' | 'end', look: { b?: boolean; u?: boolean } = {}) => {
     if (!s || !(h > 0) || !within(at, win)) return;
     const x = X(at[0]), y = Y(at[1]);
-    body.push(`<text x="${x}" y="${y}"${rot ? ` transform="rotate(${n((-rot * 180) / Math.PI)} ${x} ${y})"` : ''} font-size="${n(h * f)}"${anchor !== 'start' ? ` text-anchor="${anchor}"` : ''} fill="${ink}">${esc(s)}</text>`);
+    body.push(`<text x="${x}" y="${y}"${rot ? ` transform="rotate(${n((-rot * 180) / Math.PI)} ${x} ${y})"` : ''} font-size="${n(h * f)}"${anchor !== 'start' ? ` text-anchor="${anchor}"` : ''}${look.b ? ' font-weight="bold"' : ''}${look.u ? ' text-decoration="underline"' : ''} fill="${ink}">${esc(s)}</text>`);
   };
-  items.forEach(({ it, dash, lw }, i) => {
+  items.forEach(({ it, dash, lw, pt }, i) => {
+    if (it.kind === 'point') {
+      // A point: its style's marker, 2 mm across when sized to the screen, else at its size in the drawing's units.
+      if (!within(it.pts[0], win)) return;
+      const r = pt?.r !== undefined ? pt.r * f : 1, mk = pointMark(pt?.mode ?? 0), x = X(it.pts[0][0]), y = Y(it.pts[0][1]);
+      const d = mk.lines.map(([a, b]) => `M${n(x + a[0] * r)} ${n(y - a[1] * r)}L${n(x + b[0] * r)} ${n(y - b[1] * r)}`).join('');
+      if (d) body.push(`<path d="${d}" fill="none" stroke="${ink}" stroke-width="${n(pen.sketch.w)}"/>`);
+      if (mk.circle) body.push(`<circle cx="${n(x)}" cy="${n(y)}" r="${n(r)}" fill="none" stroke="${ink}" stroke-width="${n(pen.sketch.w)}"/>`);
+      if (mk.dot) body.push(`<circle cx="${n(x)}" cy="${n(y)}" r="${n(Math.max(0.25, r * 0.2))}" fill="${ink}" stroke="none"/>`);
+      return;
+    }
     if (it.hatch) {
       const circle = it.kind === 'circle', r = (it.r ?? 0) * f;
       const outline = circle ? `<circle cx="${X(it.pts[0][0])}" cy="${Y(it.pts[0][1])}" r="${n(r)}"` : `<path d="M${it.pts.map(P).join('L')}Z"`;
@@ -310,6 +326,12 @@ function drawnSvg(items: Drawn[], X: (x: number) => number, Y: (y: number) => nu
       if (lines) body.push(`<path d="${lines}" clip-path="url(#${id}-${i})" fill="none" stroke="${inkOf(pen.hatch)}" stroke-width="${n(pen.hatch.w)}"/>`);
       body.push(...dashed);
       if (dots) body.push(`<path d="${dots}" clip-path="url(#${id}-${i})" fill="none" stroke="${inkOf(pen.hatch)}" stroke-width="0.35" stroke-linecap="round"/>`);
+      return;
+    }
+    if (it.kind === 'mtext') {
+      // A note: each piece of each line at its place, bold and underlined as drawn.
+      const b = noteBox(it);
+      for (const line of b.lines) for (const seg of line.segs) text(noteSegAt(b, line, seg), seg.s, seg.h, it.rot ?? 0, 'start', seg);
       return;
     }
     if (it.kind === 'text') {

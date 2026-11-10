@@ -5,6 +5,9 @@ import { ortho as orthoFrom } from '../../model/cadMeasure';
 import { DRAFT_DEFAULTS, otrack, polarAngles, polarTrack, snapToSpacing, type DraftSettings } from '../../model/cadDraft';
 import { dimOf, segmentsOf, trayLabel, trayLine, TRAY_TEXT_MM } from '../../model/cadSketch';
 import { textBaseAt, textCorners } from '../../model/cadText';
+import { noteBox } from '../../model/cadMtext';
+import { POINT_STYLE_DEFAULT, pointMark, pointRadius, type PointStyle } from '../../model/cadPoints';
+import { attdefAsText, expandAll, type CadBlockDef } from '../../model/cadBlocks';
 import type { PlanCells, PlanCover } from '../elv/elvOverlay';
 import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from '../../model/cadDraw';
@@ -50,7 +53,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS, zoom, onZoomMenu, onDouble }: {
+export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch: sketchIn = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS, zoom, onZoomMenu, onDouble, pointStyle = POINT_STYLE_DEFAULT, blocks = [], onDrop }: {
   view: CadView;
   /** Objects of the drawing erased in the app (CROP): their lines, texts and fills are not drawn. */
   hidden?: ErasedParts;
@@ -123,6 +126,12 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   onCursor: (at: Pt | null, snapName?: string) => void;
   /** Drafting settings (DS): snap modes and spacing, grid, polar angles, aperture, cursor and grip sizes. */
   draft?: DraftSettings;
+  /** How drawn points are shown (PTYPE). */
+  pointStyle?: PointStyle;
+  /** The drawing's own blocks: an insert among the drawn objects is drawn as what its block shows. */
+  blocks?: CadBlockDef[];
+  /** A block dragged from the Blocks palette dropped on the drawing: where, and its name. */
+  onDrop?: (at: Pt, name: string) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const base = useRef<HTMLCanvasElement>(null);
@@ -132,7 +141,9 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   const tRef = useRef(t);
   tRef.current = t;
   const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
-  const isSel = (id: string) => (Array.isArray(selectedSketch) ? selectedSketch.includes(id) : id === selectedSketch);
+  // The drawn objects with each insert replaced by what its block shows; a block's object carries the insert's id first.
+  const sketch = useMemo(() => expandAll(sketchIn, blocks).map((it) => (it.kind === 'attdef' ? attdefAsText(it) : it)), [sketchIn, blocks]);
+  const isSel = (id0: string) => { const id = id0.split(':')[0]; return Array.isArray(selectedSketch) ? selectedSketch.includes(id) : id === selectedSketch; };
   // A grip being dragged (its index), and the grips as last drawn.
   const gripping = useRef<number | null>(null);
   const gripsRef = useRef(grips);
@@ -396,10 +407,74 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     const skC = colour('--cad-sketch', '#7fd1ff'), selSk = colour('--cad-snap', '#37d67a');
     const trayH = TRAY_TEXT_MM * unitsPerMm, trayText = trayH * scale >= 4;
     const ltScale = 100 * unitsPerMm; // linetype dashes in paper mm at 1:100
+    /** A drawn object's words, in screen space: a note's lines, a text (its mask under it), a dimension's or a tray's or
+     * cable's label. Called in the object's turn, so the draw order holds for words too. */
+    const drawLabel = (it: SketchItem) => {
+      ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.textBaseline = 'alphabetic';
+      if (it.kind === 'mtext') {
+        // A note: its lines from the top left of its box, each piece in its weight, underlined ones with a rule; the box
+        // outlined while it is picked.
+        const nef = effective(it, layerStyle);
+        if (nef.hidden) return;
+        const b = noteBox(it);
+        if (b.h * scale < 4) return;
+        ctx.save();
+        ctx.translate((b.tl[0] - o0 - ox) * scale, size.h - (b.tl[1] - o1 - oy) * scale);
+        ctx.rotate(-(it.rot ?? 0));
+        ctx.fillStyle = isSel(it.id) ? selSk : nef.color ?? skC; ctx.textAlign = 'left';
+        for (const line of b.lines) for (const seg of line.segs) {
+          const sp = Math.min(seg.h * scale, 200);
+          ctx.font = `${seg.b ? '700 ' : ''}${sp}px system-ui, sans-serif`;
+          ctx.fillText(seg.s, seg.x * scale, line.y * scale);
+          if (seg.u) ctx.fillRect(seg.x * scale, line.y * scale + sp * 0.12, seg.w * scale, Math.max(1, sp * 0.06));
+        }
+        if (isSel(it.id)) { ctx.strokeStyle = selSk; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.strokeRect(0, 0, b.w * scale, b.H * scale); ctx.setLineDash([]); }
+        ctx.restore();
+        return;
+        }
+        const label = it.kind === 'text' ? (() => { const b = textBaseAt(it); return { at: b.at, s: it.text ?? '', h: it.h ?? 0, rot: it.rot ?? 0, align: b.align as CanvasTextAlign }; })()
+        : it.kind === 'dim' ? (() => { const d = dimOf(it, 0.001 / unitsPerMm); return { at: d.text, s: d.label, h: d.h, rot: d.angle, align: 'center' as CanvasTextAlign }; })()
+        : it.tray ? (() => { const l = trayLabel(it); return { at: l.at, s: l.text, h: trayH, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
+        : it.cable && labels[it.id] ? (() => { const l = trayLabel(it); return { at: l.at, s: labels[it.id], h: 120 * unitsPerMm, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
+        : null;
+        if (!label || !label.s) return;
+        const lef = effective(it, layerStyle);
+        if (lef.hidden) return;
+        const px = label.h * scale;
+        if (px < 4) return;
+        ctx.save();
+        ctx.translate((label.at[0] - o0 - ox) * scale, size.h - (label.at[1] - o1 - oy) * scale);
+        ctx.rotate(-label.rot);
+        ctx.font = `${Math.min(px, 200)}px system-ui, sans-serif`;
+        if (it.kind === 'text' && it.mask) {
+        // The mask: its box in the background colour, under the text (over the lines and hatches drawn before).
+        ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = bg; ctx.beginPath();
+        textCorners(it).forEach((q, i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, (q[0] - o0 - ox) * scale, size.h - (q[1] - o1 - oy) * scale));
+        ctx.closePath(); ctx.fill(); ctx.restore();
+        }
+        ctx.textAlign = label.align;
+        if (it.tray) ctx.textBaseline = 'middle'; // in the gap of the tray's line
+        ctx.fillStyle = isSel(it.id) ? selSk : lef.color ?? skC;
+        ctx.fillText(label.s, 0, 0);
+        ctx.restore();
+      ctx.restore();
+    };
+    // What the engineer drew, in its draw order (later on top): lines and hatches in drawing units, each object's words in its turn.
     for (const it of sketch) {
-      if (it.kind === 'text' && !it.frame) continue; // a framed text's frame is drawn here with the lines
       const ef = effective(it, layerStyle);
       if (ef.hidden) continue;
+      if ((it.kind === 'text' && !it.frame) || it.kind === 'mtext') { drawLabel(it); continue; } // a framed text's frame is drawn with the lines first
+      if (it.kind === 'point') {
+        // A point: its style's marker about it, sized to the screen or in drawing units (never under 3 pixels).
+        const r = Math.max(pointRadius(pointStyle, size.h / scale), 1.5 / scale), mk = pointMark(pointStyle.mode), px0 = it.pts[0][0] - o0, py0 = it.pts[0][1] - o1;
+        ctx.strokeStyle = isSel(it.id) ? selSk : ef.color ?? skC; ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = (isSel(it.id) ? 3 : 1.5) / scale;
+        ctx.beginPath();
+        for (const [a, b] of mk.lines) { ctx.moveTo(px0 + a[0] * r, py0 + a[1] * r); ctx.lineTo(px0 + b[0] * r, py0 + b[1] * r); }
+        if (mk.circle) { ctx.moveTo(px0 + r, py0); ctx.arc(px0, py0, r, 0, 2 * Math.PI); }
+        ctx.stroke();
+        if (mk.dot) { ctx.beginPath(); ctx.arc(px0, py0, Math.max(r * 0.2, 2 / scale), 0, 2 * Math.PI); ctx.fill(); }
+        continue;
+      }
       if (it.hatch) {
         // A hatch: its outline filled solid (faint) or with its pattern's lines (or dots), clipped to the outline.
         const outline = new Path2D();
@@ -448,6 +523,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         ctx.lineTo(a[0] - o0 - hd * Math.cos(ang + 0.3), a[1] - o1 - hd * Math.sin(ang + 0.3));
         ctx.closePath(); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
       }
+      drawLabel(it);
     }
     // Circuit wiring: arcs in the devices' colour, the home run ending in an arrow at the DB.
     const lvC = colour('--cad-dev', '#f5c04a');
@@ -522,33 +598,6 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       ctx.fillStyle = w.tag.warn ? bad : lvC;
       ctx.fillText(w.tag.s, (w.tag.at[0] - o0 - ox) * scale + 6, size.h - (w.tag.at[1] - o1 - oy) * scale - 6);
     }
-    for (const it of sketch) {
-      const label = it.kind === 'text' ? (() => { const b = textBaseAt(it); return { at: b.at, s: it.text ?? '', h: it.h ?? 0, rot: it.rot ?? 0, align: b.align as CanvasTextAlign }; })()
-        : it.kind === 'dim' ? (() => { const d = dimOf(it, 0.001 / unitsPerMm); return { at: d.text, s: d.label, h: d.h, rot: d.angle, align: 'center' as CanvasTextAlign }; })()
-        : it.tray ? (() => { const l = trayLabel(it); return { at: l.at, s: l.text, h: trayH, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
-        : it.cable && labels[it.id] ? (() => { const l = trayLabel(it); return { at: l.at, s: labels[it.id], h: 120 * unitsPerMm, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
-        : null;
-      if (!label || !label.s) continue;
-      const lef = effective(it, layerStyle);
-      if (lef.hidden) continue;
-      const px = label.h * scale;
-      if (px < 4) continue;
-      ctx.save();
-      ctx.translate((label.at[0] - o0 - ox) * scale, size.h - (label.at[1] - o1 - oy) * scale);
-      ctx.rotate(-label.rot);
-      ctx.font = `${Math.min(px, 200)}px system-ui, sans-serif`;
-      if (it.kind === 'text' && it.mask) {
-        // The mask: its box in the background colour, under the text (over the lines and hatches drawn before).
-        ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = bg; ctx.beginPath();
-        textCorners(it).forEach((q, i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, (q[0] - o0 - ox) * scale, size.h - (q[1] - o1 - oy) * scale));
-        ctx.closePath(); ctx.fill(); ctx.restore();
-      }
-      ctx.textAlign = label.align;
-      if (it.tray) ctx.textBaseline = 'middle'; // in the gap of the tray's line
-      ctx.fillStyle = isSel(it.id) ? selSk : lef.color ?? skC;
-      ctx.fillText(label.s, 0, 0);
-      ctx.restore();
-    }
     // Tray fittings: a dot at the joint and its name beside it.
     const fpx = 100 * unitsPerMm * scale;
     if (fpx >= 4) {
@@ -561,7 +610,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         ctx.fillText(fittingLabel(f), sx + fpx * 1.2, sy - fpx * 1.2);
       }
     }
-  }, [t, size, batches, fills, gone, layersOn, toggles.grid, toggles.lwt, draft.gridMm, draft.gridMajor, view, highlight, devices, wiring, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots, layerStyle, refPaths]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
+  }, [t, size, batches, fills, gone, layersOn, toggles.grid, toggles.lwt, draft.gridMm, draft.gridMajor, view, highlight, devices, wiring, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots, layerStyle, refPaths, pointStyle]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
 
   /** The cursor: crosshair and pick box, and the snap marker with its name. */
   function drawCursor(at: Pt | null, snap?: { p: Pt; kind: number }, guide?: Landing['guide']) {
@@ -819,7 +868,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     return () => window.removeEventListener('keydown', key);
   }, []);
 
-  const local = (e: React.MouseEvent | React.WheelEvent) => {
+  const local = (e: React.MouseEvent | React.WheelEvent | React.DragEvent) => {
     const r = over.current!.getBoundingClientRect();
     return [e.clientX - r.left, e.clientY - r.top] as const;
   };
@@ -830,7 +879,8 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   });
 
   return (
-    <div ref={host} className="cad-model">
+    <div ref={host} className="cad-model" onDragOver={onDrop ? (e) => { if (e.dataTransfer.types.includes('text/lvds-block')) e.preventDefault(); } : undefined}
+      onDrop={onDrop ? (e) => { const name = e.dataTransfer.getData('text/lvds-block'); if (!name) return; e.preventDefault(); const [x, y] = local(e); onDrop(toWorld(x, y), name); } : undefined}>
       <canvas ref={base} className="cad-layer" style={{ width: size.w, height: size.h }} aria-hidden="true" />
       <canvas
         ref={over}

@@ -1274,7 +1274,7 @@ export default function App() {
           cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onNew: () => cadDo((x) => x.newDrawing()), onSave: () => cadDo((x) => x.save()), onSaveDwg: () => cadDo((x) => x.saveDwg()), onClose: () => cadDo((x) => x.close()), onSaveAs: () => cadDo((x) => x.saveAs()), onCloseOthers: () => cadDo((x) => x.closeOthers()), onExport: (k) => cadDo((x) => x.exportAs(k)), onPublish: () => cadDo((x) => x.publish()), onSettings: () => cadDo((x) => x.settings()), onDelete: () => cadDo((x) => x.remove()), hasSelection: !!cadS.selected, onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, onLayerManager: () => cadDo((x) => x.layerManager()), onRefs: () => cadDo((x) => x.refs()), inLayout: !!cadS.layout && view === 'cad', onLayoutCmd: (c) => cadDo((x) => x.layoutCmd(c)),
             onPaper: !!cadS.layout && view === 'cad' && !cadS.msVp, onCommand: (c) => cadDo((x) => x.command(c)),
             reopen: cadReopen,
-            propsOn: cadS.showProps, onProps: () => { cadS.setShowProps(!cadS.showProps); setView('cad'); },
+            propsOn: cadS.showProps, onProps: () => { cadS.setShowProps(!cadS.showProps); setView('cad'); }, blocksOn: cadS.showBlocks,
             info: cadS.ribbonInfo, onSetProps: (p) => cadDo((x) => x.setProps(p)),
             labels: !!prefs.app.cadLabels, onLabels: (on) => { const p = { ...prefs, app: { ...prefs.app, cadLabels: on || undefined } }; setPrefs(p); savePrefs(p); }, layersOn: cadS.showLayers, hasDrawing: !!cadS.view,
             file: (() => {
