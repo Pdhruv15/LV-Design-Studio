@@ -167,7 +167,11 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
     // Drawn at its scale on the paper it needs (or the chosen one).
     const d = planOf(project, set, s);
     if (!d) return undefined;
-    return { html: sheetHtmlFrom(project, set, s, d.svg, d.size, false, d.legendSvg, withMarkups), size: d.size, fits: true, columnFits: true, refs: false, svg: d.svg, legendSvg: d.legendSvg };
+    // Tables placed on its layout: a legend table takes the column's legend, a notes table the notes.
+    const legendSvg = d.legendOff ? '' : d.legendSvg;
+    const info = fullSheetInfo(project, set, s, false, legendSvg, withMarkups);
+    if (d.tables?.length) { info.tables = d.tables; if (d.tables.some((t) => t.kind === 'notes')) { info.notes = []; info.notesOff = true; } }
+    return { html: buildSldSheetHtml(project, d.svg, d.size, info), size: d.size, fits: true, columnFits: true, refs: false, svg: d.svg, legendSvg, info };
   }
   const fz = furnitureOf(set, s), min = minMmPerPx(fz), tm = fz.textMm;
   if (s.kind === 'legend') {

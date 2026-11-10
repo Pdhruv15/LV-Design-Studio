@@ -186,7 +186,7 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   if (cables.length) section('CABLE SCHEDULE', [...cables.map((c) => `(${c.ref})${c.fireRated ? ' *' : ''}  ${c.text}`), ...(cables.some((c) => c.fireRated) ? [`NOTE: ${FIRE_NOTE}`] : [])]);
   const abbr = one?.abbreviations ?? (project.drawing?.abbreviations === false ? [] : abbreviationsIn(svg));
   if (abbr.length) section('ABBREVIATIONS', abbr.map(([a, d]) => `${a}   ${d}`));
-  const notes = [...(project.drawing?.notes ?? []), ...(one?.notes ?? [])].filter((n) => n.trim()).map((n, i) => `${i + 1}. ${fillParams(n, project, extra)}`);
+  const notes = (one?.notesOff ? [] : [...(project.drawing?.notes ?? []), ...(one?.notes ?? [])]).filter((n) => n.trim()).map((n, i) => `${i + 1}. ${fillParams(n, project, extra)}`);
   if (notes.length) section('NOTES', notes, 'E-NOTES');
   if (details.length) section('TITLE BLOCK DETAILS', details.map((d) => `${d.label}: ${d.value}`), 'E-NOTES');
   if (one?.summary) section(one.summary.title, one.summary.rows.map(([a, v]) => `${a}   ${v}`));
@@ -271,6 +271,8 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   // A table under the drawing (a board sheet's load schedule), as high as the PDF prints it.
   const table = one?.table, tableH = table ? tableHeightMm(table, tm) * k : 0;
   if (table) first.push(...tableDxf(table, { x: frame.x + 3, y: bodyBottom, w: frame.w - 6 - (side ? colW : 0), h: tableH }, tm * k, k));
+  // Legend and notes tables placed on a plan sheet's layout, at their place over the drawing area (y down there).
+  for (const pt of one?.tables ?? []) first.push(...placeSvg(pt.svg, { x: frame.x + 3 + pt.x, y: bodyTop - pt.y - pt.h, w: pt.w, h: pt.h }, pt.kind === 'notes' ? 'E-NOTES' : 'E-LEGEND', false).items);
   const hasContinuation = cursor < flow.length;
   const noticeH = hasContinuation ? Math.max(5, 4 * k) : 0;
   const drawing = legendSheet || !svg.trim() ? { items: [] as DxfPrimitive[] } : placeSvg(svg, { x: frame.x + 3, y: bodyBottom + noticeH + stripH + tableH, w: frame.w - 6 - (side ? colW : 0), h: bodyH - noticeH - stripH - tableH });

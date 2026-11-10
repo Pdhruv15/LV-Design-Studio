@@ -384,7 +384,7 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     expect(tool('Viewports: its tools').textContent).toBe('Viewports');
     act(() => { tool('Viewports: its tools').dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); });
     act(() => { vi.advanceTimersByTime(400); });
-    expect(document.querySelector('#ribbon-tip')!.textContent).toBe('ViewportsIts tools: Viewport, Scale, Lock');
+    expect(document.querySelector('#ribbon-tip')!.textContent).toBe('ViewportsIts tools: Viewport, Legend, Notes, Scale, Lock');
     // A tool that only opens a list is there as its list.
     click(tool('Layouts: its tools'));
     expect([...document.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent)).toEqual(['New layout: Lighting layout', 'New layout: Power layout', 'New layout: ELV layout', 'New layout: Containment layout']);

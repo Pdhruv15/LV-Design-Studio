@@ -1743,6 +1743,27 @@ describe('file tabs', () => {
     expect(sheet().viewports![1].box[2]).toBeGreaterThan(2);
     expect(state.vpSel).toBe('vp2');
     expect(last()).toMatch(/^E-LTG-001 {2}Viewport 2 added at 1:50 · ⌘Z to undo$/);
+    // LEGEND: a click on the paper places a legend table (its rows follow the plan); picked, its properties show; NOTES the same.
+    await command('LEGEND');
+    expect(document.querySelector('.cad-hist')!.textContent).toMatch(/^LEGEND {2}Click where the legend table's top left corner goes/);
+    paperAt(320, 200);
+    expect(sheet().tables).toEqual([expect.objectContaining({ id: 'tb1', kind: 'legend', widthMm: 92 })]);
+    expect(state.vpSel).toBe('tb1');
+    expect(last()).toMatch(/^E-LTG-001 {2}Legend table placed at [\d.-]+, [\d.-]+ mm · ⌘Z to undo$/);
+    await until(() => !!document.querySelector('.cad-ptab'));
+    expect(document.querySelector('.cad-ptab')!.getAttribute('aria-label')).toBe('Legend');
+    expect(document.querySelector('[aria-label="Table properties"]')!.textContent).toMatch(/^Legend E-LTG-001Width/);
+    expect([...document.querySelectorAll('[aria-label="Table properties"] [role="group"][aria-label="Rows"] label')].map((l) => l.textContent?.trim())).toContain('Light');
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('[aria-label="Columns"] button')].find((b) => b.textContent === '2 columns')!.click());
+    expect(sheet().tables![0].cols).toBe(2);
+    await command('NOTES');
+    paperAt(320, 400);
+    expect(sheet().tables!.map((t) => t.kind)).toEqual(['legend', 'notes']);
+    expect(state.vpSel).toBe('tb2');
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Delete notes table')!.click());
+    expect(sheet().tables!.map((t) => t.kind)).toEqual(['legend']);
+    expect(state.vpSel).toBeNull();
+    act(() => state.setVpSel('vp2'));
     // The Layer manager in a layout: This viewport freezes a drawn layer in the viewport picked only.
     act(() => [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Layers in this viewport…')!.click());
     expect(document.querySelector('.cad-lp-head')!.textContent).toContain('Viewport 2');
