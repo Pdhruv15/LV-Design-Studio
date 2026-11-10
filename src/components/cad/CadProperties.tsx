@@ -4,6 +4,8 @@ import { LINETYPE_IDS, LINETYPES, LINEWEIGHTS, styleOf, withProps, type LayerSty
 import { geometryRows, geomKind, kindChoices, kindLabel, parseTyped, sharedValue, shownValue, textRows, withProp, type PropDef } from '../../model/cadProps';
 import { TRAY_SERVICES, TRAY_WIDTHS } from '../../model/cadSketch';
 import { TEXT_FRAMES, TEXT_JUSTS } from '../../model/cadText';
+import { NOTE_ATTACHES } from '../../model/cadMtext';
+import { askedAttdefs, attrValue, blockDefOf, type CadBlockDef } from '../../model/cadBlocks';
 import type { SketchItem } from '../../types';
 import { ColourPicker } from './ColourPicker';
 
@@ -15,7 +17,7 @@ import { ColourPicker } from './ColourPicker';
 const VARIES = '__varies';
 type Shown = number | string | undefined | 'varies';
 
-export function PropertiesPalette({ items, devices, layers, styles, current, newProps = {}, textMm, k, onItems, onCurrent, onNewProps, onTextMm, onClose, bare, titleBlock }: {
+export function PropertiesPalette({ items, devices, layers, styles, current, newProps = {}, textMm, k, onItems, onCurrent, onNewProps, onTextMm, onClose, bare, titleBlock, blocks = [] }: {
   items: SketchItem[];
   /** Devices picked with them (their own panel edits them). */
   devices: number;
@@ -36,6 +38,8 @@ export function PropertiesPalette({ items, devices, layers, styles, current, new
   onClose?: () => void;
   /** Inside the properties dock, which has the title and the fold button: no header of its own. */
   bare?: boolean;
+  /** The drawing's own blocks: an insert's attributes are listed and typed here. */
+  blocks?: CadBlockDef[];
   /** A title block drawing (src/model/titleBlockCad.ts): its fields to place with a click, and Save as template. */
   titleBlock?: { name: string; fields: string[]; onField: (field: string) => void; onSave: () => void };
 }) {
@@ -90,6 +94,7 @@ export function PropertiesPalette({ items, devices, layers, styles, current, new
       const opts = def.key === 'width' ? [...new Set([...TRAY_WIDTHS.map(String), ...(typeof v === 'string' && v !== 'varies' ? [v] : [])])].map((w) => [w, `${w} mm`])
         : def.key === 'service' ? [['', 'None'], ...[...new Set([...TRAY_SERVICES, ...(typeof v === 'string' && v && v !== 'varies' ? [v] : [])])].map((s) => [s, s])]
         : def.key === 'just' ? TEXT_JUSTS.map((j) => [j.id, j.label])
+        : def.key === 'attach' ? NOTE_ATTACHES.map((j) => [j.id, j.label])
         : def.key === 'frame' ? TEXT_FRAMES.map((f) => [f.id, f.label])
         : [['Yes', 'Yes'], ['No', 'No']];
       return row(def.label, (
@@ -206,6 +211,19 @@ export function PropertiesPalette({ items, devices, layers, styles, current, new
             {geom.map(valueRow)}
           </>)}
           {text.length > 0 && section('text', 'Text', text.map(valueRow))}
+          {one?.kind === 'insert' && askedAttdefs(blockDefOf(blocks, one.block)).length > 0 && section('attrs', 'Attributes', askedAttdefs(blockDefOf(blocks, one.block)).map((ad) => {
+            const tag = ad.tag ?? '', v = attrValue(one, ad);
+            return row(tag, edit?.key === `att:${tag}` ? (
+              <input autoFocus aria-label={tag} value={edit.draft} onChange={(e) => setEdit({ key: `att:${tag}`, draft: e.target.value })} onBlur={() => setEdit(null)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEdit(null); }
+                  if (e.key !== 'Enter') return;
+                  e.preventDefault();
+                  if (edit.draft !== v) onItems([{ ...one, attrs: { ...one.attrs, [tag]: edit.draft } }], `Block: ${tag} "${edit.draft}"`);
+                  setEdit(null);
+                }} />
+            ) : <button type="button" className="cad-pp-val" aria-label={tag} onClick={() => setEdit({ key: `att:${tag}`, draft: v })}>{v || '—'}</button>, ad.prompt || undefined);
+          }))}
           {!gk && sel.length > 0 && <div className="cad-pp-note m">Pick one kind above for its geometry.</div>}
         </>}
       </div>
@@ -213,4 +231,4 @@ export function PropertiesPalette({ items, devices, layers, styles, current, new
     </section>
   );
 }
-const SELECTS = new Set(['width', 'service', 'closed', 'just', 'frame', 'mask']);
+const SELECTS = new Set(['width', 'service', 'closed', 'just', 'frame', 'mask', 'attach']);

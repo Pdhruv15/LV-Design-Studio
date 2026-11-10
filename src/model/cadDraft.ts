@@ -42,6 +42,8 @@ export interface DraftSettings {
   dynBoxes: boolean;
   dynPrompt: boolean;
   dynOptions: boolean;
+  /** A block with attributes inserted: its prompts asked in a dialog (else one by one on the command line). */
+  attDialog: boolean;
   /** Selection: the selection window shaded, grips shown on what is picked, their size and the pick box (px). */
   windowFill: boolean;
   grips: boolean;
@@ -61,7 +63,7 @@ export const DRAFT_DEFAULTS: DraftSettings = {
   snapX: 0, snapY: 0, gridMm: 0, gridMajor: 5,
   polarInc: 45, polarExtra: [], trackAllPolar: false,
   osnap: OSNAP_DEFAULT,
-  dynBoxes: true, dynPrompt: true, dynOptions: true,
+  dynBoxes: true, dynPrompt: true, dynOptions: true, attDialog: false,
   windowFill: true, grips: true, gripPx: 8, pickPx: 9,
   crossPct: 100, aperturePx: 10, markerPx: 7, snapTip: true,
   saveFormat: 'own', keepBak: true
@@ -79,7 +81,7 @@ export function draftSettings(v: unknown): DraftSettings {
     snapX: num(o.snapX, 0, 1e6, d.snapX), snapY: num(o.snapY, 0, 1e6, d.snapY), gridMm: num(o.gridMm, 0, 1e6, d.gridMm), gridMajor: Math.round(num(o.gridMajor, 1, 100, d.gridMajor)),
     polarInc: num(o.polarInc, 1, 90, d.polarInc), polarExtra: extra, trackAllPolar: bool(o.trackAllPolar, d.trackAllPolar),
     osnap: typeof o.osnap === 'number' && Number.isInteger(o.osnap) ? o.osnap & ALL_BITS : d.osnap,
-    dynBoxes: bool(o.dynBoxes, d.dynBoxes), dynPrompt: bool(o.dynPrompt, d.dynPrompt), dynOptions: bool(o.dynOptions, d.dynOptions),
+    dynBoxes: bool(o.dynBoxes, d.dynBoxes), dynPrompt: bool(o.dynPrompt, d.dynPrompt), dynOptions: bool(o.dynOptions, d.dynOptions), attDialog: bool(o.attDialog, d.attDialog),
     windowFill: bool(o.windowFill, d.windowFill), grips: bool(o.grips, d.grips), gripPx: Math.round(num(o.gripPx, 4, 20, d.gripPx)), pickPx: Math.round(num(o.pickPx, 3, 30, d.pickPx)),
     crossPct: Math.round(num(o.crossPct, 1, 100, d.crossPct)), aperturePx: Math.round(num(o.aperturePx, 2, 40, d.aperturePx)), markerPx: Math.round(num(o.markerPx, 3, 20, d.markerPx)), snapTip: bool(o.snapTip, d.snapTip),
     saveFormat: o.saveFormat === 'dwg' || o.saveFormat === 'dxf' ? o.saveFormat : 'own', keepBak: bool(o.keepBak, d.keepBak)

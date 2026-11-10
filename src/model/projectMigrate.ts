@@ -14,8 +14,11 @@ import { readProjectFolder } from './folderTemplates';
  * app opens a version 2 file read-only, so it cannot save it without the uids.
  *
  * `folder` (the project's copy of its folder template, src/model/folderTemplates.ts) needs no new version:
- * an older app keeps fields it does not know and saves them back unchanged. */
-export const CURRENT_SCHEMA = 2;
+ * an older app keeps fields it does not know and saves them back unchanged.
+ *
+ * Version 3: Design CAD blocks — block definitions (`cadBlockDefs`) and inserts (drawn objects of kind `insert`). An
+ * older app would show such a drawing without its blocks, so it opens a version 3 file read-only. */
+export const CURRENT_SCHEMA = 3;
 
 const fnv = (s: string): string => {
   let h = 2166136261;

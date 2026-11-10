@@ -108,11 +108,11 @@ describe('Ribbon', () => {
     const html = render('cad', { view: 'cad', cad: cad() });
     expect(subTabs(html)).toEqual(['LVCAD', 'Electrical, ELV &amp; sheets', 'Output']);
     expect(html).toMatch(/id="ribbon-cad-drafting"[^>]*aria-selected="true"/);
-    expect(groupsOf(html)).toEqual(['Draw', 'Modify', 'Annotate', 'Layers', 'Properties', 'Measure and view']);
+    expect(groupsOf(html)).toEqual(['Draw', 'Modify', 'Annotate', 'Blocks', 'Layers', 'Properties', 'Measure and view']);
     // With labels every tool is named and needs about twice the room: the panels take four sub-tabs.
     const all = render('cad', { view: 'cad', cad: cad({ labels: true }) });
     expect(subTabs(all)).toEqual(['LVCAD', 'Layers &amp; properties', 'Electrical &amp; ELV', 'Sheets', 'Output']);
-    expect(groupsOf(all)).toEqual(['Draw', 'Modify', 'Annotate']);
+    expect(groupsOf(all)).toEqual(['Draw', 'Modify', 'Annotate', 'Blocks']);
     expect(html).toContain('title="Open, save and close drawings; the level and units of the drawing"'); // File, a menu
     expect(html).toMatch(/aria-haspopup="menu" aria-expanded="false" title="Open, save and close drawings/);
     expect(html).toContain('Show labels');
@@ -136,7 +136,7 @@ describe('Ribbon', () => {
   });
 
   it('lays Modify out in three rows, column by column, Layers under its current layer list, Match beside its lists', () => {
-    const html = render('cad', { view: 'cad', cad: cad({ info: { layers: [{ name: 'E-LIGHTING', color: '#ff0000', on: true, freeze: false, lock: false }], current: 'E-LIGHTING', picked: 0, props: { lw: 0.35 } } }) });
+    const html = render('cad', { view: 'cad', cad: cad({ info: { blocks: [], layers: [{ name: 'E-LIGHTING', color: '#ff0000', on: true, freeze: false, lock: false }], current: 'E-LIGHTING', picked: 0, props: { lw: 0.35 } } }) });
     const panel = (name: string) => new RegExp(`aria-label="${name}"[^>]*>(.*?)</div><(?:div|button) class="ribbon-caption`, 's').exec(html)?.[1] ?? '';
     const cols = (body: string) => [...body.matchAll(/class="ribbon-stack">(.*?)<\/div>/gs)].map((m) => [...m[1].matchAll(/aria-label="([^"]+)"/g)].map((x) => x[1]).filter((n) => !n.endsWith('more options')));
     expect(cols(panel('Modify'))).toEqual([['Move', 'Copy', 'Stretch'], ['Rotate', 'Mirror', 'Scale'], ['Trim', 'Extend', 'Break'], ['Fillet', 'Chamfer', 'Join'], ['Offset', 'Array', 'Explode'], ['Erase']]);
@@ -145,7 +145,7 @@ describe('Ribbon', () => {
     expect(panel('Properties')).toContain('aria-label="Colour of new objects"');
     expect(panel('Properties')).toMatch(/aria-label="Lineweight of new objects"[^>]*>.*?<option value="0.35" selected="">0.35 mm<\/option>/s);
     expect(html).toMatch(/class="ribbon-launch"[^>]*aria-label="Properties palette"/);
-    expect(html).toMatch(/class="ribbon-caption ribbon-caption-more" title="More modify tools: Quick select…"/);
+    expect(html).toMatch(/class="ribbon-caption ribbon-caption-more" title="More modify tools: Quick select…, Draw order"/);
     expect(html).toMatch(/title="More layers tools: Layer roles, New layer, Layers panel"/);
   });
 
