@@ -15,10 +15,16 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.084', date: '2026-11-10',
+    version: '2.085', date: '2026-11-10',
     items: [
       { title: 'New drawing in Design CAD', text: 'File → New (NEW) opens a blank drawing in millimetres in a tab of its own, Drawing1.dxf, Drawing2.dxf… — also from the page with no drawing open. Save As names it the first time.', action: 'cad', actionLabel: 'Open Design CAD' },
       { title: 'Grid on from the start', text: 'Design CAD opens with the grid showing (F7 still steps lines → dots → off).' }
+    ]
+  },
+  {
+    version: '2.084', date: '2026-11-10',
+    items: [
+      { title: 'Approved makes, specification references and preambles in the BOQ', text: 'BOQ → Makes & preambles: up to three approved makes and a specification clause per equipment category (MCCB, cables, tray, luminaires…), and a preamble for the bill and each section. Save it as an office list and load it on other projects; a line can have its own makes in its pencil dialog. The Excel BOQ gains Spec ref. and Approved makes columns after Location, and the PDF prints them under each description.' }
     ]
   },
   {
