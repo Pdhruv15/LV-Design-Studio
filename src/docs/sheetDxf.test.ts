@@ -334,3 +334,23 @@ describe('legend sheet and schedule table in DXF', () => {
     expectPaperBounds(data, SHEET_MM.A3.w, SHEET_MM.A3.h);
   });
 });
+
+describe('drawn title block on a DXF sheet', () => {
+  beforeAll(() => vi.stubGlobal('DOMParser', DOMParser));
+  afterAll(() => vi.unstubAllGlobals());
+  it('inserts the company block with the sheet\'s values as attributes, inside the paper', () => {
+    const drawn = { id: 'tb-d', name: 'ACME', kind: 'drawn' as const, cols: [], rows: [], cells: [], size: { w: 180, h: 44 }, shapes: [{ kind: 'line' as const, x1: 0, y1: 0, x2: 180, y2: 0 }], texts: [{ id: 't1', x: 100, y: 40, h: 3.5, text: '{SheetNo}', tag: 'DWG_NO' }] };
+    const p: Project = { ...dxfExportProject, titleTemplates: [drawn], drawing: { ...dxfExportProject.drawing, titleTemplateId: 'tb-d' } };
+    const data = buildSheetDxf(p, svg, 'A3', info);
+    const ins = entities(data).find((e) => e.type === 'INSERT')!;
+    expect(ins).toBeDefined();
+    expect(ins.v.get(2)).toBe('TB_ACME');
+    expect(num(ins, 10)).toBeCloseTo(410 - 180, 6); // the frame's right edge less the block
+    expect(num(ins, 20)).toBe(10);
+    const attrib = entities(data).find((e) => e.type === 'ATTRIB')!;
+    expect(attrib.v.get(2)).toBe('DWG_NO');
+    expect(attrib.v.get(1)).toBe('E-SLD-01');
+    expect(data).toContain('\r\n0\r\nBLOCK\r\n');
+    expectPaperBounds(data, SHEET_MM.A3.w, SHEET_MM.A3.h);
+  });
+});

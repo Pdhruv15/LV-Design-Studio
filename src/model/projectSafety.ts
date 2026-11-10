@@ -131,6 +131,13 @@ export function unsafeReason(raw: Record<string, unknown>): string | undefined {
     for (const t of raw.titleTemplates) {
       if (!isObj(t) || !Array.isArray(t.cols) || !Array.isArray(t.rows) || !Array.isArray(t.cells)) return 'a title block template is not valid';
       if (![...t.cols, ...t.rows].every(isNum)) return `title block ${String(t.name ?? '')}: grid sizes are not numbers`;
+      if (t.kind === 'drawn') {
+        // A drawn (imported) block: its size, shapes and texts are numbers and text.
+        if (!isObj(t.size) || !isNum(t.size.w) || !isNum(t.size.h)) return `title block ${String(t.name ?? '')}: no size`;
+        if (!Array.isArray(t.shapes ?? []) || !Array.isArray(t.texts ?? [])) return `title block ${String(t.name ?? '')}: shapes or texts are not a list`;
+        for (const x of (t.texts ?? []) as unknown[]) if (!isObj(x) || !isNum(x.x) || !isNum(x.y) || !isNum(x.h) || typeof x.text !== 'string') return `title block ${String(t.name ?? '')}: a text is not valid`;
+        for (const x of (t.shapes ?? []) as unknown[]) if (!isObj(x) || !['line', 'poly', 'circle'].includes(x.kind as string)) return `title block ${String(t.name ?? '')}: a shape has an unknown kind`;
+      }
       for (const c of t.cells) {
         if (!isObj(c) || !['r', 'c', 'rs', 'cs', 'size'].every((k) => okNum(c[k]))) return `title block ${String(t.name ?? '')}: a cell position or size is not a number`;
         if (c.align !== undefined && !['left', 'center', 'right'].includes(c.align as string)) return `title block ${String(t.name ?? '')}: a cell alignment is not left, center or right`;

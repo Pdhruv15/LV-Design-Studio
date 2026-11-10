@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.066', date: '2026-11-10',
+    items: [
+      { title: 'Your company\'s title block from a DWG or DXF', text: 'Project → Title block → Import DWG / DXF… reads a company title block drawn in CAD: the whole drawing, or one of its inserted blocks. Its lines and texts become a template; its attributes and placeholders (DWG_NO, TITLE, REV, DATE, DRN, CHK, APP, SCALE, SHEET …) become fields filled from the project and the sheet, and any text can be mapped to a field in the Texts and fields list. The block prints on every sheet in the PDF as drawn, and goes to DXF and DWG as a block with attributes, so a CAD program keeps its values editable. Grid templates and the standard block are unchanged.' }
+    ]
+  },
+  {
     version: '2.065', date: '2026-11-10',
     items: [
       { title: 'Legend sheet', text: 'Design CAD → Sheets → + New sheet → Legend, abbreviations and notes adds one sheet, numbered before the SLDs (E-SLD-000), with every symbol of the project\'s SLD across the sheet, the abbreviations of the whole SLD and the general notes. The SLD and board sheets then carry no legend or abbreviations of their own: their notes say "LEGEND AND ABBREVIATIONS: SEE E-SLD-000" and the drawing takes the whole width. Riser and earthing sheets keep their own legends.', action: 'cad', actionLabel: 'Open Design CAD' },

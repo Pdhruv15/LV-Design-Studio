@@ -23,13 +23,30 @@ export interface TbCell {
   align?: 'left' | 'center' | 'right';
 }
 
+/** A shape of a drawn template (mm from the block's top left corner, y down; w = line weight in mm, default 0.25). */
+export type DrawnShape =
+  | { kind: 'line'; x1: number; y1: number; x2: number; y2: number; w?: number }
+  | { kind: 'poly'; pts: [number, number][]; closed?: boolean; w?: number; fill?: boolean }
+  | { kind: 'circle'; cx: number; cy: number; r: number; w?: number };
+/** A text of a drawn template: its insertion point (mm, y down), cap height (mm), rotation (degrees, anticlockwise) and
+ * alignment about the point. text holds fixed words or {Parameters}; tag is the attribute it came from (and the ATTRIB it
+ * is written back as); orig the drawing's own words, kept when the text is mapped to a parameter; fit a width (mm) a
+ * long value shrinks to. */
+export interface DrawnText { id: string; x: number; y: number; h: number; rot?: number; align?: 'left' | 'center' | 'right'; text: string; tag?: string; orig?: string; fit?: number; bold?: boolean }
+
 export interface TitleTemplate {
   id: string;
   name: string;
   cols: number[]; // mm
   rows: number[]; // mm
   cells: TbCell[];
+  /** grid (the designer's cells, default) or drawn: a company block imported from DWG / DXF, as lines and texts. */
+  kind?: 'grid' | 'drawn';
+  size?: { w: number; h: number }; // mm, drawn templates
+  shapes?: DrawnShape[];
+  texts?: DrawnText[];
 }
+export const isDrawn = (t: TitleTemplate) => t.kind === 'drawn';
 
 let n = 0;
 const cell = (r: number, c: number, text: string, o: Partial<TbCell> = {}): TbCell => ({ id: `c${++n}`, r, c, kind: 'text', text, size: 8, ...o });
@@ -83,6 +100,7 @@ const esc = escapeHtmlAttr;
  * so its right and bottom edges are the frame's (not drawn twice) and its top and left edges are as heavy as the
  * standard block's. */
 export function titleBlockHtml(t: TitleTemplate, p: Project, extra: Record<string, string> = {}, framed = false): string {
+  if (isDrawn(t)) return drawnTitleBlockHtml(t, p, extra);
   const list = paramList(p);
   const covered = new Set<string>();
   for (const c of t.cells) for (let r = c.r; r < c.r + (c.rs ?? 1); r++) for (let k = c.c; k < c.c + (c.cs ?? 1); k++) if (r !== c.r || k !== c.c) covered.add(`${r},${k}`);
@@ -110,7 +128,35 @@ export function titleBlockHtml(t: TitleTemplate, p: Project, extra: Record<strin
   return `<table style="width:${w}mm;border-collapse:collapse;table-layout:fixed;font-family:Arial,sans-serif;color:#000;background:#fff"><colgroup>${t.cols.map((c) => `<col style="width:${num(c)}mm">`).join('')}</colgroup>${rows}</table>`;
 }
 
-export const templateSize = (t: TitleTemplate) => ({ w: t.cols.reduce((a, b) => a + b, 0), h: t.rows.reduce((a, b) => a + b, 0) });
+export const templateSize = (t: TitleTemplate) => (isDrawn(t) && t.size ? { w: t.size.w, h: t.size.h } : { w: t.cols.reduce((a, b) => a + b, 0), h: t.rows.reduce((a, b) => a + b, 0) });
+
+/** Average width of a character as a share of the cap height (Arial, mixed case). */
+export const DRAWN_CHAR = 0.78;
+/** A drawn text's words as printed: its parameters filled. */
+export const drawnTextValue = (x: DrawnText, p: Project, extra: Record<string, string>, list = paramList(p)) => fillParams(x.text, p, extra, list);
+/** A drawn template as SVG (mm), the company block's lines and texts with the project's values in its fields; a value
+ * wider than its field (fit) is squeezed to it. Shared by the drawing sheets, the report pages and the designer's print. */
+export function drawnTitleBlockHtml(t: TitleTemplate, p: Project, extra: Record<string, string> = {}): string {
+  const { w, h } = templateSize(t);
+  const list = paramList(p);
+  const f = (v: number) => +v.toFixed(3);
+  const shapes = (t.shapes ?? []).map((s) => {
+    const sw = f(s.w ?? 0.25);
+    if (s.kind === 'line') return `<line x1="${f(s.x1)}" y1="${f(s.y1)}" x2="${f(s.x2)}" y2="${f(s.y2)}" stroke="#000" stroke-width="${sw}"/>`;
+    if (s.kind === 'circle') return `<circle cx="${f(s.cx)}" cy="${f(s.cy)}" r="${f(s.r)}" fill="none" stroke="#000" stroke-width="${sw}"/>`;
+    const d = s.pts.map(([x, y], i) => `${i ? 'L' : 'M'}${f(x)} ${f(y)}`).join(' ') + (s.closed || s.fill ? ' Z' : '');
+    return `<path d="${d}" fill="${s.fill ? '#000' : 'none'}" stroke="#000" stroke-width="${sw}" stroke-linejoin="round"/>`;
+  });
+  const texts = (t.texts ?? []).map((x) => {
+    const value = drawnTextValue(x, p, extra, list);
+    if (!value.trim()) return '';
+    const size = f(x.h / 0.72), anchor = x.align === 'center' ? 'middle' : x.align === 'right' ? 'end' : 'start';
+    const width = value.length * x.h * DRAWN_CHAR, fit = x.fit && width > x.fit ? ` textLength="${f(x.fit)}" lengthAdjust="spacingAndGlyphs"` : '';
+    const rot = x.rot ? ` transform="rotate(${f(-x.rot)} ${f(x.x)} ${f(x.y)})"` : '';
+    return `<text x="${f(x.x)}" y="${f(x.y)}" font-size="${size}" text-anchor="${anchor}"${x.bold ? ' font-weight="700"' : ''}${fit}${rot}>${esc(value)}</text>`;
+  });
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${f(w)}mm" height="${f(h)}mm" viewBox="0 0 ${f(w)} ${f(h)}" style="display:block;background:#fff" font-family="Arial, Helvetica, sans-serif" fill="#000">${shapes.join('')}${texts.join('')}</svg>`;
+}
 
 // ---- Editing helpers -----------------------------------------------------------
 

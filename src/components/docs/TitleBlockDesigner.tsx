@@ -2,8 +2,12 @@ import { ask } from '../ConfirmDialog';
 import { useMemo, useRef, useState } from 'react';
 import type { Project } from '../../types';
 import {
-  addCol, addRow, loadTemplateLibrary, mergeDown, mergeRight, removeCol, removeRow, saveTemplateLibrary, split, standardTemplate, titleBlockHtml, type TbCell, type TitleTemplate
+  addCol, addRow, drawnTitleBlockHtml, isDrawn, loadTemplateLibrary, mergeDown, mergeRight, removeCol, removeRow, saveTemplateLibrary, split, standardTemplate, templateSize, titleBlockHtml, type TbCell, type TitleTemplate
 } from '../../model/titleBlock';
+import { drawnFromDrawing, drawnFromPieces, fieldCount, mapText, SHEET_FIELDS } from '../../model/titleBlockImport';
+import { chooseDrawing, explodeObjects } from '../../engines/cad/cadEngine';
+import { askText } from '../ConfirmDialog';
+import { sanitizeSvg } from '../../util/sanitize';
 import { fillParams, paramList } from '../../model/params';
 import { saveText } from '../../util/files';
 import { Page } from '../ui';
@@ -33,6 +37,32 @@ export default function TitleBlockDesigner({ project, onChange, onStatus, onPara
   };
   const cell = t?.cells.find((x) => x.id === cellId);
   const setCell = (patch: Partial<TbCell>) => t && cell && setT({ ...t, cells: t.cells.map((x) => (x.id === cell.id ? { ...x, ...patch } : x)) });
+  /** The company's title block from a DWG / DXF: the whole drawing, or one of its inserted blocks (exploded by the engine,
+   * its attributes becoming fields), as a drawn template with its fields guessed from the tags. */
+  const importFromCad = async () => {
+    let view: Awaited<ReturnType<typeof chooseDrawing>> = null;
+    try {
+      view = await chooseDrawing();
+      if (!view) return;
+      const inserts = view.blocks();
+      const names = [...new Set(inserts.map((b) => b.block))];
+      const base = view.file.replace(/\.(dwg|dxf)$/i, '');
+      let template: TitleTemplate;
+      const choice = names.length ? await askText('Import a title block', { label: 'Take', options: ['The whole drawing', ...names.map((n) => `Block ${n}`)], initial: 'The whole drawing', confirmLabel: 'Import' }) : 'The whole drawing';
+      if (choice === null) return;
+      if (choice === 'The whole drawing') template = drawnFromDrawing({ units: view.info.units, segs: view.segs, texts: view.info.texts }, base);
+      else {
+        const blockName = choice.replace(/^Block /, ''), ins = inserts.find((b) => b.block === blockName)!;
+        const { pieces } = await explodeObjects(view, [ins.handle]);
+        template = drawnFromPieces(pieces[ins.handle] ?? Object.values(pieces).flat(), view.info.units, `${base} ${blockName}`);
+      }
+      create(template, template.name);
+      const { w, h } = templateSize(template);
+      onStatus(`Imported ${template.name}: ${w} × ${h} mm, ${template.shapes?.length ?? 0} lines, ${template.texts?.length ?? 0} texts, ${fieldCount(template)} mapped to the project`);
+    } catch (e) {
+      onStatus(e instanceof Error ? e.message : String(e));
+    } finally { view?.close(); }
+  };
 
   if (!t) {
     return (
@@ -40,6 +70,7 @@ export default function TitleBlockDesigner({ project, onChange, onStatus, onPara
         <div className="card">
           <p>No title block template in this project yet.</p>
           <button className="chip primary" onClick={() => create(standardTemplate(), 'My title block')}>Start from the standard block</button>
+          <button className="chip" title="Your company's title block from a DWG or DXF: its lines and texts, its attributes mapped to the project" onClick={() => void importFromCad()}>Import DWG / DXF…</button>
           {loadTemplateLibrary().map((x) => <button key={x.id} className="chip" onClick={() => create(x, x.name)}>From my library: {x.name}</button>)}
         </div>
       </Page>
@@ -60,12 +91,14 @@ export default function TitleBlockDesigner({ project, onChange, onStatus, onPara
           {templates.map((x) => <option key={x.id} value={x.id}>{x.name}{x.id === active ? ' (used on the SLD)' : ''}</option>)}
         </select>
         <button className="chip" onClick={() => create(standardTemplate(), `Title block ${templates.length + 1}`)}>New</button>
+        <button className="chip" title="Your company's title block from a DWG or DXF: its lines and texts, its attributes mapped to the project" onClick={() => void importFromCad()}>Import DWG / DXF…</button>
         <button className="chip" onClick={() => create(t, `${t.name} (copy)`)}>Duplicate</button>
         <button className={`chip${t.id === active ? '' : ' primary'}`} onClick={() => onChange({ ...project, drawing: { ...project.drawing, titleTemplateId: t.id === active ? undefined : t.id } })}>
           {t.id === active ? 'Use the standard block instead' : 'Use on the SLD'}
         </button>
       </>}
     >
+      {isDrawn(t) ? <DrawnEditor t={t} project={project} params={params} setT={setT} onStatus={onStatus} onDelete={async () => { if (await ask(`Delete “${t.name}”?`)) { setTemplates(templates.filter((x) => x.id !== t.id)); if (active === t.id) onChange({ ...project, titleTemplates: templates.filter((x) => x.id !== t.id), drawing: { ...project.drawing, titleTemplateId: undefined } }); setSel(''); } }} /> : (
       <div className="tbd-grid">
         <div>
           <div className="tbd-preview-wrap">
@@ -157,7 +190,50 @@ export default function TitleBlockDesigner({ project, onChange, onStatus, onPara
           </details>
         </section>
       </div>
-      <p className="m">{covered.size === t.rows.length * t.cols.length ? '' : '⚠ Some grid positions are empty.'} The block sits at the bottom right of the SLD sheet, inside the frame, in PDF and DXF exports. DXF keeps the grid and text editable; raster logos are shown in the PDF.</p>
+      )}
+      <p className="m">{isDrawn(t) || covered.size === t.rows.length * t.cols.length ? '' : '⚠ Some grid positions are empty.'} The block sits at the bottom right of the SLD sheet, inside the frame, in PDF and DXF exports. DXF keeps the grid and text editable; raster logos are shown in the PDF.</p>
     </Page>
+  );
+}
+
+/** A drawn (imported) template: the block as it prints, its size, and every text with the field it is mapped to. */
+function DrawnEditor({ t, project, params, setT, onStatus, onDelete }: { t: TitleTemplate; project: Project; params: string[]; setT: (t: TitleTemplate) => void; onStatus: (m: string) => void; onDelete: () => void }) {
+  const { w, h } = templateSize(t);
+  const fields = [...SHEET_FIELDS, ...params.map((n) => `{${n}}`).filter((f) => !SHEET_FIELDS.includes(f))];
+  const texts = t.texts ?? [];
+  return (
+    <div className="tbd-grid">
+      <div>
+        <div className="tbd-preview-wrap" style={{ width: Math.min(w * PX + 24, 1100) }} dangerouslySetInnerHTML={{ __html: sanitizeSvg(drawnTitleBlockHtml(t, project)).replace(/width="[^"]+" height="[^"]+"/, `width="${w * PX}" height="${h * PX}"`) }} />
+        <p className="m">{w} × {h} mm · {t.shapes?.length ?? 0} lines and shapes · {texts.length} texts, {fieldCount(t)} of them fields. Imported from a drawing: a field prints the project's value in the text's place and goes to DXF / DWG as an attribute of the block.</p>
+        <div className="tbd-sizes">
+          <span className="m">Name:</span>
+          <input className="bi-text" style={{ width: 220 }} defaultValue={t.name} key={t.name} onBlur={(e) => e.target.value.trim() && setT({ ...t, name: e.target.value.trim() })} />
+          <button className="chip" onClick={() => { const lib = loadTemplateLibrary().filter((x) => x.name !== t.name); onStatus(saveTemplateLibrary([...lib, t]) ? `Saved “${t.name}” to your library on this computer` : 'Could not save the library'); }}>Save to library</button>
+          <button className="chip" onClick={async () => { const m = await saveText(`${t.name}.titleblock.json`, JSON.stringify(t, null, 2), 'Title block', 'json'); if (m) onStatus(m); }}>Export</button>
+          <button className="linkish bad" onClick={() => void onDelete()}>Delete</button>
+        </div>
+      </div>
+      <section className="card tbd-side">
+        <h4 style={{ margin: 0 }}>Texts and fields</h4>
+        <p className="m">Each text of the block: the drawing's words, or the field it prints. Tags are guessed from their names (DWG_NO, REV, DRN …).</p>
+        <div className="tbd-fields">
+          {texts.map((x) => {
+            const isField = /\{[^}]+\}/.test(x.text);
+            return (
+              <label key={x.id} title={`${x.tag ? `Attribute ${x.tag} · ` : ''}${x.x} / ${x.y} mm, ${x.h} mm high`}>
+                <span className="m">{x.tag ?? x.orig ?? x.text}</span>
+                <select value={isField ? x.text : ''} onChange={(e) => setT(mapText(t, x.id, e.target.value))}>
+                  <option value="">{x.orig && isField ? `Fixed: ${x.orig}` : 'Fixed text'}</option>
+                  {fields.map((f) => <option key={f} value={f}>{f}</option>)}
+                  {isField && !fields.includes(x.text) && <option value={x.text}>{x.text}</option>}
+                </select>
+              </label>
+            );
+          })}
+          {!texts.length && <p className="m">The block has no texts.</p>}
+        </div>
+      </section>
+    </div>
   );
 }

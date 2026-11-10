@@ -1,14 +1,50 @@
 import type { Project } from '../types';
 import type { TitleTemplate } from '../model/titleBlock';
 import { fillParams, paramList } from '../model/params';
-import type { DxfPrimitive } from './dxf';
+import { dxfBlockName, type DxfAttdef, type DxfAttrib, type DxfPrimitive } from './dxf';
+import { DRAWN_CHAR, drawnTextValue, isDrawn, templateSize } from '../model/titleBlock';
 import { textInBox, textWidth, type DxfBox } from './dxfLayout';
 import { isRasterDataUrl } from '../util/escape';
 
 export interface TitleDetail { label: string; value: string }
 
+/** A drawn (imported) template as a block with attributes: its lines and fixed texts in the block definition, its fields
+ * as ATTDEFs, inserted at the box's corner at the box's scale with the project's values as ATTRIBs, so a CAD program
+ * shows the company block and keeps its values editable. */
+export function drawnTitleBlockDxf(template: TitleTemplate, project: Project, box: DxfBox, extra: Record<string, string>): { items: DxfPrimitive[]; warnings: string[]; details: TitleDetail[] } {
+  const { w, h } = templateSize(template);
+  const scale = Math.min(box.w / w, box.h / h);
+  const list = paramList(project);
+  const Y = (y: number) => h - y; // the template is y down; a block is y up
+  const items: DxfPrimitive[] = [];
+  for (const s of template.shapes ?? []) {
+    if (s.kind === 'line') items.push({ type: 'line', layer: 'E-TITLE', x1: s.x1, y1: Y(s.y1), x2: s.x2, y2: Y(s.y2) });
+    else if (s.kind === 'circle') items.push({ type: 'circle', layer: 'E-TITLE', x: s.cx, y: Y(s.cy), r: s.r });
+    else if (s.pts.length >= 2) items.push({ type: 'polyline', layer: 'E-TITLE', points: s.pts.map(([x, y]) => [x, Y(y)] as [number, number]), closed: !!(s.closed || s.fill) });
+  }
+  const attdefs: DxfAttdef[] = [], attribs: DxfAttrib[] = [];
+  const tags = new Set<string>();
+  (template.texts ?? []).forEach((x, i) => {
+    const field = /\{[^}]+\}/.test(x.text), cap = x.h * 0.72; // the SVG draws cap height h; DXF text height is the cap height
+    const base = { x: x.x, y: Y(x.y), height: +cap.toFixed(3), align: x.align, ...(x.rot ? { rotation: x.rot } : {}) };
+    if (!field) { if (x.text.trim()) items.push({ type: 'text', layer: 'E-TITLE', ...base, text: x.text }); return; }
+    let tag = (x.tag ?? x.text.replace(/[{}]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '')).toUpperCase().slice(0, 31) || `FIELD_${i + 1}`;
+    while (tags.has(tag)) tag = `${tag.slice(0, 28)}_${i + 1}`;
+    tags.add(tag);
+    const value = drawnTextValue(x, project, extra, list);
+    attdefs.push({ tag, prompt: x.orig ?? tag, value: x.text, ...base });
+    // A long value fits its field by a narrower width (the SVG squeezes it the same way); DXF keeps the text height.
+    const width = value.length * x.h * DRAWN_CHAR;
+    attribs.push({ tag, value, x: box.x + base.x * scale, y: box.y + base.y * scale, height: +(cap * scale).toFixed(3), align: x.align, ...(x.rot ? { rotation: x.rot } : {}), ...(x.fit && width > x.fit ? {} : {}) });
+  });
+  const name = dxfBlockName(`TB_${template.name}`);
+  const insert: DxfPrimitive = { type: 'insert', layer: 'E-TITLE', name, x: box.x, y: box.y, scale, block: { name, items, attdefs }, attribs, extent: [[box.x, box.y], [box.x + w * scale, box.y + h * scale]] };
+  return { items: [insert], warnings: [], details: [] };
+}
+
 /** Custom grids remain editable CAD geometry, including merged cells. */
 export function templateTitleBlockDxf(template: TitleTemplate, project: Project, box: DxfBox, extra: Record<string, string>, history: { id: string; date: string; description: string }[]): { items: DxfPrimitive[]; warnings: string[]; details: TitleDetail[] } {
+  if (isDrawn(template)) return drawnTitleBlockDxf(template, project, box, extra);
   if (!template.cols.length || !template.rows.length || [...template.cols, ...template.rows].some((v) => !Number.isFinite(v) || v <= 0)) throw new Error('The title block needs positive row heights and column widths.');
   const totalW = template.cols.reduce((a, b) => a + b, 0), totalH = template.rows.reduce((a, b) => a + b, 0);
   const scale = Math.min(box.w / totalW, box.h / totalH);

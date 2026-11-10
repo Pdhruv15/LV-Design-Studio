@@ -71,5 +71,10 @@ describe('project files are safe to open', () => {
     expect(() => checkProjectShape(file((p) => { p.titleTemplates = tpl({ align: 'center' }); }))).not.toThrow();
     refused(file((p) => { p.titleTemplates = tpl({ align: 'left;background:url(https://x/)' }); }));
     refused(file((p) => { p.titleTemplates = tpl({ rs: '2"><script>alert(1)</script>' }); }));
+    // A drawn (imported) block: size, shapes and texts of the right types.
+    const drawn = (text: Record<string, unknown>) => [{ id: 'd', name: 'D', kind: 'drawn', cols: [], rows: [], cells: [], size: { w: 180, h: 44 }, shapes: [{ kind: 'line', x1: 0, y1: 0, x2: 1, y2: 1 }], texts: [{ id: 't1', x: 1, y: 2, h: 2.5, text: '{SheetNo}', ...text }] }];
+    expect(() => checkProjectShape(file((p) => { p.titleTemplates = drawn({}); }))).not.toThrow();
+    refused(file((p) => { p.titleTemplates = drawn({ h: '2.5" onload="alert(1)' }); }));
+    refused(file((p) => { p.titleTemplates = [{ ...drawn({})[0], shapes: [{ kind: 'script' }] }]; }));
   });
 });
