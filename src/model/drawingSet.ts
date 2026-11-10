@@ -29,13 +29,14 @@ export interface DrawingSheet {
   id: string;
   number: string; // e.g. E-SLD-002
   title: string; // e.g. SLD — MDB-1
-  kind: 'system' | 'board' | 'riser' | 'earthing' | 'earthRiser' | 'earthFloor' | 'plan'; // board = one DB's circuit diagram; riser = a building's riser diagram; earthing = earthing schematic; earthRiser = a building's earthing riser diagram; earthFloor = DB earthing of one floor (or typical floors); plan = a level's lighting, power, ELV or containment layout (src/docs/planLayout.ts)
+  kind: 'system' | 'board' | 'riser' | 'earthing' | 'earthRiser' | 'earthFloor' | 'plan' | 'legend'; // board = one DB's circuit diagram; legend = the set's legend, abbreviations and general notes on a sheet of their own (numbered before the SLDs); riser = a building's riser diagram; earthing = earthing schematic; earthRiser = a building's earthing riser diagram; earthFloor = DB earthing of one floor (or typical floors); plan = a level's lighting, power, ELV or containment layout (src/docs/planLayout.ts)
   buildingId?: string; // riser, earth riser, floor earthing and plan sheets
   levelId?: string; // plan sheets
   plan?: PlanType; // plan sheets
   part?: number; // earth riser: sheet of the riser (0 = bottom); floor earthing: floor group (0 = lowest); plan: part of a level split over sheets (0 = top left)
   riserStyle?: 'feeders' | 'byLevel'; // riser sheets: feeders = one breaker and cable per board from its panel's busbar; byLevel = boards counted per level, typical floors on one row, over several sheets (blank = busbar trunking / cable chain)
   boards: string[];
+  schedule?: boolean; // board sheets: the DB's load schedule printed under its circuit diagram
   size: 'auto' | SheetSize;
   // Title block of this sheet (blank = the project's, managed in the drawing register)
   status?: string; // e.g. FOR APPROVAL, IFC, AS-BUILT
@@ -139,15 +140,36 @@ export const renumber = (set: DrawingSet, force = false): DrawingSet => {
   return {
     ...set,
     sheets: set.sheets.map((s) => {
-      const n = s.kind === 'plan' ? sheetNumber(set, plans[s.plan ?? 'lighting']++, PLAN_PREFIX[s.plan ?? 'lighting']) : s.kind === 'riser' ? sheetNumber(set, rsr++, set.riserPrefix ?? RISER_PREFIX) : s.kind === 'earthing' || s.kind === 'earthRiser' || s.kind === 'earthFloor' ? sheetNumber(set, ert++, set.earthPrefix ?? EARTH_PREFIX) : sheetNumber(set, sld++);
+      const n = s.kind === 'legend' ? sheetNumber(set, -1) : s.kind === 'plan' ? sheetNumber(set, plans[s.plan ?? 'lighting']++, PLAN_PREFIX[s.plan ?? 'lighting']) : s.kind === 'riser' ? sheetNumber(set, rsr++, set.riserPrefix ?? RISER_PREFIX) : s.kind === 'earthing' || s.kind === 'earthRiser' || s.kind === 'earthFloor' ? sheetNumber(set, ert++, set.earthPrefix ?? EARTH_PREFIX) : sheetNumber(set, sld++);
       return { ...s, number: set.manualNumbers && !force && s.number ? s.number : n };
     })
   };
 };
 /** A sheet that has something to draw. */
-export const drawable = (s: DrawingSheet) => (s.kind === 'earthing' ? true : s.kind === 'plan' ? !!(s.plan && s.buildingId && s.levelId) : s.kind === 'riser' || s.kind === 'earthRiser' || s.kind === 'earthFloor' ? !!s.buildingId : s.boards.length > 0);
+export const drawable = (s: DrawingSheet) => (s.kind === 'earthing' || s.kind === 'legend' ? true : s.kind === 'plan' ? !!(s.plan && s.buildingId && s.levelId) : s.kind === 'riser' || s.kind === 'earthRiser' || s.kind === 'earthFloor' ? !!s.buildingId : s.boards.length > 0);
 /** A new sheet starts PRELIMINARY unless the set has a status of its own (sheets without one follow the set). */
 export const startStatus = (set: DrawingSet) => (set.status ? undefined : 'PRELIMINARY');
+/** Board sheets for the given DBs (one each, in their order), with or without the load schedule under the diagram; a DB
+ * that has one already keeps it (with the schedule turned on when asked). */
+export function addBoardSheets(set: DrawingSet, boardIds: string[], schedule = false): { set: DrawingSet; ids: string[] } {
+  const ids: string[] = [];
+  let sheets = set.sheets;
+  boardIds.forEach((boardId, i) => {
+    const have = sheets.find((x) => x.kind === 'board' && x.boards[0] === boardId);
+    if (have) { ids.push(have.id); if (schedule && !have.schedule) sheets = sheets.map((x) => (x.id === have.id ? { ...x, schedule: true } : x)); return; }
+    const id = `sh-${Date.now().toString(36)}${i}`;
+    ids.push(id);
+    sheets = [...sheets, { id, number: '', title: `${boardId} — circuit diagram${schedule ? ' and load schedule' : ''}`, kind: 'board', boards: [boardId], ...(schedule ? { schedule: true } : {}), size: 'auto', status: startStatus(set) }];
+  });
+  return { ids, set: renumber({ ...set, sheets }) };
+}
+/** The legend sheet (one per set): the set's symbol legend, abbreviations and general notes, numbered before the SLDs. */
+export function addLegendSheet(set: DrawingSet): { set: DrawingSet; id: string } {
+  const have = set.sheets.find((x) => x.kind === 'legend');
+  if (have) return { set, id: have.id };
+  const id = `sh-${Date.now().toString(36)}`;
+  return { id, set: renumber({ ...set, sheets: [{ id, number: '', title: 'Legend, abbreviations and notes', kind: 'legend', boards: [], size: 'auto', status: startStatus(set) }, ...set.sheets] }) };
+}
 /** The earthing schematic sheet (one per project). */
 export function addEarthingSheet(set: DrawingSet): { set: DrawingSet; id: string } {
   const id = `sh-${Date.now().toString(36)}`;
@@ -524,12 +546,13 @@ function shownValues(p: Project, s: DrawingSheet): unknown {
 export function sheetHash(p: Project, set: DrawingSet, s: DrawingSheet): string {
   const v = s.issuedHash ? s.issuedHashV ?? 1 : SHEET_HASH_V;
   const d = s.kind === 'board' ? { boards: p.boards.filter((b) => b.id === s.boards[0]), feeders: p.feeders.filter((f) => f.boardId === s.boards[0]) }
+    : s.kind === 'legend' ? { boards: p.boards.map((b) => [b.id, b.kind, b.sourceKva, b.standby, b.pmu, b.spd, b.protection, b.instruments, b.existing]), feeders: [p.feeders.map((f) => [f.id, f.device, f.loadType, f.starter, f.rcdMa, f.kwhMeter, f.localIsolator, f.cableType, f.existing]), p.drawing?.notes, p.drawing?.abbreviations] }
     : s.kind === 'earthing' ? { boards: p.boards.filter((b) => !b.upstreamId).map((b) => [b.id, b.sourceKva, b.rmu, b.vectorGroup]), feeders: [p.earthingPlan] }
     : s.kind === 'earthRiser' || s.kind === 'earthFloor' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.kind, b.ratedCurrentA, ...(b.earthRiser ? [b.earthRiser] : [])]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.cpcMm2]), p.earthingPlan, p.earthPitIds, p.building] }
     : s.kind === 'riser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.ratedCurrentA, b.sourceKva, b.standby, ...(s.riserStyle ? [b.kind, b.incomerDevice, b.busbarMaterial] : [])]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.parallel, f.cableType, ...(s.riserStyle ? [f.breakerRatingA, f.breakerIcuKa, f.breakerType] : [])]), p.busRisers, p.building, s.riserStyle, ...(s.riserStyle === 'byLevel' ? [set.riserBreaks?.[s.buildingId ?? '']] : [])] }
     : sheetProject(p, set, s);
   const extra = v >= 3 && s.kind === 'plan' ? planValues(p, s) : v >= 2 ? shownValues(p, s) : undefined;
-  const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows, s.markups, ...(s.part !== undefined ? [s.part] : []), ...(extra !== undefined ? [extra] : [])]); // part / extra only where set: older sheets keep their hash
+  const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows, s.markups, ...(s.part !== undefined ? [s.part] : []), ...(extra !== undefined ? [extra] : []), ...(s.schedule ? ['schedule'] : [])]); // part / extra / schedule only where set: older sheets keep their hash
   let h = 2166136261;
   for (let i = 0; i < txt.length; i++) { h ^= txt.charCodeAt(i); h = Math.imul(h, 16777619); }
   return (h >>> 0).toString(36);

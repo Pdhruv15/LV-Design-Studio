@@ -130,7 +130,7 @@ function renderer(what: string, instead: string) {
 
 const SHEET_TYPES = { sld: 'system', panel: 'board', riser: 'riser', earthing: 'earthing', plan: 'plan' } as const;
 type SheetType = keyof typeof SHEET_TYPES;
-const typeOf = (s: DrawingSheet) => (Object.keys(SHEET_TYPES) as SheetType[]).find((k) => SHEET_TYPES[k] === s.kind)!;
+const typeOf = (s: DrawingSheet) => (Object.keys(SHEET_TYPES) as SheetType[]).find((k) => SHEET_TYPES[k] === s.kind) ?? 'sld'; // the legend sheet goes with the SLDs
 const LABEL: Record<SheetType, string> = { sld: 'SLD sheet', panel: 'DB circuit diagram', riser: 'riser diagram', earthing: 'earthing schematic', plan: 'lighting, power or ELV plan layout' };
 
 /** The drawing sheets of Reports → Drawings, as its DXF export makes them (one file per sheet, plus continuation sheets). */

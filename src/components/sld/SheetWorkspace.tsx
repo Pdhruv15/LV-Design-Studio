@@ -11,7 +11,7 @@ import { boardsInSupplyOrder } from '../../calc/summary';
 import { subtree } from '../../calc/pfc';
 import { evaluateProject } from '../../calc/electrical';
 import {
-  addDbRiserSheets, PAPERS, addEarthingSheet, addEarthRiserSheet, addRiserSheet, toggleRiserBreak, addSheet, applyTemplate, drawable, issueSheets, loadSheetTemplates, nextRev, renumber, saveSheetTemplates, setOf, SHEET_STATUSES, sheetChecks, sheetHash, sheetRev, sheetsByCount, statusColor, templateFromSheet,
+  addBoardSheets, addLegendSheet, addDbRiserSheets, PAPERS, addEarthingSheet, addEarthRiserSheet, addRiserSheet, toggleRiserBreak, addSheet, applyTemplate, drawable, issueSheets, loadSheetTemplates, nextRev, renumber, saveSheetTemplates, setOf, SHEET_STATUSES, sheetChecks, sheetHash, sheetRev, sheetsByCount, statusColor, templateFromSheet,
   type DrawingSet, type DrawingSheet, type SheetCheck, type SheetSize,
   sheetRefs, type SheetRef
 } from '../../model/drawingSet';
@@ -43,7 +43,7 @@ const VIEWS: [string, ResultLayers][] = [
   ['Submission', SHEET_LAYERS]
 ];
 
-const GROUP_OF: Record<DrawingSheet['kind'], string> = { system: 'SLD', board: 'SLD', riser: 'Riser', earthing: 'Earthing', earthRiser: 'Earthing', earthFloor: 'Earthing', plan: 'Plans' };
+const GROUP_OF: Record<DrawingSheet['kind'], string> = { legend: 'SLD', system: 'SLD', board: 'SLD', riser: 'Riser', earthing: 'Earthing', earthRiser: 'Earthing', earthFloor: 'Earthing', plan: 'Plans' };
 
 /** Design CAD → Sheets, on the left: All sheets (the drawing register) and every sheet of the set grouped as SLD,
  * riser, earthing and plans. Click a sheet to open it; right-click for more. */
@@ -101,6 +101,18 @@ export function SheetList({ project, active, selectedBoardId, onActive, onChange
           <div className="dw-menu st-menu-down">
             <button onClick={() => void newFromSelection()}>Panel and its branch{selectedBoardId ? ` (${selectedBoardId})` : '…'}</button>
             <button onClick={() => { close(); const r = addSheet(set, [], `SLD — sheet ${set.sheets.length + 1}`); save(r.set); onActive(r.id); }}>Empty sheet (tick panels)</button>
+            {(() => {
+              // One legend sheet per set: open it if it is already there.
+              const legend = set.sheets.find((x) => x.kind === 'legend');
+              return <button title="The set's symbol legend, abbreviations and general notes on a sheet of their own, numbered before the SLDs; the SLD and board sheets then refer to it" onClick={() => { close(); if (legend) { onActive(legend.id); return; } const r = addLegendSheet(set); save(r.set); onActive(r.id); }}>{legend ? 'Legend, abbreviations and notes (open)' : 'Legend, abbreviations and notes'}</button>;
+            })()}
+            <button title="One DB's circuit diagram with its load distribution schedule under it, one sheet per DB (the picked panel, else every DB with circuits)" onClick={() => {
+              close();
+              const dbs = boardsInSupplyOrder(project).filter((b) => (selectedBoardId ? b.id === selectedBoardId : (b.kind ?? (b.upstreamId ? 'DB' : 'MDB')) === 'DB' && project.feeders.some((f) => f.boardId === b.id)));
+              if (!dbs.length) { onStatus(selectedBoardId ? `${selectedBoardId} has no circuits to schedule` : 'No DB with circuits yet'); return; }
+              const r = addBoardSheets(set, dbs.map((b) => b.id), true);
+              save(r.set); if (r.ids[0]) onActive(r.ids[0]); onStatus(`${r.ids.length} board sheet(s) with schedule added`);
+            }}>Board sheet with schedule{selectedBoardId ? ` (${selectedBoardId})` : ' — every DB'}</button>
             {(project.building?.buildings ?? []).map((b) => (
               <button key={b.id} onClick={() => { close(); const r = addRiserSheet(set, b.id, b.name); save(r.set); onActive(r.id); }}>Riser diagram — {b.name}</button>
             ))}
@@ -369,6 +381,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
               <label>Paper<select value={s.size} onChange={(e) => patch({ size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto (A3, larger only if needed)</option>{PAPERS.map((z) => <option key={z.size} value={z.size}>{z.label}</option>)}</select></label>
               <label>Status<select value={s.status ?? ''} onChange={(e) => patch({ status: e.target.value || undefined })}><option value="">{set.status ? `As the set (${set.status})` : 'Not set'}</option>{SHEET_STATUSES.map((x) => <option key={x}>{x}</option>)}</select></label>
               <label>Revision<input className="bi-text" defaultValue={s.rev ?? ''} key={`r${s.rev}`} placeholder={sheetRev(s, rev?.id) || 'Not issued — first issue is A'} onBlur={(e) => e.target.value !== (s.rev ?? '') && patch({ rev: e.target.value.trim() || undefined })} /></label>
+              {s.kind === 'board' && <label className="row"><input type="checkbox" checked={!!s.schedule} onChange={(e) => patch({ schedule: e.target.checked || undefined })} /> Load schedule under the diagram</label>}
               <label>Cable text<select value={s.cableLabels ?? ''} onChange={(e) => patch({ cableLabels: (e.target.value || undefined) as DrawingSheet['cableLabels'] })}>
                 <option value="">As the project ({project.drawing?.cableLabels ?? 'auto'})</option><option value="auto">Auto (numbers when crowded)</option><option value="ref">Numbers + cable schedule</option><option value="full">Full description</option>
               </select></label>

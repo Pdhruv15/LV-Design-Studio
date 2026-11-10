@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { addEarthingSheet, addRiserSheet, addSheet, autoSheets, autoSize, issueSheets, renumber, sheetProject, sheetsByCount, furnitureOf, minMmPerPx, MIN_MM_PER_PX, scaleOn } from './drawingSet';
+import { addEarthingSheet, addRiserSheet, addSheet, autoSheets, autoSize, issueSheets, renumber, sheetProject, sheetsByCount, furnitureOf, minMmPerPx, MIN_MM_PER_PX, scaleOn, addLegendSheet, addBoardSheets, drawable, sheetType, sheetHash } from './drawingSet';
 import type { Project } from '../types';
 
 const two: Project = { ...sampleProject, boards: [...sampleProject.boards, { id: 'MDB-2', name: 'MDB 2', kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 5 }] };
@@ -127,5 +127,36 @@ describe('room for a legend strip', () => {
     expect(autoSize(1200, 1100).size).toBe('A3');
     expect(autoSize(1200, 1100, 0, MIN_MM_PER_PX, 40).size).toBe('A2');
     expect(scaleOn('A3', 1200, 1100, 0, 40)).toBeLessThan(scaleOn('A3', 1200, 1100));
+  });
+});
+
+describe('legend sheet and board sheets with schedule', () => {
+  it('the legend sheet is one per set, first in the list and numbered before the SLDs', () => {
+    const base = { prefix: 'E-SLD-', sheets: autoSheets(two, 'perMdb').sheets };
+    const a = addLegendSheet(base), b = addLegendSheet(a.set);
+    expect(b.id).toBe(a.id);
+    expect(a.set.sheets[0].kind).toBe('legend');
+    expect(a.set.sheets[0].number).toBe('E-SLD-000');
+    expect(a.set.sheets[1].number).toBe('E-SLD-001'); // the SLDs keep their numbers
+    expect(drawable(a.set.sheets[0])).toBe(true);
+    expect(sheetType(a.set.sheets[0])).toBe('sld');
+    const h1 = sheetHash(two, a.set, a.set.sheets[0]);
+    expect(sheetHash({ ...two, drawing: { ...two.drawing, notes: ['A new general note'] } }, a.set, a.set.sheets[0])).not.toBe(h1);
+  });
+  it('board sheets with the schedule: one per DB in order, an existing one turned on', () => {
+    const dbs = sampleProject.boards.filter((b) => b.kind === 'DB').map((b) => b.id);
+    expect(dbs.length).toBeGreaterThan(0);
+    const r = addBoardSheets({ prefix: 'E-SLD-', sheets: [] }, dbs, true);
+    expect(r.ids).toHaveLength(dbs.length);
+    expect(r.set.sheets.every((s) => s.kind === 'board' && s.schedule)).toBe(true);
+    expect(r.set.sheets[0].number).toBe('E-SLD-001'); // board sheets of the set count in the SLD sequence, as before
+    expect(r.set.sheets[0].title).toBe(`${dbs[0]} — circuit diagram and load schedule`);
+    const plain = addBoardSheets({ prefix: 'E-SLD-', sheets: [] }, [dbs[0]]);
+    expect(plain.set.sheets[0].schedule).toBeUndefined();
+    const on = addBoardSheets(plain.set, [dbs[0]], true);
+    expect(on.set.sheets).toHaveLength(1);
+    expect(on.set.sheets[0].schedule).toBe(true);
+    // The schedule is part of the fingerprint.
+    expect(sheetHash(sampleProject, on.set, on.set.sheets[0])).not.toBe(sheetHash(sampleProject, plain.set, plain.set.sheets[0]));
   });
 });
