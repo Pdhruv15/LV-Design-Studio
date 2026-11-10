@@ -133,7 +133,7 @@ function boundsPoints(i: DxfPrimitive): [number, number][] {
   return [[i.x, i.y]];
 }
 
-export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number> = DXF_LAYERS): string {
+export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number> = DXF_LAYERS, opts: { /** $INSUNITS (4 = mm), so a reader knows the drawing's units. */ insunits?: number } = {}): string {
   const out: string[] = [];
   const g = (code: number, value: string | number) => out.push(String(code), typeof value === 'number' ? n(value) : value);
   const layers = [...new Set([...Object.keys(layerColours), ...items.map((i) => i.layer)])];
@@ -151,6 +151,7 @@ export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number
   g(0, 'SECTION'); g(2, 'HEADER');
   g(9, '$ACADVER'); g(1, 'AC1009');
   g(9, '$FILLMODE'); g(70, 1);
+  if (opts.insunits) { g(9, '$INSUNITS'); g(70, opts.insunits); }
   g(9, '$EXTMIN'); g(10, hasPoints ? minX : 0); g(20, hasPoints ? minY : 0); g(30, 0);
   g(9, '$EXTMAX'); g(10, hasPoints ? maxX : 0); g(20, hasPoints ? maxY : 0); g(30, 0);
   g(0, 'ENDSEC');

@@ -15,7 +15,7 @@ import { ColourPicker } from './ColourPicker';
 const VARIES = '__varies';
 type Shown = number | string | undefined | 'varies';
 
-export function PropertiesPalette({ items, devices, layers, styles, current, newProps = {}, textMm, k, onItems, onCurrent, onNewProps, onTextMm, onClose, bare }: {
+export function PropertiesPalette({ items, devices, layers, styles, current, newProps = {}, textMm, k, onItems, onCurrent, onNewProps, onTextMm, onClose, bare, titleBlock }: {
   items: SketchItem[];
   /** Devices picked with them (their own panel edits them). */
   devices: number;
@@ -36,6 +36,8 @@ export function PropertiesPalette({ items, devices, layers, styles, current, new
   onClose?: () => void;
   /** Inside the properties dock, which has the title and the fold button: no header of its own. */
   bare?: boolean;
+  /** A title block drawing (src/model/titleBlockCad.ts): its fields to place with a click, and Save as template. */
+  titleBlock?: { name: string; fields: string[]; onField: (field: string) => void; onSave: () => void };
 }) {
   const [kind, setKind] = useState('');
   const [fold, setFold] = useState<Record<string, boolean>>({});
@@ -133,6 +135,11 @@ export function PropertiesPalette({ items, devices, layers, styles, current, new
         </select>
       )}
       <div className="cad-pp-body">
+        {!items.length && titleBlock && section('titleblock', `Title block: ${titleBlock.name}`, <>
+          <p className="m">Draw its lines and texts at 1 : 1 mm. Click a field, then where it goes: it prints the sheet's value and goes to DWG as an attribute.</p>
+          <div className="ds-tools">{titleBlock.fields.map((f) => <button key={f} type="button" className="chip" onClick={() => titleBlock.onField(f)}>{f}</button>)}</div>
+          <div className="ds-tools"><button type="button" className="chip primary" onClick={titleBlock.onSave}>Save as template</button></div>
+        </>)}
         {!items.length ? section('general', 'General', <>
           {row('Layer', <select aria-label="Current layer" value={current} onChange={(e) => onCurrent(e.target.value)}>{layers.map((l) => <option key={l} value={l}>{l}</option>)}</select>, 'New lines, polylines, rectangles, circles and arcs go on the current layer.')}
           {onNewProps ? <>

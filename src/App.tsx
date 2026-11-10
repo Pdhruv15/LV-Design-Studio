@@ -153,6 +153,7 @@ import { draftSettings } from './model/cadDraft';
 import { cadFileMenu, planLevel } from './components/cad/cadFileMenu';
 import { plansOf } from './model/cadPlans';
 import { chooseDrawing, openDrawing } from './engines/cad/cadEngine';
+import { openTitleBlockInCad } from './model/titleBlockCad';
 import { onDemand } from './util/onDemand';
 import { currentRevision, revisionStamp } from './model/revisions';
 import { useSheetUi } from './components/sld/sheetUi';
@@ -1588,7 +1589,14 @@ export default function App() {
                 onActive={setSheetTab} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpen={setView} />
             )}
             {view === 'parameters' && <ParametersView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onTitleBlock={() => setView('titleblock')} />}
-            {view === 'titleblock' && <TitleBlockDesigner project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onParams={() => setView('parameters')} />}
+            {view === 'titleblock' && <TitleBlockDesigner project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onParams={() => setView('parameters')}
+              onEditInCad={(t) => {
+                // The block as a drawing of its own at 1 : 1 mm: its lines and texts drawn objects on the TB layers, an A3 frame for reference.
+                const r = openTitleBlockInCad(project, t);
+                setProject(r.project, { step: true });
+                void openDrawing(r.file, new TextEncoder().encode(r.dxf)).then((v) => { cadS.open(v); setView('cad'); setStatus(`${r.template.name} open in Design CAD: draw on it, then TBSAVE (or Save as template on the Properties palette)`); })
+                  .catch((e: unknown) => setStatus(e instanceof Error ? e.message : String(e)));
+              }} />}
             {view === 'help' && <HelpView project={project} run={run} stale={staleKeys} saved={!!currentFile && !dirty} onGo={(v) => (v === 'settings' ? setShowSettings(true) : setView(v))} onWhatsNew={() => setWhatsNew(RELEASES.slice(0, 1))} />}
             {view === 'dashboard' && (
               <ProjectDashboard
