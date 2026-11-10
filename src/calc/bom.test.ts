@@ -11,6 +11,7 @@ import { buildBoqWorkbook, buildPriceTemplate, readPriceWorkbook } from '../docs
 import { workbookBytes } from '../docs/formWorkbook';
 import { runsOf } from './electrical';
 import { BUILTIN_CATALOGUES, selectionFrom, sizeEnclosure } from './enclosure';
+import { PV_DEFAULTS, sizePv } from './solar';
 import type { Board, Feeder, Project } from '../types';
 
 const p = sampleProject;
@@ -317,5 +318,55 @@ describe('emergency changeover in the BOQ', () => {
     const q = withBoard({ standby: { kva: 500 }, pmu: true });
     expect(line(q, 'ats:')!.description).toMatch(/4P, switched neutral, open transition, AC-33B/);
     expect(line(q, 'pmu')!.qty).toBe(1);
+  });
+});
+
+describe('solar PV and EV chargers', () => {
+  const line = (rows: ReturnType<typeof buildBom>, key: string) => rows.find((x) => x.key.startsWith(key));
+  it('lists the PV system from the PV sizing, in power equipment', () => {
+    const r = sizePv(PV_DEFAULTS, p.voltageV);
+    const rows = buildBom({ ...p, pv: { ...PV_DEFAULTS, boardId: 'MDB-1' } });
+    const pv = rows.filter((x) => x.key.startsWith('pv-'));
+    expect(pv.every((x) => x.section === 'D' && x.description.startsWith('Solar PV — ') && x.where.includes('MDB-1'))).toBe(true);
+    expect(line(rows, 'pv-module:')!.qty).toBe(r.panels);
+    expect(line(rows, 'pv-mount')!.qty).toBe(r.panels);
+    expect(line(rows, 'pv-inverter:')!.qty).toBe(r.inverters);
+    expect(line(rows, 'pv-dc-cable')!.qty).toBe(r.strings);
+    expect(line(rows, 'pv-connector')!.qty).toBe(2 * r.strings);
+    expect(line(rows, 'pv-dc-isol:')!.qty).toBe(Math.min(r.strings, r.inverters * PV_DEFAULTS.inverter.mppts));
+    expect(line(rows, 'pv-dc-spd:')!.qty).toBe(r.inverters);
+    // The sample has a PV way on MDB-1, so its breaker is already there.
+    expect(line(rows, 'pv-ac-isol:')).toBeUndefined();
+    expect(pv.filter((x) => !fallbackPriceEntry(x.key))).toEqual([]);
+  });
+  it('adds an AC isolator only when no PV way is drawn', () => {
+    const r = sizePv(PV_DEFAULTS, p.voltageV);
+    const rows = buildBom({ ...p, feeders: p.feeders.filter((f) => f.loadType !== 'pv'), pv: PV_DEFAULTS });
+    const iso = line(rows, 'pv-ac-isol:')!;
+    expect(iso.key).toBe(`pv-ac-isol:${r.acBreakerA}:TP+N`);
+    expect(iso.where).toEqual(['Solar PV']);
+  });
+  it('has no PV lines without a PV system or with no panels', () => {
+    expect(buildBom(p).some((x) => x.key.startsWith('pv-'))).toBe(false);
+    expect(buildBom({ ...p, pv: { ...PV_DEFAULTS, targetKwp: 0 } }).some((x) => x.key.startsWith('pv-'))).toBe(false);
+  });
+  it('prices the PV lines from a price list', () => {
+    const rows = buildBom({ ...p, pv: PV_DEFAULTS });
+    const key = line(rows, 'pv-inverter:')!.key;
+    const list = { ...newPriceList('Test'), rates: { [key]: { rate: 1000 } } };
+    const priced = priceBom(rows, list);
+    expect(priced.items.find((x) => x.key === key)!.amount).toBe(1000 * line(rows, 'pv-inverter:')!.qty);
+  });
+  it('adds one charger per new EV circuit, beside its breaker and cable', () => {
+    const base = p.feeders.find((f) => f.id === 'DB-GF1-R1')!;
+    const ev: Feeder = { ...base, id: 'EV1', name: 'EV charger', loadType: 'ev', loadKw: 7.4, breakerRatingA: 40, cableCsaMm2: 6, points: undefined };
+    const ev3: Feeder = { ...ev, id: 'EV2', phase: 'RYB', cores: 4, loadKw: 22 };
+    const old: Feeder = { ...ev, id: 'EV3', existing: true };
+    const before = buildBom(p).filter((x) => x.key.startsWith('ev-charger:')).reduce((a, x) => a + x.qty, 0);
+    expect(before).toBe(p.feeders.filter((f) => f.loadType === 'ev' && !f.existing).length);
+    const rows = buildBom({ ...p, feeders: [...p.feeders, ev, ev3, old] });
+    expect(line(rows, 'ev-charger:7.4:1P')).toMatchObject({ section: 'D', qty: 1, where: ['DB-GF1'] });
+    expect(line(rows, 'ev-charger:22:3P')!.qty).toBe(1);
+    expect(rows.filter((x) => x.key.startsWith('ev-charger:')).reduce((a, x) => a + x.qty, 0)).toBe(before + 2);
   });
 });

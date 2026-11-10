@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.072', date: '2026-11-10',
+    items: [
+      { title: 'Solar PV in the BOQ', text: 'Your Solar PV sizing now reaches the BOQ under Power equipment: modules, mounting, string inverters, DC solar cable per string, connectors, DC switch-disconnectors and DC surge protection. An AC isolator is added only when no PV way is drawn on the SLD.' },
+      { title: 'EV chargers in the BOQ', text: 'Each new EV charging circuit adds the charger itself (kW, single- or three-phase, Type 2, 6 mA DC fault detection) next to its breaker and cable.' }
+    ]
+  },
+  {
     version: '2.071', date: '2026-11-10',
     items: [
       { title: 'Legend and notes tables placed on a layout', text: 'On a layout tab in Design CAD, LEGEND (LG) or Electrical → Legend places a legend table where you click: its rows are the symbols, trays, routes and references on the sheet, kept in step with the plan, at 2.5 mm in one or two columns, 92 mm wide unless you choose another width; pick its frame to move it or set its width, text height, columns, title, the rows hidden and rows of your own. NOTES places the sheet\'s notes the same way. A sheet with a legend table prints no legend in its column, one with a notes table no notes box; both go to PDF and DWG (lines and text on E-LEGEND / E-NOTES) at their place.', action: 'cad', actionLabel: 'Open Design CAD' }
