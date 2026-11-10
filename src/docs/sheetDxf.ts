@@ -1,14 +1,14 @@
 import type { DrawingInfo, Project } from '../types';
 import { svgToDxf } from '../diagram/exportSvg';
 import { toDxf, type DxfPrimitive } from './dxf';
-import { furnitureScale, sheetTitleBlock, SHEET_MM, zoneFields, zonesOn, type SheetInfo } from './sldSheet';
+import { sheetBody, sheetTitleBlock, SHEET_MM, zoneFields, zonesOn, type SheetInfo } from './sldSheet';
 import { LEGEND_LABEL_PX, LEGEND_TEXT_MM } from '../diagram/legendLayout';
 import { TABLE_LINE_MM, TABLE_ROW_MM, TABLE_TITLE_MM, tableHeightMm, type SheetTable } from './sheetTable';
 import { abbreviationsIn } from './sldNotes';
 import { fillParams } from '../model/params';
 import { FIRE_NOTE } from '../model/cableRefs';
-import { templateKindOf, templateOf, templateSize } from '../model/titleBlock';
-import { templateTitleBlockDxf, type TitleDetail } from './titleBlockDxf';
+import { MAX_REV_ROWS, revRowsIn, revRowValues, templateSize } from '../model/titleBlock';
+import { drawnTitleBlockDxf, templateTitleBlockDxf, type TitleDetail } from './titleBlockDxf';
 import { textInBox, textWidth, wrapDxfText, type DxfBox } from './dxfLayout';
 import { MARKUP_LAYERS, markupDxf } from '../model/sheetMarkup';
 
@@ -66,18 +66,20 @@ interface FlowLine { text: string; layer: string; heading?: boolean; section: st
  * and the single-file API share the same complete output. */
 function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetInfo): { items: DxfPrimitive[][]; warnings: string[] } {
   const { w, h } = SHEET_MM[size];
-  const frame = { x: 20, y: 10, w: w - 30, h: h - 20 };
+  // A whole-border template for the paper: its block at the paper's origin in place of the frame, zone strip and title
+  // band; everything else inside its drawing area (y up here).
+  const lay = sheetBody(project, size, one?.kind), border = lay.border, custom = lay.custom, k = lay.k;
+  const frame = border ? { x: lay.frame.x, y: h - lay.frame.y - lay.frame.h, w: lay.frame.w, h: lay.frame.h } : { x: 20, y: 10, w: w - 30, h: h - 20 };
   const t = sheetTitleBlock(project, one);
-  const custom = templateOf(project, templateKindOf(one?.kind));
   const dims = custom ? templateSize(custom) : { w: 180, h: 44 };
   if (custom && [...custom.cols, ...custom.rows].some((v) => !Number.isFinite(v) || v <= 0)) throw new Error('The title block needs positive row heights and column widths.');
-  const k = furnitureScale(size, dims);
   const extra: Record<string, string> = {
     SheetNo: t.number, DrawingNo: t.number, SheetTitle: t.title, DrawingTitle: t.title,
     SheetCount: String(one?.count ?? 1), SheetIndex: String(one?.index ?? 1), SheetSize: size,
     Status: one?.status ?? '', Scale: t.scale, Rev: t.revision, RevDate: t.date,
     ...(one?.history?.length ? { RevDescription: t.history[0]?.description ?? '' } : {}),
-    ...(one?.drawnBy ? { DrawnBy: t.drawnBy } : {}), ...(one?.checkedBy ? { CheckedBy: t.checkedBy } : {}), ...(one?.approvedBy ? { ApprovedBy: t.approvedBy } : {})
+    ...(one?.drawnBy ? { DrawnBy: t.drawnBy } : {}), ...(one?.checkedBy ? { CheckedBy: t.checkedBy } : {}), ...(one?.approvedBy ? { ApprovedBy: t.approvedBy } : {}),
+    ...revRowValues(sheetTitleBlock(project, one, MAX_REV_ROWS).history)
   };
   const warnings: string[] = [], details: TitleDetail[] = [];
   const title: DxfPrimitive[] = [];
@@ -90,7 +92,7 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
     }
     title.push(...items);
   };
-  const tbW = dims.w * k;
+  const tbW = border ? 0 : dims.w * k;
   const tbx = frame.x + frame.w - tbW;
   const cells: [string, string, number][][] = [
     [['Company / consultant', t.company, 3]],
@@ -114,15 +116,19 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   // The band along the frame's foot is as high as the title block (a template too short for the revision table makes
   // it higher), and the revision table beside the block follows its rows. Every line is drawn once: the frame is the
   // band's foot and outer edges, one line its top.
-  const titleH = custom ? dims.h * k : rows.reduce((a, b) => a + b, 0);
-  const band = Math.max(titleH, (5 + history.length * 4.5) * k);
-  if (!Number.isFinite(band) || band > frame.h * 0.65 || !Number.isFinite(tbW) || tbW <= 0 || tbW >= frame.w) throw new Error('The title block is too large for the selected paper size.');
+  const titleH = border ? 0 : custom ? dims.h * k : rows.reduce((a, b) => a + b, 0);
+  const band = border ? 0 : Math.max(titleH, (5 + history.length * 4.5) * k);
+  if (!border && (!Number.isFinite(band) || band > frame.h * 0.65 || !Number.isFinite(tbW) || tbW <= 0 || tbW >= frame.w)) throw new Error('The title block is too large for the selected paper size.');
   const titleBox = { x: tbx, y: frame.y, w: tbW, h: titleH };
   const bandTop = frame.y + band, titleTop = frame.y + titleH;
   // A template draws its own grid, its top edge included; a revision table standing taller closes its side above it.
-  title.push({ type: 'line', layer: 'E-TITLE', x1: frame.x, y1: bandTop, x2: custom ? tbx : frame.x + frame.w, y2: bandTop });
+  if (!border) title.push({ type: 'line', layer: 'E-TITLE', x1: frame.x, y1: bandTop, x2: custom ? tbx : frame.x + frame.w, y2: bandTop });
   if (band > titleH + 1e-6) title.push({ type: 'line', layer: 'E-TITLE', x1: tbx, y1: titleTop, x2: tbx, y2: bandTop });
-  if (custom) {
+  if (border) {
+    // The whole border as one block with attributes at the paper's origin, at its own size.
+    const result = drawnTitleBlockDxf(border, project, { x: 0, y: 0, w, h }, extra);
+    title.push(...result.items); warnings.push(...result.warnings);
+  } else if (custom) {
     const result = templateTitleBlockDxf(custom, project, titleBox, extra, t.history);
     title.push(...result.items); warnings.push(...result.warnings); details.push(...result.details);
   } else {
@@ -148,7 +154,7 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   const blockRows = custom ? custom.rows.map((v) => v * k) : rows;
   const revRows = blockRows.length > history.length && band === titleH ? blockRows : [5 * k, ...Array<number>(history.length).fill((band - 5 * k) / history.length)];
   let revTop = bandTop;
-  [['REV', 'DATE', 'DESCRIPTION'], ...history.map((r) => [r.id, r.date, r.description])].forEach((row, i) => {
+  if (!border) [['REV', 'DATE', 'DESCRIPTION'], ...history.map((r) => [r.id, r.date, r.description])].forEach((row, i) => {
     const rh = revRows[i], bottom = revTop - rh;
     // The ruled line under the row, unless that is the frame's own foot.
     if (bottom > frame.y + 1e-6) title.push({ type: 'line', layer: 'E-TITLE', x1: frame.x, y1: bottom, x2: frame.x + rvw, y2: bottom });
@@ -180,17 +186,19 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   if (cables.length) section('CABLE SCHEDULE', [...cables.map((c) => `(${c.ref})${c.fireRated ? ' *' : ''}  ${c.text}`), ...(cables.some((c) => c.fireRated) ? [`NOTE: ${FIRE_NOTE}`] : [])]);
   const abbr = one?.abbreviations ?? (project.drawing?.abbreviations === false ? [] : abbreviationsIn(svg));
   if (abbr.length) section('ABBREVIATIONS', abbr.map(([a, d]) => `${a}   ${d}`));
-  const notes = [...(project.drawing?.notes ?? []), ...(one?.notes ?? [])].filter((n) => n.trim()).map((n, i) => `${i + 1}. ${fillParams(n, project, extra)}`);
+  const notes = (one?.notesOff ? [] : [...(project.drawing?.notes ?? []), ...(one?.notes ?? [])]).filter((n) => n.trim()).map((n, i) => `${i + 1}. ${fillParams(n, project, extra)}`);
   if (notes.length) section('NOTES', notes, 'E-NOTES');
   if (details.length) section('TITLE BLOCK DETAILS', details.map((d) => `${d.label}: ${d.value}`), 'E-NOTES');
   if (one?.summary) section(one.summary.title, one.summary.rows.map(([a, v]) => `${a}   ${v}`));
+  // A border without revision rows of its own: the app's revision table as lines of the column.
+  if (border && !revRowsIn(border)) section('REVISIONS', history.filter((r) => r.id).map((r) => `${r.id}   ${r.date}   ${r.description}`), 'E-TITLE');
   const legend = one?.legendSvg ?? '';
   const legendSheet = !!one?.legendSheet;
   const side = !legendSheet && !!(legend || flow.length);
   // Sheet furniture outside the frame: zone references in a 5 mm strip (numbers along the top and bottom, letters down
   // the sides, fields of about 50 mm) and centring marks, on every page of the sheet.
   const outside: DxfPrimitive[] = [];
-  if (zonesOn(fz, size)) {
+  if (!border && zonesOn(fz, size)) {
     const nx = zoneFields(frame.w), ny = zoneFields(frame.h), cw = frame.w / nx, ch = frame.h / ny, th = 2.5;
     outside.push(rect('E-FRAME', { x: frame.x - 5, y: frame.y - 5, w: frame.w + 10, h: frame.h + 10 }));
     for (let i = 0; i < nx; i++) {
@@ -204,13 +212,13 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
       for (const x of [frame.x - 2.5, frame.x + frame.w + 2.5]) outside.push({ type: 'text', layer: 'E-FRAME', x, y: yTop - ch / 2 - th / 2, height: th, text: String.fromCharCode(65 + i), align: 'center' });
     }
   }
-  if (fz.centring) {
+  if (fz.centring && !border) {
     const cx = frame.x + frame.w / 2, cy = h / 2;
     outside.push({ type: 'line', layer: 'E-FRAME', x1: cx, y1: h, x2: cx, y2: h - 10, width: 0.7 }, { type: 'line', layer: 'E-FRAME', x1: cx, y1: 0, x2: cx, y2: 10, width: 0.7 },
       { type: 'line', layer: 'E-FRAME', x1: 0, y1: cy, x2: 10, y2: cy, width: 0.7 }, { type: 'line', layer: 'E-FRAME', x1: w, y1: cy, x2: w - 10, y2: cy, width: 0.7 });
   }
   const pages: DxfPrimitive[][] = [];
-  const base = () => [rect('E-FRAME', { x: 0, y: 0, w, h }), rect('E-FRAME', frame), ...outside, ...title];
+  const base = () => [rect('E-FRAME', { x: 0, y: 0, w, h }), ...(border ? [] : [rect('E-FRAME', frame)]), ...outside, ...title];
   const first = base(); pages.push(first);
   const colX = frame.x + frame.w - colW;
   let cursor = 0;
@@ -263,6 +271,8 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   // A table under the drawing (a board sheet's load schedule), as high as the PDF prints it.
   const table = one?.table, tableH = table ? tableHeightMm(table, tm) * k : 0;
   if (table) first.push(...tableDxf(table, { x: frame.x + 3, y: bodyBottom, w: frame.w - 6 - (side ? colW : 0), h: tableH }, tm * k, k));
+  // Legend and notes tables placed on a plan sheet's layout, at their place over the drawing area (y down there).
+  for (const pt of one?.tables ?? []) first.push(...placeSvg(pt.svg, { x: frame.x + 3 + pt.x, y: bodyTop - pt.y - pt.h, w: pt.w, h: pt.h }, pt.kind === 'notes' ? 'E-NOTES' : 'E-LEGEND', false).items);
   const hasContinuation = cursor < flow.length;
   const noticeH = hasContinuation ? Math.max(5, 4 * k) : 0;
   const drawing = legendSheet || !svg.trim() ? { items: [] as DxfPrimitive[] } : placeSvg(svg, { x: frame.x + 3, y: bodyBottom + noticeH + stripH + tableH, w: frame.w - 6 - (side ? colW : 0), h: bodyH - noticeH - stripH - tableH });
