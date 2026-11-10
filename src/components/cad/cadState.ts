@@ -14,10 +14,12 @@ import type { ObjectProps } from '../../model/cadLayerStyle';
  * `ellipse`, the circle by two or three points (`circle2p`, `circle3p`) or by its diameter (`circled`), the arc by start,
  * centre and end (`arcsce`), and the revision cloud (`revcloud`). Text tools on the texts picked: `tjust` (justify
  * without moving), `th` (height on paper), `talign` (line up or space), `tcase`, `tprefix` / `tsuffix`, `torient` (readable),
- * `tcen` (centre between two points), `tcopy` (the words of another text); `rtall` tags every room of the level. */
+ * `tcen` (centre between two points), `tcopy` (the words of another text), `tframe` (a circle, box or hexagon round them),
+ * `tmask` (a paper-colour fill under them); `tcount` places or renumbers texts in sequence; `keynote` a numbered hexagon
+ * with a legend line; `rtall` tags every room of the level. */
 export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'lux' | 'em' | 'arl' | 'match' | 'wire' | 'move' | 'copy' | 'rotate' | 'mirror' | 'scale' | 'stretch' | 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'array' | 'matchprop' | 'hatch' | 'leader' | 'rtag' | 'north' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim' | 'xattach' | 'xclip'
   | 'polygon' | 'ellipse' | 'circle2p' | 'circle3p' | 'circled' | 'arcsce' | 'revcloud' | 'crop'
-  | 'dimlin' | 'dimcont' | 'dimbase' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'rtall';
+  | 'dimlin' | 'dimcont' | 'dimbase' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'rtall' | 'tframe' | 'tmask' | 'tcount' | 'keynote';
 
 /** Sample plans shipped with the app (electron/samples, made by scripts/make-sample-villa-plans.mjs), shown while no
  * drawing is open — a test aid. To remove: empty this list and delete the files and cad:sampleBytes. */

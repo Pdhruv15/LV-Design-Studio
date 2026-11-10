@@ -140,3 +140,51 @@ export function spaced(texts: SketchItem[], gap: number): SketchItem[] {
 export function untaggedRooms<R extends { name: string; outline?: Pt[] }>(rooms: R[], texts: SketchItem[], k: number, inside: (p: Pt, poly: Pt[]) => boolean): R[] {
   return rooms.filter((r) => (r.outline?.length ?? 0) >= 3 && !texts.some((it) => it.kind === 'text' && it.text === r.name.toUpperCase() && inside([it.pts[0][0] * k, it.pts[0][1] * k], r.outline!)));
 }
+
+// ---- frames, masks, numbering and keynotes (TFRAME, TMASK, TCOUNT, KEYNOTE)
+
+/** A frame round a text: a circle, a box or a hexagon, 0.3 × the height clear of its box, turned with the text. */
+export type TextFrame = 'circle' | 'box' | 'hexagon';
+export const TEXT_FRAMES: { id: TextFrame | 'none'; label: string }[] = [{ id: 'none', label: 'None' }, { id: 'circle', label: 'Circle' }, { id: 'box', label: 'Box' }, { id: 'hexagon', label: 'Hexagon' }];
+export const parseFrame = (s: string): TextFrame | 'none' | undefined => ({ C: 'circle', CIRCLE: 'circle', B: 'box', BOX: 'box', H: 'hexagon', HEXAGON: 'hexagon', N: 'none', NONE: 'none' } as Record<string, TextFrame | 'none'>)[s.trim().toUpperCase()];
+/** Layer of the masks written into a DXF / DWG (solid hatches under the texts; set it to the paper colour there). */
+export const MASK_LAYER = 'LV-MASK';
+/** The text's frame as drawn: a circle about its centre, or a closed outline (drawing units). */
+export function textFrameOf(it: SketchItem): { circle?: { c: Pt; r: number }; pts?: Pt[] } | undefined {
+  if (!it.frame || it.kind !== 'text') return undefined;
+  const { w, h } = textBox(it), c = textCentre(it), pad = 0.3 * h, [u, v] = along(it);
+  const at = (x: number, y: number): Pt => [c[0] + x * u[0] + y * v[0], c[1] + x * u[1] + y * v[1]];
+  if (it.frame === 'circle') return { circle: { c, r: Math.hypot(w / 2, h / 2) + pad } };
+  if (it.frame === 'box') return { pts: [at(-w / 2 - pad, -h / 2 - pad), at(w / 2 + pad, -h / 2 - pad), at(w / 2 + pad, h / 2 + pad), at(-w / 2 - pad, h / 2 + pad)] };
+  // A hexagon with flat top and bottom, its corners on the circle round the box.
+  const r = Math.hypot(w / 2, h / 2) + pad;
+  return { pts: Array.from({ length: 6 }, (_, i) => at(r * Math.cos((i * Math.PI) / 3), r * Math.sin((i * Math.PI) / 3))) };
+}
+
+/** A numbered text: the prefix, the number (zero-padded to `pad` digits when pad > 0) and the suffix. */
+export const numberText = (prefix: string, n: number, pad: number, suffix: string) => `${prefix}${pad > 0 ? String(n).padStart(pad, '0') : String(n)}${suffix}`;
+/** How many digits a typed start keeps: "01" → 2 (leading zero), "1" → 0 (none). */
+export const padOf = (typed: string) => (/^0\d+$/.test(typed.trim()) ? typed.trim().length : 0);
+
+/** The next keynote number on a drawing: one more than the highest so far. */
+export const nextKeynote = (items: SketchItem[]) => items.reduce((m, it) => (it.kn && !it.kn.legend ? Math.max(m, it.kn.n) : m), 0) + 1;
+/** The keynote legend's lines on a drawing (its title is n 0), and where the next line goes: a line's height and a
+ * half below the lowest. */
+export function legendNext(items: SketchItem[]): { at: Pt; h: number } | undefined {
+  const lines = items.filter((it) => it.kind === 'text' && it.kn?.legend);
+  if (!lines.length) return undefined;
+  const low = lines.reduce((a, b) => (b.pts[0][1] < a.pts[0][1] ? b : a));
+  const h = low.h ?? 1;
+  return { at: [low.pts[0][0], low.pts[0][1] - 1.6 * h], h };
+}
+/** The texts a keynote adds: its hexagon bubble at the point, and its legend line (with the title first when the
+ * legend starts at `legendAt`, the top left of the title). */
+export function keynoteItems(n: number, at: Pt, note: string, h: number, layer: string, items: SketchItem[], legendAt?: Pt): Omit<SketchItem, 'id'>[] {
+  const bubble: Omit<SketchItem, 'id'> = { kind: 'text', layer, pts: [at], text: String(n), h, just: 'MC', frame: 'hexagon', kn: { n } };
+  const next = legendNext(items);
+  const line = (p: Pt, s: string, k: number): Omit<SketchItem, 'id'> => ({ kind: 'text', layer, pts: [p], text: s, h, kn: { n: k, legend: true } });
+  if (next) return [bubble, line(next.at, `${n}  ${note}`, n)];
+  if (!legendAt) return [bubble];
+  const title: Pt = [legendAt[0], legendAt[1] - h];
+  return [bubble, line(title, 'KEYNOTES', 0), line([title[0], title[1] - 1.6 * h], `${n}  ${note}`, n)];
+}

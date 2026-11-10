@@ -529,6 +529,86 @@ describe('CAD view', () => {
     expect(texts()).toBe(3 + 4 * rooms);
   });
 
+  it('TFRAME and TMASK on the texts picked; TCOUNT places numbered texts, takes one back and renumbers; KEYNOTE bubbles with a legend', async () => {
+    const X = 200000, F = 'sample-villa-gf.dxf';
+    const start: Project = { ...villa, cadSketch: [{ file: F, items: [{ id: 'T1', kind: 'text', layer: 'LV-ANNO', pts: [[X, 0]], text: 'L1', h: 250 }] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const items = () => project.cadSketch![0].items;
+    const last = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
+    const lastSaid = () => state.history[state.history.length - 1];
+    await clickAt(X + 100, 100);
+    expect(state.selected).toBe('sk:T1');
+    await command('tframe');
+    expect(lastSaid()).toContain('TFRAME  Frame [Circle/Box/Hexagon/None] <Circle>:');
+    await command('h');
+    expect(items()[0].frame).toBe('hexagon');
+    expect(last()).toBe('TFRAME  1 text framed with a hexagon · ⌘Z to undo');
+    await command('tmask');
+    await command('');
+    expect(items()[0].mask).toBe(true);
+    await until(() => !!document.querySelector('[aria-label="Frame"]'));
+    expect((document.querySelector('[aria-label="Frame"]') as HTMLSelectElement).value).toBe('hexagon');
+    expect((document.querySelector('[aria-label="Mask"]') as HTMLSelectElement).value).toBe('Yes');
+    await command('tframe');
+    await command('none');
+    expect(items()[0].frame).toBeUndefined();
+    // TCOUNT: "L" + 01, 02 … placed centred at each click; U takes the last back; S renumbers the texts picked.
+    act(() => state.setSelected(null));
+    await command('tcount');
+    expect(lastSaid()).toContain('TCOUNT  Prefix <>:');
+    await command('L');
+    await command('01');
+    await command('');
+    await command('');
+    expect(lastSaid()).toContain('next "L01"');
+    await command(`${X},5000`);
+    await clickAt(X + 3000, 5000);
+    await clickAt(X + 6000, 5000);
+    expect(items().slice(1).map((it) => it.text)).toEqual(['L01', 'L02', 'L03']);
+    expect(items()[1]).toMatchObject({ just: 'MC', layer: 'LV-ANNO', h: 250 });
+    expect(items()[1].pts[0][0]).toBeCloseTo(X, 6);
+    await command('u');
+    expect(items().slice(1).map((it) => it.text)).toEqual(['L01', 'L02']);
+    await clickAt(X + 6000, 5000);
+    expect(items()[3].text).toBe('L03');
+    await command(''); // Enter ends
+    expect(state.tool).toBe('none');
+    // Renumber the three from 7, step 2, as "S07" … picked in order with a window first.
+    await dragWindow([X - 500, 4000], [X + 7000, 6000]);
+    await command('tnum');
+    await command('S');
+    await command('7');
+    await command('2');
+    await command('');
+    await command('s');
+    expect(items().slice(1).map((it) => it.text).sort()).toEqual(['S11', 'S7', 'S9']);
+    expect(last()).toBe('TCOUNT  3 texts renumbered from S7 · ⌘Z to undo');
+    // KEYNOTE: the first asks where the legend starts; the next goes under it.
+    act(() => { state.setSelected(null); });
+    await command('kn');
+    expect(lastSaid()).toContain('KEYNOTE  Number (Enter: the next):');
+    await command('');
+    expect(lastSaid()).toContain('KEYNOTE  Place keynote 1:');
+    await clickAt(X, 8000);
+    expect(lastSaid()).toContain('KEYNOTE  Note text:');
+    await command('Fire rated wall');
+    expect(lastSaid()).toContain('Legend position');
+    await clickAt(X + 10000, 9000);
+    const kns = () => items().filter((it) => it.kn);
+    expect(kns().map((it) => it.text)).toEqual(['1', 'KEYNOTES', '1  Fire rated wall']);
+    expect(kns()[0]).toMatchObject({ frame: 'hexagon', just: 'MC' });
+    expect(kns()[1].pts[0]).toEqual([X + 10000, 9000 - 250]);
+    expect(lastSaid()).toContain('KEYNOTE  Number <2>:');
+    await command('');
+    await clickAt(X + 2000, 8000);
+    await command('Existing DB');
+    expect(kns().map((it) => it.text)).toEqual(['1', 'KEYNOTES', '1  Fire rated wall', '2', '2  Existing DB']);
+    expect(kns()[4].pts[0][1]).toBeCloseTo(9000 - 250 - 2 * 400, 6);
+    expect(last()).toBe('KEYNOTE  2 "Existing DB" · ⌘Z to undo');
+  });
+
   it('moves, copies, rotates and erases what was drawn, and copies a light onto its circuit', async () => {
     act(() => root.render(<Host />));
     await flush();

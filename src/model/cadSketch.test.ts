@@ -71,6 +71,19 @@ describe('drawing in the CAD view', () => {
     expect(out).toMatchObject({ kind: 'text', pts: [[1000, 500]], text: 'TAG', h: 250, just: 'MC' });
     expect('just' in shapesOut([{ ...mc, just: undefined }], 0.001)[0]).toBe(false);
   });
+
+  it('draws a framed text\'s frame with the lines, and writes its mask under it and its frame after it', () => {
+    const fr: SketchItem = { id: 'T2', kind: 'text', layer: 'LV-ANNO', pts: [[1000, 500]], text: 'L1', h: 250, just: 'MC', frame: 'box', mask: true };
+    expect(segmentsOf({ ...fr, frame: undefined })).toEqual([]);
+    expect(segmentsOf(fr)).toHaveLength(4);
+    expect(segmentsOf({ ...fr, frame: 'hexagon' })).toHaveLength(6);
+    expect(segmentsOf({ ...fr, frame: 'circle' }).length).toBeGreaterThan(8);
+    const out = shapesOut([fr], 0.001);
+    expect(out.map((s) => `${s.kind}@${s.layer}`)).toEqual(['hatch@LV-MASK', 'text@LV-ANNO', 'pline@LV-ANNO']);
+    expect(out[0]).toMatchObject({ solid: true }); expect(out[0].loops![0]).toHaveLength(4);
+    expect(out[2]).toMatchObject({ closed: true });
+    expect(shapesOut([{ ...fr, frame: 'circle', mask: undefined }], 0.001).map((s) => s.kind)).toEqual(['text', 'circle']);
+  });
 });
 
 describe('cable tray runs', () => {

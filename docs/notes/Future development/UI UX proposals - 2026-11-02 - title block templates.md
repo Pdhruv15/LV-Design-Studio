@@ -1,6 +1,6 @@
 # Title block templates — what can be customised today, and a proposal — 2026-11-02
 
-Status: **A (import and map a company DWG / DXF block, written back as a block with attributes) built in v2.065 (2026-11-09, see [[UI UX proposals - 2026-11-09 - Sheet furniture, legends and title block frames]]); B (Edit in CAD) and D4 (whole border) still wait.**
+Status: **A (import and map a company DWG / DXF block, written back as a block with attributes) built in v2.066 (2026-11-09, see [[UI UX proposals - 2026-11-09 - Sheet furniture, legends and title block frames]]); B (Edit in CAD) and D4 (whole border) still wait.**
 
 Mockup: `docs/mockups/title-block-templates-mockup.html` (three views: import and map a company DWG/DXF block, edit a block in Design CAD, the block on a printed sheet).
 

@@ -60,7 +60,7 @@ import { fmtFixed, fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
 import { AnnoPanel, HatchPanel } from './AnnotatePanel';
 import { annoOf, centreOf, hatchItem, hatchOutline, HATCH_START, leaderItems, northArrowItems, roomTagItems, textUnits, unitsPerPaperMm, type HatchSpec } from '../../model/cadAnnotate';
-import { alignedTo, alignEdge, cased, centredAt, ISO_TEXT_MM, justLabel, oriented, parseJust, rejustified, spaced, untaggedRooms, withTextHeight, type AlignMode, type CaseMode, type OrientMode } from '../../model/cadText';
+import { alignedTo, alignEdge, cased, centredAt, ISO_TEXT_MM, justLabel, keynoteItems, legendNext, nextKeynote, numberText, oriented, padOf, parseFrame, parseJust, rejustified, spaced, untaggedRooms, withTextHeight, type AlignMode, type CaseMode, type OrientMode } from '../../model/cadText';
 import { LayerPalette, layerRows, type LayerRow } from './CadLayerManager';
 import { PropertiesPalette } from './CadProperties';
 import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
@@ -90,7 +90,7 @@ const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab 
 ];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · RTALL (tag all rooms) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 /** Bind's count in the Save line: reference lines, texts and hatches. */
@@ -128,6 +128,10 @@ const PROMPT: Record<CadTool, string> = {
   tcen: 'TCEN  Select the text, then Enter:',
   tcopy: 'TCOPY  Select the texts to change, then Enter:',
   rtall: 'ROOMTAGALL  Tag [All rooms/Untagged only] <Untagged>:',
+  tframe: 'TFRAME  Select texts, then Enter:',
+  tmask: 'TMASK  Select texts, then Enter:',
+  tcount: 'TCOUNT  Prefix <>:',
+  keynote: 'KEYNOTE  Number (Enter: the next):',
   th: 'TXTHEIGHT  Select texts and dimensions, then Enter (Enter with none: the height for new text):',
   north: 'NORTH  Specify insertion point:',
   wire: 'WIRE  Click a device: its circuit is wired (or its wiring taken off):',
@@ -198,10 +202,13 @@ const DRAW_LAYER = 'LV-SKETCH', ANNO_LAYER = 'LV-ANNO';
 const WIRING_LAYER = 'E-LV-WIRING', TAG_LAYER = 'E-LV-TAGS';
 /** The edit tools on what was drawn (Draw → Edit, Mirror / Scale / Stretch in Modify), and those that work on objects
  * picked first. */
-const EDIT_TOOLS: CadTool[] = ['trim', 'extend', 'offset', 'fillet', 'chamfer', 'break', 'join', 'explode', 'mirror', 'scale', 'stretch', 'array', 'tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy'];
-const PICK_FIRST: CadTool[] = ['join', 'mirror', 'scale', 'array', 'tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy'];
+const EDIT_TOOLS: CadTool[] = ['trim', 'extend', 'offset', 'fillet', 'chamfer', 'break', 'join', 'explode', 'mirror', 'scale', 'stretch', 'array', 'tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy', 'tframe', 'tmask'];
+const PICK_FIRST: CadTool[] = ['join', 'mirror', 'scale', 'array', 'tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy', 'tframe', 'tmask'];
 /** The text tools: on the texts picked first, then a value on the command line (TCEN and TCOPY: points or a text clicked). */
-const TEXT_TOOLS: CadTool[] = ['tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy'];
+const TEXT_TOOLS: CadTool[] = ['tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy', 'tframe', 'tmask'];
+const TFRAME_PROMPT = 'TFRAME  Frame [Circle/Box/Hexagon/None] <Circle>:';
+const TMASK_PROMPT = 'TMASK  Mask behind the text [Yes/No] <Yes>:';
+const TCOUNT_PLACE = 'TCOUNT  Place text or [Select existing/Undo]:';
 const TALIGN_PROMPT = 'TALIGN  Align [Left/Right/Centre/Top/Bottom/Spacing] <Left>:';
 const TCASE_PROMPT = 'TCASE  Case [Upper/Lower/Title/Sentence] <Upper>:';
 const TORIENT_PROMPT = 'TORIENT  Readable from [Bottom/Right/Both] <Both>:';
@@ -290,6 +297,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [textAsk, setTextAsk] = useState<{ step: 'height' | 'rot' | null; mm: number; rot: number } | null>(null);
   // TALIGN after its texts: the edge chosen and what it waits for (the text or point to line up with, or the gap).
   const [tAsk, setTAsk] = useState<{ mode: AlignMode | 'spacing'; step: 'ref' | 'gap' } | null>(null);
+  // TCOUNT: its prefix, number, step, digits and suffix, what it asks for next, and the texts placed (for Undo).
+  const [tc, setTc] = useState<{ step: 'prefix' | 'start' | 'step' | 'suffix' | 'place' | 'pick'; prefix: string; n: number; inc: number; pad: number; suffix: string; placed: string[] } | null>(null);
+  // KEYNOTE: the number asked, then where it goes, its text, and (the first time) where the legend starts.
+  const [kn, setKn] = useState<{ step: 'number' | 'place' | 'text' | 'legend'; n: number; at?: Pt; note?: string } | null>(null);
   const [typed, setTyped] = useState<string[]>([]);
   const [recent, setRecent] = useState<{ label: string; tool?: CadTool; text?: string }[]>([]);
   const { log, setLog } = cad;
@@ -377,6 +388,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const first = picked.some((k) => k.startsWith('sk:')) || !!cad.selected?.startsWith('sk:');
     setEdPhase(first ? 'points' : 'pick');
     setEdAsk(tool === 'offset' && !pre ? 'offset' : tool === 'array' && first ? 'type' : null); setTextAsk(null); setTAsk(null); setPromptMenu(null);
+    setTc(tool === 'tcount' ? { step: 'prefix', prefix: '', n: 1, inc: 1, pad: 0, suffix: '', placed: [] } : null);
+    setKn(tool === 'keynote' ? { step: 'number', n: nextKeynote(sketch) } : null);
     setDlg((d) => (DIALOG_TOOLS.includes(tool as EditTool) ? 'edit' : d === 'edit' ? null : d));
     if (tool !== 'none' && tool !== 'xattach' && tool !== 'xclip') { const label = PROMPT[tool].split(' ')[0]; setRecent((r) => [{ label, tool }, ...r.filter((x) => x.label !== label)].slice(0, 8)); }
     setCrop(tool === 'crop' ? { step: 'pick' } : null);
@@ -1264,6 +1277,22 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       }
       setPoints((p) => [...p, at]); cad.say(`XCLIP  Next corner${points.length ? ', Enter to finish' : ''}:`); return;
     }
+    if (tool === 'tcount' && tc) {
+      if (tc.step === 'pick') {
+        const sk = itemAt(pickable, at, 6 * pixel);
+        if (sk?.kind !== 'text') { cad.say('TCOUNT  Click the texts to renumber, in order, then Enter:'); return; }
+        const sks = pickedKeys.has(`sk:${sk.id}`) ? pickedSk.filter((x) => x.id !== sk.id) : [...pickedSk, sk];
+        pick([], sks); cad.say(`TCOUNT  ${picks(sks.length)} — Enter when done`); return;
+      }
+      if (tc.step !== 'place') { cad.say('TCOUNT  Finish the prefix, start, step and suffix on the command line first.'); return; }
+      const id = draw({ kind: 'text', layer: ANNO_LAYER, pts: [at], text: numberText(tc.prefix, tc.n, tc.pad, tc.suffix), h: textH, just: 'MC' }, `TCOUNT  "${numberText(tc.prefix, tc.n, tc.pad, tc.suffix)}"`);
+      setTc({ ...tc, n: tc.n + tc.inc, placed: id ? [...tc.placed, id] : tc.placed }); cad.say(TCOUNT_PLACE); return;
+    }
+    if (tool === 'keynote' && kn) {
+      if (kn.step === 'place') { setKn({ ...kn, step: 'text', at }); cad.say('KEYNOTE  Note text:'); input.current?.focus(); return; }
+      if (kn.step === 'legend') { addKeynote(kn.n, kn.at!, kn.note ?? '', at); return; }
+      cad.say(kn.step === 'number' ? `KEYNOTE  Type the number first <${kn.n}>:` : 'KEYNOTE  Type the note text first:'); return;
+    }
     if (tool === 'matchprop') {
       const sk = itemAt(pickable, at, 6 * pixel), from = sketch.find((x) => x.id === mpFrom);
       if (!sk) { cad.say(from ? 'MATCHPROP  Select destination object:' : PROMPT.matchprop); return; }
@@ -1730,6 +1759,22 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       else { setTextAsk({ ...textAsk, step: null, rot: n ?? textAsk.rot }); cad.say('TEXT  Enter text:'); }
       return;
     }
+    if (tool === 'tcount' && tc) { tcountInput(text, c); return; }
+    if (tool === 'keynote' && kn) {
+      if (kn.step === 'number') {
+        const n = c ? Number(c) : kn.n;
+        if (c && !/^\d+$/.test(c)) { cad.say(`KEYNOTE  A whole number <${kn.n}>:`); return; }
+        setKn({ step: 'place', n }); cad.say(`KEYNOTE  Place keynote ${n}:`); return;
+      }
+      if (kn.step === 'text') {
+        if (!raw) { cad.say('KEYNOTE  Type the note text:'); return; }
+        if (legendNext(sketch)) { addKeynote(kn.n, kn.at!, raw); return; }
+        setKn({ ...kn, step: 'legend', note: raw }); cad.say('KEYNOTE  Legend position (the top left of its title):'); return;
+      }
+      const p = typedPoint(raw, undefined, cursor.at);
+      if (p) { click(p, 1e-9); return; }
+      cad.say(kn.step === 'place' ? `KEYNOTE  Click where keynote ${kn.n} goes:` : 'KEYNOTE  Click where the legend starts:'); return;
+    }
     if ((tool === 'tprefix' || tool === 'tsuffix') && edPhase === 'points') {
       if (!raw) { cad.say(`${tool.toUpperCase()}  Nothing added.`); cad.setTool('none'); return; }
       const texts = pickedSk.filter((it) => it.kind === 'text');
@@ -1900,6 +1945,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (t === 'torient') return TORIENT_PROMPT;
     if (t === 'tprefix' || t === 'tsuffix') return `${t.toUpperCase()}  Type the words to add ${t === 'tprefix' ? 'before' : 'after'} each text, Enter:`;
     if (t === 'tcen') return texts.length === 1 ? 'TCEN  Specify first point:' : `TCEN  Pick one text (${texts.length} picked).`;
+    if (t === 'tframe') return TFRAME_PROMPT;
+    if (t === 'tmask') return TMASK_PROMPT;
     return 'TCOPY  Click the text to copy the words from:';
   }
   /** The texts picked changed by a text tool, as one undo step; the other objects picked are left as they are. */
@@ -1947,6 +1994,16 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (mode === 'spacing') { setTAsk({ mode, step: 'gap' }); cad.say(`TALIGN  Gap between texts on paper (mm) <${spacingDefault()}>:`); return; }
       setTAsk({ mode, step: 'ref' }); cad.say(`TALIGN  ${mode[0].toUpperCase()}${mode.slice(1)}: click the text to line up with, or a point:`); return;
     }
+    if (tool === 'tframe') {
+      const f = parseFrame(c || 'C');
+      if (!f) { cad.say(`TFRAME  "${c}" is not a frame. ${TFRAME_PROMPT}`); return; }
+      changeTexts('TFRAME', texts.map((it) => { const { frame: _f, ...rest } = it; return f === 'none' ? rest : { ...rest, frame: f }; }), f === 'none' ? 'without a frame' : `framed with a ${f}`); return;
+    }
+    if (tool === 'tmask') {
+      if (c && c !== 'Y' && c !== 'N') { cad.say(`TMASK  Yes or No. ${TMASK_PROMPT}`); return; }
+      const on = c !== 'N';
+      changeTexts('TMASK', texts.map((it) => { const { mask: _m, ...rest } = it; return on ? { ...rest, mask: true } : rest; }), on ? 'masked' : 'unmasked'); return;
+    }
     if (tool === 'tcen' || tool === 'tcopy') { cad.say(textToolPrompt(tool)); return; }
     const sized = pickedSk.filter((it) => it.kind === 'text' || it.kind === 'dim');
     const mm = c ? Number(c) : sized[0]?.h ? Math.round((sized[0].h / unitsPerPaperMm(anno, units.factor)) * 100) / 100 : anno.textMm;
@@ -1957,6 +2014,53 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     for (const it of sized) next = updateSketch(next, fileOf(), withTextHeight(it, h));
     change(next, `TXTHEIGHT  ${sized.length} object${sized.length === 1 ? '' : 's'} ${mm} mm on paper at 1:${anno.scale}${left(pickedSk.length - sized.length)} · ⌘Z to undo`);
     cad.setTool('none');
+  }
+
+  /** What is typed at TCOUNT's prompts: the prefix and suffix as typed (Enter: none), the start (its leading zeros
+   * kept as digits) and step; then at Place, S renumbers the texts picked (or asks for them), U takes the last one
+   * placed back, Enter ends. */
+  function tcountInput(text: string, c: string) {
+    if (!tc) return;
+    const say = (s: string) => cad.say(s);
+    if (tc.step === 'prefix') { setTc({ ...tc, step: 'start', prefix: text.trim() ? text : '' }); say('TCOUNT  Start number <1>:'); return; }
+    if (tc.step === 'start') {
+      if (c && !/^\d+$/.test(c)) { say('TCOUNT  A whole number. Start number <1>:'); return; }
+      setTc({ ...tc, step: 'step', n: c ? Number(c) : 1, pad: padOf(c) }); say('TCOUNT  Step <1>:'); return;
+    }
+    if (tc.step === 'step') {
+      if (c && !/^-?\d+$/.test(c)) { say('TCOUNT  A whole number. Step <1>:'); return; }
+      setTc({ ...tc, step: 'suffix', inc: c ? Number(c) : 1 }); say('TCOUNT  Suffix <>:'); return;
+    }
+    if (tc.step === 'suffix') { setTc({ ...tc, step: 'place', suffix: text.trim() ? text : '' }); say(`${TCOUNT_PLACE.replace(':', '')} — next "${numberText(tc.prefix, tc.n, tc.pad, text.trim() ? text : '')}":`); return; }
+    const texts = pickedSk.filter((it) => it.kind === 'text');
+    if (tc.step === 'pick' || c === 'S') {
+      if (!texts.length) { setTc({ ...tc, step: 'pick' }); say(c === 'S' ? 'TCOUNT  Click the texts to renumber, in order, then Enter:' : 'TCOUNT  Pick the texts first.'); return; }
+      if (c && c !== 'S') { say('TCOUNT  Enter renumbers the texts picked, Esc cancels.'); return; }
+      let next = project, n = tc.n;
+      for (const it of texts) { next = updateSketch(next, fileOf(), { ...it, text: numberText(tc.prefix, n, tc.pad, tc.suffix) }); n += tc.inc; }
+      change(next, `TCOUNT  ${texts.length} text${texts.length === 1 ? '' : 's'} renumbered from ${numberText(tc.prefix, tc.n, tc.pad, tc.suffix)} · ⌘Z to undo`);
+      cad.setTool('none'); return;
+    }
+    if (c === 'U') {
+      const last = tc.placed[tc.placed.length - 1];
+      if (!last) { say('TCOUNT  Nothing placed yet.'); return; }
+      change(removeSketch(project, fileOf(), last), 'TCOUNT  Last text taken back · ⌘Z to undo');
+      setTc({ ...tc, n: tc.n - tc.inc, placed: tc.placed.slice(0, -1) }); say(TCOUNT_PLACE); return;
+    }
+    if (!c) { cad.setTool('none'); return; }
+    const p = typedPoint(text, undefined, cursor.at);
+    if (p) { click(p, 1e-9); return; }
+    say(TCOUNT_PLACE);
+  }
+  /** KEYNOTE: the hexagon bubble at its point and its line in the legend (the title too when the legend starts), one
+   * undo step; then the next number is asked. */
+  function addKeynote(n: number, at: Pt, note: string, legendAt?: Pt) {
+    if (!view) return;
+    const items = keynoteItems(n, at, note, textH, ANNO_LAYER, sketch, legendAt);
+    const next = items.reduce((q, x) => addSketch(q, view.file, x).project, project);
+    change(next, `KEYNOTE  ${n} "${note}"${items.length > 2 ? ' · legend started' : ''} · ⌘Z to undo`);
+    const nn = n + 1;
+    setKn({ step: 'number', n: nn }); cad.say(`KEYNOTE  Number <${nn}>:`);
   }
 
   /** ROOMTAGALL: a room tag (name and area at the centre) for every room of the level with an outline, or only those
@@ -1981,7 +2085,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   }
   /** What Space does in the command line: types a space in text (a name, TEXT contents, a leader's text); at TEXT's
    * height and rotation, where a word is the text, ends only an empty input or a number; else ends a whole word. */
-  const spaceMode: SpaceMode = renaming || renamingLayout || (tool === 'text' && cad.textAt && !textAsk?.step) || (tool === 'leader' && points.length >= 2) || ((tool === 'tprefix' || tool === 'tsuffix') && edPhase === 'points') ? 'text'
+  const spaceMode: SpaceMode = renaming || renamingLayout || (tool === 'text' && cad.textAt && !textAsk?.step) || (tool === 'leader' && points.length >= 2) || ((tool === 'tprefix' || tool === 'tsuffix') && edPhase === 'points')
+    || (tool === 'tcount' && (tc?.step === 'prefix' || tc?.step === 'suffix')) || (tool === 'keynote' && kn?.step === 'text') ? 'text'
     : tool === 'text' && cad.textAt ? 'value' : 'command';
   /** Numbers typed go to the command line (or the box at the cursor) rather than the view's keys (0 fits, − zooms out):
    * while a tool is running or something is typed there. */
@@ -2150,7 +2255,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
             <CadCanvas view={view!} draft={draft} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
-              numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={xr.snap} windowSelect={tool === 'none' || tool === 'stretch' || (PICK_FIRST.includes(tool) && edPhase === 'pick')} onWindow={pickWindow} onContext={contextAt}
+              numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={xr.snap} windowSelect={tool === 'none' || tool === 'stretch' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt}
               grips={draft.grips && tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
               onGripEnd={(i, at) => {
                 setGripIdx(null);

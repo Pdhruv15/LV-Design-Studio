@@ -9,7 +9,7 @@ import type { SketchItem } from '../../types';
  * settings of the edit tools (distances typed in metres). */
 
 export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase';
-export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy';
+export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'tframe' | 'tmask';
 /** Offset `through` a point (the copy passes through it), `erase` the source, the copies on the `source` layer or the
  * `current` one; Fillet and Chamfer `trim` the lines to the corner (else they stay and the arc or line is added); a
  * polar array can `rotate` its copies (else they keep the original's direction). */
@@ -89,7 +89,7 @@ export function DrawnSelectionPanel({ items, devices, onEdit }: { items: SketchI
 export const EDIT_TITLE: Record<EditTool, string> = {
   trim: 'Trim', extend: 'Extend', offset: 'Offset', fillet: 'Fillet', chamfer: 'Chamfer', break: 'Break', join: 'Join', explode: 'Explode',
   mirror: 'Mirror', scale: 'Scale', stretch: 'Stretch', array: 'Array', tjust: 'Justify text', th: 'Text height',
-  talign: 'Align text', tcase: 'Text case', tprefix: 'Text prefix', tsuffix: 'Text suffix', torient: 'Orient text', tcen: 'Centre text', tcopy: 'Copy words'
+  talign: 'Align text', tcase: 'Text case', tprefix: 'Text prefix', tsuffix: 'Text suffix', torient: 'Orient text', tcen: 'Centre text', tcopy: 'Copy words', tframe: 'Frame text', tmask: 'Mask text'
 };
 export const EDIT_HELP: Record<EditTool, string> = {
   trim: 'Click the part to cut away: it is cut at the nearest lines crossing it, drawn or the architect\'s (shown layers), which are never changed. Shift-click extends instead.',
@@ -112,7 +112,9 @@ export const EDIT_HELP: Record<EditTool, string> = {
   tsuffix: 'Pick the texts (click them, then Enter), then type the words to put after each (Space types a space).',
   torient: 'Pick the texts (click them, then Enter), then Bottom, Right or Both: each turns about its centre so it reads from the bottom of the sheet, from the right, or whichever of the two it is nearer.',
   tcen: 'Pick one text (click it, then Enter), then two points (snaps help): its centre goes to their midpoint.',
-  tcopy: 'Pick the texts to change (click them, then Enter), then click the text whose words they take.'
+  tcopy: 'Pick the texts to change (click them, then Enter), then click the text whose words they take.',
+  tframe: 'Pick the texts (click them, then Enter), then Circle, Box, Hexagon or None: a frame round each, sized from its height, that moves and scales with it.',
+  tmask: 'Pick the texts (click them, then Enter), then Yes or No: a paper-colour fill under the text so it reads over hatches, trays and underlays.'
 };
 
 /** The side panel of an edit tool: what it does, its distances, and what has been picked so far. */

@@ -1,7 +1,7 @@
 # Design CAD — drafting macros as built-in commands: text, annotation and electrical (2026-11-09)
 
-Status: **batch 1 approved by the user on 2026-11-09** ("Yes, batch 1"); the other batches wait. Built so far: see
-"Built" at the end. Nothing else is built. Product names are not used; the routines
+Status: **batches 1 and 2 approved by the user on 2026-11-09** ("Yes, batch 1", "Batch 2 numbering"); the other
+batches wait. Built so far: see "Built" at the end. Nothing else is built. Product names are not used; the routines
 below are described by what they do, and every one is built from scratch in the app.
 
 ## What the user asked (2026-11-09)
@@ -243,3 +243,23 @@ are left as they are (`src/model/cadText.ts`, pure, with tests; the flows in `Ca
   tagged when a drawn text with its name lies inside its outline.
 - Not built: ribbon entries and right-click items (optional in the proposal); TSUM (A12) and TXT2MTXT (A13) are
   batch 6.
+
+### Batch 2 (v2.064, branch `feat/cad-text-numbering`)
+
+- **TFRAME** (A7): pick texts, Enter, `Frame [Circle/Box/Hexagon/None] <Circle>:`. A text item has an optional `frame`;
+  the frame is drawn 0.3 × the height clear of the text's box, turned with it, from its height and words, so Move,
+  Copy, Rotate, Scale and TXTHEIGHT carry it. Saved as a circle or closed polyline on the text's layer. Properties:
+  a **Frame** list.
+- **TMASK** (A9): `Mask behind the text [Yes/No] <Yes>:`. An optional `mask` fills the text's box in the paper colour
+  (the canvas background; white on the sheets) under the text. Saved as a solid hatch on **LV-MASK**, written before the
+  text (set that layer to the paper colour in the other program). Properties: a **Mask** list.
+- **TCOUNT / TNUM** (A4): `Prefix <>:` → `Start number <1>:` (a leading zero keeps the digits: 01 → 01, 02 …) →
+  `Step <1>:` → `Suffix <>:` → `Place text or [Select existing/Undo]:`. Each click places the next number centred
+  (MC) on it at the annotation text height on LV-ANNO; U takes the last one back; S renumbers the texts picked, in the
+  order picked (or asks for them first); Enter ends. Prefix and suffix are taken as typed, spaces included.
+- **KN / KEYNOTE** (C9): `Number (Enter: the next):` → `Place keynote n:` → `Note text:` → the first time,
+  `Legend position (the top left of its title):`. A hexagon-framed number (MC) at the point, and a line `n  note` in
+  a legend headed KEYNOTES, each line 1.6 × the height under the one before. Keynote texts carry `kn` (number; legend
+  lines flagged) so the next number and the legend's next line are found from the drawing. The tool then asks the next
+  number; Esc ends. Erasing a bubble leaves its legend line (erase it too).
+- Not built: a legend as a table (waits for gap-plan S13), ribbon and right-click entries.

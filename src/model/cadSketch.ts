@@ -1,6 +1,6 @@
 import { fittingLabel, trayFittings } from './cadTrayFittings';
 import { defOf, placedLines } from './cadHatch';
-import { textBox, textWidth } from './cadText';
+import { MASK_LAYER, textBox, textCorners, textFrameOf, textWidth } from './cadText';
 import type { CadSketch, Project, SketchItem } from '../types';
 
 type Pt = [number, number];
@@ -348,6 +348,7 @@ export function segmentsOf(it: SketchItem, metresPerUnit = 0.001): [Pt, Pt][] {
   else if (it.kind === 'circle') arc(it.pts[0], it.r ?? 0, 0, 2 * Math.PI);
   else if (it.kind === 'arc') arc(it.pts[0], it.r ?? 0, it.a0 ?? 0, it.a1 ?? 0);
   else if (it.kind === 'dim') out.push(...dimOf(it, metresPerUnit).lines);
+  else if (it.kind === 'text' && it.frame) { const f = textFrameOf(it); if (f?.circle) arc(f.circle.c, f.circle.r, 0, 2 * Math.PI); else if (f?.pts) poly(f.pts, true); }
   return out;
 }
 
@@ -464,7 +465,14 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[
     // A revision cloud as one closed polyline of arcs; an ellipse as an ellipse.
     if (it.cloud) { const c = cloudLobes(it); return [{ layer: it.layer, kind: 'pline', pts: c.pts, closed: true, bulges: c.pts.map(() => c.bulge) }]; }
     if (it.kind === 'ellipse') return it.ax ? [{ layer: it.layer, kind: 'ellipse', pts: it.pts, axis: it.ax, ratio: it.ratio ?? 1 }] : [];
-    return [{ layer: it.layer, kind: it.kind, pts: it.pts, closed: it.closed, r: it.r, a0: it.a0, a1: it.a1, text: it.text, h: it.h, rot: it.rot, ...(it.just ? { just: it.just } : {}) }];
+    if (it.kind === 'text') {
+      // Its mask (a solid hatch on LV-MASK, written before it so it lies under), the text, then its frame.
+      const f = textFrameOf(it);
+      return [...(it.mask ? [{ layer: MASK_LAYER, kind: 'hatch' as const, pts: [], loops: [textCorners(it)], solid: true }] : []),
+        { layer: it.layer, kind: 'text', pts: it.pts, text: it.text, h: it.h, rot: it.rot, ...(it.just ? { just: it.just } : {}) },
+        ...(f?.circle ? [{ layer: it.layer, kind: 'circle' as const, pts: [f.circle.c], r: f.circle.r }] : f?.pts ? [{ layer: it.layer, kind: 'pline' as const, pts: f.pts, closed: true }] : [])];
+    }
+    return [{ layer: it.layer, kind: it.kind, pts: it.pts, closed: it.closed, r: it.r, a0: it.a0, a1: it.a1 }];
   }), ...fittingTexts];
 }
 
