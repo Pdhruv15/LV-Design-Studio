@@ -30,4 +30,20 @@ describe('printed SLD colours', () => {
     expect(doc.querySelector('.load')?.getAttribute('style')).toContain('stroke:#000000');
     expect(doc.querySelector('.icon path')?.getAttribute('style')).toMatch(/stroke:#000000.*fill:#000000/);
   });
+
+  it('prints study colouring black, heavy only over the limit', () => {
+    document.body.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg">
+      <line class="ln heat ok-feeder" x2="10" style="stroke: hsl(130 80% 52%); stroke-width: 3.5px"/>
+      <line class="ln heat heat-over over-feeder" x2="10" style="stroke: hsl(0 80% 58%); stroke-width: 3.5px"/>
+      <line class="bus heat heat-over" x2="10" style="stroke: hsl(0 80% 58%)"/></svg>`;
+    const live = document.querySelector('.ok-feeder') as SVGElement;
+    const out = printableSvg(document.querySelector('svg')!, 100, 50);
+    const doc = new DOMParser().parseFromString(out, 'image/svg+xml');
+    const style = (sel: string) => doc.querySelector(sel)?.getAttribute('style') ?? '';
+    expect(style('.ok-feeder')).toContain('stroke:#000000');
+    expect(style('.ok-feeder')).not.toContain('stroke-width:3.5px');
+    expect(live.style.strokeWidth).toBe('3.5px'); // the screen keeps its thick line
+    expect(style('.over-feeder')).toMatch(/stroke:#000000.*stroke-width:3.5px/);
+    expect(style('.bus')).toMatch(/stroke:#000000.*stroke-width:7px/);
+  });
 });

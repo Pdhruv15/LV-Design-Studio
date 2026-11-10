@@ -12,7 +12,11 @@ const STYLE_PROPS = ['stroke', 'stroke-width', 'stroke-dasharray', 'fill', 'opac
 const DROP = '.bus-hit, .sel-ring, title, .grid-bg, .status-dot';
 /** Marks in a status colour on screen (revision clouds, cable references, circuits that
  * fail a check) that print black, like the rest of the drawing. */
-const PRINT_BLACK = '.rev-cloud path, .cable-ref-c, .ln.warn, .ln.bad, .load.warn, .load.bad, .icon.warn *, .icon.bad *';
+const PRINT_BLACK = '.rev-cloud path, .cable-ref-c, .ln.warn, .ln.bad, .load.warn, .load.bad, .icon.warn *, .icon.bad *, .heat';
+/** Study colouring (green → red by share of the limit) prints black: normal width
+ * within the limit, heavy over it. */
+const HEAT_OK = '.heat:not(.heat-over)';
+const HEAVY = (el: Element) => (el.matches('.bus') ? '7px' : '3.5px');
 const KEEP_FILL = new Set(['none', '#ffffff', 'rgba(0, 0, 0, 0)']);
 
 /** Theme colour (rgb string) → print colour. */
@@ -44,6 +48,9 @@ function printableSvgDark(live: SVGSVGElement, width: number, height: number): s
   const dst = [clone, ...clone.querySelectorAll('*')];
   src.forEach((el, i) => {
     const out = dst[i] as SVGElement;
+    // A heat line within the limit prints at its normal width, without the on-screen thick stroke.
+    const thin = el.matches(HEAT_OK) && el instanceof SVGElement ? el.style.strokeWidth : undefined;
+    if (thin !== undefined) (el as SVGElement).style.strokeWidth = '';
     const cs = getComputedStyle(el);
     const black = el.matches(PRINT_BLACK);
     const style = STYLE_PROPS.map((p) => {
@@ -51,10 +58,12 @@ function printableSvgDark(live: SVGSVGElement, width: number, height: number): s
       if (!v) return '';
       if (p === 'stroke' || p === 'fill') v = palette.get(v) ?? v;
       if (p === 'stroke' && black) v = '#000000';
+      if (p === 'stroke-width' && el.matches('.heat-over')) v = HEAVY(el);
       if (p === 'fill' && black && !KEEP_FILL.has(v)) v = '#000000';
       if (p === 'font-family') v = 'Arial, Helvetica, sans-serif';
       return `${p}:${v}`;
     }).filter(Boolean).join(';');
+    if (thin !== undefined) (el as SVGElement).style.strokeWidth = thin;
     out.setAttribute('style', style);
     // CAD uses a different font. Store the live text's length before this
     // clone is detached so TEXT Fit can preserve its horizontal footprint.

@@ -451,18 +451,20 @@ export default function SystemDiagram({
     () => (colorBy === 'earth' ? new Map(evaluateEarthingAll(running).map((e) => [e.feeder.id, e])) : undefined),
     [colorBy, running]
   );
-  const feederHeat = (id: string) => {
+  const feederRatioOf = (id: string) => {
     const r = byFeeder.get(id);
     const e = earthing?.get(id);
-    const ratio = colorBy === 'earth' ? (e ? earthRatio(e) : undefined) : r && colorBy !== 'none' ? feederRatio(r, colorBy, project.vdLimitPct) : undefined;
-    return ratio === undefined ? undefined : heatColor(ratio);
+    return colorBy === 'earth' ? (e ? earthRatio(e) : undefined) : r && colorBy !== 'none' ? feederRatio(r, colorBy, project.vdLimitPct) : undefined;
   };
-  const boardHeat = (id: string) => {
+  const boardRatioOf = (id: string) => {
     const s = summaries.get(id);
     if (!s || colorBy === 'none' || off(id)) return undefined;
-    const ratio = boardRatio(s, upstreamVoltageDropPct(running, id), colorBy, project.vdLimitPct);
-    return ratio === undefined ? undefined : heatColor(ratio);
+    return boardRatio(s, upstreamVoltageDropPct(running, id), colorBy, project.vdLimitPct);
   };
+  const feederHeat = (id: string) => { const ratio = feederRatioOf(id); return ratio === undefined ? undefined : heatColor(ratio); };
+  const boardHeat = (id: string) => { const ratio = boardRatioOf(id); return ratio === undefined ? undefined : heatColor(ratio); };
+  /** Classes the print export reads: heat-coloured marks print black, heavy when over the limit. */
+  const heatClass = (ratio: number | undefined) => (ratio === undefined ? '' : ratio >= 1 ? ' heat heat-over' : ' heat');
 
   // The symbol legend sits to the right of the network, inside the drawing (so it exports).
   const legend = useMemo(() => (iec && !hideLegend && (project.drawing?.legend ?? true) ? legendEntries(calcProject ?? project) : []), [iec, hideLegend, project, calcProject]);
@@ -1252,7 +1254,7 @@ export default function SystemDiagram({
               {dewa ? <text x={n.x + 10} y={y + 37} className="dev-k" data-dxf-max-width={cadDeviceWidth}>{icuText(f)}</text>
                 : iec && <text x={n.x + 10} y={y + 41} className="acc-t" data-dxf-max-width={cadDeviceWidth}>{polesText(f)} · {f.breakerIcuKa} kA</text>}
               {dewa && <text x={n.x - 5} y={y + 13} textAnchor="end" className="acc-t way-no">{wayNo.get(f.id)}</text>}
-              <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}${cableTypeOf(project, f).fireRated ? ' fr' : ''}`}
+              <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}${cableTypeOf(project, f).fireRated ? ' fr' : ''}${heatClass(feederRatioOf(f.id))}`}
                 style={feederHeat(f.id) ? { stroke: feederHeat(f.id), strokeWidth: 3.5 } : undefined} />
               {dewa ? <text className="dev" x={n.x + 10} y={y + 26} data-dxf-max-width={cadDeviceWidth}>{breakerText(f)}</text>
                 : <text className="b" x={n.x + 10} y={y + 30} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA} A{f.rcdMa ? <tspan className="acc-t"> · {f.rcdMa} mA</tspan> : null}</text>}
@@ -1449,7 +1451,7 @@ export default function SystemDiagram({
               onKeyDown={(e) => (e.key === 'Enter' ? onSelectBoard(b.id) : e.key === 'F2' && edit(onEditBoard, b.id)())}
             >
               <title>{`${b.id} — double-click to edit`}</title>
-              {!n.terminal && <line x1={n.busX1} y1={real.busY} x2={n.busX2} y2={real.busY} className={`bus ${sel ? 'sel' : ''}`}
+              {!n.terminal && <line x1={n.busX1} y1={real.busY} x2={n.busX2} y2={real.busY} className={`bus ${sel ? 'sel' : ''}${heatClass(boardRatioOf(b.id))}`}
                 style={boardHeat(b.id) ? { stroke: boardHeat(b.id) } : undefined} />}
               {/* Wide invisible band along the busbar, so drops don't need pixel precision. */}
               {onDropItem && <line x1={n.busX1 - 20} y1={real.busY} x2={n.busX2 + 20} y2={real.busY} className="bus-hit" />}
