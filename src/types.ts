@@ -499,6 +499,8 @@ export interface Project {
   elv?: import('./elv/estimate').ElvSettings;
   /** ELV devices placed on the floor plans (src/elv/placed.ts), and the highest device number given out. */
   elvDevices?: import('./elv/placed').ElvDevice[];
+  /** The project folder: a copy of its folder template and the project's own changes (src/model/folderTemplates.ts). */
+  folder?: import('./model/folderTemplates').ProjectFolder;
   elvDeviceSeq?: number;
   /** Remarks typed on the ELV schedules, by schedule and row (src/elv/outputs.ts). */
   elvRemarks?: Record<string, string>;

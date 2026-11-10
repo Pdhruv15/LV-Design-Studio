@@ -10,6 +10,9 @@ const LIMITS = Object.freeze({
   projectBytes: 50 * MB, // a project file, its .bak, a recovery copy, a deleted project
   settingsBytes: 1 * MB, // settings.json, the project list cache
   libraryBytes: 20 * MB, // Library.json
+  folderTemplateBytes: 1 * MB, // one folder template (a 300-folder template is ~40 KB)
+  folderTemplatesBytes: 8 * MB, // folder-templates.json, and a file of templates to import
+  folderTemplatesCount: 200, // user templates kept
   workbookBytes: 20 * MB, // one .xlsx of the LV Database
   pdfHtmlBytes: 64 * MB, // HTML of one report to print as PDF
   textExportBytes: 64 * MB, // a text export (DXF, OpenDSS script…)
