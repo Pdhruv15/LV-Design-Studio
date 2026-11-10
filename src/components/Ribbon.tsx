@@ -686,6 +686,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ],
       [
         { label: 'Viewport', icon: Frame, cmd: 'MV', title: 'A new viewport: click two corners on the paper (MV)', onClick: () => a.cad?.onLayoutCmd?.('MV') },
+        { label: 'Legend', icon: Table2, cmd: 'LEGEND', title: 'A legend table on the paper: click where its corner goes; its rows follow the plan, its frame picked sets the width, rows and columns (LEGEND)', onClick: () => a.cad?.onLayoutCmd?.('LEGEND') },
+        { label: 'Notes', icon: ListOrdered, cmd: 'NOTES', title: 'A notes table on the paper: the sheet\'s notes where you put them (NOTES)', onClick: () => a.cad?.onLayoutCmd?.('NOTES') },
         sm({ label: 'Scale', icon: Scaling, cmd: 'VPSCALE', title: 'The scale of the viewport picked (VPSCALE)', onClick: () => {}, menuOnly: true, menu: [20, 50, 100, 200, 500, 1000].map((k) => ({ label: `1:${k}`, title: `Viewport at 1:${k}`, onClick: () => a.cad?.onLayoutCmd?.(`VPSCALE ${k}`) })) }),
         sm({ label: 'Lock', icon: Lock, cmd: 'VPLOCK', title: 'Lock or unlock the viewport picked: locked, pan and zoom inside it leave its view alone (VPLOCK)', onClick: () => a.cad?.onLayoutCmd?.('VPLOCK'), active: a.cad?.vpLocked })
       ],

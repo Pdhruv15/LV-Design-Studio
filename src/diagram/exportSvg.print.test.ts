@@ -16,4 +16,18 @@ describe('printed SLD colours', () => {
     expect(doc.querySelector('.cable-ref-c')?.getAttribute('style')).toContain('stroke:#000000');
     expect(doc.querySelector('.other')?.getAttribute('style')).toContain('stroke:rgb(1, 2, 3)');
   });
+
+  it('drops the check-status dots and prints failing circuits black', () => {
+    document.body.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg">
+      <circle class="status-dot" r="4" style="fill: rgb(46, 204, 113)"/>
+      <line class="ln bad" x2="10" style="stroke: rgb(255, 93, 108)"/>
+      <circle class="load warn" r="18" style="stroke: rgb(255, 180, 0); fill: rgb(255, 255, 255)"/>
+      <g class="icon bad"><path d="M0 0 H5" style="stroke: rgb(255, 93, 108); fill: rgb(255, 93, 108)"/></g></svg>`;
+    const out = printableSvg(document.querySelector('svg')!, 100, 50);
+    const doc = new DOMParser().parseFromString(out, 'image/svg+xml');
+    expect(doc.querySelector('.status-dot')).toBeNull();
+    expect(doc.querySelector('.ln')?.getAttribute('style')).toContain('stroke:#000000');
+    expect(doc.querySelector('.load')?.getAttribute('style')).toContain('stroke:#000000');
+    expect(doc.querySelector('.icon path')?.getAttribute('style')).toMatch(/stroke:#000000.*fill:#000000/);
+  });
 });

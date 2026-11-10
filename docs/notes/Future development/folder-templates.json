@@ -1,0 +1,817 @@
+{
+  "format": "lv-folder-templates",
+  "formatVersion": 1,
+  "templates": [
+    {
+      "id": "consultant-full",
+      "name": "Electrical consultant full",
+      "version": 1,
+      "builtIn": true,
+      "layout": "discipline",
+      "root": "{ProjectNo}_{ProjectShort}",
+      "numbering": "01_",
+      "naming": {
+        "preset": "office",
+        "pattern": "{ProjectNo}-{Discipline}-{Type}-{Seq:3}-{Rev}",
+        "separator": "-",
+        "discipline": "E"
+      },
+      "folders": [
+        {
+          "id": "cf.admin",
+          "name": "01_Admin",
+          "children": [
+            {
+              "id": "cf.admin.programme",
+              "name": "01_Programme",
+              "role": "programme"
+            },
+            {
+              "id": "cf.admin.minutes",
+              "name": "02_Minutes",
+              "role": "minutes"
+            },
+            {
+              "id": "cf.admin.timesheets",
+              "name": "03_Timesheets",
+              "role": "timesheets"
+            }
+          ]
+        },
+        {
+          "id": "cf.received",
+          "name": "02_Received",
+          "children": [
+            {
+              "id": "cf.received.architect",
+              "name": "01_Architect",
+              "role": "receivedArch"
+            },
+            {
+              "id": "cf.received.datasheets",
+              "name": "02_Datasheets",
+              "role": "datasheets"
+            }
+          ]
+        },
+        {
+          "id": "cf.project-file",
+          "name": "03_Project_File",
+          "role": "projectFile",
+          "children": [
+            {
+              "id": "cf.project-file.backups",
+              "name": "Backups",
+              "role": "backups"
+            }
+          ]
+        },
+        {
+          "id": "cf.cad",
+          "name": "04_CAD",
+          "children": [
+            {
+              "id": "cf.cad.working",
+              "name": "01_Working",
+              "role": "cadWorking"
+            },
+            {
+              "id": "cf.cad.xrefs",
+              "name": "02_Xrefs",
+              "role": "xrefs"
+            },
+            {
+              "id": "cf.cad.title-blocks",
+              "name": "03_Title_Blocks",
+              "role": "titleBlocks"
+            }
+          ]
+        },
+        {
+          "id": "cf.calcs",
+          "name": "05_Calcs",
+          "children": [
+            {
+              "id": "cf.calcs.load",
+              "name": "01_Load",
+              "role": "calcLoad"
+            },
+            {
+              "id": "cf.calcs.volt-drop",
+              "name": "02_Volt_Drop",
+              "role": "calcVd"
+            },
+            {
+              "id": "cf.calcs.fault",
+              "name": "03_Fault",
+              "role": "calcFault"
+            },
+            {
+              "id": "cf.calcs.cable-sizing",
+              "name": "04_Cable_Sizing",
+              "role": "calcCable"
+            },
+            {
+              "id": "cf.calcs.earthing",
+              "name": "05_Earthing",
+              "role": "calcEarthing"
+            },
+            {
+              "id": "cf.calcs.lighting",
+              "name": "06_Lighting",
+              "role": "calcLighting"
+            },
+            {
+              "id": "cf.calcs.pv",
+              "name": "07_PV",
+              "role": "calcPv",
+              "when": "scope:pv"
+            },
+            {
+              "id": "cf.calcs.standby",
+              "name": "08_Standby",
+              "role": "calcStandby",
+              "when": "scope:standby"
+            },
+            {
+              "id": "cf.calcs.study-reports",
+              "name": "09_Study_Reports",
+              "role": "studyReports"
+            }
+          ]
+        },
+        {
+          "id": "cf.drawings",
+          "name": "06_Drawings",
+          "children": [
+            {
+              "id": "cf.drawings.wip",
+              "name": "01_WIP",
+              "role": "drawingsWip"
+            },
+            {
+              "id": "cf.drawings.issued",
+              "name": "02_Issued",
+              "role": "drawingsIssued",
+              "onUse": "{Stage}/Rev-{Rev}"
+            },
+            {
+              "id": "cf.drawings.superseded",
+              "name": "03_Superseded",
+              "role": "drawingsSuperseded"
+            },
+            {
+              "id": "cf.drawings.elv",
+              "name": "04_ELV",
+              "when": "scope:elv"
+            }
+          ]
+        },
+        {
+          "id": "cf.schedules",
+          "name": "07_Schedules",
+          "children": [
+            {
+              "id": "cf.schedules.load-schedules",
+              "name": "01_Load_Schedules",
+              "role": "loadSchedules"
+            },
+            {
+              "id": "cf.schedules.cable-schedule",
+              "name": "02_Cable_Schedule",
+              "role": "cableSchedule"
+            },
+            {
+              "id": "cf.schedules.equipment",
+              "name": "03_Equipment",
+              "role": "equipmentSchedule"
+            },
+            {
+              "id": "cf.schedules.luminaires",
+              "name": "04_Luminaires",
+              "role": "luminaireSchedule"
+            }
+          ]
+        },
+        {
+          "id": "cf.specs",
+          "name": "08_Specs",
+          "role": "specs"
+        },
+        {
+          "id": "cf.boq-cost",
+          "name": "09_BOQ_Cost",
+          "children": [
+            {
+              "id": "cf.boq-cost.boq",
+              "name": "01_BOQ",
+              "role": "boq",
+              "onUse": "Rev-{BoqRev}"
+            },
+            {
+              "id": "cf.boq-cost.estimates",
+              "name": "02_Estimates",
+              "role": "costEstimates"
+            },
+            {
+              "id": "cf.boq-cost.quotes",
+              "name": "03_Quotes",
+              "role": "quotes"
+            }
+          ]
+        },
+        {
+          "id": "cf.authority",
+          "name": "10_Authority",
+          "children": [
+            {
+              "id": "cf.authority.dewa",
+              "name": "01_DEWA",
+              "role": "authDewa"
+            },
+            {
+              "id": "cf.authority.dm",
+              "name": "02_DM",
+              "role": "authDm"
+            },
+            {
+              "id": "cf.authority.civil-defence",
+              "name": "03_Civil_Defence",
+              "role": "authCd",
+              "when": "scope:fire"
+            },
+            {
+              "id": "cf.authority.responses",
+              "name": "04_Responses",
+              "role": "submissionResponses"
+            }
+          ]
+        },
+        {
+          "id": "cf.transmittals",
+          "name": "11_Transmittals",
+          "role": "transmittals",
+          "onUse": "TR-{TrNo}"
+        },
+        {
+          "id": "cf.review",
+          "name": "12_Review",
+          "children": [
+            {
+              "id": "cf.review.internal",
+              "name": "01_Internal",
+              "role": "internalReview"
+            },
+            {
+              "id": "cf.review.crs",
+              "name": "02_CRS",
+              "role": "crs"
+            }
+          ]
+        },
+        {
+          "id": "cf.tender",
+          "name": "13_Tender",
+          "when": "stage:tender",
+          "children": [
+            {
+              "id": "cf.tender.issued",
+              "name": "01_Issued",
+              "role": "tenderIssued"
+            },
+            {
+              "id": "cf.tender.bids",
+              "name": "02_Bids",
+              "role": "bids"
+            },
+            {
+              "id": "cf.tender.evaluation",
+              "name": "03_Evaluation",
+              "role": "tenderEvaluation"
+            }
+          ]
+        },
+        {
+          "id": "cf.construction",
+          "name": "14_Construction",
+          "when": "service:supervision",
+          "children": [
+            {
+              "id": "cf.construction.shop-drawings",
+              "name": "01_Shop_Drawings",
+              "role": "shopDrawings"
+            },
+            {
+              "id": "cf.construction.material-submittals",
+              "name": "02_Material_Submittals",
+              "role": "materialSubmittals"
+            },
+            {
+              "id": "cf.construction.rfis",
+              "name": "03_RFIs",
+              "role": "rfis"
+            },
+            {
+              "id": "cf.construction.site-inspections",
+              "name": "04_Site_Inspections",
+              "role": "siteInspections"
+            },
+            {
+              "id": "cf.construction.snags",
+              "name": "05_Snags",
+              "role": "snags"
+            },
+            {
+              "id": "cf.construction.variations",
+              "name": "06_Variations",
+              "role": "variations"
+            },
+            {
+              "id": "cf.construction.valuations",
+              "name": "07_Valuations",
+              "role": "valuations"
+            },
+            {
+              "id": "cf.construction.test-records",
+              "name": "08_Test_Records",
+              "role": "testRecords"
+            },
+            {
+              "id": "cf.construction.as-built",
+              "name": "09_As_Built",
+              "role": "asBuilt"
+            }
+          ]
+        },
+        {
+          "id": "cf.archive",
+          "name": "15_Archive",
+          "role": "archive"
+        }
+      ]
+    },
+    {
+      "id": "villa-small",
+      "name": "Villa / small building",
+      "version": 1,
+      "builtIn": true,
+      "layout": "flat",
+      "root": "{ProjectNo}_{ProjectShort}",
+      "numbering": "01_",
+      "naming": {
+        "preset": "simple",
+        "pattern": "{ProjectShort}_{Type}_{Rev}",
+        "separator": "_"
+      },
+      "folders": [
+        {
+          "id": "vs.admin",
+          "name": "01_Admin",
+          "roles": [
+            "programme",
+            "minutes",
+            "timesheets"
+          ]
+        },
+        {
+          "id": "vs.received",
+          "name": "02_Received",
+          "roles": [
+            "receivedArch",
+            "datasheets"
+          ]
+        },
+        {
+          "id": "vs.calcs",
+          "name": "03_Calcs",
+          "roles": [
+            "calcLoad",
+            "calcVd",
+            "calcFault",
+            "calcCable",
+            "calcEarthing",
+            "calcLighting",
+            "calcPv",
+            "calcStandby",
+            "studyReports"
+          ]
+        },
+        {
+          "id": "vs.drawings",
+          "name": "04_Drawings",
+          "roles": [
+            "drawingsWip",
+            "cadWorking",
+            "xrefs",
+            "titleBlocks"
+          ],
+          "children": [
+            {
+              "id": "vs.drawings.issued",
+              "name": "Issued",
+              "role": "drawingsIssued",
+              "onUse": "Rev-{Rev}"
+            },
+            {
+              "id": "vs.drawings.superseded",
+              "name": "Superseded",
+              "role": "drawingsSuperseded"
+            }
+          ]
+        },
+        {
+          "id": "vs.schedules",
+          "name": "05_Schedules",
+          "roles": [
+            "loadSchedules",
+            "cableSchedule",
+            "equipmentSchedule",
+            "luminaireSchedule"
+          ]
+        },
+        {
+          "id": "vs.boq",
+          "name": "06_BOQ",
+          "roles": [
+            "boq",
+            "costEstimates",
+            "quotes",
+            "specs"
+          ]
+        },
+        {
+          "id": "vs.dewa",
+          "name": "07_DEWA",
+          "roles": [
+            "authDewa",
+            "authDm",
+            "authCd",
+            "submissionResponses"
+          ]
+        },
+        {
+          "id": "vs.transmittals",
+          "name": "08_Transmittals",
+          "role": "transmittals",
+          "onUse": "TR-{TrNo}"
+        },
+        {
+          "id": "vs.project-file",
+          "name": "09_Project_File",
+          "roles": [
+            "projectFile",
+            "backups"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "contractor-shop",
+      "name": "Contractor shop drawings",
+      "version": 1,
+      "builtIn": true,
+      "layout": "discipline",
+      "root": "{ProjectNo}_{ProjectShort}",
+      "numbering": "01_",
+      "naming": {
+        "preset": "office",
+        "pattern": "{ProjectNo}-{Discipline}-{Type}-{Seq:3}-{Rev}",
+        "separator": "-",
+        "discipline": "E"
+      },
+      "folders": [
+        {
+          "id": "cs.contract-docs",
+          "name": "01_Contract_Docs",
+          "roles": [
+            "receivedArch",
+            "specs",
+            "boq"
+          ]
+        },
+        {
+          "id": "cs.shop-drawings",
+          "name": "02_Shop_Drawings",
+          "roles": [
+            "shopDrawings",
+            "drawingsWip",
+            "cadWorking"
+          ],
+          "children": [
+            {
+              "id": "cs.shop-drawings.issued",
+              "name": "Issued",
+              "role": "drawingsIssued",
+              "onUse": "{YYYYMMDD}_Rev{Rev}"
+            },
+            {
+              "id": "cs.shop-drawings.superseded",
+              "name": "Superseded",
+              "role": "drawingsSuperseded"
+            }
+          ]
+        },
+        {
+          "id": "cs.calcs",
+          "name": "03_Calcs",
+          "roles": [
+            "calcLoad",
+            "calcVd",
+            "calcFault",
+            "calcCable",
+            "calcEarthing",
+            "calcLighting",
+            "studyReports"
+          ]
+        },
+        {
+          "id": "cs.material-submittals",
+          "name": "04_Material_Submittals",
+          "roles": [
+            "materialSubmittals",
+            "datasheets"
+          ]
+        },
+        {
+          "id": "cs.rfis",
+          "name": "05_RFIs",
+          "role": "rfis"
+        },
+        {
+          "id": "cs.transmittals",
+          "name": "06_Transmittals",
+          "role": "transmittals",
+          "onUse": "TR-{TrNo}"
+        },
+        {
+          "id": "cs.inspections",
+          "name": "07_Inspections",
+          "roles": [
+            "siteInspections",
+            "snags",
+            "testRecords"
+          ]
+        },
+        {
+          "id": "cs.as-built",
+          "name": "08_As_Built",
+          "role": "asBuilt"
+        },
+        {
+          "id": "cs.variations",
+          "name": "09_Variations",
+          "roles": [
+            "variations",
+            "valuations"
+          ]
+        },
+        {
+          "id": "cs.admin",
+          "name": "10_Admin",
+          "roles": [
+            "programme",
+            "minutes",
+            "timesheets",
+            "projectFile",
+            "backups"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "iso19650",
+      "name": "ISO 19650",
+      "version": 1,
+      "builtIn": true,
+      "layout": "iso19650",
+      "root": "{ProjectNo}_{ProjectShort}",
+      "numbering": "none",
+      "naming": {
+        "preset": "iso19650",
+        "pattern": "{Project}-{Originator}-{Volume}-{Level}-{Type}-{Role}-{Number}",
+        "separator": "-",
+        "discipline": "E"
+      },
+      "folders": [
+        {
+          "id": "iso.wip",
+          "name": "00_WIP",
+          "children": [
+            {
+              "id": "iso.wip.electrical",
+              "name": "E-Electrical",
+              "roles": [
+                "cadWorking",
+                "drawingsWip",
+                "calcLoad",
+                "calcVd",
+                "calcFault",
+                "calcCable",
+                "calcEarthing",
+                "calcLighting",
+                "calcPv",
+                "calcStandby",
+                "loadSchedules",
+                "cableSchedule",
+                "projectFile"
+              ]
+            },
+            {
+              "id": "iso.wip.architectural",
+              "name": "A-Architectural"
+            },
+            {
+              "id": "iso.wip.mechanical",
+              "name": "M-Mechanical"
+            },
+            {
+              "id": "iso.wip.structural",
+              "name": "S-Structural"
+            }
+          ]
+        },
+        {
+          "id": "iso.shared",
+          "name": "01_SHARED",
+          "children": [
+            {
+              "id": "iso.shared.electrical",
+              "name": "E-Electrical",
+              "roles": [
+                "internalReview",
+                "crs"
+              ]
+            },
+            {
+              "id": "iso.shared.architectural",
+              "name": "A-Architectural",
+              "role": "receivedArch"
+            },
+            {
+              "id": "iso.shared.mechanical",
+              "name": "M-Mechanical"
+            },
+            {
+              "id": "iso.shared.structural",
+              "name": "S-Structural"
+            }
+          ]
+        },
+        {
+          "id": "iso.published",
+          "name": "02_PUBLISHED",
+          "children": [
+            {
+              "id": "iso.published.electrical",
+              "name": "E-Electrical",
+              "roles": [
+                "drawingsIssued",
+                "studyReports",
+                "transmittals"
+              ],
+              "onUse": "{Stage}/Rev-{Rev}"
+            },
+            {
+              "id": "iso.published.architectural",
+              "name": "A-Architectural"
+            },
+            {
+              "id": "iso.published.mechanical",
+              "name": "M-Mechanical"
+            },
+            {
+              "id": "iso.published.structural",
+              "name": "S-Structural"
+            }
+          ]
+        },
+        {
+          "id": "iso.archive",
+          "name": "03_ARCHIVE",
+          "children": [
+            {
+              "id": "iso.archive.electrical",
+              "name": "E-Electrical",
+              "roles": [
+                "drawingsSuperseded",
+                "archive"
+              ]
+            },
+            {
+              "id": "iso.archive.architectural",
+              "name": "A-Architectural"
+            },
+            {
+              "id": "iso.archive.mechanical",
+              "name": "M-Mechanical"
+            },
+            {
+              "id": "iso.archive.structural",
+              "name": "S-Structural"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "multi-building",
+      "name": "Multi-building",
+      "version": 1,
+      "builtIn": true,
+      "layout": "building",
+      "root": "{ProjectNo}_{ProjectShort}",
+      "numbering": "none",
+      "repeat": {
+        "source": "buildings",
+        "name": "{BuildingCode}_{BuildingName}",
+        "shared": [
+          "mb.common"
+        ]
+      },
+      "naming": {
+        "preset": "office",
+        "pattern": "{ProjectNo}-{Discipline}-{Type}-{Seq:3}-{Rev}",
+        "separator": "-",
+        "discipline": "E"
+      },
+      "folders": [
+        {
+          "id": "mb.common",
+          "name": "00_Common",
+          "children": [
+            {
+              "id": "mb.common.admin",
+              "name": "Admin",
+              "roles": [
+                "programme",
+                "minutes",
+                "timesheets",
+                "projectFile",
+                "backups"
+              ]
+            },
+            {
+              "id": "mb.common.dewa",
+              "name": "DEWA",
+              "roles": [
+                "authDewa",
+                "authDm",
+                "authCd",
+                "submissionResponses"
+              ]
+            },
+            {
+              "id": "mb.common.transmittals",
+              "name": "Transmittals",
+              "role": "transmittals",
+              "onUse": "TR-{TrNo}"
+            }
+          ]
+        },
+        {
+          "id": "mb.buildingcode-buildingname",
+          "name": "{BuildingCode}_{BuildingName}",
+          "when": "building:each",
+          "children": [
+            {
+              "id": "mb.buildingcode-buildingname.calcs",
+              "name": "Calcs",
+              "roles": [
+                "calcLoad",
+                "calcVd",
+                "calcFault",
+                "calcCable",
+                "calcEarthing",
+                "calcLighting"
+              ]
+            },
+            {
+              "id": "mb.buildingcode-buildingname.drawings",
+              "name": "Drawings",
+              "roles": [
+                "cadWorking",
+                "drawingsWip",
+                "drawingsIssued"
+              ]
+            },
+            {
+              "id": "mb.buildingcode-buildingname.schedules",
+              "name": "Schedules",
+              "roles": [
+                "loadSchedules",
+                "cableSchedule",
+                "equipmentSchedule",
+                "luminaireSchedule"
+              ]
+            },
+            {
+              "id": "mb.buildingcode-buildingname.boq",
+              "name": "BOQ",
+              "role": "boq"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

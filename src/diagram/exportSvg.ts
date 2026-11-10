@@ -5,13 +5,15 @@ import { withPrintTheme } from '../theme/theme';
 export { pathPoints } from './svgPath';
 
 /** The SLD for printing and CAD: the live diagram copied with its computed
- * styles written in, dark-theme colours turned into black-on-white (status
- * and heat colours kept), and interactive-only parts removed. */
+ * styles written in, dark-theme colours turned into black-on-white (heat
+ * colours kept), and on-screen-only parts such as the check-status dots removed. */
 
 const STYLE_PROPS = ['stroke', 'stroke-width', 'stroke-dasharray', 'fill', 'opacity', 'font-size', 'font-weight', 'font-family', 'text-anchor', 'display', 'writing-mode'];
-const DROP = '.bus-hit, .sel-ring, title, .grid-bg';
-/** Marks in the red status colour on screen that print black, like the rest of the drawing. */
-const PRINT_BLACK = '.rev-cloud path, .cable-ref-c';
+const DROP = '.bus-hit, .sel-ring, title, .grid-bg, .status-dot';
+/** Marks in a status colour on screen (revision clouds, cable references, circuits that
+ * fail a check) that print black, like the rest of the drawing. */
+const PRINT_BLACK = '.rev-cloud path, .cable-ref-c, .ln.warn, .ln.bad, .load.warn, .load.bad, .icon.warn *, .icon.bad *';
+const KEEP_FILL = new Set(['none', '#ffffff', 'rgba(0, 0, 0, 0)']);
 
 /** Theme colour (rgb string) → print colour. */
 function printPalette(): Map<string, string> {
@@ -49,6 +51,7 @@ function printableSvgDark(live: SVGSVGElement, width: number, height: number): s
       if (!v) return '';
       if (p === 'stroke' || p === 'fill') v = palette.get(v) ?? v;
       if (p === 'stroke' && black) v = '#000000';
+      if (p === 'fill' && black && !KEEP_FILL.has(v)) v = '#000000';
       if (p === 'font-family') v = 'Arial, Helvetica, sans-serif';
       return `${p}:${v}`;
     }).filter(Boolean).join(';');

@@ -37,9 +37,21 @@ export function drawnTitleBlockDxf(template: TitleTemplate, project: Project, bo
     const width = value.length * x.h * DRAWN_CHAR;
     attribs.push({ tag, value, x: box.x + base.x * scale, y: box.y + base.y * scale, height: +(cap * scale).toFixed(3), align: x.align, ...(x.rot ? { rotation: x.rot } : {}), ...(x.fit && width > x.fit ? {} : {}) });
   });
+  const warnings: string[] = [];
+  const lg = template.logo;
+  if (lg) {
+    // No image in the DWG: the LOGO attribute shows the company name in the area, for the CAD team to put their logo over.
+    const value = fillParams('{Company}', project, extra, list);
+    const svgH = Math.max(1, Math.min(3.5, lg.h * 0.5, (lg.w - 2) / Math.max(1, value.length * DRAWN_CHAR)));
+    const cap = +(svgH * 0.72).toFixed(3), x = lg.x + lg.w / 2, y = Y(lg.y + lg.h / 2 + svgH / 2);
+    let tag = 'LOGO'; while (tags.has(tag)) tag = `${tag}_`;
+    attdefs.push({ tag, prompt: 'Logo (the company name; place the logo image here)', value: '{Company}', x, y, height: cap, align: 'center' });
+    attribs.push({ tag, value, x: box.x + x * scale, y: box.y + y * scale, height: +(cap * scale).toFixed(3), align: 'center' });
+    if (isRasterDataUrl(project.drawing?.logo)) warnings.push('DXF shows the company name in the logo area; the logo image prints in the PDF.');
+  }
   const name = dxfBlockName(`TB_${template.name}`);
   const insert: DxfPrimitive = { type: 'insert', layer: 'E-TITLE', name, x: box.x, y: box.y, scale, block: { name, items, attdefs }, attribs, extent: [[box.x, box.y], [box.x + w * scale, box.y + h * scale]] };
-  return { items: [insert], warnings: [], details: [] };
+  return { items: [insert], warnings, details: [] };
 }
 
 /** Custom grids remain editable CAD geometry, including merged cells. */
