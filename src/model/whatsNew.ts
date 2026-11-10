@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.072', date: '2026-11-10',
+    items: [
+      { title: 'Output tab works in model space', text: 'Design CAD → Output no longer waits for a layout or sheet. With a drawing open in model space, Plot and PDF save the drawing\'s view as a black-and-white PDF, DXF and DWG open Save As, and Publish publishes the drawing\'s layouts. Pen tables opens from anywhere. On a layout tab, Plot opens the Plot dialog with its page setup. Preview still needs a layout or sheet.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.068', date: '2026-11-10',
     items: [
       { title: 'Copy and paste drawn objects between drawings', text: 'Design CAD: pick drawn objects and press Ctrl+C (COPYCLIP), or Ctrl+Shift+C (COPYBASE) to click a base point first. Ctrl+V (PASTECLIP) brings them in another drawing tab or level, following the cursor to the point you click; PASTEORIG puts them at the same coordinates in another drawing, for a typical floor on the next level. Lengths are converted between mm and m drawings, a layer the drawing lacks is added with its colour, linetype and lineweight, and each paste is one undo step. Right-click → Clipboard ▸ has the same four. Trays and cable routes keep their data only in their own drawing; elsewhere they paste as polylines. Devices are not copied.', action: 'cad', actionLabel: 'Open Design CAD' }

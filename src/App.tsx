@@ -1290,7 +1290,7 @@ export default function App() {
               const here = planLevel(project, cadS.view?.file).floor;
               return view === 'cad' && here ? plansOf(project).filter((x) => x.floor.key !== here.key).map((x) => ({ label: x.label, title: `Copy to ${x.label}`, onClick: () => cadDo((a) => a.copyTo(x.floor.key)) })) : [];
             })() },
-          output: { onPlot: () => setOutputDlg('plot'), onSetups: () => setOutputDlg('setups'), onPrinters: () => setOutputDlg('printers'), onBatch: () => setOutputDlg('batch'), onRegister: () => setOutputDlg('register') },
+          output: { onPlot: () => setOutputDlg('plot'), onSetups: () => setOutputDlg('setups'), onPrinters: () => setOutputDlg('printers'), onPens: () => setOutputDlg('pens'), onBatch: () => setOutputDlg('batch'), onRegister: () => setOutputDlg('register') },
           onProfile: () => setShowPrefs(true),
           onChooseFolder: chooseFolder,
           folderLabel: hasBridge ? `Folder: ${projectsFolder.split(/[\\/]/).pop() || 'choose…'}` : 'This browser',
