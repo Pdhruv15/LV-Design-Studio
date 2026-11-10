@@ -1,6 +1,6 @@
 # Title block templates — what can be customised today, and a proposal — 2026-11-02
 
-Status: **A (import and map a company DWG / DXF block, written back as a block with attributes) built in v2.066 (2026-11-09, see [[UI UX proposals - 2026-11-09 - Sheet furniture, legends and title block frames]]); B (Edit in CAD) built in v2.067 (2026-11-10); D4 (whole border) mocked up on 2026-11-10 in [[UI UX proposals - 2026-11-09 - Sheet furniture, legends and title block frames]] (docs/mockups/sheet-border-legend-table-logo-mockup.html) and built in v2.068 (2026-11-10): one border per paper through Project → Title block → Whole border / Use on A3 sheets.**
+Status: **A (import and map a company DWG / DXF block, written back as a block with attributes) built in v2.066 (2026-11-09, see [[UI UX proposals - 2026-11-09 - Sheet furniture, legends and title block frames]]); B (Edit in CAD) built in v2.067 (2026-11-10); D4 (whole border) mocked up on 2026-11-10 in [[UI UX proposals - 2026-11-09 - Sheet furniture, legends and title block frames]] (docs/mockups/sheet-border-legend-table-logo-mockup.html) and built in v2.069 (2026-11-10): one border per paper through Project → Title block → Whole border / Use on A3 sheets.**
 
 Mockup: `docs/mockups/title-block-templates-mockup.html` (three views: import and map a company DWG/DXF block, edit a block in Design CAD, the block on a printed sheet).
 
