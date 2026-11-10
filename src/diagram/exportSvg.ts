@@ -8,7 +8,8 @@ export { pathPoints } from './svgPath';
  * styles written in, dark-theme colours turned into black-on-white (heat
  * colours kept), and on-screen-only parts such as the check-status dots removed. */
 
-const STYLE_PROPS = ['stroke', 'stroke-width', 'stroke-dasharray', 'fill', 'opacity', 'font-size', 'font-weight', 'font-family', 'text-anchor', 'display', 'writing-mode'];
+// paint-order keeps a result label's white halo behind its text, not painted over it.
+const STYLE_PROPS = ['stroke', 'stroke-width', 'stroke-dasharray', 'stroke-linejoin', 'paint-order', 'fill', 'opacity', 'font-size', 'font-weight', 'font-family', 'text-anchor', 'display', 'writing-mode'];
 const DROP = '.bus-hit, .sel-ring, title, .grid-bg, .status-dot';
 /** Marks in a status colour on screen (revision clouds, cable references, circuits that
  * fail a check) that print black, like the rest of the drawing. */
@@ -17,6 +18,8 @@ const PRINT_BLACK = '.rev-cloud path, .cable-ref-c, .ln.warn, .ln.bad, .load.war
  * within the limit, heavy over it. */
 const HEAT_OK = '.heat:not(.heat-over)';
 const HEAVY = (el: Element) => (el.matches('.bus') ? '7px' : '3.5px');
+/** Result labels (current, loading, fault…) in status or result colours on screen print as black text. */
+const BLACK_TEXT = 'text.res:not(.m), tspan.res';
 const KEEP_FILL = new Set(['none', '#ffffff', 'rgba(0, 0, 0, 0)']);
 
 /** Theme colour (rgb string) → print colour. */
@@ -60,6 +63,7 @@ function printableSvgDark(live: SVGSVGElement, width: number, height: number): s
       if (p === 'stroke' && black) v = '#000000';
       if (p === 'stroke-width' && el.matches('.heat-over')) v = HEAVY(el);
       if (p === 'fill' && black && !KEEP_FILL.has(v)) v = '#000000';
+      if (p === 'fill' && el.matches(BLACK_TEXT)) v = '#000000';
       if (p === 'font-family') v = 'Arial, Helvetica, sans-serif';
       return `${p}:${v}`;
     }).filter(Boolean).join(';');

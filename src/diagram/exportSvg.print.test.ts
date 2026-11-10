@@ -46,4 +46,14 @@ describe('printed SLD colours', () => {
     expect(style('.over-feeder')).toMatch(/stroke:#000000.*stroke-width:3.5px/);
     expect(style('.bus')).toMatch(/stroke:#000000.*stroke-width:7px/);
   });
+
+  it('prints result labels as black text with the halo behind them', () => {
+    document.body.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg">
+      <text class="res ok" style="fill: rgb(46, 204, 113); stroke: rgb(255, 255, 255); stroke-width: 3px; paint-order: stroke">63 A</text></svg>`;
+    const out = printableSvg(document.querySelector('svg')!, 100, 50);
+    const style = new DOMParser().parseFromString(out, 'image/svg+xml').querySelector('text')?.getAttribute('style') ?? '';
+    expect(style).toContain('fill:#000000');
+    expect(style).toContain('paint-order:stroke');
+    expect(style).toContain('stroke:rgb(255, 255, 255)');
+  });
 });
