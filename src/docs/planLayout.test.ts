@@ -6,7 +6,7 @@ import { wireLevel } from '../model/cadWiring';
 import { dropRefGeometry, keepRefGeometry } from '../model/cadRefs';
 import { issueSheets, renumber, setOf, sheetChecks, sheetHash, sheetType, type DrawingSheet, type PlanType } from '../model/drawingSet';
 import type { Project, SketchItem } from '../types';
-import { addPlanSheets, drawingAreaMm, drawnTextMm, layoutPaper, layoutViewports, planDrawing, planLevels, planNotes, planScale } from './planLayout';
+import { addPlanSheets, drawingAreaMm, drawnTextMm, layoutPaper, layoutViewports, planDrawing, planLegendLabels, planLevels, planNotes, planScale } from './planLayout';
 import type { PlanViewport } from '../model/planViewports';
 import { buildSheetDxfPages } from './sheetDxf';
 import { buildSldSheetHtml } from './sldSheet';
@@ -255,6 +255,36 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
       expect(through.svg).toContain('data-vp="vp1"');
       expect(through.svg).toContain('SCALE 1:100 AT A3');
       expect(through.legendSvg).toBe(before.legendSvg);
+    });
+
+    it('legend and notes tables placed on the layout: drawn at their place from the sheet\'s rows and notes; the column legend goes', () => {
+      const p = villa(), [s] = sheetOf(p).sheets;
+      const plain = planDrawing(p, s)!;
+      expect(plain.tables).toBeUndefined();
+      expect(plain.legendOff).toBeFalsy();
+      expect(planLegendLabels(p, s)).toEqual(plain.labels);
+      expect(plain.labels).toContain('Light');
+      const withTables: DrawingSheet = { ...s, tables: [{ id: 'tb1', kind: 'legend', at: [200, 10], widthMm: 92 }, { id: 'tb2', kind: 'notes', at: [200, 120], widthMm: 120, textMm: 3.5, title: 'GENERAL NOTES' }] };
+      const d = planDrawing(p, withTables)!;
+      expect(d.legendOff).toBe(true);
+      expect(d.legendSvg).toBe(plain.legendSvg); // still drawn; the sheet leaves it out
+      expect(d.tables).toHaveLength(2);
+      const [lg, nt] = d.tables!;
+      expect(lg).toMatchObject({ id: 'tb1', kind: 'legend', x: 200, y: 10, w: 92 });
+      expect(lg.svg).toContain('LEGEND · LIGHTING LAYOUT');
+      expect(lg.svg).toContain('font-size="2.5">Light</text>');
+      expect(lg.svg).toMatch(/width="92mm" height="[\d.]+mm" data-h="[\d.]+"/);
+      expect(lg.h).toBeGreaterThan(10);
+      expect(nt).toMatchObject({ kind: 'notes', x: 200, y: 120, w: 120 });
+      expect(nt.svg).toContain('GENERAL NOTES');
+      expect(nt.svg).toContain('font-size="3.5">1. ');
+      expect(nt.svg).toContain('Design stage layout'); // the plan's own notes
+      // Rows hidden and added, two columns, a title of its own.
+      const t2 = planDrawing(p, { ...s, tables: [{ id: 'tb1', kind: 'legend', at: [0, 0], widthMm: 150, cols: 2, hidden: ['Light'], extra: ['Existing fitting, to remain'], title: 'KEY' }] })!.tables![0];
+      expect(t2.svg).not.toContain('>Light<');
+      expect(t2.svg).toContain('>Existing fitting, to remain<');
+      expect(t2.svg).toContain('>KEY<');
+      expect(t2.svg).toContain('translate(77 0)'); // the second column starts at half the width, plus the padding
     });
 
     it('a second viewport shows a key plan at 1:500; one can show another plan type, freeze a layer and print its frame', () => {

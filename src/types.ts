@@ -499,6 +499,8 @@ export interface Project {
   elv?: import('./elv/estimate').ElvSettings;
   /** ELV devices placed on the floor plans (src/elv/placed.ts), and the highest device number given out. */
   elvDevices?: import('./elv/placed').ElvDevice[];
+  /** The project folder: a copy of its folder template and the project's own changes (src/model/folderTemplates.ts). */
+  folder?: import('./model/folderTemplates').ProjectFolder;
   elvDeviceSeq?: number;
   /** Remarks typed on the ELV schedules, by schedule and row (src/elv/outputs.ts). */
   elvRemarks?: Record<string, string>;
@@ -1000,6 +1002,7 @@ export interface DrawingInfo {
   logo?: string; // company logo (data: URL) in the title block and on report covers
   titleTemplateId?: string; // a custom title block (else the standard one)
   titleTemplateByKind?: Partial<Record<import('./model/titleBlock').TemplateKind, string>>; // a different block for a kind of sheet (STANDARD_BLOCK = the standard one; blank = titleTemplateId)
+  borderByPaper?: Partial<Record<import('./model/titleBlock').Paper, string>>; // a drawn template that is the whole border of this paper's sheets (src/model/titleBlock.ts Border)
   notes?: string[]; // text notes on the SLD sheet; {Parameters} are filled in
   abbreviations?: boolean;
   sldStyle?: 'standard' | 'dewa'; // default DEWA submission style (blank or 'dewa'): panel frames, summary boxes (LOC, TCL, DF, MDL), DEWA wording // abbreviations table on the sheets (default on)

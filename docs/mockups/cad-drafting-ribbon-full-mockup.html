@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Drafting ribbon full width mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite dark */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--new:#b784ff;--ic:#D5DAE0;--lbl:#9EC3FF}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.35 -apple-system,"Segoe UI",system-ui,sans-serif;width:1952px;padding:16px 20px}
+h1{font-size:17px;margin:0 0 4px}
+p.lead{margin:0 0 10px;color:var(--mut)}
+.legend{color:var(--mut);font-size:12px;margin:0 0 8px}
+.legend i{display:inline-block;width:12px;height:12px;border:1.5px dashed var(--new);border-radius:3px;vertical-align:-2px;margin:0 5px 0 14px}
+.frame{border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;background:var(--panel);width:1912px}
+.tabs{display:flex;gap:4px;padding:6px 12px 0}
+.tabs span{padding:4px 14px;border-radius:6px 6px 0 0;color:var(--mut);font-size:12px}
+.tabs span.on{background:var(--acc);color:#1D2024;font-weight:600}
+.sub{display:flex;gap:2px;padding:0 12px;background:var(--p2);border-top:1px solid var(--line)}
+.sub span{padding:4px 12px;font-size:12px;color:var(--mut);border-bottom:2px solid transparent}
+.sub span.on{color:var(--tx);border-bottom-color:var(--acc)}
+.tools{display:flex;align-items:stretch;padding:5px 2px 3px;background:#1B1D21;border-top:1px solid var(--line);height:112px}
+.grp{display:flex;flex-direction:column;padding:0 4px;border-right:1px solid var(--line)}
+.grp:last-child{border-right:0}
+.btns{display:flex;gap:2px;flex:1;align-items:flex-start}
+.cap{font-size:11px;color:var(--mut);text-align:center;white-space:nowrap;padding-top:2px}
+.big{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:4px;min-width:50px;height:78px;padding:8px 4px 0;border-radius:5px;font-size:11px;white-space:nowrap;color:var(--lbl);text-align:center;line-height:1.15}
+.big svg{width:26px;height:26px}
+.col{display:flex;flex-direction:column;gap:1px}
+.sm{display:flex;align-items:center;gap:5px;height:25px;padding:0 4px 0 3px;border-radius:4px;font-size:11px;color:var(--tx);white-space:nowrap}
+.sm svg{width:16px;height:16px;flex:none}
+.new{outline:1.5px dashed var(--new);outline-offset:-1.5px}
+.dd::after{content:"";margin-left:2px;border:3.5px solid transparent;border-top-color:var(--mut);transform:translateY(2px)}
+.big .dd::after{display:inline-block}
+svg{fill:none;stroke:var(--ic);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.sel{display:flex;align-items:center;gap:6px;height:25px;width:124px;padding:0 7px;border:1px solid var(--line-strong);border-radius:4px;background:var(--panel);font-size:11.5px}
+.sel .sw{width:11px;height:11px;border:1px solid var(--mut);border-radius:2px}
+.sel b{flex:1;font-weight:400}
+.sel::after{content:"";border:3.5px solid transparent;border-top-color:var(--mut);transform:translateY(2px)}
+.pline{display:flex;align-items:center;gap:6px}
+.pline .ln{width:22px;border-top:1.5px dashed var(--mut)}
+.pline .lw{width:22px;border-top:3px solid var(--ic)}
+.pline .cl{width:22px;height:11px;border-radius:2px;background:linear-gradient(90deg,#fff 50%,#E64646 50%)}
+.wrap{position:relative;width:1912px}
+.menu{position:absolute;top:100%;margin-top:-30px;width:300px;background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;box-shadow:0 8px 24px #0008;padding:4px;z-index:2}
+.menu .sm{height:26px}
+.menu .sm span{margin-left:auto;padding-left:14px;color:var(--mut);font-size:10.5px}
+.menu hr{border:0;border-top:1px solid var(--line);margin:3px 2px}
+.menu h4{margin:4px 6px 2px;font-size:10.5px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.notes{margin-top:296px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:1912px}
+.notes div{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:9px 11px;font-size:12px;color:var(--mut)}
+.notes b{color:var(--tx);display:block;margin-bottom:3px}
+</style>
+</head>
+<body>
+<h1>Design CAD · Drafting ribbon: full width, every tool labelled (proposal 2026-11-10)</h1>
+<p class="lead">Today the Drafting tab ends at Measure and the right half of the ribbon is empty. Proposed: the same groups and order, labels on every tool, and buttons for commands the app already has but which are only typed today. No new commands.</p>
+<div class="legend">Graphite dark, 1912 px window.<i></i>New button for an existing typed command</div>
+
+<div class="wrap"><div class="frame">
+  <div class="tabs"><span>Project</span><span>Stages</span><span>Load schedule</span><span>SLD</span><span class="on">Design CAD</span><span>Reports</span><span>Cost</span></div>
+  <div class="sub"><span>Plan</span><span class="on">Drafting</span><span>Electrical</span><span>ELV</span><span>Sheets</span></div>
+  <div class="tools" id="tools"></div>
+</div><div class="menu" id="menu"></div></div>
+
+<div class="notes">
+  <div><b>Draw · Modify</b>Rectangle, Polygon, Ellipse and Hatch get labels. Modify shows all 16 edit tools in three labelled rows: Extend, Chamfer, Break and Join were typed-only (EX, CHA, BR, J).</div>
+  <div><b>Annotate</b>Room tag, Keynote, North arrow and Revision cloud labelled; Text style and Dim style as buttons. The Text ▾ menu (shown open) gathers the text tools that are typed-only today: TJ, TH, TA, TC, TFRAME, TMASK, TCOUNT, TCOPY.</div>
+  <div><b>Layers · Properties</b>Same controls as today; the eight small layer icons now carry their names. Properties is unchanged.</div>
+  <div><b>Measure and view</b>Measure opens straight to Distance, Area and Room area instead of a menu. Inspect (LIST), Zoom extents (FIT) and Select join them, so the ribbon now ends at the window edge.</div>
+</div>
+
+<script>
+const P = {
+  line:'<path d="M4 20 20 4"/>',
+  pline:'<path d="M3 19l5-9 6 5 7-11"/><circle cx="8" cy="10" r="1"/><circle cx="14" cy="15" r="1"/>',
+  circle:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r=".6"/>',
+  arc:'<path d="M4 19a8 8 0 0 1 16 0"/><path d="M8 19a4 4 0 0 1 8 0"/>',
+  rect:'<rect x="4" y="6" width="16" height="12" rx="1"/>',
+  polygon:'<path d="M12 3l8 6-3 10H7L4 9z"/>',
+  ellipse:'<ellipse cx="12" cy="12" rx="9" ry="5.5"/>',
+  hatch:'<rect x="4" y="4" width="16" height="16"/><path d="M4 12l8-8M4 20 20 4M12 20l8-8"/>',
+  move:'<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>',
+  copy:'<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
+  rotate:'<path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v5h-5"/>',
+  mirror:'<path d="M12 3v18" stroke-dasharray="2 2"/><path d="M9 7 4 17h5zM15 7l5 10h-5z"/>',
+  scale:'<rect x="3" y="11" width="10" height="10"/><path d="M8 3h13v13M14 10l7-7M21 8V3h-5"/>',
+  stretch:'<path d="M3 8h8v8H3zM11 8l8 0 0 8-8 0" /><path d="M15 12h6M19 10l2 2-2 2"/>',
+  trim:'<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 7.5 20 18M8.5 16.5 20 6"/>',
+  extend:'<path d="M20 3v18"/><path d="M3 12h11" /><path d="M14 12h5" stroke-dasharray="2 2"/><path d="M15 9l3 3-3 3"/>',
+  fillet:'<path d="M4 4v8a8 8 0 0 0 8 8h8"/>',
+  chamfer:'<path d="M4 4v9l7 7h9"/>',
+  offset:'<path d="M4 18c3-8 9-12 16-12"/><path d="M8 20c2-6 6-9 12-9" stroke-dasharray="2.5 2"/>',
+  array:'<rect x="3" y="3" width="6" height="6"/><rect x="15" y="3" width="6" height="6"/><rect x="3" y="15" width="6" height="6"/><rect x="15" y="15" width="6" height="6"/>',
+  break:'<path d="M3 12h6M15 12h6"/><path d="M9 9v6M15 9v6"/>',
+  join:'<path d="M3 16h7l4-8h7"/><circle cx="12" cy="12" r="1.3"/>',
+  explode:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/>',
+  erase:'<path d="M4 16 13 7l6 6-7 7H8z"/><path d="M9 11l6 6M12 20h8"/>',
+  text:'<path d="M5 5h14M12 5v15M9 20h6"/>',
+  dim:'<path d="M4 6v12M20 6v12M4 12h16M4 12l3-2M4 12l3 2M20 12l-3-2M20 12l-3 2"/>',
+  leader:'<path d="M4 20l7-7h9"/><path d="M4 20l1-4M4 20l4-1"/><path d="M13 9h7"/>',
+  roomtag:'<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 12h10"/>',
+  keynote:'<path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"/><path d="M11 9h1.5v6"/>',
+  north:'<path d="M12 3l5 17-5-4-5 4z"/><path d="M10 9V6l4 3V6"/>',
+  revcloud:'<path d="M7 18a3 3 0 0 1-.5-6 4 4 0 0 1 7-3 3.5 3.5 0 0 1 6 2.5 3 3 0 0 1-1 6.5z"/>',
+  tstyle:'<path d="M4 6h10M9 6v12"/><path d="M14 18l3-8 3 8M15.2 15h3.6"/>',
+  dstyle:'<path d="M4 8h16M4 8v8M20 8v8"/><path d="M8 16h8"/>',
+  tjust:'<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>',
+  theight:'<path d="M4 6h9M8.5 6v13"/><path d="M18 4v16M16 6l2-2 2 2M16 18l2 2 2-2"/>',
+  talign:'<path d="M5 3v18"/><path d="M8 7h11M8 12h7M8 17h10"/>',
+  tcase:'<path d="M3 18l4-11 4 11M4.4 14.5h5.2"/><circle cx="17" cy="15" r="3"/><path d="M20 12v6"/>',
+  tframe:'<circle cx="12" cy="12" r="9"/><path d="M8 9h8M12 9v7"/>',
+  tmask:'<rect x="3" y="6" width="18" height="12" rx="1" fill="#3a3f47" stroke="none"/><path d="M7 10h10M12 10v5"/>',
+  tcount:'<path d="M4 7h3v10M4 17h6"/><path d="M13 9a2.5 2.5 0 1 1 4.5 1.5L13 17h6"/>',
+  tcopy:'<path d="M3 8h7M6.5 8v8"/><path d="M14 8h7M17.5 8v8"/><path d="M10 12h4M12.5 10.5 14 12l-1.5 1.5"/>',
+  layers:'<path d="M12 4l9 5-9 5-9-5z"/><path d="M3 14l9 5 9-5"/>',
+  loff:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z"/><path d="M4 4l16 16"/>',
+  lfrz:'<path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9M10 4.5l2 1.5 2-1.5M10 19.5l2-1.5 2 1.5"/>',
+  llck:'<rect x="5" y="11" width="14" height="10" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  liso:'<rect x="4" y="4" width="16" height="16" stroke-dasharray="2.5 2"/><circle cx="12" cy="12" r="3.5"/>',
+  luniso:'<circle cx="12" cy="12" r="8.5"/><path d="M8 12.5l2.8 2.8L16.5 9"/>',
+  lon:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z"/>',
+  lthaw:'<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  lulk:'<rect x="5" y="11" width="14" height="10" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 7.7-1.5"/>',
+  lcur:'<path d="M12 4l9 5-9 5-9-5z"/><path d="M3 14l9 5 9-5"/><path d="M17 3l1.5 1.5L21 2"/>',
+  match:'<rect x="4" y="3" width="14" height="6" rx="1.5"/><path d="M18 6h2v5h-8v3"/><rect x="10" y="14" width="4" height="7" rx="1"/>',
+  dist:'<path d="M3 17 17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/>',
+  area:'<path d="M4 6l9-2 7 6-3 10-12-3z"/><path d="M8 13l3-3M9 17l6-6M14 16l3-3"/>',
+  roomarea:'<path d="M3 3h18v18H3zM3 11h7v10"/><circle cx="15.5" cy="15.5" r="1.4"/>',
+  inspect:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21M8 9h5M8 12h4"/>',
+  fit:'<path d="M3 8V3h5M16 3h5v5M21 16v5h-5M8 21H3v-5"/><rect x="8" y="8" width="8" height="8"/>',
+  select:'<path d="M5 3l13 7-6 1.5L9 18z"/><path d="M12.5 11.5 18 18"/>',
+  dset:'<path d="M5 12h14M12 5v14"/><circle cx="12" cy="12" r="3.5"/><path d="M3 3l3 3M21 21l-3-3"/>'
+};
+const ic = k => `<svg viewBox="0 0 24 24">${P[k]}</svg>`;
+const big = (k, l, o = {}) => `<div class="big${o.n ? ' new' : ''}">${ic(k)}<span class="${o.dd ? 'dd' : ''}">${l}</span></div>`;
+const sm = (k, l, o = {}) => `<div class="sm${o.n ? ' new' : ''}${o.dd ? ' dd' : ''}">${ic(k)}${l}</div>`;
+const col = (...b) => `<div class="col">${b.join('')}</div>`;
+const grp = (cap, ...b) => `<div class="grp"><div class="btns">${b.join('')}</div><div class="cap">${cap}</div></div>`;
+const N = { n: 1 }, D = { dd: 1 };
+
+document.getElementById('tools').innerHTML = [
+  grp('Draw', big('line','Line'), big('pline','Polyline'), big('circle','Circle',D), big('arc','Arc',D),
+    big('hatch','Hatch'), col(sm('rect','Rectangle'), sm('polygon','Polygon',N), sm('ellipse','Ellipse'))),
+  grp('Modify',
+    col(sm('move','Move'), sm('copy','Copy'), sm('stretch','Stretch')),
+    col(sm('rotate','Rotate'), sm('mirror','Mirror'), sm('scale','Scale')),
+    col(sm('trim','Trim'), sm('extend','Extend',N), sm('break','Break',N)),
+    col(sm('fillet','Fillet'), sm('chamfer','Chamfer',N), sm('join','Join',N)),
+    col(sm('offset','Offset'), sm('array','Array'), sm('explode','Explode')),
+    col(sm('erase','Erase'))),
+  grp('Annotate', big('text','Text',D), big('dim','Dimension',D), big('leader','Leader'),
+    col(sm('roomtag','Room tag'), sm('keynote','Keynote',N), sm('north','North arrow')),
+    col(sm('revcloud','Revision cloud'), sm('tstyle','Text style',N), sm('dstyle','Dim style',N))),
+  grp('Layers', big('layers','Layers'),
+    `<div class="col"><div class="sel"><span class="sw"></span><b>LV-SKETCH</b></div>
+      <div style="display:flex;gap:1px">${col(sm('loff','Off'), sm('lon','All on'))}${col(sm('lfrz','Freeze'), sm('lthaw','Thaw all'))}${col(sm('llck','Lock'), sm('lulk','Unlock',N))}</div></div>`,
+    col(sm('liso','Isolate'), sm('luniso','Unisolate'), sm('lcur','Make current'))),
+  grp('Properties', big('match','Match<br>properties'),
+    `<div class="col" style="gap:3px">
+      <div class="pline"><span class="cl"></span><div class="sel" style="width:118px"><b>ByLayer</b></div></div>
+      <div class="pline"><span class="ln"></span><div class="sel" style="width:118px"><b>ByLayer</b></div></div>
+      <div class="pline"><span class="lw"></span><div class="sel" style="width:118px"><b>ByLayer</b></div></div></div>`),
+  grp('Measure and view',
+    col(sm('dist','Distance',N), sm('area','Area',N), sm('roomarea','Room area',N)),
+    col(sm('inspect','Inspect',N), sm('fit','Zoom extents',N), sm('select','Select',N)))
+].join('');
+const t = [...document.querySelectorAll('.big')].find(b => b.textContent.trim() === 'Text');
+const menu = document.getElementById('menu');
+menu.style.left = (t.getBoundingClientRect().left - document.querySelector('.wrap').getBoundingClientRect().left) + 'px';
+const mi = (k, l, a) => sm(k, l).replace('</div>', `<span>${a}</span></div>`);
+menu.innerHTML = '<h4>Place</h4>' + mi('text','Text','T') + mi('tcount','Numbered text','TCOUNT') +
+  '<hr><h4>Text tools · texts picked</h4>' + mi('tjust','Justify','TJ') + mi('theight','Height','TH') + mi('talign','Align or space','TA') +
+  mi('tcase','Case','TC') + mi('tframe','Frame','TFRAME') + mi('tmask','Mask','TMASK') + mi('tcopy','Copy words','TCOPY');
+</script>
+</body>
+</html>

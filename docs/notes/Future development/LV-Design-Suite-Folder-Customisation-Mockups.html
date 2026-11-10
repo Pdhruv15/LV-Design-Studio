@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project folder customisation — mockups C1–C8</title>
+<style>
+/* Graphite tokens copied from src/theme/tokens.css (dark default + light) */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--on-acc:#1D2024;--ok:#37d67a;--warn:#f5c04a;--bad:#ff5d6c;--field:#7fd1ff;--backdrop:rgba(2,6,14,.6);--shadow-modal:0 12px 32px rgba(0,0,0,.35)}
+:root[data-theme="light"]{--bg:#F5F3EF;--panel:#ffffff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--on-acc:#ffffff;--ok:#177336;--warn:#8a5d00;--bad:#b3261e;--field:#0b5cad;--backdrop:rgba(30,26,20,.35);--shadow-modal:0 12px 32px rgba(0,0,0,.15)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0}
+code,.mono{font:12px ui-monospace,Menlo,monospace}
+.intro{max-width:1240px;margin:0 auto;padding:16px 16px 0}
+.intro h1{font-size:17px;margin:0 0 4px}
+.intro p{margin:0 0 6px;color:var(--mut);max-width:980px}
+.pick{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.pick button{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--mut)}
+.pick button[aria-pressed=true]{border-color:var(--acc);color:var(--tx);background:var(--p2)}
+.pick .theme{margin-left:auto}
+.stage{max-width:1240px;margin:0 auto 32px;padding:0 16px}
+.why{color:var(--mut);font-size:12px;margin:0 0 8px}
+/* app chrome */
+.chip{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:28px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:var(--p2);color:var(--tx);white-space:nowrap}
+.chip.sm{min-height:24px;padding:0 7px;font-size:12px}
+.chip.primary{background:var(--acc);color:var(--on-acc);font-weight:600;border-color:var(--acc)}
+.chip.bad-btn{border-color:color-mix(in srgb,var(--bad) 70%,transparent);color:var(--bad);background:transparent}
+.chip.on{border-color:var(--acc);color:var(--acc)}
+.chip:disabled{opacity:.45;cursor:default}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:0 0 10px}
+.tabs button{min-height:30px;padding:0 10px;color:var(--mut);border-bottom:2px solid transparent}
+.tabs .on{color:var(--acc);border-color:var(--acc)}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-modal);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.backdrop{background:var(--backdrop);border-radius:10px;padding:22px}
+.modal h3{margin:0;font-size:15px}
+.m{color:var(--mut)}
+.bad{color:var(--bad)}.ok{color:var(--ok)}.warn{color:var(--warn)}
+input,select{background:var(--p2);border:1px solid var(--line);border-radius:6px;padding:4px 7px;min-height:28px}
+label.f{display:flex;flex-direction:column;gap:3px;color:var(--mut);font-size:12px}
+label.f>input,label.f>select{color:var(--tx);font-size:13px}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.sp{flex:1}
+.foot{display:flex;gap:6px;justify-content:flex-end;align-items:center;border-top:1px solid var(--line);padding-top:10px}
+/* layouts */
+.split{display:grid;grid-template-columns:270px minmax(0,1fr);gap:12px;min-height:440px}
+.split3{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px}
+.box{border:1px solid var(--line);border-radius:8px;background:var(--bg);overflow:auto}
+.box.pad{padding:10px}
+.list .h{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);padding:8px 10px 4px}
+.list .it{display:flex;gap:6px;align-items:center;padding:6px 10px;border-left:2px solid transparent;cursor:pointer}
+.list .it:hover{background:var(--p2)}
+.list .it.sel{background:var(--p2);border-left-color:var(--acc)}
+.list .it small{color:var(--mut);margin-left:auto;white-space:nowrap}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:4px 10px;font-size:12px}
+.kv dt{color:var(--mut)}.kv dd{margin:0}
+/* tree */
+.tree{padding:6px 0;font-size:12.5px}
+.tn{display:flex;align-items:center;gap:6px;padding:2px 8px;min-height:24px;cursor:pointer;white-space:nowrap;position:relative}
+.tn:hover{background:var(--p2)}
+.tn.sel{background:color-mix(in srgb,var(--acc) 18%,transparent);outline:1px solid var(--acc)}
+.tn .tw{width:12px;color:var(--mut);text-align:center}
+.tn .nm{overflow:hidden;text-overflow:ellipsis}
+.tn .nm.err{color:var(--bad);text-decoration:underline wavy var(--bad)}
+.tag{font:11px ui-monospace,Menlo,monospace;color:var(--field);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.tag.when{color:var(--warn)}
+.tag.more{color:var(--mut)}
+.drop{height:0;border-top:2px solid var(--acc);margin:0 8px;position:relative}
+.drop:before{content:"";position:absolute;left:-4px;top:-5px;width:8px;height:8px;border-radius:50%;background:var(--acc)}
+.ghost{opacity:.45}
+.st{font-size:11px;min-width:86px;text-align:right;margin-left:auto}
+/* toolbar */
+.tb{display:flex;gap:4px;flex-wrap:wrap;padding:6px;border-bottom:1px solid var(--line);background:var(--panel)}
+.tb .sep{width:1px;background:var(--line);margin:2px 4px}
+.menu{position:absolute;z-index:3;background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;box-shadow:var(--shadow-modal);padding:4px;min-width:200px}
+.menu div{padding:5px 8px;border-radius:4px}
+.menu div:hover{background:var(--p2)}
+/* checks */
+.checks{font-size:12px;display:flex;flex-direction:column;gap:3px}
+.checks div{display:flex;gap:6px}
+/* table */
+table.t{width:100%;border-collapse:collapse;font-size:12px}
+table.t th{text-align:left;color:var(--mut);font-weight:600;padding:5px 6px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg)}
+table.t td{padding:3px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.t select,table.t input{min-height:24px;padding:1px 4px;width:100%}
+tr.chg td{background:color-mix(in srgb,var(--acc) 12%,transparent)}
+tr.grp td{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-top:8px}
+.bar{display:inline-block;width:64px;height:6px;border-radius:3px;background:var(--p2);vertical-align:middle;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok)}
+.bar i.lo{background:var(--warn)}
+/* naming */
+.pat{display:flex;gap:4px;flex-wrap:wrap;align-items:center;border:1px solid var(--line-strong);border-radius:6px;padding:6px;background:var(--p2);min-height:40px}
+.tok{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--acc);color:var(--acc);border-radius:999px;padding:1px 4px 1px 9px;font-size:12px;cursor:grab;background:var(--panel)}
+.tok b{font-weight:400;color:var(--mut);cursor:pointer;padding:0 3px}
+.lit{font:12px ui-monospace,Menlo,monospace;color:var(--mut)}
+.pal{display:flex;gap:4px;flex-wrap:wrap}
+.pal button{border:1px dashed var(--line-strong);border-radius:999px;padding:1px 9px;font-size:12px;color:var(--mut)}
+.prev{font:13px ui-monospace,Menlo,monospace;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.card{border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--bg);cursor:pointer;display:flex;flex-direction:column;gap:6px}
+.card.sel{border-color:var(--acc);outline:1px solid var(--acc)}
+.card h4{margin:0;font-size:13px}
+.card pre{margin:0;font:11px/1.45 ui-monospace,Menlo,monospace;color:var(--mut);white-space:pre}
+.steps{display:flex;gap:6px;flex-wrap:wrap}
+.steps button{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--mut)}
+.steps button.on{border-color:var(--acc);color:var(--tx)}
+.steps button.done{color:var(--ok)}
+.counts{display:grid;grid-template-columns:1fr auto;gap:3px 10px;font-size:12px}
+.dirty{color:var(--acc);font-size:12px;font-weight:400}
+.note{font-size:12px;color:var(--mut)}
+.lock{font-size:11px}
+</style>
+</head>
+<body>
+<div class="intro">
+  <h1>Project folder customisation: mockups C1–C8</h1>
+  <p>For the proposal "UI UX proposals - 2026-11-09 - Project folders customisation". These are static mockups in the app's Graphite colours, built with the app's chip, tab, modal and table styles. The template data comes from <code>folder-templates.json</code> in this folder. The sample project is 2417 "Al Barsha Villas", with buildings B1 and B2.</p>
+  <p>You can select tree rows, edit the folder name in C2 (try typing <code>&amp;</code>), use the Roles filter, add and remove naming tokens, and switch the wizard steps. Nothing touches the disk.</p>
+  <div class="pick" id="pick"></div>
+</div>
+<div class="stage"><p class="why" id="why"></p><div id="screen"></div></div>
+
+<script id="tpl" type="application/json">{"format":"lv-folder-templates","formatVersion":1,"templates":[{"id":"consultant-full","name":"Electrical consultant full","version":1,"builtIn":true,"layout":"discipline","root":"{ProjectNo}_{ProjectShort}","numbering":"01_","naming":{"preset":"office","pattern":"{ProjectNo}-{Discipline}-{Type}-{Seq:3}-{Rev}","separator":"-","discipline":"E"},"folders":[{"id":"cf.admin","name":"01_Admin","children":[{"id":"cf.admin.programme","name":"01_Programme","role":"programme"},{"id":"cf.admin.minutes","name":"02_Minutes","role":"minutes"},{"id":"cf.admin.timesheets","name":"03_Timesheets","role":"timesheets"}]},{"id":"cf.received","name":"02_Received","children":[{"id":"cf.received.architect","name":"01_Architect","role":"receivedArch"},{"id":"cf.received.datasheets","name":"02_Datasheets","role":"datasheets"}]},{"id":"cf.project-file","name":"03_Project_File","role":"projectFile","children":[{"id":"cf.project-file.backups","name":"Backups","role":"backups"}]},{"id":"cf.cad","name":"04_CAD","children":[{"id":"cf.cad.working","name":"01_Working","role":"cadWorking"},{"id":"cf.cad.xrefs","name":"02_Xrefs","role":"xrefs"},{"id":"cf.cad.title-blocks","name":"03_Title_Blocks","role":"titleBlocks"}]},{"id":"cf.calcs","name":"05_Calcs","children":[{"id":"cf.calcs.load","name":"01_Load","role":"calcLoad"},{"id":"cf.calcs.volt-drop","name":"02_Volt_Drop","role":"calcVd"},{"id":"cf.calcs.fault","name":"03_Fault","role":"calcFault"},{"id":"cf.calcs.cable-sizing","name":"04_Cable_Sizing","role":"calcCable"},{"id":"cf.calcs.earthing","name":"05_Earthing","role":"calcEarthing"},{"id":"cf.calcs.lighting","name":"06_Lighting","role":"calcLighting"},{"id":"cf.calcs.pv","name":"07_PV","role":"calcPv","when":"scope:pv"},{"id":"cf.calcs.standby","name":"08_Standby","role":"calcStandby","when":"scope:standby"},{"id":"cf.calcs.study-reports","name":"09_Study_Reports","role":"studyReports"}]},{"id":"cf.drawings","name":"06_Drawings","children":[{"id":"cf.drawings.wip","name":"01_WIP","role":"drawingsWip"},{"id":"cf.drawings.issued","name":"02_Issued","role":"drawingsIssued","onUse":"{Stage}/Rev-{Rev}"},{"id":"cf.drawings.superseded","name":"03_Superseded","role":"drawingsSuperseded"},{"id":"cf.drawings.elv","name":"04_ELV","when":"scope:elv"}]},{"id":"cf.schedules","name":"07_Schedules","children":[{"id":"cf.schedules.load-schedules","name":"01_Load_Schedules","role":"loadSchedules"},{"id":"cf.schedules.cable-schedule","name":"02_Cable_Schedule","role":"cableSchedule"},{"id":"cf.schedules.equipment","name":"03_Equipment","role":"equipmentSchedule"},{"id":"cf.schedules.luminaires","name":"04_Luminaires","role":"luminaireSchedule"}]},{"id":"cf.specs","name":"08_Specs","role":"specs"},{"id":"cf.boq-cost","name":"09_BOQ_Cost","children":[{"id":"cf.boq-cost.boq","name":"01_BOQ","role":"boq","onUse":"Rev-{BoqRev}"},{"id":"cf.boq-cost.estimates","name":"02_Estimates","role":"costEstimates"},{"id":"cf.boq-cost.quotes","name":"03_Quotes","role":"quotes"}]},{"id":"cf.authority","name":"10_Authority","children":[{"id":"cf.authority.dewa","name":"01_DEWA","role":"authDewa"},{"id":"cf.authority.dm","name":"02_DM","role":"authDm"},{"id":"cf.authority.civil-defence","name":"03_Civil_Defence","role":"authCd","when":"scope:fire"},{"id":"cf.authority.responses","name":"04_Responses","role":"submissionResponses"}]},{"id":"cf.transmittals","name":"11_Transmittals","role":"transmittals","onUse":"TR-{TrNo}"},{"id":"cf.review","name":"12_Review","children":[{"id":"cf.review.internal","name":"01_Internal","role":"internalReview"},{"id":"cf.review.crs","name":"02_CRS","role":"crs"}]},{"id":"cf.tender","name":"13_Tender","when":"stage:tender","children":[{"id":"cf.tender.issued","name":"01_Issued","role":"tenderIssued"},{"id":"cf.tender.bids","name":"02_Bids","role":"bids"},{"id":"cf.tender.evaluation","name":"03_Evaluation","role":"tenderEvaluation"}]},{"id":"cf.construction","name":"14_Construction","when":"service:supervision","children":[{"id":"cf.construction.shop-drawings","name":"01_Shop_Drawings","role":"shopDrawings"},{"id":"cf.construction.material-submittals","name":"02_Material_Submittals","role":"materialSubmittals"},{"id":"cf.construction.rfis","name":"03_RFIs","role":"rfis"},{"id":"cf.construction.site-inspections","name":"04_Site_Inspections","role":"siteInspections"},{"id":"cf.construction.snags","name":"05_Snags","role":"snags"},{"id":"cf.construction.variations","name":"06_Variations","role":"variations"},{"id":"cf.construction.valuations","name":"07_Valuations","role":"valuations"},{"id":"cf.construction.test-records","name":"08_Test_Records","role":"testRecords"},{"id":"cf.construction.as-built","name":"09_As_Built","role":"asBuilt"}]},{"id":"cf.archive","name":"15_Archive","role":"archive"}]},{"id":"villa-small","name":"Villa / small building","version":1,"builtIn":true,"layout":"flat","root":"{ProjectNo}_{ProjectShort}","numbering":"01_","naming":{"preset":"simple","pattern":"{ProjectShort}_{Type}_{Rev}","separator":"_"},"folders":[{"id":"vs.admin","name":"01_Admin","roles":["programme","minutes","timesheets"]},{"id":"vs.received","name":"02_Received","roles":["receivedArch","datasheets"]},{"id":"vs.calcs","name":"03_Calcs","roles":["calcLoad","calcVd","calcFault","calcCable","calcEarthing","calcLighting","calcPv","calcStandby","studyReports"]},{"id":"vs.drawings","name":"04_Drawings","roles":["drawingsWip","cadWorking","xrefs","titleBlocks"],"children":[{"id":"vs.drawings.issued","name":"Issued","role":"drawingsIssued","onUse":"Rev-{Rev}"},{"id":"vs.drawings.superseded","name":"Superseded","role":"drawingsSuperseded"}]},{"id":"vs.schedules","name":"05_Schedules","roles":["loadSchedules","cableSchedule","equipmentSchedule","luminaireSchedule"]},{"id":"vs.boq","name":"06_BOQ","roles":["boq","costEstimates","quotes","specs"]},{"id":"vs.dewa","name":"07_DEWA","roles":["authDewa","authDm","authCd","submissionResponses"]},{"id":"vs.transmittals","name":"08_Transmittals","role":"transmittals","onUse":"TR-{TrNo}"},{"id":"vs.project-file","name":"09_Project_File","roles":["projectFile","backups"]}]},{"id":"contractor-shop","name":"Contractor shop drawings","version":1,"builtIn":true,"layout":"discipline","root":"{ProjectNo}_{ProjectShort}","numbering":"01_","naming":{"preset":"office","pattern":"{ProjectNo}-{Discipline}-{Type}-{Seq:3}-{Rev}","separator":"-","discipline":"E"},"folders":[{"id":"cs.contract-docs","name":"01_Contract_Docs","roles":["receivedArch","specs","boq"]},{"id":"cs.shop-drawings","name":"02_Shop_Drawings","roles":["shopDrawings","drawingsWip","cadWorking"],"children":[{"id":"cs.shop-drawings.issued","name":"Issued","role":"drawingsIssued","onUse":"{YYYYMMDD}_Rev{Rev}"},{"id":"cs.shop-drawings.superseded","name":"Superseded","role":"drawingsSuperseded"}]},{"id":"cs.calcs","name":"03_Calcs","roles":["calcLoad","calcVd","calcFault","calcCable","calcEarthing","calcLighting","studyReports"]},{"id":"cs.material-submittals","name":"04_Material_Submittals","roles":["materialSubmittals","datasheets"]},{"id":"cs.rfis","name":"05_RFIs","role":"rfis"},{"id":"cs.transmittals","name":"06_Transmittals","role":"transmittals","onUse":"TR-{TrNo}"},{"id":"cs.inspections","name":"07_Inspections","roles":["siteInspections","snags","testRecords"]},{"id":"cs.as-built","name":"08_As_Built","role":"asBuilt"},{"id":"cs.variations","name":"09_Variations","roles":["variations","valuations"]},{"id":"cs.admin","name":"10_Admin","roles":["programme","minutes","timesheets","projectFile","backups"]}]},{"id":"iso19650","name":"ISO 19650","version":1,"builtIn":true,"layout":"iso19650","root":"{ProjectNo}_{ProjectShort}","numbering":"none","naming":{"preset":"iso19650","pattern":"{Project}-{Originator}-{Volume}-{Level}-{Type}-{Role}-{Number}","separator":"-","discipline":"E"},"folders":[{"id":"iso.wip","name":"00_WIP","children":[{"id":"iso.wip.electrical","name":"E-Electrical","roles":["cadWorking","drawingsWip","calcLoad","calcVd","calcFault","calcCable","calcEarthing","calcLighting","calcPv","calcStandby","loadSchedules","cableSchedule","projectFile"]},{"id":"iso.wip.architectural","name":"A-Architectural"},{"id":"iso.wip.mechanical","name":"M-Mechanical"},{"id":"iso.wip.structural","name":"S-Structural"}]},{"id":"iso.shared","name":"01_SHARED","children":[{"id":"iso.shared.electrical","name":"E-Electrical","roles":["internalReview","crs"]},{"id":"iso.shared.architectural","name":"A-Architectural","role":"receivedArch"},{"id":"iso.shared.mechanical","name":"M-Mechanical"},{"id":"iso.shared.structural","name":"S-Structural"}]},{"id":"iso.published","name":"02_PUBLISHED","children":[{"id":"iso.published.electrical","name":"E-Electrical","roles":["drawingsIssued","studyReports","transmittals"],"onUse":"{Stage}/Rev-{Rev}"},{"id":"iso.published.architectural","name":"A-Architectural"},{"id":"iso.published.mechanical","name":"M-Mechanical"},{"id":"iso.published.structural","name":"S-Structural"}]},{"id":"iso.archive","name":"03_ARCHIVE","children":[{"id":"iso.archive.electrical","name":"E-Electrical","roles":["drawingsSuperseded","archive"]},{"id":"iso.archive.architectural","name":"A-Architectural"},{"id":"iso.archive.mechanical","name":"M-Mechanical"},{"id":"iso.archive.structural","name":"S-Structural"}]}]},{"id":"multi-building","name":"Multi-building","version":1,"builtIn":true,"layout":"building","root":"{ProjectNo}_{ProjectShort}","numbering":"none","repeat":{"source":"buildings","name":"{BuildingCode}_{BuildingName}","shared":["mb.common"]},"naming":{"preset":"office","pattern":"{ProjectNo}-{Discipline}-{Type}-{Seq:3}-{Rev}","separator":"-","discipline":"E"},"folders":[{"id":"mb.common","name":"00_Common","children":[{"id":"mb.common.admin","name":"Admin","roles":["programme","minutes","timesheets","projectFile","backups"]},{"id":"mb.common.dewa","name":"DEWA","roles":["authDewa","authDm","authCd","submissionResponses"]},{"id":"mb.common.transmittals","name":"Transmittals","role":"transmittals","onUse":"TR-{TrNo}"}]},{"id":"mb.buildingcode-buildingname","name":"{BuildingCode}_{BuildingName}","when":"building:each","children":[{"id":"mb.buildingcode-buildingname.calcs","name":"Calcs","roles":["calcLoad","calcVd","calcFault","calcCable","calcEarthing","calcLighting"]},{"id":"mb.buildingcode-buildingname.drawings","name":"Drawings","roles":["cadWorking","drawingsWip","drawingsIssued"]},{"id":"mb.buildingcode-buildingname.schedules","name":"Schedules","roles":["loadSchedules","cableSchedule","equipmentSchedule","luminaireSchedule"]},{"id":"mb.buildingcode-buildingname.boq","name":"BOQ","role":"boq"}]}]}]}</script>
+<script>
+'use strict';
+const DATA = JSON.parse(document.getElementById('tpl').textContent);
+const BUILTIN = DATA.templates;
+const ROLES = [
+  ['Admin', [['programme','Programme'],['minutes','Minutes of meetings','MOM'],['timesheets','Timesheets']]],
+  ['Inputs', [['receivedArch','Received architectural drawings'],['datasheets','Manufacturer datasheets']]],
+  ['Project', [['projectFile','Project file (.lvd)'],['backups','Project backups'],['cadWorking','CAD working files'],['xrefs','External references'],['titleBlocks','Title blocks']]],
+  ['Calculations', [['calcLoad','Load calculation','CAL'],['calcVd','Voltage drop report','CAL'],['calcFault','Fault level report','CAL'],['calcCable','Cable sizing report','CAL'],['calcEarthing','Earthing calculation','CAL'],['calcLighting','Lighting calculation','CAL'],['calcPv','PV calculation','CAL'],['calcStandby','Standby generator sizing','CAL'],['studyReports','Study reports','CAL']]],
+  ['Drawings', [['drawingsWip','Drawings: work in progress','DWG'],['drawingsIssued','Drawings: issued','DWG'],['drawingsSuperseded','Drawings: superseded','DWG']]],
+  ['Schedules', [['loadSchedules','DB load schedules','SCH'],['cableSchedule','Cable schedule','SCH'],['equipmentSchedule','Equipment schedule','SCH'],['luminaireSchedule','Luminaire schedule','SCH']]],
+  ['Cost', [['specs','Specifications','SPC'],['boq','Bill of quantities','BOQ'],['costEstimates','Cost estimates'],['quotes','Supplier quotes']]],
+  ['Authority', [['authDewa','DEWA submissions'],['authDm','DM submissions'],['authCd','Civil Defence submissions'],['submissionResponses','Authority responses'],['transmittals','Transmittals','TR']]],
+  ['Review', [['internalReview','Internal review'],['crs','Comment response sheets','CRS']]],
+  ['Tender', [['tenderIssued','Tender issue'],['bids','Bids received'],['tenderEvaluation','Tender evaluation']]],
+  ['Construction', [['rfis','RFIs','RFI'],['shopDrawings','Shop drawings'],['materialSubmittals','Material submittals'],['siteInspections','Site inspections'],['snags','Snag lists'],['variations','Variations'],['valuations','Valuations'],['testRecords','Test records'],['asBuilt','As-built drawings'],['archive','Archive']]],
+];
+const ROLE_LIST = ROLES.flatMap(([g, rs]) => rs.map(([id, label, doc]) => ({ id, label, group: g, doc })));
+const VARS = { ProjectNo: '2417', ProjectShort: 'AlBarsha-Villas', BuildingCode: 'B1', BuildingName: 'Villa-A' };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const clone = (x) => JSON.parse(JSON.stringify(x));
+const rolesOf = (n) => n.roles || (n.role ? [n.role] : []);
+const walk = (ns, f, path = [], depth = 1) => ns.forEach((n) => { f(n, path, depth); walk(n.children || [], f, [...path, n], depth + 1); });
+const count = (ns) => { let c = 0; walk(ns, () => c++); return c; };
+const roleSet = (ns) => { const s = new Set(); walk(ns, (n) => rolesOf(n).forEach((r) => s.add(r))); return s; };
+const fill = (s, v = VARS) => s.replace(/\{(\w+)\}/g, (m, k) => v[k] ?? m);
+
+// "My templates": the office's copy of the consultant template, with one bad name to show checks.
+const office = clone(BUILTIN[0]);
+Object.assign(office, { id: 'office-std', name: 'Office standard', builtIn: false, basedOn: 'Electrical consultant full', editedAt: '2026-11-04', version: 3 });
+office.folders.find((n) => n.id === 'cf.boq-cost').name = '09_BOQ & Cost';
+office.folders.find((n) => n.id === 'cf.calcs').children.find((n) => n.id === 'cf.calcs.pv').role = undefined;
+const fitout = clone(BUILTIN[1]);
+Object.assign(fitout, { id: 'fitout', name: 'Fit-out jobs', builtIn: false, basedOn: 'Villa / small building', editedAt: '2026-09-18', version: 1 });
+const MINE = [{ t: office, used: 12, def: true }, { t: fitout, used: 4 }];
+
+// Checks from spec C2 (validateTemplate).
+const ILLEGAL = /[<>:"/\\|?*&#%]/;
+const RESERVED = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$/i;
+function validate(t) {
+  const out = []; const root = fill(t.root);
+  const check = (ns, path, depth) => {
+    const seen = new Map();
+    for (const n of ns) {
+      const nm = fill(n.name);
+      if (ILLEGAL.test(n.name.replace(/\{\w+\}/g, ''))) out.push({ level: 'error', nodeId: n.id, message: `“${n.name}”: remove the character ${n.name.replace(/\{\w+\}/g, '').match(ILLEGAL)[0]} (not allowed in folder names)` });
+      if (RESERVED.test(nm)) out.push({ level: 'error', nodeId: n.id, message: `“${n.name}” is a reserved Windows name` });
+      if (/[. ]$/.test(n.name)) out.push({ level: 'error', nodeId: n.id, message: `“${n.name}” ends with a dot or space` });
+      const k = nm.toLowerCase();
+      if (seen.has(k)) out.push({ level: 'error', nodeId: n.id, message: `Two folders named “${n.name}” in the same place` });
+      seen.set(k, 1);
+      const p = [...path, nm];
+      if ((root + '/' + p.join('/')).length > 200) out.push({ level: 'warn', nodeId: n.id, message: `Path longer than 200 characters for the sample project` });
+      if (depth > 6) out.push({ level: 'warn', nodeId: n.id, message: `“${n.name}” is ${depth} levels deep (6 at most)` });
+      check(n.children || [], p, depth + 1);
+    }
+  };
+  check(t.folders, [], 1);
+  if (count(t.folders) > 300) out.push({ level: 'error', message: 'More than 300 folders' });
+  const missing = ROLE_LIST.length - [...roleSet(t.folders)].filter((r) => ROLE_LIST.some((x) => x.id === r)).length;
+  if (missing) out.push({ level: 'warn', message: `${missing} role${missing > 1 ? 's have' : ' has'} no folder; those outputs ask where to save` });
+  return out;
+}
+
+function treeHtml(ns, o = {}) {
+  const errs = new Set((o.checks || []).filter((c) => c.level === 'error' && c.nodeId).map((c) => c.nodeId));
+  let h = '';
+  const rec = (list, depth) => list.forEach((n) => {
+    if (o.dropBefore === n.id) h += `<div class="drop" style="margin-left:${8 + depth * 16}px"></div>`;
+    const kids = n.children || [];
+    const open = o.open ? o.open(n, depth) : true;
+    const rs = rolesOf(n);
+    const tags = o.noTags ? '' : [
+      rs.length ? `<span class="tag">${esc(rs[0])}</span>` + (rs.length > 1 ? `<span class="tag more">+${rs.length - 1}</span>` : '') : '',
+      n.when && n.when !== 'always' ? `<span class="tag when">${esc(n.when)}</span>` : '',
+      n.onUse ? `<span class="tag more">↳ ${esc(n.onUse)}</span>` : '',
+    ].join('');
+    h += `<div class="tn ${o.sel === n.id ? 'sel' : ''} ${o.ghost === n.id ? 'ghost' : ''}" data-id="${esc(n.id)}" style="padding-left:${8 + depth * 16}px">`
+      + `<span class="tw">${kids.length ? (open ? '▾' : '▸') : ''}</span><span>📁</span>`
+      + `<span class="nm ${errs.has(n.id) ? 'err' : ''}">${esc(o.name ? o.name(n) : n.name)}</span>${tags}`
+      + (o.status ? `<span class="st">${o.status(n)}</span>` : '') + `</div>`;
+    if (open) rec(kids, depth + 1);
+  });
+  if (o.root) h += `<div class="tn" style="padding-left:8px"><span class="tw">▾</span><span>🗂</span><span class="nm"><b>${esc(o.root)}</b></span></div>`;
+  rec(ns, o.root ? 1 : 0);
+  return `<div class="tree">${h}</div>`;
+}
+function find(ns, id) { let r; walk(ns, (n, p) => { if (n.id === id) r = { n, path: p }; }); return r; }
+
+/* ---------- C1 library ---------- */
+const c1 = { sel: 'office-std' };
+function C1() {
+  const all = [...BUILTIN.map((t) => ({ t })), ...MINE];
+  const cur = all.find((x) => x.t.id === c1.sel);
+  const t = cur.t;
+  const rows = (xs) => xs.map((x) => `<div class="it ${x.t.id === c1.sel ? 'sel' : ''}" data-tpl="${x.t.id}">${x.t.builtIn ? '<span class="lock">🔒</span>' : x.def ? '<span class="warn">★</span>' : '<span style="width:12px"></span>'}<span>${esc(x.t.name)}</span><small>${count(x.t.folders)} folders${x.used ? ` · ${x.used} projects` : ''}</small></div>`).join('');
+  const assigned = roleSet(t.folders).size;
+  return `<div class="backdrop"><div class="modal" style="max-width:1000px;margin:0 auto">
+    <h3>Profile &amp; preferences</h3>
+    <div class="tabs"><button>My details</button><button>New project defaults</button><button>Appearance &amp; saving</button><button class="on">Folder templates</button></div>
+    <p class="m" style="margin:0">New projects create their folders from the default template (★). The app saves each output into the folder that holds its role, and asks where to save when no folder has that role. Projects keep their own copy of the template.</p>
+    <div class="split">
+      <div class="box list">
+        <div style="padding:8px"><input placeholder="Search templates" style="width:100%"></div>
+        <div class="h">Built-in</div>${rows(BUILTIN.map((t) => ({ t })))}
+        <div class="h">My templates</div>${rows(MINE)}
+      </div>
+      <div class="box pad" style="display:flex;flex-direction:column;gap:10px">
+        <div class="row"><b style="font-size:14px">${esc(t.name)}</b>${t.builtIn ? '<span class="m lock">🔒 built-in, duplicate it to change it</span>' : cur.def ? '<span class="warn">★ default for new projects</span>' : ''}<span class="sp"></span>
+          <button class="chip primary" ${t.builtIn ? 'disabled' : ''} data-go="C2">Edit</button></div>
+        <dl class="kv">
+          <dt>Based on</dt><dd>${esc(t.basedOn || '—')}</dd>
+          <dt>Last edited</dt><dd>${esc(t.editedAt || '—')}${t.version ? ` · version ${t.version}` : ''}</dd>
+          <dt>Folders</dt><dd>${count(t.folders)}</dd>
+          <dt>Roles assigned</dt><dd>${assigned} of ${ROLE_LIST.length}${assigned < ROLE_LIST.length ? ' <span class="warn">⚠</span>' : ' <span class="ok">✓</span>'}</dd>
+          <dt>File naming</dt><dd class="mono">${esc(t.naming.pattern)}</dd>
+          <dt>Numbering</dt><dd>${esc(t.numbering || 'none')}</dd>
+          ${cur.used ? `<dt>Used by</dt><dd>${cur.used} projects</dd>` : ''}
+        </dl>
+        <div class="box" style="max-height:220px">${treeHtml(t.folders, { root: t.root, open: (n, d) => d < 1, noTags: true })}</div>
+        <p class="note" style="margin:0">Collapsed preview. Open Edit to see the whole tree and its roles.</p>
+      </div>
+    </div>
+    <div class="foot" style="justify-content:flex-start">
+      <button class="chip" data-go="C7">+ New</button><button class="chip">Duplicate</button><button class="chip" data-go="C5">Learn from folder…</button>
+      <button class="chip">Import JSON…</button><button class="chip">Export JSON…</button><button class="chip" ${t.builtIn || cur.def ? 'disabled' : ''}>★ Set default</button>
+      <button class="chip bad-btn" ${t.builtIn ? 'disabled' : ''} title="${cur.used ? `Used by ${cur.used} projects: they keep their own copy` : ''}">Delete</button>
+      <span class="sp"></span><button class="chip">Cancel</button><button class="chip primary">Save</button>
+    </div>
+  </div>
+  ${cur.used && !t.builtIn ? `<div class="modal" style="max-width:440px;margin:14px auto 0">
+    <h3>Delete “${esc(t.name)}”?</h3>
+    <p style="margin:0">${cur.used} projects use this template. They keep their own copy and open as before. Their folders on disk are not touched.</p>
+    <div class="foot"><button class="chip">Cancel</button><button class="chip bad-btn">Delete template</button></div>
+    <p class="note" style="margin:0">Shown only when Delete is pressed on a template that projects use.</p></div>` : ''}
+  </div>`;
+}
+
+/* ---------- C2 tree editor ---------- */
+const c2 = { t: office, sel: 'cf.boq-cost', menu: false, dirty: true };
+const WHEN = ['always', 'scope:pv', 'scope:standby', 'scope:fire', 'scope:elv', 'stage:tender', 'service:supervision', 'building:each'];
+const ONUSE = ['', '{Stage}/Rev-{Rev}', 'Rev-{BoqRev}', 'TR-{TrNo}', '{YYYYMMDD}_Rev{Rev}'];
+function C2() {
+  const t = c2.t; const checks = validate(t);
+  const f = find(t.folders, c2.sel); const n = f.n;
+  const full = [fill(t.root), ...f.path.map((p) => fill(p.name)), fill(n.name)].join('\\');
+  const used = new Map(); walk(t.folders, (x) => rolesOf(x).forEach((r) => used.set(r, x.name)));
+  const opts = ROLES.map(([g, rs]) => `<optgroup label="${g}">${rs.map(([id, label]) => {
+    const where = used.get(id); const mine = rolesOf(n).includes(id);
+    return `<option value="${id}" ${mine ? 'selected' : ''}>${esc(label)}${where && !mine ? ` (move here from ${esc(where)})` : ''}</option>`;
+  }).join('')}</optgroup>`).join('');
+  const errs = checks.filter((c) => c.level === 'error').length;
+  return `<div class="modal">
+    <div class="row"><h3>Edit template: ${esc(t.name)}</h3>${c2.dirty ? '<span class="dirty">Unsaved changes ●</span>' : ''}<span class="sp"></span><span class="m">${count(t.folders)} folders · ${roleSet(t.folders).size} of ${ROLE_LIST.length} roles</span></div>
+    <div class="tabs"><button class="on">Tree</button><button data-go="C3">Roles</button><button data-go="C4">File naming</button><button>Preview</button></div>
+    <div class="split3">
+      <div class="box" style="position:relative">
+        <div class="tb">
+          <button class="chip sm">+ Folder</button><button class="chip sm">+ Subfolder</button><button class="chip sm" title="F2 or double-click">Rename</button><button class="chip sm" title="Del">Delete</button>
+          <span class="sep"></span><button class="chip sm" title="Alt+↑">↑</button><button class="chip sm" title="Alt+↓">↓</button><button class="chip sm" title="Shift+Tab">Outdent</button><button class="chip sm" title="Tab">Indent</button>
+          <span class="sep"></span><button class="chip sm" id="renum">Renumber ▾</button><button class="chip sm">Expand all</button>
+        </div>
+        ${c2.menu ? `<div class="menu" style="left:420px;top:40px"><div><code>01_</code> two-digit</div><div><code>1.</code> number and dot</div><div><code>A-</code> letters</div><div>None (remove numbers)</div><div class="m" style="font-size:11px">Renumbers the folders at the selected level</div></div>` : ''}
+        <div style="max-height:470px;overflow:auto">${treeHtml(t.folders, { root: t.root, sel: c2.sel, checks, open: (x) => ['cf.calcs', 'cf.boq-cost', 'cf.drawings'].includes(x.id), dropBefore: 'cf.specs', ghost: 'cf.transmittals' })}</div>
+        <p class="note" style="padding:0 10px 8px;margin:0">Dragging “11_Transmittals”: the line shows where it will drop (before “08_Specs”). Esc cancels the drag.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="box pad" style="display:flex;flex-direction:column;gap:8px">
+          <b>Folder</b>
+          <label class="f">Name<input id="nm" value="${esc(n.name)}"></label>
+          <label class="f">Full path (sample project)<input class="mono" value="${esc(full)}" readonly></label>
+          <label class="f">Role${rolesOf(n).length > 1 ? ` <span class="m">(${rolesOf(n).length} roles)</span>` : ''}<select ${rolesOf(n).length > 1 ? 'multiple size="4"' : ''}><option value="">— none —</option>${opts}</select></label>
+          <label class="f">Only when<select>${WHEN.map((w) => `<option ${(n.when || 'always') === w ? 'selected' : ''}>${w === 'always' ? 'Always' : w}</option>`).join('')}</select></label>
+          <label class="f">Subfolders on use<select>${ONUSE.map((w) => `<option ${(n.onUse || '') === w ? 'selected' : ''}>${w || 'None'}</option>`).join('')}</select></label>
+          <label class="f">Note<input placeholder="Optional, shown in the Roles tab"></label>
+        </div>
+        <div class="box pad"><b>Checks</b><div class="checks" style="margin-top:6px">${checks.length ? checks.map((c) => `<div class="${c.level === 'error' ? 'bad' : 'warn'}"><span>${c.level === 'error' ? '✕' : '⚠'}</span><span>${esc(c.message)}</span></div>`).join('') : '<div class="ok">✓ No problems</div>'}</div></div>
+      </div>
+    </div>
+    <div class="foot"><span class="m" style="margin-right:auto">F2 rename · Del delete · Alt+↑/↓ move · Tab / Shift+Tab indent</span><button class="chip">Discard</button><button class="chip primary" ${errs ? 'disabled title="Fix the errors first"' : ''}>Save template</button></div>
+  </div>`;
+}
+
+/* ---------- C3 roles ---------- */
+const c3 = { filter: 'all' };
+function C3() {
+  const t = office; const where = new Map(); const folders = [];
+  walk(t.folders, (n, p) => { const path = [...p.map((x) => x.name), n.name].join('/'); folders.push(path); rolesOf(n).forEach((r) => where.set(r, { path, onUse: n.onUse })); });
+  const changed = new Set(['calcPv']); // filled by Auto-assign
+  const showRows = ROLE_LIST.filter((r) => c3.filter === 'all' || !where.has(r.id) || changed.has(r.id));
+  let g = ''; let rows = '';
+  for (const r of showRows) {
+    if (r.group !== g) { g = r.group; rows += `<tr class="grp"><td colspan="5">${g}</td></tr>`; }
+    const w = changed.has(r.id) ? { path: '05_Calcs/07_PV' } : where.get(r.id);
+    rows += `<tr class="${changed.has(r.id) ? 'chg' : ''}"><td>${esc(r.label)}</td><td class="mono m">${r.id}</td>
+      <td><select><option>— ask each time —</option>${folders.map((p) => `<option ${w && w.path === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></td>
+      <td><select>${ONUSE.map((o) => `<option ${(w && w.onUse || '') === o ? 'selected' : ''}>${o || 'None'}</option>`).join('')}</select></td>
+      <td>${w ? '<span class="ok">✓</span>' : '<span class="warn" title="Asks where to save">⚠</span>'}</td></tr>`;
+  }
+  const assigned = ROLE_LIST.filter((r) => where.has(r.id) || changed.has(r.id)).length;
+  return `<div class="modal">
+    <div class="row"><h3>Edit template: ${esc(t.name)}</h3><span class="dirty">Unsaved changes ●</span></div>
+    <div class="tabs"><button data-go="C2">Tree</button><button class="on">Roles</button><button data-go="C4">File naming</button><button>Preview</button></div>
+    <div class="row"><button class="chip sm ${c3.filter === 'all' ? 'on' : ''}" data-f="all">All</button><button class="chip sm ${c3.filter === 'un' ? 'on' : ''}" data-f="un">Unassigned</button><span class="sp"></span>
+      <span class="note">Auto-assign filled 1 empty row (highlighted). It never changes a row you set.</span><button class="chip sm">Auto-assign by name</button></div>
+    <div class="box" style="max-height:470px"><table class="t"><thead><tr><th style="width:26%">Output</th><th style="width:15%">Role id</th><th>Saves to folder</th><th style="width:19%">Creates on save</th><th style="width:5%"></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="foot"><span class="m" style="margin-right:auto">${ROLE_LIST.length} roles · ${assigned} assigned</span><button class="chip">Discard</button><button class="chip primary">Save template</button></div>
+  </div>`;
+}
+
+/* ---------- C4 naming ---------- */
+const SAMPLE = { ProjectNo: '2417', ProjectShort: 'AlBarsha-Villas', Project: '2417', Client: 'Sample Developments LLC', Plot: '345-0789', Discipline: 'E', Type: 'CAL', Seq: 7, Rev: 'B', Stage: 'IFC', Date: '20261110', Board: 'MDB-1', Level: 'GF', Sheet: '01', Study: 'VD', Originator: 'LVC', BuildingCode: 'B1', Volume: 'ZZ', Role: 'E', Number: '0007' };
+const TOKENS = ['ProjectNo', 'ProjectShort', 'Client', 'Plot', 'Discipline', 'Type', 'Seq', 'Rev', 'Stage', 'Date', 'Board', 'Level', 'Sheet', 'Study', 'Originator', 'BuildingCode'];
+const PRESETS = { office: ['ProjectNo', 'Discipline', 'Type', 'Seq', 'Rev'], iso19650: ['Project', 'Originator', 'Volume', 'Level', 'Type', 'Role', 'Number'], simple: ['ProjectShort', 'Type', 'Rev'] };
+const c4 = { preset: 'office', toks: [...PRESETS.office], sep: '-', upper: false, pad: 3 };
+const safe = (v) => String(v).replace(/[<>:"/\\|?*&#%]/g, '-');
+function nameFor(toks, type) {
+  const v = { ...SAMPLE, Type: type };
+  const s = toks.map((k) => k.startsWith('"') ? k.slice(1, -1) : k === 'Seq' ? String(v.Seq).padStart(c4.pad, '0') : safe(v[k] ?? k)).join(c4.sep);
+  return c4.upper ? s.toUpperCase() : s;
+}
+function C4() {
+  const types = [['DWG', 'pdf'], ['CAL', 'pdf'], ['SCH', 'xlsx'], ['BOQ', 'xlsx'], ['SPC', 'docx'], ['TR', 'pdf'], ['CRS', 'xlsx'], ['RFI', 'docx'], ['MOM', 'docx']];
+  const over = { TR: '{ProjectNo}-TR-{Seq:3}', MOM: '{ProjectNo}-MOM-{Date}' };
+  const overToks = { TR: ['ProjectNo', '"TR"', 'Seq'], MOM: ['ProjectNo', '"MOM"', 'Date'] };
+  const pv = types.map(([ty, ext]) => [ty, ext, nameFor(overToks[ty] || c4.toks, ty)]);
+  const dup = new Set(pv.map((x) => x[2] + '.' + x[1])).size < pv.length;
+  return `<div class="modal">
+    <div class="row"><h3>Edit template: ${esc(office.name)}</h3><span class="dirty">Unsaved changes ●</span></div>
+    <div class="tabs"><button data-go="C2">Tree</button><button data-go="C3">Roles</button><button class="on">File naming</button><button>Preview</button></div>
+    <div class="split3">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="row"><span class="m">Preset</span>
+          <button class="chip sm ${c4.preset === 'office' ? 'on' : ''}" data-p="office">Office code</button>
+          <button class="chip sm ${c4.preset === 'iso19650' ? 'on' : ''}" data-p="iso19650">ISO 19650</button>
+          <button class="chip sm ${c4.preset === 'simple' ? 'on' : ''}" data-p="simple">Simple</button>
+          <button class="chip sm ${c4.preset === 'custom' ? 'on' : ''}">Custom</button></div>
+        <div><div class="m" style="font-size:12px;margin-bottom:3px">Pattern (drag to reorder, × to remove; the extension is added for you)</div>
+          <div class="pat">${c4.toks.map((k, i) => (i ? `<span class="lit">${c4.sep}</span>` : '') + (k.startsWith('"') ? `<span class="lit">${esc(k.slice(1, -1))}</span>` : `<span class="tok">${k}${k === 'Seq' ? `:${c4.pad}` : ''}<b data-rm="${i}">×</b></span>`)).join('')}<span class="lit">.ext</span></div></div>
+        <div><div class="m" style="font-size:12px;margin-bottom:3px">Add a token</div><div class="pal">${TOKENS.map((k) => `<button data-add="${k}">+ ${k}</button>`).join('')}<button data-add="&quot;TEXT&quot;">+ text…</button></div></div>
+        <div class="row"><label class="f">Separator<select id="sep">${['-', '_', '.'].map((s) => `<option ${c4.sep === s ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
+          <label class="f">Case<select id="case"><option ${!c4.upper ? 'selected' : ''}>As typed</option><option ${c4.upper ? 'selected' : ''}>UPPER</option></select></label>
+          <label class="f">Seq padding<select id="pad">${[2, 3, 4].map((p) => `<option ${c4.pad === p ? 'selected' : ''}>${p}</option>`).join('')}</select></label>
+          <label class="f">Discipline<input value="E" style="width:60px"></label></div>
+        <div><div class="m" style="font-size:12px;margin-bottom:3px">Preview, “${esc(SAMPLE.ProjectShort)}” (Calculation)</div><div class="prev">${esc(nameFor(c4.toks, 'CAL'))}.pdf</div></div>
+      </div>
+      <div class="box">
+        <table class="t"><thead><tr><th>Type</th><th>Pattern</th><th>Example</th></tr></thead><tbody>
+        ${pv.map(([ty, ext, nm]) => `<tr><td>${ty}</td><td><select><option ${over[ty] ? '' : 'selected'}>default</option><option ${over[ty] ? 'selected' : ''}>${esc(over[ty] || 'own pattern…')}</option></select></td><td class="mono" style="font-size:11px">${esc(nm)}.${ext}</td></tr>`).join('')}
+        </tbody></table>
+        <div class="checks" style="padding:8px 10px">${dup ? '<div class="warn">⚠ Two types give the same name; add Type or Seq</div>' : '<div class="ok">✓ Every type gives a different name</div>'}<div class="ok">✓ Windows-safe (values like “A/B” become “A-B”)</div></div>
+      </div>
+    </div>
+    <div class="foot"><button class="chip">Discard</button><button class="chip primary">Save template</button></div>
+  </div>`;
+}
+
+/* ---------- C5 learn from folder ---------- */
+const SCAN = [
+  ['2309_Jumeirah Park Villas', 0, 0], ['A-Admin', 1, 3], ['Minutes', 2, 14], ['B-Received', 1, 0], ['Arch', 2, 0], ['2024-05-01', 3, 22], ['Rev A 12-03', 3, 18],
+  ['C-Calc', 1, 0], ['VD', 2, 9], ['SC', 2, 4], ['Lux', 2, 6], ['D-Drawings', 1, 0], ['IFC', 2, 31], ['Old', 2, 40],
+  ['E-DEWA', 1, 7], ['F-BOQ', 1, 5], ['G-Transmittals', 1, 12], ['H-Site', 1, 0], ['Snags', 2, 3],
+];
+const MATCH = [
+  ['A-Admin/Minutes', 'minutes', .95], ['B-Received/Arch', 'receivedArch', .9], ['B-Received/Arch/2024-05-01', 'leave', .9], ['B-Received/Arch/Rev A 12-03', 'leave', .85],
+  ['C-Calc/VD', 'calcVd', .92], ['C-Calc/SC', 'calcFault', .78], ['C-Calc/Lux', 'calcLighting', .64], ['D-Drawings/IFC', 'drawingsIssued', .88], ['D-Drawings/Old', 'drawingsSuperseded', .61],
+  ['E-DEWA', 'authDewa', .97], ['F-BOQ', 'boq', .96], ['G-Transmittals', 'transmittals', .94], ['H-Site/Snags', 'snags', .9], ['A-Admin', '', 0], ['H-Site', '', .4],
+];
+const c5 = { step: 2 };
+function C5() {
+  const steps = ['1 Choose folder', '2 Review roles', '3 Name & save'];
+  const files = SCAN.reduce((a, s) => a + s[2], 0);
+  let body;
+  if (c5.step === 1) body = `<div class="box pad" style="display:flex;flex-direction:column;gap:8px;max-width:640px">
+      <label class="f">Folder<div class="row"><input class="mono" style="flex:1" value="D:\\Jobs\\2309_Jumeirah Park Villas" readonly><button class="chip">Choose…</button></div></label>
+      <p class="note" style="margin:0">The app reads folder names only, up to 6 levels and 500 folders. It never opens, lists or reads your files; it only counts them. Hidden and system folders and links are skipped. Nothing in the folder is changed.</p>
+      <div class="ok">✓ Read ${SCAN.length} folders, 4 levels. ${files} files ignored.</div></div>`;
+  else if (c5.step === 2) body = `<div class="split" style="grid-template-columns:300px minmax(0,1fr)">
+      <div class="box"><div class="tree">${SCAN.map(([n, d, f]) => `<div class="tn" style="padding-left:${8 + d * 16}px"><span>📁</span><span class="nm">${esc(n)}</span><span class="st m">${f ? f + ' files' : ''}</span></div>`).join('')}</div></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="box pad"><div class="row"><span>Root looks like a project number and name. Use</span><code>{ProjectNo}_{ProjectShort}</code><span>instead of “2309_Jumeirah Park Villas”?</span><span class="sp"></span><label class="row"><input type="checkbox" checked> Replace</label></div>
+          <div class="row m" style="margin-top:4px">Numbering found: <code>A-</code> letters (kept) · ${files} files ignored</div></div>
+        <div class="box" style="max-height:360px"><table class="t"><thead><tr><th>Folder</th><th>Suggested role</th><th>Match</th><th style="width:72px">Accept</th></tr></thead><tbody>
+        ${MATCH.map(([p, r, s]) => `<tr><td class="mono" style="font-size:11px">${esc(p)}</td><td>${r === 'leave' ? '<span class="m">Leave out (revision / date folder)</span>' : `<select><option>— none —</option>${ROLE_LIST.map((x) => `<option ${x.id === r ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select>`}</td>
+          <td>${s ? `<span class="bar"><i class="${s < .7 ? 'lo' : ''}" style="width:${s * 100}%"></i></span> <span class="m">${s.toFixed(2)}</span>` : '<span class="m">no match</span>'}</td>
+          <td>${r ? '<button class="chip sm on">✓</button> <button class="chip sm">✕</button>' : s ? '<span class="m">below 0.6</span>' : ''}</td></tr>`).join('')}
+        </tbody></table></div>
+        <div class="row"><span class="note">Each role is suggested once (the best match wins). Suggestions start at a 0.6 match.</span><span class="sp"></span><button class="chip sm">Accept all</button></div>
+      </div></div>`;
+  else body = `<div class="box pad" style="display:flex;flex-direction:column;gap:8px;max-width:520px">
+      <label class="f">Template name<input value="Old job layout (2309)"></label>
+      <label class="row"><input type="checkbox"> Set as default for new projects</label>
+      <p class="note" style="margin:0">17 folders · 11 roles assigned · numbering <code>A-</code>. Save opens the template in the editor so you can finish it.</p></div>`;
+  return `<div class="backdrop"><div class="modal" style="max-width:1080px;margin:0 auto">
+    <h3>Learn from folder</h3>
+    <div class="steps">${steps.map((s, i) => `<button class="${c5.step === i + 1 ? 'on' : c5.step > i + 1 ? 'done' : ''}" data-step="${i + 1}">${c5.step > i + 1 ? '✓ ' : ''}${s}</button>`).join('')}</div>
+    ${body}
+    <div class="foot"><button class="chip">Cancel</button>${c5.step > 1 ? `<button class="chip" data-step="${c5.step - 1}">Back</button>` : ''}<button class="chip primary" ${c5.step < 3 ? `data-step="${c5.step + 1}"` : 'data-go="C2"'}>${c5.step < 3 ? 'Next' : 'Save and edit'}</button></div>
+  </div></div>`;
+}
+
+/* ---------- C6 customise for this project ---------- */
+function C6() {
+  const t = clone(office); t.folders.find((n) => n.id === 'cf.boq-cost').name = '09_BOQ_Cost';
+  const st = { 'cf.admin': '✓ present', 'cf.admin.programme': '✓ present', 'cf.admin.minutes': '✓ present', 'cf.admin.timesheets': '<span class="m">hidden here</span>', 'cf.received': '✓ present', 'cf.received.architect': '✓ present', 'cf.received.datasheets': '＋ to create', 'cf.calcs': '✓ present', 'cf.drawings': '✓ present', 'cf.drawings.issued': '<span class="warn">renamed here</span>', 'annex': '＋ to create · added here', 'cf.tender': '<span class="m">hidden here</span>' };
+  t.folders.find((n) => n.id === 'cf.drawings').children.find((n) => n.id === 'cf.drawings.issued').name = '02_Issued_for_Approval';
+  t.folders.splice(9, 0, { id: 'annex', name: 'Phase-2-Annex', children: [] });
+  return `<div class="modal">
+    <div class="row"><h3>Customise project folder: 2417 Al Barsha Villas</h3><span class="sp"></span><span class="m">Template: Office standard v3</span></div>
+    <div class="split3">
+      <div class="box">
+        <div class="tb"><button class="chip sm">+ Folder</button><button class="chip sm">+ Subfolder</button><button class="chip sm">Rename</button><button class="chip sm">Hide for this project</button><span class="sep"></span><button class="chip sm">Role…</button></div>
+        <div style="max-height:440px;overflow:auto">${treeHtml(t.folders, { root: '2417_AlBarsha-Villas', sel: 'cf.drawings.issued', open: (n) => ['cf.admin', 'cf.received', 'cf.drawings'].includes(n.id), status: (n) => st[n.id] || '＋ to create', name: (n) => (st[n.id] || '').includes('hidden') ? `<s>${n.name}</s>` : n.name }).replace(/&lt;s&gt;|&lt;\/s&gt;/g, (m) => (m.includes('/') ? '</s>' : '<s>'))}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="box pad"><b>On disk</b><div class="counts" style="margin-top:6px"><span>Present</span><b>9</b><span>To create</span><b>51</b><span>Hidden for this project</span><b>5</b><span>Added here</span><b>1</b></div></div>
+        <div class="box pad"><b>Renamed here</b><p class="note" style="margin:4px 0">“02_Issued” → “02_Issued_for_Approval”. The new folder is created. The old one is left as it is:</p><code style="font-size:11px">06_Drawings\\02_Issued (23 files)</code></div>
+        <div class="box pad" style="display:flex;flex-direction:column;gap:6px"><b>Project only</b><p class="note" style="margin:0">These changes are saved in this project. The office template is not changed.</p>
+          <button class="chip">Save these changes back to the template…</button><button class="chip">Reset to template</button></div>
+        <div class="box pad"><b>Buildings</b><p class="note" style="margin:4px 0">＋ B3_Villa-C: its folders are offered here when a building is added (building-first templates).</p></div>
+      </div>
+    </div>
+    <div class="foot"><button class="chip">Cancel</button><button class="chip primary">Create 51 folders</button></div>
+  </div>`;
+}
+
+/* ---------- C7 new template ---------- */
+const c7 = { sel: 'building' };
+const LAYOUTS = [
+  ['discipline', 'Discipline-first', '01_Admin\n05_Calcs\n06_Drawings\n09_BOQ_Cost\n…', 'Starts from Electrical consultant full'],
+  ['stage', 'Stage-first', 'Concept\n  Calcs · Drawings\nSchematic\nDetailed\nIFC', 'Each stage holds Calcs and Drawings'],
+  ['building', 'Building / phase-first', '00_Common\nB1_Villa-A\n  Calcs · Drawings\nB2_Villa-B\n…', 'One set of folders per building'],
+  ['iso19650', 'ISO 19650 containers', '00_WIP\n01_SHARED\n02_PUBLISHED\n03_ARCHIVE', 'With discipline subfolders'],
+  ['flat', 'Flat & simple', '01_Admin\n03_Calcs\n04_Drawings\n06_BOQ', 'Starts from Villa / small building'],
+  ['blank', 'Blank', '{ProjectNo}_{ProjectShort}', 'The root only'],
+];
+function C7() {
+  const mb = BUILTIN.find((t) => t.id === 'multi-building');
+  const exp = clone(mb.folders.filter((n) => n.when !== 'building:each'));
+  const each = mb.folders.find((n) => n.when === 'building:each');
+  [['B1', 'Villa-A'], ['B2', 'Villa-B']].forEach(([c, n], i) => exp.push({ ...clone(each), id: 'b' + i, name: fill(each.name, { BuildingCode: c, BuildingName: n }), when: undefined }));
+  return `<div class="backdrop"><div class="modal" style="max-width:1000px;margin:0 auto">
+    <h3>New folder template</h3>
+    <p class="m" style="margin:0">Pick a layout to start from. You can change everything in the editor.</p>
+    <div class="cards">${LAYOUTS.map(([id, name, tree, sub]) => `<div class="card ${c7.sel === id ? 'sel' : ''}" data-card="${id}"><h4>${name}</h4><pre>${esc(tree)}</pre><span class="note">${sub}</span></div>`).join('')}</div>
+    ${c7.sel === 'building' ? `<div class="split3" style="grid-template-columns:minmax(0,1fr) 340px">
+      <div class="box pad" style="display:flex;flex-direction:column;gap:8px"><b>Repeat for</b>
+        <div class="row"><label class="row"><input type="radio" name="src" checked> Buildings in Building information</label><label class="row"><input type="radio" name="src"> Phases I type</label></div>
+        <label class="f">Folder name<input class="mono" value="{BuildingCode}_{BuildingName}"></label>
+        <label class="f">Shared folders, once at the top<input value="00_Common (Admin, DEWA, Transmittals)"></label>
+        <p class="note" style="margin:0">Outputs that belong to a building (its DB schedules, its BOQ when the BOQ is split by building) save into that building's folder. Everything else saves into 00_Common. A building added later is offered on the Customise card.</p></div>
+      <div class="box"><div class="m" style="padding:8px 10px 0;font-size:12px">Preview: project with 2 buildings</div>${treeHtml(exp, { root: '2417_AlBarsha-Villas', noTags: true })}</div>
+    </div>` : ''}
+    <div class="foot"><button class="chip">Cancel</button><button class="chip primary" data-go="C2">Create and edit</button></div>
+  </div></div>`;
+}
+
+/* ---------- C8 change template ---------- */
+function C8() {
+  const D = [
+    ['+', '01_Admin/03_Timesheets', ''], ['=', '01_Admin', ''], ['=', '02_Received', ''], ['=', '05_Calcs', ''], ['=', '05_Calcs/02_Volt_Drop', 'role remapped from C-Calc/VD'],
+    ['+', '05_Calcs/03_Fault', ''], ['=', '06_Drawings/02_Issued', 'role remapped from D-Drawings/IFC'], ['+', '07_Schedules', '4 subfolders'], ['+', '09_BOQ_Cost', '3 subfolders'],
+    ['+', '10_Authority', '4 subfolders'], ['+', '11_Transmittals', ''], ['○', 'E-DEWA', '7 files'], ['○', 'F-BOQ', '5 files'], ['○', 'G-Transmittals', '12 files'], ['○', 'D-Drawings/Old', '40 files'],
+  ];
+  const lab = { '+': '<span class="ok">＋ to create</span>', '=': '<span>= kept</span>', '○': '<span class="m">○ not in the new template, left as is</span>' };
+  return `<div class="backdrop"><div class="modal" style="max-width:900px;margin:0 auto">
+    <h3>Change folder template: 2309 Jumeirah Park Villas</h3>
+    <div class="row"><label class="f">From<input value="Old job layout (2309) v1" readonly></label><span style="padding-top:16px">→</span><label class="f">To<select><option>Office standard (v3)</option><option>Electrical consultant full</option><option>Villa / small building</option></select></label></div>
+    <div class="box" style="max-height:360px"><table class="t"><thead><tr><th>Folder</th><th style="width:38%">Change</th><th>Note</th></tr></thead><tbody>
+      ${D.map(([k, p, n]) => `<tr><td class="mono" style="font-size:11px">${esc(p)}</td><td>${lab[k]}</td><td class="m">${esc(n)}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="row"><span>＋ 38 to create</span><span>· = 9 kept (2 role remapped)</span><span>· ○ 6 left untouched (82 files)</span><span class="sp"></span><label class="row"><input type="checkbox"> Show where old files would go (list only)</label></div>
+    <div class="box pad"><b>Overrides</b><p class="note" style="margin:4px 0 0">2 still apply. 1 no longer applies and is dropped: hide “07_Fire_Alarm” (not in the new template).</p></div>
+    <p class="note" style="margin:0">Apply only creates folders. No folder or file is moved, renamed or deleted.</p>
+    <div class="foot"><button class="chip">Cancel</button><button class="chip primary">Apply: create 38 folders</button></div>
+  </div></div>`;
+}
+
+const SCREENS = {
+  C1: ['C1 Template library', 'Preferences gets a fourth tab, Folder templates. Built-in templates are locked; ★ marks the default for new projects.', C1],
+  C2: ['C2 Tree editor', 'Toolbar, drag-and-drop with a drop line, inspector and live checks. “09_BOQ & Cost” shows the illegal-character error, so Save stays disabled until it is fixed.', C2],
+  C3: ['C3 Roles tab', 'One row per role in the catalogue. “— ask each time —” keeps today\'s save dialog.', C3],
+  C4: ['C4 File naming', 'Token chips plus literal text; per-type overrides; live preview with sample values.', C4],
+  C5: ['C5 Learn from folder', 'Three steps. Reads folder names only and changes nothing on disk.', C5],
+  C6: ['C6 Customise for this project', 'Overview → Project folder → Customise. Changes are stored in the project; the old folder of a rename is listed, never moved.', C6],
+  C7: ['C7 New template', 'Six starting layouts. Building/phase-first shows the Repeat for section and a live preview.', C7],
+  C8: ['C8 Change template', 'Diff before applying. Only creates folders.', C8],
+};
+let cur = 'C1';
+function render() {
+  document.getElementById('pick').innerHTML = Object.entries(SCREENS).map(([k, [n]]) => `<button aria-pressed="${k === cur}" data-go="${k}">${n}</button>`).join('') + '<button class="theme" id="theme">Light / dark</button>';
+  document.getElementById('why').textContent = SCREENS[cur][1];
+  document.getElementById('screen').innerHTML = SCREENS[cur][2]();
+}
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-go],[data-tpl],[data-id],[data-f],[data-step],[data-card],[data-p],[data-add],[data-rm],#theme,#renum');
+  if (!el) { if (c2.menu) { c2.menu = false; render(); } return; }
+  if (el.id === 'theme') { const r = document.documentElement; r.dataset.theme = r.dataset.theme === 'light' ? 'dark' : 'light'; return; }
+  if (el.id === 'renum') c2.menu = !c2.menu;
+  else if (el.dataset.go) cur = el.dataset.go;
+  else if (el.dataset.tpl) c1.sel = el.dataset.tpl;
+  else if (el.dataset.id && cur === 'C2' && find(c2.t.folders, el.dataset.id)) c2.sel = el.dataset.id;
+  else if (el.dataset.f) c3.filter = el.dataset.f;
+  else if (el.dataset.step) c5.step = +el.dataset.step;
+  else if (el.dataset.card) c7.sel = el.dataset.card;
+  else if (el.dataset.p) { c4.preset = el.dataset.p; c4.toks = [...PRESETS[el.dataset.p]]; }
+  else if (el.dataset.add) { c4.toks.push(el.dataset.add); c4.preset = 'custom'; }
+  else if (el.dataset.rm) { c4.toks.splice(+el.dataset.rm, 1); c4.preset = 'custom'; }
+  render();
+});
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'sep') c4.sep = e.target.value;
+  else if (e.target.id === 'case') c4.upper = e.target.value === 'UPPER';
+  else if (e.target.id === 'pad') c4.pad = +e.target.value;
+  else return;
+  render();
+});
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'nm') return;
+  find(c2.t.folders, c2.sel).n.name = e.target.value; c2.dirty = true;
+  const pos = e.target.selectionStart; render();
+  const nm = document.getElementById('nm'); nm.focus(); nm.setSelectionRange(pos, pos);
+});
+render();
+</script>
+</body>
+</html>

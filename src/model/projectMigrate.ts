@@ -1,6 +1,7 @@
 import type { Feeder, Project } from '../types';
 import { pointsWithItems } from '../calc/loadSchedule';
 import { withUids } from './stableIds';
+import { readProjectFolder } from './folderTemplates';
 
 /** Project identity, file-format version and copying.
  *
@@ -10,7 +11,10 @@ import { withUids } from './stableIds';
  * user saves.
  *
  * Version 2: boards and circuits carry a permanent `uid` (model/stableIds). An older
- * app opens a version 2 file read-only, so it cannot save it without the uids. */
+ * app opens a version 2 file read-only, so it cannot save it without the uids.
+ *
+ * `folder` (the project's copy of its folder template, src/model/folderTemplates.ts) needs no new version:
+ * an older app keeps fields it does not know and saves them back unchanged. */
 export const CURRENT_SCHEMA = 2;
 
 const fnv = (s: string): string => {
@@ -34,11 +38,21 @@ export const isFutureSchema = (p: Project): boolean => (p.schemaVersion ?? 0) > 
 /** The project with an id, version and creation date (the same object when it already has them). */
 export function migrateProject(p0: Project, file?: string): Project {
   if (isFutureSchema(p0)) return p0; // never rewrite what this version does not understand
-  const p = withItemCounts(p0);
+  const p = withFolder(withItemCounts(p0));
   if (p.id && p.schemaVersion === CURRENT_SCHEMA && p.createdAt) return withUids(p);
   const firstRevision = p.revisions?.[0]?.date;
   const created = p.createdAt ?? (firstRevision && !Number.isNaN(Date.parse(firstRevision)) ? new Date(firstRevision).toISOString() : p.updatedAt);
   return withUids({ ...p, id: p.id ?? (file ? legacyIdFor(file) : newProjectId()), schemaVersion: CURRENT_SCHEMA, createdAt: created });
+}
+
+/** The folder setting kept when it has the right shape, dropped when it does not (the project then asks
+ * where to save, as before). The same object when it is fine or absent. */
+function withFolder(p: Project): Project {
+  if (p.folder === undefined) return p;
+  const f = readProjectFolder(p.folder);
+  if (f && f.version === p.folder.version && (f.overrides !== undefined) === (p.folder.overrides !== undefined)) return p;
+  const { folder: _drop, ...rest } = p;
+  return f ? { ...rest, folder: f } : rest;
 }
 
 /** Circuits with mixed load items: each itemized point count equals the sum of its items

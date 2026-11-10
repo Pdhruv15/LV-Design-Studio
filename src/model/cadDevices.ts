@@ -22,7 +22,12 @@ export interface LvPoint {
   y: number;
   /** An emergency light or sign (Design CAD → Emergency): a lighting point drawn with its own symbol. */
   emergency?: EmergencyKind;
+  /** The luminaire Light room (LUX) placed, kept with the point so the BOQ counts lights by type. */
+  luminaire?: PointLuminaire;
 }
+
+/** A luminaire as placed: a copy of the catalogue entry, so a later catalogue change does not change the design. */
+export interface PointLuminaire { id: string; label: string; watts: number; lumens: number; manufacturer?: string }
 
 export type EmergencyKind = 'fitting' | 'exit-sign' | 'direction-sign';
 /** Plan symbols of the emergency lights and signs (lighting points with `emergency` set). */
@@ -86,10 +91,10 @@ const withCount = (p: Project, feederId: string, type: PointType, delta: number)
 };
 
 /** Places an LV point on a circuit: added to the plan and counted on the circuit. */
-export function placeLvPoint(p: Project, level: LevelRef, type: PointType, feederId: string, x: number, y: number, emergency?: EmergencyKind): { project: Project; id: string } {
+export function placeLvPoint(p: Project, level: LevelRef, type: PointType, feederId: string, x: number, y: number, emergency?: EmergencyKind, luminaire?: PointLuminaire): { project: Project; id: string } {
   if (!p.feeders.some((f) => f.id === feederId)) throw new Error('Choose the circuit the point is on.');
   const id = `P${nextLvId(p)}`;
-  const point: LvPoint = { id, type, feederId, buildingId: level.building, levelId: level.level, x, y, ...(emergency ? { emergency } : {}) };
+  const point: LvPoint = { id, type, feederId, buildingId: level.building, levelId: level.level, x, y, ...(emergency ? { emergency } : {}), ...(luminaire ? { luminaire } : {}) };
   return { project: withCount({ ...p, lvPoints: [...(p.lvPoints ?? []), point] }, feederId, type, 1), id };
 }
 

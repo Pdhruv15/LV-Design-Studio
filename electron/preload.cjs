@@ -41,6 +41,14 @@ contextBridge.exposeInMainWorld('lvds', {
       return () => ipcRenderer.removeListener('database:changed', listener);
     }
   },
+  folderTemplates: {
+    list: () => ipcRenderer.invoke('folderTemplates:list'),
+    save: (template) => ipcRenderer.invoke('folderTemplates:save', template),
+    delete: (id) => ipcRenderer.invoke('folderTemplates:delete', id),
+    setDefault: (id) => ipcRenderer.invoke('folderTemplates:setDefault', id),
+    import: () => ipcRenderer.invoke('folderTemplates:import'),
+    export: (templates, defaultName) => ipcRenderer.invoke('folderTemplates:export', { templates, defaultName })
+  },
   engines: {
     probe: () => ipcRenderer.invoke('engines:probe'),
     run: (request) => ipcRenderer.invoke('engines:run', request)
