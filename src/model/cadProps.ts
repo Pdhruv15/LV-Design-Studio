@@ -1,6 +1,7 @@
 import type { SketchItem } from '../types';
 import { dimMeasure } from './cadSketch';
 import { parseFrame, parseJust, rejustified } from './cadText';
+import { noteAttached, noteFromText, parseAttach, plainText } from './cadMtext';
 
 type Pt = [number, number];
 
@@ -17,7 +18,7 @@ export const kindLabel = (it: SketchItem) => (it.tray ? 'Cable tray' : it.cable 
   : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', ellipse: 'Ellipse', text: 'Text', mtext: 'Note' }[it.kind]);
 
 export type PropKey = 'sx' | 'sy' | 'ex' | 'ey' | 'len' | 'ang' | 'cx' | 'cy' | 'r' | 'a0' | 'a1' | 'rx' | 'ry' | 'arc' | 'vx' | 'vy' | 'closed' | 'width' | 'service'
-  | 'text' | 'h' | 'rot' | 'just' | 'frame' | 'mask' | 'measured' | 'override';
+  | 'text' | 'h' | 'rot' | 'just' | 'frame' | 'mask' | 'measured' | 'override' | 'boxw' | 'attach';
 export interface PropDef { key: PropKey; label: string; unit?: 'm' | 'deg'; ro?: boolean; text?: boolean }
 
 const L = (key: PropKey, label: string, more: Partial<PropDef> = {}): PropDef => ({ key, label, unit: 'm', ...more });
@@ -40,9 +41,11 @@ export function geometryRows(kind: GeomKind, items: SketchItem[]): PropDef[] {
     default: return [];
   }
 }
-/** The Text rows: contents, height and rotation; for a dimension its measured value and the text shown over it. */
+/** The Text rows: contents, height and rotation; for a dimension its measured value and the text shown over it; for a
+ * note its box's width and where its anchor sits on the box. */
 export function textRows(kind: GeomKind): PropDef[] {
   if (kind === 'text') return [T('text', 'Contents'), L('h', 'Height'), A('rot', 'Rotation'), T('just', 'Justify'), T('frame', 'Frame'), T('mask', 'Mask')];
+  if (kind === 'mtext') return [T('text', 'Contents'), L('h', 'Height'), L('boxw', 'Width'), A('rot', 'Rotation'), T('attach', 'Justify')];
   if (kind === 'dim') return [L('measured', 'Measured', { ro: true }), T('override', 'Text override'), L('h', 'Text height')];
   if (kind === 'dimang') return [A('measured', 'Measured', { ro: true }), T('override', 'Text override'), L('h', 'Text height')];
   return [];
@@ -80,7 +83,9 @@ export function propValue(it: SketchItem, key: PropKey, k: number, v = 0): numbe
     case 'mask': return it.kind === 'text' ? (it.mask ? 'Yes' : 'No') : undefined;
     case 'width': return it.tray ? String(it.tray.widthMm) : undefined;
     case 'service': return it.tray?.service ?? '';
-    case 'text': return it.text ?? '';
+    case 'text': return it.kind === 'mtext' ? plainText(it) : it.text ?? '';
+    case 'boxw': return it.kind === 'mtext' ? (it.w ?? 0) * k : undefined;
+    case 'attach': return it.kind === 'mtext' ? it.just ?? 'TL' : undefined;
     case 'h': return it.h !== undefined ? it.h * k : undefined;
     case 'rot': return deg(it.rot ?? 0);
     case 'measured': return it.dimKind === 'angular' ? measuredOf(it) : measuredOf(it) * k;
@@ -140,9 +145,12 @@ export function withProp(it: SketchItem, key: PropKey, value: number | string, k
       const { service: _s, ...t } = it.tray, s = String(value).trim();
       return { ...it, tray: s ? { ...t, service: s } : t };
     }
-    case 'text': return it.kind === 'text' && String(value).trim() ? { ...it, text: String(value) } : undefined;
-    case 'h': return num && u > 0 && (it.kind === 'text' || it.kind === 'dim') ? { ...it, h: u } : undefined;
-    case 'rot': return num && it.kind === 'text' ? { ...it, rot: rad(n) } : undefined;
+    // A note's contents: its paragraphs as plain lines (bold and underline go; the editor keeps them).
+    case 'text': return it.kind === 'mtext' ? (String(value).trim() ? { ...it, note: noteFromText(String(value)) } : undefined) : it.kind === 'text' && String(value).trim() ? { ...it, text: String(value) } : undefined;
+    case 'h': return num && u > 0 && (it.kind === 'text' || it.kind === 'mtext' || it.kind === 'dim') ? { ...it, h: u } : undefined;
+    case 'boxw': { if (!num || it.kind !== 'mtext') return undefined; const { w: _w, ...rest } = it; return u > 0 ? { ...rest, w: u } : rest; }
+    case 'attach': { const j = parseAttach(String(value)); return j && it.kind === 'mtext' ? noteAttached(it, j) : undefined; }
+    case 'rot': return num && (it.kind === 'text' || it.kind === 'mtext') ? { ...it, rot: rad(n) } : undefined;
     case 'just': { const j = parseJust(String(value)); return j && it.kind === 'text' ? rejustified(it, j) : undefined; }
     case 'frame': { const f = parseFrame(String(value)); if (!f || it.kind !== 'text') return undefined; const { frame: _f, ...rest } = it; return f === 'none' ? rest : { ...rest, frame: f }; }
     case 'mask': { if (it.kind !== 'text') return undefined; const { mask: _m, ...rest } = it; return String(value) === 'Yes' ? { ...rest, mask: true } : rest; }
