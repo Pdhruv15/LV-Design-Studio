@@ -17,7 +17,8 @@ import CadDynInput, { type DynBox } from './CadDynInput';
 import CadTextEdit from './CadTextEdit';
 import { DIALOG_TOOLS, DimStyleDialog, EditDialog, TextStyleDialog } from './CadDialogs';
 import { currentTextStyle, dimLookOf, dimStandardAsBefore, dimStylesOf, dimStylesToStore, textStylesOf, textStylesToStore } from '../../model/cadStyles';
-import { chooseDrawing, drawingWithDevices, explodeObjects, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
+import { chooseDrawing, drawingWithDevices, explodeObjects, openDrawing, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
+import { newDrawingDxf, newDrawingName } from '../../model/cadNewDrawing';
 import { boundaryOfPiece, cropItems, cropNote, cropPieces, hatchLookup, type CropBoundary, type CropSide } from '../../model/cadCrop';
 import { parsePat, specWith, withPatterns } from '../../model/cadHatch';
 import { erasedOf, restoredErased, shownView, withErased, type ErasedParts } from '../../model/cadErased';
@@ -378,6 +379,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     } finally { setBusy(false); }
   }
   const openFile = () => void load(() => chooseDrawing());
+  /** NEW: a blank drawing in millimetres, Drawing1.dxf or the next name free; Save asks where the first time. */
+  const newFile = () => {
+    const file = newDrawingName(project, cad.drawings.map((d) => d.file));
+    void load(async () => { const v = await openDrawing(file, new TextEncoder().encode(newDrawingDxf())); cad.say(`NEW  ${file} — a blank drawing in millimetres. Save As names it the first time.`); return v; });
+  };
   /** Shows the tab of a file already open, else reads it into a new one. */
   const showOrLoad = (file: string, read: () => Promise<CadView | null>, missing?: string) => {
     const tab = cad.tabOf(file);
@@ -929,7 +935,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [dsTab, setDsTab] = useState<DraftTab | null>(null);
   const [publishing, setPublishing] = useState(false)
 ;
-  cad.actions.current = { save: () => void saveNow(), saveDwg: () => startSaveAs('dwg'), saveAs: () => startSaveAs(), exportAs: (k) => void exportAs(k), publish: () => setPublishing(true), settings: (t) => setDsTab(t ?? 'snap'), close: () => { if (view) closeDrawings([view]); }, closeOthers: () => { if (view) closeDrawings(cad.drawings.filter((v) => v !== view)); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); }, command: (t) => run(t), setProps, reopen: () => { if (last) void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.'); } };
+  cad.actions.current = { newDrawing: newFile, save: () => void saveNow(), saveDwg: () => startSaveAs('dwg'), saveAs: () => startSaveAs(), exportAs: (k) => void exportAs(k), publish: () => setPublishing(true), settings: (t) => setDsTab(t ?? 'snap'), close: () => { if (view) closeDrawings([view]); }, closeOthers: () => { if (view) closeDrawings(cad.drawings.filter((v) => v !== view)); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); }, command: (t) => run(t), setProps, reopen: () => { if (last) void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.'); } };
   // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
   useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
   // A ribbon command given while another page was shown runs now that the page is here.
@@ -2149,6 +2155,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     cad.say(`Command: ${c}`);
     if (c === 'O' && tool === 'area') { setObjectMode(true); setPoints([]); cad.say('AREA  Select a closed object:'); return; }
     const act: Record<CadAction, () => void> = {
+      new: () => newFile(),
       open: () => openFile(),
       tbSave: () => { if (!view || !tbIdOf(view.file)) { cad.say('TBSAVE  Not a title block drawing: open one with Project → Title block → Edit in CAD.'); return; } const r = saveTitleBlockFromCad(project, view.file); if (r.project !== project) change(r.project, r.message); else cad.say(r.message); },
       close: () => { if (view) closeDrawings(c === 'CLOSE' ? [view] : undefined); else cad.say('No drawing open.'); },
@@ -2915,6 +2922,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             <p className="m">Open a DWG or DXF drawing. It opens here as in a CAD program — read by the app's own engine, no CAD program needed.</p>
             <div className="cad-actions">
               <button className="chip primary" disabled={busy} onClick={openFile}>{busy ? 'Opening…' : 'Open drawing…'}</button>
+              <button className="chip" disabled={busy} onClick={newFile}>New drawing</button>
               {last && window.lvds?.cadFile?.readBytes && <button className="chip" disabled={busy} onClick={() => void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.')}>Reopen {last.split(/[\\/]/).pop()}</button>}
               {SAMPLE_PLANS.map((x) => <button key={x.file} className="chip" disabled={busy} onClick={() => void load(() => sampleDrawing(x.file))}>{x.label}</button>)}
             </div>

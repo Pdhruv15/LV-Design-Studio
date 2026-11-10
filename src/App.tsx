@@ -1002,6 +1002,7 @@ export default function App() {
     const cadTool = (t: Parameters<typeof cadS.setTool>[0]) => { cadS.setTool(t); setView('cad'); };
     cmd('Design CAD…', () => setView('cad'), undefined, 'floor plan open DWG DXF architect plan CAD drawing measure');
     cmd('Open drawing in Design CAD…', () => void openCad(), undefined, 'CAD DWG DXF open drawing model space layers snap');
+    cmd('New drawing in Design CAD', () => cadDo((x) => x.newDrawing()), undefined, 'CAD DWG DXF new blank drawing NEW QNEW');
     cmd('What\'s new…', () => setWhatsNew(RELEASES.slice(0, 1)), undefined, 'release notes update changes new features version');
     cmd('Cable routes in Design CAD…', () => cadTool('cable'), undefined, 'Floor plan DWG DXF route measure length cable lengths');
     cmd('Board locations in Design CAD…', () => { cadS.setDevice('db'); cadTool('dev'); }, undefined, 'Floor plan DWG DXF room level position place board');
@@ -1270,7 +1271,7 @@ export default function App() {
           onSave: () => saveProject(),
           onSaveAs: () => saveAs(),
           onAnonymizedSample: () => setShowAnonymized(true),
-          cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onSave: () => cadDo((x) => x.save()), onSaveDwg: () => cadDo((x) => x.saveDwg()), onClose: () => cadDo((x) => x.close()), onSaveAs: () => cadDo((x) => x.saveAs()), onCloseOthers: () => cadDo((x) => x.closeOthers()), onExport: (k) => cadDo((x) => x.exportAs(k)), onPublish: () => cadDo((x) => x.publish()), onSettings: () => cadDo((x) => x.settings()), onDelete: () => cadDo((x) => x.remove()), hasSelection: !!cadS.selected, onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, onLayerManager: () => cadDo((x) => x.layerManager()), onRefs: () => cadDo((x) => x.refs()), inLayout: !!cadS.layout && view === 'cad', onLayoutCmd: (c) => cadDo((x) => x.layoutCmd(c)),
+          cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onNew: () => cadDo((x) => x.newDrawing()), onSave: () => cadDo((x) => x.save()), onSaveDwg: () => cadDo((x) => x.saveDwg()), onClose: () => cadDo((x) => x.close()), onSaveAs: () => cadDo((x) => x.saveAs()), onCloseOthers: () => cadDo((x) => x.closeOthers()), onExport: (k) => cadDo((x) => x.exportAs(k)), onPublish: () => cadDo((x) => x.publish()), onSettings: () => cadDo((x) => x.settings()), onDelete: () => cadDo((x) => x.remove()), hasSelection: !!cadS.selected, onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, onLayerManager: () => cadDo((x) => x.layerManager()), onRefs: () => cadDo((x) => x.refs()), inLayout: !!cadS.layout && view === 'cad', onLayoutCmd: (c) => cadDo((x) => x.layoutCmd(c)),
             onPaper: !!cadS.layout && view === 'cad' && !cadS.msVp, onCommand: (c) => cadDo((x) => x.command(c)),
             reopen: cadReopen,
             propsOn: cadS.showProps, onProps: () => { cadS.setShowProps(!cadS.showProps); setView('cad'); },

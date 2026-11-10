@@ -5,7 +5,7 @@ import type { CadTool } from './cadState';
  * the text of TEXT), O in AREA (object) and the layout commands are read before these, on the page. */
 
 /** Commands that run something on the page rather than start a tool. */
-export type CadAction = 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'layiso' | 'layuniso'
+export type CadAction = 'new' | 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'layiso' | 'layuniso'
   | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
   | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
   | 'textStyle' | 'dimStyle' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
@@ -14,6 +14,7 @@ export type CadAction = 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 's
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
 
 export const CAD_COMMANDS: readonly CadCommand[] = [
+  { aliases: ['NEW', 'QNEW'], desc: 'New drawing: a blank one in millimetres', action: 'new' },
   { aliases: ['OPEN'], desc: 'Open a drawing', action: 'open' },
   { aliases: ['CLOSE', 'CLOSEALL'], desc: 'Close the drawing, or all of them', action: 'close' },
   { aliases: ['CLOSEOTHERS'], desc: 'Close all drawings but this one', action: 'closeOthers' },

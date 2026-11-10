@@ -51,10 +51,10 @@ export const skipRef = (projectId: string | undefined, host: string, name: strin
 };
 
 /** What the ribbon asks of the page showing the drawing; nothing while the page is not shown. */
-/** What the ribbon runs on the page; `command` runs a command as if typed on the command line (TEXTSTYLE, LAYISO…);
+/** What the ribbon runs on the page; `newDrawing` opens a blank drawing (NEW); `command` runs a command as if typed on the command line (TEXTSTYLE, LAYISO…);
  * `setProps` sets the colour, linetype or lineweight of the drawn objects picked, or of new objects when none is. */
-export interface CadActions { save: () => void; saveDwg: () => void; saveAs: () => void; exportAs: (kind: CadExport) => void; publish: () => void; settings: (tab?: DraftTab) => void; close: () => void; closeOthers: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void; refs: () => void; layoutCmd: (cmd: string) => void; command: (text: string) => void; reopen: () => void; setProps: (patch: ObjectProps) => void }
-export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, saveAs: () => {}, exportAs: () => {}, publish: () => {}, settings: () => {}, close: () => {}, closeOthers: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {}, refs: () => {}, layoutCmd: () => {}, command: () => {}, reopen: () => {}, setProps: () => {} };
+export interface CadActions { newDrawing: () => void; save: () => void; saveDwg: () => void; saveAs: () => void; exportAs: (kind: CadExport) => void; publish: () => void; settings: (tab?: DraftTab) => void; close: () => void; closeOthers: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void; refs: () => void; layoutCmd: (cmd: string) => void; command: (text: string) => void; reopen: () => void; setProps: (patch: ObjectProps) => void }
+export const NO_ACTIONS: CadActions = { newDrawing: () => {}, save: () => {}, saveDwg: () => {}, saveAs: () => {}, exportAs: () => {}, publish: () => {}, settings: () => {}, close: () => {}, closeOthers: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {}, refs: () => {}, layoutCmd: () => {}, command: () => {}, reopen: () => {}, setProps: () => {} };
 
 /** File → Export: a PDF of the view or of the layout, a PNG image, the objects picked as DXF, the devices placed or the
  * cable routes' lengths as Excel. */
@@ -91,7 +91,7 @@ export function useCad(projectId: string | undefined) {
   const now = useRef(tabs);
   const setTabs = useCallback((next: Tabs) => { now.current = next; setTabsState(next); }, []);
   const view = tabs.shown;
-  const [toggles, setToggles] = useState<CadToggles>({ snap: false, osnap: true, ortho: false, grid: false, dyn: true, polar: false, otrack: false, lwt: true });
+  const [toggles, setToggles] = useState<CadToggles>({ snap: false, osnap: true, ortho: false, grid: true, dyn: true, polar: false, otrack: false, lwt: true });
   // Drawings changed since they were last saved (by file name, lower case), and where each was saved this session.
   const [dirty, setDirty] = useState<ReadonlySet<string>>(() => new Set());
   const markDirty = useCallback((file: string, on = true) => setDirty((d) => {

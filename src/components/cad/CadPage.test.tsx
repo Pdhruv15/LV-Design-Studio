@@ -133,17 +133,18 @@ describe('CAD view', () => {
     expect(document.querySelector('.cad-hist')?.textContent).toMatch(/Unknown command "XYZ"/);
   });
 
-  it('steps the grid lines → dots → off with F7, as the SLD does, and shows the zoom in the corner', async () => {
+  it('starts with the grid lines on; F7 steps lines → dots → off, as the SLD does, and shows the zoom in the corner', async () => {
     act(() => root.render(<Host />));
     await flush();
     const f7 = () => act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F7' })); });
-    f7();
     expect([state.toggles.grid, state.gridDots]).toEqual([true, false]);
     f7();
     expect([state.toggles.grid, state.gridDots]).toEqual([true, true]);
     expect(button('GRID · DOTS')).toBeTruthy();
     f7();
     expect([state.toggles.grid, state.gridDots]).toEqual([false, false]);
+    f7();
+    expect([state.toggles.grid, state.gridDots]).toEqual([true, false]);
     expect(document.querySelector('.zoom-chip')?.textContent).toBe('100 %'); // the drawing fitted
   });
 
@@ -1400,6 +1401,36 @@ describe('file tabs', () => {
     expect(tabs()).toEqual(['Level? · plan.dwg']);
   });
 
+  it('NEW opens a blank drawing in millimetres in a tab of its own, Drawing1.dxf then Drawing2.dxf, with the grid on', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    expect(state.toggles.grid).toBe(true);
+    expect(document.querySelector('.cad-tg[aria-pressed="true"][title^="Grid: lines"]')).not.toBeNull();
+    await command('NEW');
+    await until(() => tabs().includes('Level? · Drawing1.dxf'));
+    expect(tabs()).toEqual([`Level? · ${GF}`, 'Level? · Drawing1.dxf']);
+    expect(state.view?.file).toBe('Drawing1.dxf');
+    expect(state.view?.path).toBeUndefined();
+    expect(state.view?.info).toMatchObject({ units: 4, segments: 0, layers: [{ name: '0' }] });
+    expect(document.querySelector('.cad-hist-prev')?.textContent ?? '').toContain('NEW  Drawing1.dxf — a blank drawing in millimetres.');
+    await command('QNEW');
+    await until(() => tabs().includes('Level? · Drawing2.dxf'));
+    expect(state.drawings.map((v) => v.file)).toEqual([GF, 'Drawing1.dxf', 'Drawing2.dxf']);
+    // Saved the first time with Save As, as a drawing opened without a path.
+    await saveCmd('SAVE');
+    expect(document.querySelector('[role="dialog"][aria-label="Save As"]')).toBeNull();
+  });
+
+  it('the page with no drawing open offers New drawing beside Open drawing…', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => closeOf(GF).click());
+    expect(tabs()).toEqual([]);
+    await act(async () => { button('New drawing').click(); });
+    await until(() => tabs().length === 1);
+    expect(tabs()).toEqual(['Level? · Drawing1.dxf']);
+  });
+
   it('right-click: Close, Close others and Close all; Close others is off with one tab', async () => {
     act(() => root.render(<Host />));
     await flush();
@@ -1801,12 +1832,12 @@ describe('CAD page actions from the ribbon', () => {
     act(() => root.render(<Later />));
     const ran = vi.fn((x: Parameters<NonNullable<CadState['pending']['current']>>[0]) => x.command('GRID'));
     state.pending.current = ran;
-    expect(state.toggles.grid).toBe(false);
+    expect([state.toggles.grid, state.gridDots]).toEqual([true, false]);
     act(() => showPage(true));
     await until(() => ran.mock.calls.length > 0);
     expect(ran).toHaveBeenCalledTimes(1);
     expect(state.pending.current).toBeNull();
-    expect(state.toggles.grid).toBe(true); // GRID ran on the page, as if typed
+    expect([state.toggles.grid, state.gridDots]).toEqual([true, true]); // GRID ran on the page, as if typed: lines → dots
     expect(state.history.slice(-1)[0]).toBe('Command: GRID');
   });
 });
@@ -2194,15 +2225,15 @@ describe('CAD command line', () => {
     expect(items()[2]).toMatchObject({ kind: 'pline', pts: [[X, 10000], [X + 2000, 10000], [X + 2000, 12000]] });
     act(() => state.setTool('none'));
     await command('GRID');
-    expect([state.toggles.grid, state.gridDots]).toEqual([true, false]);
+    expect([state.toggles.grid, state.gridDots]).toEqual([true, true]); // the grid starts on: lines → dots
     act(() => { (document.querySelector('input[aria-label="Command"]') as HTMLInputElement).blur(); });
     key(' ', window, { code: 'Space' });
     key(' ', window, { code: 'Space', repeat: true });
     key(' ', window, { code: 'Space', repeat: true });
     keyUp(' ');
-    expect(state.gridDots).toBe(false); // held: not a repeat of GRID
+    expect(state.toggles.grid).toBe(true); // held: not a repeat of GRID
     tap(' ');
-    expect(state.gridDots).toBe(true);
+    expect([state.toggles.grid, state.gridDots]).toEqual([false, false]);
   });
 
   it('Esc with the right-click menu open closes the menu only; Enter in a dialog over the page is the dialog\'s', async () => {

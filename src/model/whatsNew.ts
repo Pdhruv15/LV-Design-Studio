@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.082', date: '2026-11-10',
+    items: [
+      { title: 'New drawing in Design CAD', text: 'File → New (NEW) opens a blank drawing in millimetres in a tab of its own, Drawing1.dxf, Drawing2.dxf… — also from the page with no drawing open. Save As names it the first time.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Grid on from the start', text: 'Design CAD opens with the grid showing (F7 still steps lines → dots → off).' }
+    ]
+  },
+  {
     version: '2.077', date: '2026-11-10',
     items: [
       { title: 'Double-click a text or dimension to edit it in place', text: 'In Design CAD, a double-click on a drawn text, a leader\'s text or a dimension opens a box over it, at its height and angle, with the text selected: type, then Enter keeps it (one undo step), Esc leaves it as it was, a click outside keeps it. ED (TEXTEDIT, DDEDIT) asks for the object instead, and stays for the next one; Edit text is on the right-click menu of a text or dimension. A dimension\'s typed text is its override: <> in it stands for the measured value ("<> mm" keeps measuring as the points move), and blank gives the measure back. A text on a locked layer is refused.', action: 'cad', actionLabel: 'Open Design CAD' }

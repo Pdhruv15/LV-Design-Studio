@@ -237,12 +237,15 @@ describe('Design CAD ribbon: File', () => {
   const subItems = (label: string) => [...sub(label)!.querySelectorAll('button')].map((b) => b.textContent);
   const hover = (label: string) => act(() => { item(label).dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); });
 
-  it('holds Open, Close, Save, Save As, Export and Publish; greyed with no drawing but Open and Publish', () => {
-    show({ hasDrawing: false, onSaveAs: vi.fn(), onExport: vi.fn(), onPublish: vi.fn(), onCloseOthers: vi.fn() });
+  it('holds New, Open, Close, Save, Save As, Export and Publish; greyed with no drawing but New, Open and Publish', () => {
+    const { cad } = show({ hasDrawing: false, onNew: vi.fn(), onSaveAs: vi.fn(), onExport: vi.fn(), onPublish: vi.fn(), onCloseOthers: vi.fn() });
     click(fileButton());
-    expect(items()).toEqual(['Open', 'Close', 'Save', 'Save As…', 'Export', 'Publish…']);
+    expect(items()).toEqual(['New', 'Open', 'Close', 'Save', 'Save As…', 'Export', 'Publish…']);
     const off = ['Close', 'Save', 'Save As…', 'Export'];
     for (const label of items()) expect(item(label!).disabled, label!).toBe(off.includes(label!));
+    click(item('New'));
+    expect(cad.onNew).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[role="menu"][aria-label="File"]')).toBeNull();
   });
 
   it('runs what is picked and closes; Open, Close and Export are lists beside it; Esc closes it, not the command', () => {

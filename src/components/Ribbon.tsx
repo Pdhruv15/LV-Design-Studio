@@ -92,7 +92,9 @@ export interface RibbonActions {
   onAnonymizedSample: () => void;
   /** Design CAD's tools (src/components/cad); `file`: the File menu's Plans, Level and Units (cadFileMenu.ts). */
   cad?: {
-    tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onSaveDwg: () => void; onClose: () => void;
+    tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void;
+    /** File → New: a blank drawing (NEW). */
+    onNew?: () => void; onSave: () => void; onSaveDwg: () => void; onClose: () => void;
     /** File: Save As, Close all but this one, Export, Publish; and the Drafting settings (DS). */
     onSaveAs?: () => void; onCloseOthers?: () => void; onExport?: (kind: CadExport) => void; onPublish?: () => void; onSettings?: () => void; onDelete: () => void; hasSelection: boolean; onLayers: () => void; onLayerManager?: () => void; onRefs?: () => void; layersOn: boolean; hasDrawing: boolean;
     /** A layout tab showing (paper space): Page setup has its viewports; its tools run these commands (LAYOUT, MV, VPSCALE n, VPLOCK, PAGESETUP, PLOT). */
@@ -888,6 +890,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     ] : [];
     return (
       <div className="ribbon-file-menu" role="menu" aria-label="File">
+        {item('New', 'NEW', 'A blank drawing in millimetres to draw from scratch (Drawing1.dxf…); Save As names it the first time', c?.onNew)}
         {list('open', 'Open', 'OPEN', 'Open a drawing file, the plan of a level, or the drawing open last', openItems)}
         {list('close', 'Close', 'CLOSE', 'Close this drawing, all of them, or all but this one. What you drew stays in the project', closeItems, !has)}
         <hr />
