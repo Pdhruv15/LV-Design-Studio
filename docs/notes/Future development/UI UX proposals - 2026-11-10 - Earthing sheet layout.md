@@ -34,4 +34,4 @@ be searched. That part is not a layout issue. Export PDF keeps the sheet size an
 2. If B: the minimum printed text height (2.0 mm proposed; 2.5 mm is the usual A1 minimum).
 3. Pit schedule: its own column on the earthing sheet (proposed), or always a separate schedule sheet?
 
-Status: waiting for approval. Nothing implemented.
+Status: Option A approved and implemented in PR 501 (v2.081). Option B is replaced by the follow-up proposal "Earthing wrap width and continuation sheets" (same date).

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Earthing schematic — wrap width and continuation sheets mockup</title>
+<style>
+  body { font: 13px/1.45 -apple-system, "Segoe UI", Arial, sans-serif; color: #111; background: #fff; margin: 24px auto; max-width: 1180px; padding: 0 16px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 28px 0 6px; }
+  p { margin: 4px 0 8px; max-width: 920px; }
+  .meta { color: #555; margin-bottom: 18px; }
+  .sheet { border: 1px solid #000; display: block; width: 100%; height: auto; background: #fff; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .cap { font-size: 12px; color: #333; margin-top: 4px; }
+  table { border-collapse: collapse; margin-top: 8px; }
+  th, td { border: 1px solid #000; padding: 4px 8px; text-align: left; vertical-align: top; }
+  th { background: #eee; }
+  ul, ol { margin: 4px 0 8px 18px; padding: 0; }
+</style>
+</head>
+<body>
+<h1>Earthing schematic — wrap width and continuation sheets</h1>
+<div class="meta">Proposal, 2026-11-10 · follows v2.081 (bands in columns, PR 501) · Earthing schematic E-EAR-… · black-and-white output, as today</div>
+
+<p><b>Where v2.081 leaves it.</b> The bands now flow into columns, and the pit schedule gets its own column. A
+nine-substation site prints about twice as large as before. Two things remain:</p>
+<ul>
+  <li><b>Blank space above and below.</b> A wide substation band (up to about 2,900 px before it wraps) makes every
+  column wide. Two band columns plus the schedule then fill the sheet's width before its height, and three would be
+  too wide.</li>
+  <li><b>Text still small on big sites.</b> On the nine-substation example, 10 px labels print at about 1.0 mm on A1 and
+  0.45 mm on A3. The app's own readability limit for drawings (0.2 mm per px, so 2 mm for a 10 px label) is not
+  met, and nothing tells the user.</li>
+</ul>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <g id="wide">
+      <rect x="0" y="0" width="200" height="44" fill="none" stroke="#000" stroke-width="0.6" stroke-dasharray="3 2"/>
+      <rect x="8" y="6" width="16" height="10" fill="none" stroke="#000" stroke-width="0.6"/><rect x="40" y="6" width="16" height="10" fill="none" stroke="#000" stroke-width="0.6"/>
+      <rect x="72" y="6" width="16" height="10" fill="none" stroke="#000" stroke-width="0.6"/><rect x="104" y="6" width="16" height="10" fill="none" stroke="#000" stroke-width="0.6"/>
+      <rect x="140" y="6" width="22" height="10" fill="none" stroke="#000" stroke-width="0.6"/><rect x="170" y="6" width="22" height="10" fill="none" stroke="#000" stroke-width="0.6"/>
+      <path d="M16 16V26M48 16V26M80 16V26M112 16V26M151 16V26M181 16V26" stroke="#000" stroke-width="0.6"/>
+      <rect x="8" y="26" width="184" height="3" fill="#000"/>
+      <path d="M20 29V36M52 29V36M84 29V36M116 29V36M155 29V36M185 29V36" stroke="#000" stroke-width="0.6"/>
+      <path d="M16 38h8M48 38h8M80 38h8M112 38h8M151 38h8M181 38h8" stroke="#000" stroke-width="0.8"/>
+    </g>
+    <g id="mid">
+      <rect x="0" y="0" width="120" height="44" fill="none" stroke="#000" stroke-width="0.6" stroke-dasharray="3 2"/>
+      <rect x="8" y="6" width="16" height="10" fill="none" stroke="#000" stroke-width="0.6"/><rect x="40" y="6" width="16" height="10" fill="none" stroke="#000" stroke-width="0.6"/>
+      <rect x="84" y="6" width="22" height="10" fill="none" stroke="#000" stroke-width="0.6"/>
+      <path d="M16 16V26M48 16V26M95 16V26" stroke="#000" stroke-width="0.6"/>
+      <rect x="8" y="26" width="104" height="3" fill="#000"/>
+      <path d="M20 29V36M52 29V36M99 29V36" stroke="#000" stroke-width="0.6"/>
+      <path d="M16 38h8M48 38h8M95 38h8" stroke="#000" stroke-width="0.8"/>
+    </g>
+    <g id="narrow">
+      <rect x="0" y="0" width="60" height="44" fill="none" stroke="#000" stroke-width="0.6" stroke-dasharray="3 2"/>
+      <rect x="12" y="6" width="22" height="10" fill="none" stroke="#000" stroke-width="0.6"/>
+      <path d="M23 16V26" stroke="#000" stroke-width="0.6"/>
+      <rect x="8" y="26" width="44" height="3" fill="#000"/>
+      <path d="M27 29V36" stroke="#000" stroke-width="0.6"/><path d="M23 38h8" stroke="#000" stroke-width="0.8"/>
+    </g>
+    <g id="schedule">
+      <rect x="0" y="0" width="100" height="120" fill="none" stroke="#000" stroke-width="0.6"/>
+      <rect x="0" y="0" width="100" height="8" fill="#ddd" stroke="#000" stroke-width="0.6"/>
+      <path d="M0 16H100M0 24H100M0 32H100M0 40H100M0 48H100M0 56H100M0 64H100M0 72H100M0 80H100M0 88H100M0 96H100M0 104H100M0 112H100" stroke="#000" stroke-width="0.3"/>
+      <path d="M18 0V120M44 0V120M62 0V120M82 0V120" stroke="#000" stroke-width="0.3"/>
+    </g>
+    <g id="frame">
+      <rect x="0" y="0" width="841" height="594" fill="#fff" stroke="#000" stroke-width="1"/>
+      <rect x="10" y="10" width="821" height="574" fill="none" stroke="#000" stroke-width="1.2"/>
+      <path d="M10 534H831" stroke="#000" stroke-width="1"/>
+      <path d="M560 534V584M720 534V584" stroke="#000" stroke-width="0.6"/>
+      <path d="M560 551H831M560 567H831" stroke="#000" stroke-width="0.4"/>
+      <text x="566" y="547" font-size="8" font-weight="bold">Earthing schematic diagram</text>
+      <path d="M731 10V534" stroke="#000" stroke-width="0.8"/>
+      <text x="737" y="24" font-size="7" font-weight="bold">ABBREVIATIONS</text>
+      <path d="M737 32h70M737 40h62M737 48h76M737 56h58M737 64h66" stroke="#000" stroke-width="0.4"/>
+      <text x="737" y="86" font-size="7" font-weight="bold">LEGEND</text>
+      <path d="M737 94h8M737 102h8M737 110h8M737 118h8" stroke="#000" stroke-width="1.2"/>
+      <path d="M750 94h60M750 102h52M750 110h66M750 118h44" stroke="#000" stroke-width="0.4"/>
+      <text x="16" y="546" font-size="7" font-weight="bold">REV</text>
+      <text x="60" y="546" font-size="7" font-weight="bold">DATE</text>
+      <text x="140" y="546" font-size="7" font-weight="bold">DESCRIPTION</text>
+    </g>
+  </defs>
+</svg>
+
+<h2>v2.081 today — two band columns, blank space above and below</h2>
+<svg class="sheet" viewBox="0 0 841 594" xmlns="http://www.w3.org/2000/svg" font-family="Arial">
+  <use href="#frame"/>
+  <text x="566" y="563" font-size="7">E-EAR-001</text><text x="566" y="579" font-size="7">Sheet 1 of 1 · A1</text><text x="726" y="579" font-size="7">Scale NTS</text>
+  <rect x="20" y="20" width="705" height="70" fill="none" stroke="#000" stroke-width="0.5" stroke-dasharray="2 3"/><text x="372" y="58" font-size="10" text-anchor="middle">blank</text>
+  <g transform="translate(22 96) scale(0.62)">
+    <use href="#wide" transform="translate(0 0) scale(1.4)"/><use href="#mid" transform="translate(0 68)  scale(1.4)"/>
+    <use href="#narrow" transform="translate(0 136) scale(1.4)"/><use href="#mid" transform="translate(0 204) scale(1.4)"/>
+    <use href="#wide" transform="translate(0 272) scale(1.4)"/><use href="#narrow" transform="translate(0 340) scale(1.4)"/>
+    <use href="#mid" transform="translate(300 0) scale(1.4)"/><use href="#wide" transform="translate(300 68) scale(1.4)"/>
+    <use href="#narrow" transform="translate(300 136) scale(1.4)"/><use href="#wide" transform="translate(300 204) scale(1.4)"/>
+    <use href="#mid" transform="translate(300 272) scale(1.4)"/><use href="#narrow" transform="translate(300 340) scale(1.4)"/>
+    <use href="#schedule" transform="translate(600 0) scale(1.45 3.3)"/>
+  </g>
+  <rect x="20" y="410" width="705" height="118" fill="none" stroke="#000" stroke-width="0.5" stroke-dasharray="2 3"/><text x="372" y="474" font-size="10" text-anchor="middle">blank (legend and notes are in the right-hand column)</text>
+  <text x="200" y="304" font-size="8" text-anchor="middle" font-style="italic">empty beside narrow bands</text>
+</svg>
+<div class="cap">Nine-substation example: 12 band rows on A1. Labels print at about 1.0 mm. The columns are as wide as the widest band, so the drawing runs out of width with height to spare.</div>
+
+<h2>Step 1 — the band wrap width is chosen with the layout (one sheet)</h2>
+<p>Today a substation wraps onto a second row only past about 2,900 px. Instead, the app tries a few wrap widths
+(2,900, 2,300, 1,800 and 1,400 px). For each, it lays out the columns and the schedule as in v2.081, and keeps whichever
+prints largest. A wide substation then becomes two narrower rows, each marked 1/2 and 2/2 in its zone, with its links
+shown as today's "to EP-…" stubs. That allows three band columns where only two fitted before. Each row still
+holds whole equipment, never cut through a symbol.</p>
+<svg class="sheet" viewBox="0 0 841 594" xmlns="http://www.w3.org/2000/svg" font-family="Arial">
+  <use href="#frame"/>
+  <text x="566" y="563" font-size="7">E-EAR-001</text><text x="566" y="579" font-size="7">Sheet 1 of 1 · A1</text><text x="726" y="579" font-size="7">Scale NTS</text>
+    <use href="#mid" transform="translate(22 24) scale(1.4)"/>
+  <text x="172" y="34" font-size="7" text-anchor="end">1/2</text>
+  <use href="#mid" transform="translate(22 96) scale(1.4)"/>
+  <text x="172" y="106" font-size="7" text-anchor="end">2/2</text>
+  <use href="#mid" transform="translate(22 168) scale(1.4)"/>
+  <use href="#narrow" transform="translate(22 240) scale(1.4)"/>
+  <use href="#mid" transform="translate(22 312) scale(1.4)"/>
+  <use href="#mid" transform="translate(22 384) scale(1.4)"/>
+  <text x="172" y="394" font-size="7" text-anchor="end">1/2</text>
+  <use href="#mid" transform="translate(200 24) scale(1.4)"/>
+  <text x="350" y="34" font-size="7" text-anchor="end">2/2</text>
+  <use href="#narrow" transform="translate(200 96) scale(1.4)"/>
+  <use href="#mid" transform="translate(200 168) scale(1.4)"/>
+  <use href="#mid" transform="translate(200 240) scale(1.4)"/>
+  <text x="350" y="250" font-size="7" text-anchor="end">1/2</text>
+  <use href="#mid" transform="translate(200 312) scale(1.4)"/>
+  <text x="350" y="322" font-size="7" text-anchor="end">2/2</text>
+  <use href="#narrow" transform="translate(378 24) scale(1.4)"/>
+  <use href="#mid" transform="translate(378 96) scale(1.4)"/>
+  <text x="528" y="106" font-size="7" text-anchor="end">1/2</text>
+  <use href="#mid" transform="translate(378 168) scale(1.4)"/>
+  <text x="528" y="178" font-size="7" text-anchor="end">2/2</text>
+  <use href="#mid" transform="translate(378 240) scale(1.4)"/>
+  <use href="#narrow" transform="translate(378 312) scale(1.4)"/>
+  <text x="556" y="20" font-size="7" font-weight="bold">EARTH PIT SCHEDULE</text>
+  <use href="#schedule" transform="translate(556 24) scale(1.68 3.5)"/>
+</svg>
+<div class="cap">Same content: the four wide substations wrap to two rows each, so there are 16 narrower rows in three columns.
+I measured this with the v2.081 code on the nine-substation example at A1. Wrapping at 1,400 px instead of 2,900 px raises the scale
+from 0.104 to 0.142 mm per px (labels about 1.0 → 1.4 mm, <b>+37%</b>). The large single site goes from 0.171 to 0.193 (+13%).
+The best width differs per project (1,800 px was worse than 2,300 px on the nine-substation site), which is why the app tries several.
+There is still one sheet, and labels on big sites are still under 2 mm.</div>
+<p class="cap">Also considered: putting narrow bands side by side on one line. Once the wrap width is chosen this way, the rows are
+close in width and it gains little, so it is left out.</p>
+
+<h2>Step 2 — continuation sheets when text would print under the minimum</h2>
+<p>If the best layout from Step 1 would print labels smaller than a minimum (proposed 2.0 mm, the app's existing
+0.2 mm per px limit), the schematic continues onto more sheets. Each sheet holds as many whole lines as fit at the
+minimum size. The pit schedule goes on the last sheet, or on its own sheet if it does not fit there. A link to a pit
+on another sheet is drawn as today's row-crossing stub, with the sheet number added:
+<i>to EP-TX(N)-04 (sheet 2)</i>. Small sites stay on one sheet. This works like the earthing riser sheets today: each
+continuation sheet is a <code>part</code> of the earthing sheet in the drawing set, numbered with the set and listed
+in the drawing register.</p>
+<div class="row3">
+<svg class="sheet" viewBox="0 0 841 594" xmlns="http://www.w3.org/2000/svg" font-family="Arial">
+  <use href="#frame"/>
+  <text x="566" y="563" font-size="7">E-EAR-001</text><text x="566" y="579" font-size="7">Sheet 1 of 3 · A1</text><text x="726" y="579" font-size="7">Scale NTS</text>
+  <use href="#wide" transform="translate(24 30) scale(2.6)"/>
+  <use href="#mid" transform="translate(24 154) scale(2.6)"/>
+  <use href="#narrow" transform="translate(346.0 154) scale(2.6)"/>
+  <use href="#mid" transform="translate(24 278) scale(2.6)"/>
+  <use href="#narrow" transform="translate(346.0 278) scale(2.6)"/>
+  <use href="#wide" transform="translate(24 402) scale(2.6)"/>
+  <text x="560" y="524" font-size="11">continued on sheet 2 →</text>
+</svg>
+<svg class="sheet" viewBox="0 0 841 594" xmlns="http://www.w3.org/2000/svg" font-family="Arial">
+  <use href="#frame"/>
+  <text x="566" y="563" font-size="7">E-EAR-002</text><text x="566" y="579" font-size="7">Sheet 2 of 3 · A1</text><text x="726" y="579" font-size="7">Scale NTS</text>
+  <use href="#mid" transform="translate(24 30) scale(2.6)"/>
+  <use href="#wide" transform="translate(24 154) scale(2.6)"/>
+  <use href="#wide" transform="translate(24 278) scale(2.6)"/>
+  <use href="#mid" transform="translate(24 402) scale(2.6)"/>
+  <use href="#narrow" transform="translate(346.0 402) scale(2.6)"/>
+  <text x="560" y="524" font-size="11">continued on sheet 3 →</text>
+</svg>
+<svg class="sheet" viewBox="0 0 841 594" xmlns="http://www.w3.org/2000/svg" font-family="Arial">
+  <use href="#frame"/>
+  <text x="566" y="563" font-size="7">E-EAR-003</text><text x="566" y="579" font-size="7">Sheet 3 of 3 · A1</text><text x="726" y="579" font-size="7">Scale NTS</text>
+  <use href="#mid" transform="translate(24 30) scale(2.6)"/>
+  <text x="24" y="190" font-size="10" font-weight="bold">EARTH PIT SCHEDULE</text><use href="#schedule" transform="translate(24 198) scale(6.9 2.7)"/>
+</svg>
+</div>
+<div class="cap">Nine-substation example at a 2.0 mm minimum (0.2 mm per px): an A1 drawing area holds about 3,600 × 2,600 px, so about 4 band rows per sheet. That gives three or four A1 sheets, with the pit schedule on the last one. A 2,900 px band spans about 80% of the sheet width. Labels print at 2.0 mm or larger.</div>
+
+<h2>The paper size and band width have to agree</h2>
+<p>At the 2 mm minimum, an A3 drawing area holds only about 1,500 × 1,150 px, which is one band row. Step 1's wrap widths
+would then be limited to what the paper holds (1,400 px on A3), so even a wide substation reaches the minimum. That costs
+one sheet per row.</p>
+<table>
+  <tr><th>Nine-substation example</th><th>Today (v2.081)</th><th>Step 1 only</th><th>Step 1 + 2 (2.0 mm minimum)</th></tr>
+  <tr><td>A1</td><td>1 sheet, labels about 1.0 mm</td><td>1 sheet, about 1.4 mm (measured)</td><td>3–4 sheets, ≥ 2.0 mm (estimate)</td></tr>
+  <tr><td>A3</td><td>1 sheet, labels about 0.45 mm</td><td>1 sheet, about 0.6 mm</td><td>about 18–20 sheets, one band row each: not practical</td></tr>
+  <tr><td>Demonstration project (one band)</td><td colspan="3">1 sheet in every case, unchanged</td></tr>
+</table>
+<p>So with Step 2, a big earthing schematic should go up to A1 before adding sheets.</p>
+
+<h2>What changes and what does not</h2>
+<table>
+  <tr><th>Changes</th><th>Stays the same</th></tr>
+  <tr><td><ul>
+    <li>Step 1: band wrap width chosen with the layout (wide substations on two narrower rows)</li>
+    <li>Step 2: earthing continuation sheets (parts) in the drawing set, each numbered and in the register</li>
+    <li>Step 2: links to another sheet name that sheet</li>
+    <li>Step 2: wrap widths limited to what the paper holds</li>
+  </ul></td><td><ul>
+    <li>Everything inside a band</li>
+    <li>Black-and-white output, frame, title block, legend column</li>
+    <li>The on-screen Earthing working view (one column)</li>
+    <li>PDF, DXF and Design CAD → Sheets use the same layout</li>
+  </ul></td></tr>
+</table>
+
+<h2>Decisions needed</h2>
+<ol>
+  <li>Step 1 only, Step 2 only, or both? (Step 1 is a layout change on one sheet, measured at +37% / +13%; Step 2 adds sheets to the set.)</li>
+  <li>Minimum printed label height: 2.0 mm (the app's existing drawing limit) or 2.5 mm?</li>
+  <li>Auto paper for a big earthing schematic: go up to A1 first and add sheets only then (proposed), or stay on A3
+  and add sheets?</li>
+  <li>Continuation sheet numbers: separate numbers E-EAR-001, -002, -003 (proposed, as the earthing riser parts), or one
+  number with "sheet 1 of 3"?</li>
+  <li>Pit schedule on a big site: on the last drawing sheet when it fits (proposed), or always on a sheet of its own?</li>
+</ol>
+</body>
+</html>
