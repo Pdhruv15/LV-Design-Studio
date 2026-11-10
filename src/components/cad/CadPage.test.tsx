@@ -16,9 +16,11 @@ import { sampleProject } from '../../data/sampleProject';
 import { placeLvPoint } from '../../model/cadDevices';
 import { archOnOf } from '../../model/cadLayerState';
 import { dimLabel, dimMeasure, sketchOf } from '../../model/cadSketch';
+import { explodeNote, noteBox } from '../../model/cadMtext';
+import type { CadBlockDef } from '../../model/cadBlocks';
 import { openTitleBlockInCad, TB_LAYERS } from '../../model/titleBlockCad';
 import type { TitleTemplate } from '../../model/titleBlock';
-import type { Project } from '../../types';
+import type { Project, SketchItem } from '../../types';
 import { DRAFT_DEFAULTS, type DraftSettings } from '../../model/cadDraft';
 import { clearClip } from './cadClipboardStore';
 
@@ -2898,7 +2900,7 @@ describe('CAD 2D gap plan: TEXTEDIT, a double-click on a text or dimension to ty
     act(() => state.toggle('osnap'));
     await rightClickAt(X + 300, 100);
     const menu = () => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"][aria-label="Edit drawn objects"] button')];
-    expect(menu().map((b) => b.textContent)).toEqual(['Edit text', 'Move', 'Copy', 'Rotate', 'Erase', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    expect(menu().map((b) => b.textContent)).toEqual(['Edit text', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸']);
     await act(async () => { menu()[0].click(); });
     expect(box()!.value).toBe('DB ROOM');
     await keyBox('Escape');
@@ -2909,5 +2911,679 @@ describe('CAD 2D gap plan: TEXTEDIT, a double-click on a text or dimension to ty
     await command('');
     await rightClickAt(X + 1000, 6000);
     expect(menu().map((b) => b.textContent)).not.toContain('Edit text');
+  });
+});
+
+describe('CAD 2D gap plan: MTEXT, notes in a box with their lines wrapped to its width', () => {
+  const last = () => state.history[state.history.length - 1];
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const editor = () => document.querySelector('.cad-ntedit') as HTMLDivElement | null;
+  const words = () => document.querySelector('[aria-label="Note text"]') as HTMLDivElement | null;
+  const items = () => sketchOf(project, F);
+  const dblClickAt = async (x: number, y: number) => {
+    const [sx, sy] = screenOf(x, y);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('dblclick', { clientX: sx, clientY: sy, button: 0, bubbles: true })); });
+  };
+  const rightClickAt = async (x: number, y: number) => {
+    const [sx, sy] = screenOf(x, y);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); });
+  };
+  const keyWords = (key: string, more: KeyboardEventInit = {}) => act(() => { words()!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...more })); });
+  /** What is typed in the box: a block per line, a word in <b> or <u> for bold or underline (as the box keeps them). */
+  const typeWords = (lines: (string | [string, 'b' | 'u'])[][]) => act(() => {
+    const el = words()!;
+    el.replaceChildren();
+    for (const l of lines) {
+      const d = document.createElement('div');
+      for (const r of l) { if (typeof r === 'string') d.appendChild(document.createTextNode(r)); else { const e = document.createElement(r[1]); e.textContent = r[0]; d.appendChild(e); } }
+      if (!l.length) d.appendChild(document.createElement('br'));
+      el.appendChild(d);
+    }
+  });
+  const setField = (label: string, value: string) => act(() => {
+    // The editor's own field (the Properties palette has a Justify of its own for a note).
+    const el = (document.querySelector(`.cad-ntedit [aria-label="${label}"]`) ?? document.querySelector(`[aria-label="${label}"]`)) as HTMLInputElement | HTMLSelectElement;
+    if (el instanceof HTMLSelectElement) { el.value = value; el.dispatchEvent(new Event('change', { bubbles: true })); }
+    else { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, value); el.dispatchEvent(new Event('input', { bubbles: true })); }
+  });
+  const menuLabels = () => [...document.querySelectorAll('[role="menu"] button')].map((b) => b.textContent);
+  const N1: SketchItem = { id: 'N1', kind: 'mtext', layer: 'LV-ANNO', pts: [[X, 6000]], h: 250, w: 3000, note: [{ runs: [{ s: 'GENERAL NOTES', b: true }] }, { runs: [{ s: 'LSZH cables' }] }] };
+  // A note of two lines in a 3 m box at (X, 6000), and one on a locked layer below it.
+  const start: Project = { ...villa, cadSketch: [{ file: F, items: [N1, { ...N1, id: 'N2', layer: 'LV-LOCKED', pts: [[X, 3000]] }] }], cadLayerStyle: { [F]: { 'LV-LOCKED': { lock: true } } } };
+
+  it('MT: two corners (H and J first, if wanted) open the editor over the box; Ctrl/⌘+Enter draws the note in one undo step, Esc draws nothing', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('mt');
+    expect(last()).toBe('Command: MTEXT  First corner:');
+    await clickAt(X, 0);
+    expect(last()).toBe('MTEXT  Opposite corner or [Height/Justify/Width]:');
+    await command('j');
+    expect(last()).toBe('MTEXT  Justify [TL/TC/TR/ML/MC/MR/BL/BC/BR] <TL>:');
+    await command('tc');
+    expect(last()).toBe('MTEXT  Opposite corner or [Height/Justify/Width]:');
+    await command('h');
+    expect(last()).toBe('MTEXT  Height on paper (mm) <2.5>:');
+    await command('3.5');
+    expect(editor()).toBeNull();
+    await clickAt(X + 3000, -1000);
+    expect(editor()).not.toBeNull();
+    expect(last()).toBe('MTEXT  Type the note (Enter starts a new line); Ctrl/⌘+Enter or OK keeps it, Esc cancels:');
+    // The bar shows the height and justification chosen; the box sits at the top left corner, 3 m wide, not turned.
+    expect((document.querySelector('[aria-label="Height (mm on paper)"]') as HTMLInputElement).value).toBe('3.5');
+    expect((document.querySelector('[aria-label="Justify"]') as HTMLSelectElement).value).toBe('TC');
+    const [sx, sy] = screenOf(X, 0), [ex] = screenOf(X + 3000, 0);
+    expect(parseFloat(editor()!.style.left)).toBeCloseTo(sx, 0); expect(parseFloat(editor()!.style.top)).toBeCloseTo(sy, 0);
+    expect(parseFloat(editor()!.style.width)).toBeCloseTo(ex - sx, 0);
+    expect(editor()!.style.transform).toBe('rotate(0rad)');
+    await typeWords([[['GENERAL NOTES', 'b']], ['All cables to be ', ['LSZH', 'u'], ' unless noted'], []]);
+    await keyWords('Enter', { metaKey: true });
+    expect(editor()).toBeNull();
+    expect(items().filter((it) => it.kind === 'mtext' && it.id === 'S1')).toEqual([{
+      id: 'S1', kind: 'mtext', layer: 'LV-ANNO', pts: [[X + 1500, 0]], h: 350, w: 3000, just: 'TC',
+      note: [{ runs: [{ s: 'GENERAL NOTES', b: true }] }, { runs: [{ s: 'All cables to be ' }, { s: 'LSZH', u: true }, { s: ' unless noted' }] }]
+    }]);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][1]).toBe('Note · ⌘Z to undo');
+    expect(state.tool).toBe('none');
+    // Esc in the box: nothing drawn, the command ends.
+    await command('mt');
+    await clickAt(X, -5000);
+    await clickAt(X + 2000, -6000);
+    expect(editor()).not.toBeNull();
+    await keyWords('Escape');
+    expect(editor()).toBeNull();
+    expect(state.history.slice(-2)[0]).toBe('*Cancel*');
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(state.tool).toBe('none');
+  });
+
+  it('a double-click opens the note\'s words; the bar\'s height and justification apply with OK; Esc keeps it; EXPLODE gives a text per line', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await dblClickAt(X + 500, 5900);
+    expect(editor()).not.toBeNull();
+    expect(words()!.textContent).toBe('GENERAL NOTESLSZH cables');
+    expect(words()!.querySelector('b')?.textContent).toBe('GENERAL NOTES');
+    expect(state.selected).toBe('sk:N1');
+    expect(last()).toBe('MTEXT  Type the note (Enter starts a new line); Ctrl/⌘+Enter or OK keeps it, Esc leaves it as it was:');
+    await keyWords('Escape');
+    expect(editor()).toBeNull();
+    expect(items()[0]).toEqual(N1);
+    expect(last()).toBe('*Cancel*');
+    expect(onChange).toHaveBeenCalledTimes(0);
+    await dblClickAt(X + 500, 5900);
+    await setField('Justify', 'MC');
+    await setField('Height (mm on paper)', '5');
+    await act(async () => { button('OK').click(); });
+    expect(editor()).toBeNull();
+    const after = items()[0];
+    expect([after.just, after.h, after.w, after.note]).toEqual(['MC', 500, 3000, N1.note]);
+    // Justified middle centre, the anchor went to the centre of the 2-line box (250 + 416.7 high); taller letters then grow it about that centre.
+    expect(after.pts[0][0]).toBeCloseTo(X + 1500); expect(after.pts[0][1]).toBeCloseTo(6000 - (250 + 1250 / 3) / 2, 6);
+    expect(noteBox(after).lines.length).toBe(4);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][1]).toBe('MTEXT  Note changed · ⌘Z to undo');
+    // EXPLODE: the lines as drawn (wrapped at 3 m with 5 mm letters) become single-line texts.
+    const lines = explodeNote(after);
+    await command('x');
+    await clickAt(X + 500, 5900);
+    expect(last()).toBe(`EXPLODE  ${lines.length} texts · ⌘Z to undo`);
+    expect(items().filter((it) => it.layer === 'LV-ANNO').map((it) => [it.kind, it.text])).toEqual(lines.map((l) => ['text', l.text]));
+  });
+
+  it('right-click on a note: Edit text, Width… (typed in metres) and Justify ▸; a note on a locked layer is refused', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    // The locked one: ED and a double-click both refuse it.
+    await command('ed');
+    await clickAt(X + 500, 2900);
+    expect(last()).toBe('TEXTEDIT  Note on layer LV-LOCKED, which is locked: unlock it first (LAYULK).');
+    expect(editor()).toBeNull();
+    await dblClickAt(X + 500, 2900);
+    expect(editor()).toBeNull();
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
+    expect(state.tool).toBe('none');
+    await rightClickAt(X + 500, 5900);
+    expect(menuLabels()).toEqual(['Edit text', 'Width…', 'Justify ▸', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    await act(async () => { button('Width…').click(); });
+    expect(last()).toBe('MTEXT  Width (m) <3.00>:');
+    await command('4');
+    expect(items()[0].w).toBe(4000);
+    expect(items()[0].pts).toEqual([[X, 6000]]);
+    expect(onChange.mock.calls[0][1]).toMatch(/^MTEXT {2}Note 4\.00 m wide/);
+    await rightClickAt(X + 500, 5900);
+    await act(async () => { button('Justify ▸').click(); });
+    const opt = [...document.querySelectorAll('[role="listbox"][aria-label="Justify"] [role="option"]')].find((b) => b.textContent?.startsWith('Bottom right')) as HTMLButtonElement;
+    await act(async () => { opt.click(); });
+    expect(items()[0].just).toBe('BR');
+    expect(noteBox(items()[0]).tl[0]).toBeCloseTo(X); expect(noteBox(items()[0]).tl[1]).toBeCloseTo(6000);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    // Edit text opens the editor too.
+    await rightClickAt(X + 500, 5900);
+    await act(async () => { button('Edit text').click(); });
+    expect(editor()).not.toBeNull();
+    await keyWords('Escape');
+    expect(editor()).toBeNull();
+    expect(onChange).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('CAD 2D gap plan: DRAWORDER and TEXTTOFRONT, the order the drawn objects paint in', () => {
+  const last = () => state.history[state.history.length - 1];
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const order = () => sketchOf(project, F).map((it) => it.id).join('');
+  const rightClickAt = async (x: number, y: number) => {
+    const [sx, sy] = screenOf(x, y);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); });
+  };
+  const menuLabels = () => [...document.querySelectorAll('[role="menu"] button')].map((b) => b.textContent);
+  const options = () => [...document.querySelectorAll('[role="listbox"][aria-label="Draw order"] [role="option"]')] as HTMLButtonElement[];
+  // A solid hatch, a line beside it and a text over the hatch, drawn in that order (the text on top).
+  const start: Project = { ...villa, cadSketch: [{ file: F, items: [
+    { id: 'H', kind: 'pline', layer: 'LV-HATCH', closed: true, pts: [[X, 0], [X + 4000, 0], [X + 4000, 3000], [X, 3000]], hatch: { pattern: 'solid', scale: 3, angle: 0 } },
+    { id: 'L', kind: 'line', layer: 'LV-SKETCH', pts: [[X + 5000, 0], [X + 8000, 0]] },
+    { id: 'T', kind: 'text', layer: 'LV-ANNO', pts: [[X + 1000, 1000]], text: 'DB', h: 250 }
+  ] }] };
+
+  it('DR: pick the objects, Enter, then Front, Back, Above or Under (the reference clicked); one undo step each', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('dr');
+    expect(last()).toBe('Command: DRAWORDER  Select objects:');
+    await clickAt(X + 1100, 1100);
+    await clickAt(X + 6000, 0);
+    expect(last()).toBe('DRAWORDER  2 objects selected — Enter when done');
+    await command('');
+    expect(last()).toBe('DRAWORDER  [Above objects/Under objects/Front/Back] <Back>:');
+    await command('b');
+    expect(order()).toBe('LTH');
+    expect(onChange.mock.calls[0][1]).toBe('DRAWORDER  2 objects sent to the back · ⌘Z to undo');
+    expect(state.tool).toBe('none');
+    // One object selected first: the options come at once; Above asks for the reference object.
+    await clickAt(X + 1100, 1100);
+    expect(state.selected).toBe('sk:T');
+    await command('dr');
+    expect(last()).toBe('Command: DRAWORDER  [Above objects/Under objects/Front/Back] <Back>:');
+    await command('a');
+    expect(last()).toBe('DRAWORDER  Select reference objects:');
+    await clickAt(X + 2000, 0);
+    expect(order()).toBe('LHT');
+    expect(onChange.mock.calls[1][1]).toBe('DRAWORDER  1 object put above the closed polyline · ⌘Z to undo');
+    // Already there: nothing changes. DR with its order typed skips the question.
+    await clickAt(X + 1100, 1100);
+    await command('dr f');
+    expect(state.history.slice(-2)[0]).toBe('DRAWORDER  1 object already in front.'); // then the command ends and prompts again
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(state.tool).toBe('none');
+  });
+
+  it('TEXTTOFRONT lifts the texts, dimensions or leaders; DR B typed picks the objects next', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('texttofront');
+    expect(last()).toBe('Command: TEXTTOFRONT  [Text/Dimensions/Leaders/All] <All>:');
+    await command('');
+    expect(state.history.slice(-2)[0]).toBe('TEXTTOFRONT  The texts, dimensions and leaders are in front already.');
+    expect(onChange).toHaveBeenCalledTimes(0);
+    expect(state.tool).toBe('none');
+    await command('dr b');
+    expect(last()).toBe('Command: DRAWORDER  Select objects:');
+    await clickAt(X + 1100, 1100);
+    await command('');
+    expect(order()).toBe('THL');
+    expect(onChange.mock.calls[0][1]).toBe('DRAWORDER  1 object sent to the back · ⌘Z to undo');
+    await command('texttofront');
+    await command('t');
+    expect(order()).toBe('HLT');
+    expect(onChange.mock.calls[1][1]).toBe('TEXTTOFRONT  The texts brought to the front · ⌘Z to undo');
+  });
+
+  it('the right-click menu of drawn objects has Draw order ▸ with the four orders; Above and Under then ask for the reference', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await rightClickAt(X + 6000, 0);
+    expect(menuLabels()).toEqual(['Trim', 'Extend', 'Offset', 'Break', 'Fillet', 'Mirror', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    await act(async () => { button('Draw order ▸').click(); });
+    expect(options().map((b) => b.textContent)).toEqual(['Bring to front', 'Send to back', 'Above object', 'Under object']);
+    await act(async () => { options()[1].click(); });
+    expect(order()).toBe('LHT');
+    expect(onChange.mock.calls[0][1]).toBe('DRAWORDER  1 object sent to the back · ⌘Z to undo');
+    await rightClickAt(X + 6000, 0);
+    await act(async () => { button('Draw order ▸').click(); });
+    await act(async () => { options()[2].click(); });
+    expect(last()).toBe('Command: DRAWORDER  Select reference objects:');
+    await clickAt(X + 1100, 1100);
+    expect(order()).toBe('HTL');
+    expect(onChange.mock.calls[1][1]).toBe('DRAWORDER  1 object put above the text · ⌘Z to undo');
+    expect(state.tool).toBe('none');
+  });
+});
+
+describe('CAD 2D gap plan: POINT, DIVIDE, MEASURE and the point style', () => {
+  const last = () => state.history[state.history.length - 1];
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const points = () => sketchOf(project, F).filter((it) => it.kind === 'point').map((it) => [Math.round(it.pts[0][0] - X), Math.round(it.pts[0][1])]);
+  // A 10 m line.
+  const start: Project = { ...villa, cadSketch: [{ file: F, items: [{ id: 'L', kind: 'line', layer: 'LV-SKETCH', pts: [[X, 0], [X + 10000, 0]] }] }] };
+
+  it('PO draws a point at each click until Enter; DIV and ME set points out along the object clicked', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('po');
+    expect(last()).toBe('Command: POINT  Specify a point:');
+    await clickAt(X + 1000, 3000);
+    await clickAt(X + 2000, 3000);
+    expect(points()).toEqual([[1000, 3000], [2000, 3000]]);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange.mock.calls[1][1]).toBe('Point · ⌘Z to undo');
+    expect(last()).toBe('POINT  Specify a point:');
+    await command('');
+    expect(state.tool).toBe('none');
+    // DIVIDE: the object, then the number of parts (Block waits for Steps 9 and 10); one undo step for all the points.
+    await command('div');
+    expect(last()).toBe('Command: DIVIDE  Select object to divide:');
+    await clickAt(X + 8000, 8000);
+    expect(last()).toBe('DIVIDE  Click a line, polyline, arc, circle or ellipse:');
+    await clickAt(X + 5000, 0);
+    expect(last()).toBe('DIVIDE  Number of segments or [Block]:');
+    await command('b');
+    expect(last()).toBe('DIVIDE  Block name:');
+    await command('nope');
+    expect(last()).toBe('DIVIDE  No block "nope" in this drawing or Recent. Block name:');
+    await command(''); // no name: back to the number
+    expect(last()).toBe('DIVIDE  Number of segments or [Block]:');
+    await command('1');
+    expect(last()).toBe('DIVIDE  A whole number of 2 or more. DIVIDE  Number of segments or [Block]:');
+    await command('5');
+    expect(points().slice(2)).toEqual([[2000, 0], [4000, 0], [6000, 0], [8000, 0]]);
+    expect(onChange).toHaveBeenCalledTimes(3);
+    expect(onChange.mock.calls[2][1]).toBe('DIVIDE  4 points on the line · ⌘Z to undo');
+    expect(state.tool).toBe('none');
+    // MEASURE: from the end nearer the click, every length typed in metres.
+    await command('me');
+    await clickAt(X + 9000, 0);
+    expect(last()).toBe('MEASURE  Segment length or [Block]:');
+    await command('3');
+    expect(points().slice(6)).toEqual([[7000, 0], [4000, 0], [1000, 0]]);
+    expect(onChange.mock.calls[3][1]).toBe('MEASURE  3 points on the line · ⌘Z to undo');
+    await command('me');
+    await clickAt(X + 5000, 0);
+    await command('20');
+    expect(last()).toMatch(/^MEASURE {2}The line is shorter than 20/);
+    expect(onChange).toHaveBeenCalledTimes(4);
+  });
+
+  it('PTYPE: the Point style dialog sets the shape and the size, relative to the screen or in drawing units', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    await command('ptype');
+    expect(last()).toBe('PTYPE  Points shown as dot');
+    const dlg = () => document.querySelector('[role="dialog"][aria-label="Point style"]');
+    expect(dlg()).not.toBeNull();
+    expect(document.querySelectorAll('[role="radiogroup"][aria-label="Point shape"] [role="radio"]')).toHaveLength(20);
+    expect((document.querySelector('[role="radio"][aria-label="Dot"]') as HTMLButtonElement).getAttribute('aria-checked')).toBe('true');
+    await act(async () => { (document.querySelector('[role="radio"][aria-label="Cross in a circle"]') as HTMLButtonElement).click(); });
+    await act(async () => {
+      const el = document.querySelector('input[aria-label="Point size"]') as HTMLInputElement;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, '300');
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => { (document.querySelector('input[aria-label="Size in absolute units"]') as HTMLInputElement).click(); });
+    await act(async () => { (document.querySelector('.cad-dlg-ft .p') as HTMLButtonElement).click(); });
+    expect(dlg()).toBeNull();
+    expect(project.cadPointStyle).toEqual({ mode: 35, size: 300, relative: false });
+    expect(onChange.mock.calls[0][1]).toBe('PTYPE  Points shown as cross in a circle, 300 drawing units · ⌘Z to undo');
+  });
+});
+
+describe('CAD 2D gap plan: BLOCK, a block from drawn objects', () => {
+  const last = () => state.history[state.history.length - 1];
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const items = () => sketchOf(project, F);
+  const defs = () => project.cadBlockDefs?.find((t) => t.file === F)?.defs ?? [];
+  const dlg = () => document.querySelector('[role="dialog"][aria-label="Block definition"]');
+  const field = (label: string) => document.querySelector(`[aria-label="${label}"]`) as HTMLInputElement;
+  const setField = (label: string, value: string) => act(() => {
+    const el = field(label);
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, value);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const rightClickAt = async (x: number, y: number) => {
+    const [sx, sy] = screenOf(x, y);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); });
+  };
+  // A rectangle with a text in it (a board symbol), and a line apart from them.
+  const start: Project = { ...villa, cadSketch: [{ file: F, items: [
+    { id: 'R', kind: 'pline', layer: 'LV-SKETCH', closed: true, pts: [[X, 0], [X + 400, 0], [X + 400, 300], [X, 300]] },
+    { id: 'T', kind: 'text', layer: 'LV-ANNO', pts: [[X + 50, 100]], text: 'DB', h: 100 },
+    { id: 'L', kind: 'line', layer: 'LV-SKETCH', pts: [[X + 2000, 0], [X + 3000, 0]] }
+  ] }] };
+
+  it('-BLOCK: the name, the base point, the objects, Enter: the block is defined and the objects become one insert, which picks and explodes as one', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('-block');
+    expect(last()).toBe('Command: BLOCK  Block name:');
+    await command('DB/A');
+    expect(last()).toBe('BLOCK  A block name cannot contain < > / \\ " : ; ? * | = or `. Block name:');
+    await command('DB-A');
+    expect(last()).toBe('BLOCK  Specify base point:');
+    await command(`${X},0`);
+    expect(last()).toBe('BLOCK  Select objects — Enter when done:');
+    await clickAt(X + 200, 0);
+    await clickAt(X + 100, 150);
+    expect(last()).toBe('BLOCK  2 objects selected — Enter when done');
+    await command('');
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][1]).toBe('BLOCK  "DB-A" defined from 2 objects and inserted · ⌘Z to undo');
+    expect(defs().map((d) => [d.name, d.items.length, d.units])).toEqual([['DB-A', 2, 4]]);
+    expect(defs()[0].items[0].pts).toEqual([[0, 0], [400, 0], [400, 300], [0, 300]]);
+    expect(items().map((it) => [it.id, it.kind, it.block])).toEqual([['L', 'line', undefined], ['S1', 'insert', 'DB-A']]);
+    expect(items()[1].pts).toEqual([[X, 0]]);
+    expect(state.tool).toBe('none');
+    // The insert picks as one object where its block shows, and explodes back into the objects.
+    await clickAt(X + 100, 150);
+    expect(state.selected).toBe('sk:S1');
+    await command('x');
+    await clickAt(X + 200, 0);
+    expect(last()).toBe('EXPLODE  2 objects · ⌘Z to undo');
+    expect(items().map((it) => [it.kind, it.pts[0]])).toEqual([['line', [X + 2000, 0]], ['pline', [X, 0]], ['text', [X + 50, 100]]]);
+  });
+
+  it('B: the Block definition dialog, stepping aside to pick the objects and the base point; Retain keeps the objects; a name defined asks before redefining', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('b');
+    expect(dlg()).not.toBeNull();
+    expect(dlg()!.textContent).toContain('Type a name for the block.');
+    await setField('Block name', 'DB-A');
+    expect(dlg()!.textContent).toContain('Pick or type the base point.');
+    expect(document.querySelector('[aria-label="Objects selected"]')!.textContent).toBe('0 selected');
+    await act(async () => { button('Select objects').click(); });
+    expect(dlg()).toBeNull();
+    expect(last()).toBe('Command: BLOCK  Select objects — Enter when done:');
+    await clickAt(X + 200, 0);
+    await clickAt(X + 100, 150);
+    await command('');
+    expect(dlg()).not.toBeNull();
+    expect(document.querySelector('[aria-label="Objects selected"]')!.textContent).toBe('2 selected');
+    await act(async () => { button('Pick point').click(); });
+    expect(dlg()).toBeNull();
+    expect(last()).toBe('Command: BLOCK  Specify base point:');
+    await clickAt(X, 0);
+    expect(dlg()).not.toBeNull();
+    expect(field('Base X').value).toBe('200.000');
+    expect(field('Base Y').value).toBe('0.000');
+    expect(dlg()!.textContent).toContain('millimetres');
+    await act(async () => { field('Retain').click(); });
+    await setField('Block description', 'Board symbol');
+    await act(async () => { (document.querySelector('.cad-dlg-ft .p') as HTMLButtonElement).click(); });
+    expect(dlg()).toBeNull();
+    expect(onChange.mock.calls[0][1]).toBe('BLOCK  "DB-A" defined from 2 objects · ⌘Z to undo');
+    expect(defs().map((d) => [d.name, d.description, d.items.length])).toEqual([['DB-A', 'Board symbol', 2]]);
+    expect(items().map((it) => it.kind)).toEqual(['pline', 'text', 'line']); // Retain: the objects stay, nothing inserted
+    // The same name again (case aside) asks first; Yes redefines it, the earlier insert then shows the new objects.
+    await command('b');
+    await setField('Block name', 'db-a');
+    await act(async () => { button('Select objects').click(); });
+    await clickAt(X + 2500, 0);
+    await command('');
+    await setField('Base X', '202');
+    await setField('Base Y', '0');
+    await act(async () => { (document.querySelector('.cad-dlg-ft .p') as HTMLButtonElement).click(); });
+    expect(dlg()).not.toBeNull();
+    expect(dlg()!.textContent).toContain('Block "db-a" exists. Redefine it?');
+    await act(async () => { button('Yes').click(); });
+    expect(dlg()).toBeNull();
+    expect(defs().map((d) => [d.name, d.items.length])).toEqual([['db-a', 1]]);
+    expect(items().map((it) => [it.kind, it.block])).toEqual([['pline', undefined], ['text', undefined], ['insert', 'db-a']]); // Convert: the line became an insert
+  });
+
+  it('the right-click menu of drawn objects has Make block…, opening the dialog with them as its objects', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await rightClickAt(X + 2500, 0);
+    const labels = [...document.querySelectorAll('[role="menu"] button')].map((b) => b.textContent);
+    expect(labels.slice(labels.indexOf('Erase'))).toEqual(['Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    await act(async () => { button('Make block…').click(); });
+    expect(dlg()).not.toBeNull();
+    expect(document.querySelector('[aria-label="Objects selected"]')!.textContent).toBe('1 selected');
+    expect(field('Base X').value).toBe('202.000');
+    await act(async () => { button('Cancel').click(); });
+    expect(dlg()).toBeNull();
+    expect(onChange).toHaveBeenCalledTimes(0);
+  });
+});
+
+describe('CAD 2D gap plan: INSERT and the Blocks palette', () => {
+  const last = () => state.history[state.history.length - 1];
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const items = () => sketchOf(project, F);
+  const inserts = () => items().filter((it) => it.kind === 'insert');
+  const palette = () => document.querySelector('[aria-label="Blocks palette"]');
+  const pickBlock = (name: string) => act(async () => { (document.querySelector(`.cad-bk-item[aria-label="${name}"]`) as HTMLButtonElement).click(); });
+  const tick = (label: string) => act(async () => { (document.querySelector(`input[aria-label="${label}"]`) as HTMLInputElement).click(); });
+  const rightClickAt = async (x: number, y: number) => {
+    const [sx, sy] = screenOf(x, y);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); });
+  };
+  const def: CadBlockDef = { name: 'DB-A', units: 4, items: [{ id: 'r', kind: 'pline', layer: '0', closed: true, pts: [[0, 0], [400, 0], [400, 300], [0, 300]] }, { id: 't', kind: 'text', layer: 'LV-ANNO', pts: [[50, 100]], text: 'DB', h: 100 }] };
+  // A 10 m line, and one block defined.
+  const start: Project = { ...villa, cadSketch: [{ file: F, items: [{ id: 'L', kind: 'line', layer: 'LV-SKETCH', pts: [[X, 0], [X + 10000, 0]] }] }], cadBlockDefs: [{ file: F, defs: [def] }] };
+
+  it('I opens the palette; a block clicked waits at the cursor and goes where the click is, scaled and turned as set; Repeat keeps placing; Explode places its objects', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    expect(palette()).toBeNull();
+    await command('i');
+    expect(palette()).not.toBeNull();
+    expect(state.tool).toBe('none');
+    // The drawing's own block first, then the architect's blocks (the sample villa has several).
+    const names = [...document.querySelectorAll('[role="list"][aria-label="Current drawing"] button')].map((b) => b.getAttribute('aria-label'));
+    expect(names[0]).toBe('DB-A');
+    expect(names.length).toBeGreaterThan(1);
+    await pickBlock('DB-A');
+    expect(state.tool).toBe('insert');
+    expect(last()).toBe('Command: INSERT  Insertion point or [Scale/Rotate]:');
+    await command('s');
+    expect(last()).toBe('INSERT  Scale <1>:');
+    await command('2');
+    expect(last()).toBe('INSERT  Insertion point or [Scale/Rotate]:');
+    await command('r');
+    await command('90');
+    await clickAt(X + 3000, 2000);
+    expect(inserts()).toHaveLength(1);
+    expect(inserts()[0]).toMatchObject({ kind: 'insert', block: 'DB-A', sc: 2, rot: Math.PI / 2 });
+    expect(inserts()[0].pts[0].map(Math.round)).toEqual([X + 3000, 2000]);
+    expect(onChange.mock.calls[0][1]).toMatch(/^INSERT {2}"DB-A" at /);
+    expect(state.tool).toBe('none');
+    expect(JSON.parse(localStorage.getItem('lvds.cad.recentBlocks')!).map((d: CadBlockDef) => d.name)).toEqual(['DB-A']);
+    // Repeat placement: a click for each; Esc stops.
+    await tick('Repeat placement');
+    await pickBlock('DB-A');
+    await clickAt(X + 5000, 2000);
+    await clickAt(X + 6000, 2000);
+    expect(inserts()).toHaveLength(3);
+    expect(state.tool).toBe('insert');
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
+    expect(state.tool).toBe('none');
+    // Explode: the block's objects go in, not an insert.
+    await tick('Repeat placement');
+    await tick('Explode');
+    await pickBlock('DB-A');
+    await clickAt(X + 8000, 2000);
+    expect(inserts()).toHaveLength(3);
+    expect(items().slice(-2).map((it) => [it.kind, it.text])).toEqual([['pline', undefined], ['text', 'DB']]);
+    expect(onChange.mock.calls[3][1]).toMatch(/^INSERT {2}"DB-A", exploded, at /);
+    await act(async () => { (document.querySelector('[aria-label="Close the Blocks palette"]') as HTMLButtonElement).click(); });
+    expect(palette()).toBeNull();
+  });
+
+  it('-INSERT by name (also what Insert\'s arrow sends); DIVIDE\'s Block option sets blocks out, aligned; Select all of this block', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('-insert');
+    expect(last()).toBe('Command: INSERT  Block name:');
+    await command('nope');
+    expect(last()).toBe('INSERT  No block "nope" in this drawing or Recent. Block name:');
+    await command('DB-A');
+    expect(last()).toBe('INSERT  Insertion point or [Scale/Rotate]:');
+    await command(`${X + 1000},1000`);
+    expect(inserts().map((it) => it.pts[0])).toEqual([[X + 1000, 1000]]);
+    expect(state.tool).toBe('none');
+    await command('-insert DB-A');
+    expect(last()).toBe('Command: INSERT  Insertion point or [Scale/Rotate]:');
+    await clickAt(X + 2000, 1000);
+    expect(inserts()).toHaveLength(2);
+    // DIVIDE with Block: the name, aligned or not, then the number of parts.
+    await command('div');
+    await clickAt(X + 5000, 0);
+    await command('b');
+    expect(last()).toBe('DIVIDE  Block name:');
+    await command('DB-A');
+    expect(last()).toBe('DIVIDE  Align block with object? [Yes/No] <Yes>:');
+    await command('');
+    expect(last()).toBe('DIVIDE  Number of segments:');
+    await command('5');
+    expect(inserts()).toHaveLength(6);
+    expect(inserts().slice(2).map((it) => [it.pts[0][0] - X, it.block, it.rot])).toEqual([[2000, 'DB-A', undefined], [4000, 'DB-A', undefined], [6000, 'DB-A', undefined], [8000, 'DB-A', undefined]]);
+    expect(onChange.mock.calls[2][1]).toBe('DIVIDE  4 "DB-A" blocks on the line · ⌘Z to undo');
+    // The right-click menu of a block starts with Select all of this block.
+    await rightClickAt(X + 1000, 1150);
+    const labels = [...document.querySelectorAll('[role="menu"] button')].map((b) => b.textContent);
+    expect(labels[0]).toBe('Select all of this block');
+    await act(async () => { button('Select all of this block').click(); });
+    expect(last()).toBe('SELECT  Every "DB-A" block picked');
+  });
+});
+
+describe('CAD 2D gap plan: block attributes (ATTDEF, INSERT prompts, ATTEDIT)', () => {
+  const last = () => state.history[state.history.length - 1];
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const items = () => sketchOf(project, F);
+  const dlg = (name: string) => document.querySelector(`[role="dialog"][aria-label="${name}"]`);
+  const field = (label: string) => document.querySelector(`[aria-label="${label}"]`) as HTMLInputElement;
+  const setField = (label: string, value: string) => act(() => {
+    const el = field(label);
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, value);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const ok = () => act(async () => { (document.querySelector('.cad-dlg-ft .p') as HTMLButtonElement).click(); });
+  const dblClickAt = async (x: number, y: number) => {
+    const [sx, sy] = screenOf(x, y);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('dblclick', { clientX: sx, clientY: sy, button: 0, bubbles: true })); });
+  };
+  const light: CadBlockDef = { name: 'LIGHT', units: 4, items: [
+    { id: 'c', kind: 'circle', layer: '0', pts: [[0, 0]], r: 150 },
+    { id: 'a1', kind: 'attdef', layer: '0', pts: [[200, 0]], tag: 'CIRCUIT', prompt: 'Circuit', text: 'L1', h: 100 },
+    { id: 'a2', kind: 'attdef', layer: '0', pts: [[200, -150]], tag: 'WATTS', prompt: 'Load (W)', text: '36', h: 80, att: { invisible: true } },
+    { id: 'a3', kind: 'attdef', layer: '0', pts: [[0, 200]], tag: 'TYPE', text: 'LED', h: 80, att: { constant: true } }
+  ] };
+  const start: Project = { ...villa, cadSketch: [{ file: F, items: [{ id: 'R', kind: 'pline', layer: 'LV-SKETCH', closed: true, pts: [[X, 0], [X + 400, 0], [X + 400, 300], [X, 300]] }] }], cadBlockDefs: [{ file: F, defs: [light] }] };
+
+  it('ATTDEF draws an attribute definition (shown as its tag); BLOCK takes it; the Properties palette edits an insert\'s values', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('att');
+    expect(dlg('Attribute definition')).not.toBeNull();
+    expect(dlg('Attribute definition')!.textContent).toContain('Type a tag');
+    await setField('Tag', 'db ref');
+    await setField('Prompt', 'Board reference');
+    await setField('Default', 'DB-1');
+    await act(async () => { button('Pick on plan').click(); });
+    expect(dlg('Attribute definition')).toBeNull();
+    expect(last()).toBe('Command: ATTDEF  Specify insertion point:');
+    await clickAt(X + 50, 100);
+    expect(dlg('Attribute definition')).not.toBeNull();
+    expect(field('Insertion X').value).toBe('200.050');
+    await act(async () => { field('Invisible').click(); });
+    await ok();
+    expect(dlg('Attribute definition')).toBeNull();
+    const ad = items().find((it) => it.kind === 'attdef')!;
+    expect(ad).toMatchObject({ tag: 'DB_REF', prompt: 'Board reference', text: 'DB-1', h: 250, att: { invisible: true } });
+    expect(ad.pts[0].map(Math.round)).toEqual([X + 50, 100]);
+    expect(onChange.mock.calls[0][1]).toBe('Attribute DB_REF · ⌘Z to undo');
+    // The definition picks by its tag's box, and goes into a block with the rectangle.
+    await command('-block');
+    await command('BOARD');
+    await command(`${X},0`);
+    await clickAt(X + 200, 0);
+    await clickAt(X + 100, 150);
+    expect(last()).toBe('BLOCK  2 objects selected — Enter when done');
+    await command('');
+    const def = project.cadBlockDefs!.find((t) => t.file === F)!.defs.find((d) => d.name === 'BOARD')!;
+    expect(def.items.map((it) => it.kind)).toEqual(['pline', 'attdef']);
+    expect(def.items[1].pts[0].map(Math.round)).toEqual([50, 100]);
+  });
+
+  it('inserting a block with attributes asks each prompt on the command line (Enter keeps the default); the values show, invisible ones do not; a double-click edits them', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('-insert LIGHT');
+    await clickAt(X + 2000, 2000);
+    expect(last()).toBe('INSERT  Circuit <L1>:');
+    expect(items().filter((it) => it.kind === 'insert')).toHaveLength(0);
+    await command('DB1/L3');
+    expect(last()).toBe('INSERT  Load (W) <36>:');
+    await command('');
+    const ins = items().find((it) => it.kind === 'insert')!;
+    expect(ins).toMatchObject({ block: 'LIGHT', attrs: { CIRCUIT: 'DB1/L3', WATTS: '36' } });
+    expect(state.tool).toBe('none');
+    // What shows: the circle, the circuit and the constant type; not the invisible load.
+    const { expandInsert } = await import('../../model/cadBlocks');
+    expect(expandInsert(ins, [light]).map((x) => [x.kind, x.text])).toEqual([['circle', undefined], ['text', 'DB1/L3'], ['text', 'LED']]);
+    // A double-click on the block: the Edit attributes dialog; a value typed and OK is one undo step.
+    await dblClickAt(X + 2150, 2000);
+    expect(dlg('Edit attributes')).not.toBeNull();
+    expect(dlg('Edit attributes')!.textContent).toContain('LIGHT');
+    expect(field('Value of CIRCUIT').value).toBe('DB1/L3');
+    await setField('Value of CIRCUIT', 'DB1/L4');
+    await setField('Value of WATTS', '18');
+    await ok();
+    expect(dlg('Edit attributes')).toBeNull();
+    expect(items().find((it) => it.kind === 'insert')!.attrs).toEqual({ CIRCUIT: 'DB1/L4', WATTS: '18' });
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange.mock.calls[1][1]).toBe('ATTEDIT  "LIGHT" attributes · ⌘Z to undo');
+    // ATE picks the block too; Esc leaves it.
+    await command('ate');
+    expect(last()).toBe('Command: ATTEDIT  Select a block:');
+    await clickAt(X + 8000, 8000);
+    expect(last()).toBe('ATTEDIT  Select a block:');
+    await clickAt(X + 2150, 2000);
+    expect(dlg('Edit attributes')).not.toBeNull();
+    expect(state.tool).toBe('none');
+    await act(async () => { button('Cancel').click(); });
+    expect(dlg('Edit attributes')).toBeNull();
+    expect(onChange).toHaveBeenCalledTimes(2);
   });
 });

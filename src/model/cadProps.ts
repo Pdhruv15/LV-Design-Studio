@@ -1,6 +1,8 @@
 import type { SketchItem } from '../types';
 import { dimMeasure } from './cadSketch';
 import { parseFrame, parseJust, rejustified } from './cadText';
+import { noteAttached, noteFromText, parseAttach, plainText } from './cadMtext';
+import { cleanTag } from './cadAttributes';
 
 type Pt = [number, number];
 
@@ -9,15 +11,15 @@ type Pt = [number, number];
  * what links to it (schedules, fittings, circuits by feeder) stays. Several objects take the same value each. */
 
 /** The kind a value belongs to: the Geometry section shows when all the objects are of one of these. */
-export type GeomKind = 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'cloud' | 'tray' | 'cable' | 'text' | 'dim' | 'dimang';
+export type GeomKind = 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'cloud' | 'tray' | 'cable' | 'text' | 'mtext' | 'dim' | 'dimang' | 'point' | 'insert' | 'attdef';
 export const geomKind = (it: SketchItem): GeomKind => (it.tray ? 'tray' : it.cable ? 'cable' : it.cloud ? 'cloud' : it.dimKind === 'angular' ? 'dimang' : it.kind);
 /** What an object is, as the palette and the toolbar beside it name it. */
 export const kindLabel = (it: SketchItem) => (it.tray ? 'Cable tray' : it.cable ? 'Cable route' : it.cloud ? 'Revision cloud'
   : it.kind === 'dim' ? (it.dimKind ? { radius: 'Radius dimension', diameter: 'Diameter dimension', angular: 'Angular dimension' }[it.dimKind] : 'Dimension')
-  : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', ellipse: 'Ellipse', text: 'Text' }[it.kind]);
+  : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', ellipse: 'Ellipse', text: 'Text', mtext: 'Note', point: 'Point', insert: 'Block', attdef: 'Attribute' }[it.kind]); 
 
 export type PropKey = 'sx' | 'sy' | 'ex' | 'ey' | 'len' | 'ang' | 'cx' | 'cy' | 'r' | 'a0' | 'a1' | 'rx' | 'ry' | 'arc' | 'vx' | 'vy' | 'closed' | 'width' | 'service'
-  | 'text' | 'h' | 'rot' | 'just' | 'frame' | 'mask' | 'measured' | 'override';
+  | 'text' | 'h' | 'rot' | 'just' | 'frame' | 'mask' | 'measured' | 'override' | 'boxw' | 'attach' | 'block' | 'bscale' | 'tag' | 'prompt';
 export interface PropDef { key: PropKey; label: string; unit?: 'm' | 'deg'; ro?: boolean; text?: boolean }
 
 const L = (key: PropKey, label: string, more: Partial<PropDef> = {}): PropDef => ({ key, label, unit: 'm', ...more });
@@ -37,12 +39,17 @@ export function geometryRows(kind: GeomKind, items: SketchItem[]): PropDef[] {
     case 'pline': return [L('vx', 'X'), L('vy', 'Y'), L('len', 'Length', { ro: true }), T('closed', 'Closed')];
     case 'tray': return [T('width', 'Width'), T('service', 'Service'), L('vx', 'X'), L('vy', 'Y'), L('len', 'Length', { ro: true })];
     case 'cable': return [L('vx', 'X'), L('vy', 'Y'), L('len', 'Length', { ro: true })];
+    case 'point': return [L('sx', 'X'), L('sy', 'Y')];
+    case 'insert': return [T('block', 'Block', { ro: true }), L('sx', 'X'), L('sy', 'Y'), { key: 'bscale', label: 'Scale' }, A('rot', 'Rotation')];
+    case 'attdef': return [T('tag', 'Tag'), T('prompt', 'Prompt'), T('text', 'Default'), L('h', 'Height'), A('rot', 'Rotation'), T('just', 'Justify')];
     default: return [];
   }
 }
-/** The Text rows: contents, height and rotation; for a dimension its measured value and the text shown over it. */
+/** The Text rows: contents, height and rotation; for a dimension its measured value and the text shown over it; for a
+ * note its box's width and where its anchor sits on the box. */
 export function textRows(kind: GeomKind): PropDef[] {
   if (kind === 'text') return [T('text', 'Contents'), L('h', 'Height'), A('rot', 'Rotation'), T('just', 'Justify'), T('frame', 'Frame'), T('mask', 'Mask')];
+  if (kind === 'mtext') return [T('text', 'Contents'), L('h', 'Height'), L('boxw', 'Width'), A('rot', 'Rotation'), T('attach', 'Justify')];
   if (kind === 'dim') return [L('measured', 'Measured', { ro: true }), T('override', 'Text override'), L('h', 'Text height')];
   if (kind === 'dimang') return [A('measured', 'Measured', { ro: true }), T('override', 'Text override'), L('h', 'Text height')];
   return [];
@@ -75,12 +82,18 @@ export function propValue(it: SketchItem, key: PropKey, k: number, v = 0): numbe
     case 'vx': return p[vIdx(it, v)][0] * k;
     case 'vy': return p[vIdx(it, v)][1] * k;
     case 'closed': return it.closed ? 'Yes' : 'No';
-    case 'just': return it.kind === 'text' ? it.just ?? 'L' : undefined;
+    case 'just': return it.kind === 'text' || it.kind === 'attdef' ? it.just ?? 'L' : undefined;
     case 'frame': return it.kind === 'text' ? it.frame ?? 'none' : undefined;
     case 'mask': return it.kind === 'text' ? (it.mask ? 'Yes' : 'No') : undefined;
     case 'width': return it.tray ? String(it.tray.widthMm) : undefined;
     case 'service': return it.tray?.service ?? '';
-    case 'text': return it.text ?? '';
+    case 'text': return it.kind === 'mtext' ? plainText(it) : it.text ?? '';
+    case 'boxw': return it.kind === 'mtext' ? (it.w ?? 0) * k : undefined;
+    case 'block': return it.kind === 'insert' ? it.block ?? '' : undefined;
+    case 'tag': return it.kind === 'attdef' ? it.tag ?? '' : undefined;
+    case 'prompt': return it.kind === 'attdef' ? it.prompt ?? '' : undefined;
+    case 'bscale': return it.kind === 'insert' ? it.sc ?? 1 : undefined;
+    case 'attach': return it.kind === 'mtext' ? it.just ?? 'TL' : undefined;
     case 'h': return it.h !== undefined ? it.h * k : undefined;
     case 'rot': return deg(it.rot ?? 0);
     case 'measured': return it.dimKind === 'angular' ? measuredOf(it) : measuredOf(it) * k;
@@ -140,10 +153,16 @@ export function withProp(it: SketchItem, key: PropKey, value: number | string, k
       const { service: _s, ...t } = it.tray, s = String(value).trim();
       return { ...it, tray: s ? { ...t, service: s } : t };
     }
-    case 'text': return it.kind === 'text' && String(value).trim() ? { ...it, text: String(value) } : undefined;
-    case 'h': return num && u > 0 && (it.kind === 'text' || it.kind === 'dim') ? { ...it, h: u } : undefined;
-    case 'rot': return num && it.kind === 'text' ? { ...it, rot: rad(n) } : undefined;
-    case 'just': { const j = parseJust(String(value)); return j && it.kind === 'text' ? rejustified(it, j) : undefined; }
+    // A note's contents: its paragraphs as plain lines (bold and underline go; the editor keeps them).
+    case 'text': return it.kind === 'mtext' ? (String(value).trim() ? { ...it, note: noteFromText(String(value)) } : undefined) : it.kind === 'attdef' ? { ...it, text: String(value) } : it.kind === 'text' && String(value).trim() ? { ...it, text: String(value) } : undefined;
+    case 'tag': { const t = cleanTag(String(value)); return t && it.kind === 'attdef' ? { ...it, tag: t } : undefined; }
+    case 'prompt': return it.kind === 'attdef' ? { ...it, prompt: String(value) } : undefined;
+    case 'h': return num && u > 0 && (it.kind === 'text' || it.kind === 'mtext' || it.kind === 'attdef' || it.kind === 'dim') ? { ...it, h: u } : undefined;
+    case 'boxw': { if (!num || it.kind !== 'mtext') return undefined; const { w: _w, ...rest } = it; return u > 0 ? { ...rest, w: u } : rest; }
+    case 'attach': { const j = parseAttach(String(value)); return j && it.kind === 'mtext' ? noteAttached(it, j) : undefined; }
+    case 'rot': return num && (it.kind === 'text' || it.kind === 'mtext' || it.kind === 'insert' || it.kind === 'attdef') ? { ...it, rot: rad(n) } : undefined;
+    case 'bscale': return num && n > 0 && it.kind === 'insert' ? { ...it, sc: n } : undefined;
+    case 'just': { const j = parseJust(String(value)); return j && it.kind === 'text' ? rejustified(it, j) : j && it.kind === 'attdef' ? { ...it, ...(j === 'L' ? { just: undefined } : { just: j }) } : undefined; }
     case 'frame': { const f = parseFrame(String(value)); if (!f || it.kind !== 'text') return undefined; const { frame: _f, ...rest } = it; return f === 'none' ? rest : { ...rest, frame: f }; }
     case 'mask': { if (it.kind !== 'text') return undefined; const { mask: _m, ...rest } = it; return String(value) === 'Yes' ? { ...rest, mask: true } : rest; }
     case 'override': {

@@ -1,5 +1,7 @@
 import { rotated, scaleLook, segmentsOf } from './cadSketch';
 import type { SketchItem } from '../types';
+import { explodeNote, noteBox, noteCorners, noteWithWidth } from './cadMtext';
+import { explodeInsert, type CadBlockDef } from './cadBlocks';
 
 /** Design CAD → Draw → Modify / Edit: Trim, Extend, Offset, Fillet, Chamfer, Break, Join, Explode, Mirror, Scale, Stretch,
  * Array and grips, on what is drawn in the app (drawing units). The architect's drawing is never changed; its lines
@@ -251,8 +253,12 @@ export function join(items: SketchItem[], tol: number): Edit & { joined?: string
 }
 
 /** Explode: a polyline (or rectangle) into its lines. A tray's lines stay trays; a cable route stays one route. */
-export function explode(it: SketchItem): Edit {
+export function explode(it: SketchItem, defs: CadBlockDef[] = []): Edit {
+  // An insert: the objects its block shows, as drawn objects of their own.
+  if (it.kind === 'insert') { const items = explodeInsert(it, defs); return items.length ? { items } : { error: `The drawing has no block "${it.block ?? ''}" to explode.` }; }
   if (it.cloud) return { error: 'A revision cloud stays one object: erase it and draw it again to change it.' };
+  // A note: one single-line text per line.
+  if (it.kind === 'mtext') { const items = explodeNote(it); return items.length ? { items } : { error: 'The note has no words to explode.' }; }
   if (it.kind !== 'pline' && !(it.kind === 'line' && it.pts.length > 2)) return { error: 'Explode works on polylines and rectangles.' };
   if (it.cable) return { error: 'A cable route stays one line: Break it instead.' };
   const pts = pathOf(it);
@@ -267,14 +273,15 @@ export function mirrored(it: SketchItem, a: Pt, b: Pt): Omit<SketchItem, 'id'> {
   if (it.kind === 'arc') { const th = Math.atan2(b[1] - a[1], b[0] - a[0]); return { ...rest, pts, a0: 2 * th - (it.a1 ?? 0), a1: 2 * th - (it.a0 ?? 0) }; }
   // An ellipse's axis is a direction: mirrored as one.
   if (it.kind === 'ellipse' && it.ax) return { ...rest, pts, ax: sub(reflect(add(it.pts[0], it.ax), a, b), pts[0]) };
-  // A linear dimension's line is a direction too.
+  // A linear dimension's line is a direction too; an insert turns to face the mirror (its block is not flipped).
   if (it.kind === 'dim' && it.dir !== undefined) { const th = Math.atan2(b[1] - a[1], b[0] - a[0]); return { ...rest, pts, dir: 2 * th - it.dir }; }
+  if (it.kind === 'insert') { const th = Math.atan2(b[1] - a[1], b[0] - a[0]); return { ...rest, pts, rot: 2 * th - (it.rot ?? 0) }; }
   return { ...rest, pts };
 }
 /** Scale about a base point by a factor (radii and text heights too). */
 export function scaled(it: SketchItem, base: Pt, k: number): SketchItem {
   return {
-    ...it, pts: it.pts.map((q) => add(base, mul(sub(q, base), k))), ...(it.r !== undefined ? { r: it.r * k } : {}), ...(it.h !== undefined ? { h: it.h * k } : {}),
+    ...it, pts: it.pts.map((q) => add(base, mul(sub(q, base), k))), ...(it.r !== undefined ? { r: it.r * k } : {}), ...(it.h !== undefined ? { h: it.h * k } : {}), ...(it.w !== undefined ? { w: it.w * k } : {}), ...(it.kind === 'insert' ? { sc: (it.sc ?? 1) * k } : {}),
     ...(it.ax ? { ax: mul(it.ax, k) } : {}), ...(it.cloud !== undefined ? { cloud: it.cloud * k } : {}),
     ...(it.look ? { look: scaleLook(it.look, k) } : {})
   };
@@ -284,7 +291,7 @@ export function stretched(it: SketchItem, a: Pt, b: Pt, dx: number, dy: number):
   const [x0, y0, x1, y1] = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
   const inBox = (q: Pt) => q[0] >= x0 && q[0] <= x1 && q[1] >= y0 && q[1] <= y1;
   if (!it.pts.some(inBox)) return null;
-  if (it.kind === 'circle' || it.kind === 'arc' || it.kind === 'text') return { ...it, pts: it.pts.map((q) => add(q, [dx, dy])) };
+  if (it.kind === 'circle' || it.kind === 'arc' || it.kind === 'text' || it.kind === 'mtext' || it.kind === 'point' || it.kind === 'insert' || it.kind === 'attdef') return { ...it, pts: it.pts.map((q) => add(q, [dx, dy])) };
   return { ...it, pts: it.pts.map((q) => (inBox(q) ? add(q, [dx, dy]) : q)) };
 }
 /** Rectangular array: rows × columns of copies, `dx` / `dy` apart (the original is the first). */
@@ -309,12 +316,14 @@ export function arrayPolar(it: SketchItem, centre: Pt, n: number, angleDeg: numb
 }
 
 /** Grips of a drawn item: its points (ends and corners, a centre, a text's place) and each segment's middle. */
-export function gripsOf(it: SketchItem): { at: Pt; kind: 'point' | 'mid' | 'radius' }[] {
+export function gripsOf(it: SketchItem): { at: Pt; kind: 'point' | 'mid' | 'radius' | 'width' }[] {
   if (isPath(it)) {
     const pts = pathOf(it);
     return [...it.pts.map((at) => ({ at, kind: 'point' as const })), ...pts.slice(1).map((q, i) => ({ at: mul(add(pts[i], q), 0.5), kind: 'mid' as const }))];
   }
   if (it.kind === 'circle') return [{ at: it.pts[0], kind: 'point' }, { at: add(it.pts[0], [it.r ?? 0, 0]), kind: 'radius' }];
+  // A note: its anchor, and the width handle at the right end of its top edge.
+  if (it.kind === 'mtext') return [{ at: it.pts[0], kind: 'point' }, { at: noteCorners(it)[1], kind: 'width' }];
   // An ellipse: its centre, the end of its major axis and of its minor axis.
   if (it.kind === 'ellipse' && it.ax) { const k = it.ratio ?? 1; return [{ at: it.pts[0], kind: 'point' }, { at: add(it.pts[0], it.ax), kind: 'radius' }, { at: add(it.pts[0], [-it.ax[1] * k, it.ax[0] * k]), kind: 'radius' }]; }
   return it.pts.map((at) => ({ at, kind: 'point' as const }));
@@ -333,6 +342,8 @@ export function gripMoved(it: SketchItem, i: number, to: Pt): SketchItem {
     return nb <= a ? { ...it, ratio: nb / a } : { ...it, ax: mul([-it.ax[1], it.ax[0]], nb / a), ratio: a / nb };
   }
   if (g.kind === 'radius') return { ...it, r: Math.max(EPS, len(sub(to, it.pts[0]))) };
+  // A note's width handle: the box as wide as the handle's distance along the top edge from the left.
+  if (g.kind === 'width') { const b = noteBox(it), v = sub(to, b.tl); return noteWithWidth(it, dot(v, b.u)); }
   // A revision cloud's corner moves alone (the cloud follows its outline).
   if (it.cloud && g.kind === 'point') return { ...it, pts: it.pts.map((q, k) => (k === i ? to : q)) };
   if (!isPath(it)) return it.kind === 'dim' ? { ...it, pts: it.pts.map((q, k) => (k === i ? to : q)) } : { ...it, pts: it.pts.map((q) => add(q, d)) };
@@ -342,12 +353,12 @@ export function gripMoved(it: SketchItem, i: number, to: Pt): SketchItem {
 }
 
 /** Drawn items in a window: wholly inside it, or (`crossing`) also those it touches. */
-export function sketchInWindow(items: SketchItem[], a: Pt, b: Pt, crossing: boolean): SketchItem[] {
+export function sketchInWindow(items: SketchItem[], a: Pt, b: Pt, crossing: boolean, defs: CadBlockDef[] = []): SketchItem[] {
   const [x0, y0, x1, y1] = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
   const inBox = (q: Pt) => q[0] >= x0 && q[0] <= x1 && q[1] >= y0 && q[1] <= y1;
   const sides: Seg[] = [[[x0, y0], [x1, y0]], [[x1, y0], [x1, y1]], [[x1, y1], [x0, y1]], [[x0, y1], [x0, y0]]];
   return items.filter((it) => {
-    const segs = segmentsOf(it), pts = segs.length ? segs.flat() : it.pts;
+    const segs = segmentsOf(it, 0.001, defs), pts = segs.length ? segs.flat() : it.kind === 'mtext' ? noteCorners(it) : it.pts;
     if (pts.every(inBox)) return true;
     if (!crossing) return false;
     return pts.some(inBox) || segs.some(([p, q]) => sides.some(([c, d]) => { const t = meet(p, q, c, d); return t !== null && t >= 0 && t <= 1; }));

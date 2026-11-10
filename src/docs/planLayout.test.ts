@@ -6,6 +6,7 @@ import { wireLevel } from '../model/cadWiring';
 import { dropRefGeometry, keepRefGeometry } from '../model/cadRefs';
 import { issueSheets, renumber, setOf, sheetChecks, sheetHash, sheetType, type DrawingSheet, type PlanType } from '../model/drawingSet';
 import type { Project, SketchItem } from '../types';
+import { toFront } from '../model/cadDrawOrder';
 import { addPlanSheets, drawingAreaMm, drawnTextMm, layoutPaper, layoutViewports, planDrawing, planLegendLabels, planLevels, planNotes, planScale } from './planLayout';
 import type { PlanViewport } from '../model/planViewports';
 import { buildSheetDxfPages } from './sheetDxf';
@@ -175,6 +176,49 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
     ];
     const withWork = (extra: Partial<Project> = {}) => ({ ...drawn(villa(), work), cadLayerStyle: { 'gf.dwg': { 'E-HELP': { noPrint: true }, 'E-OFF': { hidden: true } } }, ...extra });
     const svgOf = (p: Project, plot?: DrawingSheet['plot']) => { const s = sheetOf(p).sheets[0]; return planDrawing(p, { ...s, ...(plot ? { plot } : {}) })!.svg; };
+
+    it('prints the drawn work in its draw order: later in the list is on top (S7 of the 2D gap plan)', () => {
+      const group = (p: Project) => /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svgOf(p))![1];
+      const g = group(withWork());
+      expect(g.indexOf('<circle')).toBeLessThan(g.indexOf('PLANT')); // the solid circle, then the text over it
+      const lifted = group({ ...withWork(), ...drawn(villa(), toFront(work, ['S3'])) });
+      expect(lifted.indexOf('<circle')).toBeGreaterThan(lifted.indexOf('PLANT'));
+    });
+
+    it('prints an attribute definition as its tag, and an insert\'s attribute values where they sit (S11)', () => {
+      const ad: SketchItem = { id: 'A1', kind: 'attdef', layer: 'LV-ANNO', pts: [[2000, 2000]], tag: 'DB_REF', text: 'DB-1', h: 250 };
+      const ins: SketchItem = { id: 'B1', kind: 'insert', layer: 'LV-SKETCH', pts: [[5000, 5000]], block: 'LT', attrs: { CIRCUIT: 'DB1/L3' } };
+      const defs = [{ name: 'LT', items: [{ id: 'a', kind: 'attdef' as const, layer: '0', pts: [[0, 0]] as [number, number][], tag: 'CIRCUIT', text: 'L1', h: 250 }, { id: 'w', kind: 'attdef' as const, layer: '0', pts: [[0, -400]] as [number, number][], tag: 'WATTS', text: '36', h: 250, att: { invisible: true as const } }] }];
+      const g = /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svgOf({ ...withWork(), ...drawn(villa(), [ad, ins]), cadBlockDefs: [{ file: 'GF.dwg', defs }] }))![1];
+      expect(g).toMatch(/>DB_REF<\/text>/);
+      expect(g).toMatch(/>DB1\/L3<\/text>/);
+      expect(g).not.toMatch(/>36<\/text>/);
+    });
+
+    it('prints an insert as what its block shows, at the insert\'s place and scale (S9)', () => {
+      const ins: SketchItem = { id: 'B1', kind: 'insert', layer: 'LV-SKETCH', pts: [[5000, 5000]], block: 'DB-A', sc: 2 };
+      const p: Project = { ...withWork(), ...drawn(villa(), [ins]), cadBlockDefs: [{ file: 'GF.dwg', defs: [{ name: 'DB-A', items: [
+        { id: 'r', kind: 'pline', layer: '0', closed: true, pts: [[0, 0], [400, 0], [400, 300], [0, 300]] }, { id: 't', kind: 'text', layer: 'LV-ANNO', pts: [[50, 100]], text: 'DB', h: 100 }] }] }] };
+      const g = /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svgOf(p))![1];
+      // At 1:100: the 0.8 × 0.6 m rectangle is 8 × 6 mm on paper, the text 2 mm high.
+      const m = /<path d="M([\d.]+) ([\d.]+)L([\d.]+) ([\d.]+)L([\d.]+) ([\d.]+)L([\d.]+) ([\d.]+)L/.exec(g)!;
+      expect(Number(m[3]) - Number(m[1])).toBeCloseTo(8);
+      expect(Number(m[6]) - Number(m[4])).toBeCloseTo(-6);
+      expect(g).toMatch(/font-size="2"[^>]*>DB<\/text>/);
+    });
+
+    it('prints drawn points with the point style: 2 mm across when sized to the screen, else at their size in the drawing\'s units (S8)', () => {
+      const pt: SketchItem = { id: 'P1', kind: 'point', layer: 'LV-SKETCH', pts: [[5000, 5000]] };
+      const group = (p: Project) => /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svgOf(p))![1];
+      // A dot sized to the screen: a filled circle of 0.25 mm.
+      expect(group({ ...withWork(), ...drawn(villa(), [pt]) })).toMatch(/<circle cx="[\d.]+" cy="[\d.]+" r="0.25" fill="#000" stroke="none"\/>/);
+      // A plus in a circle, 400 mm across on the plan: at 1:100, a 2 mm circle and two 4 mm lines.
+      const g = group({ ...withWork(), ...drawn(villa(), [pt]), cadPointStyle: { mode: 34, size: 400, relative: false } });
+      expect(g).toMatch(/<circle cx="[\d.]+" cy="[\d.]+" r="2" fill="none"/);
+      const m = /<path d="M([\d.]+) ([\d.]+)L([\d.]+) ([\d.]+)M([\d.]+) ([\d.]+)L([\d.]+) ([\d.]+)" fill="none"/.exec(g)!;
+      expect(Number(m[3]) - Number(m[1])).toBeCloseTo(4);
+      expect(Number(m[8]) - Number(m[6])).toBeCloseTo(-4);
+    });
 
     it('prints lines at their linetype and lineweight, text at its drawn height, black, over the architect\'s plan', () => {
       const svg = svgOf(withWork());
