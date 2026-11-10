@@ -1,6 +1,6 @@
 import { REFLECTANCES } from '../../calc/lighting';
 import { luminairesOf, roomLighting, roomLightingDefaults, type RoomLightingInput, type RoomLightingResult } from '../../calc/roomLighting';
-import { circuitLabel } from '../../model/cadDevices';
+import { circuitLabel, type PointLuminaire } from '../../model/cadDevices';
 import { m, m2 } from '../../model/cadMeasure';
 import type { BuildingRoom, Feeder, Project } from '../../types';
 
@@ -11,7 +11,7 @@ export const LUX_START: LuxSettings = { lum: '', mf: '0.8', uf: '', refl: '533',
 const num = (s: string | undefined, d: number) => (s !== undefined && s.trim() !== '' && Number.isFinite(Number(s)) ? Number(s) : d);
 
 /** The lumen-method input for a room from its defaults and the settings, and the result. */
-export function lightingOf(p: Project, room: BuildingRoom, s: LuxSettings): { input: RoomLightingInput; result: RoomLightingResult } {
+export function lightingOf(p: Project, room: BuildingRoom, s: LuxSettings): { input: RoomLightingInput; result: RoomLightingResult; luminaire: PointLuminaire } {
   const d = roomLightingDefaults(p, room);
   const list = luminairesOf();
   const lum = list.find((x) => x.id === s.lum) ?? list[0];
@@ -19,7 +19,8 @@ export function lightingOf(p: Project, room: BuildingRoom, s: LuxSettings): { in
     ...d, targetLux: num(s.lux, d.targetLux), ceilingM: num(s.ceil, d.ceilingM), workPlaneM: num(s.wp, d.workPlaneM), reflectance: s.refl,
     mf: num(s.mf, d.mf), lumens: lum.lumens, watts: lum.watts, shrMax: lum.shrMax, ...(s.uf.trim() ? { uf: num(s.uf, NaN) } : {})
   };
-  return { input, result: roomLighting(room.outline ?? [], input) };
+  const luminaire: PointLuminaire = { id: lum.id, label: lum.label, watts: lum.watts, lumens: lum.lumens, ...(lum.manufacturer ? { manufacturer: lum.manufacturer } : {}) };
+  return { input, result: roomLighting(room.outline ?? [], input), luminaire };
 }
 
 /** Side panel of Light room: the room kept, its inputs, the result and Place. */

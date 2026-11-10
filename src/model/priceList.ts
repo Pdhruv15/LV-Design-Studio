@@ -83,6 +83,8 @@ function typicalRate(kind: string, a: string[]): number | undefined {
     case 'earth-pit': return 1800;
     case 'earth-link': return 450;
     case 'met': return 900;
+    case 'luminaire': return 40 + 8 * (n(1) || 0); // by watts
+    case 'em': return a[0] === 'fitting' ? 180 : 250;
     case 'ev-charger': return 1500 + 140 * (n(0) || 0);
     case 'pv-module': return 0.9 * (n(0) || 0); // per Wp
     case 'pv-mount': return 150;

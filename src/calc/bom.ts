@@ -14,6 +14,7 @@ import { mainBoards, txTag } from '../model/transformers';
 import { sizeRoute, trayPlanOf, trayQuantities } from './cableTray';
 import { elcbGroups, normalizeLoadItems, pointLabel, scheduleCircuits } from './loadSchedule';
 import { atsOf, changeoverBreakers, incomersOf } from '../model/changeover';
+import { luminaireSchedule } from '../model/luminaireSchedule';
 import { sizePv } from './solar';
 import { loadTypeOf } from './summary';
 
@@ -281,6 +282,13 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
         pvLine(`pv-ac-isol:${r.acBreakerA}:${poles}`, `AC isolator ${r.acBreakerA} A ${poles} at the inverters (no PV way drawn on the SLD)`, 'no', 1);
       }
     }
+  }
+
+  // Luminaires and emergency fittings placed on the plans, by type (the luminaire schedule); the lighting point
+  // itself (wiring, switch) stays a load schedule point.
+  for (const t of luminaireSchedule(p)) {
+    for (const [board, n] of Object.entries(t.byBoard)) add('J', t.key, `Luminaire type ${t.code}: ${t.description} — supply and fix, counted on the plans`, 'no', n, board,
+      { quantitySource: 'Luminaires placed on the CAD plans (luminaire schedule)' });
   }
 
   // Point counts are opt-in: a design load does not establish who supplies the equipment.

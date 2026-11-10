@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.073', date: '2026-11-10',
+    items: [
+      { title: 'Luminaires by type in the BOQ', text: 'Lights placed with Light room (LUX) now keep their luminaire. The BOQ lists them in section J by type (L1, L2…), with emergency lights and exit / direction signs as EM1, EX1 and DS1, counted on the plans. The lighting point itself stays a load schedule point.' },
+      { title: 'Luminaire schedule in the BOQ workbook', text: 'The BOQ Excel export adds a Luminaire schedule sheet when the plans have typed lights: type, description, manufacturer, watts, lumens, quantity, boards and levels, with total watts.' }
+    ]
+  },
+  {
     version: '2.072', date: '2026-11-10',
     items: [
       { title: 'Solar PV in the BOQ', text: 'Your Solar PV sizing now reaches the BOQ under Power equipment: modules, mounting, string inverters, DC solar cable per string, connectors, DC switch-disconnectors and DC surge protection. An AC isolator is added only when no PV way is drawn on the SLD.' },
