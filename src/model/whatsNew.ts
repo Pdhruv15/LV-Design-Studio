@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.084', date: '2026-11-10',
+    items: [
+      { title: 'Approved makes, specification references and preambles in the BOQ', text: 'BOQ → Makes & preambles: up to three approved makes and a specification clause per equipment category (MCCB, cables, tray, luminaires…), and a preamble for the bill and each section. Save it as an office list and load it on other projects; a line can have its own makes in its pencil dialog. The Excel BOQ gains Spec ref. and Approved makes columns after Location, and the PDF prints them under each description.' }
+    ]
+  },
+  {
     version: '2.083', date: '2026-11-10',
     items: [
       { title: 'Block attributes: tags you fill in on insert and edit with a double-click', text: 'ATT (ATTDEF), or Attribute on the Blocks panel, draws an attribute definition: a tag, the prompt and a default, with the text\'s justify, style, height and rotation, and its modes (invisible, constant, verify, preset, lock position, multiple lines). Make a block with it among the objects: inserting the block then asks each prompt on the command line with its default (or in one dialog, when Drafting settings → Dynamic input has Attribute prompts in a dialog ticked), and the values show where the tags sat. A double-click on such a block, ATE / EATTEDIT, or Edit attributes on its right-click menu opens the Edit attributes dialog: the values, the text options and the block\'s layer and colour; OK, Cancel, Apply. The Properties palette lists the values too. ATTEXT, or File → Export → Block attributes, writes every attribute of every block as a table (Excel or CSV): block, tag, value, layer, position, and the feeder a CIRCUIT value names. Attributes save to DXF and DWG as ATTDEF and ATTRIB entities.', action: 'cad', actionLabel: 'Open Design CAD' }

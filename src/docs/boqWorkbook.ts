@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import type { Project } from '../types';
 import type { BomItem } from '../calc/bom';
 import { pricingBasis, validVat, type PriceList, type PricedBom, type PricedItem } from '../model/priceList';
+import { preambleOf } from '../model/boqMakes';
 import { revisionStamp } from '../model/revisions';
 import { reportDoc } from './reportFrame';
 import { printDoc } from './printDoc';
@@ -143,23 +144,48 @@ export function buildBoqWorkbook(project: Project, bom: PricedBom, list?: PriceL
   const marker = state.rev !== undefined && state.changes.length ? state.rev : undefined;
   const marks = new Map(marker ? state.changes.map((c) => [c.key, c]) : []);
   const grey = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFE8E8E8' } };
-  header(ws, project, 'Bill of quantities', marker ? 9 : 8, stamp);
-  ws.columns = [{ width: 8 }, { width: 62 }, { width: 7 }, { width: 10 }, { width: 13 }, { width: 13 }, { width: 16 }, { width: 24 }, ...(marker ? [{ width: 30 }] : [])];
-  ws.getRow(4).values = ['Item', 'Description', 'Unit', 'Qty', `Supply rate (${cur})`, `Install rate (${cur})`, `Amount (${cur})`, 'Location', ...(marker ? [`Revision (${revLabel})`] : [])];
+  // Approved makes and the specification reference go after the established columns, so
+  // priced returns still line up by column; shown only when a line has either.
+  const makes = project.boq?.makes;
+  const withMakes = bom.items.some((it) => it.makes || it.specRef);
+  const makeCol = marker ? 10 : 9;
+  const lastCol = withMakes ? makeCol + 1 : marker ? 9 : 8;
+  header(ws, project, 'Bill of quantities', lastCol, stamp);
+  ws.columns = [{ width: 8 }, { width: 62 }, { width: 7 }, { width: 10 }, { width: 13 }, { width: 13 }, { width: 16 }, { width: 24 }, ...(marker ? [{ width: 30 }] : []), ...(withMakes ? [{ width: 18 }, { width: 40 }] : [])];
+  ws.getRow(4).values = ['Item', 'Description', 'Unit', 'Qty', `Supply rate (${cur})`, `Install rate (${cur})`, `Amount (${cur})`, 'Location', ...(marker ? [`Revision (${revLabel})`] : []), ...(withMakes ? ['Spec ref.', 'Approved makes'] : [])];
   head(ws.getRow(4));
   r = 5;
+  // Preambles: one merged, wrapped row under the heading they belong to.
+  const preamble = (text: string | undefined, label?: string) => {
+    if (!text) return;
+    const row = ws.getRow(r);
+    row.getCell(2).value = label ? `${label} — ${text}` : text;
+    row.getCell(2).font = { italic: true };
+    row.getCell(2).alignment = { wrapText: true, vertical: 'top' };
+    ws.mergeCells(r, 2, r, lastCol);
+    const lines = (label ? `${label} — ${text}` : text).split('\n').reduce((a, l) => a + Math.max(1, Math.ceil(l.length / 150)), 0);
+    row.height = 15 * lines;
+    r++;
+  };
+  preamble(preambleOf(makes, 'general'), 'GENERAL PREAMBLE');
   for (const s of bom.sections) {
     const t = ws.getRow(r++);
     t.values = [s.section, s.title.toUpperCase()];
     t.font = { bold: true };
     t.eachCell((c) => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBE7F7' } }; });
+    preamble(preambleOf(makes, s.section), 'Preamble');
     s.items.forEach((it, i) => {
       const row = ws.getRow(r++);
       row.values = [it.no ?? `${s.section}.${i + 1}`, descriptionDetails(it), it.unit, validQuantity(it) ? it.qty : null, supplyCharge(it) && !it.supplyRateMissing ? it.rate ?? null : null, installCharge(it) && !it.installRateMissing ? it.labour : null, null, quantityDetails(it)];
       row.getCell(7).value = it.source === 'excluded' ? noChargeLabel(it) : !validQuantity(it) ? 0 : { formula: `D${row.number}*(E${row.number}+F${row.number})`, result: it.amount };
       row.getCell(2).alignment = { wrapText: true };
       row.getCell(8).alignment = { wrapText: true };
-      row.eachCell({ includeEmpty: true }, (c, n) => { if (n <= 8) c.border = box; });
+      if (withMakes) {
+        row.getCell(makeCol).value = it.specRef ?? null;
+        row.getCell(makeCol + 1).value = it.makes ?? null;
+        row.getCell(makeCol + 1).alignment = { wrapText: true };
+      }
+      row.eachCell({ includeEmpty: true }, (c, n) => { if (n <= 8 || n >= makeCol && n <= lastCol && withMakes) c.border = box; });
       const mark = marks.get(it.key);
       if (mark) {
         row.getCell(9).value = `△${marker} ${changeNote(mark, (n) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), qtyH)}`;
@@ -384,7 +410,8 @@ function billRow(it: PricedItem, number: string, mark?: Mark): string {
     : !valid ? '<i>Omitted</i>'
     : unpriced(it) ? (it.amount ? `${m2(it.amount)}<sup>*</sup>` : '<i>Not priced</i>')
     : m2(it.amount);
-  const notes = [mark ? escH(`Rev ${mark.rev}: ${changeNote(mark.change, m2, qtyH)}`) : '', itemNotes(it)].filter(Boolean).join(' · ');
+  const makes = [it.specRef ? `Spec ${it.specRef}` : '', it.makes ? `Makes: ${it.makes}` : ''].filter(Boolean).join(' · ');
+  const notes = [mark ? escH(`Rev ${mark.rev}: ${changeNote(mark.change, m2, qtyH)}`) : '', escH(makes), itemNotes(it)].filter(Boolean).join(' · ');
   return `<tr${mark ? ' class="chg"' : ''}><td>${mark ? `${tri(mark.rev)} ` : ''}${escH(number)}</td><td>${escH(it.description)}${it.source === 'typical' ? '<sup>†</sup>' : ''}${notes ? `<div class="ref">${notes}</div>` : ''}</td><td class="c">${escH(it.unit)}</td><td class="n">${valid ? qtyH(it.qty) : '<i>Invalid</i>'}</td><td class="n">${rate(supplyCharge(it), it.supplyRateMissing, it.rate)}</td><td class="n">${rate(installCharge(it), it.installRateMissing, it.labour)}</td><td class="n">${amount}</td></tr>`;
 }
 
@@ -546,10 +573,13 @@ export function buildBoqHtml(project: Project, bom: PricedBom, list?: PriceList,
       <tbody>${history.map((r) => `<tr><td>${escH(r.id)}</td><td>${escH(r.date)}</td><td>${escH(r.description)}</td><td>${escH(r.designRev ?? '—')}</td><td class="n">${m2(r.total)}</td><td>${escH(r.by ?? '')}</td></tr>`).join('')}</tbody></table>
   </section>` : '';
 
-  const bills = `<section class="page"><table class="b bill"><colgroup><col style="width:16mm"><col><col style="width:11mm"><col style="width:15mm"><col style="width:20mm"><col style="width:20mm"><col style="width:25mm"></colgroup>
+  const makes = project.boq?.makes;
+  const general = preambleOf(makes, 'general');
+  const sectionPreamble = (id: string) => { const t = preambleOf(makes, id); return t ? `<tbody class="pre-sec"><tr><td></td><td colspan="6"><p class="pre"><i>${escH(t)}</i></p></td></tr></tbody>` : ''; };
+  const bills = `<section class="page">${general ? `<h3>General preamble</h3><p class="pre">${escH(general)}</p>` : ''}<table class="b bill"><colgroup><col style="width:16mm"><col><col style="width:11mm"><col style="width:15mm"><col style="width:20mm"><col style="width:20mm"><col style="width:25mm"></colgroup>
     <thead><tr><th>Item</th><th>Description</th><th>Unit</th><th>Qty</th><th>Supply<br>rate</th><th>Install<br>rate</th><th>Amount<br>(${escH(cur)})</th></tr></thead>
     ${billSections.map((s) => `
-      <tbody class="sec" id="${billId(s.section)}"><tr><td>${escH(s.section)}</td><td colspan="6">BILL ${escH(s.section)} — ${escH(s.title.toUpperCase())}</td></tr></tbody>
+      <tbody class="sec" id="${billId(s.section)}"><tr><td>${escH(s.section)}</td><td colspan="6">BILL ${escH(s.section)} — ${escH(s.title.toUpperCase())}</td></tr></tbody>${sectionPreamble(s.section)}
       <tbody>${s.items.length || s.omitted.length ? [...s.items.map((it, i) => billRow(it, it.no ?? `${s.section}.${i + 1}`, marks.get(it.key))), ...s.omitted.map(omittedRow)].join('') : '<tr><td></td><td colspan="6"><i>No items</i></td></tr>'}</tbody>
       <tbody class="tot"><tr><td></td><td colspan="5">Total Bill ${escH(s.section)} carried to grand summary</td><td class="n">${m2(s.amount)}</td></tr></tbody>`).join('')}
   </table></section>`;
