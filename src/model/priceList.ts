@@ -85,6 +85,15 @@ function typicalRate(kind: string, a: string[]): number | undefined {
     case 'met': return 900;
     case 'luminaire': return 40 + 8 * (n(1) || 0); // by watts
     case 'em': return a[0] === 'fitting' ? 180 : 250;
+    case 'ev-charger': return 1500 + 140 * (n(0) || 0);
+    case 'pv-module': return 0.9 * (n(0) || 0); // per Wp
+    case 'pv-mount': return 150;
+    case 'pv-inverter': return 1500 + 350 * (n(0) || 0);
+    case 'pv-dc-cable': return 250; // a string's positive and negative run
+    case 'pv-connector': return 15;
+    case 'pv-dc-isol': return 400;
+    case 'pv-dc-spd': return 600;
+    case 'pv-ac-isol': return 150 + 2 * (n(0) || 0);
     // Panels and conductor-metre wiring always need a real quote (no starting rate).
     case 'cpc': case 'ecc': return perM(n(0));
     case 'gland': return GLAND_AED[a[0]];

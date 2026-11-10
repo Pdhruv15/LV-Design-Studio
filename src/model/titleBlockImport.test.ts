@@ -6,6 +6,13 @@ import { drawnTitleBlockHtml, templateSize, titleBlockHtml } from './titleBlock'
 /** A company title block read from a DWG / DXF: its lines and texts in mm from its top left corner, its attribute
  * texts mapped to the project's fields by their tags. */
 describe('title block import', () => {
+  it('prints the project\'s logo inside the logo area, in proportion; nothing without a logo', () => {
+    const t = { id: 'd', name: 'D', kind: 'drawn' as const, cols: [], rows: [], cells: [], size: { w: 180, h: 44 }, shapes: [], texts: [], logo: { x: 2, y: 2, w: 40, h: 12 } };
+    const logo = 'data:image/png;base64,iVBORw0KGgo=';
+    expect(drawnTitleBlockHtml(t, { ...sampleProject, drawing: { ...sampleProject.drawing, logo } })).toContain(`<image href="${logo}" x="2" y="2" width="40" height="12" preserveAspectRatio="xMidYMid meet"/>`);
+    expect(drawnTitleBlockHtml(t, sampleProject)).not.toContain('<image');
+  });
+
   it('guesses the field from a tag or placeholder name', () => {
     expect(guessField('DWG_NO')).toBe('{SheetNo}');
     expect(guessField('Drawing No.')).toBe('{SheetNo}');
@@ -16,6 +23,21 @@ describe('title block import', () => {
     expect(guessField('SHEET')).toBe('{SheetIndex} of {SheetCount}');
     expect(guessField('CLIENT')).toBe('{Owner}');
     expect(guessField('NOTES')).toBeUndefined();
+    // Numbered revision rows of a border: REV_1, DATE_1, DESC_1, BY_1 (row 1 = the newest issue).
+    expect(guessField('REV_1')).toBe('{Rev1}');
+    expect(guessField('DATE 2')).toBe('{RevDate2}');
+    expect(guessField('DESCRIPTION_3')).toBe('{RevText3}');
+    expect(guessField('BY_1')).toBe('{RevBy1}');
+    expect(guessField('REV_13')).toBeUndefined();
+    expect(guessField('TITLE1')).toBe('{SheetTitle}');
+  });
+
+  it('a drawing the size of a paper is that paper\'s whole border, with its drawing area found', () => {
+    const segs = [0, 0, 420, 0, 420, 0, 420, 297, 420, 297, 0, 297, 0, 297, 0, 0, 20, 10, 410, 10, 20, 287, 410, 287, 20, 10, 20, 287, 410, 10, 410, 287, 355, 10, 355, 287];
+    const t = drawnFromDrawing({ units: 4, segs, texts: [{ x: 360, y: 20, h: 3, rot: 0, s: 'DWG_NO', tag: 'DWG_NO' }] }, 'ACME-A3-BORDER');
+    expect(t.size).toEqual({ w: 420, h: 297 });
+    expect(t.border).toEqual({ paper: 'A3', area: { x: 20, y: 10, w: 335, h: 277 } });
+    expect(drawnFromDrawing({ units: 4, segs: [0, 0, 180, 0, 180, 0, 180, 44], texts: [] }, 'block').border).toBeUndefined();
   });
 
   it('takes a whole drawing: lines flipped to y down from its top left, in mm, texts with their height and alignment', () => {
@@ -44,6 +66,11 @@ describe('title block import', () => {
     ];
     const t = drawnFromPieces(pieces, 4, 'Block');
     expect(templateSize(t)).toEqual({ w: 100, h: 30 });
+    expect(t.logo).toBeUndefined();
+    // A closed rectangle on a layer named LOGO is the logo area (its lines stay).
+    const withLogo = drawnFromPieces([...pieces, { layer: 'TB-LOGO', kind: 'pline' as const, closed: true, pts: [[60, 12, 0], [96, 12, 0], [96, 28, 0], [60, 28, 0]] as [number, number, number][] }], 4, 'Block');
+    expect(withLogo.logo).toEqual({ x: 60, y: 2, w: 36, h: 16 });
+    expect(withLogo.shapes!.length).toBe(t.shapes!.length + 1);
     expect(t.shapes!.map((s) => s.kind)).toEqual(['line', 'poly', 'poly']);
     expect((t.shapes![1] as { pts: [number, number][] }).pts.length).toBeGreaterThan(8);
     expect(t.shapes![2]).toMatchObject({ kind: 'poly', fill: true, closed: true });
