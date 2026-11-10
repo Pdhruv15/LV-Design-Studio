@@ -375,22 +375,26 @@ export function sheetProject(p: Project, set: DrawingSet, sheet: DrawingSheet): 
 export const MIN_MM_PER_PX = 0.2;
 /** Drawing scale (mm per px) on a paper size; reserveW = width taken by the
  * legend column (mm). */
-export function scaleOn(size: SheetSize, widthPx: number, heightPx: number, reserveW = 0, reserveH = 0): number {
+export function scaleOn(size: SheetSize, widthPx: number, heightPx: number, reserveW = 0, reserveH = 0, area?: AreaOf): number {
   const { w, h } = SHEET_MM[size];
-  return Math.min((w - 36 - reserveW) / widthPx, (h - 20 - 48 - reserveH) / heightPx);
+  const a = area?.(size);
+  return a ? Math.min((a.w - 6 - reserveW) / widthPx, (a.h - 4 - reserveH) / heightPx) : Math.min((w - 36 - reserveW) / widthPx, (h - 20 - 48 - reserveH) / heightPx);
 }
+/** The drawing area a paper offers in place of the frame's (a whole-border template's, src/model/titleBlock.ts), or
+ * nothing for the frame's own. */
+export type AreaOf = (size: SheetSize) => { w: number; h: number } | undefined;
 /** Room kept for the legend column (legend, cable schedule, abbreviations). */
 export const LEGEND_RESERVE_MM = 80;
 /** A DB riser's side column: wide enough for its legend, abbreviations and board summary. */
 export const RISER_SIDE_MM = 62;
 /** Auto paper: standard A3 landscape, or A3 portrait for a drawing taller than wide, scaled down as far as it stays
  * readable; only then larger paper. Never smaller than A3 (A4 stays a choice on the sheet). */
-export function autoSize(widthPx: number, heightPx: number, reserveW = 0, min = MIN_MM_PER_PX, reserveH = 0): { size: SheetSize; scale: number; fits: boolean } {
+export function autoSize(widthPx: number, heightPx: number, reserveW = 0, min = MIN_MM_PER_PX, reserveH = 0, area?: AreaOf): { size: SheetSize; scale: number; fits: boolean } {
   for (const size of [heightPx > widthPx ? 'A3 portrait' : 'A3', 'A2', 'A1'] as SheetSize[]) {
-    const scale = scaleOn(size, widthPx, heightPx, reserveW, reserveH);
+    const scale = scaleOn(size, widthPx, heightPx, reserveW, reserveH, area);
     if (scale >= min) return { size, scale, fits: true };
   }
-  return { size: 'A1', scale: scaleOn('A1', widthPx, heightPx, reserveW, reserveH), fits: false };
+  return { size: 'A1', scale: scaleOn('A1', widthPx, heightPx, reserveW, reserveH, area), fits: false };
 }
 
 /** One sheet's line in the drawing register (src/docs/drawingRegister.ts). */

@@ -4,7 +4,7 @@ import type { DrawingInfo, Project } from '../types';
 import type { SheetFurniture } from '../model/drawingSet';
 import { tableHeightMm, type SheetTable } from './sheetTable';
 import { esc } from './report';
-import { templateKindOf, templateOf, templateSize, titleBlockHtml } from '../model/titleBlock';
+import { borderOf, drawnTitleBlockHtml, MAX_REV_ROWS, PAPER_MM, revRowsIn, revRowValues, templateKindOf, templateOf, templateSize, titleBlockHtml, type Border, type Paper, type TitleTemplate } from '../model/titleBlock';
 import { fillParams } from '../model/params';
 import { abbreviationsIn } from './sldNotes';
 import { LEGEND_LABEL_PX, LEGEND_TEXT_MM, legendHeightMm } from '../diagram/legendLayout';
@@ -17,13 +17,7 @@ import { fmtDate } from '../util/format';
  * title block (company, project, owner, consultant, title, drawing no.,
  * revision, date, scale, drawn / checked / approved, revision history). */
 
-export const SHEET_MM: Record<NonNullable<DrawingInfo['sheet']>, { w: number; h: number }> = {
-  A4: { w: 297, h: 210 },
-  A3: { w: 420, h: 297 },
-  'A3 portrait': { w: 297, h: 420 },
-  A2: { w: 594, h: 420 },
-  A1: { w: 841, h: 594 }
-};
+export const SHEET_MM: Record<NonNullable<DrawingInfo['sheet']>, { w: number; h: number }> = PAPER_MM;
 
 export const DEFAULT_DRAWING_TITLE = 'SINGLE LINE DIAGRAM';
 
@@ -41,7 +35,7 @@ export interface TitleBlock {
   checkedBy: string;
   approvedBy: string;
   logo?: string; // data: URL
-  history: { id: string; date: string; description: string }[];
+  history: { id: string; date: string; description: string; by?: string }[];
 }
 
 export function titleBlockOf(project: Project, date = new Date().toISOString().slice(0, 10), revRows = 4): TitleBlock {
@@ -61,13 +55,12 @@ export function titleBlockOf(project: Project, date = new Date().toISOString().s
     checkedBy: d.checkedBy ?? '',
     approvedBy: d.approvedBy ?? '',
     logo: isRasterDataUrl(d.logo) ? d.logo : undefined,
-    history: (project.revisions ?? []).slice(-revRows).reverse().map((r) => ({ id: r.id, date: fmtDate(r.date), description: r.description }))
+    history: (project.revisions ?? []).slice(-revRows).reverse().map((r) => ({ id: r.id, date: fmtDate(r.date), description: r.description, ...(r.by ? { by: r.by } : {}) }))
   };
 }
 
 /** The title block of one sheet of a set (the project's, with the sheet's own values). */
-export function sheetTitleBlock(project: Project, one?: SheetInfo): TitleBlock {
-  const revRows = one?.furniture?.revRows ?? 4;
+export function sheetTitleBlock(project: Project, one?: SheetInfo, revRows = one?.furniture?.revRows ?? 4): TitleBlock {
   const t = titleBlockOf(project, undefined, revRows);
   if (one) {
     t.number = one.no; t.title = one.title;
@@ -184,12 +177,15 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     ? { SheetNo: one.no, SheetTitle: one.title, SheetCount: String(one.count), SheetIndex: String(one.index), SheetSize: sheet, DrawingNo: one.no, DrawingTitle: one.title, Status: status, Scale: t.scale,
       ...(one.rev ? { Rev: one.rev } : {}), ...(one.date ? { RevDate: fmtDate(one.date) } : {}), ...(one.drawnBy ? { DrawnBy: one.drawnBy } : {}), ...(one.checkedBy ? { CheckedBy: one.checkedBy } : {}), ...(one.approvedBy ? { ApprovedBy: one.approvedBy } : {}) }
     : { SheetNo: t.number, SheetTitle: t.title, SheetCount: '1', SheetIndex: '1', SheetSize: sheet, Status: '', Scale: t.scale };
-  const custom = templateOf(project, templateKindOf(one?.kind));
+  // A whole-border template for the paper stands in for the frame, the zone strip and the title band; the sheet's
+  // furniture then works inside its drawing area (sheetBody), at full size, and the border's own revision rows
+  // ({Rev1} …) fill from the issues, newest first.
+  const { border, frame, k, custom } = sheetBody(project, sheet, one?.kind);
+  Object.assign(extra, revRowValues(sheetTitleBlock(project, one, MAX_REV_ROWS).history));
   const notes = [...(project.drawing?.notes ?? []), ...(one?.notes ?? [])];
   const abbr = one?.abbreviations ?? (project.drawing?.abbreviations === false ? [] : abbreviationsIn(svg));
   const history = t.history.length ? t.history : [{ id: '—', date: '', description: 'Not issued' }];
   // Sheet furniture (title block, revision table, abbreviations, notes) at its standard size.
-  const k = furnitureScale(sheet, custom ? templateSize(custom) : undefined);
   const mm = (v: number) => `${+(v * k).toFixed(2)}mm`;
   const px = (v: number) => `${+(v * k).toFixed(2)}px`;
   const lw = lineScale(one); // title block, legend and table lines at the pen width
@@ -204,12 +200,13 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   const side = !!one && !legendSheet && (!!legendSvg || cables.length > 0 || abbr.length > 0 || !!summary);
   const csW = side ? one?.sideMm ?? SIDE_MM : 0; // legend column width (mm at scale 1)
   const fz = one?.furniture ?? {}, tm = fz.textMm ?? LEGEND_TEXT_MM; // the column's text height
-  const zones = zonesOn(fz, sheet), nx = zoneFields(w - FRAME_W), ny = zoneFields(h - FRAME_H);
+  const zones = !border && zonesOn(fz, sheet), nx = zoneFields(w - FRAME_W), ny = zoneFields(h - FRAME_H);
   // The legend in a strip along the foot of the drawing area: as high as the legend was drawn (its data-h at its px per
   // mm), plus its padding; the notes then go in the column, out of its way.
   const strip = !!one?.legendStrip && !!legendSvg;
   const stripH = strip ? (Number(legendSvg.match(/data-h="([\d.]+)"/)?.[1] ?? 0) / (LEGEND_LABEL_PX / tm)) + 2 * SIDE_PAD_MM : 0;
-  const notesInColumn = (fz.notesPlace === 'column' || strip) && side;
+  const revBox = !!border && !revRowsIn(border);
+  const notesInColumn = (fz.notesPlace === 'column' || strip || revBox) && side; // the notes join the column above the app's revision table in a border
   const notesW = Math.min(fz.notesWidthMm ?? tbW, (w - FRAME_W - 6) / k);
   // A table under the drawing (a board sheet's load schedule): the drawing moves up by its height.
   const table = one?.table, tableH = table ? tableHeightMm(table, tm) : 0;
@@ -229,7 +226,11 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   const revLines = fz.revRows ?? history.length;
   const own = custom || !!fz.revRows;
   const tooShort = own ? Math.max(0, 9 + revLines * 4.5 - (custom ? templateSize(custom).h : BAND)) : 0;
-  const band = own ? (() => {
+  // In a border without revision rows of its own, the app's revision table stands at the foot of the legend column, or
+  // over the body's bottom right corner when the sheet has no column.
+  const revH = revBox ? 9 + revLines * 4.5 : 0;
+  const revBoxHtml = revBox ? `<div class="rvb"><table><colgroup><col style="width:10%"><col style="width:18%"><col></colgroup>${[5, ...Array<number>(revLines).fill(4.5), 4].map((rh, i, all) => `<tr style="height:${mm(rh)}">${revCells(i, all.length)}</tr>`).join('')}</table></div>` : '';
+  const band = border ? '' : own ? (() => {
     const { w: cw, h: ch } = custom ? templateSize(custom) : { w: 180, h: BAND };
     const n = revLines + 2;
     const rows = tooShort ? [5, ...Array<number>(revLines).fill(4.5), 4] : custom && custom.rows.length >= n ? custom.rows : Array<number>(n).fill(ch / n);
@@ -239,14 +240,15 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     const col = (v: number) => `<col style="width:${+v.toFixed(2)}mm">`;
     return `<table class="tb band"><colgroup>${col(revW * 0.1)}${col(revW * 0.18)}<col>${titleCols(k)}</colgroup>${standardTitleRows(project, t, one, sheet, status).map((r, i, all) => `<tr>${revCells(i, all.length)}${r}</tr>`).join('')}</table>`;
   })();
-  const notesHtml = notes.length ? `<div class="notes"${notesInColumn || legendSheet ? '' : ` style="width:${mm(notesW)}"`}><b>NOTES</b><ol>${notes.map((n) => `<li>${esc(fillParams(n, project))}</li>`).join('')}</ol></div>` : '';
+  const notesHtml = notes.length ? `<div class="notes"${notesInColumn || legendSheet ? '' : ` style="width:${mm(notesW)}${revBox && !side ? `;bottom:${mm(3 + stripH + tableH + revH + 2)}` : ''}"`}><b>NOTES</b><ol>${notes.map((n) => `<li>${esc(fillParams(n, project))}</li>`).join('')}</ol></div>` : '';
   const abbrHtml = `<div class="abbr"><b>ABBREVIATIONS</b>${abbr.map(([a, d]) => `<div><span>${esc(a)}</span>${esc(d)}</div>`).join('')}</div>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(t.number || t.title)}</title><style>
     @page { size: ${w}mm ${h}mm; margin: 0; }
     * { box-sizing: border-box; }
     html, body { margin: 0; width: ${w}mm; height: ${h}mm; font: ${px(9)} Arial, sans-serif; color: #000; background: #fff; }
-    .frame { position: absolute; inset: 10mm 10mm 10mm 20mm; border: ${+(one?.plot?.frame ?? 0.7).toFixed(2)}mm solid ${one?.plot?.ink ?? '#000'}; display: flex; flex-direction: column; }
-    .stamp { position: absolute; left: 20mm; bottom: ${zones ? 1.5 : 4}mm; font-size: 2mm; color: #000; white-space: nowrap; }${one?.plot?.css ? `
+    .frame { position: absolute; inset: ${border ? `${num(frame.y)}mm ${+(w - frame.x - frame.w).toFixed(2)}mm ${+(h - frame.y - frame.h).toFixed(2)}mm ${num(frame.x)}mm; border: 0` : `10mm 10mm 10mm 20mm; border: ${+(one?.plot?.frame ?? 0.7).toFixed(2)}mm solid ${one?.plot?.ink ?? '#000'}`}; display: flex; flex-direction: column; }
+    .brd { position: absolute; left: 0; top: 0; width: ${w}mm; height: ${h}mm; }
+    .stamp { position: absolute; left: ${num(frame.x)}mm; bottom: ${zones ? 1.5 : 4}mm; font-size: 2mm; color: #000; white-space: nowrap; }${one?.plot?.css ? `
     ${one.plot.css}` : ''}
     .body { position: relative; flex: 1; min-height: 0; }
     .drawing { position: absolute; inset: 3mm; right: calc(3mm + ${mm(csW)}); bottom: ${mm(3 + stripH + tableH)}; display: flex; align-items: center; justify-content: center; }
@@ -265,11 +267,15 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .tb.band { position: static; }
     .rv { position: absolute; left: 0; top: 0; height: 100%; border-collapse: collapse; table-layout: fixed; }
     .rvx { position: absolute; border-left: ${mm(0.5 * lw)} solid #000; }
-    .band td.r { border: 0; padding: ${mm(0.8)} ${mm(1.5)}; text-align: left; vertical-align: middle; }
+    .band td.r, .rvb td.r { border: 0; padding: ${mm(0.8)} ${mm(1.5)}; text-align: left; vertical-align: middle; }
     .band tr:first-child td.r { border-top: ${mm(0.5 * lw)} solid #000; }
-    .band td.u { border-bottom: ${mm(0.2)} solid #999; }
-    .band td.h { font-size: ${px(7)}; font-weight: 700; text-transform: uppercase; }
-    .band td.gen { vertical-align: bottom; font-size: ${px(6.5)}; color: #555; }
+    .band td.u, .rvb td.u { border-bottom: ${mm(0.2)} solid #999; }
+    .band td.h, .rvb td.h { font-size: ${px(7)}; font-weight: 700; text-transform: uppercase; }
+    .band td.gen, .rvb td.gen { vertical-align: bottom; font-size: ${px(6.5)}; color: #555; }
+    .rvb { position: absolute; right: 0; bottom: ${mm(3 + stripH + tableH)}; width: ${mm(tbW)}; border: ${mm(0.25 * lw)} solid #000; background: #fff; font-size: ${mm(tm)}; }
+    .rvb table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .side .rvb, .lgsheet .rvb { position: static; width: auto; margin-top: auto; flex: none; }
+    .side .sum + .rvb { margin-top: 0; }
     .notes { position: absolute; right: 0; bottom: ${mm(3 + stripH + tableH)}; font-size: ${mm(tm)}; border: ${mm(0.25 * lw)} solid #000; border-right: 0; padding: ${mm(1)} ${mm(2)}; background: #fff; }
     .side .notes { position: static; border-right: ${mm(0.25 * lw)} solid #000; }
     .notes ol { margin: ${mm(0.5)} 0 0; padding-left: ${mm(4)}; }
@@ -293,9 +299,10 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .zn span { flex: 1; display: flex; align-items: center; justify-content: center; border-left: 0.35mm solid #000; } .zn span:first-child { border-left: 0; }
     .zl span, .zr span { border-left: 0; border-top: 0.35mm solid #000; } .zl span:first-child, .zr span:first-child { border-top: 0; }
     .cm { position: absolute; background: #000; }
-  </style></head><body>
+  </style></head><body>${border ? `
+  <div class="brd">${drawnTitleBlockHtml(border, project, extra, false)}</div>` : ''}
   <div class="frame"><div class="body">${legendSheet ? `
-    <div class="lgsheet">${legendSvg ? `<div class="lg">${legendSvg}</div>` : ''}${abbr.length ? abbrHtml : ''}${notesHtml}</div>` : `
+    <div class="lgsheet">${legendSvg ? `<div class="lg">${legendSvg}</div>` : ''}${abbr.length ? abbrHtml : ''}${notesHtml}${revBoxHtml}</div>` : `
     <div class="drawing">${svg}</div>${table ? tableHtml(table) : ''}`}
     ${strip ? `<div class="strip"><div class="lg">${legendSvg}</div></div>` : ''}
     ${side ? `<div class="side">${legendSvg && !strip ? `<div class="lg">${legendSvg}</div>` : ''}` : ''}
@@ -303,12 +310,13 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     ${abbr.length && !legendSheet ? abbrHtml : ''}
     ${notesInColumn ? notesHtml : ''}
     ${summary ? `<div class="sum"><b>${esc(summary.title)}</b><table>${summary.rows.map(([a, v]) => `<tr><td>${esc(a)}</td><td>${esc(v)}</td></tr>`).join('')}</table></div>` : ''}
+    ${legendSheet ? '' : revBoxHtml}
     ${side ? '</div>' : ''}
     ${notesInColumn || legendSheet ? '' : notesHtml}
   </div>
     ${band}
   </div>
-  ${zones ? `<div class="zn zt">${zoneCells(nx)}</div><div class="zn zb">${zoneCells(nx)}</div><div class="zn zl">${zoneCells(ny, true)}</div><div class="zn zr">${zoneCells(ny, true)}</div>` : ''}${fz.centring ? centringHtml(w, h) : ''}
+  ${zones ? `<div class="zn zt">${zoneCells(nx)}</div><div class="zn zb">${zoneCells(nx)}</div><div class="zn zl">${zoneCells(ny, true)}</div><div class="zn zr">${zoneCells(ny, true)}</div>` : ''}${fz.centring && !border ? centringHtml(w, h) : ''}
   ${markupLayerHtml(one?.markups ?? [], w, h)}${one?.plot?.stamp ? `
   <div class="stamp">${esc(one.plot.stamp)}</div>` : ''}
   </body></html>`;
@@ -345,10 +353,22 @@ export function legendColumnFits(project: Project, svg: string, sheet: NonNullab
   const notes = fz.notesPlace === 'column' || (one.legendStrip && one.legendSvg) ? [...(project.drawing?.notes ?? []), ...(one.notes ?? [])].filter((n) => n.trim()).length : 0;
   const parts = [legendH, cables.length ? (7 + cables.length * 5.2 + (cables.some((c) => c.fireRated) ? 5 : 0)) * r : 0, abbr.length ? (6 + abbr.length * 3.6) * r : 0, one.summary ? (6 + one.summary.rows.length * 3.6) * r : 0, notes ? (6 + notes * 4) * r : 0];
   const need = parts.reduce((a, b) => a + b, 0) + parts.filter(Boolean).length * 2 + 2 * SIDE_PAD_MM;
-  const custom = templateOf(project, templateKindOf(one.kind));
+  const { body, k } = sheetBody(project, sheet, one.kind);
+  return need * k <= body.h - 6;
+}
+
+/** What a sheet of this paper is laid out in (paper mm from the top left): its frame and the room inside it above the
+ * title band (body), the furniture scale and the block chosen for the kind of sheet; or, when the paper has a
+ * whole-border template (src/model/titleBlock.ts borderOf), the border and its drawing area as frame and body, at
+ * full size and with no block of its own. */
+export function sheetBody(project: Project, sheet: Paper, kind?: string): { border?: TitleTemplate & { border: Border }; frame: { x: number; y: number; w: number; h: number }; body: { w: number; h: number }; k: number; custom?: TitleTemplate } {
+  const { w, h } = SHEET_MM[sheet];
+  const border = borderOf(project, sheet);
+  if (border) return { border, frame: border.border.area, body: { w: border.border.area.w, h: border.border.area.h }, k: 1 };
+  const custom = templateOf(project, templateKindOf(kind));
   const k = furnitureScale(sheet, custom ? templateSize(custom) : undefined);
-  const { h } = SHEET_MM[sheet];
-  return need * k <= h - FRAME_H - (custom ? templateSize(custom).h : BAND) * k - 6;
+  const frame = { x: FRAME_W - 10, y: 10, w: w - FRAME_W, h: h - FRAME_H };
+  return { frame, body: { w: frame.w, h: +(frame.h - (custom ? templateSize(custom).h : BAND) * k).toFixed(2) }, k, custom };
 }
 
 /** One scale for everything around the drawing (title block, revision table, abbreviations, notes). The title block

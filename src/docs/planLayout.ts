@@ -14,7 +14,7 @@ import { fittingCounts, trayFittings } from '../model/cadTrayFittings';
 import { planScale as unitsOf } from '../model/cadUnits';
 import { arcPoints, levelWiring } from '../model/cadWiring';
 import { PLAN_PREFIX, renumber, startStatus, type DrawingSet, type DrawingSheet, type PlanType, type SheetSize } from '../model/drawingSet';
-import { templateOf, templateSize } from '../model/titleBlock';
+import { borderOf, templateOf, templateSize } from '../model/titleBlock';
 import { elvPlanSymbols } from '../components/elv/elvPlanSymbols';
 import type { Project, SketchItem } from '../types';
 import { escapeHtmlText as esc } from '../util/escape';
@@ -57,6 +57,8 @@ export const planScale = (s?: string) => { const n = Number(/1\s*:\s*(\d+)/.exec
 /** The drawing area of a sheet (mm) beside the legend column and above the title block, as src/docs/sldSheet.ts lays
  * it out: the plan is drawn to exactly this size so it prints at its scale. */
 export function drawingAreaMm(p: Project, size: SheetSize): { w: number; h: number } {
+  const border = borderOf(p, size); // a whole-border template: inside its drawing area, beside the column
+  if (border) return { w: +(border.border.area.w - 6 - 92).toFixed(2), h: +(border.border.area.h - 3).toFixed(2) };
   const custom = templateOf(p, 'plan');
   const k = furnitureScale(size, custom ? templateSize(custom) : undefined);
   const { w, h } = SHEET_MM[size];
@@ -66,6 +68,8 @@ export function drawingAreaMm(p: Project, size: SheetSize): { w: number; h: numb
 /** Where the sheet's notes box starts across the drawing area (mm): it lies over the area's bottom right, as wide as the
  * title block under it. */
 function notesLeftMm(p: Project, size: SheetSize): number {
+  const border = borderOf(p, size);
+  if (border) return border.border.area.x + border.border.area.w - 23 - 180;
   const custom = templateOf(p, 'plan');
   return SHEET_MM[size].w - 33 - (custom ? templateSize(custom).w : 180) * furnitureScale(size, custom ? templateSize(custom) : undefined);
 }

@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.068', date: '2026-11-10',
+    items: [
+      { title: 'Your company\'s whole sheet border', text: 'A title block imported from a DWG / DXF (or drawn in Design CAD) that is the size of a paper, A3 to A1, can be that paper\'s whole border: Project → Title block → Whole border, then Use on A3 sheets. Its sheets then print your frame, zone references and title strip in place of the app\'s, with the fields filled as before, and the drawing, legend column and notes inside the border\'s drawing area (found from its lines, shown dashed, movable in the designer or in Design CAD on TB-REF). Revision rows of its own fill from the issues through {Rev1} {RevDate1} {RevText1} {RevBy1} …, newest first; a border without them keeps the app\'s revision table in the column. Papers without a border keep the app\'s frame. DWG / DXF: one block with attributes at the paper\'s origin.' },
+      { title: 'Design CAD: the title block drawing\'s tab', text: 'A title block open in Design CAD now says "Title block" in its tab, not "Level?".', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.067', date: '2026-11-10',
     items: [
       { title: 'Draw your title block in Design CAD', text: 'Project → Title block → Edit in CAD opens the block as a drawing of its own at 1 : 1 mm, inside an A3 frame for reference: its lines on TB-FRAME and TB-GRID, its texts on TB-TEXT and its fields on TB-FIELD, all the app\'s own objects, so Line, Rectangle, Circle, Text, Move, Trim, Offset and the other tools work on them. The standard block or a grid block opens as a drawn copy. With nothing picked, the Properties palette lists the fields: click one ({SheetNo}, {Rev}, {Project} …), then where it goes. TBSAVE, or Save as template on the palette, turns the drawing back into the template, which then prints on the sheets that use it and goes to DWG as a block with attributes.', action: 'cad', actionLabel: 'Open Design CAD' }

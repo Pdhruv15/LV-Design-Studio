@@ -1,6 +1,6 @@
 import type { CadPiece } from './cadCrop';
 import { CAD_UNITS } from './cadUnits';
-import type { DrawnShape, DrawnText, TitleTemplate } from './titleBlock';
+import { detectArea, MAX_REV_ROWS, paperOf, type DrawnShape, type DrawnText, type TitleTemplate } from './titleBlock';
 
 /** A company title block or sheet border read from a DWG / DXF by the Design CAD engine, as a drawn template: its lines
  * and texts in mm from its top left corner, its attribute texts as fields mapped to the project's parameters. */
@@ -31,7 +31,16 @@ const GUESSES: [RegExp, string][] = [
   [/^(DISCIPLINE|DISC)$/i, '{Discipline}'],
   [/^(SIZE|PAPER|SHEET[ _.-]*SIZE)$/i, '{SheetSize}']
 ];
-export const guessField = (name: string): string | undefined => GUESSES.find(([re]) => re.test(name.trim()))?.[1];
+/** A numbered revision row tag: REV_1 / DATE_1 / DESC_1 (DESCRIPTION_1) / BY_1 (DRN_1) → {Rev1} {RevDate1} {RevText1} {RevBy1}. */
+const REV_ROW_TAG = /^(REV|REVISION|REV[ _.-]*NO|DATE|REV[ _.-]*DATE|DESC|DESCRIPTION|REV[ _.-]*DESC(?:RIPTION)?|BY|REV[ _.-]*BY|DRN|DRAWN)[ _.-]*(\d{1,2})$/i;
+export const guessField = (name: string): string | undefined => {
+  const row = REV_ROW_TAG.exec(name.trim());
+  if (row) {
+    const n = Number(row[2]), kind = row[1].toUpperCase();
+    return n >= 1 && n <= MAX_REV_ROWS ? `{${/DATE/.test(kind) ? 'RevDate' : /DESC/.test(kind) ? 'RevText' : /BY|DR/.test(kind) ? 'RevBy' : 'Rev'}${n}}` : undefined;
+  }
+  return GUESSES.find(([re]) => re.test(name.trim()))?.[1];
+};
 
 /** The placeholder the engine's texts show for an attribute: its tag between brackets, or the tag itself. */
 const tagOfPlaceholder = (s: string) => s.match(/^[<[{(]\s*([A-Z0-9 _.-]{2,})\s*[>\]})]$/i)?.[1];
@@ -96,9 +105,11 @@ function textOf(i: number, x: number, y: number, h: number, rotRad: number, alig
   return { id: `t${i + 1}`, x, y, h: +h.toFixed(3), ...(Math.abs(rot) > 0.01 ? { rot } : {}), ...(align && align !== 'left' ? { align } : {}), text: guess ?? s, ...(tag ? { tag } : {}), ...(guess ? { orig: s } : {}) };
 }
 
+/** A drawing the size of a paper (within 2 mm) is taken as that paper's whole border, with its drawing area found. */
 function finish(name: string, size: { w: number; h: number }, shapes: DrawnShape[], texts: DrawnText[]): TitleTemplate {
   if (!(size.w > 0 && size.h > 0)) throw new Error('The title block has no size.');
-  return { id: `tb-${Date.now().toString(36)}`, name, kind: 'drawn', cols: [], rows: [], cells: [], size, shapes, texts: fitTexts(shapes, texts, size.w) };
+  const paper = paperOf(size);
+  return { id: `tb-${Date.now().toString(36)}`, name, kind: 'drawn', cols: [], rows: [], cells: [], size, shapes, texts: fitTexts(shapes, texts, size.w), ...(paper ? { border: { paper, area: detectArea({ shapes, texts }, size) } } : {}) };
 }
 
 /** The width a field may take: up to the block's next vertical line (a cell edge) on the side the text grows towards,
@@ -123,6 +134,8 @@ export function fitTexts(shapes: DrawnShape[], texts: DrawnText[], blockW: numbe
 
 /** The fields a drawn text can be mapped to, beside every project parameter. */
 export const SHEET_FIELDS = ['{SheetNo}', '{SheetTitle}', '{Rev}', '{RevDate}', '{Status}', '{Scale}', '{SheetIndex} of {SheetCount}', '{SheetSize}', '{DrawnBy}', '{CheckedBy}', '{ApprovedBy}', '{DesignedBy}'];
+/** The revision row fields a drawn block (a border) prints itself, rows 1 (newest) to 8, by row. */
+export const REV_ROW_FIELD_LIST = Array.from({ length: 8 }, (_, i) => [`{Rev${i + 1}}`, `{RevDate${i + 1}}`, `{RevText${i + 1}}`, `{RevBy${i + 1}}`]).flat();
 /** Maps a drawn text to a field ('' = back to the drawing's own words). */
 export function mapText(t: TitleTemplate, id: string, field: string): TitleTemplate {
   return { ...t, texts: (t.texts ?? []).map((x) => (x.id !== id ? x : field ? { ...x, text: field, orig: x.orig ?? x.text } : { ...x, text: x.orig ?? x.text, orig: undefined })) };
