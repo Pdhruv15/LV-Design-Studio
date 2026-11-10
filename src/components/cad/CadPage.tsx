@@ -16,6 +16,7 @@ import { isNumber, promptOptions, shortPrompt, spaceEnters, type SpaceMode } fro
 import CadDynInput, { type DynBox } from './CadDynInput';
 import CadTextEdit from './CadTextEdit';
 import CadNoteEdit from './CadNoteEdit';
+import { above, sameOrder, textToFront, toBack, toFront, under, type TextKind } from '../../model/cadDrawOrder';
 import { attachLabel, attachOf, noteAttached, noteBox, noteWithWidth, parseAttach, plainText, type NoteAttach, type NotePara } from '../../model/cadMtext';
 import { DIALOG_TOOLS, DimStyleDialog, EditDialog, TextStyleDialog } from './CadDialogs';
 import { currentTextStyle, dimLookOf, dimStandardAsBefore, dimStylesOf, dimStylesToStore, textStylesOf, textStylesToStore } from '../../model/cadStyles';
@@ -25,7 +26,7 @@ import { parsePat, specWith, withPatterns } from '../../model/cadHatch';
 import { erasedOf, restoredErased, shownView, withErased, type ErasedParts } from '../../model/cadErased';
 import { CIRCUIT_ATTRIBUTES } from '../../model/cadLoads';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
-import { addSketch, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimLabel, dimMeasure, dimOf, linearDir, nextDim, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch, withText } from '../../model/cadSketch';
+import { addSketch, withSketchItems, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimLabel, dimMeasure, dimOf, linearDir, nextDim, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch, withText } from '../../model/cadSketch';
 import { trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
@@ -105,7 +106,7 @@ const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab 
 ];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · ED (edit a text or dimension in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · DRA (radius) · DDI (diameter) · DAN (angular) · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · DR (draw order: Front, Back, Above or Under an object) · TEXTTOFRONT (texts, dimensions, leaders over the rest) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · ED (edit a text or dimension in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · DRA (radius) · DDI (diameter) · DAN (angular) · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 /** Bind's count in the Save line: reference lines, texts and hatches. */
@@ -185,6 +186,8 @@ const PROMPT: Record<CadTool, string> = {
   arc: 'ARC  Specify start point:',
   text: 'TEXT  Specify start point of text:',
   mtext: 'MTEXT  First corner:',
+  draworder: 'DRAWORDER  Select objects:',
+  texttofront: 'TEXTTOFRONT  [Text/Dimensions/Leaders/All] <All>:',
   dim: 'DIM  Specify first extension line origin:',
   dimlin: 'DIMLINEAR  Specify first extension line origin:',
   dimcont: 'DIMCONTINUE  Specify second extension line origin (from the last dimension):',
@@ -228,13 +231,16 @@ const DRAW_LAYER = 'LV-SKETCH', ANNO_LAYER = 'LV-ANNO';
 const WIRING_LAYER = 'E-LV-WIRING', TAG_LAYER = 'E-LV-TAGS';
 /** The edit tools on what was drawn (Draw → Edit, Mirror / Scale / Stretch in Modify), and those that work on objects
  * picked first. */
-const EDIT_TOOLS: CadTool[] = ['trim', 'extend', 'offset', 'fillet', 'chamfer', 'break', 'join', 'explode', 'mirror', 'scale', 'stretch', 'array', 'tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy', 'tframe', 'tmask'];
-const PICK_FIRST: CadTool[] = ['join', 'mirror', 'scale', 'array', 'tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy', 'tframe', 'tmask'];
+const EDIT_TOOLS: CadTool[] = ['draworder', 'texttofront', 'trim', 'extend', 'offset', 'fillet', 'chamfer', 'break', 'join', 'explode', 'mirror', 'scale', 'stretch', 'array', 'tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy', 'tframe', 'tmask'];
+const PICK_FIRST: CadTool[] = ['draworder', 'join', 'mirror', 'scale', 'array', 'tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy', 'tframe', 'tmask'];
 /** The text tools: on the texts picked first, then a value on the command line (TCEN and TCOPY: points or a text clicked). */
 const TEXT_TOOLS: CadTool[] = ['tjust', 'th', 'talign', 'tcase', 'tprefix', 'tsuffix', 'torient', 'tcen', 'tcopy', 'tframe', 'tmask'];
 const MTEXT_CORNER = 'MTEXT  Opposite corner or [Height/Justify/Width]:';
 const MTEXT_JUST = (j?: NoteAttach) => `MTEXT  Justify [TL/TC/TR/ML/MC/MR/BL/BC/BR] <${j ?? 'TL'}>:`;
 const MTEXT_TYPE = (isNew: boolean) => `MTEXT  Type the note (Enter starts a new line); Ctrl/⌘+Enter or OK keeps it, Esc ${isNew ? 'cancels' : 'leaves it as it was'}:`;
+type DrMode = 'front' | 'back' | 'above' | 'under';
+const DR_OPTIONS = 'DRAWORDER  [Above objects/Under objects/Front/Back] <Back>:';
+const DR_REF = 'DRAWORDER  Select reference objects:';
 const TFRAME_PROMPT = 'TFRAME  Frame [Circle/Box/Hexagon/None] <Circle>:';
 const TMASK_PROMPT = 'TMASK  Mask behind the text [Yes/No] <Yes>:';
 const TCOUNT_PLACE = 'TCOUNT  Place text or [Select existing/Undo]:';
@@ -329,6 +335,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [edNote, setEdNote] = useState<{ id?: string; draft: SketchItem } | null>(null);
   const [mtAsk, setMtAsk] = useState<{ step: 'height' | 'just' | 'width' | 'ntwidth'; id?: string } | null>(null);
   const [mtSet, setMtSet] = useState<{ mm?: number; just?: NoteAttach }>({});
+  /** DRAWORDER (S7): the order chosen before the objects (from the ribbon or the right-click menu), if any. */
+  const [drMode, setDrMode] = useState<DrMode | null>(null);
   // TALIGN after its texts: the edge chosen and what it waits for (the text or point to line up with, or the gap).
   const [tAsk, setTAsk] = useState<{ mode: AlignMode | 'spacing'; step: 'ref' | 'gap' } | null>(null);
   // TCOUNT: its prefix, number, step, digits and suffix, what it asks for next, and the texts placed (for Undo).
@@ -443,11 +451,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool !== 'none' && tool !== 'xattach' && tool !== 'xclip') { const label = PROMPT[tool].split(' ')[0]; setRecent((r) => [{ label, tool }, ...r.filter((x) => x.label !== label)].slice(0, 8)); }
     setCrop(tool === 'crop' ? { step: 'pick' } : null);
     setRadPick(null); setAngPick(null); setSsAsk(false); setEdText(null);
-    cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? (tool === 'array' ? arrayType(edSet) : TEXT_TOOLS.includes(tool) ? textToolPrompt(tool) : `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : 'Enter to join them:'}`) : pre && tool === 'offset' ? OFFSET_SIDE : editPrompt(tool, edSet)}`);
+    cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? (tool === 'draworder' ? (drMode === 'above' || drMode === 'under' ? DR_REF : DR_OPTIONS) : tool === 'array' ? arrayType(edSet) : TEXT_TOOLS.includes(tool) ? textToolPrompt(tool) : `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : 'Enter to join them:'}`) : pre && tool === 'offset' ? OFFSET_SIDE : editPrompt(tool, edSet)}`);
     // CROP with drawn items picked first: they are what is cut.
     if (tool === 'crop' && first) { const ids = picked.length ? picked.filter((k) => k.startsWith('sk:')).map((k) => k.slice(3)) : [cad.selected!.slice(3)]; setCrop({ step: 'outline', target: { items: ids, label: `${ids.length} drawn object${ids.length === 1 ? '' : 's'}` } }); cad.say(CROP_OUTLINE); }
     // SELECTSIMILAR with drawn objects picked first: they are the pattern. ZOOM needs the model view.
     if (tool === 'selsim' && first) applySimilar();
+    // DRAWORDER with objects picked first and Front or Back chosen on a menu: done at once.
+    if (tool === 'draworder' && first && (drMode === 'front' || drMode === 'back')) applyDrawOrder(drMode);
+    if (tool !== 'draworder') setDrMode(null);
     // TEXTEDIT with one text or dimension picked first: its box opens at once.
     if (tool === 'textedit' && first) { const one = pickedSk.length === 1 ? pickedSk[0] : pickedSk.length ? undefined : selSketch; if (one) startTextEdit(one); }
     if ((tool === 'zoom' || tool === 'zoomwin' || tool === 'zoomscale') && zoomRefused()) cad.setTool('none');
@@ -1135,6 +1146,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (e === 'clipboard') { if (arg) run(arg === 'copy' ? 'COPYCLIP' : arg === 'copybase' ? 'COPYBASE' : arg === 'paste' ? 'PASTECLIP' : 'PASTEORIG'); return; }
     if (e === 'edtext') { if (one) startTextEdit(one); return; }
     if (e === 'ntwidth') { if (one?.kind === 'mtext') { setMtAsk({ step: 'ntwidth', id: one.id }); cad.say(`MTEXT  Width (m) <${toM(noteBox(one).w).toFixed(2)}>:`); input.current?.focus(); } return; }
+    if (e === 'draworder') { const mode = arg as DrMode | undefined; if (!mode) return; if (mode === 'front' || mode === 'back') applyDrawOrder(mode); else { setDrMode(mode); cad.setTool('draworder'); } return; }
     if (e === 'ntjust') { const j = arg ? parseAttach(arg) : undefined; if (one?.kind === 'mtext' && j) change(updateSketch(project, fileOf(), noteAttached(one, j)), `MTEXT  Note justified ${attachLabel(j).toLowerCase()} · ⌘Z to undo`); return; }
     if (e === 'similar') { run('SELECTSIMILAR'); return; }
     if (e === 'qselect') { run('QSELECT'); return; }
@@ -1144,6 +1156,26 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (e === 'filter' || e === 'width') return;
     if ((e === 'offset' || e === 'fillet') && one) preset.current = { id: one.id, at: gripsOf(one).find((g) => g.kind === 'mid')?.at ?? one.pts[0] };
     cad.setTool(e);
+  }
+  /** DRAWORDER: the drawn objects picked to the front, the back, or just above or under the reference object; the list's
+   * order is the paint order on the canvas, the sheets and in the DXF / DWG (one undo step). */
+  function applyDrawOrder(mode: DrMode, ref?: SketchItem) {
+    const ids = drTargets().map((it) => it.id), n = ids.length, what = `${n} object${n === 1 ? '' : 's'}`;
+    const next = mode === 'front' ? toFront(sketch, ids) : mode === 'back' ? toBack(sketch, ids) : ref ? (mode === 'above' ? above : under)(sketch, ids, [ref.id]) : sketch;
+    const where = mode === 'front' ? 'in front' : mode === 'back' ? 'at the back' : `${mode} the ${kindOf(ref ?? sketch[0]).toLowerCase()}`;
+    if (!n) cad.say('DRAWORDER  Nothing picked.');
+    else if (sameOrder(sketch, next)) cad.say(`DRAWORDER  ${what} already ${where}.`);
+    else change(withSketchItems(project, fileOf(), next), `DRAWORDER  ${what} ${mode === 'front' ? 'brought to the front' : mode === 'back' ? 'sent to the back' : `put ${where}`} · ⌘Z to undo`);
+    setDrMode(null); pick([], []); cad.setTool('none');
+  }
+  /** The drawn objects DRAWORDER moves: those picked, else the one selected. */
+  const drTargets = () => (pickedSk.length ? pickedSk : selSketch ? [selSketch] : []);
+  /** TEXTTOFRONT: the texts and notes, dimensions, leaders, or all three, over everything else. */
+  function applyTextToFront(which: TextKind) {
+    const next = textToFront(sketch, which), name = { text: 'texts', dims: 'dimensions', leaders: 'leaders', all: 'texts, dimensions and leaders' }[which];
+    if (sameOrder(sketch, next)) cad.say(`TEXTTOFRONT  The ${name} are in front already.`);
+    else change(withSketchItems(project, fileOf(), next), `TEXTTOFRONT  The ${name} brought to the front · ⌘Z to undo`);
+    cad.setTool('none');
   }
   /** Join: the drawn objects picked that meet end to end become one. */
   function applyJoin() {
@@ -1188,6 +1220,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (!sk) { cad.say(`${cmd}  Click a drawn object (the architect's drawing is not changed):`); return; }
       const sks = pickedKeys.has(`sk:${sk.id}`) ? pickedSk.filter((x) => x.id !== sk.id) : [...pickedSk, sk];
       pick([], sks); cad.say(`${cmd}  ${picks(sks.length)} — Enter when done`); return;
+    }
+    if (tool === 'draworder' && edPhase === 'points' && (drMode === 'above' || drMode === 'under')) {
+      if (!sk) { cad.say(`DRAWORDER  Nothing there. ${DR_REF}`); return; }
+      if (drTargets().some((it) => it.id === sk.id)) { cad.say(`DRAWORDER  That is one of the objects picked: click another. ${DR_REF}`); return; }
+      applyDrawOrder(drMode, sk); return;
     }
     if (tool === 'talign' && tAsk?.step === 'ref') {
       const mode = tAsk.mode as AlignMode, texts = pickedSk.filter((it) => it.kind === 'text');
@@ -1977,6 +2014,19 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   function editInput(typedC: string): boolean {
     const opt = promptOptions(cad.history[cad.history.length - 1] ?? '').find((o) => o.option.toUpperCase() === typedC);
     const c = opt ? opt.key : typedC, num = isNumber(c) && !c.startsWith('-') ? String(Number(c)) : undefined, CMD = tool.toUpperCase();
+    // DRAWORDER after the objects: Front or Back at once; Above or Under then wait for the reference clicked.
+    if (tool === 'draworder' && edPhase === 'points') {
+      if (drMode === 'above' || drMode === 'under') { if (c) cad.say(`DRAWORDER  Click the reference object. ${DR_REF}`); return true; }
+      const k = c || 'B';
+      if (k === 'F' || k === 'B') { applyDrawOrder(k === 'F' ? 'front' : 'back'); return true; }
+      if (k === 'A' || k === 'U') { setDrMode(k === 'A' ? 'above' : 'under'); cad.say(DR_REF); return true; }
+      cad.say(`DRAWORDER  "${c}" is not an option. ${DR_OPTIONS}`); return true;
+    }
+    if (tool === 'texttofront') {
+      const which = ({ T: 'text', D: 'dims', L: 'leaders', A: 'all' } as Record<string, TextKind>)[c || 'A'];
+      if (!which) { cad.say(`TEXTTOFRONT  "${c}" is not an option. ${PROMPT.texttofront}`); return true; }
+      applyTextToFront(which); return true;
+    }
     if (tool === 'offset') {
       if (num) { setEdSet({ ...edSet, offset: num, through: false }); setEdAsk(null); cad.say(`OFFSET  Distance ${f2(num)} m`); if (!edStep) cad.say(PROMPT.offset); return true; }
       if (edStep) { if (c) return false; setEdStep(null); cad.say(PROMPT.offset); return true; }
@@ -2037,7 +2087,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       // TXTHEIGHT with nothing picked asks the height for new text.
       if (!pickedSk.length && tool !== 'th') { cad.say(`${CMD}  Pick the ${tool === 'tjust' ? 'texts' : 'objects'} first.`); return true; }
       setEdPhase('points');
-      if (tool === 'array') { setEdAsk('type'); cad.say(arrayType(edSet)); } else if (TEXT_TOOLS.includes(tool)) cad.say(textToolPrompt(tool)); else cad.say(tool === 'mirror' ? 'MIRROR  Specify first point of the mirror line:' : 'SCALE  Specify base point:');
+      if (tool === 'array') { setEdAsk('type'); cad.say(arrayType(edSet)); } else if (TEXT_TOOLS.includes(tool)) cad.say(textToolPrompt(tool)); else if (tool === 'draworder') { if (drMode === 'front' || drMode === 'back') applyDrawOrder(drMode); else cad.say(drMode ? DR_REF : DR_OPTIONS); } else cad.say(tool === 'mirror' ? 'MIRROR  Specify first point of the mirror line:' : 'SCALE  Specify base point:');
       return true;
     }
     if (tool === 'array' && !edSet.polar && pickedSk.length) { applyArray(); return true; }
@@ -2142,6 +2192,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (!renaming && EDIT_TOOLS.includes(tool) && editInput(c)) return;
     if (c && layoutCmd(c)) { setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30)); return; }
     // CLAYER and a layer's name: new lines, polylines, rectangles, circles and arcs go on it.
+    // DRAWORDER with its order typed (or from the ribbon): the objects picked, else those picked next, go there.
+    const dr = /^(?:DR|DRAWORDER)\s+(F|B|A|U|FRONT|BACK|ABOVE|UNDER)$/i.exec(raw.trim());
+    if (dr && view) {
+      setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30));
+      cad.say(`Command: ${c}`);
+      setDrMode(({ F: 'front', B: 'back', A: 'above', U: 'under' } as Record<string, DrMode>)[dr[1][0].toUpperCase()]);
+      cad.setTool('draworder'); return;
+    }
     const cl = /^CLAYER\s+(.+)$/i.exec(raw.trim());
     if (cl && view) {
       setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30));

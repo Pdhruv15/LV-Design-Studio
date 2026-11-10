@@ -59,6 +59,8 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['BR', 'BREAK'], desc: 'Break', tool: 'break' },
   { aliases: ['J', 'JOIN'], desc: 'Join', tool: 'join' },
   { aliases: ['X', 'EXPLODE'], desc: 'Explode', tool: 'explode' },
+  { aliases: ['DR', 'DRAWORDER'], desc: 'Draw order: the objects picked to the front, the back, above or under another', tool: 'draworder' },
+  { aliases: ['TEXTTOFRONT'], desc: 'Texts, dimensions or leaders over everything else', tool: 'texttofront' },
   { aliases: ['MI', 'MIRROR'], desc: 'Mirror', tool: 'mirror' },
   { aliases: ['SC', 'SCALE'], desc: 'Scale', tool: 'scale' },
   { aliases: ['S', 'STRETCH'], desc: 'Stretch', tool: 'stretch' },

@@ -145,7 +145,7 @@ describe('Ribbon', () => {
     expect(panel('Properties')).toContain('aria-label="Colour of new objects"');
     expect(panel('Properties')).toMatch(/aria-label="Lineweight of new objects"[^>]*>.*?<option value="0.35" selected="">0.35 mm<\/option>/s);
     expect(html).toMatch(/class="ribbon-launch"[^>]*aria-label="Properties palette"/);
-    expect(html).toMatch(/class="ribbon-caption ribbon-caption-more" title="More modify tools: Quick select…"/);
+    expect(html).toMatch(/class="ribbon-caption ribbon-caption-more" title="More modify tools: Quick select…, Draw order"/);
     expect(html).toMatch(/title="More layers tools: Layer roles, New layer, Layers panel"/);
   });
 

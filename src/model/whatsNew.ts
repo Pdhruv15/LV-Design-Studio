@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.079', date: '2026-11-10',
+    items: [
+      { title: 'Draw order in Design CAD (DR)', text: 'DR (DRAWORDER), or Draw order under Modify ▾: pick the drawn objects, Enter, then Front, Back, Above or Under (Above and Under then ask for the reference object). The order is the paint order, so a solid hatch sent to the back no longer hides the symbols and texts over it, on the screen, on the plan sheets and in the DXF and DWG saved. TEXTTOFRONT brings the texts, dimensions or leaders over everything else. With drawn objects picked, the right-click menu has Draw order ▸.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.078', date: '2026-11-10',
     items: [
       { title: 'Notes in Design CAD: paragraphs in a box (MT)', text: 'MT (MTEXT), or Notes under the Text arrow: click two corners for the box, then type in it. Enter starts a new line and the lines wrap to the box\'s width. The small bar above the box has B and U for bold and underlined words, the height on paper, the justification (top left … bottom right) and OK; Ctrl/⌘+Enter or OK keeps the note, Esc leaves it as it was. Drag the grip at the box\'s right edge to change its width. A double-click on a note opens it again (ED works too); its right-click menu has Edit text, Width… and Justify. Notes move, copy, rotate, scale and mirror with the other drawn objects, show in the Properties palette (contents, height, width, rotation, justify), explode into one text per line, print on the plan sheets and save to DXF and DWG as a multiline text with its box.', action: 'cad', actionLabel: 'Open Design CAD' }
