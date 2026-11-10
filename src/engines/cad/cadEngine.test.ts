@@ -6,7 +6,8 @@ import { drawingWithDevices, dxfToDwg, INK, openDrawing, readRefGeometry, SNAP, 
 import { placeRefExtras, type CadRef } from '../../model/cadRefs';
 import { buildSheetDxfPages } from '../../docs/sheetDxf';
 import { sampleProject } from '../../data/sampleProject';
-import { shapesOut } from '../../model/cadSketch';
+import { shapesOut, pointStyleOut, blockDefsOut } from '../../model/cadSketch';
+import type { CadBlockDef } from '../../model/cadBlocks';
 import type { SketchItem } from '../../types';
 
 const root = path.resolve(__dirname, '../../..');
@@ -116,6 +117,65 @@ describe('CAD engine (Rust, WebAssembly)', () => {
       expect([l.align, l.x, l.y], as).toEqual([0, 5000, 500]);
       saved.close();
     }
+  });
+
+  it('saves a note as one MTEXT with its box, attachment and codes, read back as a text per line', async () => {
+    const items: SketchItem[] = [{ id: 'n', kind: 'mtext', layer: 'LV-ANNO', pts: [[1000, 3000]], h: 250, w: 3000, note: [{ runs: [{ s: 'GENERAL ', b: true }, { s: 'NOTES' }] }, { runs: [{ s: 'Second line', u: true }] }] }];
+    const shapes = shapesOut(items, 0.001);
+    expect(shapes).toEqual([{ layer: 'LV-ANNO', kind: 'mtext', pts: [[1000, 3000]], text: '{\\fArial|b1|i0;GENERAL }NOTES\\P\\LSecond line\\l', h: 250, rot: undefined, just: 'TL', w: 3000, lsp: 1 }]);
+    for (const as of ['dxf', 'dwg'] as const) {
+      const saved = await openDrawing(`note.${as}`, await drawingWithDevices(gf, [], shapes, as));
+      // The reader lists an MTEXT line by line under its top left corner, the codes gone.
+      const lines = saved.info.texts.filter((t) => t.s === 'GENERAL NOTES' || t.s === 'Second line');
+      expect(lines.map((t) => [t.s, t.h, t.x]), as).toEqual([['GENERAL NOTES', 250, 1000], ['Second line', 250, 1000]]);
+      expect(lines[0].y, as).toBeCloseTo(2750, 6);
+      expect(lines[1].y, as).toBeCloseTo(3000 - 2.66 * 250, 6); // the reader spaces an MTEXT's lines 1.66 heights apart
+      saved.close();
+    }
+  });
+
+  it('saves the drawing\'s own blocks as BLOCK records and INSERT entities, read back as one block showing its objects', async () => {
+    const def: CadBlockDef = { name: 'DB-A', units: 4, description: 'Board symbol', items: [{ id: 'r', kind: 'line', layer: '0', pts: [[0, 0], [400, 0]] }, { id: 't', kind: 'text', layer: 'LV-ANNO', pts: [[50, 100]], text: 'DB', h: 100 }] };
+    const ins: SketchItem = { id: 'b', kind: 'insert', layer: 'E-POWER', pts: [[3000, 3000]], block: 'DB-A', sc: 2 };
+    const shapes = [...shapesOut([ins], 0.001), ...blockDefsOut([def], 0.001)];
+    expect(shapes[0]).toEqual({ layer: 'E-POWER', kind: 'insert', pts: [[3000, 3000]], name: 'DB-A', sc: 2, rot: 0, atts: [] });
+    expect(shapes[1]).toMatchObject({ kind: 'blockdef', name: 'DB-A', units: 4, text: 'Board symbol' });
+    expect(shapes[1].items!.map((x) => x.kind)).toEqual(['line', 'text']);
+    for (const as of ['dxf', 'dwg'] as const) {
+      const saved = await openDrawing(`blocks.${as}`, await drawingWithDevices(gf, [], shapes, as));
+      expect(saved.blocks().filter((b) => b.block === 'DB-A').map((b) => b.layer), as).toEqual(['E-POWER']);
+      const t = saved.info.texts.find((x) => x.s === 'DB')!;
+      expect([t.x, t.y, t.h], as).toEqual([3100, 3200, 200]);
+      saved.close();
+    }
+  });
+
+  it('saves a block\'s attribute definitions and an insert\'s values as ATTDEF and ATTRIB entities, read back on the insert', async () => {
+    const def: CadBlockDef = { name: 'LT', units: 4, items: [{ id: 'c', kind: 'circle', layer: '0', pts: [[0, 0]], r: 100 }, { id: 'a', kind: 'attdef', layer: '0', pts: [[150, 0]], tag: 'CIRCUIT', prompt: 'Circuit', text: 'L1', h: 50 }, { id: 'w', kind: 'attdef', layer: '0', pts: [[150, -80]], tag: 'WATTS', text: '36', h: 40, att: { invisible: true } }] };
+    const ins: SketchItem = { id: 'b', kind: 'insert', layer: 'E-LIGHTING', pts: [[5000, 3000]], block: 'LT', attrs: { CIRCUIT: 'DB1/L3' } };
+    const shapes = [...shapesOut([ins], 0.001, [def]), ...blockDefsOut([def], 0.001)];
+    expect(shapes[0].atts!.map((a) => [a.tag, a.text, a.pts[0], a.flags!.invisible])).toEqual([['CIRCUIT', 'DB1/L3', [5150, 3000], false], ['WATTS', '36', [5150, 2920], true]]);
+    for (const as of ['dxf', 'dwg'] as const) {
+      const saved = await openDrawing(`atts.${as}`, await drawingWithDevices(gf, [], shapes, as));
+      expect(saved.blocks().find((b) => b.block === 'LT')?.attributes, as).toEqual({ CIRCUIT: 'DB1/L3', WATTS: '36' });
+      saved.close();
+    }
+  });
+
+  it('saves drawn points as POINT entities, found by the Node snap, with the point style in the header', async () => {
+    const shapes = [...shapesOut([{ id: 'p', kind: 'point', layer: 'LV-SKETCH', pts: [[2500, 2500]] }], 0.001), pointStyleOut({ mode: 34, size: 5, relative: true })];
+    expect(shapes).toEqual([{ layer: 'LV-SKETCH', kind: 'point', pts: [[2500, 2500]] }, { layer: '', kind: 'pointstyle', pts: [], mode: 34, r: -5 }]);
+    for (const as of ['dxf', 'dwg'] as const) {
+      const saved = await openDrawing(`points.${as}`, await drawingWithDevices(gf, [], shapes, as));
+      // A point has no line to pick, but the Node snap finds it.
+      const on = new Uint8Array(saved.info.layers.length).fill(1);
+      const s = await saved.snap(2501, 2499, 5, SNAP.node, on);
+      expect([s[0], s[1], s[2]], as).toEqual([2500, 2500, SNAP.node]);
+      saved.close();
+    }
+    const dxf = new TextDecoder().decode(await drawingWithDevices(gf, [], shapes, 'dxf'));
+    expect(dxf.slice(dxf.indexOf('$PDMODE'), dxf.indexOf('$PDMODE') + 40)).toMatch(/34/);
+    expect(dxf.slice(dxf.indexOf('$PDSIZE'), dxf.indexOf('$PDSIZE') + 40)).toMatch(/-5/);
   });
 
   it('saves radius and angular dimensions as their lines, an arc and their text, in DXF and DWG', async () => {

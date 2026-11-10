@@ -411,11 +411,13 @@ export interface CadBlockMap { block: string; reference: string; per?: number }
 export type CadLayerRole = 'room' | 'room-name' | 'wall' | 'tray' | 'route' | 'fixture' | 'board' | 'ignore';
 export interface CadLayerMap { layer: string; role: CadLayerRole }
 /** An object drawn in the CAD view, in drawing units: a line (or connected lines), polyline, circle (centre, r), arc
- * (centre, r, a0 → a1 anticlockwise, radians), text (insertion, height, rotation) or dimension (p1, p2, a point on the
- * dimension line). */
+ * (centre, r, a0 → a1 anticlockwise, radians), text (insertion, height, rotation), note (mtext: a paragraph text in a
+ * box), dimension (p1, p2, a point on the dimension line), point (pts[0], shown with the drawing's point style) or insert
+ * (one of the drawing's own blocks at pts[0], turned by rot and scaled by sc; src/model/cadBlocks.ts) or attribute
+ * definition (attdef: a tag whose value is asked when its block is inserted, drawn as text; its default in `text`). */
 export interface SketchItem {
   id: string;
-  kind: 'line' | 'pline' | 'circle' | 'arc' | 'text' | 'dim' | 'ellipse';
+  kind: 'line' | 'pline' | 'circle' | 'arc' | 'text' | 'dim' | 'ellipse' | 'mtext' | 'point' | 'insert' | 'attdef';
   layer: string;
   pts: [number, number][];
   closed?: boolean;
@@ -427,6 +429,21 @@ export interface SketchItem {
   rot?: number;
   /** A text: where its anchor (pts[0]) sits on its box (src/model/cadText.ts); left out: the left end of its baseline. */
   just?: import('./model/cadText').TextJust;
+  /** A note (mtext, a paragraph text in a box): its paragraphs of plain, bold and underlined runs, its box's width
+   * (drawing units; none: as wide as its longest line) and its line spacing (1: lines 5/3 of the height apart). Its
+   * anchor (pts[0]) sits at `just` on the box, TL when left out (src/model/cadMtext.ts). */
+  note?: import('./model/cadMtext').NotePara[];
+  w?: number;
+  lsp?: number;
+  /** An insert: the name of the block it places, its scale (1 when left out), and the values of its block's attributes by tag. */
+  block?: string;
+  sc?: number;
+  attrs?: Record<string, string>;
+  /** An attribute definition: its tag and the prompt asked on insert; its modes (invisible: not drawn; constant: never
+   * asked, the default always; verify; preset: not asked, the default taken; lock: its place fixed; mlines). */
+  tag?: string;
+  prompt?: string;
+  att?: { invisible?: true; constant?: true; verify?: true; preset?: true; lock?: true; mlines?: true };
   /** A text's frame (a circle, box or hexagon round it) and mask (paper-colour fill under it) (src/model/cadText.ts). */
   frame?: import('./model/cadText').TextFrame;
   mask?: boolean;
@@ -584,6 +601,10 @@ export interface Project {
   /** Design CAD text and dimension styles, and the current one of each (absent: one "Standard", as before). */
   cadTextStyles?: import('./model/cadStyles').CadStyles<import('./model/cadStyles').CadTextStyle>;
   cadDimStyles?: import('./model/cadStyles').CadStyles<import('./model/cadStyles').CadDimStyle>;
+  /** The drawing's own blocks (BLOCK), per drawing file: each a name and the drawn objects it is made of (src/model/cadBlocks.ts). */
+  cadBlockDefs?: import('./model/cadBlocks').CadBlockTable[];
+  /** How drawn points are shown (PTYPE): their shape and size (src/model/cadPoints.ts); left out: a dot, 5 % of the view. */
+  cadPointStyle?: import('./model/cadPoints').PointStyle;
   cadLayerStyle?: Record<string, Record<string, import('./model/cadLayerStyle').LayerStyle>>;
   /** Design CAD layer palette per drawing file: current layer, empty layers added, layer states (src/model/cadLayerState.ts). */
   cadLayerFile?: Record<string, import('./model/cadLayerState').CadLayerFile>;

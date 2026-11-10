@@ -41,3 +41,12 @@ describe('Design CAD drafting settings', () => {
     expect(snapToSpacing([149, 251], 100, 0)).toEqual([100, 251]);
   });
 });
+
+describe('attribute prompts in a dialog (S11)', () => {
+  it('is off unless kept on, and comes back from the settings as kept', async () => {
+    const { DRAFT_DEFAULTS, draftSettings } = await import('./cadDraft');
+    expect(DRAFT_DEFAULTS.attDialog).toBe(false);
+    expect(draftSettings({ attDialog: true }).attDialog).toBe(true);
+    expect(draftSettings({ attDialog: 'yes' }).attDialog).toBe(false);
+  });
+});

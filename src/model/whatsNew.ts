@@ -15,9 +15,45 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.080', date: '2026-11-10',
+    version: '2.084', date: '2026-11-10',
     items: [
       { title: 'Approved makes, specification references and preambles in the BOQ', text: 'BOQ → Makes & preambles: up to three approved makes and a specification clause per equipment category (MCCB, cables, tray, luminaires…), and a preamble for the bill and each section. Save it as an office list and load it on other projects; a line can have its own makes in its pencil dialog. The Excel BOQ gains Spec ref. and Approved makes columns after Location, and the PDF prints them under each description.' }
+    ]
+  },
+  {
+    version: '2.083', date: '2026-11-10',
+    items: [
+      { title: 'Block attributes: tags you fill in on insert and edit with a double-click', text: 'ATT (ATTDEF), or Attribute on the Blocks panel, draws an attribute definition: a tag, the prompt and a default, with the text\'s justify, style, height and rotation, and its modes (invisible, constant, verify, preset, lock position, multiple lines). Make a block with it among the objects: inserting the block then asks each prompt on the command line with its default (or in one dialog, when Drafting settings → Dynamic input has Attribute prompts in a dialog ticked), and the values show where the tags sat. A double-click on such a block, ATE / EATTEDIT, or Edit attributes on its right-click menu opens the Edit attributes dialog: the values, the text options and the block\'s layer and colour; OK, Cancel, Apply. The Properties palette lists the values too. ATTEXT, or File → Export → Block attributes, writes every attribute of every block as a table (Excel or CSV): block, tag, value, layer, position, and the feeder a CIRCUIT value names. Attributes save to DXF and DWG as ATTDEF and ATTRIB entities.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.082', date: '2026-11-10',
+    items: [
+      { title: 'Insert blocks: the Blocks palette (I)', text: 'I (INSERT), or Insert on the Blocks panel, opens the Blocks palette beside the drawing: Current drawing (this drawing\'s blocks, and the architect\'s), Recent (the twelve inserted lately) and Library (Folder… chooses a folder of DWG / DXF files, each one block). Search, pick a block, then click where it goes, or drag it onto the drawing; set its scale and rotation, Repeat placement for several, Explode to place its objects instead. Insert\'s arrow lists the drawing\'s blocks by name; -INSERT takes the name on the command line, with Scale and Rotate. DIVIDE and MEASURE now take Block: a block at each point, aligned with the object or not. INSERT and I no longer add a device: DEV and DEVICE do, as the ribbon\'s device buttons always did.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.081', date: '2026-11-10',
+    items: [
+      { title: 'Your own blocks in Design CAD (B)', text: 'B (BLOCK), Create on the new Blocks panel, or Make block… on the right-click menu of drawn objects: name the block, pick its base point and its objects, and choose whether the objects stay, become one block (the default) or go. -BLOCK does the same on the command line. A block shows as the objects it was made of; it moves, copies, rotates and scales as one, explodes back into its objects, prints on the plan sheets and saves to DXF and DWG as a block with its inserts. Inserting a block again, with the Blocks palette, comes next.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.080', date: '2026-11-10',
+    items: [
+      { title: 'Points, Divide and Measure out in Design CAD', text: 'PO (POINT) draws a point at each click until Enter. DIV (DIVIDE) picks a line, polyline, arc, circle or ellipse and the number of parts: a point at each division. ME (MEASURE) picks an object and a length in metres: a point every length from the end nearer the click. Points snap with Node, move and copy like other drawn objects, print on the plan sheets and save to DXF and DWG as POINT entities. PTYPE opens the Point style dialog: twenty shapes (dot, plus, cross, tick, in a circle or square) and a size relative to the screen or in drawing units. All four are under Draw ▾.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.079', date: '2026-11-10',
+    items: [
+      { title: 'Draw order in Design CAD (DR)', text: 'DR (DRAWORDER), or Draw order under Modify ▾: pick the drawn objects, Enter, then Front, Back, Above or Under (Above and Under then ask for the reference object). The order is the paint order, so a solid hatch sent to the back no longer hides the symbols and texts over it, on the screen, on the plan sheets and in the DXF and DWG saved. TEXTTOFRONT brings the texts, dimensions or leaders over everything else. With drawn objects picked, the right-click menu has Draw order ▸.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.078', date: '2026-11-10',
+    items: [
+      { title: 'Notes in Design CAD: paragraphs in a box (MT)', text: 'MT (MTEXT), or Notes under the Text arrow: click two corners for the box, then type in it. Enter starts a new line and the lines wrap to the box\'s width. The small bar above the box has B and U for bold and underlined words, the height on paper, the justification (top left … bottom right) and OK; Ctrl/⌘+Enter or OK keeps the note, Esc leaves it as it was. Drag the grip at the box\'s right edge to change its width. A double-click on a note opens it again (ED works too); its right-click menu has Edit text, Width… and Justify. Notes move, copy, rotate, scale and mirror with the other drawn objects, show in the Properties palette (contents, height, width, rotation, justify), explode into one text per line, print on the plan sheets and save to DXF and DWG as a multiline text with its box.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {
