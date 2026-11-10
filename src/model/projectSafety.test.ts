@@ -76,5 +76,12 @@ describe('project files are safe to open', () => {
     expect(() => checkProjectShape(file((p) => { p.titleTemplates = drawn({}); }))).not.toThrow();
     refused(file((p) => { p.titleTemplates = drawn({ h: '2.5" onload="alert(1)' }); }));
     refused(file((p) => { p.titleTemplates = [{ ...drawn({})[0], shapes: [{ kind: 'script' }] }]; }));
+    const bordered = (border: unknown) => [{ ...drawn({})[0], size: { w: 420, h: 297 }, border }];
+    expect(() => checkProjectShape({ ...sampleProject, titleTemplates: bordered({ paper: 'A3', area: { x: 20, y: 10, w: 335, h: 277 } }) })).not.toThrow();
+    refused({ ...sampleProject, titleTemplates: bordered({ paper: 'B1', area: { x: 20, y: 10, w: 335, h: 277 } }) });
+    refused({ ...sampleProject, titleTemplates: bordered({ paper: 'A3', area: { x: 20, y: 10, w: '335', h: 277 } }) });
+    refused({ ...sampleProject, titleTemplates: bordered('A3') });
+    expect(() => checkProjectShape({ ...sampleProject, titleTemplates: [{ ...drawn({})[0], logo: { x: 2, y: 2, w: 40, h: 12 } }] })).not.toThrow();
+    refused({ ...sampleProject, titleTemplates: [{ ...drawn({})[0], logo: { x: 2, y: 2, w: '40', h: 12 } }] });
   });
 });

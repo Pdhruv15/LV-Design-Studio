@@ -1,10 +1,8 @@
 import { ask } from '../ConfirmDialog';
 import { useMemo, useRef, useState } from 'react';
 import type { Project } from '../../types';
-import {
-  addCol, addRow, drawnTitleBlockHtml, isDrawn, loadTemplateLibrary, mergeDown, mergeRight, removeCol, removeRow, saveTemplateLibrary, split, standardTemplate, templateSize, titleBlockHtml, type TbCell, type TitleTemplate
-} from '../../model/titleBlock';
-import { drawnFromDrawing, drawnFromPieces, fieldCount, mapText, SHEET_FIELDS } from '../../model/titleBlockImport';
+import { addCol, addRow, detectArea, drawnTitleBlockHtml, isDrawn, loadTemplateLibrary, mergeDown, mergeRight, paperOf, removeCol, removeRow, revRowsIn, saveTemplateLibrary, split, standardTemplate, templateSize, titleBlockHtml, type Border, type LogoArea, type TbCell, type TitleTemplate } from '../../model/titleBlock';
+import { drawnFromDrawing, drawnFromPieces, fieldCount, mapText, REV_ROW_FIELD_LIST, SHEET_FIELDS } from '../../model/titleBlockImport';
 import { chooseDrawing, explodeObjects } from '../../engines/cad/cadEngine';
 import { askText } from '../ConfirmDialog';
 import { sanitizeSvg } from '../../util/sanitize';
@@ -99,7 +97,7 @@ export default function TitleBlockDesigner({ project, onChange, onStatus, onPara
         </button>
       </>}
     >
-      {isDrawn(t) ? <DrawnEditor t={t} project={project} params={params} setT={setT} onStatus={onStatus} onDelete={async () => { if (await ask(`Delete “${t.name}”?`)) { setTemplates(templates.filter((x) => x.id !== t.id)); if (active === t.id) onChange({ ...project, titleTemplates: templates.filter((x) => x.id !== t.id), drawing: { ...project.drawing, titleTemplateId: undefined } }); setSel(''); } }} /> : (
+      {isDrawn(t) ? <DrawnEditor t={t} project={project} params={params} setT={setT} onProject={onChange} onStatus={onStatus} onDelete={async () => { if (await ask(`Delete “${t.name}”?`)) { setTemplates(templates.filter((x) => x.id !== t.id)); if (active === t.id) onChange({ ...project, titleTemplates: templates.filter((x) => x.id !== t.id), drawing: { ...project.drawing, titleTemplateId: undefined } }); setSel(''); } }} /> : (
       <div className="tbd-grid">
         <div>
           <div className="tbd-preview-wrap">
@@ -197,16 +195,42 @@ export default function TitleBlockDesigner({ project, onChange, onStatus, onPara
   );
 }
 
-/** A drawn (imported) template: the block as it prints, its size, and every text with the field it is mapped to. */
-function DrawnEditor({ t, project, params, setT, onStatus, onDelete }: { t: TitleTemplate; project: Project; params: string[]; setT: (t: TitleTemplate) => void; onStatus: (m: string) => void; onDelete: () => void }) {
+/** A drawn (imported) template: the block as it prints, its size, and every text with the field it is mapped to. One the
+ * size of a paper can be that paper's whole border: the sheet then draws it in place of its frame and works inside its
+ * drawing area (shown dashed; found from the lines, or typed). */
+function DrawnEditor({ t, project, params, setT, onProject, onStatus, onDelete }: { t: TitleTemplate; project: Project; params: string[]; setT: (t: TitleTemplate) => void; onProject: (p: Project) => void; onStatus: (m: string) => void; onDelete: () => void }) {
   const { w, h } = templateSize(t);
-  const fields = [...SHEET_FIELDS, ...params.map((n) => `{${n}}`).filter((f) => !SHEET_FIELDS.includes(f))];
+  const fields = [...SHEET_FIELDS, ...REV_ROW_FIELD_LIST, ...params.map((n) => `{${n}}`).filter((f) => !SHEET_FIELDS.includes(f))];
   const texts = t.texts ?? [];
+  const paper = paperOf({ w, h }), b = t.border, usedOn = !!paper && project.drawing?.borderByPaper?.[paper] === t.id, lg = t.logo;
+  const dashed = (r: Border['area'], dash: string) => `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="none" stroke-width="0.6" stroke-dasharray="${dash}" style="stroke:var(--acc)"/>`;
+  const area = `${b ? dashed(b.area, '3 1.5') : ''}${lg ? dashed(lg, '1.5 1') : ''}`;
+  const setArea = (patch: Partial<Border['area']>) => b && setT({ ...t, border: { ...b, area: { ...b.area, ...patch } } });
+  const setLogo = (patch: Partial<LogoArea>) => lg && setT({ ...t, logo: { ...lg, ...patch } });
+  const revRows = revRowsIn(t);
   return (
     <div className="tbd-grid">
       <div>
-        <div className="tbd-preview-wrap" style={{ width: Math.min(w * PX + 24, 1100) }} dangerouslySetInnerHTML={{ __html: sanitizeSvg(drawnTitleBlockHtml(t, project)).replace(/width="[^"]+" height="[^"]+"/, `width="${w * PX}" height="${h * PX}"`) }} />
-        <p className="m">{w} × {h} mm · {t.shapes?.length ?? 0} lines and shapes · {texts.length} texts, {fieldCount(t)} of them fields. Imported from a drawing: a field prints the project's value in the text's place and goes to DXF / DWG as an attribute of the block.</p>
+        <div className="tbd-preview-wrap" style={{ width: Math.min(w * PX + 24, 1100) }} dangerouslySetInnerHTML={{ __html: sanitizeSvg(drawnTitleBlockHtml(t, project).replace('</svg>', `${area}</svg>`)).replace(/width="[^"]+" height="[^"]+"/, `width="${w * PX}" height="${h * PX}"`) }} />
+        <p className="m">{w} × {h} mm · {t.shapes?.length ?? 0} lines and shapes · {texts.length} texts, {fieldCount(t)} of them fields{revRows ? `, ${revRows} revision rows of its own` : ''}. Imported from a drawing: a field prints the project's value in the text's place and goes to DXF / DWG as an attribute of the block.</p>
+        <div className="tbd-sizes">
+          <label className="row" title="The project's logo (Project → Drawing) prints inside this area, centred and in proportion; DWG / DXF show the company name there as a LOGO attribute"><input type="checkbox" checked={!!lg} onChange={(e) => setT({ ...t, logo: e.target.checked ? { x: 2, y: 2, w: Math.min(40, +(w - 4).toFixed(1)), h: Math.min(12, +(h - 4).toFixed(1)) } : undefined })} /> Logo area</label>
+          {lg && <>
+            <span className="m">(mm):</span>
+            {(['x', 'y', 'w', 'h'] as const).map((k) => <label key={k} className="row">{k}<input type="number" step={0.5} style={{ width: 64 }} value={lg[k]} onChange={(e) => setLogo({ [k]: +e.target.value || 0 })} /></label>)}
+          </>}
+        </div>
+        {paper && (
+          <div className="tbd-sizes">
+            <label className="row" title="A template the size of a paper can be that paper's whole border: its sheets then draw it in place of the app's frame, zone strip and title band, and work inside its drawing area"><input type="checkbox" checked={!!b} onChange={(e) => setT({ ...t, border: e.target.checked ? { paper, area: detectArea(t, { w, h }) } : undefined })} /> Whole border of {paper} sheets</label>
+            {b && <>
+              <span className="m">Drawing area (mm):</span>
+              {(['x', 'y', 'w', 'h'] as const).map((k) => <label key={k} className="row">{k}<input type="number" step={0.5} style={{ width: 64 }} value={b.area[k]} onChange={(e) => setArea({ [k]: +e.target.value || 0 })} /></label>)}
+              <button className="chip" title="Find the drawing area again: the largest rectangle bounded by the block's lines that holds no text and no line" onClick={() => setArea(detectArea(t, { w, h }))}>Detect</button>
+              <button className={`chip${usedOn ? '' : ' primary'}`} title={usedOn ? `${paper} sheets go back to the app's frame and the block chosen for their kind` : `${paper} sheets print in this border`} onClick={() => onProject({ ...project, drawing: { ...project.drawing, borderByPaper: { ...project.drawing?.borderByPaper, [paper]: usedOn ? undefined : t.id } } })}>{usedOn ? `Not on ${paper} sheets` : `Use on ${paper} sheets`}</button>
+            </>}
+          </div>
+        )}
         <div className="tbd-sizes">
           <span className="m">Name:</span>
           <input className="bi-text" style={{ width: 220 }} defaultValue={t.name} key={t.name} onBlur={(e) => e.target.value.trim() && setT({ ...t, name: e.target.value.trim() })} />

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { planLevel } from './cadFileMenu';
+import { isTbFile } from '../../model/titleBlockCad';
 import type { CadState } from './cadState';
 import type { CadView } from '../../engines/cad/cadEngine';
 import type { Project } from '../../types';
@@ -50,7 +51,7 @@ export default function CadTabs({ cad, project, busy, onOpen, onClose }: {
                   cad.show(drawings[to]);
                   (e.currentTarget.closest('.cad-tabs')?.querySelectorAll('[role="tab"]')[to] as HTMLElement | undefined)?.focus();
                 }}>
-                <span className="m">{floor && set ? floor.name : 'Level?'} · </span>{v.file}{cad.isDirty(v.file) && <span className="cad-tab-dirty" aria-label="changed since saved" title="Changed since saved">●</span>}
+                <span className="m">{isTbFile(v.file) ? 'Title block' : floor && set ? floor.name : 'Level?'} · </span>{v.file}{cad.isDirty(v.file) && <span className="cad-tab-dirty" aria-label="changed since saved" title="Changed since saved">●</span>}
               </button>
               <button className="cad-tab-x" aria-label={`Close ${v.file}`} title="Close this drawing (CLOSE). What you drew stays in the project." onClick={() => onClose([v])}><X size={12} strokeWidth={2} /></button>
             </div>

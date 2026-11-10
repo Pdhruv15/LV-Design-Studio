@@ -28,6 +28,21 @@ describe('drawn title block in DXF', () => {
     expect(ins.extent).toEqual([[230, 10], [410, 54]]);
     expect(templateTitleBlockDxf(drawn, sampleProject, { x: 230, y: 10, w: 180, h: 44 }, {}, []).items[0].type).toBe('insert');
   });
+  it('a logo area becomes a LOGO attribute with the company name, centred in the area, sized to fit', () => {
+    const r = drawnTitleBlockDxf({ ...drawn, logo: { x: 2, y: 2, w: 40, h: 12 } }, { ...sampleProject, drawing: { ...sampleProject.drawing, company: 'ACME CONSULTANTS LLC' } }, { x: 230, y: 10, w: 180, h: 44 }, {});
+    const ins = r.items[0];
+    if (ins.type !== 'insert') throw new Error('not an insert');
+    const def = ins.block.attdefs.find((a) => a.tag === 'LOGO')!, att = ins.attribs.find((a) => a.tag === 'LOGO')!;
+    expect(def).toMatchObject({ value: '{Company}', align: 'center', x: 22 });
+    expect(att.value).toBe('ACME CONSULTANTS LLC');
+    expect(att.x).toBe(252); // 230 + 22
+    expect(att.height).toBeLessThanOrEqual(3.5 * 0.72);
+    expect(att.height * 20 * 0.78 / 0.72).toBeLessThanOrEqual(38.01); // 20 characters fit the 40 mm area less a margin
+    expect(r.warnings).toEqual([]);
+    const logo = `data:image/png;base64,${'iVBORw0KGgo='}`;
+    expect(drawnTitleBlockDxf({ ...drawn, logo: { x: 2, y: 2, w: 40, h: 12 } }, { ...sampleProject, drawing: { ...sampleProject.drawing, logo } }, { x: 230, y: 10, w: 180, h: 44 }, {}).warnings[0]).toMatch(/company name in the logo area/);
+  });
+
   it('writes a BLOCKS section with the block and its ATTDEFs, and the INSERT with its ATTRIBs and a SEQEND', () => {
     const items: DxfPrimitive[] = drawnTitleBlockDxf(drawn, sampleProject, { x: 230, y: 10, w: 180, h: 44 }, { SheetNo: 'E-SLD-001', Rev: 'B' }).items;
     const dxf = toDxf(items, { 'E-TITLE': 7 });

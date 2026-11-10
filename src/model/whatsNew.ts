@@ -15,9 +15,42 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.072', date: '2026-11-10',
+    version: '2.074', date: '2026-11-10',
     items: [
       { title: 'Drafting ribbon: every tool named, more tools on it', text: 'Design CAD → Drafting now uses the whole row: the small tools show their names, and tools you could only type before have buttons: Polygon, Extend, Chamfer, Break, Join, Keynote, Text style and Dim style. Text ▾ has numbered text and the text tools (justify, height, align, case, frame, mask, copy words). Measure and view has Distance, Area, Room area, Inspect, Zoom extents and Drafting settings.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.073', date: '2026-11-10',
+    items: [
+      { title: 'Luminaires by type in the BOQ', text: 'Lights placed with Light room (LUX) now keep their luminaire. The BOQ lists them in section J by type (L1, L2…), with emergency lights and exit / direction signs as EM1, EX1 and DS1, counted on the plans. The lighting point itself stays a load schedule point.' },
+      { title: 'Luminaire schedule in the BOQ workbook', text: 'The BOQ Excel export adds a Luminaire schedule sheet when the plans have typed lights: type, description, manufacturer, watts, lumens, quantity, boards and levels, with total watts.' }
+    ]
+  },
+  {
+    version: '2.072', date: '2026-11-10',
+    items: [
+      { title: 'Solar PV in the BOQ', text: 'Your Solar PV sizing now reaches the BOQ under Power equipment: modules, mounting, string inverters, DC solar cable per string, connectors, DC switch-disconnectors and DC surge protection. An AC isolator is added only when no PV way is drawn on the SLD.' },
+      { title: 'EV chargers in the BOQ', text: 'Each new EV charging circuit adds the charger itself (kW, single- or three-phase, Type 2, 6 mA DC fault detection) next to its breaker and cable.' }
+    ]
+  },
+  {
+    version: '2.071', date: '2026-11-10',
+    items: [
+      { title: 'Legend and notes tables placed on a layout', text: 'On a layout tab in Design CAD, LEGEND (LG) or Electrical → Legend places a legend table where you click: its rows are the symbols, trays, routes and references on the sheet, kept in step with the plan, at 2.5 mm in one or two columns, 92 mm wide unless you choose another width; pick its frame to move it or set its width, text height, columns, title, the rows hidden and rows of your own. NOTES places the sheet\'s notes the same way. A sheet with a legend table prints no legend in its column, one with a notes table no notes box; both go to PDF and DWG (lines and text on E-LEGEND / E-NOTES) at their place.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.070', date: '2026-11-10',
+    items: [
+      { title: 'A logo area in a drawn title block', text: 'A title block imported from CAD or drawn in Design CAD can hold the project\'s logo: tick Logo area in Project → Title block and set the area, or place the {Logo} field from the Properties palette in Design CAD (a dashed rectangle; stretch it to size, TBSAVE keeps it). The logo (Project → Drawing) prints inside it, centred and in proportion; a rectangle on a layer named LOGO in an imported block becomes the area. DWG / DXF carry no image, so the block\'s LOGO attribute shows the company name there for the CAD team to put their logo over.' }
+    ]
+  },
+  {
+    version: '2.069', date: '2026-11-10',
+    items: [
+      { title: 'Your company\'s whole sheet border', text: 'A title block imported from a DWG / DXF (or drawn in Design CAD) that is the size of a paper, A3 to A1, can be that paper\'s whole border: Project → Title block → Whole border, then Use on A3 sheets. Its sheets then print your frame, zone references and title strip in place of the app\'s, with the fields filled as before, and the drawing, legend column and notes inside the border\'s drawing area (found from its lines, shown dashed, movable in the designer or in Design CAD on TB-REF). Revision rows of its own fill from the issues through {Rev1} {RevDate1} {RevText1} {RevBy1} …, newest first; a border without them keeps the app\'s revision table in the column. Papers without a border keep the app\'s frame. DWG / DXF: one block with attributes at the paper\'s origin.' },
+      { title: 'Design CAD: the title block drawing\'s tab', text: 'A title block open in Design CAD now says "Title block" in its tab, not "Level?".', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {
