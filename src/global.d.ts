@@ -47,6 +47,20 @@ declare global {
         readLibrary: () => Promise<Record<string, unknown>>;
         writeLibrary: (data: Record<string, unknown>) => Promise<boolean>;
       };
+      /** The user's folder templates (electron/folderTemplates.cjs); built-in ones are in src/model/folderTemplateBuiltins.ts.
+       * Missing in older desktop builds. */
+      folderTemplates?: {
+        list: () => Promise<FolderTemplatesState>;
+        /** Saves a user template (id "user-…"); its version goes up by one. */
+        save: (template: import('./model/folderTemplates').FolderTemplate) => Promise<FolderTemplatesState>;
+        delete: (id: string) => Promise<FolderTemplatesState>;
+        /** null: the app's default template. */
+        setDefault: (id: string | null) => Promise<FolderTemplatesState>;
+        /** Shows an open dialog; null when cancelled. Imported templates get new ids. */
+        import: () => Promise<(FolderTemplatesState & { added: number }) | null>;
+        /** Shows a save dialog; the saved path, or null when cancelled. */
+        export: (templates: import('./model/folderTemplates').FolderTemplate[], defaultName?: string) => Promise<string | null>;
+      };
       engines: {
         probe: () => Promise<import('./engines/types').EngineProbe | { error: string }>;
         run: (request: import('./engines/external').EngineRequest) => Promise<import('./engines/types').StudyResults | { error: string }>;
@@ -82,5 +96,12 @@ declare global {
         savePdf: (opts: { defaultName: string; html: string; pageSize?: 'A4' | 'A3' | 'A3 portrait' | 'A2' | 'A1'; landscape?: boolean; cssPages?: boolean }) => Promise<string | null>;
       };
     };
+  }
+  /** What folder-templates.json holds; `skipped` counts templates that failed the checks, `error` a damaged file. */
+  interface FolderTemplatesState {
+    templates: import('./model/folderTemplates').FolderTemplate[];
+    defaultId: string | null;
+    skipped: number;
+    error?: string;
   }
 }

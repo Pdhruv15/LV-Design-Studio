@@ -120,7 +120,111 @@ function engineRequest(r) {
   return r;
 }
 
+// ---- Folder templates (electron/folderTemplates.cjs) ----
+// A template is rebuilt from the known fields only, so nothing else reaches the settings file. Folder names
+// are single names: no path separators, no "." or "..", no control characters, so a template can never point
+// outside the project folder. The "Subfolders on use" pattern may have "/" between parts, each a plain name.
+
+const FT = Object.freeze({ maxFolders: 300, maxDepth: 16, nameChars: 120, idChars: 120, noteChars: 500, patternChars: 200, roles: 60 });
+const WHEN = ['always', 'scope:pv', 'scope:standby', 'scope:fire', 'scope:elv', 'stage:tender', 'service:supervision', 'building:each'];
+const DOC_TYPES = ['DWG', 'CAL', 'SCH', 'BOQ', 'SPC', 'TR', 'CRS', 'RFI', 'MOM'];
+const str = (v, max, what) => (typeof v === 'string' && v.length <= max ? v : fail(what));
+const optStr = (v, max, what) => (v === undefined ? undefined : str(v, max, what));
+const oneOf = (v, list, what) => (v === undefined ? undefined : list.includes(v) ? v : fail(what));
+
+/** One folder name: text, no separator, not "." / "..", no control character (other checks are the editor's). */
+function folderName(v, what = 'folder name') {
+  const s = str(v, FT.nameChars, what);
+  if (!s.trim() || s === '.' || s === '..' || /[/\\]/.test(s) || [...s].some((c) => c < ' ')) fail(what);
+  return s;
+}
+
+/** The id of a user template: "user-" and letters, digits and dashes (built-in ids are the app's own). */
+function folderTemplateId(v) {
+  if (typeof v !== 'string' || !/^user-[A-Za-z0-9-]{1,64}$/.test(v)) fail('folder template id');
+  return v;
+}
+
+function folderTemplate(t) {
+  if (!isObj(t)) fail('folder template');
+  assertJsonWithin(t, LIMITS.folderTemplateBytes, 'The folder template');
+  const ids = new Set();
+  let count = 0;
+  const node = (n, depth) => {
+    if (!isObj(n)) fail('folder in the template');
+    if (++count > FT.maxFolders) fail(`template with more than ${FT.maxFolders} folders`);
+    if (depth > FT.maxDepth) fail(`template more than ${FT.maxDepth} folders deep`);
+    const id = str(n.id, FT.idChars, 'folder id');
+    if (!/^[A-Za-z0-9._-]+$/.test(id) || ids.has(id)) fail('folder id');
+    ids.add(id);
+    const out = { id, name: folderName(n.name) };
+    if (n.role !== undefined) out.role = str(n.role, 40, 'folder role');
+    if (n.roles !== undefined) {
+      if (!Array.isArray(n.roles) || n.roles.length > FT.roles) fail('folder roles');
+      out.roles = n.roles.map((r) => str(r, 40, 'folder role'));
+    }
+    if ([out.role, ...(out.roles ?? [])].some((r) => r !== undefined && !/^[A-Za-z][A-Za-z0-9]*$/.test(r))) fail('folder role');
+    if (n.when !== undefined) out.when = oneOf(n.when, WHEN, 'folder condition');
+    if (n.onUse !== undefined) {
+      out.onUse = str(n.onUse, FT.patternChars, 'subfolder pattern');
+      out.onUse.split('/').forEach((p) => folderName(p, 'subfolder pattern'));
+    }
+    if (n.note !== undefined) out.note = str(n.note, FT.noteChars, 'folder note');
+    if (n.children !== undefined) {
+      if (!Array.isArray(n.children)) fail('subfolders');
+      out.children = n.children.map((c) => node(c, depth + 1));
+    }
+    return out;
+  };
+  if (!Array.isArray(t.folders)) fail('template without folders');
+  const folders = t.folders.map((n) => node(n, 1));
+  const g = isObj(t.naming) ? t.naming : fail('template without file naming');
+  const naming = {
+    preset: oneOf(g.preset, ['office', 'iso19650', 'simple', 'custom'], 'naming preset') ?? 'custom',
+    pattern: str(g.pattern, FT.patternChars, 'naming pattern'),
+    separator: oneOf(g.separator, ['-', '_', '.'], 'naming separator') ?? '-'
+  };
+  if (g.perType !== undefined) {
+    if (!isObj(g.perType)) fail('naming per type');
+    naming.perType = {};
+    for (const [k, v] of Object.entries(g.perType)) {
+      if (!DOC_TYPES.includes(k)) fail('naming document type');
+      naming.perType[k] = str(v, FT.patternChars, 'naming pattern');
+    }
+  }
+  if (g.upper !== undefined) naming.upper = !!g.upper;
+  if (g.discipline !== undefined) naming.discipline = str(g.discipline, 10, 'discipline code');
+  const out = {
+    id: str(t.id, 80, 'template id'),
+    name: str(t.name, FT.nameChars, 'template name').trim() || fail('template name'),
+    version: Number.isInteger(t.version) && t.version >= 0 ? t.version : 1,
+    root: folderName(t.root, 'project folder name'),
+    naming,
+    folders
+  };
+  if (!/^[A-Za-z0-9._-]+$/.test(out.id)) fail('template id');
+  const opt = {
+    basedOn: optStr(t.basedOn, FT.nameChars, 'based on'),
+    editedAt: optStr(t.editedAt, 40, 'edited date'),
+    layout: oneOf(t.layout, ['discipline', 'stage', 'building', 'iso19650', 'flat', 'blank'], 'template layout'),
+    numbering: oneOf(t.numbering, ['01_', '1.', 'A-', 'none'], 'numbering style')
+  };
+  for (const [k, v] of Object.entries(opt)) if (v !== undefined) out[k] = v;
+  if (t.repeat !== undefined) {
+    const r = isObj(t.repeat) ? t.repeat : fail('repeat for');
+    if (!Array.isArray(r.shared) || r.shared.length > 50) fail('shared folders');
+    out.repeat = { source: oneOf(r.source, ['buildings', 'phases'], 'repeat source') ?? fail('repeat source'), name: folderName(r.name, 'repeated folder name'), shared: r.shared.map((s) => str(s, FT.idChars, 'shared folder')) };
+  }
+  return out;
+}
+
+/** Export: 1–200 templates (built-in ones too) and a default file name. */
+function folderTemplatesExportArgs(a) {
+  if (!isObj(a) || !Array.isArray(a.templates) || !a.templates.length || a.templates.length > LIMITS.folderTemplatesCount) fail('templates to export');
+  return { templates: a.templates.map(folderTemplate), defaultName: defaultFileName(a.defaultName, 'folder-templates.json') };
+}
+
 /** Permissions the app's pages may be granted (everything else, e.g. camera, location, notifications, is denied). */
 const ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write']);
 
-module.exports = { defaultFileName, fileFilter, saveTextArgs, saveBinaryArgs, overwriteBinaryArgs, pdfArgs, printArgs, projectSaveArgs, recoveryArgs, logText, workbookRows, libraryData, engineRequest, ALLOWED_PERMISSIONS, PAGE_SIZES };
+module.exports = { defaultFileName, fileFilter, saveTextArgs, saveBinaryArgs, overwriteBinaryArgs, pdfArgs, printArgs, projectSaveArgs, recoveryArgs, logText, workbookRows, libraryData, engineRequest, folderTemplate, folderTemplateId, folderTemplatesExportArgs, ALLOWED_PERMISSIONS, PAGE_SIZES };

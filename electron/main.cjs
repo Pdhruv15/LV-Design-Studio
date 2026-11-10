@@ -12,6 +12,7 @@ const safeFs = require('./safeFs.cjs');
 const { htmlToPdf, htmlToPrinter, printerList, pdfSession, SHEETS } = require('./pdfRender.cjs');
 const cadFile = require('./cadFile.cjs');
 const errorLog = require('./errorLog.cjs');
+const folderTemplates = require('./folderTemplates.cjs');
 
 // `lvds` (the command line) exports drawings and PDFs through this app with --lvds-headless-export:
 // no window and none of the app's start-up, only the export (headlessExport.cjs).
@@ -382,6 +383,26 @@ handle('database:read', () => database.readDatabase(ensureProjectsFolder()));
 handle('database:write', (_evt, bookId, rows) => database.writeBook(ensureProjectsFolder(), bookId, check.workbookRows(bookId, rows)));
 handle('database:library:read', () => database.readLibrary(ensureProjectsFolder()));
 handle('database:library:write', (_evt, data) => database.writeLibrary(ensureProjectsFolder(), check.libraryData(data)));
+
+// Folder templates: the user's own, in the settings folder (built-in ones are in the app's code).
+const templatesDir = app.getPath('userData');
+handle('folderTemplates:list', () => folderTemplates.read(templatesDir));
+handle('folderTemplates:save', (_evt, t) => folderTemplates.save(templatesDir, t));
+handle('folderTemplates:delete', (_evt, id) => folderTemplates.remove(templatesDir, id));
+handle('folderTemplates:setDefault', (_evt, id) => folderTemplates.setDefault(templatesDir, id ?? null));
+handle('folderTemplates:import', async (evt) => {
+  const result = await dialog.showOpenDialog(ownerOf(evt), { title: 'Import folder templates', filters: [{ name: 'Folder templates', extensions: ['json'] }], properties: ['openFile'] });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  const full = result.filePaths[0];
+  return folderTemplates.importText(templatesDir, readTextFileLimited(full, LIMITS.folderTemplatesBytes, path.basename(full), { follow: true }));
+});
+handle('folderTemplates:export', async (evt, args) => {
+  const text = folderTemplates.exportText(args);
+  const result = await dialog.showSaveDialog(ownerOf(evt), { title: 'Export folder templates', defaultPath: path.join(app.getPath('documents'), check.folderTemplatesExportArgs(args).defaultName), filters: [{ name: 'Folder templates', extensions: ['json'] }] });
+  if (result.canceled || !result.filePath) return null;
+  fs.writeFileSync(result.filePath, text, 'utf-8');
+  return result.filePath;
+});
 handle('database:open', (_evt, file) => {
   const folder = database.folderFor(ensureProjectsFolder());
   // Only files the spec knows about, or the folder itself.
