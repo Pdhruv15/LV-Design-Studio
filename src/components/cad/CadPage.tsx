@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice, type CanvasWiring } from './CadCanvas';
 import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadRibbonInfo, type CadState, type CadTool } from './cadState';
 import { cadCommand, type CadAction } from './cadCommands';
+import { getClip, hasClip, putClip } from './cadClipboardStore';
+import { clipPayload, clipText, lowerLeft, parseClip, pastedItems, withPasted, type ClipPayload } from '../../model/cadClipboard';
 import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
 import { isNumber, promptOptions, shortPrompt, spaceEnters, type SpaceMode } from './cadPrompt';
 import CadDynInput, { type DynBox } from './CadDynInput';
@@ -92,7 +94,7 @@ const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab 
 ];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 /** Bind's count in the Save line: reference lines, texts and hatches. */
@@ -139,6 +141,8 @@ const PROMPT: Record<CadTool, string> = {
   wire: 'WIRE  Click a device: its circuit is wired (or its wiring taken off):',
   move: 'MOVE  Select object, then specify base point:',
   copy: 'COPY  Select object, then specify base point:',
+  copybase: 'COPYBASE  Specify base point:',
+  paste: 'PASTECLIP  Specify insertion point:',
   rotate: 'ROTATE  Select object, then specify base point:',
   mirror: 'MIRROR  Select objects (click them), then Enter:',
   scale: 'SCALE  Select objects (click them), then Enter:',
@@ -312,6 +316,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const dynRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
   // The settings dialog shown: the edit tool's, or the text or dimension styles.
   const [dlg, setDlg] = useState<'edit' | 'style' | 'dimstyle' | null>(null);
+  /** PASTECLIP: the objects following the cursor until they are placed. */
+  const [pasting, setPasting] = useState<ClipPayload | null>(null);
   const [promptMenu, setPromptMenu] = useState<{ at: Pt; items: { label: string; key?: string; run: () => void }[] } | null>(null);
   // Layer palette shown, and the object Match properties copies from.
   const [showLM, setShowLM] = useState(false);
@@ -328,6 +334,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const input = useRef<HTMLInputElement>(null);
   const last = rememberedDrawing(project.id);
   const units = planScale(project, view?.file, view?.info.units);
+  /** INSUNITS code of the units the drawing is worked in (for the clipboard). */
+  const unitCode = CAD_UNITS.find((u) => u.id === units.unit)?.code ?? 4;
   // A title block drawing (Project → Title block → Edit in CAD): millimetres at 1 : 1, texts at their height on the TB layers.
   const tb = isTbFile(view?.file);
   const toM = (v: number) => v * units.factor;
@@ -988,7 +996,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       const o = view ? await view.pick(at[0], at[1], 6 * pixel, pickOn) : null;
       if (o && !pickedKeys.has(`dw:${o.handle}`)) pick([], [], [o]);
       if (o || pickedDw.length) { setPromptMenu({ at: screen, items: [{ label: 'Erase', run: () => cad.actions.current.remove() }] }); return; }
-      if (recent.length) setPromptMenu({ at: screen, items: recent.slice(0, 6).map((x, i) => ({ label: i ? x.label : `Repeat ${x.label}`, run: () => repeat(x) })) });
+      const items = [...recent.slice(0, 6).map((x, i) => ({ label: i ? x.label : `Repeat ${x.label}`, run: () => repeat(x) })),
+        ...(hasClip() ? [{ label: 'Paste (Ctrl+V)', run: () => pasteClip(false) }, { label: 'Paste to original coordinates', run: () => pasteClip(true) }] : [])];
+      if (items.length) setPromptMenu({ at: screen, items });
       return;
     }
     setMenuAt(screen);
@@ -1012,6 +1022,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return;
     }
     if (e === 'width' && one?.tray && arg) { change(updateSketch(project, fileOf(), { ...one, tray: { ...one.tray, widthMm: Number(arg) } }), `Cable tray ${arg} mm · ⌘Z to undo`); return; }
+    if (e === 'clipboard') { if (arg) run(arg === 'copy' ? 'COPYCLIP' : arg === 'copybase' ? 'COPYBASE' : arg === 'paste' ? 'PASTECLIP' : 'PASTEORIG'); return; }
     if (e === 'erase') { removeSelected(); return; }
     if (e === 'join') { applyJoin(); return; }
     if (e === 'rotate' && !one) { cad.say('ROTATE  One object at a time.'); return; }
@@ -1266,11 +1277,55 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     } else cad.say('COPY  A board is one item; place another board with Add device.');
   }
 
+  // ---- clipboard (COPYCLIP, COPYBASE, PASTECLIP, PASTEORIG; src/model/cadClipboard.ts)
+
+  /** Why the objects picked cannot be copied, said on the command line; nothing when they can. */
+  function clipRefusal(name: string): boolean {
+    if (!view) { cad.say(`${name}  Open a drawing first.`); return true; }
+    if (!pickedSk.length) { cad.say(`${name}  Pick drawn objects first${pickedItems.length ? ' (devices are not copied to the clipboard; use CO to copy them on this plan)' : ''}.`); return true; }
+    return false;
+  }
+  /** The drawn objects picked to the clipboard, from `base` (COPYBASE) or their lower-left corner. */
+  function copyClip(base?: Pt) {
+    const name = base ? 'COPYBASE' : 'COPYCLIP';
+    if (clipRefusal(name) || !view) return;
+    putClip(clipText(clipPayload(project, view.file, pickedSk, base ?? lowerLeft(pickedSk), unitCode)));
+    const n = pickedSk.length, d = pickedItems.length;
+    cad.say(`${name}  ${n} object${n === 1 ? '' : 's'} copied${d ? ` · ${d} device${d === 1 ? '' : 's'} not copied (devices stay on their plan)` : ''}`);
+  }
+  /** PASTECLIP: the copied objects follow the cursor to the insertion point. PASTEORIG: the same coordinates, into
+   * another drawing. */
+  function pasteClip(orig: boolean) {
+    const name = orig ? 'PASTEORIG' : 'PASTECLIP';
+    if (!view) { cad.say(`${name}  Open a drawing first.`); return; }
+    const take = (text: string | null) => {
+      if (!text) { cad.say(`${name}  Nothing copied yet: pick drawn objects and press Ctrl+C.`); return; }
+      const r = parseClip(text);
+      if ('error' in r) { cad.say(`${name}  ${r.error}`); return; }
+      if (!orig) { setPasting(r.clip); cad.setTool('paste'); return; }
+      if (r.clip.file.toLowerCase() === view.file.toLowerCase()) { cad.say('PASTEORIG  Not in the drawing the objects came from — use PASTECLIP.'); return; }
+      placeClip(r.clip, 'orig');
+    };
+    const got = getClip();
+    if (typeof got === 'string') take(got); else void got.then(take);
+  }
+  /** The copied objects into this drawing as one undo step. */
+  function placeClip(c: ClipPayload, at: Pt | 'orig') {
+    if (!view) return;
+    const name = at === 'orig' ? 'PASTEORIG' : 'PASTECLIP';
+    const r = pastedItems(c, view.file, unitCode, at), w = withPasted(project, view.file, c, r.items), n = r.items.length;
+    const plain = r.plain ? ` · ${r.plain} tray${r.plain === 1 ? ' or cable route pasted as a polyline' : 's or cable routes pasted as polylines'} (their data stays in its own drawing)` : '';
+    const layers = w.layersAdded.length ? ` · layer${w.layersAdded.length === 1 ? '' : 's'} ${w.layersAdded.join(', ')} added` : '';
+    change(w.project, `${name}  ${n} object${n === 1 ? '' : 's'} pasted${plain}${layers} · ⌘Z to undo`);
+  }
+
   async function click(at: Pt, pixel: number, shiftKey = false) {
     if (!view) return;
     setPromptMenu(null);
     const last = points[points.length - 1];
     if (tool === 'xattach') { if (xDraft) setXDraft({ ...xDraft, at }); cad.setTool('none'); return; }
+    if (tool === 'copybase') { copyClip(at); cad.setTool('none'); return; }
+    if (tool === 'paste') { if (pasting) placeClip(pasting, at); setPasting(null); cad.setTool('none'); return; }
     if (tool === 'crop' && crop) { await cropClick(at, pixel); return; }
     if (tool === 'xclip') {
       if (xClip?.outline) {
@@ -1871,7 +1926,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     // A number typed with Scale (before its base point) sets the factor.
     if (tool === 'scale' && isNumber(c) && !c.startsWith('-')) { const k = String(Number(c)); setEdSet({ ...edSet, factor: k }); cad.say(`SCALE  Factor ${k}`); return; }
-    if (DRAW_TOOLS.includes(tool) || tool === 'dist' || tool === 'area' || tool === 'trace' || (tool === 'tcen' && edPhase === 'points') || (tool === 'talign' && tAsk?.step === 'ref')) {
+    if (DRAW_TOOLS.includes(tool) || tool === 'copybase' || tool === 'paste' || tool === 'dist' || tool === 'area' || tool === 'trace' || (tool === 'tcen' && edPhase === 'points') || (tool === 'talign' && tAsk?.step === 'ref')) {
       const p = typedPoint(raw, points[points.length - 1], cursor.at);
       if (p) { cad.say(`  ${raw}`); click(p, 1e-9); return; }
     }
@@ -1931,6 +1986,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       polar: () => cad.toggle('polar'),
       otrack: () => cad.toggle('otrack'),
       lwt: () => cad.toggle('lwt'),
+      copyClip: () => copyClip(),
+      copyBase: () => { if (clipRefusal('COPYBASE')) return; cad.setTool('copybase'); },
+      pasteClip: () => pasteClip(false),
+      pasteOrig: () => pasteClip(true),
       layers: () => cad.setShowLayers(!cad.showLayers),
       osnap: () => cad.toggle('osnap'),
       grid: () => cad.cycleGrid(),
@@ -2130,6 +2189,18 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       cancel();
       return;
     }
+    // Ctrl/⌘+C, Ctrl/⌘+Shift+C and Ctrl/⌘+V: the clipboard of drawn objects (a field keeps its own; with nothing
+    // picked Ctrl+C leaves the page's text selection to copy).
+    const ck = e.key.toLowerCase();
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && !typing && (ck === 'c' || ck === 'v') && !(e.target instanceof Element && e.target.closest('[contenteditable="true"]'))) {
+      if (ck === 'c' && !pickedSk.length && !pickedItems.length) return;
+      e.preventDefault();
+      if (e.repeat) return;
+      if (ck === 'v') { cad.say('Command: PASTECLIP'); pasteClip(false); }
+      else if (e.shiftKey) { cad.say('Command: COPYBASE'); if (!clipRefusal('COPYBASE')) cad.setTool('copybase'); }
+      else { cad.say('Command: COPYCLIP'); copyClip(); }
+      return;
+    }
     if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && (selectedItem || selSketch || many || pickedDw.length)) { e.preventDefault(); removeSelected(); return; }
     // Enter or Space on the drawing (not on a button, a field or a palette) works as Enter on the empty command line:
     // Enter at once, Space when it is let go (see spaceTap); once per press.
@@ -2206,6 +2277,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if ((tool === 'move' || tool === 'copy') && lastPt && selSketch) return [moved(selSketch, cur[0] - lastPt[0], cur[1] - lastPt[1])];
     if ((tool === 'move' || tool === 'copy') && lastPt) return [{ ...base, kind: 'line', pts: [lastPt, cur] }];
     if (tool === 'rotate' && lastPt && selSketch) return [rotated(selSketch, lastPt, Math.atan2(cur[1] - lastPt[1], cur[0] - lastPt[0]))];
+    if (tool === 'paste' && pasting && view) return pastedItems(pasting, view.file, unitCode, cur).items.slice(0, 2000).map((x, i) => ({ ...x, id: `_${i}` }) as SketchItem);
     return [];
   })();
   const liveLabel = cur && lastPt && ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy'].includes(tool) ? `${m(toM(distance(lastPt, cur)))}  ${angleDeg(lastPt, cur).toFixed(1)}°`
@@ -2303,7 +2375,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 const at = menuAt ? { left: menuAt[0] + 4, top: menuAt[1] + 4, place: 'menu' as const } : t < 60 ? { left: Math.max(4, l), top: b + 8, place: 'below' as const } : { left: Math.max(4, l), top: t - 8, place: 'above' as const };
                 if (pickedSk.length) {
                   const one = pickedSk.length === 1 && !pickedItems.length && isPath(pickedSk[0]) ? pickedSk[0] : undefined;
-                  return <SketchToolbar key={[...pickedKeys].join()} items={pickedSk} devices={pickedItems.length} lengthM={one ? toM(pathLength(one.pts)) : undefined} {...at} onEdit={editSketch} />;
+                  return <SketchToolbar key={[...pickedKeys].join()} items={pickedSk} devices={pickedItems.length} lengthM={one ? toM(pathLength(one.pts)) : undefined} {...at} canPaste={hasClip()} onEdit={editSketch} />;
                 }
                 return <DeviceToolbar key={[...pickedKeys].join()} project={project} items={pickedItems} edits={editsFor(project, pickedItems)} circuits={circuits} {...at} onEdit={editDevices} />;
               }} {...vpProps} />
