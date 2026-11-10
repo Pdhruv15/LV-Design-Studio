@@ -117,7 +117,7 @@ export interface RibbonActions {
     onWireAll: () => void; onTags: () => void; tagsOn: boolean;
   };
   /** Design CAD → Output: the dialogs that work without an open sheet (Plot needs one). */
-  output?: { onPlot: () => void; onSetups: () => void; onPrinters: () => void; onBatch: () => void; onRegister: () => void };
+  output?: { onPlot: () => void; onSetups: () => void; onPrinters: () => void; onPens: () => void; onBatch: () => void; onRegister: () => void };
   onProfile: () => void;
   onChooseFolder: () => void;
   folderLabel: string;
@@ -412,6 +412,9 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const sh = a.sheets, ui = sh?.ui, act = () => ui!.actions.current;
   const onSheet = !!ui && (SHEET_VIEWS.includes(a.view) ? !!sh?.open : a.view === 'cad' && !!a.cad?.onPaper);
   const noSheet = SHEET_VIEWS.includes(a.view) || !a.cad?.inLayout ? 'Open a sheet first' : 'On the paper: PS returns to it from the model';
+  // Output in Design CAD: a layout tab plots with its page setup; model space with a drawing open has its own forms.
+  const onLayout = onSheet || (a.view === 'cad' && !!a.cad?.inLayout), inModel = a.view === 'cad' && !a.cad?.inLayout && !!a.cad?.hasDrawing;
+  const noDrawing = SHEET_VIEWS.includes(a.view) ? 'Open a sheet first' : 'Open a drawing, a layout or a sheet first';
   const markTool = (id: string): Tool => {
     const t = ALL_TOOLS.find((x) => x.tool === id)!, panelOnly = t.tool === 'pcloud' || t.tool === 'parrow';
     return { label: t.label, icon: t.icon, cmd: t.key, title: !onSheet ? noSheet : panelOnly && sh?.kind !== 'system' ? 'On system SLD sheets' : `${t.label} (${t.key}): ${t.hint}`,
@@ -713,24 +716,25 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         sm({ label: 'Scale', icon: Scaling, cmd: 'VPSCALE', title: 'The scale of the viewport picked (VPSCALE)', onClick: () => {}, menuOnly: true, menu: [20, 50, 100, 200, 500, 1000].map((k) => ({ label: `1:${k}`, title: `Viewport at 1:${k}`, onClick: () => a.cad?.onLayoutCmd?.(`VPSCALE ${k}`) })) }),
         sm({ label: 'Lock', icon: Lock, cmd: 'VPLOCK', title: 'Lock or unlock the viewport picked: locked, pan and zoom inside it leave its view alone (VPLOCK)', onClick: () => a.cad?.onLayoutCmd?.('VPLOCK'), active: a.cad?.vpLocked })
       ],
-      // Output: plot one layout or sheet and its setup; publish many; export files for others.
+      // Output: plot one layout or sheet and its setup; publish many; export files for others. In model space the
+      // drawing's own view, Publish and Save As stand in for the sheet's.
       [
-        { label: 'Plot', icon: Printer, cmd: 'PLOT', title: onSheet ? 'Plot this layout or sheet to PDF or a printer, with a named page setup or its own, copies and pens (PLOT)' : noSheet, onClick: () => a.output?.onPlot(), disabled: !onSheet || !a.output },
-        { label: 'Preview', icon: FileSearch, title: onSheet ? 'How it will print: the plotted PDF at the pen widths and greys' : noSheet, onClick: () => act().previewPdf(), disabled: !onSheet || !window.lvds?.files?.pdfBytes },
+        { label: 'Plot', icon: Printer, cmd: 'PLOT', title: onLayout ? 'Plot this layout or sheet to PDF or a printer, with a named page setup or its own, copies and pens (PLOT)' : inModel ? 'Plot the drawing\'s view to PDF, black on white; on a layout tab or sheet, with its page setup and to a printer too (PLOT)' : noDrawing, onClick: () => onLayout ? a.output?.onPlot() : a.cad?.onExport?.('pdfView'), disabled: onLayout ? !a.output : !inModel || !a.cad?.onExport },
+        { label: 'Preview', icon: FileSearch, title: onSheet ? 'How it will print: the plotted PDF at the pen widths and greys' : onLayout ? 'On the paper: PS returns to it from the model' : 'How a layout or sheet will print: open one (the drawing\'s view has no page setup)', onClick: () => act().previewPdf(), disabled: !onSheet || !window.lvds?.files?.pdfBytes },
         sm({ label: 'Page setups', icon: FileCog, cmd: 'PAGESETUP', title: 'Named page setups of the project (paper, scale, pens, printer): make them and apply one to many layouts and sheets (PAGESETUP)', onClick: () => a.output?.onSetups(), disabled: !a.output,
           menu: [{ label: 'Named page setups…', title: 'Make named page setups and apply one to many layouts and sheets', onClick: () => a.output?.onSetups(), disabled: !a.output },
             { label: 'This sheet\'s page setup…', title: onSheet ? 'This sheet\'s own paper, scale (plans), pens, lineweights and plot stamp, or save them as the set\'s default' : noSheet, onClick: () => act().pageSetup(), disabled: !onSheet }] }),
-        sm({ label: 'Pen tables', icon: PenLine, title: onSheet ? 'Pen tables: the width and ink each kind of line prints with; import a CTB plot style table' : noSheet, onClick: () => act().pens(), disabled: !onSheet }),
+        sm({ label: 'Pen tables', icon: PenLine, title: 'Pen tables: the width and ink each kind of line prints with; import a CTB plot style table', onClick: () => onSheet ? act().pens() : a.output?.onPens(), disabled: !onSheet && !a.output }),
         sm({ label: 'Printers', icon: Settings2, title: 'The printers on this computer and the built-in PDF: where plots go', onClick: () => a.output?.onPrinters(), disabled: !a.output })
       ],
       [
-        { label: 'Publish', icon: Send, sub: onSheet ? sh?.publish?.label || undefined : undefined, title: onSheet ? sh?.publish?.title ?? 'Issue this sheet' : noSheet, onClick: () => act().publish(), stale: onSheet && !!sh?.publish?.changed, disabled: !onSheet },
+        { label: 'Publish', icon: Send, sub: onSheet ? sh?.publish?.label || undefined : undefined, title: onSheet ? sh?.publish?.title ?? 'Issue this sheet' : inModel || onLayout ? 'Publish this drawing\'s layouts: the ones ticked, as PDF, DXF or DWG (PUBLISH)' : noDrawing, onClick: () => onSheet ? act().publish() : a.cad?.onPublish?.(), stale: onSheet && !!sh?.publish?.changed, disabled: onSheet ? false : !(inModel || onLayout) || !a.cad?.onPublish },
         { label: 'Batch plot', icon: ListOrdered, cmd: 'BATCHPLOT', title: 'Many layouts and sheets in one run, each with its page setup, to one PDF, a PDF each or a printer; save the list and run it again (BATCHPLOT)', onClick: () => a.output?.onBatch(), disabled: !a.output }
       ],
       [
-        { label: 'PDF', icon: FileText, title: onSheet ? 'This sheet as PDF' : noSheet, onClick: () => act().exportAs('pdf'), disabled: !onSheet },
-        { label: 'DXF', icon: FileCode, title: onSheet ? 'This sheet as DXF (R12, editable layers)' : noSheet, onClick: () => act().exportAs('dxf'), disabled: !onSheet },
-        { label: 'DWG', icon: FileDown, title: onSheet ? 'This sheet as DWG (2018 format)' : noSheet, onClick: () => act().exportAs('dwg'), disabled: !onSheet },
+        { label: 'PDF', icon: FileText, title: onSheet ? 'This sheet as PDF' : inModel ? 'The drawing\'s view as PDF, black on white' : noDrawing, onClick: () => onSheet ? act().exportAs('pdf') : a.cad?.onExport?.('pdfView'), disabled: onSheet ? false : !inModel || !a.cad?.onExport },
+        { label: 'DXF', icon: FileCode, title: onSheet ? 'This sheet as DXF (R12, editable layers)' : inModel ? 'Save the drawing as DXF: the version and what goes in (SAVEAS)' : noDrawing, onClick: () => onSheet ? act().exportAs('dxf') : a.cad?.onSaveAs?.(), disabled: onSheet ? false : !inModel || !a.cad?.onSaveAs },
+        { label: 'DWG', icon: FileDown, title: onSheet ? 'This sheet as DWG (2018 format)' : inModel ? 'Save the drawing as DWG: the version and what goes in (SAVEAS)' : noDrawing, onClick: () => onSheet ? act().exportAs('dwg') : a.cad?.onSaveDwg?.(), disabled: onSheet ? false : !inModel || !a.cad?.onSaveDwg },
         { label: 'Register', icon: FileSpreadsheet, title: 'The sheet register as an Excel workbook', onClick: () => a.output?.onRegister(), disabled: !a.output }
       ]
     ],

@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { BatchPlotDialog, PageSetupsDialog, PlotDialog, PrintersDialog } from './OutputDialogs';
+import { BatchPlotDialog, OutputHost, PageSetupsDialog, PlotDialog, PrintersDialog } from './OutputDialogs';
 import { sampleProject } from '../../data/sampleProject';
 import { setOf, type DrawingSheet } from '../../model/drawingSet';
 import { setupUsers, withSetup } from '../../model/plotSetup';
@@ -94,6 +94,15 @@ describe('Output → Printers', () => {
     act(() => { button('Save').click(); });
     expect(plotPrinter()).toBe('Office');
     expect(onStatus).toHaveBeenCalledWith('Plots go to Office printer');
+  });
+});
+
+describe('Output → Pen tables', () => {
+  it('opens with no sheet open (model space) and saves the table to the project', () => {
+    const onChange = vi.fn();
+    act(() => root.render(<OutputHost which="pens" project={p} onChange={onChange} onStatus={() => {}} onClose={() => {}} />));
+    act(() => { button('Save').click(); });
+    expect(onChange.mock.calls[0][1]).toMatch(/^Pen table .* saved/);
   });
 });
 
