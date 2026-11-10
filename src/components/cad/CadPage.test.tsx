@@ -2940,7 +2940,8 @@ describe('CAD 2D gap plan: MTEXT, notes in a box with their lines wrapped to its
     }
   });
   const setField = (label: string, value: string) => act(() => {
-    const el = document.querySelector(`[aria-label="${label}"]`) as HTMLInputElement | HTMLSelectElement;
+    // The editor's own field (the Properties palette has a Justify of its own for a note).
+    const el = (document.querySelector(`.cad-ntedit [aria-label="${label}"]`) ?? document.querySelector(`[aria-label="${label}"]`)) as HTMLInputElement | HTMLSelectElement;
     if (el instanceof HTMLSelectElement) { el.value = value; el.dispatchEvent(new Event('change', { bubbles: true })); }
     else { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, value); el.dispatchEvent(new Event('input', { bubbles: true })); }
   });
