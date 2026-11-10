@@ -12,6 +12,7 @@ import type { Project } from '../../types';
 import { safeFileName, saveBinary } from '../../util/files';
 import { canPrint, PDF_PRINTER, plotPrinter, printerLabel, setPlotPrinter, usePrinters, type PrinterInfo } from '../../util/printers';
 import { canPreviewSheetPdf, SheetPdfPreview } from './SheetPdfPreview';
+import { PenTableDialog } from './PlotDialogs';
 import { exportDrawingSet, printSheets } from './sheetRender';
 
 /** Design CAD → Output: Plot, Page setups, Printers and Batch plot. Printing stays black-and-white. */
@@ -288,6 +289,7 @@ export function OutputHost({ which, project, run, sheetId, onChange, onStatus, o
   if (which === 'plot') return sheet ? <PlotDialog project={project} sheet={sheet} run={run} onChange={onChange} onStatus={onStatus} onClose={onClose} /> : null;
   if (which === 'setups') return <PageSetupsDialog project={project} current={sheetId} onChange={onChange} onClose={onClose} />;
   if (which === 'printers') return <PrintersDialog onStatus={onStatus} onClose={onClose} />;
+  if (which === 'pens') return <PenTableDialog project={project} onSave={onChange} onClose={onClose} />;
   if (which === 'batch') return <BatchPlotDialog project={project} run={run} onChange={onChange} onStatus={onStatus} onClose={onClose} />;
   return null;
 }

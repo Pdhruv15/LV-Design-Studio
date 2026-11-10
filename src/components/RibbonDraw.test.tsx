@@ -282,7 +282,7 @@ describe('Design CAD ribbon: File', () => {
 
 describe('Design CAD ribbon: sheets and layouts', () => {
   it('Output: plot and publish one sheet or many, and export; the project-wide tools work with no sheet open', () => {
-    const output = { onPlot: vi.fn(), onSetups: vi.fn(), onPrinters: vi.fn(), onBatch: vi.fn(), onRegister: vi.fn() };
+    const output = { onPlot: vi.fn(), onSetups: vi.fn(), onPrinters: vi.fn(), onPens: vi.fn(), onBatch: vi.fn(), onRegister: vi.fn() };
     const pens = vi.fn();
     show({}, { view: 'drawings', output, sheets: sheets({ ui: sheetUi({ actions: { current: { ...NO_SHEET_ACTIONS, pens } } }) }) });
     pick('Output');
@@ -296,7 +296,31 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     show({}, { view: 'drawings', output, sheets: sheets({ open: false }) });
     pick('Output');
     expect(tool('Plot').disabled).toBe(true);
-    for (const l of ['Page setups', 'Printers', 'Batch plot', 'Register']) expect(tool(l).disabled, l).toBe(false);
+    for (const l of ['Page setups', 'Pen tables', 'Printers', 'Batch plot', 'Register']) expect(tool(l).disabled, l).toBe(false);
+    click(tool('Pen tables'));
+    expect(output.onPens).toHaveBeenCalledOnce();
+  });
+
+  it('Output in model space: the drawing\'s view plotted and saved as PDF, DXF and DWG through Save As, its layouts published', () => {
+    const output = { onPlot: vi.fn(), onSetups: vi.fn(), onPrinters: vi.fn(), onPens: vi.fn(), onBatch: vi.fn(), onRegister: vi.fn() };
+    const { cad, rerender } = show({ onExport: vi.fn(), onSaveAs: vi.fn(), onPublish: vi.fn() }, { output });
+    pick('Output');
+    for (const l of ['Plot', 'PDF']) { click(tool(l)); expect(cad.onExport, l).toHaveBeenLastCalledWith('pdfView'); }
+    click(tool('DXF'));
+    expect(cad.onSaveAs).toHaveBeenCalledOnce();
+    click(tool('DWG'));
+    expect(cad.onSaveDwg).toHaveBeenCalledOnce();
+    click(tool('Publish'));
+    expect(cad.onPublish).toHaveBeenCalledOnce();
+    click(tool('Pen tables'));
+    expect(output.onPens).toHaveBeenCalledOnce();
+    expect([tool('Preview').disabled, output.onPlot.mock.calls.length]).toEqual([true, 0]);
+    rerender({ inLayout: true }); // a layout tab: Plot with its page setup
+    click(tool('Plot'));
+    expect(output.onPlot).toHaveBeenCalledOnce();
+    rerender({ inLayout: false, hasDrawing: false }); // nothing open
+    for (const l of ['Plot', 'Publish', 'PDF', 'DXF', 'DWG']) expect(tool(l).disabled, l).toBe(true);
+    for (const l of ['Page setups', 'Pen tables', 'Printers', 'Batch plot', 'Register']) expect(tool(l).disabled, l).toBe(false);
   });
 
   it('opens the active sheet PDF preview in the desktop app', () => {

@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.075', date: '2026-11-10',
+    items: [
+      { title: 'Output tab works in model space', text: 'Design CAD → Output no longer waits for a layout or sheet. With a drawing open in model space, Plot and PDF save the drawing\'s view as a black-and-white PDF, DXF and DWG open Save As, and Publish publishes the drawing\'s layouts. Pen tables opens from anywhere. On a layout tab, Plot opens the Plot dialog with its page setup. Preview still needs a layout or sheet.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.074', date: '2026-11-10',
     items: [
       { title: 'Drafting ribbon: every tool named, more tools on it', text: 'Design CAD → Drafting now uses the whole row: the small tools show their names, and tools you could only type before have buttons: Polygon, Extend, Chamfer, Break, Join, Keynote, Text style and Dim style. Text ▾ has numbered text and the text tools (justify, height, align, case, frame, mask, copy words). Measure and view has Distance, Area, Room area, Inspect, Zoom extents and Drafting settings.', action: 'cad', actionLabel: 'Open Design CAD' }
