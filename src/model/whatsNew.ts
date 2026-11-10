@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.081', date: '2026-11-10',
+    items: [
+      { title: 'Earthing schematic fills the sheet', text: 'On the printed earthing schematic (PDF, DXF and Design CAD → Sheets), the substation bands no longer stand in one tall column. Whole bands flow into side-by-side columns, and a long earth pit schedule gets a column of its own, whichever prints largest on a landscape sheet. A site with many substations prints about twice the size. The drawing inside each band is unchanged, and so is the on-screen Earthing view.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
     version: '2.077', date: '2026-11-10',
     items: [
       { title: 'Double-click a text or dimension to edit it in place', text: 'In Design CAD, a double-click on a drawn text, a leader\'s text or a dimension opens a box over it, at its height and angle, with the text selected: type, then Enter keeps it (one undo step), Esc leaves it as it was, a click outside keeps it. ED (TEXTEDIT, DDEDIT) asks for the object instead, and stays for the next one; Edit text is on the right-click menu of a text or dimension. A dimension\'s typed text is its override: <> in it stands for the measured value ("<> mm" keeps measuring as the points move), and blank gives the measure back. A text on a locked layer is refused.', action: 'cad', actionLabel: 'Open Design CAD' }
