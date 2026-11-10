@@ -14,6 +14,8 @@ import { mainBoards, txTag } from '../model/transformers';
 import { sizeRoute, trayPlanOf, trayQuantities } from './cableTray';
 import { elcbGroups, normalizeLoadItems, pointLabel, scheduleCircuits } from './loadSchedule';
 import { atsOf, changeoverBreakers, incomersOf } from '../model/changeover';
+import { sizePv } from './solar';
+import { loadTypeOf } from './summary';
 
 /** Bill of materials: every item the design already knows about, rolled up
  * into tender BOQ sections. Each item has a stable key, so a price list
@@ -245,6 +247,40 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     add('F', `gland:${g}:${!t.armoured ? 'A2' : 'CW'}`, `Cable gland size ${g}, ${!t.armoured ? 'A2 (unarmoured)' : 'CW (armoured)'} with shroud`, 'no', 2 * runs, f.boardId);
     add('F', `lug:${f.cableCsaMm2}`, `Crimp lug ${f.cableCsaMm2} mm² Cu`, 'no', 2 * runs * f.cores, f.boardId);
     if (t.armoured) add('F', `lug:${cpc}`, `Crimp lug ${cpc} mm² Cu`, 'no', 2 * runs, f.boardId);
+  }
+
+  // EV chargers: the charger itself (its breaker, RCD and cable are the circuit's lines above).
+  for (const f of p.feeders) {
+    if (f.existing || f.feedsBoardId || loadTypeOf(f) !== 'ev' || !(f.loadKw > 0)) continue;
+    const ph = f.phase && f.phase !== 'RYB' ? '1P' : '3P';
+    const kw = Math.round(f.loadKw * 10) / 10;
+    add('D', `ev-charger:${kw}:${ph}`, `EV charger ${kw} kW ${ph === '1P' ? 'single-phase' : 'three-phase'}, Mode 3, Type 2 socket, with 6 mA DC fault detection (IEC 61851-1)`,
+      'no', 1, f.boardId, { quantitySource: 'EV charger circuits (load type EV)' });
+  }
+
+  // Solar PV system from the PV sizing; the AC breaker is the PV way on the SLD when one is drawn.
+  if (p.pv) {
+    let r: ReturnType<typeof sizePv> | undefined;
+    try { r = sizePv(p.pv, p.voltageV); } catch { /* incomplete PV data */ }
+    if (r && r.panels > 0) {
+      const { panel, inverter } = p.pv;
+      const where = p.pv.boardId ?? 'Solar PV';
+      const basis = { quantitySource: 'Solar PV sizing' };
+      const pvLine = (key: string, description: string, unit: BomItem['unit'], qty: number, src = basis) => add('D', key, `Solar PV — ${description}`, unit, qty, where, src);
+      pvLine(`pv-module:${panel.pmaxW}:${encodeURIComponent(panel.name.trim() || '-')}`, `PV module ${panel.name}, ${panel.pmaxW} Wp`, 'no', r.panels);
+      pvLine('pv-mount', 'mounting structure per module (rails, clamps and roof fixings to the roof type)', 'no', r.panels);
+      pvLine(`pv-inverter:${inverter.acKw}:${inverter.phases}:${inverter.mppts}`,
+        `grid-tie string inverter ${inverter.name}, ${inverter.acKw} kW ${inverter.phases === 3 ? 'three-phase' : 'single-phase'}, ${inverter.mppts} MPPT, ${inverter.maxDcV} V DC max.`, 'no', r.inverters);
+      pvLine('pv-dc-cable', `DC solar cable H1Z2Z2-K 1C, positive and negative per string (${r.strings} strings of ${r.perString} modules; length to site)`, 'set', r.strings);
+      pvLine('pv-connector', 'PV connector pair (male + female), matched to the module connectors', 'set', 2 * r.strings);
+      pvLine(`pv-dc-isol:${inverter.maxDcV}`, `DC switch-disconnector ${inverter.maxDcV} V DC per MPPT input in use (IEC 60364-7-712)`, 'no', Math.min(r.strings, r.inverters * inverter.mppts));
+      pvLine(`pv-dc-spd:${inverter.maxDcV}`, `DC surge protection device Type 2, ${inverter.maxDcV} V DC, per inverter`, 'no', r.inverters);
+      const drawn = p.feeders.some((f) => !f.existing && loadTypeOf(f) === 'pv');
+      if (!drawn && r.acBreakerA) {
+        const poles = inverter.phases === 3 ? 'TP+N' : 'SP+N';
+        pvLine(`pv-ac-isol:${r.acBreakerA}:${poles}`, `AC isolator ${r.acBreakerA} A ${poles} at the inverters (no PV way drawn on the SLD)`, 'no', 1);
+      }
+    }
   }
 
   // Point counts are opt-in: a design load does not establish who supplies the equipment.
