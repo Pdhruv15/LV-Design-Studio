@@ -106,7 +106,12 @@ export interface SheetInfo { no: string; title: string; count: number; index: nu
   /** The abbreviations to print, when not those found in the drawing (the legend sheet's, or none on a sheet that refers to it). */
   abbreviations?: [string, string][];
   /** A table under the drawing (a board sheet's load schedule, src/docs/sheetTable.ts). */
-  table?: SheetTable }
+  table?: SheetTable;
+  /** Legend and notes tables placed on a plan sheet's layout (src/model/sheetTables.ts), drawn: where each goes (mm,
+   * drawing area, from its top left corner), its width and height, and its SVG. */
+  tables?: { id: string; kind: 'legend' | 'notes'; x: number; y: number; w: number; h: number; svg: string }[];
+  /** A placed notes table holds the notes: no notes box, the project's notes included. */
+  notesOff?: boolean }
 
 /** The legend column (legend, cable schedule, abbreviations, summary): its width and padding, mm at scale 1. A DB riser
  * sheet's narrower column is RISER_SIDE_MM (src/model/drawingSet.ts). */
@@ -182,7 +187,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   // ({Rev1} …) fill from the issues, newest first.
   const { border, frame, k, custom } = sheetBody(project, sheet, one?.kind);
   Object.assign(extra, revRowValues(sheetTitleBlock(project, one, MAX_REV_ROWS).history));
-  const notes = [...(project.drawing?.notes ?? []), ...(one?.notes ?? [])];
+  const notes = one?.notesOff ? [] : [...(project.drawing?.notes ?? []), ...(one?.notes ?? [])];
   const abbr = one?.abbreviations ?? (project.drawing?.abbreviations === false ? [] : abbreviationsIn(svg));
   const history = t.history.length ? t.history : [{ id: '—', date: '', description: 'Not issued' }];
   // Sheet furniture (title block, revision table, abbreviations, notes) at its standard size.
@@ -261,6 +266,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .lgsheet .abbr { column-count: ${abbr.length > 24 ? 3 : abbr.length > 8 ? 2 : 1}; }
     .strip { position: absolute; left: 0; right: ${mm(csW)}; bottom: 0; height: ${mm(stripH)}; padding: ${mm(SIDE_PAD_MM)}; border-top: ${mm(0.25 * lw)} solid #000; background: #fff; }
     .lg svg { width: 100%; height: auto; display: block; }
+    .ptab { position: absolute; } .ptab svg { display: block; width: 100%; height: auto; }
     .drawing svg { width: 100%; height: 100%; }
     ${tbCss}
     .band { position: relative; flex: none; width: 100%; font-size: ${mm(tm)}; }
@@ -303,7 +309,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   <div class="brd">${drawnTitleBlockHtml(border, project, extra, false)}</div>` : ''}
   <div class="frame"><div class="body">${legendSheet ? `
     <div class="lgsheet">${legendSvg ? `<div class="lg">${legendSvg}</div>` : ''}${abbr.length ? abbrHtml : ''}${notesHtml}${revBoxHtml}</div>` : `
-    <div class="drawing">${svg}</div>${table ? tableHtml(table) : ''}`}
+    <div class="drawing">${svg}</div>${table ? tableHtml(table) : ''}${(one?.tables ?? []).map((pt) => `<div class="ptab" data-id="${esc(pt.id)}" style="left:${num(3 + pt.x)}mm;top:${num(3 + pt.y)}mm;width:${num(pt.w)}mm">${pt.svg}</div>`).join('')}`}
     ${strip ? `<div class="strip"><div class="lg">${legendSvg}</div></div>` : ''}
     ${side ? `<div class="side">${legendSvg && !strip ? `<div class="lg">${legendSvg}</div>` : ''}` : ''}
     ${cables.length ? `<div class="cs"><h5>CABLE SCHEDULE</h5><table>${cables.map((c) => `<tr><td class="n"><span>${c.ref}</span></td><td>${esc(c.text)}</td></tr>`).join('')}</table>${fire ? `<p><b>NOTE:</b> ${esc(FIRE_NOTE)}</p>` : ''}</div>` : ''}

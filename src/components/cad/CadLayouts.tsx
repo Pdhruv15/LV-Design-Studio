@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { layoutPaper, layoutViewports, PLAN_LABEL, PLAN_TYPES } from '../../docs/planLayout';
 import { PLAN_PREFIX, renumber, setOf, startStatus, type DrawingSet, type DrawingSheet, type PlanType } from '../../model/drawingSet';
 import { boxFrom, insideVp, isLocked, patchViewport, vpId, vpName, VP_SCALES, withViewports, type PlanViewport } from '../../model/planViewports';
+import { TABLE_WIDTHS, tableName, type PlacedTable, type TableKind } from '../../model/sheetTables';
 import type { PaperOverlay } from '../sld/SheetWorkspace';
 import type { Project } from '../../types';
 
@@ -103,14 +104,28 @@ function areaOrigin(frame: HTMLIFrameElement | null, areaW: number, pageMmPerPx:
   return [r.left * pageMmPerPx, r.top * pageMmPerPx];
 }
 
-/** The viewport frames over a layout's page, and the viewport worked in with the drawing inside it. */
-export function layoutOverlay({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas }: {
+/** Where the tables placed on the page are (paper mm from its top left, and their size): their SVGs, found by id. */
+function tableRects(frame: HTMLIFrameElement | null, pageMmPerPx: number): Record<string, [number, number, number, number]> {
+  const doc = frame?.contentDocument, out: Record<string, [number, number, number, number]> = {};
+  if (!doc) return out;
+  for (const el of doc.querySelectorAll<HTMLElement>('.ptab[data-id]')) { const r = el.getBoundingClientRect(); out[el.dataset.id!] = [r.left * pageMmPerPx, r.top * pageMmPerPx, r.width * pageMmPerPx, r.height * pageMmPerPx]; }
+  return out;
+}
+
+/** The viewport frames over a layout's page, the frames of the tables placed on it (LEGEND / NOTES, moved by their
+ * edges), and the viewport worked in with the drawing inside it. */
+export function layoutOverlay({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas, place = null, onPlace, onTableAt }: {
   project: Project;
   sheet: DrawingSheet;
   sel: string | null;
   ms: string | null;
   /** MV: two corners picked on the paper make a viewport. */
   mv: boolean;
+  /** LEGEND / NOTES: a point picked on the paper places a table there (its top left corner). */
+  place?: TableKind | null;
+  onPlace?: (kind: TableKind, at: Pt) => void;
+  /** A table moved (paper mm, drawing area). */
+  onTableAt?: (id: string, at: Pt) => void;
   onSelect: (id: string | null) => void;
   onMs: (id: string | null) => void;
   /** A frame moved or resized (paper mm, drawing area). */
@@ -119,15 +134,19 @@ export function layoutOverlay({ project, sheet, sel, ms, mv, onSelect, onMs, onB
   /** The drawing, fitted to the viewport worked in. */
   canvas: (v: PlanViewport, pxPerMm: number) => ReactNode;
 }): PaperOverlay {
-  return ({ pxPerMm, frame, loaded }) => <Frames key={`${sheet.id}-${loaded}`} {...{ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas, pxPerMm, frame }} />;
+  return ({ pxPerMm, frame, loaded }) => <Frames key={`${sheet.id}-${loaded}`} {...{ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas, pxPerMm, frame, place, onPlace, onTableAt }} />;
 }
 
-function Frames({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas, pxPerMm, frame }: Omit<Parameters<typeof layoutOverlay>[0], never> & { pxPerMm: number; frame: HTMLIFrameElement | null }) {
+function Frames({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas, pxPerMm, frame, place, onPlace, onTableAt }: Omit<Parameters<typeof layoutOverlay>[0], never> & { pxPerMm: number; frame: HTMLIFrameElement | null }) {
   const root = useRef<HTMLDivElement>(null);
   const paper = layoutPaper(project, sheet);
   const vps = layoutViewports(project, sheet);
+  const tables = sheet.tables ?? [];
   const iframePxPerMm = 3.78; // the page is laid out at 3.78 px per mm inside its frame (SheetWorkspace)
   const [origin, setOrigin] = useState<Pt | null>(null);
+  const [tRects, setTRects] = useState<Record<string, [number, number, number, number]>>({});
+  useEffect(() => { setTRects(tableRects(frame, 1 / iframePxPerMm)); }, [frame, tables.length]);
+  const [tDrag, setTDrag] = useState<{ id: string; from: Pt; at: Pt } | null>(null);
   // Measured on the page; else where src/docs/sldSheet.ts puts it (frame 20 mm from the left and 10 mm from the top, its
   // 0.7 mm border, the drawing 3 mm inside).
   useEffect(() => { if (paper) setOrigin(areaOrigin(frame, paper.area.w, 1 / iframePxPerMm) ?? [23.7, 13.7]); }, [frame, paper?.area.w]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -164,10 +183,12 @@ function Frames({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, can
     setDrag({ ...drag, box: box.map((k) => +k.toFixed(1)) as PlanViewport['box'] });
   };
   const endDrag = () => { if (drag && drag.box.join() !== vps.find((v) => v.id === drag.id)?.box.join() && drag.box[2] > 2 && drag.box[3] > 2) onBox(drag.id, drag.box); setDrag(null); };
+  const tMove = (e: React.PointerEvent) => { if (!tDrag) return; const [x, y] = mmAt(e), t = tables.find((q) => q.id === tDrag.id)!; setTDrag({ ...tDrag, at: [+(t.at[0] + x - tDrag.from[0]).toFixed(1), +(t.at[1] + y - tDrag.from[1]).toFixed(1)] }); };
+  const tEnd = () => { if (tDrag && tDrag.at.join() !== tables.find((q) => q.id === tDrag.id)?.at.join()) onTableAt?.(tDrag.id, tDrag.at); setTDrag(null); };
   return (
-    <div ref={root} className={`cad-vps${mv ? ' mv' : ''}`} style={{ cursor: mv ? 'crosshair' : undefined }}
-      onPointerMove={(e) => { moveTo(e); if (mv) setHover(mmAt(e)); }} onPointerUp={endDrag}
-      onPointerDown={mv ? (e) => {
+    <div ref={root} className={`cad-vps${mv || place ? ' mv' : ''}`} style={{ cursor: mv || place ? 'crosshair' : undefined }}
+      onPointerMove={(e) => { moveTo(e); tMove(e); if (mv) setHover(mmAt(e)); }} onPointerUp={() => { endDrag(); tEnd(); }}
+      onPointerDown={place ? (e) => { e.stopPropagation(); const at = mmAt(e); onPlace?.(place, [+at[0].toFixed(1), +at[1].toFixed(1)]); } : mv ? (e) => {
         e.stopPropagation();
         const at = mmAt(e);
         if (!first) { setFirst(at); return; }
@@ -187,7 +208,57 @@ function Frames({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, can
           </div>
         );
       })}
+      {tables.map((t) => {
+        const r = tRects[t.id], at = tDrag?.id === t.id ? tDrag.at : t.at, on = sel === t.id;
+        const w = r ? r[2] : t.widthMm, h = r ? r[3] : 20;
+        const grab = (e: React.PointerEvent) => { if (mv || place) return; e.stopPropagation(); e.currentTarget.setPointerCapture?.(e.pointerId); onSelect(t.id); setTDrag({ id: t.id, from: mmAt(e), at: t.at }); };
+        return (
+          <div key={t.id} className={`cad-vp cad-ptab${on ? ' on' : ''}`} aria-label={tableName(tables, t.id)} style={{ left: px(origin[0] + at[0]), top: px(origin[1] + at[1]), width: px(w), height: px(h) }}>
+            {(['t', 'b', 'l', 'r'] as const).map((k) => <span key={k} className={`cad-vp-edge ${k}`} onPointerDown={grab} onPointerMove={tMove} onPointerUp={tEnd} title={`${tableName(tables, t.id)} · ${t.widthMm} mm wide · drag to move`} />)}
+          </div>
+        );
+      })}
       {mv && first && hover && (() => { const [l, t, w, h] = boxFrom(first, hover); return <div className="cad-vp new" style={{ left: px(origin[0] + l), top: px(origin[1] + t), width: px(w), height: px(h) }} />; })()}
+    </div>
+  );
+}
+
+/** A placed table's properties (its frame picked): width, text height, columns and rows of a legend, title, delete. */
+export function TablePanel({ sheet, table, labels, onChange, onDelete }: {
+  sheet: DrawingSheet;
+  table: PlacedTable;
+  /** The legend rows the sheet has (their labels), for hiding. */
+  labels: string[];
+  onChange: (patch: Partial<PlacedTable>, what: string) => void;
+  onDelete: () => void;
+}) {
+  const tables = sheet.tables ?? [], name = tableName(tables, table.id), legend = table.kind === 'legend';
+  const [custom, setCustom] = useState('');
+  const hidden = table.hidden ?? [];
+  return (
+    <div className="cad-devform cad-vpform" aria-label="Table properties">
+      <b>{name} <span className="m">{sheet.number}</span></b>
+      <label>Width
+        <select aria-label="Table width" value={TABLE_WIDTHS.includes(table.widthMm) ? table.widthMm : 'custom'} onChange={(e) => e.target.value !== 'custom' && onChange({ widthMm: Number(e.target.value) }, `${e.target.value} mm wide`)}>
+          {TABLE_WIDTHS.map((k) => <option key={k} value={k}>{k} mm</option>)}
+          <option value="custom">{TABLE_WIDTHS.includes(table.widthMm) ? 'Custom…' : `${table.widthMm} mm`}</option>
+        </select>
+      </label>
+      <label>Custom (mm)<input aria-label="Custom width" inputMode="numeric" value={custom} placeholder={String(table.widthMm)} onChange={(e) => setCustom(e.target.value)}
+        onBlur={() => { const k = Math.round(Number(custom)); if (k >= 40 && k !== table.widthMm) onChange({ widthMm: k }, `${k} mm wide`); setCustom(''); }} /></label>
+      <div className="seg" role="group" aria-label="Text height">
+        {([2.5, 3.5] as const).map((h) => <button key={h} className={(table.textMm ?? 2.5) === h ? 'on' : ''} onClick={() => (table.textMm ?? 2.5) !== h && onChange({ textMm: h === 2.5 ? undefined : h }, `${h} mm text`)}>{h} mm</button>)}
+      </div>
+      {legend && <div className="seg" role="group" aria-label="Columns">
+        {([1, 2] as const).map((c) => <button key={c} className={(table.cols ?? 1) === c ? 'on' : ''} onClick={() => (table.cols ?? 1) !== c && onChange({ cols: c === 1 ? undefined : c }, `${c} column${c === 1 ? '' : 's'}`)}>{c} {c === 1 ? 'column' : 'columns'}</button>)}
+      </div>}
+      <label>Title<input aria-label="Table title" defaultValue={table.title ?? ''} key={table.title ?? ''} placeholder={legend ? 'LEGEND · (the layout)' : 'NOTES'} onBlur={(e) => (e.target.value.trim() || undefined) !== table.title && onChange({ title: e.target.value.trim() || undefined }, 'title')} /></label>
+      {legend && labels.length > 0 && <div role="group" aria-label="Rows">{labels.map((l) => {
+        const off = hidden.includes(l);
+        return <label key={l}><input type="checkbox" checked={!off} onChange={() => { const next = off ? hidden.filter((x) => x !== l) : [...hidden, l]; onChange({ hidden: next.length ? next : undefined }, `row ${l} ${off ? 'shown' : 'hidden'}`); }} /> {l}</label>;
+      })}</div>}
+      {legend && <label>Rows added (one per line)<textarea aria-label="Rows added" rows={2} defaultValue={(table.extra ?? []).join('\n')} key={(table.extra ?? []).join('|')} onBlur={(e) => { const next = e.target.value.split('\n').map((x) => x.trim()).filter(Boolean); if (next.join('|') !== (table.extra ?? []).join('|')) onChange({ extra: next.length ? next : undefined }, 'rows added'); }} /></label>}
+      <div className="cad-devbtns"><button className="chip" onClick={onDelete}>Delete {legend ? 'legend' : 'notes'} table</button></div>
     </div>
   );
 }

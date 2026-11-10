@@ -46,8 +46,9 @@ import { cadFileMenu } from './cadFileMenu';
 import { DRAFT_DEFAULTS, type DraftSettings } from '../../model/cadDraft';
 import { CABLE_HEAD, cableRows, DEVICE_HEAD, deviceRows } from '../../model/cadExports';
 import { toDxf } from '../../docs/dxf';
-import { changeViewports, layoutOverlay, layoutsOf, LayoutTabs, moveLayout, newLayout, patchViewport, ViewportPanel, vpId } from './CadLayouts';
-import { layoutPaper, layoutViewports, PLAN_LABEL, PLAN_TYPES } from '../../docs/planLayout';
+import { changeViewports, layoutOverlay, layoutsOf, LayoutTabs, moveLayout, newLayout, patchViewport, TablePanel, ViewportPanel, vpId } from './CadLayouts';
+import { patchTable, TABLE_WIDTH, tableId, tableName, tablesOf, withTables, type TableKind } from '../../model/sheetTables';
+import { layoutPaper, layoutViewports, PLAN_LABEL, PLAN_TYPES, planLegendLabels } from '../../docs/planLayout';
 import { isFrozen, isLocked, toggleFrozen, vpName, vpToModel, vpWindow, type PlanViewport } from '../../model/planViewports';
 import { renumber, setOf, type PlanType } from '../../model/drawingSet';
 import { PublishDialog, SheetWorkspace } from '../sld/SheetWorkspace';
@@ -94,7 +95,7 @@ const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab 
 ];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 /** Bind's count in the Save line: reference lines, texts and hatches. */
@@ -602,14 +603,19 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // Model and layouts (paper space, src/components/cad/CadLayouts.tsx): the level's layouts, the one showing, its
   // viewports, the one picked and the one worked in (MS).
   const [mv, setMv] = useState(false);
+  const [placing, setPlacing] = useState<TableKind | null>(null); // LEGEND / NOTES: the next click on the paper places the table
   const [renamingLayout, setRenamingLayout] = useState<string | null>(null);
   const lv = floor ? { buildingId: floor.ref.building, levelId: floor.ref.level, name: floor.name } : undefined;
   const layouts = layoutsOf(project, lv);
   const sheetL = cad.layout ? layouts.find((s) => s.id === cad.layout) : undefined;
   useEffect(() => { if (cad.layout && !sheetL) cad.setLayout(null); }, [cad.layout, sheetL]); // eslint-disable-line react-hooks/exhaustive-deps -- a layout gone (deleted, another level)
-  useEffect(() => { if (!sheetL) setMv(false); }, [sheetL]);
+  useEffect(() => { if (!sheetL) { setMv(false); setPlacing(null); } }, [sheetL]);
   const vps = sheetL ? layoutViewports(project, sheetL) : [];
   const msV = vps.find((v) => v.id === cad.msVp), selV = vps.find((v) => v.id === cad.vpSel);
+  // The tables placed on the layout (src/model/sheetTables.ts); a picked one shares the viewport pick.
+  const tables = sheetL ? tablesOf(sheetL) : [], selT = tables.find((t) => t.id === cad.vpSel);
+  const setTables = (f: (list: typeof tables) => typeof tables, what: string) => { if (sheetL) change({ ...project, drawingSet: withTables(setOf(project), sheetL.id, f(tablesOf(sheetL))) }, `${sheetL.number || 'Layout'}  ${what} · ⌘Z to undo`); };
+  const legendLabels = useMemo(() => (sheetL && selT?.kind === 'legend' ? planLegendLabels(project, sheetL) : []), [project, sheetL, selT?.kind]);
   /** The viewport a command acts on: the one worked in, else the one picked, else the only one. */
   const vpTarget = msV ?? selV ?? (vps.length === 1 ? vps[0] : undefined);
   const setVps = (f: (list: PlanViewport[]) => PlanViewport[], what: string) => { if (sheetL) change(changeViewports(project, sheetL, f), `${sheetL.number || 'Layout'}  ${what} · ⌘Z to undo`); };
@@ -638,6 +644,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return true;
     }
     if (w === 'VPLOCK') { const v = vpTarget; if (!v) cad.say('VPLOCK  Pick a viewport first (click its frame).'); else patchVp(v, isLocked(v) ? { locked: false } : { locked: undefined }, isLocked(v) ? 'unlocked: pan and zoom inside it move its view' : 'locked'); return true; }
+    if (w === 'LEGEND' || w === 'LG' || w === 'NOTES') {
+      const kind: TableKind = w === 'NOTES' ? 'notes' : 'legend';
+      cad.setMsVp(null); setMv(false); setPlacing(kind);
+      cad.say(`${w}  Click where the ${kind} table's top left corner goes on the paper${kind === 'legend' ? ' (its rows follow the plan; pick its frame for the width, rows and columns)' : ' (the sheet\'s notes go in it)'}:`);
+      return true;
+    }
     if (w === 'PAGESETUP') { onSheet?.(sheetL.id); return true; }
     if (w === 'PLOT') { onPlot(sheetL.id); return true; }
     if (!msV && PAPER_TOOLS[w] && !arg) {
@@ -2403,6 +2415,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         <button type="button" aria-label="Fold the properties palette" title="Fold (Ctrl/Cmd+1)" onClick={() => setShowProps(false)}>{dockSide === 'left' ? '«' : '»'}</button>
       </div>
       <div className="cad-dock-b">
+            {sheetL && selT && <TablePanel sheet={sheetL} table={selT} labels={legendLabels} onChange={(patch, what) => setTables((l) => patchTable(l, selT.id, patch), `${tableName(tables, selT.id)}: ${what}`)}
+            onDelete={() => { setTables((l) => l.filter((x) => x.id !== selT.id), `${tableName(tables, selT.id)} deleted`); cad.setVpSel(null); }} />}
             {sheetL && selV && <ViewportPanel project={project} sheet={sheetL} vp={selV} refs={xr.refs.map((r) => r.name)} onChange={(patch, what) => patchVp(selV, patch, what)}
             onDelete={() => { setVps((l) => l.filter((x) => x.id !== selV.id), `${vpName(vps, selV.id)} deleted${vps.length === 1 ? ' (the layout shows the level as worked out again)' : ''}`); cad.setVpSel(null); cad.setMsVp(null); }}
             onLayers={() => setShowLM(true)} />}
@@ -2636,8 +2650,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         {view && sheetL ? (
           <div className="cad-stage cad-paper">
             {sheetUi ? <SheetWorkspace bare project={project} run={calcRun} sheetId={sheetL.id} design={null} ui={sheetUi} onChange={(next) => change(next, `${sheetL.number || 'Layout'}  paper changed · ⌘Z to undo`)} onStatus={onStatus} onActive={() => {}} overlay={layoutOverlay({
-              project, sheet: sheetL, sel: cad.vpSel, ms: cad.msVp, mv,
+              project, sheet: sheetL, sel: cad.vpSel, ms: cad.msVp, mv, place: placing,
               onSelect: cad.setVpSel,
+              onPlace: (kind, at) => {
+                setPlacing(null);
+                const id = tableId(tables);
+                setTables((l) => [...l, { id, kind, at, widthMm: TABLE_WIDTH }], `${kind === 'legend' ? 'Legend' : 'Notes'} table placed at ${at[0]}, ${at[1]} mm`);
+                cad.setVpSel(id);
+              },
+              onTableAt: (id, at) => setTables((l) => patchTable(l, id, { at }), `${tableName(tables, id)} moved`),
               onMs: (id) => { cad.setMsVp(id); if (id) cad.setVpSel(id); cad.say(id ? `MSPACE  Working in the model through ${vpName(vps, id)}. A double-click outside (or PS) returns to the paper.` : 'PSPACE  On the paper.'); },
               onBox: (id, box) => setVps((l) => patchViewport(l, id, { box }), `${vpName(vps, id)} moved or resized`),
               onNew: (box) => {

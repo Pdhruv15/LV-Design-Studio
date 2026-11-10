@@ -15,6 +15,8 @@ import { planScale as unitsOf } from '../model/cadUnits';
 import { arcPoints, levelWiring } from '../model/cadWiring';
 import { PLAN_PREFIX, renumber, startStatus, type DrawingSet, type DrawingSheet, type PlanType, type SheetSize } from '../model/drawingSet';
 import { borderOf, templateOf, templateSize } from '../model/titleBlock';
+import { tablesOf, type TableKind } from '../model/sheetTables';
+import { fillParams } from '../model/params';
 import { elvPlanSymbols } from '../components/elv/elvPlanSymbols';
 import type { Project, SketchItem } from '../types';
 import { escapeHtmlText as esc } from '../util/escape';
@@ -418,7 +420,10 @@ function contentSvg(p: Project, s: DrawingSheet, c: Content, drawn: Drawn[], ref
   return { out, counts, trayM, pen };
 }
 
-export interface PlanDrawing { svg: string; size: SheetSize; legendSvg: string; parts: number }
+/** A legend or notes table placed on the sheet, drawn (src/model/sheetTables.ts): where it goes (mm, drawing area) and its
+ * SVG, as wide as the table and as high as its rows (data-h). */
+export interface PlacedTableSvg { id: string; kind: TableKind; x: number; y: number; w: number; h: number; svg: string }
+export interface PlanDrawing { svg: string; size: SheetSize; legendSvg: string; parts: number; tables?: PlacedTableSvg[]; labels?: string[]; legendOff?: boolean }
 /** The sheet's plan as SVG in paper mm (the drawing area's size), with its legend; `numberOf(part)` names the sheet of
  * another part of the level for the match lines. Nothing when there is nothing to draw (or the part is gone). */
 export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number) => string | undefined = () => undefined): PlanDrawing | undefined {
@@ -456,7 +461,8 @@ export function planDrawing(p: Project, s: DrawingSheet, numberOf: (part: number
   out.push(...stripSvg(p, area, fit.size, scale, title));
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n(area.w)} ${n(area.h)}" width="${n(area.w)}mm" height="${n(area.h)}mm" font-family="Arial, sans-serif"${s.plan === 'containment' ? ' data-abbr="CT=Cable tray"' : ''}>${out.join('')}</svg>`;
   const fittings = fittingCounts(trayFittings(c.trays, 0.001).fittings.filter((x) => within(x.at, win)));
-  return { svg, size: fit.size, legendSvg: legendOf(s.plan!, [...counts.values()], c, win, box, rooms, fit, part, [...trayM], fittings, refs.filter((r) => r.segs).map((r) => ({ name: r.ref.name, ink: inkOf(pen.refs) }))), parts: fit.parts };
+  const rows = legendRows(s.plan!, [...counts.values()], c, win, [...trayM], fittings, refs.filter((r) => r.segs).map((r) => ({ name: r.ref.name, ink: inkOf(pen.refs) })));
+  return { svg, size: fit.size, legendSvg: legendOf(s.plan!, rows, box, rooms, fit, part), parts: fit.parts, ...sheetTables(p, s, rows) };
 }
 
 /** Under the plan: its title and scale, a scale bar (5 segments, 50 mm long) and the north arrow, left of the notes box. */
@@ -522,23 +528,39 @@ function viewportDrawing(p: Project, s: DrawingSheet, lay: NonNullable<ReturnTyp
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n(area.w)} ${n(area.h)}" width="${n(area.w)}mm" height="${n(area.h)}mm" font-family="Arial, sans-serif"${s.plan === 'containment' ? ' data-abbr="CT=Cable tray"' : ''}><defs>${defs.join('')}</defs>${out.join('')}</svg>`;
   const fittings = fittingCounts(trayFittings(mainC!.trays, 0.001).fittings.filter((x) => within(x.at, mainWin!)));
   const one: PlanFit = { size, cols: 1, rows: 1, parts: 1 };
-  return { svg, size, legendSvg: legendOf(s.plan!, [...main!.counts.values()], mainC!, mainWin!, lay.box, lay.rooms, one, 0, [...main!.trayM], fittings, lay.refs.filter((r) => r.segs).map((r) => ({ name: r.ref.name, ink: inkOf(main!.pen.refs) }))), parts: 1 };
+  const rows = legendRows(s.plan!, [...main!.counts.values()], mainC!, mainWin!, [...main!.trayM], fittings, lay.refs.filter((r) => r.segs).map((r) => ({ name: r.ref.name, ink: inkOf(main!.pen.refs) })));
+  return { svg, size, legendSvg: legendOf(s.plan!, rows, lay.box, lay.rooms, one, 0), parts: 1, ...sheetTables(p, s, rows) };
 }
 
-/** The legend column: the symbols on this sheet with their counts, the tray lengths and fittings on it, the DB, wiring
- * and route keys, and the key plan of a level split over sheets. 88 mm wide, the column's width. */
-function legendOf(type: PlanType, used: { label: string; n: number; svg: Mark['svg'] }[], c: Content, win: Box, box: Box, rooms: { outline: Pt[] }[], fit: PlanFit, part: number, trayM: [string, number][], fittings: [string, number][], refs: { name: string; ink: string }[] = []): string {
+/** A row of a plan sheet's legend: its symbol drawn at a line's y (8 mm wide at x 0 … 8), its label and count. */
+export interface LegendRow { label: string; sym: (y: number) => string; count?: string }
+/** The legend rows of a plan sheet: the symbols on it with their counts, the tray lengths and fittings on it, the
+ * cable route, DB, wiring and home run keys, and the references shown. */
+function legendRows(type: PlanType, used: { label: string; n: number; svg: Mark['svg'] }[], c: Content, win: Box, trayM: [string, number][], fittings: [string, number][], refs: { name: string; ink: string }[] = []): LegendRow[] {
+  const rows: LegendRow[] = [];
+  const line = (w: number, dash = '', ink = '#000') => (y: number) => `<line x1="0.5" y1="${y}" x2="7.5" y2="${y}" stroke="${ink}" stroke-width="${w}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+  for (const u of used.sort((a, b) => a.label.localeCompare(b.label))) rows.push({ label: u.label, sym: (y) => u.svg(4, y, R), count: String(u.n) });
+  for (const [label, m] of trayM.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))) rows.push({ label, sym: line(0.5), count: `${txt.fixed(m, 1)} m` });
+  for (const [label, k] of fittings) rows.push({ label, sym: () => '', count: String(k) });
+  if (c.cables.length) rows.push({ label: 'Cable route, with its cable and size', sym: line(0.25, '2 1') });
+  if (c.boards.some((d) => within([d.x, d.y], win))) rows.push({ label: 'Distribution board', sym: (y) => boardSymbol(4, y) });
+  if (type !== 'elv' && c.wiring.length) rows.push({ label: 'Circuit wiring', sym: line(0.25) });
+  if (type !== 'elv' && c.homes.length) rows.push({ label: 'Home run to DB: circuit · cable · length', sym: (y) => `${line(0.35)(y)}<path d="M7.5 ${y}L5.8 ${y - 0.7}L5.8 ${y + 0.7}Z" fill="#000"/>` });
+  for (const r of refs) rows.push({ label: `${r.name} (reference)`, sym: line(0.25, '', r.ink) });
+  return rows;
+}
+/** The labels of a plan sheet's legend rows (the rows a placed legend table can hide); none for other sheets. */
+export function planLegendLabels(p: Project, s: DrawingSheet): string[] {
+  const d = s.kind === 'plan' ? planDrawing(p, s) : undefined;
+  return d?.labels ?? [];
+}
+
+/** The legend column: the rows, and the key plan of a level split over sheets. 88 mm wide, the column's width. */
+function legendOf(type: PlanType, rows0: LegendRow[], box: Box, rooms: { outline: Pt[] }[], fit: PlanFit, part: number): string {
   const rows: string[] = [];
   let y = 10;
   const row = (sym: string, label: string, count = '') => { rows.push(sym, `<text x="11" y="${y + 1}" font-size="3">${esc(label)}</text>`, count ? `<text x="86" y="${y + 1}" font-size="3" text-anchor="end">${count}</text>` : ''); y += 6; };
-  for (const u of used.sort((a, b) => a.label.localeCompare(b.label))) row(u.svg(4, y, R), u.label, String(u.n));
-  for (const [label, m] of trayM.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))) row(`<line x1="0.5" y1="${y}" x2="7.5" y2="${y}" stroke="#000" stroke-width="0.5"/>`, label, `${txt.fixed(m, 1)} m`);
-  for (const [label, k] of fittings) row('', label, String(k));
-  if (c.cables.length) row(`<line x1="0.5" y1="${y}" x2="7.5" y2="${y}" stroke="#000" stroke-width="0.25" stroke-dasharray="2 1"/>`, 'Cable route, with its cable and size');
-  if (c.boards.some((d) => within([d.x, d.y], win))) row(boardSymbol(4, y), 'Distribution board');
-  if (type !== 'elv' && c.wiring.length) row(`<line x1="0.5" y1="${y}" x2="7.5" y2="${y}" stroke="#000" stroke-width="0.25"/>`, 'Circuit wiring');
-  if (type !== 'elv' && c.homes.length) row(`<line x1="0.5" y1="${y}" x2="7.5" y2="${y}" stroke="#000" stroke-width="0.35"/><path d="M7.5 ${y}L5.8 ${y - 0.7}L5.8 ${y + 0.7}Z" fill="#000"/>`, 'Home run to DB: circuit · cable · length');
-  for (const r of refs) row(`<line x1="0.5" y1="${y}" x2="7.5" y2="${y}" stroke="${r.ink}" stroke-width="0.25"/>`, `${r.name} (reference)`);
+  for (const r of rows0) row(r.sym(y), r.label, r.count ?? '');
   let key = '';
   if (fit.parts > 1) {
     const kw = 60, kh = Math.min(45, (kw * (box.y1 - box.y0)) / (box.x1 - box.x0)), k = Math.min(kw / (box.x1 - box.x0), kh / (box.y1 - box.y0));
@@ -553,6 +575,54 @@ function legendOf(type: PlanType, used: { label: string; n: number; svg: Mark['s
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 ${n(y)}" width="88mm" height="${n(y)}mm" font-family="Arial, sans-serif">
   <text x="0" y="4" font-size="3.4" font-weight="700">LEGEND · ${PLAN_LABEL[type].toUpperCase()}</text>${rows.join('')}${key}
 </svg>`;
+}
+
+/** The tables placed on the sheet, drawn: a legend table from the rows (less those hidden, plus those typed), a notes
+ * table from the sheet's notes; the rows' labels, for the palette. A sheet with a legend table keeps no legend in its
+ * column. Text at the table's height (2.5 mm), the symbol 8 mm, the count at the right edge, a rule under the heading. */
+function sheetTables(p: Project, s: DrawingSheet, rows: LegendRow[]): { tables?: PlacedTableSvg[]; labels: string[]; legendOff?: boolean } {
+  const labels = rows.map((r) => r.label);
+  const list = tablesOf(s);
+  if (!list.length) return { labels };
+  const tables = list.map((t): PlacedTableSvg => {
+    const W = t.widthMm, tm = t.textMm ?? 2.5, pad = 2, step = +(tm * 2).toFixed(2), head = +(tm * 1.3).toFixed(2);
+    const out: string[] = [];
+    let y = pad + head;
+    const title = t.title ?? (t.kind === 'legend' ? `LEGEND · ${PLAN_LABEL[s.plan!].toUpperCase()}` : 'NOTES');
+    out.push(`<text x="${pad}" y="${n(y)}" font-size="${n(head)}" font-weight="700">${esc(title)}</text>`);
+    y += pad; out.push(`<line x1="0" y1="${n(y)}" x2="${W}" y2="${n(y)}" stroke="#000" stroke-width="0.35"/>`); y += step;
+    if (t.kind === 'legend') {
+      const hidden = new Set(t.hidden ?? []);
+      const items: LegendRow[] = [...rows.filter((r) => !hidden.has(r.label)), ...(t.extra ?? []).filter((x) => x.trim()).map((label): LegendRow => ({ label, sym: () => '' }))];
+      const cols = t.cols === 2 ? 2 : 1, colW = W / cols, per = Math.ceil(items.length / cols);
+      let bottom = y;
+      for (let c = 0; c < cols; c++) {
+        let yy = y;
+        for (const r of items.slice(c * per, (c + 1) * per)) {
+          const x0 = c * colW + pad;
+          out.push(`<g transform="translate(${n(x0)} 0)">${r.sym(n(yy - tm * 0.35))}</g>`, `<text x="${n(x0 + 11)}" y="${n(yy)}" font-size="${tm}">${esc(r.label)}</text>`, r.count ? `<text x="${n((c + 1) * colW - pad)}" y="${n(yy)}" font-size="${tm}" text-anchor="end">${esc(r.count)}</text>` : '');
+          yy += step;
+        }
+        bottom = Math.max(bottom, yy);
+      }
+      y = bottom;
+    } else {
+      const notes = [...(p.drawing?.notes ?? []), ...(s.notes ?? []), ...planNotes(p, s)].map((x) => fillParams(x, p)).filter((x) => x.trim());
+      const perLine = Math.max(10, Math.floor((W - 2 * pad - 5) / (tm * 0.56)));
+      notes.forEach((note, i) => {
+        const words = note.split(/\s+/), lines: string[] = [];
+        let cur = '';
+        for (const w of words) { if (cur && (cur + ' ' + w).length > perLine) { lines.push(cur); cur = w; } else cur = cur ? `${cur} ${w}` : w; }
+        if (cur) lines.push(cur);
+        lines.forEach((l, j) => { out.push(`<text x="${n(pad + (j ? 5 : 0))}" y="${n(y)}" font-size="${tm}">${j === 0 ? `${i + 1}. ` : ''}${esc(l)}</text>`); y += +(tm * 1.5).toFixed(2); });
+        y += +(tm * 0.5).toFixed(2);
+      });
+    }
+    const H = n(y - step + pad + tm * 0.8);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}mm" height="${H}mm" data-h="${H}" font-family="Arial, sans-serif" class="ptab-svg"><rect x="0" y="0" width="${W}" height="${H}" fill="#fff" stroke="#000" stroke-width="0.35"/>${out.join('')}</svg>`;
+    return { id: t.id, kind: t.kind, x: t.at[0], y: t.at[1], w: W, h: H, svg };
+  });
+  return { tables, labels, legendOff: list.some((t) => t.kind === 'legend') };
 }
 
 /** Notes for the references of the sheet's level: those printed, and those that could not be. */
