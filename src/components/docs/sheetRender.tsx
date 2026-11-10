@@ -7,6 +7,7 @@ import { evaluateProject } from '../../calc/electrical';
 import { buildAnnotations, SHEET_LAYERS } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
 import { autoSize, drawable, furnitureOf, LEGEND_RESERVE_MM, RISER_SIDE_MM, minMmPerPx, fromSheetLabels, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
+import { borderOf } from '../../model/titleBlock';
 import { buildSldSheetHtml, legendColsFor, legendColumnFits, SIDE_MM, sideInnerMm, stripInnerMm, type SheetInfo } from '../../docs/sldSheet';
 import { legendHeightMm, stringLegendSvg, stripColumns, type LegendItem } from '../../diagram/legendLayout';
 import { legendEntries } from '../../diagram/IecSymbols';
@@ -197,12 +198,14 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
   const labels = legendSheet ? [] : r.legendItems ? r.legendItems.map((e) => e.label) : legendLabels(project, set, s);
   const strip = fz.legendPlace === 'strip' && labels.length > 0;
   const reserveH = (strip ? legendHeightMm(labels, stripInnerMm('A3'), tm, stripColumns(stripInnerMm('A3'))) + 6 : 0) + (table ? tableHeightMm(table, tm) + 2 : 0);
-  let a = autoSize(r.w, r.h, reserveOf(s), min, reserveH);
+  // A paper with a whole-border template offers the border's drawing area, not the frame's.
+  const area = (size: SheetSize) => borderOf(project, size)?.border.area;
+  let a = autoSize(r.w, r.h, reserveOf(s), min, reserveH, area);
   let size = s.size === 'auto' ? a.size : s.size;
   const cols = strip ? 1 : legendColsFor(fz, size, labels);
   let reserveW = reserveOf(s);
-  if (cols === 2) { reserveW += SIDE_MM; a = autoSize(r.w, r.h, reserveW, min); size = s.size === 'auto' ? a.size : s.size; }
-  if (mode === 'auto' && s.kind === 'system' && (!a.fits || scaleOn(size, r.w, r.h, reserveW, reserveH) < REF_BELOW_MM_PER_PX)) {
+  if (cols === 2) { reserveW += SIDE_MM; a = autoSize(r.w, r.h, reserveW, min, 0, area); size = s.size === 'auto' ? a.size : s.size; }
+  if (mode === 'auto' && s.kind === 'system' && (!a.fits || scaleOn(size, r.w, r.h, reserveW, reserveH, area) < REF_BELOW_MM_PER_PX)) {
     refs = true;
     r = (await renderSheet(project, set, s, run, true)) ?? r;
   }
@@ -217,7 +220,7 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
   if (table) info.table = table;
   const html = buildSldSheetHtml(project, r.svg, size, info);
   // Readable on the paper actually used (a chosen A3 can be too small too); and the legend column holds its contents.
-  return { html, size, fits: scaleOn(size, r.w, r.h, reserveW, reserveH) >= min, columnFits: legendColumnFits(project, r.svg, size, info), refs, svg: r.svg, legendSvg, info };
+  return { html, size, fits: scaleOn(size, r.w, r.h, reserveW, reserveH, area) >= min, columnFits: legendColumnFits(project, r.svg, size, info), refs, svg: r.svg, legendSvg, info };
 }
 
 /** Sheet HTML from a drawn SVG (legend: every cable number used in the set). */

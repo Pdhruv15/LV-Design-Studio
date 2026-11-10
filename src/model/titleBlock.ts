@@ -1,5 +1,5 @@
 import { pushLibrary } from '../database/librarySync';
-import type { Project } from '../types';
+import type { DrawingInfo, Project } from '../types';
 import { fillParams, paramList } from './params';
 import { escapeHtmlAttr, isRasterDataUrl, num } from '../util/escape';
 import { fmtDate } from '../util/format';
@@ -34,6 +34,12 @@ export type DrawnShape =
  * long value shrinks to. */
 export interface DrawnText { id: string; x: number; y: number; h: number; rot?: number; align?: 'left' | 'center' | 'right'; text: string; tag?: string; orig?: string; fit?: number; bold?: boolean }
 
+/** A paper size of the drawing sheets (src/docs/sldSheet.ts SHEET_MM). */
+export type Paper = NonNullable<DrawingInfo['sheet']>;
+/** A drawn template that is a whole sheet border (its size a paper's): the sheet draws it at the paper's origin in place
+ * of its own frame, zone strip and title band, and works inside its drawing area (mm from the paper's top left, y down). */
+export interface Border { paper: Paper; area: { x: number; y: number; w: number; h: number } }
+
 export interface TitleTemplate {
   id: string;
   name: string;
@@ -45,8 +51,73 @@ export interface TitleTemplate {
   size?: { w: number; h: number }; // mm, drawn templates
   shapes?: DrawnShape[];
   texts?: DrawnText[];
+  /** A drawn template used as the whole border of its paper's sheets. */
+  border?: Border;
 }
 export const isDrawn = (t: TitleTemplate) => t.kind === 'drawn';
+export const isBorder = (t: TitleTemplate): t is TitleTemplate & { border: Border } => isDrawn(t) && !!t.border;
+
+/** The papers (landscape A4 to A1, A3 portrait) and their sizes, as the sheets print them. */
+export const PAPER_MM: Record<Paper, { w: number; h: number }> = { A4: { w: 297, h: 210 }, A3: { w: 420, h: 297 }, 'A3 portrait': { w: 297, h: 420 }, A2: { w: 594, h: 420 }, A1: { w: 841, h: 594 } };
+/** The paper a drawn template's size is (within 2 mm), if any: such a template can be a whole border. */
+export const paperOf = (size: { w: number; h: number }, tol = 2): Paper | undefined =>
+  (Object.keys(PAPER_MM) as Paper[]).find((k) => Math.abs(PAPER_MM[k].w - size.w) <= tol && Math.abs(PAPER_MM[k].h - size.h) <= tol);
+
+/** The border a sheet of this paper prints in: the drawn template chosen for the paper (drawing.borderByPaper), when it
+ * still is a border of that paper. Other papers keep the app's frame and the block chosen for the kind of sheet. */
+export function borderOf(p: Project, paper: Paper): (TitleTemplate & { border: Border }) | undefined {
+  const id = p.drawing?.borderByPaper?.[paper];
+  const t = id ? p.titleTemplates?.find((x) => x.id === id) : undefined;
+  return t && isBorder(t) && t.border.paper === paper ? t : undefined;
+}
+
+/** The drawing area of a border: the largest rectangle bounded by its lines that holds no text and no line, at least
+ * 40 % of the paper each way (a frame's inside beside the title strip). None found: the paper less the app's margins. */
+export function detectArea(t: Pick<TitleTemplate, 'shapes' | 'texts'>, size: { w: number; h: number }): Border['area'] {
+  const snap = (v: number) => Math.round(v * 2) / 2;
+  const vs: { x: number; y0: number; y1: number }[] = [], hs: { y: number; x0: number; x1: number }[] = [], other: [number, number][] = [];
+  const seg = (a: [number, number], b: [number, number]) => {
+    if (Math.abs(a[0] - b[0]) < 0.05) vs.push({ x: snap(a[0]), y0: Math.min(a[1], b[1]), y1: Math.max(a[1], b[1]) });
+    else if (Math.abs(a[1] - b[1]) < 0.05) hs.push({ y: snap(a[1]), x0: Math.min(a[0], b[0]), x1: Math.max(a[0], b[0]) });
+    else other.push([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
+  };
+  for (const s of t.shapes ?? []) {
+    if (s.kind === 'line') seg([s.x1, s.y1], [s.x2, s.y2]);
+    else if (s.kind === 'circle') other.push([s.cx, s.cy]);
+    else s.pts.forEach((a, i) => { const b = s.pts[i + 1] ?? (s.closed || s.fill ? s.pts[0] : undefined); if (b) seg(a, b); });
+  }
+  const pts = [...other, ...(t.texts ?? []).map((x): [number, number] => [x.x, x.y])];
+  const xs = [...new Set(vs.map((v) => v.x))].sort((a, b) => a - b), ys = [...new Set(hs.map((h) => h.y))].sort((a, b) => a - b);
+  const e = 0.3;
+  const empty = (x0: number, y0: number, x1: number, y1: number) =>
+    !vs.some((v) => v.x > x0 + e && v.x < x1 - e && v.y1 > y0 + e && v.y0 < y1 - e) && !hs.some((h) => h.y > y0 + e && h.y < y1 - e && h.x1 > x0 + e && h.x0 < x1 - e)
+    && !pts.some(([x, y]) => x > x0 + e && x < x1 - e && y > y0 + e && y < y1 - e);
+  let best: Border['area'] | undefined;
+  for (const x0 of xs) for (const x1 of xs) {
+    if (x1 - x0 < 0.4 * size.w) continue;
+    for (const y0 of ys) for (const y1 of ys) {
+      if (y1 - y0 < 0.4 * size.h || (best && (x1 - x0) * (y1 - y0) <= best.w * best.h)) continue;
+      if (empty(x0, y0, x1, y1)) best = { x: x0, y: y0, w: +(x1 - x0).toFixed(2), h: +(y1 - y0).toFixed(2) };
+    }
+  }
+  return best ?? { x: 20, y: 10, w: +(size.w - 30).toFixed(2), h: +(size.h - 20).toFixed(2) };
+}
+
+/** Revision rows a drawn template prints itself: {Rev1} {RevDate1} {RevText1} {RevBy1} … (1 = the newest issue). */
+export const REV_ROW_FIELDS = ['Rev', 'RevDate', 'RevText', 'RevBy'] as const;
+export const MAX_REV_ROWS = 12;
+const REV_ROW = /\{(Rev|RevDate|RevText|RevBy)(\d{1,2})\}/i;
+/** How many revision rows a drawn template holds (its highest {Rev<n>} tag); 0 = none, the sheet prints its own table. */
+export const revRowsIn = (t: TitleTemplate) => (t.texts ?? []).reduce((m, x) => { const n = Number(REV_ROW.exec(x.text)?.[2] ?? 0); return n > m ? n : m; }, 0);
+/** The values of the revision row fields from the issues, newest first; rows past the issues are blank. */
+export function revRowValues(history: { id: string; date: string; description: string; by?: string }[], rows = MAX_REV_ROWS): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (let i = 1; i <= Math.max(rows, history.length); i++) {
+    const r = history[i - 1];
+    out[`Rev${i}`] = r?.id ?? ''; out[`RevDate${i}`] = r?.date ?? ''; out[`RevText${i}`] = r?.description ?? ''; out[`RevBy${i}`] = r?.by ?? '';
+  }
+  return out;
+}
 
 let n = 0;
 const cell = (r: number, c: number, text: string, o: Partial<TbCell> = {}): TbCell => ({ id: `c${++n}`, r, c, kind: 'text', text, size: 8, ...o });
@@ -136,7 +207,7 @@ export const DRAWN_CHAR = 0.78;
 export const drawnTextValue = (x: DrawnText, p: Project, extra: Record<string, string>, list = paramList(p)) => fillParams(x.text, p, extra, list);
 /** A drawn template as SVG (mm), the company block's lines and texts with the project's values in its fields; a value
  * wider than its field (fit) is squeezed to it. Shared by the drawing sheets, the report pages and the designer's print. */
-export function drawnTitleBlockHtml(t: TitleTemplate, p: Project, extra: Record<string, string> = {}): string {
+export function drawnTitleBlockHtml(t: TitleTemplate, p: Project, extra: Record<string, string> = {}, bg = true): string {
   const { w, h } = templateSize(t);
   const list = paramList(p);
   const f = (v: number) => +v.toFixed(3);
@@ -155,7 +226,7 @@ export function drawnTitleBlockHtml(t: TitleTemplate, p: Project, extra: Record<
     const rot = x.rot ? ` transform="rotate(${f(-x.rot)} ${f(x.x)} ${f(x.y)})"` : '';
     return `<text x="${f(x.x)}" y="${f(x.y)}" font-size="${size}" text-anchor="${anchor}"${x.bold ? ' font-weight="700"' : ''}${fit}${rot}>${esc(value)}</text>`;
   });
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${f(w)}mm" height="${f(h)}mm" viewBox="0 0 ${f(w)} ${f(h)}" style="display:block;background:#fff" font-family="Arial, Helvetica, sans-serif" fill="#000">${shapes.join('')}${texts.join('')}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${f(w)}mm" height="${f(h)}mm" viewBox="0 0 ${f(w)} ${f(h)}" style="display:block${bg ? ';background:#fff' : ''}" font-family="Arial, Helvetica, sans-serif" fill="#000">${shapes.join('')}${texts.join('')}</svg>`;
 }
 
 // ---- Editing helpers -----------------------------------------------------------
