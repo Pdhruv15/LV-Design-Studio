@@ -1337,6 +1337,8 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .ribbon.cad-named .ribbon-stack .ribbon-split > button:first-child{padding-right:0}
 .ribbon.cad-named .ribbon-group .ribbon-stack .ribbon-split-arrow{width:10px;height:24px}
 .ribbon.cad-named .ribbon-group .ribbon-caption-more{width:auto;height:auto}
+/* Drafting: the small tools named as well (icon and name on one line). */
+.ribbon.cad-named.small-named .ribbon-group .ribbon-stack button{width:auto;padding:0 6px 0 4px;gap:5px;justify-content:flex-start;white-space:nowrap}
 /* Layers: the current layer list over two rows of tools. Properties: the colour, linetype and lineweight lists. A
    caption's ↘ shows the panel's palette. */
 .ribbon-block{display:flex;flex-direction:column;gap:2px}

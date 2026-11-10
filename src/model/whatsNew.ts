@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.072', date: '2026-11-10',
+    items: [
+      { title: 'Drafting ribbon: every tool named, more tools on it', text: 'Design CAD → Drafting now uses the whole row: the small tools show their names, and tools you could only type before have buttons: Polygon, Extend, Chamfer, Break, Join, Keynote, Text style and Dim style. Text ▾ has numbered text and the text tools (justify, height, align, case, frame, mask, copy words). Measure and view has Distance, Area, Room area, Inspect, Zoom extents and Drafting settings.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.068', date: '2026-11-10',
     items: [
       { title: 'Copy and paste drawn objects between drawings', text: 'Design CAD: pick drawn objects and press Ctrl+C (COPYCLIP), or Ctrl+Shift+C (COPYBASE) to click a base point first. Ctrl+V (PASTECLIP) brings them in another drawing tab or level, following the cursor to the point you click; PASTEORIG puts them at the same coordinates in another drawing, for a typical floor on the next level. Lengths are converted between mm and m drawings, a layer the drawing lacks is added with its colour, linetype and lineweight, and each paste is one undo step. Right-click → Clipboard ▸ has the same four. Trays and cable routes keep their data only in their own drawing; elsewhere they paste as polylines. Devices are not copied.', action: 'cad', actionLabel: 'Open Design CAD' }
