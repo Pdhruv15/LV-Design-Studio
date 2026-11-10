@@ -35,6 +35,7 @@ const ADDED: Record<string, string> = { ST: '!textStyle', STYLE: '!textStyle', D
   // The File menu and Drafting settings: SAVEAS / DXFOUT open Save As (they were Save DXF), OS opens the Object snap tab
   // (it toggled object snap, as OSNAP and F3 still do).
   SAVEAS: '!saveAs', DXFOUT: '!saveAs', QSAVE: '!save', CLOSEOTHERS: '!closeOthers', EXPORT: '!export', EXPORTPDF: '!exportPdf', PNGOUT: '!pngOut',
+  COPYCLIP: '!copyClip', COPYBASE: '!copyBase', PASTECLIP: '!pasteClip', PASTEORIG: '!pasteOrig',
   WBLOCK: '!wblock', W: '!wblock', PUBLISH: '!publish', DS: '!dsettings', DSETTINGS: '!dsettings', SE: '!dsettings', OS: '!osnapSettings',
   POLAR: '!polar', OTRACK: '!otrack', LWT: '!lwt', LWDISPLAY: '!lwt',
   // Linear, continued and baseline dimensions (DLI was the aligned one until then).

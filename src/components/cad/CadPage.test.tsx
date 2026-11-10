@@ -20,6 +20,7 @@ import { openTitleBlockInCad, TB_LAYERS } from '../../model/titleBlockCad';
 import type { TitleTemplate } from '../../model/titleBlock';
 import type { Project } from '../../types';
 import { DRAFT_DEFAULTS, type DraftSettings } from '../../model/cadDraft';
+import { clearClip } from './cadClipboardStore';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 // jsdom has no canvas drawing or resize observer: drawing is skipped, the page still works (the view is 800 × 500).
@@ -2513,5 +2514,74 @@ describe('title block drawing (Project → Title block → Edit in CAD)', () => 
     expect(saved.texts!.map((t) => t.text).sort()).toEqual(['ACME CONSULTANTS', '{Rev}', '{SheetNo}']);
     expect(saved.texts!.find((t) => t.text === '{SheetNo}')).toMatchObject({ tag: 'DWG_NO' });
     expect(saved.texts!.find((t) => t.text === '{Rev}')).toMatchObject({ x: 90, y: 14, h: 2.5 });
+  });
+});
+
+describe('clipboard of drawn objects', () => {
+  const GF = 'sample-villa-gf.dxf', X = 200000;
+  const start: Project = { ...villa, cadSketch: [{ file: GF, items: [
+    { id: 'S1', kind: 'line', layer: 'LV-SKETCH', pts: [[X, 0], [X + 4000, 0]] },
+    { id: 'S2', kind: 'circle', layer: 'E-POWER', pts: [[X + 2000, 1000]], r: 500 }
+  ] }], cadLayerStyle: { [GF]: { 'E-POWER': { color: '1', lw: 0.35 } } } };
+  const key = (k: string, mods: KeyboardEventInit = {}, on: Element = document.body) => act(() => { on.dispatchEvent(new KeyboardEvent('keydown', { key: k, ctrlKey: true, bubbles: true, cancelable: true, ...mods })); });
+  const said = () => state.history[state.history.length - 1];
+  const tabOf = (name: string) => [...document.querySelectorAll('.cad-tab')].find((t) => t.textContent?.includes(name))!.querySelector('[role="tab"]') as HTMLButtonElement;
+  beforeEach(() => clearClip());
+
+  it('Ctrl+C copies the drawn objects picked; Ctrl+V pastes them into another drawing in one change, with the layer and its style', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    await key('v');
+    expect(said()).toBe('PASTECLIP  Nothing copied yet: pick drawn objects and press Ctrl+C.');
+    await key('c');
+    expect(said()).not.toMatch(/COPYCLIP/); // nothing picked: the page's own text copy
+    await dragWindow([X - 600, -600], [X + 4600, 1600]);
+    await key('c');
+    expect(said()).toBe('COPYCLIP  2 objects copied');
+    await act(async () => { (document.querySelector('.cad-tab-add') as HTMLButtonElement).click(); });
+    await flush();
+    expect(state.view?.file).toBe('plan.dwg');
+    const calls = onChange.mock.calls.length;
+    await key('v');
+    expect(said()).toContain('PASTECLIP  Specify insertion point:');
+    const [x0, y0, x1, y1] = state.view!.info.extents;
+    await clickAt((x0 + x1) / 2, (y0 + y1) / 2);
+    expect(onChange.mock.calls.length).toBe(calls + 1);
+    expect(onChange.mock.calls[calls][1]).toMatch(/^PASTECLIP {2}2 objects pasted · layer E-POWER added · ⌘Z to undo$/);
+    const pasted = sketchOf(project, 'plan.dwg');
+    expect(pasted.map((x) => x.kind)).toEqual(['line', 'circle']);
+    expect(new Set([...sketchOf(project, GF), ...pasted].map((x) => x.id)).size).toBe(4);
+    expect(project.cadLayerStyle?.['plan.dwg']?.['E-POWER']).toEqual({ color: '1', lw: 0.35 });
+    // PASTEORIG: the same coordinates, here as it is another drawing; refused in the drawing they came from.
+    await command('pasteorig');
+    expect(sketchOf(project, 'plan.dwg')).toHaveLength(4);
+    await act(async () => { tabOf(GF).click(); });
+    await flush();
+    await command('pasteorig');
+    expect(said()).toBe('PASTEORIG  Not in the drawing the objects came from — use PASTECLIP.');
+    expect(sketchOf(project, GF)).toHaveLength(2);
+  });
+
+  it('Ctrl+Shift+C asks for the base point; Ctrl+V in the command line is the field\'s own', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    await dragWindow([X - 600, -600], [X + 4600, 1600]);
+    await key('C', { shiftKey: true });
+    expect(said()).toContain('COPYBASE  Specify base point:');
+    await clickAt(X, 0);
+    expect(state.history).toContain('COPYBASE  2 objects copied');
+    const input = document.querySelector('input[aria-label="Command"]')!;
+    await key('v', {}, input);
+    expect(state.tool).toBe('none');
+    await key('v');
+    expect(state.tool).toBe('paste');
+    const calls = onChange.mock.calls.length;
+    await clickAt(X + 10000, 5000);
+    expect(onChange.mock.calls.length).toBe(calls + 1);
+    const line = sketchOf(project, GF).filter((x) => x.kind === 'line')[1];
+    expect(line.pts[0][0]).toBeCloseTo(X + 10000, -1);
+    expect(line.pts[1][0] - line.pts[0][0]).toBeCloseTo(4000, 6);
   });
 });
