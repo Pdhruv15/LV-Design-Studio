@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.069', date: '2026-11-10',
+    items: [
+      { title: 'A logo area in a drawn title block', text: 'A title block imported from CAD or drawn in Design CAD can hold the project\'s logo: tick Logo area in Project → Title block and set the area, or place the {Logo} field from the Properties palette in Design CAD (a dashed rectangle; stretch it to size, TBSAVE keeps it). The logo (Project → Drawing) prints inside it, centred and in proportion; a rectangle on a layer named LOGO in an imported block becomes the area. DWG / DXF carry no image, so the block\'s LOGO attribute shows the company name there for the CAD team to put their logo over.' }
+    ]
+  },
+  {
     version: '2.068', date: '2026-11-10',
     items: [
       { title: 'Your company\'s whole sheet border', text: 'A title block imported from a DWG / DXF (or drawn in Design CAD) that is the size of a paper, A3 to A1, can be that paper\'s whole border: Project → Title block → Whole border, then Use on A3 sheets. Its sheets then print your frame, zone references and title strip in place of the app\'s, with the fields filled as before, and the drawing, legend column and notes inside the border\'s drawing area (found from its lines, shown dashed, movable in the designer or in Design CAD on TB-REF). Revision rows of its own fill from the issues through {Rev1} {RevDate1} {RevText1} {RevBy1} …, newest first; a border without them keeps the app\'s revision table in the column. Papers without a border keep the app\'s frame. DWG / DXF: one block with attributes at the paper\'s origin.' },

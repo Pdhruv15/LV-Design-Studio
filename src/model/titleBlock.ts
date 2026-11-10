@@ -53,7 +53,13 @@ export interface TitleTemplate {
   texts?: DrawnText[];
   /** A drawn template used as the whole border of its paper's sheets. */
   border?: Border;
+  /** The area the project's logo (Project → Drawing) prints in, centred and in proportion (mm, y down); one per block.
+   * DWG / DXF carry no image: the block's LOGO attribute shows the company name there instead. */
+  logo?: LogoArea;
 }
+export interface LogoArea { x: number; y: number; w: number; h: number }
+/** The field a text holds in Design CAD to mark the logo area (src/model/titleBlockCad.ts). */
+export const LOGO_FIELD = '{Logo}';
 export const isDrawn = (t: TitleTemplate) => t.kind === 'drawn';
 export const isBorder = (t: TitleTemplate): t is TitleTemplate & { border: Border } => isDrawn(t) && !!t.border;
 
@@ -226,7 +232,8 @@ export function drawnTitleBlockHtml(t: TitleTemplate, p: Project, extra: Record<
     const rot = x.rot ? ` transform="rotate(${f(-x.rot)} ${f(x.x)} ${f(x.y)})"` : '';
     return `<text x="${f(x.x)}" y="${f(x.y)}" font-size="${size}" text-anchor="${anchor}"${x.bold ? ' font-weight="700"' : ''}${fit}${rot}>${esc(value)}</text>`;
   });
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${f(w)}mm" height="${f(h)}mm" viewBox="0 0 ${f(w)} ${f(h)}" style="display:block${bg ? ';background:#fff' : ''}" font-family="Arial, Helvetica, sans-serif" fill="#000">${shapes.join('')}${texts.join('')}</svg>`;
+  const lg = t.logo, logo = lg && isRasterDataUrl(p.drawing?.logo) ? `<image href="${esc(p.drawing!.logo!)}" x="${f(lg.x)}" y="${f(lg.y)}" width="${f(lg.w)}" height="${f(lg.h)}" preserveAspectRatio="xMidYMid meet"/>` : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${f(w)}mm" height="${f(h)}mm" viewBox="0 0 ${f(w)} ${f(h)}" style="display:block${bg ? ';background:#fff' : ''}" font-family="Arial, Helvetica, sans-serif" fill="#000">${shapes.join('')}${texts.join('')}${logo}</svg>`;
 }
 
 // ---- Editing helpers -----------------------------------------------------------

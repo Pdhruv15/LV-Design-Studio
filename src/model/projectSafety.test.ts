@@ -81,5 +81,7 @@ describe('project files are safe to open', () => {
     refused({ ...sampleProject, titleTemplates: bordered({ paper: 'B1', area: { x: 20, y: 10, w: 335, h: 277 } }) });
     refused({ ...sampleProject, titleTemplates: bordered({ paper: 'A3', area: { x: 20, y: 10, w: '335', h: 277 } }) });
     refused({ ...sampleProject, titleTemplates: bordered('A3') });
+    expect(() => checkProjectShape({ ...sampleProject, titleTemplates: [{ ...drawn({})[0], logo: { x: 2, y: 2, w: 40, h: 12 } }] })).not.toThrow();
+    refused({ ...sampleProject, titleTemplates: [{ ...drawn({})[0], logo: { x: 2, y: 2, w: '40', h: 12 } }] });
   });
 });

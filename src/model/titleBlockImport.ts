@@ -1,6 +1,6 @@
 import type { CadPiece } from './cadCrop';
 import { CAD_UNITS } from './cadUnits';
-import { detectArea, MAX_REV_ROWS, paperOf, type DrawnShape, type DrawnText, type TitleTemplate } from './titleBlock';
+import { detectArea, MAX_REV_ROWS, paperOf, type DrawnShape, type DrawnText, type LogoArea, type TitleTemplate } from './titleBlock';
 
 /** A company title block or sheet border read from a DWG / DXF by the Design CAD engine, as a drawn template: its lines
  * and texts in mm from its top left corner, its attribute texts as fields mapped to the project's parameters. */
@@ -77,9 +77,10 @@ export function drawnFromPieces(pieces: CadPiece[], units: number | undefined, n
   };
   type Raw = { kind: 'line'; pts: [number, number][] } | { kind: 'poly'; pts: [number, number][]; closed?: boolean; fill?: boolean } | { kind: 'circle'; c: [number, number]; r: number };
   const raws: Raw[] = [], rawTexts: { at: [number, number]; h: number; rot: number; s: string; align: DrawnText['align']; tag?: string }[] = [];
+  let logoPts: [number, number][] | undefined; // a closed rectangle on a layer named LOGO: the logo area (its lines stay)
   for (const p of pieces) {
     if (p.kind === 'line') raws.push({ kind: 'line', pts: [p.a, p.b] });
-    else if (p.kind === 'pline') raws.push({ kind: 'poly', pts: p.pts.map(([x, y]) => [x, y]), closed: p.closed });
+    else if (p.kind === 'pline') { raws.push({ kind: 'poly', pts: p.pts.map(([x, y]) => [x, y]), closed: p.closed }); if (!logoPts && p.closed && p.pts.length >= 4 && /LOGO/i.test(p.layer)) logoPts = p.pts.map(([x, y]) => [x, y]); }
     else if (p.kind === 'arc') raws.push({ kind: 'poly', pts: arcPts(p.c, p.r, p.a0, p.a1) });
     else if (p.kind === 'circle') raws.push({ kind: 'circle', c: p.c, r: p.r });
     else if (p.kind === 'solid') raws.push({ kind: 'poly', pts: p.pts, closed: true, fill: true });
@@ -94,7 +95,8 @@ export function drawnFromPieces(pieces: CadPiece[], units: number | undefined, n
     : r.kind === 'circle' ? { kind: 'circle', cx: X(r.c[0]), cy: Y(r.c[1]), r: +(r.r * s).toFixed(3) }
     : { kind: 'poly', pts: r.pts.map(([x, y]) => [X(x), Y(y)] as [number, number]), ...(r.closed ? { closed: true } : {}), ...(r.fill ? { fill: true } : {}) });
   const texts = rawTexts.map((t, i) => textOf(i, X(t.at[0]), Y(t.at[1]), t.h * s, t.rot, t.align, t.s, t.tag));
-  return finish(name, { w: +((box.maxX - box.minX) * s).toFixed(2), h: +((box.maxY - box.minY) * s).toFixed(2) }, shapes, texts);
+  const logo = logoPts ? (() => { const xs = logoPts.map((q) => X(q[0])), ys = logoPts.map((q) => Y(q[1])); return { x: Math.min(...xs), y: Math.min(...ys), w: +(Math.max(...xs) - Math.min(...xs)).toFixed(2), h: +(Math.max(...ys) - Math.min(...ys)).toFixed(2) }; })() : undefined;
+  return finish(name, { w: +((box.maxX - box.minX) * s).toFixed(2), h: +((box.maxY - box.minY) * s).toFixed(2) }, shapes, texts, logo);
 }
 
 /** A drawn text from the drawing's: an attribute (tag) or a placeholder becomes a field when its name is known. */
@@ -106,10 +108,10 @@ function textOf(i: number, x: number, y: number, h: number, rotRad: number, alig
 }
 
 /** A drawing the size of a paper (within 2 mm) is taken as that paper's whole border, with its drawing area found. */
-function finish(name: string, size: { w: number; h: number }, shapes: DrawnShape[], texts: DrawnText[]): TitleTemplate {
+function finish(name: string, size: { w: number; h: number }, shapes: DrawnShape[], texts: DrawnText[], logo?: LogoArea): TitleTemplate {
   if (!(size.w > 0 && size.h > 0)) throw new Error('The title block has no size.');
   const paper = paperOf(size);
-  return { id: `tb-${Date.now().toString(36)}`, name, kind: 'drawn', cols: [], rows: [], cells: [], size, shapes, texts: fitTexts(shapes, texts, size.w), ...(paper ? { border: { paper, area: detectArea({ shapes, texts }, size) } } : {}) };
+  return { id: `tb-${Date.now().toString(36)}`, name, kind: 'drawn', cols: [], rows: [], cells: [], size, shapes, texts: fitTexts(shapes, texts, size.w), ...(paper ? { border: { paper, area: detectArea({ shapes, texts }, size) } } : {}), ...(logo && logo.w > 0 && logo.h > 0 ? { logo } : {}) };
 }
 
 /** The width a field may take: up to the block's next vertical line (a cell edge) on the side the text grows towards,

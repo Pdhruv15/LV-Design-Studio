@@ -46,12 +46,13 @@ describe('title block in Design CAD', () => {
     expect(sketchOf(g.project, g.file).length).toBeGreaterThan(20);
   });
 
-  it('a grid template becomes lines (each edge once) and texts; a logo cell the word LOGO; captions small', () => {
+  it('a grid template becomes lines (each edge once) and texts; a logo cell the logo area; captions small', () => {
     const t = gridToDrawn(standardTemplate());
     const lines = t.shapes!.filter((s) => s.kind === 'line');
     const keys = new Set(lines.map((s) => JSON.stringify(s)));
     expect(keys.size).toBe(lines.length); // no edge twice
-    expect(t.texts!.some((x) => x.text === 'LOGO')).toBe(true);
+    expect(t.texts!.some((x) => x.text === 'LOGO')).toBe(false);
+    expect(t.logo).toEqual({ x: 1.2, y: 0.6, w: 42.6, h: 10.8 }); // the first cell (45 × 12 mm) less its padding
     expect(t.texts!.find((x) => x.text === 'COMPANY / CONSULTANT')).toMatchObject({ h: 1.4 });
     expect(t.texts!.find((x) => x.text === '{Company}')).toMatchObject({ h: +(9 * 0.254).toFixed(2) });
     expect(t.texts!.find((x) => x.text === '{DrawingNo}')!.fit).toBeGreaterThan(30);
@@ -93,6 +94,25 @@ describe('title block in Design CAD', () => {
     expect(drawnFromSketch(items.filter((it) => it.id !== ref.id), border).border?.area).toEqual({ x: 20, y: 10, w: 335, h: 277 });
     const s = saveTitleBlockFromCad({ ...r.project, titleTemplates: [border] }, r.file);
     expect(s.message).toContain('whole border of A3, drawing area 335 × 277 mm');
+  });
+
+  it('the logo area: a dashed rectangle with the {Logo} field at its centre; back as the rectangle round the field', () => {
+    const withLogo: TitleTemplate = { ...drawn, logo: { x: 4, y: 4, w: 40, h: 12 } };
+    const items = tbSketchItems(withLogo, 1);
+    const rect = items[items.length - 2], field = items[items.length - 1];
+    expect(rect).toMatchObject({ kind: 'pline', layer: TB_LAYERS.field, closed: true, lt: 'dashed', pts: [[214, 28], [254, 28], [254, 40], [214, 40]] }); // 210 + 4, 44 − 16
+    expect(field).toMatchObject({ kind: 'text', layer: TB_LAYERS.field, text: '{Logo}', just: 'MC', pts: [[234, 34]], h: 2.5 });
+    // Stretched to 50 × 14: the area follows; neither the rectangle nor the field is saved as a line or text.
+    const stretched = items.map((it) => (it === rect ? { ...it, pts: [[214, 26], [264, 26], [264, 40], [214, 40]] as [number, number][] } : it));
+    const back = drawnFromSketch(stretched, withLogo);
+    expect(back.logo).toEqual({ x: 4, y: 4, w: 50, h: 14 });
+    expect(back.shapes).toHaveLength(drawn.shapes!.length);
+    expect(back.texts!.some((x) => x.text === '{Logo}')).toBe(false);
+    // Only the field, no rectangle: the standard box about it. No field: no area.
+    expect(drawnFromSketch(items.filter((it) => it !== rect), withLogo).logo).toEqual({ x: 4, y: 4, w: 40, h: 12 });
+    expect(drawnFromSketch(items.filter((it) => it !== rect && it !== field), withLogo).logo).toBeUndefined();
+    const r = openTitleBlockInCad(sampleProject, withLogo);
+    expect(saveTitleBlockFromCad({ ...r.project, titleTemplates: [withLogo] }, r.file).message).toContain('logo area 40 × 12 mm');
   });
 
   it('saves the drawing into its template and says what it saved; refuses another drawing', () => {

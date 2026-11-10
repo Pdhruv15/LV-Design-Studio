@@ -63,7 +63,8 @@ import { annoOf, centreOf, hatchItem, hatchOutline, HATCH_START, leaderItems, no
 import { alignedTo, alignEdge, cased, centredAt, ISO_TEXT_MM, justLabel, keynoteItems, legendNext, nextKeynote, numberText, oriented, padOf, parseFrame, parseJust, rejustified, spaced, untaggedRooms, withTextHeight, type AlignMode, type CaseMode, type OrientMode } from '../../model/cadText';
 import { LayerPalette, layerRows, type LayerRow } from './CadLayerManager';
 import { PropertiesPalette } from './CadProperties';
-import { isTbFile, saveTitleBlockFromCad, TB_FIELDS, TB_LAYERS, tbIdOf } from '../../model/titleBlockCad';
+import { isTbFile, LOGO_BOX, logoItems, saveTitleBlockFromCad, TB_FIELDS, TB_LAYERS, tbIdOf } from '../../model/titleBlockCad';
+import { LOGO_FIELD } from '../../model/titleBlock';
 import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
 import { refGeometry, type CadRef } from '../../model/cadRefs';
 import { drawnLayers, effective, layerStylesOf, LINETYPES, matchedProps, styleOf, withProps, type ObjectProps } from '../../model/cadLayerStyle';
@@ -1436,7 +1437,16 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     if (tool === 'text') {
       // A title block field from the Properties palette: placed as it is.
-      if (cad.textPreset) { const pre = cad.textPreset; draw({ kind: 'text', layer: pre.layer, pts: [at], text: pre.text, h: pre.h }, `Field ${pre.text}`); cad.setTextPreset(null); cad.say(PROMPT.text); return; }
+      if (cad.textPreset) {
+        const pre = cad.textPreset;
+        if (pre.text === LOGO_FIELD && view) {
+          // The logo area: a dashed rectangle about the point with the field at its centre; stretch it to size.
+          let next = project;
+          for (const it of logoItems({ x: at[0] - LOGO_BOX.w / 2, y: at[1] - LOGO_BOX.h / 2, w: LOGO_BOX.w, h: LOGO_BOX.h }, () => '')) next = addSketch(next, view.file, { ...it, layer: pre.layer }).project;
+          change(next, 'Logo area · stretch the rectangle to size · ⌘Z to undo');
+        } else draw({ kind: 'text', layer: pre.layer, pts: [at], text: pre.text, h: pre.h }, `Field ${pre.text}`);
+        cad.setTextPreset(null); cad.say(PROMPT.text); return;
+      }
       // The current text style's height, else (0) asked each time from the annotation text height.
       const style = currentTextStyle(project);
       cad.setTextAt(at);
