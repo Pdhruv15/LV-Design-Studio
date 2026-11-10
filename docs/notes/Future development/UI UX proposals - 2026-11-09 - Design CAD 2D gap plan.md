@@ -2,7 +2,28 @@
 
 Status: **approved by the user on 2026-11-09** as the UI/UX spec for the next Design CAD 2D drafting features. Each
 section is built in its own branch and PR, in the order of "CLAUDE-CODE-STEPS - Design CAD 2D.md" (Step N builds SN).
-Anything not written here stays as it is today.
+Anything not written here stays as it is today. **Built:** S1 (v2.068, `feat/cad-clipboard`); S2, S3 and S4 together
+(v2.072, `feat/cad-gap-steps-1-4`, at the user's "go ahead" on 2026-11-10) — see the end of this note.
+
+## Built in v2.072 (S2, S3, S4)
+
+- **S2** `src/model/cadView.ts` (window, scale, the history of 20, tested), `src/components/cad/cadViewHistory.ts`
+  (per drawing, remembered by the canvas 400 ms after the view rests), `CadCanvas.tsx` (`zoom` request, `onZoomMenu`),
+  `ZoomChip` in `drawingView.tsx` (the ▾ and right-click menu, Design CAD only), `CadPage.tsx` (Z / ZOOM with its
+  options, Z W with two clicks or a dragged box, Z P, Z S, the right-click entries). On a layout ZOOM says that the
+  paper fits the pane and the viewports keep their scale (the spec's "paper view" has no zoom of its own today).
+- **S3** `src/model/cadQuickSelect.ts` (the filter and Select similar, tested), `CadQuickSelect.tsx` (the dialog in
+  the CAD dialog frame, with the count of objects found beside OK), Modify ▾ overflow entry, QS / QSELECT and
+  SELECTSIMILAR, Select similar and Quick select… on the right-click menu of a selection. SELECTSIMILAR's `Settings`
+  (left open in the spec) asks `Also match [Colour/Linetype/Both/None] <None>` and keeps the answer for the session.
+  Devices are not selected by either (v1, as the step says); only pickable drawn objects (unlocked, shown layers).
+- **S4** `dimKind` on a drawn dimension (`src/types.ts`), `radialDimLines`, `angularDimLines`, `angularArc` and
+  `dimAngle` in `src/model/cadSketch.ts` (tested in `cadRadialDims.test.ts`), the picks in `src/model/cadDims.ts`
+  (the architect's circles, arcs and lines come as segments), Dimension ▾ entries, DRA / DDI / DAN. Properties shows
+  the measure (degrees for an angle) and the text override. **Saved as drawn** — lines, an arc and the text, as the
+  linear dimensions are today — not as native DIMENSION entities: that waits on the decision in
+  [[CAD dimension styles - DWG import and DXF export - 2026-11-08]] (write DIMENSION entities with their DIMSTYLE for
+  every dimension at once).
 
 This spec builds on the proposals below and points to them instead of repeating them:
 

@@ -9,11 +9,12 @@ type Pt = [number, number];
  * what links to it (schedules, fittings, circuits by feeder) stays. Several objects take the same value each. */
 
 /** The kind a value belongs to: the Geometry section shows when all the objects are of one of these. */
-export type GeomKind = 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'cloud' | 'tray' | 'cable' | 'text' | 'dim';
-export const geomKind = (it: SketchItem): GeomKind => (it.tray ? 'tray' : it.cable ? 'cable' : it.cloud ? 'cloud' : it.kind);
+export type GeomKind = 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'cloud' | 'tray' | 'cable' | 'text' | 'dim' | 'dimang';
+export const geomKind = (it: SketchItem): GeomKind => (it.tray ? 'tray' : it.cable ? 'cable' : it.cloud ? 'cloud' : it.dimKind === 'angular' ? 'dimang' : it.kind);
 /** What an object is, as the palette and the toolbar beside it name it. */
 export const kindLabel = (it: SketchItem) => (it.tray ? 'Cable tray' : it.cable ? 'Cable route' : it.cloud ? 'Revision cloud'
-  : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', ellipse: 'Ellipse', text: 'Text', dim: 'Dimension' }[it.kind]);
+  : it.kind === 'dim' ? (it.dimKind ? { radius: 'Radius dimension', diameter: 'Diameter dimension', angular: 'Angular dimension' }[it.dimKind] : 'Dimension')
+  : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', ellipse: 'Ellipse', text: 'Text' }[it.kind]);
 
 export type PropKey = 'sx' | 'sy' | 'ex' | 'ey' | 'len' | 'ang' | 'cx' | 'cy' | 'r' | 'a0' | 'a1' | 'rx' | 'ry' | 'arc' | 'vx' | 'vy' | 'closed' | 'width' | 'service'
   | 'text' | 'h' | 'rot' | 'just' | 'frame' | 'mask' | 'measured' | 'override';
@@ -43,6 +44,7 @@ export function geometryRows(kind: GeomKind, items: SketchItem[]): PropDef[] {
 export function textRows(kind: GeomKind): PropDef[] {
   if (kind === 'text') return [T('text', 'Contents'), L('h', 'Height'), A('rot', 'Rotation'), T('just', 'Justify'), T('frame', 'Frame'), T('mask', 'Mask')];
   if (kind === 'dim') return [L('measured', 'Measured', { ro: true }), T('override', 'Text override'), L('h', 'Text height')];
+  if (kind === 'dimang') return [A('measured', 'Measured', { ro: true }), T('override', 'Text override'), L('h', 'Text height')];
   return [];
 }
 
@@ -81,7 +83,7 @@ export function propValue(it: SketchItem, key: PropKey, k: number, v = 0): numbe
     case 'text': return it.text ?? '';
     case 'h': return it.h !== undefined ? it.h * k : undefined;
     case 'rot': return deg(it.rot ?? 0);
-    case 'measured': return measuredOf(it) * k;
+    case 'measured': return it.dimKind === 'angular' ? measuredOf(it) : measuredOf(it) * k;
     // A dimension of a style has text only when typed over; one drawn before styles keeps its length as its text.
     case 'override': return it.look ? it.text ?? '' : it.text !== undefined && it.text !== (measuredOf(it) * k).toFixed(2) ? it.text : '';
   }
@@ -148,8 +150,9 @@ export function withProp(it: SketchItem, key: PropKey, value: number | string, k
       if (it.kind !== 'dim') return undefined;
       const t = String(value).trim();
       if (t) return { ...it, text: t };
-      // Blank: one of a style is measured again in its unit and decimals; one drawn before styles gets its length.
-      if (it.look) { const { text: _t, ...rest } = it; return rest; }
+      // Blank: one of a style (or a radius, diameter or angle) is measured again in its unit and decimals; one drawn
+      // before styles gets its length.
+      if (it.look || it.dimKind) { const { text: _t, ...rest } = it; return rest; }
       return { ...it, text: (measuredOf(it) * k).toFixed(2) };
     }
     default: return undefined;

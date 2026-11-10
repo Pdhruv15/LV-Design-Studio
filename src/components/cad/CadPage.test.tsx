@@ -1951,7 +1951,7 @@ describe('CAD command line', () => {
     await command('');
     expect(state.tool).toBe('none');
     await right(X + 20000, 20000);
-    expect(menu().map((b) => b.textContent)).toEqual(['Repeat FILLET', 'GRID']);
+    expect(menu().map((b) => b.textContent)).toEqual(['Repeat FILLET', 'GRID', 'Zoom window (Z W)', 'Zoom previous (Z P)', 'Zoom extents (ZE)']);
     await act(async () => { (menu()[0] as HTMLButtonElement).click(); });
     expect(state.tool).toBe('fillet');
   });
@@ -2583,5 +2583,182 @@ describe('clipboard of drawn objects', () => {
     const line = sketchOf(project, GF).filter((x) => x.kind === 'line')[1];
     expect(line.pts[0][0]).toBeCloseTo(X + 10000, -1);
     expect(line.pts[1][0] - line.pts[0][0]).toBeCloseTo(4000, 6);
+  });
+});
+
+describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', () => {
+  const last = () => state.history[state.history.length - 1];
+  const rest = () => act(async () => { await new Promise((r) => setTimeout(r, 450)); });
+  const chip = () => document.querySelector('.zoom-chip')!.textContent;
+  const setSelect = (label: string, value: string) => act(() => {
+    const el = document.querySelector(`[aria-label="${label}"]`) as HTMLSelectElement;
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(el, value);
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  const X = 200000, F = 'sample-villa-gf.dxf';
+
+  it('ZOOM Window, Scale and Previous move the view; the zoom chip shows the zoom and opens the menu', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    expect(chip()).toBe('100 %');
+    await rest(); // the fitted view goes into the history once it rests
+    await command('z');
+    expect(last()).toContain('ZOOM  [Window/Previous/Scale/Extents] <Window>:');
+    await command('w');
+    expect(last()).toContain('ZOOM  First corner:');
+    const [x0, y0, x1, y1] = state.view!.info.extents, w = x1 - x0, h = y1 - y0;
+    await command(`${x0 + w / 4},${y0 + h / 4}`);
+    expect(last()).toContain('ZOOM  Opposite corner:');
+    await command(`${x0 + w / 2},${y0 + h / 2}`);
+    // A quarter of the drawing fills the view: 4 × the fit (which keeps a 0.92 margin).
+    await until(() => chip() === '435 %');
+    expect(state.tool).toBe('none');
+    await rest();
+    await command('z s');
+    expect(last()).toContain('ZOOM  Scale factor (2, 0.5 or 2x):');
+    await command('abc');
+    expect(last()).toContain('A factor such as');
+    await command('2x');
+    await until(() => chip() === '870 %');
+    await rest();
+    await command('zoom scale');
+    await command('2'); // of the whole drawing
+    await until(() => chip() === '200 %');
+    await rest();
+    await command('z p');
+    await until(() => chip() === '870 %');
+    await rest();
+    // The chip's menu: ▾ opens it, Previous steps back again.
+    act(() => (document.querySelector('[aria-label="Zoom menu"]') as HTMLButtonElement).click());
+    expect([...document.querySelectorAll('.zoom-chip-menu [role="menuitem"]')].map((b) => b.textContent)).toEqual(['WindowZ W', 'PreviousZ P', 'Scale…Z S', 'ExtentsZE']);
+    act(() => (document.querySelector('.zoom-chip-menu [role="menuitem"]:nth-child(2)') as HTMLButtonElement).click());
+    await until(() => chip() === '435 %');
+    await rest();
+    await command('z p');
+    await until(() => chip() === '100 %');
+    await rest();
+    await command('z p');
+    expect(last()).toContain('ZOOM  No previous view');
+    // A window dragged: the same.
+    await command('z w');
+    await dragWindow([x0 + w / 4, y0 + h / 4], [x0 + w / 2, y0 + h / 2]);
+    await until(() => chip() === '435 %');
+  });
+
+  it('QSELECT picks drawn objects by kind, layer and a measure through its dialog; SELECTSIMILAR those like the ones picked', async () => {
+    const start: Project = { ...villa, cadSketch: [{ file: F, items: [
+      { id: 'S1', kind: 'line', layer: 'LV-SKETCH', pts: [[X, 0], [X + 1000, 0]] },
+      { id: 'S2', kind: 'line', layer: 'LV-SKETCH', pts: [[X, 500], [X + 2000, 500]] },
+      { id: 'S3', kind: 'line', layer: 'LV-ANNO', pts: [[X, 1000], [X + 1000, 1000]] },
+      { id: 'C1', kind: 'circle', layer: 'LV-SKETCH', pts: [[X + 5000, 0]], r: 300 },
+      { id: 'T1', kind: 'text', layer: 'LV-ANNO', pts: [[X, 3000]], text: 'DB-1', h: 250 }
+    ] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    await command('qs');
+    await until(() => !!document.querySelector('[aria-label="Quick select"]'));
+    expect([...document.querySelectorAll('[aria-label="Object type"] option')].map((o) => o.textContent)).toEqual(['Multiple (5)', 'Line (3)', 'Circle (1)', 'Text (1)']);
+    setSelect('Object type', 'Line');
+    expect([...document.querySelectorAll('[aria-label="Property"] option')].map((o) => o.textContent)).toEqual(['Layer', 'Colour', 'Linetype', 'Lineweight', 'Start X', 'Start Y', 'End X', 'End Y', 'Length', 'Angle']);
+    expect([...document.querySelectorAll('[aria-label="Value"] option')].map((o) => o.textContent)).toEqual(['LV-ANNO', 'LV-SKETCH']);
+    setSelect('Value', 'LV-SKETCH');
+    expect(document.querySelector('.cad-dlg-ft .m')!.textContent).toBe('2 objects');
+    act(() => button('OK').click());
+    expect(last()).toBe('QSELECT  2 objects selected');
+    await until(() => document.querySelector('.cad-ctx-what')?.textContent === '2 selected');
+    // Lines longer than 1.5 m: the one of 2 m.
+    await command('qselect');
+    await until(() => !!document.querySelector('[aria-label="Quick select"]'));
+    setSelect('Object type', 'Line'); setSelect('Property', 'len'); setSelect('Operator', '>');
+    await act(async () => {
+      const el = document.querySelector('[aria-label="Value"]') as HTMLInputElement;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, '1.5'); el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(document.querySelector('.cad-dlg-ft .m')!.textContent).toBe('1 object');
+    act(() => button('OK').click());
+    expect(last()).toBe('QSELECT  1 object selected');
+    expect(state.selected).toBe('sk:S2');
+    // SELECTSIMILAR with S1 picked: every line on LV-SKETCH.
+    act(() => state.setSelected(null));
+    await clickAt(X + 500, 0);
+    expect(state.selected).toBe('sk:S1');
+    await command('selectsimilar');
+    expect(state.history.slice(-3)).toContain('SELECTSIMILAR  2 objects selected');
+    expect(state.tool).toBe('none');
+    expect(document.querySelector('.cad-ctx-what')?.textContent).toBe('2 selected');
+    // With nothing picked: it asks, S sets what else to match, a click picks the pattern, Enter selects.
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); }); // clears the picks
+    await command('selectsimilar');
+    expect(last()).toContain('SELECTSIMILAR  Select objects or [Settings]:');
+    await command('s');
+    expect(last()).toContain('Also match [Colour/Linetype/Both/None] <None>:');
+    await command('c');
+    await clickAt(X + 500, 1000);
+    expect(last()).toContain('SEL  1 object selected — Enter when done');
+    await command('');
+    expect(state.history.slice(-3)).toContain('SELECTSIMILAR  1 object selected');
+    expect(state.selected).toBe('sk:S3');
+  });
+
+  it('DIMRADIUS, DIMDIAMETER and DIMANGULAR draw dimensions from a circle, two lines, or a vertex and two points', async () => {
+    const start: Project = { ...villa, cadSketch: [{ file: F, items: [
+      { id: 'C1', kind: 'circle', layer: 'LV-SKETCH', pts: [[X, 0]], r: 500 },
+      { id: 'L1', kind: 'line', layer: 'LV-SKETCH', pts: [[X + 5000, 0], [X + 7000, 0]] },
+      { id: 'L2', kind: 'line', layer: 'LV-SKETCH', pts: [[X + 5000, 0], [X + 5000, 2000]] }
+    ] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const dims = () => project.cadSketch![0].items.filter((it) => it.kind === 'dim');
+    await command('dra');
+    expect(last()).toContain('DIMRADIUS  Select arc or circle:');
+    await command(`${X + 2000},2000`);
+    expect(last()).toContain('No arc or circle there');
+    await command(`${X + 500},0`);
+    expect(last()).toContain('DIMRADIUS  Dimension line location:');
+    await command(`${X + 200},0`);
+    expect(dims().length).toBe(1);
+    const r = dims()[0];
+    expect(r.dimKind).toBe('radius');
+    expect(r.pts.map((q) => q.map(Math.round))).toEqual([[X, 0], [X + 500, 0], [X + 200, 0]]);
+    expect(dimLabel(r, 0.001).startsWith('R')).toBe(true);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe(`Radius dimension ${dimLabel(r, 0.001)} · ⌘Z to undo`);
+    expect(last()).toContain('DIMRADIUS  Select arc or circle:'); // ready for the next
+    await command('ddi');
+    await command(`${X},500`);
+    await command(`${X},900`);
+    const d = dims()[1];
+    expect(d.dimKind).toBe('diameter');
+    expect(dimMeasure(d)).toBeCloseTo(1000, 6);
+    expect(dimLabel(d, 0.001).startsWith('Ø')).toBe(true);
+    // Two lines: the vertex where they cross, the angle towards the ends clicked, the arc inside the corner.
+    await command('dan');
+    expect(last()).toContain('DIMANGULAR  Select arc, circle, line or <specify vertex>:');
+    await command(`${X + 6000},0`);
+    expect(last()).toContain('DIMANGULAR  Select second line:');
+    await command(`${X + 5000},1000`);
+    expect(last()).toContain('DIMANGULAR  Dimension arc line location:');
+    await command(`${X + 5500},500`);
+    const a = dims()[2];
+    expect(a.dimKind).toBe('angular');
+    expect(a.pts.map((q) => q.map(Math.round))).toEqual([[X + 5000, 0], [X + 7000, 0], [X + 5000, 2000], [X + 5500, 500]]);
+    expect(dimMeasure(a)).toBeCloseTo(90, 6);
+    expect(dimLabel(a, 0.001).endsWith('°')).toBe(true);
+    // Enter: a vertex and two points; the arc placed on the far side measures the reflex angle.
+    await command('');
+    expect(last()).toContain('DIMANGULAR  Specify angle vertex:');
+    await command(`${X + 9000},0`);
+    expect(last()).toContain('Specify first angle endpoint:');
+    await command(`${X + 10000},0`);
+    expect(last()).toContain('Specify second angle endpoint:');
+    await command(`${X + 9000},1000`);
+    expect(last()).toContain('Dimension arc line location:');
+    await command(`${X + 8500},500`);
+    expect(dimMeasure(dims()[3])).toBeCloseTo(270, 6);
+    // DCO goes on from the last linear dimension, not from these.
+    await command('dco');
+    await command(`${X + 12000},0`);
+    expect(last()).toContain('No dimension on this drawing to go on from');
   });
 });

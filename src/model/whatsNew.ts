@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.072', date: '2026-11-10',
+    items: [
+      { title: 'Zoom Window, Previous and Scale in Design CAD', text: 'Z (ZOOM) asks Window, Previous, Scale or Extents. Z W: two corners (or drag a box) fill the view. Z P steps back through the last 20 views of the drawing, a wheel zoom or pan counting once it rests. Z S: a factor — 2 or 0.5 of the whole drawing, 2x of the view now. The zoom chip at the bottom right has a ▾ (or a right-click) with the same four, and a right-click on the drawing with nothing picked offers Zoom window, previous and extents.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Quick select and Select similar', text: 'QS (QSELECT, also under Modify ▾) opens a dialog: apply to the whole drawing or the selection, the kind of object, a property (layer, colour, linetype, lineweight, or the geometry and text of that kind), how its value compares (=, ≠, >, <, * wildcards, or all of the kind), include or exclude, and add to the current selection; it says how many it found before OK. SELECTSIMILAR (also on the right-click menu of a selection) picks every drawn object of the same kind and layer as those picked — a tray its width and service, a cable route its feeder; S adds colour or linetype to what must match.' },
+      { title: 'Radius, diameter and angular dimensions', text: 'Annotate → Dimension ▾ gains Radius (DRA), Diameter (DDI) and Angular (DAN), in the current dimension style. DRA and DDI: click an arc or circle (drawn, or the architect\'s), then where the text goes: R1.25, Ø2.50 along the radius, the line running out to the text when it lies outside. DAN: two lines (the angle at their crossing, towards the ends clicked), an arc, or Enter for a vertex and two points, then where the arc goes — the side you click sets which angle, 90° or 270°, with the style\'s decimals. They move, turn, mirror and grip like other dimensions, show their measure in Properties, print on the sheets and save to DXF / DWG.' }
+    ]
+  },
+  {
     version: '2.068', date: '2026-11-10',
     items: [
       { title: 'Copy and paste drawn objects between drawings', text: 'Design CAD: pick drawn objects and press Ctrl+C (COPYCLIP), or Ctrl+Shift+C (COPYBASE) to click a base point first. Ctrl+V (PASTECLIP) brings them in another drawing tab or level, following the cursor to the point you click; PASTEORIG puts them at the same coordinates in another drawing, for a typical floor on the next level. Lengths are converted between mm and m drawings, a layer the drawing lacks is added with its colour, linetype and lineweight, and each paste is one undo step. Right-click → Clipboard ▸ has the same four. Trays and cable routes keep their data only in their own drawing; elsewhere they paste as polylines. Devices are not copied.', action: 'cad', actionLabel: 'Open Design CAD' }

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /** One set of view controls for every drawing (the SLD, Design CAD, Design CAD → Sheets): what a wheel turn, a key or
  * a mouse button does to the view. Each drawing applies it to its own view (SVG viewBox, canvas transform, paper zoom
@@ -71,7 +71,27 @@ export function useSpaceHeld() {
 }
 
 /** The zoom of a drawing in its bottom-right corner (100 % = the whole drawing in view); a click fits it. */
-export function ZoomChip({ pct, onFit }: { pct: number; onFit: () => void }) {
+export type ZoomMenuKey = 'window' | 'previous' | 'scale' | 'extents';
+const ZOOM_MENU: { k: ZoomMenuKey; label: string; key: string }[] = [
+  { k: 'window', label: 'Window', key: 'Z W' }, { k: 'previous', label: 'Previous', key: 'Z P' }, { k: 'scale', label: 'Scale…', key: 'Z S' }, { k: 'extents', label: 'Extents', key: 'ZE' }
+];
+/** The zoom chip: a click fits. With `onZoom` (Design CAD, S2 of the 2D gap plan) its small ▾, or a right-click on it,
+ * opens the menu Window · Previous · Scale… · Extents. */
+export function ZoomChip({ pct, onFit, onZoom }: { pct: number; onFit: () => void; onZoom?: (k: ZoomMenuKey) => void }) {
   const p = Math.round(pct);
-  return <button type="button" className="zoom-chip" title="Zoom (100 % = all in view) — click to fit (F, or double-click the wheel)" aria-label={`Zoom ${p} %, click to fit`} onClick={onFit}>{p} %</button>;
+  const [open, setOpen] = useState(false);
+  const chip = <button type="button" className="zoom-chip" title="Zoom (100 % = all in view) — click to fit (F, or double-click the wheel)" aria-label={`Zoom ${p} %, click to fit`} onClick={onFit}
+    onContextMenu={onZoom ? (e) => { e.preventDefault(); setOpen(!open); } : undefined}>{p} %</button>;
+  if (!onZoom) return chip;
+  return (
+    <div className="zoom-chip-wrap" onMouseDown={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}>
+      {open && (
+        <div className="zoom-chip-menu" role="menu" aria-label="Zoom">
+          {ZOOM_MENU.map((x) => <button key={x.k} type="button" role="menuitem" onClick={() => { setOpen(false); onZoom(x.k); }}><span>{x.label}</span><small>{x.key}</small></button>)}
+        </div>
+      )}
+      {chip}
+      <button type="button" className="zoom-chip zoom-chip-more" title="Zoom: Window, Previous, Scale…, Extents" aria-label="Zoom menu" aria-expanded={open} onClick={() => setOpen(!open)}>▾</button>
+    </div>
+  );
 }

@@ -450,6 +450,10 @@ export interface SketchItem {
   /** A linear dimension: the angle of its dimension line (radians; 0 horizontal, π/2 vertical). It measures the points'
    * distance along that line. Left out: aligned with its two points. */
   dir?: number;
+  /** A dimension's form: the radius or diameter of an arc or circle (pts: the centre, a point on it, the text's place),
+   * or the angle between two lines (pts: the vertex, a point on each line, the arc's place). Left out: the distance
+   * between two points, aligned or linear (src/model/cadSketch.ts). */
+  dimKind?: 'radius' | 'diameter' | 'angular';
   /** An ellipse (centre in pts[0]): its major axis from the centre, and the minor axis as a fraction of it (0–1). */
   ax?: [number, number];
   ratio?: number;

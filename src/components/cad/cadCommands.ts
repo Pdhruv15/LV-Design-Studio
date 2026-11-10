@@ -9,7 +9,7 @@ export type CadAction = 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 's
   | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
   | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
   | 'textStyle' | 'dimStyle' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
-  | 'copyClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave';
+  | 'copyClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave' | 'zoomPrev' | 'qselect';
 
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
 
@@ -18,6 +18,10 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['CLOSE', 'CLOSEALL'], desc: 'Close the drawing, or all of them', action: 'close' },
   { aliases: ['CLOSEOTHERS'], desc: 'Close all drawings but this one', action: 'closeOthers' },
   { aliases: ['FIT', 'ZE', 'Z E', 'ZOOM E', 'ZOOM EXTENTS'], desc: 'Zoom to the whole drawing', action: 'fit' },
+  { aliases: ['Z', 'ZOOM'], desc: 'Zoom: Window, Previous, Scale or Extents', tool: 'zoom' },
+  { aliases: ['Z W', 'ZOOM W', 'ZOOM WINDOW'], desc: 'Zoom to a window: two corners', tool: 'zoomwin' },
+  { aliases: ['Z P', 'ZOOM P', 'ZOOM PREVIOUS'], desc: 'The view before', action: 'zoomPrev' },
+  { aliases: ['Z S', 'ZOOM S', 'ZOOM SCALE'], desc: 'Zoom by a factor (2, 0.5, or 2x of the view now)', tool: 'zoomscale' },
   { aliases: ['DI', 'DIST', 'DISTANCE'], desc: 'Measure a distance', tool: 'dist' },
   { aliases: ['AREA', 'AA'], desc: 'Measure an area', tool: 'area' },
   { aliases: ['RA', 'ROOM', 'ROOMAREA'], desc: 'Room area: click inside a room', tool: 'room' },
@@ -43,6 +47,8 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['LUX', 'LIGHTROOM'], desc: 'Light a room by the lumen method', tool: 'lux' },
   { aliases: ['EM', 'EMERGENCY'], desc: 'Emergency lighting', tool: 'em' },
   { aliases: ['SEL', 'SELECT'], desc: 'Select devices', action: 'select' },
+  { aliases: ['QSELECT', 'QS'], desc: 'Quick select: drawn objects by kind, layer and property', action: 'qselect' },
+  { aliases: ['SELECTSIMILAR'], desc: 'Select the drawn objects of the same kind and layer as those picked', tool: 'selsim' },
   { aliases: ['ARL', 'ARRAYLINE'], desc: 'Array on line', tool: 'arl' },
   { aliases: ['MA', 'MATCH', 'MATCHPROP'], desc: 'Match a device', tool: 'match' },
   { aliases: ['TRIM', 'TM'], desc: 'Trim', tool: 'trim' },
@@ -109,6 +115,9 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['DLI', 'DIMLINEAR'], desc: 'Linear dimension (horizontal or vertical)', tool: 'dimlin' },
   { aliases: ['DCO', 'DIMCONTINUE'], desc: 'Continue dimension', tool: 'dimcont' },
   { aliases: ['DBA', 'DIMBASELINE'], desc: 'Baseline dimension', tool: 'dimbase' },
+  { aliases: ['DRA', 'DIMRADIUS'], desc: 'Radius dimension: an arc or circle, then where the text goes', tool: 'dimrad' },
+  { aliases: ['DDI', 'DIMDIAMETER'], desc: 'Diameter dimension: an arc or circle, then where the text goes', tool: 'dimdia' },
+  { aliases: ['DAN', 'DIMANGULAR'], desc: 'Angular dimension: two lines, an arc, or a vertex and two points, then where the arc goes', tool: 'dimang' },
   { aliases: ['ST', 'STYLE'], desc: 'Text style', action: 'textStyle' },
   { aliases: ['D', 'DST', 'DIMSTY', 'DIMSTYLE'], desc: 'Dimension style', action: 'dimStyle' },
   { aliases: ['E', 'ERASE', 'DEL', 'DELETE'], desc: 'Erase', action: 'erase' },

@@ -8,7 +8,7 @@ import type { SketchItem } from '../../types';
 /** Design CAD → Draw → Modify / Edit: the toolbar beside drawn objects picked, the side panel of several, and the
  * settings of the edit tools (distances typed in metres). */
 
-export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase' | 'clipboard';
+export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase' | 'clipboard' | 'similar' | 'qselect';
 export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'tframe' | 'tmask';
 /** Offset `through` a point (the copy passes through it), `erase` the source, the copies on the `source` layer or the
  * `current` one; Fillet and Chamfer `trim` the lines to the corner (else they stay and the arc or line is added); a
@@ -18,7 +18,7 @@ export const ED_START: EditSettings = { offset: '0.3', through: false, erase: fa
 
 const LABEL: Record<SketchEdit, string> = {
   filter: 'Filter ▾', trim: 'Trim', extend: 'Extend', offset: 'Offset', break: 'Break', fillet: 'Fillet', mirror: 'Mirror', scale: 'Scale', array: 'Array',
-  join: 'Join', width: 'Width ▾', move: 'Move', copy: 'Copy', rotate: 'Rotate', erase: 'Erase', clipboard: 'Clipboard ▸'
+  join: 'Join', width: 'Width ▾', move: 'Move', copy: 'Copy', rotate: 'Rotate', erase: 'Erase', clipboard: 'Clipboard ▸', similar: 'Select similar', qselect: 'Quick select…'
 };
 export const kindOf = kindLabel;
 
@@ -55,7 +55,8 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, canPa
   onEdit: (e: SketchEdit, arg?: string) => void;
 }) {
   const [open, setOpen] = useState<'filter' | 'width' | 'clipboard' | null>(null);
-  const edits: SketchEdit[] = [...sketchEditsFor(items, devices), ...(place === 'menu' ? ['clipboard' as const] : [])];
+  // The menu at the cursor adds Select similar and Quick select… (S3 of the 2D gap plan) and Clipboard ▸ (S1).
+  const edits: SketchEdit[] = [...sketchEditsFor(items, devices), ...(place === 'menu' ? ['similar' as const, 'qselect' as const, 'clipboard' as const] : [])];
   const one = items.length === 1 && !devices ? items[0] : undefined;
   const list: { id: string; label: string; now?: boolean; key?: string; off?: boolean }[] = open === 'clipboard'
     ? CLIPBOARD.map((x) => ({ id: x.id, label: x.label, key: x.key, off: x.paste && !canPaste }))
