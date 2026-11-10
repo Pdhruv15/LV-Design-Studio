@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.077', date: '2026-11-10',
+    items: [
+      { title: 'Double-click a text or dimension to edit it in place', text: 'In Design CAD, a double-click on a drawn text, a leader\'s text or a dimension opens a box over it, at its height and angle, with the text selected: type, then Enter keeps it (one undo step), Esc leaves it as it was, a click outside keeps it. ED (TEXTEDIT, DDEDIT) asks for the object instead, and stays for the next one; Edit text is on the right-click menu of a text or dimension. A dimension\'s typed text is its override: <> in it stands for the measured value ("<> mm" keeps measuring as the points move), and blank gives the measure back. A text on a locked layer is refused.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.076', date: '2026-11-10',
     items: [
       { title: 'Zoom Window, Previous and Scale in Design CAD', text: 'Z (ZOOM) asks Window, Previous, Scale or Extents. Z W: two corners (or drag a box) fill the view. Z P steps back through the last 20 views of the drawing, a wheel zoom or pan counting once it rests. Z S: a factor — 2 or 0.5 of the whole drawing, 2x of the view now. The zoom chip at the bottom right has a ▾ (or a right-click) with the same four, and a right-click on the drawing with nothing picked offers Zoom window, previous and extents.', action: 'cad', actionLabel: 'Open Design CAD' },

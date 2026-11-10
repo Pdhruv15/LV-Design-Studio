@@ -20,7 +20,7 @@ import type { ObjectProps } from '../../model/cadLayerStyle';
 export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'lux' | 'em' | 'arl' | 'match' | 'wire' | 'move' | 'copy' | 'rotate' | 'mirror' | 'scale' | 'stretch' | 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'array' | 'matchprop' | 'hatch' | 'leader' | 'rtag' | 'north' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim' | 'xattach' | 'xclip'
   | 'polygon' | 'ellipse' | 'circle2p' | 'circle3p' | 'circled' | 'arcsce' | 'revcloud' | 'crop'
   | 'dimlin' | 'dimcont' | 'dimbase' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'rtall' | 'tframe' | 'tmask' | 'tcount' | 'keynote' | 'copybase' | 'paste'
-  | 'zoom' | 'zoomwin' | 'zoomscale' | 'selsim' | 'dimrad' | 'dimdia' | 'dimang';
+  | 'zoom' | 'zoomwin' | 'zoomscale' | 'selsim' | 'dimrad' | 'dimdia' | 'dimang' | 'textedit';
 
 /** Sample plans shipped with the app (electron/samples, made by scripts/make-sample-villa-plans.mjs), shown while no
  * drawing is open — a test aid. To remove: empty this list and delete the files and cad:sampleBytes. */

@@ -2783,3 +2783,131 @@ describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', 
     expect(last()).toContain('No dimension on this drawing to go on from');
   });
 });
+
+describe('CAD 2D gap plan: TEXTEDIT, a double-click on a text or dimension to type over it', () => {
+  const last = () => state.history[state.history.length - 1];
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const box = () => document.querySelector('input[aria-label="Edit text"]') as HTMLInputElement | null;
+  const dblClickAt = async (x: number, y: number) => {
+    const [sx, sy] = screenOf(x, y);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('dblclick', { clientX: sx, clientY: sy, button: 0, bubbles: true })); });
+  };
+  const rightClickAt = async (x: number, y: number) => {
+    const [sx, sy] = screenOf(x, y);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); });
+  };
+  const typeBox = (text: string) => act(() => {
+    const el = box()!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, text);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const keyBox = (key: string) => act(() => { box()!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })); });
+  const items = () => sketchOf(project, F);
+  // "DB ROOM" at (X, 0); a 3 m dimension of a style in mm above it; a text on a locked layer.
+  const start: Project = { ...villa, cadSketch: [{ file: F, items: [
+    { id: 'T1', kind: 'text', layer: 'LV-ANNO', pts: [[X, 0]], text: 'DB ROOM', h: 250 },
+    { id: 'D1', kind: 'dim', layer: 'LV-ANNO', pts: [[X, 2000], [X + 3000, 2000], [X + 1500, 2500]], dir: 0, h: 200, look: { arrow: 'tick', size: 100, off: 50, ext: 80, unit: 'mm', decimals: 0 } },
+    { id: 'T2', kind: 'text', layer: 'LV-LOCKED', pts: [[X, 4000]], text: 'FIXED', h: 250 }
+  ] }], cadLayerStyle: { [F]: { 'LV-LOCKED': { lock: true } } } };
+
+  it('a double-click opens the box over the text; Enter keeps what is typed in one undo step, Esc leaves it', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    expect(box()).toBeNull();
+    await dblClickAt(X + 300, 100);
+    expect(box()).not.toBeNull();
+    expect(box()!.value).toBe('DB ROOM');
+    expect(state.selected).toBe('sk:T1');
+    expect(last()).toBe('TEXTEDIT  Type the text, Enter (Esc keeps it as it was):');
+    // The box sits at the text: at the left end of its baseline, as high as the text on the screen, not turned.
+    expect(box()!.style.transform).toBe('translateY(-100%) rotate(0rad)');
+    const [sx, sy] = screenOf(X, 0);
+    expect(parseFloat(box()!.style.left)).toBeCloseTo(sx, 0); expect(parseFloat(box()!.style.top)).toBeCloseTo(sy, 0);
+    await typeBox('MAIN DB');
+    await keyBox('Enter');
+    expect(box()).toBeNull();
+    expect(items()[0].text).toBe('MAIN DB');
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][1]).toBe('TEXTEDIT  Text "MAIN DB" · ⌘Z to undo');
+    // Esc: nothing changes, and the page's Esc (which would drop the selection) is not reached.
+    await dblClickAt(X + 300, 100);
+    await typeBox('NOT THIS');
+    await keyBox('Escape');
+    expect(box()).toBeNull();
+    expect(items()[0].text).toBe('MAIN DB');
+    expect(state.selected).toBe('sk:T1');
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(last()).toBe('*Cancel*');
+    // A click outside (the box losing focus) keeps what is typed; nothing typed, nothing changes.
+    await dblClickAt(X + 300, 100);
+    await act(async () => { box()!.dispatchEvent(new FocusEvent('focusout', { bubbles: true })); });
+    expect(box()).toBeNull();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    // A double-click on empty drawing, or with a drawing tool running, opens nothing.
+    await dblClickAt(X + 8000, 8000);
+    expect(box()).toBeNull();
+    await command('l');
+    await dblClickAt(X + 300, 100);
+    expect(box()).toBeNull();
+  });
+
+  it('ED (TEXTEDIT) picks the object; a dimension takes an override, <> standing for the measure, blank giving it back', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    await command('ed');
+    expect(last()).toBe('Command: TEXTEDIT  Select a text or dimension:');
+    await clickAt(X + 8000, 8000);
+    expect(last()).toBe('TEXTEDIT  Nothing there. Select a text or dimension:');
+    await clickAt(X + 1500, 2500);
+    expect(box()!.value).toBe('');
+    expect(last()).toBe('TEXTEDIT  Type the dimension\'s text (<> stands for the measured value; blank gives it back), Enter:');
+    await typeBox('<> mm');
+    await keyBox('Enter');
+    expect(items()[1].text).toBe('<> mm');
+    expect(dimLabel(items()[1], 0.001)).toBe('3000 mm');
+    expect(onChange.mock.calls[0][1]).toBe('TEXTEDIT  Dimension text "<> mm" · ⌘Z to undo');
+    // The tool stays for the next one; blank gives the measured value back.
+    expect(state.tool).toBe('textedit');
+    expect(last()).toBe('TEXTEDIT  Select a text or dimension:');
+    await clickAt(X + 1500, 2500);
+    expect(box()!.value).toBe('<> mm');
+    await typeBox('');
+    await keyBox('Enter');
+    expect(items()[1].text).toBeUndefined();
+    expect(onChange.mock.calls[1][1]).toBe('TEXTEDIT  Dimension measured again · ⌘Z to undo');
+    expect(onChange).toHaveBeenCalledTimes(2);
+    // A text on a locked layer is refused; Esc with no box ends the tool.
+    await clickAt(X + 300, 4100);
+    expect(box()).toBeNull();
+    expect(last()).toBe('TEXTEDIT  Text on layer LV-LOCKED, which is locked: unlock it first (LAYULK).');
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
+    expect(state.tool).toBe('none');
+    // ED with a text picked first opens its box at once.
+    await clickAt(X + 300, 100);
+    expect(state.selected).toBe('sk:T1');
+    await command('ed');
+    expect(box()!.value).toBe('DB ROOM');
+    await keyBox('Escape');
+  });
+
+  it('the right-click menu of a text or dimension has Edit text', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    await rightClickAt(X + 300, 100);
+    const menu = () => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"][aria-label="Edit drawn objects"] button')];
+    expect(menu().map((b) => b.textContent)).toEqual(['Edit text', 'Move', 'Copy', 'Rotate', 'Erase', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    await act(async () => { menu()[0].click(); });
+    expect(box()!.value).toBe('DB ROOM');
+    await keyBox('Escape');
+    // A line's menu has none.
+    await command('l');
+    await command(`${X},6000`);
+    await command(`${X + 2000},6000`);
+    await command('');
+    await rightClickAt(X + 1000, 6000);
+    expect(menu().map((b) => b.textContent)).not.toContain('Edit text');
+  });
+});

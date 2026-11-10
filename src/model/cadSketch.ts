@@ -168,13 +168,29 @@ export function dimLength(lengthM: number, s: DimFormat): string {
 export const scaleLook = (l: DimLook, k: number): DimLook => ({
   ...l, size: l.size * k, off: l.off * k, ext: l.ext * k, ...(l.gap !== undefined ? { gap: l.gap * k } : {}), ...(l.dle !== undefined ? { dle: l.dle * k } : {})
 });
+/** In a dimension's typed text, stands for its measured value ("<> mm" reads the measure, then mm, as the points move). */
+export const MEASURED = '<>';
 /** A dimension's text: its own when it has one (typed over, or one drawn before styles, which keeps the text it was
- * drawn with), else, for one of a style, its length measured now in the style's unit and decimals. */
+ * drawn with), with `<>` in it standing for the measure; else, for one of a style, its length measured now in the
+ * style's unit and decimals. */
 export function dimLabel(it: SketchItem, metresPerUnit: number): string {
-  if (it.text) return it.text;
-  if (it.dimKind === 'angular') return dimAngle(dimMeasure(it), it.look);
-  const len = dimMeasure(it) * metresPerUnit, pre = it.dimKind === 'radius' ? 'R' : it.dimKind === 'diameter' ? 'Ø' : '';
-  return pre + (it.look ? dimLength(len, it.look) : len.toFixed(2));
+  if (it.text && !it.text.includes(MEASURED)) return it.text;
+  const measured = it.dimKind === 'angular' ? dimAngle(dimMeasure(it), it.look) : (() => {
+    const len = dimMeasure(it) * metresPerUnit, pre = it.dimKind === 'radius' ? 'R' : it.dimKind === 'diameter' ? 'Ø' : '';
+    return pre + (it.look ? dimLength(len, it.look) : len.toFixed(2));
+  })();
+  return it.text ? it.text.split(MEASURED).join(measured) : measured;
+}
+/** A text or dimension with the text typed over it (TEXTEDIT, a double-click on it): a text keeps its own when nothing
+ * is typed; a dimension's typed text is its override, and blank (or `<>` alone) gives the measured value back — one of a
+ * style, or a radius, diameter or angle, is measured again as drawn; one drawn before styles gets its length (metres). */
+export function withText(it: SketchItem, s: string, metresPerUnit = 1): SketchItem {
+  const t = s.trim();
+  if (it.kind === 'text') return t && s !== it.text ? { ...it, text: s } : it;
+  if (it.kind !== 'dim') return it;
+  if (t && t !== MEASURED) return t === it.text ? it : { ...it, text: t };
+  if (it.look || it.dimKind) { if (it.text === undefined) return it; const { text: _t, ...rest } = it; return rest; }
+  return { ...it, text: (dimMeasure(it) * metresPerUnit).toFixed(2) };
 }
 /** An angle in degrees as a dimension writes it: the style's decimals (2 without a style), trailing zeros dropped and a
  * decimal comma as the style says, then °. */
@@ -309,7 +325,7 @@ export { textWidth };
  * height. */
 export function dimOf(it: SketchItem, metresPerUnit: number) {
   const look = it.look;
-  const label = look || it.dimKind ? dimLabel(it, metresPerUnit) : it.text ?? '';
+  const label = look || it.dimKind || it.text?.includes(MEASURED) ? dimLabel(it, metresPerUnit) : it.text ?? '';
   const h = it.h ?? (it.dimKind === 'angular' ? angularArc(it).r : dimMeasure(it)) * 0.04;
   const box = look && (look.textPos || look.textAlong) ? { w: textWidth(label, h), h } : undefined;
   const g: DimLines = it.dimKind === 'angular' ? angularDimLines(it, look, h) : it.dimKind ? radialDimLines(it, look)

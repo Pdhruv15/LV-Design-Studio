@@ -3,9 +3,22 @@
 Status: **approved by the user on 2026-11-09** as the UI/UX spec for the next Design CAD 2D drafting features. Each
 section is built in its own branch and PR, in the order of "CLAUDE-CODE-STEPS - Design CAD 2D.md" (Step N builds SN).
 Anything not written here stays as it is today. **Built:** S1 (v2.068, `feat/cad-clipboard`); S2, S3 and S4 together
-(v2.072, `feat/cad-gap-steps-1-4`, at the user's "go ahead" on 2026-11-10) — see the end of this note.
+(v2.076, `feat/cad-gap-steps-1-4`, at the user's "go ahead" on 2026-11-10); S5 (v2.077, `feat/cad-text-inplace-edit`,
+"Yes, Step 5" on 2026-11-10) — see the end of this note.
 
-## Built in v2.072 (S2, S3, S4)
+## Built in v2.077 (S5)
+
+- **S5** `withText` and `MEASURED` (`<>`) in `src/model/cadSketch.ts` (tested in `cadTextEdit.test.ts`): a dimension's
+  label reads `<>` as its measure wherever it is drawn (canvas, sheets, DXF / DWG writer). `CadTextEdit.tsx` is the box
+  (one input, class `cad-edtext`, at the left end of the text's baseline, the text's height and angle on the screen,
+  the text selected; Enter commits, Esc cancels, losing focus commits). `CadCanvas.tsx` reports a left double-click
+  (`onDouble`; the wheel's still fits); `CadPage.tsx` opens the box on a drawn text or dimension with no tool running,
+  on ED / TEXTEDIT / DDEDIT after a click (the tool stays for the next one; with one text or dimension picked first it
+  opens at once), and from **Edit text** at the top of the right-click menu of a text or dimension. A text on a locked
+  layer is refused with a message. A leader's text is a drawn text, so it edits the same way. Blocks with attributes
+  (S11) and Notes (S6) are not here yet: a double-click on them does nothing.
+
+## Built in v2.076 (S2, S3, S4)
 
 - **S2** `src/model/cadView.ts` (window, scale, the history of 20, tested), `src/components/cad/cadViewHistory.ts`
   (per drawing, remembered by the canvas 400 ms after the view rests), `CadCanvas.tsx` (`zoom` request, `onZoomMenu`),
