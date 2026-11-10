@@ -10,6 +10,7 @@ export { printDoc };
 import { boqRevisionsOf, boqRevisionState, changeNote, CHANGE_LABEL, type BoqLine, type BoqLineChange } from '../model/boqRevisions';
 import { boqReview, SCOPE_CHECKS } from '../model/boqScope';
 import { isRasterDataUrl } from '../util/escape';
+import { luminaireSchedule } from '../model/luminaireSchedule';
 import { fmtDate as shortDate } from '../util/format';
 
 /** The BOQ as an Excel workbook in tender format: a summary sheet, the
@@ -245,6 +246,26 @@ export function buildBoqWorkbook(project: Project, bom: PricedBom, list?: PriceL
     for (const c of [5, 6]) cw.getColumn(c).numFmt = QUANTITY;
     for (const c of [7, 8, 9]) cw.getColumn(c).numFmt = MONEY;
     cw.getColumn(2).alignment = { wrapText: true, vertical: 'top' };
+  }
+
+  // Luminaire schedule: the lights placed on the plans by type (only when the plans have typed lights).
+  const lums = luminaireSchedule(project);
+  if (lums.length) {
+    const ls = wb.addWorksheet('Luminaire schedule', { views: [{ state: 'frozen', ySplit: 4 }], pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '4:4' } });
+    header(ls, project, 'Luminaire schedule — lights placed on the plans, by type', 8, stamp);
+    ls.columns = [{ width: 8 }, { width: 60 }, { width: 22 }, { width: 9 }, { width: 10 }, { width: 8 }, { width: 28 }, { width: 28 }];
+    ls.getRow(4).values = ['Type', 'Description', 'Manufacturer', 'Watts', 'Lumens', 'Qty', 'Boards', 'Levels'];
+    head(ls.getRow(4));
+    let r = 5;
+    for (const t of lums) {
+      const row = ls.getRow(r++);
+      row.values = [t.code, t.description, t.manufacturer ?? '', t.watts ?? null, t.lumens ?? null, t.count, Object.keys(t.byBoard).join(', '), t.levels.join(', ')];
+      row.eachCell({ includeEmpty: true }, (c, n) => { if (n <= 8) { c.border = box; c.alignment = { wrapText: true, vertical: 'top' }; } });
+    }
+    const row = ls.getRow(r);
+    row.values = ['', 'Total', '', lums.reduce((a, t) => a + (t.watts ?? 0) * t.count, 0) || null, null, lums.reduce((a, t) => a + t.count, 0)];
+    row.font = { bold: true };
+    ls.getCell(r + 2, 2).value = 'Total watts: luminaires with a type only. Emergency fittings and signs: wattage to the manufacturer.';
   }
   return wb;
 }
