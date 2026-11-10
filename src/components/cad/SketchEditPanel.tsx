@@ -9,8 +9,8 @@ import type { SketchItem } from '../../types';
 /** Design CAD → Draw → Modify / Edit: the toolbar beside drawn objects picked, the side panel of several, and the
  * settings of the edit tools (distances typed in metres). */
 
-export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase' | 'clipboard' | 'similar' | 'qselect' | 'edtext' | 'ntwidth' | 'ntjust';
-export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'tframe' | 'tmask';
+export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase' | 'clipboard' | 'similar' | 'qselect' | 'edtext' | 'ntwidth' | 'ntjust' | 'draworder';
+export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'tframe' | 'tmask' | 'draworder' | 'texttofront';
 /** Offset `through` a point (the copy passes through it), `erase` the source, the copies on the `source` layer or the
  * `current` one; Fillet and Chamfer `trim` the lines to the corner (else they stay and the arc or line is added); a
  * polar array can `rotate` its copies (else they keep the original's direction). */
@@ -19,7 +19,7 @@ export const ED_START: EditSettings = { offset: '0.3', through: false, erase: fa
 
 const LABEL: Record<SketchEdit, string> = {
   filter: 'Filter ▾', trim: 'Trim', extend: 'Extend', offset: 'Offset', break: 'Break', fillet: 'Fillet', mirror: 'Mirror', scale: 'Scale', array: 'Array',
-  join: 'Join', width: 'Width ▾', move: 'Move', copy: 'Copy', rotate: 'Rotate', erase: 'Erase', clipboard: 'Clipboard ▸', similar: 'Select similar', qselect: 'Quick select…', edtext: 'Edit text', ntwidth: 'Width…', ntjust: 'Justify ▸'
+  join: 'Join', width: 'Width ▾', move: 'Move', copy: 'Copy', rotate: 'Rotate', erase: 'Erase', clipboard: 'Clipboard ▸', similar: 'Select similar', qselect: 'Quick select…', edtext: 'Edit text', ntwidth: 'Width…', ntjust: 'Justify ▸', draworder: 'Draw order ▸'
 };
 export const kindOf = kindLabel;
 
@@ -41,6 +41,13 @@ const CLIPBOARD: { id: string; label: string; key: string; paste?: true }[] = [
   { id: 'paste', label: 'Paste', key: 'Ctrl+V', paste: true }, { id: 'pasteorig', label: 'Paste to original coordinates', key: '', paste: true }
 ];
 
+/** The entries of Draw order ▸ on the menu at the cursor (S7 of the Design CAD 2D gap plan). */
+export const DRAW_ORDER: { id: 'front' | 'back' | 'above' | 'under'; label: string }[] = [
+  { id: 'front', label: 'Bring to front' }, { id: 'back', label: 'Send to back' }, { id: 'above', label: 'Above object' }, { id: 'under', label: 'Under object' }
+];
+/** The entries that open a list of their own. */
+const OPENERS = new Set<SketchEdit>(['filter', 'width', 'clipboard', 'ntjust', 'draworder']);
+
 /** The toolbar beside the drawn objects picked (or the menu at the cursor, with Clipboard ▸ too). */
 export function SketchToolbar({ items, devices, lengthM, left, top, place, canPaste, onEdit }: {
   items: SketchItem[];
@@ -55,14 +62,15 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, canPa
   canPaste?: boolean;
   onEdit: (e: SketchEdit, arg?: string) => void;
 }) {
-  const [open, setOpen] = useState<'filter' | 'width' | 'clipboard' | 'ntjust' | null>(null);
+  const [open, setOpen] = useState<'filter' | 'width' | 'clipboard' | 'ntjust' | 'draworder' | null>(null);
   const one = items.length === 1 && !devices ? items[0] : undefined;
   // The menu at the cursor adds Edit text for one text or dimension (S5 of the 2D gap plan), with Width… and Justify ▸
-  // for a note (S6), Select similar and Quick select… (S3) and Clipboard ▸ (S1).
+  // for a note (S6), Draw order ▸ for drawn objects (S7), Select similar and Quick select… (S3) and Clipboard ▸ (S1).
   const edits: SketchEdit[] = [...(place === 'menu' && (one?.kind === 'text' || one?.kind === 'dim') ? ['edtext' as const] : place === 'menu' && one?.kind === 'mtext' ? ['edtext' as const, 'ntwidth' as const, 'ntjust' as const] : []), ...sketchEditsFor(items, devices),
-    ...(place === 'menu' ? ['similar' as const, 'qselect' as const, 'clipboard' as const] : [])];
+    ...(place === 'menu' && items.length && !devices ? ['draworder' as const] : []), ...(place === 'menu' ? ['similar' as const, 'qselect' as const, 'clipboard' as const] : [])];
   const list: { id: string; label: string; now?: boolean; key?: string; off?: boolean }[] = open === 'clipboard'
     ? CLIPBOARD.map((x) => ({ id: x.id, label: x.label, key: x.key, off: x.paste && !canPaste }))
+    : open === 'draworder' ? DRAW_ORDER.map((x) => ({ id: x.id, label: x.label }))
     : open === 'ntjust' && one
     ? NOTE_ATTACHES.map((j) => ({ id: j.id, label: j.label, now: attachOf(one) === j.id }))
     : open === 'width'
@@ -77,11 +85,11 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, canPa
       {edits.map((e) => (
         <Fragment key={e}>
           {e === 'move' && <span className="cad-ctx-bar" />}
-          <button aria-expanded={e === 'filter' || e === 'width' || e === 'clipboard' || e === 'ntjust' ? open === e : undefined} onClick={() => (e === 'filter' || e === 'width' || e === 'clipboard' || e === 'ntjust' ? setOpen(open === e ? null : e) : onEdit(e))}>{LABEL[e]}</button>
+          <button aria-expanded={OPENERS.has(e) ? open === e : undefined} onClick={() => (OPENERS.has(e) ? setOpen(open === e ? null : e as typeof open) : onEdit(e))}>{LABEL[e]}</button>
         </Fragment>
       ))}
       {open && (
-        <div className="cad-ctx-list" role="listbox" aria-label={open === 'width' ? 'Width' : open === 'clipboard' ? 'Clipboard' : open === 'ntjust' ? 'Justify' : 'Filter'}>
+        <div className="cad-ctx-list" role="listbox" aria-label={open === 'width' ? 'Width' : open === 'clipboard' ? 'Clipboard' : open === 'ntjust' ? 'Justify' : open === 'draworder' ? 'Draw order' : 'Filter'}>
           {list.map((x) => <button key={x.id} role="option" aria-selected={!!x.now} disabled={x.now || x.off} onClick={() => { setOpen(null); onEdit(open, x.id); }}><span>{x.label}</span><small>{x.now ? 'now' : x.key ?? ''}</small></button>)}
         </div>
       )}
@@ -105,7 +113,7 @@ export function DrawnSelectionPanel({ items, devices, onEdit }: { items: SketchI
 export const EDIT_TITLE: Record<EditTool, string> = {
   trim: 'Trim', extend: 'Extend', offset: 'Offset', fillet: 'Fillet', chamfer: 'Chamfer', break: 'Break', join: 'Join', explode: 'Explode',
   mirror: 'Mirror', scale: 'Scale', stretch: 'Stretch', array: 'Array', tjust: 'Justify text', th: 'Text height',
-  talign: 'Align text', tcase: 'Text case', tprefix: 'Text prefix', tsuffix: 'Text suffix', torient: 'Orient text', tcen: 'Centre text', tcopy: 'Copy words', tframe: 'Frame text', tmask: 'Mask text'
+  talign: 'Align text', tcase: 'Text case', tprefix: 'Text prefix', tsuffix: 'Text suffix', torient: 'Orient text', tcen: 'Centre text', tcopy: 'Copy words', tframe: 'Frame text', tmask: 'Mask text', draworder: 'Draw order', texttofront: 'Text to front'
 };
 export const EDIT_HELP: Record<EditTool, string> = {
   trim: 'Click the part to cut away: it is cut at the nearest lines crossing it, drawn or the architect\'s (shown layers), which are never changed. Shift-click extends instead.',
@@ -130,7 +138,9 @@ export const EDIT_HELP: Record<EditTool, string> = {
   tcen: 'Pick one text (click it, then Enter), then two points (snaps help): its centre goes to their midpoint.',
   tcopy: 'Pick the texts to change (click them, then Enter), then click the text whose words they take.',
   tframe: 'Pick the texts (click them, then Enter), then Circle, Box, Hexagon or None: a frame round each, sized from its height, that moves and scales with it.',
-  tmask: 'Pick the texts (click them, then Enter), then Yes or No: a paper-colour fill under the text so it reads over hatches, trays and underlays.'
+  tmask: 'Pick the texts (click them, then Enter), then Yes or No: a paper-colour fill under the text so it reads over hatches, trays and underlays.',
+  draworder: 'Pick the objects (click them, then Enter), then Front, Back, Above or Under on the command line; Above and Under then ask for the reference object. Later in the order is on top: a solid hatch sent to the back no longer hides the symbols and texts over it. The order prints on the sheets and saves to DXF / DWG.',
+  texttofront: 'Text, Dimensions, Leaders or All on the command line: those objects go over everything else, in their order.'
 };
 
 /** The side panel of an edit tool: what it does, its distances, and what has been picked so far. */

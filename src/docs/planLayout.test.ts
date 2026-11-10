@@ -6,6 +6,7 @@ import { wireLevel } from '../model/cadWiring';
 import { dropRefGeometry, keepRefGeometry } from '../model/cadRefs';
 import { issueSheets, renumber, setOf, sheetChecks, sheetHash, sheetType, type DrawingSheet, type PlanType } from '../model/drawingSet';
 import type { Project, SketchItem } from '../types';
+import { toFront } from '../model/cadDrawOrder';
 import { addPlanSheets, drawingAreaMm, drawnTextMm, layoutPaper, layoutViewports, planDrawing, planLegendLabels, planLevels, planNotes, planScale } from './planLayout';
 import type { PlanViewport } from '../model/planViewports';
 import { buildSheetDxfPages } from './sheetDxf';
@@ -175,6 +176,14 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
     ];
     const withWork = (extra: Partial<Project> = {}) => ({ ...drawn(villa(), work), cadLayerStyle: { 'gf.dwg': { 'E-HELP': { noPrint: true }, 'E-OFF': { hidden: true } } }, ...extra });
     const svgOf = (p: Project, plot?: DrawingSheet['plot']) => { const s = sheetOf(p).sheets[0]; return planDrawing(p, { ...s, ...(plot ? { plot } : {}) })!.svg; };
+
+    it('prints the drawn work in its draw order: later in the list is on top (S7 of the 2D gap plan)', () => {
+      const group = (p: Project) => /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svgOf(p))![1];
+      const g = group(withWork());
+      expect(g.indexOf('<circle')).toBeLessThan(g.indexOf('PLANT')); // the solid circle, then the text over it
+      const lifted = group({ ...withWork(), ...drawn(villa(), toFront(work, ['S3'])) });
+      expect(lifted.indexOf('<circle')).toBeGreaterThan(lifted.indexOf('PLANT'));
+    });
 
     it('prints lines at their linetype and lineweight, text at its drawn height, black, over the architect\'s plan', () => {
       const svg = svgOf(withWork());

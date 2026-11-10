@@ -397,10 +397,63 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     const skC = colour('--cad-sketch', '#7fd1ff'), selSk = colour('--cad-snap', '#37d67a');
     const trayH = TRAY_TEXT_MM * unitsPerMm, trayText = trayH * scale >= 4;
     const ltScale = 100 * unitsPerMm; // linetype dashes in paper mm at 1:100
+    /** A drawn object's words, in screen space: a note's lines, a text (its mask under it), a dimension's or a tray's or
+     * cable's label. Called in the object's turn, so the draw order holds for words too. */
+    const drawLabel = (it: SketchItem) => {
+      ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.textBaseline = 'alphabetic';
+      if (it.kind === 'mtext') {
+        // A note: its lines from the top left of its box, each piece in its weight, underlined ones with a rule; the box
+        // outlined while it is picked.
+        const nef = effective(it, layerStyle);
+        if (nef.hidden) return;
+        const b = noteBox(it);
+        if (b.h * scale < 4) return;
+        ctx.save();
+        ctx.translate((b.tl[0] - o0 - ox) * scale, size.h - (b.tl[1] - o1 - oy) * scale);
+        ctx.rotate(-(it.rot ?? 0));
+        ctx.fillStyle = isSel(it.id) ? selSk : nef.color ?? skC; ctx.textAlign = 'left';
+        for (const line of b.lines) for (const seg of line.segs) {
+          const sp = Math.min(seg.h * scale, 200);
+          ctx.font = `${seg.b ? '700 ' : ''}${sp}px system-ui, sans-serif`;
+          ctx.fillText(seg.s, seg.x * scale, line.y * scale);
+          if (seg.u) ctx.fillRect(seg.x * scale, line.y * scale + sp * 0.12, seg.w * scale, Math.max(1, sp * 0.06));
+        }
+        if (isSel(it.id)) { ctx.strokeStyle = selSk; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.strokeRect(0, 0, b.w * scale, b.H * scale); ctx.setLineDash([]); }
+        ctx.restore();
+        return;
+        }
+        const label = it.kind === 'text' ? (() => { const b = textBaseAt(it); return { at: b.at, s: it.text ?? '', h: it.h ?? 0, rot: it.rot ?? 0, align: b.align as CanvasTextAlign }; })()
+        : it.kind === 'dim' ? (() => { const d = dimOf(it, 0.001 / unitsPerMm); return { at: d.text, s: d.label, h: d.h, rot: d.angle, align: 'center' as CanvasTextAlign }; })()
+        : it.tray ? (() => { const l = trayLabel(it); return { at: l.at, s: l.text, h: trayH, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
+        : it.cable && labels[it.id] ? (() => { const l = trayLabel(it); return { at: l.at, s: labels[it.id], h: 120 * unitsPerMm, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
+        : null;
+        if (!label || !label.s) return;
+        const lef = effective(it, layerStyle);
+        if (lef.hidden) return;
+        const px = label.h * scale;
+        if (px < 4) return;
+        ctx.save();
+        ctx.translate((label.at[0] - o0 - ox) * scale, size.h - (label.at[1] - o1 - oy) * scale);
+        ctx.rotate(-label.rot);
+        ctx.font = `${Math.min(px, 200)}px system-ui, sans-serif`;
+        if (it.kind === 'text' && it.mask) {
+        // The mask: its box in the background colour, under the text (over the lines and hatches drawn before).
+        ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = bg; ctx.beginPath();
+        textCorners(it).forEach((q, i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, (q[0] - o0 - ox) * scale, size.h - (q[1] - o1 - oy) * scale));
+        ctx.closePath(); ctx.fill(); ctx.restore();
+        }
+        ctx.textAlign = label.align;
+        if (it.tray) ctx.textBaseline = 'middle'; // in the gap of the tray's line
+        ctx.fillStyle = isSel(it.id) ? selSk : lef.color ?? skC;
+        ctx.fillText(label.s, 0, 0);
+        ctx.restore();
+      ctx.restore();
+    };
+    // What the engineer drew, in its draw order (later on top): lines and hatches in drawing units, each object's words in its turn.
     for (const it of sketch) {
-      if ((it.kind === 'text' && !it.frame) || it.kind === 'mtext') continue; // a framed text's frame is drawn here with the lines; notes below
       const ef = effective(it, layerStyle);
       if (ef.hidden) continue;
+      if ((it.kind === 'text' && !it.frame) || it.kind === 'mtext') { drawLabel(it); continue; } // a framed text's frame is drawn with the lines first
       if (it.hatch) {
         // A hatch: its outline filled solid (faint) or with its pattern's lines (or dots), clipped to the outline.
         const outline = new Path2D();
@@ -449,6 +502,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         ctx.lineTo(a[0] - o0 - hd * Math.cos(ang + 0.3), a[1] - o1 - hd * Math.sin(ang + 0.3));
         ctx.closePath(); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
       }
+      drawLabel(it);
     }
     // Circuit wiring: arcs in the devices' colour, the home run ending in an arrow at the DB.
     const lvC = colour('--cad-dev', '#f5c04a');
@@ -522,54 +576,6 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       if (!w.tag) continue;
       ctx.fillStyle = w.tag.warn ? bad : lvC;
       ctx.fillText(w.tag.s, (w.tag.at[0] - o0 - ox) * scale + 6, size.h - (w.tag.at[1] - o1 - oy) * scale - 6);
-    }
-    for (const it of sketch) {
-      if (it.kind === 'mtext') {
-        // A note: its lines from the top left of its box, each piece in its weight, underlined ones with a rule; the box
-        // outlined while it is picked.
-        const nef = effective(it, layerStyle);
-        if (nef.hidden) continue;
-        const b = noteBox(it);
-        if (b.h * scale < 4) continue;
-        ctx.save();
-        ctx.translate((b.tl[0] - o0 - ox) * scale, size.h - (b.tl[1] - o1 - oy) * scale);
-        ctx.rotate(-(it.rot ?? 0));
-        ctx.fillStyle = isSel(it.id) ? selSk : nef.color ?? skC; ctx.textAlign = 'left';
-        for (const line of b.lines) for (const seg of line.segs) {
-          const sp = Math.min(seg.h * scale, 200);
-          ctx.font = `${seg.b ? '700 ' : ''}${sp}px system-ui, sans-serif`;
-          ctx.fillText(seg.s, seg.x * scale, line.y * scale);
-          if (seg.u) ctx.fillRect(seg.x * scale, line.y * scale + sp * 0.12, seg.w * scale, Math.max(1, sp * 0.06));
-        }
-        if (isSel(it.id)) { ctx.strokeStyle = selSk; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.strokeRect(0, 0, b.w * scale, b.H * scale); ctx.setLineDash([]); }
-        ctx.restore();
-        continue;
-      }
-      const label = it.kind === 'text' ? (() => { const b = textBaseAt(it); return { at: b.at, s: it.text ?? '', h: it.h ?? 0, rot: it.rot ?? 0, align: b.align as CanvasTextAlign }; })()
-        : it.kind === 'dim' ? (() => { const d = dimOf(it, 0.001 / unitsPerMm); return { at: d.text, s: d.label, h: d.h, rot: d.angle, align: 'center' as CanvasTextAlign }; })()
-        : it.tray ? (() => { const l = trayLabel(it); return { at: l.at, s: l.text, h: trayH, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
-        : it.cable && labels[it.id] ? (() => { const l = trayLabel(it); return { at: l.at, s: labels[it.id], h: 120 * unitsPerMm, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
-        : null;
-      if (!label || !label.s) continue;
-      const lef = effective(it, layerStyle);
-      if (lef.hidden) continue;
-      const px = label.h * scale;
-      if (px < 4) continue;
-      ctx.save();
-      ctx.translate((label.at[0] - o0 - ox) * scale, size.h - (label.at[1] - o1 - oy) * scale);
-      ctx.rotate(-label.rot);
-      ctx.font = `${Math.min(px, 200)}px system-ui, sans-serif`;
-      if (it.kind === 'text' && it.mask) {
-        // The mask: its box in the background colour, under the text (over the lines and hatches drawn before).
-        ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = bg; ctx.beginPath();
-        textCorners(it).forEach((q, i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, (q[0] - o0 - ox) * scale, size.h - (q[1] - o1 - oy) * scale));
-        ctx.closePath(); ctx.fill(); ctx.restore();
-      }
-      ctx.textAlign = label.align;
-      if (it.tray) ctx.textBaseline = 'middle'; // in the gap of the tray's line
-      ctx.fillStyle = isSel(it.id) ? selSk : lef.color ?? skC;
-      ctx.fillText(label.s, 0, 0);
-      ctx.restore();
     }
     // Tray fittings: a dot at the joint and its name beside it.
     const fpx = 100 * unitsPerMm * scale;

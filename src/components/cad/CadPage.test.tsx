@@ -2899,7 +2899,7 @@ describe('CAD 2D gap plan: TEXTEDIT, a double-click on a text or dimension to ty
     act(() => state.toggle('osnap'));
     await rightClickAt(X + 300, 100);
     const menu = () => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"][aria-label="Edit drawn objects"] button')];
-    expect(menu().map((b) => b.textContent)).toEqual(['Edit text', 'Move', 'Copy', 'Rotate', 'Erase', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    expect(menu().map((b) => b.textContent)).toEqual(['Edit text', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Select similar', 'Quick select…', 'Clipboard ▸']);
     await act(async () => { menu()[0].click(); });
     expect(box()!.value).toBe('DB ROOM');
     await keyBox('Escape');
@@ -3049,7 +3049,7 @@ describe('CAD 2D gap plan: MTEXT, notes in a box with their lines wrapped to its
     act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
     expect(state.tool).toBe('none');
     await rightClickAt(X + 500, 5900);
-    expect(menuLabels()).toEqual(['Edit text', 'Width…', 'Justify ▸', 'Move', 'Copy', 'Rotate', 'Erase', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    expect(menuLabels()).toEqual(['Edit text', 'Width…', 'Justify ▸', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Select similar', 'Quick select…', 'Clipboard ▸']);
     await act(async () => { button('Width…').click(); });
     expect(last()).toBe('MTEXT  Width (m) <3.00>:');
     await command('4');
@@ -3070,5 +3070,102 @@ describe('CAD 2D gap plan: MTEXT, notes in a box with their lines wrapped to its
     await keyWords('Escape');
     expect(editor()).toBeNull();
     expect(onChange).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('CAD 2D gap plan: DRAWORDER and TEXTTOFRONT, the order the drawn objects paint in', () => {
+  const last = () => state.history[state.history.length - 1];
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const order = () => sketchOf(project, F).map((it) => it.id).join('');
+  const rightClickAt = async (x: number, y: number) => {
+    const [sx, sy] = screenOf(x, y);
+    await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); });
+  };
+  const menuLabels = () => [...document.querySelectorAll('[role="menu"] button')].map((b) => b.textContent);
+  const options = () => [...document.querySelectorAll('[role="listbox"][aria-label="Draw order"] [role="option"]')] as HTMLButtonElement[];
+  // A solid hatch, a line beside it and a text over the hatch, drawn in that order (the text on top).
+  const start: Project = { ...villa, cadSketch: [{ file: F, items: [
+    { id: 'H', kind: 'pline', layer: 'LV-HATCH', closed: true, pts: [[X, 0], [X + 4000, 0], [X + 4000, 3000], [X, 3000]], hatch: { pattern: 'solid', scale: 3, angle: 0 } },
+    { id: 'L', kind: 'line', layer: 'LV-SKETCH', pts: [[X + 5000, 0], [X + 8000, 0]] },
+    { id: 'T', kind: 'text', layer: 'LV-ANNO', pts: [[X + 1000, 1000]], text: 'DB', h: 250 }
+  ] }] };
+
+  it('DR: pick the objects, Enter, then Front, Back, Above or Under (the reference clicked); one undo step each', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('dr');
+    expect(last()).toBe('Command: DRAWORDER  Select objects:');
+    await clickAt(X + 1100, 1100);
+    await clickAt(X + 6000, 0);
+    expect(last()).toBe('DRAWORDER  2 objects selected — Enter when done');
+    await command('');
+    expect(last()).toBe('DRAWORDER  [Above objects/Under objects/Front/Back] <Back>:');
+    await command('b');
+    expect(order()).toBe('LTH');
+    expect(onChange.mock.calls[0][1]).toBe('DRAWORDER  2 objects sent to the back · ⌘Z to undo');
+    expect(state.tool).toBe('none');
+    // One object selected first: the options come at once; Above asks for the reference object.
+    await clickAt(X + 1100, 1100);
+    expect(state.selected).toBe('sk:T');
+    await command('dr');
+    expect(last()).toBe('Command: DRAWORDER  [Above objects/Under objects/Front/Back] <Back>:');
+    await command('a');
+    expect(last()).toBe('DRAWORDER  Select reference objects:');
+    await clickAt(X + 2000, 0);
+    expect(order()).toBe('LHT');
+    expect(onChange.mock.calls[1][1]).toBe('DRAWORDER  1 object put above the closed polyline · ⌘Z to undo');
+    // Already there: nothing changes. DR with its order typed skips the question.
+    await clickAt(X + 1100, 1100);
+    await command('dr f');
+    expect(state.history.slice(-2)[0]).toBe('DRAWORDER  1 object already in front.'); // then the command ends and prompts again
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(state.tool).toBe('none');
+  });
+
+  it('TEXTTOFRONT lifts the texts, dimensions or leaders; DR B typed picks the objects next', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await command('texttofront');
+    expect(last()).toBe('Command: TEXTTOFRONT  [Text/Dimensions/Leaders/All] <All>:');
+    await command('');
+    expect(state.history.slice(-2)[0]).toBe('TEXTTOFRONT  The texts, dimensions and leaders are in front already.');
+    expect(onChange).toHaveBeenCalledTimes(0);
+    expect(state.tool).toBe('none');
+    await command('dr b');
+    expect(last()).toBe('Command: DRAWORDER  Select objects:');
+    await clickAt(X + 1100, 1100);
+    await command('');
+    expect(order()).toBe('THL');
+    expect(onChange.mock.calls[0][1]).toBe('DRAWORDER  1 object sent to the back · ⌘Z to undo');
+    await command('texttofront');
+    await command('t');
+    expect(order()).toBe('HLT');
+    expect(onChange.mock.calls[1][1]).toBe('TEXTTOFRONT  The texts brought to the front · ⌘Z to undo');
+  });
+
+  it('the right-click menu of drawn objects has Draw order ▸ with the four orders; Above and Under then ask for the reference', async () => {
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    project = start;
+    act(() => state.toggle('osnap'));
+    await rightClickAt(X + 6000, 0);
+    expect(menuLabels()).toEqual(['Trim', 'Extend', 'Offset', 'Break', 'Fillet', 'Mirror', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    await act(async () => { button('Draw order ▸').click(); });
+    expect(options().map((b) => b.textContent)).toEqual(['Bring to front', 'Send to back', 'Above object', 'Under object']);
+    await act(async () => { options()[1].click(); });
+    expect(order()).toBe('LHT');
+    expect(onChange.mock.calls[0][1]).toBe('DRAWORDER  1 object sent to the back · ⌘Z to undo');
+    await rightClickAt(X + 6000, 0);
+    await act(async () => { button('Draw order ▸').click(); });
+    await act(async () => { options()[2].click(); });
+    expect(last()).toBe('Command: DRAWORDER  Select reference objects:');
+    await clickAt(X + 1100, 1100);
+    expect(order()).toBe('HTL');
+    expect(onChange.mock.calls[1][1]).toBe('DRAWORDER  1 object put above the text · ⌘Z to undo');
+    expect(state.tool).toBe('none');
   });
 });

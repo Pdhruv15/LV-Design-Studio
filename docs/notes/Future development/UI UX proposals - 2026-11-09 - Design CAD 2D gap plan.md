@@ -4,7 +4,25 @@ Status: **approved by the user on 2026-11-09** as the UI/UX spec for the next De
 section is built in its own branch and PR, in the order of "CLAUDE-CODE-STEPS - Design CAD 2D.md" (Step N builds SN).
 Anything not written here stays as it is today. **Built:** S1 (v2.068, `feat/cad-clipboard`); S2, S3 and S4 together
 (v2.076, `feat/cad-gap-steps-1-4`, at the user's "go ahead" on 2026-11-10); S5 (v2.077, `feat/cad-text-inplace-edit`,
-"Yes, Step 5" on 2026-11-10); S6 (v2.078, `feat/cad-mtext`, "Yes, Step 6" on 2026-11-10) — see the end of this note.
+"Yes, Step 5" on 2026-11-10); S6 (v2.078, `feat/cad-mtext`, "Yes, Step 6" on 2026-11-10); S7 (v2.079,
+`feat/cad-draworder`, "Yes, Step 7" on 2026-11-10) — see the end of this note.
+
+## Built in v2.079 (S7)
+
+- **S7** `src/model/cadDrawOrder.ts` (`toFront`, `toBack`, `above`, `under`, `textToFront`; tested): the order of a
+  drawing's drawn objects in its list is their paint order, later on top. `CadCanvas.tsx` now paints each object's
+  words in its turn, in one pass (texts, notes and dimension labels no longer always over the lines; the devices and
+  their labels still sit over everything drawn, so a hatch cannot hide a symbol); the plan sheets and the PDF already
+  printed in list order (tested); the DXF / DWG writer writes the entities in that order — it has no SORTENTSTABLE, and
+  entity order is what every reader paints by, so nothing more is needed. **DR / DRAWORDER:** `Select objects:` →
+  Enter → `[Above objects/Under objects/Front/Back] <Back>:`; Above and Under then `Select reference objects:` (a
+  click); with objects picked first the options come at once; `DR F`, `DR B`, `DR A`, `DR U` typed (what the ribbon
+  entries send) skip the question. **TEXTTOFRONT** `[Text/Dimensions/Leaders/All] <All>:`. **Ribbon:** Modify's ▾
+  (the panel's overflow, where Quick select… is) lists **Draw order:** Bring to front · Send to back · Above object ·
+  Under object · Text to front (TEXTTOFRONT) after a separator — the overflow lists a tool's entries flat, so the
+  spec's "after Join" became "after Quick select…" there. **Right-click** with drawn objects picked: **Draw order ▸**
+  the four. **Decisions taken:** the selection is dropped once the order changed, as after Join; a reference among the
+  objects picked is refused; an order already in place says so and changes nothing (no undo step).
 
 ## Built in v2.078 (S6)
 

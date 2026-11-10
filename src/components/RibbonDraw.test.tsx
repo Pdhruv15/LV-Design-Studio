@@ -423,3 +423,18 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     expect([...document.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent)).toEqual(['Wire circuits', 'Wire one', 'Tags']);
   });
 });
+
+describe('Draw order (S7 of the Design CAD 2D gap plan)', () => {
+  it('lists Draw order\'s entries under Modify ▾ after a separator; each runs its command', () => {
+    const { cad } = show();
+    click(document.querySelector('button[title^="More modify tools"]')!);
+    const items = () => [...document.querySelectorAll('[role="menuitem"]')] as HTMLButtonElement[];
+    expect(items().map((b) => b.textContent)).toEqual(['Quick select…', 'Draw order: Bring to front', 'Draw order: Send to back', 'Draw order: Above object', 'Draw order: Under object', 'Draw order: Text to front (TEXTTOFRONT)']);
+    expect(document.querySelectorAll('.ribbon-split-menu hr')).toHaveLength(1);
+    click(items()[2]);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('DRAWORDER B');
+    click(document.querySelector('button[title^="More modify tools"]')!);
+    click(items()[5]);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('TEXTTOFRONT');
+  });
+});
