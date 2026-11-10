@@ -2034,6 +2034,9 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-log div{white-space:pre-wrap}
 .cad-log b{color:var(--tx);font-weight:600}
 .cad-edtext{position:absolute;z-index:4;box-sizing:content-box;min-width:40px;padding:0 2px;background:var(--bg);border:1px solid var(--acc);border-radius:2px;color:var(--tx);outline:0;font-family:system-ui,sans-serif;line-height:1;transform-origin:0 100%}
+.cad-ptype-grid{display:grid;grid-template-columns:repeat(5,28px);gap:3px;margin:2px 0 6px}
+.cad-ptype-grid button{display:flex;align-items:center;justify-content:center;height:28px;padding:0;background:var(--bg);border:1px solid var(--line-strong);border-radius:3px;color:var(--tx);cursor:pointer}
+.cad-ptype-grid button[aria-checked=true]{border-color:var(--acc);background:var(--p2)}
 .cad-ntedit{position:absolute;z-index:4;transform-origin:0 0}
 .cad-ntedit-bar{position:absolute;left:0;bottom:100%;display:flex;align-items:center;gap:3px;margin-bottom:3px;padding:2px 4px;background:var(--panel);border:1px solid var(--line-strong);border-radius:3px;white-space:nowrap;font:11.5px system-ui,sans-serif;color:var(--tx)}
 .cad-ntedit-bar button{height:20px;min-width:20px;padding:0 5px;background:none;border:1px solid transparent;border-radius:2px;color:var(--tx);font:inherit;cursor:pointer}

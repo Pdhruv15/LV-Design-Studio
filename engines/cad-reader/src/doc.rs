@@ -905,6 +905,8 @@ struct ShapeOut {
     /// Multiline text (mtext): the width of its box (0: as wide as its longest line) and its line spacing factor.
     #[serde(default)] w: f64,
     #[serde(default)] lsp: f64,
+    /// The point style pseudo-shape: PDMODE (its PDSIZE comes in `r`).
+    #[serde(default)] mode: i16,
     /// Hatch: closed boundary loops, solid or with its pattern lines (a reference's fill, bound into the saved copy).
     #[serde(default)] loops: Vec<Vec<(f64, f64)>>,
     #[serde(default)] solid: bool,
@@ -919,7 +921,7 @@ struct PatLineOut { angle: f64, base: (f64, f64), offset: (f64, f64), #[serde(de
 /// device as a circle with its letters inside and its label (circuit or type) beside it. The architect's entities are
 /// kept as read.
 fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_json: &str) -> Result<CadDocument, String> {
-    use acadrust::entities::{Arc, BoundaryEdge, BoundaryPath, Circle, Ellipse, Hatch, HatchPattern, HatchPatternLine, HatchPatternType, Line, LwPolyline, LwVertex, MText, PolylineEdge, Text};
+    use acadrust::entities::{Arc, BoundaryEdge, BoundaryPath, Circle, Ellipse, Hatch, HatchPattern, HatchPatternLine, HatchPatternType, Line, LwPolyline, LwVertex, MText, Point, PolylineEdge, Text};
     use acadrust::tables::Layer;
     use acadrust::types::{Vector2, Vector3};
     let (mut doc, _) = read(bytes)?;
@@ -935,6 +937,8 @@ fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_
         }
     }
     for sh in &shapes {
+        // The drawing's point style ($PDMODE, $PDSIZE), sent with the shapes.
+        if sh.kind == "pointstyle" { doc.header.point_display_mode = sh.mode; doc.header.point_display_size = sh.r; continue; }
         if !doc.layers.contains(&sh.layer) { doc.layers.add(Layer::new(sh.layer.clone())).map_err(err)?; }
         let e = match sh.kind.as_str() {
             "line" if sh.pts.len() == 2 => { let mut l = Line::from_coords(sh.pts[0].0, sh.pts[0].1, 0.0, sh.pts[1].0, sh.pts[1].1, 0.0); l.common.layer = sh.layer.clone(); EntityType::Line(l) }
@@ -978,6 +982,7 @@ fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_
                 }
                 EntityType::Text(t)
             }
+            "point" if !sh.pts.is_empty() => { let mut p = Point::new(); p.location = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); p.common.layer = sh.layer.clone(); EntityType::Point(p) }
             "mtext" if !sh.pts.is_empty() && !sh.text.is_empty() => {
                 use acadrust::entities::mtext::AttachmentPoint as A;
                 let mut t = MText::new();
@@ -1138,6 +1143,19 @@ mod tests {
         // The note is one MTEXT, read back as a plain text per line, the codes gone.
         let lines: Vec<&str> = after.texts.iter().filter(|t| t.s == "NOTES" || t.s == "Line two").map(|t| t.s.as_str()).collect();
         assert_eq!(lines, ["NOTES", "Line two"]);
+        // A drawn point is a POINT entity, found by the Node snap; the point style goes into the header.
+        let shapes = r#"[{"layer":"LV-SKETCH","kind":"point","pts":[[2500,2500]]},{"layer":"","kind":"pointstyle","pts":[],"mode":34,"r":-5}]"#;
+        let plain = sample("sample-villa-gf.dxf");
+        let dotted = CadDoc::new(dwg_bytes(plain.clone(), "[]", shapes, "", "").unwrap()).unwrap();
+        assert_eq!(dotted.objects.iter().filter(|o| o.kind == "Point").count(), 1);
+        let on = vec![1u8; dotted.layers.len()];
+        let s = dotted.snap(2501.0, 2499.0, 5.0, NODE, &on, f64::NAN, f64::NAN);
+        assert_eq!((s[0], s[1], s[2] as u32), (2500.0, 2500.0, NODE));
+        let dxf = String::from_utf8_lossy(&export_dxf(plain, "[]", shapes, "[]", "").unwrap()).to_string();
+        let i = dxf.find("$PDMODE").expect("$PDMODE written");
+        assert!(dxf[i..i + 40].contains("34"), "{}", &dxf[i..i + 40]);
+        let j = dxf.find("$PDSIZE").expect("$PDSIZE written");
+        assert!(dxf[j..j + 40].contains("-5"), "{}", &dxf[j..j + 40]);
         assert!(a.0.contains_key("E-LV-POINTS"), "the device's circle on its layer");
         assert!(after.layers.iter().any(|l| l.name == "LV-ANNO"), "the text's layer");
         assert_eq!(a.0["E-TRAY"], b.0.get("E-TRAY").copied().unwrap_or(0) + 1);

@@ -17,8 +17,9 @@ import CadDynInput, { type DynBox } from './CadDynInput';
 import CadTextEdit from './CadTextEdit';
 import CadNoteEdit from './CadNoteEdit';
 import { above, sameOrder, textToFront, toBack, toFront, under, type TextKind } from '../../model/cadDrawOrder';
+import { canDivide, pointsAlong, pointsEvery, pointShapeLabel, pointStyleOf } from '../../model/cadPoints';
 import { attachLabel, attachOf, noteAttached, noteBox, noteWithWidth, parseAttach, plainText, type NoteAttach, type NotePara } from '../../model/cadMtext';
-import { DIALOG_TOOLS, DimStyleDialog, EditDialog, TextStyleDialog } from './CadDialogs';
+import { DIALOG_TOOLS, DimStyleDialog, EditDialog, PointStyleDialog, TextStyleDialog } from './CadDialogs';
 import { currentTextStyle, dimLookOf, dimStandardAsBefore, dimStylesOf, dimStylesToStore, textStylesOf, textStylesToStore } from '../../model/cadStyles';
 import { chooseDrawing, drawingWithDevices, explodeObjects, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
 import { boundaryOfPiece, cropItems, cropNote, cropPieces, hatchLookup, type CropBoundary, type CropSide } from '../../model/cadCrop';
@@ -26,7 +27,7 @@ import { parsePat, specWith, withPatterns } from '../../model/cadHatch';
 import { erasedOf, restoredErased, shownView, withErased, type ErasedParts } from '../../model/cadErased';
 import { CIRCUIT_ATTRIBUTES } from '../../model/cadLoads';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
-import { addSketch, withSketchItems, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimLabel, dimMeasure, dimOf, linearDir, nextDim, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch, withText } from '../../model/cadSketch';
+import { addSketch, withSketchItems, pointStyleOut, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimLabel, dimMeasure, dimOf, linearDir, nextDim, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch, withText } from '../../model/cadSketch';
 import { trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
@@ -106,7 +107,7 @@ const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab 
 ];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · DR (draw order: Front, Back, Above or Under an object) · TEXTTOFRONT (texts, dimensions, leaders over the rest) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · ED (edit a text or dimension in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · DRA (radius) · DDI (diameter) · DAN (angular) · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · PO (point) · DIV (points at the divisions of an object) · ME (points every length along it) · PTYPE (point style) · DR (draw order: Front, Back, Above or Under an object) · TEXTTOFRONT (texts, dimensions, leaders over the rest) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · ED (edit a text or dimension in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · DRA (radius) · DDI (diameter) · DAN (angular) · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 /** Bind's count in the Save line: reference lines, texts and hatches. */
@@ -188,6 +189,9 @@ const PROMPT: Record<CadTool, string> = {
   mtext: 'MTEXT  First corner:',
   draworder: 'DRAWORDER  Select objects:',
   texttofront: 'TEXTTOFRONT  [Text/Dimensions/Leaders/All] <All>:',
+  point: 'POINT  Specify a point:',
+  divide: 'DIVIDE  Select object to divide:',
+  measure: 'MEASURE  Select object to measure:',
   dim: 'DIM  Specify first extension line origin:',
   dimlin: 'DIMLINEAR  Specify first extension line origin:',
   dimcont: 'DIMCONTINUE  Specify second extension line origin (from the last dimension):',
@@ -249,7 +253,7 @@ const TCASE_PROMPT = 'TCASE  Case [Upper/Lower/Title/Sentence] <Upper>:';
 const TORIENT_PROMPT = 'TORIENT  Readable from [Bottom/Right/Both] <Both>:';
 const TJUST_PROMPT = (now: string) => `TJUST  Justify [Left/Centre/Right/TL/TC/TR/ML/MC/MR/BL/BC/BR] <${now}>:`;
 const TH_PROMPT = (mm: number, forNew: boolean) => `TXTHEIGHT  Height on paper (mm)${forNew ? ' for new text' : ''} ${ISO_TEXT_MM.join(' · ')} <${mm}>:`;
-const DRAW_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'rect', 'circle', 'arc', 'text', 'dim', 'dimlin', 'dimcont', 'dimbase', 'move', 'copy', 'rotate', 'polygon', 'ellipse', 'circle2p', 'circle3p', 'circled', 'arcsce', 'revcloud'];
+const DRAW_TOOLS: CadTool[] = ['point', 'line', 'pline', 'tray', 'cable', 'rect', 'circle', 'arc', 'text', 'dim', 'dimlin', 'dimcont', 'dimbase', 'move', 'copy', 'rotate', 'polygon', 'ellipse', 'circle2p', 'circle3p', 'circled', 'arcsce', 'revcloud'];
 
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
  * a command line and a status bar. Engine in Rust (WebAssembly), desktop and web alike. Measure a distance, an area (by
@@ -337,6 +341,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [mtSet, setMtSet] = useState<{ mm?: number; just?: NoteAttach }>({});
   /** DRAWORDER (S7): the order chosen before the objects (from the ribbon or the right-click menu), if any. */
   const [drMode, setDrMode] = useState<DrMode | null>(null);
+  /** DIVIDE / MEASURE (S8): the object clicked and where, while its number of parts or length is typed. */
+  const [divPick, setDivPick] = useState<{ it: SketchItem; at: Pt } | null>(null);
   // TALIGN after its texts: the edge chosen and what it waits for (the text or point to line up with, or the gap).
   const [tAsk, setTAsk] = useState<{ mode: AlignMode | 'spacing'; step: 'ref' | 'gap' } | null>(null);
   // TCOUNT: its prefix, number, step, digits and suffix, what it asks for next, and the texts placed (for Undo).
@@ -351,7 +357,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [dynMenu, setDynMenu] = useState<number | null>(null);
   const dynRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
   // The settings dialog shown: the edit tool's, or the text or dimension styles.
-  const [dlg, setDlg] = useState<'edit' | 'style' | 'dimstyle' | 'qselect' | null>(null);
+  const [dlg, setDlg] = useState<'edit' | 'style' | 'dimstyle' | 'qselect' | 'ptype' | null>(null);
   /** PASTECLIP: the objects following the cursor until they are placed. */
   const [pasting, setPasting] = useState<ClipPayload | null>(null);
   const [promptMenu, setPromptMenu] = useState<{ at: Pt; items: { label: string; key?: string; run: () => void }[] } | null>(null);
@@ -459,6 +465,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     // DRAWORDER with objects picked first and Front or Back chosen on a menu: done at once.
     if (tool === 'draworder' && first && (drMode === 'front' || drMode === 'back')) applyDrawOrder(drMode);
     if (tool !== 'draworder') setDrMode(null);
+    setDivPick(null);
     // TEXTEDIT with one text or dimension picked first: its box opens at once.
     if (tool === 'textedit' && first) { const one = pickedSk.length === 1 ? pickedSk[0] : pickedSk.length ? undefined : selSketch; if (one) startTextEdit(one); }
     if ((tool === 'zoom' || tool === 'zoomwin' || tool === 'zoomscale') && zoomRefused()) cad.setTool('none');
@@ -862,7 +869,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       const tags = wired.map((w) => ({ layer: TAG_LAYER, kind: 'text' as const, pts: [[w.tagAt[0] / units.factor, w.tagAt[1] / units.factor] as Pt], text: w.tag, h: textH * 0.6, rot: 0 }));
       const refLines = c.bind ? xr.bound() : [];
       const drawn = c.drawn ? sketch : [];
-      const bytes = await drawingWithDevices(view, out, [...shapesOut(drawn, units.factor), ...wires, ...tags, ...refLines], c.as, erasedKey ? erasedKey.split(',') : [], c.version);
+      const bytes = await drawingWithDevices(view, out, [...shapesOut(drawn, units.factor), pointStyleOut(pointStyleOf(project)), ...wires, ...tags, ...refLines], c.as, erasedKey ? erasedKey.split(',') : [], c.version);
       const over = again && c.path ? window.lvds?.files?.overwriteBinary : undefined;
       let r: { message: string; path?: string; name: string } | null;
       if (over && c.path) { await over({ file: c.path, bytes, bak: draft.keepBak }); r = { message: `Saved ${c.name}`, path: c.path, name: c.name }; }
@@ -930,7 +937,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         const items = pickedSk.length ? pickedSk : selSketch ? [selSketch] : [];
         if (!items.length && !pickedItems.length) { cad.say('WBLOCK  Pick the drawn objects or devices first, then WBLOCK.'); return; }
         const devs = pickedItems.map((d) => ({ layer: d.what === 'lv' ? 'E-LV-POINTS' : d.what === 'elv' ? 'E-ELV-DEVICES' : 'E-BOARDS', x: d.x / units.factor, y: d.y / units.factor, r: rUnits * (d.what === 'board' ? 2 : 1), text: d.symbol.text, label: d.what === 'lv' ? d.detail.split(' · ')[0] : d.label }));
-        const bytes = await drawingWithDevices({ bytes: new TextEncoder().encode(toDxf([])) }, devs, shapesOut(items, units.factor), 'dxf');
+        const bytes = await drawingWithDevices({ bytes: new TextEncoder().encode(toDxf([])) }, devs, [...shapesOut(items, units.factor), pointStyleOut(pointStyleOf(project))], 'dxf');
         say(await saveBinary(`${base} - objects.dxf`, bytes, 'DXF drawing', 'dxf', 'application/dxf'));
         return;
       }
@@ -1720,6 +1727,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (points.length >= 3 && distance(at, points[0]) <= 8 * pixel) { finishPline(true); return; }
       setPoints((p) => [...p, at]); cad.say('PLINE  Specify next point or [Close], Enter to finish:'); return;
     }
+    if (tool === 'point') { draw({ kind: 'point', layer: curLayer, pts: [at], ...newProps }, 'Point'); cad.say(PROMPT.point); return; }
+    if (tool === 'divide' || tool === 'measure') {
+      const ask = tool === 'divide' ? 'DIVIDE  Number of segments or [Block]:' : 'MEASURE  Segment length or [Block]:';
+      if (divPick) { cad.say(ask); return; }
+      const sk = itemAt(pickable, at, 6 * pixel);
+      if (!sk || !canDivide(sk)) { cad.say(`${tool.toUpperCase()}  ${sk ? `A ${kindOf(sk).toLowerCase()} cannot be ${tool === 'divide' ? 'divided' : 'measured out'}. ` : ''}Click a line, polyline, arc, circle or ellipse:`); return; }
+      setDivPick({ it: sk, at }); cad.setSelected(`sk:${sk.id}`); setResult({ kind: 'sketch', it: sk });
+      cad.say(ask); input.current?.focus(); return;
+    }
     if (tool === 'rect') {
       if (!last) { setPoints([at]); cad.say('RECTANG  Specify other corner point:'); return; }
       const pts = rectangle(last, at);
@@ -2141,6 +2157,23 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       else { setTextAsk({ ...textAsk, step: null, rot: n ?? textAsk.rot }); cad.say('TEXT  Enter text:'); }
       return;
     }
+    // DIVIDE / MEASURE after the object: the number of parts, or the length in metres; Block waits for Steps 9 and 10.
+    if ((tool === 'divide' || tool === 'measure') && divPick) {
+      const CMD = tool.toUpperCase(), ask = tool === 'divide' ? 'DIVIDE  Number of segments or [Block]:' : 'MEASURE  Segment length or [Block]:';
+      // TODO(S10): a block at each point, aligned with the object or not, once BLOCK and INSERT exist.
+      if (c === 'B' || c === 'BLOCK') { cad.say(`${CMD}  Blocks come with BLOCK and INSERT (Steps 9 and 10 of the 2D gap plan); points for now. ${ask}`); return; }
+      if (!c) { cad.say(ask); return; }
+      const n = Number(raw.replace(',', '.'));
+      const pts = tool === 'divide' ? (Number.isInteger(n) && n >= 2 ? pointsAlong(divPick.it, n) : []) : n > 0 ? pointsEvery(divPick.it, n / units.factor, divPick.at) : [];
+      if (!pts.length) {
+        cad.say(tool === 'divide' ? `DIVIDE  A whole number of 2 or more. ${ask}` : n > 0 ? `MEASURE  The ${kindOf(divPick.it).toLowerCase()} is shorter than ${m(n)}: no point fits. ${ask}` : `MEASURE  A length in metres. ${ask}`);
+        return;
+      }
+      let next = project;
+      for (const q of pts) next = addSketch(next, fileOf(), { kind: 'point', layer: curLayer, pts: [q.at], ...newProps }).project;
+      change(next, `${CMD}  ${pts.length} point${pts.length === 1 ? '' : 's'} on the ${kindOf(divPick.it).toLowerCase()} · ⌘Z to undo`);
+      setDivPick(null); cad.setTool('none'); return;
+    }
     // MTEXT at the second corner: H, J or W, then the value asked for; a point typed is the corner.
     if (tool === 'mtext' && points.length === 1 && !edNote) {
       if (mtAsk?.step === 'height') { const n = Number(c); if (c && !(n > 0)) { cad.say(`MTEXT  Height on paper (mm) <${mtMm()}>:`); return; } if (n > 0) setMtSet({ ...mtSet, mm: n }); setMtAsk(null); cad.say(MTEXT_CORNER); return; }
@@ -2220,6 +2253,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       else if (tool === 'arl' && arlAt.length && points.length >= 2) placeArl();
       else if (renaming) { setRenaming(null); cad.say('*Cancel*'); }
       else if (tool === 'cable') finishCable();
+      else if (tool === 'point') cad.setTool('none');
       else if (tool === 'line') { setPoints([]); cad.say(PROMPT.line); }
       else if (tool === 'leader') { if (points.length >= 2 && view) change(addSketch(project, view.file, leaderItems(points, '', textH)[0]).project, 'Leader · ⌘Z to undo'); setPoints([]); cad.say(PROMPT.leader); }
       else if (tool === 'copy') { setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); }
@@ -2336,7 +2370,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       snap: () => cad.toggle('snap'),
       help: () => { cad.say(HELP); setLog('help'); },
       textStyle: () => { setDlg('style'); cad.say(`STYLE  Current text style: "${currentTextStyle(project).name}"`); },
-      dimStyle: () => { setDlg('dimstyle'); cad.say(`DIMSTYLE  Current dimension style: "${dimStylesOf(project).current}"`); }
+      dimStyle: () => { setDlg('dimstyle'); cad.say(`DIMSTYLE  Current dimension style: "${dimStylesOf(project).current}"`); },
+      pointStyle: () => { setDlg('ptype'); cad.say(`PTYPE  Points shown as ${pointShapeLabel(pointStyleOf(project).mode).toLowerCase()}`); }
     };
     const command = cadCommand(c);
     if (command) setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30));
@@ -2689,7 +2724,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
-            <CadCanvas view={view!} draft={draft} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
+            <CadCanvas view={view!} draft={draft} pointStyle={pointStyleOf(project)} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
               numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={xr.snap} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={draft.grips && tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
               onGripEnd={(i, at) => {
@@ -2988,6 +3023,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             cad.say('DSETTINGS  Drafting settings changed.');
           }} />}
         {dlg === 'edit' && DIALOG_TOOLS.includes(tool as EditTool) && <EditDialog tool={tool as EditTool} settings={edSet} onPatch={(p) => setEdSet((x) => ({ ...x, ...p }))} onClose={() => setDlg(null)} />}
+        {dlg === 'ptype' && <PointStyleDialog style={pointStyleOf(project)} onClose={() => setDlg(null)}
+          onSave={(s) => { setDlg(null); change({ ...project, cadPointStyle: s }, `PTYPE  Points shown as ${pointShapeLabel(s.mode).toLowerCase()}, ${s.size}${s.relative ? ' % of the view' : ' drawing units'} · ⌘Z to undo`); }} />}
         {dlg === 'style' && <TextStyleDialog styles={textStylesOf(project)} annoMm={anno.textMm} onClose={() => setDlg(null)}
           onSave={(s) => {
             setDlg(null);

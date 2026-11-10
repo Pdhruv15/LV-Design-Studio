@@ -9,12 +9,12 @@ type Pt = [number, number];
  * what links to it (schedules, fittings, circuits by feeder) stays. Several objects take the same value each. */
 
 /** The kind a value belongs to: the Geometry section shows when all the objects are of one of these. */
-export type GeomKind = 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'cloud' | 'tray' | 'cable' | 'text' | 'mtext' | 'dim' | 'dimang';
+export type GeomKind = 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'cloud' | 'tray' | 'cable' | 'text' | 'mtext' | 'dim' | 'dimang' | 'point';
 export const geomKind = (it: SketchItem): GeomKind => (it.tray ? 'tray' : it.cable ? 'cable' : it.cloud ? 'cloud' : it.dimKind === 'angular' ? 'dimang' : it.kind);
 /** What an object is, as the palette and the toolbar beside it name it. */
 export const kindLabel = (it: SketchItem) => (it.tray ? 'Cable tray' : it.cable ? 'Cable route' : it.cloud ? 'Revision cloud'
   : it.kind === 'dim' ? (it.dimKind ? { radius: 'Radius dimension', diameter: 'Diameter dimension', angular: 'Angular dimension' }[it.dimKind] : 'Dimension')
-  : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', ellipse: 'Ellipse', text: 'Text', mtext: 'Note' }[it.kind]);
+  : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', ellipse: 'Ellipse', text: 'Text', mtext: 'Note', point: 'Point' }[it.kind]);
 
 export type PropKey = 'sx' | 'sy' | 'ex' | 'ey' | 'len' | 'ang' | 'cx' | 'cy' | 'r' | 'a0' | 'a1' | 'rx' | 'ry' | 'arc' | 'vx' | 'vy' | 'closed' | 'width' | 'service'
   | 'text' | 'h' | 'rot' | 'just' | 'frame' | 'mask' | 'measured' | 'override';
@@ -37,6 +37,7 @@ export function geometryRows(kind: GeomKind, items: SketchItem[]): PropDef[] {
     case 'pline': return [L('vx', 'X'), L('vy', 'Y'), L('len', 'Length', { ro: true }), T('closed', 'Closed')];
     case 'tray': return [T('width', 'Width'), T('service', 'Service'), L('vx', 'X'), L('vy', 'Y'), L('len', 'Length', { ro: true })];
     case 'cable': return [L('vx', 'X'), L('vy', 'Y'), L('len', 'Length', { ro: true })];
+    case 'point': return [L('sx', 'X'), L('sy', 'Y')];
     default: return [];
   }
 }

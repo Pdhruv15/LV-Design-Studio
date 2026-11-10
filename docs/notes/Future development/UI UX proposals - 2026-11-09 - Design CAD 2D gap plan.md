@@ -5,7 +5,28 @@ section is built in its own branch and PR, in the order of "CLAUDE-CODE-STEPS - 
 Anything not written here stays as it is today. **Built:** S1 (v2.068, `feat/cad-clipboard`); S2, S3 and S4 together
 (v2.076, `feat/cad-gap-steps-1-4`, at the user's "go ahead" on 2026-11-10); S5 (v2.077, `feat/cad-text-inplace-edit`,
 "Yes, Step 5" on 2026-11-10); S6 (v2.078, `feat/cad-mtext`, "Yes, Step 6" on 2026-11-10); S7 (v2.079,
-`feat/cad-draworder`, "Yes, Step 7" on 2026-11-10) — see the end of this note.
+`feat/cad-draworder`, "Yes, Step 7" on 2026-11-10); S8 (v2.080, `feat/cad-point-divide-measure`, "Yes, Step 8" on 2026-11-10) — see
+the end of this note.
+
+## Built in v2.080 (S8)
+
+- **S8** `src/model/cadPoints.ts` (tested): a drawn point is `kind: 'point'` at pts[0]; `pointsAlong` (DIVIDE: n − 1
+  points, n round a closed object from its start) and `pointsEvery` (MEASURE: every length from the end nearer the
+  click, short of the far end) work on lines, polylines (trays and cable routes too), arcs, circles and ellipses, each
+  point with the object's direction there for aligned blocks later. The point style is kept per project
+  (`cadPointStyle`, like the text and dimension styles): shape as PDMODE (0 dot, 1 none, 2 plus, 3 cross, 4 tick, +32 in
+  a circle, +64 in a square) and size, a share of the view's height (%) or drawing units, as PDSIZE. **PO / POINT**
+  `Specify a point:` until Enter; **DIV / DIVIDE** `Select object to divide:` → `Number of segments or [Block]:`;
+  **ME / MEASURE** `Select object to measure:` → `Segment length or [Block]:` (metres); all the points of one command
+  are one undo step. **Block** answers that blocks come with BLOCK and INSERT (Steps 9 and 10) and asks again (a TODO
+  hook sits there). **PTYPE / DDPTYPE**: the dialog in the CAD dialog frame, the grid of twenty shapes, Point size,
+  Size relative to screen / in absolute units, OK · Cancel. **Ribbon:** Draw's ▾ lists Point (PO), Divide (DIV),
+  Measure out (ME) and Point style… (PTYPE) with the spec's tooltips. Points snap with Node, pick by distance, grip and
+  move / copy / rotate / scale / mirror / stretch / crop (whole) like texts, show X and Y in Properties, print on the
+  plan sheets (2 mm across when sized to the screen, else at their size) and save to DXF / DWG as POINT entities with
+  $PDMODE / $PDSIZE in the header (`engines/cad-reader`, the WebAssembly rebuilt). **Decisions taken:** a screen-sized
+  point prints 2 mm across (a sheet has no screen); the Block option waits for Step 10 rather than a stub block;
+  Divide and Measure end after one object (as the drafting programs do), Point repeats until Enter.
 
 ## Built in v2.079 (S7)
 

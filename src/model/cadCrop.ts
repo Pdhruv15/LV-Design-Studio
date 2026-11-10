@@ -451,6 +451,7 @@ function piecesOfItem(it: SketchItem): CadPiece[] {
     case 'text': return [{ ...s, kind: 'text', at: it.pts[0], h: it.h ?? 0, rot: it.rot ?? 0, text: it.text ?? '', ...(it.just ? { just: it.just } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.mask ? { mask: true } : {}) }];
     case 'dim': return it.pts.map((p): CadPiece => ({ ...s, kind: 'point', at: p }));
     case 'mtext': return noteCorners(it).map((p): CadPiece => ({ ...s, kind: 'point', at: p }));
+    case 'point': return [{ ...s, kind: 'point', at: it.pts[0] }];
     // A drawn ellipse cut comes as a polyline within the chord tolerance (there is no elliptical arc item).
     case 'ellipse': return it.ax ? [{ ...s, kind: 'pline', pts: ellipsePoints(it, ELLIPSE_STEPS).map(([x, y]): V3 => [x, y, 0]), closed: true }] : [];
   }
@@ -464,13 +465,13 @@ export function cropItems(items: SketchItem[], boundary: CropBoundary, side: Cro
   const keepIn = side === 'inside', skipped: string[] = [];
   const out = items.flatMap((it): Item[] => {
     const { id: _id, kind: _k, pts: _p, closed: _c, r: _r, a0: _a0, a1: _a1, ax: _ax, ratio: _ratio, ...rest } = it;
-    if (it.kind === 'dim' || it.kind === 'mtext' || it.hatch) {
-      // A dimension or a note stays whole: kept when all its points (a note's box corners) are on the kept side.
-      const whole = it.kind === 'dim' || it.kind === 'mtext', wp = it.kind === 'mtext' ? noteCorners(it) : it.pts;
+    if (it.kind === 'dim' || it.kind === 'mtext' || it.kind === 'point' || it.hatch) {
+      // A dimension, a note or a point stays whole: kept when all its points (a note's box corners) are on the kept side.
+      const whole = it.kind === 'dim' || it.kind === 'mtext' || it.kind === 'point', wp = it.kind === 'mtext' ? noteCorners(it) : it.pts;
       const loop = whole ? [] : it.hatch && it.kind === 'circle' ? [{ k: 'a', c: it.pts[0], r: it.r ?? 0, s: 0, w: TAU } as Curve] : plineCurves(it.pts.map(([x, y]): V3 => [x, y, 0]), !!it.hatch);
       const all = whole ? wp.every((p) => inside(edges, p, tol) === keepIn) : keptShare(loop, edges, keepIn, tol) > 1 - 1e-9;
       if (all) { const { id: _i, ...keep } = it; return [keep]; }
-      if (whole ? wp.some((p) => inside(edges, p, tol) === keepIn) : keptShare(loop, edges, keepIn, tol) > 1e-9) skipped.push(it.kind === 'dim' ? 'dimension' : it.kind === 'mtext' ? 'note' : 'hatch');
+      if (whole ? wp.some((p) => inside(edges, p, tol) === keepIn) : keptShare(loop, edges, keepIn, tol) > 1e-9) skipped.push(it.kind === 'dim' ? 'dimension' : it.kind === 'mtext' ? 'note' : it.kind === 'point' ? 'point' : 'hatch');
       return [];
     }
     // A drawn ellipse wholly on the kept side stays as it is.

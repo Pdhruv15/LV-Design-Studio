@@ -438,3 +438,20 @@ describe('Draw order (S7 of the Design CAD 2D gap plan)', () => {
     expect(cad.onCommand).toHaveBeenLastCalledWith('TEXTTOFRONT');
   });
 });
+
+describe('Points (S8 of the Design CAD 2D gap plan)', () => {
+  it('lists Point, Divide, Measure out and Point style… under Draw ▾', () => {
+    const { cad } = show();
+    click(document.querySelector('button[title^="More draw tools"]')!);
+    const items = () => [...document.querySelectorAll('[role="menuitem"]')] as HTMLButtonElement[];
+    expect(items().map((b) => b.textContent)).toEqual(['Point', 'Divide', 'Measure out', 'Point style…']);
+    click(items()[0]);
+    expect(cad.onTool).toHaveBeenLastCalledWith('point');
+    click(document.querySelector('button[title^="More draw tools"]')!);
+    click(items()[2]);
+    expect(cad.onTool).toHaveBeenLastCalledWith('measure');
+    click(document.querySelector('button[title^="More draw tools"]')!);
+    click(items()[3]);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('PTYPE');
+  });
+});

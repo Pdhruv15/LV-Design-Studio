@@ -8,7 +8,7 @@ import type { CadTool } from './cadState';
 export type CadAction = 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'layiso' | 'layuniso'
   | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
   | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
-  | 'textStyle' | 'dimStyle' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
+  | 'textStyle' | 'dimStyle' | 'pointStyle' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
   | 'copyClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave' | 'zoomPrev' | 'qselect';
 
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
@@ -59,6 +59,9 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['BR', 'BREAK'], desc: 'Break', tool: 'break' },
   { aliases: ['J', 'JOIN'], desc: 'Join', tool: 'join' },
   { aliases: ['X', 'EXPLODE'], desc: 'Explode', tool: 'explode' },
+  { aliases: ['PO', 'POINT'], desc: 'Point: click each one; Enter stops', tool: 'point' },
+  { aliases: ['DIV', 'DIVIDE'], desc: 'Points at the equal divisions of an object', tool: 'divide' },
+  { aliases: ['ME', 'MEASURE'], desc: 'Points every length along an object', tool: 'measure' },
   { aliases: ['DR', 'DRAWORDER'], desc: 'Draw order: the objects picked to the front, the back, above or under another', tool: 'draworder' },
   { aliases: ['TEXTTOFRONT'], desc: 'Texts, dimensions or leaders over everything else', tool: 'texttofront' },
   { aliases: ['MI', 'MIRROR'], desc: 'Mirror', tool: 'mirror' },
@@ -123,6 +126,7 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['DDI', 'DIMDIAMETER'], desc: 'Diameter dimension: an arc or circle, then where the text goes', tool: 'dimdia' },
   { aliases: ['DAN', 'DIMANGULAR'], desc: 'Angular dimension: two lines, an arc, or a vertex and two points, then where the arc goes', tool: 'dimang' },
   { aliases: ['ST', 'STYLE'], desc: 'Text style', action: 'textStyle' },
+  { aliases: ['PTYPE', 'DDPTYPE'], desc: 'Point style', action: 'pointStyle' },
   { aliases: ['D', 'DST', 'DIMSTY', 'DIMSTYLE'], desc: 'Dimension style', action: 'dimStyle' },
   { aliases: ['E', 'ERASE', 'DEL', 'DELETE'], desc: 'Erase', action: 'erase' },
   { aliases: ['RESTOREDWG'], desc: 'Bring back the objects of the drawing erased here', action: 'restoreDwg' },

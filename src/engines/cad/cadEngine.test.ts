@@ -6,7 +6,7 @@ import { drawingWithDevices, dxfToDwg, INK, openDrawing, readRefGeometry, SNAP, 
 import { placeRefExtras, type CadRef } from '../../model/cadRefs';
 import { buildSheetDxfPages } from '../../docs/sheetDxf';
 import { sampleProject } from '../../data/sampleProject';
-import { shapesOut } from '../../model/cadSketch';
+import { shapesOut, pointStyleOut } from '../../model/cadSketch';
 import type { SketchItem } from '../../types';
 
 const root = path.resolve(__dirname, '../../..');
@@ -131,6 +131,22 @@ describe('CAD engine (Rust, WebAssembly)', () => {
       expect(lines[1].y, as).toBeCloseTo(3000 - 2.66 * 250, 6); // the reader spaces an MTEXT's lines 1.66 heights apart
       saved.close();
     }
+  });
+
+  it('saves drawn points as POINT entities, found by the Node snap, with the point style in the header', async () => {
+    const shapes = [...shapesOut([{ id: 'p', kind: 'point', layer: 'LV-SKETCH', pts: [[2500, 2500]] }], 0.001), pointStyleOut({ mode: 34, size: 5, relative: true })];
+    expect(shapes).toEqual([{ layer: 'LV-SKETCH', kind: 'point', pts: [[2500, 2500]] }, { layer: '', kind: 'pointstyle', pts: [], mode: 34, r: -5 }]);
+    for (const as of ['dxf', 'dwg'] as const) {
+      const saved = await openDrawing(`points.${as}`, await drawingWithDevices(gf, [], shapes, as));
+      // A point has no line to pick, but the Node snap finds it.
+      const on = new Uint8Array(saved.info.layers.length).fill(1);
+      const s = await saved.snap(2501, 2499, 5, SNAP.node, on);
+      expect([s[0], s[1], s[2]], as).toEqual([2500, 2500, SNAP.node]);
+      saved.close();
+    }
+    const dxf = new TextDecoder().decode(await drawingWithDevices(gf, [], shapes, 'dxf'));
+    expect(dxf.slice(dxf.indexOf('$PDMODE'), dxf.indexOf('$PDMODE') + 40)).toMatch(/34/);
+    expect(dxf.slice(dxf.indexOf('$PDSIZE'), dxf.indexOf('$PDSIZE') + 40)).toMatch(/-5/);
   });
 
   it('saves radius and angular dimensions as their lines, an arc and their text, in DXF and DWG', async () => {

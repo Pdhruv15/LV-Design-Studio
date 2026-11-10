@@ -185,6 +185,19 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
       expect(lifted.indexOf('<circle')).toBeGreaterThan(lifted.indexOf('PLANT'));
     });
 
+    it('prints drawn points with the point style: 2 mm across when sized to the screen, else at their size in the drawing\'s units (S8)', () => {
+      const pt: SketchItem = { id: 'P1', kind: 'point', layer: 'LV-SKETCH', pts: [[5000, 5000]] };
+      const group = (p: Project) => /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svgOf(p))![1];
+      // A dot sized to the screen: a filled circle of 0.25 mm.
+      expect(group({ ...withWork(), ...drawn(villa(), [pt]) })).toMatch(/<circle cx="[\d.]+" cy="[\d.]+" r="0.25" fill="#000" stroke="none"\/>/);
+      // A plus in a circle, 400 mm across on the plan: at 1:100, a 2 mm circle and two 4 mm lines.
+      const g = group({ ...withWork(), ...drawn(villa(), [pt]), cadPointStyle: { mode: 34, size: 400, relative: false } });
+      expect(g).toMatch(/<circle cx="[\d.]+" cy="[\d.]+" r="2" fill="none"/);
+      const m = /<path d="M([\d.]+) ([\d.]+)L([\d.]+) ([\d.]+)M([\d.]+) ([\d.]+)L([\d.]+) ([\d.]+)" fill="none"/.exec(g)!;
+      expect(Number(m[3]) - Number(m[1])).toBeCloseTo(4);
+      expect(Number(m[8]) - Number(m[6])).toBeCloseTo(-4);
+    });
+
     it('prints lines at their linetype and lineweight, text at its drawn height, black, over the architect\'s plan', () => {
       const svg = svgOf(withWork());
       const g = /<g class="drawn" clip-path="url\(#dw-[\w-]+\)">(.*?)<\/g>/.exec(svg)![1];

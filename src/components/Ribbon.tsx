@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
 import { BringToFront, Frame, LayoutTemplate, Printer, Crop, Plus, ChevronRight, LightbulbOff, Snowflake, LockOpen, Focus, CircleCheck, Layers3, ArrowDownRight, Cloud, FileSearch, ListOrdered } from 'lucide-react';
 import { ListFilter, PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen , SquareScissors } from 'lucide-react';
-import { Pentagon, ArrowRightToLine, TriangleRight, Hexagon, CaseSensitive, LandPlot, ScanSearch, Expand, SlidersHorizontal, DraftingCompass } from 'lucide-react';
+import { Dot, Divide, Target, Pentagon, ArrowRightToLine, TriangleRight, Hexagon, CaseSensitive, LandPlot, ScanSearch, Expand, SlidersHorizontal, DraftingCompass } from 'lucide-react';
 import type { CadExport, CadRibbonInfo, CadTool } from './cad/cadState';
 import { ColourPicker } from './cad/ColourPicker';
 import { LINETYPE_IDS, LINETYPES, LINEWEIGHTS, type LinetypeId, type ObjectProps } from '../model/cadLayerStyle';
@@ -176,7 +176,7 @@ export const CAD_TABS: Record<'named' | 'labels', CadTab[]> = {
 const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
 /** The panel a tool is on, so the ribbon shows the tool in use (a typed command moves it there). */
 const GROUP_OF: Partial<Record<CadTool, number>> = {
-  line: G.draw, pline: G.draw, rect: G.draw, circle: G.draw, arc: G.draw, hatch: G.draw, polygon: G.draw, ellipse: G.draw, circle2p: G.draw, circle3p: G.draw, circled: G.draw, arcsce: G.draw, revcloud: G.annotate,
+  point: G.draw, divide: G.draw, measure: G.draw, line: G.draw, pline: G.draw, rect: G.draw, circle: G.draw, arc: G.draw, hatch: G.draw, polygon: G.draw, ellipse: G.draw, circle2p: G.draw, circle3p: G.draw, circled: G.draw, arcsce: G.draw, revcloud: G.annotate,
   move: G.modify, copy: G.modify, rotate: G.modify, mirror: G.modify, scale: G.modify, stretch: G.modify, trim: G.modify, extend: G.modify, offset: G.modify, fillet: G.modify, chamfer: G.modify, break: G.modify, join: G.modify, explode: G.modify, array: G.modify,
   text: G.annotate, mtext: G.annotate, draworder: G.modify, texttofront: G.modify, dim: G.annotate, dimlin: G.annotate, dimcont: G.annotate, dimbase: G.annotate, leader: G.annotate, rtag: G.annotate, north: G.annotate, keynote: G.annotate,
   tcount: G.annotate, tjust: G.annotate, th: G.annotate, talign: G.annotate, tcase: G.annotate, tframe: G.annotate, tmask: G.annotate, tcopy: G.annotate, matchprop: G.props, dist: G.measure, area: G.measure,
@@ -567,7 +567,12 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         cadTool('hatch', 'Hatch', PaintBucket, 'Hatch (H): the pattern on the right, then click inside a closed drawn object or a room'),
         sm(cadTool('rect', 'Rectangle', RectangleHorizontal, 'Rectangle (REC): two opposite corners')),
         sm(cadTool('polygon', 'Polygon', Pentagon, 'Polygon (POL): the number of sides, the centre, then the radius (I: corners on it, C: sides touching it)')),
-        sm(cadTool('ellipse', 'Ellipse', EllipseIcon, 'Ellipse (EL): centre, the end of one axis, then the other axis; A for the two ends of an axis'))
+        sm(cadTool('ellipse', 'Ellipse', EllipseIcon, 'Ellipse (EL): centre, the end of one axis, then the other axis; A for the two ends of an axis')),
+        // Under Draw's ▾ (S8 of the 2D gap plan): points, and points set out along an object.
+        { ...cadTool('point', 'Point', Dot, 'Point (PO): click each point; Enter stops'), more: true },
+        { ...cadTool('divide', 'Divide', Divide, 'Divide (DIV): pick an object, then the number of parts: points (or a block) at the divisions'), more: true },
+        { ...cadTool('measure', 'Measure out', Ruler, 'Measure out (ME): pick an object, then the length: points (or a block) every length along it'), more: true },
+        { ...cadCmd('Point style…', Target, 'PTYPE', 'Point style (PTYPE): the shape and size of drawn points'), more: true }
       ],
       // Modify: three rows, column by column (Move, Copy, Stretch · Rotate, Mirror, Scale · Trim, Extend, Break · Fillet,
       // Chamfer, Join · Offset, Array, Explode · Erase); Quick select under Modify ▾.
