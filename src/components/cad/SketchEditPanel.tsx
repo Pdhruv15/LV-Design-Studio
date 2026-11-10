@@ -8,7 +8,7 @@ import type { SketchItem } from '../../types';
 /** Design CAD → Draw → Modify / Edit: the toolbar beside drawn objects picked, the side panel of several, and the
  * settings of the edit tools (distances typed in metres). */
 
-export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase';
+export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase' | 'clipboard';
 export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'tframe' | 'tmask';
 /** Offset `through` a point (the copy passes through it), `erase` the source, the copies on the `source` layer or the
  * `current` one; Fillet and Chamfer `trim` the lines to the corner (else they stay and the arc or line is added); a
@@ -18,7 +18,7 @@ export const ED_START: EditSettings = { offset: '0.3', through: false, erase: fa
 
 const LABEL: Record<SketchEdit, string> = {
   filter: 'Filter ▾', trim: 'Trim', extend: 'Extend', offset: 'Offset', break: 'Break', fillet: 'Fillet', mirror: 'Mirror', scale: 'Scale', array: 'Array',
-  join: 'Join', width: 'Width ▾', move: 'Move', copy: 'Copy', rotate: 'Rotate', erase: 'Erase'
+  join: 'Join', width: 'Width ▾', move: 'Move', copy: 'Copy', rotate: 'Rotate', erase: 'Erase', clipboard: 'Clipboard ▸'
 };
 export const kindOf = kindLabel;
 
@@ -34,8 +34,14 @@ export function sketchEditsFor(items: SketchItem[], devices: number): SketchEdit
   return ['move', 'copy', 'rotate', 'erase'];
 }
 
-/** The toolbar beside the drawn objects picked (or the menu at the cursor). */
-export function SketchToolbar({ items, devices, lengthM, left, top, place, onEdit }: {
+/** The clipboard entries of the menu at the cursor (S1 of the Design CAD 2D gap plan). */
+const CLIPBOARD: { id: string; label: string; key: string; paste?: true }[] = [
+  { id: 'copy', label: 'Copy', key: 'Ctrl+C' }, { id: 'copybase', label: 'Copy with base point', key: 'Ctrl+Shift+C' },
+  { id: 'paste', label: 'Paste', key: 'Ctrl+V', paste: true }, { id: 'pasteorig', label: 'Paste to original coordinates', key: '', paste: true }
+];
+
+/** The toolbar beside the drawn objects picked (or the menu at the cursor, with Clipboard ▸ too). */
+export function SketchToolbar({ items, devices, lengthM, left, top, place, canPaste, onEdit }: {
   items: SketchItem[];
   /** Devices picked with them. */
   devices: number;
@@ -44,12 +50,16 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, onEdi
   left: number;
   top: number;
   place: 'above' | 'below' | 'menu';
+  /** Something is on the clipboard to paste. */
+  canPaste?: boolean;
   onEdit: (e: SketchEdit, arg?: string) => void;
 }) {
-  const [open, setOpen] = useState<'filter' | 'width' | null>(null);
-  const edits = sketchEditsFor(items, devices);
+  const [open, setOpen] = useState<'filter' | 'width' | 'clipboard' | null>(null);
+  const edits: SketchEdit[] = [...sketchEditsFor(items, devices), ...(place === 'menu' ? ['clipboard' as const] : [])];
   const one = items.length === 1 && !devices ? items[0] : undefined;
-  const list: { id: string; label: string; now?: boolean }[] = open === 'width'
+  const list: { id: string; label: string; now?: boolean; key?: string; off?: boolean }[] = open === 'clipboard'
+    ? CLIPBOARD.map((x) => ({ id: x.id, label: x.label, key: x.key, off: x.paste && !canPaste }))
+    : open === 'width'
     ? TRAY_WIDTHS.map((w) => ({ id: String(w), label: `${w} mm`, now: one?.tray?.widthMm === w }))
     : open === 'filter' ? (devices ? [{ id: 'devices', label: 'Devices only' }, { id: 'drawn', label: 'Drawn only' }]
       : [...new Set(items.map(kindOf))].map((k) => ({ id: k, label: `${k} only` }))) : [];
@@ -61,12 +71,12 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, onEdi
       {edits.map((e) => (
         <Fragment key={e}>
           {e === 'move' && <span className="cad-ctx-bar" />}
-          <button aria-expanded={e === 'filter' || e === 'width' ? open === e : undefined} onClick={() => (e === 'filter' || e === 'width' ? setOpen(open === e ? null : e) : onEdit(e))}>{LABEL[e]}</button>
+          <button aria-expanded={e === 'filter' || e === 'width' || e === 'clipboard' ? open === e : undefined} onClick={() => (e === 'filter' || e === 'width' || e === 'clipboard' ? setOpen(open === e ? null : e) : onEdit(e))}>{LABEL[e]}</button>
         </Fragment>
       ))}
       {open && (
-        <div className="cad-ctx-list" role="listbox" aria-label={open === 'width' ? 'Width' : 'Filter'}>
-          {list.map((x) => <button key={x.id} role="option" aria-selected={!!x.now} disabled={x.now} onClick={() => { setOpen(null); onEdit(open, x.id); }}><span>{x.label}</span><small>{x.now ? 'now' : ''}</small></button>)}
+        <div className="cad-ctx-list" role="listbox" aria-label={open === 'width' ? 'Width' : open === 'clipboard' ? 'Clipboard' : 'Filter'}>
+          {list.map((x) => <button key={x.id} role="option" aria-selected={!!x.now} disabled={x.now || x.off} onClick={() => { setOpen(null); onEdit(open, x.id); }}><span>{x.label}</span><small>{x.now ? 'now' : x.key ?? ''}</small></button>)}
         </div>
       )}
     </div>
