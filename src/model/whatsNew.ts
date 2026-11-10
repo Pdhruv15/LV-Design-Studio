@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.080', date: '2026-11-10',
+    items: [
+      { title: 'Boards with no outgoing ways drawn as a board symbol', text: 'On the SLD, a board with nothing below it yet now ends its incoming line on a board symbol (busbar and ways inside; one way for a DB, control rows for a package panel), with its name, kind and loading beside it and "NO OUTGOING WAYS" or its load-schedule circuits underneath. No more line running past the box.' },
+      { title: 'Tidier earthing with several transformers', text: 'Each transformer\'s LV earth-pit detail now stands next to its own incomer: the electrode note is on two lines, the test link sits by the incomer, and the MET no longer runs through the "415 V" label. SLDs with many transformers are narrower.' }
+    ]
+  },
+  {
     version: '2.077', date: '2026-11-10',
     items: [
       { title: 'Double-click a text or dimension to edit it in place', text: 'In Design CAD, a double-click on a drawn text, a leader\'s text or a dimension opens a box over it, at its height and angle, with the text selected: type, then Enter keeps it (one undo step), Esc leaves it as it was, a click outside keeps it. ED (TEXTEDIT, DDEDIT) asks for the object instead, and stays for the next one; Edit text is on the right-click menu of a text or dimension. A dimension\'s typed text is its override: <> in it stands for the measured value ("<> mm" keeps measuring as the points move), and blank gives the measure back. A text on a locked layer is refused.', action: 'cad', actionLabel: 'Open Design CAD' }
