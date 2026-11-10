@@ -17,7 +17,7 @@ import { EARTH_PREFIX, setOf, sheetNumber } from './drawingSet';
  * will take when added (E-ERT-001 with the default prefix). */
 export function earthSheetNo(project: Project): string {
   const set = setOf(project);
-  return set.sheets.find((x) => x.kind === 'earthing')?.number || sheetNumber(set, 0, set.earthPrefix ?? EARTH_PREFIX);
+  return (set.sheets.find((x) => x.kind === 'earthing' && !x.part) ?? set.sheets.find((x) => x.kind === 'earthing'))?.number || sheetNumber(set, 0, set.earthPrefix ?? EARTH_PREFIX);
 }
 
 export interface BoardEarth {

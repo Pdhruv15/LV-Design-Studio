@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { DOMParser } from '@xmldom/xmldom';
 import ExcelJS from 'exceljs';
 import { sampleProject } from '../data/sampleProject';
+import { applyTransformers, planTransformers } from '../model/transformers';
 import type { Project } from '../types';
 import { callTool, offeredTools, toolByName, type ToolContext } from './tools';
 import { parseProject } from './project';
@@ -107,6 +108,14 @@ describe('exports', () => {
     const dxf = fs.readFileSync(d.files[0], 'utf-8');
     expect(dxf).toContain('ENTITIES');
     expect(dxf.match(/\n\s*TEXT\s*\n/g)?.length ?? 0).toBeGreaterThan(10);
+  });
+  it('earthing DXF of a big site: one file per sheet of the schematic, each naming the next', async () => {
+    let p: Project = { ...sampleProject, id: 'proj-nine', boards: [], feeders: [], ties: [] };
+    for (let i = 1; i <= 9; i++) p = applyTransformers(p, planTransformers(p, Array.from({ length: (i % 3) + 1 }, () => ({ kva: 1000 })), false, 2, `SS-0${i}`));
+    fs.writeFileSync(file('Nine'), JSON.stringify(p, null, 2));
+    const d = await run('export_dxf', { project: 'Nine', mode: 'export', approvedBy: 'A. Engineer' });
+    expect(d.files.map((f: string) => path.basename(f))).toEqual(['E-EAR-001.dxf', 'E-EAR-002.dxf', 'E-EAR-003.dxf']);
+    expect(fs.readFileSync(d.files[0], 'utf-8')).toContain('CONTINUED ON E-EAR-002');
   });
 });
 

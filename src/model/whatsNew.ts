@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.088', date: '2026-11-11',
+    items: [
+      { title: 'Earthing schematic prints larger, and continues on more sheets when it must', text: 'The printed earthing schematic now also tries narrower substation rows (a wide substation on two rows), which lets more columns fit: a big site prints up to about a third larger. When even that would print labels under 2 mm, the schematic continues over several sheets of whole rows, each its own numbered sheet in the drawing set (E-ERT-001, -002 …) with "continued on" notes; a link to a pit on another sheet names that sheet, and the pit schedule goes on the last sheet. Auto paper goes up to A1 before adding sheets. Add earthing schematic in Drawings adds any missing sheets, and the set checks say when the count changed.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
     version: '2.087', date: '2026-11-10',
     items: [
       { title: 'Earthing schematic fills the sheet', text: 'On the printed earthing schematic (PDF, DXF and Design CAD → Sheets), the substation bands no longer stand in one tall column. Whole bands flow into side-by-side columns, and a long earth pit schedule gets a column of its own, whichever prints largest on a landscape sheet. A site with many substations prints about twice the size. The drawing inside each band is unchanged, and so is the on-screen Earthing view.', action: 'sheets', actionLabel: 'Open Sheets' }

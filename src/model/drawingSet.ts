@@ -1,6 +1,7 @@
 import type { Board, Feeder, Project } from '../types';
 import { boardsInSupplyOrder, boardSummary, boardTotals } from '../calc/summary';
 import { earthingLayout } from './earthingPlan';
+import { earthingDrawing, type EarthingSheet } from '../diagram/earthingDrawing';
 import { boardEarth } from './boardEarth';
 import { subtree } from '../calc/pfc';
 import { SHEET_MM } from '../docs/sldSheet';
@@ -171,10 +172,46 @@ export function addLegendSheet(set: DrawingSet): { set: DrawingSet; id: string }
   const id = `sh-${Date.now().toString(36)}`;
   return { id, set: renumber({ ...set, sheets: [{ id, number: '', title: 'Legend, abbreviations and notes', kind: 'legend', boards: [], size: 'auto', status: startStatus(set) }, ...set.sheets] }) };
 }
-/** The earthing schematic sheet (one per project). */
-export function addEarthingSheet(set: DrawingSet): { set: DrawingSet; id: string } {
-  const id = `sh-${Date.now().toString(36)}`;
-  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: 'Earthing schematic diagram', kind: 'earthing', boards: [], size: 'auto', status: startStatus(set) }] }) };
+/** The earthing schematic: one sheet, or a sheet per part when it continues over several (with a project). Sheets
+ * already in the set are kept; missing parts are added after them. Returns the first sheet. */
+export function addEarthingSheet(set: DrawingSet, project?: Project): { set: DrawingSet; id: string } {
+  const have = set.sheets.filter((x) => x.kind === 'earthing');
+  const need = project ? earthingSheetCount(project, set) : 1;
+  const sheets = [...set.sheets];
+  const base = `sh-${Date.now().toString(36)}`, size = have.find((x) => (x.part ?? 0) === 0)?.size ?? 'auto';
+  let first = have.find((x) => (x.part ?? 0) === 0)?.id;
+  for (let part = 0; part < need; part++) {
+    if (have.some((x) => (x.part ?? 0) === part)) continue;
+    let id = part ? `${base}-e${part}` : base;
+    for (let n = 2; sheets.some((x) => x.id === id); n++) id = `${base}-e${part}-${n}`;
+    const after = sheets.reduce((at, x, i) => (x.kind === 'earthing' && (x.part ?? 0) < part ? i : at), -1);
+    sheets.splice(after >= 0 ? after + 1 : sheets.length, 0, { id, number: '', title: earthingTitle(part, need), kind: 'earthing', ...(part ? { part } : {}), boards: [], size, status: startStatus(set) });
+    first ??= id;
+  }
+  return { id: first ?? '', set: renumber({ ...set, sheets }) };
+}
+const earthingTitle = (part: number, count: number) => `Earthing schematic diagram${count > 1 ? ` (${part + 1} of ${count})` : ''}`;
+/** The paper an earthing schematic is drawn for: its first sheet's size, or A1 on auto (a big schematic goes up to A1
+ * before it continues on more sheets). */
+const earthingPaper = (set?: DrawingSet): SheetSize => {
+  const s = set?.sheets.find((x) => x.kind === 'earthing' && !x.part) ?? set?.sheets.find((x) => x.kind === 'earthing');
+  return s && s.size !== 'auto' ? s.size : 'A1';
+};
+/** What an earthing sheet is drawn for: its part, the drawing area of its paper at the smallest readable scale (beside
+ * the legend column), and the numbers of the parts in the set. */
+export function earthingSheetOf(set: DrawingSet | undefined, s?: Pick<DrawingSheet, 'part'>): EarthingSheet {
+  const m = drawingAreaMm(earthingPaper(set), LEGEND_RESERVE_MM);
+  const nos: string[] = [];
+  for (const x of set?.sheets ?? []) if (x.kind === 'earthing') nos[x.part ?? 0] = x.number;
+  return { part: s?.part ?? 0, capacity: { w: m.w / MIN_MM_PER_PX, h: m.h / MIN_MM_PER_PX }, nos };
+}
+/** How many sheets the earthing schematic takes at the smallest readable scale (1 with nothing to earth). */
+export function earthingSheetCount(project: Project, set?: DrawingSet): number {
+  const L = earthingLayout(project);
+  if (!L.items.length) return 1;
+  const first = set?.sheets.find((x) => x.kind === 'earthing' && !x.part);
+  const furniture = set && furnitureOf(set, first).riserFurniture === 'column' ? 'column' as const : undefined;
+  return earthingDrawing(project, L, true, { mono: true, furniture, sheet: earthingSheetOf(set) }).parts;
 }
 /** What publishing a sheet would issue (the ribbon's Publish): its first revision, or the next once it changed since
  * its last issue. */
@@ -193,10 +230,15 @@ export function publishState(project: Project, set: DrawingSet, s: DrawingSheet,
 /** The earthing schematic, or a building's earth riser / floor earthing sheet `part`, for the earthing screen's Sheets
  * button: from the set, else added (every sheet of that kind for the building). No id when there is nothing to draw. */
 export function earthSheetFor(set: DrawingSet, project: Project, kind: 'earthing' | 'earthRiser' | 'earthFloor', buildingId?: string, part = 0): { set: DrawingSet; id?: string } {
-  const find = (x: DrawingSet) => x.sheets.find((s) => s.kind === kind && (kind === 'earthing' || (s.buildingId === buildingId && (s.part ?? 0) === part)))?.id;
+  const find = (x: DrawingSet) => x.sheets.find((s) => s.kind === kind && (s.part ?? 0) === part && (kind === 'earthing' || s.buildingId === buildingId))?.id;
+  if (kind === 'earthing') {
+    // Missing continuation sheets of the schematic are added too.
+    const next = addEarthingSheet(set, project).set;
+    return next.sheets.length === set.sheets.length ? { set, id: find(set) } : { set: next, id: find(next) };
+  }
   if (find(set)) return { set, id: find(set) };
-  if (kind !== 'earthing' && !buildingId) return { set };
-  const next = kind === 'earthing' ? addEarthingSheet(set).set : addEarthRiserSheet(set, project, buildingId!, kind).set;
+  if (!buildingId) return { set };
+  const next = addEarthRiserSheet(set, project, buildingId, kind).set;
   return { set: next, id: find(next) };
 }
 /** A riser diagram sheet for a building. */
@@ -290,7 +332,10 @@ export function autoSheets(p: Project, mode: 'perMdb' | 'perSmdb', dbSheets = fa
   }
   if (dbSheets) for (const b of order.filter((x) => isDb(x) && p.feeders.some((f) => f.boardId === x.id))) sheets.push({ id: id(), title: `${b.id} — circuit diagram`, kind: 'board', boards: [b.id], size: 'auto' });
   // The earthing schematic goes with the SLDs whenever there is a main board to earth.
-  if (mains.length) sheets.push({ id: id(), title: 'Earthing schematic diagram', kind: 'earthing', boards: [], size: 'auto' });
+  if (mains.length) {
+    const n = earthingSheetCount(p);
+    for (let part = 0; part < n; part++) sheets.push({ id: id(), title: earthingTitle(part, n), kind: 'earthing', ...(part ? { part } : {}), boards: [], size: 'auto' });
+  }
   return renumber({ prefix, register: true, sheets: sheets.map((s) => ({ ...s, number: '' })) });
 }
 
@@ -377,9 +422,15 @@ export const MIN_MM_PER_PX = 0.2;
 /** Drawing scale (mm per px) on a paper size; reserveW = width taken by the
  * legend column (mm). */
 export function scaleOn(size: SheetSize, widthPx: number, heightPx: number, reserveW = 0, reserveH = 0, area?: AreaOf): number {
+  const m = drawingAreaMm(size, reserveW, reserveH, area);
+  return Math.min(m.w / widthPx, m.h / heightPx);
+}
+/** The room a paper's drawing takes (mm): inside the frame (or a whole-border template's area), less the legend
+ * column (reserveW) and anything along the foot (reserveH). */
+export function drawingAreaMm(size: SheetSize, reserveW = 0, reserveH = 0, area?: AreaOf): { w: number; h: number } {
   const { w, h } = SHEET_MM[size];
   const a = area?.(size);
-  return a ? Math.min((a.w - 6 - reserveW) / widthPx, (a.h - 4 - reserveH) / heightPx) : Math.min((w - 36 - reserveW) / widthPx, (h - 20 - 48 - reserveH) / heightPx);
+  return a ? { w: a.w - 6 - reserveW, h: a.h - 4 - reserveH } : { w: w - 36 - reserveW, h: h - 20 - 48 - reserveH };
 }
 /** The drawing area a paper offers in place of the frame's (a whole-border template's, src/model/titleBlock.ts), or
  * nothing for the frame's own. */
@@ -599,6 +650,11 @@ export function sheetChecks(p: Project, set: DrawingSet, failing: { feederId: st
     const need = dbRiserTitles({ ...p, drawingSet: set }, buildingId).length;
     const parts = new Set(set.sheets.filter((s) => s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId === buildingId).map((s) => s.part ?? 0));
     if (parts.size !== need || [...parts].some((x) => x >= need)) out.push({ level: 'warn', text: `${b.name}: the DB riser now needs ${need} sheet(s), the set has ${parts.size} — add it again from Drawings to add the missing ones; remove extra sheets` });
+  }
+  const earthing = set.sheets.filter((s) => s.kind === 'earthing');
+  if (earthing.length) {
+    const need = earthingSheetCount(p, set), parts = new Set(earthing.map((s) => s.part ?? 0));
+    if (parts.size !== need || [...parts].some((x) => x >= need)) out.push({ level: 'warn', text: `The earthing schematic now needs ${need} sheet(s), the set has ${parts.size} — add it again from Drawings to add the missing ones; remove extra sheets` });
   }
   for (const g of earthSheetGaps(p, set)) {
     const name = p.building?.buildings.find((b) => b.id === g.buildingId)?.name ?? g.buildingId, what = g.kind === 'earthRiser' ? 'earthing riser diagram' : 'floor earthing';

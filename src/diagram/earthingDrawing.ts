@@ -17,9 +17,12 @@ import { escapeHtmlAttr } from '../util/escape';
  * with the electrode, tag beside it) and linked pit to pit: neighbours above
  * the pits, the next group along the bottom. Legend and notes at the bottom. */
 
-const PIT = 210, GREEN = '#1a7f37', MAX_W = 3200;
-/** A substation row wraps before this width, so the drawing still prints readably on one sheet. */
-const SUB_MAX_W = 2900;
+const PIT = 210, GREEN = '#1a7f37';
+/** Widths a substation row wraps before (an LV room or generators beside it: 300 more). The printed sheet tries each
+ * and keeps the one that prints largest; the working view uses the first. */
+const WRAPS = [2900, 2300, 1800, 1400];
+/** Marks a pit named in a "to EP-…" stub, so a stub to a pit on another sheet can name that sheet. */
+const REF = '\u0001', REF_END = '\u0002';
 const BAND_H = 600; // one row: equipment, conductors, pits and links
 /** Width : height of a landscape sheet's drawing area (A-series, after the title block and legend column). */
 const SHEET_ASPECT = 1.4;
@@ -96,8 +99,6 @@ const hopRun = (x1: number, x2: number, y: number, xs: number[]) => {
   return `${d} H${x2}`;
 };
 
-/** mono: black on white for the printed sheet (plain report style) — results are written (FAIL), not coloured.
- * working: the on-screen working view — the schematic only, without the legend and notes (sheet furniture). */
 /** Every transformer unit (TX-1A, TX-1B … where a board has several, per the transformer sizing), in drawing order. */
 function transformerUnits(project: Project) {
   const units = txUnits(project);
@@ -127,7 +128,8 @@ export function pitTags(project: Project, L: EarthLayout = earthingLayout(projec
   return tagOf;
 }
 
-export function earthingDrawing(project: Project, L: EarthLayout = earthingLayout(project), includeSchedule = true, opts: { mono?: boolean; working?: boolean; /** The sheet's legend column takes the legend and notes (returned, not drawn); the pit schedule stays. */ furniture?: 'column' } = {}): { svg: string; w: number; h: number; legendItems?: LegendItem[]; notes?: string[] } {
+function drawAt(project: Project, L: EarthLayout, includeSchedule: boolean, opts: EarthingOpts, wrapAt: number) {
+  const SUB_MAX_W = wrapAt, MAX_W = wrapAt + 300;
   /** Everything drawn, each part with the band row it belongs to (rows are moved into columns at the end). */
   const parts: { row: number; s: string }[] = [];
   /** The row being drawn: the band at y, or `at` for the pits, links and tags drawn after the bands. */
@@ -397,7 +399,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
       for (const [id, to] of [[a0, b0], [b0, a0]]) {
         const x = pitX.get(id)!, y = pitY.get(id)!;
         at = rowAt(y);
-        out.push(`<path d="M${x + 4} ${y - 4} L${x + LK} ${y - LK} h24" stroke="${GREEN}" stroke-width="1.6" fill="none"/><text x="${x + LK + 28}" y="${y - LK + 3}" font-size="8" fill="${GREEN}">to ${esc(tagOf.get(to) ?? to)}</text>`);
+        out.push(`<path d="M${x + 4} ${y - 4} L${x + LK} ${y - LK} h24" stroke="${GREEN}" stroke-width="1.6" fill="none"/><text x="${x + LK + 28}" y="${y - LK + 3}" font-size="8" fill="${GREEN}">to ${esc(tagOf.get(to) ?? to)}${REF}${esc(to)}${REF_END}</text>`);
       }
       continue;
     }
@@ -503,13 +505,16 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
       p.measured === undefined ? blank || 'Not tested' : `${p.measured} ohm`, [p.date, p.by].filter(Boolean).join(', ') || blank, st === 'pass' ? 'PASS' : st === 'fail' ? 'FAIL' : blank];
   })];
   /** The pit schedule at x, its title above `top` + 30, tableW wide: the SVG and the y below it. */
-  const scheduleAt = (tableX: number, top: number, tableW: number) => {
-    const columns = [0.08, 0.19, 0.17, 0.06, 0.15, 0.09, 0.16, 0.1].map((f) => f * tableW);
+  const columnsOf = (tableW: number) => [0.08, 0.19, 0.17, 0.06, 0.15, 0.09, 0.16, 0.1].map((f) => f * tableW);
+  const rowH = (cells: string[], columns: number[]) => Math.max(1, ...cells.map((s, i) => wrap(s, columns[i]).length)) * 14 + 12;
+  /** The schedule (its heading row, then the pits from..to) at x, its title above `top` + 30, tableW wide. */
+  const scheduleAt = (tableX: number, top: number, tableW: number, from = 1, to = scheduleRows.length) => {
+    const columns = columnsOf(tableW);
     let tableY = top + 40;
-    let svg = `<text x="${tableX}" y="${tableY - 10}" font-size="12" font-weight="bold">EARTH PIT SCHEDULE</text>`;
-    scheduleRows.forEach((cells, r) => {
+    let svg = `<text x="${tableX}" y="${tableY - 10}" font-size="12" font-weight="bold">EARTH PIT SCHEDULE${from > 1 ? ' (CONTINUED)' : ''}</text>`;
+    [scheduleRows[0], ...scheduleRows.slice(from, to)].forEach((cells, r) => {
       const lines = cells.map((s, i) => wrap(s, columns[i]));
-      const rh = Math.max(1, ...lines.map((ls) => ls.length)) * 14 + 12;
+      const rh = rowH(cells, columns);
       let cx = tableX;
       lines.forEach((ls, i) => {
         svg += `<rect x="${cx}" y="${tableY}" width="${columns[i]}" height="${rh}" fill="none" stroke="#999" stroke-width="0.7"/>`;
@@ -521,55 +526,157 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
     return { svg, bottom: tableY };
   };
 
-  // ---- Sheet layout: the band rows flow into columns (whole rows, top to bottom, then the next column), and the
-  // schedule goes below or in a column of its own: whichever prints largest on a landscape sheet. The working view
-  // keeps one column.
+  // ---- Sheet layout ------------------------------------------------------------
   const n = Math.max(1, Math.round((y - 50) / BAND_H));
   const furnH = inColumn ? 0 : legendH;
   const tail = opts.working || inColumn ? 10 : legendH + 20;
-  const plan = (k: number, side: boolean) => {
-    const per = Math.ceil(n / k);
-    const colW = Array.from({ length: Math.ceil(n / per) }, (_, c) => Math.max(0, ...Array.from(rowRight.slice(c * per, (c + 1) * per), (r) => r ?? 0)) + 30);
-    const bandsW = colW.reduce((t, cw) => t + cw, 0), top = 50 + per * BAND_H + 10;
-    if (!includeSchedule) return { per, colW, top, w: Math.max(bandsW, 1300), h: top + tail };
-    if (side) {
-      const sch = scheduleAt(bandsW + 10, 40, SCHEDULE_W - 40);
-      return { per, colW, top, sch, w: bandsW + SCHEDULE_W, h: Math.max(top + tail, sch.bottom + 20) };
-    }
-    const w = Math.max(bandsW, 1300), sch = scheduleAt(40, top + furnH, w - 80);
-    return { per, colW, top, sch, w, h: sch.bottom + 20 };
-  };
-  const fit = (q: { w: number; h: number }) => Math.min(SHEET_ASPECT / q.w, 1 / q.h);
-  let best = plan(1, false);
-  if (!opts.working) {
-    for (let k = 1; k <= n; k++) {
-      if (k > 1 && Math.ceil(n / k) === Math.ceil(n / (k - 1))) continue; // same columns as k - 1
-      for (const side of includeSchedule ? [false, true] : [false]) {
-        const q = plan(k, side);
-        if (fit(q) > fit(best) * 1.001) best = q;
-      }
-    }
-  }
-  const { w, h } = best;
-  // Each column's rows moved up beside the first column; the legend and notes below the tallest column.
-  const colX = best.colW.map((_, c) => best.colW.slice(0, c).reduce((t, cw) => t + cw, 0));
-  const body = best.colW.map((_, c) => {
-    const s = parts.filter((p) => Math.floor(p.row / best.per) === c).map((p) => p.s).join('\n');
-    return c ? `<g transform="translate(${colX[c]} ${-c * best.per * BAND_H})">\n${s}\n</g>` : s;
-  }).join('\n');
-  const dy = best.top - ly;
-  const furniture = `${legend}
-  ${noteSvg}`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" font-family="Arial" font-size="10" fill="#111">
-  <rect width="${w}" height="${h}" fill="#fff"/>
-  <text x="${w / 2}" y="30" text-anchor="middle" font-size="14" font-weight="bold">EARTHING SCHEMATIC DIAGRAM</text><text x="${w / 2}" y="44" text-anchor="middle" font-size="9" fill="#5b6b82">Earthing system: ${esc(L.system.name)}</text>
-  ${body}
-  ${opts.working || inColumn ? '' : dy ? `<g transform="translate(0 ${dy})">${furniture}</g>` : furniture}
-  ${best.sch?.svg ?? ''}
-</svg>`;
+  const pitRow = new Map(L.pits.filter((p) => pitY.has(p.id)).map((p) => [p.id, rowAt(pitY.get(p.id)!)]));
   // Printed sheet: every colour to black, tints to white.
   const mono = (s: string) => (opts.mono ? s.replace(/#(1a7f37|1d4f8f|5b6b82|b86b2b|c0392b)/gi, '#111').replace(/#(e8f5ec|fdecea)/gi, '#fff') : s);
   // The legend's symbols are drawn 8–44 wide about x = 26 of their group, for a row of rh px.
   const legendItems = rows.map(([sym, label, rh], i): LegendItem => ({ key: `e${i}`, label, draw: (x, y) => mono(`<g transform="translate(${x - 26} ${y})">${sym}</g>`), ...(rh > 26 ? { h: rh } : {}) }));
-  return { svg: mono(svg), w, h, ...(inColumn ? { legendItems, notes: plainNotes(notes) } : {}) };
+  const furniture = `${legend}
+  ${noteSvg}`;
+  /** One drawing: the rows (each moved by its shift), the legend and notes at top (unless the sheet's column takes them)
+   * and the schedule; stubs to a pit on another sheet name that sheet (sheetOf the pit's row; no sheets, no name). */
+  const assemble = (w: number, h: number, rowsOf: (row: number) => [number, number] | undefined, top: number | undefined, sch: string, sub: string, sheetOf?: (row: number) => string | undefined) => {
+    const groups = new Map<string, string[]>();
+    for (const p of parts) {
+      const at = rowsOf(p.row);
+      if (!at) continue;
+      const key = `${at[0]} ${at[1]}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(p.s);
+    }
+    const body = [...groups].map(([key, ss]) => (key === '0 0' ? ss.join('\n') : `<g transform="translate(${key})">\n${ss.join('\n')}\n</g>`)).join('\n');
+    const dy = top === undefined ? 0 : top - ly;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" font-family="Arial" font-size="10" fill="#111">
+  <rect width="${w}" height="${h}" fill="#fff"/>
+  <text x="${w / 2}" y="30" text-anchor="middle" font-size="14" font-weight="bold">EARTHING SCHEMATIC DIAGRAM</text><text x="${w / 2}" y="44" text-anchor="middle" font-size="9" fill="#5b6b82">Earthing system: ${esc(L.system.name)}${sub}</text>
+  ${body}
+  ${opts.working || inColumn || top === undefined ? '' : dy ? `<g transform="translate(0 ${dy})">${furniture}</g>` : furniture}
+  ${sch}
+</svg>`.replace(new RegExp(`${REF}([^${REF_END}]*)${REF_END}`, 'g'), (_, id: string) => {
+      const r = pitRow.get(id), no = r === undefined ? undefined : sheetOf?.(r);
+      return no ? ` (${esc(no)})` : '';
+    });
+    return { svg: mono(svg), w, h, ...(inColumn ? { legendItems, notes: plainNotes(notes) } : {}) };
+  };
+
+  /** One sheet: the rows flow into columns (whole rows, top to bottom, then the next column), and the schedule goes
+   * below or in a column of its own, whichever prints largest on a landscape sheet. The working view keeps one column. */
+  const single = () => {
+    const plan = (k: number, side: boolean) => {
+      const per = Math.ceil(n / k);
+      const colW = Array.from({ length: Math.ceil(n / per) }, (_, c) => Math.max(0, ...Array.from(rowRight.slice(c * per, (c + 1) * per), (r) => r ?? 0)) + 30);
+      const bandsW = colW.reduce((t, cw) => t + cw, 0), top = 50 + per * BAND_H + 10;
+      if (!includeSchedule) return { per, colW, top, w: Math.max(bandsW, 1300), h: top + tail };
+      if (side) {
+        const sch = scheduleAt(bandsW + 10, 40, SCHEDULE_W - 40);
+        return { per, colW, top, sch, w: bandsW + SCHEDULE_W, h: Math.max(top + tail, sch.bottom + 20) };
+      }
+      const w = Math.max(bandsW, 1300), sch = scheduleAt(40, top + furnH, w - 80);
+      return { per, colW, top, sch, w, h: sch.bottom + 20 };
+    };
+    let best = plan(1, false);
+    if (!opts.working) {
+      for (let k = 1; k <= n; k++) {
+        if (k > 1 && Math.ceil(n / k) === Math.ceil(n / (k - 1))) continue; // same columns as k - 1
+        for (const side of includeSchedule ? [false, true] : [false]) {
+          const q = plan(k, side);
+          if (fit(q) > fit(best) * 1.001) best = q;
+        }
+      }
+    }
+    // Each column's rows moved up beside the first column; the legend and notes below the tallest column.
+    const colX = best.colW.map((_, c) => best.colW.slice(0, c).reduce((t, cw) => t + cw, 0));
+    const shift = (row: number): [number, number] => { const c = Math.floor(row / best.per); return [colX[c], -c * best.per * BAND_H]; };
+    return { fit: fit(best), w: best.w, h: best.h, draw: () => assemble(best.w, best.h, shift, best.top, best.sch?.svg ?? '', '') };
+  };
+
+  /** Continuation sheets, each at most cap px (the drawing area at the smallest readable scale): whole rows, as many
+   * columns and rows as fit; the legend and notes (unless in the sheet's column) and the schedule on the last sheet when
+   * they fit there (below the rows or beside them), else on a sheet of their own. */
+  const paged = (cap: { w: number; h: number }) => {
+    const colW = Math.max(0, ...Array.from(rowRight, (r) => r ?? 0)) + 30;
+    const cols = Math.max(1, Math.floor(cap.w / colW)), perCol = Math.max(1, Math.floor((cap.h - 90) / BAND_H)), per = cols * perCol;
+    const bandSheets = Math.ceil(n / per), last = n - (bandSheets - 1) * per, lastCols = Math.ceil(last / perCol);
+    const top = (rowsDown: number) => 50 + rowsDown * BAND_H + 10;
+    type Tail = { sheet: number; w: number; h: number; top?: number; sch: string };
+    const ends: Tail[] = [];
+    if (includeSchedule) {
+      const down = Math.min(last, perCol), usedW = lastCols * colW;
+      const belowW = Math.min(cap.w, Math.max(usedW, 1300)), below = scheduleAt(40, top(down) + furnH, belowW - 80);
+      const side = scheduleAt(usedW + 10, 40, SCHEDULE_W - 40);
+      if (below.bottom + 50 <= cap.h) ends.push({ sheet: bandSheets - 1, w: Math.max(usedW, belowW), h: below.bottom + 40, top: top(down), sch: below.svg });
+      else if (usedW + SCHEDULE_W <= cap.w && side.bottom + 50 <= cap.h && top(down) + tail <= cap.h) ends.push({ sheet: bandSheets - 1, w: usedW + SCHEDULE_W, h: Math.max(top(down) + tail, side.bottom + 20) + 20, top: top(down), sch: side.svg });
+      else {
+        // Sheets of their own: the legend and notes first, then as many pits as fit each sheet (the heading repeated).
+        const ownW = Math.min(cap.w, 2400), columns = columnsOf(ownW - 80), heading = rowH(scheduleRows[0], columns);
+        for (let from = 1, sheet = bandSheets; from < scheduleRows.length; sheet++) {
+          const t0 = sheet === bandSheets ? 60 + furnH : 60;
+          let to = from, y0 = t0 + 40 + heading;
+          while (to < scheduleRows.length && (to === from || y0 + rowH(scheduleRows[to], columns) + 50 <= cap.h)) y0 += rowH(scheduleRows[to++], columns);
+          const sch = scheduleAt(40, t0, ownW - 80, from, to);
+          ends.push({ sheet, w: ownW, h: sch.bottom + 40, ...(sheet === bandSheets ? { top: 60 } : {}), sch: sch.svg });
+          from = to;
+        }
+      }
+    }
+    const count = Math.max(bandSheets, ...ends.map((e) => e.sheet + 1));
+    const sheetOfRow = (row: number) => Math.floor(row / per);
+    return {
+      count,
+      draw: (part: number, nos: (string | undefined)[] = []) => {
+        const no = (k: number) => nos[k] || `sheet ${k + 1}`;
+        const rows = Math.max(0, Math.min(per, n - part * per));
+        const usedCols = Math.ceil(rows / perCol);
+        const own = ends.find((e) => e.sheet === part);
+        const w = Math.max(own?.w ?? 0, usedCols * colW, 1300), h = Math.max(own?.h ?? 0, top(Math.min(rows, perCol)) + 30);
+        const shift = (row: number): [number, number] | undefined => {
+          if (sheetOfRow(row) !== part) return undefined;
+          const i = row - part * per, c = Math.floor(i / perCol);
+          return [c * colW, (i % perCol - row) * BAND_H];
+        };
+        const cont = `${part ? `<text x="40" y="30" font-size="11" font-weight="bold">CONTINUED FROM ${esc(no(part - 1).toUpperCase())}</text>` : ''}${part < count - 1 ? `<text x="${w - 40}" y="${h - 10}" text-anchor="end" font-size="11" font-weight="bold">CONTINUED ON ${esc(no(part + 1).toUpperCase())}</text>` : ''}`;
+        return assemble(w, h, shift, own?.top, (own?.sch ?? '') + cont, ` · sheet ${part + 1} of ${count}`, (r) => (sheetOfRow(r) === part ? undefined : no(sheetOfRow(r))));
+      }
+    };
+  };
+  return { single, paged, widest: Math.max(0, ...Array.from(rowRight, (r) => r ?? 0)) + 30 };
+}
+
+/** The sheet a printed earthing schematic is drawn for: its part (0 = first), the drawing area in px at the smallest
+ * readable scale, and the sheet numbers of the parts in the set (for "continued on" and stubs to another sheet). */
+export interface EarthingSheet { part: number; capacity: { w: number; h: number }; nos?: (string | undefined)[] }
+export interface EarthingOpts {
+  mono?: boolean;
+  working?: boolean;
+  /** The sheet's legend column takes the legend and notes (returned, not drawn); the pit schedule stays. */
+  furniture?: 'column';
+  /** A printed sheet: drawn to fit it, over several sheets when one would print below the readable scale. */
+  sheet?: EarthingSheet;
+  /** The row wrap widths tried (default WRAPS). */
+  wraps?: number[];
+}
+const fit = (q: { w: number; h: number }) => Math.min(SHEET_ASPECT / q.w, 1 / q.h);
+
+/** mono: black on white for the printed sheet (plain report style) — results are written (FAIL), not coloured.
+ * working: the on-screen working view — the schematic only, without the legend and notes (sheet furniture), one column.
+ * The printed schematic tries each row wrap width and keeps the layout that prints largest. With a sheet whose drawing
+ * area it does not fit at the readable scale, it continues over sheets (parts: how many). */
+export function earthingDrawing(project: Project, L: EarthLayout = earthingLayout(project), includeSchedule = true, opts: EarthingOpts = {}): { svg: string; w: number; h: number; legendItems?: LegendItem[]; notes?: string[]; parts: number } {
+  if (opts.working) return { ...drawAt(project, L, includeSchedule, opts, WRAPS[0]).single().draw(), parts: 1 };
+  const tries = (opts.wraps?.length ? opts.wraps : WRAPS).map((wrap) => drawAt(project, L, includeSchedule, opts, wrap));
+  const singles = tries.map((t) => t.single());
+  let best = 0;
+  singles.forEach((q, i) => { if (q.fit > singles[best].fit * 1.001) best = i; });
+  const cap = opts.sheet?.capacity;
+  if (!cap || (singles[best].w <= cap.w && singles[best].h <= cap.h)) return { ...singles[best].draw(), parts: 1 };
+  // Over several sheets: the fewest, then the widest wrap; wraps wider than the sheet only when none is narrower.
+  const fitting = tries.filter((t) => t.widest <= cap.w);
+  const pagings = (fitting.length ? fitting : [tries[tries.length - 1]]).map((t) => t.paged(cap));
+  const paging = pagings.reduce((a, b) => (b.count < a.count ? b : a));
+  const part = Math.min(Math.max(0, opts.sheet!.part), paging.count - 1);
+  return { ...paging.draw(part, opts.sheet!.nos), parts: paging.count };
 }

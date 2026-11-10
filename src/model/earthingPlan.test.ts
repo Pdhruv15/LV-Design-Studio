@@ -152,9 +152,9 @@ describe('earthing schematic', () => {
     const rows = earthingDrawing(p, L, false, { working: true }); // the working view keeps one column of rows
     expect(rows.h).toBeGreaterThan(900); // LV room on a second row
     expect(rows.w).toBeLessThan(3000);
-    // The printed sheet: the long pit schedule takes a column of its own beside the rows.
-    expect(Number(d.svg.match(/<text x="([\d.]+)"[^>]*>EARTH PIT SCHEDULE</)![1])).toBeGreaterThan(rows.w);
-    expect(d.h).toBeLessThan(rows.h + 1000);
+    // The printed sheet tries narrower rows too: it prints at least as large on a 1.4 : 1 area as with the widest wrap.
+    const fit = (w: number, h: number) => Math.min(1.4 / w, 1 / h), wide = earthingDrawing(p, L, true, { wraps: [2900] });
+    expect(fit(d.w, d.h)).toBeGreaterThan(fit(wide.w, wide.h));
     // The substation wraps onto a second row; links between rows show as "to EP-…" at both ends.
     const bars = new Set([...d.svg.matchAll(/>(EB-TX\(N\)-\d+)<\/text>/g)].map((m) => m[1]));
     expect(bars.size).toBe(10);
@@ -181,6 +181,43 @@ describe('earthing schematic', () => {
     // Fitted to a 1.4 : 1 drawing area, it prints at least 1.6 times the size of the rows stacked in one column.
     const fit = (w: number, h: number) => Math.min(1.4 / w, 1 / h);
     expect(fit(d.w, d.h)).toBeGreaterThan(1.6 * fit(rows.w, rows.h + 1500));
+  });
+
+  it('printed sheet below the readable scale: continues over sheets of whole rows, every pit once, links name the other sheet', () => {
+    let p: Project = { ...sampleProject, boards: [], feeders: [], ties: [] };
+    for (let i = 1; i <= 9; i++) p = applyTransformers(p, planTransformers(p, Array.from({ length: (i % 3) + 1 }, () => ({ kva: 1000 })), false, 2, `SS-0${i}`));
+    const L = earthingLayout(p);
+    // A3 beside the legend column at 0.2 mm per px: 304 × 229 mm.
+    const capacity = { w: 1520, h: 1145 }, nos = Array.from({ length: 40 }, (_, k) => `E-ERT-${String(k + 1).padStart(3, '0')}`);
+    const draw = (part: number) => earthingDrawing(p, L, true, { mono: true, sheet: { part, capacity, nos } });
+    const count = draw(0).parts;
+    expect(count).toBeGreaterThan(5);
+    const sheets = Array.from({ length: count }, (_, k) => draw(k));
+    for (const d of sheets) {
+      expect(d.parts).toBe(count);
+      expect(d.w).toBeLessThanOrEqual(capacity.w);
+      expect(d.h).toBeLessThanOrEqual(capacity.h);
+      expect(d.svg).not.toMatch(/NaN|undefined|NO PIT/);
+      expect(d.svg.includes('\u0001') || d.svg.includes('\u0002')).toBe(false); // no sheet marks left
+    }
+    const drawn = sheets.flatMap((d) => [...d.svg.matchAll(/data-pit="([^"]+)"/g)].map((m) => m[1]));
+    expect(drawn.sort()).toEqual(L.pits.map((x) => x.id).sort());
+    sheets.forEach((d, k) => {
+      expect(d.svg.includes(`CONTINUED ON ${nos[k + 1]}`)).toBe(k < count - 1);
+      expect(d.svg.includes(`CONTINUED FROM ${nos[k - 1]}`)).toBe(k > 0);
+    });
+    // The schedule on the last sheets only, its heading again on each.
+    expect(sheets[0].svg).not.toContain('EARTH PIT SCHEDULE');
+    expect(sheets[count - 1].svg).toContain('EARTH PIT SCHEDULE');
+    // One row per A3 sheet: a link to a pit on the next row names the sheet it is on.
+    expect(sheets.some((d) => /to EP-[^<]* \(E-ERT-\d{3}\)</.test(d.svg))).toBe(true);
+    // On A1 the same site takes 3 sheets; a part past the end draws the last one.
+    const a1 = { w: 3625, h: 2630 };
+    expect(earthingDrawing(p, L, true, { mono: true, sheet: { part: 0, capacity: a1 } }).parts).toBe(3);
+    expect(earthingDrawing(p, L, true, { mono: true, sheet: { part: 9, capacity: a1 } }).svg).toContain('sheet 3 of 3');
+    // A sheet it fits: one sheet, as without a sheet.
+    const small = withEarthPitIds(sampleProject);
+    expect(earthingDrawing(small, earthingLayout(small), true, { mono: true, sheet: { part: 0, capacity: a1 } }).svg).toBe(earthingDrawing(small, earthingLayout(small), true, { mono: true }).svg);
   });
 
   it('printed sheet: one band stays one column, the schedule below it', () => {

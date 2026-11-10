@@ -131,7 +131,7 @@ export function SheetList({ project, active, selectedBoardId, onActive, onChange
             {(() => {
               // One earthing schematic per set: open it if it is already there.
               const earthing = set.sheets.find((x) => x.kind === 'earthing');
-              return <button title="The earthing schematic from Design → Earth pits, as a drawing sheet" onClick={() => { close(); if (earthing) { onActive(earthing.id); return; } const r = addEarthingSheet(set); save(r.set); onActive(r.id); }}>{earthing ? 'Earthing schematic (open)' : 'Earthing schematic'}</button>;
+              return <button title="The earthing schematic from Design → Earth pits, as a drawing sheet" onClick={() => { close(); if (earthing) { onActive(earthing.id); return; } const r = addEarthingSheet(set, project); save(r.set); onActive(r.id); }}>{earthing ? 'Earthing schematic (open)' : 'Earthing schematic'}</button>;
             })()}
             {PLAN_TYPES.map((t) => (
               <button key={`p${t}`} title="A sheet at 1:100 for every level with something on this layout; a level too big for A1 goes over several sheets with a key plan" onClick={() => {

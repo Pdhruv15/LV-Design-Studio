@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { addEarthingSheet, addRiserSheet, addSheet, autoSheets, autoSize, issueSheets, renumber, sheetProject, sheetsByCount, furnitureOf, minMmPerPx, MIN_MM_PER_PX, scaleOn, addLegendSheet, addBoardSheets, drawable, sheetType, sheetHash } from './drawingSet';
+import { addEarthingSheet, earthingSheetCount, earthingSheetOf, sheetChecks, addRiserSheet, addSheet, autoSheets, autoSize, issueSheets, renumber, sheetProject, sheetsByCount, furnitureOf, minMmPerPx, MIN_MM_PER_PX, scaleOn, addLegendSheet, addBoardSheets, drawable, sheetType, sheetHash } from './drawingSet';
 import type { Project } from '../types';
+import { applyTransformers, planTransformers } from './transformers';
 
 const two: Project = { ...sampleProject, boards: [...sampleProject.boards, { id: 'MDB-2', name: 'MDB 2', kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 5 }] };
 
@@ -158,5 +159,26 @@ describe('legend sheet and board sheets with schedule', () => {
     expect(on.set.sheets[0].schedule).toBe(true);
     // The schedule is part of the fingerprint.
     expect(sheetHash(sampleProject, on.set, on.set.sheets[0])).not.toBe(sheetHash(sampleProject, plain.set, plain.set.sheets[0]));
+  });
+  it('earthing schematic over several sheets: one sheet per part, missing parts added, a gap warned', () => {
+    let p: Project = { ...sampleProject, boards: [], feeders: [], ties: [] };
+    for (let i = 1; i <= 9; i++) p = applyTransformers(p, planTransformers(p, Array.from({ length: (i % 3) + 1 }, () => ({ kva: 1000 })), false, 2, `SS-0${i}`));
+    // Auto paper: drawn for A1, which this site fills three times at the readable scale.
+    expect(earthingSheetCount(p)).toBe(3);
+    const auto = autoSheets(p, 'perMdb').sheets.filter((s) => s.kind === 'earthing');
+    expect(auto.map((s) => [s.part ?? 0, s.number, s.title])).toEqual([[0, 'E-ERT-001', 'Earthing schematic diagram (1 of 3)'], [1, 'E-ERT-002', 'Earthing schematic diagram (2 of 3)'], [2, 'E-ERT-003', 'Earthing schematic diagram (3 of 3)']]);
+    const set = addEarthingSheet({ prefix: 'E-SLD-', sheets: [] }, p).set;
+    expect(set.sheets.map((s) => s.part ?? 0)).toEqual([0, 1, 2]);
+    expect(earthingSheetOf(set, set.sheets[1])).toMatchObject({ part: 1, nos: ['E-ERT-001', 'E-ERT-002', 'E-ERT-003'] });
+    expect(addEarthingSheet(set, p).set.sheets).toHaveLength(3); // nothing missing
+    const gap = { ...set, sheets: set.sheets.filter((s) => s.part !== 1) };
+    expect(sheetChecks(p, gap).map((c) => c.text)).toContain('The earthing schematic now needs 3 sheet(s), the set has 2 — add it again from Drawings to add the missing ones; remove extra sheets');
+    const fixed = addEarthingSheet(gap, p).set;
+    expect(fixed.sheets.map((s) => s.part ?? 0)).toEqual([0, 1, 2]);
+    expect(sheetChecks(p, fixed).some((c) => c.text.startsWith('The earthing schematic'))).toBe(false);
+    // A small project: one sheet, its title unchanged; a fixed A3 makes the same site take more sheets.
+    expect(addEarthingSheet({ prefix: 'E-SLD-', sheets: [] }, sampleProject).set.sheets.map((s) => [s.part, s.title])).toEqual([[undefined, 'Earthing schematic diagram']]);
+    const a3 = { ...set, sheets: set.sheets.map((s) => ({ ...s, size: 'A3' as const })) };
+    expect(earthingSheetCount(p, a3)).toBeGreaterThan(10);
   });
 });
