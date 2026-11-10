@@ -108,7 +108,7 @@ describe('Ribbon', () => {
     const html = render('cad', { view: 'cad', cad: cad() });
     expect(subTabs(html)).toEqual(['LVCAD', 'Electrical, ELV &amp; sheets', 'Output']);
     expect(html).toMatch(/id="ribbon-cad-drafting"[^>]*aria-selected="true"/);
-    expect(groupsOf(html)).toEqual(['Draw', 'Modify', 'Annotate', 'Layers', 'Properties', 'Measure']);
+    expect(groupsOf(html)).toEqual(['Draw', 'Modify', 'Annotate', 'Layers', 'Properties', 'Measure and view']);
     // With labels every tool is named and needs about twice the room: the panels take four sub-tabs.
     const all = render('cad', { view: 'cad', cad: cad({ labels: true }) });
     expect(subTabs(all)).toEqual(['LVCAD', 'Layers &amp; properties', 'Electrical &amp; ELV', 'Sheets', 'Output']);
@@ -119,12 +119,12 @@ describe('Ribbon', () => {
     expect(render('home')).not.toContain('ribbon-subtabs');
   });
 
-  it('names the main tools under their icons and keeps the small ones to icons; Show labels names them all', () => {
+  it('names the main tools under their icons and, on Drafting, the small ones beside theirs; Show labels names them all', () => {
     const shown = render('cad', { view: 'cad', cad: cad() });
-    expect(shown).toContain('class="ribbon cad-named"');
+    expect(shown).toContain('class="ribbon cad-named small-named"');
     expect(shown).toMatch(/aria-label="Line"[^>]*>.*?<span>Line<\/span>/s); // a main tool: its name under it
     expect(shown).toContain('aria-label="Offset"');
-    expect(shown).not.toContain('<span>Offset</span>'); // a small tool: icon only, the name on hover
+    expect(shown).toContain('<span>Offset</span>'); // a small tool on Drafting: its name beside its icon
     expect(shown).not.toContain('title="Line (L)'); // the tooltip is the app's own, not the browser's
     const all = render('cad', { view: 'cad', cad: cad({ labels: true }) });
     expect(all).toContain('<span>Line</span>');
@@ -135,18 +135,18 @@ describe('Ribbon', () => {
     expect(render('sld')).toContain('<span>Add load</span>'); // the other tabs keep their names
   });
 
-  it('lays Modify out three by four, column by column, Layers under its current layer list, Match beside its lists', () => {
+  it('lays Modify out in three rows, column by column, Layers under its current layer list, Match beside its lists', () => {
     const html = render('cad', { view: 'cad', cad: cad({ info: { layers: [{ name: 'E-LIGHTING', color: '#ff0000', on: true, freeze: false, lock: false }], current: 'E-LIGHTING', picked: 0, props: { lw: 0.35 } } }) });
     const panel = (name: string) => new RegExp(`aria-label="${name}"[^>]*>(.*?)</div><(?:div|button) class="ribbon-caption`, 's').exec(html)?.[1] ?? '';
     const cols = (body: string) => [...body.matchAll(/class="ribbon-stack">(.*?)<\/div>/gs)].map((m) => [...m[1].matchAll(/aria-label="([^"]+)"/g)].map((x) => x[1]).filter((n) => !n.endsWith('more options')));
-    expect(cols(panel('Modify'))).toEqual([['Move', 'Copy', 'Stretch'], ['Rotate', 'Mirror', 'Scale'], ['Trim', 'Fillet', 'Array'], ['Erase', 'Explode', 'Offset']]);
-    expect(cols(panel('Layers'))).toEqual([['Layer off', 'All on'], ['Freeze', 'Thaw all'], ['Lock', 'Unlock'], ['Isolate', 'Unisolate'], ['Make current', 'Layer roles']]);
+    expect(cols(panel('Modify'))).toEqual([['Move', 'Copy', 'Stretch'], ['Rotate', 'Mirror', 'Scale'], ['Trim', 'Extend', 'Break'], ['Fillet', 'Chamfer', 'Join'], ['Offset', 'Array', 'Explode'], ['Erase']]);
+    expect(cols(panel('Layers'))).toEqual([['Off', 'All on'], ['Freeze', 'Thaw all'], ['Lock', 'Unlock'], ['Isolate', 'Unisolate', 'Make current']]);
     expect(panel('Layers')).toMatch(/class="ribbon-layer".*?background:#ff0000.*?<span class="nm">E-LIGHTING<\/span>/s);
     expect(panel('Properties')).toContain('aria-label="Colour of new objects"');
     expect(panel('Properties')).toMatch(/aria-label="Lineweight of new objects"[^>]*>.*?<option value="0.35" selected="">0.35 mm<\/option>/s);
     expect(html).toMatch(/class="ribbon-launch"[^>]*aria-label="Properties palette"/);
-    expect(html).toMatch(/class="ribbon-caption ribbon-caption-more" title="More modify tools: Break, Join"/);
-    expect(html).toMatch(/title="More layers tools: New layer, Layers panel"/);
+    expect(html).not.toContain('More modify tools'); // every Modify tool on the row
+    expect(html).toMatch(/title="More layers tools: Layer roles, New layer, Layers panel"/);
   });
 
   it('on the sheets pages shows every sheet tool on the sheets\' sub-tab; with labels, Drafting has the markup', () => {

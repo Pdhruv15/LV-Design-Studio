@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.074', date: '2026-11-10',
+    items: [
+      { title: 'Drafting ribbon: every tool named, more tools on it', text: 'Design CAD → Drafting now uses the whole row: the small tools show their names, and tools you could only type before have buttons: Polygon, Extend, Chamfer, Break, Join, Keynote, Text style and Dim style. Text ▾ has numbered text and the text tools (justify, height, align, case, frame, mask, copy words). Measure and view has Distance, Area, Room area, Inspect, Zoom extents and Drafting settings.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.073', date: '2026-11-10',
     items: [
       { title: 'Luminaires by type in the BOQ', text: 'Lights placed with Light room (LUX) now keep their luminaire. The BOQ lists them in section J by type (L1, L2…), with emergency lights and exit / direction signs as EM1, EX1 and DS1, counted on the plans. The lighting point itself stays a load schedule point.' },
