@@ -41,6 +41,8 @@ const ADDED: Record<string, string> = { ST: '!textStyle', STYLE: '!textStyle', D
   COPYCLIP: '!copyClip', COPYBASE: '!copyBase', PASTECLIP: '!pasteClip', PASTEORIG: '!pasteOrig',
   WBLOCK: '!wblock', W: '!wblock', PUBLISH: '!publish', DS: '!dsettings', DSETTINGS: '!dsettings', SE: '!dsettings', OS: '!osnapSettings',
   POLAR: '!polar', OTRACK: '!otrack', LWT: '!lwt', LWDISPLAY: '!lwt',
+  // File → New: a blank drawing.
+  NEW: '!new', QNEW: '!new',
   // Linear, continued and baseline dimensions (DLI was the aligned one until then).
   DIMLINEAR: 'dimlin', DCO: 'dimcont', DIMCONTINUE: 'dimcont', DBA: 'dimbase', DIMBASELINE: 'dimbase',
   // Text tools: justify and text height on the texts picked.
