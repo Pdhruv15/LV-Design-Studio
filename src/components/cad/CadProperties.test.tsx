@@ -120,4 +120,13 @@ describe('Properties palette', () => {
     act(() => { Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(w, '450'); w.dispatchEvent(new Event('change', { bubbles: true })); });
     expect(vi.mocked(p.onItems).mock.calls[1][0][0].tray).toEqual({ widthMm: 450, route: 'TR-1' });
   });
+
+  it('an angular dimension is measured in degrees, a radius one in metres', () => {
+    render([{ id: 'an', kind: 'dim', dimKind: 'angular', layer: 'LV-ANNO', pts: [[0, 0], [1000, 0], [0, 1000], [500, 500]], h: 250 }]);
+    expect(rowText().slice(5)).toEqual(['Measured=90.0°', 'Text override=', 'Text height=0.25']);
+    expect(document.body.textContent).toContain('Angular dimension');
+    render([{ id: 'ra', kind: 'dim', dimKind: 'radius', layer: 'LV-ANNO', pts: [[0, 0], [500, 0], [200, 0]], h: 250 }]);
+    expect(rowText().slice(5)).toEqual(['Measured=0.50 m', 'Text override=', 'Text height=0.25']);
+    expect(document.body.textContent).toContain('Radius dimension');
+  });
 });

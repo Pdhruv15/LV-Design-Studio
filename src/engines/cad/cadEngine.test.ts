@@ -6,6 +6,8 @@ import { drawingWithDevices, dxfToDwg, INK, openDrawing, readRefGeometry, SNAP, 
 import { placeRefExtras, type CadRef } from '../../model/cadRefs';
 import { buildSheetDxfPages } from '../../docs/sheetDxf';
 import { sampleProject } from '../../data/sampleProject';
+import { shapesOut } from '../../model/cadSketch';
+import type { SketchItem } from '../../types';
 
 const root = path.resolve(__dirname, '../../..');
 const bytes = (rel: string) => new Uint8Array(readFileSync(path.join(root, rel)));
@@ -112,6 +114,26 @@ describe('CAD engine (Rust, WebAssembly)', () => {
       expect(tr.align, as).toBe(2); expect(tr.x, as).toBeCloseTo(3250, 6); expect(tr.y, as).toBeCloseTo(500, 6); expect(tr.rot, as).toBeCloseTo(Math.PI / 2, 6);
       const l = saved.info.texts.find((t) => t.s === 'JUST-L')!;
       expect([l.align, l.x, l.y], as).toEqual([0, 5000, 500]);
+      saved.close();
+    }
+  });
+
+  it('saves radius and angular dimensions as their lines, an arc and their text, in DXF and DWG', async () => {
+    const look = { arrow: 'closed' as const, size: 90, off: 20, ext: 50, unit: 'm' as const, decimals: 2 };
+    const items: SketchItem[] = [
+      { id: 'r', kind: 'dim', dimKind: 'radius', layer: 'LV-ANNO', pts: [[1000, 1000], [1500, 1000], [1200, 1000]], h: 90, look },
+      { id: 'a', kind: 'dim', dimKind: 'angular', layer: 'LV-ANNO', pts: [[3000, 3000], [4000, 3000], [3000, 4000], [3300, 3300]], h: 90, look }
+    ];
+    const shapes = shapesOut(items, 0.001);
+    expect(shapes.filter((x) => x.kind === 'arc').length).toBe(1);
+    for (const as of ['dxf', 'dwg'] as const) {
+      const saved = await openDrawing(`dims.${as}`, await drawingWithDevices(gf, [], shapes, as));
+      expect(saved.info.texts.map((t) => t.s), as).toEqual(expect.arrayContaining(['R0.50', '90.00°']));
+      // Every line and the arc (stepped into segments) are read back on the annotation layer.
+      const anno = saved.info.layers.findIndex((l) => l.name === 'LV-ANNO');
+      let n = 0;
+      for (let i = 0; i < saved.segLayers.length; i += 1) if (saved.segLayers[i] === anno) n += 1;
+      expect(n, as).toBeGreaterThanOrEqual(shapes.filter((x) => x.kind === 'line').length + 8);
       saved.close();
     }
   });

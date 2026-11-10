@@ -13,7 +13,9 @@ import { effective, styleOf, type LayerStyle } from '../../model/cadLayerStyle';
 import { colourCss } from '../../model/cadColours';
 import { dotsOnly, hatchDots, hatchStrokes, defOf, placedLines } from '../../model/cadHatch';
 import { onScreenThemeChange, screenAppearance } from '../../theme/theme';
-import { isFitClick, isPanPress, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, wheelAction, ZoomChip } from '../drawingView';
+import { isFitClick, isPanPress, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, wheelAction, ZoomChip, type ZoomMenuKey } from '../drawingView';
+import { scaledView, windowView, type ViewT } from '../../model/cadView';
+import { previousView, rememberView } from './cadViewHistory';
 
 type Pt = [number, number];
 
@@ -31,7 +33,8 @@ export interface CadMarks { points: Pt[]; live?: boolean; closed?: boolean; area
 /** Where the cursor lands: the point, the snap point it took, and the tracking line it follows (from where, its label). */
 interface Landing { at: Pt; snap?: { p: Pt; kind: number }; guide?: { from: Pt[]; label: string } }
 /** View transform: screen = (world − origin − (ox, oy)) × scale, y up. */
-interface ViewT { scale: number; ox: number; oy: number }
+/** A zoom asked by the page (ZOOM Window / Scale / Previous, S2 of the 2D gap plan); each request once, by its number. */
+export type ZoomReq = { n: number; do: { kind: 'window'; a: Pt; b: Pt } | { kind: 'scale'; k: number; relative: boolean } | { kind: 'previous' } };
 /** Where a drawing was zoomed or panned to: it stays there until Fit, also while its tab or the page is left. */
 const placeOf = new WeakMap<CadView, ViewT>();
 
@@ -47,7 +50,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS }: {
+export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS, zoom, onZoomMenu }: {
   view: CadView;
   /** Objects of the drawing erased in the app (CROP): their lines, texts and fills are not drawn. */
   hidden?: ErasedParts;
@@ -111,6 +114,9 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   fitBox?: [number, number, number, number];
   fixed?: boolean;
   onView?: (centre: Pt, pxPerUnit: number) => void;
+  /** ZOOM Window / Scale / Previous (the model view only), and the zoom chip's menu. */
+  zoom?: ZoomReq;
+  onZoomMenu?: (k: ZoomMenuKey) => void;
   /** The cursor in drawing units (absolute), snapped, and the snap kind's name. */
   onCursor: (at: Pt | null, snapName?: string) => void;
   /** Drafting settings (DS): snap modes and spacing, grid, polar angles, aperture, cursor and grip sizes. */
@@ -776,6 +782,25 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     return { scale, ox: (x0 + x1) / 2 - o0 - size.w / 2 / scale, oy: (y0 + y1) / 2 - o1 - size.h / 2 / scale };
   };
   const fitNow = () => { if (fixed || b0 !== undefined) return; placeOf.delete(view); setT(fitT()); };
+  // ZOOM Window / Scale / Previous asked by the page (src/model/cadView.ts): the model view only; a viewport's and a
+  // locked view stay. Previous takes the view before from the drawing's history.
+  const zoomDone = useRef(0);
+  useEffect(() => {
+    if (!zoom || zoom.n === zoomDone.current) return;
+    zoomDone.current = zoom.n;
+    if (fixed || b0 !== undefined) return;
+    const d = zoom.do;
+    if (d.kind === 'window') move(() => windowView([d.a[0] - o0, d.a[1] - o1], [d.b[0] - o0, d.b[1] - o1], size));
+    else if (d.kind === 'scale') move((v) => scaledView(d.relative ? v : fitT(), d.k, size));
+    else { const p = previousView(view); if (p) { placeOf.set(view, p); setT(p); } }
+  }, [zoom?.n]); // eslint-disable-line react-hooks/exhaustive-deps -- each request once
+  // Each view the model rests at goes into the drawing's history (ZOOM Previous): 400 ms after the last change, so a
+  // wheel zoom or a pan counts once.
+  useEffect(() => {
+    if (b0 !== undefined) return;
+    const id = setTimeout(() => rememberView(view, t), 400);
+    return () => clearTimeout(id);
+  }, [t, view, b0]);
   // + / − zoom about the middle, 0 fits, arrows pan (letters go to the command line, and 0 and − while numbers are typed).
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e) => {
@@ -857,7 +882,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         onMouseLeave={() => { drag.current = null; win.current = null; if (gripping.current !== null) { gripping.current = null; onGripEnd?.(-1, [0, 0]); } setMoving(false); mouse.current = null; drawCursor(null); onCursor(null); }}
       />
       {overlay?.((p) => [(p[0] - o0 - t.ox) * t.scale, size.h - (p[1] - o1 - t.oy) * t.scale], moving)}
-      <ZoomChip pct={(t.scale / fitT().scale) * 100} onFit={fitNow} />
+      <ZoomChip pct={(t.scale / fitT().scale) * 100} onFit={fitNow} onZoom={onZoomMenu} />
     </div>
   );
 }

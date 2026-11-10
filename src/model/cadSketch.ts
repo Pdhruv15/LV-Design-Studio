@@ -172,12 +172,23 @@ export const scaleLook = (l: DimLook, k: number): DimLook => ({
  * drawn with), else, for one of a style, its length measured now in the style's unit and decimals. */
 export function dimLabel(it: SketchItem, metresPerUnit: number): string {
   if (it.text) return it.text;
-  const len = dimMeasure(it) * metresPerUnit;
-  return it.look ? dimLength(len, it.look) : len.toFixed(2);
+  if (it.dimKind === 'angular') return dimAngle(dimMeasure(it), it.look);
+  const len = dimMeasure(it) * metresPerUnit, pre = it.dimKind === 'radius' ? 'R' : it.dimKind === 'diameter' ? 'Ø' : '';
+  return pre + (it.look ? dimLength(len, it.look) : len.toFixed(2));
+}
+/** An angle in degrees as a dimension writes it: the style's decimals (2 without a style), trailing zeros dropped and a
+ * decimal comma as the style says, then °. */
+export function dimAngle(deg: number, s?: DimFormat): string {
+  const dec = Math.max(0, Math.min(4, Math.round(s?.decimals ?? 2)));
+  let t = deg.toFixed(dec);
+  if (s?.trimZeros && t.includes('.')) t = t.replace(/\.?0+$/, '');
+  return `${s?.comma ? t.replace('.', ',') : t}°`;
 }
 
 /** What a dimension measures (drawing units): its points' distance, or for a linear one the distance along its line. */
-export const dimMeasure = (it: Pick<SketchItem, 'pts' | 'dir'>): number => it.pts.length < 2 ? 0
+export const dimMeasure = (it: Pick<SketchItem, 'pts' | 'dir' | 'dimKind'>): number => it.pts.length < 2 ? 0
+  : it.dimKind === 'angular' ? (it.pts.length < 3 ? 0 : (angularArc(it).sweep * 180) / Math.PI)
+  : it.dimKind ? dist(it.pts[0], it.pts[1]) * (it.dimKind === 'diameter' ? 2 : 1)
   : it.dir === undefined ? dist(it.pts[0], it.pts[1])
     : Math.abs((it.pts[1][0] - it.pts[0][0]) * Math.cos(it.dir) + (it.pts[1][1] - it.pts[0][1]) * Math.sin(it.dir));
 
@@ -298,10 +309,78 @@ export { textWidth };
  * height. */
 export function dimOf(it: SketchItem, metresPerUnit: number) {
   const look = it.look;
-  const label = look ? dimLabel(it, metresPerUnit) : it.text ?? '';
-  const h = it.h ?? dimMeasure(it) * 0.04;
+  const label = look || it.dimKind ? dimLabel(it, metresPerUnit) : it.text ?? '';
+  const h = it.h ?? (it.dimKind === 'angular' ? angularArc(it).r : dimMeasure(it)) * 0.04;
   const box = look && (look.textPos || look.textAlong) ? { w: textWidth(label, h), h } : undefined;
-  return { ...dimensionLines(it.pts[0], it.pts[1], it.pts[2], look, box, it.dir), label, h };
+  const g: DimLines = it.dimKind === 'angular' ? angularDimLines(it, look, h) : it.dimKind ? radialDimLines(it, look)
+    : { ...dimensionLines(it.pts[0], it.pts[1], it.pts[2], look, box, it.dir), arcs: [] };
+  return { ...g, label, h };
+}
+
+/** What a dimension draws: its lines (extension lines, the dimension line, arrowheads), its arcs (an angular one's),
+ * where its text sits and the angle it reads at, and what it measures (drawing units; degrees for an angle). */
+export interface DimLines { lines: [Pt, Pt][]; arcs: { c: Pt; r: number; a0: number; a1: number }[]; text: Pt; angle: number; length: number }
+/** A text angle that reads from the bottom or the right of the sheet. */
+const readable = (a: number) => (a > Math.PI / 2 || a <= -Math.PI / 2 ? a + Math.PI : a);
+
+/** A radius or diameter dimension (pts: the centre, a point on the arc or circle, the text's place): its line runs
+ * along the radius through the text's place — a diameter's right across — with an arrowhead where it meets the arc or
+ * circle (both ends for a diameter), and on out to the text when that lies outside. */
+export function radialDimLines(it: SketchItem, look?: DimLook): DimLines {
+  const [c, p, at] = it.pts, r = dist(c, p) || 1e-9, dia = it.dimKind === 'diameter';
+  const d = dist(at, c), [ux, uy] = d > 1e-9 ? [(at[0] - c[0]) / d, (at[1] - c[1]) / d] : [(p[0] - c[0]) / r, (p[1] - c[1]) / r];
+  const nx = -uy, ny = ux, size = look ? look.size : r * 0.1, outside = d > r;
+  const q: Pt = [c[0] + ux * r, c[1] + uy * r], q2: Pt = [c[0] - ux * r, c[1] - uy * r];
+  const at2 = (o: Pt, a: number, b: number): Pt => [o[0] + ux * a + nx * b, o[1] + uy * a + ny * b];
+  const lines: [Pt, Pt][] = [[dia ? q2 : outside ? q : c, outside ? at : q]];
+  // The arrowhead's tip at the arc or circle, its head along the line on the side the line comes from.
+  if (look) {
+    lines.push(...arrowLines(look.arrow, q, outside ? 1 : -1, size, at2));
+    if (dia) lines.push(...arrowLines(look.arrow2 ?? look.arrow, q2, 1, size, at2));
+  } else {
+    const t = size / (2 * Math.SQRT2);
+    for (const e of dia ? [q, q2] : [q]) lines.push([at2(e, -t, -t), at2(e, t, t)]);
+  }
+  // The text at its place, lifted off the line as it reads (flat when the style says so).
+  const angle = look?.textFlat ? 0 : readable(Math.atan2(uy, ux)), lift = look?.gap ?? size * 0.25;
+  return { lines, arcs: [], text: [at[0] - Math.sin(angle) * lift, at[1] + Math.cos(angle) * lift], angle, length: dia ? 2 * r : r };
+}
+
+/** An angular dimension's arc (pts: the vertex, a point on each line, the arc's place): anticlockwise from the first
+ * line's direction to the second's when the arc's place lies within that sweep, else the other way round; its radius
+ * is the arc place's distance from the vertex. */
+export function angularArc(it: Pick<SketchItem, 'pts'>): { a0: number; sweep: number; r: number } {
+  const [v, p1, p2, at] = it.pts;
+  const ang = (q: Pt) => Math.atan2(q[1] - v[1], q[0] - v[0]), turn = (a: number) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  const a1 = ang(p1), ccw = turn(ang(p2) - a1) || 2 * Math.PI, r = dist(at ?? p1, v) || 1e-9;
+  if (!at || turn(ang(at) - a1) <= ccw) return { a0: a1, sweep: ccw, r };
+  return { a0: a1 + ccw, sweep: 2 * Math.PI - ccw, r };
+}
+
+/** An angular dimension: an arc about the vertex through the arc's place, from one line round to the other the way the
+ * place lies, arrowheads at its ends along it, extension lines from the points out to the arc where it lies beyond
+ * them, and the angle written outside the middle of the arc (text height h). */
+export function angularDimLines(it: SketchItem, look?: DimLook, h = 0): DimLines {
+  const [v, p1, p2] = it.pts, { a0, sweep, r } = angularArc(it);
+  const size = look ? look.size : r * 0.1, ext = look ? look.ext : r * 0.05, off = look ? look.off : 0;
+  const onArc = (a: number, k = r): Pt => [v[0] + k * Math.cos(a), v[1] + k * Math.sin(a)];
+  const lines: [Pt, Pt][] = [];
+  for (const [p, hide] of [[p1, look?.hideExt1], [p2, look?.hideExt2]] as [Pt, boolean | undefined][]) {
+    const dp = dist(p, v);
+    if (hide || dp < 1e-9 || r <= dp + 1e-9) continue;
+    const a = Math.atan2(p[1] - v[1], p[0] - v[0]);
+    lines.push([onArc(a, dp + Math.min(off, r - dp)), onArc(a, r + ext)]);
+  }
+  // At an end of the arc: s steps along it (anticlockwise), b out along the radius.
+  const along = (a: number) => (o: Pt, s: number, b: number): Pt => [o[0] - Math.sin(a) * s + Math.cos(a) * b, o[1] + Math.cos(a) * s + Math.sin(a) * b];
+  const e0 = onArc(a0), a1 = a0 + sweep, e1 = onArc(a1);
+  if (look) lines.push(...arrowLines(look.arrow, e0, 1, size, along(a0)), ...arrowLines(look.arrow2 ?? look.arrow, e1, -1, size, along(a1)));
+  else { const t = size / (2 * Math.SQRT2); for (const [e, a] of [[e0, a0], [e1, a1]] as [Pt, number][]) lines.push([along(a)(e, -t, -t), along(a)(e, t, t)]); }
+  // The text outside the middle of the arc, along it and readable: its baseline a gap out, or a text height further
+  // when it reads towards the vertex, so it never lies over the arc.
+  const am = a0 + sweep / 2, angle = look?.textFlat ? 0 : readable(am - Math.PI / 2), lift = look?.gap ?? size * 0.25;
+  const inward = -Math.sin(angle) * Math.cos(am) + Math.cos(angle) * Math.sin(am) < 0;
+  return { lines, arcs: [{ c: v, r, a0, a1 }], text: onArc(am, r + lift + (inward ? h * 0.7 : 0)), angle, length: (sweep * 180) / Math.PI };
 }
 
 /** A linear dimension's line from where it is dragged: horizontal when the point is above or below the two points,
@@ -347,7 +426,7 @@ export function segmentsOf(it: SketchItem, metresPerUnit = 0.001): [Pt, Pt][] {
   else if (it.kind === 'ellipse') poly(ellipsePoints(it), true);
   else if (it.kind === 'circle') arc(it.pts[0], it.r ?? 0, 0, 2 * Math.PI);
   else if (it.kind === 'arc') arc(it.pts[0], it.r ?? 0, it.a0 ?? 0, it.a1 ?? 0);
-  else if (it.kind === 'dim') out.push(...dimOf(it, metresPerUnit).lines);
+  else if (it.kind === 'dim') { const d = dimOf(it, metresPerUnit); out.push(...d.lines); for (const a of d.arcs) arc(a.c, a.r, a.a0, a.a1); }
   else if (it.kind === 'text' && it.frame) { const f = textFrameOf(it); if (f?.circle) arc(f.circle.c, f.circle.r, 0, 2 * Math.PI); else if (f?.pts) poly(f.pts, true); }
   return out;
 }
@@ -445,8 +524,8 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[
       const d = dimOf(it, metresPerUnit);
       // A dimension of a style is written as measured now (in its unit and decimals) unless typed over; one drawn
       // before styles as the length in metres.
-      return [...d.lines.map((l): ShapeOut => ({ layer: it.layer, kind: 'line', pts: l })),
-        { layer: it.layer, kind: 'text', pts: [d.text], text: it.look ? d.label : `${(d.length * metresPerUnit).toFixed(2)}`, h: d.h, rot: d.angle }];
+      return [...d.lines.map((l): ShapeOut => ({ layer: it.layer, kind: 'line', pts: l })), ...d.arcs.map((a): ShapeOut => ({ layer: it.layer, kind: 'arc', pts: [a.c], r: a.r, a0: a.a0, a1: a.a1 })),
+        { layer: it.layer, kind: 'text', pts: [d.text], text: it.look || it.dimKind ? d.label : `${(d.length * metresPerUnit).toFixed(2)}`, h: d.h, rot: d.angle }];
     }
     if (it.tray) {
       // A single line broken at the middle for its label "CT 300 POWER" (with its route once assigned).

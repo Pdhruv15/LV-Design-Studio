@@ -1201,6 +1201,13 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .zoom-chip{position:absolute;right:var(--space-2);bottom:var(--space-2);z-index:3;min-height:var(--control-h-sm);padding:0 var(--space-2);border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--panel);color:var(--tx);font:inherit;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;cursor:pointer;box-shadow:var(--shadow-pop)}
 .zoom-chip:hover{border-color:var(--line-strong)}
 .zoom-chip:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.zoom-chip-wrap{position:absolute;right:var(--space-2);bottom:var(--space-2);z-index:3;display:flex;gap:2px}
+.zoom-chip-wrap .zoom-chip{position:static}
+.zoom-chip-more{padding:0 6px}
+.zoom-chip-menu{position:absolute;right:0;bottom:calc(100% + 4px);display:flex;flex-direction:column;min-width:170px;padding:3px;background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--radius-md);box-shadow:var(--shadow-pop);font-size:var(--fs-sm);white-space:nowrap}
+.zoom-chip-menu button{display:flex;justify-content:space-between;gap:var(--space-2);height:24px;padding:0 var(--space-2);border:1px solid transparent;border-radius:var(--radius-sm);background:none;color:var(--tx);font:inherit;cursor:pointer}
+.zoom-chip-menu button:hover{background:var(--p2);border-color:var(--line)}
+.zoom-chip-menu small{color:var(--mut)}
 .sheet-hint{padding:4px var(--space-2);border-top:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sheet-page{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:12px;background:color-mix(in srgb,var(--bg) 70%,#888 30%);min-height:520px}
 .sheet-paper{box-shadow:var(--shadow-paper);background:#fff;overflow:hidden;flex:none}

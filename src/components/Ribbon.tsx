@@ -5,7 +5,7 @@ import {
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
 import { Frame, LayoutTemplate, Printer, Crop, Plus, ChevronRight, LightbulbOff, Snowflake, LockOpen, Focus, CircleCheck, Layers3, ArrowDownRight, Cloud, FileSearch, ListOrdered } from 'lucide-react';
-import { PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen , SquareScissors } from 'lucide-react';
+import { ListFilter, PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen , SquareScissors } from 'lucide-react';
 import { Pentagon, ArrowRightToLine, TriangleRight, Hexagon, CaseSensitive, LandPlot, ScanSearch, Expand, SlidersHorizontal, DraftingCompass } from 'lucide-react';
 import type { CadExport, CadRibbonInfo, CadTool } from './cad/cadState';
 import { ColourPicker } from './cad/ColourPicker';
@@ -569,7 +569,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         sm(cadTool('ellipse', 'Ellipse', EllipseIcon, 'Ellipse (EL): centre, the end of one axis, then the other axis; A for the two ends of an axis'))
       ],
       // Modify: three rows, column by column (Move, Copy, Stretch · Rotate, Mirror, Scale · Trim, Extend, Break · Fillet,
-      // Chamfer, Join · Offset, Array, Explode · Erase).
+      // Chamfer, Join · Offset, Array, Explode · Erase); Quick select under Modify ▾.
       [
         sm(cadTool('move', 'Move', Move, 'Move (M): select an object (drawn or a device), base point, second point')),
         sm(cadTool('copy', 'Copy', Copy, 'Copy (CO): select, base point, then as many copies as you click; Enter stops. A copied light or socket is counted on its circuit')),
@@ -586,7 +586,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         sm(cadTool('offset', 'Offset', Rows2, 'Offset (O): the distance on the right, click the object, then the side; a tray is copied as a tray of the same width and route')),
         sm(cadTool('array', 'Array', Grid2x2, 'Array (AR): pick drawn objects, Enter; rectangular copies (Apply) or polar round a centre clicked')),
         sm(cadTool('explode', 'Explode', Ungroup, 'Explode (X): click a polyline or rectangle: separate lines')),
-        sm({ label: 'Erase', icon: Eraser, cmd: 'E', title: 'Erase the selected object (E or Delete); a light or socket is taken off its circuit. The architect\'s drawing is not changed', onClick: () => a.cad?.onDelete(), disabled: !a.cad?.hasSelection })
+        sm({ label: 'Erase', icon: Eraser, cmd: 'E', title: 'Erase the selected object (E or Delete); a light or socket is taken off its circuit. The architect\'s drawing is not changed', onClick: () => a.cad?.onDelete(), disabled: !a.cad?.hasSelection }),
+        { ...cadCmd('Quick select…', ListFilter, 'QSELECT', 'Quick select (QS): pick objects by type, layer and property'), more: true }
       ],
       // Annotate: Text (numbered text and the text tools under the arrow), Dimension (its forms under the arrow) and
       // Leader, then Room tag, Keynote, North arrow, Revision cloud, Text style and Dimension style. On a layout's paper the
@@ -598,7 +599,10 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           { label: 'Aligned (DIM)', title: 'Two points, then where the dimension line goes', onClick: () => a.cad?.onTool('dim') },
           { label: 'Linear (DLI)', title: 'Two points, then where the dimension line goes: horizontal above or below them, vertical beside them', onClick: () => a.cad?.onTool('dimlin') },
           { label: 'Continue (DCO)', title: 'From the last dimension\'s second point: click each next point; the dimensions run in one line', onClick: () => a.cad?.onTool('dimcont') },
-          { label: 'Baseline (DBA)', title: 'From the last dimension\'s first point: click each next point; each dimension one step further out', onClick: () => a.cad?.onTool('dimbase') }] },
+          { label: 'Baseline (DBA)', title: 'From the last dimension\'s first point: click each next point; each dimension one step further out', onClick: () => a.cad?.onTool('dimbase') },
+          { label: 'Radius (DRA)', title: 'Click an arc or circle, then where the text goes', onClick: () => a.cad?.onTool('dimrad') },
+          { label: 'Diameter (DDI)', title: 'Click an arc or circle, then where the text goes', onClick: () => a.cad?.onTool('dimdia') },
+          { label: 'Angular (DAN)', title: 'Two lines (or an arc, or a vertex and two points), then where the arc goes', onClick: () => a.cad?.onTool('dimang') }] },
         cadTool('leader', 'Leader', MessageSquareText, 'Leader (LE): click the arrow point, then the text point (more points bend it), type the text, Enter'),
         sm(cadTool('rtag', 'Room tag', Tag, 'Room tag (RT): click inside a room: its name and area')),
         sm(cadTool('keynote', 'Keynote', Hexagon, 'Keynote (KN): a numbered hexagon keynote with a line in the legend')),

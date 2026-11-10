@@ -3,6 +3,13 @@ import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice, type Canv
 import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadRibbonInfo, type CadState, type CadTool } from './cadState';
 import { cadCommand, type CadAction } from './cadCommands';
 import { getClip, hasClip, putClip } from './cadClipboardStore';
+import { hasPreviousView } from './cadViewHistory';
+import { QuickSelectDialog } from './CadQuickSelect';
+import type { ZoomReq } from './CadCanvas';
+import type { ZoomMenuKey } from '../drawingView';
+import { parseZoomScale } from '../../model/cadView';
+import { selectSimilar, type SimilarOpts } from '../../model/cadQuickSelect';
+import { endTowards, linesCross, nearestPiece, nearestSegment, onRound, roundOfSegments } from '../../model/cadDims';
 import { clipPayload, clipText, lowerLeft, parseClip, pastedItems, withPasted, type ClipPayload } from '../../model/cadClipboard';
 import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
 import { isNumber, promptOptions, shortPrompt, spaceEnters, type SpaceMode } from './cadPrompt';
@@ -15,7 +22,7 @@ import { parsePat, specWith, withPatterns } from '../../model/cadHatch';
 import { erasedOf, restoredErased, shownView, withErased, type ErasedParts } from '../../model/cadErased';
 import { CIRCUIT_ATTRIBUTES } from '../../model/cadLoads';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
-import { addSketch, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimMeasure, linearDir, nextDim, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
+import { addSketch, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimLabel, dimMeasure, linearDir, nextDim, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
 import { trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
@@ -95,7 +102,7 @@ const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab 
 ];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · DRA (radius) · DDI (diameter) · DAN (angular) · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 /** Bind's count in the Save line: reference lines, texts and hatches. */
@@ -144,6 +151,10 @@ const PROMPT: Record<CadTool, string> = {
   copy: 'COPY  Select object, then specify base point:',
   copybase: 'COPYBASE  Specify base point:',
   paste: 'PASTECLIP  Specify insertion point:',
+  zoom: 'ZOOM  [Window/Previous/Scale/Extents] <Window>:',
+  zoomwin: 'ZOOM  First corner:',
+  zoomscale: 'ZOOM  Scale factor (2, 0.5 or 2x):',
+  selsim: 'SELECTSIMILAR  Select objects or [Settings]:',
   rotate: 'ROTATE  Select object, then specify base point:',
   mirror: 'MIRROR  Select objects (click them), then Enter:',
   scale: 'SCALE  Select objects (click them), then Enter:',
@@ -174,6 +185,9 @@ const PROMPT: Record<CadTool, string> = {
   dimlin: 'DIMLINEAR  Specify first extension line origin:',
   dimcont: 'DIMCONTINUE  Specify second extension line origin (from the last dimension):',
   dimbase: 'DIMBASELINE  Specify second extension line origin (from the last dimension):',
+  dimrad: 'DIMRADIUS  Select arc or circle:',
+  dimdia: 'DIMDIAMETER  Select arc or circle:',
+  dimang: 'DIMANGULAR  Select arc, circle, line or <specify vertex>:',
   xattach: 'XATTACH  Specify insertion point:',
   xclip: 'XCLIP  Click the corners of the clip outline, Enter to finish (two corners: a rectangle), or [Object] to pick a closed outline:',
   crop: 'CROP  Select a block to crop:'
@@ -316,10 +330,17 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [dynMenu, setDynMenu] = useState<number | null>(null);
   const dynRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
   // The settings dialog shown: the edit tool's, or the text or dimension styles.
-  const [dlg, setDlg] = useState<'edit' | 'style' | 'dimstyle' | null>(null);
+  const [dlg, setDlg] = useState<'edit' | 'style' | 'dimstyle' | 'qselect' | null>(null);
   /** PASTECLIP: the objects following the cursor until they are placed. */
   const [pasting, setPasting] = useState<ClipPayload | null>(null);
   const [promptMenu, setPromptMenu] = useState<{ at: Pt; items: { label: string; key?: string; run: () => void }[] } | null>(null);
+  // ZOOM Window / Scale / Previous asked of the canvas (S2 of the 2D gap plan); what DIMRADIUS / DIMDIAMETER and
+  // DIMANGULAR have picked so far (S4); what SELECTSIMILAR matches besides kind and layer (S3).
+  const [zoomReq, setZoomReq] = useState<ZoomReq | undefined>();
+  const [radPick, setRadPick] = useState<{ c: Pt; r: number } | null>(null);
+  const [angPick, setAngPick] = useState<{ seg1?: [Pt, Pt]; at1?: Pt; v?: Pt; p1?: Pt; p2?: Pt; vertex?: true } | null>(null);
+  const [ssOpts, setSsOpts] = useState<SimilarOpts>({ colour: false, linetype: false });
+  const [ssAsk, setSsAsk] = useState(false);
   // Layer palette shown, and the object Match properties copies from.
   const [showLM, setShowLM] = useState(false);
   // The properties palette (Ctrl/Cmd+1): shown while a drawing is open, unless hidden.
@@ -406,9 +427,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     setDlg((d) => (DIALOG_TOOLS.includes(tool as EditTool) ? 'edit' : d === 'edit' ? null : d));
     if (tool !== 'none' && tool !== 'xattach' && tool !== 'xclip') { const label = PROMPT[tool].split(' ')[0]; setRecent((r) => [{ label, tool }, ...r.filter((x) => x.label !== label)].slice(0, 8)); }
     setCrop(tool === 'crop' ? { step: 'pick' } : null);
+    setRadPick(null); setAngPick(null); setSsAsk(false);
     cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? (tool === 'array' ? arrayType(edSet) : TEXT_TOOLS.includes(tool) ? textToolPrompt(tool) : `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : 'Enter to join them:'}`) : pre && tool === 'offset' ? OFFSET_SIDE : editPrompt(tool, edSet)}`);
     // CROP with drawn items picked first: they are what is cut.
     if (tool === 'crop' && first) { const ids = picked.length ? picked.filter((k) => k.startsWith('sk:')).map((k) => k.slice(3)) : [cad.selected!.slice(3)]; setCrop({ step: 'outline', target: { items: ids, label: `${ids.length} drawn object${ids.length === 1 ? '' : 's'}` } }); cad.say(CROP_OUTLINE); }
+    // SELECTSIMILAR with drawn objects picked first: they are the pattern. ZOOM needs the model view.
+    if (tool === 'selsim' && first) applySimilar();
+    if ((tool === 'zoom' || tool === 'zoomwin' || tool === 'zoomscale') && zoomRefused()) cad.setTool('none');
   }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Layer palette styles. The architect's layers: On as turned on or off in the app (kept in the project, so each change is
@@ -980,6 +1005,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** A window (drawing units): the devices and drawn objects in it, added to those picked with Shift. Stretch keeps it
    * as the points to move. */
   function pickWindow(a: Pt, b: Pt, crossing: boolean, add: boolean) {
+    if (tool === 'zoomwin') { zoomTo({ kind: 'window', a, b }); cad.setTool('none'); return; }
     if (tool === 'stretch') { setStretchBox([a, b]); setPoints([]); cad.say('STRETCH  Specify base point:'); return; }
     const found = inWindow(placed, [a[0] * units.factor, a[1] * units.factor], [b[0] * units.factor, b[1] * units.factor], crossing, DEVICE_R_M);
     const foundSk = sketchInWindow(pickable, a, b, crossing);
@@ -1009,7 +1035,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (o && !pickedKeys.has(`dw:${o.handle}`)) pick([], [], [o]);
       if (o || pickedDw.length) { setPromptMenu({ at: screen, items: [{ label: 'Erase', run: () => cad.actions.current.remove() }] }); return; }
       const items = [...recent.slice(0, 6).map((x, i) => ({ label: i ? x.label : `Repeat ${x.label}`, run: () => repeat(x) })),
-        ...(hasClip() ? [{ label: 'Paste (Ctrl+V)', run: () => pasteClip(false) }, { label: 'Paste to original coordinates', run: () => pasteClip(true) }] : [])];
+        ...(hasClip() ? [{ label: 'Paste (Ctrl+V)', run: () => pasteClip(false) }, { label: 'Paste to original coordinates', run: () => pasteClip(true) }] : []),
+        { label: 'Zoom window (Z W)', run: () => zoomMenu('window') }, { label: 'Zoom previous (Z P)', run: zoomPrev }, { label: 'Zoom extents (ZE)', run: () => cad.fit() }];
       if (items.length) setPromptMenu({ at: screen, items });
       return;
     }
@@ -1035,6 +1062,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     if (e === 'width' && one?.tray && arg) { change(updateSketch(project, fileOf(), { ...one, tray: { ...one.tray, widthMm: Number(arg) } }), `Cable tray ${arg} mm · ⌘Z to undo`); return; }
     if (e === 'clipboard') { if (arg) run(arg === 'copy' ? 'COPYCLIP' : arg === 'copybase' ? 'COPYBASE' : arg === 'paste' ? 'PASTECLIP' : 'PASTEORIG'); return; }
+    if (e === 'similar') { run('SELECTSIMILAR'); return; }
+    if (e === 'qselect') { run('QSELECT'); return; }
     if (e === 'erase') { removeSelected(); return; }
     if (e === 'join') { applyJoin(); return; }
     if (e === 'rotate' && !one) { cad.say('ROTATE  One object at a time.'); return; }
@@ -1252,7 +1281,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   }
 
   /** The dimension Continue and Baseline go on from: the last one drawn on this drawing. */
-  const lastDim = useMemo(() => { for (let i = sketch.length - 1; i >= 0; i -= 1) if (sketch[i].kind === 'dim' && sketch[i].pts.length > 2) return sketch[i]; return undefined; }, [sketch]);
+  const lastDim = useMemo(() => { for (let i = sketch.length - 1; i >= 0; i -= 1) if (sketch[i].kind === 'dim' && sketch[i].pts.length > 2 && !sketch[i].dimKind) return sketch[i]; return undefined; }, [sketch]);
   /** The next dimension of the chain to `to`: baseline ones step out by 3.75 mm on paper (ISO), or 1.5 × their text. */
   const chainDim = (base: SketchItem, to: Pt) => nextDim(base, to, tool === 'dimcont' ? 'continue' : 'baseline', Math.max(3.75 * unitsPerPaperMm(anno, units.factor), 1.5 * (base.h ?? 0)));
   const draw = (item: Omit<SketchItem, 'id'>, what: string) => {
@@ -1331,6 +1360,88 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     change(w.project, `${name}  ${n} object${n === 1 ? '' : 's'} pasted${plain}${layers} · ⌘Z to undo`);
   }
 
+  // ---- zoom (ZOOM Window / Previous / Scale, S2 of the 2D gap plan; src/model/cadView.ts, cadViewHistory.ts)
+
+  const zoomTo = (d: ZoomReq['do']) => setZoomReq((z) => ({ n: (z?.n ?? 0) + 1, do: d }));
+  /** Why ZOOM cannot run now: no drawing, or a layout (its paper fits the pane and its viewports keep their scale). */
+  function zoomRefused(): boolean {
+    if (!view) { cad.say('ZOOM  Open a drawing first.'); return true; }
+    if (cad.layout) { cad.say('ZOOM  Works in the model view; a layout\'s paper fits the pane and its viewports keep their scale.'); return true; }
+    return false;
+  }
+  function zoomPrev() {
+    if (zoomRefused() || !view) return;
+    if (!hasPreviousView(view)) { cad.say('ZOOM  No previous view'); return; }
+    zoomTo({ kind: 'previous' });
+  }
+  /** An option typed at ZOOM's prompt (Enter: Window). */
+  function zoomOption(k: string) {
+    if (k === 'W') cad.setTool('zoomwin');
+    else if (k === 'P') { zoomPrev(); cad.setTool('none'); }
+    else if (k === 'S') cad.setTool('zoomscale');
+    else if (k === 'E') { cad.fit(); cad.setTool('none'); }
+    else cad.say(PROMPT.zoom);
+  }
+  /** The zoom chip's menu, and the right-click entries with nothing picked. */
+  function zoomMenu(k: ZoomMenuKey) {
+    if (k === 'extents') cad.fit();
+    else if (k === 'previous') zoomPrev();
+    else if (!zoomRefused()) cad.setTool(k === 'window' ? 'zoomwin' : 'zoomscale');
+  }
+
+  // ---- QSELECT and SELECTSIMILAR (S3; src/model/cadQuickSelect.ts)
+
+  /** The objects the Quick select dialog found: the selection, or added to it. */
+  function applyQuickSelect(found: SketchItem[], add: boolean) {
+    setDlg(null);
+    if (!found.length && !add) { cad.say('QSELECT  No object matches.'); return; }
+    const sks = add ? [...pickedSk, ...found.filter((it) => !pickedKeys.has(`sk:${it.id}`))] : found;
+    pick([], sks);
+    cad.say(`QSELECT  ${picks(sks.length)}`);
+  }
+  /** SELECTSIMILAR: every pickable drawn object like those picked. */
+  function applySimilar() {
+    if (!pickedSk.length) { cad.say('SELECTSIMILAR  Pick a drawn object first (click it, then Enter).'); return; }
+    const found = selectSimilar(pickable, pickedSk, ssOpts);
+    pick([], found);
+    cad.say(`SELECTSIMILAR  ${picks(found.length)}`);
+    cad.setTool('none');
+  }
+  /** What is typed at SELECTSIMILAR's prompts: Enter selects, S asks what else to match. */
+  function similarInput(c: string) {
+    if (ssAsk) { setSsOpts({ colour: c === 'C' || c === 'B', linetype: c === 'L' || c === 'B' }); setSsAsk(false); cad.say(PROMPT.selsim); return; }
+    if (c === 'S') { setSsAsk(true); cad.say('SELECTSIMILAR  Also match [Colour/Linetype/Both/None] <None>:'); return; }
+    if (c === '') { applySimilar(); return; }
+    cad.say(PROMPT.selsim);
+  }
+
+  // ---- DIMRADIUS, DIMDIAMETER, DIMANGULAR (S4; src/model/cadSketch.ts radialDimLines / angularDimLines, cadDims.ts)
+
+  /** A new radius, diameter or angular dimension in the current dimension style (plain, as DIM is, without one). */
+  const dimItem = (pts: Pt[], dimKind: NonNullable<SketchItem['dimKind']>): Omit<SketchItem, 'id'> => {
+    const ds = dimLookOf(project, units.factor);
+    return { kind: 'dim', dimKind, layer: ANNO_LAYER, pts, ...(ds ? { h: ds.textH, look: ds.look } : { h: textH * 0.8 }) };
+  };
+  const radialItem = (q: { c: Pt; r: number }, at: Pt, k: 'radius' | 'diameter') => dimItem([q.c, onRound(q.c, q.r, at), at], k);
+  /** What is under a click for the dimensions: a drawn arc or circle (an arc with its ends) or the straight piece of a
+   * drawn line, else the same of the opened drawing (its circles and arcs come as segments; src/model/cadDims.ts). */
+  async function roundOrLineAt(at: Pt, pixel: number): Promise<{ round?: { c: Pt; r: number; ends?: [Pt, Pt] }; line?: [Pt, Pt] }> {
+    const sk = itemAt(pickable, at, 6 * pixel);
+    if (sk) {
+      if (sk.kind !== 'circle' && sk.kind !== 'arc') return { line: nearestPiece(sk, at) };
+      const r = sk.r ?? 0, e = (a: number): Pt => [sk.pts[0][0] + r * Math.cos(a), sk.pts[0][1] + r * Math.sin(a)];
+      return { round: { c: sk.pts[0], r, ...(sk.kind === 'arc' ? { ends: [e(sk.a0 ?? 0), e(sk.a1 ?? 0)] as [Pt, Pt] } : {}) } };
+    }
+    const o = view ? await view.pick(at[0], at[1], 6 * pixel, pickOn) : null;
+    if (!o || !view) return {};
+    const kind = o.kind.toLowerCase(), S = view.segs;
+    if (kind !== 'circle' && kind !== 'arc') return { line: nearestSegment(S, o.seg_start, o.seg_end, at) };
+    const q = roundOfSegments(S, o.seg_start, o.seg_end);
+    if (!q) return {};
+    const ends: [Pt, Pt] = [[S[o.seg_start * 4], S[o.seg_start * 4 + 1]], [S[(o.seg_end - 1) * 4 + 2], S[(o.seg_end - 1) * 4 + 3]]];
+    return { round: { c: q.c, r: o.radius ?? q.r, ...(kind === 'arc' ? { ends } : {}) } };
+  }
+
   async function click(at: Pt, pixel: number, shiftKey = false) {
     if (!view) return;
     setPromptMenu(null);
@@ -1338,6 +1449,54 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'xattach') { if (xDraft) setXDraft({ ...xDraft, at }); cad.setTool('none'); return; }
     if (tool === 'copybase') { copyClip(at); cad.setTool('none'); return; }
     if (tool === 'paste') { if (pasting) placeClip(pasting, at); setPasting(null); cad.setTool('none'); return; }
+    if (tool === 'zoomwin') {
+      if (!last) { setPoints([at]); cad.say('ZOOM  Opposite corner:'); return; }
+      zoomTo({ kind: 'window', a: last, b: at }); setPoints([]); cad.setTool('none'); return;
+    }
+    if (tool === 'selsim') {
+      const sk = itemAt(pickable, at, 6 * pixel);
+      if (!sk) { cad.say('SELECTSIMILAR  Nothing there: click a drawn object, or Enter with those picked:'); return; }
+      const sks = pickedKeys.has(`sk:${sk.id}`) ? pickedSk.filter((x) => x.id !== sk.id) : [...pickedSk, sk];
+      pick([], sks); cad.say(`SEL  ${picks(sks.length)} — Enter when done`); return;
+    }
+    if (tool === 'dimrad' || tool === 'dimdia') {
+      const name = tool === 'dimrad' ? 'DIMRADIUS' : 'DIMDIAMETER';
+      if (!radPick) {
+        const { round } = await roundOrLineAt(at, pixel);
+        if (!round) { cad.say(`${name}  No arc or circle there. Select arc or circle:`); return; }
+        setRadPick(round); cad.say(`${name}  Dimension line location:`); return;
+      }
+      const item = radialItem(radPick, at, tool === 'dimrad' ? 'radius' : 'diameter');
+      draw(item, `${tool === 'dimrad' ? 'Radius' : 'Diameter'} dimension ${dimLabel(item as SketchItem, units.factor)}`);
+      setRadPick(null); cad.say(PROMPT[tool]); return;
+    }
+    if (tool === 'dimang') {
+      const P = angPick ?? {};
+      if (P.v && P.p1 && P.p2) {
+        const item = dimItem([P.v, P.p1, P.p2, at], 'angular');
+        draw(item, `Angular dimension ${dimLabel(item as SketchItem, units.factor)}`);
+        setAngPick(null); cad.say(PROMPT.dimang); return;
+      }
+      if (P.v && P.p1) { setAngPick({ ...P, p2: at }); cad.say('DIMANGULAR  Dimension arc line location:'); return; }
+      if (P.vertex) {
+        if (!P.v) { setAngPick({ ...P, v: at }); cad.say('DIMANGULAR  Specify first angle endpoint:'); } else { setAngPick({ ...P, p1: at }); cad.say('DIMANGULAR  Specify second angle endpoint:'); }
+        return;
+      }
+      if (P.seg1 && P.at1) {
+        const { line } = await roundOrLineAt(at, pixel);
+        if (!line) { cad.say('DIMANGULAR  No line there. Select second line:'); return; }
+        const x = linesCross(P.seg1, line);
+        if (!x) { cad.say('DIMANGULAR  The lines are parallel. Select second line:'); return; }
+        setAngPick({ v: x, p1: endTowards(P.seg1, x, P.at1), p2: endTowards(line, x, at) }); cad.say('DIMANGULAR  Dimension arc line location:'); return;
+      }
+      // The first pick: an arc (its ends), a circle (the point clicked, then another), a line (then a second), or
+      // nothing there, which makes the point the vertex.
+      const { round, line } = await roundOrLineAt(at, pixel);
+      if (round?.ends) { setAngPick({ v: round.c, p1: round.ends[0], p2: round.ends[1] }); cad.say('DIMANGULAR  Dimension arc line location:'); return; }
+      if (round) { setAngPick({ v: round.c, p1: onRound(round.c, round.r, at) }); cad.say('DIMANGULAR  Specify second angle endpoint:'); return; }
+      if (line) { setAngPick({ seg1: line, at1: at }); cad.say('DIMANGULAR  Select second line:'); return; }
+      setAngPick({ vertex: true, v: at }); cad.say('DIMANGULAR  Specify first angle endpoint:'); return;
+    }
     if (tool === 'crop' && crop) { await cropClick(at, pixel); return; }
     if (tool === 'xclip') {
       if (xClip?.outline) {
@@ -1841,6 +2000,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       else { setTextAsk({ ...textAsk, step: null, rot: n ?? textAsk.rot }); cad.say('TEXT  Enter text:'); }
       return;
     }
+    if (tool === 'zoom') { zoomOption(c || 'W'); return; }
+    if (tool === 'zoomscale') {
+      const z = parseZoomScale(raw);
+      if (!z) { cad.say('ZOOM  A factor such as 2, 0.5 or 2x:'); return; }
+      zoomTo({ kind: 'scale', ...z }); cad.say(`ZOOM  ${z.k}× ${z.relative ? 'the view' : 'the whole drawing'}`); cad.setTool('none'); return;
+    }
+    if (tool === 'selsim') { similarInput(c); return; }
+    if (tool === 'dimang' && !c && !angPick) { setAngPick({ vertex: true }); cad.say('DIMANGULAR  Specify angle vertex:'); return; }
     if (tool === 'tcount' && tc) { tcountInput(text, c); return; }
     if (tool === 'keynote' && kn) {
       if (kn.step === 'number') {
@@ -1938,7 +2105,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     // A number typed with Scale (before its base point) sets the factor.
     if (tool === 'scale' && isNumber(c) && !c.startsWith('-')) { const k = String(Number(c)); setEdSet({ ...edSet, factor: k }); cad.say(`SCALE  Factor ${k}`); return; }
-    if (DRAW_TOOLS.includes(tool) || tool === 'copybase' || tool === 'paste' || tool === 'dist' || tool === 'area' || tool === 'trace' || (tool === 'tcen' && edPhase === 'points') || (tool === 'talign' && tAsk?.step === 'ref')) {
+    if (DRAW_TOOLS.includes(tool) || tool === 'copybase' || tool === 'paste' || tool === 'dist' || tool === 'area' || tool === 'trace' || tool === 'zoomwin' || tool === 'dimrad' || tool === 'dimdia' || tool === 'dimang' || (tool === 'tcen' && edPhase === 'points') || (tool === 'talign' && tAsk?.step === 'ref')) {
       const p = typedPoint(raw, points[points.length - 1], cursor.at);
       if (p) { cad.say(`  ${raw}`); click(p, 1e-9); return; }
     }
@@ -2002,6 +2169,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       copyBase: () => { if (clipRefusal('COPYBASE')) return; cad.setTool('copybase'); },
       pasteClip: () => pasteClip(false),
       pasteOrig: () => pasteClip(true),
+      zoomPrev: () => zoomPrev(),
+      qselect: () => { if (!view) { cad.say('QSELECT  Open a drawing first.'); return; } setDlg('qselect'); },
       layers: () => cad.setShowLayers(!cad.showLayers),
       osnap: () => cad.toggle('osnap'),
       grid: () => cad.cycleGrid(),
@@ -2264,6 +2433,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'tray' && points.length) return [{ ...base, kind: 'pline', pts: [...points, cur], tray: { widthMm: cad.tray.widthMm, service: cad.tray.service } }];
     if (tool === 'em' && emSet.mode === 'route' && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
     if (tool === 'rect' && lastPt) return [{ ...base, kind: 'pline', pts: rectangle(lastPt, cur), closed: true }];
+    if (tool === 'zoomwin' && lastPt) return [{ ...base, kind: 'pline', pts: rectangle(lastPt, cur), closed: true }];
+    if ((tool === 'dimrad' || tool === 'dimdia') && radPick) return [{ ...base, ...radialItem(radPick, cur, tool === 'dimrad' ? 'radius' : 'diameter') }];
+    if (tool === 'dimang' && angPick) {
+      if (angPick.v && angPick.p1 && angPick.p2) return [{ ...base, ...dimItem([angPick.v, angPick.p1, angPick.p2, cur], 'angular') }];
+      if (angPick.v) return [{ ...base, kind: 'line', pts: [angPick.v, cur] }];
+    }
     if (tool === 'circle' && lastPt) return [{ ...base, kind: 'circle', pts: [lastPt], r: distance(lastPt, cur) }];
     if (tool === 'arc' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
     if (tool === 'arc' && points.length === 2) { const a = arcThrough(points[0], points[1], cur); return a ? [{ ...base, ...a } as SketchItem] : []; }
@@ -2355,7 +2530,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
             <CadCanvas view={view!} draft={draft} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
-              numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={xr.snap} windowSelect={tool === 'none' || tool === 'stretch' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt}
+              numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={xr.snap} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={draft.grips && tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
               onGripEnd={(i, at) => {
                 setGripIdx(null);
@@ -2640,6 +2815,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             if (JSON.stringify(keep) === JSON.stringify(project.cadTextStyles)) { cad.say('STYLE  No change.'); return; }
             change(keep ? { ...project, cadTextStyles: keep } : rest, `STYLE  ${s.styles.length} text style${s.styles.length === 1 ? '' : 's'}, current "${s.current}" · ⌘Z to undo`);
           }} />}
+        {dlg === 'qselect' && view && <QuickSelectDialog items={pickable} picked={pickedSk} metresPerUnit={units.factor} onClose={() => setDlg(null)} onApply={applyQuickSelect} />}
         {dlg === 'dimstyle' && <DimStyleDialog styles={dimStylesOf(project)} asBefore={dimStandardAsBefore(project)} onClose={() => setDlg(null)}
           onSave={(s) => {
             setDlg(null);

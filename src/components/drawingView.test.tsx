@@ -48,5 +48,9 @@ describe('one set of view controls for every drawing', () => {
     const html = renderToStaticMarkup(<ZoomChip pct={63.6} onFit={() => {}} />);
     expect(html).toContain('>64 %<');
     expect(html).toContain('click to fit');
+    expect(html).not.toContain('Zoom menu');
+    // Design CAD gives it a menu: a ▾ beside it (Window, Previous, Scale…, Extents).
+    const withMenu = renderToStaticMarkup(<ZoomChip pct={100} onFit={() => {}} onZoom={() => {}} />);
+    expect(withMenu).toContain('zoom-chip-wrap'); expect(withMenu).toContain('aria-label="Zoom menu"'); expect(withMenu).toContain('>100 %<');
   });
 });
