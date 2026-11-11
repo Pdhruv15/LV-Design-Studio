@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LV Design Studio — architecture navigator</title>
+<style>
+  :root { --bg:#f6f7f9; --panel:#fff; --ink:#1d2330; --muted:#5d6675; --line:#d9dde3; --accent:#2457a6; --ok:#2e8b57; --bad:#d03030; --hi:#fff4c2; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color:var(--ink); background:var(--bg); height:100vh; display:flex; overflow:hidden; }
+  aside { width:280px; min-width:280px; background:var(--panel); border-right:1px solid var(--line); display:flex; flex-direction:column; }
+  aside header { padding:14px 14px 10px; border-bottom:1px solid var(--line); }
+  aside header h1 { font-size:15px; margin:0 0 4px; }
+  aside header .sub { color:var(--muted); font-size:12px; }
+  #modfilter { width:100%; margin-top:8px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font:inherit; }
+  #modlist { overflow:auto; flex:1; padding:6px 0 20px; }
+  .grp { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); padding:10px 14px 4px; }
+  .mod { display:flex; gap:8px; align-items:center; padding:5px 14px; cursor:pointer; border-left:3px solid transparent; }
+  .mod:hover { background:#f0f3f8; }
+  .mod.sel { background:#e8eef9; border-left-color:var(--accent); }
+  .mod .n { color:var(--muted); font-variant-numeric:tabular-nums; width:20px; }
+  .mod .t { flex:1; }
+  .pill { font-size:11px; padding:0 6px; border-radius:9px; background:#eceff3; color:var(--muted); white-space:nowrap; }
+  .pill.h { background:#fbe3e3; color:#9b1c1c; }
+  main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  nav.tabs { display:flex; gap:2px; padding:8px 12px 0; background:var(--panel); border-bottom:1px solid var(--line); }
+  nav.tabs button { border:1px solid transparent; border-bottom:none; background:none; padding:8px 14px; font:inherit; cursor:pointer; color:var(--muted); border-radius:6px 6px 0 0; }
+  nav.tabs button.on { background:var(--bg); border-color:var(--line); color:var(--ink); font-weight:600; margin-bottom:-1px; }
+  .view { display:none; flex:1; overflow:auto; }
+  .view.on { display:flex; }
+  #v-map { flex-direction:row; }
+  #mapwrap { flex:1; overflow:auto; position:relative; }
+  #map { display:block; }
+  #map .node rect { fill:#fff; stroke:#9aa3b0; stroke-width:1; rx:6; }
+  #map .node text { font-size:11.5px; fill:var(--ink); pointer-events:none; }
+  #map .node { cursor:pointer; }
+  #map .node.sel rect { stroke:var(--accent); stroke-width:2.5; fill:#e8eef9; }
+  #map .node.nb rect { stroke:var(--accent); fill:var(--hi); }
+  #map .edge { fill:none; stroke-width:1.4; opacity:.75; }
+  #map .edge.ok { stroke:var(--ok); }
+  #map .edge.bad { stroke:var(--bad); stroke-dasharray:6 4; }
+  #map .edge.hl { stroke-width:2.6; opacity:1; }
+  #map.focus .node:not(.sel):not(.nb) { opacity:.2; }
+  #map.focus .edge:not(.hl) { opacity:.06; }
+  #map .gtitle { font-size:12px; font-weight:600; fill:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  #map .gbox { fill:#eef1f5; stroke:none; rx:10; }
+  #card { width:360px; min-width:360px; border-left:1px solid var(--line); background:var(--panel); overflow:auto; padding:14px 16px; }
+  #card h2 { font-size:16px; margin:0 0 6px; }
+  #card .muted, .muted { color:var(--muted); }
+  #card ul { padding-left:18px; margin:6px 0 12px; }
+  #card li { margin:3px 0; }
+  .legend { display:flex; gap:16px; align-items:center; padding:8px 12px; font-size:12px; color:var(--muted); }
+  .legend svg { vertical-align:middle; }
+  .linkok { color:var(--ok); font-weight:600; } .linkbad { color:var(--bad); font-weight:600; }
+  code { font:12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background:#eef1f5; padding:0 3px; border-radius:3px; word-break:break-word; }
+  button.btn { border:1px solid var(--line); background:#fff; border-radius:6px; padding:5px 10px; font:inherit; cursor:pointer; }
+  button.btn:hover { border-color:var(--accent); }
+  #v-mod, #v-doc { display:none; justify-content:center; }
+  #v-mod.on, #v-doc.on { display:flex; }
+  .md { max-width:1100px; width:100%; padding:20px 28px 60px; background:var(--panel); }
+  .md h1 { font-size:22px; } .md h2 { font-size:17px; margin-top:26px; border-bottom:1px solid var(--line); padding-bottom:4px; } .md h3 { font-size:15px; }
+  .md table { border-collapse:collapse; width:100%; margin:8px 0 14px; font-size:13px; }
+  .md th, .md td { border:1px solid var(--line); padding:5px 7px; text-align:left; vertical-align:top; }
+  .md th { background:#f0f3f7; }
+  .md pre { background:#f3f5f8; padding:10px; overflow:auto; border-radius:6px; }
+  .md pre code { background:none; padding:0; }
+  .md a { color:var(--accent); }
+  #v-gaps { flex-direction:column; }
+  .filters { display:flex; flex-wrap:wrap; gap:14px; align-items:center; padding:12px 16px; background:var(--panel); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:2; }
+  .filters fieldset { border:1px solid var(--line); border-radius:6px; padding:3px 8px 5px; margin:0; }
+  .filters legend { font-size:11px; color:var(--muted); padding:0 4px; }
+  .filters label { margin-right:8px; white-space:nowrap; font-size:13px; }
+  .filters input[type=search] { padding:6px 8px; border:1px solid var(--line); border-radius:6px; font:inherit; width:260px; }
+  .filters select { padding:5px; border:1px solid var(--line); border-radius:6px; font:inherit; max-width:240px; }
+  #gapcount { color:var(--muted); font-size:13px; }
+  table.gaps { border-collapse:collapse; width:100%; background:var(--panel); font-size:13px; }
+  table.gaps th { position:sticky; top:0; background:#f0f3f7; text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); cursor:pointer; white-space:nowrap; }
+  table.gaps td { padding:6px 8px; border-bottom:1px solid #eceff3; vertical-align:top; }
+  table.gaps tr:hover td { background:#fafbfd; }
+  .sev { font-weight:600; font-size:12px; text-transform:uppercase; }
+  .sev.high { color:#9b1c1c; } .sev.medium { color:#8a5a00; } .sev.low { color:var(--muted); }
+  .tag { display:inline-block; font-size:11px; padding:0 6px; border-radius:9px; border:1px solid var(--line); }
+  a.modlink { color:var(--accent); cursor:pointer; text-decoration:none; }
+  a.modlink:hover { text-decoration:underline; }
+  #tip { position:fixed; pointer-events:none; background:#1d2330; color:#fff; font-size:12px; padding:6px 8px; border-radius:6px; max-width:380px; display:none; z-index:10; }
+</style>
+</head>
+<body>
+<aside>
+  <header>
+    <h1>LV Design Studio — architecture</h1>
+    <div class="sub" id="totals"></div>
+    <input id="modfilter" type="search" placeholder="Filter modules…">
+  </header>
+  <div id="modlist"></div>
+</aside>
+<main>
+  <nav class="tabs">
+    <button data-v="map" class="on">Diagram</button>
+    <button data-v="mod">Module details</button>
+    <!--priv--><button data-v="gaps">Gap table</button><!--/priv-->
+    <button data-v="doc" data-doc="00-index.md">Index</button>
+    <button data-v="doc" data-doc="99-integration-map.md">Integration map (text)</button>
+  </nav>
+  <section class="view on" id="v-map">
+    <div id="mapwrap">
+      <div class="legend">
+        <span><svg width="40" height="10"><line x1="0" y1="5" x2="40" y2="5" stroke="#2e8b57" stroke-width="2"/></svg> working link</span>
+        <!--priv--><span><svg width="40" height="10"><line x1="0" y1="5" x2="40" y2="5" stroke="#d03030" stroke-width="2" stroke-dasharray="6 4"/></svg> broken or missing link</span><!--/priv-->
+        <span>Click a module to highlight what it connects to. Click empty space to clear.</span>
+      </div>
+      <svg id="map" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div id="card"><p class="muted">Select a module in the diagram or the list on the left.</p></div>
+  </section>
+  <section class="view" id="v-mod"><div class="md" id="modmd"><p class="muted">Select a module on the left.</p></div></section>
+  <!--priv--><section class="view" id="v-gaps">
+    <div class="filters">
+      <fieldset><legend>Kind</legend>
+        <label><input type="checkbox" name="kind" value="bug" checked> bug</label>
+        <label><input type="checkbox" name="kind" value="incomplete" checked> incomplete</label>
+        <label><input type="checkbox" name="kind" value="missing" checked> missing</label>
+      </fieldset>
+      <fieldset><legend>Recommendation</legend>
+        <label><input type="checkbox" name="action" value="fix" checked> fix</label>
+        <label><input type="checkbox" name="action" value="rewrite" checked> rewrite</label>
+        <label><input type="checkbox" name="action" value="add" checked> add</label>
+      </fieldset>
+      <fieldset><legend>Severity</legend>
+        <label><input type="checkbox" name="sev" value="high" checked> high</label>
+        <label><input type="checkbox" name="sev" value="medium" checked> medium</label>
+        <label><input type="checkbox" name="sev" value="low" checked> low</label>
+      </fieldset>
+      <select id="gapmod"><option value="">All modules</option></select>
+      <input id="gapq" type="search" placeholder="Search title, detail, file, function…">
+      <span id="gapcount"></span>
+    </div>
+    <table class="gaps"><thead><tr>
+      <th data-k="id">Gap</th><th data-k="module">Module</th><th data-k="severity">Severity</th><th data-k="kind">Kind</th><th data-k="action">Action</th><th data-k="title">What is wrong</th><th data-k="file">File — function</th><th data-k="verified">Verified</th>
+    </tr></thead><tbody id="gapbody"></tbody></table>
+  </section><!--/priv-->
+  <section class="view" id="v-doc"><div class="md" id="docmd"></div></section>
+</main>
+<div id="tip"></div>
+<script id="data" type="application/json">__DATA__</script>
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById('data').textContent);
+  const mods = D.modules, byId = Object.fromEntries(mods.map((m) => [m.id, m]));
+  const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const h = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const allGaps = mods.flatMap((m) => m.gaps.map((g) => ({ ...g, module: m.id })));
+  const sevRank = { high: 0, medium: 1, low: 2 };
+  let selected = null;
+
+  $('#totals').textContent = D.public ? `${mods.length} modules · ${D.edges.length} links · ${D.generated}` : `${mods.length} modules · ${allGaps.length} gaps (${allGaps.filter((g) => g.severity === 'high').length} high) · generated ${D.generated}`;
+
+  // ---------- markdown ----------
+  function inline(s) {
+    const codes = [];
+    s = s.replace(/`([^`]+)`/g, (_, c) => { codes.push(c); return `\u0000${codes.length - 1}\u0000`; });
+    s = h(s);
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<i>$2</i>');
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, href) => {
+      const id = href.replace(/^\.\//, '').replace(/\.md(#.*)?$/, '');
+      if (byId[id]) return `<a class="modlink" data-mod="${h(id)}">${t}</a>`;
+      if (href === '00-index.md' || href === '99-integration-map.md') return `<a class="modlink" data-doc="${h(href)}">${t}</a>`;
+      if (href === 'navigator.html') return t;
+      return `<a href="${h(href)}">${t}</a>`;
+    });
+    return s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${h(codes[+i])}</code>`);
+  }
+  const cells = (line) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map((c) => c.replace(/\\\|/g, '|').trim());
+  function md(src) {
+    const L = src.replace(/\r/g, '').split('\n'); let out = '', i = 0, para = [];
+    const flush = () => { if (para.length) { out += `<p>${inline(para.join(' '))}</p>`; para = []; } };
+    while (i < L.length) {
+      const l = L[i];
+      if (/^```/.test(l)) {
+        flush(); const lang = l.slice(3).trim(); const buf = []; i++;
+        while (i < L.length && !/^```/.test(L[i])) buf.push(L[i++]);
+        i++;
+        out += lang === 'mermaid' ? `<p class="muted">(Mermaid diagram — see the Diagram tab for the interactive version.)</p><pre><code>${h(buf.join('\n'))}</code></pre>` : `<pre><code>${h(buf.join('\n'))}</code></pre>`;
+        continue;
+      }
+      const hm = /^(#{1,6})\s+(.*)$/.exec(l);
+      if (hm) { flush(); out += `<h${hm[1].length}>${inline(hm[2])}</h${hm[1].length}>`; i++; continue; }
+      if (/^\s*\|/.test(l) && i + 1 < L.length && /^\s*\|?\s*:?-{2,}/.test(L[i + 1])) {
+        flush(); const head = cells(l); i += 2; let rows = '';
+        while (i < L.length && /^\s*\|/.test(L[i])) { rows += '<tr>' + cells(L[i]).map((c) => `<td>${inline(c)}</td>`).join('') + '</tr>'; i++; }
+        out += `<table><thead><tr>${head.map((c) => `<th>${inline(c)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+        continue;
+      }
+      const lm = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(l);
+      if (lm) {
+        flush(); const ordered = /\d/.test(lm[2]); let items = '';
+        while (i < L.length) {
+          const m = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(L[i]);
+          if (m) { items += `<li style="margin-left:${Math.min(m[1].length, 8) * 8}px">${inline(m[3])}</li>`; i++; }
+          else if (/^\s{2,}\S/.test(L[i])) { items = items.replace(/<\/li>$/, ' ' + inline(L[i].trim()) + '</li>'); i++; }
+          else break;
+        }
+        out += ordered ? `<ol>${items}</ol>` : `<ul>${items}</ul>`;
+        continue;
+      }
+      if (/^\s*>/.test(l)) { flush(); out += `<blockquote>${inline(l.replace(/^\s*>\s?/, ''))}</blockquote>`; i++; continue; }
+      if (/^\s*(---|\*\*\*)\s*$/.test(l)) { flush(); out += '<hr>'; i++; continue; }
+      if (!l.trim()) { flush(); i++; continue; }
+      para.push(l.trim()); i++;
+    }
+    flush(); return out;
+  }
+
+  // ---------- sidebar ----------
+  function renderList() {
+    const q = $('#modfilter').value.toLowerCase(); let html = '';
+    for (const [g, ids] of D.groups) {
+      const ms = ids.map((id) => byId[id]).filter((m) => m && (!q || (m.id + ' ' + m.name + ' ' + (m.summary || '')).toLowerCase().includes(q)));
+      if (!ms.length) continue;
+      html += `<div class="grp">${h(g)}</div>`;
+      for (const m of ms) {
+        const hi = m.gaps.filter((x) => x.severity === 'high').length;
+        html += `<div class="mod${selected === m.id ? ' sel' : ''}" data-id="${m.id}" title="${h(m.summary)}"><span class="n">${m.id.slice(0, 2)}</span><span class="t">${h(m.name)}</span>`
+          + (D.public ? '' : `<span class="pill${hi ? ' h' : ''}" title="${hi} high of ${m.gaps.length} gaps">${hi ? hi + '/' : ''}${m.gaps.length}</span>`) + '</div>';
+      }
+    }
+    $('#modlist').innerHTML = html;
+  }
+  $('#modfilter').addEventListener('input', renderList);
+  $('#modlist').addEventListener('click', (e) => { const el = e.target.closest('.mod'); if (el) { select(el.dataset.id); show('mod'); } });
+
+  // ---------- diagram ----------
+  const W = 210, H = 36, GAP = 14, COLW = 250, TOP = 50, LEFT = 20;
+  const pos = {};
+  D.groups.forEach(([, ids], gi) => ids.filter((id) => byId[id]).forEach((id, k) => { pos[id] = { x: LEFT + gi * COLW + 10, y: TOP + 30 + k * (H + GAP) }; }));
+  const maxRows = Math.max(...D.groups.map(([, ids]) => ids.length));
+  const svgW = LEFT * 2 + D.groups.length * COLW, svgH = TOP + 50 + maxRows * (H + GAP);
+  function edgePath(a, b, off) {
+    const A = pos[a], B = pos[b];
+    if (A.x === B.x) { const x = A.x + W, bend = 40 + Math.abs(A.y - B.y) / 6 + off; return `M${x},${A.y + H / 2} C${x + bend},${A.y + H / 2} ${x + bend},${B.y + H / 2} ${x},${B.y + H / 2}`; }
+    const ltr = A.x < B.x; const x1 = ltr ? A.x + W : A.x, x2 = ltr ? B.x : B.x + W, y1 = A.y + H / 2 + off, y2 = B.y + H / 2 + off, dx = (x2 - x1) / 2;
+    return `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`;
+  }
+  function renderMap() {
+    let s = `<defs><marker id="aok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#2e8b57"/></marker>`
+      + `<marker id="abad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#d03030"/></marker></defs>`;
+    D.groups.forEach(([g, ids], gi) => {
+      const n = ids.filter((id) => byId[id]).length;
+      s += `<rect class="gbox" x="${LEFT + gi * COLW}" y="${TOP}" width="${W + 20}" height="${40 + n * (H + GAP)}"/><text class="gtitle" x="${LEFT + gi * COLW + 10}" y="${TOP + 20}">${h(g)}</text>`;
+    });
+    D.edges.forEach((e, k) => {
+      if (!pos[e.a] || !pos[e.b]) return;
+      if (e.working.length) s += `<path class="edge ok" data-e="${k}" data-a="${e.a}" data-b="${e.b}" d="${edgePath(e.a, e.b, 0)}" marker-end="url(#aok)"/>`;
+      if (e.broken.length) s += `<path class="edge bad" data-e="${k}" data-a="${e.a}" data-b="${e.b}" d="${edgePath(e.a, e.b, e.working.length ? 4 : 0)}" marker-end="url(#abad)"/>`;
+    });
+    for (const m of mods) {
+      const p = pos[m.id]; if (!p) continue;
+      const label = `${m.id.slice(0, 2)}  ${m.name}`; const t = label.length > 30 ? label.slice(0, 29) + '…' : label;
+      s += `<g class="node" data-id="${m.id}" transform="translate(${p.x},${p.y})"><rect width="${W}" height="${H}"/><text x="8" y="${H / 2 + 4}">${h(t)}</text><title>${h(m.name)}</title></g>`;
+    }
+    const svg = $('#map'); svg.setAttribute('width', svgW); svg.setAttribute('height', svgH); svg.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`); svg.innerHTML = s;
+  }
+  function neighbours(id) { const n = new Set(); D.edges.forEach((e) => { if (e.a === id) n.add(e.b); if (e.b === id) n.add(e.a); }); return n; }
+  function highlight() {
+    const svg = $('#map'); svg.classList.toggle('focus', !!selected);
+    const nb = selected ? neighbours(selected) : new Set();
+    $$('.node', svg).forEach((g) => { g.classList.toggle('sel', g.dataset.id === selected); g.classList.toggle('nb', nb.has(g.dataset.id)); });
+    $$('.edge', svg).forEach((p) => p.classList.toggle('hl', !!selected && (p.dataset.a === selected || p.dataset.b === selected)));
+  }
+  $('#map').addEventListener('click', (e) => { const g = e.target.closest('.node'); if (g) select(g.dataset.id); else { selected = null; highlight(); renderList(); renderCard(); } });
+  const tip = $('#tip');
+  $('#map').addEventListener('mousemove', (e) => {
+    const p = e.target.closest('.edge');
+    if (!p) { tip.style.display = 'none'; return; }
+    const ed = D.edges[+p.dataset.e]; const list = p.classList.contains('ok') ? ed.working : ed.broken;
+    tip.innerHTML = `<b>${h(ed.a)} → ${h(ed.b)}</b><br>` + list.map((l) => `${h(l.status)}: ${h(l.what)}`).join('<br>');
+    tip.style.display = 'block'; tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 10 + 'px';
+  });
+  $('#map').addEventListener('mouseleave', () => (tip.style.display = 'none'));
+
+  function linkLine(m, l) {
+    const other = byId[l.to]; const arrow = l.dir === 'in' ? '← from' : l.dir === 'out' ? '→ to' : '↔';
+    return `<li><span class="${l.status === 'working' ? 'linkok' : 'linkbad'}">${h(l.status)}</span> ${arrow} <a class="modlink" data-mod="${h(l.to)}">${h(other ? other.name : l.to)}</a> — ${h(l.what)}${l.ref ? `<br><code>${h(l.ref)}</code>` : ''}</li>`;
+  }
+  function renderCard() {
+    const c = $('#card');
+    if (!selected) { c.innerHTML = '<p class="muted">Select a module in the diagram or the list on the left.</p>'; return; }
+    const m = byId[selected];
+    const incoming = D.edges.filter((e) => e.b === m.id || e.a === m.id).flatMap((e) => [...e.working, ...e.broken].filter((l) => l.from !== m.id).map((l) => ({ ...l, other: l.from })));
+    const ok = m.links.filter((l) => l.status === 'working'), bad = m.links.filter((l) => l.status !== 'working');
+    const hi = m.gaps.filter((g) => g.severity === 'high');
+    if (D.public) {
+      const all = linksOf(m.id);
+      c.innerHTML = `<h2>${h(m.id.slice(0, 2))} — ${h(m.name)}</h2><p>${h(m.summary)}</p><p><button class="btn" data-open="${m.id}">Open full details</button></p>`
+        + `<b>Links (${all.length})</b><ul>${all.map((l) => `<li>${l.arrow} <a class="modlink" data-mod="${h(l.other)}">${h(byId[l.other]?.name ?? l.other)}</a> — ${h(l.what)}${l.ref ? `<br><code>${h(l.ref)}</code>` : ''}</li>`).join('') || '<li class="muted">none</li>'}</ul>`
+        + `<b>Files (${(m.files || []).length})</b><ul>${(m.files || []).map((f) => `<li><code>${h(f.path)}</code>${f.kind ? ` <span class="tag">${h(f.kind)}</span>` : ''}</li>`).join('')}</ul>`;
+      return;
+    }
+    c.innerHTML = `<h2>${h(m.id.slice(0, 2))} — ${h(m.name)}</h2><p class="muted">${h(m.full)}</p><p>${h(m.summary)}</p>`
+      + `<p><button class="btn" data-open="${m.id}">Open full details</button> <button class="btn" data-gaps="${m.id}">Show its ${m.gaps.length} gaps</button></p>`
+      + `<b>Working links (${ok.length})</b><ul>${ok.map((l) => linkLine(m, l)).join('') || '<li class="muted">none reported</li>'}</ul>`
+      + `<b>Broken or missing links (${bad.length})</b><ul>${bad.map((l) => linkLine(m, l)).join('') || '<li class="muted">none reported</li>'}</ul>`
+      + (incoming.length ? `<b>Reported by other modules (${incoming.length})</b><ul>${incoming.map((l) => `<li><span class="${l.status === 'working' ? 'linkok' : 'linkbad'}">${h(l.status)}</span> <a class="modlink" data-mod="${h(l.other)}">${h(byId[l.other]?.name ?? l.other)}</a> — ${h(l.what)}</li>`).join('')}</ul>` : '')
+      + `<b>High-severity gaps (${hi.length})</b><ul>${hi.map((g) => `<li><b>${h(g.id)}</b> ${h(g.title)}<br><code>${h(g.file)}${g.line ? ':' + g.line : ''}</code>${g.func ? ` <code>${h(g.func)}</code>` : ''}</li>`).join('') || '<li class="muted">none</li>'}</ul>`
+      + `<b>Files (${(m.files || []).length})</b><ul>${(m.files || []).map((f) => `<li><code>${h(f.path)}</code>${f.kind ? ` <span class="tag">${h(f.kind)}</span>` : ''}</li>`).join('')}</ul>`;
+  }
+  // Every link touching a module, whichever side reported it (public view: working links only).
+  function linksOf(id) {
+    const seen = new Set(), out = [];
+    for (const e of D.edges) {
+      if (e.a !== id && e.b !== id) continue;
+      const other = e.a === id ? e.b : e.a, arrow = e.a === id ? '→ to' : '← from';
+      for (const l of e.working) { const k = other + '|' + l.what; if (!seen.has(k)) { seen.add(k); out.push({ other, arrow, what: l.what, ref: l.ref }); } }
+    }
+    return out;
+  }
+  function select(id) {
+    selected = id; renderList(); highlight(); renderCard();
+    $('#modmd').innerHTML = md(byId[id].md);
+    if (!D.public) $('#gapmod').value = '';
+  }
+
+  // ---------- gaps (left out of the public version) ----------
+  if (!D.public) $('#gapmod').innerHTML += mods.map((m) => `<option value="${m.id}">${h(m.id.slice(0, 2) + ' ' + m.name)}</option>`).join('');
+  let sortK = 'severity', sortDir = 1;
+  function renderGaps() {
+    const on = (n) => new Set($$(`input[name=${n}]:checked`).map((x) => x.value));
+    const kinds = on('kind'), acts = on('action'), sevs = on('sev'), mod = $('#gapmod').value, q = $('#gapq').value.toLowerCase().trim();
+    const rows = allGaps.filter((g) => kinds.has(g.kind) && acts.has(g.action) && sevs.has(g.severity) && (!mod || g.module === mod)
+      && (!q || [g.id, g.title, g.detail, g.file, g.func, g.module].join(' ').toLowerCase().includes(q)));
+    const key = (g) => sortK === 'severity' ? (sevRank[g.severity] ?? 3) : String(g[sortK] ?? '');
+    rows.sort((a, b) => { const x = key(a), y = key(b); return (x < y ? -1 : x > y ? 1 : a.module.localeCompare(b.module)) * sortDir; });
+    $('#gapcount').textContent = `${rows.length} of ${allGaps.length} gaps`;
+    $('#gapbody').innerHTML = rows.map((g) => `<tr><td><b>${h(g.id)}</b></td><td><a class="modlink" data-mod="${h(g.module)}">${h(byId[g.module].name)}</a></td>`
+      + `<td><span class="sev ${h(g.severity)}">${h(g.severity)}</span></td><td><span class="tag">${h(g.kind)}</span></td><td><span class="tag">${h(g.action)}</span></td>`
+      + `<td><b>${h(g.title)}</b><br>${h(g.detail)}</td><td><code>${h(g.file)}${g.line ? ':' + g.line : ''}</code>${g.func ? `<br><code>${h(g.func)}</code>` : ''}</td>`
+      + `<td>${g.verified === false ? '<span class="muted">unverified</span>' : 'yes'}</td></tr>`).join('');
+  }
+  if (!D.public) $$('.filters input, .filters select').forEach((el) => el.addEventListener('input', renderGaps));
+  if (!D.public) $$('table.gaps th').forEach((th) => th.addEventListener('click', () => { const k = th.dataset.k; sortDir = sortK === k ? -sortDir : 1; sortK = k; renderGaps(); }));
+
+  // ---------- tabs & links ----------
+  function show(v, doc) {
+    $$('nav.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.v === v && (v !== 'doc' || b.dataset.doc === doc)));
+    $$('.view').forEach((s) => s.classList.toggle('on', s.id === 'v-' + v));
+    if (v === 'doc') $('#docmd').innerHTML = md(D.extra[doc] || '');
+    if (v === 'mod' && !selected) $('#modmd').innerHTML = '<p class="muted">Select a module on the left.</p>';
+    $('main .view.on')?.scrollTo?.(0, 0);
+  }
+  $$('nav.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.v, b.dataset.doc)));
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-mod]'); if (a) { e.preventDefault(); select(a.dataset.mod); show('mod'); return; }
+    const d = e.target.closest('a[data-doc]'); if (d) { e.preventDefault(); show('doc', d.dataset.doc); return; }
+    const o = e.target.closest('[data-open]'); if (o) { select(o.dataset.open); show('mod'); return; }
+    const g = e.target.closest('[data-gaps]'); if (g) { show('gaps'); $('#gapmod').value = g.dataset.gaps; renderGaps(); }
+  });
+
+  renderList(); renderMap(); if (!D.public) renderGaps();
+})();
+</script>
+</body>
+</html>

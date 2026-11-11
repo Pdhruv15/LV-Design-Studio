@@ -31,6 +31,9 @@ jobs:
         run: npm ci
       - name: Build web app
         run: npm run build
+      - name: Add architecture page
+        # Public map of the app's modules (docs/architecture/navigator.html), served at <site>/architecture/.
+        run: mkdir -p dist/architecture && cp docs/architecture/navigator.html dist/architecture/index.html
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
       - name: Upload web app

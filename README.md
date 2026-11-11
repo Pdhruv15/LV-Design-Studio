@@ -106,6 +106,12 @@ in that browser profile and are not synchronized to Google Drive or another
 device. Download project `.json` backups regularly. Clearing the site's data
 or deleting the browser profile removes locally stored projects.
 
+The same workflow also publishes an architecture page at `<site>/architecture/`
+(for this repository, https://pdhruv15.github.io/LV-Design-Suit/architecture/). It shows every
+module, its main files and how the modules pass data to each other. The page and its Markdown
+sources are in [`docs/architecture/`](docs/architecture/00-index.md); open
+`docs/architecture/navigator.html` in a browser to use it offline.
+
 ## Checks and tests
 
 ```bash
