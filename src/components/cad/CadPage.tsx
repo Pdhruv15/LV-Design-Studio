@@ -5,6 +5,7 @@ import { cadCommand, type CadAction } from './cadCommands';
 import { getClip, hasClip, putClip } from './cadClipboardStore';
 import { hasPreviousView } from './cadViewHistory';
 import { QuickSelectDialog } from './CadQuickSelect';
+import { CadStatusToggles } from './CadStatusToggles';
 import type { ZoomReq } from './CadCanvas';
 import type { ZoomMenuKey } from '../drawingView';
 import { parseZoomScale } from '../../model/cadView';
@@ -106,10 +107,6 @@ type Result =
 const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.toString(16).padStart(6, '0')}`);
 /** The properties dock's width: default and limits (px), and where its side and width are kept. */
 const DOCK_W = 280, DOCK_MIN = 220, DOCK_MAX = 480, DOCK_KEY = 'lvds.cad.dock';
-const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab }[] = [
-  { k: 'snap', label: 'SNAP', key: 'F9', tab: 'snap' }, { k: 'osnap', label: 'OSNAP', key: 'F3', tab: 'osnap' }, { k: 'polar', label: 'POLAR', key: 'F10', tab: 'polar' }, { k: 'otrack', label: 'OTRACK', key: 'F11', tab: 'polar' },
-  { k: 'ortho', label: 'ORTHO', key: 'F8', tab: 'polar' }, { k: 'grid', label: 'GRID', key: 'F7', tab: 'snap' }, { k: 'dyn', label: 'DYN', key: 'F12', tab: 'dyn' }, { k: 'lwt', label: 'LWT', key: 'LWT', tab: 'cursor' }
-];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
 const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · B (block from drawn objects: the dialog; -BLOCK on the command line) · I (the Blocks palette: this drawing, Recent, Library; -INSERT by name) · ATT (attribute definition for a block) · ATE (edit a block\'s attributes; or double-click it) · ATTEXT (the attributes as a table) · PO (point) · DIV (points at the divisions of an object) · ME (points every length along it) · PTYPE (point style) · DR (draw order: Front, Back, Above or Under an object) · TEXTTOFRONT (texts, dimensions, leaders over the rest) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · ED (edit a text or dimension in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · DRA (radius) · DDI (diameter) · DAN (angular) · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
@@ -3210,7 +3207,6 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       </div>
     </aside>
   );
-  const on =(k: keyof CadToggles) => (k === 'lwt' ? cad.toggles.lwt !== false : !!cad.toggles[k]);
   const fileLists = dsTab ? cadFileMenu(project, cad, (next, message) => onChange(next, message), onStatus) : null;
   return (
     <section className="cad" ref={page}>
@@ -3361,13 +3357,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         onPageSetup={(x) => onSheet?.(x.id)} />}
       <CadCommandLine history={cad.history} live={EDIT_TOOLS.includes(tool) ? promptNow(edSet) : undefined} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
       <div className="cad-status">
-        {TOGGLES.map((x) => (
-          <button key={x.k} className={`cad-tg${on(x.k) ? ' on' : ''}`} aria-pressed={on(x.k)}
-            title={`${x.k === 'grid' ? `Grid: ${!cad.toggles.grid ? 'off' : cad.gridDots ? 'dots' : 'lines'} (${x.key}: lines, dots, off)` : x.k === 'lwt' ? 'Show lineweights (LWT)' : `${x.label} (${x.key})`} — right-click for its settings`}
-            onClick={() => (x.k === 'grid' ? cad.cycleGrid() : cad.toggle(x.k))} onContextMenu={(e) => { e.preventDefault(); setDsTab(x.tab); }}>{x.k === 'grid' && cad.toggles.grid && cad.gridDots ? 'GRID · DOTS' : x.label}</button>
-        ))}
-        <button className="cad-tg" title="Fit the drawing to the window (FIT / ZE, or double-click the middle button)" disabled={!view} onClick={() => cad.fit()}>FIT</button>
-        <button className="cad-tg" aria-label="Drafting settings" title="Drafting settings (DS): snap, grid, tracking, object snap, dynamic input, selection, cursor, units" onClick={() => setDsTab('snap')}>⚙</button>
+        <CadStatusToggles toggles={cad.toggles} gridDots={cad.gridDots} draft={draft} canFit={!!view} onToggle={cad.toggle} onCycleGrid={cad.cycleGrid} onSettings={setDsTab} onFit={() => cad.fit()}
+          onDraft={onPrefs ? (d) => onPrefs({ draft: d, autosaveMin }) : undefined} />
         <span className="sp" />
         {sheetL ? <>
           <button className={`cad-tg on`} aria-label={msV ? 'Model space in a viewport' : 'Paper space'} title={msV ? 'In the model through a viewport: click for the paper (PS)' : 'On the paper: click to work in a viewport (MS)'} onClick={() => run(msV ? 'PS' : 'MS')}>{msV ? 'MODEL' : 'PAPER'}</button>

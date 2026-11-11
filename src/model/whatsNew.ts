@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.090', date: '2026-11-11',
+    items: [
+      { title: 'Status bar switches as icons, with snap modes and polar angle a click away', text: 'At the bottom of Design CAD, grid, snap, ortho, polar tracking, object snap, object snap tracking, dynamic input and lineweights are now icons in groups, lit when on; the tooltip gives the name and function key. The small ▾ beside object snap lists the running snaps (endpoint, midpoint, centre…) to tick on or off at once, and the ▾ beside polar picks the tracking angle (90°, 45°, 30°…). Right-click still opens each one\'s Drafting settings.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.088', date: '2026-11-11',
     items: [
       { title: 'Earthing schematic prints larger, and continues on more sheets when it must', text: 'The printed earthing schematic now also tries narrower substation rows (a wide substation on two rows), which lets more columns fit: a big site prints up to about a third larger. When even that would print labels under 2 mm, the schematic continues over several sheets of whole rows, each its own numbered sheet in the drawing set (E-ERT-001, -002 …) with "continued on" notes; a link to a pit on another sheet names that sheet, and the pit schedule goes on the last sheet. Auto paper goes up to A1 before adding sheets. Add earthing schematic in Drawings adds any missing sheets, and the set checks say when the count changed.', action: 'sheets', actionLabel: 'Open Sheets' }
