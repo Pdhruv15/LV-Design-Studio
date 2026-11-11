@@ -1,6 +1,7 @@
 # UI UX proposals - 2026-11-11 - Context-aware right-click menus
 
 Status: approved 2026-11-11. Phase 1 shipped in v2.099, Phase 2 in v2.101, Phase 3 in v2.102, Phase 4 in v2.103.
+Audit of what was built against this plan and the other mockups: [[CAD right-click menus audit - 2026-11-11]] (fixes in v2.104).
 
 Mockup: [cad-context-menus-mockup.html](../../mockups/cad-context-menus-mockup.html) (PNG beside it).
 
@@ -180,3 +181,5 @@ Left off (no tool yet; each needs a decision or a data-model change):
 3. Align to wall and device tags: build, or leave off.
 4. An image / PDF underlay feature for Design CAD (attach, calibrate scale, fade, clip, save to DWG): build it as
    its own piece of work, then its menu.
+5. Status bar: right-click on Object snap and Polar opens Drafting settings (as the status bar mockup says); or open
+   their ▾ list instead, as many users expect.

@@ -28,7 +28,7 @@ describe('right-click menus (phase 3): blocks, references and sheets', () => {
 
   it('a reference: Open, Clip ▸, Fade ▸ (the fade now marked), Reload, Unload / Load, Detach, Bind, print, layers', () => {
     const m = xrefMenu(ref);
-    expect(labels(m)).toEqual(['Open reference', '-', 'Clip', 'Fade', 'Reload', 'Unload', 'Detach', 'Bind (save a copy)…', '-', 'Do not print on sheets', 'Reference layers…', '-', 'References…', 'Properties']);
+    expect(labels(m)).toEqual(['Open reference', '-', 'Clip', 'Fade', 'Reload', 'Unload', 'Detach', 'Bind (save a copy)…', '-', 'Do not print on sheets', 'Reference layers…', '-', 'Properties (References palette)…']);
     const f = flat(m).find((x) => x.label === 'Fade')!.sub!;
     expect(f.map((x) => [x.label, x.arg, !!x.off])).toEqual(REF_FADES.map((k) => [`${k} %`, `fade|${k}`, k === 50]));
     expect(flat(m).find((x) => x.label === 'Remove clip')!.off).toBe(true);

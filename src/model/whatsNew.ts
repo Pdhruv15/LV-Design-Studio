@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.104', date: '2026-11-11',
+    items: [
+      { title: 'Right-click menus checked and completed', text: 'In Design CAD, the right-click menus were checked against the proposal. Right-click now works inside a layout of the drawing itself (its own Layout1, and those made with +): Show on the Model tab, Viewport scale, New layout, Rename, Copy and Delete. A layout tab\'s menu has New layout and, on plan sheets, Plot. Menus of drawn objects start with Repeat and end with Properties, and Clipboard has Cut (Ctrl+X, new command CUTCLIP). Dimension style now shows on a dimension\'s menu, Filter shows how many of each kind, ELV devices have Rotate, and a reference\'s Properties opens the References palette.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.103', date: '2026-11-11',
     items: [
       { title: 'Right-click menus for texts, dimensions, hatches, polylines and grips, and Find and replace', text: 'In Design CAD, right-click a text for Find and replace, Justify, Text height, Case, Frame and Background mask; a dimension for Dimension style, Precision, Text position and Remove text override; a hatch for Hatch scale, Hatch angle and Recreate boundary; a polyline for Close / Open, Reverse direction, Explode, Use as room boundary, Convert to cable route, Join and Chamfer. Click a grip without dragging it and it turns hot: right-click then for Move, Copy or Rotate from that point, Add vertex, Remove vertex and Close / Open. New command FIND replaces words in every text, note, attribute and dimension text drawn here, any case, in one undo step.', action: 'cad', actionLabel: 'Open Design CAD' }

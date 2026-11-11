@@ -14,7 +14,7 @@ import { tidy, type CtxEntry, type CtxItem } from './cadContextMenu';
 export type CadShow = { to: 'load-schedule' | 'sld' | 'board' | 'riser' | 'cable-schedule' | 'elv' | 'drawing-register'; board?: string; feeder?: string };
 
 /** Device edits the menu adds to those of the toolbar (deviceEdit.ts). */
-export type DeviceMore = 'samecircuit' | 'sametype' | 'homerun' | 'homeruns' | 'schedule' | 'sld' | 'board' | 'riser' | 'feeder' | 'elvschedule';
+export type DeviceMore = 'samecircuit' | 'sametype' | 'homerun' | 'homeruns' | 'schedule' | 'sld' | 'board' | 'riser' | 'feeder' | 'elvschedule' | 'rotate';
 
 export interface DeviceMenuState {
   /** The devices picked. */
@@ -33,6 +33,8 @@ export interface DeviceMenuState {
   oneType: boolean;
   /** The page can open the load schedule, SLD and ELV pages. */
   canShow: boolean;
+  /** The last command, for Repeat at the top. */
+  repeat?: string;
 }
 
 const dev = (label: string, edit: DeviceEdit | DeviceMore, arg?: string, key?: string, off?: boolean): CtxItem => ({ label, act: 'dev', arg: arg === undefined ? edit : `${edit}|${arg}`, ...(key ? { key } : {}), ...(off ? { off } : {}) });
@@ -66,6 +68,10 @@ const filter = (s: DeviceMenuState): CtxEntry[] => (s.edits.includes('filter') ?
 
 /** The menu of the devices picked: LV devices (lights, sockets, switches…), one board, ELV devices, or a mix. */
 export function deviceMenu(s: DeviceMenuState): CtxEntry[] {
+  const again: CtxEntry[] = s.repeat ? [{ label: `Repeat ${s.repeat}`, key: 'Enter', act: 'repeat', arg: '0' }, '-'] : [];
+  return tidy([...again, ...menuOf(s)]);
+}
+function menuOf(s: DeviceMenuState): CtxEntry[] {
   const fam = new Set(s.items.map((d) => d.what));
   const what = fam.size > 1 ? 'mixed' : s.items[0]?.what;
   if (what === 'board' && s.items.length === 1) {
@@ -93,6 +99,7 @@ export function deviceMenu(s: DeviceMenuState): CtxEntry[] {
       ...filter(s),
       ...(s.edits.includes('replace') && s.swaps.length ? [{ label: 'Swap device (same system)', sub: s.swaps.map((x) => dev(x.label, 'replace', x.id, x.now ? 'now' : undefined, x.now)) }] : []), '-',
       ...(s.oneType ? [dev('Select same type', 'sametype')] : []), ...(s.canShow ? [dev('Show in ELV schedule', 'elvschedule')] : []), '-',
+      ...(s.items.length === 1 ? [dev('Rotate (to face a point)', 'rotate', undefined, 'RO')] : []),
       ...arrange(s), '-', ...modify(s), ...tail()
     ]);
   }

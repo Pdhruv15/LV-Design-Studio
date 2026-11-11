@@ -15,6 +15,7 @@ Record investigation findings, proposed solutions and retest evidence here. Keep
 | Contractor BOQ | [[BOQ contractor scope issues and solutions]] | [[BOQ verification - 2026-10-04]] · [[BOQ implementation and retest - 2026-10-04]] | Implemented and retested on branch — contractor scope partially complete |
 | SLD workspace UX | [[SLD workspace UX - 2026-10-13]] | same note (retest evidence) | Phases 1–3 verified fixed (phase 3 on branch) |
 | DXF / CAD export | [[DXF export issues and solutions]] | [[DXF export verification - 2026-10-04]] | Verified fixed in automated/browser tests and LibreCAD sample; kept local |
+| Design CAD right-click menus | [[CAD right-click menus audit - 2026-11-11]] | same note; page tests in CadPage.test.tsx | Fixed — awaiting retest in the installed app (v2.104) |
 
 ## How to record future work
 
