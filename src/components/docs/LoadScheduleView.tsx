@@ -18,6 +18,7 @@ import { Page, STATUS_LABEL } from '../ui';
 import { applySheetEdits, buildDbSheet } from '../../docs/dbSheet';
 import { cellKey } from '../grid/excelGrid';
 import { useExcelGrid } from '../grid/useExcelGrid';
+import GridSelect from '../grid/GridSelect';
 import MdSheetView from './MdSheetView';
 import { hasMdSheet } from '../../docs/mdSheet';
 import { dbChecks } from '../../calc/building';
@@ -30,6 +31,8 @@ import { addSpareWay, deleteSpareWay, spareLabel, spareRef, updateSpareWay } fro
 import { fmtFixed, txt } from '../../util/format';
 
 const num = (v: string) => (v === '' ? 0 : Math.max(0, Math.round(+v) || 0));
+/** Final-circuit MCB ratings up to 125 A, plus the current one if it is outside that list. */
+const mcbOptions = (current: number) => [...new Set([...breakerRatings().filter((a) => a <= 125), current])].sort((a, b) => a - b);
 
 /** DEWA-style load distribution schedule for a 3-phase DB, editable in
  * place. It edits the same project data as the SLD, so changes show on
@@ -334,9 +337,7 @@ export default function LoadScheduleView({
                           <td>{e.sl}</td>
                           <td><b className={`ph-${sp.phase === 'RYB' ? 'ryb' : sp.phase.toLowerCase()}`}>{spareRef(sp)}</b></td>
                           <td>{sp.kind === 'spare' ? (
-                            <select value={sp.ratingA} aria-label={`${spareRef(sp)} spare MCB`} onChange={(ev) => onChange(updateSpareWay(project, board.id, sp.id, { ratingA: +ev.target.value }))}>
-                              {[...new Set([...breakerRatings().filter((a) => a <= 125), sp.ratingA])].sort((a, b) => a - b).map((a) => <option key={a} value={a}>{a}</option>)}
-                            </select>
+                            <GridSelect value={sp.ratingA} aria-label={`${spareRef(sp)} spare MCB`} options={mcbOptions(sp.ratingA)} onPick={(a) => onChange(updateSpareWay(project, board.id, sp.id, { ratingA: a }))} />
                           ) : <span className="m">—</span>}</td>
                           <td /><td />
                           <td><b>{spareLabel(sp)}</b></td>
@@ -363,9 +364,7 @@ export default function LoadScheduleView({
                           <span className={`cat cat-${r.category}`} title={r.category === 'lighting' ? 'Lighting circuit' : 'Power circuit'}>{r.category === 'lighting' ? 'L' : 'P'}</span>
                         </td>
                         <td>
-                          <select data-cell={cell(f.id, 'mcb')} value={f.breakerRatingA} onChange={(e) => patch(f.id, { breakerRatingA: +e.target.value })}>
-                            {[...new Set([...breakerRatings().filter((a) => a <= 125), f.breakerRatingA])].sort((a, b) => a - b).map((a) => <option key={a} value={a}>{a}</option>)}
-                          </select>
+                          <GridSelect data-cell={cell(f.id, 'mcb')} aria-label={`${r.ref} MCB`} value={f.breakerRatingA} options={mcbOptions(f.breakerRatingA)} onPick={(a) => patch(f.id, { breakerRatingA: a })} />
                         </td>
                         <td>
                           <select data-cell={cell(f.id, 'wire')} value={f.cableCsaMm2} onChange={(e) => patch(f.id, { cableCsaMm2: +e.target.value })}>
