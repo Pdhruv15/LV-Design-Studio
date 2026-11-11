@@ -64,6 +64,8 @@ function Host({ start = villa }: { start?: Project }) {
 const until = async (ok: () => boolean) => { for (let i = 0; i < 200 && !ok(); i += 1) await act(async () => { await new Promise((r) => setTimeout(r, 50)); }); expect(ok()).toBe(true); };
 const flush = async () => { for (let i = 0; i < 5; i += 1) await act(async () => { await new Promise((r) => setTimeout(r, 0)); }); };
 const button = (text: string) => [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === text)!;
+/** A status bar switch, by its name (an icon, no text). */
+const tg = (label: string) => document.querySelector<HTMLButtonElement>(`.cad-status button[aria-label="${label}"]`)!;
 const result = () => document.querySelector('.cad-res')?.textContent ?? '';
 const command = async (text: string) => {
   const input = document.querySelector('input[aria-label="Command"]') as HTMLInputElement;
@@ -125,7 +127,7 @@ describe('CAD view', () => {
     expect(shown(wall)).toBe(0);
     act(() => button('All on').click());
     expect(shown(wall)).toBe(1);
-    act(() => button('OSNAP').click());
+    act(() => tg('OSNAP').click());
     expect(state.toggles.osnap).toBe(false);
     await command('grid');
     expect(state.toggles.grid).toBe(true);
@@ -142,7 +144,7 @@ describe('CAD view', () => {
     expect([state.toggles.grid, state.gridDots]).toEqual([true, false]);
     f7();
     expect([state.toggles.grid, state.gridDots]).toEqual([true, true]);
-    expect(button('GRID · DOTS')).toBeTruthy();
+    expect(tg('GRID').title).toMatch(/^Grid: dots/);
     f7();
     expect([state.toggles.grid, state.gridDots]).toEqual([false, false]);
     f7();
@@ -1161,7 +1163,7 @@ describe('CAD view', () => {
     expect(last()).toBe('Colour Red: 1 object · ⌘Z to undo');
     // Fit is on the status bar.
     const before = state.fitKey;
-    act(() => button('FIT').click());
+    act(() => tg('FIT').click());
     expect(state.fitKey).toBe(before + 1);
   });
 

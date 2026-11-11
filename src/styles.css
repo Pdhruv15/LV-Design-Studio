@@ -2141,6 +2141,23 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-tg{border:1px solid var(--line);border-radius:4px;padding:1px 7px;background:none;color:var(--mut);font-size:var(--fs-xs)}
 .cad-tg.on{color:var(--tx);border-color:var(--acc);background:color-mix(in srgb,var(--acc) 15%,transparent)}
 .cad-status .sp{flex:1}
+/* the drafting switches as icons, in groups, with ▾ menus for object snap and polar (src/components/cad/CadStatusToggles.tsx) */
+.cad-tgg{display:inline-flex;align-items:center;gap:2px;padding-right:var(--space-2);margin-right:var(--space-1);border-right:1px solid var(--line-strong)}
+.cad-tgw{display:inline-flex;align-items:center}
+.cad-tg.cad-tgi{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:24px;padding:0 4px;border-color:transparent}
+.cad-tg.cad-tgi:hover:not(:disabled){border-color:var(--line-strong);color:var(--tx)}
+.cad-tg.cad-tgi.on{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 35%,transparent)}
+.cad-tg.cad-tgi:disabled{opacity:.45}
+.cad-tgdd{width:14px;height:24px;padding:0;margin-left:-2px;border:1px solid transparent;border-radius:0 4px 4px 0;background:none;color:var(--mut);font-size:9px;cursor:pointer}
+.cad-tgdd:hover,.cad-tgdd.open{color:var(--tx);border-color:var(--line-strong);background:var(--panel)}
+.cad-tgmenu{min-width:210px}
+.cad-tgmenu button{display:flex;align-items:center;gap:6px;padding:4px 10px;color:var(--mut)}
+.cad-tgmenu button.lit,.cad-tgmenu button[role="menuitem"]{color:var(--tx)}
+.cad-tgmenu .ck{width:12px;color:var(--acc);flex:none}
+.cad-tgmenu .mk{width:16px;text-align:center;color:var(--acc);flex:none}
+.cad-tgmenu button .m{margin-left:4px;font-size:var(--fs-xs)}
+.cad-tgmenu-h{display:flex;gap:6px;padding:4px 10px 2px;font-size:var(--fs-xs);color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.cad-tgmenu hr{border:0;border-top:1px solid var(--line);margin:3px 0}
 @media (max-width:900px){.cad-work{grid-template-columns:1fr}.cad-side{display:none}.cad-work:has(> .cad-lpal),.cad-work:has(> .cad-lpal):not(:has(> .cad-side)){grid-template-columns:300px minmax(0,1fr)}}
 .cad-big{font-size:16px;margin-left:var(--space-1)}
 .cad-props{display:grid;grid-template-columns:auto 1fr;gap:2px var(--space-2);margin:var(--space-2) 0 0;font-size:var(--fs-sm)}
