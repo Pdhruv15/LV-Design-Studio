@@ -35,6 +35,9 @@ const BEFORE: Record<string, string> = {
 };
 // Added since: the text and dimension styles (STYLE, DIMSTYLE).
 const ADDED: Record<string, string> = { ST: '!textStyle', STYLE: '!textStyle', D: '!dimStyle', DST: '!dimStyle', DIMSTY: '!dimStyle', DIMSTYLE: '!dimStyle', TBSAVE: '!tbSave',
+  // Right-click menus, phase 1: the tools behind the blank-canvas, command and selection menus.
+  P: 'pan', PAN: 'pan', UNDO: '!undo', REDO: '!redo', SELECTALL: '!selectAll', COUNT: '!count', ADDSELECTED: '!addSelected', QM: '!quickMeasure', QUICKMEASURE: '!quickMeasure',
+  ISOLATEOBJECTS: '!isolateObjects', ISO: '!isolateObjects', HIDEOBJECTS: '!hideObjects', UNISOLATEOBJECTS: '!unisolateObjects', UNHIDE: '!unisolateObjects',
   // The File menu and Drafting settings: SAVEAS / DXFOUT open Save As (they were Save DXF), OS opens the Object snap tab
   // (it toggled object snap, as OSNAP and F3 still do).
   SAVEAS: '!saveAs', DXFOUT: '!saveAs', QSAVE: '!save', CLOSEOTHERS: '!closeOthers', EXPORT: '!export', EXPORTPDF: '!exportPdf', PNGOUT: '!pngOut',

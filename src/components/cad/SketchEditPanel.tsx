@@ -9,7 +9,8 @@ import type { SketchItem } from '../../types';
 /** Design CAD → Draw → Modify / Edit: the toolbar beside drawn objects picked, the side panel of several, and the
  * settings of the edit tools (distances typed in metres). */
 
-export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase' | 'clipboard' | 'similar' | 'qselect' | 'edtext' | 'ntwidth' | 'ntjust' | 'draworder' | 'mkblock' | 'selblock' | 'edatt';
+export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase' | 'clipboard' | 'similar' | 'qselect' | 'edtext' | 'ntwidth' | 'ntjust' | 'draworder' | 'mkblock' | 'selblock' | 'edatt'
+  | 'isolate' | 'deselect' | 'addsel' | 'qmeasure' | 'count';
 export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'tframe' | 'tmask' | 'draworder' | 'texttofront';
 /** Offset `through` a point (the copy passes through it), `erase` the source, the copies on the `source` layer or the
  * `current` one; Fillet and Chamfer `trim` the lines to the corner (else they stay and the arc or line is added); a
@@ -19,7 +20,8 @@ export const ED_START: EditSettings = { offset: '0.3', through: false, erase: fa
 
 const LABEL: Record<SketchEdit, string> = {
   filter: 'Filter ▾', trim: 'Trim', extend: 'Extend', offset: 'Offset', break: 'Break', fillet: 'Fillet', mirror: 'Mirror', scale: 'Scale', array: 'Array',
-  join: 'Join', width: 'Width ▾', move: 'Move', copy: 'Copy', rotate: 'Rotate', erase: 'Erase', clipboard: 'Clipboard ▸', similar: 'Select similar', qselect: 'Quick select…', edtext: 'Edit text', ntwidth: 'Width…', ntjust: 'Justify ▸', draworder: 'Draw order ▸', mkblock: 'Make block…', selblock: 'Select all of this block', edatt: 'Edit attributes'
+  join: 'Join', width: 'Width ▾', move: 'Move', copy: 'Copy', rotate: 'Rotate', erase: 'Erase', clipboard: 'Clipboard ▸', similar: 'Select similar', qselect: 'Quick select…', edtext: 'Edit text', ntwidth: 'Width…', ntjust: 'Justify ▸', draworder: 'Draw order ▸', mkblock: 'Make block…', selblock: 'Select all of this block', edatt: 'Edit attributes',
+  isolate: 'Isolate ▸', deselect: 'Deselect all', addsel: 'Add selected', qmeasure: 'Quick measure', count: 'Count'
 };
 export const kindOf = kindLabel;
 
@@ -46,7 +48,9 @@ export const DRAW_ORDER: { id: 'front' | 'back' | 'above' | 'under'; label: stri
   { id: 'front', label: 'Bring to front' }, { id: 'back', label: 'Send to back' }, { id: 'above', label: 'Above object' }, { id: 'under', label: 'Under object' }
 ];
 /** The entries that open a list of their own. */
-const OPENERS = new Set<SketchEdit>(['filter', 'width', 'clipboard', 'ntjust', 'draworder']);
+const OPENERS = new Set<SketchEdit>(['filter', 'width', 'clipboard', 'ntjust', 'draworder', 'isolate']);
+/** The entries of Isolate ▸ on the menu at the cursor (phase 1 of the context-menu plan). */
+const ISOLATE: { id: 'isolate' | 'hide' | 'end'; label: string }[] = [{ id: 'isolate', label: 'Isolate objects' }, { id: 'hide', label: 'Hide objects' }, { id: 'end', label: 'End object isolation' }];
 
 /** The toolbar beside the drawn objects picked (or the menu at the cursor, with Clipboard ▸ too). */
 export function SketchToolbar({ items, devices, lengthM, left, top, place, canPaste, withAtts, onEdit }: {
@@ -64,15 +68,16 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, canPa
   withAtts?: (it: SketchItem) => boolean;
   onEdit: (e: SketchEdit, arg?: string) => void;
 }) {
-  const [open, setOpen] = useState<'filter' | 'width' | 'clipboard' | 'ntjust' | 'draworder' | null>(null);
+  const [open, setOpen] = useState<'filter' | 'width' | 'clipboard' | 'ntjust' | 'draworder' | 'isolate' | null>(null);
   const one = items.length === 1 && !devices ? items[0] : undefined;
   // The menu at the cursor adds Edit text for one text or dimension (S5 of the 2D gap plan), with Width… and Justify ▸
   // for a note (S6), Draw order ▸ for drawn objects (S7), Select similar and Quick select… (S3) and Clipboard ▸ (S1).
   const edits: SketchEdit[] = [...(place === 'menu' && (one?.kind === 'text' || one?.kind === 'dim') ? ['edtext' as const] : place === 'menu' && one?.kind === 'mtext' ? ['edtext' as const, 'ntwidth' as const, 'ntjust' as const] : place === 'menu' && one?.kind === 'insert' ? [...(one.attrs || withAtts?.(one) ? ['edatt' as const] : []), 'selblock' as const] : []), ...sketchEditsFor(items, devices),
-    ...(place === 'menu' && items.length && !devices ? ['draworder' as const, ...(items.some((it) => !it.tray && !it.cable) ? ['mkblock' as const] : [])] : []), ...(place === 'menu' ? ['similar' as const, 'qselect' as const, 'clipboard' as const] : [])];
+    ...(place === 'menu' && items.length && !devices ? ['draworder' as const, ...(items.some((it) => !it.tray && !it.cable) ? ['mkblock' as const] : [])] : []), ...(place === 'menu' ? ['similar' as const, 'qselect' as const, 'clipboard' as const, 'isolate' as const, ...(items.length + devices === 1 ? ['addsel' as const] : []), 'qmeasure' as const, 'count' as const, 'deselect' as const] : [])];
   const list: { id: string; label: string; now?: boolean; key?: string; off?: boolean }[] = open === 'clipboard'
     ? CLIPBOARD.map((x) => ({ id: x.id, label: x.label, key: x.key, off: x.paste && !canPaste }))
     : open === 'draworder' ? DRAW_ORDER.map((x) => ({ id: x.id, label: x.label }))
+    : open === 'isolate' ? ISOLATE.map((x) => ({ id: x.id, label: x.label }))
     : open === 'ntjust' && one
     ? NOTE_ATTACHES.map((j) => ({ id: j.id, label: j.label, now: attachOf(one) === j.id }))
     : open === 'width'
@@ -91,7 +96,7 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, canPa
         </Fragment>
       ))}
       {open && (
-        <div className="cad-ctx-list" role="listbox" aria-label={open === 'width' ? 'Width' : open === 'clipboard' ? 'Clipboard' : open === 'ntjust' ? 'Justify' : open === 'draworder' ? 'Draw order' : 'Filter'}>
+        <div className="cad-ctx-list" role="listbox" aria-label={open === 'width' ? 'Width' : open === 'clipboard' ? 'Clipboard' : open === 'ntjust' ? 'Justify' : open === 'draworder' ? 'Draw order' : open === 'isolate' ? 'Isolate' : 'Filter'}>
           {list.map((x) => <button key={x.id} role="option" aria-selected={!!x.now} disabled={x.now || x.off} onClick={() => { setOpen(null); onEdit(open, x.id); }}><span>{x.label}</span><small>{x.now ? 'now' : x.key ?? ''}</small></button>)}
         </div>
       )}

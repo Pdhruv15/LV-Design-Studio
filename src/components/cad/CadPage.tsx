@@ -15,6 +15,7 @@ import { selectSimilar, type SimilarOpts } from '../../model/cadQuickSelect';
 import { endTowards, linesCross, nearestPiece, nearestSegment, onRound, roundOfSegments } from '../../model/cadDims';
 import { clipPayload, clipText, lowerLeft, parseClip, pastedItems, withPasted, type ClipPayload } from '../../model/cadClipboard';
 import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
+import { addSelectedTool, blankMenu, commandMenu, countLine, measureOf, shownBy, SNAP_OVERRIDES, type CtxEntry, type CtxItem, type ObjectHide } from './cadContextMenu';
 import { isNumber, promptOptions, shortPrompt, spaceEnters, type SpaceMode } from './cadPrompt';
 import CadDynInput, { type DynBox } from './CadDynInput';
 import CadTextEdit from './CadTextEdit';
@@ -63,7 +64,7 @@ import { pathOfPlan, type CadExport, type DraftTab, type SavedCopy } from './cad
 import CadDraftSettings from './CadDraftSettings';
 import CadSaveAs, { CloseUnsaved } from './CadSaveAs';
 import { cadFileMenu } from './cadFileMenu';
-import { DRAFT_DEFAULTS, type DraftSettings } from '../../model/cadDraft';
+import { DRAFT_DEFAULTS, OSNAP_BITS, type DraftSettings, type OsnapMode } from '../../model/cadDraft';
 import { CABLE_HEAD, cableRows, DEVICE_HEAD, deviceRows } from '../../model/cadExports';
 import { toDxf } from '../../docs/dxf';
 import { changeViewports, layoutOverlay, layoutsOf, LayoutTabs, moveLayout, newLayout, patchViewport, TablePanel, ViewportPanel, vpId } from './CadLayouts';
@@ -163,6 +164,7 @@ const PROMPT: Record<CadTool, string> = {
   zoom: 'ZOOM  [Window/Previous/Scale/Extents] <Window>:',
   zoomwin: 'ZOOM  First corner:',
   zoomscale: 'ZOOM  Scale factor (2, 0.5 or 2x):',
+  pan: 'PAN  Drag to pan. Enter or Esc to end:',
   selsim: 'SELECTSIMILAR  Select objects or [Settings]:',
   rotate: 'ROTATE  Select object, then specify base point:',
   mirror: 'MIRROR  Select objects (click them), then Enter:',
@@ -269,8 +271,13 @@ const DRAW_TOOLS: CadTool[] = ['point', 'line', 'pline', 'tray', 'cable', 'rect'
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
  * a command line and a status bar. Engine in Rust (WebAssembly), desktop and web alike. Measure a distance, an area (by
  * corners, a closed object, or inside a room), and click any object to see what it is. */
-export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run: calcRun, onSheet, draft = DRAFT_DEFAULTS, autosaveMin = 2, onPrefs }: {
+export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run: calcRun, onSheet, draft = DRAFT_DEFAULTS, autosaveMin = 2, onPrefs, onUndo, onRedo, canUndo = false, canRedo = false }: {
   cad: CadState;
+  /** The project's undo and redo (UNDO, REDO and the right-click menu). */
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
   /** Drafting settings (DS), and the project's recovery-copy minutes, kept in Preferences by the app. */
   draft?: DraftSettings;
   autosaveMin?: number;
@@ -396,7 +403,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [dlg, setDlg] = useState<'edit' | 'style' | 'dimstyle' | 'qselect' | 'ptype' | null>(null);
   /** PASTECLIP: the objects following the cursor until they are placed. */
   const [pasting, setPasting] = useState<ClipPayload | null>(null);
-  const [promptMenu, setPromptMenu] = useState<{ at: Pt; items: { label: string; key?: string; run: () => void }[] } | null>(null);
+  const [promptMenu, setPromptMenu] = useState<{ at: Pt; items: CtxEntry[] } | null>(null);
+  // ISOLATEOBJECTS / HIDEOBJECTS: the objects shown only, or hidden, on this view (not saved); Snap overrides ▸: the one
+  // snap mode for the next point ('none': no snap); the values typed at prompts lately (Recent input ▸).
+  const [objHide, setObjHide] = useState<ObjectHide | null>(null);
+  const [snapOnce, setSnapOnce] = useState<OsnapMode | 'none' | null>(null);
+  const [inputs, setInputs] = useState<string[]>([]);
   // ZOOM Window / Scale / Previous asked of the canvas (S2 of the 2D gap plan); what DIMRADIUS / DIMDIAMETER and
   // DIMANGULAR have picked so far (S4); what SELECTSIMILAR matches besides kind and layer (S3).
   const [zoomReq, setZoomReq] = useState<ZoomReq | undefined>();
@@ -491,7 +503,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     setEdStep(pre); preset.current = null; setStretchBox(null); setMpFrom(null);
     const first = picked.some((k) => k.startsWith('sk:')) || !!cad.selected?.startsWith('sk:');
     setEdPhase(first ? 'points' : 'pick');
-    setEdAsk(tool === 'offset' && !pre ? 'offset' : tool === 'array' && first ? 'type' : null); setTextAsk(null); setTAsk(null); setPromptMenu(null); setMtAsk(null); setEdNote(null);
+    setEdAsk(tool === 'offset' && !pre ? 'offset' : tool === 'array' && first ? 'type' : null); setTextAsk(null); setTAsk(null); setPromptMenu(null); setMtAsk(null); setEdNote(null); setSnapOnce(null);
     setTc(tool === 'tcount' ? { step: 'prefix', prefix: '', n: 1, inc: 1, pad: 0, suffix: '', placed: [] } : null);
     setKn(tool === 'keynote' ? { step: 'number', n: nextKeynote(sketch) } : null);
     setDlg((d) => (DIALOG_TOOLS.includes(tool as EditTool) ? 'edit' : d === 'edit' ? null : d));
@@ -553,9 +565,17 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const archBlockNames = useMemo(() => (view ? [...new Set(view.blocks().map((b) => b.block))] : []), [view]);
   const hitAt = (items: SketchItem[], at: Pt, tol: number) => itemAt(items, at, tol, defs);
   // Snaps come from what shows: objects on layers that are off or frozen are not snapped to (locked ones are).
-  const sketchSnaps = useMemo(() => snapPoints(sketch.filter((it) => !effective(it, styles).hidden), defs), [sketch, styles, defs]);
+  const shown = useMemo(() => shownBy(objHide, view?.file), [objHide, view]);
+  const shownSketch = useMemo(() => sketch.filter((it) => shown(`sk:${it.id}`)), [sketch, shown]);
+  const sketchSnaps = useMemo(() => snapPoints(shownSketch.filter((it) => !effective(it, styles).hidden), defs), [shownSketch, styles, defs]);
   // Objects on locked, hidden or frozen layers cannot be picked.
-  const pickable = useMemo(() => sketch.filter((it) => { const e = effective(it, styles); return !e.lock && !e.hidden; }), [sketch, styles]);
+  const pickable = useMemo(() => shownSketch.filter((it) => { const e = effective(it, styles); return !e.lock && !e.hidden; }), [shownSketch, styles]);
+  // Snap overrides ▸: for the next point, object snap on with that one mode only (on what the app drew and on references
+  // too), or off for 'none'.
+  const snapBit = snapOnce && snapOnce !== 'none' ? OSNAP_BITS[snapOnce] : 0;
+  const snapDraft = snapOnce ? { ...draft, osnap: snapBit } : draft;
+  const snapToggles = snapOnce ? { ...cad.toggles, osnap: snapOnce !== 'none' } : cad.toggles;
+  const snapExtra = useMemo(() => (snapOnce ? sketchSnaps.filter((q) => q.kind & snapBit) : sketchSnaps), [snapOnce, snapBit, sketchSnaps]);
   const selSketch = sketch.find((it) => `sk:${it.id}` === cad.selected) ?? null;
   // The drawn objects picked: several, else the one selected; and everything picked.
   const pickedSk = useMemo(() => (picked.length ? sketch.filter((it) => picked.includes(`sk:${it.id}`)) : selSketch ? [selSketch] : []), [picked, sketch, selSketch]);
@@ -612,7 +632,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     ...emGhosts,
     ...arlAt.map(([x, y], i) => ({ key: `arl${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: arlItem?.symbol.shape ?? 'cross', text: arlItem?.symbol.text ?? '', label: '', ghost: true }))
   ];
-  const devices: CanvasDevice[] = cad.showDevices ? [...ghosts, ...placed.map((d) => ({
+  const devices: CanvasDevice[] = cad.showDevices ? [...ghosts, ...placed.filter((d) => shown(d.key)).map((d) => ({
     key: d.key, x: d.x / units.factor, y: d.y / units.factor, r: d.what === 'board' ? rUnits * 2 : rUnits, shape: d.symbol.shape, text: d.symbol.text,
     label: d.what === 'lv' ? d.detail.split(' · ')[0] : d.what === 'board' ? d.label : '', selected: pickedKeys.has(d.key), elv: d.what === 'elv'
   }))] : ghosts;
@@ -626,6 +646,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const deviceAt = (at: Pt, pixel: number) => {
     let best: { d: PlacedItem; dist: number } | undefined;
     for (const d of placed) {
+      if (!shown(d.key)) continue;
       const dist = distance(at, [d.x / units.factor, d.y / units.factor]);
       if (dist <= Math.max(rUnits * (d.what === 'board' ? 2 : 1), 8 * pixel) && (!best || dist < best.dist)) best = { d, dist };
     }
@@ -633,6 +654,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   };
   const change = (next: Project, message: string) => { onChange(next, message); cad.say(message); if (view) cad.markDirty(view.file); };
   const xr = useCadRefs({ project, view, tabOf: cad.tabOf, change, say: cad.say });
+  const snapRef = snapOnce ? (x: number, y: number, r: number) => { const q = xr.snap(x, y, r); return q && q.kind & snapBit ? q : undefined; } : xr.snap;
 
   // Layer palette (LM): the drawing's layer record (current layer, layers added, states), its rows, and the changes made
   // there — each one undo step; the architect's On stays with the drawing open.
@@ -1108,7 +1130,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   function pickWindow(a: Pt, b: Pt, crossing: boolean, add: boolean) {
     if (tool === 'zoomwin') { zoomTo({ kind: 'window', a, b }); cad.setTool('none'); return; }
     if (tool === 'stretch') { setStretchBox([a, b]); setPoints([]); cad.say('STRETCH  Specify base point:'); return; }
-    const found = inWindow(placed, [a[0] * units.factor, a[1] * units.factor], [b[0] * units.factor, b[1] * units.factor], crossing, DEVICE_R_M);
+    const found = inWindow(placed.filter((d) => shown(d.key)), [a[0] * units.factor, a[1] * units.factor], [b[0] * units.factor, b[1] * units.factor], crossing, DEVICE_R_M);
     const foundSk = sketchInWindow(pickable, a, b, crossing, defs);
     const items = add || tool !== 'none' ? [...pickedItems, ...found.filter((d) => !pickedKeys.has(d.key))] : found;
     const sks = add || tool !== 'none' ? [...pickedSk, ...foundSk.filter((it) => !pickedKeys.has(`sk:${it.id}`))] : foundSk;
@@ -1176,15 +1198,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     if (tool === 'mtext') cad.setTool('none');
   }
-  /** Right click: with a tool running, Enter (with a short menu when the prompt has options); with none, the menu of
-   * edits for the device or drawn object under it (or what is picked), Erase for an object of the opened drawing, else
-   * Repeat and the recent commands. */
-  async function contextAt(at: Pt, pixel: number, screen: Pt) {
+  /** Right click: with a tool running, Enter (the command menu when the prompt has options, or with Shift: Recent
+   * input, Snap overrides…); with none, the menu of edits for the device or drawn object under it (or what is picked),
+   * Erase for an object of the opened drawing, else the blank-canvas menu (cadContextMenu.ts). */
+  async function contextAt(at: Pt, pixel: number, screen: Pt, shift = false) {
     setPromptMenu(null);
     if (tool !== 'none') {
       const opts = promptOptions(cad.history[cad.history.length - 1] ?? '');
-      if (!opts.length) { run(''); return; }
-      setPromptMenu({ at: screen, items: [{ label: 'Enter', run: () => run('') }, ...opts.map((o) => ({ label: o.option, key: o.key, run: () => run(o.key) })), { label: 'Cancel', run: cancel }] });
+      if (!opts.length && !shift) { run(''); return; }
+      setPromptMenu({ at: screen, items: commandMenu({ options: opts, inputs, toggles: cad.toggles, snapOnce: snapOnce === 'none' ? null : snapOnce }) });
       return;
     }
     const d = deviceAt(at, pixel), sk = d ? undefined : hitAt(pickable, at, 6 * pixel);
@@ -1194,14 +1216,58 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       // An object of the opened drawing: picked (if it was not), with Erase (run as it then stands, through the actions).
       const o = view ? await view.pick(at[0], at[1], 6 * pixel, pickOn) : null;
       if (o && !pickedKeys.has(`dw:${o.handle}`)) pick([], [], [o]);
-      if (o || pickedDw.length) { setPromptMenu({ at: screen, items: [{ label: 'Erase', run: () => cad.actions.current.remove() }] }); return; }
-      const items = [...recent.slice(0, 6).map((x, i) => ({ label: i ? x.label : `Repeat ${x.label}`, run: () => repeat(x) })),
-        ...(hasClip() ? [{ label: 'Paste (Ctrl+V)', run: () => pasteClip(false) }, { label: 'Paste to original coordinates', run: () => pasteClip(true) }] : []),
-        { label: 'Zoom window (Z W)', run: () => zoomMenu('window') }, { label: 'Zoom previous (Z P)', run: zoomPrev }, { label: 'Zoom extents (ZE)', run: () => cad.fit() }];
-      if (items.length) setPromptMenu({ at: screen, items });
+      if (o || pickedDw.length) { setPromptMenu({ at: screen, items: [{ label: 'Erase', key: 'Del', cmd: 'ERASE' }] }); return; }
+      setPromptMenu({ at: screen, items: blankMenu({ recent: recent.map((x) => x.label), canPaste: hasClip(), canUndo, canRedo, objectsHidden: !!objHide && objHide.file === view?.file }) });
       return;
     }
     setMenuAt(screen);
+  }
+  /** ISOLATEOBJECTS / HIDEOBJECTS: the drawn objects and devices picked shown alone, or hidden (more hidden join those
+   * hidden already); this view only, not saved. Objects of the opened drawing stay as they are. */
+  function hideObjects(mode: 'isolate' | 'hide') {
+    const cmd = mode === 'isolate' ? 'ISOLATEOBJECTS' : 'HIDEOBJECTS';
+    const keys = [...pickedItems.map((d) => d.key), ...pickedSk.map((it) => `sk:${it.id}`)];
+    if (!view || !keys.length) { cad.say(`${cmd}  Pick the objects first.`); return; }
+    const before = objHide && objHide.file === view.file ? objHide.keys : [], keep = new Set(keys);
+    const all = [...placed.map((d) => d.key), ...sketch.map((it) => `sk:${it.id}`)];
+    setObjHide({ file: view.file, mode, keys: [...new Set([...before, ...(mode === 'hide' ? keys : all.filter((k) => !keep.has(k)))])] });
+    setPicked([]); cad.setSelected(null); setResult(null); setMenuAt(null);
+    cad.say(`${cmd}  ${keys.length} object${keys.length === 1 ? '' : 's'} ${mode === 'isolate' ? 'shown alone' : 'hidden'} · UNISOLATEOBJECTS shows all again`);
+  }
+  /** ADDSELECTED: the tool that draws the object picked, with its layer current (a device: the same device type). */
+  function addSelected() {
+    if (pickedSk.length + pickedItems.length !== 1) { cad.say('ADDSELECTED  Pick one object first.'); return; }
+    const d = pickedItems[0];
+    if (d) {
+      const t = typeOf(project, d), p = palette.find((x) => ('lv' in x.kind && x.kind.lv === t) || ('elv' in x.kind && x.kind.elv === t));
+      if (!p) { cad.say(`ADDSELECTED  ${d.label}: not a device of the palette.`); return; }
+      cad.setDevice(p.id); cad.setTool('dev'); return;
+    }
+    const it = pickedSk[0], t = addSelectedTool(it);
+    if (!t) { cad.say(`ADDSELECTED  ${kindOf(it)}: nothing to draw it with.`); return; }
+    if (it.layer && it.layer !== curLayer) run(`CLAYER ${it.layer}`);
+    if (t === 'insert') { const def = it.block ? blockByName(it.block) : undefined; if (def) startInsert(def); else cad.say('ADDSELECTED  The block is not in this drawing.'); return; }
+    cad.setTool(t);
+  }
+  /** A right-click menu entry picked: its command typed, or the page action. */
+  function ctxPick(x: CtxItem) {
+    setPromptMenu(null);
+    if (x.cmd) { run(x.cmd); return; }
+    const a = x.arg ?? '';
+    switch (x.act) {
+      case 'repeat': { const r = recent[Number(a)]; if (r) repeat(r); return; }
+      case 'properties': setShowProps(true); return;
+      case 'enter': run(''); return;
+      case 'cancel': cancel(); return;
+      case 'option': case 'input': run(a); return;
+      case 'snap': {
+        const m = a as OsnapMode | 'none';
+        setSnapOnce(m);
+        cad.say(m === 'none' ? 'No snap for the next point.' : `${SNAP_OVERRIDES.find((q) => q.mode === m)?.label ?? m} snap for the next point.`);
+        return;
+      }
+      case 'deselect': setPicked([]); cad.setSelected(null); setResult(null); setMenuAt(null); return;
+    }
   }
   const fileOf = () => view?.file ?? '';
   /** The project with a drawn item replaced by what an edit made of it: the first keeps its ID, the rest are added. */
@@ -1232,6 +1298,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (e === 'ntjust') { const j = arg ? parseAttach(arg) : undefined; if (one?.kind === 'mtext' && j) change(updateSketch(project, fileOf(), noteAttached(one, j)), `MTEXT  Note justified ${attachLabel(j).toLowerCase()} · ⌘Z to undo`); return; }
     if (e === 'similar') { run('SELECTSIMILAR'); return; }
     if (e === 'qselect') { run('QSELECT'); return; }
+    if (e === 'isolate') { run(arg === 'hide' ? 'HIDEOBJECTS' : arg === 'end' ? 'UNISOLATEOBJECTS' : 'ISOLATEOBJECTS'); return; }
+    if (e === 'deselect') { setPicked([]); cad.setSelected(null); setResult(null); setMenuAt(null); return; }
+    if (e === 'addsel') { setMenuAt(null); run('ADDSELECTED'); return; }
+    if (e === 'qmeasure') { run('QUICKMEASURE'); return; }
+    if (e === 'count') { run('COUNT'); return; }
     if (e === 'erase') { removeSelected(); return; }
     if (e === 'join') { applyJoin(); return; }
     if (e === 'rotate' && !one) { cad.say('ROTATE  One object at a time.'); return; }
@@ -1718,6 +1789,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   async function click(at: Pt, pixel: number, shiftKey = false) {
     if (!view) return;
     setPromptMenu(null);
+    if (snapOnce) setSnapOnce(null);
     const last = points[points.length - 1];
     if (tool === 'xattach') { if (xDraft) setXDraft({ ...xDraft, at }); cad.setTool('none'); return; }
     if (tool === 'copybase') { copyClip(at); cad.setTool('none'); return; }
@@ -2307,6 +2379,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const raw = text.trim();
     const c = raw.toUpperCase().replace(/\s+/g, ' ');
     setPromptMenu(null);
+    if (tool === 'pan' && !c) { cad.setTool('none'); cad.say('PAN  Ended.'); return; }
+    // A value typed at a prompt (a number, a point, a distance) is kept for Recent input ▸ on the command menu.
+    if (tool !== 'none' && /\d/.test(raw) && !cadCommand(c)) setInputs((l) => [raw, ...l.filter((x) => x !== raw)].slice(0, 8));
     // Width… on a note's right-click menu: the box's new width in metres (its left edge stays).
     if (mtAsk?.step === 'ntwidth' && mtAsk.id) {
       const it = sketch.find((x) => x.id === mtAsk.id), n = Number(raw.replace(',', '.'));
@@ -2605,7 +2680,30 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       blockDialog: () => openBlockDialog(),
       blocksPalette: () => { if (!view) { cad.say('INSERT  Open a drawing first.'); return; } cad.setShowBlocks(!cad.showBlocks); },
       attDef: () => { if (!view) { cad.say('ATTDEF  Open a drawing first.'); return; } setAttDlg({ ...ATT_DRAFT, heightMm: currentTextStyle(project).heightMm || anno.textMm, style: currentTextStyle(project).name }); cad.say('ATTDEF  Attribute definition'); },
-      attExport: () => { if (!view) { cad.say('ATTEXT  Open a drawing first.'); return; } setAttExt(true); cad.say('ATTEXT  Format [Csv/Excel] <Excel>:'); input.current?.focus(); }
+      attExport: () => { if (!view) { cad.say('ATTEXT  Open a drawing first.'); return; } setAttExt(true); cad.say('ATTEXT  Format [Csv/Excel] <Excel>:'); input.current?.focus(); },
+      undo: () => { if (onUndo && canUndo) onUndo(); else cad.say('UNDO  Nothing to undo.'); },
+      redo: () => { if (onRedo && canRedo) onRedo(); else cad.say('REDO  Nothing to redo.'); },
+      selectAll: () => {
+        if (!view) { cad.say('SELECTALL  Open a drawing first.'); return; }
+        const devs = cad.showDevices ? placed.filter((d) => shown(d.key)) : [];
+        pick(devs, pickable);
+        cad.say(`SELECTALL  ${picks(devs.length + pickable.length)}`);
+      },
+      count: () => {
+        const any = pickedSk.length + pickedItems.length > 0;
+        const sks = any ? pickedSk : pickable, devs = any ? pickedItems : cad.showDevices ? placed.filter((d) => shown(d.key)) : [];
+        const kinds = [...sks.map((it) => (it.kind === 'insert' && it.block ? `${it.block} (block)` : kindOf(it))), ...devs.map((d) => typeOf(project, d) || d.what)];
+        cad.say(kinds.length ? `COUNT  ${any ? 'Picked' : 'In view'}: ${countLine(kinds, 0)} — ${kinds.length} in all` : 'COUNT  Nothing to count.');
+      },
+      isolateObjects: () => hideObjects('isolate'),
+      hideObjects: () => hideObjects('hide'),
+      unisolateObjects: () => { if (objHide && objHide.file === view?.file) { setObjHide(null); cad.say('UNISOLATEOBJECTS  All objects shown again.'); } else cad.say('UNISOLATEOBJECTS  No objects are isolated or hidden.'); },
+      addSelected: () => addSelected(),
+      quickMeasure: () => {
+        if (!pickedSk.length) { cad.say('QUICKMEASURE  Pick lines, polylines, arcs or circles first.'); return; }
+        const q = measureOf(pickedSk);
+        cad.say(q.n ? `QUICKMEASURE  ${q.n} object${q.n === 1 ? '' : 's'}: length ${m(toM(q.length))}${q.area > 0 ? ` · closed area ${m2(toM2(q.area))}` : ''}` : 'QUICKMEASURE  Nothing with a length is picked.');
+      }
     };
     const command = cadCommand(c);
     if (command) setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30));
@@ -2801,6 +2899,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     // Ctrl/⌘+C, Ctrl/⌘+Shift+C and Ctrl/⌘+V: the clipboard of drawn objects (a field keeps its own; with nothing
     // picked Ctrl+C leaves the page's text selection to copy).
     const ck = e.key.toLowerCase();
+    // Ctrl/⌘+A: SELECTALL (a field keeps its own).
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && !typing && ck === 'a' && view && !(e.target instanceof Element && e.target.closest('[contenteditable="true"]'))) { e.preventDefault(); if (!e.repeat) run('SELECTALL'); return; }
     if ((e.metaKey || e.ctrlKey) && !e.altKey && !typing && (ck === 'c' || ck === 'v') && !(e.target instanceof Element && e.target.closest('[contenteditable="true"]'))) {
       if (ck === 'c' && !pickedSk.length && !pickedItems.length) return;
       e.preventDefault();
@@ -2959,8 +3059,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
-            <CadCanvas view={view!} draft={draft} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={sketchSnaps} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
-              numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={xr.snap} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
+            <CadCanvas view={view!} draft={snapDraft} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={snapExtra} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
+              numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={draft.grips && tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
               onGripEnd={(i, at) => {
                 setGripIdx(null);
@@ -3004,7 +3104,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                       else if (/^[a-zA-Z@]$/.test(e.key) && !e.metaKey && !e.ctrlKey) input.current?.focus();
                     }} />;
                 })() : null;
-                if (promptMenu && !moving) return <CadPromptMenu left={promptMenu.at[0] + 4} top={promptMenu.at[1] + 4} items={promptMenu.items} onPick={(i) => { const x = promptMenu.items[i]; setPromptMenu(null); x.run(); }} />;
+                if (promptMenu && !moving) return <CadPromptMenu left={promptMenu.at[0] + 4} top={promptMenu.at[1] + 4} items={promptMenu.items} onPick={ctxPick} />;
                 if (tool !== 'none' || moving || gripIdx !== null || (!pickedItems.length && !pickedSk.length)) return dyn;
                 if (!pickedSk.length && (!floor || !cad.showDevices)) return null;
                 const skPts = pickedSk.flatMap((it) => { const sg = segmentsOf(it, 0.001, defs); return sg.length ? sg.flat() : it.pts; });

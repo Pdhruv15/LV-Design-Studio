@@ -2023,22 +2023,33 @@ describe('CAD command line', () => {
     expect(input.value).toBe('GRID');
   });
 
-  it('right-click: with a tool, Enter and the prompt options; with none and nothing under it, Repeat and the recent commands', async () => {
+  it('right-click: with a tool, the command menu (Enter, options, Snap overrides…); with none and nothing under it, the blank-canvas menu', async () => {
     await start();
-    const right = (x: number, y: number) => { const [sx, sy] = screenOf(x, y); return act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); }); };
-    const menu = () => [...document.querySelectorAll('[aria-label="Command menu"] button')];
+    const right = (x: number, y: number, shiftKey = false) => { const [sx, sy] = screenOf(x, y); return act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, shiftKey, bubbles: true, cancelable: true })); }); };
+    const menu = () => [...document.querySelectorAll('[aria-label="Command menu"] > button')] as HTMLButtonElement[];
+    const labels = () => menu().map((b) => b.firstElementChild!.textContent);
+    const entry = (label: string) => menu().find((b) => b.firstElementChild!.textContent === label)!;
     await command('GRID');
     await command('F');
     await right(X + 20000, 20000);
-    expect(menu().map((b) => b.textContent)).toEqual(['Enter', 'RadiusR', 'TrimT', 'Cancel']);
-    await act(async () => { (menu()[2] as HTMLButtonElement).click(); });
+    expect(labels()).toEqual(['Enter', 'Cancel', 'Radius', 'Trim', 'Snap overrides', 'Object snap', 'Ortho', 'Polar tracking', 'Zoom previous', 'Zoom extents']);
+    await act(async () => { entry('Trim').click(); });
     expect(hist()).toBe('FILLET  Select first object or [Radius/Trim] <R 0.00, No trim>:');
     await command('');
     expect(state.tool).toBe('none');
     await right(X + 20000, 20000);
-    expect(menu().map((b) => b.textContent)).toEqual(['Repeat FILLET', 'GRID', 'Zoom window (Z W)', 'Zoom previous (Z P)', 'Zoom extents (ZE)']);
-    await act(async () => { (menu()[0] as HTMLButtonElement).click(); });
+    expect(labels()).toEqual(['Repeat FILLET', 'Recent commands', 'Paste', 'Paste to original coordinates', 'Undo', 'Redo', 'Isolate', 'Pan', 'Zoom window', 'Zoom previous', 'Zoom extents',
+      'Select all', 'Quick select…', 'Count', 'Place device', 'Cable route', 'Cable tray', 'Properties', 'Options…']);
+    expect([entry('Paste').disabled, entry('Undo').disabled]).toEqual([true, true]); // nothing on the clipboard; no undo given
+    await act(async () => { entry('Recent commands').click(); });
+    expect([...document.querySelectorAll('[aria-label="Recent commands"] button')].map((b) => b.firstElementChild!.textContent)).toEqual(['GRID']);
+    await act(async () => { entry('Repeat FILLET').click(); });
     expect(state.tool).toBe('fillet');
+    // A prompt without options: right-click is Enter, Shift+right-click the command menu.
+    await command('');
+    await command('L');
+    await right(X + 20000, 20000, true);
+    expect(labels()).toContain('Snap overrides');
   });
 
   it('dynamic input: a number typed goes to the length box at the cursor, Tab to the angle, Enter places the point; F12 turns it off', async () => {
@@ -2962,7 +2973,7 @@ describe('CAD 2D gap plan: TEXTEDIT, a double-click on a text or dimension to ty
     act(() => state.toggle('osnap'));
     await rightClickAt(X + 300, 100);
     const menu = () => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"][aria-label="Edit drawn objects"] button')];
-    expect(menu().map((b) => b.textContent)).toEqual(['Edit text', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    expect(menu().map((b) => b.textContent)).toEqual(['Edit text', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all']);
     await act(async () => { menu()[0].click(); });
     expect(box()!.value).toBe('DB ROOM');
     await keyBox('Escape');
@@ -3113,7 +3124,7 @@ describe('CAD 2D gap plan: MTEXT, notes in a box with their lines wrapped to its
     act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
     expect(state.tool).toBe('none');
     await rightClickAt(X + 500, 5900);
-    expect(menuLabels()).toEqual(['Edit text', 'Width…', 'Justify ▸', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    expect(menuLabels()).toEqual(['Edit text', 'Width…', 'Justify ▸', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all']);
     await act(async () => { button('Width…').click(); });
     expect(last()).toBe('MTEXT  Width (m) <3.00>:');
     await command('4');
@@ -3217,7 +3228,7 @@ describe('CAD 2D gap plan: DRAWORDER and TEXTTOFRONT, the order the drawn object
     project = start;
     act(() => state.toggle('osnap'));
     await rightClickAt(X + 6000, 0);
-    expect(menuLabels()).toEqual(['Trim', 'Extend', 'Offset', 'Break', 'Fillet', 'Mirror', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    expect(menuLabels()).toEqual(['Trim', 'Extend', 'Offset', 'Break', 'Fillet', 'Mirror', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all']);
     await act(async () => { button('Draw order ▸').click(); });
     expect(options().map((b) => b.textContent)).toEqual(['Bring to front', 'Send to back', 'Above object', 'Under object']);
     await act(async () => { options()[1].click(); });
@@ -3428,7 +3439,7 @@ describe('CAD 2D gap plan: BLOCK, a block from drawn objects', () => {
     act(() => state.toggle('osnap'));
     await rightClickAt(X + 2500, 0);
     const labels = [...document.querySelectorAll('[role="menu"] button')].map((b) => b.textContent);
-    expect(labels.slice(labels.indexOf('Erase'))).toEqual(['Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸']);
+    expect(labels.slice(labels.indexOf('Erase'))).toEqual(['Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all']);
     await act(async () => { button('Make block…').click(); });
     expect(dlg()).not.toBeNull();
     expect(document.querySelector('[aria-label="Objects selected"]')!.textContent).toBe('1 selected');
@@ -3647,5 +3658,108 @@ describe('CAD 2D gap plan: block attributes (ATTDEF, INSERT prompts, ATTEDIT)', 
     await act(async () => { button('Cancel').click(); });
     expect(dlg('Edit attributes')).toBeNull();
     expect(onChange).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('right-click menus, phase 1: the tools behind them', () => {
+  const line = (id: string, a: [number, number], b: [number, number]) => ({ id, kind: 'line' as const, layer: 'LV-SKETCH', pts: [a, b] });
+  const X = 200000;
+  const two: Project = { ...villa, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [line('S1', [X, 0], [X + 4000, 0]), line('S2', [X + 6000, 1000], [X + 6000, 5000])] }] };
+  const hist = () => document.querySelector('.cad-hist')!.textContent;
+  const start = async (p: Project = two) => { project = p; act(() => root.render(<Host start={p} />)); await flush(); act(() => state.toggle('osnap')); };
+  const right = (x: number, y: number, shiftKey = false) => { const [sx, sy] = screenOf(x, y); return act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, shiftKey, bubbles: true, cancelable: true })); }); };
+  const entry = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find((b) => (b.firstElementChild?.textContent ?? b.textContent) === label)!;
+  const lines = () => sketchOf(project, 'sample-villa-gf.dxf').filter((it) => it.kind === 'line');
+
+  it('COUNT, SELECTALL (and Ctrl+A), ISOLATEOBJECTS, HIDEOBJECTS and UNISOLATEOBJECTS', async () => {
+    await start();
+    await command('COUNT');
+    expect(hist()).toMatch(/^COUNT {2}In view: 2 Line/);
+    await command('SELECTALL');
+    expect(hist()).toMatch(/^SELECTALL {2}\d+ objects selected$/);
+    await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+    await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true, cancelable: true })); });
+    expect(hist()).toMatch(/^SELECTALL {2}\d+ objects selected$/);
+    await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+    await clickAt(X + 2000, 0); // S1 picked
+    await command('COUNT');
+    expect(hist()).toBe('COUNT  Picked: 1 Line — 1 in all');
+    await command('ISOLATEOBJECTS');
+    expect(hist()).toBe('ISOLATEOBJECTS  1 object shown alone · UNISOLATEOBJECTS shows all again');
+    await command('COUNT');
+    expect(hist()).toMatch(/^COUNT {2}In view: 1 Line — 1 in all$/);
+    // What is drawn while isolated shows.
+    await command('L'); await clickAt(X, 9000); await clickAt(X + 1000, 9000); await command('');
+    await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+    await command('COUNT');
+    expect(hist()).toMatch(/^COUNT {2}In view: 2 Line — 2 in all$/);
+    await command('UNISOLATEOBJECTS');
+    expect(hist()).toBe('UNISOLATEOBJECTS  All objects shown again.');
+    await command('COUNT');
+    expect(hist()).toMatch(/^COUNT {2}In view: 3 Line/);
+    await clickAt(X + 6000, 3000); // S2
+    await command('HIDEOBJECTS');
+    expect(hist()).toBe('HIDEOBJECTS  1 object hidden · UNISOLATEOBJECTS shows all again');
+    await command('COUNT');
+    expect(hist()).toMatch(/^COUNT {2}In view: 2 Line/);
+    await command('UNHIDE');
+    await command('COUNT');
+    expect(hist()).toMatch(/^COUNT {2}In view: 3 Line/);
+  });
+
+  it('QUICKMEASURE, ADDSELECTED, PAN, UNDO and REDO', async () => {
+    await start();
+    await command('QM');
+    expect(hist()).toBe('QUICKMEASURE  Pick lines, polylines, arcs or circles first.');
+    await clickAt(X + 2000, 0);
+    await command('QM');
+    expect(hist()).toMatch(/^QUICKMEASURE {2}1 object: length 4(\.0+)? m$/);
+    await command('ADDSELECTED');
+    expect(state.tool).toBe('line');
+    await command('');
+    await command('PAN');
+    expect([state.tool, hist()]).toEqual(['pan', 'Command: PAN  Drag to pan. Enter or Esc to end:']);
+    await command('');
+    expect(state.tool).toBe('none');
+    expect(state.history).toContain('PAN  Ended.');
+    await command('UNDO');
+    expect(hist()).toBe('UNDO  Nothing to undo.');
+    await command('REDO');
+    expect(hist()).toBe('REDO  Nothing to redo.');
+  });
+
+  it('the command menu: Snap overrides ▸ Endpoint makes the next point snap to an endpoint only; Recent input ▸ types a value again', async () => {
+    await start();
+    expect(state.toggles.osnap).toBe(false);
+    await command('L');
+    await right(X + 20000, 20000, true);
+    await act(async () => { entry('Snap overrides').click(); });
+    await act(async () => { entry('Endpoint').click(); });
+    expect(hist()).toBe('Endpoint snap for the next point.');
+    await clickAt(X + 4000 + 60, 60); // near S1's end
+    await command('@0,2000');
+    await command('');
+    expect(lines().slice(-1)[0].pts[0]).toEqual([X + 4000, 0]);
+    await command('L');
+    await right(X + 20000, 20000, true);
+    await act(async () => { entry('Recent input').click(); });
+    expect(entry('@0,2000')).toBeTruthy();
+  });
+
+  it('the menu of drawn objects picked: Isolate ▸, Add selected, Quick measure, Count and Deselect all run their tools', async () => {
+    await start();
+    await clickAt(X + 2000, 0);
+    await right(X + 2000, 0);
+    await act(async () => { entry('Quick measure').click(); });
+    expect(hist()).toMatch(/^QUICKMEASURE {2}1 object/);
+    await right(X + 2000, 0);
+    await act(async () => { entry('Isolate ▸').click(); });
+    await act(async () => { [...document.querySelectorAll<HTMLButtonElement>('[aria-label="Isolate"] button')].find((b) => b.textContent?.startsWith('Hide objects'))!.click(); });
+    expect(hist()).toBe('HIDEOBJECTS  1 object hidden · UNISOLATEOBJECTS shows all again');
+    await clickAt(X + 6000, 3000);
+    await right(X + 6000, 3000);
+    await act(async () => { entry('Deselect all').click(); });
+    await command('COUNT');
+    expect(hist()).toMatch(/^COUNT {2}In view: 1 Line/);
   });
 });
