@@ -14,6 +14,11 @@ export class CadDoc {
      */
     info(): string;
     /**
+     * The drawing's paper-space layouts as JSON, in tab order: [{name, tab, paper [w, h] mm, margins [l, b, r, t] mm,
+     * at [x, y] mm, mm_per_unit, viewports [{x, y, w, h, cx, cy, vh, locked, on}]}] (frames in paper-space units).
+     */
+    layouts(): string;
+    /**
      * Opens a DWG (R13–2018) or DXF drawing.
      */
     constructor(bytes: Uint8Array);
@@ -53,6 +58,10 @@ export class CadDoc {
      * PERPENDICULAR (NaN when there is none).
      */
     snap(x: number, y: number, r: number, mask: number, layers_on: Uint8Array, fx: number, fy: number): Float64Array;
+    /**
+     * Layout `i`'s paper space as a drawing of its own (segments, colours, texts, snaps), once; None after.
+     */
+    take_layout(i: number): CadDoc | undefined;
 }
 
 /**
@@ -80,6 +89,7 @@ export interface InitOutput {
     readonly __wbg_caddoc_free: (a: number, b: number) => void;
     readonly caddoc_blocks: (a: number, b: number) => void;
     readonly caddoc_info: (a: number, b: number) => void;
+    readonly caddoc_layouts: (a: number, b: number) => void;
     readonly caddoc_new: (a: number, b: number, c: number) => void;
     readonly caddoc_outlines: (a: number, b: number) => void;
     readonly caddoc_pick: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
@@ -89,6 +99,7 @@ export interface InitOutput {
     readonly caddoc_segments: (a: number, b: number) => void;
     readonly caddoc_set_erased: (a: number, b: number, c: number, d: number) => void;
     readonly caddoc_snap: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
+    readonly caddoc_take_layout: (a: number, b: number) => number;
     readonly explodeObjects: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly exportDwg: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => void;
     readonly exportDxf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => void;

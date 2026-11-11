@@ -46,11 +46,14 @@ export function moveLayout(set: DrawingSet, id: string, dir: -1 | 1): DrawingSet
 }
 
 /** The tabs under the drawing. */
-export function LayoutTabs({ layouts, active, onPick, onNew, onRename, onCopy, onMove, onDelete, onPageSetup }: {
+export function LayoutTabs({ files = [], layouts, active, onPick, onNew, onRename, onCopy, onMove, onDelete, onPageSetup }: {
+  /** The drawing file's own layouts (paper space), first, as in the file: their tab id, name and tooltip. */
+  files?: { id: string; name: string; title: string }[];
   layouts: DrawingSheet[];
   active: string | null;
   onPick: (id: string | null) => void;
-  onNew: (type: PlanType) => void;
+  /** A new layout of the level; absent (no +) when the drawing is not tied to a level. */
+  onNew?: (type: PlanType) => void;
   onRename: (s: DrawingSheet) => void;
   onCopy: (s: DrawingSheet) => void;
   onMove: (s: DrawingSheet, dir: -1 | 1) => void;
@@ -69,11 +72,14 @@ export function LayoutTabs({ layouts, active, onPick, onNew, onRename, onCopy, o
     <>
       <div className="cad-ltabs" role="tablist" aria-label="Model and layouts">
         <button role="tab" aria-selected={!active} className={`cad-ltab${!active ? ' on' : ''}`} title="Model: the plan at real size (drawing units)" onClick={() => onPick(null)}>Model</button>
-        {layouts.map((s) => (
-          <button key={s.id} role="tab" aria-selected={active === s.id} className={`cad-ltab${active === s.id ? ' on' : ''}`} title={`${s.number} — ${s.title} · right-click for more`}
-            onClick={() => onPick(s.id)} onContextMenu={(e) => { e.preventDefault(); setMenu({ s, x: e.clientX, y: e.clientY }); }}>{s.number || s.title}</button>
+        {files.map((f) => (
+          <button key={f.id} role="tab" aria-selected={active === f.id} className={`cad-ltab${active === f.id ? ' on' : ''}`} title={f.title} onClick={() => onPick(f.id)}>{f.name}</button>
         ))}
-        <button className="cad-ltab add" aria-label="New layout" title="New layout of this level (LAYOUT)" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.top }); }}><Plus size={13} strokeWidth={2} /></button>
+        {layouts.map((s) => (
+          <button key={s.id} role="tab" aria-selected={active === s.id} className={`cad-ltab${active === s.id ? ' on' : ''}`} title={`${s.number} — ${s.title}: the project's plan sheet · right-click for more`}
+            onClick={() => onPick(s.id)} onContextMenu={(e) => { e.preventDefault(); setMenu({ s, x: e.clientX, y: e.clientY }); }}>{s.number || s.title}{files.length > 0 && <span className="cad-ltab-k">sheet</span>}</button>
+        ))}
+        {onNew && <button className="cad-ltab add" aria-label="New layout" title="New layout of this level (LAYOUT)" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.top }); }}><Plus size={13} strokeWidth={2} /></button>}
       </div>
       {menu && (
         <>
@@ -86,7 +92,7 @@ export function LayoutTabs({ layouts, active, onPick, onNew, onRename, onCopy, o
               <button role="menuitem" onClick={() => pick(() => onMove(menu.s!, 1))}>Move right</button>
               <button role="menuitem" onClick={() => pick(() => onPageSetup(menu.s!))}>Page setup…</button>
               <button role="menuitem" onClick={() => pick(() => onDelete(menu.s!))}>Delete</button>
-            </> : PLAN_TYPES.map((t, i) => <button key={t} role="menuitem" autoFocus={i === 0} onClick={() => pick(() => onNew(t))}>{PLAN_LABEL[t]} <span className="m">{PLAN_PREFIX[t]}</span></button>)}
+            </> : PLAN_TYPES.map((t, i) => <button key={t} role="menuitem" autoFocus={i === 0} onClick={() => pick(() => onNew?.(t))}>{PLAN_LABEL[t]} <span className="m">{PLAN_PREFIX[t]}</span></button>)}
           </div>
         </>
       )}

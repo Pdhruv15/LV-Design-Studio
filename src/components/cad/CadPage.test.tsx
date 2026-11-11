@@ -1730,6 +1730,30 @@ describe('file tabs', () => {
     expect(document.body.textContent).toContain('XREF  Not found on this computer: STR-GF (inside GF.dxf). References → Repath… finds it.');
   });
 
+  it('Layouts of the drawing file itself: a tab each on any drawing; the paper with its viewport, shown as saved', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    const v = await openDrawing('paper-layouts.dxf', bytes('tests/fixtures/cad/paper-layouts.dxf'));
+    act(() => state.open(v));
+    await flush();
+    const ltabs = () => [...document.querySelectorAll('[aria-label="Model and layouts"] [role="tab"]')].map((t) => t.textContent);
+    expect(ltabs()).toEqual(['Model', 'Layout1', 'A1 Lighting']);
+    const tab = (name: string) => [...document.querySelectorAll<HTMLButtonElement>('.cad-ltab')].find((b) => b.textContent === name)!;
+    expect(tab('Layout1').title).toBe('420 × 297 mm · 1 viewport at 1:100');
+    act(() => tab('Layout1').click());
+    expect(state.layout).toBe('file:Layout1');
+    expect(document.querySelector('.cad-filepaper')!.getAttribute('aria-label')).toBe('Layout Layout1: 420 × 297 mm paper, 1 viewport');
+    expect(document.querySelector('.cad-status')!.textContent).toContain('PAPERLayout1 · 420 × 297 mm · 1 viewport at 1:100');
+    expect(document.querySelector('.cad-hist')!.textContent).toBe("LAYOUT  Layout1 — the drawing file's own layout, as saved: 420 × 297 mm · 1 viewport at 1:100.");
+    await command('MV');
+    expect(document.querySelector('.cad-hist')!.textContent).toMatch(/^MV {2}Layout1 is the drawing file's own layout, shown as it was saved/);
+    act(() => tab('A1 Lighting').click());
+    expect(document.querySelector('.cad-filepaper')!.getAttribute('aria-label')).toBe('Layout A1 Lighting: 841 × 594 mm paper, 0 viewports');
+    act(() => tab('Model').click());
+    expect(state.layout).toBeNull();
+    expect(document.querySelector('.cad-filepaper')).toBeNull();
+  });
+
   it('Layouts: + makes a layout of the level; its paper has a viewport; VPSCALE and VPLOCK set it, MS works in it, MV adds one, the Layer manager has This viewport', async () => {
     const last = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
     const gf = { building: 'V', level: 'GF' };
@@ -1738,13 +1762,13 @@ describe('file tabs', () => {
     act(() => root.render(<Host start={start} />));
     await flush();
     const tabs = () => [...document.querySelectorAll('[aria-label="Model and layouts"] [role="tab"]')].map((t) => t.textContent);
-    expect(tabs()).toEqual(['Model']);
+    expect(tabs()).toEqual(['Model', 'Layout1']); // the drawing file's own (empty) layout, then the level's plan sheets
     act(() => (document.querySelector('[aria-label="New layout"]') as HTMLButtonElement).click());
     act(() => [...document.querySelectorAll('[role="menuitem"]')].find((b) => b.textContent?.startsWith('Lighting layout'))!.dispatchEvent(new MouseEvent('click', { bubbles: true })));
     const sheet = () => project.drawingSet!.sheets.find((x) => x.kind === 'plan')!;
     expect(sheet()).toMatchObject({ plan: 'lighting', buildingId: 'V', levelId: 'GF', number: 'E-LTG-001' });
     expect(state.layout).toBe(sheet().id);
-    expect(tabs()).toEqual(['Model', 'E-LTG-001']);
+    expect(tabs()).toEqual(['Model', 'Layout1', 'E-LTG-001sheet']);
     expect(document.querySelector('.cad-paper')).not.toBeNull();
     expect(document.querySelector('.cad-status')!.textContent).toMatch(/PAPERViewport 1 · 1:100 · lockedE-LTG-001 · A3 · mm/);
     await until(() => !!document.querySelector('.cad-paper iframe'));
@@ -1814,13 +1838,13 @@ describe('file tabs', () => {
     await command('MODEL');
     expect(state.layout).toBeNull();
     expect(document.querySelector('.cad-paper')).toBeNull();
-    act(() => [...document.querySelectorAll<HTMLButtonElement>('.cad-ltab')].find((b) => b.textContent === 'E-LTG-001')!.click());
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('.cad-ltab')].find((b) => b.textContent?.startsWith('E-LTG-001'))!.click());
     expect(state.layout).toBe(sheet().id);
     // Delete from the tab's menu: the layout and its sheet go (undoable).
-    act(() => [...document.querySelectorAll<HTMLButtonElement>('.cad-ltab')].find((b) => b.textContent === 'E-LTG-001')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 50, clientY: 500 })));
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('.cad-ltab')].find((b) => b.textContent?.startsWith('E-LTG-001'))!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 50, clientY: 500 })));
     act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((b) => b.textContent === 'Delete')!.click());
     expect(project.drawingSet!.sheets.some((x) => x.kind === 'plan')).toBe(false);
-    expect(tabs()).toEqual(['Model']);
+    expect(tabs()).toEqual(['Model', 'Layout1']);
     expect(state.layout).toBeNull();
   });
 });

@@ -8,7 +8,14 @@ export function engineOps() {
     init(wasm: Uint8Array) { initSync({ module: wasm }); },
     open(bytes: Uint8Array) {
       doc = new CadDoc(bytes);
-      return { info: doc.info(), segs: doc.segments(), segLayers: doc.segment_layers(), segColors: doc.segment_colors(), segLinetypes: doc.segment_linetypes(), outlines: doc.outlines(), blocks: doc.blocks() };
+      // The paper-space layouts: what each is, and its paper's drawing (read once, then its engine copy freed).
+      const layouts = doc.layouts();
+      const papers = (JSON.parse(layouts) as unknown[]).map((_, i) => {
+        const p = doc!.take_layout(i);
+        if (!p) return null;
+        try { return { info: p.info(), segs: p.segments(), segColors: p.segment_colors(), segLayers: p.segment_layers() }; } finally { p.free(); }
+      });
+      return { info: doc.info(), segs: doc.segments(), segLayers: doc.segment_layers(), segColors: doc.segment_colors(), segLinetypes: doc.segment_linetypes(), outlines: doc.outlines(), blocks: doc.blocks(), layouts, papers };
     },
     snap: (x: number, y: number, r: number, mask: number, layersOn: Uint8Array, fx = NaN, fy = NaN) => (doc ? doc.snap(x, y, r, mask, layersOn, fx, fy) : new Float64Array()),
     pick: (x: number, y: number, tol: number, layersOn: Uint8Array, closedOnly: boolean) => (doc ? doc.pick(x, y, tol, layersOn, closedOnly) : ''),
