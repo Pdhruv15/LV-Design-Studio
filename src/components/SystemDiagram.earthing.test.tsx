@@ -59,75 +59,73 @@ describe('SLD main earth-pit arrangement', () => {
     expect(bot - ys[1]).toBeCloseTo(ys[1] - ys[0], 5);
   });
 
-  it('anchors the standard-style earth detail and MET to the main panel', () => {
+  it('frames a standard-style root panel with its MET, incomer and ways, the earth pits outside on the left', () => {
     const project: Project = { ...sampleProject, drawing: { ...sampleProject.drawing, sldStyle: 'standard' } };
     const host = draw(project);
+    const n = (el: Element, k: string) => Number(el.getAttribute(k));
     const board = host.querySelector<SVGGElement>('g.bd[data-lv-id="board:MDB-1"]')!;
-    const panel = board.querySelector<SVGRectElement>('rect.box')!;
-    const met = host.querySelector<SVGLineElement>('.earth-pit[data-board-id="MDB-1"] .met-bar')!;
-    const panelX = Number(panel.getAttribute('x'));
+    const frame = board.querySelector<SVGRectElement>('.plain-frame rect')!;
+    expect(frame.getAttribute('class')).toContain('interlock');
+    const fx1 = n(frame, 'x'), fy1 = n(frame, 'y'), fx2 = fx1 + n(frame, 'width'), fy2 = fy1 + n(frame, 'height');
+    // Clear of the transformer and its earth labels (they end at y = 150).
+    expect(fy1).toBeGreaterThan(150);
+    // No rounded board box: the name is plain text inside the frame, ending left of the incoming line.
+    expect(board.querySelector('rect.box')).toBeNull();
+    const name = board.querySelector<SVGTextElement>('text.lod-name')!;
+    expect(name.textContent).toBe('MDB-1');
+    expect(name.getAttribute('text-anchor')).toBe('end');
+    const incomerX = n(name, 'x') + 8;
+    expect(n(name, 'y')).toBeGreaterThan(fy1);
+    // The busbar and every outgoing way's breaker inside; each way and the incomer cross it at a gland mark.
+    const bus = board.querySelector<SVGLineElement>('line.bus')!;
+    expect(n(bus, 'x1')).toBeGreaterThan(fx1);
+    expect(n(bus, 'x2')).toBeLessThan(fx2);
+    const busY = n(bus, 'y1');
+    expect(fy2).toBeGreaterThanOrEqual(busY + 34);
+    const ways = project.feeders.filter((f) => f.boardId === 'MDB-1').length;
+    expect(board.querySelectorAll('.plain-frame path')).toHaveLength(ways + 1);
+    // Sub-boards keep their board box and get no frame.
+    expect(host.querySelector('g.bd[data-lv-id="board:SMDB-GF"] rect.box')).not.toBeNull();
+    expect(host.querySelectorAll('.plain-frame')).toHaveLength(1);
 
-    expect(Number(met.getAttribute('x1'))).toBeGreaterThan(panelX);
-    expect(Number(met.getAttribute('x2'))).toBeLessThanOrEqual(panelX + Number(panel.getAttribute('width')));
-  });
-
-  it('keeps the standard-style detail below the transformer band and its MET clear of the labels', () => {
-    const project: Project = { ...sampleProject, drawing: { ...sampleProject.drawing, sldStyle: 'standard' } };
-    const host = draw(project);
     const earth = host.querySelector<SVGGElement>('.earth-pit[data-board-id="MDB-1"]')!;
-    // The transformer symbol, its 415 V tag and its earth labels end at y = 150: every part of
-    // the pit detail (the transformer's own earths excepted) sits below that band.
-    const tops = [...earth.querySelectorAll<SVGGraphicsElement>('rect, text, line')]
-      .filter((el) => !el.closest('.tx-earth'))
-      .map((el) => Number(el.getAttribute('y') ?? el.getAttribute('y1')))
-      .filter((y) => Number.isFinite(y));
-    expect(tops.length).toBeGreaterThan(8);
-    expect(Math.min(...tops)).toBeGreaterThan(150);
-    // The MET conductor drops straight down (one conductor, no bend crossing a label column)…
-    const route = earth.querySelector<SVGPathElement>('.earth-to-met')!;
-    expect(route.getAttribute('d')).toMatch(/^M[\d.]+ [\d.]+ V[\d.]+$/);
-    // …and the MET bar ends left of the incomer column (x), above the device band (y), so it
-    // cannot meet the voltage and loading rows that start at the incomer.
-    const panel = host.querySelector<SVGRectElement>('g.bd[data-lv-id="board:MDB-1"] rect.box')!;
+    // Each pit stands outside the frame on its own conductor and test link (TL1, TL2)…
+    const pits = [...earth.querySelectorAll<SVGRectElement>('.earth-electrode rect')];
+    const links = [...earth.querySelectorAll<SVGRectElement>('rect.test-link')];
+    expect(pits).toHaveLength(2);
+    expect(links).toHaveLength(2);
+    expect([...earth.querySelectorAll('.test-link-label')].map((t) => t.textContent)).toEqual(['TL1', 'TL2']);
+    for (const el of [...pits, ...links]) expect(n(el, 'x') + n(el, 'width')).toBeLessThan(fx1);
+    for (const t of earth.querySelectorAll<SVGTextElement>('text')) {
+      if (t.closest('.tx-earth')) continue;
+      expect(n(t, 'y')).toBeGreaterThan(150);
+    }
+    // …to a vertical MET inside the frame, left of the incomer.
     const met = earth.querySelector<SVGLineElement>('.met-bar')!;
-    expect(Number(met.getAttribute('x2'))).toBeLessThan(Number(panel.getAttribute('x')) + 62);
-    expect(Number(met.getAttribute('y1'))).toBeLessThanOrEqual(Number(panel.getAttribute('y')) - 34);
+    expect(n(met, 'x1')).toBe(n(met, 'x2'));
+    expect(n(met, 'x1')).toBeGreaterThan(fx1);
+    expect(n(met, 'x1')).toBeLessThan(incomerX);
+    expect(n(met, 'y1')).toBeGreaterThan(fy1);
+    expect(n(met, 'y2')).toBeLessThan(busY);
+    for (const route of earth.querySelectorAll('.earth-to-met')) expect(route.getAttribute('d')).toMatch(new RegExp(`^M${n(met, 'x1')} `));
+    // The spacing reads clear of the earth symbols.
+    const label = [...earth.querySelectorAll<SVGTextElement>('text')].find((t) => / m \(MIN\)$/.test(t.textContent ?? ''))!;
+    const w = textWidth(label.textContent!, 7);
+    for (const p of pits) expect(Math.abs(n(label, 'x') - (n(p, 'x') + 7))).toBeGreaterThan(w / 2 + 7);
+    // The DEWA style keeps its own frame: no standard frame there.
+    expect(draw(sampleProject).querySelector('.plain-frame')).toBeNull();
   });
 
-  it('marks the unframed earth pit location with a dashed frame, its spacing clear of the earth symbols', () => {
-    for (const project of [{ ...sampleProject, drawing: { ...sampleProject.drawing, sldStyle: 'standard' as const } }, newProject('New')]) {
+  it('keeps a lone board\'s earth pit spacing clear of the earth symbols', () => {
+    for (const project of [newProject('New'), { ...newProject('New'), drawing: { sldStyle: 'standard' as const } }]) {
       const host = draw(project);
       const id = project.boards.find((b) => !b.upstreamId)!.id;
       const earth = host.querySelector<SVGGElement>(`.earth-pit[data-board-id="${id}"]`)!;
-      const zone = earth.querySelector<SVGRectElement>('rect.earth-pit-zone')!;
-      expect(zone.getAttribute('class')).toContain('interlock');
-      const n = (el: Element, a: string) => Number(el.getAttribute(a));
-      const zx = n(zone, 'x'), zy = n(zone, 'y'), zr = zx + n(zone, 'width'), zb = zy + n(zone, 'height');
-      // Every electrode and earth symbol inside the frame.
-      for (const el of earth.querySelectorAll('.earth-electrode rect, .earth-electrode line')) {
-        const x1 = n(el, el.tagName === 'rect' ? 'x' : 'x1'), y1 = n(el, el.tagName === 'rect' ? 'y' : 'y1');
-        const x2 = el.tagName === 'rect' ? x1 + n(el, 'width') : n(el, 'x2'), y2 = el.tagName === 'rect' ? y1 + n(el, 'height') : n(el, 'y2');
-        expect(Math.min(x1, x2)).toBeGreaterThan(zx);
-        expect(Math.max(x1, x2)).toBeLessThan(zr);
-        expect(Math.min(y1, y2)).toBeGreaterThan(zy);
-        expect(Math.max(y1, y2)).toBeLessThan(zb);
-      }
-      // The spacing label reads below the lowest earth symbol, inside the frame.
       const label = [...earth.querySelectorAll<SVGTextElement>('text')].find((t) => / m \(MIN\)$/.test(t.textContent ?? ''))!;
-      const lowest = Math.max(...[...earth.querySelectorAll('.earth-electrode line')].map((l) => n(l, 'y2')));
-      expect(n(label, 'y') - 7).toBeGreaterThan(lowest);
-      expect(n(label, 'y')).toBeLessThan(zb);
-      const w = textWidth(label.textContent!, 7);
-      expect(n(label, 'x') - w / 2).toBeGreaterThan(zx);
-      expect(n(label, 'x') + w / 2).toBeLessThan(zr);
-      // The MET and its label stay outside the frame, in the board.
-      const met = earth.querySelector('.met-bar')!;
-      const metText = [...earth.querySelectorAll('text')].find((t) => t.textContent === 'MET')!;
-      expect(n(met, 'x1')).toBeGreaterThan(zr);
-      expect(n(metText, 'x') - textWidth('MET', 8, true)).toBeGreaterThan(zr);
+      const lowest = Math.max(...[...earth.querySelectorAll('.earth-electrode line')].map((l) => Number(l.getAttribute('y2'))));
+      expect(Number(label.getAttribute('y')) - 7).toBeGreaterThan(lowest);
+      expect(host.querySelector('.plain-frame')).toBeNull();
     }
-    // A framed DEWA main board keeps its pits outside the panel frame, with no extra frame.
-    expect(draw(sampleProject).querySelector('.earth-pit[data-board-id="MDB-1"] .earth-pit-zone')).toBeNull();
   });
 
   it('gives a new project\'s lone DEWA main board its earth detail in a band clear of the incomer', () => {

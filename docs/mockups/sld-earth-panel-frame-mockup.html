@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>SLD – earth pits and panel in one dashed frame (DEWA style off)</title>
+<style>
+body{background:#1e1f22;color:#ddd;font:13px system-ui,sans-serif;margin:20px}
+h2{font-size:15px;margin:0 0 4px}p{margin:0 0 12px;color:#aaa;max-width:900px}
+.wrap{display:flex;gap:20px;flex-wrap:wrap}
+.card{background:#25272b;border:1px solid #3a3d42;border-radius:6px;padding:10px}
+.cap{font-size:12px;color:#bbb;margin-bottom:6px}
+svg text{font-family:system-ui,sans-serif;fill:#e6e6e6}
+.ln{stroke:#b9bcc2;stroke-width:1.2;fill:none}
+.dash{stroke:#b9bcc2;stroke-width:1;stroke-dasharray:4 3;fill:none}
+.new{stroke:#e6e6e6;stroke-width:1.2;stroke-dasharray:5 3;fill:none}
+.bus{stroke:#e8a33c;stroke-width:3}
+.note{fill:#6cc8f0 !important}
+.ok{fill:#5fd37a !important}
+.m{fill:#9aa0a6 !important}
+.tag{fill:#ffd166 !important;font-weight:600}
+</style></head><body>
+<h2>Mockup: dashed frame around the main board, earth pits outside, vertical MET (SLD, DEWA style off)</h2>
+<p>When the DEWA panel frame is off, one dashed frame encloses the board at the top of the SLD, as the DEWA frame does. That is the MDB, or the DB or SMDB when it is the SLD's only board. Inside are the vertical MET, incomer breaker, board name, busbar and outgoing breakers. The LV earth pits and their test links (one per pit) stand outside the frame, on the left. The rounded padded MDB box is removed, and the name and results are plain text. The transformer and its N/body earths stay outside, above the frame. It replaces the pit-only frame from PR 509. The yellow callouts are for this mockup only and are not drawn on the SLD.</p>
+<div class="wrap">
+
+<div class="card"><div class="cap">Before (current main)</div>
+<svg width="360" height="400" viewBox="0 0 360 400">
+ <g transform="translate(0,0)">
+  <line x1="190" y1="0" x2="190" y2="330" class="ln"/>
+  <rect x="172" y="22" width="36" height="50" class="dash"/>
+  <circle cx="190" cy="38" r="9" class="ln"/><circle cx="190" cy="52" r="9" class="ln"/>
+  <text x="220" y="34" font-weight="700" font-size="13">TX-1</text>
+  <text x="220" y="48" font-size="10">1000 kVA · 5% Z</text>
+  <text x="220" y="61" font-size="10">Dyn11 · 11 / 0.415 kV</text>
+  <path d="M176 52 H154 V82" class="ln"/><path d="M147 82h14M149.5 85h9M152 88h4" class="ln"/>
+  <text x="154" y="100" font-size="7" text-anchor="middle">N EARTH · E3</text>
+  <path d="M202 72 V78 H234 V82" class="ln"/><path d="M227 82h14M229.5 85h9M232 88h4" class="ln"/>
+  <text x="234" y="100" font-size="7" text-anchor="middle">BODY EARTH · E1, E2</text>
+  <text x="24" y="122" font-size="8" font-weight="700">LV EARTH PITS (2 NO.) · E4, E5</text>
+  <text x="24" y="132" font-size="7.5" class="note">1C 50mm² CU/PVC</text>
+  <text x="24" y="141" font-size="7.5" class="note">MIN. 3 m ELECTRODE WITH</text>
+  <text x="24" y="150" font-size="7.5" class="note">INSPECTION PIT AND COVER</text>
+  <path d="M38 159 H135 M38 159 V164 M69 159 V164" class="ln"/>
+  <rect x="135" y="155" width="10" height="8" class="ln"/><text x="144" y="171" font-size="7">TL</text>
+  <path d="M140 163 V204" class="ln"/>
+  <g class="ln"><rect x="31" y="164" width="14" height="10"/><path d="M38 169V188M31 188h14M33.5 191h9M36 194h4"/>
+  <rect x="62" y="164" width="14" height="10"/><path d="M69 169V188M62 188h14M64.5 191h9M67 194h4"/></g>
+  <path d="M38 198 H69" class="ln"/>
+  <text x="53.5" y="196" font-size="7" text-anchor="middle">6.0 m (MIN)</text>
+  <line x1="132" y1="204" x2="182" y2="204" class="ln" stroke-width="2"/><text x="128" y="207" font-size="8" font-weight="700" text-anchor="end">MET</text>
+  <text x="182" y="232" font-size="11" text-anchor="end" class="m">415 V</text>
+  <path d="M186 236 l8 8" class="ln"/>
+  <text x="200" y="232" font-size="11" font-weight="700">1600 A TP MCCB (NA)</text>
+  <rect x="128" y="262" width="124" height="40" rx="5" fill="#33363b" stroke="#55595f"/>
+  <text x="138" y="279" font-size="12" font-weight="700">MDB-1</text><text x="138" y="293" font-size="10" class="m">MDB</text>
+  <text x="196" y="279" font-size="10" class="ok">415 V · 100.0%</text><text x="196" y="293" font-size="10" class="m">46% loaded</text>
+  <line x1="0" y1="330" x2="360" y2="330" class="bus"/>
+ </g></svg></div>
+
+<div class="card"><div class="cap">Proposed A: main board fed by a transformer (MDB)</div>
+<svg width="560" height="470" viewBox="0 0 560 470">
+ <g transform="translate(150,0)">
+  <line x1="190" y1="0" x2="190" y2="320" class="ln"/>
+  <rect x="172" y="22" width="36" height="50" class="dash"/>
+  <circle cx="190" cy="38" r="9" class="ln"/><circle cx="190" cy="52" r="9" class="ln"/>
+  <text x="220" y="34" font-weight="700" font-size="13">TX-1</text>
+  <text x="220" y="48" font-size="10">1000 kVA · 5% Z</text>
+  <text x="220" y="61" font-size="10">Dyn11 · 11 / 0.415 kV</text>
+  <path d="M176 52 H154 V82" class="ln"/><path d="M147 82h14M149.5 85h9M152 88h4" class="ln"/>
+  <text x="154" y="100" font-size="7" text-anchor="middle">N EARTH · E3</text>
+  <path d="M202 72 V78 H234 V82" class="ln"/><path d="M227 82h14M229.5 85h9M232 88h4" class="ln"/>
+  <text x="234" y="100" font-size="7" text-anchor="middle">BODY EARTH · E1, E2</text>
+  <rect x="26" y="110" width="362" height="257" class="new"/>
+  <path d="M185 106 q3 4 0 8 M195 106 q-3 4 0 8" class="ln"/>
+  <text x="182" y="236" font-size="11" text-anchor="end" class="m">415 V</text>
+  <path d="M186 240 l8 8" class="ln"/>
+  <text x="200" y="236" font-size="11" font-weight="700">1600 A TP MCCB (NA)</text>
+  <text x="134" y="280" font-size="12" font-weight="700">MDB-1</text><text x="134" y="294" font-size="10" class="m">MDB</text>
+  <text x="200" y="280" font-size="10" class="ok">415 V · 100.0%</text><text x="200" y="294" font-size="10" class="m">46% loaded</text>
+  <line x1="40" y1="320" x2="372" y2="320" class="bus"/>
+  <text x="372" y="314" font-size="9" text-anchor="end" class="m">1600 A TPN+E Cu BUSBAR</text>
+  <g class="ln"><path d="M70 320 V334 M70 342 V400"/><path d="M66 334 l8 8"/><path d="M150 320 V334 M150 342 V400"/><path d="M146 334 l8 8"/><path d="M230 320 V334 M230 342 V400"/><path d="M226 334 l8 8"/><path d="M310 320 V334 M310 342 V400"/><path d="M306 334 l8 8"/></g><g class="ln"><path d="M65 363 q3 4 0 8 M75 363 q-3 4 0 8"/><path d="M145 363 q3 4 0 8 M155 363 q-3 4 0 8"/><path d="M225 363 q3 4 0 8 M235 363 q-3 4 0 8"/><path d="M305 363 q3 4 0 8 M315 363 q-3 4 0 8"/></g><text x="74" y="352" font-size="7" class="m">400 A</text><text x="154" y="352" font-size="7" class="m">250 A</text><text x="234" y="352" font-size="7" class="m">250 A</text><text x="314" y="352" font-size="7" class="m">160 A</text>
+ </g>
+  <text x="14" y="150" font-size="8" font-weight="700">LV EARTH PITS (2 NO.)</text>
+  <text x="14" y="160" font-size="7.5" class="note">1C 50mm² CU/PVC EACH</text>
+  <text x="14" y="169" font-size="7.5" class="note">MIN. 3 m ELECTRODE WITH</text>
+  <text x="14" y="178" font-size="7.5" class="note">INSPECTION PIT AND COVER</text>
+  <path d="M188 192 H155" class="ln"/>
+  <path d="M171 188 q3 4 0 8 M181 188 q-3 4 0 8" class="ln"/>
+  <rect x="145" y="188" width="10" height="8" class="ln"/><text x="150" y="204" font-size="6.5" text-anchor="middle">TL1</text>
+  <path d="M145 192 H48 V230" class="ln"/>
+  <g class="ln"><rect x="41" y="230" width="14" height="10"/><path d="M48 235V254M41 254h14M43.5 257h9M46 260h4"/></g>
+  <text x="38" y="238" font-size="7" text-anchor="end">E4</text>
+  <path d="M188 212 H133" class="ln"/>
+  <path d="M171 208 q3 4 0 8 M181 208 q-3 4 0 8" class="ln"/>
+  <rect x="123" y="208" width="10" height="8" class="ln"/><text x="128" y="224" font-size="6.5" text-anchor="middle">TL2</text>
+  <path d="M123 212 H108 V230" class="ln"/>
+  <g class="ln"><rect x="101" y="230" width="14" height="10"/><path d="M108 235V254M101 254h14M103.5 257h9M106 260h4"/></g>
+  <text x="98" y="238" font-size="7" text-anchor="end">E5</text>
+  <path d="M48 268 H108" class="ln"/><path d="M48 268 l5 -2.5 v5 z M108 268 l-5 -2.5 v5 z" fill="#b9bcc2"/>
+  <text x="78" y="277" font-size="7" text-anchor="middle">6.0 m (MIN)</text>
+  <line x1="188" y1="172" x2="188" y2="230" class="ln" stroke-width="2.4"/>
+  <text x="193" y="180" font-size="8" font-weight="700">MET</text>
+  <text x="20" y="420" font-size="9" class="tag">① earth pits and their test links outside the frame, on the left</text>
+  <text x="20" y="434" font-size="9" class="tag">② one conductor and test link per pit (TL1, TL2), each landing on the vertical MET</text>
+  <text x="20" y="448" font-size="9" class="tag">③ frame: MET, incomer, board name, busbar and outgoing breakers</text>
+  <text x="20" y="462" font-size="9" class="tag">④ board name and results as plain text, no rounded box</text>
+</svg></div>
+<div class="card"><div class="cap">Proposed B: the SLD's only board is a DB or SMDB (authority supply) — same look</div>
+<svg width="560" height="470" viewBox="0 0 560 470">
+ <g transform="translate(150,0)">
+  <line x1="190" y1="40" x2="190" y2="320" class="ln"/>
+  <path d="M184 40 h12 l-6 -9 z" fill="#b9bcc2"/>
+  <text x="204" y="40" font-size="11" font-weight="700">DEWA LV SUPPLY</text>
+  <text x="204" y="54" font-size="10" class="m">400 A · 415 V · 3Ø + N</text>
+  <rect x="26" y="110" width="362" height="257" class="new"/>
+  <path d="M185 106 q3 4 0 8 M195 106 q-3 4 0 8" class="ln"/>
+  <text x="182" y="236" font-size="11" text-anchor="end" class="m">415 V</text>
+  <path d="M186 240 l8 8" class="ln"/>
+  <text x="200" y="236" font-size="11" font-weight="700">250 A TP MCCB</text>
+  <text x="134" y="280" font-size="12" font-weight="700">DB-1</text><text x="134" y="294" font-size="10" class="m">DB</text>
+  <text x="200" y="280" font-size="10" class="ok">411 V · 99.0%</text><text x="200" y="294" font-size="10" class="m">62% loaded</text>
+  <line x1="40" y1="320" x2="372" y2="320" class="bus"/>
+  <text x="372" y="314" font-size="9" text-anchor="end" class="m">250 A TPN+E Cu BUSBAR</text>
+  <g class="ln"><path d="M70 320 V334 M70 342 V400"/><path d="M66 334 l8 8"/><path d="M150 320 V334 M150 342 V400"/><path d="M146 334 l8 8"/><path d="M230 320 V334 M230 342 V400"/><path d="M226 334 l8 8"/><path d="M310 320 V334 M310 342 V400"/><path d="M306 334 l8 8"/></g><g class="ln"><path d="M65 363 q3 4 0 8 M75 363 q-3 4 0 8"/><path d="M145 363 q3 4 0 8 M155 363 q-3 4 0 8"/><path d="M225 363 q3 4 0 8 M235 363 q-3 4 0 8"/><path d="M305 363 q3 4 0 8 M315 363 q-3 4 0 8"/></g><text x="74" y="352" font-size="7" class="m">63 A</text><text x="154" y="352" font-size="7" class="m">40 A</text><text x="234" y="352" font-size="7" class="m">32 A</text><text x="314" y="352" font-size="7" class="m">32 A</text>
+ </g>
+  <text x="14" y="150" font-size="8" font-weight="700">LV EARTH PITS (2 NO.)</text>
+  <text x="14" y="160" font-size="7.5" class="note">1C 50mm² CU/PVC EACH</text>
+  <text x="14" y="169" font-size="7.5" class="note">MIN. 3 m ELECTRODE WITH</text>
+  <text x="14" y="178" font-size="7.5" class="note">INSPECTION PIT AND COVER</text>
+  <path d="M188 192 H155" class="ln"/>
+  <path d="M171 188 q3 4 0 8 M181 188 q-3 4 0 8" class="ln"/>
+  <rect x="145" y="188" width="10" height="8" class="ln"/><text x="150" y="204" font-size="6.5" text-anchor="middle">TL1</text>
+  <path d="M145 192 H48 V230" class="ln"/>
+  <g class="ln"><rect x="41" y="230" width="14" height="10"/><path d="M48 235V254M41 254h14M43.5 257h9M46 260h4"/></g>
+  <text x="38" y="238" font-size="7" text-anchor="end">E4</text>
+  <path d="M188 212 H133" class="ln"/>
+  <path d="M171 208 q3 4 0 8 M181 208 q-3 4 0 8" class="ln"/>
+  <rect x="123" y="208" width="10" height="8" class="ln"/><text x="128" y="224" font-size="6.5" text-anchor="middle">TL2</text>
+  <path d="M123 212 H108 V230" class="ln"/>
+  <g class="ln"><rect x="101" y="230" width="14" height="10"/><path d="M108 235V254M101 254h14M103.5 257h9M106 260h4"/></g>
+  <text x="98" y="238" font-size="7" text-anchor="end">E5</text>
+  <path d="M48 268 H108" class="ln"/><path d="M48 268 l5 -2.5 v5 z M108 268 l-5 -2.5 v5 z" fill="#b9bcc2"/>
+  <text x="78" y="277" font-size="7" text-anchor="middle">6.0 m (MIN)</text>
+  <line x1="188" y1="172" x2="188" y2="230" class="ln" stroke-width="2.4"/>
+  <text x="193" y="180" font-size="8" font-weight="700">MET</text>
+  <text x="20" y="420" font-size="9" class="tag">① no transformer: the supply enters the frame top at a gland mark</text>
+  <text x="20" y="434" font-size="9" class="tag">② earth pits, TL1 / TL2 and vertical MET: same as A</text>
+  <text x="20" y="448" font-size="9" class="tag">③ an SMDB as the only board is drawn the same way</text>
+</svg></div>
+</div>
+<p style="margin-top:14px">Details:
+<br>• Same dash as the transformer body box (4 / 3). Black-and-white in PDF and DXF exports, like every other line.
+<br>• The incomer crosses the frame top and the outgoing cables cross the bottom, each with a gland mark, as in the DEWA frame.<br>• Boards fed from another board (sub-DBs under an MDB) keep their current look.
+<br>• Only when the DEWA panel frame is off (standard style, or a DEWA main board with no outgoing panels). The DEWA framed panel is unchanged.
+<br>• One frame per main board. With two transformer-fed boards side by side, each gets its own frame and the frames never touch.
+<br>• Each pit is tested on its own at its test link; losing one conductor leaves the other pit connected (as the DEWA style already draws).<br>• Outside the frame the pits get more room: 6.0 m (MIN) reads below its dimension line, clear of the earth symbols.
+<br>No title on the frame: the board name is already inside it.</p>
+</body></html>

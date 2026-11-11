@@ -56,6 +56,13 @@ export function wayReach(project: Project, f: Feeder, load: boolean, cableRefs =
   );
 }
 
+/** How far right of its line a way's labels inside a standard-style frame reach: the breaker rating (and RCD) and, with
+ * IEC symbols, its poles and breaking capacity. The cable text is below the frame, so it is left out. */
+export function plainWayReach(f: Feeder): number {
+  const poles = f.cores === 2 ? 'SP+N' : f.cores === 3 ? 'TP' : 'TP+N';
+  return Math.max(10 + textWidth(`${f.breakerRatingA} A${f.rcdMa ? ` · ${f.rcdMa} mA` : ''}`, 12, true), 10 + textWidth(`${poles} · ${f.breakerIcuKa} kA`, 9));
+}
+
 /** Poles of a spare breaker or a space. */
 export const sparePoles = (w: SpareWay) => (w.phase === 'RYB' ? 'TP' : 'SP');
 /** A spare breaker's label: "63A TP MCCB". */

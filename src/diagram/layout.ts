@@ -3,7 +3,7 @@ import { isDbBoard, spareWaysOf } from '../model/spareWays';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import { isInterlocked } from '../model/changeover';
 import { boxedBoardIds } from './panelBox';
-import { incomerReach, spareReach, wayReach } from './panelLabels';
+import { incomerReach, plainWayReach, spareReach, wayReach } from './panelLabels';
 import { CO_GEN_REACH } from './ChangeoverSym';
 
 /** Horizontal slot per load, vertical distance between board levels. */
@@ -34,7 +34,7 @@ export interface BoardNode {
   genX?: number;
   busX1: number;
   busX2: number;
-  /** DEWA style: the panel frame's left and right edges, wide enough for every label of its ways and incomer. */
+  /** The panel frame's left and right edges (DEWA style; standard style, a root panel), wide enough for every label inside it. */
   frame?: { x1: number; x2: number };
 }
 
@@ -89,6 +89,8 @@ const ROOT_LABEL_GAP = 12;
 export interface LayoutOptions {
   /** DEWA style: a frame round each panel, as wide as its ways' and incomer's labels, and the room after it to match. */
   frames?: boolean;
+  /** Standard style: a frame round each root panel with ways (no changeover), as wide as the labels inside it. */
+  rootFrames?: boolean;
   /** Cable reference numbers instead of the cable text (shorter labels). */
   cableRefs?: boolean;
   /** Extra room above the root bus only (levels keep their spacing), e.g. for the
@@ -146,6 +148,8 @@ export function layoutSystem(project: Project, extraY = 0, opts: LayoutOptions =
     placed.add(board.id);
     const busY = rootY + depth * levelH;
     const co = isInterlocked(board), inst = instrumentSlot(board);
+    const framed = !!opts.frames || (!!opts.rootFrames && depth === 0 && !co);
+    const labelReach = (f: Feeder, load: boolean) => (opts.frames ? wayReach(project, f, load, opts.cableRefs) : plainWayReach(f));
     let cursor = left + (co ? CHANGEOVER_LEFT * LEAF_W : 0) + (inst ? LEAF_W : 0);
     const xs: number[] = [];
     // Right-hand end of the labels on this panel's ways (DEWA frames only).
@@ -158,21 +162,21 @@ export function layoutSystem(project: Project, extraY = 0, opts: LayoutOptions =
         feeders.push({ feeder: f, x, busY, panelBoardId: child.id });
         boards.push({ board: child, circuits: scheduled(child.id), terminal: true, boxed: true, depth: depth + 1, x, busY: busY + BOX_DY, headY: busY + BOX_DY, busX1: x, busX2: x });
         xs.push(x);
-        if (opts.frames) reach = Math.max(reach, x + wayReach(project, f, true, opts.cableRefs));
+        if (framed) reach = Math.max(reach, x + labelReach(f, true));
         cursor += LEAF_W;
       } else if (child && !placed.has(child.id)) {
         const w = units(child.id, new Set());
         const { node, right } = place(child, cursor, depth + 1);
         feeders.push({ feeder: f, x: node.x, busY, childBoardId: child.id });
         xs.push(node.x);
-        if (opts.frames) reach = Math.max(reach, node.x + wayReach(project, f, false, opts.cableRefs));
+        if (framed) reach = Math.max(reach, node.x + labelReach(f, false));
         // A sub-board whose frame needed more room than its slots takes it.
         cursor = Math.max(cursor + w * LEAF_W, right);
       } else {
         const x = cursor + LEAF_W / 2;
         feeders.push({ feeder: f, x, busY });
         xs.push(x);
-        if (opts.frames) reach = Math.max(reach, x + wayReach(project, f, true, opts.cableRefs));
+        if (framed) reach = Math.max(reach, x + labelReach(f, true));
         cursor += LEAF_W;
       }
     }
@@ -180,7 +184,7 @@ export function layoutSystem(project: Project, extraY = 0, opts: LayoutOptions =
       const x = cursor + LEAF_W / 2;
       spares.push({ boardId: board.id, way: w, x, busY });
       xs.push(x);
-      if (opts.frames) reach = Math.max(reach, x + spareReach(w));
+      if (framed) reach = Math.max(reach, x + spareReach(w));
       cursor += LEAF_W;
     }
     const x = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : cursor + LEAF_W / 2;
@@ -203,7 +207,7 @@ export function layoutSystem(project: Project, extraY = 0, opts: LayoutOptions =
     boards.push(node);
     // Its slots (more when a sub-board below took more), and with a frame, room for the frame before the next panel.
     let right = Math.max(left + units(board.id, new Set()) * LEAF_W, cursor + (co ? CHANGEOVER_RIGHT * LEAF_W : 0));
-    if (opts.frames && !node.terminal) {
+    if (framed && !node.terminal) {
       const x2 = Math.max(node.busX2 + FRAME_OUT, genX !== undefined ? genX + CO_GEN_REACH : -Infinity, reach + FRAME_PAD, x + incomerReach(project, board) + FRAME_PAD);
       node.frame = { x1: node.busX1 - FRAME_OUT, x2 };
       right = Math.max(right, x2 + FRAME_INSET);
