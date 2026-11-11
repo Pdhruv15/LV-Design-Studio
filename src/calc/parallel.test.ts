@@ -7,8 +7,10 @@ import { buildMdSheet, applyMdEdits } from '../docs/mdSheet';
 import { exportDss } from '../engines/opendss/exportDss';
 import type { Feeder, Project } from '../types';
 
-const incGF = sampleProject.feeders.find((f) => f.id === 'INC-GF')!;
+// One 300 mm² run (the sample has 2 × 150 mm² for DEWA Table 3), so a second run halves it.
+const incGF: Feeder = { ...sampleProject.feeders.find((f) => f.id === 'INC-GF')!, cableCsaMm2: 300, parallel: undefined };
 const withFeeder = (f: Feeder): Project => ({ ...sampleProject, feeders: sampleProject.feeders.map((x) => (x.id === f.id ? f : x)) });
+const oneRun = withFeeder(incGF);
 
 describe('parallel cables', () => {
   it('two runs: half the impedance and voltage drop, twice the rating less grouping', () => {
@@ -19,13 +21,13 @@ describe('parallel cables', () => {
     expect(deratedAmpacityA(240, 45, 2)).toBeCloseTo(deratedAmpacityA(240, 45) * 2 * 0.88, 9);
     expect(groupFactor(1)).toBe(1);
     const f2 = { ...incGF, parallel: 2 };
-    expect(voltageDropPct(f2, withFeeder(f2))).toBeCloseTo(voltageDropPct(incGF, sampleProject) / 2, 9);
-    expect(evaluateFeeder(withFeeder(f2), f2).endFaultKA).toBeGreaterThan(evaluateFeeder(sampleProject, incGF).endFaultKA);
+    expect(voltageDropPct(f2, withFeeder(f2))).toBeCloseTo(voltageDropPct(incGF, oneRun) / 2, 9);
+    expect(evaluateFeeder(withFeeder(f2), f2).endFaultKA).toBeGreaterThan(evaluateFeeder(oneRun, incGF).endFaultKA);
   });
 
   it('earth fault loop: each run has its own protective conductor', () => {
     const f2 = { ...incGF, parallel: 2 };
-    const z1 = evaluateEarthing(sampleProject, incGF).zsOhm;
+    const z1 = evaluateEarthing(oneRun, incGF).zsOhm;
     const z2 = evaluateEarthing(withFeeder(f2), f2).zsOhm;
     expect(z2).toBeLessThan(z1);
   });
@@ -44,7 +46,8 @@ describe('parallel cables', () => {
     const p = { ...sampleProject, feeders: [...sampleProject.feeders, f] };
     const r = recommend(p, f, 'optimise');
     expect(r.parallel).toBeGreaterThan(1);
-    expect(r.note).toMatch(/cables in parallel/);
+    // DEWA Table 3 sets the runs here: 3 × 300 mm² carries 1250 A by Iz but the table allows 1200 A.
+    expect(r.note).toBe('DEWA Table 3: 4 × 240 mm² for 1250 A (3 × 300 mm² max 1200 A)');
     const sized = applyRecommendation(f, r);
     const p2 = { ...p, feeders: p.feeders.map((x) => (x.id === 'BIG' ? sized : x)) };
     const e = evaluateFeeder(p2, sized);

@@ -71,7 +71,7 @@ describe('cable tray sizing', () => {
     expect(res.cableCount).toBe(runs);
     const withEcc = sizeRoute(p, { ...trayPlanOf(p), settings: { ...trayPlanOf(p).settings, includeEcc: true } }, route);
     expect(withEcc.cableCount).toBe(runs * 2);
-    expect(withEcc.loadedPerTier).toBe(res.loadedPerTier); // ECCs don't count for grouping
+    expect(withEcc.loadedPerTier).toBe(Math.ceil(runs / withEcc.tiers)); // ECCs don't count for grouping (they may add a tier)
   });
 
   it('a path puts a cable on every route along it; rename, remove and delete keep paths in step', () => {

@@ -290,6 +290,7 @@ function circuitRow(x: CalcRun['results'][number]) {
     x.ampacityStatus === 'bad' && 'cable rating Iz < Ib',
     x.protectionStatus === 'bad' && 'not Ib ≤ In ≤ Iz',
     x.vdStatus !== 'ok' && `voltage drop ${r(x.vdTotalPct)} %`,
+    x.limits?.status === 'bad' && x.limits.message,
     x.icuStatus === 'bad' && `breaker Icu ${f.breakerIcuKa} kA < fault ${r(x.breakerFaultKA, 1)} kA`,
     x.loadingPct > 85 && `loading ${r(x.loadingPct, 0)} %`
   ].filter((s): s is string => typeof s === 'string');

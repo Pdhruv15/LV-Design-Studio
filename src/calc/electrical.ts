@@ -6,6 +6,7 @@ import { feederRatingBasis, type RatingBasis } from './installation';
 import type { Board, Feeder, Project } from '../types';
 import { boardPhasePQ, type PhasePQ } from './loadSchedule';
 import { fmtFixed } from '../util/format';
+import { checkLimits, type LimitCheck } from './authorityLimits';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -209,9 +210,11 @@ export function selectCable(
   /** The feeder's own voltage-drop evaluator (an incomer's downstream P / Q basis). */
   vdAt?: (csaMm2: number, runs: number) => number,
   /** The feeder's own rating evaluator (its installation method); default: method E at ambientC. */
-  izAt?: (csaMm2: number, runs: number) => number
+  izAt?: (csaMm2: number, runs: number) => number,
+  /** Extra rule a size must also meet (an authority's cable / breaker limits). */
+  allowAt?: (csaMm2: number, runs: number) => boolean
 ): number | null {
-  return selectCableRuns(ib, lengthM, systemVoltageV, cores, cosPhi, ambientC, vdBudgetPct, breakerRatingA, 1, undefined, tempC, vdAt, izAt)?.csaMm2 ?? null;
+  return selectCableRuns(ib, lengthM, systemVoltageV, cores, cosPhi, ambientC, vdBudgetPct, breakerRatingA, 1, undefined, tempC, vdAt, izAt, allowAt)?.csaMm2 ?? null;
 }
 
 /** Like selectCable, but when no single cable fits, tries 2, 3… runs in
@@ -234,7 +237,9 @@ export function selectCableRuns(
   vdAt?: (csaMm2: number, runs: number) => number,
   /** The feeder's own rating evaluator (its installation method); default: method E at ambientC. A size with no
    * rating (NaN) is never chosen. */
-  izAt?: (csaMm2: number, runs: number) => number
+  izAt?: (csaMm2: number, runs: number) => number,
+  /** Extra rule a size must also meet (an authority's cable / breaker limits, src/calc/authorityLimits.ts). */
+  allowAt?: (csaMm2: number, runs: number) => boolean
 ): { csaMm2: number; runs: number } | null {
   const requiredIz = Math.max(ib, breakerRatingA);
   for (let runs = 1; runs <= maxRuns; runs++) {
@@ -242,6 +247,7 @@ export function selectCableRuns(
       if (runs > 1 && c.csaMm2 < 50) continue;
       const iz = izAt ? izAt(c.csaMm2, runs) : c.ampacityA * ambientCorrectionFactor(ambientC) * runs * (trayFactor ?? groupFactor(runs));
       if (!(iz >= requiredIz)) continue;
+      if (allowAt && !allowAt(c.csaMm2, runs)) continue;
       if ((vdAt ? vdAt(c.csaMm2, runs) : vdPctFor(ib, c.csaMm2, lengthM, cores, cosPhi, systemVoltageV, runs, tempC)) <= vdBudgetPct) return { csaMm2: c.csaMm2, runs };
     }
   }
@@ -376,6 +382,8 @@ export interface FeederResult {
   endFaultKA: number;
   /** Breaker breaking capacity Icu ≥ fault at its terminals. */
   icuStatus: 'ok' | 'bad';
+  /** The authority's cable / breaker limits (DEWA Table 3, DB feeder minimum); absent when none apply. */
+  limits?: LimitCheck;
   status: Status;
 }
 
@@ -415,12 +423,13 @@ function evaluateFeederOf(project: Project, feeder: Feeder): FeederResult {
   const icuStatus = feeder.breakerIcuKa >= breakerFaultKA ? 'ok' : 'bad';
   const loadingStatus: Status = loadingPct > 100 ? 'bad' : loadingPct > 85 ? 'warn' : 'ok';
 
-  const statuses: Status[] = [vdStatus, ampacityStatus, protectionStatus, icuStatus, loadingStatus];
+  const limits = checkLimits(project, feeder, ib, runsOf(feeder));
+  const statuses: Status[] = [vdStatus, ampacityStatus, protectionStatus, icuStatus, loadingStatus, limits?.status ?? 'ok'];
   const status: Status = statuses.includes('bad') ? 'bad' : statuses.includes('warn') ? 'warn' : 'ok';
 
   return {
     feeder, ib, ampacity, tray, rating, loadingPct, vdPct, vdUpstreamPct, vdTotalPct, vdStatus,
-    ampacityStatus, protectionStatus, breakerFaultKA, endFaultKA, icuStatus, status
+    ampacityStatus, protectionStatus, breakerFaultKA, endFaultKA, icuStatus, ...(limits && { limits }), status
   };
 }
 

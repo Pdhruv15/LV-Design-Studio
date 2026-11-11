@@ -8,6 +8,7 @@ import { QuickSelectDialog } from './CadQuickSelect';
 import { CadStatusToggles } from './CadStatusToggles';
 import { CadFilePaper } from './CadFilePaper';
 import { fileLayoutId, fileLayoutOf, fileLayoutTitle } from '../../model/fileLayouts';
+import { asFileLayout, drawingLayoutId, drawingLayoutOf, drawingLayoutsOf, newDrawingLayout, nextLayoutName, withDrawingLayouts } from '../../model/drawingLayouts';
 import type { ZoomReq } from './CadCanvas';
 import type { ZoomMenuKey } from '../drawingView';
 import { parseZoomScale } from '../../model/cadView';
@@ -739,7 +740,19 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const sheetL = cad.layout ? layouts.find((s) => s.id === cad.layout) : undefined;
   /** The drawing file's own layout showing (paper space as saved in the file), when that tab is picked. */
   const fileL = fileLayoutOf(view?.layouts, cad.layout);
-  useEffect(() => { if (cad.layout && !sheetL && !fileL) cad.setLayout(null); }, [cad.layout, sheetL, fileL]); // eslint-disable-line react-hooks/exhaustive-deps -- a layout gone (deleted, another level)
+  /** The layouts made on this drawing here (+), and the one showing; shown on paper as the file's own are. */
+  const dwgLayouts = drawingLayoutsOf(project, view?.file);
+  const dwgL = drawingLayoutOf(dwgLayouts, cad.layout);
+  const paperL = useMemo(() => fileL ?? (dwgL ? asFileLayout(dwgL, (view?.layouts.length ?? 0) + dwgLayouts.indexOf(dwgL) + 1) : undefined), [fileL, dwgL]); // eslint-disable-line react-hooks/exhaustive-deps -- by the layout
+  const layoutNames = [...(view?.layouts ?? []).map((l) => l.name), ...dwgLayouts.map((l) => l.name)];
+  const setDwgLayouts = (list: typeof dwgLayouts, what: string) => { if (view) change(withDrawingLayouts(project, view.file, list), `LAYOUT  ${what} · ⌘Z to undo`); };
+  const addDrawingLayout = () => {
+    if (!view) return;
+    const l = newDrawingLayout(nextLayoutName(layoutNames), view.info.extents, units.factor * 1000);
+    setDwgLayouts([...dwgLayouts, l], `${l.name} — A3 paper, the whole drawing in one viewport at ${fileLayoutTitle(asFileLayout(l, 0), units.factor * 1000).split(' at ')[1] ?? '1:100'}`);
+    cad.setLayout(drawingLayoutId(l.name));
+  };
+  useEffect(() => { if (cad.layout && !sheetL && !fileL && !dwgL) cad.setLayout(null); }, [cad.layout, sheetL, fileL, dwgL]); // eslint-disable-line react-hooks/exhaustive-deps -- a layout gone (deleted, another level)
   useEffect(() => { if (!sheetL) { setMv(false); setPlacing(null); } }, [sheetL]);
   const vps = sheetL ? layoutViewports(project, sheetL) : [];
   const msV = vps.find((v) => v.id === cad.msVp), selV = vps.find((v) => v.id === cad.vpSel);
@@ -752,7 +765,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const setVps = (f: (list: PlanViewport[]) => PlanViewport[], what: string) => { if (sheetL) change(changeViewports(project, sheetL, f), `${sheetL.number || 'Layout'}  ${what} · ⌘Z to undo`); };
   const patchVp = (v: PlanViewport, patch: Partial<PlanViewport>, what: string) => setVps((l) => patchViewport(l, v.id, patch), `${vpName(vps, v.id)}: ${what}`);
   const addLayout = (type: PlanType) => {
-    if (!lv) { cad.say('LAYOUT  Choose the level this drawing is the plan of first (ribbon: Level).'); return; }
+    if (!lv) { cad.say('LAYOUT  Add the building and its levels in Building information first: a layout is a plan sheet of a level.'); return; }
     const r = newLayout(setOf(project), lv, type);
     change({ ...project, drawingSet: r.set }, `LAYOUT  ${r.set.sheets.find((x) => x.id === r.id)?.number ?? ''} ${lv.name} · ${PLAN_LABEL[type]} — a new layout and plan sheet · ⌘Z to undo`);
     cad.setLayout(r.id);
@@ -761,10 +774,16 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** Layout commands (and LAYOUT / MODEL from the Model tab); true when the command was one. */
   function layoutCmd(c: string): boolean {
     const [w, arg] = c.split(' ');
-    if (w === 'LAYOUT' || w === 'LO') { addLayout(PLAN_TYPES.find((t) => t.toUpperCase().startsWith(arg ?? 'L')) ?? 'lighting'); return true; }
+    if (w === 'LAYOUT' || w === 'LO') {
+      // LAYOUT alone: a layout of the drawing; LAYOUT L / P / E / C: a plan sheet of the level.
+      const t = arg ? PLAN_TYPES.find((x) => x.toUpperCase().startsWith(arg)) : undefined;
+      if (t) addLayout(t); else addDrawingLayout();
+      return true;
+    }
     if (w === 'MODEL') { cad.setLayout(null); return true; }
-    if (fileL && /^(MV|MVIEW|MS|MSPACE|PS|PSPACE|VPSCALE|VPLOCK|LEGEND|LG|NOTES)$/.test(w)) {
-      cad.say(`${w}  ${fileL.name} is the drawing file's own layout, shown as it was saved; its viewports are not changed here yet. The project's plan sheets (+ on a drawing tied to a level) can be.`);
+    if (paperL && /^(MV|MVIEW|MS|MSPACE|PS|PSPACE|VPSCALE|VPLOCK|LEGEND|LG|NOTES)$/.test(w)) {
+      cad.say(fileL ? `${w}  ${fileL.name} is the drawing file's own layout, shown as it was saved; its viewports are not changed here yet. The project's plan sheets (right-click a tab) can be.`
+        : `${w}  ${paperL.name} shows the whole drawing; its viewports are not changed here yet. The project's plan sheets (right-click a tab) can be.`);
       return true;
     }
     if (!sheetL) return false;
@@ -2393,6 +2412,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (renamingLayout && raw) {
       const id = renamingLayout, set = setOf(project);
       setRenamingLayout(null);
+      const d = drawingLayoutOf(dwgLayouts, id);
+      if (d) {
+        if (layoutNames.some((n) => n.toLowerCase() === raw.toLowerCase() && n !== d.name)) { cad.say(`RENAME  There is a layout "${raw}" already.`); return; }
+        setDwgLayouts(dwgLayouts.map((x) => (x === d ? { ...x, name: raw } : x)), `${d.name} renamed "${raw}"`);
+        if (cad.layout === id) cad.setLayout(drawingLayoutId(raw));
+        return;
+      }
       change({ ...project, drawingSet: { ...set, sheets: set.sheets.map((x) => (x.id === id ? { ...x, title: raw } : x)) } }, `LAYOUT  renamed "${raw}" · ⌘Z to undo`);
       return;
     }
@@ -3406,9 +3432,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             if (JSON.stringify(keep) === JSON.stringify(project.cadDimStyles)) { cad.say('DIMSTYLE  No change.'); return; }
             change(keep ? { ...project, cadDimStyles: keep } : rest, `DIMSTYLE  ${s.styles.length} dimension style${s.styles.length === 1 ? '' : 's'}, current "${s.current}" · ⌘Z to undo`);
           }} />}
-        {view && fileL ? (
+        {view && paperL ? (
           <div className="cad-stage cad-paper">
-            <CadFilePaper layout={fileL} model={view} onDblClick={() => cad.say(`LAYOUT  ${fileL.name} is shown as the drawing file has it: work in the model on the Model tab.`)} />
+            <CadFilePaper layout={paperL} model={view} onDblClick={() => cad.say(fileL ? `LAYOUT  ${fileL.name} is shown as the drawing file has it: work in the model on the Model tab.` : `LAYOUT  ${paperL.name} shows the model: work in it on the Model tab.`)} />
           </div>
         ) : view && sheetL ? (
           <div className="cad-stage cad-paper">
@@ -3462,8 +3488,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         {dockSide === 'right' ? dock : info}
       </div>
       <CadCommandLine history={cad.history} live={EDIT_TOOLS.includes(tool) ? promptNow(edSet) : undefined} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
-      {view && <LayoutTabs files={view.layouts.map((l) => ({ id: fileLayoutId(l.name), name: l.name, title: fileLayoutTitle(l, units.factor * 1000) }))} layouts={layouts} active={sheetL?.id ?? (fileL ? fileLayoutId(fileL.name) : null)} onPick={(id) => { cad.setLayout(id); const f = fileLayoutOf(view.layouts, id); if (f) cad.say(`LAYOUT  ${f.name} — the drawing file's own layout, as saved: ${fileLayoutTitle(f, units.factor * 1000)}.`); else if (id) cad.say(`LAYOUT  ${layouts.find((x) => x.id === id)?.number ?? ''} — the paper; double-click inside a viewport to work in it, MV adds one.`); }}
-        onNew={lv ? addLayout : undefined} onRename={(x) => { setRenamingLayout(x.id); cad.say(`RENAME  Type the new title of ${x.number} (now "${x.title}"):`); input.current?.focus(); }}
+      {view && <LayoutTabs files={view.layouts.map((l) => ({ id: fileLayoutId(l.name), name: l.name, title: fileLayoutTitle(l, units.factor * 1000) }))} drawings={dwgLayouts.map((l, n) => ({ id: drawingLayoutId(l.name), name: l.name, title: fileLayoutTitle(asFileLayout(l, n), units.factor * 1000) }))} layouts={layouts} active={sheetL?.id ?? (fileL ? fileLayoutId(fileL.name) : dwgL ? drawingLayoutId(dwgL.name) : null)} onPick={(id) => { cad.setLayout(id); const f = fileLayoutOf(view.layouts, id); const d = drawingLayoutOf(dwgLayouts, id); if (f) cad.say(`LAYOUT  ${f.name} — the drawing file's own layout, as saved: ${fileLayoutTitle(f, units.factor * 1000)}.`); else if (d) cad.say(`LAYOUT  ${d.name} — ${fileLayoutTitle(asFileLayout(d, 0), units.factor * 1000)}.`); else if (id) cad.say(`LAYOUT  ${layouts.find((x) => x.id === id)?.number ?? ''} — the paper; double-click inside a viewport to work in it, MV adds one.`); }}
+        onNew={addDrawingLayout} onNewSheet={addLayout}
+        onDrawing={{
+          rename: (d) => { setRenamingLayout(d.id); cad.say(`RENAME  Type the new name of ${d.name}:`); input.current?.focus(); },
+          copy: (d) => { const l = drawingLayoutOf(dwgLayouts, d.id); if (!l) return; const c = { ...l, name: nextLayoutName(layoutNames), viewports: l.viewports.map((v) => ({ ...v })) }; setDwgLayouts([...dwgLayouts, c], `${l.name} copied as ${c.name}`); cad.setLayout(drawingLayoutId(c.name)); },
+          move: (d, dir) => { const i = dwgLayouts.findIndex((l) => drawingLayoutId(l.name) === d.id), j = i + dir; if (i < 0 || j < 0 || j >= dwgLayouts.length) return; const list = [...dwgLayouts]; [list[i], list[j]] = [list[j], list[i]]; setDwgLayouts(list, `${d.name} moved ${dir < 0 ? 'left' : 'right'}`); },
+          remove: (d) => { setDwgLayouts(dwgLayouts.filter((l) => drawingLayoutId(l.name) !== d.id), `${d.name} deleted`); if (cad.layout === d.id) cad.setLayout(null); }
+        }}
+        onRename={(x) => { setRenamingLayout(x.id); cad.say(`RENAME  Type the new title of ${x.number} (now "${x.title}"):`); input.current?.focus(); }}
         onCopy={(x) => { if (!lv) return; const r = newLayout(setOf(project), lv, x.plan ?? 'lighting', x); change({ ...project, drawingSet: r.set }, `LAYOUT  ${x.number} copied · ⌘Z to undo`); cad.setLayout(r.id); }}
         onMove={(x, dir) => change({ ...project, drawingSet: renumber(moveLayout(setOf(project), x.id, dir)) }, `LAYOUT  ${x.number} moved ${dir < 0 ? 'left' : 'right'} · ⌘Z to undo`)}
         onDelete={(x) => { const set = setOf(project); change({ ...project, drawingSet: { ...set, sheets: set.sheets.filter((y) => y.id !== x.id) } }, `LAYOUT  ${x.number} ${x.title} deleted (its sheet too) · ⌘Z to undo`); if (cad.layout === x.id) cad.setLayout(null); }}
@@ -3472,9 +3505,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         <CadStatusToggles toggles={cad.toggles} gridDots={cad.gridDots} draft={draft} canFit={!!view} onToggle={cad.toggle} onCycleGrid={cad.cycleGrid} onSettings={setDsTab} onFit={() => cad.fit()}
           onDraft={onPrefs ? (d) => onPrefs({ draft: d, autosaveMin }) : undefined} />
         <span className="sp" />
-        {fileL ? <>
-          <span className="cad-tg on" title="On the drawing file's own layout (paper space)">PAPER</span>
-          <span>{`${fileL.name} · ${fileLayoutTitle(fileL, units.factor * 1000)}`}</span>
+        {paperL ? <>
+          <span className="cad-tg on" title={fileL ? "On the drawing file's own layout (paper space)" : 'On a layout of the drawing (paper space)'}>PAPER</span>
+          <span>{`${paperL.name} · ${fileLayoutTitle(paperL, units.factor * 1000)}`}</span>
         </> : sheetL ? <>
           <button className={`cad-tg on`} aria-label={msV ? 'Model space in a viewport' : 'Paper space'} title={msV ? 'In the model through a viewport: click for the paper (PS)' : 'On the paper: click to work in a viewport (MS)'} onClick={() => run(msV ? 'PS' : 'MS')}>{msV ? 'MODEL' : 'PAPER'}</button>
           {vpTarget && <span>{`${vpName(vps, vpTarget.id)} · 1:${vpTarget.scale}${isLocked(vpTarget) ? ' · locked' : ''}`}</span>}

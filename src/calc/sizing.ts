@@ -5,6 +5,7 @@ import { isMotor, motorStartDipPct, runningKva, startingKva } from './motor';
 import { generatorFor } from '../database/catalog';
 import { settingsOf, type Board, type BreakerType, type Feeder, type Project } from '../types';
 import { forgetNetworks } from './network';
+import { combinationAllowed, isLimitRemark, minBreakerA, projectLimitsOf, sizedUpRemark, sizingLimitsOf } from './authorityLimits';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -254,6 +255,8 @@ export interface Recommendation {
   cableCsaMm2?: number;
   /** Cable runs in parallel for cableCsaMm2. */
   parallel?: number;
+  /** The feeder's remarks after sizing: a limit remark ("DEWA Table 3: …") is added, replaced or cleared; the user's own are kept. */
+  remarks?: string;
   changed: boolean;
   note?: string;
 }
@@ -267,7 +270,8 @@ export function recommend(project: Project, f: Feeder, mode: SelectionMode = 'fi
   // In ≥ Ib / 0.85 keeps breaker loading below the 85 % warning threshold.
   // Capacitor banks: In ≥ 1.43 × rated current (IEC 60831 — 1.3 for
   // harmonics × 1.1 capacitance tolerance); otherwise keep loading < 85 %.
-  const minIn = nextStandard(breakerRatings(), f.kvar ? ib * 1.43 : ib / 0.85);
+  const limits = sizingLimitsOf(project);
+  const minIn = nextStandard(breakerRatings(), Math.max(f.kvar ? ib * 1.43 : ib / 0.85, minBreakerA(limits, f)));
   const breakerRatingA = mode === 'fix' && minIn !== undefined && f.breakerRatingA >= minIn ? f.breakerRatingA : minIn;
   const faultKA = faultCurrentKA(impedanceToBoard(project, f.boardId), project.voltageV);
   const minIcu = nextStandard(icuSteps(), faultKA);
@@ -286,31 +290,44 @@ export function recommend(project: Project, f: Feeder, mode: SelectionMode = 'fi
     : project.vdLimitPct * 0.85 - upstreamVoltageDropPct(project, f.boardId);
   // One run up to 300 mm², then 2–4 runs in parallel (up to 8 for the
   // big feeders above 1000 A, e.g. a transformer's main LV feeders).
-  const minCable = breakerRatingA
-    ? selectCableRuns(ib, f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, breakerRatingA, ib > 1000 ? 8 : 4, trayFactorOf(project, f)?.factor, project.vdTempC, vdEvaluator(f, project), izEvaluator(f, project)) ?? undefined
+  // The authority's limits (DEWA Table 3, DB feeder minimum) can only make the cable larger.
+  const select = (allow?: (csa: number, runs: number) => boolean) => breakerRatingA
+    ? selectCableRuns(ib, f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, breakerRatingA, ib > 1000 ? 8 : 4, trayFactorOf(project, f)?.factor, project.vdTempC, vdEvaluator(f, project), izEvaluator(f, project), allow) ?? undefined
     : undefined;
+  const allow = limits && breakerRatingA ? (csa: number, runs: number) => combinationAllowed(limits, f, csa, runs, breakerRatingA, ib) : undefined;
+  const minCable = select(allow);
   // 'fix' keeps the cable the feeder has when it already meets both the
-  // breaker (Iz ≥ In) and the voltage drop budget.
+  // breaker (Iz ≥ In), the voltage drop budget and the authority's limits.
   const keep = mode === 'fix' && !!breakerRatingA &&
     feederRating(project, f).iz >= Math.max(ib, breakerRatingA) &&
-    voltageDropPct(f, project) <= budget + 1e-9;
+    voltageDropPct(f, project) <= budget + 1e-9 &&
+    (!allow || allow(f.cableCsaMm2, runsOf(f)));
   const cableCsaMm2 = keep ? f.cableCsaMm2 : minCable?.csaMm2;
   const parallel = keep ? runsOf(f) : minCable?.runs;
+  // Remark when the limits, not the calculation, set the size; cleared when they no longer do.
+  const byCalc = allow && !keep && minCable ? select() : undefined;
+  const limitRemark = limits && breakerRatingA && minCable && byCalc && (byCalc.csaMm2 !== minCable.csaMm2 || byCalc.runs !== minCable.runs)
+    ? sizedUpRemark(limits, f, byCalc, minCable, breakerRatingA)
+    : undefined;
+  const remarks = keep ? f.remarks : isLimitRemark(f.remarks, projectLimitsOf(project)) ? limitRemark : !f.remarks?.trim() ? limitRemark ?? f.remarks : f.remarks;
 
   const note = !breakerRatingA
     ? 'Current above the largest standard breaker'
     : !cableCsaMm2
       ? `No cable fits, even ${ib > 1000 ? 8 : 4} runs of 300 mm² — shorten the run, split the load or use busbar trunking`
-      : parallel && parallel > 1 && parallel !== runsOf(f)
-        ? `${parallel} cables in parallel`
-        : undefined;
+      : limitRemark
+        ? limitRemark
+        : parallel && parallel > 1 && parallel !== runsOf(f)
+          ? `${parallel} cables in parallel`
+          : undefined;
   const changed =
     (breakerRatingA !== undefined && breakerRatingA !== f.breakerRatingA) ||
     (breakerIcuKa !== undefined && breakerIcuKa !== f.breakerIcuKa) ||
     (cableCsaMm2 !== undefined && cableCsaMm2 !== f.cableCsaMm2) ||
     (parallel !== undefined && parallel !== runsOf(f)) ||
-    breakerType !== current;
-  return { feeder: f, ib, breakerRatingA, breakerType, breakerIcuKa, cableCsaMm2, parallel, changed, note };
+    breakerType !== current ||
+    (remarks ?? '') !== (f.remarks ?? '');
+  return { feeder: f, ib, breakerRatingA, breakerType, breakerIcuKa, cableCsaMm2, parallel, remarks, changed, note };
 }
 
 export function applyRecommendation(f: Feeder, r: Recommendation): Feeder {
@@ -321,6 +338,7 @@ export function applyRecommendation(f: Feeder, r: Recommendation): Feeder {
     cableCsaMm2: r.cableCsaMm2 ?? f.cableCsaMm2,
     parallel: r.parallel !== undefined ? (r.parallel > 1 ? r.parallel : undefined) : f.parallel,
     breakerType: r.breakerType,
+    remarks: r.remarks,
     cpcMm2: r.cableCsaMm2 && r.cableCsaMm2 !== f.cableCsaMm2 ? undefined : f.cpcMm2 // re-derive CPC for a new cable size
   };
 }

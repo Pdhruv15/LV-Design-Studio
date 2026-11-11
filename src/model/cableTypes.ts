@@ -26,6 +26,8 @@ export const CABLE_TYPE_DEFS: CableTypeDef[] = [
   { value: 'XLPE/PVC', label: 'Cu/XLPE/PVC (unarmoured)', code: 'XLPE' },
   { value: 'XLPE 1C', label: 'Cu/XLPE single-core', code: '1C XLPE' },
   { value: 'PVC/PVC', label: 'Cu/PVC/PVC (flexible / wiring)', code: 'PVC' },
+  { value: 'PVC/SWA/PVC', label: 'Cu/PVC/SWA/PVC (armoured)', code: 'PVC/SWA', armoured: true },
+  { value: 'PVC 1C', label: 'Cu/PVC single-core wires in conduit', code: '1C PVC' },
   { value: 'FR BS 8491', label: 'Fire-rated, BS 8491 (120 min, large cables)', code: 'FR', fireRated: true, lszh: true, armoured: true },
   { value: 'FR BS 6387 CWZ', label: 'Fire-rated, BS 6387 CWZ', code: 'FR', fireRated: true, lszh: true },
   { value: 'FR IEC 60331', label: 'Fire-rated, IEC 60331', code: 'FR', fireRated: true, lszh: true },

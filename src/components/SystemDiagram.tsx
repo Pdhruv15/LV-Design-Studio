@@ -27,7 +27,7 @@ import { cables } from '../calc/cableTable';
 import { upsLoadingPct } from '../calc/sizing';
 import { isMotor, starterInfo, starterOf } from '../calc/motor';
 import { sldDevices } from '../diagram/sldDevices';
-import { breakerText, cableLines, fireRatedWarning, icuText, incomerReach, incomerTexts, isolatorText, sparePoles, spareText, supplyReach, textWidth } from '../diagram/panelLabels';
+import { breakerText, cableLines, fireRatedWarning, icuText, incomerReach, incomerTexts, isolatorText, busbarLines, sparePoles, spareText, supplyReach, textWidth } from '../diagram/panelLabels';
 import { cableSizeText, faultCurrentKA, impedanceToBoard, runsOf, upstreamVoltageDropPct } from '../calc/electrical';
 import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun, type OutageScenario } from '../calc/scenario';
 import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
@@ -1658,13 +1658,14 @@ export default function SystemDiagram({
                 </>
               )}
               {/* Busbar description at its right-hand end, the same wording on every panel:
-                  "630 A TPN+E Cu BUSBAR", wrapped onto two lines where it would reach the incoming line.
+                  "630 A TPN+E Cu BUSBAR", wrapped onto two lines where it would reach the incoming line
+                  (the layout runs the busbar far enough right for the two lines).
                   The way count and full description are in the tooltip (and the panel schedule). */}
               {!n.terminal && b.ratedCurrentA && (() => {
                 const ways = layout.feeders.filter((f) => f.feeder.boardId === b.id).length + layout.spares.filter((x) => x.boardId === b.id).length;
                 const al = b.busbarMaterial === 'aluminium';
                 const full = `${ways} WAY ${b.ratedCurrentA} A TPN+E ${al ? 'ALUMINIUM' : 'COPPER'} BUSBAR`;
-                const head = `${b.ratedCurrentA} A TPN+E`, tail = `${al ? 'Al' : 'Cu'} BUSBAR`;
+                const [head, tail] = busbarLines(b)!;
                 // On a changeover both ends carry an incomer: the label goes under the busbar's left end,
                 // where no outgoing way drops.
                 const co = isInterlocked(b);

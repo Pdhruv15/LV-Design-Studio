@@ -3,7 +3,7 @@ import { isDbBoard, spareWaysOf } from '../model/spareWays';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import { isInterlocked } from '../model/changeover';
 import { boxedBoardIds } from './panelBox';
-import { incomerReach, spareReach, wayReach } from './panelLabels';
+import { busbarReach, incomerReach, spareReach, wayReach } from './panelLabels';
 import { CO_GEN_REACH } from './ChangeoverSym';
 
 /** Horizontal slot per load, vertical distance between board levels. */
@@ -198,11 +198,12 @@ export function layoutSystem(project: Project, extraY = 0, opts: LayoutOptions =
       genX,
       // A changeover's busbar runs under its mains instruments too, as on DEWA drawings.
       busX1: co || inst ? left + 12 : Math.min(x - half, xs.length ? Math.min(...xs) - half : x - half),
-      busX2: Math.max(x + half, xs.length ? Math.max(...xs) + half : x + half, genX !== undefined ? genX + 14 : -Infinity)
+      // Long enough on the right for the busbar description, so it never reaches back over the incoming line.
+      busX2: Math.max(x + half, xs.length ? Math.max(...xs) + half : x + half, genX !== undefined ? genX + 14 : -Infinity, co || !xs.length ? -Infinity : x + busbarReach(board))
     };
     boards.push(node);
     // Its slots (more when a sub-board below took more), and with a frame, room for the frame before the next panel.
-    let right = Math.max(left + units(board.id, new Set()) * LEAF_W, cursor + (co ? CHANGEOVER_RIGHT * LEAF_W : 0));
+    let right = Math.max(left + units(board.id, new Set()) * LEAF_W, cursor + (co ? CHANGEOVER_RIGHT * LEAF_W : 0), node.busX2 + LEAF_W / 2 - half);
     if (opts.frames && !node.terminal) {
       const x2 = Math.max(node.busX2 + FRAME_OUT, genX !== undefined ? genX + CO_GEN_REACH : -Infinity, reach + FRAME_PAD, x + incomerReach(project, board) + FRAME_PAD);
       node.frame = { x1: node.busX1 - FRAME_OUT, x2 };

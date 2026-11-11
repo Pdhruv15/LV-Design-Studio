@@ -3,6 +3,7 @@ import { cableTypeDef } from './cableTypes';
 import { designCurrentA, izEvaluator, selectCable, upstreamVoltageDropPct, vdEvaluator } from '../calc/electrical';
 import { applyRecommendation, recommend } from '../calc/sizing';
 import { BOARD_KINDS, type Board, type BoardKind, type Feeder, type LoadType, type MeterType, type Project, type StarterType } from '../types';
+import { limitRule } from '../calc/authorityLimits';
 
 /** Feeder presets: a whole outgoing way in one drag — breaker, earth
  * leakage, metering, local isolator and the load or sub-board it feeds.
@@ -210,7 +211,7 @@ export function applyPreset(project: Project, p: FeederPreset, boardId: string):
   if (p.breakerRatingA && p.breakerRatingA !== sized.breakerRatingA) {
     // A fixed breaker rating: the cable must carry it (Iz ≥ In) within the voltage drop budget.
     const budget = project.vdLimitPct * 0.85 - upstreamVoltageDropPct(project, boardId);
-    const csa = selectCable(designCurrentA(f, project), f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, rating, project.vdTempC, vdEvaluator(f, project), izEvaluator(f, project));
+    const csa = selectCable(designCurrentA(f, project), f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, rating, project.vdTempC, vdEvaluator(f, project), izEvaluator(f, project), limitRule(project, f, rating, designCurrentA(f, project)));
     if (csa) f = { ...f, cableCsaMm2: csa, parallel: undefined, cpcMm2: undefined };
   }
   return {

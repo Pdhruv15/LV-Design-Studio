@@ -148,7 +148,7 @@ describe('revision comparison records design changes', () => {
   const fields = (q: Project) => diffProjects(snapshotOf(p0), snapshotOf(q)).changes.flatMap((c) => c.fields.map((f) => f.field));
   const f0 = p0.feeders[0];
   it.each([
-    ['Parallel runs', { feeders: p0.feeders.map((f) => (f === f0 ? { ...f, parallel: 2 } : f)) }],
+    ['Parallel runs', { feeders: p0.feeders.map((f) => (f === f0 ? { ...f, parallel: (f.parallel ?? 1) + 1 } : f)) }],
     ['Tray route', { feeders: p0.feeders.map((f) => (f === f0 ? { ...f, trayRoute: 'A-B' } : f)) }],
     ['Instantaneous (× In)', { feeders: p0.feeders.map((f) => (f === f0 ? { ...f, breakerImMultiple: 5 } : f)) }],
     ['Essential (generator)', { feeders: p0.feeders.map((f) => (f === f0 ? { ...f, essential: true } : f)) }],

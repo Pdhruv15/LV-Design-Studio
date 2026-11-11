@@ -13,7 +13,7 @@ const accept = (p: Project, r: ModificationRecord) => {
   for (const s of ['proposed', 'accepted'] as const) { const t = transition(p, r, s, { by: 'Asha', note: 'ok', now: NOW }); if (!t.ok) throw new Error(t.error); r = t.record; }
   return r;
 };
-const two = (p: Project) => addOp(p, addOp(p, newModification(p, { title: 'T', reason: 'R' }, NOW), 'feeder', f0, 'cableCsaMm2', feeder(p).cableCsaMm2 + 10), 'feeder', f1, 'loadKw', feeder(p, f1).loadKw + 1);
+const two = (p: Project) => addOp(p, addOp(p, newModification(p, { title: 'T', reason: 'R' }, NOW), 'feeder', f0, 'cableCsaMm2', feeder(p).cableCsaMm2 + 6), 'feeder', f1, 'loadKw', feeder(p, f1).loadKw + 1);
 
 describe('M4 — decisions', () => {
   it('a decision records who, when, why and where the evidence is; a rejection needs a reason', () => {
@@ -37,14 +37,14 @@ describe('M4 — conflicts and atomic application', () => {
     const edited = withRecord({ ...p, info: { ...p.info, tel: '04 000 0000' }, name: 'Renamed', boq: { projectType: 'fit-out' } as Project['boq'], feeders: p.feeders.map((f) => (f.id === 'FF-OFF' ? { ...f, remarks: 'x' } : f)) }, r);
     const a = applyModification(edited, r.id, { by: 'Ravi', now: NOW });
     expect(a.ok).toBe(true);
-    if (a.ok) { expect(feeder(a.project).cableCsaMm2).toBe(feeder(p).cableCsaMm2 + 10); expect(a.project.info?.tel).toBe('04 000 0000'); }
+    if (a.ok) { expect(feeder(a.project).cableCsaMm2).toBe(feeder(p).cableCsaMm2 + 6); expect(a.project.info?.tel).toBe('04 000 0000'); }
   });
   it('(3) a target changed independently blocks application with expected, current and proposed values', () => {
     const p = base(), r = accept(p, two(p));
     const changed = withRecord({ ...p, feeders: p.feeders.map((f) => (f.id === f0 ? { ...f, cableCsaMm2: 120 } : f)) }, r);
     const a = applyModification(changed, r.id);
     expect(a.ok).toBe(false);
-    if (!a.ok) expect(a.conflicts![0]).toMatchObject({ kind: 'changed', current: 120, op: { before: feeder(p).cableCsaMm2, after: feeder(p).cableCsaMm2 + 10 } });
+    if (!a.ok) expect(a.conflicts![0]).toMatchObject({ kind: 'changed', current: 120, op: { before: feeder(p).cableCsaMm2, after: feeder(p).cableCsaMm2 + 6 } });
     expect(feeder(changed, f1).loadKw).toBe(feeder(p, f1).loadKw); // nothing else moved
   });
   it('(4) a removed target fails the application and alters no other target', () => {

@@ -1890,6 +1890,8 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-tab-add:disabled{opacity:.45;cursor:default}
 .cad-tab-menu button:disabled{opacity:.5;cursor:default;background:transparent}
 .cad-tab-menu.up{transform:translateY(-100%)}
+.cad-tab-menu hr{border:0;border-top:1px solid var(--line);margin:3px 0}
+.cad-tab-menu-h{padding:4px 10px 2px;font-size:var(--fs-xs);color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
 /* Model / layout tabs under the drawing; a layout's paper with its viewport frames (src/components/cad/CadLayouts.tsx) */
 .cad-ltabs{flex:none;display:flex;align-items:flex-start;gap:2px;padding:0 var(--space-2);background:var(--p2);border-top:1px solid var(--line);overflow-x:auto;overflow-y:hidden}
 .cad-ltab{flex:none;display:inline-flex;align-items:center;height:24px;padding:0 var(--space-3);border:1px solid transparent;border-top:0;border-radius:0 0 var(--radius-sm) var(--radius-sm);background:none;color:var(--mut);font:inherit;font-size:var(--fs-sm);cursor:pointer;white-space:nowrap}
@@ -1898,7 +1900,7 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-ltab.add{padding:0 var(--space-2);color:var(--acc)}
 .cad-ltab-k{margin-left:6px;padding:0 3px;border:1px solid var(--line-strong);border-radius:3px;font-size:9px;font-weight:400;color:var(--mut)}
 /* a drawing file's own layout: its paper drawn on a canvas, panned and zoomed (src/components/cad/CadFilePaper.tsx) */
-.cad-filepaper{position:relative;flex:1;min-width:0;min-height:0;overflow:hidden;background:color-mix(in srgb,var(--bg) 70%,#888 30%);cursor:grab;touch-action:none}
+.cad-filepaper{position:absolute;inset:0;overflow:hidden;background:color-mix(in srgb,var(--bg) 70%,#888 30%);cursor:grab;touch-action:none}
 .cad-filepaper canvas{position:absolute;inset:0;display:block}
 .cad-paper .sheet-ws{border:0;border-radius:0;min-height:0;height:100%}
 .cad-paper .sheet-page{min-height:0;padding:24px}

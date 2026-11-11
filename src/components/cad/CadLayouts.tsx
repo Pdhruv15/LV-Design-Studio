@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { Plus } from 'lucide-react';
 import { layoutPaper, layoutViewports, PLAN_LABEL, PLAN_TYPES } from '../../docs/planLayout';
 import { PLAN_PREFIX, renumber, setOf, startStatus, type DrawingSet, type DrawingSheet, type PlanType } from '../../model/drawingSet';
@@ -45,22 +45,32 @@ export function moveLayout(set: DrawingSet, id: string, dir: -1 | 1): DrawingSet
   return { ...set, sheets };
 }
 
-/** The tabs under the drawing. */
-export function LayoutTabs({ files = [], layouts, active, onPick, onNew, onRename, onCopy, onMove, onDelete, onPageSetup }: {
+/** A layout made in Design CAD on the drawing (Layout2…): its tab id, name and tooltip. */
+export interface DrawingTab { id: string; name: string; title: string }
+type TabMenu = { s?: DrawingSheet; d?: DrawingTab; x: number; y: number };
+
+/** The tabs under the drawing: Model, the drawing file's own layouts, the layouts made on it here, then the level's plan
+ * sheets. + makes a layout of the drawing; a tab's right-click menu has its own commands and New plan sheet. */
+export function LayoutTabs({ files = [], drawings = [], layouts, active, onPick, onNew, onNewSheet, onDrawing, onRename, onCopy, onMove, onDelete, onPageSetup }: {
   /** The drawing file's own layouts (paper space), first, as in the file: their tab id, name and tooltip. */
   files?: { id: string; name: string; title: string }[];
+  /** Layouts made on the drawing here (+), after the file's own. */
+  drawings?: DrawingTab[];
   layouts: DrawingSheet[];
   active: string | null;
   onPick: (id: string | null) => void;
-  /** A new layout of the level; absent (no +) when the drawing is not tied to a level. */
-  onNew?: (type: PlanType) => void;
+  /** A new layout of the drawing (+); absent: no +. */
+  onNew?: () => void;
+  /** A new plan sheet of the level, from a tab's right-click menu; absent: not offered. */
+  onNewSheet?: (type: PlanType) => void;
+  onDrawing?: { rename: (d: DrawingTab) => void; copy: (d: DrawingTab) => void; move: (d: DrawingTab, dir: -1 | 1) => void; remove: (d: DrawingTab) => void };
   onRename: (s: DrawingSheet) => void;
   onCopy: (s: DrawingSheet) => void;
   onMove: (s: DrawingSheet, dir: -1 | 1) => void;
   onDelete: (s: DrawingSheet) => void;
   onPageSetup: (s: DrawingSheet) => void;
 }) {
-  const [menu, setMenu] = useState<{ s?: DrawingSheet; x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<TabMenu | null>(null);
   useEffect(() => {
     if (!menu) return undefined;
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setMenu(null); } };
@@ -68,31 +78,51 @@ export function LayoutTabs({ files = [], layouts, active, onPick, onNew, onRenam
     return () => window.removeEventListener('keydown', esc, true);
   }, [menu]);
   const pick = (f: () => void) => { setMenu(null); f(); };
+  const ctx = (m: Omit<TabMenu, 'x' | 'y'>) => (e: ReactMouseEvent) => {
+    e.preventDefault();
+    if (m.s || m.d || onNewSheet) setMenu({ ...m, x: e.clientX, y: e.clientY });
+  };
+  const sheetTypes = onNewSheet ? <>
+    {(menu?.s || menu?.d) && <hr />}
+    <div className="cad-tab-menu-h">New plan sheet of the level</div>
+    {PLAN_TYPES.map((t, i) => <button key={t} role="menuitem" autoFocus={!menu?.s && !menu?.d && i === 0} onClick={() => pick(() => onNewSheet(t))}>{PLAN_LABEL[t]} <span className="m">{PLAN_PREFIX[t]}</span></button>)}
+  </> : null;
   return (
     <>
       <div className="cad-ltabs" role="tablist" aria-label="Model and layouts">
-        <button role="tab" aria-selected={!active} className={`cad-ltab${!active ? ' on' : ''}`} title="Model: the plan at real size (drawing units)" onClick={() => onPick(null)}>Model</button>
+        <button role="tab" aria-selected={!active} className={`cad-ltab${!active ? ' on' : ''}`} title="Model: the plan at real size (drawing units)" onClick={() => onPick(null)} onContextMenu={ctx({})}>Model</button>
         {files.map((f) => (
-          <button key={f.id} role="tab" aria-selected={active === f.id} className={`cad-ltab${active === f.id ? ' on' : ''}`} title={f.title} onClick={() => onPick(f.id)}>{f.name}</button>
+          <button key={f.id} role="tab" aria-selected={active === f.id} className={`cad-ltab${active === f.id ? ' on' : ''}`} title={f.title} onClick={() => onPick(f.id)} onContextMenu={ctx({})}>{f.name}</button>
+        ))}
+        {drawings.map((d) => (
+          <button key={d.id} role="tab" aria-selected={active === d.id} className={`cad-ltab${active === d.id ? ' on' : ''}`} title={`${d.title} · right-click for more`} onClick={() => onPick(d.id)} onContextMenu={ctx({ d })}>{d.name}</button>
         ))}
         {layouts.map((s) => (
           <button key={s.id} role="tab" aria-selected={active === s.id} className={`cad-ltab${active === s.id ? ' on' : ''}`} title={`${s.number} — ${s.title}: the project's plan sheet · right-click for more`}
-            onClick={() => onPick(s.id)} onContextMenu={(e) => { e.preventDefault(); setMenu({ s, x: e.clientX, y: e.clientY }); }}>{s.number || s.title}{files.length > 0 && <span className="cad-ltab-k">sheet</span>}</button>
+            onClick={() => onPick(s.id)} onContextMenu={ctx({ s })}>{s.number || s.title}{files.length + drawings.length > 0 && <span className="cad-ltab-k">sheet</span>}</button>
         ))}
-        {onNew && <button className="cad-ltab add" aria-label="New layout" title="New layout of this level (LAYOUT)" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.top }); }}><Plus size={13} strokeWidth={2} /></button>}
+        {onNew && <button className="cad-ltab add" aria-label="New layout" title="New layout of this drawing (LAYOUT) · right-click a tab for a plan sheet" onClick={() => onNew()}><Plus size={13} strokeWidth={2} /></button>}
       </div>
       {menu && (
         <>
           <div className="st-cover" onClick={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null); }} />
-          <div className="dw-menu st-ctx cad-tab-menu up" role="menu" aria-label={menu.s ? `Layout ${menu.s.number}` : 'New layout'} style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 236)), top: menu.y }}>
-            {menu.s ? <>
+          <div className="dw-menu st-ctx cad-tab-menu up" role="menu" aria-label={menu.s ? `Layout ${menu.s.number}` : menu.d ? `Layout ${menu.d.name}` : 'New plan sheet'} style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 236)), top: menu.y }}>
+            {menu.s && <>
               <button role="menuitem" autoFocus onClick={() => pick(() => onRename(menu.s!))}>Rename…</button>
               <button role="menuitem" onClick={() => pick(() => onCopy(menu.s!))}>Copy</button>
               <button role="menuitem" onClick={() => pick(() => onMove(menu.s!, -1))}>Move left</button>
               <button role="menuitem" onClick={() => pick(() => onMove(menu.s!, 1))}>Move right</button>
               <button role="menuitem" onClick={() => pick(() => onPageSetup(menu.s!))}>Page setup…</button>
               <button role="menuitem" onClick={() => pick(() => onDelete(menu.s!))}>Delete</button>
-            </> : PLAN_TYPES.map((t, i) => <button key={t} role="menuitem" autoFocus={i === 0} onClick={() => pick(() => onNew?.(t))}>{PLAN_LABEL[t]} <span className="m">{PLAN_PREFIX[t]}</span></button>)}
+            </>}
+            {menu.d && onDrawing && <>
+              <button role="menuitem" autoFocus onClick={() => pick(() => onDrawing.rename(menu.d!))}>Rename…</button>
+              <button role="menuitem" onClick={() => pick(() => onDrawing.copy(menu.d!))}>Copy</button>
+              <button role="menuitem" onClick={() => pick(() => onDrawing.move(menu.d!, -1))}>Move left</button>
+              <button role="menuitem" onClick={() => pick(() => onDrawing.move(menu.d!, 1))}>Move right</button>
+              <button role="menuitem" onClick={() => pick(() => onDrawing.remove(menu.d!))}>Delete</button>
+            </>}
+            {sheetTypes}
           </div>
         </>
       )}

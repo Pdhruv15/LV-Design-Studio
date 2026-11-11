@@ -15,9 +15,33 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.095', date: '2026-11-11',
+    version: '2.099', date: '2026-11-11',
     items: [
       { title: 'Right-click menus that fit what you click', text: 'In Design CAD, right-clicking empty space now opens a full menu: Repeat and Recent commands, Paste, Undo and Redo, Isolate, Pan, Zoom, Select all, Quick select, Count, Place device, Cable route and tray, Properties and Options. While a command runs, Shift+right-click (or right-click when the prompt has options) adds Recent input, Snap overrides for the next point (endpoint, midpoint, centre…), and the Ortho, Polar and Object snap switches. Objects picked add Isolate (show only these, hide these, end isolation), Add selected, Quick measure, Count and Deselect all. New commands behind them: PAN, UNDO, REDO, SELECTALL (Ctrl+A), COUNT, ISOLATEOBJECTS, HIDEOBJECTS, UNISOLATEOBJECTS, ADDSELECTED and QUICKMEASURE.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.098', date: '2026-11-11',
+    items: [
+      { title: '+ under a drawing makes a layout of it, as in other CAD work', text: 'In Design CAD, + beside the layout tabs now makes Layout2, Layout3… straight away: A3 paper with one viewport showing the whole drawing at a standard scale. No level is needed. Right-click a layout to rename, copy, move or delete it. The plan sheets of a level (Lighting E-LTG, Power E-PWR, ELV, Containment) are made from the right-click menu of any tab, or LAYOUT L / P / E / C.' }
+    ]
+  },
+  {
+    version: '2.097', date: '2026-11-11',
+    items: [
+      { title: 'Cable and breaker limits you can change', text: 'Standards → Design references now shows the cable / breaker limit tables (DEWA Appendix 5, Tables 1–3) under Rule rows. Duplicate DEWA, or use a reference built on it, to change any row, the DB feeder minimum, the cable types a table covers, or add tables of your own. Choose to size cables up, warn only, or switch the limits off. Apply the reference to use them in the project.' }
+    ]
+  },
+  {
+    version: '2.096', date: '2026-11-11',
+    items: [
+      { title: 'A drawing\'s own layouts now show their paper; + on every drawing', text: 'Opening a layout saved in the drawing file (Layout1…) showed an empty screen: its paper, printable area and viewports now show. The + for a new layout is there on every drawing; in a project with no levels yet it says to add them in Building information first, as each layout is a plan sheet of a level.' }
+    ]
+  },
+  {
+    version: '2.095', date: '2026-11-11',
+    items: [
+      { title: 'DEWA cable and breaker limits (Appendix 5, Tables 1–3)', text: 'On DEWA projects, automatic sizing now also meets the DEWA cable selection tables: each size has a largest breaker and load. Table 3 for armoured XLPE cable (for example 25 mm² up to 80 A, 35 mm² up to 100 A), Table 2 for armoured PVC (new cable type PVC/SWA/PVC) and Table 1 for single-core PVC wires in conduit (new cable type PVC 1C; DB load schedule circuits use it unless another type is set, for example a 40 A single-phase circuit needs 10 mm²). 2.5 mm² may carry 16 A. Parallel runs count as runs × the table value. When a table, not the calculation, sets the size, the circuit gets a remark such as "DEWA Table 3: 35 mm² for 100 A (25 mm² max 80 A)"; your own remarks are kept. A feeder to a DB is at least 10 mm² on a 40 A breaker. A size set by hand that breaks a table fails the checks, with fixes offered. The sample project is resized to meet the tables.' }
     ]
   },
   {

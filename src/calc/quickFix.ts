@@ -19,6 +19,7 @@ export function failReasons(project: Project, r: FeederResult): string[] {
   else if (r.protectionStatus === 'bad' && !r.rating.missing) out.push(`Cable not protected: In ${f.breakerRatingA} A > Iz ${fmtFixed(r.ampacity, 1)} A`);
   if (r.vdStatus !== 'ok') out.push(`Voltage drop ${fmtFixed(r.vdTotalPct, 2)} % (limit ${project.vdLimitPct} %)`);
   if (r.icuStatus === 'bad') out.push(`Breaking capacity: Icu ${f.breakerIcuKa} kA < fault ${fmtFixed(r.breakerFaultKA, 2)} kA`);
+  if (r.limits?.status === 'bad') out.push(r.limits.message);
   return out;
 }
 
@@ -42,9 +43,10 @@ export function quickFixes(project: Project, f: Feeder): QuickFix[] {
       }
     }
   }
-  // Breaker down: In between Ib and the cable's Iz (cable not protected).
-  if (now.ib <= f.breakerRatingA && f.breakerRatingA > now.ampacity) {
-    const In = [...breakerRatings()].reverse().find((a) => a >= now.ib && a <= now.ampacity);
+  // Breaker down: In between Ib and the cable's Iz (cable not protected), within the authority's limit for the cable.
+  if (now.ib <= f.breakerRatingA && (f.breakerRatingA > now.ampacity || now.limits?.status === 'bad')) {
+    const In = [...breakerRatings()].reverse().find((a) => a >= now.ib && a <= now.ampacity && a < f.breakerRatingA &&
+      evaluateFeeder(project, { ...f, breakerRatingA: a }).limits?.status !== 'bad');
     if (In) tryPatch(`Breaker ${In} A`, { breakerRatingA: In });
   }
   // Cable: the smallest larger size that passes (current, protection, voltage drop).
