@@ -5,6 +5,9 @@ import { cadCommand, type CadAction } from './cadCommands';
 import { getClip, hasClip, putClip } from './cadClipboardStore';
 import { hasPreviousView } from './cadViewHistory';
 import { QuickSelectDialog } from './CadQuickSelect';
+import { CadStatusToggles } from './CadStatusToggles';
+import { CadFilePaper } from './CadFilePaper';
+import { fileLayoutId, fileLayoutOf, fileLayoutTitle } from '../../model/fileLayouts';
 import type { ZoomReq } from './CadCanvas';
 import type { ZoomMenuKey } from '../drawingView';
 import { parseZoomScale } from '../../model/cadView';
@@ -106,10 +109,6 @@ type Result =
 const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.toString(16).padStart(6, '0')}`);
 /** The properties dock's width: default and limits (px), and where its side and width are kept. */
 const DOCK_W = 280, DOCK_MIN = 220, DOCK_MAX = 480, DOCK_KEY = 'lvds.cad.dock';
-const TOGGLES: { k: keyof CadToggles; label: string; key: string; tab: DraftTab }[] = [
-  { k: 'snap', label: 'SNAP', key: 'F9', tab: 'snap' }, { k: 'osnap', label: 'OSNAP', key: 'F3', tab: 'osnap' }, { k: 'polar', label: 'POLAR', key: 'F10', tab: 'polar' }, { k: 'otrack', label: 'OTRACK', key: 'F11', tab: 'polar' },
-  { k: 'ortho', label: 'ORTHO', key: 'F8', tab: 'polar' }, { k: 'grid', label: 'GRID', key: 'F7', tab: 'snap' }, { k: 'dyn', label: 'DYN', key: 'F12', tab: 'dyn' }, { k: 'lwt', label: 'LWT', key: 'LWT', tab: 'cursor' }
-];
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
 const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGN / ALIGNV / SPACE (the devices selected) · TRIM (TM) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · B (block from drawn objects: the dialog; -BLOCK on the command line) · I (the Blocks palette: this drawing, Recent, Library; -INSERT by name) · ATT (attribute definition for a block) · ATE (edit a block\'s attributes; or double-click it) · ATTEXT (the attributes as a table) · PO (point) · DIV (points at the divisions of an object) · ME (points every length along it) · PTYPE (point style) · DR (draw order: Front, Back, Above or Under an object) · TEXTTOFRONT (texts, dimensions, leaders over the rest) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · LE (leader) · RT (room tag) · NORTH · LM (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · ED (edit a text or dimension in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · DRA (radius) · DDI (diameter) · DAN (angular) · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LA (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
@@ -716,7 +715,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const lv = floor ? { buildingId: floor.ref.building, levelId: floor.ref.level, name: floor.name } : undefined;
   const layouts = layoutsOf(project, lv);
   const sheetL = cad.layout ? layouts.find((s) => s.id === cad.layout) : undefined;
-  useEffect(() => { if (cad.layout && !sheetL) cad.setLayout(null); }, [cad.layout, sheetL]); // eslint-disable-line react-hooks/exhaustive-deps -- a layout gone (deleted, another level)
+  /** The drawing file's own layout showing (paper space as saved in the file), when that tab is picked. */
+  const fileL = fileLayoutOf(view?.layouts, cad.layout);
+  useEffect(() => { if (cad.layout && !sheetL && !fileL) cad.setLayout(null); }, [cad.layout, sheetL, fileL]); // eslint-disable-line react-hooks/exhaustive-deps -- a layout gone (deleted, another level)
   useEffect(() => { if (!sheetL) { setMv(false); setPlacing(null); } }, [sheetL]);
   const vps = sheetL ? layoutViewports(project, sheetL) : [];
   const msV = vps.find((v) => v.id === cad.msVp), selV = vps.find((v) => v.id === cad.vpSel);
@@ -740,6 +741,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const [w, arg] = c.split(' ');
     if (w === 'LAYOUT' || w === 'LO') { addLayout(PLAN_TYPES.find((t) => t.toUpperCase().startsWith(arg ?? 'L')) ?? 'lighting'); return true; }
     if (w === 'MODEL') { cad.setLayout(null); return true; }
+    if (fileL && /^(MV|MVIEW|MS|MSPACE|PS|PSPACE|VPSCALE|VPLOCK|LEGEND|LG|NOTES)$/.test(w)) {
+      cad.say(`${w}  ${fileL.name} is the drawing file's own layout, shown as it was saved; its viewports are not changed here yet. The project's plan sheets (+ on a drawing tied to a level) can be.`);
+      return true;
+    }
     if (!sheetL) return false;
     if (w === 'MV' || w === 'MVIEW') { cad.setMsVp(null); setMv(true); cad.say('MVIEW  Click two corners of the new viewport on the paper:'); return true; }
     if (w === 'MS' || w === 'MSPACE') { const v = vpTarget ?? vps[0]; if (v) { cad.setMsVp(v.id); cad.say(`MSPACE  Working in the model through ${vpName(vps, v.id)} (1:${v.scale}${isLocked(v) ? ', locked' : ''}). PS or a double-click outside returns to the paper.`); } return true; }
@@ -3210,7 +3215,6 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       </div>
     </aside>
   );
-  const on =(k: keyof CadToggles) => (k === 'lwt' ? cad.toggles.lwt !== false : !!cad.toggles[k]);
   const fileLists = dsTab ? cadFileMenu(project, cad, (next, message) => onChange(next, message), onStatus) : null;
   return (
     <section className="cad" ref={page}>
@@ -3302,7 +3306,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             if (JSON.stringify(keep) === JSON.stringify(project.cadDimStyles)) { cad.say('DIMSTYLE  No change.'); return; }
             change(keep ? { ...project, cadDimStyles: keep } : rest, `DIMSTYLE  ${s.styles.length} dimension style${s.styles.length === 1 ? '' : 's'}, current "${s.current}" · ⌘Z to undo`);
           }} />}
-        {view && sheetL ? (
+        {view && fileL ? (
+          <div className="cad-stage cad-paper">
+            <CadFilePaper layout={fileL} model={view} onDblClick={() => cad.say(`LAYOUT  ${fileL.name} is shown as the drawing file has it: work in the model on the Model tab.`)} />
+          </div>
+        ) : view && sheetL ? (
           <div className="cad-stage cad-paper">
             {sheetUi ? <SheetWorkspace bare project={project} run={calcRun} sheetId={sheetL.id} design={null} ui={sheetUi} onChange={(next) => change(next, `${sheetL.number || 'Layout'}  paper changed · ⌘Z to undo`)} onStatus={onStatus} onActive={() => {}} overlay={layoutOverlay({
               project, sheet: sheetL, sel: cad.vpSel, ms: cad.msVp, mv, place: placing,
@@ -3353,23 +3361,21 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         )}
         {dockSide === 'right' ? dock : info}
       </div>
-      {view && lv && <LayoutTabs layouts={layouts} active={sheetL?.id ?? null} onPick={(id) => { cad.setLayout(id); if (id) cad.say(`LAYOUT  ${layouts.find((x) => x.id === id)?.number ?? ''} — the paper; double-click inside a viewport to work in it, MV adds one.`); }}
-        onNew={addLayout} onRename={(x) => { setRenamingLayout(x.id); cad.say(`RENAME  Type the new title of ${x.number} (now "${x.title}"):`); input.current?.focus(); }}
-        onCopy={(x) => { const r = newLayout(setOf(project), lv, x.plan ?? 'lighting', x); change({ ...project, drawingSet: r.set }, `LAYOUT  ${x.number} copied · ⌘Z to undo`); cad.setLayout(r.id); }}
+      <CadCommandLine history={cad.history} live={EDIT_TOOLS.includes(tool) ? promptNow(edSet) : undefined} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
+      {view && <LayoutTabs files={view.layouts.map((l) => ({ id: fileLayoutId(l.name), name: l.name, title: fileLayoutTitle(l, units.factor * 1000) }))} layouts={layouts} active={sheetL?.id ?? (fileL ? fileLayoutId(fileL.name) : null)} onPick={(id) => { cad.setLayout(id); const f = fileLayoutOf(view.layouts, id); if (f) cad.say(`LAYOUT  ${f.name} — the drawing file's own layout, as saved: ${fileLayoutTitle(f, units.factor * 1000)}.`); else if (id) cad.say(`LAYOUT  ${layouts.find((x) => x.id === id)?.number ?? ''} — the paper; double-click inside a viewport to work in it, MV adds one.`); }}
+        onNew={lv ? addLayout : undefined} onRename={(x) => { setRenamingLayout(x.id); cad.say(`RENAME  Type the new title of ${x.number} (now "${x.title}"):`); input.current?.focus(); }}
+        onCopy={(x) => { if (!lv) return; const r = newLayout(setOf(project), lv, x.plan ?? 'lighting', x); change({ ...project, drawingSet: r.set }, `LAYOUT  ${x.number} copied · ⌘Z to undo`); cad.setLayout(r.id); }}
         onMove={(x, dir) => change({ ...project, drawingSet: renumber(moveLayout(setOf(project), x.id, dir)) }, `LAYOUT  ${x.number} moved ${dir < 0 ? 'left' : 'right'} · ⌘Z to undo`)}
         onDelete={(x) => { const set = setOf(project); change({ ...project, drawingSet: { ...set, sheets: set.sheets.filter((y) => y.id !== x.id) } }, `LAYOUT  ${x.number} ${x.title} deleted (its sheet too) · ⌘Z to undo`); if (cad.layout === x.id) cad.setLayout(null); }}
         onPageSetup={(x) => onSheet?.(x.id)} />}
-      <CadCommandLine history={cad.history} live={EDIT_TOOLS.includes(tool) ? promptNow(edSet) : undefined} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
       <div className="cad-status">
-        {TOGGLES.map((x) => (
-          <button key={x.k} className={`cad-tg${on(x.k) ? ' on' : ''}`} aria-pressed={on(x.k)}
-            title={`${x.k === 'grid' ? `Grid: ${!cad.toggles.grid ? 'off' : cad.gridDots ? 'dots' : 'lines'} (${x.key}: lines, dots, off)` : x.k === 'lwt' ? 'Show lineweights (LWT)' : `${x.label} (${x.key})`} — right-click for its settings`}
-            onClick={() => (x.k === 'grid' ? cad.cycleGrid() : cad.toggle(x.k))} onContextMenu={(e) => { e.preventDefault(); setDsTab(x.tab); }}>{x.k === 'grid' && cad.toggles.grid && cad.gridDots ? 'GRID · DOTS' : x.label}</button>
-        ))}
-        <button className="cad-tg" title="Fit the drawing to the window (FIT / ZE, or double-click the middle button)" disabled={!view} onClick={() => cad.fit()}>FIT</button>
-        <button className="cad-tg" aria-label="Drafting settings" title="Drafting settings (DS): snap, grid, tracking, object snap, dynamic input, selection, cursor, units" onClick={() => setDsTab('snap')}>⚙</button>
+        <CadStatusToggles toggles={cad.toggles} gridDots={cad.gridDots} draft={draft} canFit={!!view} onToggle={cad.toggle} onCycleGrid={cad.cycleGrid} onSettings={setDsTab} onFit={() => cad.fit()}
+          onDraft={onPrefs ? (d) => onPrefs({ draft: d, autosaveMin }) : undefined} />
         <span className="sp" />
-        {sheetL ? <>
+        {fileL ? <>
+          <span className="cad-tg on" title="On the drawing file's own layout (paper space)">PAPER</span>
+          <span>{`${fileL.name} · ${fileLayoutTitle(fileL, units.factor * 1000)}`}</span>
+        </> : sheetL ? <>
           <button className={`cad-tg on`} aria-label={msV ? 'Model space in a viewport' : 'Paper space'} title={msV ? 'In the model through a viewport: click for the paper (PS)' : 'On the paper: click to work in a viewport (MS)'} onClick={() => run(msV ? 'PS' : 'MS')}>{msV ? 'MODEL' : 'PAPER'}</button>
           {vpTarget && <span>{`${vpName(vps, vpTarget.id)} · 1:${vpTarget.scale}${isLocked(vpTarget) ? ' · locked' : ''}`}</span>}
           <span>{`${sheetL.number} · ${layoutPaper(project, sheetL)?.size ?? ''} · mm`}</span>

@@ -46,11 +46,14 @@ export function moveLayout(set: DrawingSet, id: string, dir: -1 | 1): DrawingSet
 }
 
 /** The tabs under the drawing. */
-export function LayoutTabs({ layouts, active, onPick, onNew, onRename, onCopy, onMove, onDelete, onPageSetup }: {
+export function LayoutTabs({ files = [], layouts, active, onPick, onNew, onRename, onCopy, onMove, onDelete, onPageSetup }: {
+  /** The drawing file's own layouts (paper space), first, as in the file: their tab id, name and tooltip. */
+  files?: { id: string; name: string; title: string }[];
   layouts: DrawingSheet[];
   active: string | null;
   onPick: (id: string | null) => void;
-  onNew: (type: PlanType) => void;
+  /** A new layout of the level; absent (no +) when the drawing is not tied to a level. */
+  onNew?: (type: PlanType) => void;
   onRename: (s: DrawingSheet) => void;
   onCopy: (s: DrawingSheet) => void;
   onMove: (s: DrawingSheet, dir: -1 | 1) => void;
@@ -69,11 +72,14 @@ export function LayoutTabs({ layouts, active, onPick, onNew, onRename, onCopy, o
     <>
       <div className="cad-ltabs" role="tablist" aria-label="Model and layouts">
         <button role="tab" aria-selected={!active} className={`cad-ltab${!active ? ' on' : ''}`} title="Model: the plan at real size (drawing units)" onClick={() => onPick(null)}>Model</button>
-        {layouts.map((s) => (
-          <button key={s.id} role="tab" aria-selected={active === s.id} className={`cad-ltab${active === s.id ? ' on' : ''}`} title={`${s.number} — ${s.title} · right-click for more`}
-            onClick={() => onPick(s.id)} onContextMenu={(e) => { e.preventDefault(); setMenu({ s, x: e.clientX, y: e.clientY }); }}>{s.number || s.title}</button>
+        {files.map((f) => (
+          <button key={f.id} role="tab" aria-selected={active === f.id} className={`cad-ltab${active === f.id ? ' on' : ''}`} title={f.title} onClick={() => onPick(f.id)}>{f.name}</button>
         ))}
-        <button className="cad-ltab add" aria-label="New layout" title="New layout of this level (LAYOUT)" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.top }); }}><Plus size={13} strokeWidth={2} /></button>
+        {layouts.map((s) => (
+          <button key={s.id} role="tab" aria-selected={active === s.id} className={`cad-ltab${active === s.id ? ' on' : ''}`} title={`${s.number} — ${s.title}: the project's plan sheet · right-click for more`}
+            onClick={() => onPick(s.id)} onContextMenu={(e) => { e.preventDefault(); setMenu({ s, x: e.clientX, y: e.clientY }); }}>{s.number || s.title}{files.length > 0 && <span className="cad-ltab-k">sheet</span>}</button>
+        ))}
+        {onNew && <button className="cad-ltab add" aria-label="New layout" title="New layout of this level (LAYOUT)" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.top }); }}><Plus size={13} strokeWidth={2} /></button>}
       </div>
       {menu && (
         <>
@@ -86,7 +92,7 @@ export function LayoutTabs({ layouts, active, onPick, onNew, onRename, onCopy, o
               <button role="menuitem" onClick={() => pick(() => onMove(menu.s!, 1))}>Move right</button>
               <button role="menuitem" onClick={() => pick(() => onPageSetup(menu.s!))}>Page setup…</button>
               <button role="menuitem" onClick={() => pick(() => onDelete(menu.s!))}>Delete</button>
-            </> : PLAN_TYPES.map((t, i) => <button key={t} role="menuitem" autoFocus={i === 0} onClick={() => pick(() => onNew(t))}>{PLAN_LABEL[t]} <span className="m">{PLAN_PREFIX[t]}</span></button>)}
+            </> : PLAN_TYPES.map((t, i) => <button key={t} role="menuitem" autoFocus={i === 0} onClick={() => pick(() => onNew?.(t))}>{PLAN_LABEL[t]} <span className="m">{PLAN_PREFIX[t]}</span></button>)}
           </div>
         </>
       )}
@@ -137,6 +143,19 @@ export function layoutOverlay({ project, sheet, sel, ms, mv, onSelect, onMs, onB
   return ({ pxPerMm, frame, loaded }) => <Frames key={`${sheet.id}-${loaded}`} {...{ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas, pxPerMm, frame, place, onPlace, onTableAt }} />;
 }
 
+/** On screen only (never plotted): how far in from the paper's edge a printer can print, as the dashed line. */
+export const PRINT_EDGE_MM = 5;
+
+/** The paper's printable area (dashed) and its trim marks at the four corners, outside the sheet. */
+function PaperMarks({ edge }: { edge: number }) {
+  return (
+    <>
+      <div className="cad-printable" style={{ inset: edge }} title={`Printable area: ${PRINT_EDGE_MM} mm in from the paper's edge (on screen only, not plotted)`} />
+      {(['nw', 'ne', 'sw', 'se'] as const).map((k) => <span key={k} className={`cad-trim ${k}`} aria-hidden />)}
+    </>
+  );
+}
+
 function Frames({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas, pxPerMm, frame, place, onPlace, onTableAt }: Omit<Parameters<typeof layoutOverlay>[0], never> & { pxPerMm: number; frame: HTMLIFrameElement | null }) {
   const root = useRef<HTMLDivElement>(null);
   const paper = layoutPaper(project, sheet);
@@ -172,7 +191,8 @@ function Frames({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, can
     host.addEventListener('dblclick', dbl);
     return () => host.removeEventListener('dblclick', dbl);
   });
-  if (!paper || !origin) return <div ref={root} className="cad-vps" />;
+  const marks = <PaperMarks edge={PRINT_EDGE_MM * pxPerMm} />;
+  if (!paper || !origin) return <div ref={root} className="cad-vps">{marks}</div>;
   const px = (mm: number) => mm * pxPerMm;
   const shown = (v: PlanViewport): PlanViewport['box'] => (drag?.id === v.id ? drag.box : v.box);
   const moveTo = (e: React.PointerEvent) => {
@@ -196,6 +216,7 @@ function Frames({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, can
         const b = boxFrom(first, at);
         if (b[2] > 2 && b[3] > 2) onNew(b.map((k) => +k.toFixed(1)) as PlanViewport['box']);
       } : undefined}>
+      {marks}
       {vps.map((v) => {
         const [l, t, w, h] = shown(v), on = sel === v.id, inside = ms === v.id;
         const grab = (how: 'move' | 'nw' | 'ne' | 'sw' | 'se') => (e: React.PointerEvent) => { if (mv) return; e.stopPropagation(); e.currentTarget.setPointerCapture?.(e.pointerId); onSelect(v.id); setDrag({ id: v.id, how, from: mmAt(e), box: v.box }); };

@@ -87,7 +87,7 @@ describe('design tokens', () => {
       '.chip.primary:hover:not(:disabled)', 'td.ec .ec-err', '.tray-section', '.tray-section figcaption', '.logo-box', '.logo-box .m',
       '.tbd-preview-wrap', '.tbd-preview', '.tbd-cell', '.tbd-cell:hover', '.tbd-cell.on', '.tbd-cap', '.tbd-print', '.ds-paper', '.ds-sheet',
       '.sg-thumb', '.sg-thumb iframe', '.sg-badge', '.sg-size', '.sld-print .cable-ref-c,.sheet .cable-ref-c', '.sheet-page', '.sheet-paper',
-      '.hc-st', '.earth-drawing', '.paper-sheet', '.paper-sheet iframe', '.paper-guides', '.cad-bk-thumb'
+      '.hc-st', '.earth-drawing', '.paper-sheet', '.paper-sheet iframe', '.paper-guides', '.cad-bk-thumb', '.cad-filepaper'
     ]);
     const fixed = [...styles.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)]
       .filter((m) => /#[0-9a-f]{3,8}\b|rgba?\(/i.test(m[2])).map((m) => m[1].trim());
@@ -95,7 +95,7 @@ describe('design tokens', () => {
     // Components: print CSS, paper markup and fallbacks for colours read from CSS. No more than today in each file.
     const known: Record<string, number> = {
       'components/BriefEditor.tsx': 1, 'components/EarthingView.tsx': 10, 'components/EnclosureSizing.tsx': 12, 'components/FileDialogs.tsx': 1,
-      'components/Form4Sizing.tsx': 10, 'components/PaperPreview.tsx': 1, 'components/ProjectsDashboard.tsx': 1, 'components/cad/CadCanvas.tsx': 19,
+      'components/Form4Sizing.tsx': 10, 'components/PaperPreview.tsx': 1, 'components/ProjectsDashboard.tsx': 1, 'components/cad/CadCanvas.tsx': 19, 'components/cad/CadFilePaper.tsx': 5,
       'components/docs/sheetRender.tsx': 1, 'components/sld/SheetMarkupLayer.tsx': 6, 'components/sld/SheetWorkspace.tsx': 8, 'diagram/symbolLibrary.tsx': 8
     };
     for (const f of walk(root).filter((p) => p.endsWith('.tsx') && !/\.test\./.test(p))) {
