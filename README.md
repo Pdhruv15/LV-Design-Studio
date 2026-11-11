@@ -1,11 +1,15 @@
 # LV Design Studio
 
-An offline desktop app (Electron) for LV electrical design: single line
-diagram, load schedules, cable and breaker sizing, voltage drop, short
-circuit, earthing, protection coordination, transformer / generator sizing,
-power factor correction, drawings and submission reports. Projects are plain
-JSON files, so they sync cleanly through a Google Drive / OneDrive / Dropbox
-desktop folder.
+An open-source, offline desktop and browser app for low-voltage (LV)
+electrical design: single-line diagrams, load schedules, cable and breaker
+sizing, voltage drop, short circuit, earthing, protection coordination,
+transformer / generator sizing, power factor correction, drawings and
+submission reports. Projects are plain JSON files, so they sync cleanly
+through a Google Drive / OneDrive / Dropbox desktop folder.
+
+[Try the browser app](https://pdhruv15.github.io/LV-Design-Suit/)
+· [Calculation methods and limits](docs/engineering/calculation-methods.md)
+· [Privacy and project data](docs/privacy.md)
 
 **Version 2.098** (see `package.json`). The app is in active use and active
 development.
