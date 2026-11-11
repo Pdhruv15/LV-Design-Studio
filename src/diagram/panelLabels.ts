@@ -107,3 +107,13 @@ export function incomerReach(project: Project, b: Board): number {
   const sb = ats ? Math.max(...atsLines(ats).map((s, i) => 14 + textWidth(s, i ? 10 : 11, !i)), 60 + textWidth(`${b.standby!.kva} kVA`, 11)) : 0;
   return Math.max(own, sb);
 }
+
+/** A board's busbar description, drawn at the busbar's right-hand end on two lines: "630 A TPN+E", "Cu BUSBAR". */
+export const busbarLines = (b: Board): [string, string] | undefined =>
+  b.ratedCurrentA ? [`${b.ratedCurrentA} A TPN+E`, `${b.busbarMaterial === 'aluminium' ? 'Al' : 'Cu'} BUSBAR`] : undefined;
+
+/** How far right of the incomer line the busbar must run so its two-line description clears the line. */
+export const busbarReach = (b: Board): number => {
+  const lines = busbarLines(b);
+  return lines ? 10 + Math.max(...lines.map((t) => textWidth(t, 11, true))) : 0;
+};
