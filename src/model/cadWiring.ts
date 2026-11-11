@@ -128,6 +128,13 @@ export function wireLevel(p: Project, level: LevelRef): { project: Project; adde
   return { project: ids.length ? { ...p, cadWiring: [...(p.cadWiring ?? []), ...ids.map((feederId) => ({ feederId }))] } : p, added: ids };
 }
 
+/** Draw home-runs of a board: its circuits with devices on the level that are not wired yet. */
+export function wireBoard(p: Project, level: LevelRef, boardId: string): { project: Project; added: string[] } {
+  const ids = [...new Set((p.lvPoints ?? []).filter((d) => onLevel(d, level)).map((d) => d.feederId))]
+    .filter((id) => !isWired(p, id) && p.feeders.some((f) => f.id === id && f.boardId === boardId));
+  return { project: ids.length ? { ...p, cadWiring: [...(p.cadWiring ?? []), ...ids.map((feederId) => ({ feederId }))] } : p, added: ids };
+}
+
 /** Wire one: wires the circuit, or takes its wiring off when it is wired. */
 export function toggleWiring(p: Project, feederId: string): { project: Project; wired: boolean } {
   if (!isWired(p, feederId)) return { project: { ...p, cadWiring: [...(p.cadWiring ?? []), { feederId }] }, wired: true };

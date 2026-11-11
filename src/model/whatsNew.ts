@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.100', date: '2026-11-11',
+    items: [
+      { title: 'Right-click menus for devices, boards, rooms, trays and cable routes', text: 'In Design CAD, right-click a light or socket for Circuit (with Draw home-run), Swap device type, Select same circuit or type, Show in load schedule and Show in SLD. Right-click a board for Open board, Load schedule, Show in SLD or riser, Select all fed devices, Draw home-runs (its circuits on this level), Rename and Feeder cables. ELV devices offer Swap device, Select same type and Show in ELV schedule. Right-click inside a room with an outline for Room ▸: Light room, Lux check (lights placed against those needed), Emergency lighting, Fill with an ELV device, Select devices in room, Room loads (W/m² × area and demand), Area, Rename room and Room type. A cable tray offers Size tray from cables, Fill ratio check and Cables in this route; a cable route offers Trace circuit and Show in SLD; both can be reversed.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.099', date: '2026-11-11',
     items: [
       { title: 'Right-click menus that fit what you click', text: 'In Design CAD, right-clicking empty space now opens a full menu: Repeat and Recent commands, Paste, Undo and Redo, Isolate, Pan, Zoom, Select all, Quick select, Count, Place device, Cable route and tray, Properties and Options. While a command runs, Shift+right-click (or right-click when the prompt has options) adds Recent input, Snap overrides for the next point (endpoint, midpoint, centre…), and the Ortho, Polar and Object snap switches. Objects picked add Isolate (show only these, hide these, end isolation), Add selected, Quick measure, Count and Deselect all. New commands behind them: PAN, UNDO, REDO, SELECTALL (Ctrl+A), COUNT, ISOLATEOBJECTS, HIDEOBJECTS, UNISOLATEOBJECTS, ADDSELECTED and QUICKMEASURE.', action: 'cad', actionLabel: 'Open Design CAD' }
