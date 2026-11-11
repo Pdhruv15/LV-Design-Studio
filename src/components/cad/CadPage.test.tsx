@@ -1751,6 +1751,11 @@ describe('file tabs', () => {
     // Its frame, dashed over the paper; picked, its properties show.
     await until(() => !!document.querySelector('.cad-vp'));
     expect([...document.querySelectorAll('.cad-vp')].map((v) => v.getAttribute('aria-label'))).toEqual(['Viewport 1']);
+    // The paper's printable area, dashed, and trim marks outside its four corners; the command bar above the tabs.
+    expect(document.querySelector('.cad-paper .cad-printable')!.getAttribute('title')).toMatch(/^Printable area: 5 mm in from the paper's edge/);
+    expect([...document.querySelectorAll('.cad-paper .cad-trim')].map((t) => t.className)).toEqual(['cad-trim nw', 'cad-trim ne', 'cad-trim sw', 'cad-trim se']);
+    const bottom = [...document.querySelectorAll('.cad-cmdbox, .cad-ltabs, .cad-status')].map((el) => el.className.split(' ')[0]);
+    expect(bottom).toEqual(['cad-cmdbox', 'cad-ltabs', 'cad-status']);
     act(() => document.querySelector('.cad-vp-edge')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 })));
     expect(state.vpSel).toBe('vp1');
     expect(document.querySelector('[aria-label="Viewport properties"]')!.textContent).toMatch(/^Viewport 1 E-LTG-001Scale/);

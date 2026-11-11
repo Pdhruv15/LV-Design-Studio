@@ -137,6 +137,19 @@ export function layoutOverlay({ project, sheet, sel, ms, mv, onSelect, onMs, onB
   return ({ pxPerMm, frame, loaded }) => <Frames key={`${sheet.id}-${loaded}`} {...{ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas, pxPerMm, frame, place, onPlace, onTableAt }} />;
 }
 
+/** On screen only (never plotted): how far in from the paper's edge a printer can print, as the dashed line. */
+export const PRINT_EDGE_MM = 5;
+
+/** The paper's printable area (dashed) and its trim marks at the four corners, outside the sheet. */
+function PaperMarks({ edge }: { edge: number }) {
+  return (
+    <>
+      <div className="cad-printable" style={{ inset: edge }} title={`Printable area: ${PRINT_EDGE_MM} mm in from the paper's edge (on screen only, not plotted)`} />
+      {(['nw', 'ne', 'sw', 'se'] as const).map((k) => <span key={k} className={`cad-trim ${k}`} aria-hidden />)}
+    </>
+  );
+}
+
 function Frames({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas, pxPerMm, frame, place, onPlace, onTableAt }: Omit<Parameters<typeof layoutOverlay>[0], never> & { pxPerMm: number; frame: HTMLIFrameElement | null }) {
   const root = useRef<HTMLDivElement>(null);
   const paper = layoutPaper(project, sheet);
@@ -172,7 +185,8 @@ function Frames({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, can
     host.addEventListener('dblclick', dbl);
     return () => host.removeEventListener('dblclick', dbl);
   });
-  if (!paper || !origin) return <div ref={root} className="cad-vps" />;
+  const marks = <PaperMarks edge={PRINT_EDGE_MM * pxPerMm} />;
+  if (!paper || !origin) return <div ref={root} className="cad-vps">{marks}</div>;
   const px = (mm: number) => mm * pxPerMm;
   const shown = (v: PlanViewport): PlanViewport['box'] => (drag?.id === v.id ? drag.box : v.box);
   const moveTo = (e: React.PointerEvent) => {
@@ -196,6 +210,7 @@ function Frames({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, can
         const b = boxFrom(first, at);
         if (b[2] > 2 && b[3] > 2) onNew(b.map((k) => +k.toFixed(1)) as PlanViewport['box']);
       } : undefined}>
+      {marks}
       {vps.map((v) => {
         const [l, t, w, h] = shown(v), on = sel === v.id, inside = ms === v.id;
         const grab = (how: 'move' | 'nw' | 'ne' | 'sw' | 'se') => (e: React.PointerEvent) => { if (mv) return; e.stopPropagation(); e.currentTarget.setPointerCapture?.(e.pointerId); onSelect(v.id); setDrag({ id: v.id, how, from: mmAt(e), box: v.box }); };
