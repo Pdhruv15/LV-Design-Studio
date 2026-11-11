@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.097', date: '2026-11-11',
+    items: [
+      { title: '+ under a drawing makes a layout of it, as in other CAD work', text: 'In Design CAD, + beside the layout tabs now makes Layout2, Layout3… straight away: A3 paper with one viewport showing the whole drawing at a standard scale. No level is needed. Right-click a layout to rename, copy, move or delete it. The plan sheets of a level (Lighting E-LTG, Power E-PWR, ELV, Containment) are made from the right-click menu of any tab, or LAYOUT L / P / E / C.' }
+    ]
+  },
+  {
     version: '2.096', date: '2026-11-11',
     items: [
       { title: 'A drawing\'s own layouts now show their paper; + on every drawing', text: 'Opening a layout saved in the drawing file (Layout1…) showed an empty screen: its paper, printable area and viewports now show. The + for a new layout is there on every drawing; in a project with no levels yet it says to add them in Building information first, as each layout is a plan sheet of a level.' }

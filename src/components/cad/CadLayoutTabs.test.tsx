@@ -28,9 +28,28 @@ describe('Model and layout tabs', () => {
     expect(p.onPick).toHaveBeenCalledWith('file:Layout1');
   });
 
-  it('no + without a level to make plan sheets for; no sheet mark without file layouts', () => {
+  it('no + when not offered; no sheet mark without file layouts', () => {
     render({ onNew: undefined, files: [], active: null });
     expect(document.querySelector('[aria-label="New layout"]')).toBeNull();
     expect(tabs()).toEqual([['Model', 'true'], ['E-LTG-001', 'false']]);
+  });
+
+  it('+ makes a layout at once; layouts made on the drawing after the file\'s own; right-click has their commands, then New plan sheet', () => {
+    const onDrawing = { rename: fn(), copy: fn(), move: fn(), remove: fn() }, onNewSheet = fn();
+    const p = render({ drawings: [{ id: 'dwg:Layout2', name: 'Layout2', title: '420 × 297 mm · 1 viewport at 1:100' }], onDrawing, onNewSheet });
+    expect(tabs().map((t) => t[0])).toEqual(['Model', 'Layout1', 'Layout2', 'E-LTG-001sheet']);
+    act(() => (document.querySelector('[aria-label="New layout"]') as HTMLButtonElement).click());
+    expect(p.onNew).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+    const items = () => [...document.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent);
+    act(() => document.querySelectorAll('[role="tab"]')[2].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
+    expect(items()).toEqual(['Rename…', 'Copy', 'Move left', 'Move right', 'Delete', 'Lighting layout E-LTG-', 'Power layout E-PWR-', 'ELV layout E-ELV-', 'Containment layout E-CNT-']);
+    expect(document.querySelector('.cad-tab-menu-h')!.textContent).toBe('New plan sheet of the level');
+    act(() => (document.querySelectorAll('[role="menuitem"]')[4] as HTMLButtonElement).click());
+    expect(onDrawing.remove).toHaveBeenCalledWith(expect.objectContaining({ name: 'Layout2' }));
+    act(() => document.querySelectorAll('[role="tab"]')[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
+    expect(items()).toEqual(['Lighting layout E-LTG-', 'Power layout E-PWR-', 'ELV layout E-ELV-', 'Containment layout E-CNT-']);
+    act(() => (document.querySelectorAll('[role="menuitem"]')[1] as HTMLButtonElement).click());
+    expect(onNewSheet).toHaveBeenCalledWith('power');
   });
 });
