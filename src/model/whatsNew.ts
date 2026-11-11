@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.104', date: '2026-11-11',
+    items: [
+      { title: 'HV supply and RMUs', text: 'In Panels → Transformers, enter the grid source from the authority (operator, voltage, fault level in MVA or kA, X/R) and each RMU’s ways, rated voltage, short-time rating, insulation, tee-off and owner. The grid fault level now lowers the LV fault levels and earth fault loop behind each transformer (before, the MV network was taken as infinite). Each RMU is checked for enough tee-off ways and for its rated voltage and short-time rating against the grid. The SLD shows the operator and fault level at the utility and the ways on the RMU box.' }
+    ]
+  },
+  {
     version: '2.102', date: '2026-11-11',
     items: [
       { title: 'Right-click menus for blocks, references and layouts', text: 'In Design CAD, right-click a block you drew for Count instances, Replace with another block (the attribute values it shares are kept), Reset attributes and Explode. Right-click a block of the opened drawing for Count instances, Explode into drawn objects, Copy as a block of this drawing and Crop. Right-click a reference drawing\'s lines for Open reference, Clip, Fade, Reload, Unload, Detach, Bind, Print on sheets and its layers. On a layout, right-click inside a viewport for Activate, Show on the Model tab, Viewport scale, Lock display, Frame prints, Viewport layers and Erase viewport; right-click the paper for New viewport, Legend and Notes tables, the sheet\'s Issue status, Sheet list, Plot and Page setup.', action: 'cad', actionLabel: 'Open Design CAD' }

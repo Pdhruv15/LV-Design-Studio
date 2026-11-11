@@ -9,6 +9,7 @@ import { STUDY_DEFAULTS, settingsOf, type Project, type StudyReportKind } from '
 import { fig, fmtDate } from '../util/format';
 import { esc } from './report';
 import { NOT_DEFINED, valueOrMissing } from './reportFrame';
+import { mvNetworkText } from '../calc/hvSupply';
 
 /** Executive summary and design basis of the design report (sections 1–5):
  * report data built only from the project and the existing calculation
@@ -84,7 +85,7 @@ const n1 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 1 }
 
 /** Standards the app's calculation methods follow, per study (shown as the calculation basis, not as project requirements). */
 const METHOD_STANDARDS: { standard: string; studies: StudyReportKind[]; used: string }[] = [
-  { standard: 'IEC 60909-0', studies: ['sc'], used: 'Short-circuit currents (simplified: c factor, infinite MV network)' },
+  { standard: 'IEC 60909-0', studies: ['sc'], used: 'Short-circuit currents (simplified: c factor; MV network from the grid fault level, else infinite)' },
   { standard: 'IEC 60364-5-52', studies: ['lf', 'cable'], used: 'Cable current-carrying capacity, derating and voltage drop' },
   { standard: 'IEC 60364-4-43', studies: ['cable'], used: 'Overload protection: Ib ≤ In ≤ Iz' },
   { standard: 'IEC 60364-4-41', studies: ['earth'], used: 'Automatic disconnection: earth fault loop impedance and disconnection times' },
@@ -251,7 +252,7 @@ function boundaries(project: Project): string[] {
   const mains = project.boards.filter((b) => !b.upstreamId);
   return [
     `Starts at: ${mains.map((m) => (m.supply ? `the incoming ${m.supply.fedFrom ?? 'authority'} supply of ${m.id}` : m.sourceKva ? `the LV terminals of the transformer feeding ${m.id}` : `${m.id} (supply ${NOT_DEFINED.toLowerCase()})`)).join('; ') || NOT_DEFINED}.`,
-    'MV network upstream of the transformers is outside the calculations (treated as an infinite source).',
+    mvNetworkText(project) ? `MV network upstream of the transformers: only its fault level (${mvNetworkText(project)}).` : 'MV network upstream of the transformers is outside the calculations (treated as an infinite source).',
     'Ends at: the final circuits on the DB load schedules and the loads connected to them.'
   ];
 }

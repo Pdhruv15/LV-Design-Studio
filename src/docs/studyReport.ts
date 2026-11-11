@@ -38,6 +38,7 @@ import { numberSubsections, coverPageHtml, documentControlHtml, numberSections, 
 import { cableTypeOf, fireRatingIssues } from '../model/cableTypes';
 import { cableSchedule } from './schedules';
 import { fig, type Figure } from '../util/format';
+import { mvNetworkText } from '../calc/hvSupply';
 
 /** Submission reports for chosen studies on a chosen part of the network:
  * e.g. only the short circuit study, only for MDB-3 and what it feeds.
@@ -193,7 +194,8 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
     return {
       key, title: info.title, statuses,
       method: [
-        'Maximum prospective symmetrical 3-phase fault current Ik″, simplified method based on IEC 60909-0 (preliminary — not a full IEC 60909 study): voltage factor c max = 1.05, cable R at 20 °C, upstream MV network infinite, transformer correction factor KT not applied.',
+        `Maximum prospective symmetrical 3-phase fault current Ik″, simplified method based on IEC 60909-0 (preliminary — not a full IEC 60909 study): voltage factor c max = 1.05, cable R at 20 °C, ${mvNetworkText(p) ? 'MV network impedance from the grid fault level' : 'upstream MV network infinite'}, transformer correction factor KT not applied.`,
+        ...(mvNetworkText(p) ? [`${mvNetworkText(p)}.`] : []),
         'Source impedance from the transformer rating and %Z (split by its X/R ratio); cable R at 20 °C and X per km; parallel runs divide the impedance.',
         ...((p.ties ?? []).some((t) => t.closed) ? ['Main boards joined by a closed bus coupler: the transformers run in parallel and their impedances combine (coupler impedance neglected), so the busbar fault is from all of them together.'] : []),
         'Breaking capacity check: the fault at the breaker terminals (supply busbar) must not exceed the breaker Icu. Fault at the cable end: 3-phase for 3/4-core circuits, line-to-neutral for 2-core.',
@@ -393,7 +395,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
       key, title: info.title, statuses,
       method: [
         `Transformer per main board: maximum demand${pfcTaken ? ' (after the planned power factor correction)' : ''} × (1 + ${set.futureGrowthPct} % growth) ÷ ${set.transformerMaxLoadingPct} % design loading, next ${plan.sizeList === 'dewa' ? 'DEWA standard size (500 / 1000 / 1500 kVA)' : 'IEC standard size'}.`,
-        'For that size: full-load current and main breaker, LV fault level (typical IEC 60076-5 impedance, infinite MV source), voltage regulation at the design demand.',
+        `For that size: full-load current and main breaker, LV fault level (typical IEC 60076-5 impedance, ${mvNetworkText(p) ? 'behind the grid source impedance' : 'infinite MV source'}), voltage regulation at the design demand.`,
         `Bus couplers: with one transformer out, the other carries both boards up to ${plan.emergencyLoadingPct} % of its rating. Duty / standby: two transformers, each for the whole load.`,
         ...(ex.length ? ['Existing installation: each existing board\'s recorded maximum demand covers the existing load on and below it, and the new load is added on top. Other buildings on a shared supply (not drawn here): the higher of each one\'s allocated and recorded load is kept for it; with a recorded MD, the existing load is the higher of the MD and the drawn existing load plus what is kept. Transformer: existing + new within the design loading; incomers, existing feeders and spare ways checked; a new transformer on an existing RMU needs a spare T-off way (at most 2 transformers per RMU).'] : []),
         ...(par.length ? ['Transformers in parallel (closed bus coupler), IEC 60076-8: the joined demand is shared in proportion to kVA ÷ uk %; each share within the design loading; the coupler carries what one side supplies beyond its own load. Same vector group required; uk % within 10 % and ratings within 2 : 1 for even sharing; same voltage ratio and tap position assumed. The busbar fault is from all the transformers together; the earth fault loop keeps one transformer (coupler open, the minimum fault).'] : []),

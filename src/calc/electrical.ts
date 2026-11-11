@@ -3,7 +3,7 @@ import { recordedPQ } from '../model/existing';
 import { ambientCorrectionFactor, cables, getCable } from './cableTable';
 import { trayGrouping } from './cableTray';
 import { feederRatingBasis, type RatingBasis } from './installation';
-import type { Board, Feeder, Project } from '../types';
+import type { Board, Feeder, GridSource, Project } from '../types';
 import { boardPhasePQ, type PhasePQ } from './loadSchedule';
 import { fmtFixed } from '../util/format';
 import { checkLimits, type LimitCheck } from './authorityLimits';
@@ -270,6 +270,56 @@ export function supplyImpedance(faultKa: number, voltageV: number, xr = DEFAULT_
   return { r, x: r * xr };
 }
 
+/** Voltage factor for the HV network feeder impedance, IEC 60909-0 Table 1 (MV, maximum currents). */
+export const C_MV = 1.1;
+/** X/R of an HV network feeder when the authority gives none (RQ = 0.1 XQ, IEC 60909-0 §6.2). */
+export const DEFAULT_GRID_XR = 10;
+
+/** Short-circuit power S″kQ (MVA) of a grid source: as stated, else √3 · U · Ik″. */
+export function gridFaultMva(g: GridSource): number | undefined {
+  if (g.faultMva && g.faultMva > 0) return g.faultMva;
+  if (g.faultKa && g.faultKa > 0 && g.kv > 0) return SQRT3 * g.kv * g.faultKa;
+  return undefined;
+}
+
+/** Grid source feeding a main board's transformer: the one its RMU names, else the project's first. */
+export function gridSourceOf(project: Project, board: Board): GridSource | undefined {
+  const list = project.gridSources ?? [];
+  if (!list.length) return undefined;
+  const name = board.rmu?.trim();
+  const id = name ? project.rmus?.find((r) => r.name === name)?.sourceId : undefined;
+  return (id && list.find((g) => g.id === id)) || list[0];
+}
+
+/** HV network impedance referred to the LV side, ZQt = cQ · U²LV ÷ S″kQ (IEC 60909-0 eq. 3 with
+ * tr = UnQ ÷ ULV), split by the network X/R. Undefined without a fault level (infinite network). */
+export function gridImpedance(g: GridSource | undefined, voltageV: number): Impedance | undefined {
+  const s = g && gridFaultMva(g);
+  if (!s) return undefined;
+  const z = (C_MV * voltageV * voltageV) / (s * 1e6);
+  const xr = g.xr && g.xr > 0 ? g.xr : DEFAULT_GRID_XR;
+  const r = z / Math.sqrt(1 + xr * xr);
+  return { r, x: r * xr };
+}
+
+/** Source impedance at a main board with a transformer: the transformers joined by closed couplers in
+ * parallel, each in series with its grid source; transformers on one source share its impedance. */
+export function mainSourceImpedance(project: Project, board: Board): Impedance {
+  const group = parallelGroup(project, board.id);
+  const bySource = new Map<string, { zq?: Impedance; zt: Impedance[] }>();
+  for (const b of group.length ? group : [board]) {
+    const g = gridSourceOf(project, b);
+    const e = bySource.get(g?.id ?? '') ?? { zq: gridImpedance(g, project.voltageV), zt: [] };
+    e.zt.push(transformerImpedance(b.sourceKva!, b.sourceImpedancePct!, project.voltageV, b.sourceXr));
+    bySource.set(g?.id ?? '', e);
+  }
+  const branches = [...bySource.values()].map((e) => {
+    const zt = e.zt.length > 1 ? parallelZ(e.zt) : e.zt[0];
+    return e.zq ? addZ(e.zq, zt) : zt;
+  });
+  return branches.length > 1 ? parallelZ(branches) : branches[0];
+}
+
 /** Cable phase impedance for the maximum short-circuit current: R at 20 °C
  * (IEC 60909-0 uses the conductor at 20 °C for maximum currents — a cold
  * cable gives the highest fault). Minimum faults (earthing) use the
@@ -324,10 +374,9 @@ function impedanceToBoardOf(project: Project, board: Board, seen: Set<string>): 
   if (!board.upstreamId) {
     // No transformer: a supply with a stated fault level (authority, or a neighbouring building's main board).
     if (!board.sourceKva || !board.sourceImpedancePct) return board.supply?.faultKa ? supplyImpedance(board.supply.faultKa, project.voltageV) : fallback;
-    // A closed coupler joins the busbars: every transformer on them feeds a fault (couplers taken as 0 Ω).
-    const group = parallelGroup(project, board.id);
-    const zs = group.map((b) => transformerImpedance(b.sourceKva!, b.sourceImpedancePct!, project.voltageV, b.sourceXr));
-    return zs.length > 1 ? parallelZ(zs) : transformerImpedance(board.sourceKva, board.sourceImpedancePct, project.voltageV, board.sourceXr);
+    // A closed coupler joins the busbars: every transformer on them feeds a fault (couplers taken as 0 Ω),
+    // each behind its HV network impedance when the grid fault level is given.
+    return mainSourceImpedance(project, board);
   }
 
   const incomer = findIncomer(project, board);
@@ -342,7 +391,8 @@ export const C_MAX = 1.05;
 
 /** Prospective symmetrical initial short-circuit current Ik″ (kA rms) for a
  * given source-to-fault impedance: c · U ÷ (√3 · |Z|), with c = C_MAX. The
- * upstream (MV) network is taken as infinite and the transformer correction
+ * upstream (MV) network is infinite unless a grid source gives its fault level
+ * (then its impedance is part of Z, see gridImpedance) and the transformer correction
  * factor KT is not applied — a simplified method based on IEC 60909-0, not a
  * full study. For a line-to-neutral fault pass the loop impedance (the result
  * is then c · U0 ÷ |Z|). */

@@ -16,6 +16,7 @@ import { ATTENTION_MAX, esc, PLAIN_CSS, reportHead, tally } from './report';
 import { buildSection, kvHtml, scopeOf, tableHtml, type CalcData, type Scope, type Section } from './studyReport';
 import pkg from '../../package.json';
 import { displayVersion } from '../model/appVersion';
+import { mvNetworkText } from '../calc/hvSupply';
 
 /** The standalone calculation report: a compact A4-landscape print with the document block,
  * results summary and design basis on page 1, then the calculation sections. Every section is
@@ -104,7 +105,7 @@ ${sections.map((s, i) => sectionHtml(s, i + 1)).join('')}
 
 <section class="calc" id="assumptions">
 <h2>${destMarker('assumptions', `${sections.length + 1}. Assumptions and limitations`)}${sections.length + 1}. Assumptions and limitations</h2><ul>
-  <li>Upstream MV network treated as infinite; transformer %Z split into R and X by its X/R ratio (default 5).</li>
+  <li>${mvNetworkText(project) ? esc(`${mvNetworkText(project)}.`) : 'Upstream MV network treated as infinite.'} Transformer %Z split into R and X by its X/R ratio (default 5).</li>
   <li>Fault levels follow IEC 60909-0 in a simplified form, not a full study: maximum currents for breaking capacity with c<sub>max</sub> = 1.05 and cable R at 20 °C; minimum currents for earth-fault disconnection with c<sub>min</sub> = ${0.95} and cable R at operating temperature; transformer correction K<sub>T</sub> not applied; loads, motor contribution and generation are neglected.</li>
   <li>Cable ratings: the rating for each circuit's IEC 60364-5-52 installation method (E free air / tray unless set), derated for air ambient or, for buried cables, ground temperature and soil thermal resistivity, and for grouping (the cable tray route for method E, else the circuit's own parallel runs). A circuit without a rating for its method is DATA REQUIRED.</li>
   <li>Cable resistance at operating temperature = 1.2 × R20 (IEC 60228)${project.vdTempC === undefined ? '' : `; voltage drop at ${project.vdTempC} °C = R20 × ${resistanceFactor(project.vdTempC).toFixed(3)}`}; protective conductor per IEC 60364-5-54 Table 54.2 unless specified. Maximum fault levels use R at 20 °C.</li>
