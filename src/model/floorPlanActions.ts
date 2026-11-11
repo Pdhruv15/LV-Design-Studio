@@ -62,6 +62,12 @@ export function renameRoom(project: Project, roomId: string, name: string): Proj
   return { ...project, building: { ...info, rooms: info.rooms.map((r) => (r.id === roomId ? { ...r, name: n } : r)) } };
 }
 
+/** A room's type (a RoomType id). */
+export function setRoomType(project: Project, roomId: string, type: string): Project {
+  const info = buildingInfoOf(project);
+  return { ...project, building: { ...info, rooms: info.rooms.map((r) => (r.id === roomId ? { ...r, type } : r)) } };
+}
+
 /** Cable routes of the plan: linked by hand, then those on the route layers that link themselves. */
 export function planRoutes(project: Project, plan: CadPlan, roles: CadLayerMap[]): CadRoute[] {
   const hand = linkedRoutes(plan);

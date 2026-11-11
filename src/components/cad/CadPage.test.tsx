@@ -8,8 +8,9 @@ import CadPage from './CadPage';
 import { useCad, type CadState } from './cadState';
 import { useSheetUi } from '../sld/sheetUi';
 import { cadFileMenu } from './cadFileMenu';
-import { buildingInfoOf } from '../../calc/building';
-import { trayPlanOf } from '../../calc/cableTray';
+import { buildingInfoOf, DEFAULT_ROOM_TYPES } from '../../calc/building';
+import type { CadShow } from './cadObjectMenus';
+import { sizeRoute, trayPlanOf } from '../../calc/cableTray';
 import { openDrawing } from '../../engines/cad/cadEngine';
 import '../../engines/cad/cadOps'; // loaded ahead: the engine loads it on demand, which a busy test run can make slow
 import { sampleProject } from '../../data/sampleProject';
@@ -51,14 +52,14 @@ beforeEach(() => {
 });
 afterEach(() => { act(() => root.unmount()); document.body.innerHTML = ''; delete (window as { lvds?: unknown }).lvds; });
 
-function Host({ start = villa }: { start?: Project }) {
+function Host({ start = villa, show }: { start?: Project; show?: (s: CadShow) => void }) {
   const cad = useCad('p1');
   const [p, setP] = useState(start);
   const sheetUi = useSheetUi();
   const [draft, setDraft] = useState(DRAFT_DEFAULTS);
   state = cad;
   return <CadPage cad={cad} project={p} onChange={(next, msg) => { setP(next); onChange(next, msg); }} onStatus={() => {}} sheetUi={sheetUi}
-    draft={draft} onPrefs={(x) => { setDraft(x.draft); onPrefs(x); }} />;
+    draft={draft} onPrefs={(x) => { setDraft(x.draft); onPrefs(x); }} onShow={show} />;
 }
 /** Waits for something on screen (a slower machine takes longer), up to 10 s. */
 const until = async (ok: () => boolean) => { for (let i = 0; i < 200 && !ok(); i += 1) await act(async () => { await new Promise((r) => setTimeout(r, 50)); }); expect(ok()).toBe(true); };
@@ -958,10 +959,11 @@ describe('CAD view', () => {
     act(() => state.toggle('osnap'));
     const [sx, sy] = screenOf(6000, 4000);
     await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); });
-    const menu = document.querySelector('[role="menu"][aria-label="Edit devices"]') as HTMLElement;
-    expect(menu.textContent).toBe('Socket 13 A · DB-GF1/B6Replace ▾Circuit ▾MatchMoveCopyDelete');
-    await act(async () => { [...menu.querySelectorAll('button')].find((b) => b.textContent === 'Replace ▾')!.click(); });
-    await act(async () => { ([...document.querySelectorAll('[role="option"]')].find((o) => o.textContent!.startsWith('Twin socket')) as HTMLButtonElement).click(); });
+    const menu = document.querySelector('[role="menu"][aria-label="Command menu"]') as HTMLElement;
+    const top = [...menu.children].filter((x) => x.tagName === 'BUTTON').map((x) => x.querySelector('span')!.textContent);
+    expect(top).toEqual(['Circuit', 'Swap device type', 'Select same circuit', 'Select same type', 'Match to this', 'Move', 'Copy', 'Erase', 'Isolate', 'Count', 'Deselect all', 'Properties']);
+    await act(async () => { [...menu.querySelectorAll('button')].find((b) => b.textContent!.startsWith('Swap device type'))!.click(); });
+    await act(async () => { ([...document.querySelectorAll('[role="menuitem"]')].find((o) => o.textContent!.startsWith('Twin socket')) as HTMLButtonElement).click(); });
     expect(project.lvPoints!.find((d) => d.x === 6)!.type).toBe('s13t');
     expect(project.feeders.find((f) => f.id === 'DB-GF1-B6')!.points).toMatchObject({ s13: 6, s13t: 1 });
     await command('ARL');
@@ -3801,5 +3803,114 @@ describe('right-click menus, phase 1: the tools behind them', () => {
     await act(async () => { entry('Deselect all').click(); });
     await command('COUNT');
     expect(hist()).toMatch(/^COUNT {2}In view: 1 Line/);
+  });
+});
+
+describe('right-click menus, phase 2: LV and ELV objects and the tools behind them', () => {
+  const hist = () => document.querySelector('.cad-hist')!.textContent;
+  const right = (x: number, y: number) => { const [sx, sy] = screenOf(x, y); return act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); }); };
+  const entry = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find((b) => (b.firstElementChild?.textContent ?? b.textContent) === label)!;
+  const pickEntry = async (...path: string[]) => { for (const l of path) { const b = entry(l); expect(b, l).toBeTruthy(); await act(async () => { b.click(); }); } };
+  const esc = () => act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+  const lit: Project = {
+    ...villa,
+    boards: villa.boards.map((b) => (b.id === 'DB-GF1' ? { ...b, planPoint: { x: 1, y: 1 }, level: { building: 'V', level: 'GF' } } : b)),
+    lvPoints: [
+      { id: 'P1', type: 'ltg', feederId: 'DB-GF1-Y1', buildingId: 'V', levelId: 'GF', x: 3, y: 9 },
+      { id: 'P2', type: 'ltg', feederId: 'DB-GF1-Y1', buildingId: 'V', levelId: 'GF', x: 6, y: 9 },
+      { id: 'P3', type: 's13', feederId: 'DB-GF1-B6', buildingId: 'V', levelId: 'GF', x: 6, y: 4 }
+    ]
+  };
+  const start = async (p: Project, show?: (s: CadShow) => void) => { project = p; act(() => root.render(<Host start={p} show={show} />)); await flush(); act(() => state.toggle('osnap')); };
+
+  it('a light: Select same circuit, Circuit ▸ Draw home-run, Show in SLD and the load schedule; a board: Draw home-runs, Load schedule, riser', async () => {
+    const show = vi.fn();
+    await start(lit, show);
+    await right(3000, 9000);
+    await pickEntry('Select same circuit');
+    expect(hist()).toBe('SEL  2 devices on DB-GF1/Y1 on this level');
+    await right(3000, 9000);
+    await pickEntry('Circuit', 'Draw home-run');
+    expect(project.cadWiring).toEqual([{ feederId: 'DB-GF1-Y1' }]);
+    await right(3000, 9000);
+    await pickEntry('Show in SLD');
+    expect(show).toHaveBeenLastCalledWith({ to: 'sld', feeder: 'DB-GF1-Y1', board: 'DB-GF1' });
+    await right(3000, 9000);
+    await pickEntry('Show in load schedule');
+    expect(show).toHaveBeenLastCalledWith({ to: 'load-schedule', board: 'DB-GF1' });
+    await esc();
+    await right(1000, 1000);
+    await pickEntry('Draw home-runs');
+    expect(project.cadWiring!.map((w) => w.feederId).sort()).toEqual(['DB-GF1-B6', 'DB-GF1-Y1']);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(/^1 circuit of DB-GF1 wired on /);
+    await right(1000, 1000);
+    await pickEntry('Show in riser');
+    expect(show).toHaveBeenLastCalledWith({ to: 'riser', board: 'DB-GF1' });
+    await right(1000, 1000);
+    await pickEntry('Select all fed devices');
+    expect(hist()).toMatch(/^SEL {2}3 devices on DB-GF1's circuits/);
+  });
+
+  it('a room with an outline: Room ▸ Room loads, Select devices in room, Rename room… and Room type… on the command line', async () => {
+    const outline: [number, number][] = [[100, 100], [104, 100], [104, 104], [100, 104]];
+    const p: Project = { ...lit, building: { ...villa.building!, roomTypes: DEFAULT_ROOM_TYPES, rooms: [{ id: 'R9', buildingId: 'V', levelId: 'GF', name: 'Store', type: 'office', areaM2: 16, outline }] },
+      lvPoints: [...lit.lvPoints!, { id: 'P9', type: 'ltg', feederId: 'DB-GF1-Y1', buildingId: 'V', levelId: 'GF', x: 101, y: 101 }] };
+    await start(p);
+    await right(102500, 102500);
+    await pickEntry('Room Store', 'Room loads');
+    expect(hist()).toBe('LOADS  Store: Office: 1.60 kW connected, 1.28 kW demand (100 W/m² × 16.0 m², ×0.8) · 1 Light');
+    await right(102500, 102500);
+    await pickEntry('Room Store', 'Select devices in room');
+    expect(hist()).toBe('SEL  1 device in Store');
+    await esc();
+    await right(102500, 102500);
+    await pickEntry('Room Store', 'Rename room…');
+    await command('Plant room');
+    expect(buildingInfoOf(project).rooms[0].name).toBe('Plant room');
+    await right(102500, 102500);
+    await pickEntry('Room Plant room', 'Room type…');
+    expect(hist()).toMatch(/^ROOM TYPE {2}Plant room: type the room type \(.*\) <Office>:$/);
+    await command('retail');
+    expect(buildingInfoOf(project).rooms[0].type).toBe('retail');
+    await right(102500, 102500);
+    await pickEntry('Room Plant room', 'Light room…');
+    expect(state.tool).toBe('lux');
+  });
+
+  it('a cable route: Trace circuit picks its devices, Reverse direction; a tray: Size tray from cables, Fill ratio check, Cables in this route', async () => {
+    const X = 200000;
+    const route: SketchItem = { id: 'C1', kind: 'pline', layer: 'E-CABLE', pts: [[X, 0], [X + 4000, 0], [X + 4000, 3000]], cable: { feederId: 'DB-GF1-Y1' } };
+    const tray: SketchItem = { id: 'T1', kind: 'pline', layer: 'E-TRAY', pts: [[X, 10000], [X + 6000, 10000]], tray: { widthMm: 50, service: 'Power', route: 'A' } };
+    const bare: SketchItem = { ...tray, id: 'T2', pts: [[X, 20000], [X + 6000, 20000]], tray: { widthMm: 100 } };
+    const p: Project = { ...lit, feeders: lit.feeders.map((f) => (f.id === 'INC-GF' || f.id === 'INC-FF' ? { ...f, trayRoute: 'A' } : f)),
+      trays: { ...trayPlanOf(lit), routes: [{ id: 'RA', name: 'A', cables: [] }] }, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [route, tray, bare] }] };
+    await start(p);
+    await clickAt(X + 2000, 0);
+    await right(X + 2000, 0);
+    await pickEntry('Trace circuit');
+    expect(hist()).toMatch(/^TRACE {2}DB-GF1\/Y1.*: 3 devices and boards on this level$/);
+    await esc();
+    await clickAt(X + 2000, 0);
+    await right(X + 2000, 0);
+    await pickEntry('Reverse direction');
+    expect(sketchOf(project, 'sample-villa-gf.dxf').find((it) => it.id === 'C1')!.pts).toEqual([[X + 4000, 3000], [X + 4000, 0], [X, 0]]);
+    await esc();
+    await clickAt(X + 3000, 10000);
+    await right(X + 3000, 10000);
+    await pickEntry('Size tray from cables');
+    const need = sizeRoute(p, trayPlanOf(p), { id: 'RA', name: 'A', cables: [] }).autoWidthMm;
+    expect(need).toBeGreaterThan(50);
+    expect(sketchOf(project, 'sample-villa-gf.dxf').find((it) => it.id === 'T1')!.tray!.widthMm).toBe(need);
+    await right(X + 3000, 10000);
+    await pickEntry('Fill ratio check');
+    expect(hist()).toMatch(new RegExp(`^FILL  ${need} mm tray: [\\d.]+% full \\(limit \\d+%\\) — OK$`));
+    await right(X + 3000, 10000);
+    await pickEntry('Cables in this route');
+    expect(hist()).toMatch(/^CABLES {2}Route A: 2 cables — MDB-1 → SMDB-GF/);
+    await esc();
+    await clickAt(X + 3000, 20000);
+    await right(X + 3000, 20000);
+    await pickEntry('Fill ratio check');
+    expect(hist()).toMatch(/^TRAY {2}This tray is on no route/);
   });
 });

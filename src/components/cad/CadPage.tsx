@@ -17,6 +17,7 @@ import { endTowards, linesCross, nearestPiece, nearestSegment, onRound, roundOfS
 import { clipPayload, clipText, lowerLeft, parseClip, pastedItems, withPasted, type ClipPayload } from '../../model/cadClipboard';
 import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
 import { addSelectedTool, blankMenu, commandMenu, countLine, measureOf, shownBy, SNAP_OVERRIDES, type CtxEntry, type CtxItem, type ObjectHide } from './cadContextMenu';
+import { deviceMenu, devArg, devicesInRoom, luxCheckLine, roomEntry, roomLoads, trayCheckLine, type CadShow, type DeviceMore } from './cadObjectMenus';
 import { isNumber, promptOptions, shortPrompt, spaceEnters, type SpaceMode } from './cadPrompt';
 import CadDynInput, { type DynBox } from './CadDynInput';
 import CadTextEdit from './CadTextEdit';
@@ -38,7 +39,7 @@ import { erasedOf, restoredErased, shownView, withErased, type ErasedParts } fro
 import { CIRCUIT_ATTRIBUTES } from '../../model/cadLoads';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
 import { addSketch, withSketchItems, pointStyleOut, blockDefsOut, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimLabel, dimMeasure, dimOf, linearDir, nextDim, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch, withText } from '../../model/cadSketch';
-import { trayPlanOf } from '../../calc/cableTray';
+import { routeSettings, sizeRoute, trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
 import { ELV_PALETTE, elvPlacedOn, elvSystemOf, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
@@ -48,8 +49,8 @@ import { angleDeg, areaOf, distance, inside, m, m2, roomAround, segmentsOn } fro
 import { layerMapFor, layersWith, roomsFromPlan, withLayerMap } from '../../model/cadRooms';
 import { layerStatsOf, objectPath, outlinePoints, planOfView } from '../../model/cadViewPlan';
 import { planDrawings, scheduleSummary, updateSchedules } from '../../model/cadPlanSchedules';
-import { arcPoints, levelWiring, toggleWiring, wireLevel, type WiringArc } from '../../model/cadWiring';
-import { buildingInfoOf } from '../../calc/building';
+import { arcPoints, isWired, levelWiring, toggleWiring, wireBoard, wireLevel, type WiringArc } from '../../model/cadWiring';
+import { buildingInfoOf, roomTypesOf } from '../../calc/building';
 import { plansOf } from '../../model/cadPlans';
 import { CAD_UNITS, planScale } from '../../model/cadUnits';
 import CadLayerTable from '../CadLayerTable';
@@ -78,7 +79,7 @@ import type { MarkupTool } from '../sld/markupTools';
 import type { SheetUi } from '../sld/sheetUi';
 import type { CalcRun } from '../../calc/runs';
 import { exportDrawingSet } from '../docs/sheetRender';
-import { pickedRoom, putRooms, renameRoom } from '../../model/floorPlanActions';
+import { pickedRoom, putRooms, renameRoom, setRoomType } from '../../model/floorPlanActions';
 import { floorLabel, floorList } from '../../model/levels';
 import type { CadLayerMap, CadLayerRole, Project } from '../../types';
 import { fmtFixed, fmtUpTo } from '../../util/format';
@@ -98,7 +99,7 @@ import { applyLayerPatch, archOnOf, currentLayerOf, extentsOf, isolate, layerFil
 import { DrawnSelectionPanel, ED_START, EditToolPanel, kindOf, SketchToolbar, type EditSettings, type EditTool, type SketchEdit } from './SketchEditPanel';
 import { arrayPolar, arrayRect, breakAt, chamfer, edgesFor, explode, extend, fillet, gripMoved, gripsOf, isPath, join, mirrored, offset, scaled, sketchInWindow, stretched, throughDistance, trim, type Edit } from '../../model/cadEdit';
 import { ArrayPanel, ARL_START, MatchPanel, MATCH_START, SelectionPanel, type ArlSettings, type MatchSettings } from './DeviceEditPanel';
-import { alongLine, arranged, circuitAfter, copyDevices, deleteDevices, editsFor, inWindow, matchDevice, moveDevices, onBoard, placeAlong, renameBoard, replaceDevices, toCircuit, typeOf, type DeviceEdit } from '../../model/deviceEdit';
+import { alongLine, arranged, circuitAfter, copyDevices, deleteDevices, editsFor, inWindow, matchDevice, moveDevices, onBoard, placeAlong, renameBoard, replaceDevices, replacements, toCircuit, typeOf, type DeviceEdit } from '../../model/deviceEdit';
 
 type Pt = [number, number];
 type Result =
@@ -272,8 +273,10 @@ const DRAW_TOOLS: CadTool[] = ['point', 'line', 'pline', 'tray', 'cable', 'rect'
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
  * a command line and a status bar. Engine in Rust (WebAssembly), desktop and web alike. Measure a distance, an area (by
  * corners, a closed object, or inside a room), and click any object to see what it is. */
-export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run: calcRun, onSheet, draft = DRAFT_DEFAULTS, autosaveMin = 2, onPrefs, onUndo, onRedo, canUndo = false, canRedo = false }: {
+export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run: calcRun, onSheet, draft = DRAFT_DEFAULTS, autosaveMin = 2, onPrefs, onUndo, onRedo, canUndo = false, canRedo = false, onShow }: {
   cad: CadState;
+  /** Opens a board's load schedule, the SLD, the riser, the cable schedule or the ELV page (the right-click menus). */
+  onShow?: (s: CadShow) => void;
   /** The project's undo and redo (UNDO, REDO and the right-click menu). */
   onUndo?: () => void;
   onRedo?: () => void;
@@ -340,6 +343,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [matchFrom, setMatchFrom] = useState<string | null>(null);
   const [matchSet, setMatchSet] = useState<MatchSettings>(MATCH_START);
   const [renaming, setRenaming] = useState<string | null>(null);
+  /** A room being renamed or given its type on the command line (the room's right-click menu). */
+  const [roomAsk, setRoomAsk] = useState<{ id: string; step: 'name' | 'type' } | null>(null);
+  /** Where the last right-click on the plan was, and the room there. */
+  const ctxAt = useRef<{ at: Pt; room?: string } | null>(null);
+  /** Light room… from a room's menu: the room LUX starts on. */
+  const luxNext = useRef<string | null>(null);
   // Edit tools: their settings, the first object picked (and where), objects picked first or points next, the Stretch
   // window, the grip being dragged, and a first pick set by the toolbar before the tool starts.
   const [edSet, setEdSet] = useState<EditSettings>(ED_START);
@@ -499,7 +508,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // A tool chosen (ribbon or command line): start it afresh and say what it asks for.
   useEffect(() => {
     const pre = preset.current;
-    setPoints([]); setObjectMode(false); setLuxRoom(null); setMenuAt(null); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
+    setPoints([]); setObjectMode(false); setLuxRoom(luxNext.current); luxNext.current = null; setMenuAt(null); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
     setCloudPoly(false); setEllAxis(false); setCircleDia(false);
     setEdStep(pre); preset.current = null; setStretchBox(null); setMpFrom(null);
     const first = picked.some((k) => k.startsWith('sk:')) || !!cad.selected?.startsWith('sk:');
@@ -568,6 +577,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // Snaps come from what shows: objects on layers that are off or frozen are not snapped to (locked ones are).
   const shown = useMemo(() => shownBy(objHide, view?.file), [objHide, view]);
   const shownSketch = useMemo(() => sketch.filter((it) => shown(`sk:${it.id}`)), [sketch, shown]);
+  const shownPlaced = useMemo(() => placed.filter((d) => shown(d.key)), [placed, shown]);
   const sketchSnaps = useMemo(() => snapPoints(shownSketch.filter((it) => !effective(it, styles).hidden), defs), [shownSketch, styles, defs]);
   // Objects on locked, hidden or frozen layers cannot be picked.
   const pickable = useMemo(() => shownSketch.filter((it) => { const e = effective(it, styles); return !e.lock && !e.hidden; }), [shownSketch, styles]);
@@ -1229,14 +1239,22 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return;
     }
     const d = deviceAt(at, pixel), sk = d ? undefined : hitAt(pickable, at, 6 * pixel);
+    const room = floor ? roomAtPointOf(project, floor, at, units.factor) : undefined;
+    ctxAt.current = { at, room: room?.id };
     if (d && !pickedKeys.has(d.key)) pick([d]);
     else if (sk && !pickedKeys.has(`sk:${sk.id}`)) pick([], [sk]);
+    // Devices only (the one clicked, or those picked): the device, board or ELV menu.
+    const devs = d && !pickedKeys.has(d.key) ? [d] : !sk && !pickedSk.length ? pickedItems : [];
+    if (devs.length && (d || !sk)) { setPromptMenu({ at: screen, items: devMenu(devs) }); return; }
     if (!d && !sk && !pickedItems.length && !pickedSk.length) {
       // An object of the opened drawing: picked (if it was not), with Erase (run as it then stands, through the actions).
       const o = view ? await view.pick(at[0], at[1], 6 * pixel, pickOn) : null;
       if (o && !pickedKeys.has(`dw:${o.handle}`)) pick([], [], [o]);
       if (o || pickedDw.length) { setPromptMenu({ at: screen, items: [{ label: 'Erase', key: 'Del', cmd: 'ERASE' }] }); return; }
-      setPromptMenu({ at: screen, items: blankMenu({ recent: recent.map((x) => x.label), canPaste: hasClip(), canUndo, canRedo, objectsHidden: !!objHide && objHide.file === view?.file }) });
+      const blank = blankMenu({ recent: recent.map((x) => x.label), canPaste: hasClip(), canUndo, canRedo, objectsHidden: !!objHide && objHide.file === view?.file });
+      // Inside a room with an outline: the room's tools first (phase 2).
+      const rt = room ? roomTypesOf(buildingInfoOf(project)).find((t) => t.id === room.type) : undefined;
+      setPromptMenu({ at: screen, items: room ? [roomEntry({ room, typeLabel: rt?.label, elv: elvItem?.label }), '-', ...blank] : blank });
       return;
     }
     setMenuAt(screen);
@@ -1268,6 +1286,91 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (t === 'insert') { const def = it.block ? blockByName(it.block) : undefined; if (def) startInsert(def); else cad.say('ADDSELECTED  The block is not in this drawing.'); return; }
     cad.setTool(t);
   }
+  /** The LV circuit of a placed device (none for a board or an ELV device). */
+  const feederOfDev = (d: PlacedItem) => (d.what === 'lv' ? (project.lvPoints ?? []).find((x) => x.id === d.id)?.feederId : undefined);
+  /** The right-click menu of the devices picked (src/components/cad/cadObjectMenus.ts). */
+  function devMenu(items: PlacedItem[]): CtxEntry[] {
+    const fs = new Set(items.map(feederOfDev)), types = new Map<string, { label: string; count: number }>();
+    for (const it of items) { const t = typeOf(project, it); types.set(t, { label: it.label, count: (types.get(t)?.count ?? 0) + 1 }); }
+    const fid = fs.size === 1 ? [...fs][0] : undefined, f = fid ? project.feeders.find((x) => x.id === fid) : undefined;
+    const swapNow = types.size === 1 ? [...types.keys()][0] : undefined;
+    return deviceMenu({
+      items, edits: editsFor(project, items), oneType: types.size === 1, canShow: !!onShow,
+      circuits: circuits.map((c) => ({ id: c.id, label: circuitLabel(project, c), now: c.id === fid })),
+      swaps: replacements(project, items).map((x) => ({ id: x.id, label: x.label, now: x.id === swapNow })),
+      types: [...types].map(([id, v]) => ({ id, ...v })),
+      ...(f ? { circuit: { id: f.id, board: f.boardId, wired: isWired(project, f.id) } } : {})
+    });
+  }
+  /** Wire one: the circuit's home run drawn, or taken off. */
+  function wireCircuit(feederId: string) {
+    const f = project.feeders.find((x) => x.id === feederId);
+    if (!f || !floor) return;
+    const r = toggleWiring(project, f.id);
+    const w = r.wired ? levelWiring(r.project, floor.ref).find((x) => x.feederId === f.id) : undefined;
+    change(r.project, r.wired ? `${w?.tag ?? circuitLabel(project, f)} wired${w?.warning ? ` — ${w.warning}` : ''} · ⌘Z to undo` : `Wiring of ${circuitLabel(project, f).split(' · ')[0]} taken off · ⌘Z to undo`);
+  }
+  /** A device entry of the right-click menu: an edit of the toolbar, or one the menu adds. */
+  function deviceAct(edit: DeviceEdit | DeviceMore, value?: string) {
+    const items = pickedItems, one = items[0];
+    setPromptMenu(null);
+    if (!one || !floor) return;
+    const fid = feederOfDev(one), f = fid ? project.feeders.find((x) => x.id === fid) : undefined;
+    const board = one.what === 'board' ? one.id : f?.boardId;
+    const show = (s: CadShow, what: string) => { if (!onShow) return; onShow(s); cad.say(what); };
+    switch (edit) {
+      case 'samecircuit': {
+        if (!f) return;
+        const on = shownPlaced.filter((d) => feederOfDev(d) === f.id);
+        pick(on); cad.say(`SEL  ${on.length} device${on.length === 1 ? '' : 's'} on ${circuitLabel(project, f).split(' · ')[0]} on this level`); return;
+      }
+      case 'sametype': {
+        const t = typeOf(project, one), same = shownPlaced.filter((d) => d.what === one.what && typeOf(project, d) === t);
+        pick(same); cad.say(`SEL  ${same.length} × ${one.label} on this level`); return;
+      }
+      case 'homerun': if (f) wireCircuit(f.id); return;
+      case 'homeruns': {
+        const r = wireBoard(project, floor.ref, one.id);
+        if (!r.added.length) { cad.say(`WIRE  Every circuit of ${one.id} with devices on this level is wired.`); return; }
+        change(r.project, `${r.added.length} circuit${r.added.length === 1 ? '' : 's'} of ${one.id} wired on ${floorLabel(project.building, floor)} · ⌘Z to undo`); return;
+      }
+      case 'schedule': if (board) show({ to: 'load-schedule', board }, `Load schedule of ${board}`); return;
+      case 'sld': show(f ? { to: 'sld', feeder: f.id, board: f.boardId } : { to: 'sld', board }, `SLD: ${f ? circuitLabel(project, f).split(' · ')[0] : board}`); return;
+      case 'board': show({ to: 'board', board }, `Board diagram of ${board}`); return;
+      case 'riser': show({ to: 'riser', board }, `Riser diagram: ${board}`); return;
+      case 'feeder': show({ to: 'cable-schedule', board }, `Cable schedule of ${board}`); return;
+      case 'elvschedule': show({ to: 'elv' }, 'ELV schedule'); return;
+      default: editDevices(edit, value);
+    }
+  }
+  /** A room entry of the blank-canvas menu, on the room under the right-click. */
+  function roomAct(a: string) {
+    const c = ctxAt.current, room = c?.room ? buildingInfoOf(project).rooms.find((r) => r.id === c.room) : undefined;
+    if (!room || !c || !floor) return;
+    const name = room.name;
+    switch (a) {
+      case 'lux': luxNext.current = room.id; if (tool === 'lux') setLuxRoom(room.id); else cad.setTool('lux'); setTimeout(() => cad.say(`LUX  ${name}: set the luminaire and circuit, then Place.`)); return;
+      case 'luxcheck': {
+        const need = lightingOf(project, room, luxSet), lights = devicesInRoom(shownPlaced.filter((d) => d.what === 'lv' && typeOf(project, d) === 'ltg'), room).length;
+        cad.say(need.result.invalid ? `LUX CHECK  ${name}: ${need.result.invalid}` : luxCheckLine(name, lights, need.result.count, need.input.targetLux)); return;
+      }
+      case 'em': setEm((e) => ({ ...e, rooms: e.rooms.includes(room.id) ? e.rooms : [...e.rooms, room.id] })); setEmSet((s) => ({ ...s, mode: 'open' })); cad.setTool('em'); setTimeout(() => cad.say(`EM  ${name} (${m2(room.areaM2)}): open area. Click more rooms or draw the escape routes, then Place.`)); return;
+      case 'fill': {
+        if (!elvItem) { cad.setTool('fill'); setTimeout(() => cad.say('FILL  Choose an ELV device (a detector, speaker, data outlet…) in the Devices panel, then click the room.')); return; }
+        const r = fillAt(project, { building: floor.ref.building, level: floor.ref.level }, elvItem.kind.elv, [c.at[0] * units.factor, c.at[1] * units.factor]);
+        if (r.next) change(r.next, r.message); else cad.say(`FILL  ${r.message}`); return;
+      }
+      case 'select': { const on = devicesInRoom(shownPlaced, room); pick(on); cad.say(`SEL  ${on.length} device${on.length === 1 ? '' : 's'} in ${name}`); return; }
+      case 'loads': cad.say(`LOADS  ${name}: ${roomLoads(room, roomTypesOf(buildingInfoOf(project)).find((t) => t.id === room.type), shownPlaced).line}`); return;
+      case 'area': { const o = room.outline ?? [], per = o.reduce((t, q, i) => t + distance(q, o[(i + 1) % o.length]), 0); cad.say(`AREA  ${name}: ${m2(room.areaM2)}${per ? `, perimeter ${m(per)}` : ''}`); return; }
+      case 'rename': setRoomAsk({ id: room.id, step: 'name' }); cad.say(`RENAME  New name of ${name}:`); input.current?.focus(); return;
+      case 'type': {
+        const types = roomTypesOf(buildingInfoOf(project)), now = types.find((t) => t.id === room.type);
+        setRoomAsk({ id: room.id, step: 'type' });
+        cad.say(`ROOM TYPE  ${name}: type the room type (${types.slice(0, 6).map((t) => t.label).join(', ')}${types.length > 6 ? ', …' : ''}) <${now?.label ?? 'none'}>:`); input.current?.focus(); return;
+      }
+    }
+  }
   /** A right-click menu entry picked: its command typed, or the page action. */
   function ctxPick(x: CtxItem) {
     setPromptMenu(null);
@@ -1286,6 +1389,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         return;
       }
       case 'deselect': setPicked([]); cad.setSelected(null); setResult(null); setMenuAt(null); return;
+      case 'dev': { const d = devArg(a); deviceAct(d.edit, d.value); return; }
+      case 'room': roomAct(a); return;
     }
   }
   const fileOf = () => view?.file ?? '';
@@ -1322,12 +1427,42 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (e === 'addsel') { setMenuAt(null); run('ADDSELECTED'); return; }
     if (e === 'qmeasure') { run('QUICKMEASURE'); return; }
     if (e === 'count') { run('COUNT'); return; }
+    if (e === 'traysize' || e === 'traycables' || e === 'trayfill' || e === 'reverse' || e === 'trace' || e === 'routesld') { if (one) routeEdit(e, one); return; }
     if (e === 'erase') { removeSelected(); return; }
     if (e === 'join') { applyJoin(); return; }
     if (e === 'rotate' && !one) { cad.say('ROTATE  One object at a time.'); return; }
     if (e === 'filter' || e === 'width') return;
     if ((e === 'offset' || e === 'fillet') && one) preset.current = { id: one.id, at: gripsOf(one).find((g) => g.kind === 'mid')?.at ?? one.pts[0] };
     cad.setTool(e);
+  }
+  /** The LV tools of a cable tray or cable route picked (its right-click menu). */
+  function routeEdit(e: 'traysize' | 'traycables' | 'trayfill' | 'reverse' | 'trace' | 'routesld', it: SketchItem) {
+    if (e === 'reverse') {
+      change(updateSketch(project, fileOf(), { ...it, pts: [...it.pts].reverse() }), `${it.tray ? 'Cable tray' : it.cable ? 'Cable route' : kindOf(it)} reversed · ⌘Z to undo`); return;
+    }
+    const f = it.cable ? project.feeders.find((x) => x.id === it.cable!.feederId) : undefined;
+    if (e === 'trace' || e === 'routesld') {
+      if (!f) { cad.say(`TRACE  The circuit ${it.cable?.feederId ?? ''} is not in the project.`); return; }
+      if (e === 'routesld') { onShow?.({ to: 'sld', feeder: f.id, board: f.boardId }); cad.say(`SLD: ${circuitLabel(project, f).split(' · ')[0]}`); return; }
+      const on = shownPlaced.filter((d) => feederOfDev(d) === f.id || (d.what === 'board' && (d.id === f.boardId || d.id === f.feedsBoardId)));
+      pick(on, [it]); cad.say(`TRACE  ${circuitLabel(project, f)}: ${on.length} device${on.length === 1 ? '' : 's'} and boards on this level`); return;
+    }
+    const tray = it.tray!, plan = trayPlanOf(project), route = tray.route ? plan.routes.find((r) => r.name.toLowerCase() === tray.route!.toLowerCase()) : undefined;
+    if (!route) { cad.say('TRAY  This tray is on no route: choose its route in Properties first (the route\'s cables size it).'); return; }
+    const auto = sizeRoute(project, plan, { ...route, widthMm: undefined });
+    if (e === 'traycables') {
+      const lines = auto.lines.filter((l) => !l.ecc);
+      cad.say(lines.length ? `CABLES  Route ${route.name}: ${lines.length} cable${lines.length === 1 ? '' : 's'} — ${lines.slice(0, 6).map((l) => `${l.from} → ${l.to} ${l.description}`).join('; ')}${lines.length > 6 ? `; and ${lines.length - 6} more` : ''}` : `CABLES  Route ${route.name}: no cables on it yet (Cable tray page, or Update schedules).`);
+      return;
+    }
+    if (!auto.cableCount) { cad.say(`TRAY  Route ${route.name} has no cables yet: nothing to size it from.`); return; }
+    if (e === 'traysize') {
+      if (auto.autoWidthMm === tray.widthMm) { cad.say(`TRAY  ${tray.widthMm} mm is already the size the cables of route ${route.name} need.`); return; }
+      change(updateSketch(project, fileOf(), { ...it, tray: { ...tray, widthMm: auto.autoWidthMm } }), `TRAY  Route ${route.name}: ${auto.cableCount} cables need ${auto.autoWidthMm} mm${auto.autoTiers > 1 ? ` in ${auto.autoTiers} tiers` : ''} (was ${tray.widthMm} mm) · ⌘Z to undo`);
+      return;
+    }
+    const drawn = sizeRoute(project, plan, { ...route, widthMm: tray.widthMm });
+    cad.say(trayCheckLine(tray.widthMm, drawn.fillPctActual, routeSettings(plan, route).fillPct, auto.autoWidthMm));
   }
   /** A block by name: one of the drawing's, else one inserted lately (added to the drawing when placed). */
   const blockByName = (name: string): CadBlockDef | undefined => blockDefOf(defs, name.trim()) ?? recentBlocks.find((d) => d.name.toLowerCase() === name.trim().toLowerCase());
@@ -2422,6 +2557,16 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       change({ ...project, drawingSet: { ...set, sheets: set.sheets.map((x) => (x.id === id ? { ...x, title: raw } : x)) } }, `LAYOUT  renamed "${raw}" · ⌘Z to undo`);
       return;
     }
+    if (roomAsk) {
+      const room = buildingInfoOf(project).rooms.find((r) => r.id === roomAsk.id);
+      setRoomAsk(null);
+      if (!raw || !room) { cad.say('*Cancel*'); return; }
+      if (roomAsk.step === 'name') { change(renameRoom(project, room.id, raw), `${room.name} renamed ${raw} · ⌘Z to undo`); return; }
+      const types = roomTypesOf(buildingInfoOf(project)), low = raw.toLowerCase();
+      const t = types.find((x) => x.label.toLowerCase() === low || x.id.toLowerCase() === low) ?? types.find((x) => x.label.toLowerCase().startsWith(low));
+      if (!t) { cad.say(`ROOM TYPE  No room type "${raw}" (the types are in Building information).`); return; }
+      change(setRoomType(project, room.id, t.id), `${room.name}: ${t.label} · ⌘Z to undo`); return;
+    }
     if (renaming && raw) {
       const id = renaming;
       setRenaming(null);
@@ -2893,7 +3038,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   }
   /** What Space does in the command line: types a space in text (a name, TEXT contents, a leader's text); at TEXT's
    * height and rotation, where a word is the text, ends only an empty input or a number; else ends a whole word. */
-  const spaceMode: SpaceMode = renaming || renamingLayout || (tool === 'text' && cad.textAt && !textAsk?.step) || (tool === 'leader' && points.length >= 2) || ((tool === 'tprefix' || tool === 'tsuffix') && edPhase === 'points')
+  const spaceMode: SpaceMode = renaming || renamingLayout || roomAsk || (tool === 'text' && cad.textAt && !textAsk?.step) || (tool === 'leader' && points.length >= 2) || ((tool === 'tprefix' || tool === 'tsuffix') && edPhase === 'points')
     || (tool === 'tcount' && (tc?.step === 'prefix' || tc?.step === 'suffix')) || (tool === 'keynote' && kn?.step === 'text') ? 'text'
     : tool === 'text' && cad.textAt ? 'value' : 'command';
   /** Numbers typed go to the command line (or the box at the cursor) rather than the view's keys (0 fits, − zooms out):
@@ -3139,7 +3284,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 const at = menuAt ? { left: menuAt[0] + 4, top: menuAt[1] + 4, place: 'menu' as const } : t < 60 ? { left: Math.max(4, l), top: b + 8, place: 'below' as const } : { left: Math.max(4, l), top: t - 8, place: 'above' as const };
                 if (pickedSk.length) {
                   const one = pickedSk.length === 1 && !pickedItems.length && isPath(pickedSk[0]) ? pickedSk[0] : undefined;
-                  return <SketchToolbar key={[...pickedKeys].join()} items={pickedSk} devices={pickedItems.length} lengthM={one ? toM(pathLength(one.pts)) : undefined} {...at} canPaste={hasClip()} withAtts={(it) => attdefsOf(blockDefOf(defs, it.block)).length > 0} onEdit={editSketch} />;
+                  return <SketchToolbar key={[...pickedKeys].join()} items={pickedSk} devices={pickedItems.length} canShow={!!onShow} lengthM={one ? toM(pathLength(one.pts)) : undefined} {...at} canPaste={hasClip()} withAtts={(it) => attdefsOf(blockDefOf(defs, it.block)).length > 0} onEdit={editSketch} />;
                 }
                 return <DeviceToolbar key={[...pickedKeys].join()} project={project} items={pickedItems} edits={editsFor(project, pickedItems)} circuits={circuits} {...at} onEdit={editDevices} />;
               }} {...vpProps} />

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { placeBoard, placeLvPoint } from './cadDevices';
 import { updateSchedules } from './cadPlanSchedules';
-import { arcLength, levelWiring, toggleWiring, wireLevel, wiringLengthM, wiringOrder, wiringTag } from './cadWiring';
+import { arcLength, levelWiring, toggleWiring, wireBoard, wireLevel, wiringLengthM, wiringOrder, wiringTag } from './cadWiring';
 import type { Project } from '../types';
 
 const gf = { building: 'V', level: 'GF' };
@@ -54,6 +54,15 @@ describe('circuit wiring on the CAD plan', () => {
     expect(up.tag).toMatch(/ · 28 m$/);
     const unplaced = levelWiring({ ...p, boards: p.boards.map((b) => (b.id === 'DB-GF1' ? { ...b, planPoint: undefined } : b)) }, gf)[0];
     expect(unplaced.warning).toBe('DB-GF1 is not placed on the plan: no home run');
+  });
+
+  it('Draw home-runs of a board: only its circuits with devices on the level, once', () => {
+    const other = base.feeders.find((f) => f.boardId !== 'DB-GF1' && !f.feedsBoardId)!;
+    const p = placeLvPoint(villa(), gf, 's13', other.id, 5, 5).project;
+    const r = wireBoard(p, gf, 'DB-GF1');
+    expect(r.added).toEqual([circuit.id]);
+    expect(wireBoard(r.project, gf, 'DB-GF1').added).toEqual([]);
+    expect(wireBoard(p, ff, 'DB-GF1').added).toEqual([]);
   });
 
   it('wires every circuit on the level once; Wire one switches a circuit on and off', () => {

@@ -160,6 +160,7 @@ import { useSheetUi } from './components/sld/sheetUi';
 import type { OutputDialog } from './components/docs/outputHost';
 import { markSeen, pendingReleases, RELEASES, type Release, type WhatsNewAction } from './model/whatsNew';
 import { fmtTime } from './util/format';
+import type { CadShow } from './components/cad/cadObjectMenus';
 type DiagramMode = 'system' | 'board' | 'earthing' | 'riser';
 
 /** Fixed, read-only start position used only by the offline manual capture command. */
@@ -645,6 +646,17 @@ export default function App() {
   function selectBoard(id: string) {
     setActiveBoardId(id);
     setPanel('board');
+  }
+
+  /** Design CAD's right-click menus: a board's load schedule, the SLD at a circuit or board, the board's own diagram,
+   * the riser, the cable schedule of a board, or the ELV page. */
+  function showFromCad(s: CadShow) {
+    if (s.to === 'load-schedule') { if (s.board) setActiveBoardId(s.board); setView('load-schedule'); return; }
+    if (s.to === 'cable-schedule') { setFocus(s.board ?? null); setView('cable-schedule'); return; }
+    if (s.to === 'elv') { setView('elv'); return; }
+    setView('design');
+    setDiagramMode(s.to === 'board' ? 'board' : s.to === 'riser' ? 'riser' : 'system');
+    if (s.feeder) selectFeeder(s.feeder); else if (s.board) selectBoard(s.board);
   }
 
   function updateBoard(b: Board) {
@@ -1619,7 +1631,7 @@ export default function App() {
                 }}
               />
             )}
-            {view === 'cad' && <CadPage cad={cadS} project={project} onUndo={history.undo} onRedo={history.redo} canUndo={history.canUndo} canRedo={history.canRedo} draft={cadDraft} autosaveMin={prefs.app.autosaveMin} onPrefs={(x) => { const p = { ...prefs, app: { ...prefs.app, cadDraft: x.draft, autosaveMin: x.autosaveMin } }; setPrefs(p); savePrefs(p); }} onChange={(next, message) => { setProject(next, { step: true }); setStatus(message); }} onStatus={setStatus} sheetUi={sheetUi} run={run} onSheet={(id) => { setSheetTab(id); setView('drawings'); }} />}
+            {view === 'cad' && <CadPage cad={cadS} project={project} onUndo={history.undo} onRedo={history.redo} canUndo={history.canUndo} canRedo={history.canRedo} onShow={showFromCad} draft={cadDraft} autosaveMin={prefs.app.autosaveMin} onPrefs={(x) => { const p = { ...prefs, app: { ...prefs.app, cadDraft: x.draft, autosaveMin: x.autosaveMin } }; setPrefs(p); savePrefs(p); }} onChange={(next, message) => { setProject(next, { step: true }); setStatus(message); }} onStatus={setStatus} sheetUi={sheetUi} run={run} onSheet={(id) => { setSheetTab(id); setView('drawings'); }} />}
             {view === 'building' && <BuildingView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'load-assessment' && <LoadAssessmentView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'busbar' && <BusbarStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
