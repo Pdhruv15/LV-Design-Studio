@@ -18,6 +18,8 @@ describe('sheet markups', () => {
     expect(Math.min(...ys)).toBeLessThan(30); expect(Math.max(...ys)).toBeGreaterThan(70); // bumps go outward
     expect(markupSvg(cloud)).toContain('>B</text>');
     expect(markupSvg({ ...cloud, rev: undefined })).not.toContain('<text');
+    // Inline style, so the app's global `svg text` rule cannot resize or recolour it on screen.
+    expect(markupSvg(cloud)).toMatch(/<text[^>]*style="font:2\.6px Arial, sans-serif;fill:[^"]+"/);
   });
 
   it('escapes text and keeps every line of a note', () => {
