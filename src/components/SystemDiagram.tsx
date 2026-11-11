@@ -133,6 +133,9 @@ const EARTH_TL_IN = 50;
 /** An unframed detail's last pit stands this far left of the incomer line: clear of the test link,
  * and outside the dashed frame of a DEWA board with no outgoing ways (which holds the MET). */
 const EARTH_PITS_IN = 96;
+/** An unframed detail's dashed earth-pit location frame: this far either side of the outer pits,
+ * clear of their earth symbols and spacing label, and left of the MET label. */
+const PIT_ZONE_PAD = 11;
 /** Width of an unframed LV earth-pit detail: its longest line, at least the board box's 124, and
  * room for its pits (24 apart) left of the test link. Narrow, so it stands by its own incomer
  * and not by the transformer on its left. */
@@ -1186,8 +1189,14 @@ export default function SystemDiagram({
                 <>
                   <line x1={pitXs[0]} y1={arrowY} x2={pitXs[pitXs.length - 1]} y2={arrowY} className="ln" />
                   <path d={`M${pitXs[0]} ${arrowY} l5 -2.5 v5 z M${pitXs[pitXs.length - 1]} ${arrowY} l-5 -2.5 v5 z`} className="dot" />
-                  <text x={(pitXs[0] + pitXs[pitXs.length - 1]) / 2} y={arrowY - 2} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{sp.toFixed(1)} m (MIN)</text>
+                  {/* Framed, the spacing reads above its line; unframed, below it, clear of the earth symbols (pits can stand 24 apart). */}
+                  <text x={(pitXs[0] + pitXs[pitXs.length - 1]) / 2} y={framed ? arrowY - 2 : arrowY + 8} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{sp.toFixed(1)} m (MIN)</text>
                 </>
+              )}
+              {/* Unframed, a dashed frame marks the earth pit location: the pits and their spacing, outside the board. */}
+              {!framed && pitXs.length > 0 && (
+                <rect x={pitXs[0] - PIT_ZONE_PAD} y={oy + pitTop - 3} width={pitXs[pitXs.length - 1] - pitXs[0] + 2 * PIT_ZONE_PAD}
+                  height={(pitXs.length > 1 ? arrowY + 12 : oy + pitTop + 34) - (oy + pitTop - 3)} className="ln interlock earth-pit-zone" fill="none" />
               )}
               <text x={ox} y={oy + noteY} className="acc-t" style={{ fontSize: 7.5 }} data-fit-width={detailW} data-dxf-max-width={detailW}>1C {mm}mm² CU/PVC</text>
               {electrodeNote(el).map((t, i) => <text key={i} x={ox} y={oy + noteY + 9 * (i + 1)} className="acc-t" style={{ fontSize: 7.5 }} data-fit-width={detailW} data-dxf-max-width={detailW}>{t}</text>)}
