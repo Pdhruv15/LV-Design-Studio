@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.091', date: '2026-11-11',
+    items: [
+      { title: 'Layout paper shows its printable area and trim marks; command bar above the tabs', text: 'On a layout tab in Design CAD, the paper now shows a dashed line 5 mm in from its edge where a printer can print, and trim marks outside its four corners. Both are on screen only and never plotted. The command bar now sits directly above the Model and layout tabs, with the status bar at the very bottom, as in other CAD work.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.089', date: '2026-11-11',
     items: [
       { title: 'Revision cloud and callout text shows at its true size', text: 'On Electrical, ELV and SLD sheets, the revision letter in a cloud’s triangle and the text of a callout or note now show on screen at their set letter height and markup colour, inside the triangle and the callout box, the same as on the printed sheet. Before, they showed too large and grey, and spilled out of the triangle and box.', action: 'sheets', actionLabel: 'Open Sheets' }
