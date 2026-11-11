@@ -15,9 +15,15 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.097', date: '2026-11-11',
+    version: '2.098', date: '2026-11-11',
     items: [
       { title: '+ under a drawing makes a layout of it, as in other CAD work', text: 'In Design CAD, + beside the layout tabs now makes Layout2, Layout3… straight away: A3 paper with one viewport showing the whole drawing at a standard scale. No level is needed. Right-click a layout to rename, copy, move or delete it. The plan sheets of a level (Lighting E-LTG, Power E-PWR, ELV, Containment) are made from the right-click menu of any tab, or LAYOUT L / P / E / C.' }
+    ]
+  },
+  {
+    version: '2.097', date: '2026-11-11',
+    items: [
+      { title: 'Cable and breaker limits you can change', text: 'Standards → Design references now shows the cable / breaker limit tables (DEWA Appendix 5, Tables 1–3) under Rule rows. Duplicate DEWA, or use a reference built on it, to change any row, the DB feeder minimum, the cable types a table covers, or add tables of your own. Choose to size cables up, warn only, or switch the limits off. Apply the reference to use them in the project.' }
     ]
   },
   {
