@@ -6,6 +6,9 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 /* Base form control: zero specificity, so compact grid and toolbar rules still win */
 :where(input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),select,textarea){background:var(--p2);color:var(--tx);border:1px solid var(--field-line);border-radius:var(--radius-sm);padding:var(--space-1) var(--space-2);font:inherit}
 :where(input,textarea)::placeholder{color:var(--mut);opacity:1}
+/* Open dropdown list: grid selects are see-through, so the list would fall back to white under light theme text */
+:where(select) :where(option,optgroup){background:var(--p2);color:var(--tx)}
+:where(select) :where(option:disabled){color:var(--mut)}
 :where(input,select,textarea):hover:not(:disabled){border-color:var(--field-line-hover)}
 :where(input,select,textarea):focus-visible{outline:2px solid var(--acc);outline-offset:-1px;border-color:var(--acc)}
 :where(input,select,textarea):disabled{opacity:.55;cursor:not-allowed}

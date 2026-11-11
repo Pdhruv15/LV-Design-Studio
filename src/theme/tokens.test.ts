@@ -105,6 +105,11 @@ describe('design tokens', () => {
     }
   });
 
+  it('gives open dropdown lists the panel colours, since grid selects are transparent', () => {
+    expect(styles).toMatch(/table\.ls input,table\.ls select\{background:transparent/);
+    expect(styles).toContain(':where(select) :where(option,optgroup){background:var(--p2);color:var(--tx)}');
+  });
+
   it('declares the segmented control once', () => {
     expect(styles.match(/(^|\n)\.seg\{/g)?.length).toBe(1);
   });
