@@ -18,6 +18,7 @@ import { sampleProject } from '../../data/sampleProject';
 import { placeLvPoint } from '../../model/cadDevices';
 import { archOnOf } from '../../model/cadLayerState';
 import { dimLabel, dimMeasure, sketchOf } from '../../model/cadSketch';
+import { annoOf, unitsPerPaperMm } from '../../model/cadAnnotate';
 import { explodeNote, noteBox } from '../../model/cadMtext';
 import type { CadBlockDef } from '../../model/cadBlocks';
 import { openTitleBlockInCad, TB_LAYERS } from '../../model/titleBlockCad';
@@ -3016,7 +3017,7 @@ describe('CAD 2D gap plan: TEXTEDIT, a double-click on a text or dimension to ty
     act(() => state.toggle('osnap'));
     await rightClickAt(X + 300, 100);
     const menu = () => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"][aria-label="Edit drawn objects"] button')];
-    expect(menu().map((b) => b.textContent)).toEqual(['Edit text', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all']);
+    expect(menu().map((b) => b.textContent)).toEqual(['Edit text', 'Find and replace…', 'Justify ▸', 'Text height ▸', 'Case ▸', 'Frame ▸', 'Background mask', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all']);
     await act(async () => { menu()[0].click(); });
     expect(box()!.value).toBe('DB ROOM');
     await keyBox('Escape');
@@ -3167,7 +3168,7 @@ describe('CAD 2D gap plan: MTEXT, notes in a box with their lines wrapped to its
     act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
     expect(state.tool).toBe('none');
     await rightClickAt(X + 500, 5900);
-    expect(menuLabels()).toEqual(['Edit text', 'Width…', 'Justify ▸', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all']);
+    expect(menuLabels()).toEqual(['Edit text', 'Width…', 'Justify ▸', 'Find and replace…', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all']);
     await act(async () => { button('Width…').click(); });
     expect(last()).toBe('MTEXT  Width (m) <3.00>:');
     await command('4');
@@ -3271,7 +3272,7 @@ describe('CAD 2D gap plan: DRAWORDER and TEXTTOFRONT, the order the drawn object
     project = start;
     act(() => state.toggle('osnap'));
     await rightClickAt(X + 6000, 0);
-    expect(menuLabels()).toEqual(['Trim', 'Extend', 'Offset', 'Break', 'Fillet', 'Mirror', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all']);
+    expect(menuLabels()).toEqual(['Join…', 'Chamfer', 'Reverse direction', 'Convert to cable route', 'Trim', 'Extend', 'Offset', 'Break', 'Fillet', 'Mirror', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all']);
     await act(async () => { button('Draw order ▸').click(); });
     expect(options().map((b) => b.textContent)).toEqual(['Bring to front', 'Send to back', 'Above object', 'Under object']);
     await act(async () => { options()[1].click(); });
@@ -4001,4 +4002,117 @@ describe('right-click menus, phase 3: blocks, references and layouts', () => {
     await pickEntry('Show on the Model tab');
     expect(state.layout).toBeNull();
   }, 20_000);
+});
+
+describe('right-click menus, phase 4: texts, dimensions, hatches, polylines, hot grips and FIND', () => {
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const hist = () => document.querySelector('.cad-hist')!.textContent;
+  const right = (x: number, y: number) => { const [sx, sy] = screenOf(x, y); return act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); }); };
+  const entry = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find((b) => (b.firstElementChild?.textContent ?? b.textContent) === label)!;
+  const pickEntry = async (...path: string[]) => { for (const l of path) { const b = entry(l); expect(b, l).toBeTruthy(); await act(async () => { b.click(); }); } };
+  const esc = () => act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+  /** A press and let go in place: on a grip of the object picked, it turns hot. */
+  const press = async (x: number, y: number) => {
+    const [sx, sy] = screenOf(x, y), c = document.querySelector('canvas.cad-over')!;
+    await act(async () => { for (const t of ['mousemove', 'mousedown', 'mouseup']) c.dispatchEvent(new MouseEvent(t, { clientX: sx, clientY: sy, button: 0, bubbles: true })); });
+  };
+  const start = async (items: SketchItem[]) => { const p = { ...villa, cadSketch: [{ file: F, items }] }; project = p; act(() => root.render(<Host start={p} />)); await flush(); act(() => state.toggle('osnap')); };
+  const item = (id: string) => sketchOf(project, F).find((x) => x.id === id)!;
+
+  it('a text: Justify ▸, Text height ▸, Case ▸, Frame ▸ and Background mask; FIND replaces words in every text', async () => {
+    await start([{ id: 'T1', kind: 'text', layer: '0', pts: [[X, 0]], text: 'Panel a', h: 250 }, { id: 'T2', kind: 'text', layer: '0', pts: [[X, 5000]], text: 'panel b', h: 250 }]);
+    await clickAt(X + 300, 100);
+    await right(X + 300, 100);
+    await pickEntry('Case ▸', 'UPPER CASE');
+    expect(item('T1').text).toBe('PANEL A');
+    await right(X + 300, 100);
+    await pickEntry('Text height ▸', '5 mm on paper');
+    expect(item('T1').h).toBeCloseTo(5 * unitsPerPaperMm(annoOf(project), 0.001), 6);
+    await right(X + 300, 100);
+    await pickEntry('Justify ▸', 'Middle centre');
+    expect(item('T1').just).toBe('MC');
+    await right(X + 300, 100);
+    await pickEntry('Frame ▸', 'Box');
+    expect(item('T1').frame).toBe('box');
+    await right(X + 300, 100);
+    await pickEntry('Background mask');
+    expect(item('T1').mask).toBe(true);
+    await esc();
+    await command('FIND');
+    await command('panel');
+    expect(hist()).toBe('FIND  2 found for "panel". Replace with (Enter: leave them):');
+    await command('Board');
+    expect([item('T1').text, item('T2').text]).toEqual(['Board A', 'Board b']);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('FIND  2 replaced: "panel" → "Board" in 2 objects · ⌘Z to undo');
+  });
+
+  it('a dimension: Precision ▸, Text position ▸, Remove text override; a hatch: Hatch angle ▸, Hatch scale ▸, Recreate boundary', async () => {
+    await start([
+      { id: 'D1', kind: 'dim', layer: '0', pts: [[X, 20000], [X + 4000, 20000], [X + 2000, 21000]], text: 'TYP.', h: 250 },
+      { id: 'H1', kind: 'pline', layer: '0', closed: true, pts: [[X, 40000], [X + 4000, 40000], [X + 4000, 44000], [X, 44000]], hatch: { pattern: 'ansi31', scale: 1, angle: 0 } }
+    ]);
+    await clickAt(X + 1000, 21000);
+    await right(X + 1000, 21000);
+    await pickEntry('Precision ▸', '0.0');
+    expect(item('D1').look!.decimals).toBe(1);
+    await right(X + 1000, 21000);
+    await pickEntry('Text position ▸', 'Above');
+    expect(item('D1').look!.textPos).toBe('above');
+    await right(X + 1000, 21000);
+    await pickEntry('Remove text override');
+    expect(item('D1').text).toBeUndefined();
+    await esc();
+    await clickAt(X + 1000, 40000);
+    await right(X + 1000, 40000);
+    await pickEntry('Hatch angle ▸', '45°');
+    expect(item('H1').hatch!.angle).toBe(45);
+    await right(X + 1000, 40000);
+    await pickEntry('Hatch scale ▸', '× 2 (wider apart)');
+    expect(item('H1').hatch!.scale).toBe(2);
+    await right(X + 1000, 40000);
+    await pickEntry('Recreate boundary');
+    const plain = sketchOf(project, F).filter((x) => x.kind === 'pline' && !x.hatch);
+    expect(plain.map((x) => x.pts)).toEqual([item('H1').pts]);
+  });
+
+  it('a polyline: Close / Open, Reverse direction, Use as room boundary, Explode', async () => {
+    await start([{ id: 'P1', kind: 'pline', layer: '0', pts: [[X, 60000], [X + 4000, 60000], [X + 4000, 63000]] }]);
+    await clickAt(X + 1000, 60000);
+    await right(X + 1000, 60000);
+    await pickEntry('Close');
+    expect(item('P1').closed).toBe(true);
+    await right(X + 1000, 60000);
+    await pickEntry('Reverse direction');
+    expect(item('P1').pts).toEqual([[X + 4000, 63000], [X + 4000, 60000], [X, 60000]]);
+    await right(X + 1000, 60000);
+    await pickEntry('Use as room boundary');
+    expect(hist()).toMatch(/^Room area = 6(\.0+)? m² — add it as a room in the panel on the right$/);
+    await right(X + 1000, 60000);
+    await pickEntry('Explode');
+    expect(sketchOf(project, F).filter((x) => x.kind === 'line')).toHaveLength(3);
+  });
+
+  it('a hot grip: a click on it (no drag), then right-click: Add vertex, Remove vertex, Move from this point', async () => {
+    await start([{ id: 'G1', kind: 'pline', layer: '0', pts: [[X, 80000], [X + 4000, 80000], [X + 4000, 83000]] }]);
+    await clickAt(X + 1000, 80000);
+    await right(X + 1000, 80000);
+    expect(entry('Close')).toBeTruthy(); // not on a grip: the polyline's menu
+    await esc();
+    await clickAt(X + 1000, 80000);
+    await press(X + 2000, 80000); // the first side's grip
+    expect(hist()).toMatch(/^GRIP {2}Hot grip/);
+    await right(X + 2000, 80000);
+    await pickEntry('Add vertex');
+    expect(item('G1').pts).toEqual([[X, 80000], [X + 2000, 80000], [X + 4000, 80000], [X + 4000, 83000]]);
+    await press(X + 4000, 83000);
+    await right(X + 4000, 83000);
+    await pickEntry('Remove vertex');
+    expect(item('G1').pts).toEqual([[X, 80000], [X + 2000, 80000], [X + 4000, 80000]]);
+    await press(X, 80000);
+    await right(X, 80000);
+    await pickEntry('Move from this point');
+    expect(state.tool).toBe('move');
+    await clickAt(X, 90000);
+    expect(item('G1').pts[0]).toEqual([X, 90000]);
+  });
 });
