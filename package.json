@@ -3,7 +3,28 @@
   "productName": "LV Design Studio",
   "version": "2.99.0",
   "license": "(MIT OR Apache-2.0)",
-  "description": "Offline LV electrical design & calculation desktop app",
+  "description": "Open-source offline low-voltage electrical design and calculation desktop app",
+  "homepage": "https://pdhruv15.github.io/LV-Design-Suit/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pdhruv15/LV-Design-Suit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Pdhruv15/LV-Design-Suit/issues"
+  },
+  "keywords": [
+    "electrical-engineering",
+    "electrical-design",
+    "low-voltage",
+    "power-systems",
+    "single-line-diagram",
+    "load-schedule",
+    "cable-sizing",
+    "voltage-drop",
+    "short-circuit",
+    "protection-coordination",
+    "offline-first"
+  ],
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {

@@ -41,7 +41,7 @@ const pwa = (): Plugin => ({
   apply: 'build',
   transformIndexHtml: (html) => html.replace('<title>', '<link rel="manifest" href="manifest.webmanifest" />\n<meta name="theme-color" content="#1D2024" />\n<link rel="icon" href="icon.svg" />\n<link rel="apple-touch-icon" href="icon-192.png" />\n<title>'),
   generateBundle(_opts, bundle) {
-    const files = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', ...Object.keys(bundle).filter((f) => !f.endsWith('.map') && f !== 'sw.js')];
+    const files = ['./', 'index.html', 'about/index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', ...Object.keys(bundle).filter((f) => !f.endsWith('.map') && f !== 'sw.js')];
     const version = createHash('sha1').update(files.join('|')).digest('hex').slice(0, 10);
     // The page's own script: an open page whose script differs is an older build (the web banner offers Reload).
     const entry = Object.values(bundle).find((c) => c.type === 'chunk' && c.isEntry)?.fileName ?? '';
@@ -61,7 +61,12 @@ self.addEventListener('fetch', (e) => {
   const r = e.request;
   if (r.method !== 'GET' || new URL(r.url).origin !== location.origin) return;
   // Pages: the network first (gets updates), this build's offline copy when there is none.
-  if (r.mode === 'navigate') { e.respondWith(fetch(r).catch(() => caches.open(CACHE).then((c) => c.match('index.html')))); return; }
+  if (r.mode === 'navigate') {
+    const path = new URL(r.url).pathname;
+    const fallback = path.endsWith('/about/') || path.endsWith('/about/index.html') ? 'about/index.html' : 'index.html';
+    e.respondWith(fetch(r).catch(() => caches.open(CACHE).then((c) => c.match(fallback))));
+    return;
+  }
   // This build's copy first, as files without a hash in their name are in every build; then an older build's.
   e.respondWith(caches.open(CACHE).then((c) => c.match(r)).then((hit) => hit || caches.match(r)).then((hit) => hit || fetch(r)));
 });
