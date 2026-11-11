@@ -15,7 +15,7 @@ const rec = (p: Project, ...ops: [string, string | undefined, string, number][])
 
 describe('M3 — proposal preview', () => {
   it('(1) a cable-size change is previewed with fresh before/after results and changes nothing', () => {
-    const p = base(), r = rec(p, ['feeder', f0, 'cableCsaMm2', feeder(p).cableCsaMm2 + 10]);
+    const p = base(), r = rec(p, ['feeder', f0, 'cableCsaMm2', 16]);
     const before = JSON.stringify(withRecord(p, r));
     const prev = previewProposal(withRecord(p, r), r);
     expect(prev.label).toBe('Proposed');

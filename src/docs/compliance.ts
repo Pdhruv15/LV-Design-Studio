@@ -101,7 +101,7 @@ export function buildResults(data: CalcData, scope: Scope): Results {
   const limited = withFinals.filter((r) => r.limits);
   if (limited.length) {
     const off = limited.filter((r) => r.limits!.status !== 'ok');
-    compliance.push({ check: `Cable / breaker limits (${limited[0].limits!.label})`, item: off[0]?.feeder.id ?? `${limited.length} circuits`, calculated: `${limited.length - off.length} of ${limited.length} meet it`, requirement: 'All circuits', margin: off.length ? `${off.length} circuit(s)` : '—', status: off.length ? 'bad' : 'ok' });
+    compliance.push({ check: 'Cable / breaker limits (DEWA Appendix 5)', item: off[0]?.feeder.id ?? `${limited.length} circuits`, calculated: `${limited.length - off.length} of ${limited.length} meet it`, requirement: 'All circuits', margin: off.length ? `${off.length} circuit(s)` : '—', status: off.length ? 'bad' : 'ok' });
   }
   const rated = sums.filter((s) => s.loadingPct !== undefined);
   const busy = pick(rated, (s) => s.loadingPct!);

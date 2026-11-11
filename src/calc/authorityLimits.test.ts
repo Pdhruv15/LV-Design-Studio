@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Feeder, Project } from '../types';
-import { cableLimitsOf, combinationAllowed, DEWA_TABLE3, isLimitRemark, tableApplies } from './authorityLimits';
+import { cableLimitsOf, combinationAllowed, dewaTableFor, DEWA_TABLE1_1PH, DEWA_TABLE1_3PH, DEWA_TABLE2, DEWA_TABLE3, isLimitRemark, rowFor } from './authorityLimits';
 import { evaluateFeeder } from './electrical';
 import { applyRecommendation, recommend } from './sizing';
 import { failReasons, quickFixes } from './quickFix';
@@ -17,12 +17,24 @@ const feeder = (o: Partial<Feeder>): Feeder => ({
 });
 const ref = (id: string, name: string) => ({ designReference: { id, name, version: 1, appliedAt: '', values: {} } });
 
-describe('DEWA Table 3 (multi-core armoured XLPE copper, one cable)', () => {
+describe('DEWA Appendix 5 cable tables', () => {
   it('holds the regulation values', () => {
-    expect(DEWA_TABLE3.map((r) => [r.csaMm2, r.maxBreakerA])).toEqual([
+    expect(DEWA_TABLE3.rows.map((r) => [r.csaMm2, r.maxBreakerA])).toEqual([
       [10, 50], [16, 60], [25, 80], [35, 100], [50, 125], [70, 160], [95, 200], [120, 225], [150, 250], [185, 300], [240, 350], [300, 400]
     ]);
-    expect(DEWA_TABLE3.every((r) => r.maxLoadA === r.maxBreakerA)).toBe(true);
+    // Table 2: "65 mm²" in the regulation is read as 95 mm²; "10/15 A" on 2.5 mm² as today's 16 A MCB.
+    expect(DEWA_TABLE2.rows.map((r) => [r.csaMm2, r.maxBreakerA])).toEqual([
+      [2.5, 16], [4, 20], [6, 30], [10, 40], [16, 50], [25, 60], [35, 80], [50, 100], [70, 125], [95, 160], [120, 180], [150, 200], [185, 250], [240, 300], [300, 350], [400, 400]
+    ]);
+    expect(DEWA_TABLE1_1PH.rows.map((r) => [r.csaMm2, r.maxBreakerA])).toEqual([[2.5, 16], [4, 20], [6, 30], [10, 40], [16, 50], [25, 60], [35, 80]]);
+    expect(DEWA_TABLE1_3PH.rows.map((r) => [r.csaMm2, r.maxBreakerA])).toEqual([[2.5, 16], [4, 20], [6, 25], [10, 30], [16, 40], [25, 60], [50, 80], [70, 100], [95, 125], [120, 160]]);
+    for (const t of [DEWA_TABLE1_1PH, DEWA_TABLE1_3PH, DEWA_TABLE2, DEWA_TABLE3]) expect(t.rows.every((r) => r.maxLoadA === r.maxBreakerA)).toBe(true);
+  });
+
+  it('a size between two rows takes the smaller row; outside the table the calculation decides', () => {
+    expect(rowFor(DEWA_TABLE1_3PH, 35)?.maxBreakerA).toBe(60); // 3-phase 35 mm² is not listed: the 25 mm² row
+    expect(rowFor(DEWA_TABLE3, 6)).toBeUndefined();
+    expect(rowFor(DEWA_TABLE1_1PH, 50)).toBeUndefined();
   });
 
   it('applies to DEWA projects and projects with no reference, not to other authorities', () => {
@@ -33,22 +45,28 @@ describe('DEWA Table 3 (multi-core armoured XLPE copper, one cable)', () => {
     expect(cableLimitsOf(project([], ref('builtin-iec', 'IEC 60364')))).toBeUndefined();
   });
 
-  it('covers armoured XLPE copper only', () => {
-    expect(tableApplies({})).toBe(true);
-    expect(tableApplies({ cableType: 'XLPE/PVC/SWA' })).toBe(true);
-    expect(tableApplies({ cableType: 'XLPE/SWA/LSZH' })).toBe(true);
-    expect(tableApplies({ cableType: 'PVC/PVC' })).toBe(false);
-    expect(tableApplies({ cableType: 'XLPE/PVC/SWA AL' })).toBe(false);
+  it('picks the table by cable type; DB schedule circuits are single-core PVC in conduit unless set', () => {
+    expect(dewaTableFor({ cores: 4 })).toBe(DEWA_TABLE3);
+    expect(dewaTableFor({ cores: 4, cableType: 'XLPE/PVC/SWA' })).toBe(DEWA_TABLE3);
+    expect(dewaTableFor({ cores: 4, cableType: 'XLPE/SWA/LSZH' })).toBe(DEWA_TABLE3);
+    expect(dewaTableFor({ cores: 4, cableType: 'PVC/SWA/PVC' })).toBe(DEWA_TABLE2);
+    expect(dewaTableFor({ cores: 2, cableType: 'PVC 1C' })).toBe(DEWA_TABLE1_1PH);
+    expect(dewaTableFor({ cores: 4, cableType: 'PVC 1C' })).toBe(DEWA_TABLE1_3PH);
+    expect(dewaTableFor({ cores: 2, phase: 'R' })).toBe(DEWA_TABLE1_1PH);
+    expect(dewaTableFor({ cores: 4, phase: 'RYB' })).toBe(DEWA_TABLE1_3PH);
+    expect(dewaTableFor({ cores: 2, phase: 'R', cableType: 'XLPE/PVC/SWA' })).toBe(DEWA_TABLE3);
+    expect(dewaTableFor({ cores: 4, cableType: 'PVC/PVC' })).toBeUndefined();
+    expect(dewaTableFor({ cores: 4, cableType: 'XLPE/PVC/SWA AL' })).toBeUndefined();
   });
 
   it('allows a size up to its breaker and load limit; parallel runs count as runs × the table value', () => {
     const lim = cableLimitsOf(project([]))!;
-    expect(combinationAllowed(lim, {}, 25, 1, 80, 70)).toBe(true);
-    expect(combinationAllowed(lim, {}, 25, 1, 100, 70)).toBe(false);
-    expect(combinationAllowed(lim, {}, 25, 1, 80, 81)).toBe(false); // load above the table's max load current
-    expect(combinationAllowed(lim, {}, 150, 2, 500, 350)).toBe(true); // 2 × 250 A
-    expect(combinationAllowed(lim, {}, 300, 1, 500, 350)).toBe(false);
-    expect(combinationAllowed(lim, {}, 6, 1, 40, 30)).toBe(true); // below 10 mm²: the calculation decides
+    expect(combinationAllowed(lim, { cores: 4 }, 25, 1, 80, 70)).toBe(true);
+    expect(combinationAllowed(lim, { cores: 4 }, 25, 1, 100, 70)).toBe(false);
+    expect(combinationAllowed(lim, { cores: 4 }, 25, 1, 80, 81)).toBe(false); // load above the table's max load current
+    expect(combinationAllowed(lim, { cores: 4 }, 150, 2, 500, 350)).toBe(true); // 2 × 250 A
+    expect(combinationAllowed(lim, { cores: 4 }, 300, 1, 500, 350)).toBe(false);
+    expect(combinationAllowed(lim, { cores: 4 }, 6, 1, 40, 30)).toBe(true); // below 10 mm²: the calculation decides
   });
 });
 
@@ -99,6 +117,21 @@ describe('sizing with DEWA Table 3', () => {
     const p = project([f]);
     expect(evaluateFeeder(p, f).limits).toBeUndefined();
     expect(recommend(p, f, 'fix').remarks).toBeUndefined();
+  });
+});
+
+describe('DB circuits with DEWA Table 1', () => {
+  it('a 40 A single-phase circuit on 6 mm² wires goes to 10 mm²; 2.5 mm² may carry 16 A', () => {
+    const f = feeder({ id: 'C1', boardId: 'DB1', loadKw: 6, powerFactor: 1, cores: 2, phase: 'R', breakerRatingA: 40, cableCsaMm2: 6 });
+    const p = project([f]);
+    expect(evaluateFeeder(p, f).limits).toMatchObject({ status: 'bad', message: 'DEWA Table 1: 40 A breaker on 6 mm² (max 30 A)' });
+    const r = recommend(p, f, 'fix');
+    expect(r.cableCsaMm2).toBe(10);
+    expect(r.remarks).toBe('DEWA Table 1: 10 mm² for 40 A (4 mm² max 20 A)'); // 4 mm² carries the load by Iz
+    const skt = feeder({ id: 'C2', boardId: 'DB1', loadKw: 2, powerFactor: 1, cores: 2, phase: 'Y', breakerRatingA: 16, cableCsaMm2: 2.5 });
+    expect(evaluateFeeder(project([skt]), skt).limits?.status).toBe('ok');
+    const big = { ...skt, breakerRatingA: 20 };
+    expect(evaluateFeeder(project([big]), big).limits?.message).toBe('DEWA Table 1: 20 A breaker on 2.5 mm² (max 16 A)');
   });
 });
 
