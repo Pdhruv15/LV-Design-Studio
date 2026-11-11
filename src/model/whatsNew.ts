@@ -15,9 +15,15 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.090', date: '2026-11-11',
+    version: '2.092', date: '2026-11-11',
     items: [
       { title: 'Status bar switches as icons, with snap modes and polar angle a click away', text: 'At the bottom of Design CAD, grid, snap, ortho, polar tracking, object snap, object snap tracking, dynamic input and lineweights are now icons in groups, lit when on; the tooltip gives the name and function key. The small ▾ beside object snap lists the running snaps (endpoint, midpoint, centre…) to tick on or off at once, and the ▾ beside polar picks the tracking angle (90°, 45°, 30°…). Right-click still opens each one\'s Drafting settings.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.091', date: '2026-11-11',
+    items: [
+      { title: 'Layout paper shows its printable area and trim marks; command bar above the tabs', text: 'On a layout tab in Design CAD, the paper now shows a dashed line 5 mm in from its edge where a printer can print, and trim marks outside its four corners. Both are on screen only and never plotted. The command bar now sits directly above the Model and layout tabs, with the status bar at the very bottom, as in other CAD work.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {
