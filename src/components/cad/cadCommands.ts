@@ -10,7 +10,7 @@ export type CadAction = 'new' | 'open' | 'close' | 'fit' | 'addRooms' | 'schedul
   | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
   | 'textStyle' | 'dimStyle' | 'pointStyle' | 'blockDialog' | 'blocksPalette' | 'attDef' | 'attExport' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
   | 'copyClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave' | 'zoomPrev' | 'qselect'
-  | 'undo' | 'redo' | 'selectAll' | 'count' | 'isolateObjects' | 'hideObjects' | 'unisolateObjects' | 'addSelected' | 'quickMeasure';
+  | 'undo' | 'redo' | 'selectAll' | 'count' | 'isolateObjects' | 'hideObjects' | 'unisolateObjects' | 'addSelected' | 'quickMeasure' | 'find';
 
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
 
@@ -62,6 +62,7 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['COUNT'], desc: 'Count the objects picked (or all that show) by kind and block name', action: 'count' },
   { aliases: ['ADDSELECTED'], desc: 'Draw a new object like the one picked: its tool, on its layer', action: 'addSelected' },
   { aliases: ['QM', 'QUICKMEASURE'], desc: 'Total length and closed area of the objects picked', action: 'quickMeasure' },
+  { aliases: ['FIND', 'FINDREPLACE'], desc: 'Find and replace words in the texts, notes, attributes and dimension texts drawn here', action: 'find' },
   { aliases: ['ISOLATEOBJECTS', 'ISO'], desc: 'Show only the objects picked (this view; UNISOLATEOBJECTS ends it)', action: 'isolateObjects' },
   { aliases: ['HIDEOBJECTS'], desc: 'Hide the objects picked (this view; UNISOLATEOBJECTS ends it)', action: 'hideObjects' },
   { aliases: ['UNISOLATEOBJECTS', 'UNHIDE'], desc: 'Show the objects isolated or hidden again', action: 'unisolateObjects' },

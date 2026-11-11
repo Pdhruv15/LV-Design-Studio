@@ -17,6 +17,7 @@ import { endTowards, linesCross, nearestPiece, nearestSegment, onRound, roundOfS
 import { clipPayload, clipText, lowerLeft, parseClip, pastedItems, withPasted, type ClipPayload } from '../../model/cadClipboard';
 import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
 import { addSelectedTool, blankMenu, commandMenu, countLine, measureOf, shownBy, SNAP_OVERRIDES, type CtxEntry, type CtxItem, type ObjectHide } from './cadContextMenu';
+import { closedToggled, findCount, findReplace, gripMenu, withVertexAdded, withVertexRemoved } from './cadDrawnMenus';
 import { argOf, drawingObjectMenu, paperMenu, viewportMenu, xrefMenu } from './cadSheetMenus';
 import { deviceMenu, devArg, devicesInRoom, luxCheckLine, roomEntry, roomLoads, trayCheckLine, type CadShow, type DeviceMore } from './cadObjectMenus';
 import { isNumber, promptOptions, shortPrompt, spaceEnters, type SpaceMode } from './cadPrompt';
@@ -31,7 +32,7 @@ import { blockNameFromFile, defFromGeometry, defFromPieces, loadRecentBlocks, pu
 import BlocksPalette, { INSERT_DEFAULTS, type InsertSettings, type LibraryFile } from './BlocksPalette';
 import { attachLabel, attachOf, noteAttached, noteBox, noteWithWidth, parseAttach, plainText, type NoteAttach, type NotePara } from '../../model/cadMtext';
 import { ATT_DRAFT, AttDefDialog, AttEditDialog, AttPromptDialog, BlockDialog, DIALOG_TOOLS, DimStyleDialog, EditDialog, PointStyleDialog, TextStyleDialog, type AttDraft, type BlockDraft } from './CadDialogs';
-import { currentTextStyle, dimLookOf, dimStandardAsBefore, dimStylesOf, dimStylesToStore, textStylesOf, textStylesToStore } from '../../model/cadStyles';
+import { currentDimStyle, currentTextStyle, dimLookOf, dimStandardAsBefore, dimStylesOf, dimStylesToStore, fullDimStyle, lookOf, textStylesOf, textStylesToStore } from '../../model/cadStyles';
 import { chooseDrawing, drawingWithDevices, explodeObjects, openDrawing, readRefGeometry, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
 import { newDrawingDxf, newDrawingName } from '../../model/cadNewDrawing';
 import { boundaryOfPiece, cropItems, cropNote, cropPieces, hatchLookup, type CropBoundary, type CropSide } from '../../model/cadCrop';
@@ -352,6 +353,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const luxNext = useRef<string | null>(null);
   /** Crop… from a block's menu: the block CROP starts on. */
   const cropNext = useRef<CropState | null>(null);
+  /** Move / Copy / Rotate from a grip's menu: the base point the tool starts with. */
+  const pointsNext = useRef<Pt[] | null>(null);
+  /** FIND on the command line: the words to find, then what replaces them. */
+  const [findAsk, setFindAsk] = useState<{ step: 'what' } | { step: 'with'; what: string } | null>(null);
   /** The object of the opened drawing, or the reference, the last right-click was on. */
   const ctxObj = useRef<{ dw?: CadObject; ref?: string; vp?: string } | null>(null);
   /** The right-click menu on a layout's paper or one of its viewports (phase 3), at a point of the paper's stage. */
@@ -364,6 +369,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [edPhase, setEdPhase] = useState<'pick' | 'points'>('pick');
   const [stretchBox, setStretchBox] = useState<[Pt, Pt] | null>(null);
   const [gripIdx, setGripIdx] = useState<number | null>(null);
+  /** A grip clicked (not dragged) on the object picked: hot, its right-click menu shows. */
+  const [hotGrip, setHotGrip] = useState<number | null>(null);
   const preset = useRef<{ id: string; at: Pt } | null>(null);
   // The command line: the question an edit tool asks (a distance, a radius, Yes / No…), the height and rotation TEXT
   // asks after its point, the commands typed before (Up / Down), the recent commands (Enter with no tool repeats the
@@ -516,7 +523,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // A tool chosen (ribbon or command line): start it afresh and say what it asks for.
   useEffect(() => {
     const pre = preset.current;
-    setPoints([]); setObjectMode(false); setLuxRoom(luxNext.current); luxNext.current = null; setMenuAt(null); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
+    setPoints(pointsNext.current ?? []); pointsNext.current = null; setObjectMode(false); setLuxRoom(luxNext.current); luxNext.current = null; setMenuAt(null); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
     setCloudPoly(false); setEllAxis(false); setCircleDia(false);
     setEdStep(pre); preset.current = null; setStretchBox(null); setMpFrom(null);
     const first = picked.some((k) => k.startsWith('sk:')) || !!cad.selected?.startsWith('sk:');
@@ -596,6 +603,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const snapToggles = snapOnce ? { ...cad.toggles, osnap: snapOnce !== 'none' } : cad.toggles;
   const snapExtra = useMemo(() => (snapOnce ? sketchSnaps.filter((q) => q.kind & snapBit) : sketchSnaps), [snapOnce, snapBit, sketchSnaps]);
   const selSketch = sketch.find((it) => `sk:${it.id}` === cad.selected) ?? null;
+  // A hot grip cools when the pick, the tool or the drawing changes.
+  useEffect(() => { setHotGrip(null); }, [cad.selected, tool, sketch]);
   // The drawn objects picked: several, else the one selected; and everything picked.
   const pickedSk = useMemo(() => (picked.length ? sketch.filter((it) => picked.includes(`sk:${it.id}`)) : selSketch ? [selSketch] : []), [picked, sketch, selSketch]);
   // Objects of the opened drawing picked (Shift-click, kept as `dw:<handle>` in picked), else the one clicked. Erasing
@@ -1250,6 +1259,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       setPromptMenu({ at: screen, items: commandMenu({ options: opts, inputs, toggles: cad.toggles, snapOnce: snapOnce === 'none' ? null : snapOnce }) });
       return;
     }
+    // A grip of the object picked (phase 4): move, copy or rotate from it, and a polyline's vertices.
+    if (selSketch && !many && hotGrip !== null) {
+      const g = gripsOf(selSketch)[hotGrip];
+      if (g) { setPromptMenu({ at: screen, items: gripMenu({ index: hotGrip, kind: g.kind, it: selSketch }) }); return; }
+    }
     const d = deviceAt(at, pixel), sk = d ? undefined : hitAt(pickable, at, 6 * pixel);
     const room = floor ? roomAtPointOf(project, floor, at, units.factor) : undefined;
     ctxAt.current = { at, room: room?.id };
@@ -1501,6 +1515,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       case 'dw': void dwAct(a); return;
       case 'xref': xrefAct(a); return;
       case 'vp': case 'paper': layoutAct(x.act, a); return;
+      case 'grip': gripAct(a); return;
     }
   }
   const fileOf = () => view?.file ?? '';
@@ -1527,6 +1542,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (e === 'ntwidth') { if (one?.kind === 'mtext') { setMtAsk({ step: 'ntwidth', id: one.id }); cad.say(`MTEXT  Width (m) <${toM(noteBox(one).w).toFixed(2)}>:`); input.current?.focus(); } return; }
     if (e === 'edatt') { if (one?.kind === 'insert') startTextEdit(one); return; }
     if (e === 'blkreplace' || e === 'blkreset' || e === 'blkexplode' || e === 'blkcount') { if (one?.kind === 'insert') blockEdit(e, one, arg); return; }
+    if (e === 'find') { run('FIND'); return; }
+    if (e === 'jointool') { cad.setTool('join'); return; }
+    if (e === 'txjust' || e === 'txheight' || e === 'txcase' || e === 'txframe' || e === 'txmask' || e === 'dimstyle' || e === 'dimprec' || e === 'dimpos' || e === 'dimreset'
+      || e === 'hscale' || e === 'hangle' || e === 'hboundary' || e === 'plclose' || e === 'explode1' || e === 'roomfrom' || e === 'tocable') { if (one) drawnEdit(e, one, arg); return; }
     if (e === 'selblock') { if (one?.kind === 'insert') { pick([], sketch.filter((it) => it.kind === 'insert' && it.block === one.block)); cad.say(`SELECT  Every "${one.block}" block picked`); } return; }
     if (e === 'mkblock') { openBlockDialog(); return; }
     if (e === 'draworder') { const mode = arg as DrMode | undefined; if (!mode) return; if (mode === 'front' || mode === 'back') applyDrawOrder(mode); else { setDrMode(mode); cad.setTool('draworder'); } return; }
@@ -1543,7 +1562,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (e === 'join') { applyJoin(); return; }
     if (e === 'rotate' && !one) { cad.say('ROTATE  One object at a time.'); return; }
     if (e === 'filter' || e === 'width') return;
-    if ((e === 'offset' || e === 'fillet') && one) preset.current = { id: one.id, at: gripsOf(one).find((g) => g.kind === 'mid')?.at ?? one.pts[0] };
+    if ((e === 'offset' || e === 'fillet' || e === 'chamfer') && one) preset.current = { id: one.id, at: gripsOf(one).find((g) => g.kind === 'mid')?.at ?? one.pts[0] };
     cad.setTool(e);
   }
   /** The LV tools of a cable tray or cable route picked (its right-click menu). */
@@ -1601,6 +1620,59 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     let next = blockDefOf(defs, def.name) ? project : withBlockDef(project, fileOf(), def);
     next = updateSketch(next, fileOf(), { ...rest, block: def.name, ...(Object.keys(kept).length ? { attrs: kept } : {}) } as SketchItem);
     change(next, `REPLACE  "${name}" → "${def.name}"${Object.keys(kept).length ? `, ${Object.keys(kept).length} attribute value${Object.keys(kept).length === 1 ? '' : 's'} kept` : ''} · ⌘Z to undo`);
+  }
+  /** A text, dimension, hatch, polyline or line picked, from its right-click menu (phase 4): one undo step each. */
+  function drawnEdit(e: 'txjust' | 'txheight' | 'txcase' | 'txframe' | 'txmask' | 'dimstyle' | 'dimprec' | 'dimpos' | 'dimreset' | 'hscale' | 'hangle' | 'hboundary' | 'plclose' | 'explode1' | 'roomfrom' | 'tocable', it: SketchItem, arg?: string) {
+    const k = unitsPerPaperMm(anno, units.factor), put = (next: SketchItem, what: string) => change(updateSketch(project, fileOf(), next), `${what} · ⌘Z to undo`);
+    const baseLook = () => it.look ?? lookOf(currentDimStyle(project), k);
+    switch (e) {
+      case 'txjust': { const j = arg ? parseJust(arg) : undefined; if (j) put(rejustified(it, j), `TJUST  Text justified ${justLabel(j).toLowerCase()}`); return; }
+      case 'txheight': { const mm = Number(arg); if (mm > 0) put(withTextHeight(it, mm * k), `TXTHEIGHT  Text ${mm} mm on paper`); return; }
+      case 'txcase': if (it.text && arg) put({ ...it, text: cased(it.text, arg as CaseMode) }, `TCASE  ${arg} case`); return;
+      case 'txframe': { const { frame: _f, ...rest } = it; put(arg && arg !== 'none' ? { ...rest, frame: arg as SketchItem['frame'] } : rest as SketchItem, arg && arg !== 'none' ? `TFRAME  ${arg} frame` : 'TFRAME  Frame taken off'); return; }
+      case 'txmask': { const { mask: _m, ...rest } = it; put(it.mask ? rest as SketchItem : { ...rest, mask: true }, it.mask ? 'TMASK  Text unmasked' : 'TMASK  Text masked'); return; }
+      case 'dimreset': { const { text: _t, ...rest } = it; put(rest as SketchItem, 'DIM  Text override removed: the measurement shows'); return; }
+      case 'dimprec': put({ ...it, look: { ...baseLook(), decimals: Number(arg) } }, `DIM  Precision ${Number(arg) ? `0.${'0'.repeat(Number(arg))}` : '0'}`); return;
+      case 'dimpos': {
+        const b = baseLook(), { textPos: _p, gap: _g, ...rest } = b;
+        put({ ...it, look: arg === 'outside' ? rest : { ...rest, textPos: arg as 'above' | 'centered' | 'below', gap: b.gap ?? currentDimStyle(project).gapMm * k } }, `DIM  Text ${arg === 'centered' ? 'centred' : arg}`); return;
+      }
+      case 'dimstyle': {
+        const st = dimStylesOf(project).styles.find((x) => x.name === arg);
+        if (!st) return;
+        const full = fullDimStyle(st, project);
+        put({ ...it, look: lookOf(full, k), h: full.textMm * k }, `DIM  Style "${full.name}"`); return;
+      }
+      case 'hscale': if (it.hatch) put({ ...it, hatch: { ...it.hatch, scale: +(it.hatch.scale * Number(arg)).toPrecision(6) } }, `HATCH  Scale ${+(it.hatch.scale * Number(arg)).toPrecision(6)}`); return;
+      case 'hangle': if (it.hatch) put({ ...it, hatch: { ...it.hatch, angle: Number(arg) } }, `HATCH  Angle ${arg}°`); return;
+      case 'hboundary': { const { id: _id, hatch: _h, ...rest } = it; change(addSketch(project, fileOf(), rest).project, 'HATCH  Its boundary drawn again as a closed polyline · ⌘Z to undo'); return; }
+      case 'plclose': put(closedToggled(it), it.closed ? 'PEDIT  Polyline opened' : 'PEDIT  Polyline closed'); return;
+      case 'explode1': { const r = explode(it, defs); if (!failed(r, 'EXPLODE')) change(replaced(project, it, r.items!), `EXPLODE  ${r.items!.length} lines · ⌘Z to undo`); return; }
+      case 'roomfrom': {
+        const { area } = areaOf(it.pts);
+        setResult({ kind: 'area', points: it.pts, how: 'room', name: nameInside(it.pts) });
+        cad.say(`Room area = ${m2(toM2(area))} — add it as a room in the panel on the right`); return;
+      }
+      case 'tocable': {
+        const f = project.feeders.find((x) => x.id === cad.cableFeeder);
+        if (!f) { cad.setTool('cable'); setTimeout(() => cad.say('ROUTE  Choose the cable in the panel on the right, then right-click the polyline again: Convert to cable route.')); return; }
+        put({ ...it, kind: 'pline', layer: CABLE_LAYER, cable: { feederId: f.id } }, `Cable route of ${cableLabel(project, f)}: ${m(toM(pathLength(it.pts)))}`); return;
+      }
+    }
+  }
+  /** A grip right-clicked (phase 4): Move, Copy or Rotate from it, or a vertex added, removed, or the polyline closed. */
+  function gripAct(a: string) {
+    const { action, value } = argOf(a), it = selSketch, i = Number(value);
+    if (!it) return;
+    const g = gripsOf(it)[i];
+    if (!g) return;
+    if (action === 'move' || action === 'copy' || action === 'rotate') {
+      pointsNext.current = [g.at]; cad.setTool(action);
+      setTimeout(() => cad.say(action === 'rotate' ? 'ROTATE  About the grip. Specify rotation angle (degrees) or a point:' : `${action.toUpperCase()}  From the grip. Specify second point:`)); return;
+    }
+    const next = action === 'add' ? withVertexAdded(it, i) : action === 'remove' ? withVertexRemoved(it, i) : closedToggled(it);
+    if (next === it) return;
+    change(updateSketch(project, fileOf(), next), `${action === 'add' ? 'GRIP  Vertex added' : action === 'remove' ? 'GRIP  Vertex removed' : it.closed ? 'PEDIT  Polyline opened' : 'PEDIT  Polyline closed'} · ⌘Z to undo`);
   }
   /** A block by name: one of the drawing's, else one inserted lately (added to the drawing when placed). */
   const blockByName = (name: string): CadBlockDef | undefined => blockDefOf(defs, name.trim()) ?? recentBlocks.find((d) => d.name.toLowerCase() === name.trim().toLowerCase());
@@ -2695,6 +2767,17 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       change({ ...project, drawingSet: { ...set, sheets: set.sheets.map((x) => (x.id === id ? { ...x, title: raw } : x)) } }, `LAYOUT  renamed "${raw}" · ⌘Z to undo`);
       return;
     }
+    if (findAsk) {
+      if (!raw) { setFindAsk(null); cad.say(findAsk.step === 'with' ? 'FIND  Nothing replaced.' : '*Cancel*'); return; }
+      if (findAsk.step === 'what') {
+        const n = findCount(sketch, raw);
+        if (!n) { setFindAsk(null); cad.say(`FIND  "${raw}" is not in the texts drawn here.`); return; }
+        setFindAsk({ step: 'with', what: raw }); cad.say(`FIND  ${n} found for "${raw}". Replace with (Enter: leave them):`); return;
+      }
+      const r = findReplace(sketch, findAsk.what, raw);
+      setFindAsk(null);
+      change(r.changed.reduce((q, x) => updateSketch(q, fileOf(), x), project), `FIND  ${r.n} replaced: "${findAsk.what}" → "${raw}" in ${r.changed.length} object${r.changed.length === 1 ? '' : 's'} · ⌘Z to undo`); return;
+    }
     if (roomAsk) {
       const room = buildingInfoOf(project).rooms.find((r) => r.id === roomAsk.id);
       setRoomAsk(null);
@@ -3008,6 +3091,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       hideObjects: () => hideObjects('hide'),
       unisolateObjects: () => { if (objHide && objHide.file === view?.file) { setObjHide(null); cad.say('UNISOLATEOBJECTS  All objects shown again.'); } else cad.say('UNISOLATEOBJECTS  No objects are isolated or hidden.'); },
       addSelected: () => addSelected(),
+      find: () => { if (!view) { cad.say('FIND  Open a drawing first.'); return; } setFindAsk({ step: 'what' }); cad.say('FIND  Find what (in the texts, notes, attributes and dimension texts drawn here):'); input.current?.focus(); },
       quickMeasure: () => {
         if (!pickedSk.length) { cad.say('QUICKMEASURE  Pick lines, polylines, arcs or circles first.'); return; }
         const q = measureOf(pickedSk);
@@ -3172,11 +3256,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (edNote) { setEdNote(null); cad.say('*Cancel*'); if (tool === 'mtext') cad.setTool('none'); }
     else if (points.length || objectMode || cad.textAt || mtAsk) { setPoints([]); setObjectMode(false); cad.setTextAt(null); setTextAsk(null); setEdAsk(null); setMtAsk(null); cad.say('*Cancel*'); }
     else if (edStep || edAsk === 'radius' || edAsk === 'd1' || edAsk === 'd2') { setEdStep(null); setEdAsk(null); cad.say('*Cancel*'); cad.say(tool === 'offset' ? PROMPT.offset : editPrompt(tool, edSet)); }
-    else if (menuAt) setMenuAt(null); else if (renaming) { setRenaming(null); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); setPicked([]); }
+    else if (menuAt) setMenuAt(null); else if (renaming || roomAsk || findAsk) { setRenaming(null); setRoomAsk(null); setFindAsk(null); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); setPicked([]); }
   }
   /** What Space does in the command line: types a space in text (a name, TEXT contents, a leader's text); at TEXT's
    * height and rotation, where a word is the text, ends only an empty input or a number; else ends a whole word. */
-  const spaceMode: SpaceMode = renaming || renamingLayout || roomAsk || (tool === 'text' && cad.textAt && !textAsk?.step) || (tool === 'leader' && points.length >= 2) || ((tool === 'tprefix' || tool === 'tsuffix') && edPhase === 'points')
+  const spaceMode: SpaceMode = renaming || renamingLayout || roomAsk || findAsk || (tool === 'text' && cad.textAt && !textAsk?.step) || (tool === 'leader' && points.length >= 2) || ((tool === 'tprefix' || tool === 'tsuffix') && edPhase === 'points')
     || (tool === 'tcount' && (tc?.step === 'prefix' || tc?.step === 'suffix')) || (tool === 'keynote' && kn?.step === 'text') ? 'text'
     : tool === 'text' && cad.textAt ? 'value' : 'command';
   /** Numbers typed go to the command line (or the box at the cursor) rather than the view's keys (0 fits, − zooms out):
@@ -3372,9 +3456,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             <CadCanvas view={view!} draft={snapDraft} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={snapExtra} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
               numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={draft.grips && tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
-              onGripEnd={(i, at) => {
+              onGripEnd={(i, at, moved) => {
                 setGripIdx(null);
                 if (i < 0 || !selSketch) return;
+                // Clicked, not dragged: the grip is hot (its right-click menu, phase 4).
+                if (moved === false) { setHotGrip(i); cad.say('GRIP  Hot grip: drag it, or right-click for its menu (Move, Copy, Rotate from it; vertices).'); return; }
+                setHotGrip(null);
                 const next = gripMoved(selSketch, i, at);
                 change(updateSketch(project, fileOf(), next), `GRIP  ${kindOf(selSketch)} ${gripsOf(selSketch)[i]?.kind === 'mid' ? 'side moved' : 'changed'}${isPath(next) ? ` — now ${m(toM(next.pts.slice(1).reduce((t, q, k) => t + distance(next.pts[k], q), 0)))}` : ''} · ⌘Z to undo`);
               }}
