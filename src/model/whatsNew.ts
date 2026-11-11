@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.097', date: '2026-11-11',
+    items: [
+      { title: 'Cable and breaker limits you can change', text: 'Standards → Design references now shows the cable / breaker limit tables (DEWA Appendix 5, Tables 1–3) under Rule rows. Duplicate DEWA, or use a reference built on it, to change any row, the DB feeder minimum, the cable types a table covers, or add tables of your own. Choose to size cables up, warn only, or switch the limits off. Apply the reference to use them in the project.' }
+    ]
+  },
+  {
     version: '2.096', date: '2026-11-11',
     items: [
       { title: 'A drawing\'s own layouts now show their paper; + on every drawing', text: 'Opening a layout saved in the drawing file (Layout1…) showed an empty screen: its paper, printable area and viewports now show. The + for a new layout is there on every drawing; in a project with no levels yet it says to add them in Building information first, as each layout is a plan sheet of a level.' }

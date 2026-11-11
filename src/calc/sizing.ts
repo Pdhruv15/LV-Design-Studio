@@ -5,7 +5,7 @@ import { isMotor, motorStartDipPct, runningKva, startingKva } from './motor';
 import { generatorFor } from '../database/catalog';
 import { settingsOf, type Board, type BreakerType, type Feeder, type Project } from '../types';
 import { forgetNetworks } from './network';
-import { cableLimitsOf, combinationAllowed, isLimitRemark, minBreakerA, sizedUpRemark } from './authorityLimits';
+import { combinationAllowed, isLimitRemark, minBreakerA, projectLimitsOf, sizedUpRemark, sizingLimitsOf } from './authorityLimits';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -270,7 +270,7 @@ export function recommend(project: Project, f: Feeder, mode: SelectionMode = 'fi
   // In ≥ Ib / 0.85 keeps breaker loading below the 85 % warning threshold.
   // Capacitor banks: In ≥ 1.43 × rated current (IEC 60831 — 1.3 for
   // harmonics × 1.1 capacitance tolerance); otherwise keep loading < 85 %.
-  const limits = cableLimitsOf(project);
+  const limits = sizingLimitsOf(project);
   const minIn = nextStandard(breakerRatings(), Math.max(f.kvar ? ib * 1.43 : ib / 0.85, minBreakerA(limits, f)));
   const breakerRatingA = mode === 'fix' && minIn !== undefined && f.breakerRatingA >= minIn ? f.breakerRatingA : minIn;
   const faultKA = faultCurrentKA(impedanceToBoard(project, f.boardId), project.voltageV);
@@ -309,7 +309,7 @@ export function recommend(project: Project, f: Feeder, mode: SelectionMode = 'fi
   const limitRemark = limits && breakerRatingA && minCable && byCalc && (byCalc.csaMm2 !== minCable.csaMm2 || byCalc.runs !== minCable.runs)
     ? sizedUpRemark(limits, f, byCalc, minCable, breakerRatingA)
     : undefined;
-  const remarks = keep ? f.remarks : isLimitRemark(f.remarks) ? limitRemark : !f.remarks?.trim() ? limitRemark ?? f.remarks : f.remarks;
+  const remarks = keep ? f.remarks : isLimitRemark(f.remarks, projectLimitsOf(project)) ? limitRemark : !f.remarks?.trim() ? limitRemark ?? f.remarks : f.remarks;
 
   const note = !breakerRatingA
     ? 'Current above the largest standard breaker'
