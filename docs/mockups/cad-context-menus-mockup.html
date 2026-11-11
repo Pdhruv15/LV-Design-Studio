@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Design CAD — right-click menus by context (mockup)</title>
+<style>
+  :root{--bg:#1b1d21;--panel:#26292e;--p2:#33373d;--line:#3a3e45;--line-strong:#4a4f57;--tx:#e4e6ea;--mut:#9aa0a8;--new:#6fb3ff;--lv:#f0b54a;--now:#7fcf8a}
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px 28px 60px;background:var(--bg);color:var(--tx);font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+  h1{font-size:18px;margin:0 0 4px} h2{font-size:14px;margin:28px 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+  p.lead{color:var(--mut);margin:0 0 12px;max-width:980px}
+  .key{display:flex;gap:18px;font-size:12px;color:var(--mut);margin-bottom:6px;flex-wrap:wrap}
+  .key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:22px 20px;align-items:start}
+  .case h3{font-size:13px;margin:0 0 2px} .case .when{font-size:11.5px;color:var(--mut);margin:0 0 8px;min-height:30px}
+  .menu{position:relative;width:250px;padding:4px 0;background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+  .menu .it{display:flex;align-items:center;gap:8px;height:24px;padding:0 10px 0 8px;border-left:3px solid transparent;white-space:nowrap}
+  .menu .it:hover{background:var(--p2)}
+  .menu .it .ic{width:16px;text-align:center;color:var(--mut);font-size:12px}
+  .menu .it .lb{flex:1}
+  .menu .it .sc{color:var(--mut);font-size:11.5px}
+  .menu .it .ar{color:var(--mut)}
+  .menu .it.dis{color:#6b7078}
+  .menu .it.n{border-left-color:var(--new)} .menu .it.lv{border-left-color:var(--lv)}
+  .menu .it.now{border-left-color:var(--now)}
+  .menu .sep{height:1px;margin:4px 0;background:var(--line)}
+  .menu .hd{padding:3px 12px 2px;font-size:10.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+  .fly{position:absolute;left:246px;width:200px}
+  .case.wide{grid-column:span 2}
+  .note{font-size:11.5px;color:var(--mut);margin-top:8px;max-width:260px}
+  table{border-collapse:collapse;margin-top:8px;font-size:12px} td,th{border:1px solid var(--line);padding:5px 9px;text-align:left;vertical-align:top} th{color:var(--mut);font-weight:600}
+</style>
+</head>
+<body>
+<h1>Design CAD — right-click menus by context</h1>
+<p class="lead">Proposal mockup (not implemented). The canvas right-click opens a different menu depending on what is under the cursor or picked, and whether a command is running. Order in every menu: <b>repeat/recent → context actions → clipboard → common edits → selection → view → Properties</b>. Menus stay short; rarely used actions live in flyouts (▸).</p>
+<div class="key">
+  <span><i style="background:var(--now)"></i>In the app today</span>
+  <span><i style="background:var(--new)"></i>New — general 2D drafting</span>
+  <span><i style="background:var(--lv)"></i>New — LV / ELV design use case</span>
+  <span><i style="background:transparent;border:1px solid var(--line-strong)"></i>No mark — same as the blank-canvas menu</span>
+</div>
+
+<h2>1 · Canvas states</h2>
+<div class="grid" id="g1"></div>
+<h2>2 · Drawn objects</h2>
+<div class="grid" id="g2"></div>
+<h2>3 · Blocks, references and sheets</h2>
+<div class="grid" id="g3"></div>
+<h2>4 · Electrical objects (our use case)</h2>
+<div class="grid" id="g4"></div>
+
+<h2>Which menu opens</h2>
+<table>
+  <tr><th>Under cursor / picked</th><th>Menu</th><th>Notes</th></tr>
+  <tr><td>A command is running</td><td>Command</td><td>Replaces today's short Enter / options / Cancel menu; adds snap overrides.</td></tr>
+  <tr><td>A grip is hot (clicked, red)</td><td>Grip</td><td>Edits act on the hot grip; Base point and Copy toggle.</td></tr>
+  <tr><td>Nothing, nothing picked</td><td>Blank canvas</td><td>Like the screenshot the user sent; adds Paste and Recent commands.</td></tr>
+  <tr><td>One kind picked</td><td>That kind's menu</td><td>Device, route, block, reference, text, dimension, hatch, room, viewport, title block.</td></tr>
+  <tr><td>Mixed kinds picked</td><td>Mixed selection</td><td>Common edits plus “Filter by type ▸” to narrow to one kind.</td></tr>
+  <tr><td>Paper-space layout, inside a viewport</td><td>Viewport</td><td>Outside a viewport the blank-canvas menu shows with Page setup and Plot.</td></tr>
+</table>
+
+<script>
+// item: [label, shortcut, mark, flags] ; mark: '' | 'now' | 'n' | 'lv' ; flags: '>' submenu, 'x' disabled ; '-' separator ; '#Heading'
+const S = '-';
+const clip = [['Cut','Ctrl+X','n'],['Copy','Ctrl+C','n'],['Copy with base point','Ctrl+Shift+C','n'],['Paste','Ctrl+V','n','x']];
+const edits = [['Erase','Del','now'],['Move','M','now'],['Copy selection','CO','now'],['Rotate','RO','now'],['Scale','SC','now'],['Mirror','MI','now'],['Array','AR','n','>']];
+const selTail = [S,['Select similar','','n'],['Add selected','','n'],['Deselect all','Esc','n'],['Isolate','','n','>'],['Draw order','','n','>'],S,['Quick measure','','n'],['Properties','Ctrl+1','now']];
+const menus = {
+ g1: [
+  {t:'Blank canvas — nothing picked', w:'Right-click empty space, no command, no selection.', items:[
+    ['Repeat LAYERS','Enter','now'],['Recent commands','','n','>'],S,['Paste','Ctrl+V','n'],['Paste to original coordinates','','n'],S,
+    ['Undo MOVE','Ctrl+Z','n'],['Redo','Ctrl+Y','n','x'],S,['Isolate','','n','>'],['Pan','P','n'],['Zoom','Z','n'],['Zoom extents','ZE','n'],['Zoom previous','','n'],S,
+    ['Select all','Ctrl+A','n'],['Quick select…','','n'],['Count','','now'],S,['Place device','','lv','>'],['Draw route / tray','','lv'],S,['Properties','Ctrl+1','now'],['Options…','','n']],
+   fly:{at:1,items:[['LINE'],['PLINE'],['MOVE'],['LAYERS'],['DIMLINEAR'],['TCOUNT']]}},
+  {t:'Command running', w:'Right-click while a command waits for input (e.g. LINE asking for the next point).', items:[
+    ['Enter','Enter','now'],['Cancel','Esc','now'],S,['Recent input','','n','>'],S,['#Options of this prompt'],['Close','C','now'],['Undo','U','now'],S,
+    ['Snap overrides','','n','>'],['Ortho','F8','n'],['Polar tracking','F10','n'],S,['Pan','','n'],['Zoom','','n']],
+   fly:{at:9,items:[['Endpoint'],['Midpoint'],['Centre'],['Intersection'],['Perpendicular'],['Nearest'],['Device insertion point','','lv'],['Route centreline','','lv'],['None']]}},
+  {t:'Hot grip', w:'Click a grip (it turns hot), then right-click.', items:[
+    ['Enter','Enter','n'],S,['Stretch','','n'],['Move','','n'],['Rotate','','n'],['Scale','','n'],['Mirror','','n'],S,
+    ['Base point','','n'],['Copy','','n'],['Reference','','n'],S,['Add vertex','','n'],['Remove vertex','','n'],['Convert to arc','','n'],S,['Undo','Ctrl+Z','n'],['Exit','Esc','n']]},
+  {t:'Mixed selection', w:'Picked objects of several kinds (lines + devices + text).', items:[
+    ['Repeat ERASE','Enter','n'],S,...clip,S,...edits,S,['Filter by type','','n','>'],...selTail],
+   fly:{at:12,items:[['Lines (12)'],['Polylines (3)'],['Text (4)'],['Luminaires (8)','','lv'],['Sockets (2)','','lv']]}}
+ ],
+ g2: [
+  {t:'Line / arc / circle', w:'One or more basic drawn objects picked.', items:[
+    ['Repeat MOVE','Enter','n'],S,...clip,S,...edits,['Offset','O','now'],['Trim / Extend','TR','now'],['Break','BR','n'],['Fillet / Chamfer','F','now'],['Join','J','n'],...selTail]},
+  {t:'Polyline', w:'One polyline picked.', items:[
+    ['Repeat MOVE','Enter','n'],S,...clip,S,['Edit polyline','PE','n','>'],['Add vertex','','n'],['Reverse','','n'],['Explode','X','now'],S,...edits,['Offset','O','now'],S,
+    ['Area and length','','n'],['Use as room boundary','','lv'],['Convert to cable route','','lv'],...selTail],
+   fly:{at:6,items:[['Close / Open'],['Join'],['Width'],['Fit curve'],['Straighten']]}},
+  {t:'Text / multiline text', w:'Text picked.', items:[
+    ['Edit text','Dbl-click','n'],['Find and replace…','','n'],['Text style','','n','>'],['Justify','','n','>'],S,...clip,S,...edits.slice(0,4),S,['Make all caps','','n'],['Background mask','','n'],S,['Select similar','','n'],['Properties','Ctrl+1','now']]},
+  {t:'Dimension', w:'One dimension picked.', items:[
+    ['Edit dimension text','','n'],['Dimension style','','n','>'],['Precision','','n','>'],['Flip arrow','','n'],['Reset text position','','n'],['Remove override','','n'],S,...clip.slice(0,2),S,['Erase','Del','now'],['Move','M','now'],S,['Select similar','','n'],['Properties','Ctrl+1','now']]},
+  {t:'Hatch', w:'One hatch picked.', items:[
+    ['Edit hatch…','','n'],['Set origin','','n'],['Recreate boundary','','n'],['Separate hatches','','n'],['Send behind boundary','','n'],S,...clip.slice(0,2),S,['Erase','Del','now'],['Move','M','now'],S,['Area','','n'],['Select similar','','n'],['Properties','Ctrl+1','now']]}
+ ],
+ g3: [
+  {t:'Block / typical / group', w:'A block reference (symbol, typical arrangement or group) picked.', items:[
+    ['Edit block in place','','n'],['Open block editor','','n'],['Edit attributes…','','n'],S,['Replace with another block…','','n'],['Redefine from file…','','n'],['Reset to definition','','n'],['Explode','X','now'],S,
+    ...edits.slice(0,4),S,['Select all instances','','n'],['Count instances','','now'],['Add to legend','','lv'],S,['Properties','Ctrl+1','now']]},
+  {t:'Reference drawing (xref)', w:'An attached reference drawing picked (architectural base plan).', items:[
+    ['Open reference','','n'],['Edit in place','','n'],S,['Clip','','n','>'],['Fade','','n','>'],['Reload','','now'],['Unload','','n'],['Detach','','now'],['Bind','','n'],S,
+    ['Reference layers','','n','>'],['Isolate reference','','n'],['Lock position','','n'],S,['Compare with new revision…','','lv'],['Detect rooms from walls','','lv'],S,['Move','M','now'],['Properties','Ctrl+1','now']],
+   fly:{at:3,items:[['New boundary'],['Polygonal boundary'],['Invert clip'],['Remove clip']]}},
+  {t:'Image / PDF underlay', w:'A raster or PDF underlay picked.', items:[
+    ['Calibrate scale…','','now'],['Clip','','n','>'],['Fade','','n','>'],['Monochrome','','n'],['Snap to underlay','','n'],S,['Reload','','now'],['Detach','','now'],S,['Draw order','','n','>'],['Move','M','now'],['Properties','Ctrl+1','now']]},
+  {t:'Viewport (layout)', w:'Right-click inside a viewport on a layout tab.', items:[
+    ['Maximise viewport','','n'],['Activate (model space)','Dbl-click','n'],S,['Viewport scale','','n','>'],['Lock display','','n'],['Clip viewport','','n'],S,['Freeze layer in this viewport','','n'],['Layer overrides…','','n'],S,['Plot this layout…','Ctrl+P','now'],['Page setup…','','now'],S,['Properties','Ctrl+1','now']],
+   fly:{at:3,items:[['1:20'],['1:50'],['1:100'],['1:200'],['Custom…']]}},
+  {t:'Title block', w:'The sheet title block picked.', items:[
+    ['Edit title block fields…','','now'],['Add revision','','lv'],['Issue status','','lv','>'],['Sheet list','','lv'],S,['Replace template…','','n'],['Update from project info','','lv'],S,['Move','M','now'],['Properties','Ctrl+1','now']]}
+ ],
+ g4: [
+  {t:'Device — luminaire / socket / switch', w:'One or more placed devices picked.', items:[
+    ['Repeat PLACE','Enter','n'],S,['Circuit','','lv','>'],['Assign to board…','','lv'],['Swap device type…','','lv'],['Tag / label','','lv','>'],S,
+    ['Select same circuit','','lv'],['Select same type','','lv'],['Show in load schedule','','lv'],['Show in SLD','','lv'],S,...clip.slice(0,2),S,...edits.slice(0,4),['Align to wall','','lv'],S,['Edit device…','Dbl-click','now'],['Properties','Ctrl+1','now']],
+   fly:{at:2,items:[['L1-C3 Lighting','','lv'],['New circuit…','','lv'],['Link with previous','','lv'],['Remove from circuit','','lv'],['Draw home-run','','lv']]}},
+  {t:'Distribution board', w:'A board (DB / SMDB) symbol picked.', items:[
+    ['Open board','','lv'],['Load schedule','','lv'],['Show in SLD','','lv'],['Show in riser','','lv'],S,['Circuits on plan','','lv','>'],['Select all fed devices','','lv'],['Draw home-runs','','lv'],S,['Rename board…','','lv'],['Feeder cable…','','lv'],S,...edits.slice(0,3),S,['Properties','Ctrl+1','now']]},
+  {t:'Cable route / tray / trunking', w:'A route or tray run picked.', items:[
+    ['Size tray from cables','','lv'],['Cables in this route','','lv'],['Add fitting','','lv','>'],['Reverse direction','','n'],['Split at point','','lv'],['Join runs','','lv'],S,
+    ['Length and label','','now'],['Trace circuit','','lv'],['Fill ratio check','','lv'],S,...edits.slice(0,3),['Offset','O','now'],S,['Properties','Ctrl+1','now']],
+   fly:{at:2,items:[['Bend 90°'],['Tee'],['Cross'],['Reducer'],['Riser (up/down)']]}},
+  {t:'Room', w:'A room or room boundary picked.', items:[
+    ['Room lighting…','','now'],['Lux check','','lv'],['Emergency lighting','','lv'],['Rename room','','lv'],['Room type / usage','','lv','>'],S,['Place devices in room','','lv','>'],['Select devices in room','','lv'],['Room loads','','lv'],S,['Edit boundary','','n'],['Area','','n'],['Properties','Ctrl+1','now']]},
+  {t:'ELV device — camera / detector / data point', w:'ELV devices picked (same pattern as LV devices).', items:[
+    ['System','','lv','>'],['Loop / zone','','lv','>'],['Assign to panel / rack…','','lv'],['Tag / label','','lv','>'],S,['Select same loop','','lv'],['Show in ELV schedule','','lv'],['Coverage','','lv'],S,...edits.slice(0,4),S,['Properties','Ctrl+1','now']]}
+ ]
+};
+function row(x){
+  if(x===S) return '<div class="sep"></div>';
+  if(typeof x[0]==='string'&&x[0][0]==='#') return `<div class="hd">${x[0].slice(1)}</div>`;
+  const [l,sc='',m='',f=''] = x;
+  return `<div class="it ${m}${f.includes('x')?' dis':''}"><span class="ic"></span><span class="lb">${l}</span>${f.includes('>')?'<span class="ar">▸</span>':`<span class="sc">${sc}</span>`}</div>`;
+}
+for(const [id,list] of Object.entries(menus)){
+  document.getElementById(id).innerHTML = list.map(c=>{
+    let fly='';
+    if(c.fly){ // place the flyout next to the n-th real item
+      let top=4,k=0; for(const x of c.items){ if(x===S){top+=9;continue;} if(x[0][0]==='#'){top+=19;continue;} if(k===c.fly.at)break; top+=24;k++; }
+      fly=`<div class="menu fly" style="top:${top-4}px">${c.fly.items.map(row).join('')}</div>`;
+    }
+    return `<div class="case${c.fly?" wide":""}"><h3>${c.t}</h3><div class="when">${c.w}</div><div class="menu">${c.items.map(row).join('')}${fly}</div></div>`;
+  }).join('');
+}
+</script>
+</body>
+</html>

@@ -15,9 +15,15 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.092', date: '2026-11-11',
+    version: '2.094', date: '2026-11-11',
     items: [
       { title: 'Status bar switches as icons, with snap modes and polar angle a click away', text: 'At the bottom of Design CAD, grid, snap, ortho, polar tracking, object snap, object snap tracking, dynamic input and lineweights are now icons in groups, lit when on; the tooltip gives the name and function key. The small ▾ beside object snap lists the running snaps (endpoint, midpoint, centre…) to tick on or off at once, and the ▾ beside polar picks the tracking angle (90°, 45°, 30°…). Right-click still opens each one\'s Drafting settings.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.093', date: '2026-11-11',
+    items: [
+      { title: 'Model and layout tabs on every drawing, with the drawing\'s own layouts', text: 'Every drawing opened in Design CAD now has the Model tab and a tab for each layout saved in the file itself (Layout1, A1 Lighting…), as in other CAD work, whether or not it is tied to a level. A layout tab shows its paper with the printable area from its page setup, trim marks, what is drawn on the paper (title block, notes) and the model through each viewport at its scale, in black on white; the status bar gives the paper size and viewport scales. The wheel zooms, a drag pans. These layouts are shown as saved; to change them, use the project\'s plan sheets, still in the same tab strip (marked sheet). Saving the drawing keeps its layouts.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {

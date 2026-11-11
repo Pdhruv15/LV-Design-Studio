@@ -139,7 +139,30 @@ pub struct CadDoc {
     xrefs: Vec<XrefInfo>,
     /// Model-space objects erased in the app (CROP): not picked or snapped to (see `set_erased`).
     erased: Vec<bool>,
+    /// The drawing's paper-space layouts, in tab order: what each is, and its paper's geometry (taken by `take_layout`).
+    layouts: Vec<LayoutInfo>,
+    papers: Vec<Option<CadDoc>>,
 }
+
+/// A paper-space layout of the drawing (Layout1, A1 Lighting…): its paper, the printer's margins, and its viewports.
+#[derive(Serialize, Clone)]
+struct LayoutInfo {
+    name: String,
+    tab: i16,
+    /// The paper in mm as it lies on the layout (rotation applied); 0 × 0 when the file does not say.
+    paper: [f64; 2],
+    /// The printer's unprintable edges in mm: left, bottom, right, top.
+    margins: [f64; 4],
+    /// Where the layout's origin (0, 0) is, in mm from the paper's lower left corner.
+    at: [f64; 2],
+    /// Paper mm per paper-space unit (1 for a millimetre layout, 25.4 for inches).
+    mm_per_unit: f64,
+    viewports: Vec<ViewportInfo>,
+}
+
+/// A viewport on a layout: its frame in paper-space units, and the part of the model it shows.
+#[derive(Serialize, Clone)]
+struct ViewportInfo { x: f64, y: f64, w: f64, h: f64, cx: f64, cy: f64, vh: f64, locked: bool, on: bool }
 
 struct Grid { x0: f64, y0: f64, cell: f64, nx: usize, ny: usize, segs: Vec<Vec<u32>>, pts: Vec<Vec<u32>> }
 
@@ -603,47 +626,20 @@ impl CadDoc {
     #[wasm_bindgen(constructor)]
     pub fn new(bytes: Vec<u8>) -> Result<CadDoc, JsError> {
         let (doc, format) = read(bytes).map_err(|e| JsError::new(&e))?;
-        let mut b = Builder {
-            doc: &doc,
-            layer_index: HashMap::new(),
-            layer_rgb: Vec::new(),
-            blocks: HashMap::new(),
-            current: 0,
-            layer_lt: Vec::new(),
-            lt_defs: doc.line_types.iter().map(|lt| (lt.name.to_uppercase(), lt.elements.iter().map(|e| e.length).collect())).collect(),
-            lt_index: HashMap::new(),
-            lt: 0,
-            ltscale: if doc.header.linetype_scale > 0.0 { doc.header.linetype_scale } else { 1.0 },
-            out: CadDoc { format, units: doc.header.insertion_units, origin: (0.0, 0.0), segs: vec![], seg_layer: vec![], seg_rgb: vec![], seg_real: vec![], seg_obj: vec![], seg_lt: vec![], linetypes: vec![vec![]], fills: vec![], objects: vec![], texts: vec![], snaps: vec![], layers: vec![], grid: Grid { x0: 0.0, y0: 0.0, cell: 1.0, nx: 1, ny: 1, segs: vec![vec![]], pts: vec![vec![]] }, truncated: false, xrefs: xrefs_of(&doc), erased: vec![] },
-        };
-        for layer in doc.layers.iter() {
-            let i = b.layer(&layer.name);
-            let rgb = rgb_of(&layer.color).unwrap_or(INK);
-            b.layer_rgb[i as usize] = rgb;
-            b.out.layers[i as usize].rgb = rgb;
-            b.out.layers[i as usize].on = !layer.is_off() && !layer.is_frozen();
-            b.layer_lt[i as usize] = layer.line_type.clone();
-        }
-        for rec in doc.block_records.iter() {
-            if let Some(EntityType::Block(blk)) = doc.get_entity(rec.block_entity_handle) {
-                b.blocks.insert(rec.name.to_uppercase(), (blk.base_point.x, blk.base_point.y));
-            }
-        }
-        let model: Vec<&EntityType> = doc.model_space_entities().collect();
-        for e in model {
-            let mut info = describe(e);
-            info.layer = b.layer(&e.common().layer);
-            info.seg_start = b.out.seg_layer.len() as u32;
-            b.current = b.out.objects.len() as u32;
-            b.out.objects.push(info);
-            b.entity(e, &Affine::ID, (u16::MAX, u32::MAX), 0);
-            let end = b.out.seg_layer.len() as u32;
-            b.out.objects.last_mut().unwrap().seg_end = end;
-        }
-        let mut out = b.out;
-        out.build_grid();
+        let mut out = tessellate(&doc, format, doc.model_space_entities().collect());
+        out.xrefs = xrefs_of(&doc);
+        let (layouts, papers) = layouts_of(&doc, format);
+        out.layouts = layouts;
+        out.papers = papers.into_iter().map(Some).collect();
         Ok(out)
     }
+
+    /// The drawing's paper-space layouts as JSON, in tab order: [{name, tab, paper [w, h] mm, margins [l, b, r, t] mm,
+    /// at [x, y] mm, mm_per_unit, viewports [{x, y, w, h, cx, cy, vh, locked, on}]}] (frames in paper-space units).
+    pub fn layouts(&self) -> String { serde_json::to_string(&self.layouts).unwrap_or_else(|_| "[]".into()) }
+
+    /// Layout `i`'s paper space as a drawing of its own (segments, colours, texts, snaps), once; None after.
+    pub fn take_layout(&mut self, i: usize) -> Option<CadDoc> { self.papers.get_mut(i).and_then(|p| p.take()) }
 
     /// Drawing facts as JSON: format, units (INSUNITS), origin, extents (most of the drawing), layers, texts, counts.
     pub fn info(&self) -> String {
@@ -874,6 +870,91 @@ impl CadDoc {
         }
         self.grid = g;
     }
+}
+
+/// Model space or a layout's paper space flattened for drawing and snapping: blocks expanded, curves tessellated,
+/// colours and linetypes resolved, snaps indexed.
+fn tessellate(doc: &CadDocument, format: &'static str, ents: Vec<&EntityType>) -> CadDoc {
+    let mut b = Builder {
+        doc,
+        layer_index: HashMap::new(),
+        layer_rgb: Vec::new(),
+        blocks: HashMap::new(),
+        current: 0,
+        layer_lt: Vec::new(),
+        lt_defs: doc.line_types.iter().map(|lt| (lt.name.to_uppercase(), lt.elements.iter().map(|e| e.length).collect())).collect(),
+        lt_index: HashMap::new(),
+        lt: 0,
+        ltscale: if doc.header.linetype_scale > 0.0 { doc.header.linetype_scale } else { 1.0 },
+        out: CadDoc { format, units: doc.header.insertion_units, origin: (0.0, 0.0), segs: vec![], seg_layer: vec![], seg_rgb: vec![], seg_real: vec![], seg_obj: vec![], seg_lt: vec![], linetypes: vec![vec![]], fills: vec![], objects: vec![], texts: vec![], snaps: vec![], layers: vec![], grid: Grid { x0: 0.0, y0: 0.0, cell: 1.0, nx: 1, ny: 1, segs: vec![vec![]], pts: vec![vec![]] }, truncated: false, xrefs: vec![], erased: vec![], layouts: vec![], papers: vec![] },
+    };
+    for layer in doc.layers.iter() {
+        let i = b.layer(&layer.name);
+        let rgb = rgb_of(&layer.color).unwrap_or(INK);
+        b.layer_rgb[i as usize] = rgb;
+        b.out.layers[i as usize].rgb = rgb;
+        b.out.layers[i as usize].on = !layer.is_off() && !layer.is_frozen();
+        b.layer_lt[i as usize] = layer.line_type.clone();
+    }
+    for rec in doc.block_records.iter() {
+        if let Some(EntityType::Block(blk)) = doc.get_entity(rec.block_entity_handle) {
+            b.blocks.insert(rec.name.to_uppercase(), (blk.base_point.x, blk.base_point.y));
+        }
+    }
+    for e in ents {
+        if matches!(e, EntityType::Viewport(_)) { continue; } // a layout's viewports are frames, listed in `layouts`
+        let mut info = describe(e);
+        info.layer = b.layer(&e.common().layer);
+        info.seg_start = b.out.seg_layer.len() as u32;
+        b.current = b.out.objects.len() as u32;
+        b.out.objects.push(info);
+        b.entity(e, &Affine::ID, (u16::MAX, u32::MAX), 0);
+        let end = b.out.seg_layer.len() as u32;
+        b.out.objects.last_mut().unwrap().seg_end = end;
+    }
+    let mut out = b.out;
+    out.build_grid();
+    out
+}
+
+/// The paper-space layouts (not Model) in tab order, with each one's paper space flattened.
+fn layouts_of(doc: &CadDocument, format: &'static str) -> (Vec<LayoutInfo>, Vec<CadDoc>) {
+    let mut list: Vec<&acadrust::objects::Layout> = doc.objects.values()
+        .filter_map(|o| if let acadrust::objects::ObjectType::Layout(l) = o { Some(l) } else { None })
+        .filter(|l| !l.name.eq_ignore_ascii_case("Model"))
+        .collect();
+    list.sort_by(|a, b| a.tab_order.cmp(&b.tab_order).then_with(|| a.name.cmp(&b.name)));
+    let mut infos = Vec::new();
+    let mut papers = Vec::new();
+    for l in list {
+        let Some(rec) = doc.block_records.iter().find(|r| r.handle == l.block_record) else { continue };
+        let ents: Vec<&EntityType> = doc.entities_in_block(&rec.name).collect();
+        // Inches only when the layout's paper is set up in inches; a layout with no paper set up is taken as millimetres.
+        let mm_per_unit = if l.plot_paper_units == 0 && l.paper_width > 0.0 { 25.4 } else { 1.0 };
+        let mut viewports = Vec::new();
+        for e in &ents {
+            if let EntityType::Viewport(v) = e {
+                // The layout's own (overall) viewport is not a frame on the paper: the one the layout names; in a DXF that
+                // names none, the one numbered 1 (a DWG keeps no numbers, so there it is only ever found by name).
+                let overall = if l.viewport.is_null() { format == "DXF" && v.id == 1 } else { v.common.handle == l.viewport };
+                if overall { continue; }
+                viewports.push(ViewportInfo {
+                    x: v.center.x - v.width / 2.0, y: v.center.y - v.height / 2.0, w: v.width, h: v.height,
+                    cx: v.view_center.x, cy: v.view_center.y, vh: v.view_height, locked: v.status.locked, on: !v.status.is_off
+                });
+            }
+        }
+        let turned = l.plot_rotation == 1 || l.plot_rotation == 3;
+        let (pw, ph) = if turned { (l.paper_height, l.paper_width) } else { (l.paper_width, l.paper_height) };
+        let (ml, mb, mr, mt) = if turned { (l.plot_margin_bottom, l.plot_margin_right, l.plot_margin_top, l.plot_margin_left) }
+            else { (l.plot_margin_left, l.plot_margin_bottom, l.plot_margin_right, l.plot_margin_top) };
+        infos.push(LayoutInfo {
+            name: l.name.clone(), tab: l.tab_order, paper: [pw, ph], margins: [ml, mb, mr, mt],
+            at: [ml + l.plot_origin_x, mb + l.plot_origin_y], mm_per_unit, viewports
+        });
+        papers.push(tessellate(doc, format, ents));
+    }
+    (infos, papers)
 }
 
 /// A device placed in the app, written into the drawing (drawing units).
@@ -1382,5 +1463,69 @@ mod tests {
         assert!(!d.fills[1].solid && d.fills[1].lines.len() == 1);
         let [a, b] = d.fills[1].loops[0];
         assert_eq!(b - a, 4);
+    }
+
+    /// A drawing with a model line and two layouts: Layout1 (A3 landscape, millimetres, a border line and a viewport at
+    /// 1:100 onto the model) and A1 Lighting (empty, inches).
+    fn with_layouts() -> CadDocument {
+        use acadrust::entities::Viewport;
+        use acadrust::objects::ObjectType;
+        use acadrust::types::Vector3;
+        let mut doc = CadDocument::new();
+        doc.add_entity(EntityType::Line(Line::from_coords(0.0, 0.0, 0.0, 20000.0, 0.0, 0.0))).unwrap();
+        doc.add_layout("A1 Lighting").unwrap();
+        for o in doc.objects.values_mut() {
+            if let ObjectType::Layout(l) = o {
+                if l.name == "Layout1" { l.paper_width = 420.0; l.paper_height = 297.0; l.plot_paper_units = 1; l.plot_margin_left = 6.0; l.plot_margin_bottom = 7.0; l.plot_margin_right = 6.0; l.plot_margin_top = 7.0; l.tab_order = 1; }
+                if l.name == "A1 Lighting" { l.paper_width = 841.0; l.paper_height = 594.0; l.plot_paper_units = 0; l.tab_order = 2; }
+            }
+        }
+        doc.add_paper_space_entity(EntityType::Line(Line::from_coords(0.0, 0.0, 0.0, 400.0, 0.0, 0.0))).unwrap();
+        let mut vp = Viewport::with_size(Vector3::new(200.0, 140.0, 0.0), 300.0, 200.0);
+        vp.id = 2;
+        vp.view_center = Vector3::new(10000.0, 5000.0, 0.0);
+        vp.view_height = 20000.0;
+        doc.add_paper_space_entity(EntityType::Viewport(Box::new(vp))).unwrap();
+        doc
+    }
+
+    /// The layouts are read in tab order with their paper, margins and viewports; each one's paper space is a drawing of
+    /// its own; model space keeps only the model's line. Saved as DXF or DWG, the layouts are still there.
+    /// Drawings with no paper set up still list their empty Layout1, its paper unknown (0 × 0) and in millimetres.
+    #[test]
+    fn fixture_layouts() {
+        for name in ["plan-2018.dwg", "plan-2004.dwg", "xref-host.dxf", "plan-tagged.dxf"] {
+            let v: serde_json::Value = serde_json::from_str(&CadDoc::new(fixture(name)).unwrap().layouts()).unwrap();
+            assert_eq!(v, serde_json::json!([{ "name": "Layout1", "tab": 1, "paper": [0.0, 0.0], "margins": [0.0, 0.0, 0.0, 0.0], "at": [0.0, 0.0], "mm_per_unit": 1.0, "viewports": [] }]), "{name}");
+        }
+    }
+
+    #[test]
+    fn paper_space_layouts() {
+        let bytes = acadrust::DxfWriter::new(&with_layouts()).write_to_vec().unwrap();
+        // LVDS_WRITE_FIXTURES=1 cargo test: saved for the app's tests (src/components/cad/CadPage.test.tsx).
+        if std::env::var("LVDS_WRITE_FIXTURES").is_ok() { std::fs::write(format!("{}/../../tests/fixtures/cad/paper-layouts.dxf", env!("CARGO_MANIFEST_DIR")), &bytes).unwrap(); }
+        let mut d = CadDoc::new(bytes.clone()).unwrap();
+        assert_eq!(d.seg_layer.len(), 1, "model space: the one model line");
+        let v: serde_json::Value = serde_json::from_str(&d.layouts()).unwrap();
+        let names: Vec<&str> = v.as_array().unwrap().iter().map(|l| l["name"].as_str().unwrap()).collect();
+        assert_eq!(names, ["Layout1", "A1 Lighting"]);
+        assert_eq!(v[0]["paper"], serde_json::json!([420.0, 297.0]));
+        assert_eq!(v[0]["margins"], serde_json::json!([6.0, 7.0, 6.0, 7.0]));
+        assert_eq!(v[0]["mm_per_unit"], 1.0);
+        assert_eq!(v[1]["mm_per_unit"], 25.4);
+        let vp = &v[0]["viewports"][0];
+        assert_eq!([vp["x"].as_f64(), vp["y"].as_f64(), vp["w"].as_f64(), vp["h"].as_f64(), vp["cx"].as_f64(), vp["vh"].as_f64()],
+            [Some(50.0), Some(40.0), Some(300.0), Some(200.0), Some(10000.0), Some(20000.0)]);
+        assert_eq!(v[1]["viewports"].as_array().unwrap().len(), 0);
+        let paper = d.take_layout(0).expect("Layout1's paper");
+        assert_eq!(paper.seg_layer.len(), 1, "Layout1's border line, not the viewport");
+        assert!(d.take_layout(0).is_none(), "taken once");
+        assert_eq!(d.take_layout(1).map(|p| p.seg_layer.len()), Some(0));
+        for (what, out) in [("DXF", acadrust::DxfWriter::new(&with_additions(bytes.clone(), "[]", "", "").unwrap()).write_to_vec().unwrap()), ("DWG", dwg_bytes(bytes.clone(), "[]", "", "", "").unwrap())] {
+            let again: serde_json::Value = serde_json::from_str(&CadDoc::new(out).unwrap().layouts()).unwrap();
+            assert_eq!(again.as_array().unwrap().iter().map(|l| l["name"].as_str().unwrap()).collect::<Vec<_>>(), ["Layout1", "A1 Lighting"], "{what}");
+            assert_eq!(again[0]["viewports"].as_array().unwrap().len(), 1, "{what}: the viewport kept");
+        }
     }
 }

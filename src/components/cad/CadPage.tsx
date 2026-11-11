@@ -6,6 +6,8 @@ import { getClip, hasClip, putClip } from './cadClipboardStore';
 import { hasPreviousView } from './cadViewHistory';
 import { QuickSelectDialog } from './CadQuickSelect';
 import { CadStatusToggles } from './CadStatusToggles';
+import { CadFilePaper } from './CadFilePaper';
+import { fileLayoutId, fileLayoutOf, fileLayoutTitle } from '../../model/fileLayouts';
 import type { ZoomReq } from './CadCanvas';
 import type { ZoomMenuKey } from '../drawingView';
 import { parseZoomScale } from '../../model/cadView';
@@ -713,7 +715,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const lv = floor ? { buildingId: floor.ref.building, levelId: floor.ref.level, name: floor.name } : undefined;
   const layouts = layoutsOf(project, lv);
   const sheetL = cad.layout ? layouts.find((s) => s.id === cad.layout) : undefined;
-  useEffect(() => { if (cad.layout && !sheetL) cad.setLayout(null); }, [cad.layout, sheetL]); // eslint-disable-line react-hooks/exhaustive-deps -- a layout gone (deleted, another level)
+  /** The drawing file's own layout showing (paper space as saved in the file), when that tab is picked. */
+  const fileL = fileLayoutOf(view?.layouts, cad.layout);
+  useEffect(() => { if (cad.layout && !sheetL && !fileL) cad.setLayout(null); }, [cad.layout, sheetL, fileL]); // eslint-disable-line react-hooks/exhaustive-deps -- a layout gone (deleted, another level)
   useEffect(() => { if (!sheetL) { setMv(false); setPlacing(null); } }, [sheetL]);
   const vps = sheetL ? layoutViewports(project, sheetL) : [];
   const msV = vps.find((v) => v.id === cad.msVp), selV = vps.find((v) => v.id === cad.vpSel);
@@ -737,6 +741,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const [w, arg] = c.split(' ');
     if (w === 'LAYOUT' || w === 'LO') { addLayout(PLAN_TYPES.find((t) => t.toUpperCase().startsWith(arg ?? 'L')) ?? 'lighting'); return true; }
     if (w === 'MODEL') { cad.setLayout(null); return true; }
+    if (fileL && /^(MV|MVIEW|MS|MSPACE|PS|PSPACE|VPSCALE|VPLOCK|LEGEND|LG|NOTES)$/.test(w)) {
+      cad.say(`${w}  ${fileL.name} is the drawing file's own layout, shown as it was saved; its viewports are not changed here yet. The project's plan sheets (+ on a drawing tied to a level) can be.`);
+      return true;
+    }
     if (!sheetL) return false;
     if (w === 'MV' || w === 'MVIEW') { cad.setMsVp(null); setMv(true); cad.say('MVIEW  Click two corners of the new viewport on the paper:'); return true; }
     if (w === 'MS' || w === 'MSPACE') { const v = vpTarget ?? vps[0]; if (v) { cad.setMsVp(v.id); cad.say(`MSPACE  Working in the model through ${vpName(vps, v.id)} (1:${v.scale}${isLocked(v) ? ', locked' : ''}). PS or a double-click outside returns to the paper.`); } return true; }
@@ -3298,7 +3306,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             if (JSON.stringify(keep) === JSON.stringify(project.cadDimStyles)) { cad.say('DIMSTYLE  No change.'); return; }
             change(keep ? { ...project, cadDimStyles: keep } : rest, `DIMSTYLE  ${s.styles.length} dimension style${s.styles.length === 1 ? '' : 's'}, current "${s.current}" · ⌘Z to undo`);
           }} />}
-        {view && sheetL ? (
+        {view && fileL ? (
+          <div className="cad-stage cad-paper">
+            <CadFilePaper layout={fileL} model={view} onDblClick={() => cad.say(`LAYOUT  ${fileL.name} is shown as the drawing file has it: work in the model on the Model tab.`)} />
+          </div>
+        ) : view && sheetL ? (
           <div className="cad-stage cad-paper">
             {sheetUi ? <SheetWorkspace bare project={project} run={calcRun} sheetId={sheetL.id} design={null} ui={sheetUi} onChange={(next) => change(next, `${sheetL.number || 'Layout'}  paper changed · ⌘Z to undo`)} onStatus={onStatus} onActive={() => {}} overlay={layoutOverlay({
               project, sheet: sheetL, sel: cad.vpSel, ms: cad.msVp, mv, place: placing,
@@ -3350,9 +3362,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         {dockSide === 'right' ? dock : info}
       </div>
       <CadCommandLine history={cad.history} live={EDIT_TOOLS.includes(tool) ? promptNow(edSet) : undefined} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
-      {view && lv && <LayoutTabs layouts={layouts} active={sheetL?.id ?? null} onPick={(id) => { cad.setLayout(id); if (id) cad.say(`LAYOUT  ${layouts.find((x) => x.id === id)?.number ?? ''} — the paper; double-click inside a viewport to work in it, MV adds one.`); }}
-        onNew={addLayout} onRename={(x) => { setRenamingLayout(x.id); cad.say(`RENAME  Type the new title of ${x.number} (now "${x.title}"):`); input.current?.focus(); }}
-        onCopy={(x) => { const r = newLayout(setOf(project), lv, x.plan ?? 'lighting', x); change({ ...project, drawingSet: r.set }, `LAYOUT  ${x.number} copied · ⌘Z to undo`); cad.setLayout(r.id); }}
+      {view && <LayoutTabs files={view.layouts.map((l) => ({ id: fileLayoutId(l.name), name: l.name, title: fileLayoutTitle(l, units.factor * 1000) }))} layouts={layouts} active={sheetL?.id ?? (fileL ? fileLayoutId(fileL.name) : null)} onPick={(id) => { cad.setLayout(id); const f = fileLayoutOf(view.layouts, id); if (f) cad.say(`LAYOUT  ${f.name} — the drawing file's own layout, as saved: ${fileLayoutTitle(f, units.factor * 1000)}.`); else if (id) cad.say(`LAYOUT  ${layouts.find((x) => x.id === id)?.number ?? ''} — the paper; double-click inside a viewport to work in it, MV adds one.`); }}
+        onNew={lv ? addLayout : undefined} onRename={(x) => { setRenamingLayout(x.id); cad.say(`RENAME  Type the new title of ${x.number} (now "${x.title}"):`); input.current?.focus(); }}
+        onCopy={(x) => { if (!lv) return; const r = newLayout(setOf(project), lv, x.plan ?? 'lighting', x); change({ ...project, drawingSet: r.set }, `LAYOUT  ${x.number} copied · ⌘Z to undo`); cad.setLayout(r.id); }}
         onMove={(x, dir) => change({ ...project, drawingSet: renumber(moveLayout(setOf(project), x.id, dir)) }, `LAYOUT  ${x.number} moved ${dir < 0 ? 'left' : 'right'} · ⌘Z to undo`)}
         onDelete={(x) => { const set = setOf(project); change({ ...project, drawingSet: { ...set, sheets: set.sheets.filter((y) => y.id !== x.id) } }, `LAYOUT  ${x.number} ${x.title} deleted (its sheet too) · ⌘Z to undo`); if (cad.layout === x.id) cad.setLayout(null); }}
         onPageSetup={(x) => onSheet?.(x.id)} />}
@@ -3360,7 +3372,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         <CadStatusToggles toggles={cad.toggles} gridDots={cad.gridDots} draft={draft} canFit={!!view} onToggle={cad.toggle} onCycleGrid={cad.cycleGrid} onSettings={setDsTab} onFit={() => cad.fit()}
           onDraft={onPrefs ? (d) => onPrefs({ draft: d, autosaveMin }) : undefined} />
         <span className="sp" />
-        {sheetL ? <>
+        {fileL ? <>
+          <span className="cad-tg on" title="On the drawing file's own layout (paper space)">PAPER</span>
+          <span>{`${fileL.name} · ${fileLayoutTitle(fileL, units.factor * 1000)}`}</span>
+        </> : sheetL ? <>
           <button className={`cad-tg on`} aria-label={msV ? 'Model space in a viewport' : 'Paper space'} title={msV ? 'In the model through a viewport: click for the paper (PS)' : 'On the paper: click to work in a viewport (MS)'} onClick={() => run(msV ? 'PS' : 'MS')}>{msV ? 'MODEL' : 'PAPER'}</button>
           {vpTarget && <span>{`${vpName(vps, vpTarget.id)} · 1:${vpTarget.scale}${isLocked(vpTarget) ? ' · locked' : ''}`}</span>}
           <span>{`${sheetL.number} · ${layoutPaper(project, sheetL)?.size ?? ''} · mm`}</span>
