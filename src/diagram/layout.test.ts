@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CHANGEOVER_H, DEWA_EXTRA_Y, LEAF_W, LEVEL_H, ROOT_BUS_Y, layoutSystem } from './layout';
-import { wayReach } from './panelLabels';
+import { busbarReach, wayReach } from './panelLabels';
 import { sampleProject } from '../data/sampleProject';
 import type { Feeder, Project } from '../types';
 
@@ -186,5 +186,30 @@ describe('DEWA panel frames sized to their labels', () => {
     expect(frame(wide, 'S1').x2 - x(wide, 'A')).toBeGreaterThan(frame(short, 'S1').x2 - x(short, 'A'));
     expect(frame(refs, 'S1').x2).toBeLessThan(frame(wide, 'S1').x2);
     expect(frame(wide, 'S2').x1 - frame(wide, 'S1').x2).toBeGreaterThanOrEqual(17);
+  });
+});
+
+describe('room for the busbar description', () => {
+  const twoBoards = (frames: boolean): ReturnType<typeof layoutSystem> => layoutSystem({
+    ...base,
+    boards: [{ id: 'A', name: 'A', ratedCurrentA: 2500 }, { id: 'B', name: 'B', ratedCurrentA: 630 }],
+    feeders: [feeder('A1', 'A'), feeder('B1', 'B'), feeder('B2', 'B')]
+  }, frames ? DEWA_EXTRA_Y : undefined, { frames });
+
+  it('runs a single-way busbar far enough right that "2500 A TPN+E" clears the incoming line', () => {
+    for (const frames of [false, true]) {
+      const l = twoBoards(frames);
+      const a = l.boards.find((b) => b.board.id === 'A')!, b = l.boards.find((x) => x.board.id === 'B')!;
+      expect(a.busX2 - a.x).toBeGreaterThanOrEqual(busbarReach(a.board));
+      expect(busbarReach(a.board)).toBeGreaterThan(LEAF_W * 0.38); // longer than the usual half busbar
+      expect(a.busX2).toBeLessThan(b.busX1); // and the next panel moves clear of it
+      if (frames) expect(a.frame!.x2).toBeLessThan(b.frame!.x1);
+    }
+  });
+
+  it('leaves a board with no busbar rating as it was', () => {
+    const l = layoutSystem({ ...base, boards: [{ id: 'A', name: 'A' }], feeders: [feeder('A1', 'A')] });
+    const a = l.boards[0];
+    expect(a.busX2 - a.x).toBeCloseTo(LEAF_W * 0.38);
   });
 });
