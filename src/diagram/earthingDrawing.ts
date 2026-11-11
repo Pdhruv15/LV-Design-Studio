@@ -21,6 +21,10 @@ const PIT = 210, GREEN = '#1a7f37', MAX_W = 3200;
 /** A substation row wraps before this width, so the drawing still prints readably on one sheet. */
 const SUB_MAX_W = 2900;
 const BAND_H = 600; // one row: equipment, conductors, pits and links
+/** Width : height of a landscape sheet's drawing area (A-series, after the title block and legend column). */
+const SHEET_ASPECT = 1.4;
+/** Width of the pit schedule when it takes a column of its own. */
+const SCHEDULE_W = 1300;
 /** Escaped for text and quoted attributes (project data is untrusted). */
 const esc = escapeHtmlAttr;
 const ln = (x1: number, y1: number, x2: number, y2: number, w = 1.3, c = '#111') => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${w}"/>`;
@@ -124,7 +128,15 @@ export function pitTags(project: Project, L: EarthLayout = earthingLayout(projec
 }
 
 export function earthingDrawing(project: Project, L: EarthLayout = earthingLayout(project), includeSchedule = true, opts: { mono?: boolean; working?: boolean; /** The sheet's legend column takes the legend and notes (returned, not drawn); the pit schedule stays. */ furniture?: 'column' } = {}): { svg: string; w: number; h: number; legendItems?: LegendItem[]; notes?: string[] } {
-  const out: string[] = [];
+  /** Everything drawn, each part with the band row it belongs to (rows are moved into columns at the end). */
+  const parts: { row: number; s: string }[] = [];
+  /** The row being drawn: the band at y, or `at` for the pits, links and tags drawn after the bands. */
+  let at: number | undefined;
+  const rowAt = (v: number) => Math.max(0, Math.floor((v - 50) / BAND_H));
+  const out = {
+    push: (...s: string[]) => { const row = at ?? rowAt(y); for (const x of s) parts.push({ row, s: x }); },
+    join: (sep: string) => parts.map((p) => p.s).join(sep)
+  };
   /** Cable size tags, placed at the end clear of everything else. */
   const tags: CableTag[] = [];
   const pitX = new Map<string, number>(), pitY = new Map<string, number>();
@@ -201,7 +213,10 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   const rmuW = (it: EarthItem) => Math.max(160, pitsOf(it).length * PIT) + 20;
   const lvW = (it: EarthItem) => Math.max(360, pitsOf(it).length * PIT) + 20; // room for the cable tags beside the board's earth conductor
 
-  let y = 50, right = 0;
+  let y = 50;
+  /** Right end of each band row (the row's width). */
+  const rowRight: number[] = [];
+  const endRow = (x: number) => { rowRight[rowAt(y)] = Math.max(rowRight[rowAt(y)] ?? 0, x); };
   const groups = [...new Set(L.items.map((i) => i.group))];
   for (const g of groups) {
     const rmus = L.items.filter((i) => i.group === g && i.kind === 'rmu');
@@ -217,7 +232,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
     const wrap = (w: number) => {
       if (x === 60 || x + w <= SUB_MAX_W) return;
       zone(40, TOP, x - 40, name);
-      right = Math.max(right, x);
+      endRow(x);
       y += BAND_H; TOP = y; PY = y + 410; x = 60;
     };
     if (rmus.length || txs.length) {
@@ -275,13 +290,13 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
 
     // ---- LV room: beside the substation, or on its own row when too wide -----
     let LT = TOP, lvStart = x === 60 ? 40 : x + 10;
-    if (x > 60 && x + lvWidth > MAX_W) { right = Math.max(right, x); y += BAND_H; LT = y; lvStart = 40; }
+    if (x > 60 && x + lvWidth > MAX_W) { endRow(x); y += BAND_H; LT = y; lvStart = 40; }
     let LP = LT + 410;
     x = lvStart + 20;
     const lvTitle = groups.length > 1 ? `LV ROOM — ${name}` : 'LV ROOM';
     for (const it of lvs) {
       // A long LV room continues on the next row, like the substation.
-      if (x > lvStart + 20 && x + lvW(it) > SUB_MAX_W) { zone(lvStart, LT, x - lvStart, lvTitle); right = Math.max(right, x); y += BAND_H; LT = y; LP = LT + 410; lvStart = 40; x = 60; }
+      if (x > lvStart + 20 && x + lvW(it) > SUB_MAX_W) { zone(lvStart, LT, x - lvStart, lvTitle); endRow(x); y += BAND_H; LT = y; LP = LT + 410; lvStart = 40; x = 60; }
       const w = lvW(it) - 20, cx = place(it, x, w, LP);
       const main = it.kind === 'lv';
       // The board: N bar isolated from earth (the neutral is earthed once, at the transformer star point),
@@ -327,12 +342,12 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
         return Math.max(110, pitsOf(n).length * PIT) + Math.max(170, pitsOf(bd).length * PIT) + 20;
       };
       let GT = LT, gStart = x === 60 ? 40 : x + 10;
-      if (x > 60 && x + gens.reduce((s, b) => s + genW(b), 0) + 40 > SUB_MAX_W) { right = Math.max(right, x); y += BAND_H; GT = y; gStart = 40; }
+      if (x > 60 && x + gens.reduce((s, b) => s + genW(b), 0) + 40 > SUB_MAX_W) { endRow(x); y += BAND_H; GT = y; gStart = 40; }
       let GP = GT + 410;
       x = gStart + 20;
       const gTitle = groups.length > 1 ? `STANDBY GENERATOR — ${name}` : 'STANDBY GENERATOR';
       for (const b of gens) {
-        if (x > gStart + 20 && x + genW(b) > SUB_MAX_W) { zone(gStart, GT, x - gStart, gTitle); right = Math.max(right, x); y += BAND_H; GT = y; GP = GT + 410; gStart = 40; x = 60; }
+        if (x > gStart + 20 && x + genW(b) > SUB_MAX_W) { zone(gStart, GT, x - gStart, gTitle); endRow(x); y += BAND_H; GT = y; GP = GT + 410; gStart = 40; x = 60; }
         const n = L.items.find((i) => i.key === `gn:${b.id}`)!, bd = L.items.find((i) => i.key === `gb:${b.id}`)!;
         const wn = Math.max(110, pitsOf(n).length * PIT), wb = Math.max(170, pitsOf(bd).length * PIT);
         const nx = place(n, x, wn, GP), bx = place(bd, x + wn, wb, GP);
@@ -357,7 +372,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
       }
       zone(gStart, GT, x - gStart, gTitle);
     }
-    right = Math.max(right, x);
+    endRow(x);
     y += BAND_H;
   }
 
@@ -376,10 +391,12 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   for (const [a0, b0] of L.links) {
     if (!pitX.has(a0) || !pitX.has(b0)) continue;
     const py = pitY.get(a0)!;
+    at = rowAt(py);
     if (pitY.get(b0) !== py) {
       // On another row: a short stub out of each pit's top, named with the other pit.
       for (const [id, to] of [[a0, b0], [b0, a0]]) {
         const x = pitX.get(id)!, y = pitY.get(id)!;
+        at = rowAt(y);
         out.push(`<path d="M${x + 4} ${y - 4} L${x + LK} ${y - LK} h24" stroke="${GREEN}" stroke-width="1.6" fill="none"/><text x="${x + LK + 28}" y="${y - LK + 3}" font-size="8" fill="${GREEN}">to ${esc(tagOf.get(to) ?? to)}</text>`);
       }
       continue;
@@ -394,6 +411,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
     riserR.add(a); riserL.add(b);
   }
   for (const c of chains) {
+    at = rowAt(c.py);
     const top = c.py - LK, r1 = c.x1 + 38, r2 = c.x2 - 38;
     // Hop over the risers of the other chains on this row that reach below this run.
     const hops = chains.filter((o) => o !== c && o.py === c.py && o.y > c.y).flatMap((o) => [o.x1 + 38, o.x2 - 38]);
@@ -410,6 +428,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   for (const p of L.pits) {
     if (!pitX.has(p.id)) continue;
     const px = pitX.get(p.id)!, py = pitY.get(p.id)!;
+    at = rowAt(py);
     // Tag beside the chamber, away from a link riser; the last pit of a pair on its left (as on the sheet).
     const own = L.pits.filter((q) => q.itemKey === p.itemKey);
     const lastOfPair = own.length > 1 && own[own.length - 1].id === p.id;
@@ -419,7 +438,8 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   }
 
   // ---- Cable tags, last: clear of every line, symbol and text drawn above ----
-  for (const t of placeTags(tags, obstaclesFromSvg(out.join('')))) out.push(cableTag(t));
+  for (const t of placeTags(tags, obstaclesFromSvg(out.join('')))) { at = rowAt(t.dot[1]); out.push(cableTag(t)); }
+  at = undefined;
 
   // ---- Legend and notes -------------------------------------------------------
   const ly = y + 10, lx = 40;
@@ -458,11 +478,9 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   ];
   const noteSvg = `<g transform="translate(${lx + 560} ${ly})">${notes.map((t, i) => `<text x="0" y="${18 + i * 16}" font-size="9"${i ? '' : ' font-weight="bold"'}>${esc(t)}</text>`).join('')}</g>`;
 
-  const w = Math.max(right + 30, 1300);
+  const inColumn = opts.furniture === 'column';
   // The schedule is part of the SVG so every drawing export carries the same
   // pit IDs and test information. Wrap long cells rather than compressing text.
-  const tableX = 40, tableW = w - 80;
-  const columns = [0.08, 0.19, 0.17, 0.06, 0.15, 0.09, 0.16, 0.1].map((f) => f * tableW);
   const wrap = (text: string, width: number) => {
     const max = Math.max(1, Math.floor((width - 12) / 6));
     const lines: string[] = [];
@@ -476,37 +494,78 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
     if (line) lines.push(line);
     return lines;
   };
-  const inColumn = opts.furniture === 'column';
-  let tableY = ly + (inColumn ? 0 : legendH) + 40;
-  let schedule = `<text x="${tableX}" y="${tableY - 10}" font-size="12" font-weight="bold">EARTH PIT SCHEDULE</text>`;
-  const row = (cells: string[], heading = false) => {
-    const lines = cells.map((s, i) => wrap(s, columns[i]));
-    const rh = Math.max(1, ...lines.map((ls) => ls.length)) * 14 + 12;
-    let cx = tableX;
-    lines.forEach((ls, i) => {
-      schedule += `<rect x="${cx}" y="${tableY}" width="${columns[i]}" height="${rh}" fill="none" stroke="#999" stroke-width="0.7"/>`;
-      ls.forEach((text, j) => { schedule += `<text x="${cx + 6}" y="${tableY + 16 + j * 14}" font-size="9"${heading ? ' font-weight="bold"' : ''}>${esc(text)}</text>`; });
-      cx += columns[i];
-    });
-    tableY += rh;
-  };
   // Untested pits print a line to fill in on site.
   const blank = opts.mono ? '__________' : '';
-  row(['Pit', 'Equipment / connection', 'Earth system / substation', 'Limit', 'Conductor / electrode', 'Measured', 'Tested (date, by)', 'Result'], true);
-  for (const p of L.pits) {
+  const scheduleRows = [['Pit', 'Equipment / connection', 'Earth system / substation', 'Limit', 'Conductor / electrode', 'Measured', 'Tested (date, by)', 'Result'], ...L.pits.map((p) => {
     const it = L.items.find((item) => item.key === p.itemKey)!;
     const st = pitStatus(p);
-    row([`${p.id} ${tagOf.get(p.id) ?? ''}`.trim(), `${it.equipment} / ${it.point}`, `${kindInfo(p.kind).label} / ${it.group}`, `${kindInfo(p.kind).limitOhm} ohm`, `1C ${mm} mm² Cu/PVC, ${L.electrodeM} m Cu-bonded rod`,
-      p.measured === undefined ? blank || 'Not tested' : `${p.measured} ohm`, [p.date, p.by].filter(Boolean).join(', ') || blank, st === 'pass' ? 'PASS' : st === 'fail' ? 'FAIL' : blank]);
+    return [`${p.id} ${tagOf.get(p.id) ?? ''}`.trim(), `${it.equipment} / ${it.point}`, `${kindInfo(p.kind).label} / ${it.group}`, `${kindInfo(p.kind).limitOhm} ohm`, `1C ${mm} mm² Cu/PVC, ${L.electrodeM} m Cu-bonded rod`,
+      p.measured === undefined ? blank || 'Not tested' : `${p.measured} ohm`, [p.date, p.by].filter(Boolean).join(', ') || blank, st === 'pass' ? 'PASS' : st === 'fail' ? 'FAIL' : blank];
+  })];
+  /** The pit schedule at x, its title above `top` + 30, tableW wide: the SVG and the y below it. */
+  const scheduleAt = (tableX: number, top: number, tableW: number) => {
+    const columns = [0.08, 0.19, 0.17, 0.06, 0.15, 0.09, 0.16, 0.1].map((f) => f * tableW);
+    let tableY = top + 40;
+    let svg = `<text x="${tableX}" y="${tableY - 10}" font-size="12" font-weight="bold">EARTH PIT SCHEDULE</text>`;
+    scheduleRows.forEach((cells, r) => {
+      const lines = cells.map((s, i) => wrap(s, columns[i]));
+      const rh = Math.max(1, ...lines.map((ls) => ls.length)) * 14 + 12;
+      let cx = tableX;
+      lines.forEach((ls, i) => {
+        svg += `<rect x="${cx}" y="${tableY}" width="${columns[i]}" height="${rh}" fill="none" stroke="#999" stroke-width="0.7"/>`;
+        ls.forEach((text, j) => { svg += `<text x="${cx + 6}" y="${tableY + 16 + j * 14}" font-size="9"${r ? '' : ' font-weight="bold"'}>${esc(text)}</text>`; });
+        cx += columns[i];
+      });
+      tableY += rh;
+    });
+    return { svg, bottom: tableY };
+  };
+
+  // ---- Sheet layout: the band rows flow into columns (whole rows, top to bottom, then the next column), and the
+  // schedule goes below or in a column of its own: whichever prints largest on a landscape sheet. The working view
+  // keeps one column.
+  const n = Math.max(1, Math.round((y - 50) / BAND_H));
+  const furnH = inColumn ? 0 : legendH;
+  const tail = opts.working || inColumn ? 10 : legendH + 20;
+  const plan = (k: number, side: boolean) => {
+    const per = Math.ceil(n / k);
+    const colW = Array.from({ length: Math.ceil(n / per) }, (_, c) => Math.max(0, ...Array.from(rowRight.slice(c * per, (c + 1) * per), (r) => r ?? 0)) + 30);
+    const bandsW = colW.reduce((t, cw) => t + cw, 0), top = 50 + per * BAND_H + 10;
+    if (!includeSchedule) return { per, colW, top, w: Math.max(bandsW, 1300), h: top + tail };
+    if (side) {
+      const sch = scheduleAt(bandsW + 10, 40, SCHEDULE_W - 40);
+      return { per, colW, top, sch, w: bandsW + SCHEDULE_W, h: Math.max(top + tail, sch.bottom + 20) };
+    }
+    const w = Math.max(bandsW, 1300), sch = scheduleAt(40, top + furnH, w - 80);
+    return { per, colW, top, sch, w, h: sch.bottom + 20 };
+  };
+  const fit = (q: { w: number; h: number }) => Math.min(SHEET_ASPECT / q.w, 1 / q.h);
+  let best = plan(1, false);
+  if (!opts.working) {
+    for (let k = 1; k <= n; k++) {
+      if (k > 1 && Math.ceil(n / k) === Math.ceil(n / (k - 1))) continue; // same columns as k - 1
+      for (const side of includeSchedule ? [false, true] : [false]) {
+        const q = plan(k, side);
+        if (fit(q) > fit(best) * 1.001) best = q;
+      }
+    }
   }
-  const h = includeSchedule ? tableY + 20 : opts.working || inColumn ? ly + 10 : ly + legendH + 20;
+  const { w, h } = best;
+  // Each column's rows moved up beside the first column; the legend and notes below the tallest column.
+  const colX = best.colW.map((_, c) => best.colW.slice(0, c).reduce((t, cw) => t + cw, 0));
+  const body = best.colW.map((_, c) => {
+    const s = parts.filter((p) => Math.floor(p.row / best.per) === c).map((p) => p.s).join('\n');
+    return c ? `<g transform="translate(${colX[c]} ${-c * best.per * BAND_H})">\n${s}\n</g>` : s;
+  }).join('\n');
+  const dy = best.top - ly;
+  const furniture = `${legend}
+  ${noteSvg}`;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" font-family="Arial" font-size="10" fill="#111">
   <rect width="${w}" height="${h}" fill="#fff"/>
   <text x="${w / 2}" y="30" text-anchor="middle" font-size="14" font-weight="bold">EARTHING SCHEMATIC DIAGRAM</text><text x="${w / 2}" y="44" text-anchor="middle" font-size="9" fill="#5b6b82">Earthing system: ${esc(L.system.name)}</text>
-  ${out.join('\n')}
-  ${opts.working || inColumn ? '' : `${legend}
-  ${noteSvg}`}
-  ${includeSchedule ? schedule : ''}
+  ${body}
+  ${opts.working || inColumn ? '' : dy ? `<g transform="translate(0 ${dy})">${furniture}</g>` : furniture}
+  ${best.sch?.svg ?? ''}
 </svg>`;
   // Printed sheet: every colour to black, tints to white.
   const mono = (s: string) => (opts.mono ? s.replace(/#(1a7f37|1d4f8f|5b6b82|b86b2b|c0392b)/gi, '#111').replace(/#(e8f5ec|fdecea)/gi, '#fff') : s);

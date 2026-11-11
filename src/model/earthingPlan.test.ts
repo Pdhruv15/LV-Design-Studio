@@ -149,14 +149,47 @@ describe('earthing schematic', () => {
     const d = earthingDrawing(p);
     expect(d.svg).not.toMatch(/NaN|undefined|NO PIT/);
     for (const pit of L.pits) expect(d.svg).toContain(`>${pit.id}</text>`);
-    expect(d.h).toBeGreaterThan(900); // LV room on a second row
-    expect(d.w).toBeLessThan(3000);
+    const rows = earthingDrawing(p, L, false, { working: true }); // the working view keeps one column of rows
+    expect(rows.h).toBeGreaterThan(900); // LV room on a second row
+    expect(rows.w).toBeLessThan(3000);
+    // The printed sheet: the long pit schedule takes a column of its own beside the rows.
+    expect(Number(d.svg.match(/<text x="([\d.]+)"[^>]*>EARTH PIT SCHEDULE</)![1])).toBeGreaterThan(rows.w);
+    expect(d.h).toBeLessThan(rows.h + 1000);
     // The substation wraps onto a second row; links between rows show as "to EP-…" at both ends.
-    const rows = new Set([...d.svg.matchAll(/>(EB-TX\(N\)-\d+)<\/text>/g)].map((m) => m[1]));
-    expect(rows.size).toBe(10);
+    const bars = new Set([...d.svg.matchAll(/>(EB-TX\(N\)-\d+)<\/text>/g)].map((m) => m[1]));
+    expect(bars.size).toBe(10);
     const cross = [...d.svg.matchAll(/>to (EP-[^<]+)<\/text>/g)].map((m) => m[1]);
     expect(cross.length).toBeGreaterThan(0);
     expect(cross.length % 2).toBe(0); // both ends of every row-crossing link
+  });
+
+  it('printed sheet: many substation bands flow into columns, so the drawing prints larger on a landscape sheet', () => {
+    let p: Project = { ...sampleProject, boards: [], feeders: [], ties: [] };
+    for (let i = 1; i <= 9; i++) p = applyTransformers(p, planTransformers(p, Array.from({ length: (i % 3) + 1 }, () => ({ kva: 1000 })), false, 2, `SS-0${i}`));
+    const L = earthingLayout(p);
+    const rows = earthingDrawing(p, L, false, { working: true });
+    const d = earthingDrawing(p, L, true, { mono: true, furniture: 'column' });
+    expect(d.svg).not.toMatch(/NaN|undefined|NO PIT/);
+    for (const pit of L.pits) expect(d.svg).toContain(`>${pit.id}</text>`);
+    for (let i = 1; i <= 9; i++) expect(d.svg).toContain(`LV ROOM — SS-0${i}`);
+    // The rows of the later columns are moved up beside the first.
+    const shifts = [...d.svg.matchAll(/<g transform="translate\([\d.]+ -\d+\)">\n/g)];
+    expect(shifts.length).toBeGreaterThan(0);
+    expect(d.h).toBeLessThan(rows.h / 1.5);
+    expect(d.w / d.h).toBeGreaterThan(1);
+    expect(d.w / d.h).toBeLessThan(2.2);
+    // Fitted to a 1.4 : 1 drawing area, it prints at least 1.6 times the size of the rows stacked in one column.
+    const fit = (w: number, h: number) => Math.min(1.4 / w, 1 / h);
+    expect(fit(d.w, d.h)).toBeGreaterThan(1.6 * fit(rows.w, rows.h + 1500));
+  });
+
+  it('printed sheet: one band stays one column, the schedule below it', () => {
+    const p = withEarthPitIds(sampleProject);
+    const rows = earthingDrawing(p, earthingLayout(p), false, { working: true });
+    const d = earthingDrawing(p, earthingLayout(p), true, { mono: true });
+    expect(d.w).toBe(rows.w);
+    expect(d.svg).not.toMatch(/<g transform="translate\([\d.]+ -\d+\)">\n/);
+    expect(Number(d.svg.match(/<text x="([\d.]+)"[^>]*>EARTH PIT SCHEDULE</)![1])).toBe(40);
   });
 
   it('two substations, 5 transformers and 3 RMUs each: separate bands, pits never linked across substations', () => {

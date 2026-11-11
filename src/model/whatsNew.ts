@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.087', date: '2026-11-10',
+    items: [
+      { title: 'Earthing schematic fills the sheet', text: 'On the printed earthing schematic (PDF, DXF and Design CAD → Sheets), the substation bands no longer stand in one tall column. Whole bands flow into side-by-side columns, and a long earth pit schedule gets a column of its own, whichever prints largest on a landscape sheet. A site with many substations prints about twice the size. The drawing inside each band is unchanged, and so is the on-screen Earthing view.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
     version: '2.086', date: '2026-11-10',
     items: [
       { title: 'Boards with no outgoing ways drawn as a board symbol', text: 'On the SLD, a board with nothing below it yet now ends its incoming line on a board symbol (busbar and ways inside; one way for a DB, control rows for a package panel), with its name, kind and loading beside it and "NO OUTGOING WAYS" or its load-schedule circuits underneath, inside a dashed panel frame in DEWA style like the other panels. No more line running past the box.' },
