@@ -12,6 +12,7 @@ import { buildingInfoOf, DEFAULT_ROOM_TYPES } from '../../calc/building';
 import type { CadShow } from './cadObjectMenus';
 import { sizeRoute, trayPlanOf } from '../../calc/cableTray';
 import { openDrawing } from '../../engines/cad/cadEngine';
+import { dropRefGeometry, keepRefGeometry } from '../../model/cadRefs';
 import '../../engines/cad/cadOps'; // loaded ahead: the engine loads it on demand, which a busy test run can make slow
 import { sampleProject } from '../../data/sampleProject';
 import { placeLvPoint } from '../../model/cadDevices';
@@ -3913,4 +3914,91 @@ describe('right-click menus, phase 2: LV and ELV objects and the tools behind th
     await pickEntry('Fill ratio check');
     expect(hist()).toMatch(/^TRAY {2}This tray is on no route/);
   });
+});
+
+describe('right-click menus, phase 3: blocks, references and layouts', () => {
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const hist = () => document.querySelector('.cad-hist')!.textContent;
+  const right = (x: number, y: number) => { const [sx, sy] = screenOf(x, y); return act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); }); };
+  const entry = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find((b) => (b.firstElementChild?.textContent ?? b.textContent) === label)!;
+  const pickEntry = async (...path: string[]) => { for (const l of path) { const b = entry(l); expect(b, l).toBeTruthy(); await act(async () => { b.click(); }); } };
+  const esc = () => act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+  const start = async (p: Project) => { project = p; act(() => root.render(<Host start={p} />)); await flush(); act(() => state.toggle('osnap')); };
+  const line = { id: 'b1', kind: 'line' as const, layer: '0', pts: [[0, 0], [2000, 0]] as [number, number][] };
+  const B1: CadBlockDef = { name: 'B1', items: [line] };
+  const B2: CadBlockDef = { name: 'B2', items: [line, { id: 'b2', kind: 'attdef', layer: '0', pts: [[0, 500]], tag: 'TAG', text: 'X', h: 250 }] };
+  const ins = (id: string, y: number, block: string, attrs?: Record<string, string>): SketchItem => ({ id, kind: 'insert', layer: '0', pts: [[X, y]], block, ...(attrs ? { attrs } : {}) });
+  afterEach(() => dropRefGeometry('REF.dxf'));
+
+  it('a block drawn here: Count instances, Replace with another block ▸, Reset attributes, Explode', async () => {
+    await start({ ...villa, cadBlockDefs: [{ file: F, defs: [B1, B2] }], cadSketch: [{ file: F, items: [ins('I1', 0, 'B1'), ins('I2', 5000, 'B1'), ins('I3', 10000, 'B2', { TAG: 'L1' })] }] });
+    const item = (id: string) => sketchOf(project, F).find((x) => x.id === id);
+    await clickAt(X + 1000, 0);
+    await right(X + 1000, 0);
+    await pickEntry('Count instances');
+    expect(hist()).toBe('COUNT  "B1": 2 in this drawing');
+    await right(X + 1000, 0);
+    await pickEntry('Replace with another block ▸', 'B2');
+    expect(item('I1')!.block).toBe('B2');
+    await esc();
+    await clickAt(X + 1000, 10000);
+    await right(X + 1000, 10000);
+    await pickEntry('Reset attributes');
+    expect(item('I3')!.attrs).toBeUndefined();
+    await right(X + 1000, 10000);
+    await pickEntry('Explode');
+    expect(sketchOf(project, F).filter((x) => x.kind === 'insert').map((x) => x.id)).toEqual(['I1', 'I2']); // I3's first piece keeps its id
+    expect(hist()).toMatch(/^EXPLODE {2}"B2": 2 objects/);
+  });
+
+  it('a reference drawing: Fade ▸, print on sheets, Open reference, Detach', async () => {
+    keepRefGeometry({ file: 'REF.dxf', units: 4, segs: new Float64Array([0, 0, 5000, 0]), segLayers: new Uint16Array([0]), layers: [{ name: 'A-WALL', rgb: 0 }] });
+    await start({ ...villa, cadRefs: { [F]: [{ name: 'REF', file: 'REF.dxf', type: 'overlay', at: [X, 50000], scale: 1, rot: 0, fade: 50, print: true }] } });
+    const ref = () => project.cadRefs?.[F]?.[0];
+    await right(X + 2500, 50000);
+    await pickEntry('Fade', '25 %');
+    expect(ref()!.fade).toBe(25);
+    await right(X + 2500, 50000);
+    await pickEntry('Do not print on sheets');
+    expect(ref()!.print).toBe(false);
+    await right(X + 2500, 50000);
+    await pickEntry('Open reference');
+    expect(hist()).toMatch(/^XREF {2}REF\.dxf: where it is on this computer is not known/);
+    await right(X + 2500, 50000);
+    await pickEntry('Detach');
+    expect(ref()).toBeUndefined();
+  });
+
+  it('a layout: right-click in a viewport for its scale, lock and model space; on the paper for the issue status, MV and the Model tab', async () => {
+    let p: Project = { ...villa, cadPlans: [{ building: 'V', level: 'GF', file: F, units: 4 }] };
+    for (const [x, y] of [[3, 9], [6, 9.4], [9, 8.8]]) p = placeLvPoint(p, { building: 'V', level: 'GF' }, 'ltg', 'DB-GF1-B2', x, y).project;
+    await start(p);
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('.cad-ltab')].find((b) => b.textContent === 'Model')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 50, clientY: 500 })));
+    act(() => [...document.querySelectorAll('[role="menuitem"]')].find((b) => b.textContent?.startsWith('Lighting layout'))!.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    const sheet = () => project.drawingSet!.sheets.find((x) => x.kind === 'plan')!;
+    await until(() => !!document.querySelector('.cad-vp'));
+    const frame = document.querySelector<HTMLElement>('.cad-vp')!;
+    const [l, t, w, h] = ['left', 'top', 'width', 'height'].map((k) => parseFloat(frame.style.getPropertyValue(k)));
+    const paperRight = (x: number, y: number) => act(async () => { document.querySelector('.cad-vps')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: x, clientY: y })); });
+    await paperRight(l + w / 2, t + h / 2);
+    await pickEntry('Viewport scale', '1:50');
+    expect(sheet().viewports![0].scale).toBe(50);
+    await paperRight(l + w / 2, t + h / 2);
+    await pickEntry('Unlock display');
+    expect(sheet().viewports![0].locked).toBe(false);
+    await paperRight(l + w / 2, t + h / 2);
+    await pickEntry('Activate (model space)');
+    expect(state.msVp).toBe('vp1');
+    await command('PS');
+    await paperRight(l + w + 40, t + h + 20);
+    await pickEntry('Issue status', 'FOR APPROVAL');
+    expect(sheet().status).toBe('FOR APPROVAL');
+    await paperRight(l + w + 40, t + h + 20);
+    await pickEntry('New viewport');
+    expect(hist()).toMatch(/^MVIEW {2}Click two corners/);
+    await esc();
+    await paperRight(l + w / 2, t + h / 2);
+    await pickEntry('Show on the Model tab');
+    expect(state.layout).toBeNull();
+  }, 20_000);
 });

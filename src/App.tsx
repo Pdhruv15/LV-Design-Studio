@@ -654,6 +654,7 @@ export default function App() {
     if (s.to === 'load-schedule') { if (s.board) setActiveBoardId(s.board); setView('load-schedule'); return; }
     if (s.to === 'cable-schedule') { setFocus(s.board ?? null); setView('cable-schedule'); return; }
     if (s.to === 'elv') { setView('elv'); return; }
+    if (s.to === 'drawing-register') { setView('drawing-register'); return; }
     setView('design');
     setDiagramMode(s.to === 'board' ? 'board' : s.to === 'riser' ? 'riser' : 'system');
     if (s.feeder) selectFeeder(s.feeder); else if (s.board) selectBoard(s.board);
