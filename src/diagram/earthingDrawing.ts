@@ -661,22 +661,42 @@ export interface EarthingOpts {
 }
 const fit = (q: { w: number; h: number }) => Math.min(SHEET_ASPECT / q.w, 1 / q.h);
 
-/** mono: black on white for the printed sheet (plain report style) — results are written (FAIL), not coloured.
- * working: the on-screen working view — the schematic only, without the legend and notes (sheet furniture), one column.
- * The printed schematic tries each row wrap width and keeps the layout that prints largest. With a sheet whose drawing
- * area it does not fit at the readable scale, it continues over sheets (parts: how many). */
-export function earthingDrawing(project: Project, L: EarthLayout = earthingLayout(project), includeSchedule = true, opts: EarthingOpts = {}): { svg: string; w: number; h: number; legendItems?: LegendItem[]; notes?: string[]; parts: number } {
-  if (opts.working) return { ...drawAt(project, L, includeSchedule, opts, WRAPS[0]).single().draw(), parts: 1 };
+type Drawing = { svg: string; w: number; h: number; legendItems?: LegendItem[]; notes?: string[] };
+/** The chosen layout of a printed schematic: how many sheets, and each sheet drawn on request. */
+type Layout = { parts: number; draw: (part: number, nos?: (string | undefined)[]) => Drawing };
+/** Layouts already chosen, per project (or the layout passed in) and options: each sheet of a schematic over several
+ * sheets is drawn on its own, and choosing the layout draws the whole schematic at every wrap width. */
+const layouts = new WeakMap<object, Map<string, Layout>>();
+
+function chooseLayout(project: Project, L: EarthLayout, includeSchedule: boolean, opts: EarthingOpts): Layout {
   const tries = (opts.wraps?.length ? opts.wraps : WRAPS).map((wrap) => drawAt(project, L, includeSchedule, opts, wrap));
   const singles = tries.map((t) => t.single());
   let best = 0;
   singles.forEach((q, i) => { if (q.fit > singles[best].fit * 1.001) best = i; });
   const cap = opts.sheet?.capacity;
-  if (!cap || (singles[best].w <= cap.w && singles[best].h <= cap.h)) return { ...singles[best].draw(), parts: 1 };
+  if (!cap || (singles[best].w <= cap.w && singles[best].h <= cap.h)) {
+    let one: Drawing | undefined;
+    return { parts: 1, draw: () => (one ??= singles[best].draw()) };
+  }
   // Over several sheets: the fewest, then the widest wrap; wraps wider than the sheet only when none is narrower.
   const fitting = tries.filter((t) => t.widest <= cap.w);
   const pagings = (fitting.length ? fitting : [tries[tries.length - 1]]).map((t) => t.paged(cap));
   const paging = pagings.reduce((a, b) => (b.count < a.count ? b : a));
-  const part = Math.min(Math.max(0, opts.sheet!.part), paging.count - 1);
-  return { ...paging.draw(part, opts.sheet!.nos), parts: paging.count };
+  return { parts: paging.count, draw: (part, nos) => paging.draw(Math.min(Math.max(0, part), paging.count - 1), nos) };
+}
+
+/** mono: black on white for the printed sheet (plain report style) — results are written (FAIL), not coloured.
+ * working: the on-screen working view — the schematic only, without the legend and notes (sheet furniture), one column.
+ * The printed schematic tries each row wrap width and keeps the layout that prints largest. With a sheet whose drawing
+ * area it does not fit at the readable scale, it continues over sheets (parts: how many). */
+export function earthingDrawing(project: Project, given?: EarthLayout, includeSchedule = true, opts: EarthingOpts = {}): Drawing & { parts: number } {
+  const L = given ?? earthingLayout(project);
+  if (opts.working) return { ...drawAt(project, L, includeSchedule, opts, WRAPS[0]).single().draw(), parts: 1 };
+  const key = JSON.stringify([includeSchedule, !!opts.mono, opts.furniture ?? '', opts.sheet?.capacity ?? null, opts.wraps ?? null]);
+  const owner: object = given ?? project;
+  let byOpts = layouts.get(owner);
+  if (!byOpts) layouts.set(owner, (byOpts = new Map()));
+  let layout = byOpts.get(key);
+  if (!layout) byOpts.set(key, (layout = chooseLayout(project, L, includeSchedule, opts)));
+  return { ...layout.draw(opts.sheet?.part ?? 0, opts.sheet?.nos), parts: layout.parts };
 }
