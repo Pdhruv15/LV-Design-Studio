@@ -94,6 +94,42 @@ describe('SLD main earth-pit arrangement', () => {
     expect(Number(met.getAttribute('y1'))).toBeLessThanOrEqual(Number(panel.getAttribute('y')) - 34);
   });
 
+  it('marks the unframed earth pit location with a dashed frame, its spacing clear of the earth symbols', () => {
+    for (const project of [{ ...sampleProject, drawing: { ...sampleProject.drawing, sldStyle: 'standard' as const } }, newProject('New')]) {
+      const host = draw(project);
+      const id = project.boards.find((b) => !b.upstreamId)!.id;
+      const earth = host.querySelector<SVGGElement>(`.earth-pit[data-board-id="${id}"]`)!;
+      const zone = earth.querySelector<SVGRectElement>('rect.earth-pit-zone')!;
+      expect(zone.getAttribute('class')).toContain('interlock');
+      const n = (el: Element, a: string) => Number(el.getAttribute(a));
+      const zx = n(zone, 'x'), zy = n(zone, 'y'), zr = zx + n(zone, 'width'), zb = zy + n(zone, 'height');
+      // Every electrode and earth symbol inside the frame.
+      for (const el of earth.querySelectorAll('.earth-electrode rect, .earth-electrode line')) {
+        const x1 = n(el, el.tagName === 'rect' ? 'x' : 'x1'), y1 = n(el, el.tagName === 'rect' ? 'y' : 'y1');
+        const x2 = el.tagName === 'rect' ? x1 + n(el, 'width') : n(el, 'x2'), y2 = el.tagName === 'rect' ? y1 + n(el, 'height') : n(el, 'y2');
+        expect(Math.min(x1, x2)).toBeGreaterThan(zx);
+        expect(Math.max(x1, x2)).toBeLessThan(zr);
+        expect(Math.min(y1, y2)).toBeGreaterThan(zy);
+        expect(Math.max(y1, y2)).toBeLessThan(zb);
+      }
+      // The spacing label reads below the lowest earth symbol, inside the frame.
+      const label = [...earth.querySelectorAll<SVGTextElement>('text')].find((t) => / m \(MIN\)$/.test(t.textContent ?? ''))!;
+      const lowest = Math.max(...[...earth.querySelectorAll('.earth-electrode line')].map((l) => n(l, 'y2')));
+      expect(n(label, 'y') - 7).toBeGreaterThan(lowest);
+      expect(n(label, 'y')).toBeLessThan(zb);
+      const w = textWidth(label.textContent!, 7);
+      expect(n(label, 'x') - w / 2).toBeGreaterThan(zx);
+      expect(n(label, 'x') + w / 2).toBeLessThan(zr);
+      // The MET and its label stay outside the frame, in the board.
+      const met = earth.querySelector('.met-bar')!;
+      const metText = [...earth.querySelectorAll('text')].find((t) => t.textContent === 'MET')!;
+      expect(n(met, 'x1')).toBeGreaterThan(zr);
+      expect(n(metText, 'x') - textWidth('MET', 8, true)).toBeGreaterThan(zr);
+    }
+    // A framed DEWA main board keeps its pits outside the panel frame, with no extra frame.
+    expect(draw(sampleProject).querySelector('.earth-pit[data-board-id="MDB-1"] .earth-pit-zone')).toBeNull();
+  });
+
   it('gives a new project\'s lone DEWA main board its earth detail in a band clear of the incomer', () => {
     const project = newProject('New');
     expect(project.drawing?.sldStyle).not.toBe('standard');
