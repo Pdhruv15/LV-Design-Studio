@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.095', date: '2026-11-11',
+    items: [
+      { title: 'DEWA cable and breaker limits (Appendix 5, Tables 1–3)', text: 'On DEWA projects, automatic sizing now also meets the DEWA cable selection tables: each size has a largest breaker and load. Table 3 for armoured XLPE cable (for example 25 mm² up to 80 A, 35 mm² up to 100 A), Table 2 for armoured PVC (new cable type PVC/SWA/PVC) and Table 1 for single-core PVC wires in conduit (new cable type PVC 1C; DB load schedule circuits use it unless another type is set, for example a 40 A single-phase circuit needs 10 mm²). 2.5 mm² may carry 16 A. Parallel runs count as runs × the table value. When a table, not the calculation, sets the size, the circuit gets a remark such as "DEWA Table 3: 35 mm² for 100 A (25 mm² max 80 A)"; your own remarks are kept. A feeder to a DB is at least 10 mm² on a 40 A breaker. A size set by hand that breaks a table fails the checks, with fixes offered. The sample project is resized to meet the tables.' }
+    ]
+  },
+  {
     version: '2.094', date: '2026-11-11',
     items: [
       { title: 'Status bar switches as icons, with snap modes and polar angle a click away', text: 'At the bottom of Design CAD, grid, snap, ortho, polar tracking, object snap, object snap tracking, dynamic input and lineweights are now icons in groups, lit when on; the tooltip gives the name and function key. The small ▾ beside object snap lists the running snaps (endpoint, midpoint, centre…) to tick on or off at once, and the ▾ beside polar picks the tracking angle (90°, 45°, 30°…). Right-click still opens each one\'s Drafting settings.', action: 'cad', actionLabel: 'Open Design CAD' }

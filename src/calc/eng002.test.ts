@@ -10,7 +10,7 @@ const feeder: Feeder = {
   lengthM: 85, cableCsaMm2: 16, cores: 4, breakerRatingA: 125, breakerIcuKa: 50
 };
 const project = (vdTempC?: number): Project => ({
-  ...sampleProject, voltageV: 400, ambientC: 30, vdLimitPct: 4, vdTempC,
+  ...sampleProject, voltageV: 400, ambientC: 30, vdLimitPct: 4, vdTempC, designReference: { id: 'builtin-iec', name: 'IEC 60364', version: 1, appliedAt: '', values: {} }, // IEC sizing only, no DEWA Table 3
   boards: [{ id: 'MDB', name: 'MDB', sourceKva: 1000 }], feeders: [feeder], ties: undefined, trays: undefined, busRisers: undefined
 } as Project);
 

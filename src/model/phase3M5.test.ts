@@ -14,7 +14,7 @@ const NOW = new Date('2026-10-06T08:00:00Z');
 const f0 = 'DB-GF1-R3';
 const base = (): Project => issueRevision(sampleProject, { description: 'Issued', date: '2026-10-01' });
 const feeder = (p: Project) => p.feeders.find((f) => f.id === f0)!;
-const draft = (p: Project) => addOp(p, newModification(p, { title: 'T', reason: 'R' }, NOW), 'feeder', f0, 'cableCsaMm2', feeder(p).cableCsaMm2 + 10);
+const draft = (p: Project) => addOp(p, newModification(p, { title: 'T', reason: 'R' }, NOW), 'feeder', f0, 'cableCsaMm2', feeder(p).cableCsaMm2 + 6);
 const to = (p: Project, r: ModificationRecord, ...s: ('proposed' | 'review' | 'accepted')[]) => { for (const x of s) { const t = transition(p, r, x, { by: 'Asha', note: 'ok', now: NOW }); if (!t.ok) throw new Error(t.error); r = t.record; } return r; };
 
 describe('M5 — undo and redo', () => {
@@ -27,7 +27,7 @@ describe('M5 — undo and redo', () => {
     expect(h.present.modifications![0].applied).toBeUndefined();
     expect(h.present.modifications![0].status).toBe('accepted'); // can be applied again after the undo
     h = redo(h);
-    expect(feeder(h.present).cableCsaMm2).toBe(feeder(p).cableCsaMm2 + 10);
+    expect(feeder(h.present).cableCsaMm2).toBe(feeder(p).cableCsaMm2 + 6);
     expect(h.present.modifications![0].applied).toBeDefined();
     // applying again after an undo works once, not twice
     const again = applyModification(undo(record(reset(q), a.project, 10_000)).present, r.id);

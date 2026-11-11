@@ -25,7 +25,7 @@ describe('copy / paste a board with everything below it', () => {
     expect(copied.find((f) => f.id === 'DB-FF21-R3')).toMatchObject({ room: 'Cooker', phase: 'R', way: 3, points: { cooker: 1 } });
     // A new incomer on the MDB feeds the copy; the original is untouched.
     const inc = p.feeders.find((f) => f.feedsBoardId === 'SMDB-FF2')!;
-    expect(inc).toMatchObject({ boardId: 'MDB-1', cableCsaMm2: 300, breakerRatingA: 500 });
+    expect(inc).toMatchObject({ boardId: 'MDB-1', cableCsaMm2: 150, parallel: 2, breakerRatingA: 500 });
     expect(p.feeders.find((f) => f.feedsBoardId === 'DB-FF21')!.boardId).toBe('SMDB-FF2');
     expect(boardDemandKw(p, 'SMDB-FF2')).toBeCloseTo(boardDemandKw(sampleProject, 'SMDB-GF'), 9);
     expect(p.feeders.filter((f) => f.boardId === 'SMDB-GF')).toEqual(sampleProject.feeders.filter((f) => f.boardId === 'SMDB-GF'));

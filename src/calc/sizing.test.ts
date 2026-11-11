@@ -69,7 +69,7 @@ describe('generator sizing', () => {
 describe('breaker and cable selection', () => {
   it('picks In ≥ Ib/0.85, Icu ≥ busbar fault, and a cable with Iz ≥ In', () => {
     const f = feeder({ loadKw: 100, powerFactor: 0.85, breakerRatingA: 100, breakerIcuKa: 10, cableCsaMm2: 16 });
-    const r = recommend(project([f]), f);
+    const r = recommend(project([f], { designReference: { id: 'builtin-iec', name: 'IEC 60364', version: 1, appliedAt: '', values: {} } }), f); // IEC sizing only
     // Ib = 163.7 A → /0.85 = 192.6 → 200 A; busbar fault 27.8 kA → 36 kA
     expect(r.ib).toBeCloseTo(163.7, 1);
     expect(r.breakerRatingA).toBe(200);

@@ -9,9 +9,11 @@ describe('schedules', () => {
     const s = cableSchedule(sampleProject);
     expect(s.rows).toHaveLength(sampleProject.feeders.length);
     const inc = s.rows.find((r) => r[0] === 'C-INC-GF')!;
-    expect(inc[3]).toBe('1'); // standard cable no. 1: 4C 300 + 1C 150 ECC
-    expect(inc[5]).toBe('4C × 300 mm²');
-    expect(inc[6]).toBe(150); // 300 / 2
+    expect(inc[5]).toBe('2 × 4C × 150 mm²'); // DEWA Table 3: 500 A needs 2 × 150 mm²
+    expect(inc[6]).toBe(95); // 150 / 2 = 75, next standard size
+    const mcc = s.rows.find((r) => r[0] === 'C-INC-MCC')!;
+    expect(mcc[5]).toBe('4C × 240 mm²');
+    expect(mcc[6]).toBe(120); // 240 / 2
   });
 
   it('equipment schedule includes the transformer and every board', () => {

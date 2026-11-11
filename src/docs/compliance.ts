@@ -98,6 +98,11 @@ export function buildResults(data: CalcData, scope: Scope): Results {
     const off = withFinals.filter((r) => r.protectionStatus !== 'ok').length;
     compliance.push({ check: 'Overload protection (Ib ≤ In ≤ Iz)', item: `${withFinals.length} circuits`, calculated: `${withFinals.length - off} of ${withFinals.length} meet it`, requirement: 'All circuits', margin: off ? `${off} circuit(s)` : '—', status: worst(withFinals.map((r) => r.protectionStatus)) });
   }
+  const limited = withFinals.filter((r) => r.limits);
+  if (limited.length) {
+    const off = limited.filter((r) => r.limits!.status !== 'ok');
+    compliance.push({ check: 'Cable / breaker limits (DEWA Appendix 5)', item: off[0]?.feeder.id ?? `${limited.length} circuits`, calculated: `${limited.length - off.length} of ${limited.length} meet it`, requirement: 'All circuits', margin: off.length ? `${off.length} circuit(s)` : '—', status: off.length ? 'bad' : 'ok' });
+  }
   const rated = sums.filter((s) => s.loadingPct !== undefined);
   const busy = pick(rated, (s) => s.loadingPct!);
   if (busy) compliance.push({ check: 'Board loading', item: busy.board.id, calculated: `${fig.current(busy.currentA)} A`, requirement: `${busy.board.ratedCurrentA} A`, margin: `${fig.current(busy.board.ratedCurrentA! - busy.currentA)} A`, status: worst(rated.map((s) => s.loadingStatus!)) });
