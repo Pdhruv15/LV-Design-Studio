@@ -1756,6 +1756,18 @@ describe('file tabs', () => {
     expect(document.querySelector('.cad-filepaper')).toBeNull();
   });
 
+  it('Layouts: + is there in a project with no levels yet, and says what a new layout needs', async () => {
+    act(() => root.render(<Host start={{ ...villa, building: undefined }} />));
+    await flush();
+    const v = await openDrawing('paper-layouts.dxf', bytes('tests/fixtures/cad/paper-layouts.dxf'));
+    act(() => state.open(v));
+    await flush();
+    act(() => (document.querySelector('[aria-label="New layout"]') as HTMLButtonElement).click());
+    act(() => document.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click());
+    expect(document.querySelector('.cad-hist')!.textContent).toBe('LAYOUT  Add the building and its levels in Building information first: a layout is a plan sheet of a level.');
+    expect(state.layout).toBeNull();
+  });
+
   it('Layouts: + makes a layout of the level; its paper has a viewport; VPSCALE and VPLOCK set it, MS works in it, MV adds one, the Layer manager has This viewport', async () => {
     const last = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
     const gf = { building: 'V', level: 'GF' };

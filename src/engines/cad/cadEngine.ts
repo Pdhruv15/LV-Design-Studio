@@ -103,7 +103,7 @@ export interface CadView {
   /** The object under (x, y) within `tol` (drawing units, absolute) on shown layers; null when none. `closedOnly`:
    * only objects with an area (as for AREA → Object). */
   pick: (x: number, y: number, tol: number, layersOn: Uint8Array, closedOnly?: boolean) => Promise<CadObject | null>;
-  /** The file's own paper-space layouts, in tab order (none from an engine older than v2.092). */
+  /** The file's own paper-space layouts, in tab order (none from an engine older than v2.093). */
   layouts: FileLayout[];
   /** Closed objects of model space (polylines, circles, hatches…), for rooms from outline layers. */
   outlines: () => CadObject[];
