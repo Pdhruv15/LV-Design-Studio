@@ -101,13 +101,20 @@ describe('SLD main earth-pit arrangement', () => {
     const id = project.boards.find((b) => !b.upstreamId)!.id;
     const earth = host.querySelector<SVGGElement>(`.earth-pit[data-board-id="${id}"]`)!;
     const panel = host.querySelector<SVGRectElement>(`g.bd[data-lv-id="board:${id}"] rect.box`)!;
+    // No outgoing ways: the board is drawn as a board symbol centred on the incomer line.
     const panelX = Number(panel.getAttribute('x')), panelY = Number(panel.getAttribute('y'));
-    const incomerX = panelX + 62;
+    const incomerX = panelX + Number(panel.getAttribute('width')) / 2;
+    const isMet = (el: Element) => el.classList.contains('met-bar') || el.textContent === 'MET';
     const parts = [...earth.querySelectorAll<SVGGraphicsElement>('rect, text, line')].filter((el) => !el.closest('.tx-earth'));
     const ys = parts.map((el) => Number(el.getAttribute('y') ?? el.getAttribute('y1'))).filter(Number.isFinite);
-    // Below the transformer band and above the incomer device (34 above the panel box).
+    // Below the transformer band; all but the MET above the incomer device (34 above the panel).
     expect(Math.min(...ys)).toBeGreaterThan(150);
-    expect(Math.max(...ys)).toBeLessThanOrEqual(panelY - 34);
+    expect(Math.max(...parts.filter((el) => !isMet(el)).map((el) => Number(el.getAttribute('y') ?? el.getAttribute('y1'))))).toBeLessThanOrEqual(panelY - 34);
+    // The MET bar clears the incomer's voltage label (DEWA draws it higher, where the MET was).
+    const volt = [...host.querySelectorAll<SVGTextElement>('g.tx text.m')].find((t) => / V$/.test(t.textContent ?? ''))!;
+    const metY = Number(earth.querySelector('.met-bar')!.getAttribute('y1'));
+    expect(metY - Number(volt.getAttribute('y'))).toBeGreaterThanOrEqual(8);
+    expect(metY).toBeLessThan(panelY);
     // Pits, test link and MET all left of the incomer line; MET outside the panel box.
     for (const el of earth.querySelectorAll<SVGRectElement>('.earth-electrode rect, .test-link')) {
       expect(Number(el.getAttribute('x')) + Number(el.getAttribute('width'))).toBeLessThan(incomerX);
@@ -120,8 +127,15 @@ describe('SLD main earth-pit arrangement', () => {
     }
     const met = earth.querySelector<SVGLineElement>('.met-bar')!;
     expect(Number(met.getAttribute('x2'))).toBeLessThan(incomerX);
-    expect(Number(met.getAttribute('y1'))).toBeLessThan(panelY);
     expect(earth.querySelector('.earth-to-met')!.getAttribute('d')).toMatch(/^M[\d.]+ [\d.]+ V[\d.]+$/);
+    // The test link drops left of the voltage label, onto the MET.
+    const drop = Number(/^M([\d.]+)/.exec(earth.querySelector('.earth-to-met')!.getAttribute('d')!)![1]);
+    expect(drop).toBeLessThan(Number(volt.getAttribute('x')) - textWidth(volt.textContent!, 11));
+    expect(drop).toBeGreaterThan(Number(met.getAttribute('x1')));
+    // The electrode note is on two lines, keeping the detail narrow.
+    const notes = [...earth.querySelectorAll('text')].map((t) => t.textContent);
+    expect(notes).toContain('MIN. 3 m ELECTRODE WITH');
+    expect(notes).toContain('INSPECTION PIT AND COVER');
   });
 
   it('draws the planned LV earth pit for each of two adjacent transformer-fed panels', () => {
