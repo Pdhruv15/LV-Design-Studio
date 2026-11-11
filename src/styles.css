@@ -313,6 +313,11 @@ table.ls th.pt{font-size:var(--fs-xs);min-width:54px}
 table.ls .shade{background:color-mix(in srgb,var(--p2) 70%,var(--line))}
 table.ls input,table.ls select{background:transparent;color:var(--tx);border:1px solid transparent;border-radius:4px;padding:2px 3px;font:inherit;width:100%}
 table.ls input:hover,table.ls select:hover,table.ls input:focus,table.ls select:focus{border-color:var(--line);background:var(--p2)}
+/* Compact rating grid that replaces the tall system list (GridSelect) */
+.grid-pick{position:fixed;z-index:80;display:grid;gap:2px;padding:4px;background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;box-shadow:var(--shadow-pop)}
+.grid-pick button{height:26px;padding:0 4px;border:1px solid var(--line);border-radius:4px;background:var(--p2);color:var(--tx);font:inherit;font-size:12px;cursor:pointer}
+.grid-pick button:hover,.grid-pick button:focus-visible{border-color:var(--line-strong);background:color-mix(in srgb,var(--p2) 80%,var(--acc))}
+.grid-pick button.on{border-color:var(--acc);color:var(--acc);font-weight:600}
 table.ls .pt-in{width:50px;text-align:center}
 table.ls .room{min-width:110px;text-align:left}
 table.ls .hdr-in{font-weight:600;font-size:var(--fs-xs);text-align:center;width:54px}
