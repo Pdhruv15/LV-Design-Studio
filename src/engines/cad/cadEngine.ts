@@ -60,6 +60,29 @@ export interface CadObject {
   seg_start: number;
   seg_end: number;
 }
+/** A viewport on a file's layout: its frame in paper-space units (lower left, size), and the model it shows: the view's
+ * centre and height (drawing units). */
+export interface FileViewport { x: number; y: number; w: number; h: number; cx: number; cy: number; vh: number; locked: boolean; on: boolean }
+/** A paper-space layout of the drawing file (Layout1, A1 Lighting…), with what is drawn on its paper. */
+export interface FileLayout {
+  name: string;
+  tab: number;
+  /** The paper in mm as it lies (0 × 0: the file does not say). */
+  paper: [number, number];
+  /** The printer's unprintable edges in mm: left, bottom, right, top. */
+  margins: [number, number, number, number];
+  /** Where the layout's (0, 0) is, in mm from the paper's lower left corner. */
+  at: [number, number];
+  mm_per_unit: number;
+  viewports: FileViewport[];
+  /** Its paper space drawn: segments relative to `origin` (paper-space units), their colours, its texts. */
+  origin: [number, number];
+  segs: Float32Array;
+  segColors: Uint32Array;
+  segLayers: Uint16Array;
+  texts: CadText[];
+  layers: CadLayer[];
+}
 /** An open drawing. Segment coordinates are relative to `info.origin` (drawing units). */
 export interface CadView {
   file: string;
@@ -80,6 +103,8 @@ export interface CadView {
   /** The object under (x, y) within `tol` (drawing units, absolute) on shown layers; null when none. `closedOnly`:
    * only objects with an area (as for AREA → Object). */
   pick: (x: number, y: number, tol: number, layersOn: Uint8Array, closedOnly?: boolean) => Promise<CadObject | null>;
+  /** The file's own paper-space layouts, in tab order (none from an engine older than v2.092). */
+  layouts: FileLayout[];
   /** Closed objects of model space (polylines, circles, hatches…), for rooms from outline layers. */
   outlines: () => CadObject[];
   /** Blocks inserted in model space with their attributes (fixtures with a CCT attribute: Loads from CAD). */
@@ -202,7 +227,7 @@ export async function openDrawing(file: string, bytes: Uint8Array, path?: string
   const info = JSON.parse(doc.info) as CadInfo;
   let outlines: CadObject[] | undefined;
   return {
-    file, path, info, bytes, engine: engine.kind,
+    file, path, info, bytes, engine: engine.kind, layouts: fileLayouts(doc.layouts, doc.papers),
     segs: doc.segs, segLayers: doc.segLayers, segColors: doc.segColors, segLinetypes: doc.segLinetypes,
     snap: (x, y, r, mask, layersOn, from) => engine.call('snap', x, y, r, mask, layersOn, from?.[0] ?? NaN, from?.[1] ?? NaN).catch(() => NO_SNAP),
     pick: (x, y, tol, layersOn, closedOnly = false) => engine.call('pick', x, y, tol, layersOn, closedOnly).then((j) => (j ? (JSON.parse(j) as CadObject) : null), () => null),
@@ -211,6 +236,18 @@ export async function openDrawing(file: string, bytes: Uint8Array, path?: string
     erase: (handles) => engine.call('erase', JSON.stringify(handles)).then((j) => JSON.parse(j) as ErasedParts),
     close: () => engine.end()
   };
+}
+
+/** The engine's layouts and their papers as the view keeps them; a layout whose paper could not be read is left out. */
+function fileLayouts(json: string | undefined, papers: ({ info: string; segs: Float32Array; segColors: Uint32Array; segLayers: Uint16Array } | null)[] | undefined): FileLayout[] {
+  if (!json || !papers) return [];
+  const list = JSON.parse(json) as Omit<FileLayout, 'origin' | 'segs' | 'segColors' | 'segLayers' | 'texts' | 'layers'>[];
+  return list.flatMap((l, i) => {
+    const p = papers[i];
+    if (!p) return [];
+    const info = JSON.parse(p.info) as CadInfo;
+    return [{ ...l, origin: info.origin, segs: p.segs, segColors: p.segColors, segLayers: p.segLayers, texts: info.texts, layers: info.layers }];
+  });
 }
 
 /** The browser's file picker for one DWG / DXF; null when cancelled. */

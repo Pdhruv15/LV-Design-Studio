@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.093', date: '2026-11-11',
+    items: [
+      { title: 'Model and layout tabs on every drawing, with the drawing\'s own layouts', text: 'Every drawing opened in Design CAD now has the Model tab and a tab for each layout saved in the file itself (Layout1, A1 Lighting…), as in other CAD work, whether or not it is tied to a level. A layout tab shows its paper with the printable area from its page setup, trim marks, what is drawn on the paper (title block, notes) and the model through each viewport at its scale, in black on white; the status bar gives the paper size and viewport scales. The wheel zooms, a drag pans. These layouts are shown as saved; to change them, use the project\'s plan sheets, still in the same tab strip (marked sheet). Saving the drawing keeps its layouts.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.091', date: '2026-11-11',
     items: [
       { title: 'Layout paper shows its printable area and trim marks; command bar above the tabs', text: 'On a layout tab in Design CAD, the paper now shows a dashed line 5 mm in from its edge where a printer can print, and trim marks outside its four corners. Both are on screen only and never plotted. The command bar now sits directly above the Model and layout tabs, with the status bar at the very bottom, as in other CAD work.', action: 'cad', actionLabel: 'Open Design CAD' }

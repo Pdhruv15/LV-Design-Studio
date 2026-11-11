@@ -1,6 +1,12 @@
 /* @ts-self-types="./lvds_cad_reader.d.ts" */
 
 export class CadDoc {
+    static __wrap(ptr) {
+        const obj = Object.create(CadDoc.prototype);
+        obj.__wbg_ptr = ptr;
+        CadDocFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
@@ -42,6 +48,27 @@ export class CadDoc {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
             wasm.caddoc_info(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            deferred1_0 = r0;
+            deferred1_1 = r1;
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * The drawing's paper-space layouts as JSON, in tab order: [{name, tab, paper [w, h] mm, margins [l, b, r, t] mm,
+     * at [x, y] mm, mm_per_unit, viewports [{x, y, w, h, cx, cy, vh, locked, on}]}] (frames in paper-space units).
+     * @returns {string}
+     */
+    layouts() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.caddoc_layouts(retptr, this.__wbg_ptr);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             deferred1_0 = r0;
@@ -244,6 +271,15 @@ export class CadDoc {
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
         }
+    }
+    /**
+     * Layout `i`'s paper space as a drawing of its own (segments, colours, texts, snaps), once; None after.
+     * @param {number} i
+     * @returns {CadDoc | undefined}
+     */
+    take_layout(i) {
+        const ret = wasm.caddoc_take_layout(this.__wbg_ptr, i);
+        return ret === 0 ? undefined : CadDoc.__wrap(ret);
     }
 }
 if (Symbol.dispose) CadDoc.prototype[Symbol.dispose] = CadDoc.prototype.free;
