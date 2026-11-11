@@ -1756,16 +1756,44 @@ describe('file tabs', () => {
     expect(document.querySelector('.cad-filepaper')).toBeNull();
   });
 
-  it('Layouts: + is there in a project with no levels yet, and says what a new layout needs', async () => {
+  it('Layouts: + makes a layout of the drawing (no level needed): A3, the whole drawing in a viewport; rename, copy, move, delete; a plan sheet needs a level', async () => {
     act(() => root.render(<Host start={{ ...villa, building: undefined }} />));
     await flush();
     const v = await openDrawing('paper-layouts.dxf', bytes('tests/fixtures/cad/paper-layouts.dxf'));
     act(() => state.open(v));
     await flush();
+    const ltabs = () => [...document.querySelectorAll('[aria-label="Model and layouts"] [role="tab"]')].map((t) => t.textContent);
+    const tab = (name: string) => [...document.querySelectorAll<HTMLButtonElement>('.cad-ltab')].find((b) => b.textContent === name)!;
+    const hist = () => document.querySelector('.cad-hist')!.textContent;
     act(() => (document.querySelector('[aria-label="New layout"]') as HTMLButtonElement).click());
-    act(() => document.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click());
-    expect(document.querySelector('.cad-hist')!.textContent).toBe('LAYOUT  Add the building and its levels in Building information first: a layout is a plan sheet of a level.');
-    expect(state.layout).toBeNull();
+    expect(document.querySelector('[role="menu"]')).toBeNull(); // made at once, no menu
+    expect(ltabs()).toEqual(['Model', 'Layout1', 'A1 Lighting', 'Layout2']);
+    expect(state.layout).toBe('dwg:Layout2');
+    const key = v.file.toLowerCase();
+    expect(project.cadLayouts![key]).toHaveLength(1);
+    expect(project.cadLayouts![key][0]).toMatchObject({ name: 'Layout2', paper: [420, 297] });
+    expect(document.querySelector('.cad-filepaper')!.getAttribute('aria-label')).toBe('Layout Layout2: 420 × 297 mm paper, 1 viewport');
+    expect(document.querySelector('.cad-status')!.textContent).toMatch(/PAPERLayout2 · 420 × 297 mm · 1 viewport at 1:\d+/);
+    // LAYOUT alone makes the next one.
+    await command('LAYOUT');
+    expect(ltabs()).toEqual(['Model', 'Layout1', 'A1 Lighting', 'Layout2', 'Layout3']);
+    // Right-click: rename, copy, move, delete; then New plan sheet, which needs a level.
+    const menu = (name: string, item: string) => {
+      act(() => tab(name).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 50, clientY: 500 })));
+      act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((b) => b.textContent?.startsWith(item))!.click());
+    };
+    menu('Layout3', 'Rename');
+    await command('Lighting GF');
+    expect(ltabs()).toEqual(['Model', 'Layout1', 'A1 Lighting', 'Layout2', 'Lighting GF']);
+    menu('Lighting GF', 'Move left');
+    expect(ltabs()).toEqual(['Model', 'Layout1', 'A1 Lighting', 'Lighting GF', 'Layout2']);
+    menu('Layout2', 'Copy');
+    expect(ltabs()).toEqual(['Model', 'Layout1', 'A1 Lighting', 'Lighting GF', 'Layout2', 'Layout3']);
+    menu('Layout2', 'Delete');
+    expect(ltabs()).toEqual(['Model', 'Layout1', 'A1 Lighting', 'Lighting GF', 'Layout3']);
+    menu('Model', 'Lighting layout');
+    expect(hist()).toBe('LAYOUT  Add the building and its levels in Building information first: a layout is a plan sheet of a level.');
+    expect(project.cadLayouts![key].map((l) => l.name)).toEqual(['Lighting GF', 'Layout3']);
   });
 
   it('Layouts: + makes a layout of the level; its paper has a viewport; VPSCALE and VPLOCK set it, MS works in it, MV adds one, the Layer manager has This viewport', async () => {
@@ -1777,7 +1805,7 @@ describe('file tabs', () => {
     await flush();
     const tabs = () => [...document.querySelectorAll('[aria-label="Model and layouts"] [role="tab"]')].map((t) => t.textContent);
     expect(tabs()).toEqual(['Model', 'Layout1']); // the drawing file's own (empty) layout, then the level's plan sheets
-    act(() => (document.querySelector('[aria-label="New layout"]') as HTMLButtonElement).click());
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('.cad-ltab')].find((b) => b.textContent === 'Model')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 50, clientY: 500 })));
     act(() => [...document.querySelectorAll('[role="menuitem"]')].find((b) => b.textContent?.startsWith('Lighting layout'))!.dispatchEvent(new MouseEvent('click', { bubbles: true })));
     const sheet = () => project.drawingSet!.sheets.find((x) => x.kind === 'plan')!;
     expect(sheet()).toMatchObject({ plan: 'lighting', buildingId: 'V', levelId: 'GF', number: 'E-LTG-001' });

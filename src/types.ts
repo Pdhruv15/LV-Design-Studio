@@ -612,6 +612,8 @@ export interface Project {
   plot?: import('./model/plotSetup').ProjectPlot;
   /** Which drawing file is each level's plan in Design CAD (src/model/cadPlans.ts). */
   cadPlans?: CadPlan[];
+  /** Layouts made in Design CAD on each drawing file (lower case): paper and viewports (src/model/drawingLayouts.ts). */
+  cadLayouts?: Record<string, import('./model/drawingLayouts').DrawingLayout[]>;
   /** Design CAD references (Xref): other drawings shown under each plan file (lower case) (src/model/cadRefs.ts). */
   cadRefs?: Record<string, import('./model/cadRefs').CadRef[]>;
   /** Objects of each plan file (lower case) erased in Design CAD, by handle: a block cut with CROP, replaced by its kept
