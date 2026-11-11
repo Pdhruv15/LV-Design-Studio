@@ -34,7 +34,7 @@ const TABS: [DrawingsTab, string][] = [['sheets', 'Sheets'], ['layout', 'Layout'
 
 
 /** The earthing schematic goes with the SLDs (once per set). */
-const withEarthing = (st: DrawingSet): DrawingSet => (st.sheets.some((x) => x.kind === 'earthing') ? st : addEarthingSheet(st).set);
+const withEarthing = (st: DrawingSet, project: Project): DrawingSet => (st.sheets.some((x) => x.kind === 'earthing') ? st : addEarthingSheet(st, project).set);
 /** Reports → Drawings: the SLD sheets in one place. Sheets (the list, with
  * filters, bulk changes, thumbnails and a side panel per sheet), Layout (how
  * sheets are made and what they show), Title block & numbering, and Issues
@@ -73,6 +73,8 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
   const setNumbering = (patch: Partial<DrawingSet>) => save(renumber({ ...set, ...patch }, !(patch.manualNumbers ?? set.manualNumbers)));
 
   const visible = useMemo(() => filterSheets(set, filter, sort, rev?.id), [set, filter, sort, rev?.id]);
+  // Every sheet of the earthing schematic in the set (it can continue over several).
+  const earthingComplete = useMemo(() => set.sheets.some((x) => x.kind === 'earthing') && addEarthingSheet(set, project).set.sheets.length === set.sheets.length, [set, project]);
   const filtered = !!(filter.q || filter.status || filter.rev || filter.type);
   const revs = [...new Set(set.sheets.map((s) => sheetRev(s, rev?.id)).filter(Boolean))].sort();
   const statuses = [...new Set([...SHEET_STATUSES, ...set.sheets.map((s) => s.status || set.status || '').filter(Boolean)])];
@@ -131,7 +133,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
     if (set.sheets.length) return [];
     const withDb = (x: DrawingSet) => (dbSheets ? autoSheets(project, 'perMdb', true, set.prefix).sheets.filter((s) => s.kind === 'board') : []).reduce((acc, s) => ({ ...acc, sheets: [...acc.sheets, s] }), x);
     return [
-      { key: 'split', title: 'Split by panels', about: 'Fills each sheet with up to the number of panels below, in supply order, keeping a branch together where it fits. Best for authority submissions.', set: withEarthing(renumber(withDb(sheetsByCount(project, perSheet, set.prefix)))) },
+      { key: 'split', title: 'Split by panels', about: 'Fills each sheet with up to the number of panels below, in supply order, keeping a branch together where it fits. Best for authority submissions.', set: withEarthing(renumber(withDb(sheetsByCount(project, perSheet, set.prefix))), project) },
       { key: 'mdb', title: 'One sheet per MDB', about: 'Each main board with everything it feeds; an overview sheet when there are several MDBs.', set: autoSheets(project, 'perMdb', dbSheets, set.prefix) },
       { key: 'smdb', title: 'Overview + one per SMDB', about: 'An overview of the main boards and sub-mains, then a sheet per SMDB / MCC with its DBs.', set: autoSheets(project, 'perSmdb', dbSheets, set.prefix) }
     ];
@@ -303,7 +305,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
               {project.building!.buildings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           )}
-          <button className="chip" disabled={set.sheets.some((x) => x.kind === 'earthing')} title="The earthing schematic from Design → Earth pits" onClick={() => save(addEarthingSheet(set).set)}>Add earthing schematic</button>
+          <button className="chip" disabled={earthingComplete} title="The earthing schematic from Design → Earth pits" onClick={() => save(addEarthingSheet(set, project).set)}>Add earthing schematic</button>
           {!none && <span className="m">Tick sheets to work on just those — the bar above shows what Set, Next revision and Issue will change.</span>}
         </div>
       </>)}
@@ -312,7 +314,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
         <section className="card">
           <h4>Make the sheets automatically</h4>
           <div className="ds-tools">
-            <button className="chip" onClick={() => replaceSet(withEarthing(sheetsByCount(project, perSheet, set.prefix)))}>Split by panels</button>
+            <button className="chip" onClick={() => replaceSet(withEarthing(sheetsByCount(project, perSheet, set.prefix), project))}>Split by panels</button>
             <label className="row">max <input className="bi-text" style={{ width: 44 }} inputMode="numeric" value={perSheet} onChange={(e) => setPerSheet(Math.max(1, Number(e.target.value) || 1))} /> panels per sheet</label>
             <span className="sp" style={{ flex: 'none', width: 12 }} />
             <button className="chip" onClick={() => replaceSet(autoSheets(project, 'perMdb', dbSheets, set.prefix))}>One sheet per MDB</button>

@@ -6,7 +6,7 @@ import type { CalcRun } from '../../calc/runs';
 import { evaluateProject } from '../../calc/electrical';
 import { buildAnnotations, SHEET_LAYERS } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
-import { autoSize, drawable, furnitureOf, LEGEND_RESERVE_MM, RISER_SIDE_MM, minMmPerPx, fromSheetLabels, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
+import { autoSize, drawable, earthingSheetOf, furnitureOf, LEGEND_RESERVE_MM, RISER_SIDE_MM, minMmPerPx, fromSheetLabels, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
 import { borderOf } from '../../model/titleBlock';
 import { buildSldSheetHtml, legendColsFor, legendColumnFits, SIDE_MM, sideInnerMm, stripInnerMm, type SheetInfo } from '../../docs/sldSheet';
 import { legendHeightMm, stringLegendSvg, stripColumns, type LegendItem } from '../../diagram/legendLayout';
@@ -49,7 +49,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
   try {
     if (s.kind === 'plan') { await readSheetRefs(project, s.buildingId, s.levelId); const d = planOf(project, set, s); return d && { svg: d.svg, w: SHEET_MM[d.size].w, h: SHEET_MM[d.size].h }; }
     const furniture = furnitureOf(set, s).riserFurniture === 'column' ? 'column' as const : undefined;
-    if (s.kind === 'earthing') return earthingDrawing(project, undefined, true, { mono: true, furniture }); // printed sheet: black and white
+    if (s.kind === 'earthing') return earthingDrawing(project, undefined, true, { mono: true, furniture, sheet: earthingSheetOf(set, s) }); // printed sheet: black and white
     if (s.kind === 'earthRiser' || s.kind === 'earthFloor') {
       if (!s.buildingId) return undefined;
       const o = { mono: true, furniture, ...earthSheetRefs(project, set, s.buildingId) };

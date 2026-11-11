@@ -13,7 +13,7 @@ import { buildSheetDxfPages } from '../docs/sheetDxf';
 import type { SheetInfo } from '../docs/sldSheet';
 import { earthingDrawing } from '../diagram/earthingDrawing';
 import { earthingLayout } from '../model/earthingPlan';
-import { autoSize, drawable, setOf, sheetRev, type DrawingSheet } from '../model/drawingSet';
+import { autoSize, drawable, earthingSheetCount, earthingSheetOf, setOf, sheetRev, type DrawingSheet } from '../model/drawingSet';
 import { numberBom } from '../model/boqRevisions';
 import { priceBom } from '../model/priceList';
 import { safeFileName } from '../util/files';
@@ -261,17 +261,24 @@ export const EXPORT_TOOLS: Tool[] = [
     run: (a, ctx) => runExport(a, ctx, 'export_dxf', (p) => {
       if (a.drawing === 'sld') return sheetsDxf(p, a.sheets as string[] | undefined, a.types as SheetType[] | undefined);
       if (!earthingLayout(p).items.length) throw new Error('No equipment to earth in this project.');
-      const d = earthingDrawing(p, undefined, true, { mono: true });
-      const set = p.drawingSet;
-      const i = set?.sheets.findIndex((s) => s.kind === 'earthing') ?? -1;
-      const s = i >= 0 ? set!.sheets[i] : undefined;
-      const size = s && s.size !== 'auto' ? s.size : autoSize(d.w, d.h).size;
-      const info: SheetInfo = s
-        ? { no: s.number, title: s.title, count: set!.sheets.length, index: i + 1, status: s.status || set!.status || undefined, rev: s.rev || undefined, date: s.date || undefined, drawnBy: s.drawnBy || undefined, checkedBy: s.checkedBy || undefined, approvedBy: s.approvedBy || undefined }
-        : { no: 'E-EAR-001', title: 'Earthing schematic diagram', count: 1, index: 1 };
-      const pages = buildSheetDxfPages(p, d.svg, size, info);
-      const base = safeFileName(info.no || 'earthing');
-      return pages.map((pg) => ({ name: `${base}${pg.count > 1 ? `-${pg.index}` : ''}.dxf`, data: pg.data, about: `DXF, ${size}${pg.continuation ? ', continuation sheet' : ''}${pg.warnings.length ? ` — ${pg.warnings.join('; ')}` : ''}` }));
+      // Every sheet of the schematic: it continues over several when one would print below the readable scale.
+      const set = p.drawingSet, count = earthingSheetCount(p, set), inSet = !!set?.sheets.some((s) => s.kind === 'earthing');
+      const nos = Array.from({ length: count }, (_, k) => `E-EAR-${String(k + 1).padStart(3, '0')}`);
+      return Array.from({ length: count }, (_, k) => {
+        const i = set?.sheets.findIndex((s) => s.kind === 'earthing' && (s.part ?? 0) === k) ?? -1;
+        const s = i >= 0 ? set!.sheets[i] : undefined;
+        const sheet = earthingSheetOf(set, { part: k });
+        if (!inSet) sheet.nos = nos;
+        const d = earthingDrawing(p, undefined, true, { mono: true, sheet });
+        const size = s && s.size !== 'auto' ? s.size : autoSize(d.w, d.h).size;
+        const title = `Earthing schematic diagram${count > 1 ? ` (${k + 1} of ${count})` : ''}`;
+        const info: SheetInfo = s
+          ? { no: s.number, title: s.title, count: set!.sheets.length, index: i + 1, status: s.status || set!.status || undefined, rev: s.rev || undefined, date: s.date || undefined, drawnBy: s.drawnBy || undefined, checkedBy: s.checkedBy || undefined, approvedBy: s.approvedBy || undefined }
+          : { no: sheet.nos?.[k] || nos[k], title, count: inSet ? set!.sheets.length : count, index: k + 1 };
+        const pages = buildSheetDxfPages(p, d.svg, size, info);
+        const base = safeFileName(info.no || `earthing-${k + 1}`);
+        return pages.map((pg) => ({ name: `${base}${pg.count > 1 ? `-${pg.index}` : ''}.dxf`, data: pg.data, about: `DXF, ${size}${pg.continuation ? ', continuation sheet' : ''}${pg.warnings.length ? ` — ${pg.warnings.join('; ')}` : ''}` }));
+      }).flat();
     })
   },
   {
