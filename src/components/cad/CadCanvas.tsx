@@ -100,7 +100,8 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   /** Grips of the drawn object selected (drawing units): pressed and dragged, they reach the page on release. */
   grips?: Pt[];
   onGripStart?: (i: number) => void;
-  onGripEnd?: (i: number, at: Pt) => void;
+  /** A grip let go: where (`moved` false: pressed and let go in place, a click on it). */
+  onGripEnd?: (i: number, at: Pt, moved?: boolean) => void;
   /** Layer manager styles by layer name (src/model/cadLayerStyle.ts): a screen colour for the drawing's layers; for
    * what is drawn here also on/off, linetype and lineweight (an object's own wins). */
   layerStyle?: Record<string, LayerStyle>;
@@ -149,6 +150,8 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   const isSel = (id0: string) => { const id = id0.split(':')[0]; return Array.isArray(selectedSketch) ? selectedSketch.includes(id) : id === selectedSketch; };
   // A grip being dragged (its index), and the grips as last drawn.
   const gripping = useRef<number | null>(null);
+  /** Where (screen px) the grip being dragged was pressed: let go there, it was clicked, not moved. */
+  const gripFrom = useRef<[number, number] | null>(null);
   const gripsRef = useRef(grips);
   gripsRef.current = grips;
   // A window being dragged (canvas pixels); `on` once it has moved far enough not to be a click.
@@ -906,7 +909,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
           } else if (e.button === 0 && windowSelect) {
             const [x, y] = local(e), v = tRef.current;
             const g = gripsRef.current.findIndex((q) => Math.hypot((q[0] - o0 - v.ox) * v.scale - x, size.h - (q[1] - o1 - v.oy) * v.scale - y) <= 6);
-            if (g >= 0 && onGripStart) { gripping.current = g; onGripStart(g); setMoving(true); return; }
+            if (g >= 0 && onGripStart) { gripping.current = g; gripFrom.current = [x, y]; onGripStart(g); setMoving(true); return; }
             win.current = { x, y, x2: x, y2: y, on: false };
           }
         }}
@@ -926,7 +929,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
           win.current = null;
           const g = gripping.current;
           gripping.current = null;
-          if (g !== null) { setMoving(false); const [x, y] = mouse.current ?? local(e); onGripEnd?.(g, lastAt.current?.at ?? toWorld(x, y)); return; }
+          if (g !== null) { setMoving(false); const [x, y] = mouse.current ?? local(e), f = gripFrom.current; onGripEnd?.(g, lastAt.current?.at ?? toWorld(x, y), !f || Math.hypot(x - f[0], y - f[1]) > 3); return; }
           if (wasDrag || w?.on) setMoving(false);
           if (w?.on) { onWindow?.(toWorld(w.x, w.y), toWorld(w.x2, w.y2), w.x2 < w.x, e.shiftKey); drawCursor(lastAt.current?.at ?? null, lastAt.current?.snap); return; }
           if (!wasDrag && e.button === 0 && !space.current) { const [x, y] = mouse.current ?? local(e); clickAt(x, y, e.shiftKey); }

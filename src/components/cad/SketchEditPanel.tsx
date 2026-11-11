@@ -3,6 +3,8 @@ import { isPath } from '../../model/cadEdit';
 import { kindLabel } from '../../model/cadProps';
 import { TRAY_WIDTHS } from '../../model/cadSketch';
 import { attachOf, NOTE_ATTACHES } from '../../model/cadMtext';
+import { DIM_TEXT_POS } from '../../model/cadStyles';
+import { ISO_TEXT_MM, TEXT_FRAMES, TEXT_JUSTS } from '../../model/cadText';
 import { toolAlias } from './cadCommands';
 import type { SketchItem } from '../../types';
 
@@ -12,7 +14,9 @@ import type { SketchItem } from '../../types';
 export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fillet' | 'mirror' | 'scale' | 'array' | 'join' | 'width' | 'move' | 'copy' | 'rotate' | 'erase' | 'clipboard' | 'similar' | 'qselect' | 'edtext' | 'ntwidth' | 'ntjust' | 'draworder' | 'mkblock' | 'selblock' | 'edatt'
   | 'isolate' | 'deselect' | 'addsel' | 'qmeasure' | 'count'
   | 'traysize' | 'traycables' | 'trayfill' | 'reverse' | 'trace' | 'routesld'
-  | 'blkreplace' | 'blkreset' | 'blkexplode' | 'blkcount';
+  | 'blkreplace' | 'blkreset' | 'blkexplode' | 'blkcount'
+  | 'find' | 'txjust' | 'txheight' | 'txcase' | 'txframe' | 'txmask' | 'dimstyle' | 'dimprec' | 'dimpos' | 'dimreset' | 'hscale' | 'hangle' | 'hboundary'
+  | 'plclose' | 'explode1' | 'roomfrom' | 'tocable' | 'jointool' | 'chamfer';
 export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'tframe' | 'tmask' | 'draworder' | 'texttofront';
 /** Offset `through` a point (the copy passes through it), `erase` the source, the copies on the `source` layer or the
  * `current` one; Fillet and Chamfer `trim` the lines to the corner (else they stay and the arc or line is added); a
@@ -25,7 +29,10 @@ const LABEL: Record<SketchEdit, string> = {
   join: 'Join', width: 'Width ▾', move: 'Move', copy: 'Copy', rotate: 'Rotate', erase: 'Erase', clipboard: 'Clipboard ▸', similar: 'Select similar', qselect: 'Quick select…', edtext: 'Edit text', ntwidth: 'Width…', ntjust: 'Justify ▸', draworder: 'Draw order ▸', mkblock: 'Make block…', selblock: 'Select all of this block', edatt: 'Edit attributes',
   isolate: 'Isolate ▸', deselect: 'Deselect all', addsel: 'Add selected', qmeasure: 'Quick measure', count: 'Count',
   traysize: 'Size tray from cables', traycables: 'Cables in this route', trayfill: 'Fill ratio check', reverse: 'Reverse direction', trace: 'Trace circuit', routesld: 'Show in SLD',
-  blkreplace: 'Replace with another block ▸', blkreset: 'Reset attributes', blkexplode: 'Explode', blkcount: 'Count instances'
+  blkreplace: 'Replace with another block ▸', blkreset: 'Reset attributes', blkexplode: 'Explode', blkcount: 'Count instances',
+  find: 'Find and replace…', txjust: 'Justify ▸', txheight: 'Text height ▸', txcase: 'Case ▸', txframe: 'Frame ▸', txmask: 'Background mask', dimstyle: 'Dimension style ▸',
+  dimprec: 'Precision ▸', dimpos: 'Text position ▸', dimreset: 'Remove text override', hscale: 'Hatch scale ▸', hangle: 'Hatch angle ▸', hboundary: 'Recreate boundary',
+  plclose: 'Close', explode1: 'Explode', roomfrom: 'Use as room boundary', tocable: 'Convert to cable route', jointool: 'Join…', chamfer: 'Chamfer'
 };
 export const kindOf = kindLabel;
 
@@ -52,12 +59,18 @@ export const DRAW_ORDER: { id: 'front' | 'back' | 'above' | 'under'; label: stri
   { id: 'front', label: 'Bring to front' }, { id: 'back', label: 'Send to back' }, { id: 'above', label: 'Above object' }, { id: 'under', label: 'Under object' }
 ];
 /** The entries that open a list of their own. */
-const OPENERS = new Set<SketchEdit>(['filter', 'width', 'clipboard', 'ntjust', 'draworder', 'isolate', 'blkreplace']);
+const OPENERS = new Set<SketchEdit>(['filter', 'width', 'clipboard', 'ntjust', 'draworder', 'isolate', 'blkreplace', 'txjust', 'txheight', 'txcase', 'txframe', 'dimstyle', 'dimprec', 'dimpos', 'hscale', 'hangle']);
+type Opener = 'filter' | 'width' | 'clipboard' | 'ntjust' | 'draworder' | 'isolate' | 'blkreplace' | 'txjust' | 'txheight' | 'txcase' | 'txframe' | 'dimstyle' | 'dimprec' | 'dimpos' | 'hscale' | 'hangle';
+/** Case ▸ of a text (TC). */
+const CASES: { id: string; label: string }[] = [{ id: 'upper', label: 'UPPER CASE' }, { id: 'lower', label: 'lower case' }, { id: 'title', label: 'Title Case' }, { id: 'sentence', label: 'Sentence case' }];
+/** Hatch angle ▸ (degrees) and scale ▸ (times the scale now). */
+const HATCH_ANGLES = [0, 45, 90, 135];
+const HATCH_SCALES: { id: string; label: string }[] = [{ id: '0.5', label: '× 0.5 (closer)' }, { id: '2', label: '× 2 (wider apart)' }];
 /** The entries of Isolate ▸ on the menu at the cursor (phase 1 of the context-menu plan). */
 const ISOLATE: { id: 'isolate' | 'hide' | 'end'; label: string }[] = [{ id: 'isolate', label: 'Isolate objects' }, { id: 'hide', label: 'Hide objects' }, { id: 'end', label: 'End object isolation' }];
 
 /** The toolbar beside the drawn objects picked (or the menu at the cursor, with Clipboard ▸ too). */
-export function SketchToolbar({ items, devices, lengthM, left, top, place, canPaste, canShow, withAtts, blocks = [], onEdit }: {
+export function SketchToolbar({ items, devices, lengthM, left, top, place, canPaste, canShow, withAtts, blocks = [], dimStyles = [], onEdit }: {
   items: SketchItem[];
   /** Devices picked with them. */
   devices: number;
@@ -72,24 +85,42 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, canPa
   canShow?: boolean;
   /** The drawing's blocks (Replace with another block ▸). */
   blocks?: string[];
+  /** The project's dimension styles (Dimension style ▸). */
+  dimStyles?: string[];
   /** Whether a block has attributes to edit (its right-click menu then offers Edit attributes). */
   withAtts?: (it: SketchItem) => boolean;
   onEdit: (e: SketchEdit, arg?: string) => void;
 }) {
-  const [open, setOpen] = useState<'filter' | 'width' | 'clipboard' | 'ntjust' | 'draworder' | 'isolate' | 'blkreplace' | null>(null);
+  const [open, setOpen] = useState<Opener | null>(null);
   const one = items.length === 1 && !devices ? items[0] : undefined;
   // The menu at the cursor adds Edit text for one text or dimension (S5 of the 2D gap plan), with Width… and Justify ▸
   // for a note (S6), Draw order ▸ for drawn objects (S7), Select similar and Quick select… (S3) and Clipboard ▸ (S1).
   // A tray or a cable route on the menu: its LV tools first (phase 2 of the context-menu plan).
   const lv: SketchEdit[] = place !== 'menu' || !one ? [] : one.tray ? ['traysize', 'traycables', 'trayfill', 'reverse'] : one.cable ? ['trace', ...(canShow ? ['routesld' as const] : []), 'reverse'] : [];
+  // The kind's own entries on the menu (phase 4): a text's, a dimension's, a hatch's, a polyline's or a line's.
+  const kindOwn: SketchEdit[] = place !== 'menu' || !one || one.tray || one.cable ? [] : one.kind === 'text' ? ['txjust', 'txheight', 'txcase', 'txframe', 'txmask']
+    : one.kind === 'dim' ? [...(one.text ? ['dimreset' as const] : []), ...(dimStyles.length ? ['dimstyle' as const] : []), 'dimprec', ...(one.dimKind === 'angular' ? [] : ['dimpos' as const])]
+    : one.hatch ? ['hscale', 'hangle', 'hboundary']
+    : one.kind === 'pline' && !one.cloud ? [...(one.pts.length > 2 ? ['plclose' as const] : []), 'reverse', 'explode1', ...(one.closed ? ['roomfrom' as const] : []), 'tocable', 'jointool', 'chamfer']
+    : one.kind === 'line' ? ['jointool', 'chamfer', 'reverse', 'tocable'] : [];
+  const findable = place === 'menu' && !!one && (one.kind === 'text' || one.kind === 'mtext');
   const edits: SketchEdit[] = [...lv, ...(place === 'menu' && (one?.kind === 'text' || one?.kind === 'dim') ? ['edtext' as const] : place === 'menu' && one?.kind === 'mtext' ? ['edtext' as const, 'ntwidth' as const, 'ntjust' as const] : place === 'menu' && one?.kind === 'insert' ? [...(one.attrs || withAtts?.(one) ? ['edatt' as const, 'blkreset' as const] : []), 'selblock' as const, 'blkcount' as const,
-      ...(blocks.some((b) => b !== one.block) ? ['blkreplace' as const] : []), 'blkexplode' as const] : []), ...sketchEditsFor(items, devices),
+      ...(blocks.some((b) => b !== one.block) ? ['blkreplace' as const] : []), 'blkexplode' as const] : []), ...(findable ? ['find' as const] : []), ...kindOwn, ...sketchEditsFor(items, devices),
     ...(place === 'menu' && items.length && !devices ? ['draworder' as const, ...(items.some((it) => !it.tray && !it.cable) ? ['mkblock' as const] : [])] : []), ...(place === 'menu' ? ['similar' as const, 'qselect' as const, 'clipboard' as const, 'isolate' as const, ...(items.length + devices === 1 ? ['addsel' as const] : []), 'qmeasure' as const, 'count' as const, 'deselect' as const] : [])];
   const list: { id: string; label: string; now?: boolean; key?: string; off?: boolean }[] = open === 'clipboard'
     ? CLIPBOARD.map((x) => ({ id: x.id, label: x.label, key: x.key, off: x.paste && !canPaste }))
     : open === 'draworder' ? DRAW_ORDER.map((x) => ({ id: x.id, label: x.label }))
     : open === 'isolate' ? ISOLATE.map((x) => ({ id: x.id, label: x.label }))
     : open === 'blkreplace' ? blocks.filter((b) => b !== one?.block).map((b) => ({ id: b, label: b }))
+    : open === 'txjust' ? TEXT_JUSTS.map((j) => ({ id: j.id, label: j.label, now: (one?.just ?? 'L') === j.id }))
+    : open === 'txheight' ? ISO_TEXT_MM.map((h) => ({ id: String(h), label: `${h} mm on paper` }))
+    : open === 'txcase' ? CASES
+    : open === 'txframe' ? TEXT_FRAMES.map((f) => ({ id: f.id, label: f.label, now: (one?.frame ?? 'none') === f.id }))
+    : open === 'dimstyle' ? dimStyles.map((n) => ({ id: n, label: n }))
+    : open === 'dimprec' ? [0, 1, 2, 3].map((d) => ({ id: String(d), label: d ? `0.${'0'.repeat(d)}` : '0', now: (one?.look?.decimals ?? 2) === d }))
+    : open === 'dimpos' ? DIM_TEXT_POS.map((x) => ({ id: x.id, label: x.label, now: (one?.look?.textPos ?? 'outside') === x.id }))
+    : open === 'hscale' ? HATCH_SCALES
+    : open === 'hangle' ? HATCH_ANGLES.map((a) => ({ id: String(a), label: `${a}°`, now: (one?.hatch?.angle ?? 0) === a }))
     : open === 'ntjust' && one
     ? NOTE_ATTACHES.map((j) => ({ id: j.id, label: j.label, now: attachOf(one) === j.id }))
     : open === 'width'
@@ -104,11 +135,11 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, canPa
       {edits.map((e) => (
         <Fragment key={e}>
           {e === 'move' && <span className="cad-ctx-bar" />}
-          <button aria-expanded={OPENERS.has(e) ? open === e : undefined} onClick={() => (OPENERS.has(e) ? setOpen(open === e ? null : e as typeof open) : onEdit(e))}>{LABEL[e]}</button>
+          <button aria-expanded={OPENERS.has(e) ? open === e : undefined} onClick={() => (OPENERS.has(e) ? setOpen(open === e ? null : e as typeof open) : onEdit(e))}>{e === 'plclose' && one?.closed ? 'Open' : e === 'txmask' && one?.mask ? 'Background mask off' : LABEL[e]}</button>
         </Fragment>
       ))}
       {open && (
-        <div className="cad-ctx-list" role="listbox" aria-label={open === 'width' ? 'Width' : open === 'clipboard' ? 'Clipboard' : open === 'ntjust' ? 'Justify' : open === 'draworder' ? 'Draw order' : open === 'isolate' ? 'Isolate' : open === 'blkreplace' ? 'Replace with' : 'Filter'}>
+        <div className="cad-ctx-list" role="listbox" aria-label={open === 'width' ? 'Width' : open === 'clipboard' ? 'Clipboard' : open === 'ntjust' ? 'Justify' : open === 'draworder' ? 'Draw order' : open === 'isolate' ? 'Isolate' : open === 'blkreplace' ? 'Replace with' : OPENERS.has(open) ? LABEL[open].replace(' ▸', '') : 'Filter'}>
           {list.map((x) => <button key={x.id} role="option" aria-selected={!!x.now} disabled={x.now || x.off} onClick={() => { setOpen(null); onEdit(open, x.id); }}><span>{x.label}</span><small>{x.now ? 'now' : x.key ?? ''}</small></button>)}
         </div>
       )}
