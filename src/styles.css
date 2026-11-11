@@ -6,6 +6,9 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 /* Base form control: zero specificity, so compact grid and toolbar rules still win */
 :where(input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),select,textarea){background:var(--p2);color:var(--tx);border:1px solid var(--field-line);border-radius:var(--radius-sm);padding:var(--space-1) var(--space-2);font:inherit}
 :where(input,textarea)::placeholder{color:var(--mut);opacity:1}
+/* Open dropdown list: grid selects are see-through, so the list would fall back to white under light theme text */
+:where(select) :where(option,optgroup){background:var(--p2);color:var(--tx)}
+:where(select) :where(option:disabled){color:var(--mut)}
 :where(input,select,textarea):hover:not(:disabled){border-color:var(--field-line-hover)}
 :where(input,select,textarea):focus-visible{outline:2px solid var(--acc);outline-offset:-1px;border-color:var(--acc)}
 :where(input,select,textarea):disabled{opacity:.55;cursor:not-allowed}
@@ -313,6 +316,11 @@ table.ls th.pt{font-size:var(--fs-xs);min-width:54px}
 table.ls .shade{background:color-mix(in srgb,var(--p2) 70%,var(--line))}
 table.ls input,table.ls select{background:transparent;color:var(--tx);border:1px solid transparent;border-radius:4px;padding:2px 3px;font:inherit;width:100%}
 table.ls input:hover,table.ls select:hover,table.ls input:focus,table.ls select:focus{border-color:var(--line);background:var(--p2)}
+/* Compact rating grid that replaces the tall system list (GridSelect) */
+.grid-pick{position:fixed;z-index:80;display:grid;gap:2px;padding:4px;background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;box-shadow:var(--shadow-pop)}
+.grid-pick button{height:26px;padding:0 4px;border:1px solid var(--line);border-radius:4px;background:var(--p2);color:var(--tx);font:inherit;font-size:12px;cursor:pointer}
+.grid-pick button:hover,.grid-pick button:focus-visible{border-color:var(--line-strong);background:color-mix(in srgb,var(--p2) 80%,var(--acc))}
+.grid-pick button.on{border-color:var(--acc);color:var(--acc);font-weight:600}
 table.ls .pt-in{width:50px;text-align:center}
 table.ls .room{min-width:110px;text-align:left}
 table.ls .hdr-in{font-weight:600;font-size:var(--fs-xs);text-align:center;width:54px}

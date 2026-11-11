@@ -1,6 +1,6 @@
 # UI UX proposals - 2026-11-11 - Context-aware right-click menus
 
-Status: approved 2026-11-11. Phase 1 shipped in v2.099, Phase 2 in v2.100.
+Status: approved 2026-11-11. Phase 1 shipped in v2.099, Phase 2 in v2.101.
 
 Mockup: [cad-context-menus-mockup.html](../../mockups/cad-context-menus-mockup.html) (PNG beside it).
 
@@ -70,7 +70,7 @@ item is left off the menu and listed below. No greyed-out placeholders.
 | Selection: Add selected | none | new ADDSELECTED: the draw tool of the object picked, on its layer |
 | Selection: Quick measure | none | new QUICKMEASURE (QM): total length and closed area of the objects picked |
 
-### Phase 2 — LV and ELV objects (built in v2.100)
+### Phase 2 — LV and ELV objects (built in v2.101)
 
 | Item | Tool before | Phase 2 work |
 |---|---|---|
