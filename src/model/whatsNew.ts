@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.103', date: '2026-11-11',
+    items: [
+      { title: 'Drawn objects stay true when you zoom', text: 'In Design CAD, the second and later objects you draw (lines, circles, arcs, polylines…) were drawn at a fixed size on the screen, with lines that grew thicker as you zoomed out. They now zoom with the drawing at their thin line, as the first one did.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.102', date: '2026-11-11',
     items: [
       { title: 'Right-click menus for blocks, references and layouts', text: 'In Design CAD, right-click a block you drew for Count instances, Replace with another block (the attribute values it shares are kept), Reset attributes and Explode. Right-click a block of the opened drawing for Count instances, Explode into drawn objects, Copy as a block of this drawing and Crop. Right-click a reference drawing\'s lines for Open reference, Clip, Fade, Reload, Unload, Detach, Bind, Print on sheets and its layers. On a layout, right-click inside a viewport for Activate, Show on the Model tab, Viewport scale, Lock display, Frame prints, Viewport layers and Erase viewport; right-click the paper for New viewport, Legend and Notes tables, the sheet\'s Issue status, Sheet list, Plot and Page setup.', action: 'cad', actionLabel: 'Open Design CAD' }

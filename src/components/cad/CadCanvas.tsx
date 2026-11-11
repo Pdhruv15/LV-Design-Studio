@@ -412,8 +412,13 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     const ltScale = 100 * unitsPerMm; // linetype dashes in paper mm at 1:100
     /** A drawn object's words, in screen space: a note's lines, a text (its mask under it), a dimension's or a tray's or
      * cable's label. Called in the object's turn, so the draw order holds for words too. */
+    // Always back to drawing units afterwards, also when the object has no words to show (else what is drawn after it
+    // lands in screen pixels: fixed in size, its lines thickening as the view zooms out).
     const drawLabel = (it: SketchItem) => {
       ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.textBaseline = 'alphabetic';
+      try { drawWords(it); } finally { ctx.restore(); }
+    };
+    const drawWords = (it: SketchItem) => {
       if (it.kind === 'mtext') {
         // A note: its lines from the top left of its box, each piece in its weight, underlined ones with a rule; the box
         // outlined while it is picked.
@@ -460,7 +465,6 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         ctx.fillStyle = isSel(it.id) ? selSk : lef.color ?? skC;
         ctx.fillText(label.s, 0, 0);
         ctx.restore();
-      ctx.restore();
     };
     // What the engineer drew, in its draw order (later on top): lines and hatches in drawing units, each object's words in its turn.
     for (const it of sketch) {
