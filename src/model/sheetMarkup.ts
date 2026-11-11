@@ -158,7 +158,8 @@ function shapesOf(m: SheetMarkup): Shapes {
 export function markupSvg(m: SheetMarkup): string {
   const c = markupColor(m).css, sh = shapesOf(m);
   const lines = sh.polylines.map((p) => `<polyline points="${p.pts.concat(p.closed ? [p.pts[0]] : []).map(([x, y]) => `${r2(x)},${r2(y)}`).join(' ')}" fill="none" stroke="${c}" stroke-width="${LINE_W}" stroke-linejoin="round" stroke-linecap="round"/>`);
-  const texts = sh.texts.map((t) => `<text x="${r2(t.x)}" y="${r2(t.y)}" font-size="${t.size}" font-family="Arial, sans-serif" fill="${c}">${esc(t.text)}</text>`);
+  // Size, font and colour inline: the app's `svg text` stylesheet rule outranks presentation attributes on screen.
+  const texts = sh.texts.map((t) => `<text x="${r2(t.x)}" y="${r2(t.y)}" font-size="${t.size}" font-family="Arial, sans-serif" fill="${c}" style="font:${t.size}px Arial, sans-serif;fill:${c}">${esc(t.text)}</text>`);
   return [...lines, ...texts].join('');
 }
 
