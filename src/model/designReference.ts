@@ -1,6 +1,7 @@
 import { pushLibrary } from '../database/librarySync';
 import { STUDY_DEFAULTS, type Project, type StudySettings } from '../types';
 import { normaliseRules, ruleIssues, ruleKey, type DesignRule } from './designRules';
+import { DEWA_LIMITS, limitIssues, normaliseLimits, projectLimitsOf, sortLimitRows, type CableLimitSet } from '../calc/authorityLimits';
 
 /** Design references: named sets of design values (voltage drop limit,
  * ambient, ELCB sensitivity …) from an authority, a standard or your own
@@ -11,7 +12,9 @@ import { normaliseRules, ruleIssues, ruleKey, type DesignRule } from './designRu
  * the values go into its settings and the project records which reference
  * (and version) it used. A reference may extend another ("Company DEWA"
  * extends "DEWA") and store only what differs; it inherits the rest, and
- * later edits of the base, when applied. */
+ * later edits of the base, when applied. A reference may also carry cable /
+ * breaker limit tables (DEWA Appendix 5); one without its own uses those of
+ * the reference it builds on. */
 
 export type RefKind = 'authority' | 'standard' | 'company';
 export type RefStatus = 'verified' | 'to-verify';
@@ -58,6 +61,8 @@ export interface DesignReference {
   entries: RefEntry[];
   /** Design rule rows (min wire, ELCB …) by circuit type and load. */
   rules?: DesignRule[];
+  /** Cable / breaker limit tables; inherited from the base when unset. */
+  cableLimits?: CableLimitSet;
   /** Id of the reference this one builds on: its values and rules apply unless set here. */
   extends?: string;
   builtIn?: boolean;
@@ -73,6 +78,8 @@ export interface AppliedReference {
   version: number;
   appliedAt: string;
   values: Partial<Record<RefKey, number>>; // the values written into the project
+  /** The cable / breaker limits the reference set, copied in when applied. */
+  cableLimits?: CableLimitSet;
 }
 
 // ---- Built-in references -------------------------------------------------------
@@ -96,7 +103,7 @@ export const BUILT_IN_REFERENCES: DesignReference[] = [
     id: 'builtin-dewa', name: 'DEWA (Dubai)', kind: 'authority', region: 'Dubai', status: 'to-verify', builtIn: true, version: 1, updatedAt: D,
     source: 'DEWA Regulations for Electrical Installations',
     notes: 'The values the app has used for new projects. Check them against the current DEWA regulations and circulars, then duplicate and mark your copy as verified.',
-    values: APP_VALUES, entries: []
+    values: APP_VALUES, entries: [], cableLimits: DEWA_LIMITS
   },
   {
     id: 'builtin-iec', name: 'IEC 60364', kind: 'standard', region: 'International', edition: 'IEC 60364 series', status: 'to-verify', builtIn: true, version: 1, updatedAt: D,
@@ -212,6 +219,7 @@ export function normaliseReference(r: DesignReference): DesignReference {
     values,
     entries: Array.isArray(r.entries) ? r.entries.filter((e) => e && typeof e.topic === 'string').map((e, i) => ({ ...e, id: e.id || `e-${i}`, value: String(e.value ?? '') })) : [],
     rules: normaliseRules(r.rules),
+    cableLimits: normaliseLimits(r.cableLimits),
     extends: typeof r.extends === 'string' && r.extends ? r.extends : undefined,
     builtIn: undefined,
     version: Number.isFinite(r.version) && r.version > 0 ? r.version : 1,
@@ -248,7 +256,7 @@ export function duplicateReference(r: DesignReference, name = `${r.name} (copy)`
 export function saveReference(list: DesignReference[], r: DesignReference): DesignReference[] {
   if (r.builtIn) return list;
   const prev = list.find((x) => x.id === r.id);
-  const next = { ...r, version: prev ? prev.version + 1 : r.version, updatedAt: today() };
+  const next = { ...r, ...(r.cableLimits && { cableLimits: sortLimitRows(r.cableLimits) }), version: prev ? prev.version + 1 : r.version, updatedAt: today() };
   return prev ? list.map((x) => (x.id === r.id ? next : x)) : [...list, next];
 }
 
@@ -266,6 +274,7 @@ export function referenceIssues(r: DesignReference, others: DesignReference[] = 
       issues.push(`${f.label}: ${v.value} is outside ${range.min ?? '…'}–${range.max ?? '…'}${f.unit ? ` ${f.unit}` : ''}.`);
   }
   issues.push(...ruleIssues(r.rules));
+  issues.push(...limitIssues(r.cableLimits));
   return issues;
 }
 
@@ -289,6 +298,8 @@ export interface ResolvedReference extends DesignReference {
   rules: DesignRule[];
   /** Which reference in the chain set each value. */
   sources: Partial<Record<RefKey, string>>;
+  /** Name of the reference the cable / breaker limits come from. */
+  limitsFrom?: string;
   /** Id of a base reference that is no longer in the library. */
   missingBase?: string;
 }
@@ -301,6 +312,7 @@ export function resolveReference(r: DesignReference, list: DesignReference[] = l
   const values: Partial<Record<RefKey, RefValue>> = {};
   const sources: Partial<Record<RefKey, string>> = {};
   const rules = new Map<string, DesignRule>();
+  const withLimits = chain.find((x) => x.cableLimits);
   for (const ref of [...chain].reverse()) {
     for (const [k, v] of Object.entries(ref.values) as [RefKey, RefValue][]) if (v) { values[k] = v; sources[k] = ref.name; }
     for (const rule of ref.rules ?? []) {
@@ -309,7 +321,11 @@ export function resolveReference(r: DesignReference, list: DesignReference[] = l
       rules.set(key, { ...rule, from: `${ref.name} v${ref.version}` });
     }
   }
-  return { ...r, values, rules: [...rules.values()], sources, ...(missing && { missingBase: missing }) };
+  return {
+    ...r, values, rules: [...rules.values()], sources,
+    ...(withLimits && { cableLimits: withLimits.cableLimits, limitsFrom: withLimits.name }),
+    ...(missing && { missingBase: missing })
+  };
 }
 
 // ---- Export / import -------------------------------------------------------------
@@ -385,8 +401,24 @@ export function applyReference(p: Project, ref: DesignReference, at = new Date()
     else if (f.target === 'info') next.info = { ...next.info, mdDemandFactor: v.value };
     else next.studySettings = { ...next.studySettings, [f.key]: v.value };
   }
-  next.designReference = { id: r.id, name: r.name, version: r.version, appliedAt: at, values };
+  next.designReference = { id: r.id, name: r.name, version: r.version, appliedAt: at, values, ...(r.cableLimits && { cableLimits: sortLimitRows(r.cableLimits) }) };
   return next;
+}
+
+/** The limits a reference's own edits start from: those of the reference it
+ * builds on, else of the one it was duplicated from. */
+export function baseLimitsOf(r: DesignReference, list: DesignReference[] = loadReferences()): { limits?: CableLimitSet; from?: string } {
+  const base = list.find((x) => x.id === (r.extends ?? r.basedOn));
+  if (!base) return {};
+  const b = resolveReference(base, list);
+  return b.cableLimits ? { limits: b.cableLimits, from: b.limitsFrom } : {};
+}
+
+/** Whether applying the reference changes the project's cable / breaker limits. */
+export function limitsChange(p: Project, ref: DesignReference, list: DesignReference[] = loadReferences()): boolean {
+  const next = resolveReference(ref, list).cableLimits;
+  const cur = projectLimitsOf(p);
+  return JSON.stringify(next ? sortLimitRows(next) : undefined) !== JSON.stringify(cur);
 }
 
 /** Fields whose project value no longer matches the applied reference. */

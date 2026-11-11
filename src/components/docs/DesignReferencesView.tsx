@@ -3,10 +3,11 @@ import { ask } from '../ConfirmDialog';
 import { useMemo, useRef, useState } from 'react';
 import type { Project } from '../../types';
 import {
-  REF_FIELDS, REF_KINDS, REF_STATUSES, appliedStatus, changedSinceApplied, duplicateReference, exportReferences, importReferences, loadReferences,
+  REF_FIELDS, REF_KINDS, REF_STATUSES, appliedStatus, authorityLabel, baseLimitsOf, limitsChange, changedSinceApplied, duplicateReference, exportReferences, importReferences, loadReferences,
   newReference, projectValue, referenceChanges, referenceIssues, resolveReference, saveReference, saveUserReferences, type DesignReference, type RefEntry, type RefKey
 } from '../../model/designReference';
 import { RuleRows, newRule } from './RuleRows';
+import { CableLimitsCard } from './CableLimitsCard';
 import { Page } from '../ui';
 import { saveText } from '../../util/files';
 import { fmtDate } from '../../util/format';
@@ -39,6 +40,8 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
   const changes = useMemo(() => referenceChanges(project, saved, refs), [project, saved, refs]);
   const resolved = useMemo(() => resolveReference(ref, refs), [ref, refs]);
   const savedRules = useMemo(() => resolveReference(saved, refs).rules.length, [saved, refs]);
+  const savedLimits = useMemo(() => limitsChange(project, saved, refs) ? resolveReference(saved, refs) : undefined, [project, saved, refs]);
+  const baseLimits = useMemo(() => baseLimitsOf(ref, refs), [ref, refs]);
   const own = new Set((ref.rules ?? []).map((r) => r.id));
   const inherited = resolved.rules.filter((r) => !own.has(r.id));
   // A reference can build on any other except itself and those built on it.
@@ -178,6 +181,7 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
                   </tbody></table>
                 ) : <p className="m">The project already has every value of this reference. Applying records it as the project's design reference.</p>}
                 {saved.status !== 'verified' && <p className="warn">This reference is marked “to verify”: check its values against the current regulations before submission.</p>}
+                {savedLimits && <p className="m">It also sets the project's cable / breaker limits{savedLimits.cableLimits ? ` (${savedLimits.cableLimits.tables.length} tables, from ${savedLimits.limitsFrom})` : ': this reference has none, so the project will have none'}.</p>}
                 {savedRules > 0 && <p className="m">It also sets {savedRules} rule row{savedRules > 1 ? 's' : ''} (see Rule rows below); the project's own rows are kept.</p>}
                 <p className="m">Blank values in the reference leave the project's own setting as it is. Run the studies again after applying.</p>
                 <div className="row">
@@ -246,6 +250,9 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
               empty={readOnly ? 'No rule rows: the design values above apply to every circuit.' : 'No rule rows yet: the design values above apply to every circuit.'} />
             {!readOnly && <button className="chip" style={{ marginTop: 8 }} onClick={() => edit({ rules: [...(ref.rules ?? []), newRule()] })}>+ Rule</button>}
           </section>
+
+          <CableLimitsCard limits={resolved.cableLimits} own={!!ref.cableLimits} from={resolved.limitsFrom} base={baseLimits.limits} readOnly={readOnly}
+            authority={authorityLabel(ref)} onChange={(cableLimits) => edit({ cableLimits })} />
 
           <section className="card">
             <h4 className="u-flush u-mb-2">Reference entries</h4>
