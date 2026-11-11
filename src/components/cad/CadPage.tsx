@@ -730,7 +730,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const setVps = (f: (list: PlanViewport[]) => PlanViewport[], what: string) => { if (sheetL) change(changeViewports(project, sheetL, f), `${sheetL.number || 'Layout'}  ${what} · ⌘Z to undo`); };
   const patchVp = (v: PlanViewport, patch: Partial<PlanViewport>, what: string) => setVps((l) => patchViewport(l, v.id, patch), `${vpName(vps, v.id)}: ${what}`);
   const addLayout = (type: PlanType) => {
-    if (!lv) { cad.say('LAYOUT  Choose the level this drawing is the plan of first (ribbon: Level).'); return; }
+    if (!lv) { cad.say('LAYOUT  Add the building and its levels in Building information first: a layout is a plan sheet of a level.'); return; }
     const r = newLayout(setOf(project), lv, type);
     change({ ...project, drawingSet: r.set }, `LAYOUT  ${r.set.sheets.find((x) => x.id === r.id)?.number ?? ''} ${lv.name} · ${PLAN_LABEL[type]} — a new layout and plan sheet · ⌘Z to undo`);
     cad.setLayout(r.id);
@@ -3363,7 +3363,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       </div>
       <CadCommandLine history={cad.history} live={EDIT_TOOLS.includes(tool) ? promptNow(edSet) : undefined} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
       {view && <LayoutTabs files={view.layouts.map((l) => ({ id: fileLayoutId(l.name), name: l.name, title: fileLayoutTitle(l, units.factor * 1000) }))} layouts={layouts} active={sheetL?.id ?? (fileL ? fileLayoutId(fileL.name) : null)} onPick={(id) => { cad.setLayout(id); const f = fileLayoutOf(view.layouts, id); if (f) cad.say(`LAYOUT  ${f.name} — the drawing file's own layout, as saved: ${fileLayoutTitle(f, units.factor * 1000)}.`); else if (id) cad.say(`LAYOUT  ${layouts.find((x) => x.id === id)?.number ?? ''} — the paper; double-click inside a viewport to work in it, MV adds one.`); }}
-        onNew={lv ? addLayout : undefined} onRename={(x) => { setRenamingLayout(x.id); cad.say(`RENAME  Type the new title of ${x.number} (now "${x.title}"):`); input.current?.focus(); }}
+        onNew={addLayout} onRename={(x) => { setRenamingLayout(x.id); cad.say(`RENAME  Type the new title of ${x.number} (now "${x.title}"):`); input.current?.focus(); }}
         onCopy={(x) => { if (!lv) return; const r = newLayout(setOf(project), lv, x.plan ?? 'lighting', x); change({ ...project, drawingSet: r.set }, `LAYOUT  ${x.number} copied · ⌘Z to undo`); cad.setLayout(r.id); }}
         onMove={(x, dir) => change({ ...project, drawingSet: renumber(moveLayout(setOf(project), x.id, dir)) }, `LAYOUT  ${x.number} moved ${dir < 0 ? 'left' : 'right'} · ⌘Z to undo`)}
         onDelete={(x) => { const set = setOf(project); change({ ...project, drawingSet: { ...set, sheets: set.sheets.filter((y) => y.id !== x.id) } }, `LAYOUT  ${x.number} ${x.title} deleted (its sheet too) · ⌘Z to undo`); if (cad.layout === x.id) cad.setLayout(null); }}
