@@ -10,8 +10,8 @@ import { tidy, type CtxEntry, type CtxItem } from './cadContextMenu';
  * edit, its `arg` "edit|value"; 'room' a room action on the room under the cursor). */
 
 /** What the page opens from a menu: a board's load schedule, the SLD at a circuit or board, a board's own diagram, the
- * riser, the cable schedule of a board, the ELV page. */
-export type CadShow = { to: 'load-schedule' | 'sld' | 'board' | 'riser' | 'cable-schedule' | 'elv'; board?: string; feeder?: string };
+ * riser, the cable schedule of a board, the ELV page, the drawing register (sheet list). */
+export type CadShow = { to: 'load-schedule' | 'sld' | 'board' | 'riser' | 'cable-schedule' | 'elv' | 'drawing-register'; board?: string; feeder?: string };
 
 /** Device edits the menu adds to those of the toolbar (deviceEdit.ts). */
 export type DeviceMore = 'samecircuit' | 'sametype' | 'homerun' | 'homeruns' | 'schedule' | 'sld' | 'board' | 'riser' | 'feeder' | 'elvschedule';

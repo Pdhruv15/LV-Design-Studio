@@ -150,7 +150,7 @@ function tableRects(frame: HTMLIFrameElement | null, pageMmPerPx: number): Recor
 
 /** The viewport frames over a layout's page, the frames of the tables placed on it (LEGEND / NOTES, moved by their
  * edges), and the viewport worked in with the drawing inside it. */
-export function layoutOverlay({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas, place = null, onPlace, onTableAt }: {
+export function layoutOverlay({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas, place = null, onPlace, onTableAt, onContext }: {
   project: Project;
   sheet: DrawingSheet;
   sel: string | null;
@@ -169,8 +169,11 @@ export function layoutOverlay({ project, sheet, sel, ms, mv, onSelect, onMs, onB
   onNew: (box: PlanViewport['box']) => void;
   /** The drawing, fitted to the viewport worked in. */
   canvas: (v: PlanViewport, pxPerMm: number) => ReactNode;
+  /** A right-click on the paper: inside a viewport (its id; not the one worked in) or on the paper (null), at the
+   * screen point. */
+  onContext?: (id: string | null, x: number, y: number) => void;
 }): PaperOverlay {
-  return ({ pxPerMm, frame, loaded }) => <Frames key={`${sheet.id}-${loaded}`} {...{ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas, pxPerMm, frame, place, onPlace, onTableAt }} />;
+  return ({ pxPerMm, frame, loaded }) => <Frames key={`${sheet.id}-${loaded}`} {...{ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas, pxPerMm, frame, place, onPlace, onTableAt, onContext }} />;
 }
 
 /** On screen only (never plotted): how far in from the paper's edge a printer can print, as the dashed line. */
@@ -186,7 +189,7 @@ function PaperMarks({ edge }: { edge: number }) {
   );
 }
 
-function Frames({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas, pxPerMm, frame, place, onPlace, onTableAt }: Omit<Parameters<typeof layoutOverlay>[0], never> & { pxPerMm: number; frame: HTMLIFrameElement | null }) {
+function Frames({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, canvas, pxPerMm, frame, place, onPlace, onTableAt, onContext }: Omit<Parameters<typeof layoutOverlay>[0], never> & { pxPerMm: number; frame: HTMLIFrameElement | null }) {
   const root = useRef<HTMLDivElement>(null);
   const paper = layoutPaper(project, sheet);
   const vps = layoutViewports(project, sheet);
@@ -218,8 +221,17 @@ function Frames({ project, sheet, sel, ms, mv, onSelect, onMs, onBox, onNew, can
       e.preventDefault();
       onMs(v ? v.id : null);
     };
+    // A right-click on the paper or in a viewport's frame: its menu (in the viewport worked in, the drawing's own).
+    const ctx = (e: MouseEvent) => {
+      if (!origin || !onContext || e.defaultPrevented) return;
+      const at = mmAt(e), v = [...vps].reverse().find((x) => insideVp(x, at));
+      if (ms && v?.id === ms) return;
+      e.preventDefault();
+      onContext(v ? v.id : null, e.clientX, e.clientY);
+    };
     host.addEventListener('dblclick', dbl);
-    return () => host.removeEventListener('dblclick', dbl);
+    host.addEventListener('contextmenu', ctx);
+    return () => { host.removeEventListener('dblclick', dbl); host.removeEventListener('contextmenu', ctx); };
   });
   const marks = <PaperMarks edge={PRINT_EDGE_MM * pxPerMm} />;
   if (!paper || !origin) return <div ref={root} className="cad-vps">{marks}</div>;

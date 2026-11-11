@@ -267,6 +267,25 @@ export function printedRefs(p: Project, host: string, metresPerUnit: number): { 
 
 /** Snap points of references on the plan (endpoints 1, midpoints 2, as the engine numbers them), indexed on a grid:
  * the nearest within `r` of (x, y) (plan units, absolute). References cannot be picked, but they can be snapped to. */
+/** The reference whose drawn lines pass nearest a point (plan drawing units), within `tol`; lines on its layers that are
+ * off are left out (the right-click menu of a reference). */
+export function refNear(list: readonly { ref: CadRef; segs: Float64Array; segLayers: Uint16Array; g: Pick<RefGeometry, 'layers'> }[], [x, y]: Pt, tol: number): CadRef | undefined {
+  let best: CadRef | undefined, bestD = tol;
+  for (const p of list) {
+    const off = p.g.layers.map((l) => !!refLayerStyle(p.ref, l.name).hidden);
+    for (let i = 0; i < p.segLayers.length; i++) {
+      if (off[p.segLayers[i]]) continue;
+      const ax = p.segs[i * 4], ay = p.segs[i * 4 + 1], bx = p.segs[i * 4 + 2], by = p.segs[i * 4 + 3];
+      if (Math.min(ax, bx) - bestD > x || Math.max(ax, bx) + bestD < x || Math.min(ay, by) - bestD > y || Math.max(ay, by) + bestD < y) continue;
+      const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+      const t = l2 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l2)) : 0;
+      const d = Math.hypot(x - (ax + t * dx), y - (ay + t * dy));
+      if (d <= bestD) { bestD = d; best = p.ref; }
+    }
+  }
+  return best;
+}
+
 export function refSnaps(list: PlacedRef[]): (x: number, y: number, r: number) => { p: Pt; kind: number } | undefined {
   const pts: number[] = [];
   for (const { segs } of list) {

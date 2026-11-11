@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { boundLayerName, clipToOutline, dropRefGeometry, insideOutline, keepRefGeometry, newRef, placeRef, placeRefExtras, printedRefs, printsByDefault, refLayerName, refLayerStyle, refName, refSnaps, refsOf, refFromXref, refTransform, unitScale, updateRef, withRef, withRefLayer, withoutRef, xrefCandidates, xrefFile, type CadRef, type RefGeometry } from './cadRefs';
+import { boundLayerName, clipToOutline, dropRefGeometry, insideOutline, keepRefGeometry, newRef, placeRef, placeRefExtras, printedRefs, printsByDefault, refLayerName, refLayerStyle, refName, refNear, refSnaps, refsOf, refFromXref, refTransform, unitScale, updateRef, withRef, withRefLayer, withoutRef, xrefCandidates, xrefFile, type CadRef, type RefGeometry } from './cadRefs';
 import type { Project } from '../types';
 
 const p: Project = { ...sampleProject, cadRefs: undefined };
@@ -125,5 +125,16 @@ describe('references of a plan', () => {
     expect(clipped.texts.map((t) => t.s)).toEqual(['GRID A']);
     expect(clipped.fills).toHaveLength(1);
     expect(placeRefExtras(geom(), ref())).toEqual({ texts: [], fills: [] }); // read before texts and fills were kept
+  });
+
+  it('refNear: the reference whose shown lines pass nearest the point, within the tolerance', () => {
+    const r = (name: string, layers?: CadRef['layers']): CadRef => ({ name, file: `${name}.dxf`, type: 'overlay', at: [0, 0], scale: 1, rot: 0, fade: 50, print: true, ...(layers ? { layers } : {}) });
+    const g = { layers: [{ name: 'A-WALL', rgb: 0 }, { name: 'A-DOOR', rgb: 0 }] };
+    const a = { ref: r('A'), g, segs: new Float64Array([0, 0, 10, 0]), segLayers: new Uint16Array([0]) };
+    const b = { ref: r('B'), g, segs: new Float64Array([0, 3, 10, 3, 0, 1, 10, 1]), segLayers: new Uint16Array([0, 1]) };
+    expect(refNear([a, b], [5, 0.4], 1)?.name).toBe('A');
+    expect(refNear([a, b], [5, 0.8], 1)?.name).toBe('B'); // its door line is nearer
+    expect(refNear([a, { ...b, ref: r('B', { 'A-DOOR': { hidden: true } }) }], [5, 0.8], 1)?.name).toBe('A'); // a layer off is not picked
+    expect(refNear([a, b], [5, 6], 1)).toBeUndefined();
   });
 });

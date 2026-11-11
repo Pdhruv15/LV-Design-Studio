@@ -1,6 +1,6 @@
 # UI UX proposals - 2026-11-11 - Context-aware right-click menus
 
-Status: approved 2026-11-11. Phase 1 shipped in v2.099, Phase 2 in v2.101.
+Status: approved 2026-11-11. Phase 1 shipped in v2.099, Phase 2 in v2.101, Phase 3 in v2.102.
 
 Mockup: [cad-context-menus-mockup.html](../../mockups/cad-context-menus-mockup.html) (PNG beside it).
 
@@ -105,11 +105,42 @@ Left off (no tool yet; each needs a decision or a data-model change):
 - Room: Edit boundary (Phase 4 grips), Place devices ▸ other than Fill.
 - ELV: Loop / zone ▸, Assign to panel / rack, Select same loop: ELV devices have no loop, zone or panel yet.
 
-### Phase 3 — blocks, references and sheets
+### Phase 3 — blocks, references and sheets (built in v2.102)
 
-Block / typical / group, reference drawing, image / PDF underlay, viewport, title block. Tools to check first:
-edit block in place, block editor, replace / redefine / reset block, reference reload / unload / bind / fade,
-underlay fade / monochrome, viewport maximise / lock / freeze layer, title block revision and issue status.
+| Item | Tool before | Phase 3 work |
+|---|---|---|
+| Block drawn here: Edit attributes, Select all of this block, Explode | ATE, menu, X | none (Explode now on the menu) |
+| Block drawn here: Count instances | none | new |
+| Block drawn here: Replace with another block ▸ | none | new: the drawing's blocks; attribute values with the same tag kept |
+| Block drawn here: Reset attributes | none | new: back to the definition's default values |
+| Block of the opened drawing: Erase | menu | none |
+| Block of the opened drawing: Count instances | none | new |
+| Block of the opened drawing: Explode into drawn objects | CROP only | new: its pieces become drawn objects, the block erased from the drawing (RESTOREDWG brings it back) |
+| Block of the opened drawing: Copy as a block of this drawing, Crop… | INSERT palette, CROP | started on the block right-clicked |
+| Reference: Clip ▸, Fade ▸, Reload, Unload / Load, Detach, Bind, Print on sheets | References palette (XR) | on the reference right-clicked (new hit test on its shown lines) |
+| Reference: Open reference | none | new: its tab, or the file where it was found |
+| Reference: Reference layers…, References… | LM, XR | none |
+| Viewport: Activate, Scale ▸, Lock display, Viewport layers…, Erase | MS, VPSCALE, VPLOCK, LM, Viewport panel | on the viewport right-clicked |
+| Viewport: Frame prints | Viewport panel | in the menu |
+| Viewport: Show on the Model tab | none | new: the Model tab zoomed to the viewport's area |
+| Paper: New viewport, Legend / Notes table, Plot, Page setup, Model tab | MV, LEGEND, NOTES, PLOT, PAGESETUP, MODEL | none |
+| Paper: Issue status ▸ | drawing register | new: the sheet's status from the list of issue statuses |
+| Paper: Sheet list | drawing register | new: opens it |
+
+Left off (no tool yet; each needs a decision or engine work):
+
+- Image / PDF underlay: the app has no image or PDF underlays in Design CAD, so the whole menu waits for an underlay
+  feature (attach, calibrate, fade, clip, save to DWG).
+- Block: Edit block in place, Block editor, Redefine from file; for the opened drawing's blocks, Select all
+  instances (the engine lists inserts without what the canvas needs to highlight them).
+- Reference: Edit in place, Invert clip, Isolate reference, Lock position, Move, Compare with new revision, Detect
+  rooms from walls.
+- Viewport: Clip viewport (polygonal viewports), Freeze layer by picking an object (Viewport layers… does it from
+  the list).
+- Title block: Add revision (issuing stays in the drawing register, with its transmittal), Replace template, Update
+  from project info (the title block already reads the project's information).
+- Layouts saved in the drawing file, and those made with +, have no paper menu yet: their viewports are not edited
+  here (as MV / VPSCALE say).
 
 ### Phase 4 — drawn-object detail and grips
 
@@ -119,9 +150,11 @@ recreate boundary / separate, grip Base point / Copy / Reference.
 
 ## Decisions still open
 
-1. Engine-heavy items (block editor, bind reference, compare revision, detect rooms from walls; fill ratio was
-   built in Phase 2 on the tray sizing engine):
-   build in their phase, or leave off and record here.
+1. Engine-heavy items (block editor and edit block in place, edit reference in place, compare with a new
+   revision, detect rooms from walls): build them, or leave them off. Fill ratio (Phase 2) and Bind (Phase 3) were
+   already there.
 2. ELV loops, zones and panels / racks: add them to ELV devices (then Loop / zone ▸, Assign to panel and
    Select same loop can be built), or leave the ELV menu as it is.
 3. Align to wall and device tags: build, or leave off.
+4. An image / PDF underlay feature for Design CAD (attach, calibrate scale, fade, clip, save to DWG): build it as
+   its own piece of work, then its menu.
