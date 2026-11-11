@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.099', date: '2026-11-11',
+    items: [
+      { title: 'Right-click menus that fit what you click', text: 'In Design CAD, right-clicking empty space now opens a full menu: Repeat and Recent commands, Paste, Undo and Redo, Isolate, Pan, Zoom, Select all, Quick select, Count, Place device, Cable route and tray, Properties and Options. While a command runs, Shift+right-click (or right-click when the prompt has options) adds Recent input, Snap overrides for the next point (endpoint, midpoint, centre…), and the Ortho, Polar and Object snap switches. Objects picked add Isolate (show only these, hide these, end isolation), Add selected, Quick measure, Count and Deselect all. New commands behind them: PAN, UNDO, REDO, SELECTALL (Ctrl+A), COUNT, ISOLATEOBJECTS, HIDEOBJECTS, UNISOLATEOBJECTS, ADDSELECTED and QUICKMEASURE.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.098', date: '2026-11-11',
     items: [
       { title: '+ under a drawing makes a layout of it, as in other CAD work', text: 'In Design CAD, + beside the layout tabs now makes Layout2, Layout3… straight away: A3 paper with one viewport showing the whole drawing at a standard scale. No level is needed. Right-click a layout to rename, copy, move or delete it. The plan sheets of a level (Lighting E-LTG, Power E-PWR, ELV, Containment) are made from the right-click menu of any tab, or LAYOUT L / P / E / C.' }

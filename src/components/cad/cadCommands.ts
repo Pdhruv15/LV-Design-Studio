@@ -9,7 +9,8 @@ export type CadAction = 'new' | 'open' | 'close' | 'fit' | 'addRooms' | 'schedul
   | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
   | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
   | 'textStyle' | 'dimStyle' | 'pointStyle' | 'blockDialog' | 'blocksPalette' | 'attDef' | 'attExport' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
-  | 'copyClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave' | 'zoomPrev' | 'qselect';
+  | 'copyClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave' | 'zoomPrev' | 'qselect'
+  | 'undo' | 'redo' | 'selectAll' | 'count' | 'isolateObjects' | 'hideObjects' | 'unisolateObjects' | 'addSelected' | 'quickMeasure';
 
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
 
@@ -23,6 +24,9 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['Z W', 'ZOOM W', 'ZOOM WINDOW'], desc: 'Zoom to a window: two corners', tool: 'zoomwin' },
   { aliases: ['Z P', 'ZOOM P', 'ZOOM PREVIOUS'], desc: 'The view before', action: 'zoomPrev' },
   { aliases: ['Z S', 'ZOOM S', 'ZOOM SCALE'], desc: 'Zoom by a factor (2, 0.5, or 2x of the view now)', tool: 'zoomscale' },
+  { aliases: ['P', 'PAN'], desc: 'Pan: drag with the left button; Enter or Esc ends', tool: 'pan' },
+  { aliases: ['UNDO'], desc: 'Undo the last change (Ctrl+Z)', action: 'undo' },
+  { aliases: ['REDO'], desc: 'Redo the change undone (Ctrl+Y)', action: 'redo' },
   { aliases: ['DI', 'DIST', 'DISTANCE'], desc: 'Measure a distance', tool: 'dist' },
   { aliases: ['AREA', 'AA'], desc: 'Measure an area', tool: 'area' },
   { aliases: ['RA', 'ROOM', 'ROOMAREA'], desc: 'Room area: click inside a room', tool: 'room' },
@@ -54,6 +58,13 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['EM', 'EMERGENCY'], desc: 'Emergency lighting', tool: 'em' },
   { aliases: ['SEL', 'SELECT'], desc: 'Select devices', action: 'select' },
   { aliases: ['QSELECT', 'QS'], desc: 'Quick select: drawn objects by kind, layer and property', action: 'qselect' },
+  { aliases: ['SELECTALL'], desc: 'Select every drawn object and device that shows and is not locked (Ctrl+A)', action: 'selectAll' },
+  { aliases: ['COUNT'], desc: 'Count the objects picked (or all that show) by kind and block name', action: 'count' },
+  { aliases: ['ADDSELECTED'], desc: 'Draw a new object like the one picked: its tool, on its layer', action: 'addSelected' },
+  { aliases: ['QM', 'QUICKMEASURE'], desc: 'Total length and closed area of the objects picked', action: 'quickMeasure' },
+  { aliases: ['ISOLATEOBJECTS', 'ISO'], desc: 'Show only the objects picked (this view; UNISOLATEOBJECTS ends it)', action: 'isolateObjects' },
+  { aliases: ['HIDEOBJECTS'], desc: 'Hide the objects picked (this view; UNISOLATEOBJECTS ends it)', action: 'hideObjects' },
+  { aliases: ['UNISOLATEOBJECTS', 'UNHIDE'], desc: 'Show the objects isolated or hidden again', action: 'unisolateObjects' },
   { aliases: ['SELECTSIMILAR'], desc: 'Select the drawn objects of the same kind and layer as those picked', tool: 'selsim' },
   { aliases: ['ARL', 'ARRAYLINE'], desc: 'Array on line', tool: 'arl' },
   { aliases: ['MA', 'MATCH', 'MATCHPROP'], desc: 'Match a device', tool: 'match' },
