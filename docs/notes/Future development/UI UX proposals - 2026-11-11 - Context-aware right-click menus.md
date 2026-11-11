@@ -1,6 +1,6 @@
 # UI UX proposals - 2026-11-11 - Context-aware right-click menus
 
-Status: approved 2026-11-11. Phase 1 shipped in v2.099, Phase 2 in v2.101, Phase 3 in v2.102.
+Status: approved 2026-11-11. Phase 1 shipped in v2.099, Phase 2 in v2.101, Phase 3 in v2.102, Phase 4 in v2.103.
 
 Mockup: [cad-context-menus-mockup.html](../../mockups/cad-context-menus-mockup.html) (PNG beside it).
 
@@ -142,11 +142,33 @@ Left off (no tool yet; each needs a decision or engine work):
 - Layouts saved in the drawing file, and those made with +, have no paper menu yet: their viewports are not edited
   here (as MV / VPSCALE say).
 
-### Phase 4 — drawn-object detail and grips
+### Phase 4 — drawn-object detail and grips (built in v2.103)
 
-Line / arc / circle, polyline, text, dimension, hatch, hot grip. Tools to check first: polyline edit (width, fit,
-straighten, add / remove vertex, reverse), find and replace, dimension flip / reset / override, hatch origin /
-recreate boundary / separate, grip Base point / Copy / Reference.
+| Item | Tool before | Phase 4 work |
+|---|---|---|
+| Line: Offset, Trim / Extend, Break, Fillet | yes | none |
+| Line / polyline: Join…, Chamfer | J, CHA | on the menu (Chamfer starts on the object picked) |
+| Line / polyline: Reverse direction, Convert to cable route | trays and routes only, LR (lines of the drawing) | on every line and polyline; the cable chosen for CR |
+| Polyline: Close / Open, Explode | X | new Close / Open; Explode on the menu |
+| Polyline: Use as room boundary | Room area, Trace | new: a closed polyline's area as a room to add |
+| Text: Edit text, Select similar | yes | none |
+| Text: Find and replace… | none | new FIND: any case, in texts, notes, attributes and dimension texts drawn here, one undo step |
+| Text: Justify ▸, Text height ▸, Case ▸, Frame ▸, Background mask | TJ, TH, TC, TFRAME, TMASK (pick, then type) | on the text right-clicked, at once |
+| Dimension: Edit text, Dimension style ▸, Precision ▸, Text position ▸, Remove text override | ED; style for new ones only | new for the dimension right-clicked |
+| Hatch: Hatch scale ▸, Hatch angle ▸, Recreate boundary | Properties | new on the menu |
+| Hatch: Send behind, Area | Draw order ▸, Quick measure | none |
+| Hot grip: Move / Copy / Rotate from this point | MOVE, CO, RO (base point clicked) | new: a grip clicked without dragging turns hot; its menu starts the tool from it |
+| Hot grip: Add vertex, Remove vertex, Close / Open | none | new |
+| Hot grip: Undo, Exit | UNDO, Esc | none |
+
+Left off (no tool yet; each needs a decision or a data-model change):
+
+- Polyline: Width, Fit curve, Straighten, Convert to arc (polylines drawn here have no widths or arcs).
+- Text: Text style ▸ (texts keep no style of their own; the style is for new text).
+- Dimension: Flip arrow, Reset text position (a dimension's text has no place of its own yet).
+- Hatch: Set origin, Separate hatches (a hatch drawn here has one outline and no origin).
+- Hot grip: Stretch / Scale / Mirror modes, Base point, Reference (dragging the grip stretches; the rest wait for
+  grip modes). A hot grip shows on the command line, not in another colour.
 
 ## Decisions still open
 
