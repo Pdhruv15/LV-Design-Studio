@@ -4,8 +4,10 @@ import pkg from '../../package.json';
 
 const siteUrl = 'https://pdhruv15.github.io/LV-Design-Suit/';
 const index = readFileSync('index.html', 'utf8');
+const about = readFileSync('public/about/index.html', 'utf8');
 const robots = readFileSync('public/robots.txt', 'utf8');
 const sitemap = readFileSync('public/sitemap.xml', 'utf8');
+const viteConfig = readFileSync('vite.config.ts', 'utf8');
 
 describe('public site discovery metadata', () => {
   it('describes the product without claiming certification or authority approval', () => {
@@ -25,6 +27,16 @@ describe('public site discovery metadata', () => {
   it('publishes a sitemap that robots.txt advertises', () => {
     expect(robots).toContain(`${siteUrl}sitemap.xml`);
     expect(sitemap).toContain(`<loc>${siteUrl}</loc>`);
+    expect(sitemap).toContain(`<loc>${siteUrl}about/</loc>`);
     expect(sitemap).toContain(`<loc>${siteUrl}architecture/</loc>`);
+  });
+
+  it('provides a distinct, conservative project page that is available offline', () => {
+    expect(about).toContain(`rel="canonical" href="${siteUrl}about/"`);
+    expect(about).toContain('Low-voltage electrical design in one workspace.');
+    expect(about).not.toMatch(/\b(certified|approved|compliant)\b/i);
+    expect(about).not.toMatch(/\bDEWA\b/);
+    expect(viteConfig).toContain("'about/index.html'");
+    expect(viteConfig).toContain("path.endsWith('/about/')");
   });
 });

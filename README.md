@@ -8,6 +8,7 @@ submission reports. Projects are plain JSON files, so they sync cleanly
 through a Google Drive / OneDrive / Dropbox desktop folder.
 
 [Try the browser app](https://pdhruv15.github.io/LV-Design-Suit/)
+· [About the project](https://pdhruv15.github.io/LV-Design-Suit/about/)
 · [Calculation methods and limits](docs/engineering/calculation-methods.md)
 · [Privacy and project data](docs/privacy.md)
 
