@@ -41,8 +41,8 @@ describe('cable schedule from the database', () => {
     expect(db.issues.some((i) => i.includes('duplicate Ref no. 102'))).toBe(true);
     setCatalog(db.catalog!);
     try {
-      const inc = sampleProject.feeders.find((f) => f.cableCsaMm2 === 300 && f.cores === 4 && !f.cpcMm2)!;
-      expect(cableRefOf(sampleProject, inc)).toMatchObject({ ref: 101, text: 'My 300' });
+      const inc = { ...sampleProject.feeders.find((f) => f.id === 'INC-GF')!, cableCsaMm2: 300, parallel: undefined };
+      expect(cableRefOf({ ...sampleProject, feeders: sampleProject.feeders.map((f) => (f.id === inc.id ? inc : f)) }, inc)).toMatchObject({ ref: 101, text: 'My 300' });
     } finally { setCatalog(EMPTY_CATALOG); }
   });
 });

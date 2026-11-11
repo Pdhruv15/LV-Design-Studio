@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.090', date: '2026-11-11',
+    items: [
+      { title: 'DEWA cable and breaker limits (Table 3)', text: 'On DEWA projects, automatic sizing now also meets DEWA Table 3 for multi-core armoured XLPE copper cable: each size from 10 to 300 mm² has a largest breaker and load (for example 25 mm² up to 80 A, 35 mm² up to 100 A); parallel runs count as runs × the table value. When the table, not the calculation, sets the size, the circuit gets a remark such as "DEWA Table 3: 35 mm² for 100 A (25 mm² max 80 A)"; your own remarks are kept. A feeder to a DB is at least 10 mm² on a 40 A breaker. A size set by hand that breaks the table fails the checks, with fixes offered. Circuits below 10 mm² follow the calculation as before. The sample project is resized to meet the table.' }
+    ]
+  },
+  {
     version: '2.089', date: '2026-11-11',
     items: [
       { title: 'Revision cloud and callout text shows at its true size', text: 'On Electrical, ELV and SLD sheets, the revision letter in a cloud’s triangle and the text of a callout or note now show on screen at their set letter height and markup colour, inside the triangle and the callout box, the same as on the printed sheet. Before, they showed too large and grey, and spilled out of the triangle and box.', action: 'sheets', actionLabel: 'Open Sheets' }

@@ -4,6 +4,7 @@ import { BREAKER_TYPES, LOAD_TYPES, METER_TYPES, RCD_MA, type BreakerType, type 
 import { breakerTypeOf, defaultCpcMm2 } from '../calc/earthing';
 import type { LibraryLoad } from '../database/database';
 import { CABLE_TYPE_DEFS, cableTypeOf, needsFireRated } from '../model/cableTypes';
+import { limitRule } from '../calc/authorityLimits';
 
 /** Diagram icon for a library item, from its category or schedule column. */
 function libraryLoadType(item: LibraryLoad): LoadType | undefined {
@@ -79,7 +80,7 @@ export default function FeederForm({
     const ib = designCurrentA(f, project);
     const upstream = upstreamVoltageDropPct(project, f.boardId);
     const budget = project.vdLimitPct - upstream;
-    const size = selectCable(ib, f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, f.breakerRatingA, project.vdTempC, vdEvaluator(f, project), izEvaluator(f, project));
+    const size = selectCable(ib, f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, f.breakerRatingA, project.vdTempC, vdEvaluator(f, project), izEvaluator(f, project), limitRule(project, f, f.breakerRatingA, ib));
     const budgetNote = upstream > 0 ? ` (${upstream.toFixed(2)}% already used upstream, ${budget.toFixed(2)}% left)` : '';
     if (size) {
       set('cableCsaMm2', size);

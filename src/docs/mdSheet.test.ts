@@ -19,7 +19,7 @@ describe('connected load & maximum demand sheet', () => {
     expect(s.merges.A2).toEqual([s.keys.length, 1]);
     // Incomer row: the MDB's feeder to this SMDB.
     const inc = s.data[0];
-    expect([inc[col(s, 'sptp')], inc[col(s, 'MCCB')], inc[col(s, 'cores')], inc[col(s, 'size')], inc[col(s, 'length')]]).toEqual(['TP', 500, '4C', 300, 35]);
+    expect([inc[col(s, 'sptp')], inc[col(s, 'MCCB')], inc[col(s, 'cores')], inc[col(s, 'size')], inc[col(s, 'length')]]).toEqual(['TP', 500, '4C', '2x150', 35]);
     expect(inc[col(s, 'R')]).toBe('');
   });
 
@@ -157,9 +157,9 @@ describe('connected load & maximum demand sheet', () => {
     const s = buildMdSheet(manual, 'MCC-1');
     const y = rowOf(s, 'MCC-WP');
     const kept = applyMdEdits(manual, s, [{ y, x: col(s, 'tcl'), value: '15' }]).project.feeders.find((x) => x.id === 'MCC-WP')!;
-    expect([kept.loadKw, kept.breakerRatingA, kept.cableCsaMm2]).toEqual([15, 160, 50]);
+    expect([kept.loadKw, kept.breakerRatingA, kept.cableCsaMm2]).toEqual([15, 160, 70]);
     const typed = applyMdEdits(sampleProject, s, [{ y, x: col(s, 'tcl'), value: '15' }, { y, x: col(s, 'MCCB'), value: '125' }]).project.feeders.find((x) => x.id === 'MCC-WP')!;
-    expect([typed.loadKw, typed.breakerRatingA, typed.cableCsaMm2]).toEqual([15, 125, 50]);
+    expect([typed.loadKw, typed.breakerRatingA, typed.cableCsaMm2]).toEqual([15, 125, 70]);
     const bad = applyMdEdits(sampleProject, s, [{ y, x: col(s, 'tcl'), value: '0' }, { y, x: col(s, 'tcl'), value: 'abc' }]);
     expect(bad.rejected).toHaveLength(2);
     expect(bad.project).toBe(sampleProject);
