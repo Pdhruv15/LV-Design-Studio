@@ -175,12 +175,11 @@ describe('the SLD tab', () => {
     for (const name of ['Run', 'SLD', 'Select', 'Boards', 'Board', 'Add load', 'Edit', 'Delete']) expect(tool(name).disabled, name).toBe(false);
   });
 
-  it('leaves the Load schedule tab with its own Run and Add load', () => {
+  it('leaves the Load schedule tab with its own groups, tested in RibbonSchedule.test', () => {
     show({ fails: 2 }, { staleCount: 3 }, 'schedule');
-    expect(onRow()).toEqual(['Run', 'Schedule', 'Equipment']);
-    expect(names('Run')).toEqual(['Run']);
-    expect(tool('Run').querySelector('.ribbon-sub')).toBeNull();
-    expect(names('Equipment')).toEqual(['Add load']);
+    expect(onRow().slice(0, 3)).toEqual(['Run and check', 'Schedule', 'Circuits and loads']);
+    expect(names('Run and check')).toEqual(['Run', 'Check']);
+    expect(names('Circuits and loads')).toEqual(['Add circuit', 'Spare', 'Add load']);
   });
 });
 

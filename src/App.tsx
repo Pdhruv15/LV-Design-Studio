@@ -76,7 +76,7 @@ const hasDatabase = hasBridge && !!window.lvds.database;
 
 import type { MainView } from './views';
 import CommandPalette, { ShortcutHelp, type Command } from './components/CommandPalette';
-import Ribbon, { type BomCommand, tabForStage, tabForView, viewForTab, type DiagramTool, type RibbonTab } from './components/Ribbon';
+import Ribbon, { type BomCommand, tabForStage, tabForView, viewForTab, type DiagramTool, type RibbonActions, type RibbonTab } from './components/Ribbon';
 import { advanceStage, ifcIssued, nextStage, prevStage, setTenderRoute, STAGE_INFO, stageOf, stepBackStage, tenderRoute } from './model/designStage';
 const ProjectSettings = onDemand(() => import('./components/ProjectSettings'));
 import type { BoardTab } from './components/BoardPanel';
@@ -241,6 +241,8 @@ export default function App() {
   const [sldFocus, setSldFocus] = useState<{ kind: 'board' | 'feeder'; id: string; n: number } | undefined>();
   // SLD ribbon: Fit asked for (a new number each time), and Panels opened on its Transformers tab.
   const [sldFit, setSldFit] = useState(0);
+  // What the Load schedule page says its ribbon tools can do (it clears this when it goes away).
+  const [scheduleRibbon, setScheduleRibbon] = useState<RibbonActions['schedule']>();
   const [panelsTx, setPanelsTx] = useState<number | undefined>();
   // A cable type new to the project gets the next free reference number (kept).
   const patchHistory = history.patch;
@@ -1311,6 +1313,7 @@ export default function App() {
               onExport: () => { system(); setShowExport(true); }
             };
           })(),
+          schedule: view === 'load-schedule' ? scheduleRibbon : undefined,
           onUndo: history.undo,
           onRedo: history.redo,
           canUndo: history.canUndo,
@@ -1584,7 +1587,7 @@ export default function App() {
             <ErrorBoundary level="page" resetKey={`${project.id} ${view}`}>
             <Suspense fallback={<p className="m">Loading…</p>}>
             {view === 'load-schedule' && board && (
-              <LoadScheduleView project={project} onOpenRiser={() => setView('busbar')} boardId={board.id} db={db} onBoard={(id) => setActiveBoardId(id)} onChange={setProject} onStatus={setStatus} onSettings={() => setShowSettings(true)} />
+              <LoadScheduleView project={project} onOpenRiser={() => setView('busbar')} boardId={board.id} db={db} onBoard={(id) => setActiveBoardId(id)} onChange={setProject} onStatus={setStatus} onSettings={() => setShowSettings(true)} onSchedule={setScheduleRibbon} />
             )}
             {view === 'database' && (
               <DatabaseView

@@ -30,8 +30,10 @@ A point type with no **WATT / UNIT** value contributes 0 W until a value is ente
 <a id="LS-030"></a>
 ## Open the correct panel and form
 
-Open the workspace from the **Load schedule** tab, the second tab in the ribbon. **SLD > Schedule** and **Documents > Load schedule** open the same workspace.
+Open the workspace from the **Load schedule** tab, the second tab in the ribbon. **SLD > Schedule** and **Documents > Load schedule** open the same workspace, and the ribbon shows the Load schedule tab.
 You can also right-click a board in the panel tree and select **Load schedule**.
+
+Use **Load schedule → Previous board** and **Next board** to move through the panels in the order of the tabs and chips. Use **Load schedule → Boards** to add a panel without leaving the page.
 
 Choose the form according to the task:
 
@@ -51,7 +53,7 @@ The workspace contains:
 2. Form-group tabs for TCL, MDB, SMDB, DB, MCC, and riser forms.
 3. Panel chips within the selected group.
 4. The editable schedule or maximum-demand grid.
-5. Excel, PDF, CSV, and submission-pack controls where applicable.
+5. The Load schedule tab of the ribbon: **Check**, **Boards** and the board steps, **Add circuit**, **Spare**, the row tools, **Balance phases**, copy and paste, and **Export**.
 6. A status area for rejected edits and export results.
 
 <a id="LS-050"></a>
@@ -66,12 +68,14 @@ Resolve every missing-watts warning before relying on connected-load totals.
 <a id="LS-060"></a>
 ## Add final circuits
 
-1. Select **Add circuit** for a single-phase final circuit.
-2. Select **Add 3-phase circuit** for an RYB circuit.
+1. Select **Load schedule → Add circuit** for a single-phase final circuit.
+2. Select **Load schedule → Add circuit → 3-phase circuit** for an RYB circuit.
 3. Enter the room or served area.
 4. Enter point quantities in the relevant load columns.
 5. Enter the circuit length.
 6. Review the calculated phase load and row check.
+
+To copy a circuit, click one of its cells and select **Load schedule → Duplicate**. The copy takes the next free way and keeps the same room, points, remarks, length and sizes.
 
 Circuit references use phase plus way, such as R1, Y1, B1, and RYB for a
 three-phase circuit.
@@ -112,9 +116,9 @@ the circuit category.
 <a id="LS-090"></a>
 ## Spares and spaces
 
-- **Spare** adds a fitted breaker with no connected load.
-- **Space** reserves an empty position for a future breaker.
-- Select **3-phase** before adding a complete RYB spare or space on a DB.
+- **Load schedule → Spare** adds a fitted breaker with no connected load.
+- **Load schedule → Spare → Space** reserves an empty position for a future breaker.
+- For a complete RYB way on a DB, use **Load schedule → Spare → 3-phase spare** or **3-phase space**.
 - On an MD form, spares and spaces are three-phase unless **1-phase (SP)** is selected.
 
 Neither a spare nor a space carries load.
@@ -122,7 +126,7 @@ Neither a spare nor a space carries load.
 <a id="LS-100"></a>
 ## Balance phases
 
-Use **Balance phases** after the circuit list is substantially complete. The operation:
+Use **Load schedule → Balance phases** after the circuit list is substantially complete. The operation:
 
 - places lighting circuits before power circuits;
 - starts each category on an ELCB section;
@@ -162,6 +166,8 @@ their source panel, feeder, or DB schedule.
 <a id="LS-130"></a>
 ## Validation and review
 
+**Load schedule → Check** goes to the next circuit that fails or needs checking, selects its row, and shows the reason with the fixes on offer. A fix sets the breaker or wire and counts as sized by hand; undo reverses it. When this schedule has no problem, Check looks through the other boards in order and opens the first one that has.
+
 Before export, confirm:
 
 - no missing **WATT / UNIT** warnings;
@@ -169,6 +175,7 @@ Before export, confirm:
 - R/Y/B totals and imbalance have been reviewed;
 - lighting and power circuits are not unintentionally mixed on an ELCB;
 - row checks and minimum wire sizes are acceptable;
+- **Load schedule → Check** shows no more problem circuits;
 - circuit lengths are credible;
 - rolled-up maximum demand matches the panel hierarchy; and
 - calculations have been run after the last electrical edit.
@@ -176,10 +183,11 @@ Before export, confirm:
 <a id="LS-140"></a>
 ## Exports
 
-- **Export Excel**: the current authority-style form.
-- **Export PDF**: the current form as a PDF.
-- **Export CSV**: the current DB load-schedule grid.
-- **Submission pack (Excel)**: all applicable transformer, MD, riser, and DB forms.
+- **Load schedule → Export → Excel: this form**: the current authority-style form. Pressing **Export** does the same.
+- **Load schedule → Export → PDF: this form**: the current form as a PDF.
+- **Load schedule → Export → CSV**: the current DB load-schedule grid.
+- **Load schedule → Export → Submission pack (Excel)**: all applicable transformer, MD, riser, and DB forms.
+- **Load schedule → Export → My Excel template…**: fills your own Excel format from a DB schedule.
 
 Save the project before issuing exported files.
 
@@ -192,7 +200,7 @@ Check its point quantity and the DB's **WATT / UNIT** value for that point type.
 
 ### Lighting and power are marked as mixed
 
-Use **Balance phases**, then review the changed circuit references.
+Use **Load schedule → Balance phases**, then review the changed circuit references.
 
 ### Automatic sizing is not changing a circuit
 

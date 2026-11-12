@@ -85,7 +85,7 @@ describe('ribbon follows the stages', () => {
     expect(tabForView('design', 'schematic')).toBe('schematic');
     expect(tabForView('design', 'cost')).toBe('sld');
     expect(tabForView('load-schedule', 'cost')).toBe('schedule');
-    expect(tabForView('load-schedule', 'reports')).toBe('reports');
+    expect(tabForView('load-schedule', 'reports')).toBe('schedule'); // Documents → Load schedule lands on the Load schedule tab
     expect(tabForView('load-assessment')).toBe('concept');
     expect(tabForView('voltage-drop')).toBe('detailed');
     expect(tabForView('submissions')).toBe('issue');
@@ -116,7 +116,9 @@ describe('ribbon follows the stages', () => {
     expect(viewForTab('sld', 'cad')).toBe('design');
     expect(viewForTab('cost', 'design')).toBe('boq');
     expect(viewForTab('cad', 'drawings')).toBe('drawings');
-    expect(viewForTab('reports', 'drawings')).toBe('load-schedule');
+    expect(viewForTab('reports', 'drawings')).toBe('cable-schedule'); // the Load schedule page belongs to the Load schedule tab
+    expect(viewForTab('reports', 'load-schedule')).toBe('cable-schedule');
+    expect(viewForTab('schedule', 'cable-schedule')).toBe('load-schedule');
   });
 });
 

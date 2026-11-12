@@ -129,6 +129,7 @@ describe('which tab a tool leaves you on', () => {
       'concept: cad → cad',
       'home: cad → cad',
       'reports: drawings → cad',
+      'reports: load-schedule → schedule',
       'schematic: drawings → cad',
       'sld: drawings → cad',
       'sld: load-schedule → schedule'

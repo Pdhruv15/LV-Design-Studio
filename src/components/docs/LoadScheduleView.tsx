@@ -1,7 +1,7 @@
 import { ask } from '../ConfirmDialog';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supplyChain } from '../../model/transformers';
-import { Plus, Scale, Trash2, Zap } from 'lucide-react';
+import { Trash2, X } from 'lucide-react';
 import type { Board, Phase, PointType, Project } from '../../types';
 import { cables } from '../../calc/cableTable';
 import { defaultCpcMm2 } from '../../calc/earthing';
@@ -10,13 +10,14 @@ import { itemizedTypes, loadItemsText, missingWatts, pointColumns, pointLabel, p
 import { settingsOf } from '../../types';
 import { loadsForColumn, type Database } from '../../database/database';
 import { buildLoadScheduleHtml, loadScheduleCsv, loadScheduleRows } from '../../docs/loadScheduleDoc';
-import { addCircuit, balancePhases, deleteCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../../model/schedule';
+import { addCircuit, balancePhases, circuitRef, deleteCircuit, duplicateCircuit, fixCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../../model/schedule';
+import { isFail, isProblem, nextProblemBoard, problemRows, rowFixes, rowReasons, type ScheduleRow, type ScheduleFix } from '../../docs/scheduleCheck';
 import { saveBinary, saveCsv, savePdf, safeFileName } from '../../util/files';
 import { buildFormWorkbook, workbookBytes, type WorkbookScope } from '../../docs/formWorkbook';
 import { workbookHtml } from '../../docs/sheetPdf';
 import { Page, STATUS_LABEL } from '../ui';
 import { applySheetEdits, buildDbSheet } from '../../docs/dbSheet';
-import { cellKey } from '../grid/excelGrid';
+import { cellKey, type Pos } from '../grid/excelGrid';
 import { useExcelGrid } from '../grid/useExcelGrid';
 import GridSelect from '../grid/GridSelect';
 import MdSheetView from './MdSheetView';
@@ -24,11 +25,12 @@ import { hasMdSheet } from '../../docs/mdSheet';
 import { dbChecks } from '../../calc/building';
 import TxSummaryView from './TxSummaryView';
 import RiserFormView from './RiserFormView';
-import { SCHEDULE_GROUPS, scheduleGroupOf, scheduleGroups, type ScheduleGroup, incompleteSchedules } from '../../model/scheduleGroups';
+import { SCHEDULE_GROUPS, scheduleBoardOrder, scheduleGroupOf, scheduleGroups, type ScheduleGroup, incompleteSchedules } from '../../model/scheduleGroups';
 import CircuitEditDialog from './CircuitEditDialog';
 import TemplateExportDialog from './TemplateExportDialog';
 import { addSpareWay, deleteSpareWay, spareLabel, spareRef, updateSpareWay } from '../../model/spareWays';
 import { fmtFixed, txt } from '../../util/format';
+import type { RibbonActions } from '../Ribbon';
 
 const num = (v: string) => (v === '' ? 0 : Math.max(0, Math.round(+v) || 0));
 /** Final-circuit MCB ratings up to 125 A, plus the current one if it is outside that list. */
@@ -45,16 +47,19 @@ export default function LoadScheduleView({
   onOpenRiser,
   onChange,
   onStatus,
-  onSettings
+  onSettings,
+  onSchedule
 }: {
   project: Project;
   boardId: string;
   db: Database;
   onBoard: (id: string) => void;
   onOpenRiser?: () => void;
-  onChange: (p: Project) => void;
+  onChange: (p: Project, opts?: { step?: boolean }) => void;
   onStatus: (m: string) => void;
   onSettings: () => void;
+  /** Tells the ribbon what the Load schedule tab's tools can do now (undefined when this page goes away). */
+  onSchedule?: (s: RibbonActions['schedule']) => void;
 }) {
   const board = project.boards.find((b) => b.id === boardId) ?? project.boards[0];
   const data = useMemo(() => loadScheduleRows(project, board.id), [project, board.id]);
@@ -71,11 +76,17 @@ export default function LoadScheduleView({
   const colOf = (key: string) => dbs.sheetCols.findIndex((c) => c.key === key);
   const cell = (feederId: string, key: string) => cellKey(rowOf.get(feederId) ?? -1, colOf(key));
   const grid = useRef<HTMLDivElement>(null);
-  useExcelGrid(grid, (edits) => {
+  // The cell the selection ends on: its row is the one the ribbon's Edit and Delete act on.
+  const [active, setActive] = useState<Pos | null>(null);
+  const cmds = useExcelGrid(grid, (edits) => {
     const { project: next, rejected } = applySheetEdits(project, dbs, edits);
     if (next !== project) onChange(next);
     if (rejected.length) onStatus(`Not applied — ${rejected.slice(0, 3).join('; ')}${rejected.length > 3 ? ` (+${rejected.length - 3} more)` : ''}`);
-  });
+  }, (p) => setActive((q) => (q?.y === p?.y && q?.x === p?.x ? q : p)));
+  const activeRow = (() => {
+    const r = active ? dbs.rows[active.y] : undefined;
+    return r?.type === 'circuit' ? data.rows.find((x) => x.f.id === r.feeder.id) : undefined;
+  })();
   // Which form: the DB load distribution schedule, or the connected load &
   // maximum demand form (boards with outgoing feeders). A board with no
   // circuits opens on the MD form; so does an empty MDB / SMDB / MCC (not a
@@ -129,15 +140,70 @@ export default function LoadScheduleView({
     }
   }
 
+  /** The form on screen as a workbook scope and file name. */
+  const formScope = (): [WorkbookScope, string] => form === 'riser' ? [{ forms: ['riser'] }, `${project.name} bus bar risers`]
+    : form === 'tx' ? [{ forms: ['tx'] }, `${project.name} TCL summary at transformer level`]
+    : [{ boardIds: [board.id], forms: [form] }, `${project.name} ${board.id} ${form === 'md' ? 'connected load MD' : 'load schedule'}`];
+
+  // Check: the circuit shown in the bar above the grid, and a jump to another board waiting for it to be on screen.
+  const [bar, setBar] = useState<{ board: string; id: string } | null>(null);
+  const jump = useRef<string | null>(null);
+  const order = useMemo(() => scheduleBoardOrder(groups), [groups]);
+  const problems = useMemo(() => problemRows(data.rows), [data]);
+  const current = bar && bar.board === board.id && form === 'db' ? problems.find((r) => r.f.id === bar.id) : undefined;
+  const why = useMemo(() => (current ? { reasons: rowReasons(project, current), fixes: rowFixes(project, current) } : undefined), [project, current]);
+  // The bar goes when the board changes, its circuit is deleted or no longer a problem.
+  useEffect(() => { if (bar && !current) setBar(null); }, [bar, current]);
+  const showProblem = (r: ScheduleRow) => {
+    setBar({ board: board.id, id: r.f.id });
+    const y = rowOf.get(r.f.id);
+    if (y !== undefined) cmds.select({ y, x: Math.max(colOf('room'), 0) });
+  };
+  const check = () => {
+    if (problems.length) { showProblem(problems[((current ? problems.indexOf(current) : -1) + 1) % problems.length]); return; }
+    const to = nextProblemBoard(project, board.id, order);
+    if (!to) { onStatus('Every circuit in every schedule is within limits'); return; }
+    jump.current = to;
+    setTxForm(false);
+    setPick({ board: to, form: 'db' });
+    onBoard(to);
+  };
+  // The jump: once the other board's DB form is on screen, its first problem.
+  useEffect(() => {
+    if (jump.current !== board.id || form !== 'db') return;
+    jump.current = null;
+    if (problems[0]) showProblem(problems[0]);
+  });
+  const applyFix = (r: ScheduleRow, fix: ScheduleFix) => {
+    const next = fixCircuit(project, r.f.id, fix.patch);
+    onChange(next, { step: true });
+    const row = loadScheduleRows(next, board.id).rows.find((x) => x.f.id === r.f.id);
+    if (row && !isProblem(row)) { setBar(null); onStatus(`${r.ref}: ${fix.label} applied`); }
+  };
+  const duplicate = () => {
+    if (!activeRow) return;
+    try {
+      const r = duplicateCircuit(project, activeRow.f.id);
+      onChange(r.project, { step: true });
+      onStatus(`Circuit ${circuitRef(r.project.feeders.find((f) => f.id === r.id)!)} added as a copy of ${activeRow.ref}`);
+    } catch (e) {
+      onStatus(e instanceof Error ? e.message : String(e));
+    }
+  };
+  // The panels either side of this one in the schedule's own order (on a panel's own forms).
+  const at = order.findIndex((b) => b.id === board.id);
+  const onBoardForm = form === 'db' || form === 'md';
+  const prevBoard = onBoardForm && at > 0 ? order[at - 1].id : undefined;
+  const nextBoard = onBoardForm && at >= 0 ? order[at + 1]?.id : undefined;
+
   const setBoard = (patch: Partial<Board>, resize = false) => {
     const p = { ...project, boards: project.boards.map((b) => (b.id === board.id ? { ...b, ...patch } : b)) };
     onChange(resize ? refreshBoard(p, board.id) : p);
   };
   const patch = (id: string, pt: CircuitPatch) => onChange(updateCircuit(project, id, pt));
-  const [spare3, setSpare3] = useState(false);
-  const addSpare = (kind: 'spare' | 'space') => {
+  const addSpare = (kind: 'spare' | 'space', threePhase?: boolean) => {
     try {
-      const r = addSpareWay(project, board.id, kind, spare3 ? 'RYB' : undefined);
+      const r = addSpareWay(project, board.id, kind, threePhase ? 'RYB' : undefined);
       onChange(r.project);
       onStatus(r.message);
     } catch (e) {
@@ -151,6 +217,51 @@ export default function LoadScheduleView({
       onStatus(e instanceof Error ? e.message : String(e));
     }
   };
+  const removeCircuit = async (r: { f: { id: string }; ref: string }) => {
+    if (await ask(`Delete circuit ${r.ref}?`)) onChange(deleteCircuit(project, r.f.id));
+  };
+  /** Paste from the ribbon: the system clipboard through the grid's own paste. */
+  const pasteClipboard = async () => {
+    const told = 'Paste: press Ctrl/⌘ V on the schedule';
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!cmds.paste(text)) onStatus('Paste: click a cell on the schedule first');
+    } catch {
+      onStatus(told);
+    }
+  };
+  const exportKind = async (kind: 'excel' | 'pdf' | 'csv' | 'pack' | 'template') => {
+    if (kind === 'excel') await exportExcel(...formScope());
+    else if (kind === 'pack') await exportExcel({}, `${project.name} submission forms`);
+    else if (kind === 'template') setTemplateOpen(true);
+    else if (kind === 'csv') { const c = loadScheduleCsv(project, board.id); const m = await saveCsv(`${project.name} ${board.id} load schedule`, c.headers, c.rows); if (m) onStatus(m); }
+    else if (form === 'db') { const m = await savePdf(`${safeFileName(board.id)}-load-schedule.pdf`, buildLoadScheduleHtml(project, board.id), { pageSize: 'A4', landscape: true }); if (m) onStatus(m); }
+    else await exportFormPdf(...formScope());
+  };
+
+  // The ribbon's Load schedule tools. Published by value: the handlers go through a ref, so what is sent changes only
+  // with what the ribbon shows (publishing an object built every render would loop).
+  const now = { add, addSpare, fill: () => cmds.fillDown(), edit: () => activeRow && setEditing({ id: activeRow.f.id }), remove: () => activeRow && removeCircuit(activeRow),
+    balance: () => onChange(balancePhases(project, board.id)), copy: () => { cmds.copy(); }, paste: pasteClipboard, exportKind,
+    step: (d: -1 | 1) => { const to = d < 0 ? prevBoard : nextBoard; if (to) onBoard(to); }, duplicate, check };
+  const tools = useRef(now);
+  tools.current = now;
+  const publish = useRef(onSchedule);
+  publish.current = onSchedule;
+  const onGrid = form === 'db', rowRef = onGrid ? activeRow?.ref : undefined;
+  const imbalancePct = data.rows.length ? Math.round(data.imbalance) : undefined, canBalance = data.rows.length >= 2;
+  const fails = onGrid ? problems.filter(isFail).length : 0, warns = onGrid ? problems.length - fails : 0;
+  useEffect(() => {
+    publish.current?.({
+      grid: onGrid, row: rowRef, canBalance, imbalancePct, exporting, board: onBoardForm, prevBoard, nextBoard, fails, warns,
+      onBoardStep: (d) => tools.current.step(d), onDuplicate: () => tools.current.duplicate(), onCheck: () => tools.current.check(),
+      onAddCircuit: (three) => tools.current.add(three ? 'RYB' : undefined), onAddSpare: (k, three) => tools.current.addSpare(k, three),
+      onFillDown: () => tools.current.fill(), onEditRow: () => tools.current.edit(), onDeleteRow: () => tools.current.remove(),
+      onBalance: () => tools.current.balance(), onCopy: () => tools.current.copy(), onPaste: () => void tools.current.paste(),
+      onExport: (k) => void tools.current.exportKind(k)
+    });
+  }, [onGrid, rowRef, canBalance, imbalancePct, exporting, onBoardForm, prevBoard, nextBoard, fails, warns]);
+  useEffect(() => () => publish.current?.(undefined), []);
 
   return (
     <Page
@@ -164,23 +275,6 @@ export default function LoadScheduleView({
           {form !== 'tx' && form !== 'riser' && <select className="chip" value={board.id} onChange={(e) => onBoard(e.target.value)} aria-label="DB">
             {project.boards.map((b) => <option key={b.id} value={b.id}>{b.id} — {b.name}</option>)}
           </select>}
-          <button className="chip" disabled={exporting} title="This form as an Excel workbook, laid out like the authority form"
-            onClick={() => exportExcel(form === 'riser' ? { forms: ['riser'] } : form === 'tx' ? { forms: ['tx'] } : { boardIds: [board.id], forms: [form] }, form === 'riser' ? `${project.name} bus bar risers` : form === 'tx' ? `${project.name} TCL summary at transformer level` : `${project.name} ${board.id} ${form === 'md' ? 'connected load MD' : 'load schedule'}`)}>
-            Export Excel
-          </button>
-          {form !== 'db' && <button className="chip" disabled={exporting} title="This form as PDF — the same layout as the Excel"
-            onClick={() => exportFormPdf(form === 'riser' ? { forms: ['riser'] } : form === 'tx' ? { forms: ['tx'] } : { boardIds: [board.id], forms: ['md'] }, form === 'riser' ? `${project.name} bus bar risers` : form === 'tx' ? `${project.name} TCL summary at transformer level` : `${project.name} ${board.id} connected load MD`)}>
-            Export PDF
-          </button>}
-          <button className="chip" disabled={exporting} title="Every form of the project in one workbook: load summary, MDB / SMDB / MCC forms, then every DB schedule"
-            onClick={() => exportExcel({}, `${project.name} submission forms`)}>
-            {exporting ? 'Exporting…' : 'Submission pack (Excel)'}
-          </button>
-          {form === 'db' && <>
-          <button className="chip" title="Fill your own Excel load schedule format: placeholders such as {{board.id}} and a row of {{row.…}} repeated for every circuit" onClick={() => setTemplateOpen(true)}>My Excel template…</button>
-          <button className="chip" onClick={async () => { const c = loadScheduleCsv(project, board.id); const m = await saveCsv(`${project.name} ${board.id} load schedule`, c.headers, c.rows); if (m) onStatus(m); }}>Export CSV</button>
-          <button className="chip primary" onClick={async () => { const m = await savePdf(`${safeFileName(board.id)}-load-schedule.pdf`, buildLoadScheduleHtml(project, board.id), { pageSize: 'A4', landscape: true }); if (m) onStatus(m); }}>Export PDF</button>
-          </>}
         </>
       }
     >
@@ -255,14 +349,6 @@ export default function LoadScheduleView({
           )}
           <div className="ls-actions">
             <span className="m gx-hint" title="Arrows / Enter move · Shift+arrows or drag select · Ctrl/⌘ C copy · Ctrl/⌘ V paste from Excel · Ctrl/⌘ D fill down · Delete clears the selection">Excel keys: paste · fill down (⌘D) · copy</span>
-            <button className="chip" onClick={() => add()}><Plus size={14} /> Add circuit</button>
-            <button className="chip" onClick={() => add('RYB')}><Zap size={14} /> Add 3-phase circuit</button>
-            <span className="seg ls-spare-add" title="A spare is a way with a breaker fitted and nothing connected; a space is an empty way kept for a future breaker. Neither carries load.">
-              <button onClick={() => addSpare('spare')}><Plus size={14} /> Spare</button>
-              <button onClick={() => addSpare('space')}><Plus size={14} /> Space</button>
-              <label className="m"><input type="checkbox" checked={spare3} onChange={(ev) => setSpare3(ev.target.checked)} /> 3-phase</label>
-            </span>
-            <button className="chip" disabled={data.rows.length < 2} onClick={() => onChange(balancePhases(project, board.id))} title="Lighting circuits first, then power, each starting on an ELCB section; spread over R/Y/B and renumber"><Scale size={14} /> Balance phases</button>
             <span className="sp" />
             <span>
               Phase load (W): <b className="ph-r">R {fmtFixed(data.phaseW.R * 1000, 0)}</b> · <b className="ph-y">Y {fmtFixed(data.phaseW.Y * 1000, 0)}</b> ·{' '}
@@ -271,6 +357,17 @@ export default function LoadScheduleView({
             </span>
           </div>
 
+          {current && why && (
+            <div className="ls-missing warn" role="status" aria-label="Circuit to check">
+              <span className="m">Problem {problems.indexOf(current) + 1} of {problems.length} · {board.id}</span>{' '}
+              <b>{current.ref}{current.f.room ? ` · ${current.f.room}` : ''}</b>{' '}
+              <span className={current.status}>{STATUS_LABEL[current.status]}</span>
+              {why.reasons.length > 0 && <> — {why.reasons.join('; ')}</>}{' '}
+              {why.fixes.map((x) => <button key={x.label} className="chip" onClick={() => applyFix(current, x)}>{x.label}</button>)}{' '}
+              <button className="chip" onClick={check}>Next problem</button>{' '}
+              <button className="icon-btn" title="Close" aria-label="Close" onClick={() => setBar(null)}><X size={14} /></button>
+            </div>
+          )}
           {(
             <div className="ls-wrap" ref={grid} data-doc-id="load-schedule-grid">
               <table className="ls">
@@ -318,14 +415,14 @@ export default function LoadScheduleView({
                 </thead>
                 <tbody>
                   {data.entries.length === 0 && (
-                    <tr><td colSpan={7 + columns.length + 7} className="m">No circuits yet — use Add circuit to start this DB's schedule.</td></tr>
+                    <tr><td colSpan={7 + columns.length + 7} className="m">No circuits yet — use Load schedule → Add circuit to start this DB's schedule.</td></tr>
                   )}
                   {data.entries.map((e, i) => {
                     const g = e.group;
                     const first = g && data.entries.findIndex((x) => x.group === g) === i;
                     const elcbTd = first ? (
                       <td rowSpan={data.entries.filter((x) => x.group === g).length} className={`elcb ${g.category === 'mixed' ? 'warn' : ''}`}
-                        title={g.category === 'mixed' ? 'Lighting and power share this ELCB — use Balance phases to separate them' : undefined}>
+                        title={g.category === 'mixed' ? 'Lighting and power share this ELCB — use Load schedule → Balance phases to separate them' : undefined}>
                         ELCB-{g.index}<br />{g.label}<br /><span className="m">{g.category === 'mixed' ? 'mixed!' : g.category}</span>
                       </td>
                     ) : !g ? <td /> : null;
