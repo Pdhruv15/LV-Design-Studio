@@ -86,9 +86,17 @@ Taken on 2026-11-12 as suggested, when the user approved the proposal.
 
 ## Built as
 
-Step 1, v2.109 (`feat/load-schedule-ribbon-step1`). What differs from the mockup:
+Step 1, v2.109 (`feat/load-schedule-ribbon-step1`). The user then asked for the most used tools in the same release, so it also has four of step 2: Check, Duplicate, Previous board and Next board, and the Boards button of the SLD tab (add a board), which was not in the mockup. The row needs about 1340 px, read from the manual's 1600 px capture.
 
-- A group is named for the tools it has. The first group stays "Run" until Check is built, "Size and balance" is "Balance" until Re-size is built, and Show appears with its first tool.
+Still to build, each on the user's word: Copy from board, Move up and Move down, Columns, Find, Re-size, Import.
+
+What differs from the mockup:
+
+- A group is named for the tools it has. "Size and balance" is "Balance" until Re-size is built, and Show appears with its first tool.
+- Check counts as on the SLD tab, "2 fail" or "1 to check", not "2 to fix". The reason and the fixes show in a bar above the grid, in the style of the missing-WATT warning, not in a card beside it. It also gives a reason for the warning the SLD's list leaves out: a breaker near its rating.
+- Check is greyed on the Connected load & MD form. It works from a DB schedule.
+- A duplicate is a new circuit: it does not take the original's permanent ID, its route on the plans or its ELV load.
+- Rows is two columns of two until Move up and Move down are built.
 - Under Balance phases the line reads "5 % apart". "imbalance 5 %" is wider than the 76 px a line under a button has.
 - CSV and My Excel template… are greyed away from the DB form. The page offered them only there.
 - The Documents tab opened on Load schedule. It now opens on Cable schedule; its Load schedule button lands on the Load schedule tab. The user was told of this on 2026-11-12 and has not yet answered.
