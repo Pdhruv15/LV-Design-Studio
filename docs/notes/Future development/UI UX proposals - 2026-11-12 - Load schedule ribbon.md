@@ -1,6 +1,6 @@
 # UI UX proposal – Load schedule ribbon (2026-11-12)
 
-Status: **proposal, nothing built.** Waiting for the user's answers to the questions at the end.
+Status: **approved by the user on 2026-11-12** ("proceed"), with the suggested answers to the six questions below. **Step 1 built for v2.109**, see "Built as" at the end. Step 2, the new tools, is not built.
 
 Mockup: `docs/mockups/load-schedule-ribbon-mockup.html` (image: `load-schedule-ribbon-mockup.png`).
 
@@ -75,11 +75,23 @@ Widths, measured on the mockup with the app's button sizes:
 
 ## Decisions
 
-Waiting for the user. A suggested answer is given for each.
+Taken on 2026-11-12 as suggested, when the user approved the proposal.
 
-1. After the move, do Add circuit, Spare, Space, Balance phases and the export buttons leave the page, or stay in both places? Suggested: **ribbon only**, as chosen for the SLD. One consequence: the page also opens from Documents → Load schedule, where the ribbon shows the Documents tools (`TAB_VIEWS.reports`), so that button would then switch to the Load schedule tab.
-2. Which new tools to build, and in which order? Suggested: **the order of step 2.**
-3. Add circuit and Add load side by side, or one button? Suggested: **both.** Add circuit takes the next free way of a DB; Add load adds a load by type (motor, solar PV, EV charger, feeder cable).
-4. Are "Run and check", "Circuits and loads", "Rows", "Size and balance", "Copy and undo", "Show" and "Output" the right group names?
-5. Narrow windows: move groups into More, as on the SLD tab? Suggested: **yes.**
-6. Columns: on screen only, or also on the DB schedule PDF? Suggested: **screen only.**
+1. After the move, do Add circuit, Spare, Space, Balance phases and the export buttons leave the page, or stay in both places? **Ribbon only**, as chosen for the SLD. The page also opened from Documents → Load schedule, where the ribbon showed the Documents tools (`TAB_VIEWS.reports`), so that button now switches to the Load schedule tab.
+2. Which new tools to build, and in which order? **The order of step 2.**
+3. Add circuit and Add load side by side, or one button? **Both.** Add circuit takes the next free way of a DB; Add load adds a load by type (motor, solar PV, EV charger, feeder cable).
+4. Are "Run and check", "Circuits and loads", "Rows", "Size and balance", "Copy and undo", "Show" and "Output" the right group names? **Kept as drawn.**
+5. Narrow windows: move groups into More, as on the SLD tab? **Yes.**
+6. Columns: on screen only, or also on the DB schedule PDF? **Screen only.**
+
+## Built as
+
+Step 1, v2.109 (`feat/load-schedule-ribbon-step1`). What differs from the mockup:
+
+- A group is named for the tools it has. The first group stays "Run" until Check is built, "Size and balance" is "Balance" until Re-size is built, and Show appears with its first tool.
+- Under Balance phases the line reads "5 % apart". "imbalance 5 %" is wider than the 76 px a line under a button has.
+- CSV and My Excel template… are greyed away from the DB form. The page offered them only there.
+- The Documents tab opened on Load schedule. It now opens on Cable schedule; its Load schedule button lands on the Load schedule tab. The user was told of this on 2026-11-12 and has not yet answered.
+- More is on this tab only while a group waits under it.
+- Paste reads the system clipboard. Where that is refused, the status bar says to press Ctrl/⌘ V. The button has not been tried in the real app.
+- The page keeps the DB list, the Excel keys hint, the phase load readout, the bin at the end of each row and the double-click.
