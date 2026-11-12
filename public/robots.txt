@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://pdhruv15.github.io/LV-Design-Suit/sitemap.xml
+Sitemap: https://pdhruv15.github.io/LV-Design-Studio/sitemap.xml

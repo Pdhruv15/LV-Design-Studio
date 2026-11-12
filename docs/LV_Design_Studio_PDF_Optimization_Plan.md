@@ -1,6 +1,6 @@
 # LV Design Studio — PDF Report Optimization Plan
 
-**Repository:** [Pdhruv15/LV-Design-Suit](https://github.com/Pdhruv15/LV-Design-Suit)  
+**Repository:** [Pdhruv15/LV-Design-Studio](https://github.com/Pdhruv15/LV-Design-Studio)  
 **Baseline:** v1.38.0, commit `de73cf4` (originally drafted against v1.37, 14 October 2026; checked against the repo 15 October 2026)  
 **Audience:** Project owner, Claude Code, engineering QA  
 **Objective:** Simplify report generation, eliminate redundant implementations, retain essential standalone deliverables, and establish a consistent, black-and-white engineering-document format.
