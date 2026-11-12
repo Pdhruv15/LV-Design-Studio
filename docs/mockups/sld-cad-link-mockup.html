@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SLD and Design CAD link mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite dark */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--warn:#f5c04a;--new:#b784ff;--mv:#4fb3a5;--ok:#5fb87a;--bad:#e5645a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.35 -apple-system,"Segoe UI",system-ui,sans-serif;width:1952px;padding:16px 20px 20px}
+h1{font-size:17px;margin:0 0 4px}
+h2{font-size:13px;margin:18px 0 6px;font-weight:600}
+h2 .n{display:inline-block;width:18px;height:18px;line-height:18px;border-radius:50%;background:var(--acc);color:#1D2024;text-align:center;font-size:11px;margin-right:7px}
+p.lead{margin:0 0 8px;color:var(--mut);max-width:1500px}
+.legend{color:var(--mut);font-size:12px;margin:0}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin:0 5px 0 14px}
+.legend i.n{border:1.5px dashed var(--new)}
+.legend i.s{border:1px solid var(--line-strong)}
+.w{font-size:11px;color:var(--mut);margin:5px 0 0}
+.fr{border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;background:var(--panel)}
+.fr .cp{padding:6px 12px;font-size:12px;color:var(--mut);border-bottom:1px solid var(--line);background:var(--p2)}
+.fr .bd{padding:10px 12px}
+.g2{display:grid;gap:0;width:1912px}
+.new{outline:1.5px dashed var(--new);outline-offset:-1.5px}
+.mut{color:var(--mut)}
+svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+svg.d{stroke:none;display:block}
+.d text{fill:var(--tx);stroke:none;font-size:11px;font-family:inherit}
+.d .m{fill:var(--mut)}.d .b{font-weight:600}.d .bd{fill:var(--bad)}.d .ok{fill:var(--ok)}.d .wn{fill:var(--warn)}.d .pu{fill:var(--new);font-weight:600}.d .am{fill:var(--acc)}
+.d .ln{fill:none;stroke:var(--line-strong);stroke-width:1.5}
+.d .thin{fill:none;stroke:var(--mut);stroke-width:1}
+.d .bar{fill:none;stroke:var(--tx);stroke-width:3}
+.d .box{fill:var(--p2);stroke:var(--line-strong);stroke-width:1.5}
+.d .nw{fill:none;stroke:var(--new);stroke-width:1.5;stroke-dasharray:5 3}
+.d .wall{fill:none;stroke:var(--mut);stroke-width:2}
+.d .hl{fill:none;stroke:var(--acc);stroke-width:4;stroke-linejoin:round;stroke-linecap:round}
+.d .ring{fill:none;stroke:var(--acc);stroke-width:2.5}
+.d .sel{fill:none;stroke:var(--acc);stroke-width:2.5}
+.d .rok{fill:none;stroke:var(--ok);stroke-width:3.5;stroke-linejoin:round}
+.d .rwn{fill:none;stroke:var(--warn);stroke-width:3.5;stroke-linejoin:round}
+.d .rbd{fill:none;stroke:var(--bad);stroke-width:3.5;stroke-linejoin:round}
+.d .lum{fill:none;stroke:var(--mut);stroke-width:1.5}
+.d .lumh{fill:var(--acc);stroke:var(--acc);stroke-width:1.5}
+.d .solid{fill:var(--tx)}
+.d .dashg{fill:none;stroke:var(--mut);stroke-width:2;stroke-dasharray:4 3}
+.d .okb{fill:var(--p2);stroke:var(--ok);stroke-width:2}
+.bw{--tx:#000;--mut:#333;--line-strong:#000;--p2:#fff}
+.bw .hl,.bw .ring{stroke:#000}
+.paper{background:#fff;border:1px solid #000}
+/* ribbon strip, as in the SLD ribbon */
+.tools{display:inline-flex;align-items:stretch;padding:4px 8px;background:var(--p2);border:1px solid var(--line);border-radius:6px;margin-bottom:8px}
+.grp{display:flex;flex-direction:column;gap:2px;padding:0 8px}
+.btns{display:flex;gap:2px}
+.cap{font-size:11px;color:var(--mut);text-align:center;padding-top:1px}
+.big{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:56px;min-height:52px;padding:4px 8px;border-radius:6px;font-size:12px;white-space:nowrap}
+.big svg{width:20px;height:20px}
+.ch{width:11px;height:11px;vertical-align:-1px}
+.menu{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:4px;font-size:12px;white-space:nowrap;width:190px}
+.menu div{padding:5px 10px;border-radius:5px}
+.menu .tk{display:inline-block;width:16px;color:var(--acc)}
+.btn{display:inline-block;padding:2px 9px;border:1px solid var(--line-strong);border-radius:5px;font-size:11px;margin-right:4px;background:var(--p2)}
+table.t{border-collapse:collapse;font-size:12px;width:100%}
+table.t th{text-align:left;font-weight:400;color:var(--mut);font-size:11px;padding:6px 10px;border-bottom:1px solid var(--line-strong)}
+table.t td{padding:9px 10px;border-bottom:1px solid var(--line)}
+table.t .r{text-align:right}
+.sw{display:inline-block;width:14px;height:10px;border-radius:2px;vertical-align:-1px;margin:0 5px 0 0}
+.lg{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11px;color:var(--mut);margin-top:6px}
+.tag{display:inline-block;padding:5px 9px;border:1px solid var(--line-strong);border-radius:4px;background:var(--p2);font-size:12px}
+.tag .new{padding:1px 3px;margin:0 1px}
+.lab{font-size:11px;color:var(--mut);margin:8px 0 3px}
+.chips span{display:inline-block;padding:4px 14px;border-radius:6px;background:var(--p2);border:1px solid var(--line);color:var(--mut);margin-right:6px;font-size:12px}
+.chips span.on{background:var(--acc);color:#1D2024;font-weight:600;border-color:var(--acc)}
+.steps{font-size:12px;border-collapse:collapse;width:100%}
+.steps td{padding:8px 8px;border-bottom:1px solid var(--line)}
+.steps td.r{text-align:right;color:var(--acc)}
+</style>
+</head>
+<body>
+<h1>SLD and Design CAD link – mockup</h1>
+<p class="lead">What links the SLD and the plan today, and eight proposed links (L1–L8). Sample project: MDB, SMDB-1, DB-1 to DB-3.</p>
+<div class="legend"><i class="s"></i>Exists today<i class="n"></i>Proposed</div>
+
+<h2><span class="n">1</span>Today and proposed: what passes between the two</h2>
+<svg class="d" id="s1" width="1912" height="372" viewBox="0 0 1912 372"></svg>
+
+<h2><span class="n">2</span>L1 Show on plan, L2 level and room on the SLD</h2>
+<div class="g2" style="grid-template-columns:760px 140px 1012px">
+  <div class="fr"><div class="cp">SLD</div><div class="bd">
+    <div class="tools"><div class="grp"><div class="btns">
+      <div class="big"><svg viewBox="0 0 24 24"><path d="M4 20l1-5L16 4l4 4L9 19z"/><path d="M14 6l4 4"/></svg>Edit</div>
+      <div class="big"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>Delete</div>
+      <div class="big new"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>Show on plan</div>
+    </div><div class="cap">Selection</div></div></div>
+    <svg class="d" id="s2a" width="680" height="230" viewBox="0 0 680 230" style="margin:0 auto"></svg>
+  </div></div>
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px">
+    <div style="font-size:12px;color:var(--new);font-weight:600">Show on plan</div>
+    <svg class="d" width="110" height="30" viewBox="0 0 110 30"><path d="M4 15H92" stroke="#b784ff" stroke-width="3" stroke-dasharray="6 4" fill="none"/><path d="M90 6L106 15L90 24Z" fill="#b784ff"/></svg>
+  </div>
+  <div class="fr"><div class="cp">Design CAD – Level 2 – power plan</div><div class="bd">
+    <svg class="d" id="s2b" width="600" height="278" viewBox="0 0 560 260"></svg>
+    <div style="font-size:12px;margin-top:6px">DB-2 · Level 2 · Elec. room 2.01 · feeder from SMDB-1 · route 31 m on the plan, cable length 42 m</div>
+    <div class="w">Opens the level's drawing, zooms to the board or route and marks it.</div>
+  </div></div>
+</div>
+
+<h2><span class="n">3</span>L3 Plan link status, L4 length source</h2>
+<div class="g2" style="grid-template-columns:972px 940px">
+  <div class="fr"><div class="cp">SLD, Colour by: Plan link</div><div class="bd" style="display:flex;gap:14px">
+    <div style="width:190px">
+      <div style="font-size:12px;margin-bottom:6px;padding:4px 8px;border:1px solid var(--line-strong);border-radius:5px;background:var(--p2)"><span class="mut">Colour by</span> Plan link <svg class="ch" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="menu"><div><span class="tk"></span>None</div><div><span class="tk"></span>Voltage drop</div><div><span class="tk"></span>Breaker loading</div><div><span class="tk"></span>Cable utilisation</div><div><span class="tk"></span>Fault duty</div><div><span class="tk"></span>Earth fault loop</div><div class="new"><span class="tk">✓</span>Plan link</div></div>
+    </div>
+    <div>
+      <svg class="d" id="s3a" width="680" height="226" viewBox="0 0 680 226"></svg>
+      <div class="lg"><span><i class="sw" style="border:2px solid var(--ok)"></i>placed on plan</span><span><i class="sw" style="border:2px dashed var(--mut)"></i>not placed</span><span style="color:var(--ok)">length from plan</span><span>length typed</span><span style="color:var(--warn)">length to check</span></div>
+    </div>
+  </div></div>
+  <div class="fr"><div class="cp">Plan links (new list)</div><div class="bd">
+    <div class="new"><table class="t"><thead><tr><th style="width:310px">Check</th><th class="r" style="width:60px">Count</th><th>First item</th><th style="width:110px"></th></tr></thead><tbody>
+      <tr><td>Boards not on a plan</td><td class="r">1</td><td>DB-3</td><td><span class="btn">SLD</span><span class="btn">Plan</span></td></tr>
+      <tr><td>Feeders without a route</td><td class="r">4</td><td>SMDB-1 to DB-3</td><td><span class="btn">SLD</span><span class="btn">Plan</span></td></tr>
+      <tr><td>Lengths to check (route changed)</td><td class="r">2</td><td>SMDB-1 to DB-1</td><td><span class="btn">SLD</span><span class="btn">Plan</span></td></tr>
+      <tr><td>Routes whose circuit was deleted</td><td class="r">1</td><td>Level 1</td><td><span class="btn">SLD</span><span class="btn">Plan</span></td></tr>
+      <tr><td>Devices on another level than their board</td><td class="r">0</td><td class="mut">–</td><td><span class="btn">SLD</span><span class="btn">Plan</span></td></tr>
+    </tbody></table></div>
+  </div></div>
+</div>
+
+<h2><span class="n">4</span>L5 Results on the plan</h2>
+<div class="fr" style="width:1912px"><div class="cp">Design CAD – Level 2 – lighting plan</div><div class="bd" style="display:flex;gap:40px">
+  <svg class="d" id="s4" width="700" height="325" viewBox="0 0 560 260"></svg>
+  <div style="flex:1">
+    <div class="lg" style="margin:0 0 6px"><span><i class="sw" style="background:var(--ok)"></i>up to 2 %</span><span><i class="sw" style="background:var(--warn)"></i>2 to 4 %</span><span><i class="sw" style="background:var(--bad)"></i>over 4 %</span></div>
+    <div class="lab">Home-run tag – today</div><span class="tag">DB-2/L3 · 3×2.5 mm² · 28 m</span>
+    <div class="lab">Home-run tag – proposed</div><span class="tag">DB-2/L3 · <span class="new">16 A</span> · 3×2.5 mm² · 28 m · <span class="new">1.8 %</span></span>
+    <div class="lab">Board tag – today</div><span class="tag">DB-2</span>
+    <div class="lab">Board tag – proposed</div><span class="tag">DB-2 · <span class="new">63 A TPN · from SMDB-1</span></span>
+    <div class="w" style="margin-top:14px">Colours are on screen only. Prints and PDFs stay black.</div>
+  </div>
+</div></div>
+
+<h2><span class="n">5</span>L6 Trace on both screens</h2>
+<div class="g2" style="grid-template-columns:960px 952px">
+  <div class="fr"><div class="cp">SLD – Trace from DB-2 / L3</div><div class="bd" style="display:flex;gap:16px;align-items:center">
+    <svg class="d" id="s5a" width="370" height="290" viewBox="0 0 370 290"></svg>
+    <table class="steps" style="flex:1"><tbody>
+      <tr><td>MDB to SMDB-1 · 4c 95 mm² · 22 m</td><td class="r">0.4 %</td></tr>
+      <tr><td>SMDB-1 to DB-2 · 4c 25 mm² · 42 m</td><td class="r">0.9 %</td></tr>
+      <tr><td>DB-2 to L3 · 3×2.5 mm² · 28 m</td><td class="r">1.8 %</td></tr>
+      <tr><td class="mut">Total</td><td class="r"><b>3.1 %</b></td></tr>
+    </tbody></table>
+  </div></div>
+  <div class="fr"><div class="cp">Design CAD – the same path on the plans</div><div class="bd">
+    <div class="chips" style="margin-bottom:8px"><span>Ground floor</span><span>Level 1</span><span class="on">Level 2</span></div>
+    <svg class="d" id="s5b" width="560" height="260" viewBox="0 0 560 260" style="margin:0 auto"></svg>
+    <div class="w">One trace for both screens. The level strip jumps to the next part of the path.</div>
+  </div></div>
+</div>
+
+<h2><span class="n">6</span>L7 Sheet cross-references, L8 board diagram on a plan sheet</h2>
+<div class="g2" style="grid-template-columns:950px 950px;gap:12px">
+  <div class="fr"><div class="cp">E-SLD-001</div><div class="bd"><div class="paper"><svg class="d bw" id="s6a" width="924" height="340" viewBox="0 0 924 340"></svg></div></div></div>
+  <div class="fr"><div class="cp">E-PWR-003</div><div class="bd"><div class="paper"><svg class="d bw" id="s6b" width="924" height="340" viewBox="0 0 924 340"></svg></div></div></div>
+</div>
+<p class="w" style="margin-top:10px">Not drawn here: L4's data fields, and the existing related proposals (device tags, DB location helper).</p>
+
+<script>
+const $ = id => document.getElementById(id);
+const T = (x, y, s, c = '', a = '') => `<text x="${x}" y="${y}"${a ? ` text-anchor="${a}"` : ''}${c ? ` class="${c}"` : ''}>${s}</text>`;
+
+// Section 1
+(() => {
+  const rows = [
+    ['s', 'l', '', 'Right-click: Show in SLD, Show in riser, Open board'],
+    ['s', 'l', '', 'Cable lengths from routes (Update schedules)'],
+    ['s', 'l', '', 'Device counts on circuits'],
+    ['s', 'l', '', 'Board level and room (Place board)'],
+    ['s', 'r', '', 'Wiring tags: board/circuit · cable size · length'],
+    ['s', 'r', '', 'Live SLD, riser and earthing sheets'],
+    ['n', 'r', 'L1', 'Show on plan'],
+    ['n', 'l', 'L2', 'Level and room on the SLD'],
+    ['n', 'b', 'L3', 'Plan link status'],
+    ['n', 'l', 'L4', 'Length source and to-check mark'],
+    ['n', 'r', 'L5', 'Results on the plan'],
+    ['n', 'b', 'L6', 'Trace on both'],
+    ['n', 'b', 'L7', 'Sheet cross-references']
+  ];
+  let s = '<rect x="1" y="1" width="298" height="370" rx="8" fill="#1D2024" stroke="#4A5058"/><rect x="1613" y="1" width="298" height="370" rx="8" fill="#1D2024" stroke="#4A5058"/>';
+  s += T(150, 30, 'SLD (design)', 'b', 'middle') + T(150, 48, 'boards, feeders, circuits, results', 'm', 'middle');
+  s += T(1762, 30, 'Design CAD (plan and sheets)', 'b', 'middle') + T(1762, 48, 'levels, routes, devices, sheets', 'm', 'middle');
+  rows.forEach((r, i) => {
+    const y = 66 + i * 23, col = r[0] === 'n' ? '#b784ff' : '#7b838d', x1 = 300, x2 = 1612;
+    s += `<path d="M${x1} ${y}H${x2}" fill="none" stroke="${col}" stroke-width="1.5"${r[0] === 'n' ? ' stroke-dasharray="6 4"' : ''}/>`;
+    const head = (x, d) => `<path d="M${x} ${y}l${-9 * d} -5v10z" fill="${col}"/>`;
+    if (r[1] !== 'r') s += head(x1, -1);
+    if (r[1] !== 'l') s += head(x2, 1);
+    const txt = (r[2] ? r[2] + '  ' : '') + r[3], w = txt.length * 6.4 + 20;
+    s += `<rect x="${956 - w / 2}" y="${y - 9}" width="${w}" height="18" fill="#15171A"/>`;
+    s += `<text x="956" y="${y + 4}" text-anchor="middle" style="font-size:12px">${r[2] ? `<tspan class="pu">${r[2]}</tspan>  ` : ''}${r[3]}</text>`;
+  });
+  $('s1').innerHTML = s;
+})();
+
+// Single-line fragment
+function sld(o) {
+  const X = [100, 300, 500], N = ['DB-1', 'DB-2', 'DB-3'];
+  const cab = [['4c 25 mm²', '30 m'], ['4c 25 mm²', '42 m'], ['4c 16 mm²', '55 m']];
+  const src = [['to check', 'wn'], ['plan', 'ok'], ['typed', 'm']];
+  const lv = ['Level 1 · Elec. room 1.01', 'Level 2 · Elec. room 2.01', 'Not on a plan'];
+  const pl = ['Plan: E-PWR-002', 'Plan: E-PWR-003', 'Plan: –'];
+  let s = '<path class="bar" d="M40 40H580"/>' + T(40, 28, 'SMDB-1', 'b') + '<path class="ln" d="M300 8V40"/>' + T(310, 22, 'from MDB · 4c 95 mm² · 22 m', 'm');
+  X.forEach((x, i) => {
+    s += `<path class="ln" d="M${x} 40V150"/><rect class="box" x="${x - 6}" y="68" width="12" height="18"/><path class="ln" d="M${x - 6} 86L${x + 6} 68"/>`;
+    if (o.status) s += T(x + 10, 118, `${cab[i][0]} · ${cab[i][1]} · ${src[i][0]}`, src[i][1]);
+    else s += T(x + 10, 118, `${cab[i][0]} · ${cab[i][1]}`, 'm');
+    s += `<rect class="${o.status ? (i < 2 ? 'okb' : 'dashg') : 'box'}" x="${x - 60}" y="150" width="120" height="34" rx="3"/>` + T(x, 172, N[i], 'b', 'middle');
+    if (o.sel === i) s += `<rect class="sel" x="${x - 64}" y="146" width="128" height="42" rx="4"/>`;
+    if (o.lv) s += `<rect class="nw" x="${x - 80}" y="196" width="160" height="22" rx="3"/>` + T(x, 211, lv[i], i === 2 ? 'm' : '', 'middle');
+    if (o.sheets) s += `<rect class="nw" x="${x - 70}" y="196" width="140" height="22" rx="3"/>` + T(x, 211, pl[i], '', 'middle');
+  });
+  return s;
+}
+
+// Floor plan, 560 x 260
+function plan(o) {
+  const light = o.mode === 'light' || o.mode === 'trace', trace = o.mode === 'trace';
+  let s = '<rect class="wall" x="20" y="20" width="520" height="220"/><path class="wall" d="M20 94H540M20 136H540M300 20V94M400 136V240"/>';
+  s += T(30, 36, 'Office', 'm') + T(310, 36, 'Meeting', 'm') + T(30, 152, 'Room C', 'm') + T(100, 131, 'Corridor', 'm') + T(470, 232, 'Elec. room 2.01', 'm', 'middle');
+  s += '<rect class="box" x="24" y="110" width="16" height="16"/><path class="ln" d="M24 110L40 126M40 110L24 126"/>' + T(24, 106, 'Riser', 'm');
+  if (o.mode === 'power' || trace) s += '<path class="hl" d="M40 118H450V172H490"/>';
+  if (light) {
+    const lum = (xs, y, c) => xs.map(x => `<circle class="${c}" cx="${x}" cy="${y}" r="5"/>`).join('');
+    const link = (a, b, y) => `<path class="thin" d="M${a} ${y}H${b}"/>`;
+    const A = [330, 260, 190, 120], B = [420, 380, 340], C = [230, 160, 90];
+    if (trace) {
+      s += '<path class="hl" d="M499 180V196H330"/>' + link(330, 120, 196) + lum(A, 196, 'lumh');
+      s += '<path class="thin" d="M508 172H524V58H420"/>' + link(420, 340, 58) + lum(B, 58, 'lum');
+      s += '<path class="thin" d="M490 172H476V110H230V58"/>' + link(230, 90, 58) + lum(C, 58, 'lum');
+      s += T(225, 185, 'L3', 'am', 'middle');
+    } else {
+      s += '<path class="rok" d="M499 180V196H330"/>' + link(330, 120, 196) + lum(A, 196, 'lum');
+      s += '<path class="rwn" d="M508 172H524V58H420"/>' + link(420, 340, 58) + lum(B, 58, 'lum');
+      s += '<path class="rbd" d="M490 172H476V110H230V58"/>' + link(230, 90, 58) + lum(C, 58, 'lum');
+      s += T(225, 185, 'L3 · 1.8 %', 'ok', 'middle') + T(380, 46, 'L4 · 3.1 %', 'wn', 'middle') + T(160, 46, 'L5 · 4.6 %', 'bd', 'middle');
+    }
+  }
+  s += '<rect class="solid" x="490" y="164" width="18" height="16"/>' + T(499, 158, 'DB-2', 'b', 'middle');
+  if (o.ring || trace) s += '<rect class="ring" x="482" y="144" width="34" height="42" rx="4"/>';
+  return s;
+}
+
+$('s2a').innerHTML = sld({ sel: 1, lv: 1 });
+$('s2b').innerHTML = plan({ mode: 'power', ring: 1 });
+$('s3a').innerHTML = sld({ status: 1 });
+$('s4').innerHTML = plan({ mode: 'light' });
+$('s5b').innerHTML = plan({ mode: 'trace' });
+
+// Section 5 chain
+(() => {
+  const box = (x, y, t, hi) => `<rect class="${hi ? 'sel' : 'box'}" x="${x}" y="${y}" width="100" height="28" rx="3"${hi ? ' style="fill:#26292E"' : ''}/>` + T(x + 50, y + 18, t, hi ? 'b' : 'm', 'middle');
+  let s = '';
+  s += '<path class="ln" d="M200 100H225V74H250M225 100V130H250M200 184H225V159H250M225 184V209H250"/>';
+  s += box(250, 62, 'DB-1') + box(250, 118, 'DB-3') + box(250, 147, 'L1') + box(250, 197, 'L2');
+  s += '<path class="hl" d="M150 40V86M150 114V170M150 198V250"/>';
+  s += box(100, 12, 'MDB', 1) + box(100, 86, 'SMDB-1', 1) + box(100, 170, 'DB-2', 1) + box(100, 250, 'Circuit L3', 1);
+  $('s5a').innerHTML = s;
+})();
+
+// Section 6
+(() => {
+  const title = (n, d) => `<rect x="704" y="282" width="212" height="52" fill="none" stroke="#000" stroke-width="1.5"/><path d="M704 304H916" stroke="#000" stroke-width="1"/>` + T(810, 299, n, 'b', 'middle') + T(810, 324, d, '', 'middle');
+  $('s6a').innerHTML = `<g transform="translate(20 24)">${sld({ sheets: 1 })}</g>` + title('E-SLD-001', 'Single-line diagram');
+  const L8 = '<rect class="nw" x="600" y="14" width="312" height="150" rx="3"/>' + T(612, 34, 'L8 – needs a decision:', 'pu') + T(612, 49, 'DB-2 board diagram or schedule', 'pu') + T(612, 64, 'in a viewport', 'pu')
+    + '<path class="bar" d="M620 100H890"/>' + T(620, 92, 'DB-2', 'b') + [640, 705, 770, 835, 880].map(x => `<path class="ln" d="M${x} 100V140"/>`).join('');
+  $('s6b').innerHTML = `<g transform="translate(20 8)">${plan({ mode: 'power' })}</g>`
+    + '<rect class="nw" x="360" y="284" width="226" height="22" rx="3"/>' + T(473, 299, 'SLD: E-SLD-001 · Board: E-DB-004', '', 'middle') + L8 + title('E-PWR-003', 'Level 2 power plan');
+})();
+
+document.head.appendChild(document.createElement('style')).textContent = '@page{size:1952px ' + Math.ceil(document.documentElement.scrollHeight) + 'px;margin:0}';
+</script>
+</body>
+</html>
