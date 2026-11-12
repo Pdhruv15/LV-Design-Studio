@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.109', date: '2026-11-12',
+    items: [
+      { title: 'Load schedule ribbon: circuits, rows, balance, copy and export on the row', text: 'The Load schedule tab now holds the schedule commands that sat above the table and in the page header. Add circuit (the arrow beside it for a 3-phase circuit), Spare (with Space and the 3-phase ones) and Add load make up Circuits and loads. Rows has Fill down, Edit and Delete for the circuit you last clicked. Balance phases shows how far apart the phases are. Copy, Paste, Undo and Redo, and Export (Excel, PDF, CSV, the submission pack and your own Excel template) follow. Run shows how many studies are out of date, and on a narrow window the last groups wait under More. Documents → Load schedule now opens the Load schedule tab.' }
+    ]
+  },
+  {
     version: '2.108', date: '2026-11-12',
     items: [
       { title: 'SLD ribbon: checks, supply, results, copy and export on the row', text: 'The SLD tab now holds the commands that sat elsewhere. Check, beside Run, counts the circuits that fail or need checking and goes to the next one; Run shows how many studies are out of date. Supply and Devices choose a transformer, generator, meter cabinet, breaker, meter or capacitor bank from the equipment library: pick one, then click the drawing. Results has Values, Colour by and Scenario with the setting in use beside each; they have moved up from the bar above the drawing, and so has Export. Copy, Paste, Undo, Redo and Fit are buttons too. On a narrow window the groups that do not fit wait under More.' }

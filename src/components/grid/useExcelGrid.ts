@@ -10,13 +10,28 @@ const valueOf = (el: Cell): string => {
 };
 const isField = (el: Element | null): el is HTMLInputElement | HTMLSelectElement => el instanceof HTMLInputElement || el instanceof HTMLSelectElement;
 
+/** What the keys do, for buttons outside the table. They act on the selection, which stays when focus moves away. */
+export interface GridCommands {
+  /** Puts the selected cells on the clipboard as tab / line text; false when nothing is selected. */
+  copy: () => boolean;
+  /** Fills the top row of a multi-cell selection down it. */
+  fillDown: () => void;
+  /** Pastes tab / line text starting at the selection's first cell; false when no cell is selected. */
+  paste: (text: string) => boolean;
+}
+
 /** Adds Excel-style keyboard, selection, copy, paste, fill-down and clear
  * to a table (see excelGrid.ts). `onEdits` receives the changes for
  * multi-cell operations; single-cell typing stays with the inputs' own
- * handlers. */
-export function useExcelGrid(ref: RefObject<HTMLElement>, onEdits: (edits: GridEdit[]) => void) {
+ * handlers. `onActive` is told the active cell whenever it changes (null:
+ * none). The returned commands do what the keys do. */
+export function useExcelGrid(ref: RefObject<HTMLElement>, onEdits: (edits: GridEdit[]) => void, onActive?: (p: Pos | null) => void): GridCommands {
   const latest = useRef(onEdits);
   latest.current = onEdits;
+  const told = useRef(onActive);
+  told.current = onActive;
+  const run = useRef<GridCommands>({ copy: () => false, fillDown: () => {}, paste: () => false });
+  const commands = useRef<GridCommands>({ copy: () => run.current.copy(), fillDown: () => run.current.fillDown(), paste: (t) => run.current.paste(t) });
   const sel = useRef<{ anchor: Pos; focus: Pos } | null>(null);
   const dragging = useRef(false);
 
@@ -34,6 +49,8 @@ export function useExcelGrid(ref: RefObject<HTMLElement>, onEdits: (edits: GridE
       const { ys, xs } = axes(allPos());
       for (const p of blockOf(s.anchor, s.focus, ys, xs)) (at(p)?.closest('td') ?? at(p))?.classList.add('gx-sel');
     };
+    // Every change of selection goes through paint(); the active cell is the one the selection ends on.
+    const paintAndTell = () => { paint(); told.current?.(sel.current?.focus ?? null); };
     const block = (): Pos[] => {
       const s = sel.current;
       if (!s) return [];
@@ -71,6 +88,34 @@ export function useExcelGrid(ref: RefObject<HTMLElement>, onEdits: (edits: GridE
       return undefined;
     };
 
+    const copy = () => {
+      const b = block();
+      if (!b.length) return false;
+      const { ys, xs } = axes(b);
+      const rows = ys.map((y) => xs.map((x) => { const el = at({ y, x }); return el ? valueOf(el) : ''; }));
+      void navigator.clipboard?.writeText(toClipboard(rows));
+      return true;
+    };
+    const fillDown = () => {
+      const b = multi() ? block() : [];
+      if (b.length) latest.current(fillDownEdits(b, (q) => { const el = at(q); return el ? valueOf(el) : ''; }));
+    };
+    const pasteAt = (text: string, p: Pos) => {
+      const { ys, xs } = axes(allPos());
+      const start = multi() ? block()[0] : p;
+      latest.current(pasteEdits(parseClipboard(text), start, ys, xs));
+    };
+    run.current = {
+      copy,
+      fillDown,
+      paste: (text) => {
+        const p = sel.current?.focus;
+        if (!p) return false;
+        pasteAt(text, p);
+        return true;
+      }
+    };
+
     const onKey = (e: KeyboardEvent) => {
       const p = posOf(e.target as Element);
       if (!p) return;
@@ -78,7 +123,7 @@ export function useExcelGrid(ref: RefObject<HTMLElement>, onEdits: (edits: GridE
       // from outside the grid's own moves) starts a fresh selection there.
       if (!sel.current || sel.current.focus.y !== p.y || sel.current.focus.x !== p.x) {
         sel.current = { anchor: p, focus: p };
-        paint();
+        paintAndTell();
       }
       const mod = e.metaKey || e.ctrlKey;
       const t = e.target as Element;
@@ -88,16 +133,12 @@ export function useExcelGrid(ref: RefObject<HTMLElement>, onEdits: (edits: GridE
 
       if (mod && e.key.toLowerCase() === 'c' && multi()) {
         e.preventDefault();
-        const b = block();
-        const { ys, xs } = axes(b);
-        const rows = ys.map((y) => xs.map((x) => { const el = at({ y, x }); return el ? valueOf(el) : ''; }));
-        void navigator.clipboard?.writeText(toClipboard(rows));
+        copy();
         return;
       }
       if (mod && e.key.toLowerCase() === 'd') {
         e.preventDefault();
-        const b = multi() ? block() : [];
-        if (b.length) latest.current(fillDownEdits(b, (q) => { const el = at(q); return el ? valueOf(el) : ''; }));
+        fillDown();
         return;
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && multi()) {
@@ -112,7 +153,7 @@ export function useExcelGrid(ref: RefObject<HTMLElement>, onEdits: (edits: GridE
         if (e.shiftKey && (dy || dx) && e.key.startsWith('Arrow')) {
           sel.current = { anchor: sel.current?.anchor ?? p, focus: next };
         } else sel.current = { anchor: next, focus: next };
-        paint();
+        paintAndTell();
         focusCell(next);
       };
       if (t instanceof HTMLSelectElement && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey) return; // let the dropdown work
@@ -120,7 +161,7 @@ export function useExcelGrid(ref: RefObject<HTMLElement>, onEdits: (edits: GridE
       else if (e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey)) move(-1, 0);
       else if (e.key === 'ArrowRight' && (e.shiftKey || atEnd)) move(0, 1);
       else if (e.key === 'ArrowLeft' && (e.shiftKey || atStart)) move(0, -1);
-      else if (e.key === 'Escape') { sel.current = null; paint(); }
+      else if (e.key === 'Escape') { sel.current = null; paintAndTell(); }
     };
 
     const onPaste = (e: ClipboardEvent) => {
@@ -129,9 +170,7 @@ export function useExcelGrid(ref: RefObject<HTMLElement>, onEdits: (edits: GridE
       const text = e.clipboardData?.getData('text/plain') ?? '';
       if (!/[\t\n]/.test(text.replace(/\n$/, ''))) return; // one value: the input's own paste
       e.preventDefault();
-      const { ys, xs } = axes(allPos());
-      const start = multi() ? block()[0] : p;
-      latest.current(pasteEdits(parseClipboard(text), start, ys, xs));
+      pasteAt(text, p);
     };
 
     const onFocus = (e: FocusEvent) => {
@@ -139,7 +178,7 @@ export function useExcelGrid(ref: RefObject<HTMLElement>, onEdits: (edits: GridE
       if (!p || dragging.current) return;
       if (!sel.current || (sel.current.focus.y !== p.y || sel.current.focus.x !== p.x)) {
         sel.current = { anchor: p, focus: p };
-        paint();
+        paintAndTell();
       }
     };
     const onDown = (e: MouseEvent) => {
@@ -147,20 +186,20 @@ export function useExcelGrid(ref: RefObject<HTMLElement>, onEdits: (edits: GridE
       if (!p || e.button !== 0) return;
       if (e.shiftKey && sel.current) {
         sel.current = { anchor: sel.current.anchor, focus: p };
-        paint();
+        paintAndTell();
         e.preventDefault();
         return;
       }
       sel.current = { anchor: p, focus: p };
       dragging.current = true;
-      paint();
+      paintAndTell();
     };
     const onOver = (e: MouseEvent) => {
       if (!dragging.current || !sel.current) return;
       const p = posOf(e.target as Element);
       if (p && (p.y !== sel.current.focus.y || p.x !== sel.current.focus.x)) {
         sel.current = { ...sel.current, focus: p };
-        paint();
+        paintAndTell();
         (document.activeElement as HTMLElement | null)?.blur?.();
       }
     };
@@ -186,4 +225,5 @@ export function useExcelGrid(ref: RefObject<HTMLElement>, onEdits: (edits: GridE
     // Re-attached after every render: the table may appear later (e.g. when
     // switching from another form), and a ref change doesn't re-run effects.
   });
+  return commands.current;
 }

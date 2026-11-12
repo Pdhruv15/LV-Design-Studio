@@ -26,8 +26,8 @@ export const WORKFLOW: GuideStep[] = [
 export interface QuickPath { task: string; where: string; steps: string; go: MainView }
 export const QUICK_PATHS: QuickPath[] = [
   { task: 'A quick number (amps, kW ↔ kVA, cable, voltage drop, lux)', where: 'SLD → More → Quick calcs', steps: 'Type values — instant; nothing changes in the project.', go: 'calculators' },
-  { task: 'One DB load schedule', where: 'Documents → Load schedule', steps: 'Click the DB in the tree → enter circuits → Export PDF / Excel.', go: 'load-schedule' },
-  { task: 'DEWA forms (MD, TCL summary, bus riser)', where: 'Documents → Load schedule → tabs', steps: 'Check the details → Submission pack (Excel).', go: 'load-schedule' },
+  { task: 'One DB load schedule', where: 'Documents → Load schedule', steps: 'Click the DB in the tree → enter circuits → Load schedule → Export → PDF: this form or Excel: this form.', go: 'load-schedule' },
+  { task: 'DEWA forms (MD, TCL summary, bus riser)', where: 'Documents → Load schedule → tabs', steps: 'Check the details → Load schedule → Export → Submission pack (Excel).', go: 'load-schedule' },
   { task: 'Short circuit (or any study) for chosen MDBs', where: 'Documents → Study reports', steps: 'Tick boards → tick studies → Export PDF.', go: 'study-reports' },
   { task: 'Transformer / generator size', where: 'Stages → 1 Concept → Tx & Gen sizing', steps: 'Tick MDBs and the generator boards → Apply to SLD.', go: 'sizing' },
   { task: 'Power factor correction', where: 'Stages → 2 Schematic → Power factor', steps: 'Central / Group / Individual → Add to SLD → PDF sheet.', go: 'pfc' },
