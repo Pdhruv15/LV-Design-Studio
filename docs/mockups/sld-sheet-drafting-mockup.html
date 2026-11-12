@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SLD sheets mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite dark */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--warn:#f5c04a;--new:#b784ff;--mv:#4fb3a5;--ok:#5fb87a;--bad:#e5645a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.35 -apple-system,"Segoe UI",system-ui,sans-serif;width:1952px;padding:16px 20px 20px}
+h1{font-size:17px;margin:0 0 4px}
+h2{font-size:13px;margin:18px 0 6px;font-weight:600}
+h2 .n{display:inline-block;width:18px;height:18px;line-height:18px;border-radius:50%;background:var(--acc);color:#1D2024;text-align:center;font-size:11px;margin-right:7px}
+p.lead{margin:0 0 8px;color:var(--mut);max-width:1500px}
+.legend{color:var(--mut);font-size:12px;margin:0}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin:0 5px 0 14px}
+.legend i.n{border:1.5px dashed var(--new)}
+.legend i.s{border:1px solid var(--line-strong)}
+.w{font-size:11px;color:var(--mut);margin:5px 0 0}
+.fr{border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;background:var(--panel)}
+.fr .cp{padding:6px 12px;font-size:12px;color:var(--mut);border-bottom:1px solid var(--line);background:var(--p2)}
+.fr .bd{padding:10px 12px}
+.g2{display:grid;gap:0;width:1912px}
+.new{outline:1.5px dashed var(--new);outline-offset:-1.5px}
+.mut{color:var(--mut)}
+svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+svg.d{stroke:none;display:block}
+.d text{fill:var(--tx);stroke:none;font-size:11px;font-family:inherit}
+.d .m{fill:var(--mut)}.d .b{font-weight:600}.d .pu{fill:var(--new);font-weight:600}.d .am{fill:var(--acc)}
+.d .ln{fill:none;stroke:var(--line-strong);stroke-width:1.5}
+.d .k{fill:none;stroke:var(--tx);stroke-width:1.2}
+.d .kt{fill:none;stroke:var(--tx);stroke-width:2.2}
+.d .thin{fill:none;stroke:var(--mut);stroke-width:1}
+.d .dsh{fill:none;stroke:var(--mut);stroke-width:1;stroke-dasharray:3 3}
+.d .bar{fill:none;stroke:var(--tx);stroke-width:3}
+.d .box{fill:var(--p2);stroke:var(--line-strong);stroke-width:1.5}
+.d .nw{fill:none;stroke:var(--new);stroke-width:1.5;stroke-dasharray:5 3}
+.d .cl{fill:none;stroke:var(--tx);stroke-width:1.5}
+.d .clf{fill:none;stroke:#999;stroke-width:1;stroke-dasharray:2 3}
+.d .tri{fill:#fff;stroke:var(--tx);stroke-width:1.2}
+.d .trf{fill:#fff;stroke:#999;stroke-width:1}
+.d .hat{fill:none;stroke:#bbb;stroke-width:.8}
+.d .grip{fill:var(--acc);stroke:none}
+.d .fill{fill:var(--tx);stroke:none}
+.d .sc7 text{font-size:15.7px}.d .sc6 text{font-size:18.3px}.d .sc5 text{font-size:22px}
+.bw{--tx:#000;--mut:#333;--line-strong:#000;--p2:#fff}
+.paper{background:#fff;border:1px solid #000}
+.tools{display:inline-flex;gap:10px;align-items:stretch;padding:4px 8px;background:var(--p2);border:1px solid var(--line);border-radius:6px;margin-bottom:6px}
+.grp{display:flex;flex-direction:column;gap:2px;padding:0 4px;border-radius:6px}
+.btns{display:flex;gap:2px}
+.cap{font-size:11px;color:var(--mut);text-align:center;padding-top:1px}
+.big{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:56px;min-height:52px;padding:4px 8px;border-radius:6px;font-size:12px;white-space:nowrap}
+.big svg{width:20px;height:20px}
+.big.on{background:var(--acc);color:#1D2024}
+.btn2{display:inline-block;padding:6px 18px;border:1px solid var(--line-strong);border-radius:6px;background:var(--p2);font-size:12px;margin-right:6px}
+.chip{display:inline-block;padding:2px 9px;border:1px solid var(--line-strong);border-radius:12px;font-size:11px;margin:0 4px 6px 0;background:var(--p2)}
+.h4{font-size:12px;font-weight:600;margin:14px 0 6px}
+table.t{border-collapse:collapse;font-size:12px;width:100%}
+table.t th{text-align:left;font-weight:400;color:var(--mut);font-size:11px;padding:6px 10px;border-bottom:1px solid var(--line-strong)}
+table.t td{padding:8px 10px;border-bottom:1px solid var(--line)}
+table.t .r{text-align:right}
+.tabs{display:flex;gap:4px;margin-bottom:8px}
+.tabs span{padding:4px 16px;border-radius:6px 6px 0 0;background:var(--p2);border:1px solid var(--line);color:var(--mut);font-size:12px}
+.tabs span.on{background:var(--acc);color:#1D2024;font-weight:600;border-color:var(--acc)}
+.tabs span.nw2{outline:1.5px dashed var(--new);outline-offset:-1.5px}
+.radio{display:flex;align-items:center;gap:8px;font-size:12px;margin:6px 0}
+.radio i{display:inline-block;width:12px;height:12px;border-radius:50%;border:1.5px solid var(--mut)}
+.radio i.on{border-color:var(--acc);background:radial-gradient(var(--acc) 40%,transparent 45%)}
+</style>
+</head>
+<body>
+<h1>SLD sheets: DWG, title block and drafting tools – mockup</h1>
+<p class="lead">What an SLD sheet carries today, and five proposed items (P1–P5). Sample project: MDB, SMDB-1, DB-1 to DB-3.</p>
+<div class="legend"><i class="s"></i>Exists today<i class="n"></i>Proposed</div>
+
+<h2><span class="n">1</span>Today: an SLD sheet in Design CAD, Sheets</h2>
+<div class="g2" style="grid-template-columns:1300px 612px">
+  <div class="fr"><div class="cp">Design CAD – Sheets – E-SLD-001</div><div class="bd">
+    <div class="tools" id="r1"></div>
+    <div class="w" style="margin:0 0 6px">Draw, Modify, Annotate and Blocks are not offered on a sheet.</div>
+    <div class="paper"><svg class="d bw" id="s1" width="1274" height="330" viewBox="0 0 1274 330"></svg></div>
+  </div></div>
+  <div class="fr"><div class="cp">Export</div><div class="bd">
+    <div><span class="btn2">PDF</span><span class="btn2">DXF</span><span class="btn2">DWG</span><span class="btn2">SVG</span></div>
+    <div class="h4">Layers in the DXF and DWG</div>
+    <div><span class="chip">E-FRAME</span><span class="chip">E-TITLE</span><span class="chip">E-LEGEND</span><span class="chip">E-NOTES</span><span class="chip">E-SYMBOL</span><span class="chip">E-CABLE</span><span class="chip">E-BUSBAR</span><span class="chip">E-TEXT</span><span class="chip">E-RESULT</span><span class="chip">E-MARKUP</span></div>
+    <div style="margin-top:10px"><span class="chip" style="padding:4px 12px;font-size:12px">Cloud the changes · 2 since Rev B</span></div>
+    <div class="w" style="margin-top:14px">The DWG is written by the app's own CAD engine.</div>
+    <div class="w">Title block: drawn, or the company's own block with attributes.</div>
+  </div></div>
+</div>
+
+<h2><span class="n">2</span>P1 Drafting tools on the sheet, P2 blocks on sheets</h2>
+<div class="fr" style="width:1912px"><div class="cp">Design CAD – Sheets – E-SLD-001 (proposed)</div><div class="bd">
+  <div class="tools" id="r2"></div>
+  <div class="paper"><svg class="d bw" id="s2" width="1886" height="370" viewBox="0 0 1886 370"></svg></div>
+  <div class="w">Saved with the sheet. Each goes into the DWG as its own entity on its own layer. A note placed beside a board follows it when the SLD is laid out again.</div>
+</div></div>
+
+<h2><span class="n">3</span>P3 SLD symbols as blocks in the DWG</h2>
+<p class="w" style="margin:0 0 6px">The exported DWG, opened in a CAD program</p>
+<div class="g2" style="grid-template-columns:624px 624px 624px;gap:20px">
+  <div class="fr"><div class="cp">Today: loose lines</div><div class="bd">
+    <svg class="d" id="s3a" width="598" height="190" viewBox="0 0 598 190"></svg>
+    <div class="w">8 separate objects on E-SYMBOL and E-TEXT</div>
+  </div></div>
+  <div class="fr new"><div class="cp">Proposed: one block</div><div class="bd">
+    <svg class="d" id="s3b" width="598" height="190" viewBox="0 0 598 190"></svg>
+  </div></div>
+  <div class="fr new"><div class="cp">Proposed: count by block</div><div class="bd">
+    <table class="t" style="margin-top:14px"><thead><tr><th>Block</th><th class="r">Count</th></tr></thead><tbody>
+      <tr><td>LV-BOARD</td><td class="r">5</td></tr><tr><td>LV-MCCB</td><td class="r">4</td></tr><tr><td>LV-MCB</td><td class="r">36</td></tr><tr><td>LV-LOAD</td><td class="r">36</td></tr>
+    </tbody></table>
+  </div></div>
+</div>
+<p class="w" style="margin-top:6px">The receiving office can count, filter and restyle the symbols. Block names are examples.</p>
+
+<h2><span class="n">4</span>P4 Clouds across revisions</h2>
+<div class="g2" style="grid-template-columns:740px 1172px;gap:0">
+  <div class="fr"><div class="cp">Today, Rev D issued</div><div class="bd">
+    <div class="paper"><svg class="d bw" id="s4a" width="716" height="330" viewBox="0 0 716 330"></svg></div>
+    <div class="w">Clouds of Rev B and Rev C stay until they are removed by hand.</div>
+  </div></div>
+  <div class="fr"><div class="cp">Proposed, Rev D issued</div><div class="bd" style="display:flex;gap:20px">
+    <div><div class="paper"><svg class="d bw" id="s4b" width="716" height="330" viewBox="0 0 716 330"></svg></div></div>
+    <div style="flex:1">
+      <div class="new" style="padding:10px 14px"><div class="h4" style="margin-top:0">Clouds shown</div>
+        <div class="radio"><i class="on"></i>Current revision only</div><div class="radio"><i></i>All revisions</div></div>
+      <div class="new" style="padding:10px 14px;margin-top:12px"><div style="font-size:12px;margin-bottom:8px">Cloud the changes also on:</div>
+        <span class="chip">E-RSR-001 riser</span><span class="chip">E-ERT-001 earthing</span><span class="chip">E-PWR-003 plan</span></div>
+      <div class="w" style="margin-top:12px">Cloud the changes exists on SLD sheets today.</div>
+    </div>
+  </div></div>
+</div>
+
+<h2><span class="n">5</span>P5 Paper space in the DWG</h2>
+<div class="g2" style="grid-template-columns:950px 950px;gap:12px">
+  <div class="fr"><div class="cp">Today</div><div class="bd">
+    <div class="tabs"><span class="on">Model</span></div>
+    <svg class="d" id="s5a" width="924" height="270" viewBox="0 0 924 270"></svg>
+    <div class="w">Everything is in model space, at paper size.</div>
+  </div></div>
+  <div class="fr new"><div class="cp">Proposed</div><div class="bd">
+    <div class="tabs"><span class="on">Model</span><span class="nw2">E-SLD-001</span></div>
+    <svg class="d" id="s5b" width="924" height="270" viewBox="0 0 924 270"></svg>
+    <div class="w">The SLD in model space; title block and notes on the layout.</div>
+  </div></div>
+</div>
+<p class="w" style="margin-top:12px">P1 changes the choice of 29 Oct 2026 to keep one small markup set on sheets; it needs its own yes.</p>
+
+<script>
+const $ = id => document.getElementById(id);
+const T = (x, y, s, c = '', a = '') => `<text x="${x}" y="${y}"${a ? ` text-anchor="${a}"` : ''}${c ? ` class="${c}"` : ''}>${s}</text>`;
+const chip = (x, y, s) => { const w = Math.round(s.length * 6.1 + 14); return `<rect class="nw" x="${x}" y="${y}" width="${w}" height="18" rx="3"/>` + T(x + 7, y + 13, s, 'pu'); };
+
+// Ribbon strips
+const IC = {
+  select: '<path d="M5 3l13 7-6 1.5L9 18z"/>', cloud: '<path d="M7 18a4 4 0 0 1-.5-8 5 5 0 0 1 9.5-1 4.5 4.5 0 0 1 1 9z"/>',
+  note: '<rect x="4" y="4" width="16" height="16" rx="1"/><path d="M8 9h8M8 13h5"/>', callout: '<rect x="3" y="3" width="15" height="9"/><path d="M8 12l-3 8M5 20l4-2M5 20l-1-4"/>',
+  arrow: '<path d="M4 20L19 5M10 5h9v9"/>', box: '<rect x="4" y="6" width="16" height="12"/>', line: '<path d="M4 19L20 5"/>',
+  colour: '<circle cx="12" cy="12" r="8"/><circle cx="9" cy="10" r="1.2"/><circle cx="14" cy="9" r="1.2"/>', th: '<path d="M4 18V6M2 8l2-3 2 3M2 16l2 3 2-3M10 7h10M15 7v11"/>',
+  text: '<path d="M5 6h14M12 6v13M9 19h6"/>', mtext: '<path d="M4 6h16M4 11h16M4 16h10"/>', dim: '<path d="M4 8v8M20 8v8M4 12h16M7 10l-3 2 3 2M17 10l3 2-3 2"/>',
+  leader: '<path d="M5 19L14 8h6M5 19l1-4M5 19l4-1"/>', table: '<rect x="3" y="4" width="18" height="16"/><path d="M3 9h18M3 14.5h18M9 4v16"/>',
+  hatch: '<rect x="4" y="4" width="16" height="16"/><path d="M4 12L12 4M4 20L20 4M12 20l8-8"/>', insert: '<rect x="3" y="6" width="12" height="12"/><path d="M19 9v6M16 12h6"/>',
+  stamp: '<rect x="4" y="12" width="16" height="7"/><path d="M9 12V8a3 3 0 0 1 6 0v4"/>'
+};
+const grp = (cap, tools, n) => `<div class="grp${n ? ' new' : ''}"><div class="btns">${tools.map(([k, l], i) => `<div class="big${k === 'select' ? ' on' : ''}"><svg viewBox="0 0 24 24">${IC[k]}</svg>${l}</div>`).join('')}</div><div class="cap">${cap}</div></div>`;
+const MK = [['select', 'Select'], ['cloud', 'Cloud'], ['note', 'Note'], ['callout', 'Callout'], ['arrow', 'Arrow'], ['box', 'Box'], ['line', 'Line']];
+$('r1').innerHTML = grp('Markup', MK.concat([['colour', 'Colour'], ['th', 'Text height']])) + grp('On panels', [['cloud', 'Cloud'], ['arrow', 'Arrow']]);
+$('r2').innerHTML = grp('Markup', MK) + grp('Annotate', [['text', 'Text'], ['mtext', 'Multi-line text'], ['dim', 'Dimension'], ['leader', 'Leader'], ['table', 'Table'], ['hatch', 'Hatch']], 1) + grp('Blocks', [['insert', 'Insert'], ['stamp', 'Stamp']], 1);
+
+// Single-line fragment (680 wide, about 205 high)
+function sld(X) {
+  X = X || [100, 300, 500];
+  const N = ['DB-1', 'DB-2', 'DB-3'], cab = ['4c 25 mm² · 30 m', '4c 25 mm² · 42 m', '4c 16 mm² · 55 m'];
+  let s = `<path class="bar" d="M${X[0] - 60} 40H${X[2] + 80}"/>` + T(X[0] - 60, 28, 'SMDB-1', 'b') + `<path class="ln" d="M${X[1]} 8V40"/>` + T(X[1] + 10, 22, 'from MDB · 4c 95 mm² · 22 m', 'm');
+  X.forEach((x, i) => {
+    s += `<path class="ln" d="M${x} 40V150"/><rect class="box" x="${x - 6}" y="68" width="12" height="18"/><path class="ln" d="M${x - 6} 86L${x + 6} 68"/>` + T(x + 10, 118, cab[i], 'm');
+    s += `<rect class="box" x="${x - 60}" y="150" width="120" height="34" rx="3"/>` + T(x, 172, N[i], 'b', 'middle');
+  });
+  return s;
+}
+const frag = (x, y, k, cls) => `<g transform="translate(${x} ${y})${k ? ` scale(${k})` : ''}"${cls ? ` class="${cls}"` : ''}>${sld()}</g>`;
+
+// Revision cloud: scalloped outline, clockwise
+function cloud(x, y, w, h, letter, faint) {
+  const nx = Math.round(w / 14), ny = Math.round(h / 14), p = [];
+  for (let i = 0; i < nx; i++) p.push([x + w * i / nx, y]);
+  for (let i = 0; i < ny; i++) p.push([x + w, y + h * i / ny]);
+  for (let i = 0; i < nx; i++) p.push([x + w - w * i / nx, y + h]);
+  for (let i = 0; i < ny; i++) p.push([x, y + h - h * i / ny]);
+  let d = `M${p[0][0]} ${p[0][1]}`;
+  p.forEach((_, k) => { const q = p[(k + 1) % p.length]; d += `A8 8 0 0 1 ${q[0].toFixed(1)} ${q[1].toFixed(1)}`; });
+  const tx = x + w + 6, ty = y + 4;
+  return `<path class="${faint ? 'clf' : 'cl'}" d="${d}"/><polygon class="${faint ? 'trf' : 'tri'}" points="${tx},${ty - 11} ${tx - 11},${ty + 9} ${tx + 11},${ty + 9}"/>` + T(tx, ty + 6, letter, faint ? 'm b' : 'b', 'middle');
+}
+// Title block and revision table
+function tb(x, y, w) {
+  const r = ['Project: Sample office building', 'Title: Single-line diagram', 'Drawing no.: E-SLD-001', 'Rev: B', 'Scale: NTS', 'Date: 12 Nov 2026'];
+  let s = `<rect class="k" x="${x}" y="${y}" width="${w}" height="${r.length * 15}"/>`;
+  r.forEach((t, i) => { if (i) s += `<path class="k" d="M${x} ${y + i * 15}H${x + w}"/>`; s += T(x + 8, y + i * 15 + 11, t, i === 2 ? 'b' : ''); });
+  return s;
+}
+function rt(x, y, w, head, rows) {
+  const all = head ? [head].concat(rows) : rows;
+  let s = `<rect class="k" x="${x}" y="${y}" width="${w}" height="${all.length * 16}"/>`;
+  all.forEach((t, i) => { if (i) s += `<path class="k" d="M${x} ${y + i * 16}H${x + w}"/>`; s += T(x + 8, y + i * 16 + 12, t, head && i === 0 ? 'b' : ''); });
+  return s;
+}
+const sheetFrame = (w, h) => `<rect class="k" x="4" y="4" width="${w - 8}" height="${h - 8}"/>`;
+
+// Section 1
+(() => {
+  let s = sheetFrame(1274, 330) + frag(30, 16);
+  s += cloud(256, 156, 148, 54, 'B');
+  s += '<rect class="k" x="176" y="66" width="130" height="22" fill="#fff"/>' + T(184, 81, 'Incomer 50 A to 63 A') + '<path class="k" d="M306 80L322 91"/><polygon class="fill" points="326,94 316,92 321,85"/>';
+  // legend
+  s += T(800, 40, 'LEGEND', 'b') + '<path class="k" d="M800 46H960"/>';
+  s += '<rect class="box" x="802" y="56" width="12" height="18"/><path class="ln" d="M802 74L814 56"/>' + T(830, 70, 'Circuit breaker');
+  s += '<rect class="box" x="800" y="84" width="26" height="14" rx="2"/>' + T(830, 95, 'Distribution board');
+  s += '<path class="ln" d="M800 114H826"/>' + T(830, 118, 'Cable');
+  // notes
+  s += T(1000, 40, 'NOTES', 'b') + '<path class="k" d="M1000 46H1255"/>' + T(1000, 64, '1. All cables XLPE/SWA/PVC unless noted.') + T(1000, 80, '2. Cable lengths are route lengths.');
+  s += rt(1020, 176, 242, '', ['A · 01 Nov 2026 · First issue', 'B · 12 Nov 2026 · DB-2 incomer revised']).replace(/height="32"/, 'height="32"');
+  s += tb(1020, 212, 242);
+  $('s1').innerHTML = s;
+})();
+
+// Section 2
+(() => {
+  let s = sheetFrame(1886, 370);
+  // hatch behind DB-1 and its feeder
+  s += '<defs><clipPath id="hc"><rect x="184" y="76" width="188" height="132"/></clipPath></defs><g clip-path="url(#hc)">';
+  for (let i = -140; i < 200; i += 10) s += `<path class="hat" d="M${184 + i} 208L${184 + i + 132} 76"/>`;
+  s += '</g><rect class="k" x="184" y="76" width="188" height="132" style="stroke-width:.8"/>';
+  s += frag(150, 16);
+  s += T(184, 224, 'EXISTING INSTALLATION', 'b') + chip(348, 212, 'Hatch');
+  // leader
+  s += T(20, 98, 'Existing cable') + T(20, 112, 'reused') + '<path class="k" d="M104 102H244"/><polygon class="fill" points="248,102 238,98 238,106"/>' + chip(20, 122, 'Leader');
+  // table
+  s += T(800, 34, 'CABLE SCHEDULE (EXTRACT)', 'b');
+  const cols = [800, 870, 940, 1040, 1100], rows = [['From', 'To', 'Cable', 'Length'], ['SMDB-1', 'DB-1', '4c 25 mm²', '30 m'], ['SMDB-1', 'DB-2', '4c 25 mm²', '42 m'], ['SMDB-1', 'DB-3', '4c 16 mm²', '55 m']];
+  s += '<rect class="k" x="800" y="42" width="300" height="72"/>';
+  rows.forEach((r, i) => { if (i) s += `<path class="k" d="M800 ${42 + i * 18}H1100"/>`; r.forEach((t, j) => { s += T(cols[j] + 6, 42 + i * 18 + 13, t, i === 0 ? 'b' : ''); }); });
+  [870, 940, 1040].forEach(x => { s += `<path class="k" d="M${x} 42V114"/>`; });
+  s += chip(1112, 69, 'Table');
+  // general notes
+  s += T(1200, 34, 'GENERAL NOTES', 'b') + '<path class="k" d="M1200 40H1440"/>' + T(1200, 58, '1. Cables are XLPE/SWA/PVC unless noted.') + T(1200, 74, '2. Breakers are rated 10 kA at 415 V.') + T(1200, 90, '3. Lengths shown are route lengths.') + chip(1456, 24, 'Multi-line text');
+  // typical clearance
+  s += T(800, 150, 'TYPICAL DB CLEARANCE', 'b') + '<rect class="k" x="800" y="162" width="240" height="6"/><rect class="k" x="860" y="168" width="100" height="26"/>' + T(910, 185, 'DB', 'b', 'middle');
+  s += '<path class="k" d="M960 194H1000M860 258H1000M990 194V258"/><path class="k" d="M986 202L990 194L994 202M986 250L990 258L994 250"/>' + T(998, 228, '1000') + T(998, 243, 'clear');
+  s += chip(1070, 166, 'Block: typical detail') + chip(1070, 192, 'Dimension');
+  // stamp
+  s += '<rect class="k" x="1240" y="140" width="200" height="70"/><rect class="k" x="1244" y="144" width="192" height="62"/>' + T(1340, 165, 'FOR CONSTRUCTION', 'b', 'middle') + T(1340, 182, 'Date: 12 Nov 2026', '', 'middle') + T(1340, 198, 'By: PG', '', 'middle') + chip(1454, 166, 'Block: stamp');
+  // key plan
+  [236, 262, 288].forEach((y, i) => { s += `<path class="k" d="M1240 ${y + 10}L1300 ${y}L1360 ${y + 10}L1300 ${y + 20}Z"${i === 1 ? ' style="fill:#bbb"' : ''}/>`; });
+  s += T(1240, 326, 'KEY PLAN – LEVEL 2', 'b') + chip(1376, 264, 'Block: key plan');
+  s += frag(150, 16).slice(0, 0);
+  s += rt(1640, 202, 236, '', ['A · 01 Nov 2026 · First issue', 'B · 12 Nov 2026 · DB-2 incomer revised']);
+  s += tb(1640, 234, 236);
+  $('s2').innerHTML = s;
+})();
+
+// Section 3
+(() => {
+  const sym = (cx) => ({
+    lines: [[cx, 20, cx, 70], [cx, 130, cx, 180], [cx - 18, 70, cx + 18, 70], [cx + 18, 70, cx + 18, 130], [cx + 18, 130, cx - 18, 130], [cx - 18, 130, cx - 18, 70], [cx - 18, 130, cx + 18, 70]],
+    txt: T(cx + 32, 104, 'Q2 63 A')
+  });
+  const draw = (cx, grips) => {
+    const o = sym(cx);
+    let s = o.lines.map(l => `<path class="k" style="stroke-width:1.5" d="M${l[0]} ${l[1]}L${l[2]} ${l[3]}"/>`).join('') + o.txt;
+    if (grips) o.lines.forEach(l => { s += `<rect class="grip" x="${l[0] - 3}" y="${l[1] - 3}" width="6" height="6"/><rect class="grip" x="${l[2] - 3}" y="${l[3] - 3}" width="6" height="6"/>`; }), s += `<rect class="grip" x="${cx + 29}" y="${101}" width="6" height="6"/>`;
+    return s;
+  };
+  $('s3a').innerHTML = draw(110, true);
+  let b = draw(110, false) + `<rect class="dsh" x="${110 - 30}" y="62" width="130" height="76"/><rect class="grip" x="107" y="97" width="7" height="7"/>`;
+  b += '<rect class="box" x="270" y="14" width="316" height="164"/>' + T(284, 34, 'Properties', 'b');
+  [['Block', 'LV-MCCB'], ['TAG', 'Q2'], ['RATING', '63 A TPN'], ['BOARD', 'DB-2'], ['FEEDER', 'SMDB-1 / F2']].forEach((r, i) => { b += T(284, 58 + i * 22, r[0], 'm') + T(376, 58 + i * 22, r[1]); });
+  $('s3b').innerHTML = b;
+})();
+
+// Section 4
+(() => {
+  const rows = ['A  First issue', 'B  DB-2 incomer 50 A to 63 A', 'C  DB-1 feeder 26 m to 30 m', 'D  DB-3 feeder 4c 10 to 4c 16 mm²'];
+  const base = sheetFrame(716, 330) + frag(30, 16) + rt(450, 236, 250, 'REVISIONS', rows);
+  $('s4a').innerHTML = base + cloud(262, 160, 136, 52, 'B') + cloud(112, 82, 140, 62, 'C') + cloud(512, 82, 150, 62, 'D');
+  const hid = (x, y) => `<rect class="nw" x="${x}" y="${y}" width="96" height="32" rx="3"/>` + T(x + 8, y + 14, 'hidden,', 'pu') + T(x + 8, y + 27, 'kept in history', 'pu');
+  $('s4b').innerHTML = base + cloud(262, 160, 136, 52, 'B', 1) + cloud(112, 82, 140, 62, 'C', 1) + cloud(512, 82, 150, 62, 'D') + hid(282, 224) + hid(8, 96);
+})();
+
+// Section 5
+(() => {
+  const note = (x, y) => T(x, y, 'NOTES', 'b') + T(x, y + 16, '1. All cables XLPE/SWA/PVC unless noted.') + T(x, y + 31, '2. Cable lengths are route lengths.');
+  const tbk = (x, y, w) => `<rect class="ln" x="${x}" y="${y}" width="${w}" height="52"/>` + T(x + 8, y + 15, 'E-SLD-001', 'b') + T(x + 8, y + 30, 'Single-line diagram') + T(x + 8, y + 45, 'Rev B · NTS');
+  let a = '<rect class="ln" x="1" y="1" width="922" height="268" rx="4"/><rect class="ln" x="12" y="10" width="900" height="250"/>' + frag(30, 34, .7, 'sc7') + note(560, 40) + tbk(716, 196, 188);
+  $('s5a').innerHTML = a;
+  let b = '<rect class="ln" x="1" y="1" width="440" height="268" rx="4"/>' + T(12, 18, 'Model', 'm') + frag(16, 40, .6, 'sc6');
+  b += '<rect class="ln" x="471" y="1" width="450" height="268" rx="4"/>' + T(482, 18, 'E-SLD-001 (layout)', 'm') + '<rect class="ln" x="482" y="26" width="428" height="234"/>';
+  b += '<rect class="nw" x="490" y="34" width="412" height="152"/>' + frag(490, 42, .6, 'sc6') + note(490, 208) + tbk(748, 198, 152);
+  $('s5b').innerHTML = b;
+})();
+
+document.head.appendChild(document.createElement('style')).textContent = '@page{size:1952px ' + Math.ceil(document.documentElement.scrollHeight) + 'px;margin:0}';
+</script>
+</body>
+</html>
