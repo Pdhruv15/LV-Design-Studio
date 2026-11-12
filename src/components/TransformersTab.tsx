@@ -6,6 +6,7 @@ import { applyTransformers, DEWA_TRANSFORMER_KVA, mainBoards, mainOf, moveUnder,
 import { toggleIn } from '../util/sets';
 import { txUnits } from '../model/earthingPlan';
 import { fmtFixed as fmt, txt } from '../util/format';
+import HvSupplyCard from './HvSupplyCard';
 
 
 /** Panels → Transformers: DEWA transformers (one MDB each), their loading, and which panels each one feeds. */
@@ -91,6 +92,8 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
         </div>
         <p className="m">Loading limit {limit} % (Project settings). DEWA size needed includes future growth and that limit.</p>
       </section>
+
+      <HvSupplyCard project={project} onChange={onChange} />
 
       <section className="card">
         <h4>Move panels to another transformer</h4>

@@ -58,7 +58,9 @@ export function fingerprint(project: Project, key: StudyKey): string {
     // Closed couplers join busbars, so they also set the fault levels.
     key === 'sizing' || key === 'checks' || key === 'fault' || key === 'protection' ? project.ties ?? null : null,
     // Cable trays set the grouping factor of the cables on them.
-    key === 'checks' ? [project.trays ?? null, project.feeders.map((f) => f.trayRoute ?? null)] : null
+    key === 'checks' ? [project.trays ?? null, project.feeders.map((f) => f.trayRoute ?? null)] : null,
+    // The grid fault level sets every fault level behind it (added only when given: older results stay current).
+    ...(key !== 'vd' && project.gridSources?.length ? [[project.gridSources, project.rmus ?? null, project.boards.map((b) => b.rmu ?? null)]] : [])
   ]);
 }
 

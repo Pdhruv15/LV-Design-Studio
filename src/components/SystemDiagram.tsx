@@ -40,6 +40,7 @@ import { fmtDate, fmtFixed, txt } from '../util/format';
 import { CO_GEN_REACH, ChangeoverIncomers } from '../diagram/ChangeoverSym';
 import { atsLines, atsOf, changeoverBreakers, isInterlocked } from '../model/changeover';
 import { isFitClick, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, wheelAction, ZoomChip } from './drawingView';
+import { gridLabel, rmuLabel, rmuRatings } from '../calc/hvSupply';
 
 interface Tag {
   text: string;
@@ -481,6 +482,7 @@ export default function SystemDiagram({
   // Board loading and voltage come from the network that is running: the
   // generator scenario in generator mode.
   const running = scenario?.project ?? calcProject ?? project;
+  const hvGrid = project.gridSources?.[0]; // drawn as the one utility symbol
   // One network index for all the panel summaries (totals, fault level, voltage reuse the same walks).
   const summaries = useMemo(() => {
     const src = scenario?.project ?? calcProject ?? project;
@@ -976,8 +978,9 @@ export default function SystemDiagram({
           <g>
             <circle cx={layout.utilityX} cy="22" r="11" className="sym" />
             <path d={`M${layout.utilityX - 5} 22 q2.5 -6 5 0 t5 0`} className="ln" />
-            <text className="b" x={layout.utilityX + 18} y="20">Utility</text>
-            <text className="m" x={layout.utilityX + 18} y="34">11 kV</text>
+            {hvGrid && <title>{`${hvGrid.name}${hvGrid.operator ? ` (${hvGrid.operator})` : ''}${hvGrid.primarySubstation ? `, from ${hvGrid.primarySubstation}` : ''}${hvGrid.feederRef ? ` feeder ${hvGrid.feederRef}` : ''}: ${gridLabel(hvGrid)}`}</title>}
+            <text className="b" x={layout.utilityX + 18} y="20">{hvGrid ? hvGrid.operator || hvGrid.name : 'Utility'}</text>
+            <text className="m" x={layout.utilityX + 18} y="34">{hvGrid ? gridLabel(hvGrid) : '11 kV'}</text>
             {layout.roots.length > 1 && (
               <line x1={layout.roots[0].x} y1="50" x2={layout.roots[layout.roots.length - 1].x} y2="50" className="ln mv" />
             )}
@@ -988,13 +991,18 @@ export default function SystemDiagram({
         {/* RMUs: one box across the transformers each one feeds (11 kV side) */}
         {[...new Set(layout.roots.map((r) => r.board.rmu).filter((x): x is string => !!x))].map((rmu) => {
           const rs = layout.roots.filter((r) => r.board.rmu === rmu);
-          const x1 = Math.min(...rs.map((r) => r.x)) - 34;
-          const x2 = Math.max(...rs.map((r) => r.x)) + 34;
+          const label = rmuLabel(project, rmu);
+          const ratings = rmuRatings(project, rmu);
+          // A longer label (ways entered) widens the box up to about one board column, centred on the transformers it feeds.
+          const mid = (Math.min(...rs.map((r) => r.x)) + Math.max(...rs.map((r) => r.x))) / 2;
+          const span = (Math.max(...rs.map((r) => r.x)) - Math.min(...rs.map((r) => r.x))) / 2 + 34;
+          const half = label === `${rmu} · 11 kV` ? span : Math.max(span, Math.min(textWidth(label, 10, true) / 2 + 6, 62));
+          const x1 = mid - half, x2 = mid + half;
           return (
             <g key={`rmu-${rmu}`} className="rmu">
-              <title>{`${rmu}: ring main unit feeding ${rs.map((r) => r.board.id).join(', ')}`}</title>
+              <title>{`${rmu}: ring main unit feeding ${rs.map((r) => r.board.id).join(', ')}${ratings ? ` — ${ratings}` : ''}`}</title>
               <rect x={x1} y={41} width={x2 - x1} height={18} rx="3" className="sym rmu-box" />
-              <text x={(x1 + x2) / 2} y={54} textAnchor="middle" className="b" style={{ fontSize: 10 }}>{rmu} · 11 kV</text>
+              <text x={(x1 + x2) / 2} y={54} textAnchor="middle" className="b" style={{ fontSize: 10 }}>{label}</text>
             </g>
           );
         })}

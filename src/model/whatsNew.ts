@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.107', date: '2026-11-12',
+    items: [
+      { title: 'HV supply and RMUs', text: 'In Panels → Transformers, enter the grid source from the authority (operator, voltage, fault level in MVA or kA, X/R) and each RMU’s ways, rated voltage, short-time rating, insulation, tee-off and owner. The grid fault level now lowers the LV fault levels and earth fault loop behind each transformer (before, the MV network was taken as infinite). Each RMU is checked for enough tee-off ways and for its rated voltage and short-time rating against the grid. The SLD shows the operator and fault level at the utility and the ways on the RMU box.' }
+    ]
+  },
+  {
     version: '2.106', date: '2026-11-12',
     items: [
       { title: 'Right-click Object snap or Polar for their list', text: 'On the Design CAD status bar, right-click on Object snap now opens the list of running snaps, and on Polar tracking the list of angles, as the ▾ beside them does; each list ends with its settings. The other switches still open their Drafting settings tab.', action: 'cad', actionLabel: 'Open Design CAD' }

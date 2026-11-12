@@ -51,6 +51,8 @@ export function checkReferences(p: Project): RefIssue[] {
   for (const t of p.ties ?? []) { need(boards, t.a, `Bus coupler ${t.id}`, 'Panel A'); need(boards, t.b, `Bus coupler ${t.id}`, 'Panel B'); }
   for (const u of p.upsSystems ?? []) need(boards, u.boardId, `UPS ${u.name || u.id}`, 'UPS panel', 'ups');
   for (const r of p.busRisers ?? []) need(boards, r.sourceBoardId, `Busbar riser ${r.name || r.id}`, 'Source panel', 'busbar');
+  const grids = new Set((p.gridSources ?? []).map((g) => g.id));
+  for (const r of p.rmus ?? []) need(grids, r.sourceId, `RMU ${r.name}`, 'Grid source');
   for (const id of p.studyReport?.boards ?? []) need(boards, id, 'Study report', 'Selected panel');
   for (const id of p.pfc?.boards ?? []) need(boards, id, 'Power factor plan', 'Panel', 'pfc');
   for (const id of p.txGen?.txBoards ?? []) need(boards, id, 'Transformer plan', 'Panel', 'sizing');

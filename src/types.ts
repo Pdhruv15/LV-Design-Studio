@@ -296,6 +296,50 @@ export interface ExistingInfo {
   others?: OtherBuilding[];
 }
 
+/** Authority HV supply (an 11 / 22 / 33 kV infeed from a primary substation) feeding the project's RMUs
+ * and transformers. Its fault level gives the network impedance in series with each transformer
+ * (IEC 60909-0 §6.2); without one the MV network is taken as infinite. */
+export interface GridSource {
+  id: string;
+  name: string;
+  /** Network operator: DEWA, ADDC, SEWA, FEWA, EtihadWE, or a private master-community network. */
+  operator?: string;
+  primarySubstation?: string;
+  /** Feeder / circuit reference at the primary substation. */
+  feederRef?: string;
+  /** Nominal voltage (kV), e.g. 11. */
+  kv: number;
+  /** Short-circuit power S″kQ (MVA); when absent, from `faultKa`. */
+  faultMva?: number;
+  /** Initial short-circuit current Ik″ (kA) at `kv`; used when `faultMva` is absent. */
+  faultKa?: number;
+  /** Duration of the declared fault level (s), for the RMU short-time rating check. */
+  faultDurationS?: number;
+  /** X/R of the network (default 10, RQ = 0.1 XQ per IEC 60909-0). */
+  xr?: number;
+}
+
+/** RMU switching ways: R ring load-break switch, T transformer tee-off. */
+export const RMU_CONFIGS = ['RRT', 'RRTT', 'RRRT', 'RT', 'RRTTT'];
+/** Ring main unit details, by the name main boards carry in `Board.rmu`. */
+export interface Rmu {
+  name: string;
+  /** Ways in order, e.g. "RRT" (default). */
+  config?: string;
+  /** Grid source feeding the ring (default the project's first). */
+  sourceId?: string;
+  ratedKv?: number; // 12, 24 or 36
+  ratedA?: number; // ring busbar / switch rating, typically 630
+  /** Rated short-time withstand current (kA) for `ikDurationS`. */
+  ikKa?: number;
+  ikDurationS?: 1 | 3;
+  insulation?: 'SF6' | 'solid' | 'air' | 'eco-gas';
+  /** Tee-off protection: switch-fuse (HV fuse rating A) or circuit breaker with relay. */
+  tOff?: 'fuse' | 'vcb';
+  fuseA?: number;
+  owner?: 'authority' | 'consumer';
+}
+
 /** Another building on a shared supply: its DEWA-approved / allocated load and its recorded demand.
  * The higher of the two is kept for it. */
 export interface OtherBuilding {
@@ -572,6 +616,10 @@ export interface Project {
   revisions?: Revision[]; // issued revisions, oldest first (A, B, C…)
   drawing?: DrawingInfo; // SLD drawing title block
   ties?: BusTie[]; // bus couplers between main boards (normally open unless closed)
+  /** Authority HV supplies feeding the RMUs (Panels → Transformers → HV supply and RMUs). */
+  gridSources?: GridSource[];
+  /** RMU details by name (main boards name their RMU in `Board.rmu`). */
+  rmus?: Rmu[];
   earthingPlan?: EarthingPlan; // earthing schematic: pits per equipment, links, measured values
   earthPitIds?: Record<string, string[]>; // persistent pit IDs; retired slots stay reserved
   spacePlan?: SpacePlan; // areas → panels → transformers → RMUs (power density planning)

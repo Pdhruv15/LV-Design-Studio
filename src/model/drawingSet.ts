@@ -608,7 +608,9 @@ export function sheetHash(p: Project, set: DrawingSet, s: DrawingSheet): string 
     : s.kind === 'riser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.ratedCurrentA, b.sourceKva, b.standby, ...(s.riserStyle ? [b.kind, b.incomerDevice, b.busbarMaterial] : [])]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.parallel, f.cableType, ...(s.riserStyle ? [f.breakerRatingA, f.breakerIcuKa, f.breakerType] : [])]), p.busRisers, p.building, s.riserStyle, ...(s.riserStyle === 'byLevel' ? [set.riserBreaks?.[s.buildingId ?? '']] : [])] }
     : sheetProject(p, set, s);
   const extra = v >= 3 && s.kind === 'plan' ? planValues(p, s) : v >= 2 ? shownValues(p, s) : undefined;
-  const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows, s.markups, ...(s.part !== undefined ? [s.part] : []), ...(extra !== undefined ? [extra] : []), ...(s.schedule ? ['schedule'] : []), ...(s.tables?.length ? [s.tables] : [])]); // part / extra / schedule / tables only where set: older sheets keep their hash
+  // A sheet that draws a transformer also draws its grid source and RMU (only where they are set: older sheets keep their hash).
+  const hv = (p.gridSources?.length || p.rmus?.length) && (d.boards as unknown[]).some((b) => !!b && typeof b === 'object' && !Array.isArray(b) && !(b as Board).upstreamId && !!(b as Board).sourceKva);
+  const txt = JSON.stringify([d.boards, d.feeders, ...(hv ? [[p.gridSources ?? null, p.rmus ?? null]] : []), s.title, s.size, s.tags, s.notes, s.clouds, s.arrows, s.markups, ...(s.part !== undefined ? [s.part] : []), ...(extra !== undefined ? [extra] : []), ...(s.schedule ? ['schedule'] : []), ...(s.tables?.length ? [s.tables] : [])]); // part / extra / schedule / tables only where set: older sheets keep their hash
   let h = 2166136261;
   for (let i = 0; i < txt.length; i++) { h ^= txt.charCodeAt(i); h = Math.imul(h, 16777619); }
   return (h >>> 0).toString(36);

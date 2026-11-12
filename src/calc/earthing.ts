@@ -1,6 +1,6 @@
 import { boardOf, feedersOn, withNetwork } from './network';
 import { cpcOf, defaultCpcMm2, getCable } from './cableTable';
-import { DEFAULT_TRANSFORMER_XR, rOperatingOhmPerKm, runsOf, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
+import { DEFAULT_TRANSFORMER_XR, gridImpedance, gridSourceOf, rOperatingOhmPerKm, runsOf, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
 import { elcbGroups, isScheduleCircuit } from './loadSchedule';
 import type { BreakerType, Feeder, Project } from '../types';
 import { fmtFixed } from '../util/format';
@@ -92,7 +92,8 @@ function cableLoop(f: Feeder): Impedance {
 
 /** Earth fault loop impedance at a board's busbar (TN-S). At the main
  * board this is the transformer's own impedance (Dyn transformer with
- * Z0 ≈ Z1, so a phase-earth fault at its terminals ≈ the 3-phase fault);
+ * Z0 ≈ Z1, so a phase-earth fault at its terminals ≈ the 3-phase fault)
+ * plus 2/3 of the grid source's impedance when its fault level is given;
  * each incomer below adds its phase + protective conductor loop.
  * `missing` says why the path is incomplete (no source data, a missing
  * board or incomer, a loop in the board tree): z is then only the part
@@ -103,9 +104,12 @@ export function earthLoopPath(project: Project, boardId: string, seen = new Set<
   if (seen.has(boardId)) return { z: { r: 0, x: 0 }, missing: `the supply path loops back to ${boardId}` };
   seen.add(boardId);
   if (!board.upstreamId) {
-    return board.sourceKva && board.sourceImpedancePct
-      ? { z: transformerImpedance(board.sourceKva, board.sourceImpedancePct, project.voltageV, board.sourceXr ?? DEFAULT_TRANSFORMER_XR) }
-      : { z: { r: 0, x: 0 }, missing: `no source data at ${board.id} (transformer kVA and impedance %)` };
+    if (!board.sourceKva || !board.sourceImpedancePct) return { z: { r: 0, x: 0 }, missing: `no source data at ${board.id} (transformer kVA and impedance %)` };
+    const zt = transformerImpedance(board.sourceKva, board.sourceImpedancePct, project.voltageV, board.sourceXr ?? DEFAULT_TRANSFORMER_XR);
+    // HV network: in the positive and negative sequence only (the Dyn transformer blocks its zero
+    // sequence), so it adds 2/3 of its impedance to the loop (2 Z1 + Z0) ÷ 3.
+    const zq = gridImpedance(gridSourceOf(project, board), project.voltageV);
+    return { z: zq ? { r: zt.r + (2 / 3) * zq.r, x: zt.x + (2 / 3) * zq.x } : zt };
   }
   const up = earthLoopPath(project, board.upstreamId, seen);
   const incomer = feedersOn(project, board.upstreamId!).find((f) => f.feedsBoardId === board.id);

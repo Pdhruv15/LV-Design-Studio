@@ -20,6 +20,7 @@ import warnings
 
 MV_KV = 11.0
 STIFF_SOURCE_MVA = 100000.0
+DEFAULT_GRID_XR = 10.0  # RQ = 0.1 XQ when the authority gives no X/R (IEC 60909-0)
 DEFAULT_TRANSFORMER_XR = 5.0
 
 # Fallback only: the app sends the cable table it is using (Cables.xlsx or
@@ -347,9 +348,30 @@ def run_pandapower(project, cables=None, r_factor=None):
     net = pp.create_empty_network(f_hz=project["frequencyHz"])
     messages = []
 
-    mv = pp.create_bus(net, vn_kv=MV_KV, name="sourcebus")
-    pp.create_ext_grid(net, mv, vm_pu=1.0, s_sc_max_mva=STIFF_SOURCE_MVA, rx_max=0.1,
-                       s_sc_min_mva=STIFF_SOURCE_MVA, rx_min=0.1)
+    # One HV bus per grid source with a fault level (else a stiff 11 kV source, as before).
+    grids = project.get("gridSources") or []
+    rmu_source = {r.get("name"): r.get("sourceId") for r in project.get("rmus") or []}
+    hv_buses = {}
+
+    def grid_mva(g):
+        if g.get("faultMva"):
+            return float(g["faultMva"])
+        if g.get("faultKa") and g.get("kv"):
+            return math.sqrt(3) * float(g["kv"]) * float(g["faultKa"])
+        return None
+
+    def hv_bus_for(board):
+        sid = rmu_source.get((board.get("rmu") or "").strip())
+        g = next((x for x in grids if x.get("id") == sid), grids[0] if grids else None)
+        mva = grid_mva(g) if g else None
+        key = g["id"] if mva else ""
+        if key not in hv_buses:
+            vn = float(g["kv"]) if mva else MV_KV
+            s_sc, rx = (mva, 1.0 / float(g.get("xr") or DEFAULT_GRID_XR)) if mva else (STIFF_SOURCE_MVA, 0.1)
+            bus_id = pp.create_bus(net, vn_kv=vn, name=f"source_{key or 'stiff'}")
+            pp.create_ext_grid(net, bus_id, vm_pu=1.0, s_sc_max_mva=s_sc, rx_max=rx, s_sc_min_mva=s_sc, rx_min=rx)
+            hv_buses[key] = (bus_id, vn)
+        return hv_buses[key]
 
     bus = {b["id"]: pp.create_bus(net, vn_kv=kv, name=b["id"]) for b in project["boards"]}
 
@@ -359,9 +381,10 @@ def run_pandapower(project, cables=None, r_factor=None):
             continue
         xr = b.get("sourceXr") or DEFAULT_TRANSFORMER_XR
         z = b["sourceImpedancePct"]
+        mv, vn_hv = hv_bus_for(b)
         pp.create_transformer_from_parameters(
             net, hv_bus=mv, lv_bus=bus[b["id"]], sn_mva=b["sourceKva"] / 1000.0,
-            vn_hv_kv=MV_KV, vn_lv_kv=kv, vk_percent=z, vkr_percent=z / math.sqrt(1 + xr * xr),
+            vn_hv_kv=vn_hv, vn_lv_kv=kv, vk_percent=z, vkr_percent=z / math.sqrt(1 + xr * xr),
             pfe_kw=0.0, i0_percent=0.0, vector_group="Dyn", name=f"TX_{b['id']}")
 
     # Closed bus couplers join the main busbars: the transformers run in parallel.

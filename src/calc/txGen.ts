@@ -1,7 +1,7 @@
 import type { Board, Feeder, Project } from '../types';
 import { settingsOf } from '../types';
 import { boardsInSupplyOrder, boardTotals } from './summary';
-import { DEFAULT_TRANSFORMER_XR, faultCurrentKA, parallelGroup, parallelZ, transformerImpedance, type Impedance } from './electrical';
+import { DEFAULT_TRANSFORMER_XR, faultCurrentKA, gridImpedance, gridSourceOf, parallelGroup, parallelZ, transformerImpedance, type Impedance } from './electrical';
 import { switchedOnBoard } from './capSwitching';
 import { STANDARD_BREAKER_A, STANDARD_TRANSFORMER_KVA, chooseGenerator, isEssential, standbyBoards, type GeneratorChoice } from './sizing';
 import { GENERATOR_XD_TRANSIENT_PCT, isMotor, MOTOR_START_DIP_LIMIT_PCT, motorStartDipPct, runningKva, startingKva } from './motor';
@@ -47,7 +47,7 @@ export interface TxChecks {
   impedancePct: number;
   flcA: number; // full-load current, LV side
   acbA: number; // incomer ACB / main breaker, next standard ≥ FLC
-  faultKa: number; // LV busbar, infinite MV source
+  faultKa: number; // LV busbar, behind the grid source's impedance (infinite MV network without one)
   regulationPct: number; // at the design demand and PF
   busbarA?: number;
   busbarOk?: boolean;
@@ -84,7 +84,9 @@ export function transformerChecks(project: Project, board: Board, kva: number, d
   const flcA = (kva * 1000) / (SQRT3 * project.voltageV);
   const acbA = nextStd(STANDARD_BREAKER_A, flcA) ?? STANDARD_BREAKER_A[STANDARD_BREAKER_A.length - 1];
   const own = transformerImpedance(kva, impedancePct, project.voltageV, xr);
-  const faultKa = faultCurrentKA(parallelWith.length ? parallelZ([own, ...parallelWith]) : own, project.voltageV);
+  const zt = parallelWith.length ? parallelZ([own, ...parallelWith]) : own;
+  const zq = gridImpedance(gridSourceOf(project, board), project.voltageV); // transformers in parallel taken on one grid source
+  const faultKa = faultCurrentKA(zq ? { r: zt.r + zq.r, x: zt.x + zq.x } : zt, project.voltageV);
   const ur = impedancePct / Math.sqrt(1 + xr * xr);
   const ux = ur * xr;
   const load = demandKva / kva;
