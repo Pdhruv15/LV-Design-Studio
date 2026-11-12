@@ -50,7 +50,7 @@ export const blockable = (it: SketchItem) => !it.tray && !it.cable;
 const rot = (p: Pt, a: number): Pt => { const s = Math.sin(a), k = Math.cos(a); return [p[0] * k - p[1] * s, p[0] * s + p[1] * k]; };
 /** An object scaled by `k` about the origin, turned by `a` about it, then moved by `to` (its sizes scale, its angles
  * turn). */
-function placed(it: SketchItem, k: number, a: number, to: Pt): SketchItem {
+export function placed(it: SketchItem, k: number, a: number, to: Pt): SketchItem {
   const map = (p: Pt): Pt => { const q = rot([p[0] * k, p[1] * k], a); return [q[0] + to[0], q[1] + to[1]]; };
   const out: SketchItem = { ...it, pts: it.pts.map(map) };
   if (it.r !== undefined) out.r = it.r * k;
@@ -67,6 +67,10 @@ function placed(it: SketchItem, k: number, a: number, to: Pt): SketchItem {
   }
   return out;
 }
+
+/** The inverse of `placed`: an object on the drawing back in the block's own units, about its base point (the insert
+ * at `at`, scaled by `k`, turned by `a`). */
+export const unplaced = (it: SketchItem, k: number, a: number, at: Pt): SketchItem => placed(placed(it, 1, 0, [-at[0], -at[1]]), 1 / k, -a, [0, 0]);
 
 /** A block defined from drawn objects: the objects moved so that `base` is the origin, trays and cable routes left out. */
 export function defineBlock(name: string, items: SketchItem[], base: Pt, more: Partial<Pick<CadBlockDef, 'units' | 'description' | 'explodable'>> = {}): CadBlockDef {

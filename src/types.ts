@@ -668,6 +668,9 @@ export interface Project {
    * pieces. The drawing file is never changed; the view, picking, rooms, Loads from CAD and SAVE leave them out
    * (src/model/cadErased.ts). */
   cadErased?: Record<string, string[]>;
+  /** A block being edited in place (REFEDIT): the drawing, the insert taken out while its objects are edited there, where
+   * it stood in the draw order, and the drawn objects that are not part of it (src/model/cadRefEdit.ts). */
+  cadRefEdit?: import('./model/cadRefEdit').RefEditSession;
   /** LV points (lights, sockets…) placed on plans in the CAD view, on circuits (src/model/cadDevices.ts). */
   lvPoints?: import('./model/cadDevices').LvPoint[];
   /** Circuits wired on the CAD plans (Design CAD → Plan → Wiring), with the device order the engineer saved. */

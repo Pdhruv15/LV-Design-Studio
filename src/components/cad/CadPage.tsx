@@ -17,6 +17,7 @@ import { endTowards, linesCross, nearestPiece, nearestSegment, onRound, roundOfS
 import { clipPayload, clipText, lowerLeft, parseClip, pastedItems, withPasted, type ClipPayload } from '../../model/cadClipboard';
 import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
 import { addSelectedTool, blankMenu, commandMenu, countLine, measureOf, shownBy, SNAP_OVERRIDES, type CtxEntry, type CtxItem, type ObjectHide } from './cadContextMenu';
+import { closeRefEdit, refEditOf, startRefEdit, workingSet } from '../../model/cadRefEdit';
 import { blockEditorChanged, blockEditorOf, closeBlockEditor, openBlockEditor, saveBlockEditor } from '../../model/cadBlockEditor';
 import { closedToggled, findCount, findReplace, gripMenu, withVertexAdded, withVertexRemoved } from './cadDrawnMenus';
 import { argOf, drawingObjectMenu, drawingPaperMenu, paperMenu, viewportMenu, xrefMenu } from './cadSheetMenus';
@@ -361,6 +362,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [findAsk, setFindAsk] = useState<{ step: 'what' } | { step: 'with'; what: string } | null>(null);
   /** BCLOSE with changes not saved: asked whether to save them first. */
   const [beClose, setBeClose] = useState(false);
+  /** REFCLOSE without Save or Discard: asked which. */
+  const [reClose, setReClose] = useState(false);
   /** The object of the opened drawing, or the reference, the last right-click was on. */
   const ctxObj = useRef<{ dw?: CadObject; ref?: string; vp?: string; fvp?: number } | null>(null);
   /** The right-click menu on a layout's paper or one of its viewports (phase 3), at a point of the paper's stage. */
@@ -616,7 +619,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const shownPlaced = useMemo(() => placed.filter((d) => shown(d.key)), [placed, shown]);
   const sketchSnaps = useMemo(() => snapPoints(shownSketch.filter((it) => !effective(it, styles).hidden), defs), [shownSketch, styles, defs]);
   // Objects on locked, hidden or frozen layers cannot be picked.
-  const pickable = useMemo(() => shownSketch.filter((it) => { const e = effective(it, styles); return !e.lock && !e.hidden; }), [shownSketch, styles]);
+  // Edit block in place (REFEDIT): the objects of the block being edited; the rest of the drawing faded and not picked.
+  const re = refEditOf(project, view?.file);
+  const reOthers = useMemo(() => (re ? new Set(re.others) : null), [re]);
+  const reWork = useMemo(() => (re ? new Set(workingSet(project, re).map((it) => it.id)) : undefined), [project, re]);
+  const pickable = useMemo(() => shownSketch.filter((it) => { const e = effective(it, styles); return !e.lock && !e.hidden && !reOthers?.has(it.id); }), [shownSketch, styles, reOthers]);
+  // A drawing opened (or shown) while one of its blocks is edited in place: said once.
+  useEffect(() => { if (re) cad.say(`REFEDIT  "${re.insert.block}" is being edited in place: the rest is faded and locked. REFCLOSE saves it back into the block or discards it.`); }, [view?.file]); // eslint-disable-line react-hooks/exhaustive-deps -- once per drawing shown
   // Snap overrides ▸: for the next point, object snap on with that one mode only (on what the app drew and on references
   // too), or off for 'none'.
   const snapBit = snapOnce && snapOnce !== 'none' ? OSNAP_BITS[snapOnce] : 0;
@@ -1330,7 +1339,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       // Inside a room with an outline: the room's tools first (phase 2).
       const rt = room ? roomTypesOf(buildingInfoOf(project)).find((t) => t.id === room.type) : undefined;
       const editing = blockEditorOf(view?.file);
-      const top: CtxEntry[] = editing ? [{ label: `Save block "${editing.name}"`, key: 'BSAVE', cmd: 'BSAVE' }, { label: 'Close block editor', key: 'BCLOSE', cmd: 'BCLOSE' }, '-'] : [];
+      const top: CtxEntry[] = editing ? [{ label: `Save block "${editing.name}"`, key: 'BSAVE', cmd: 'BSAVE' }, { label: 'Close block editor', key: 'BCLOSE', cmd: 'BCLOSE' }, '-']
+        : re ? [{ label: `Save back to "${re.insert.block}"`, key: 'REFCLOSE', act: 'option', arg: 'REFCLOSE SAVE' }, { label: 'Discard changes', act: 'option', arg: 'REFCLOSE DISCARD' }, '-'] : [];
       setPromptMenu({ at: screen, items: room ? [...top, roomEntry({ room, typeLabel: rt?.label, elv: elvItem?.label }), '-', ...blank] : [...top, ...blank] });
       return;
     }
@@ -1618,6 +1628,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (e === 'ntwidth') { if (one?.kind === 'mtext') { setMtAsk({ step: 'ntwidth', id: one.id }); cad.say(`MTEXT  Width (m) <${toM(noteBox(one).w).toFixed(2)}>:`); input.current?.focus(); } return; }
     if (e === 'edatt') { if (one?.kind === 'insert') startTextEdit(one); return; }
     if (e === 'bedit') { if (one?.kind === 'insert') blockEdit(one.block); return; }
+    if (e === 'refedit') { if (one?.kind === 'insert') refEdit(); return; }
     if (e === 'blkreplace' || e === 'blkreset' || e === 'blkexplode' || e === 'blkcount') { if (one?.kind === 'insert') blockMenuEdit(e, one, arg); return; }
     if (e === 'find') { run('FIND'); return; }
     if (e === 'jointool') { cad.setTool('join'); return; }
@@ -1751,10 +1762,31 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (next === it) return;
     change(updateSketch(project, fileOf(), next), `${action === 'add' ? 'GRIP  Vertex added' : action === 'remove' ? 'GRIP  Vertex removed' : it.closed ? 'PEDIT  Polyline opened' : 'PEDIT  Polyline closed'} · ⌘Z to undo`);
   }
+  /** REFEDIT: the block picked taken apart where it stands, to edit among the drawing's objects. */
+  function refEdit() {
+    if (!view) { cad.say('REFEDIT  Open a drawing first.'); return; }
+    if (blockEditorOf(view.file)) { cad.say('REFEDIT  Not in the block editor: BSAVE and BCLOSE it, or edit the block there.'); return; }
+    const one = pickedSk.length === 1 && !pickedItems.length && pickedSk[0].kind === 'insert' ? pickedSk[0] : selSketch?.kind === 'insert' ? selSketch : undefined;
+    if (!one) { cad.say(re ? `REFEDIT  "${re.insert.block}" is being edited in place: REFCLOSE saves or discards it.` : 'REFEDIT  Pick one block drawn here, then REFEDIT (or right-click it: Edit block in place).'); return; }
+    const r = startRefEdit(project, view.file, one.id);
+    if ('error' in r) { cad.say(r.error); return; }
+    pick([]);
+    change(r.project, `REFEDIT  Editing "${r.block}" in place: its ${r.n} object${r.n === 1 ? '' : 's'} picked out, the rest faded and locked. Draw, erase or change them; REFCLOSE saves them back into the block or discards them`);
+  }
+  /** REFCLOSE: the edit in place ended, saved into the block or discarded (asked when not said). */
+  function refClose(save?: boolean) {
+    if (!re && !project.cadRefEdit) { cad.say('REFCLOSE  No block is being edited in place (REFEDIT starts it).'); return; }
+    if (save === undefined) { setReClose(true); cad.say(`REFCLOSE  Save the changes to "${project.cadRefEdit!.insert.block}"? [Save/Discard/Cancel] <Save>:`); input.current?.focus(); return; }
+    const r = closeRefEdit(project, save);
+    if ('error' in r) { cad.say(r.error); return; }
+    pick([]);
+    change(r.project, `${r.message} · ⌘Z to undo`);
+  }
   /** BEDIT: a block of this drawing opened in the block editor (its tab, if open already, shown). */
   function blockEdit(name?: string) {
     if (!view) { cad.say('BEDIT  Open a drawing first.'); return; }
     if (blockEditorOf(view.file)) { cad.say('BEDIT  This is the block editor: BSAVE saves the block, BCLOSE closes it.'); return; }
+    if (project.cadRefEdit) { cad.say(`BEDIT  "${project.cadRefEdit.insert.block}" is being edited in place: REFCLOSE first (Save or Discard).`); return; }
     const one = pickedSk.length === 1 && !pickedItems.length && pickedSk[0].kind === 'insert' ? pickedSk[0] : undefined;
     const want = name?.trim() || one?.block;
     if (!want) { cad.say(defs.length ? `BEDIT  Pick a block, or type BEDIT and its name: ${defs.slice(0, 8).map((d) => d.name).join(', ')}${defs.length > 8 ? ', …' : ''}` : 'BEDIT  This drawing has no blocks of its own yet: make one with BLOCK (an architect\'s block: Copy as a block of this drawing first).'); return; }
@@ -2885,6 +2917,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       change({ ...project, drawingSet: { ...set, sheets: set.sheets.map((x) => (x.id === id ? { ...x, title: raw } : x)) } }, `LAYOUT  renamed "${raw}" · ⌘Z to undo`);
       return;
     }
+    if (reClose) {
+      setReClose(false);
+      const a = c[0];
+      if (!c || a === 'S') refClose(true); else if (a === 'D') refClose(false); else cad.say('*Cancel*');
+      return;
+    }
     if (beClose) {
       setBeClose(false);
       const a = c[0];
@@ -3046,6 +3084,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (c && layoutCmd(c)) { setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30)); return; }
     // CLAYER and a layer's name: new lines, polylines, rectangles, circles and arcs go on it.
     // DRAWORDER with its order typed (or from the ribbon): the objects picked, else those picked next, go there.
+    const rc = /^REFCLOSE\s+(S|D|SAVE|DISCARD)$/i.exec(raw.trim());
+    if (rc) { cad.say(`Command: ${c}`); refClose(rc[1][0].toUpperCase() === 'S'); return; }
+    // While a block is edited in place, the drawing is not saved or exported (its block is taken apart).
+    if (project.cadRefEdit && /^(SAVE|QSAVE|SAVEAS|DXFOUT|SAVEDWG|DWGOUT|EXPORT|EXPORTPDF|PNGOUT|WBLOCK|W|PUBLISH|BEDIT|BE)$/.test(c)) { cad.say(`${c}  "${project.cadRefEdit.insert.block}" is being edited in place: REFCLOSE first (Save or Discard).`); return; }
     const be = /^(?:BE|BEDIT)\s+(.+)$/i.exec(raw.trim());
     if (be && view) { setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30)); cad.say(`Command: ${c}`); blockEdit(be[1]); return; }
     // SAVE in the block editor saves the block.
@@ -3220,6 +3262,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       hideObjects: () => hideObjects('hide'),
       unisolateObjects: () => { if (objHide && objHide.file === view?.file) { setObjHide(null); cad.say('UNISOLATEOBJECTS  All objects shown again.'); } else cad.say('UNISOLATEOBJECTS  No objects are isolated or hidden.'); },
       addSelected: () => addSelected(),
+      refedit: () => refEdit(),
+      refclose: () => refClose(),
       bedit: () => blockEdit(),
       bsave: () => { if (!view || !blockEditorOf(view.file)) { cad.say('BSAVE  Not in the block editor (BEDIT opens a block in it).'); return; } blockSave(); },
       bclose: () => blockClose(),
@@ -3388,7 +3432,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (edNote) { setEdNote(null); cad.say('*Cancel*'); if (tool === 'mtext') cad.setTool('none'); }
     else if (points.length || objectMode || cad.textAt || mtAsk) { setPoints([]); setObjectMode(false); cad.setTextAt(null); setTextAsk(null); setEdAsk(null); setMtAsk(null); cad.say('*Cancel*'); }
     else if (edStep || edAsk === 'radius' || edAsk === 'd1' || edAsk === 'd2') { setEdStep(null); setEdAsk(null); cad.say('*Cancel*'); cad.say(tool === 'offset' ? PROMPT.offset : editPrompt(tool, edSet)); }
-    else if (menuAt) setMenuAt(null); else if (renaming || roomAsk || findAsk || beClose) { setRenaming(null); setRoomAsk(null); setFindAsk(null); setBeClose(false); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); setPicked([]); }
+    else if (menuAt) setMenuAt(null); else if (renaming || roomAsk || findAsk || beClose || reClose) { setRenaming(null); setRoomAsk(null); setFindAsk(null); setBeClose(false); setReClose(false); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); setPicked([]); }
   }
   /** What Space does in the command line: types a space in text (a name, TEXT contents, a leader's text); at TEXT's
    * height and rotation, where a word is the text, ends only an empty input or a number; else ends a whole word. */
@@ -3586,7 +3630,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
-            <CadCanvas view={view!} draft={snapDraft} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={snapExtra} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
+            <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={snapExtra} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
               numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={draft.grips && tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
               onGripEnd={(i, at, moved) => {

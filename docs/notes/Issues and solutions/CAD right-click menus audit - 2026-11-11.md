@@ -59,7 +59,8 @@ Defects found in the code (fixed in v2.105):
 | | Set origin, Separate hatches | ✗ (one outline, no origin) |
 | Block drawn here | Edit attributes, Replace with another block ▸, Reset (attributes), Explode, Select all instances, Count instances | ✓ |
 | | Open block editor | ✓ v2.111: BEDIT opens the block as a drawing of its own (base point at 0, 0); BSAVE saves it into every insert; BCLOSE closes, asking to save |
-| | Edit in place, Redefine from file, Add to legend | ✗ |
+| | Edit block in place | ✓ v2.112: REFEDIT takes the insert apart where it stands, the rest faded and locked; REFCLOSE Save redefines the block (every insert updates) or Discard |
+| | Redefine from file, Add to legend | ✗ |
 | Block of the drawing | Count instances, Explode, Copy as a block, Crop, Erase | ✓ |
 | | Select all instances | ✗ (the engine lists inserts without what the canvas needs to highlight them) |
 | Reference | Open, Clip ▸ (New boundary, Remove clip), Fade ▸, Reload, Unload, Detach, Bind, Reference layers (palette) | ✓ (Polygonal boundary is New boundary with more corners) |
