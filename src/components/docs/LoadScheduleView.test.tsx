@@ -10,6 +10,8 @@ import { sampleProject } from '../../data/sampleProject';
 import { scheduleCircuits } from '../../calc/loadSchedule';
 import { spareWaysOf } from '../../model/spareWays';
 import { safeFileName, saveBinary, saveCsv, savePdf } from '../../util/files';
+import { loadScheduleRows } from '../../docs/loadScheduleDoc';
+import { addCircuit, updateCircuit } from '../../model/schedule';
 
 vi.mock('../../util/files', async (real) => ({
   ...await real<typeof import('../../util/files')>(),
@@ -19,6 +21,7 @@ vi.mock('../../docs/formWorkbook', async (real) => ({
   ...await real<typeof import('../../docs/formWorkbook')>(),
   buildFormWorkbook: vi.fn(() => ({})), workbookBytes: vi.fn(async () => new Uint8Array(1))
 }));
+vi.mock('../../docs/loadScheduleDoc', async (real) => { const m = await real<typeof import('../../docs/loadScheduleDoc')>(); return { ...m, loadScheduleRows: vi.fn(m.loadScheduleRows) }; });
 vi.mock('../../docs/sheetPdf', async (real) => ({ ...await real<typeof import('../../docs/sheetPdf')>(), workbookHtml: vi.fn(() => '<p>form</p>') }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -26,6 +29,8 @@ vi.mock('../../docs/sheetPdf', async (real) => ({ ...await real<typeof import('.
 type Schedule = NonNullable<RibbonActions['schedule']>;
 const BOARD = 'DB-GF1';
 let shown = BOARD;
+let start: Project = sampleProject;
+let visited: string[] = [];
 let root: Root;
 let latest: Project;
 let published: Schedule | undefined;
@@ -33,9 +38,10 @@ let publishes = 0;
 const status = vi.fn();
 
 function Harness() {
-  const [p, setP] = useState(sampleProject);
+  const [p, setP] = useState(start);
+  const [on, setOn] = useState(shown);
   latest = p;
-  return <LoadScheduleView project={p} boardId={shown} db={EMPTY_DATABASE} onBoard={() => {}} onChange={setP} onStatus={status} onSettings={() => {}}
+  return <LoadScheduleView project={p} boardId={on} db={EMPTY_DATABASE} onBoard={(id) => { visited.push(id); setOn(id); }} onChange={setP} onStatus={status} onSettings={() => {}}
     onSchedule={(s) => { published = s; publishes++; }} />;
 }
 const mount = () => act(() => root.render(<Harness />));
@@ -51,9 +57,10 @@ const selectTwo = () => { const [a, b] = rooms(); press(a); press(b, { shiftKey:
 
 beforeEach(() => {
   root = createRoot(document.body.appendChild(document.createElement('div')));
-  shown = BOARD; published = undefined; publishes = 0; status.mockClear();
+  shown = BOARD; start = sampleProject; visited = []; published = undefined; publishes = 0; status.mockClear();
   for (const f of [saveBinary, saveCsv, savePdf]) vi.mocked(f).mockClear();
   vi.stubGlobal('confirm', vi.fn(() => true));
+  vi.mocked(loadScheduleRows).mockClear();
 });
 afterEach(() => { act(() => root.unmount()); document.body.innerHTML = ''; vi.unstubAllGlobals(); });
 
@@ -213,5 +220,156 @@ describe('Load schedule page and the ribbon', () => {
     await act(async () => { published!.onExport('pdf'); await Promise.resolve(); await Promise.resolve(); });
     expect(String(vi.mocked(savePdf).mock.calls[0][0])).toContain('connected-load-MD.pdf');
     expect(vi.mocked(saveBinary)).not.toHaveBeenCalled();
+  });
+});
+
+/** A circuit with its breaker sized by hand far too small for its load. */
+const tooSmall = (p: Project, id: string) => updateCircuit(p, id, { breakerRatingA: 6 });
+/** A lighting circuit with its wire chosen below the 2.5 mm² minimum. */
+const thinWire = (p: Project, id: string) => updateCircuit(p, id, { cableCsaMm2: 1.5 });
+/** The sample with a second DB on the first floor, with one circuit (a cooker on a 6 A breaker when `broken`). */
+const withSecondDb = (broken: boolean) => {
+  const db = sampleProject.boards.find((b) => b.id === BOARD)!;
+  const added = addCircuit({ ...sampleProject, boards: [...sampleProject.boards, { ...db, id: 'DB-FF1', name: 'First floor DB', upstreamId: 'SMDB-FF', spareWays: undefined }] }, 'DB-FF1');
+  const p = updateCircuit(added.project, added.id, { points: { cooker: 1 } });
+  return broken ? tooSmall(p, added.id) : p;
+};
+const barText = () => document.querySelector('[aria-label="Circuit to check"]')?.textContent ?? '';
+const feeder = (id: string) => latest.feeders.find((f) => f.id === id)!;
+const wait = async () => { await act(async () => { await Promise.resolve(); }); };
+
+describe('the board steps', () => {
+  it('give the panels either side in the schedule\'s order, across panel types, none at the ends', () => {
+    // MDB, then SMDBs, then DBs, then MCCs.
+    mount();
+    expect(published).toMatchObject({ board: true, prevBoard: 'SMDB-FF', nextBoard: 'MCC-1' });
+    act(() => published!.onBoardStep(1));
+    expect(visited).toEqual(['MCC-1']);
+    expect(published).toMatchObject({ board: true, prevBoard: 'DB-GF1', nextBoard: undefined }); // the MD form of the last panel
+    act(() => published!.onBoardStep(-1));
+    expect(visited).toEqual(['MCC-1', 'DB-GF1']);
+    act(() => published!.onBoardStep(1)); act(() => published!.onBoardStep(1)); // no next: stays
+    expect(visited).toEqual(['MCC-1', 'DB-GF1', 'MCC-1']);
+  });
+
+  it('start at the first panel, and are off on the TCL summary and the busbar riser', () => {
+    shown = 'MDB-1';
+    mount();
+    expect(published).toMatchObject({ board: true, prevBoard: undefined, nextBoard: 'SMDB-GF' });
+    act(() => { [...document.querySelectorAll('button')].find((b) => b.textContent === 'TCL summary')!.click(); });
+    expect(published).toMatchObject({ board: false, prevBoard: undefined, nextBoard: undefined });
+  });
+});
+
+describe('Duplicate', () => {
+  it('copies the circuit of the active row and says which way it went into', () => {
+    mount();
+    act(() => published!.onDuplicate()); // no active row
+    expect(latest).toBe(sampleProject);
+    act(() => rooms()[0].focus());
+    const ref = published!.row!;
+    const n = circuits().length;
+    act(() => published!.onDuplicate());
+    expect(circuits()).toHaveLength(n + 1);
+    expect(status).toHaveBeenLastCalledWith(expect.stringMatching(new RegExp(`^Circuit [RYB]\\d+ added as a copy of ${ref}$`)));
+  });
+});
+
+describe('Check', () => {
+  it('counts the failing circuits of the board on screen, not off the DB form', () => {
+    start = thinWire(tooSmall(sampleProject, 'DB-GF1-R3'), 'DB-GF1-R1');
+    mount();
+    expect(published).toMatchObject({ fails: 2, warns: 0 });
+    shown = 'MDB-1';
+    act(() => root.unmount());
+    root = createRoot(document.body.appendChild(document.createElement('div')));
+    mount();
+    expect(published).toMatchObject({ fails: 0, warns: 0 });
+  });
+
+  it('walks the problem rows in order, selects each, and wraps round', async () => {
+    start = thinWire(tooSmall(sampleProject, 'DB-GF1-R3'), 'DB-GF1-R1');
+    mount();
+    expect(barText()).toBe('');
+    const seen: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      act(() => published!.onCheck());
+      await wait();
+      seen.push(`${barText().match(/Problem (\d) of (\d)/)![0]} ${published!.row}`);
+    }
+    expect(seen).toEqual(['Problem 1 of 2 R1', 'Problem 2 of 2 R3', 'Problem 1 of 2 R1']);
+    expect(barText()).toContain('DB-GF1');
+  });
+
+  it('says why and offers the fixes: a wire below the minimum', async () => {
+    start = thinWire(sampleProject, 'DB-GF1-R1');
+    mount();
+    act(() => published!.onCheck());
+    expect(barText()).toContain('Wire below the 2.5 mm² minimum for lighting circuits');
+    expect(barText()).toContain('Living lighting');
+    const fix = [...document.querySelectorAll<HTMLButtonElement>('[aria-label="Circuit to check"] button')].find((b) => b.textContent === '2.5 mm² wire')!;
+    act(() => fix.click());
+    expect(feeder('DB-GF1-R1')).toMatchObject({ cableCsaMm2: 2.5, manualSize: true });
+    expect(barText()).toBe(''); // it passes now
+    expect(status).toHaveBeenLastCalledWith('R1: 2.5 mm² wire applied');
+  });
+
+  it('applies a quick fix as the SLD does, sized by hand; the bar stays while the row still needs checking', () => {
+    start = tooSmall(sampleProject, 'DB-GF1-R3');
+    mount();
+    act(() => published!.onCheck());
+    expect(barText()).toContain('Breaker too small');
+    const fixes = [...document.querySelectorAll<HTMLButtonElement>('[aria-label="Circuit to check"] button.chip')].filter((b) => /^Breaker \d+ A/.test(b.textContent!));
+    expect(fixes.length).toBeGreaterThan(0);
+    act(() => fixes[0].click());
+    expect(feeder('DB-GF1-R3').breakerRatingA).toBeGreaterThan(6);
+    expect(feeder('DB-GF1-R3').manualSize).toBe(true);
+    // The breaker is right now, but it is near its rating: the bar stays on the circuit and says so.
+    expect(barText()).toMatch(/^Problem 1 of 1 · DB-GF1 R3 · Cooker\s*WARNING — Breaker loading \d+ % of In \d+ A\s*Next problem\s*$/);
+    expect(status).not.toHaveBeenCalledWith(expect.stringMatching(/applied$/));
+  });
+
+  it('closes the bar with its button, when the circuit is deleted, and when the board changes', async () => {
+    start = tooSmall(sampleProject, 'DB-GF1-R3');
+    mount();
+    act(() => published!.onCheck());
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Circuit to check"] [aria-label="Close"]')!.click());
+    expect(barText()).toBe('');
+    act(() => published!.onCheck());
+    expect(barText()).not.toBe('');
+    await act(async () => { published!.onDeleteRow(); await Promise.resolve(); });
+    expect(barText()).toBe('');
+    act(() => published!.onCheck());
+    expect(barText()).toBe(''); // nothing left to show on this board
+  });
+
+  it('on a clean board goes to the next board with a problem and shows it', async () => {
+    start = withSecondDb(true);
+    mount();
+    expect(published).toMatchObject({ fails: 0, warns: 0 });
+    act(() => published!.onCheck());
+    await wait();
+    expect(visited).toEqual(['DB-FF1']);
+    expect(barText()).toMatch(/Problem 1 of 1 · DB-FF1/);
+    expect(published!.grid).toBe(true);
+    expect(published!.row).toBeDefined();
+  });
+
+  it('says so when every schedule is clean', () => {
+    mount();
+    act(() => published!.onCheck());
+    expect(status).toHaveBeenLastCalledWith('Every circuit in every schedule is within limits');
+    expect(visited).toEqual([]);
+  });
+
+  it('works out other boards\' rows only when Check looks for them', () => {
+    start = withSecondDb(false);
+    mount();
+    const boards = () => new Set(vi.mocked(loadScheduleRows).mock.calls.map((c) => c[1]));
+    expect(boards()).toEqual(new Set([BOARD]));
+    act(() => rooms()[0].focus());
+    expect(boards()).toEqual(new Set([BOARD]));
+    act(() => published!.onCheck());
+    expect(boards().size).toBeGreaterThan(1);
   });
 });

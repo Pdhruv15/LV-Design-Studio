@@ -10,7 +10,8 @@ import { DEFAULT_LAYERS } from '../diagram/annotations';
 type Schedule = NonNullable<RibbonActions['schedule']>;
 const noop = () => {};
 const scheduleActions = (over: Partial<Schedule> = {}): Schedule => ({
-  grid: true, onAddCircuit: vi.fn(), onAddSpare: vi.fn(), row: undefined, onFillDown: vi.fn(), onEditRow: vi.fn(), onDeleteRow: vi.fn(),
+  grid: true, board: true, prevBoard: 'MDB-1', nextBoard: 'SMDB-FF', onBoardStep: vi.fn(), fails: 0, warns: 0, onCheck: vi.fn(), onDuplicate: vi.fn(),
+  onAddCircuit: vi.fn(), onAddSpare: vi.fn(), row: undefined, onFillDown: vi.fn(), onEditRow: vi.fn(), onDeleteRow: vi.fn(),
   canBalance: true, imbalancePct: 12, onBalance: vi.fn(), onCopy: vi.fn(), onPaste: vi.fn(), exporting: false, onExport: vi.fn(), ...over
 });
 const actions = (over: Partial<RibbonActions> = {}): RibbonActions => ({
@@ -44,23 +45,88 @@ const items = () => [...document.querySelectorAll<HTMLButtonElement>('.ribbon-sp
 const item = (label: string) => items().find((b) => b.textContent === label)!;
 const more = () => row().querySelector<HTMLButtonElement>('.ribbon-group.more > button') ?? null;
 const sub = (name: string) => tool(name).querySelector('.ribbon-sub')?.textContent;
-const NEW_TOOLS = ['Add circuit', 'Spare', 'Fill down', 'Edit', 'Delete', 'Balance phases', 'Copy', 'Paste', 'Export'];
+const NEW_TOOLS = ['Check', 'Previous board', 'Next board', 'Add circuit', 'Spare', 'Fill down', 'Duplicate', 'Edit', 'Delete', 'Balance phases', 'Copy', 'Paste', 'Export'];
 
 describe('the Load schedule tab', () => {
-  it('has seven groups: Run, Schedule, Circuits and loads, Rows, Balance, Copy and undo, Output', () => {
+  it('has seven groups: Run and check, Schedule, Circuits and loads, Rows, Balance, Copy and undo, Output', () => {
     show();
-    expect(onRow()).toEqual(['Run', 'Schedule', 'Circuits and loads', 'Rows', 'Balance', 'Copy and undo', 'Output']);
-    expect(names('Run')).toEqual(['Run']);
-    expect(names('Schedule')).toEqual(['Load schedule', 'Board', 'Enclosure']);
+    expect(onRow()).toEqual(['Run and check', 'Schedule', 'Circuits and loads', 'Rows', 'Balance', 'Copy and undo', 'Output']);
+    expect(names('Run and check')).toEqual(['Run', 'Check']);
+    expect(names('Schedule')).toEqual(['Load schedule', 'Boards', 'Board', 'Enclosure', 'Previous board', 'Next board']);
     expect(names('Circuits and loads')).toEqual(['Add circuit', 'Spare', 'Add load']);
-    expect(names('Rows')).toEqual(['Fill down', 'Edit', 'Delete']);
+    expect(names('Rows')).toEqual(['Fill down', 'Duplicate', 'Edit', 'Delete']);
     expect(names('Balance')).toEqual(['Balance phases']);
     expect(names('Copy and undo')).toEqual(['Copy', 'Paste', 'Undo', 'Redo']);
     expect(names('Output')).toEqual(['Export']);
-    // Fill down, Edit and Delete in one column; Copy and Paste, then Undo and Redo, in two.
-    expect([...group('Rows').querySelectorAll('.ribbon-stack')].map((c) => c.children.length)).toEqual([3]);
+    // Fill down and Duplicate, then Edit and Delete; Previous and Next board; Copy and Paste, then Undo and Redo.
+    expect([...group('Rows').querySelectorAll('.ribbon-stack')].map((c) => c.children.length)).toEqual([2, 2]);
+    expect([...group('Schedule').querySelectorAll('.ribbon-stack')].map((c) => c.children.length)).toEqual([2]);
     expect([...group('Copy and undo').querySelectorAll('.ribbon-stack')].map((c) => c.children.length)).toEqual([2, 2]);
     expect(more()).toBeNull(); // nothing under More on a wide window
+  });
+
+  it('has Boards (add a board) in the Schedule group, with its list', () => {
+    const onAddBoard = vi.fn();
+    show({}, { onAddBoard });
+    click(tool('Boards'));
+    expect(onAddBoard).toHaveBeenCalledTimes(1);
+    click(arrow('Boards'));
+    expect(items().map((b) => b.textContent)).toEqual(['DB · 63 A', 'EDB · 63 A', 'SMDB · 250 A', 'MCC · 400 A', 'EMCC · 400 A', 'EMDB · 400 A', 'Build hierarchy…']);
+    click(item('SMDB · 250 A'));
+    expect(onAddBoard).toHaveBeenLastCalledWith({ kind: 'SMDB', ratingA: 250 });
+    show(null);
+    expect(tool('Boards').disabled).toBe(false); // as on the SLD tab
+  });
+
+  it('steps to the board before and after, named in the tip, greyed at the ends and off a board\'s form', () => {
+    let s = show();
+    expect(tool('Previous board').title).toBe('Previous board: MDB-1');
+    expect(tool('Next board').title).toBe('Next board: SMDB-FF');
+    click(tool('Previous board'));
+    expect(s.onBoardStep).toHaveBeenLastCalledWith(-1);
+    click(tool('Next board'));
+    expect(s.onBoardStep).toHaveBeenLastCalledWith(1);
+    s = show({ prevBoard: undefined });
+    expect(tool('Previous board').disabled).toBe(true);
+    expect(tool('Previous board').title).toBe('First board of the schedule');
+    expect(tool('Next board').disabled).toBe(false);
+    show({ nextBoard: undefined });
+    expect(tool('Next board').title).toBe('Last board of the schedule');
+    show({ board: false, prevBoard: undefined, nextBoard: undefined });
+    for (const n of ['Previous board', 'Next board']) { expect(tool(n).disabled, n).toBe(true); expect(tool(n).title, n).toBe('On a board\'s schedule'); }
+    show({ grid: false, board: true }); // the MD form: the steps work
+    expect(tool('Next board').disabled).toBe(false);
+    show(null);
+    expect(tool('Next board').title).toBe('On the Load schedule page');
+  });
+
+  it('checks: the count beside it, what a press does, and a title that says what is there', () => {
+    let s = show({ fails: 2, warns: 3 });
+    expect(sub('Check')).toBe('2 fail');
+    expect(tool('Check').title).toBe('Show the next failing circuit in this schedule — 2 failing, 3 to check');
+    click(tool('Check'));
+    expect(s.onCheck).toHaveBeenCalledTimes(1);
+    s = show({ warns: 3 });
+    expect(sub('Check')).toBe('3 to check');
+    expect(tool('Check').title).toBe('Show the next circuit to check in this schedule — 0 failing, 3 to check');
+    s = show();
+    expect(sub('Check')).toBeUndefined();
+    expect(tool('Check').title).toBe('No problem in this schedule — press to look in the other boards');
+    expect(tool('Check').disabled).toBe(false);
+    click(tool('Check'));
+    expect(s.onCheck).toHaveBeenCalledTimes(1);
+    show(null, { view: 'enclosure' });
+    expect(tool('Check').title).toBe('On the Load schedule page');
+  });
+
+  it('duplicates the circuit of the active row', () => {
+    let s = show({ row: 'Y3' });
+    expect(tool('Duplicate').title).toBe('Duplicate circuit Y3 in the next free way');
+    click(tool('Duplicate'));
+    expect(s.onDuplicate).toHaveBeenCalledTimes(1);
+    s = show();
+    expect(tool('Duplicate').disabled).toBe(true);
+    expect(tool('Duplicate').title).toBe('Click a circuit row on the schedule first');
   });
 
   it('shows what is out of date under Run, as the SLD tab does', () => {
@@ -188,7 +254,7 @@ describe('the Load schedule tab', () => {
 
   it('greys the grid tools on the other forms, and keeps Export; CSV and the template are DB-only', () => {
     show({ grid: false, row: undefined });
-    for (const n of ['Add circuit', 'Spare', 'Fill down', 'Edit', 'Delete', 'Balance phases', 'Copy', 'Paste']) { expect(tool(n).disabled, n).toBe(true); expect(tool(n).title, n).toBe('On the DB load schedule form'); }
+    for (const n of ['Check', 'Add circuit', 'Spare', 'Fill down', 'Duplicate', 'Edit', 'Delete', 'Balance phases', 'Copy', 'Paste']) { expect(tool(n).disabled, n).toBe(true); expect(tool(n).title, n).toBe('On the DB load schedule form'); }
     expect(sub('Balance phases')).toBeUndefined();
     expect(tool('Export').disabled).toBe(false);
     click(tool('Export'));
@@ -219,7 +285,7 @@ describe('the Load schedule tab on a narrow window', () => {
     expect(onRow()).toHaveLength(7);
     expect(more()).toBeNull();
     resize(1500); // room for five
-    expect(onRow()).toEqual(['Run', 'Schedule', 'Circuits and loads', 'Rows', 'Balance']);
+    expect(onRow()).toEqual(['Run and check', 'Schedule', 'Circuits and loads', 'Rows', 'Balance']);
     expect(more()!.title).toBe('More tools: Copy and undo, Output');
     click(more()!);
     expect(under()).toEqual(['Copy and undo', 'Output']);
@@ -232,7 +298,7 @@ describe('the Load schedule tab on a narrow window', () => {
   it('never moves the first three groups', () => {
     show();
     resize(900);
-    expect(onRow()).toEqual(['Run', 'Schedule', 'Circuits and loads']);
+    expect(onRow()).toEqual(['Run and check', 'Schedule', 'Circuits and loads']);
     click(more()!);
     expect(under()).toEqual(['Rows', 'Balance', 'Copy and undo', 'Output']);
   });

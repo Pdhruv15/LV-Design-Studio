@@ -7,7 +7,7 @@ import {
 import { BringToFront, Frame, LayoutTemplate, Printer, Crop, Plus, ChevronRight, LightbulbOff, Snowflake, LockOpen, Focus, CircleCheck, Layers3, ArrowDownRight, Cloud, FileSearch, ListOrdered } from 'lucide-react';
 import { ListFilter, PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen , SquareScissors } from 'lucide-react';
 import { ClipboardList, Package, Dot, Divide, Target, Pentagon, ArrowRightToLine, TriangleRight, Hexagon, CaseSensitive, LandPlot, ScanSearch, Expand, SlidersHorizontal, DraftingCompass } from 'lucide-react';
-import { ArrowDownToLine, ArrowLeftRight, Check, ClipboardPaste, ListPlus, Scan, SquareDashed } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeftRight, Check, ChevronLeft, ClipboardPaste, CopyPlus, ListPlus, Scan, SquareDashed } from 'lucide-react';
 import type { CadExport, CadRibbonInfo, CadTool } from './cad/cadState';
 import { ColourPicker } from './cad/ColourPicker';
 import { LINETYPE_IDS, LINETYPES, LINEWEIGHTS, type LinetypeId, type ObjectProps } from '../model/cadLayerStyle';
@@ -118,11 +118,18 @@ export interface RibbonActions {
   schedule?: {
     /** The DB load schedule form's grid is on screen (the other forms have no circuits to add or edit). */
     grid: boolean;
+    /** A panel's own form (the DB schedule or the connected load & MD form) is on screen: the board steps work there. */
+    board: boolean;
+    /** The panels either side of this one in the schedule's order; undefined at the ends. */
+    prevBoard?: string; nextBoard?: string;
+    onBoardStep: (d: -1 | 1) => void;
+    /** Circuits of this schedule that fail and to check; `onCheck` shows the next one, or the next board with one. */
+    fails: number; warns: number; onCheck: () => void;
     onAddCircuit: (threePhase?: boolean) => void;
     onAddSpare: (kind: 'spare' | 'space', threePhase?: boolean) => void;
     /** Circuit reference of the row holding the grid's active cell: what Edit and Delete act on. */
     row?: string;
-    onFillDown: () => void; onEditRow: () => void; onDeleteRow: () => void;
+    onFillDown: () => void; onDuplicate: () => void; onEditRow: () => void; onDeleteRow: () => void;
     canBalance: boolean; imbalancePct?: number; onBalance: () => void;
     onCopy: () => void; onPaste: () => void;
     exporting: boolean;
@@ -268,7 +275,7 @@ export function tipOf(t: Pick<Tool, 'label' | 'title' | 'cmd' | 'sub'>): { head:
 
 /** Group captions under the ribbon groups (same order as the groups). */
 export const CAPTIONS: Record<RibbonTab, string[]> = {
-  schedule: ['Run', 'Schedule', 'Circuits and loads', 'Rows', 'Balance', 'Copy and undo', 'Output'],
+  schedule: ['Run and check', 'Schedule', 'Circuits and loads', 'Rows', 'Balance', 'Copy and undo', 'Output'],
   sld: ['Run and check', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Results', 'Copy and undo', 'View', 'Output'],
   home: ['Project', 'Diagram & history', 'Setup'],
   concept: ['Load', 'Supply', 'Stage'],
@@ -439,7 +446,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   // SLD and Load schedule tabs: while the row is wider than the window, one more of its last groups moves under More.
   // Measured again when the window is resized, the tools drop down from a collapsed ribbon, or what is written on the
   // row changes: the board and selection named on it, the settings beside the result lists, the imbalance, an export.
-  const sldWide = `${a.boardId} ${a.selection?.id ?? ''} ${a.staleCount} ${a.sld?.fails ?? 0} ${a.sld?.warns ?? 0} ${a.sld?.colorBy ?? ''} ${a.sld?.supply ?? ''} ${a.schedule?.imbalancePct ?? ''} ${a.schedule?.exporting ?? ''}`;
+  const sldWide = `${a.boardId} ${a.selection?.id ?? ''} ${a.staleCount} ${a.sld?.fails ?? 0} ${a.sld?.warns ?? 0} ${a.sld?.colorBy ?? ''} ${a.sld?.supply ?? ''} ${a.schedule?.imbalancePct ?? ''} ${a.schedule?.exporting ?? ''} ${a.schedule?.fails ?? 0} ${a.schedule?.warns ?? 0}`;
   const moves = tab === 'sld' ? SLD_MOVES : tab === 'schedule' ? SCHEDULE_MOVES : 0;
   useLayoutEffect(() => {
     const el = toolsRef.current;
@@ -600,6 +607,18 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const ls = a.schedule;
   const lsOff = !ls ? 'On the Load schedule page' : undefined, gridOff = lsOff ?? (ls?.grid ? undefined : 'On the DB load schedule form');
   const rowOff = gridOff ?? (ls?.row ? undefined : 'Click a circuit row on the schedule first');
+  const stepOff = (end: string | undefined, name: string) => lsOff ?? (!ls?.board ? 'On a board\'s schedule' : end ? undefined : `${name} board of the schedule`);
+  const lsRun: Tool[] = [
+    { ...run[0], sub: a.staleCount ? `${a.staleCount} out of date` : undefined },
+    { label: 'Check', icon: ListChecks, sub: ls?.fails ? `${ls.fails} fail` : ls?.warns ? `${ls.warns} to check` : undefined,
+      title: gridOff ?? (ls?.fails || ls?.warns ? `Show the next ${ls.fails ? 'failing circuit' : 'circuit to check'} in this schedule — ${ls.fails} failing, ${ls.warns} to check` : 'No problem in this schedule — press to look in the other boards'),
+      onClick: () => ls?.onCheck(), disabled: !!gridOff }
+  ];
+  const lsSchedule: Tool[] = [
+    view('load-schedule', 'Load schedule', Table2, 'DEWA load distribution schedule per DB'), boards[0], boards[1], boards[3],
+    sm({ label: 'Previous board', icon: ChevronLeft, title: stepOff(ls?.prevBoard, 'First') ?? `Previous board: ${ls?.prevBoard}`, onClick: () => ls?.onBoardStep(-1), disabled: !!stepOff(ls?.prevBoard, 'First') }),
+    sm({ label: 'Next board', icon: ChevronRight, title: stepOff(ls?.nextBoard, 'Last') ?? `Next board: ${ls?.nextBoard}`, onClick: () => ls?.onBoardStep(1), disabled: !!stepOff(ls?.nextBoard, 'Last') })
+  ];
   const [lsCircuits, lsRows, lsBalance, lsCopyUndo, lsOutput]: Tool[][] = [
     [
       { label: 'Add circuit', icon: ListPlus, title: gridOff ?? `Add a circuit in the next free way of ${a.boardId} — the arrow beside it for a 3-phase circuit`, onClick: () => ls?.onAddCircuit(), disabled: !!gridOff,
@@ -618,7 +637,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     ],
     [
       sm({ label: 'Fill down', icon: ArrowDownToLine, title: gridOff ?? 'Fill down (Ctrl/⌘ D): the top cell of the selected cells copied down them', onClick: () => ls?.onFillDown(), disabled: !!gridOff }),
-      sm({ label: 'Edit', icon: Pencil, title: rowOff ?? `Edit circuit ${ls?.row} (or double-click the row)`, onClick: () => ls?.onEditRow(), disabled: !!rowOff }),
+      sm({ label: 'Duplicate', icon: CopyPlus, title: rowOff ?? `Duplicate circuit ${ls?.row} in the next free way`, onClick: () => ls?.onDuplicate(), disabled: !!rowOff }),
+      sm({ label: 'Edit', icon: Pencil, title: rowOff ?? `Edit circuit ${ls?.row} (or double-click the row)`, onClick: () => ls?.onEditRow(), disabled: !!rowOff, col: true }),
       sm({ label: 'Delete', icon: Trash2, title: rowOff ?? `Delete circuit ${ls?.row}`, onClick: () => ls?.onDeleteRow(), disabled: !!rowOff })
     ],
     [
@@ -988,7 +1008,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   };
   const groups: Record<RibbonTab, Tool[][]> = {
     ...stageGroups,
-    schedule: [[{ ...run[0], sub: a.staleCount ? `${a.staleCount} out of date` : undefined }], [view('load-schedule', 'Load schedule', Table2, 'DEWA load distribution schedule per DB'), boards[1], boards[3]], lsCircuits, lsRows, lsBalance, lsCopyUndo, lsOutput],
+    schedule: [lsRun, lsSchedule, lsCircuits, lsRows, lsBalance, lsCopyUndo, lsOutput],
     sld: [sldRun, canvas, boards, sldEquipment, selection, results, copyUndo, sldView, output]
   };
   const onStage = isStageTab(tab);

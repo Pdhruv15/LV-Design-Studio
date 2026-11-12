@@ -101,3 +101,25 @@ describe('the grid commands', () => {
     expect(edits).toEqual([]);
   });
 });
+
+describe('select(pos)', () => {
+  it('selects one cell as a click does, reports it, focuses it and keeps it when focus moves away', () => {
+    const scroll = vi.fn();
+    cell(2, 0).scrollIntoView = scroll;
+    act(() => cmds.select({ y: 2, x: 0 }));
+    expect(active[active.length - 1]).toEqual({ y: 2, x: 0 });
+    expect(document.activeElement).toBe(cell(2, 0));
+    expect(scroll).toHaveBeenCalledTimes(1);
+    act(() => document.getElementById('ribbon-button')!.focus());
+    expect(cmds.paste('X')).toBe(true);
+    expect(edits).toEqual([[{ y: 2, x: 0, value: 'X' }]]);
+  });
+
+  it('replaces a selection of several cells', () => {
+    select();
+    act(() => cmds.select({ y: 2, x: 1 }));
+    expect(document.querySelectorAll('.gx-sel')).toHaveLength(0);
+    cmds.fillDown();
+    expect(edits).toEqual([]); // one cell: nothing to fill
+  });
+});

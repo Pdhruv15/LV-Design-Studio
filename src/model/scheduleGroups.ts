@@ -60,3 +60,8 @@ export function scheduleGroups(project: Project): Record<ScheduleGroup, Board[]>
   out.emg = out.emg.map((b, i) => ({ b, i })).sort((x, y) => rank(x.b) - rank(y.b) || x.i - y.i).map((x) => x.b);
   return out;
 }
+
+/** Every panel in the order of the schedule's tabs and chips: the groups in submission order, each in its own order. */
+export function scheduleBoardOrder(groups: Record<ScheduleGroup, Board[]>): Board[] {
+  return SCHEDULE_GROUPS.flatMap(({ key }) => groups[key]);
+}

@@ -18,6 +18,8 @@ export interface GridCommands {
   fillDown: () => void;
   /** Pastes tab / line text starting at the selection's first cell; false when no cell is selected. */
   paste: (text: string) => boolean;
+  /** Selects this one cell (as a click would), reports it as the active cell and brings it into view. */
+  select: (p: Pos) => void;
 }
 
 /** Adds Excel-style keyboard, selection, copy, paste, fill-down and clear
@@ -30,8 +32,8 @@ export function useExcelGrid(ref: RefObject<HTMLElement>, onEdits: (edits: GridE
   latest.current = onEdits;
   const told = useRef(onActive);
   told.current = onActive;
-  const run = useRef<GridCommands>({ copy: () => false, fillDown: () => {}, paste: () => false });
-  const commands = useRef<GridCommands>({ copy: () => run.current.copy(), fillDown: () => run.current.fillDown(), paste: (t) => run.current.paste(t) });
+  const run = useRef<GridCommands>({ copy: () => false, fillDown: () => {}, paste: () => false, select: () => {} });
+  const commands = useRef<GridCommands>({ copy: () => run.current.copy(), fillDown: () => run.current.fillDown(), paste: (t) => run.current.paste(t), select: (p) => run.current.select(p) });
   const sel = useRef<{ anchor: Pos; focus: Pos } | null>(null);
   const dragging = useRef(false);
 
@@ -106,6 +108,12 @@ export function useExcelGrid(ref: RefObject<HTMLElement>, onEdits: (edits: GridE
       latest.current(pasteEdits(parseClipboard(text), start, ys, xs));
     };
     run.current = {
+      select: (p) => {
+        sel.current = { anchor: p, focus: p };
+        paintAndTell();
+        const el = at(p);
+        if (el) { focusCell(p); el.scrollIntoView?.({ block: 'nearest' }); }
+      },
       copy,
       fillDown,
       paste: (text) => {

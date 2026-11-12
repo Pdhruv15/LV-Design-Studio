@@ -38,6 +38,26 @@ export function addCircuit(project: Project, boardId: string, phase?: Phase, way
   return { project: replaceFeeder(withF, id, refresh(withF, f)), id };
 }
 
+/** A copy of a circuit in the next free slot of its board (the next free RYB way for a 3-phase one), with its own id and
+ * everything typed the same, sized again like any edit (a hand-sized circuit keeps its sizes). What belongs to the
+ * original alone is left out: its permanent ID, its route on the plans and the ELV load it feeds. */
+export function duplicateCircuit(project: Project, id: string): { project: Project; id: string } {
+  const src = project.feeders.find((x) => x.id === id);
+  if (!src || !src.phase) throw new Error('That circuit is no longer on the schedule');
+  const slot = nextFreeSlot(project, src.boardId, src.phase === 'RYB' ? 'RYB' : undefined);
+  const copyId = circuitId(src.boardId, slot.phase, slot.way);
+  const f: Feeder = { ...src, uid: undefined, trayRoute: undefined, cadVerticalM: undefined, lengthToCheck: undefined, elvLoad: undefined,
+    id: copyId, phase: slot.phase, way: slot.way, points: { ...src.points }, loadItems: src.loadItems?.map((i) => ({ ...i })) };
+  const withF = { ...project, feeders: [...project.feeders, f] };
+  return { project: replaceFeeder(withF, copyId, refresh(withF, f)), id: copyId };
+}
+
+/** Applies a quick fix (a change of breaker or cable sizes) to a schedule circuit; the sizes it sets count as chosen by hand. */
+export function fixCircuit(project: Project, id: string, patch: Partial<Feeder>): Project {
+  const f = project.feeders.find((x) => x.id === id);
+  return f ? replaceFeeder(project, id, refresh(project, { ...f, ...patch, manualSize: true })) : project;
+}
+
 export type CircuitPatch = Partial<Pick<Feeder, 'room' | 'points' | 'loadItems' | 'remarks' | 'lengthM' | 'powerFactor' | 'demandFactor' | 'breakerRatingA' | 'breakerType' | 'cableCsaMm2' | 'cpcMm2' | 'breakerIcuKa' | 'manualSize'>>;
 
 /** Applies an edit from the schedule. Changing MCB, wire or ECC by hand

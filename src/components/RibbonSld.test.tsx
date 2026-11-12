@@ -177,8 +177,8 @@ describe('the SLD tab', () => {
 
   it('leaves the Load schedule tab with its own groups, tested in RibbonSchedule.test', () => {
     show({ fails: 2 }, { staleCount: 3 }, 'schedule');
-    expect(onRow().slice(0, 3)).toEqual(['Run', 'Schedule', 'Circuits and loads']);
-    expect(names('Run')).toEqual(['Run']);
+    expect(onRow().slice(0, 3)).toEqual(['Run and check', 'Schedule', 'Circuits and loads']);
+    expect(names('Run and check')).toEqual(['Run', 'Check']);
     expect(names('Circuits and loads')).toEqual(['Add circuit', 'Spare', 'Add load']);
   });
 });

@@ -33,6 +33,8 @@ A point type with no **WATT / UNIT** value contributes 0 W until a value is ente
 Open the workspace from the **Load schedule** tab, the second tab in the ribbon. **SLD > Schedule** and **Documents > Load schedule** open the same workspace, and the ribbon shows the Load schedule tab.
 You can also right-click a board in the panel tree and select **Load schedule**.
 
+Use **Load schedule → Previous board** and **Next board** to move through the panels in the order of the tabs and chips. Use **Load schedule → Boards** to add a panel without leaving the page.
+
 Choose the form according to the task:
 
 - DB lighting, socket, HVAC, and equipment final circuits: **Load schedule**.
@@ -51,7 +53,7 @@ The workspace contains:
 2. Form-group tabs for TCL, MDB, SMDB, DB, MCC, and riser forms.
 3. Panel chips within the selected group.
 4. The editable schedule or maximum-demand grid.
-5. The Load schedule tab of the ribbon: **Add circuit**, **Spare**, the row tools, **Balance phases**, copy and paste, and **Export**.
+5. The Load schedule tab of the ribbon: **Check**, **Boards** and the board steps, **Add circuit**, **Spare**, the row tools, **Balance phases**, copy and paste, and **Export**.
 6. A status area for rejected edits and export results.
 
 <a id="LS-050"></a>
@@ -72,6 +74,8 @@ Resolve every missing-watts warning before relying on connected-load totals.
 4. Enter point quantities in the relevant load columns.
 5. Enter the circuit length.
 6. Review the calculated phase load and row check.
+
+To copy a circuit, click one of its cells and select **Load schedule → Duplicate**. The copy takes the next free way and keeps the same room, points, remarks, length and sizes.
 
 Circuit references use phase plus way, such as R1, Y1, B1, and RYB for a
 three-phase circuit.
@@ -162,6 +166,8 @@ their source panel, feeder, or DB schedule.
 <a id="LS-130"></a>
 ## Validation and review
 
+**Load schedule → Check** goes to the next circuit that fails or needs checking, selects its row, and shows the reason with the fixes on offer. A fix sets the breaker or wire and counts as sized by hand; undo reverses it. When this schedule has no problem, Check looks through the other boards in order and opens the first one that has.
+
 Before export, confirm:
 
 - no missing **WATT / UNIT** warnings;
@@ -169,6 +175,7 @@ Before export, confirm:
 - R/Y/B totals and imbalance have been reviewed;
 - lighting and power circuits are not unintentionally mixed on an ELCB;
 - row checks and minimum wire sizes are acceptable;
+- **Load schedule → Check** shows no more problem circuits;
 - circuit lengths are credible;
 - rolled-up maximum demand matches the panel hierarchy; and
 - calculations have been run after the last electrical edit.
