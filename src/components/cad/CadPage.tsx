@@ -54,6 +54,7 @@ import { planDrawings, scheduleSummary, updateSchedules } from '../../model/cadP
 import { arcPoints, isWired, levelWiring, toggleWiring, wireBoard, wireLevel, type WiringArc } from '../../model/cadWiring';
 import { buildingInfoOf, roomTypesOf } from '../../calc/building';
 import { plansOf } from '../../model/cadPlans';
+import type { PlanTarget } from '../../model/planTarget';
 import { CAD_UNITS, planScale } from '../../model/cadUnits';
 import CadLayerTable from '../CadLayerTable';
 import CadTabs from './CadTabs';
@@ -82,7 +83,7 @@ import type { SheetUi } from '../sld/sheetUi';
 import type { CalcRun } from '../../calc/runs';
 import { exportDrawingSet } from '../docs/sheetRender';
 import { pickedRoom, putRooms, renameRoom, setRoomType } from '../../model/floorPlanActions';
-import { floorLabel, floorList } from '../../model/levels';
+import { floorLabel, floorList, type Floor } from '../../model/levels';
 import type { CadLayerMap, CadLayerRole, Project } from '../../types';
 import { fmtFixed, fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
@@ -485,6 +486,23 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const showOrLoad = (file: string, read: () => Promise<CadView | null>, missing?: string) => {
     const tab = cad.tabOf(file);
     if (tab) cad.show(tab); else void load(read, missing);
+  };
+  /** A level's plan can be shown: open in a tab, a sample, or a file whose folder is known on this computer. */
+  const canOpenPlan = (file: string) => !!cad.tabOf(file) || SAMPLE_PLANS.some((s) => s.file === file) || (!!pathOfPlan(project.id, file) && !!window.lvds?.cadFile?.readBytes);
+  /** Shows a level's plan: its tab, else loads it; with no file yet, asks for a drawing and makes it the level's plan. */
+  const openPlan = (file: string | undefined, floor: Floor) => showOrLoad(file ?? '', async () => {
+    const v = !file ? await chooseDrawing() : SAMPLE_PLANS.some((s) => s.file === file) ? await sampleDrawing(file) : await reopenDrawing(pathOfPlan(project.id, file)!);
+    if (v && !file) setPlanLevel(project, v.file, floor, change, v.info.units);
+    return v;
+  }, 'That drawing is no longer where it was. Open it from Plans.');
+  // Show on plan (from the SLD): the target waits for its drawing to be the one shown, then it is picked and zoomed to.
+  const [showTarget, setShowTarget] = useState<PlanTarget | null>(null);
+  const showOnPlan = (t: PlanTarget) => {
+    if (!canOpenPlan(t.file)) { onStatus(`${t.file}: open it from Plans (its folder is not known on this computer)`); return; }
+    const floor = plansOf(project).find((x) => x.file === t.file)?.floor;
+    if (!floor) return;
+    setShowTarget(t);
+    openPlan(t.file, floor);
   };
   // Closing drawings changed since they were saved asks first (Save / Don't save / Cancel); a Save As started from there
   // closes them once saved.
@@ -1103,9 +1121,23 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [dsTab, setDsTab] = useState<DraftTab | null>(null);
   const [publishing, setPublishing] = useState(false)
 ;
-  cad.actions.current = { newDrawing: newFile, save: () => void saveNow(), saveDwg: () => startSaveAs('dwg'), saveAs: () => startSaveAs(), exportAs: (k) => void exportAs(k), publish: () => setPublishing(true), settings: (t) => setDsTab(t ?? 'snap'), close: () => { if (view) closeDrawings([view]); }, closeOthers: () => { if (view) closeDrawings(cad.drawings.filter((v) => v !== view)); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); }, command: (t) => run(t), setProps, reopen: () => { if (last) void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.'); } };
+  cad.actions.current = { newDrawing: newFile, save: () => void saveNow(), saveDwg: () => startSaveAs('dwg'), saveAs: () => startSaveAs(), exportAs: (k) => void exportAs(k), publish: () => setPublishing(true), settings: (t) => setDsTab(t ?? 'snap'), close: () => { if (view) closeDrawings([view]); }, closeOthers: () => { if (view) closeDrawings(cad.drawings.filter((v) => v !== view)); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); }, command: (t) => run(t), setProps, showOnPlan, reopen: () => { if (last) void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.'); } };
   // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
   useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
+  // Show on plan: once the target's drawing is the one shown, pick the target and zoom to it.
+  useEffect(() => {
+    if (!showTarget) return;
+    if (view && view.file.toLowerCase() === showTarget.file.toLowerCase()) {
+      setShowTarget(null);
+      const items = placed.filter((d) => showTarget.keys.includes(d.key));
+      setResult(items.length === 1 ? { kind: 'device', it: items[0] } : null);
+      cad.setSelected(items.length === 1 ? items[0].key : showTarget.itemIds.length === 1 ? `sk:${showTarget.itemIds[0]}` : null);
+      setPicked(items.length > 1 ? items.map((d) => d.key) : showTarget.itemIds.length > 1 ? showTarget.itemIds.map((id) => `sk:${id}`) : []);
+      const w = showTarget.box, k = units.factor;
+      if (w) zoomTo({ kind: 'window', a: [w.x0 / k, w.y0 / k], b: [w.x1 / k, w.y1 / k] });
+      onStatus(showTarget.note ? `${showTarget.note}: ${showTarget.label}` : showTarget.label);
+    } else if (!busy) setShowTarget(null); // the drawing could not be shown
+  }, [showTarget, view, busy]); // eslint-disable-line react-hooks/exhaustive-deps -- once the target's drawing is shown
   // A ribbon command given while another page was shown runs now that the page is here.
   useEffect(() => { const fn = cad.pending.current; if (fn) { cad.pending.current = null; fn(cad.actions.current); } });
 
@@ -3716,15 +3748,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 {plans.map((x) => {
                   const here = !!view && levelSet && floor?.key === x.floor.key;
                   const inTab = !!x.file && !!cad.tabOf(x.file);
-                  const canOpen = !!x.file && (inTab || SAMPLE_PLANS.some((s) => s.file === x.file) || (!!pathOfPlan(project.id, x.file) && !!window.lvds?.cadFile?.readBytes));
+                  const canOpen = !!x.file && canOpenPlan(x.file);
                   return (
                     <button key={x.floor.key} role="listitem" className={`cad-lyr${x.file ? '' : ' off'}`} aria-current={here || undefined} disabled={busy || here || (!!x.file && !canOpen)}
                       title={x.file ? (canOpen ? `Open ${x.file}` : `${x.file}: open it from Plans (its folder is not known on this computer)`) : `Open a drawing as the plan of ${x.label}`}
-                      onClick={() => showOrLoad(x.file ?? '', async () => {
-                        const v = !x.file ? await chooseDrawing() : SAMPLE_PLANS.some((s) => s.file === x.file) ? await sampleDrawing(x.file) : await reopenDrawing(pathOfPlan(project.id, x.file)!);
-                        if (v && !x.file) setPlanLevel(project, v.file, x.floor, change, v.info.units);
-                        return v;
-                      }, 'That drawing is no longer where it was. Open it from Plans.')}>
+                      onClick={() => openPlan(x.file, x.floor)}>
                       <b>{x.label}</b>{x.file ?? 'no plan'}<span className="m">{here || inTab ? 'open' : x.file ? '' : 'open…'}</span>
                     </button>
                   );

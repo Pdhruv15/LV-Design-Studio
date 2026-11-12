@@ -329,7 +329,7 @@ describe('the Load schedule tab on a narrow window', () => {
   });
 
   it('keeps the SLD tab\'s overflow, with its list of other tools', () => {
-    show({}, { sld: { fails: 0, warns: 0, onCheck: noop, onArm: noop, onHvSupply: noop, system: true, layers: DEFAULT_LAYERS, onLayers: noop, colorBy: 'none', onColorBy: noop, supply: 'normal', onSupply: noop, hasGenerator: false, outages: [], canCopy: false, onCopy: noop, canPaste: false, onPaste: noop, onFit: noop, onExport: noop }, view: 'design' }, 'sld');
+    show({}, { sld: { fails: 0, warns: 0, onCheck: noop, onArm: noop, onHvSupply: noop, system: true, layers: DEFAULT_LAYERS, onLayers: noop, colorBy: 'none', onColorBy: noop, supply: 'normal', onSupply: noop, hasGenerator: false, outages: [], canCopy: false, onCopy: noop, canPaste: false, onPaste: noop, onShowOnPlan: noop, onFit: noop, onExport: noop }, view: 'design' }, 'sld');
     expect(onRow()).toHaveLength(9);
     resize(1900);
     expect(onRow()).toHaveLength(7);

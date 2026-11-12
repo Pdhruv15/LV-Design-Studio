@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAnnotations } from './annotations';
+import { buildAnnotations, DEFAULT_LAYERS, isView, SHEET_LAYERS, withView } from './annotations';
 import { deleteBoard, boardAndDescendants } from '../model/edit';
 import { evaluateProject } from '../calc/electrical';
 import { boardSummary } from '../calc/summary';
@@ -67,5 +67,24 @@ describe('delete board', () => {
 
   it('refuses to delete the only main board', () => {
     expect(() => deleteBoard(sampleProject, 'MDB-1')).toThrow(/at least one main board/);
+  });
+});
+
+describe('sheet views and the Level and room tick', () => {
+  const load = { current: true, voltage: false, vd: false, fault: false, pf: false, loading: true };
+  it('keeps the constants without the tick, so the key is absent (off)', () => {
+    expect('location' in DEFAULT_LAYERS || 'location' in SHEET_LAYERS).toBe(false);
+  });
+  it('a view chip keeps the sheet\'s tick as it was', () => {
+    expect(withView({ ...SHEET_LAYERS, location: true }, load)).toEqual({ ...load, location: true });
+    expect(withView(SHEET_LAYERS, load)).toBe(load);
+    expect(withView({ ...SHEET_LAYERS, location: false }, load)).toBe(load);
+  });
+  it('the chip is on whatever the tick says', () => {
+    expect(isView({ ...load, location: true }, load)).toBe(true);
+    expect(isView({ ...load, location: false }, load)).toBe(true);
+    expect(isView(load, load)).toBe(true);
+    expect(isView({ ...load, location: true, fault: true }, load)).toBe(false);
+    expect(isView({ ...SHEET_LAYERS, location: true }, SHEET_LAYERS)).toBe(true);
   });
 });

@@ -343,7 +343,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
           <div className="ds-tools">
             {LAYER_LABELS.map(([k, label]) => {
               const tags = set.tags ?? SHEET_LAYERS;
-              return <label key={k} className="row"><input type="checkbox" checked={tags[k]} onChange={(e) => save({ ...set, tags: { ...tags, [k]: e.target.checked } })} /> {label}</label>;
+              return <label key={k} className="row"><input type="checkbox" checked={!!tags[k]} onChange={(e) => save({ ...set, tags: { ...tags, [k]: e.target.checked } })} /> {label}</label>;
             })}
           </div>
           <p className="m">Failures print in red (e.g. breaker Icu below the fault level).</p>

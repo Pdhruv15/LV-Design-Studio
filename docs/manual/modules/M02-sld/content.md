@@ -101,6 +101,10 @@ drop while editing.
 - Drag an existing board, load, or incomer to another valid target to reconnect it.
 - Use **Edit** or **F2** to change the selected item.
 - Use **Delete** to remove the selected item after reviewing the confirmation.
+- Use **Show on plan** (beside **Delete**) to see the selected board or circuit on its floor
+  plan: Design CAD opens that level's drawing, zooms to it and picks the board's symbol,
+  the circuit's devices or its drawn cable route. If it is not on a plan, the status line
+  says what is missing.
 - Use **Ctrl/Command+C** and **Ctrl/Command+V** to copy a board with everything
   below it and paste the branch under another board. **Copy** and **Paste** on the
   ribbon do the same.
@@ -150,6 +154,12 @@ Choose what the system diagram shows in the ribbon's **Results** group: **Values
 out). The setting in use shows beside each name. **Check**, beside **Run**, counts
 the circuits that fail or need checking and goes to the next one. On a narrow
 window the ribbon groups that do not fit are under **More**.
+
+Tick **Level and room** in **Values** to print the level and room under each DB and under
+each board drawn as a symbol, and in the standard style under the name box of a panel.
+DEWA-style panels already show them in their LOC row. A board with neither shows "Not on
+a plan" on the screen; a drawing sheet prints the line only when its own **Level and room**
+tick is on.
 
 Display choices help prepare and review drawings but do not replace electrical
 validation. If the diagram shows calculated labels, run calculations before export.

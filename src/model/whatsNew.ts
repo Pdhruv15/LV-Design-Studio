@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.110', date: '2026-11-12',
+    items: [
+      { title: 'Show on plan', text: 'Select a board or a circuit on the SLD and press Show on plan, after Delete in the Selection group. Design CAD opens that level\'s drawing, zooms to it and picks it: the board\'s symbol, the devices of the circuit, or its drawn cable route. A circuit with no route or devices shows the board it feeds when that is placed; otherwise the status line says what is missing.' },
+      { title: 'Level and room on the SLD', text: 'The Values menu has a new tick, Level and room. It prints the level and room, for example Level 2 · Elec. room 2.01, under each DB and under each board drawn as a symbol, and in the standard style under the name box of a panel. DEWA-style panels already show them in their LOC row. A board with neither shows Not on a plan on the screen, and nothing on a sheet. Each drawing sheet has the same tick, off until you turn it on.' }
+    ]
+  },
+  {
     version: '2.109', date: '2026-11-12',
     items: [
       { title: 'Load schedule ribbon: circuits, rows, balance, copy and export on the row', text: 'The Load schedule tab now holds the schedule commands that sat above the table and in the page header. Add circuit (the arrow beside it for a 3-phase circuit), Spare (with Space and the 3-phase ones) and Add load make up Circuits and loads. Rows has Fill down, Duplicate, Edit and Delete for the circuit you last clicked. Check, beside Run, goes to the next circuit that fails or needs checking, shows why with the fixes to apply, and moves on to the next board with a problem when this one is clean. Boards adds a panel, and Previous and Next board step through the panels in the schedule\'s order. Balance phases shows how far apart the phases are. Copy, Paste, Undo and Redo, and Export (Excel, PDF, CSV, the submission pack and your own Excel template) follow. Run shows how many studies are out of date, and on a narrow window the last groups wait under More. Documents → Load schedule now opens the Load schedule tab.' }

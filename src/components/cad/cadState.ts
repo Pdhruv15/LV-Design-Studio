@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CadView } from '../../engines/cad/cadEngine';
 import type { CadToggles } from './CadCanvas';
 import type { ObjectProps } from '../../model/cadLayerStyle';
+import type { PlanTarget } from '../../model/planTarget';
 
 /** The tool working on the drawing: none (Select: a click inspects the object under it, Shift-click or a window picks
  * several devices or drawn objects), a measuring tool, a room tool (`room`
@@ -53,8 +54,8 @@ export const skipRef = (projectId: string | undefined, host: string, name: strin
 /** What the ribbon asks of the page showing the drawing; nothing while the page is not shown. */
 /** What the ribbon runs on the page; `newDrawing` opens a blank drawing (NEW); `command` runs a command as if typed on the command line (TEXTSTYLE, LAYISO…);
  * `setProps` sets the colour, linetype or lineweight of the drawn objects picked, or of new objects when none is. */
-export interface CadActions { newDrawing: () => void; save: () => void; saveDwg: () => void; saveAs: () => void; exportAs: (kind: CadExport) => void; publish: () => void; settings: (tab?: DraftTab) => void; close: () => void; closeOthers: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void; refs: () => void; layoutCmd: (cmd: string) => void; command: (text: string) => void; reopen: () => void; setProps: (patch: ObjectProps) => void }
-export const NO_ACTIONS: CadActions = { newDrawing: () => {}, save: () => {}, saveDwg: () => {}, saveAs: () => {}, exportAs: () => {}, publish: () => {}, settings: () => {}, close: () => {}, closeOthers: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {}, refs: () => {}, layoutCmd: () => {}, command: () => {}, reopen: () => {}, setProps: () => {} };
+export interface CadActions { newDrawing: () => void; save: () => void; saveDwg: () => void; saveAs: () => void; exportAs: (kind: CadExport) => void; publish: () => void; settings: (tab?: DraftTab) => void; close: () => void; closeOthers: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void; layerManager: () => void; refs: () => void; layoutCmd: (cmd: string) => void; command: (text: string) => void; reopen: () => void; setProps: (patch: ObjectProps) => void; showOnPlan: (t: PlanTarget) => void }
+export const NO_ACTIONS: CadActions = { newDrawing: () => {}, save: () => {}, saveDwg: () => {}, saveAs: () => {}, exportAs: () => {}, publish: () => {}, settings: () => {}, close: () => {}, closeOthers: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {}, layerManager: () => {}, refs: () => {}, layoutCmd: () => {}, command: () => {}, reopen: () => {}, setProps: () => {}, showOnPlan: () => {} };
 
 /** File → Export: a PDF of the view or of the layout, a PNG image, the objects picked as DXF, the devices placed or the
  * cable routes' lengths as Excel. */
