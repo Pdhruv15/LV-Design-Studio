@@ -1271,7 +1271,6 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .menu-pop select{width:100%}
 .menu-pop hr{border:0;border-top:1px solid var(--line);margin:4px 0}
 .sld-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.sld-bar .sp{flex:1}
 .res-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
 /* Results drawer under the SLD */
 .res-drawer{border:1px solid var(--line);border-radius:10px;margin-top:10px}
@@ -1338,6 +1337,17 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .ribbon-split-menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
 .ribbon-sub{font-size:var(--fs-xs);color:var(--mut);margin-top:-3px;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ribbon-split-menu button:hover,.ribbon-split-menu button:focus-visible{background:color-mix(in srgb,var(--acc) 18%,transparent)}
+/* A list of choices: a tick beside the ones that are on; items that cannot be chosen are greyed. */
+.ribbon-split-menu button[aria-checked]{display:flex;align-items:center;gap:6px}
+.ribbon-split-menu .ck{display:inline-flex;width:12px;flex:none;color:var(--acc)}
+.ribbon-split-menu button:disabled{opacity:.45;cursor:not-allowed;background:none}
+/* SLD → Results: a small tool with its setting beside its name (the name muted, the setting plain). */
+.ribbon-group .ribbon-stack button.has-val > span:first-of-type{color:var(--mut)}
+.ribbon-val{max-width:130px;overflow:hidden;text-overflow:ellipsis}
+/* SLD tab on a narrow window: the groups that do not fit, under More with the other tools. */
+.ribbon-over{position:absolute;top:100%;right:var(--space-2);z-index:60;display:flex;align-items:stretch;background:var(--p2);border:1px solid var(--line);border-radius:8px;padding:var(--space-1) 0;box-shadow:var(--shadow-pop)}
+.ribbon-over .ribbon-over-list{display:flex;flex-direction:column;justify-content:center;padding:0 var(--space-1)}
+.ribbon-group .ribbon-over-list button{flex-direction:row;justify-content:flex-start;min-width:0;min-height:0;padding:6px 10px;font-size:13px}
 /* Design CAD as shown (Show labels off): the main tools of a panel as tall as three small ones, named under the icon;
    the others icons only, three to a column (two under the current layer list); the name, typed command and what a tool
    does show in a tooltip under it. */

@@ -208,6 +208,10 @@ export function canDrop(project: Project, item: PaletteItem, target: DropTarget)
 
 /** Where an item can go at all, whatever the project: for the palette's
  * drop-target marks. canDrop still decides each actual target. */
+/** The hint while an item chosen from the library (or the SLD ribbon) waits for its click on the drawing. */
+export const armHint = (item: PaletteItem, label: string) =>
+  `${label}: click a ${dropsOn(item).map((t) => (t === 'bus' ? 'busbar' : t)).join(' or ')} on the drawing to place it — Esc cancels`;
+
 export function dropsOn(item: PaletteItem): DropTarget['type'][] {
   switch (item.kind) {
     case 'board':
@@ -407,7 +411,7 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
     return {
       project: { ...project, ties: [...(project.ties ?? []), { id, a: here.id, b: other.id, ratingA }] },
       select: { type: 'board', id: here.id },
-      message: `Added bus coupler ${id} (${ratingA} A, normally open) between ${here.id} and ${other.id} — choose “Transformer of … failed” in Supply to check the other transformer carrying both`
+      message: `Added bus coupler ${id} (${ratingA} A, normally open) between ${here.id} and ${other.id} — choose “Transformer of … failed” in SLD → Results → Scenario to check the other transformer carrying both`
     };
   }
 

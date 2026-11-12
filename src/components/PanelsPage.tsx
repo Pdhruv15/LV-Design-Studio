@@ -22,15 +22,17 @@ const ROWS = 300; // panel list rows drawn at once; search narrows it
 /** Design → Panels: create panels quickly by count (levels later), then edit
  * levels, parents and locations in one list and rename by level. Typical
  * floors, repeat group and templates are the same builders as before. */
-export default function PanelsPage({ project, onChange, onCreated, onStatus, onBuilding }: {
+export default function PanelsPage({ project, onChange, onCreated, onStatus, onBuilding, initialTab }: {
   project: Project;
   onChange: (p: Project) => void;
   /** A batch was added: highlight it in the panel tree. */
   onCreated: (next: Project, message: string, added: string[]) => void;
   onStatus: (m: string) => void;
   onBuilding: () => void;
+  /** The tab to open on (the SLD ribbon's HV supply and RMUs opens Transformers); Quick create without one. */
+  initialTab?: 'tx';
 }) {
-  const [tab, setTab] = useState<Tab>('quick');
+  const [tab, setTab] = useState<Tab>(initialTab ?? 'quick');
   const created = (next: Project, message: string) => {
     const before = new Set(project.boards.map((b) => b.id));
     onCreated(next, message, next.boards.filter((b) => !before.has(b.id)).map((b) => b.id));
