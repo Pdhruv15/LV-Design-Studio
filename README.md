@@ -7,8 +7,8 @@ transformer / generator sizing, power factor correction, drawings and
 submission reports. Projects are plain JSON files, so they sync cleanly
 through a Google Drive / OneDrive / Dropbox desktop folder.
 
-[Try the browser app](https://pdhruv15.github.io/LV-Design-Suit/)
-· [About the project](https://pdhruv15.github.io/LV-Design-Suit/about/)
+[Try the browser app](https://pdhruv15.github.io/LV-Design-Studio/)
+· [About the project](https://pdhruv15.github.io/LV-Design-Studio/about/)
 · [Calculation methods and limits](docs/engineering/calculation-methods.md)
 · [Privacy and project data](docs/privacy.md)
 
@@ -112,7 +112,7 @@ device. Download project `.json` backups regularly. Clearing the site's data
 or deleting the browser profile removes locally stored projects.
 
 The same workflow also publishes an architecture page at `<site>/architecture/`
-(for this repository, https://pdhruv15.github.io/LV-Design-Suit/architecture/). It shows every
+(for this repository, https://pdhruv15.github.io/LV-Design-Studio/architecture/). It shows every
 module, its main files and how the modules pass data to each other. The page and its Markdown
 sources are in [`docs/architecture/`](docs/architecture/00-index.md); open
 `docs/architecture/navigator.html` in a browser to use it offline.
@@ -240,12 +240,12 @@ calculations. The app makes no AI calls itself and needs no paid service. For
 Claude Code:
 
 ```bash
-claude mcp add lv-design-studio -- node /path/to/LV-Design-Suit/dist-cli/lvds.mjs mcp
+claude mcp add lv-design-studio -- node /path/to/LV-Design-Studio/dist-cli/lvds.mjs mcp
 ```
 
 For Claude Desktop, add the same command under `mcpServers` in its
 `claude_desktop_config.json`:
-`{"lv-design-studio": {"command": "node", "args": ["/path/to/LV-Design-Suit/dist-cli/lvds.mjs", "mcp"]}}`.
+`{"lv-design-studio": {"command": "node", "args": ["/path/to/LV-Design-Studio/dist-cli/lvds.mjs", "mcp"]}}`.
 Through MCP and the API, only files inside the projects folder can be opened.
 
 **Local API.** `lvds serve` (default port 8765) answers on `http://127.0.0.1`

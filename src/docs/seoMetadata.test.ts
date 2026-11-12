@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import pkg from '../../package.json';
 
-const siteUrl = 'https://pdhruv15.github.io/LV-Design-Suit/';
+const siteUrl = 'https://pdhruv15.github.io/LV-Design-Studio/';
 const index = readFileSync('index.html', 'utf8');
 const about = readFileSync('public/about/index.html', 'utf8');
 const robots = readFileSync('public/robots.txt', 'utf8');
@@ -21,7 +21,7 @@ describe('public site discovery metadata', () => {
     expect(index).toContain(`rel="canonical" href="${siteUrl}"`);
     expect(index).toContain(`property="og:url" content="${siteUrl}"`);
     expect(pkg.homepage).toBe(siteUrl);
-    expect(pkg.repository.url).toBe('git+https://github.com/Pdhruv15/LV-Design-Suit.git');
+    expect(pkg.repository.url).toBe('git+https://github.com/Pdhruv15/LV-Design-Studio.git');
   });
 
   it('publishes a sitemap that robots.txt advertises', () => {

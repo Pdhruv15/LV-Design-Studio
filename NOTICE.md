@@ -1,6 +1,6 @@
 # Notice
 
-Copyright (c) 2026 Palanisami Govindasamy (https://github.com/Pdhruv15/LV-Design-Suit)
+Copyright (c) 2026 Palanisami Govindasamy (https://github.com/Pdhruv15/LV-Design-Studio)
 
 LV Design Studio is dual-licensed under either of
 
