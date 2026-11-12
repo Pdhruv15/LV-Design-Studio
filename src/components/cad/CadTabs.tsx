@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { planLevel } from './cadFileMenu';
 import { isTbFile } from '../../model/titleBlockCad';
+import { blockEditorOf } from '../../model/cadBlockEditor';
 import type { CadState } from './cadState';
 import type { CadView } from '../../engines/cad/cadEngine';
 import type { Project } from '../../types';
@@ -34,7 +35,7 @@ export default function CadTabs({ cad, project, busy, onOpen, onClose }: {
     <>
       <div ref={row} className="cad-tabs" role="tablist" aria-label="Open drawings">
         {drawings.map((v, i) => {
-          const { floor, set } = planLevel(project, v.file);
+          const { floor, set } = planLevel(project, v.file), be = blockEditorOf(v.file);
           return (
             <div key={v.file} className={`cad-tab${v === shown ? ' on' : ''}`} onContextMenu={(e) => { e.preventDefault(); setMenu({ view: v, x: e.clientX, y: e.clientY }); }}>
               <button
@@ -51,7 +52,7 @@ export default function CadTabs({ cad, project, busy, onOpen, onClose }: {
                   cad.show(drawings[to]);
                   (e.currentTarget.closest('.cad-tabs')?.querySelectorAll('[role="tab"]')[to] as HTMLElement | undefined)?.focus();
                 }}>
-                <span className="m">{isTbFile(v.file) ? 'Title block' : floor && set ? floor.name : 'Level?'} · </span>{v.file}{cad.isDirty(v.file) && <span className="cad-tab-dirty" aria-label="changed since saved" title="Changed since saved">●</span>}
+                <span className="m">{be ? 'Block editor' : isTbFile(v.file) ? 'Title block' : floor && set ? floor.name : 'Level?'} · </span>{be ? `${be.name} (in ${be.host})` : v.file}{cad.isDirty(v.file) && <span className="cad-tab-dirty" aria-label="changed since saved" title="Changed since saved">●</span>}
               </button>
               <button className="cad-tab-x" aria-label={`Close ${v.file}`} title="Close this drawing (CLOSE). What you drew stays in the project." onClick={() => onClose([v])}><X size={12} strokeWidth={2} /></button>
             </div>

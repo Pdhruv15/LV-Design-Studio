@@ -17,6 +17,7 @@ import { endTowards, linesCross, nearestPiece, nearestSegment, onRound, roundOfS
 import { clipPayload, clipText, lowerLeft, parseClip, pastedItems, withPasted, type ClipPayload } from '../../model/cadClipboard';
 import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
 import { addSelectedTool, blankMenu, commandMenu, countLine, measureOf, shownBy, SNAP_OVERRIDES, type CtxEntry, type CtxItem, type ObjectHide } from './cadContextMenu';
+import { blockEditorChanged, blockEditorOf, closeBlockEditor, openBlockEditor, saveBlockEditor } from '../../model/cadBlockEditor';
 import { closedToggled, findCount, findReplace, gripMenu, withVertexAdded, withVertexRemoved } from './cadDrawnMenus';
 import { argOf, drawingObjectMenu, drawingPaperMenu, paperMenu, viewportMenu, xrefMenu } from './cadSheetMenus';
 import { deviceMenu, devArg, devicesInRoom, luxCheckLine, roomEntry, roomLoads, trayCheckLine, type CadShow, type DeviceMore } from './cadObjectMenus';
@@ -358,6 +359,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const pointsNext = useRef<Pt[] | null>(null);
   /** FIND on the command line: the words to find, then what replaces them. */
   const [findAsk, setFindAsk] = useState<{ step: 'what' } | { step: 'with'; what: string } | null>(null);
+  /** BCLOSE with changes not saved: asked whether to save them first. */
+  const [beClose, setBeClose] = useState(false);
   /** The object of the opened drawing, or the reference, the last right-click was on. */
   const ctxObj = useRef<{ dw?: CadObject; ref?: string; vp?: string; fvp?: number } | null>(null);
   /** The right-click menu on a layout's paper or one of its viewports (phase 3), at a point of the paper's stage. */
@@ -1326,7 +1329,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       const blank = blankMenu({ recent: recent.map((x) => x.label), canPaste: hasClip(), canUndo, canRedo, objectsHidden: !!objHide && objHide.file === view?.file });
       // Inside a room with an outline: the room's tools first (phase 2).
       const rt = room ? roomTypesOf(buildingInfoOf(project)).find((t) => t.id === room.type) : undefined;
-      setPromptMenu({ at: screen, items: room ? [roomEntry({ room, typeLabel: rt?.label, elv: elvItem?.label }), '-', ...blank] : blank });
+      const editing = blockEditorOf(view?.file);
+      const top: CtxEntry[] = editing ? [{ label: `Save block "${editing.name}"`, key: 'BSAVE', cmd: 'BSAVE' }, { label: 'Close block editor', key: 'BCLOSE', cmd: 'BCLOSE' }, '-'] : [];
+      setPromptMenu({ at: screen, items: room ? [...top, roomEntry({ room, typeLabel: rt?.label, elv: elvItem?.label }), '-', ...blank] : [...top, ...blank] });
       return;
     }
     setMenuAt(screen);
@@ -1612,7 +1617,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (e === 'edtext') { if (one) startTextEdit(one); return; }
     if (e === 'ntwidth') { if (one?.kind === 'mtext') { setMtAsk({ step: 'ntwidth', id: one.id }); cad.say(`MTEXT  Width (m) <${toM(noteBox(one).w).toFixed(2)}>:`); input.current?.focus(); } return; }
     if (e === 'edatt') { if (one?.kind === 'insert') startTextEdit(one); return; }
-    if (e === 'blkreplace' || e === 'blkreset' || e === 'blkexplode' || e === 'blkcount') { if (one?.kind === 'insert') blockEdit(e, one, arg); return; }
+    if (e === 'bedit') { if (one?.kind === 'insert') blockEdit(one.block); return; }
+    if (e === 'blkreplace' || e === 'blkreset' || e === 'blkexplode' || e === 'blkcount') { if (one?.kind === 'insert') blockMenuEdit(e, one, arg); return; }
     if (e === 'find') { run('FIND'); return; }
     if (e === 'jointool') { cad.setTool('join'); return; }
     if (e === 'txjust' || e === 'txheight' || e === 'txcase' || e === 'txframe' || e === 'txmask' || e === 'dimstyle' || e === 'dimprec' || e === 'dimpos' || e === 'dimreset'
@@ -1667,7 +1673,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   }
   /** A block drawn here, from its right-click menu: replaced by another block (the attribute values it shares kept),
    * its attributes back to the definition's, exploded, or its inserts counted. */
-  function blockEdit(e: 'blkreplace' | 'blkreset' | 'blkexplode' | 'blkcount', it: SketchItem, arg?: string) {
+  function blockMenuEdit(e: 'blkreplace' | 'blkreset' | 'blkexplode' | 'blkcount', it: SketchItem, arg?: string) {
     const name = it.block ?? '';
     if (e === 'blkcount') {
       const n = shownSketch.filter((x) => x.kind === 'insert' && x.block?.toLowerCase() === name.toLowerCase()).length;
@@ -1744,6 +1750,39 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const next = action === 'add' ? withVertexAdded(it, i) : action === 'remove' ? withVertexRemoved(it, i) : closedToggled(it);
     if (next === it) return;
     change(updateSketch(project, fileOf(), next), `${action === 'add' ? 'GRIP  Vertex added' : action === 'remove' ? 'GRIP  Vertex removed' : it.closed ? 'PEDIT  Polyline opened' : 'PEDIT  Polyline closed'} · ⌘Z to undo`);
+  }
+  /** BEDIT: a block of this drawing opened in the block editor (its tab, if open already, shown). */
+  function blockEdit(name?: string) {
+    if (!view) { cad.say('BEDIT  Open a drawing first.'); return; }
+    if (blockEditorOf(view.file)) { cad.say('BEDIT  This is the block editor: BSAVE saves the block, BCLOSE closes it.'); return; }
+    const one = pickedSk.length === 1 && !pickedItems.length && pickedSk[0].kind === 'insert' ? pickedSk[0] : undefined;
+    const want = name?.trim() || one?.block;
+    if (!want) { cad.say(defs.length ? `BEDIT  Pick a block, or type BEDIT and its name: ${defs.slice(0, 8).map((d) => d.name).join(', ')}${defs.length > 8 ? ', …' : ''}` : 'BEDIT  This drawing has no blocks of its own yet: make one with BLOCK (an architect\'s block: Copy as a block of this drawing first).'); return; }
+    const r = openBlockEditor(project, view.file, want, view.info.units);
+    if (!r) { cad.say(`BEDIT  No block "${want}" in this drawing.`); return; }
+    const tab = cad.tabOf(r.file);
+    if (tab) { cad.show(tab); return; }
+    change(r.project, `BEDIT  "${r.def.name}" open in the block editor: ${r.def.items.length} object${r.def.items.length === 1 ? '' : 's'}, base point at 0, 0 · BSAVE saves it into ${view.file}, BCLOSE closes`);
+    void load(() => openDrawing(r.file, new TextEncoder().encode(r.dxf)));
+  }
+  /** BSAVE: the block editor's objects into the block. */
+  function blockSave(): boolean {
+    if (!view) return false;
+    const r = saveBlockEditor(project, view.file);
+    if (r.changed) change(r.project, `${r.message} · ⌘Z to undo`); else cad.say(r.message);
+    return r.changed;
+  }
+  /** BCLOSE: the block editor closed, its copies taken out of the project (saved first, or not, when asked). */
+  function blockClose(save?: boolean) {
+    if (!view) return;
+    const be = blockEditorOf(view.file);
+    if (!be) { cad.say('BCLOSE  Not in the block editor (BEDIT opens a block in it).'); return; }
+    if (save === undefined && blockEditorChanged(project, view.file)) { setBeClose(true); cad.say(`BCLOSE  Save the changes to "${be.name}"? [Yes/No/Cancel] <Yes>:`); input.current?.focus(); return; }
+    const saved = save ? saveBlockEditor(project, view.file) : undefined;
+    const next = closeBlockEditor(saved?.project ?? project, view.file), editor = view, host = cad.tabOf(be.host);
+    change(next, saved ? `${saved.message} · block editor closed · ⌘Z to undo` : `BCLOSE  Block editor of "${be.name}" closed${save === false ? ', changes not saved' : ''}`);
+    closeNow([editor]);
+    if (host) cad.show(host);
   }
   /** A block by name: one of the drawing's, else one inserted lately (added to the drawing when placed). */
   const blockByName = (name: string): CadBlockDef | undefined => blockDefOf(defs, name.trim()) ?? recentBlocks.find((d) => d.name.toLowerCase() === name.trim().toLowerCase());
@@ -2846,6 +2885,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       change({ ...project, drawingSet: { ...set, sheets: set.sheets.map((x) => (x.id === id ? { ...x, title: raw } : x)) } }, `LAYOUT  renamed "${raw}" · ⌘Z to undo`);
       return;
     }
+    if (beClose) {
+      setBeClose(false);
+      const a = c[0];
+      if (!c || a === 'Y') blockClose(true); else if (a === 'N') blockClose(false); else cad.say('*Cancel*');
+      return;
+    }
     if (findAsk) {
       if (!raw) { setFindAsk(null); cad.say(findAsk.step === 'with' ? 'FIND  Nothing replaced.' : '*Cancel*'); return; }
       if (findAsk.step === 'what') {
@@ -3001,6 +3046,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (c && layoutCmd(c)) { setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30)); return; }
     // CLAYER and a layer's name: new lines, polylines, rectangles, circles and arcs go on it.
     // DRAWORDER with its order typed (or from the ribbon): the objects picked, else those picked next, go there.
+    const be = /^(?:BE|BEDIT)\s+(.+)$/i.exec(raw.trim());
+    if (be && view) { setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30)); cad.say(`Command: ${c}`); blockEdit(be[1]); return; }
+    // SAVE in the block editor saves the block.
+    if ((c === 'SAVE' || c === 'QSAVE') && blockEditorOf(view?.file)) { cad.say(`Command: ${c}`); blockSave(); return; }
     const dr = /^(?:DR|DRAWORDER)\s+(F|B|A|U|FRONT|BACK|ABOVE|UNDER)$/i.exec(raw.trim());
     if (dr && view) {
       setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30));
@@ -3171,6 +3220,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       hideObjects: () => hideObjects('hide'),
       unisolateObjects: () => { if (objHide && objHide.file === view?.file) { setObjHide(null); cad.say('UNISOLATEOBJECTS  All objects shown again.'); } else cad.say('UNISOLATEOBJECTS  No objects are isolated or hidden.'); },
       addSelected: () => addSelected(),
+      bedit: () => blockEdit(),
+      bsave: () => { if (!view || !blockEditorOf(view.file)) { cad.say('BSAVE  Not in the block editor (BEDIT opens a block in it).'); return; } blockSave(); },
+      bclose: () => blockClose(),
       find: () => { if (!view) { cad.say('FIND  Open a drawing first.'); return; } setFindAsk({ step: 'what' }); cad.say('FIND  Find what (in the texts, notes, attributes and dimension texts drawn here):'); input.current?.focus(); },
       quickMeasure: () => {
         if (!pickedSk.length) { cad.say('QUICKMEASURE  Pick lines, polylines, arcs or circles first.'); return; }
@@ -3336,7 +3388,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (edNote) { setEdNote(null); cad.say('*Cancel*'); if (tool === 'mtext') cad.setTool('none'); }
     else if (points.length || objectMode || cad.textAt || mtAsk) { setPoints([]); setObjectMode(false); cad.setTextAt(null); setTextAsk(null); setEdAsk(null); setMtAsk(null); cad.say('*Cancel*'); }
     else if (edStep || edAsk === 'radius' || edAsk === 'd1' || edAsk === 'd2') { setEdStep(null); setEdAsk(null); cad.say('*Cancel*'); cad.say(tool === 'offset' ? PROMPT.offset : editPrompt(tool, edSet)); }
-    else if (menuAt) setMenuAt(null); else if (renaming || roomAsk || findAsk) { setRenaming(null); setRoomAsk(null); setFindAsk(null); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); setPicked([]); }
+    else if (menuAt) setMenuAt(null); else if (renaming || roomAsk || findAsk || beClose) { setRenaming(null); setRoomAsk(null); setFindAsk(null); setBeClose(false); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); setPicked([]); }
   }
   /** What Space does in the command line: types a space in text (a name, TEXT contents, a leader's text); at TEXT's
    * height and rotation, where a word is the text, ends only an empty input or a number; else ends a whole word. */

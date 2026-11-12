@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.111', date: '2026-11-12',
+    items: [
+      { title: 'Block editor', text: 'In Design CAD, right-click a block you drew and choose Open block editor, or type BEDIT and its name. The block opens as a drawing of its own, its base point at 0, 0 (marked on BE-REF, which is not part of the block): draw, erase and edit it with every tool, new objects going on layer 0 so each insert colours them by its own layer. BSAVE (or SAVE) saves it into the block, and every insert of it shows the change; BCLOSE closes the editor, asking first if there are changes not saved. Blocks inside the block show and can be inserted. An architect\'s block: right-click it and Copy as a block of this drawing first.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.110', date: '2026-11-12',
     items: [
       { title: 'Show on plan', text: 'Select a board or a circuit on the SLD and press Show on plan, after Delete in the Selection group. Design CAD opens that level\'s drawing, zooms to it and picks it: the board\'s symbol, the devices of the circuit, or its drawn cable route. A circuit with no route or devices shows the board it feeds when that is placed; otherwise the status line says what is missing.' },

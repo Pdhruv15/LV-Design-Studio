@@ -10,7 +10,7 @@ export type CadAction = 'new' | 'open' | 'close' | 'fit' | 'addRooms' | 'schedul
   | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
   | 'textStyle' | 'dimStyle' | 'pointStyle' | 'blockDialog' | 'blocksPalette' | 'attDef' | 'attExport' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
   | 'copyClip' | 'cutClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave' | 'zoomPrev' | 'qselect'
-  | 'undo' | 'redo' | 'selectAll' | 'count' | 'isolateObjects' | 'hideObjects' | 'unisolateObjects' | 'addSelected' | 'quickMeasure' | 'find';
+  | 'undo' | 'redo' | 'selectAll' | 'count' | 'isolateObjects' | 'hideObjects' | 'unisolateObjects' | 'addSelected' | 'quickMeasure' | 'find' | 'bedit' | 'bsave' | 'bclose';
 
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
 
@@ -146,6 +146,9 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['DAN', 'DIMANGULAR'], desc: 'Angular dimension: two lines, an arc, or a vertex and two points, then where the arc goes', tool: 'dimang' },
   { aliases: ['ST', 'STYLE'], desc: 'Text style', action: 'textStyle' },
   { aliases: ['PTYPE', 'DDPTYPE'], desc: 'Point style', action: 'pointStyle' },
+  { aliases: ['BE', 'BEDIT'], desc: 'Block editor: open a block drawn here (the one picked, or BEDIT and its name) as a drawing of its own', action: 'bedit' },
+  { aliases: ['BSAVE'], desc: 'Block editor: save the objects into the block (every insert of it updates)', action: 'bsave' },
+  { aliases: ['BCLOSE'], desc: 'Block editor: close it (asks to save the changes)', action: 'bclose' },
   { aliases: ['B', 'BLOCK'], desc: 'Create a block from drawn objects (the dialog)', action: 'blockDialog' },
   { aliases: ['-BLOCK'], desc: 'Create a block on the command line: name, base point, objects', tool: 'block' },
   { aliases: ['D', 'DST', 'DIMSTY', 'DIMSTYLE'], desc: 'Dimension style', action: 'dimStyle' },
