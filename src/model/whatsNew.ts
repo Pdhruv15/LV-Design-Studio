@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.106', date: '2026-11-12',
+    items: [
+      { title: 'Right-click Object snap or Polar for their list', text: 'On the Design CAD status bar, right-click on Object snap now opens the list of running snaps, and on Polar tracking the list of angles, as the ▾ beside them does; each list ends with its settings. The other switches still open their Drafting settings tab.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.105', date: '2026-11-12',
     items: [
       { title: 'Right-click menus checked and completed', text: 'In Design CAD, the right-click menus were checked against the proposal. Right-click now works inside a layout of the drawing itself (its own Layout1, and those made with +): Show on the Model tab, Viewport scale, New layout, Rename, Copy and Delete. A layout tab\'s menu has New layout and, on plan sheets, Plot. Menus of drawn objects start with Repeat and end with Properties, and Clipboard has Cut (Ctrl+X, new command CUTCLIP). Dimension style now shows on a dimension\'s menu, Filter shows how many of each kind, ELV devices have Rotate, and a reference\'s Properties opens the References palette.', action: 'cad', actionLabel: 'Open Design CAD' }

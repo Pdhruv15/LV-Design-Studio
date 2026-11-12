@@ -181,5 +181,5 @@ Left off (no tool yet; each needs a decision or a data-model change):
 3. Align to wall and device tags: build, or leave off.
 4. An image / PDF underlay feature for Design CAD (attach, calibrate scale, fade, clip, save to DWG): build it as
    its own piece of work, then its menu.
-5. Status bar: right-click on Object snap and Polar opens Drafting settings (as the status bar mockup says); or open
-   their ▾ list instead, as many users expect.
+5. Status bar: decided 2026-11-12 — right-click on Object snap and Polar opens their ▾ list (it ends with their
+   settings); the other switches still open their Drafting settings tab (v2.106).
