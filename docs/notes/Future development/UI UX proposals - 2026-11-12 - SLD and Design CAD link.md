@@ -1,6 +1,6 @@
 # UI UX proposal – SLD and Design CAD link (2026-11-12)
 
-Status: **proposal, awaiting the user's decision**. Nothing here is built.
+Status: **L1 and L2 approved by the user on 2026-11-12** ("Ok go ahead with L1 and L2"), with the suggested answers to decisions 2 and 3. **Built for v2.110**, see "Built as" at the end. L3 to L8 and Part 2 await the user's decision.
 
 Mockup: `docs/mockups/sld-cad-link-mockup.html` (image: `sld-cad-link-mockup.png`).
 
@@ -20,7 +20,7 @@ What exists:
 What is missing:
 
 - **No way from the SLD to the plan.** No control on the SLD, the riser, Panels or the schedules opens Design CAD at a board or a route. The canvas can zoom to a window, a scale or the previous view (`ZoomReq` in `CadCanvas.tsx`), not to an object.
-- **The SLD does not show where a board is.** Place board fills `level`, `location` and `planPoint`, but `SystemDiagram.tsx` and `SingleLineDiagram.tsx` never read them.
+- **The SLD shows where a board is only in part.** A DEWA-style framed panel prints its level and room in its `LOC :` row, and the board diagram's summary box does too (`boardLocation` in `src/model/levels.ts`). A DB drawn as a symbol, and every board in the standard style, shows neither. The SLD does not use `planPoint`. (The first version of this note said the SLD never shows them; that was wrong.)
 - **No view of what is linked.** Nothing lists the boards without a place, the feeders without a route, or the lengths that no longer match the plan. A feeder does not remember whether its length was typed or taken from the plan.
 - **Calculation results stay on the SLD.** The plan shows cable size and length in the wiring tag, but not the breaker rating, the voltage drop or the loading.
 - **Sheets do not point at each other.** An SLD sheet does not say which plan sheet shows a board, and the plan sheet does not name the SLD sheet.
@@ -48,7 +48,7 @@ Build: `showOnPlan` in `App.tsx` beside `showFromCad`; the drawing comes from `p
 
 ### L2 Level and room on the SLD
 
-One line under each board's name: level and room, from the fields Place board already fills. A board with no place reads "Not on a plan". A tick in the Values menu switches it.
+One line with the level and room, from the fields Place board already fills, where the SLD has none today: under the name of a DB drawn as a symbol, and under a board's name box in the standard style. DEWA-style panels keep their `LOC :` row. A board with neither level nor room reads "Not on a plan" on the screen and prints nothing. A tick in the Values menu switches it.
 
 ### L3 Plan link status
 
@@ -165,3 +165,11 @@ Notes:
 9. Which of P1 to P5, and in what order? **Suggested: P3 and P4 first (no change to how sheets work), then P1 with P2; P5 with plan layouts phase 2.**
 10. P1: replace the six markup tools with the drafting tools on paper, or keep both? **Suggested: one set; the six stay as they are inside it.**
 11. P4: at a new issue, hide the clouds of earlier revisions or keep them all? **Suggested: hide, with a tick to show all.**
+
+## Built as
+
+**Step 1, L1 and L2: v2.110, PR 537** (branch `feat/sld-show-on-plan`).
+
+- Show on plan sits after Edit and Delete in the SLD ribbon's Selection group and works in the system, board and riser views. `planTarget` in `src/model/planTarget.ts` resolves the selection: a board by its placed symbol; a circuit by its drawn route (the lowest level when it runs over several), else by its devices (the level with most), else by the board it feeds.
+- Level and room is the last tick of Values, off by default, and of each sheet's value ticks; the sheet view chips keep it. The line is drawn under DBs, under boards drawn as a symbol, and in the standard style under a panel's name box. DEWA-style panels keep their `LOC :` row and the board diagram its summary box.
+- Not in this step: a route known only by a handle in the architect's drawing opens its drawing without zoom or pick; the schedules and the Panels tree have no Show on plan yet.
