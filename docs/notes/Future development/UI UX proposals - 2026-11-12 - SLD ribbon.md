@@ -1,6 +1,6 @@
 # UI UX proposal – SLD ribbon (2026-11-12)
 
-Status: **proposal, awaiting approval**. Nothing in `src/` changes until approved.
+Status: **approved by the user on 2026-11-12** ("Ok go ahead"), with the suggested answers to the six questions below. **Step 1 built for v2.108**, see "Built as" at the end. Steps 2 and 3 are not built.
 
 Mockup: `docs/mockups/sld-ribbon-mockup.html` (image: `sld-ribbon-mockup.png`).
 
@@ -51,13 +51,13 @@ Design CAD folds each group to its own button. That does not fit here: four fold
 
 ## New tools
 
-**Trace (suggested first).** With a board or load selected, Trace draws the route back to its transformer over the SLD in the accent colour, with the running voltage drop at each board, and lists the steps: cable, length, drop added, running total, fault level. It shows only results the app already calculates. Check finds the failing circuit; Trace shows where the drop builds up. Drawn as strip 4 of the mockup with example figures. The SLD has no such tool today.
+**Trace (suggested first).** With a board or load selected, Trace draws the route back to its transformer over the SLD in the accent colour, with the running voltage drop at each board, and lists the steps: cable, length, drop added, running total, fault level. It shows only results the app already calculates. Check finds the failing circuit; Trace shows where the drop builds up. Drawn as strip 4 of the mockup with example figures. Today, selecting a feeder rings the breakers upstream of it by discrimination status (`chain` in `App.tsx`); there is no route highlight and no list of the drop at each step.
 
 **Find.** Type a board, feeder or load name; the drawing zooms to it. The command palette already finds and centres boards, so this is the smallest of the new tools. It replaces the separate Zoom to selection button of the first draft.
 
 **Duplicate.** A copy of the selected board or feeder beside it. Copy and Paste of a board exist today.
 
-**Colour by Phase balance, Colour by Discrimination.** Two more choices in the Colour by list. The phase balance and discrimination checks exist in the load schedule and the side panel; these would show them on the drawing.
+**Colour by Phase balance, Colour by Discrimination.** Two more choices in the Colour by list. The phase balance and discrimination checks exist in the load schedule and the side panel; these would show them on the drawing. For one circuit at a time, the rings on a selected feeder's upstream breakers already show discrimination.
 
 Later ideas, not drawn: a right-click menu on the SLD (the commands exist, the canvas has no menu today), selecting several feeders for one bulk edit, tidy layout.
 
@@ -75,11 +75,23 @@ Later ideas, not drawn: a right-click menu on the SLD (the commands exist, the c
 2. Tooltips with shortcut keys.
 3. New tools, each with its button, one at a time: Trace, Find, Duplicate, then the two Colour by choices.
 
-## For the user to decide
+## Decisions
 
-1. After the move, do the `View (n)` lists and `Export…` leave the bar above the canvas, or stay in both places? Suggested: ribbon only, so each command has one home.
-2. Which new tools to build, and in which order. Suggested: Trace, Find, Duplicate; the two Colour by choices after.
-3. Results as three small rows with the setting beside each (as drawn), or three large buttons? Large buttons need about 80 px more, which is all the spare width.
-4. Narrow windows: move groups into More (as drawn), or split the SLD tab into two sub-tabs?
-5. Calculation report: stay in More (as drawn, suggested), or a Report button beside Export? With it the row has about 20 px to spare at 1912 px.
-6. Are "Run and check" and "Copy and undo" the right names for those groups?
+Taken on 2026-11-12 as suggested, when the user approved the proposal.
+
+1. After the move, do the `View (n)` lists and `Export…` leave the bar above the canvas, or stay in both places? **Ribbon only**, so each command has one home.
+2. Which new tools to build, and in which order. **Trace, Find, Duplicate; the two Colour by choices after.**
+3. Results as three small rows with the setting beside each, or three large buttons? **Small rows, as drawn.**
+4. Narrow windows: move groups into More, or split the SLD tab into two sub-tabs? **Into More, as drawn.**
+5. Calculation report: stay in More, or a Report button beside Export? **Stays in More.**
+6. Are "Run and check" and "Copy and undo" the right names for those groups? **Kept as drawn.**
+
+## Built as
+
+Step 1, v2.108 (`feat/sld-ribbon-step1`). What differs from the mockup:
+
+- The Supply and Devices lists follow the equipment library's own order and names: Transformer, Meter cabinet, Bus coupler / tie, Generator + ATS, Generator + interlocked ACBs; Devices also has Local isolator.
+- The View group holds Fit alone until Find is built. Trace and Duplicate are not on the row yet.
+- The result lists and Fit are greyed away from the system diagram; Check, Supply, Devices and Export show it first.
+- On the manual's 1600 px capture, View and Output wait under More and the other seven groups are on the row. From that capture the full row needs about 1720 px, so it fits a 1912 px window; that width is worked out from the capture, not measured at 1912 px.
+- The bar above the drawing keeps + Add, the scenario chip, the calculation chip and the results source.
