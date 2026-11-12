@@ -290,6 +290,7 @@ export default function SystemDiagram({
   colorBy = 'none',
   scenario,
   chain,
+  fit,
   onEditTie,
   resizable = false,
   fullScreen = false,
@@ -328,6 +329,8 @@ export default function SystemDiagram({
   onMoveToSheet?: (boardId: string, sheetId: string) => void;
   /** Centre the view on this panel or circuit (n changes on every request). */
   focus?: { kind: 'board' | 'feeder'; id: string; n: number };
+  /** Fit the whole drawing: each new number does it once (the SLD ribbon's Fit). */
+  fit?: number;
   /** Apply a quick fix from a circuit's hover card. */
   onFixFeeder?: (id: string, patch: Partial<Feeder>, label: string) => void;
   /** Callouts with leader arrows (drawing sheets). */
@@ -692,6 +695,12 @@ export default function SystemDiagram({
     if (!pt) return;
     setVb((v) => { const w = Math.min(v.w, 1400), h = (w / v.w) * v.h; return { x: pt.x - w / 2, y: pt.y - h / 2, w, h }; });
   }, [focus, layout, setVb]);
+  const lastFit = useRef(fit);
+  useEffect(() => {
+    if (fit === lastFit.current) return;
+    lastFit.current = fit;
+    setVb({ x: 0, y: 0, w: W, h: H });
+  }, [fit, W, H, setVb]);
   function zoom(factor: number, cx = view.current.x + view.current.w / 2, cy = view.current.y + view.current.h / 2) {
     moveVb((v) => {
       const w = Math.min(Math.max(v.w * factor, 200), layout.width * 3);

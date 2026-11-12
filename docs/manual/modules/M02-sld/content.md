@@ -95,11 +95,15 @@ drop while editing.
 ## Edit and reconnect items
 
 - Drag library equipment onto a valid busbar or feeder target.
+- Or choose it on the ribbon: **Supply** (transformer, meter cabinet, generator, bus
+  coupler) and **Devices** (protection, metering, capacitor bank) pick the same
+  library items. Then click the target on the drawing.
 - Drag an existing board, load, or incomer to another valid target to reconnect it.
 - Use **Edit** or **F2** to change the selected item.
 - Use **Delete** to remove the selected item after reviewing the confirmation.
 - Use **Ctrl/Command+C** and **Ctrl/Command+V** to copy a board with everything
-  below it and paste the branch under another board.
+  below it and paste the branch under another board. **Copy** and **Paste** on the
+  ribbon do the same.
 
 Deleting a board also removes its downstream network.
 
@@ -140,6 +144,13 @@ review results. Correct the source data, then run calculations again.
 The diagram can show IEC symbols or simple icons, DEWA-style panel frames, cable
 reference numbers, result layers, and different text detail levels.
 
+Choose what the system diagram shows in the ribbon's **Results** group: **Values**
+(current, bus voltage, voltage drop, fault current, power factor, loading),
+**Colour by**, and **Scenario** (normal supply, on generator, or one transformer
+out). The setting in use shows beside each name. **Check**, beside **Run**, counts
+the circuits that fail or need checking and goes to the next one. On a narrow
+window the ribbon groups that do not fit are under **More**.
+
 Display choices help prepare and review drawings but do not replace electrical
 validation. If the diagram shows calculated labels, run calculations before export.
 
@@ -167,7 +178,7 @@ ribbon's **Issue and export** group.
 <a id="SLD-120"></a>
 ## Export drawings
 
-For a quick export of the complete system diagram, select **Export** on the SLD,
+For a quick export of the complete system diagram, select **Export** on the ribbon,
 complete the title-block details, and export SVG, DXF, or PDF.
 
 For a controlled drawing set, open **Documents > Drawings**. Preview the sheets and

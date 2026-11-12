@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.108', date: '2026-11-12',
+    items: [
+      { title: 'SLD ribbon: checks, supply, results, copy and export on the row', text: 'The SLD tab now holds the commands that sat elsewhere. Check, beside Run, counts the circuits that fail or need checking and goes to the next one; Run shows how many studies are out of date. Supply and Devices choose a transformer, generator, meter cabinet, breaker, meter or capacitor bank from the equipment library: pick one, then click the drawing. Results has Values, Colour by and Scenario with the setting in use beside each; they have moved up from the bar above the drawing, and so has Export. Copy, Paste, Undo, Redo and Fit are buttons too. On a narrow window the groups that do not fit wait under More.' }
+    ]
+  },
+  {
     version: '2.107', date: '2026-11-12',
     items: [
       { title: 'HV supply and RMUs', text: 'In Panels → Transformers, enter the grid source from the authority (operator, voltage, fault level in MVA or kA, X/R) and each RMU’s ways, rated voltage, short-time rating, insulation, tee-off and owner. The grid fault level now lowers the LV fault levels and earth fault loop behind each transformer (before, the MV network was taken as infinite). Each RMU is checked for enough tee-off ways and for its rated voltage and short-time rating against the grid. The SLD shows the operator and fault level at the utility and the ways on the RMU box.' }
