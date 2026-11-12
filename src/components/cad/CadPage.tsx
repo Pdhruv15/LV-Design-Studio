@@ -18,7 +18,7 @@ import { clipPayload, clipText, lowerLeft, parseClip, pastedItems, withPasted, t
 import CadCommandLine, { CadPromptMenu } from './CadCommandLine';
 import { addSelectedTool, blankMenu, commandMenu, countLine, measureOf, shownBy, SNAP_OVERRIDES, type CtxEntry, type CtxItem, type ObjectHide } from './cadContextMenu';
 import { closedToggled, findCount, findReplace, gripMenu, withVertexAdded, withVertexRemoved } from './cadDrawnMenus';
-import { argOf, drawingObjectMenu, paperMenu, viewportMenu, xrefMenu } from './cadSheetMenus';
+import { argOf, drawingObjectMenu, drawingPaperMenu, paperMenu, viewportMenu, xrefMenu } from './cadSheetMenus';
 import { deviceMenu, devArg, devicesInRoom, luxCheckLine, roomEntry, roomLoads, trayCheckLine, type CadShow, type DeviceMore } from './cadObjectMenus';
 import { isNumber, promptOptions, shortPrompt, spaceEnters, type SpaceMode } from './cadPrompt';
 import CadDynInput, { type DynBox } from './CadDynInput';
@@ -71,7 +71,7 @@ import { cadFileMenu } from './cadFileMenu';
 import { DRAFT_DEFAULTS, OSNAP_BITS, type DraftSettings, type OsnapMode } from '../../model/cadDraft';
 import { CABLE_HEAD, cableRows, DEVICE_HEAD, deviceRows } from '../../model/cadExports';
 import { toDxf } from '../../docs/dxf';
-import { changeViewports, layoutOverlay, layoutsOf, LayoutTabs, moveLayout, newLayout, patchViewport, TablePanel, ViewportPanel, vpId } from './CadLayouts';
+import { changeViewports, layoutOverlay, layoutsOf, LayoutTabs, moveLayout, newLayout, patchViewport, TablePanel, ViewportPanel, vpId, type DrawingTab } from './CadLayouts';
 import { patchTable, TABLE_WIDTH, tableId, tableName, tablesOf, withTables, type TableKind } from '../../model/sheetTables';
 import { layoutPaper, layoutViewports, PLAN_LABEL, PLAN_TYPES, planLegendLabels } from '../../docs/planLayout';
 import { isFrozen, isLocked, toggleFrozen, vpName, vpToModel, vpWindow, type PlanViewport } from '../../model/planViewports';
@@ -358,7 +358,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** FIND on the command line: the words to find, then what replaces them. */
   const [findAsk, setFindAsk] = useState<{ step: 'what' } | { step: 'with'; what: string } | null>(null);
   /** The object of the opened drawing, or the reference, the last right-click was on. */
-  const ctxObj = useRef<{ dw?: CadObject; ref?: string; vp?: string } | null>(null);
+  const ctxObj = useRef<{ dw?: CadObject; ref?: string; vp?: string; fvp?: number } | null>(null);
   /** The right-click menu on a layout's paper or one of its viewports (phase 3), at a point of the paper's stage. */
   const [paperCtx, setPaperCtx] = useState<{ at: Pt; items: CtxEntry[] } | null>(null);
   const paperStage = useRef<HTMLDivElement>(null);
@@ -773,6 +773,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const paperL = useMemo(() => fileL ?? (dwgL ? asFileLayout(dwgL, (view?.layouts.length ?? 0) + dwgLayouts.indexOf(dwgL) + 1) : undefined), [fileL, dwgL]); // eslint-disable-line react-hooks/exhaustive-deps -- by the layout
   const layoutNames = [...(view?.layouts ?? []).map((l) => l.name), ...dwgLayouts.map((l) => l.name)];
   const setDwgLayouts = (list: typeof dwgLayouts, what: string) => { if (view) change(withDrawingLayouts(project, view.file, list), `LAYOUT  ${what} · ⌘Z to undo`); };
+  /** A layout made on the drawing (+): renamed, copied, moved along the tabs or deleted (its tab's menu and its paper's). */
+  const drawingTabActs: { rename: (d: DrawingTab) => void; copy: (d: DrawingTab) => void; move: (d: DrawingTab, dir: -1 | 1) => void; remove: (d: DrawingTab) => void } = {
+    rename: (d) => { setRenamingLayout(d.id); cad.say(`RENAME  Type the new name of ${d.name}:`); input.current?.focus(); },
+    copy: (d) => { const l = drawingLayoutOf(dwgLayouts, d.id); if (!l) return; const c = { ...l, name: nextLayoutName(layoutNames), viewports: l.viewports.map((v) => ({ ...v })) }; setDwgLayouts([...dwgLayouts, c], `${l.name} copied as ${c.name}`); cad.setLayout(drawingLayoutId(c.name)); },
+    move: (d, dir) => { const i = dwgLayouts.findIndex((l) => drawingLayoutId(l.name) === d.id), j = i + dir; if (i < 0 || j < 0 || j >= dwgLayouts.length) return; const list = [...dwgLayouts]; [list[i], list[j]] = [list[j], list[i]]; setDwgLayouts(list, `${d.name} moved ${dir < 0 ? 'left' : 'right'}`); },
+    remove: (d) => { setDwgLayouts(dwgLayouts.filter((l) => drawingLayoutId(l.name) !== d.id), `${d.name} deleted`); if (cad.layout === d.id) cad.setLayout(null); }
+  };
   const addDrawingLayout = () => {
     if (!view) return;
     const l = newDrawingLayout(nextLayoutName(layoutNames), view.info.extents, units.factor * 1000);
@@ -1328,7 +1335,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const fid = fs.size === 1 ? [...fs][0] : undefined, f = fid ? project.feeders.find((x) => x.id === fid) : undefined;
     const swapNow = types.size === 1 ? [...types.keys()][0] : undefined;
     return deviceMenu({
-      items, edits: editsFor(project, items), oneType: types.size === 1, canShow: !!onShow,
+      items, edits: editsFor(project, items), oneType: types.size === 1, canShow: !!onShow, repeat: recent[0]?.label,
       circuits: circuits.map((c) => ({ id: c.id, label: circuitLabel(project, c), now: c.id === fid })),
       swaps: replacements(project, items).map((x) => ({ id: x.id, label: x.label, now: x.id === swapNow })),
       types: [...types].map(([id, v]) => ({ id, ...v })),
@@ -1373,6 +1380,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       case 'riser': show({ to: 'riser', board }, `Riser diagram: ${board}`); return;
       case 'feeder': show({ to: 'cable-schedule', board }, `Cable schedule of ${board}`); return;
       case 'elvschedule': show({ to: 'elv' }, 'ELV schedule'); return;
+      case 'rotate': cad.setSelected(one.key); setResult({ kind: 'device', it: one }); cad.setTool('rotate'); setTimeout(() => cad.say('ROTATE  Click where it faces:')); return;
       default: editDevices(edit, value);
     }
   }
@@ -1484,6 +1492,34 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       case 'erase': setVps((l) => l.filter((x) => x.id !== v.id), `${name} deleted${vps.length === 1 ? ' (the layout shows the level as worked out again)' : ''}`); cad.setVpSel(null); cad.setMsVp(null); return;
     }
   }
+  /** Right-click on a layout of the drawing (its own or one made here): inside a viewport (its index) or on the paper. */
+  function filePaperContext(i: number | null, x: number, y: number) {
+    if (!paperL) return;
+    const r = paperStage.current?.getBoundingClientRect(), at: Pt = [x - (r?.left ?? 0), y - (r?.top ?? 0)];
+    const v = i !== null ? paperL.viewports[i] : undefined, mpu = units.factor * 1000;
+    ctxObj.current = { fvp: i ?? undefined };
+    setPaperCtx({ at, items: drawingPaperMenu({ inside: !!v, editable: !!dwgL, scale: v && v.h > 0 ? Math.round((v.vh * mpu) / v.h) : undefined }) });
+  }
+  /** An entry of that menu. */
+  function filePaperAct(a: string) {
+    const { action, value } = argOf(a), i = ctxObj.current?.fvp, v = paperL && i !== undefined ? paperL.viewports[i] : undefined;
+    if (action === 'cmd' && value) { run(value); return; }
+    const tab = dwgL ? { id: drawingLayoutId(dwgL.name), name: dwgL.name, title: '' } : undefined;
+    if (action === 'rename' && tab) { drawingTabActs.rename(tab); return; }
+    if (action === 'copy' && tab) { drawingTabActs.copy(tab); return; }
+    if (action === 'delete' && tab) { drawingTabActs.remove(tab); return; }
+    if (!v || !(v.h > 0)) return;
+    if (action === 'max') {
+      const vw = (v.vh * v.w) / v.h;
+      cad.setLayout(null);
+      setTimeout(() => zoomTo({ kind: 'window', a: [v.cx - vw / 2, v.cy - v.vh / 2], b: [v.cx + vw / 2, v.cy + v.vh / 2] }));
+      cad.say(`${paperL!.name}: the viewport's area on the Model tab.`); return;
+    }
+    if (action === 'scale' && dwgL && i !== undefined) {
+      const n = Number(value), mpu = units.factor * 1000;
+      setDwgLayouts(dwgLayouts.map((l) => (l === dwgL ? { ...l, viewports: l.viewports.map((q, k) => (k === i ? { ...q, vh: (q.h * n) / mpu } : q)) } : l)), `${dwgL.name}: viewport at 1:${n}`);
+    }
+  }
   /** Right-click on a layout's paper (a viewport's id when inside one), at the screen point. */
   function paperContext(id: string | null, x: number, y: number) {
     if (!sheetL) return;
@@ -1516,6 +1552,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       case 'xref': xrefAct(a); return;
       case 'vp': case 'paper': layoutAct(x.act, a); return;
       case 'grip': gripAct(a); return;
+      case 'fpaper': filePaperAct(a); return;
     }
   }
   const fileOf = () => view?.file ?? '';
@@ -1537,7 +1574,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return;
     }
     if (e === 'width' && one?.tray && arg) { change(updateSketch(project, fileOf(), { ...one, tray: { ...one.tray, widthMm: Number(arg) } }), `Cable tray ${arg} mm · ⌘Z to undo`); return; }
-    if (e === 'clipboard') { if (arg) run(arg === 'copy' ? 'COPYCLIP' : arg === 'copybase' ? 'COPYBASE' : arg === 'paste' ? 'PASTECLIP' : 'PASTEORIG'); return; }
+    if (e === 'clipboard') { if (arg) run(arg === 'cut' ? 'CUTCLIP' : arg === 'copy' ? 'COPYCLIP' : arg === 'copybase' ? 'COPYBASE' : arg === 'paste' ? 'PASTECLIP' : 'PASTEORIG'); return; }
+    if (e === 'props') { setShowProps(true); return; }
+    if (e === 'repeat') { if (recent[0]) repeat(recent[0]); return; }
     if (e === 'edtext') { if (one) startTextEdit(one); return; }
     if (e === 'ntwidth') { if (one?.kind === 'mtext') { setMtAsk({ step: 'ntwidth', id: one.id }); cad.say(`MTEXT  Width (m) <${toM(noteBox(one).w).toFixed(2)}>:`); input.current?.focus(); } return; }
     if (e === 'edatt') { if (one?.kind === 'insert') startTextEdit(one); return; }
@@ -2041,6 +2080,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     putClip(clipText(clipPayload(project, view.file, pickedSk, base ?? lowerLeft(pickedSk), unitCode)));
     const n = pickedSk.length, d = pickedItems.length;
     cad.say(`${name}  ${n} object${n === 1 ? '' : 's'} copied${d ? ` · ${d} device${d === 1 ? '' : 's'} not copied (devices stay on their plan)` : ''}`);
+  }
+  /** CUTCLIP (Ctrl+X): the drawn objects picked to the clipboard, then erased (one undo step); devices stay. */
+  function cutClip() {
+    if (clipRefusal('CUTCLIP') || !view) return;
+    putClip(clipText(clipPayload(project, view.file, pickedSk, lowerLeft(pickedSk), unitCode)));
+    const n = pickedSk.length, d = pickedItems.length;
+    change(pickedSk.reduce((q, it) => removeSketch(q, view.file, it.id), project), `CUTCLIP  ${n} object${n === 1 ? '' : 's'} cut to the clipboard${d ? ` · ${d} device${d === 1 ? '' : 's'} left (devices stay on their plan)` : ''} · ⌘Z to undo`);
+    setPicked([]); cad.setSelected(null); setResult(null);
   }
   /** PASTECLIP: the copied objects follow the cursor to the insertion point. PASTEORIG: the same coordinates, into
    * another drawing. */
@@ -3055,6 +3102,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       otrack: () => cad.toggle('otrack'),
       lwt: () => cad.toggle('lwt'),
       copyClip: () => copyClip(),
+      cutClip: () => cutClip(),
       copyBase: () => { if (clipRefusal('COPYBASE')) return; cad.setTool('copybase'); },
       pasteClip: () => pasteClip(false),
       pasteOrig: () => pasteClip(true),
@@ -3295,11 +3343,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const ck = e.key.toLowerCase();
     // Ctrl/⌘+A: SELECTALL (a field keeps its own).
     if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && !typing && ck === 'a' && view && !(e.target instanceof Element && e.target.closest('[contenteditable="true"]'))) { e.preventDefault(); if (!e.repeat) run('SELECTALL'); return; }
-    if ((e.metaKey || e.ctrlKey) && !e.altKey && !typing && (ck === 'c' || ck === 'v') && !(e.target instanceof Element && e.target.closest('[contenteditable="true"]'))) {
-      if (ck === 'c' && !pickedSk.length && !pickedItems.length) return;
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && !typing && (ck === 'c' || ck === 'v' || ck === 'x') && !(e.target instanceof Element && e.target.closest('[contenteditable="true"]'))) {
+      if ((ck === 'c' || ck === 'x') && !pickedSk.length && !pickedItems.length) return;
       e.preventDefault();
       if (e.repeat) return;
       if (ck === 'v') { cad.say('Command: PASTECLIP'); pasteClip(false); }
+      else if (ck === 'x') { cad.say('Command: CUTCLIP'); cutClip(); }
       else if (e.shiftKey) { cad.say('Command: COPYBASE'); if (!clipRefusal('COPYBASE')) cad.setTool('copybase'); }
       else { cad.say('Command: COPYCLIP'); copyClip(); }
       return;
@@ -3510,7 +3559,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 const at = menuAt ? { left: menuAt[0] + 4, top: menuAt[1] + 4, place: 'menu' as const } : t < 60 ? { left: Math.max(4, l), top: b + 8, place: 'below' as const } : { left: Math.max(4, l), top: t - 8, place: 'above' as const };
                 if (pickedSk.length) {
                   const one = pickedSk.length === 1 && !pickedItems.length && isPath(pickedSk[0]) ? pickedSk[0] : undefined;
-                  return <SketchToolbar key={[...pickedKeys].join()} items={pickedSk} devices={pickedItems.length} canShow={!!onShow} blocks={defs.map((d) => d.name)} lengthM={one ? toM(pathLength(one.pts)) : undefined} {...at} canPaste={hasClip()} withAtts={(it) => attdefsOf(blockDefOf(defs, it.block)).length > 0} onEdit={editSketch} />;
+                  return <SketchToolbar key={[...pickedKeys].join()} items={pickedSk} devices={pickedItems.length} canShow={!!onShow} blocks={defs.map((d) => d.name)} dimStyles={dimStylesOf(project).styles.map((x) => x.name)} repeat={recent[0]?.label} lengthM={one ? toM(pathLength(one.pts)) : undefined} {...at} canPaste={hasClip()} withAtts={(it) => attdefsOf(blockDefOf(defs, it.block)).length > 0} onEdit={editSketch} />;
                 }
                 return <DeviceToolbar key={[...pickedKeys].join()} project={project} items={pickedItems} edits={editsFor(project, pickedItems)} circuits={circuits} {...at} onEdit={editDevices} />;
               }} {...vpProps} />
@@ -3804,8 +3853,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             change(keep ? { ...project, cadDimStyles: keep } : rest, `DIMSTYLE  ${s.styles.length} dimension style${s.styles.length === 1 ? '' : 's'}, current "${s.current}" · ⌘Z to undo`);
           }} />}
         {view && paperL ? (
-          <div className="cad-stage cad-paper">
-            <CadFilePaper layout={paperL} model={view} onDblClick={() => cad.say(fileL ? `LAYOUT  ${fileL.name} is shown as the drawing file has it: work in the model on the Model tab.` : `LAYOUT  ${paperL.name} shows the model: work in it on the Model tab.`)} />
+          <div className="cad-stage cad-paper" ref={paperStage} onMouseDown={() => setPaperCtx(null)}>
+            <CadFilePaper layout={paperL} model={view} onContext={filePaperContext} onDblClick={() => cad.say(fileL ? `LAYOUT  ${fileL.name} is shown as the drawing file has it: work in the model on the Model tab.` : `LAYOUT  ${paperL.name} shows the model: work in it on the Model tab.`)} />
+            {paperCtx && <CadPromptMenu left={paperCtx.at[0] + 4} top={paperCtx.at[1] + 4} items={paperCtx.items} onPick={(x) => { setPaperCtx(null); ctxPick(x); }} />}
           </div>
         ) : view && sheetL ? (
           <div className="cad-stage cad-paper" ref={paperStage} onMouseDown={() => setPaperCtx(null)}>
@@ -3863,17 +3913,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       <CadCommandLine history={cad.history} live={EDIT_TOOLS.includes(tool) ? promptNow(edSet) : undefined} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
       {view && <LayoutTabs files={view.layouts.map((l) => ({ id: fileLayoutId(l.name), name: l.name, title: fileLayoutTitle(l, units.factor * 1000) }))} drawings={dwgLayouts.map((l, n) => ({ id: drawingLayoutId(l.name), name: l.name, title: fileLayoutTitle(asFileLayout(l, n), units.factor * 1000) }))} layouts={layouts} active={sheetL?.id ?? (fileL ? fileLayoutId(fileL.name) : dwgL ? drawingLayoutId(dwgL.name) : null)} onPick={(id) => { cad.setLayout(id); const f = fileLayoutOf(view.layouts, id); const d = drawingLayoutOf(dwgLayouts, id); if (f) cad.say(`LAYOUT  ${f.name} — the drawing file's own layout, as saved: ${fileLayoutTitle(f, units.factor * 1000)}.`); else if (d) cad.say(`LAYOUT  ${d.name} — ${fileLayoutTitle(asFileLayout(d, 0), units.factor * 1000)}.`); else if (id) cad.say(`LAYOUT  ${layouts.find((x) => x.id === id)?.number ?? ''} — the paper; double-click inside a viewport to work in it, MV adds one.`); }}
         onNew={addDrawingLayout} onNewSheet={addLayout}
-        onDrawing={{
-          rename: (d) => { setRenamingLayout(d.id); cad.say(`RENAME  Type the new name of ${d.name}:`); input.current?.focus(); },
-          copy: (d) => { const l = drawingLayoutOf(dwgLayouts, d.id); if (!l) return; const c = { ...l, name: nextLayoutName(layoutNames), viewports: l.viewports.map((v) => ({ ...v })) }; setDwgLayouts([...dwgLayouts, c], `${l.name} copied as ${c.name}`); cad.setLayout(drawingLayoutId(c.name)); },
-          move: (d, dir) => { const i = dwgLayouts.findIndex((l) => drawingLayoutId(l.name) === d.id), j = i + dir; if (i < 0 || j < 0 || j >= dwgLayouts.length) return; const list = [...dwgLayouts]; [list[i], list[j]] = [list[j], list[i]]; setDwgLayouts(list, `${d.name} moved ${dir < 0 ? 'left' : 'right'}`); },
-          remove: (d) => { setDwgLayouts(dwgLayouts.filter((l) => drawingLayoutId(l.name) !== d.id), `${d.name} deleted`); if (cad.layout === d.id) cad.setLayout(null); }
-        }}
+        onDrawing={drawingTabActs}
         onRename={(x) => { setRenamingLayout(x.id); cad.say(`RENAME  Type the new title of ${x.number} (now "${x.title}"):`); input.current?.focus(); }}
         onCopy={(x) => { if (!lv) return; const r = newLayout(setOf(project), lv, x.plan ?? 'lighting', x); change({ ...project, drawingSet: r.set }, `LAYOUT  ${x.number} copied · ⌘Z to undo`); cad.setLayout(r.id); }}
         onMove={(x, dir) => change({ ...project, drawingSet: renumber(moveLayout(setOf(project), x.id, dir)) }, `LAYOUT  ${x.number} moved ${dir < 0 ? 'left' : 'right'} · ⌘Z to undo`)}
         onDelete={(x) => { const set = setOf(project); change({ ...project, drawingSet: { ...set, sheets: set.sheets.filter((y) => y.id !== x.id) } }, `LAYOUT  ${x.number} ${x.title} deleted (its sheet too) · ⌘Z to undo`); if (cad.layout === x.id) cad.setLayout(null); }}
-        onPageSetup={(x) => onSheet?.(x.id)} />}
+        onPageSetup={(x) => onSheet?.(x.id)} onPlot={(x) => onPlot(x.id)} />}
       <div className="cad-status">
         <CadStatusToggles toggles={cad.toggles} gridDots={cad.gridDots} draft={draft} canFit={!!view} onToggle={cad.toggle} onCycleGrid={cad.cycleGrid} onSettings={setDsTab} onFit={() => cad.fit()}
           onDraft={onPrefs ? (d) => onPrefs({ draft: d, autosaveMin }) : undefined} />

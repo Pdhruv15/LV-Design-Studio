@@ -47,7 +47,7 @@ describe('right-click menus (phase 2): LV and ELV objects', () => {
   });
 
   it('ELV devices: Swap device (same system) ▸, Select same type, Show in ELV schedule, Coverage, Match; a mix: Filter ▸ and what they all have', () => {
-    expect(labels(deviceMenu(elv))).toEqual(['Swap device (same system)', '-', 'Select same type', 'Show in ELV schedule', '-', 'Match to this', 'Coverage', '-', 'Move', 'Copy', 'Erase', '-', 'Isolate', 'Count', 'Deselect all', '-', 'Properties']);
+    expect(labels(deviceMenu(elv))).toEqual(['Swap device (same system)', '-', 'Select same type', 'Show in ELV schedule', '-', 'Rotate (to face a point)', 'Match to this', 'Coverage', '-', 'Move', 'Copy', 'Erase', '-', 'Isolate', 'Count', 'Deselect all', '-', 'Properties']);
     const mix = deviceMenu({ ...lv, items: [lv.items[0], elv.items[0]], edits: ['filter', 'move', 'delete'], types: [{ id: 'ltg', label: 'Light', count: 1 }, { id: 'smoke', label: 'Smoke detector', count: 1 }] });
     expect(labels(mix).slice(0, 4)).toEqual(['Filter', '-', 'Move', 'Erase']);
     expect(flat(mix).find((x) => x.label === 'Filter')!.sub!.map((x) => x.arg)).toEqual(['filter|ltg', 'filter|smoke']);

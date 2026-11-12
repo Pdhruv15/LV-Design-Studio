@@ -9,7 +9,7 @@ export type CadAction = 'new' | 'open' | 'close' | 'fit' | 'addRooms' | 'schedul
   | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
   | 'align' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
   | 'textStyle' | 'dimStyle' | 'pointStyle' | 'blockDialog' | 'blocksPalette' | 'attDef' | 'attExport' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
-  | 'copyClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave' | 'zoomPrev' | 'qselect'
+  | 'copyClip' | 'cutClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave' | 'zoomPrev' | 'qselect'
   | 'undo' | 'redo' | 'selectAll' | 'count' | 'isolateObjects' | 'hideObjects' | 'unisolateObjects' | 'addSelected' | 'quickMeasure' | 'find';
 
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
@@ -42,6 +42,7 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['ATTEXT'], desc: 'The attributes of every block as a table (CSV or Excel)', action: 'attExport' },
   { aliases: ['M', 'MOVE'], desc: 'Move', tool: 'move' },
   { aliases: ['CO', 'CP', 'COPY'], desc: 'Copy', tool: 'copy' },
+  { aliases: ['CUTCLIP'], desc: 'Cut the drawn objects picked to the clipboard (Ctrl+X): copied, then erased', action: 'cutClip' },
   { aliases: ['COPYCLIP'], desc: 'Copy the drawn objects picked to the clipboard (Ctrl+C)', action: 'copyClip' },
   { aliases: ['COPYBASE'], desc: 'Copy to the clipboard with a base point (Ctrl+Shift+C)', action: 'copyBase' },
   { aliases: ['PASTECLIP'], desc: 'Paste from the clipboard at a point (Ctrl+V)', action: 'pasteClip' },

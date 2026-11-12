@@ -1,6 +1,6 @@
 # SLD supply sources, RMU and package substations — proposal (2026-11-11)
 
-Status: **step 1 approved 2026-11-11 and built in v2.105** (PR 529: grid source with its fault level in the LV fault levels, RMU records and checks, labels on the SLD). Steps 2–5 and decisions D2–D8 still wait. For step 1 the defaults were taken for D1 (drawn on the same SLD: the existing utility symbol and RMU box carry the new labels) and D5 (symbols unchanged until the legend is decided).
+Status: **step 1 approved 2026-11-11 and built in v2.107** (PR 529: grid source with its fault level in the LV fault levels, RMU records and checks, labels on the SLD). Steps 2–5 and decisions D2–D8 still wait. For step 1 the defaults were taken for D1 (drawn on the same SLD: the existing utility symbol and RMU box carry the new labels) and D5 (symbols unchanged until the legend is decided).
 Mockup with the legend symbols and typical arrangements: `docs/mockups/sld-supply-sources-mockup.html` (black-and-white, IEC 60617 style).
 
 ## Why
