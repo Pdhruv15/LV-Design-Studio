@@ -123,3 +123,39 @@ L8 only if decided. One branch and one version per step.
 6. L5: which values join the tags, and is route colouring wanted? **Suggested: breaker rating and voltage drop as ticks; colouring with the SLD's choices.**
 7. L7: which plan sheet does an SLD board point at when a level has several? **Suggested: the power plan of the board's level.**
 8. L8: allow a board diagram on a plan sheet? **Suggested: no for now.**
+
+## Part 2 – SLD sheets: DWG, title block and drafting tools (asked 2026-11-12)
+
+Status: **suggestions only, awaiting the user's decision**. No mockup yet.
+
+### Today
+
+- **The SLD is not a DWG.** It is drawn live from the design, so it always matches the calculation. On 2026-10-29 it was decided that the SLD stays this way.
+- **It saves as DWG directly.** Export gives PDF, DXF, DWG and SVG (`SldExportDialog.tsx`); the DWG is written by the CAD engine (`dxfToDwg`). The drawing is paper-sized with title block, legend and notes, on layers `E-FRAME`, `E-TITLE`, `E-LEGEND`, `E-NOTES`, `E-SYMBOL`, `E-CABLE`, `E-BUSBAR`, `E-TEXT`, `E-RESULT` and the markup layers (`src/docs/sheetDxf.ts`).
+- **Title block.** The drawn one, or the company's own block written as a block with editable attributes (`src/docs/titleBlockDxf.ts`, `src/docs/dxf.ts`).
+- **Markup on a sheet.** Cloud, text, callout, arrow, rectangle and line, in black, red or blue (`src/model/sheetMarkup.ts`). They print and go into the DXF and DWG.
+- **Not on a sheet.** The drafting tools of Design CAD: dimension, leader, multi-line text, table, block, hatch. On paper the Markup group takes the place of Annotate (`Ribbon.tsx`).
+- **Symbols in the DWG** are loose lines and circles on `E-SYMBOL`, not blocks.
+
+### Suggested
+
+The SLD stays live. The paper around and over it becomes a full drafting surface.
+
+| | Item | What the engineer gets | Size |
+|---|---|---|---|
+| P1 | Drafting tools on sheet paper | Leader, dimension, multi-line text, table, hatch and revision cloud on SLD, riser and earthing sheets; saved with the sheet; true entities in the DWG | Large |
+| P2 | Blocks on sheets | The office's stamps, typical details and key plans placed on the paper, with attributes | Medium, after P1 |
+| P3 | SLD symbols as blocks in the DWG | Each breaker, board and load a named block with its tag and rating as attributes; the receiving office can count, filter and restyle them | Medium |
+| P4 | Clouds that know their revision | A cloud carries its revision letter and triangle; older clouds hide on a new issue; the app can propose clouds round what changed since the last issue | Medium |
+| P5 | Paper space in the DWG | Title block and notes on a layout, the SLD in model space | With plan layouts phase 2 |
+
+Notes:
+
+- P1 changes the 2026-10-29 choice of one small markup set for sheets. There would still be one set, the drafting one, and the six markups there today become part of it. A note placed beside a board has to follow the board when the SLD is laid out again.
+- P4: a sheet already knows that it changed since its issue (`issuedHash` in `src/model/drawingSet.ts`). Which boards and feeders changed would come from the revision compare (`src/model/revisions.ts`). The engineer confirms each proposed cloud.
+- Not suggested: reading a DWG edited elsewhere back into the SLD. The design is the source; the DWG is an output.
+
+### Decisions
+
+9. Which of P1 to P5, and in what order? **Suggested: P3 and P4 first (no change to how sheets work), then P1 with P2; P5 with plan layouts phase 2.**
+10. P1: replace the six markup tools with the drafting tools on paper, or keep both? **Suggested: one set; the six stay as they are inside it.**
