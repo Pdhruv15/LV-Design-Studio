@@ -51,7 +51,7 @@ type TabMenu = { s?: DrawingSheet; d?: DrawingTab; x: number; y: number };
 
 /** The tabs under the drawing: Model, the drawing file's own layouts, the layouts made on it here, then the level's plan
  * sheets. + makes a layout of the drawing; a tab's right-click menu has its own commands and New plan sheet. */
-export function LayoutTabs({ files = [], drawings = [], layouts, active, onPick, onNew, onNewSheet, onDrawing, onRename, onCopy, onMove, onDelete, onPageSetup }: {
+export function LayoutTabs({ files = [], drawings = [], layouts, active, onPick, onNew, onNewSheet, onDrawing, onRename, onCopy, onMove, onDelete, onPageSetup, onPlot }: {
   /** The drawing file's own layouts (paper space), first, as in the file: their tab id, name and tooltip. */
   files?: { id: string; name: string; title: string }[];
   /** Layouts made on the drawing here (+), after the file's own. */
@@ -69,6 +69,8 @@ export function LayoutTabs({ files = [], drawings = [], layouts, active, onPick,
   onMove: (s: DrawingSheet, dir: -1 | 1) => void;
   onDelete: (s: DrawingSheet) => void;
   onPageSetup: (s: DrawingSheet) => void;
+  /** Plot a plan sheet (its tab's menu); absent: not offered. */
+  onPlot?: (s: DrawingSheet) => void;
 }) {
   const [menu, setMenu] = useState<TabMenu | null>(null);
   useEffect(() => {
@@ -80,7 +82,7 @@ export function LayoutTabs({ files = [], drawings = [], layouts, active, onPick,
   const pick = (f: () => void) => { setMenu(null); f(); };
   const ctx = (m: Omit<TabMenu, 'x' | 'y'>) => (e: ReactMouseEvent) => {
     e.preventDefault();
-    if (m.s || m.d || onNewSheet) setMenu({ ...m, x: e.clientX, y: e.clientY });
+    if (m.s || m.d || onNewSheet || onNew) setMenu({ ...m, x: e.clientX, y: e.clientY });
   };
   const sheetTypes = onNewSheet ? <>
     {(menu?.s || menu?.d) && <hr />}
@@ -107,16 +109,18 @@ export function LayoutTabs({ files = [], drawings = [], layouts, active, onPick,
         <>
           <div className="st-cover" onClick={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null); }} />
           <div className="dw-menu st-ctx cad-tab-menu up" role="menu" aria-label={menu.s ? `Layout ${menu.s.number}` : menu.d ? `Layout ${menu.d.name}` : 'New plan sheet'} style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 236)), top: menu.y }}>
+            {onNew && <><button role="menuitem" autoFocus onClick={() => pick(onNew)}>New layout <span className="m">LAYOUT</span></button>{(menu.s || menu.d) && <hr />}</>}
             {menu.s && <>
-              <button role="menuitem" autoFocus onClick={() => pick(() => onRename(menu.s!))}>Rename…</button>
+              <button role="menuitem" autoFocus={!onNew} onClick={() => pick(() => onRename(menu.s!))}>Rename…</button>
               <button role="menuitem" onClick={() => pick(() => onCopy(menu.s!))}>Copy</button>
               <button role="menuitem" onClick={() => pick(() => onMove(menu.s!, -1))}>Move left</button>
               <button role="menuitem" onClick={() => pick(() => onMove(menu.s!, 1))}>Move right</button>
               <button role="menuitem" onClick={() => pick(() => onPageSetup(menu.s!))}>Page setup…</button>
+              {onPlot && <button role="menuitem" onClick={() => pick(() => onPlot(menu.s!))}>Plot… <span className="m">PLOT</span></button>}
               <button role="menuitem" onClick={() => pick(() => onDelete(menu.s!))}>Delete</button>
             </>}
             {menu.d && onDrawing && <>
-              <button role="menuitem" autoFocus onClick={() => pick(() => onDrawing.rename(menu.d!))}>Rename…</button>
+              <button role="menuitem" autoFocus={!onNew} onClick={() => pick(() => onDrawing.rename(menu.d!))}>Rename…</button>
               <button role="menuitem" onClick={() => pick(() => onDrawing.copy(menu.d!))}>Copy</button>
               <button role="menuitem" onClick={() => pick(() => onDrawing.move(menu.d!, -1))}>Move left</button>
               <button role="menuitem" onClick={() => pick(() => onDrawing.move(menu.d!, 1))}>Move right</button>

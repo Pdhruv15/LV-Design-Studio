@@ -16,7 +16,7 @@ export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fi
   | 'traysize' | 'traycables' | 'trayfill' | 'reverse' | 'trace' | 'routesld'
   | 'blkreplace' | 'blkreset' | 'blkexplode' | 'blkcount'
   | 'find' | 'txjust' | 'txheight' | 'txcase' | 'txframe' | 'txmask' | 'dimstyle' | 'dimprec' | 'dimpos' | 'dimreset' | 'hscale' | 'hangle' | 'hboundary'
-  | 'plclose' | 'explode1' | 'roomfrom' | 'tocable' | 'jointool' | 'chamfer';
+  | 'plclose' | 'explode1' | 'roomfrom' | 'tocable' | 'jointool' | 'chamfer' | 'props' | 'repeat';
 export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'tframe' | 'tmask' | 'draworder' | 'texttofront';
 /** Offset `through` a point (the copy passes through it), `erase` the source, the copies on the `source` layer or the
  * `current` one; Fillet and Chamfer `trim` the lines to the corner (else they stay and the arc or line is added); a
@@ -32,7 +32,7 @@ const LABEL: Record<SketchEdit, string> = {
   blkreplace: 'Replace with another block ▸', blkreset: 'Reset attributes', blkexplode: 'Explode', blkcount: 'Count instances',
   find: 'Find and replace…', txjust: 'Justify ▸', txheight: 'Text height ▸', txcase: 'Case ▸', txframe: 'Frame ▸', txmask: 'Background mask', dimstyle: 'Dimension style ▸',
   dimprec: 'Precision ▸', dimpos: 'Text position ▸', dimreset: 'Remove text override', hscale: 'Hatch scale ▸', hangle: 'Hatch angle ▸', hboundary: 'Recreate boundary',
-  plclose: 'Close', explode1: 'Explode', roomfrom: 'Use as room boundary', tocable: 'Convert to cable route', jointool: 'Join…', chamfer: 'Chamfer'
+  plclose: 'Close', explode1: 'Explode', roomfrom: 'Use as room boundary', tocable: 'Convert to cable route', jointool: 'Join…', chamfer: 'Chamfer', props: 'Properties', repeat: 'Repeat'
 };
 export const kindOf = kindLabel;
 
@@ -50,7 +50,7 @@ export function sketchEditsFor(items: SketchItem[], devices: number): SketchEdit
 
 /** The clipboard entries of the menu at the cursor (S1 of the Design CAD 2D gap plan). */
 const CLIPBOARD: { id: string; label: string; key: string; paste?: true }[] = [
-  { id: 'copy', label: 'Copy', key: 'Ctrl+C' }, { id: 'copybase', label: 'Copy with base point', key: 'Ctrl+Shift+C' },
+  { id: 'cut', label: 'Cut', key: 'Ctrl+X' }, { id: 'copy', label: 'Copy', key: 'Ctrl+C' }, { id: 'copybase', label: 'Copy with base point', key: 'Ctrl+Shift+C' },
   { id: 'paste', label: 'Paste', key: 'Ctrl+V', paste: true }, { id: 'pasteorig', label: 'Paste to original coordinates', key: '', paste: true }
 ];
 
@@ -70,7 +70,7 @@ const HATCH_SCALES: { id: string; label: string }[] = [{ id: '0.5', label: '× 0
 const ISOLATE: { id: 'isolate' | 'hide' | 'end'; label: string }[] = [{ id: 'isolate', label: 'Isolate objects' }, { id: 'hide', label: 'Hide objects' }, { id: 'end', label: 'End object isolation' }];
 
 /** The toolbar beside the drawn objects picked (or the menu at the cursor, with Clipboard ▸ too). */
-export function SketchToolbar({ items, devices, lengthM, left, top, place, canPaste, canShow, withAtts, blocks = [], dimStyles = [], onEdit }: {
+export function SketchToolbar({ items, devices, lengthM, left, top, place, canPaste, canShow, withAtts, blocks = [], dimStyles = [], repeat, onEdit }: {
   items: SketchItem[];
   /** Devices picked with them. */
   devices: number;
@@ -87,6 +87,8 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, canPa
   blocks?: string[];
   /** The project's dimension styles (Dimension style ▸). */
   dimStyles?: string[];
+  /** The last command, for Repeat at the top of the menu. */
+  repeat?: string;
   /** Whether a block has attributes to edit (its right-click menu then offers Edit attributes). */
   withAtts?: (it: SketchItem) => boolean;
   onEdit: (e: SketchEdit, arg?: string) => void;
@@ -104,9 +106,9 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, canPa
     : one.kind === 'pline' && !one.cloud ? [...(one.pts.length > 2 ? ['plclose' as const] : []), 'reverse', 'explode1', ...(one.closed ? ['roomfrom' as const] : []), 'tocable', 'jointool', 'chamfer']
     : one.kind === 'line' ? ['jointool', 'chamfer', 'reverse', 'tocable'] : [];
   const findable = place === 'menu' && !!one && (one.kind === 'text' || one.kind === 'mtext');
-  const edits: SketchEdit[] = [...lv, ...(place === 'menu' && (one?.kind === 'text' || one?.kind === 'dim') ? ['edtext' as const] : place === 'menu' && one?.kind === 'mtext' ? ['edtext' as const, 'ntwidth' as const, 'ntjust' as const] : place === 'menu' && one?.kind === 'insert' ? [...(one.attrs || withAtts?.(one) ? ['edatt' as const, 'blkreset' as const] : []), 'selblock' as const, 'blkcount' as const,
+  const edits: SketchEdit[] = [...(place === 'menu' && repeat ? ['repeat' as const] : []), ...lv, ...(place === 'menu' && (one?.kind === 'text' || one?.kind === 'dim') ? ['edtext' as const] : place === 'menu' && one?.kind === 'mtext' ? ['edtext' as const, 'ntwidth' as const, 'ntjust' as const] : place === 'menu' && one?.kind === 'insert' ? [...(one.attrs || withAtts?.(one) ? ['edatt' as const, 'blkreset' as const] : []), 'selblock' as const, 'blkcount' as const,
       ...(blocks.some((b) => b !== one.block) ? ['blkreplace' as const] : []), 'blkexplode' as const] : []), ...(findable ? ['find' as const] : []), ...kindOwn, ...sketchEditsFor(items, devices),
-    ...(place === 'menu' && items.length && !devices ? ['draworder' as const, ...(items.some((it) => !it.tray && !it.cable) ? ['mkblock' as const] : [])] : []), ...(place === 'menu' ? ['similar' as const, 'qselect' as const, 'clipboard' as const, 'isolate' as const, ...(items.length + devices === 1 ? ['addsel' as const] : []), 'qmeasure' as const, 'count' as const, 'deselect' as const] : [])];
+    ...(place === 'menu' && items.length && !devices ? ['draworder' as const, ...(items.some((it) => !it.tray && !it.cable) ? ['mkblock' as const] : [])] : []), ...(place === 'menu' ? ['similar' as const, 'qselect' as const, 'clipboard' as const, 'isolate' as const, ...(items.length + devices === 1 ? ['addsel' as const] : []), 'qmeasure' as const, 'count' as const, 'deselect' as const, 'props' as const] : [])];
   const list: { id: string; label: string; now?: boolean; key?: string; off?: boolean }[] = open === 'clipboard'
     ? CLIPBOARD.map((x) => ({ id: x.id, label: x.label, key: x.key, off: x.paste && !canPaste }))
     : open === 'draworder' ? DRAW_ORDER.map((x) => ({ id: x.id, label: x.label }))
@@ -125,8 +127,8 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, canPa
     ? NOTE_ATTACHES.map((j) => ({ id: j.id, label: j.label, now: attachOf(one) === j.id }))
     : open === 'width'
     ? TRAY_WIDTHS.map((w) => ({ id: String(w), label: `${w} mm`, now: one?.tray?.widthMm === w }))
-    : open === 'filter' ? (devices ? [{ id: 'devices', label: 'Devices only' }, { id: 'drawn', label: 'Drawn only' }]
-      : [...new Set(items.map(kindOf))].map((k) => ({ id: k, label: `${k} only` }))) : [];
+    : open === 'filter' ? [...(devices ? [{ id: 'devices', label: 'Devices only', key: String(devices) }, { id: 'drawn', label: 'Drawn only', key: String(items.length) }] : []),
+      ...[...new Set(items.map(kindOf))].map((k) => ({ id: k, label: `${k} only`, key: String(items.filter((it) => kindOf(it) === k).length) }))] : [];
   return (
     <div className={`cad-ctx${place === 'above' ? ' above' : ''}${place === 'menu' ? ' vert' : ''}`} role={place === 'menu' ? 'menu' : 'toolbar'} aria-label="Edit drawn objects" style={{ left, top }}
       onMouseDown={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}>
@@ -135,7 +137,7 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, canPa
       {edits.map((e) => (
         <Fragment key={e}>
           {e === 'move' && <span className="cad-ctx-bar" />}
-          <button aria-expanded={OPENERS.has(e) ? open === e : undefined} onClick={() => (OPENERS.has(e) ? setOpen(open === e ? null : e as typeof open) : onEdit(e))}>{e === 'plclose' && one?.closed ? 'Open' : e === 'txmask' && one?.mask ? 'Background mask off' : LABEL[e]}</button>
+          <button aria-expanded={OPENERS.has(e) ? open === e : undefined} onClick={() => (OPENERS.has(e) ? setOpen(open === e ? null : e as typeof open) : onEdit(e))}>{e === 'repeat' ? `Repeat ${repeat}` : e === 'plclose' && one?.closed ? 'Open' : e === 'txmask' && one?.mask ? 'Background mask off' : LABEL[e]}</button>
         </Fragment>
       ))}
       {open && (

@@ -19,6 +19,8 @@ import { placeLvPoint } from '../../model/cadDevices';
 import { archOnOf } from '../../model/cadLayerState';
 import { dimLabel, dimMeasure, sketchOf } from '../../model/cadSketch';
 import { annoOf, unitsPerPaperMm } from '../../model/cadAnnotate';
+import { drawingLayoutsOf } from '../../model/drawingLayouts';
+import type { CadDimStyle } from '../../model/cadStyles';
 import { explodeNote, noteBox } from '../../model/cadMtext';
 import type { CadBlockDef } from '../../model/cadBlocks';
 import { openTitleBlockInCad, TB_LAYERS } from '../../model/titleBlockCad';
@@ -3017,7 +3019,7 @@ describe('CAD 2D gap plan: TEXTEDIT, a double-click on a text or dimension to ty
     act(() => state.toggle('osnap'));
     await rightClickAt(X + 300, 100);
     const menu = () => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"][aria-label="Edit drawn objects"] button')];
-    expect(menu().map((b) => b.textContent)).toEqual(['Edit text', 'Find and replace…', 'Justify ▸', 'Text height ▸', 'Case ▸', 'Frame ▸', 'Background mask', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all']);
+    expect(menu().map((b) => b.textContent)).toEqual(['Edit text', 'Find and replace…', 'Justify ▸', 'Text height ▸', 'Case ▸', 'Frame ▸', 'Background mask', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all', 'Properties']);
     await act(async () => { menu()[0].click(); });
     expect(box()!.value).toBe('DB ROOM');
     await keyBox('Escape');
@@ -3168,7 +3170,7 @@ describe('CAD 2D gap plan: MTEXT, notes in a box with their lines wrapped to its
     act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
     expect(state.tool).toBe('none');
     await rightClickAt(X + 500, 5900);
-    expect(menuLabels()).toEqual(['Edit text', 'Width…', 'Justify ▸', 'Find and replace…', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all']);
+    expect(menuLabels()).toEqual(['Repeat TEXTEDIT', 'Edit text', 'Width…', 'Justify ▸', 'Find and replace…', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all', 'Properties']);
     await act(async () => { button('Width…').click(); });
     expect(last()).toBe('MTEXT  Width (m) <3.00>:');
     await command('4');
@@ -3272,7 +3274,7 @@ describe('CAD 2D gap plan: DRAWORDER and TEXTTOFRONT, the order the drawn object
     project = start;
     act(() => state.toggle('osnap'));
     await rightClickAt(X + 6000, 0);
-    expect(menuLabels()).toEqual(['Join…', 'Chamfer', 'Reverse direction', 'Convert to cable route', 'Trim', 'Extend', 'Offset', 'Break', 'Fillet', 'Mirror', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all']);
+    expect(menuLabels()).toEqual(['Join…', 'Chamfer', 'Reverse direction', 'Convert to cable route', 'Trim', 'Extend', 'Offset', 'Break', 'Fillet', 'Mirror', 'Move', 'Copy', 'Rotate', 'Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all', 'Properties']);
     await act(async () => { button('Draw order ▸').click(); });
     expect(options().map((b) => b.textContent)).toEqual(['Bring to front', 'Send to back', 'Above object', 'Under object']);
     await act(async () => { options()[1].click(); });
@@ -3483,7 +3485,7 @@ describe('CAD 2D gap plan: BLOCK, a block from drawn objects', () => {
     act(() => state.toggle('osnap'));
     await rightClickAt(X + 2500, 0);
     const labels = [...document.querySelectorAll('[role="menu"] button')].map((b) => b.textContent);
-    expect(labels.slice(labels.indexOf('Erase'))).toEqual(['Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all']);
+    expect(labels.slice(labels.indexOf('Erase'))).toEqual(['Erase', 'Draw order ▸', 'Make block…', 'Select similar', 'Quick select…', 'Clipboard ▸', 'Isolate ▸', 'Add selected', 'Quick measure', 'Count', 'Deselect all', 'Properties']);
     await act(async () => { button('Make block…').click(); });
     expect(dlg()).not.toBeNull();
     expect(document.querySelector('[aria-label="Objects selected"]')!.textContent).toBe('1 selected');
@@ -3594,7 +3596,7 @@ describe('CAD 2D gap plan: INSERT and the Blocks palette', () => {
     // The right-click menu of a block starts with Select all of this block.
     await rightClickAt(X + 1000, 1150);
     const labels = [...document.querySelectorAll('[role="menu"] button')].map((b) => b.textContent);
-    expect(labels[0]).toBe('Select all of this block');
+    expect(labels.slice(0, 2)).toEqual(['Repeat DIVIDE', 'Select all of this block']);
     await act(async () => { button('Select all of this block').click(); });
     expect(last()).toBe('SELECT  Every "DB-A" block picked');
   });
@@ -4114,5 +4116,66 @@ describe('right-click menus, phase 4: texts, dimensions, hatches, polylines, hot
     expect(state.tool).toBe('move');
     await clickAt(X, 90000);
     expect(item('G1').pts[0]).toEqual([X, 90000]);
+  });
+});
+
+describe('right-click menus: fixes from the audit of 2026-11-11', () => {
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const hist = () => document.querySelector('.cad-hist')!.textContent;
+  const right = (x: number, y: number) => { const [sx, sy] = screenOf(x, y); return act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); }); };
+  const labels = () => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] > button')].map((b) => b.firstElementChild?.textContent ?? b.textContent);
+  const entry = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find((b) => (b.firstElementChild?.textContent ?? b.textContent) === label)!;
+  const pickEntry = async (...path: string[]) => { for (const l of path) { const b = entry(l); expect(b, l).toBeTruthy(); await act(async () => { b.click(); }); } };
+  const esc = () => act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+  const start = async (p: Project) => { project = p; act(() => root.render(<Host start={p} />)); await flush(); act(() => state.toggle('osnap')); };
+  const item = (id: string) => sketchOf(project, F).find((x) => x.id === id);
+  const line: SketchItem = { id: 'L1', kind: 'line', layer: '0', pts: [[X, 0], [X + 4000, 0]] };
+
+  it('a dimension: Dimension style ▸ lists the project\'s styles and applies one', async () => {
+    const dim: SketchItem = { id: 'D1', kind: 'dim', layer: '0', pts: [[X, 20000], [X + 4000, 20000], [X + 2000, 21000]], h: 250 };
+    await start({ ...villa, cadDimStyles: { styles: [{ name: 'Arch', textMm: 3.5 } as CadDimStyle], current: 'Standard' }, cadSketch: [{ file: F, items: [dim] }] });
+    await clickAt(X + 1000, 21000);
+    await right(X + 1000, 21000);
+    await pickEntry('Dimension style ▸', 'Arch');
+    expect(item('D1')!.h).toBeCloseTo(3.5 * unitsPerPaperMm(annoOf(project), 0.001), 6);
+    expect(item('D1')!.look).toBeDefined();
+  });
+
+  it('drawn objects: Repeat the last command first, Properties last; Cut (Ctrl+X) copies and erases, Paste brings it back', async () => {
+    await start({ ...villa, cadSketch: [{ file: F, items: [line] }] });
+    await command('COUNT');
+    act(() => state.setShowProps(false));
+    await clickAt(X + 1000, 0);
+    await right(X + 1000, 0);
+    expect(labels()[0]).toBe('Repeat COUNT');
+    expect(labels().slice(-1)).toEqual(['Properties']);
+    await pickEntry('Properties');
+    expect(state.showProps).toBe(true);
+    await right(X + 1000, 0);
+    await pickEntry('Clipboard ▸', 'Cut');
+    expect(item('L1')).toBeUndefined();
+    expect(hist()).toBe('CUTCLIP  1 object cut to the clipboard · ⌘Z to undo');
+    await command('PASTEORIG');
+    expect(hist()).toMatch(/^PASTEORIG {2}Not in the drawing the objects came from/); // the clipboard has it
+  });
+
+  it('a layout made with +: right-click inside its viewport for Viewport scale ▸ and Show on the Model tab, outside for the layout\'s own commands', async () => {
+    await start(villa);
+    act(() => (document.querySelector('[aria-label="New layout"]') as HTMLButtonElement).click());
+    expect(state.layout).toBe('dwg:Layout2');
+    await until(() => !!document.querySelector('.cad-filepaper'));
+    const paperRight = (x: number, y: number) => act(async () => { document.querySelector('.cad-filepaper')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: x, clientY: y })); });
+    // jsdom lays the pane out at 0 × 0: the paper is fitted round (0, 0), its viewport over that point.
+    await paperRight(0, 0);
+    expect(labels()).toEqual(['Show on the Model tab', 'Viewport scale', 'New layout', 'Rename layout…', 'Copy layout', 'Delete layout', 'Model tab']);
+    await pickEntry('Viewport scale', '1:50');
+    const v = drawingLayoutsOf(project, F)[0].viewports[0];
+    expect(v.vh).toBeCloseTo(v.h * 50, 6); // mm drawing: vh = h × 50 drawing units
+    await paperRight(40, 0);
+    expect(labels()).toEqual(['New layout', 'Rename layout…', 'Copy layout', 'Delete layout', 'Model tab']);
+    await esc();
+    await paperRight(0, 0);
+    await pickEntry('Show on the Model tab');
+    expect(state.layout).toBeNull();
   });
 });

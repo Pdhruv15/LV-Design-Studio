@@ -9,7 +9,7 @@ import type { CadTool } from './cadState';
  * which must be one of CAD_COMMANDS, so every entry has a working tool behind it) or a page action (`act`); the page
  * turns them into clicks. */
 
-export type CtxAct = 'repeat' | 'properties' | 'enter' | 'cancel' | 'option' | 'input' | 'snap' | 'deselect' | 'dev' | 'room' | 'dw' | 'xref' | 'vp' | 'paper' | 'grip';
+export type CtxAct = 'repeat' | 'properties' | 'enter' | 'cancel' | 'option' | 'input' | 'snap' | 'deselect' | 'dev' | 'room' | 'dw' | 'xref' | 'vp' | 'paper' | 'grip' | 'fpaper';
 export interface CtxItem {
   label: string;
   /** The key shown on the right (a shortcut or alias). */

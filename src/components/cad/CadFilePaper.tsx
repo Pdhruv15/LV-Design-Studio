@@ -11,10 +11,12 @@ type Pt = [number, number];
 const PAD = 28; // px round the paper when fitted
 const INK = '#111', MODEL_INK = '#333', FRAME = '#666';
 
-export function CadFilePaper({ layout, model, onDblClick }: {
+export function CadFilePaper({ layout, model, onDblClick, onContext }: {
   layout: FileLayout;
   model: Pick<CadView, 'segs' | 'segLayers' | 'info'>;
   onDblClick?: () => void;
+  /** A right-click: inside a viewport (its index in layout.viewports) or on the paper (null), at the screen point. */
+  onContext?: (vp: number | null, x: number, y: number) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
@@ -138,7 +140,19 @@ export function CadFilePaper({ layout, model, onDblClick }: {
         el.addEventListener('pointermove', move); el.addEventListener('pointerup', up);
       }}
       onAuxClick={(e) => { if (e.button === 1 && e.detail === 2) setCam(null); }}
-      onDoubleClick={() => onDblClick?.()}>
+      onDoubleClick={() => onDblClick?.()}
+      onContextMenu={(e) => {
+        if (!onContext) return;
+        e.preventDefault();
+        const r = e.currentTarget.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top, { k, x: ox, y: oy } = view;
+        const at = (p: Pt): Pt => { const [mx, my] = paper.mm(p[0], p[1]); return [ox + mx * k, oy - my * k]; };
+        const i = layout.viewports.findIndex((v) => {
+          if (!v.on) return false;
+          const [ax, ay] = at([v.x, v.y + v.h]), [bx, by] = at([v.x + v.w, v.y]);
+          return x >= Math.min(ax, bx) && x <= Math.max(ax, bx) && y >= Math.min(ay, by) && y <= Math.max(ay, by);
+        });
+        onContext(i >= 0 ? i : null, e.clientX, e.clientY);
+      }}>
       <canvas ref={cv} style={{ width: size[0], height: size[1] }} />
     </div>
   );

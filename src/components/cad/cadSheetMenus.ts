@@ -41,7 +41,7 @@ export function xrefMenu(r: Pick<CadRef, 'name' | 'clip' | 'fade' | 'unloaded' |
     { label: 'Fade', sub: REF_FADES.map((f) => x(`${f} %`, 'fade', String(f), r.fade === f ? 'now' : undefined, r.fade === f)) },
     x('Reload', 'reload'), x(r.unloaded ? 'Load' : 'Unload', 'unload'), x('Detach', 'detach'), x('Bind (save a copy)…', 'bind'), '-',
     x(r.print ? 'Do not print on sheets' : 'Print on sheets', 'print'), x('Reference layers…', 'layers', undefined, 'LM'), '-',
-    x('References…', 'manager', undefined, 'XR'), { label: 'Properties', key: 'Ctrl+1', act: 'properties' }
+    x('Properties (References palette)…', 'manager', undefined, 'XR')
   ]);
 }
 
@@ -70,5 +70,19 @@ export function paperMenu(s: { status?: string }): CtxEntry[] {
     pp('Sheet list', 'register'), '-',
     pp('Plot this layout…', 'cmd', 'PLOT', 'PLOT'), pp('Page setup and title block…', 'cmd', 'PAGESETUP'), '-',
     pp('Model tab', 'cmd', 'MODEL', 'MODEL')
+  ]);
+}
+
+/** Right-click on a layout of the drawing (its own, from the file, or one made here with +): the model through a
+ * viewport, its scale (one made here), the layout itself, and the Model tab. The file's own layouts are shown as saved:
+ * their viewports are not changed here. */
+export function drawingPaperMenu(s: { inside: boolean; editable: boolean; scale?: number }): CtxEntry[] {
+  const fp = (label: string, action: string, value?: string, key?: string, off?: boolean) => item('fpaper', label, action, value, key, off);
+  return tidy([
+    ...(s.inside ? [fp('Show on the Model tab', 'max'),
+      ...(s.editable ? [{ label: 'Viewport scale', sub: VP_SCALES.map((k) => fp(`1:${k}`, 'scale', String(k), s.scale === k ? 'now' : undefined, s.scale === k)) }] : []), '-' as const] : []),
+    fp('New layout', 'cmd', 'LAYOUT', 'LAYOUT'),
+    ...(s.editable ? [fp('Rename layout…', 'rename'), fp('Copy layout', 'copy'), fp('Delete layout', 'delete')] : []), '-',
+    fp('Model tab', 'cmd', 'MODEL', 'MODEL')
   ]);
 }

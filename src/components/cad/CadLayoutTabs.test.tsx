@@ -43,13 +43,13 @@ describe('Model and layout tabs', () => {
     expect(document.querySelector('[role="menu"]')).toBeNull();
     const items = () => [...document.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent);
     act(() => document.querySelectorAll('[role="tab"]')[2].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
-    expect(items()).toEqual(['Rename…', 'Copy', 'Move left', 'Move right', 'Delete', 'Lighting layout E-LTG-', 'Power layout E-PWR-', 'ELV layout E-ELV-', 'Containment layout E-CNT-']);
+    expect(items()).toEqual(['New layout LAYOUT', 'Rename…', 'Copy', 'Move left', 'Move right', 'Delete', 'Lighting layout E-LTG-', 'Power layout E-PWR-', 'ELV layout E-ELV-', 'Containment layout E-CNT-']);
     expect(document.querySelector('.cad-tab-menu-h')!.textContent).toBe('New plan sheet of the level');
-    act(() => (document.querySelectorAll('[role="menuitem"]')[4] as HTMLButtonElement).click());
+    act(() => (document.querySelectorAll('[role="menuitem"]')[5] as HTMLButtonElement).click());
     expect(onDrawing.remove).toHaveBeenCalledWith(expect.objectContaining({ name: 'Layout2' }));
     act(() => document.querySelectorAll('[role="tab"]')[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
-    expect(items()).toEqual(['Lighting layout E-LTG-', 'Power layout E-PWR-', 'ELV layout E-ELV-', 'Containment layout E-CNT-']);
-    act(() => (document.querySelectorAll('[role="menuitem"]')[1] as HTMLButtonElement).click());
+    expect(items()).toEqual(['New layout LAYOUT', 'Lighting layout E-LTG-', 'Power layout E-PWR-', 'ELV layout E-ELV-', 'Containment layout E-CNT-']);
+    act(() => (document.querySelectorAll('[role="menuitem"]')[2] as HTMLButtonElement).click());
     expect(onNewSheet).toHaveBeenCalledWith('power');
   });
 });
