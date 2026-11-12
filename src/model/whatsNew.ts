@@ -15,9 +15,15 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.104', date: '2026-11-11',
+    version: '2.105', date: '2026-11-12',
     items: [
       { title: 'HV supply and RMUs', text: 'In Panels → Transformers, enter the grid source from the authority (operator, voltage, fault level in MVA or kA, X/R) and each RMU’s ways, rated voltage, short-time rating, insulation, tee-off and owner. The grid fault level now lowers the LV fault levels and earth fault loop behind each transformer (before, the MV network was taken as infinite). Each RMU is checked for enough tee-off ways and for its rated voltage and short-time rating against the grid. The SLD shows the operator and fault level at the utility and the ways on the RMU box.' }
+    ]
+  },
+  {
+    version: '2.104', date: '2026-11-11',
+    items: [
+      { title: 'Drawn objects stay true when you zoom', text: 'In Design CAD, the second and later objects you draw (lines, circles, arcs, polylines…) were drawn at a fixed size on the screen, with lines that grew thicker as you zoomed out. They now zoom with the drawing at their thin line, as the first one did.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {
