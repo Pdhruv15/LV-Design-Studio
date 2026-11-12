@@ -173,9 +173,10 @@ Left off (no tool yet; each needs a decision or a data-model change):
 
 ## Decisions still open
 
-1. Engine-heavy items (block editor and edit block in place, edit reference in place, compare with a new
-   revision, detect rooms from walls): build them, or leave them off. Fill ratio (Phase 2) and Bind (Phase 3) were
-   already there.
+1. Engine-heavy items: the user asked on 2026-11-12 to build them, block editor first. Block editor built in v2.111
+   (BEDIT / BSAVE / BCLOSE, on the menu of a block drawn here). Still to build: edit block in place, edit reference in
+   place, compare with a new revision, detect rooms from walls. Fill ratio (Phase 2) and Bind (Phase 3) were already
+   there.
 2. ELV loops, zones and panels / racks: add them to ELV devices (then Loop / zone ▸, Assign to panel and
    Select same loop can be built), or leave the ELV menu as it is.
 3. Align to wall and device tags: build, or leave off.

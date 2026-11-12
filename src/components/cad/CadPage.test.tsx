@@ -23,7 +23,7 @@ import { annoOf, unitsPerPaperMm } from '../../model/cadAnnotate';
 import { drawingLayoutsOf } from '../../model/drawingLayouts';
 import type { CadDimStyle } from '../../model/cadStyles';
 import { explodeNote, noteBox } from '../../model/cadMtext';
-import type { CadBlockDef } from '../../model/cadBlocks';
+import { blockDefOf, blockDefsOf, type CadBlockDef } from '../../model/cadBlocks';
 import { openTitleBlockInCad, TB_LAYERS } from '../../model/titleBlockCad';
 import type { TitleTemplate } from '../../model/titleBlock';
 import type { Project, SketchItem } from '../../types';
@@ -3614,7 +3614,7 @@ describe('CAD 2D gap plan: INSERT and the Blocks palette', () => {
     // The right-click menu of a block starts with Select all of this block.
     await rightClickAt(X + 1000, 1150);
     const labels = [...document.querySelectorAll('[role="menu"] button')].map((b) => b.textContent);
-    expect(labels.slice(0, 2)).toEqual(['Repeat DIVIDE', 'Select all of this block']);
+    expect(labels.slice(0, 3)).toEqual(['Repeat DIVIDE', 'Open block editor', 'Select all of this block']);
     await act(async () => { button('Select all of this block').click(); });
     expect(last()).toBe('SELECT  Every "DB-A" block picked');
   });
@@ -4195,5 +4195,54 @@ describe('right-click menus: fixes from the audit of 2026-11-11', () => {
     await paperRight(0, 0);
     await pickEntry('Show on the Model tab');
     expect(state.layout).toBeNull();
+  });
+});
+
+describe('block editor (BEDIT, BSAVE, BCLOSE)', () => {
+  const X = 200000, F = 'sample-villa-gf.dxf', ED = 'Block B1 = sample-villa-gf.dxf.dxf';
+  const hist = () => document.querySelector('.cad-hist')!.textContent;
+  const right = (x: number, y: number) => { const [sx, sy] = screenOf(x, y); return act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); }); };
+  const entry = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find((b) => (b.firstElementChild?.textContent ?? b.textContent) === label)!;
+  const B1: CadBlockDef = { name: 'B1', items: [{ id: 'b1', kind: 'line', layer: '0', pts: [[0, 0], [2000, 0]] }] };
+  const ins = (id: string, y: number): SketchItem => ({ id, kind: 'insert', layer: '0', pts: [[X, y]], block: 'B1' });
+  const def = () => blockDefOf(blockDefsOf(project, F), 'B1')!;
+
+  it('opens a block from its right-click menu, saves what is drawn into it (every insert follows), and closes it, asking to save', async () => {
+    const p: Project = { ...villa, cadBlockDefs: [{ file: F, defs: [B1] }], cadSketch: [{ file: F, items: [ins('I1', 0), ins('I2', 5000)] }] };
+    project = p; act(() => root.render(<Host start={p} />)); await flush(); act(() => state.toggle('osnap'));
+    await clickAt(X + 1000, 0);
+    await right(X + 1000, 0);
+    await act(async () => { entry('Open block editor').click(); });
+    await until(() => state.view?.file === ED);
+    expect(document.querySelector('.cad-tabs [role="tab"][aria-selected="true"]')!.textContent).toBe('Block editor · B1 (in sample-villa-gf.dxf)');
+    expect(sketchOf(project, ED).map((it) => it.kind)).toEqual(['line']);
+    // Draw in it: a second line, then BSAVE; both inserts show it.
+    await command('L'); await clickAt(0, 500); await clickAt(2000, 500); await command('');
+    await command('SAVE');
+    expect(hist()).toBe('BSAVE  "B1" saved: 2 objects · 2 inserts in sample-villa-gf.dxf updated · ⌘Z to undo');
+    expect(def().items[1].layer).toBe('0');
+    expect(def().items.map((it) => it.pts.map(([x, y]) => [Math.round(x / 10) * 10 + 0, Math.round(y / 10) * 10 + 0]))).toEqual([[[0, 0], [2000, 0]], [[0, 500], [2000, 500]]]);
+    // A change not saved: BCLOSE asks; No closes without it, back on the drawing.
+    await command('L'); await clickAt(0, 900); await clickAt(1000, 900); await command('');
+    await command('BCLOSE');
+    expect(hist()).toBe('BCLOSE  Save the changes to "B1"? [Yes/No/Cancel] <Yes>:');
+    await command('N');
+    expect(state.view?.file).toBe(F);
+    expect(def().items).toHaveLength(2);
+    expect(sketchOf(project, ED)).toEqual([]);
+    expect(blockDefsOf(project, ED)).toEqual([]);
+  });
+
+  it('BEDIT and a name opens it; BEDIT alone with nothing picked lists the blocks; BSAVE outside the editor says so', async () => {
+    const p: Project = { ...villa, cadBlockDefs: [{ file: F, defs: [B1, { ...B1, name: 'B2' }] }] };
+    project = p; act(() => root.render(<Host start={p} />)); await flush();
+    await command('BEDIT');
+    expect(hist()).toBe('BEDIT  Pick a block, or type BEDIT and its name: B1, B2');
+    await command('BSAVE');
+    expect(hist()).toBe('BSAVE  Not in the block editor (BEDIT opens a block in it).');
+    await command('BEDIT b2');
+    await until(() => state.view?.file === 'Block B2 = sample-villa-gf.dxf.dxf');
+    await command('BCLOSE');
+    expect(state.view?.file).toBe(F);
   });
 });
