@@ -55,6 +55,19 @@ svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-l
 .menu div.hi{background:rgba(245,179,1,.18)}
 .menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
 .menu .tk{display:inline-block;width:16px;color:var(--acc)}
+.menu div.new{margin-top:2px}
+.trace{display:flex;gap:28px;align-items:center;width:1366px;background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;padding:12px 20px}
+.trace svg{width:560px;height:250px;flex:none;stroke-width:1.5;stroke:var(--line-strong)}
+.trace svg text{stroke:none;fill:var(--mut);font-size:11px}
+.trace svg .hi{stroke:var(--acc);stroke-width:2.5}
+.trace svg text.v{fill:var(--acc);font-weight:600}
+.trace svg text.t{fill:var(--tx)}
+.trace table{flex:1;border-collapse:collapse;font-size:12px}
+.trace th{text-align:left;font-weight:400;color:var(--mut);font-size:11px;padding:4px 10px;border-bottom:1px solid var(--line-strong)}
+.trace td{padding:6px 10px;border-bottom:1px solid var(--line)}
+.trace td.r,.trace th.r{text-align:right}
+.trace tfoot td{border-bottom:0;color:var(--mut)}
+.trace tfoot b{color:var(--acc)}
 .tip{position:absolute;max-width:250px;padding:6px 8px;background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:12px;line-height:1.35;color:var(--mut);z-index:2}
 .tip b{display:block;color:var(--tx);font-weight:600}
 .over{display:flex;gap:4px;padding:6px}
@@ -76,11 +89,12 @@ svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-l
 <div class="wrap" style="width:1912px"><div class="frame"><div class="tabs" data-tabs></div><div class="tools" id="t1"></div></div></div>
 <p class="w" id="w1"></p>
 
-<h2><span class="n">2</span>Proposed, 1912 px window (Supply, Values and Export menus drawn open; the tooltip is shown on Run)</h2>
-<div class="wrap" style="width:1912px;margin-bottom:190px"><div class="frame"><div class="tabs" data-tabs></div><div class="tools" id="t2"></div></div>
+<h2><span class="n">2</span>Proposed, 1912 px window (Supply, Values, Colour by and Export menus drawn open; the tooltip is shown on Run)</h2>
+<div class="wrap" style="width:1912px;margin-bottom:262px"><div class="frame"><div class="tabs" data-tabs></div><div class="tools" id="t2"></div></div>
   <div class="tip" id="tipRun"><b>Run calculations · F5</b>3 circuits are out of date.</div>
   <div class="menu" id="mSupply"><div class="hi">Transformer</div><div>Meter cabinet</div><div>Generator + ATS</div><div>Generator + interlocked ACBs</div><div>Bus coupler / tie</div><hr><div>HV supply and RMUs…</div></div>
   <div class="menu" id="mValues"><div><span class="tk">✓</span>Current (A)</div><div><span class="tk">✓</span>Bus voltage</div><div><span class="tk">✓</span>Voltage drop</div><div><span class="tk"></span>Fault current</div><div><span class="tk"></span>Power factor</div><div><span class="tk"></span>Loading %</div></div>
+  <div class="menu" id="mColour"><div><span class="tk"></span>None</div><div><span class="tk">✓</span>Voltage drop</div><div><span class="tk"></span>Breaker loading</div><div><span class="tk"></span>Cable utilisation</div><div><span class="tk"></span>Fault duty</div><div><span class="tk"></span>Earth fault loop</div><hr><div class="new"><span class="tk"></span>Phase balance</div><div class="new"><span class="tk"></span>Discrimination</div></div>
   <div class="menu" id="mExport"><div>Drawing: SVG, DXF, DWG or PDF…</div><div>OpenDSS (.dss)</div></div>
 </div>
 <p class="w" id="w2"></p>
@@ -91,11 +105,38 @@ svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-l
 </div>
 <p class="w" id="w3"></p>
 
+<h2><span class="n">4</span>Trace, the suggested new tool: pressed with DB-2F selected (example figures)</h2>
+<div class="trace">
+  <svg viewBox="0 0 560 250">
+    <circle cx="130" cy="20" r="9"/><circle cx="130" cy="33" r="9"/>
+    <path d="M40 70H520"/>
+    <path d="M200 70v50M170 120h60M470 70v50M440 120h60M195 86l10 10M205 86l-10 10M465 86l10 10M475 86l-10 10"/>
+    <path d="M250 150h130M270 150v55M365 150v55"/><rect x="257" y="205" width="26" height="18"/><rect x="352" y="205" width="26" height="18"/>
+    <path class="hi" d="M130 42V70H300V150H320V205"/><rect class="hi" x="307" y="205" width="26" height="18"/>
+    <path class="hi" d="M295 104l10 10M305 104l-10 10" style="stroke-width:1.5"/>
+    <text x="146" y="30" class="t">TX-1</text><text x="44" y="62" class="t">MDB-1</text>
+    <text x="200" y="136" text-anchor="middle">SMDB-1</text><text x="470" y="136" text-anchor="middle">MCC-1</text>
+    <text x="388" y="154" class="t">SMDB-2</text>
+    <text x="270" y="238" text-anchor="middle">DB-2E</text><text x="320" y="238" text-anchor="middle" class="t">DB-2F</text><text x="365" y="238" text-anchor="middle">DB-2G</text>
+    <text x="138" y="62" class="v">0.3 %</text><text x="310" y="140" class="v">1.5 %</text><text x="326" y="198" class="v">3.4 %</text>
+  </svg>
+  <table>
+    <thead><tr><th>Step</th><th>Cable</th><th class="r">Length</th><th class="r">Drop added</th><th class="r">Running total</th><th class="r">Fault level at the end</th></tr></thead>
+    <tbody>
+      <tr><td>TX-1 → MDB-1</td><td>2 × 4C 300 mm²</td><td class="r">15 m</td><td class="r">0.3 %</td><td class="r">0.3 %</td><td class="r">36.2 kA</td></tr>
+      <tr><td>MDB-1 → SMDB-2</td><td>4C 185 mm²</td><td class="r">60 m</td><td class="r">1.2 %</td><td class="r">1.5 %</td><td class="r">18.4 kA</td></tr>
+      <tr><td>SMDB-2 → DB-2F</td><td>4C 35 mm²</td><td class="r">45 m</td><td class="r">1.9 %</td><td class="r">3.4 %</td><td class="r">6.1 kA</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="6"><b>3.4 %</b> of the 4 % limit. Largest share: SMDB-2 → DB-2F.</td></tr></tfoot>
+  </table>
+</div>
+<p class="w">The route from the selected board or load back to its transformer is drawn over the SLD in the accent colour, with the running voltage drop at each board. The steps are listed beside it. Only results the app already calculates are shown.</p>
+
 <div class="notes">
-  <div><b>Run</b>Run shows the number of circuits out of date under its name; today that is only in the tooltip. Check is the fail and to-check count of the results drawer: one press goes to the next problem circuit.</div>
+  <div><b>Run and check</b>Run shows the number of circuits out of date under its name; today that is only in the tooltip. Check is the fail and to-check count of the results drawer: one press goes to the next problem circuit. Trace is new and shows why it fails (4).</div>
   <div><b>Equipment</b>The Supply and Devices menus (ACB, MCCB, MCB, isolator, kWh meter, CT metering, RCD, SPD, capacitor bank) pick the same items as the equipment library: choose one, then click the board or the empty canvas. Add load is unchanged.</div>
-  <div><b>Results</b>The three lists of the View menu above the canvas, each with its current setting beside it, so what the drawing is showing can be read without opening a menu.</div>
-  <div><b>Copy and undo · View</b>Copy, Paste, Undo and Redo work today from the keyboard only. Fit is on the canvas toolbar. Duplicate, Find and Zoom to selection do not exist yet and appear only when built.</div>
+  <div><b>Results</b>The three lists of the View menu above the canvas, each with its current setting beside it, so what the drawing is showing can be read without opening a menu. Phase balance and Discrimination would be two new Colour by choices.</div>
+  <div><b>Copy and undo · View</b>Copy, Paste, Undo and Redo work today from the keyboard only. Fit is on the canvas toolbar. Duplicate and Find do not exist yet and appear only when built. Find zooms to the board, feeder or load it finds.</div>
   <div><b>Output · More</b>Export gathers the drawing export from the bar above the canvas and the OpenDSS export from More. More keeps Load flow, Quick calcs, Calculation report and Project settings.</div>
   <div><b>Narrow windows</b>Today the row scrolls sideways. Proposed: groups that do not fit move into More under their own headings. Every button of today's ribbon stays on the row at 1366 px.</div>
 </div>
@@ -127,13 +168,13 @@ const P = {
   palette:'<path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 2-2s-.7-1.5-.7-2.5S14 15 15 15h2a4 4 0 0 0 4-4c0-4.4-4-8-9-8z"/><circle cx="7.5" cy="11.5" r=".9"/><circle cx="10" cy="7.5" r=".9"/><circle cx="15" cy="7.5" r=".9"/>',
   scenario:'<path d="M4 7h13M14 4l3 3-3 3M20 17H7M10 14l-3 3 3 3"/>',
   fit:'<path d="M3 8V3h5M16 3h5v5M21 16v5h-5M8 21H3v-5"/><rect x="8" y="8" width="8" height="8"/>',
-  zoomsel:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/><rect x="7.5" y="8" width="6" height="5" stroke-dasharray="1.6 1.4"/>',
   export:'<path d="M12 3v12M7 10l5 5 5-5M4 20h16"/>',
   report:'<path d="M6 3h8l5 5v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M8 13h8M8 17h6"/>',
   more:'<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
   flow:'<path d="M3 17l5-6 4 3 5-8 4 5"/><path d="M3 21h18"/>',
   calc:'<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M8 7h8M8 12h2M12 12h0M16 12h0M8 16h2M12 16h0M16 16h0"/>',
   settings:'<path d="M12 3v18M5 7h14M5 7l-2.5 6a3 3 0 0 0 5 0zM19 7l-2.5 6a3 3 0 0 0 5 0zM8 21h8"/>',
+  trace:'<circle cx="6" cy="5" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v5h12v5"/>',
   chev:'<path d="M6 9l6 6 6-6"/>'
 };
 const ic = (k, c = '') => `<svg viewBox="0 0 24 24"${c ? ` class="${c}"` : ''}>${P[k]}</svg>`;
@@ -160,20 +201,20 @@ const selection = grp('Selection', big('pencil', 'Edit'), big('trash', 'Delete')
 
 const today = [grp('Run', big('play', 'Run')), canvas, boards, grp('Equipment', big('zap', 'Add load', { dd: 1 })), selection];
 const proposed = [
-  grp('Run', big('play', 'Run', { st: 1, sub: '3 out of date', id: 'run' }), big('check', 'Check', { m: 1, sub: '2 fail' })),
+  grp('Run and check', big('play', 'Run', { st: 1, sub: '3 out of date', id: 'run' }), big('check', 'Check', { m: 1, sub: '2 fail' }), big('trace', 'Trace', N)),
   canvas, boards,
   grp('Equipment', big('supply', 'Supply', { dd: 1, m: 1, id: 'supply' }), big('zap', 'Add load', { dd: 1 }), big('device', 'Devices', { dd: 2, m: 1 })),
   selection,
-  grp('Results', col(sm('values', '<em>Values</em> 3 shown', { dd: 1, m: 1, id: 'values' }), sm('palette', '<em>Colour by</em> Voltage drop', { dd: 1, m: 1 }), sm('scenario', '<em>Scenario</em> Normal supply', { dd: 1, m: 1 }))),
+  grp('Results', col(sm('values', '<em>Values</em> 3 shown', { dd: 1, m: 1, id: 'values' }), sm('palette', '<em>Colour by</em> Voltage drop', { dd: 1, m: 1, id: 'colour' }), sm('scenario', '<em>Scenario</em> Normal supply', { dd: 1, m: 1 }))),
   grp('Copy and undo', col(sm('copy', 'Copy', M), sm('paste', 'Paste', M), sm('dup', 'Duplicate', N)), col(sm('undo', 'Undo', M), sm('redo', 'Redo', M))),
-  grp('View', col(sm('fit', 'Fit', M), sm('zoomsel', 'Zoom to selection', N), sm('search', 'Find', N))),
+  grp('View', col(sm('fit', 'Fit', M), sm('search', 'Find', N))),
   grp('Output', big('export', 'Export', { dd: 1, m: 1, id: 'export' }))
 ];
 // What a moved group looks like inside More
 const OVER = {
   Results: [sm('values', '<em>Values</em> 3 shown', { dd: 1 }), sm('palette', '<em>Colour by</em> Voltage drop', { dd: 1 }), sm('scenario', '<em>Scenario</em> Normal supply', { dd: 1 })],
   'Copy and undo': [sm('copy', 'Copy'), sm('paste', 'Paste'), sm('dup', 'Duplicate', N), sm('undo', 'Undo'), sm('redo', 'Redo')],
-  View: [sm('fit', 'Fit'), sm('zoomsel', 'Zoom to selection', N), sm('search', 'Find', N)],
+  View: [sm('fit', 'Fit'), sm('search', 'Find', N)],
   Output: [sm('export', 'Export', { dd: 1 })],
   'Other tools': [sm('flow', 'Load flow'), sm('calc', 'Quick calcs'), sm('report', 'Calculation report'), sm('settings', 'Project settings')]
 };
@@ -194,7 +235,7 @@ const kept = proposed.slice(), moved = [];
 fill(t3, kept);
 while (need(t3) > 1366 && kept.length > 5) { moved.unshift(kept.pop()); fill(t3, kept); }
 const capOf = h => h.match(/data-cap="([^"]+)"/)[1];
-document.getElementById('w3').textContent = `The row needs ${need(t3)} px of 1366 px. In More: ${moved.map(capOf).join(', ')}. On the row: every button of today's ribbon, plus Check, Supply and Devices.`;
+document.getElementById('w3').textContent = `The row needs ${need(t3)} px of 1366 px. In More: ${moved.map(capOf).join(', ')}. On the row: every button of today's ribbon, plus Check, Trace, Supply and Devices.`;
 document.getElementById('mMore').innerHTML = [...moved.map(capOf), 'Other tools'].map(c => `<section><h4>${c}</h4>${OVER[c].join('')}</section>`).join('');
 
 // Open menus hang from the bottom edge of the ribbon, under their buttons, so that no caption is hidden here
@@ -204,7 +245,9 @@ const under = (menu, sel, right) => {
   m.style.top = (m.parentElement.querySelector('.frame').getBoundingClientRect().bottom - w.top + 2) + 'px';
   if (right) m.style.right = '0px'; else m.style.left = (a.left - w.left) + 'px';
 };
-under('tipRun', 'run'); under('mSupply', 'supply'); under('mValues', 'values'); under('mExport', 'export'); under('mMore', 'more', true);
+under('tipRun', 'run'); under('mSupply', 'supply'); under('mValues', 'values'); under('mColour', 'colour');
+{ const v = document.getElementById('mValues'), c = document.getElementById('mColour'); c.style.left = (parseFloat(v.style.left) + v.offsetWidth + 8) + 'px'; }
+ under('mExport', 'export'); under('mMore', 'more', true);
 // One page the size of the mockup, for the image beside this file
 document.head.appendChild(document.createElement('style')).textContent = `@page{size:1952px ${Math.ceil(document.documentElement.scrollHeight)}px;margin:0}`;
 </script>
