@@ -13,6 +13,7 @@ import { evaluateProject, type Status } from './calc/electrical';
 import { boardIncomerLabel } from './docs/loadScheduleDoc';
 import { panelSummary } from './docs/mdSheet';
 import { boardLocation } from './model/levels';
+import { planTarget } from './model/planTarget';
 import ResultsTable from './components/ResultsTable';
 import SidePanel from './components/SidePanel';
 import InspectorPanel from './components/InspectorPanel';
@@ -668,6 +669,13 @@ export default function App() {
     if (s.feeder) selectFeeder(s.feeder); else if (s.board) selectBoard(s.board);
   }
 
+  /** Show on plan: the selected board or circuit on its floor plan in Design CAD, or why it is not on one. */
+  function showOnPlan() {
+    const t = planTarget(project, panel === 'feeder' && selected ? { feeder: selected } : board ? { board: board.id } : {});
+    if (typeof t === 'string') { setStatus(t); return; }
+    cadDo((x) => x.showOnPlan(t));
+  }
+
   function updateBoard(b: Board) {
     setProject((prev) => ({ ...prev, boards: prev.boards.map((x) => (x.id === b.id ? b : x)) }));
   }
@@ -1309,6 +1317,7 @@ export default function App() {
               supply: onGenerator ? 'generator' as const : outageId ? `outage:${outageId}` as const : 'normal' as const, onSupply: setSupply, hasGenerator, outages: tiedRoots,
               canCopy: onBoard, onCopy: () => { if (board) copyBoard(board.id); },
               canPaste: onBoard && !!copiedBoard && project.boards.some((b) => b.id === copiedBoard), copied: copiedBoard ?? undefined, onPaste: () => { if (board) setPasteTarget(board.id); },
+              onShowOnPlan: showOnPlan,
               onFit: () => setSldFit((n) => n + 1),
               onExport: () => { system(); setShowExport(true); }
             };

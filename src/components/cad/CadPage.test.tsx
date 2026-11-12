@@ -16,6 +16,7 @@ import { dropRefGeometry, keepRefGeometry } from '../../model/cadRefs';
 import '../../engines/cad/cadOps'; // loaded ahead: the engine loads it on demand, which a busy test run can make slow
 import { sampleProject } from '../../data/sampleProject';
 import { placeLvPoint } from '../../model/cadDevices';
+import { planTarget, type PlanTarget } from '../../model/planTarget';
 import { archOnOf } from '../../model/cadLayerState';
 import { dimLabel, dimMeasure, sketchOf } from '../../model/cadSketch';
 import { annoOf, unitsPerPaperMm } from '../../model/cadAnnotate';
@@ -699,6 +700,23 @@ describe('CAD view', () => {
     expect(state.view?.file).toBe('plan.dwg');
     expect(project.cadPlans).toEqual([{ building: 'V', level: 'FF', file: 'plan.dwg', units: 4 }]);
     expect(plans()[1].textContent).toBe('Firstplan.dwgopen');
+  });
+
+  it('Show on plan (from the SLD) shows the level\'s drawing, picks the board and zooms to a window round it', async () => {
+    const placedBoard: Project = { ...villa, cadPlans: [{ building: 'V', level: 'GF', file: 'sample-villa-gf.dxf', units: 4 }], boards: villa.boards.map((b, i) => (i ? b : { ...b, level: { building: 'V', level: 'GF' }, planPoint: { x: 3, y: 9 } })) };
+    const id = placedBoard.boards[0].id;
+    act(() => root.render(<Host start={placedBoard} />));
+    await flush();
+    const t = planTarget(placedBoard, { board: id });
+    expect(typeof t).not.toBe('string');
+    act(() => state.actions.current.showOnPlan(t as PlanTarget));
+    await until(() => state.view?.file === 'sample-villa-gf.dxf' && state.selected === `board:${id}`);
+    await until(() => document.querySelector('.zoom-chip')?.textContent !== '100 %'); // the 8 m window, not the drawing fitted
+    expect(document.querySelector('.zoom-chip')?.textContent).toMatch(/^\d+ %$/);
+    // The drawing already shown: asking again picks and zooms again without loading it.
+    act(() => state.setSelected(null));
+    act(() => state.actions.current.showOnPlan(t as PlanTarget));
+    await until(() => state.selected === `board:${id}`);
   });
 
   it('File group: sets the level and the units of the drawing, and shows the layer roles', async () => {

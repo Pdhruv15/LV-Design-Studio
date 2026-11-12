@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Project } from '../../types';
 import type { CalcRun } from '../../calc/runs';
-import { LAYER_LABELS, SHEET_LAYERS, type ResultLayers } from '../../diagram/annotations';
+import { isView, LAYER_LABELS, SHEET_LAYERS, withView, type ResultLayers } from '../../diagram/annotations';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import { subtree } from '../../calc/pfc';
 import { evaluateProject } from '../../calc/electrical';
@@ -427,10 +427,10 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
           )}
           <details><summary>Values printed (view)</summary>
             <div className="ds-tools">
-              {VIEWS.map(([name, v]) => <button key={name} className={`chip${JSON.stringify(tags) === JSON.stringify(v) ? ' on' : ''}`} onClick={() => patch({ tags: v })}>{name}</button>)}
+              {VIEWS.map(([name, v]) => <button key={name} className={`chip${isView(tags, v) ? ' on' : ''}`} onClick={() => patch({ tags: withView(tags, v) })}>{name}</button>)}
               {s.tags && <button className="linkish" onClick={() => patch({ tags: undefined })}>As the set</button>}
             </div>
-            {LAYER_LABELS.map(([k, label]) => <label key={k} className="row"><input type="checkbox" checked={tags[k]} onChange={(e) => patch({ tags: { ...tags, [k]: e.target.checked } })} /> {label}</label>)}
+            {LAYER_LABELS.map(([k, label]) => <label key={k} className="row"><input type="checkbox" checked={!!tags[k]} onChange={(e) => patch({ tags: { ...tags, [k]: e.target.checked } })} /> {label}</label>)}
           </details>
           <details><summary>Notes on this sheet ({(s.notes ?? []).length})</summary>
             <textarea className="sheet-notes" rows={4} defaultValue={(s.notes ?? []).join('\n')} key={(s.notes ?? []).join('|')} placeholder={'One note per line, e.g.\nRefer to E-SLD-002 for SMDB-FF.'}

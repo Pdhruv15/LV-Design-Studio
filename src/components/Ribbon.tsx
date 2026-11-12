@@ -7,7 +7,7 @@ import {
 import { BringToFront, Frame, LayoutTemplate, Printer, Crop, Plus, ChevronRight, LightbulbOff, Snowflake, LockOpen, Focus, CircleCheck, Layers3, ArrowDownRight, Cloud, FileSearch, ListOrdered } from 'lucide-react';
 import { ListFilter, PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen , SquareScissors } from 'lucide-react';
 import { ClipboardList, Package, Dot, Divide, Target, Pentagon, ArrowRightToLine, TriangleRight, Hexagon, CaseSensitive, LandPlot, ScanSearch, Expand, SlidersHorizontal, DraftingCompass } from 'lucide-react';
-import { ArrowDownToLine, ArrowLeftRight, Check, ChevronLeft, ClipboardPaste, CopyPlus, ListPlus, Scan, SquareDashed } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeftRight, Check, ChevronLeft, ClipboardPaste, CopyPlus, ListPlus, LocateFixed, Scan, SquareDashed } from 'lucide-react';
 import type { CadExport, CadRibbonInfo, CadTool } from './cad/cadState';
 import { ColourPicker } from './cad/ColourPicker';
 import { LINETYPE_IDS, LINETYPES, LINEWEIGHTS, type LinetypeId, type ObjectProps } from '../model/cadLayerStyle';
@@ -110,6 +110,8 @@ export interface RibbonActions {
     canCopy: boolean; onCopy: () => void;
     /** The board copied, while it can be pasted on the selected one. */
     canPaste: boolean; copied?: string; onPaste: () => void;
+    /** Show the selected board or circuit on its floor plan in Design CAD. */
+    onShowOnPlan: () => void;
     onFit: () => void;
     onExport: () => void;
   };
@@ -549,7 +551,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     ],
     [
       { label: 'Edit', icon: Pencil, title: sel ? `Edit ${selName}` : 'Select a board or feeder first', onClick: a.onEditSelected, disabled: !sel },
-      { label: 'Delete', icon: Trash2, title: sel ? `Delete ${selName}${sel.kind === 'board' ? ' and everything fed from it' : ''} (Delete key)` : 'Select a board or feeder first', onClick: a.onDeleteSelected, disabled: !sel }
+      { label: 'Delete', icon: Trash2, title: sel ? `Delete ${selName}${sel.kind === 'board' ? ' and everything fed from it' : ''} (Delete key)` : 'Select a board or feeder first', onClick: a.onDeleteSelected, disabled: !sel },
+      { label: 'Show on plan', icon: LocateFixed, title: 'Show the selected board or circuit on its floor plan in Design CAD', onClick: () => a.sld?.onShowOnPlan(), disabled: !sel || !a.sld }
     ]
   ];
   // The SLD tab's own tools beside those: the checks, the equipment library's supply and device items, what the system

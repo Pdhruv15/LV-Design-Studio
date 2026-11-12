@@ -12,7 +12,7 @@ const noop = () => {};
 const sldActions = (over: Partial<Sld> = {}): Sld => ({
   fails: 0, warns: 0, onCheck: vi.fn(), onArm: vi.fn(), onHvSupply: vi.fn(), system: true,
   layers: DEFAULT_LAYERS, onLayers: vi.fn(), colorBy: 'none', onColorBy: vi.fn(), supply: 'normal', onSupply: vi.fn(), hasGenerator: false, outages: [],
-  canCopy: false, onCopy: vi.fn(), canPaste: false, onPaste: vi.fn(), onFit: vi.fn(), onExport: vi.fn(), ...over
+  canCopy: false, onCopy: vi.fn(), canPaste: false, onPaste: vi.fn(), onShowOnPlan: vi.fn(), onFit: vi.fn(), onExport: vi.fn(), ...over
 });
 const actions = (over: Partial<RibbonActions> = {}): RibbonActions => ({
   view: 'design', onView: noop, tool: 'select', onTool: noop, boardId: 'MDB-1', selectedFeederId: null, selection: { kind: 'board', id: 'MDB-1' },
@@ -54,7 +54,7 @@ describe('the SLD tab', () => {
     expect(names('Canvas')).toEqual(['SLD', 'Sheets', 'Select', 'Pan']);
     expect(names('Boards')).toEqual(['Boards', 'Board', 'Schedule', 'Enclosure']);
     expect(names('Equipment')).toEqual(['Supply', 'Add load', 'Devices']);
-    expect(names('Selection')).toEqual(['Edit', 'Delete']);
+    expect(names('Selection')).toEqual(['Edit', 'Delete', 'Show on plan']);
     expect(names('Results')).toEqual(['Values', 'Colour by', 'Scenario']);
     expect(names('Copy and undo')).toEqual(['Copy', 'Paste', 'Undo', 'Redo']);
     // Copy and Paste in one column, Undo and Redo in the next.
@@ -103,10 +103,10 @@ describe('the SLD tab', () => {
     expect(tool('Colour by').textContent).toBe('Colour byVoltage drop');
     expect(tool('Scenario').textContent).toBe('ScenarioNormal');
     click(tool('Values'));
-    expect(items().map((b) => `${b.textContent}:${b.getAttribute('aria-checked')}`)).toEqual(['Current (A):true', 'Bus voltage:true', 'Voltage drop:true', 'Fault current:false', 'Power factor:false', 'Loading %:false']);
+    expect(items().map((b) => `${b.textContent}:${b.getAttribute('aria-checked')}`)).toEqual(['Current (A):true', 'Bus voltage:true', 'Voltage drop:true', 'Fault current:false', 'Power factor:false', 'Loading %:false', 'Level and room:false']);
     click(item('Fault current'));
     expect(s.onLayers).toHaveBeenLastCalledWith({ ...DEFAULT_LAYERS, fault: true });
-    expect(items()).toHaveLength(6); // still open for the next tick
+    expect(items()).toHaveLength(7); // still open for the next tick
     click(tool('Colour by'));
     expect(item('Voltage drop').getAttribute('aria-checked')).toBe('true');
     click(item('Fault duty'));
@@ -169,9 +169,19 @@ describe('the SLD tab', () => {
     expect(document.querySelector('.ribbon-menu')).toBeNull();
   });
 
+  it('has Show on plan after Delete: it needs a selection and the SLD actions, and asks the page to show it', () => {
+    const s = show();
+    expect(tool('Show on plan').title).toBe('Show the selected board or circuit on its floor plan in Design CAD');
+    click(tool('Show on plan'));
+    expect(s.onShowOnPlan).toHaveBeenCalledTimes(1);
+    show({}, { selection: null });
+    expect(tool('Show on plan').disabled).toBe(true);
+    expect(tool('Delete').disabled).toBe(true);
+  });
+
   it('greys its own tools without the SLD actions', () => {
     show(null);
-    for (const name of ['Check', 'Supply', 'Devices', 'Values', 'Colour by', 'Scenario', 'Copy', 'Paste', 'Fit', 'Export']) expect(tool(name).disabled, name).toBe(true);
+    for (const name of ['Check', 'Supply', 'Devices', 'Values', 'Colour by', 'Scenario', 'Copy', 'Paste', 'Fit', 'Export', 'Show on plan']) expect(tool(name).disabled, name).toBe(true);
     for (const name of ['Run', 'SLD', 'Select', 'Boards', 'Board', 'Add load', 'Edit', 'Delete']) expect(tool(name).disabled, name).toBe(false);
   });
 

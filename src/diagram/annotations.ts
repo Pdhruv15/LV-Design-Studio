@@ -11,6 +11,8 @@ export interface ResultLayers {
   fault: boolean;
   pf: boolean;
   loading: boolean;
+  /** Each board's level and room under its name. Off when missing (projects saved before it). */
+  location?: boolean;
 }
 
 export const DEFAULT_LAYERS: ResultLayers = { current: true, voltage: true, vd: true, fault: false, pf: false, loading: false };
@@ -24,8 +26,14 @@ export const LAYER_LABELS: [keyof ResultLayers, string][] = [
   ['vd', 'Voltage drop'],
   ['fault', 'Fault current'],
   ['pf', 'Power factor'],
-  ['loading', 'Loading %']
+  ['loading', 'Loading %'],
+  ['location', 'Level and room']
 ];
+
+/** A ready-made view of the values (Load, Fault levels…) for a sheet, keeping the sheet's own Level and room tick. */
+export const withView = (tags: ResultLayers, view: ResultLayers): ResultLayers => (tags.location ? { ...view, location: true } : view);
+/** Whether the sheet's values are this view, not counting its Level and room tick. */
+export const isView = (tags: ResultLayers, view: ResultLayers): boolean => JSON.stringify({ ...tags, location: undefined }) === JSON.stringify({ ...view, location: undefined });
 
 export interface FeederAnnotation {
   currentA?: number;

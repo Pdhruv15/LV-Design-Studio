@@ -229,7 +229,7 @@ const boardSymbolReach = (project: Project, b: Board) => Math.max(incomerReach(p
   BOARD_SYM / 2 + 8 + Math.max(textWidth(trunc(b.id, 14), 12, true), textWidth('R 000.0 · Y 000.0 · B 000.0 kW', 10.5, true)));
 /** A board with no outgoing ways: the incomer ends on an enclosure with its busbar and ways drawn
  * inside (a DB one way, a package panel its control rows), with the name and kind on its right. */
-function BoardSymbol({ board: b, x, top, status, sel }: { board: Board; x: number; top: number; status: string; sel: boolean }) {
+function BoardSymbol({ board: b, x, top, status, sel, place }: { board: Board; x: number; top: number; status: string; sel: boolean; place?: string }) {
   const k = BOARD_SYM / 16, h = BOARD_SYM / 2;
   const at = (u: number) => (u - 12) * k; // palette icon units (24 grid, 16 wide box) to offsets
   const bus = top + 6 * k;
@@ -247,6 +247,7 @@ function BoardSymbol({ board: b, x, top, status, sel }: { board: Board; x: numbe
       <circle cx={x + h - 6} cy={top + 6} r="3" style={{ fill: `var(--${status})` }} />
       <text className="b lod-name" x={x + h + 8} y={top + 16}>{trunc(b.id, 14)}</text>
       <text className="m" x={x + h + 8} y={top + 30}>{`${kind}${b.existing ? ' · EXISTING' : ''}`}</text>
+      {place && <text className="m" x={x + h + 8} y={top + 44}>{place}</text>}
     </g>
   );
 }
@@ -443,6 +444,9 @@ export default function SystemDiagram({
     ];
     return { w, rows, sm, top: frameTopOf(b, n.busY, rows.length) };
   };
+  // The Level and room line under a board's name: its level and room (cut to fit), or on the screen "Not on a plan".
+  const showPlace = !!layers?.location;
+  const placeOf = (b: Board, max = 30): string | undefined => { const t = boardLocation(project, b); return t ? trunc(t, max) : lod ? 'Not on a plan' : undefined; };
   // CAD label limits follow neighbouring drops on the same row. This is
   // export metadata only; it does not change the live or printed diagram.
   const cadSlots = useMemo(() => {
@@ -464,7 +468,7 @@ export default function SystemDiagram({
     const x1 = Math.min(...ns.map((n) => (n.terminal ? n.x - BOARD_FRAME_IN - 4 : n.busX1 - 12))) - pad;
     const x2 = Math.max(...ns.map((n) => (n.terminal ? n.x + 135 : Math.max(n.busX2 + 12, n.x + 135, n.genX !== undefined ? n.genX + CO_GEN_REACH + 5 : -Infinity)))) + pad;
     const y1 = Math.min(...ns.map((n) => n.headY - (dewa ? 165 : 70))) - pad;
-    const y2 = Math.max(...ns.map((n) => n.busY + (n.terminal ? 10 : 120))) + pad;
+    const y2 = Math.max(...ns.map((n) => n.busY + (n.terminal ? 10 + (showPlace && placeOf(n.board) ? 13 : 0) : 120))) + pad;
     return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
   };
   /** The sheet outline under a screen point (the smallest one), for dropping a panel on a sheet. */
@@ -519,7 +523,8 @@ export default function SystemDiagram({
   const legend = useMemo(() => (iec && !hideLegend && (project.drawing?.legend ?? true) ? legendEntries(calcProject ?? project) : []), [iec, hideLegend, project, calcProject]);
   const legendW = legendWidth(legend);
   const W = layout.width + (legend.length ? legendW + 30 : 0);
-  const H = Math.max(layout.height, legend.length ? 80 + legend.length * LEGEND_ROW : 0);
+  // With the Level and room line drawn, the lowest DBs' tags sit one line further down.
+  const H = Math.max(layout.height + (showPlace && project.boards.some((x) => placeOf(x)) ? 13 : 0), legend.length ? 80 + legend.length * LEGEND_ROW : 0);
   const full: ViewBox = { x: 0, y: 0, w: W, h: H };
   // The view is not state: a zoom or pan step (moveVb) moves the viewBox without drawing everything again.
   const view = useRef<ViewBox>(full);
@@ -1440,6 +1445,7 @@ export default function SystemDiagram({
                 // A sub-board drawn as one box: the panel symbol in the load's slot, with the board's name and demand.
                 const panel = n.panelBoardId ? project.boards.find((b) => b.id === n.panelBoardId) : undefined;
                 const sym = panel && panelSymbolOf(project, panel);
+                const panelPlace = showPlace && panel ? placeOf(panel, 26) : undefined;
                 return (
                 <>
                   {panel && sym ? (
@@ -1469,8 +1475,9 @@ export default function SystemDiagram({
                     {panel ? (() => { const p = panelSummary(project, panel); return `TCL ${fmtFixed(p.tclKw, 2)} · MDL ${fmtFixed(p.mdlKw, 2)} kW`; })() : f.componentId && project.components?.some((c) => c.id === f.componentId) ? trunc(componentLabel(project, project.components!.find((c) => c.id === f.componentId)!, f), 30) : f.kvar ? `${f.capSteps && f.capSteps > 1 ? `${f.capSteps} × ${+(f.kvar / f.capSteps).toFixed(1)}` : f.kvar} kvar${f.detunedPct ? ` · ${f.detunedPct}% det.` : ''}` : `${dewa && !f.generation ? `TCL : ${fmtFixed(f.loadKw, 2)}` : fmtFixed(f.loadKw * f.demandFactor, 0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
                     {!layers?.current && !panel && ` · ${r ? fmtFixed(r.ib, 0) : '–'} A`}
                   </text>
+                  {panelPlace && <text className="m" x={n.x} y={y + 173} textAnchor="middle" data-fit-width={cadSlot - 6}>{panelPlace}</text>}
                   {feederTags(f.id).map((t, i) => (
-                    <text key={t.text} x={n.x} y={y + 177 + i * 13} textAnchor="middle" className={`res ${t.cls}`}>{t.text}</text>
+                    <text key={t.text} x={n.x} y={y + 177 + (panelPlace ? 13 : 0) + i * 13} textAnchor="middle" className={`res ${t.cls}`}>{t.text}</text>
                   ))}
                   <circle cx={n.x + 22} cy={y + 78} r="4" className="status-dot" style={{ fill: `var(--${status})` }} />
                 </>
@@ -1496,6 +1503,7 @@ export default function SystemDiagram({
           const s = summaries.get(b.id)!;
           const status = worst([s.loadingStatus, ...(feedersOn.get(b.id) ?? []).map((f) => byFeeder.get(f.id)?.status)]);
           const sel = b.id === selectedBoardId;
+          const place = showPlace ? placeOf(b) : undefined;
           const kw = n.circuits.reduce((sum, f) => sum + f.loadKw * f.demandFactor, 0);
           const ph = boardPhaseKw({ ...project, feeders: n.circuits }, b.id);
           const failing = n.circuits.filter((f) => byFeeder.get(f.id)?.status !== 'ok').length;
@@ -1666,12 +1674,19 @@ export default function SystemDiagram({
                 );
               })()}
               {/* Board box; a framed DEWA panel names itself in the frame header, so its incoming line runs straight on. */}
-              {n.terminal ? <BoardSymbol board={b} x={n.x} top={n.busY - 58} status={status} sel={sel} /> : dewa ? <line x1={n.x} y1={n.busY - 58} x2={n.x} y2={n.busY - 22} className="ln" /> : (
+              {n.terminal ? <BoardSymbol board={b} x={n.x} top={n.busY - 58} status={status} sel={sel} place={place} /> : dewa ? <line x1={n.x} y1={n.busY - 58} x2={n.x} y2={n.busY - 22} className="ln" /> : (
                 <>
                   <rect x={n.x - 62} y={n.busY - 58} width="124" height="36" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
                   <text className="b lod-name" x={n.x - 54} y={n.busY - 42}>{trunc(b.id, 14)}</text>
                   <text className="m" x={n.x - 54} y={n.busY - 28}>{`${b.kind ?? (b.upstreamId ? 'DB' : 'MDB')}${b.existing ? ' · EXISTING' : ''}`}</text>
                   <circle cx={n.x + 52} cy={n.busY - 46} r="4" className="status-dot" style={{ fill: `var(--${status})` }} />
+                  {place && !isInterlocked(b) && (() => {
+                    // Under the box, between the busbar's left end and the incoming line, and clear of the instruments inside the panel.
+                    const room = n.x - 66 - n.busX1;
+                    const avail = hasInstruments(b) ? room + 10 : n.x - 6 - n.busX1;
+                    const t = trunc(place, Math.floor(avail / 5.6));
+                    return t.length >= 8 && <text className="m" x={n.x - 6} y={n.busY - 10} textAnchor="end">{t}</text>;
+                  })()}
                 </>
               )}
               {/* Busbar description at its right-hand end, the same wording on every panel:
@@ -1762,7 +1777,7 @@ export default function SystemDiagram({
               if (n.terminal) {
                 // No busbar: the tags follow the name and kind beside the board symbol, then what the
                 // board feeds (its final circuits on the load schedule), or that it feeds nothing yet.
-                const tx = n.x + BOARD_SYM / 2 + 8, ty = (i: number) => n.busY - 14 + i * 13;
+                const tx = n.x + BOARD_SYM / 2 + 8, ty = (i: number) => n.busY - 14 + (place ? 13 : 0) + i * 13;
                 // DEWA: a dashed panel frame as on the other panels, holding the incomer device (and on a
                 // main board its voltage label and the MET), the symbol and its text; the incomer
                 // crosses it at a gland mark.
@@ -1770,7 +1785,7 @@ export default function SystemDiagram({
                 const isRoot = layout.roots.some((r) => r.board.id === b.id);
                 const fy1 = n.busY - (b.standby ? 148 : isRoot ? 114 : incomerDeviceOf(b) ? (protectionOf(b) ? 92 : 84) + 10 : 70);
                 const fy2 = ty(rows - 1) + 4 + BOARD_FRAME_PAD, fx1 = n.x - BOARD_FRAME_IN, fx2 = n.x + BOARD_FRAME_PAD + Math.max(incomerReach(project, b),
-                  BOARD_SYM / 2 + 8 + Math.max(textWidth(trunc(b.id, 14), 12, true), textWidth('NO OUTGOING WAYS', 10.5), ...[...tags, ...circuitTags].map((t) => textWidth(t.text, 10.5, true))));
+                  BOARD_SYM / 2 + 8 + Math.max(textWidth(trunc(b.id, 14), 12, true), textWidth('NO OUTGOING WAYS', 10.5), ...(place ? [textWidth(place, 10.5)] : []), ...[...tags, ...circuitTags].map((t) => textWidth(t.text, 10.5, true))));
                 return (
                   <>
                     {dewa && (
