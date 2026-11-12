@@ -114,15 +114,15 @@
     {
       "number": 8,
       "target": "sld-command-bar",
-      "label": "Add, display, and export controls",
+      "label": "Add controls and results state",
       "rect": {
-        "x": 642.1171875,
+        "x": 839.046875,
         "y": 192.390625,
-        "width": 651.8828125,
+        "width": 454.953125,
         "height": 32
       },
       "point": {
-        "x": 0.60503662109375,
+        "x": 0.6665771484375,
         "y": 0.208390625
       }
     }

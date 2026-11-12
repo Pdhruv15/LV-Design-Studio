@@ -93,7 +93,8 @@ import { StaleBanner } from './components/ui';
 import { generatorScenario, transformerOutage, type SupplyMode } from './calc/scenario';
 import { removeTie, TIE_OPERATION, tieRatings, updateTie } from './model/sldEdit';
 import type { ColorBy } from './diagram/heatmap';
-import { applyMove, dropMany, libraryEntries, type DropResult, type DropTarget, type MoveItem, type PaletteItem } from './model/sldEdit';
+import { applyMove, armHint, dropMany, libraryEntries, type DropResult, type DropTarget, type MoveItem, type PaletteItem } from './model/sldEdit';
+import { getArmedItem, setArmedItem } from './diagram/dragItem';
 import EquipmentPalette from './components/EquipmentPalette';
 import { loadUserPresets, mergePresets, presetFromFeeder, presetsFile, readPresetsFile, saveUserPresets, type FeederPreset } from './model/presets';
 const PresetEditor = onDemand(() => import('./components/PresetEditor'));
@@ -238,6 +239,9 @@ export default function App() {
   // Results under the SLD: open / closed (remembered); a row click centres the drawing on it.
   const [resTab, setResTab] = useState<'summary' | 'buses' | 'feeders' | null>(() => { try { const v = localStorage.getItem('lvds.resTab'); return v === 'summary' || v === 'buses' || v === 'feeders' ? v : null; } catch { return null; } });
   const [sldFocus, setSldFocus] = useState<{ kind: 'board' | 'feeder'; id: string; n: number } | undefined>();
+  // SLD ribbon: Fit asked for (a new number each time), and Panels opened on its Transformers tab.
+  const [sldFit, setSldFit] = useState(0);
+  const [panelsTx, setPanelsTx] = useState<number | undefined>();
   // A cable type new to the project gets the next free reference number (kept).
   const patchHistory = history.patch;
   useEffect(() => { patchHistory(withCableRefs); }, [patchHistory, project.feeders, project.cableRefs]);
@@ -349,6 +353,8 @@ export default function App() {
   const [bomCmd, setBomCmd] = useState<{ cmd: BomCommand; n: number } | undefined>();
   // A ribbon command belongs to the visit it was given in: leaving the BOQ drops it, so it does not run again when the view opens next time.
   useEffect(() => { if (view !== 'boq') setBomCmd(undefined); }, [view]);
+  // Leaving the SLD: an item chosen and not placed is put down; leaving Panels: it opens on its first tab next time.
+  useEffect(() => { if (view !== 'design') setArmedItem(null); if (view !== 'panels') setPanelsTx(undefined); }, [view]);
 
   // LV Database: Excel workbooks in the projects folder. Every save in Excel
   // arrives here; the data is applied to the calculations, library-linked
@@ -1121,6 +1127,7 @@ export default function App() {
       if (typing) return;
       if (inGrid && !((e.metaKey || e.ctrlKey) && /^[zy]$/i.test(e.key))) return;
       const mod = e.metaKey || e.ctrlKey;
+      if (e.key === 'Escape' && getArmedItem()) setArmedItem(null); // chosen on the ribbon while the library is hidden
       if (e.key === '?' && !mod && !e.altKey && view !== 'projects') {
         e.preventDefault();
         setHelpOpen((o) => !o);
@@ -1164,6 +1171,17 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  /** The results drawer's chips and the ribbon's Check: each click selects the next circuit of the list and centres it
+   * on the drawing. */
+  function showNextCircuit(list: { feeder: { id: string } }[]) {
+    if (!list.length) return;
+    const i = list.findIndex((r) => panel === 'feeder' && r.feeder.id === selected);
+    const id = list[(i + 1) % list.length].feeder.id;
+    setSheetTab(null);
+    selectFeeder(id);
+    setSldFocus({ kind: 'feeder', id, n: Date.now() });
+  }
 
   function copyBoard(id: string) {
     setCopiedBoard(id);
@@ -1276,6 +1294,23 @@ export default function App() {
           onSettings: () => setShowSettings(true),
           onRun: runNow,
           staleCount: staleKeys.length,
+          sld: (() => {
+            const onSld = view === 'design', onBoard = onSld && panel === 'board' && !!board;
+            const bad = allResults.filter((r) => r.status === 'bad'), warn = allResults.filter((r) => r.status === 'warn');
+            const system = () => { setView('design'); setDiagramMode('system'); };
+            return {
+              fails: bad.length, warns: warn.length, onCheck: () => { system(); showNextCircuit(bad.length ? bad : warn); },
+              onArm: (item: PaletteItem, label: string) => { system(); setArmedItem(item); setDropQty(1); setStatus(armHint(item, label)); },
+              onHvSupply: () => { setPanelsTx(Date.now()); setView('panels'); },
+              system: onSld && !!board && diagramMode === 'system',
+              layers, onLayers: setLayers, colorBy, onColorBy: setColorBy,
+              supply: onGenerator ? 'generator' as const : outageId ? `outage:${outageId}` as const : 'normal' as const, onSupply: setSupply, hasGenerator, outages: tiedRoots,
+              canCopy: onBoard, onCopy: () => { if (board) copyBoard(board.id); },
+              canPaste: onBoard && !!copiedBoard && project.boards.some((b) => b.id === copiedBoard), copied: copiedBoard ?? undefined, onPaste: () => { if (board) setPasteTarget(board.id); },
+              onFit: () => setSldFit((n) => n + 1),
+              onExport: () => { system(); setShowExport(true); }
+            };
+          })(),
           onUndo: history.undo,
           onRedo: history.redo,
           canUndo: history.canUndo,
@@ -1404,24 +1439,16 @@ export default function App() {
                     )}
                     {diagramMode === 'system' && (
                       <DiagramResultsBar
-                        layers={layers}
-                        onLayers={setLayers}
                         source={resultSource}
                         onSource={(s) => { setResultSource(s); setSimError(''); }}
                         onRun={runSimulation}
                         running={simRunning}
                         note={resultsNote}
-                        colorBy={colorBy}
-                        onColorBy={setColorBy}
                         supply={onGenerator ? 'generator' : outageId ? `outage:${outageId}` : 'normal'}
                         onSupply={setSupply}
-                        hasGenerator={hasGenerator}
-                        outages={tiedRoots}
                         calc={{ stale: staleKeys.length, staleWhat: stale.join(', '), fails: allResults.filter((r) => r.status === 'bad').length, at: MANUAL_CAPTURE ? undefined : run?.at, onRun: runNow }}
                       />
                     )}
-                    <span className="sp" />
-                    {diagramMode === 'system' && <button className="chip" onClick={() => setShowExport(true)} title="PDF sheet with title block, DXF for CAD, or SVG">Export…</button>}
                   </div>
                 </div>
                 {diagramMode === 'system' ? (
@@ -1446,6 +1473,7 @@ export default function App() {
                     colorBy={colorBy}
                     scenario={genScenario}
                     chain={chain}
+                    fit={sldFit}
                     resizable
                     fullScreen={sldFull}
                     onToggleFullScreen={() => setSldFull((v) => !v)}
@@ -1507,14 +1535,7 @@ export default function App() {
                   <span className="sp" />
                   {(() => {
                     const bad = allResults.filter((r) => r.status === 'bad'), warn = allResults.filter((r) => r.status === 'warn');
-                    // Each click selects the next circuit of that kind and centres it on the drawing.
-                    const next = (list: typeof bad) => {
-                      const i = list.findIndex((r) => panel === 'feeder' && r.feeder.id === selected);
-                      const id = list[(i + 1) % list.length].feeder.id;
-                      setSheetTab(null);
-                      selectFeeder(id);
-                      setSldFocus({ kind: 'feeder', id, n: Date.now() });
-                    };
+                    const next = showNextCircuit;
                     const at = (list: typeof bad) => { const i = list.findIndex((r) => panel === 'feeder' && r.feeder.id === selected); return i < 0 ? '' : ` · ${i + 1} of ${list.length}`; };
                     return <>
                       {bad.length > 0 && <button className="rd-chip bad" onClick={() => next(bad)} title="Show the next failing circuit on the drawing">{bad.length} fail{at(bad)} ›</button>}
@@ -1656,7 +1677,7 @@ export default function App() {
             )}
             {view === 'study-reports' && <StudyReportsView project={project} me={{ preparedBy: signature(prefs.profile), checkedBy: prefs.profile.checkedBy }} run={run} stale={stale} onRun={runNow} onChange={setProject} onStatus={setStatus} />}
             {view === 'calculators' && <QuickCalcs project={project} />}
-            {view === 'panels' && <PanelsPage project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onBuilding={() => setView('building')}
+            {view === 'panels' && <PanelsPage key={panelsTx ?? 0} initialTab={panelsTx ? 'tx' : undefined} project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onBuilding={() => setView('building')}
               onCreated={(next, m, added) => { setProject(next, { step: true }); setCreatedPanelIds(added); setStatus(m); }} />}
             {view === 'earth-schematic' && <EarthingView project={project} onChange={(p) => setProject(p, { step: true })} onSheets={openEarthSheet} />}
             {view === 'enclosure' && <EnclosureSizing key={board?.id} project={project} boardId={board?.id} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}

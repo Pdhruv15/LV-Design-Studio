@@ -1,4 +1,4 @@
-import { AddBoardIcon, BoardPropsIcon, EllipseIcon, TxGenSizingIcon } from './icons/elecIcons';
+import { AddBoardIcon, BoardPropsIcon, EllipseIcon, TransformerIcon, TxGenSizingIcon } from './icons/elecIcons';
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as KeyEvent } from 'react';
 import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
@@ -7,6 +7,7 @@ import {
 import { BringToFront, Frame, LayoutTemplate, Printer, Crop, Plus, ChevronRight, LightbulbOff, Snowflake, LockOpen, Focus, CircleCheck, Layers3, ArrowDownRight, Cloud, FileSearch, ListOrdered } from 'lucide-react';
 import { ListFilter, PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen , SquareScissors } from 'lucide-react';
 import { ClipboardList, Package, Dot, Divide, Target, Pentagon, ArrowRightToLine, TriangleRight, Hexagon, CaseSensitive, LandPlot, ScanSearch, Expand, SlidersHorizontal, DraftingCompass } from 'lucide-react';
+import { ArrowLeftRight, Check, ClipboardPaste, Scan } from 'lucide-react';
 import type { CadExport, CadRibbonInfo, CadTool } from './cad/cadState';
 import { ColourPicker } from './cad/ColourPicker';
 import { LINETYPE_IDS, LINETYPES, LINEWEIGHTS, type LinetypeId, type ObjectProps } from '../model/cadLayerStyle';
@@ -19,6 +20,10 @@ import { markupSize, type MarkupColor, type SheetMarkup } from '../model/sheetMa
 import { ALL_TOOLS, MARKUP_SIZES } from './sld/markupTools';
 import type { SheetUi } from './sld/sheetUi';
 import { STAGE_INFO, type DesignStage, type TenderRoute } from '../model/designStage';
+import { PALETTE, type PaletteEntry, type PaletteItem } from '../model/sldEdit';
+import { LAYER_LABELS, type ResultLayers } from '../diagram/annotations';
+import { COLOR_BY, type ColorBy } from '../diagram/heatmap';
+import type { SupplyMode } from '../calc/scenario';
 
 export type BomCommand = 'boq' | 'scope' | 'changes' | 'variations' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup' | 'document' | 'issue-rev';
 export type RibbonTab = 'schedule' | 'sld' | 'home' | 'concept' | 'schematic' | 'detailed' | 'cad' | 'reports' | 'issue' | 'cost' | 'standards';
@@ -41,10 +46,13 @@ interface Tool {
   page?: boolean;
   /** Small second line under the label (e.g. the board it acts on). */
   sub?: string;
-  /** Split button: the arrow part offers these; `sep` draws a line above an item. */
-  menu?: { label: string; title: string; onClick: () => void; sep?: boolean; disabled?: boolean }[];
+  /** Split button: the arrow part offers these; `sep` draws a line above an item. `checked`: the item shows a tick
+   * while it is on (one of a list of choices); with `keep` it is a switch of its own and the list stays open. */
+  menu?: { label: string; title: string; onClick: () => void; sep?: boolean; disabled?: boolean; checked?: boolean; keep?: boolean }[];
   /** A small button: icon and label on one line, three to a column (the CAD-standard panels). */
   small?: boolean;
+  /** A small button that starts a new column. */
+  col?: boolean;
   /** In the panel's ▾ under its caption instead of on the row (the less used tools of a panel). */
   more?: boolean;
   /** Its typed command, shown in bold with the name in an icon-only tool's tooltip (e.g. O for Offset). */
@@ -84,6 +92,27 @@ export interface RibbonActions {
   canRedo: boolean;
   onRun: () => void;
   staleCount: number;
+  /** The SLD tab's own tools: the checks beside Run, the equipment library's supply and device items, what the system
+   * diagram shows, copy and paste of a board, fit and export. Without it they are greyed. */
+  sld?: {
+    /** Circuits failing and to check; `onCheck` shows the next one on the drawing. */
+    fails: number; warns: number; onCheck: () => void;
+    /** An equipment-library item chosen: the next click on the drawing places it. */
+    onArm: (item: PaletteItem, label: string) => void;
+    onHvSupply: () => void;
+    /** The system diagram is on screen: the result lists and Fit act on it. */
+    system: boolean;
+    layers: ResultLayers; onLayers: (l: ResultLayers) => void;
+    colorBy: ColorBy; onColorBy: (c: ColorBy) => void;
+    supply: SupplyMode; onSupply: (m: SupplyMode) => void; hasGenerator: boolean;
+    /** Main boards whose transformer can fail with a tie to another. */
+    outages: string[];
+    canCopy: boolean; onCopy: () => void;
+    /** The board copied, while it can be pasted on the selected one. */
+    canPaste: boolean; copied?: string; onPaste: () => void;
+    onFit: () => void;
+    onExport: () => void;
+  };
   // Home: projects
   onNew: () => void;
   onSave: () => void;
@@ -225,7 +254,7 @@ export function tipOf(t: Pick<Tool, 'label' | 'title' | 'cmd' | 'sub'>): { head:
 /** Group captions under the ribbon groups (same order as the groups). */
 export const CAPTIONS: Record<RibbonTab, string[]> = {
   schedule: ['Run', 'Schedule', 'Equipment'],
-  sld: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection'],
+  sld: ['Run and check', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Results', 'Copy and undo', 'View', 'Output'],
   home: ['Project', 'Diagram & history', 'Setup'],
   concept: ['Load', 'Supply', 'Stage'],
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
@@ -237,6 +266,10 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
   standards: ['Project data']
 };
+
+/** SLD tab: the groups after Selection (Results, Copy and undo, View, Output) wait under More while the window is too
+ * narrow for the row; the five before them always stay on it. */
+const SLD_MOVES = CAPTIONS.sld.length - 5;
 
 const ADD_BOARD: { kind: BoardKind; ratingA: number }[] = [
   { kind: 'DB', ratingA: 63 }, { kind: 'EDB', ratingA: 63 }, { kind: 'SMDB', ratingA: 250 },
@@ -308,6 +341,9 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const [splitOpen, setSplitOpen] = useState<string | null>(null);
   // A window too narrow for the row: this many of the sub-tab's panels collapse to one button each, from the right.
   const [shut, setShut] = useState(0);
+  // SLD tab, a window too narrow for the row: this many of its last groups wait under More, from the right.
+  const [over, setOver] = useState(0);
+  const [resized, setResized] = useState(0);
   const toolsRef = useRef<HTMLDivElement>(null);
   // Design CAD's sub-tab, kept for next time (the sub-tab of the same id, or holding the same panel, with or without
   // labels). A sheets page (opened from Documents, the SLD, Sheet set) on a sub-tab with no sheet tools shows the one
@@ -333,7 +369,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     const el = toolsRef.current;
     if (el && tab === 'cad' && el.scrollWidth > el.clientWidth + 1 && shut < shown.length) setShut(shut + 1);
   }, [tab, sub.id, shut, shown.length]);
-  useEffect(() => { const open = () => setShut(0); window.addEventListener('resize', open); return () => window.removeEventListener('resize', open); }, []);
+  useEffect(() => { const open = () => { setShut(0); setOver(0); setResized((n) => n + 1); }; window.addEventListener('resize', open); return () => window.removeEventListener('resize', open); }, []);
   useEffect(() => setShut(0), [tab, sub.id, onSheets, labels]);
   const cadToolNow = a.cad?.tool;
   useEffect(() => {
@@ -383,6 +419,15 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     document.addEventListener('keydown', esc);
     return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc); };
   }, [peek]);
+  // SLD tab: while its row is wider than the window, one more of its last groups moves under More. Measured again when
+  // the window is resized, the tools drop down from a collapsed ribbon, or what is written on the row changes: the
+  // board and selection named on it, and the settings beside the result lists.
+  const sldWide = `${a.boardId} ${a.selection?.id ?? ''} ${a.staleCount} ${a.sld?.fails ?? 0} ${a.sld?.warns ?? 0} ${a.sld?.colorBy ?? ''} ${a.sld?.supply ?? ''}`;
+  useLayoutEffect(() => {
+    const el = toolsRef.current;
+    if (el && tab === 'sld' && el.scrollWidth > el.clientWidth + 1 && over < SLD_MOVES) setOver(over + 1);
+  }, [tab, over, sldWide, resized, collapsed, peek]);
+  useEffect(() => setOver(0), [tab]);
   useEffect(() => {
     if (!splitOpen) return;
     const close = () => setSplitOpen(null);
@@ -480,6 +525,55 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     [
       { label: 'Edit', icon: Pencil, title: sel ? `Edit ${selName}` : 'Select a board or feeder first', onClick: a.onEditSelected, disabled: !sel },
       { label: 'Delete', icon: Trash2, title: sel ? `Delete ${selName}${sel.kind === 'board' ? ' and everything fed from it' : ''} (Delete key)` : 'Select a board or feeder first', onClick: a.onDeleteSelected, disabled: !sel }
+    ]
+  ];
+  // The SLD tab's own tools beside those: the checks, the equipment library's supply and device items, what the system
+  // diagram shows, copy and undo, fit and export. The Load schedule tab keeps the plain Run and Add load.
+  const s = a.sld, offSystem = !s?.system, onSystemOnly = 'On the system diagram';
+  const lib = (g: string) => PALETTE.find((x) => x.group === g)?.entries ?? [];
+  const armItem = (e: PaletteEntry, sep?: boolean) => ({ label: e.label, title: e.title, onClick: () => s?.onArm(e.item, e.label), sep });
+  const supplyItems = lib('Supply');
+  const supplyNow = !s || s.supply === 'normal' ? 'Normal' : s.supply === 'generator' ? 'On generator' : `${s.supply.slice(7)} transformer out`;
+  const [sldRun, sldEquipment, results, copyUndo, sldView, output]: Tool[][] = [
+    [
+      { ...run[0], sub: a.staleCount ? `${a.staleCount} out of date` : undefined },
+      { label: 'Check', icon: ListChecks, sub: s?.fails ? `${s.fails} fail` : s?.warns ? `${s.warns} to check` : undefined,
+        title: s?.fails || s?.warns ? `Show the next ${s.fails ? 'failing circuit' : 'circuit to check'} on the drawing — ${s.fails} failing, ${s.warns} to check` : 'Every circuit is within limits',
+        onClick: () => s?.onCheck(), disabled: !s?.fails && !s?.warns }
+    ],
+    [
+      { label: 'Supply', icon: TransformerIcon, title: 'Add a transformer: then click the empty canvas, or a main board to give it one — the arrow beside it for a meter cabinet, a generator, a bus coupler or the HV supply',
+        onClick: () => supplyItems[0] && s?.onArm(supplyItems[0].item, supplyItems[0].label), disabled: !s,
+        menu: [...supplyItems.map((e) => armItem(e)), { label: 'HV supply and RMUs…', title: 'Panels → Transformers: the authority HV supply and each RMU', onClick: () => s?.onHvSupply(), sep: true }] },
+      ...equipment,
+      { label: 'Devices', icon: ShieldCheck, title: 'Protection, metering and a capacitor bank from the equipment library: choose one, then click the feeder or busbar it goes on', onClick: () => {}, menuOnly: true, disabled: !s,
+        menu: [...lib('Protection').map((e) => armItem(e)), ...lib('Metering & accessories').map((e, i) => armItem(e, i === 0)), ...lib('Loads').filter((e) => e.item.kind === 'capacitor').map((e) => armItem(e, true))] }
+    ],
+    [
+      sm({ label: 'Values', icon: Tags, sub: s ? `${LAYER_LABELS.filter(([k]) => s.layers[k]).length} shown` : undefined, title: offSystem ? onSystemOnly : 'The result values shown on the drawing', onClick: () => {}, menuOnly: true, disabled: offSystem,
+        menu: LAYER_LABELS.map(([k, label]) => ({ label, title: `${label} on the drawing`, checked: !!s?.layers[k], keep: true, onClick: () => s?.onLayers({ ...s.layers, [k]: !s.layers[k] }) })) }),
+      sm({ label: 'Colour by', icon: Palette, sub: COLOR_BY.find((c) => c.value === s?.colorBy)?.label, title: offSystem ? onSystemOnly : 'Colour the drawing by how close each circuit is to a limit', onClick: () => {}, menuOnly: true, disabled: offSystem,
+        menu: COLOR_BY.map((c) => ({ label: c.label, title: c.legend || 'No colouring', checked: s?.colorBy === c.value, onClick: () => s?.onColorBy(c.value) })) }),
+      sm({ label: 'Scenario', icon: ArrowLeftRight, sub: s ? supplyNow : undefined, title: offSystem ? onSystemOnly : 'Operating scenario: normal, mains lost (standby generators), or one transformer out with the bus tie closed', onClick: () => {}, menuOnly: true, disabled: offSystem,
+        menu: [
+          { label: 'Normal supply', title: 'Every transformer in service', checked: s?.supply === 'normal', onClick: () => s?.onSupply('normal') },
+          { label: 'On generator (mains lost)', title: s?.hasGenerator ? 'The network as it runs on the standby generators' : 'Add a generator first', checked: s?.supply === 'generator', disabled: !s?.hasGenerator, onClick: () => s?.onSupply('generator') },
+          ...(s?.outages ?? []).map((id) => ({ label: `Transformer of ${id} failed`, title: `The transformer of ${id} out, the bus tie closed`, checked: s?.supply === `outage:${id}`, onClick: () => s?.onSupply(`outage:${id}`) }))
+        ] })
+    ],
+    [
+      sm({ label: 'Copy', icon: Copy, title: s?.canCopy ? `Copy ${a.boardId} with everything below it (⌘C / Ctrl+C)` : 'Select a board on the SLD first', onClick: () => s?.onCopy(), disabled: !s?.canCopy }),
+      sm({ label: 'Paste', icon: ClipboardPaste, title: s?.canPaste ? `Paste ${s.copied} on ${a.boardId} (⌘V / Ctrl+V)` : s?.copied ? 'Select the board to paste it on' : 'Copy a board first', onClick: () => s?.onPaste(), disabled: !s?.canPaste }),
+      sm({ label: 'Undo', icon: Undo2, title: 'Undo (⌘Z / Ctrl+Z)', onClick: a.onUndo, disabled: !a.canUndo, col: true }),
+      sm({ label: 'Redo', icon: Redo2, title: 'Redo (⇧⌘Z / Ctrl+Y)', onClick: a.onRedo, disabled: !a.canRedo })
+    ],
+    [sm({ label: 'Fit', icon: Scan, title: offSystem ? onSystemOnly : 'Fit the whole drawing (F or 0, or double-click the wheel)', onClick: () => s?.onFit(), disabled: offSystem })],
+    [
+      { label: 'Export', icon: FileDown, title: 'Export the SLD: a PDF sheet with title block, DXF or DWG for CAD, or SVG — the arrow beside it for OpenDSS', onClick: () => s?.onExport(), disabled: !s,
+        menu: [
+          { label: 'Drawing: SVG, DXF, DWG or PDF…', title: 'A PDF sheet with title block, DXF or DWG for CAD, or SVG', onClick: () => s?.onExport() },
+          { label: 'OpenDSS (.dss)', title: 'The network as an OpenDSS script', onClick: a.onExportDss }
+        ] }
     ]
   ];
 
@@ -828,7 +922,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const groups: Record<RibbonTab, Tool[][]> = {
     ...stageGroups,
     schedule: [run, [view('load-schedule', 'Load schedule', Table2, 'DEWA load distribution schedule per DB'), boards[1], boards[3]], equipment],
-    sld: [run, canvas, boards, equipment, selection]
+    sld: [sldRun, canvas, boards, sldEquipment, selection, results, copyUndo, sldView, output]
   };
   const onStage = isStageTab(tab);
   const now = <span className="stage-now" title={`The project is at ${STAGE_INFO[a.stage].label}`}>Now</span>;
@@ -989,6 +1083,17 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     [G.props]: { side: propLists, launch: { name: 'Properties palette', head: 'Properties palette (Ctrl+1)', text: 'The layer, colour, linetype and shape of the objects picked, docked on the right', on: a.cad?.propsOn, onClick: () => a.cad?.onProps?.() } }
   };
 
+  // The SLD groups moved under More, filled as the row is drawn.
+  const moved: React.ReactNode[] = [];
+  const otherTools = (
+    <>
+      <button role="menuitem" onClick={() => { setMoreOpen(false); a.onView('engines'); }}>Load flow (OpenDSS / pandapower)</button>
+      <button role="menuitem" onClick={() => { setMoreOpen(false); a.onView('calculators'); }}>Quick calcs</button>
+      <button role="menuitem" onClick={() => { setMoreOpen(false); a.onView('report'); }}>Calculation report</button>
+      <button role="menuitem" onClick={() => { setMoreOpen(false); a.onSettings(); }}>Project settings</button>
+    </>
+  );
+
   return (
     <div className={`ribbon${collapsed ? ' collapsed' : ''}${cadNamed ? ' cad-named' : ''}${smallNamed ? ' small-named' : ''}`} ref={rootRef} data-doc-id="main-ribbon">
       <div className="ribbon-tabs" role="tablist" aria-label="Ribbon">
@@ -1057,9 +1162,10 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           const menuOf = (tools: Tool[]) => tools.flatMap((t, k) => (t.menuOnly && t.menu
             ? t.menu.map((m, i) => ({ ...m, label: `${t.label}: ${m.label}`, sep: k > 0 && i === 0 }))
             : [{ label: t.label, title: t.title, onClick: t.onClick }]));
-          const popup = (key: string, items: { label: string; title: string; onClick: () => void; sep?: boolean }[]) => splitOpen === key && (
+          const popup = (key: string, items: NonNullable<Tool['menu']>) => splitOpen === key && (
             <div className="ribbon-split-menu" role="menu" style={{ left: splitAt.x, top: splitAt.y }} onMouseDown={(e) => e.stopPropagation()}>
-              {items.map((m) => <span key={m.label} style={{ display: 'contents' }}>{m.sep && <hr />}<button role="menuitem" title={m.title} onClick={() => { setSplitOpen(null); m.onClick(); }}>{m.label}</button></span>)}
+              {items.map((m) => <span key={m.label} style={{ display: 'contents' }}>{m.sep && <hr />}<button role={m.checked === undefined ? 'menuitem' : m.keep ? 'menuitemcheckbox' : 'menuitemradio'} aria-checked={m.checked} title={m.title} disabled={m.disabled}
+                onClick={() => { if (!m.keep) setSplitOpen(null); m.onClick(); }}>{m.checked !== undefined && <span className="ck" aria-hidden>{m.checked && <Check size={12} strokeWidth={2.2} />}</span>}{m.label}</button></span>)}
             </div>
           );
           const opener = (key: string) => (e: React.MouseEvent<HTMLElement>) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setSplitAt({ x: r.left, y: r.bottom + 2 }); setSplitOpen(splitOpen === key ? null : key); };
@@ -1088,12 +1194,15 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             const openList = (e: React.MouseEvent<HTMLElement>) => { e.stopPropagation(); const r = (e.currentTarget.closest('.ribbon-split') ?? e.currentTarget).getBoundingClientRect(); setSplitAt({ x: r.left, y: r.bottom + 2 }); setSplitOpen(splitOpen === label ? null : label); };
             const said = cadNamed ? tipOf(t) : undefined;
             const hint = said ? tipAttrs(label, said.head, said.text) : { title };
+            // SLD → Results: a small tool with its setting beside its name.
+            const shows = !!sub && !!small && tab === 'sld';
             const btn = (
-              <button key={label} className={`${active ? (page ? 'page-on' : 'on') : ''}${stale ? ' stale' : ''}`} {...hint} aria-pressed={page || menuOnly ? undefined : active} aria-current={page && active ? 'page' : undefined}
+              <button key={label} className={`${active ? (page ? 'page-on' : 'on') : ''}${stale ? ' stale' : ''}${shows ? ' has-val' : ''}`} {...hint} aria-pressed={page || menuOnly ? undefined : active} aria-current={page && active ? 'page' : undefined}
                 aria-haspopup={menuOnly ? 'menu' : undefined} aria-expanded={menuOnly ? splitOpen === label : undefined} disabled={disabled} onClick={(e) => { hideTip(); if (menuOnly && menu) openList(e); else onClick(); }}>
                 <I size={cadNamed ? (small ? 16 : 22) : small ? 15 : 20} strokeWidth={1.6} />
                 {(!cadNamed || !small || smallNamed) && <span>{label}</span>}
                 {sub && !small && !cadNamed && <span className="ribbon-sub">{sub}</span>}
+                {shows && <span className="ribbon-val">{sub}</span>}
               </button>
             );
             if (!menu) return btn;
@@ -1115,7 +1224,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           const flush = () => { if (stack.length) (below() ? under : pnl?.head ? after : row).push(<div key={`s${row.length}.${under.length}.${after.length}`} className="ribbon-stack">{stack.map(button)}</div>); stack = []; };
           for (const t of group.filter((x) => !x.more)) {
             if (!t.small) { flush(); row.push(button(t)); continue; }
-            if (pnl?.under !== undefined && smalls === pnl.under) flush();
+            if (t.col || (pnl?.under !== undefined && smalls === pnl.under)) flush();
             stack.push(t); smalls++;
             if (stack.length === (below() ? 2 : 3)) flush();
           }
@@ -1127,7 +1236,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             <button type="button" className={`ribbon-launch${pnl.launch.on ? ' on' : ''}`} aria-pressed={!!pnl.launch.on} {...(cadNamed ? tipAttrs(pnl.launch.name, pnl.launch.head, pnl.launch.text) : { title: `${pnl.launch.head}: ${pnl.launch.text}`, 'aria-label': pnl.launch.name })}
               onClick={() => { hideTip(); pnl.launch!.onClick(); }}><ArrowDownRight size={10} strokeWidth={2} aria-hidden /></button>
           );
-          return (
+          const panel = (
             <div key={gi} className="ribbon-group" role="group" aria-label={caption} style={order}>
               <div className="ribbon-group-btns">{row}</div>
               {caption && (extra.length
@@ -1135,6 +1244,9 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
                 : <div className="ribbon-caption">{caption}{launch}</div>)}
             </div>
           );
+          // SLD tab, a narrow window: the group waits under More.
+          if (tab === 'sld' && gi >= groups.sld.length - over) { moved.push(panel); return null; }
+          return panel;
         })}
         {tab === 'sld' && (
           <div className="ribbon-selected" title="Edit, Delete and Properties act on this">
@@ -1173,7 +1285,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         {tab === 'sld' && (
           <div className="ribbon-group more" ref={moreRef}>
             <button
-              title="More tools"
+              title={over ? `More tools: ${CAPTIONS.sld.slice(-over).join(', ')} and the other tools` : 'More tools'}
               aria-haspopup="menu"
               aria-expanded={moreOpen}
               onClick={(e) => {
@@ -1187,15 +1299,18 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
               <span>More</span>
             </button>
             <div className="ribbon-caption">Other tools</div>
-            {moreOpen && (
-              <div className="ribbon-menu" role="menu" style={{ left: menuLeft }}>
-                <button role="menuitem" onClick={() => { setMoreOpen(false); a.onView('engines'); }}>Load flow (OpenDSS / pandapower)</button>
-                <button role="menuitem" onClick={() => { setMoreOpen(false); a.onView('calculators'); }}>Quick calcs</button>
-                <button role="menuitem" onClick={() => { setMoreOpen(false); a.onExportDss(); }}>Export OpenDSS (.dss)</button>
-                <button role="menuitem" onClick={() => { setMoreOpen(false); a.onView('report'); }}>Calculation report</button>
-                <button role="menuitem" onClick={() => { setMoreOpen(false); a.onSettings(); }}>Project settings</button>
+            {moreOpen && (moved.length ? (
+              // A tool used puts the panel away; a list opened, or a value ticked in one, keeps it.
+              <div className="ribbon-over" role="group" aria-label="More tools" onClick={(e) => {
+                const b = (e.target as HTMLElement).closest('button');
+                if (b && !b.hasAttribute('aria-haspopup') && !b.hasAttribute('aria-expanded') && b.getAttribute('role') !== 'menuitemcheckbox') setMoreOpen(false);
+              }}>
+                {moved}
+                <div className="ribbon-over-list" role="menu" aria-label="Other tools">{otherTools}</div>
               </div>
-            )}
+            ) : (
+              <div className="ribbon-menu" role="menu" style={{ left: menuLeft }}>{otherTools}</div>
+            ))}
           </div>
         )}
       </div>}

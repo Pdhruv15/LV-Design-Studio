@@ -4,7 +4,7 @@ import {
   Activity, CircleDot, Link2, ShieldAlert, ToggleLeft, ZapOff, BatteryCharging, BatteryFull, Star, Cable, Car, Cog, Cpu, Database, Fan, Flame, Gauge, Lightbulb, PanelLeftClose, PanelLeftOpen, Power, ShieldCheck, Snowflake, Sun, Waves, Zap,
   Bookmark, Box, Layers, Pencil, Copy, Download, Upload, Plus, Plug, Heater, PanelTop, Info, X, type LucideIcon
 } from 'lucide-react';
-import { dropHint, dropsOn, itemKey, PALETTE, type DropTarget, type PaletteEntry, type PaletteItem } from '../model/sldEdit';
+import { armHint, dropHint, dropsOn, itemKey, PALETTE, type DropTarget, type PaletteEntry, type PaletteItem } from '../model/sldEdit';
 import { BUILT_IN_PRESETS, presetCard, presetParts, type FeederPreset } from '../model/presets';
 import { getArmedItem, getDragItem, setArmedItem, setDragItem, subscribeArmedItem } from '../diagram/dragItem';
 import { hasSymbol, PaletteSymbol } from './paletteSymbols';
@@ -140,14 +140,13 @@ export default function EquipmentPalette({ docked, onHint, library = [], presets
   const isMine = !q && openCat.id === 'mine';
   const isComp = !q && openCat.id === 'components';
 
-  const where = (item: PaletteItem) => dropsOn(item).map((t) => WHERE[t].toLowerCase()).join(' or ');
   const arm = (e: React.MouseEvent | React.KeyboardEvent, { item, label }: PaletteEntry) => {
     const key = itemKey(item);
     if (armedKey === key) { setArmedItem(null); onHint(''); return; }
     setArmedItem(item);
     onQty?.(e.shiftKey ? 3 : 1);
     setRecent([key, ...recent.filter((k) => k !== key)].slice(0, 6));
-    onHint(`${label}: click a ${where(item)} on the drawing to place it — Esc cancels`);
+    onHint(armHint(item, label));
   };
   const showTip = (entry: PaletteEntry) => (e: React.MouseEvent) => {
     const r = e.currentTarget.getBoundingClientRect();

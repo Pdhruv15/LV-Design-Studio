@@ -35,7 +35,7 @@
         { "number": 5, "target": "sld-canvas", "label": "Interactive SLD canvas" },
         { "number": 6, "target": "sld-inspector", "label": "Board properties and circuit results" },
         { "number": 7, "target": "sld-results", "label": "System, bus, and feeder results" },
-        { "number": 8, "target": "sld-command-bar", "label": "Add, display, and export controls" }
+        { "number": 8, "target": "sld-command-bar", "label": "Add controls and results state" }
       ]
     }
   ]

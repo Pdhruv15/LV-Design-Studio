@@ -3,7 +3,7 @@ import { sampleProject } from '../data/sampleProject';
 import { evaluateFeeder } from '../calc/electrical';
 import { layoutSystem } from '../diagram/layout';
 import { newProject, type Project } from '../types';
-import { applyDrop, applyMove, canDrop, canMove, dropHint, type PaletteItem } from './sldEdit';
+import { applyDrop, applyMove, armHint, canDrop, canMove, dropHint, type PaletteItem } from './sldEdit';
 
 const bus = (boardId: string) => ({ type: 'bus' as const, boardId });
 const canvas = { type: 'canvas' as const };
@@ -87,6 +87,15 @@ describe('drag and drop SLD', () => {
       expect(r.project).toBe(sampleProject);
       expect(r.message).toBe(dropHint(item));
     }
+  });
+});
+
+describe('the hint while an item waits for its click', () => {
+  it('says where the item goes, in the words of the drawing', () => {
+    expect(armHint({ kind: 'transformer' }, 'Transformer')).toMatch(/^Transformer: click a .+ on the drawing to place it — Esc cancels$/);
+    expect(armHint({ kind: 'transformer' }, 'Transformer')).toContain('canvas');
+    expect(armHint({ kind: 'capacitor' }, 'Capacitor bank')).toContain('click a busbar on the drawing');
+    expect(armHint({ kind: 'device', device: 'MCCB' }, 'MCCB')).toContain('click a feeder on the drawing');
   });
 });
 

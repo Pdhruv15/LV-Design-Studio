@@ -22,7 +22,7 @@ describe('SLD zoom and pan on the design canvas', () => {
   /** How often the drawing is drawn: each draw measures its fitted labels once. */
   let selects: MockInstance<(selector: string) => unknown>;
   const draws = () => selects.mock.calls.filter(([s]) => s.startsWith('text[data-dxf-max-width]')).length;
-  const draw = (p: Project = project, extra: { focus?: { kind: 'board' | 'feeder'; id: string; n: number } } = {}) => act(() => root.render(
+  const draw = (p: Project = project, extra: { focus?: { kind: 'board' | 'feeder'; id: string; n: number }; fit?: number } = {}) => act(() => root.render(
     <SystemDiagram {...canvasDrawing(false)} project={p} calcProject={p} results={results} selectedFeederId={null} selectedBoardId={null}
       onSelectFeeder={noop} onSelectBoard={noop} onDrawing={noop} resizable fullScreen onToggleFullScreen={noop} {...extra} />
   ));
@@ -71,6 +71,23 @@ describe('SLD zoom and pan on the design canvas', () => {
     expect(view().w).toBe(1400);
     expect(circuits()).toBeLessThan(project.feeders.length);
     expectNoGaps();
+  });
+
+  it('fits the whole drawing when asked from outside (the ribbon\'s Fit), once for each new number', () => {
+    const opened = view().w;
+    fit();
+    const whole = view();
+    expect(whole.w).toBeGreaterThan(opened);
+    wheel();
+    expect(view().w).toBeLessThan(whole.w);
+    draw(project, { fit: 1 });
+    expect(view()).toEqual(whole);
+    wheel();
+    const zoomed = view();
+    draw(project, { fit: 1 }); // drawn again with the same number: the zoom stays
+    expect(view()).toEqual(zoomed);
+    draw(project, { fit: 2 });
+    expect(view()).toEqual(whole);
   });
 
   it('zooms with the whole drawing in view without drawing it again', () => {
