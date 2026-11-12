@@ -95,12 +95,12 @@ Defects found in the code (fixed in v2.105):
 | Switches as icons, lit when on, key in the tooltip; Fit and Drafting settings | ✓ (since v2.090) |
 | Object snap ▾ with running modes, Select all, Clear all, Object snap settings… | ◐ 9 of the mockup's 12 modes: Extension, Tangent and Parallel are not in the snap engine |
 | Polar ▾ with 90 / 45 / 30 / 22.5 / 15 / 10°, Tracking settings… | ✓ (also 18° and 5°) |
-| Right-click a switch: its settings tab (Grid, Snap: Snap and grid; Ortho, Polar: Polar tracking; Object snap; DYN: Dynamic input; LWT: Cursor and display) | ✓ |
+| Right-click a switch: its settings tab (Grid, Snap: Snap and grid; Ortho: Polar tracking; DYN: Dynamic input; LWT: Cursor and display) | ✓ |
+| Right-click Object snap or Polar | changed in v2.106 (decided 2026-11-12): opens its ▾ list, which ends with its settings |
 | Right-click Object snap tracking: Object snap tab | ◐ opens Polar tracking, where its Track along setting is |
 | Snap ▾ (Grid snap · Polar snap) | ✗ (there is no polar snap; Snap is grid snap only) |
 
-Open question: right-click on Object snap and Polar opens Drafting settings (as the mockup says). Many users expect
-the ▾ list there instead. Decide which.
+Decided 2026-11-12: right-click on Object snap and Polar opens their ▾ list instead of Drafting settings (v2.106).
 
 ## Layout tabs (cad-model-layout-tabs-mockup)
 

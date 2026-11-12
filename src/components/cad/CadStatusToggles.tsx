@@ -7,7 +7,8 @@ import { DynIcon, FitIcon, GridIcon, LwtIcon, OrthoIcon, OsnapIcon, OtrackIcon, 
 
 /** The drafting switches on the Design CAD status bar, as icons in groups: drawing aids (grid, snap), direction
  * (ortho, polar), object snap (osnap, tracking), input and display (dyn, lineweights), view (fit, settings).
- * Object snap and polar have a ▾ for their modes and angle; right-click opens each one's Drafting settings tab. */
+ * Object snap and polar have a ▾ for their modes and angle, and right-click opens that list too (it ends with their
+ * settings); right-click on the others opens their Drafting settings tab. */
 
 type K = keyof CadToggles;
 const SWITCHES: { k: K; label: string; name: string; key: string; tab: DraftTab; icon: (dots: boolean) => ReactNode }[][] = [
@@ -48,7 +49,7 @@ export function CadStatusToggles({ toggles, gridDots, draft, canFit, onToggle, o
   /** A mode or angle picked turns its switch on, as choosing one means wanting it. */
   const set = (k: MenuK, d: DraftSettings) => { onDraft?.(d); if (!on(k)) onToggle(k); };
   const tip = (s: (typeof SWITCHES)[number][number]) => s.k === 'grid' ? `Grid: ${!toggles.grid ? 'off' : gridDots ? 'dots' : 'lines'} (${s.key}: lines, dots, off) — right-click for its settings`
-    : s.k === 'lwt' ? 'Show lineweights (LWT) — right-click for its settings' : `${s.label} (${s.key}) — ${s.name}: ${on(s.k) ? 'on' : 'off'} — right-click for its settings`;
+    : s.k === 'lwt' ? 'Show lineweights (LWT) — right-click for its settings' : `${s.label} (${s.key}) — ${s.name}: ${on(s.k) ? 'on' : 'off'} — right-click for ${HAS_MENU.includes(s.k) ? (s.k === 'osnap' ? 'the running snaps' : 'the angles') : 'its settings'}`;
   const open = (k: MenuK, el: HTMLElement) => { const r = el.getBoundingClientRect(); setMenu(menu?.k === k ? null : { k, x: r.left, y: r.top }); };
   return (
     <>
@@ -57,7 +58,7 @@ export function CadStatusToggles({ toggles, gridDots, draft, canFit, onToggle, o
           {group.map((s) => (
             <span key={s.k} className="cad-tgw">
               <button className={`cad-tg cad-tgi${on(s.k) ? ' on' : ''}`} aria-pressed={on(s.k)} aria-label={s.label} title={tip(s)}
-                onClick={() => (s.k === 'grid' ? onCycleGrid() : onToggle(s.k))} onContextMenu={(e) => { e.preventDefault(); onSettings(s.tab); }}>
+                onClick={() => (s.k === 'grid' ? onCycleGrid() : onToggle(s.k))} onContextMenu={(e) => { e.preventDefault(); if (HAS_MENU.includes(s.k)) open(s.k as MenuK, e.currentTarget); else onSettings(s.tab); }}>
                 {s.icon(s.k === 'grid' && gridDots)}
               </button>
               {HAS_MENU.includes(s.k) && (

@@ -38,11 +38,28 @@ describe('Design CAD status bar icons', () => {
 
   it('a click switches, the grid cycles, right-click opens the settings tab, fit fits', () => {
     const p = render(ALL_ON);
-    click(btn('ORTHO')); click(btn('GRID')); click(btn('POLAR'), 'contextmenu'); click(btn('FIT'));
+    click(btn('ORTHO')); click(btn('GRID')); click(btn('ORTHO'), 'contextmenu'); click(btn('DYN'), 'contextmenu'); click(btn('FIT'));
     expect(p.onToggle).toHaveBeenCalledWith('ortho');
     expect(p.onCycleGrid).toHaveBeenCalledTimes(1);
-    expect(p.onSettings).toHaveBeenCalledWith('polar');
+    expect(p.onSettings).toHaveBeenNthCalledWith(1, 'polar');
+    expect(p.onSettings).toHaveBeenNthCalledWith(2, 'dyn');
     expect(p.onFit).toHaveBeenCalledTimes(1);
+  });
+
+  it('right-click on object snap or polar opens its ▾ list (not the dialog), the settings at its foot', () => {
+    const p = render(ALL_ON);
+    expect(btn('OSNAP').title).toBe('OSNAP (F3) — Object snap: on — right-click for the running snaps');
+    expect(btn('POLAR').title).toBe('POLAR (F10) — Polar tracking: on — right-click for the angles');
+    click(btn('OSNAP'), 'contextmenu');
+    expect(q('[role="menu"][aria-label="Object snap"]')).not.toBeNull();
+    expect(p.onSettings).not.toHaveBeenCalled();
+    click(item('Nearest'));
+    expect(p.onDraft).toHaveBeenCalledWith({ ...DRAFT_DEFAULTS, osnap: DRAFT_DEFAULTS.osnap | OSNAP_BITS.nearest });
+    click(btn('POLAR'), 'contextmenu');
+    expect(q('[role="menu"][aria-label="Polar tracking"]')).not.toBeNull();
+    click(item('Tracking settings'));
+    expect(p.onSettings).toHaveBeenCalledWith('polar');
+    expect(q('[role="menu"]')).toBeNull();
   });
 
   it('the grid icon shows dots when the grid is dots; fit is off without a drawing', () => {
