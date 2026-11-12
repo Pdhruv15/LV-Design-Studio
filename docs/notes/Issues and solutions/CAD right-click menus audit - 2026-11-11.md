@@ -4,14 +4,14 @@ Checks every right-click item proposed against the code on `main` after PRs 519,
 status bar mockup (`docs/mockups/cad-status-bar-icons-mockup.html`) and the layout tabs mockup
 (`docs/mockups/cad-model-layout-tabs-mockup.html`).
 
-Key: ✓ built as proposed · ◐ built differently or in part · ✗ not built · **fix** fixed in v2.104.
+Key: ✓ built as proposed · ◐ built differently or in part · ✗ not built · **fix** fixed in v2.105.
 
 ## Why menus looked missing
 
 The installed app was **2.099**: Phase 1 only. Phases 2–4 (v2.101–v2.103) were merged but not installed, so
 device, room, block, reference, layout, text, dimension, hatch and grip menus were not in the app yet.
 
-Defects found in the code (fixed in v2.104):
+Defects found in the code (fixed in v2.105):
 
 - Dimension style ▸ never showed: the page did not pass the style list to the menu.
 - No Properties entry on any drawn-object menu (line, polyline, text, dimension, hatch, block, tray).
