@@ -335,7 +335,7 @@ const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
   sld: ['design', 'panels', 'enclosure', 'engines', 'calculators'],
   home: ['projects', 'dashboard', 'help', 'parameters', 'titleblock', 'building', 'design'],
   concept: ['building', 'load-assessment', 'sizing', 'substation-area', 'space-planning', 'dashboard'],
-  schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'earth-schematic', 'elv', 'inbox'],
+  schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'lightning', 'earth-schematic', 'elv', 'inbox'],
   detailed: ['selection', 'voltage-drop', 'earthing', 'coordination'],
   cad: ['cad', 'drawings', 'drawing-register'],
   reports: ['cable-schedule', 'cable-tray', 'equipment', 'study-reports', 'report', 'export-centre'],
@@ -724,6 +724,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('pfc', 'Power factor', BatteryCharging, 'Power factor correction: capacitor banks from the maximum demand'),
         view('ups', 'UPS & battery', BatteryFull, 'UPS rating and battery sizing for the backup time'),
         view('solar', 'Solar PV', Sun, 'Solar PV array, string design, inverters and yield'),
+        view('lightning', 'Lightning', Zap, 'Lightning protection at concept stage: roof mesh, rods or ESE terminal, down conductors and earth pits'),
         view('earth-schematic', 'Earth pits', Network, 'Earthing schematic: earth pits of the RMUs, transformers and main boards, and how they are linked')
       ],
       [
