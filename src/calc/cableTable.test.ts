@@ -65,16 +65,20 @@ describe('cable data source', () => {
 describe('ambient temperature correction (XLPE, 30 °C reference)', () => {
   it('supported range is 25–70 °C', () => expect(AMBIENT_RANGE_C).toEqual({ min: 25, max: 70 }));
   it('table points and interpolation', () => {
-    expect(ambientCorrectionFactor(25)).toBe(1.03);
+    expect(ambientCorrectionFactor(25)).toBe(1.04);
     expect(ambientCorrectionFactor(30)).toBe(1);
     expect(ambientCorrectionFactor(70)).toBe(0.58);
     expect(ambientCorrectionFactor(42.5)).toBeCloseTo(0.89, 10); // halfway between 0.91 and 0.87
+  });
+  it('factors are calculated from the temperature rise, √((90 − θ) / 60), at 5 K steps', () => {
+    const expected = [1.04, 1, 0.96, 0.91, 0.87, 0.82, 0.76, 0.71, 0.65, 0.58];
+    expected.forEach((f, i) => expect(ambientCorrectionFactor(25 + 5 * i)).toBe(f));
   });
   it('in range: ok', () => {
     for (const t of [25, 45, 70]) expect(ambientCheck(t).status).toBe('ok');
   });
   it('below range: held at the 25 °C factor (conservative) and flagged as a warning', () => {
-    expect(ambientCorrectionFactor(10)).toBe(1.03);
+    expect(ambientCorrectionFactor(10)).toBe(1.04);
     expect(ambientCheck(24.9).status).toBe('warn');
   });
   it('above range: not extrapolated, and flagged as a failure (the 70 °C factor would overstate the rating)', () => {

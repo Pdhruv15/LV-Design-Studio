@@ -76,12 +76,16 @@ export const REFERENCE_CABLE_TABLE: CableSpec[] = [
 ];
 
 // Ambient temperature correction factors for 90°C (XLPE) cable, relative to
-// 30°C ambient — a few rounded design values. The table number (IEC 60364-5-52
-// Table B.52.14) is there so you can check them, not a copy of the table.
-const AMBIENT_POINTS: [number, number][] = [
-  [25, 1.03], [30, 1.0], [35, 0.96], [40, 0.91], [45, 0.87],
-  [50, 0.82], [55, 0.76], [60, 0.71], [65, 0.65], [70, 0.58]
-];
+// 30°C ambient. Calculated, not taken from a table: the conductor's permitted
+// temperature rise at that ambient over its rise at 30°C, √((90 − θ) / (90 − 30)),
+// at 5 K steps, rounded to two places. IEC 60364-5-52 Table B.52.14 is the
+// table to check them against.
+const XLPE_MAX_C = 90;
+const AMBIENT_REF_C = 30;
+const AMBIENT_POINTS: [number, number][] = Array.from({ length: 10 }, (_, i): [number, number] => {
+  const t = 25 + 5 * i;
+  return [t, Math.round(Math.sqrt((XLPE_MAX_C - t) / (XLPE_MAX_C - AMBIENT_REF_C)) * 100) / 100];
+});
 
 /** Range the correction table covers. Outside it the factor is held at the
  * end value (no extrapolation): conservative below 25 °C, NOT conservative

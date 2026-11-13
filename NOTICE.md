@@ -25,7 +25,13 @@ The built-in DWG / DXF reader (`engines/cad-reader`, compiled to WebAssembly in 
 
 ## Standards
 
-IEC, BS EN and other standard numbers, clause numbers and table numbers are used only to identify the method a calculation follows. LV Design Studio does not include text, figures or tables copied from IEC publications. It is not affiliated with or endorsed by the IEC or any other standards body. The app has its own drawings of the IEC 60617 symbols. The built-in derating and grouping factors are a few rounded design values. The table number next to each one lets you check it against the standard. Use the current edition of each standard, from the IEC or your national standards body, and the cable manufacturer's data for a real project.
+IEC, BS EN and other standard numbers, clause numbers and table numbers are used only to identify the method a calculation follows. LV Design Studio does not include text, figures or tables copied from IEC publications. It is not affiliated with or endorsed by the IEC or any other standards body. The app has its own drawings of the IEC 60617 symbols. The ambient temperature correction factors are calculated from the conductor temperature rise, not taken from a table. The other built-in derating and grouping factors are a few rounded design values. The table number next to each one lets you check it against the standard. Use the current edition of each standard, from the IEC or your national standards body, and the cable manufacturer's data for a real project.
+
+## Authorities and manufacturers
+
+The DEWA cable and breaker limits and the Dubai Municipality substation room form (DM-D-013) in the app are the author's own unofficial working of published authority requirements. They are not issued, checked or endorsed by DEWA or Dubai Municipality, and an output of the app is not an official authority form. Check every value against the authority's current edition before a submission.
+
+Cable dimensions shown under a manufacturer's name (for example DUCAB) are taken from that manufacturer's published data, to help with tray and containment sizing. LV Design Studio is not affiliated with or endorsed by DUCAB or any other manufacturer; their names and trade marks belong to them. Use the manufacturer's current datasheet for a real project.
 
 ## Engineering disclaimer
 
