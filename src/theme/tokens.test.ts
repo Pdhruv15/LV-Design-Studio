@@ -96,7 +96,9 @@ describe('design tokens', () => {
     const known: Record<string, number> = {
       'components/BriefEditor.tsx': 1, 'components/EarthingView.tsx': 10, 'components/EnclosureSizing.tsx': 12, 'components/FileDialogs.tsx': 1,
       'components/Form4Sizing.tsx': 10, 'components/PaperPreview.tsx': 1, 'components/ProjectsDashboard.tsx': 1, 'components/cad/CadCanvas.tsx': 19, 'components/cad/CadFilePaper.tsx': 5,
-      'components/docs/sheetRender.tsx': 1, 'components/sld/SheetMarkupLayer.tsx': 6, 'components/sld/SheetWorkspace.tsx': 8, 'diagram/symbolLibrary.tsx': 8
+      'components/docs/sheetRender.tsx': 1, 'components/sld/SheetMarkupLayer.tsx': 6, 'components/sld/SheetWorkspace.tsx': 8, 'diagram/symbolLibrary.tsx': 8,
+      // The specification's page is paper: white, black text, and the shaded and red marks on project values.
+      'components/spec/SpecPage.tsx': 15
     };
     for (const f of walk(root).filter((p) => p.endsWith('.tsx') && !/\.test\./.test(p))) {
       const n = (readFileSync(f, 'utf8').match(/['"`(:\s]#[0-9a-f]{3,8}\b/gi) ?? []).length;
