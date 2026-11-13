@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { SPD_TYPES, type Project } from '../../types';
 import { AIR_METHODS, airResultText as resultText, lightningProtection, lpsLayout, type AirMethod, type AirResult, type LpsClass, type LpsInputs } from '../../calc/lightningProtection';
 import { buildLightningReportHtml, LPS_SECTIONS, type LpsSectionKey } from '../../docs/lightningReport';
+import { lightningPlanFiles, LP_BLOCK, withLightningBlock } from '../../model/lightningCad';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import { NumField, Page, ResultCard, ResultCards, StatusCell, StatusCounts } from '../ui';
@@ -29,6 +30,15 @@ export default function LightningStudy({ project, onChange, onStatus }: { projec
   const [sections, setSections] = useState<LpsSectionKey[]>(LPS_SECTIONS.map((x) => x.key));
   const [format, setFormat] = useState<Format>('pdf');
   const [busy, setBusy] = useState(false);
+  const planFiles = useMemo(() => lightningPlanFiles(project), [project]);
+  const [planFile, setPlanFile] = useState('');
+  const toFile = planFiles.some((x) => x.file === planFile) ? planFile : planFiles[0]?.file;
+  function placeOnPlan() {
+    const done = toFile ? withLightningBlock({ ...project, lightning: i }, toFile) : undefined;
+    if (!done) return;
+    onChange(done.project, true);
+    onStatus?.(`Block ${LP_BLOCK} is in ${toFile} (${done.unit}${done.assumed ? ', units assumed' : ''}). In Design CAD: Insert → ${LP_BLOCK}, at a roof corner.`);
+  }
   const picked = LPS_SECTIONS.map((x) => x.key).filter((x) => sections.includes(x));
   async function exportReport() {
     setBusy(true);
@@ -135,6 +145,15 @@ export default function LightningStudy({ project, onChange, onStatus }: { projec
                 <circle cx={300} cy={312} r={5} fill="var(--acc)" /><text x={311} y={316}>Down conductor</text>
               </g>
             </svg>
+            <div className="dm-head">
+              <label className="nf"><span>Roof plan drawing</span>
+                <select value={toFile ?? ''} disabled={!planFiles.length} onChange={(e) => setPlanFile(e.target.value)}>
+                  {planFiles.length ? planFiles.map((x) => <option key={x.file} value={x.file}>{x.label}</option>) : <option value="">No level plan in Design CAD yet</option>}
+                </select>
+              </label>
+              <button className="chip" disabled={!toFile || r.selected.status === 'data'} onClick={placeOnPlan}>Place on roof plan</button>
+            </div>
+            <p className="m">Adds this layout to the drawing's blocks as {LP_BLOCK}, in the drawing's units. In Design CAD, make the layer you want current, insert the block at a roof corner and turn it to suit. Press again after changing the study and the inserted layout follows.</p>
           </section>
 
           <section className="dm-card">

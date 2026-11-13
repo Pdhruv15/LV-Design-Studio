@@ -66,4 +66,18 @@ describe('Lightning protection study', () => {
     act(() => box.click());
     expect(last.lightning?.inBoq).toBe(true);
   });
+
+  it('places the roof layout as a block in a level\'s plan drawing', () => {
+    const study = { lengthM: 40, widthM: 25, heightM: 18, method: 'mesh' as const, meshM: 10, downSpacingM: 10 };
+    render({ ...sampleProject, lightning: study });
+    const button = () => [...document.querySelectorAll('button')].find((b) => b.textContent === 'Place on roof plan')!;
+    expect(button().disabled).toBe(true);
+    const building = { buildings: [{ id: 'V', name: 'Villa', levels: [{ id: 'GF', name: 'Ground', kind: 'ground' as const, heightM: 4 }, { id: 'RF', name: 'Roof', kind: 'roof' as const, heightM: 3 }] }], rooms: [] };
+    render({ ...sampleProject, building, lightning: study, cadPlans: [{ building: 'V', level: 'GF', file: 'gf.dwg', units: 4 }, { building: 'V', level: 'RF', file: 'roof.dwg', units: 4 }] } as Project);
+    expect(document.querySelector<HTMLSelectElement>('select[disabled], label.nf select')).toBeTruthy();
+    expect([...document.querySelectorAll('option')].find((o) => o.value === 'roof.dwg')!.textContent).toContain('Roof');
+    expect(button().disabled).toBe(false);
+    act(() => button().click());
+    expect(last.cadBlockDefs?.find((x) => x.file === 'roof.dwg')?.defs.map((d) => d.name)).toEqual(['LP-ROOF-LAYOUT']);
+  });
 });
