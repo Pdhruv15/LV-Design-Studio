@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { CadDialog, Check, Num, Row } from './CadDialogs';
 import type { CadToggles } from './CadCanvas';
 import type { DraftTab } from './cadState';
-import { DRAFT_DEFAULTS, OSNAP_BITS, OSNAP_MODES, parseAngles, POLAR_INCREMENTS, type DraftSettings } from '../../model/cadDraft';
+import { CROSS_COLORS, DRAFT_DEFAULTS, OSNAP_BITS, OSNAP_MODES, parseAngles, POLAR_INCREMENTS, type CrossColor, type DraftSettings } from '../../model/cadDraft';
 
 type MenuItem = { label: string; title: string; onClick: () => void };
 
@@ -15,8 +15,8 @@ const HELP: Record<DraftTab, string> = {
   polar: 'Polar tracking (F10) holds the next point on the angles from the last one. ORTHO (F8) and polar turn each other off. Object snap tracking (F11): rest the cursor on a snap point to acquire it (again to let it go), then follow its alignment lines.',
   osnap: 'The snap points the cursor finds (F3 turns them all on or off). Perpendicular is from the last point picked. Shift-click and a window select, as before.',
   dyn: 'Dynamic input (F12): the boxes, the short prompt and its options at the cursor.',
-  select: 'Left to right: only what is fully inside. Right to left: what the window crosses. Shift-click adds or removes.',
-  cursor: 'The crosshair, the snap aperture (how near a snap point must be) and the marker.',
+  select: 'Left to right: only what is fully inside. Right to left: what the window crosses. Shift-click adds or removes. A click picks what is inside the pick box.',
+  cursor: 'The crosshair and its colour, the outline that keeps the cursor visible over any line, the snap aperture (how near a snap point must be) and the marker.',
   units: 'Level and units belong to this drawing; the rest is kept for you on this computer.'
 };
 
@@ -53,7 +53,7 @@ export default function CadDraftSettings({ tab: first = 'snap', draft, toggles, 
     level: levels.find((x) => x.label === lv), unit: units.find((x) => x.label === un)
   });
   const reset = tab === 'cursor' || tab === 'select'
-    ? <button type="button" onClick={() => patch(tab === 'cursor' ? { crossPct: DRAFT_DEFAULTS.crossPct, aperturePx: DRAFT_DEFAULTS.aperturePx, markerPx: DRAFT_DEFAULTS.markerPx, snapTip: true } : { windowFill: true, grips: true, gripPx: DRAFT_DEFAULTS.gripPx, pickBoxPx: DRAFT_DEFAULTS.pickBoxPx })}>Reset</button>
+    ? <button type="button" onClick={() => patch(tab === 'cursor' ? { crossPct: DRAFT_DEFAULTS.crossPct, crossColor: DRAFT_DEFAULTS.crossColor, cursorOutline: true, aperturePx: DRAFT_DEFAULTS.aperturePx, markerPx: DRAFT_DEFAULTS.markerPx, snapTip: true } : { windowFill: true, grips: true, gripPx: DRAFT_DEFAULTS.gripPx, pickBoxPx: DRAFT_DEFAULTS.pickBoxPx, hoverMark: true, hoverTag: false })}>Reset</button>
     : tab === 'osnap' ? <><button type="button" onClick={() => patch({ osnap: Object.values(OSNAP_BITS).reduce((a, b) => a | b, 0) })}>Select all</button><button type="button" onClick={() => patch({ osnap: 0 })}>Clear all</button></> : null;
   return (
     <CadDialog id="dsettings" title="Drafting settings" alias="DS" help={HELP[tab]} onOk={ok} onClose={onClose} wide extra={reset}>
@@ -98,9 +98,13 @@ export default function CadDraftSettings({ tab: first = 'snap', draft, toggles, 
         <Check label="Grips on what is picked" value={d.grips} onChange={(v) => patch({ grips: v })} />
         <Num label="Grip size" unit="px" value={d.gripPx} onChange={(v) => { const x = Math.round(Number(v)); if (x >= 4 && x <= 20) patch({ gripPx: x }); }} />
         <Num label="Pick box size" unit="px" value={d.pickBoxPx} onChange={(v) => { const x = Math.round(Number(v)); if (x >= 3 && x <= 30) patch({ pickBoxPx: x }); }} />
+        <Check label="Highlight what is under the pick box" value={d.hoverMark} onChange={(v) => patch({ hoverMark: v })} />
+        <Check label="Name tag after a pause" value={d.hoverTag} onChange={(v) => patch({ hoverTag: v })} />
       </>}
       {tab === 'cursor' && <>
         <Num label="Crosshair size (100 = across)" unit="%" value={d.crossPct} onChange={(v) => { const x = Math.round(Number(v)); if (x >= 1 && x <= 100) patch({ crossPct: x }); }} />
+        <Row label="Crosshair colour"><select aria-label="Crosshair colour" value={d.crossColor} onChange={(e) => patch({ crossColor: e.target.value as CrossColor })}>{CROSS_COLORS.map((c) => <option key={c.k} value={c.k}>{c.label}</option>)}</select></Row>
+        <Check label="Outline the cursor" value={d.cursorOutline} onChange={(v) => patch({ cursorOutline: v })} />
         <Num label="Snap aperture" unit="px" value={d.aperturePx} onChange={(v) => { const x = Math.round(Number(v)); if (x >= 2 && x <= 40) patch({ aperturePx: x }); }} />
         <Num label="Snap marker size" unit="px" value={d.markerPx} onChange={(v) => { const x = Math.round(Number(v)); if (x >= 3 && x <= 20) patch({ markerPx: x }); }} />
         <Check label="Snap name beside the marker" value={d.snapTip} onChange={(v) => patch({ snapTip: v })} />
