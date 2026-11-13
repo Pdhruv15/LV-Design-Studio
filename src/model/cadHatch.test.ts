@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { hatchLines } from './cadDraw';
-import { customLabel, defOf, dotsOnly, hatchDots, hatchStrokes, HATCH_IDS, mirroredY, parsePat, patternByName, patternOf, placedLines, specFromLines, specWith, validCustom, withPatterns, type HatchSpec } from './cadHatch';
+import { atOrigin, builtInAsCustom, customLabel, defOf, dotsOnly, formatPat, hatchDots, hatchStrokes, HATCH_IDS, mirroredY, parsePat, patternByName, patternOf, placedLines, specFromLines, specWith, validCustom, withPatterns, type HatchSpec } from './cadHatch';
 
 type Pt = [number, number];
 const box: [number, number, number, number] = [0, 0, 60, 40];
@@ -131,5 +131,39 @@ describe('hatch patterns', () => {
     expect(patternByName('SOLID')).toBe('solid');
     expect(patternByName('AR-HBONE')).toBeUndefined();
     expect(patternOf('nope')).toBe(patternOf('ansi31'));
+  });
+});
+
+describe('hatch origin and .pat files', () => {
+  it('atOrigin shifts every base by the origin and leaves the lines alone without one', () => {
+    const ls = placedLines(spec('brick'), 1);
+    expect(atOrigin(ls, undefined)).toBe(ls);
+    expect(atOrigin(ls, [0, 0])).toBe(ls);
+    const at = atOrigin(ls, [10, -5]);
+    expect(at.map((l) => l.base)).toEqual(ls.map((l) => [l.base[0] + 10, l.base[1] - 5]));
+    expect(at.map((l) => [l.angle, l.offset, l.dashes])).toEqual(ls.map((l) => [l.angle, l.offset, l.dashes]));
+  });
+
+  it('formatPat is the inverse of parsePat', () => {
+    const text = '*MYGRID, Office grid\n0, 0, 0, 0, 1\n90, 0.5, 0, 0, 1, 0.25, -0.75\n*SOLID\n*DOTS\n0, 0, 0, 0, 1, 0, -1\n';
+    const { patterns, errors } = parsePat(text);
+    expect(errors).toEqual([]);
+    expect(patterns).toHaveLength(3);
+    const out = formatPat(patterns);
+    expect(out.split('\n')[0]).toMatch(/^;.*1 unit = the hatch spacing in paper mm/);
+    expect(parsePat(out)).toEqual({ patterns, errors: [] });
+    // Numbers keep at most 8 significant digits.
+    expect(formatPat([{ name: 'X', lines: [{ angle: 45, base: [0, 0], offset: [-0.123456789012, 1], dashes: [] }] }])).toContain('45, 0, 0, -0.12345679, 1');
+  });
+
+  it('the built-in patterns are valid patterns of a .pat file under their upper-case names, and read back', () => {
+    const all = builtInAsCustom();
+    expect(all).toHaveLength(HATCH_IDS.length);
+    expect(all.map((c) => c.name)).toEqual(expect.arrayContaining(['ANSI31', 'DASH45', 'SOLID', 'BRICK']));
+    expect(all.every((c) => validCustom(c))).toBe(true);
+    const back = parsePat(formatPat(all));
+    expect(back.errors).toEqual([]);
+    expect(back.patterns.map((c) => c.name)).toEqual(all.map((c) => c.name));
+    expect(back.patterns.find((c) => c.name === 'SOLID')!.solid).toBe(true);
   });
 });

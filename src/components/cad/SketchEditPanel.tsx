@@ -15,7 +15,7 @@ export type SketchEdit = 'filter' | 'trim' | 'extend' | 'offset' | 'break' | 'fi
   | 'isolate' | 'deselect' | 'addsel' | 'qmeasure' | 'count'
   | 'traysize' | 'traycables' | 'trayfill' | 'reverse' | 'trace' | 'routesld'
   | 'blkreplace' | 'blkreset' | 'blkexplode' | 'blkcount'
-  | 'find' | 'txjust' | 'txheight' | 'txcase' | 'txframe' | 'txmask' | 'dimstyle' | 'dimprec' | 'dimpos' | 'dimreset' | 'hscale' | 'hangle' | 'hboundary'
+  | 'find' | 'txjust' | 'txheight' | 'txcase' | 'txframe' | 'txmask' | 'dimstyle' | 'dimprec' | 'dimpos' | 'dimreset' | 'hscale' | 'hangle' | 'hboundary' | 'hedit' | 'horigin' | 'hislands'
   | 'plclose' | 'explode1' | 'roomfrom' | 'tocable' | 'jointool' | 'chamfer' | 'props' | 'repeat' | 'bedit' | 'refedit';
 export type EditTool = 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'mirror' | 'scale' | 'stretch' | 'array' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'tframe' | 'tmask' | 'draworder' | 'texttofront';
 /** Offset `through` a point (the copy passes through it), `erase` the source, the copies on the `source` layer or the
@@ -31,7 +31,7 @@ const LABEL: Record<SketchEdit, string> = {
   traysize: 'Size tray from cables', traycables: 'Cables in this route', trayfill: 'Fill ratio check', reverse: 'Reverse direction', trace: 'Trace circuit', routesld: 'Show in SLD',
   blkreplace: 'Replace with another block ▸', blkreset: 'Reset attributes', blkexplode: 'Explode', blkcount: 'Count instances',
   find: 'Find and replace…', txjust: 'Justify ▸', txheight: 'Text height ▸', txcase: 'Case ▸', txframe: 'Frame ▸', txmask: 'Background mask', dimstyle: 'Dimension style ▸',
-  dimprec: 'Precision ▸', dimpos: 'Text position ▸', dimreset: 'Remove text override', hscale: 'Hatch scale ▸', hangle: 'Hatch angle ▸', hboundary: 'Recreate boundary',
+  dimprec: 'Precision ▸', dimpos: 'Text position ▸', dimreset: 'Remove text override', hscale: 'Hatch scale ▸', hangle: 'Hatch angle ▸', hboundary: 'Recreate boundary', hedit: 'Edit hatch…', horigin: 'Set origin', hislands: 'Remove islands',
   plclose: 'Close', explode1: 'Explode', roomfrom: 'Use as room boundary', tocable: 'Convert to cable route', jointool: 'Join…', chamfer: 'Chamfer', props: 'Properties', repeat: 'Repeat', bedit: 'Open block editor', refedit: 'Edit block in place'
 };
 export const kindOf = kindLabel;
@@ -102,7 +102,7 @@ export function SketchToolbar({ items, devices, lengthM, left, top, place, canPa
   // The kind's own entries on the menu (phase 4): a text's, a dimension's, a hatch's, a polyline's or a line's.
   const kindOwn: SketchEdit[] = place !== 'menu' || !one || one.tray || one.cable ? [] : one.kind === 'text' ? ['txjust', 'txheight', 'txcase', 'txframe', 'txmask']
     : one.kind === 'dim' ? [...(one.text ? ['dimreset' as const] : []), ...(dimStyles.length ? ['dimstyle' as const] : []), 'dimprec', ...(one.dimKind === 'angular' ? [] : ['dimpos' as const])]
-    : one.hatch ? ['hscale', 'hangle', 'hboundary']
+    : one.hatch ? ['hedit', 'hscale', 'hangle', 'horigin', ...(one.holes?.length ? ['hislands' as const] : []), 'hboundary']
     : one.kind === 'pline' && !one.cloud ? [...(one.pts.length > 2 ? ['plclose' as const] : []), 'reverse', 'explode1', ...(one.closed ? ['roomfrom' as const] : []), 'tocable', 'jointool', 'chamfer']
     : one.kind === 'line' ? ['jointool', 'chamfer', 'reverse', 'tocable'] : [];
   const findable = place === 'menu' && !!one && (one.kind === 'text' || one.kind === 'mtext');

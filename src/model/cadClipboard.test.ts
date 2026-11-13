@@ -130,3 +130,24 @@ describe('Design CAD clipboard', () => {
     expect(roundTrip(clipText(clipPayload(p, 'GF.dwg', items, [0, 0], MM))).items).toEqual([dim, hatch]);
   });
 });
+
+describe('Design CAD clipboard: hatches', () => {
+  const hatch: Omit<SketchItem, 'id'> = { kind: 'pline', layer: 'LV-HATCH', closed: true, pts: [[0, 0], [4000, 0], [4000, 4000], [0, 4000]], hatch: { pattern: 'ansi31', scale: 3, angle: 0, origin: [100, 200] },
+    holes: [[[1000, 1000], [2000, 1000], [2000, 2000]]], assoc: ['S1', 'S2'] };
+  it('keeps the islands and the pattern\'s origin; a pasted hatch is not tied to the objects of the copied one', () => {
+    const { p, items } = drawn([hatch]);
+    const clip = roundTrip(clipText(clipPayload(p, 'GF.dwg', items, [0, 0], MM)));
+    const [back] = pastedItems(clip, 'GF.dwg', MM, 'orig').items;
+    expect(back.holes).toEqual(hatch.holes);
+    expect(back.hatch!.origin).toEqual([100, 200]);
+    expect(back.assoc).toBeUndefined();
+  });
+  it('refuses islands or an origin that are not points', () => {
+    const { p, items } = drawn([hatch]);
+    const text = clipText(clipPayload(p, 'GF.dwg', items, [0, 0], MM));
+    const bad = (f: (o: { items: Record<string, unknown>[] }) => void) => { const o = JSON.parse(text); f(o); return parseClip(JSON.stringify(o)); };
+    expect(bad((o) => { o.items[0].holes = [[['x', 1], [2, 2], [3, 3]]]; })).toHaveProperty('error');
+    expect(bad((o) => { o.items[0].holes = [[[1, 1]]]; })).toHaveProperty('error');
+    expect(bad((o) => { (o.items[0].hatch as Record<string, unknown>).origin = 'here'; })).toHaveProperty('error');
+  });
+});

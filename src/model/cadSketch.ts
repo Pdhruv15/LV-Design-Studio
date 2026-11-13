@@ -1,5 +1,6 @@
 import { fittingLabel, trayFittings } from './cadTrayFittings';
-import { defOf, placedLines } from './cadHatch';
+import { atOrigin, defOf, placedLines } from './cadHatch';
+import { followBoundaries, hatchOutlinePts } from './cadHatchAssoc';
 import { MASK_LAYER, textBox, textCorners, textFrameOf, textWidth } from './cadText';
 import { noteCorners, noteHit, toDxfMtext } from './cadMtext';
 import { pdsizeOf, type PointStyle } from './cadPoints';
@@ -17,6 +18,8 @@ export const sketchOf = (p: Project, file: string): SketchItem[] => p.cadSketch?
 
 /** The project with the drawing's drawn objects replaced. */
 export function withSketchItems(p: Project, file: string, items: SketchItem[]): Project {
+  // Associative hatches follow the objects they were made from.
+  items = followBoundaries(sketchOf(p, file), items);
   const rest = (p.cadSketch ?? []).filter((s) => !same(s.file, file));
   const all: CadSketch[] = items.length ? [...rest, { file, items }] : rest;
   const { cadSketch: _old, ...base } = p;
@@ -37,10 +40,18 @@ export const dist = (a: Pt, b: Pt) => Math.hypot(b[0] - a[0], b[1] - a[1]);
 const rot = (p: Pt, c: Pt, a: number): Pt => { const s = Math.sin(a), k = Math.cos(a), x = p[0] - c[0], y = p[1] - c[1]; return [c[0] + x * k - y * s, c[1] + x * s + y * k]; };
 
 /** The item moved by (dx, dy). */
-export const moved = (it: SketchItem, dx: number, dy: number): SketchItem => ({ ...it, pts: it.pts.map((q) => [q[0] + dx, q[1] + dy] as Pt) });
+export const moved = (it: SketchItem, dx: number, dy: number): SketchItem => {
+  const m = (q: Pt): Pt => [q[0] + dx, q[1] + dy];
+  // A hatch's islands and pattern go with it.
+  return { ...it, pts: it.pts.map(m), ...(it.holes ? { holes: it.holes.map((h) => h.map(m)) } : {}), ...(it.hatch ? { hatch: { ...it.hatch, origin: m(it.hatch.origin ?? [0, 0]) } } : {}) };
+};
 /** The item rotated by `a` radians about `c`. */
 export function rotated(it: SketchItem, c: Pt, a: number): SketchItem {
   const pts = it.pts.map((q) => rot(q, c, a));
+  if (it.hatch) {
+    const deg = (((it.hatch.angle + (a * 180) / Math.PI) % 360) + 360) % 360;
+    return { ...it, pts, ...(it.holes ? { holes: it.holes.map((h) => h.map((q) => rot(q, c, a))) } : {}), hatch: { ...it.hatch, angle: Math.round(deg * 1e9) / 1e9 % 360, origin: rot(it.hatch.origin ?? [0, 0], c, a) } };
+  }
   if (it.kind === 'arc') return { ...it, pts, a0: (it.a0 ?? 0) + a, a1: (it.a1 ?? 0) + a };
   if (it.kind === 'text' || it.kind === 'mtext' || it.kind === 'insert' || it.kind === 'attdef') return { ...it, pts, rot: (it.rot ?? 0) + a };
   if (it.kind === 'ellipse' && it.ax) return { ...it, pts, ax: rot(it.ax, [0, 0], a) };
@@ -449,6 +460,7 @@ export function segmentsOf(it: SketchItem, metresPerUnit = 0.001, defs: CadBlock
   else if (it.kind === 'arc') arc(it.pts[0], it.r ?? 0, it.a0 ?? 0, it.a1 ?? 0);
   else if (it.kind === 'dim') { const d = dimOf(it, metresPerUnit); out.push(...d.lines); for (const a of d.arcs) arc(a.c, a.r, a.a0, a.a1); }
   else if (it.kind === 'text' && it.frame) { const f = textFrameOf(it); if (f?.circle) arc(f.circle.c, f.circle.r, 0, 2 * Math.PI); else if (f?.pts) poly(f.pts, true); }
+  for (const h of it.holes ?? []) poly(h, true);
   return out;
 }
 
@@ -513,6 +525,8 @@ export function snapPoints(items: SketchItem[], defs: CadBlockDef[] = []): { x: 
     // A note: its anchor, and the corners of its box.
     else if (it.kind === 'mtext') out.push({ x: it.pts[0][0], y: it.pts[0][1], kind: 16 }, ...noteCorners(it).map((q) => ({ x: q[0], y: q[1], kind: 1 })));
     else if (it.kind === 'dim') out.push({ x: it.pts[0][0], y: it.pts[0][1], kind: 1 }, { x: it.pts[1][0], y: it.pts[1][1], kind: 1 });
+    // A hatch's islands: their corners.
+    for (const h of it.holes ?? []) h.forEach((q) => out.push({ x: q[0], y: q[1], kind: 1 }));
   }
   return out;
 }
@@ -545,13 +559,13 @@ export function itemAt(items: SketchItem[], at: Pt, tol: number, defs: CadBlockD
 }
 
 /** Drawn items as the engine writes them into a DXF (drawing units). */
-export interface ShapeOut { layer: string; kind: 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'text' | 'mtext' | 'hatch' | 'point' | 'pointstyle' | 'insert' | 'blockdef' | 'attdef'; pts: Pt[]; mode?: number; name?: string; sc?: number; units?: number; items?: ShapeOut[]; tag?: string; prompt?: string; flags?: { invisible?: boolean; constant?: boolean; verify?: boolean; preset?: boolean; lock?: boolean }; atts?: ShapeOut[]; closed?: boolean; bulges?: number[]; r?: number; a0?: number; a1?: number; axis?: Pt; ratio?: number; text?: string; h?: number; rot?: number; just?: string; w?: number; lsp?: number; loops?: Pt[][]; solid?: boolean; lines?: { angle: number; base: Pt; offset: Pt; dashes: number[] }[] }
+export interface ShapeOut { layer: string; kind: 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'text' | 'mtext' | 'hatch' | 'point' | 'pointstyle' | 'insert' | 'blockdef' | 'attdef'; pts: Pt[]; mode?: number; name?: string; sc?: number; units?: number; items?: ShapeOut[]; tag?: string; prompt?: string; flags?: { invisible?: boolean; constant?: boolean; verify?: boolean; preset?: boolean; lock?: boolean }; atts?: ShapeOut[]; closed?: boolean; bulges?: number[]; r?: number; a0?: number; a1?: number; axis?: Pt; ratio?: number; text?: string; h?: number; rot?: number; just?: string; w?: number; lsp?: number; loops?: Pt[][]; solid?: boolean; lines?: { angle: number; base: Pt; offset: Pt; dashes: number[] }[]; id?: string; srcs?: string[]; hangle?: number; hscale?: number }
 export function shapesOut(items: SketchItem[], metresPerUnit: number, defs: CadBlockDef[] = []): ShapeOut[] {
   const unitsPerMm = 0.001 / metresPerUnit;
   const { fittings } = trayFittings(items, unitsPerMm);
   // Tray fittings are written as their labels at the joint ("Tee 300 × 150").
   const fittingTexts = fittings.map((f): ShapeOut => ({ layer: TRAY_LAYER, kind: 'text', pts: [[f.at[0] + 120 * unitsPerMm, f.at[1] + 120 * unitsPerMm]], text: fittingLabel(f), h: 100 * unitsPerMm, rot: 0 }));
-  return [...items.flatMap((it): ShapeOut[] => {
+  const one = (it: SketchItem): ShapeOut[] => {
     if (it.kind === 'dim') {
       const d = dimOf(it, metresPerUnit);
       // A dimension of a style is written as measured now (in its unit and decimals) unless typed over; one drawn
@@ -565,12 +579,11 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number, defs: CadB
       return [...pieces.map((q): ShapeOut => ({ layer: it.layer, kind: 'pline', pts: q })), { layer: it.layer, kind: 'text', pts: [textAt], text: l.text, h, rot: l.rot }];
     }
     if (it.hatch) {
-      // A hatch with its outline (a circle as 128 sides) and its pattern lines at the plan's 1:100 spacing, as drawn.
-      const loop: Pt[] = it.kind === 'circle'
-        ? Array.from({ length: 128 }, (_, i): Pt => [it.pts[0][0] + (it.r ?? 0) * Math.cos((i * 2 * Math.PI) / 128), it.pts[0][1] + (it.r ?? 0) * Math.sin((i * 2 * Math.PI) / 128)])
-        : it.pts;
-      const solid = !!defOf(it.hatch).solid;
-      return [{ layer: it.layer, kind: 'hatch', pts: [], loops: [loop], solid, ...(solid ? {} : { lines: placedLines(it.hatch, 100 * unitsPerMm) }) }];
+      // A hatch with its outline (a circle as 128 sides), its islands and its pattern lines at the plan's 1:100 spacing,
+      // as drawn; named for its pattern, with its angle (radians) and scale (drawing units per pattern unit).
+      const solid = !!defOf(it.hatch).solid, unit = 100 * unitsPerMm;
+      return [{ layer: it.layer, kind: 'hatch', pts: [], loops: [hatchOutlinePts(it), ...(it.holes ?? [])], solid, name: it.hatch.custom?.name ?? it.hatch.pattern.toUpperCase(), hangle: (it.hatch.angle * Math.PI) / 180, hscale: Math.max(0.2, it.hatch.scale) * unit,
+        ...(it.assoc?.length ? { srcs: it.assoc } : {}), ...(solid ? {} : { lines: atOrigin(placedLines(it.hatch, unit), it.hatch.origin) }) }];
     }
     if (it.kind === 'line' && it.pts.length > 2) return [{ layer: it.layer, kind: 'pline', pts: it.pts }];
     // A revision cloud as one closed polyline of arcs; an ellipse as an ellipse.
@@ -593,7 +606,9 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number, defs: CadB
         ...(f?.circle ? [{ layer: it.layer, kind: 'circle' as const, pts: [f.circle.c], r: f.circle.r }] : f?.pts ? [{ layer: it.layer, kind: 'pline' as const, pts: f.pts, closed: true }] : [])];
     }
     return [{ layer: it.layer, kind: it.kind, pts: it.pts, closed: it.closed, r: it.r, a0: it.a0, a1: it.a1 }];
-  }), ...fittingTexts];
+  };
+  // Each shape carries its object's id (an associative hatch names the shapes it follows).
+  return [...items.flatMap((it) => one(it).map((s): ShapeOut => ({ ...s, id: it.id }))), ...fittingTexts];
 }
 
 const attdefOut = (it: SketchItem): ShapeOut => ({ layer: it.layer, kind: 'attdef', pts: it.pts, text: it.text ?? '', h: it.h, rot: it.rot ?? 0, just: it.just ?? '', tag: it.tag ?? '', prompt: it.prompt ?? '', flags: { invisible: !!it.att?.invisible, constant: !!it.att?.constant, verify: !!it.att?.verify, preset: !!it.att?.preset, lock: !!it.att?.lock } });
