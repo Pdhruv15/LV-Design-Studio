@@ -120,13 +120,13 @@ export function lvTag(v: string | null): string {
 type Insert = Extract<DxfPrimitive, { type: 'insert' }>;
 const symbolBlocks = new Map<string, { block: DxfBlock; bounds: [[number, number], [number, number]] }>();
 
-/** The block of a library symbol (one per symbol and orientation): the symbol at library size about its body
- * centre, y up, on layer 0 so the insert's layer applies. Side labels are left out. */
-function symbolBlock(id: SymbolId, flipped: boolean) {
-  const key = `${id}${flipped ? '-UP' : ''}`;
+/** The block of a library symbol (one per symbol, orientation and drawn scale, so texts and dashes keep their
+ * size): the symbol about its body centre, y up, on layer 0 so the insert's layer applies. Side labels are left out. */
+function symbolBlock(id: SymbolId, flipped: boolean, drawn: number) {
+  const key = `${id}${flipped ? '-UP' : ''}${drawn === 1 ? '' : `-${Math.round(drawn * 100)}`}`;
   let hit = symbolBlocks.get(key);
   if (!hit) {
-    const items = svgToDxf(`<svg xmlns="http://www.w3.org/2000/svg"><g class="iec">${symBody(id, 0, 0, 1, flipped)}</g></svg>`, 0, true);
+    const items = svgToDxf(`<svg xmlns="http://www.w3.org/2000/svg"><g class="iec">${symBody(id, 0, 0, drawn, flipped)}</g></svg>`, 0, true);
     const xs: number[] = [], ys: number[] = [];
     for (const i of items) {
       const pts: [number, number][] = i.type === 'line' ? [[i.x1, i.y1], [i.x2, i.y2]] : i.type === 'polyline' ? i.points : i.type === 'circle' ? [[i.x - i.r, i.y - i.r], [i.x + i.r, i.y + i.r]] : i.type === 'text' ? [[i.x, i.y], [i.x, i.y + i.height]] : [];
@@ -185,9 +185,9 @@ export function svgToDxf(svgMarkup: string, height: number, block = false): DxfP
     };
     const symId = el.tagName === 'g' && !block ? el.getAttribute('data-sym') : null;
     if (symId && symId in SYMBOLS) {
-      const { block: def, bounds } = symbolBlock(symId as SymbolId, el.hasAttribute('data-sym-flip'));
+      const { block: def, bounds } = symbolBlock(symId as SymbolId, el.hasAttribute('data-sym-flip'), Number(el.getAttribute('data-sym-s')) || 1);
       const [px, py] = flip(apply(mm, Number(el.getAttribute('data-sym-x')), Number(el.getAttribute('data-sym-y'))));
-      const k = (Number(el.getAttribute('data-sym-s')) || 1) * scale;
+      const k = scale;
       const rot = -Math.atan2(mm[1], mm[0]);
       const [c, sn] = [Math.cos(rot), Math.sin(rot)];
       const corners = [[bounds[0][0], bounds[0][1]], [bounds[1][0], bounds[0][1]], [bounds[1][0], bounds[1][1]], [bounds[0][0], bounds[1][1]]].map(([a, b]): [number, number] => [px + k * (a * c - b * sn), py + k * (a * sn + b * c)]);

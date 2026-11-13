@@ -50,7 +50,7 @@ describe('library symbols as CAD blocks', () => {
   afterAll(() => vi.unstubAllGlobals());
 
   it('gives every symbol and orientation its own block name', () => {
-    const names = SYMBOL_IDS.flatMap((id) => [dxfBlockName(`LV-${id}`), dxfBlockName(`LV-${id}-UP`)]);
+    const names = SYMBOL_IDS.flatMap((id) => [dxfBlockName(`LV-${id}`), dxfBlockName(`LV-${id}-UP`), dxfBlockName(`LV-${id}-50`), dxfBlockName(`LV-${id}-UP-88`)]);
     expect(new Set(names).size).toBe(names.length);
     expect(names.every((n) => n.startsWith('LV-'))).toBe(true);
   });
@@ -66,9 +66,16 @@ describe('library symbols as CAD blocks', () => {
     near(geometry(expand(list[0])), geometry(svgToDxf(stripped(svg), 200)));
   });
 
-  it('scales a symbol drawn smaller', () => {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg"><g transform="translate(5 9)">${symSvg('cb', 20, 30, 0.5)}</g></svg>`;
-    near(geometry(expand(inserts(svgToDxf(svg, 100))[0])), geometry(svgToDxf(stripped(svg), 100)));
+  // At every drawn scale, code texts (ST, ELR) and dashes keep their size, as in the app.
+  it.each([0.5, 0.6, 0.8, 0.875])('expands symbols drawn at scale %s to the exploded geometry, texts included', (sc) => {
+    for (const [id, flipped] of [['cb', false], ['shunt', false], ['elr', true], ['rcd', false]] as [SymbolId, boolean][]) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg"><g transform="translate(5 9) rotate(20)">${symSvg(id, 20, 30, sc, flipped)}</g></svg>`;
+      const [ins] = inserts(svgToDxf(svg, 100));
+      expect(ins.name).toBe(dxfBlockName(`LV-${id}${flipped ? '-UP' : ''}-${Math.round(sc * 100)}`));
+      near(geometry(expand(ins)), geometry(svgToDxf(stripped(svg), 100)), `${id}@${sc}`);
+    }
+    const text = (id: SymbolId) => inserts(svgToDxf(`<svg xmlns="http://www.w3.org/2000/svg">${symSvg(id, 0, 0, sc)}</svg>`, 0))[0].block.items.filter((i) => i.type === 'text');
+    expect(text('shunt').length).toBeGreaterThan(0);
   });
 
   it('keeps dash pieces in the block and the insert extent covers it', () => {
@@ -109,11 +116,12 @@ describe('library symbols as CAD blocks', () => {
     expect(b.name).toBe('LV-CB');
     const dxf = toDxf(up);
     expect(count(dxf, '\r\nBLOCK\r\n')).toBe(2);
+    expect(inserts(svgToDxf(`<svg xmlns="http://www.w3.org/2000/svg">${symSvg('cb', 0, 0, 0.5)}</svg>`, 0))[0].name).toBe('LV-CB-50');
     const live = inserts(svgToDxf(renderToStaticMarkup(<svg><Sym id="cb" x={1} y={2} /></svg>), 50))[0];
     expect(live.block).toBe(b.block);
     const sheet = boardSheetSvg(dxfExportProject, dxfExportProject.boards[0], []);
     const legend = inserts(svgToDxf(sheet.svg, sheet.h));
     expect(count(sheet.svg, ' data-sym="')).toBe(legend.length);
-    for (const i of legend) expect(SYMBOLS[i.block.name.replace(/^LV-/, '').replace(/-UP$/, '').toLowerCase() as SymbolId]).toBeDefined();
+    for (const i of legend) expect(SYMBOLS[i.block.name.replace(/^LV-/, '').replace(/(-UP)?(-\d+)?$/, '').toLowerCase() as SymbolId]).toBeDefined();
   });
 });
