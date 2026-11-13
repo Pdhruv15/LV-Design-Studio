@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.112', date: '2026-11-12',
+    items: [
+      { title: 'Edit a block in place', text: 'In Design CAD, right-click a block you drew and choose Edit block in place (or pick it and type REFEDIT). Its objects come apart where the block stands, and the rest of the drawing fades and is locked, so you edit the block among what is around it. Draw, erase or change its objects; whatever you draw joins it. REFCLOSE then asks Save or Discard: Save redefines the block, and every insert of it shows the change; Discard puts it back as it was. Right-click empty space for Save back to the block or Discard changes. The drawing is not saved or exported until the edit is closed.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.111', date: '2026-11-12',
     items: [
       { title: 'Block editor', text: 'In Design CAD, right-click a block you drew and choose Open block editor, or type BEDIT and its name. The block opens as a drawing of its own, its base point at 0, 0 (marked on BE-REF, which is not part of the block): draw, erase and edit it with every tool, new objects going on layer 0 so each insert colours them by its own layer. BSAVE (or SAVE) saves it into the block, and every insert of it shows the change; BCLOSE closes the editor, asking first if there are changes not saved. Blocks inside the block show and can be inserted. An architect\'s block: right-click it and Copy as a block of this drawing first.', action: 'cad', actionLabel: 'Open Design CAD' }

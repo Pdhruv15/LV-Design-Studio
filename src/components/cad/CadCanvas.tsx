@@ -53,7 +53,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch: sketchIn = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, panLeft = false, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS, zoom, onZoomMenu, onDouble, pointStyle = POINT_STYLE_DEFAULT, blocks = [], onDrop }: {
+export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch: sketchIn = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, panLeft = false, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS, zoom, onZoomMenu, onDouble, pointStyle = POINT_STYLE_DEFAULT, blocks = [], onDrop, fadeExcept }: {
   view: CadView;
   /** Objects of the drawing erased in the app (CROP): their lines, texts and fills are not drawn. */
   hidden?: ErasedParts;
@@ -111,6 +111,9 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   /** References under the plan (src/model/cadRefs.ts): their lines (drawing units, absolute) with each line's layer,
    * the screen colour of each layer, and how faded they show (%). Drawn under the drawing; never picked. */
   refs?: { segs: Float64Array; segLayers: Uint16Array; colours: (string | number)[]; fade: number }[];
+  /** Edit in place (REFEDIT): the drawn objects being edited (their ids); the drawing, its references and every other
+   * drawn object show faded. */
+  fadeExcept?: Set<string>;
   /** The nearest snap point of the references within `r` (drawing units, absolute). */
   refSnap?: (x: number, y: number, r: number) => { p: Pt; kind: number } | undefined;
   /** The object being drawn, following the cursor (drawn on the cursor layer). */
@@ -332,11 +335,12 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     const px = 1 / scale;
     // References first, faded, under everything of the drawing.
     ctx.lineWidth = px;
+    const fa = fadeExcept ? 0.35 : 1;
     for (const r of refPaths) {
-      ctx.globalAlpha = r.alpha;
+      ctx.globalAlpha = r.alpha * fa;
       for (const l of r.layers) { ctx.strokeStyle = typeof l.colour === 'string' ? l.colour : shade(l.colour); ctx.stroke(l.path); }
     }
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = fa;
     // Hatches under the lines: solid ones filled; pattern lines clipped to the boundary, or a light fill when they would
     // be closer than 3 pixels (or too many to draw).
     for (const f of fills) {
@@ -347,7 +351,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       ctx.save();
       ctx.clip(f.path, 'evenodd');
       if (!families.length || families.some((x) => !x.lines.length)) {
-        ctx.globalAlpha = 0.18; ctx.fillStyle = col; ctx.fill(f.path, 'evenodd'); ctx.globalAlpha = 1;
+        ctx.globalAlpha = 0.18 * fa; ctx.fillStyle = col; ctx.fill(f.path, 'evenodd'); ctx.globalAlpha = fa;
       } else {
         ctx.strokeStyle = col; ctx.lineWidth = px;
         for (const { l, lines } of families) {
@@ -372,6 +376,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       ctx.stroke(b.path);
     }
     ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
     if (highlight?.some(([a, z]) => z > a)) {
       const p = new Path2D();
       for (const [a, z] of highlight) for (let i = a; i < z; i += 1) { p.moveTo(view.segs[i * 4], view.segs[i * 4 + 1]); p.lineTo(view.segs[i * 4 + 2], view.segs[i * 4 + 3]); }
@@ -473,6 +478,8 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     for (const it of sketch) {
       const ef = effective(it, layerStyle);
       if (ef.hidden) continue;
+      const ia = fadeExcept && !fadeExcept.has(it.id.split(':')[0]) ? 0.35 : 1;
+      ctx.globalAlpha = ia;
       if ((it.kind === 'text' && !it.frame) || it.kind === 'mtext') { drawLabel(it); continue; } // a framed text's frame is drawn with the lines first
       if (it.kind === 'point') {
         // A point: its style's marker about it, sized to the screen or in drawing units (never under 3 pixels).
@@ -498,7 +505,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         const ys = it.kind === 'circle' ? [it.pts[0][1] - (it.r ?? 0), it.pts[0][1] + (it.r ?? 0)] : it.pts.map((q) => q[1]);
         const bx: [number, number, number, number] = [Math.min(...xs) - o0, Math.min(...ys) - o1, Math.max(...xs) - o0, Math.max(...ys) - o1];
         const perMm = 100 * unitsPerMm;
-        if (defOf(it.hatch).solid) { ctx.globalAlpha = 0.3; ctx.fillStyle = col; ctx.fill(outline); ctx.globalAlpha = 1; }
+        if (defOf(it.hatch).solid) { ctx.globalAlpha = 0.3 * ia; ctx.fillStyle = col; ctx.fill(outline); ctx.globalAlpha = ia; }
         else {
           // Each line family: dots as small squares, else lines (dashed when the dashes are 4 pixels or more).
           const dsz = 2 / scale;
@@ -535,6 +542,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       }
       drawLabel(it);
     }
+    ctx.globalAlpha = 1;
     // Circuit wiring: arcs in the devices' colour, the home run ending in an arrow at the DB.
     const lvC = colour('--cad-dev', '#f5c04a');
     if (wiring.length) {
@@ -620,7 +628,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         ctx.fillText(fittingLabel(f), sx + fpx * 1.2, sy - fpx * 1.2);
       }
     }
-  }, [t, size, batches, fills, gone, layersOn, toggles.grid, toggles.lwt, draft.gridMm, draft.gridMajor, view, highlight, devices, wiring, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots, layerStyle, refPaths, pointStyle]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
+  }, [t, size, batches, fills, gone, layersOn, toggles.grid, toggles.lwt, draft.gridMm, draft.gridMajor, view, highlight, devices, wiring, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots, layerStyle, refPaths, pointStyle, fadeExcept]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
 
   /** The cursor: crosshair and pick box, and the snap marker with its name. */
   function drawCursor(at: Pt | null, snap?: { p: Pt; kind: number }, guide?: Landing['guide']) {

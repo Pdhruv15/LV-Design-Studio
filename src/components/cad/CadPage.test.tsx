@@ -3614,7 +3614,7 @@ describe('CAD 2D gap plan: INSERT and the Blocks palette', () => {
     // The right-click menu of a block starts with Select all of this block.
     await rightClickAt(X + 1000, 1150);
     const labels = [...document.querySelectorAll('[role="menu"] button')].map((b) => b.textContent);
-    expect(labels.slice(0, 3)).toEqual(['Repeat DIVIDE', 'Open block editor', 'Select all of this block']);
+    expect(labels.slice(0, 4)).toEqual(['Repeat DIVIDE', 'Open block editor', 'Edit block in place', 'Select all of this block']);
     await act(async () => { button('Select all of this block').click(); });
     expect(last()).toBe('SELECT  Every "DB-A" block picked');
   });
@@ -4244,5 +4244,58 @@ describe('block editor (BEDIT, BSAVE, BCLOSE)', () => {
     await until(() => state.view?.file === 'Block B2 = sample-villa-gf.dxf.dxf');
     await command('BCLOSE');
     expect(state.view?.file).toBe(F);
+  });
+});
+
+describe('edit block in place (REFEDIT, REFCLOSE)', () => {
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const hist = () => document.querySelector('.cad-hist')!.textContent;
+  const right = (x: number, y: number) => { const [sx, sy] = screenOf(x, y); return act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); }); };
+  const entry = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find((b) => (b.firstElementChild?.textContent ?? b.textContent) === label)!;
+  const B1: CadBlockDef = { name: 'B1', items: [{ id: 'b1', kind: 'line', layer: '0', pts: [[0, 0], [2000, 0]] }] };
+  const ins = (id: string, y: number): SketchItem => ({ id, kind: 'insert', layer: '0', pts: [[X, y]], block: 'B1' });
+  const def = () => blockDefOf(blockDefsOf(project, F), 'B1')!;
+  const items = () => sketchOf(project, F);
+  const start = async () => {
+    const p: Project = { ...villa, cadBlockDefs: [{ file: F, defs: [B1] }], cadSketch: [{ file: F, items: [ins('I1', 0), ins('I2', 5000)] }] };
+    project = p; act(() => root.render(<Host start={p} />)); await flush(); act(() => state.toggle('osnap'));
+  };
+  const round = (pts: [number, number][]) => pts.map(([x, y]) => [Math.round(x / 10) * 10 + 0, Math.round(y / 10) * 10 + 0]);
+
+  it('from a block\'s menu: its objects picked out where it stands, the rest locked; what is drawn joins it; REFCLOSE Save redefines it', async () => {
+    await start();
+    await clickAt(X + 1000, 0);
+    await right(X + 1000, 0);
+    await act(async () => { entry('Edit block in place').click(); });
+    expect(hist()).toMatch(/^REFEDIT {2}Editing "B1" in place: its 1 object picked out, the rest faded and locked/);
+    expect(items().map((it) => it.kind)).toEqual(['insert', 'line']); // I2 stays; I1 is its line now
+    expect(project.cadRefEdit).toMatchObject({ file: F, index: 0, others: ['I2'] });
+    // The other insert is locked: a click on it picks nothing; the block's line can be picked.
+    await clickAt(X + 1000, 5000);
+    expect(state.selected).toBeNull();
+    await command('L'); await clickAt(X, 500); await clickAt(X + 2000, 500); await command('');
+    await command('SAVE');
+    expect(hist()).toBe('SAVE  "B1" is being edited in place: REFCLOSE first (Save or Discard).');
+    await command('REFCLOSE');
+    expect(hist()).toBe('REFCLOSE  Save the changes to "B1"? [Save/Discard/Cancel] <Save>:');
+    await command('');
+    expect(project.cadRefEdit).toBeUndefined();
+    expect(items().map((it) => it.id)).toEqual(['I1', 'I2']);
+    expect(def().items.map((it) => round(it.pts))).toEqual([[[0, 0], [2000, 0]], [[0, 500], [2000, 500]]]);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('REFCLOSE  "B1" saved: 2 objects · 2 inserts in sample-villa-gf.dxf updated · ⌘Z to undo');
+  });
+
+  it('REFEDIT on the block picked, the line erased, then Discard changes on the blank menu: all as it was', async () => {
+    await start();
+    await clickAt(X + 1000, 0);
+    await command('REFEDIT');
+    await clickAt(X + 1000, 0);
+    await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true })); });
+    expect(items().map((it) => it.id)).toEqual(['I2']);
+    await right(X + 50000, 50000);
+    await act(async () => { entry('Discard changes').click(); });
+    expect(project.cadRefEdit).toBeUndefined();
+    expect(items().map((it) => it.id)).toEqual(['I1', 'I2']);
+    expect(def()).toEqual(B1);
   });
 });
