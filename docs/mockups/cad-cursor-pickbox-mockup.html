@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Design CAD — cursor and pick box (mockup)</title>
+<style>
+  :root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--ok:#37d67a;--warn:#f5c04a;--bad:#ff5d6c;--res-cur:#7fd1ff;--now:#7fcf8a;--new:#6fb3ff;--chg:#f0b54a}
+  *{box-sizing:border-box}
+  body{width:1952px;margin:0;padding:24px 28px 60px;box-sizing:border-box;background:#1b1d21;color:var(--tx);font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+  h1{font-size:18px;margin:0 0 4px} h2{font-size:14px;margin:30px 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+  p.lead{color:var(--mut);margin:0 0 12px;max-width:980px}
+  .key{display:flex;gap:18px;font-size:12px;color:var(--mut);margin-bottom:6px;flex-wrap:wrap}
+  .key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+  svg{display:block;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+  .two{display:grid;grid-template-columns:930px 930px;gap:36px}
+  .panel h3{font-size:13px;margin:0 0 6px}
+  .panel svg{border:1px solid var(--line)}
+  ol.cl{list-style:none;margin:8px 0 0;padding:0;font-size:12.5px;flex:1}
+  ol.cl li{display:flex;gap:8px;align-items:center;margin:0 0 4px}
+  ol.cl b{display:inline-flex;width:18px;height:18px;border-radius:9px;background:var(--p2);border:1.5px solid var(--mut);color:var(--tx);font-size:11px;align-items:center;justify-content:center;flex:none}
+  .under{display:flex;gap:16px;align-items:flex-start}
+  .loupe{margin-top:8px;font-size:11.5px;color:var(--mut)} .loupe svg{border:1px solid var(--line-strong)}
+  .tiles{display:grid;grid-template-columns:repeat(4,460px);gap:20px 18px}
+  .tile h3{font-size:13px;margin:0 0 2px} .tile .when{font-size:11.5px;color:var(--mut);margin:0 0 6px;min-height:32px}
+  .tile svg{border:1px solid var(--line)}
+  .tile p{margin:5px 0 0;font-size:12px;min-height:34px}
+  .tile p b.t{color:var(--now)} .tile p b.p{color:var(--new)}
+  .cap{font-size:12px;margin:6px 0 0}
+  .cap b.t{color:var(--now)} .cap b.p{color:var(--new)}
+  .row4{display:flex;gap:24px;align-items:flex-start}
+  .row4 svg{border:1px solid var(--line)}
+  .dlgs{display:flex;gap:40px;align-items:flex-start}
+  .dlgs h3{font-size:13px;margin:0 0 6px}
+  .zoom{zoom:1.5}
+  .dlg{width:236px;background:#1D2024;border:1px solid #4A5058;border-radius:4px;font-size:12px;color:#E6E8EB;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+  .dlg .tb{height:22px;background:#26292E;border-bottom:1px solid #353A41;display:flex;align-items:center;justify-content:space-between;padding:0 6px 0 8px;font-size:11.5px;border-radius:3px 3px 0 0}
+  .dlg .tb .x{color:#A3ABB5;font-size:13px}
+  .dlg .tabs{display:flex;flex-wrap:wrap;gap:0 2px;padding:4px 6px 0;border-bottom:1px solid #353A41}
+  .dlg .tabs span{font-size:10.5px;color:#A3ABB5;padding:3px 5px 4px;border-bottom:2px solid transparent}
+  .dlg .tabs .on{color:#E6E8EB;border-bottom-color:#F5B301}
+  .dlg .body{padding:6px 0 8px}
+  .dlg .row{display:grid;grid-template-columns:1fr 96px;align-items:center;padding:0 8px 0 5px;min-height:22px;border-left:3px solid transparent;color:#A3ABB5}
+  .dlg .row.n{border-left-color:#6fb3ff} .dlg .row.c{border-left-color:#f0b54a}
+  .dlg .row.cb{grid-template-columns:1fr;color:#E6E8EB}
+  .dlg .row .l{display:flex;align-items:center;gap:6px}
+  .dlg .row .r{display:flex;align-items:center;justify-content:flex-end}
+  .dlg .row .note{grid-column:1/-1;font-size:10.5px;color:#A3ABB5;padding:0 0 4px}
+  .dlg .in{height:18px;width:48px;background:#15171A;border:1px solid #3a3e45;border-radius:2px;font:11.5px ui-monospace,Menlo,monospace;color:#E6E8EB;display:inline-flex;align-items:center;justify-content:flex-end;padding:0 4px}
+  .dlg .u{margin-left:4px;color:#A3ABB5;font-size:11px;width:14px}
+  .dlg .sel{width:90px;height:18px;border:1px solid #3a3e45;background:#15171A;border-radius:2px;display:flex;align-items:center;justify-content:space-between;padding:0 5px;font-size:11px;color:#E6E8EB}
+  .dlg .ck{width:11px;height:11px;border:1px solid #4A5058;border-radius:2px;background:#15171A;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .dlg .ck.on{background:#F5B301;border-color:#F5B301}
+  .dlg .btnrow{display:flex;justify-content:flex-end;padding:6px 8px 0}
+  .dlg .btn{height:20px;padding:0 10px;border:1px solid #4A5058;background:#26292E;border-radius:3px;font-size:11px;color:#E6E8EB;display:flex;align-items:center}
+  table{border-collapse:collapse;margin-top:8px;font-size:12.5px;width:100%} td,th{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top} th{color:var(--mut);font-weight:600;background:var(--panel)}
+  td:first-child{white-space:nowrap;font-weight:600;width:170px}
+</style>
+</head>
+<body>
+<h1>Design CAD — cursor and pick box</h1>
+<p class="lead">Proposal mockup (not built). The cursor shows what the canvas is waiting for: a point, objects, or nothing. It reads over any line colour, its box is the area a click hits, and the object a click would pick is marked first.</p>
+<div class="key">
+  <span><i style="background:var(--now)"></i>In the app today</span>
+  <span><i style="background:var(--new)"></i>New</span>
+  <span><i style="background:var(--chg)"></i>Changed</span>
+  <span><i style="background:transparent;border:1px dashed #A3ABB5"></i>Optional</span>
+</div>
+
+<h2>1 · Today and proposed</h2>
+<div class="two">
+  <div class="panel"><h3>Today</h3><div id="s1a"></div>
+    <div class="under"><ol class="cl">
+      <li><b>1</b>The crosshair is the wall colour</li>
+      <li><b>2</b>Lines run through the box and cover the wall</li>
+      <li><b>3</b>Box 9 px, but clicks reach 12 px (dashed red: the real click area)</li>
+      <li><b>4</b>Nothing shows what a click will pick</li>
+    </ol><div class="loupe" id="s1aZ"></div></div></div>
+  <div class="panel"><h3>Proposed</h3><div id="s1b"></div>
+    <div class="under"><ol class="cl">
+      <li><b>1</b>Outlined: reads over any colour</li>
+      <li><b>2</b>Gap around the box</li>
+      <li><b>3</b>Box 12 px = the click area</li>
+      <li><b>4</b>The wall a click would pick is marked</li>
+      <li><b style="border-style:dashed">5</b>Optional: its name after a 0.5 s pause</li>
+    </ol><div class="loupe" id="s1bZ"></div></div></div>
+</div>
+
+<h2>2 · Cursor states (drawn at 2×)</h2>
+<div class="tiles" id="tiles"></div>
+
+<h2>3 · Window and crossing</h2>
+<div class="two">
+  <div class="panel"><h3>Window (drag left to right)</h3><div id="s3a"></div>
+    <div class="cap"><b class="p">Proposed:</b> solid blue edge, light blue tint, "Window" beside the cursor. &nbsp; <b class="t">Today:</b> green, solid.</div></div>
+  <div class="panel"><h3>Crossing (drag right to left)</h3><div id="s3b"></div>
+    <div class="cap"><b class="p">Proposed:</b> dashed green edge, light green tint, "Crossing" beside the cursor. &nbsp; <b class="t">Today:</b> green, dashed.</div></div>
+</div>
+
+<h2>4 · Close-up at 4×</h2>
+<div class="row4"><div id="s4a"></div><div id="s4b"></div></div>
+<p class="cap" style="color:var(--mut)">Drawn on a 4 px grid, one square per screen pixel. The outline hides the line behind it for 3 px each side; the marker is 14 px across (7 px from the centre), 2 px stroke over a 4 px outline.</p>
+
+<h2>5 · Sizes you can set</h2>
+<h3 style="font-size:13px;margin:0 0 2px">Crosshair size: % of the view (1–100, default 100)</h3>
+<div class="tiles" id="sz1"></div>
+<h3 style="font-size:13px;margin:18px 0 2px">Pick box size: px (3–30, default 12), drawn at 3×; the dashed square is the click area, the same size</h3>
+<div style="display:grid;grid-template-columns:repeat(5,360px);gap:18px" id="sz2"></div>
+<p class="cap" style="color:var(--mut)">Both sizes stay the same on screen at any zoom. Today the pick box defaults to 9 px and changes only the drawing, not the click area.</p>
+
+<h2>6 · Drafting settings</h2>
+<div class="dlgs">
+  <div><h3>Selection tab</h3><div class="zoom"><div class="dlg">
+    <div class="tb"><span>Drafting settings</span><span class="x">×</span></div>
+    <div class="tabs"><span>Snap &amp; grid</span><span>Polar tracking</span><span>Object snap</span><span>Dynamic input</span><span class="on">Selection</span><span>Cursor</span><span>Units &amp; level</span></div>
+    <div class="body">
+      <div class="row cb"><div class="l"><span class="ck on" data-ck></span>Shade the selection window</div></div>
+      <div class="row cb"><div class="l"><span class="ck on" data-ck></span>Grips on what is picked</div></div>
+      <div class="row"><div>Grip size</div><div class="r"><span class="in">8</span><span class="u">px</span></div></div>
+      <div class="row c"><div>Pick box size</div><div class="r"><span class="in">12</span><span class="u">px</span></div><div class="note">now also the click area; was 9</div></div>
+      <div class="row cb n"><div class="l"><span class="ck on" data-ck></span>Highlight what is under the pick box</div></div>
+      <div class="row cb n"><div class="l"><span class="ck" data-ck></span>Name tag after a pause</div></div>
+      <div class="btnrow"><span class="btn">Reset</span></div>
+    </div></div></div>
+    <p class="cap" style="color:var(--mut)">Blue bar: new row. Amber bar: changed row.</p></div>
+  <div><h3>Cursor tab</h3><div class="zoom"><div class="dlg">
+    <div class="tb"><span>Drafting settings</span><span class="x">×</span></div>
+    <div class="tabs"><span>Snap &amp; grid</span><span>Polar tracking</span><span>Object snap</span><span>Dynamic input</span><span>Selection</span><span class="on">Cursor</span><span>Units &amp; level</span></div>
+    <div class="body">
+      <div class="row"><div>Crosshair size</div><div class="r"><span class="in">100</span><span class="u">%</span></div><div class="note">100 = across the canvas</div></div>
+      <div class="row n"><div>Crosshair colour</div><div class="r"><span class="sel"><span>Drawing ink</span><svg width="8" height="6" viewBox="0 0 8 6"><path d="M0 0H8L4 6Z" fill="#A3ABB5"/></svg></span></div></div>
+      <div class="row cb n"><div class="l"><span class="ck on" data-ck></span>Outline the cursor</div></div>
+      <div class="row"><div>Snap aperture</div><div class="r"><span class="in">10</span><span class="u">px</span></div></div>
+      <div class="row"><div>Snap marker size</div><div class="r"><span class="in">7</span><span class="u">px</span></div></div>
+      <div class="row cb"><div class="l"><span class="ck on" data-ck></span>Snap name beside the marker</div></div>
+      <div class="row cb"><div class="l"><span class="ck on" data-ck></span>Show lineweights (LWT)</div></div>
+      <div class="btnrow"><span class="btn">Reset</span></div>
+    </div></div></div></div>
+</div>
+
+<h2>Summary</h2>
+<table>
+  <tr><th>State</th><th>Today</th><th>Proposed</th></tr>
+  <tr><td>Ready</td><td>Crosshair through a 9 px box, same colour as the drawing; nothing marked</td><td>Outlined crosshair with a 2 px gap around a 12 px box; the object under the box is highlighted</td></tr>
+  <tr><td>Point wanted</td><td>Crosshair and box together</td><td>Crosshair only, lines meet at the point; snap marker and name as today</td></tr>
+  <tr><td>Objects wanted</td><td>Crosshair and box together</td><td>Pick box only; the object under it is highlighted</td></tr>
+  <tr><td>Shift held</td><td>No sign (Shift-click toggles)</td><td>A small + at the box's corner when a click would add, − when it would remove</td></tr>
+  <tr><td>Over a grip</td><td>The grip does not react</td><td>The box locks onto the grip; the grip turns the hover colour</td></tr>
+  <tr><td>Window / crossing</td><td>Both green; told apart by solid or dashed</td><td>Window blue and solid with a "Window" tag; crossing green and dashed with a "Crossing" tag</td></tr>
+  <tr><td>Panning</td><td>Crosshair still shown</td><td>An open hand, closed while dragging; no crosshair</td></tr>
+  <tr><td>Box size and clicks</td><td>Box 9 px, clicks reach 12 px</td><td>One pick size: the box is the click area, default 12 px</td></tr>
+  <tr><td>Outline and gap</td><td>None; lines cross the box</td><td>1 px line over a 3 px outline in the canvas colour; 2 px gap</td></tr>
+  <tr><td>Name tag</td><td>None</td><td>Optional, off by default: kind and layer after a 0.5 s pause</td></tr>
+</table>
+
+<script>
+const TH={
+  dark:{bg:'#15171A',ink:'#E6E8EB',panel:'#1D2024',bd:'#4A5058',ok:'#37d67a',cyan:'#7fd1ff',cable:'#f5c04a',dim:'#A3ABB5',hl:'#F5B301',mut:'#A3ABB5',bad:'#ff5d6c',warn:'#f5c04a'},
+  light:{bg:'#F5F3EF',ink:'#272420',panel:'#ffffff',bd:'#a9a398',ok:'#177336',cyan:'#0369a1',cable:'#a86a00',dim:'#5f5a52',hl:'#875800',mut:'#5f5a52',bad:'#c0283a',warn:'#a86a00'}
+};
+const ln=(x1,y1,x2,y2,c,w,x='')=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${w}" ${x}/>`;
+const lampS=(cx,cy,c,w)=>`<circle cx="${cx}" cy="${cy}" r="7" fill="none" stroke="${c}" stroke-width="${w}"/>`+ln(cx-4.9,cy-4.9,cx+4.9,cy+4.9,c,w)+ln(cx-4.9,cy+4.9,cx+4.9,cy-4.9,c,w);
+
+function plan(k,g,th){
+  const X=v=>v*k, ink=th.ink;
+  const x0=X(12),y0=X(12),x1=X(218),y1=X(98),ix0=x0+g,iy0=y0+g,ix1=x1-g,iy1=y1-g;
+  const px=X(120),py1=X(60),dx0=X(45),dx1=X(65),R=dx1-dx0;
+  const lamps=[[50,35],[85,35],[150,35],[185,35]].map(([a,b])=>[X(a),X(b)]);
+  const dbw=16+4*k,dbh=10+2*k,dbx=ix1-dbw,dby=X(69)-dbh/2,f=5+1.5*k;
+  const W=(a,b,c,d)=>ln(a,b,c,d,ink,1.5);
+  let s='';
+  s+=W(x0,y0,x1,y0)+W(x0,y0,x0,y1)+W(x1,y0,x1,y1)+W(x0,y1,dx0,y1)+W(dx1,y1,x1,y1);
+  s+=W(ix0,iy0,ix1,iy0)+W(ix0,iy0,ix0,iy1)+W(ix1,iy0,ix1,iy1)+W(ix0,iy1,dx0,iy1)+W(dx1,iy1,ix1,iy1)+W(dx0,iy1,dx0,y1)+W(dx1,iy1,dx1,y1);
+  s+=W(px,iy0,px,py1)+W(px+g,iy0,px+g,py1)+W(px,py1,px+g,py1);
+  s+=`<path d="M${dx0} ${iy1-R} A${R} ${R} 0 0 1 ${dx1} ${iy1}" fill="none" stroke="${ink}" stroke-width="1" opacity=".7"/>`+ln(dx0,iy1,dx0,iy1-R,ink,1);
+  // dimension
+  const dy=X(7),tk=2+k;
+  s+=ln(ix0,dy,ix1,dy,th.dim,1)+ln(ix0,dy-tk,ix0,dy+tk,th.dim,1)+ln(ix1,dy-tk,ix1,dy+tk,th.dim,1);
+  s+=`<text x="${(ix0+ix1)/2}" y="${dy-2}" text-anchor="middle" font-size="${f}" fill="${th.dim}">4200</text>`;
+  // cable
+  const cy1=X(69),cy2=X(50);
+  s+=`<polyline points="${dbx},${cy1} ${X(150)},${cy1} ${X(150)},${cy2} ${X(50)},${cy2}" fill="none" stroke="${th.cable}" stroke-width="1.5"/>`;
+  for(const a of [50,85,150]) s+=ln(X(a),cy2,X(a),X(35)+7,th.cable,1.5);
+  s+=`<rect x="${dbx}" y="${dby}" width="${dbw}" height="${dbh}" fill="none" stroke="${th.cable}" stroke-width="1.5"/>`;
+  s+=`<text x="${ix1}" y="${dby-2}" text-anchor="end" font-size="${f}" fill="${th.cable}">DB-GF-01</text>`;
+  for(const [a,b] of lamps) s+=lampS(a,b,th.cyan,1.5);
+  return {s,geo:{X,x0,y0,x1,y1,ix0,iy0,ix1,iy1,px,py1,lamps,g}};
+}
+const hovLine=(th,x1,y1,x2,y2,c)=>ln(x1,y1,x2,y2,th.hl,8.5,'opacity=".4"')+ln(x1,y1,x2,y2,c,3.5);
+const hovLamp=(th,cx,cy,c)=>`<g opacity=".4">${lampS(cx,cy,th.hl,8.5)}</g>`+lampS(cx,cy,c,3.5);
+
+function cur(th,cx,cy,vb,mode){
+  const h=mode==='today'?4.5:6,e=h+2,L=vb.x,R=vb.x+vb.w,T=vb.y,B=vb.y+vb.h;
+  let segs=[],box=false;
+  if(mode==='ready'){segs=[[L,cy,cx-e,cy],[cx+e,cy,R,cy],[cx,T,cx,cy-e],[cx,cy+e,cx,B]];box=true}
+  else if(mode==='point'){segs=[[L,cy,R,cy],[cx,T,cx,B]]}
+  else if(mode==='objects'){box=true}
+  else if(mode==='today'){segs=[[L,cy,R,cy],[cx,T,cx,B]];box=true}
+  const bx=`<rect x="${cx-h}" y="${cy-h}" width="${2*h}" height="${2*h}" fill="none"`;
+  let s='<g shape-rendering="crispEdges">';
+  if(mode!=='today'){
+    for(const q of segs) s+=ln(...q,th.bg,3);
+    if(box) s+=bx+` stroke="${th.bg}" stroke-width="3"/>`;
+  }
+  for(const q of segs) s+=ln(...q,th.ink,1);
+  if(box) s+=bx+` stroke="${th.ink}" stroke-width="1"/>`;
+  return s+'</g>';
+}
+const snap=(th,cx,cy)=>`<g shape-rendering="crispEdges"><rect x="${cx-7}" y="${cy-7}" width="14" height="14" fill="none" stroke="${th.bg}" stroke-width="4"/><rect x="${cx-7}" y="${cy-7}" width="14" height="14" fill="none" stroke="${th.ok}" stroke-width="2"/></g>`;
+function tag(th,x,y,t,dash,k=1){
+  const w=Math.round(t.length*5.8+10)*k;
+  return `<rect x="${x}" y="${y}" width="${w}" height="${15*k}" rx="${2*k}" fill="${th.panel}" stroke="${dash?'#A3ABB5':th.bd}" stroke-width="${k}" ${dash?`stroke-dasharray="${3*k} ${2*k}"`:''}/><text x="${x+5*k}" y="${y+11*k}" font-size="${11*k}" fill="${th.ink}">${t}</text>`;
+}
+const badge=(th,cx,cy,sym)=>{const x=cx+6,y=cy-17;return `<rect x="${x}" y="${y}" width="11" height="11" fill="${th.panel}" stroke="${th.bd}" stroke-width="1"/>`+(sym==='+'?ln(x+2.5,y+5.5,x+8.5,y+5.5,'#37d67a',1.5)+ln(x+5.5,y+2.5,x+5.5,y+8.5,'#37d67a',1.5):ln(x+2.5,y+5.5,x+8.5,y+5.5,'#ff5d6c',1.5))};
+function hand(th,cx,cy){
+  const el=(sw,st)=>{
+    const F=[[-7,-3,3.2,9],[-3.6,-8,3.2,14],[-0.2,-9,3.2,15],[3.2,-7,3.2,13]];
+    let s=`<g transform="translate(${cx} ${cy})" fill="${th.bg}" stroke="${st}" stroke-width="${sw}" stroke-linejoin="round">`;
+    s+=`<rect x="-11" y="0" width="3.2" height="9" rx="1.6" transform="rotate(-30 -9 4)"/>`;
+    for(const [a,b,c,d] of F) s+=`<rect x="${a}" y="${b}" width="${c}" height="${d}" rx="1.6"/>`;
+    s+=`<rect x="-7" y="2" width="13.4" height="9" rx="3"/></g>`;
+    return s;
+  };
+  return el(3,th.bg)+el(1,th.ink);
+}
+const co=(n,x,y,tx,ty,d)=>`<g>${ln(x,y,tx,ty,'#A3ABB5',1,'stroke-dasharray="3 2"')}<circle cx="${x}" cy="${y}" r="9" fill="#26292E" stroke="#A3ABB5" stroke-width="1.5" ${d?'stroke-dasharray="3 2"':''}/><text x="${x}" y="${y+4}" text-anchor="middle" font-size="11" font-weight="700" fill="#E6E8EB">${n}</text></g>`;
+
+/* ---------- section 1 ---------- */
+function s1(proposed){
+  const th=TH.dark,{s,geo}=plan(4,14,th),vb={x:0,y:0,w:930,h:420};
+  const cx=484,cy=160;
+  let o=s;
+  if(proposed){
+    o+=hovLine(th,geo.px,geo.iy0,geo.px,geo.py1,th.ink);
+    o+=cur(th,cx,cy,vb,'ready');
+    o+=tag(th,492,168,'Line · A-WALL',true);
+  }else{
+    o+=cur(th,cx,cy,vb,'today');
+    o+=`<circle cx="${cx}" cy="${cy}" r="6" fill="none" stroke="#ff5d6c" stroke-width="1" stroke-dasharray="1.5 1.5"/>`;
+  }
+  // The 3× view around the cursor (no callouts in it).
+  const Z={x:424,y:136,w:156,h:56};
+  const loupe=`<svg width="${Z.w*3}" height="${Z.h*3}" viewBox="${Z.x} ${Z.y} ${Z.w} ${Z.h}" style="background:${th.bg}"><rect x="${Z.x}" y="${Z.y}" width="${Z.w}" height="${Z.h}" fill="${th.bg}"/>${o}</svg><div>3× around the cursor</div>`;
+  o+=proposed
+    ? co(1,690,100,690,160)+co(2,410,100,484,151)+co(3,440,235,478,166)+co(4,540,265,481,222)+co(5,660,232,577,180,true)
+    : co(1,690,100,690,160)+co(2,410,100,481,157)+co(3,440,235,479,165)+co(4,540,265,481,222);
+  return [`<svg width="930" height="420" viewBox="0 0 930 420" style="background:${th.bg}"><rect width="930" height="420" fill="${th.bg}"/>${o}</svg>`,loupe];
+}
+{const [a,az]=s1(false),[b,bz]=s1(true);
+document.getElementById('s1a').innerHTML=a; document.getElementById('s1aZ').innerHTML=az;
+document.getElementById('s1b').innerHTML=b; document.getElementById('s1bZ').innerHTML=bz;}
+
+/* ---------- section 2 ---------- */
+function frag(th,inner,cmd){
+  let c='';
+  if(cmd) c=`<rect x="0" y="98" width="230" height="12" fill="${th.panel}"/>`+ln(0,98.5,230,98.5,th.bd,1)+`<text x="4" y="106.5" font-size="7" font-family="ui-monospace,Menlo,monospace" fill="${th.ink}" xml:space="preserve">${cmd}</text>`;
+  return `<svg width="460" height="220" viewBox="0 0 230 110"><rect width="230" height="110" fill="${th.bg}"/>${inner}${c}</svg>`;
+}
+const VB={x:0,y:0,w:230,h:110};
+const tiles=[];
+function addTile(title,when,svg,today,prop){tiles.push(`<div class="tile"><h3>${title}</h3><div class="when">${when}</div>${svg}<p><b class="t">Today:</b> ${today}</p><p><b class="p">Proposed:</b> ${prop}</p></div>`)}
+(function(){
+  const th=TH.dark,{s,geo}=plan(1,6,th),G=geo;
+  const hovWall=hovLine(th,120,18,120,60,th.ink);
+  // 1 Ready
+  addTile('1 · Ready','No command running.',frag(th,s+hovWall+cur(th,118,45,VB,'ready')),
+    'Crosshair through a 9 px box, wall colour; nothing marked.','Crosshair with a gap around a 12 px box; the object under the box is highlighted.');
+  // 2 Point wanted
+  addTile('2 · Point wanted','A command asks for a point (LINE, MOVE base point, INSERT, Zoom window…).',
+    frag(th,s+ln(70,84,120,60,th.cyan,1,'stroke-dasharray="4 3"')+`<rect x="68.5" y="82.5" width="3" height="3" fill="${th.cyan}"/>`+cur(th,120,60,VB,'point')+snap(th,120,60)+tag(th,127,72,'Endpoint',false,0.5),'LINE  Specify next point:'),
+    'Crosshair and box together.','Crosshair only, lines meet at the point; snap marker and name as today.');
+  // 3 Objects wanted
+  addTile('3 · Objects wanted','A command asks to select objects (Select objects:, SELECTSIMILAR, TEXTEDIT…).',
+    frag(th,s+hovLamp(th,85,35,th.cyan)+cur(th,85,35,VB,'objects'),'MOVE  Select objects:'),
+    'Crosshair and box together.','Pick box only; the object under it is highlighted.');
+  // 4 Shift add
+  addTile('4 · Shift: add','Shift held, ready or objects wanted; a click would add the object.',
+    frag(th,s+hovLamp(th,150,35,th.cyan)+cur(th,150,35,VB,'ready')+badge(th,150,35,'+')),
+    'No sign (Shift-click toggles).','A small + at the box\'s corner.');
+  // 5 Shift remove
+  addTile('5 · Shift: remove','Shift held over an object that is already picked; a click would remove it.',
+    frag(th,s+hovLamp(th,150,35,th.ok)+cur(th,150,35,VB,'ready')+badge(th,150,35,'-')),
+    'No sign (Shift-click toggles).','A small − at the box\'s corner.');
+  // 6 Over a grip
+  addTile('6 · Over a grip','Something picked, grips shown.',
+    frag(th,s+ln(75,85,135,70,th.ok,1.5)+`<g shape-rendering="crispEdges"><rect x="101" y="73.5" width="8" height="8" fill="${th.ok}"/><rect x="131" y="66" width="8" height="8" fill="${th.ok}"/><rect x="71" y="81" width="8" height="8" fill="${th.warn}"/></g>`+cur(th,75,85,VB,'ready')),
+    'The grip does not react.','The box locks onto the grip; the grip turns the hover colour.');
+  // 7 Panning
+  addTile('7 · Panning','Middle button, Space held, Pan tool.',
+    frag(th,s+hand(th,100,76)),
+    'Crosshair still shown.','An open hand, closed while dragging; no crosshair.');
+  // 8 Light theme
+  const L=TH.light,pl=plan(1,6,L);
+  addTile('8 · Light theme','The Ready state on the light canvas.',
+    frag(L,pl.s+hovLine(L,120,18,120,60,L.ink)+cur(L,118,45,VB,'ready')),
+    'Crosshair in the drawing ink; lost over dark lines.','Outline in the canvas colour; amber highlight in the light-theme accent.');
+})();
+document.getElementById('tiles').innerHTML=tiles.join('');
+
+/* ---------- section 3 ---------- */
+function s3(win){
+  const th=TH.dark,{s}=plan(4,14,th),vb={x:0,y:110,w:930,h:300};
+  let o=s;
+  if(win){
+    o+=`<rect x="170" y="120" width="200" height="52" fill="#7fd1ff" fill-opacity=".12" stroke="#7fd1ff" stroke-width="1" shape-rendering="crispEdges"/>`;
+    o+=cur(th,370,172,vb,'ready')+tag(th,384,160,'Window');
+  }else{
+    o+=`<rect x="540" y="176" width="160" height="60" fill="#37d67a" fill-opacity=".12" stroke="#37d67a" stroke-width="1" stroke-dasharray="6 4" shape-rendering="crispEdges"/>`;
+    o+=cur(th,540,176,vb,'ready')+tag(th,552,180,'Crossing');
+  }
+  return `<svg width="930" height="300" viewBox="0 110 930 300" style="background:${th.bg}"><rect x="0" y="110" width="930" height="300" fill="${th.bg}"/>${o}</svg>`;
+}
+document.getElementById('s3a').innerHTML=s3(true);
+document.getElementById('s3b').innerHTML=s3(false);
+
+/* ---------- section 4 ---------- */
+(function(){
+  const th=TH.dark,M='#A3ABB5';
+  const pat=`<defs><pattern id="pg" width="4" height="4" patternUnits="userSpaceOnUse"><path d="M4 0H0V4" fill="none" stroke="#26292E" stroke-width="1"/></pattern></defs>`;
+  const T=(x,y,t,a='middle')=>`<text x="${x}" y="${y}" text-anchor="${a}" font-size="13" fill="${M}">${t}</text>`;
+  const dim=(x1,x2,y)=>ln(x1,y,x2,y,M,1)+ln(x1,y-4,x1,y+4,M,1)+ln(x2,y-4,x2,y+4,M,1);
+  let a=`<svg width="900" height="400" viewBox="0 0 900 400">${pat}<rect width="900" height="400" fill="${th.bg}"/><rect width="900" height="400" fill="url(#pg)"/>`;
+  a+=ln(120,370,330,40,th.ink,6)+ln(680,30,680,370,th.ink,6);
+  a+=`<g shape-rendering="crispEdges">`;
+  const segs=[[0,200,418,200],[482,200,900,200],[450,0,450,168],[450,232,450,400]];
+  for(const q of segs) a+=ln(...q,th.bg,12);
+  a+=`<rect x="426" y="176" width="48" height="48" fill="none" stroke="${th.bg}" stroke-width="12"/>`;
+  for(const q of segs) a+=ln(...q,th.ink,4);
+  a+=`<rect x="426" y="176" width="48" height="48" fill="none" stroke="${th.ink}" stroke-width="4"/></g>`;
+  // annotations
+  a+=T(110,150,'line 1 px')+ln(110,156,110,196,M,1);
+  a+=T(60,262,'outline 3 px')+ln(60,242,60,208,M,1)+ln(54,194,66,194,M,1)+ln(54,206,66,206,M,1);
+  a+=T(540,150,'gap 2 px','start')+ln(535,146,424,172,M,1,'stroke-dasharray="3 2"')+ln(418,184,418,196,M,1)+ln(426,184,426,196,M,1);
+  a+=dim(426,474,258)+`<rect x="400" y="266" width="100" height="16" fill="${th.bg}"/>`+T(450,278,'box 12 px')+ln(426,226,426,254,M,1,'stroke-dasharray="2 3"')+ln(474,226,474,254,M,1,'stroke-dasharray="2 3"');
+  a+=T(20,388,'drawing line behind the cursor','start');
+  a+=`</svg>`;
+  document.getElementById('s4a').innerHTML=a;
+  let b=`<svg width="400" height="400" viewBox="0 0 400 400">${pat}<rect width="400" height="400" fill="${th.bg}"/><rect width="400" height="400" fill="url(#pg)"/>`;
+  b+=ln(60,340,340,60,th.ink,6);
+  b+=`<g shape-rendering="crispEdges"><rect x="172" y="172" width="56" height="56" fill="none" stroke="${th.bg}" stroke-width="16"/><rect x="172" y="172" width="56" height="56" fill="none" stroke="${th.ok}" stroke-width="8"/></g>`;
+  b+=`<circle cx="200" cy="200" r="2" fill="${M}"/>`;
+  b+=dim(200,228,256)+ln(200,204,200,252,M,1,'stroke-dasharray="2 3"')+ln(228,232,228,252,M,1,'stroke-dasharray="2 3"');
+  b+=T(214,278,'marker 7 px')+T(214,296,'(half side)');
+  b+=T(200,350,'stroke 2 px, outline 4 px');
+  b+=`</svg>`;
+  document.getElementById('s4b').innerHTML=b;
+})();
+
+/* ---------- section 5: sizes ---------- */
+(function(){
+  const th=TH.dark,{s}=plan(1,6,th);
+  const cx=118,cy=45,out=[];
+  for(const p of [5,25,50,100]){
+    const hl=p>=100?999:Math.max(230,110)*p/200,e=8;
+    const L=Math.max(0,cx-hl),R=Math.min(230,cx+hl),T=Math.max(0,cy-hl),B=Math.min(110,cy+hl);
+    const segs=[[L,cy,cx-e,cy],[cx+e,cy,R,cy],[cx,T,cx,cy-e],[cx,cy+e,cx,B]].filter(q=>Math.hypot(q[2]-q[0],q[3]-q[1])>0.5&&(q[0]<q[2]||q[1]<q[3]));
+    let c='<g shape-rendering="crispEdges">';
+    for(const q of segs) c+=ln(...q,th.bg,1.5);
+    c+=`<rect x="${cx-6}" y="${cy-6}" width="12" height="12" fill="none" stroke="${th.bg}" stroke-width="1.5"/>`;
+    for(const q of segs) c+=ln(...q,th.ink,0.5);
+    c+=`<rect x="${cx-6}" y="${cy-6}" width="12" height="12" fill="none" stroke="${th.ink}" stroke-width="0.5"/></g>`;
+    out.push(`<div class="tile"><h3>${p} %${p===100?' (default)':''}</h3>${frag(th,s+c)}<p>${p===100?'Across the whole view.':p===5?'A small cross; the drawing stays clear.':'Lines '+p+' % of the view long.'}</p></div>`);
+  }
+  document.getElementById('sz1').innerHTML=out.join('');
+  const o2=[];
+  for(const b of [6,9,12,16,20]){
+    const W=120,H=50,c0=60,c1=25,h=b/2;
+    let g=`<svg width="360" height="150" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="${th.bg}"/>`;
+    g+=ln(c0+2,0,c0+2,H,th.ink,1.5);
+    g+=`<g opacity=".4">${ln(c0+2,0,c0+2,H,th.hl,6.5)}</g>`+ln(c0+2,0,c0+2,H,th.ink,3.5);
+    g+='<g shape-rendering="crispEdges">';
+    const sg=[[0,c1,c0-h-2,c1],[c0+h+2,c1,W,c1],[c0,0,c0,c1-h-2],[c0,c1+h+2,c0,H]];
+    for(const q of sg) g+=ln(...q,th.bg,3);
+    g+=`<rect x="${c0-h}" y="${c1-h}" width="${b}" height="${b}" fill="none" stroke="${th.bg}" stroke-width="3"/>`;
+    for(const q of sg) g+=ln(...q,th.ink,1);
+    g+=`<rect x="${c0-h}" y="${c1-h}" width="${b}" height="${b}" fill="none" stroke="${th.ink}" stroke-width="1"/>`;
+    g+=`<rect x="${c0-h-1.5}" y="${c1-h-1.5}" width="${b+3}" height="${b+3}" fill="none" stroke="#6fb3ff" stroke-width=".5" stroke-dasharray="1.5 1"/></g></svg>`;
+    o2.push(`<div class="tile"><h3>${b} px${b===12?' (default)':b===9?' (today\'s default)':''}</h3>${g}<p>${b<=6?'Precise in dense drawings; harder to hit.':b>=20?'Easy to hit; may pick a neighbour.':b===12?'Clicks hit what they hit today.':b===9?'Box today; clicks today reach 12 px.':'Easier on high-resolution screens.'}</p></div>`);
+  }
+  document.getElementById('sz2').innerHTML=o2.join('');
+})();
+
+/* checkmarks */
+document.querySelectorAll('[data-ck].on').forEach(e=>e.innerHTML='<svg width="9" height="9" viewBox="0 0 9 9"><path d="M1.5 4.6L3.7 6.8L7.6 2.2" fill="none" stroke="#15171A" stroke-width="1.6"/></svg>');
+
+/* page size for the PDF render */
+document.head.appendChild(document.createElement('style')).textContent='@page{size:1952px '+Math.ceil(document.documentElement.scrollHeight)+'px;margin:0}';
+</script>
+</body>
+</html>
