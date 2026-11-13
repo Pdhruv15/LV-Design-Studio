@@ -128,7 +128,7 @@ describe('sheet formulas — functions', () => {
   });
 
   it('lists what it has', () => {
-    expect(SHEET_FUNCTIONS).toEqual(['ABS', 'AND', 'AVERAGE', 'COUNT', 'COUNTA', 'IF', 'MAX', 'MIN', 'NOT', 'OR', 'ROUND', 'ROUNDDOWN', 'ROUNDUP', 'SQRT', 'SUM', 'VLOOKUP']);
+    expect(SHEET_FUNCTIONS).toEqual(['ABS', 'AND', 'AVERAGE', 'CEILING', 'CONCATENATE', 'COUNT', 'COUNTA', 'COUNTIF', 'FALSE', 'FLOOR', 'HLOOKUP', 'IF', 'IFERROR', 'INDEX', 'INT', 'ISBLANK', 'ISNUMBER', 'LEFT', 'LEN', 'LOWER', 'MATCH', 'MAX', 'MID', 'MIN', 'MOD', 'NOT', 'OR', 'PI', 'POWER', 'RIGHT', 'ROUND', 'ROUNDDOWN', 'ROUNDUP', 'SQRT', 'SUM', 'SUMIF', 'SUMPRODUCT', 'TRIM', 'TRUE', 'UPPER', 'VLOOKUP']);
     expect(formulaFunctions('=IF(SUM(A1:A3)>0,XLOOKUP(1,A1:A3,B1:B3),0)').sort()).toEqual(['IF', 'SUM', 'XLOOKUP']);
     expect(formulaFunctions('=1+')).toEqual([]);
   });
@@ -198,5 +198,88 @@ describe('sheet formulas — fill down and paste', () => {
   it('a reference pushed off the sheet is #REF!', () => {
     expect(shiftFormula('=A1+B2', -1, 0)).toBe('=#REF!+B1');
     expect(evaluateSheet({ C3: shiftFormula('=A1+B2', -1, 0) }).C3.error).toBe('#REF!');
+  });
+});
+
+describe('sheet formulas — the functions schedules from Excel use', () => {
+  // Each result here was also worked out by LibreOffice from the same workbook, and matched.
+  const data: SheetCells = { A1: 'L1', A2: 'P1', A3: 'P2', A4: 'A1', A5: 'L2', B1: 1.2, B2: 1.6, B3: 1.2, B4: 5.2, B5: 0.6, C1: 'R', C2: 'Y', C3: 'B', C4: 'R', C5: 'Y', D1: 2, D2: 3, D3: 4, D4: 5, D5: 6,
+    F1: 6, G1: 10, H1: 16, I1: 20, F2: 'a', G2: 'b', H2: 'c', I2: 'd', K1: 32, K2: 25, K3: 20, K4: 16, M1: ' Main  DB  1 ', M2: 'MDB-01', M4: '12' };
+  it('IFERROR, rounding to a step, conditional sums and counts, INDEX and MATCH, text', () => {
+    const cases: [string, unknown][] = [
+      ["=IFERROR(1/0,\"none\")", "none"],
+      ["=IFERROR(B1*2,0)", 2.4],
+      ["=IFERROR(VLOOKUP(\"X\",A1:B5,2,FALSE),-1)", -1],
+      ["=INT(7.9)", 7],
+      ["=INT(-7.1)", -8],
+      ["=MOD(10,3)", 1],
+      ["=MOD(-1,3)", 2],
+      ["=MOD(5.5,2)", 1.5],
+      ["=POWER(2,10)", 1024],
+      ["=ROUND(PI(),4)", 3.1416],
+      ["=CEILING(12.1,5)", 15],
+      ["=CEILING(10,5)", 10],
+      ["=CEILING(2.31,0.1)", 2.4],
+      ["=FLOOR(12.9,5)", 10],
+      ["=FLOOR(0.7,0.1)", 0.7],
+      ["=SUMIF(C1:C5,\"R\",B1:B5)", 6.4],
+      ["=SUMIF(B1:B5,\">1.2\")", 6.8],
+      ["=SUMIF(B1:B5,1.2)", 2.4],
+      ["=SUMIF(A1:A5,\"L*\",B1:B5)", 1.8],
+      ["=SUMIF(A1:A5,\"<>P1\",B1:B5)", 8.2],
+      ["=COUNTIF(C1:C5,\"Y\")", 2],
+      ["=COUNTIF(B1:B5,\">=1.2\")", 4],
+      ["=COUNTIF(A1:A5,\"P?\")", 2],
+      ["=COUNTIF(B1:B5,\"<>1.2\")", 3],
+      ["=SUMPRODUCT(B1:B5,D1:D5)", 41.6],
+      ["=INDEX(A1:D5,4,2)", 5.2],
+      ["=INDEX(B1:B5,3)", 1.2],
+      ["=INDEX(F1:I1,2)", 10],
+      ["=MATCH(\"P2\",A1:A5,0)", 3],
+      ["=MATCH(12,F1:I1,1)", 2],
+      ["=MATCH(12,F1:I1)", 2],
+      ["=MATCH(22,K1:K4,-1)", 2],
+      ["=INDEX(F2:I2,MATCH(12,F1:I1,1))", "b"],
+      ["=HLOOKUP(16,F1:I2,2,FALSE)", "c"],
+      ["=HLOOKUP(18,F1:I2,2)", "c"],
+      ["=CONCATENATE(\"DB-\",A1,\"-\",D1)", "DB-L1-2"],
+      ["=LEN(M2)", 6],
+      ["=LEFT(M2,3)", "MDB"],
+      ["=LEFT(M2)", "M"],
+      ["=RIGHT(M2,2)", "01"],
+      ["=MID(M2,2,3)", "DB-"],
+      ["=UPPER(\"mdb\")", "MDB"],
+      ["=LOWER(\"MDB\")", "mdb"],
+      ["=TRIM(M1)", "Main DB 1"],
+      ["=ISBLANK(Z9)", true],
+      ["=ISBLANK(B1)", false],
+      ["=ISNUMBER(B1)", true],
+      ["=ISNUMBER(A1)", false],
+      ["=TRUE()", true],
+      ["=IF(FALSE(),1,2)", 2],
+      ["=M4+1", 13],
+      ["=COUNTIF(A1:A5,\"L1\")", 1],
+      ["=SUMIF(D1:D5,\"<4\")", 5],
+      ["=MATCH(\"x\",A1:A5,0)", "#N/A"],
+      ["=INDEX(A1:D5,9,1)", "#REF!"],
+      ["=MOD(1,0)", "#DIV/0!"],
+      ["=SUMIF(C1:C5,\"=R\",D1:D5)", 7],
+      ["=COUNTIF(B1:B5,\"1.2\")", 2]
+    ];
+    for (const [f, want] of cases) {
+      const r = evaluateSheet({ ...data, Z99: f }).Z99;
+      expect([f, r.error ?? r.value]).toEqual([f, want]);
+    }
+  });
+
+  it('a leading apostrophe keeps a cell as text, as in Excel', () => {
+    const r = evaluateSheet({ A1: "'010", A2: '010', A3: '=LEN(A1)', A4: "'=not a formula" });
+    expect([r.A1.value, r.A2.value, r.A3.value, r.A4.value]).toEqual(['010', 10, 3, '=not a formula']);
+  });
+
+  it('a formula it cannot read keeps the file\'s last value too (a reference to another sheet)', () => {
+    expect(evaluateSheet({ A1: '=Rates!B2*2' }).A1.error).toBe('#ERROR!');
+    expect(evaluateSheet({ A1: '=Rates!B2*2', A2: '=A1+1' }, { A1: 7 })).toEqual({ A1: { value: 7, unsupported: true }, A2: { value: 8 } });
+    expect(evaluateSheet({ A1: '=RATE_TABLE' }, { A1: 3 }).A1).toEqual({ value: 3, unsupported: true });
   });
 });

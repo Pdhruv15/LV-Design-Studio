@@ -1,4 +1,4 @@
-import { cellAt, cellName, colIndex, colName, evaluateSheet, shiftFormula, type CellResult } from '../calc/sheetFormula';
+import { cellAt, cellName, colIndex, colName, evaluateSheet, shiftFormula, type CellResult, type CellValue } from '../calc/sheetFormula';
 
 /** The built-in sheets (Sheets page): what a sheet holds and the edits the page makes to it. Every edit returns a
  * new sheet, so one edit is one undo step. Rows and columns are counted from 1, cells are named as in Excel. */
@@ -16,12 +16,24 @@ export interface Sheet {
   widths?: Record<string, number>;
   rows: number;
   cols: number;
+  /** Last values from the Excel file a sheet was opened from, for formulas the app cannot work out: the formula as it
+   * was in the file (`f`) and its value there (`v`). Used only while the cell still holds that formula. */
+  kept?: Record<string, { f: string; v: CellValue }>;
+  /** The Excel file the sheet came from (name only). */
+  source?: string;
 }
 export interface SheetBook { sheets: Sheet[] }
 export interface Area { r0: number; c0: number; r1: number; c1: number }
 
 export const DEFAULT_ROWS = 40, DEFAULT_COLS = 12, DEFAULT_WIDTH = 96, MAX_ROWS = 2000, MAX_COLS = 60;
 export const WIDTH_STEPS = [64, 96, 140, 200, 280];
+
+/** Every cell's value: formulas worked out, and the file's last value for one the app cannot work out. */
+export function sheetValues(s: Sheet): Record<string, CellResult> {
+  const cached: Record<string, CellValue> = {};
+  for (const [k, e] of Object.entries(s.kept ?? {})) if (s.cells[k] === e.f) cached[k] = e.v;
+  return evaluateSheet(s.cells, cached);
+}
 
 export const area = (a: { r: number; c: number }, b: { r: number; c: number }): Area => ({ r0: Math.min(a.r, b.r), c0: Math.min(a.c, b.c), r1: Math.max(a.r, b.r), c1: Math.max(a.c, b.c) });
 export function areaCells(a: Area): string[] {
@@ -124,6 +136,11 @@ function reshape(s: Sheet, axis: 'row' | 'col', at: number, count: number): Shee
   const cells: Record<string, string> = {}, styles: Record<string, SheetStyle> = {};
   for (const [k, v] of Object.entries(s.cells)) { const to = moveKey(k); if (to) cells[to] = adjustFormula(v, axis, at, count); }
   for (const [k, v] of Object.entries(s.styles ?? {})) { const to = moveKey(k); if (to) styles[to] = v; }
+  let kept = s.kept;
+  if (kept) {
+    kept = {};
+    for (const [k, e] of Object.entries(s.kept!)) { const to = moveKey(k); if (to) kept[to] = { f: adjustFormula(e.f, axis, at, count), v: e.v }; }
+  }
   let widths = s.widths;
   if (axis === 'col' && widths) {
     widths = {};
@@ -135,7 +152,7 @@ function reshape(s: Sheet, axis: 'row' | 'col', at: number, count: number): Shee
   }
   const rows = axis === 'row' ? Math.min(MAX_ROWS, Math.max(1, s.rows + count)) : s.rows;
   const cols = axis === 'col' ? Math.min(MAX_COLS, Math.max(1, s.cols + count)) : s.cols;
-  return { ...s, cells, ...(Object.keys(styles).length || s.styles ? { styles } : {}), ...(widths ? { widths } : {}), rows, cols };
+  return { ...s, cells, ...(Object.keys(styles).length || s.styles ? { styles } : {}), ...(widths ? { widths } : {}), ...(kept ? { kept } : {}), rows, cols };
 }
 export const insertRows = (s: Sheet, at: number, count = 1): Sheet => (s.rows + count > MAX_ROWS ? s : reshape(s, 'row', at, count));
 export const deleteRows = (s: Sheet, at: number, count = 1): Sheet => reshape(s, 'row', at, -Math.min(count, s.rows - at + 1));
@@ -156,7 +173,7 @@ export function withNextWidth(s: Sheet, a: Area): Sheet {
 /** The area as rows of what was typed (formulas as formulas). */
 export const rawRows = (s: Sheet, a: Area): string[][] => Array.from({ length: a.r1 - a.r0 + 1 }, (_, r) => Array.from({ length: a.c1 - a.c0 + 1 }, (_, c) => s.cells[cellName(a.c0 + c, a.r0 + r)] ?? ''));
 /** The area as rows of what is shown (formulas as their values), for the clipboard and Paste values. */
-export function shownRows(s: Sheet, a: Area, values: Record<string, CellResult> = evaluateSheet(s.cells)): string[][] {
+export function shownRows(s: Sheet, a: Area, values: Record<string, CellResult> = sheetValues(s)): string[][] {
   return Array.from({ length: a.r1 - a.r0 + 1 }, (_, r) => Array.from({ length: a.c1 - a.c0 + 1 }, (_, c) => plain(values[cellName(a.c0 + c, a.r0 + r)])));
 }
 const plain = (r: CellResult | undefined): string => (!r ? '' : r.error ? r.error : r.value === null ? '' : typeof r.value === 'boolean' ? (r.value ? 'TRUE' : 'FALSE') : String(r.value));
@@ -187,7 +204,7 @@ export function fillDownEdits(s: Sheet, a: Area): Record<string, string> {
 }
 
 /** The Sum tool: a formula adding the run of numbers above the cell, or else to its left; none when there is no run. */
-export function sumFormula(s: Sheet, r: number, c: number, values: Record<string, CellResult> = evaluateSheet(s.cells)): string | undefined {
+export function sumFormula(s: Sheet, r: number, c: number, values: Record<string, CellResult> = sheetValues(s)): string | undefined {
   const isNum = (row: number, col: number) => typeof values[cellName(col, row)]?.value === 'number';
   let top = r;
   while (top > 1 && isNum(top - 1, c)) top--;
