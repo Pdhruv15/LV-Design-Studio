@@ -626,6 +626,7 @@ export interface Project {
   upsSystems?: import('./calc/ups').UpsSystem[]; // UPS and battery sizing
   feederPresets?: import('./model/presets').FeederPreset[]; // copy of the user's feeder presets, so they travel with the project
   pv?: import('./calc/solar').PvSystem; // solar PV array and inverter sizing
+  spec?: import('./model/specDoc').SpecDoc; // the project specification (Specification page)
   sheets?: import('./model/sheets').SheetBook; // the engineer's own sheets (Sheets page)
   lightning?: import('./calc/lightningProtection').LpsInputs; // lightning protection study (concept): the engineer's own class values
   trays?: TrayPlan; // cable tray routes (A, B, C…) with the cables on each and the tray size

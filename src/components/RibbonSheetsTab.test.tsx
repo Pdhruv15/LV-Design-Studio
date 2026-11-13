@@ -16,4 +16,11 @@ describe('ribbon — Sheets is a main tab', () => {
   it('has no tool groups of its own: the Excel-style ribbon is on the page', () => {
     expect(CAPTIONS.sheets).toEqual([]);
   });
+
+  it('Specification is a main tab too, with its own screen and no tool row', () => {
+    expect(tabForView('specification')).toBe('spec');
+    expect(viewForTab('spec', 'sheets')).toBe('specification');
+    expect(viewForTab('sheets', 'specification')).toBe('sheets');
+    expect(CAPTIONS.spec).toEqual([]);
+  });
 });

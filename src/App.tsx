@@ -37,6 +37,7 @@ const LoadAssessmentView = lazy(() => import('./components/docs/LoadAssessmentVi
 const UpsStudy = lazy(() => import('./components/studies/UpsStudy'));
 const LightningStudy = lazy(() => import('./components/studies/LightningStudy'));
 const SheetsPage = lazy(() => import('./components/sheets/SheetsPage'));
+const SpecPage = lazy(() => import('./components/spec/SpecPage'));
 const SolarStudy = lazy(() => import('./components/studies/SolarStudy'));
 const StudyReportsView = lazy(() => import('./components/docs/StudyReportsView'));
 const QuickCalcs = lazy(() => import('./components/QuickCalcs'));
@@ -195,7 +196,7 @@ const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator
 
 /** Pages the ⌘K palette can open, named as on the ribbon. */
 const PALETTE_PAGES: [MainView, string][] = [
-  ['design', 'Design (SLD)'], ['cad', 'Design CAD'], ['dashboard', 'Overview'], ['building', 'Building'], ['load-assessment', 'Load assessment'], ['load-schedule', 'Load schedule'], ['sheets', 'Sheets'], ['panels', 'Panels'],
+  ['design', 'Design (SLD)'], ['cad', 'Design CAD'], ['dashboard', 'Overview'], ['building', 'Building'], ['load-assessment', 'Load assessment'], ['load-schedule', 'Load schedule'], ['sheets', 'Sheets'], ['specification', 'Specification'], ['panels', 'Panels'],
   ['space-planning', 'Space plan'], ['substation-area', 'Substation area'], ['enclosure', 'Enclosure sizing'], ['earth-schematic', 'Earth pits'],
   ['busbar', 'Busbar riser'], ['calculators', 'Quick calcs'], ['voltage-drop', 'Voltage drop'], ['engines', 'Load flow'], ['earthing', 'Earthing'],
   ['coordination', 'Protection coordination'], ['selection', 'Breaker & cable selection'], ['sizing', 'Transformer & generator sizing'], ['pfc', 'Power factor'],
@@ -1700,6 +1701,7 @@ export default function App() {
             {view === 'solar' && <SolarStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
             {view === 'lightning' && <LightningStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
             {view === 'sheets' && <SheetsPage project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} onUndo={history.undo} />}
+            {view === 'specification' && <SpecPage project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} onUndo={history.undo} />}
             {view === 'cable-tray' && (
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />
             )}

@@ -39,7 +39,7 @@ function hashOf(s: string): string {
 
 const SECTION_LABEL: Record<string, string> = {
   name: 'Project name', boards: 'Panels', feeders: 'Circuits', revisions: 'Issued revisions', drawingSet: 'Drawing sheets', drawing: 'SLD title block', info: 'Project information',
-  params: 'Parameters', trays: 'Cable trays', upsSystems: 'UPS systems', pv: 'Solar PV', lightning: 'Lightning protection', sheets: 'Sheets', building: 'Building information', boq: 'BOQ changes', priceList: 'Price list', earthingPlan: 'Earthing plan',
+  params: 'Parameters', trays: 'Cable trays', upsSystems: 'UPS systems', pv: 'Solar PV', lightning: 'Lightning protection', sheets: 'Sheets', spec: 'Specification', building: 'Building information', boq: 'BOQ changes', priceList: 'Price list', earthingPlan: 'Earthing plan',
   studyReport: 'Study report setup', status: 'Status', ties: 'Bus couplers', components: 'Own components', titleTemplates: 'Title block templates', voltageV: 'System voltage', ambientC: 'Ambient temperature'
 };
 const IGNORED = new Set(['updatedAt', 'updatedBy']);

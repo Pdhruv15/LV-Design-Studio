@@ -574,7 +574,9 @@ export default function SystemDiagram({
   }
   // Without a height of the user's own, the drawing takes the room left in the
   // scrolling page (after the toolbars above and the results tabs below), so a
-  // collapsed ribbon or hidden banner gives it the space. Never below 420 px.
+  // collapsed ribbon or hidden banner gives it the space. Never below 240 px: a
+  // taller floor made the page scroll on a short window, and the tabs and bar
+  // above the drawing went under the ribbon.
   const [autoHeight, setAutoHeight] = useState<number | undefined>();
   useLayoutEffect(() => {
     const el = rootRef.current, page = el?.closest<HTMLElement>('.mid');
@@ -590,7 +592,7 @@ export default function SystemDiagram({
         const margins = (c.contains(el) ? 0 : Math.min(16, parseFloat(cs.marginTop) || 0)) + Math.min(16, parseFloat(cs.marginBottom) || 0);
         other += margins + (c.contains(el) ? r.height - er.height : r.height);
       }
-      const h = Math.max(420, Math.floor(page.clientHeight - other - 12));
+      const h = Math.max(240, Math.floor(page.clientHeight - other - 12));
       setAutoHeight((o) => (o !== undefined && Math.abs(o - h) < 2 ? o : h));
     };
     fit();
