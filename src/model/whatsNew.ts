@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.123', date: '2026-11-13',
+    items: [
+      { title: 'SLD CAD export: symbols as blocks', text: 'Breakers, switches and the other library symbols in exported DXF and DWG drawings are now blocks, one definition per symbol inserted wherever it is used, so they can be selected, counted and replaced in CAD.' }
+    ]
+  },
+  {
     version: '2.122', date: '2026-11-13',
     items: [
       { title: 'SLD CAD export: real dashed lines', text: 'Dashed frames and lines in exported DXF and DWG drawings are now single lines with a dashed linetype, not hundreds of short pieces, and rounded corners stay rounded.' }

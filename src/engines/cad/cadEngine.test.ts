@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { drawingWithDevices, dxfToDwg, INK, openDrawing, readRefGeometry, SNAP, type CadView } from './cadEngine';
 import { placeRefExtras, type CadRef } from '../../model/cadRefs';
 import { buildSheetDxfPages } from '../../docs/sheetDxf';
+import { symSvg } from '../../diagram/symbolLibrary';
 import { sampleProject } from '../../data/sampleProject';
 import { shapesOut, pointStyleOut, blockDefsOut } from '../../model/cadSketch';
 import type { CadBlockDef } from '../../model/cadBlocks';
@@ -91,6 +92,15 @@ describe('CAD engine (Rust, WebAssembly)', () => {
     const d = await openDrawing('sheet.dxf', new TextEncoder().encode(page.data));
     expect(d.info.linetypes.some((l) => l[0] > 0 && l[1] < 0)).toBe(true);
     expect(d.segLinetypes.some((v) => v > 0)).toBe(true);
+  });
+
+  it('reads the symbol blocks of a sheet DXF as the same drawing as the loose symbols', async () => {
+    const draw = (inner: string) => buildSheetDxfPages(sampleProject, `<svg viewBox="0 0 400 160">${inner}</svg>`, 'A3', { no: 'E-SLD-01', title: 'SLD', index: 1, count: 1 })[0].data;
+    const sym = symSvg('cb', 100, 60, 1) + symSvg('rcd', 200, 60, 1, true);
+    const blocks = await openDrawing('blocks.dxf', new TextEncoder().encode(draw(sym)));
+    const loose = await openDrawing('loose.dxf', new TextEncoder().encode(draw(sym.replace(/ data-sym(?:-[a-z]+)?="[^"]*"/g, ''))));
+    expect(blocks.info.extents.map(Math.round)).toEqual(loose.info.extents.map(Math.round));
+    expect(blocks.info.layers.some((l) => l.name === 'E-SYMBOL')).toBe(true);
   });
 
   it('keeps a reference\'s texts and fills, and Bind saves them into a copy of the plan as texts and hatches', async () => {

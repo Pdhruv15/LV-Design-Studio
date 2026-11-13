@@ -1,4 +1,5 @@
-import type { DxfPrimitive } from '../docs/dxf';
+import { dxfBlockName, type DxfBlock, type DxfPrimitive } from '../docs/dxf';
+import { SYMBOLS, symBody, type SymbolId } from './symbolLibrary';
 import { pathPoints } from './svgPath';
 import { dashedRuns } from './svgDash';
 import { withPrintTheme } from '../theme/theme';
@@ -116,9 +117,32 @@ export function lvTag(v: string | null): string {
   return v && /^(feeder|board):[\x21-\x7e]{1,193}$/.test(v) ? v : '';
 }
 
+type Insert = Extract<DxfPrimitive, { type: 'insert' }>;
+const symbolBlocks = new Map<string, { block: DxfBlock; bounds: [[number, number], [number, number]] }>();
+
+/** The block of a library symbol (one per symbol and orientation): the symbol at library size about its body
+ * centre, y up, on layer 0 so the insert's layer applies. Side labels are left out. */
+function symbolBlock(id: SymbolId, flipped: boolean) {
+  const key = `${id}${flipped ? '-UP' : ''}`;
+  let hit = symbolBlocks.get(key);
+  if (!hit) {
+    const items = svgToDxf(`<svg xmlns="http://www.w3.org/2000/svg"><g class="iec">${symBody(id, 0, 0, 1, flipped)}</g></svg>`, 0, true);
+    const xs: number[] = [], ys: number[] = [];
+    for (const i of items) {
+      const pts: [number, number][] = i.type === 'line' ? [[i.x1, i.y1], [i.x2, i.y2]] : i.type === 'polyline' ? i.points : i.type === 'circle' ? [[i.x - i.r, i.y - i.r], [i.x + i.r, i.y + i.r]] : i.type === 'text' ? [[i.x, i.y], [i.x, i.y + i.height]] : [];
+      for (const [x, y] of pts) { xs.push(x); ys.push(y); }
+    }
+    const lo = (a: number[]) => a.reduce((m, v) => Math.min(m, v), 0), hi = (a: number[]) => a.reduce((m, v) => Math.max(m, v), 0);
+    hit = { block: { name: dxfBlockName(`LV-${key}`), items, attdefs: [] }, bounds: [[lo(xs), lo(ys)], [hi(xs), hi(ys)]] };
+    symbolBlocks.set(key, hit);
+  }
+  return hit;
+}
+
 /** DXF entities from printable SVG markup, y flipped so the drawing is
- * upright in CAD (SVG y grows downward). */
-export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
+ * upright in CAD (SVG y grows downward). Library symbols (`data-sym` groups) become inserts of
+ * shared blocks; `block` converts a block's own drawing: every item on layer 0. */
+export function svgToDxf(svgMarkup: string, height: number, block = false): DxfPrimitive[] {
   const doc = new DOMParser().parseFromString(svgMarkup, 'image/svg+xml');
   const out: DxfPrimitive[] = [];
   const flip = ([x, y]: [number, number]): [number, number] => [x, height - y];
@@ -137,7 +161,7 @@ export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
     const tag = lvTag(el.getAttribute('data-lv-id')) || inheritedTag;
     const emit = (p: DxfPrimitive) => out.push(tag ? { ...p, tag } : p);
     const num = (a: string) => Number(el.getAttribute(a) ?? 0);
-    const layer = layerOf(el);
+    const layer = block ? '0' : layerOf(el);
     const scale = Math.hypot(mm[0], mm[1]) || 1;
     const pattern = dash.trim().split(/[\s,]+/).filter(Boolean).map((v) => /^(?:\d+\.?\d*|\.\d+)(?:px)?$/.test(v) ? parseFloat(v) : NaN);
     const dashed = pattern.length > 0 && pattern.every((v) => Number.isFinite(v) && v >= 0) && pattern.some((v) => v > 0);
@@ -159,6 +183,20 @@ export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
         emit({ type: 'polyline', layer: p.layer, points: invertible ? run.map(([x, y]) => flip(apply(mm, x, y))) : run, ...(p.width ? { width: p.width } : {}) });
       }
     };
+    const symId = el.tagName === 'g' && !block ? el.getAttribute('data-sym') : null;
+    if (symId && symId in SYMBOLS) {
+      const { block: def, bounds } = symbolBlock(symId as SymbolId, el.hasAttribute('data-sym-flip'));
+      const [px, py] = flip(apply(mm, Number(el.getAttribute('data-sym-x')), Number(el.getAttribute('data-sym-y'))));
+      const k = (Number(el.getAttribute('data-sym-s')) || 1) * scale;
+      const rot = -Math.atan2(mm[1], mm[0]);
+      const [c, sn] = [Math.cos(rot), Math.sin(rot)];
+      const corners = [[bounds[0][0], bounds[0][1]], [bounds[1][0], bounds[0][1]], [bounds[1][0], bounds[1][1]], [bounds[0][0], bounds[1][1]]].map(([a, b]): [number, number] => [px + k * (a * c - b * sn), py + k * (a * sn + b * c)]);
+      const xs = corners.map((q) => q[0]), ys = corners.map((q) => q[1]);
+      emit({ type: 'insert', layer: 'SYMBOL', name: def.name, x: px, y: py, scale: k, ...(Math.abs(rot) > 1e-9 ? { rotation: rot * 180 / Math.PI } : {}), block: def, attribs: [], extent: [[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]] } as Insert);
+      // Only the side labels stay outside the block.
+      for (const c2 of Array.from(el.childNodes)) if (c2.nodeType === 1 && (c2 as Element).hasAttribute('data-sym-side')) walk(c2 as Element, mm, size, dash, tag, true);
+      return;
+    }
     // Only busbars need a filled CAD width. Ordinary lines retain thin,
     // editable centrelines rather than turning every symbol into a ribbon.
     const strokeWidth = Number(style.match(/(?:^|;)\s*stroke-width:\s*([\d.]+)/)?.[1] ?? el.getAttribute('stroke-width') ?? 4);

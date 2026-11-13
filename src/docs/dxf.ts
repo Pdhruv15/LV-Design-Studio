@@ -143,7 +143,11 @@ function boundsPoints(i: DxfPrimitive): [number, number][] {
 export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number> = DXF_LAYERS, opts: { /** $INSUNITS (4 = mm), so a reader knows the drawing's units. */ insunits?: number } = {}): string {
   const out: string[] = [];
   const g = (code: number, value: string | number) => out.push(String(code), typeof value === 'number' ? n(value) : value);
-  const layers = [...new Set([...Object.keys(layerColours), ...items.map((i) => i.layer)])];
+  // Block definitions of the inserts, each once.
+  const blocks = new Map<string, DxfBlock>();
+  for (const i of items) if (i.type === 'insert' && !blocks.has(i.name)) blocks.set(i.name, i.block);
+  // Layer 0 holds block items, so it needs its table entry when blocks are written.
+  const layers = [...new Set([...Object.keys(layerColours), ...items.map((i) => i.layer), ...(blocks.size ? ['0'] : [])])];
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, hasPoints = false;
   // Accumulate per entity: large drawings must not pass every coordinate as
   // function arguments, or allocate drawing-wide point/x/y copies.
@@ -219,9 +223,6 @@ export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number
     }
   };
 
-  // Block definitions of the inserts, each once.
-  const blocks = new Map<string, DxfBlock>();
-  for (const i of items) if (i.type === 'insert' && !blocks.has(i.name)) blocks.set(i.name, i.block);
   const textEntity = (kind: 'TEXT' | 'ATTDEF' | 'ATTRIB', layer: string, x: number, y: number, height: number, value: string, align?: 'left' | 'center' | 'right', rotation?: number, tag?: string, prompt?: string) => {
     g(0, kind); g(8, layer); g(7, TEXT_STYLE); g(10, x); g(20, y); g(30, 0); g(40, height); g(1, dxfText(value));
     if (rotation) g(50, rotation);
