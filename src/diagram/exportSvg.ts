@@ -122,7 +122,7 @@ export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
   const doc = new DOMParser().parseFromString(svgMarkup, 'image/svg+xml');
   const out: DxfPrimitive[] = [];
   const flip = ([x, y]: [number, number]): [number, number] => [x, height - y];
-  const walk = (el: Element, m: M, inheritedSize = 11, inheritedDash = '', inheritedTag = '') => {
+  const walk = (el: Element, m: M, inheritedSize = 11, inheritedDash = '', inheritedTag = '', inheritedIec = false) => {
     const style = el.getAttribute('style') ?? '';
     if (/display:\s*none/.test(style) || /opacity:\s*0(?![.\d])/.test(style)) return;
     // Generated SVGs such as the earthing drawing use presentation attributes
@@ -131,6 +131,8 @@ export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
     const size = Number.isFinite(declaredSize) && declaredSize > 0 ? declaredSize : inheritedSize;
     const dash = style.match(/(?:^|;)\s*stroke-dasharray:\s*([^;]+)/)?.[1] ?? (el.hasAttribute('stroke-dasharray') ? el.getAttribute('stroke-dasharray')! : inheritedDash);
     const mm = mul(m, parseTransform(el.getAttribute('transform')));
+    // Library symbol groups keep their dash pieces until symbols become blocks.
+    const inIec = inheritedIec || (el.tagName === 'g' && /\biec\b/.test(el.getAttribute('class') ?? ''));
     // The board or feeder this element belongs to travels with it into CAD (see lvTag).
     const tag = lvTag(el.getAttribute('data-lv-id')) || inheritedTag;
     const emit = (p: DxfPrimitive) => out.push(tag ? { ...p, tag } : p);
@@ -141,6 +143,8 @@ export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
     const dashed = pattern.length > 0 && pattern.every((v) => Number.isFinite(v) && v >= 0) && pattern.some((v) => v > 0);
     const push = (p: DxfPrimitive) => {
       if (!dashed || (p.type !== 'line' && p.type !== 'polyline')) { emit(p); return; }
+      // One entity per dashed element; the sheet picks its linetype. Wide busbars and symbols keep pieces.
+      if (!inIec && !p.width) { emit({ ...p, dashed: true }); return; }
       const points: [number, number][] = p.type === 'line' ? [[p.x1, p.y1], [p.x2, p.y2]] : p.points;
       const closed = p.type === 'polyline' && p.closed;
       // Dash in SVG user space, then transform each endpoint. Using only an
@@ -171,6 +175,15 @@ export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
       case 'rect': {
         if (noStroke) break;
         const [x, y, w, h] = [num('x'), num('y'), num('width'), num('height')];
+        const [rx, ry] = [num('rx'), num('ry')];
+        const r = Math.max(0, Math.min(rx || ry, ry || rx, w / 2, h / 2));
+        if (r > 0 && !width && !(dashed && inIec)) {
+          // Rounded corners as arc bulges. y is flipped, so the arc direction follows the transform's handedness.
+          const k = (mm[0] * mm[3] - mm[1] * mm[2] > 0 ? -1 : 1) * Math.tan(Math.PI / 8);
+          const corners: [number, number][] = [[x + r, y], [x + w - r, y], [x + w, y + r], [x + w, y + h - r], [x + w - r, y + h], [x + r, y + h], [x, y + h - r], [x, y + r]];
+          push({ type: 'polyline', layer, closed: true, points: corners.map(([a, b]) => flip(apply(mm, a, b))), bulges: [0, k, 0, k, 0, k, 0, k] });
+          break;
+        }
         push({ type: 'polyline', layer, closed: true, points: [[x, y], [x + w, y], [x + w, y + h], [x, y + h]].map(([a, b]) => flip(apply(mm, a, b))), ...(width ? { width } : {}) });
         break;
       }
@@ -190,14 +203,14 @@ export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
       case 'circle': {
         if (noStroke) break;
         const [x, y] = flip(apply(mm, num('cx'), num('cy')));
-        if (dashed && num('r') > 0) {
+        if (dashed && inIec && num('r') > 0) {
           const count = Math.min(512, Math.max(16, Math.ceil(Math.PI / Math.acos(Math.max(-1, 1 - 0.2 / num('r'))))));
           const points = Array.from({ length: count }, (_, j) => {
             const angle = 2 * Math.PI * j / count;
             return flip(apply(mm, num('cx') + num('r') * Math.cos(angle), num('cy') + num('r') * Math.sin(angle)));
           });
           push({ type: 'polyline', layer, points, closed: true });
-        } else emit({ type: 'circle', layer, x, y, r: num('r') * Math.hypot(mm[0], mm[1]) });
+        } else emit({ type: 'circle', layer, x, y, r: num('r') * Math.hypot(mm[0], mm[1]), ...(dashed && !inIec ? { dashed: true } : {}) });
         break;
       }
       case 'polygon':
@@ -228,7 +241,7 @@ export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
         return; // tspans are part of the text
       }
     }
-    for (const c of Array.from(el.childNodes)) if (c.nodeType === 1) walk(c as Element, mm, size, dash, tag);
+    for (const c of Array.from(el.childNodes)) if (c.nodeType === 1) walk(c as Element, mm, size, dash, tag, inIec);
   };
   walk(doc.documentElement, IDENT);
   return out;

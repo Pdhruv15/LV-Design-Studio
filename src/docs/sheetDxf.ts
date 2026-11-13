@@ -46,13 +46,17 @@ function placeSvg(svg: string, box: DxfBox, layer?: string, centre = true): { it
   const dw = source.w * s, dh = source.h * s;
   const ox = box.x + (centre ? (box.w - dw) / 2 : 0);
   const oy = box.y + (centre ? (box.h - dh) / 2 : box.h - dh);
-  const items = svgToDxf(svg, source.h).map((p): DxfPrimitive => {
-    const L = layer ?? LAYER_OF[p.layer] ?? 'E-SYMBOL';
+  const items = svgToDxf(svg, source.h).map((q): DxfPrimitive => {
+    const L = layer ?? LAYER_OF[q.layer] ?? 'E-SYMBOL';
+    // A dashed element keeps one entity; its linetype follows its length on paper (dash 3 mm, or 1.5 mm when short).
+    const { dashed, ...p } = q as typeof q & { dashed?: boolean };
+    const lt = (mm: number): { linetype?: string } => dashed ? { linetype: mm < 18 ? 'LV-DASHED2' : 'LV-DASHED' } : {};
+    const run = (pts: [number, number][], closed?: boolean) => pts.reduce((a, c, j) => a + (j ? Math.hypot(c[0] - pts[j - 1][0], c[1] - pts[j - 1][1]) : 0), closed && pts.length ? Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) : 0) * s;
     const X = (x: number) => ox + (x - source.x) * s, Y = (y: number) => oy + (y + source.y) * s;
     switch (p.type) {
-      case 'line': return { ...p, layer: L, x1: X(p.x1), y1: Y(p.y1), x2: X(p.x2), y2: Y(p.y2), ...(p.width ? { width: p.width * s } : {}) };
-      case 'polyline': return { ...p, layer: L, points: p.points.map(([a, b]) => [X(a), Y(b)]), ...(p.width ? { width: p.width * s } : {}) };
-      case 'circle': return { ...p, layer: L, x: X(p.x), y: Y(p.y), r: p.r * s };
+      case 'line': return { ...p, layer: L, x1: X(p.x1), y1: Y(p.y1), x2: X(p.x2), y2: Y(p.y2), ...lt(Math.hypot(p.x2 - p.x1, p.y2 - p.y1) * s), ...(p.width ? { width: p.width * s } : {}) };
+      case 'polyline': return { ...p, layer: L, points: p.points.map(([a, b]) => [X(a), Y(b)]), ...lt(run(p.points, p.closed)), ...(p.width ? { width: p.width * s } : {}) };
+      case 'circle': return { ...p, layer: L, x: X(p.x), y: Y(p.y), r: p.r * s, ...lt(2 * Math.PI * p.r * s) };
       case 'text': return { ...p, layer: L, x: X(p.x), y: Y(p.y), height: p.height * s, ...(p.width ? { width: p.width * s } : {}) };
       default: return p; // an SVG holds no block inserts
     }

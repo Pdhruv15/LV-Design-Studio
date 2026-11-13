@@ -34,7 +34,7 @@ describe('SVG to CAD export geometry', () => {
   afterAll(() => vi.unstubAllGlobals());
 
   it('preserves dash attributes, inheritance, inline overrides and transform scale as visible CAD gaps', () => {
-    const out = svgToDxf('<svg><g stroke-dasharray="3 2" transform="scale(2)"><path d="M0 0 H10"/><line x1="0" y1="10" x2="10" y2="10" style="stroke-dasharray:2px,3px"/><line x1="0" y1="20" x2="10" y2="20" stroke-dasharray="none"/></g></svg>', 100);
+    const out = svgToDxf('<svg><g class="iec" stroke-dasharray="3 2" transform="scale(2)"><path d="M0 0 H10"/><line x1="0" y1="10" x2="10" y2="10" style="stroke-dasharray:2px,3px"/><line x1="0" y1="20" x2="10" y2="20" stroke-dasharray="none"/></g></svg>', 100);
     expect(out.slice(0, 4)).toEqual([
       { type: 'polyline', layer: 'SYMBOL', points: [[0, 100], [6, 100]] },
       { type: 'polyline', layer: 'SYMBOL', points: [[10, 100], [16, 100]] },
@@ -48,14 +48,14 @@ describe('SVG to CAD export geometry', () => {
   });
 
   it('dashes the closing edge of an enclosure while ordinary circles stay editable circles', () => {
-    const out = svgToDxf('<svg><rect x="0" y="0" width="10" height="10" stroke-dasharray="3 2"/><circle cx="20" cy="20" r="4"/></svg>', 100);
+    const out = svgToDxf('<svg><g class="iec"><rect x="0" y="0" width="10" height="10" stroke-dasharray="3 2"/></g><circle cx="20" cy="20" r="4"/></svg>', 100);
     const lastDash = out[out.length - 2];
     expect(lastDash).toEqual({ type: 'polyline', layer: 'SYMBOL', points: [[0, 95], [0, 98]] });
     expect(out[out.length - 1].type).toBe('circle');
   });
 
   it('keeps dash spacing in SVG user space under nonuniform scaling', () => {
-    const out = svgToDxf('<svg><path transform="scale(2 3)" stroke-dasharray="3 2" d="M0 0 V10"/></svg>', 100);
+    const out = svgToDxf('<svg><g class="iec"><path transform="scale(2 3)" stroke-dasharray="3 2" d="M0 0 V10"/></g></svg>', 100);
     expect(out).toEqual([
       { type: 'polyline', layer: 'SYMBOL', points: [[0, 100], [0, 91]] },
       { type: 'polyline', layer: 'SYMBOL', points: [[0, 85], [0, 76]] }
