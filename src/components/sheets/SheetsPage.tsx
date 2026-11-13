@@ -1,0 +1,350 @@
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowDownToLine, Baseline, BetweenHorizontalStart, BetweenVerticalStart, Bold, Check, ClipboardPaste, ClipboardType,
+  Copy, Dot, FilePlus2, FolderOpen, Grid2x2, Hash, Italic, ListFilter, MoveHorizontal, PaintBucket, Paintbrush, Pencil, Percent, RotateCw, Ruler, Save, Scissors, Search,
+  Sigma, TableCellsMerge, Trash2, Underline, Undo2, WrapText, type LucideIcon
+} from 'lucide-react';
+import type { Project } from '../../types';
+import { cellAt, cellName, colName, evaluateSheet } from '../../calc/sheetFormula';
+import {
+  allStyled, area, DEFAULT_WIDTH, deleteCols, deleteRows, fillDownEdits, insertCols, insertRows, newSheet, pasteEdits, rawRows, sheetNameError, shown, shownRows, sumFormula,
+  withCells, withNextWidth, withStyle, type Area, type Sheet, type SheetAlign, type SheetBook, type SheetNumberFormat, type SheetStyle
+} from '../../model/sheets';
+import { parseClipboard, toClipboard } from '../grid/excelGrid';
+
+/** Sheets: the engineer's own schedules in an Excel-style grid with formulas, inside the app. This stage has the
+ * grid, the formula bar, the sheet tabs and the File and Home tabs of the ribbon; opening Excel files, linking
+ * columns to the project and the Electrical tools follow (docs/notes/Future development, Sheets proposal). */
+
+const LATER = 'Comes in a later stage';
+const CSS = `
+.shx { display: flex; flex-direction: column; gap: 12px; color: var(--tx); min-width: 0; }
+.shx h3 { margin: 0; font-size: 18px; }
+.shx-ribbon { border: 1px solid var(--line); border-radius: 9px; background: var(--panel); overflow: hidden; }
+.shx-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); padding: 0 12px; }
+.shx-tab { height: 40px; padding: 0 20px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--mut); font: inherit; cursor: pointer; }
+.shx-tab[aria-selected="true"] { color: var(--tx); font-weight: 600; border-bottom-color: var(--acc); }
+.shx-tab:disabled { opacity: 0.5; cursor: default; }
+.shx-body { display: flex; padding: 14px 0 10px; overflow-x: auto; }
+.shx-group { display: flex; flex-direction: column; justify-content: space-between; gap: 8px; padding: 0 20px; border-right: 1px solid var(--line); flex: none; }
+.shx-group:last-child { border-right: 0; }
+.shx-tools { display: flex; gap: 12px; align-items: center; min-height: 88px; }
+.shx-name { font-size: 11px; color: var(--mut); text-align: center; }
+.shx-big { box-sizing: border-box; width: 88px; height: 88px; padding: 10px 8px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--tx); font: inherit; font-size: 12px; line-height: 1.25; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+.shx-col { display: grid; grid-template-rows: 40px 40px; grid-auto-flow: column; gap: 8px 4px; }
+.shx-sm { box-sizing: border-box; height: 40px; padding: 0 12px; border-radius: 6px; border: 0; background: transparent; color: var(--tx); font: inherit; font-size: 12.5px; white-space: nowrap; display: flex; align-items: center; gap: 10px; text-align: left; cursor: pointer; }
+.shx-icons { display: grid; grid-template-columns: repeat(3, 40px); gap: 8px; }
+.shx-ic { box-sizing: border-box; width: 40px; height: 40px; padding: 0; border-radius: 6px; border: 1px solid var(--line); background: var(--p2); color: var(--tx); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.shx-big:hover:not(:disabled), .shx-sm:hover:not(:disabled), .shx-ic:hover:not(:disabled) { background: var(--p2); border-color: var(--line-strong); }
+.shx-ic[aria-pressed="true"], .shx-sm[aria-pressed="true"] { outline: 1px solid var(--acc); }
+.shx-big:disabled, .shx-sm:disabled, .shx-ic:disabled { opacity: 0.45; cursor: default; }
+.shx-big svg, .shx-sm svg, .shx-ic svg { color: var(--acc); flex: none; }
+.shx-bar { display: grid; grid-template-columns: 84px 1fr; gap: 8px; }
+.shx-bar label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; font-weight: 600; color: var(--mut); }
+.shx-bar input { box-sizing: border-box; width: 100%; height: 32px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--p2); color: var(--tx); font: inherit; font-size: 13px; }
+.shx-wrap { overflow: auto; max-height: 62vh; border: 1px solid var(--line); background: var(--panel); outline: none; }
+.shx-grid { border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.shx-grid th { position: sticky; top: 0; z-index: 2; height: 24px; padding: 0 6px; border: 1px solid var(--line); background: var(--p2); color: var(--mut); font-size: 11px; font-weight: 600; text-align: center; }
+.shx-grid th.shx-row { position: sticky; left: 0; top: auto; z-index: 1; width: 40px; }
+.shx-grid th.shx-corner { left: 0; z-index: 3; width: 40px; }
+.shx-grid th.shx-on { color: var(--tx); background: var(--line); }
+.shx-grid td { height: 26px; padding: 0 6px; border: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: cell; }
+.shx-grid td.shx-sel { background: color-mix(in srgb, var(--acc) 14%, transparent); }
+.shx-grid td.shx-act { outline: 2px solid var(--acc); outline-offset: -2px; }
+.shx-grid td.shx-fx { color: var(--mut); }
+.shx-grid td.shx-err { color: var(--bad); }
+.shx-grid td.shx-fill { background: color-mix(in srgb, var(--acc) 22%, transparent); }
+.shx-grid td.shx-accent { color: var(--acc); }
+.shx-grid td input { box-sizing: border-box; width: 100%; height: 22px; border: 0; outline: 0; padding: 0; background: var(--bg); color: var(--tx); font: inherit; }
+.shx-sheets { display: flex; flex-wrap: wrap; gap: 4px; }
+.shx-sheet { height: 36px; padding: 0 16px; border: 1px solid var(--line); border-radius: 0 0 6px 6px; background: var(--bg); color: var(--mut); font: inherit; cursor: pointer; }
+.shx-sheet[aria-selected="true"] { background: var(--panel); color: var(--tx); font-weight: 600; border-top: 2px solid var(--acc); }
+.shx-note { font-size: 12px; color: var(--mut); margin: 0; }
+`;
+
+type Tab = 'file' | 'home';
+interface Clip { text: string; rows: string[][]; from: { r: number; c: number } }
+const EMPTY_BOOK = (): SheetBook => ({ sheets: [newSheet()] });
+
+function Group({ name, children }: { name: string; children: ReactNode }) {
+  return <div className="shx-group" role="group" aria-label={name}><div className="shx-tools">{children}</div><span className="shx-name">{name}</span></div>;
+}
+function Big({ icon: Icon, label, onClick, disabled, title }: { icon: LucideIcon; label: string; onClick?: () => void; disabled?: boolean; title?: string }) {
+  return <button type="button" className="shx-big" onClick={onClick} disabled={disabled || !onClick} title={title ?? (onClick ? label : LATER)}><Icon size={26} aria-hidden /><span>{label}</span></button>;
+}
+function Small({ icon: Icon, label, onClick, disabled, pressed }: { icon: LucideIcon; label: string; onClick?: () => void; disabled?: boolean; pressed?: boolean }) {
+  return <button type="button" className="shx-sm" onClick={onClick} disabled={disabled || !onClick} aria-pressed={pressed} title={onClick ? label : LATER}><Icon size={18} aria-hidden /><span>{label}</span></button>;
+}
+function IconTool({ icon: Icon, label, onClick, pressed }: { icon: LucideIcon; label: string; onClick?: () => void; pressed?: boolean }) {
+  return <button type="button" className="shx-ic" onClick={onClick} disabled={!onClick} aria-label={label} aria-pressed={pressed} title={onClick ? label : `${label} — ${LATER.toLowerCase()}`}><Icon size={18} aria-hidden /></button>;
+}
+
+export default function SheetsPage({ project, onChange, onStatus, onUndo }: { project: Project; onChange: (p: Project, step?: boolean) => void; onStatus?: (m: string) => void; onUndo?: () => void }) {
+  const book = useMemo(() => (project.sheets?.sheets.length ? project.sheets : EMPTY_BOOK()), [project.sheets]);
+  const [sheetId, setSheetId] = useState(book.sheets[0].id);
+  const sheet = book.sheets.find((s) => s.id === sheetId) ?? book.sheets[0];
+  const [tab, setTab] = useState<Tab>('home');
+  const [act, setAct] = useState({ r: 1, c: 1 });
+  const [anchor, setAnchor] = useState({ r: 1, c: 1 });
+  const [edit, setEdit] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const clip = useRef<Clip | null>(null);
+  const wrap = useRef<HTMLDivElement>(null);
+  const editInput = useRef<HTMLInputElement>(null);
+  /** Set when Enter, Tab or Escape ended an edit, so the input's blur does not save it a second time. */
+  const ended = useRef(false);
+
+  const values = useMemo(() => evaluateSheet(sheet.cells), [sheet.cells]);
+  const sel: Area = useMemo(() => area(act, anchor), [act, anchor]);
+  const name = cellName(act.c, act.r);
+  const raw = sheet.cells[name] ?? '';
+  const single = sel.r0 === sel.r1 && sel.c0 === sel.c1;
+
+  const editing = edit !== null;
+  useEffect(() => { if (editing) editInput.current?.focus(); }, [editing]);
+
+  const save = (next: Sheet, more: Partial<SheetBook> = {}) =>
+    onChange({ ...project, sheets: { ...book, ...more, sheets: (more.sheets ?? book.sheets).map((s) => (s.id === next.id ? next : s)) } }, true);
+  const setCells = (edits: Record<string, string>) => { if (Object.keys(edits).some((k) => (sheet.cells[k] ?? '') !== edits[k])) save(withCells(sheet, edits)); };
+  const style = (change: Partial<SheetStyle>) => save(withStyle(sheet, sel, change));
+  const toggle = (key: 'bold' | 'italic' | 'underline' | 'wrap' | 'fill' | 'accent') => style({ [key]: allStyled(sheet, sel, key) ? undefined : true });
+  const cur = sheet.styles?.[name] ?? {};
+
+  const move = (r: number, c: number, extend = false) => {
+    const to = { r: Math.max(1, Math.min(sheet.rows, r)), c: Math.max(1, Math.min(sheet.cols, c)) };
+    setAct(to);
+    if (!extend) setAnchor(to);
+    wrap.current?.querySelector(`[data-cell="${cellName(to.c, to.r)}"]`)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  };
+  const commit = (v: string, dr = 0, dc = 0) => {
+    ended.current = true;
+    setEdit(null);
+    setCells({ [name]: v });
+    if (dr || dc) move(act.r + dr, act.c + dc);
+    wrap.current?.focus();
+  };
+
+  // ---- clipboard
+  const copy = (cut = false) => {
+    const text = toClipboard(shownRows(sheet, sel, values));
+    clip.current = { text, rows: rawRows(sheet, sel), from: { r: sel.r0, c: sel.c0 } };
+    void navigator.clipboard?.writeText(text).catch(() => undefined);
+    if (cut) setCells(Object.fromEntries(Object.keys(pasteEdits(rawRows(sheet, sel), sel)).map((k) => [k, ''])));
+    onStatus?.(cut ? 'Cut' : 'Copied');
+  };
+  const pasteText = (text: string, valuesOnly = false) => {
+    const own = clip.current && clip.current.text === text ? clip.current : null;
+    const block = own && !valuesOnly ? own.rows : parseClipboard(text);
+    if (!block.length) return;
+    setCells(pasteEdits(block, sel, own && !valuesOnly ? own.from : undefined));
+  };
+  const paste = (valuesOnly = false) => {
+    const read = navigator.clipboard?.readText?.();
+    if (read) void read.then((t) => pasteText(t, valuesOnly)).catch(() => clip.current && pasteText(clip.current.text, valuesOnly));
+    else if (clip.current) pasteText(clip.current.text, valuesOnly);
+  };
+  const clear = () => setCells(Object.fromEntries(Object.keys(pasteEdits(rawRows(sheet, sel), sel)).map((k) => [k, ''])));
+  const fillDown = () => { if (sel.r1 > sel.r0) setCells(fillDownEdits(sheet, sel)); };
+  const sum = () => { const f = sumFormula(sheet, act.r, act.c, values); if (f) setCells({ [name]: f }); else onStatus?.('Sum: no numbers above or to the left of this cell'); };
+
+  // ---- sheets
+  const addSheet = () => { const s = newSheet(book.sheets); onChange({ ...project, sheets: { ...book, sheets: [...book.sheets, s] } }, true); setSheetId(s.id); move(1, 1); };
+  const removeSheet = () => {
+    if (book.sheets.length < 2) return;
+    const rest = book.sheets.filter((s) => s.id !== sheet.id);
+    onChange({ ...project, sheets: { ...book, sheets: rest } }, true);
+    setSheetId(rest[0].id);
+  };
+  const rename = (v: string) => {
+    setRenaming(null);
+    if (v.trim() === sheet.name) return;
+    const e = sheetNameError(v, book.sheets.filter((s) => s.id !== sheet.id));
+    if (e) onStatus?.(e); else save({ ...sheet, name: v.trim() });
+  };
+
+  const onKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (editing) return;
+    const mod = e.metaKey || e.ctrlKey, k = e.key;
+    const arrows: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+    if (arrows[k]) { e.preventDefault(); move(act.r + arrows[k][0], act.c + arrows[k][1], e.shiftKey); return; }
+    if (k === 'Tab') { e.preventDefault(); move(act.r, act.c + (e.shiftKey ? -1 : 1)); return; }
+    if (k === 'Enter') { e.preventDefault(); move(act.r + (e.shiftKey ? -1 : 1), act.c); return; }
+    if (k === 'F2') { e.preventDefault(); ended.current = false; setEdit(raw); return; }
+    if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); clear(); return; }
+    if (mod) {
+      const key = k.toLowerCase();
+      // Paste comes through the paste event below, so it is not also run from the key.
+      const run: Record<string, () => void> = { c: () => copy(), x: () => copy(true), b: () => toggle('bold'), i: () => toggle('italic'), u: () => toggle('underline'), d: fillDown };
+      if (run[key]) { e.preventDefault(); e.stopPropagation(); run[key](); }
+      return;
+    }
+    if (k.length === 1 && !e.altKey) { e.preventDefault(); ended.current = false; setEdit(k); }
+  };
+
+  const colHeads = Array.from({ length: sheet.cols }, (_, i) => i + 1);
+  const rowHeads = Array.from({ length: sheet.rows }, (_, i) => i + 1);
+  const cls = (r: number, c: number, k: string) => {
+    const st = sheet.styles?.[k], out: string[] = [];
+    if (r >= sel.r0 && r <= sel.r1 && c >= sel.c0 && c <= sel.c1 && !single) out.push('shx-sel');
+    if (r === act.r && c === act.c) out.push('shx-act');
+    if (values[k]?.error) out.push('shx-err'); else if (sheet.cells[k]?.startsWith('=')) out.push('shx-fx');
+    if (st?.fill) out.push('shx-fill');
+    if (st?.accent) out.push('shx-accent');
+    return out.join(' ');
+  };
+  const cellStyle = (k: string): React.CSSProperties => {
+    const st = sheet.styles?.[k] ?? {}, v = values[k]?.value;
+    return {
+      fontWeight: st.bold ? 700 : undefined, fontStyle: st.italic ? 'italic' : undefined, textDecoration: st.underline ? 'underline' : undefined,
+      textAlign: st.align ?? (typeof v === 'number' ? 'right' : 'left'), whiteSpace: st.wrap ? 'normal' : undefined
+    };
+  };
+  const align = (a: SheetAlign) => style({ align: cur.align === a ? undefined : a });
+  const fmt = (f: SheetNumberFormat) => style({ fmt: f === 'general' ? undefined : f });
+
+  return (
+    <div className="shx">
+      <style>{CSS}</style>
+      <h3>Sheets</h3>
+      <p className="shx-note">Your own schedules in an Excel-style grid, saved with the project. Formulas: + − × ÷, SUM, AVERAGE, MIN, MAX, COUNT, ROUND, ROUNDUP, ROUNDDOWN, IF, AND, OR, NOT, ABS, SQRT, VLOOKUP. Opening Excel files and linking columns to the project come in the next stages.</p>
+
+      <div className="shx-ribbon">
+        <div className="shx-tabs" role="tablist" aria-label="Sheet tools">
+          <button type="button" role="tab" className="shx-tab" aria-selected={tab === 'file'} onClick={() => setTab('file')}>File</button>
+          <button type="button" role="tab" className="shx-tab" aria-selected={tab === 'home'} onClick={() => setTab('home')}>Home</button>
+          {['Electrical', 'Formulas', 'Data', 'Review'].map((t) => <button key={t} type="button" role="tab" className="shx-tab" aria-selected={false} disabled title={LATER}>{t}</button>)}
+        </div>
+        {tab === 'file' ? (
+          <div className="shx-body">
+            <Group name="Sheets">
+              <Big icon={FilePlus2} label="New sheet" onClick={addSheet} />
+              <div className="shx-col">
+                <Small icon={Pencil} label="Rename sheet" onClick={() => setRenaming(sheet.name)} />
+                <Small icon={Trash2} label="Delete sheet" onClick={removeSheet} disabled={book.sheets.length < 2} />
+              </div>
+            </Group>
+            <Group name="Excel file">
+              <Big icon={FolderOpen} label="Open Excel file" />
+              <Big icon={Save} label="Save as .xlsx" />
+            </Group>
+          </div>
+        ) : (
+          <div className="shx-body">
+            <Group name="Clipboard">
+              <Big icon={ClipboardPaste} label="Paste" onClick={() => paste()} />
+              <div className="shx-col">
+                <Small icon={Scissors} label="Cut" onClick={() => copy(true)} />
+                <Small icon={Copy} label="Copy" onClick={() => copy()} />
+                <Small icon={ClipboardType} label="Paste values" onClick={() => paste(true)} />
+                <Small icon={Paintbrush} label="Copy format" />
+              </div>
+            </Group>
+            <Group name="Font">
+              <div className="shx-icons">
+                <IconTool icon={Bold} label="Bold" onClick={() => toggle('bold')} pressed={!!cur.bold} />
+                <IconTool icon={Italic} label="Italic" onClick={() => toggle('italic')} pressed={!!cur.italic} />
+                <IconTool icon={Underline} label="Underline" onClick={() => toggle('underline')} pressed={!!cur.underline} />
+                <IconTool icon={PaintBucket} label="Highlight fill" onClick={() => toggle('fill')} pressed={!!cur.fill} />
+                <IconTool icon={Baseline} label="Accent text colour" onClick={() => toggle('accent')} pressed={!!cur.accent} />
+                <IconTool icon={Grid2x2} label="Borders" />
+              </div>
+            </Group>
+            <Group name="Alignment">
+              <div className="shx-icons">
+                <IconTool icon={AlignLeft} label="Align left" onClick={() => align('left')} pressed={cur.align === 'left'} />
+                <IconTool icon={AlignCenter} label="Align centre" onClick={() => align('center')} pressed={cur.align === 'center'} />
+                <IconTool icon={AlignRight} label="Align right" onClick={() => align('right')} pressed={cur.align === 'right'} />
+                <IconTool icon={WrapText} label="Wrap text" onClick={() => toggle('wrap')} pressed={!!cur.wrap} />
+                <IconTool icon={TableCellsMerge} label="Merge cells" />
+                <IconTool icon={RotateCw} label="Rotate heading" />
+              </div>
+            </Group>
+            <Group name="Number">
+              <div className="shx-col">
+                <Small icon={Hash} label="General" onClick={() => fmt('general')} pressed={!cur.fmt} />
+                <Small icon={Dot} label="Decimals 0.00" onClick={() => fmt('dec2')} pressed={cur.fmt === 'dec2'} />
+                <Small icon={Percent} label="Percent" onClick={() => fmt('percent')} pressed={cur.fmt === 'percent'} />
+                <Small icon={Ruler} label="Units" />
+              </div>
+            </Group>
+            <Group name="Rows and columns">
+              <Big icon={BetweenHorizontalStart} label="Insert row" onClick={() => save(insertRows(sheet, sel.r0, sel.r1 - sel.r0 + 1))} />
+              <div className="shx-col">
+                <Small icon={Trash2} label="Delete row" onClick={() => { save(deleteRows(sheet, sel.r0, sel.r1 - sel.r0 + 1)); move(sel.r0, act.c); }} />
+                <Small icon={BetweenVerticalStart} label="Insert column" onClick={() => save(insertCols(sheet, sel.c0, sel.c1 - sel.c0 + 1))} />
+                <Small icon={Trash2} label="Delete column" onClick={() => { save(deleteCols(sheet, sel.c0, sel.c1 - sel.c0 + 1)); move(act.r, sel.c0); }} />
+                <Small icon={MoveHorizontal} label="Column width" onClick={() => save(withNextWidth(sheet, sel))} />
+              </div>
+            </Group>
+            <Group name="Editing">
+              <div className="shx-col">
+                <Small icon={Sigma} label="Sum" onClick={sum} />
+                <Small icon={ArrowDownToLine} label="Fill down" onClick={fillDown} disabled={sel.r1 === sel.r0} />
+                <Small icon={ArrowDownAZ} label="Sort" />
+                <Small icon={ListFilter} label="Filter" />
+                <Small icon={Search} label="Find" />
+                <Small icon={Undo2} label="Undo" onClick={onUndo} />
+              </div>
+            </Group>
+            <Group name="Project">
+              <Big icon={Check} label="Apply to project" />
+            </Group>
+          </div>
+        )}
+      </div>
+
+      <div className="shx-bar">
+        <label>Cell<input aria-label="Cell" key={`${sheet.id}:${cellName(sel.c0, sel.r0)}:${cellName(sel.c1, sel.r1)}`} defaultValue={single ? name : `${cellName(sel.c0, sel.r0)}:${cellName(sel.c1, sel.r1)}`} spellCheck={false}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const p = cellAt(e.currentTarget.value.trim()); if (p) move(p.row, p.col); wrap.current?.focus(); } }} /></label>
+        <label>Formula<input aria-label="Formula" key={`${sheet.id}:${name}:${raw}`} defaultValue={raw} spellCheck={false}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(e.currentTarget.value, 1, 0); } else if (e.key === 'Escape') { e.currentTarget.value = raw; wrap.current?.focus(); } }}
+          onBlur={(e) => { if (e.currentTarget.value !== raw) setCells({ [name]: e.currentTarget.value }); }} /></label>
+      </div>
+
+      <div className="shx-wrap" ref={wrap} tabIndex={0} onKeyDown={onKey} role="grid" aria-label={`Sheet ${sheet.name}`}
+        onPaste={(e) => { if (!editing) { e.preventDefault(); pasteText(e.clipboardData.getData('text/plain')); } }}>
+        <table className="shx-grid">
+          <colgroup><col style={{ width: 40 }} />{colHeads.map((c) => <col key={c} style={{ width: sheet.widths?.[colName(c)] ?? DEFAULT_WIDTH }} />)}</colgroup>
+          <thead>
+            <tr><th className="shx-corner" aria-hidden />{colHeads.map((c) => <th key={c} scope="col" className={c >= sel.c0 && c <= sel.c1 ? 'shx-on' : undefined}>{colName(c)}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rowHeads.map((r) => (
+              <tr key={r}>
+                <th scope="row" className={`shx-row${r >= sel.r0 && r <= sel.r1 ? ' shx-on' : ''}`}>{r}</th>
+                {colHeads.map((c) => {
+                  const k = cellName(c, r), here = editing && r === act.r && c === act.c;
+                  return (
+                    <td key={c} data-cell={k} role="gridcell" aria-selected={r === act.r && c === act.c} className={cls(r, c, k)} style={cellStyle(k)}
+                      title={values[k]?.error ? `${values[k]!.error}: ${sheet.cells[k]}` : undefined}
+                      onMouseDown={(e) => { if (!here) move(r, c, e.shiftKey); }}
+                      onDoubleClick={() => { ended.current = false; setEdit(sheet.cells[k] ?? ''); }}>
+                      {here
+                        ? <input ref={editInput} aria-label={`Edit ${k}`} defaultValue={edit ?? ''} spellCheck={false}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); commit(e.currentTarget.value, e.shiftKey ? -1 : 1, 0); }
+                              else if (e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); commit(e.currentTarget.value, 0, e.shiftKey ? -1 : 1); }
+                              else if (e.key === 'Escape') { e.stopPropagation(); ended.current = true; setEdit(null); wrap.current?.focus(); }
+                            }}
+                            onBlur={(e) => { if (!ended.current) { setEdit(null); setCells({ [k]: e.currentTarget.value }); } }} />
+                        : shown(values[k], sheet.styles?.[k]?.fmt)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="shx-sheets" role="tablist" aria-label="Sheets">
+        {book.sheets.map((s) => (renaming !== null && s.id === sheet.id
+          ? <input key={s.id} aria-label="Sheet name" autoFocus defaultValue={renaming} style={{ height: 36, padding: '0 10px' }}
+              onKeyDown={(e) => { if (e.key === 'Enter') rename(e.currentTarget.value); else if (e.key === 'Escape') setRenaming(null); }} onBlur={(e) => rename(e.currentTarget.value)} />
+          : <button key={s.id} type="button" role="tab" className="shx-sheet" aria-selected={s.id === sheet.id} onClick={() => { setSheetId(s.id); setEdit(null); move(1, 1); }} onDoubleClick={() => setRenaming(s.name)}>{s.name}</button>))}
+        <button type="button" className="shx-sheet" onClick={addSheet} aria-label="New sheet">+</button>
+      </div>
+      <p className="shx-note">Type to enter, Enter and Tab to move on, F2 or double-click to edit, Shift with the arrows or a click to select an area, Ctrl/⌘ C, X, V, B, I, U, and Ctrl/⌘ D to fill down. Greyed tools come in later stages.</p>
+    </div>
+  );
+}
