@@ -72,6 +72,9 @@ describe('the Stages tab', () => {
     expect(chosen).toEqual(['sheets']);
     expect(document.activeElement).toBe(tab('sheets'));
     key(tab('sheets'), 'ArrowRight');
+    expect(chosen[chosen.length - 1]).toBe('spec');
+    expect(document.activeElement).toBe(tab('spec'));
+    key(tab('spec'), 'ArrowRight');
     expect(chosen[chosen.length - 1]).toBe('detailed'); // Stages, on the project's stage
     expect(document.activeElement).toBe(tab('stages'));
     key(tab('stages'), 'ArrowRight');
