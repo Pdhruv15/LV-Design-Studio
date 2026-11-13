@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eseRadiusM, lightningProtection, type LpsInputs } from './lightningProtection';
+import { eseRadiusM, lightningProtection, lpsLayout, type LpsInputs } from './lightningProtection';
 
 // A 40 × 25 m flat roof, 18 m high. The class values are the engineer's own entries, as in a project.
 const base: LpsInputs = {
@@ -99,5 +99,19 @@ describe('lightning protection — concept (IEC 62305-3 methods; NFC 17-102 for 
   it('a building with no size is invalid', () => {
     expect(lightningProtection({ ...base, widthM: 0 }).invalid).toBeDefined();
     expect(lightningProtection({ ...base, heightM: NaN }).invalid).toBeDefined();
+  });
+
+  it('roof plan layout: mesh lines, rods and down conductors', () => {
+    const m = lpsLayout(base, lightningProtection(base));
+    expect([m.meshX, m.meshY, m.terminals]).toEqual([[10, 20, 30], [8.33, 16.67], []]);
+    expect(m.downs.length).toBe(13);
+    expect(m.downs.slice(0, 6)).toEqual([[0, 0], [10, 0], [20, 0], [30, 0], [40, 0], [40, 10]]);
+    expect(m.downs[12]).toEqual([0, 10]);
+    const s = lpsLayout(base, lightningProtection({ ...base, method: 'sphere' }));
+    expect(s.terminals.length).toBe(12);
+    expect(s.terminals[0]).toEqual([0, 0]);
+    expect(lpsLayout(base, lightningProtection({ ...base, method: 'ese' })).terminals).toEqual([[20, 12.5]]);
+    expect(lpsLayout(base, lightningProtection({ ...base, method: 'angle' })).terminals.length).toBe(60);
+    expect(lpsLayout(base, lightningProtection({ ...base, meshM: undefined }))).toMatchObject({ meshX: [], terminals: [], downs: [] });
   });
 });

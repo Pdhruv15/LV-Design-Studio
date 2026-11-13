@@ -60,6 +60,9 @@ export interface AirResult {
   radiusM?: number;
   /** Rod grid spacing along the length and the width (m). */
   gridM?: [number, number];
+  /** Bays along the length and the width: mesh bays; rod bays (rolling sphere: a rod at every node; protection
+   * angle and ESE: one at the centre of each bay). */
+  bays?: [number, number];
   /** Mesh runs inside the roof edge, and roof conductor length with the edge (m). */
   meshRuns?: number;
   roofConductorM: number;
@@ -109,7 +112,7 @@ function mesh(i: LpsInputs, perimeterM: number): AirResult {
   const along = steps(i.lengthM, i.meshM) - 1, across = steps(i.widthM, i.meshM) - 1;
   const insideM = along * i.widthM + across * i.lengthM;
   return {
-    method: 'mesh', status: 'ok', missing: [], terminals: 0, radiusM: i.meshM, meshRuns: along + across, roofConductorM: r2(perimeterM + insideM),
+    method: 'mesh', status: 'ok', missing: [], terminals: 0, radiusM: i.meshM, meshRuns: along + across, bays: [along + 1, across + 1], roofConductorM: r2(perimeterM + insideM),
     working: `Roof edge ${r2(perimeterM)} m + ${along} runs of ${r2(i.widthM)} m + ${across} runs of ${r2(i.lengthM)} m, no mesh larger than ${r2(i.meshM)} m`
   };
 }
@@ -121,7 +124,7 @@ function angle(i: LpsInputs): AirResult {
   // A circle of that radius covers a square of side r·√2, so rods at the centres of such squares cover the roof.
   const nx = steps(i.lengthM, radius * Math.SQRT2), ny = steps(i.widthM, radius * Math.SQRT2);
   return {
-    method: 'angle', status: 'ok', missing: [], terminals: nx * ny, radiusM: r2(radius), gridM: [r2(i.lengthM / nx), r2(i.widthM / ny)],
+    method: 'angle', status: 'ok', missing: [], terminals: nx * ny, radiusM: r2(radius), gridM: [r2(i.lengthM / nx), r2(i.widthM / ny)], bays: [nx, ny],
     roofConductorM: r2(ny * i.lengthM + nx * i.widthM),
     working: `Radius at roof level = h · tan α = ${r2(i.rodHeightM!)} × tan ${r2(i.angleDeg!)}° = ${r2(radius)} m; one rod at the centre of each ${r2(i.lengthM / nx)} × ${r2(i.widthM / ny)} m bay`
   };
@@ -137,7 +140,7 @@ function sphere(i: LpsInputs): AirResult {
   const diagonal = 2 * Math.sqrt(2 * r * h - h * h);
   const g = rodGrid(i.lengthM, i.widthM, diagonal / Math.SQRT2);
   return {
-    method: 'sphere', status: 'ok', missing: [], terminals: g.count, radiusM: r2(diagonal / 2), gridM: g.grid,
+    method: 'sphere', status: 'ok', missing: [], terminals: g.count, radiusM: r2(diagonal / 2), gridM: g.grid, bays: [g.nx, g.ny],
     roofConductorM: r2(gridConductorM(i.lengthM, i.widthM, g.nx, g.ny)),
     working: `Largest bay diagonal = 2 · √(2rh − h²) = 2 × √(2 × ${r2(r)} × ${r2(h)} − ${r2(h)}²) = ${r2(diagonal)} m; rods on a ${g.grid[0]} × ${g.grid[1]} m grid`
   };
@@ -161,7 +164,7 @@ function ese(i: LpsInputs, halfDiagonalM: number): AirResult {
   const one = rp >= halfDiagonalM;
   const nx = one ? 1 : steps(i.lengthM, rp * Math.SQRT2), ny = one ? 1 : steps(i.widthM, rp * Math.SQRT2);
   return {
-    method: 'ese', status: 'warn', missing: [], terminals: nx * ny, radiusM: r2(rp), gridM: one ? undefined : [r2(i.lengthM / nx), r2(i.widthM / ny)],
+    method: 'ese', status: 'warn', missing: [], terminals: nx * ny, radiusM: r2(rp), gridM: one ? undefined : [r2(i.lengthM / nx), r2(i.widthM / ny)], bays: [nx, ny],
     roofConductorM: 0,
     working: `Rp = √(2rh − h² + ΔL(2r + ΔL)) with r ${r2(i.sphereRadiusM!)} m, h ${r2(i.eseMastM!)} m, ΔL ${r2(i.eseDeltaTUs!)} m = ${r2(rp)} m; the roof's far corner is ${r2(halfDiagonalM)} m from its centre`,
     note: 'NFC 17-102 method, not an IEC 62305 method: confirm that the authority accepts it'
@@ -200,4 +203,28 @@ export function lightningProtection(i: LpsInputs): LpsResult {
     downConductors, downSpacingM: downConductors ? r2(perimeterM / downConductors) : undefined, downConductorM: r2(downConductors * i.heightM),
     earthPits: i.earthPitPerDown ? downConductors : 0, ringConductorM: downConductors ? r2(perimeterM) : 0, testJoints: downConductors, checks
   };
+}
+
+/** Where things sit on the roof plan (metres from one corner), for the concept layout: mesh lines inside the
+ * roof edge, the rods or terminals, and the down conductors at equal steps round the perimeter. */
+export interface LpsLayout { meshX: number[]; meshY: number[]; terminals: [number, number][]; downs: [number, number][] }
+export function lpsLayout(i: Pick<LpsInputs, 'lengthM' | 'widthM'>, r: LpsResult): LpsLayout {
+  const out: LpsLayout = { meshX: [], meshY: [], terminals: [], downs: [] };
+  const a = r.selected, L = i.lengthM, W = i.widthM;
+  if (r.invalid) return out;
+  if (a.bays && a.status !== 'data') {
+    const [nx, ny] = a.bays;
+    if (a.method === 'mesh' || a.method === 'sphere') {
+      for (let x = 1; x < nx; x++) out.meshX.push(r2((x * L) / nx));
+      for (let y = 1; y < ny; y++) out.meshY.push(r2((y * W) / ny));
+    }
+    if (a.method === 'sphere') for (let x = 0; x <= nx; x++) for (let y = 0; y <= ny; y++) out.terminals.push([r2((x * L) / nx), r2((y * W) / ny)]);
+    if (a.method === 'angle' || a.method === 'ese') for (let x = 0; x < nx; x++) for (let y = 0; y < ny; y++) out.terminals.push([r2(((x + 0.5) * L) / nx), r2(((y + 0.5) * W) / ny)]);
+  }
+  const per = 2 * (L + W);
+  for (let k = 0; k < r.downConductors; k++) {
+    const d = (k * per) / r.downConductors;
+    out.downs.push(d < L ? [r2(d), 0] : d < L + W ? [L, r2(d - L)] : d < 2 * L + W ? [r2(2 * L + W - d), W] : [0, r2(per - d)]);
+  }
+  return out;
 }

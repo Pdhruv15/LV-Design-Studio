@@ -35,6 +35,7 @@ const TrayScheduleView = lazy(() => import('./components/docs/TrayScheduleView')
 const SubstationAreaView = lazy(() => import('./components/docs/SubstationAreaView'));
 const LoadAssessmentView = lazy(() => import('./components/docs/LoadAssessmentView'));
 const UpsStudy = lazy(() => import('./components/studies/UpsStudy'));
+const LightningStudy = lazy(() => import('./components/studies/LightningStudy'));
 const SolarStudy = lazy(() => import('./components/studies/SolarStudy'));
 const StudyReportsView = lazy(() => import('./components/docs/StudyReportsView'));
 const QuickCalcs = lazy(() => import('./components/QuickCalcs'));
@@ -197,7 +198,7 @@ const PALETTE_PAGES: [MainView, string][] = [
   ['space-planning', 'Space plan'], ['substation-area', 'Substation area'], ['enclosure', 'Enclosure sizing'], ['earth-schematic', 'Earth pits'],
   ['busbar', 'Busbar riser'], ['calculators', 'Quick calcs'], ['voltage-drop', 'Voltage drop'], ['engines', 'Load flow'], ['earthing', 'Earthing'],
   ['coordination', 'Protection coordination'], ['selection', 'Breaker & cable selection'], ['sizing', 'Transformer & generator sizing'], ['pfc', 'Power factor'],
-  ['ups', 'UPS & battery'], ['solar', 'Solar PV'], ['drawings', 'Drawings'], ['drawing-register', 'Drawing register'],
+  ['ups', 'UPS & battery'], ['solar', 'Solar PV'], ['lightning', 'Lightning protection'], ['drawings', 'Drawings'], ['drawing-register', 'Drawing register'],
   ['cable-schedule', 'Cable schedule'], ['cable-tray', 'Cable trays'], ['equipment', 'Equipment schedule'], ['boq', 'Bill of quantities (BOQ)'],
   ['study-reports', 'Study reports'], ['report', 'Calculation report'], ['revisions', 'Revisions'], ['modifications', 'Changes'], ['review', 'Review'],
   ['elv', 'ELV systems'], ['inbox', 'Inbox'],
@@ -1696,6 +1697,7 @@ export default function App() {
             {view === 'substation-area' && <SubstationAreaView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
             {view === 'ups' && <UpsStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
             {view === 'solar' && <SolarStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
+            {view === 'lightning' && <LightningStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} />}
             {view === 'cable-tray' && (
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />
             )}
