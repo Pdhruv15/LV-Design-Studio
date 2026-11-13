@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import {
-  AlignLeft, ArrowDown, ArrowUp, Baseline, Bold, Braces, ClipboardPaste, Copy, FilePlus2, FileText, FolderOpen, Heading1, Heading2, Italic, List, ListOrdered, PaintBucket, Paintbrush,
+  AlignLeft, ArrowDown, ArrowUp, Baseline, Bold, Braces, ClipboardPaste, Copy, FilePlus2, FileText, FileType, FolderOpen, Heading1, Heading2, Italic, List, ListOrdered, PaintBucket, Paintbrush,
   Pencil, Pilcrow, Plus, Scissors, Search, StickyNote, Trash2, Underline, Undo2
 } from 'lucide-react';
 import type { Project } from '../../types';
@@ -9,10 +9,12 @@ import {
   fieldKeys, type SpecDoc, type SpecKind
 } from '../../model/specDoc';
 import { Big, Group, Icons, IconTool, PageRibbon, RIBBON_CSS, Rows, Small } from '../pageRibbon';
+import { buildSpecHtml } from '../../docs/specReport';
+import { safeFileName, saveBinary, savePdf } from '../../util/files';
 
 /** Specification: the project specification as sections of numbered clauses whose values come from the project.
- * This stage has the section list, the page with clause editing, and the File and Home tabs of the ribbon; export
- * to Word, the clause library and the office template follow (docs/notes/Future development, Specification writer). */
+ * It has the section list, the page with clause editing, the File and Home tabs of the ribbon, and export to Word
+ * and PDF; the clause library and the office template follow (docs/notes/Future development, Specification writer). */
 
 const CSS = `${RIBBON_CSS}
 .spx { display: flex; flex-direction: column; gap: 12px; color: var(--tx); min-width: 0; }
@@ -74,6 +76,20 @@ export default function SpecPage({ project, onChange, onStatus, onUndo }: { proj
   const used = useMemo(() => [...new Set((section?.clauses ?? []).flatMap((c) => fieldKeys(c.text)))], [section]);
 
   const save = (next: SpecDoc) => onChange({ ...project, spec: next }, true);
+  const included = doc.sections.filter((s) => s.included).length;
+  const [busy, setBusy] = useState(false);
+  async function exportAs(kind: 'docx' | 'pdf') {
+    setBusy(true);
+    try {
+      const name = `${safeFileName(project.name)} - ${safeFileName(doc.title)}`;
+      const m = kind === 'pdf'
+        ? await savePdf(`${name}.pdf`, buildSpecHtml(project, doc), { pageSize: 'A4', landscape: false })
+        : await saveBinary(`${name}.docx`, await (await import('../../docs/specWord')).specDocxBytes(project, doc), 'Word document', 'docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      if (m) onStatus?.(view.missing.length ? `${m} — ${view.missing.length} value${view.missing.length === 1 ? '' : 's'} in it are DATA REQUIRED` : m);
+    } finally {
+      setBusy(false);
+    }
+  }
   const pick = (id: string | null) => { setClauseId(id); caret.current = null; };
   const commitText = (id: string, text: string) => { const c = section.clauses.find((x) => x.id === id); if (c && c.text !== text) save(withClause(doc, section.id, id, { text })); };
   const add = (kind: SpecKind) => {
@@ -105,7 +121,6 @@ export default function SpecPage({ project, onChange, onStatus, onUndo }: { proj
   const startOver = () => { save(starterSpec()); setSectionId('S1'); pick(null); onStatus?.('Specification: the starter wording is back (undo to return to yours)'); };
 
   if (!section || !block) return <div className="spx"><style>{CSS}</style><h3>Specification</h3><p className="spx-note">No sections.</p></div>;
-  const included = doc.sections.filter((s) => s.included).length;
   const numberOf = (id: string) => view.blocks.find((b) => b.id === id)?.no ?? '–';
   const keep = (e: { currentTarget: HTMLTextAreaElement }) => { caret.current = e.currentTarget.selectionStart; };
 
@@ -113,7 +128,7 @@ export default function SpecPage({ project, onChange, onStatus, onUndo }: { proj
     <div className="spx">
       <style>{CSS}</style>
       <h3>Specification</h3>
-      <p className="spx-note">The project specification, electrical and ELV. Tick the sections, edit the clauses in your own wording, and put project values in a clause as fields — they follow the design. The starter text is plain wording to edit, not text of any standard. Export to Word comes in the next stage.</p>
+      <p className="spx-note">The project specification, electrical and ELV. Tick the sections, edit the clauses in your own wording, and put project values in a clause as fields — they follow the design. The starter text is plain wording to edit, not text of any standard. Export Word gives a file to finish in Word; Export PDF a black-and-white document.</p>
 
       <PageRibbon label="Specification tools" tab={tab} onTab={setTab} tabs={[{ id: 'file', name: 'File' }, { id: 'home', name: 'Home' }, { id: null, name: 'Specification' }, { id: null, name: 'Insert' }, { id: null, name: 'Review' }]}>
         {tab === 'file' ? (
@@ -132,7 +147,8 @@ export default function SpecPage({ project, onChange, onStatus, onUndo }: { proj
               </Rows>
             </Group>
             <Group name="Output">
-              <Big icon={FileText} label="Export Word" />
+              <Big icon={FileText} label="Export Word" onClick={() => void exportAs('docx')} disabled={busy || !included} />
+              <Big icon={FileType} label="Export PDF" onClick={() => void exportAs('pdf')} disabled={busy || !included} />
             </Group>
           </>
         ) : (
@@ -187,7 +203,7 @@ export default function SpecPage({ project, onChange, onStatus, onUndo }: { proj
               </Rows>
             </Group>
             <Group name="Output">
-              <Big icon={FileText} label="Export Word" />
+              <Big icon={FileText} label="Export Word" onClick={() => void exportAs('docx')} disabled={busy || !included} />
             </Group>
           </>
         )}
