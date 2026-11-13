@@ -1,6 +1,6 @@
 # UI UX proposal – Design CAD cursor and pick box (2026-11-13)
 
-Status: **proposal, nothing built.** Waiting for the user's answers to the questions at the end.
+Status: **approved 2026-11-13** with the suggested answers: no pick box while a point is asked for and no crosshair while objects are asked for; pick box default 12 px; hover in amber; name tag off by default; crosshair colours Drawing ink, Accent and Cyan; window blue and crossing green with labels. Step 1 is being built (v2.115); steps 2–4 follow.
 
 Mockup: `docs/mockups/cad-cursor-pickbox-mockup.html` (image: `cad-cursor-pickbox-mockup.png`).
 
