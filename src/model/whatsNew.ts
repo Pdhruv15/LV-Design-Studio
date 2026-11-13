@@ -18,6 +18,9 @@ export const RELEASES: Release[] = [
     version: '2.120', date: '2026-11-13',
     items: [
       { title: 'Design CAD: fitted text in its place', text: 'Text fitted between two points, as in SLD drawings exported from the app, now opens in Design CAD at its own place and width instead of half its length to the right.' }
+    ]
+  },
+  {
     version: '2.118', date: '2026-11-13',
     items: [
       { title: 'Design CAD: cursor settings', text: 'Drafting settings (DS) → Cursor: choose the crosshair colour (Drawing ink, Accent or Cyan) and turn the outline under the cursor on or off. Selection: turn off the outline on what is under the pick box, or turn on a name tag that shows the object\'s kind and layer (a device\'s name) once the cursor rests on it for half a second.' }
