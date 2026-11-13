@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Load schedule source tools mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite dark; ribbon sizes from src/styles.css (.ribbon-*) */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--warn:#f5c04a;--new:#b784ff;--mv:#4fb3a5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.35 -apple-system,"Segoe UI",system-ui,sans-serif;width:1952px;padding:16px 20px 20px}
+h1{font-size:17px;margin:0 0 4px}
+h2{font-size:13px;margin:18px 0 6px;font-weight:600}
+h2 .n{display:inline-block;width:18px;height:18px;line-height:18px;border-radius:50%;background:var(--acc);color:#1D2024;text-align:center;font-size:11px;margin-right:7px}
+p.lead{margin:0 0 8px;color:var(--mut);max-width:1500px}
+.legend{color:var(--mut);font-size:12px;margin:0}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin:0 5px 0 14px}
+.legend i.n{border:1.5px dashed var(--new)}
+.legend i.m{border:1px solid var(--mv)}
+.w{font-size:11px;color:var(--mut);margin:5px 0 0}
+.wrap{position:relative}
+.frame{border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;background:var(--panel)}
+.tabs{display:flex;align-items:center;gap:4px;padding:8px 16px 0}
+.tabs span{display:inline-flex;align-items:center;min-height:32px;padding:0 16px;border-radius:6px 6px 0 0;color:var(--mut)}
+.tabs span.on{background:var(--acc);color:#1D2024;font-weight:600}
+.tabs span.sep{min-height:0;width:1px;height:18px;padding:0;margin:0 6px;background:var(--line)}
+.tools{display:flex;align-items:stretch;padding:4px 8px;background:var(--p2);border-top:1px solid var(--line)}
+.grp{display:flex;flex-direction:column;gap:2px;padding:0 8px;border-right:1px solid var(--line)}
+.grp:last-child{border-right:0}
+.btns{display:flex;gap:2px;flex:1}
+.cap{font-size:11px;color:var(--mut);text-align:center;letter-spacing:.02em;line-height:1.2;padding-top:1px;white-space:nowrap}
+.big{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:56px;min-height:52px;padding:4px 6px;border-radius:6px;font-size:12px;white-space:nowrap}
+.big svg{width:20px;height:20px}
+.big .lb{display:inline-flex;align-items:center;gap:2px}
+.big .lb svg,.sm .ch{width:11px;height:11px}
+.sub{font-size:11px;color:var(--mut);margin-top:-3px}
+.split{display:inline-flex;align-items:stretch;border-radius:6px}
+.split .big{padding-right:4px}
+.arrow{display:flex;align-items:center;align-self:center;height:28px;padding:0 2px}
+.arrow svg{width:12px;height:12px}
+.col{display:flex;flex-direction:column;justify-content:center;gap:1px}
+.sm{display:flex;align-items:center;gap:6px;height:20px;padding:0 6px;border-radius:6px;font-size:11px;white-space:nowrap}
+.sm svg{width:15px;height:15px;flex:none}
+.sm em{font-style:normal;color:var(--mut)}
+.on{background:var(--acc);color:#1D2024}
+.pg{color:var(--acc);box-shadow:inset 0 -2px 0 var(--acc)}
+.stale{color:var(--warn)}
+.new{outline:1.5px dashed var(--new);outline-offset:-1.5px}
+.mv{outline:1px solid var(--mv);outline-offset:-1px}
+svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.menu{position:absolute;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:4px;z-index:2;font-size:12px;white-space:nowrap}
+.menu div{padding:6px 10px;border-radius:5px}
+.menu div.hi{background:rgba(245,179,1,.18)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+.menu .tk{display:inline-block;width:16px;color:var(--acc)}
+.menu div.new{margin-top:2px}
+.chk{display:flex;gap:28px;align-items:center;width:1366px;background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;padding:12px 20px}
+.chk table{flex:1;border-collapse:collapse;font-size:12px}
+.chk th{text-align:left;font-weight:400;color:var(--mut);font-size:11px;padding:4px 8px;border-bottom:1px solid var(--line-strong);white-space:nowrap}
+.chk td{padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.chk td.r,.chk th.r{text-align:right}
+.chk td.ok{color:var(--mut)}
+.chk td.tc{color:var(--warn)}
+.chk tr.cur td{border-top:2px solid var(--acc);border-bottom:2px solid var(--acc)}
+.chk tr.cur td:first-child{border-left:2px solid var(--acc)}
+.chk tr.cur td:last-child{border-right:2px solid var(--acc)}
+.chk td.v{color:var(--acc);font-weight:700}
+.call{width:420px;flex:none;background:var(--p2);border:1px solid var(--line);border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.call .m{font-size:11px;color:var(--mut)}
+.call .t{font-size:13px;font-weight:700}
+.call .btnrow{display:flex;gap:8px;margin-top:4px}
+.call .chip{padding:5px 12px;border-radius:6px;font-size:12px;border:1px solid var(--line-strong)}
+.call .chip.a{background:var(--acc);color:#1D2024;border-color:var(--acc);font-weight:600}
+.tip{position:absolute;max-width:250px;padding:6px 8px;background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:12px;line-height:1.35;color:var(--mut);z-index:2}
+.tip b{display:block;color:var(--tx);font-weight:600}
+.over{display:flex;gap:4px;padding:6px}
+.over section{padding:0 6px;border-right:1px solid var(--line)}
+.over section:last-child{border-right:0}
+.over h4{margin:2px 6px 4px;font-size:11px;font-weight:400;color:var(--mut);letter-spacing:.02em}
+.over .sm{height:24px;font-size:12px}
+.notes{margin-top:18px;display:grid;grid-template-columns:repeat(6,1fr);gap:10px;width:1912px}
+.notes div{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:9px 11px;font-size:12px;color:var(--mut)}
+.notes b{color:var(--tx);display:block;margin-bottom:3px}
+
+.off{opacity:.38}
+.cap2{}
+.bar{display:flex;align-items:center;gap:12px;width:1912px;background:var(--panel);border:1px solid var(--line-strong);border-left:4px solid var(--warn);border-radius:6px;padding:8px 14px;margin:0 0 6px;font-size:12px}
+.bar.ok{border-left-color:var(--mv)}
+.bar .tx{flex:1}
+.bar .tx b{color:var(--acc)}
+.bar .lab{width:120px;flex:none;color:var(--mut);font-size:11px}
+.bar .chip{padding:4px 11px;border-radius:6px;font-size:12px;border:1px solid var(--line-strong);white-space:nowrap}
+.bar .x{width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--mut)}
+.bar .x svg{width:12px;height:12px}
+.status{display:flex;align-items:center;gap:12px;width:1912px;background:var(--p2);border:1px solid var(--line);border-radius:4px;padding:5px 14px;font-size:12px;color:var(--mut)}
+.page{display:flex;gap:10px;align-items:center;margin-top:8px;padding:8px 12px;width:1912px;background:var(--panel);border:1px solid var(--line);border-radius:6px;font-size:12px}
+.page span.b{padding:4px 11px;border:1px solid var(--line-strong);border-radius:6px}
+.page .lab{color:var(--mut);font-size:11px;margin-right:4px}
+.menus{display:flex;gap:18px;align-items:flex-start;width:1912px}
+.menus .menu{position:static}
+.menus h4{margin:0 0 6px;font-size:12px;font-weight:600}
+.menus .mm{display:flex;flex-direction:column}
+.menus .menu div.hd{color:var(--mut)}
+.sm.off,.big.off{pointer-events:none}
+.menu div.hd2{color:var(--mut);font-size:11px;padding:4px 10px 2px}
+.menu div.gr{opacity:.4}
+.menu div.nt{color:var(--mut);font-size:11px;padding:0 10px 4px}
+.menu .cb{display:inline-block;width:14px;height:14px;vertical-align:-3px;margin-right:6px}
+.menu .cb svg{width:14px;height:14px}
+.meas{width:1912px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-size:12px;line-height:1.6}
+.meas b{color:var(--acc)}
+</style>
+</head>
+<body>
+<h1>Load schedule tab · Source tools and the rest of the form's tools (fed from, transformer, fault level, power factor, devices, next to fill) on the ribbon (proposal 2026-11-13, example figures)</h1>
+<p class="lead">A follow-up to the Load schedule ribbon mockup. The Source group answers "what feeds this board, and can it carry the load?" without leaving the form. All figures are examples.</p>
+<div class="legend">Graphite dark.<i class="m"></i>Works today somewhere else, new place on the ribbon<i class="n"></i>New tool, to be built<span style="margin-left:14px">Faded: greyed out on this page</span></div>
+
+<h2><span class="n">1</span>Today, on SMDB-1's Connected load &amp; MD form</h2>
+<div class="wrap" style="width:1912px"><div class="frame"><div class="tabs" data-tabs></div><div class="tools" id="t1"></div></div></div>
+<div class="page"><span class="lab">On the page itself today:</span><span class="b">+ Add feeder</span><span class="b">+ Spare</span><span class="b">+ Space</span><span class="b">☐ 1-phase (SP)</span><span class="b">Edit form details…</span></div>
+<p class="w" id="w1"></p>
+
+<h2><span class="n">2</span>Proposed, on SMDB-1's Connected load &amp; MD form (row F3 selected, example figures)</h2>
+<div class="wrap" style="width:1912px"><div class="frame"><div class="tabs" data-tabs></div><div class="tools" id="t2"></div></div></div>
+<p class="w" id="w2"></p>
+
+<h2><span class="n">3</span>Proposed, on the TCL summary (example figures)</h2>
+<div class="wrap" style="width:1912px"><div class="frame"><div class="tabs" data-tabs></div><div class="tools" id="t3"></div></div></div>
+<p class="w" id="w3"></p>
+
+<h2><span class="n">4</span>The menus, drawn open</h2>
+<div class="menus">
+  <div class="mm"><h4>Add feeder</h4><div class="menu"><div class="hi">Feeder (equipment load)</div><hr><div>DB fed from SMDB-1</div><div>SMDB fed from SMDB-1</div><div>MCC fed from SMDB-1</div></div></div>
+  <div class="mm"><h4>Spare (on a panel form)</h4><div class="menu"><div class="hi">Spare (3-phase)</div><div>Space (3-phase)</div><hr><div>1-phase spare</div><div>1-phase space</div></div></div>
+  <div class="mm"><h4>Fed from</h4><div class="menu"><div class="hi">Up: MDB-1</div><div>Up: T1 on the TCL summary</div><hr><div>Feeds: DB-1-1</div><div>Feeds: DB-1-2</div><div>Feeds: DB-1-3</div></div></div>
+  <div class="mm"><h4>Transformer</h4><div class="menu"><div class="hi">Tx &amp; Gen sizing</div><div>TCL summary</div><div>HV supply and RMUs…</div><div>Substation area</div></div></div>
+  <div class="mm"><h4>Add transformer (TCL summary)</h4><div class="menu"><div class="hi">Transformer in Substation 1</div><div>New substation</div></div></div>
+</div>
+
+<h2><span class="n">5</span>The bars shown above the form when a Source button is pressed (example figures)</h2>
+<div class="bar"><span class="lab">Transformer</span><span class="tx"><b>T1 · 1000 kVA</b>, feeds MDB-1 → SMDB-1 — demand 720 kVA at 0.90 PF, 72 % loaded · full-load 1443 A, ACB 1600 A · LV busbar 28.9 kA · regulation 3.1 % · with T2 out (bus coupler closed): 144 %, over</span><span class="chip">Open Tx &amp; Gen sizing</span><span class="x"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></span></div>
+<div class="bar"><span class="lab">Fault level</span><span class="tx">SMDB-1 busbar <b>18.4 kA</b> prospective (3-phase). 2 breakers below it: F4 Icu 10 kA, F7 Icu 15 kA</span><span class="chip">F4: Breaker Icu 25 kA</span><span class="chip">F7: Breaker Icu 25 kA</span><span class="x"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></span></div>
+<div class="bar"><span class="lab">Power factor</span><span class="tx">MDB-1 · 520 kW at <b>0.88</b> lagging. To 0.95: 125 kVAr bank (5 × 25 kVAr), 591 → 543 kVA</span><span class="chip">Add the bank to the SLD</span><span class="chip">Open Power factor</span><span class="x"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></span></div>
+<div class="bar"><span class="lab">Check, panel form</span><span class="tx">Problem 1 of 2 · SMDB-1 · F3 → DB-1-2 <b>Fail</b> — Voltage drop 5.2 % over the 4 % limit</span><span class="chip">Cable 35 mm²</span><span class="chip">Next problem</span><span class="x"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></span></div>
+<div class="bar"><span class="lab">Check, busbar</span><span class="tx">Problem 2 of 2 · SMDB-1 · Busbar Icw 15 kA (1 s) is below the <b>18.4 kA</b> fault at the board</span><span class="chip">Open Board properties</span><span class="chip">Next problem</span><span class="x"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></span></div>
+<div class="bar"><span class="lab">Check, selectivity</span><span class="tx">Problem 1 of 1 · MDB-1 · Q2 400 A (MCCB) and incomer 1600 A (ACB) are <b>not selective</b> above 12.5 kA</span><span class="chip">Open Protection</span><span class="chip">Next problem</span><span class="x"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></span></div>
+<div class="status" style="margin-bottom:6px"><span style="width:120px;font-size:11px">Next to fill (status bar)</span><span>Next to fill: DB-2-3 has no circuits yet (3 panels to fill)</span></div>
+<div class="status"><span style="width:120px;font-size:11px">Balance below (status bar)</span><span>Balanced 3 DB schedules below SMDB-1: 14 % → 4 % apart · 2 single-phase circuits have no phase</span></div>
+<p class="w">Chips are buttons; the cross closes the bar. Every figure above is an example, not a calculated result.</p>
+
+<h2><span class="n">6</span>More menus, drawn open (example names)</h2>
+<div class="menus">
+  <div class="mm"><h4>Devices (row F3, panel SMDB-1)</h4><div class="menu"><div class="hd2">On feeder F3</div><div class="hi">ACB</div><div>MCCB</div><div>MCB</div><div>Isolator</div><hr><div>kWh meter</div><div>CT metering</div><div>Earth leakage (RCD)</div><div>Local isolator</div><hr><div>Fire-rated cable (FR)</div><div>LSZH cable</div><hr><div class="hd2">On SMDB-1</div><div>Surge protection (SPD)</div><div>Power meter (PMU) to BMS</div><hr><div><span class="cb"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/></svg></span>Standby unit (left out of TCL duty)</div><div><span class="cb"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 12l3.5 3.5L17 8.5"/></svg></span>Essential load (on generator)</div></div></div>
+  <div class="mm"><h4>Transformer (with the supply items)</h4><div class="menu"><div class="hi">Tx &amp; Gen sizing</div><div>TCL summary</div><div>HV supply and RMUs…</div><div>Substation area</div><hr><div class="hd2">Add to MDB-1</div><div class="gr">Transformer (give MDB-1 one)</div><div class="nt">MDB-1 has one</div><div>Bus coupler / tie</div><div>Generator + ATS</div><div>Generator + interlocked ACBs</div></div></div>
+  <div class="mm"><h4>Add load</h4><div class="menu"><div class="hi">Load</div><div>Motor</div><div>Solar PV</div><div>EV charger</div><div>Feeder cable</div><hr><div class="hd2">Presets</div><div>AHU</div><div>Chiller</div><div>Fire pump</div><div>Lighting</div><div>IT / data</div><hr><div class="hd2">Motor with starter</div><div>Direct on line</div><div>Star-delta</div><div>Soft starter</div><div>Variable speed drive</div><hr><div>My presets…</div></div></div>
+  <div class="mm"><h4>Board</h4><div class="menu"><div class="hi">Properties</div><div>Show on SLD</div><div>Show on plan</div><hr><div>Move to… (feed from another panel)</div><div>Copy with everything below (typical floors)</div></div>
+   <h4 style="margin-top:16px">Add feeder (extended)</h4><div class="menu"><div class="hi">Feeder (equipment load)</div><hr><div>DB fed from SMDB-1</div><div>SMDB fed from SMDB-1</div><div>MCC fed from SMDB-1</div><hr><div class="gr">Fill from load assessment</div><div class="nt">on an empty MDB</div></div>
+   <h4 style="margin-top:16px">Export (with Form details)</h4><div class="menu"><div class="hi">Excel: this form</div><div>PDF: this form</div><div class="gr">CSV</div><hr><div>Submission pack (Excel)</div><div class="gr">My Excel template…</div><hr><div>Form details…</div></div></div>
+</div>
+
+<h2><span class="n">7</span>Widths, measured by this page (getBoundingClientRect)</h2>
+<div class="meas" id="meas"></div>
+<div class="wrap" style="width:1366px;margin-top:10px"><div class="frame"><div class="tabs" data-tabs></div><div class="tools" id="t4"></div></div></div>
+<p class="w">The strip above is the proposed row in a 1366 px window, as laid out by the same script.</p>
+
+<script>
+const P = {
+  play:'<path d="M7 4l13 8-13 8z"/>',
+  check:'<path d="M4 7l2 2 4-4M4 16l2 2 4-4M13 7h7M13 17h7"/>',
+  network:'<rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-4h12v4"/>',
+  files:'<path d="M9 3h7l4 4v10a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M16 3v4h4M5 7v13a1 1 0 0 0 1 1h9"/>',
+  pointer:'<path d="M5 3l13 7-6 1.5L9 18z"/><path d="M12.5 11.5 18 18"/>',
+  hand:'<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12M11 11V4.5a1.5 1.5 0 0 1 3 0V12M14 11.5v-5a1.5 1.5 0 0 1 3 0V13M17 9.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-2a6 6 0 0 1-4.6-2.2L4 14.5a1.5 1.5 0 0 1 2.4-1.8L8 14.5"/>',
+  supply:'<circle cx="12" cy="8.5" r="4.5"/><circle cx="12" cy="15.5" r="4.5"/><path d="M12 2v2M12 20v2"/>',
+  addboard:'<rect x="2.5" y="5" width="12" height="14" rx="1"/><path d="M6.5 9v6M10.5 9v6M19.5 9v6M16.5 12h6"/>',
+  boardprops:'<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+  table:'<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9h18M3 14.5h18M9 4v16"/>',
+  box:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>',
+  zap:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  device:'<path d="M12 3v5M12 16v5M12 16l5-7"/><path d="M10 6l4 4M14 6l-4 4"/>',
+  pencil:'<path d="M4 20l1-5L16 4l4 4L9 19z"/><path d="M14 6l4 4"/>',
+  trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+  copy:'<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
+  paste:'<rect x="5" y="5" width="14" height="16" rx="1.5"/><rect x="9" y="3" width="6" height="4" rx="1"/>',
+  dup:'<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8M14 11v6M11 14h6"/>',
+  undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+  redo:'<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="M16 16l5 5"/>',
+  values:'<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.2"/>',
+  palette:'<path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 2-2s-.7-1.5-.7-2.5S14 15 15 15h2a4 4 0 0 0 4-4c0-4.4-4-8-9-8z"/><circle cx="7.5" cy="11.5" r=".9"/><circle cx="10" cy="7.5" r=".9"/><circle cx="15" cy="7.5" r=".9"/>',
+  scenario:'<path d="M4 7h13M14 4l3 3-3 3M20 17H7M10 14l-3 3 3 3"/>',
+  fit:'<path d="M3 8V3h5M16 3h5v5M21 16v5h-5M8 21H3v-5"/><rect x="8" y="8" width="8" height="8"/>',
+  export:'<path d="M12 3v12M7 10l5 5 5-5M4 20h16"/>',
+  report:'<path d="M6 3h8l5 5v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M8 13h8M8 17h6"/>',
+  more:'<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
+  flow:'<path d="M3 17l5-6 4 3 5-8 4 5"/><path d="M3 21h18"/>',
+  calc:'<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M8 7h8M8 12h2M12 12h0M16 12h0M8 16h2M12 16h0M16 16h0"/>',
+  settings:'<path d="M12 3v18M5 7h14M5 7l-2.5 6a3 3 0 0 0 5 0zM19 7l-2.5 6a3 3 0 0 0 5 0zM8 21h8"/>',
+  prev:'<path d="M15 6l-6 6 6 6"/>',
+  next:'<path d="M9 6l6 6-6 6"/>',
+  addrow:'<rect x="3" y="4" width="18" height="10" rx="1"/><path d="M3 9h18M12 17v5M9.5 19.5h5"/>',
+  spare:'<rect x="4" y="6" width="16" height="12" rx="1" stroke-dasharray="3 2.5"/><path d="M12 9.5v5M9.5 12h5"/>',
+  up:'<path d="M12 19V5M6 11l6-6 6 6"/>',
+  down:'<path d="M12 5v14M6 13l6 6 6-6"/>',
+  filldown:'<rect x="5" y="3" width="14" height="6" rx="1"/><path d="M12 12v8M8.5 16.5 12 20l3.5-3.5"/>',
+  scale:'<path d="M12 3v18M5 7h14M5 7l-2.5 6a3 3 0 0 0 5 0zM19 7l-2.5 6a3 3 0 0 0 5 0zM8 21h8"/>',
+  resize:'<path d="M4 12a8 8 0 0 1 14-5.3M20 4v4h-4M20 12a8 8 0 0 1-14 5.3M4 20v-4h4"/>',
+  copyfrom:'<rect x="3" y="5" width="7" height="14" rx="1"/><rect x="14" y="5" width="7" height="14" rx="1"/><path d="M8 12h8M13.5 9.5 16 12l-2.5 2.5"/>',
+  columns:'<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M9 4v16M15 4v16"/>',
+  import:'<path d="M12 15V3M7 8l5-5 5 5M4 20h16"/>',
+  chev:'<path d="M6 9l6 6 6-6"/>',
+  fed:'<rect x="8" y="3" width="8" height="5" rx="1"/><rect x="8" y="16" width="8" height="5" rx="1"/><path d="M12 8v8M9 11l3-3 3 3"/>',
+  pf:'<path d="M3 12c3-8 6-8 9 0s6 8 9 0"/><path d="M3 20h18"/>',
+  fault:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/><path d="M3 21h18"/>',
+  addtx:'<circle cx="9" cy="8.5" r="4.5"/><circle cx="9" cy="15.5" r="4.5"/><path d="M19 3v6M16 6h6"/>',
+  bal:'<path d="M12 3v18M5 7h14M5 7l-2.5 6a3 3 0 0 0 5 0zM19 7l-2.5 6a3 3 0 0 0 5 0zM8 21h8"/>',
+  shield:'<path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  nextfill:'<rect x="4" y="6" width="16" height="12" rx="1" stroke-dasharray="3 2.5"/><path d="M9 12h6M12.5 9.5 15 12l-2.5 2.5"/>',
+  form:'<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 8h8M8 12h8M8 16h5"/>'
+};
+const ic = (k, c = '') => `<svg viewBox="0 0 24 24"${c ? ` class="${c}"` : ''}>${P[k]}</svg>`;
+const cls = (base, o) => [base, o.on && 'on', o.pg && 'pg', o.st && 'stale', o.off && 'off'].filter(Boolean).join(' ');
+const mark = o => (o.n ? ' new' : o.m ? ' mv' : '');
+const id = o => (o.id ? ` data-m="${o.id}"` : '');
+// dd 1 = button with its own arrow (press the button for the usual item); dd 2 = the whole button opens the menu
+const big = (k, l, o = {}) => {
+  const face = `${ic(k)}<span class="lb">${l}${o.dd === 2 ? ic('chev') : ''}</span>${o.sub ? `<span class="sub">${o.sub}</span>` : ''}`;
+  return o.dd === 1
+    ? `<div class="split${mark(o)}"${id(o)}><div class="${cls('big', o)}">${face}</div><span class="arrow">${ic('chev')}</span></div>`
+    : `<div class="${cls('big', o)}${mark(o)}"${id(o)}>${face}</div>`;
+};
+const sm = (k, l, o = {}) => `<div class="sm${o.off ? ' off' : ''}${mark(o)}"${id(o)}>${ic(k)}<span>${l}</span>${o.dd ? ic('chev', 'ch') : ''}</div>`;
+const col = (...b) => `<div class="col">${b.join('')}</div>`;
+const grp = (cap, ...b) => `<div class="grp" data-cap="${cap}"><div class="btns">${b.join('')}</div><div class="cap">${cap}</div></div>`;
+
+const N = { n: 1 }, M = { m: 1 };
+const O = x => ({ ...x, off: 1 });
+const more = `<div class="grp" data-cap="more"><div class="btns">${big('more', 'More')}</div><div class="cap">Other tools</div></div>`;
+// greyed: wrap with .off
+
+const grpC = (cap, ...b) => grp(cap, ...b);
+const run = (o = {}) => grpC('Run and check', big('play', 'Run', o.run || {}), big('check', 'Check', o.check || {}));
+const sched = (o = {}) => grpC('Schedule', big('table', 'Load schedule', { pg: 1 }), big('boardprops', 'Board', { sub: 'SMDB-1' }), big('box', 'Enclosure'),
+  col(sm('prev', 'Previous board', o.nav ? { off: 1 } : {}), sm('next', 'Next board', o.nav ? { off: 1 } : {})));
+const copyundo = (cp) => grpC('Copy and undo', col(sm('copy', 'Copy', cp ? { off: 1 } : {}), sm('paste', 'Paste', cp ? { off: 1 } : {})), col(sm('undo', 'Undo'), sm('redo', 'Redo')));
+
+const today = [
+  grpC('Run and check', big('play', 'Run'), big('check', 'Check', { off: 1 })),
+  grpC('Schedule', big('table', 'Load schedule', { pg: 1 }), big('boardprops', 'Boards'), big('boardprops', 'Board', { sub: 'SMDB-1' }), big('box', 'Enclosure'), col(sm('prev', 'Previous board'), sm('next', 'Next board'))),
+  grpC('Circuits and loads', big('addrow', 'Add circuit', { off: 1 }), big('spare', 'Spare', { off: 1 }), big('zap', 'Add load')),
+  grpC('Rows', col(sm('filldown', 'Fill down', { off: 1 }), sm('dup', 'Duplicate', { off: 1 })), col(sm('pencil', 'Edit', { off: 1 }), sm('trash', 'Delete', { off: 1 }))),
+  grpC('Balance', big('bal', 'Balance phases', { off: 1 })),
+  grpC('Copy and undo', col(sm('copy', 'Copy'), sm('paste', 'Paste', { off: 1 })), col(sm('undo', 'Undo'), sm('redo', 'Redo'))),
+  grpC('Output', big('export', 'Export', { dd: 1 }))
+];
+const schedP = grpC('Schedule', big('table', 'Load schedule', { pg: 1 }), big('boardprops', 'Boards'), big('boardprops', 'Board', { sub: 'SMDB-1' }), big('box', 'Enclosure'), col(sm('prev', 'Previous board'), sm('next', 'Next board')));
+const proposed = [
+  grpC('Run and check', big('play', 'Run', { st: 1, sub: '2 out of date' }), big('check', 'Check', { sub: '1 fail' })),
+  grpC('Schedule', big('table', 'Load schedule', { pg: 1 }), big('boardprops', 'Boards'), big('boardprops', 'Board', { sub: 'SMDB-1', dd: 1, n: 1 }), big('box', 'Enclosure'), col(sm('prev', 'Previous board'), sm('next', 'Next board')), col(sm('nextfill', 'Next to fill · 3', N))),
+  grpC('Source', big('fed', 'Fed from', { n: 1, sub: 'MDB-1' }), big('supply', 'Transformer', { n: 1, sub: '1000 kVA · 72 %' }), big('fault', 'Fault level', { n: 1, sub: '18.4 kA' }), big('pf', 'Power factor', { n: 1, sub: '0.88 → 0.95' })),
+  grpC('Circuits and loads', big('addrow', 'Add feeder', { dd: 1 }), big('spare', 'Spare', { dd: 1 }), big('zap', 'Add load', { dd: 1 }), big('shield', 'Devices', { dd: 1, n: 1 })),
+  grpC('Rows', col(sm('filldown', 'Fill down'), sm('dup', 'Duplicate')), col(sm('pencil', 'Edit'), sm('trash', 'Delete'))),
+  grpC('Balance', big('bal', 'Balance below', { n: 1, sub: '8 % apart' })),
+  grpC('Copy and undo', col(sm('copy', 'Copy'), sm('paste', 'Paste')), col(sm('undo', 'Undo'), sm('redo', 'Redo'))),
+  grpC('Output', big('export', 'Export', { dd: 1 }))
+];
+const tcl = [
+  grpC('Run and check', big('play', 'Run'), big('check', 'Check', { sub: '1 to check' })),
+  grpC('Schedule', big('table', 'Load schedule', { pg: 1 }), big('boardprops', 'Boards'), big('boardprops', 'Board', { sub: 'TCL' }), big('box', 'Enclosure'), col(sm('prev', 'Previous board', { off: 1 }), sm('next', 'Next board', { off: 1 }))),
+  grpC('Source', big('fed', 'Fed from', { off: 1, n: 1 }), big('supply', 'Transformer', { n: 1, sub: 'T1 · 72 %' }), big('fault', 'Fault level', { n: 1, sub: '28.9 kA' }), big('pf', 'Power factor', { n: 1, sub: '0.88 → 0.95' })),
+  grpC('Circuits and loads', big('addtx', 'Add transformer', { dd: 1, n: 1 }), big('spare', 'Spare', { off: 1, dd: 1 }), big('zap', 'Add load', { off: 1 })),
+  grpC('Rows', col(sm('filldown', 'Fill down', { off: 1 }), sm('dup', 'Duplicate', { off: 1 })), col(sm('pencil', 'Edit'), sm('trash', 'Delete'))),
+  grpC('Balance', big('bal', 'Balance phases', { off: 1 })),
+  grpC('Copy and undo', col(sm('copy', 'Copy', { off: 1 }), sm('paste', 'Paste', { off: 1 })), col(sm('undo', 'Undo'), sm('redo', 'Redo'))),
+  grpC('Output', big('export', 'Export', { dd: 1 }))
+];
+
+document.querySelectorAll('[data-tabs]').forEach(t => { t.innerHTML = '<span>Project</span><span class="sep"></span><span class="on">Load schedule</span><span>SLD</span><span>Design CAD</span><span class="sep"></span><span>Stages</span><span class="sep"></span><span>Documents</span><span>BOM / Cost</span><span>Standards</span>'; });
+const fill = (el, groups, withMore) => { el.innerHTML = groups.join('') + (withMore ? more : ''); };
+const need = el => Math.ceil([...el.children].reduce((s, c) => s + c.getBoundingClientRect().width, 0)) + 16;
+const capOf = h => h.match(/data-cap="([^"]+)"/)[1];
+const t1 = document.getElementById('t1'), t2 = document.getElementById('t2'), t3 = document.getElementById('t3'), t4 = document.getElementById('t4');
+const fit = (el, groups, W) => { const kept = groups.slice(), moved = []; fill(el, kept); const full = need(el); if (full <= W) return { kept, moved, full }; fill(el, kept, 1); while (need(el) > W && kept.length > 3) { moved.unshift(kept.pop()); fill(el, kept, 1); } return { kept, moved, full }; };
+fill(t1, today);
+const w1 = need(t1);
+const f2 = fit(t2, proposed, 1912), f3 = fit(t3, tcl, 1912), w2 = f2.full, w3 = f3.full;
+const mv2 = f2.moved.map(capOf), mv3 = f3.moved.map(capOf);
+document.getElementById('w1').textContent = `The seven groups need ${w1} px of 1912 px.`;
+document.getElementById('w2').textContent = `The full row needs ${w2} px of 1912 px. ` + (mv2.length ? `Drawn here at 1912 px with More: ${mv2.join(', ')} wait under More.` : 'It fits.') + ' New: Source group, Next to fill, Devices, Balance below, menus on Board, Add load and Add feeder. Form details moved into the Export menu to save width.';
+document.getElementById('w3').textContent = `The full row needs ${w3} px of 1912 px` + (mv3.length ? `; at 1912 px ${mv3.join(', ')} wait under More.` : '; it fits.') + ` On the TCL summary there is no feeder or circuit to add, so Add transformer takes the place of Add feeder.`;
+const f4 = fit(t4, proposed, 1366), kept = f4.kept, mn = f4.moved.map(capOf);
+document.getElementById('meas').innerHTML =
+  `Today's row (strip 1): <b>${w1} px</b> of 1912 px.<br>Proposed row on SMDB-1 (strip 2): <b>${w2} px</b> full; at 1912 px ` + (mv2.length ? `under More: <b>${mv2.join(', ')}</b>` : `it fits with ${1912 - w2} px to spare`) + `.<br>TCL summary row (strip 3): <b>${w3} px</b> full; at 1912 px ` + (mv3.length ? `under More: <b>${mv3.join(', ')}</b>` : 'it fits') + `.<br>` +
+  `In a 1366 px window the SMDB-1 row needs ${need(t4)} px with More shown. Groups that wait under More, moving right to left: <b>${mn.join(', ')}</b>. Kept on the row: ${kept.map(capOf).join(', ')}.`;
+document.head.appendChild(document.createElement('style')).textContent = '@page{size:1952px ' + Math.ceil(document.documentElement.scrollHeight) + 'px;margin:0}';
+</script>
+</body>
+</html>
