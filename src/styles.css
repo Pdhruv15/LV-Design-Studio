@@ -1871,8 +1871,11 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 
 /* CAD view (DWG / DXF opened natively): model space, side panel, command line, status bar */
 /* Design CAD draws on the shared drawing surface; its colours are read from these on each draw (CadCanvas.tsx). */
-.cad{--cad-bg:var(--canvas-bg);--cad-ink:var(--canvas-ink);--cad-grid:var(--canvas-grid);--cad-grid-major:var(--canvas-grid-major);--cad-sketch:var(--res-cur);--cad-cross:var(--canvas-ink);--cad-snap:var(--ok);--cad-dev:var(--warn);--cad-elv:var(--acc);display:flex;flex-direction:column;height:100%;min-height:520px;border-top:1px solid var(--line)}
+.cad{--cad-bg:var(--canvas-bg);--cad-ink:var(--canvas-ink);--cad-grid:var(--canvas-grid);--cad-grid-major:var(--canvas-grid-major);--cad-sketch:var(--res-cur);--cad-cross:var(--canvas-ink);--cad-snap:var(--ok);--cad-dev:var(--warn);--cad-elv:var(--acc);display:flex;flex-direction:column;height:100%;border-top:1px solid var(--line)}
 .mid > .cad{flex:1 1 auto}
+/* The page fits the room under the ribbon: a taller minimum made the page column scroll on a short window, and focusing
+   the command line scrolled the properties palette's top under the ribbon. Phones scroll the whole page instead. */
+@media (max-width:600px){.cad{min-height:520px}}
 .cad-work{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 260px;flex:1;min-height:0}
 .cad-work:has(> :only-child){grid-template-columns:minmax(0,1fr)}
 .cad-stage{position:relative;min-height:0;overflow:hidden;background:var(--cad-bg)}
