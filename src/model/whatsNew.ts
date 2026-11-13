@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.114', date: '2026-11-13',
+    items: [
+      { title: 'Ribbon no longer covers the page on a short window', text: 'In Design CAD the top of the Properties palette, and on the SLD page the tabs and bar above the drawing, could slide under the ribbon when the window was not very tall. Both pages now fit the room under the ribbon: the drawing area gets a little shorter instead.' },
+    ]
+  },
+  {
     version: '2.113', date: '2026-11-13',
     items: [
       { title: 'Load schedule tools on MDB, SMDB and transformer forms', text: 'The Load schedule tab\'s ribbon now works on more than a DB\'s schedule. On the Connected load & MD form of an MDB, SMDB or MCC it adds feeders (and boards fed from the panel), 3-phase or 1-phase spares and spaces, fills down, copies, pastes, and edits, deletes or duplicates the selected row. On the TCL summary it adds transformers and substations, and edits or removes the selected transformer. Form details… is also under Export, and Edit on the Busbar riser opens the riser. The buttons on the pages themselves stay as they were.' }
