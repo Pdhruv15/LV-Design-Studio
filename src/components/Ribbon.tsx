@@ -349,7 +349,7 @@ const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
   schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'lightning', 'earth-schematic', 'elv', 'inbox'],
   detailed: ['selection', 'voltage-drop', 'earthing', 'coordination'],
   cad: ['cad', 'drawings', 'drawing-register'],
-  reports: ['cable-schedule', 'cable-tray', 'equipment', 'study-reports', 'report', 'export-centre'],
+  reports: ['cable-schedule', 'cable-tray', 'equipment', 'sheets', 'study-reports', 'report', 'export-centre'],
   issue: ['revisions', 'modifications', 'review', 'received-docs', 'submissions'],
   cost: ['boq'],
   standards: ['database', 'design-references']
@@ -980,7 +980,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('load-schedule', 'Load schedule', Table2, 'DEWA load distribution schedule per DB'),
         view('cable-schedule', 'Cable schedule', Cable, 'Every cable in the installation'),
         view('cable-tray', 'Cable trays', Rows3, 'Cable tray schedule: routes A, B, C… with the cables on each and the tray size'),
-        view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards')
+        view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards'),
+        view('sheets', 'Sheets', Grid3x3, 'Your own schedules in an Excel-style grid with formulas, saved with the project')
       ],
       [view('drawings', 'Drawings', Files, 'Opens the drawing set in Design CAD (Sheet set): every submission sheet and the register — panels per sheet, status, revisions, title block, issues and transmittals, PDF / DXF / Excel exports'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('export-centre', 'Export centre', FileDown, 'Every PDF document in one list: tick what you need and export a zip or one bookmarked PDF')]
     ],
