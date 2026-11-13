@@ -218,3 +218,46 @@ describe('window and crossing, Shift and the hand', () => {
   });
 });
 
+describe('the cursor settings (DS, Cursor and Selection)', () => {
+  beforeEach(() => { document.documentElement.style.setProperty('--acc', '#f5b301'); document.documentElement.style.setProperty('--res-cur', '#7fd1ff'); });
+  const dev = { key: 'd1', x: 400, y: 250, r: 5, shape: 'circle', text: '', label: 'L1' };
+
+  it('crosshair colour: the accent or cyan instead of the drawing ink', () => {
+    draw({ draft: { ...DRAFT_DEFAULTS, crossColor: 'accent' } });
+    cursorAt(300, 200);
+    expect(strokes.filter((x) => x.w === 1).pop()).toMatchObject({ c: '#f5b301' });
+    draw({ draft: { ...DRAFT_DEFAULTS, crossColor: 'cyan' } });
+    cursorAt(300, 200);
+    expect(strokes.filter((x) => x.w === 1).pop()).toMatchObject({ c: '#7fd1ff' });
+  });
+
+  it('outline off: no outline under the crosshair and box', () => {
+    draw({ draft: { ...DRAFT_DEFAULTS, cursorOutline: false } });
+    cursorAt(300, 200);
+    expect(strokes.filter((x) => x.w === 3)).toHaveLength(0);
+  });
+
+  it('highlight off: the object under the box is not outlined', () => {
+    draw({ draft: { ...DRAFT_DEFAULTS, hoverMark: false }, hover: { device: 'd1' }, devices: [dev] });
+    cursorAt(300, 200);
+    expect(strokes.filter((x) => x.w === 7)).toHaveLength(0);
+  });
+
+  it('name tag: the object\'s name once the cursor has rested half a second, gone when it moves; off by default', async () => {
+    draw({ hover: { device: 'd1', label: 'DB-GF-01 · Board' }, devices: [dev] });
+    texts = [];
+    move(300, 200);
+    await act(() => new Promise((r) => setTimeout(r, 600)));
+    expect(texts).not.toContain('DB-GF-01 · Board');
+    draw({ draft: { ...DRAFT_DEFAULTS, hoverTag: true }, hover: { device: 'd1', label: 'DB-GF-01 · Board' }, devices: [dev] });
+    texts = [];
+    move(301, 200);
+    expect(texts).not.toContain('DB-GF-01 · Board');
+    await act(() => new Promise((r) => setTimeout(r, 600)));
+    expect(texts).toContain('DB-GF-01 · Board');
+    texts = [];
+    move(302, 200);
+    expect(texts).not.toContain('DB-GF-01 · Board');
+  });
+});
+

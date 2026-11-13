@@ -2569,10 +2569,15 @@ describe('Design CAD File: Save, Save As, Close and Drafting settings', () => {
     set(d.querySelector('input[aria-label="Extra angles"]') as HTMLInputElement, '15, 400');
     await act(async () => { ([...d.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Cursor') as HTMLButtonElement).click(); });
     set(d.querySelector('input[aria-label="Snap aperture"]') as HTMLInputElement, '14');
+    set(d.querySelector('select[aria-label="Crosshair colour"]') as HTMLSelectElement, 'accent');
+    tick(d, 'Outline the cursor');
+    await act(async () => { ([...d.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Selection') as HTMLButtonElement).click(); });
+    tick(d, 'Highlight what is under the pick box');
+    tick(d, 'Name tag after a pause');
     await press(d, 'OK');
     expect(dialog('Drafting settings')).toBeNull();
     expect(state.toggles.polar).toBe(true);
-    expect(onPrefs.mock.calls[0][0].draft).toMatchObject({ polarInc: 30, polarExtra: [15], aperturePx: 14 });
+    expect(onPrefs.mock.calls[0][0].draft).toMatchObject({ polarInc: 30, polarExtra: [15], aperturePx: 14, crossColor: 'accent', cursorOutline: false, hoverMark: false, hoverTag: true });
     act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F8' })); });
     expect([state.toggles.ortho, state.toggles.polar]).toEqual([true, false]); // ORTHO and POLAR turn each other off
     act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F11' })); });

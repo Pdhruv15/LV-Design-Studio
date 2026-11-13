@@ -18,6 +18,9 @@ export const RELEASES: Release[] = [
     version: '2.121', date: '2026-11-13',
     items: [
       { title: 'SLD CAD export: notes and title block as printed', text: 'In exported DXF and DWG sheets, notes, schedules and title block text now have the same size and line spacing as the PDF, so the lines no longer crowd each other.' }
+    version: '2.118', date: '2026-11-13',
+    items: [
+      { title: 'Design CAD: cursor settings', text: 'Drafting settings (DS) → Cursor: choose the crosshair colour (Drawing ink, Accent or Cyan) and turn the outline under the cursor on or off. Selection: turn off the outline on what is under the pick box, or turn on a name tag that shows the object\'s kind and layer (a device\'s name) once the cursor rests on it for half a second.' }
     ]
   },
   {
