@@ -1,6 +1,6 @@
 # UI UX proposal – Load schedule tools for MDB, SMDB and transformers (2026-11-13)
 
-Status: **proposed, waiting for the user's decision.** Nothing is built.
+Status: **step 1 approved on 2026-11-13** ("leave panel details in the load schedule tab for now, really work, then we can proceed further"). It is being built for v2.113, and the page's own controls stay where they are. Steps 2–6 and the other decisions wait until step 1 works in the app.
 
 Mockup: `docs/mockups/load-schedule-source-tools-mockup.html` (image: `load-schedule-source-tools-mockup.png`). Figures in it are examples.
 
@@ -120,7 +120,7 @@ Each step is one PR with tests. Each new tool is added only on the user's word.
 
 1. Group name: **Source** (suggested) or Supply? The SLD tab already has a Supply button that adds a transformer.
 2. Should Add circuit change its caption with the form ("Add feeder", "Add transformer")? Suggested: **yes**. The other option is one caption, "Add", on every form.
-3. Do the page's Add feeder, Spare, Space, 1-phase tick, + Substation and Edit form details… leave the page? Suggested: **ribbon only**, as chosen for the DB form, except + Transformer on each substation line.
+3. Do the page's Add feeder, Spare, Space, 1-phase tick, + Substation and Edit form details… leave the page? Suggested: **ribbon only**, as chosen for the DB form, except + Transformer on each substation line. **Answered 2026-11-13: they stay on the page for now.** The ribbon has the same commands as well.
 4. Balance below: should it balance only the DB schedules below, or also move the panel's own single-phase feeders between R, Y and B? Suggested: **DB schedules only** first. Moving a panel feeder changes the SLD and the MD form, so it needs a preview first.
 5. Which steps to build, and in which order? Suggested: **the order above**.
 6. Should the SLD's equipment panel come to this tab as a side panel, or as ribbon menus? Suggested: **menus** (Part 4). The panel stays on the SLD.
