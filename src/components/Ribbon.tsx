@@ -118,7 +118,9 @@ export interface RibbonActions {
   /** The Load schedule tab's own tools: add circuits and spare ways, the row tools, balance, copy and paste on the grid,
    * export. Published by the Load schedule page while it is on screen; without it they are greyed. */
   schedule?: {
-    /** The DB load schedule form's grid is on screen (the other forms have no circuits to add or edit). */
+    /** The form on screen: a DB's load schedule, a panel's connected load & MD form, the TCL summary or the busbar riser. */
+    form: 'db' | 'md' | 'tx' | 'riser';
+    /** The DB load schedule form's grid is on screen (Check, Balance phases and the CSV / template exports are DB-only). */
     grid: boolean;
     /** A panel's own form (the DB schedule or the connected load & MD form) is on screen: the board steps work there. */
     board: boolean;
@@ -128,9 +130,18 @@ export interface RibbonActions {
     /** Circuits of this schedule that fail and to check; `onCheck` shows the next one, or the next board with one. */
     fails: number; warns: number; onCheck: () => void;
     onAddCircuit: (threePhase?: boolean) => void;
-    onAddSpare: (kind: 'spare' | 'space', threePhase?: boolean) => void;
-    /** Circuit reference of the row holding the grid's active cell: what Edit and Delete act on. */
+    /** A spare or a space; `phase` is only given by the 1-phase / 3-phase items (the MD form's own default is 3-phase). */
+    onAddSpare: (kind: 'spare' | 'space', phase?: 'one' | 'three') => void;
+    /** A transformer in the substation on screen, or in a new substation (TCL summary). */
+    onAddTransformer: (newSubstation: boolean) => void;
+    /** Label of the active row of the form on screen (a DB circuit, an MD outgoing feeder or spare way, a transformer): what Edit and Delete act on. */
     row?: string;
+    /** Why Delete / Duplicate can't act on the MD form's active row. */
+    rowBlock?: string; dupBlock?: string;
+    /** The substation a transformer is added to (TCL summary). */
+    substation?: string;
+    /** Project, area, owner, plot, consultant and contractor of the authority forms. */
+    onFormDetails: () => void;
     onFillDown: () => void; onDuplicate: () => void; onEditRow: () => void; onDeleteRow: () => void;
     canBalance: boolean; imbalancePct?: number; onBalance: () => void;
     onCopy: () => void; onPaste: () => void;
@@ -609,7 +620,11 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   // Under Balance phases: how far apart the phases are, (max − min) ÷ average; "imbalance n %" is too wide for the line.
   const ls = a.schedule;
   const lsOff = !ls ? 'On the Load schedule page' : undefined, gridOff = lsOff ?? (ls?.grid ? undefined : 'On the DB load schedule form');
-  const rowOff = gridOff ?? (ls?.row ? undefined : 'Click a circuit row on the schedule first');
+  const lsForm = ls?.form ?? 'db', lsMd = lsForm === 'md', lsTx = lsForm === 'tx', lsRiser = lsForm === 'riser';
+  const rowsOff = lsOff ?? (lsForm === 'db' || lsMd ? undefined : 'On a DB load schedule or a panel\'s form');
+  const waysOff = lsOff ?? (lsForm === 'db' || lsMd ? undefined : 'On a DB or a panel\'s form');
+  const rowOff = lsOff ?? (lsRiser ? undefined : ls?.row ? undefined : lsForm === 'db' ? 'Click a circuit row on the schedule first' : 'Click a row on the form first');
+  const rowKind = lsForm === 'db' ? 'circuit' : lsTx ? 'transformer' : 'row';
   const stepOff = (end: string | undefined, name: string) => lsOff ?? (!ls?.board ? 'On a board\'s schedule' : end ? undefined : `${name} board of the schedule`);
   const lsRun: Tool[] = [
     { ...run[0], sub: a.staleCount ? `${a.staleCount} out of date` : undefined },
@@ -624,33 +639,42 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   ];
   const [lsCircuits, lsRows, lsBalance, lsCopyUndo, lsOutput]: Tool[][] = [
     [
-      { label: 'Add circuit', icon: ListPlus, title: gridOff ?? `Add a circuit in the next free way of ${a.boardId} — the arrow beside it for a 3-phase circuit`, onClick: () => ls?.onAddCircuit(), disabled: !!gridOff,
+      lsMd ? { label: 'Add feeder', icon: ListPlus, title: `Add an outgoing feeder (an equipment load, sized by the app) to ${a.boardId} — the arrow beside it for a board fed from ${a.boardId}`, onClick: () => ls?.onAddCircuit(),
+        menu: [{ label: 'Feeder (equipment load)', title: `Add an outgoing feeder (an equipment load, sized by the app) to ${a.boardId}`, onClick: () => ls?.onAddCircuit() }, ...boardMenu.map((m, i) => (i === 0 ? { ...m, sep: true } : m))] }
+      : lsTx ? { label: 'Add transformer', icon: ListPlus, title: `Add a transformer to ${ls?.substation} — the arrow beside it for a new substation`, onClick: () => ls?.onAddTransformer(false),
+        menu: [{ label: `Transformer in ${ls?.substation}`, title: `Add a transformer to ${ls?.substation}`, onClick: () => ls?.onAddTransformer(false) }, { label: 'New substation', title: 'Add a transformer in a new substation', onClick: () => ls?.onAddTransformer(true) }] }
+      : { label: 'Add circuit', icon: ListPlus, title: lsOff ?? (lsRiser ? 'On a DB, a panel\'s form or the TCL summary' : `Add a circuit in the next free way of ${a.boardId} — the arrow beside it for a 3-phase circuit`), onClick: () => ls?.onAddCircuit(), disabled: !!lsOff || lsRiser,
         menu: [
           { label: 'Circuit', title: `Add a circuit in the next free way of ${a.boardId}`, onClick: () => ls?.onAddCircuit() },
           { label: '3-phase circuit', title: `Add a 3-phase circuit (RYB) to ${a.boardId}`, onClick: () => ls?.onAddCircuit(true) }
         ] },
-      { label: 'Spare', icon: SquareDashed, title: gridOff ?? 'A spare is a way with a breaker fitted and nothing connected; a space is an empty way kept for a future breaker. Neither carries load.', onClick: () => ls?.onAddSpare('spare'), disabled: !!gridOff,
-        menu: [
+      { label: 'Spare', icon: SquareDashed, title: waysOff ?? 'A spare is a way with a breaker fitted and nothing connected; a space is an empty way kept for a future breaker. Neither carries load.', onClick: () => (lsMd ? ls?.onAddSpare('spare', 'three') : ls?.onAddSpare('spare')), disabled: !!waysOff,
+        menu: lsMd ? [
+          { label: 'Spare', title: 'A 3-phase way with a breaker fitted and nothing connected', onClick: () => ls?.onAddSpare('spare', 'three') },
+          { label: 'Space', title: 'A 3-phase empty way kept for a future breaker', onClick: () => ls?.onAddSpare('space', 'three') },
+          { label: '1-phase spare', title: 'A 1-phase way with a breaker fitted and nothing connected', onClick: () => ls?.onAddSpare('spare', 'one'), sep: true },
+          { label: '1-phase space', title: 'A 1-phase empty way kept for a future breaker', onClick: () => ls?.onAddSpare('space', 'one') }
+        ] : [
           { label: 'Spare', title: 'A way with a breaker fitted and nothing connected', onClick: () => ls?.onAddSpare('spare') },
           { label: 'Space', title: 'An empty way kept for a future breaker', onClick: () => ls?.onAddSpare('space') },
-          { label: '3-phase spare', title: 'A 3-phase way with a breaker fitted and nothing connected', onClick: () => ls?.onAddSpare('spare', true), sep: true },
-          { label: '3-phase space', title: 'A 3-phase empty way kept for a future breaker', onClick: () => ls?.onAddSpare('space', true) }
+          { label: '3-phase spare', title: 'A 3-phase way with a breaker fitted and nothing connected', onClick: () => ls?.onAddSpare('spare', 'three'), sep: true },
+          { label: '3-phase space', title: 'A 3-phase empty way kept for a future breaker', onClick: () => ls?.onAddSpare('space', 'three') }
         ] },
       equipment[0]
     ],
     [
-      sm({ label: 'Fill down', icon: ArrowDownToLine, title: gridOff ?? 'Fill down (Ctrl/⌘ D): the top cell of the selected cells copied down them', onClick: () => ls?.onFillDown(), disabled: !!gridOff }),
-      sm({ label: 'Duplicate', icon: CopyPlus, title: rowOff ?? `Duplicate circuit ${ls?.row} in the next free way`, onClick: () => ls?.onDuplicate(), disabled: !!rowOff }),
-      sm({ label: 'Edit', icon: Pencil, title: rowOff ?? `Edit circuit ${ls?.row} (or double-click the row)`, onClick: () => ls?.onEditRow(), disabled: !!rowOff, col: true }),
-      sm({ label: 'Delete', icon: Trash2, title: rowOff ?? `Delete circuit ${ls?.row}`, onClick: () => ls?.onDeleteRow(), disabled: !!rowOff })
+      sm({ label: 'Fill down', icon: ArrowDownToLine, title: rowsOff ?? 'Fill down (Ctrl/⌘ D): the top cell of the selected cells copied down them', onClick: () => ls?.onFillDown(), disabled: !!rowsOff }),
+      sm({ label: 'Duplicate', icon: CopyPlus, title: rowsOff ?? (lsMd ? rowOff ?? ls?.dupBlock ?? `Duplicate feeder ${ls?.row} in ${a.boardId}` : rowOff ?? `Duplicate circuit ${ls?.row} in the next free way`), onClick: () => ls?.onDuplicate(), disabled: !!rowsOff || !!rowOff || (lsMd && !!ls?.dupBlock) }),
+      sm({ label: 'Edit', icon: Pencil, title: lsRiser ? 'Edit the busbar riser (Calculate → Busbar riser)' : rowOff ?? `Edit ${rowKind === 'row' ? '' : `${rowKind} `}${ls?.row} (or double-click the row)`, onClick: () => ls?.onEditRow(), disabled: !!rowOff, col: true }),
+      sm({ label: 'Delete', icon: Trash2, title: lsRiser ? 'On a DB, a panel\'s form or the TCL summary' : rowOff ?? (lsMd ? ls?.rowBlock : undefined) ?? `Delete ${rowKind === 'row' ? '' : `${rowKind} `}${ls?.row}`, onClick: () => ls?.onDeleteRow(), disabled: lsRiser || !!rowOff || (lsMd && !!ls?.rowBlock) })
     ],
     [
       { label: 'Balance phases', icon: Scale, sub: ls?.grid && ls.imbalancePct !== undefined ? `${ls.imbalancePct} % apart` : undefined,
         title: gridOff ?? 'Lighting circuits first, then power, each starting on an ELCB section; spread over R/Y/B and renumber', onClick: () => ls?.onBalance(), disabled: !!gridOff || !ls?.canBalance }
     ],
     [
-      sm({ label: 'Copy', icon: Copy, title: gridOff ?? 'Copy the selected cells (Ctrl/⌘ C)', onClick: () => ls?.onCopy(), disabled: !!gridOff }),
-      sm({ label: 'Paste', icon: ClipboardPaste, title: gridOff ?? 'Paste from the clipboard at the selected cell (Ctrl/⌘ V)', onClick: () => ls?.onPaste(), disabled: !!gridOff }),
+      sm({ label: 'Copy', icon: Copy, title: rowsOff ?? 'Copy the selected cells (Ctrl/⌘ C)', onClick: () => ls?.onCopy(), disabled: !!rowsOff }),
+      sm({ label: 'Paste', icon: ClipboardPaste, title: rowsOff ?? 'Paste from the clipboard at the selected cell (Ctrl/⌘ V)', onClick: () => ls?.onPaste(), disabled: !!rowsOff }),
       sm({ label: 'Undo', icon: Undo2, title: 'Undo (⌘Z / Ctrl+Z)', onClick: a.onUndo, disabled: !a.canUndo, col: true }),
       sm({ label: 'Redo', icon: Redo2, title: 'Redo (⇧⌘Z / Ctrl+Y)', onClick: a.onRedo, disabled: !a.canRedo })
     ],
@@ -662,7 +686,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           { label: 'PDF: this form', title: 'This form as PDF', onClick: () => ls?.onExport('pdf') },
           { label: 'CSV', title: ls?.grid ? 'The circuits of this DB as a CSV file' : 'On the DB load schedule form', onClick: () => ls?.onExport('csv'), disabled: !ls?.grid },
           { label: 'Submission pack (Excel)', title: 'Every form of the project in one workbook: load summary, MDB / SMDB / MCC forms, then every DB schedule', onClick: () => ls?.onExport('pack'), sep: true },
-          { label: 'My Excel template…', title: ls?.grid ? 'Fill your own Excel load schedule format: placeholders such as {{board.id}} and a row of {{row.…}} repeated for every circuit' : 'On the DB load schedule form', onClick: () => ls?.onExport('template'), disabled: !ls?.grid }
+          { label: 'My Excel template…', title: ls?.grid ? 'Fill your own Excel load schedule format: placeholders such as {{board.id}} and a row of {{row.…}} repeated for every circuit' : 'On the DB load schedule form', onClick: () => ls?.onExport('template'), disabled: !ls?.grid },
+          { label: 'Form details…', title: lsMd || lsTx ? 'Project, area, owner, plot, consultant and contractor on the authority forms' : 'On a panel\'s form or the TCL summary', onClick: () => ls?.onFormDetails(), disabled: !lsMd && !lsTx, sep: true }
         ] }
     ]
   ];

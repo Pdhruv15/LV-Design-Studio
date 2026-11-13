@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import { ask, tell } from '../ConfirmDialog';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Board, Project } from '../../types';
 import { addTransformerRow, buildTxSummary, nextSubstationName, rowCtText } from '../../docs/txSummary';
 import { deleteBoard } from '../../model/edit';
@@ -12,10 +12,22 @@ import { txt } from '../../util/format';
 const kw = (v: number) => v.toFixed(2);
 const num = (v: string) => (v.trim() === '' || Number.isNaN(+v) ? undefined : +v);
 
+/** What the ribbon's Load schedule tools do on this form, published while it is on screen. */
+export interface TxTools {
+  /** The selected transformer (its reference), if any. */
+  row?: string;
+  /** The substation Add transformer adds to: the selected transformer's, else the last one on the form. */
+  substation: string;
+  /** A transformer in `substation`, or in a new substation. */
+  addTransformer: (newSubstation: boolean) => void;
+  edit: () => void;
+  remove: () => void;
+}
+
 /** Summary of the TCL at transformer level (DEWA form), one row per
  * transformer grouped by substation. White cells are typed; the loads and
  * meters come from everything each transformer feeds. */
-export default function TxSummaryView({ project, onChange, onSettings }: { project: Project; onChange: (p: Project) => void; onSettings: () => void }) {
+export default function TxSummaryView({ project, onChange, onSettings, onTools }: { project: Project; onChange: (p: Project) => void; onSettings: () => void; onTools?: (t: TxTools | undefined) => void }) {
   const s = useMemo(() => buildTxSummary(project), [project]);
   const h = s.header;
   const setBoard = (id: string, patch: Partial<Board>) => onChange({ ...project, boards: project.boards.map((b) => (b.id === id ? { ...b, ...patch } : b)) });
@@ -33,6 +45,27 @@ export default function TxSummaryView({ project, onChange, onSettings }: { proje
   const [editing, setEditing] = useState<string | null>(null);
   const editGroup = editing ? s.groups.find((g) => g.rows.some((r) => r.board.id === editing)) : undefined;
   const editRow = editGroup?.rows.find((r) => r.board.id === editing);
+  // The transformer last clicked or focused: what the ribbon's Edit and Delete act on.
+  const [selected, setSelected] = useState<string | null>(null);
+  const selGroup = selected ? s.groups.find((g) => g.rows.some((r) => r.board.id === selected)) : undefined;
+  const selRow = selGroup?.rows.find((r) => r.board.id === selected);
+  const row = selRow ? selRow.board.txRef ?? selRow.board.id : undefined;
+  const substation = selGroup?.name ?? s.groups[s.groups.length - 1]?.name ?? nextSubstationName(s);
+  const now: TxTools = {
+    row, substation,
+    addTransformer: (newSubstation) => addRow(newSubstation ? nextSubstationName(s) : substation),
+    edit: () => selRow && setEditing(selRow.board.id),
+    remove: () => selRow && void removeRow(selRow.board.id, selRow.manual)
+  };
+  // Published by value, handlers through a ref (an object built every render would loop).
+  const tools = useRef(now);
+  tools.current = now;
+  const publish = useRef(onTools);
+  publish.current = onTools;
+  useEffect(() => {
+    publish.current?.({ row, substation, addTransformer: (n) => tools.current.addTransformer(n), edit: () => tools.current.edit(), remove: () => tools.current.remove() });
+  }, [row, substation]);
+  useEffect(() => () => publish.current?.(undefined), []);
   const blank = (v: string) => v || <span className="md-blank" title="Set in Project settings">—</span>;
 
   return (
@@ -74,7 +107,7 @@ export default function TxSummaryView({ project, onChange, onSettings }: { proje
                 </td>
               </tr>,
               ...g.rows.map((r) => (
-                <tr key={r.board.id} title="Double-click to edit this transformer" onDoubleClick={(e) => !(e.target as HTMLElement).closest('button') && setEditing(r.board.id)}>
+                <tr key={r.board.id} title="Double-click to edit this transformer" onMouseDown={() => setSelected(r.board.id)} onFocusCapture={() => setSelected(r.board.id)} onDoubleClick={(e) => !(e.target as HTMLElement).closest('button') && setEditing(r.board.id)}>
                   <td className="gx-in l txs-ref"><In value={r.board.txRef ?? r.board.id} w="100%" onSet={(v) => setBoard(r.board.id, { txRef: v.trim() && v.trim() !== r.board.id ? v.trim() : undefined })} /></td>
                   <td className="gx-calc">{r.poles}</td>
                   {r.device === 'ACB'

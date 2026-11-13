@@ -20,10 +20,10 @@ import { applySheetEdits, buildDbSheet } from '../../docs/dbSheet';
 import { cellKey, type Pos } from '../grid/excelGrid';
 import { useExcelGrid } from '../grid/useExcelGrid';
 import GridSelect from '../grid/GridSelect';
-import MdSheetView from './MdSheetView';
+import MdSheetView, { type MdTools } from './MdSheetView';
 import { hasMdSheet } from '../../docs/mdSheet';
 import { dbChecks } from '../../calc/building';
-import TxSummaryView from './TxSummaryView';
+import TxSummaryView, { type TxTools } from './TxSummaryView';
 import RiserFormView from './RiserFormView';
 import { SCHEDULE_GROUPS, scheduleBoardOrder, scheduleGroupOf, scheduleGroups, type ScheduleGroup, incompleteSchedules } from '../../model/scheduleGroups';
 import CircuitEditDialog from './CircuitEditDialog';
@@ -201,9 +201,15 @@ export default function LoadScheduleView({
     onChange(resize ? refreshBoard(p, board.id) : p);
   };
   const patch = (id: string, pt: CircuitPatch) => onChange(updateCircuit(project, id, pt));
-  const addSpare = (kind: 'spare' | 'space', threePhase?: boolean) => {
+  // The MD form's and the TCL summary's own tools, as they publish them: the ribbon's buttons work through these.
+  const mdTools = useRef<MdTools>();
+  const txTools = useRef<TxTools>();
+  const [mdShown, setMdShown] = useState<Pick<MdTools, 'row' | 'rowBlock' | 'dupBlock'>>({});
+  const [txShown, setTxShown] = useState<Pick<TxTools, 'row' | 'substation'>>({ substation: '' });
+  const addSpare = (kind: 'spare' | 'space', phase?: 'one' | 'three') => {
+    if (form === 'md') { mdTools.current?.addWay(kind, phase ?? 'three'); return; }
     try {
-      const r = addSpareWay(project, board.id, kind, threePhase ? 'RYB' : undefined);
+      const r = addSpareWay(project, board.id, kind, phase === 'three' ? 'RYB' : undefined);
       onChange(r.project);
       onStatus(r.message);
     } catch (e) {
@@ -211,6 +217,7 @@ export default function LoadScheduleView({
     }
   };
   const add = (phase?: Phase) => {
+    if (form === 'md') { mdTools.current?.addFeeder(); return; }
     try {
       onChange(addCircuit(project, board.id, phase).project);
     } catch (e) {
@@ -225,7 +232,7 @@ export default function LoadScheduleView({
     const told = 'Paste: press Ctrl/⌘ V on the schedule';
     try {
       const text = await navigator.clipboard.readText();
-      if (!cmds.paste(text)) onStatus('Paste: click a cell on the schedule first');
+      if (!(form === 'md' ? mdTools.current?.paste(text) : cmds.paste(text))) onStatus('Paste: click a cell on the schedule first');
     } catch {
       onStatus(told);
     }
@@ -241,26 +248,34 @@ export default function LoadScheduleView({
 
   // The ribbon's Load schedule tools. Published by value: the handlers go through a ref, so what is sent changes only
   // with what the ribbon shows (publishing an object built every render would loop).
-  const now = { add, addSpare, fill: () => cmds.fillDown(), edit: () => activeRow && setEditing({ id: activeRow.f.id }), remove: () => activeRow && removeCircuit(activeRow),
-    balance: () => onChange(balancePhases(project, board.id)), copy: () => { cmds.copy(); }, paste: pasteClipboard, exportKind,
-    step: (d: -1 | 1) => { const to = d < 0 ? prevBoard : nextBoard; if (to) onBoard(to); }, duplicate, check };
+  const now = { add, addSpare,
+    fill: () => (form === 'md' ? mdTools.current?.fillDown() : cmds.fillDown()),
+    edit: () => { if (form === 'md') mdTools.current?.edit(); else if (form === 'tx') txTools.current?.edit(); else if (form === 'riser') onOpenRiser?.(); else if (activeRow) setEditing({ id: activeRow.f.id }); },
+    remove: () => { if (form === 'md') mdTools.current?.remove(); else if (form === 'tx') txTools.current?.remove(); else if (activeRow) void removeCircuit(activeRow); },
+    balance: () => onChange(balancePhases(project, board.id)), copy: () => { if (form === 'md') mdTools.current?.copy(); else cmds.copy(); }, paste: pasteClipboard, exportKind,
+    step: (d: -1 | 1) => { const to = d < 0 ? prevBoard : nextBoard; if (to) onBoard(to); }, check,
+    duplicate: () => { if (form === 'md') mdTools.current?.duplicate(); else duplicate(); },
+    addTransformer: (newSubstation: boolean) => txTools.current?.addTransformer(newSubstation), formDetails: onSettings };
   const tools = useRef(now);
   tools.current = now;
   const publish = useRef(onSchedule);
   publish.current = onSchedule;
-  const onGrid = form === 'db', rowRef = onGrid ? activeRow?.ref : undefined;
+  const onGrid = form === 'db', rowRef = onGrid ? activeRow?.ref : form === 'md' ? mdShown.row : form === 'tx' ? txShown.row : undefined;
+  const { rowBlock, dupBlock } = form === 'md' ? mdShown : { rowBlock: undefined, dupBlock: undefined };
+  const substation = form === 'tx' ? txShown.substation : undefined;
   const imbalancePct = data.rows.length ? Math.round(data.imbalance) : undefined, canBalance = data.rows.length >= 2;
   const fails = onGrid ? problems.filter(isFail).length : 0, warns = onGrid ? problems.length - fails : 0;
   useEffect(() => {
     publish.current?.({
-      grid: onGrid, row: rowRef, canBalance, imbalancePct, exporting, board: onBoardForm, prevBoard, nextBoard, fails, warns,
+      form, grid: onGrid, row: rowRef, rowBlock, dupBlock, substation, canBalance, imbalancePct, exporting, board: onBoardForm, prevBoard, nextBoard, fails, warns,
       onBoardStep: (d) => tools.current.step(d), onDuplicate: () => tools.current.duplicate(), onCheck: () => tools.current.check(),
-      onAddCircuit: (three) => tools.current.add(three ? 'RYB' : undefined), onAddSpare: (k, three) => tools.current.addSpare(k, three),
+      onAddCircuit: (three) => tools.current.add(three ? 'RYB' : undefined), onAddSpare: (k, phase) => tools.current.addSpare(k, phase),
+      onAddTransformer: (n) => tools.current.addTransformer(n), onFormDetails: () => tools.current.formDetails(),
       onFillDown: () => tools.current.fill(), onEditRow: () => tools.current.edit(), onDeleteRow: () => tools.current.remove(),
       onBalance: () => tools.current.balance(), onCopy: () => tools.current.copy(), onPaste: () => void tools.current.paste(),
       onExport: (k) => void tools.current.exportKind(k)
     });
-  }, [onGrid, rowRef, canBalance, imbalancePct, exporting, onBoardForm, prevBoard, nextBoard, fails, warns]);
+  }, [form, onGrid, rowRef, rowBlock, dupBlock, substation, canBalance, imbalancePct, exporting, onBoardForm, prevBoard, nextBoard, fails, warns]);
   useEffect(() => () => publish.current?.(undefined), []);
 
   return (
@@ -316,9 +331,11 @@ export default function LoadScheduleView({
       {form === 'riser' ? (
         <RiserFormView project={project} onOpenRiser={() => onOpenRiser?.()} />
       ) : form === 'tx' ? (
-        <TxSummaryView project={project} onChange={onChange} onSettings={onSettings} />
+        <TxSummaryView project={project} onChange={onChange} onSettings={onSettings}
+          onTools={(t) => { txTools.current = t; setTxShown((q) => (q.row === t?.row && q.substation === (t?.substation ?? '') ? q : { row: t?.row, substation: t?.substation ?? '' })); }} />
       ) : form === 'md' ? (
-        <MdSheetView project={project} boardId={board.id} onChange={onChange} onStatus={onStatus} onSettings={onSettings} />
+        <MdSheetView project={project} boardId={board.id} onChange={onChange} onStatus={onStatus} onSettings={onSettings}
+          onTools={(t) => { mdTools.current = t; setMdShown((q) => (q.row === t?.row && q.rowBlock === t?.rowBlock && q.dupBlock === t?.dupBlock ? q : { row: t?.row, rowBlock: t?.rowBlock, dupBlock: t?.dupBlock })); }} />
       ) : (
         <>
           <div className="ls-head">
