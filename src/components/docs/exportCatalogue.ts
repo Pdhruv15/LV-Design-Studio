@@ -23,6 +23,8 @@ import { buildVdReportHtml } from '../../docs/voltageDropReport';
 import { pfcReportHtml } from '../../docs/pfcReport';
 import { buildPvReportHtml, buildUpsReportHtml } from '../../docs/upsSolarReport';
 import { containmentReportHtml } from '../../docs/containmentReport';
+import { buildLightningReportHtml } from '../../docs/lightningReport';
+import { lightningProtection } from '../../calc/lightningProtection';
 import { buildTrayReportHtml } from '../../docs/trayReport';
 import { buildLoadScheduleHtml } from '../../docs/loadScheduleDoc';
 import { scheduleHtml, workbookHtml } from '../../docs/sheetPdf';
@@ -115,6 +117,10 @@ export const CATALOGUE: CatalogueEntry[] = [
     description: 'Every UPS system on the UPS & battery page.',
     missing: (c) => (c.project.upsSystems?.length ? undefined : 'No UPS system entered'),
     build: (c) => one('UPS and battery sizing', name(c, 'UPS and battery sizing'), buildUpsReportHtml(c.project, c.project.upsSystems!), A4()) },
+  { key: 'lightning', category: 'Electrical calculations', title: 'Lightning protection calculation',
+    description: 'The Lightning protection page: inputs as entered, the four air termination methods, roof layout, down conductors, quantities and checks.',
+    missing: (c) => (!c.project.lightning || lightningProtection(c.project.lightning).invalid ? 'No lightning protection study entered' : undefined),
+    build: (c) => one('Lightning protection', name(c, 'Lightning protection'), buildLightningReportHtml(c.project), A4()) },
   { key: 'solar', category: 'Electrical calculations', title: 'Solar PV sizing',
     description: 'The PV array and inverters on the Solar PV page.',
     missing: (c) => (c.project.pv ? undefined : 'No PV system entered'),

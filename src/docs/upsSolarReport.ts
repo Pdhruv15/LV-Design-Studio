@@ -115,3 +115,6 @@ export function buildPvReportHtml(project: Project, s: PvSystem, r: PvResult): s
   <p class="note">Yield = kWp × peak sun hours × performance ratio (first estimate; confirm with a simulation such as PVsyst for the final design). Panel and inverter values from the datasheets entered.</p>
   </section></body></html>`;
 }
+
+// The same sheet style for other one-off calculation sheets (e.g. lightning protection).
+export { CSS as SHEET_CSS, head as sheetHead, rows as sheetRows };

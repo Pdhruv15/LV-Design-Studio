@@ -205,6 +205,15 @@ export function lightningProtection(i: LpsInputs): LpsResult {
   };
 }
 
+/** What a method gives, in a line (the page and the report). */
+export function airResultText(a: AirResult): string {
+  const n = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  if (a.status === 'data') return '—';
+  if (a.method === 'mesh') return `${a.meshRuns} runs · ${n(a.roofConductorM)} m of roof conductor`;
+  if (a.method === 'ese') return `Rp ${n(a.radiusM!)} m · ${a.terminals} terminal${a.terminals === 1 ? '' : 's'}`;
+  return `${a.terminals} rod${a.terminals === 1 ? '' : 's'} on a ${n(a.gridM![0])} × ${n(a.gridM![1])} m grid`;
+}
+
 /** Where things sit on the roof plan (metres from one corner), for the concept layout: mesh lines inside the
  * roof edge, the rods or terminals, and the down conductors at equal steps round the perimeter. */
 export interface LpsLayout { meshX: number[]; meshY: number[]; terminals: [number, number][]; downs: [number, number][] }

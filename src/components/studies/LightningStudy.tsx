@@ -1,6 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { SPD_TYPES, type Project } from '../../types';
-import { AIR_METHODS, lightningProtection, lpsLayout, type AirMethod, type AirResult, type LpsClass, type LpsInputs } from '../../calc/lightningProtection';
+import { AIR_METHODS, airResultText as resultText, lightningProtection, lpsLayout, type AirMethod, type AirResult, type LpsClass, type LpsInputs } from '../../calc/lightningProtection';
+import { buildLightningReportHtml, LPS_SECTIONS, type LpsSectionKey } from '../../docs/lightningReport';
+import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import { NumField, Page, ResultCard, ResultCards, StatusCell, StatusCounts } from '../ui';
 
@@ -10,17 +12,11 @@ const n2 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 2 }
 const methodLabel = (m: AirMethod) => AIR_METHODS.find((x) => x.id === m)!.label;
 const rowStatus = (a: AirResult) => (a.status === 'data' ? 'bad' : a.status);
 
-/** What each method gives, in a line. */
-function resultText(a: AirResult): string {
-  if (a.status === 'data') return '—';
-  if (a.method === 'mesh') return `${a.meshRuns} runs · ${n2(a.roofConductorM)} m of roof conductor`;
-  if (a.method === 'ese') return `Rp ${n2(a.radiusM!)} m · ${a.terminals} terminal${a.terminals === 1 ? '' : 's'}`;
-  return `${a.terminals} rod${a.terminals === 1 ? '' : 's'} on a ${n2(a.gridM![0])} × ${n2(a.gridM![1])} m grid`;
-}
+type Format = 'pdf' | 'docx' | 'xlsx';
 
 /** Lightning protection at concept stage: the engineer's own class values in, four air termination methods
  * side by side, then down conductors and earth pits for the chosen one. Saved with the project. */
-export default function LightningStudy({ project, onChange }: { project: Project; onChange: (p: Project, step?: boolean) => void }) {
+export default function LightningStudy({ project, onChange, onStatus }: { project: Project; onChange: (p: Project, step?: boolean) => void; onStatus?: (m: string) => void }) {
   const i = project.lightning ?? EMPTY;
   const set = (p: Partial<LpsInputs>) => onChange({ ...project, lightning: { ...i, ...p } }, true);
   const r = useMemo(() => lightningProtection(i), [i]);
@@ -29,6 +25,24 @@ export default function LightningStudy({ project, onChange }: { project: Project
   const spdLabel = (t?: string) => SPD_TYPES.find((x) => x.value === t)?.label;
   const noSpd = boards.length > 0 && !boards.some((b) => b.spd);
   const checks = noSpd ? [...r.checks, { status: 'warn' as const, text: 'No board has surge protection set on the SLD' }] : r.checks;
+
+  const [sections, setSections] = useState<LpsSectionKey[]>(LPS_SECTIONS.map((x) => x.key));
+  const [format, setFormat] = useState<Format>('pdf');
+  const [busy, setBusy] = useState(false);
+  const picked = LPS_SECTIONS.map((x) => x.key).filter((x) => sections.includes(x));
+  async function exportReport() {
+    setBusy(true);
+    try {
+      const name = `${safeFileName(project.name)} - Lightning protection`, p = { ...project, lightning: i };
+      let m: string | null;
+      if (format === 'pdf') m = await savePdf(`${name}.pdf`, buildLightningReportHtml(p, picked), { pageSize: 'A4', landscape: false });
+      else if (format === 'docx') m = await saveBinary(`${name}.docx`, await (await import('../../docs/lightningWord')).lightningDocxBytes(p, picked), 'Word document', 'docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      else m = await saveBinary(`${name}.xlsx`, new Uint8Array(await (await import('../../docs/lightningWorkbook')).buildLightningWorkbook(p).xlsx.writeBuffer()), 'Excel workbook', 'xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      if (m) onStatus?.(m);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   // Roof plan: the roof drawn to fit a 400 × 250 box, 35 px in from the corner.
   const k = r.invalid ? 0 : Math.min(400 / i.lengthM, 250 / i.widthM);
@@ -174,6 +188,28 @@ export default function LightningStudy({ project, onChange }: { project: Project
             {checks.map((c) => <tr key={c.text}><StatusCell status={c.status} /><td style={{ whiteSpace: 'normal' }}>{c.text}</td></tr>)}
           </tbody>
         </table>
+      </section>
+
+      <section className="dm-card">
+        <h4>Export full report</h4>
+        <div className="dm-head">
+          {LPS_SECTIONS.map((x) => (
+            <label key={x.key}><span>{x.label}</span>
+              <input type="checkbox" checked={sections.includes(x.key)} disabled={format === 'xlsx'} onChange={(e) => setSections(e.target.checked ? [...sections, x.key] : sections.filter((k) => k !== x.key))} />
+            </label>
+          ))}
+        </div>
+        <div className="dm-head">
+          <label className="nf"><span>Format</span>
+            <select value={format} onChange={(e) => setFormat(e.target.value as Format)}>
+              <option value="pdf">PDF</option>
+              <option value="docx">Word (.docx)</option>
+              <option value="xlsx">Excel (.xlsx) with live formulas</option>
+            </select>
+          </label>
+          <button className="chip primary" disabled={busy || !!r.invalid || (format !== 'xlsx' && !picked.length)} onClick={exportReport}>{busy ? 'Exporting…' : 'Export full report'}</button>
+        </div>
+        <p className="m">{format === 'xlsx' ? 'The workbook always holds every input and formula, so the section choice does not apply.' : 'Black-and-white. The report is also in the Export centre, for the issue package.'}</p>
       </section>
     </Page>
   );
