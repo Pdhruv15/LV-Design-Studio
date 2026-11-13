@@ -26,7 +26,7 @@ import { COLOR_BY, type ColorBy } from '../diagram/heatmap';
 import type { SupplyMode } from '../calc/scenario';
 
 export type BomCommand = 'boq' | 'scope' | 'changes' | 'variations' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup' | 'document' | 'issue-rev';
-export type RibbonTab = 'schedule' | 'sld' | 'home' | 'concept' | 'schematic' | 'detailed' | 'cad' | 'reports' | 'issue' | 'cost' | 'standards';
+export type RibbonTab = 'schedule' | 'sld' | 'home' | 'concept' | 'schematic' | 'detailed' | 'cad' | 'sheets' | 'reports' | 'issue' | 'cost' | 'standards';
 
 export type DiagramTool = 'select' | 'pan';
 
@@ -296,6 +296,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   detailed: ['Run', 'Calculate', 'Stage'],
   cad: ['Draw', 'Modify', 'Annotate', 'Blocks', 'Layers', 'Properties', 'Measure and view', 'Markup', 'On panels', 'Sheet',
     'Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Reference', 'Sheet set', 'Layouts', 'Viewports', 'Plot', 'Publish', 'Export'],
+  sheets: [],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -330,6 +331,7 @@ const TABS: { id: Exclude<RibbonTab, StageTab> | 'stages'; label: string; icon: 
   { id: 'schedule', label: 'Load schedule', icon: Table2, sep: true },
   { id: 'sld', label: 'SLD', icon: Network },
   { id: 'cad', label: 'Design CAD', icon: PenTool },
+  { id: 'sheets', label: 'Sheets', icon: Grid3x3 },
   { id: 'stages', label: 'Stages', icon: Waypoints, sep: true },
   { id: 'reports', label: 'Documents', icon: FileText, sep: true },
   { id: 'cost', label: 'BOM / Cost', icon: Receipt },
@@ -349,7 +351,9 @@ const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
   schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'lightning', 'earth-schematic', 'elv', 'inbox'],
   detailed: ['selection', 'voltage-drop', 'earthing', 'coordination'],
   cad: ['cad', 'drawings', 'drawing-register'],
-  reports: ['cable-schedule', 'cable-tray', 'equipment', 'sheets', 'study-reports', 'report', 'export-centre'],
+  // Sheets has its own Excel-style ribbon on the page, so this tab has no tools of its own.
+  sheets: ['sheets'],
+  reports: ['cable-schedule', 'cable-tray', 'equipment', 'study-reports', 'report', 'export-centre'],
   issue: ['revisions', 'modifications', 'review', 'received-docs', 'submissions'],
   cost: ['boq'],
   standards: ['database', 'design-references']
@@ -359,7 +363,7 @@ const HOME_TAB: Partial<Record<MainView, RibbonTab>> = { building: 'concept', da
 /** The page a tab shows when it is chosen and the page on screen is not one of its own. */
 const TAB_PAGE: Record<RibbonTab, MainView> = {
   schedule: 'load-schedule', sld: 'design', home: 'dashboard', concept: 'building', schematic: 'design', detailed: 'design', cad: 'cad',
-  reports: 'cable-schedule', issue: 'revisions', cost: 'boq', standards: 'database'
+  sheets: 'sheets', reports: 'cable-schedule', issue: 'revisions', cost: 'boq', standards: 'database'
 };
 /** The page to show when a tab is chosen: the page on screen when it is on that tab (the SLD stays on Schematic), else
  * the tab's own page, which for Detailed design is the SLD too; Design CAD shows the drawing. */
@@ -693,6 +697,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   ];
 
   const stageGroups: Record<Exclude<RibbonTab, 'schedule' | 'sld'>, Tool[][]> = {
+    sheets: [],
     home: [
       [
         { label: 'New', icon: FilePlus2, title: 'New project', onClick: a.onNew },
@@ -980,8 +985,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('load-schedule', 'Load schedule', Table2, 'DEWA load distribution schedule per DB'),
         view('cable-schedule', 'Cable schedule', Cable, 'Every cable in the installation'),
         view('cable-tray', 'Cable trays', Rows3, 'Cable tray schedule: routes A, B, C… with the cables on each and the tray size'),
-        view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards'),
-        view('sheets', 'Sheets', Grid3x3, 'Your own schedules in an Excel-style grid with formulas, saved with the project')
+        view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards')
       ],
       [view('drawings', 'Drawings', Files, 'Opens the drawing set in Design CAD (Sheet set): every submission sheet and the register — panels per sheet, status, revisions, title block, issues and transmittals, PDF / DXF / Excel exports'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('export-centre', 'Export centre', FileDown, 'Every PDF document in one list: tick what you need and export a zip or one bookmarked PDF')]
     ],
@@ -1266,7 +1270,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           ))}
         </div>
       )}
-      {(!collapsed || peek) && <div id="ribbon-tools" ref={toolsRef} className={`ribbon-tools${collapsed ? ' peek' : ''}`} onMouseOver={cadNamed ? overTool : undefined} onMouseOut={cadNamed ? offTool : undefined} onClick={(e) => {
+      {(!collapsed || peek) && tab !== 'sheets' && <div id="ribbon-tools" ref={toolsRef} className={`ribbon-tools${collapsed ? ' peek' : ''}`} onMouseOver={cadNamed ? overTool : undefined} onMouseOut={cadNamed ? offTool : undefined} onClick={(e) => {
         // A tool was used: put the dropped-down tools away (not for buttons that open a menu of their own).
         const b = (e.target as HTMLElement).closest('button');
         if (collapsed && b && !b.hasAttribute('aria-haspopup') && !b.hasAttribute('aria-expanded')) setPeek(false);
