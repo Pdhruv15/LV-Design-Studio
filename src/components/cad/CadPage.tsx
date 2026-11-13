@@ -722,13 +722,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const keep = (h: CadHover | undefined) => setHover((was) => (was?.device === h?.device && was?.sketch === h?.sketch && was?.seg?.[0] === h?.seg?.[0] && was?.seg?.[1] === h?.seg?.[1] && was?.picked === h?.picked ? was : h));
     if (!at || !px || cursorMode === 'point' || tool === 'pan') { keep(undefined); return; }
     const d = deviceAt(at, px);
-    if (d) { keep({ device: d.key, picked: pickedKeys.has(d.key) }); return; }
+    if (d) { keep({ device: d.key, picked: pickedKeys.has(d.key), label: `${d.label}${d.detail ? ` · ${d.detail}` : ''}` }); return; }
     const sk = hitAt(pickable, at, pickR * px);
-    if (sk) { keep({ sketch: sk, picked: pickedKeys.has(`sk:${sk.id}`) }); return; }
+    if (sk) { keep({ sketch: sk, picked: pickedKeys.has(`sk:${sk.id}`), label: `${kindOf(sk)} · ${sk.layer}` }); return; }
     if (!view) { keep(undefined); return; }
     let live = true;
     const t = setTimeout(() => void view.pick(at[0], at[1], pickR * px, pickOn).then((o) => {
-      if (live) keep(o ? { seg: [o.seg_start, o.seg_end], picked: pickedKeys.has(`dw:${o.handle}`) } : undefined);
+      if (live) keep(o ? { seg: [o.seg_start, o.seg_end], picked: pickedKeys.has(`dw:${o.handle}`), label: `${o.kind}${o.block ? ` ${o.block}` : ''} · ${view.info.layers[o.layer]?.name ?? '?'}` } : undefined);
     }), 40);
     return () => { live = false; clearTimeout(t); };
   }, [cursor.at, cursor.pixel, cursorMode, tool, view, pickable, pickOn, pickR, placed, pickedItems, pickedSk, pickedDw]); // eslint-disable-line react-hooks/exhaustive-deps -- deviceAt and pickedKeys follow placed and the picks

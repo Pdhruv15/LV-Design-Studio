@@ -72,4 +72,10 @@ describe('attribute prompts in a dialog (S11)', () => {
     // Something following the cursor (a grip dragged with no command): a point.
     expect(cursorModeOf('none', 'Command:', true)).toBe('point');
   });
+
+  it('the cursor settings: crosshair in the drawing ink, outlined, what is under the box marked, no name tag; checked when read', () => {
+    expect(DRAFT_DEFAULTS).toMatchObject({ crossColor: 'ink', cursorOutline: true, hoverMark: true, hoverTag: false });
+    expect(draftSettings({ crossColor: 'cyan', cursorOutline: false, hoverMark: false, hoverTag: true })).toMatchObject({ crossColor: 'cyan', cursorOutline: false, hoverMark: false, hoverTag: true });
+    expect(draftSettings({ crossColor: 'red', cursorOutline: 'no', hoverTag: 1 })).toMatchObject({ crossColor: 'ink', cursorOutline: true, hoverTag: false });
+  });
 });
