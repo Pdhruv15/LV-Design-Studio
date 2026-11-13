@@ -27,6 +27,12 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.120', date: '2026-11-13',
+    items: [
+      { title: 'Design CAD: fitted text in its place', text: 'Text fitted between two points, as in SLD drawings exported from the app, now opens in Design CAD at its own place and width instead of half its length to the right.' }
+    ]
+  },
+  {
     version: '2.119', date: '2026-11-13',
     items: [
       { title: 'SLD CAD export: cable labels clear', text: 'In DXF and DWG drawings exported with cable references, the two lines of a DEWA cable label no longer run into each other.' }
