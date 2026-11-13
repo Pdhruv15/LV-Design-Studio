@@ -42,7 +42,7 @@ These are existing commands. Nothing new is calculated.
 | Edit | The circuit dialog | The selected feeder's cable and breaker, the same dialog as Edit on the SLD tab | The transformer row dialog (as double-click) |
 | Delete | The circuit | The selected feeder. A feeder that supplies a panel cannot be deleted here, as now | The transformer, after asking, as the × on the row |
 | Duplicate | The circuit | An equipment feeder. Greyed on a feeder to a panel, with the tooltip "Copy the board on the SLD tab" | Greyed |
-| Form details | – | Small button in Output: Edit form details… | The same |
+| Form details | – | Edit form details…, in the Export menu (decision 7) | The same |
 
 On the Busbar riser, Edit opens Calculate → Busbar riser, the same as the page's link.
 
@@ -67,6 +67,24 @@ Press: each DB schedule fed from this panel is balanced with the DB's own Balanc
 
 It does not move the panel's own single-phase feeders between phases (decision 4).
 
+### Part 4 – the SLD's equipment panel, and more panel tools
+
+Added on 2026-11-13, after the user asked whether the SLD's equipment panel (Supply, Boards, Protection, Metering, Cable, Starters, Loads, Presets, My presets) could come to this tab, and what else could be added.
+
+The equipment panel stays on the SLD, where items are dragged onto a busbar, a feeder or the canvas. On the Load schedule tab its items go into ribbon menus. Each item is added to the panel on screen or to the selected row, through the same `applyDrop` the panel uses. `canDrop` greys the items that do not fit, with the same reason. The SLD tab's Supply and Devices buttons already work this way.
+
+| Tool | Where | What it does | Built on |
+|---|---|---|---|
+| **Devices** (new button, Circuits and loads) | Menu | On the selected feeder: ACB, MCCB, MCB, Isolator, kWh meter, CT metering, RCD, local isolator, FR or LSZH cable. On the panel: surge protection, power meter to BMS. Two ticks on the feeder: Standby unit (left out of the TCL duty) and Essential load (on generator) | Palette Protection, Metering & accessories and Cable types; `standbyUnit`, `essential` |
+| Supply items | Transformer menu | Add to the panel's main board: transformer (when it has none), bus coupler / tie, Generator + ATS, Generator + interlocked ACBs | Palette Supply |
+| Presets and starters | Add load menu | AHU, Chiller, Fire pump, Lighting, IT / data; a motor with a DOL, star-delta, soft starter or VSD starter; My presets… | `LOAD_PRESETS`, `STARTERS` |
+| **Board** menu (arrow on the existing button) | Schedule | Properties · Show on SLD · Show on plan · Move to… (feed this panel from another, `moveUnder`) · Copy with everything below, for typical floors (the SLD's copy and paste of a board) | Existing commands |
+| **Next to fill** (small, new) | Schedule | The next panel whose schedule is not filled, the "!" on the panel chips. The count is shown on the button | `incompleteSchedules` |
+| Fill from load assessment | Add feeder menu | On an empty MDB: its feeders from the Load assessment | `createMdbFromAssessment` |
+| Check, more reasons | Check | On a panel form, also: busbar Icw below the fault at the board, and breakers that are not selective with the incomer, with Open Board properties or Open Protection | `busbarIcwCheck`, `discriminationChain` |
+
+Form details… moves into the Export menu, which saves the width of a button.
+
 ## Widths
 
 Measured on the mockup with the app's button sizes. The manual's 1600 px capture of the real app gives about 1340 px for today's row, so the real figures may be about 50 px wider.
@@ -74,9 +92,11 @@ Measured on the mockup with the app's button sizes. The manual's 1600 px capture
 | Row | Needs | Window |
 |---|---|---|
 | Today | 1286 px | 1912 px |
-| Proposed, MD form | 1769 px (143 px to spare) | 1912 px |
-| Proposed, TCL summary | 1776 px | 1912 px |
-| Proposed, narrow | 1237 px, with Rows, Balance, Copy and undo and Output under More | 1366 px |
+| Proposed, MD form, Parts 1–4 | 1879 px (33 px to spare) | 1912 px |
+| Proposed, TCL summary | 1676 px | 1912 px |
+| Proposed, narrow | 1115 px, with Circuits and loads, Rows, Balance, Copy and undo and Output under More | 1366 px |
+
+Without Part 4 the MD form row needs 1769 px. With only 33 px to spare, the app's real buttons may need More at 1912 px. If so, Output goes there first.
 
 ## What stays the same
 
@@ -92,6 +112,7 @@ Measured on the mockup with the app's button sizes. The manual's 1600 px capture
 3. Check on the MD form and the TCL summary.
 4. Fault level and Power factor.
 5. Balance below.
+6. Part 4: Devices and the menu items first, then the Board menu and Next to fill.
 
 Each step is one PR with tests. Each new tool is added only on the user's word.
 
@@ -102,3 +123,5 @@ Each step is one PR with tests. Each new tool is added only on the user's word.
 3. Do the page's Add feeder, Spare, Space, 1-phase tick, + Substation and Edit form details… leave the page? Suggested: **ribbon only**, as chosen for the DB form, except + Transformer on each substation line.
 4. Balance below: should it balance only the DB schedules below, or also move the panel's own single-phase feeders between R, Y and B? Suggested: **DB schedules only** first. Moving a panel feeder changes the SLD and the MD form, so it needs a preview first.
 5. Which steps to build, and in which order? Suggested: **the order above**.
+6. Should the SLD's equipment panel come to this tab as a side panel, or as ribbon menus? Suggested: **menus** (Part 4). The panel stays on the SLD.
+7. Should Form details… move into the Export menu to save width? Suggested: **yes**.
