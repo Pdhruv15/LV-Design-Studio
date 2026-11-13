@@ -1,6 +1,8 @@
 # UI UX proposal – Design CAD cursor and pick box (2026-11-13)
 
-Status: **approved 2026-11-13** with the suggested answers: no pick box while a point is asked for and no crosshair while objects are asked for; pick box default 12 px; hover in amber; name tag off by default; crosshair colours Drawing ink, Accent and Cyan; window blue and crossing green with labels. Step 1 is being built (v2.115); steps 2–4 follow.
+Status: **approved and built (2026-11-13)**, with the suggested answers: no pick box while a point is asked for and no crosshair while objects are asked for; pick box default 12 px; hover in amber; name tag off by default; crosshair colours Drawing ink, Accent and Cyan; window blue and crossing green with labels. Step 1 v2.115 (PR 558), step 2 v2.116 (PR 559), step 3 v2.117 (PR 560), step 4 v2.118.
+
+Built differently from the mockup: the hovered object gets the amber outline over it but is not also redrawn 2 px wider in its own colour; the Shift + / − shows only with no command running (where Shift-click adds or removes); the Pick box size row has no "was 9" note.
 
 Mockup: `docs/mockups/cad-cursor-pickbox-mockup.html` (image: `cad-cursor-pickbox-mockup.png`).
 

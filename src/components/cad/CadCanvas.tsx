@@ -36,8 +36,9 @@ export interface CanvasDevice { key: string; x: number; y: number; r: number; sh
  * its tag; `warn` when it has no home run. */
 export interface CanvasWiring { arcs: { a: Pt; c: Pt; b: Pt }[]; home?: { a: Pt; c: Pt; b: Pt }; tag?: { at: Pt; s: string; warn: boolean } }
 /** What a click at the cursor would pick, marked before the click: a device (its key), a drawn object, or an object of
- * the opened drawing (its segments, start and end). `picked`: it is picked already (not marked; Shift shows −). */
-export interface CadHover { device?: string; sketch?: SketchItem; seg?: [number, number]; picked?: boolean }
+ * the opened drawing (its segments, start and end). `picked`: it is picked already (not marked; Shift shows −).
+ * `label`: its kind and layer (a device: its name), named once the cursor rests (DS, Name tag after a pause). */
+export interface CadHover { device?: string; sketch?: SketchItem; seg?: [number, number]; picked?: boolean; label?: string }
 export interface CadMarks { points: Pt[]; live?: boolean; closed?: boolean; area?: boolean; label?: string }
 /** Where the cursor lands: the point, the snap point it took, and the tracking line it follows (from where, its label). */
 interface Landing { at: Pt; snap?: { p: Pt; kind: number }; guide?: { from: Pt[]; label: string } }
@@ -189,6 +190,12 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   handRef.current = hand;
   const shiftRef = useRef(shiftOn);
   shiftRef.current = shiftOn;
+  // The cursor still for half a second (the name tag waits for it); any move starts the wait again.
+  const [still, setStill] = useState(false);
+  const stillTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const stillRef = useRef(false);
+  const waitStill = () => { stillRef.current = false; setStill(false); clearTimeout(stillTimer.current); stillTimer.current = setTimeout(() => { stillRef.current = true; setStill(true); }, 500); };
+  useEffect(() => () => clearTimeout(stillTimer.current), []);
   const mouse = useRef<Pt | null>(null);
   const lastAt = useRef<Landing | null>(null);
   // Object snap tracking (OTRACK): snap points acquired by resting the cursor on them (again: let go), the newest last.
@@ -722,7 +729,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     });
     // What a click would pick: an amber outline at 40 % over it (not while a grip is under the box).
     const hv = hoverRef.current;
-    if (hv && !hv.picked && at && hotGrip < 0 && modeRef.current !== 'point' && !handRef.current) {
+    if (ds.hoverMark && hv && !hv.picked && at && hotGrip < 0 && modeRef.current !== 'point' && !handRef.current) {
       ctx.save();
       ctx.globalAlpha = 0.4; ctx.strokeStyle = colour('--acc', snapC); ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.beginPath();
@@ -790,8 +797,11 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       if (withBox) ctx.rect(cx - pb / 2, cy - pb / 2, pb, pb);
       ctx.stroke();
     };
-    strokeCursor(colour('--cad-bg', BG), 3);
-    strokeCursor(colour('--cad-cross', '#dbe4f5'), 1);
+    if (ds.cursorOutline) strokeCursor(colour('--cad-bg', BG), 3);
+    const crossC = colour('--cad-cross', '#dbe4f5');
+    strokeCursor(ds.crossColor === 'accent' ? colour('--acc', crossC) : ds.crossColor === 'cyan' ? colour('--res-cur', crossC) : crossC, 1);
+    // Its kind and layer once the cursor has rested half a second on it (DS, Name tag after a pause).
+    if (ds.hoverTag && stillRef.current && hv?.label && !lock) tag(cx + 12, cy - 28, hv.label);
     // Shift held with no command: + when a click would add the object under the box, − when it would take it off.
     if (shiftRef.current && mode === 'ready' && hv && !lock) {
       const bx = cx + pb / 2 + 2, by = cy - pb / 2 - 13;
@@ -814,7 +824,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     else if (snap.kind === SNAP.intersection) { ctx.moveTo(mx - r, my - r); ctx.lineTo(mx + r, my + r); ctx.moveTo(mx + r, my - r); ctx.lineTo(mx - r, my + r); }
     else { ctx.moveTo(mx, my - r); ctx.lineTo(mx + r, my); ctx.lineTo(mx, my + r); ctx.lineTo(mx - r, my); ctx.closePath(); }
     // A 2 px marker over a 4 px outline in the canvas colour.
-    ctx.strokeStyle = colour('--cad-bg', BG); ctx.lineWidth = 4; ctx.stroke();
+    if (ds.cursorOutline) { ctx.strokeStyle = colour('--cad-bg', BG); ctx.lineWidth = 4; ctx.stroke(); }
     ctx.strokeStyle = colour('--cad-snap', '#37d67a'); ctx.lineWidth = 2; ctx.stroke();
     if (ds.snapTip) tag(mx + 12, my + 10, SNAP_NAMES[snap.kind] ?? '');
   }
@@ -934,7 +944,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   // After zoom / pan: the cursor's drawing point moves, so it is tracked again. When only the marks change (a pick, the
   // cursor moving in a tool), they are redrawn without reporting the cursor back (that would loop).
   useEffect(() => { if (mouse.current) track(mouse.current[0], mouse.current[1]); else drawCursor(null); }, [t]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { drawCursor(mouse.current ? lastAt.current?.at ?? null : null, mouse.current ? lastAt.current?.snap : undefined, mouse.current ? lastAt.current?.guide : undefined); }, [marks, preview, theme, grips, draft, cursorMode, hover, hand, shiftOn]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { drawCursor(mouse.current ? lastAt.current?.at ?? null : null, mouse.current ? lastAt.current?.snap : undefined, mouse.current ? lastAt.current?.guide : undefined); }, [marks, preview, theme, grips, draft, cursorMode, hover, hand, shiftOn, still]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** The whole drawing in view, with a margin (FIT / ZE, 0, a double click of the wheel, the zoom chip). */
   const fitT = (): ViewT => {
@@ -1020,6 +1030,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         onMouseMove={(e) => {
           const [x, y] = local(e);
           mouse.current = [x, y];
+          waitStill();
           const d = drag.current;
           if (d) { move((v) => ({ ...v, ox: d.ox - (x - d.x) / v.scale, oy: d.oy + (y - d.y) / v.scale })); return; }
           const w = win.current;
