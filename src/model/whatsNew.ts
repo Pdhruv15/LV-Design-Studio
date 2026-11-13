@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.115', date: '2026-11-13',
+    items: [
+      { title: 'Design CAD: a clearer cursor', text: 'The cursor now shows what the drawing is waiting for. With no command running you see the crosshair and the pick box; while a command asks for a point, only the crosshair; while it asks you to select objects, only the pick box. The crosshair, the pick box and the snap markers have a thin outline in the background colour, so they stay visible over lines of any colour, and the crosshair stops just outside the pick box so you can see what you are about to pick.' },
+      { title: 'Design CAD: the pick box is the click area', text: 'A click now picks what is inside the pick box. Before, the box was drawn 9 px wide while clicks reached 12 px. The box is now 12 px by default, so clicks reach as far as before. Change it in Drafting settings → Selection → Pick box size; the size you set changes both the box and the click area.' }
+    ]
+  },
+  {
     version: '2.113', date: '2026-11-13',
     items: [
       { title: 'Load schedule tools on MDB, SMDB and transformer forms', text: 'The Load schedule tab\'s ribbon now works on more than a DB\'s schedule. On the Connected load & MD form of an MDB, SMDB or MCC it adds feeders (and boards fed from the panel), 3-phase or 1-phase spares and spaces, fills down, copies, pastes, and edits, deletes or duplicates the selected row. On the TCL summary it adds transformers and substations, and edits or removes the selected transformer. Form details… is also under Export, and Edit on the Busbar riser opens the riser. The buttons on the pages themselves stay as they were.' }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { INK, SNAP, SNAP_NAMES, type CadView } from '../../engines/cad/cadEngine';
 import type { ErasedParts } from '../../model/cadErased';
 import { ortho as orthoFrom } from '../../model/cadMeasure';
-import { DRAFT_DEFAULTS, otrack, polarAngles, polarTrack, snapToSpacing, type DraftSettings } from '../../model/cadDraft';
+import { DRAFT_DEFAULTS, otrack, polarAngles, polarTrack, snapToSpacing, type CursorMode, type DraftSettings } from '../../model/cadDraft';
 import { dimOf, segmentsOf, trayLabel, trayLine, TRAY_TEXT_MM } from '../../model/cadSketch';
 import { textBaseAt, textCorners } from '../../model/cadText';
 import { noteBox } from '../../model/cadMtext';
@@ -21,6 +21,9 @@ import { scaledView, windowView, type ViewT } from '../../model/cadView';
 import { previousView, rememberView } from './cadViewHistory';
 
 type Pt = [number, number];
+
+/** The canvas colour when the theme gives none; the cursor's outline is drawn in it. */
+const BG = '#15171A';
 
 /** The status bar toggles; `dyn` (dynamic input at the cursor) is the page's, the drawing does not use it. */
 /** `polar` tracking (F10), object snap tracking `otrack` (F11) and lineweights shown (`lwt`) default to off, off, on. */
@@ -53,7 +56,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch: sketchIn = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, panLeft = false, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS, zoom, onZoomMenu, onDouble, pointStyle = POINT_STYLE_DEFAULT, blocks = [], onDrop, fadeExcept }: {
+export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch: sketchIn = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps, numbersTyped = false, windowSelect = false, onWindow, onContext, panLeft = false, overlay, grips = [], onGripStart, onGripEnd, layerStyle = {}, refs = [], refSnap, fitBox, fixed = false, onView, extents, draft = DRAFT_DEFAULTS, zoom, onZoomMenu, onDouble, pointStyle = POINT_STYLE_DEFAULT, blocks = [], onDrop, fadeExcept, cursorMode = 'ready' }: {
   view: CadView;
   /** Objects of the drawing erased in the app (CROP): their lines, texts and fills are not drawn. */
   hidden?: ErasedParts;
@@ -133,6 +136,8 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   onCursor: (at: Pt | null, snapName?: string) => void;
   /** Drafting settings (DS): snap modes and spacing, grid, polar angles, aperture, cursor and grip sizes. */
   draft?: DraftSettings;
+  /** What the canvas waits for: no command (crosshair and pick box), a point (crosshair only), objects (pick box only). */
+  cursorMode?: CursorMode;
   /** How drawn points are shown (PTYPE). */
   pointStyle?: PointStyle;
   /** The drawing's own blocks: an insert among the drawn objects is drawn as what its block shows. */
@@ -170,6 +175,8 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   useEffect(() => () => { if (resting.current) clearTimeout(resting.current.timer); }, []);
   const draftRef = useRef(draft);
   draftRef.current = draft;
+  const modeRef = useRef(cursorMode);
+  modeRef.current = cursorMode;
   const marksRef = useRef(marks);
   marksRef.current = marks;
   const previewRef = useRef(preview);
@@ -283,7 +290,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     if (!c || !ctx) return;
     const dpr = window.devicePixelRatio || 1;
     c.width = Math.round(size.w * dpr); c.height = Math.round(size.h * dpr);
-    const bg = colour('--cad-bg', '#15171A'), ink = colour('--cad-ink', '#E6E8EB');
+    const bg = colour('--cad-bg', BG), ink = colour('--cad-ink', '#E6E8EB');
     // Stored colours too faint on this background are drawn lighter or darker (each worked out once per draw).
     const bgRgb = cssRgb(bg), shown = new Map<number, string>();
     // A layer given a colour in the layer manager shows in it.
@@ -710,20 +717,31 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       ctx.stroke(); ctx.setLineDash([]);
       tag(sx + 12, sy - 30, guide.label);
     }
-    ctx.strokeStyle = colour('--cad-cross', '#dbe4f5');
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    // The crosshair: across the view, or as long as the % set (DS, Cursor).
+    // The crosshair (not while objects are wanted) and the pick box (not while a point is): 1 px lines over a 3 px
+    // outline in the canvas colour, so they read over lines of any colour. The crosshair stops 2 px outside the box.
+    const mode = modeRef.current;
+    const cx = Math.round(sx) + 0.5, cy = Math.round(sy) + 0.5;
+    const pb = ds.pickBoxPx, withBox = mode !== 'point';
+    const gap = withBox ? pb / 2 + 2 : 0;
+    // Across the view, or as long as the % set (DS, Cursor).
     const hx = ds.crossPct >= 100 ? Infinity : (Math.max(size.w, size.h) * ds.crossPct) / 200;
-    ctx.moveTo(Math.max(0, sx - hx), Math.round(sy) + 0.5); ctx.lineTo(Math.min(size.w, sx + hx), Math.round(sy) + 0.5);
-    ctx.moveTo(Math.round(sx) + 0.5, Math.max(0, sy - hx)); ctx.lineTo(Math.round(sx) + 0.5, Math.min(size.h, sy + hx));
-    ctx.stroke();
-    const pb = ds.pickPx;
-    ctx.strokeRect(Math.round(sx) - pb / 2, Math.round(sy) - pb / 2, pb, pb);
+    const strokeCursor = (c: string, w: number) => {
+      ctx.strokeStyle = c; ctx.lineWidth = w;
+      ctx.beginPath();
+      if (mode !== 'objects') {
+        const l = Math.max(0, cx - hx), r = Math.min(size.w, cx + hx), t = Math.max(0, cy - hx), b = Math.min(size.h, cy + hx);
+        if (cx - gap > l) { ctx.moveTo(l, cy); ctx.lineTo(cx - gap, cy); }
+        if (r > cx + gap) { ctx.moveTo(cx + gap, cy); ctx.lineTo(r, cy); }
+        if (cy - gap > t) { ctx.moveTo(cx, t); ctx.lineTo(cx, cy - gap); }
+        if (b > cy + gap) { ctx.moveTo(cx, cy + gap); ctx.lineTo(cx, b); }
+      }
+      if (withBox) ctx.rect(cx - pb / 2, cy - pb / 2, pb, pb);
+      ctx.stroke();
+    };
+    strokeCursor(colour('--cad-bg', BG), 3);
+    strokeCursor(colour('--cad-cross', '#dbe4f5'), 1);
     if (!snap) return;
     const mx = (snap.p[0] - o0 - ox) * scale, my = size.h - (snap.p[1] - o1 - oy) * scale;
-    ctx.strokeStyle = colour('--cad-snap', '#37d67a');
-    ctx.lineWidth = 2;
     ctx.beginPath();
     const r = ds.markerPx;
     if (snap.kind === SNAP.perpendicular) { ctx.moveTo(mx - r, my + r); ctx.lineTo(mx + r, my + r); ctx.moveTo(mx, my + r); ctx.lineTo(mx, my - r); }
@@ -733,7 +751,9 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     else if (snap.kind === SNAP.center) ctx.arc(mx, my, r, 0, 2 * Math.PI);
     else if (snap.kind === SNAP.intersection) { ctx.moveTo(mx - r, my - r); ctx.lineTo(mx + r, my + r); ctx.moveTo(mx + r, my - r); ctx.lineTo(mx - r, my + r); }
     else { ctx.moveTo(mx, my - r); ctx.lineTo(mx + r, my); ctx.lineTo(mx, my + r); ctx.lineTo(mx - r, my); ctx.closePath(); }
-    ctx.stroke();
+    // A 2 px marker over a 4 px outline in the canvas colour.
+    ctx.strokeStyle = colour('--cad-bg', BG); ctx.lineWidth = 4; ctx.stroke();
+    ctx.strokeStyle = colour('--cad-snap', '#37d67a'); ctx.lineWidth = 2; ctx.stroke();
     if (ds.snapTip) tag(mx + 12, my + 10, SNAP_NAMES[snap.kind] ?? '');
   }
   /** A small name tag on the cursor layer (the snap's, tracking's), its top-left at (x, y). */
@@ -842,7 +862,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   // After zoom / pan: the cursor's drawing point moves, so it is tracked again. When only the marks change (a pick, the
   // cursor moving in a tool), they are redrawn without reporting the cursor back (that would loop).
   useEffect(() => { if (mouse.current) track(mouse.current[0], mouse.current[1]); else drawCursor(null); }, [t]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { drawCursor(mouse.current ? lastAt.current?.at ?? null : null, mouse.current ? lastAt.current?.snap : undefined, mouse.current ? lastAt.current?.guide : undefined); }, [marks, preview, theme, grips, draft]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { drawCursor(mouse.current ? lastAt.current?.at ?? null : null, mouse.current ? lastAt.current?.snap : undefined, mouse.current ? lastAt.current?.guide : undefined); }, [marks, preview, theme, grips, draft, cursorMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** The whole drawing in view, with a margin (FIT / ZE, 0, a double click of the wheel, the zoom chip). */
   const fitT = (): ViewT => {

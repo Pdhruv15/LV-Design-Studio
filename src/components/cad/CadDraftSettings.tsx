@@ -53,7 +53,7 @@ export default function CadDraftSettings({ tab: first = 'snap', draft, toggles, 
     level: levels.find((x) => x.label === lv), unit: units.find((x) => x.label === un)
   });
   const reset = tab === 'cursor' || tab === 'select'
-    ? <button type="button" onClick={() => patch(tab === 'cursor' ? { crossPct: DRAFT_DEFAULTS.crossPct, aperturePx: DRAFT_DEFAULTS.aperturePx, markerPx: DRAFT_DEFAULTS.markerPx, snapTip: true } : { windowFill: true, grips: true, gripPx: DRAFT_DEFAULTS.gripPx, pickPx: DRAFT_DEFAULTS.pickPx })}>Reset</button>
+    ? <button type="button" onClick={() => patch(tab === 'cursor' ? { crossPct: DRAFT_DEFAULTS.crossPct, aperturePx: DRAFT_DEFAULTS.aperturePx, markerPx: DRAFT_DEFAULTS.markerPx, snapTip: true } : { windowFill: true, grips: true, gripPx: DRAFT_DEFAULTS.gripPx, pickBoxPx: DRAFT_DEFAULTS.pickBoxPx })}>Reset</button>
     : tab === 'osnap' ? <><button type="button" onClick={() => patch({ osnap: Object.values(OSNAP_BITS).reduce((a, b) => a | b, 0) })}>Select all</button><button type="button" onClick={() => patch({ osnap: 0 })}>Clear all</button></> : null;
   return (
     <CadDialog id="dsettings" title="Drafting settings" alias="DS" help={HELP[tab]} onOk={ok} onClose={onClose} wide extra={reset}>
@@ -97,7 +97,7 @@ export default function CadDraftSettings({ tab: first = 'snap', draft, toggles, 
         <Check label="Shade the selection window" value={d.windowFill} onChange={(v) => patch({ windowFill: v })} />
         <Check label="Grips on what is picked" value={d.grips} onChange={(v) => patch({ grips: v })} />
         <Num label="Grip size" unit="px" value={d.gripPx} onChange={(v) => { const x = Math.round(Number(v)); if (x >= 4 && x <= 20) patch({ gripPx: x }); }} />
-        <Num label="Pick box size" unit="px" value={d.pickPx} onChange={(v) => { const x = Math.round(Number(v)); if (x >= 3 && x <= 30) patch({ pickPx: x }); }} />
+        <Num label="Pick box size" unit="px" value={d.pickBoxPx} onChange={(v) => { const x = Math.round(Number(v)); if (x >= 3 && x <= 30) patch({ pickBoxPx: x }); }} />
       </>}
       {tab === 'cursor' && <>
         <Num label="Crosshair size (100 = across)" unit="%" value={d.crossPct} onChange={(v) => { const x = Math.round(Number(v)); if (x >= 1 && x <= 100) patch({ crossPct: x }); }} />

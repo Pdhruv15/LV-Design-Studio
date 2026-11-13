@@ -44,11 +44,13 @@ export interface DraftSettings {
   dynOptions: boolean;
   /** A block with attributes inserted: its prompts asked in a dialog (else one by one on the command line). */
   attDialog: boolean;
-  /** Selection: the selection window shaded, grips shown on what is picked, their size and the pick box (px). */
+  /** Selection: the selection window shaded, grips shown on what is picked, their size, and the pick box (px): drawn at the
+   * cursor and the area a click picks in. Kept as `pickBoxPx` since it became the click area; the old `pickPx` (drawn
+   * only, default 9) is not read, so everyone starts at the new default. */
   windowFill: boolean;
   grips: boolean;
   gripPx: number;
-  pickPx: number;
+  pickBoxPx: number;
   /** Cursor: crosshair length as % of the view (100 = across it), snap aperture, snap marker size (px), the snap name. */
   crossPct: number;
   aperturePx: number;
@@ -64,7 +66,7 @@ export const DRAFT_DEFAULTS: DraftSettings = {
   polarInc: 45, polarExtra: [], trackAllPolar: false,
   osnap: OSNAP_DEFAULT,
   dynBoxes: true, dynPrompt: true, dynOptions: true, attDialog: false,
-  windowFill: true, grips: true, gripPx: 8, pickPx: 9,
+  windowFill: true, grips: true, gripPx: 8, pickBoxPx: 12,
   crossPct: 100, aperturePx: 10, markerPx: 7, snapTip: true,
   saveFormat: 'own', keepBak: true
 };
@@ -82,10 +84,26 @@ export function draftSettings(v: unknown): DraftSettings {
     polarInc: num(o.polarInc, 1, 90, d.polarInc), polarExtra: extra, trackAllPolar: bool(o.trackAllPolar, d.trackAllPolar),
     osnap: typeof o.osnap === 'number' && Number.isInteger(o.osnap) ? o.osnap & ALL_BITS : d.osnap,
     dynBoxes: bool(o.dynBoxes, d.dynBoxes), dynPrompt: bool(o.dynPrompt, d.dynPrompt), dynOptions: bool(o.dynOptions, d.dynOptions), attDialog: bool(o.attDialog, d.attDialog),
-    windowFill: bool(o.windowFill, d.windowFill), grips: bool(o.grips, d.grips), gripPx: Math.round(num(o.gripPx, 4, 20, d.gripPx)), pickPx: Math.round(num(o.pickPx, 3, 30, d.pickPx)),
+    windowFill: bool(o.windowFill, d.windowFill), grips: bool(o.grips, d.grips), gripPx: Math.round(num(o.gripPx, 4, 20, d.gripPx)), pickBoxPx: Math.round(num(o.pickBoxPx, 3, 30, d.pickBoxPx)),
     crossPct: Math.round(num(o.crossPct, 1, 100, d.crossPct)), aperturePx: Math.round(num(o.aperturePx, 2, 40, d.aperturePx)), markerPx: Math.round(num(o.markerPx, 3, 20, d.markerPx)), snapTip: bool(o.snapTip, d.snapTip),
     saveFormat: o.saveFormat === 'dwg' || o.saveFormat === 'dxf' ? o.saveFormat : 'own', keepBak: bool(o.keepBak, d.keepBak)
   };
+}
+
+/** How far from the cursor a click picks, in screen pixels: half the pick box. */
+export const pickRadiusPx = (d: Pick<DraftSettings, 'pickBoxPx'>): number => d.pickBoxPx / 2;
+
+/** What the canvas is waiting for, which sets the cursor's shape: `ready` (no command: crosshair and pick box),
+ * `point` (crosshair only) or `objects` (pick box only). */
+export type CursorMode = 'ready' | 'point' | 'objects';
+
+/** The cursor's shape from the tool running and its prompt (the command line's last line): a prompt that asks to
+ * select ("MOVE  Select object, then specify base point:") wants objects; any other prompt in a command wants a point.
+ * `placing`: something follows the cursor to its insertion point (a block, pasted objects, a grip being dragged). */
+export function cursorModeOf(tool: string, prompt: string | undefined, placing = false): CursorMode {
+  if (placing) return 'point';
+  if (tool === 'none') return 'ready';
+  return prompt && /\bSelect\b/.test(prompt) ? 'objects' : 'point';
 }
 
 /** Parses typed extra polar angles ("60, 120"), keeping those between 0 and 360°. */
