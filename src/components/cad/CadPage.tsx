@@ -71,7 +71,7 @@ import { pathOfPlan, type CadExport, type DraftTab, type SavedCopy } from './cad
 import CadDraftSettings from './CadDraftSettings';
 import CadSaveAs, { CloseUnsaved } from './CadSaveAs';
 import { cadFileMenu } from './cadFileMenu';
-import { DRAFT_DEFAULTS, OSNAP_BITS, type DraftSettings, type OsnapMode } from '../../model/cadDraft';
+import { cursorModeOf, DRAFT_DEFAULTS, OSNAP_BITS, pickRadiusPx, type DraftSettings, type OsnapMode } from '../../model/cadDraft';
 import { CABLE_HEAD, cableRows, DEVICE_HEAD, deviceRows } from '../../model/cadExports';
 import { toDxf } from '../../docs/dxf';
 import { changeViewports, layoutOverlay, layoutsOf, LayoutTabs, moveLayout, newLayout, patchViewport, TablePanel, ViewportPanel, vpId, type DrawingTab } from './CadLayouts';
@@ -630,6 +630,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // too), or off for 'none'.
   const snapBit = snapOnce && snapOnce !== 'none' ? OSNAP_BITS[snapOnce] : 0;
   const snapDraft = snapOnce ? { ...draft, osnap: snapBit } : draft;
+  /** A click picks what is inside the pick box: half its size, in screen pixels (times `pixel` for drawing units). */
+  const pickR = pickRadiusPx(draft);
   const snapToggles = snapOnce ? { ...cad.toggles, osnap: snapOnce !== 'none' } : cad.toggles;
   const snapExtra = useMemo(() => (snapOnce ? sketchSnaps.filter((q) => q.kind & snapBit) : sketchSnaps), [snapOnce, snapBit, sketchSnaps]);
   const selSketch = sketch.find((it) => `sk:${it.id}` === cad.selected) ?? null;
@@ -904,9 +906,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   async function cropClick(at: Pt, pixel: number) {
     if (!view || !crop) return;
     if (crop.step === 'pick') {
-      const sk = hitAt(pickable, at, 6 * pixel);
+      const sk = hitAt(pickable, at, pickR * pixel);
       if (sk) { setCrop({ step: 'outline', target: { items: [sk.id], label: '1 drawn object' } }); cad.say(CROP_OUTLINE); return; }
-      const o = await view.pick(at[0], at[1], 6 * pixel, pickOn);
+      const o = await view.pick(at[0], at[1], pickR * pixel, pickOn);
       if (!o || o.kind !== 'Block') { cad.say(o ? `CROP  That is a ${o.kind.toLowerCase()}, not a block (references: XCLIP). Select a block to crop:` : 'CROP  No block there. Select a block to crop:'); return; }
       const c = cropOf(o); setCrop(c.state); cad.say(c.say); return;
     }
@@ -1269,7 +1271,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** A left double-click on a drawn text, dimension or note, with no tool running, opens its box. */
   function doubleClick(at: Pt, pixel: number) {
     if (!view || (tool !== 'none' && tool !== 'textedit') || edText || edNote) return;
-    const it = hitAt(sketch.filter((x) => !effective(x, styles).hidden), at, 6 * pixel);
+    const it = hitAt(sketch.filter((x) => !effective(x, styles).hidden), at, pickR * pixel);
     if (it && (it.kind === 'text' || it.kind === 'dim' || it.kind === 'mtext' || it.kind === 'insert')) startTextEdit(it);
   }
   /** The height on paper (mm) a new note takes: as set with H, else the current text style's, else the annotation height. */
@@ -1315,7 +1317,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       const g = gripsOf(selSketch)[hotGrip];
       if (g) { setPromptMenu({ at: screen, items: gripMenu({ index: hotGrip, kind: g.kind, it: selSketch }) }); return; }
     }
-    const d = deviceAt(at, pixel), sk = d ? undefined : hitAt(pickable, at, 6 * pixel);
+    const d = deviceAt(at, pixel), sk = d ? undefined : hitAt(pickable, at, pickR * pixel);
     const room = floor ? roomAtPointOf(project, floor, at, units.factor) : undefined;
     ctxAt.current = { at, room: room?.id };
     if (d && !pickedKeys.has(d.key)) pick([d]);
@@ -1325,7 +1327,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (devs.length && (d || !sk)) { setPromptMenu({ at: screen, items: devMenu(devs) }); return; }
     if (!d && !sk && !pickedItems.length && !pickedSk.length) {
       // An object of the opened drawing: picked (if it was not), with Erase (run as it then stands, through the actions).
-      const o = view ? await view.pick(at[0], at[1], 6 * pixel, pickOn) : null;
+      const o = view ? await view.pick(at[0], at[1], pickR * pixel, pickOn) : null;
       if (o && !pickedKeys.has(`dw:${o.handle}`)) pick([], [], [o]);
       if (o || pickedDw.length) {
         const one = o ?? (pickedDw.length === 1 ? pickedDw[0] : undefined), n = o && !pickedKeys.has(`dw:${o.handle}`) ? 1 : pickedDw.length;
@@ -1333,7 +1335,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         setPromptMenu({ at: screen, items: drawingObjectMenu({ block: one?.kind === 'Block' ? one.block : undefined, picked: n }) }); return;
       }
       // A reference drawing's lines (phase 3).
-      const r = refNear(xr.placed, at, 6 * pixel);
+      const r = refNear(xr.placed, at, pickR * pixel);
       if (r) { ctxObj.current = { ref: r.name }; setPromptMenu({ at: screen, items: xrefMenu(r) }); return; }
       const blank = blankMenu({ recent: recent.map((x) => x.label), canPaste: hasClip(), canUndo, canRedo, objectsHidden: !!objHide && objHide.file === view?.file });
       // Inside a room with an outline: the room's tools first (phase 2).
@@ -1953,7 +1955,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   }
   /** A click with an edit tool (drawing units). */
   function editClick(at: Pt, pixel: number, shiftKey: boolean) {
-    const sk = hitAt(pickable, at, 6 * pixel), f = units.factor, num = (s: string) => Number(s);
+    const sk = hitAt(pickable, at, pickR * pixel), f = units.factor, num = (s: string) => Number(s);
     const cmd = tool.toUpperCase();
     if (PICK_FIRST.includes(tool) && edPhase === 'pick') {
       if (!sk) { cad.say(`${cmd}  Click a drawn object (the architect's drawing is not changed):`); return; }
@@ -2144,7 +2146,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const selectAt = (at: Pt, pixel: number): boolean => {
     const d = deviceAt(at, pixel);
     if (d) { cad.setSelected(d.key); setResult({ kind: 'device', it: d }); return true; }
-    const sk = hitAt(pickable, at, 6 * pixel);
+    const sk = hitAt(pickable, at, pickR * pixel);
     if (sk) { cad.setSelected(`sk:${sk.id}`); setResult({ kind: 'sketch', it: sk }); return true; }
     return false;
   };
@@ -2284,13 +2286,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** What is under a click for the dimensions: a drawn arc or circle (an arc with its ends) or the straight piece of a
    * drawn line, else the same of the opened drawing (its circles and arcs come as segments; src/model/cadDims.ts). */
   async function roundOrLineAt(at: Pt, pixel: number): Promise<{ round?: { c: Pt; r: number; ends?: [Pt, Pt] }; line?: [Pt, Pt] }> {
-    const sk = hitAt(pickable, at, 6 * pixel);
+    const sk = hitAt(pickable, at, pickR * pixel);
     if (sk) {
       if (sk.kind !== 'circle' && sk.kind !== 'arc') return { line: nearestPiece(sk, at) };
       const r = sk.r ?? 0, e = (a: number): Pt => [sk.pts[0][0] + r * Math.cos(a), sk.pts[0][1] + r * Math.sin(a)];
       return { round: { c: sk.pts[0], r, ...(sk.kind === 'arc' ? { ends: [e(sk.a0 ?? 0), e(sk.a1 ?? 0)] as [Pt, Pt] } : {}) } };
     }
-    const o = view ? await view.pick(at[0], at[1], 6 * pixel, pickOn) : null;
+    const o = view ? await view.pick(at[0], at[1], pickR * pixel, pickOn) : null;
     if (!o || !view) return {};
     const kind = o.kind.toLowerCase(), S = view.segs;
     if (kind !== 'circle' && kind !== 'arc') return { line: nearestSegment(S, o.seg_start, o.seg_end, at) };
@@ -2313,13 +2315,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       zoomTo({ kind: 'window', a: last, b: at }); setPoints([]); cad.setTool('none'); return;
     }
     if (tool === 'selsim') {
-      const sk = hitAt(pickable, at, 6 * pixel);
+      const sk = hitAt(pickable, at, pickR * pixel);
       if (!sk) { cad.say('SELECTSIMILAR  Nothing there: click a drawn object, or Enter with those picked:'); return; }
       const sks = pickedKeys.has(`sk:${sk.id}`) ? pickedSk.filter((x) => x.id !== sk.id) : [...pickedSk, sk];
       pick([], sks); cad.say(`SEL  ${picks(sks.length)} — Enter when done`); return;
     }
     if (tool === 'textedit') {
-      const sk = hitAt(sketch.filter((x) => !effective(x, styles).hidden), at, 6 * pixel);
+      const sk = hitAt(sketch.filter((x) => !effective(x, styles).hidden), at, pickR * pixel);
       if (sk) startTextEdit(sk); else cad.say('TEXTEDIT  Nothing there. Select a text or dimension:');
       return;
     }
@@ -2373,7 +2375,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     if (tool === 'tcount' && tc) {
       if (tc.step === 'pick') {
-        const sk = hitAt(pickable, at, 6 * pixel);
+        const sk = hitAt(pickable, at, pickR * pixel);
         if (sk?.kind !== 'text') { cad.say('TCOUNT  Click the texts to renumber, in order, then Enter:'); return; }
         const sks = pickedKeys.has(`sk:${sk.id}`) ? pickedSk.filter((x) => x.id !== sk.id) : [...pickedSk, sk];
         pick([], sks); cad.say(`TCOUNT  ${picks(sks.length)} — Enter when done`); return;
@@ -2388,7 +2390,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       cad.say(kn.step === 'number' ? `KEYNOTE  Type the number first <${kn.n}>:` : 'KEYNOTE  Type the note text first:'); return;
     }
     if (tool === 'matchprop') {
-      const sk = hitAt(pickable, at, 6 * pixel), from = sketch.find((x) => x.id === mpFrom);
+      const sk = hitAt(pickable, at, pickR * pixel), from = sketch.find((x) => x.id === mpFrom);
       if (!sk) { cad.say(from ? 'MATCHPROP  Select destination object:' : PROMPT.matchprop); return; }
       if (!from || sk.id === from.id) { setMpFrom(sk.id); cad.say('MATCHPROP  Select destination object(s):'); return; }
       change(updateSketch(project, fileOf(), matchedProps(from, sk)), `MATCHPROP  Properties copied to the ${kindOf(sk).toLowerCase()} · ⌘Z to undo`);
@@ -2429,7 +2431,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     if (tool === 'move' || tool === 'copy' || tool === 'rotate') {
       if (!selSketch && !selectedItem) {
-        if (selectAt(at, pixel)) cad.say(tool === 'rotate' && !hitAt(pickable, at, 6 * pixel) ? 'ROTATE  Click where it faces:' : `${tool.toUpperCase()}  Specify base point:`); else cad.say(`${tool.toUpperCase()}  Select object:`);
+        if (selectAt(at, pixel)) cad.say(tool === 'rotate' && !hitAt(pickable, at, pickR * pixel) ? 'ROTATE  Click where it faces:' : `${tool.toUpperCase()}  Specify base point:`); else cad.say(`${tool.toUpperCase()}  Select object:`);
         return;
       }
       if (tool === 'rotate' && !selSketch) {
@@ -2458,7 +2460,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'link') {
       const feeder = project.feeders.find((f) => f.id === cad.cableFeeder);
       if (!feeder) { cad.say('LINK  Choose the cable first (the panel on the right).'); return; }
-      const o = await view.pick(at[0], at[1], 6 * pixel, pickOn);
+      const o = await view.pick(at[0], at[1], pickR * pixel, pickOn);
       const pts = o ? objectPath(view, o) : [];
       if (pts.length < 2) { cad.say('LINK  That is not a line or polyline. Click a line of the drawing:'); return; }
       draw({ kind: 'pline', layer: CABLE_LAYER, pts, cable: { feederId: feeder.id } }, `Cable route of ${cableLabel(project, feeder)}: ${m(toM(pathLength(pts)))} (linked from ${view.info.layers[o!.layer]?.name ?? 'the drawing'})`);
@@ -2478,7 +2480,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'attpick') { if (attDlg) setAttDlg({ ...attDlg, at, picking: false }); cad.setTool('none'); return; }
     // ATTEDIT: the block clicked, then its attributes in the dialog.
     if (tool === 'attedit') {
-      const sk = hitAt(pickable, at, 6 * pixel);
+      const sk = hitAt(pickable, at, pickR * pixel);
       if (!sk || sk.kind !== 'insert') { cad.say(`ATTEDIT  ${sk ? `That is a ${kindOf(sk).toLowerCase()}, not a block. ` : ''}Select a block:`); return; }
       if (!attdefsOf(blockDefOf(defs, sk.block)).length) { cad.say(`ATTEDIT  "${sk.block}" has no attributes. Select a block:`); return; }
       cad.setSelected(`sk:${sk.id}`); setResult({ kind: 'sketch', it: sk }); setAttEdit(sk.id); cad.setTool('none'); return;
@@ -2486,13 +2488,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     // -BLOCK: the base point clicked, then the objects clicked (Enter when done).
     if (tool === 'block' && blk) {
       if (blk.step === 'base') { setBlk({ ...blk, step: 'objects', base: at }); cad.say(`BLOCK  Select objects${pickedSk.length ? ` (${picks(pickedSk.length)})` : ''} — Enter when done:`); return; }
-      if (blk.step === 'objects') { const sk = hitAt(pickable, at, 6 * pixel); if (!sk) { cad.say('BLOCK  Nothing there. Select objects — Enter when done:'); return; } const sks = pickedKeys.has(`sk:${sk.id}`) ? pickedSk.filter((x) => x.id !== sk.id) : [...pickedSk, sk]; pick([], sks); cad.say(`BLOCK  ${picks(sks.length)} — Enter when done`); return; }
+      if (blk.step === 'objects') { const sk = hitAt(pickable, at, pickR * pixel); if (!sk) { cad.say('BLOCK  Nothing there. Select objects — Enter when done:'); return; } const sks = pickedKeys.has(`sk:${sk.id}`) ? pickedSk.filter((x) => x.id !== sk.id) : [...pickedSk, sk]; pick([], sks); cad.say(`BLOCK  ${picks(sks.length)} — Enter when done`); return; }
       cad.say(PROMPT.block); input.current?.focus(); return;
     }
     // The Block definition dialog stepping aside: its base point, or its objects (Enter when done).
     if (tool === 'blockpick' && blockDlg) {
       if (blockDlg.picking === 'base') { setBlockDlg({ ...blockDlg, base: at, picking: undefined }); cad.setTool('none'); return; }
-      const sk = hitAt(pickable, at, 6 * pixel);
+      const sk = hitAt(pickable, at, pickR * pixel);
       if (!sk) { cad.say('BLOCK  Nothing there. Select objects — Enter when done:'); return; }
       const sks = pickedKeys.has(`sk:${sk.id}`) ? pickedSk.filter((x) => x.id !== sk.id) : [...pickedSk, sk];
       pick([], sks); cad.say(`BLOCK  ${picks(sks.length)} — Enter when done`); return;
@@ -2501,7 +2503,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'divide' || tool === 'measure') {
       const ask = tool === 'divide' ? 'DIVIDE  Number of segments or [Block]:' : 'MEASURE  Segment length or [Block]:';
       if (divPick) { cad.say(ask); return; }
-      const sk = hitAt(pickable, at, 6 * pixel);
+      const sk = hitAt(pickable, at, pickR * pixel);
       if (!sk || !canDivide(sk)) { cad.say(`${tool.toUpperCase()}  ${sk ? `A ${kindOf(sk).toLowerCase()} cannot be ${tool === 'divide' ? 'divided' : 'measured out'}. ` : ''}Click a line, polyline, arc, circle or ellipse:`); return; }
       setDivPick({ it: sk, at }); cad.setSelected(`sk:${sk.id}`); setResult({ kind: 'sketch', it: sk });
       cad.say(ask); input.current?.focus(); return;
@@ -2627,7 +2629,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'none') {
       const d = deviceAt(at, pixel);
       setMenuAt(null);
-      const skHit = shiftKey && !d ? hitAt(pickable, at, 6 * pixel) : undefined;
+      const skHit = shiftKey && !d ? hitAt(pickable, at, pickR * pixel) : undefined;
       if (d && shiftKey) {
         const items = pickedKeys.has(d.key) ? pickedItems.filter((x) => x.key !== d.key) : [...pickedItems, d];
         pick(items, pickedSk, pickedDw); cad.say(`SEL  ${picks(items.length + pickedSk.length + pickedDw.length)}`); return;
@@ -2637,7 +2639,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         pick(pickedItems, sks, pickedDw); cad.say(`SEL  ${picks(pickedItems.length + sks.length + pickedDw.length)}`); return;
       }
       // Shift-click on an object of the opened drawing adds it to what is picked (or takes it off).
-      const dwHit = shiftKey && !d ? await view.pick(at[0], at[1], 6 * pixel, pickOn) : null;
+      const dwHit = shiftKey && !d ? await view.pick(at[0], at[1], pickR * pixel, pickOn) : null;
       if (dwHit) {
         const dws = pickedKeys.has(`dw:${dwHit.handle}`) ? pickedDw.filter((o) => o.handle !== dwHit.handle) : [...pickedDw, dwHit];
         pick(pickedItems, pickedSk, dws); cad.say(`SEL  ${picks(pickedItems.length + pickedSk.length + dws.length)}`); return;
@@ -2645,9 +2647,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       setPicked([]);
       if (d) { cad.setSelected(d.key); setResult({ kind: 'device', it: d }); cad.say(`LIST  ${d.label}${d.detail ? ` · ${d.detail}` : ''}${d.room ? ` · ${d.room}` : ''}`); return; }
       cad.setSelected(null);
-      const sk = hitAt(pickable, at, 6 * pixel);
+      const sk = hitAt(pickable, at, pickR * pixel);
       if (sk) { cad.setSelected(`sk:${sk.id}`); setResult({ kind: 'sketch', it: sk }); cad.say(`LIST  ${sk.tray ? `Cable tray ${sk.tray.widthMm} mm, ${m(toM(trayLength(sk)))}${sk.tray.route ? ` on route ${sk.tray.route}` : ', no route'}` : sk.cable ? `Cable route of ${cableLabels[sk.id] ?? sk.cable.feederId}, ${m(toM(pathLength(sk.pts)))}` : sk.kind === 'pline' ? 'Polyline' : sk.kind} on ${sk.layer} (drawn here)`); return; }
-      const o = await view.pick(at[0], at[1], 6 * pixel, pickOn);
+      const o = await view.pick(at[0], at[1], pickR * pixel, pickOn);
       setResult(o ? { kind: 'object', o } : null);
       if (o) cad.say(`LIST  ${o.kind}${o.block ? ` ${o.block}` : ''} on ${view.info.layers[o.layer]?.name ?? '?'}${o.length !== undefined && !o.closed ? `, length ${m(toM(o.length))}` : ''}${o.area !== undefined ? `, area ${m2(toM2(o.area))}` : ''}`);
     } else if (tool === 'dist') {
@@ -2658,7 +2660,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       setPoints([]);
     } else if (tool === 'area' || tool === 'trace') {
       if (objectMode && tool === 'area') {
-        const o = await view.pick(at[0], at[1], 6 * pixel, pickOn, true);
+        const o = await view.pick(at[0], at[1], pickR * pixel, pickOn, true);
         if (!o || o.area === undefined) { cad.say('AREA  That is not a closed object (polyline, circle, hatch). Select a closed object:'); return; }
         const segs: Pt[] = [];
         for (let i = o.seg_start; i < o.seg_end; i += 1) segs.push([view.segs[i * 4] + view.info.origin[0], view.segs[i * 4 + 1] + view.info.origin[1]]);
@@ -2708,7 +2710,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       setResult({ kind: 'area', points: r.points, how: 'room', name: nameInside(r.points) });
       cad.say(`Room area = ${m2(toM2(r.area))}`);
     } else if (tool === 'name') {
-      const o = await view.pick(at[0], at[1], 6 * pixel, pickOn);
+      const o = await view.pick(at[0], at[1], pickR * pixel, pickOn);
       const text = o?.text?.trim();
       if (!text) { cad.say('NAME  That is not a text. Click the room name on the drawing:'); return; }
       if (result?.kind === 'area' && result.how !== 'object') { setResult({ ...result, name: text }); cad.say(`NAME  ${text} — Add as room… to add it`); return; }
@@ -3630,7 +3632,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
-            <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={snapExtra} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
+            <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} cursorMode={cursorModeOf(tool, cad.history[cad.history.length - 1], gripIdx !== null)} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={snapExtra} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
               numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={draft.grips && tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
               onGripEnd={(i, at, moved) => {

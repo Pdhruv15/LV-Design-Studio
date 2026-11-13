@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.115', date: '2026-11-13',
+    items: [
+      { title: 'Design CAD: a clearer cursor', text: 'The cursor now shows what the drawing is waiting for. With no command running you see the crosshair and the pick box; while a command asks for a point, only the crosshair; while it asks you to select objects, only the pick box. The crosshair, the pick box and the snap markers have a thin outline in the background colour, so they stay visible over lines of any colour, and the crosshair stops just outside the pick box so you can see what you are about to pick.' },
+      { title: 'Design CAD: the pick box is the click area', text: 'A click now picks what is inside the pick box. Before, the box was drawn 9 px wide while clicks reached 12 px. The box is now 12 px by default, so clicks reach as far as before. Change it in Drafting settings → Selection → Pick box size; the size you set changes both the box and the click area.' }
+    ]
+  },
+  {
     version: '2.114', date: '2026-11-13',
     items: [
       { title: 'Ribbon no longer covers the page on a short window', text: 'In Design CAD the top of the Properties palette, and on the SLD page the tabs and bar above the drawing, could slide under the ribbon when the window was not very tall. Both pages now fit the room under the ribbon: the drawing area gets a little shorter instead.' },

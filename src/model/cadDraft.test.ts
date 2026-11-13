@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DRAFT_DEFAULTS, draftSettings, OSNAP_BITS, OSNAP_DEFAULT, otrack, parseAngles, polarAngles, polarTrack, snapToSpacing } from './cadDraft';
+import { cursorModeOf, DRAFT_DEFAULTS, draftSettings, OSNAP_BITS, OSNAP_DEFAULT, otrack, parseAngles, pickRadiusPx, polarAngles, polarTrack, snapToSpacing } from './cadDraft';
 
 describe('Design CAD drafting settings', () => {
   it('reads what was kept, and uses the default for anything missing, of the wrong kind or out of range', () => {
@@ -48,5 +48,28 @@ describe('attribute prompts in a dialog (S11)', () => {
     expect(DRAFT_DEFAULTS.attDialog).toBe(false);
     expect(draftSettings({ attDialog: true }).attDialog).toBe(true);
     expect(draftSettings({ attDialog: 'yes' }).attDialog).toBe(false);
+  });
+
+  it('the pick box is the click area: 12 px by default (clicks reach 6 px, as before); the old drawn-only size is not read', () => {
+    expect(DRAFT_DEFAULTS.pickBoxPx).toBe(12);
+    expect(pickRadiusPx(DRAFT_DEFAULTS)).toBe(6);
+    expect(pickRadiusPx(draftSettings({ pickBoxPx: 20 }))).toBe(10);
+    expect(draftSettings({ pickPx: 9 }).pickBoxPx).toBe(12);
+    expect(draftSettings({ pickBoxPx: 2 }).pickBoxPx).toBe(12);
+    expect(draftSettings({ pickBoxPx: 31 }).pickBoxPx).toBe(12);
+  });
+
+  it('the cursor follows what the canvas waits for: nothing, a point or objects', () => {
+    expect(cursorModeOf('none', 'Command: LINE')).toBe('ready');
+    expect(cursorModeOf('none', undefined)).toBe('ready');
+    expect(cursorModeOf('line', 'LINE  Specify next point or [Undo]:')).toBe('point');
+    expect(cursorModeOf('move', 'MOVE  Select object, then specify base point:')).toBe('objects');
+    expect(cursorModeOf('move', 'MOVE  Specify base point:')).toBe('point');
+    expect(cursorModeOf('selsim', 'SELECTSIMILAR  Select objects or [Settings]:')).toBe('objects');
+    expect(cursorModeOf('dimang', 'DIMANGULAR  Select second line:')).toBe('objects');
+    // The command's name alone is not a request to select.
+    expect(cursorModeOf('selsim', 'SELECTSIMILAR  1 picked')).toBe('point');
+    // Something following the cursor (a grip dragged with no command): a point.
+    expect(cursorModeOf('none', 'Command:', true)).toBe('point');
   });
 });
