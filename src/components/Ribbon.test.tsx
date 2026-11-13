@@ -19,7 +19,7 @@ describe('Ribbon', () => {
   it('puts Project first, then the everyday work, one Stages tab, what comes out, and Standards at the far end', () => {
     const html = render('sld');
     const order = [...html.matchAll(/id="ribbon-tab-(\w+)"/g)].map((m) => m[1]);
-    expect(order).toEqual(['home', 'schedule', 'sld', 'cad', 'stages', 'reports', 'cost', 'standards']);
+    expect(order).toEqual(['home', 'schedule', 'sld', 'cad', 'sheets', 'stages', 'reports', 'cost', 'standards']);
     // Dividers between the kinds of tab, and Standards pushed to the far end.
     expect(html.split('class="tab-sep"').length - 1).toBe(3);
     expect(html).toMatch(/id="ribbon-tab-cost".*?<span class="sp"><\/span><button id="ribbon-tab-standards"/s);
@@ -92,9 +92,9 @@ describe('Ribbon', () => {
   });
 
   it('links the tabs to the tools they show', () => {
-    expect(render('home').split('aria-controls="ribbon-tools"').length - 1).toBe(8);
+    expect(render('home').split('aria-controls="ribbon-tools"').length - 1).toBe(9);
     const html = render('detailed');
-    expect(html.split('aria-controls="ribbon-tools"').length - 1).toBe(12); // with the four stages
+    expect(html.split('aria-controls="ribbon-tools"').length - 1).toBe(13); // with the four stages
     expect(html).toContain('id="ribbon-tools"');
     expect(html).toContain('aria-label="3 Detailed design tools"');
   });
