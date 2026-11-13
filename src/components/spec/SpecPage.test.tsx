@@ -3,6 +3,13 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SpecPage from './SpecPage';
+
+const saved: { name: string; bytes?: Uint8Array; html?: string }[] = [];
+vi.mock('../../util/files', async (orig) => ({
+  ...(await orig<typeof import('../../util/files')>()),
+  saveBinary: async (name: string, bytes: Uint8Array) => { saved.push({ name, bytes }); return `Saved ${name}`; },
+  savePdf: async (name: string, html: string) => { saved.push({ name, html }); return `Saved ${name}`; }
+}));
 import { sampleProject } from '../../data/sampleProject';
 import { starterSpec } from '../../model/specDoc';
 import type { Project } from '../../types';
@@ -124,9 +131,29 @@ describe('Specification page', () => {
 
   it('tools of later stages are greyed and say so', () => {
     render(sampleProject);
-    for (const label of ['Export Word', 'Paste', 'Bold', 'Find and replace', 'Bullets']) expect(tool(label).disabled).toBe(true);
-    expect(tool('Export Word').title).toBe('Comes in a later stage');
+    for (const label of ['Paste', 'Bold', 'Find and replace', 'Bullets']) expect(tool(label).disabled).toBe(true);
+    expect(tool('Paste').title).toBe('Comes in a later stage');
     expect([...document.querySelectorAll<HTMLButtonElement>('.prb-tab')].filter((t) => t.disabled).map((t) => t.textContent)).toEqual(['Specification', 'Insert', 'Review']);
     expect(document.querySelector<HTMLSelectElement>('select[aria-label="Insert field"]')!.disabled).toBe(true);
+  });
+
+  it('exports the specification to Word and to PDF, and says when values in it are DATA REQUIRED', async () => {
+    saved.length = 0;
+    render({ ...sampleProject, boards: sampleProject.boards.map((b) => ({ ...b, busbarMaterial: undefined })) });
+    await act(async () => { tool('Export Word').click(); await vi.waitFor(() => expect(saved.length).toBe(1)); });
+    expect(saved[0].name).toMatch(/Electrical-specification\.docx$/);
+    expect(new TextDecoder().decode(saved[0].bytes!.subarray(0, 2))).toBe('PK');
+    await vi.waitFor(() => expect(status.some((m) => m.includes('DATA REQUIRED'))).toBe(true));
+    tabTo('File');
+    await act(async () => { tool('Export PDF').click(); await vi.waitFor(() => expect(saved.length).toBe(2)); });
+    expect(saved[1].name).toMatch(/Electrical-specification\.pdf$/);
+    expect(saved[1].html).toContain('<h2>2 LV switchboards</h2>');
+    expect(saved[1].html).toContain('DATA REQUIRED: Busbar material');
+  });
+
+  it('with no section included there is nothing to export', () => {
+    const none = { ...starterSpec(), sections: starterSpec().sections.map((x) => ({ ...x, included: false })) };
+    render({ ...sampleProject, spec: none });
+    expect(tool('Export Word').disabled).toBe(true);
   });
 });
