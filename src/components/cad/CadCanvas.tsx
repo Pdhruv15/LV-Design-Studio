@@ -631,6 +631,8 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       ctx.font = `${Math.min(px, 200)}px system-ui, sans-serif`;
       ctx.textAlign = tx.align === 1 ? 'center' : tx.align === 2 ? 'right' : 'left';
       ctx.fillStyle = shade(tx.rgb);
+      // Fitted between two points: squeezed or stretched to the width given.
+      if (tx.w) { const nat = ctx.measureText(tx.s).width; if (nat > 0) ctx.scale(tx.w * scale / nat, 1); }
       ctx.fillText(tx.s, 0, 0);
       ctx.restore();
       drawn += 1;

@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.120', date: '2026-11-13',
+    items: [
+      { title: 'Design CAD: fitted text in its place', text: 'Text fitted between two points, as in SLD drawings exported from the app, now opens in Design CAD at its own place and width instead of half its length to the right.' }
+    ]
+  },
+  {
     version: '2.117', date: '2026-11-13',
     items: [
       { title: 'Design CAD: window and crossing told apart', text: 'Dragging a selection window from left to right now draws it in blue with a solid edge and "Window" beside the cursor: it picks what is fully inside. From right to left it is green and dashed, with "Crossing": it also picks what it touches.' },
