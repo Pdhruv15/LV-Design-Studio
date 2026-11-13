@@ -59,7 +59,7 @@ impl Affine {
 struct LayerInfo { name: String, rgb: u32, on: bool, count: u32 }
 
 #[derive(Serialize)]
-struct TextItem { x: f64, y: f64, h: f64, rot: f64, s: String, layer: u16, rgb: u32, align: u8, o: u32 }
+struct TextItem { x: f64, y: f64, h: f64, rot: f64, s: String, layer: u16, rgb: u32, align: u8, w: f64, o: u32 }
 
 /** What one object of model space is, for inspecting it: kind, layer, handle, block and attributes, and its length /
  * area in drawing units. Its drawn segments are `seg_start..seg_end`. */
@@ -296,10 +296,10 @@ impl<'a> Builder<'a> {
         }
     }
 
-    fn text(&mut self, t: &Affine, at: (f64, f64), h: f64, rot: f64, s: String, l: u16, rgb: u32, align: u8) {
+    fn text(&mut self, t: &Affine, at: (f64, f64), h: f64, rot: f64, s: String, l: u16, rgb: u32, align: u8, w: f64) {
         if s.trim().is_empty() { return; }
         let (x, y) = t.apply(at.0, at.1);
-        self.out.texts.push(TextItem { x, y, h: h * t.size(), rot: rot + t.angle(), s, layer: l, rgb, align, o: self.current });
+        self.out.texts.push(TextItem { x, y, h: h * t.size(), rot: rot + t.angle(), s, layer: l, rgb, align, w: w * t.size(), o: self.current });
         self.snap(t, at, INSERTION, l);
     }
 
@@ -425,13 +425,19 @@ impl<'a> Builder<'a> {
                 // Left on the baseline: at its insertion point. Anything else: at its alignment point, brought down to
                 // the baseline (a height from the top, half from the middle) so every text is read baseline-anchored.
                 let plain = x.alignment_point.is_none() || (matches!(x.horizontal_alignment, H::Left) && matches!(x.vertical_alignment, V::Baseline));
+                if let (true, Some(p)) = (matches!(x.horizontal_alignment, H::Fit | H::Aligned), x.alignment_point) {
+                    // Fit and Aligned: from the first point to the second, as wide as the distance between them.
+                    let (dx, dy) = (p.x - x.insertion_point.x, p.y - x.insertion_point.y);
+                    self.text(t, (x.insertion_point.x, x.insertion_point.y), x.height, dy.atan2(dx), x.value.clone(), l, rgb, 0, dx.hypot(dy));
+                    return;
+                }
                 let (at, align) = if plain { ((x.insertion_point.x, x.insertion_point.y), 0) } else {
                     let p = x.alignment_point.unwrap();
                     let down = match x.vertical_alignment { V::Top => x.height, V::Middle => x.height / 2.0, _ => if matches!(x.horizontal_alignment, H::Middle) { x.height / 2.0 } else { 0.0 } };
                     let (sin, cos) = x.rotation.sin_cos();
                     ((p.x + down * sin, p.y - down * cos), match x.horizontal_alignment { H::Left => 0, H::Right => 2, _ => 1 })
                 };
-                self.text(t, at, x.height, x.rotation, x.value.clone(), l, rgb, align);
+                self.text(t, at, x.height, x.rotation, x.value.clone(), l, rgb, align, 0.0);
             }
             EntityType::MText(x) => {
                 let s = parse_mtext(&x.value, true).to_plain_text();
@@ -439,7 +445,7 @@ impl<'a> Builder<'a> {
                     let dy = -(i as f64 + 1.0) * x.height * 1.66 + x.height * 0.66;
                     let (sin, cos) = x.rotation.sin_cos();
                     let at = (x.insertion_point.x - dy * sin, x.insertion_point.y + dy * cos);
-                    self.text(t, at, x.height, x.rotation, line.to_string(), l, rgb, 0);
+                    self.text(t, at, x.height, x.rotation, line.to_string(), l, rgb, 0, 0.0);
                 }
             }
             EntityType::Point(x) => self.snap(t, (x.location.x, x.location.y), NODE, l),
@@ -466,7 +472,7 @@ impl<'a> Builder<'a> {
                 for a in &x.attributes {
                     if a.common.invisible { continue; }
                     let (al, argb) = self.style(&a.common.layer, &a.common.color, (l, rgb));
-                    self.text(t, (a.insertion_point.x, a.insertion_point.y), a.height, a.rotation, a.value.clone(), al, argb, 0);
+                    self.text(t, (a.insertion_point.x, a.insertion_point.y), a.height, a.rotation, a.value.clone(), al, argb, 0, 0.0);
                 }
             }
             EntityType::Dimension(x) => {
@@ -709,7 +715,7 @@ impl CadDoc {
         }
         for t in &self.texts {
             if closed_only || !on(t.layer) || t.h <= 0.0 || self.gone(t.o) { continue; }
-            let w = 0.6 * t.h * t.s.chars().count() as f64;
+            let w = if t.w > 0.0 { t.w } else { 0.6 * t.h * t.s.chars().count() as f64 };
             let (sin, cos) = t.rot.sin_cos();
             let (px, py) = ((x - t.x) * cos + (y - t.y) * sin, -(x - t.x) * sin + (y - t.y) * cos);
             let x0 = match t.align { 1 => -w / 2.0, 2 => -w, _ => 0.0 };
@@ -1344,6 +1350,24 @@ mod tests {
         assert!(a.0.contains_key("E-LV-POINTS"), "the device's circle on its layer");
         assert!(after.layers.iter().any(|l| l.name == "LV-ANNO"), "the text's layer");
         assert_eq!(a.0["E-TRAY"], b.0.get("E-TRAY").copied().unwrap_or(0) + 1);
+    }
+
+    /// A text fitted between two points sits at the first, along the line to the second and as wide as the distance;
+    /// a centred text stays on its alignment point and a left one on its insertion point, both at their natural width.
+    #[test]
+    fn fitted_text_between_its_points() {
+        let text = |s: &str, extra: &str| format!("0\nTEXT\n8\n0\n10\n100\n20\n200\n30\n0\n40\n20\n1\n{s}\n{extra}");
+        let dxf = format!("0\nSECTION\n2\nENTITIES\n{}{}{}0\nENDSEC\n0\nEOF\n",
+            text("FIT", "72\n5\n11\n130\n21\n240\n31\n0\n73\n0\n"), text("MID", "72\n1\n11\n300\n21\n400\n31\n0\n73\n0\n"), text("LEFT", ""));
+        let d = CadDoc::new(dxf.into_bytes()).unwrap();
+        let get = |s: &str| d.texts.iter().find(|t| t.s == s).unwrap_or_else(|| panic!("text {s}"));
+        let f = get("FIT");
+        assert_eq!((f.x, f.y, f.h, f.align), (100.0, 200.0, 20.0, 0));
+        assert!((f.w - 50.0).abs() < 1e-9 && (f.rot - (40.0_f64).atan2(30.0)).abs() < 1e-9, "w {} rot {}", f.w, f.rot);
+        let m = get("MID");
+        assert_eq!((m.x, m.y, m.align, m.w), (300.0, 400.0, 1, 0.0));
+        let l = get("LEFT");
+        assert_eq!((l.x, l.y, l.align, l.w), (100.0, 200.0, 0, 0.0));
     }
 
     /// The drawing's own blocks: a BLOCK record with its objects and an INSERT of it, read back as one block, its

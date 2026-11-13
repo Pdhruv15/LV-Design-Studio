@@ -15,7 +15,7 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.124', date: '2026-11-14',
+    version: '2.125', date: '2026-11-14',
     items: [
       { title: 'Design CAD: edit a hatch', text: 'HE (or a double-click on a hatch) edits it: pattern, spacing, angle, the pattern\'s origin and its islands, each change one undo step. The Hatch arrow on the Draw panel has Edit hatch and Boundary.', action: 'cad', actionLabel: 'Open Design CAD' },
       { title: 'Design CAD: islands', text: 'A hatch leaves the closed objects inside it clear. Turn Find islands off on the Hatch panel to fill the whole outline; Add islands and Remove islands change them later. Its area is the net area.', action: 'cad' },
@@ -24,6 +24,12 @@ export const RELEASES: Release[] = [
       { title: 'Design CAD: Boundary', text: 'BO draws a closed polyline round the area you click (a circle stays a circle), with one for each island. Areas closed by drawn lines work too, and Hatch finds them as well.', action: 'cad' },
       { title: 'Design CAD: pattern swatch, Export .pat and patterns on this computer', text: 'The Hatch panel shows a small swatch of the pattern chosen, Export .pat… saves every pattern in the list, and a tick keeps imported patterns on this computer for every project.', action: 'cad' },
       { title: 'DWG and DXF: hatches keep their pattern name', text: 'A saved hatch carries its real pattern name (ANSI31, BRICK…), angle and scale, its islands as separate boundaries, and, when associative, a link to the polyline it was made from.' }
+    ]
+  },
+  {
+    version: '2.120', date: '2026-11-13',
+    items: [
+      { title: 'Design CAD: fitted text in its place', text: 'Text fitted between two points, as in SLD drawings exported from the app, now opens in Design CAD at its own place and width instead of half its length to the right.' }
     ]
   },
   {

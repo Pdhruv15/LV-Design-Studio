@@ -72,7 +72,7 @@ All print in black and white; Solid stays light grey on sheets.
 ## Status (2026-11-08)
 
 - **Step 1 built** (A.1–A.3, A.5, B): 18 patterns, dashes and dots on screen and sheets, SAVE writes the pattern.
-  Islands (A.4): built in v2.124 (below).
+  Islands (A.4): built in v2.125 (below).
 - **Step 2 built** (C.1–C.3):
   - **Import .pat…** button in the Hatch panel (placed there, like Import CTB… in Pen tables). Bad lines are reported
     on the command line with their line numbers; that pattern is left out.
@@ -81,9 +81,9 @@ All print in black and white; Solid stays light grey on sheets.
   - CROP of a block keeps the drawing's own pattern lines (found by layer and outline in the open drawing), so a hatch
     is no longer turned into ANSI31. This includes hatches the app saved earlier (named `LVDS_REF` in the file).
   - Spacing for an imported pattern is the distance between its first family's lines in paper mm.
-- The saved pattern name used to stay `LVDS_REF`; fixed in v2.124 (below).
+- The saved pattern name used to stay `LVDS_REF`; fixed in v2.125 (below).
 
-## Built in v2.124 (2026-11-14)
+## Built in v2.125 (2026-11-14)
 
 - **Edit hatch (D.1):** `HE` / `HATCHEDIT`, the Edit hatch item of the Draw ▸ Hatch arrow, a double-click on a hatch,
   and Edit hatch… on its right-click menu. The side panel shows the hatch's own Pattern, Spacing, Angle, Origin X / Y
