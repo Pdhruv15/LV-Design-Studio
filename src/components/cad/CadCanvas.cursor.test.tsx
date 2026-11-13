@@ -15,6 +15,8 @@ type Stroke = { w: number; ops: (string | number)[][]; c?: unknown; alpha?: unkn
 let strokes: Stroke[] = [];
 /** Filled squares (grips): their colour and box. */
 let fills: { c: unknown; box: number[] }[] = [];
+/** Outlined boxes (the selection window) with their colour and dash, and the texts written (its name). */
+let frames: { c: unknown; dash: unknown; box: number[] }[] = [], texts: string[] = [];
 /** A drawing context for the cursor layer that records its strokes; every other call does nothing. */
 function recorder() {
   let ops: (string | number)[][] = [];
@@ -27,6 +29,9 @@ function recorder() {
     stroke: () => { strokes.push({ w: props.lineWidth as number, ops: [...ops], c: props.strokeStyle, alpha: props.globalAlpha }); },
     fillRect: (x, y, w, h) => { fills.push({ c: props.fillStyle, box: [x, y, w, h] }); },
     arc: (x, y, r) => { ops.push(['A', x, y, r]); },
+    strokeRect: (x, y, w, h) => { frames.push({ c: props.strokeStyle, dash: props.dash, box: [x, y, w, h] }); },
+    setLineDash: ((d: number[]) => { props.dash = d; }) as unknown as (...a: number[]) => unknown,
+    fillText: ((t: string) => { texts.push(t); }) as unknown as (...a: number[]) => unknown,
     measureText: () => ({ width: 0 })
   };
   return new Proxy({}, {
@@ -49,6 +54,9 @@ const last = <T,>(a: T[]): T => a[a.length - 1];
 const OFF: CadToggles = { snap: false, osnap: false, ortho: false, grid: false };
 let root: Root, host: HTMLDivElement;
 const draw = (props: Partial<Parameters<typeof CadCanvas>[0]> = {}) => act(() => root.render(<CadCanvas view={view} layersOn={new Uint8Array()} toggles={OFF} fitKey={1} onCursor={() => {}} onClick={() => {}} {...props} />));
+const over = () => host.querySelector('canvas.cad-over') as HTMLCanvasElement;
+const press = (type: string, x: number, y: number, button = 0) => act(() => { over().dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, button, bubbles: true })); });
+const key = (type: 'keydown' | 'keyup', k: string, code = k) => act(() => { window.dispatchEvent(new KeyboardEvent(type, { key: k, code })); });
 const move = (x: number, y: number) => act(() => { host.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('mousemove', { clientX: x, clientY: y, bubbles: true })); });
 /** The cursor as last drawn: the 3 px outline stroke and the 1 px stroke over it. */
 function cursorAt(x: number, y: number) {
@@ -58,7 +66,7 @@ function cursorAt(x: number, y: number) {
   return { outline: strokes[i - 1], line: { w: strokes[i].w, ops: strokes[i].ops } };
 }
 
-beforeEach(() => { fills = []; host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host); });
+beforeEach(() => { fills = []; frames = []; texts = []; host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host); });
 afterEach(() => { act(() => root.unmount()); host.remove(); });
 
 describe('the cursor follows what the canvas waits for', () => {
@@ -143,3 +151,70 @@ describe('what a click would pick is marked first', () => {
     expect(last(away.ops)).toEqual(['R', 194.5, 94.5, 12, 12]);
   });
 });
+
+describe('window and crossing, Shift and the hand', () => {
+  beforeEach(() => {
+    for (const [k, v] of [['--res-cur', '#7fd1ff'], ['--ok', '#37d67a'], ['--cad-snap', '#37d67a'], ['--bad', '#ff5d6c']]) document.documentElement.style.setProperty(k, v);
+  });
+
+  it('left to right: a blue, solid window named "Window"; right to left: a green, dashed "Crossing"', () => {
+    draw({ windowSelect: true });
+    press('mousedown', 100, 100); move(200, 160);
+    expect(last(frames)).toMatchObject({ c: '#7fd1ff', dash: [] });
+    expect(texts).toContain('Window');
+    press('mouseup', 200, 160);
+    frames = []; texts = [];
+    press('mousedown', 300, 100); move(200, 160);
+    expect(last(frames)).toMatchObject({ c: '#37d67a', dash: [6, 4] });
+    expect(texts).toContain('Crossing');
+  });
+
+  it('Shift with no command: + over an object a click would add, − over one already picked, nothing over empty space', () => {
+    const dev = { key: 'd1', x: 400, y: 250, r: 5, shape: 'circle', text: '', label: 'L1' };
+    const badge = () => strokes.filter((x) => x.w === 1.5).pop();
+    draw({ hover: { device: 'd1' }, devices: [dev] });
+    key('keydown', 'Shift');
+    cursorAt(300, 200);
+    expect(badge()!.ops).toHaveLength(4); // a + : two strokes
+    draw({ hover: { device: 'd1', picked: true }, devices: [dev] });
+    cursorAt(300, 200);
+    expect(badge()).toMatchObject({ c: '#ff5d6c' });
+    expect(badge()!.ops).toHaveLength(2); // a −
+    draw({ hover: undefined, devices: [dev] });
+    cursorAt(300, 200);
+    expect(badge()).toBeUndefined();
+    // Not while a command wants objects (Shift does not toggle there), nor once Shift is let go.
+    draw({ cursorMode: 'objects', hover: { device: 'd1' }, devices: [dev] });
+    cursorAt(300, 200);
+    expect(badge()).toBeUndefined();
+    key('keyup', 'Shift');
+    draw({ hover: { device: 'd1' }, devices: [dev] });
+    cursorAt(300, 200);
+    expect(badge()).toBeUndefined();
+  });
+
+  it('panning: an open hand with Space or the Pan tool, closed while dragging, and no crosshair', () => {
+    draw();
+    expect(over().style.cursor).toBe('');
+    key('keydown', ' ', 'Space');
+    expect(over().style.cursor).toBe('grab');
+    strokes = [];
+    move(300, 200);
+    expect(strokes.filter((x) => x.w === 1)).toHaveLength(0);
+    key('keyup', ' ', 'Space');
+    expect(over().style.cursor).toBe('');
+    draw({ panLeft: true });
+    expect(over().style.cursor).toBe('grab');
+    press('mousedown', 300, 200);
+    expect(over().style.cursor).toBe('grabbing');
+    press('mouseup', 300, 200);
+    expect(over().style.cursor).toBe('grab');
+    // The middle button pans with any tool: closed hand while it is held.
+    draw();
+    press('mousedown', 300, 200, 1);
+    expect(over().style.cursor).toBe('grabbing');
+    press('mouseup', 300, 200, 1);
+    expect(over().style.cursor).toBe('');
+  });
+});
+
