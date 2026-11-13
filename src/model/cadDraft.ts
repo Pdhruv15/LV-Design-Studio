@@ -51,23 +51,34 @@ export interface DraftSettings {
   grips: boolean;
   gripPx: number;
   pickBoxPx: number;
+  /** The object under the pick box outlined before a click, and its kind and layer named once the cursor rests. */
+  hoverMark: boolean;
+  hoverTag: boolean;
   /** Cursor: crosshair length as % of the view (100 = across it), snap aperture, snap marker size (px), the snap name. */
   crossPct: number;
   aperturePx: number;
   markerPx: number;
   snapTip: boolean;
+  /** The crosshair's colour (the drawing's ink, the accent or cyan), and the outline in the canvas colour under the
+   * crosshair, pick box and snap marker. */
+  crossColor: CrossColor;
+  cursorOutline: boolean;
   /** Saving: the format Save As starts with, and the previous copy kept as .bak when Save writes over it. */
   saveFormat: 'own' | 'dwg' | 'dxf';
   keepBak: boolean;
 }
+
+/** The crosshair's colours to choose from. */
+export type CrossColor = 'ink' | 'accent' | 'cyan';
+export const CROSS_COLORS: { k: CrossColor; label: string }[] = [{ k: 'ink', label: 'Drawing ink' }, { k: 'accent', label: 'Accent' }, { k: 'cyan', label: 'Cyan' }];
 
 export const DRAFT_DEFAULTS: DraftSettings = {
   snapX: 0, snapY: 0, gridMm: 0, gridMajor: 5,
   polarInc: 45, polarExtra: [], trackAllPolar: false,
   osnap: OSNAP_DEFAULT,
   dynBoxes: true, dynPrompt: true, dynOptions: true, attDialog: false,
-  windowFill: true, grips: true, gripPx: 8, pickBoxPx: 12,
-  crossPct: 100, aperturePx: 10, markerPx: 7, snapTip: true,
+  windowFill: true, grips: true, gripPx: 8, pickBoxPx: 12, hoverMark: true, hoverTag: false,
+  crossPct: 100, aperturePx: 10, markerPx: 7, snapTip: true, crossColor: 'ink', cursorOutline: true,
   saveFormat: 'own', keepBak: true
 };
 
@@ -84,8 +95,9 @@ export function draftSettings(v: unknown): DraftSettings {
     polarInc: num(o.polarInc, 1, 90, d.polarInc), polarExtra: extra, trackAllPolar: bool(o.trackAllPolar, d.trackAllPolar),
     osnap: typeof o.osnap === 'number' && Number.isInteger(o.osnap) ? o.osnap & ALL_BITS : d.osnap,
     dynBoxes: bool(o.dynBoxes, d.dynBoxes), dynPrompt: bool(o.dynPrompt, d.dynPrompt), dynOptions: bool(o.dynOptions, d.dynOptions), attDialog: bool(o.attDialog, d.attDialog),
-    windowFill: bool(o.windowFill, d.windowFill), grips: bool(o.grips, d.grips), gripPx: Math.round(num(o.gripPx, 4, 20, d.gripPx)), pickBoxPx: Math.round(num(o.pickBoxPx, 3, 30, d.pickBoxPx)),
+    windowFill: bool(o.windowFill, d.windowFill), grips: bool(o.grips, d.grips), gripPx: Math.round(num(o.gripPx, 4, 20, d.gripPx)), pickBoxPx: Math.round(num(o.pickBoxPx, 3, 30, d.pickBoxPx)), hoverMark: bool(o.hoverMark, d.hoverMark), hoverTag: bool(o.hoverTag, d.hoverTag),
     crossPct: Math.round(num(o.crossPct, 1, 100, d.crossPct)), aperturePx: Math.round(num(o.aperturePx, 2, 40, d.aperturePx)), markerPx: Math.round(num(o.markerPx, 3, 20, d.markerPx)), snapTip: bool(o.snapTip, d.snapTip),
+    crossColor: CROSS_COLORS.some((c) => c.k === o.crossColor) ? o.crossColor as CrossColor : d.crossColor, cursorOutline: bool(o.cursorOutline, d.cursorOutline),
     saveFormat: o.saveFormat === 'dwg' || o.saveFormat === 'dxf' ? o.saveFormat : 'own', keepBak: bool(o.keepBak, d.keepBak)
   };
 }
