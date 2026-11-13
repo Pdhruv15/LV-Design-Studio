@@ -48,6 +48,10 @@ export interface LpsInputs {
   earthPitPerDown?: boolean;
   /** Put the study's quantities in the project BOQ (not by default). */
   inBoq?: boolean;
+  /** Earth resistance limit for the lightning protection earth (Ω), for the earthing schematic's check. */
+  earthLimitOhm?: number;
+  /** The lightning protection earth is bonded to the building's main earth bar. */
+  bondedToMet?: boolean;
 }
 
 export type LpsStatus = 'ok' | 'warn' | 'data';

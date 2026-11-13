@@ -138,7 +138,7 @@ export default function EarthingView({ project, onChange, onSheets, embedded = f
       <tr key={`${p.id}-${p.measured ?? ''}-${p.date ?? ''}-${p.by ?? ''}`}>
         <td><b>{p.id}</b></td>
         <td>{it.equipment}<br /><span className="m">{k.label}</span></td>
-        <td className="num">≤ {k.limitOhm}</td>
+        <td className="num">{p.limitOhm !== undefined ? `≤ ${p.limitOhm}` : <span className="bad">DATA REQUIRED</span>}</td>
         <td><input className="bi-num" style={{ width: 60 }} inputMode="decimal" placeholder="Ω" defaultValue={p.measured ?? ''} onBlur={(e) => test(p.id, { measured: e.target.value })} /></td>
         <td className="num">{net?.effectiveOhm !== undefined ? <span className={net.ok ? 'ok' : 'bad'}>{net.effectiveOhm.toFixed(2)}</span> : <span className="m">—</span>}</td>
         <td><input type="date" defaultValue={p.date ?? ''} onBlur={(e) => test(p.id, { date: e.target.value })} /></td>
@@ -198,7 +198,7 @@ export default function EarthingView({ project, onChange, onSheets, embedded = f
                 <ShadowSvg svg={svg} pitFill={pitFill} width={`${zoom * 100}%`} onPit={openPit} />
                 {editing && edit && (
                   <div className="earth-pop" style={{ left: edit.x, top: edit.y }} onClick={(e) => e.stopPropagation()} key={`${editing.id}-${edit.n}`}>
-                    <div className="earth-pop-h"><b>{editing.id}</b> <span className="m">{itemOf(editing.itemKey).equipment} · {kindInfo(editing.kind).label} · ≤ {kindInfo(editing.kind).limitOhm} Ω</span>
+                    <div className="earth-pop-h"><b>{editing.id}</b> <span className="m">{itemOf(editing.itemKey).equipment} · {kindInfo(editing.kind).label} · {editing.limitOhm !== undefined ? `≤ ${editing.limitOhm} Ω` : 'limit not entered'}</span>
                       <button className="icon-btn" aria-label="Close" onClick={() => setEdit(null)}><X size={14} aria-hidden /></button></div>
                     <label>Measured Ω<input autoFocus inputMode="decimal" defaultValue={editing.measured ?? ''} onBlur={(e) => test(editing.id, { measured: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} /></label>
                     <label>Test date<input type="date" defaultValue={editing.date ?? ''} onBlur={(e) => test(editing.id, { date: e.target.value })} /></label>

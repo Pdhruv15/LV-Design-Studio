@@ -182,6 +182,7 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
   if (p.earthingPlan) {
     const L = earthingLayout(p);
     for (const pit of L.pits) {
+      if (pit.kind === 'lp') continue; // lightning protection pits: counted with the study's own BOQ lines, when chosen
       const it = L.items.find((i) => i.key === pit.itemKey)!;
       add('I', `earth-pit:${L.electrodeM}:${pit.kind}`, `Earth pit (${kindInfo(pit.kind).label}): ${L.electrodeM} m copper-bonded earth electrode with inspection pit and cover, tested`, 'no', 1, it.equipment);
     }

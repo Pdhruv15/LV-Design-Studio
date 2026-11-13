@@ -2,6 +2,7 @@ import type { Project } from '../types';
 import { mainBoards, txTag } from './transformers';
 import { sizesOf, sizeTransformers, txGenPlanOf } from '../calc/txGen';
 import { perProject } from '../calc/network';
+import { lightningProtection } from '../calc/lightningProtection';
 
 /** Transformers on each main board, as the transformer sizing shows them: 2 when two are planned
  * (N+1, each for the whole load), n when the load is split over n of the largest size, else 1.
@@ -44,7 +45,7 @@ export const EARTHING_SYSTEMS = [
 export type EarthingSystemId = (typeof EARTHING_SYSTEMS)[number]['id'];
 export const earthingSystemOf = (id?: string) => EARTHING_SYSTEMS.find((s) => s.id === id) ?? EARTHING_SYSTEMS[0];
 
-export type EarthKind = 'rmu' | 'txn' | 'txb' | 'lv' | 'sub' | 'gn' | 'gb';
+export type EarthKind = 'rmu' | 'txn' | 'txb' | 'lv' | 'sub' | 'gn' | 'gb' | 'lp';
 export const EARTH_KINDS: { kind: EarthKind; label: string; limitOhm: number }[] = [
   { kind: 'rmu', label: 'RMU and transformer body earth', limitOhm: 2 },
   { kind: 'txn', label: 'Transformer neutral earth', limitOhm: 2 },
@@ -52,18 +53,31 @@ export const EARTH_KINDS: { kind: EarthKind; label: string; limitOhm: number }[]
   { kind: 'lv', label: 'LV earth (main board MET)', limitOhm: 1 },
   { kind: 'sub', label: 'SMDB earth (own pits)', limitOhm: 1 },
   { kind: 'gn', label: 'Generator neutral earth', limitOhm: 1 },
-  { kind: 'gb', label: 'Generator body earth', limitOhm: 1 }
+  { kind: 'gb', label: 'Generator body earth', limitOhm: 1 },
+  // No built-in limit: the engineer enters it on the Lightning protection page (see EarthPit.limitOhm).
+  { kind: 'lp', label: 'Lightning protection earth', limitOhm: NaN }
 ];
 export const kindInfo = (k: EarthKind) => EARTH_KINDS.find((x) => x.kind === k)!;
 
 export interface EarthItem { key: string; legacyKey?: string; kind: EarthKind; group: string; equipment: string; point: string; pits: number; defaultPits: number; linked: boolean; /** Transformer body: the RMU whose earth bar it is connected to, so it uses that RMU's body-earth pits. */ sharesPitsOf?: string }
-export interface EarthPit { id: string; kind: EarthKind; itemKey: string; measured?: number; date?: string; by?: string }
-export interface EarthNet { kind: EarthKind; group: string; pits: string[]; items: string[]; effectiveOhm?: number; ok?: boolean }
+/** `limitOhm`: the limit this pit is checked against — its kind's, or for lightning protection the engineer's entry (none: not checked). */
+export interface EarthPit { id: string; kind: EarthKind; itemKey: string; limitOhm?: number; measured?: number; date?: string; by?: string }
+export interface EarthNet { kind: EarthKind; group: string; pits: string[]; items: string[]; limitOhm?: number; effectiveOhm?: number; ok?: boolean }
 export interface EarthCheck { level: 'ok' | 'warn' | 'bad'; text: string }
 export interface EarthLayout { items: EarthItem[]; pits: EarthPit[]; links: [string, string][]; nets: EarthNet[]; checks: EarthCheck[]; electrodeM: number; conductorMm2: number; bonding: string[]; system: (typeof EARTHING_SYSTEMS)[number] }
 
 /** Metal parts bonded to each main earth bar unless the project lists its own. */
 export const DEFAULT_BONDING = ['Room earth bar', 'Cable containment', 'Sprinkler / pipework', 'Ductwork / mechanical'];
+
+export const LP_EARTH_KEY = 'lp:building';
+/** Earth pits the lightning protection study asks for (0: no study, data missing, or ring conductor only). */
+export const lightningEarthPits = (project: Project): number => (project.lightning ? lightningProtection(project.lightning).earthPits : 0);
+/** The limit a kind's pits are checked against: lightning protection uses the engineer's own entry. */
+export function earthLimitOhm(project: Project, kind: EarthKind): number | undefined {
+  if (kind !== 'lp') return kindInfo(kind).limitOhm;
+  const v = project.lightning?.earthLimitOhm;
+  return v !== undefined && Number.isFinite(v) && v > 0 ? v : undefined;
+}
 
 /** The equipment that needs an earth, from the project. */
 function equipment(project: Project): Omit<EarthItem, 'pits' | 'linked'>[] {
@@ -116,6 +130,10 @@ function equipmentOf(project: Project): Omit<EarthItem, 'pits' | 'linked'>[] {
     out.push({ key: `gn:${b.id}`, kind: 'gn', group: g, equipment: name, point: 'Neutral (star point)', defaultPits: 1 });
     out.push({ key: `gb:${b.id}`, kind: 'gb', group: g, equipment: name, point: 'Frame / body', defaultPits: 1 });
   });
+  // Lightning protection earth pits, from the study (one at each down conductor, when it asks for them). Last, so
+  // they never renumber the other pits; in the first substation's group, so no drawing gains a substation.
+  const lpPits = lightningEarthPits(project);
+  if (lpPits > 0) out.push({ key: LP_EARTH_KEY, kind: 'lp', group: groups[0] ?? 'SUBSTATION', equipment: 'Lightning protection', point: 'Down conductors (ring earth conductor)', defaultPits: lpPits });
   return out;
 }
 
@@ -174,14 +192,16 @@ export function earthingLayout(project: Project): EarthLayout {
   for (const it of items) {
     const ids = (normalized.earthPitIds?.[it.key] ?? []).slice(0, it.pits);
     byItem.set(it.key, ids);
-    for (const id of ids) pits.push({ id, kind: it.kind, itemKey: it.key, ...(plan.measured?.[id] !== undefined ? { measured: plan.measured[id] } : {}), ...plan.tests?.[id] });
+    const limit = earthLimitOhm(project, it.kind);
+    for (const id of ids) pits.push({ id, kind: it.kind, itemKey: it.key, ...(limit !== undefined ? { limitOhm: limit } : {}), ...(plan.measured?.[id] !== undefined ? { measured: plan.measured[id] } : {}), ...plan.tests?.[id] });
     for (let i = 1; i < ids.length; i++) links.push([ids[i - 1], ids[i]]); // pits of one equipment are always linked
   }
   // Pits are interconnected per kind within one substation; different substations are never linked.
   // A transformer body is part of the body-earth net of the RMU whose pits it shares.
   const bodiesOf = (rmus: EarthItem[]) => items.filter((i) => i.sharesPitsOf && rmus.some((r) => r.key === i.sharesPitsOf));
-  for (const sub of [...new Set(items.map((i) => i.group))]) for (const { kind, limitOhm } of EARTH_KINDS) {
+  for (const sub of [...new Set(items.map((i) => i.group))]) for (const { kind } of EARTH_KINDS) {
     if (kind === 'txb') continue;
+    const limitOhm = earthLimitOhm(project, kind);
     const ofKind = items.filter((i) => i.kind === kind && i.group === sub && i.pits > 0);
     const joined = ofKind.filter((i) => i.linked);
     // Linked equipment of one kind: a chain through their pits, group to group.
@@ -194,7 +214,7 @@ export function earthingLayout(project: Project): EarthLayout {
       const ids = g.flatMap((i) => byItem.get(i.key)!);
       const measured = ids.map((id) => plan.measured?.[id]).filter((x): x is number => x !== undefined && x > 0);
       const eff = measured.length === ids.length && ids.length ? parallel(measured) : undefined;
-      nets.push({ kind, group: sub, pits: ids, items: g.map((i) => i.key), ...(eff !== undefined ? { effectiveOhm: eff, ok: eff <= limitOhm + 1e-9 } : {}) });
+      nets.push({ kind, group: sub, pits: ids, items: g.map((i) => i.key), ...(limitOhm !== undefined ? { limitOhm } : {}), ...(eff !== undefined ? { effectiveOhm: eff, ...(limitOhm !== undefined ? { ok: eff <= limitOhm + 1e-9 } : {}) } : {}) });
     }
   }
 
@@ -209,8 +229,8 @@ export function earthingLayout(project: Project): EarthLayout {
   const multi = new Set(items.map((i) => i.group)).size > 1;
   for (const net of nets) {
     const k = kindInfo(net.kind);
-    if (net.effectiveOhm === undefined) continue;
-    checks.push({ level: net.ok ? 'ok' : 'bad', text: `${multi ? `${net.group} · ` : ''}${k.label} ${net.pits.join(', ')}: ${net.effectiveOhm.toFixed(2)} Ω ${net.ok ? '≤' : '>'} ${k.limitOhm} Ω${net.ok ? '' : ' — add pits or improve the electrodes'}` });
+    if (net.effectiveOhm === undefined || net.ok === undefined) continue;
+    checks.push({ level: net.ok ? 'ok' : 'bad', text: `${multi ? `${net.group} · ` : ''}${k.label} ${net.pits.join(', ')}: ${net.effectiveOhm.toFixed(2)} Ω ${net.ok ? '≤' : '>'} ${net.limitOhm} Ω${net.ok ? '' : ' — add pits or improve the electrodes'}` });
   }
   if (!items.length) checks.push({ level: 'warn', text: 'No transformers or main boards yet — add them in Panels → Transformers' });
   else if (!items.some((i) => i.kind === 'txn')) checks.push({ level: 'warn', text: 'No transformer on any main board — only the LV earth is shown' });
@@ -221,6 +241,15 @@ export function earthingLayout(project: Project): EarthLayout {
   for (const it of lv) {
     const own = project.boards.find((b) => b.id === it.equipment)?.earthing?.pits;
     if (own !== undefined && own !== it.pits) checks.push({ level: 'warn', text: `${it.equipment}: the SLD earth pit detail shows ${own} pits, this plan has ${it.pits} — clear Pits in the board's properties to follow the plan` });
+  }
+  const lp = items.find((i) => i.kind === 'lp');
+  if (lp) {
+    const study = lightningEarthPits(project);
+    if (lp.pits !== study) checks.push({ level: 'warn', text: `Lightning protection: this plan has ${lp.pits} earth pit${lp.pits === 1 ? '' : 's'}, the study gives ${study} (one at each down conductor)` });
+    if (lp.pits > 0 && earthLimitOhm(project, 'lp') === undefined) checks.push({ level: 'bad', text: 'Lightning protection earth: DATA REQUIRED — resistance limit not entered on the Lightning protection page' });
+    checks.push(project.lightning?.bondedToMet
+      ? { level: 'ok', text: 'Lightning protection earth bonded to the main earth bar' }
+      : { level: 'warn', text: 'Lightning protection earth is not bonded to the main earth bar — confirm that this is intended' });
   }
   if (pits.length > 1) checks.push({ level: 'warn', text: 'Layout: keep earth pits at least 6 m apart' });
   return { items, pits, links, nets, checks, electrodeM: plan.electrodeM ?? 3, conductorMm2: plan.conductorMm2 ?? 70, bonding: plan.bonding ?? DEFAULT_BONDING, system: earthingSystemOf(plan.system) };
@@ -235,7 +264,8 @@ export function patchEarthing(project: Project, fn: (p: NonNullable<Project['ear
 /** A pit's test result: its own reading against the limit of its kind — 'pass', 'fail' (above the
  * limit), or 'untested'. The group value (pits in parallel) is judged separately on each net. */
 export type PitStatus = 'pass' | 'fail' | 'untested';
-export const pitStatus = (p: EarthPit): PitStatus => (p.measured === undefined ? 'untested' : p.measured <= kindInfo(p.kind).limitOhm + 1e-9 ? 'pass' : 'fail');
+/** A measured pit with no limit to check against (lightning protection, limit not entered) stays untested. */
+export const pitStatus = (p: EarthPit): PitStatus => (p.measured === undefined || p.limitOhm === undefined ? 'untested' : p.measured <= p.limitOhm + 1e-9 ? 'pass' : 'fail');
 
 /** Records a pit's site test: measured Ω (blank clears it), date and tester; empty fields are removed. */
 export function setPitTest(project: Project, id: string, t: { measured?: string; date?: string; by?: string }): Project {
