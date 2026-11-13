@@ -27,6 +27,7 @@ function entities(data: string): Entity[] {
 const num = (e: Entity, code: number) => Number(e.v.get(code) ?? 0);
 const textOf = (data: string, layer?: string) => entities(data).filter((e) => e.type === 'TEXT' && (!layer || e.v.get(8) === layer)).map((e) => e.v.get(1)).join(' ').replace(/\s+/g, ' ');
 const svg = '<svg viewBox="0 0 400 160"><polyline class="ln" points="0,0 400,0 400,160 0,160 0,0"/><line class="bus" x1="10" y1="40" x2="390" y2="40"/><text x="20" y="70" style="font-size:10px" data-dxf-width="120">MDB ACB CT XLPE</text></svg>';
+const OLD_NOTES_PAGES = 6; // the 400 notes of the test below took 6 sheets at the old size
 const info = { no: 'E-SLD-01', title: 'Single line diagram', index: 1, count: 1 };
 
 function expectPaperBounds(data: string, w: number, h: number) {
@@ -251,7 +252,26 @@ describe('legend column text at 2.5 mm', () => {
     const busbar = texts.find((e) => e.v.get(1) === 'Busbar')!;
     expect(num(busbar, 40)).toBeCloseTo(10.5 * 0.72 / 4.2, 2); // 1.8 mm: the DXF height of 2.5 mm text
     const schedule = texts.find((e) => e.v.get(1)?.includes('4C'))!;
-    expect(num(schedule, 40)).toBeCloseTo(2.5, 6);
+    expect(num(schedule, 40)).toBeCloseTo(2.5 * 0.716, 6); // the PDF's 2.5 mm font, as capitals: they match the legend's
+  });
+  it('sets the column in capitals of 0.716 of the PDF font at its 3.6 mm line pitch', () => {
+    const cables = [1, 2, 3].map((ref) => ({ ref, text: `4C x 70 mm2 XLPE ${ref}` }));
+    const rows = (textMm?: 2.5 | 3.5) => entities(buildSheetDxf(dxfExportProject, svg, 'A3', { ...info, cables, ...(textMm ? { furniture: { textMm } } : {}) }))
+      .filter((e) => e.type === 'TEXT' && e.v.get(1)?.includes('4C')).map((e) => ({ h: num(e, 40), y: num(e, 20) }));
+    const base = rows();
+    expect(base).toHaveLength(3);
+    base.forEach((r) => expect(r.h).toBeCloseTo(1.79, 2));
+    expect(base[0].y - base[1].y).toBeCloseTo(3.6, 6);
+    expect(base[1].y - base[2].y).toBeCloseTo(3.6, 6);
+    const big = rows(3.5);
+    big.forEach((r) => expect(r.h).toBeCloseTo(2.51, 2));
+    expect(big[0].y - big[1].y).toBeCloseTo(3.6 * 3.5 / 2.5, 6);
+  });
+  it('a long notes list needs no more continuation sheets than at the old size', () => {
+    const notes = Array.from({ length: 400 }, (_, i) => `Note ${i + 1}: the contractor shall coordinate all works on site with the other trades before installation.`);
+    const project = { ...dxfExportProject, drawing: { ...dxfExportProject.drawing, notes } };
+    const pages = buildSheetDxfPages(project, svg, 'A3', info);
+    expect(pages.length).toBeLessThanOrEqual(OLD_NOTES_PAGES);
   });
 });
 
@@ -275,7 +295,7 @@ describe('sheet furniture in DXF', () => {
   it('the column\'s text follows the set\'s 3.5 mm', () => {
     const data = buildSheetDxf(dxfExportProject, svg, 'A3', { ...info, cables: [{ ref: 1, text: '4C × 70 mm² XLPE' }], furniture: { textMm: 3.5 } });
     const row = entities(data).find((e) => e.type === 'TEXT' && e.v.get(1)?.includes('4C'))!;
-    expect(num(row, 40)).toBeCloseTo(3.5, 6);
+    expect(num(row, 40)).toBeCloseTo(3.5 * 0.716, 6);
   });
 });
 
@@ -331,7 +351,20 @@ describe('legend sheet and schedule table in DXF', () => {
     expect(num(title, 20)).toBeGreaterThan(num(kitchen, 20));
     expect(num(diagram, 20)).toBeGreaterThan(num(title, 20));
     expect(num(kitchen, 20)).toBeGreaterThan(10 + 44);
+    expect(num(kitchen, 40)).toBeCloseTo(2.5 * 0.716, 6); // the PDF's 2.5 mm font; the cells no longer shrink to 0.9
+    expect(num(title, 40)).toBeCloseTo(2.5 * 0.716, 6);
     expectPaperBounds(data, SHEET_MM.A3.w, SHEET_MM.A3.h);
+  });
+});
+
+describe('standard title block text in DXF', () => {
+  beforeAll(() => vi.stubGlobal('DOMParser', DOMParser));
+  afterAll(() => vi.unstubAllGlobals());
+  it('prints its captions, values, title and revision table at 0.716 of the PDF font sizes', () => {
+    const px = 25.4 / 96;
+    const data = buildSheetDxf(dxfExportProject, svg, 'A3', { ...info, cables: [{ ref: 1, text: '4C' }] });
+    const heights = new Set(entities(data).filter((e) => e.type === 'TEXT' && e.v.get(8) === 'E-TITLE').map((e) => +num(e, 40).toFixed(2)));
+    for (const font of [6.5 * px, 9.5 * px, 13 * px, 7 * px, 2.5]) expect(heights).toContain(+(font * 0.716).toFixed(2));
   });
 });
 
