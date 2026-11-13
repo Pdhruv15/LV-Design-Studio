@@ -10,8 +10,8 @@ import { DEFAULT_LAYERS } from '../diagram/annotations';
 type Schedule = NonNullable<RibbonActions['schedule']>;
 const noop = () => {};
 const scheduleActions = (over: Partial<Schedule> = {}): Schedule => ({
-  grid: true, board: true, prevBoard: 'MDB-1', nextBoard: 'SMDB-FF', onBoardStep: vi.fn(), fails: 0, warns: 0, onCheck: vi.fn(), onDuplicate: vi.fn(),
-  onAddCircuit: vi.fn(), onAddSpare: vi.fn(), row: undefined, onFillDown: vi.fn(), onEditRow: vi.fn(), onDeleteRow: vi.fn(),
+  form: 'db', grid: true, board: true, prevBoard: 'MDB-1', nextBoard: 'SMDB-FF', onBoardStep: vi.fn(), fails: 0, warns: 0, onCheck: vi.fn(), onDuplicate: vi.fn(),
+  onAddCircuit: vi.fn(), onAddSpare: vi.fn(), onAddTransformer: vi.fn(), onFormDetails: vi.fn(), row: undefined, onFillDown: vi.fn(), onEditRow: vi.fn(), onDeleteRow: vi.fn(),
   canBalance: true, imbalancePct: 12, onBalance: vi.fn(), onCopy: vi.fn(), onPaste: vi.fn(), exporting: false, onExport: vi.fn(), ...over
 });
 const actions = (over: Partial<RibbonActions> = {}): RibbonActions => ({
@@ -161,9 +161,9 @@ describe('the Load schedule tab', () => {
     click(item('Space'));
     expect(s.onAddSpare).toHaveBeenLastCalledWith('space');
     click(arrow('Spare')); click(item('3-phase spare'));
-    expect(s.onAddSpare).toHaveBeenLastCalledWith('spare', true);
+    expect(s.onAddSpare).toHaveBeenLastCalledWith('spare', 'three');
     click(arrow('Spare')); click(item('3-phase space'));
-    expect(s.onAddSpare).toHaveBeenLastCalledWith('space', true);
+    expect(s.onAddSpare).toHaveBeenLastCalledWith('space', 'three');
   });
 
   it('keeps Add load as it was', () => {
@@ -226,7 +226,7 @@ describe('the Load schedule tab', () => {
     click(tool('Export'));
     expect(s.onExport).toHaveBeenLastCalledWith('excel');
     click(arrow('Export'));
-    expect(items().map((b) => b.textContent)).toEqual(['Excel: this form', 'PDF: this form', 'CSV', 'Submission pack (Excel)', 'My Excel template…']);
+    expect(items().map((b) => b.textContent)).toEqual(['Excel: this form', 'PDF: this form', 'CSV', 'Submission pack (Excel)', 'My Excel template…', 'Form details…']);
     expect(item('Submission pack (Excel)').previousElementSibling?.tagName).toBe('HR');
     for (const [label, kind] of [['Excel: this form', 'excel'], ['PDF: this form', 'pdf'], ['CSV', 'csv'], ['Submission pack (Excel)', 'pack'], ['My Excel template…', 'template']] as const) {
       if (!items().length) click(arrow('Export'));
@@ -234,6 +234,7 @@ describe('the Load schedule tab', () => {
       expect(s.onExport, label).toHaveBeenLastCalledWith(kind);
     }
     expect(s.onExport).toHaveBeenCalledTimes(6);
+    expect(item('Form details…') ?? null).toBeNull(); // the panel closed after the last pick
   });
 
   it('says Exporting… and greys Export while one runs', () => {
@@ -252,9 +253,15 @@ describe('the Load schedule tab', () => {
     for (const n of ['Run', 'Load schedule', 'Board', 'Enclosure', 'Add load']) expect(tool(n).disabled, n).toBe(false);
   });
 
-  it('greys the grid tools on the other forms, and keeps Export; CSV and the template are DB-only', () => {
-    show({ grid: false, row: undefined });
-    for (const n of ['Check', 'Add circuit', 'Spare', 'Fill down', 'Duplicate', 'Edit', 'Delete', 'Balance phases', 'Copy', 'Paste']) { expect(tool(n).disabled, n).toBe(true); expect(tool(n).title, n).toBe('On the DB load schedule form'); }
+  it('greys what does not apply on the busbar riser, and keeps Export; CSV and the template are DB-only', () => {
+    show({ form: 'riser', grid: false, row: undefined });
+    for (const n of ['Check', 'Balance phases']) { expect(tool(n).disabled, n).toBe(true); expect(tool(n).title, n).toBe('On the DB load schedule form'); }
+    expect(tool('Add circuit').disabled).toBe(true);
+    expect(tool('Add circuit').title).toBe('On a DB, a panel\'s form or the TCL summary');
+    expect(tool('Spare').disabled).toBe(true);
+    expect(tool('Spare').title).toBe('On a DB or a panel\'s form');
+    for (const n of ['Fill down', 'Duplicate', 'Copy', 'Paste']) { expect(tool(n).disabled, n).toBe(true); expect(tool(n).title, n).toBe('On a DB load schedule or a panel\'s form'); }
+    expect(tool('Delete').disabled).toBe(true);
     expect(sub('Balance phases')).toBeUndefined();
     expect(tool('Export').disabled).toBe(false);
     click(tool('Export'));
@@ -263,9 +270,151 @@ describe('the Load schedule tab', () => {
     expect(item('Submission pack (Excel)').disabled).toBe(false);
     expect(item('CSV').disabled).toBe(true);
     expect(item('My Excel template…').disabled).toBe(true);
+    expect(item('Form details…').disabled).toBe(true);
+    expect(item('Form details…').title).toBe('On a panel\'s form or the TCL summary');
     expect(tool('Undo').disabled).toBe(true); // Undo and Redo follow the project history, not the form
-    show({ grid: false }, { canUndo: true });
+    show({ form: 'riser', grid: false }, { canUndo: true });
     expect(tool('Undo').disabled).toBe(false);
+  });
+});
+
+describe('the Load schedule tab on a panel\'s connected load & MD form', () => {
+  const md = (over: Partial<Schedule> = {}) => show({ form: 'md', grid: false, ...over });
+
+  it('adds a feeder, or a board fed from the panel from the list', () => {
+    const onAddBoard = vi.fn();
+    const s = show({ form: 'md', grid: false }, { onAddBoard });
+    expect(names('Circuits and loads')).toEqual(['Add feeder', 'Spare', 'Add load']);
+    expect(tool('Add feeder').title).toContain('DB-GF1');
+    click(tool('Add feeder'));
+    expect(s.onAddCircuit).toHaveBeenLastCalledWith();
+    click(arrow('Add feeder'));
+    expect(items().map((b) => b.textContent)).toEqual(['Feeder (equipment load)', 'DB · 63 A', 'EDB · 63 A', 'SMDB · 250 A', 'MCC · 400 A', 'EMCC · 400 A', 'EMDB · 400 A', 'Build hierarchy…']);
+    expect(item('DB · 63 A').previousElementSibling?.tagName).toBe('HR');
+    click(item('SMDB · 250 A'));
+    expect(onAddBoard).toHaveBeenLastCalledWith({ kind: 'SMDB', ratingA: 250 });
+    click(arrow('Add feeder')); click(item('Feeder (equipment load)'));
+    expect(s.onAddCircuit).toHaveBeenCalledTimes(2);
+  });
+
+  it('adds 3-phase spares and spaces, and 1-phase ones from the list', () => {
+    const s = md();
+    click(tool('Spare'));
+    expect(s.onAddSpare).toHaveBeenLastCalledWith('spare', 'three');
+    click(arrow('Spare'));
+    expect(items().map((b) => b.textContent)).toEqual(['Spare', 'Space', '1-phase spare', '1-phase space']);
+    click(item('Space'));
+    expect(s.onAddSpare).toHaveBeenLastCalledWith('space', 'three');
+    click(arrow('Spare')); click(item('1-phase spare'));
+    expect(s.onAddSpare).toHaveBeenLastCalledWith('spare', 'one');
+    click(arrow('Spare')); click(item('1-phase space'));
+    expect(s.onAddSpare).toHaveBeenLastCalledWith('space', 'one');
+  });
+
+  it('fills down, copies and pastes', () => {
+    const s = md();
+    for (const [n, fn] of [['Fill down', s.onFillDown], ['Copy', s.onCopy], ['Paste', s.onPaste]] as const) {
+      expect(tool(n).disabled, n).toBe(false);
+      click(tool(n));
+      expect(fn, n).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('needs a row for Edit, Delete and Duplicate, and names it', () => {
+    let s = md();
+    for (const n of ['Edit', 'Delete', 'Duplicate']) { expect(tool(n).disabled, n).toBe(true); expect(tool(n).title, n).toBe('Click a row on the form first'); }
+    s = md({ row: 'DB-EV' });
+    expect(tool('Edit').title).toBe('Edit DB-EV (or double-click the row)');
+    expect(tool('Delete').title).toBe('Delete DB-EV');
+    expect(tool('Duplicate').title).toBe('Duplicate feeder DB-EV in DB-GF1');
+    for (const [n, fn] of [['Edit', s.onEditRow], ['Delete', s.onDeleteRow], ['Duplicate', s.onDuplicate]] as const) { click(tool(n)); expect(fn, n).toHaveBeenCalledTimes(1); }
+  });
+
+  it('greys Delete with its reason when the feeder supplies a panel, and Duplicate with its own', () => {
+    const s = md({ row: 'INC-GF → SMDB-GF', rowBlock: 'INC-GF supplies SMDB-GF — delete it on the SLD', dupBlock: 'INC-GF supplies SMDB-GF — copy the board on the SLD tab' });
+    expect(tool('Delete').disabled).toBe(true);
+    expect(tool('Delete').title).toBe('INC-GF supplies SMDB-GF — delete it on the SLD');
+    expect(tool('Duplicate').disabled).toBe(true);
+    expect(tool('Duplicate').title).toBe('INC-GF supplies SMDB-GF — copy the board on the SLD tab');
+    expect(tool('Edit').disabled).toBe(false);
+    click(tool('Delete'));
+    expect(s.onDeleteRow).not.toHaveBeenCalled();
+  });
+
+  it('greys Duplicate on a spare way, and keeps Check and Balance phases DB-only', () => {
+    md({ row: 'SPARE', dupBlock: 'Add another one from Spare' });
+    expect(tool('Duplicate').disabled).toBe(true);
+    expect(tool('Duplicate').title).toBe('Add another one from Spare');
+    expect(tool('Delete').disabled).toBe(false);
+    for (const n of ['Check', 'Balance phases']) expect(tool(n).disabled, n).toBe(true);
+  });
+
+  it('has Form details… last under Export, on this form', () => {
+    const s = md();
+    click(arrow('Export'));
+    expect(items().map((b) => b.textContent).slice(-1)).toEqual(['Form details…']);
+    expect(item('Form details…').previousElementSibling?.tagName).toBe('HR');
+    expect(item('Form details…').disabled).toBe(false);
+    expect(item('Form details…').title).toBe('Project, area, owner, plot, consultant and contractor on the authority forms');
+    click(item('Form details…'));
+    expect(s.onFormDetails).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps Form details… greyed on a DB load schedule', () => {
+    show();
+    click(arrow('Export'));
+    expect(item('Form details…').disabled).toBe(true);
+  });
+});
+
+describe('the Load schedule tab on the TCL summary', () => {
+  const tx = (over: Partial<Schedule> = {}) => show({ form: 'tx', grid: false, board: false, substation: 'Substation 1', ...over });
+
+  it('adds a transformer to the substation, or in a new one from the list', () => {
+    const s = tx();
+    expect(names('Circuits and loads')).toEqual(['Add transformer', 'Spare', 'Add load']);
+    expect(tool('Add transformer').title).toBe('Add a transformer to Substation 1 — the arrow beside it for a new substation');
+    click(tool('Add transformer'));
+    expect(s.onAddTransformer).toHaveBeenLastCalledWith(false);
+    click(arrow('Add transformer'));
+    expect(items().map((b) => b.textContent)).toEqual(['Transformer in Substation 1', 'New substation']);
+    click(item('New substation'));
+    expect(s.onAddTransformer).toHaveBeenLastCalledWith(true);
+    click(arrow('Add transformer')); click(item('Transformer in Substation 1'));
+    expect(s.onAddTransformer).toHaveBeenLastCalledWith(false);
+  });
+
+  it('edits and deletes the selected transformer, greyed until one is', () => {
+    let s = tx();
+    for (const n of ['Edit', 'Delete']) { expect(tool(n).disabled, n).toBe(true); expect(tool(n).title, n).toBe('Click a row on the form first'); }
+    s = tx({ row: 'TX-1' });
+    expect(tool('Edit').title).toBe('Edit transformer TX-1 (or double-click the row)');
+    expect(tool('Delete').title).toBe('Delete transformer TX-1');
+    click(tool('Edit')); click(tool('Delete'));
+    expect(s.onEditRow).toHaveBeenCalledTimes(1);
+    expect(s.onDeleteRow).toHaveBeenCalledTimes(1);
+  });
+
+  it('greys Spare and the grid tools, and has Form details… under Export', () => {
+    const s = tx({ row: 'TX-1' });
+    expect(tool('Spare').disabled).toBe(true);
+    expect(tool('Spare').title).toBe('On a DB or a panel\'s form');
+    for (const n of ['Fill down', 'Duplicate', 'Copy', 'Paste']) { expect(tool(n).disabled, n).toBe(true); expect(tool(n).title, n).toBe('On a DB load schedule or a panel\'s form'); }
+    click(arrow('Export'));
+    expect(item('Form details…').disabled).toBe(false);
+    click(item('Form details…'));
+    expect(s.onFormDetails).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the Load schedule tab on the busbar riser', () => {
+  it('has Edit always on, opening the riser; the other row tools are greyed', () => {
+    const s = show({ form: 'riser', grid: false, board: false, row: undefined });
+    expect(tool('Edit').disabled).toBe(false);
+    expect(tool('Edit').title).toBe('Edit the busbar riser (Calculate → Busbar riser)');
+    click(tool('Edit'));
+    expect(s.onEditRow).toHaveBeenCalledTimes(1);
+    for (const n of ['Delete', 'Duplicate', 'Spare', 'Add circuit', 'Fill down', 'Copy', 'Paste']) expect(tool(n).disabled, n).toBe(true);
   });
 });
 

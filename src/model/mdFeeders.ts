@@ -1,4 +1,5 @@
-import type { Project } from '../types';
+import type { Feeder, Project } from '../types';
+import { isScheduleCircuit } from '../calc/loadSchedule';
 import { removeDanglingReferences } from './integrity';
 import { applyDrop } from './sldEdit';
 
@@ -19,6 +20,20 @@ export function addOutgoingFeeder(project: Project, boardId: string): FeederEdit
   if (!project.boards.some((b) => b.id === boardId)) return { project, message: `${boardId} is no longer in the project` };
   const r = applyDrop(project, { kind: 'load', preset: 'general' }, { type: 'bus', boardId });
   return { project: r.project, message: r.message, id: r.select?.type === 'feeder' ? r.select.id : undefined };
+}
+
+/** Copies an outgoing equipment feeder to the end of its panel under a new id: same name and sizes, none of the
+ * links of the original (permanent ID, tray route, CAD length, ELV load). A feeder that supplies a panel, and a
+ * DB schedule circuit (Duplicate on the load schedule), are refused. */
+export function duplicateOutgoingFeeder(project: Project, feederId: string): FeederEditResult {
+  const src = project.feeders.find((x) => x.id === feederId);
+  if (!src) return { project, message: `${feederId} is no longer in the project` };
+  if (src.feedsBoardId) return { project, message: `${src.id} supplies ${src.feedsBoardId} — copy the board on the SLD tab` };
+  if (isScheduleCircuit(src)) return { project, message: `${src.id} is a circuit of a DB load schedule — use Duplicate on the DB load schedule` };
+  const added = addOutgoingFeeder(project, src.boardId);
+  if (!added.id) return { project, message: added.message };
+  const copy: Feeder = { ...src, id: added.id, uid: undefined, trayRoute: undefined, cadVerticalM: undefined, lengthToCheck: undefined, elvLoad: undefined, feedsBoardId: undefined };
+  return { project: { ...added.project, feeders: added.project.feeders.map((x) => (x.id === added.id ? copy : x)) }, message: `Added ${added.id} as a copy of ${src.id}`, id: added.id };
 }
 
 /** Why an outgoing feeder can't be deleted from the form, or undefined when

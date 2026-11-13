@@ -1,7 +1,7 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import { cellName, STYLE, type SheetEdit, type SheetModel } from '../../docs/sheet';
 import { cellKey } from './excelGrid';
-import { useExcelGrid } from './useExcelGrid';
+import { useExcelGrid, type GridCommands } from './useExcelGrid';
 import RowEditDialog from './RowEditDialog';
 
 /** Cell look from the model's style: input, calculated, label row, muted. */
@@ -13,11 +13,18 @@ function cellClass(style: string | undefined): string {
   return '';
 }
 
+/** What buttons outside the grid can do: the grid's key commands, and opening a row's edit dialog. */
+export interface ClassicGridHandle {
+  cmds: GridCommands;
+  /** Opens the edit dialog for this row; false when the row has no editable cell. */
+  edit: (y: number) => boolean;
+}
+
 /** A form (SheetModel) drawn as the app's own Classic table, with
  * Excel-style keys, paste, selection, copy and fill down (useExcelGrid).
  * Typing commits on Enter / leaving the cell; onEdits validates and applies,
  * returning messages for values that don't fit. */
-export default function ClassicGrid({ model, onEdits, onStatus, children, className, rowAction }: {
+export default function ClassicGrid({ model, onEdits, onStatus, children, className, rowAction, onActive, handle }: {
   model: SheetModel;
   onEdits: (edits: SheetEdit[]) => { changed: boolean; rejected: string[] };
   onStatus: (m: string) => void;
@@ -25,6 +32,10 @@ export default function ClassicGrid({ model, onEdits, onStatus, children, classN
   className?: string;
   /** Optional control at the end of each row (e.g. delete), outside the sheet's cells. */
   rowAction?: (y: number) => ReactNode;
+  /** Told the row of the active cell whenever it changes (null: none). */
+  onActive?: (y: number | null) => void;
+  /** Filled with the grid's commands and its row editor, for the ribbon. */
+  handle?: MutableRefObject<ClassicGridHandle | null>;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const apply = (edits: SheetEdit[]) => {
@@ -32,11 +43,13 @@ export default function ClassicGrid({ model, onEdits, onStatus, children, classN
     const { rejected } = onEdits(edits);
     if (rejected.length) onStatus(`Not applied — ${rejected.slice(0, 3).join('; ')}${rejected.length > 3 ? ` (+${rejected.length - 3} more)` : ''}`);
   };
-  useExcelGrid(root, apply);
+  const cmds = useExcelGrid(root, apply, onActive && ((p) => onActive(p?.y ?? null)));
   // Row open in the double-click edit dialog, and the column to focus.
   const [editing, setEditing] = useState<{ y: number; x?: number } | null>(null);
+  const editable = (y: number) => !!model.data[y]?.some((_, x) => model.editable(y, x));
+  if (handle) handle.current = { cmds, edit: (y) => { if (!editable(y)) return false; setEditing({ y }); return true; } };
   const openEdit = (e: React.MouseEvent, y: number) => {
-    if (!model.data[y]?.some((_, x) => model.editable(y, x))) return;
+    if (!editable(y)) return;
     const key = (e.target as HTMLElement).closest<HTMLElement>('[data-cell]')?.dataset.cell;
     setEditing({ y, x: key ? +key.split(':')[1] : undefined });
   };

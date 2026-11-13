@@ -105,8 +105,8 @@ describe('Load schedule page and the ribbon', () => {
     act(() => published!.onAddSpare('spare'));
     act(() => published!.onAddSpare('space'));
     expect(spareWaysOf(board()).map((s) => `${s.kind}:${s.phase === 'RYB'}`)).toEqual(['spare:false', 'space:false']);
-    act(() => published!.onAddSpare('spare', true));
-    act(() => published!.onAddSpare('space', true));
+    act(() => published!.onAddSpare('spare', 'three'));
+    act(() => published!.onAddSpare('space', 'three'));
     expect(spareWaysOf(board()).slice(2).map((s) => `${s.kind}:${s.phase === 'RYB'}`)).toEqual(['spare:true', 'space:true']);
     expect(status).toHaveBeenLastCalledWith(expect.stringMatching(/^Added a TP space to DB-GF1/));
   });
@@ -371,5 +371,118 @@ describe('Check', () => {
     expect(boards()).toEqual(new Set([BOARD]));
     act(() => published!.onCheck());
     expect(boards().size).toBeGreaterThan(1);
+  });
+});
+
+describe('the ribbon\'s tools on the connected load & MD form', () => {
+  const MDB = 'MDB-1';
+  const feedersOf = () => latest.feeders.filter((f) => f.boardId === MDB);
+  /** The first input of the row of this outgoing feeder, found by its bin. */
+  const feederCell = (id: string) => document.querySelector(`button[aria-label="Delete feeder ${id}"]`)!.closest('tr')!.querySelector<HTMLInputElement>('input[data-cell]')!;
+
+  it('adds a feeder and 3-phase or 1-phase spares and spaces', () => {
+    shown = MDB;
+    mount();
+    expect(published).toMatchObject({ form: 'md', grid: false, row: undefined });
+    const n = feedersOf().length;
+    act(() => published!.onAddCircuit());
+    expect(feedersOf()).toHaveLength(n + 1);
+    const ways = () => spareWaysOf(latest.boards.find((b) => b.id === MDB)!).map((w) => `${w.kind}:${w.phase}`);
+    act(() => published!.onAddSpare('spare', 'three'));
+    act(() => published!.onAddSpare('space', 'one'));
+    act(() => published!.onAddSpare('spare', 'one'));
+    expect(ways()).toEqual(['spare:RYB', 'space:R', 'spare:R']);
+  });
+
+  it('duplicates and deletes the active feeder, and says why a feeder to a panel cannot be', async () => {
+    shown = MDB;
+    mount();
+    act(() => feederCell('DB-EV').focus());
+    expect(published).toMatchObject({ row: 'DB-EV', rowBlock: undefined, dupBlock: undefined });
+    const n = feedersOf().length;
+    act(() => published!.onDuplicate());
+    expect(feedersOf()).toHaveLength(n + 1);
+    expect(status).toHaveBeenLastCalledWith(expect.stringMatching(/^Added .+ as a copy of DB-EV$/));
+    await act(async () => { published!.onDeleteRow(); await Promise.resolve(); });
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/^Delete outgoing feeder DB-EV /));
+    expect(feedersOf()).toHaveLength(n);
+    expect(feedersOf().some((f) => f.id === 'DB-EV')).toBe(false);
+    // A feeder to a panel: published with its reasons, and Duplicate does nothing.
+    act(() => feederCell('INC-GF').focus());
+    expect(published!.row).toBe('INC-GF → SMDB-GF');
+    expect(published!.rowBlock).toMatch(/supplies SMDB-GF/);
+    expect(published!.dupBlock).toBe('INC-GF supplies SMDB-GF — copy the board on the SLD tab');
+    const before = latest;
+    act(() => published!.onDuplicate());
+    expect(latest).toBe(before);
+  });
+
+  it('deletes a spare way after asking, and opens the row dialog for Edit', async () => {
+    shown = MDB;
+    mount();
+    act(() => published!.onAddSpare('spare', 'three'));
+    const bin = document.querySelector('button[aria-label="Delete spare"]')!;
+    act(() => bin.closest('tr')!.querySelector<HTMLInputElement>('input[data-cell]')!.focus());
+    expect(published!.row).toMatch(/^SPARE/);
+    expect(published!.dupBlock).toBe('Add another one from Spare');
+    act(() => published!.onEditRow());
+    expect(document.querySelector('.circuit-edit, [role="dialog"]')).not.toBeNull();
+    await act(async () => { published!.onDeleteRow(); await Promise.resolve(); });
+    expect(window.confirm).toHaveBeenCalledWith(`Delete this spare from ${MDB}?`);
+    expect(spareWaysOf(latest.boards.find((b) => b.id === MDB)!)).toHaveLength(0);
+  });
+
+  it('fills down, copies and pastes on the form\'s grid, and opens the form details', async () => {
+    const onSettings = vi.fn();
+    shown = MDB;
+    act(() => root.render(<LoadScheduleView project={sampleProject} boardId={MDB} db={EMPTY_DATABASE} onBoard={() => {}} onChange={() => {}} onStatus={status} onSettings={onSettings} onSchedule={(s) => { published = s; }} />));
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal('navigator', { clipboard: { writeText, readText: vi.fn(async () => '1') } });
+    act(() => feederCell('DB-EV').focus());
+    act(() => published!.onCopy());
+    expect(writeText).toHaveBeenCalledTimes(1);
+    act(() => published!.onFormDetails());
+    expect(onSettings).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the ribbon\'s tools on the TCL summary', () => {
+  const openTx = () => { shown = 'MDB-1'; mount(); act(() => { [...document.querySelectorAll('button')].find((b) => b.textContent === 'TCL summary')!.click(); }); };
+  const mains = () => latest.boards.filter((b) => !b.upstreamId);
+
+  it('adds a transformer in the selected substation, and a new substation', () => {
+    openTx();
+    expect(published).toMatchObject({ form: 'tx', grid: false, row: undefined });
+    const n = mains().length;
+    act(() => published!.onAddTransformer(false));
+    expect(mains()).toHaveLength(n + 1);
+    const added = mains()[n];
+    expect(added.substation).toBe(published!.substation); // the last substation on the form
+    // Select the first transformer: its substation is what Add transformer uses.
+    const tr = document.querySelector('tr[title^="Double-click to edit this transformer"]')!;
+    act(() => { tr.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); });
+    expect(published!.row).toBe(mains()[0].txRef ?? mains()[0].id);
+    const groups = new Set(mains().map((b) => b.substation));
+    act(() => published!.onAddTransformer(true));
+    expect(mains()).toHaveLength(n + 2);
+    expect(new Set(mains().map((b) => b.substation)).size).toBe(groups.size + 1);
+  });
+
+  it('edits and removes the selected transformer', async () => {
+    openTx();
+    act(() => published!.onAddTransformer(false)); // a new one with nothing below it, so it can go
+    const id = mains()[mains().length - 1].id;
+    const trs = [...document.querySelectorAll('tr[title^="Double-click to edit this transformer"]')];
+    act(() => published!.onEditRow()); // none selected: nothing
+    expect(document.querySelector('.row-edit')).toBeNull();
+    act(() => { trs[trs.length - 1].dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); });
+    expect(published!.row).toBe(id);
+    act(() => published!.onEditRow());
+    expect(document.querySelector('.row-edit')).not.toBeNull();
+    act(() => { document.querySelector<HTMLButtonElement>('.row-edit button[type="button"]')?.click(); });
+    await act(async () => { published!.onDeleteRow(); await Promise.resolve(); });
+    expect(window.confirm).toHaveBeenCalledWith(`Remove ${id}?`);
+    expect(latest.boards.some((b) => b.id === id)).toBe(false);
+    expect(published!.row).toBeUndefined(); // the selected transformer is gone
   });
 });

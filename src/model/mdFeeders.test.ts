@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { buildMdSheet } from '../docs/mdSheet';
-import { addOutgoingFeeder, deleteOutgoingFeeder, feederDeleteBlock } from './mdFeeders';
+import { addOutgoingFeeder, deleteOutgoingFeeder, duplicateOutgoingFeeder, feederDeleteBlock } from './mdFeeders';
+import { scheduleCircuits } from '../calc/loadSchedule';
 
 const p = sampleProject;
 const root = p.boards.find((b) => !b.upstreamId)!;
@@ -49,5 +50,40 @@ describe('outgoing feeders from the connected load / MD form', () => {
     const q = { ...p, feeders: [...p.feeders, { ...toBoard, id: 'X-OLD', feedsBoardId: 'GONE' }] };
     expect(feederDeleteBlock(q, 'X-OLD')).toBeUndefined();
     expect(deleteOutgoingFeeder(q, 'X-OLD').project.feeders.some((f) => f.id === 'X-OLD')).toBe(false);
+  });
+});
+
+describe('duplicating an outgoing feeder', () => {
+  const marked = (() => {
+    const { project: q, id } = addOutgoingFeeder(p, root.id);
+    return { id: id!, project: { ...q, feeders: q.feeders.map((f) => (f.id === id ? { ...f, name: 'Pump', loadKw: 12, uid: 'u-1', trayRoute: 'A-B', cadVerticalM: 3, lengthToCheck: true, elvLoad: 'x#1' } : f)) } };
+  })();
+
+  it('copies an equipment feeder to the end of its panel with a new id and none of the links', () => {
+    const r = duplicateOutgoingFeeder(marked.project, marked.id);
+    expect(r.id).toBeDefined();
+    expect(r.id).not.toBe(marked.id);
+    expect(r.message).toBe(`Added ${r.id} as a copy of ${marked.id}`);
+    expect(r.project.feeders).toHaveLength(marked.project.feeders.length + 1);
+    const copy = r.project.feeders.find((f) => f.id === r.id)!;
+    expect(copy).toMatchObject({ boardId: root.id, name: 'Pump', loadKw: 12 });
+    expect(copy.uid).toBeUndefined();
+    for (const k of ['trayRoute', 'cadVerticalM', 'lengthToCheck', 'elvLoad', 'feedsBoardId'] as const) expect(copy[k], k).toBeUndefined();
+    const rows = buildMdSheet(r.project, root.id).rows;
+    const lastRow = rows[rows.length - 2];
+    expect(lastRow.type === 'feeder' && lastRow.feeder.id).toBe(r.id);
+  });
+
+  it('refuses a feeder to a panel, a DB circuit and a missing feeder', () => {
+    const toPanel = duplicateOutgoingFeeder(p, toBoard.id);
+    expect(toPanel.project).toBe(p);
+    expect(toPanel.message).toMatch(new RegExp(`supplies ${toBoard.feedsBoardId}`));
+    const circuit = scheduleCircuits(p, 'DB-GF1')[0];
+    const c = duplicateOutgoingFeeder(p, circuit.id);
+    expect(c.project).toBe(p);
+    expect(c.message).toMatch(/load schedule/);
+    const gone = duplicateOutgoingFeeder(p, 'NOPE');
+    expect(gone.project).toBe(p);
+    expect(gone.message).toMatch(/no longer/);
   });
 });
