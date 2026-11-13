@@ -165,6 +165,9 @@ export default function LightningStudy({ project, onChange, onStatus }: { projec
                 <tr><td>Ring earth conductor (building perimeter)</td><td className="num">{n2(r.ringConductorM)}</td><td>m</td></tr>
               </tbody>
             </table>
+            <label><span>Include these quantities in the project BOQ (with the earthing items)</span>
+              <input type="checkbox" checked={!!i.inBoq} onChange={(e) => set({ inBoq: e.target.checked })} />
+            </label>
           </section>
         </>
       )}

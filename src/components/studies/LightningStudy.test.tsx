@@ -58,4 +58,12 @@ describe('Lightning protection study', () => {
     expect(last.lightning?.meshM).toBeUndefined();
     expect(text()).toContain('Data required');
   });
+
+  it('puts the quantities in the BOQ only when ticked', () => {
+    render({ ...sampleProject, lightning: { lengthM: 40, widthM: 25, heightM: 18, method: 'mesh', meshM: 10, downSpacingM: 10 } });
+    const box = [...document.querySelectorAll('label')].find((l) => l.textContent?.startsWith('Include these quantities in the project BOQ'))!.querySelector('input')!;
+    expect(box.checked).toBe(false);
+    act(() => box.click());
+    expect(last.lightning?.inBoq).toBe(true);
+  });
 });
