@@ -109,6 +109,10 @@ export default function LightningStudy({ project, onChange, onStatus }: { projec
           <label><span>Earth pit at each down conductor</span>
             <input type="checkbox" checked={!!i.earthPitPerDown} onChange={(e) => set({ earthPitPerDown: e.target.checked })} />
           </label>
+          <NumField label="Earth resistance limit" unit="Ω" value={i.earthLimitOhm} min={0} onSet={(v) => set({ earthLimitOhm: v })} optional />
+          <label><span>Bonded to the main earth bar (MET)</span>
+            <input type="checkbox" checked={!!i.bondedToMet} onChange={(e) => set({ bondedToMet: e.target.checked })} />
+          </label>
         </div>
         <p className="m">The app does not ship values from the standards. Enter them from your licensed copy, and ΔT from the manufacturer's test certificate; they are saved with the project.</p>
       </section>

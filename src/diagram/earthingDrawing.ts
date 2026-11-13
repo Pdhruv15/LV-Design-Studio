@@ -1,3 +1,4 @@
+import { AIR_METHODS } from '../calc/lightningProtection';
 import type { Project } from '../types';
 import { plainNotes, type LegendItem } from './legendLayout';
 import { earthingLayout, genTag, kindInfo, pitStatus, txUnits, unitKey, unitName, type EarthItem, type EarthLayout } from '../model/earthingPlan';
@@ -123,7 +124,8 @@ export function pitTags(project: Project, L: EarthLayout = earthingLayout(projec
   for (const it of L.items) {
     const ps = L.pits.filter((p) => p.itemKey === it.key), bar = barId.get(it.key);
     const base = it.kind === 'rmu' ? `EP-RMU-${Number(bar?.slice(-2) ?? 0)}` : bar ? bar.replace(/^EB-/, 'EP-') : `EP-${it.equipment}`;
-    ps.forEach((p, i) => tagOf.set(p.id, it.kind === 'rmu' ? `${base}${String.fromCharCode(65 + i)}` : `${base}${letter(i, ps.length)}`));
+    // Lightning protection can have many pits (one at each down conductor): numbered, not lettered.
+    ps.forEach((p, i) => tagOf.set(p.id, it.kind === 'lp' ? `EP-LP-${String(i + 1).padStart(2, '0')}` : it.kind === 'rmu' ? `${base}${String.fromCharCode(65 + i)}` : `${base}${letter(i, ps.length)}`));
   }
   return tagOf;
 }
@@ -378,13 +380,43 @@ function drawAt(project: Project, L: EarthLayout, includeSchedule: boolean, opts
     y += BAND_H;
   }
 
+  // ---- Lightning protection, on its own row: down conductors → ring earth conductor → pits. With more than
+  // three pits only the first and the last are drawn; the pit schedule lists every one. ----------------------
+  const lpItem = L.items.find((i) => i.kind === 'lp');
+  if (lpItem && pitsOf(lpItem).length) {
+    const ps = pitsOf(lpItem), shown = ps.length > 3 ? [ps[0], ps[ps.length - 1]] : ps;
+    const T = y, PY = y + 410, by = T + BAR_Y, x0 = 60, w = Math.max(640, shown.length * PIT), cx = x0 + w / 2;
+    shown.forEach((p, i) => { pitX.set(p.id, cx + (i - (shown.length - 1) / 2) * PIT); pitY.set(p.id, PY); });
+    const study = project.lightning, method = AIR_METHODS.find((m) => m.id === study?.method)?.label ?? '';
+    out.push(`<rect x="${cx - 120}" y="${T + 46}" width="240" height="62" fill="#fff" stroke="#111" stroke-width="1.4"/><text x="${cx - 120}" y="${T + 40}" font-weight="bold">LIGHTNING PROTECTION SYSTEM</text>`);
+    out.push(`<text x="${cx}" y="${T + 70}" text-anchor="middle" font-size="9">Air termination: ${esc(method)}</text><text x="${cx}" y="${T + 84}" text-anchor="middle" font-size="9">Down conductors, each with a test joint</text><text x="${cx}" y="${T + 98}" text-anchor="middle" font-size="8" fill="#5b6b82">${study?.lpsClass ? `Protection class ${esc(study.lpsClass)} (as entered)` : 'Protection class not entered'}</text>`);
+    out.push(`<path d="M${cx} ${T + 108} V${by}" stroke="${GREEN}" stroke-width="1.6" fill="none"/>`, earthBar(cx, by, 'EB-LP', 160));
+    out.push(`<text x="${cx - 88}" y="${by + 9}" text-anchor="end">RING EARTH CONDUCTOR</text>`);
+    shown.forEach((p, i) => {
+      const px = pitX.get(p.id)!, sx = cx - 60 + (shown.length > 1 ? (i * 120) / (shown.length - 1) : 60), ly = PY - LK - 14 - Math.abs(i - (shown.length - 1) / 2) * 8;
+      out.push(`<path d="M${sx} ${by + 10} V${ly} H${px} V${PY - 6}" stroke="${GREEN}" stroke-width="1.6" fill="none"/>`);
+    });
+    if (ps.length > shown.length) {
+      const [a, b] = shown.map((p) => pitX.get(p.id)!);
+      // Below the chambers and their tags.
+      out.push(`<path d="M${a} ${PY + 58} V${PY + 84} H${b} V${PY + 58}" stroke="${GREEN}" stroke-width="1.4" stroke-dasharray="7 4" fill="none"/>`);
+      out.push(`<text x="${(a + b) / 2}" y="${PY + 78}" text-anchor="middle" font-size="9" fill="${GREEN}">${esc(ps[0].id)} … ${esc(ps[ps.length - 1].id)}: ${ps.length} pits on the ring earth conductor</text><text x="${(a + b) / 2}" y="${PY + 98}" text-anchor="middle" font-size="8" fill="#5b6b82">one at each down conductor — every pit is in the schedule</text>`);
+    }
+    const met = L.items.find((i) => i.kind === 'lv')?.equipment;
+    if (study?.bondedToMet) out.push(`<path d="M${cx + 80} ${by + 5} H${cx + 150}" stroke="${GREEN}" stroke-width="1.2" stroke-dasharray="7 3 1.5 3" fill="none"/>`, `<path d="M${cx + 150} ${by + 1.5} L${cx + 158} ${by + 5} L${cx + 150} ${by + 8.5} Z" fill="${GREEN}"/>`, `<text x="${cx + 162}" y="${by + 8}" font-size="8" fill="${GREEN}">bonded to MAIN EARTH BAR${met ? ` (EB-LV-${esc(met)})` : ''}</text>`);
+    else out.push(`<text x="${cx + 88}" y="${by + 8}" font-size="8" fill="#5b6b82">not bonded to the main earth bar</text>`);
+    zone(40, T, w + 40, 'LIGHTNING PROTECTION');
+    endRow(x0 + w + 20);
+    y += BAND_H;
+  }
+
   const tagOf = pitTags(project, L, barId);
 
   // ---- Pit interconnections, pit to pit (same kind, same substation) ----
   // Neighbouring pits on a row: out of each pit's top at 45° and across above the pits.
   // Pits with others between (the next RMU group, the next transformer's neutral): down past the chambers,
   // along the bottom (one depth per kind — body lowest, as on the reference sheet) and up into the far pit.
-  const depth: Record<string, number> = { txn: 96, gn: 96, lv: 96, sub: 104, rmu: 112, txb: 112, gb: 112 };
+  const depth: Record<string, number> = { txn: 96, gn: 96, lv: 96, sub: 104, lp: 104, rmu: 112, txb: 112, gb: 112 };
   const kindOf = new Map(L.pits.map((p) => [p.id, p.kind]));
   const onRow = (py: number) => L.pits.filter((p) => pitY.get(p.id) === py).map((p) => pitX.get(p.id)!);
   const riserR = new Set<string>(), riserL = new Set<string>();
@@ -473,7 +505,7 @@ function drawAt(project: Project, L: EarthLayout, includeSchedule: boolean, opts
     '2. EACH RMU HAS 2 BODY-EARTH PITS; THE TANK / BODY EARTH BAR OF EACH TRANSFORMER IT FEEDS (MAX. 2) IS CONNECTED TO THE RMU EARTH BAR. ONE NEUTRAL PIT PER TRANSFORMER. NEUTRAL AND BODY EARTHS ARE NOT INTERCONNECTED.',
     '3. EARTH PITS OF DIFFERENT SUBSTATIONS ARE NOT INTERCONNECTED.',
     '4. SUBSTATION EARTHS < 2 Ω; LV EARTH ≤ 1 Ω PER INCOMING SUPPLY / MDB (DEWA).',
-    '5. EARTH PITS AT LEAST 6.0 m APART. LIGHTNING PROTECTION NOT SHOWN.',
+    `5. EARTH PITS AT LEAST 6.0 m APART. ${L.items.some((i) => i.kind === 'lp') ? 'LIGHTNING PROTECTION EARTH SHOWN AT CONCEPT STAGE, FROM THE LIGHTNING PROTECTION STUDY' : 'LIGHTNING PROTECTION NOT SHOWN'}.`,
     '6. NEUTRAL EARTHED AT THE TRANSFORMER STAR POINT ONLY; NO N–E LINK IN LV PANELS. PANEL BODY BONDED TO THE E BAR.',
     '7. A SEPARATE CONDUCTOR WITH TEST LINK FROM THE EARTH BAR TO EACH PIT. PITS OF THE SAME SYSTEM LINKED PIT TO PIT IN THE SOIL, GROUP TO GROUP.',
     '8. GENERATOR NEUTRAL AND BODY EARTHS ARE SEPARATE, EACH ≤ 1 Ω; FUEL TANK AND ENCLOSURE BONDED TO THE GENERATOR EARTH BAR.'
@@ -501,7 +533,7 @@ function drawAt(project: Project, L: EarthLayout, includeSchedule: boolean, opts
   const scheduleRows = [['Pit', 'Equipment / connection', 'Earth system / substation', 'Limit', 'Conductor / electrode', 'Measured', 'Tested (date, by)', 'Result'], ...L.pits.map((p) => {
     const it = L.items.find((item) => item.key === p.itemKey)!;
     const st = pitStatus(p);
-    return [`${p.id} ${tagOf.get(p.id) ?? ''}`.trim(), `${it.equipment} / ${it.point}`, `${kindInfo(p.kind).label} / ${it.group}`, `${kindInfo(p.kind).limitOhm} ohm`, `1C ${mm} mm² Cu/PVC, ${L.electrodeM} m Cu-bonded rod`,
+    return [`${p.id} ${tagOf.get(p.id) ?? ''}`.trim(), `${it.equipment} / ${it.point}`, `${kindInfo(p.kind).label}${p.kind === 'lp' ? '' : ` / ${it.group}`}`, p.limitOhm !== undefined ? `${p.limitOhm} ohm` : 'Not entered', `1C ${mm} mm² Cu/PVC, ${L.electrodeM} m Cu-bonded rod`,
       p.measured === undefined ? blank || 'Not tested' : `${p.measured} ohm`, [p.date, p.by].filter(Boolean).join(', ') || blank, st === 'pass' ? 'PASS' : st === 'fail' ? 'FAIL' : blank];
   })];
   /** The pit schedule at x, its title above `top` + 30, tableW wide: the SVG and the y below it. */

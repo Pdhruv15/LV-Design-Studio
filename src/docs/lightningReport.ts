@@ -60,7 +60,9 @@ export function lightningReportBlocks(project: Project, i: LpsInputs, keys: LpsS
       ['ESE terminal height above the roof', val(i.eseMastM, 'm')],
       ['ESE advance time ΔT', val(i.eseDeltaTUs, 'µs')],
       ['Down conductors for each ESE terminal', val(i.eseDownPerTerminal, '')],
-      ['Earth pit at each down conductor', i.earthPitPerDown ? 'Yes' : 'No']
+      ['Earth pit at each down conductor', i.earthPitPerDown ? 'Yes' : 'No'],
+      ['Earth resistance limit', val(i.earthLimitOhm, 'Ω')],
+      ['Bonded to the main earth bar (MET)', i.bondedToMet ? 'Yes' : 'No']
     ] },
     { key: 'methods', title: 'Air termination methods compared', table: {
       headers: ['Method', 'Reference', 'Result', 'Working', 'Status'],
