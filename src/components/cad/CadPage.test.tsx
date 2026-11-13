@@ -1524,6 +1524,24 @@ describe('file tabs', () => {
     expect(hist()).toContain('OPEN · CLOSE · CLOSEALL');
   });
 
+  it('asks the engine what is under the pick box once the cursor rests, as far out as a click picks', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await openAnother();
+    act(() => state.toggle('osnap'));
+    const pick = vi.spyOn(state.view!, 'pick');
+    const c = document.querySelector('canvas.cad-over')!;
+    act(() => { c.dispatchEvent(new MouseEvent('mousemove', { clientX: 300, clientY: 200, bubbles: true })); });
+    // Moving: not asked yet.
+    expect(pick).not.toHaveBeenCalled();
+    await act(() => new Promise((r) => setTimeout(r, 60)));
+    expect(pick).toHaveBeenCalledTimes(1);
+    const hoverTol = pick.mock.calls[0][2];
+    await act(async () => { for (const t of ['mousedown', 'mouseup']) c.dispatchEvent(new MouseEvent(t, { clientX: 300, clientY: 200, button: 0, bubbles: true })); });
+    await flush();
+    expect(pick.mock.calls[pick.mock.calls.length - 1][2]).toBeCloseTo(hoverTol);
+  });
+
   it('arrow keys, Home and End move between tabs without panning the drawing', async () => {
     act(() => root.render(<Host />));
     await flush();

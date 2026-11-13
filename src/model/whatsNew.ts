@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.116', date: '2026-11-13',
+    items: [
+      { title: 'Design CAD: see what a click will pick', text: 'Before you click, the object under the pick box is marked with an amber outline: a line or other object of the drawing, something you drew, or a device. It is the object the click would pick; objects already picked stay green and are not marked. A grip under the pick box turns yellow and the box locks onto it, so you can see which grip you are about to take.' }
+    ]
+  },
+  {
     version: '2.115', date: '2026-11-13',
     items: [
       { title: 'Design CAD: a clearer cursor', text: 'The cursor now shows what the drawing is waiting for. With no command running you see the crosshair and the pick box; while a command asks for a point, only the crosshair; while it asks you to select objects, only the pick box. The crosshair, the pick box and the snap markers have a thin outline in the background colour, so they stay visible over lines of any colour, and the crosshair stops just outside the pick box so you can see what you are about to pick.' },

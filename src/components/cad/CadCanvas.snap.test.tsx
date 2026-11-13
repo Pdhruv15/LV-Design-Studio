@@ -32,7 +32,8 @@ const layers = new Uint8Array();
 const draw = (props: Partial<Parameters<typeof CadCanvas>[0]> = {}) => act(() => root.render(<CadCanvas view={view} layersOn={layers} toggles={ON} fitKey={1} onCursor={onCursor} onClick={onClick} {...props} />));
 const canvas = () => host.querySelector('canvas.cad-over')!;
 const mouse = (type: string, x = 0, y = 0) => act(() => { canvas().dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true })); });
-const lastCursor = () => onCursor.mock.calls[onCursor.mock.calls.length - 1] as [[number, number] | null, string | undefined];
+/** The cursor and snap name last reported (not the pixel size after them). */
+const lastCursor = () => onCursor.mock.calls[onCursor.mock.calls.length - 1]?.slice(0, 2) as [[number, number] | null, string | undefined];
 
 beforeEach(() => {
   host = document.createElement('div');

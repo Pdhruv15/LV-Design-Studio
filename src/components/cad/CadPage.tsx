@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice, type CanvasWiring } from './CadCanvas';
+import CadCanvas, { type CadHover, type CadMarks, type CadToggles, type CanvasDevice, type CanvasWiring } from './CadCanvas';
 import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadRibbonInfo, type CadState, type CadTool } from './cadState';
 import { cadCommand, type CadAction } from './cadCommands';
 import { getClip, hasClip, putClip } from './cadClipboardStore';
@@ -317,7 +317,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const hidden = erasedParts && erasedParts.view === view && erasedParts.key === erasedKey ? erasedParts.parts : NO_PARTS;
   const drawn = useMemo(() => (view && erasedKey ? shownView(view, hidden, erasedKey.split(',')) : view), [view, hidden, erasedKey]);
   const [crop, setCrop] = useState<CropState | null>(null);
-  const [cursor, setCursor] = useState<{ at: Pt | null; snap?: string }>({ at: null });
+  const [cursor, setCursor] = useState<{ at: Pt | null; snap?: string; pixel?: number }>({ at: null });
   const [cmd, setCmd] = useState('');
   const [busy, setBusy] = useState(false);
   const [points, setPoints] = useState<Pt[]>([]);
@@ -712,6 +712,25 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     return best?.d;
   };
+  // The cursor's shape, and what a click would pick, marked before the click (not what is picked already: it is green).
+  // Devices and drawn objects are found at once; objects of the opened drawing ask the engine once the cursor rests 40 ms.
+  const cursorMode = cursorModeOf(tool, cad.history[cad.history.length - 1], gripIdx !== null);
+  const [hover, setHover] = useState<CadHover | undefined>();
+  useEffect(() => {
+    const at = cursor.at, px = cursor.pixel;
+    const keep = (h: CadHover | undefined) => setHover((was) => (was?.device === h?.device && was?.sketch === h?.sketch && was?.seg?.[0] === h?.seg?.[0] && was?.seg?.[1] === h?.seg?.[1] ? was : h));
+    if (!at || !px || cursorMode === 'point' || tool === 'pan') { keep(undefined); return; }
+    const d = deviceAt(at, px);
+    if (d) { keep(pickedKeys.has(d.key) ? undefined : { device: d.key }); return; }
+    const sk = hitAt(pickable, at, pickR * px);
+    if (sk) { keep(pickedKeys.has(`sk:${sk.id}`) ? undefined : { sketch: sk }); return; }
+    if (!view) { keep(undefined); return; }
+    let live = true;
+    const t = setTimeout(() => void view.pick(at[0], at[1], pickR * px, pickOn).then((o) => {
+      if (live) keep(o && !pickedKeys.has(`dw:${o.handle}`) ? { seg: [o.seg_start, o.seg_end] } : undefined);
+    }), 40);
+    return () => { live = false; clearTimeout(t); };
+  }, [cursor.at, cursor.pixel, cursorMode, tool, view, pickable, pickOn, pickR, placed, pickedItems, pickedSk, pickedDw]); // eslint-disable-line react-hooks/exhaustive-deps -- deviceAt and pickedKeys follow placed and the picks
   const change = (next: Project, message: string) => { onChange(next, message); cad.say(message); if (view) cad.markDirty(view.file); };
   const xr = useCadRefs({ project, view, tabOf: cad.tabOf, change, say: cad.say });
   const snapRef = snapOnce ? (x: number, y: number, r: number) => { const q = xr.snap(x, y, r); return q && q.kind & snapBit ? q : undefined; } : xr.snap;
@@ -3632,7 +3651,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
-            <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} cursorMode={cursorModeOf(tool, cad.history[cad.history.length - 1], gripIdx !== null)} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={snapExtra} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
+            <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} cursorMode={cursorMode} hover={hover} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap, pixel) => setCursor({ at, snap, pixel })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={pickedSk.map((it) => it.id)} extraSnaps={snapExtra} preview={[...preview, ...emRoutes, ...(gripIdx !== null && selSketch && cursor.at ? [gripMoved(selSketch, gripIdx, cursor.at)] : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
               numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={draft.grips && tool === 'none' && selSketch && !many ? gripsOf(selSketch).map((g) => g.at) : []} onGripStart={setGripIdx}
               onGripEnd={(i, at, moved) => {

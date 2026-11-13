@@ -11,8 +11,10 @@ class Stub { moveTo() {} lineTo() {} closePath() {} observe() {} disconnect() {}
 Object.assign(globalThis, { Path2D: Stub, ResizeObserver: Stub });
 
 /** One stroke on the cursor layer: its width and the path's moves, lines and boxes since the last beginPath. */
-type Stroke = { w: number; ops: (string | number)[][] };
+type Stroke = { w: number; ops: (string | number)[][]; c?: unknown; alpha?: unknown };
 let strokes: Stroke[] = [];
+/** Filled squares (grips): their colour and box. */
+let fills: { c: unknown; box: number[] }[] = [];
 /** A drawing context for the cursor layer that records its strokes; every other call does nothing. */
 function recorder() {
   let ops: (string | number)[][] = [];
@@ -22,7 +24,9 @@ function recorder() {
     moveTo: (x, y) => { ops.push(['M', x, y]); },
     lineTo: (x, y) => { ops.push(['L', x, y]); },
     rect: (x, y, w, h) => { ops.push(['R', x, y, w, h]); },
-    stroke: () => { strokes.push({ w: props.lineWidth as number, ops: [...ops] }); },
+    stroke: () => { strokes.push({ w: props.lineWidth as number, ops: [...ops], c: props.strokeStyle, alpha: props.globalAlpha }); },
+    fillRect: (x, y, w, h) => { fills.push({ c: props.fillStyle, box: [x, y, w, h] }); },
+    arc: (x, y, r) => { ops.push(['A', x, y, r]); },
     measureText: () => ({ width: 0 })
   };
   return new Proxy({}, {
@@ -41,6 +45,7 @@ const view = {
   info: { format: 'DXF', units: 4, origin: [0, 0], extents: [0, 0, 800, 500], layers: [], texts: [], segments: 0, snaps: 0, truncated: false, linetypes: [[]], fills: [] },
   snap: vi.fn(async () => new Float64Array()), pick: vi.fn(async () => null), outlines: () => [], blocks: () => [], close: vi.fn()
 } as unknown as CadView;
+const last = <T,>(a: T[]): T => a[a.length - 1];
 const OFF: CadToggles = { snap: false, osnap: false, ortho: false, grid: false };
 let root: Root, host: HTMLDivElement;
 const draw = (props: Partial<Parameters<typeof CadCanvas>[0]> = {}) => act(() => root.render(<CadCanvas view={view} layersOn={new Uint8Array()} toggles={OFF} fitKey={1} onCursor={() => {}} onClick={() => {}} {...props} />));
@@ -50,10 +55,10 @@ function cursorAt(x: number, y: number) {
   strokes = [];
   move(x, y);
   const i = strokes.map((s) => s.w).lastIndexOf(1);
-  return { outline: strokes[i - 1], line: strokes[i] };
+  return { outline: strokes[i - 1], line: { w: strokes[i].w, ops: strokes[i].ops } };
 }
 
-beforeEach(() => { host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host); });
+beforeEach(() => { fills = []; host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host); });
 afterEach(() => { act(() => root.unmount()); host.remove(); });
 
 describe('the cursor follows what the canvas waits for', () => {
@@ -66,7 +71,7 @@ describe('the cursor follows what the canvas waits for', () => {
       ['M', c[0], 0], ['L', c[0], c[1] - 8], ['M', c[0], c[1] + 8], ['L', c[0], 500],
       ['R', c[0] - 6, c[1] - 6, 12, 12]
     ]);
-    expect(outline).toEqual({ w: 3, ops: line.ops });
+    expect(outline).toMatchObject({ w: 3, ops: line.ops });
   });
 
   it('a point wanted: the crosshair only, its lines meeting at the point', () => {
@@ -89,5 +94,52 @@ describe('the cursor follows what the canvas waits for', () => {
     const { line } = cursorAt(300, 200);
     // 10 % of the longer side (800 px): 40 px each way from the centre.
     expect(line.ops.slice(0, 4)).toEqual([['M', 260.5, 200.5], ['L', 292.5, 200.5], ['M', 308.5, 200.5], ['L', 340.5, 200.5]]);
+  });
+});
+
+describe('what a click would pick is marked first', () => {
+  // The hover and grip colours from the theme, so they can be told apart from the snap colour.
+  beforeEach(() => { document.documentElement.style.setProperty('--acc', '#f5b301'); document.documentElement.style.setProperty('--warn', '#f5c04a'); });
+  const halo = () => strokes.find((s) => s.w === 7);
+
+  it('an object of the opened drawing: its segments in amber at 40 %, over it', () => {
+    const v = { ...view, segs: new Float32Array([0, 0, 100, 0]) } as unknown as CadView;
+    draw({ view: v, hover: { seg: [0, 1] } });
+    cursorAt(300, 200);
+    expect(halo()).toMatchObject({ c: '#f5b301', alpha: 0.4 });
+    expect(halo()!.ops).toHaveLength(2);
+  });
+
+  it('a device: a ring around its symbol', () => {
+    draw({ hover: { device: 'd1' }, devices: [{ key: 'd1', x: 400, y: 250, r: 5, shape: 'circle', text: '', label: 'L1' }] });
+    cursorAt(300, 200);
+    expect(halo()!.ops.some((o) => o[0] === 'A')).toBe(true);
+  });
+
+  it('not while a point is wanted', () => {
+    draw({ cursorMode: 'point', hover: { device: 'd1' }, devices: [{ key: 'd1', x: 400, y: 250, r: 5, shape: 'circle', text: '', label: 'L1' }] });
+    cursorAt(300, 200);
+    expect(halo()).toBeUndefined();
+  });
+
+  it('a grip under the pick box turns the hover colour, and the box locks onto it', () => {
+    // Where the cursor lands at two screen points gives the drawing units per pixel; the grip goes 3 px right of it.
+    const landed: [number, number][] = [];
+    draw({ onCursor: (p) => { if (p) landed.push(p); } });
+    cursorAt(300, 200);
+    cursorAt(310, 200);
+    const [a, b] = [landed[landed.length - 2], landed[landed.length - 1]];
+    const grip: [number, number] = [a[0] + (3 * (b[0] - a[0])) / 10, a[1]];
+    fills = [];
+    draw({ grips: [grip] });
+    const { line } = cursorAt(300, 200);
+    expect(last(fills)!.c).toBe('#f5c04a');
+    // The box is centred on the grip (3 px right of the cursor), not on the cursor.
+    expect(last(line.ops)).toEqual(['R', 303.5 - 6, 200.5 - 6, 12, 12]);
+    // Away from the grip: snap colour, box on the cursor.
+    fills = [];
+    const away = cursorAt(200, 100).line;
+    expect(last(fills)!.c).not.toBe('#f5c04a');
+    expect(last(away.ops)).toEqual(['R', 194.5, 94.5, 12, 12]);
   });
 });
