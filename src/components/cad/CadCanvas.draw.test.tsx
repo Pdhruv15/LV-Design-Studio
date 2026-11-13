@@ -14,26 +14,28 @@ type M = [number, number, number, number, number, number];
 /** A 2D context that keeps the transform (with save / restore) and notes the transform each stroke is made with. */
 function recorder() {
   let m: M = [1, 0, 0, 1, 0, 0];
-  const stack: M[] = [], strokes: { m: M; lineWidth: number }[] = [];
+  const stack: M[] = [], strokes: { m: M; lineWidth: number }[] = [], scales: number[][] = [], words: string[] = [];
   const state: Record<string | symbol, unknown> = { lineWidth: 1 };
   const own: Record<string, unknown> = {
     setTransform: (...a: number[]) => { m = a as M; },
     save: () => { stack.push(m); },
     restore: () => { m = stack.pop() ?? m; },
     stroke: () => { strokes.push({ m, lineWidth: state.lineWidth as number }); },
+    scale: (...a: number[]) => { scales.push(a); },
+    fillText: (t: string) => { words.push(t); },
     measureText: () => ({ width: 10 })
   };
   const ctx = new Proxy({}, {
     get: (_, k) => (typeof k === 'string' && k in own ? own[k] : k in state ? state[k] : () => {}),
     set: (_, k, v) => { state[k] = v; return true; }
   });
-  return { ctx, strokes, depth: () => stack.length };
+  return { ctx, strokes, scales, words, depth: () => stack.length };
 }
 
-function drawing() {
+function drawing(texts: unknown[] = []) {
   return {
     file: 'plan.dxf', bytes: new Uint8Array(), engine: 'worker', segs: new Float32Array(), segLayers: new Uint16Array(), segColors: new Uint32Array(), segLinetypes: new Uint16Array(),
-    info: { format: 'DXF', units: 4, origin: [0, 0], extents: [0, 0, 8000, 5000], layers: [], texts: [], segments: 0, snaps: 0, truncated: false, linetypes: [[]], fills: [] },
+    info: { format: 'DXF', units: 4, origin: [0, 0], extents: [0, 0, 8000, 5000], layers: [], texts: texts as never[], segments: 0, snaps: 0, truncated: false, linetypes: [[]], fills: [] },
     snap: vi.fn(async () => new Float64Array()), pick: vi.fn(async () => null), outlines: () => [], blocks: () => [], close: vi.fn()
   } as unknown as CadView;
 }
@@ -67,5 +69,20 @@ describe('drawn objects on the canvas', () => {
     // Nothing on the screen stroked wider than 3 pixels (a picked object).
     expect(rec.strokes.filter((s) => s.lineWidth * Math.abs(s.m[3]) > 3)).toEqual([]);
     expect(rec.depth()).toBe(0);
+  });
+
+  it('squeezes or stretches a text fitted to a width, and leaves the others alone', () => {
+    const texts = [
+      { x: 100, y: 100, h: 2000, rot: 0, s: 'FIT', layer: 0, rgb: 0, align: 0, w: 5000 },
+      { x: 100, y: 3000, h: 2000, rot: 0, s: 'PLAIN', layer: 0, rgb: 0, align: 0 }
+    ];
+    act(() => root.render(<CadCanvas view={drawing(texts)} layersOn={new Uint8Array([1])} toggles={OFF} fitKey={1} onCursor={() => {}} onClick={() => {}} />));
+    expect(rec.words).toContain('FIT');
+    expect(rec.words).toContain('PLAIN');
+    // Natural width 10 (measureText), the width asked 5000 drawing units: x is scaled by 5000 × the view scale / 10, y by 1.
+    const fitted = rec.scales.filter((a) => a[1] === 1 && a[0] !== 1);
+    expect(fitted.length).toBeGreaterThan(0);
+    // Per draw: one text is scaled, the other is not.
+    expect(fitted.length).toBe(rec.words.filter((w) => w === 'FIT').length);
   });
 });

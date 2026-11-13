@@ -127,6 +127,19 @@ describe('CAD engine (Rust, WebAssembly)', () => {
     }
   });
 
+  it('reads text fitted between two points at the first point, along the line and as wide as the distance', async () => {
+    const text = (s: string, extra: string) => `0\nTEXT\n8\n0\n10\n100\n20\n200\n30\n0\n40\n20\n1\n${s}\n${extra}`;
+    const dxf = `0\nSECTION\n2\nENTITIES\n${text('FIT', '72\n5\n11\n130\n21\n240\n31\n0\n73\n0\n')}${text('MID', '72\n1\n11\n300\n21\n400\n31\n0\n73\n0\n')}${text('LEFT', '')}0\nENDSEC\n0\nEOF\n`;
+    const v = await openDrawing('fit.dxf', new TextEncoder().encode(dxf));
+    const get = (s: string) => v.info.texts.find((t) => t.s === s)!;
+    const f = get('FIT');
+    expect([f.x, f.y, f.h, f.align]).toEqual([100, 200, 20, 0]);
+    expect(f.w).toBeCloseTo(50, 6); expect(f.rot).toBeCloseTo(Math.atan2(40, 30), 6);
+    expect([get('MID').x, get('MID').y, get('MID').align, get('MID').w]).toEqual([300, 400, 1, 0]);
+    expect([get('LEFT').x, get('LEFT').y, get('LEFT').align, get('LEFT').w]).toEqual([100, 200, 0, 0]);
+    v.close();
+  });
+
   it('saves a note as one MTEXT with its box, attachment and codes, read back as a text per line', async () => {
     const items: SketchItem[] = [{ id: 'n', kind: 'mtext', layer: 'LV-ANNO', pts: [[1000, 3000]], h: 250, w: 3000, note: [{ runs: [{ s: 'GENERAL ', b: true }, { s: 'NOTES' }] }, { runs: [{ s: 'Second line', u: true }] }] }];
     const shapes = shapesOut(items, 0.001);

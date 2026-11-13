@@ -1361,7 +1361,7 @@ export default function SystemDiagram({
                 <g className="cable-ref"><title>{`Cable ${r.ref}: ${r.text}`}</title>
                   <circle cx={n.x - 13} cy={y + (dewa ? 66 : 49)} r="7.5" className="cable-ref-c" />
                   <text x={n.x - 13} y={y + (dewa ? 69 : 52)} textAnchor="middle" className="cable-ref-t">{r.ref}</text>
-                  <text x={n.x + 7} y={y + (dewa ? 68 : 63)} className="acc-t" style={{ fontSize: 8 }} data-dxf-max-width={cadCableWidth} data-dxf-dx={cadCableDx}>{cable[1]}</text>
+                  <text x={n.x + 7} y={y + (dewa ? 68 : 63)} className="acc-t" style={{ fontSize: 8 }} data-dxf-max-width={cadCableWidth} data-dxf-dy={dewa ? 3 : 0} data-dxf-dx={cadCableDx}>{cable[1]}</text>
                 </g>); })()}
               {dewa && !cableRefs && <text className="acc-t" style={{ fontSize: 9 }} x={n.x + 7} y={y + 70} data-dxf-max-width={cadCableWidth} data-dxf-dy={3} data-dxf-dx={cadCableDx}>{cable[1]}</text>}
               {/* Accessories on the feeder, top to bottom: earth leakage (its
