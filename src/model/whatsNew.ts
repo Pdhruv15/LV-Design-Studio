@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.118', date: '2026-11-13',
+    items: [
+      { title: 'Design CAD: cursor settings', text: 'Drafting settings (DS) → Cursor: choose the crosshair colour (Drawing ink, Accent or Cyan) and turn the outline under the cursor on or off. Selection: turn off the outline on what is under the pick box, or turn on a name tag that shows the object\'s kind and layer (a device\'s name) once the cursor rests on it for half a second.' }
+    ]
+  },
+  {
     version: '2.117', date: '2026-11-13',
     items: [
       { title: 'Design CAD: window and crossing told apart', text: 'Dragging a selection window from left to right now draws it in blue with a solid edge and "Window" beside the cursor: it picks what is fully inside. From right to left it is green and dashed, with "Crossing": it also picks what it touches.' },
