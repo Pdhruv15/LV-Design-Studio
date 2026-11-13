@@ -2,7 +2,11 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import ExcelJS from 'exceljs';
 import SheetsPage from './SheetsPage';
+
+const saved: { name: string; bytes: Uint8Array }[] = [];
+vi.mock('../../util/files', async (orig) => ({ ...(await orig<typeof import('../../util/files')>()), saveBinary: async (name: string, bytes: Uint8Array) => { saved.push({ name, bytes }); return `Saved ${name}`; } }));
 import { sampleProject } from '../../data/sampleProject';
 import { newSheet, withCells } from '../../model/sheets';
 import type { Project } from '../../types';
@@ -164,5 +168,44 @@ describe('Sheets page', () => {
     press('Delete sheet');
     expect(last.sheets!.sheets.map((s) => s.name)).toEqual(['Cable sizing']);
     expect(tool('Delete sheet').disabled).toBe(true);
+  });
+
+  it('opens an Excel file as new sheets, keeps a formula it cannot work out, and saves the book back to .xlsx', async () => {
+    const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('DB-GF-01');
+    ws.addRow(['Ckt', 'W', 'Qty', 'kW']);
+    ws.addRow(['L1', 60, 20, { formula: 'B2*C2/1000', result: 1.2 }]);
+    ws.addRow(['', '', '', { formula: 'XLOOKUP("L1",A2:A2,D2:D2)', result: 1.2 }]);
+    const file = new File([(await wb.xlsx.writeBuffer()) as ArrayBuffer], 'Load schedule.xlsx');
+    if (!file.arrayBuffer) Object.defineProperty(file, 'arrayBuffer', { value: async () => (await wb.xlsx.writeBuffer()) as ArrayBuffer });
+    render(book({ A1: 'mine' }));
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('.shx-tab')].find((t) => t.textContent === 'File')!.click());
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    await act(async () => { input.dispatchEvent(new Event('change', { bubbles: true })); await vi.waitFor(() => expect(status.some((m) => m.startsWith('Opened'))).toBe(true)); });
+    expect(last.sheets!.sheets.map((x) => x.name)).toEqual(['Sheet 1', 'DB-GF-01']);
+    expect(td('D2').textContent).toBe('1.2');
+    expect(td('D3').className).toContain('shx-keep');
+    expect(td('D3').title).toContain('Kept from the Excel file');
+    expect(status[status.length - 1]).toContain("1 kept with the file's value (XLOOKUP)");
+    saved.length = 0;
+    await act(async () => { tool('Save as .xlsx').click(); await vi.waitFor(() => expect(saved.length).toBe(1)); });
+    expect(saved[0].name).toBe('Load-schedule.xlsx');
+    const back = new ExcelJS.Workbook();
+    await back.xlsx.load(saved[0].bytes.buffer as ArrayBuffer);
+    expect(back.worksheets.map((x) => x.name)).toEqual(['Sheet 1', 'DB-GF-01']);
+    expect(back.getWorksheet('DB-GF-01')!.getCell('D2').value).toEqual({ formula: 'B2*C2/1000', result: 1.2 });
+    expect(back.getWorksheet('DB-GF-01')!.getCell('D3').value).toEqual({ formula: 'XLOOKUP("L1",A2:A2,D2:D2)', result: 1.2 });
+  });
+
+  it('a file that is not an Excel workbook says so and changes nothing', async () => {
+    const file = new File(['not a workbook'], 'notes.xlsx');
+    if (!file.arrayBuffer) Object.defineProperty(file, 'arrayBuffer', { value: async () => new TextEncoder().encode('not a workbook').buffer });
+    render(sampleProject);
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('.shx-tab')].find((t) => t.textContent === 'File')!.click());
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    await act(async () => { input.dispatchEvent(new Event('change', { bubbles: true })); await vi.waitFor(() => expect(status.length).toBe(1)); });
+    expect(status[0]).toBe('notes.xlsx could not be opened as an Excel (.xlsx) file');
+    expect(changes).toBe(0);
   });
 });

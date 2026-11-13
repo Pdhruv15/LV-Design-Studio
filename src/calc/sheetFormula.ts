@@ -218,8 +218,108 @@ const FUNCTIONS: Record<string, Fn> = {
     return hit[col - 1];
   }
 };
-/** The functions a sheet formula can use (IF is worked out apart: only the branch taken is evaluated). */
-export const SHEET_FUNCTIONS: string[] = [...Object.keys(FUNCTIONS), 'IF'].sort();
+/** A SUMIF / COUNTIF condition: a value to equal, or text starting with = <> < > <= >= ; text may use * and ?. */
+function criterion(c: Arg): (v: CellValue) => boolean {
+  if (isRange(c)) throw new FormulaError('#VALUE!');
+  const m = typeof c === 'string' ? /^(<=|>=|<>|=|<|>)?(.*)$/.exec(c)! : undefined;
+  const op = m?.[1] ?? '=', rhs = m ? m[2] : c;
+  const asNum = typeof rhs === 'number' ? rhs : typeof rhs === 'string' && rhs.trim() !== '' && Number.isFinite(Number(rhs)) ? Number(rhs) : undefined;
+  if (asNum !== undefined) {
+    return (v) => {
+      const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)) && (op === '=' || op === '<>') ? Number(v) : undefined;
+      if (n === undefined) return op === '<>';
+      return op === '=' ? n === asNum : op === '<>' ? n !== asNum : op === '<' ? n < asNum : op === '>' ? n > asNum : op === '<=' ? n <= asNum : n >= asNum;
+    };
+  }
+  const want = text(rhs).toLowerCase();
+  const like = new RegExp(`^${want.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`);
+  return (v) => {
+    const t = v === null ? '' : typeof v === 'boolean' ? (v ? 'true' : 'false') : String(v).toLowerCase();
+    if (op === '=') return typeof v !== 'number' && like.test(t) && (want !== '' || v === null || v === '');
+    if (op === '<>') return !(typeof v !== 'number' && like.test(t));
+    if (typeof v !== 'string') return false;
+    return op === '<' ? t < want : op === '>' ? t > want : op === '<=' ? t <= want : t >= want;
+  };
+}
+const table = (a: Arg): CellValue[][] => { if (!isRange(a)) throw new FormulaError('#VALUE!'); return a; };
+/** A row or a column as a list. */
+const line = (a: Arg): CellValue[] => { const t = table(a); if (t.length > 1 && (t[0]?.length ?? 0) > 1) throw new FormulaError('#N/A'); return t.length > 1 ? t.map((r) => r[0]) : t[0] ?? []; };
+const whole = (v: Arg, least = 0): number => { const n = Math.trunc(num(v)); if (n < least) throw new FormulaError('#VALUE!'); return n; };
+function lookup(want: Arg, keys: CellValue[], approx: boolean): number {
+  if (isRange(want)) throw new FormulaError('#VALUE!');
+  let hit = -1;
+  for (let i = 0; i < keys.length; i++) {
+    if (keys[i] === null) continue;
+    const c = compareValues(keys[i], want);
+    if (c === 0) { hit = i; if (!approx) break; } else if (approx && c < 0 && typeof keys[i] === typeof want) hit = i; else if (approx && c > 0) break;
+  }
+  if (hit < 0) throw new FormulaError('#N/A');
+  return hit;
+}
+Object.assign(FUNCTIONS, {
+  TRUE: (a) => { scalar(a, 0); return true; },
+  FALSE: (a) => { scalar(a, 0); return false; },
+  PI: (a) => { scalar(a, 0); return Math.PI; },
+  INT: (a) => Math.floor(num(scalar(a, 1)[0])),
+  MOD: (a) => { const n = num(scalar(a, 2)[0]), d = num(a[1]); if (d === 0) throw new FormulaError('#DIV/0!'); return tidy(n - d * Math.floor(n / d)); },
+  POWER: (a) => num(scalar(a, 2)[0]) ** num(a[1]),
+  CEILING: (a) => { const n = num(scalar(a, 2)[0]), k = num(a[1]); return k === 0 ? 0 : tidy(Math.ceil(tidy(n / k) - 1e-9) * k); },
+  FLOOR: (a) => { const n = num(scalar(a, 2)[0]), k = num(a[1]); if (k === 0) throw new FormulaError('#DIV/0!'); return tidy(Math.floor(tidy(n / k) + 1e-9) * k); },
+  SUMIF: (a) => {
+    const [r, c, s] = scalar(a, 2, 3);
+    const keys = table(r).flat(), vals = s === undefined ? keys : table(s).flat(), ok = criterion(c);
+    return keys.reduce<number>((sum, k, i) => sum + (ok(k) && typeof vals[i] === 'number' ? (vals[i] as number) : 0), 0);
+  },
+  COUNTIF: (a) => { const [r, c] = scalar(a, 2); const ok = criterion(c); return table(r).flat().filter((k) => ok(k)).length; },
+  SUMPRODUCT: (a) => {
+    if (!a.length) throw new FormulaError('#VALUE!');
+    const ts = a.map((x) => table(x).flat());
+    if (ts.some((t) => t.length !== ts[0].length)) throw new FormulaError('#VALUE!');
+    return ts[0].reduce<number>((sum, _, i) => sum + ts.reduce((p, t) => p * (typeof t[i] === 'number' ? (t[i] as number) : 0), 1), 0);
+  },
+  INDEX: (a) => {
+    const [r, rowArg, colArg] = scalar(a, 2, 3);
+    const t = table(r);
+    let row = whole(rowArg), col = colArg === undefined ? 0 : whole(colArg);
+    // One row or one column: a single number counts along it.
+    if (colArg === undefined && t.length === 1) { col = row; row = 1; }
+    if (row === 0 && t.length === 1) row = 1;
+    if (col === 0 && (t[0]?.length ?? 0) === 1) col = 1;
+    if (row < 1 || col < 1) throw new FormulaError('#VALUE!');
+    if (row > t.length || col > (t[0]?.length ?? 0)) throw new FormulaError('#REF!');
+    return t[row - 1][col - 1];
+  },
+  MATCH: (a) => {
+    const [want, r, typeArg] = scalar(a, 2, 3);
+    const keys = line(r), type = typeArg === undefined ? 1 : num(typeArg);
+    if (type < 0) {
+      // Sorted downwards: the last key not below the value.
+      let hit = -1;
+      for (let i = 0; i < keys.length; i++) { if (keys[i] === null) continue; if (isRange(want)) throw new FormulaError('#VALUE!'); if (compareValues(keys[i], want) >= 0) hit = i; else break; }
+      if (hit < 0) throw new FormulaError('#N/A');
+      return hit + 1;
+    }
+    return lookup(want, keys, type !== 0) + 1;
+  },
+  HLOOKUP: (a) => {
+    const [want, r, rowArg, approxArg] = scalar(a, 3, 4);
+    const t = table(r), row = whole(rowArg, 1);
+    if (row > t.length) throw new FormulaError('#REF!');
+    return t[row - 1][lookup(want, t[0] ?? [], approxArg === undefined ? true : truth(approxArg))];
+  },
+  CONCATENATE: (a) => a.map(text).join(''),
+  LEN: (a) => text(scalar(a, 1)[0]).length,
+  LEFT: (a) => text(scalar(a, 1, 2)[0]).slice(0, a[1] === undefined ? 1 : whole(a[1])),
+  RIGHT: (a) => { const t = text(scalar(a, 1, 2)[0]), n = a[1] === undefined ? 1 : whole(a[1]); return n === 0 ? '' : t.slice(-n); },
+  MID: (a) => { const t = text(scalar(a, 3)[0]), from = whole(a[1], 1); return t.slice(from - 1, from - 1 + whole(a[2])); },
+  UPPER: (a) => text(scalar(a, 1)[0]).toUpperCase(),
+  LOWER: (a) => text(scalar(a, 1)[0]).toLowerCase(),
+  TRIM: (a) => text(scalar(a, 1)[0]).trim().replace(/ +/g, ' '),
+  ISBLANK: (a) => { const v = scalar(a, 1)[0]; return !isRange(v) && v === null; },
+  ISNUMBER: (a) => typeof scalar(a, 1)[0] === 'number'
+} satisfies Record<string, Fn>);
+/** The functions a sheet formula can use (IF and IFERROR are worked out apart: only the branch taken is evaluated). */
+export const SHEET_FUNCTIONS: string[] = [...Object.keys(FUNCTIONS), 'IF', 'IFERROR'].sort();
 
 /** Every function a formula calls, upper case — to tell an engineer which of a file's formulas the sheet cannot work out. */
 export function formulaFunctions(formula: string): string[] {
@@ -238,7 +338,10 @@ const isFormula = (v: unknown): v is string => typeof v === 'string' && v.starts
 function literal(v: string | number | boolean | null | undefined): CellValue {
   if (v === undefined || v === null || v === '') return null;
   if (typeof v !== 'string') return v;
+  // As in Excel, a leading apostrophe makes the rest text ("'010" stays 010).
+  if (v.startsWith("'")) return v.slice(1);
   const t = v.trim();
+  if (/^(true|false)$/i.test(t)) return t.toLowerCase() === 'true';
   if (t !== '' && Number.isFinite(Number(t)) && /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(t)) return Number(t);
   return v;
 }
@@ -272,6 +375,13 @@ export function evaluateSheet(cells: SheetCells, cached: Record<string, CellValu
       case 'neg': return -num(ev(n.x));
       case 'pct': return num(ev(n.x)) / 100;
       case 'fn': {
+        if (n.name === 'IFERROR') {
+          if (n.args.length !== 2) throw new FormulaError('#VALUE!');
+          let out: Arg;
+          try { out = ev(n.args[0]); } catch (e) { if (!(e instanceof FormulaError) || e.code === '#CYCLE!') throw e; out = ev(n.args[1]); }
+          if (isRange(out)) throw new FormulaError('#VALUE!');
+          return out;
+        }
         if (n.name === 'IF') {
           if (n.args.length < 2 || n.args.length > 3) throw new FormulaError('#VALUE!');
           const out = truth(ev(n.args[0])) ? ev(n.args[1]) : n.args[2] ? ev(n.args[2]) : false;
@@ -320,7 +430,9 @@ export function evaluateSheet(cells: SheetCells, cached: Record<string, CellValu
       } catch (e) {
         const error: SheetError = e instanceof FormulaError ? e.code : '#ERROR!';
         const unknown = error === '#NAME?' && formulaFunctions(raw).some((f) => !SHEET_FUNCTIONS.includes(f));
-        out = unknown && name in cached ? { value: cached[name], unsupported: true } : { value: null, error, ...(unknown ? { unsupported: true } : {}) };
+        // A formula the evaluator cannot read or has no function for keeps the file's last value, when there is one.
+        const beyond = unknown || error === '#ERROR!' || error === '#NAME?';
+        out = beyond && name in cached ? { value: cached[name], unsupported: true } : { value: null, error, ...(unknown ? { unsupported: true } : {}) };
       }
       busy.delete(name);
     }

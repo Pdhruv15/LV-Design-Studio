@@ -5,16 +5,17 @@ import {
   Sigma, TableCellsMerge, Trash2, Underline, Undo2, WrapText, type LucideIcon
 } from 'lucide-react';
 import type { Project } from '../../types';
-import { cellAt, cellName, colName, evaluateSheet } from '../../calc/sheetFormula';
+import { cellAt, cellName, colName } from '../../calc/sheetFormula';
 import {
-  allStyled, area, DEFAULT_WIDTH, deleteCols, deleteRows, fillDownEdits, insertCols, insertRows, newSheet, pasteEdits, rawRows, sheetNameError, shown, shownRows, sumFormula,
+  allStyled, area, DEFAULT_WIDTH, deleteCols, deleteRows, fillDownEdits, insertCols, insertRows, newSheet, pasteEdits, rawRows, sheetNameError, sheetValues, shown, shownRows, sumFormula,
   withCells, withNextWidth, withStyle, type Area, type Sheet, type SheetAlign, type SheetBook, type SheetNumberFormat, type SheetStyle
 } from '../../model/sheets';
 import { parseClipboard, toClipboard } from '../grid/excelGrid';
+import { safeFileName, saveBinary } from '../../util/files';
 
 /** Sheets: the engineer's own schedules in an Excel-style grid with formulas, inside the app. This stage has the
- * grid, the formula bar, the sheet tabs and the File and Home tabs of the ribbon; opening Excel files, linking
- * columns to the project and the Electrical tools follow (docs/notes/Future development, Sheets proposal). */
+ * grid, the formula bar, the sheet tabs, the File and Home tabs of the ribbon, and opening and saving Excel files;
+ * linking columns to the project and the Electrical tools follow (docs/notes/Future development, Sheets proposal). */
 
 const LATER = 'Comes in a later stage';
 const CSS = `
@@ -53,6 +54,7 @@ const CSS = `
 .shx-grid td.shx-act { outline: 2px solid var(--acc); outline-offset: -2px; }
 .shx-grid td.shx-fx { color: var(--mut); }
 .shx-grid td.shx-err { color: var(--bad); }
+.shx-grid td.shx-keep { text-decoration: underline dotted; text-underline-offset: 3px; }
 .shx-grid td.shx-fill { background: color-mix(in srgb, var(--acc) 22%, transparent); }
 .shx-grid td.shx-accent { color: var(--acc); }
 .shx-grid td input { box-sizing: border-box; width: 100%; height: 22px; border: 0; outline: 0; padding: 0; background: var(--bg); color: var(--tx); font: inherit; }
@@ -93,8 +95,10 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
   const editInput = useRef<HTMLInputElement>(null);
   /** Set when Enter, Tab or Escape ended an edit, so the input's blur does not save it a second time. */
   const ended = useRef(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
 
-  const values = useMemo(() => evaluateSheet(sheet.cells), [sheet.cells]);
+  const values = useMemo(() => sheetValues(sheet), [sheet]);
   const sel: Area = useMemo(() => area(act, anchor), [act, anchor]);
   const name = cellName(act.c, act.r);
   const raw = sheet.cells[name] ?? '';
@@ -147,6 +151,35 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
   const fillDown = () => { if (sel.r1 > sel.r0) setCells(fillDownEdits(sheet, sel)); };
   const sum = () => { const f = sumFormula(sheet, act.r, act.c, values); if (f) setCells({ [name]: f }); else onStatus?.('Sum: no numbers above or to the left of this cell'); };
 
+  // ---- Excel files (the library loads only now)
+  async function openFile(file: File) {
+    setBusy(true);
+    try {
+      const { readXlsx, reportText } = await import('../../docs/sheetXlsx');
+      const kept = project.sheets?.sheets.length ? book.sheets : [];
+      const { sheets, report } = await readXlsx(await file.arrayBuffer(), file.name, kept);
+      if (!sheets.length) { onStatus?.(`${file.name}: no sheets in this file`); return; }
+      onChange({ ...project, sheets: { ...book, sheets: [...kept, ...sheets] } }, true);
+      setSheetId(sheets[0].id); setEdit(null); setAct({ r: 1, c: 1 }); setAnchor({ r: 1, c: 1 });
+      onStatus?.(reportText(file.name, report));
+    } catch {
+      onStatus?.(`${file.name} could not be opened as an Excel (.xlsx) file`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function saveFile() {
+    setBusy(true);
+    try {
+      const { buildXlsx } = await import('../../docs/sheetXlsx');
+      const base = (sheet.source ?? `${project.name} - Sheets`).replace(/\.xlsx$/i, '');
+      const m = await saveBinary(`${safeFileName(base)}.xlsx`, new Uint8Array(await buildXlsx(book.sheets).xlsx.writeBuffer()), 'Excel workbook', 'xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      if (m) onStatus?.(m);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // ---- sheets
   const addSheet = () => { const s = newSheet(book.sheets); onChange({ ...project, sheets: { ...book, sheets: [...book.sheets, s] } }, true); setSheetId(s.id); move(1, 1); };
   const removeSheet = () => {
@@ -188,6 +221,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
     if (r >= sel.r0 && r <= sel.r1 && c >= sel.c0 && c <= sel.c1 && !single) out.push('shx-sel');
     if (r === act.r && c === act.c) out.push('shx-act');
     if (values[k]?.error) out.push('shx-err'); else if (sheet.cells[k]?.startsWith('=')) out.push('shx-fx');
+    if (values[k]?.unsupported && !values[k]?.error) out.push('shx-keep');
     if (st?.fill) out.push('shx-fill');
     if (st?.accent) out.push('shx-accent');
     return out.join(' ');
@@ -206,7 +240,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
     <div className="shx">
       <style>{CSS}</style>
       <h3>Sheets</h3>
-      <p className="shx-note">Your own schedules in an Excel-style grid, saved with the project. Formulas: + − × ÷, SUM, AVERAGE, MIN, MAX, COUNT, ROUND, ROUNDUP, ROUNDDOWN, IF, AND, OR, NOT, ABS, SQRT, VLOOKUP. Opening Excel files and linking columns to the project come in the next stages.</p>
+      <p className="shx-note">Your own schedules in an Excel-style grid, saved with the project. Formulas: + − × ÷, SUM, AVERAGE, MIN, MAX, COUNT, ROUND, ROUNDUP, ROUNDDOWN, IF, AND, OR, NOT, ABS, SQRT, VLOOKUP. Open an Excel file from the File tab: its formulas, bold, alignment, number formats and widths are kept, and a formula the app cannot work out keeps its value from the file (shown with a dotted underline). Linking columns to the project comes in the next stage.</p>
 
       <div className="shx-ribbon">
         <div className="shx-tabs" role="tablist" aria-label="Sheet tools">
@@ -224,8 +258,9 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
               </div>
             </Group>
             <Group name="Excel file">
-              <Big icon={FolderOpen} label="Open Excel file" />
-              <Big icon={Save} label="Save as .xlsx" />
+              <Big icon={FolderOpen} label="Open Excel file" onClick={() => fileInput.current?.click()} disabled={busy} />
+              <Big icon={Save} label="Save as .xlsx" onClick={() => void saveFile()} disabled={busy} />
+              <input ref={fileInput} type="file" accept=".xlsx" hidden aria-label="Excel file to open" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void openFile(f); }} />
             </Group>
           </div>
         ) : (
@@ -316,7 +351,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
                   const k = cellName(c, r), here = editing && r === act.r && c === act.c;
                   return (
                     <td key={c} data-cell={k} role="gridcell" aria-selected={r === act.r && c === act.c} className={cls(r, c, k)} style={cellStyle(k)}
-                      title={values[k]?.error ? `${values[k]!.error}: ${sheet.cells[k]}` : undefined}
+                      title={values[k]?.error ? `${values[k]!.error}: ${sheet.cells[k]}` : values[k]?.unsupported ? `Kept from the Excel file with its last value — the app cannot work this formula out: ${sheet.cells[k]}` : undefined}
                       onMouseDown={(e) => { if (!here) move(r, c, e.shiftKey); }}
                       onDoubleClick={() => { ended.current = false; setEdit(sheet.cells[k] ?? ''); }}>
                       {here
