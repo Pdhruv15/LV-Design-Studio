@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.117', date: '2026-11-13',
+    items: [
+      { title: 'Design CAD: window and crossing told apart', text: 'Dragging a selection window from left to right now draws it in blue with a solid edge and "Window" beside the cursor: it picks what is fully inside. From right to left it is green and dashed, with "Crossing": it also picks what it touches.' },
+      { title: 'Design CAD: Shift shows + or −', text: 'With no command running, hold Shift over an object: a small + at the pick box means a click adds it to what is picked, a − means the click takes it off.' },
+      { title: 'Design CAD: a hand while panning', text: 'While Space is held or the Pan tool is on, the cursor is an open hand; it closes while you drag. The middle mouse button shows the closed hand as it pans.' }
+    ]
+  },
+  {
     version: '2.116', date: '2026-11-13',
     items: [
       { title: 'Design CAD: see what a click will pick', text: 'Before you click, the object under the pick box is marked with an amber outline: a line or other object of the drawing, something you drew, or a device. It is the object the click would pick; objects already picked stay green and are not marked. A grip under the pick box turns yellow and the box locks onto it, so you can see which grip you are about to take.' }

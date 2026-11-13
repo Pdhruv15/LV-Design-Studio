@@ -712,22 +712,23 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     return best?.d;
   };
-  // The cursor's shape, and what a click would pick, marked before the click (not what is picked already: it is green).
+  // The cursor's shape, and what a click would pick, marked before the click (what is picked already is green: it is
+  // only flagged, for the − a Shift-click would take it off with).
   // Devices and drawn objects are found at once; objects of the opened drawing ask the engine once the cursor rests 40 ms.
   const cursorMode = cursorModeOf(tool, cad.history[cad.history.length - 1], gripIdx !== null);
   const [hover, setHover] = useState<CadHover | undefined>();
   useEffect(() => {
     const at = cursor.at, px = cursor.pixel;
-    const keep = (h: CadHover | undefined) => setHover((was) => (was?.device === h?.device && was?.sketch === h?.sketch && was?.seg?.[0] === h?.seg?.[0] && was?.seg?.[1] === h?.seg?.[1] ? was : h));
+    const keep = (h: CadHover | undefined) => setHover((was) => (was?.device === h?.device && was?.sketch === h?.sketch && was?.seg?.[0] === h?.seg?.[0] && was?.seg?.[1] === h?.seg?.[1] && was?.picked === h?.picked ? was : h));
     if (!at || !px || cursorMode === 'point' || tool === 'pan') { keep(undefined); return; }
     const d = deviceAt(at, px);
-    if (d) { keep(pickedKeys.has(d.key) ? undefined : { device: d.key }); return; }
+    if (d) { keep({ device: d.key, picked: pickedKeys.has(d.key) }); return; }
     const sk = hitAt(pickable, at, pickR * px);
-    if (sk) { keep(pickedKeys.has(`sk:${sk.id}`) ? undefined : { sketch: sk }); return; }
+    if (sk) { keep({ sketch: sk, picked: pickedKeys.has(`sk:${sk.id}`) }); return; }
     if (!view) { keep(undefined); return; }
     let live = true;
     const t = setTimeout(() => void view.pick(at[0], at[1], pickR * px, pickOn).then((o) => {
-      if (live) keep(o && !pickedKeys.has(`dw:${o.handle}`) ? { seg: [o.seg_start, o.seg_end] } : undefined);
+      if (live) keep(o ? { seg: [o.seg_start, o.seg_end], picked: pickedKeys.has(`dw:${o.handle}`) } : undefined);
     }), 40);
     return () => { live = false; clearTimeout(t); };
   }, [cursor.at, cursor.pixel, cursorMode, tool, view, pickable, pickOn, pickR, placed, pickedItems, pickedSk, pickedDw]); // eslint-disable-line react-hooks/exhaustive-deps -- deviceAt and pickedKeys follow placed and the picks

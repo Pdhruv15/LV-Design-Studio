@@ -36,8 +36,8 @@ export interface CanvasDevice { key: string; x: number; y: number; r: number; sh
  * its tag; `warn` when it has no home run. */
 export interface CanvasWiring { arcs: { a: Pt; c: Pt; b: Pt }[]; home?: { a: Pt; c: Pt; b: Pt }; tag?: { at: Pt; s: string; warn: boolean } }
 /** What a click at the cursor would pick, marked before the click: a device (its key), a drawn object, or an object of
- * the opened drawing (its segments, start and end). */
-export interface CadHover { device?: string; sketch?: SketchItem; seg?: [number, number] }
+ * the opened drawing (its segments, start and end). `picked`: it is picked already (not marked; Shift shows −). */
+export interface CadHover { device?: string; sketch?: SketchItem; seg?: [number, number]; picked?: boolean }
 export interface CadMarks { points: Pt[]; live?: boolean; closed?: boolean; area?: boolean; label?: string }
 /** Where the cursor lands: the point, the snap point it took, and the tracking line it follows (from where, its label). */
 interface Landing { at: Pt; snap?: { p: Pt; kind: number }; guide?: { from: Pt[]; label: string } }
@@ -171,6 +171,24 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   const win = useRef<{ x: number; y: number; x2: number; y2: number; on: boolean } | null>(null);
   const [moving, setMoving] = useState(false);
   const space = useSpaceHeld(); // Space + drag pans with any tool
+  // The hand while panning: open while Space is held or the Pan tool is on, closed while dragging; no crosshair then.
+  // Shift held: a + (or −) at the pick box when a click would add the object under it (or take it off).
+  const [spaceOn, setSpaceOn] = useState(false), [shiftOn, setShiftOn] = useState(false), [panning, setPanning] = useState(false);
+  useEffect(() => {
+    const field = (e: KeyboardEvent) => !!(e.target as HTMLElement | null)?.closest?.('input, textarea, select, button, [contenteditable="true"]');
+    const key = (on: boolean) => (e: KeyboardEvent) => {
+      if (e.key === 'Shift') setShiftOn(on);
+      if (e.code === 'Space' && (!on || !field(e))) setSpaceOn(on);
+    };
+    const down = key(true), up = key(false), blur = () => { setSpaceOn(false); setShiftOn(false); };
+    window.addEventListener('keydown', down); window.addEventListener('keyup', up); window.addEventListener('blur', blur);
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', blur); };
+  }, []);
+  const hand = panning ? 'grabbing' : panLeft || spaceOn ? 'grab' : undefined;
+  const handRef = useRef(hand);
+  handRef.current = hand;
+  const shiftRef = useRef(shiftOn);
+  shiftRef.current = shiftOn;
   const mouse = useRef<Pt | null>(null);
   const lastAt = useRef<Landing | null>(null);
   // Object snap tracking (OTRACK): snap points acquired by resting the cursor on them (again: let go), the newest last.
@@ -684,13 +702,16 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     }
     const box = win.current;
     if (box?.on) {
-      // The selection window: solid left to right (inside), dashed right to left (crossing).
-      ctx.strokeStyle = snapC;
+      // The selection window: left to right picks what is inside (blue, solid), right to left what it crosses (green,
+      // dashed); its name beside the cursor.
+      const crossing = box.x2 < box.x;
+      ctx.strokeStyle = crossing ? snapC : colour('--res-cur', snapC);
       ctx.lineWidth = 1;
-      ctx.setLineDash(box.x2 < box.x ? [6, 4] : []);
+      ctx.setLineDash(crossing ? [6, 4] : []);
       if (ds.windowFill) { ctx.globalAlpha = 0.12; ctx.fillStyle = ctx.strokeStyle; ctx.fillRect(Math.min(box.x, box.x2), Math.min(box.y, box.y2), Math.abs(box.x2 - box.x), Math.abs(box.y2 - box.y)); ctx.globalAlpha = 1; }
       ctx.strokeRect(Math.min(box.x, box.x2) + 0.5, Math.min(box.y, box.y2) + 0.5, Math.abs(box.x2 - box.x), Math.abs(box.y2 - box.y));
       ctx.setLineDash([]);
+      tag(box.x2 + 12, box.y2 + 10, crossing ? 'Crossing' : 'Window');
     }
     // Grips; the one under the pick box (no command, or objects wanted) in the hover colour, and the box locks onto it.
     const hotGrip = at && modeRef.current !== 'point' && mouse.current ? gripUnder(mouse.current[0], mouse.current[1]) : -1;
@@ -701,7 +722,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     });
     // What a click would pick: an amber outline at 40 % over it (not while a grip is under the box).
     const hv = hoverRef.current;
-    if (hv && at && hotGrip < 0 && modeRef.current !== 'point') {
+    if (hv && !hv.picked && at && hotGrip < 0 && modeRef.current !== 'point' && !handRef.current) {
       ctx.save();
       ctx.globalAlpha = 0.4; ctx.strokeStyle = colour('--acc', snapC); ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.beginPath();
@@ -747,6 +768,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     }
     // The crosshair (not while objects are wanted) and the pick box (not while a point is): 1 px lines over a 3 px
     // outline in the canvas colour, so they read over lines of any colour. The crosshair stops 2 px outside the box.
+    if (handRef.current) return;
     const mode = modeRef.current;
     const lock = hotGrip >= 0 ? gripsRef.current[hotGrip] : undefined;
     const [lx, ly] = lock ? [(lock[0] - o0 - ox) * scale, size.h - (lock[1] - o1 - oy) * scale] : [sx, sy];
@@ -770,6 +792,16 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     };
     strokeCursor(colour('--cad-bg', BG), 3);
     strokeCursor(colour('--cad-cross', '#dbe4f5'), 1);
+    // Shift held with no command: + when a click would add the object under the box, − when it would take it off.
+    if (shiftRef.current && mode === 'ready' && hv && !lock) {
+      const bx = cx + pb / 2 + 2, by = cy - pb / 2 - 13;
+      ctx.fillStyle = colour('--panel', BG); ctx.fillRect(bx, by, 11, 11);
+      ctx.strokeStyle = colour('--line-strong', snapC); ctx.lineWidth = 1; ctx.strokeRect(bx, by, 11, 11);
+      ctx.strokeStyle = hv.picked ? colour('--bad', snapC) : snapC; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(bx + 2.5, by + 5.5); ctx.lineTo(bx + 8.5, by + 5.5);
+      if (!hv.picked) { ctx.moveTo(bx + 5.5, by + 2.5); ctx.lineTo(bx + 5.5, by + 8.5); }
+      ctx.stroke();
+    }
     if (!snap) return;
     const mx = (snap.p[0] - o0 - ox) * scale, my = size.h - (snap.p[1] - o1 - oy) * scale;
     ctx.beginPath();
@@ -902,7 +934,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
   // After zoom / pan: the cursor's drawing point moves, so it is tracked again. When only the marks change (a pick, the
   // cursor moving in a tool), they are redrawn without reporting the cursor back (that would loop).
   useEffect(() => { if (mouse.current) track(mouse.current[0], mouse.current[1]); else drawCursor(null); }, [t]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { drawCursor(mouse.current ? lastAt.current?.at ?? null : null, mouse.current ? lastAt.current?.snap : undefined, mouse.current ? lastAt.current?.guide : undefined); }, [marks, preview, theme, grips, draft, cursorMode, hover]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { drawCursor(mouse.current ? lastAt.current?.at ?? null : null, mouse.current ? lastAt.current?.snap : undefined, mouse.current ? lastAt.current?.guide : undefined); }, [marks, preview, theme, grips, draft, cursorMode, hover, hand, shiftOn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** The whole drawing in view, with a margin (FIT / ZE, 0, a double click of the wheel, the zoom chip). */
   const fitT = (): ViewT => {
@@ -963,7 +995,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       <canvas
         ref={over}
         className="cad-layer cad-over"
-        style={{ width: size.w, height: size.h }}
+        style={{ width: size.w, height: size.h, cursor: hand }}
         aria-label="Drawing"
         onWheel={(e) => {
           const [sx, sy] = local(e);
@@ -977,7 +1009,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
             e.preventDefault();
             const [x, y] = local(e);
             drag.current = { x, y, ox: tRef.current.ox, oy: tRef.current.oy };
-            setMoving(true);
+            setMoving(true); setPanning(true);
           } else if (e.button === 0 && windowSelect) {
             const [x, y] = local(e), v = tRef.current;
             const g = gripUnder(x, y, v);
@@ -997,6 +1029,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         onMouseUp={(e) => {
           const wasDrag = !!drag.current;
           drag.current = null;
+          setPanning(false);
           const w = win.current;
           win.current = null;
           const g = gripping.current;
@@ -1009,7 +1042,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         onContextMenu={(e) => { if (!onContext) return; e.preventDefault(); const [x, y] = local(e); onContext(toWorld(x, y), 1 / tRef.current.scale, [x, y], e.shiftKey); }}
         onDoubleClick={(e) => { if (e.button === 1) e.preventDefault(); else if (e.button === 0 && onDouble && !space.current) { const [x, y] = local(e); onDouble(toWorld(x, y), 1 / tRef.current.scale); } }}
         onAuxClick={(e) => { if (isFitClick(e)) fitNow(); }}
-        onMouseLeave={() => { drag.current = null; win.current = null; if (gripping.current !== null) { gripping.current = null; onGripEnd?.(-1, [0, 0]); } setMoving(false); mouse.current = null; drawCursor(null); onCursor(null); }}
+        onMouseLeave={() => { drag.current = null; setPanning(false); win.current = null; if (gripping.current !== null) { gripping.current = null; onGripEnd?.(-1, [0, 0]); } setMoving(false); mouse.current = null; drawCursor(null); onCursor(null); }}
       />
       {overlay?.((p) => [(p[0] - o0 - t.ox) * t.scale, size.h - (p[1] - o1 - t.oy) * t.scale], moving)}
       <ZoomChip pct={(t.scale / fitT().scale) * 100} onFit={fitNow} onZoom={onZoomMenu} />
