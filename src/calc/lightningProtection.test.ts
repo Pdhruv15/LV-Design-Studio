@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eseRadiusM, lightningProtection, lpsLayout, type LpsInputs } from './lightningProtection';
+import { eseRadiusM, lightningBoqLines, lightningProtection, lpsLayout, type LpsInputs } from './lightningProtection';
 
 // A 40 × 25 m flat roof, 18 m high. The class values are the engineer's own entries, as in a project.
 const base: LpsInputs = {
@@ -113,5 +113,16 @@ describe('lightning protection — concept (IEC 62305-3 methods; NFC 17-102 for 
     expect(lpsLayout(base, lightningProtection({ ...base, method: 'ese' })).terminals).toEqual([[20, 12.5]]);
     expect(lpsLayout(base, lightningProtection({ ...base, method: 'angle' })).terminals.length).toBe(60);
     expect(lpsLayout(base, lightningProtection({ ...base, meshM: undefined }))).toMatchObject({ meshX: [], terminals: [], downs: [] });
+  });
+
+  it('BOQ lines: the chosen method only, nothing with a zero quantity, nothing while data is missing', () => {
+    const mesh = lightningBoqLines(base);
+    expect(mesh.map((l) => [l.key, l.qty, l.unit])).toEqual([['lps:roof', 285, 'm'], ['lps:down', 234, 'm'], ['lps:joint', 13, 'no'], ['lps:pit', 13, 'no'], ['lps:ring', 130, 'm']]);
+    const ese = lightningBoqLines({ ...base, method: 'ese', earthPitPerDown: false });
+    expect(ese.map((l) => [l.key, l.qty])).toEqual([['lps:ese:5:60', 1], ['lps:down', 36], ['lps:joint', 2], ['lps:ring', 130]]);
+    expect(ese[0].description).toBe('Lightning protection — ESE air terminal, ΔT 60 µs, on a 5 m mast');
+    expect(lightningBoqLines({ ...base, method: 'sphere' }).find((l) => l.key === 'lps:rod:3')?.qty).toBe(12);
+    expect(lightningBoqLines({ ...base, meshM: undefined })).toEqual([]);
+    expect(lightningBoqLines({ ...base, lengthM: 0 })).toEqual([]);
   });
 });

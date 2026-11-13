@@ -46,6 +46,8 @@ export interface LpsInputs {
   eseDownPerTerminal?: number;
   /** An earth pit at the foot of each down conductor, as well as the ring conductor. */
   earthPitPerDown?: boolean;
+  /** Put the study's quantities in the project BOQ (not by default). */
+  inBoq?: boolean;
 }
 
 export type LpsStatus = 'ok' | 'warn' | 'data';
@@ -236,4 +238,24 @@ export function lpsLayout(i: Pick<LpsInputs, 'lengthM' | 'widthM'>, r: LpsResult
     out.downs.push(d < L ? [r2(d), 0] : d < L + W ? [L, r2(d - L)] : d < 2 * L + W ? [r2(2 * L + W - d), W] : [0, r2(per - d)]);
   }
   return out;
+}
+
+/** The study's quantities as BOQ lines, for the chosen method. Sizes and materials are left to the
+ * specification: the study does not design them. */
+export function lightningBoqLines(i: LpsInputs): { key: string; description: string; unit: 'm' | 'no'; qty: number }[] {
+  const r = lightningProtection(i);
+  if (r.invalid || r.selected.status === 'data') return [];
+  const n = (v: number | undefined) => (v ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const a = r.selected, pre = 'Lightning protection —';
+  const terminal = a.method === 'ese'
+    ? { key: `lps:ese:${i.eseMastM}:${i.eseDeltaTUs}`, description: `${pre} ESE air terminal, ΔT ${n(i.eseDeltaTUs)} µs, on a ${n(i.eseMastM)} m mast` }
+    : { key: `lps:rod:${i.rodHeightM}`, description: `${pre} air terminal rod, ${n(i.rodHeightM)} m, with base` };
+  return [
+    { key: 'lps:roof', description: `${pre} roof conductor (air termination network) with fixings; size to specification`, unit: 'm' as const, qty: a.roofConductorM },
+    { ...terminal, unit: 'no' as const, qty: a.terminals },
+    { key: 'lps:down', description: `${pre} down conductor with fixings; size to specification`, unit: 'm' as const, qty: r.downConductorM },
+    { key: 'lps:joint', description: `${pre} test joint`, unit: 'no' as const, qty: r.testJoints },
+    { key: 'lps:pit', description: `${pre} earth pit: earth electrode with inspection pit and cover, tested`, unit: 'no' as const, qty: r.earthPits },
+    { key: 'lps:ring', description: `${pre} ring earth conductor round the building; size to specification`, unit: 'm' as const, qty: r.ringConductorM }
+  ].filter((l) => l.qty > 0);
 }
