@@ -101,7 +101,7 @@ export function CadFilePaper({ layout, model, onDblClick, onContext }: {
       ctx.fillStyle = MODEL_INK;
       for (const t of model.info.texts) {
         if (on[t.layer] === false || t.x < x0 + mox || t.x > x1 + mox || t.y < y0 + moy || t.y > y1 + moy) continue;
-        text(ctx, t, toScreen(map.ps(t.x, t.y)), t.h * map.scale * layout.mm_per_unit * k);
+        text(ctx, t, toScreen(map.ps(t.x, t.y)), t.h * map.scale * layout.mm_per_unit * k, (t.w ?? 0) * map.scale * layout.mm_per_unit * k);
       }
       ctx.restore();
       ctx.strokeStyle = FRAME; ctx.lineWidth = 1;
@@ -118,7 +118,7 @@ export function CadFilePaper({ layout, model, onDblClick, onContext }: {
     }
     ctx.stroke();
     ctx.fillStyle = INK;
-    for (const t of layout.texts) text(ctx, t, toScreen([t.x, t.y]), t.h * layout.mm_per_unit * k);
+    for (const t of layout.texts) text(ctx, t, toScreen([t.x, t.y]), t.h * layout.mm_per_unit * k, (t.w ?? 0) * layout.mm_per_unit * k);
     ctx.restore();
   });
 
@@ -159,13 +159,14 @@ export function CadFilePaper({ layout, model, onDblClick, onContext }: {
 }
 
 /** A text at its insertion point (screen px), its height in px, rotated, aligned left / centre / right. */
-function text(ctx: CanvasRenderingContext2D, t: CadText, [x, y]: Pt, hPx: number) {
+function text(ctx: CanvasRenderingContext2D, t: CadText, [x, y]: Pt, hPx: number, wPx = 0) {
   if (!(hPx >= 2) || hPx > 2000) return;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-t.rot);
   ctx.font = `${hPx}px sans-serif`;
   ctx.textAlign = t.align === 1 ? 'center' : t.align === 2 ? 'right' : 'left';
+  if (wPx > 0) { const nat = ctx.measureText(t.s).width; if (nat > 0) ctx.scale(wPx / nat, 1); }
   ctx.fillText(t.s, 0, 0);
   ctx.restore();
 }

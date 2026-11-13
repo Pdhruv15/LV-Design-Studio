@@ -5,6 +5,7 @@ import SystemDiagram from '../components/SystemDiagram';
 import { lvTag, svgToDxf } from '../diagram/exportSvg';
 import { DXF_APP, toDxf, type DxfPrimitive } from './dxf';
 import { buildSheetDxf } from './sheetDxf';
+import { cableLines } from '../diagram/panelLabels';
 import { dxfExportProject } from '../../tests/fixtures/dxfExport';
 
 type Pair = { code: number; value: string };
@@ -99,5 +100,22 @@ describe('equipment tags in DXF', () => {
     expect(titleText.every((e) => tagOf(e) === 'sheet:1')).toBe(true);
     // Every object of the sheet is tagged, so an update can account for all of it.
     expect(entities(dxf).filter((e) => ['LINE', 'POLYLINE', 'CIRCLE', 'TEXT', 'SOLID'].includes(e[0].value)).every((e) => tagOf(e))).toBe(true);
+  });
+
+  it('keeps the two cable lines of each DEWA feeder apart in the CAD output', () => {
+    for (const cableRefs of [true, false]) {
+      const markup = renderToStaticMarkup(<SystemDiagram project={dxfExportProject} results={[]} selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} cableRefs={cableRefs} />);
+      const texts = svgToDxf(markup, 2000).filter((p) => p.type === 'text');
+      for (const f of dxfExportProject.feeders) {
+        const [l1, l2] = cableLines(dxfExportProject, f, cableRefs);
+        const one = texts.find((t) => t.type === 'text' && t.text.startsWith(l1));
+        const two = texts.find((t) => t.type === 'text' && t.text === l2 && one?.type === 'text' && Math.abs(t.x - one.x) < 1);
+        expect(one && two, `${f.id} cable lines found`).toBeTruthy();
+        if (one?.type !== 'text' || two?.type !== 'text') continue;
+        // DXF y runs up: the upper line's baseline must clear the top of the lower line's text.
+        const [upper, lower] = one.y > two.y ? [one, two] : [two, one];
+        expect(upper.y, `${f.id} refs=${cableRefs}`).toBeGreaterThanOrEqual(lower.y + lower.height);
+      }
+    }
   });
 });

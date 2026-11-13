@@ -14,7 +14,7 @@ import sampleFf from '../../../electron/samples/sample-villa-ff.dxf?url';
 
 export interface CadLayer { name: string; rgb: number; on: boolean; count: number }
 /** A text of the drawing; `o` is the model-space object it belongs to (its index, as `CadObject.id`). */
-export interface CadText { x: number; y: number; h: number; rot: number; s: string; layer: number; rgb: number; align: number; o?: number }
+export interface CadText { x: number; y: number; h: number; rot: number; s: string; layer: number; rgb: number; align: number; /** Width the text is fitted to (drawing units); 0 or absent: its natural width. */ w?: number; o?: number }
 export interface CadInfo {
   format: 'DWG' | 'DXF';
   units: number; // INSUNITS
