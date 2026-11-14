@@ -4,6 +4,7 @@ import { sampleProject } from '../data/sampleProject';
 import { buildFormWorkbook, workbookBytes } from './formWorkbook';
 import { buildMdSheet } from './mdSheet';
 import { buildDbSheet } from './dbSheet';
+import { applyReference, BUILT_IN_REFERENCES } from '../model/designReference';
 
 async function roundTrip(wb: ExcelJS.Workbook) {
   const back = new ExcelJS.Workbook();
@@ -18,6 +19,13 @@ const text = (ws: ExcelJS.Worksheet) => {
 };
 
 describe('submission workbook (Excel)', () => {
+  it("DB form: a DB with no board above it is fed from the project's authority", async () => {
+    const addc = applyReference(sampleProject, BUILT_IN_REFERENCES.find((r) => r.id === 'builtin-addc')!);
+    const alone = { ...addc, boards: addc.boards.map((b) => (b.id === 'DB-GF1' ? { ...b, upstreamId: undefined } : b.upstreamId ? b : { ...b, supply: { ...b.supply, fedFrom: undefined } })) };
+    const wb = await roundTrip(buildFormWorkbook(alone, { boardIds: ['DB-GF1'], forms: ['db'] }));
+    expect(text(wb.worksheets[0])).toContain('FED FROM : ADDC');
+  });
+
   it('submission order: TCL summary, MDB, SMDB, DB, then MCC', async () => {
     const wb = await roundTrip(buildFormWorkbook(sampleProject));
     expect(wb.worksheets.map((w) => w.name)).toEqual(['TCL SUMMARY', 'MDB-1 LOAD SUMMARY', 'SMDB-GF MD', 'SMDB-FF MD', 'DB-GF1 SCHEDULE', 'MCC-1 MD']);

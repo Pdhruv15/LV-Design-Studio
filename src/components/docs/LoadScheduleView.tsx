@@ -394,7 +394,7 @@ export default function LoadScheduleView({
                     <th rowSpan={2}>CCT wire mm²</th><th rowSpan={2}>ECC mm²</th><th rowSpan={2}>Room / area</th>
                     <th colSpan={columns.length}>Connected loads / points</th>
                     <th colSpan={3} className="shade">Load per circuit (W)</th>
-                    <th rowSpan={2} title="Not on the DEWA form — used only for voltage drop and earth-fault checks">Length (m)<br /><span className="m">calc only</span></th><th rowSpan={2}>Check</th><th rowSpan={2}>Remarks</th><th rowSpan={2}></th>
+                    <th rowSpan={2} title="Not on the authority form — used only for voltage drop and earth-fault checks">Length (m)<br /><span className="m">calc only</span></th><th rowSpan={2}>Check</th><th rowSpan={2}>Remarks</th><th rowSpan={2}></th>
                   </tr>
                   <tr>
                     {columns.map((t) => (
@@ -539,7 +539,7 @@ export default function LoadScheduleView({
           )}
           <p className="m note">
             ECC: the plain number is the IEC 60364-5-54 default; a starred size was chosen by hand ({data.rows.filter((r) => r.f.cpcMm2 !== undefined).length} set).
-            {' '}Length isn't on the DEWA form or its PDF — it's only used for the voltage drop and earth-fault checks (default 20 m).
+            {' '}Length isn't on the authority form or its PDF — it's only used for the voltage drop and earth-fault checks (default 20 m).
             {otherFeeders.length > 0 && ` Also on this board (not schedule circuits): ${otherFeeders.map((f) => f.id).join(', ')}.`}
           </p>
         </>

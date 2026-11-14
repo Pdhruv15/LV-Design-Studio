@@ -5,8 +5,17 @@ import { acbText, breakerSetting, buildTxSummary, ctFor, rowCtText } from './txS
 import { connectedPhaseKw } from './mdSheet';
 import { buildFormWorkbook, workbookBytes } from './formWorkbook';
 import type { Project } from '../types';
+import { applyReference, BUILT_IN_REFERENCES } from '../model/designReference';
 
 describe('TCL summary at transformer level', () => {
+  it("names the project's authority on the cable of a supply with no Fed from of its own", () => {
+    const addc = applyReference(sampleProject, BUILT_IN_REFERENCES.find((r) => r.id === 'builtin-addc')!);
+    const bare = { ...addc, boards: addc.boards.map((b) => (b.id === 'MDB-1' ? { ...b, supply: { ...b.supply, fedFrom: undefined, cable: undefined } } : b)) };
+    expect(buildTxSummary(bare).groups[0].rows[0].cable).toBe('BY ADDC');
+    const none = { ...bare, designReference: undefined };
+    expect(buildTxSummary(none).groups[0].rows[0].cable).toBe('BY DEWA');
+  });
+
   it('one row per transformer with setting, fault duty, loads, D.F and MDL', () => {
     const s = buildTxSummary(sampleProject);
     expect(s.groups.map((g) => g.name)).toEqual(['SUBSTATION-01']);

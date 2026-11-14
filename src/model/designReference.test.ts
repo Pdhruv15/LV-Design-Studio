@@ -3,7 +3,7 @@ import { sampleProject } from '../data/sampleProject';
 import { buildDesignBasis } from '../docs/designBasis';
 import {
   BUILT_IN_REFERENCES, REFERENCES_KEY, applyReference, appliedStatus, changedSinceApplied, duplicateReference, exportReferences, importReferences,
-  loadReferences, loadUserReferences, newReference, originOf, projectValue, referenceChanges, referenceIssues, referenceSourceOf, resolveReference, saveReference, saveUserReferences, settingSource, startChoices
+  loadReferences, loadUserReferences, newReference, originOf, projectValue, referenceChanges, referenceIssues, referenceSourceOf, resolveReference, saveReference, saveUserReferences, settingSource, startChoices, supplyAuthorityOf
 } from './designReference';
 import type { Project } from '../types';
 
@@ -190,5 +190,24 @@ describe('choosing at project start', () => {
     expect(settingSource({ ...p, vdLimitPct: 3 }, 'vdLimitPct', list)).toEqual({ text: 'Project value · BS 7671 v1 has 5 %', override: true });
     expect(settingSource(p, 'pfTarget', list)).toBeUndefined(); // BS 7671 does not set it
     expect(settingSource(base, 'vdLimitPct', list)).toBeUndefined();
+  });
+});
+
+describe('the supply authority named on the forms', () => {
+  it('comes from the applied set, or the authority a company set builds on; DEWA when none is applied', () => {
+    expect(supplyAuthorityOf(base)).toBe('DEWA');
+    expect(supplyAuthorityOf(applyReference(base, ref('builtin-dewa')))).toBe('DEWA');
+    expect(supplyAuthorityOf(applyReference(base, ref('builtin-addc')))).toBe('ADDC');
+    expect(supplyAuthorityOf(applyReference(base, ref('builtin-etihadwe')))).toBe('EtihadWE');
+    const mine = duplicateReference(ref('builtin-addc'), 'Office rules');
+    const list = [...BUILT_IN_REFERENCES, mine];
+    expect(supplyAuthorityOf(applyReference(base, mine, undefined, list), list)).toBe('ADDC');
+  });
+
+  it('is AUTHORITY for a standard, and goes by the name for a set this computer does not have', () => {
+    expect(supplyAuthorityOf(applyReference(base, ref('builtin-iec')))).toBe('AUTHORITY');
+    const gone: Project = { ...base, designReference: { id: 'ref-gone', name: 'My office ADDC', version: 3, appliedAt: '2026-11-14', values: {} } };
+    expect(supplyAuthorityOf(gone)).toBe('ADDC');
+    expect(supplyAuthorityOf({ ...gone, designReference: { ...gone.designReference!, name: 'Head office' } })).toBe('AUTHORITY');
   });
 });

@@ -9,6 +9,7 @@ import { applyRecommendation, breakerRatings, recommend } from '../calc/sizing';
 import { CABLE_TYPES, DEFAULT_CABLE_TYPE, type Board, type Feeder, type MeterType, type Project, type SpareWay, type SwitchDevice } from '../types';
 import { isDbBoard, spareLabel, spareWaysOf, updateSpareWay, type SparePatch } from '../model/spareWays';
 import { roleOf } from '../model/emergency';
+import { supplyAuthorityOf } from '../model/designReference';
 import { cellName, parseCount, parsePositive, STYLE, type SheetEdit, type SheetModel } from './sheet';
 import { feedersOn } from '../calc/network';
 
@@ -134,6 +135,7 @@ export function mdFormOf(project: Project, board: Board): { title: string; meter
 
 export function buildMdSheet(project: Project, boardId: string): MdSheet {
   const board = project.boards.find((b) => b.id === boardId)!;
+  const authority = supplyAuthorityOf(project);
   const upstream = board.upstreamId ? project.boards.find((b) => b.id === board.upstreamId) : undefined;
   const incomer = project.feeders.find((f) => f.feedsBoardId === boardId && f.boardId === board.upstreamId);
   const outgoing = project.feeders.filter((f) => f.boardId === boardId && !isScheduleCircuit(f));
@@ -204,7 +206,7 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
       line[at('sptp')] = 'TP';
       if (rating) line[at(s.device ?? 'MCCB')] = rating;
       if (s.faultKa) line[at('fault')] = s.faultKa;
-      line[at('cores')] = s.cable ?? `BY ${s.fedFrom ?? 'DEWA'}`;
+      line[at('cores')] = s.cable ?? `BY ${s.fedFrom ?? authority}`;
       merges[cellName(at('cores'), y)] = [3, 1];
       line[at('ecc')] = s.ecc ?? '';
       const m = s.meter ?? (rating ? suggestedMeter(rating, true) : undefined);
@@ -260,7 +262,7 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
   }));
 
   const kids = outgoing.filter((f) => f.feedsBoardId).map((f) => f.feedsBoardId!);
-  const supplyName = upstream ? upstream.id : board.supply?.fedFrom ? `${board.supply.fedFrom} METER CABINET` : 'DEWA METER CABINET';
+  const supplyName = upstream ? upstream.id : board.supply?.fedFrom ? `${board.supply.fedFrom} METER CABINET` : `${authority} METER CABINET`;
   const info = project.info ?? {};
   const groups = [
     { title: '', colspan: 2 },
@@ -303,7 +305,7 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
       owner: info.owner ?? '',
       consultant: info.consultant ?? '',
       plotNo: info.plotNo ?? '',
-      boardLine: `${board.id} (FED FROM ${upstream ? upstream.id : board.supply?.fedFrom ?? 'DEWA'})`,
+      boardLine: `${board.id} (FED FROM ${upstream ? upstream.id : board.supply?.fedFrom ?? authority})`,
       location: boardLocation(project, board),
       connectedTo: [`${board.kind ?? (upstream ? 'SMDB' : 'MDB')} CONNECTED TO: ${supplyName}`, ...(kids.length ? [`DB's CONNECTED TO: ${board.id}`] : [])],
       demandFactor: df,

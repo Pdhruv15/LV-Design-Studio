@@ -95,13 +95,13 @@ export interface PointTemplate {
 export const POINT_TEMPLATES: PointTemplate[] = [
   {
     id: 'dewa-villa',
-    name: 'DEWA villa (LTG, EX.FAN … FCU, SPUR, ISOL, OTH)',
+    name: 'Villa (LTG, EX.FAN … FCU, SPUR, ISOL, OTH)',
     columns: ['ltg', 'exfan', 'shaver', 's13', 's13t', 'wh', 'fcu', 'spur', 'isol', 'cooker', 'sac', 'pump', 'spare1'],
     labels: { s13: '13A S.S/O', sac: 'S A/C', spare1: 'OTH' }
   },
   {
     id: 'dewa-standard',
-    name: 'DEWA standard (LTG, C.FAN … W A/C, S A/C, OTHER 1–2)',
+    name: 'Standard (LTG, C.FAN … W A/C, S A/C, OTHER 1–2)',
     columns: ['ltg', 'cfan', 'exfan', 'shaver', 's13', 'wh', 'hd', 'cooker', 's15', 'wac', 'sac', 'pump', 'spare1', 'spare2']
   }
 ];

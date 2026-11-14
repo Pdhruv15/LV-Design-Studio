@@ -467,6 +467,20 @@ export function originOf(r: DesignReference, list: DesignReference[]): DesignRef
   return cur;
 }
 
+/** The supply authority's short name, for the wording on the forms and on a new main board ("BY DEWA", "DEWA
+ * METER CABINET"): from the set the project applied, or the authority that set builds on. DEWA for a project
+ * with none (the app's defaults); AUTHORITY where the set is a standard or a company's own. */
+export function supplyAuthorityOf(p: Pick<Project, 'designReference'>, list: DesignReference[] = loadReferences()): string {
+  const a = p.designReference;
+  if (!a) return 'DEWA';
+  const ref = list.find((r) => r.id === a.id);
+  const origin = ref && originOf(ref, list);
+  if (origin?.kind === 'authority') return authorityLabel(origin);
+  // A set this computer does not have, or one built on a standard: go by its name ("My office DEWA" → DEWA).
+  const word = (n: string) => new RegExp(`(^|[^A-Za-z0-9])${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^A-Za-z0-9])`, 'i');
+  return list.filter((r) => r.kind === 'authority').map(authorityLabel).find((n) => word(n).test(a.name)) ?? 'AUTHORITY';
+}
+
 export interface AuthorityChoice { authority: DesignReference; label: string; sets: DesignReference[] }
 export interface CountryChoice { country: string; authorities: AuthorityChoice[] }
 

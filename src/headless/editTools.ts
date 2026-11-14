@@ -12,6 +12,7 @@ import { pasteBoard } from '../model/copyBoard';
 import { boardAndDescendants, deleteBoard } from '../model/edit';
 import { removeDanglingReferences } from '../model/integrity';
 import { deleteCircuit } from '../model/schedule';
+import { supplyAuthorityOf } from '../model/designReference';
 import { BOARD_KINDS, LOAD_TYPES, type Board, type BoardKind, type Feeder, type LoadType, type Project } from '../types';
 import { openProject } from './project';
 import { circuitIssues, r, type Tool, type ToolContext } from './tools';
@@ -203,7 +204,7 @@ export const EDIT_TOOLS: Tool[] = [
       if (parent && a.transformerKva !== undefined) throw new Error('A transformer goes on a main board (no fedFrom).');
       const board: Board = {
         id, name: a.name ? String(a.name) : id, kind, ratedCurrentA: Number(a.ratedA ?? BOARD_RATING[kind]),
-        ...(parent ? { upstreamId: parent.id } : { supply: { fedFrom: 'DEWA' } }),
+        ...(parent ? { upstreamId: parent.id } : { supply: { fedFrom: supplyAuthorityOf(p) } }),
         ...(a.location ? { location: String(a.location) } : {}),
         ...(a.transformerKva !== undefined ? { sourceKva: Number(a.transformerKva), sourceImpedancePct: Number(a.impedancePct) } : {})
       };

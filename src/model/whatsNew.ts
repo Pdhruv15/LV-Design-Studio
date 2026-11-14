@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.129', date: '2026-11-14',
+    items: [
+      { title: 'Load schedule: forms name the project\'s authority', text: 'A new main board, and a supply with no Fed from of its own, now take the authority the project started with (ADDC, EtihadWE …) on the Connected load & MD form, the TCL summary and the Excel forms, in place of the fixed word DEWA. A project with no authority set keeps DEWA. The two point-column sets are named Villa and Standard.' }
+    ]
+  },
+  {
     version: '2.128', date: '2026-11-14',
     items: [
       { title: 'Design CAD: Annotate has its own sub-tab', text: 'Text, Dimension, Leader, Room tag, Keynote, North arrow, Revision cloud, Text style and Dim style moved from LVCAD to Annotate, the sub-tab beside it. On a layout\'s paper, and on a sheet with Show labels on, Annotate has the markup tools. Typing an annotation command, such as T or DIM, opens Annotate.', action: 'cad', actionLabel: 'Open Design CAD' },
