@@ -1,6 +1,21 @@
 # UI UX proposal – Load schedule formats by authority (2026-11-14)
 
-Status: **proposal, awaiting a decision.** Nothing here is built.
+Status: **proposal, partly answered on 2026-11-14** (see "Owner's answers" below). The table part comes first; the Sheets part is decided afterwards. Nothing here is built.
+
+## Owner's answers — 2026-11-14
+
+- **Order (decision 7):** fix the table format first, then think about the Sheets part. Decisions 1 and 5 belong to Sheets and wait with it.
+- **Changing the authority (decision 2):** allowed. The owner asked whether the table then updates by itself.
+  - Today it does for DB circuits: applying another set sizes every auto-sized circuit on every DB schedule again at once (`refreshBoard` after `applyReference`, `App.tsx`). Circuits marked Sized by hand keep their size. Limit remarks are rewritten by the sizing.
+  - Feeders between panels are not sized again by that step. To build: Change authority sizes them again too and reports how many circuits and feeders changed.
+- **Formats by authority (decision 3):** no authority-named formats. One **General** format set is built in and is the default for every authority, DEWA included. Read as: the two point-column sets stay, named without "DEWA", and the fixed word "DEWA" on the forms is replaced by the name of the project's authority.
+- **One format set per project (decision 4), with one table per panel category:** DB, SMDB, MDB, MCC and the load summary (and the busbar riser).
+  - Today: DB → load distribution schedule; MDB and the other main or metered boards → connected load, maximum demand and kWh metering; SMDB, MCC and the rest → connected load / maximum demand (one shared table); transformer level → TCL summary.
+  - New: SMDB and MCC become separate entries in the set, so each can have its own columns.
+- **Customising without Sheets:** a Columns screen per panel category (order, heading, show or hide), saved as an office format. It needs its own mockup.
+- **Still open:** which columns each panel category should have where they differ from today (a sample of the owner's MDB, SMDB, MCC and summary tables would settle it), and decision 6 (own columns in the table).
+
+The mockup below was drawn before these answers: its "DEWA villa form" and "DEWA standard form" become General, and sections 5 and 6 (Sheets) wait. A revised mockup of the table part follows once the open points are answered.
 
 Mockup: `docs/mockups/load-schedule-authority-formats-mockup.html` (image: `load-schedule-authority-formats-mockup.png`). Figures in it are examples.
 
