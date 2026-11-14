@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { geometryRows, geomKind, kindChoices, parseTyped, propValue, sharedValue, shownValue, textRows, withProp, type PropDef } from './cadProps';
+import { geometryRows, geomKind, hatchRows, kindChoices, kindLabel, parseTyped, propValue, sharedValue, shownValue, textRows, withProp, type PropDef } from './cadProps';
 import type { SketchItem } from '../types';
 
 const k = 0.001; // a drawing in mm
@@ -122,3 +122,30 @@ describe('properties palette: several objects, shown and typed values', () => {
   });
 });
 
+describe('properties palette: hatches', () => {
+  const h: SketchItem = { id: 'H', kind: 'pline', layer: 'LV-HATCH', closed: true, pts: [[0, 0], [10000, 0], [10000, 10000], [0, 10000]], hatch: { pattern: 'brick', scale: 3, angle: 30, origin: [1000, 2000] },
+    holes: [[[2000, 2000], [4000, 2000], [4000, 4000], [2000, 4000]]], assoc: ['S1', 'S2'] };
+  it('is a Hatch, with rows for pattern, spacing, angle, origin, islands, associative and net area', () => {
+    expect(kindLabel(h)).toBe('Hatch');
+    expect(kindLabel({ ...h, hatch: undefined })).toBe('Closed polyline');
+    expect(hatchRows().map((r) => r.label)).toEqual(['Pattern', 'Spacing (paper mm)', 'Angle', 'Origin X', 'Origin Y', 'Islands', 'Associative', 'Area']);
+    expect(hatchRows().filter((r) => r.ro).map((r) => r.key)).toEqual(['hpattern', 'hislands', 'harea']);
+    expect((['hpattern', 'hscale', 'hangle', 'hox', 'hoy', 'hislands', 'hassoc', 'harea'] as const).map((key) => propValue(h, key, k))).toEqual(['BRICK', 3, 30, 1, 2, '1', 'Yes', '96.00 m²']);
+    expect(propValue({ ...h, assoc: undefined, holes: undefined }, 'hislands', k)).toBe('0');
+    expect(propValue(line, 'hpattern', k)).toBeUndefined();
+  });
+  it('spacing, angle and origin are typed; Associative takes only Yes to No', () => {
+    expect(withProp(h, 'hscale', 4, k)!.hatch!.scale).toBe(4);
+    expect(withProp(h, 'hscale', 0, k)).toBeUndefined();
+    expect(withProp(h, 'hangle', -30, k)!.hatch!.angle).toBe(330);
+    expect(withProp(h, 'hox', 5, k)!.hatch!.origin).toEqual([5000, 2000]);
+    expect(withProp(h, 'hoy', 5, k)!.hatch!.origin).toEqual([1000, 5000]);
+    expect(withProp(h, 'hassoc', 'Yes', k)).toBeUndefined();
+    const off = withProp(h, 'hassoc', 'No', k)!;
+    expect(off.assoc).toBeUndefined();
+    expect(off.pts).toEqual(h.pts);
+    expect(withProp(off, 'hassoc', 'No', k)).toBeUndefined();
+    expect(withProp(h, 'hpattern', 'ansi31', k)).toBeUndefined();
+    expect(sharedValue([h, { ...h, id: 'H2', hatch: { ...h.hatch!, scale: 5 } }], 'hscale', k)).toBe('varies');
+  });
+});

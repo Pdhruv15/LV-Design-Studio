@@ -66,7 +66,10 @@ export function withProps(it: SketchItem, patch: ObjectProps & { layer?: string 
  * its own layer (the schedules find them by it). */
 export function matchedProps(from: SketchItem, to: SketchItem): SketchItem {
   const keepLayer = !!(to.tray || to.cable);
-  return withProps(to, { ...(keepLayer ? {} : { layer: from.layer }), color: from.color, lt: from.lt, lw: from.lw });
+  const m = withProps(to, { ...(keepLayer ? {} : { layer: from.layer }), color: from.color, lt: from.lt, lw: from.lw });
+  // A hatch to a hatch also takes the pattern, spacing and angle (not its origin, islands or boundary).
+  if (from.hatch && to.hatch) { const { custom: _c, ...own } = to.hatch; return { ...m, hatch: { ...own, pattern: from.hatch.pattern, scale: from.hatch.scale, angle: from.hatch.angle, ...(from.hatch.custom ? { custom: from.hatch.custom } : {}) } }; }
+  return m;
 }
 
 /** The layers a drawing's objects can go on: those of what is drawn here, then the app's usual ones, then the layers

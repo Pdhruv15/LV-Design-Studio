@@ -3,6 +3,7 @@ import { dimMeasure } from './cadSketch';
 import { parseFrame, parseJust, rejustified } from './cadText';
 import { noteAttached, noteFromText, parseAttach, plainText } from './cadMtext';
 import { cleanTag } from './cadAttributes';
+import { hatchArea } from './cadAnnotate';
 
 type Pt = [number, number];
 
@@ -14,12 +15,13 @@ type Pt = [number, number];
 export type GeomKind = 'line' | 'pline' | 'circle' | 'arc' | 'ellipse' | 'cloud' | 'tray' | 'cable' | 'text' | 'mtext' | 'dim' | 'dimang' | 'point' | 'insert' | 'attdef';
 export const geomKind = (it: SketchItem): GeomKind => (it.tray ? 'tray' : it.cable ? 'cable' : it.cloud ? 'cloud' : it.dimKind === 'angular' ? 'dimang' : it.kind);
 /** What an object is, as the palette and the toolbar beside it name it. */
-export const kindLabel = (it: SketchItem) => (it.tray ? 'Cable tray' : it.cable ? 'Cable route' : it.cloud ? 'Revision cloud'
+export const kindLabel = (it: SketchItem) => (it.hatch ? 'Hatch' : it.tray ? 'Cable tray' : it.cable ? 'Cable route' : it.cloud ? 'Revision cloud'
   : it.kind === 'dim' ? (it.dimKind ? { radius: 'Radius dimension', diameter: 'Diameter dimension', angular: 'Angular dimension' }[it.dimKind] : 'Dimension')
   : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', ellipse: 'Ellipse', text: 'Text', mtext: 'Note', point: 'Point', insert: 'Block', attdef: 'Attribute' }[it.kind]); 
 
 export type PropKey = 'sx' | 'sy' | 'ex' | 'ey' | 'len' | 'ang' | 'cx' | 'cy' | 'r' | 'a0' | 'a1' | 'rx' | 'ry' | 'arc' | 'vx' | 'vy' | 'closed' | 'width' | 'service'
-  | 'text' | 'h' | 'rot' | 'just' | 'frame' | 'mask' | 'measured' | 'override' | 'boxw' | 'attach' | 'block' | 'bscale' | 'tag' | 'prompt';
+  | 'text' | 'h' | 'rot' | 'just' | 'frame' | 'mask' | 'measured' | 'override' | 'boxw' | 'attach' | 'block' | 'bscale' | 'tag' | 'prompt'
+  | 'hpattern' | 'hscale' | 'hangle' | 'hox' | 'hoy' | 'hislands' | 'hassoc' | 'harea';
 export interface PropDef { key: PropKey; label: string; unit?: 'm' | 'deg'; ro?: boolean; text?: boolean }
 
 const L = (key: PropKey, label: string, more: Partial<PropDef> = {}): PropDef => ({ key, label, unit: 'm', ...more });
@@ -54,6 +56,11 @@ export function textRows(kind: GeomKind): PropDef[] {
   if (kind === 'dimang') return [A('measured', 'Measured', { ro: true }), T('override', 'Text override'), L('h', 'Text height')];
   return [];
 }
+
+/** The Hatch rows (when every object picked is a hatch): pattern, spacing on paper (mm), angle, the pattern's origin,
+ * islands, whether it follows its boundary, and its net area. */
+export const hatchRows = (): PropDef[] => [T('hpattern', 'Pattern', { ro: true }), { key: 'hscale', label: 'Spacing (paper mm)' }, A('hangle', 'Angle'), L('hox', 'Origin X'), L('hoy', 'Origin Y'),
+  T('hislands', 'Islands', { ro: true }), T('hassoc', 'Associative'), T('harea', 'Area', { ro: true })];
 
 const len = (pts: Pt[], closed?: boolean) => pts.slice(1).reduce((t, q, i) => t + Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1]), 0) + (closed && pts.length > 2 ? Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) : 0);
 const deg = (a: number) => (((a * 180) / Math.PI) % 360 + 360) % 360;
@@ -96,6 +103,14 @@ export function propValue(it: SketchItem, key: PropKey, k: number, v = 0): numbe
     case 'attach': return it.kind === 'mtext' ? it.just ?? 'TL' : undefined;
     case 'h': return it.h !== undefined ? it.h * k : undefined;
     case 'rot': return deg(it.rot ?? 0);
+    case 'hpattern': return it.hatch ? (it.hatch.custom?.name ?? it.hatch.pattern.toUpperCase()) : undefined;
+    case 'hscale': return it.hatch?.scale;
+    case 'hangle': return it.hatch ? deg(rad(it.hatch.angle)) : undefined;
+    case 'hox': return it.hatch ? (it.hatch.origin?.[0] ?? 0) * k : undefined;
+    case 'hoy': return it.hatch ? (it.hatch.origin?.[1] ?? 0) * k : undefined;
+    case 'hislands': return it.hatch ? String(it.holes?.length ?? 0) : undefined;
+    case 'hassoc': return it.hatch ? (it.assoc?.length ? 'Yes' : 'No') : undefined;
+    case 'harea': return it.hatch ? `${(hatchArea(it) * k * k).toFixed(2)} m²` : undefined;
     case 'measured': return it.dimKind === 'angular' ? measuredOf(it) : measuredOf(it) * k;
     // A dimension of a style has text only when typed over; one drawn before styles keeps its length as its text.
     case 'override': return it.look ? it.text ?? '' : it.text !== undefined && it.text !== (measuredOf(it) * k).toFixed(2) ? it.text : '';
@@ -161,6 +176,11 @@ export function withProp(it: SketchItem, key: PropKey, value: number | string, k
     case 'boxw': { if (!num || it.kind !== 'mtext') return undefined; const { w: _w, ...rest } = it; return u > 0 ? { ...rest, w: u } : rest; }
     case 'attach': { const j = parseAttach(String(value)); return j && it.kind === 'mtext' ? noteAttached(it, j) : undefined; }
     case 'rot': return num && (it.kind === 'text' || it.kind === 'mtext' || it.kind === 'insert' || it.kind === 'attdef') ? { ...it, rot: rad(n) } : undefined;
+    case 'hscale': return num && n > 0 && it.hatch ? { ...it, hatch: { ...it.hatch, scale: n } } : undefined;
+    case 'hangle': return num && it.hatch ? { ...it, hatch: { ...it.hatch, angle: deg(rad(n)) } } : undefined;
+    case 'hox': case 'hoy': return num && it.hatch ? { ...it, hatch: { ...it.hatch, origin: [key === 'hox' ? u : it.hatch.origin?.[0] ?? 0, key === 'hoy' ? u : it.hatch.origin?.[1] ?? 0] } } : undefined;
+    // Associative: only Yes → No is taken (the hatch keeps its shape); tying one to objects is done when it is made.
+    case 'hassoc': { if (!it.hatch || !it.assoc?.length || String(value) !== 'No') return undefined; const { assoc: _a, ...rest } = it; return rest; }
     case 'bscale': return num && n > 0 && it.kind === 'insert' ? { ...it, sc: n } : undefined;
     case 'just': { const j = parseJust(String(value)); return j && it.kind === 'text' ? rejustified(it, j) : j && it.kind === 'attdef' ? { ...it, ...(j === 'L' ? { just: undefined } : { just: j }) } : undefined; }
     case 'frame': { const f = parseFrame(String(value)); if (!f || it.kind !== 'text') return undefined; const { frame: _f, ...rest } = it; return f === 'none' ? rest : { ...rest, frame: f }; }

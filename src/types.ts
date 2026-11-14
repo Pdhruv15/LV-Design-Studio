@@ -504,6 +504,10 @@ export interface SketchItem {
   lw?: number;
   /** A hatch: the closed outline is filled with this pattern (src/model/cadAnnotate.ts). */
   hatch?: import('./model/cadAnnotate').HatchSpec;
+  /** A hatch's islands (inner loops, kept clear; a loop inside an island is hatched again). */
+  holes?: [number, number][][];
+  /** An associative hatch: the ids of the drawn objects it was made from, [outer, ...islands] (src/model/cadHatchAssoc.ts). */
+  assoc?: string[];
   /** A leader: an arrow at the first point. */
   leader?: boolean;
   /** A dimension drawn with a dimension style: its arrows, gap and extension (src/model/cadStyles.ts). */
