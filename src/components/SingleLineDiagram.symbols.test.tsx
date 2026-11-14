@@ -18,7 +18,7 @@ describe('Board view symbols', () => {
     const svg = view('SMDB-FF');
     expect(svg).toContain('>IT</text>'); // FF-IT: IT / data equipment box
     expect(svg).toContain('>L</text>'); // FF-LAB: other load
-    expect(svg.match(/<g class="iec">/g)!.length).toBeGreaterThanOrEqual(8); // a breaker and a symbol per circuit
+    expect(svg.match(/<g class="iec"/g)!.length).toBeGreaterThanOrEqual(8); // a breaker and a symbol per circuit
   });
 
   it('draws the board\'s panel symbol above a way that feeds a board (SMDB-GF → DB-GF1)', () => {

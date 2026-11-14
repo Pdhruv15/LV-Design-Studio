@@ -155,24 +155,30 @@ const SVG_PAINT: Record<SymCls, string> = {
 };
 const xmlText = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-/** A library symbol as a black-on-white SVG string (printed sheets and DXF),
- * body centre at (x, y); side labels are left off. */
-export function symSvg(id: SymbolId, x: number, y: number, s = 1): string {
+/** The drawing of a library symbol as SVG elements, body centre at (x, y), `flip` mirroring it top to bottom
+ * as Sym does; side labels are left off. */
+export function symBody(id: SymbolId, x: number, y: number, s = 1, flip = false): string {
   const X = (u: number) => n(x + (u - SYM_CX) * s);
-  const Y = (v: number) => n(y + (v - SYM_CY) * s);
+  const Y = (v: number) => n(y + (v - SYM_CY) * (flip ? -s : s));
   const map = (u: number, v: number): [number, number] => [X(u), Y(v)];
   return (SYMBOLS[id].prims as SymPrim[]).map((q) => {
     const paint = q.k === 't' ? '' : SVG_PAINT[q.c ?? (q.k === 'p' ? 'ln' : 'sym')];
     switch (q.k) {
-      case 'p': return `<path d="${placePath(q.d, map, s)}" ${paint}/>`;
+      case 'p': return `<path d="${placePath(q.d, map, s, flip)}" ${paint}/>`;
       case 'c': return `<circle cx="${X(q.cx)}" cy="${Y(q.cy)}" r="${n(q.r * s)}" ${paint}/>`;
       case 'e': return `<ellipse cx="${X(q.cx)}" cy="${Y(q.cy)}" rx="${n(q.rx * s)}" ry="${n(q.ry * s)}" ${paint}/>`;
-      case 'r': return `<rect x="${X(q.x)}" y="${Y(q.y)}" width="${n(q.w * s)}" height="${n(q.h * s)}" ${paint}/>`;
+      case 'r': return `<rect x="${X(q.x)}" y="${flip ? Y(q.y + q.h) : Y(q.y)}" width="${n(q.w * s)}" height="${n(q.h * s)}" ${paint}/>`;
       case 't':
         if (q.side) return '';
         return `<text x="${X(q.x)}" y="${n(Y(q.y) + (q.b ? 4 : 3))}" fill="#000" font-family="Arial, Helvetica, sans-serif" font-size="${q.b ? 11 : 7.5}"${q.b ? ' font-weight="bold"' : ''} text-anchor="middle">${xmlText(q.s)}</text>`;
     }
   }).join('');
+}
+
+/** A library symbol as a black-on-white SVG string (printed sheets and DXF): symBody in a group that
+ * names the symbol, so the DXF export can insert it as a block. */
+export function symSvg(id: SymbolId, x: number, y: number, s = 1, flip = false): string {
+  return `<g class="iec" data-sym="${id}" data-sym-x="${n(x)}" data-sym-y="${n(y)}" data-sym-s="${s}"${flip ? ' data-sym-flip="1"' : ''}>${symBody(id, x, y, s, flip)}</g>`;
 }
 
 const CLASS: Record<SymCls, string> = { ln: 'ln', sym: 'sym', open: 'sym-open', fill: 'sym-fill', thick: 'ln thick', dash: 'ln' };
@@ -185,7 +191,7 @@ export function Sym({ id, x, y, s = 1, labels = false, flip = false }: { id: Sym
   const Y = (v: number) => n(y + (v - SYM_CY) * (flip ? -s : s));
   const map = (u: number, v: number): [number, number] => [X(u), Y(v)];
   return (
-    <g className="iec">
+    <g className="iec" data-sym={id} data-sym-x={x} data-sym-y={y} data-sym-s={s} data-sym-flip={flip ? 1 : undefined}>
       {(SYMBOLS[id].prims as SymPrim[]).map((q, i) => {
         const cls = q.k === 't' ? '' : CLASS[q.c ?? (q.k === 'p' ? 'ln' : 'sym')];
         const style = q.k !== 't' && q.c === 'dash' ? DASH : undefined;
@@ -196,7 +202,7 @@ export function Sym({ id, x, y, s = 1, labels = false, flip = false }: { id: Sym
           case 'r': return <rect key={i} x={X(q.x)} y={flip ? Y(q.y + q.h) : Y(q.y)} width={n(q.w * s)} height={n(q.h * s)} className={cls} style={style} />;
           case 't':
             if (q.side && !labels) return null;
-            return <text key={i} x={X(q.x)} y={Y(q.y) + (q.b ? 4 : 3)} textAnchor={q.side ? 'start' : 'middle'} className={q.b ? 'iec-t b' : 'iec-t s'}>{q.s}</text>;
+            return <text key={i} x={X(q.x)} y={Y(q.y) + (q.b ? 4 : 3)} textAnchor={q.side ? 'start' : 'middle'} className={q.b ? 'iec-t b' : 'iec-t s'} data-sym-side={q.side ? 1 : undefined}>{q.s}</text>;
         }
       })}
     </g>

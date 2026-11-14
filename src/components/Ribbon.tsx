@@ -223,7 +223,7 @@ export interface CadTab { id: string; label: string; groups: number[]; sheet?: n
   /** The small tools named as well, without Show labels (LVCAD and Annotate: their panels fill the row with their names). */
   smallNamed?: boolean }
 /** Design CAD's sub-tabs. As shown (the main tools named under their icons, the small ones on hover): LVCAD, the
- * drafting panels in the order of the layout the user chose; Annotate beside it (its own sub-tab since v2.127: on LVCAD
+ * drafting panels in the order of the layout the user chose; Annotate beside it (its own sub-tab since v2.128: on LVCAD
  * the row had grown wider than the window); and Electrical, ELV & sheets, which on the sheets pages has every sheet
  * tool. With Show labels every tool is named and needs about twice the room, so the panels take more sub-tabs. On a
  * layout's paper, Annotate shows the markup instead. File (open, save, close) is a menu beside them. */

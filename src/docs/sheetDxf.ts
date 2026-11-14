@@ -60,7 +60,7 @@ function placeSvg(svg: string, box: DxfBox, layer?: string, centre = true): { it
       case 'polyline': return { ...p, layer: L, points: p.points.map(([a, b]) => [X(a), Y(b)]), ...lt(run(p.points, p.closed)), ...(p.width ? { width: p.width * s } : {}) };
       case 'circle': return { ...p, layer: L, x: X(p.x), y: Y(p.y), r: p.r * s, ...lt(2 * Math.PI * p.r * s) };
       case 'text': return { ...p, layer: L, x: X(p.x), y: Y(p.y), height: p.height * s, ...(p.width ? { width: p.width * s } : {}) };
-      default: return p; // an SVG holds no block inserts
+      case 'insert': return { ...p, layer: L, x: X(p.x), y: Y(p.y), scale: (p.scale ?? 1) * s, ...(p.extent ? { extent: [[X(p.extent[0][0]), Y(p.extent[0][1])], [X(p.extent[1][0]), Y(p.extent[1][1])]] as [[number, number], [number, number]] } : {}) };
     }
   });
   return { items, usedH: dh, scale: s };
