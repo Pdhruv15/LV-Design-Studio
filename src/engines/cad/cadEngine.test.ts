@@ -85,6 +85,14 @@ describe('CAD engine (Rust, WebAssembly)', () => {
     expect(gf.info.fills).toEqual([]); // the sample villa has none
   });
 
+  it('reads back the dashed linetypes of a sheet DXF', async () => {
+    const svg = '<svg viewBox="0 0 400 160"><line class="ln" stroke-dasharray="5 4" x1="10" y1="20" x2="300" y2="20"/></svg>';
+    const page = buildSheetDxfPages(sampleProject, svg, 'A3', { no: 'E-SLD-01', title: 'SLD', index: 1, count: 1 })[0];
+    const d = await openDrawing('sheet.dxf', new TextEncoder().encode(page.data));
+    expect(d.info.linetypes.some((l) => l[0] > 0 && l[1] < 0)).toBe(true);
+    expect(d.segLinetypes.some((v) => v > 0)).toBe(true);
+  });
+
   it('keeps a reference\'s texts and fills, and Bind saves them into a copy of the plan as texts and hatches', async () => {
     const g = await readRefGeometry('linetypes-hatches.dxf', bytes('tests/fixtures/cad/linetypes-hatches.dxf'));
     expect(g.fills!.map((f) => [f.solid, f.loops[0].length, f.lines.length])).toEqual([[true, 4, 0], [false, 4, 1]]);
