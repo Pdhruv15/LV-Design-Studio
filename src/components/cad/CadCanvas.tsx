@@ -681,9 +681,13 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     const c = over.current, ctx = c?.getContext('2d');
     if (!c || !ctx) return;
     const dpr = window.devicePixelRatio || 1;
-    if (c.width !== Math.round(size.w * dpr)) { c.width = Math.round(size.w * dpr); c.height = Math.round(size.h * dpr); }
+    // Sized to the canvas on a change of height alone too, and cleared whole: rows left below a shorter canvas were never
+    // cleared, so what crossed them while zooming (rubber bands, previews, grips) piled up as a smear along the bottom.
+    const w = Math.round(size.w * dpr), h = Math.round(size.h * dpr);
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, c.width, c.height);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, size.w, size.h);
     const { scale, ox, oy } = tRef.current;
     const snapC = colour('--cad-snap', '#37d67a');
     const mk = marksRef.current;
@@ -945,9 +949,9 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     if (toggles.osnap) void view.snap(raw[0], raw[1], aperture(v), draftRef.current.osnap, layersOn, lastPicked()).then(done);
     else done(null);
   }
-  // After zoom / pan: the cursor's drawing point moves, so it is tracked again. When only the marks change (a pick, the
-  // cursor moving in a tool), they are redrawn without reporting the cursor back (that would loop).
-  useEffect(() => { if (mouse.current) track(mouse.current[0], mouse.current[1]); else drawCursor(null); }, [t]); // eslint-disable-line react-hooks/exhaustive-deps
+  // After zoom / pan, or the canvas resized: the cursor's drawing point moves, so it is tracked again. When only the
+  // marks change (a pick, the cursor moving in a tool), they are redrawn without reporting the cursor back (that would loop).
+  useEffect(() => { if (mouse.current) track(mouse.current[0], mouse.current[1]); else drawCursor(null); }, [t, size.w, size.h]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { drawCursor(mouse.current ? lastAt.current?.at ?? null : null, mouse.current ? lastAt.current?.snap : undefined, mouse.current ? lastAt.current?.guide : undefined); }, [marks, preview, theme, grips, draft, cursorMode, hover, hand, shiftOn, still]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** The whole drawing in view, with a margin (FIT / ZE, 0, a double click of the wheel, the zoom chip). */
