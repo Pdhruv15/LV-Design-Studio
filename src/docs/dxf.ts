@@ -4,9 +4,9 @@
 /** Width is a physical stroke width for lines/polylines, and an exact fitted
  * baseline length for text. All widths are in the same drawing units as x/y. */
 export type DxfPrimitive = (
-  | { type: 'line'; layer: string; x1: number; y1: number; x2: number; y2: number; width?: number }
-  | { type: 'polyline'; layer: string; points: [number, number][]; closed?: boolean; width?: number }
-  | { type: 'circle'; layer: string; x: number; y: number; r: number }
+  | { type: 'line'; layer: string; x1: number; y1: number; x2: number; y2: number; width?: number; linetype?: string; dashed?: boolean }
+  | { type: 'polyline'; layer: string; points: [number, number][]; closed?: boolean; width?: number; linetype?: string; dashed?: boolean; /** Bulge of the segment that starts at each vertex (tan of a quarter of its arc angle). */ bulges?: number[] }
+  | { type: 'circle'; layer: string; x: number; y: number; r: number; linetype?: string; dashed?: boolean }
   | { type: 'text'; layer: string; x: number; y: number; height: number; text: string; align?: 'left' | 'center' | 'right'; rotation?: number; width?: number }
   | { type: 'insert'; layer: string; name: string; x: number; y: number; scale?: number; rotation?: number; block: DxfBlock; attribs: DxfAttrib[]; extent?: [[number, number], [number, number]] }
 ) & {
@@ -35,6 +35,13 @@ export const DXF_LAYERS: Record<string, number> = {
   RESULT: 4, // cyan
   FRAME: 7,
   TITLE: 7
+};
+
+/** Linetypes the writer can define: dash and gap lengths in drawing units (mm on a sheet). `dashed` on a primitive
+ * marks an element to be drawn dashed; the caller that knows the paper scale picks the name. */
+export const LINETYPES: Record<string, { description: string; pattern: number[] }> = {
+  'LV-DASHED': { description: 'Dashed', pattern: [3, -1.5] },
+  'LV-DASHED2': { description: 'Dashed (short)', pattern: [1.5, -0.75] }
 };
 
 const n = (v: number) => (Math.abs(v) < 1e-9 ? '0' : v.toFixed(4).replace(/\.?0+$/, ''));
@@ -151,14 +158,24 @@ export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number
   g(0, 'SECTION'); g(2, 'HEADER');
   g(9, '$ACADVER'); g(1, 'AC1009');
   g(9, '$FILLMODE'); g(70, 1);
+  // Linetypes used by entities, including those inside block definitions.
+  const usedLinetypes = new Set<string>();
+  const noteLinetype = (i: DxfPrimitive) => { if ('linetype' in i && i.linetype && LINETYPES[i.linetype]) usedLinetypes.add(i.linetype); };
+  for (const i of items) { noteLinetype(i); if (i.type === 'insert') for (const b of i.block.items) noteLinetype(b); }
+  if (usedLinetypes.size) { g(9, '$LTSCALE'); g(40, 1); }
   if (opts.insunits) { g(9, '$INSUNITS'); g(70, opts.insunits); }
   g(9, '$EXTMIN'); g(10, hasPoints ? minX : 0); g(20, hasPoints ? minY : 0); g(30, 0);
   g(9, '$EXTMAX'); g(10, hasPoints ? maxX : 0); g(20, hasPoints ? maxY : 0); g(30, 0);
   g(0, 'ENDSEC');
 
   g(0, 'SECTION'); g(2, 'TABLES');
-  g(0, 'TABLE'); g(2, 'LTYPE'); g(70, 1);
+  g(0, 'TABLE'); g(2, 'LTYPE'); g(70, 1 + usedLinetypes.size);
   g(0, 'LTYPE'); g(2, 'CONTINUOUS'); g(70, 0); g(3, 'Solid line'); g(72, 65); g(73, 0); g(40, 0);
+  for (const name of usedLinetypes) {
+    const { description, pattern } = LINETYPES[name];
+    g(0, 'LTYPE'); g(2, name); g(70, 0); g(3, description); g(72, 65); g(73, pattern.length); g(40, pattern.reduce((a, v) => a + Math.abs(v), 0));
+    for (const v of pattern) g(49, v);
+  }
   g(0, 'ENDTAB');
   g(0, 'TABLE'); g(2, 'LAYER'); g(70, layers.length);
   for (const l of layers) { g(0, 'LAYER'); g(2, l); g(70, 0); g(62, layerColours[l] ?? 7); g(6, 'CONTINUOUS'); }
@@ -180,9 +197,14 @@ export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number
 
   // Extended data comes last in an entity's group codes.
   const xdata = (tag?: string) => { if (tag) { g(1001, DXF_APP); g(1000, tag); } };
-  const polyline = (layer: string, vertices: [number, number][], closed: boolean, tag?: string) => {
-    g(0, 'POLYLINE'); g(8, layer); g(66, 1); g(10, 0); g(20, 0); g(30, 0); g(70, closed ? 1 : 0); xdata(tag);
-    for (const [x, y] of vertices) { g(0, 'VERTEX'); g(8, layer); g(10, x); g(20, y); g(30, 0); }
+  const ltype = (name?: string) => { if (name && LINETYPES[name]) g(6, name); };
+  const polyline = (layer: string, vertices: [number, number][], closed: boolean, tag?: string, linetype?: string, bulges?: number[]) => {
+    const patterned = !!linetype && !!LINETYPES[linetype];
+    g(0, 'POLYLINE'); g(8, layer); ltype(linetype); g(66, 1); g(10, 0); g(20, 0); g(30, 0); g(70, (closed ? 1 : 0) | (patterned ? 128 : 0)); xdata(tag);
+    vertices.forEach(([x, y], j) => {
+      g(0, 'VERTEX'); g(8, layer); g(10, x); g(20, y); g(30, 0);
+      if (bulges?.[j]) g(42, bulges[j]);
+    });
     g(0, 'SEQEND'); g(8, layer);
   };
   const solids = (i: DxfStrokePrimitive) => {
@@ -210,13 +232,13 @@ export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number
   const entity = (i: DxfPrimitive) => {
     if (i.type === 'line') {
       if (positiveWidth(i.width)) solids(i);
-      else { g(0, 'LINE'); g(8, i.layer); g(10, i.x1); g(20, i.y1); g(30, 0); g(11, i.x2); g(21, i.y2); g(31, 0); xdata(i.tag); }
+      else { g(0, 'LINE'); g(8, i.layer); ltype(i.linetype); g(10, i.x1); g(20, i.y1); g(30, 0); g(11, i.x2); g(21, i.y2); g(31, 0); xdata(i.tag); }
     } else if (i.type === 'circle') {
-      g(0, 'CIRCLE'); g(8, i.layer); g(10, i.x); g(20, i.y); g(30, 0); g(40, i.r); xdata(i.tag);
+      g(0, 'CIRCLE'); g(8, i.layer); ltype(i.linetype); g(10, i.x); g(20, i.y); g(30, 0); g(40, i.r); xdata(i.tag);
     } else if (i.type === 'polyline') {
       if (i.points.length < 2) return;
       if (positiveWidth(i.width)) solids(i);
-      else polyline(i.layer, i.points, !!i.closed, i.tag);
+      else polyline(i.layer, i.points, !!i.closed, i.tag, i.linetype, i.bulges);
     } else if (i.type === 'text') {
       if (!dxfText(i.text).trim()) return;
       const fit = positiveWidth(i.width) ? fittedBaseline(i) : undefined;
