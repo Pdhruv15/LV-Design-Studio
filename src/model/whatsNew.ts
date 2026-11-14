@@ -21,6 +21,12 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.122', date: '2026-11-13',
+    items: [
+      { title: 'SLD CAD export: real dashed lines', text: 'Dashed frames and lines in exported DXF and DWG drawings are now single lines with a dashed linetype, not hundreds of short pieces, and rounded corners stay rounded.' }
+    ]
+  },
+  {
     version: '2.120', date: '2026-11-13',
     items: [
       { title: 'Design CAD: fitted text in its place', text: 'Text fitted between two points, as in SLD drawings exported from the app, now opens in Design CAD at its own place and width instead of half its length to the right.' }
