@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Load schedule formats by authority mockup</title>
+<style>
+/* Graphite dark tokens, same as the load schedule source tools mockup */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--warn:#f5c04a;--new:#b784ff;--mv:#4fb3a5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.35 -apple-system,"Segoe UI",system-ui,sans-serif;width:1952px;padding:16px 20px 20px}
+h1{font-size:17px;margin:0 0 4px}
+h2{font-size:13px;margin:18px 0 6px;font-weight:600}
+h2 .n{display:inline-block;width:18px;height:18px;line-height:18px;border-radius:50%;background:var(--acc);color:#1D2024;text-align:center;font-size:11px;margin-right:7px}
+p.lead{margin:0 0 8px;color:var(--mut);max-width:1500px}
+.legend{color:var(--mut);font-size:12px;margin:0}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin:0 5px 0 0}
+.legend i.n{border:1.5px dashed var(--new)}
+.legend i.p{border:1px solid var(--line-strong)}
+.legend span{margin-right:18px}
+svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.i{width:12px;height:12px;vertical-align:-2px}
+.frame{border:1px solid var(--line-strong);border-radius:8px;background:var(--panel)}
+.pad{padding:12px 14px}
+.row{display:flex;gap:22px;align-items:flex-start;width:1912px}
+.new{outline:1.5px dashed var(--new);outline-offset:-1.5px}
+.mut{color:var(--mut)}
+.small{font-size:11px}
+.cap{font-size:11px;color:var(--mut);margin-bottom:5px}
+.ttl{font-size:13px;font-weight:600;margin:0 0 8px}
+/* flow */
+.flow{display:flex;gap:8px;align-items:center;width:1912px}
+.fb{padding:10px 12px;flex:none}
+.fb .ln{padding:2px 0}
+.fb .ln.new{padding:2px 6px;display:inline-block}
+.fb .dn{display:block;margin:1px 0 1px 8px;color:var(--mut)}
+.stack{display:flex;flex-direction:column;gap:6px;flex:1}
+.stack .frame{height:56px;padding:8px 12px;display:flex;align-items:center;font-size:12px}
+.flow>svg.fan{flex:none}
+.flow>svg.ar{flex:none;width:30px;height:14px;color:var(--mut)}
+.centre{text-align:center;color:var(--mut);margin-top:10px;font-size:12px}
+.centre svg{margin:0 6px}
+/* selects */
+.lb2{font-size:11px;color:var(--mut);margin-bottom:3px}
+.sel{display:flex;align-items:center;justify-content:space-between;height:28px;padding:0 10px;border:1px solid var(--line-strong);border-radius:6px;background:var(--p2);font-size:12px;white-space:nowrap}
+.sel svg{color:var(--mut)}
+.tags{display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start}
+.tag{padding:3px 10px;border:1px solid var(--line-strong);border-radius:999px;font-size:11px;background:var(--p2);white-space:nowrap}
+.menu{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:4px;font-size:12px;white-space:nowrap}
+.menu div{padding:6px 10px;border-radius:5px}
+.menu div.hi{background:rgba(245,179,1,.18)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+.menu .tk{display:inline-block;width:16px;color:var(--acc);vertical-align:-1px}
+.warnbox{border-left:4px solid var(--warn);background:var(--p2);border-radius:4px;padding:8px 12px;font-size:12px;margin-top:14px}
+/* grids */
+table.g{border-collapse:collapse;table-layout:fixed}
+.g td,.g th{border:1px solid var(--line);height:24px;padding:0 5px;white-space:nowrap;font-size:12px;text-align:center;font-weight:400}
+.g th,.g td.h{background:var(--p2);color:var(--mut);font-size:10px;font-weight:600;line-height:1.15;white-space:normal;padding:2px}
+.g td.l{text-align:left}
+.g td.wr{white-space:normal;font-size:10px;line-height:1.2}
+.g td.vt{writing-mode:vertical-rl;letter-spacing:.02em}
+.g td.t{font-weight:700}
+.g .sub{display:block;font-weight:400;font-size:9.5px;color:var(--mut)}
+.g.sh td{font-size:11px;height:24px;padding:0 4px;position:relative}
+.g.sh td.f{background:#2b2f35}
+.g.sh td.b{font-weight:700}
+.g.sh td.chg{box-shadow:inset 0 0 0 2px var(--warn)}
+.g.sh td.chg::after{content:"";position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:var(--warn)}
+.g.sh td.cur{outline:2px solid var(--acc);outline-offset:-2px}
+.g.sh td.h .lk{display:block;font-size:9.5px;font-weight:400;color:var(--mv);margin-top:2px}
+.g.sh td.h .lk.pu{color:var(--new)}
+.g.sh th.co,.g.sh th.rh{font-size:10px;font-weight:400;height:20px;padding:0}
+.g td.hl{outline:1px solid var(--acc);outline-offset:-1px}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+.g.rl td{font-size:12px;text-align:left}
+.g.rl td.m{color:var(--mut)}
+.chip{display:inline-block;padding:4px 11px;border-radius:6px;font-size:12px;border:1px solid var(--line-strong);white-space:nowrap}
+.chip.a{background:var(--acc);color:#1D2024;border-color:var(--acc);font-weight:600}
+.strip{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:var(--p2);border:1px solid var(--line);border-radius:6px;margin-bottom:10px;font-size:12px}
+.strip .r{display:flex;gap:8px}
+/* settings */
+.kv{display:flex;justify-content:space-between;padding:6px 8px;border-bottom:1px solid var(--line);font-size:12px}
+.kv span:first-child{color:var(--mut)}
+.dlg{background:var(--panel);box-shadow:0 8px 24px rgba(0,0,0,.4);border:1px solid var(--line-strong);border-radius:8px;padding:14px 18px}
+.dlg table{border-collapse:collapse;width:100%;font-size:12px;margin:8px 0}
+.dlg th{text-align:left;font-weight:400;color:var(--mut);font-size:11px;padding:4px 8px;border-bottom:1px solid var(--line-strong)}
+.dlg td{padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.cbx{display:flex;align-items:center;gap:8px;font-size:12px;margin:10px 0}
+.cbx svg{width:16px;height:16px;flex:none}
+.btns{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+/* sheets */
+.tabs{display:flex;gap:4px;padding:6px 10px 0}
+.tabs span{padding:6px 16px;color:var(--mut)}
+.tabs span.on{color:var(--tx);box-shadow:inset 0 -2px 0 var(--acc);background:none;font-weight:600}
+.tools{display:flex;padding:4px 8px;background:var(--p2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.grp{display:flex;flex-direction:column;gap:2px;padding:0 8px;border-right:1px solid var(--line)}
+.grp:last-child{border-right:0}
+.grp .bt{display:flex;gap:2px}
+.grp .gn{font-size:11px;color:var(--mut);text-align:center;white-space:nowrap}
+.bb{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:84px;height:60px;border-radius:6px;font-size:11px;line-height:1.15;text-align:center}
+.bb svg{width:20px;height:20px}
+.bb.pr{outline:1.5px solid var(--acc);outline-offset:-1.5px}
+.fbar{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:12px}
+.fbar .nb{border:1px solid var(--line-strong);background:var(--p2);padding:2px 10px;border-radius:4px;width:60px}
+.fbar .fx{color:var(--mut);font-style:italic}
+.tip{max-width:250px;padding:6px 8px;background:var(--panel);border:1px solid var(--line-strong);border-left:3px solid var(--warn);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:12px;line-height:1.35;color:var(--mut);text-align:left;white-space:normal}
+.tip b{display:block;color:var(--tx);font-weight:600}
+.stabs{display:flex;align-items:center;gap:4px;padding:6px 10px}
+.stabs span.s{padding:4px 14px;border:1px solid var(--line);border-radius:0 0 6px 6px;font-size:12px;color:var(--mut)}
+.stabs span.s.on{color:var(--tx);background:var(--p2);border-color:var(--line-strong)}
+.stabs .sp{flex:1}
+.map .ml{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 0;font-size:11px}
+.map .ml .sel{width:236px;height:24px;font-size:11px}
+.map .ml .sel.pu{color:var(--new);border-color:var(--new)}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);margin-right:6px}
+/* settings card (7) */
+.bar1{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--line);border-radius:6px;margin-bottom:6px;font-size:12px;background:var(--p2)}
+.radio{display:inline-block;width:12px;height:12px;border:1.5px solid var(--mut);border-radius:50%;vertical-align:-2px;margin-right:6px}
+.radio.on{border-color:var(--acc);background:radial-gradient(var(--acc) 38%,transparent 42%)}
+.lvl{padding:10px 12px;border:1px solid var(--line-strong);border-radius:6px;background:var(--p2)}
+.lvl b{display:block}
+.dn2{display:flex;justify-content:center;color:var(--mut);padding:3px 0}
+.notes{margin-top:18px;display:grid;grid-template-columns:repeat(6,1fr);gap:10px;width:1912px}
+.notes div{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:9px 11px;font-size:12px;color:var(--mut)}
+.notes b{color:var(--tx);display:block;margin-bottom:3px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="chev" viewBox="0 0 12 12"><path d="M3 4.5l3 3 3-3"/></symbol>
+<symbol id="arr" viewBox="0 0 12 12"><path d="M2 6h8M7 3l3 3-3 3"/></symbol>
+<symbol id="arrd" viewBox="0 0 12 12"><path d="M6 2v8M3 7l3 3 3-3"/></symbol>
+<symbol id="arru" viewBox="0 0 12 12"><path d="M6 10V2M3 5l3-3 3 3"/></symbol>
+<symbol id="tick" viewBox="0 0 12 12"><path d="M2.5 6.5l2.5 2.5 4.5-5.5"/></symbol>
+<symbol id="lock" viewBox="0 0 12 12"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></symbol>
+<symbol id="ic1" viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M3 9h14M9 3v14"/></symbol>
+<symbol id="ic2" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M7 10l2 2 4-4"/></symbol>
+<symbol id="ic3" viewBox="0 0 20 20"><path d="M4 10a6 6 0 0 1 10-4M14 3v3h-3M16 10a6 6 0 0 1-10 4M6 17v-3h3"/></symbol>
+<symbol id="ic4" viewBox="0 0 20 20"><path d="M3 5h14M3 10h14M3 15h9"/></symbol>
+</svg>
+
+<h1>Load schedule formats by authority — mockup (2026-11-14)</h1>
+<p class="lead">One authority set is chosen when the project starts: its rules, its cable / breaker limits and its schedule format. The Load schedule table, Sheets and the Excel and PDF output all read the one copy kept in the project.</p>
+<div class="legend"><span><i class="n"></i>new in this proposal</span><span><i class="p"></i>exists today</span></div>
+
+<h2><span class="n">1</span>How it fits together</h2>
+<div class="flow">
+  <div class="frame fb" style="width:270px"><div class="cap">New project</div>
+    <div class="ln">Country</div><svg class="i dn"><use href="#arrd"/></svg><div class="ln">Authority</div><svg class="i dn"><use href="#arrd"/></svg><div class="ln">Rule set</div><svg class="i dn"><use href="#arrd"/></svg><div class="ln new">Schedule format</div></div>
+  <svg class="ar"><use href="#arr" width="30" height="14"/></svg>
+  <div class="frame fb" style="width:430px"><div class="cap">Authority set · Standards {>} Design references</div>
+    <div class="ln">Design values and rule rows</div><div class="ln">Cable / breaker limits — Tables 1–3</div><div class="ln new" style="margin-top:2px">Schedule formats</div></div>
+  <svg class="ar"><use href="#arr" width="30" height="14"/></svg>
+  <div class="frame fb" style="width:330px"><div class="cap">Copied into the project and kept</div>
+    <div>DEWA (Dubai) v1 · DEWA villa form</div><div class="mut small" style="margin-top:4px">Changes only through Change authority</div></div>
+  <svg class="fan" width="44" height="180" viewBox="0 0 44 180" style="color:var(--mut)">
+    <path d="M0 90C20 90 18 28 38 28M0 90H38M0 90C20 90 18 152 38 152"/><path d="M33 23l5 5-5 5M33 85l5 5-5 5M33 147l5 5-5 5"/></svg>
+  <div class="stack">
+    <div class="frame">Load schedule tab — the working table, columns in the format's order</div>
+    <div class="frame new">Sheets — the same board laid out as the form, with linked cells, a Rules sheet and your own columns</div>
+    <div class="frame">Excel and PDF — printed from the format</div>
+  </div>
+</div>
+<div class="centre">Customise by copying:  Built-in authority form {>} Your office form {>} This project only</div>
+
+<h2><span class="n">2</span>New project — Authority and design rules, with one more choice</h2>
+<div class="row" style="gap:20px">
+<div class="frame pad" style="width:1340px">
+  <div class="ttl">Authority and design rules</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 380px;gap:8px 12px">
+    <div><div class="lb2">Country</div><div class="sel"><span>United Arab Emirates</span>{c}</div></div>
+    <div><div class="lb2">Authority</div><div class="sel"><span>DEWA — Dubai</span>{c}</div></div>
+    <div><div class="lb2">Rule set</div><div class="sel"><span>DEWA (Dubai) — built-in v1</span>{c}</div></div>
+    <div><div class="lb2">Schedule format</div><div class="sel new"><span>DEWA villa form — built-in</span>{c}</div></div>
+    <div class="tags" style="grid-column:1/4;grid-row:2;padding-top:6px">
+      <span class="tag">415 V · 50 Hz</span><span class="tag">Ambient 45 °C</span><span class="tag">VD 4 %</span><span class="tag">Min wire 2.5 / 4 mm²</span><span class="tag">ELCB 100 / 30 mA</span><span class="tag new">Cable / breaker limits: DEWA Tables 1–3, size up</span></div>
+    <div class="menu new" style="grid-column:4;grid-row:2">
+      <div class="hi"><span class="tk">{t}</span>DEWA villa form — built-in</div>
+      <div><span class="tk"></span>DEWA standard form — built-in</div>
+      <div><span class="tk"></span>My office DEWA form — yours, builds on DEWA villa form</div>
+      <div><span class="tk"></span>General form — built-in</div>
+      <hr>
+      <div><span class="tk"></span>New from an Excel file…</div></div>
+  </div>
+  <div class="new" style="margin-top:12px;padding:10px">
+    <div class="ttl" style="margin-bottom:6px">Schedule format preview — DB load schedule</div>
+    <table class="g" style="width:100%">
+      <colgroup><col style="width:56px"><col style="width:56px"><col style="width:32px"><col style="width:36px"><col style="width:48px"><col style="width:54px"><col style="width:54px"><col style="width:80px"><col style="width:40px"><col style="width:48px"><col style="width:48px"><col style="width:46px"><col style="width:46px"><col style="width:40px"><col style="width:40px"><col style="width:44px"><col style="width:40px"><col style="width:56px"><col style="width:44px"><col style="width:66px"><col style="width:40px"><col style="width:56px"><col span="3" style="width:40px"><col style="width:106px"></colgroup>
+      <tr><th rowspan="2">RATING OF INCOMER</th><th rowspan="2">RATING OF ELCB</th><th rowspan="2">SL NO.</th><th rowspan="2">CIR NO.</th><th rowspan="2">MCB RAT. IN AMPS</th><th rowspan="2">CCT WIRE SIZE (mm²)</th><th rowspan="2">ECC WIRE SIZE (mm²)</th><th rowspan="2">ROOM / AREA</th><th colspan="13">CONNECTED LOAD / POINTS</th><th rowspan="2">WATTS / UNIT</th><th colspan="3">LOAD / CIRCUIT (WATTS)</th><th rowspan="2">REMARKS</th></tr>
+      <tr><th>LTG</th><th>EX.FAN</th><th>SH.S/O</th><th>13A S.S/O</th><th>13A T.S/O</th><th>W/H</th><th>FCU</th><th>SPUR O/L</th><th>ISOL</th><th>COOKER</th><th>S A/C</th><th>WAT.PUMP</th><th>OTH</th><th>R</th><th>Y</th><th>B</th></tr>
+    </table>
+    <div class="mut" style="margin-top:6px;font-size:12px">Forms in this set: DB load schedule · Connected load and MD · TCL summary · Busbar riser</div>
+  </div>
+  <div class="mut" style="margin-top:8px;font-size:12px">Kept with the project. After the project starts it changes only through Project settings {>} Change authority.</div>
+</div>
+<div class="frame pad" style="width:550px">
+  <div class="ttl">Another authority</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div><div class="lb2">Country</div><div class="sel"><span>United Arab Emirates</span>{c}</div></div>
+    <div><div class="lb2">Authority</div><div class="sel"><span>ADDC — Abu Dhabi</span>{c}</div></div>
+    <div><div class="lb2">Rule set</div><div class="sel"><span>ADDC (Abu Dhabi) — built-in v2</span>{c}</div></div>
+    <div><div class="lb2">Schedule format</div><div class="sel new"><span>General form — built-in</span>{c}</div></div>
+  </div>
+  <div class="warnbox">The ADDC form is not in the app yet. Start on the General form, or open your ADDC Excel file in Sheets and save it as a format.</div>
+</div>
+</div>
+
+<h2><span class="n">3</span>Project settings — the authority is fixed; changing it is a deliberate step</h2>
+<div class="row" style="gap:22px">
+<div class="frame pad" style="width:640px">
+  <div class="ttl">Authority</div>
+  <div class="kv"><span>Authority</span><span>DEWA (Dubai) v1</span></div>
+  <div class="kv"><span>Rule set</span><span>DEWA (Dubai) — built-in v1</span></div>
+  <div class="kv"><span>Cable / breaker limits</span><span>DEWA Tables 1–3 · size up</span></div>
+  <div class="kv new"><span>Schedule format</span><span>DEWA villa form</span></div>
+  <div class="kv"><span>Applied</span><span>14/11/2026</span></div>
+  <div style="display:flex;align-items:center;gap:12px;margin-top:12px"><span class="chip new">Change authority…</span><span class="mut small">Values and rows are edited in Standards {>} Design references.</span></div>
+</div>
+<div>
+<div class="dlg new" style="width:820px">
+  <div class="ttl" style="font-size:14px">Change authority</div>
+  <div style="margin-bottom:4px">DEWA (Dubai) v1 {>} ADDC (Abu Dhabi) v2</div>
+  <table>
+    <tr><th colspan="2">What will change</th></tr>
+    <tr><td>Design values</td><td>3 differ</td></tr>
+    <tr><td>Rule rows</td><td>2 added</td></tr>
+    <tr><td>Cable / breaker limits</td><td>DEWA Tables 1–3 {>} none (as per calculation)</td></tr>
+    <tr><td>Schedule format</td><td>DEWA villa form {>} General form</td></tr>
+    <tr><td>Circuits sized again</td><td>148</td></tr>
+    <tr><td>Board sheets rebuilt in Sheets</td><td>12</td></tr>
+    <tr><td>Revision</td><td>A note is added: Authority changed from DEWA to ADDC</td></tr>
+  </table>
+  <div class="cbx"><svg viewBox="0 0 16 16"><rect x="1.5" y="1.5" width="13" height="13" rx="2.5"/><path d="M4.5 8.5l2.5 2.5 4.5-5.5" stroke="var(--acc)"/></svg>Schedules already issued will change. I have checked the list above.</div>
+  <div class="btns"><span class="chip">Cancel</span><span class="chip a">Change authority</span></div>
+</div>
+<div class="mut small" style="margin-top:5px">Figures are examples.</div>
+</div>
+</div>
+
+<h2><span class="n">4</span>Load schedule tab — the table follows the project's format</h2>
+<div class="frame pad" style="width:1912px">
+  <div class="strip new"><span>Format: DEWA villa form · DEWA (Dubai) v1 · Limits: DEWA Tables 1–3, size up</span><span class="r"><span class="chip">Open in Sheets</span><span class="chip">Change format…</span></span></div>
+  <table class="g">
+    <colgroup><col style="width:70px"><col style="width:80px"><col style="width:36px"><col style="width:40px"><col style="width:44px"><col style="width:48px"><col style="width:48px"><col style="width:180px"><col span="5" style="width:50px"><col style="width:60px"><col span="3" style="width:50px"><col style="width:330px"><col style="width:70px"><col style="width:60px"></colgroup>
+    <tr><th rowspan="2">RATING OF INCOMER</th><th rowspan="2">RATING OF ELCB</th><th rowspan="2">SL NO.</th><th rowspan="2">CIR NO.</th><th rowspan="2">MCB RAT. IN AMPS</th><th rowspan="2">CCT WIRE SIZE (mm²)</th><th rowspan="2">ECC WIRE SIZE (mm²)</th><th rowspan="2">ROOM / AREA</th><th colspan="5">CONNECTED LOAD / POINTS</th><th rowspan="2">WATTS / UNIT</th><th colspan="3">LOAD / CIRCUIT (WATTS)</th><th rowspan="2">REMARKS</th><th rowspan="2">LENGTH (m)<span class="sub">table only</span></th><th rowspan="2">CHECK<span class="sub">table only</span></th></tr>
+    <tr><th>LTG</th><th>EX.FAN</th><th>13A T.S/O</th><th>COOKER</th><th>S A/C</th><th>R</th><th>Y</th><th>B</th></tr>
+    <tr style="height:26px"><td rowspan="5" class="vt">63 A ISOLATOR TP+N</td><td rowspan="2" class="wr">ELCB-1 40 A 100 mA</td><td>1</td><td>R1</td><td>10</td><td>2.5</td><td>2.5</td><td class="l">LIVING, DINING</td><td>12</td><td></td><td></td><td></td><td></td><td>60</td><td>720</td><td></td><td></td><td class="l"></td><td>18</td><td class="mut">ok</td></tr>
+    <tr><td>2</td><td>Y1</td><td>10</td><td>2.5</td><td>2.5</td><td class="l">BEDROOM 1, 2</td><td>10</td><td>2</td><td></td><td></td><td></td><td>60</td><td></td><td>700</td><td></td><td class="l"></td><td>22</td><td class="mut">ok</td></tr>
+    <tr><td rowspan="3" class="wr">ELCB-2 63 A 30 mA</td><td>3</td><td>B1</td><td>20</td><td>4</td><td>4</td><td class="l">KITCHEN</td><td></td><td></td><td>4</td><td></td><td></td><td>200</td><td></td><td></td><td>800</td><td class="l"></td><td>15</td><td class="mut">ok</td></tr>
+    <tr><td>4</td><td>R2</td><td>32</td><td>10</td><td>10</td><td class="l">KITCHEN COOKER</td><td></td><td></td><td></td><td>1</td><td></td><td>6000</td><td>6000</td><td></td><td></td><td class="l hl">DEWA Table 1: 10 mm² for 32 A (6 mm² max 30 A)</td><td>12</td><td class="mut">ok</td></tr>
+    <tr><td>5</td><td>Y2</td><td>20</td><td>4</td><td>4</td><td class="l">BEDROOM 1 A/C</td><td></td><td></td><td></td><td></td><td>1</td><td>1800</td><td></td><td>1800</td><td></td><td class="l"></td><td>20</td><td class="mut">ok</td></tr>
+    <tr><td colspan="7"></td><td class="t l">TOTAL CONNECTED LOAD (W)</td><td></td><td></td><td></td><td></td><td></td><td></td><td class="t">6720</td><td class="t">2500</td><td class="t">800</td><td></td><td></td><td></td></tr>
+  </table>
+  <div style="display:flex;align-items:flex-start;margin-top:6px">
+    <div class="mut small" style="width:960px">Other point columns not drawn.</div>
+    <div style="display:flex;align-items:flex-start;gap:8px;margin-top:-2px"><svg class="i" style="color:var(--acc);margin-top:6px"><use href="#arru"/></svg><div class="mut" style="font-size:12px;max-width:470px;padding:4px 10px;border:1px solid var(--acc);border-radius:6px">The limit comes from the project's authority set. The sizing made the wire larger and wrote this remark (exists today).</div></div>
+  </div>
+  <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
+    <div class="cap">The same board with “My office DEWA form” chosen:</div>
+    <table class="g new" style="width:100%;table-layout:auto"><tr>
+      <th>SL NO.</th><th>CIR NO.</th><th style="width:220px">DESCRIPTION</th><th>MCB (A)</th><th>CABLE (mm²)</th><th>ECC (mm²)</th><th>LTG</th><th>EX.FAN</th><th>13A T.S/O</th><th>COOKER</th><th>S A/C</th><th>R</th><th>Y</th><th>B</th><th class="new" style="min-width:110px;height:34px">TOTAL (W)<span class="sub">your formula column</span></th><th>ELCB</th><th>REMARKS</th></tr></table>
+    <div class="mut" style="margin-top:6px;font-size:12px">Order, headings and hidden columns come from the format. Circuits, sizes and checks stay the same. Hidden here: Rating of incomer (shown above the table), Watts / unit.</div>
+  </div>
+</div>
+
+<h2><span class="n">5</span>Sheets — the same board laid out as the authority form</h2>
+<div class="row" style="gap:22px">
+<div class="frame" style="width:1460px;padding-bottom:4px">
+  <div class="tabs"><span>File</span><span>Home</span><span class="on">Electrical</span><span>Formulas</span><span>Data</span><span>Review</span></div>
+  <div class="tools">
+    <div class="grp"><div class="bt"><div class="bb"><svg><use href="#ic1"/></svg>Link columns</div><div class="bb"><svg><use href="#ic2"/></svg>Apply to project</div><div class="bb"><svg><use href="#ic3"/></svg>Refresh from project</div><div class="bb"><svg><use href="#ic4"/></svg>Show linked cells</div></div><div class="gn">Project link</div></div>
+    <div class="grp"><div class="bt"><div class="bb"><svg><use href="#ic1"/></svg>Cable size</div><div class="bb"><svg><use href="#ic2"/></svg>Breaker rating</div><div class="bb"><svg><use href="#ic4"/></svg>Demand factor</div></div><div class="gn">Look up</div></div>
+    <div class="grp"><div class="bt"><div class="bb"><svg><use href="#ic2"/></svg>Check sheet</div><div class="bb"><svg><use href="#ic1"/></svg>Cable loading</div><div class="bb"><svg><use href="#ic3"/></svg>Phase balance</div></div><div class="gn">Check</div></div>
+    <div class="grp"><div class="bt"><div class="bb pr"><svg><use href="#ic4"/></svg>Authority format</div><div class="bb"><svg><use href="#ic1"/></svg>My office format</div><div class="bb"><svg><use href="#ic2"/></svg>New from template</div></div><div class="gn">Sheets for a board</div></div>
+  </div>
+  <div class="fbar"><span class="nb">S8</span><span class="fx">fx</span><span class="mono">=MAXBREAKER(F8)</span></div>
+  <div style="padding:0 10px"><div id="sheet5"></div></div>
+  <div class="stabs"><span class="s on">DB-GF</span><span class="s">DB-FF</span><span class="s">SMDB-1</span><span class="s new">Rules <svg class="i"><use href="#lock"/></svg></span><span class="s">+ New sheet</span><span class="sp"></span><span style="font-size:12px"><span class="dot"></span>1 linked cell changed</span><span class="chip a">Apply to project</span></div>
+</div>
+<div class="frame pad new map" style="width:430px">
+  <div class="ttl">Your column {>} project field</div>
+  <div class="ml"><span>A  RATING OF INCOMER</span><span class="sel"><span>Incomer</span>{c}</span></div>
+  <div class="ml"><span>B  RATING OF ELCB</span><span class="sel"><span>ELCB group</span>{c}</span></div>
+  <div class="ml"><span>C  SL NO.</span><span class="sel"><span>Serial number</span>{c}</span></div>
+  <div class="ml"><span>D  CIR NO.</span><span class="sel"><span>Circuit reference</span>{c}</span></div>
+  <div class="ml"><span>E  MCB RAT. IN AMPS</span><span class="sel"><span>MCB rating, A</span>{c}</span></div>
+  <div class="ml"><span>F  CCT WIRE SIZE</span><span class="sel"><span>Circuit wire, mm²</span>{c}</span></div>
+  <div class="ml"><span>G  ECC WIRE SIZE</span><span class="sel"><span>Earth wire, mm²</span>{c}</span></div>
+  <div class="ml"><span>H  ROOM / AREA</span><span class="sel"><span>Room / area</span>{c}</span></div>
+  <div class="ml"><span>I–M  POINTS</span><span class="sel"><span>Number of points</span>{c}</span></div>
+  <div class="ml"><span>N  WATTS / UNIT</span><span class="sel"><span>Watts per unit</span>{c}</span></div>
+  <div class="ml"><span>O–Q  R, Y, B</span><span class="sel"><span>Load per phase, W</span>{c}</span></div>
+  <div class="ml"><span>R  REMARKS</span><span class="sel"><span>Remarks</span>{c}</span></div>
+  <div class="ml"><span>S  MAX MCB (TABLE)</span><span class="sel pu"><span>Your column · formula</span>{c}</span></div>
+  <div class="ml"><span>T  ROUTE</span><span class="sel pu"><span>Your column · kept with each circuit</span>{c}</span></div>
+  <div class="mut small" style="margin:8px 0">Row 6 repeats for every circuit and spare.</div>
+  <div style="display:flex;gap:8px"><span class="chip a">Save as my format…</span><span class="chip">Reset to DEWA villa form</span></div>
+</div>
+</div>
+
+<h2><span class="n">6</span>The Rules sheet — the authority's settings inside Sheets (read only)</h2>
+<div class="row" style="gap:22px">
+<div class="frame pad new" style="width:900px">
+  <div class="strip" style="justify-content:flex-start;gap:8px"><svg class="i"><use href="#lock"/></svg>Rules — DEWA (Dubai) v1 · from the project · read only. To change a value: Standards {>} Design references.</div>
+  <div style="display:flex;gap:12px;align-items:flex-start"><div id="rules1"></div><div id="rules2"></div></div>
+</div>
+<div class="frame pad new" style="width:990px">
+  <div class="ttl">Using the rules in your own columns</div>
+  <table class="g rl" style="width:100%;table-layout:auto">
+    <tr><th style="text-align:left;padding:4px 8px">Formula</th><th style="text-align:left;padding:4px 8px">Gives</th><th style="text-align:left;padding:4px 8px">What it is</th></tr>
+    <tr><td class="mono">=MAXBREAKER(F8)</td><td>20</td><td>Largest breaker the table allows on the wire in F8 (4 mm²)</td></tr>
+    <tr><td class="mono">=MINWIRE(E8)</td><td>10</td><td>Smallest wire the table allows for the breaker in E8 (40 A)</td></tr>
+    <tr><td class="mono">=RULE("VD limit")</td><td>4</td><td>A design value of the project's authority set</td></tr>
+    <tr><td class="mono">=IF(E8&lt;=MAXBREAKER(F8),"OK","CHECK")</td><td>CHECK</td><td>Your own pass / fail column</td></tr>
+    <tr><td class="mono">=VLOOKUP(F8,Rules!A13:B19,2,0)</td><td>20</td><td>A plain look-up into the Rules sheet</td></tr>
+  </table>
+  <div class="mut" style="margin-top:8px;font-size:12px">In a saved .xlsx the Rules sheet is written as plain values with the authority set's name, version and date. MAXBREAKER, MINWIRE and RULE keep their last values there.</div>
+</div>
+</div>
+
+<h2><span class="n">7</span>Standards {>} Design references — a Schedule formats card</h2>
+<div class="row" style="gap:22px">
+<div class="frame pad" style="width:1340px">
+  <div class="ttl">DEWA (Dubai) — built-in v1</div>
+  <div class="bar1"><span>Design values</span><span class="mut">13</span></div>
+  <div class="bar1"><span>Rule rows</span><span class="mut">0</span></div>
+  <div class="bar1"><span>Cable / breaker limits</span><span class="mut">DEWA Tables 1–3 · Size the cable up and add a remark</span></div>
+  <div class="new" style="border-radius:6px;padding:10px 12px;margin-top:8px">
+    <div class="ttl" style="margin-bottom:6px">Schedule formats</div>
+    <table class="g rl" style="width:100%;table-layout:auto">
+      <tr><th style="text-align:left;padding:4px 8px">Form</th><th style="text-align:left;padding:4px 8px">Format</th><th style="text-align:left;padding:4px 8px">From</th><th style="text-align:left;padding:4px 8px">New projects</th></tr>
+      <tr><td>DB load schedule</td><td>DEWA villa form</td><td>Built-in</td><td><span class="radio on"></span>Default</td></tr>
+      <tr><td>DB load schedule</td><td>DEWA standard form</td><td>Built-in</td><td><span class="radio"></span></td></tr>
+      <tr style="background:rgba(245,179,1,.18)"><td>DB load schedule</td><td>My office DEWA form</td><td>Yours · builds on DEWA villa form</td><td><span class="radio"></span></td></tr>
+      <tr><td>Connected load and MD</td><td>DEWA form</td><td>Built-in</td><td>—</td></tr>
+      <tr><td>TCL summary</td><td>DEWA form</td><td>Built-in</td><td>—</td></tr>
+      <tr><td>Busbar riser</td><td>DEWA form</td><td>Built-in</td><td>—</td></tr>
+    </table>
+    <div style="display:flex;gap:8px;margin-top:10px"><span class="chip">Duplicate</span><span class="chip">Edit in Sheets</span><span class="chip">New from an Excel file…</span><span class="chip">Export format</span><span class="chip">Delete</span></div>
+  </div>
+</div>
+<div class="frame pad new" style="width:550px">
+  <div class="ttl">Three levels</div>
+  <div class="lvl"><b>Built-in authority form</b><span class="mut small">Read only. Updated with the app.</span></div>
+  <div class="dn2"><svg class="i"><use href="#arrd"/></svg></div>
+  <div class="lvl"><b>Your office form</b><span class="mut small">In your library, shared through Library.json. Builds on the built-in form.</span></div>
+  <div class="dn2"><svg class="i"><use href="#arrd"/></svg></div>
+  <div class="lvl"><b>This project</b><span class="mut small">Kept in the project file. Save to my formats to use it again.</span></div>
+</div>
+</div>
+
+<div class="notes">
+  <div><b>One copy of the rules</b>Rules, limits and format are copied into the project when it starts. The table, Sheets and the output all read that copy.</div>
+  <div><b>Table and sheet</b>The Load schedule tab stays the working table. Sheets shows the same circuits as the form. A change in a linked cell reaches the project only through Apply to project.</div>
+  <div><b>Limits are enforced once</b>The sizing applies the tables (size up, warn or off). Sheets shows the result and marks a cell that breaks a limit.</div>
+  <div><b>Your own columns</b>A formula column or a free column can be added to a format. A free column is kept with each circuit.</div>
+  <div><b>ADDC and EtihadWE</b>Their forms are not in the app. They start on the General form until the official forms are added, or you make the format from your own Excel file.</div>
+  <div><b>Not drawn</b>The Connected load and MD form, TCL summary and Busbar riser take formats the same way, in a later step.</div>
+</div>
+
+<script>
+function build(id,o){
+  var cov={},at={};
+  o.cells.forEach(function(c){var r=c[0],cc=c[1],rs=c[2],cs=c[3];at[r+','+cc]=c;for(var i=0;i<rs;i++)for(var j=0;j<cs;j++)if(i||j)cov[(r+i)+','+(cc+j)]=1;});
+  var w=o.rw;o.cols.forEach(function(x){w+=x;});
+  var s='<table class="g '+(o.cls||'')+'" style="width:'+w+'px"><colgroup><col style="width:'+o.rw+'px">'+o.cols.map(function(x){return '<col style="width:'+x+'px">';}).join('')+'</colgroup><tr><th class="co"></th>'+o.cols.map(function(x,i){return '<th class="co">'+String.fromCharCode(65+i)+'</th>';}).join('')+'</tr>';
+  for(var r=0;r<o.nrows;r++){
+    s+='<tr'+(o.rowh&&o.rowh[r]?' style="height:'+o.rowh[r]+'px"':'')+'><th class="rh">'+(r+1+(o.r0||0))+'</th>';
+    for(var c=0;c<o.cols.length;c++){
+      var k=r+','+c;if(cov[k])continue;var a=at[k];
+      if(a)s+='<td'+(a[2]>1?' rowspan="'+a[2]+'"':'')+(a[3]>1?' colspan="'+a[3]+'"':'')+(a[5]?' class="'+a[5]+'"':'')+'>'+a[4]+'</td>';
+      else s+='<td></td>';
+    }
+    s+='</tr>';
+  }
+  document.getElementById(id).innerHTML=s+'</table>';
+}
+/* Section 5 */
+var H=function(t,l,p){return t+'<span class="lk'+(p?' pu':'')+'">'+l+'</span>';};
+var cells=[];
+cells.push([0,0,1,8,'PROJECT: VILLA G+1, AL BARSHA','l b']);
+cells.push([1,0,1,7,'DB NO : DB-GF','l']);cells.push([1,7,1,6,'LOAD DISTRIBUTION SCHEDULE','b']);
+cells.push([2,0,1,7,'FED FROM : SMDB-1','l']);cells.push([2,7,1,6,'(3 PHASE)','']);
+var hd=[['RATING OF INCOMER','Incomer'],['RATING OF ELCB','ELCB group'],['SL NO.','Serial no.'],['CIR NO.','Circuit ref.'],['MCB RAT. IN AMPS','MCB rating, A'],['CCT WIRE SIZE (mm²)','Wire, mm²'],['ECC WIRE SIZE (mm²)','Earth wire, mm²'],['ROOM / AREA','Room / area']];
+hd.forEach(function(x,i){cells.push([3,i,2,1,H(x[0],x[1]),'h']);});
+cells.push([3,8,1,5,'CONNECTED LOAD / POINTS','h']);
+['LTG','EX.FAN','13A T.S/O','COOKER','S A/C'].forEach(function(x,i){cells.push([4,8+i,1,1,H(x,'Points'),'h']);});
+cells.push([3,13,2,1,H('WATTS / UNIT','Watts per unit'),'h']);
+cells.push([3,14,1,3,'LOAD / CIRCUIT (WATTS)','h']);
+[['R','R, W'],['Y','Y, W'],['B','B, W']].forEach(function(x,i){cells.push([4,14+i,1,1,H(x[0],x[1]),'h']);});
+cells.push([3,17,2,1,H('REMARKS','Remarks'),'h']);
+cells.push([3,18,2,1,H('MAX MCB (TABLE)','Your column · formula',1),'h new']);
+cells.push([3,19,2,1,H('ROUTE','Your column · not linked',1),'h new']);
+var d=[
+ [1,'R1',10,2.5,2.5,'LIVING, DINING',12,'','','','',60,720,'','','',16,'CONDUIT IN SLAB'],
+ [2,'Y1',10,2.5,2.5,'BEDROOM 1, 2',10,2,'','','',60,'',700,'','',16,'CONDUIT IN SLAB'],
+ [3,'B1',20,4,4,'KITCHEN','','',4,'','',200,'','',800,'',20,'TRUNKING'],
+ [4,'R2',32,10,10,'KITCHEN COOKER','','','',1,'',6000,6000,'','','DEWA Table 1: 10 mm² for 32 A (6 mm² max 30 A)',40,'CONDUIT IN SLAB'],
+ [5,'Y2',20,4,4,'BEDROOM 1 A/C','','','','',1,1800,'',1800,'','',20,'']
+];
+d.forEach(function(row,i){
+  var r=5+i;
+  for(var j=0;j<16;j++){
+    var v=row[j],cl='';
+    if(j===5||j===15)cl='l';
+    if(i===2&&j===2){v=40;cl='chg';}
+    cells.push([r,2+j,1,1,v,cl]);
+  }
+  cells.push([r,18,1,1,row[16],'f'+(i===2?' cur':'')]);
+  cells.push([r,19,1,1,row[17],'l']);
+});
+cells.push([5,0,5,1,'63 A ISOLATOR TP+N','vt']);
+cells.push([5,1,2,1,'ELCB-1 40 A 100 mA','wr']);cells.push([7,1,3,1,'ELCB-2 63 A 30 mA','wr']);
+cells.push([10,7,1,1,'TOTAL CONNECTED LOAD (W)','l b']);
+cells.push([10,14,1,1,'6720','f b']);cells.push([10,15,1,1,'2500','f b']);cells.push([10,16,1,1,'800','f b']);
+cells.push([11,4,1,6,'<div class="tip"><b>E8 · 4 mm² carries at most 20 A</b>DEWA Table 1. Not applied yet. On Apply to project the wire is sized up to 10 mm² and a remark is added.</div>','']);
+build('sheet5',{rw:28,cols:[60,60,36,40,46,54,54,146,48,48,48,60,48,50,44,44,44,278,84,108],nrows:12,cells:cells,rowh:{11:80},cls:'sh'});
+/* Section 6 */
+var rc=[[0,0,1,3,'Design values','l b']];
+[['Voltage','415','V'],['Frequency','50','Hz'],['Ambient','45','°C'],['Voltage drop limit','4','%'],['Min wire, lighting','2.5','mm²'],['Min wire, power','4','mm²'],['ELCB, lighting','100','mA'],['ELCB, power','30','mA']].forEach(function(x,i){rc.push([1+i,0,1,1,x[0],'']);rc.push([1+i,1,1,1,x[1],'']);rc.push([1+i,2,1,1,x[2],'m']);});
+rc.push([9,0,1,3,'Limits: size the cable up and add a remark · DB feeder minimum 10 mm², 40 A','l b']);
+rc.push([10,0,1,3,'DEWA Table 1 — 1-phase, single-core PVC in conduit','l b']);
+rc.push([11,0,1,1,'Wire, mm²','m']);rc.push([11,1,1,1,'Max breaker, A','m']);
+[[2.5,16],[4,20],[6,30],[10,40],[16,50],[25,60],[35,80]].forEach(function(x,i){rc.push([12+i,0,1,1,x[0],'']);rc.push([12+i,1,1,1,x[1],'']);});
+build('rules1',{rw:28,cols:[170,110,200],nrows:19,cells:rc,cls:'sh rl'});
+var rd=[[0,0,1,3,'DEWA Table 3 — multi-core armoured XLPE','l b'],[1,0,1,1,'Wire, mm²','m'],[1,1,1,1,'Max breaker, A','m']];
+[[10,50],[16,60],[25,80],[35,100],[50,125],[70,160]].forEach(function(x,i){rd.push([2+i,0,1,1,x[0],'']);rd.push([2+i,1,1,1,x[1],'']);});
+rd.push([8,0,1,3,'… to 300 mm². Tables 1 (3-phase) and 2 follow.','m']);
+build('rules2',{rw:28,cols:[100,110,110],nrows:9,r0:19,cells:rd,cls:'sh rl'});
+/* tokens to svg icons */
+var map={'>':'arr','&gt;':'arr','v':'arrd','c':'chev','t':'tick','l':'lock','^':'arru'};
+document.body.innerHTML=document.body.innerHTML.replace(/\{(>|&gt;|v|c|t|l|\^)\}/g,function(m,k){return '<svg class="i"><use href="#'+map[k]+'"></use></svg>';});
+document.head.appendChild(document.createElement('style')).textContent = '@page{size:1952px ' + Math.ceil(document.documentElement.scrollHeight) + 'px;margin:0}'
+</script>
+</body>
+</html>
