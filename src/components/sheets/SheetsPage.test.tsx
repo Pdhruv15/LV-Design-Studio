@@ -308,13 +308,14 @@ describe('Sheets page — Link columns', () => {
   const linkIt = () => { open(); act(() => button('Suggest links').click()); choose('Board', 'DB-GF1'); };
   const data = templateData(sampleProject, 'DB-GF1');
 
-  it('the Electrical tab opens and has the link tools; Apply to project waits', () => {
+  it('the Electrical tab opens and has the link tools; Apply to project waits for something typed', () => {
     render(sampleProject);
     press('Electrical');
     expect(tool('Link columns').getAttribute('aria-pressed')).toBe('false');
     expect(tool('Show linked cells').getAttribute('aria-pressed')).toBe('true');
     expect(tool('Apply to project').disabled).toBe(true);
-    expect(tool('Apply to project').title).toBe('Comes in a later stage');
+    expect(tool('Refresh from project').disabled).toBe(true);
+    expect(tool('Add circuit').disabled).toBe(true);
     expect([...document.querySelectorAll<HTMLButtonElement>('.shx-tab')].filter((t) => t.disabled).map((t) => t.textContent)).toEqual(['Formulas', 'Data', 'Review']);
   });
 
@@ -343,24 +344,104 @@ describe('Sheets page — Link columns', () => {
     expect(changes).toBe(2);
   });
 
-  it('a linked cell is read only, with a message; an own column takes typing and keeps it', () => {
+  it('a cell the app fills or works out is refused with a message; an own column takes typing and keeps it', () => {
     render(office());
     linkIt();
     const before = changes;
     click('B2');
     type('X');
-    expect(status[status.length - 1]).toBe('B2 is filled from the project (Board number). Typing in linked cells comes with Apply to project.');
+    expect(status[status.length - 1]).toBe('B2 is filled from the project (Board number).');
     expect(td('B2').textContent).toBe('DB-GF1');
     click('B2');
     gridKey('F2');
     expect(grid().querySelector('input')).toBeNull();
-    expect(status[status.length - 1]).toContain('B2 is filled from the project');
+    expect(status[status.length - 1]).toBe('B2 is filled from the project (Board number).');
+    click('B6');
+    type('Y');
+    expect(status[status.length - 1]).toBe('B6 is worked out by the app (Phase).');
+    expect(td('B6').textContent).toBe(String(data.rows[0]['row.phase']));
     expect(changes).toBe(before);
     choose('Link of column I', 'own');
     click('I6');
     type('via riser');
     expect(last.sheets!.sheets[0].cells.I6).toBe('via riser');
     expect(td('I6').className).toContain('shx-own');
+  });
+
+  describe('typed values', () => {
+    const waits = () => document.querySelector('.shx-note + .shx-note, .shx-main + .shx-note')?.textContent;
+    const feederOf = (id: string) => last.feeders.find((f) => f.id === id)!;
+
+    it('a typed value is marked and kept, the note counts it, and Apply to project is enabled', () => {
+      render(office());
+      linkIt();
+      expect(tool('Apply to project').disabled).toBe(true);
+      click('C6');
+      type('Hall lights');
+      expect(td('C6').textContent).toBe('Hall lights');
+      expect(td('C6').className).toContain('shx-pend');
+      expect(td('C6').title).toBe('Typed, not applied yet');
+      expect(waits()).toBe('1 typed value waits for Apply to project.');
+      expect(tool('Apply to project').disabled).toBe(false);
+      expect(tool('Apply to project').title).toBe('Apply to project — 1 typed value');
+      expect(feederOf('DB-GF1-R1').room).not.toBe('Hall lights');
+    });
+
+    it('Apply to project changes the project in one step and the marks go', () => {
+      render(office());
+      linkIt();
+      click('C6'); type('Hall lights');
+      click('E7'); type('16');
+      const before = changes;
+      press('Apply to project');
+      expect(changes).toBe(before + 1);
+      expect(feederOf('DB-GF1-R1').room).toBe('Hall lights');
+      expect(feederOf('DB-GF1-Y1')).toMatchObject({ breakerRatingA: 16, manualSize: true });
+      expect(document.querySelectorAll('.shx-pend').length).toBe(0);
+      expect(waits()).toBeUndefined();
+      expect(td('C6').textContent).toBe('Hall lights');
+      expect(status[status.length - 1]).toBe('Applied to DB-GF1: 2 circuits changed, 0 added.');
+      expect(last.sheets!.sheets[0].link!.pending).toBeUndefined();
+    });
+
+    it('a refused value is marked, reported and stays', () => {
+      render(office());
+      linkIt();
+      click('F6'); type('3');
+      expect(td('F6').className).toContain('shx-over');
+      expect(td('F6').title).toBe('"3" is not a valid cable size');
+      const before = changes;
+      press('Apply to project');
+      expect(changes).toBe(before);
+      expect(status[status.length - 1]).toBe('Nothing applied: F6: "3" is not a valid cable size');
+      expect(waits()).toBe('1 typed value waits for Apply to project.');
+    });
+
+    it('Refresh from project drops what was not applied', () => {
+      render(office());
+      linkIt();
+      click('C6'); type('Hall lights');
+      press('Refresh from project');
+      expect(td('C6').textContent).toBe(String(data.rows[0]['row.room']));
+      expect(document.querySelectorAll('.shx-pend').length).toBe(0);
+      expect(status[status.length - 1]).toBe('Typed values that were not applied are removed.');
+    });
+
+    it('Add circuit, a description and a load, Apply: one more circuit on the board', () => {
+      render(office());
+      linkIt();
+      const n = data.rows.length, count = last.feeders.length;
+      press('Add circuit');
+      expect(td(`C${6 + n}`).className).toContain('shx-act');
+      type('New store');
+      click(`D${6 + n}`); type('1500');
+      expect(waits()).toBe('1 typed value waits for Apply to project.');
+      press('Apply to project');
+      expect(last.feeders.length).toBe(count + 1);
+      expect(last.feeders.some((f) => f.boardId === 'DB-GF1' && f.room === 'New store')).toBe(true);
+      expect(status[status.length - 1]).toBe('Applied to DB-GF1: 0 circuits changed, 1 added.');
+      expect(document.querySelectorAll('.shx-pend').length).toBe(0);
+    });
   });
 
   it('Add a sheet for every other DB adds a tab each; Remove the link brings back the unlinked state', () => {

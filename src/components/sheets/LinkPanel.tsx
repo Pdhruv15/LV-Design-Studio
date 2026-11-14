@@ -124,7 +124,7 @@ export default function LinkPanel({ project, sheet, sheets, active, onSheet, onA
       <p style={{ color: ready ? 'var(--ok)' : 'var(--mut)' }}>{ready ? 'Ready — this sheet can build boards, circuits and the SLD.' : 'Not ready — link what is marked above.'}</p>
       {link.boardId && <button type="button" className="shl-btn shl-go" disabled={!others.length} onClick={() => onAddSheets(sheetsForBoards(sheets, sheet, others.map((b) => b.id)))}>Add a sheet for every other DB ({others.length})</button>}
       <button type="button" className="shl-btn" onClick={() => onSheet(removeLink(sheet))}>Remove the link</button>
-      <p className="shl-note">Linked cells are filled from the project. Typing in them comes with Apply to project.</p>
+      <p className="shl-note">Linked cells are filled from the project. What you type in them is kept until you press Apply to project.</p>
     </aside>
   );
 }

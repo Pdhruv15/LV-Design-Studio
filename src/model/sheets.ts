@@ -42,6 +42,10 @@ export interface SheetLink {
   rows: string[];
   /** Column letter → field: a row.* key, or 'own' for the user's own column, kept with each circuit. */
   columns: Record<string, string>;
+  /** Typed values waiting for Apply to project: row key → column letter → the text typed. */
+  pending?: Record<string, Record<string, string>>;
+  /** New circuit rows typed in the sheet, waiting for Apply to project: column letter → text. In the block they follow the board's rows. */
+  added?: Record<string, string>[];
 }
 export interface SheetBook { sheets: Sheet[] }
 export interface Area { r0: number; c0: number; r1: number; c1: number }
@@ -205,10 +209,12 @@ export function adjustFormula(formula: string, axis: 'row' | 'col', at: number, 
 function reshapeLink(l: SheetLink, axis: 'row' | 'col', at: number, count: number, moveKey: (k: string) => string | undefined): SheetLink {
   const cells: SheetLink['cells'] = {};
   for (const [k, v] of Object.entries(l.cells)) { const to = moveKey(k); if (to) cells[to] = v; }
-  let { firstRow, rows, columns } = l;
+  let { firstRow, rows, columns, pending, added } = l;
   if (axis === 'col') {
-    columns = {};
-    for (const [letters, f] of Object.entries(l.columns)) { const to = moveKey(`${letters}1`); if (to) columns[to.replace(/\d+$/, '')] = f; }
+    const move = <T,>(o: Record<string, T>) => { const out: Record<string, T> = {}; for (const [letters, v] of Object.entries(o)) { const to = moveKey(`${letters}1`); if (to) out[to.replace(/\d+$/, '')] = v; } return out; };
+    columns = move(l.columns);
+    if (pending) pending = Object.fromEntries(Object.entries(pending).map(([key, o]) => [key, move(o)]).filter(([, o]) => Object.keys(o).length));
+    if (added) added = added.map(move);
   } else {
     const last = firstRow + Math.max(1, rows.length) - 1;
     if (count > 0) {
@@ -216,14 +222,17 @@ function reshapeLink(l: SheetLink, axis: 'row' | 'col', at: number, count: numbe
       else if (at <= last && rows.length) rows = [...rows.slice(0, at - firstRow), ...Array<string>(count).fill(''), ...rows.slice(at - firstRow)];
     } else {
       const end = at - count - 1; // last deleted
-      if (at <= firstRow && end >= last) { rows = []; firstRow = at; }
+      if (at <= firstRow && end >= last) { rows = []; firstRow = at; added = undefined; }
       else {
+        const cut = rows.filter((_, i) => firstRow + i >= at && firstRow + i <= end).flatMap((k) => (k.startsWith('new:') ? [Number(k.slice(4))] : []));
         rows = rows.filter((_, i) => firstRow + i < at || firstRow + i > end);
+        if (cut.length && added) { added = added.filter((_, i) => !cut.includes(i)); let n = 0; rows = rows.map((k) => (k.startsWith('new:') ? `new:${n++}` : k)); }
         if (firstRow > end) firstRow += count; else if (firstRow >= at) firstRow = at;
       }
     }
   }
-  return { ...l, cells, columns, rows, firstRow };
+  const { pending: _p, added: _a, ...rest } = l;
+  return { ...rest, cells, columns, rows, firstRow, ...(pending && Object.keys(pending).length ? { pending } : {}), ...(added?.length ? { added } : {}) };
 }
 
 function reshape(s: Sheet, axis: 'row' | 'col', at: number, count: number): Sheet {
