@@ -5,7 +5,9 @@ import { cellAt, cellName, colIndex, colName, evaluateSheet, shiftFormula, type 
 
 export type SheetAlign = 'left' | 'center' | 'right';
 export type SheetNumberFormat = 'general' | 'dec2' | 'percent';
-export interface SheetStyle { bold?: boolean; italic?: boolean; underline?: boolean; align?: SheetAlign; wrap?: boolean; fill?: boolean; accent?: boolean; fmt?: SheetNumberFormat }
+export interface SheetStyle { bold?: boolean; italic?: boolean; underline?: boolean; align?: SheetAlign; wrap?: boolean; fill?: boolean; accent?: boolean; fmt?: SheetNumberFormat;
+  /** The sides with a line, as letters in the order t r b l: lower case thin, upper case thick ('trbl', 'tB', 'TRBL'). */
+  border?: string }
 export interface Sheet {
   id: string;
   name: string;
@@ -19,6 +21,8 @@ export interface Sheet {
   /** Last values from the Excel file a sheet was opened from, for formulas the app cannot work out: the formula as it
    * was in the file (`f`) and its value there (`v`). Used only while the cell still holds that formula. */
   kept?: Record<string, { f: string; v: CellValue }>;
+  /** Merged areas: none overlaps another, each has two cells or more. The value and the style are in the top-left cell. */
+  merges?: Area[];
   /** The Excel file the sheet came from (name only). */
   source?: string;
 }
@@ -68,6 +72,8 @@ export function withCells(s: Sheet, edits: Record<string, string>): Sheet {
     const at = cellAt(k0);
     if (!at || at.row > MAX_ROWS || at.col > MAX_COLS) continue;
     const k = cellName(at.col, at.row);
+    const m = mergeAt(s, at.row, at.col);
+    if (m && (m.r0 !== at.row || m.c0 !== at.col)) continue; // covered by a merged area: its first cell holds the value
     if (v === '' || v === undefined) delete cells[k];
     else { cells[k] = v; rows = Math.max(rows, at.row); cols = Math.max(cols, at.col); }
   }
@@ -79,13 +85,67 @@ export function withStyle(s: Sheet, a: Area, change: Partial<SheetStyle>): Sheet
   const styles = { ...(s.styles ?? {}) };
   for (const k of areaCells(a)) {
     const next: SheetStyle = { ...(styles[k] ?? {}), ...change };
-    for (const key of Object.keys(next) as (keyof SheetStyle)[]) if (next[key] === undefined || next[key] === false) delete next[key];
+    for (const key of Object.keys(next) as (keyof SheetStyle)[]) if (next[key] === undefined || next[key] === false || next[key] === '') delete next[key];
     if (Object.keys(next).length) styles[k] = next; else delete styles[k];
   }
   return { ...s, styles };
 }
 /** Whether every cell of an area has a style flag: the tool then turns it off, as in Excel. */
 export const allStyled = (s: Sheet, a: Area, key: 'bold' | 'italic' | 'underline' | 'wrap' | 'fill' | 'accent') => areaCells(a).every((k) => !!s.styles?.[k]?.[key]);
+
+// ---- merged areas and borders
+
+const touches = (m: Area, a: Area) => m.r0 <= a.r1 && m.r1 >= a.r0 && m.c0 <= a.c1 && m.c1 >= a.c0;
+/** The merged area holding a cell. */
+export const mergeAt = (s: Sheet, r: number, c: number): Area | undefined => s.merges?.find((m) => r >= m.r0 && r <= m.r1 && c >= m.c0 && c <= m.c1);
+/** The top-left cell of the merged area holding a cell, or the cell itself. */
+export const masterOf = (s: Sheet, r: number, c: number): { r: number; c: number } => { const m = mergeAt(s, r, c); return m ? { r: m.r0, c: m.c0 } : { r, c }; };
+
+/** The area merged into one cell: it takes in every merged area it touches, keeps the first typed value (reading order) in the top-left cell and clears the others. */
+export function mergeArea(s: Sheet, a: Area): Sheet {
+  if (a.r0 === a.r1 && a.c0 === a.c1) return s;
+  let g = { ...a }, grown = true;
+  while (grown) {
+    grown = false;
+    for (const m of s.merges ?? []) if (touches(m, g) && (m.r0 < g.r0 || m.c0 < g.c0 || m.r1 > g.r1 || m.c1 > g.c1)) { g = { r0: Math.min(g.r0, m.r0), c0: Math.min(g.c0, m.c0), r1: Math.max(g.r1, m.r1), c1: Math.max(g.c1, m.c1) }; grown = true; }
+  }
+  const cells = { ...s.cells }, kept = s.kept ? { ...s.kept } : undefined;
+  const names = areaCells(g), first = names[0];
+  const from = names.find((k) => (cells[k] ?? '').trim() !== '');
+  const text = from ? cells[from] : undefined, keptEntry = from ? kept?.[from] : undefined;
+  for (const k of names) { delete cells[k]; if (kept) delete kept[k]; }
+  if (text !== undefined) { cells[first] = text; if (kept && keptEntry) kept[first] = keptEntry; }
+  const merges = [...(s.merges ?? []).filter((m) => !touches(m, g)), g];
+  return { ...s, cells, ...(kept ? { kept } : {}), merges };
+}
+/** The sheet with every merged area that touches the area taken apart. */
+export function unmergeArea(s: Sheet, a: Area): Sheet {
+  if (!s.merges?.some((m) => touches(m, a))) return s;
+  const { merges: _old, ...rest } = s;
+  const left = s.merges.filter((m) => !touches(m, a));
+  return left.length ? { ...rest, merges: left } : rest;
+}
+
+const SIDES = ['t', 'r', 'b', 'l'] as const;
+type Side = (typeof SIDES)[number];
+const line = (s: Sheet, r: number, c: number, side: Side): 0 | 1 | 2 => {
+  const b = s.styles?.[cellName(c, r)]?.border;
+  return !b ? 0 : b.includes(side) ? 1 : b.includes(side.toUpperCase()) ? 2 : 0;
+};
+/** Whether every cell of an area has all four sides: the Borders tool then removes them. */
+export const allBordered = (s: Sheet, a: Area) => areaCells(a).every((k) => SIDES.every((side) => { const b = s.styles?.[k]?.border; return !!b && (b.includes(side) || b.includes(side.toUpperCase())); }));
+/** The line to draw on each side of a cell (of the whole area for a merged area's top-left cell): 0 none, 1 thin, 2 thick.
+ * A side takes the stronger of the cell's own line and the facing line of the neighbour across that edge. */
+export function edgesOf(s: Sheet, r: number, c: number): Record<Side, 0 | 1 | 2> {
+  const m = mergeAt(s, r, c) ?? { r0: r, c0: c, r1: r, c1: c };
+  const own = (side: Side) => line(s, m.r0, m.c0, side);
+  const far = (rr: number, cc: number, side: Side) => { if (rr < 1 || cc < 1) return 0; const t = masterOf(s, rr, cc); return line(s, t.r, t.c, side); };
+  const max = (x: 0 | 1 | 2, y: 0 | 1 | 2): 0 | 1 | 2 => (x > y ? x : y);
+  return {
+    t: max(own('t'), far(m.r0 - 1, m.c0, 'b')), r: max(own('r'), far(m.r0, m.c1 + 1, 'l')),
+    b: max(own('b'), far(m.r1 + 1, m.c0, 't')), l: max(own('l'), far(m.r0, m.c0 - 1, 'r'))
+  };
+}
 
 // ---- rows and columns: the cells move, and every formula's references follow
 
@@ -152,7 +212,19 @@ function reshape(s: Sheet, axis: 'row' | 'col', at: number, count: number): Shee
   }
   const rows = axis === 'row' ? Math.min(MAX_ROWS, Math.max(1, s.rows + count)) : s.rows;
   const cols = axis === 'col' ? Math.min(MAX_COLS, Math.max(1, s.cols + count)) : s.cols;
-  return { ...s, cells, ...(Object.keys(styles).length || s.styles ? { styles } : {}), ...(widths ? { widths } : {}), ...(kept ? { kept } : {}), rows, cols };
+  const merges: Area[] = [];
+  for (const m of s.merges ?? []) {
+    let [lo, hi] = axis === 'row' ? [m.r0, m.r1] : [m.c0, m.c1];
+    if (count > 0) { if (lo >= at) { lo += count; hi += count; } else if (hi >= at) hi += count; }
+    else {
+      const end = at - count - 1; // last deleted
+      if (lo > end) { lo += count; hi += count; } else if (hi >= at) { lo = Math.min(lo, at); hi = hi > end ? hi + count : at - 1; }
+    }
+    const next = axis === 'row' ? { ...m, r0: lo, r1: hi } : { ...m, c0: lo, c1: hi };
+    if (next.r1 >= next.r0 && next.c1 >= next.c0 && (next.r1 > next.r0 || next.c1 > next.c0)) merges.push(next);
+  }
+  const { merges: _drop, ...bare } = s;
+  return { ...bare, ...(merges.length ? { merges } : {}), cells, ...(Object.keys(styles).length || s.styles ? { styles } : {}), ...(widths ? { widths } : {}), ...(kept ? { kept } : {}), rows, cols };
 }
 export const insertRows = (s: Sheet, at: number, count = 1): Sheet => (s.rows + count > MAX_ROWS ? s : reshape(s, 'row', at, count));
 export const deleteRows = (s: Sheet, at: number, count = 1): Sheet => reshape(s, 'row', at, -Math.min(count, s.rows - at + 1));

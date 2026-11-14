@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateSheet } from '../calc/sheetFormula';
-import { adjustFormula, allStyled, area, areaCells, deleteCols, deleteRows, fillDownEdits, insertCols, insertRows, newSheet, pasteEdits, rawRows, sheetNameError, shown, shownRows, sumFormula, withCells, withNextWidth, withStyle, type Sheet } from './sheets';
+import { adjustFormula, allBordered, allStyled, area, areaCells, deleteCols, deleteRows, edgesOf, fillDownEdits, insertCols, insertRows, masterOf, mergeArea, mergeAt, newSheet, pasteEdits, rawRows, sheetNameError, shown, shownRows, sumFormula, unmergeArea, withCells, withNextWidth, withStyle, type Sheet } from './sheets';
 
 const sheet = (cells: Record<string, string>): Sheet => withCells(newSheet(), cells);
 const schedule = sheet({ A1: 'Ckt', F1: 'Load (W)', G1: 'Qty', H1: 'Total (kW)', A2: 'L1', F2: '60', G2: '20', H2: '=F2*G2/1000', A3: 'L2', F3: '40', G3: '15', H3: '=F3*G3/1000', A4: 'P1', F4: '200', G4: '8', H4: '=F4*G4/1000', H5: '=SUM(H2:H4)' });
@@ -158,5 +158,108 @@ describe('sheets — how a cell is shown', () => {
     expect(shown({ value: true })).toBe('TRUE');
     expect(shown({ value: null, error: '#DIV/0!' })).toBe('#DIV/0!');
     expect(shown(undefined)).toBe('');
+  });
+});
+
+describe('sheets — merged areas', () => {
+  const a = (r0: number, c0: number, r1: number, c1: number) => ({ r0, c0, r1, c1 });
+  it('merging keeps the first typed value in reading order, clears the rest and leaves styles', () => {
+    const s = withStyle(sheet({ A1: '', B1: ' ', C1: 'x', A2: 'y', D1: 'out' }), a(2, 1, 2, 1), { bold: true });
+    const m = mergeArea(s, a(1, 1, 2, 3));
+    expect(m.cells).toEqual({ A1: 'x', D1: 'out' });
+    expect(m.merges).toEqual([a(1, 1, 2, 3)]);
+    expect(m.styles).toEqual({ A2: { bold: true } });
+    expect(mergeArea(s, a(1, 1, 1, 1))).toBe(s);
+  });
+
+  it('merging takes in every merged area it touches; kept entries of cleared cells go', () => {
+    const base = { ...sheet({ B2: 'one', E5: 'two' }), kept: { E5: { f: '=NOPE(1)', v: 3 } } };
+    const s = mergeArea(mergeArea(base, a(2, 2, 3, 3)), a(5, 5, 6, 6));
+    expect(s.merges).toHaveLength(2);
+    const g = mergeArea(s, a(3, 3, 5, 5)); // touches both: grows over them
+    expect(g.merges).toEqual([a(2, 2, 6, 6)]);
+    expect(g.cells).toEqual({ B2: 'one' });
+    expect(g.kept).toEqual({});
+  });
+
+  it('unmerging takes apart every area the selection touches', () => {
+    const s = mergeArea(mergeArea(sheet({}), a(1, 1, 1, 2)), a(3, 1, 3, 2));
+    expect(unmergeArea(s, a(1, 2, 2, 2)).merges).toEqual([a(3, 1, 3, 2)]);
+    expect(unmergeArea(s, a(1, 1, 3, 2)).merges).toBeUndefined();
+    expect(unmergeArea(s, a(5, 5, 5, 5))).toBe(s);
+  });
+
+  it('mergeAt and masterOf find the area of a cell', () => {
+    const s = mergeArea(sheet({}), a(2, 2, 3, 4));
+    expect(mergeAt(s, 3, 4)).toEqual(a(2, 2, 3, 4));
+    expect(mergeAt(s, 4, 4)).toBeUndefined();
+    expect(masterOf(s, 3, 4)).toEqual({ r: 2, c: 2 });
+    expect(masterOf(s, 5, 5)).toEqual({ r: 5, c: 5 });
+  });
+
+  it('an edit to a covered cell is dropped, the first cell can be edited', () => {
+    const s = mergeArea(sheet({ B2: 'v' }), a(2, 2, 3, 3));
+    expect(withCells(s, { C3: 'no', B2: 'new' }).cells).toEqual({ B2: 'new' });
+    expect(withCells(s, { C3: '' }).cells).toEqual({ B2: 'v' });
+  });
+
+  it('inserting rows or columns moves, grows or leaves an area', () => {
+    const s = mergeArea(sheet({}), a(3, 2, 5, 4));
+    expect(insertRows(s, 1, 2).merges).toEqual([a(5, 2, 7, 4)]);
+    expect(insertRows(s, 4, 1).merges).toEqual([a(3, 2, 6, 4)]);
+    expect(insertRows(s, 3, 1).merges).toEqual([a(4, 2, 6, 4)]);
+    expect(insertRows(s, 6, 1).merges).toEqual([a(3, 2, 5, 4)]);
+    expect(insertCols(s, 3, 2).merges).toEqual([a(3, 2, 5, 6)]);
+    expect(insertCols(s, 1, 1).merges).toEqual([a(3, 3, 5, 5)]);
+  });
+
+  it('deleting rows or columns moves, cuts or removes an area', () => {
+    const s = mergeArea(sheet({}), a(3, 2, 5, 4));
+    expect(deleteRows(s, 1, 2).merges).toEqual([a(1, 2, 3, 4)]);
+    expect(deleteRows(s, 4, 1).merges).toEqual([a(3, 2, 4, 4)]);
+    expect(deleteRows(s, 2, 2).merges).toEqual([a(2, 2, 3, 4)]); // rows 2-3: the top row goes
+    expect(deleteRows(s, 5, 1).merges).toEqual([a(3, 2, 4, 4)]);
+    expect(deleteRows(s, 8, 1).merges).toEqual([a(3, 2, 5, 4)]);
+    expect(deleteRows(s, 3, 3).merges).toBeUndefined();
+    expect(deleteCols(s, 3, 2).merges).toEqual([a(3, 2, 5, 2)]);
+    expect(deleteCols(s, 2, 2).merges).toEqual([a(3, 2, 5, 2)]);
+    expect(deleteCols(s, 2, 3).merges).toBeUndefined();
+    expect(deleteRows(mergeArea(sheet({}), a(3, 2, 3, 4)), 3, 1).merges).toBeUndefined();
+    expect(deleteCols(mergeArea(sheet({}), a(3, 2, 4, 3)), 3, 1).merges).toEqual([a(3, 2, 4, 2)]); // one column of two rows is still 2 cells
+  });
+});
+
+describe('sheets — borders', () => {
+  const a = (r0: number, c0: number, r1: number, c1: number) => ({ r0, c0, r1, c1 });
+  const put = (s: Sheet, k: string, border: string) => ({ ...s, styles: { ...(s.styles ?? {}), [k]: { ...(s.styles?.[k] ?? {}), border } } });
+  it('withStyle sets and clears a border; an empty one is removed', () => {
+    const s = withStyle(schedule, a(1, 1, 1, 2), { border: 'trbl' });
+    expect(s.styles).toEqual({ A1: { border: 'trbl' }, B1: { border: 'trbl' } });
+    expect(allBordered(s, a(1, 1, 1, 2))).toBe(true);
+    expect(allBordered(s, a(1, 1, 1, 3))).toBe(false);
+    expect(allBordered(put(s, 'B1', 'tRb'), a(1, 2, 1, 2))).toBe(false);
+    expect(allBordered(put(s, 'B1', 'TRBL'), a(1, 2, 1, 2))).toBe(true);
+    expect(withStyle(s, a(1, 1, 1, 2), { border: undefined }).styles).toEqual({});
+    expect(withStyle(s, a(1, 1, 1, 1), { border: '' }).styles).toEqual({ B1: { border: 'trbl' } });
+  });
+
+  it('a side shows the cell\'s own line or the facing line of its neighbour, the thicker one', () => {
+    let s = put(newSheet(), 'B2', 'tB');
+    expect(edgesOf(s, 2, 2)).toEqual({ t: 1, r: 0, b: 2, l: 0 });
+    expect(edgesOf(s, 3, 2)).toEqual({ t: 2, r: 0, b: 0, l: 0 }); // below: B2's bottom
+    expect(edgesOf(s, 1, 2)).toEqual({ t: 0, r: 0, b: 1, l: 0 }); // above: B2's top
+    s = put(put(s, 'A2', 'r'), 'C2', 'L');
+    expect(edgesOf(s, 2, 2)).toEqual({ t: 1, r: 2, b: 2, l: 1 }); // thick beats thin
+    expect(edgesOf(newSheet(), 1, 1)).toEqual({ t: 0, r: 0, b: 0, l: 0 });
+  });
+
+  it('a merged area shows its outline on the first cell and reads the neighbours beside it', () => {
+    let s = mergeArea(put(newSheet(), 'B2', 'tbRL'), a(2, 2, 3, 3));
+    s = put(put(put(s, 'D2', 'l'), 'B4', 'T'), 'B1', 'b');
+    expect(edgesOf(s, 2, 2)).toEqual({ t: 1, r: 2, b: 2, l: 2 });
+    expect(edgesOf(s, 3, 3)).toEqual(edgesOf(s, 2, 2));
+    const t = mergeArea(put(newSheet(), 'A1', 'trbl'), a(1, 1, 2, 2)); // a neighbour in an area is read through its first cell
+    expect(edgesOf(put(t, 'C1', 'l'), 1, 3)).toEqual({ t: 0, r: 0, b: 0, l: 1 });
+    expect(edgesOf(t, 3, 2).t).toBe(1); // below the area: the area's bottom, read through its first cell
   });
 });
