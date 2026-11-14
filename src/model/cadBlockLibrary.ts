@@ -10,6 +10,7 @@ import type { RefGeometry } from './cadRefs';
  * blocks (exploded by the engine), the small previews, and the search. */
 
 type Pt = [number, number];
+const polyArea = (l: Pt[]) => Math.abs(l.reduce((t, q, i) => t + q[0] * l[(i + 1) % l.length][1] - l[(i + 1) % l.length][0] * q[1], 0));
 
 // ---- recent blocks
 
@@ -47,9 +48,12 @@ export function defFromGeometry(name: string, g: RefGeometry): CadBlockDef {
   const id = () => `b${(n += 1)}`;
   for (let i = 0; i + 3 < g.segs.length; i += 4) items.push({ id: id(), kind: 'line', layer: layer(g.segLayers[i / 4]), pts: [[g.segs[i], g.segs[i + 1]], [g.segs[i + 2], g.segs[i + 3]]] });
   for (const t of g.texts ?? []) if (t.s && t.h > 0) items.push({ id: id(), kind: 'text', layer: layer(t.layer), pts: [[t.x, t.y]], text: t.s, h: t.h, ...(t.rot ? { rot: t.rot } : {}) });
-  for (const f of g.fills ?? []) for (const loop of f.loops) {
-    if (loop.length < 3) continue;
-    items.push({ id: id(), kind: 'pline', layer: layer(f.layer), closed: true, pts: loop, ...(f.solid ? { hatch: { pattern: 'solid', scale: 3, angle: 0 } } : {}) });
+  for (const f of g.fills ?? []) {
+    // One fill: the loop of the largest area is its outline, the others its islands.
+    const loops = f.loops.filter((l) => l.length >= 3).sort((a, b) => polyArea(b) - polyArea(a));
+    if (!loops.length) continue;
+    if (!f.solid) { for (const l of loops) items.push({ id: id(), kind: 'pline', layer: layer(f.layer), closed: true, pts: l }); continue; }
+    items.push({ id: id(), kind: 'pline', layer: layer(f.layer), closed: true, pts: loops[0], hatch: { pattern: 'solid', scale: 3, angle: 0 }, ...(loops.length > 1 ? { holes: loops.slice(1) } : {}) });
   }
   return { name, units: g.units, items, explodable: true };
 }
@@ -74,7 +78,13 @@ export function defFromPieces(name: string, pieces0: CadPiece[], base?: Pt, unit
       case 'text': return p.text.trim() ? [{ ...s, kind: 'text', pts: [at(p.at)], text: p.text, h: p.h, ...(p.rot ? { rot: p.rot } : {}), ...(p.just ? { just: p.just } : {}) }] : [];
       case 'point': return [{ ...s, kind: 'point', pts: [at(p.at)] }];
       case 'solid': return p.pts.length > 2 ? [{ ...s, kind: 'pline', closed: true, pts: p.pts.map(at), hatch: { pattern: 'solid', scale: 3, angle: 0 } }] : [];
-      case 'hatch': return p.loops.filter((l) => l.length > 2).map((l) => ({ ...s, kind: 'pline' as const, closed: true, pts: l.map(at), ...(p.solid ? { hatch: { pattern: 'solid' as const, scale: 3, angle: 0 } } : {}) }));
+      case 'hatch': {
+        // One drawn hatch: its loop of the largest area is the outline, the others its islands (a patterned fill as outlines).
+        const loops = p.loops.filter((l) => l.length > 2).map((l) => l.map(at)).sort((a, b) => polyArea(b) - polyArea(a));
+        if (!loops.length) return [];
+        return p.solid ? [{ ...s, kind: 'pline' as const, closed: true, pts: loops[0], hatch: { pattern: 'solid' as const, scale: 3, angle: 0 }, ...(loops.length > 1 ? { holes: loops.slice(1) } : {}) }]
+          : loops.map((l) => ({ ...s, kind: 'pline' as const, closed: true, pts: l }));
+      }
       default: return [];
     }
   });

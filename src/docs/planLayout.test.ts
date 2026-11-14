@@ -254,7 +254,7 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
 
     it('hatches with the hatch pen inside their outline; Solid light grey; a leader\'s arrow', () => {
       const svg = svgOf(withWork());
-      expect(svg).toMatch(/<clipPath id="(dw-[\w-]+-1)"><path d="M[^"]+Z"\/><\/clipPath>.*<path d="M[^"]+" clip-path="url\(#\1\)" fill="none" stroke="#666666" stroke-width="0.13"\/>/s);
+      expect(svg).toMatch(/<clipPath id="(dw-[\w-]+-1)"><path d="M[^"]+Z" clip-rule="evenodd"\/><\/clipPath>.*<path d="M[^"]+" clip-path="url\(#\1\)" fill="none" stroke="#666666" stroke-width="0.13"\/>/s);
       expect(svg).toMatch(/<circle cx="[\d.]+" cy="[\d.]+" r="10" fill="#b3b3b3" stroke="none"\/>/); // 1 m radius at 1:100
       expect(svg).toMatch(/<path d="M[\d.]+ [\d.]+L[\d.]+ [\d.]+L[\d.]+ [\d.]+Z" fill="#000" stroke="none"\/>/);
     });
@@ -265,6 +265,19 @@ describe('plan sheets (Design CAD → Sheets → Plans)', () => {
       const svg = svgOf(drawn(villa(), [brick, gravel]));
       expect(svg).toMatch(/<path d="M[^"]+" clip-path="url\(#(dw-[\w-]+-0)\)" fill="none" stroke="#666666" stroke-width="0.13"\/><path d="M[^"]+" clip-path="url\(#\1\)" fill="none" stroke="#666666" stroke-width="0.13" stroke-dasharray="3 3"\/>/); // courses, then joints
       expect(svg).toMatch(/<path d="(M[\d.-]+ [\d.-]+h0)+" clip-path="url\(#dw-[\w-]+-1\)" fill="none" stroke="#666666" stroke-width="0.35" stroke-linecap="round"\/>/);
+    });
+
+    it('a hatch with islands is one path filled and clipped even-odd; a circle one as two arcs; the pattern starts at its origin', () => {
+      const ansi = { pattern: 'ansi31' as const, scale: 3, angle: 0 };
+      const holed: SketchItem = { id: 'H1', kind: 'pline', layer: 'LV-HATCH', closed: true, pts: box(0, 0, 8000, 4000), hatch: ansi, holes: [box(2000, 1000, 4000, 3000)] };
+      const round: SketchItem = { id: 'H2', kind: 'circle', layer: 'LV-HATCH', pts: [[14000, 2000]], r: 1500, hatch: { ...ansi, pattern: 'solid' }, holes: [box(13500, 1500, 14500, 2500)] };
+      const svg = svgOf(drawn(villa(), [holed, round]));
+      expect(svg).toMatch(/<clipPath id="dw-[\w-]+-0"><path d="M[^"]+ZM[^"]+Z" clip-rule="evenodd"\/><\/clipPath>/);
+      expect(svg).toMatch(/<path d="M[^"]+a[\d.]+ [\d.]+ 0 1 0 [^"]+ZM[^"]+Z" fill-rule="evenodd" fill="#b3b3b3" stroke="none"\/>/);
+      // With an origin the pattern lines move: the same hatch with another origin prints other lines.
+      const at = (o?: [number, number]) => svgOf(drawn(villa(), [{ ...holed, hatch: { ...ansi, ...(o ? { origin: o } : {}) } }]));
+      const lines = (x: string) => /<path d="(M[^"]+)" clip-path/.exec(x)![1];
+      expect(lines(at([1000, 700]))).not.toBe(lines(at()));
     });
 
     it('page setup can leave it off; all one thin line thins it; it is fingerprinted only where there is some', () => {

@@ -55,8 +55,8 @@ export const patternByName = (name: string): HatchPattern | undefined => HATCH_I
 export interface CustomPattern { name: string; label?: string; lines: PatternLine[]; solid?: boolean }
 
 /** A hatch: pattern, line spacing (paper mm at the annotation scale) and angle (degrees); a pattern not built in
- * carries its lines. */
-export interface HatchSpec { pattern: HatchPattern | (string & {}); scale: number; angle: number; custom?: CustomPattern }
+ * carries its lines. `origin` (drawing units) is a point the pattern lines pass through; left out: (0, 0). */
+export interface HatchSpec { pattern: HatchPattern | (string & {}); scale: number; angle: number; custom?: CustomPattern; origin?: [number, number] }
 
 /** Limits on a pattern read from a file or a project (more would be a mistake, and slow to draw). */
 const MAX_LINES = 32, MAX_DASHES = 16, NAME = /^[A-Za-z0-9_$.\- ]{1,31}$/;
@@ -159,6 +159,8 @@ export function placedLines(spec: HatchSpec, unit: number): PlacedLine[] {
     return { angle: a, base: [b[0] * s, b[1] * s], offset: [o[0] * s, o[1] * s], dashes: l.dashes.map((d) => d * s) };
   });
 }
+/** The lines moved so the pattern passes through `o` (their bases shifted by it). */
+export const atOrigin = (ls: PlacedLine[], o: Pt | undefined): PlacedLine[] => (o && (o[0] || o[1]) ? ls.map((l) => ({ ...l, base: [l.base[0] + o[0], l.base[1] + o[1]] as Pt })) : ls);
 /** The lines mirrored top to bottom (paper, y down). */
 export const mirroredY = (ls: PlacedLine[]): PlacedLine[] => ls.map((l) => ({ angle: -l.angle, base: [l.base[0], -l.base[1]], offset: [l.offset[0], -l.offset[1]], dashes: l.dashes }));
 
@@ -195,4 +197,21 @@ export function hatchStrokes(l: PlacedLine, box: Box, minGap: number, max: numbe
     return { a: [s.a[0] - back * dir[0], s.a[1] - back * dir[1]] as Pt, b: s.b };
   });
   return { lines, dash };
+}
+
+/** The built-in patterns as patterns of a .pat file (upper-case names: ANSI31, DASH45, SOLID…). */
+export const builtInAsCustom = (): CustomPattern[] => HATCH_IDS.map((id) => {
+  const d: PatternDef = HATCH_PATTERNS[id];
+  return { name: id.toUpperCase(), label: d.label, lines: d.lines.map((l) => ({ angle: l.angle, base: [l.base[0], l.base[1]], offset: [l.offset[0], l.offset[1]], dashes: [...l.dashes] })), ...(d.solid ? { solid: true } : {}) };
+});
+
+/** Patterns as the text of a .pat file (the inverse of parsePat; 1 unit = the hatch's spacing). */
+export function formatPat(patterns: CustomPattern[]): string {
+  const n = (v: number) => String(Number(v.toPrecision(8)) || 0);
+  const out = ['; Hatch patterns from LV Design Studio. 1 unit = the hatch spacing in paper mm.'];
+  for (const c of patterns) {
+    out.push(`*${c.name}${c.label ? `, ${c.label.replace(/;/g, '')}` : ''}`);
+    if (!c.solid) for (const l of c.lines) out.push([l.angle, l.base[0], l.base[1], l.offset[0], l.offset[1], ...l.dashes].map(n).join(', '));
+  }
+  return `${out.join('\n')}\n`;
 }

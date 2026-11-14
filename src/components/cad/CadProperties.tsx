@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { LINETYPE_IDS, LINETYPES, LINEWEIGHTS, styleOf, withProps, type LayerStyle, type LinetypeId, type ObjectProps } from '../../model/cadLayerStyle';
-import { geometryRows, geomKind, kindChoices, kindLabel, parseTyped, sharedValue, shownValue, textRows, withProp, type PropDef } from '../../model/cadProps';
+import { geometryRows, geomKind, hatchRows, kindChoices, kindLabel, parseTyped, sharedValue, shownValue, textRows, withProp, type PropDef } from '../../model/cadProps';
 import { TRAY_SERVICES, TRAY_WIDTHS } from '../../model/cadSketch';
 import { TEXT_FRAMES, TEXT_JUSTS } from '../../model/cadText';
 import { NOTE_ATTACHES } from '../../model/cadMtext';
@@ -57,6 +57,7 @@ export function PropertiesPalette({ items, devices, layers, styles, current, new
   const one = sel.length === 1 ? sel[0] : undefined;
   const geom = gk ? geometryRows(gk, sel).filter((d) => one || (d.key !== 'vx' && d.key !== 'vy')) : [];
   const text = gk ? textRows(gk) : [];
+  const hatch = sel.length > 0 && sel.every((it) => it.hatch) ? hatchRows() : [];
   const vi = one ? Math.min(vtx, one.pts.length - 1) : 0;
 
   const shared = <K extends 'layer' | 'color' | 'lt' | 'lw'>(key: K) => { const v = new Set(sel.map((it) => it[key])); return v.size === 1 ? { v: [...v][0] } : 'varies' as const; };
@@ -73,7 +74,7 @@ export function PropertiesPalette({ items, devices, layers, styles, current, new
   };
 
   // Click a value to edit it; Tab goes to the next row that takes a typed value.
-  const typed = [...geom, ...text].filter((d) => !d.ro && !SELECTS.has(d.key));
+  const typed = [...geom, ...hatch, ...text].filter((d) => !d.ro && !SELECTS.has(d.key));
   const start = (def: PropDef, v: Shown) => setEdit({ key: def.key, draft: v === 'varies' || v === undefined ? '' : typeof v === 'number' ? v.toFixed(def.unit === 'deg' ? 1 : 2) : v });
   const commit = (def: PropDef, move = 0) => {
     if (!edit) return;
@@ -210,6 +211,7 @@ export function PropertiesPalette({ items, devices, layers, styles, current, new
             ))}
             {geom.map(valueRow)}
           </>)}
+          {hatch.length > 0 && section('hatch', 'Hatch', hatch.map(valueRow))}
           {text.length > 0 && section('text', 'Text', text.map(valueRow))}
           {one?.kind === 'insert' && askedAttdefs(blockDefOf(blocks, one.block)).length > 0 && section('attrs', 'Attributes', askedAttdefs(blockDefOf(blocks, one.block)).map((ad) => {
             const tag = ad.tag ?? '', v = attrValue(one, ad);
@@ -231,4 +233,4 @@ export function PropertiesPalette({ items, devices, layers, styles, current, new
     </section>
   );
 }
-const SELECTS = new Set(['width', 'service', 'closed', 'just', 'frame', 'mask', 'attach']);
+const SELECTS = new Set(['width', 'service', 'closed', 'just', 'frame', 'mask', 'attach', 'hassoc']);

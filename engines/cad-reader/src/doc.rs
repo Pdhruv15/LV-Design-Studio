@@ -1010,6 +1010,12 @@ struct ShapeOut {
     #[serde(default)] loops: Vec<Vec<(f64, f64)>>,
     #[serde(default)] solid: bool,
     #[serde(default)] lines: Vec<PatLineOut>,
+    /// The drawn object's id; a hatch's pattern angle (radians) and scale (drawing units per pattern unit); and the ids of
+    /// the objects an associative hatch follows, one per loop in order (`name` is its pattern's name).
+    #[serde(default)] id: String,
+    #[serde(default)] hangle: f64,
+    #[serde(default)] hscale: f64,
+    #[serde(default)] srcs: Vec<String>,
 }
 
 /// An attribute's modes.
@@ -1091,14 +1097,20 @@ fn entity_of(sh: &ShapeOut) -> Option<EntityType> {
         }
         "hatch" if sh.loops.iter().any(|l| l.len() >= 3) => {
             let mut h = if sh.solid || sh.lines.is_empty() { Hatch::solid() } else {
-                let mut pat = HatchPattern::new("LVDS_REF");
+                // Named for its pattern (ANSI31, BRICK…), with its angle and scale; its lines are written as drawn.
+                let mut pat = HatchPattern::new(if sh.name.trim().is_empty() { "LVDS_REF" } else { sh.name.trim() });
                 for l in &sh.lines { pat.add_line(HatchPatternLine { angle: l.angle, base_point: Vector2::new(l.base.0, l.base.1), offset: Vector2::new(l.offset.0, l.offset.1), dash_lengths: l.dashes.clone() }); }
                 let mut h = Hatch::with_pattern(pat);
                 h.pattern_type = HatchPatternType::Custom;
+                h.pattern_angle = sh.hangle;
+                if sh.hscale > 0.0 { h.pattern_scale = sh.hscale; }
                 h
             };
-            for l in sh.loops.iter().filter(|l| l.len() >= 3) {
+            for (i, l) in sh.loops.iter().filter(|l| l.len() >= 3).enumerate() {
                 let mut path = BoundaryPath::new();
+                // The first loop is the outer boundary, the rest islands; each a polyline.
+                path.flags.set_polyline(true);
+                path.flags.set_external(i == 0);
                 path.add_edge(BoundaryEdge::Polyline(PolylineEdge::new(l.iter().map(|p| Vector2::new(p.0, p.1)).collect(), true)));
                 h.add_path(path);
             }
@@ -1151,6 +1163,10 @@ fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_
             if doc.model_space_entities().any(|e| e.common().handle == h) { doc.remove_entity(h); }
         }
     }
+    // Handles of what was written, by the app's object id, and the associative hatches: each is written in its place
+    // (the order is the draw order), then pointed at its boundaries once they all have handles.
+    let mut by_id: std::collections::HashMap<&str, acadrust::types::Handle> = std::collections::HashMap::new();
+    let mut follow: Vec<(acadrust::types::Handle, &ShapeOut)> = vec![];
     for sh in &shapes {
         // The drawing's point style ($PDMODE, $PDSIZE), sent with the shapes.
         if sh.kind == "pointstyle" { doc.header.point_display_mode = sh.mode; doc.header.point_display_size = sh.r; continue; }
@@ -1175,7 +1191,20 @@ fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str, erased_
             }
             _ => match entity_of(sh) { Some(e) => e, None => continue },
         };
-        doc.add_entity(e).map_err(err)?;
+        let handle = doc.add_entity(e).map_err(err)?;
+        if !sh.id.is_empty() { by_id.entry(sh.id.as_str()).or_insert(handle); }
+        if sh.kind == "hatch" && !sh.srcs.is_empty() { follow.push((handle, sh)); }
+    }
+    for (handle, sh) in follow {
+        // Associative when every loop has the handle of the object it was made from.
+        let found: Vec<Option<acadrust::types::Handle>> = sh.srcs.iter().map(|id| by_id.get(id.as_str()).copied()).collect();
+        if !found.iter().all(|x| x.is_some()) { continue; }
+        if let Some(EntityType::Hatch(h)) = doc.get_entity_mut(handle) {
+            if found.len() == h.paths.len() {
+                h.is_associative = true;
+                for (p, f) in h.paths.iter_mut().zip(found) { p.boundary_handles.push(f.unwrap()); }
+            }
+        }
     }
     for d in &devices {
         if !doc.layers.contains(&d.layer) { doc.layers.add(Layer::new(d.layer.clone())).map_err(|e| e.to_string())?; }
@@ -1429,6 +1458,55 @@ mod tests {
         let d = CadDoc::new(bytes).unwrap();
         assert_eq!(d.fills.len(), before + 2); // the one with a loop of two points is left out
         assert!(d.layers.iter().any(|l| l.name == "STR$0$S-HATCH"));
+    }
+
+    /// A drawn pattern hatch is saved with its pattern's name, angle and scale, and an island as a second path.
+    #[test]
+    fn hatch_named_with_angle_scale_and_island() {
+        let (outer, hole) = ("[[0,0],[100,0],[100,100],[0,100]]", "[[40,40],[60,40],[60,60],[40,60]]");
+        let shapes = format!(r#"[{{"layer":"LV-HATCH","kind":"hatch","pts":[],"loops":[{outer},{hole}],"name":"ANSI31","hangle":0.5,"hscale":30,"lines":[{{"angle":0.785398,"base":[0,0],"offset":[-21.2,21.2],"dashes":[]}}]}}]"#);
+        let doc = with_additions(drawing(), "[]", &shapes, "").unwrap();
+        let (back, _) = read(acadrust::DxfWriter::new(&doc).write_to_vec().unwrap()).unwrap();
+        let h = back.entities().find_map(|e| if let EntityType::Hatch(x) = e { if x.common.layer == "LV-HATCH" { Some(x) } else { None } } else { None }).expect("the hatch");
+        assert_eq!(h.pattern.name, "ANSI31");
+        assert!((h.pattern_angle - 0.5).abs() < 1e-6 && (h.pattern_scale - 30.0).abs() < 1e-9);
+        assert_eq!(h.paths.len(), 2);
+        assert!(h.paths[0].flags.is_external() && !h.paths[1].flags.is_external());
+        assert!(!h.is_associative);
+        // The screen reader sees both loops of the one fill.
+        let d = CadDoc::new(acadrust::DxfWriter::new(&doc).write_to_vec().unwrap()).unwrap();
+        assert!(d.fills.iter().any(|f| !f.solid && f.loops.len() == 2));
+    }
+
+    /// An associative hatch's paths point at the handles of the polylines it was made from, in DXF and in DWG.
+    #[test]
+    fn associative_hatch_points_at_its_sources() {
+        let (outer, hole) = ("[[0,0],[100,0],[100,100],[0,100]]", "[[40,40],[60,40],[60,60],[40,60]]");
+        // The hatch comes first in the list (it is drawn under them): it stays first, and its sources are still found.
+        let shapes = format!(r#"[{{"layer":"LV-HATCH","kind":"hatch","pts":[],"loops":[{outer},{hole}],"solid":true,"id":"S3","srcs":["S1","S2"]}},{{"layer":"A","kind":"pline","pts":{outer},"closed":true,"id":"S1"}},{{"layer":"B","kind":"pline","pts":{hole},"closed":true,"id":"S2"}}]"#);
+        let doc = with_additions(drawing(), "[]", &shapes, "").unwrap();
+        let check = |bytes: Vec<u8>| {
+            let (back, _) = read(bytes).unwrap();
+            let on = |layer: &str| back.entities().find_map(|e| if let EntityType::LwPolyline(x) = e { if x.common.layer == layer { Some(x.common.handle) } else { None } } else { None }).expect("the polyline");
+            let h = back.entities().find_map(|e| if let EntityType::Hatch(x) = e { if x.common.layer == "LV-HATCH" { Some(x) } else { None } } else { None }).expect("the hatch");
+            assert!(h.is_associative);
+            assert_eq!(h.paths.iter().map(|p| p.boundary_handles.clone()).collect::<Vec<_>>(), vec![vec![on("A")], vec![on("B")]]);
+            // Still in its place in the draw order: under the polylines.
+            let order: Vec<&str> = back.entities().filter_map(|e| match e {
+                EntityType::Hatch(x) if x.common.layer == "LV-HATCH" => Some("hatch"),
+                EntityType::LwPolyline(x) if x.common.layer == "A" || x.common.layer == "B" => Some("pline"),
+                _ => None,
+            }).collect();
+            assert_eq!(order, ["hatch", "pline", "pline"]);
+        };
+        check(acadrust::DxfWriter::new(&doc).write_to_vec().unwrap());
+        let mut d2 = with_additions(drawing(), "[]", &shapes, "").unwrap();
+        d2.version = acadrust::types::DxfVersion::AC1032;
+        check(acadrust::DwgWriter::write_to_vec(&d2).unwrap());
+        // A source that is not in the drawing leaves the hatch plain.
+        let lone = format!(r#"[{{"layer":"LV-HATCH","kind":"hatch","pts":[],"loops":[{outer}],"solid":true,"srcs":["S9"]}}]"#);
+        let plain = with_additions(drawing(), "[]", &lone, "").unwrap();
+        assert!(plain.entities().any(|e| matches!(e, EntityType::Hatch(x) if x.common.layer == "LV-HATCH" && !x.is_associative)));
     }
 
     /// An ellipse and a polyline with arc segments (a revision cloud) are saved as such, and read back.

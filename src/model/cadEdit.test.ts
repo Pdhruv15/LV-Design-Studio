@@ -180,3 +180,29 @@ describe('Mirror, Scale, Stretch, Array, grips, window', () => {
   });
 });
 
+describe('hatches keep their islands and pattern through mirror, scale and stretch', () => {
+  const hatch: SketchItem = { id: 'H', kind: 'pline', layer: 'LV-HATCH', closed: true, pts: [[0, 0], [10, 0], [10, 10], [0, 10]], hatch: { pattern: 'ansi31', scale: 3, angle: 30, origin: [2, 1] },
+    holes: [[[4, 4], [6, 4], [6, 6], [4, 6]]] };
+  it('mirror: islands and origin mirrored, the pattern\'s angle as it was; a plain polyline unchanged', () => {
+    const m = mirrored(hatch, [0, 0], [1, 0]);
+    expect(m.holes).toEqual([[[4, -4], [6, -4], [6, -6], [4, -6]]]);
+    expect(m.hatch).toEqual({ pattern: 'ansi31', scale: 3, angle: 30, origin: [2, -1] });
+    const plain = mirrored({ id: 'P', kind: 'pline', layer: 'L', pts: [[0, 1], [1, 2]] }, [0, 0], [1, 0]);
+    expect(plain).not.toHaveProperty('hatch');
+    expect(plain).not.toHaveProperty('holes');
+  });
+  it('scale: islands and origin scaled about the base, the spacing by the factor', () => {
+    const s = scaled(hatch, [0, 0], 2);
+    expect(s.pts[1]).toEqual([20, 0]);
+    expect(s.holes![0][0]).toEqual([8, 8]);
+    expect(s.hatch).toEqual({ pattern: 'ansi31', scale: 6, angle: 30, origin: [4, 2] });
+  });
+  it('stretch: island corners inside the window move like the outline\'s, the origin stays', () => {
+    const s = stretched(hatch, [3, 3], [11, 11], 1, 2)!;
+    expect(s.pts).toEqual([[0, 0], [10, 0], [11, 12], [0, 10]]);
+    expect(s.holes![0]).toEqual([[5, 6], [7, 6], [7, 8], [5, 8]]);
+    expect(s.hatch!.origin).toEqual([2, 1]);
+    // A window with no outline corner in it takes nothing.
+    expect(stretched(hatch, [4, 4], [6, 6], 1, 1)).toBeNull();
+  });
+});
