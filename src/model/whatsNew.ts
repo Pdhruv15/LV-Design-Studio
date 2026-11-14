@@ -15,9 +15,15 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.121', date: '2026-11-13',
+    version: '2.123', date: '2026-11-13',
     items: [
       { title: 'SLD CAD export: notes and title block as printed', text: 'In exported DXF and DWG sheets, notes, schedules and title block text now have the same size and line spacing as the PDF, so the lines no longer crowd each other.' }
+    ]
+  },
+  {
+    version: '2.122', date: '2026-11-13',
+    items: [
+      { title: 'SLD CAD export: real dashed lines', text: 'Dashed frames and lines in exported DXF and DWG drawings are now single lines with a dashed linetype, not hundreds of short pieces, and rounded corners stay rounded.' }
     ]
   },
   {

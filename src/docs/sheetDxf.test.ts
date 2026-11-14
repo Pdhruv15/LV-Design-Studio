@@ -4,7 +4,8 @@ import { dxfExportProject } from '../../tests/fixtures/dxfExport';
 import { FIRE_NOTE } from '../model/cableRefs';
 import { standardTemplate } from '../model/titleBlock';
 import type { Project } from '../types';
-import { dxfText } from './dxf';
+import { dxfText, toDxf, type DxfPrimitive } from './dxf';
+import { svgToDxf } from '../diagram/exportSvg';
 import { buildSheetDxf, buildSheetDxfPages } from './sheetDxf';
 import { SHEET_MM } from './sldSheet';
 import { dxfExportNotice, namedDxfFiles, uniqueDxfFiles } from './dxfFiles';
@@ -385,5 +386,78 @@ describe('drawn title block on a DXF sheet', () => {
     expect(attrib.v.get(1)).toBe('E-SLD-01');
     expect(data).toContain('\r\n0\r\nBLOCK\r\n');
     expectPaperBounds(data, SHEET_MM.A3.w, SHEET_MM.A3.h);
+  });
+});
+
+describe('dashed linetypes and rounded corners in sheet DXF', () => {
+  beforeAll(() => vi.stubGlobal('DOMParser', DOMParser));
+  afterAll(() => vi.unstubAllGlobals());
+  const body = (inner: string) => `<svg viewBox="0 0 400 160">${inner}</svg>`;
+  const sheet = (inner: string) => buildSheetDxf(dxfExportProject, body(inner), 'A3', info);
+  const drawn = (data: string) => entities(data).filter((e) => e.v.get(8) !== 'E-FRAME' && e.v.get(8) !== 'E-TITLE' && e.v.get(8) !== 'E-NOTES' && e.v.get(8) !== 'E-LEGEND');
+
+  it('writes one entity per dashed line, rectangle and circle, named by its length on paper', () => {
+    const data = sheet('<g stroke-dasharray="5 4"><line class="ln" x1="10" y1="20" x2="300" y2="20"/><line class="ln" x1="10" y1="30" x2="11" y2="30"/>'
+      + '<rect x="10" y="50" width="200" height="80"/><circle cx="350" cy="30" r="2"/><circle cx="350" cy="90" r="30"/></g>');
+    const e = drawn(data);
+    expect(e.filter((x) => x.type === 'LINE').map((x) => x.v.get(6))).toEqual(['LV-DASHED', 'LV-DASHED2']);
+    expect(e.filter((x) => x.type === 'CIRCLE').map((x) => x.v.get(6))).toEqual(['LV-DASHED2', 'LV-DASHED']);
+    const poly = e.filter((x) => x.type === 'POLYLINE');
+    expect(poly).toHaveLength(1);
+    expect(poly[0].v.get(6)).toBe('LV-DASHED');
+    expect(num(poly[0], 70)).toBe(129); // closed + pattern continuous round the vertices
+    expect(e.filter((x) => x.type === 'VERTEX')).toHaveLength(4);
+  });
+
+  it('keeps dash pieces inside library symbols and for wide busbars', () => {
+    const data = sheet('<g class="iec" stroke-dasharray="5 4"><line x1="10" y1="20" x2="300" y2="20"/></g>'
+      + '<line class="bus" stroke-dasharray="20 10" style="stroke-width:4px" x1="10" y1="60" x2="300" y2="60"/>');
+    const e = drawn(data);
+    expect(data).not.toContain('LV-DASHED');
+    expect(e.filter((x) => x.type === 'POLYLINE').length).toBeGreaterThan(10);
+    expect(e.filter((x) => x.type === 'SOLID').length).toBeGreaterThan(5);
+    expect(data).not.toContain('$LTSCALE');
+  });
+
+  it('defines exactly the linetypes in use, with their dash and gap lengths', () => {
+    const lines = sheet('<line class="ln" stroke-dasharray="5 4" x1="10" y1="20" x2="300" y2="20"/><line class="ln" stroke-dasharray="5 4" x1="10" y1="30" x2="11" y2="30"/>').split('\r\n');
+    const at = lines.indexOf('LV-DASHED');
+    expect(lines.slice(at - 3, at + 15)).toEqual(['0', 'LTYPE', '2', 'LV-DASHED', '70', '0', '3', 'Dashed', '72', '65', '73', '2', '40', '4.5', '49', '3', '49', '-1.5']);
+    expect(lines.slice(lines.indexOf('LV-DASHED2') + 7, lines.indexOf('LV-DASHED2') + 15)).toEqual(['73', '2', '40', '2.25', '49', '1.5', '49', '-0.75']);
+    expect(lines.slice(lines.indexOf('LTYPE') + 1, lines.indexOf('LTYPE') + 3)).toEqual(['70', '3']);
+    expect(lines).toContain('$LTSCALE');
+  });
+
+  it('writes rounded rectangles as bulged polylines whose corners bow outward', () => {
+    const solid = svgToDxf('<svg><rect x="10" y="10" width="40" height="20" rx="4"/></svg>', 100);
+    const p = solid[0] as Extract<DxfPrimitive, { type: 'polyline' }>;
+    expect(p.points).toHaveLength(8);
+    expect(p.bulges?.filter(Boolean)).toHaveLength(4);
+    const cx = 30, cy = 80;
+    p.bulges!.forEach((b, i) => {
+      if (!b) return;
+      const a = p.points[i], c = p.points[(i + 1) % 8];
+      const len = Math.hypot(c[0] - a[0], c[1] - a[1]);
+      // a positive bulge bows to the right of the chord, a negative one to its left
+      const sag = (b * len) / 2, side: [number, number] = [(c[1] - a[1]) / len, -(c[0] - a[0]) / len];
+      const mid = [(a[0] + c[0]) / 2 + side[0] * sag, (a[1] + c[1]) / 2 + side[1] * sag];
+      const chordMid = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2];
+      expect(Math.hypot(mid[0] - cx, mid[1] - cy)).toBeGreaterThan(Math.hypot(chordMid[0] - cx, chordMid[1] - cy));
+      expect(Math.abs(b)).toBeCloseTo(Math.tan(Math.PI / 8), 6);
+    });
+    const dxf = toDxf(solid);
+    expect(dxf).toContain('\r\n42\r\n');
+    expect(dxf).not.toContain('LV-DASHED');
+    // a mirrored transform reverses the arcs
+    const mirrored = svgToDxf('<svg><rect transform="scale(-1 1)" x="-50" y="10" width="40" height="20" rx="4"/></svg>', 100)[0] as typeof p;
+    expect(Math.sign(mirrored.bulges![1])).toBe(-Math.sign(p.bulges![1]));
+  });
+
+  it('keeps the bulges when a rounded dashed rectangle is placed on the sheet', () => {
+    const data = sheet('<rect x="10" y="10" width="200" height="80" rx="6" stroke-dasharray="6 4"/>');
+    const e = drawn(data);
+    expect(e.filter((x) => x.type === 'POLYLINE')).toHaveLength(1);
+    expect(e.filter((x) => x.type === 'VERTEX')).toHaveLength(8);
+    expect(e.filter((x) => x.type === 'VERTEX' && x.v.has(42))).toHaveLength(4);
   });
 });
