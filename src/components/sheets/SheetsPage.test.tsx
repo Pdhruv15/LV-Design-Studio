@@ -8,6 +8,8 @@ import SheetsPage from './SheetsPage';
 const saved: { name: string; bytes: Uint8Array }[] = [];
 vi.mock('../../util/files', async (orig) => ({ ...(await orig<typeof import('../../util/files')>()), saveBinary: async (name: string, bytes: Uint8Array) => { saved.push({ name, bytes }); return `Saved ${name}`; } }));
 import { sampleProject } from '../../data/sampleProject';
+import { templateData } from '../../docs/scheduleFields';
+import { linkBoards } from '../../docs/sheetLink';
 import { newSheet, withCells } from '../../model/sheets';
 import type { Project } from '../../types';
 
@@ -146,7 +148,7 @@ describe('Sheets page', () => {
     render(sampleProject);
     for (const label of ['Apply to project', 'Sort', 'Filter', 'Find', 'Copy format']) expect(tool(label).disabled).toBe(true);
     expect(tool('Apply to project').title).toBe('Comes in a later stage');
-    expect([...document.querySelectorAll<HTMLButtonElement>('.shx-tab')].filter((t) => t.disabled).map((t) => t.textContent)).toEqual(['Electrical', 'Formulas', 'Data', 'Review']);
+    expect([...document.querySelectorAll<HTMLButtonElement>('.shx-tab')].filter((t) => t.disabled).map((t) => t.textContent)).toEqual(['Formulas', 'Data', 'Review']);
   });
 
   it('Merge cells is greyed for one plain cell; it merges a selection and takes it apart again', () => {
@@ -286,6 +288,112 @@ describe('Sheets page', () => {
     Object.defineProperty(input, 'files', { value: [file], configurable: true });
     await act(async () => { input.dispatchEvent(new Event('change', { bubbles: true })); await vi.waitFor(() => expect(status.length).toBe(1)); });
     expect(status[0]).toBe('notes.xlsx could not be opened as an Excel (.xlsx) file');
+    expect(changes).toBe(0);
+  });
+});
+
+describe('Sheets page — Link columns', () => {
+  const office = () => book({
+    A1: 'AL NOOR CONSULTANTS', A2: 'PANEL', B2: 'DB-GF', C2: 'FED FROM: SMDB-1',
+    A5: 'CKT', B5: 'PH', C5: 'DESCRIPTION', D5: 'LOAD (W)', E5: 'MCB (A)', F5: 'CABLE (mm²)', G5: 'EARTH (mm²)', H5: 'LENGTH (m)', I5: 'ROUTE', J5: 'REMARKS'
+  });
+  const panel = () => document.querySelector<HTMLElement>('.shl');
+  const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('.shl button')].find((b) => b.textContent?.startsWith(text))!;
+  const choose = (label: string, value: string) => act(() => {
+    const sel = document.querySelector<HTMLSelectElement>(`.shl select[aria-label="${label}"]`)!;
+    sel.value = value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  const open = () => { press('Electrical'); press('Link columns'); };
+  const linkIt = () => { open(); act(() => button('Suggest links').click()); choose('Board', 'DB-GF1'); };
+  const data = templateData(sampleProject, 'DB-GF1');
+
+  it('the Electrical tab opens and has the link tools; Apply to project waits', () => {
+    render(sampleProject);
+    press('Electrical');
+    expect(tool('Link columns').getAttribute('aria-pressed')).toBe('false');
+    expect(tool('Show linked cells').getAttribute('aria-pressed')).toBe('true');
+    expect(tool('Apply to project').disabled).toBe(true);
+    expect(tool('Apply to project').title).toBe('Comes in a later stage');
+    expect([...document.querySelectorAll<HTMLButtonElement>('.shx-tab')].filter((t) => t.disabled).map((t) => t.textContent)).toEqual(['Formulas', 'Data', 'Review']);
+  });
+
+  it('Link columns opens and closes the panel', () => {
+    render(sampleProject);
+    open();
+    expect(panel()!.textContent).toContain('This sheet is not linked to the project.');
+    expect(tool('Link columns').getAttribute('aria-pressed')).toBe('true');
+    expect(button('Use the placeholders')).toBeUndefined();
+    act(() => document.querySelector<HTMLButtonElement>('.shl button[aria-label="Close"]')!.click());
+    expect(panel()).toBeNull();
+    expect(changes).toBe(0);
+  });
+
+  it('Suggest links, then a board, fills the sheet from the project', () => {
+    render(office());
+    linkIt();
+    expect(td('B2').textContent).toBe('DB-GF1');
+    expect(td('C2').textContent).toBe(`FED FROM: ${data.fields['board.fedFrom']}`);
+    expect(td('A6').textContent).toBe(String(data.rows[0]['row.ref']));
+    expect(td(`A${5 + data.rows.length}`).textContent).toBe(String(data.rows[data.rows.length - 1]['row.ref']));
+    expect(panel()!.textContent).toContain('Needed to build the board and the SLD');
+    expect(td('B2').className).toContain('shx-lk');
+    expect(td('A6').className).toContain('shx-lk'); // a cell of a linked column, inside the block
+    expect(document.querySelector('.shx-grid th .shx-lkname')!.textContent).toBe('Circuit reference');
+    expect(changes).toBe(2);
+  });
+
+  it('a linked cell is read only, with a message; an own column takes typing and keeps it', () => {
+    render(office());
+    linkIt();
+    const before = changes;
+    click('B2');
+    type('X');
+    expect(status[status.length - 1]).toBe('B2 is filled from the project (Board number). Typing in linked cells comes with Apply to project.');
+    expect(td('B2').textContent).toBe('DB-GF1');
+    click('B2');
+    gridKey('F2');
+    expect(grid().querySelector('input')).toBeNull();
+    expect(status[status.length - 1]).toContain('B2 is filled from the project');
+    expect(changes).toBe(before);
+    choose('Link of column I', 'own');
+    click('I6');
+    type('via riser');
+    expect(last.sheets!.sheets[0].cells.I6).toBe('via riser');
+    expect(td('I6').className).toContain('shx-own');
+  });
+
+  it('Add a sheet for every other DB adds a tab each; Remove the link brings back the unlinked state', () => {
+    const base = office(), db = sampleProject.boards.find((b) => b.id === 'DB-GF1')!;
+    const two: Project = { ...base, boards: [...base.boards, { ...db, id: 'DB-X1', name: 'Second DB' }, { ...db, id: 'DB-X2', name: 'Third DB' }] };
+    render(two);
+    linkIt();
+    const others = linkBoards(two).length - 1;
+    expect(others).toBe(2);
+    act(() => button('Add a sheet for every other DB (2)').click());
+    expect(document.querySelectorAll('.shx-sheets [role="tab"]').length).toBe(1 + others);
+    expect(last.sheets!.sheets.slice(1).every((x) => x.link?.boardId && x.link.boardId !== 'DB-GF1')).toBe(true);
+    expect(button('Add a sheet for every other DB (0)').disabled).toBe(true);
+    act(() => button('Remove the link').click());
+    expect(panel()!.textContent).toContain('This sheet is not linked to the project.');
+    expect(last.sheets!.sheets[0].link).toBeUndefined();
+  });
+
+  it('with Show linked cells off the marks are gone', () => {
+    render(office());
+    linkIt();
+    expect(document.querySelectorAll('.shx-lk').length).toBeGreaterThan(0);
+    press('Show linked cells');
+    expect(document.querySelectorAll('.shx-lk').length).toBe(0);
+    expect(document.querySelectorAll('.shx-lkname').length).toBe(0);
+    expect(tool('Show linked cells').getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('a sheet with no heading row says so', () => {
+    render(book({ A1: 'notes' }));
+    open();
+    act(() => button('Suggest links').click());
+    expect(status[status.length - 1]).toBe('No heading row found. Start with no links and pick the first circuit row.');
     expect(changes).toBe(0);
   });
 });

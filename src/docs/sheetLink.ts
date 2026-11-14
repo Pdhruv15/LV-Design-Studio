@@ -1,6 +1,7 @@
 import { cellAt, cellName, colName, shiftFormula } from '../calc/sheetFormula';
-import { deleteRows, insertRows, MAX_ROWS, mergeAt, type Area, type Sheet, type SheetLink, type SheetStyle } from '../model/sheets';
-import { POINT_TYPES, type Project } from '../types';
+import { deleteRows, insertRows, MAX_ROWS, mergeAt, newSheet, sheetNameError, type Area, type Sheet, type SheetLink, type SheetStyle } from '../model/sheets';
+import { isDbBoard } from '../model/spareWays';
+import { POINT_TYPES, type Board, type Project } from '../types';
 import { scheduleRowKeys, templateData } from './scheduleFields';
 
 /** Fills a sheet linked to a DB (Sheet.link) from the project: the cells that hold one value, and one row per circuit
@@ -145,4 +146,151 @@ export function fillLinked(project: Project, sheet: Sheet, at?: Date): Sheet {
 export function linkToBoard(sheet: Sheet, boardId: string): Sheet {
   if (!sheet.link) return sheet;
   return { ...sheet, link: { ...sheet.link, boardId, ...(sheet.link.boardId !== boardId && { rows: sheet.link.rows.map(() => '') }) } };
+}
+
+// ---- choosing what is linked (the Link columns panel)
+
+/** The boards a DB sheet can show: DBs, and any board with schedule rows. */
+export const linkBoards = (project: Project): Board[] => project.boards.filter((b) => isDbBoard(b) || scheduleRowKeys(project, b.id).length > 0);
+
+const inBlock = (link: SheetLink, row: number) => row >= link.firstRow && row <= link.firstRow + Math.max(1, link.rows.length) - 1;
+
+/** What a cell is linked to: a linked cell, or a cell of a linked column inside the block of circuit rows. */
+export function linkAt(sheet: Sheet, r: number, c: number): { field: string; label: string; own: boolean } | undefined {
+  const link = sheet.link;
+  if (!link) return undefined;
+  const field = link.cells[cellName(c, r)]?.field ?? (inBlock(link, r) ? link.columns[colName(c)] : undefined);
+  return field === undefined ? undefined : { field, label: LINK_FIELDS.find((f) => f.key === field)?.label ?? field, own: field === 'own' };
+}
+
+/** An empty link on a sheet without one: no cells, no columns, no board. */
+export const startLink = (sheet: Sheet, firstRow: number): Sheet => (sheet.link ? sheet : { ...sheet, link: { category: 'db', cells: {}, firstRow, rows: [], columns: {} } });
+export function removeLink(sheet: Sheet): Sheet {
+  const { link: _l, ...rest } = sheet;
+  return rest;
+}
+
+/** The text of a cell up to and including its last colon and the spaces after it ("FED FROM: SMDB-1" → "FED FROM: "). */
+const textBefore = (text: string): string | undefined => /^[\s\S]*:\s*/.exec(text)?.[0];
+
+/** Links a cell to a cell field, or unlinks it. A new link keeps the text before the value ("FED FROM: ") and drops the old value;
+ * a linked cell keeps its before and after and changes field. A cell inside the block of circuit rows is refused. */
+export function setLinkCell(sheet: Sheet, cell: string, field: string | undefined): Sheet {
+  const link = sheet.link, at = cellAt(cell);
+  if (!link || !at || inBlock(link, at.row)) return sheet;
+  const k = cellName(at.col, at.row), now = link.cells[k];
+  if (field === undefined) {
+    if (!now) return sheet;
+    const { [k]: _gone, ...rest } = link.cells;
+    return { ...sheet, link: { ...link, cells: rest } };
+  }
+  if (LINK_FIELDS.find((f) => f.key === field)?.kind !== 'cell') return sheet;
+  if (now) return { ...sheet, link: { ...link, cells: { ...link.cells, [k]: { ...now, field } } } };
+  const before = textBefore(sheet.cells[k] ?? ''), cells = { ...sheet.cells };
+  if (before) cells[k] = before; else delete cells[k];
+  return { ...sheet, cells, link: { ...link, cells: { ...link.cells, [k]: { field, ...(before && { before }) } } } };
+}
+
+/** Links a column to a row field or 'own', or unlinks it. A field goes to one column (the last one chosen); 'own' to any number. */
+export function setLinkColumn(sheet: Sheet, letters: string, field: string | undefined): Sheet {
+  const link = sheet.link, col = letters.toUpperCase();
+  if (!link) return sheet;
+  const columns = Object.fromEntries(Object.entries(link.columns).filter(([l, f]) => l !== col && (field === undefined || field === 'own' || f !== field)));
+  if (field !== undefined) {
+    if (LINK_FIELDS.find((f) => f.key === field)?.kind !== 'row') return sheet;
+    columns[col] = field;
+  }
+  return { ...sheet, link: { ...link, columns } };
+}
+
+/** The first circuit row moved: the block goes back to its one pattern row (its extra rows are deleted), and a linked cell on the new row is unlinked. */
+export function setFirstRow(sheet: Sheet, row: number): Sheet {
+  const link = sheet.link;
+  if (!link || !Number.isInteger(row) || row < 1 || row > MAX_ROWS) return sheet;
+  const s = link.rows.length > 1 ? deleteRows(sheet, link.firstRow + 1, link.rows.length - 1) : sheet, l = s.link!;
+  const cells = Object.fromEntries(Object.entries(l.cells).filter(([k]) => cellAt(k)!.row !== row));
+  return { ...s, link: { ...l, firstRow: row, rows: [], cells } };
+}
+
+// ---- links guessed from the headings
+
+const norm = (t: string) => t.toUpperCase().replace(/[\s./]+/g, ' ').trim();
+const POINT_BY_LABEL = new Map(POINT_TYPES.map((t) => [norm(t.label).replace(/'/g, ''), `row.points.${t.value}`] as const));
+/** The row field a heading stands for; null for a heading that is known but not linked; undefined for none. */
+function headingField(text: string): string | null | undefined {
+  const n = norm(text);
+  if (!n) return undefined;
+  const has = (...w: string[]) => w.some((x) => n.includes(x));
+  if (has('ELCB', 'RCCB', 'RCD')) return 'row.elcbGroup';
+  if (has('INCOMER')) return null;
+  if (has('ECC', 'EARTH', 'CPC')) return 'row.ecc';
+  if (has('MCB', 'BREAKER') || (has('RATING') && has('AMP'))) return 'row.mcb';
+  if (has('CABLE', 'WIRE')) return 'row.wire';
+  if (has('DESCRIPTION', 'ROOM', 'AREA')) return 'row.room';
+  if (has('WATT') && has('UNIT')) return null;
+  if (n === 'R' || n === 'Y' || n === 'B') return `row.${n}`;
+  if (has('LOAD', 'WATT') && !has('CONNECTED LOAD POINTS')) return 'row.watts';
+  if (has('LENGTH')) return 'row.length';
+  if (has('REMARK')) return 'row.remarks';
+  if (n === 'PH' || n === 'PHASE') return 'row.phase';
+  if (['SL NO', 'SR NO', 'S NO', 'SL'].includes(n) || has('SERIAL')) return 'row.sl';
+  if (/^(CKT|CCT|CIR|CIRCUIT)/.test(n) && !has('WIRE')) return 'row.ref';
+  return POINT_BY_LABEL.get(n.replace(/'/g, ''));
+}
+const CELL_LABELS: [string, string][] = [['LOCATION OF DB', 'board.location'], ['LOCATION', 'board.location'], ['DB NAME', 'board.id'], ['DB NO', 'board.id'], ['FED FROM', 'board.fedFrom'], ['PROJECT', 'project.name'],
+  ['INCOMER', 'board.incomer'], ['MAIN', 'board.incomer'], ['PANEL', 'board.id'], ['BOARD', 'board.id'], ['DB', 'board.id']];
+
+/** Links guessed from the headings, for the user to check: the heading row (the one with most known headings, three at least),
+ * the first circuit row under it, a column for each known heading, and the cells above it that are labelled (PANEL, FED FROM …).
+ * A merged area is read from its first cell and counts for all its rows. Undefined when no heading row is found. */
+export function suggestLink(sheet: Sheet): Sheet | undefined {
+  const items = Object.keys(sheet.cells).flatMap((k) => {
+    const p = cellAt(k)!, m = mergeAt(sheet, p.row, p.col), text = sheet.cells[k];
+    return (m && (m.r0 !== p.row || m.c0 !== p.col)) || !text.trim() || text.startsWith('=') ? [] : [{ k, row: p.row, col: p.col, text, end: m?.r1 ?? p.row, right: m?.c1 ?? p.col }];
+  }).sort((a, b) => a.row - b.row || a.col - b.col);
+  let head = 0, best = 2;
+  for (let r = 1; r <= 40; r++) {
+    const n = items.filter((i) => i.row === r && typeof headingField(i.text) === 'string').length;
+    if (n > best) { best = n; head = r; }
+  }
+  if (!head) return undefined;
+  const reach = Math.max(head, ...items.filter((i) => i.row === head && headingField(i.text) !== undefined).map((i) => i.end));
+  const columns: SheetLink['columns'] = {}, used = new Set<string>();
+  const cols = [...new Set(items.filter((i) => i.row >= head && i.row <= reach).map((i) => i.col))].sort((a, b) => a - b);
+  for (const c of cols) {
+    // The lowest heading of a column counts first: a group heading over several columns gives way to the headings under it.
+    const f = items.filter((i) => i.col === c && i.row >= head && i.row <= reach).sort((a, b) => b.row - a.row).map((i) => headingField(i.text)).find((x) => x !== undefined);
+    if (typeof f === 'string' && !used.has(f)) { columns[colName(c)] = f; used.add(f); }
+  }
+  let out = startLink({ ...sheet, link: undefined }, reach + 1);
+  out = { ...out, link: { ...out.link!, columns } };
+  const field = new Set<string>();
+  for (const i of items.filter((x) => x.row < head)) {
+    const n = norm(i.text), hit = CELL_LABELS.find(([l]) => n === l || (n.startsWith(l) && /^\s*:/.test(n.slice(l.length))));
+    if (!hit || field.has(hit[1])) continue;
+    field.add(hit[1]);
+    if (i.text.includes(':')) out = setLinkCell(out, i.k, hit[1]);
+    else {
+      const to = cellName(i.right + 1, i.row); // a label alone: the value goes in the next cell to its right
+      const { [to]: _old, ...rest } = out.cells;
+      out = setLinkCell({ ...out, cells: rest }, to, hit[1]);
+    }
+  }
+  return out;
+}
+
+/** New sheets, one for each board no sheet is linked to yet: a copy of `from` on that board, named after it. Only the new ones. */
+export function sheetsForBoards(sheets: Sheet[], from: Sheet, boardIds: string[]): Sheet[] {
+  const made: Sheet[] = [], taken = new Set(sheets.map((s) => s.link?.boardId));
+  for (const id of boardIds) {
+    if (taken.has(id)) continue;
+    taken.add(id);
+    const all = [...sheets, ...made], base = id.replace(/[\\/?*[\]:]/g, '-').slice(0, 31) || 'DB';
+    let name = base;
+    for (let i = 2; sheetNameError(name, all); i++) name = `${base.slice(0, 31 - String(i).length - 1)} ${i}`;
+    const { source: _s, ...copy } = from;
+    const ns = newSheet(all, name);
+    made.push({ ...linkToBoard(copy, id), id: ns.id, name: ns.name });
+  }
+  return made;
 }

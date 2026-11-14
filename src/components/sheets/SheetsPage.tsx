@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowDownToLine, Baseline, BetweenHorizontalStart, BetweenVerticalStart, Bold, Check, ClipboardPaste, ClipboardType,
-  Copy, Dot, FilePlus2, FolderOpen, Grid2x2, Hash, Italic, ListFilter, MoveHorizontal, PaintBucket, Paintbrush, Pencil, Percent, RotateCw, Ruler, Save, Scissors, Search,
-  Sigma, TableCellsMerge, Trash2, Underline, Undo2, WrapText, type LucideIcon
+  Copy, Dot, Eye, FilePlus2, FolderOpen, Grid2x2, Hash, Italic, Link2, ListFilter, MoveHorizontal, PaintBucket, Paintbrush, Pencil, Percent, RotateCw, Ruler, Save, Scissors, Search,
+  Sigma, TableCellsMerge, Trash2, Underline, Undo2, Upload, WrapText, type LucideIcon
 } from 'lucide-react';
 import type { Project } from '../../types';
 import { cellAt, cellName, colName } from '../../calc/sheetFormula';
@@ -10,12 +10,15 @@ import {
   allBordered, allStyled, area, DEFAULT_WIDTH, deleteCols, deleteRows, edgesOf, fillDownEdits, insertCols, insertRows, mergeArea, mergeAt, newSheet, pasteEdits, rawRows, sheetNameError, sheetValues, shown, shownRows, sumFormula,
   unmergeArea, withCells, withNextWidth, withStyle, type Area, type Sheet, type SheetAlign, type SheetBook, type SheetNumberFormat, type SheetStyle
 } from '../../model/sheets';
+import { fillLinked, linkAt, LINK_FIELDS } from '../../docs/sheetLink';
 import { parseClipboard, toClipboard } from '../grid/excelGrid';
+import LinkPanel from './LinkPanel';
 import { safeFileName, saveBinary } from '../../util/files';
 
 /** Sheets: the engineer's own schedules in an Excel-style grid with formulas, inside the app. This stage has the
- * grid, the formula bar, the sheet tabs, the File and Home tabs of the ribbon, and opening and saving Excel files;
- * linking columns to the project and the Electrical tools follow (docs/notes/Future development, Sheets proposal). */
+ * grid, the formula bar, the sheet tabs, the File and Home tabs of the ribbon, opening and saving Excel files,
+ * and linking a sheet to a DB of the project (Electrical tab, Link columns: LinkPanel.tsx). Writing typed values back to
+ * the project and the other Electrical tools follow (docs/notes/Future development, Sheets proposal). */
 
 const LATER = 'Comes in a later stage';
 const CSS = `
@@ -37,12 +40,14 @@ const CSS = `
 .shx-icons { display: grid; grid-template-columns: repeat(3, 40px); gap: 8px; }
 .shx-ic { box-sizing: border-box; width: 40px; height: 40px; padding: 0; border-radius: 6px; border: 1px solid var(--line); background: var(--p2); color: var(--tx); display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .shx-big:hover:not(:disabled), .shx-sm:hover:not(:disabled), .shx-ic:hover:not(:disabled) { background: var(--p2); border-color: var(--line-strong); }
-.shx-ic[aria-pressed="true"], .shx-sm[aria-pressed="true"] { outline: 1px solid var(--acc); }
+.shx-ic[aria-pressed="true"], .shx-sm[aria-pressed="true"], .shx-big[aria-pressed="true"] { outline: 1px solid var(--acc); }
 .shx-big:disabled, .shx-sm:disabled, .shx-ic:disabled { opacity: 0.45; cursor: default; }
 .shx-big svg, .shx-sm svg, .shx-ic svg { color: var(--acc); flex: none; }
 .shx-bar { display: grid; grid-template-columns: 84px 1fr; gap: 8px; }
 .shx-bar label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; font-weight: 600; color: var(--mut); }
 .shx-bar input { box-sizing: border-box; width: 100%; height: 32px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--p2); color: var(--tx); font: inherit; font-size: 13px; }
+.shx-main { display: flex; gap: 12px; align-items: flex-start; }
+.shx-main > .shx-wrap { flex: 1; min-width: 0; }
 .shx-wrap { overflow: auto; max-height: 62vh; border: 1px solid var(--line); background: var(--panel); outline: none; }
 .shx-grid { border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; font-size: 12.5px; }
 .shx-grid th { position: sticky; top: 0; z-index: 2; height: 24px; padding: 0 6px; border: 1px solid var(--line); background: var(--p2); color: var(--mut); font-size: 11px; font-weight: 600; text-align: center; }
@@ -57,6 +62,10 @@ const CSS = `
 .shx-grid td.shx-keep { text-decoration: underline dotted; text-underline-offset: 3px; }
 .shx-grid td.shx-fill { background: color-mix(in srgb, var(--acc) 22%, transparent); }
 .shx-grid td.shx-accent { color: var(--acc); }
+.shx-grid td.shx-lk { box-shadow: inset 2px 0 0 var(--res-cur); }
+.shx-grid td.shx-own { box-shadow: inset 2px 0 0 var(--res-pf); }
+.shx-grid th .shx-lkname { display: block; font-size: 10px; font-weight: 400; color: var(--res-cur); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.shx-grid th .shx-lkname.shx-lkown { color: var(--res-pf); }
 .shx-grid td input { box-sizing: border-box; width: 100%; height: 22px; border: 0; outline: 0; padding: 0; background: var(--bg); color: var(--tx); font: inherit; }
 .shx-sheets { display: flex; flex-wrap: wrap; gap: 4px; }
 .shx-sheet { height: 36px; padding: 0 16px; border: 1px solid var(--line); border-radius: 0 0 6px 6px; background: var(--bg); color: var(--mut); font: inherit; cursor: pointer; }
@@ -64,15 +73,15 @@ const CSS = `
 .shx-note { font-size: 12px; color: var(--mut); margin: 0; }
 `;
 
-type Tab = 'file' | 'home';
+type Tab = 'file' | 'home' | 'electrical';
 interface Clip { text: string; rows: string[][]; from: { r: number; c: number } }
 const EMPTY_BOOK = (): SheetBook => ({ sheets: [newSheet()] });
 
 function Group({ name, children }: { name: string; children: ReactNode }) {
   return <div className="shx-group" role="group" aria-label={name}><div className="shx-tools">{children}</div><span className="shx-name">{name}</span></div>;
 }
-function Big({ icon: Icon, label, onClick, disabled, title }: { icon: LucideIcon; label: string; onClick?: () => void; disabled?: boolean; title?: string }) {
-  return <button type="button" className="shx-big" onClick={onClick} disabled={disabled || !onClick} title={title ?? (onClick ? label : LATER)}><Icon size={26} aria-hidden /><span>{label}</span></button>;
+function Big({ icon: Icon, label, onClick, disabled, title, pressed }: { icon: LucideIcon; label: string; onClick?: () => void; disabled?: boolean; title?: string; pressed?: boolean }) {
+  return <button type="button" className="shx-big" onClick={onClick} disabled={disabled || !onClick} aria-pressed={pressed} title={title ?? (onClick ? label : LATER)}><Icon size={26} aria-hidden /><span>{label}</span></button>;
 }
 function Small({ icon: Icon, label, onClick, disabled, pressed }: { icon: LucideIcon; label: string; onClick?: () => void; disabled?: boolean; pressed?: boolean }) {
   return <button type="button" className="shx-sm" onClick={onClick} disabled={disabled || !onClick} aria-pressed={pressed} title={onClick ? label : LATER}><Icon size={18} aria-hidden /><span>{label}</span></button>;
@@ -84,7 +93,11 @@ function IconTool({ icon: Icon, label, onClick, pressed, disabled }: { icon: Luc
 export default function SheetsPage({ project, onChange, onStatus, onUndo }: { project: Project; onChange: (p: Project, step?: boolean) => void; onStatus?: (m: string) => void; onUndo?: () => void }) {
   const book = useMemo(() => (project.sheets?.sheets.length ? project.sheets : EMPTY_BOOK()), [project.sheets]);
   const [sheetId, setSheetId] = useState(book.sheets[0].id);
-  const sheet = book.sheets.find((s) => s.id === sheetId) ?? book.sheets[0];
+  const stored = book.sheets.find((s) => s.id === sheetId) ?? book.sheets[0];
+  /** The shown sheet is live: a linked sheet is filled from the project, and saving stores the filled sheet. */
+  const sheet = useMemo(() => fillLinked(project, stored), [project, stored]);
+  const [panel, setPanel] = useState(false);
+  const [showLinks, setShowLinks] = useState(true);
   const [tab, setTab] = useState<Tab>('home');
   const [act, setAct] = useState({ r: 1, c: 1 });
   const [anchor, setAnchor] = useState({ r: 1, c: 1 });
@@ -109,7 +122,20 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
 
   const save = (next: Sheet, more: Partial<SheetBook> = {}) =>
     onChange({ ...project, sheets: { ...book, ...more, sheets: (more.sheets ?? book.sheets).map((s) => (s.id === next.id ? next : s)) } }, true);
-  const setCells = (edits: Record<string, string>) => { if (Object.keys(edits).some((k) => (sheet.cells[k] ?? '') !== edits[k])) save(withCells(sheet, edits)); };
+  /** A cell filled from the project is read only for now: the message says so, naming the first cell dropped. */
+  const linkedMsg = (k: string) => { const p = cellAt(k), l = p && linkAt(sheet, p.row, p.col); return l && !l.own ? `${k} is filled from the project (${l.label}). Typing in linked cells comes with Apply to project.` : undefined; };
+  const setCells = (all: Record<string, string>) => {
+    const edits: Record<string, string> = {};
+    let said: string | undefined;
+    for (const [k, v] of Object.entries(all)) {
+      const msg = linkedMsg(k);
+      if (!msg) edits[k] = v; else if ((sheet.cells[k] ?? '') !== v) said ??= msg;
+    }
+    if (said) onStatus?.(said);
+    if (Object.keys(edits).some((k) => (sheet.cells[k] ?? '') !== edits[k])) save(withCells(sheet, edits));
+  };
+  /** Opens the editor on a cell, unless it is filled from the project. */
+  const openEditor = (k: string, text: string) => { const msg = linkedMsg(k); if (msg) { onStatus?.(msg); return; } ended.current = false; setEdit(text); };
   const style = (change: Partial<SheetStyle>) => save(withStyle(sheet, sel, change));
   const toggle = (key: 'bold' | 'italic' | 'underline' | 'wrap' | 'fill' | 'accent') => style({ [key]: allStyled(sheet, sel, key) ? undefined : true });
   const cur = sheet.styles?.[name] ?? {};
@@ -187,7 +213,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
     try {
       const { buildXlsx } = await import('../../docs/sheetXlsx');
       const base = (sheet.source ?? `${project.name} - Sheets`).replace(/\.xlsx$/i, '');
-      const m = await saveBinary(`${safeFileName(base)}.xlsx`, new Uint8Array(await buildXlsx(book.sheets).xlsx.writeBuffer()), 'Excel workbook', 'xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      const m = await saveBinary(`${safeFileName(base)}.xlsx`, new Uint8Array(await buildXlsx(book.sheets.map((x) => fillLinked(project, x))).xlsx.writeBuffer()), 'Excel workbook', 'xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       if (m) onStatus?.(m);
     } finally {
       setBusy(false);
@@ -216,7 +242,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
     if (arrows[k]) { e.preventDefault(); step(arrows[k][0], arrows[k][1], e.shiftKey); return; }
     if (k === 'Tab') { e.preventDefault(); step(0, e.shiftKey ? -1 : 1); return; }
     if (k === 'Enter') { e.preventDefault(); step(e.shiftKey ? -1 : 1, 0); return; }
-    if (k === 'F2') { e.preventDefault(); ended.current = false; setEdit(raw); return; }
+    if (k === 'F2') { e.preventDefault(); openEditor(name, raw); return; }
     if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); clear(); return; }
     if (mod) {
       const key = k.toLowerCase();
@@ -238,6 +264,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
     if (values[k]?.unsupported && !values[k]?.error) out.push('shx-keep');
     if (st?.fill) out.push('shx-fill');
     if (st?.accent) out.push('shx-accent');
+    if (showLinks && sheet.link) { const l = linkAt(sheet, r, c); if (l?.own) out.push('shx-own'); else if (l) out.push('shx-lk'); }
     return out.join(' ');
   };
   const cellStyle = (k: string, r: number, c: number): React.CSSProperties => {
@@ -262,7 +289,8 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
         <div className="shx-tabs" role="tablist" aria-label="Sheet tools">
           <button type="button" role="tab" className="shx-tab" aria-selected={tab === 'file'} onClick={() => setTab('file')}>File</button>
           <button type="button" role="tab" className="shx-tab" aria-selected={tab === 'home'} onClick={() => setTab('home')}>Home</button>
-          {['Electrical', 'Formulas', 'Data', 'Review'].map((t) => <button key={t} type="button" role="tab" className="shx-tab" aria-selected={false} disabled title={LATER}>{t}</button>)}
+          <button type="button" role="tab" className="shx-tab" aria-selected={tab === 'electrical'} onClick={() => setTab('electrical')}>Electrical</button>
+          {['Formulas', 'Data', 'Review'].map((t) => <button key={t} type="button" role="tab" className="shx-tab" aria-selected={false} disabled title={LATER}>{t}</button>)}
         </div>
         {tab === 'file' ? (
           <div className="shx-body">
@@ -277,6 +305,16 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
               <Big icon={FolderOpen} label="Open Excel file" onClick={() => fileInput.current?.click()} disabled={busy} />
               <Big icon={Save} label="Save as .xlsx" onClick={() => void saveFile()} disabled={busy} />
               <input ref={fileInput} type="file" accept=".xlsx" hidden aria-label="Excel file to open" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void openFile(f); }} />
+            </Group>
+          </div>
+        ) : tab === 'electrical' ? (
+          <div className="shx-body">
+            <Group name="Project link">
+              <Big icon={Link2} label="Link columns" onClick={() => setPanel(!panel)} pressed={panel} />
+              <div className="shx-col">
+                <Small icon={Eye} label="Show linked cells" onClick={() => setShowLinks(!showLinks)} pressed={showLinks} />
+                <Small icon={Upload} label="Apply to project" />
+              </div>
             </Group>
           </div>
         ) : (
@@ -352,12 +390,13 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
           onBlur={(e) => { if (e.currentTarget.value !== raw) setCells({ [name]: e.currentTarget.value }); }} /></label>
       </div>
 
+      <div className="shx-main">
       <div className="shx-wrap" ref={wrap} tabIndex={0} onKeyDown={onKey} role="grid" aria-label={`Sheet ${sheet.name}`}
         onPaste={(e) => { if (!editing) { e.preventDefault(); pasteText(e.clipboardData.getData('text/plain')); } }}>
         <table className="shx-grid">
           <colgroup><col style={{ width: 40 }} />{colHeads.map((c) => <col key={c} style={{ width: sheet.widths?.[colName(c)] ?? DEFAULT_WIDTH }} />)}</colgroup>
           <thead>
-            <tr><th className="shx-corner" aria-hidden />{colHeads.map((c) => <th key={c} scope="col" className={c >= sel.c0 && c <= sel.c1 ? 'shx-on' : undefined}>{colName(c)}</th>)}</tr>
+            <tr><th className="shx-corner" aria-hidden />{colHeads.map((c) => { const f = showLinks ? sheet.link?.columns[colName(c)] : undefined, label = f ? LINK_FIELDS.find((x) => x.key === f)?.label ?? f : undefined; return <th key={c} scope="col" className={c >= sel.c0 && c <= sel.c1 ? 'shx-on' : undefined} title={label}>{colName(c)}{label && <span className={`shx-lkname${f === 'own' ? ' shx-lkown' : ''}`}>{label}</span>}</th>; })}</tr>
           </thead>
           <tbody>
             {rowHeads.map((r) => (
@@ -371,7 +410,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
                       rowSpan={m ? m.r1 - m.r0 + 1 : undefined} colSpan={m ? m.c1 - m.c0 + 1 : undefined}
                       title={values[k]?.error ? `${values[k]!.error}: ${sheet.cells[k]}` : values[k]?.unsupported ? `Kept from the Excel file with its last value — the app cannot work this formula out: ${sheet.cells[k]}` : undefined}
                       onMouseDown={(e) => { if (!here) move(r, c, e.shiftKey); }}
-                      onDoubleClick={() => { ended.current = false; setEdit(sheet.cells[k] ?? ''); }}>
+                      onDoubleClick={() => openEditor(k, sheet.cells[k] ?? '')}>
                       {here
                         ? <input ref={editInput} aria-label={`Edit ${k}`} defaultValue={edit ?? ''} spellCheck={false}
                             onKeyDown={(e) => {
@@ -388,6 +427,9 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
             ))}
           </tbody>
         </table>
+      </div>
+      {panel && <LinkPanel project={project} sheet={sheet} sheets={book.sheets} active={act} onSheet={(next) => save(next)} onStatus={onStatus} onClose={() => setPanel(false)}
+        onAddSheets={(made) => onChange({ ...project, sheets: { ...book, sheets: [...book.sheets, ...made] } }, true)} />}
       </div>
 
       <div className="shx-sheets" role="tablist" aria-label="Sheets">
