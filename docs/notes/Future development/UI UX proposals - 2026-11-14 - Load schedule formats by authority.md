@@ -43,6 +43,14 @@ Revised steps (replace the list further down):
 
 Still open: Apply to project as a button (as agreed for Sheets on 2026-11-13) or as you type; and two or three of the owner's office schedules to test the links with.
 
+### Progress
+
+The owner approved the revised steps on 2026-11-14 ("Okay, start do it"). Apply to project stays a button, as agreed on 2026-11-13.
+
+- **Step 1, general wording:** PR 573 (v2.129). `supplyAuthorityOf(project)` gives the authority of the set the project applied (DEWA when none, AUTHORITY for a standard). A new main board takes it as its Fed from, and the Connected load & MD form, the TCL summary and the Excel DB form use it where a supply has no Fed from of its own. The point-column sets are named Villa and Standard. Found on the way: every new main board had "DEWA" written into it, so the forms' own fallback rarely ran. A board that already stores DEWA keeps it. The SLD's own fallback and the "DEWA submission" report type are not changed.
+- **Step 2, merged cells and borders in Sheets:** PR 574 (v2.130), stacked on 573. Merged areas and thin or thick borders are read, shown and saved; empty bordered cells are kept; Merge cells and Borders on the Home tab work. Not seen on screen yet.
+- **Step 3, link model (no screen):** in work, stacked on 574. `Sheet.link` (cells, first row, column fields), the field list shared with the Excel template (`src/docs/scheduleFields.ts`), and `fillLinked`, which rebuilds the circuit rows from the project and keeps a text typed in an own column with its circuit. The panel on screen is the next PR.
+
 The mockup was redrawn as revision 2 after this answer. Sections 2 to 6 of "Proposed" below are the first version and are kept for the record; where they differ from this section, this section holds.
 
 Mockup: `docs/mockups/load-schedule-authority-formats-mockup.html` (image: `load-schedule-authority-formats-mockup.png`). Figures in it are examples.
