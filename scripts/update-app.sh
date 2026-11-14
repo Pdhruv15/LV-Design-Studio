@@ -44,7 +44,7 @@ npx electron-builder --mac dir --arm64 >/dev/null
 
 if pgrep -xq "$APP"; then
   echo "Closing $APP — save your work first. Press Enter to continue, or Ctrl+C to stop."; read -r
-  osascript -e "quit app \"$APP\"" || true; sleep 2
+  bash scripts/quit-app.sh "$APP" # waits until it has closed; stops here if it stays open
 fi
 rm -rf "$DEST"
 ditto "$BUILT" "$DEST"
