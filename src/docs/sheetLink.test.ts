@@ -51,9 +51,10 @@ describe('linkFromPlaceholders', () => {
     expect(r.sheet.cells).toEqual({ A2: 'DB: ', D2: 'FED FROM:  kV', C5: 'text', A6: '{{row.sl}}' });
   });
   it('leaves unknown keys in place and lists them', () => {
-    const r = linkFromPlaceholders(sheet({ A1: '{{label.ltg}}', B1: '{{board.id}}', A5: '{{row.ref}}', B5: '{{row.nothing}}' }))!;
-    expect(r.unknown).toEqual(['label.ltg', 'row.nothing']);
-    expect(r.sheet.cells).toEqual({ A1: '{{label.ltg}}', B5: '{{row.nothing}}' });
+    const r = linkFromPlaceholders(sheet({ A1: '{{board.colour}}', B1: '{{board.id}}', C1: '{{label.ltg}}', A5: '{{row.ref}}', B5: '{{row.nothing}}' }))!;
+    expect(r.unknown).toEqual(['board.colour', 'row.nothing']);
+    expect(r.sheet.cells).toEqual({ A1: '{{board.colour}}', B5: '{{row.nothing}}' });
+    expect(r.sheet.link!.cells.C1).toEqual({ field: 'label.ltg' });
     expect(r.sheet.link!.columns).toEqual({ A: 'row.ref' });
   });
   it('finds nothing without a row placeholder', () => {
@@ -179,10 +180,18 @@ describe('fillLinked — repeat and unchanged', () => {
     const gone = linkToBoard(layout(), 'DB-NOPE');
     expect(fillLinked(project, gone)).toBe(gone);
   });
-  it('linkToBoard sets the board, clears the rows when it changes, and leaves a sheet without a link', () => {
-    const s = fillLinked(project, layout(), AT);
-    expect(linkToBoard(s, 'DB-GF1').link!.rows).toHaveLength(N);
-    expect(linkToBoard(s, 'DB-X').link).toMatchObject({ boardId: 'DB-X', rows: [] });
+  it('linkToBoard sets the board; on another board the block keeps its size and loses its keys, and the fill leaves no old row', () => {
+    const s = fillLinked(project, sums(), AT);
+    expect(linkToBoard(s, 'DB-GF1').link!.rows).toEqual(s.link!.rows);
+    expect(linkToBoard(s, 'DB-X').link).toMatchObject({ boardId: 'DB-X', rows: Array<string>(N).fill('') });
+    const other = project.boards.find((b) => b.id !== 'DB-GF1' && scheduleRowKeys(project, b.id).length !== N)!;
+    const typed = withCells(s, { C5: 'old board note' });
+    const moved = fillLinked(project, linkToBoard(typed, other.id), AT), n = Math.max(1, scheduleRowKeys(project, other.id).length);
+    expect(moved.cells.A2).toBe(`DB: ${other.id}`);
+    expect(moved.link!.rows).toEqual(scheduleRowKeys(project, other.id));
+    expect(moved.cells[`E${5 + n}`]).toBe(`=SUM(E5:E${4 + n})`);
+    expect(moved.cells[`A${7 + n}`]).toBe('End');
+    expect(moved.cells.C5).toBeUndefined();
     const plain = sheet({});
     expect(linkToBoard(plain, 'DB-GF1')).toBe(plain);
   });

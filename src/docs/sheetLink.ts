@@ -14,6 +14,11 @@ export const LINK_FIELDS: { key: string; label: string; kind: 'cell' | 'row'; ty
     ['total.R', 'Connected load R, W'], ['total.Y', 'Connected load Y, W'], ['total.B', 'Connected load B, W'], ['total.all', 'Connected load, W'],
     ['md.R', 'Maximum demand R, W'], ['md.Y', 'Maximum demand Y, W'], ['md.B', 'Maximum demand B, W'], ['md.all', 'Maximum demand, W'], ['imbalance', 'Phase imbalance, %']
   ] as const).map(([key, label]) => ({ key, label, kind: 'cell' as const, typed: false })),
+  // A point column's own heading and watts per unit, as the Excel template has them.
+  ...POINT_TYPES.flatMap((t) => [
+    { key: `label.${t.value}`, label: `Heading: ${t.label}`, kind: 'cell' as const, typed: false },
+    { key: `wattUnit.${t.value}`, label: `Watts per unit: ${t.label}`, kind: 'cell' as const, typed: false }
+  ]),
   ...([
     ['row.sl', 'Serial number', false], ['row.ref', 'Circuit reference', false], ['row.phase', 'Phase', false], ['row.room', 'Room / area', true], ['row.watts', 'Circuit load, W', true],
     ['row.mcb', 'MCB rating, A', true], ['row.wire', 'Circuit wire, mm²', true], ['row.ecc', 'Earth wire, mm²', true], ['row.length', 'Length, m', true],
@@ -134,8 +139,10 @@ export function fillLinked(project: Project, sheet: Sheet, at?: Date): Sheet {
   return { ...bare, ...(merges.length ? { merges } : {}), rows: Math.max(s.rows, last) };
 }
 
-/** The sheet linked to a board; its rows are read again from the project. The sheet itself when it has no link. */
+/** The sheet linked to a board; the next fill reads its rows from the project. On another board the block keeps its
+ * size, so that fill resizes it and leaves no row of the old board, and the own texts go (they belonged to its
+ * circuits). The sheet itself when it has no link. */
 export function linkToBoard(sheet: Sheet, boardId: string): Sheet {
   if (!sheet.link) return sheet;
-  return { ...sheet, link: { ...sheet.link, boardId, ...(sheet.link.boardId !== boardId && { rows: [] }) } };
+  return { ...sheet, link: { ...sheet.link, boardId, ...(sheet.link.boardId !== boardId && { rows: sheet.link.rows.map(() => '') }) } };
 }
