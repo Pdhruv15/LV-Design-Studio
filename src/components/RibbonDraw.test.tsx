@@ -47,7 +47,7 @@ const tools = (name: string) => [...group(name).querySelectorAll('button[aria-la
 const tool = (name: string) => document.querySelector(`#ribbon-tools button[aria-label="${name}"]`) as HTMLButtonElement;
 /** Every tool shown, by name (icons only: its name for screen readers; with labels: the name under it). */
 const names = () => [...document.querySelectorAll('#ribbon-tools button')].map((b) => b.getAttribute('aria-label') ?? b.querySelector('span')?.textContent).filter((x): x is string => !!x);
-const DRAFTING = ['Draw', 'Modify', 'Annotate', 'Blocks', 'Layers', 'Properties', 'Measure and view'];
+const DRAFTING = ['Draw', 'Modify', 'Blocks', 'Layers', 'Properties', 'Measure and view'];
 const ELEC = 'Electrical, ELV & sheets';
 /** The drawing's layers as the page tells the ribbon: two drawn layers, one frozen; nothing picked. */
 const INFO = { blocks: ['DB-A', 'DB-B'], layers: [{ name: 'LV-SKETCH', color: '#ffffff', on: true, freeze: false, lock: false }, { name: 'E-POWER', color: '#00ffff', on: false, freeze: false, lock: true }, { name: 'E-OLD', on: true, freeze: true, lock: false }], current: 'LV-SKETCH', picked: 0, props: {} };
@@ -69,6 +69,8 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
     const again = show();
     expect(selected()).toBe(ELEC);
     again.rerender({ tool: 'text' });
+    expect(selected()).toBe('Annotate'); // Text is on Annotate, the sub-tab beside LVCAD
+    again.rerender({ tool: 'line' });
     expect(selected()).toBe('LVCAD');
     again.rerender({ tool: 'tray' });
     expect(selected()).toBe(ELEC);
@@ -77,12 +79,18 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
     root = createRoot(host);
     show();
     expect(selected()).toBe(ELEC);
+    pick('Annotate');
+    expect(localStorage.getItem('lvds.cadSub')).toBe('annotate');
   });
 
-  it('has the drafting panels in the order the user chose; with labels the panels take four sub-tabs; each tool is on one', () => {
+  it('has the drafting panels in the order the user chose, Annotate on its own sub-tab; with labels the panels take five sub-tabs; each tool is on one', () => {
     const { rerender } = show();
-    expect(['Draw', 'Annotate', 'Measure and view'].map(tools)).toEqual([['Line', 'Polyline', 'Circle', 'Arc', 'Hatch', 'Rectangle', 'Polygon', 'Ellipse'],
-      ['Text', 'Dimension', 'Leader', 'Room tag', 'Keynote', 'North arrow', 'Revision cloud', 'Text style', 'Dim style'], ['Distance', 'Area', 'Room area', 'Inspect', 'Zoom extents', 'Drafting settings']]);
+    expect(['Draw', 'Measure and view'].map(tools)).toEqual([['Line', 'Polyline', 'Circle', 'Arc', 'Hatch', 'Rectangle', 'Polygon', 'Ellipse'],
+      ['Distance', 'Area', 'Room area', 'Inspect', 'Zoom extents', 'Drafting settings']]);
+    expect(group('Annotate')).toBeNull(); // the LVCAD row had grown wider than a laptop's window
+    pick('Annotate');
+    expect(tools('Annotate')).toEqual(['Text', 'Dimension', 'Leader', 'Room tag', 'Keynote', 'North arrow', 'Revision cloud', 'Text style', 'Dim style']);
+    expect(document.querySelector('.ribbon')!.className).toContain('small-named'); // named beside their icons, as on LVCAD
     const look = (subTabs: string[]) => {
       const seen: string[] = [];
       const panels: Record<string, (string | null)[]> = {};
@@ -90,13 +98,13 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
       expect(seen.filter((x, i) => seen.indexOf(x) !== i)).toEqual([]); // no tool twice
       return { panels, seen };
     };
-    const shown = look(['LVCAD', ELEC]);
-    expect(shown.panels).toEqual({ LVCAD: DRAFTING, [ELEC]: ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Reference', 'Sheet set', 'Layouts'] });
+    const shown = look(['LVCAD', 'Annotate', ELEC]);
+    expect(shown.panels).toEqual({ LVCAD: DRAFTING, Annotate: ['Annotate'], [ELEC]: ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Reference', 'Sheet set', 'Layouts'] });
     expect(shown.seen).not.toContain('Object snap'); // the status bar's toggles stay on the status bar
     rerender({ labels: true });
-    const all = look(['LVCAD', 'Layers & properties', 'Electrical & ELV', 'Sheets']);
+    const all = look(['LVCAD', 'Annotate', 'Layers & properties', 'Electrical & ELV', 'Sheets']);
     expect(all.panels).toEqual({
-      LVCAD: ['Draw', 'Modify', 'Annotate', 'Blocks'], 'Layers & properties': ['Layers', 'Properties', 'Measure and view'],
+      LVCAD: ['Draw', 'Modify', 'Blocks'], Annotate: ['Annotate'], 'Layers & properties': ['Layers', 'Properties', 'Measure and view'],
       'Electrical & ELV': ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring'], Sheets: ['Reference', 'Sheet set', 'Layouts']
     });
     expect([...all.seen].sort()).toEqual([...shown.seen].sort()); // the same tools, only arranged otherwise
@@ -112,21 +120,30 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
     const { cad } = show();
     click(tool('Offset'));
     expect(cad.onTool).toHaveBeenLastCalledWith('offset');
-    for (const [t, id] of [['Extend', 'extend'], ['Chamfer', 'chamfer'], ['Break', 'break'], ['Join', 'join'], ['Polygon', 'polygon'], ['Keynote', 'keynote'], ['Distance', 'dist'], ['Area', 'area'], ['Room area', 'room']]) {
+    for (const [t, id] of [['Extend', 'extend'], ['Chamfer', 'chamfer'], ['Break', 'break'], ['Join', 'join'], ['Polygon', 'polygon'], ['Distance', 'dist'], ['Area', 'area'], ['Room area', 'room']]) {
       click(tool(t));
       expect(cad.onTool, t).toHaveBeenLastCalledWith(id);
     }
-    // The other forms of Circle, Arc, Text and Dimension are under their arrows.
-    for (const [t, form, id] of [['Circle', '2 points', 'circle2p'], ['Circle', '3 points', 'circle3p'], ['Circle', 'Centre, diameter', 'circled'], ['Arc', 'Start, centre, end', 'arcsce'],
-      ['Text', 'Notes (MT)', 'mtext'], ['Text', 'Numbered text (TCOUNT)', 'tcount'], ['Text', 'Justify (TJ)', 'tjust'], ['Text', 'Copy words (TCOPY)', 'tcopy'], ['Dimension', 'Linear (DLI)', 'dimlin']]) {
+    // The other forms of Circle and Arc are under their arrows.
+    for (const [t, form, id] of [['Circle', '2 points', 'circle2p'], ['Circle', '3 points', 'circle3p'], ['Circle', 'Centre, diameter', 'circled'], ['Arc', 'Start, centre, end', 'arcsce']]) {
       fromList(t, form);
       expect(cad.onTool, form).toHaveBeenLastCalledWith(id);
     }
     click(tool('Ellipse'));
     expect(cad.onTool).toHaveBeenLastCalledWith('ellipse');
-    click(tool('Revision cloud'));
-    expect(cad.onTool).toHaveBeenLastCalledWith('revcloud');
-    for (const t of ['Text style', 'Dim style', 'Inspect', 'Zoom extents', 'Drafting settings']) click(tool(t));
+    // Annotate: Keynote and Revision cloud; the other forms of Text and Dimension under their arrows.
+    pick('Annotate');
+    for (const [t, id] of [['Keynote', 'keynote'], ['Revision cloud', 'revcloud']]) {
+      click(tool(t));
+      expect(cad.onTool, t).toHaveBeenLastCalledWith(id);
+    }
+    for (const [t, form, id] of [['Text', 'Notes (MT)', 'mtext'], ['Text', 'Numbered text (TCOUNT)', 'tcount'], ['Text', 'Justify (TJ)', 'tjust'], ['Text', 'Copy words (TCOPY)', 'tcopy'], ['Dimension', 'Linear (DLI)', 'dimlin']]) {
+      fromList(t, form);
+      expect(cad.onTool, form).toHaveBeenLastCalledWith(id);
+    }
+    for (const t of ['Text style', 'Dim style']) click(tool(t));
+    pick('LVCAD');
+    for (const t of ['Inspect', 'Zoom extents', 'Drafting settings']) click(tool(t));
     for (const t of ['Off', 'Freeze', 'Lock', 'Isolate', 'Make current', 'All on', 'Thaw all', 'Unlock', 'Unisolate']) click(tool(t));
     click(document.querySelector('button[title="More layers tools: Layer roles, New layer, Layers panel"]')!);
     click(item('New layer'));
@@ -338,7 +355,7 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     } finally { vi.unstubAllGlobals(); }
   });
 
-  it('on the sheets pages: every sheet tool on the sheets\' sub-tab, and Drafting goes back to the drawing; with labels, Sheets and Drafting', () => {
+  it('on the sheets pages: every sheet tool on the sheets\' sub-tab, and LVCAD goes back to the drawing; with labels, Sheets and Annotate', () => {
     const onView = vi.fn();
     const { rerender } = show({}, { view: 'drawings', onView, sheets: sheets({ ui: sheetUi({ tool: 'cloud' }) }) });
     expect(selected()).toBe(ELEC);
@@ -355,7 +372,7 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     rerender({ labels: true });
     expect(selected()).toBe('Sheets');
     expect(groups()).toEqual(['Sheet', 'Sheet set']);
-    pick('LVCAD');
+    pick('Annotate');
     expect(groups()).toEqual(['Markup', 'On panels']); // drawing on a sheet is its markup
     rerender({ labels: false });
     expect(selected()).toBe(ELEC);
@@ -377,11 +394,15 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     expect(tool('Panel cloud').disabled).toBe(true);
   });
 
-  it('on a layout: the paper\'s markup in place of Annotate, the drawing\'s annotation in the model; layouts and viewports beside the sheet set', () => {
+  it('on a layout: the paper\'s markup on Annotate, the drawing\'s annotation in the model; layouts and viewports beside the sheet set', () => {
     const { rerender } = show({ inLayout: true, onPaper: true }, { sheets: sheets({ open: false, kind: 'plan' }) });
-    expect(groups()).toEqual(DRAFTING.filter((g) => g !== 'Blocks').map((g) => (g === 'Annotate' ? 'Markup' : g))); // blocks are the model's
+    expect(groups()).toEqual(DRAFTING.filter((g) => g !== 'Blocks')); // blocks are the model's
+    pick('Annotate');
+    expect(groups()).toEqual(['Markup']);
     expect(tool('Cloud').disabled).toBe(false);
     rerender({ onPaper: false }); // working in the model through a viewport
+    expect(groups()).toEqual(['Annotate']);
+    pick('LVCAD');
     expect(groups()).toEqual(DRAFTING);
     pick(ELEC);
     expect(groups().slice(-3)).toEqual(['Sheet set', 'Layouts', 'Viewports']);
@@ -389,7 +410,9 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     pick('Sheets');
     expect(groups()).toEqual(['Reference', 'Sheet set', 'Layouts', 'Viewports']);
     pick('LVCAD');
-    expect(groups()).toEqual(['Draw', 'Modify', 'Markup']);
+    expect(groups()).toEqual(['Draw', 'Modify']);
+    pick('Annotate');
+    expect(groups()).toEqual(['Markup']);
   });
 
   it('a window too narrow for the row folds its panels from the right, one at a time, each to one tool named for it', () => {
@@ -416,6 +439,10 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     wide = 1500;
     act(() => { window.dispatchEvent(new Event('resize')); });
     expect(shut()).toEqual([]);
+    // A window made narrower with none folded: measured anew, so the panels fold (they keep their width, never squeezed).
+    wide = 2000;
+    act(() => { window.dispatchEvent(new Event('resize')); });
+    expect(shut()).toEqual(['Layouts: its tools', 'Viewports: its tools']);
     // With labels: the panel's name on the button and under it.
     wide = 2000;
     rerender({ labels: true });
@@ -460,7 +487,7 @@ describe('Points (S8 of the Design CAD 2D gap plan)', () => {
 });
 
 describe('Blocks (S9 of the Design CAD 2D gap plan)', () => {
-  it('has a Blocks panel between Annotate and Layers with Create, which opens the Block definition', () => {
+  it('has a Blocks panel between Modify and Layers with Create, which opens the Block definition', () => {
     const { cad } = show();
     expect(tools('Blocks')).toEqual(['Insert', 'Create', 'Attribute']);
     click(tool('Attribute'));
