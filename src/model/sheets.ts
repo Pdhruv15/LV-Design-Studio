@@ -25,6 +25,23 @@ export interface Sheet {
   merges?: Area[];
   /** The Excel file the sheet came from (name only). */
   source?: string;
+  /** The panel of the project the sheet is linked to. */
+  link?: SheetLink;
+}
+/** A sheet linked to one panel of the project; docs/sheetLink.ts fills it. Field keys are those of docs/scheduleFields. */
+export interface SheetLink {
+  /** The panel category the sheet is a schedule of. Only DB for now. */
+  category: 'db';
+  /** The board it shows; none while the sheet is a format not yet on a board. */
+  boardId?: string;
+  /** Cells holding one value of the board or the project: cell name → field key, with the text kept before and after the value ("FED FROM: "). */
+  cells: Record<string, { field: string; before?: string; after?: string }>;
+  /** The first circuit row. */
+  firstRow: number;
+  /** The key (scheduleRowKeys) of each circuit row the sheet holds now, from firstRow down; empty before the first fill, when the sheet still has its one pattern row. */
+  rows: string[];
+  /** Column letter → field: a row.* key, or 'own' for the user's own column, kept with each circuit. */
+  columns: Record<string, string>;
 }
 export interface SheetBook { sheets: Sheet[] }
 export interface Area { r0: number; c0: number; r1: number; c1: number }
@@ -184,6 +201,31 @@ export function adjustFormula(formula: string, axis: 'row' | 'col', at: number, 
   });
 }
 
+/** A sheet's link after rows or columns were inserted or deleted: its cells and columns move, and so does the block of circuit rows. */
+function reshapeLink(l: SheetLink, axis: 'row' | 'col', at: number, count: number, moveKey: (k: string) => string | undefined): SheetLink {
+  const cells: SheetLink['cells'] = {};
+  for (const [k, v] of Object.entries(l.cells)) { const to = moveKey(k); if (to) cells[to] = v; }
+  let { firstRow, rows, columns } = l;
+  if (axis === 'col') {
+    columns = {};
+    for (const [letters, f] of Object.entries(l.columns)) { const to = moveKey(`${letters}1`); if (to) columns[to.replace(/\d+$/, '')] = f; }
+  } else {
+    const last = firstRow + Math.max(1, rows.length) - 1;
+    if (count > 0) {
+      if (at <= firstRow) firstRow += count;
+      else if (at <= last && rows.length) rows = [...rows.slice(0, at - firstRow), ...Array<string>(count).fill(''), ...rows.slice(at - firstRow)];
+    } else {
+      const end = at - count - 1; // last deleted
+      if (at <= firstRow && end >= last) { rows = []; firstRow = at; }
+      else {
+        rows = rows.filter((_, i) => firstRow + i < at || firstRow + i > end);
+        if (firstRow > end) firstRow += count; else if (firstRow >= at) firstRow = at;
+      }
+    }
+  }
+  return { ...l, cells, columns, rows, firstRow };
+}
+
 function reshape(s: Sheet, axis: 'row' | 'col', at: number, count: number): Sheet {
   const pick = (p: { col: number; row: number }) => (axis === 'row' ? p.row : p.col);
   const moveKey = (k: string): string | undefined => {
@@ -224,7 +266,8 @@ function reshape(s: Sheet, axis: 'row' | 'col', at: number, count: number): Shee
     if (next.r1 >= next.r0 && next.c1 >= next.c0 && (next.r1 > next.r0 || next.c1 > next.c0)) merges.push(next);
   }
   const { merges: _drop, ...bare } = s;
-  return { ...bare, ...(merges.length ? { merges } : {}), cells, ...(Object.keys(styles).length || s.styles ? { styles } : {}), ...(widths ? { widths } : {}), ...(kept ? { kept } : {}), rows, cols };
+  const link = s.link && reshapeLink(s.link, axis, at, count, moveKey);
+  return { ...bare, ...(link ? { link } : {}), ...(merges.length ? { merges } : {}), cells, ...(Object.keys(styles).length || s.styles ? { styles } : {}), ...(widths ? { widths } : {}), ...(kept ? { kept } : {}), rows, cols };
 }
 export const insertRows = (s: Sheet, at: number, count = 1): Sheet => (s.rows + count > MAX_ROWS ? s : reshape(s, 'row', at, count));
 export const deleteRows = (s: Sheet, at: number, count = 1): Sheet => reshape(s, 'row', at, -Math.min(count, s.rows - at + 1));

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateSheet } from '../calc/sheetFormula';
-import { adjustFormula, allBordered, allStyled, area, areaCells, deleteCols, deleteRows, edgesOf, fillDownEdits, insertCols, insertRows, masterOf, mergeArea, mergeAt, newSheet, pasteEdits, rawRows, sheetNameError, shown, shownRows, sumFormula, unmergeArea, withCells, withNextWidth, withStyle, type Sheet } from './sheets';
+import { adjustFormula, allBordered, allStyled, area, areaCells, deleteCols, deleteRows, edgesOf, fillDownEdits, insertCols, insertRows, masterOf, mergeArea, mergeAt, newSheet, pasteEdits, rawRows, sheetNameError, shown, shownRows, sumFormula, unmergeArea, withCells, withNextWidth, withStyle, type Sheet, type SheetLink } from './sheets';
 
 const sheet = (cells: Record<string, string>): Sheet => withCells(newSheet(), cells);
 const schedule = sheet({ A1: 'Ckt', F1: 'Load (W)', G1: 'Qty', H1: 'Total (kW)', A2: 'L1', F2: '60', G2: '20', H2: '=F2*G2/1000', A3: 'L2', F3: '40', G3: '15', H3: '=F3*G3/1000', A4: 'P1', F4: '200', G4: '8', H4: '=F4*G4/1000', H5: '=SUM(H2:H4)' });
@@ -261,5 +261,42 @@ describe('sheets — borders', () => {
     const t = mergeArea(put(newSheet(), 'A1', 'trbl'), a(1, 1, 2, 2)); // a neighbour in an area is read through its first cell
     expect(edgesOf(put(t, 'C1', 'l'), 1, 3)).toEqual({ t: 0, r: 0, b: 0, l: 1 });
     expect(edgesOf(t, 3, 2).t).toBe(1); // below the area: the area's bottom, read through its first cell
+  });
+});
+
+describe('sheets — a linked sheet follows inserted and deleted rows and columns', () => {
+  const link = (rows: string[]): SheetLink => ({ category: 'db', boardId: 'DB-1', cells: { B1: { field: 'board.id', before: 'DB: ' }, D12: { field: 'total.all' } }, firstRow: 5, rows, columns: { A: 'row.ref', C: 'own' } });
+  const linked = (rows: string[]): Sheet => ({ ...sheet({ A5: 'x' }), link: link(rows) });
+
+  it('rows above the block move it; rows inside add or remove a key; rows below leave it', () => {
+    const s = linked(['a', 'b', 'c']);
+    expect(insertRows(s, 2).link).toMatchObject({ firstRow: 6, rows: ['a', 'b', 'c'], cells: { B1: { field: 'board.id' }, D13: { field: 'total.all' } } });
+    expect(insertRows(s, 5).link).toMatchObject({ firstRow: 6, rows: ['a', 'b', 'c'] });
+    expect(insertRows(s, 6).link).toMatchObject({ firstRow: 5, rows: ['a', '', 'b', 'c'] });
+    expect(insertRows(s, 7, 2).link!.rows).toEqual(['a', 'b', '', '', 'c']);
+    expect(insertRows(s, 8).link).toMatchObject({ firstRow: 5, rows: ['a', 'b', 'c'] });
+    expect(insertRows(linked([]), 6).link).toMatchObject({ firstRow: 5, rows: [] });
+  });
+  it('deleted rows drop their keys, move the block up, and drop a link on a deleted cell', () => {
+    const s = linked(['a', 'b', 'c']);
+    expect(deleteRows(s, 1).link).toMatchObject({ firstRow: 4, rows: ['a', 'b', 'c'], cells: { D11: { field: 'total.all' } } });
+    expect(Object.keys(deleteRows(s, 1).link!.cells)).toEqual(['D11']);
+    expect(deleteRows(s, 6).link).toMatchObject({ firstRow: 5, rows: ['a', 'c'] });
+    expect(deleteRows(s, 4, 2).link).toMatchObject({ firstRow: 4, rows: ['b', 'c'] });
+    expect(deleteRows(s, 5, 3).link).toMatchObject({ firstRow: 5, rows: [] });
+    expect(deleteRows(s, 3, 6).link).toMatchObject({ firstRow: 3, rows: [] });
+    expect(deleteRows(s, 12).link!.cells).toEqual({ B1: { field: 'board.id', before: 'DB: ' } });
+  });
+  it('columns move the link\'s columns and cells, and drop those of a deleted column', () => {
+    const s = linked(['a']);
+    expect(insertCols(s, 2).link).toMatchObject({ columns: { A: 'row.ref', D: 'own' }, cells: { C1: { field: 'board.id' }, E12: { field: 'total.all' } } });
+    expect(deleteCols(s, 3).link).toMatchObject({ columns: { A: 'row.ref' }, cells: { B1: { field: 'board.id' }, C12: { field: 'total.all' } } });
+    expect(deleteCols(s, 2).link!.columns).toEqual({ A: 'row.ref', B: 'own' });
+    expect(deleteCols(s, 4).link!.cells).toEqual({ B1: { field: 'board.id', before: 'DB: ' } });
+  });
+  it('other edits leave the link as it is', () => {
+    const s = linked(['a']);
+    expect(withCells(s, { F1: 'y' }).link).toBe(s.link);
+    expect(withStyle(s, area({ r: 1, c: 1 }, { r: 1, c: 1 }), { bold: true }).link).toBe(s.link);
   });
 });
