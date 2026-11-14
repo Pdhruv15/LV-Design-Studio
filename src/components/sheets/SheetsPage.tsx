@@ -7,8 +7,8 @@ import {
 import type { Project } from '../../types';
 import { cellAt, cellName, colName } from '../../calc/sheetFormula';
 import {
-  allStyled, area, DEFAULT_WIDTH, deleteCols, deleteRows, fillDownEdits, insertCols, insertRows, newSheet, pasteEdits, rawRows, sheetNameError, sheetValues, shown, shownRows, sumFormula,
-  withCells, withNextWidth, withStyle, type Area, type Sheet, type SheetAlign, type SheetBook, type SheetNumberFormat, type SheetStyle
+  allBordered, allStyled, area, DEFAULT_WIDTH, deleteCols, deleteRows, edgesOf, fillDownEdits, insertCols, insertRows, mergeArea, mergeAt, newSheet, pasteEdits, rawRows, sheetNameError, sheetValues, shown, shownRows, sumFormula,
+  unmergeArea, withCells, withNextWidth, withStyle, type Area, type Sheet, type SheetAlign, type SheetBook, type SheetNumberFormat, type SheetStyle
 } from '../../model/sheets';
 import { parseClipboard, toClipboard } from '../grid/excelGrid';
 import { safeFileName, saveBinary } from '../../util/files';
@@ -77,8 +77,8 @@ function Big({ icon: Icon, label, onClick, disabled, title }: { icon: LucideIcon
 function Small({ icon: Icon, label, onClick, disabled, pressed }: { icon: LucideIcon; label: string; onClick?: () => void; disabled?: boolean; pressed?: boolean }) {
   return <button type="button" className="shx-sm" onClick={onClick} disabled={disabled || !onClick} aria-pressed={pressed} title={onClick ? label : LATER}><Icon size={18} aria-hidden /><span>{label}</span></button>;
 }
-function IconTool({ icon: Icon, label, onClick, pressed }: { icon: LucideIcon; label: string; onClick?: () => void; pressed?: boolean }) {
-  return <button type="button" className="shx-ic" onClick={onClick} disabled={!onClick} aria-label={label} aria-pressed={pressed} title={onClick ? label : `${label} — ${LATER.toLowerCase()}`}><Icon size={18} aria-hidden /></button>;
+function IconTool({ icon: Icon, label, onClick, pressed, disabled }: { icon: LucideIcon; label: string; onClick?: () => void; pressed?: boolean; disabled?: boolean }) {
+  return <button type="button" className="shx-ic" onClick={onClick} disabled={!onClick || disabled} aria-label={label} aria-pressed={pressed} title={onClick ? label : `${label} — ${LATER.toLowerCase()}`}><Icon size={18} aria-hidden /></button>;
 }
 
 export default function SheetsPage({ project, onChange, onStatus, onUndo }: { project: Project; onChange: (p: Project, step?: boolean) => void; onStatus?: (m: string) => void; onUndo?: () => void }) {
@@ -113,18 +113,32 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
   const style = (change: Partial<SheetStyle>) => save(withStyle(sheet, sel, change));
   const toggle = (key: 'bold' | 'italic' | 'underline' | 'wrap' | 'fill' | 'accent') => style({ [key]: allStyled(sheet, sel, key) ? undefined : true });
   const cur = sheet.styles?.[name] ?? {};
+  const bordered = allBordered(sheet, sel);
+  const anyBorder = useMemo(() => Object.values(sheet.styles ?? {}).some((x) => x.border), [sheet.styles]);
+  /** Every cell of a merged area -> its area, so the grid can span the first cell and skip the rest. */
+  const mergeOf = useMemo(() => { const m = new Map<string, Area>(); for (const a of sheet.merges ?? []) for (let r = a.r0; r <= a.r1; r++) for (let c = a.c0; c <= a.c1; c++) m.set(`${r},${c}`, a); return m; }, [sheet.merges]);
+  const touching = (sheet.merges ?? []).some((m) => m.r0 <= sel.r1 && m.r1 >= sel.r0 && m.c0 <= sel.c1 && m.c1 >= sel.c0);
+  const merge = () => {
+    if (touching) { save(unmergeArea(sheet, sel)); return; }
+    const next = mergeArea(sheet, sel), m = mergeAt(next, sel.r0, sel.c0);
+    save(next);
+    if (m) { setAct({ r: m.r0, c: m.c0 }); setAnchor({ r: m.r1, c: m.c1 }); }
+  };
 
   const move = (r: number, c: number, extend = false) => {
-    const to = { r: Math.max(1, Math.min(sheet.rows, r)), c: Math.max(1, Math.min(sheet.cols, c)) };
+    const m0 = { r: Math.max(1, Math.min(sheet.rows, r)), c: Math.max(1, Math.min(sheet.cols, c)) }, m = mergeAt(sheet, m0.r, m0.c);
+    const to = m ? { r: m.r0, c: m.c0 } : m0;
     setAct(to);
     if (!extend) setAnchor(to);
     wrap.current?.querySelector(`[data-cell="${cellName(to.c, to.r)}"]`)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   };
+  /** A step from the active cell; from a merged area's first cell it goes on past the area. */
+  const step = (dr: number, dc: number, extend = false) => { const m = mergeAt(sheet, act.r, act.c); move(dr > 0 && m ? m.r1 + 1 : act.r + dr, dc > 0 && m ? m.c1 + 1 : act.c + dc, extend); };
   const commit = (v: string, dr = 0, dc = 0) => {
     ended.current = true;
     setEdit(null);
     setCells({ [name]: v });
-    if (dr || dc) move(act.r + dr, act.c + dc);
+    if (dr || dc) step(dr, dc);
     wrap.current?.focus();
   };
 
@@ -199,9 +213,9 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
     if (editing) return;
     const mod = e.metaKey || e.ctrlKey, k = e.key;
     const arrows: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
-    if (arrows[k]) { e.preventDefault(); move(act.r + arrows[k][0], act.c + arrows[k][1], e.shiftKey); return; }
-    if (k === 'Tab') { e.preventDefault(); move(act.r, act.c + (e.shiftKey ? -1 : 1)); return; }
-    if (k === 'Enter') { e.preventDefault(); move(act.r + (e.shiftKey ? -1 : 1), act.c); return; }
+    if (arrows[k]) { e.preventDefault(); step(arrows[k][0], arrows[k][1], e.shiftKey); return; }
+    if (k === 'Tab') { e.preventDefault(); step(0, e.shiftKey ? -1 : 1); return; }
+    if (k === 'Enter') { e.preventDefault(); step(e.shiftKey ? -1 : 1, 0); return; }
     if (k === 'F2') { e.preventDefault(); ended.current = false; setEdit(raw); return; }
     if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); clear(); return; }
     if (mod) {
@@ -217,8 +231,8 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
   const colHeads = Array.from({ length: sheet.cols }, (_, i) => i + 1);
   const rowHeads = Array.from({ length: sheet.rows }, (_, i) => i + 1);
   const cls = (r: number, c: number, k: string) => {
-    const st = sheet.styles?.[k], out: string[] = [];
-    if (r >= sel.r0 && r <= sel.r1 && c >= sel.c0 && c <= sel.c1 && !single) out.push('shx-sel');
+    const st = sheet.styles?.[k], out: string[] = [], m = mergeOf.get(`${r},${c}`) ?? { r0: r, c0: c, r1: r, c1: c };
+    if (m.r0 <= sel.r1 && m.r1 >= sel.r0 && m.c0 <= sel.c1 && m.c1 >= sel.c0 && !single) out.push('shx-sel');
     if (r === act.r && c === act.c) out.push('shx-act');
     if (values[k]?.error) out.push('shx-err'); else if (sheet.cells[k]?.startsWith('=')) out.push('shx-fx');
     if (values[k]?.unsupported && !values[k]?.error) out.push('shx-keep');
@@ -226,9 +240,11 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
     if (st?.accent) out.push('shx-accent');
     return out.join(' ');
   };
-  const cellStyle = (k: string): React.CSSProperties => {
-    const st = sheet.styles?.[k] ?? {}, v = values[k]?.value;
+  const cellStyle = (k: string, r: number, c: number): React.CSSProperties => {
+    const st = sheet.styles?.[k] ?? {}, v = values[k]?.value, e = anyBorder ? edgesOf(sheet, r, c) : undefined;
+    const edge = (n: 0 | 1 | 2 | undefined) => (n ? `${n}px solid var(--tx)` : undefined);
     return {
+      borderTop: edge(e?.t), borderRight: edge(e?.r), borderBottom: edge(e?.b), borderLeft: edge(e?.l),
       fontWeight: st.bold ? 700 : undefined, fontStyle: st.italic ? 'italic' : undefined, textDecoration: st.underline ? 'underline' : undefined,
       textAlign: st.align ?? (typeof v === 'number' ? 'right' : 'left'), whiteSpace: st.wrap ? 'normal' : undefined
     };
@@ -281,7 +297,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
                 <IconTool icon={Underline} label="Underline" onClick={() => toggle('underline')} pressed={!!cur.underline} />
                 <IconTool icon={PaintBucket} label="Highlight fill" onClick={() => toggle('fill')} pressed={!!cur.fill} />
                 <IconTool icon={Baseline} label="Accent text colour" onClick={() => toggle('accent')} pressed={!!cur.accent} />
-                <IconTool icon={Grid2x2} label="Borders" />
+                <IconTool icon={Grid2x2} label="Borders" onClick={() => style({ border: bordered ? undefined : 'trbl' })} pressed={bordered} />
               </div>
             </Group>
             <Group name="Alignment">
@@ -290,7 +306,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
                 <IconTool icon={AlignCenter} label="Align centre" onClick={() => align('center')} pressed={cur.align === 'center'} />
                 <IconTool icon={AlignRight} label="Align right" onClick={() => align('right')} pressed={cur.align === 'right'} />
                 <IconTool icon={WrapText} label="Wrap text" onClick={() => toggle('wrap')} pressed={!!cur.wrap} />
-                <IconTool icon={TableCellsMerge} label="Merge cells" />
+                <IconTool icon={TableCellsMerge} label="Merge cells" onClick={merge} pressed={!!mergeAt(sheet, act.r, act.c)} disabled={single && !touching} />
                 <IconTool icon={RotateCw} label="Rotate heading" />
               </div>
             </Group>
@@ -348,9 +364,11 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
               <tr key={r}>
                 <th scope="row" className={`shx-row${r >= sel.r0 && r <= sel.r1 ? ' shx-on' : ''}`}>{r}</th>
                 {colHeads.map((c) => {
-                  const k = cellName(c, r), here = editing && r === act.r && c === act.c;
+                  const k = cellName(c, r), here = editing && r === act.r && c === act.c, m = mergeOf.get(`${r},${c}`);
+                  if (m && (m.r0 !== r || m.c0 !== c)) return null;
                   return (
-                    <td key={c} data-cell={k} role="gridcell" aria-selected={r === act.r && c === act.c} className={cls(r, c, k)} style={cellStyle(k)}
+                    <td key={c} data-cell={k} role="gridcell" aria-selected={r === act.r && c === act.c} className={cls(r, c, k)} style={cellStyle(k, r, c)}
+                      rowSpan={m ? m.r1 - m.r0 + 1 : undefined} colSpan={m ? m.c1 - m.c0 + 1 : undefined}
                       title={values[k]?.error ? `${values[k]!.error}: ${sheet.cells[k]}` : values[k]?.unsupported ? `Kept from the Excel file with its last value — the app cannot work this formula out: ${sheet.cells[k]}` : undefined}
                       onMouseDown={(e) => { if (!here) move(r, c, e.shiftKey); }}
                       onDoubleClick={() => { ended.current = false; setEdit(sheet.cells[k] ?? ''); }}>

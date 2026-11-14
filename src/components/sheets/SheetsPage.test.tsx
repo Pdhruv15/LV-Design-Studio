@@ -144,9 +144,89 @@ describe('Sheets page', () => {
 
   it('tools of later stages are greyed and say so', () => {
     render(sampleProject);
-    for (const label of ['Apply to project', 'Sort', 'Filter', 'Find', 'Copy format', 'Merge cells', 'Borders']) expect(tool(label).disabled).toBe(true);
+    for (const label of ['Apply to project', 'Sort', 'Filter', 'Find', 'Copy format']) expect(tool(label).disabled).toBe(true);
     expect(tool('Apply to project').title).toBe('Comes in a later stage');
     expect([...document.querySelectorAll<HTMLButtonElement>('.shx-tab')].filter((t) => t.disabled).map((t) => t.textContent)).toEqual(['Electrical', 'Formulas', 'Data', 'Review']);
+  });
+
+  it('Merge cells is greyed for one plain cell; it merges a selection and takes it apart again', () => {
+    render(book({ A1: '', B1: 'kept', C1: 'x' }));
+    expect(tool('Merge cells').disabled).toBe(true);
+    expect(tool('Merge cells').title).toBe('Merge cells');
+    click('A1'); click('B1', true);
+    expect(tool('Merge cells').disabled).toBe(false);
+    press('Merge cells');
+    const s = () => last.sheets!.sheets[0];
+    expect(s().merges).toEqual([{ r0: 1, c0: 1, r1: 1, c1: 2 }]);
+    expect(s().cells).toEqual({ A1: 'kept', C1: 'x' });
+    expect(td('A1').colSpan).toBe(2);
+    expect(td('B1')).toBeNull();
+    expect(td('A1').className).toContain('shx-act');
+    expect(td('A1').className).toContain('shx-sel');
+    expect(document.querySelector<HTMLInputElement>('input[aria-label="Cell"]')!.value).toBe('A1:B1');
+    expect(tool('Merge cells').getAttribute('aria-pressed')).toBe('true');
+    expect(changes).toBe(1);
+    press('Merge cells');
+    expect(s().merges).toBeUndefined();
+    expect(td('B1')).not.toBeNull();
+    expect(changes).toBe(2);
+    click('A1');
+    expect(tool('Merge cells').disabled).toBe(true);
+  });
+
+  it('a merged area is one cell with row and column spans; arrows leave it past its last cell; typing edits its first cell', () => {
+    const p = book({ A1: 'head', A3: 'below', D1: 'right' });
+    render({ ...p, sheets: { sheets: [{ ...p.sheets!.sheets[0], merges: [{ r0: 1, c0: 1, r1: 2, c1: 3 }] }] } });
+    expect(td('A1').rowSpan).toBe(2);
+    expect(td('A1').colSpan).toBe(3);
+    for (const k of ['B1', 'C1', 'A2', 'B2', 'C2']) expect(td(k)).toBeNull();
+    expect(document.querySelectorAll('tbody tr')[0].querySelectorAll('td').length).toBe(1 + 12 - 3);
+    gridKey('ArrowRight');
+    expect(td('D1').className).toContain('shx-act');
+    gridKey('ArrowLeft');
+    expect(td('A1').className).toContain('shx-act');
+    gridKey('ArrowDown');
+    expect(td('A3').className).toContain('shx-act');
+    gridKey('ArrowUp');
+    expect(td('A1').className).toContain('shx-act');
+    click('A1');
+    type('new', 'Tab');
+    expect(cells().A1).toBe('new');
+    expect(td('D1').className).toContain('shx-act');
+    click('A1');
+    type('again');
+    expect(td('A3').className).toContain('shx-act');
+    click('A1');
+    gridKey('F2');
+    expect(grid().querySelector<HTMLInputElement>('input[aria-label="Edit A1"]')).not.toBeNull();
+  });
+
+  it('Borders sets all four sides on the selection and takes them off again, in one undo step each', () => {
+    render(book({ A1: '1', B1: '2' }));
+    const s = () => last.sheets!.sheets[0];
+    expect(tool('Borders').getAttribute('aria-pressed')).toBe('false');
+    click('A1'); click('B1', true);
+    press('Borders');
+    expect(s().styles).toEqual({ A1: { border: 'trbl' }, B1: { border: 'trbl' } });
+    expect(td('A1').style.borderTop).toBe('1px solid var(--tx)');
+    expect(td('B1').style.borderRight).toBe('1px solid var(--tx)');
+    expect(td('C1').style.borderLeft).toBe('1px solid var(--tx)'); // the neighbour shows the same line
+    expect(td('A2').style.borderBottom).toBe('');
+    expect(tool('Borders').getAttribute('aria-pressed')).toBe('true');
+    press('Borders');
+    expect(s().styles).toEqual({});
+    expect(td('A1').style.borderTop).toBe('');
+    expect(changes).toBe(2);
+  });
+
+  it('a thick line is drawn 2px; a merged area is outlined from its first cell', () => {
+    const p = book({ A1: 'head' });
+    render({ ...p, sheets: { sheets: [{ ...p.sheets!.sheets[0], merges: [{ r0: 1, c0: 1, r1: 1, c1: 2 }], styles: { A1: { border: 'TrL' } } }] } });
+    expect(td('A1').style.borderTop).toBe('2px solid var(--tx)');
+    expect(td('A1').style.borderRight).toBe('1px solid var(--tx)');
+    expect(td('A1').style.borderBottom).toBe('');
+    expect(td('A1').style.borderLeft).toBe('2px solid var(--tx)');
+    expect(td('C1').style.borderLeft).toBe('1px solid var(--tx)');
   });
 
   it('sheets: add, rename, switch and delete', () => {

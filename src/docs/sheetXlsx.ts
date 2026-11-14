@@ -1,13 +1,13 @@
 import ExcelJS from 'exceljs';
-import { cellName, colName, formulaFunctions, SHEET_FUNCTIONS, type CellValue } from '../calc/sheetFormula';
-import { DEFAULT_COLS, DEFAULT_ROWS, DEFAULT_WIDTH, MAX_COLS, MAX_ROWS, newSheet, sheetNameError, sheetValues, type Sheet, type SheetStyle } from '../model/sheets';
+import { cellAt, cellName, colName, formulaFunctions, SHEET_FUNCTIONS, type CellValue } from '../calc/sheetFormula';
+import { areaCells, DEFAULT_COLS, DEFAULT_ROWS, DEFAULT_WIDTH, MAX_COLS, MAX_ROWS, newSheet, sheetNameError, sheetValues, type Area, type Sheet, type SheetStyle } from '../model/sheets';
 
 // ExcelJS loads only when a file is opened or saved (the page imports this file on demand).
 /** Excel files for the Sheets page: an .xlsx read into the app's sheets and written back. Kept: values, formulas,
  * bold / italic / underline, alignment, wrap, the 0.00 and percent formats, column widths and sheet names. A
  * formula the app cannot work out keeps its value from the file and goes back into the saved file unchanged.
- * Not kept: colours and borders (a filled cell becomes the app's one highlight), merged cells (the value stays in
- * the first cell), charts, images, comments and anything else Excel-only. */
+ * Merged cells and borders (thin or thick) are kept too; border colours and dash patterns, and fill and text colours
+ * are not (a filled cell becomes the app's one highlight). Not kept: charts, images, comments and anything else Excel-only. */
 
 export interface XlsxReport {
   sheets: number;
@@ -36,6 +36,13 @@ const text = (v: unknown): string => {
 };
 /** A text from Excel as the sheet holds it: one that would read as a number or a formula gets Excel's apostrophe. */
 const asTyped = (s: string) => (s !== '' && (s.startsWith('=') || s.startsWith("'") || (s.trim() !== '' && Number.isFinite(Number(s.trim())))) ? `'${s}` : s);
+const THICK = new Set(['medium', 'thick', 'double', 'mediumDashed', 'mediumDashDot', 'mediumDashDotDot']);
+/** The sides of a cell with a line, as the sheet's border letters (t r b l; upper case for a thick line). */
+function borderOf(c: ExcelJS.Cell): string {
+  const b = c.border;
+  if (!b) return '';
+  return (['top', 'right', 'bottom', 'left'] as const).map((side) => { const st = b[side]?.style; return st ? (THICK.has(st) ? side[0].toUpperCase() : side[0]) : ''; }).join('');
+}
 const value = (v: unknown): CellValue => (typeof v === 'number' || typeof v === 'boolean' ? v : v === null || v === undefined ? null : v instanceof Date ? v.toISOString().slice(0, 10) : text(v) || null);
 
 function styleOf(c: ExcelJS.Cell): SheetStyle | undefined {
@@ -50,6 +57,8 @@ function styleOf(c: ExcelJS.Cell): SheetStyle | undefined {
   if (fill?.type === 'pattern' && fill.pattern === 'solid' && fill.fgColor && (fill.fgColor.argb ?? '').toUpperCase() !== 'FFFFFFFF') st.fill = true;
   const f = typeof c.numFmt === 'string' ? c.numFmt : '';
   if (f.includes('%')) st.fmt = 'percent'; else if (/0\.00(?!0)/.test(f)) st.fmt = 'dec2';
+  const border = borderOf(c);
+  if (border) st.border = border;
   return Object.keys(st).length ? st : undefined;
 }
 
@@ -76,10 +85,16 @@ export async function readXlsx(data: ArrayBuffer, fileName: string, existing: Sh
     const s: Sheet = { ...newSheet(all, name), source: fileName };
     const cells: Record<string, string> = {}, styles: Record<string, SheetStyle> = {}, results: Record<string, CellValue> = {};
     let rows = 0, cols = 0, cut = false;
-    ws.eachRow({ includeEmpty: false }, (row, r) => {
-      row.eachCell({ includeEmpty: false }, (c, col) => {
-        if (r > MAX_ROWS || col > MAX_COLS) { cut = true; return; }
-        if (c.isMerged && c.master.address !== c.address) return; // the value is in the area's first cell
+    // A cell with no value but a border or another style is kept too, so the loops walk the rows and cells themselves
+    // (eachRow / eachCell with includeEmpty: false skip them), and stop at the app's limits.
+    const filled = (c: ExcelJS.Cell | undefined) => !!c && c.type !== ExcelJS.ValueType.Null;
+    for (let r = 1; r <= Math.min(ws.rowCount, MAX_ROWS); r++) {
+      const row = ws.findRow(r);
+      if (!row) continue;
+      for (let col = 1; col <= Math.min(row.cellCount, MAX_COLS); col++) {
+        const c = row.findCell(col);
+        if (!c) continue;
+        if (c.isMerged && c.master.address !== c.address) continue; // the value is in the area's first cell
         const k = cellName(col, r);
         const st = styleOf(c);
         if (st) styles[k] = st;
@@ -92,11 +107,30 @@ export async function readXlsx(data: ArrayBuffer, fileName: string, existing: Sh
         } else if (typeof c.value === 'number') typed = String(c.value);
         else if (typeof c.value === 'boolean') typed = c.value ? 'TRUE' : 'FALSE';
         else typed = asTyped(text(c.value));
-        if (typed === '' && !st) return;
+        if (typed === '' && !st) continue;
         if (typed !== '') { cells[k] = typed; report.cells++; }
         rows = Math.max(rows, r); cols = Math.max(cols, col);
-      });
-    });
+      }
+      for (let col = MAX_COLS + 1; col <= row.cellCount && !cut; col++) if (filled(row.findCell(col))) cut = true;
+    }
+    for (let r = MAX_ROWS + 1; r <= ws.rowCount && !cut; r++) if (ws.findRow(r)?.hasValues) cut = true;
+    // Merged areas: the area's outline is read from its corner cells and kept on its first cell.
+    const merges: Area[] = [];
+    for (const m of (ws.model as { merges?: string[] }).merges ?? []) {
+      const [p, q = p] = m.split(':').map((x) => cellAt(x));
+      if (!p || !q) continue;
+      const a: Area = { r0: Math.min(p.row, q.row), c0: Math.min(p.col, q.col), r1: Math.min(MAX_ROWS, Math.max(p.row, q.row)), c1: Math.min(MAX_COLS, Math.max(p.col, q.col)) };
+      if (a.r0 > MAX_ROWS || a.c0 > MAX_COLS || (a.r0 === a.r1 && a.c0 === a.c1)) continue;
+      const line = (rr: number, cc: number, side: 't' | 'r' | 'b' | 'l') => { const b = borderOf(ws.getCell(rr, cc)); return b.includes(side) ? side : b.includes(side.toUpperCase()) ? side.toUpperCase() : ''; };
+      const border = line(a.r0, a.c0, 't') + line(a.r0, a.c1, 'r') + line(a.r1, a.c0, 'b') + line(a.r0, a.c0, 'l');
+      const k = cellName(a.c0, a.r0), st: SheetStyle = { ...(styles[k] ?? {}) };
+      delete st.border;
+      if (border) st.border = border;
+      if (Object.keys(st).length) styles[k] = st; else delete styles[k];
+      for (const kk of areaCells(a).slice(1)) delete styles[kk];
+      merges.push(a);
+      rows = Math.max(rows, a.r1); cols = Math.max(cols, a.c1);
+    }
     const widths: Record<string, number> = {};
     for (let c = 1; c <= Math.min(cols, MAX_COLS); c++) {
       const w = ws.getColumn(c).width;
@@ -108,10 +142,9 @@ export async function readXlsx(data: ArrayBuffer, fileName: string, existing: Sh
     const tried = sheetValues({ ...s, cells, kept: all0 });
     const kept: NonNullable<Sheet['kept']> = {};
     for (const [k, r] of Object.entries(tried)) if (r.unsupported && all0[k]) { kept[k] = all0[k]; report.keptFormulas++; why.add(beyond(cells[k])); }
-    const merges = (ws.model as { merges?: string[] }).merges?.length ?? 0;
-    report.mergedAreas += merges;
+    report.mergedAreas += merges.length;
     if (cut) report.cut.push(name);
-    out.push({ ...s, cells, ...(Object.keys(styles).length ? { styles } : {}), ...(Object.keys(widths).length ? { widths } : {}), ...(Object.keys(kept).length ? { kept } : {}),
+    out.push({ ...s, cells, ...(Object.keys(styles).length ? { styles } : {}), ...(Object.keys(widths).length ? { widths } : {}), ...(Object.keys(kept).length ? { kept } : {}), ...(merges.length ? { merges } : {}),
       rows: Math.max(DEFAULT_ROWS, rows + 5), cols: Math.max(DEFAULT_COLS, Math.min(MAX_COLS, cols + 2)) });
   }
   report.sheets = out.length;
@@ -123,7 +156,7 @@ export async function readXlsx(data: ArrayBuffer, fileName: string, existing: Sh
 export function reportText(fileName: string, r: XlsxReport): string {
   const parts = [`Opened ${fileName}: ${r.sheets} sheet${r.sheets === 1 ? '' : 's'}, ${r.cells} cells, ${r.formulas} formula${r.formulas === 1 ? '' : 's'}`];
   if (r.keptFormulas) parts.push(`${r.keptFormulas} kept with the file's value (${r.keptBecause.join('; ')})`);
-  if (r.mergedAreas) parts.push(`${r.mergedAreas} merged area${r.mergedAreas === 1 ? '' : 's'} shown in the first cell`);
+  if (r.mergedAreas) parts.push(`${r.mergedAreas} merged area${r.mergedAreas === 1 ? '' : 's'}`);
   if (r.cut.length) parts.push(`cut at ${MAX_ROWS} rows / ${MAX_COLS} columns: ${r.cut.join(', ')}`);
   return `${parts.join(' · ')}.`;
 }
@@ -148,8 +181,10 @@ export function buildXlsx(sheets: Sheet[]): ExcelJS.Workbook {
       if (st.bold || st.italic || st.underline || st.accent) c.font = { ...(st.bold ? { bold: true } : {}), ...(st.italic ? { italic: true } : {}), ...(st.underline ? { underline: true } : {}), ...(st.accent ? { color: { argb: 'FF9C5700' } } : {}) };
       if (st.align || st.wrap) c.alignment = { ...(st.align ? { horizontal: st.align } : {}), ...(st.wrap ? { wrapText: true } : {}) };
       if (st.fill) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } };
+      if (st.border) c.border = Object.fromEntries((['top', 'right', 'bottom', 'left'] as const).map((side) => [side, st.border!.includes(side[0]) ? { style: 'thin' } : st.border!.includes(side[0].toUpperCase()) ? { style: 'medium' } : undefined]).filter((e) => e[1])) as Partial<ExcelJS.Borders>;
       if (st.fmt === 'dec2') c.numFmt = '#,##0.00'; else if (st.fmt === 'percent') c.numFmt = '0.##%';
     }
+    for (const m of s.merges ?? []) ws.mergeCells(m.r0, m.c0, m.r1, m.c1);
     for (let c = 1; c <= s.cols; c++) ws.getColumn(c).width = Math.round((((s.widths?.[colName(c)] ?? DEFAULT_WIDTH) - PX_PAD) / PX_PER_CHAR) * 100) / 100;
   }
   return wb;

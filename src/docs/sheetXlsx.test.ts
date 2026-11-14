@@ -80,7 +80,8 @@ describe('Sheets — opening an Excel file', () => {
     expect(v.B10).toEqual({ value: 15.2 });
     expect(Object.keys(s.kept!).sort()).toEqual(['B8', 'B9']);
     expect(report).toMatchObject({ sheets: 2, formulas: 12, keptFormulas: 2, keptBecause: ['XLOOKUP', 'another sheet'], mergedAreas: 1, cut: [] });
-    expect(reportText('f.xlsx', report)).toBe("Opened f.xlsx: 2 sheets, 56 cells, 12 formulas · 2 kept with the file's value (XLOOKUP; another sheet) · 1 merged area shown in the first cell.");
+    expect(s.merges).toEqual([{ r0: 8, c0: 4, r1: 8, c1: 6 }]);
+    expect(reportText('f.xlsx', report)).toBe("Opened f.xlsx: 2 sheets, 56 cells, 12 formulas · 2 kept with the file's value (XLOOKUP; another sheet) · 1 merged area.");
   });
 
   it('once the engineer retypes such a cell, the file\'s old value is no longer used', async () => {
@@ -89,10 +90,57 @@ describe('Sheets — opening an Excel file', () => {
     expect(sheetValues(withCells(s, { B8: '=1+1' })).B8).toEqual({ value: 2 });
   });
 
-  it('a merged area shows its value in the first cell', async () => {
+  it('a merged area is kept: the value in its first cell, none in the others', async () => {
     const s = (await readXlsx(await officeFile(), 'f.xlsx')).sheets[0];
     expect(s.cells.D8).toBe('Merged heading');
     expect(s.cells.E8).toBeUndefined();
+    expect(s.merges).toEqual([{ r0: 8, c0: 4, r1: 8, c1: 6 }]);
+    expect(reportText('f.xlsx', { sheets: 1, cells: 2, formulas: 0, keptFormulas: 0, keptBecause: [], mergedAreas: 2, cut: [] })).toBe('Opened f.xlsx: 1 sheet, 2 cells, 0 formulas · 2 merged areas.');
+  });
+
+  it('borders are read: thin, thick, on a cell with no value, and on a row that has only empty cells', async () => {
+    const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('Form');
+    ws.getCell('A1').value = 'Name';
+    ws.getCell('A1').border = { top: { style: 'thin' }, left: { style: 'hair' }, bottom: { style: 'medium' } };
+    ws.getCell('B1').border = { bottom: { style: 'double', color: { argb: 'FFFF0000' } }, right: { style: 'dashed' } }; // no value
+    ws.getCell('B4').border = { top: { style: 'thick' } }; // a row of only empty cells
+    ws.getCell('C4').border = { top: { style: 'mediumDashed' }, bottom: { style: 'dotted' } };
+    ws.getCell('D6').font = { name: 'Arial' }; // styled, but nothing the app keeps
+    const { sheets, report } = await readXlsx((await wb.xlsx.writeBuffer()) as ArrayBuffer, 'form.xlsx');
+    const s = sheets[0];
+    expect(s.styles).toEqual({ A1: { border: 'tBl' }, B1: { border: 'rB' }, B4: { border: 'T' }, C4: { border: 'Tb' } });
+    expect(s.cells).toEqual({ A1: 'Name' });
+    expect(report.cells).toBe(1);
+    expect(s.rows).toBeGreaterThanOrEqual(40);
+  });
+
+  it('a merged area takes its outline from its corner cells, and the other cells keep nothing', async () => {
+    const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('Form');
+    ws.getCell('B2').value = 'Title';
+    ws.mergeCellsWithoutStyle('B2:D3');
+    ws.getCell('B2').border = { top: { style: 'thin' }, left: { style: 'medium' } };
+    ws.getCell('D2').border = { right: { style: 'medium' }, top: { style: 'thin' } };
+    ws.getCell('B3').border = { bottom: { style: 'thin' } };
+    ws.getCell('C3').border = { bottom: { style: 'thick' } };
+    const s = (await readXlsx((await wb.xlsx.writeBuffer()) as ArrayBuffer, 'form.xlsx')).sheets[0];
+    expect(s.merges).toEqual([{ r0: 2, c0: 2, r1: 3, c1: 4 }]);
+    expect(s.styles).toEqual({ B2: { border: 'tRbL' } });
+    expect(s.cells).toEqual({ B2: 'Title' });
+  });
+
+  it('a merged area beyond the limits is dropped, one that crosses them is cut, a single cell is not an area', async () => {
+    const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('Big');
+    ws.getCell('A1').value = 'x';
+    ws.mergeCells('A1:B1');
+    ws.mergeCells(1999, 59, 2005, 65);
+    ws.mergeCells(2001, 1, 2002, 2);
+    ws.mergeCells(5, 60, 5, 62);
+    ws.mergeCells(10, 61, 11, 62);
+    const { sheets, report } = await readXlsx((await wb.xlsx.writeBuffer()) as ArrayBuffer, 'big.xlsx');
+    expect(sheets[0].merges).toEqual([{ r0: 1, c0: 1, r1: 1, c1: 2 }, { r0: 1999, c0: 59, r1: 2000, c1: 60 }]);
+    expect(report.mergedAreas).toBe(2);
+    expect(sheets[0].rows).toBeGreaterThanOrEqual(2000);
+    expect(sheets[0].cols).toBeGreaterThanOrEqual(60);
   });
 
   it('sheets opened into a book get ids and names of their own', async () => {
@@ -131,6 +179,22 @@ describe('Sheets — saving an Excel file', () => {
     expect(back.styles).toEqual(s.styles);
     expect(back.widths).toEqual(s.widths);
     expect(back.name).toBe('Loads');
+  });
+
+  it('merged areas and borders go out and come back: the outline on the first cell, a lone border on an empty cell', async () => {
+    let s = withCells({ ...newSheet(), name: 'Form' }, { A1: 'Title', B5: 'x' });
+    s = withStyle(s, { r0: 1, c0: 1, r1: 1, c1: 1 }, { border: 'trbl', bold: true });
+    s = withStyle(s, { r0: 5, c0: 2, r1: 5, c1: 2 }, { border: 'tBl' });
+    s = withStyle(s, { r0: 7, c0: 3, r1: 7, c1: 3 }, { border: 'b' }); // an empty cell
+    s = withStyle(s, { r0: 9, c0: 1, r1: 9, c1: 1 }, { border: 'TRBL' });
+    s = { ...s, merges: [{ r0: 1, c0: 1, r1: 2, c1: 3 }, { r0: 9, c0: 1, r1: 10, c1: 2 }] };
+    const wb = buildXlsx([s]), ws = wb.getWorksheet('Form')!;
+    expect(ws.getCell('A1').border).toEqual({ top: { style: 'thin' }, right: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' } });
+    expect(ws.getCell('B5').border).toEqual({ top: { style: 'thin' }, bottom: { style: 'medium' }, left: { style: 'thin' } });
+    const back = (await readXlsx((await wb.xlsx.writeBuffer()) as ArrayBuffer, 'out.xlsx')).sheets[0];
+    expect(back.merges).toEqual(s.merges);
+    expect(back.styles).toEqual({ A1: { bold: true, border: 'trbl' }, B5: { border: 'tBl' }, C7: { border: 'b' }, A9: { border: 'TRBL' } });
+    expect(back.cells).toEqual({ A1: 'Title', B5: 'x' });
   });
 
   it('a formula kept from a file goes back into the saved file unchanged, with its value', async () => {

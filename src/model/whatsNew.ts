@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.130', date: '2026-11-14',
+    items: [
+      { title: 'Sheets: merged cells and borders', text: 'An Excel file opened in Sheets keeps its merged cells and its borders (thin or thick), shows them in the grid and has them again when saved. Merge cells and Borders on the Home tab now work. Border colours and dash patterns are not kept.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
     version: '2.129', date: '2026-11-14',
     items: [
       { title: 'Load schedule: forms name the project\'s authority', text: 'A new main board, and a supply with no Fed from of its own, now take the authority the project started with (ADDC, EtihadWE …) on the Connected load & MD form, the TCL summary and the Excel forms, in place of the fixed word DEWA. A project with no authority set keeps DEWA. The two point-column sets are named Villa and Standard.' }
