@@ -4,7 +4,7 @@ import { sampleProject } from '../data/sampleProject';
 import { addSpareWay, isDbBoard } from '../model/spareWays';
 import { newSheet, withCells, withStyle, mergeArea, area, type Sheet, type SheetLink } from '../model/sheets';
 import type { Project } from '../types';
-import { fillLinked, linkAt, linkBoards, linkFromPlaceholders, linkNeeds, linkToBoard, LINK_FIELDS, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink } from './sheetLink';
+import { fillLinked, linkAt, linkBoards, linkFromPlaceholders, linkNeeds, linkToBoard, LINK_FIELDS, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink, addCircuitRow, discardPending, pendingCount, typeLinked, typeRefusal } from './sheetLink';
 import { scheduleRowKeys, templateData } from './scheduleFields';
 
 const AT = new Date('2026-10-27T10:00:00Z');
@@ -299,5 +299,87 @@ describe('sheetsForBoards', () => {
     const made = sheetsForBoards([{ ...from, id: 'S2', name: 'Main' }, taken, { ...newSheet(), id: 'S3', name: 'DB-B' }], from, ['DB-GF1', 'DB-A', 'DB-B', 'DB-C', 'DB/D', 'DB-C']);
     expect(made.map((m) => [m.id, m.name, m.link!.boardId])).toEqual([['S4', 'DB-B 2', 'DB-B'], ['S5', 'DB-C', 'DB-C'], ['S6', 'DB-D', 'DB/D']]);
     expect(made[1].link!.columns).toEqual(from.link!.columns);
+  });
+});
+
+describe('typed values in a linked sheet', () => {
+  const keys = scheduleRowKeys(project, 'DB-GF1');
+  const base = () => fillLinked(project, layout(), AT);
+  const typed = (s: Sheet, e: Record<string, string>) => typeLinked(project, s, e);
+  const spareAt = keys.findIndex((k) => k.startsWith('spare:'));
+
+  it('a typed cell of a linked column is kept beside the link and shown; the sheet equals its own fill', () => {
+    const r = typed(base(), { B5: 'Hall', D5: '16' });
+    expect(r.refused).toBeUndefined();
+    expect(r.sheet.cells).toMatchObject({ B5: 'Hall', D5: '16' });
+    expect(r.sheet.link!.pending).toEqual({ [keys[0]]: { B: 'Hall', D: '16' } });
+    expect(fillLinked(project, r.sheet, AT)).toEqual(r.sheet);
+    expect(pendingCount(r.sheet)).toBe(2);
+    expect(discardPending(r.sheet).link!.pending).toBeUndefined();
+    expect(fillLinked(project, discardPending(r.sheet), AT).cells.B5).toBe(String(data.rows[0]['row.room']));
+  });
+  it('a value equal to the project\'s is not pending; a stale or equal one is dropped by the fill', () => {
+    const r = typed(typed(base(), { B5: 'Hall' }).sheet, { B5: String(data.rows[0]['row.room']) });
+    expect(r.sheet.link!.pending).toBeUndefined();
+    const s = base();
+    const stored = { ...s, link: { ...s.link!, pending: { [keys[0]]: { B: String(data.rows[0]['row.room']) }, 'DB-GONE-R1': { B: 'x' }, [keys[1]]: { B: 'Majlis' } } } };
+    const f = fillLinked(project, stored, AT);
+    expect(f.link!.pending).toEqual({ [keys[1]]: { B: 'Majlis' } });
+    expect(f.cells.B6).toBe('Majlis');
+  });
+  it('an ordinary cell and an own column are set as they are', () => {
+    const r = typed(base(), { A1: 'note', C5: 'mine' });
+    expect(r.sheet.cells).toMatchObject({ A1: 'note', C5: 'mine' });
+    expect(r.sheet.link!.pending).toBeUndefined();
+    expect(typed(base(), { A1: '' }).sheet).toBeDefined();
+  });
+  it('refuses a linked cell, a cell the app works out, the load beside points columns and a spare\'s other cells; the rest goes through', () => {
+    const s = base();
+    expect(typed(s, { D2: 'x' }).refused).toBe('D2 is filled from the project (Fed from).');
+    expect(typed(s, { A5: 'x' })).toEqual({ sheet: s, refused: 'A5 is worked out by the app (Circuit reference).' });
+    const both = typed(s, { A1: 'ok', A5: 'x', B5: 'y' });
+    expect(both.refused).toBe('A5 is worked out by the app (Circuit reference).');
+    expect(both.sheet.cells).toMatchObject({ A1: 'ok', B5: 'y' });
+    const pts = { ...s, link: { ...s.link!, columns: { ...s.link!.columns, F: 'row.points.ltg' } } };
+    expect(typed(pts, { E5: '100' }).refused).toBe('E5: the load comes from the points columns.');
+    expect(typed(pts, { F5: '3' }).refused).toBeUndefined();
+    const r = 5 + spareAt;
+    expect(typed(s, { [`B${r}`]: 'x' }).refused).toBe(`B${r}: a spare way takes only its MCB rating and remarks.`);
+    expect(typed(s, { [`D${r}`]: '25' }).sheet.link!.pending).toEqual({ [keys[spareAt]]: { D: '25' } });
+    expect(typeRefusal(s, 'D2')).toBe('D2 is filled from the project (Fed from).');
+    expect(typeRefusal(s, 'B5')).toBeUndefined();
+    expect(typeRefusal(sheet({}), 'B5')).toBeUndefined();
+  });
+  it('new circuit rows follow the board\'s rows with new:i keys and keep their own text', () => {
+    const s = fillLinked(project, addCircuitRow(addCircuitRow(base())), AT);
+    expect(s.link!.rows).toEqual([...keys, 'new:0', 'new:1']);
+    expect(s.link!.added).toEqual([{}, {}]);
+    const r = typed(s, { [`B${5 + N}`]: 'New', [`C${5 + N}`]: 'mine', [`E${6 + N}`]: '900' });
+    expect(r.sheet.link!.added).toEqual([{ B: 'New' }, { E: '900' }]);
+    expect(pendingCount(r.sheet)).toBe(2);
+    expect(r.sheet.cells[`C${5 + N}`]).toBe('mine');
+    const again = fillLinked(project, r.sheet, AT);
+    expect(again).toEqual(r.sheet);
+    expect(fillLinked(project, again, AT)).toEqual(again);
+    expect(typed(r.sheet, { [`E${6 + N}`]: '' }).sheet.link!.added).toEqual([{ B: 'New' }, {}]);
+    expect(pendingCount(addCircuitRow(s))).toBe(0);
+  });
+  it('a board with no circuits takes a typed row as a new row', () => {
+    const empty: Project = { ...project, feeders: project.feeders.filter((f) => f.boardId !== 'DB-GF1' || !f.phase), boards: project.boards.map((b) => (b.id === 'DB-GF1' ? { ...b, spareWays: undefined } : b)) };
+    const s = fillLinked(empty, layout(), AT);
+    const r = typeLinked(empty, s, { B5: 'First' });
+    expect(r.sheet.link!.added).toEqual([{ B: 'First' }]);
+    expect(fillLinked(empty, r.sheet, AT)).toEqual(r.sheet);
+  });
+  it('addCircuitRow does nothing without a link or a board; linking to another board drops what was typed', () => {
+    const plain = sheet({});
+    expect(addCircuitRow(plain)).toBe(plain);
+    const noBoard = { ...layout(), link: { ...layout().link!, boardId: undefined } };
+    expect(addCircuitRow(noBoard)).toBe(noBoard);
+    const r = typed(addCircuitRow(base()), { B5: 'Hall' });
+    expect(linkToBoard(r.sheet, 'DB-X').link).not.toHaveProperty('pending');
+    expect(linkToBoard(r.sheet, 'DB-X').link).not.toHaveProperty('added');
+    expect(discardPending(plain)).toBe(plain);
+    expect(pendingCount(plain)).toBe(0);
   });
 });

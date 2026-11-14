@@ -1,8 +1,8 @@
 import { cellAt, cellName, colName, shiftFormula } from '../calc/sheetFormula';
-import { deleteRows, insertRows, MAX_ROWS, mergeAt, newSheet, sheetNameError, type Area, type Sheet, type SheetLink, type SheetStyle } from '../model/sheets';
+import { deleteRows, insertRows, MAX_ROWS, mergeAt, newSheet, sheetNameError, withCells, type Area, type Sheet, type SheetLink, type SheetStyle } from '../model/sheets';
 import { isDbBoard } from '../model/spareWays';
 import { POINT_TYPES, type Board, type Project } from '../types';
-import { scheduleRowKeys, templateData } from './scheduleFields';
+import { scheduleRowKeys, templateData, type Value } from './scheduleFields';
 
 /** Fills a sheet linked to a DB (Sheet.link) from the project: the cells that hold one value, and one row per circuit
  * and spare under the pattern row. The keys are those of the Excel load schedule template (scheduleFields.ts). No ExcelJS here. */
@@ -71,6 +71,9 @@ export function linkFromPlaceholders(sheet: Sheet): { sheet: Sheet; unknown: str
 /** A text from the project as the sheet holds it: one that would read as a number or a formula gets Excel's apostrophe (as in docs/sheetXlsx.ts). */
 const asTyped = (s: string) => (s !== '' && (s.startsWith('=') || s.startsWith("'") || (s.trim() !== '' && Number.isFinite(Number(s.trim())))) ? `'${s}` : s);
 
+/** A value of the project as the cell shows it. */
+const projectText = (v: Value | undefined) => (v === undefined || v === '' ? '' : typeof v === 'number' ? String(v) : asTyped(v));
+
 /** A formula with the ranges that end on `row` (and start on or above it) stretched down by `extra` rows. */
 const stretchRanges = (f: string, row: number, extra: number) => (!f.startsWith('=') ? f : f.replace(/"(?:[^"]|"")*"|(\$?[A-Za-z]{1,3}\$?)([1-9][0-9]{0,6}):(\$?[A-Za-z]{1,3}\$?)([1-9][0-9]{0,6})(?![A-Za-z0-9_(.])/g,
   (m, c1?: string, r1?: string, c2?: string, r2?: string) => (c1 !== undefined && Number(r2) === row && Number(r1) <= row ? `${c1}${r1}:${c2}${row + extra}` : m)));
@@ -81,9 +84,19 @@ const stretchRanges = (f: string, row: number, extra: number) => (!f.startsWith(
 export function fillLinked(project: Project, sheet: Sheet, at?: Date): Sheet {
   const link = sheet.link, boardId = link?.boardId;
   if (!link || !boardId || !project.boards.some((b) => b.id === boardId)) return sheet;
-  const data = templateData(project, boardId, at), keys = scheduleRowKeys(project, boardId);
+  const data = templateData(project, boardId, at), keys = scheduleRowKeys(project, boardId), news = link.added ?? [];
+  const allKeys = [...keys, ...news.map((_, i) => `new:${i}`)];
   const first = link.firstRow, have = Math.max(1, link.rows.length);
-  const want = Math.min(Math.max(1, keys.length), have + MAX_ROWS - sheet.rows);
+  const want = Math.min(Math.max(1, allKeys.length), have + MAX_ROWS - sheet.rows);
+  // Typed values waiting for Apply: dropped when the row has left the board or the project now holds the same text.
+  const pending: NonNullable<SheetLink['pending']> = {};
+  for (const [key, typed] of Object.entries(link.pending ?? {})) {
+    const row = data.rows[keys.indexOf(key)];
+    for (const [letters, text] of Object.entries(typed)) {
+      const field = link.columns[letters];
+      if (row && field && field !== 'own' && text !== projectText(row[field])) pending[key] = { ...pending[key], [letters]: text };
+    }
+  }
   const own = Object.keys(link.columns).filter((c) => link.columns[c] === 'own');
   // Own text, by the key of the row it was typed beside, read before the block changes.
   const kept = new Map<string, Record<string, string>>();
@@ -123,11 +136,11 @@ export function fillLinked(project: Project, sheet: Sheet, at?: Date): Sheet {
     if (!filled.has(letters) && top?.startsWith('=')) for (let i = 1; i < want; i++) put(`${letters}${first + i}`, shiftFormula(top, i, 0));
   }
   for (let i = 0; i < want; i++) {
-    const row = data.rows[i], mine = kept.get(keys[i]);
+    const row = data.rows[i], mine = kept.get(allKeys[i]), typed = i < keys.length ? pending[keys[i]] : news[i - keys.length];
     for (const [letters, field] of Object.entries(link.columns)) {
       const k = `${letters}${first + i}`;
       if (field === 'own') put(k, mine?.[letters] ?? '');
-      else { const v = row?.[field]; put(k, v === undefined || v === '' ? '' : typeof v === 'number' ? String(v) : asTyped(v)); }
+      else put(k, typed?.[letters] ?? (row ? projectText(row[field]) : ''));
     }
   }
   for (const [k, c] of Object.entries(s.link?.cells ?? link.cells)) { // a linked cell below the block moved with the rows; the resize kept the link in step
@@ -135,7 +148,8 @@ export function fillLinked(project: Project, sheet: Sheet, at?: Date): Sheet {
     cells[k] = typeof v === 'string' && !c.before && !c.after ? asTyped(text) : text;
     if (cells[k] === '') delete cells[k];
   }
-  const out: Sheet = { ...s, cells, ...(Object.keys(styles).length || s.styles ? { styles } : {}), link: { ...link, ...(s.link ?? {}), rows: keys.slice(0, want) } };
+  const { pending: _p, added: _q, ...base } = s.link ?? link;
+  const out: Sheet = { ...s, cells, ...(Object.keys(styles).length || s.styles ? { styles } : {}), link: { ...base, rows: allKeys.slice(0, want), ...(Object.keys(pending).length ? { pending } : {}), ...(news.length ? { added: news } : {}) } };
   const { merges: _m, ...bare } = out;
   return { ...bare, ...(merges.length ? { merges } : {}), rows: Math.max(s.rows, last) };
 }
@@ -145,7 +159,9 @@ export function fillLinked(project: Project, sheet: Sheet, at?: Date): Sheet {
  * circuits). The sheet itself when it has no link. */
 export function linkToBoard(sheet: Sheet, boardId: string): Sheet {
   if (!sheet.link) return sheet;
-  return { ...sheet, link: { ...sheet.link, boardId, ...(sheet.link.boardId !== boardId && { rows: sheet.link.rows.map(() => '') }) } };
+  if (sheet.link.boardId === boardId) return { ...sheet, link: { ...sheet.link, boardId } };
+  const { pending: _p, added: _a, ...rest } = sheet.link;
+  return { ...sheet, link: { ...rest, boardId, rows: sheet.link.rows.map(() => '') } };
 }
 
 // ---- choosing what is linked (the Link columns panel)
@@ -293,4 +309,83 @@ export function sheetsForBoards(sheets: Sheet[], from: Sheet, boardIds: string[]
     made.push({ ...linkToBoard(copy, id), id: ns.id, name: ns.name });
   }
   return made;
+}
+
+// ---- typing in a linked sheet
+
+type Place = { refused: string } | { plain: true } | { key: string; letters: string } | { added: number; letters: string };
+/** Where a typed cell goes: an ordinary cell, a board row (kept as pending), an added row, or nowhere (with the reason). */
+function placeOf(sheet: Sheet, k: string): Place {
+  const link = sheet.link, p = cellAt(k)!, at = link && linkAt(sheet, p.row, p.col);
+  if (!link || !at || at.own) return { plain: true };
+  if (link.cells[k]) return { refused: `${k} is filled from the project (${at.label}).` };
+  if (!LINK_FIELDS.find((f) => f.key === at.field)?.typed) return { refused: `${k} is worked out by the app (${at.label}).` };
+  if (at.field === 'row.watts' && Object.values(link.columns).some((f) => f.startsWith('row.points.'))) return { refused: `${k}: the load comes from the points columns.` };
+  const i = p.row - link.firstRow, boardN = link.rows.filter((x) => !x.startsWith('new:')).length, letters = colName(p.col);
+  if (i >= boardN) return { added: i - boardN, letters };
+  const key = link.rows[i];
+  if (!key) return { plain: true };
+  if (key.startsWith('spare:') && at.field !== 'row.mcb' && at.field !== 'row.remarks') return { refused: `${k}: a spare way takes only its MCB rating and remarks.` };
+  return { key, letters };
+}
+/** The reason a cell may not be typed in, or undefined when it may (the editor opens on it). */
+export function typeRefusal(sheet: Sheet, cell: string): string | undefined {
+  const at = cellAt(cell), place = at && placeOf(sheet, cellName(at.col, at.row));
+  return place && 'refused' in place ? place.refused : undefined;
+}
+
+/** Text typed on the page: an ordinary cell is set; a typed cell of a linked column is kept beside the link until Apply to project
+ * (a board row under its key, a new row in `added`); a cell the app fills or works out is refused. The sheet returned is the shown
+ * sheet with the typed cells set, so it equals its own fill. `refused`: the message for the first cell refused; the rest still go through. */
+export function typeLinked(project: Project, sheet: Sheet, edits: Record<string, string>): { sheet: Sheet; refused?: string } {
+  const link = sheet.link, boardId = link?.boardId;
+  const plain: Record<string, string> = {};
+  const pending: NonNullable<SheetLink['pending']> = Object.fromEntries(Object.entries(link?.pending ?? {}).map(([k, v]) => [k, { ...v }]));
+  const news = (link?.added ?? []).map((o) => ({ ...o }));
+  const data = boardId && project.boards.some((b) => b.id === boardId) ? templateData(project, boardId) : undefined, keys = boardId && data ? scheduleRowKeys(project, boardId) : [];
+  let refused: string | undefined, kept = false;
+  for (const [k0, text] of Object.entries(edits)) {
+    const at = cellAt(k0);
+    if (!at) continue;
+    const k = cellName(at.col, at.row);
+    if ((sheet.cells[k] ?? '') === text) continue;
+    const place = placeOf(sheet, k);
+    if ('refused' in place) { refused ??= place.refused; continue; }
+    plain[k] = text;
+    if ('plain' in place) continue;
+    if ('key' in place) {
+      const row = data?.rows[keys.indexOf(place.key)];
+      if (!row) continue;
+      kept = true;
+      if (text === projectText(row[link!.columns[place.letters]])) { delete pending[place.key]?.[place.letters]; if (pending[place.key] && !Object.keys(pending[place.key]).length) delete pending[place.key]; }
+      else pending[place.key] = { ...pending[place.key], [place.letters]: text };
+    } else {
+      kept = true;
+      while (news.length <= place.added) news.push({});
+      if (text === '') delete news[place.added][place.letters]; else news[place.added][place.letters] = text;
+    }
+  }
+  if (!Object.keys(plain).length) return { sheet, ...(refused && { refused }) };
+  const next = withCells(sheet, plain);
+  if (!kept || !link) return { sheet: next, ...(refused && { refused }) };
+  const { pending: _p, added: _a, ...base } = link;
+  const rows = [...link.rows.filter((k) => !k.startsWith('new:')), ...news.map((_, i) => `new:${i}`)]; // typing in the blank row of a board with no circuits makes the first new row
+  return { sheet: { ...next, link: { ...base, rows: rows.length > link.rows.length ? rows : link.rows, ...(Object.keys(pending).length ? { pending } : {}), ...(news.length ? { added: news } : {}) } }, ...(refused && { refused }) };
+}
+
+/** A new empty circuit row at the end of the block. The sheet itself without a link or a board. */
+export function addCircuitRow(sheet: Sheet): Sheet {
+  const link = sheet.link;
+  return link?.boardId ? { ...sheet, link: { ...link, added: [...(link.added ?? []), {}] } } : sheet;
+}
+/** The sheet without what was typed and not applied. */
+export function discardPending(sheet: Sheet): Sheet {
+  if (!sheet.link) return sheet;
+  const { pending: _p, added: _a, ...rest } = sheet.link;
+  return { ...sheet, link: rest };
+}
+/** How many typed values wait for Apply to project: each pending value, and each new row that holds a text. */
+export function pendingCount(sheet: Sheet): number {
+  const l = sheet.link;
+  return !l ? 0 : Object.values(l.pending ?? {}).reduce((n, o) => n + Object.keys(o).length, 0) + (l.added ?? []).filter((o) => Object.values(o).some((t) => t !== '')).length;
 }

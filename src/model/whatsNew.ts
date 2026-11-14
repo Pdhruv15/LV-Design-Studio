@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.132', date: '2026-11-14',
+    items: [
+      { title: 'Sheets: schedule in your own sheet', text: 'In a sheet linked to a DB you can now type the description, load, points, MCB, cable, length and remarks. Typed values are marked and kept until you press Apply to project on the Electrical tab; the project, the Load schedule tab and the SLD then follow. Add circuit adds a row for a new circuit: with the MCB and cable left blank, the app sizes them by the rules. A typed size that fails its check is marked before you apply. Refresh from project drops what was not applied.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
     version: '2.131', date: '2026-11-14',
     items: [
       { title: 'Sheets: link your own schedule to a DB', text: 'On the Electrical tab, Link columns says which cell of your sheet holds the panel number and Fed from, and which column holds the circuit reference, load, MCB, cable and so on; Suggest links reads them from your headings. Choose a board and the sheet fills from the project, one row per circuit, and stays up to date. A column of your own keeps its text with each circuit. One click adds a sheet for every other DB. Linked cells are read only for now; typing in them comes with Apply to project.', action: 'sheets', actionLabel: 'Open Sheets' }

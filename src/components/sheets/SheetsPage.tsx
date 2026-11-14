@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowDownToLine, Baseline, BetweenHorizontalStart, BetweenVerticalStart, Bold, Check, ClipboardPaste, ClipboardType,
-  Copy, Dot, Eye, FilePlus2, FolderOpen, Grid2x2, Hash, Italic, Link2, ListFilter, MoveHorizontal, PaintBucket, Paintbrush, Pencil, Percent, RotateCw, Ruler, Save, Scissors, Search,
+  Copy, Dot, Eye, FilePlus2, FolderOpen, Grid2x2, Hash, Italic, Link2, ListFilter, MoveHorizontal, PaintBucket, Paintbrush, Pencil, Percent, Plus, RefreshCw, RotateCw, Ruler, Save, Scissors, Search,
   Sigma, TableCellsMerge, Trash2, Underline, Undo2, Upload, WrapText, type LucideIcon
 } from 'lucide-react';
 import type { Project } from '../../types';
 import { cellAt, cellName, colName } from '../../calc/sheetFormula';
 import {
   allBordered, allStyled, area, DEFAULT_WIDTH, deleteCols, deleteRows, edgesOf, fillDownEdits, insertCols, insertRows, mergeArea, mergeAt, newSheet, pasteEdits, rawRows, sheetNameError, sheetValues, shown, shownRows, sumFormula,
-  unmergeArea, withCells, withNextWidth, withStyle, type Area, type Sheet, type SheetAlign, type SheetBook, type SheetNumberFormat, type SheetStyle
+  unmergeArea, withNextWidth, withStyle, type Area, type Sheet, type SheetAlign, type SheetBook, type SheetNumberFormat, type SheetStyle
 } from '../../model/sheets';
-import { fillLinked, linkAt, LINK_FIELDS } from '../../docs/sheetLink';
+import { addCircuitRow, discardPending, fillLinked, linkAt, LINK_FIELDS, pendingCount, typeLinked, typeRefusal } from '../../docs/sheetLink';
+import { applyLinked, pendingMarks } from '../../docs/sheetApply';
 import { parseClipboard, toClipboard } from '../grid/excelGrid';
 import LinkPanel from './LinkPanel';
 import { safeFileName, saveBinary } from '../../util/files';
@@ -64,6 +65,9 @@ const CSS = `
 .shx-grid td.shx-accent { color: var(--acc); }
 .shx-grid td.shx-lk { box-shadow: inset 2px 0 0 var(--res-cur); }
 .shx-grid td.shx-own { box-shadow: inset 2px 0 0 var(--res-pf); }
+.shx-grid td.shx-pend { position: relative; }
+.shx-grid td.shx-pend::after { content: ""; position: absolute; top: 2px; right: 2px; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+.shx-grid td.shx-over { box-shadow: inset 0 0 0 2px var(--warn); }
 .shx-grid th .shx-lkname { display: block; font-size: 10px; font-weight: 400; color: var(--res-cur); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .shx-grid th .shx-lkname.shx-lkown { color: var(--res-pf); }
 .shx-grid td input { box-sizing: border-box; width: 100%; height: 22px; border: 0; outline: 0; padding: 0; background: var(--bg); color: var(--tx); font: inherit; }
@@ -83,8 +87,8 @@ function Group({ name, children }: { name: string; children: ReactNode }) {
 function Big({ icon: Icon, label, onClick, disabled, title, pressed }: { icon: LucideIcon; label: string; onClick?: () => void; disabled?: boolean; title?: string; pressed?: boolean }) {
   return <button type="button" className="shx-big" onClick={onClick} disabled={disabled || !onClick} aria-pressed={pressed} title={title ?? (onClick ? label : LATER)}><Icon size={26} aria-hidden /><span>{label}</span></button>;
 }
-function Small({ icon: Icon, label, onClick, disabled, pressed }: { icon: LucideIcon; label: string; onClick?: () => void; disabled?: boolean; pressed?: boolean }) {
-  return <button type="button" className="shx-sm" onClick={onClick} disabled={disabled || !onClick} aria-pressed={pressed} title={onClick ? label : LATER}><Icon size={18} aria-hidden /><span>{label}</span></button>;
+function Small({ icon: Icon, label, onClick, disabled, pressed, title }: { icon: LucideIcon; label: string; onClick?: () => void; disabled?: boolean; pressed?: boolean; title?: string }) {
+  return <button type="button" className="shx-sm" onClick={onClick} disabled={disabled || !onClick} aria-pressed={pressed} title={title ?? (onClick ? label : LATER)}><Icon size={18} aria-hidden /><span>{label}</span></button>;
 }
 function IconTool({ icon: Icon, label, onClick, pressed, disabled }: { icon: LucideIcon; label: string; onClick?: () => void; pressed?: boolean; disabled?: boolean }) {
   return <button type="button" className="shx-ic" onClick={onClick} disabled={!onClick || disabled} aria-label={label} aria-pressed={pressed} title={onClick ? label : `${label} — ${LATER.toLowerCase()}`}><Icon size={18} aria-hidden /></button>;
@@ -122,20 +126,29 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
 
   const save = (next: Sheet, more: Partial<SheetBook> = {}) =>
     onChange({ ...project, sheets: { ...book, ...more, sheets: (more.sheets ?? book.sheets).map((s) => (s.id === next.id ? next : s)) } }, true);
-  /** A cell filled from the project is read only for now: the message says so, naming the first cell dropped. */
-  const linkedMsg = (k: string) => { const p = cellAt(k), l = p && linkAt(sheet, p.row, p.col); return l && !l.own ? `${k} is filled from the project (${l.label}). Typing in linked cells comes with Apply to project.` : undefined; };
-  const setCells = (all: Record<string, string>) => {
-    const edits: Record<string, string> = {};
-    let said: string | undefined;
-    for (const [k, v] of Object.entries(all)) {
-      const msg = linkedMsg(k);
-      if (!msg) edits[k] = v; else if ((sheet.cells[k] ?? '') !== v) said ??= msg;
-    }
-    if (said) onStatus?.(said);
-    if (Object.keys(edits).some((k) => (sheet.cells[k] ?? '') !== edits[k])) save(withCells(sheet, edits));
+  /** Typing goes through the link: a typed value of a linked column waits for Apply to project, a cell the app fills is refused. */
+  const setCells = (edits: Record<string, string>) => {
+    const r = typeLinked(project, sheet, edits);
+    if (r.refused) onStatus?.(r.refused);
+    if (r.sheet !== sheet) save(r.sheet);
   };
-  /** Opens the editor on a cell, unless it is filled from the project. */
-  const openEditor = (k: string, text: string) => { const msg = linkedMsg(k); if (msg) { onStatus?.(msg); return; } ended.current = false; setEdit(text); };
+  /** Opens the editor on a cell, unless it may not be typed in. */
+  const openEditor = (k: string, text: string) => { const msg = typeRefusal(sheet, k); if (msg) { onStatus?.(msg); return; } ended.current = false; setEdit(text); };
+  const waiting = pendingCount(sheet);
+  const marks = useMemo(() => (pendingCount(sheet) ? pendingMarks(project, sheet) : {}), [project, sheet]);
+  const apply = () => {
+    const r = applyLinked(project, sheet), more = r.rejected.length > 1 ? ` and ${r.rejected.length - 1} more` : '';
+    if (!r.changed && !r.added) { if (r.rejected.length) onStatus?.(`Nothing applied: ${r.rejected[0]}${more}`); return; }
+    onChange({ ...r.project, sheets: { ...book, sheets: book.sheets.map((x) => (x.id === r.sheet.id ? r.sheet : x)) } }, true);
+    onStatus?.(`Applied to ${sheet.link?.boardId}: ${r.changed} ${r.changed === 1 ? 'circuit' : 'circuits'} changed, ${r.added} added.${r.rejected.length ? ` Not applied: ${r.rejected[0]}${more}` : ''}`);
+  };
+  /** A new row for a circuit: the active cell goes to it, in the first column that takes typing. */
+  const addCircuit = () => {
+    const next = addCircuitRow(sheet), l = next.link!, here = l.rows.filter((k) => !k.startsWith('new:')).length + l.added!.length - 1;
+    const col = Object.entries(l.columns).filter(([, f]) => LINK_FIELDS.find((x) => x.key === f)?.typed && !(f === 'row.watts' && Object.values(l.columns).some((g) => g.startsWith('row.points.')))).map(([c]) => cellAt(`${c}1`)!.col).sort((a, b) => a - b)[0] ?? 1;
+    save(next);
+    setAct({ r: l.firstRow + here, c: col }); setAnchor({ r: l.firstRow + here, c: col });
+  };
   const style = (change: Partial<SheetStyle>) => save(withStyle(sheet, sel, change));
   const toggle = (key: 'bold' | 'italic' | 'underline' | 'wrap' | 'fill' | 'accent') => style({ [key]: allStyled(sheet, sel, key) ? undefined : true });
   const cur = sheet.styles?.[name] ?? {};
@@ -264,6 +277,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
     if (values[k]?.unsupported && !values[k]?.error) out.push('shx-keep');
     if (st?.fill) out.push('shx-fill');
     if (st?.accent) out.push('shx-accent');
+    if (marks[k]) out.push(marks[k].kind === 'pending' ? 'shx-pend' : 'shx-pend shx-over');
     if (showLinks && sheet.link) { const l = linkAt(sheet, r, c); if (l?.own) out.push('shx-own'); else if (l) out.push('shx-lk'); }
     return out.join(' ');
   };
@@ -313,8 +327,12 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
               <Big icon={Link2} label="Link columns" onClick={() => setPanel(!panel)} pressed={panel} />
               <div className="shx-col">
                 <Small icon={Eye} label="Show linked cells" onClick={() => setShowLinks(!showLinks)} pressed={showLinks} />
-                <Small icon={Upload} label="Apply to project" />
+                <Small icon={Upload} label="Apply to project" onClick={apply} disabled={!waiting} title={waiting ? `Apply to project — ${waiting} typed ${waiting === 1 ? 'value' : 'values'}` : undefined} />
+                <Small icon={RefreshCw} label="Refresh from project" onClick={() => { save(discardPending(sheet)); onStatus?.('Typed values that were not applied are removed.'); }} disabled={!waiting && !sheet.link?.added?.length} />
               </div>
+            </Group>
+            <Group name="Circuits">
+              <Small icon={Plus} label="Add circuit" onClick={addCircuit} disabled={!sheet.link?.boardId} />
             </Group>
           </div>
         ) : (
@@ -376,7 +394,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
               </div>
             </Group>
             <Group name="Project">
-              <Big icon={Check} label="Apply to project" />
+              <Big icon={Check} label="Apply to project" onClick={apply} disabled={!waiting} />
             </Group>
           </div>
         )}
@@ -408,7 +426,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
                   return (
                     <td key={c} data-cell={k} role="gridcell" aria-selected={r === act.r && c === act.c} className={cls(r, c, k)} style={cellStyle(k, r, c)}
                       rowSpan={m ? m.r1 - m.r0 + 1 : undefined} colSpan={m ? m.c1 - m.c0 + 1 : undefined}
-                      title={values[k]?.error ? `${values[k]!.error}: ${sheet.cells[k]}` : values[k]?.unsupported ? `Kept from the Excel file with its last value — the app cannot work this formula out: ${sheet.cells[k]}` : undefined}
+                      title={marks[k]?.text ?? (values[k]?.error ? `${values[k]!.error}: ${sheet.cells[k]}` : values[k]?.unsupported ? `Kept from the Excel file with its last value — the app cannot work this formula out: ${sheet.cells[k]}` : undefined)}
                       onMouseDown={(e) => { if (!here) move(r, c, e.shiftKey); }}
                       onDoubleClick={() => openEditor(k, sheet.cells[k] ?? '')}>
                       {here
@@ -431,6 +449,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
       {panel && <LinkPanel project={project} sheet={sheet} sheets={book.sheets} active={act} onSheet={(next) => save(next)} onStatus={onStatus} onClose={() => setPanel(false)}
         onAddSheets={(made) => onChange({ ...project, sheets: { ...book, sheets: [...book.sheets, ...made] } }, true)} />}
       </div>
+      {waiting > 0 && <p className="shx-note">{waiting} typed {waiting === 1 ? 'value waits' : 'values wait'} for Apply to project.</p>}
 
       <div className="shx-sheets" role="tablist" aria-label="Sheets">
         {book.sheets.map((s) => (renaming !== null && s.id === sheet.id

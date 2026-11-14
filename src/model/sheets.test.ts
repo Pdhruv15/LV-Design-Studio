@@ -294,6 +294,23 @@ describe('sheets — a linked sheet follows inserted and deleted rows and column
     expect(deleteCols(s, 2).link!.columns).toEqual({ A: 'row.ref', B: 'own' });
     expect(deleteCols(s, 4).link!.cells).toEqual({ B1: { field: 'board.id', before: 'DB: ' } });
   });
+  it('typed values and new rows follow columns and rows', () => {
+    const s = { ...linked(['a', 'b', 'new:0', 'new:1']), link: { ...link(['a', 'b', 'new:0', 'new:1']), pending: { a: { A: 'x', D: 'y' }, b: { D: 'z' } }, added: [{ A: 'p', D: 'q' }, { D: 'r' }] as Record<string, string>[] } };
+    const ins = insertCols(s, 2).link!;
+    expect(ins.pending).toEqual({ a: { A: 'x', E: 'y' }, b: { E: 'z' } });
+    expect(ins.added).toEqual([{ A: 'p', E: 'q' }, { E: 'r' }]);
+    const del = deleteCols(s, 4).link!;
+    expect(del.pending).toEqual({ a: { A: 'x' } });
+    expect(del.added).toEqual([{ A: 'p' }, {}]);
+    expect(deleteCols({ ...s, link: { ...s.link!, pending: { a: { D: 'y' } } } }, 4).link).not.toHaveProperty('pending');
+    const cut = deleteRows(s, 7).link!; // the first new row
+    expect(cut.rows).toEqual(['a', 'b', 'new:0']);
+    expect(cut.added).toEqual([{ D: 'r' }]);
+    expect(cut.pending).toEqual(s.link!.pending);
+    expect(deleteRows(s, 8).link!.added).toEqual([{ A: 'p', D: 'q' }]);
+    expect(deleteRows(s, 5, 4).link).not.toHaveProperty('added');
+    expect(insertRows(s, 1).link!.added).toEqual(s.link!.added);
+  });
   it('other edits leave the link as it is', () => {
     const s = linked(['a']);
     expect(withCells(s, { F1: 'y' }).link).toBe(s.link);
