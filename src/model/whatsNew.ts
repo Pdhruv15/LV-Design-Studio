@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.124', date: '2026-11-14',
+    items: [
+      { title: 'Design CAD: no streaks along the bottom', text: 'After the drawing area got shorter, for example when the command line grew under it, zooming or panning could leave blue and green streaks along the bottom edge of the drawing that were not part of it. They no longer appear.' }
+    ]
+  },
+  {
     version: '2.122', date: '2026-11-13',
     items: [
       { title: 'SLD CAD export: real dashed lines', text: 'Dashed frames and lines in exported DXF and DWG drawings are now single lines with a dashed linetype, not hundreds of short pieces, and rounded corners stay rounded.' }
