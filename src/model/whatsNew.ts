@@ -15,9 +15,15 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.124', date: '2026-11-13',
+    version: '2.126', date: '2026-11-13',
     items: [
       { title: 'SLD CAD export: symbols as blocks', text: 'Breakers, switches and the other library symbols in exported DXF and DWG drawings are now blocks, one definition per symbol inserted wherever it is used, so they can be selected, counted and replaced in CAD.' }
+    ]
+  },
+  {
+    version: '2.124', date: '2026-11-14',
+    items: [
+      { title: 'Design CAD: no streaks along the bottom', text: 'After the drawing area got shorter, for example when the command line grew under it, zooming or panning could leave blue and green streaks along the bottom edge of the drawing that were not part of it. They no longer appear.' }
     ]
   },
   {
