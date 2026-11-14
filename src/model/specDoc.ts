@@ -1,7 +1,7 @@
 import { AIR_METHODS } from '../calc/lightningProtection';
 import type { Project } from '../types';
 import { earthingSystemOf } from './earthingPlan';
-import { currentRevision } from './revisions';
+import { currentRevision, revisionStamp } from './revisions';
 import { mainBoards } from './transformers';
 
 /** The project specification (Specification page): sections of numbered clauses whose values come from the
@@ -12,19 +12,52 @@ import { mainBoards } from './transformers';
 export type SpecKind = 'heading' | 'clause' | 'note';
 export interface SpecClause { id: string; kind: SpecKind; text: string }
 export interface SpecSection { id: string; title: string; included: boolean; clauses: SpecClause[] }
-export interface SpecDoc { title: string; sections: SpecSection[] }
+/** A detail the engineer adds to the document's information (name and value), usable in a clause as a field. */
+export interface SpecDetail { id: string; name: string; value: string }
+/** The document's own information: its number and status, the parties, and any further details. A party left
+ * blank is read from the project (Project information) where the project has it, so nothing is typed twice. */
+export interface SpecInfo { number?: string; status?: string; client?: string; consultant?: string; mainContractor?: string; mepContractor?: string; details?: SpecDetail[] }
+export type SpecPaper = 'A4' | 'A3';
+/** Left, centre and right text of a header or footer; each may hold fields, and {{page}} and {{pages}}. */
+export type SpecSlots = [string, string, string];
+export type SpecLogoPlace = 'none' | 'header-left' | 'header-right' | 'footer-left' | 'footer-right';
+export interface SpecMargins { top: number; right: number; bottom: number; left: number }
+/** Page setup of the exported document. Anything left out takes the default (SPEC_SETUP). */
+export interface SpecSetup {
+  paper?: SpecPaper; landscape?: boolean; marginsMm?: SpecMargins; header?: SpecSlots; footer?: SpecSlots;
+  logo?: string; // the document's own logo (data: URL); none: the project's company logo
+  logoPlace?: SpecLogoPlace; // the logo takes the place of that slot's text
+  watermark?: string; // e.g. DRAFT, behind the text of every page
+}
+export interface SpecDoc { title: string; sections: SpecSection[]; info?: SpecInfo; setup?: SpecSetup }
 
 // ---- fields from the project
+
+export type SpecPartyKey = 'client' | 'consultant' | 'mainContractor' | 'mepContractor';
+/** The parties of the document, and where the project already holds each (Project information). */
+export const SPEC_PARTIES: { key: SpecPartyKey; label: string; from: (p: Project) => string | undefined }[] = [
+  { key: 'client', label: 'Client', from: (p) => p.info?.owner },
+  { key: 'consultant', label: 'Consultant', from: (p) => p.info?.consultant?.trim() || p.drawing?.company },
+  { key: 'mainContractor', label: 'Main contractor', from: (p) => p.info?.contractor },
+  { key: 'mepContractor', label: 'MEP contractor', from: () => undefined }
+];
 
 export interface SpecField { key: string; label: string; group: string; value?: string }
 const n = (v: number | undefined, unit: string) => (v !== undefined && Number.isFinite(v) && v > 0 ? `${v.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${unit}`.trim() : undefined);
 const t = (v: string | undefined) => (v?.trim() ? v.trim() : undefined);
 
 /** Every field a clause can use, with its value from this project (none: the project does not have it yet). */
-export function specFields(p: Project): SpecField[] {
+export function specFields(p: Project, doc: SpecDoc | undefined = p.spec): SpecField[] {
   const main = mainBoards(p)[0];
   const lp = p.lightning;
+  const info = doc?.info;
   return [
+    { key: 'doc.title', label: 'Document title', group: 'Document', value: t(doc?.title) },
+    { key: 'doc.number', label: 'Document number', group: 'Document', value: t(info?.number) },
+    { key: 'doc.status', label: 'Document status', group: 'Document', value: t(info?.status) },
+    ...SPEC_PARTIES.map((x) => ({ key: `party.${x.key}`, label: x.label, group: 'Parties', value: t(info?.[x.key]) ?? t(x.from(p)) })),
+    ...(info?.details ?? []).filter((d) => d.name.trim()).map((d) => ({ key: `detail.${d.id}`, label: d.name.trim(), group: 'Additional details', value: t(d.value) })),
+    { key: 'project.issue', label: 'Revision and date', group: 'Project', value: t(revisionStamp(p)) },
     { key: 'project.name', label: 'Project name', group: 'Project', value: t(p.name) },
     { key: 'project.revision', label: 'Revision', group: 'Project', value: t(currentRevision(p)?.id) },
     { key: 'project.voltage', label: 'System voltage', group: 'Project', value: n(p.voltageV, 'V') },
@@ -73,7 +106,7 @@ function runsOf(text: string, fields: Map<string, SpecField>): SpecRun[] {
 /** The included sections, numbered — sections 1, 2 …, headings 2.1, 2.2 …, clauses 2.1.1 … (a clause before any
  * heading is 2.1, 2.2 …) — with every field filled from the project, and the list of fields that have no value. */
 export function specView(doc: SpecDoc, p: Project): SpecView {
-  const fields = new Map(specFields(p).map((f) => [f.key, f]));
+  const fields = new Map(specFields(p, doc).map((f) => [f.key, f]));
   const blocks: SpecBlock[] = [], missing: SpecMissing[] = [];
   let s = 0;
   for (const sec of doc.sections) {
@@ -93,6 +126,62 @@ export function specView(doc: SpecDoc, p: Project): SpecView {
 }
 /** A line as plain text, fields filled in (DATA REQUIRED where the project has no value). */
 export const lineText = (l: Pick<SpecLine, 'runs'>): string => l.runs.map((r) => ('text' in r ? r.text : r.value ?? `DATA REQUIRED: ${r.label}`)).join('');
+
+// ---- document information and page setup
+
+export const SPEC_SETUP: Required<Omit<SpecSetup, 'logo' | 'watermark'>> = {
+  paper: 'A4', landscape: false, marginsMm: { top: 22, right: 16, bottom: 20, left: 18 },
+  header: ['{{project.name}}', '', '{{doc.title}}'], footer: ['{{project.issue}}', '', 'Page {{page}} of {{pages}}'], logoPlace: 'none'
+};
+export const SPEC_PAPER_MM: Record<SpecPaper, [number, number]> = { A4: [210, 297], A3: [297, 420] };
+export interface SpecPage extends Required<Omit<SpecSetup, 'logo' | 'watermark'>> { logo?: string; watermark?: string }
+/** The page setup in full: the document's own choices over the defaults, the logo the document's own or else the
+ * project's company logo. Margins are kept between 5 and 60 mm so a page always has room for text. */
+export function specSetup(doc: SpecDoc, p: Project): SpecPage {
+  const s = doc.setup ?? {}, m = s.marginsMm ?? SPEC_SETUP.marginsMm;
+  const mm = (v: number, d: number) => (Number.isFinite(v) ? Math.min(60, Math.max(5, v)) : d);
+  const d = SPEC_SETUP.marginsMm;
+  return {
+    paper: s.paper ?? SPEC_SETUP.paper, landscape: s.landscape ?? false,
+    marginsMm: { top: mm(m.top, d.top), right: mm(m.right, d.right), bottom: mm(m.bottom, d.bottom), left: mm(m.left, d.left) },
+    header: s.header ?? SPEC_SETUP.header, footer: s.footer ?? SPEC_SETUP.footer, logoPlace: s.logoPlace ?? 'none',
+    logo: t(s.logo) ?? t(p.drawing?.logo), watermark: t(s.watermark)
+  };
+}
+export type SlotRun = { text: string } | { page: 'page' | 'pages' };
+/** A header or footer slot as text and page numbers, fields filled in (DATA REQUIRED where there is no value). */
+export function slotRuns(text: string, doc: SpecDoc, p: Project): SlotRun[] {
+  const fields = new Map(specFields(p, doc).map((f) => [f.key, f]));
+  const out: SlotRun[] = [];
+  const say = (v: string) => { const last = out[out.length - 1]; if (last && 'text' in last) last.text += v; else if (v) out.push({ text: v }); };
+  let at = 0;
+  for (const m of text.matchAll(FIELD)) {
+    say(text.slice(at, m.index));
+    if (m[1] === 'page' || m[1] === 'pages') out.push({ page: m[1] });
+    else { const f = fields.get(m[1]); say(f?.value ?? `DATA REQUIRED: ${f?.label ?? m[1]}`); }
+    at = m.index! + m[0].length;
+  }
+  say(text.slice(at));
+  return out;
+}
+/** A slot as it reads on page 1 of 1, for showing on screen. */
+export const slotText = (text: string, doc: SpecDoc, p: Project, page = '1', pages = '1'): string =>
+  slotRuns(text, doc, p).map((r) => ('text' in r ? r.text : r.page === 'page' ? page : pages)).join('');
+
+export const withInfo = (doc: SpecDoc, patch: Partial<SpecInfo>): SpecDoc => ({ ...doc, info: { ...doc.info, ...patch } });
+export const withSetup = (doc: SpecDoc, patch: Partial<SpecSetup>): SpecDoc => ({ ...doc, setup: { ...doc.setup, ...patch } });
+export const withTitle = (doc: SpecDoc, title: string): SpecDoc => (title.trim() ? { ...doc, title: title.trim() } : doc);
+/** Adds a detail (name and value) to the document's information; its field is detail.<id>. */
+export function addDetail(doc: SpecDoc, name = '', value = ''): SpecDoc {
+  const details = doc.info?.details ?? [];
+  let i = details.length + 1;
+  while (details.some((d) => d.id === `D${i}`)) i++;
+  return withInfo(doc, { details: [...details, { id: `D${i}`, name, value }] });
+}
+export const withDetail = (doc: SpecDoc, id: string, patch: Partial<Omit<SpecDetail, 'id'>>): SpecDoc => withInfo(doc, { details: (doc.info?.details ?? []).map((d) => (d.id === id ? { ...d, ...patch } : d)) });
+export const removeDetail = (doc: SpecDoc, id: string): SpecDoc => withInfo(doc, { details: (doc.info?.details ?? []).filter((d) => d.id !== id) });
+/** How many times the clauses use a field (a detail in use is not deleted without saying so). */
+export const fieldUses = (doc: SpecDoc, key: string): number => doc.sections.reduce((n, s) => n + s.clauses.reduce((m, c) => m + fieldKeys(c.text).filter((k) => k === key).length, 0), 0);
 
 // ---- editing: every edit returns a new document, so one edit is one undo step
 

@@ -133,7 +133,7 @@ describe('Specification page', () => {
     render(sampleProject);
     for (const label of ['Paste', 'Bold', 'Find and replace', 'Bullets']) expect(tool(label).disabled).toBe(true);
     expect(tool('Paste').title).toBe('Comes in a later stage');
-    expect([...document.querySelectorAll<HTMLButtonElement>('.prb-tab')].filter((t) => t.disabled).map((t) => t.textContent)).toEqual(['Specification', 'Insert', 'Review']);
+    expect([...document.querySelectorAll<HTMLButtonElement>('.prb-tab')].filter((t) => t.disabled).map((t) => t.textContent)).toEqual(['Insert', 'Review']);
     expect(document.querySelector<HTMLSelectElement>('select[aria-label="Insert field"]')!.disabled).toBe(true);
   });
 
@@ -155,5 +155,61 @@ describe('Specification page', () => {
     const none = { ...starterSpec(), sections: starterSpec().sections.map((x) => ({ ...x, included: false })) };
     render({ ...sampleProject, spec: none });
     expect(tool('Export Word').disabled).toBe(true);
+  });
+
+  describe('Specification tab: document information and page setup', () => {
+    const box = (label: string) => document.querySelector<HTMLInputElement>(`.spx-setup [aria-label="${label}"]`)!;
+    const type = (label: string, v: string) => act(() => { const el = box(label); el.value = v; el.dispatchEvent(new FocusEvent('focusout', { bubbles: true })); });
+    const choose = (label: string, v: string) => act(() => { const el = document.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!; el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); });
+
+    it('sets the number, status and a party; a blank party shows what the project has', () => {
+      render({ ...sampleProject, info: { ...sampleProject.info, owner: 'Owner Co' } });
+      tabTo('Specification');
+      expect(box('Client').placeholder).toBe('From the project: Owner Co');
+      type('Document number', 'E-001'); type('Status', 'For tender'); type('Main contractor', 'Build Co');
+      expect(spec().info).toEqual({ number: 'E-001', status: 'For tender', mainContractor: 'Build Co' });
+      expect(document.querySelector('.spx-strip')!.textContent).toContain('E-001 · For tender');
+      expect(changes).toBe(3);
+    });
+
+    it('adds a detail, uses it in a clause, and says so when a detail in use is removed', () => {
+      render(sampleProject);
+      tabTo('Specification');
+      press('Add detail');
+      type('Detail D1 name', 'Plot number'); type('Detail D1 value', '373-1245');
+      expect(spec().info!.details).toEqual([{ id: 'D1', name: 'Plot number', value: '373-1245' }]);
+      tabTo('Home');
+      act(() => lines()[1].click());
+      act(() => { const sel = document.querySelector<HTMLSelectElement>('select[aria-label="Insert field"]')!; sel.value = 'detail.D1'; sel.dispatchEvent(new Event('change', { bubbles: true })); });
+      act(() => lines()[0].click());
+      expect(paper()).toContain('373-1245');
+      tabTo('Specification');
+      act(() => document.querySelector<HTMLButtonElement>('button[aria-label="Remove detail Plot number"]')!.click());
+      expect(spec().info!.details).toEqual([]);
+      expect(status[status.length - 1]).toContain('1 clause used it');
+    });
+
+    it('sets paper, margins, a footer slot, the logo position and the watermark; the preview and the PDF follow', async () => {
+      saved.length = 0;
+      render(sampleProject);
+      tabTo('Specification');
+      choose('Paper', 'A3'); choose('Orientation', 'landscape');
+      type('Margin top', '30'); type('Margin left', '500');
+      type('Footer left', '{{doc.title}} — {{page}}/{{pages}}'); type('Watermark', 'DRAFT');
+      expect(spec().setup).toMatchObject({ paper: 'A3', landscape: true, watermark: 'DRAFT' });
+      expect(spec().setup!.marginsMm).toMatchObject({ top: 30, left: 60 });
+      expect(document.querySelector('.spx-foot')!.textContent).toContain('Electrical specification — 1/1');
+      expect(document.querySelector('.spx-strip')!.textContent).toContain('A3 landscape · watermark DRAFT');
+      await act(async () => { tool('Export PDF').click(); await vi.waitFor(() => expect(saved.length).toBe(1)); });
+      expect(saved[0].html).toContain('size: A3 landscape; margin: 30mm');
+      expect(saved[0].html).toContain('<div class="wm"><span>DRAFT</span></div>');
+      press('Default page setup');
+      expect(spec().setup).toBeUndefined();
+    });
+
+    it('the header on the page follows the header slots', () => {
+      render({ ...sampleProject, spec: { ...starterSpec(), setup: { header: ['{{doc.number}}', 'Tender issue', ''] }, info: { number: 'E-9' } } });
+      expect(document.querySelector('.spx-head')!.textContent).toBe('E-9Tender issue');
+    });
   });
 });

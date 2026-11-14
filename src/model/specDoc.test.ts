@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import type { Project } from '../types';
-import { addClause, addSection, fieldKeys, lineText, moveClause, moveSection, removeClause, removeSection, specFields, specView, starterSpec, withClause, withSectionIncluded, withSectionTitle, type SpecDoc } from './specDoc';
+import { addClause, addDetail, addSection, fieldKeys, fieldUses, removeDetail, slotRuns, slotText, specSetup, withDetail, withInfo, withSetup, withTitle, SPEC_SETUP, lineText, moveClause, moveSection, removeClause, removeSection, specFields, specView, starterSpec, withClause, withSectionIncluded, withSectionTitle, type SpecDoc } from './specDoc';
 import { mainBoards } from './transformers';
 
 const field = (p: Project, key: string) => specFields(p).find((f) => f.key === key)!;
@@ -144,5 +144,56 @@ describe('specification — the starter', () => {
   it('names no standard: the wording is plain text to edit', () => {
     const all = s.sections.flatMap((x) => x.clauses.map((c) => c.text)).join(' ');
     expect(all).not.toMatch(/\b(IEC|BS|EN|NFPA|IEEE|DEWA)\b/);
+  });
+});
+
+describe('specification — document information and page setup', () => {
+  const doc = starterSpec();
+  const bare: Project = { ...sampleProject, info: undefined, drawing: undefined };
+  const value = (p: Project, d: SpecDoc, key: string) => specFields(p, d).find((f) => f.key === key)?.value;
+
+  it('a party is the document\'s own, else the project\'s, else not set', () => {
+    const p: Project = { ...bare, info: { owner: 'Owner Co', contractor: 'Build Co' }, drawing: { company: 'Design Co' } };
+    expect(value(p, doc, 'party.client')).toBe('Owner Co');
+    expect(value(p, doc, 'party.consultant')).toBe('Design Co');
+    expect(value(p, withInfo(doc, { client: ' Client Ltd ' }), 'party.client')).toBe('Client Ltd');
+    expect(value(p, doc, 'party.mainContractor')).toBe('Build Co');
+    expect(value(p, doc, 'party.mepContractor')).toBeUndefined();
+    expect(value(bare, doc, 'party.client')).toBeUndefined();
+  });
+
+  it('the engineer\'s own details are fields; a clause using one that has no value is DATA REQUIRED', () => {
+    let d = addDetail(addDetail(doc, 'Plot number', '373-1245'), 'Authority');
+    expect(d.info!.details!.map((x) => x.id)).toEqual(['D1', 'D2']);
+    expect(value(bare, d, 'detail.D1')).toBe('373-1245');
+    d = { ...d, sections: [{ id: 'S1', title: 'General', included: true, clauses: [{ id: 'C1', kind: 'clause', text: 'Plot {{detail.D1}}, authority {{detail.D2}}, doc {{doc.number}}.' }] }] };
+    const v = specView(d, bare);
+    expect(lineText(v.blocks[0].lines[0])).toBe('Plot 373-1245, authority DATA REQUIRED: Authority, doc DATA REQUIRED: Document number.');
+    expect(fieldUses(d, 'detail.D1')).toBe(1);
+    d = withDetail(d, 'D2', { value: 'DEWA' });
+    expect(specView(withInfo(d, { number: 'E-001' }), bare).missing).toEqual([]);
+    expect(removeDetail(d, 'D1').info!.details!.map((x) => x.id)).toEqual(['D2']);
+    expect(addDetail(removeDetail(d, 'D1'), 'x').info!.details!.map((x) => x.id)).toEqual(['D2', 'D3']);
+  });
+
+  it('page setup: defaults, the document\'s own choices, margins kept in range, the project logo unless the document has one', () => {
+    expect(specSetup(doc, bare)).toEqual({ ...SPEC_SETUP, logo: undefined, watermark: undefined });
+    const p: Project = { ...bare, drawing: { logo: 'data:image/png;base64,AAAA' } };
+    expect(specSetup(doc, p).logo).toBe('data:image/png;base64,AAAA');
+    const s = specSetup(withSetup(doc, { paper: 'A3', landscape: true, marginsMm: { top: 200, right: 1, bottom: NaN, left: 25 }, logo: 'data:image/png;base64,BBBB', watermark: ' DRAFT ' }), p);
+    expect([s.paper, s.landscape, s.logo, s.watermark]).toEqual(['A3', true, 'data:image/png;base64,BBBB', 'DRAFT']);
+    expect(s.marginsMm).toEqual({ top: 60, right: 5, bottom: SPEC_SETUP.marginsMm.bottom, left: 25 });
+  });
+
+  it('a header or footer slot fills fields and keeps page numbers apart', () => {
+    const d = withInfo(doc, { number: 'E-001' });
+    expect(slotRuns('{{doc.number}} · Page {{page}} of {{pages}}', d, bare)).toEqual([{ text: 'E-001 · Page ' }, { page: 'page' }, { text: ' of ' }, { page: 'pages' }]);
+    expect(slotText('{{doc.title}} {{doc.status}} {{page}}/{{pages}}', d, bare, '3', '9')).toBe('Electrical specification DATA REQUIRED: Document status 3/9');
+    expect(slotRuns('', d, bare)).toEqual([]);
+  });
+
+  it('the title is not emptied', () => {
+    expect(withTitle(doc, '  ').title).toBe(doc.title);
+    expect(withTitle(doc, ' ELV specification ').title).toBe('ELV specification');
   });
 });

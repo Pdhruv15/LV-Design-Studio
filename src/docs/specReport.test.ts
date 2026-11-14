@@ -1,7 +1,7 @@
 import { Packer } from 'docx';
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { specView, starterSpec, type SpecDoc } from '../model/specDoc';
+import { addDetail, specView, starterSpec, withInfo, withSetup, type SpecDoc } from '../model/specDoc';
 import type { Project } from '../types';
 import { CATALOGUE, unavailable } from '../components/docs/exportCatalogue';
 import { buildSpecHtml, missingList, specPlainText } from './specReport';
@@ -52,10 +52,63 @@ describe('specification — PDF document', () => {
     const part = entry.build(ctx({ ...sampleProject, spec: doc }))[0];
     expect(part.title).toBe('Specification');
     expect(part.html).toContain('<h2>2 Switchboards</h2>');
+    expect(part.page).toEqual({ pageSize: 'A4', landscape: false, cssPages: true, selfNumbered: true });
+    expect(entry.build(ctx({ ...sampleProject, spec: withSetup(doc, { paper: 'A3' }) }))[0].page).toMatchObject({ pageSize: 'A3 portrait' });
+  });
+});
+
+describe('specification — document information and page setup in the PDF', () => {
+  const PNG = 'data:image/png;base64,iVBORw0KGgo=';
+  it('prints on the default paper with the project, the title, the revision and page numbers in the margins', () => {
+    const html = buildSpecHtml({ ...sampleProject, name: 'Tower "A"', info: undefined, drawing: undefined }, doc);
+    expect(html).toContain('@page { size: A4 portrait; margin: 22mm 16mm 20mm 18mm;');
+    expect(html).toContain('@top-left { content: "Tower \\"A\\"";');
+    expect(html).toContain('@top-right { content: "Electrical specification";');
+    expect(html).toContain('@bottom-right { content: "Page " counter(page) " of " counter(pages);');
+    expect(html).toContain('@top-center { content: "";');
+    expect(html).not.toContain('class="wm"');
+    expect(html).not.toContain('class="info"');
+  });
+
+  it('follows the page setup: paper, margins, footer text, the logo in its place and the watermark', () => {
+    let d = withInfo(doc, { number: 'E-001', status: 'For tender', mepContractor: 'MEP <Co>' });
+    d = addDetail(addDetail(d, 'Plot number', '373'), 'Not filled');
+    d = withSetup(d, { paper: 'A3', landscape: true, marginsMm: { top: 30, right: 20, bottom: 25, left: 20 }, footer: ['{{doc.number}} · {{doc.status}}', '', '{{page}}'], logo: PNG, logoPlace: 'header-right', watermark: 'DRAFT <1>' });
+    const html = buildSpecHtml(sampleProject, d);
+    expect(html).toContain('@page { size: A3 landscape; margin: 30mm 20mm 25mm 20mm;');
+    expect(html).toContain('@bottom-left { content: "E-001 · For tender";');
+    expect(html).toContain('@bottom-right { content: counter(page);');
+    expect(html).toContain(`@top-right { content: ""; width: 45mm; background: url("${PNG}")`);
+    expect(html).toContain('<div class="wm"><span>DRAFT &lt;1&gt;</span></div>');
+    expect(html).toContain('<tr><td>Document number</td><td>E-001</td></tr><tr><td>Document status</td><td>For tender</td></tr>');
+    expect(html).toContain('<tr><td>MEP contractor</td><td>MEP &lt;Co&gt;</td></tr><tr><td>Plot number</td><td>373</td></tr></table>');
+    expect(html).not.toContain('Not filled');
+    expect(html.match(/#[0-9a-f]{3,6}\b/gi)!.every((c) => /^#000$/i.test(c))).toBe(true);
+  });
+
+  it('a logo that is not a plain picture is left out', () => {
+    expect(buildSpecHtml(sampleProject, withSetup(doc, { logo: 'javascript:alert(1)', logoPlace: 'header-left' }))).not.toContain('javascript');
   });
 });
 
 describe('specification — Word file', () => {
+  it('carries the page setup: paper and margins, the header and footer slots with page numbers, and the watermark', async () => {
+    const JSZip = (await import('jszip')).default;
+    let d = withInfo(starterSpec(), { number: 'E-001' });
+    d = withSetup(d, { paper: 'A3', marginsMm: { top: 30, right: 20, bottom: 25, left: 20 }, footer: ['{{doc.number}}', '', 'Page {{page}} of {{pages}}'], watermark: 'DRAFT & "CHECK"' });
+    const zip = await JSZip.loadAsync(await Packer.toBuffer(buildSpecDocx(sampleProject, d)));
+    const [body, header, footer] = await Promise.all(['word/document.xml', 'word/header1.xml', 'word/footer1.xml'].map((f) => zip.file(f)!.async('string')));
+    expect(body).toMatch(/<w:pgSz w:w="16838" w:h="23811" w:orient="portrait"\/>/);
+    expect(body).toMatch(/<w:pgMar w:top="1701" w:right="1134" w:bottom="1417" w:left="1134"/);
+    expect(body).toContain('Document number');
+    expect(header).toContain(sampleProject.name.replace(/&/g, '&amp;'));
+    expect(header).toContain('string="DRAFT &amp; &quot;CHECK&quot;"');
+    expect(footer).toContain('E-001');
+    expect(footer).toMatch(/PAGE[\s\S]*NUMPAGES/);
+    const plain = await JSZip.loadAsync(await Packer.toBuffer(buildSpecDocx(sampleProject, starterSpec())));
+    expect(await plain.file('word/header1.xml')!.async('string')).not.toContain('v:textpath');
+  });
+
   it('packs to a .docx', async () => {
     const buf = await Packer.toBuffer(buildSpecDocx(bare, starterSpec()));
     expect(buf.subarray(0, 2).toString()).toBe('PK');
