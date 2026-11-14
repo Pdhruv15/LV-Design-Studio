@@ -21,6 +21,12 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.126', date: '2026-11-13',
+    items: [
+      { title: 'SLD CAD export: notes and title block as printed', text: 'In exported DXF and DWG sheets, notes, schedules and title block text now have the same size and line spacing as the PDF, so the lines no longer crowd each other.' }
+    ]
+  },
+  {
     version: '2.125', date: '2026-11-14',
     items: [
       { title: 'Design CAD: edit a hatch', text: 'HE (or a double-click on a hatch) edits it: pattern, spacing, angle, the pattern\'s origin and its islands, each change one undo step. The Hatch arrow on the Draw panel has Edit hatch and Boundary.', action: 'cad', actionLabel: 'Open Design CAD' },
