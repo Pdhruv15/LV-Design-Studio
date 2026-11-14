@@ -146,8 +146,11 @@ describe('Sheets page', () => {
 
   it('tools of later stages are greyed and say so', () => {
     render(sampleProject);
-    for (const label of ['Apply to project', 'Sort', 'Filter', 'Find', 'Copy format']) expect(tool(label).disabled).toBe(true);
-    expect(tool('Apply to project').title).toBe('Comes in a later stage');
+    for (const label of ['Sort', 'Filter', 'Find', 'Copy format']) expect(tool(label).disabled).toBe(true);
+    expect(tool('Sort').title).toBe('Comes in a later stage');
+    // Apply to project works now: greyed only while nothing is typed in a linked sheet.
+    expect(tool('Apply to project').disabled).toBe(true);
+    expect(tool('Apply to project').title).toBe('Apply to project');
     expect([...document.querySelectorAll<HTMLButtonElement>('.shx-tab')].filter((t) => t.disabled).map((t) => t.textContent)).toEqual(['Formulas', 'Data', 'Review']);
   });
 

@@ -328,7 +328,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
               <div className="shx-col">
                 <Small icon={Eye} label="Show linked cells" onClick={() => setShowLinks(!showLinks)} pressed={showLinks} />
                 <Small icon={Upload} label="Apply to project" onClick={apply} disabled={!waiting} title={waiting ? `Apply to project — ${waiting} typed ${waiting === 1 ? 'value' : 'values'}` : undefined} />
-                <Small icon={RefreshCw} label="Refresh from project" onClick={() => { save(discardPending(sheet)); onStatus?.('Typed values that were not applied are removed.'); }} disabled={!waiting} />
+                <Small icon={RefreshCw} label="Refresh from project" onClick={() => { save(discardPending(sheet)); onStatus?.('Typed values that were not applied are removed.'); }} disabled={!waiting && !sheet.link?.added?.length} />
               </div>
             </Group>
             <Group name="Circuits">
@@ -394,7 +394,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
               </div>
             </Group>
             <Group name="Project">
-              <Big icon={Check} label="Apply to project" />
+              <Big icon={Check} label="Apply to project" onClick={apply} disabled={!waiting} />
             </Group>
           </div>
         )}
