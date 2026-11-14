@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { applyRecommendation, recommend } from '../calc/sizing';
 import { addOutgoingFeeder } from '../model/mdFeeders';
+import { applyReference, BUILT_IN_REFERENCES } from '../model/designReference';
 import { applyMdEdits, buildMdSheet, connectedPhaseKw, panelDf, hasMdSheet, suggestedMeter, type MdSheet } from './mdSheet';
 
 const col = (s: MdSheet, k: string) => s.keys.indexOf(k as never);
@@ -51,6 +52,17 @@ describe('connected load & maximum demand sheet', () => {
     expect(own).toBeLessThanOrEqual(1);
     const typed = { ...sampleProject, boards: sampleProject.boards.map((x) => (x.id === 'MDB-1' ? { ...x, mdDemandFactor: 0.8 } : x)) };
     expect(buildMdSheet(typed, 'MDB-1').form.demandFactor).toBe(0.8);
+  });
+
+  it("names the project's authority where a main board has no Fed from of its own", () => {
+    const addc = applyReference(sampleProject, BUILT_IN_REFERENCES.find((r) => r.id === 'builtin-addc')!);
+    const bare = { ...addc, boards: addc.boards.map((b) => (b.id === 'MDB-1' ? { ...b, supply: { ...b.supply, fedFrom: undefined, cable: undefined } } : b)) };
+    const s = buildMdSheet(bare, 'MDB-1');
+    expect(s.data[0][col(s, 'cores')]).toBe('BY ADDC');
+    expect(s.form.connectedTo[0]).toBe('MDB CONNECTED TO: ADDC METER CABINET');
+    expect(s.form.boardLine).toBe('MDB-1 (FED FROM ADDC)');
+    const typed = { ...addc, boards: addc.boards.map((b) => (b.id === 'MDB-1' ? { ...b, supply: { ...b.supply, fedFrom: 'SEWA', cable: undefined } } : b)) };
+    expect(buildMdSheet(typed, 'MDB-1').data[0][col(s, 'cores')]).toBe('BY SEWA');
   });
 
   it('leaves generation (PV) out of the connected load', () => {

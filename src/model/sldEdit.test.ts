@@ -4,6 +4,7 @@ import { evaluateFeeder } from '../calc/electrical';
 import { layoutSystem } from '../diagram/layout';
 import { newProject, type Project } from '../types';
 import { applyDrop, applyMove, armHint, canDrop, canMove, dropHint, type PaletteItem } from './sldEdit';
+import { applyReference, BUILT_IN_REFERENCES } from './designReference';
 
 const bus = (boardId: string) => ({ type: 'bus' as const, boardId });
 const canvas = { type: 'canvas' as const };
@@ -47,6 +48,12 @@ describe('drag and drop SLD', () => {
     p = applyDrop(p, { kind: 'board', board: 'DB' }, bus('SMDB-1')).project;
     expect(p.boards.map((b) => `${b.id}<${b.upstreamId ?? ''}`)).toEqual(['MC-1<', 'MDB-1<MC-1', 'SMDB-1<MDB-1', 'DB-1<SMDB-1']);
     expect(p.feeders.map((f) => f.id)).toEqual(['INC-MDB-1', 'INC-SMDB-1', 'INC-DB-1']);
+  });
+
+  it("a new supply is named after the project's authority", () => {
+    const addc = applyReference({ ...newProject('Blank'), boards: [], feeders: [] }, BUILT_IN_REFERENCES.find((r) => r.id === 'builtin-addc')!);
+    expect(applyDrop(addc, { kind: 'board', board: 'MC' }, canvas).project.boards[0].supply?.fedFrom).toBe('ADDC');
+    expect(applyDrop(addc, { kind: 'board', board: 'MDB' }, canvas).project.boards[0].supply?.fedFrom).toBe('ADDC');
   });
 
   it('a transformer makes a new supply on the canvas, or powers a main board', () => {

@@ -1,5 +1,6 @@
 import { faultCurrentKA, impedanceToBoard } from '../calc/electrical';
 import { boardLocation } from '../model/levels';
+import { supplyAuthorityOf } from '../model/designReference';
 import { STANDARD_ICU_KA } from '../calc/sizing';
 import { boardsInSupplyOrder } from '../calc/summary';
 import { subtree } from '../calc/pfc';
@@ -67,6 +68,7 @@ export function breakerSetting(project: Project, b: Board, ratingA?: number): nu
 }
 
 export function buildTxSummary(project: Project): TxSummary {
+  const authority = supplyAuthorityOf(project);
   const mains = boardsInSupplyOrder(project).filter((b) => !b.upstreamId);
   const rows: TxSummaryRow[] = mains.map((b) => {
     const tree = subtree(project, b.id);
@@ -100,7 +102,7 @@ export function buildTxSummary(project: Project): TxSummary {
     }
     const standbyKw = feeders.filter((f: Feeder) => f.standbyUnit && !f.feedsBoardId).reduce((s, f) => s + f.loadKw, 0);
     return {
-      board: b, poles: '4P', device, ratingA, setting, faultKa, cable: b.supply?.cable ?? `BY ${b.supply?.fedFrom ?? 'DEWA'}`, ecc: b.supply?.ecc ?? '',
+      board: b, poles: '4P', device, ratingA, setting, faultKa, cable: b.supply?.cable ?? `BY ${b.supply?.fedFrom ?? authority}`, ecc: b.supply?.ecc ?? '',
       phases, tclKw, df, mdlKw: tclKw * df, standbyKw, meters, cts, manual
     };
   });

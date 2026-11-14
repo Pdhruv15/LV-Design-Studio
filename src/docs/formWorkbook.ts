@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { SCHEDULE_GROUPS, scheduleGroups } from '../model/scheduleGroups';
 import { boardLocation } from '../model/levels';
+import { supplyAuthorityOf } from '../model/designReference';
 import { scheduleCircuits } from '../calc/loadSchedule';
 import type { Project } from '../types';
 import { buildDbSheet } from './dbSheet';
@@ -331,7 +332,7 @@ export function addDbSheet(wb: ExcelJS.Workbook, project: Project, boardId: stri
   put(ws, 1, at('wpu'), `LOCATION OF DB:  ${boardLocation(project, b)}`, { align: 'right' }); merge(ws, 1, at('wpu'), 1, n);
   put(ws, 2, 1, `DB NO : ${b.id}`, { align: 'left' }); merge(ws, 2, 1, 2, at('room') - 1);
   put(ws, 2, at('room'), 'LOAD DISTRIBUTION SCHEDULE', { bold: true, size: 10 }); merge(ws, 2, at('room'), 2, at('wpu') - 1);
-  put(ws, 3, 1, `FED FROM : ${b.upstreamId ?? project.boards.find((x) => !x.upstreamId)?.supply?.fedFrom ?? 'DEWA'}`, { align: 'left' }); merge(ws, 3, 1, 3, at('room') - 1);
+  put(ws, 3, 1, `FED FROM : ${b.upstreamId ?? project.boards.find((x) => !x.upstreamId)?.supply?.fedFrom ?? supplyAuthorityOf(project)}`, { align: 'left' }); merge(ws, 3, 1, 3, at('room') - 1);
   put(ws, 3, at('room'), '(3 PHASE)', { size: 8 }); merge(ws, 3, at('room'), 3, at('wpu') - 1);
 
   // Heading rows
