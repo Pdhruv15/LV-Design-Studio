@@ -72,7 +72,7 @@ All print in black and white; Solid stays light grey on sheets.
 ## Status (2026-11-08)
 
 - **Step 1 built** (A.1–A.3, A.5, B): 18 patterns, dashes and dots on screen and sheets, SAVE writes the pattern.
-  Islands (A.4) are not built yet.
+  Islands (A.4): built in v2.125 (below).
 - **Step 2 built** (C.1–C.3):
   - **Import .pat…** button in the Hatch panel (placed there, like Import CTB… in Pen tables). Bad lines are reported
     on the command line with their line numbers; that pattern is left out.
@@ -81,13 +81,35 @@ All print in black and white; Solid stays light grey on sheets.
   - CROP of a block keeps the drawing's own pattern lines (found by layer and outline in the open drawing), so a hatch
     is no longer turned into ANSI31. This includes hatches the app saved earlier (named `LVDS_REF` in the file).
   - Spacing for an imported pattern is the distance between its first family's lines in paper mm.
-- **Engine limit:** the saved pattern name stays `LVDS_REF`; writing the real name needs a change in
-  `engines/cad-reader` and a new engine build (no Rust toolchain on this machine).
+- The saved pattern name used to stay `LVDS_REF`; fixed in v2.125 (below).
 
-## For the user to decide
+## Built in v2.125 (2026-11-14)
 
-1. ~~Is adding the new patterns to the existing Pattern list acceptable?~~ Yes (2026-11-08).
-2. ~~Where should "Import .pat" live?~~ In the Hatch panel for now; "Export .pat" is still open.
-3. Should an office library folder (C.5) be built, or are project-saved patterns enough?
-4. Associative hatches (D.3): wanted now, or later?
-5. Should pattern swatch previews (D.5) be added to the Pattern list?
+- **Edit hatch (D.1):** `HE` / `HATCHEDIT`, the Edit hatch item of the Draw ▸ Hatch arrow, a double-click on a hatch,
+  and Edit hatch… on its right-click menu. The side panel shows the hatch's own Pattern, Spacing, Angle, Origin X / Y
+  (Pick…), Islands (Add islands, Remove islands) and an Associative tick. Hatches picked first are edited at once; several
+  together change pattern, spacing and angle only. Each change is one undo step.
+- **Pattern origin:** `HatchSpec.origin`; Set origin on the right-click menu, Pick… in the panel, or the Properties
+  palette. Move, rotate, scale and mirror keep the pattern with the hatch. Saved in DWG / DXF and printed on sheets.
+- **Islands (A.4, D.4):** closed drawn objects inside the outline stay clear (Find islands, on by default); nested
+  islands are hatched again. Net area in the message, AREA, Quick measure and the Properties palette. Saved as separate
+  boundary paths, drawn even-odd on screen and on sheets. A drawing's hatch with several loops is one hatch with islands
+  (blocks, CROP now keeps the islands).
+- **Associative (D.3):** a hatch made from a drawn object follows it (move, stretch, reshape, island changes) and lets
+  go, keeping its shape, when the object is erased or opened, the hatch is moved on its own, or it is a copy. The
+  command line says `HATCH  No longer associative`. Recreate boundary now draws the outline and each island as closed
+  polylines and ties the hatch to them. Saved to DWG / DXF with the boundary handles of the polylines.
+- **Match properties (D.2):** hatch to hatch also copies pattern, spacing, angle and custom pattern.
+- **Pattern preview (D.5):** a small black-and-white swatch of the chosen pattern beside the Pattern list.
+- **Export .pat… and patterns on this computer (C.4, C.5):** Export .pat… saves every pattern in the list (built-in,
+  project, this computer). A tick keeps imported patterns on this computer (browser storage, `lvds.cadPatterns.computer`)
+  for every project; the list shows them under On this computer.
+- **Boundary:** `BO` / `BOUNDARY` / `BPOLY` draws a closed polyline round the area clicked (a circle stays a circle) and
+  one per island; areas closed by drawn lines are found by Hatch and Boundary alike.
+- **Engine:** the saved hatch carries its real pattern name (ANSI31, BRICK…), angle and scale; the engine was rebuilt.
+
+Decisions taken: C.5 is patterns kept on this computer (local storage), not a shared folder; D.3 associative hatches built
+now; D.5 is a swatch of the chosen pattern beside the list (a grid of swatches would be a later UI change).
+
+Not built (each needs a decision): REGION (needs a region object and its DWG format), Separate hatches (each hatch drawn
+here has one outline), gradient fills, and text kept clear of hatches.

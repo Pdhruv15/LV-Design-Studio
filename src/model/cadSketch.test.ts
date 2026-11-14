@@ -167,7 +167,7 @@ describe('cable tray runs', () => {
     const e: SketchItem = { id: 'E', kind: 'ellipse', layer: 'L', pts: [[100, 50]], ax: [30, 40], ratio: 0.5 };
     expect(ellipsePoints(e, 4).map((q) => q.map((v) => +v.toFixed(6)))).toEqual([[130, 90], [80, 65], [70, 10], [120, 35]]);
     expect(snapPoints([e]).map((q) => q.kind)).toEqual([4, 64, 64, 64, 64]);
-    expect(shapesOut([e], 0.001)).toEqual([{ layer: 'L', kind: 'ellipse', pts: [[100, 50]], axis: [30, 40], ratio: 0.5 }]);
+    expect(shapesOut([e], 0.001)).toEqual([{ layer: 'L', kind: 'ellipse', pts: [[100, 50]], axis: [30, 40], ratio: 0.5, id: 'E' }]);
     expect(rotated(e, [100, 50], Math.PI / 2).ax!.map((v) => +v.toFixed(9))).toEqual([-40, 30]);
     expect(itemAt([e], [130, 90], 0.5)?.id).toBe('E');
   });
@@ -184,3 +184,59 @@ describe('cable tray runs', () => {
   });
 });
 
+type Pt = [number, number];
+describe('hatches: islands, origin and what they save', () => {
+  const hatch: SketchItem = { id: 'H', kind: 'pline', layer: 'LV-HATCH', closed: true, pts: [[0, 0], [100, 0], [100, 100], [0, 100]], hatch: { pattern: 'brick', scale: 3, angle: 30, origin: [10, 20] },
+    holes: [[[40, 40], [60, 40], [60, 60], [40, 60]]], assoc: ['S1', 'S2'] };
+
+  it('move takes the islands and the pattern\'s origin along; rotate turns them and the pattern\'s angle', () => {
+    const m = moved(hatch, 5, -5);
+    expect(m.holes![0][0]).toEqual([45, 35]);
+    expect(m.hatch!.origin).toEqual([15, 15]);
+    expect(moved({ ...hatch, hatch: { ...hatch.hatch!, origin: undefined } }, 5, -5).hatch!.origin).toEqual([5, -5]);
+    const r = rotated(hatch, [0, 0], Math.PI / 2);
+    expect(r.holes![0][1].map((v) => +v.toFixed(6))).toEqual([-40, 60]);
+    expect(r.hatch!.origin!.map((v) => +v.toFixed(6))).toEqual([-20, 10]);
+    expect(r.hatch!.angle).toBeCloseTo(120);
+    expect(rotated(hatch, [0, 0], -Math.PI).hatch!.angle).toBeCloseTo(210);
+    expect(rotated(hatch, [0, 0], 2 * Math.PI).hatch!.angle).toBeCloseTo(30);
+    // Anything else is moved as before.
+    expect(moved(line as SketchItem, 1, 1)).not.toHaveProperty('hatch');
+  });
+
+  it('is drawn and snapped at its islands too', () => {
+    expect(segmentsOf(hatch)).toHaveLength(8);
+    expect(snapPoints([hatch]).filter((q) => q.kind === 1)).toHaveLength(8);
+    expect(itemAt([hatch], [50, 40], 1)?.id).toBe('H');
+  });
+
+  it('is saved with its loops, the name of its pattern, its angle and scale, and the objects it follows', () => {
+    const [h] = shapesOut([hatch], 0.001);
+    expect(h).toMatchObject({ kind: 'hatch', layer: 'LV-HATCH', name: 'BRICK', solid: false, id: 'H', srcs: ['S1', 'S2'] });
+    expect(h.loops).toEqual([hatch.pts, hatch.holes![0]]);
+    expect(h.hangle).toBeCloseTo(Math.PI / 6);
+    expect(h.hscale).toBeCloseTo(3 * 100 * 1); // 3 mm paper at 1:100 in mm units
+    // Its pattern lines start at the origin; without one at (0, 0).
+    const at = (x: SketchItem) => shapesOut([x], 0.001)[0].lines![0].base;
+    const none = at({ ...hatch, hatch: { ...hatch.hatch!, origin: undefined } });
+    expect(at(hatch)).toEqual([none[0] + 10, none[1] + 20]);
+    // A circle is 128 sides; a custom pattern is named for itself; Solid is solid; a plain object has no srcs.
+    const circle: SketchItem = { id: 'C', kind: 'circle', layer: 'LV-HATCH', pts: [[0, 0]], r: 50, hatch: { pattern: 'solid', scale: 3, angle: 0 } };
+    const [c] = shapesOut([circle], 0.001);
+    expect(c.loops![0]).toHaveLength(128);
+    expect(c).toMatchObject({ name: 'SOLID', solid: true });
+    expect(c).not.toHaveProperty('srcs');
+    const custom = { name: 'MYGRID', lines: [{ angle: 0, base: [0, 0] as Pt, offset: [0, 1] as Pt, dashes: [] }] };
+    expect(shapesOut([{ ...hatch, hatch: { pattern: 'MYGRID', scale: 3, angle: 0, custom } }], 0.001)[0].name).toBe('MYGRID');
+    // Every shape carries its object's id.
+    expect(shapesOut([{ id: 'L1', kind: 'line', layer: 'L', pts: [[0, 0], [1, 1]] }], 0.001)[0].id).toBe('L1');
+  });
+
+  it('withSketchItems lets an associative hatch follow its boundary (see cadHatchAssoc)', () => {
+    const sq = (id: string, x: number): Omit<SketchItem, 'id'> => ({ kind: 'pline', layer: 'L', closed: true, pts: [[x, 0], [x + 10, 0], [x + 10, 10], [x, 10]], ...(id ? {} : {}) });
+    let p = addSketch(p0, 'GF.dwg', sq('', 0)).project;
+    p = addSketch(p, 'GF.dwg', { ...sq('', 0), layer: 'LV-HATCH', hatch: { pattern: 'ansi31', scale: 3, angle: 0 }, assoc: ['S1'] }).project;
+    p = updateSketch(p, 'GF.dwg', moved(sketchOf(p, 'GF.dwg')[0], 20, 0));
+    expect(sketchOf(p, 'GF.dwg')[1].pts[0]).toEqual([20, 0]);
+  });
+});

@@ -267,3 +267,21 @@ describe('CROP: property test (fixed seed)', () => {
     }
   });
 });
+
+describe('CROP: hatches with islands and saved pattern names', () => {
+  it('a hatch with an island is kept whole: the largest loop is its outline, the others its islands', () => {
+    const sq = (x0: number, y0: number, x1: number, y1: number): [number, number, number][] => [[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0]];
+    const h: CadPiece = { ...S, kind: 'hatch', solid: false, pattern: 'ANSI31', loops: [sq(4, 4, 6, 6), sq(1, 1, 9, 9)] };
+    const r = cropPieces([h], rect);
+    const [it] = r.items!;
+    expect(it).toMatchObject({ kind: 'pline', closed: true, pts: [[1, 1], [9, 1], [9, 9], [1, 9]], holes: [[[4, 4], [6, 4], [6, 6], [4, 6]]], hatch: { pattern: 'ansi31' } });
+    expect(cropNote(r)).toBe('1 piece kept');
+  });
+
+  it('a hatch saved under a built-in pattern name (ANSI31, BRICK, DASH45) is that pattern again', () => {
+    const h = (pattern: string): CadPiece => ({ ...S, kind: 'hatch', solid: false, pattern, loops: [[[2, 2, 0], [6, 2, 0], [6, 6, 0], [2, 6, 0]]] });
+    expect(items([h('BRICK')])[0].hatch!.pattern).toBe('brick');
+    expect(items([h('DASH45')])[0].hatch!.pattern).toBe('dash45');
+    expect(items([h('NOT-BUILT-IN')])[0].hatch!.pattern).toBe('ansi31');
+  });
+});

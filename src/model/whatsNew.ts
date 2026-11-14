@@ -15,9 +15,21 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.126', date: '2026-11-13',
+    version: '2.127', date: '2026-11-13',
     items: [
       { title: 'SLD CAD export: symbols as blocks', text: 'Breakers, switches and the other library symbols in exported DXF and DWG drawings are now blocks, one definition per symbol inserted wherever it is used, so they can be selected, counted and replaced in CAD.' }
+    ]
+  },
+  {
+    version: '2.125', date: '2026-11-14',
+    items: [
+      { title: 'Design CAD: edit a hatch', text: 'HE (or a double-click on a hatch) edits it: pattern, spacing, angle, the pattern\'s origin and its islands, each change one undo step. The Hatch arrow on the Draw panel has Edit hatch and Boundary.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Design CAD: islands', text: 'A hatch leaves the closed objects inside it clear. Turn Find islands off on the Hatch panel to fill the whole outline; Add islands and Remove islands change them later. Its area is the net area.', action: 'cad' },
+      { title: 'Design CAD: associative hatches', text: 'A hatch made from a drawn object follows it when you move, stretch or reshape it, and lets go (keeping its shape) when the object is erased or opened. Right-click → Recreate boundary ties one to new outlines.', action: 'cad' },
+      { title: 'Design CAD: set the pattern\'s origin', text: 'Right-click a hatch → Set origin, or Pick… in the Edit hatch panel, starts the pattern at a point you click. Moving, rotating, scaling or mirroring a hatch keeps its pattern with it.', action: 'cad' },
+      { title: 'Design CAD: Boundary', text: 'BO draws a closed polyline round the area you click (a circle stays a circle), with one for each island. Areas closed by drawn lines work too, and Hatch finds them as well.', action: 'cad' },
+      { title: 'Design CAD: pattern swatch, Export .pat and patterns on this computer', text: 'The Hatch panel shows a small swatch of the pattern chosen, Export .pat… saves every pattern in the list, and a tick keeps imported patterns on this computer for every project.', action: 'cad' },
+      { title: 'DWG and DXF: hatches keep their pattern name', text: 'A saved hatch carries its real pattern name (ANSI31, BRICK…), angle and scale, its islands as separate boundaries, and, when associative, a link to the polyline it was made from.' }
     ]
   },
   {
