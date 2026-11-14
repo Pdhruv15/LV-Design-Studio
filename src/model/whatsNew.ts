@@ -15,10 +15,16 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.126', date: '2026-11-14',
+    version: '2.127', date: '2026-11-14',
     items: [
       { title: 'Design CAD: Annotate has its own sub-tab', text: 'Text, Dimension, Leader, Room tag, Keynote, North arrow, Revision cloud, Text style and Dim style moved from LVCAD to Annotate, the sub-tab beside it. On a layout\'s paper, and on a sheet with Show labels on, Annotate has the markup tools. Typing an annotation command, such as T or DIM, opens Annotate.', action: 'cad', actionLabel: 'Open Design CAD' },
       { title: 'Design CAD: tool names no longer overlap', text: 'When the window is too narrow for a Design CAD row, its last panels fold into one button each, with their tools in its list, instead of the tool names running into each other.', action: 'cad' }
+    ]
+  },
+  {
+    version: '2.126', date: '2026-11-13',
+    items: [
+      { title: 'SLD CAD export: notes and title block as printed', text: 'In exported DXF and DWG sheets, notes, schedules and title block text now have the same size and line spacing as the PDF, so the lines no longer crowd each other.' }
     ]
   },
   {

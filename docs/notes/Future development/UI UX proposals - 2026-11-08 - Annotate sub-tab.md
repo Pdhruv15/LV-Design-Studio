@@ -13,7 +13,7 @@ On 2026-11-08 the user chose to start with **Linear and Continue dimensions**. T
 - **Baseline (DBA, DIMBASELINE):** each click adds a dimension from the last one's first point, one step further out: 3.75 mm on paper (ISO), or 1.5 × the text height if that is larger.
 - A linear dimension keeps its direction (`dir`) when it is rotated or mirrored. It prints, saves to DXF / DWG and shows in Properties with the length it measures.
 
-### The sub-tab (v2.126, 2026-11-14)
+### The sub-tab (v2.127, 2026-11-14)
 
 On 2026-11-14 the user sent a screenshot of the LVCAD row, where tool names ran into each other (Rectangle over Move, North arrow over Dim style). They asked to move the annotation tools to their own sub-tab beside LVCAD. That answers decision 1 below: a separate sub-tab.
 
@@ -71,7 +71,7 @@ Design CAD has two sub-tabs today: **LVCAD** (Draw, Modify, Annotate, Layers, Pr
 
 ## Decisions for the user
 
-1. A separate **Annotate sub-tab** (recommended), or grow the Annotate group on the LVCAD sub-tab? **Answered 2026-11-14: a separate sub-tab** (built in v2.126; see Built).
+1. A separate **Annotate sub-tab** (recommended), or grow the Annotate group on the LVCAD sub-tab? **Answered 2026-11-14: a separate sub-tab** (built in v2.127; see Built).
 2. Which linked tables first: **symbol legend** (recommended), board schedule, circuit list or cable schedule?
 3. "Mask" or "Wipeout" as the button name? (Command alias `WIPEOUT` works either way.)
 4. Approve the order above, or pick a subset to start with.

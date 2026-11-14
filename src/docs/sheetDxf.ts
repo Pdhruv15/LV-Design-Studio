@@ -9,7 +9,7 @@ import { fillParams } from '../model/params';
 import { FIRE_NOTE } from '../model/cableRefs';
 import { MAX_REV_ROWS, revRowsIn, revRowValues, templateSize } from '../model/titleBlock';
 import { drawnTitleBlockDxf, templateTitleBlockDxf, type TitleDetail } from './titleBlockDxf';
-import { textInBox, textWidth, wrapDxfText, type DxfBox } from './dxfLayout';
+import { CAP_EM, LINE_EM, textInBox, textWidth, wrapDxfText, type DxfBox } from './dxfLayout';
 import { MARKUP_LAYERS, markupDxf } from '../model/sheetMarkup';
 
 /** Paper-sized, editable R12 drawings. Overflow is placed on additional
@@ -17,6 +17,8 @@ import { MARKUP_LAYERS, markupDxf } from '../model/sheetMarkup';
 export const SHEET_LAYERS: Record<string, number> = {
   'E-FRAME': 7, 'E-TITLE': 7, 'E-LEGEND': 8, 'E-NOTES': 7, 'E-SYMBOL': 3, 'E-CABLE': 7, 'E-BUSBAR': 1, 'E-TEXT': 7, 'E-RESULT': 4, ...MARKUP_LAYERS
 };
+/** The PDF's title block font sizes (src/docs/sldSheet.ts, titleBlockFragment) in CSS px, and the mm of one px. */
+const PX_MM = 25.4 / 96, TB_LABEL_PX = 6.5, TB_VALUE_PX = 9.5, TITLE_VALUE_PX = 13, REV_HEAD_PX = 7;
 const LAYER_OF: Record<string, string> = { SYMBOL: 'E-SYMBOL', CABLE: 'E-CABLE', BUSBAR: 'E-BUSBAR', TEXT: 'E-TEXT', RESULT: 'E-RESULT' };
 type SheetSize = NonNullable<DrawingInfo['sheet']>;
 export interface DxfSheetPage { data: string; index: number; count: number; continuation: boolean; warnings: string[] }
@@ -85,14 +87,15 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
     ...(one?.drawnBy ? { DrawnBy: t.drawnBy } : {}), ...(one?.checkedBy ? { CheckedBy: t.checkedBy } : {}), ...(one?.approvedBy ? { ApprovedBy: t.approvedBy } : {}),
     ...revRowValues(sheetTitleBlock(project, one, MAX_REV_ROWS).history)
   };
+  const fz = one?.furniture ?? {}, tm = fz.textMm ?? LEGEND_TEXT_MM;
   const warnings: string[] = [], details: TitleDetail[] = [];
   const title: DxfPrimitive[] = [];
   const bounded = (b: DxfBox, value: string, height: number, label: string) => {
-    let items = textInBox('E-TITLE', b, value, height);
+    let items = textInBox('E-TITLE', b, value, height, 'left', height / CAP_EM * LINE_EM);
     if (items.some((p) => p.type === 'text' && (p.width ?? 0) < textWidth(p.text, p.height) * 0.55)) {
       const reference = details.length + 1;
       details.push({ label: `[${reference}] ${label}`, value });
-      items = textInBox('E-TITLE', b, `[${reference}]`, height);
+      items = textInBox('E-TITLE', b, `[${reference}]`, height, 'left', height / CAP_EM * LINE_EM);
     }
     title.push(...items);
   };
@@ -109,9 +112,9 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   // Grow ordinary rows to accommodate wrapped values; exceptionally large
   // values are listed in the additional-information area instead of crushed.
   const rows = cells.map((row, i) => Math.max([8, 8, 9, 7, 6, 6][i] * k, ...row.map(([, value, span]) => {
-    const height = (i === 2 ? 3.2 : i >= 3 ? 1.9 : 2.4) * k;
+    const height = (i === 2 ? TITLE_VALUE_PX : TB_VALUE_PX) * PX_MM * CAP_EM * k;
     const count = Math.min(3, Math.max(1, wrapDxfText(value, tbW * span / 3 - 3 * k, height).length));
-    return 3.5 * k + count * height * 1.5;
+    return 3.5 * k + count * height / CAP_EM * LINE_EM;
   })));
   // The revision lines: the issues (up to 4), or the fixed 6 or 8 of the sheet furniture, blank ones included.
   const issued = t.history.length ? t.history : [{ id: '-', date: '', description: 'Not issued' }];
@@ -145,8 +148,8 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
       row.forEach(([label, value, span]) => {
         const cw = tbW * span / 3;
         if (x > tbx) title.push({ type: 'line', layer: 'E-TITLE', x1: x, y1: bottom, x2: x, y2: top });
-        bounded({ x: x + 1.5 * k, y: top - 3 * k, w: cw - 3 * k, h: 2.5 * k }, label.toUpperCase(), 1.6 * k, `${label} caption`);
-        bounded({ x: x + 1.5 * k, y: bottom + 0.6 * k, w: cw - 3 * k, h: rh - 3.6 * k }, value, (i === 2 ? 3.2 : i >= 3 ? 1.9 : 2.4) * k, label);
+        bounded({ x: x + 1.5 * k, y: top - 3 * k, w: cw - 3 * k, h: 2.5 * k }, label.toUpperCase(), TB_LABEL_PX * PX_MM * CAP_EM * k, `${label} caption`);
+        bounded({ x: x + 1.5 * k, y: bottom + 0.6 * k, w: cw - 3 * k, h: rh - 3.6 * k }, value, (i === 2 ? TITLE_VALUE_PX : TB_VALUE_PX) * PX_MM * CAP_EM * k, label);
         x += cw;
       });
       top = bottom;
@@ -162,7 +165,7 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
     const rh = revRows[i], bottom = revTop - rh;
     // The ruled line under the row, unless that is the frame's own foot.
     if (bottom > frame.y + 1e-6) title.push({ type: 'line', layer: 'E-TITLE', x1: frame.x, y1: bottom, x2: frame.x + rvw, y2: bottom });
-    row.forEach((s, j) => bounded({ x: frame.x + rvw * revCols[j] + k, y: bottom + 0.5 * k, w: rvw * (revCols[j + 1] - revCols[j]) - 2 * k, h: rh - k }, s, i ? 2 * k : 1.8 * k,
+    row.forEach((s, j) => bounded({ x: frame.x + rvw * revCols[j] + k, y: bottom + 0.5 * k, w: rvw * (revCols[j + 1] - revCols[j]) - 2 * k, h: rh - k }, s, (i ? tm * CAP_EM : REV_HEAD_PX * PX_MM * CAP_EM) * k,
       i ? `Revision ${row[0]}${j === 2 ? ' description' : j === 1 ? ' date' : ''}` : s));
     revTop = bottom;
   });
@@ -172,10 +175,10 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   const bodyH = bodyTop - bodyBottom;
   const colW = Math.min((one?.sideMm ?? 92) * k, frame.w * 0.4);
   const contentW = colW - 4 * k;
-  // Column text at 2.5 mm (ISO 3098) or the set's 3.5 mm, as the PDF prints it; A4 alone shrinks it with the furniture.
-  const fz = one?.furniture ?? {}, tm = fz.textMm ?? LEGEND_TEXT_MM;
-  const cap = Math.max(1.5, tm * k), headingCap = Math.max(1.8, tm * k);
-  const step = Math.max(3.1 * k, cap * 1.5), headingStep = Math.max(4 * k, headingCap * 1.5);
+  // Column text at a 2.5 mm font (ISO 3098) or the set's 3.5 mm, as the PDF prints it, in capitals of 0.716 of that and
+  // the PDF's line pitch (3.6 mm at 2.5); A4 alone shrinks it with the furniture.
+  const cap = Math.max(1.5, tm * CAP_EM * k), headingCap = cap;
+  const step = Math.max(3.6 * tm / 2.5 * k, cap * LINE_EM), headingStep = step + 0.5 * k;
   const flow: FlowLine[] = [];
   const section = (heading: string, values: string[], layer = 'E-LEGEND') => {
     const content = values.flatMap((value) => {
@@ -302,18 +305,19 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
 }
 
 /** A sheet table (src/docs/sheetTable.ts) as lines and text: title and lines above, then the grid, from the top of
- * its box down. cap: the text height; k: the furniture scale. */
-function tableDxf(t: SheetTable, box: DxfBox, cap: number, k: number): DxfPrimitive[] {
+ * its box down. font: the PDF's font size, printed as capitals of 0.716 of it; k: the furniture scale. */
+function tableDxf(t: SheetTable, box: DxfBox, font: number, k: number): DxfPrimitive[] {
+  const cap = font * CAP_EM, pitch = 3.6 * font / 2.5;
   const out: DxfPrimitive[] = [], layer = 'E-NOTES';
   const total = t.widths.reduce((a, b) => a + b, 0), widths = t.widths.map((w) => (w / total) * box.w);
   let y = box.y + box.h - 2 * k;
-  out.push(...textInBox(layer, { x: box.x, y: y - TABLE_TITLE_MM * k, w: box.w, h: TABLE_TITLE_MM * k }, t.title, cap)); y -= TABLE_TITLE_MM * k;
-  for (const l of t.lines) { out.push(...textInBox(layer, { x: box.x, y: y - TABLE_LINE_MM * k, w: box.w, h: TABLE_LINE_MM * k }, l, cap * 0.9)); y -= TABLE_LINE_MM * k; }
-  const rh = TABLE_ROW_MM * (cap / (2.5 * k)) * k, rows = [t.head, ...t.rows, ...t.foot], top = y;
+  out.push(...textInBox(layer, { x: box.x, y: y - TABLE_TITLE_MM * k, w: box.w, h: TABLE_TITLE_MM * k }, t.title, cap, 'left', pitch)); y -= TABLE_TITLE_MM * k;
+  for (const l of t.lines) { out.push(...textInBox(layer, { x: box.x, y: y - TABLE_LINE_MM * k, w: box.w, h: TABLE_LINE_MM * k }, l, cap, 'left', pitch)); y -= TABLE_LINE_MM * k; }
+  const rh = TABLE_ROW_MM * (font / (2.5 * k)) * k, rows = [t.head, ...t.rows, ...t.foot], top = y;
   rows.forEach((r) => {
     let x = box.x;
     r.forEach((v, i) => {
-      if (v) out.push(...textInBox(layer, { x: x + 0.6 * k, y: y - rh + 0.4 * k, w: widths[i] - 1.2 * k, h: rh - 0.8 * k }, v, cap * 0.9, t.left.includes(i) ? 'left' : 'center'));
+      if (v) out.push(...textInBox(layer, { x: x + 0.6 * k, y: y - rh + 0.4 * k, w: widths[i] - 1.2 * k, h: rh - 0.8 * k }, v, cap, t.left.includes(i) ? 'left' : 'center'));
       x += widths[i];
     });
     y -= rh;
