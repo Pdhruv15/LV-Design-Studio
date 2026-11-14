@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateSheet } from '../calc/sheetFormula';
 import { sampleProject } from '../data/sampleProject';
-import { addSpareWay } from '../model/spareWays';
+import { addSpareWay, isDbBoard } from '../model/spareWays';
 import { newSheet, withCells, withStyle, mergeArea, area, type Sheet, type SheetLink } from '../model/sheets';
 import type { Project } from '../types';
-import { fillLinked, linkFromPlaceholders, linkNeeds, linkToBoard, LINK_FIELDS } from './sheetLink';
+import { fillLinked, linkAt, linkBoards, linkFromPlaceholders, linkNeeds, linkToBoard, LINK_FIELDS, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink } from './sheetLink';
 import { scheduleRowKeys, templateData } from './scheduleFields';
 
 const AT = new Date('2026-10-27T10:00:00Z');
@@ -194,5 +194,110 @@ describe('fillLinked — repeat and unchanged', () => {
     expect(moved.cells.C5).toBeUndefined();
     const plain = sheet({});
     expect(linkToBoard(plain, 'DB-GF1')).toBe(plain);
+  });
+});
+
+describe('linkBoards', () => {
+  it('lists the DBs and any board with schedule rows, in the project\'s order', () => {
+    const list = linkBoards(sampleProject);
+    expect(list.map((b) => b.id)).toContain('DB-GF1');
+    expect(list.every((b) => isDbBoard(b) || scheduleRowKeys(sampleProject, b.id).length > 0)).toBe(true);
+    const order = sampleProject.boards.map((b) => b.id);
+    expect(list.map((b) => order.indexOf(b.id))).toEqual([...list.map((b) => order.indexOf(b.id))].sort((a, b) => a - b));
+    const other = sampleProject.boards.find((b) => !isDbBoard(b) && scheduleRowKeys(sampleProject, b.id).length === 0);
+    if (other) expect(list.map((b) => b.id)).not.toContain(other.id);
+  });
+});
+
+describe('linking by hand', () => {
+  const linked = (extra: Partial<SheetLink> = {}): Sheet => ({ ...sheet({ B2: 'FED FROM: SMDB-1', B3: 'DB-GF', C6: 'x' }), link: { category: 'db', cells: {}, firstRow: 6, rows: [], columns: {}, ...extra } });
+  it('startLink and removeLink', () => {
+    const s = startLink(sheet({ A1: 'x' }), 4);
+    expect(s.link).toEqual({ category: 'db', cells: {}, firstRow: 4, rows: [], columns: {} });
+    expect(startLink(s, 9)).toBe(s);
+    const r = removeLink(s);
+    expect(r.link).toBeUndefined();
+    expect(r.cells).toEqual({ A1: 'x' });
+  });
+  it('linkAt reads a linked cell and a linked column inside the block only', () => {
+    const s = linked({ cells: { B2: { field: 'board.fedFrom', before: 'FED FROM: ' } }, columns: { C: 'row.room', D: 'own' }, rows: ['a', 'b'] });
+    expect(linkAt(s, 2, 2)).toEqual({ field: 'board.fedFrom', label: 'Fed from', own: false });
+    expect(linkAt(s, 7, 3)).toEqual({ field: 'row.room', label: 'Room / area', own: false });
+    expect(linkAt(s, 6, 4)).toMatchObject({ own: true });
+    expect(linkAt(s, 8, 3)).toBeUndefined();
+    expect(linkAt(s, 5, 3)).toBeUndefined();
+    expect(linkAt(s, 7, 1)).toBeUndefined();
+    expect(linkAt(sheet({}), 1, 1)).toBeUndefined();
+  });
+  it('setLinkCell keeps the text before the value, and changes only the field of a linked cell', () => {
+    const s = setLinkCell(linked(), 'B2', 'board.fedFrom');
+    expect(s.link!.cells.B2).toEqual({ field: 'board.fedFrom', before: 'FED FROM: ' });
+    expect(s.cells.B2).toBe('FED FROM: ');
+    const plain = setLinkCell(s, 'B3', 'board.id');
+    expect(plain.link!.cells.B3).toEqual({ field: 'board.id' });
+    expect(plain.cells.B3).toBeUndefined();
+    const changed = setLinkCell(s, 'B2', 'board.name');
+    expect(changed.link!.cells.B2).toEqual({ field: 'board.name', before: 'FED FROM: ' });
+    expect(setLinkCell(changed, 'B2', undefined).link!.cells).toEqual({});
+    expect(setLinkCell(s, 'C6', 'board.id')).toBe(s);
+    expect(setLinkCell(s, 'D2', 'row.mcb')).toBe(s);
+  });
+  it('setLinkColumn moves a field to the column chosen; own may be on several columns', () => {
+    let s = setLinkColumn(linked(), 'c', 'row.room');
+    s = setLinkColumn(s, 'D', 'row.room');
+    expect(s.link!.columns).toEqual({ D: 'row.room' });
+    s = setLinkColumn(setLinkColumn(s, 'E', 'own'), 'F', 'own');
+    expect(s.link!.columns).toEqual({ D: 'row.room', E: 'own', F: 'own' });
+    expect(setLinkColumn(s, 'D', undefined).link!.columns).toEqual({ E: 'own', F: 'own' });
+    expect(setLinkColumn(s, 'G', 'board.id')).toBe(s);
+  });
+  it('setFirstRow deletes the extra rows of the block and unlinks a cell that lands on the new row', () => {
+    const base = linked({ rows: ['a', 'b', 'c'], cells: { A9: { field: 'total.all' }, A10: { field: 'md.all' }, A1: { field: 'date' } } });
+    const s = setFirstRow({ ...base, cells: { A6: '1', A7: '2', A8: '3', A9: 'T', A10: 'M' } }, 8);
+    expect(s.link).toMatchObject({ firstRow: 8, rows: [], cells: { A1: { field: 'date' }, A7: { field: 'total.all' } } });
+    expect(Object.keys(s.link!.cells).sort()).toEqual(['A1', 'A7']);
+    expect(s.cells).toEqual({ A6: '1', A7: 'T', A8: 'M' });
+    expect(setFirstRow(base, 0)).toBe(base);
+  });
+});
+
+describe('suggestLink', () => {
+  const put = (cells: Record<string, string>, merges: [number, number, number, number][] = []) => merges.reduce((s, [r0, c0, r1, c1]) => mergeArea(s, area({ r: r0, c: c0 }, { r: r1, c: c1 })), sheet(cells));
+  it('reads an office layout', () => {
+    const s = suggestLink(put({
+      A1: 'AL NOOR CONSULTANTS', E1: 'PANEL SCHEDULE', A2: 'PANEL', B2: 'DB-GF', C2: 'FED FROM: SMDB-1', G2: 'LOCATION: GROUND FLOOR', A3: 'MAIN', B3: '63 A TP+N',
+      A5: 'CKT', B5: 'PH', C5: 'DESCRIPTION', D5: 'LOAD (W)', E5: 'MCB (A)', F5: 'CABLE (mm²)', G5: 'EARTH (mm²)', H5: 'LENGTH (m)', I5: 'ROUTE', J5: 'REMARKS'
+    }))!;
+    expect(s.link).toEqual({
+      category: 'db', firstRow: 6, rows: [],
+      columns: { A: 'row.ref', B: 'row.phase', C: 'row.room', D: 'row.watts', E: 'row.mcb', F: 'row.wire', G: 'row.ecc', H: 'row.length', J: 'row.remarks' },
+      cells: { B2: { field: 'board.id' }, C2: { field: 'board.fedFrom', before: 'FED FROM: ' }, G2: { field: 'board.location', before: 'LOCATION: ' }, B3: { field: 'board.incomer' } }
+    });
+    expect(s.cells.C2).toBe('FED FROM: ');
+    expect(s.cells.B2).toBeUndefined();
+  });
+  it('reads a two-row form heading with merged cells', () => {
+    const heads = ['RATING OF INCOMER', 'RATING OF ELCB', 'SL NO.', 'CIR NO.', 'MCB RAT. IN AMPS', 'CCT WIRE SIZE (mm2)', 'ECC WIRE SIZE (mm2)', 'ROOM/ AREA'];
+    const cells: Record<string, string> = { A1: 'DB SCHEDULE', M4: 'LOAD/CIRCUIT (WATTS)', I4: 'CONNECTED LOAD/ POINTS', L4: 'WATTS/ UNIT', P4: 'REMARKS', I5: 'LTG', J5: 'EX.FAN', K5: '13A T.S/O', M5: 'R', N5: 'Y', O5: 'B' };
+    heads.forEach((h, i) => { cells[`${'ABCDEFGH'[i]}4`] = h; });
+    const merges: [number, number, number, number][] = [...heads.map((_, i): [number, number, number, number] => [4, i + 1, 5, i + 1]), [4, 9, 4, 11], [4, 12, 5, 12], [4, 13, 4, 15], [4, 16, 5, 16]];
+    const s = suggestLink(put(cells, merges))!;
+    expect(s.link!.firstRow).toBe(6);
+    expect(s.link!.columns).toEqual({ B: 'row.elcbGroup', C: 'row.sl', D: 'row.ref', E: 'row.mcb', F: 'row.wire', G: 'row.ecc', H: 'row.room', I: 'row.points.ltg', J: 'row.points.exfan', K: 'row.points.s13t', M: 'row.R', N: 'row.Y', O: 'row.B', P: 'row.remarks' });
+  });
+  it('finds nothing without three headings, and uses a field once', () => {
+    expect(suggestLink(sheet({ A1: 'Notes', A2: 'MCB', B2: 'CABLE' }))).toBeUndefined();
+    const twice = suggestLink(sheet({ A1: 'MCB (A)', B1: 'BREAKER', C1: 'CABLE', D1: 'ROOM' }))!;
+    expect(twice.link!.columns).toEqual({ A: 'row.mcb', C: 'row.wire', D: 'row.room' });
+  });
+});
+
+describe('sheetsForBoards', () => {
+  it('adds one sheet for each board no sheet is linked to, named after it', () => {
+    const from = linkToBoard(layout(), 'DB-GF1');
+    const taken = { ...newSheet(), id: 'S1', name: 'DB-A', link: { ...from.link!, boardId: 'DB-A' } };
+    const made = sheetsForBoards([{ ...from, id: 'S2', name: 'Main' }, taken, { ...newSheet(), id: 'S3', name: 'DB-B' }], from, ['DB-GF1', 'DB-A', 'DB-B', 'DB-C', 'DB/D', 'DB-C']);
+    expect(made.map((m) => [m.id, m.name, m.link!.boardId])).toEqual([['S4', 'DB-B 2', 'DB-B'], ['S5', 'DB-C', 'DB-C'], ['S6', 'DB-D', 'DB/D']]);
+    expect(made[1].link!.columns).toEqual(from.link!.columns);
   });
 });

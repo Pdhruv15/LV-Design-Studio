@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.131', date: '2026-11-14',
+    items: [
+      { title: 'Sheets: link your own schedule to a DB', text: 'On the Electrical tab, Link columns says which cell of your sheet holds the panel number and Fed from, and which column holds the circuit reference, load, MCB, cable and so on; Suggest links reads them from your headings. Choose a board and the sheet fills from the project, one row per circuit, and stays up to date. A column of your own keeps its text with each circuit. One click adds a sheet for every other DB. Linked cells are read only for now; typing in them comes with Apply to project.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
     version: '2.130', date: '2026-11-14',
     items: [
       { title: 'Sheets: merged cells and borders', text: 'An Excel file opened in Sheets keeps its merged cells and its borders (thin or thick), shows them in the grid and has them again when saved. Merge cells and Borders on the Home tab now work. Border colours and dash patterns are not kept.', action: 'sheets', actionLabel: 'Open Sheets' }
