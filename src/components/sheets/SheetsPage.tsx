@@ -16,8 +16,9 @@ import LinkPanel from './LinkPanel';
 import { safeFileName, saveBinary } from '../../util/files';
 
 /** Sheets: the engineer's own schedules in an Excel-style grid with formulas, inside the app. This stage has the
- * grid, the formula bar, the sheet tabs, the File and Home tabs of the ribbon, and opening and saving Excel files;
- * linking columns to the project and the Electrical tools follow (docs/notes/Future development, Sheets proposal). */
+ * grid, the formula bar, the sheet tabs, the File and Home tabs of the ribbon, opening and saving Excel files,
+ * and linking a sheet to a DB of the project (Electrical tab, Link columns: LinkPanel.tsx). Writing typed values back to
+ * the project and the other Electrical tools follow (docs/notes/Future development, Sheets proposal). */
 
 const LATER = 'Comes in a later stage';
 const CSS = `
@@ -263,7 +264,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
     if (values[k]?.unsupported && !values[k]?.error) out.push('shx-keep');
     if (st?.fill) out.push('shx-fill');
     if (st?.accent) out.push('shx-accent');
-    if (showLinks && sheet.link) { const l = linkAt(sheet, r, c); if (l?.own) out.push('shx-own'); else if (sheet.link.cells[k]) out.push('shx-lk'); }
+    if (showLinks && sheet.link) { const l = linkAt(sheet, r, c); if (l?.own) out.push('shx-own'); else if (l) out.push('shx-lk'); }
     return out.join(' ');
   };
   const cellStyle = (k: string, r: number, c: number): React.CSSProperties => {

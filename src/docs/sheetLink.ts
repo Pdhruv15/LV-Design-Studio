@@ -272,7 +272,8 @@ export function suggestLink(sheet: Sheet): Sheet | undefined {
     if (i.text.includes(':')) out = setLinkCell(out, i.k, hit[1]);
     else {
       const to = cellName(i.right + 1, i.row); // a label alone: the value goes in the next cell to its right
-      out = setLinkCell({ ...out, cells: { ...out.cells, [to]: '' } }, to, hit[1]);
+      const { [to]: _old, ...rest } = out.cells;
+      out = setLinkCell({ ...out, cells: rest }, to, hit[1]);
     }
   }
   return out;

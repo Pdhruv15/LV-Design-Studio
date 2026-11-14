@@ -338,6 +338,7 @@ describe('Sheets page — Link columns', () => {
     expect(td(`A${5 + data.rows.length}`).textContent).toBe(String(data.rows[data.rows.length - 1]['row.ref']));
     expect(panel()!.textContent).toContain('Needed to build the board and the SLD');
     expect(td('B2').className).toContain('shx-lk');
+    expect(td('A6').className).toContain('shx-lk'); // a cell of a linked column, inside the block
     expect(document.querySelector('.shx-grid th .shx-lkname')!.textContent).toBe('Circuit reference');
     expect(changes).toBe(2);
   });

@@ -80,7 +80,8 @@ export default function LinkPanel({ project, sheet, sheets, active, onSheet, onA
           {boards.map((b) => <option key={b.id} value={b.id}>{b.id} — {b.name}</option>)}
         </select></label>
       <div className="shl-row"><span>First circuit row</span>
-        <input type="number" min={1} aria-label="First circuit row" key={link.firstRow} defaultValue={link.firstRow} onChange={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 1 && n !== link.firstRow) onSheet(setFirstRow(sheet, n)); }} />
+        <input type="number" min={1} aria-label="First circuit row" key={link.firstRow} defaultValue={link.firstRow} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+          onBlur={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 1 && n !== link.firstRow) onSheet(setFirstRow(sheet, n)); else e.target.value = String(link.firstRow); }} />
         <button type="button" className="shl-btn" onClick={() => onSheet(setFirstRow(sheet, active.r))} disabled={active.r === link.firstRow}>Use row {active.r}</button></div>
 
       <h5>Cells of the sheet</h5>
