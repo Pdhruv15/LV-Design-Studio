@@ -12,7 +12,7 @@ through a Google Drive / OneDrive / Dropbox desktop folder.
 · [Calculation methods and limits](docs/engineering/calculation-methods.md)
 · [Privacy and project data](docs/privacy.md)
 
-**Version 2.123** (see `package.json`). The app is in active use and active
+**Version 2.125** (see `package.json`). The app is in active use and active
 development.
 
 > **Engineering status.** The calculations are first-pass design checks, not

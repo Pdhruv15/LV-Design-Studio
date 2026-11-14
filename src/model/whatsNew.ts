@@ -15,9 +15,15 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.123', date: '2026-11-13',
+    version: '2.125', date: '2026-11-13',
     items: [
       { title: 'SLD CAD export: notes and title block as printed', text: 'In exported DXF and DWG sheets, notes, schedules and title block text now have the same size and line spacing as the PDF, so the lines no longer crowd each other.' }
+    ]
+  },
+  {
+    version: '2.124', date: '2026-11-14',
+    items: [
+      { title: 'Design CAD: no streaks along the bottom', text: 'After the drawing area got shorter, for example when the command line grew under it, zooming or panning could leave blue and green streaks along the bottom edge of the drawing that were not part of it. They no longer appear.' }
     ]
   },
   {
