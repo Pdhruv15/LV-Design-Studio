@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Load schedule formats by authority mockup</title>
+<style>
+/* Graphite dark tokens, same as the load schedule source tools mockup */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--warn:#f5c04a;--new:#b784ff;--mv:#4fb3a5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.35 -apple-system,"Segoe UI",system-ui,sans-serif;width:1952px;padding:16px 20px 20px}
+h1{font-size:17px;margin:0 0 4px}
+h2{font-size:13px;margin:18px 0 6px;font-weight:600}
+h2 .n{display:inline-block;width:18px;height:18px;line-height:18px;border-radius:50%;background:var(--acc);color:#1D2024;text-align:center;font-size:11px;margin-right:7px}
+p.lead{margin:0 0 8px;color:var(--mut);max-width:1500px}
+.legend{color:var(--mut);font-size:12px;margin:0}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin:0 5px 0 0}
+.legend i.n{border:1.5px dashed var(--new)}
+.legend i.p{border:1px solid var(--line-strong)}
+.legend span{margin-right:18px}
+svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.i{width:12px;height:12px;vertical-align:-2px}
+.frame{border:1px solid var(--line-strong);border-radius:8px;background:var(--panel)}
+.pad{padding:12px 14px}
+.row{display:flex;gap:22px;align-items:flex-start;width:1912px}
+.new{outline:1.5px dashed var(--new);outline-offset:-1.5px}
+.mut{color:var(--mut)}
+.small{font-size:11px}
+.cap{font-size:11px;color:var(--mut);margin-bottom:5px}
+.ttl{font-size:13px;font-weight:600;margin:0 0 8px}
+/* flow */
+.flow{display:flex;gap:8px;align-items:center;width:1912px}
+.fb{padding:10px 12px;flex:none}
+.fb .ln{padding:2px 0}
+.fb .ln.new{padding:2px 6px;display:inline-block}
+.fb .dn{display:block;margin:1px 0 1px 8px;color:var(--mut)}
+.stack{display:flex;flex-direction:column;gap:6px;flex:1}
+.stack .frame{height:56px;padding:8px 12px;display:flex;align-items:center;font-size:12px}
+.flow>svg.fan{flex:none}
+.flow>svg.ar{flex:none;width:30px;height:14px;color:var(--mut)}
+.centre{text-align:center;color:var(--mut);margin-top:10px;font-size:12px}
+.centre svg{margin:0 6px}
+/* selects */
+.lb2{font-size:11px;color:var(--mut);margin-bottom:3px}
+.sel{display:flex;align-items:center;justify-content:space-between;height:28px;padding:0 10px;border:1px solid var(--line-strong);border-radius:6px;background:var(--p2);font-size:12px;white-space:nowrap}
+.sel svg{color:var(--mut)}
+.tags{display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start}
+.tag{padding:3px 10px;border:1px solid var(--line-strong);border-radius:999px;font-size:11px;background:var(--p2);white-space:nowrap}
+.menu{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:4px;font-size:12px;white-space:nowrap}
+.menu div{padding:6px 10px;border-radius:5px}
+.menu div.hi{background:rgba(245,179,1,.18)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+.menu .tk{display:inline-block;width:16px;color:var(--acc);vertical-align:-1px}
+.warnbox{border-left:4px solid var(--warn);background:var(--p2);border-radius:4px;padding:8px 12px;font-size:12px;margin-top:14px}
+/* grids */
+table.g{border-collapse:collapse;table-layout:fixed}
+.g td,.g th{border:1px solid var(--line);height:24px;padding:0 5px;white-space:nowrap;font-size:12px;text-align:center;font-weight:400}
+.g th,.g td.h{background:var(--p2);color:var(--mut);font-size:10px;font-weight:600;line-height:1.15;white-space:normal;padding:2px}
+.g td.l{text-align:left}
+.g td.wr{white-space:normal;font-size:10px;line-height:1.2}
+.g td.vt{writing-mode:vertical-rl;letter-spacing:.02em}
+.g td.t{font-weight:700}
+.g .sub{display:block;font-weight:400;font-size:9.5px;color:var(--mut)}
+.g.sh td{font-size:11px;height:24px;padding:0 4px;position:relative}
+.g.sh td.f{background:#2b2f35}
+.g.sh td.b{font-weight:700}
+.g.sh td.chg{box-shadow:inset 0 0 0 2px var(--warn)}
+.g.sh td.chg::after{content:"";position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:var(--warn)}
+.g.sh td.cur{outline:2px solid var(--acc);outline-offset:-2px}
+.g.sh td.h .lk{display:block;font-size:9.5px;font-weight:400;color:var(--mv);margin-top:2px}
+.g.sh td.h .lk.pu{color:var(--new)}
+.g.sh th.co,.g.sh th.rh{font-size:10px;font-weight:400;height:20px;padding:0}
+.g td.hl{outline:1px solid var(--acc);outline-offset:-1px}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+.g.rl td{font-size:12px;text-align:left}
+.g.rl td.m{color:var(--mut)}
+.chip{display:inline-block;padding:4px 11px;border-radius:6px;font-size:12px;border:1px solid var(--line-strong);white-space:nowrap}
+.chip.a{background:var(--acc);color:#1D2024;border-color:var(--acc);font-weight:600}
+.strip{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:var(--p2);border:1px solid var(--line);border-radius:6px;margin-bottom:10px;font-size:12px}
+.strip .r{display:flex;gap:8px}
+/* settings */
+.kv{display:flex;justify-content:space-between;padding:6px 8px;border-bottom:1px solid var(--line);font-size:12px}
+.kv span:first-child{color:var(--mut)}
+.dlg{background:var(--panel);box-shadow:0 8px 24px rgba(0,0,0,.4);border:1px solid var(--line-strong);border-radius:8px;padding:14px 18px}
+.dlg table{border-collapse:collapse;width:100%;font-size:12px;margin:8px 0}
+.dlg th{text-align:left;font-weight:400;color:var(--mut);font-size:11px;padding:4px 8px;border-bottom:1px solid var(--line-strong)}
+.dlg td{padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.cbx{display:flex;align-items:center;gap:8px;font-size:12px;margin:10px 0}
+.cbx svg{width:16px;height:16px;flex:none}
+.btns{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+/* sheets */
+.tabs{display:flex;gap:4px;padding:6px 10px 0}
+.tabs span{padding:6px 16px;color:var(--mut)}
+.tabs span.on{color:var(--tx);box-shadow:inset 0 -2px 0 var(--acc);background:none;font-weight:600}
+.tools{display:flex;padding:4px 8px;background:var(--p2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.grp{display:flex;flex-direction:column;gap:2px;padding:0 8px;border-right:1px solid var(--line)}
+.grp:last-child{border-right:0}
+.grp .bt{display:flex;gap:2px}
+.grp .gn{font-size:11px;color:var(--mut);text-align:center;white-space:nowrap}
+.bb{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:84px;height:60px;border-radius:6px;font-size:11px;line-height:1.15;text-align:center}
+.bb svg{width:20px;height:20px}
+.bb.pr{outline:1.5px solid var(--acc);outline-offset:-1.5px}
+.fbar{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:12px}
+.fbar .nb{border:1px solid var(--line-strong);background:var(--p2);padding:2px 10px;border-radius:4px;width:60px}
+.fbar .fx{color:var(--mut);font-style:italic}
+.tip{max-width:250px;padding:6px 8px;background:var(--panel);border:1px solid var(--line-strong);border-left:3px solid var(--warn);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:12px;line-height:1.35;color:var(--mut);text-align:left;white-space:normal}
+.tip b{display:block;color:var(--tx);font-weight:600}
+.stabs{display:flex;align-items:center;gap:4px;padding:6px 10px}
+.stabs span.s{padding:4px 14px;border:1px solid var(--line);border-radius:0 0 6px 6px;font-size:12px;color:var(--mut)}
+.stabs span.s.on{color:var(--tx);background:var(--p2);border-color:var(--line-strong)}
+.stabs .sp{flex:1}
+.map .ml{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 0;font-size:11px}
+.map .ml .sel{width:236px;height:24px;font-size:11px}
+.map .ml .sel.pu{color:var(--new);border-color:var(--new)}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);margin-right:6px}
+/* settings card (7) */
+.bar1{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--line);border-radius:6px;margin-bottom:6px;font-size:12px;background:var(--p2)}
+.radio{display:inline-block;width:12px;height:12px;border:1.5px solid var(--mut);border-radius:50%;vertical-align:-2px;margin-right:6px}
+.radio.on{border-color:var(--acc);background:radial-gradient(var(--acc) 38%,transparent 42%)}
+.lvl{padding:10px 12px;border:1px solid var(--line-strong);border-radius:6px;background:var(--p2)}
+.lvl b{display:block}
+.dn2{display:flex;justify-content:center;color:var(--mut);padding:3px 0}
+.notes{margin-top:18px;display:grid;grid-template-columns:repeat(6,1fr);gap:10px;width:1912px}
+.notes div{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:9px 11px;font-size:12px;color:var(--mut)}
+.notes b{color:var(--tx);display:block;margin-bottom:3px}
+.chip.sl{border-color:var(--acc);color:var(--acc)}
+.g.sh td.dotc::after{content:"";position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:var(--warn)}
+.g.sh td.top{vertical-align:top;padding:6px 6px;height:84px}
+.g.sh td.top .tip{box-shadow:none}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="chev" viewBox="0 0 12 12"><path d="M3 4.5l3 3 3-3"/></symbol>
+<symbol id="arr" viewBox="0 0 12 12"><path d="M2 6h8M7 3l3 3-3 3"/></symbol>
+<symbol id="arrd" viewBox="0 0 12 12"><path d="M6 2v8M3 7l3 3 3-3"/></symbol>
+<symbol id="arru" viewBox="0 0 12 12"><path d="M6 10V2M3 5l3-3 3 3"/></symbol>
+<symbol id="tick" viewBox="0 0 12 12"><path d="M2.5 6.5l2.5 2.5 4.5-5.5"/></symbol>
+<symbol id="lock" viewBox="0 0 12 12"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></symbol>
+<symbol id="ic1" viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M3 9h14M9 3v14"/></symbol>
+<symbol id="ic2" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M7 10l2 2 4-4"/></symbol>
+<symbol id="ic3" viewBox="0 0 20 20"><path d="M4 10a6 6 0 0 1 10-4M14 3v3h-3M16 10a6 6 0 0 1-10 4M6 17v-3h3"/></symbol>
+<symbol id="ic4" viewBox="0 0 20 20"><path d="M3 5h14M3 10h14M3 15h9"/></symbol>
+</svg>
+
+<h1>Load schedules — the app's table or your own sheet — mockup (2026-11-14, revision 2)</h1>
+<p class="lead">The app's Load schedule tables stay as the general format. An office with its own format opens it in Sheets, links its columns once, and can schedule there. Both ways write to the same project, and the SLD is drawn from the project.</p>
+<div class="legend"><span><i class="n"></i>new in this proposal</span><span><i class="p"></i>exists today</span></div>
+
+<h2><span class="n">1</span>How it fits together</h2>
+<div class="flow">
+  <div style="display:flex;flex-direction:column;gap:6px;width:380px;flex:none">
+    <div class="frame fb" style="height:72px"><div>Load schedule tab — the app's general tables</div><div class="mut small" style="margin-top:4px">One table per panel category, as today</div></div>
+    <div class="frame fb new" style="height:72px"><div>Sheets — your own format</div><div class="mut small" style="margin-top:4px">Your Excel layout, columns linked once</div></div>
+  </div>
+  <svg width="60" height="150" viewBox="0 0 60 150" style="flex:none;color:var(--mut)"><path d="M3 36C30 36 30 75 57 75M3 114C30 114 30 75 57 75"/><path d="M8 31l-5 5 5 5M8 109l-5 5 5 5M52 70l5 5-5 5"/></svg>
+  <div class="frame fb" style="width:420px"><div class="cap">The project</div><div class="ln">Boards, circuits and feeders</div><div class="ln">Sized and checked by the authority's rules</div><div class="mut small" style="margin-top:4px">DEWA (Dubai) v1 · Tables 1–3</div></div>
+  <svg class="fan" width="44" height="180" viewBox="0 0 44 180" style="color:var(--mut)"><path d="M0 90C20 90 18 28 38 28M0 90H38M0 90C20 90 18 152 38 152"/><path d="M33 23l5 5-5 5M33 85l5 5-5 5M33 147l5 5-5 5"/></svg>
+  <div class="stack">
+    <div class="frame">SLD</div>
+    <div class="frame">Cable schedule, BOQ and reports</div>
+    <div class="frame">Excel and PDF, in the general format or yours</div>
+  </div>
+</div>
+<div class="centre">A board scheduled in a sheet also appears in the app's table, and the other way round.</div>
+
+<h2><span class="n">2</span>New project — the rules, and a format for each panel category</h2>
+<div class="row" style="gap:22px">
+<div class="frame pad" style="width:1340px">
+  <div class="ttl">Authority and design rules</div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px">
+    <div><div class="lb2">Country</div><div class="sel"><span>United Arab Emirates</span>{c}</div></div>
+    <div><div class="lb2">Authority</div><div class="sel"><span>DEWA — Dubai</span>{c}</div></div>
+    <div><div class="lb2">Rule set</div><div class="sel"><span>DEWA (Dubai) — built-in v1</span>{c}</div></div>
+  </div>
+  <div class="tags" style="margin-top:10px"><span class="tag">415 V · 50 Hz</span><span class="tag">Ambient 45 °C</span><span class="tag">VD 4 %</span><span class="tag">Min wire 2.5 / 4 mm²</span><span class="tag">ELCB 100 / 30 mA</span><span class="tag">Cable / breaker limits: DEWA Tables 1–3, size up</span></div>
+  <div class="new" style="margin-top:14px;padding:10px 12px">
+    <div class="ttl" style="margin-bottom:6px">Schedule formats — one per panel category</div>
+    <table class="g rl" style="width:100%;table-layout:auto">
+      <tr><th style="text-align:left;padding:4px 8px">Panel category</th><th style="text-align:left;padding:4px 8px">Boards</th><th style="text-align:left;padding:4px 8px">Format</th><th style="text-align:left;padding:4px 8px">Where you work</th></tr>
+      <tr><td>DB</td><td>Final distribution boards</td><td><div class="sel" style="width:400px"><span>General — load distribution schedule</span>{c}</div></td><td>Load schedule tab</td></tr>
+      <tr><td>SMDB</td><td>Sub-main boards</td><td><div class="sel" style="width:400px"><span>General — connected load / MD</span>{c}</div></td><td>Load schedule tab</td></tr>
+      <tr><td>MDB</td><td>Main and metered boards</td><td><div class="sel" style="width:400px"><span>General — connected load, MD and kWh metering</span>{c}</div></td><td>Load schedule tab</td></tr>
+      <tr><td>MCC</td><td>Motor control centres</td><td><div class="sel" style="width:400px"><span>General — connected load / MD</span>{c}</div></td><td>Load schedule tab</td></tr>
+      <tr><td>Load summary</td><td>Transformer level</td><td><div class="sel" style="width:400px"><span>General — TCL summary</span>{c}</div></td><td>Load schedule tab</td></tr>
+    </table>
+    <div class="mut" style="margin-top:8px;font-size:12px">General is set by default for every authority. Change a line to one of your own sheet formats at any time.</div>
+  </div>
+</div>
+<div class="frame pad new" style="width:550px">
+  <div class="ttl">The same project with office formats</div>
+  <table class="g rl" style="width:100%;table-layout:auto">
+    <tr><th style="text-align:left;padding:4px 8px">Panel category</th><th style="text-align:left;padding:4px 8px">Format</th><th style="text-align:left;padding:4px 8px">Where you work</th></tr>
+    <tr><td>DB</td><td style="color:var(--new)">My office DB sheet</td><td>Sheets or the tab</td></tr>
+    <tr><td>SMDB</td><td>General</td><td>Load schedule tab</td></tr>
+    <tr><td>MDB</td><td>General</td><td>Load schedule tab</td></tr>
+    <tr><td>MCC</td><td style="color:var(--new)">My office MCC sheet</td><td>Sheets or the tab</td></tr>
+    <tr><td>Load summary</td><td>General</td><td>Load schedule tab</td></tr>
+  </table>
+  <div class="warnbox" style="border-left-color:var(--mv)">Changing the authority later is allowed. Circuits and feeders are sized again under the new rules, the tables and sheets update by themselves, and a list shows what changed.</div>
+</div>
+</div>
+
+<h2><span class="n">3</span>Load schedule tab — the app's general tables stay as they are</h2>
+<div class="frame pad" style="width:1912px">
+  <div class="strip"><span>General table · Rules: DEWA (Dubai) v1 · Limits: DEWA Tables 1–3, size up</span><span class="r"><span class="chip new">Open in my sheet format</span></span></div>
+  <div style="display:flex;gap:8px;margin-bottom:10px"><span class="chip sl">DB — Load distribution schedule</span><span class="chip">MDB — Connected load, MD and kWh metering</span><span class="chip">SMDB / MCC — Connected load / MD</span><span class="chip">Transformer — TCL summary</span></div>
+  <table class="g">
+    <colgroup><col style="width:70px"><col style="width:80px"><col style="width:36px"><col style="width:40px"><col style="width:44px"><col style="width:48px"><col style="width:48px"><col style="width:180px"><col span="5" style="width:50px"><col style="width:60px"><col span="3" style="width:50px"><col style="width:330px"><col style="width:70px"><col style="width:60px"></colgroup>
+    <tr><th rowspan="2">RATING OF INCOMER</th><th rowspan="2">RATING OF ELCB</th><th rowspan="2">SL NO.</th><th rowspan="2">CIR NO.</th><th rowspan="2">MCB RAT. IN AMPS</th><th rowspan="2">CCT WIRE SIZE (mm²)</th><th rowspan="2">ECC WIRE SIZE (mm²)</th><th rowspan="2">ROOM / AREA</th><th colspan="5">CONNECTED LOAD / POINTS</th><th rowspan="2">WATTS / UNIT</th><th colspan="3">LOAD / CIRCUIT (WATTS)</th><th rowspan="2">REMARKS</th><th rowspan="2">LENGTH (m)<span class="sub">table only</span></th><th rowspan="2">CHECK<span class="sub">table only</span></th></tr>
+    <tr><th>LTG</th><th>EX.FAN</th><th>13A T.S/O</th><th>COOKER</th><th>S A/C</th><th>R</th><th>Y</th><th>B</th></tr>
+    <tr style="height:26px"><td rowspan="5" class="vt">63 A ISOLATOR TP+N</td><td rowspan="2" class="wr">ELCB-1 40 A 100 mA</td><td>1</td><td>R1</td><td>10</td><td>2.5</td><td>2.5</td><td class="l">LIVING, DINING</td><td>12</td><td></td><td></td><td></td><td></td><td>60</td><td>720</td><td></td><td></td><td class="l"></td><td>18</td><td class="mut">ok</td></tr>
+    <tr><td>2</td><td>Y1</td><td>10</td><td>2.5</td><td>2.5</td><td class="l">BEDROOM 1, 2</td><td>10</td><td>2</td><td></td><td></td><td></td><td>60</td><td></td><td>700</td><td></td><td class="l"></td><td>22</td><td class="mut">ok</td></tr>
+    <tr><td rowspan="3" class="wr">ELCB-2 63 A 30 mA</td><td>3</td><td>B1</td><td>20</td><td>4</td><td>4</td><td class="l">KITCHEN</td><td></td><td></td><td>4</td><td></td><td></td><td>200</td><td></td><td></td><td>800</td><td class="l"></td><td>15</td><td class="mut">ok</td></tr>
+    <tr><td>4</td><td>R2</td><td>32</td><td>10</td><td>10</td><td class="l">KITCHEN COOKER</td><td></td><td></td><td></td><td>1</td><td></td><td>6000</td><td>6000</td><td></td><td></td><td class="l hl">DEWA Table 1: 10 mm² for 32 A (6 mm² max 30 A)</td><td>12</td><td class="mut">ok</td></tr>
+    <tr><td>5</td><td>Y2</td><td>20</td><td>4</td><td>4</td><td class="l">BEDROOM 1 A/C</td><td></td><td></td><td></td><td></td><td>1</td><td>1800</td><td></td><td>1800</td><td></td><td class="l"></td><td>20</td><td class="mut">ok</td></tr>
+    <tr><td colspan="7"></td><td class="t l">TOTAL CONNECTED LOAD (W)</td><td></td><td></td><td></td><td></td><td></td><td></td><td class="t">6720</td><td class="t">2500</td><td class="t">800</td><td></td><td></td><td></td></tr>
+  </table>
+  <div style="display:flex;align-items:flex-start;margin-top:6px">
+    <div class="mut small" style="width:960px">Other point columns not drawn. Nothing changes on this tab, except that the fixed word DEWA on the forms becomes the project's authority.</div>
+    <div style="display:flex;align-items:flex-start;gap:8px;margin-top:-2px"><svg class="i" style="color:var(--acc);margin-top:6px"><use href="#arru"/></svg><div class="mut" style="font-size:12px;max-width:470px;padding:4px 10px;border:1px solid var(--acc);border-radius:6px">The limit comes from the project's authority set. The sizing made the wire larger and wrote this remark (exists today).</div></div>
+  </div>
+
+</div>
+
+<h2><span class="n">4</span>Sheets — your own format: link the columns once</h2>
+<div class="row" style="gap:32px">
+<div class="frame" style="width:1380px;padding-bottom:10px">
+  <div class="tabs"><span>File</span><span>Home</span><span class="on">Electrical</span><span>Formulas</span><span>Data</span><span>Review</span></div>
+  <div class="tools">
+    <div class="grp"><div class="bt"><div class="bb pr"><svg><use href="#ic1"/></svg>Link columns</div><div class="bb"><svg><use href="#ic2"/></svg>Apply to project</div><div class="bb"><svg><use href="#ic3"/></svg>Refresh from project</div><div class="bb"><svg><use href="#ic4"/></svg>Show linked cells</div></div><div class="gn">Project link</div></div>
+    <div class="grp"><div class="bt"><div class="bb"><svg><use href="#ic1"/></svg>Cable size</div><div class="bb"><svg><use href="#ic2"/></svg>Breaker rating</div><div class="bb"><svg><use href="#ic4"/></svg>Demand factor</div></div><div class="gn">Look up</div></div>
+    <div class="grp"><div class="bt"><div class="bb"><svg><use href="#ic2"/></svg>Check sheet</div><div class="bb"><svg><use href="#ic1"/></svg>Cable loading</div><div class="bb"><svg><use href="#ic3"/></svg>Phase balance</div></div><div class="gn">Check</div></div>
+    <div class="grp"><div class="bt"><div class="bb"><svg><use href="#ic4"/></svg>General format</div><div class="bb"><svg><use href="#ic1"/></svg>My office format</div><div class="bb"><svg><use href="#ic2"/></svg>New from template</div></div><div class="gn">Sheets for a board</div></div>
+  </div>
+  <div class="fbar"><span class="nb">C6</span><span class="fx">fx</span><span>LIVING, DINING LIGHTS</span></div>
+  <div style="padding:0 10px"><div id="sheet4"></div></div>
+</div>
+<div class="frame pad new map" style="width:500px">
+  <div class="ttl">Your column {>} project field</div>
+  <div class="ml"><span>This sheet is a</span><span class="sel"><span>DB schedule</span>{c}</span></div>
+  <div class="mut small" style="margin:10px 0 3px">Cells of the sheet</div>
+  <div class="ml"><span>B2  PANEL</span><span class="sel"><span>Board number</span>{c}</span></div>
+  <div class="ml"><span>C2  FED FROM</span><span class="sel"><span>Fed from</span>{c}</span></div>
+  <div class="ml"><span>B3  MAIN</span><span class="sel"><span>Incomer</span>{c}</span></div>
+  <div class="ml"><span>F2  LOCATION</span><span class="sel"><span>Location</span>{c}</span></div>
+  <div class="mut small" style="margin:10px 0 3px">Columns — row 6 repeats for every circuit</div>
+  <div class="ml"><span>A  CKT</span><span class="sel"><span>Circuit reference</span>{c}</span></div>
+  <div class="ml"><span>B  PH</span><span class="sel"><span>Phase</span>{c}</span></div>
+  <div class="ml"><span>C  DESCRIPTION</span><span class="sel"><span>Room / area</span>{c}</span></div>
+  <div class="ml"><span>D  LOAD (W)</span><span class="sel"><span>Circuit load, W</span>{c}</span></div>
+  <div class="ml"><span>E  MCB (A)</span><span class="sel"><span>MCB rating, A</span>{c}</span></div>
+  <div class="ml"><span>F  CABLE (mm²)</span><span class="sel"><span>Circuit wire, mm²</span>{c}</span></div>
+  <div class="ml"><span>G  EARTH (mm²)</span><span class="sel"><span>Earth wire, mm²</span>{c}</span></div>
+  <div class="ml"><span>H  LENGTH (m)</span><span class="sel"><span>Length, m</span>{c}</span></div>
+  <div class="ml"><span>I  ROUTE</span><span class="sel pu"><span>Your column · kept with each circuit</span>{c}</span></div>
+  <div class="ml"><span>J  REMARKS</span><span class="sel"><span>Remarks</span>{c}</span></div>
+  <div style="margin-top:12px;padding:8px 12px;border:1px solid var(--line-strong);border-radius:6px;background:var(--p2);font-size:12px">
+    <b style="display:block;margin-bottom:4px">Needed to build the board and the SLD</b>
+    <div style="padding:2px 0"><svg class="i" style="color:var(--mv)"><use href="#tick"/></svg> Board number</div>
+    <div style="padding:2px 0"><svg class="i" style="color:var(--mv)"><use href="#tick"/></svg> Fed from</div>
+    <div style="padding:2px 0"><svg class="i" style="color:var(--mv)"><use href="#tick"/></svg> A description or a load on each row</div>
+  </div>
+  <div class="mut small" style="margin-top:6px">Optional: MCB and cable. Left blank, the app sizes them by the rules.</div>
+  <div style="margin-top:8px;font-size:12px;color:var(--mv)">Ready — this sheet can build boards, circuits and the SLD.</div>
+  <div style="display:flex;gap:8px;margin-top:10px"><span class="chip a">Save as my DB format…</span><span class="chip">Check again</span></div>
+</div>
+</div>
+
+<h2><span class="n">5</span>Schedule in your own sheet — the project and the SLD follow</h2>
+<div class="row" style="gap:22px">
+<div class="frame" style="width:1240px;padding-bottom:4px">
+  <div class="fbar"><span class="nb">E12</span><span class="fx">fx</span><span>32</span></div>
+  <div style="padding:0 10px"><div id="sheet5"></div></div>
+  <div class="stabs"><span class="s on">DB-GF</span><span class="s">DB-FF</span><span class="s">SMDB-1</span><span class="s">+ New sheet</span><span class="sp"></span><span style="font-size:12px"><span class="dot"></span>2 new rows · 1 over a limit</span><span class="chip a">Apply to project</span></div>
+</div>
+<div class="frame pad new" style="width:650px">
+  <div class="ttl">After Apply to project</div>
+  <div class="cap" style="margin-bottom:0">SLD</div>
+  <svg width="610" height="232" viewBox="0 0 610 232" style="color:var(--line-strong)">
+    <path d="M305 45V85M305 125V147M150 147H460M150 147V170M460 147V170" stroke="#4A5058"/>
+    <rect x="255" y="5" width="100" height="40" rx="6" fill="#26292E" stroke="#4A5058"/><text x="305" y="30" text-anchor="middle" font-size="12" fill="#E6E8EB" stroke="none">MDB</text>
+    <rect x="255" y="85" width="100" height="40" rx="6" fill="#26292E" stroke="#4A5058"/><text x="305" y="110" text-anchor="middle" font-size="12" fill="#E6E8EB" stroke="none">SMDB-1</text>
+    <rect x="60" y="170" width="180" height="52" rx="6" fill="#26292E" stroke="#F5B301"/><text x="150" y="192" text-anchor="middle" font-size="12" fill="#E6E8EB" stroke="none">DB-GF</text><text x="150" y="210" text-anchor="middle" font-size="11" fill="#A3ABB5" stroke="none">7 circuits · 2 new</text>
+    <rect x="370" y="170" width="180" height="52" rx="6" fill="#26292E" stroke="#4A5058"/><text x="460" y="192" text-anchor="middle" font-size="12" fill="#E6E8EB" stroke="none">DB-FF</text><text x="460" y="210" text-anchor="middle" font-size="11" fill="#A3ABB5" stroke="none">6 circuits</text>
+  </svg>
+  <div style="font-size:12px;margin-top:8px">
+    <div style="padding:4px 0"><svg class="i" style="color:var(--mv)"><use href="#tick"/></svg> SLD: DB-GF is redrawn with its 7 circuits.</div>
+    <div style="padding:4px 0"><svg class="i" style="color:var(--mv)"><use href="#tick"/></svg> Load schedule tab: the same 7 circuits in the general table.</div>
+    <div style="padding:4px 0"><svg class="i" style="color:var(--mv)"><use href="#tick"/></svg> Cable schedule, BOQ and checks: updated from the project.</div>
+    <div style="padding:4px 0"><svg class="i" style="color:var(--mv)"><use href="#tick"/></svg> Your sheet: way, phase, MCB and cable of the new rows are filled in.</div>
+  </div>
+  <div class="mut" style="margin-top:8px;font-size:12px">A new sheet from your format with a new panel number adds that board under its Fed from board.</div>
+</div>
+</div>
+
+<div class="notes">
+  <div><b>The general table stays</b>The Load schedule tab keeps its tables per panel category. Nobody has to use Sheets.</div>
+  <div><b>Your format, linked once</b>Open your Excel file in Sheets, say which panel category it is, and link its columns. Save it as your office format.</div>
+  <div><b>Either way in</b>Schedule in the app's table or in your sheet. Both write to the same project, so the SLD and the documents are the same.</div>
+  <div><b>Rules are applied once</b>The authority's rules size and check every circuit when it reaches the project, whichever way it came in.</div>
+  <div><b>What a sheet must have</b>One row per circuit, a panel number and a Fed from cell. Layouts with two circuits on one row, or several panels on one sheet, need a later step.</div>
+  <div><b>Later</b>A read-only Rules page and look-up formulas in Sheets, and your own format for the load summary.</div>
+</div>
+
+<script>
+function build(id,o){
+  var cov={},at={};
+  o.cells.forEach(function(c){var r=c[0],cc=c[1],rs=c[2],cs=c[3];at[r+','+cc]=c;for(var i=0;i<rs;i++)for(var j=0;j<cs;j++)if(i||j)cov[(r+i)+','+(cc+j)]=1;});
+  var w=o.rw;o.cols.forEach(function(x){w+=x;});
+  var s='<table class="g '+(o.cls||'')+'" style="width:'+w+'px"><colgroup><col style="width:'+o.rw+'px">'+o.cols.map(function(x){return '<col style="width:'+x+'px">';}).join('')+'</colgroup><tr><th class="co"></th>'+o.cols.map(function(x,i){return '<th class="co">'+String.fromCharCode(65+i)+'</th>';}).join('')+'</tr>';
+  for(var r=0;r<o.nrows;r++){
+    s+='<tr'+(o.rowh&&o.rowh[r]?' style="height:'+o.rowh[r]+'px"':'')+'><th class="rh">'+(r+1+(o.r0||0))+'</th>';
+    for(var c=0;c<o.cols.length;c++){
+      var k=r+','+c;if(cov[k])continue;var a=at[k];
+      if(a)s+='<td'+(a[2]>1?' rowspan="'+a[2]+'"':'')+(a[3]>1?' colspan="'+a[3]+'"':'')+(a[5]?' class="'+a[5]+'"':'')+'>'+a[4]+'</td>';
+      else s+='<td></td>';
+    }
+    s+='</tr>';
+  }
+  document.getElementById(id).innerHTML=s+'</table>';
+}
+var H=function(t,l,p){return t+'<span class="lk'+(p?' pu':'')+'">'+l+'</span>';};
+function office(extra){
+  var c=[];
+  c.push([0,0,1,4,'AL NOOR CONSULTANTS','l b']);c.push([0,5,1,5,'PANEL SCHEDULE','l b']);
+  c.push([1,0,1,1,'PANEL','l']);c.push([1,1,1,1,'DB-GF','b']);c.push([1,2,1,1,'FED FROM: SMDB-1','l']);c.push([1,5,1,5,'LOCATION: GROUND FLOOR','l']);
+  c.push([2,0,1,1,'MAIN','l']);c.push([2,1,1,1,'63 A TP+N','']);c.push([2,2,1,8,'PROJECT: VILLA G+1, AL BARSHA','l']);
+  var hd=[['CKT','Circuit ref.'],['PH','Phase'],['DESCRIPTION','Room / area'],['LOAD (W)','Circuit load, W'],['MCB (A)','MCB rating, A'],['CABLE (mm²)','Wire, mm²'],['EARTH (mm²)','Earth wire, mm²'],['LENGTH (m)','Length, m'],['ROUTE','Your column'],['REMARKS','Remarks']];
+  hd.forEach(function(x,i){c.push([4,i,1,1,H(x[0],x[1],i===8),i===8?'h new':'h']);});
+  var d=[['R1','R','LIVING, DINING LIGHTS',720,10,2.5,2.5,18,'CONDUIT IN SLAB',''],
+   ['Y1','Y','BEDROOM 1, 2 LIGHTS AND FANS',700,10,2.5,2.5,22,'CONDUIT IN SLAB',''],
+   ['B1','B','KITCHEN SOCKETS',800,20,4,4,15,'TRUNKING',''],
+   ['R2','R','KITCHEN COOKER',6000,32,10,10,12,'CONDUIT IN SLAB','DEWA Table 1: 10 mm² for 32 A (6 mm² max 30 A)'],
+   ['Y2','Y','BEDROOM 1 A/C',1800,20,4,4,20,'','']];
+  d.forEach(function(row,i){row.forEach(function(v,j){c.push([5+i,j,1,1,v,(j===2||j===8||j===9)?'l':'']);});});
+  return c;
+}
+var c4=office();
+c4.forEach(function(x){if(x[0]===5&&x[1]===2)x[5]='l cur';});
+c4.push([10,2,1,1,'TOTAL (W)','l b']);c4.push([10,3,1,1,'10020','f b']);
+var W=[56,76,210,90,76,80,84,80,130,300];
+build('sheet4',{rw:28,cols:W,nrows:11,cells:c4,cls:'sh'});
+var c5=office();
+c5.push([10,2,1,1,'MAJLIS SOCKETS','l dotc']);c5.push([10,3,1,1,'1200','dotc']);c5.push([10,7,1,1,'16','dotc']);c5.push([10,8,1,1,'CONDUIT IN SLAB','l dotc']);
+c5.push([11,2,1,1,'WATER HEATER','l dotc']);c5.push([11,3,1,1,'1500','dotc']);c5.push([11,4,1,1,'32','cur dotc']);c5.push([11,5,1,1,'2.5','chg']);c5.push([11,7,1,1,'9','dotc']);
+c5.push([12,2,1,1,'TOTAL (W)','l b']);c5.push([12,3,1,1,'12720','f b']);
+c5.push([13,0,1,4,'<div class="tip"><b>Rows 11 and 12 · new circuits</b>On Apply to project each gets the next free way and phase. A blank MCB and cable are sized by the rules.</div>','top']);
+c5.push([13,4,1,5,'<div class="tip"><b>F12 · 2.5 mm² carries at most 16 A</b>DEWA Table 1. On Apply to project the wire is sized up to 10 mm² and a remark is added.</div>','top']);
+build('sheet5',{rw:28,cols:W,nrows:14,cells:c5,cls:'sh',rowh:{13:84}});
+/* tokens to svg icons */
+var map={'>':'arr','&gt;':'arr','v':'arrd','c':'chev','t':'tick','l':'lock','^':'arru'};
+document.body.innerHTML=document.body.innerHTML.replace(/\{(>|&gt;|v|c|t|l|\^)\}/g,function(m,k){return '<svg class="i"><use href="#'+map[k]+'"></use></svg>';});
+document.head.appendChild(document.createElement('style')).textContent = '@page{size:1952px ' + Math.ceil(document.documentElement.scrollHeight) + 'px;margin:0}'
+</script>
+</body>
+</html>
