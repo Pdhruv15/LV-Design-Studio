@@ -14,7 +14,7 @@ import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } fr
 import type { SketchItem } from '../../types';
 import { effective, styleOf, type LayerStyle } from '../../model/cadLayerStyle';
 import { colourCss } from '../../model/cadColours';
-import { dotsOnly, hatchDots, hatchStrokes, defOf, placedLines } from '../../model/cadHatch';
+import { atOrigin, dotsOnly, hatchDots, hatchStrokes, defOf, placedLines } from '../../model/cadHatch';
 import { onScreenThemeChange, screenAppearance } from '../../theme/theme';
 import { isFitClick, isPanPress, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, wheelAction, ZoomChip, type ZoomMenuKey } from '../drawingView';
 import { scaledView, windowView, type ViewT } from '../../model/cadView';
@@ -539,19 +539,21 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         if (it.kind === 'circle') outline.arc(it.pts[0][0] - o0, it.pts[0][1] - o1, it.r ?? 0, 0, 2 * Math.PI);
         else it.pts.forEach((q, i) => (i ? outline.lineTo(q[0] - o0, q[1] - o1) : outline.moveTo(q[0] - o0, q[1] - o1)));
         outline.closePath();
+        // Its islands are part of the same path: filled and clipped even-odd, so they stay clear.
+        for (const h of it.holes ?? []) { h.forEach((q, i) => (i ? outline.lineTo(q[0] - o0, q[1] - o1) : outline.moveTo(q[0] - o0, q[1] - o1))); outline.closePath(); }
         const col = isSel(it.id) ? selSk : ef.color ?? skC;
         ctx.save();
-        ctx.clip(outline);
+        ctx.clip(outline, 'evenodd');
         const xs = it.kind === 'circle' ? [it.pts[0][0] - (it.r ?? 0), it.pts[0][0] + (it.r ?? 0)] : it.pts.map((q) => q[0]);
         const ys = it.kind === 'circle' ? [it.pts[0][1] - (it.r ?? 0), it.pts[0][1] + (it.r ?? 0)] : it.pts.map((q) => q[1]);
         const bx: [number, number, number, number] = [Math.min(...xs) - o0, Math.min(...ys) - o1, Math.max(...xs) - o0, Math.max(...ys) - o1];
         const perMm = 100 * unitsPerMm;
-        if (defOf(it.hatch).solid) { ctx.globalAlpha = 0.3 * ia; ctx.fillStyle = col; ctx.fill(outline); ctx.globalAlpha = ia; }
+        if (defOf(it.hatch).solid) { ctx.globalAlpha = 0.3 * ia; ctx.fillStyle = col; ctx.fill(outline, 'evenodd'); ctx.globalAlpha = ia; }
         else {
           // Each line family: dots as small squares, else lines (dashed when the dashes are 4 pixels or more).
           const dsz = 2 / scale;
           ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineWidth = 1 / scale;
-          for (const f of placedLines(it.hatch, perMm)) {
+          for (const f of atOrigin(placedLines(it.hatch, perMm), it.hatch.origin ? [it.hatch.origin[0] - o0, it.hatch.origin[1] - o1] : undefined)) {
             if (dotsOnly(f)) { for (const [x, y] of hatchDots(f, bx, 3 / scale, 40000)) ctx.fillRect(x - dsz / 2, y - dsz / 2, dsz, dsz); continue; }
             const { lines, dash } = hatchStrokes(f, bx, 3 / scale, 1500, 1 / scale);
             ctx.setLineDash(dash.length && patternLength(dash) * scale >= 4 ? dash : []);

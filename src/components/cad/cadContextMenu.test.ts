@@ -70,3 +70,12 @@ describe('right-click menus (phase 1)', () => {
     expect([q.n, +q.length.toFixed(4), +q.area.toFixed(4)]).toEqual([3, +(8 + 5 + 2 * Math.PI).toFixed(4), +(4 + Math.PI).toFixed(4)]);
   });
 });
+
+describe('QUICKMEASURE on hatches', () => {
+  it('a hatch\'s area is its net area, islands taken out', () => {
+    const h: SketchItem = { id: 'H', kind: 'pline', layer: 'LV-HATCH', closed: true, pts: [[0, 0], [10, 0], [10, 10], [0, 10]], hatch: { pattern: 'ansi31', scale: 3, angle: 0 }, holes: [[[2, 2], [4, 2], [4, 4], [2, 4]]] };
+    const c: SketchItem = { id: 'C', kind: 'circle', layer: 'LV-HATCH', pts: [[0, 0]], r: 1, hatch: { pattern: 'solid', scale: 3, angle: 0 } };
+    expect(measureOf([h]).area).toBeCloseTo(96);
+    expect(measureOf([c]).area).toBeCloseTo(Math.PI, 2);
+  });
+});

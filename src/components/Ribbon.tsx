@@ -247,7 +247,7 @@ export const CAD_TABS: Record<'named' | 'labels', CadTab[]> = {
 const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
 /** The panel a tool is on, so the ribbon shows the tool in use (a typed command moves it there). */
 const GROUP_OF: Partial<Record<CadTool, number>> = {
-  point: G.draw, divide: G.draw, measure: G.draw, line: G.draw, pline: G.draw, rect: G.draw, circle: G.draw, arc: G.draw, hatch: G.draw, polygon: G.draw, ellipse: G.draw, circle2p: G.draw, circle3p: G.draw, circled: G.draw, arcsce: G.draw, revcloud: G.annotate,
+  point: G.draw, divide: G.draw, measure: G.draw, line: G.draw, pline: G.draw, rect: G.draw, circle: G.draw, arc: G.draw, hatch: G.draw, hatchedit: G.draw, boundary: G.draw, polygon: G.draw, ellipse: G.draw, circle2p: G.draw, circle3p: G.draw, circled: G.draw, arcsce: G.draw, revcloud: G.annotate,
   move: G.modify, copy: G.modify, rotate: G.modify, mirror: G.modify, scale: G.modify, stretch: G.modify, trim: G.modify, extend: G.modify, offset: G.modify, fillet: G.modify, chamfer: G.modify, break: G.modify, join: G.modify, explode: G.modify, array: G.modify,
   text: G.annotate, mtext: G.annotate, draworder: G.modify, texttofront: G.modify, block: G.blocks, blockpick: G.blocks, insert: G.blocks, attedit: G.blocks, attpick: G.blocks, dim: G.annotate, dimlin: G.annotate, dimcont: G.annotate, dimbase: G.annotate, leader: G.annotate, rtag: G.annotate, north: G.annotate, keynote: G.annotate,
   tcount: G.annotate, tjust: G.annotate, th: G.annotate, talign: G.annotate, tcase: G.annotate, tframe: G.annotate, tmask: G.annotate, tcopy: G.annotate, matchprop: G.props, dist: G.measure, area: G.measure,
@@ -790,7 +790,9 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           ['circle2p', '2 points', 'The two ends of a diameter'], ['circle3p', '3 points', 'Three points on the circle']]),
         withList(cadTool('arc', 'Arc', Rainbow, 'Arc (A): start, a point on it, end. The arrow: start, centre, end'), [
           ['arc', '3 points (A)', 'Start, a point on it, end'], ['arcsce', 'Start, centre, end', 'Start, the centre, then the end (anticlockwise)']]),
-        cadTool('hatch', 'Hatch', PaintBucket, 'Hatch (H): the pattern on the right, then click inside a closed drawn object or a room'),
+        withList(cadTool('hatch', 'Hatch', PaintBucket, 'Hatch (H): the pattern on the right, then click inside a closed drawn object or a room. The arrow: edit a hatch, or a boundary polyline'), [
+          ['hatch', 'Hatch (H)', 'Click inside a closed object or a room'], ['hatchedit', 'Edit hatch (HE)', 'Pattern, spacing, angle, origin and islands of a hatch'],
+          ['boundary', 'Boundary (BO)', 'A closed polyline round an area']]),
         sm(cadTool('rect', 'Rectangle', RectangleHorizontal, 'Rectangle (REC): two opposite corners')),
         sm(cadTool('polygon', 'Polygon', Pentagon, 'Polygon (POL): the number of sides, the centre, then the radius (I: corners on it, C: sides touching it)')),
         sm(cadTool('ellipse', 'Ellipse', EllipseIcon, 'Ellipse (EL): centre, the end of one axis, then the other axis; A for the two ends of an axis')),

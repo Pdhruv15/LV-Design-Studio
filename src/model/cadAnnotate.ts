@@ -1,5 +1,7 @@
 import { inside } from './cadMeasure';
 import { ellipsePoints } from './cadSketch';
+import { hatchOutlinePts, loopOf } from './cadHatchAssoc';
+export { hatchOutlinePts };
 import type { Project, SketchItem } from '../types';
 import type { HatchSpec } from './cadHatch';
 
@@ -24,32 +26,55 @@ export const textUnits = (a: AnnoSettings, metresPerUnit: number) => a.textMm * 
 
 const area = (pts: Pt[]) => Math.abs(pts.reduce((t, q, i) => { const r = pts[(i + 1) % pts.length]; return t + q[0] * r[1] - r[0] * q[1]; }, 0)) / 2;
 /** What to hatch around a point: the smallest closed drawn object around it (polyline, rectangle, circle or ellipse), else the
- * smallest room outline (drawing units) around it. */
-export function hatchOutline(items: SketchItem[], at: Pt, rooms: Pt[][]): { pts: Pt[]; circle?: { c: Pt; r: number }; from: 'object' | 'room' } | undefined {
-  let best: { a: number; pts: Pt[]; circle?: { c: Pt; r: number } } | undefined;
+ * smallest room outline (drawing units) around it; `holes` are the closed drawn objects wholly inside it (islands, when
+ * `islands` is on), `ids` the outer object's id then the islands' (a drawn outer only: rooms are never associative). */
+export function hatchOutline(items: SketchItem[], at: Pt, rooms: Pt[][], islands = true): { pts: Pt[]; circle?: { c: Pt; r: number }; from: 'object' | 'room' | 'lines'; holes: Pt[][]; ids?: string[]; islandIds: string[] } | undefined {
+  let best: { a: number; pts: Pt[]; circle?: { c: Pt; r: number }; id: string } | undefined;
   for (const it of items) {
     if (it.hatch) continue;
     if (it.kind === 'circle' && it.r && Math.hypot(at[0] - it.pts[0][0], at[1] - it.pts[0][1]) < it.r) {
       const a = Math.PI * it.r * it.r;
-      if (!best || a < best.a) best = { a, pts: it.pts, circle: { c: it.pts[0], r: it.r } };
+      if (!best || a < best.a) best = { a, pts: it.pts, circle: { c: it.pts[0], r: it.r }, id: it.id };
     } else if (it.kind === 'ellipse' && it.ax) {
       // An ellipse: hatched as the closed outline round it.
       const pts = ellipsePoints(it);
       if (!inside(at, pts)) continue;
       const a = Math.PI * Math.hypot(it.ax[0], it.ax[1]) ** 2 * (it.ratio ?? 1);
-      if (!best || a < best.a) best = { a, pts };
+      if (!best || a < best.a) best = { a, pts, id: it.id };
     } else if ((it.kind === 'pline' || it.kind === 'line') && it.closed && it.pts.length > 2 && inside(at, it.pts)) {
       const a = area(it.pts);
-      if (!best || a < best.a) best = { a, pts: it.pts };
+      if (!best || a < best.a) best = { a, pts: it.pts, id: it.id };
     }
   }
-  if (best) return { pts: best.pts, ...(best.circle ? { circle: best.circle } : {}), from: 'object' };
-  const room = rooms.filter((r) => r.length > 2 && inside(at, r)).sort((a, b) => area(a) - area(b))[0];
-  return room ? { pts: room, from: 'room' } : undefined;
+  const room = best ? undefined : rooms.filter((r) => r.length > 2 && inside(at, r)).sort((a, b) => area(a) - area(b))[0];
+  if (!best && !room) return undefined;
+  const outer = best?.pts ?? room!, c = best?.circle;
+  const { holes, ids } = islands ? islandsIn(items, { pts: outer, circle: c }, best?.id) : { holes: [], ids: [] };
+  return { pts: outer, ...(c ? { circle: c } : {}), from: best ? 'object' : 'room', holes, islandIds: ids, ...(best ? { ids: [best.id, ...ids] } : {}) };
 }
-/** The hatch as a drawn object on LV-HATCH: a closed polyline (or circle) with its pattern. */
-export function hatchItem(o: { pts: Pt[]; circle?: { c: Pt; r: number } }, spec: HatchSpec): Omit<SketchItem, 'id'> {
-  return o.circle ? { kind: 'circle', layer: HATCH_LAYER, pts: [o.circle.c], r: o.circle.r, hatch: spec } : { kind: 'pline', layer: HATCH_LAYER, pts: o.pts, closed: true, hatch: spec };
+/** The islands of an outline: the closed drawn objects (polyline, rectangle, circle, ellipse; never a hatch or text)
+ * wholly inside it, other than `skip` (its own object), with their loops and ids. */
+export function islandsIn(items: SketchItem[], outer: { pts: Pt[]; circle?: { c: Pt; r: number } }, skip?: string): { holes: Pt[][]; ids: string[] } {
+  const c = outer.circle, outerArea = c ? Math.PI * c.r * c.r : area(outer.pts), holes: Pt[][] = [], ids: string[] = [];
+  for (const it of items) {
+    if (it.id === skip) continue;
+    const l = loopOf(it);
+    if (!l || area(l) >= outerArea * (1 - 1e-9) || !l.every((q) => (c ? Math.hypot(q[0] - c.c[0], q[1] - c.c[1]) < c.r : inside(q, outer.pts)))) continue;
+    holes.push(l);
+    ids.push(it.id);
+  }
+  return { holes, ids };
+}
+/** The hatch as a drawn object on LV-HATCH: a closed polyline (or circle) with its pattern, its islands and (once
+ * associative) the ids of the objects it follows. */
+export function hatchItem(o: { pts: Pt[]; circle?: { c: Pt; r: number }; holes?: Pt[][] }, spec: HatchSpec, assoc?: string[]): Omit<SketchItem, 'id'> {
+  const extra = { ...(o.holes?.length ? { holes: o.holes } : {}), ...(assoc?.length ? { assoc } : {}) };
+  return o.circle ? { kind: 'circle', layer: HATCH_LAYER, pts: [o.circle.c], r: o.circle.r, hatch: spec, ...extra } : { kind: 'pline', layer: HATCH_LAYER, pts: o.pts, closed: true, hatch: spec, ...extra };
+}
+/** A hatch's net area (drawing units²): the outline less its islands, an island inside an island counted back in. */
+export function hatchArea(it: Pick<SketchItem, 'kind' | 'pts' | 'r' | 'holes'>): number {
+  const loops: { pts: Pt[]; a: number }[] = [{ pts: hatchOutlinePts(it), a: it.kind === 'circle' ? Math.PI * (it.r ?? 0) ** 2 : area(it.pts) }, ...(it.holes ?? []).map((h) => ({ pts: h, a: area(h) }))];
+  return loops.reduce((t, l, i) => t + (loops.filter((o, j) => j !== i && o.a > l.a && inside(l.pts[0], o.pts)).length % 2 ? -l.a : l.a), 0);
 }
 
 /** A leader: the arrowed line through its points (the arrow at the first) and its text beside the last. */

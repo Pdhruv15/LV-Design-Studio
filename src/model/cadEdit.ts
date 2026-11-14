@@ -270,6 +270,8 @@ const reflect = (p: Pt, a: Pt, b: Pt): Pt => { const u = unit(sub(b, a)), v = su
 export function mirrored(it: SketchItem, a: Pt, b: Pt): Omit<SketchItem, 'id'> {
   const { id: _id, ...rest } = it;
   const pts = it.pts.map((q) => reflect(q, a, b));
+  // A hatch: its islands and the pattern's origin are mirrored; the pattern's angle stays.
+  if (it.hatch) return { ...rest, pts, ...(it.holes ? { holes: it.holes.map((h) => h.map((q) => reflect(q, a, b))) } : {}), hatch: { ...it.hatch, origin: reflect(it.hatch.origin ?? [0, 0], a, b) } };
   if (it.kind === 'arc') { const th = Math.atan2(b[1] - a[1], b[0] - a[0]); return { ...rest, pts, a0: 2 * th - (it.a1 ?? 0), a1: 2 * th - (it.a0 ?? 0) }; }
   // An ellipse's axis is a direction: mirrored as one.
   if (it.kind === 'ellipse' && it.ax) return { ...rest, pts, ax: sub(reflect(add(it.pts[0], it.ax), a, b), pts[0]) };
@@ -280,8 +282,9 @@ export function mirrored(it: SketchItem, a: Pt, b: Pt): Omit<SketchItem, 'id'> {
 }
 /** Scale about a base point by a factor (radii and text heights too). */
 export function scaled(it: SketchItem, base: Pt, k: number): SketchItem {
+  const sc = (q: Pt): Pt => add(base, mul(sub(q, base), k));
   return {
-    ...it, pts: it.pts.map((q) => add(base, mul(sub(q, base), k))), ...(it.r !== undefined ? { r: it.r * k } : {}), ...(it.h !== undefined ? { h: it.h * k } : {}), ...(it.w !== undefined ? { w: it.w * k } : {}), ...(it.kind === 'insert' ? { sc: (it.sc ?? 1) * k } : {}),
+    ...it, ...(it.holes ? { holes: it.holes.map((h) => h.map(sc)) } : {}), ...(it.hatch ? { hatch: { ...it.hatch, scale: it.hatch.scale * k, origin: sc(it.hatch.origin ?? [0, 0]) } } : {}), pts: it.pts.map((q) => add(base, mul(sub(q, base), k))), ...(it.r !== undefined ? { r: it.r * k } : {}), ...(it.h !== undefined ? { h: it.h * k } : {}), ...(it.w !== undefined ? { w: it.w * k } : {}), ...(it.kind === 'insert' ? { sc: (it.sc ?? 1) * k } : {}),
     ...(it.ax ? { ax: mul(it.ax, k) } : {}), ...(it.cloud !== undefined ? { cloud: it.cloud * k } : {}),
     ...(it.look ? { look: scaleLook(it.look, k) } : {})
   };
@@ -291,8 +294,9 @@ export function stretched(it: SketchItem, a: Pt, b: Pt, dx: number, dy: number):
   const [x0, y0, x1, y1] = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
   const inBox = (q: Pt) => q[0] >= x0 && q[0] <= x1 && q[1] >= y0 && q[1] <= y1;
   if (!it.pts.some(inBox)) return null;
-  if (it.kind === 'circle' || it.kind === 'arc' || it.kind === 'text' || it.kind === 'mtext' || it.kind === 'point' || it.kind === 'insert' || it.kind === 'attdef') return { ...it, pts: it.pts.map((q) => add(q, [dx, dy])) };
-  return { ...it, pts: it.pts.map((q) => (inBox(q) ? add(q, [dx, dy]) : q)) };
+  const holes = it.holes ? { holes: it.holes.map((h) => h.map((q) => (inBox(q) ? add(q, [dx, dy]) : q))) } : {};
+  if (it.kind === 'circle' || it.kind === 'arc' || it.kind === 'text' || it.kind === 'mtext' || it.kind === 'point' || it.kind === 'insert' || it.kind === 'attdef') return { ...it, ...holes, pts: it.pts.map((q) => add(q, [dx, dy])) };
+  return { ...it, ...holes, pts: it.pts.map((q) => (inBox(q) ? add(q, [dx, dy]) : q)) };
 }
 /** Rectangular array: rows × columns of copies, `dx` / `dy` apart (the original is the first). */
 export function arrayRect(it: SketchItem, rows: number, cols: number, dx: number, dy: number): Omit<SketchItem, 'id'>[] {

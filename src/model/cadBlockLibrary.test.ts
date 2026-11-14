@@ -68,3 +68,20 @@ describe('Blocks from elsewhere', () => {
     expect(filterBlocks(list, '  ')).toBe(list);
   });
 });
+
+describe('drawing hatches with islands', () => {
+  it('a solid fill with several loops is one hatch: the largest loop outlines it, the others are its islands', () => {
+    const g: RefGeometry = {
+      file: 'sym.dwg', units: 4, segs: new Float64Array(), segLayers: new Uint16Array(), layers: [{ name: 'A', rgb: 0 }], stamp: 's',
+      fills: [{ layer: 0, solid: true, loops: [[[4, 4], [6, 4], [6, 6]], [[0, 0], [10, 0], [10, 10], [0, 10]]], lines: [] }]
+    };
+    const d = defFromGeometry('SYM', g);
+    expect(d.items).toHaveLength(1);
+    expect(d.items[0]).toMatchObject({ kind: 'pline', pts: [[0, 0], [10, 0], [10, 10], [0, 10]], holes: [[[4, 4], [6, 4], [6, 6]]], hatch: { pattern: 'solid' } });
+    const p = defFromPieces('H', [{ layer: 'A', kind: 'hatch', solid: true, pattern: 'SOLID', loops: [[[4, 4, 0], [6, 4, 0], [6, 6, 0]], [[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0]]] }], [0, 0]);
+    expect(p.items).toHaveLength(1);
+    expect(p.items[0].holes).toHaveLength(1);
+    // A patterned fill stays plain outlines, one per loop.
+    expect(defFromPieces('H', [{ layer: 'A', kind: 'hatch', solid: false, pattern: 'ANSI31', loops: [[[4, 4, 0], [6, 4, 0], [6, 6, 0]], [[0, 0, 0], [10, 0, 0], [10, 10, 0]]] }], [0, 0]).items).toHaveLength(2);
+  });
+});

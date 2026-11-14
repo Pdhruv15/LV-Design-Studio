@@ -90,6 +90,8 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   // MATCHPROP goes to Match above (it always has); MP and PAINTER match the properties of drawn objects.
   { aliases: ['MP', 'PAINTER'], desc: 'Match properties', tool: 'matchprop' },
   { aliases: ['H', 'HATCH', 'BH'], desc: 'Hatch', tool: 'hatch' },
+  { aliases: ['HE', 'HATCHEDIT'], desc: 'Edit hatch: pattern, spacing, angle, origin, islands', tool: 'hatchedit' },
+  { aliases: ['BO', 'BOUNDARY', 'BPOLY'], desc: 'Boundary: a closed polyline round an area', tool: 'boundary' },
   { aliases: ['LE', 'LEADER', 'QLEADER'], desc: 'Leader', tool: 'leader' },
   { aliases: ['RT', 'ROOMTAG'], desc: 'Room tag', tool: 'rtag' },
   { aliases: ['NORTH'], desc: 'North arrow', tool: 'north' },

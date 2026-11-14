@@ -12,7 +12,7 @@ import { textBaseAt, textCorners } from '../model/cadText';
 import { noteBox, noteSegAt } from '../model/cadMtext';
 import { pointMark, pointStyleOf } from '../model/cadPoints';
 import { attdefAsText, blockDefsOf, expandAll } from '../model/cadBlocks';
-import { dotsOnly, hatchDots, hatchStrokes, mirroredY, defOf, placedLines } from '../model/cadHatch';
+import { atOrigin, dotsOnly, hatchDots, hatchStrokes, mirroredY, defOf, placedLines } from '../model/cadHatch';
 import { fittingCounts, trayFittings } from '../model/cadTrayFittings';
 import { planScale as unitsOf } from '../model/cadUnits';
 import { arcPoints, levelWiring } from '../model/cadWiring';
@@ -305,15 +305,17 @@ function drawnSvg(items: Drawn[], X: (x: number) => number, Y: (y: number) => nu
       return;
     }
     if (it.hatch) {
-      const circle = it.kind === 'circle', r = (it.r ?? 0) * f;
-      const outline = circle ? `<circle cx="${X(it.pts[0][0])}" cy="${Y(it.pts[0][1])}" r="${n(r)}"` : `<path d="M${it.pts.map(P).join('L')}Z"`;
+      const circle = it.kind === 'circle', r = (it.r ?? 0) * f, holes = (it.holes ?? []).map((h) => `M${h.map(P).join('L')}Z`).join('');
+      // The outline and its islands as one path, filled and clipped even-odd (a circle as two arcs).
+      const cx = circle ? X(it.pts[0][0]) : 0, cy = circle ? Y(it.pts[0][1]) : 0;
+      const outline = circle ? (holes ? `<path d="M${n(cx - r)} ${n(cy)}a${n(r)} ${n(r)} 0 1 0 ${n(2 * r)} 0a${n(r)} ${n(r)} 0 1 0 ${n(-2 * r)} 0Z${holes}" fill-rule="evenodd"` : `<circle cx="${X(it.pts[0][0])}" cy="${Y(it.pts[0][1])}" r="${n(r)}"`) : `<path d="M${it.pts.map(P).join('L')}Z${holes}" fill-rule="evenodd"`;
       if (defOf(it.hatch).solid) { body.push(`${outline} fill="${inkOf({ w: 0, grey: Math.min(30, pen.hatch.grey) })}" stroke="none"/>`); return; }
       const xs = circle ? [X(it.pts[0][0]) - r, X(it.pts[0][0]) + r] : it.pts.map((q) => X(q[0])), ys = circle ? [Y(it.pts[0][1]) - r, Y(it.pts[0][1]) + r] : it.pts.map((q) => Y(q[1]));
       const box: [number, number, number, number] = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
       // One path for the continuous lines, one per dashed family (its dash array), one for the dots; y is down on paper.
       let lines = '', dots = '';
       const dashed: string[] = [];
-      for (const fam of mirroredY(placedLines(it.hatch, 1))) {
+      for (const fam of atOrigin(mirroredY(placedLines(it.hatch, 1)), it.hatch.origin ? [X(it.hatch.origin[0]), Y(it.hatch.origin[1])] : undefined)) {
         if (dotsOnly(fam)) { for (const [x, y] of hatchDots(fam, box, 0.2, 20000)) dots += `M${n(x)} ${n(y)}h0`; continue; }
         const { lines: ls, dash } = hatchStrokes(fam, box, 0.2, 4000, 0.2);
         const d = ls.map((l) => `M${n(l.a[0])} ${n(l.a[1])}L${n(l.b[0])} ${n(l.b[1])}`).join('');
@@ -322,7 +324,7 @@ function drawnSvg(items: Drawn[], X: (x: number) => number, Y: (y: number) => nu
         else lines += d;
       }
       if (!lines && !dots && !dashed.length) return;
-      defs.push(`<clipPath id="${id}-${i}">${outline}/></clipPath>`);
+      defs.push(`<clipPath id="${id}-${i}">${outline.replace('fill-rule=', 'clip-rule=')}/></clipPath>`);
       if (lines) body.push(`<path d="${lines}" clip-path="url(#${id}-${i})" fill="none" stroke="${inkOf(pen.hatch)}" stroke-width="${n(pen.hatch.w)}"/>`);
       body.push(...dashed);
       if (dots) body.push(`<path d="${dots}" clip-path="url(#${id}-${i})" fill="none" stroke="${inkOf(pen.hatch)}" stroke-width="0.35" stroke-linecap="round"/>`);

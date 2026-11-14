@@ -28,7 +28,7 @@ export interface ClipPayload {
 }
 
 const KINDS = new Set<SketchItem['kind']>(['line', 'pline', 'circle', 'arc', 'text', 'dim', 'ellipse']);
-const MAX_ITEMS = 20000, MAX_PTS = 100000, MAX_TEXT = 10000, MAX_JSON = 20_000_000;
+const MAX_ITEMS = 20000, MAX_PTS = 100000, MAX_HOLES = 1000, MAX_TEXT = 10000, MAX_JSON = 20_000_000;
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const str = (v: unknown, max = 255): v is string => typeof v === 'string' && v.length <= max;
@@ -87,7 +87,9 @@ function itemOf(v: unknown): Omit<SketchItem, 'id'> | null {
     && take('kn', (x) => obj(x) && Number.isInteger(x.n) && (x.legend === undefined || x.legend === true))
     && take('tray', (x) => obj(x) && num(x.widthMm) && x.widthMm > 0 && (x.service === undefined || str(x.service)) && (x.route === undefined || str(x.route)))
     && take('cable', (x) => obj(x) && str(x.feederId) && !!x.feederId)
-    && take('hatch', (x) => obj(x) && str(x.pattern, 64) && num(x.scale) && num(x.angle) && (x.custom === undefined || validCustom(x.custom as never)));
+    && take('hatch', (x) => obj(x) && str(x.pattern, 64) && num(x.scale) && num(x.angle) && (x.custom === undefined || validCustom(x.custom as never)) && (x.origin === undefined || pt(x.origin)))
+    && take('holes', (x) => Array.isArray(x) && x.length <= MAX_HOLES && x.every((h) => Array.isArray(h) && h.length >= 3 && h.length <= MAX_PTS && h.every(pt)));
+  // `assoc` is never read: a pasted hatch is not tied to the objects the copied one followed.
   if (!fine) return null;
   if ('look' in v && v.look !== undefined) { const l = lookOf(v.look); if (!l) return null; out.look = l; }
   const n = (out.pts as Pt[]).length;

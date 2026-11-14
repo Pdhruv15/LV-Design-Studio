@@ -34,3 +34,19 @@ describe('layer manager styles', () => {
     expect(drawnLayers([tray, line])).toEqual(['E-TRAY', 'LV-SKETCH', 'LV-ANNO', 'LV-HATCH']);
   });
 });
+
+describe('match properties on hatches', () => {
+  const h = (x: Partial<SketchItem['hatch'] & object> = {}): SketchItem => ({ id: 'H', kind: 'pline', layer: 'LV-HATCH', closed: true, pts: [[0, 0], [1, 0], [1, 1]], hatch: { pattern: 'ansi31', scale: 3, angle: 0, ...x }, holes: [[[0.1, 0.1], [0.2, 0.1], [0.2, 0.2]]], assoc: ['S1', 'S2'] });
+  it('a hatch to a hatch also takes the pattern, spacing, angle and custom pattern; not its origin, islands or sources', () => {
+    const from = h({ pattern: 'brick', scale: 5, angle: 30 }), to = { ...h({ origin: [4, 4] }), id: 'T', pts: [[5, 5], [6, 5], [6, 6]] as [number, number][], holes: undefined, assoc: undefined };
+    const out = matchedProps(from, to);
+    expect(out.hatch).toEqual({ pattern: 'brick', scale: 5, angle: 30, origin: [4, 4] });
+    expect(out.holes).toBeUndefined();
+    expect(out.assoc).toBeUndefined();
+    const custom = { name: 'MYGRID', lines: [{ angle: 0, base: [0, 0] as [number, number], offset: [0, 1] as [number, number], dashes: [] }] };
+    expect(matchedProps(h({ pattern: 'MYGRID', custom }), to).hatch!.custom).toEqual(custom);
+    expect(matchedProps(from, { ...to, hatch: { ...to.hatch!, custom } }).hatch!.custom).toBeUndefined();
+    // A line takes only the usual four.
+    expect(matchedProps(from, line).hatch).toBeUndefined();
+  });
+});

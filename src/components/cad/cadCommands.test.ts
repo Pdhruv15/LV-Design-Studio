@@ -17,7 +17,7 @@ const BEFORE: Record<string, string> = {
   TRIM: 'trim', TM: 'trim', EX: 'extend', EXTEND: 'extend', O: 'offset', OFFSET: 'offset', F: 'fillet', FILLET: 'fillet',
   CHA: 'chamfer', CHAMFER: 'chamfer', BR: 'break', BREAK: 'break', J: 'join', JOIN: 'join', X: 'explode', EXPLODE: 'explode',
   MI: 'mirror', MIRROR: 'mirror', SC: 'scale', SCALE: 'scale', S: 'stretch', STRETCH: 'stretch', AR: 'array', ARRAY: 'array',
-  MP: 'matchprop', PAINTER: 'matchprop', H: 'hatch', HATCH: 'hatch', BH: 'hatch', LE: 'leader', LEADER: 'leader', QLEADER: 'leader',
+  MP: 'matchprop', PAINTER: 'matchprop', H: 'hatch', HATCH: 'hatch', BH: 'hatch', HE: 'hatchedit', HATCHEDIT: 'hatchedit', BO: 'boundary', BOUNDARY: 'boundary', BPOLY: 'boundary', LE: 'leader', LEADER: 'leader', QLEADER: 'leader',
   RT: 'rtag', ROOMTAG: 'rtag', NORTH: 'north',
   XR: '!xref', XREF: '!xref', XREFS: '!xref', ER: '!xref', EXTERNALREFERENCES: '!xref', XA: '!xattach', XATTACH: '!xattach',
   XCLIP: '!xclip', XC: '!xclip', CROP: 'crop', BCROP: 'crop', LM: '!layerManager', LAYERMANAGER: '!layerManager', LAYMAN: '!layerManager',

@@ -307,6 +307,8 @@ const itemOf = (g: Geo, base: Partial<Item>): Item => (g.kind === 'circle' || g.
   ? { ...base, kind: g.kind, pts: [g.c], r: g.r, ...(g.kind === 'arc' ? { a0: g.a0, a1: g.a1 } : {}) } as Item
   : { ...base, kind: g.kind, pts: g.pts, ...(g.closed ? { closed: true } : {}) } as Item);
 
+/** The area of a loop's polygon (absolute). */
+const polyArea = (l: P2[]) => Math.abs(l.reduce((t, q, i) => t + q[0] * l[(i + 1) % l.length][1] - l[(i + 1) % l.length][0] * q[1], 0)) / 2;
 /** A loop with arcs as points for a fill outline (sketch hatches are polygons). */
 function loopPoints(loop: Curve[]): P2[] {
   return loop.flatMap((q) => {
@@ -363,12 +365,13 @@ function cropPiece(p: CadPiece, edges: Curve[], keepIn: boolean, tol: number, sk
       // Outside: a hatch around the cut-out would cover the hole, so it is not kept either.
       const covers = !keepIn && loops.some((l) => inside(l, at(edges[0], 0), tol));
       if (kept.some((k) => k < 1 - 1e-9) || covers) { skipped.push('hatch'); return []; }
-      if (loops.length > 1) skipped.push('hatch island');
       // A pattern hatch keeps the drawing's own pattern lines where the open drawing has them, else the built-in pattern
       // of its name, else ANSI31.
-      const pts = loopPoints(loops[0]), own = p.solid ? undefined : hatchOf?.(p.layer, pts, p.pattern);
+      // The loop of the largest area is the outline; the others are its islands.
+      const lps = loops.map(loopPoints), areas = lps.map(polyArea);
+      const big = areas.indexOf(Math.max(...areas)), pts = lps[big], holes = lps.filter((_, i) => i !== big), own = p.solid ? undefined : hatchOf?.(p.layer, pts, p.pattern);
       const pattern = patternByName(p.pattern) ?? (p.solid ? 'solid' : 'ansi31');
-      return [{ ...base, kind: 'pline', pts, closed: true, hatch: p.solid ? { pattern: 'solid', scale: 1, angle: 0 } : own ?? { ...HATCH_START, pattern } }];
+      return [{ ...base, kind: 'pline', pts, closed: true, hatch: p.solid ? { pattern: 'solid', scale: 1, angle: 0 } : own ?? { ...HATCH_START, pattern }, ...(holes.length ? { holes } : {}) }];
     }
     case 'group': {
       const sub: string[] = [], items = p.items.map((x) => ({ x, out: cropPiece(x, edges, keepIn, tol, sub, hatchOf) }));
@@ -503,7 +506,7 @@ export function boundaryOfPiece(p: CadPiece): CropBoundary | undefined {
 export function cropNote(r: CropResult): string {
   const n = r.kept ?? 0, counts = new Map<string, number>();
   for (const s of r.skipped ?? []) counts.set(s, (counts.get(s) ?? 0) + 1);
-  const why: Record<string, string> = { hatch: 'crossing the outline, not kept', 'hatch island': 'kept without its islands', dimension: 'crossing the outline, not kept', point: 'not kept (no point object in drawn items)' };
+  const why: Record<string, string> = { hatch: 'crossing the outline, not kept', dimension: 'crossing the outline, not kept', point: 'not kept (no point object in drawn items)' };
   const extra = [...counts].map(([k, c]) => `${c} ${k}${c === 1 ? '' : k.endsWith('h') ? 'es' : 's'} ${why[k]}`);
   return [`${n} piece${n === 1 ? '' : 's'} kept`, ...extra].join(' · ');
 }

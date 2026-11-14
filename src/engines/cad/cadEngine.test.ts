@@ -143,7 +143,7 @@ describe('CAD engine (Rust, WebAssembly)', () => {
   it('saves a note as one MTEXT with its box, attachment and codes, read back as a text per line', async () => {
     const items: SketchItem[] = [{ id: 'n', kind: 'mtext', layer: 'LV-ANNO', pts: [[1000, 3000]], h: 250, w: 3000, note: [{ runs: [{ s: 'GENERAL ', b: true }, { s: 'NOTES' }] }, { runs: [{ s: 'Second line', u: true }] }] }];
     const shapes = shapesOut(items, 0.001);
-    expect(shapes).toEqual([{ layer: 'LV-ANNO', kind: 'mtext', pts: [[1000, 3000]], text: '{\\fArial|b1|i0;GENERAL }NOTES\\P\\LSecond line\\l', h: 250, rot: undefined, just: 'TL', w: 3000, lsp: 1 }]);
+    expect(shapes).toEqual([{ layer: 'LV-ANNO', kind: 'mtext', pts: [[1000, 3000]], text: '{\\fArial|b1|i0;GENERAL }NOTES\\P\\LSecond line\\l', h: 250, rot: undefined, just: 'TL', w: 3000, lsp: 1, id: items[0].id }]);
     for (const as of ['dxf', 'dwg'] as const) {
       const saved = await openDrawing(`note.${as}`, await drawingWithDevices(gf, [], shapes, as));
       // The reader lists an MTEXT line by line under its top left corner, the codes gone.
@@ -159,7 +159,7 @@ describe('CAD engine (Rust, WebAssembly)', () => {
     const def: CadBlockDef = { name: 'DB-A', units: 4, description: 'Board symbol', items: [{ id: 'r', kind: 'line', layer: '0', pts: [[0, 0], [400, 0]] }, { id: 't', kind: 'text', layer: 'LV-ANNO', pts: [[50, 100]], text: 'DB', h: 100 }] };
     const ins: SketchItem = { id: 'b', kind: 'insert', layer: 'E-POWER', pts: [[3000, 3000]], block: 'DB-A', sc: 2 };
     const shapes = [...shapesOut([ins], 0.001), ...blockDefsOut([def], 0.001)];
-    expect(shapes[0]).toEqual({ layer: 'E-POWER', kind: 'insert', pts: [[3000, 3000]], name: 'DB-A', sc: 2, rot: 0, atts: [] });
+    expect(shapes[0]).toEqual({ layer: 'E-POWER', kind: 'insert', pts: [[3000, 3000]], name: 'DB-A', sc: 2, rot: 0, atts: [], id: ins.id });
     expect(shapes[1]).toMatchObject({ kind: 'blockdef', name: 'DB-A', units: 4, text: 'Board symbol' });
     expect(shapes[1].items!.map((x) => x.kind)).toEqual(['line', 'text']);
     for (const as of ['dxf', 'dwg'] as const) {
@@ -185,7 +185,7 @@ describe('CAD engine (Rust, WebAssembly)', () => {
 
   it('saves drawn points as POINT entities, found by the Node snap, with the point style in the header', async () => {
     const shapes = [...shapesOut([{ id: 'p', kind: 'point', layer: 'LV-SKETCH', pts: [[2500, 2500]] }], 0.001), pointStyleOut({ mode: 34, size: 5, relative: true })];
-    expect(shapes).toEqual([{ layer: 'LV-SKETCH', kind: 'point', pts: [[2500, 2500]] }, { layer: '', kind: 'pointstyle', pts: [], mode: 34, r: -5 }]);
+    expect(shapes).toEqual([{ layer: 'LV-SKETCH', kind: 'point', pts: [[2500, 2500]], id: 'p' }, { layer: '', kind: 'pointstyle', pts: [], mode: 34, r: -5 }]);
     for (const as of ['dxf', 'dwg'] as const) {
       const saved = await openDrawing(`points.${as}`, await drawingWithDevices(gf, [], shapes, as));
       // A point has no line to pick, but the Node snap finds it.
@@ -215,6 +215,24 @@ describe('CAD engine (Rust, WebAssembly)', () => {
       let n = 0;
       for (let i = 0; i < saved.segLayers.length; i += 1) if (saved.segLayers[i] === anno) n += 1;
       expect(n, as).toBeGreaterThanOrEqual(shapes.filter((x) => x.kind === 'line').length + 8);
+      saved.close();
+    }
+  });
+
+  it('saves a hatch with its pattern name, an island as a second loop and its link to the polyline it follows, in DXF and DWG, and reads it back', async () => {
+    const sq = (id: string, a: number, b: number): SketchItem => ({ id, kind: 'pline', layer: 'LV-SKETCH', closed: true, pts: [[a, a], [b, a], [b, b], [a, b]] });
+    const items: SketchItem[] = [
+      // The hatch comes first in the list: the polylines it follows are written first all the same.
+      { ...sq('H', 1000, 9000), layer: 'LV-HATCH', hatch: { pattern: 'brick', scale: 3, angle: 15, origin: [10, 20] }, holes: [sq('x', 3000, 4000).pts], assoc: ['P', 'Q'] },
+      sq('P', 1000, 9000), sq('Q', 3000, 4000)
+    ];
+    const shapes = shapesOut(items, 0.001);
+    expect(shapes[0]).toMatchObject({ kind: 'hatch', name: 'BRICK', srcs: ['P', 'Q'], id: 'H' });
+    for (const as of ['dxf', 'dwg'] as const) {
+      const saved = await openDrawing(`hatch.${as}`, await drawingWithDevices(gf, [], shapes, as));
+      const fill = saved.info.fills!.find((f) => !f.solid && f.loops.length === 2);
+      expect(fill, as).toBeTruthy();
+      expect(fill!.lines.length, as).toBeGreaterThan(0);
       saved.close();
     }
   });
