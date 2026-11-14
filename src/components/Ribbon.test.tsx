@@ -104,15 +104,15 @@ describe('Ribbon', () => {
   const subTabs = (html: string) => [...(/role="tablist" aria-label="Design CAD">(.*?)<\/div>/s.exec(html)?.[1] ?? '').matchAll(/role="tab"[^>]*>([^<]+)</g)].map((m) => m[1]);
   const groupsOf = (html: string) => [...html.matchAll(/role="group" aria-label="([^"]+)"/g)].map((m) => m[1]);
 
-  it('opens Design CAD on Drafting, its panels in the order the user chose, with File beside the sub-tabs', () => {
+  it('opens Design CAD on LVCAD, its panels in the order the user chose, Annotate beside it, with File beside the sub-tabs', () => {
     const html = render('cad', { view: 'cad', cad: cad() });
-    expect(subTabs(html)).toEqual(['LVCAD', 'Electrical, ELV &amp; sheets', 'Output']);
+    expect(subTabs(html)).toEqual(['LVCAD', 'Annotate', 'Electrical, ELV &amp; sheets', 'Output']);
     expect(html).toMatch(/id="ribbon-cad-drafting"[^>]*aria-selected="true"/);
-    expect(groupsOf(html)).toEqual(['Draw', 'Modify', 'Annotate', 'Blocks', 'Layers', 'Properties', 'Measure and view']);
-    // With labels every tool is named and needs about twice the room: the panels take four sub-tabs.
+    expect(groupsOf(html)).toEqual(['Draw', 'Modify', 'Blocks', 'Layers', 'Properties', 'Measure and view']);
+    // With labels every tool is named and needs about twice the room: the panels take five sub-tabs.
     const all = render('cad', { view: 'cad', cad: cad({ labels: true }) });
-    expect(subTabs(all)).toEqual(['LVCAD', 'Layers &amp; properties', 'Electrical &amp; ELV', 'Sheets', 'Output']);
-    expect(groupsOf(all)).toEqual(['Draw', 'Modify', 'Annotate', 'Blocks']);
+    expect(subTabs(all)).toEqual(['LVCAD', 'Annotate', 'Layers &amp; properties', 'Electrical &amp; ELV', 'Sheets', 'Output']);
+    expect(groupsOf(all)).toEqual(['Draw', 'Modify', 'Blocks']);
     expect(html).toContain('title="Open, save and close drawings; the level and units of the drawing"'); // File, a menu
     expect(html).toMatch(/aria-haspopup="menu" aria-expanded="false" title="Open, save and close drawings/);
     expect(html).toContain('Show labels');
@@ -149,15 +149,16 @@ describe('Ribbon', () => {
     expect(html).toMatch(/title="More layers tools: Layer roles, New layer, Layers panel"/);
   });
 
-  it('on the sheets pages shows every sheet tool on the sheets\' sub-tab; with labels, Drafting has the markup', () => {
+  it('on the sheets pages shows every sheet tool on the sheets\' sub-tab; with labels, Annotate has the markup', () => {
     const sheets = { tab: 'layout', open: false, onTab: noop } as RibbonActions['sheets'];
     const html = render('cad', { view: 'drawings', cad: cad(), sheets });
     expect(html).toMatch(/id="ribbon-cad-elec"[^>]*aria-selected="true"/);
     expect(groupsOf(html)).toEqual(['Markup', 'On panels', 'Sheet', 'Sheet set']);
     for (const label of ['All sheets', 'Layout', 'Title block', 'Issues']) expect(html, label).toContain(`aria-label="${label}"`);
+    // With labels LVCAD has no sheet tools, so a sheets page opens on Sheets (the markup is on Annotate, RibbonDraw.test).
     const all = render('cad', { view: 'drawings', cad: cad({ labels: true }), sheets });
-    expect(all).toMatch(/id="ribbon-cad-drafting"[^>]*aria-selected="true"/);
-    expect(groupsOf(all)).toEqual(['Markup', 'On panels']); // Sheets has the sheet's view and the sheet set; Output plot and export
+    expect(all).toMatch(/id="ribbon-cad-sheets"[^>]*aria-selected="true"/);
+    expect(groupsOf(all)).toEqual(['Sheet', 'Sheet set']); // the sheet's view and the sheet set; Output plot and export
   });
 
   it('opens the sheets from the SLD tabs', () => {

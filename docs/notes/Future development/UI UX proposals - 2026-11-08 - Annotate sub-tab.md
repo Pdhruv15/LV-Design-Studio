@@ -2,7 +2,7 @@
 
 Mockup: [cad-annotate-tab-mockup.html](../../mockups/cad-annotate-tab-mockup.html)
 
-On 2026-11-08 the user shared a screenshot of a CAD program's Annotate ribbon (Text, Dimensions, Centre lines, Leaders, Tables, Markup, Annotation scaling) and asked what the app could have and for a mockup. Nothing is built; this waits for approval.
+On 2026-11-08 the user shared a screenshot of a CAD program's Annotate ribbon (Text, Dimensions, Centre lines, Leaders, Tables, Markup, Annotation scaling) and asked what the app could have and for a mockup. The sub-tab and the dimension forms under Built are done; the rest waits for approval.
 
 ## Built
 
@@ -13,7 +13,14 @@ On 2026-11-08 the user chose to start with **Linear and Continue dimensions**. T
 - **Baseline (DBA, DIMBASELINE):** each click adds a dimension from the last one's first point, one step further out: 3.75 mm on paper (ISO), or 1.5 × the text height if that is larger.
 - A linear dimension keeps its direction (`dir`) when it is rotated or mirrored. It prints, saves to DXF / DWG and shows in Properties with the length it measures.
 
-The Annotate sub-tab itself is still a proposal.
+### The sub-tab (v2.126, 2026-11-14)
+
+On 2026-11-14 the user sent a screenshot of the LVCAD row, where tool names ran into each other (Rectangle over Move, North arrow over Dim style). They asked to move the annotation tools to their own sub-tab beside LVCAD. That answers decision 1 below: a separate sub-tab.
+
+- The Annotate panel moved to an **Annotate** sub-tab after LVCAD, with the same tools in the same order: Text ▾, Dimension ▾, Leader, Room tag, Keynote, North arrow, Revision cloud, Text style and Dim style. It moved in both ribbon modes, with or without Show labels.
+- On a layout's paper, Annotate shows the Markup panel. With Show labels on, it also has the sheet markup, which LVCAD used to hold.
+- The cause was width. LVCAD needed 2,164 px with Annotate and needs 1,764 px without it. Its panels used to squeeze below their own width, so the names overlapped. Now they keep their width, and on a narrower window the last panels fold into one button each.
+- The panels in the Layout section below (Text · Dimensions · Leaders and tags · Tables · Markup · Annotation scale) still wait for a decision. For now the sub-tab holds the one Annotate panel.
 
 ## Before this work (main, v2.57)
 
@@ -45,7 +52,7 @@ Also: **Tag all rooms** (the open question 2 of the 2026-11-07 Hatch and annotat
 
 ## Layout (see mockup)
 
-Design CAD has two sub-tabs today: **LVCAD** (Draw, Modify, Annotate, Layers, Properties, Measure) and **Electrical, ELV & sheets** (Rooms, Cables, Devices, Edit devices, Wiring, Reference, Sheet set, Layouts). A new **Annotate** sub-tab goes between them, with panels Text · Dimensions · Leaders and tags · Tables · Markup · Annotation scale. LVCAD and Electrical keep every tool they have today, including LVCAD's Annotate group, so nothing moves for existing users. With Show labels on, Annotate is its own sub-tab there too (after LVCAD). Button sizes, icons and colours follow the current ribbon; new controls are the existing select and small-button types. On a layout's paper the Markup group still takes the place of Annotate.
+Design CAD has two sub-tabs today: **LVCAD** (Draw, Modify, Annotate, Layers, Properties, Measure) and **Electrical, ELV & sheets** (Rooms, Cables, Devices, Edit devices, Wiring, Reference, Sheet set, Layouts). A new **Annotate** sub-tab goes between them, with panels Text · Dimensions · Leaders and tags · Tables · Markup · Annotation scale. LVCAD and Electrical keep every tool they have today, including LVCAD's Annotate group, so nothing moves for existing users. (Changed on 2026-11-14: the Annotate group moved to the sub-tab; see Built.) With Show labels on, Annotate is its own sub-tab there too (after LVCAD). Button sizes, icons and colours follow the current ribbon; new controls are the existing select and small-button types. On a layout's paper the Markup group still takes the place of Annotate.
 
 ## What is drawn
 
@@ -64,7 +71,7 @@ Design CAD has two sub-tabs today: **LVCAD** (Draw, Modify, Annotate, Layers, Pr
 
 ## Decisions for the user
 
-1. A separate **Annotate sub-tab** (recommended), or grow the Annotate group on the LVCAD sub-tab?
+1. A separate **Annotate sub-tab** (recommended), or grow the Annotate group on the LVCAD sub-tab? **Answered 2026-11-14: a separate sub-tab** (built in v2.126; see Built).
 2. Which linked tables first: **symbol legend** (recommended), board schedule, circuit list or cable schedule?
 3. "Mask" or "Wipeout" as the button name? (Command alias `WIPEOUT` works either way.)
 4. Approve the order above, or pick a subset to start with.

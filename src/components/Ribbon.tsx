@@ -220,21 +220,24 @@ const G = {
 /** A Design CAD sub-tab: its panels on the drawing; on the sheets pages `sheet` instead (none: the sub-tab with the
  * sheet set shows), on a layout's paper `paper` instead, and on a layout `layout` after them. */
 export interface CadTab { id: string; label: string; groups: number[]; sheet?: number[]; paper?: number[]; layout?: number[];
-  /** The small tools named as well, without Show labels (Drafting: its panels fill the row with their names). */
+  /** The small tools named as well, without Show labels (LVCAD and Annotate: their panels fill the row with their names). */
   smallNamed?: boolean }
-/** Design CAD's sub-tabs. As shown (the main tools named under their icons, the small ones on hover): Drafting, the
- * drafting panels in the order of the layout the user chose, and Electrical, ELV & sheets, which on the sheets pages
- * has every sheet tool. With Show labels every tool is named and needs about twice the room, so the panels take more
- * sub-tabs. On a layout's paper, the markup takes the place of Annotate. File (open, save, close) is a menu beside them. */
+/** Design CAD's sub-tabs. As shown (the main tools named under their icons, the small ones on hover): LVCAD, the
+ * drafting panels in the order of the layout the user chose; Annotate beside it (its own sub-tab since v2.126: on LVCAD
+ * the row had grown wider than the window); and Electrical, ELV & sheets, which on the sheets pages has every sheet
+ * tool. With Show labels every tool is named and needs about twice the room, so the panels take more sub-tabs. On a
+ * layout's paper, Annotate shows the markup instead. File (open, save, close) is a menu beside them. */
 export const CAD_TABS: Record<'named' | 'labels', CadTab[]> = {
   named: [
-    { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.annotate, G.blocks, G.layers, G.props, G.measure], paper: [G.draw, G.modify, G.markup, G.layers, G.props, G.measure], sheet: [], smallNamed: true },
+    { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.blocks, G.layers, G.props, G.measure], paper: [G.draw, G.modify, G.layers, G.props, G.measure], sheet: [], smallNamed: true },
+    { id: 'annotate', label: 'Annotate', groups: [G.annotate], paper: [G.markup], sheet: [], smallNamed: true },
     { id: 'elec', label: 'Electrical, ELV & sheets', groups: [G.rooms, G.cables, G.devices, G.editDevices, G.wiring, G.reference, G.sheetSet, G.layouts], layout: [G.viewports],
       sheet: [G.markup, G.onPanels, G.sheet, G.sheetSet] },
     { id: 'output', label: 'Output', groups: [G.plot, G.publish, G.export], sheet: [G.plot, G.publish, G.export] }
   ],
   labels: [
-    { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.annotate, G.blocks], paper: [G.draw, G.modify, G.markup], sheet: [G.markup, G.onPanels] },
+    { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.blocks], paper: [G.draw, G.modify], sheet: [] },
+    { id: 'annotate', label: 'Annotate', groups: [G.annotate], paper: [G.markup], sheet: [G.markup, G.onPanels] },
     { id: 'layers', label: 'Layers & properties', groups: [G.layers, G.props, G.measure], sheet: [] },
     { id: 'elec', label: 'Electrical & ELV', groups: [G.rooms, G.cables, G.devices, G.editDevices, G.wiring], sheet: [] },
     { id: 'sheets', label: 'Sheets', groups: [G.reference, G.sheetSet, G.layouts], layout: [G.viewports], sheet: [G.sheet, G.sheetSet] },
@@ -407,12 +410,12 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const cadGroups = (t: CadTab) => (onSheets ? t.sheet ?? [] : a.view === 'cad' && a.cad?.onPaper && t.paper ? t.paper : [...t.groups, ...(a.cad?.inLayout ? t.layout ?? [] : [])]);
   const shown = tab === 'cad' ? cadGroups(sub) : [];
   const folded = [...shown].reverse().slice(0, shut);
-  // While the row is wider than the window, one more panel collapses; a wider window, or another sub-tab, opens them
-  // all again.
+  // While the row is wider than the window, one more panel collapses; a resized window, or another sub-tab, opens them
+  // all again and measures the row anew (a window made narrower with none folded too).
   useLayoutEffect(() => {
     const el = toolsRef.current;
     if (el && tab === 'cad' && el.scrollWidth > el.clientWidth + 1 && shut < shown.length) setShut(shut + 1);
-  }, [tab, sub.id, shut, shown.length]);
+  }, [tab, sub.id, shut, shown.length, resized]);
   useEffect(() => { const open = () => { setShut(0); setOver(0); setResized((n) => n + 1); }; window.addEventListener('resize', open); return () => window.removeEventListener('resize', open); }, []);
   useEffect(() => setShut(0), [tab, sub.id, onSheets, labels]);
   const cadToolNow = a.cad?.tool;
