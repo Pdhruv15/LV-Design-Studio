@@ -1,6 +1,6 @@
 # UI UX proposal – Load schedule formats by authority (2026-11-14)
 
-Status: **proposal, partly answered on 2026-11-14** (see "Owner's answers" below). The table part comes first; the Sheets part is decided afterwards. Nothing here is built.
+Status: **proposal, partly answered on 2026-11-14** (see "Owner's answers" below). The app's tables stay as the general format; an office's own format is linked and scheduled in Sheets. Nothing here is built.
 
 ## Owner's answers — 2026-11-14
 
@@ -12,10 +12,38 @@ Status: **proposal, partly answered on 2026-11-14** (see "Owner's answers" below
 - **One format set per project (decision 4), with one table per panel category:** DB, SMDB, MDB, MCC and the load summary (and the busbar riser).
   - Today: DB → load distribution schedule; MDB and the other main or metered boards → connected load, maximum demand and kWh metering; SMDB, MCC and the rest → connected load / maximum demand (one shared table); transformer level → TCL summary.
   - New: SMDB and MCC become separate entries in the set, so each can have its own columns.
-- **Customising without Sheets:** a Columns screen per panel category (order, heading, show or hide), saved as an office format. It needs its own mockup.
-- **Still open:** which columns each panel category should have where they differ from today (a sample of the owner's MDB, SMDB, MCC and summary tables would settle it), and decision 6 (own columns in the table).
 
-The mockup below was drawn before these answers: its "DEWA villa form" and "DEWA standard form" become General, and sections 5 and 6 (Sheets) wait. A revised mockup of the table part follows once the open points are answered.
+### Second answer, same day — what Sheets is for
+
+The owner explained the reason for bringing Sheets into this: the app cannot know which table format an office uses for which panel. So:
+
+- **The app's Load schedule tables are the general format and stay as they are**, one table per panel category as today. Nobody has to customise them, and nobody has to use Sheets. (This replaces the "table follows the format" idea in section 3 below, and no Columns screen is needed.)
+- **An office with its own format uses Sheets**: it opens its Excel layout, says which panel category the sheet is, and links its columns to project fields once.
+- **Scheduling can be done directly in that sheet.** What is typed there reaches the project, and the SLD and every document are drawn from the project as always. A board scheduled in a sheet also appears in the app's table, and the other way round.
+
+How it would work:
+
+- **Format per panel category.** The project holds one line per category (DB, SMDB, MDB, MCC, load summary): General, or one of the office's sheet formats. General is the default for every authority.
+- **What a sheet must have to build a board and the SLD:** a panel number cell, a Fed from cell, and one row per circuit with a description or a load. MCB and cable are optional: left blank, the sizing fills them by the authority's rules; typed, they are kept as sized by hand and checked against the limits.
+- **A load typed in watts** is kept as a load item on the circuit (`Feeder.loadItems` exists). Point-count columns link to the point types.
+- **Typed cells go through the same path as the app's table** (`applySheetEdits`, `src/docs/dbSheet.ts`), so a value that does not fit is refused with the same message and the same sizing runs.
+- **Rules are applied once**, when a circuit reaches the project, whichever way it came in. A typed size over a limit is marked in the sheet before it is applied.
+- **Own columns** (for example cable route) are kept with each circuit, so they follow it when rows move. This answers decision 6: it is needed for an office format.
+- **Limits of the first version:** one row per circuit and one panel per sheet. Layouts with two circuits on one row, or several panels on one sheet, are a later step.
+
+Revised steps (replace the list further down):
+
+1. **General wording.** The fixed word "DEWA" on the app's forms comes from the project's authority; the two point-column sets lose "DEWA" in their names. No other change to the Load schedule tab.
+2. **Sheets keeps merged cells and borders** of an opened file, so an office layout looks as it does in Excel.
+3. **Link columns for a DB sheet**: the panel, the needed-fields check, Save as my format; the sheet is filled from the project and stays up to date.
+4. **Schedule in a DB sheet**: typed rows and cells reach the project (Apply to project), new panels are added under their Fed from board, own columns are kept with each circuit, over-limit marks.
+5. **SMDB, MDB and MCC sheets** the same way (outgoing ways and feeders).
+6. **Format per panel category** in the project and at project start; Change authority re-sizes feeders and lists what changed.
+7. **Later:** load summary formats, the read-only Rules page and the look-up functions, two circuits per row and several panels per sheet.
+
+Still open: Apply to project as a button (as agreed for Sheets on 2026-11-13) or as you type; and two or three of the owner's office schedules to test the links with.
+
+The mockup was redrawn as revision 2 after this answer. Sections 2 to 6 of "Proposed" below are the first version and are kept for the record; where they differ from this section, this section holds.
 
 Mockup: `docs/mockups/load-schedule-authority-formats-mockup.html` (image: `load-schedule-authority-formats-mockup.png`). Figures in it are examples.
 
