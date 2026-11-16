@@ -59,10 +59,11 @@ Mockup sections 2 and 3.
 
 The user then sent part of a drawing they use: on each MCCB feeder the earth leakage protection is a core-balance coil on the line with an "ELCB" box beside it and the sensitivity above the box (100mA, 30mA), on a row of its own next to the breaker; the breaker's text is only "20A TP MCCB". They asked whether we can draw the ELCB like that. Proposed, as the default for earth leakage:
 
-- A feeder with earth leakage (an RCD rating, or ELCB, RCCB, ELR or RCD in its remarks) gets that row under the breaker's text: the coil on the line, the box with the word (ELCB, or RCCB or ELR from the remarks), the sensitivity above the box. Nothing joins the box to the power line.
+- A feeder with earth leakage (an RCD rating, or ELCB, RCCB, ELR or RCD in its remarks) gets that row under the breaker's text: the core-balance CT on the line, the box with the word (ELCB, or RCCB or ELR from the remarks), the sensitivity above the box. Nothing else joins the box to the power line.
+- The core-balance CT follows the user's sketch: a ring core round the cable, and one turn of winding wrapped round its left end, with both ends going to the box. On the same day we tried and set aside, as unclear at drawing size or not what the user meant: short lines and an arc, three rings, humps beside the cable, a single ring, and the IEC coil form of a current transformer.
 - The breaker's text drops the mA ("20A TPN MCCB / 25 kA"), so text and drawing agree: an MCCB, then its ELCB.
 - Only "RCBO" in the remarks keeps the breaker symbol with its toroid (item 2), because an RCBO is one device.
-- A board with any such feeder gets one more row (24 units), so its columns stay aligned.
+- A board with any such feeder gets one more row (24 units; 32 in the standard style, whose text rows sit lower), so its columns stay aligned.
 - In the user's drawing the busbar (blue) is at the bottom, so the ELCB is on the breaker's outgoing side; on our SLD the busbar is on top, so the row goes under the breaker.
 
 This replaces items 2 (RCCB symbol for an ELCB), 3 (RCCB after an MCB as a second switching device) and 4 (ELR) as the default; they remain the alternative under decision 2. The user's drawing also draws the MCCB as an arc between two small circles, the older BS style; that is not proposed here.
