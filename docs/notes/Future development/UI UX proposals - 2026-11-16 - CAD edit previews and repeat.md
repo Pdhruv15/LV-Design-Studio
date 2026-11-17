@@ -1,6 +1,6 @@
 # UI UX proposal – Design CAD edit previews and repeat (2026-11-16)
 
-Status: **approved 2026-11-17** (the recommended answer, in bold, for all five decisions); **built** in three stacked PRs, to merge in order: step 1 PR 640 (v2.167), step 2 PR 642 (v2.168), step 3 PR 643 (v2.169).
+Status: **approved 2026-11-17** (the recommended answer, in bold, for all five decisions); **built** in three stacked PRs, to merge in order: step 1 PR 640 (v2.167), step 2 PR 642 (v2.168), step 3 PR 643 (v2.169); then PR 644 (v2.170, typed points in Mirror, Scale and Stretch).
 
 The user asked on 2026-11-16 for these changes in Design CAD:
 
@@ -93,7 +93,7 @@ Built 2026-11-17:
 - Step 1 (PR 640): as proposed. Where the edges cross the line under the cursor, and where its ends would reach, are worked out once per line (`crossingsOf`, `reachesOf`); `trim` and `extend` use the same code. Trim and Extend keep the pick box after each cut, and mark drawn lines only.
 - Step 2 (PR 642): as proposed. Device shadows are drawn on the cursor layer, so the plan is not redrawn for them. After the Stretch window, only the drawn objects it caught are marked, as in the mockup.
 - Step 3 (PR 643): the hint as proposed. Enter with nothing picked did not end Mirror, Scale, Align, Array, Join, Draw order or the text tools, nor Move and Rotate with nothing selected; it now ends them.
-- Found, not changed: Mirror, Scale and Stretch do not take typed coordinates for their points ("Unknown command"), while Move, Copy, Rotate and Align do.
+- Found and fixed (the user's go-ahead, 2026-11-17): Mirror, Scale and Stretch did not take typed coordinates for their points ("Unknown command"), while Move, Copy, Rotate and Align did. They do from PR 644 (v2.170), stacked on PR 643.
 
 Speed: Trim's shadow runs the cut on each cursor move over a line. The edges are worked out once per line hovered, not on every move. This will be measured on the largest sample drawing before merging. Measured 2026-11-17 on synthetic plans instead (the sample drawings are all under 100 KB): at 500,000 segments, 0.05 ms per cursor move and 4–44 ms once per line hovered.
 
