@@ -39,6 +39,9 @@ describe('public website source', () => {
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).not.toContain('<script>');
     expect(html).toContain("script-src 'none'");
+    expect(html).toContain("media-src 'self'");
+    expect(html).toContain('<video class="product-video" controls preload="metadata" playsinline');
+    expect(html).toContain('../media/lv-design-studio-product-intro-30s.mp4');
     expect(html).not.toMatch(/<script\b|https:\/\/[^"']+\.js/i);
   });
 
@@ -68,6 +71,7 @@ describe('public website source', () => {
       buildSite({ outDir: out, releaseFile, checksumsFile: sumsFile });
       expect(existsSync(join(out, 'about/index.html'))).toBe(true);
       expect(existsSync(join(out, 'download/index.html'))).toBe(true);
+      expect(existsSync(join(out, 'media', 'lv-design-studio-product-intro-30s.mp4'))).toBe(true);
       for (const shot of readProduct().screenshots) expect(existsSync(join(out, 'screenshots', shot.file))).toBe(true);
       expect(JSON.parse(readFileSync(join(out, 'download/beta.json'), 'utf8'))).toEqual({
         schemaVersion: 1,
