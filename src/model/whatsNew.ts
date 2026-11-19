@@ -18,9 +18,22 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.210', date: '2026-11-19',
+    version: '2.213', date: '2026-11-19',
     items: [
       { title: 'Sheets: electrical formulas', text: 'Formulas in Sheets can now use the app\'s own electrical functions, worked out with its cable and breaker data: AMPS(kW, pf) for the current, KW(A, pf) for the power, VD(A, length m, mm², pf) for the voltage drop %, BREAKER(A) for the next breaker rating, CABLESIZE(A, length m, pf, ambient °C, VD limit %) for the cable, DERATE(ambient °C) for the rating factor, CPC(mm²) for the earth conductor, TXSIZE(kVA) for the transformer, FAULTKA(kVA, Z %) for the fault level and KVAR(kW, pf now, pf target) for the capacitors. Phases (3 or 1) and the voltage can follow; 400 V or 230 V is used without one. Excel does not have these functions, so a saved Excel file gets their values, with the formula in the cell\'s note; Sheets reads the formula back when it opens the file.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
+    version: '2.211', date: '2026-11-19',
+    items: [
+      { title: 'Cable type: Auto names the cable it gives', text: 'In the SLD cable editor (click the cable text of a way) and on the Cable tab of the feeder form, the Auto choice now names the cable a way gets when no type is chosen: the default armoured cable, or fire-rated cable for a life safety circuit. Before, it repeated the type chosen by hand.' }
+    ]
+  },
+  {
+    version: '2.210', date: '2026-11-19',
+    items: [
+      { title: 'SLD PDF: feeder lines, breakers and way numbers print black', text: 'On printed SLD sheets, feeder lines, breaker symbols and load boxes now print black, not grey, and the way numbers print solid black and sharp instead of faded. Secondary texts such as the breaking capacity and the dashed panel frames stay grey.' },
+      { title: 'SLD DXF / DWG: panel frames grey with closer dashes', text: 'The dashed frame round a panel goes on its own grey layer, E-PANEL, instead of the cable layer, and is drawn with half the gap between dashes (3 mm dash, 0.75 mm gap).' }
     ]
   },
   {

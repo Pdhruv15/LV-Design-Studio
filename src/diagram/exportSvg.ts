@@ -12,15 +12,17 @@ export { pathPoints } from './svgPath';
 
 const STYLE_PROPS = ['stroke', 'stroke-width', 'stroke-dasharray', 'fill', 'opacity', 'font-size', 'font-weight', 'font-family', 'text-anchor', 'display', 'writing-mode'];
 const DROP = '.bus-hit, .sel-ring, title, .grid-bg, .status-dot';
-/** Marks in a status colour on screen (revision clouds, cable references, circuits that
- * fail a check) that print black, like the rest of the drawing. */
-const PRINT_BLACK = '.rev-cloud path, .cable-ref-c, .ln.warn, .ln.bad, .load.warn, .load.bad, .icon.warn *, .icon.bad *';
+/** Marks in a status colour on screen (revision clouds, cable references, circuits that fail a check) and the
+ * way numbers (muted and faded on screen) that print solid black, like the rest of the drawing. */
+const PRINT_BLACK = '.rev-cloud path, .cable-ref-c, .ln.warn, .ln.bad, .load.warn, .load.bad, .icon.warn *, .icon.bad *, .way-no';
+/** Lines in the muted colour that stay grey on paper (the dashed panel frames); every other muted line prints black. */
+const PRINT_GREY = '.frame-ln';
 /** Colours shown on screen only (Colour by → Supply): taken off while the styles are read, so the drawing prints as drawn. */
 const SCREEN_ONLY = '.screen-c, .screen-c *';
 const KEEP_FILL = new Set(['none', '#ffffff', 'rgba(0, 0, 0, 0)']);
 
-/** Theme colour (rgb string) → print colour. */
-function printPalette(): Map<string, string> {
+/** Theme colour (rgb string) → print colour, and the muted colour's rgb string. */
+function printPalette(): { map: Map<string, string>; muted: string } {
   const probe = document.createElement('span');
   document.body.appendChild(probe);
   const rgb = (cssVar: string) => {
@@ -32,8 +34,9 @@ function printPalette(): Map<string, string> {
     [rgb('--acc'), '#000000'], [rgb('--p2'), '#ffffff'], [rgb('--panel'), '#ffffff'], [rgb('--bg'), '#ffffff'],
     [rgb('--ok'), '#13803d'], [rgb('--warn'), '#a86500'], [rgb('--bad'), '#c21f32']
   ]);
+  const muted = rgb('--mut');
   probe.remove();
-  return map;
+  return { map, muted };
 }
 
 export function printableSvg(live: SVGSVGElement, width: number, height: number): string {
@@ -54,7 +57,7 @@ function withoutScreenColours<T>(live: SVGSVGElement, read: () => T): T {
 }
 
 function printableSvgDark(live: SVGSVGElement, width: number, height: number): string {
-  const palette = printPalette();
+  const { map: palette, muted } = printPalette();
   const clone = live.cloneNode(true) as SVGSVGElement;
   const src = [live, ...live.querySelectorAll('*')];
   const dst = [clone, ...clone.querySelectorAll('*')];
@@ -65,9 +68,13 @@ function printableSvgDark(live: SVGSVGElement, width: number, height: number): s
     const style = STYLE_PROPS.map((p) => {
       let v = cs.getPropertyValue(p);
       if (!v) return '';
+      // Feeder lines, breakers and load boxes are muted on screen; on paper only muted texts and panel frames stay grey.
+      const mutedLine = p === 'stroke' && !!muted && v === muted && !el.matches(PRINT_GREY);
       if (p === 'stroke' || p === 'fill') v = palette.get(v) ?? v;
-      if (p === 'stroke' && black) v = '#000000';
+      if (p === 'stroke' && (black || mutedLine)) v = '#000000';
       if (p === 'fill' && black && !KEEP_FILL.has(v)) v = '#000000';
+      // Faded text comes out soft (rasterised) in the PDF, so solid black marks print at full opacity.
+      if (p === 'opacity' && black) v = '1';
       if (p === 'font-family') v = 'Arial, Helvetica, sans-serif';
       return `${p}:${v}`;
     }).filter(Boolean).join(';');
@@ -122,6 +129,8 @@ const layerOf = (el: Element): string => {
   const cls = `${el.getAttribute('class') ?? ''} ${parent?.getAttribute('class') ?? ''}`;
   if (el.tagName === 'text') return /\bres\b/.test(cls) ? 'RESULT' : 'TEXT';
   if (/\bbus\b/.test(el.getAttribute('class') ?? '') || /\briser-bus\b/.test(cls)) return 'BUSBAR';
+  // The dashed frame round a panel is not a cable ("frame-ln" would match `ln` below).
+  if (/(?:^|\s)frame-ln(?:\s|$)/.test(el.getAttribute('class') ?? '')) return 'PANEL';
   if (/\bln\b/.test(el.getAttribute('class') ?? '')) return 'CABLE';
   return 'SYMBOL';
 };

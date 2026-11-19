@@ -418,6 +418,20 @@ describe('dashed linetypes and rounded corners in sheet DXF', () => {
     expect(lines.slice(at + 3, at + 19)).toEqual(['3', 'Dash dot', '72', '65', '73', '4', '40', '5', '49', '3', '49', '-1', '49', '0', '49', '-1']);
   });
 
+  it('puts a dashed panel frame on the grey E-PANEL layer with half the gap, its glands staying cables', () => {
+    const data = sheet('<g class="panel-frame"><rect class="frame-ln" x="10" y="10" width="300" height="120" style="stroke-dasharray:5px, 4px"/>'
+      + '<path class="ln" d="M5 6 q3 4 0 8"/></g>');
+    const e = drawn(data);
+    const frame = e.find((x) => x.type === 'POLYLINE' && x.v.get(6) === 'LV-PANEL')!;
+    expect(frame.v.get(8)).toBe('E-PANEL');
+    expect(e.filter((x) => x.type === 'POLYLINE' && x.v.get(8) === 'E-CABLE')).toHaveLength(1);
+    const lines = data.split('\r\n');
+    const layer = lines.findIndex((l, i) => l === 'E-PANEL' && lines[i - 2] === 'LAYER');
+    expect(lines.slice(layer + 3, layer + 5)).toEqual(['62', '8']);
+    const at = lines.indexOf('LV-PANEL');
+    expect(lines.slice(at + 7, at + 15)).toEqual(['73', '2', '40', '3.75', '49', '3', '49', '-0.75']);
+  });
+
   it('keeps dash pieces inside library symbols and for wide busbars', () => {
     const data = sheet('<g class="iec" stroke-dasharray="5 4"><line x1="10" y1="20" x2="300" y2="20"/></g>'
       + '<line class="bus" stroke-dasharray="20 10" style="stroke-width:4px" x1="10" y1="60" x2="300" y2="60"/>');

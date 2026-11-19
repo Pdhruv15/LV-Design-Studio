@@ -62,6 +62,12 @@ export function cableTypeOf(project: Project, f: Feeder): CableTypeDef {
   return cableTypeDef(f.cableType ?? (needsFireRated(project, f) ? FIRE_RATED_DEFAULT : DEFAULT_CABLE_TYPE));
 }
 
+/** The cable type a feeder gets without one of its own: what an "Auto" choice
+ * gives, also while the feeder has a type chosen by hand. */
+export function autoCableTypeOf(project: Project, f: Feeder): CableTypeDef {
+  return cableTypeOf(project, { ...f, cableType: undefined });
+}
+
 /** Life safety circuits on a cable that isn't fire-rated (chosen by hand). */
 export function fireRatingIssues(project: Project): Feeder[] {
   return project.feeders.filter((f) => needsFireRated(project, f) && !cableTypeOf(project, f).fireRated);

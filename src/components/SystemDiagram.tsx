@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, u
 import { STATUS_TEXT } from '../calc/statusText';
 import { componentLabel } from '../model/components';
 import type { DrawingInfo, GridSource, Project } from '../types';
-import { cableTypeOf, CABLE_TYPE_DEFS, labelCode } from '../model/cableTypes';
+import { autoCableTypeOf, cableTypeOf, CABLE_TYPE_DEFS, labelCode } from '../model/cableTypes';
 import { cableRefOf } from '../model/cableRefs';
 import { dbSpares, spareBreaker } from '../model/spareWays';
 import { besideScaleOf, FeederSwitchSym, LEGEND_ROW, LEGEND_SYM_X, LEGEND_TEXT_X, elcbUnitOf, legendEntries, legendWidth, LoadSym, polesText, rcdInSwitch, starterSymbolOf, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
@@ -2398,7 +2398,7 @@ export default function SystemDiagram({
           </label>
           <label>Type
             <select value={cableEdit.type} onChange={(e) => setCableEdit({ ...cableEdit, type: e.target.value })}>
-              {(() => { const f = project.feeders.find((x) => x.id === cableEdit.id); return <option value="">Auto — {f ? cableTypeOf(project, f).label : ''}</option>; })()}
+              {(() => { const f = project.feeders.find((x) => x.id === cableEdit.id); return <option value="">Auto — {f ? autoCableTypeOf(project, f).label : ''}</option>; })()}
               {CABLE_TYPE_DEFS.filter((d) => d.value !== 'XLPE/SWA/PVC').map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
             </select>
           </label>

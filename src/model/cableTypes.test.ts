@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { cableTypeDef, cableTypeOf, fireRatingIssues, labelCode, needsFireRated } from './cableTypes';
+import { autoCableTypeOf, cableTypeDef, cableTypeOf, fireRatingIssues, labelCode, needsFireRated } from './cableTypes';
 import { applyDrop } from './sldEdit';
 import { cableSchedule } from '../docs/schedules';
 import { emptyTrayPlan, sizeRoute } from '../calc/cableTray';
@@ -22,6 +22,13 @@ describe('cable types', () => {
     const emdb: Project = { ...sampleProject, boards: sampleProject.boards.map((b) => (b.id === normal.boardId ? { ...b, kind: 'EMDB' as const } : b)) };
     expect(needsFireRated(emdb, normal)).toBe(true);
     expect(needsFireRated(sampleProject, { ...normal, essential: true })).toBe(true);
+  });
+
+  it('the Auto choice is the type a feeder gets without its own, also while one is chosen by hand', () => {
+    expect(cableTypeOf(sampleProject, { ...normal, cableType: 'PVC/PVC' }).code).toBe('PVC');
+    expect(autoCableTypeOf(sampleProject, { ...normal, cableType: 'PVC/PVC' }).code).toBe('XLPE/SWA');
+    expect(autoCableTypeOf(sampleProject, { ...fp, cableType: 'XLPE/PVC/SWA' }).fireRated).toBe(true);
+    expect(autoCableTypeOf(sampleProject, normal)).toEqual(cableTypeOf(sampleProject, normal));
   });
 
   it('a life safety circuit set to a non-fire-rated cable is flagged', () => {

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { BREAKER_TYPES, LOAD_TYPES, METER_TYPES, RCD_MA, type BreakerType, type Feeder, type LoadType, type MeterType, type Project } from '../types';
 import { breakerTypeOf, defaultCpcMm2 } from '../calc/earthing';
 import type { LibraryLoad } from '../database/database';
-import { CABLE_TYPE_DEFS, cableTypeOf, needsFireRated } from '../model/cableTypes';
+import { autoCableTypeOf, CABLE_TYPE_DEFS, cableTypeOf, needsFireRated } from '../model/cableTypes';
 import { limitRule } from '../calc/authorityLimits';
 
 /** Diagram icon for a library item, from its category or schedule column. */
@@ -215,7 +215,7 @@ export default function FeederForm({
         </label>
         <label>Cable type
           <select value={f.cableType ?? ''} onChange={(e) => set('cableType', e.target.value || undefined)}>
-            <option value="">Auto — {cableTypeOf(project, f).label}</option>
+            <option value="">Auto — {autoCableTypeOf(project, f).label}</option>
             {CABLE_TYPE_DEFS.filter((d) => d.value !== 'XLPE/SWA/PVC').map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
           </select>
           {needsFireRated(project, f) && !cableTypeOf(project, f).fireRated && <small className="warn">Life safety circuit — fire-rated cable expected</small>}

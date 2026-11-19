@@ -15,11 +15,11 @@ import { MARKUP_LAYERS, markupDxf } from '../model/sheetMarkup';
 /** Paper-sized, editable R12 drawings. Overflow is placed on additional
  * sheets, never discarded or drawn across the diagram. */
 export const SHEET_LAYERS: Record<string, number> = {
-  'E-FRAME': 7, 'E-TITLE': 7, 'E-LEGEND': 8, 'E-NOTES': 7, 'E-SYMBOL': 3, 'E-CABLE': 7, 'E-BUSBAR': 1, 'E-TEXT': 7, 'E-RESULT': 4, ...MARKUP_LAYERS
+  'E-FRAME': 7, 'E-TITLE': 7, 'E-LEGEND': 8, 'E-NOTES': 7, 'E-SYMBOL': 3, 'E-CABLE': 7, 'E-BUSBAR': 1, 'E-TEXT': 7, 'E-RESULT': 4, 'E-PANEL': 8, ...MARKUP_LAYERS
 };
 /** The PDF's title block font sizes (src/docs/sldSheet.ts, titleBlockFragment) in CSS px, and the mm of one px. */
 const PX_MM = 25.4 / 96, TB_LABEL_PX = 6.5, TB_VALUE_PX = 9.5, TITLE_VALUE_PX = 13, REV_HEAD_PX = 7;
-const LAYER_OF: Record<string, string> = { SYMBOL: 'E-SYMBOL', CABLE: 'E-CABLE', BUSBAR: 'E-BUSBAR', TEXT: 'E-TEXT', RESULT: 'E-RESULT' };
+const LAYER_OF: Record<string, string> = { SYMBOL: 'E-SYMBOL', CABLE: 'E-CABLE', BUSBAR: 'E-BUSBAR', TEXT: 'E-TEXT', RESULT: 'E-RESULT', PANEL: 'E-PANEL' };
 type SheetSize = NonNullable<DrawingInfo['sheet']>;
 export interface DxfSheetPage { data: string; index: number; count: number; continuation: boolean; warnings: string[] }
 const rect = (layer: string, b: DxfBox): DxfPrimitive => ({ type: 'polyline', layer, closed: true, points: [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]] });
@@ -51,9 +51,9 @@ function placeSvg(svg: string, box: DxfBox, layer?: string, centre = true): { it
   const items = svgToDxf(svg, source.h).map((q): DxfPrimitive => {
     const L = layer ?? LAYER_OF[q.layer] ?? 'E-SYMBOL';
     // A dashed element keeps one entity; its linetype follows its length on paper (dash 3 mm, or 1.5 mm when short);
-    // a dash-dot element is drawn dash-dot.
+    // a dash-dot element is drawn dash-dot, and a panel frame with the closer panel dashes.
     const { dashed, ...p } = q as typeof q & { dashed?: Dashed };
-    const lt = (mm: number): { linetype?: string } => dashed ? { linetype: dashed === 'dashdot' ? 'LV-DASHDOT' : mm < 18 ? 'LV-DASHED2' : 'LV-DASHED' } : {};
+    const lt = (mm: number): { linetype?: string } => dashed ? { linetype: dashed === 'dashdot' ? 'LV-DASHDOT' : q.layer === 'PANEL' ? 'LV-PANEL' : mm < 18 ? 'LV-DASHED2' : 'LV-DASHED' } : {};
     const run = (pts: [number, number][], closed?: boolean) => pts.reduce((a, c, j) => a + (j ? Math.hypot(c[0] - pts[j - 1][0], c[1] - pts[j - 1][1]) : 0), closed && pts.length ? Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) : 0) * s;
     const X = (x: number) => ox + (x - source.x) * s, Y = (y: number) => oy + (y + source.y) * s;
     switch (p.type) {
