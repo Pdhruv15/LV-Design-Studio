@@ -4,7 +4,7 @@ import { txTag } from '../model/transformers';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject } from 'react';
 import { STATUS_TEXT } from '../calc/statusText';
 import { componentLabel } from '../model/components';
-import type { BusTie, DrawingInfo, GridSource, Project } from '../types';
+import type { DrawingInfo, GridSource, Project } from '../types';
 import { cableTypeOf, CABLE_TYPE_DEFS, labelCode } from '../model/cableTypes';
 import { cableRefOf } from '../model/cableRefs';
 import { dbSpares, spareBreaker } from '../model/spareWays';
@@ -181,7 +181,7 @@ export function sldLayout(project: Project, dewa: boolean, cableRefs = false, ro
 
 /** A bus coupler from a drawn main board to one not drawn (Show): the drawn board, the side the other stands on in the
  * whole network (by the main boards' order), and the stub's label, "to MDB-1" and the other's transformer. */
-export interface TieStub { tie: BusTie; boardId: string; dir: -1 | 1; text: string[] }
+export interface TieStub { tie: NonNullable<Project['ties']>[number]; boardId: string; dir: -1 | 1; text: string[] }
 /** Busbar end to the coupler's far side, then the stub and the gap before its label. */
 const TIE_STUB = 64;
 export function outsideTies(project: Project, whole: Project, order: string[]): TieStub[] {
