@@ -11,6 +11,7 @@ import { kindOf } from './renamePanels';
 import { canDrop, TIE_OPERATION, tieRatings, type MoveItem, type PaletteItem } from './sldEdit';
 import { branchItems, orderTarget, selectAll, type PickItem } from './sldMenuEdit';
 import { txTag } from './transformers';
+import { partInfo, partKey, partMains, type SldPart } from '../diagram/mvShow';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import { METER_TYPES, type Board, type Feeder, type Project } from '../types';
 import { txt } from '../util/format';
@@ -26,6 +27,8 @@ export type SldTarget =
   | { kind: 'supply'; boardId: string }
   | { kind: 'tie'; id: string }
   | { kind: 'several'; items: PickItem[] }
+  | { kind: 'rmu'; name: string }
+  | { kind: 'substation'; name: string }
   | { kind: 'canvas' };
 
 export interface SldMenuState {
@@ -49,13 +52,15 @@ export interface SldMenuState {
   detail: 'auto' | 'all';
   /** The board whose branch the drawing shows alone, if any. */
   branch?: string;
+  /** The part of the network drawn (Show, mvShow.ts partKey), when not the whole network. */
+  part?: string;
 }
 
 /** Every action the menus run (sldMenuRun.ts handles each one). */
 export const SLD_MENU_ACTIONS: readonly string[] = [
   'edit', 'schedule', 'diagram', 'add', 'copy', 'paste', 'duplicate', 'repeat', 'move', 'supplyfrom', 'moveto', 'order', 'rename', 'cabletype', 'lengthchecked', 'delete', 'plan', 'zoom', 'properties',
   'quickfix', 'editcable', 'change', 'together', 'similar', 'below', 'select', 'deselect', 'txsizing', 'hv', 'addsupply', 'scenario', 'tieop', 'tierating', 'tieremove',
-  'undo', 'redo', 'branch', 'showall', 'fit', 'grid', 'text', 'values', 'colour', 'export'
+  'undo', 'redo', 'branch', 'showall', 'fit', 'grid', 'text', 'values', 'colour', 'export', 'part'
 ];
 
 /** Actions the drawing does itself (its view, its cable editor); the page is not told of them. */
@@ -255,14 +260,14 @@ function supplyMenu(s: SldMenuState, boardId: string) {
     const detail = [`${b.sourceKva} kVA`, b.sourceImpedancePct !== undefined ? `${b.sourceImpedancePct} %` : undefined, `feeds ${boardId}`].filter(Boolean).join(' · ');
     const items = groups(
       [row('Edit transformer…', 'edit', { icon: 'edtext' }), row('Transformer & generator sizing', 'txsizing', { icon: 'txsizing' }), scenarioList(s), ...(add.length ? [{ label: 'Add', icon: 'plus' as const, sub: add }] : []), row('MV supply and RMUs…', 'hv', { icon: 'hv' })],
-      [zoom], props()
+      [zoom, row(`Show ${txTag(project, boardId) ?? boardId} only`, `part|${partKey({ kind: 'tx', id: boardId })}`, { icon: 'isolate', now: s.part === partKey({ kind: 'tx', id: boardId }) })], props()
     );
     return { head: { icon: 'transformer', title: txTag(project, boardId) ?? 'Transformer', detail } satisfies CtxHead, items, label: 'Transformer menu' };
   }
   if (!b.supply) return null;
   return {
     head: { icon: 'board', title: 'Meter cabinet', detail: `${b.supply.fedFrom ?? 'DEWA'} supply · feeds ${boardId}` } satisfies CtxHead,
-    items: groups([row('Edit supply…', 'edit', { icon: 'edtext' })], [zoom], props()),
+    items: groups([row('Edit supply…', 'edit', { icon: 'edtext' })], [zoom, row(`Show ${boardId} only`, `part|${partKey({ kind: 'supply', id: boardId })}`, { icon: 'isolate', now: s.part === partKey({ kind: 'supply', id: boardId }) })], props()),
     label: 'Meter cabinet menu'
   };
 }
@@ -276,6 +281,20 @@ function tieMenu(s: SldMenuState, id: string) {
     [row('Remove this coupler…', 'tieremove', { icon: 'delete', bad: true })]
   );
   return { head: { icon: 'join', title: id, detail: `${t.ratingA} A · ${t.a} ↔ ${t.b}` } satisfies CtxHead, items, label: `${id} menu` };
+}
+
+/** An RMU on the ring, or a substation frame (Show, proposal 2026-11-18 part 2): show that part only; the RMUs and
+ * substations are named in Panels → Transformers (MV supply and RMUs…). */
+function mvMenu(s: SldMenuState, t: { kind: 'rmu' | 'substation'; name: string }) {
+  const part: SldPart = t.kind === 'rmu' ? { kind: 'rmu', name: t.name } : { kind: 'substation', name: t.name };
+  if (!partMains(s.project, part).length) return null;
+  const info = partInfo(s.project, part), key = partKey(part);
+  const items = groups(
+    [row(`Show ${t.name} only`, `part|${key}`, { icon: 'isolate', now: s.part === key }), ...(s.part ? [row('Show all', 'part|all', { icon: 'isolate' })] : [])],
+    [row('MV supply and RMUs…', 'hv', { icon: 'hv' })]
+  );
+  const detail = [info.detail, info.counts].filter(Boolean).join(' · ');
+  return { head: { icon: t.kind === 'rmu' ? 'hv' : 'sld', title: t.kind === 'rmu' ? t.name : `Substation ${t.name}`, detail } satisfies CtxHead, items, label: `${t.name} menu` };
 }
 
 /** The empty drawing's Select list: only the choices that would pick something. */
@@ -304,7 +323,7 @@ function canvasMenu(s: SldMenuState) {
   const items = groups(
     [row('Undo', 'undo', { key: 'Ctrl+Z', icon: 'undo', off: !s.canUndo }), row('Redo', 'redo', { key: 'Ctrl+Y', icon: 'redo', off: !s.canRedo })],
     [{ label: 'Add', icon: 'plus', sub: add }],
-    [...(s.branch ? [row('Show everything', 'showall', { icon: 'isolate' })] : []), row('Fit', 'fit', { key: 'F', icon: 'fit' }),
+    [...(s.branch ? [row('Show everything', 'showall', { icon: 'isolate' })] : []), ...(s.part ? [row('Show all', 'part|all', { icon: 'isolate' })] : []), row('Fit', 'fit', { key: 'F', icon: 'fit' }),
       { label: 'Grid', icon: 'grid', sub: [['Lines', 'lines'], ['Dots', 'dots'], ['None', 'off']].map(([l, v]) => row(l, `grid|${v}`, { now: s.grid === v })) },
       { label: 'Text', icon: 'text', sub: [row('Follows the zoom', 'text|auto', { now: s.detail === 'auto' }), row('All text', 'text|all', { now: s.detail === 'all' })] },
       { label: 'Values', icon: 'tags', sub: LAYER_LABELS.map(([k, l]) => row(l, `values|${k}`, { on: !!s.layers[k] })) },
@@ -325,6 +344,7 @@ export function sldMenu(s: SldMenuState, t: SldTarget, where: SldWhere = 'system
     case 'supply': return supplyMenu(s, t.boardId);
     case 'tie': return tieMenu(s, t.id);
     case 'several': return severalMenu(s, t.items);
+    case 'rmu': case 'substation': return mvMenu(s, t);
     case 'canvas': return canvasMenu(s);
   }
 }

@@ -10,6 +10,7 @@ import { ClipboardList, Package, Dot, Divide, Target, Pentagon, ArrowRightToLine
 import { VP_ARRANGEMENTS, VP_SCALES } from '../model/planViewports';
 import { FileJson, LayoutPanelLeft, Maximize2, Square, AlignStartVertical } from 'lucide-react';
 import { ArrowDownToLine, ArrowLeftRight, Check, ChevronLeft, ClipboardPaste, CopyPlus, ListPlus, LocateFixed, Scan, SquareDashed } from 'lucide-react';
+import type { ShowRow } from '../diagram/mvShow';
 import type { CadExport, CadRibbonInfo, CadTool } from './cad/cadState';
 import { ColourPicker } from './cad/ColourPicker';
 import { LINETYPE_IDS, LINETYPES, LINEWEIGHTS, type LinetypeId, type ObjectProps } from '../model/cadLayerStyle';
@@ -34,6 +35,10 @@ export type DiagramTool = 'select' | 'pan';
 
 type Icon = LucideIcon | ((p: { size?: number; strokeWidth?: number }) => JSX.Element);
 
+/** A row of a tool's list. `head`: a heading, not a choice; `indent` (1, 2): a row under the one before (a tree);
+ * `detail`: muted text after the label; `note`: muted text at the right (a count). */
+interface MenuRow { label: string; title: string; onClick: () => void; sep?: boolean; disabled?: boolean; checked?: boolean; keep?: boolean; head?: boolean; indent?: number; detail?: string; note?: string; id?: string }
+
 interface Tool {
   label: string;
   icon: Icon;
@@ -50,7 +55,7 @@ interface Tool {
   sub?: string;
   /** Split button: the arrow part offers these; `sep` draws a line above an item. `checked`: the item shows a tick
    * while it is on (one of a list of choices); with `keep` it is a switch of its own and the list stays open. */
-  menu?: { label: string; title: string; onClick: () => void; sep?: boolean; disabled?: boolean; checked?: boolean; keep?: boolean }[];
+  menu?: MenuRow[];
   /** A small button: icon and label on one line, three to a column (the CAD-standard panels). */
   small?: boolean;
   /** A small button that starts a new column. */
@@ -116,6 +121,8 @@ export interface RibbonActions {
     onShowOnPlan: () => void;
     onFit: () => void;
     onExport: () => void;
+    /** Show (View): the supply tree to pick a part from (mvShow.ts showRows), what is shown, and the pick. */
+    show?: { rows: ShowRow[]; shown: string; onShow: (part: string) => void };
   };
   /** The Load schedule tab's own tools: add circuits and spare ways, the row tools, balance, copy and paste on the grid,
    * export. Published by the Load schedule page while it is on screen; without it they are greyed. */
@@ -702,7 +709,13 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       sm({ label: 'Undo', icon: Undo2, title: 'Undo (⌘Z / Ctrl+Z)', onClick: a.onUndo, disabled: !a.canUndo, col: true }),
       sm({ label: 'Redo', icon: Redo2, title: 'Redo (⇧⌘Z / Ctrl+Y)', onClick: a.onRedo, disabled: !a.canRedo })
     ],
-    [sm({ label: 'Fit', icon: Scan, title: offSystem ? onSystemOnly : 'Fit the whole drawing (F or 0, or double-click the wheel)', onClick: () => s?.onFit(), disabled: offSystem })],
+    [
+      sm({ label: 'Show', icon: Network, sub: s?.show ? s.show.shown : undefined, title: offSystem ? onSystemOnly : 'Draw the whole network, the MV overview, or one substation, RMU or transformer with everything it feeds: only the view changes',
+        onClick: () => {}, menuOnly: true, disabled: offSystem || !s?.show,
+        menu: (s?.show?.rows ?? []).map((r) => ({ id: r.key, label: r.label, title: r.title, head: r.head, sep: r.sep, indent: r.depth || undefined, detail: r.detail, note: r.note, checked: r.head || r.key === 'sel' ? undefined : !!r.checked,
+          disabled: r.disabled || (!r.head && !r.part), onClick: () => { if (r.part) s?.show?.onShow(r.part); } })) }),
+      sm({ label: 'Fit', icon: Scan, title: offSystem ? onSystemOnly : 'Fit the whole drawing (F or 0, or double-click the wheel)', onClick: () => s?.onFit(), disabled: offSystem })
+    ],
     [
       { label: 'Export', icon: FileDown, title: 'Export the SLD: a PDF sheet with title block, DXF or DWG for CAD, or SVG — the arrow beside it for OpenDSS', onClick: () => s?.onExport(), disabled: !s,
         menu: [
@@ -1464,8 +1477,9 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             : [{ label: t.label, title: t.title, onClick: t.onClick }]));
           const popup = (key: string, items: NonNullable<Tool['menu']>) => splitOpen === key && (
             <div className="ribbon-split-menu" role="menu" style={{ left: splitAt.x, top: splitAt.y }} onMouseDown={(e) => e.stopPropagation()}>
-              {items.map((m) => <span key={m.label} style={{ display: 'contents' }}>{m.sep && <hr />}<button role={m.checked === undefined ? 'menuitem' : m.keep ? 'menuitemcheckbox' : 'menuitemradio'} aria-checked={m.checked} title={m.title} disabled={m.disabled}
-                onClick={() => { if (!m.keep) setSplitOpen(null); m.onClick(); }}>{m.checked !== undefined && <span className="ck" aria-hidden>{m.checked && <Check size={12} strokeWidth={2.2} />}</span>}{m.label}</button></span>)}
+              {items.map((m) => <span key={m.id ?? m.label} style={{ display: 'contents' }}>{m.sep && <hr />}{m.head ? <div className="hd" role="presentation">{m.label}</div> : <button role={m.checked === undefined ? 'menuitem' : m.keep ? 'menuitemcheckbox' : 'menuitemradio'} aria-checked={m.checked} title={m.title} disabled={m.disabled}
+                className={[m.indent ? `in${m.indent}` : '', m.detail || m.note ? 'rw' : ''].filter(Boolean).join(' ') || undefined}
+                onClick={() => { if (!m.keep) setSplitOpen(null); m.onClick(); }}>{m.checked !== undefined && <span className="ck" aria-hidden>{m.checked && <Check size={12} strokeWidth={2.2} />}</span>}{m.label}{m.detail && <span className="m">{m.detail}</span>}{m.note && <span className="c">{m.note}</span>}</button>}</span>)}
             </div>
           );
           const opener = (key: string) => (e: React.MouseEvent<HTMLElement>) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setSplitAt({ x: r.left, y: r.bottom + 2 }); setSplitOpen(splitOpen === key ? null : key); };
