@@ -18,7 +18,7 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.214', date: '2026-11-19',
+    version: '2.215', date: '2026-11-19',
     items: [
       { title: 'Sheets: ELV formulas', text: 'Formulas in Sheets can now size ELV systems with the methods of the ELV estimate: FABATT(quiescent mA, alarm mA) for the fire alarm battery in Ah (24 h standby, 30 min alarm, × 1.25 unless given), FACHARGE(Ah) for the charger current, POESWITCH(devices, W each, ports, PoE budget W) for the PoE switches, CAMRANGE(field of view °, pixels, "R") for how far a camera can detect, observe, recognise or identify ("D", "O", "R", "I"), PAWATTS(speaker taps W) for the PA amplifier power, NVRTB(cameras, Mbps, days) for the recording storage in TB, and VDDC(mA, length m, mm²) for the voltage drop of a 24 V loop or sounder circuit.', action: 'sheets', actionLabel: 'Open Sheets' }
     ]
