@@ -1,11 +1,12 @@
-import { ELECTRICAL_FUNCTIONS } from './sheetElectrical';
+import { ELECTRICAL_FUNCTIONS, type SheetFunction } from './sheetElectrical';
+import { ELV_FUNCTIONS } from './sheetElv';
 
 /** Formulas for the built-in sheets (Sheets page): a small, own evaluator for the functions an electrical
  * schedule uses — not a copy of Excel. A cell holds a number, a text or a formula starting with "=". Cells are
  * named as in Excel (A1, $B$2) and ranges as A1:B9.
  *
- * Operators: + − * / ^, unary −, %, &, and = <> < > <= >=. Functions: see SHEET_FUNCTIONS, with the electrical ones
- * from sheetElectrical.ts. A formula with a
+ * Operators: + − * / ^, unary −, %, &, and = <> < > <= >=. Functions: see SHEET_FUNCTIONS, with the electrical and
+ * ELV ones from sheetElectrical.ts and sheetElv.ts. A formula with a
  * function this evaluator does not have gives #NAME? — or, when the file it came from carried a last value for
  * that cell, keeps that value and is marked `unsupported`, so nothing from the engineer's file is dropped. */
 
@@ -321,17 +322,20 @@ Object.assign(FUNCTIONS, {
   ISBLANK: (a) => { const v = scalar(a, 1)[0]; return !isRange(v) && v === null; },
   ISNUMBER: (a) => typeof scalar(a, 1)[0] === 'number'
 } satisfies Record<string, Fn>);
-// The electrical functions (sheetElectrical.ts): numbers in; NaN out is #VALUE!, nothing out (no size or rating fits) is #N/A.
-for (const [name, { min, max, fn }] of Object.entries(ELECTRICAL_FUNCTIONS)) {
+// The electrical and ELV functions (sheetElectrical.ts, sheetElv.ts): numbers in (texts where a function takes a word);
+// NaN out is #VALUE!, nothing out (no size or rating fits) is #N/A.
+const OWN_FUNCTIONS: Record<string, SheetFunction> = { ...ELECTRICAL_FUNCTIONS, ...ELV_FUNCTIONS };
+for (const [name, f] of Object.entries(OWN_FUNCTIONS)) {
   FUNCTIONS[name] = (a) => {
-    const out = fn(scalar(a, min, max).map(num));
+    scalar(a, f.min, f.max);
+    const out = f.words ? f.fn(a.map((x, i) => (f.words.includes(i) ? text(x) : num(x)))) : f.fn(a.map(num));
     if (out === undefined) throw new FormulaError('#N/A');
     if (!Number.isFinite(out)) throw new FormulaError('#VALUE!');
     return out;
   };
 }
 /** The app's own functions, which Excel does not have (a saved .xlsx gets their values: sheetXlsx.ts). */
-export const APP_FUNCTIONS: string[] = Object.keys(ELECTRICAL_FUNCTIONS).sort();
+export const APP_FUNCTIONS: string[] = Object.keys(OWN_FUNCTIONS).sort();
 /** The functions a sheet formula can use (IF and IFERROR are worked out apart: only the branch taken is evaluated). */
 export const SHEET_FUNCTIONS: string[] = [...Object.keys(FUNCTIONS), 'IF', 'IFERROR'].sort();
 

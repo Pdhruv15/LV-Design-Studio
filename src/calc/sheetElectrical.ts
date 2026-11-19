@@ -12,7 +12,11 @@ import { STANDARD_TRANSFORMER_KVA } from './sizing';
  * give one (the cell shows #VALUE!) and undefined when nothing in the app's data fits (#N/A). */
 
 type Args = number[];
-export interface SheetFunction { min: number; max: number; fn: (a: Args) => number | undefined }
+/** A sheet function: how many arguments it takes, and its sum. Arguments are numbers, except those at the positions in
+ * `words`, which come as text (a class such as "R"; a number typed there comes as its text). */
+export type SheetFunction =
+  | { min: number; max: number; words?: undefined; fn: (a: Args) => number | undefined }
+  | { min: number; max: number; words: number[]; fn: (a: (number | string)[]) => number | undefined };
 
 const phasesOf = (v: number | undefined): Phases | undefined => (v === undefined ? 3 : v === 1 || v === 3 ? v : undefined);
 const voltsOf = (v: number | undefined, ph: Phases) => v ?? (ph === 3 ? 400 : 230);
