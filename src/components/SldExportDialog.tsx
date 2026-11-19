@@ -2,7 +2,7 @@ import { ExportBar, Modal } from './ui';
 import { TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import type { DrawingInfo, Project } from '../types';
-import { buildSldSheetHtml, DEFAULT_DRAWING_TITLE, titleBlockOf } from '../docs/sldSheet';
+import { buildSldSheetHtml, DEFAULT_DRAWING_TITLE, partDrawing, titleBlockOf } from '../docs/sldSheet';
 import { buildSheetDxfPages } from '../docs/sheetDxf';
 import { dxfExportNotice, namedDxfFiles } from '../docs/dxfFiles';
 import { cableRefsUsed } from '../model/cableRefs';
@@ -22,8 +22,10 @@ function currentSvg(): { svg: string; w: number; h: number } | undefined {
 /** Title block details and export of the SLD as a drawing: PDF sheet with
  * frame and title block (A3 / A2 / A1), DXF or DWG for CAD, or plain SVG. The
  * drawing shows what's on screen — result labels, colours, generator mode. */
-export default function SldExportDialog({ project, onSave, onStatus, onClose, stale = false }: {
+export default function SldExportDialog({ project, onSave, onStatus, onClose, stale = false, part }: {
   project: Project;
+  /** Show: the part of the network on screen (its name), added to the exported title and file name. */
+  part?: string;
   /** Results on the diagram are out of date. */
   stale?: boolean;
   onSave: (d: DrawingInfo) => void;
@@ -32,9 +34,9 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
 }) {
   const [d, setD] = useState<DrawingInfo>({ sheet: 'A3', ...project.drawing });
   const [busy, setBusy] = useState('');
-  const t = titleBlockOf({ ...project, drawing: d });
+  const t = titleBlockOf({ ...project, drawing: partDrawing(d, part) });
   const set = (k: keyof DrawingInfo, v: string) => setD({ ...d, [k]: v || undefined });
-  const name = safeFileName(`${project.name} ${d.number || 'SLD'}`);
+  const name = safeFileName(`${project.name} ${d.number || 'SLD'}${part ? ` ${part}` : ''}`);
 
   async function run(kind: 'pdf' | 'dxf' | 'dwg' | 'svg') {
     const cur = currentSvg();
@@ -42,7 +44,7 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
     onSave(d);
     setBusy(kind);
     try {
-      const p = { ...project, drawing: d };
+      const p = { ...project, drawing: partDrawing(d, part) };
       let m: string | null = null;
       if (kind === 'pdf') {
         m = await savePdf(`${name}.pdf`, buildSldSheetHtml(p, cur.svg, d.sheet ?? 'A3'), { pageSize: d.sheet ?? 'A3', landscape: true }, { output: 'drawingPdf', project });
@@ -93,7 +95,7 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
         <label>Checked<input value={d.checkedBy ?? ''} onChange={(e) => set('checkedBy', e.target.value)} /></label>
         <label>Approved<input value={d.approvedBy ?? ''} onChange={(e) => set('approvedBy', e.target.value)} /></label>
       </div>
-      <ExportBar scope={`System diagram · ${d.sheet ?? 'A3'} landscape · as on screen`} revision={<span title="From Documents → Revisions">{t.revision} · {t.date}</span>}
+      <ExportBar scope={`System diagram${part ? ` — ${part}` : ''} · ${d.sheet ?? 'A3'} landscape · as on screen`} revision={<span title="From Documents → Revisions">{t.revision} · {t.date}</span>}
         lead={<button className="chip" onClick={() => { onSave(d); onClose(); }}>Save details</button>}>
         <button className="chip" disabled={!!busy} onClick={() => run('svg')}>{busy === 'svg' ? 'Exporting…' : 'SVG'}</button>
         <button className="chip" disabled={!!busy} onClick={() => run('dxf')} title="R12 DXF at the selected paper size, with editable layers and title block. Additional notes and schedules are included as continuation sheets in a ZIP.">{busy === 'dxf' ? 'Exporting…' : `DXF ${d.sheet ?? 'A3'} (CAD)`}</button>

@@ -36,6 +36,7 @@ describe('the SLD menu runner', () => {
       case 'tieop': return [{ kind: 'tie', id: 'BC-1' }, 'closed'];
       case 'tierating': return [{ kind: 'tie', id: 'BC-1' }, '1600'];
       case 'tieremove': return [{ kind: 'tie', id: 'BC-1' }, undefined];
+      case 'part': return [{ kind: 'substation', name: 'SS-1' }, 'ss:SS-1'];
       default: return [{ kind: 'canvas' }, undefined];
     }
   };

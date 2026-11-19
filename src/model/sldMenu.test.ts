@@ -123,7 +123,7 @@ describe('supply menu', () => {
   it('a transformer', () => {
     const m = menu({ kind: 'supply', boardId: 'MDB-1' });
     expect(m.head).toEqual({ icon: 'transformer', title: 'TX-1', detail: '1000 kVA · 5 % · feeds MDB-1' });
-    expect(labels(m.items)).toEqual(['Edit transformer…', 'Transformer & generator sizing', 'Scenario', 'Add', 'MV supply and RMUs…', '-', 'Zoom to MDB-1', '-', 'Properties']);
+    expect(labels(m.items)).toEqual(['Edit transformer…', 'Transformer & generator sizing', 'Scenario', 'Add', 'MV supply and RMUs…', '-', 'Zoom to MDB-1', 'Show TX-1 only', '-', 'Properties']);
     expect(labels(sub(m.items, 'Add'))).toEqual(['Generator + ATS', 'Generator + interlocked ACBs']);
   });
   it('Bus coupler is offered when there is another main board to tie to', () => {
@@ -141,7 +141,7 @@ describe('supply menu', () => {
     const mc: Project = { ...project, boards: project.boards.map((b) => (b.id === 'MDB-1' ? { ...b, sourceKva: undefined, supply: { fedFrom: 'SEWA' as const } } : b)) };
     const m = menu({ kind: 'supply', boardId: 'MDB-1' }, state(mc));
     expect(m.head).toEqual({ icon: 'board', title: 'Meter cabinet', detail: 'SEWA supply · feeds MDB-1' });
-    expect(labels(m.items)).toEqual(['Edit supply…', '-', 'Zoom to MDB-1', '-', 'Properties']);
+    expect(labels(m.items)).toEqual(['Edit supply…', '-', 'Zoom to MDB-1', 'Show MDB-1 only', '-', 'Properties']);
   });
   it('nothing for a main board that is neither', () => {
     expect(sldMenu(state(), { kind: 'supply', boardId: 'SMDB-FF' })).toBeNull();
@@ -324,5 +324,34 @@ describe('Show this branch only and the Board tab', () => {
   it('the system menus are as before by default', () => {
     expect(rows({ kind: 'feeder', id: 'FF-LAB' })).toEqual(rows({ kind: 'feeder', id: 'FF-LAB' }, state(), 'system'));
     expect(rows({ kind: 'feeder', id: 'FF-LAB' })).toContain('Edit cable…');
+  });
+});
+
+describe('Show (a part of the network)', () => {
+  const ringed: Project = {
+    ...withTwoTx,
+    boards: withTwoTx.boards.map((b) => (b.id === 'MDB-1' || b.id === 'MDB-2' ? { ...b, rmu: 'RMU-1', substation: 'SS-1' } : b)),
+    rmus: [{ name: 'RMU-1', config: 'RRTT' }]
+  };
+  it('an RMU and a substation frame: Show it only, and where they are entered', () => {
+    const r = menu({ kind: 'rmu', name: 'RMU-1' }, state(ringed));
+    expect(r.head).toEqual({ icon: 'hv', title: 'RMU-1', detail: 'RRTT · SS-1 · 2 transformers · 6 boards' });
+    expect(labels(r.items)).toEqual(['Show RMU-1 only', '-', 'MV supply and RMUs…']);
+    expect(find(r.items, 'Show RMU-1 only')).toMatchObject({ arg: 'part|rmu:RMU-1', icon: 'isolate' });
+    const f = menu({ kind: 'substation', name: 'SS-1' }, state(ringed));
+    expect(f.head.title).toBe('Substation SS-1');
+    expect(find(f.items, 'Show SS-1 only')).toMatchObject({ arg: 'part|ss:SS-1' });
+    // While a part is shown they offer Show all too; an RMU that is no longer named has no menu.
+    expect(labels(menu({ kind: 'rmu', name: 'RMU-1' }, state(ringed, { part: 'ss:SS-1' })).items)).toEqual(['Show RMU-1 only', 'Show all', '-', 'MV supply and RMUs…']);
+    expect(sldMenu(state(), { kind: 'rmu', name: 'RMU-1' })).toBeNull();
+  });
+  it('a transformer offers Show it only, marked while it is the part shown', () => {
+    expect(find(menu({ kind: 'supply', boardId: 'MDB-2' }, state(withTwoTx)).items, 'Show TX-2 only')).toMatchObject({ arg: 'part|tx:MDB-2' });
+    expect(find(menu({ kind: 'supply', boardId: 'MDB-2' }, state(withTwoTx, { part: 'tx:MDB-2' })).items, 'Show TX-2 only')?.now).toBe(true);
+  });
+  it('the empty drawing offers Show all only while a part is shown', () => {
+    expect(labels(menu({ kind: 'canvas' }).items)).not.toContain('Show all');
+    expect(find(menu({ kind: 'canvas' }, state(project, { part: 'mv' })).items, 'Show all')).toMatchObject({ arg: 'part|all' });
+    expect(SLD_MENU_ACTIONS).toContain('part');
   });
 });

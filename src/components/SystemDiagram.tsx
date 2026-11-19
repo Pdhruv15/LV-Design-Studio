@@ -20,6 +20,7 @@ import { boardPhaseKw } from '../calc/loadSchedule';
 import { DEWA_EXTRA_Y, ELCB_ROW, LEAF_W, layoutSystem } from '../diagram/layout';
 import MvRing from '../diagram/MvRing';
 import { MV_DY, mvGeometry, mvLeads, mvPlan, mvRingOn, onMvSide, type MvGeom } from '../diagram/mvArrangement';
+import { partKey } from '../diagram/mvShow';
 import { panelSummary } from '../docs/mdSheet';
 import { cpcOf } from '../calc/cableTable';
 import LoadIcon from './LoadIcon';
@@ -104,11 +105,12 @@ export function plannedEarthPits(project: Project): Map<string, string[]> {
  * (mvPlan, from the whole project when only part of it is drawn); once RMUs or substations are
  * named, the ring arrangement (mvRing) is drawn above them: the transformers drop by MV_DY and the
  * main boards by that and the room for the substation frame's bottom line. */
-export function sldLayout(project: Project, dewa: boolean, cableRefs = false, rootExtraY = 0, planned = plannedEarthPits(project), showPlace = false, whole: Project = project) {
+export function sldLayout(project: Project, dewa: boolean, cableRefs = false, rootExtraY = 0, planned = plannedEarthPits(project), showPlace = false, whole: Project = project, withTieStubs = false) {
   const extraY = dewa ? DEWA_EXTRA_Y : 0;
   const iec = (project.drawing?.symbols ?? 'iec') === 'iec';
   const plan = mvPlan(whole);
-  const ring = mvRingOn(whole);
+  // Only a drawing that holds a board on the MV side draws the ring (not a meter cabinet's part or sheet on its own).
+  const ring = mvRingOn(whole) && project.boards.some(onMvSide);
   if (ring) rootExtraY += MV_DY + mvFrameRoom(project, dewa);
   const rootOrder = plan.order;
   let base = layoutSystem(project, extraY, { frames: dewa, cableRefs, rootExtraY, iec, rootOrder });
@@ -148,6 +150,14 @@ export function sldLayout(project: Project, dewa: boolean, cableRefs = false, ro
     const tags = [...(b.kind === 'UPS' ? [upsTag(project, b).text] : []), ...(n.circuits.length ? circuitLines(project, b, n.circuits) : [])];
     endFrames.set(b.id, { left: BOARD_FRAME_IN, right: BOARD_FRAME_PAD + endBoardReach(project, b, tags, loc ? trunc(loc, 30) : undefined) });
   }
+  // Show (a part of the network): a bus coupler to a main board not drawn is a stub beside the busbar, on the side
+  // that board stands on in the whole network, with room for its label.
+  const tieStubs = withTieStubs ? outsideTies(project, whole, plan.order) : [];
+  for (const t of tieStubs) {
+    const r = base.roots.find((x) => x.board.id === t.boardId)!, room = TIE_STUB + Math.max(...t.text.map((x) => textWidth(x, 10)));
+    if (t.dir < 0) rootLead.set(t.boardId, (rootLead.get(t.boardId) ?? 0) + room);
+    else rootReach.set(t.boardId, Math.max(rootReach.get(t.boardId) ?? 0, (r.frame?.x2 ?? r.busX2) - r.x + room));
+  }
   const final = () => layoutSystem(project, extraY, { frames: dewa, cableRefs, rootExtraY, iec, rootLeadX: rootLead, rootReachX: rootReach, endFrameX: endFrames, rootOrder });
   let layout = rootLead.size || rootReach.size || endFrames.size ? final() : base;
   let mvRing: MvGeom | undefined;
@@ -162,7 +172,43 @@ export function sldLayout(project: Project, dewa: boolean, cableRefs = false, ro
     mvRing = mvGeometry(whole, plan, new Map(layout.roots.filter((r) => onMvSide(r.board)).map((r) => [r.board.id, r.x])), opts);
     layout = { ...layout, width: Math.max(layout.width, mvRing.right + 36) };
   }
-  return { layout, earthLead, mvRing };
+  for (const t of tieStubs.filter((x) => x.dir > 0)) {
+    const r = layout.roots.find((x) => x.board.id === t.boardId);
+    if (r) layout = { ...layout, width: Math.max(layout.width, (r.frame?.x2 ?? r.busX2) + TIE_STUB + Math.max(...t.text.map((x) => textWidth(x, 10))) + 12) };
+  }
+  return { layout, earthLead, mvRing, tieStubs };
+}
+
+/** A bus coupler from a drawn main board to one not drawn (Show): the drawn board, the side the other stands on in the
+ * whole network (by the main boards' order), and the stub's label, "to MDB-1" and the other's transformer. */
+export interface TieStub { tie: NonNullable<Project['ties']>[number]; boardId: string; dir: -1 | 1; text: string[] }
+/** Busbar end to the coupler's far side, then the stub and the gap before its label. */
+const TIE_STUB = 64;
+export function outsideTies(project: Project, whole: Project, order: string[]): TieStub[] {
+  const drawn = new Set(project.boards.filter((b) => !b.upstreamId).map((b) => b.id));
+  const at = new Map(order.map((id, i) => [id, i]));
+  const out: TieStub[] = [];
+  for (const tie of whole.ties ?? []) {
+    const [here, other] = drawn.has(tie.a) && !drawn.has(tie.b) ? [tie.a, tie.b] : drawn.has(tie.b) && !drawn.has(tie.a) ? [tie.b, tie.a] : [];
+    if (!here || !other || !whole.boards.some((b) => b.id === other)) continue;
+    const tag = txTag(whole, other);
+    out.push({ tie, boardId: here, dir: (at.get(other) ?? Infinity) < (at.get(here) ?? 0) ? -1 : 1, text: [`${tie.id} to ${other}`, ...(tag ? [`(${tag})`] : [])] });
+  }
+  return out;
+}
+
+/** The part of the network drawn (Show), as the chip names it; see mvShow.ts. */
+export interface ShownPart {
+  key: string;
+  name: string;
+  detail?: string;
+  counts: string;
+  /** The MV overview: the MV side only, each main board drawn as its name. */
+  overview?: boolean;
+  /** The previous / next part of the same kind (◀ ▶), with its name for the tooltip. */
+  prev?: { name: string; go: () => void };
+  next?: { name: string; go: () => void };
+  onShowAll: () => void;
 }
 
 /** Room between a transformer and its main board for the substation frame's bottom line: the DEWA style's frame
@@ -356,7 +402,8 @@ export default function SystemDiagram({
   menuFor,
   onMenu,
   onStatus,
-  screenMarks = false
+  screenMarks = false,
+  shown
 }: {
   project: Project;
   /** The project the results were calculated for (the last run). */
@@ -440,6 +487,9 @@ export default function SystemDiagram({
   /** Marks shown on screen only (off while exporting): the "len?" mark on an incomer moved to another source (its cable
    * length is still to be checked) and the Show this branch only view. */
   screenMarks?: boolean;
+  /** Show (SLD ribbon → View → Show): the part drawn, named on a chip at the drawing's top left. The page passes that
+   * part as `project` and the whole project as `wholeProject`; a bus coupler to a main board not drawn becomes a stub. */
+  shown?: ShownPart;
 }) {
   const iec = (project.drawing?.symbols ?? 'iec') === 'iec';
   // DEWA submission style: panel frames, summary boxes (LOC, TCL, DF, MDL), DEWA wording.
@@ -499,7 +549,8 @@ export default function SystemDiagram({
   // Earth pit IDs (E1, E2 …) from the earthing plan, so the SLD and the earthing sheet agree.
   const earthPits = useMemo(() => plannedEarthPits(project), [project]);
   const whole = wholeProject ?? project;
-  const { layout, earthLead, mvRing } = useMemo(() => sldLayout(project, dewa, cableRefs, earthLift, earthPits, !!layers?.location, whole), [project, dewa, cableRefs, earthLift, earthPits, layers?.location, whole]);
+  const stubTies = !!shown && !shown.overview;
+  const { layout, earthLead, mvRing, tieStubs } = useMemo(() => sldLayout(project, dewa, cableRefs, earthLift, earthPits, !!layers?.location, whole, stubTies), [project, dewa, cableRefs, earthLift, earthPits, layers?.location, whole, stubTies]);
   // The ring arrangement draws the transformers (and every main board's supply rows) this much lower.
   const mvDy = mvRing ? MV_DY : 0;
   // Without it, one 11 kV line over the main boards on the 11 kV side, the utility above their middle.
@@ -624,7 +675,8 @@ export default function SystemDiagram({
   };
 
   // The symbol legend sits to the right of the network, inside the drawing (so it exports).
-  const legend = useMemo(() => (iec && !hideLegend && (project.drawing?.legend ?? true) ? legendEntries(calcProject ?? project) : []), [iec, hideLegend, project, calcProject]);
+  // A part (Show) lists the symbols it draws, as a sheet does.
+  const legend = useMemo(() => (iec && !hideLegend && (project.drawing?.legend ?? true) ? legendEntries(shown ? project : calcProject ?? project) : []), [iec, hideLegend, project, calcProject, shown]);
   const legendW = legendWidth(legend);
   const W = layout.width + (legend.length ? legendW + 30 : 0);
   // With the Level and room line drawn, the lowest DBs' tags sit one line further down.
@@ -795,6 +847,16 @@ export default function SystemDiagram({
     opened.current = project.id;
     setVb(openingView(W, H, el.clientWidth, el.clientHeight, layout.roots[0]?.x));
   }, [resizable, project.id, fullScreen, height, autoHeight, W, H, layout.roots, setVb]);
+
+  // Show: a newly shown part is drawn fitted. This runs before the centring below, so a board picked outside the part
+  // (which shows that board's part) is still centred on.
+  const lastPart = useRef(shown?.key ?? 'all');
+  useEffect(() => {
+    const k = shown?.key ?? 'all';
+    if (k === lastPart.current) return;
+    lastPart.current = k;
+    setVb({ x: 0, y: 0, w: W, h: H });
+  }, [shown?.key, W, H, setVb]);
 
   // Centre on a panel or circuit picked in the results below the drawing.
   const lastFocus = useRef<number | undefined>(undefined);
@@ -1150,7 +1212,7 @@ export default function SystemDiagram({
     if (armed && onDropItem) { e.preventDefault(); setArmedItem(null); return; }
     if (!menuFor) return;
     e.preventDefault();
-    const hit = (e.target as Element).closest('g.tie, g.tx, g.fd, g.bd');
+    const hit = (e.target as Element).closest('g.tie, g.tx, g.fd, g.bd, g.rmu, g.ss-frame');
     const id = hit?.getAttribute('data-lv-id')?.split(':').slice(1).join(':');
     if (hit && id && (hit.classList.contains('fd') || hit.classList.contains('bd'))) {
       // On one of two or more picked: the menu of all of them. On anything else the picks end.
@@ -1161,6 +1223,8 @@ export default function SystemDiagram({
     if (hit && picked.length) setPicked([]);
     let t: SldTarget = { kind: 'canvas' };
     if (hit?.classList.contains('tie') && hit.getAttribute('data-tie')) t = { kind: 'tie', id: hit.getAttribute('data-tie')! };
+    else if (hit?.classList.contains('rmu') && hit.getAttribute('data-rmu')) t = { kind: 'rmu', name: hit.getAttribute('data-rmu')! };
+    else if (hit?.classList.contains('ss-frame') && hit.getAttribute('data-ss')) t = { kind: 'substation', name: hit.getAttribute('data-ss')! };
     else if (hit?.classList.contains('tx') && id) { t = { kind: 'supply', boardId: id }; onSelectBoard(id); }
     else if (hit?.classList.contains('fd') && id) {
       const f = project.feeders.find((x) => x.id === id);
@@ -1217,7 +1281,7 @@ export default function SystemDiagram({
     <div
       ref={rootRef}
       data-doc-id="sld-canvas"
-      className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${armed && onDropItem ? ' armed' : ''}${dropCls('canvas')}${stale ? ' stale' : ''}${lodLevel}`}
+      className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${armed && onDropItem ? ' armed' : ''}${dropCls('canvas')}${stale ? ' stale' : ''}${lodLevel}${shown ? ' shown' : ''}`}
       tabIndex={0}
       aria-label="Single line diagram. Plus and minus zoom, F or 0 fits, arrow keys pan, G changes the grid, Shift+F10 opens the menu."
       onKeyDown={(e) => {
@@ -1259,6 +1323,17 @@ export default function SystemDiagram({
       }}
       style={{ ...(resizable && !fullScreen && (height ?? autoHeight) ? { height: height ?? autoHeight } : {}), ...(lodLevel === ' lod-far' ? { '--lod-fs': lodFont(pxPerUnit) } : {}) } as CSSProperties}
     >
+      {shown && (
+        <div className="sd-shown" role="group" aria-label={`Showing ${shown.name}`}>
+          <span>Showing <b>{shown.name}</b>{shown.detail && <span className="m"> · {shown.detail}</span>}</span>
+          <span>{shown.counts}</span>
+          {(shown.prev || shown.next) && <>
+            <button className="chip" disabled={!shown.prev} onClick={shown.prev?.go} aria-label="Previous" title={shown.prev ? `Show ${shown.prev.name}` : undefined}>◀</button>
+            <button className="chip" disabled={!shown.next} onClick={shown.next?.go} aria-label="Next" title={shown.next ? `Show ${shown.next.name}` : undefined}>▶</button>
+          </>}
+          <button className="chip" onClick={shown.onShowAll} title="Draw the whole network">Show all</button>
+        </div>
+      )}
       <div className="sysdiag-tools" role="toolbar" aria-label="Diagram tools" data-doc-id="sld-display-tools">
         {(onDrawing || lod) && (
           <div className="sd-group" role="group" aria-label="Drawing">
@@ -1329,7 +1404,8 @@ export default function SystemDiagram({
 
         {/* Utility and transformers: the ring arrangement once RMUs or substations are named, else one 11 kV
             line over the transformers (a main board on an authority LV supply has its own source). */}
-        {main && mvRing && <MvRing geom={mvRing} rmuTitle={rmuTitle} sourceTitle={(g) => (g ? gridTitle(g) : undefined)} />}
+        {main && mvRing && <MvRing geom={mvRing} rmuTitle={rmuTitle} sourceTitle={(g) => (g ? gridTitle(g) : undefined)}
+          onFrameOpen={shown?.overview && onMenu ? (name) => onMenu({ kind: 'substation', name }, 'part', partKey({ kind: 'substation', name })) : undefined} />}
         {main && !mvRing && mvRoots.some((r) => r.board.sourceKva) && (
           <g>
             <circle cx={utilityX} cy="22" r="11" className="sym" />
@@ -1583,6 +1659,30 @@ export default function SystemDiagram({
               <text x={mx} y={y + 24} textAnchor="middle" className={run ? `res ${run.loadingPct > 100 ? 'bad' : run.loadingPct > 85 ? 'warn' : 'ok'}` : 'm'}>
                 {run ? `CLOSED · ${fmtFixed(run.currentA, 0)} A (${fmtFixed(run.loadingPct, 0)}%)` : t.closed ? 'N/C' : 'N/O'}
               </text>
+            </g>
+          );
+        })}
+
+        {/* Show: a bus coupler to a main board not drawn, as a stub beside the busbar ("BC-1 to MDB-1 (TX-1)") */}
+        {tieStubs.map((t) => {
+          const r = layout.roots.find((x) => x.board.id === t.boardId);
+          if (!r) return null;
+          // From the busbar end; the coupler and label stand past the panel frame (DEWA style) and the LV earth pits
+          // outside it, as a whole coupler's symbol does.
+          const d = t.dir, y = r.busY, x0 = d < 0 ? r.busX1 : r.busX2;
+          const edge = d < 0 ? (r.frame ? r.frame.x1 - (earthLead.has(r.board.id) ? earthLead.get(r.board.id)! + 7 : 0) : r.busX1) : (r.frame ? r.frame.x2 : r.busX2);
+          const cx = edge + d * 21, end = edge + d * 52;
+          const shut = !!t.tie.closed, other = t.tie.a === t.boardId ? t.tie.b : t.tie.a;
+          return (
+            <g key={`tie-stub-${t.tie.id}`} className="tie tie-stub" data-tie={t.tie.id} onClick={click(() => onEditTie?.(t.tie.id))}>
+              <title>{`${t.tie.id}: bus coupler ${t.tie.ratingA} A to ${other}, ${shut ? 'normally closed' : 'normally open'} — ${other} is not drawn here`}</title>
+              <line x1={x0} y1={y} x2={cx - d * 9} y2={y} className="tie-ln" data-dxf-layer="BUSBAR" />
+              <rect x={cx - 9} y={y - 9} width="18" height="18" rx="2" className="sym" />
+              {shut ? <line x1={cx - 9} y1={y} x2={cx + 9} y2={y} className="ln" /> : <line x1={cx - 6} y1={y + 6} x2={cx + 6} y2={y - 6} className="ln" />}
+              <line x1={cx + d * 9} y1={y} x2={end} y2={y} className="tie-ln" data-dxf-layer="BUSBAR" />
+              <circle cx={end + d * 2.2} cy={y} r="2.2" className="sym" />
+              <text className="m" x={end + d * 8} y={y - 3} textAnchor={d < 0 ? 'end' : 'start'} style={{ fontSize: 10 }}>{t.text[0]}</text>
+              {t.text[1] && <text className="m" x={end + d * 8} y={y + 10} textAnchor={d < 0 ? 'end' : 'start'} style={{ fontSize: 10 }}>{t.text[1]}</text>}
             </g>
           );
         })}
@@ -1844,6 +1944,18 @@ export default function SystemDiagram({
           // generator changeover); the busbar, its label and what is on it stay on the real busbar.
           const n = real.headY === real.busY ? real : { ...real, busY: real.headY };
           const b = n.board;
+          if (shown?.overview && !b.upstreamId) {
+            const w = Math.max(68, textWidth(b.id, 12, true) + 16), top = real.headY - 58, sel = b.id === selectedBoardId;
+            return (
+              <g key={b.id} className={`bd mv-name${sel ? ' sel' : ''}`} data-lv-id={`board:${b.id}`} onClick={itemClick({ kind: 'board', id: b.id }, () => onSelectBoard(b.id))}
+                onDoubleClick={edit(onEditBoard, b.id)} tabIndex={0} onKeyDown={(e) => (e.key === 'Enter' ? onSelectBoard(b.id) : e.key === 'F2' && edit(onEditBoard, b.id)())}>
+                <title>{`${b.id} — Show its substation or transformer to draw what it feeds`}</title>
+                <rect x={n.x - w / 2} y={top} width={w} height={22} rx="2" className="sym" />
+                {sel && <rect x={n.x - w / 2 - 3} y={top - 3} width={w + 6} height={28} rx="3" style={{ fill: 'none', stroke: 'var(--acc)', strokeWidth: 2 }} />}
+                <text className="b" x={n.x} y={top + 15} textAnchor="middle">{b.id}</text>
+              </g>
+            );
+          }
           const s = summaries.get(b.id)!;
           const status = worst([s.loadingStatus, ...(feedersOn.get(b.id) ?? []).map((f) => byFeeder.get(f.id)?.status)]);
           const sel = b.id === selectedBoardId || pickedBoards.has(b.id);
