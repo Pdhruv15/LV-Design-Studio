@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SLD → Sheets menu — mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Blueprint light; tab row from src/styles.css (.stage-head, .seg, .sld-bar) */
+:root{--bg:#EDF3FA;--panel:#ffffff;--p2:#E4EDF6;--line:#C9D8E8;--line-strong:#A7BED6;--tx:#142D4A;--mut:#4A647F;--acc:#1D5FBF;--ok:#177336;--new:#7a3fd1}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/18px -apple-system,"Segoe UI",system-ui,sans-serif;width:1952px;padding:16px 20px 20px}
+h1{font-size:17px;line-height:22px;margin:0 0 4px}
+h2{font-size:13px;line-height:18px;margin:22px 0 6px;font-weight:600}
+h2 .hm{font-weight:400;color:var(--mut);margin-left:8px}
+.n{display:inline-block;width:18px;height:18px;line-height:18px;border-radius:50%;background:var(--new);color:#fff;text-align:center;font-size:11px;font-weight:700;margin-right:6px;vertical-align:1px;font-style:normal}
+p.lead{margin:0 0 8px;color:var(--mut);max-width:1640px}
+.legend{color:var(--mut);font-size:12px;margin:0}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin:0 5px 0 14px;border:1.5px dashed var(--new)}
+.ico{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:-2px}
+.frame{border:1px solid var(--line-strong);border-radius:8px;background:var(--panel);position:relative}
+.row{display:flex;gap:18px;align-items:flex-start}
+.nw{outline:1.5px dashed var(--new);outline-offset:2px;border-radius:6px}
+.note{font-size:12px;line-height:18px;color:var(--mut)}
+.note b{color:var(--tx)}
+
+/* the SLD page's tab row */
+.head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.left{display:flex;align-items:center;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--panel)}
+.seg span{padding:5px 12px;white-space:nowrap}
+.seg span.on{background:var(--acc);color:#fff}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:6px;padding:5px 10px;background:var(--panel);white-space:nowrap}
+.btn.on{border-color:var(--acc);color:var(--acc)}
+.chip{display:inline-flex;align-items:center;gap:5px;color:var(--ok);font-weight:600;white-space:nowrap}
+.chip .m{color:var(--mut);font-weight:400}
+.sel{border:1px solid var(--line);border-radius:6px;padding:5px 30px 5px 10px;background:var(--panel);white-space:nowrap}
+.bar{display:flex;align-items:center;gap:8px}
+.canvas{height:300px;background:linear-gradient(var(--line) 1px,transparent 1px) 0 0/40px 40px,linear-gradient(90deg,var(--line) 1px,transparent 1px) 0 0/40px 40px;background-color:#F4F8FC;opacity:.55;border-radius:0 0 8px 8px}
+
+/* the open menu */
+.menu{position:absolute;z-index:2;width:430px;background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;box-shadow:0 8px 24px rgba(20,45,74,.18);padding:6px 0}
+.menu .gh{font-size:11px;line-height:16px;color:var(--mut);padding:4px 14px 2px;text-transform:uppercase;letter-spacing:.04em}
+.menu .it{display:flex;align-items:baseline;gap:10px;padding:5px 14px}
+.menu .it.hl{background:var(--p2)}
+.menu .it b{font-weight:600;white-space:nowrap}
+.menu .it .t{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.menu .it .s{font-size:11px;color:var(--mut);white-space:nowrap}
+.menu .it .d{display:block;font-size:11px;line-height:15px;color:var(--mut)}
+.menu .sep{height:1px;background:var(--line);margin:5px 0}
+.menu .ft{font-size:11px;line-height:16px;color:var(--mut);padding:4px 14px 2px}
+.menu .add{color:var(--acc)}
+
+/* option B: the old sheet strip */
+.strip{display:flex;gap:2px;padding:6px 12px;border-bottom:1px solid var(--line);background:var(--p2)}
+.strip span{padding:3px 10px;border-radius:5px;white-space:nowrap;font-size:12px}
+.strip span.on{background:var(--panel);border:1px solid var(--line)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+</style>
+</head>
+<body>
+<h1>SLD page — a Sheets menu at the end of the diagram tabs</h1>
+<p class="lead">Proposal of 2026-11-19 (<i>UI UX proposals - 2026-11-19 - SLD sheets menu.md</i>). The sheets stay in Design CAD → Sheets, as decided on 2026-10-29. The SLD page gets one way into them, next to the four diagram tabs. Each item opens Design CAD → Sheets at that sheet or register tab. Example project: MDB-1 with SMDB-FF, MCC-1, DB-EV and DB-PV; two SLD sheets and one riser sheet.</p>
+<p class="legend"><i></i>new</p>
+
+<h2><span class="n">1</span>System diagram, menu open <span class="hm">option A (recommended)</span></h2>
+<div class="frame" style="width:1600px">
+  <div class="head">
+    <div class="left">
+      <div class="seg"><span class="on">System diagram</span><span>Board: MDB-1</span><span>Earthing</span><span>Riser</span></div>
+      <span class="btn on nw"><svg class="ico" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h6"/></svg>Sheets <svg class="ico" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+    </div>
+    <div class="bar">
+      <span class="btn">+ Add <svg class="ico" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+      <span class="chip"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>Calculated <span class="m">· 11:28</span></span>
+      <span class="sel">Results: built-in</span>
+    </div>
+  </div>
+  <div class="canvas"></div>
+  <div class="menu nw" style="left:466px;top:46px">
+    <div class="gh">Sheets of the system diagram</div>
+    <div class="it hl"><b>E-SLD-001</b><span class="t">SLD — MDB-1, DB-EV, DB-PV</span><span class="s">For approval</span></div>
+    <div class="it"><b>E-SLD-002</b><span class="t">SLD — SMDB-FF and MCC-1</span><span class="s">For approval</span></div>
+    <div class="sep"></div>
+    <div class="gh">The sheet set</div>
+    <div class="it"><span class="t">All sheets<span class="d">The register: filters, bulk changes, export</span></span></div>
+    <div class="it"><span class="t">Sheet setup<span class="d">How sheets are made: panels per sheet, values printed, legend</span></span></div>
+    <div class="it"><span class="t">Title block and numbering</span></div>
+    <div class="it"><span class="t">Issues and transmittals</span></div>
+    <div class="sep"></div>
+    <div class="ft">Opens Design CAD → Sheets. Paper, scale and pens: Page setups there.</div>
+  </div>
+</div>
+<p class="note" style="width:1600px">The button sits right after the four tabs, apart from them, because it opens another page. Its tooltip: <b>Sheets of this diagram and the sheet set, in Design CAD → Sheets</b>. The first group lists the sheets that show what is on screen; the second group is the register tabs that the Design CAD ribbon already has (All sheets, Layout, Title block, Issues). "Sheet setup" is the Layout tab, under the name the item had on the SLD before v2.4.</p>
+
+<div class="cols" style="width:1600px">
+  <div>
+    <h2><span class="n">2</span>Board: MDB-1, no sheet of its own yet</h2>
+    <div class="frame">
+      <div class="head">
+        <div class="left">
+          <div class="seg"><span>System diagram</span><span class="on">Board: MDB-1</span><span>Earthing</span><span>Riser</span></div>
+          <span class="btn on nw">Sheets <svg class="ico" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+        </div>
+      </div>
+      <div class="canvas" style="height:250px"></div>
+      <div class="menu nw" style="left:404px;top:46px;width:360px">
+        <div class="gh">Sheets showing MDB-1</div>
+        <div class="it"><b>E-SLD-001</b><span class="t">SLD — MDB-1, DB-EV, DB-PV</span></div>
+        <div class="it add"><span class="t">Make a sheet of MDB-1 on its own…</span></div>
+        <div class="sep"></div>
+        <div class="gh">The sheet set</div>
+        <div class="it"><span class="t">All sheets · Sheet setup · Title block · Issues</span></div>
+      </div>
+    </div>
+    <p class="note">The board's own sheet is a <b>circuit diagram</b> sheet (kind <i>board</i>). "Make a sheet…" adds it to the set, as Design CAD → Sheets → Add does today, then opens it.</p>
+  </div>
+  <div>
+    <h2><span class="n">3</span>Riser and Earthing</h2>
+    <div class="frame">
+      <div class="head">
+        <div class="left">
+          <div class="seg"><span>System diagram</span><span>Board: MDB-1</span><span>Earthing</span><span class="on">Riser</span></div>
+          <span class="btn on nw">Sheets <svg class="ico" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+        </div>
+      </div>
+      <div class="canvas" style="height:250px"></div>
+      <div class="menu nw" style="left:404px;top:46px;width:360px">
+        <div class="gh">Sheets of this riser</div>
+        <div class="it"><b>E-RSR-001</b><span class="t">Riser — Building A</span></div>
+        <div class="sep"></div>
+        <div class="gh">The sheet set</div>
+        <div class="it"><span class="t">All sheets · Sheet setup · Title block · Issues</span></div>
+      </div>
+    </div>
+    <p class="note">On <b>Earthing</b> the first group lists the earthing schematic, earth riser or floor earthing sheet of the tab shown: the same sheet the Earthing screen's own Sheets button opens today (decision 4).</p>
+  </div>
+</div>
+
+<h2><span class="n">B</span>Option B, for comparison: the sheet strip of before v2.4</h2>
+<div class="frame" style="width:1600px">
+  <div class="head">
+    <div class="left"><div class="seg"><span class="on">System diagram</span><span>Board: MDB-1</span><span>Earthing</span><span>Riser</span></div></div>
+  </div>
+  <div class="strip nw"><span class="on">Design</span><span>E-SLD-001</span><span>E-SLD-002</span><span>E-RSR-001</span><span>E-ERT-001</span><span>+</span></div>
+  <div class="canvas" style="height:60px"></div>
+</div>
+<p class="note" style="width:1600px">Every sheet always in view, one click each. It costs a row of height on every SLD view, and with 30 or more sheets the strip scrolls. Each tab would still open Design CAD → Sheets, so the strip only looks like the old one.</p>
+
+<script>
+document.head.appendChild(document.createElement('style')).textContent = '@page{size:1952px ' + (Math.ceil(document.documentElement.scrollHeight) + 4) + 'px;margin:0}';
+</script>
+</body>
+</html>
