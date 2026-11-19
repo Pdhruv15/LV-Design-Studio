@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.214', date: '2026-11-19',
+    items: [
+      { title: 'Sheets: ELV formulas', text: 'Formulas in Sheets can now size ELV systems with the methods of the ELV estimate: FABATT(quiescent mA, alarm mA) for the fire alarm battery in Ah (24 h standby, 30 min alarm, × 1.25 unless given), FACHARGE(Ah) for the charger current, POESWITCH(devices, W each, ports, PoE budget W) for the PoE switches, CAMRANGE(field of view °, pixels, "R") for how far a camera can detect, observe, recognise or identify ("D", "O", "R", "I"), PAWATTS(speaker taps W) for the PA amplifier power, NVRTB(cameras, Mbps, days) for the recording storage in TB, and VDDC(mA, length m, mm²) for the voltage drop of a 24 V loop or sounder circuit.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
     version: '2.213', date: '2026-11-19',
     items: [
       { title: 'Sheets: electrical formulas', text: 'Formulas in Sheets can now use the app\'s own electrical functions, worked out with its cable and breaker data: AMPS(kW, pf) for the current, KW(A, pf) for the power, VD(A, length m, mm², pf) for the voltage drop %, BREAKER(A) for the next breaker rating, CABLESIZE(A, length m, pf, ambient °C, VD limit %) for the cable, DERATE(ambient °C) for the rating factor, CPC(mm²) for the earth conductor, TXSIZE(kVA) for the transformer, FAULTKA(kVA, Z %) for the fault level and KVAR(kW, pf now, pf target) for the capacitors. Phases (3 or 1) and the voltage can follow; 400 V or 230 V is used without one. Excel does not have these functions, so a saved Excel file gets their values, with the formula in the cell\'s note; Sheets reads the formula back when it opens the file.', action: 'sheets', actionLabel: 'Open Sheets' }

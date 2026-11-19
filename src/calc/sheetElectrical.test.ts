@@ -13,8 +13,7 @@ afterEach(() => { setCables(null); setBreakerLists(null, null); });
 describe('sheet formulas — electrical functions', () => {
   it('are sheet functions of the app\'s own, which Excel does not have', () => {
     const own = ['AMPS', 'BREAKER', 'CABLESIZE', 'CPC', 'DERATE', 'FAULTKA', 'KVAR', 'KW', 'TXSIZE', 'VD'];
-    expect(APP_FUNCTIONS).toEqual(own);
-    for (const f of own) expect(SHEET_FUNCTIONS).toContain(f);
+    for (const f of own) { expect(APP_FUNCTIONS).toContain(f); expect(SHEET_FUNCTIONS).toContain(f); }
   });
 
   it('AMPS and KW: line current from kW and back, 3-phase 400 V or 1-phase 230 V unless a voltage is given', () => {
