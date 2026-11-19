@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.210', date: '2026-11-19',
+    items: [
+      { title: 'Sheets: electrical formulas', text: 'Formulas in Sheets can now use the app\'s own electrical functions, worked out with its cable and breaker data: AMPS(kW, pf) for the current, KW(A, pf) for the power, VD(A, length m, mm², pf) for the voltage drop %, BREAKER(A) for the next breaker rating, CABLESIZE(A, length m, pf, ambient °C, VD limit %) for the cable, DERATE(ambient °C) for the rating factor, CPC(mm²) for the earth conductor, TXSIZE(kVA) for the transformer, FAULTKA(kVA, Z %) for the fault level and KVAR(kW, pf now, pf target) for the capacitors. Phases (3 or 1) and the voltage can follow; 400 V or 230 V is used without one. Excel does not have these functions, so a saved Excel file gets their values, with the formula in the cell\'s note; Sheets reads the formula back when it opens the file.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
     version: '2.209', date: '2026-11-19',
     items: [
       { title: 'MV, not HV, for the 11 kV side', text: 'The 11 kV supply is now called MV (medium voltage) throughout the app: the MV supply and RMUs card in Panels → Transformers and its item in the SLD ribbon\'s Supply menu, the Shared MV body earth earthing system and the MV BODY note on the earthing schematic, the MV supply row of the revision compare, and the MV network line in the reports. Projects open as before; only the names changed. The DEWA forms keep DEWA\'s own wording, LV/HV-CT.' }

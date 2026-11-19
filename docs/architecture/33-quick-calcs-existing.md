@@ -72,6 +72,7 @@ The module has three parts.
 | Generator dip in outage scenarios | 12-transformer-generator / 06-network-sld-editor | `scenario.ts` (:62–69), `SystemDiagram.tsx` (:1471, :1510) |
 | Starter symbol / label on SLD | 24-drawings-sld-sheets / 06-network-sld-editor | `sldDevices.ts` (:27–30), `IecSymbols.tsx` (:83) |
 | Quick formulas as CLI / MCP tools | 31-headless-cli-mcp | `headless/tools.ts` `calc_current`, `calc_voltage_drop`, `calc_cable_size`, `calc_transformer`, `calc_fault_level`, `calc_motor`, `calc_pf_correction` (:196–281) |
+| Quick formulas as sheet functions (AMPS, KW, VD, BREAKER, CABLESIZE, DERATE, CPC, TXSIZE, FAULTKA, KVAR) | Sheets page (built-in Excel) | `sheetElectrical.ts:ELECTRICAL_FUNCTIONS`, registered in `sheetFormula.ts`; `sheetXlsx.ts:buildXlsx` saves them as values with the formula in the cell note, `readXlsx` reads it back |
 | Starter list in component / preset editors | 32-component-database / 03-parameters-rules | `ComponentEditor.tsx` (:46), `PresetEditor.tsx` (:69) |
 
 ## 5. User flow — from button click to result
@@ -101,6 +102,7 @@ The module has three parts.
 - **20-equipment-boq-pricing**: existing boards and feeders are left out of the BOQ.
 - **31-headless-cli-mcp**: seven quick formulas are exposed as MCP / CLI tools.
 - **18-lighting-emergency**: the lux tab calls the shared `lumenMethod`.
+- **Sheets page**: `src/calc/sheetElectrical.ts` gives sheet formulas ten quick formulas (current, power, voltage drop, breaker, cable size, derating, CPC, transformer size, fault level, kvar). `CABLESIZE` sizes for a set number of runs with the `selectCableRuns` rules.
 
 
 

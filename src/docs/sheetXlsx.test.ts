@@ -224,4 +224,31 @@ describe('Sheets — saving an Excel file', () => {
     expect(ws.getCell('B9').value).toEqual({ formula: 'Rates!B2*2', result: 14 });
     expect(ws.getCell('H5').value).toEqual({ formula: 'SUM(H2:H4)', result: 8 });
   });
+
+  it('an app formula (Excel has no AMPS or VD) goes out as its value with the formula in the note, and comes back as the formula', async () => {
+    const s = withCells({ ...newSheet(), name: 'DB' }, { A1: '10', B1: '0.85', C1: '=AMPS(A1,B1)', D1: '=BREAKER(C1)', E1: '=C1*2', F1: '=VD(C1,30,7,0.85)', G1: '=CABLESIZE(9999,10,0.85,40,4)' });
+    const wb = buildXlsx([s]), ws = wb.getWorksheet('DB')!;
+    const amps = sheetValues(s).C1.value as number;
+    expect(amps).toBeCloseTo(16.98, 2);
+    expect(ws.getCell('C1').value).toBe(amps);
+    expect(ws.getCell('C1').note).toBe('LV Design Studio formula:\n=AMPS(A1,B1)');
+    expect(ws.getCell('D1').value).toBe(20);
+    expect(ws.getCell('E1').value).toEqual({ formula: 'C1*2', result: amps * 2 }); // Excel works this one out from C1's value
+    expect(ws.getCell('F1').value).toEqual({ error: '#N/A' }); // 7 mm² is not a cable size
+    expect(ws.getCell('G1').value).toEqual({ error: '#N/A' });
+    const back = (await readXlsx((await wb.xlsx.writeBuffer()) as ArrayBuffer, 'out.xlsx'));
+    expect(back.sheets[0].cells).toEqual(s.cells);
+    expect(back.sheets[0].kept).toBeUndefined();
+    expect(back.report.formulas).toBe(5);
+  });
+
+  it('a note that only looks like an app formula is not read as one', async () => {
+    const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('S');
+    ws.getCell('A1').value = 12;
+    ws.getCell('A1').note = 'Checked on site';
+    ws.getCell('A2').value = 5;
+    ws.getCell('A2').note = 'LV Design Studio formula:\nnot a formula';
+    const back = (await readXlsx((await wb.xlsx.writeBuffer()) as ArrayBuffer, 'x.xlsx')).sheets[0];
+    expect(back.cells).toEqual({ A1: '12', A2: '5' });
+  });
 });
