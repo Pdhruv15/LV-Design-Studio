@@ -52,7 +52,7 @@ Under the screen sits the **core electrical calculation** used by every study:
 | `src/model/renamePanels.ts` | model | `renameProblems`, `renamePanels`, `renameByLevel`, `proposeNumbers` | Rename boards and update every reference |
 | `src/diagram/layout.ts` | diagram | `layoutSystem` | Positions of boards and ways on the system SLD |
 | `src/diagram/mvArrangement.ts`, `MvRing.tsx` | diagram | `mvPlan`, `mvGeometry`, `mvLeads`, `mvSheetKey` | The 11 kV ring through the RMUs, the substation frames and the stubs to what is drawn elsewhere, once main boards name their RMU or substation |
-| `src/diagram/mvShow.ts` | diagram | `supplyTree`, `showRows`, `partProject`, `shownPart`, `partInfo`, `partSteps` | SLD ribbon → View → Show: the part of the network the system diagram draws (whole network, MV overview, a substation, RMU or transformer) and the chip on the drawing |
+| `src/diagram/mvShow.ts` | diagram | `supplyTree`, `showRows`, `partProject`, `shownPart`, `partInfo`, `partSteps`, `treeGroups` | SLD ribbon → View → Show: the part of the network the system diagram draws (whole network, MV overview, a substation, RMU or transformer) and the chip on the drawing; the panel tree's Group → Substations rows (`PanelTree.tsx`) |
 | `src/diagram/sldDevices.ts`, `panelBox.ts`, `panelLabels.ts` | diagram | `sldDevices`, `panelSymbolOf`, `incomerTexts`, `cableLines`, `breakerText` | Devices, symbols and texts per way and board |
 | `src/diagram/symbolLibrary.tsx`, `IecSymbols.tsx` | diagram | `Sym`, `SwitchSym`, `LoadSym`, `legendEntries` | IEC symbols and legend |
 | `src/diagram/heatmap.ts` | diagram | `feederRatio`, `boardRatio`, `earthRatio`, `heatColor` | Screen colouring by VD / loading / utilisation / fault duty / earth loop |
