@@ -18,7 +18,7 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.213', date: '2026-11-19',
+    version: '2.214', date: '2026-11-19',
     items: [
       { title: 'Panel tree: Group by substation', text: 'Once a main board names its RMU or substation (Panels → Transformers), the panel tree has a Group switch: Boards, as before, or Substations. Substations lists each substation, its RMUs and their main boards with the transformer\'s kVA (and its number, e.g. TX-1, when the tree is wide enough), then the boards below. Main boards in no substation go under "No substation", meter cabinets under "Authority supply". On the SLD page a click on a substation or RMU shows it on the drawing; on other pages a double-click does. Find a board… also finds a substation or RMU by name.' }
     ]
