@@ -1,6 +1,6 @@
 import type { Board, Project } from '../types';
 import { txTag } from '../model/transformers';
-import { authoritySupplied, mvPlan, onMvSide, substationTitle } from './mvArrangement';
+import { authoritySupplied, mvPlan, mvRingOn, onMvSide, substationTitle } from './mvArrangement';
 
 /** Show (SLD ribbon → View → Show; proposal 2026-11-18, part 2): the part of the network the system diagram draws. The
  * whole network; the MV overview (the MV side only, each main board as its name); a substation, an RMU or a transformer
@@ -253,4 +253,61 @@ export function showRows(project: Project, current: SldPart, selected?: string):
   rows.push({ key: 'sel', part: sel && sel.kind !== 'all' ? partKey(sel) : undefined, label: 'Selection\'s substation', note: sel && sel.kind !== 'all' ? partInfo(project, sel).name : undefined, depth: 0, sep: true,
     disabled: !sel || sel.kind === 'all', title: sel && sel.kind !== 'all' ? `Show the part of ${selected}: ${partInfo(project, sel).name}` : 'Select a board on the drawing first' });
   return rows;
+}
+
+/** A group row of the panel tree by substation (proposal part 3): a substation, an RMU, "No substation" or "Authority
+ * supply". Its items are RMUs and main boards (by id), in ring order. */
+export interface TreeGroup {
+  /** Unique: a substation's or an RMU's part key, else "none" or "supply". */
+  key: string;
+  /** The part the row shows on the SLD (a substation or an RMU). */
+  part?: string;
+  label: string;
+  /** An RMU's configuration. */
+  detail?: string;
+  /** What it holds, e.g. "2 TX · 25 boards"; none on an RMU row, as the tree is narrow (its title says it). */
+  note?: string;
+  /** What it is and holds, for the row's tooltip. */
+  title: string;
+  items: TreeItem[];
+}
+/** A group, or a main board by id. */
+export type TreeItem = TreeGroup | string;
+
+/** The panel tree grouped by substation: each substation → its RMUs → their main boards, in ring order. RMUs and
+ * transformers in no substation, and a board whose upstream board is gone, go under "No substation" (at the top level
+ * when no substation is named); main boards on an authority LV supply under "Authority supply". Undefined when no main
+ * board names an RMU or a substation: there is nothing to group, and the tree has no Group switch. */
+export function treeGroups(project: Project): TreeItem[] | undefined {
+  if (!mvRingOn(project)) return undefined;
+  const kids = childIndex(project);
+  const boards = (mains: string[]) => plural(withBelow(mains, kids).size, 'board');
+  const holds = (mains: string[], short = false) => `${short ? `${txCount(project, mains)} TX` : plural(txCount(project, mains), 'transformer')} · ${boards(mains)}`;
+  const mainsIn = (it: TreeItem): string[] => (typeof it === 'string' ? [it] : it.items.flatMap(mainsIn));
+  const item = (n: SupplyNode): TreeItem => {
+    const p = n.part, key = partKey(p), mains = mainsOf(n);
+    if (p.kind === 'substation') {
+      return { key, part: key, label: p.name, note: holds(mains, true), title: [p.name, substationTitle(project, p.name).sub, holds(mains)].filter(Boolean).join(' · '), items: n.children.map(item) };
+    }
+    if (p.kind === 'rmu') {
+      const it = rmuNode(project, p.name);
+      const spare = it?.spares ? `${plural(it.spares, 'tee-off')} spare` : '';
+      return { key, part: key, label: p.name, detail: it?.config, title: [p.name, it?.config, spare, holds(mains)].filter(Boolean).join(' · '), items: n.children.map(item) };
+    }
+    return mains[0];
+  };
+  const tree = supplyTree(project);
+  const ids = new Set(project.boards.map((b) => b.id));
+  const top: TreeItem[] = [], loose: TreeItem[] = [];
+  for (const n of tree) if (n.part.kind !== 'supply') (n.part.kind === 'substation' ? top : loose).push(item(n));
+  loose.push(...project.boards.filter((b) => b.upstreamId && !ids.has(b.upstreamId)).map((b) => b.id));
+  if (top.length && loose.length) {
+    const mains = loose.flatMap(mainsIn);
+    top.push({ key: 'none', label: 'No substation', note: holds(mains, true), title: `In no substation · ${holds(mains)}`, items: loose });
+  } else top.push(...loose);
+  const supply = tree.flatMap((n) => (n.part.kind === 'supply' ? [n.part.id] : []));
+  if (supply.length) {
+    top.push({ key: 'supply', label: 'Authority supply', note: boards(supply), title: `${plural(supply.length, 'main board')} on an authority LV supply (meter cabinet) · ${boards(supply)}`, items: supply });
+  }
+  return top;
 }

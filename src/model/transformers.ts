@@ -21,6 +21,9 @@ export function txTag(project: Project, mainId: string): string | undefined {
   return i < 0 ? undefined : `TX-${i + 1}`;
 }
 
+/** Every main board's transformer number at once ("TX-2"), numbered as txTag does. */
+export const txTags = (project: Project): Map<string, string> => new Map(mainBoards(project).filter((b) => b.sourceKva).map((b, i) => [b.id, `TX-${i + 1}`]));
+
 /** The main board a panel is ultimately fed from. */
 export function mainOf(project: Project, boardId: string): Board | undefined {
   const byId = new Map(project.boards.map((b) => [b.id, b]));

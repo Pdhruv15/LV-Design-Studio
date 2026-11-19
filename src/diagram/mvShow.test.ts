@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { newProject, type Board, type Feeder, type Project } from '../types';
-import { parsePart, partBoards, partInfo, partKey, partOfBoard, partProject, partSteps, shownPart, showRows, WHOLE_NETWORK, type SldPart } from './mvShow';
+import { parsePart, partBoards, partInfo, partKey, partOfBoard, partProject, partSteps, shownPart, showRows, treeGroups, WHOLE_NETWORK, type SldPart, type TreeItem } from './mvShow';
 
 const tx = (id: string, extra: Partial<Board> = {}): Board => ({ id, name: id, kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 6, ...extra });
 const db = (id: string, up: string): Board => ({ id, name: id, kind: 'DB', upstreamId: up });
@@ -116,5 +116,41 @@ describe('Show: the parts of the network', () => {
     expect(partSteps(p, { kind: 'tx', id: 'MDB-3' })).toEqual({ prev: { kind: 'tx', id: 'MDB-2' }, next: { kind: 'tx', id: 'MDB-4' } });
     expect(partSteps(p, { kind: 'rmu', name: 'RMU-3' })).toEqual({ prev: { kind: 'rmu', name: 'RMU-2' }, next: undefined });
     expect(partSteps(p, { kind: 'mv' })).toEqual({});
+  });
+});
+
+/** A group as [label, detail, note, items]; a main board as its id. */
+const shape = (it: TreeItem): unknown => (typeof it === 'string' ? it : [it.label, it.detail ?? '', it.note ?? '', it.items.map(shape)]);
+
+describe('Panel tree by substation', () => {
+  it('groups the main boards by substation, then RMU; the rest under No substation, meter cabinets under Authority supply', () => {
+    const g = treeGroups(p)!;
+    expect(g.map(shape)).toEqual([
+      ['SS-1', '', '2 TX · 5 boards', [['RMU-1', 'RRTT', '', ['MDB-1', 'MDB-2']]]],
+      ['SS-2', '', '1 TX · 2 boards', [['RMU-2', 'RRTT', '', ['MDB-3']]]],
+      ['No substation', '', '2 TX · 2 boards', [['RMU-3', '', '', ['MDB-4']], 'MDB-5']],
+      ['Authority supply', '', '2 boards', ['MDB-A']]
+    ]);
+    // A substation or an RMU row shows that part; the others only group.
+    const [ss1, , none, supply] = g as Exclude<TreeItem, string>[];
+    expect([ss1.part, (ss1.items[0] as Exclude<TreeItem, string>).part, none.part, supply.part]).toEqual(['ss:SS-1', 'rmu:RMU-1', undefined, undefined]);
+    // The tooltips say what each is and holds.
+    expect(ss1.title).toBe('SS-1 · Conventional substation · Ground floor · 2 transformers · 5 boards');
+    expect((g[1] as Exclude<TreeItem, string>).items.map((x) => (x as Exclude<TreeItem, string>).title)).toEqual(['RMU-2 · RRTT · 1 tee-off spare · 1 transformer · 2 boards']);
+    expect([none.title, supply.title]).toEqual(['In no substation · 2 transformers · 2 boards', '1 main board on an authority LV supply (meter cabinet) · 2 boards']);
+  });
+
+  it('has nothing to group until a main board names an RMU or a substation', () => {
+    expect(treeGroups({ ...p, boards: p.boards.map((b) => ({ ...b, rmu: undefined, substation: undefined })) })).toBeUndefined();
+  });
+
+  it('with RMUs but no substation named, puts the RMUs at the top; a board whose upstream board is gone joins the rest', () => {
+    const rmusOnly: Project = { ...p, boards: [...p.boards.map((b) => ({ ...b, substation: undefined })), db('DB-9', 'GONE')] };
+    expect(treeGroups(rmusOnly)!.map(shape)).toEqual([
+      ['RMU-1', 'RRTT', '', ['MDB-1', 'MDB-2']], ['RMU-2', 'RRTT', '', ['MDB-3']], ['RMU-3', '', '', ['MDB-4']], 'MDB-5', 'DB-9',
+      ['Authority supply', '', '2 boards', ['MDB-A']]
+    ]);
+    const orphan: Project = { ...p, boards: [...p.boards, db('DB-9', 'GONE')] };
+    expect(shape(treeGroups(orphan)![2])).toEqual(['No substation', '', '2 TX · 3 boards', [['RMU-3', '', '', ['MDB-4']], 'MDB-5', 'DB-9']]);
   });
 });

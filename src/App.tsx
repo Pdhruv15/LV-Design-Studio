@@ -521,6 +521,8 @@ export default function App() {
   const sldPart = useMemo(() => parsePart(sldPartKey) ?? WHOLE_NETWORK, [sldPartKey]);
   const sldDrawn = useMemo(() => partProject(project, sldPart), [project, sldPart]);
   const pickPart = useCallback((p: SldPart) => setSldShow({ part: p, sel: selBoard }), [selBoard]);
+  /** Show a part on the system diagram (Show list, right-click, panel tree). */
+  const showPartKey = (key: string) => { const p = parsePart(key); if (p) { setView('design'); setDiagramMode('system'); pickPart(p); } };
   const sldShown = useMemo((): ShownPart | undefined => {
     if (sldPart.kind === 'all') return undefined;
     const steps = partSteps(project, sldPart);
@@ -1289,7 +1291,7 @@ export default function App() {
     exportSld: () => { setView('design'); setDiagramMode('system'); setShowExport(true); },
     undo: history.undo, redo: history.redo,
     setTie: applyTie, removeTie: (id) => { void confirmRemoveTie(id); },
-    showPart: (key) => { const p = parsePart(key); if (p) { setView('design'); setDiagramMode('system'); pickPart(p); } }
+    showPart: showPartKey
   };
 
   /** The Board tab's menus: the same actions, with the view kept on this board (a sub-board's Edit opens its dialog without switching). */
@@ -1534,7 +1536,7 @@ export default function App() {
               onShowOnPlan: () => showOnPlan(),
               onFit: () => setSldFit((n) => n + 1),
               onExport: () => { system(); setShowExport(true); },
-              show: { rows: sldShowRows, shown: sldShown?.name ?? 'All', onShow: (key: string) => { const p = parsePart(key); if (p) { system(); pickPart(p); } } }
+              show: { rows: sldShowRows, shown: sldShown?.name ?? 'All', onShow: showPartKey }
             };
           })(),
           schedule: view === 'load-schedule' ? scheduleRibbon : undefined,
@@ -1601,6 +1603,8 @@ export default function App() {
           onClearHighlights={() => setCreatedPanelIds([])}
           onPick={pickBoard}
           onOpen={(id) => { setView('design'); selectBoard(id); }}
+          shownPart={view === 'design' ? sldShown?.key : undefined}
+          onShowPart={showPartKey}
           menu={{
             onAddBoard: (id) => { setActiveBoardId(id); setBoardPreset(undefined); setShowBoardForm(true); },
             onAddFeeder: (id) => { setActiveBoardId(id); openAddFeeder({}); },
