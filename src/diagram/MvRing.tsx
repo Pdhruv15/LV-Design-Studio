@@ -5,19 +5,21 @@ import { MV_ROWS as Y, MV_SLOT, RING_Y, sourceLabels, type MvGeom, type RmuGeom 
 /** The 11 kV side of the system SLD in its ring arrangement (see mvArrangement.ts): substation frames, the ring from each
  * grid source through the RMUs' ring switches, each RMU's tee-offs down to its transformers, and stubs to what is
  * drawn elsewhere. The transformers themselves are drawn with their main boards, under the tee-offs. */
-export default function MvRing({ geom, rmuTitle, sourceTitle }: {
+export default function MvRing({ geom, rmuTitle, sourceTitle, onFrameOpen }: {
   geom: MvGeom;
   /** Tooltip of an RMU: its label, what it feeds and its ratings. */
   rmuTitle: (name: string) => string;
   /** Tooltip of a grid source. */
   sourceTitle: (g?: GridSource) => string | undefined;
+  /** Double-click a substation frame (the MV overview: show that substation). */
+  onFrameOpen?: (name: string) => void;
 }) {
   const s = SYM_SCALE.switch;
   return (
     <g className="mvRing-ring">
       {geom.frames.map((f) => (
-        <g key={`ss-${f.name}-${f.x1}`} className="ss-frame">
-          <title>{`Substation ${f.name}${f.sub ? ` · ${f.sub}` : ''}`}</title>
+        <g key={`ss-${f.name}-${f.x1}`} className="ss-frame" data-ss={f.name} onDoubleClick={onFrameOpen ? () => onFrameOpen(f.name) : undefined}>
+          <title>{`Substation ${f.name}${f.sub ? ` · ${f.sub}` : ''}${onFrameOpen ? ' — double-click to show it' : ''}`}</title>
           <rect x={f.x1} y={Y.frameTop} width={f.x2 - f.x1} height={geom.frameBottom - Y.frameTop} className="frame-ln" style={{ strokeDasharray: '12 4 2 4' }} />
           <text className="b" x={f.x1 + 9} y={Y.title}>{f.name}</text>
           {f.sub && <text className="m" x={f.x1 + 9} y={Y.subtitle}>{f.sub}</text>}

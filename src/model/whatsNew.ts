@@ -25,6 +25,21 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.214', date: '2026-11-19',
+    items: [
+      { title: 'Panel tree: Group by substation', text: 'Once a main board names its RMU or substation (Panels → Transformers), the panel tree has a Group switch: Boards, as before, or Substations. Substations lists each substation, its RMUs and their main boards with the transformer\'s kVA (and its number, e.g. TX-1, when the tree is wide enough), then the boards below. Main boards in no substation go under "No substation", meter cabinets under "Authority supply". On the SLD page a click on a substation or RMU shows it on the drawing; on other pages a double-click does. Find a board… also finds a substation or RMU by name.' }
+    ]
+  },
+  {
+    version: '2.212', date: '2026-11-19',
+    items: [
+      { title: 'SLD: Show one substation, RMU or transformer', text: 'SLD ribbon → View → Show lists the whole network, the MV overview, then each substation with its RMUs and their transformers (with kVA, main board and the boards each holds) and the boards on an authority LV supply. Pick one to draw only that part, with everything its main boards feed. The ring, an RMU\'s other tee-offs and a bus coupler to a board not drawn become stubs, e.g. "BC-1 to MDB-1 (TX-1)". Only the view changes: results, checks and fault levels stay those of the whole network.' },
+      { title: 'SLD: the MV overview', text: 'Show → MV overview draws only the MV side: the source, the ring, the substations with their RMUs and transformers, and each main board as its name. Double-click a substation frame there to show that substation.' },
+      { title: 'SLD: the Showing chip', text: 'While a part is shown, a chip at the drawing\'s top left names it and what it holds, with ◀ ▶ for the previous or next substation, RMU or transformer, and Show all. Selecting a board outside the part (panel tree, Check, Find) shows that board\'s part.' },
+      { title: 'SLD: right-click Show … only', text: 'Right-click an RMU, a substation frame or a transformer on the SLD → Show … only; the empty drawing\'s menu has Show all while a part is shown. Export… exports what is shown, titled with it, e.g. "SINGLE LINE DIAGRAM — SS-1".' }
+    ]
+  },
+  {
     version: '2.211', date: '2026-11-19',
     items: [
       { title: 'Cable type: Auto names the cable it gives', text: 'In the SLD cable editor (click the cable text of a way) and on the Cable tab of the feeder form, the Auto choice now names the cable a way gets when no type is chosen: the default armoured cable, or fire-rated cable for a life safety circuit. Before, it repeated the type chosen by hand.' }

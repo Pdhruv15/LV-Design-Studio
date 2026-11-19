@@ -20,6 +20,9 @@ import { fmtDate } from '../util/format';
 export const SHEET_MM: Record<NonNullable<DrawingInfo['sheet']>, { w: number; h: number }> = PAPER_MM;
 
 export const DEFAULT_DRAWING_TITLE = 'SINGLE LINE DIAGRAM';
+/** Show (a part of the network on the SLD): the exported drawing is titled with it, e.g. "SINGLE LINE DIAGRAM — SS-1";
+ * the project's own title is kept as it is. */
+export const partDrawing = (d: DrawingInfo, part?: string): DrawingInfo => (part ? { ...d, title: `${d.title?.trim() || DEFAULT_DRAWING_TITLE} — ${part}` } : d);
 
 export interface TitleBlock {
   company: string;

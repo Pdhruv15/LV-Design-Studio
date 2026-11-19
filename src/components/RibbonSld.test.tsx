@@ -59,7 +59,7 @@ describe('the SLD tab', () => {
     expect(names('Copy and undo')).toEqual(['Copy', 'Paste', 'Undo', 'Redo']);
     // Copy and Paste in one column, Undo and Redo in the next.
     expect([...group('Copy and undo').querySelectorAll('.ribbon-stack')].map((c) => c.children.length)).toEqual([2, 2]);
-    expect(names('View')).toEqual(['Fit']);
+    expect(names('View')).toEqual(['Show', 'Fit']);
     expect(names('Output')).toEqual(['Export']);
   });
 
@@ -249,5 +249,40 @@ describe('the SLD tab on a narrow window', () => {
     click(tool('Fit'));
     expect(s.onFit).toHaveBeenCalledTimes(1);
     expect(document.querySelector('.ribbon-over')).toBeNull();
+  });
+});
+
+describe('the SLD tab: Show', () => {
+  const rows: NonNullable<Sld['show']>['rows'] = [
+    { key: 'all', part: 'all', label: 'Whole network', note: '2 transformers · 9 boards', depth: 0, checked: false, title: 'Draw the whole network' },
+    { key: 'head:mv', label: 'Substations, RMUs and transformers', depth: 0, head: true, sep: true, title: '' },
+    { key: 'ss:SS-1', part: 'ss:SS-1', label: 'SS-1', detail: 'Conventional substation', note: '2 TX · 9 boards', depth: 0, checked: true, title: 'Show SS-1 only' },
+    { key: 'rmu:RMU-1', part: 'rmu:RMU-1', label: 'RMU-1', detail: 'RRTT', depth: 1, checked: false, title: 'Show RMU-1 only' },
+    { key: 'tx:MDB-1', part: 'tx:MDB-1', label: 'TX-1', detail: '1000 kVA → MDB-1', note: '5 boards', depth: 2, checked: false, title: 'Show TX-1 only' },
+    { key: 'sel', label: 'Selection\'s substation', depth: 0, sep: true, disabled: true, title: 'Select a board on the drawing first' }
+  ];
+  it('names what is shown and lists the supply tree with headings, indents and counts; a pick shows that part', () => {
+    const onShow = vi.fn();
+    show({ show: { rows, shown: 'SS-1', onShow } });
+    expect(tool('Show').textContent).toBe('ShowSS-1');
+    click(tool('Show'));
+    expect(document.querySelector('.ribbon-split-menu .hd')?.textContent).toBe('Substations, RMUs and transformers');
+    const b = items();
+    expect(b.map((x) => [x.querySelector('.m')?.textContent ?? '', x.querySelector('.c')?.textContent ?? '', x.className, x.getAttribute('aria-checked')])).toEqual([
+      ['', '2 transformers · 9 boards', 'rw', 'false'],
+      ['Conventional substation', '2 TX · 9 boards', 'rw', 'true'],
+      ['RRTT', '', 'in1 rw', 'false'],
+      ['1000 kVA → MDB-1', '5 boards', 'in2 rw', 'false'],
+      ['', '', '', null]
+    ]);
+    expect(b[4].disabled).toBe(true);
+    click(b[3]);
+    expect(onShow).toHaveBeenCalledWith('tx:MDB-1');
+    expect(document.querySelector('.ribbon-split-menu')).toBeNull();
+  });
+  it('is greyed off the system diagram', () => {
+    show({ system: false, show: { rows, shown: 'All', onShow: vi.fn() } });
+    expect(tool('Show').disabled).toBe(true);
+    expect(tool('Show').title).toBe('On the system diagram');
   });
 });

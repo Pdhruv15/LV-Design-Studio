@@ -4,6 +4,8 @@ import type { Board, Project } from '../types';
 import type { FeederResult, Status } from '../calc/electrical';
 import { boardSummary } from '../calc/summary';
 import { incomerOf, indentTarget, moveBlocked, outdentTarget, siblings } from '../model/moveBoard';
+import { txTags } from '../model/transformers';
+import { treeGroups, type TreeGroup, type TreeItem } from '../diagram/mvShow';
 import { groupBy } from '../util/sets';
 import { fmtFixed } from '../util/format';
 
@@ -45,11 +47,26 @@ function useStored<T>(key: string, initial: T): [T, (v: T) => void] {
 
 const worst = (xs: Status[]): Status | undefined => (xs.includes('bad') ? 'bad' : xs.includes('warn') ? 'warn' : xs.length ? 'ok' : undefined);
 
+/** Each group's collapse key, and the groups above each main board (to reveal it). */
+function groupIndex(groups: TreeItem[] | undefined): { keys: string[]; path: Map<string, string[]> } {
+  const keys: string[] = [], path = new Map<string, string[]>();
+  const walk = (it: TreeItem, up: string[]) => {
+    if (typeof it === 'string') { path.set(it, up); return; }
+    const k = `g:${it.key}`;
+    keys.push(k);
+    for (const x of it.items) walk(x, [...up, k]);
+  };
+  for (const g of groups ?? []) walk(g, []);
+  return { keys, path };
+}
+
 /** The installation as a tree: transformer → MDB → SMDB → DB, with each
  * board's status and loading. The page you're on decides what a click does
  * (select on the SLD, open its schedule, filter a study…); double-click
- * opens it on the SLD; right-click for the board menu. */
-export default function PanelTree({ project, results, activeId, focusId, view, onPick, onOpen, menu, copiedId, highlightedIds, onClearHighlights }: {
+ * opens it on the SLD; right-click for the board menu. Once a main board
+ * names its RMU or substation, Group → Substations puts the main boards
+ * under their substation and RMU (proposal 2026-11-18, part 3). */
+export default function PanelTree({ project, results, activeId, focusId, view, onPick, onOpen, menu, copiedId, highlightedIds, onClearHighlights, shownPart, onShowPart }: {
   project: Project;
   results: FeederResult[];
   /** The board the page is on (highlighted). */
@@ -63,10 +80,15 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
   copiedId?: string | null;
   highlightedIds?: string[];
   onClearHighlights?: () => void;
+  /** The part the SLD shows (partKey): its row is marked in the tree by substation. */
+  shownPart?: string;
+  /** Show a substation or an RMU on the SLD: a click on its row on the SLD page, a double-click elsewhere. */
+  onShowPart?: (part: string) => void;
 }) {
   const [hidden, setHidden] = useStored('tree.hidden', false);
   const [collapsed, setCollapsed] = useStored<string[]>('tree.collapsed', []);
   const [width, setWidth] = useStored('tree.width', 230);
+  const [grouping, setGrouping] = useStored<'boards' | 'substations'>('tree.group', 'boards');
   const [q, setQ] = useState('');
   const [keyOpen, setKeyOpen] = useState(() => { try { return localStorage.getItem('lvds.treeKey') === '1'; } catch { return false; } });
   const [ctx, setCtx] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -74,6 +96,12 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
   const [drag, setDrag] = useState<{ id: string; over?: string; why?: string } | null>(null);
   const [moveFor, setMoveFor] = useState<string | null>(null);
   const [moveQ, setMoveQ] = useState('');
+
+  // By substation: the groups, their collapse keys and the groups above each main board.
+  const groups = useMemo(() => treeGroups(project), [project]);
+  const grouped = grouping === 'substations' && !!groups;
+  const gIndex = useMemo(() => groupIndex(grouped ? groups : undefined), [grouped, groups]);
+  const tx = useMemo(() => (grouped ? txTags(project) : undefined), [grouped, project]);
 
   // Reveal the newly created batch even if this tree was hidden, filtered
   // or collapsed. References in the draft have already been validated.
@@ -91,8 +119,9 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
         reveal.add(current.id); current = current.upstreamId ? byId.get(current.upstreamId) : undefined;
       }
     }
+    for (const id of [...reveal]) for (const k of gIndex.path.get(id) ?? []) reveal.add(k);
     setHidden(false); setQ(''); setCollapsed(collapsed.filter((id) => !reveal.has(id)));
-  }, [highlightedIds, project.boards, collapsed, setCollapsed, setHidden]);
+  }, [highlightedIds, project.boards, collapsed, setCollapsed, setHidden, gIndex]);
   const presentIds = useMemo(() => new Set(project.boards.map((b) => b.id)), [project.boards]);
   const highlighted = new Set(highlightedIds?.filter((id) => presentIds.has(id)));
   useEffect(() => {
@@ -126,7 +155,8 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
     return m;
   }, [project, results]);
 
-  // Search: boards whose id / name / kind match, and the boards above them.
+  // Search: boards whose id / name / kind match, and the boards above them;
+  // by substation also every board of a substation or RMU whose name matches.
   const words = q.trim().toLowerCase();
   const shown = useMemo(() => {
     if (!words) return null;
@@ -137,8 +167,18 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
         for (let i = 0; cur && i < 30; i++) { keep.add(cur.id); cur = project.boards.find((x) => x.id === cur!.upstreamId); }
       }
     }
+    if (grouped) {
+      const seen = new Set<string>();
+      const below = (id: string) => { if (seen.has(id)) return; seen.add(id); keep.add(id); for (const k of children.get(id) ?? []) below(k.id); };
+      const visit = (it: TreeItem, hit: boolean) => {
+        if (typeof it === 'string') { if (hit) below(it); return; }
+        const h = hit || `${it.label} ${it.detail ?? ''}`.toLowerCase().includes(words);
+        for (const x of it.items) visit(x, h);
+      };
+      for (const g of groups ?? []) visit(g, false);
+    }
     return keep;
-  }, [project, words]);
+  }, [project, words, grouped, groups, children]);
 
   useEffect(() => {
     if (!ctx) return;
@@ -158,6 +198,10 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
 
   const allIds = project.boards.map((b) => b.id);
   const toggle = (id: string) => setCollapsed(collapsed.includes(id) ? collapsed.filter((x) => x !== id) : [...collapsed, id]);
+  const byId = grouped ? new Map(project.boards.map((b) => [b.id, b])) : undefined;
+  const sldPage = view === 'design';
+  // The main board of a shown transformer or authority supply (by substation).
+  const partBoard = grouped && shownPart && /^(tx|supply):/.test(shownPart) ? shownPart.slice(shownPart.indexOf(':') + 1) : undefined;
 
   const sel = activeId && project.boards.some((b) => b.id === activeId) ? activeId : undefined;
   const ind = sel ? indentTarget(project, sel) : undefined;
@@ -176,7 +220,8 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
     const open = !!shown || !collapsed.includes(b.id);
     const i = info.get(b.id);
     const over = drag?.over === b.id;
-    const cls = ['tree-row', highlighted.has(b.id) ? 'batch-new' : '', b.id === activeId ? 'on' : '', b.id === focusId ? 'focus' : '', b.id === copiedId ? 'copied' : '', drag?.id === b.id ? 'dragging' : '', over ? (drag?.why ? 'drop-no' : 'drop-ok') : ''].join(' ');
+    const cls = ['tree-row', highlighted.has(b.id) ? 'batch-new' : '', b.id === activeId ? 'on' : '', b.id === focusId || b.id === partBoard ? 'focus' : '', b.id === copiedId ? 'copied' : '', drag?.id === b.id ? 'dragging' : '', over ? (drag?.why ? 'drop-no' : 'drop-ok') : ''].join(' ');
+    const txTag = tx?.get(b.id);
     const check = incomerOf(project, b.id)?.lengthToCheck;
     return (
       <div key={b.id} role="treeitem" aria-expanded={kids.length ? open : undefined} aria-selected={b.id === activeId}>
@@ -200,13 +245,52 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
           <span className={`tree-dot ${i?.status ?? ''}`} />
           <span className="tree-id">{b.id}</span>
           {highlighted.has(b.id) && <span className="tree-new">New</span>}
-          {!b.upstreamId && b.sourceKva ? <span className="tree-tx" title={`${b.sourceKva} kVA transformer`}><Waves size={11} />{b.sourceKva} kVA</span> : null}
+          {!b.upstreamId && b.sourceKva ? (txTag
+            // By substation: the transformer's number when the tree is wide enough (CSS), the kVA always; the name keeps its room.
+            ? <span className="tree-tx tree-kva" title={`${txTag} · ${b.sourceKva} kVA transformer`}><span className="tree-txn">{txTag} · </span>{b.sourceKva} kVA</span>
+            : <span className="tree-tx" title={`${b.sourceKva} kVA transformer`}><Waves size={11} />{b.sourceKva} kVA</span>) : null}
           {b.standby ? <span className="tree-tx" title={`${b.standby.kva} kVA standby generator (ATS)`}><Power size={11} /></span> : null}
           {check ? <span className="tree-check" title="Moved to another source — check the incomer cable length">len?</span> : null}
           <span className="sp" />
           {i?.loading !== undefined && <span className={`tree-load ${i.loadingStatus ?? ''}`} style={{ '--pct': `${Math.min(100, Math.max(0, i.loading))}%` } as CSSProperties}>{fmtFixed(i.loading, 0)}%</span>}
         </div>
         {open && kids.length > 0 && <div role="group">{kids.map((k) => node(k, depth + 1))}</div>}
+      </div>
+    );
+  };
+
+  // By substation: a substation, RMU, "No substation" or "Authority supply" row over its RMUs and main boards. On the
+  // SLD page a click on a substation or RMU shows it there; elsewhere a click opens or closes the row and a
+  // double-click shows it on the SLD.
+  const item = (it: TreeItem, depth: number): JSX.Element | null => {
+    if (typeof it !== 'string') return groupRow(it, depth);
+    const b = byId?.get(it);
+    return b ? node(b, depth) : null;
+  };
+  const groupRow = (g: TreeGroup, depth: number): JSX.Element | null => {
+    const k = `g:${g.key}`;
+    const open = !!shown || !collapsed.includes(k);
+    const items = open ? g.items.map((x) => item(x, depth + 1)) : [];
+    if (shown && !items.some(Boolean)) return null;
+    const show = g.part && onShowPart ? () => onShowPart(g.part!) : undefined;
+    return (
+      <div key={k} role="treeitem" aria-expanded={open}>
+        <div
+          className={['tree-row tree-grp', depth ? '' : 'tree-grp0', g.part && g.part === shownPart ? 'focus' : ''].join(' ')}
+          style={{ paddingLeft: 4 + depth * 14 }}
+          onClick={() => (sldPage && show ? show() : toggle(k))}
+          onDoubleClick={() => { if (!sldPage) show?.(); }}
+          title={`${g.title}${show ? `\n${sldPage ? 'Click' : 'Double-click'}: show it on the SLD` : ''}`}
+        >
+          <button className="tree-tw" onClick={(e) => { e.stopPropagation(); toggle(k); }} tabIndex={-1} aria-hidden>
+            {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          </button>
+          <span className="tree-id">{g.label}</span>
+          {g.detail && <span className="m">{g.detail}</span>}
+          <span className="sp" />
+          {g.note && <span className="m">{g.note}</span>}
+        </div>
+        {open && <div role="group">{items}</div>}
       </div>
     );
   };
@@ -234,14 +318,23 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
           <button className="icon-btn" disabled={at <= 0} title="Move up (Alt+↑)" onClick={() => sel && menu.onReorder?.(sel, -1)}><ArrowUp size={14} /></button>
           <button className="icon-btn" disabled={at < 0 || at >= sib.length - 1} title="Move down (Alt+↓)" onClick={() => sel && menu.onReorder?.(sel, 1)}><ArrowDown size={14} /></button>
         </>}
-        <button className="icon-btn" title="Collapse all" onClick={() => setCollapsed(allIds.filter((id) => children.get(id)?.length))}><ChevronsDownUp size={14} /></button>
+        <button className="icon-btn" title="Collapse all" onClick={() => setCollapsed([...allIds.filter((id) => children.get(id)?.length), ...gIndex.keys])}><ChevronsDownUp size={14} /></button>
         <button className="icon-btn" title="Expand all" onClick={() => setCollapsed([])}><ChevronsUpDown size={14} /></button>
         <button className="icon-btn" title="Hide the panel tree" onClick={() => setHidden(true)}><PanelLeftClose size={14} /></button>
       </div>
+      {groups && (
+        <div className="tree-groupby">
+          <span className="m">Group</span>
+          <div className="seg" role="group" aria-label="Group the panel tree">
+            <button className={grouped ? '' : 'on'} aria-pressed={!grouped} title="The boards as they are fed: main board → SMDB → DB" onClick={() => setGrouping('boards')}>Boards</button>
+            <button className={grouped ? 'on' : ''} aria-pressed={grouped} title="By substation, then RMU, then main board" onClick={() => setGrouping('substations')}>Substations</button>
+          </div>
+        </div>
+      )}
       <input className="tree-search" type="search" placeholder="Find a board…" value={q} onChange={(e) => setQ(e.target.value)} />
       {highlighted.size > 0 && <div className="tree-batch">{highlighted.size} new panels<span className="sp" />{onClearHighlights && <button className="chip" onClick={onClearHighlights}>Clear</button>}</div>}
-      <div className="tree-body" role="tree" tabIndex={0} onKeyDown={onKey} aria-label="Panels — Tab / Shift+Tab to indent or outdent, Alt+↑↓ to reorder">
-        {roots.map((b) => node(b, 0))}
+      <div className={`tree-body${grouped ? ' by-ss' : ''}`} role="tree" tabIndex={0} onKeyDown={onKey} aria-label="Panels — Tab / Shift+Tab to indent or outdent, Alt+↑↓ to reorder">
+        {grouped ? groups!.map((g) => item(g, 0)) : roots.map((b) => node(b, 0))}
         {shown && shown.size === 0 && <p className="m tree-tip">No board matches.</p>}
       </div>
       {keyOpen && (
@@ -254,7 +347,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
         </dl>
       )}
       <div className="tree-foot">
-        <p className="m tree-tip">{TREE_HINT[view] ?? 'Double-click a board to open it on the SLD'}</p>
+        <p className="m tree-tip">{grouped && sldPage && onShowPart ? 'Click a board to select it, a substation or RMU to show it on the SLD' : TREE_HINT[view] ?? 'Double-click a board to open it on the SLD'}</p>
         <button className={`linkish tree-key-btn${keyOpen ? ' on' : ''}`} aria-expanded={keyOpen} title="What the dots, bars and badges mean"
           onClick={() => setKeyOpen((o) => { try { localStorage.setItem('lvds.treeKey', o ? '0' : '1'); } catch { /* ignore */ } return !o; })}>
           <Info size={12} /> Key

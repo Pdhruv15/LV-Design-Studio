@@ -172,6 +172,12 @@ code{background:var(--p2);padding:1px 5px;border-radius:4px}
 /* Canvas toolbar: labelled groups (Drawing, View) on a panel so they stay readable over the drawing. */
 .sd-group{display:flex;align-items:center;gap:4px;padding:3px 4px 3px var(--space-2);background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-pop)}
 .sd-cap{font-size:var(--fs-xs);color:var(--mut);margin-right:2px}
+/* Show (SLD ribbon → View → Show): the part drawn, on a chip at the top left, in a band above the drawing */
+.sysdiag.shown{padding-top:40px}
+.sd-shown{position:absolute;top:8px;left:8px;z-index:1;display:flex;align-items:center;gap:10px;padding:3px 4px 3px 10px;border:1px solid var(--acc);border-radius:var(--radius-md);background:color-mix(in srgb,var(--acc) 10%,var(--panel));box-shadow:var(--shadow-pop);font-size:var(--fs-sm);white-space:nowrap}
+.sd-shown b{color:var(--acc)}
+.sd-shown .m{color:var(--mut)}
+.sd-shown .chip{padding:0 var(--space-2);min-width:var(--control-h)}
 .sysdiag:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
 .sysdiag .bus{stroke:var(--bus);stroke-width:4;stroke-linecap:round}
 .sysdiag .bus.sel{stroke:var(--acc)}
@@ -894,6 +900,9 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .tree-head .m{font-size:11px}
 .tree-head .icon-btn{min-width:24px;padding:0 2px;flex:none}
 .tree-search{margin:var(--space-1) var(--space-2) var(--space-2);min-height:var(--control-h)}
+.tree-groupby{display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2) 0 var(--space-3);font-size:11px}
+.tree-groupby .m{color:var(--mut)}
+.tree-groupby .seg button{padding:1px 8px}
 .tree-body{flex:1;overflow:auto;padding:0 var(--space-1) var(--space-2)}
 .tree-row{display:flex;align-items:center;gap:var(--space-1);min-height:30px;padding:0 var(--space-2) 0 var(--space-1);border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap;font-size:13px;user-select:none}
 .tree-row:hover{background:var(--p2)}
@@ -904,6 +913,12 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .tree-dot{width:7px;height:7px;border-radius:50%;background:var(--line);flex:none}
 .tree-dot.ok{background:var(--ok)}.tree-dot.warn{background:var(--warn)}.tree-dot.bad{background:var(--bad)}
 .tree-id{overflow:hidden;text-overflow:ellipsis}
+.tree-grp .m{color:var(--mut);font-size:11px;flex:none}
+.tree-grp0 .tree-id{font-weight:600}
+.tree-body.by-ss{container-type:inline-size}
+.by-ss .tree-kva{display:block;flex-shrink:100;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.tree-txn{display:none}
+@container (min-width:260px){.tree-txn{display:inline}}
 .tree-tx{display:inline-flex;align-items:center;gap:2px;font-size:var(--fs-xs);color:var(--mut)}
 .tree-load{--bar:var(--ok);font-size:11px;color:var(--mut);min-width:34px;text-align:right;padding-bottom:3px;font-variant-numeric:tabular-nums;
   background:linear-gradient(to right,var(--bar) 0 var(--pct,0%),var(--line) var(--pct,0%)) no-repeat left bottom/100% 2px}
@@ -1424,6 +1439,13 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .ribbon-split-menu button[aria-checked]{display:flex;align-items:center;gap:6px}
 .ribbon-split-menu .ck{display:inline-flex;width:12px;flex:none;color:var(--acc)}
 .ribbon-split-menu button:disabled{opacity:.45;cursor:not-allowed;background:none}
+/* A list as a tree (SLD → Show): headings, indented rows, a muted detail and a count at the right */
+.ribbon-split-menu .hd{font-size:var(--fs-xs);color:var(--mut);padding:6px 10px 2px;text-transform:uppercase;letter-spacing:.04em}
+.ribbon-split-menu button.rw{display:flex;align-items:center;gap:6px}
+.ribbon-split-menu button.in1{padding-left:28px}
+.ribbon-split-menu button.in2{padding-left:46px}
+.ribbon-split-menu button .m{color:var(--mut)}
+.ribbon-split-menu button .c{margin-left:auto;padding-left:18px;color:var(--mut);font-size:var(--fs-xs)}
 /* SLD → Results: a small tool with its setting beside its name (the name muted, the setting plain). */
 .ribbon-group .ribbon-stack button.has-val > span:first-of-type{color:var(--mut)}
 .ribbon-val{max-width:130px;overflow:hidden;text-overflow:ellipsis}

@@ -24,7 +24,8 @@ import BoardForm from './components/BoardForm';
 const BomView = lazy(() => import('./components/docs/BomView'));
 import { exportDss } from './engines/opendss/exportDss';
 const EngineCompare = lazy(() => import('./components/EngineCompare'));
-import SystemDiagram, { canvasDrawing } from './components/SystemDiagram';
+import SystemDiagram, { canvasDrawing, type ShownPart } from './components/SystemDiagram';
+import { partInfo, partKey, partProject, partSteps, parsePart, shownPart, showRows, WHOLE_NETWORK, type SldPart } from './diagram/mvShow';
 import BoardSheetView from './components/BoardSheetView';
 import SystemSummaryCards from './components/SystemSummaryCards';
 import BoardPanel from './components/BoardPanel';
@@ -258,6 +259,9 @@ export default function App() {
   const [sldFocus, setSldFocus] = useState<{ kind: 'board' | 'feeder'; id: string; n: number } | undefined>();
   // SLD ribbon: Fit asked for (a new number each time), and Panels opened on its Transformers tab.
   const [sldFit, setSldFit] = useState(0);
+  // SLD ribbon → View → Show: the part of the network the system diagram draws, and the board selected when it was
+  // chosen (selecting another board outside the part then shows that board's part: proposal 2026-11-18, decision 4).
+  const [sldShow, setSldShow] = useState<{ part: SldPart; sel?: string }>({ part: WHOLE_NETWORK });
   // What the Load schedule page says its ribbon tools can do (it clears this when it goes away).
   const [scheduleRibbon, setScheduleRibbon] = useState<RibbonActions['schedule']>();
   const [panelsTx, setPanelsTx] = useState<number | undefined>();
@@ -508,6 +512,24 @@ export default function App() {
   const board = project.boards.find((b) => b.id === activeBoardId) ?? project.boards[0];
   const boardResults = useMemo(() => allResults.filter((r) => r.feeder.boardId === board?.id), [allResults, board]);
   const selectedFeeder = project.feeders.find((f) => f.id === selected);
+
+  // Show: the part drawn (the one chosen, or the part of a board selected outside it since), the project as drawn,
+  // and the chip on the drawing. Only the view changes: the calculations stay those of the whole network.
+  const selBoard = panel === 'board' ? board?.id : selectedFeeder?.boardId;
+  useEffect(() => { setSldShow((v) => (v.sel === undefined ? v : { ...v, sel: undefined })); }, [selBoard]);
+  const sldPartKey = useMemo(() => partKey(shownPart(project, sldShow.part, sldShow.sel, selBoard)), [project, sldShow, selBoard]);
+  const sldPart = useMemo(() => parsePart(sldPartKey) ?? WHOLE_NETWORK, [sldPartKey]);
+  const sldDrawn = useMemo(() => partProject(project, sldPart), [project, sldPart]);
+  const pickPart = useCallback((p: SldPart) => setSldShow({ part: p, sel: selBoard }), [selBoard]);
+  /** Show a part on the system diagram (Show list, right-click, panel tree). */
+  const showPartKey = (key: string) => { const p = parsePart(key); if (p) { setView('design'); setDiagramMode('system'); pickPart(p); } };
+  const sldShown = useMemo((): ShownPart | undefined => {
+    if (sldPart.kind === 'all') return undefined;
+    const steps = partSteps(project, sldPart);
+    const step = (p?: SldPart) => (p ? { name: partInfo(project, p).name, go: () => pickPart(p) } : undefined);
+    return { key: sldPartKey, ...partInfo(project, sldPart), overview: sldPart.kind === 'mv', prev: step(steps.prev), next: step(steps.next), onShowAll: () => pickPart(WHOLE_NETWORK) };
+  }, [project, sldPart, sldPartKey, pickPart]);
+  const sldShowRows = useMemo(() => showRows(project, sldPart, selBoard), [project, sldPart, selBoard]);
 
   // Engine results are used only while they match the current project and
   // the chosen source; any edit falls back to the instant built-in values.
@@ -1240,7 +1262,8 @@ export default function App() {
   /** The SLD's right-click menus: what a row shows (sldMenu.ts) and what it does (components/sld/sldMenuRun.ts). */
   const sldMenuState = (v: { grid: 'lines' | 'dots' | 'off'; detail: 'auto' | 'all'; branch?: string }): SldMenuState => ({
     project, calcProject, results: allResults, copiedBoard: copiedBoard ?? undefined, copiedLoads, canUndo: history.canUndo, canRedo: history.canRedo,
-    layers, colorBy, supply: onGenerator ? 'generator' : outageId ? `outage:${outageId}` : 'normal', hasGenerator, outages: tiedRoots, grid: v.grid, detail: v.detail, branch: v.branch
+    layers, colorBy, supply: onGenerator ? 'generator' : outageId ? `outage:${outageId}` : 'normal', hasGenerator, outages: tiedRoots, grid: v.grid, detail: v.detail, branch: v.branch,
+    part: sldPart.kind === 'all' ? undefined : sldPartKey
   });
   const sldMenuFor = (t: SldTarget, v: { grid: 'lines' | 'dots' | 'off'; detail: 'auto' | 'all'; branch?: string }) => sldMenu(sldMenuState(v), t);
   const sldMenuCtx: SldMenuCtx = {
@@ -1267,7 +1290,8 @@ export default function App() {
     setSupply, toggleLayer: (k) => setLayers({ ...layers, [k]: !layers[k] }), setColorBy,
     exportSld: () => { setView('design'); setDiagramMode('system'); setShowExport(true); },
     undo: history.undo, redo: history.redo,
-    setTie: applyTie, removeTie: (id) => { void confirmRemoveTie(id); }
+    setTie: applyTie, removeTie: (id) => { void confirmRemoveTie(id); },
+    showPart: showPartKey
   };
 
   /** The Board tab's menus: the same actions, with the view kept on this board (a sub-board's Edit opens its dialog without switching). */
@@ -1511,7 +1535,8 @@ export default function App() {
               canPaste: onBoard && !!copiedBoard && project.boards.some((b) => b.id === copiedBoard), copied: copiedBoard ?? undefined, onPaste: () => { if (board) setPasteTarget(board.id); },
               onShowOnPlan: () => showOnPlan(),
               onFit: () => setSldFit((n) => n + 1),
-              onExport: () => { system(); setShowExport(true); }
+              onExport: () => { system(); setShowExport(true); },
+              show: { rows: sldShowRows, shown: sldShown?.name ?? 'All', onShow: showPartKey }
             };
           })(),
           schedule: view === 'load-schedule' ? scheduleRibbon : undefined,
@@ -1578,6 +1603,8 @@ export default function App() {
           onClearHighlights={() => setCreatedPanelIds([])}
           onPick={pickBoard}
           onOpen={(id) => { setView('design'); selectBoard(id); }}
+          shownPart={view === 'design' ? sldShown?.key : undefined}
+          onShowPart={showPartKey}
           menu={{
             onAddBoard: (id) => { setActiveBoardId(id); setBoardPreset(undefined); setShowBoardForm(true); },
             onAddFeeder: (id) => { setActiveBoardId(id); openAddFeeder({}); },
@@ -1665,7 +1692,9 @@ export default function App() {
                   ) : (
                   <SystemDiagram
                     {...canvasDrawing(showExport)}
-                    project={project}
+                    project={sldDrawn}
+                    wholeProject={sldShown ? project : undefined}
+                    shown={sldShown}
                     calcProject={calcProject}
                     stale={staleKeys.length > 0}
                     results={genResults ?? allResults}
@@ -2067,6 +2096,7 @@ export default function App() {
       {showExport && (
         <Suspense fallback={null}><SldExportDialog
           project={project}
+          part={sldShown?.name}
           stale={staleKeys.length > 0}
           onSave={(d) => setProject((p) => ({ ...p, drawing: d }))}
           onStatus={setStatus}
