@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.216', date: '2026-11-19',
+    items: [
+      { title: 'Project folder: customise for this project', text: 'Overview → Project folder → Customise… shows this project\'s folders with what is on disk (present, to create, hidden here, renamed here). Add folders, rename, hide a template folder or move a role for this project only: the changes are saved in the project, and the office template is not changed unless you choose Save these changes back to the template…. A rename makes the new folder and lists the old one, with its file count; nothing is moved. Reset to template undoes the project\'s changes.' },
+      { title: 'Project folder: change template', text: 'Change template… compares the project\'s folders with another template before anything is done: folders to create, kept (and roles that move), and those not in the new template, which are left as they are with their file count. Show where old files would go lists each output\'s old and new folder. Apply only creates folders, switches the template and lists the project changes that no longer apply.' }
+    ]
+  },
+  {
     version: '2.211', date: '2026-11-19',
     items: [
       { title: 'Cable type: Auto names the cable it gives', text: 'In the SLD cable editor (click the cable text of a way) and on the Cable tab of the feeder form, the Auto choice now names the cable a way gets when no type is chosen: the default armoured cable, or fire-rated cable for a life safety circuit. Before, it repeated the type chosen by hand.' }
