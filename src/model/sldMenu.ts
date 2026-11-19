@@ -5,7 +5,7 @@ import type { SupplyMode } from '../calc/scenario';
 import { groups, type CtxEntry, type CtxHead, type CtxItem } from '../components/cad/cadContextMenu';
 import { COLOR_BY, type ColorBy } from '../diagram/heatmap';
 import { LAYER_LABELS, type ResultLayers } from '../diagram/annotations';
-import { CABLE_TYPE_DEFS, cableTypeOf } from './cableTypes';
+import { autoCableTypeOf, CABLE_TYPE_DEFS } from './cableTypes';
 import { isSinglePhase, phaseTag } from './phases';
 import { kindOf } from './renamePanels';
 import { canDrop, TIE_OPERATION, tieRatings, type MoveItem, type PaletteItem } from './sldEdit';
@@ -181,7 +181,7 @@ function changeList(project: Project, fs: Feeder[]): CtxItem {
       ...(fs.every((x) => isSinglePhase(x)) ? [{ label: 'Phase', icon: 'waves' as const, sub: (['R', 'Y', 'B'] as const).map((p) => row(p, `change|phase|${p}`, { now: phase === p })) }] : []),
       {
         label: 'Cable type', icon: 'route',
-        sub: [row(fs.length === 1 ? `Auto — ${cableTypeOf(project, { ...f, cableType: undefined }).label}` : 'Auto', 'change|cableType|', { now: typeNow === '' }),
+        sub: [row(fs.length === 1 ? `Auto — ${autoCableTypeOf(project, f).label}` : 'Auto', 'change|cableType|', { now: typeNow === '' }),
           ...CABLE_TYPE_DEFS.filter((d) => d.value !== 'XLPE/SWA/PVC').map((d) => row(d.label, `change|cableType|${d.value}`, { now: typeNow === d.value }))]
       },
       '-',

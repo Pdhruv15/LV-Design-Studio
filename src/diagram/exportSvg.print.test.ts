@@ -30,4 +30,23 @@ describe('printed SLD colours', () => {
     expect(doc.querySelector('.load')?.getAttribute('style')).toContain('stroke:#000000');
     expect(doc.querySelector('.icon path')?.getAttribute('style')).toMatch(/stroke:#000000.*fill:#000000/);
   });
+
+  it('prints muted lines black and way numbers solid black, keeping panel frames and muted texts grey', () => {
+    document.documentElement.style.setProperty('--mut', 'rgb(1, 2, 3)');
+    const muted = getComputedStyle(Object.assign(document.createElement('span'), { style: 'color: var(--mut)' })).color;
+    document.body.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg">
+      <line class="ln" x2="10" style="stroke: ${muted}"/>
+      <rect class="frame-ln" width="10" height="5" style="stroke: ${muted}; fill: none"/>
+      <text class="acc-t way-no" style="fill: ${muted}; opacity: 0.8">4</text>
+      <text class="acc-t" style="fill: ${muted}">36 kA</text></svg>`;
+    const out = printableSvg(document.querySelector('svg')!, 100, 50);
+    const doc = new DOMParser().parseFromString(out, 'image/svg+xml');
+    expect(doc.querySelector('.ln')?.getAttribute('style')).toContain('stroke:#000000');
+    expect(doc.querySelector('.frame-ln')?.getAttribute('style')).toContain('stroke:#444444');
+    const way = doc.querySelector('.way-no')?.getAttribute('style');
+    expect(way).toContain('fill:#000000');
+    expect(way).toContain('opacity:1');
+    expect(doc.querySelector('text:not(.way-no)')?.getAttribute('style')).toContain('fill:#444444');
+    document.documentElement.style.removeProperty('--mut');
+  });
 });

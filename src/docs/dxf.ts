@@ -35,6 +35,7 @@ export const DXF_LAYERS: Record<string, number> = {
   SYMBOL: 3, // green
   TEXT: 7,
   RESULT: 4, // cyan
+  PANEL: 8, // grey: the dashed frame round a panel
   FRAME: 7,
   TITLE: 7
 };
@@ -45,6 +46,8 @@ export const DXF_LAYERS: Record<string, number> = {
 export const LINETYPES: Record<string, { description: string; pattern: number[] }> = {
   'LV-DASHED': { description: 'Dashed', pattern: [3, -1.5] },
   'LV-DASHED2': { description: 'Dashed (short)', pattern: [1.5, -0.75] },
+  /** The panel frame: LV-DASHED with half its gap. */
+  'LV-PANEL': { description: 'Dashed (panel frame)', pattern: [3, -0.75] },
   'LV-DASHDOT': { description: 'Dash dot', pattern: [3, -1, 0, -1] }
 };
 export type Dashed = true | 'dashdot';

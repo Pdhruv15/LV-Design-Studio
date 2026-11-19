@@ -27,6 +27,19 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.211', date: '2026-11-19',
+    items: [
+      { title: 'Cable type: Auto names the cable it gives', text: 'In the SLD cable editor (click the cable text of a way) and on the Cable tab of the feeder form, the Auto choice now names the cable a way gets when no type is chosen: the default armoured cable, or fire-rated cable for a life safety circuit. Before, it repeated the type chosen by hand.' }
+    ]
+  },
+  {
+    version: '2.210', date: '2026-11-19',
+    items: [
+      { title: 'SLD PDF: feeder lines, breakers and way numbers print black', text: 'On printed SLD sheets, feeder lines, breaker symbols and load boxes now print black, not grey, and the way numbers print solid black and sharp instead of faded. Secondary texts such as the breaking capacity and the dashed panel frames stay grey.' },
+      { title: 'SLD DXF / DWG: panel frames grey with closer dashes', text: 'The dashed frame round a panel goes on its own grey layer, E-PANEL, instead of the cable layer, and is drawn with half the gap between dashes (3 mm dash, 0.75 mm gap).' }
+    ]
+  },
+  {
     version: '2.209', date: '2026-11-19',
     items: [
       { title: 'MV, not HV, for the 11 kV side', text: 'The 11 kV supply is now called MV (medium voltage) throughout the app: the MV supply and RMUs card in Panels → Transformers and its item in the SLD ribbon\'s Supply menu, the Shared MV body earth earthing system and the MV BODY note on the earthing schematic, the MV supply row of the revision compare, and the MV network line in the reports. Projects open as before; only the names changed. The DEWA forms keep DEWA\'s own wording, LV/HV-CT.' }
