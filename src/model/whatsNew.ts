@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.215', date: '2026-11-19',
+    items: [
+      { title: 'Search opens the drawing sheet', text: 'Picking a sheet under Drawing sheets in Search (⌘K / Ctrl+K) now opens that sheet in Design CAD → Sheets. Before, it showed the SLD instead.' }
+    ]
+  },
+  {
     version: '2.211', date: '2026-11-19',
     items: [
       { title: 'Cable type: Auto names the cable it gives', text: 'In the SLD cable editor (click the cable text of a way) and on the Cable tab of the feeder form, the Auto choice now names the cable a way gets when no type is chosen: the default armoured cable, or fire-rated cable for a life safety circuit. Before, it repeated the type chosen by hand.' }

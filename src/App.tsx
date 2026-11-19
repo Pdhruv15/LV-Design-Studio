@@ -1135,7 +1135,7 @@ export default function App() {
       out.push({ id: `b:${b.id}`, group: 'Boards', label: b.id, hint: b.name && b.name !== b.id ? b.name : undefined, run: () => { design(); setSheetTab(null); selectBoard(b.id); setSldFocus({ kind: 'board', id: b.id, n: Date.now() }); } });
     }
     for (const sh of setOf(project).sheets) {
-      out.push({ id: `s:${sh.id}`, group: 'Drawing sheets', label: sh.number, hint: sh.title, run: () => { design(); setDiagramMode('system'); setSheetTab(sh.id); } });
+      out.push({ id: `s:${sh.id}`, group: 'Drawing sheets', label: sh.number, hint: sh.title, run: () => { setSheetTab(sh.id); setView('drawings'); } }); // opens it in Design CAD → Sheets
     }
     for (const [v, label] of PALETTE_PAGES) out.push({ id: `p:${v}`, group: 'Pages', label, run: () => setView(v) });
     return out;
