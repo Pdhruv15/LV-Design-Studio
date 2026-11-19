@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.217', date: '2026-11-19',
+    items: [
+      { title: 'Sheets: electrical formulas', text: 'Formulas in Sheets can now use the app\'s own electrical functions, worked out with its cable and breaker data: AMPS(kW, pf) for the current, KW(A, pf) for the power, VD(A, length m, mm², pf) for the voltage drop %, BREAKER(A) for the next breaker rating, CABLESIZE(A, length m, pf, ambient °C, VD limit %) for the cable, DERATE(ambient °C) for the rating factor, CPC(mm²) for the earth conductor, TXSIZE(kVA) for the transformer, FAULTKA(kVA, Z %) for the fault level and KVAR(kW, pf now, pf target) for the capacitors. Phases (3 or 1) and the voltage can follow; 400 V or 230 V is used without one. Excel does not have these functions, so a saved Excel file gets their values, with the formula in the cell\'s note; Sheets reads the formula back when it opens the file.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
     version: '2.214', date: '2026-11-19',
     items: [
       { title: 'Panel tree: Group by substation', text: 'Once a main board names its RMU or substation (Panels → Transformers), the panel tree has a Group switch: Boards, as before, or Substations. Substations lists each substation, its RMUs and their main boards with the transformer\'s kVA (and its number, e.g. TX-1, when the tree is wide enough), then the boards below. Main boards in no substation go under "No substation", meter cabinets under "Authority supply". On the SLD page a click on a substation or RMU shows it on the drawing; on other pages a double-click does. Find a board… also finds a substation or RMU by name.' }
