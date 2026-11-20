@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>About page in the Graphite theme, dark and light (mockup)</title>
+<!--
+  Mockup of the public About page in the app's Graphite colours.
+  Open it in a browser: it follows the computer's light or dark setting, as the
+  real page would. Add #dark or #light to the address to force one.
+  The colours are the Graphite tokens of src/theme/tokens.css, name for name.
+  The real page runs no script: there the light block below becomes
+  @media (prefers-color-scheme: light). The script at the end exists only for this mockup.
+-->
+<style>
+  :root{
+    color-scheme:dark;
+    --bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;
+    --tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--on-acc:#1D2024;--warn:#f5c04a;
+    --grid:#272a2f;--tint:rgba(245,179,1,.10);
+    --shadow-shot:0 18px 48px rgba(0,0,0,.5);--shadow-card:0 2px 10px rgba(0,0,0,.35);
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-synthesis:none;
+  }
+  :root[data-theme="light"]{
+    color-scheme:light;
+    --bg:#F5F3EF;--panel:#ffffff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;
+    --tx:#272420;--mut:#5D574C;--acc:#875800;--on-acc:#ffffff;--warn:#8a5d00;
+    --grid:#e7e4dc;--tint:rgba(135,88,0,.08);
+    --shadow-shot:0 18px 48px rgba(20,32,53,.22);--shadow-card:0 2px 10px rgba(20,32,53,.10);
+  }
+  *{box-sizing:border-box}
+  html{background:var(--panel)}
+  body{margin:0;line-height:1.55;font-size:16px;color:var(--tx);background:var(--bg)}
+  a{color:inherit;text-underline-offset:4px}
+  a:focus-visible{outline:3px solid var(--acc);outline-offset:3px}
+  svg.i{width:22px;height:22px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .shell{width:min(1120px,calc(100% - 48px));margin:0 auto}
+
+  /* mockup label, not part of the page */
+  .mock{background:#000;color:#cfd3d8;font:12px/18px ui-monospace,Menlo,Consolas,monospace;padding:7px 0}
+  .mock b{color:#fff}
+
+  /* header */
+  .site-header{background:var(--panel);border-bottom:1px solid var(--line)}
+  .header-inner{min-height:68px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+  .brand{display:inline-flex;align-items:center;gap:12px;font-weight:750;text-decoration:none;font-size:17px}
+  .brand img{width:34px;height:34px;border-radius:8px}
+  .nav{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:15px}
+  .nav a{padding:8px 12px;border-radius:6px;text-decoration:none;color:var(--mut)}
+  .nav a[aria-current="page"]{color:var(--tx);box-shadow:inset 0 -2px 0 var(--acc);border-radius:0}
+  .nav a.out{margin-left:8px;border:1px solid var(--line-strong);border-radius:999px;padding:7px 14px;color:var(--tx);font-weight:650}
+
+  /* hero */
+  .hero{position:relative;padding:76px 0 84px;border-bottom:1px solid var(--line)}
+  .hero .paper{position:absolute;inset:0;width:100%;height:100%;color:var(--grid)}
+  .hero .shell{position:relative}
+  .hero-grid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:48px;align-items:center}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px;padding:0;list-style:none}
+  .chips li{padding:4px 11px;border:1px solid var(--line-strong);border-radius:999px;background:var(--panel);color:var(--mut);font-size:12.5px;font-weight:650;letter-spacing:.04em;text-transform:uppercase}
+  h1{margin:0;font-size:54px;line-height:1.04;letter-spacing:-.035em;font-weight:750}
+  h1 em{font-style:normal;color:var(--acc)}
+  .lede{margin:24px 0 0;color:var(--mut);font-size:19px;line-height:1.5}
+  .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+  .button{display:inline-flex;min-height:46px;align-items:center;justify-content:center;gap:9px;padding:0 20px;border:1px solid var(--line-strong);border-radius:9px;background:var(--panel);font-weight:700;font-size:15.5px;text-decoration:none}
+  .button-primary{border-color:var(--acc);background:var(--acc);color:var(--on-acc)}
+  .facts{display:flex;flex-wrap:wrap;gap:8px 22px;margin:28px 0 0;padding:0;list-style:none;color:var(--mut);font-size:14.5px}
+  .facts li{display:flex;align-items:center;gap:7px}
+  .facts svg{width:17px;height:17px;color:var(--acc);stroke-width:2.4}
+  .stage{position:relative;padding:0 0 34px 36px}
+  .frame{display:block;width:100%;height:auto;border:1px solid var(--line-strong);border-radius:12px;box-shadow:var(--shadow-shot)}
+  .frame.small{position:absolute;left:0;bottom:0;width:46%}
+
+  /* sections */
+  .section{padding:72px 0;border-bottom:1px solid var(--line)}
+  .section.band{background:var(--panel)}
+  .section-heading{display:grid;grid-template-columns:minmax(200px,.6fr) minmax(0,1.4fr);gap:32px;align-items:start;margin-bottom:36px}
+  .eyebrow{margin:0 0 10px;color:var(--acc);font-size:12.5px;font-weight:750;letter-spacing:.09em;text-transform:uppercase}
+  h2{margin:0;font-size:30px;line-height:1.15;letter-spacing:-.02em}
+  .section-intro{max-width:700px;margin:0;color:var(--mut);font-size:17px}
+  h3{margin:0 0 8px;font-size:17px;line-height:1.3}
+
+  /* video */
+  .intro{display:grid;grid-template-columns:minmax(0,.62fr) minmax(0,1fr);gap:56px;align-items:center}
+  .video{position:relative;aspect-ratio:16/9;border:1px solid var(--line-strong);border-radius:12px;overflow:hidden;background:#0f2a44;box-shadow:var(--shadow-card)}
+  .video img{display:block;width:100%;height:100%;object-fit:cover;opacity:.5}
+  .video .play{position:absolute;left:50%;top:50%;width:68px;height:68px;margin:-34px 0 0 -34px;border-radius:50%;background:#F5B301;display:grid;place-items:center}
+  .video .time{position:absolute;right:12px;bottom:12px;padding:1px 8px;border-radius:5px;background:rgba(0,0,0,.7);color:#fff;font-size:12.5px}
+
+  /* cards */
+  .cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+  .card{display:flex;flex-direction:column;padding:24px;border:1px solid var(--line);border-radius:12px;background:var(--panel);box-shadow:var(--shadow-card)}
+  .band .card{background:var(--bg);box-shadow:none}
+  .card p{margin:0;color:var(--mut);font-size:15px}
+  .tile{width:42px;height:42px;margin-bottom:18px;border-radius:9px;background:var(--tint);color:var(--acc);display:grid;place-items:center}
+  .card .go{display:inline-flex;align-items:center;gap:7px;margin-top:auto;padding-top:18px;font-weight:700;font-size:15px}
+  .card .go svg{width:17px;height:17px}
+  .card.lead{border-color:var(--acc)}
+  .card.lead .go{align-self:flex-start;margin-top:auto;padding:0 14px;min-height:38px;border-radius:9px;background:var(--acc);color:var(--on-acc);text-decoration:none}
+  .card.lead p{margin-bottom:18px}
+
+  /* gallery */
+  .gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+  .shot{margin:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel);box-shadow:var(--shadow-card)}
+  .shot img{display:block;width:100%;height:auto;border-bottom:1px solid var(--line)}
+  .shot figcaption{padding:14px 16px 16px}
+  .shot strong{display:block;margin-bottom:3px;font-size:15px}
+  .shot span{color:var(--mut);font-size:14px;line-height:1.45;display:block}
+
+  /* trust */
+  .two-column{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+  .note{padding:28px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  .note h2{display:flex;align-items:center;gap:12px;font-size:22px;margin-bottom:14px}
+  .note h2 svg{color:var(--acc)}
+  .note p{margin:0 0 14px;color:var(--mut)}
+  .note.caution{border-left:4px solid var(--warn)}
+  .note a{display:inline-flex;align-items:center;gap:7px;font-weight:700}
+  .note a svg{width:17px;height:17px}
+
+  /* footer */
+  .site-footer{padding:34px 0 46px;background:var(--panel)}
+  .footer-inner{display:flex;justify-content:space-between;align-items:center;gap:24px;color:var(--mut);font-size:14.5px}
+  .footer-brand{display:inline-flex;align-items:center;gap:10px;color:var(--tx);font-weight:700}
+  .footer-brand img{width:26px;height:26px;border-radius:6px}
+  .footer-links{display:flex;flex-wrap:wrap;gap:18px}
+
+  @media screen and (max-width:900px){
+    .hero-grid,.intro,.section-heading,.two-column{grid-template-columns:1fr}
+    .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .gallery{grid-template-columns:repeat(2,minmax(0,1fr))}
+    h1{font-size:40px}
+    .header-inner{align-items:flex-start;flex-direction:column;padding:14px 0}
+  }
+  @media screen and (max-width:560px){
+    .cards,.gallery{grid-template-columns:1fr}
+    .footer-inner{flex-direction:column;align-items:flex-start}
+  }
+</style>
+</head>
+<body>
+<div class="mock"><div class="shell">MOCKUP · About page · <b id="mock-theme">Graphite dark</b> · the page follows the visitor's light or dark setting · colours from src/theme/tokens.css</div></div>
+
+<header class="site-header"><div class="shell header-inner">
+  <a class="brand" href="#"><img src="../../public/icon.svg" alt="" width="34" height="34"><span>LV Design Studio</span></a>
+  <nav class="nav" aria-label="Primary navigation">
+    <a href="#">Browser app</a><a href="#" aria-current="page">About</a><a href="#">Beta downloads</a><a href="#">Architecture</a><a href="#">Source code</a><a class="out" href="#">Follow on LinkedIn</a>
+  </nav>
+</div></header>
+
+<main>
+<section class="hero">
+  <!-- drafting grid of the app's drawing surface, fading out towards the bottom -->
+  <svg class="paper" aria-hidden="true"><defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 .5H.5V24" fill="none" stroke="currentColor"/></pattern>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset=".35" style="stop-color:var(--bg);stop-opacity:0"/><stop offset="1" style="stop-color:var(--bg);stop-opacity:1"/></linearGradient>
+  </defs><rect width="100%" height="100%" fill="url(#grid)"/><rect width="100%" height="100%" fill="url(#fade)"/></svg>
+  <div class="shell hero-grid">
+  <div>
+    <ul class="chips"><li>Open source</li><li>Offline first</li><li>Engineer controlled</li></ul>
+    <h1>Low-voltage electrical design in <em>one workspace.</em></h1>
+    <p class="lede">An open-source, offline-first workspace for single-line diagrams, load schedules, electrical calculations, drawings and reports. Projects remain under the engineer's control as local files.</p>
+    <div class="actions">
+      <a class="button button-primary" href="#">Download a beta</a>
+      <a class="button" href="#">Open the browser app</a>
+    </div>
+    <ul class="facts">
+      <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>No sign-in required</li>
+      <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Projects remain under your control</li>
+      <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>MIT or Apache-2.0 licence</li>
+    </ul>
+  </div>
+  <div class="stage">
+    <img class="frame" src="../screenshots/10-overview-design-stages.png" alt="Overview and design stages">
+    <img class="frame small" src="../screenshots/01-single-line-diagram.png" alt="Single line diagram">
+  </div>
+</div></section>
+
+<section class="section"><div class="shell intro">
+  <div>
+    <p class="eyebrow">Introduction</p>
+    <h2>LV design in 30 seconds</h2>
+    <p class="section-intro" style="margin-top:16px">See how the single-line diagram, load schedules, electrical studies and engineering deliverables come together in one offline-first workspace.</p>
+  </div>
+  <div class="video" aria-label="30-second introduction to LV Design Studio">
+    <img src="../screenshots/01-single-line-diagram.png" alt="">
+    <span class="play"><svg viewBox="0 0 24 24" width="28" height="28"><path d="M8 5.5v13l11-6.5z" fill="#1D2024"/></svg></span>
+    <span class="time">0:30</span>
+  </div>
+</div></section>
+
+<section class="section"><div class="shell">
+  <div class="section-heading"><div><p class="eyebrow">What it does</p><h2>One project model</h2></div><p class="section-intro">Design information is shared across calculations, drawings and deliverables, reducing repeated entry while keeping the engineer responsible for every decision.</p></div>
+  <div class="cards">
+    <article class="card"><span class="tile"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v6M4 9h16M6 9v5M12 9v5M18 9v5"/><rect x="4" y="14" width="4" height="6" rx="1"/><rect x="10" y="14" width="4" height="6" rx="1"/><rect x="16" y="14" width="4" height="6" rx="1"/></svg></span><h3>Network and schedules</h3><p>Build board hierarchies, load schedules and single-line diagrams from the same project data.</p></article>
+    <article class="card"><span class="tile"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8.5 7.5h7M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 16h.01M12 16h.01M15.5 16h.01"/></svg></span><h3>Electrical calculations</h3><p>Check cable and breaker sizing, voltage drop, short circuit, earthing, protection coordination, transformers, generators and power factor correction.</p></article>
+    <article class="card"><span class="tile"><svg class="i" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h7"/></svg></span><h3>Drawings and deliverables</h3><p>Prepare drawing sheets, schedules, bills of quantities and engineering reports from the current design model.</p></article>
+    <article class="card"><span class="tile"><svg class="i" viewBox="0 0 24 24"><path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4"/></svg></span><h3>Independent cross-checks</h3><p>Compare selected studies with optional OpenDSS and pandapower engines installed on your own computer.</p></article>
+  </div>
+</div></section>
+
+<section class="section"><div class="shell">
+  <div class="section-heading"><div><p class="eyebrow">Screens</p><h2>See the workspace</h2></div><p class="section-intro">Views of the built-in demonstration project: the same project model across the design stages, calculations, drawings and deliverables.</p></div>
+  <div class="gallery">
+    <figure class="shot"><img src="../screenshots/01-single-line-diagram.png" alt="Single line diagram"><figcaption><strong>Single line diagram</strong><span>IEC and DEWA symbols, the panel tree and board properties.</span></figcaption></figure>
+    <figure class="shot"><img src="../screenshots/02-load-schedule.png" alt="Load schedule"><figcaption><strong>Load schedule</strong><span>The DEWA connected-load and maximum-demand schedule for the selected board.</span></figcaption></figure>
+    <figure class="shot"><img src="../screenshots/03-transformer-generator.png" alt="Transformer and generator sizing"><figcaption><strong>Transformer and generator sizing</strong><span>Transformer fault level and regulation, plus generator sizing with motor starting.</span></figcaption></figure>
+    <figure class="shot"><img src="../screenshots/04-power-factor-correction.png" alt="Power factor correction"><figcaption><strong>Power factor correction</strong><span>Central, group or individual correction with staged and detuned banks.</span></figcaption></figure>
+    <figure class="shot"><img src="../screenshots/05-earthing-with-panel-tree.png" alt="Earthing"><figcaption><strong>Earthing</strong><span>Earthing results filtered by the selected panel and its downstream boards.</span></figcaption></figure>
+    <figure class="shot"><img src="../screenshots/06-study-reports.png" alt="Study reports"><figcaption><strong>Study reports</strong><span>Select boards and studies, then prepare PDF or Excel engineering deliverables.</span></figcaption></figure>
+    <figure class="shot"><img src="../screenshots/07-cable-tray-schedule.png" alt="Cable tray schedule"><figcaption><strong>Cable tray schedule</strong><span>Route paths, tray sizing, grouping derating, cross-sections and quantities.</span></figcaption></figure>
+    <figure class="shot"><img src="../screenshots/08-quick-calculators.png" alt="Quick calculators"><figcaption><strong>Quick calculators</strong><span>Fast checks for current, power, cable sizing, voltage drop, transformers and more.</span></figcaption></figure>
+    <figure class="shot"><img src="../screenshots/09-projects-dashboard.png" alt="Projects dashboard"><figcaption><strong>Projects dashboard</strong><span>Recent local projects, status, search and duplication.</span></figcaption></figure>
+  </div>
+</div></section>
+
+<section class="section"><div class="shell two-column">
+  <article class="note"><h2><svg class="i" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Private by design</h2><p>The desktop application stores projects as local JSON files. The browser app keeps projects in that browser profile. No account, telemetry or hosted project database is required.</p><p style="margin-bottom:0">Back up project files regularly; clearing browser data removes browser-stored projects.</p></article>
+  <article class="note caution"><h2><svg class="i" viewBox="0 0 24 24" style="color:var(--warn)"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg>Engineering responsibility</h2><p>The calculations are first-pass design checks, not a substitute for an engineer's verified study. Built-in cable values are approximate references until replaced with manufacturer data, and some study methods are intentionally simplified. Nothing in the app constitutes approval by an electrical authority.</p><a href="#">Review calculation methods and limits<svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></article>
+</div></section>
+
+<section class="section band"><div class="shell">
+  <div class="section-heading"><div><p class="eyebrow">Community</p><h2>Get involved</h2></div><p class="section-intro">LV Design Studio is developed in the open. Follow the releases, report what does not work, and share the engineering data that improves the built-in references.</p></div>
+  <div class="cards">
+    <article class="card lead"><span class="tile"><svg class="i" viewBox="0 0 24 24"><path d="M4 10v4h3l7 4V6l-7 4H4z"/><path d="M17.5 9a4.5 4.5 0 0 1 0 6"/></svg></span><h3>Follow the project</h3><p>Follow the developer on LinkedIn for news about new releases.</p><a class="go" href="#">Follow on LinkedIn</a></article>
+    <article class="card"><span class="tile"><svg class="i" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg></span><h3>Report a problem</h3><p>Open an issue with the steps that led to the problem. In the app, Help has Copy error log, which gives the details to paste in.</p><a class="go" href="#">Open an issue<svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></article>
+    <article class="card"><span class="tile"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M3 14.5h18M9 5v14"/></svg></span><h3>Share engineering data</h3><p>Authority rules, manufacturer cable and breaker data and schedule formats can be reviewed for the built-in references. Name the source document so that it can be checked.</p><a class="go" href="#">Suggest data or an idea<svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></article>
+    <article class="card"><span class="tile"><svg class="i" viewBox="0 0 24 24"><path d="M9 8l-4 4 4 4M15 8l4 4-4 4M13.5 5l-3 14"/></svg></span><h3>Contribute code</h3><p>The source is open under the MIT or Apache-2.0 licence. The README gives the setup and the test commands.</p><a class="go" href="#">View the source<svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></article>
+  </div>
+</div></section>
+</main>
+
+<footer class="site-footer"><div class="shell footer-inner">
+  <span class="footer-brand"><img src="../../public/icon.svg" alt="" width="26" height="26">LV Design Studio</span>
+  <div class="footer-links"><a href="#">MIT License</a><a href="#">Apache-2.0 License</a><a href="#">Privacy</a><a href="#">LinkedIn</a></div>
+</div></footer>
+
+<script>
+  // Mockup only: the real page has no script and uses @media (prefers-color-scheme: light).
+  (function () {
+    var forced = location.hash === '#light' || location.hash === '#dark' ? location.hash.slice(1) : '';
+    var light = forced ? forced === 'light' : matchMedia('(prefers-color-scheme: light)').matches;
+    if (light) document.documentElement.dataset.theme = 'light';
+    document.getElementById('mock-theme').textContent = light ? 'Graphite light' : 'Graphite dark';
+    // One page the size of the content, for the image beside this file.
+    function pageRule() {
+      document.head.appendChild(document.createElement('style')).textContent =
+        '@page{size:' + innerWidth + 'px ' + (Math.ceil(document.documentElement.scrollHeight) + 4) + 'px;margin:0}';
+    }
+    if (document.readyState === 'complete') pageRule(); else addEventListener('load', pageRule);
+  })();
+</script>
+</body>
+</html>

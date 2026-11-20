@@ -70,8 +70,48 @@ const withPts = (it: SketchItem, pts: Pt[], closed = false): Omit<SketchItem, 'i
 };
 const box = (pts: Pt[]) => pts.reduce(([x0, y0, x1, y1], q) => [Math.min(x0, q[0]), Math.min(y0, q[1]), Math.max(x1, q[0]), Math.max(y1, q[1])], [Infinity, Infinity, -Infinity, -Infinity]);
 
-/** The other lines an item can be cut at or extended to: the drawn items' pieces and the architect's lines. */
-export const edgesFor = (items: SketchItem[], except: string, drawing: Seg[]): Seg[] => {
+/** A circle or arc as the curve it is: centre, radius, where it starts and how far it turns anticlockwise (2π: all the
+ * way round). As a cutting edge it stays the curve, not its chords, so a cut or an end run on to it lands on it exactly. */
+export type Round = { c: Pt; r: number; a0: number; sweep: number };
+/** A cutting edge or boundary: a straight piece, or a circle or arc. */
+export type Edge = Seg | Round;
+const TAU = 2 * Math.PI;
+/** An angle brought into 0 up to 2π (a hair under 2π is 0). */
+const turn = (a: number) => { const t = a % TAU, u = t < 0 ? t + TAU : t; return u > TAU - 1e-12 ? 0 : u; };
+/** The curve of a drawn circle or arc; null for anything else. */
+const roundOf = (it: SketchItem): Round | null => {
+  if ((it.kind !== 'circle' && it.kind !== 'arc') || !((it.r ?? 0) > EPS)) return null;
+  if (it.kind === 'circle') return { c: it.pts[0], r: it.r!, a0: 0, sweep: TAU };
+  return { c: it.pts[0], r: it.r!, a0: it.a0 ?? 0, sweep: turn((it.a1 ?? 0) - (it.a0 ?? 0)) || TAU };
+};
+/** How far round a circle or arc a point is from its start (0 up to 2π), by its direction from the centre. */
+const turnTo = (q: Round, p: Pt) => { const t = turn(Math.atan2(p[1] - q.c[1], p[0] - q.c[0]) - q.a0); return t > TAU - 1e-9 ? 0 : t; };
+/** True when a point of an arc's circle is on the arc itself. */
+const onRound = (q: Round, p: Pt) => turnTo(q, p) <= q.sweep + 1e-9;
+/** Where the line through a → b meets a circle (t along it, 1 at b): none, one where it only touches, or two. */
+function meetCircle(a: Pt, b: Pt, c: Pt, r: number): number[] {
+  const d = sub(b, a), f = sub(a, c), l2 = dot(d, d);
+  if (l2 < EPS * EPS) return [];
+  // mid: nearest the centre; k2: half the chord, squared.
+  const mid = -dot(f, d) / l2, k2 = r * r - (dot(f, f) - mid * mid * l2);
+  if (k2 < -1e-9 * r * r) return [];
+  if (k2 <= 1e-9 * r * r) return [mid];
+  const k = Math.sqrt(k2 / l2);
+  return [mid - k, mid + k];
+}
+/** Where two circles meet: none, one point where they only touch, or two. */
+function circlesMeet(c1: Pt, r1: number, c2: Pt, r2: number): Pt[] {
+  const d = sub(c2, c1), l = len(d);
+  if (l < EPS * Math.max(1, r1, r2) || l > (r1 + r2) * (1 + 1e-9) || l < Math.abs(r1 - r2) * (1 - 1e-9)) return [];
+  const s = (l * l + r1 * r1 - r2 * r2) / (2 * l), h2 = r1 * r1 - s * s, u = mul(d, 1 / l), m = add(c1, mul(u, s));
+  if (h2 <= 1e-9 * r1 * r1) return [m];
+  const n = mul([-u[1], u[0]], Math.sqrt(h2));
+  return [add(m, n), sub(m, n)];
+}
+
+/** The other lines an item can be cut at or extended to: the drawn items' pieces (a circle or arc as its curve) and the
+ * architect's lines. */
+export const edgesFor = (items: SketchItem[], except: string, drawing: Seg[]): Edge[] => {
   const others = items.filter((x) => x.id !== except);
   // An infinite construction line is cut to a box well beyond everything drawn (worked out only when there is one).
   let box: [number, number, number, number] = [0, 0, 1, 1];
@@ -83,9 +123,9 @@ export const edgesFor = (items: SketchItem[], except: string, drawing: Seg[]): S
     const span = Math.max(x1 - x0, y1 - y0, 1);
     box = [x0 - span, y0 - span, x1 + span, y1 + span];
   }
-  const drawn = others.flatMap((x): Seg[] => {
-    const s = x.infinite ? constructionSegment(x, box) : undefined;
-    return x.infinite ? (s ? [s] : []) : segmentsOf(x);
+  const drawn = others.flatMap((x): Edge[] => {
+    const s = x.infinite ? constructionSegment(x, box) : undefined, round = roundOf(x);
+    return x.infinite ? (s ? [s] : []) : round ? [round] : segmentsOf(x);
   });
   return drawn.concat(drawing);
 };
@@ -93,14 +133,27 @@ export const edgesFor = (items: SketchItem[], except: string, drawing: Seg[]): S
 /** Polylines with arc segments (their bulges) are straight-segment geometry to these tools: they ask for Explode first. */
 const ARCS = 'This polyline has arc segments: explode it first (X).';
 
-/** Where the edges cross a path, as chainages along it in order (its ends left out): where Trim cuts. Worked out once
- * for the line under the cursor, so the shadow before the click costs little on each move. */
-export function crossingsOf(it: SketchItem, edges: Seg[]): number[] {
+/** Where the edges cross a path, circle or arc, as chainages along it in order (its ends left out): where Trim cuts.
+ * Worked out once for the line under the cursor, so the shadow before the click costs little on each move. */
+export function crossingsOf(it: SketchItem, edges: Edge[]): number[] {
+  const round = roundOf(it);
+  if (round) return roundCrossings(round, edges);
   if (!isPath(it) || hasArcs(it)) return [];
   const pts = pathOf(it), c = chain(pts), L = c[c.length - 1];
   const [x0, y0, x1, y1] = box(pts);
   const cuts: number[] = [];
-  for (const [p, q] of edges) {
+  for (const e of edges) {
+    if (!Array.isArray(e)) {
+      // A circle or arc: where each side meets the curve itself.
+      if (e.c[0] + e.r < x0 - EPS || e.c[0] - e.r > x1 + EPS || e.c[1] + e.r < y0 - EPS || e.c[1] - e.r > y1 + EPS) continue;
+      for (let i = 0; i + 1 < pts.length; i += 1) for (const t of meetCircle(pts[i], pts[i + 1], e.c, e.r)) {
+        if (t < -1e-9 || t > 1 + 1e-9 || !onRound(e, add(pts[i], mul(sub(pts[i + 1], pts[i]), t)))) continue;
+        const s = c[i] + t * (c[i + 1] - c[i]);
+        if (s > L * 1e-6 && s < L * (1 - 1e-6)) cuts.push(s);
+      }
+      continue;
+    }
+    const p = e[0], q = e[1];
     if (Math.max(p[0], q[0]) < x0 - EPS || Math.min(p[0], q[0]) > x1 + EPS || Math.max(p[1], q[1]) < y0 - EPS || Math.min(p[1], q[1]) > y1 + EPS) continue;
     for (let i = 0; i + 1 < pts.length; i += 1) {
       const t = meet(pts[i], pts[i + 1], p, q);
@@ -112,16 +165,36 @@ export function crossingsOf(it: SketchItem, edges: Seg[]): number[] {
   return cuts.sort((a, b) => a - b).filter((s, i, x) => !i || s - x[i - 1] > L * 1e-9);
 }
 
+/** Where the edges cross a circle or arc, as lengths along it from its start, in order. An arc's ends are left out; a
+ * circle has no ends, so a crossing at its start (its 0° point) counts. */
+function roundCrossings(q: Round, edges: Edge[]): number[] {
+  const L = q.r * q.sweep, whole = q.sweep >= TAU;
+  const x0 = q.c[0] - q.r, y0 = q.c[1] - q.r, x1 = q.c[0] + q.r, y1 = q.c[1] + q.r;
+  const cuts: number[] = [];
+  const cutAt = (p: Pt) => {
+    const t = turnTo(q, p), s = q.r * t;
+    if (t <= q.sweep + 1e-9 && (whole || (s > L * 1e-6 && s < L * (1 - 1e-6)))) cuts.push(s);
+  };
+  for (const e of edges) {
+    if (!Array.isArray(e)) { for (const p of circlesMeet(q.c, q.r, e.c, e.r)) if (onRound(e, p)) cutAt(p); continue; }
+    const a = e[0], b = e[1];
+    if (Math.max(a[0], b[0]) < x0 - EPS || Math.min(a[0], b[0]) > x1 + EPS || Math.max(a[1], b[1]) < y0 - EPS || Math.min(a[1], b[1]) > y1 + EPS) continue;
+    for (const t of meetCircle(a, b, q.c, q.r)) if (t >= -1e-9 && t <= 1 + 1e-9) cutAt(add(a, mul(sub(b, a), t)));
+  }
+  return cuts.sort((a, b) => a - b).filter((s, i, x) => !i || s - x[i - 1] > L * 1e-9);
+}
+
 /** Where Trim cuts the path clicked: from chainage `lo` to `hi`, the nearest crossings on either side of the click; over
  * the start of a closed shape when `wrap` (then `lo` is the last crossing and `hi` the first). */
 type Cut = { pts: Pt[]; c: number[]; L: number; lo: number; hi: number; wrap: boolean };
+const NO_CUT = 'Nothing crosses it there to cut at: Erase it instead.', TWO_CUTS = 'A closed shape needs two crossings to cut a piece out.';
 function cutOf(it: SketchItem, click: Pt, sorted: number[]): Cut | { error: string } {
   if (hasArcs(it)) return { error: ARCS };
-  if (!isPath(it)) return { error: 'Trim works on lines, polylines, trays and cable routes.' };
-  if (!sorted.length) return { error: 'Nothing crosses it there to cut at: Erase it instead.' };
+  if (!isPath(it)) return { error: 'Trim works on lines, polylines, circles, arcs, trays and cable routes.' };
+  if (!sorted.length) return { error: NO_CUT };
   const pts = pathOf(it), c = chain(pts), L = c[c.length - 1], at = along(pts, c, click).s;
   if (it.closed) {
-    if (sorted.length < 2) return { error: 'A closed shape needs two crossings to cut a piece out.' };
+    if (sorted.length < 2) return { error: TWO_CUTS };
     const lo = [...sorted].reverse().find((s) => s < at), hi = sorted.find((s) => s > at);
     if (lo === undefined || hi === undefined) return { pts, c, L, lo: sorted[sorted.length - 1], hi: sorted[0], wrap: true };
     return { pts, c, L, lo, hi, wrap: false };
@@ -130,8 +203,38 @@ function cutOf(it: SketchItem, click: Pt, sorted: number[]): Cut | { error: stri
   return { pts, c, L, lo, hi, wrap: false };
 }
 
-/** Trim: the part of the path clicked, between the nearest crossings on either side of the click, is cut away. */
-export function trim(it: SketchItem, click: Pt, edges: Seg[]): Edit & { cut?: number } {
+/** Where Trim cuts the circle or arc clicked, as cutOf does a path, in lengths along it from its start. A circle (or an
+ * arc all the way round) is a closed shape: it needs two crossings. */
+function roundCutOf(q: Round, click: Pt, sorted: number[]): Pick<Cut, 'L' | 'lo' | 'hi' | 'wrap'> | { error: string } {
+  if (!sorted.length) return { error: NO_CUT };
+  // A click off the end of an arc counts at the nearer end.
+  const L = q.r * q.sweep, t = turnTo(q, click), at = q.r * (t <= q.sweep ? t : t - q.sweep < TAU - t ? q.sweep : 0);
+  const lo = [...sorted].reverse().find((s) => s < at), hi = sorted.find((s) => s > at);
+  if (q.sweep < TAU) return { L, lo: lo ?? 0, hi: hi ?? L, wrap: false };
+  if (sorted.length < 2) return { error: TWO_CUTS };
+  if (lo === undefined || hi === undefined) return { L, lo: sorted[sorted.length - 1], hi: sorted[0], wrap: true };
+  return { L, lo, hi, wrap: false };
+}
+/** The part of a circle or arc from length s0 round to s1, as an arc like it (its layer, colour…); an end that is the
+ * arc's own keeps its angle as it was. */
+function arcPiece(it: SketchItem, q: Round, s0: number, s1: number): Omit<SketchItem, 'id'> {
+  const { id: _id, ...rest } = it, L = q.r * q.sweep;
+  const angle = (s: number) => (it.kind === 'arc' && s <= 0 ? q.a0 : it.kind === 'arc' && s >= L ? it.a1 ?? 0 : turn(q.a0 + s / q.r));
+  return { ...rest, kind: 'arc', a0: angle(s0), a1: angle(s1) };
+}
+
+/** Trim: the part of the path, circle or arc clicked, between the nearest crossings on either side of the click, is
+ * cut away. A circle becomes the arc that is left. */
+export function trim(it: SketchItem, click: Pt, edges: Edge[]): Edit & { cut?: number } {
+  const round = roundOf(it);
+  if (round) {
+    const r = roundCutOf(round, click, roundCrossings(round, edges));
+    if ('error' in r) return r;
+    // All the way round: what stays runs from the crossing after the click round to the one before it.
+    if (round.sweep >= TAU) return { items: [arcPiece(it, round, r.hi, r.lo)], cut: r.wrap ? r.L - (r.lo - r.hi) : r.hi - r.lo };
+    const kept = [r.lo > 0 ? [0, r.lo] : null, r.hi < r.L ? [r.hi, r.L] : null].filter((x): x is [number, number] => !!x);
+    return { items: kept.map(([s0, s1]) => arcPiece(it, round, s0, s1)), cut: r.hi - r.lo };
+  }
   const k = cutOf(it, click, crossingsOf(it, edges));
   if ('error' in k) return k;
   const { pts, c, L, lo, hi } = k;
@@ -145,6 +248,8 @@ export function trim(it: SketchItem, click: Pt, edges: Seg[]): Edit & { cut?: nu
 /** The piece a Trim click there would cut away, as an object like the one clicked (its layer, colour, tray or cable),
  * for its shadow before the click; null where Trim would refuse. `crossings`: from crossingsOf. */
 export function trimPiece(it: SketchItem, click: Pt, crossings: number[]): Omit<SketchItem, 'id'> | null {
+  const round = roundOf(it);
+  if (round) { const r = roundCutOf(round, click, crossings); return 'error' in r ? null : arcPiece(it, round, r.lo, r.hi); }
   const k = cutOf(it, click, crossings);
   if ('error' in k) return null;
   const { pts, c, L, lo, hi } = k;
@@ -154,15 +259,18 @@ export function trimPiece(it: SketchItem, click: Pt, crossings: number[]): Omit<
 /** The end of an open path nearer a point: 0 its start, 1 its end. */
 const endNear = (pts: Pt[], click: Pt): 0 | 1 => { const c = chain(pts); return along(pts, c, click).s > c[c.length - 1] / 2 ? 1 : 0; };
 /** Where an end of an open path runs on to: the first line ahead of it, or null when there is none. */
-function reachFrom(pts: Pt[], end: 0 | 1, edges: Seg[]): Pt | null {
+function reachFrom(pts: Pt[], end: 0 | 1, edges: Edge[]): Pt | null {
   const [a, b] = end ? [pts[pts.length - 2], pts[pts.length - 1]] : [pts[1], pts[0]];
   let best = Infinity;
-  for (const [p, q] of edges) { const t = meet(a, b, p, q); if (t !== null && t > 1 + 1e-6 && t < best) best = t; }
+  for (const e of edges) {
+    if (Array.isArray(e)) { const t = meet(a, b, e[0], e[1]); if (t !== null && t > 1 + 1e-6 && t < best) best = t; }
+    else for (const t of meetCircle(a, b, e.c, e.r)) if (t > 1 + 1e-6 && t < best && onRound(e, add(a, mul(sub(b, a), t)))) best = t;
+  }
   return Number.isFinite(best) ? add(a, mul(sub(b, a), best)) : null;
 }
 
 /** Extend: the end nearer the click runs on to the first line ahead of it. */
-export function extend(it: SketchItem, click: Pt, edges: Seg[]): Edit & { gain?: number } {
+export function extend(it: SketchItem, click: Pt, edges: Edge[]): Edit & { gain?: number } {
   if (hasArcs(it)) return { error: ARCS };
   if (!isPath(it) || it.closed) return { error: 'Extend works on open lines, polylines, trays and cable routes.' };
   const pts = it.pts.map((q) => [...q] as Pt), end = endNear(pts, click), to = reachFrom(pts, end, edges);
@@ -174,7 +282,7 @@ export function extend(it: SketchItem, click: Pt, edges: Seg[]): Edit & { gain?:
 
 /** Where both ends of an open path would run on to (its start, its end; null where no line is ahead). Worked out once
  * for the line under the cursor, so the shadow before the click costs little on each move. */
-export function reachesOf(it: SketchItem, edges: Seg[]): [Pt | null, Pt | null] {
+export function reachesOf(it: SketchItem, edges: Edge[]): [Pt | null, Pt | null] {
   return isPath(it) && !it.closed && !hasArcs(it) ? [reachFrom(it.pts, 0, edges), reachFrom(it.pts, 1, edges)] : [null, null];
 }
 

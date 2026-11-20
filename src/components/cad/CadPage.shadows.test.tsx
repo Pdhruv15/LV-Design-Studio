@@ -132,6 +132,23 @@ describe('Trim and Extend show the piece before the click (2026-11-17)', () => {
     await until(() => seen.last.cutAway === undefined);
   });
 
+  it('Trim on a circle: the arc under the cursor shows faded, and the click leaves the other arc', async () => {
+    // A circle of radius 2 m on the line, which crosses it at 0° and 180°.
+    const round: Project = { ...villa, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [line('S1', [X, 0], [X + 8000, 0]), { id: 'C1', kind: 'circle' as const, layer: 'LV-SKETCH', pts: [[X + 4000, 0]], r: 2000 }] }] };
+    const ends = (it: SketchItem) => [it.a0!, it.a1!].map((a) => +a.toFixed(6));
+    project = round; act(() => root.render(<Host start={round} />)); await flush(); act(() => state.toggle('osnap'));
+    await command('TRIM');
+    await hover(X + 4000, 2000);
+    await until(() => !!seen.last.cutAway?.length);
+    expect(seen.last.cutAway![0]).toMatchObject({ id: 'C1', kind: 'arc', r: 2000 });
+    expect(ends(seen.last.cutAway![0])).toEqual([0, +Math.PI.toFixed(6)]); // the upper half
+    await clickAt(X + 4000, 2000);
+    await until(() => hist().includes('TRIM  6.28 m cut off'));
+    const left = items().find((x) => x.id === 'C1')!;
+    expect(left).toMatchObject({ kind: 'arc', r: 2000, pts: [[X + 4000, 0]] });
+    expect(ends(left)).toEqual([+Math.PI.toFixed(6), 0]); // the lower half stays
+  });
+
   it("Shift held shows Extend's new length up to the line ahead, with a cross where it meets it; let go, the trim piece again", async () => {
     await start();
     await command('TRIM');
