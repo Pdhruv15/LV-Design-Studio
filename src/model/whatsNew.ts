@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.225', date: '2026-11-20',
+    items: [
+      { title: 'Panel tree: the Group switch before substations are named', text: 'The panel tree\'s Group switch (Boards | Substations) now shows in every project with a main board fed from the MV side, not only once substations are named. Substations stays greyed until a main board names its substation or RMU, and its tooltip says where: Panels → Transformers. A project with only meter cabinets on an authority LV supply has no switch, as before.' }
+    ]
+  },
+  {
     version: '2.224', date: '2026-11-20',
     items: [
       { title: 'Sheets menu on the SLD page', text: 'A Sheets menu now follows the System diagram, Board, Earthing and Riser tabs (⌘5 / Ctrl+5). It lists the sheets of the view on screen, then All sheets, Sheet setup, Title block and numbering, and Issues and transmittals, and each item opens that sheet or tab in Design CAD → Sheets. On the board view, Make a sheet of … on its own adds the board\'s circuit-diagram sheet and opens it.' }
