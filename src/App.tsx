@@ -3,7 +3,7 @@ import { autoCheckpoint } from './model/checkpoints';
 import { chooseProjectFile, downloadProjectFile } from './util/webApp';
 import WebBanner from './components/WebBanner';
 import { ask as askUser, askForm, askText, ConfirmHost, tell } from './components/ConfirmDialog';
-import { CircleCheck, Play, TriangleAlert, X } from 'lucide-react';
+import { CircleCheck, Files, Play, TriangleAlert, X } from 'lucide-react';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { lazyPage as lazy } from './util/onDemand';
 import { ErrorBoundary, setCrashKeeper } from './components/ErrorBoundary';
@@ -57,7 +57,7 @@ const CadSheets = lazy(() => import('./components/cad/CadSheets'));
 import { withCableRefs } from './model/cableRefs';
 import { withEarthPitIds } from './model/earthingPlan';
 import type { DrawingsTab } from './components/docs/DrawingsView';
-import { earthSheetFor, publishState, setOf } from './model/drawingSet';
+import { addBoardSheets, earthSheetFor, publishState, setOf } from './model/drawingSet';
 import { boardsInSupplyOrder } from './calc/summary';
 const ComponentEditor = onDemand(() => import('./components/ComponentEditor'));
 import { componentPreset, newComponent, syncComponent, type UserComponent } from './model/components';
@@ -86,6 +86,7 @@ const hasDatabase = hasBridge && !!window.lvds.database;
 
 import type { MainView } from './views';
 import CommandPalette, { ShortcutHelp, type Command } from './components/CommandPalette';
+import SldSheetsMenu from './components/sld/SldSheetsMenu';
 import Ribbon, { type BomCommand, tabForStage, tabForView, viewForTab, type DiagramTool, type RibbonActions, type RibbonTab } from './components/Ribbon';
 import { advanceStage, ifcIssued, nextStage, prevStage, setTenderRoute, STAGE_INFO, stageOf, stepBackStage, tenderRoute } from './model/designStage';
 const ProjectSettings = onDemand(() => import('./components/ProjectSettings'));
@@ -243,6 +244,14 @@ export default function App() {
     if (!r.id) { setStatus(buildingId || kind === 'earthing' ? 'That sheet has nothing on it yet' : 'Add the building in Building information first'); return; }
     if (r.set !== set) setProject({ ...project, drawingSet: r.set }, { step: true });
     setSheetTab(r.id);
+    setView('drawings');
+  };
+  // SLD page → Sheets menu → Make a sheet of a board on its own: its circuit-diagram sheet, opened in Design CAD → Sheets.
+  const makeBoardSheet = (boardId: string) => {
+    const r = addBoardSheets(setOf(project), [boardId]);
+    setProject({ ...project, drawingSet: r.set }, { step: true });
+    setStatus(`Added ${r.set.sheets.find((s) => s.id === r.ids[0])?.number ?? 'a sheet'} to the drawing set`);
+    setSheetTab(r.ids[0]);
     setView('drawings');
   };
   // The ribbon's Sheets groups: the register tabs, and the open sheet's markup, view and issue buttons.
@@ -479,6 +488,7 @@ export default function App() {
   const [showBoardForm, setShowBoardForm] = useState(false);
   const [boardPreset, setBoardPreset] = useState<{ kind: BoardKind; ratingA: number } | undefined>();
   const [diagramMode, setDiagramMode] = useState<DiagramMode>('system');
+  const [sheetsMenu, setSheetsMenu] = useState(false); // the Sheets menu after the diagram tabs (⌘5)
   const [panel, setPanel] = useState<'feeder' | 'board'>('board');
 
   // Network studies run on demand (Run calculations / F5): results come from
@@ -1349,6 +1359,11 @@ export default function App() {
         setDiagramMode(e.key === '1' ? 'system' : e.key === '2' ? 'board' : e.key === '3' ? 'earthing' : 'riser');
         return;
       }
+      if (mod && !e.shiftKey && !e.altKey && e.key === '5' && view === 'design') {
+        e.preventDefault();
+        setSheetsMenu((o) => !o);
+        return;
+      }
       if (!mod && !e.altKey && (e.key === '[' || e.key === ']') && view === 'drawings') {
         // Previous / next sheet in Design CAD → Sheets (All sheets first).
         const ids = [null, ...setOf(project).sheets.map((x) => x.id)];
@@ -1633,19 +1648,28 @@ export default function App() {
               {!!project.revisions?.length && <BaselineBar project={project} onCompare={() => setView('revisions')} onImpact={() => setView('modifications')} />}
               <section className="stage">
                 <div className="stage-head">
-                  <div className="seg" role="tablist" aria-label="Diagram" data-doc-id="sld-view-tabs">
-                    <button role="tab" aria-selected={diagramMode === 'system'} className={diagramMode === 'system' ? 'on' : ''} onClick={() => setDiagramMode('system')} title={`Every board on one diagram (${MOD}1)`}>
-                      System diagram
-                    </button>
-                    <button role="tab" aria-selected={diagramMode === 'board'} className={diagramMode === 'board' ? 'on' : ''} onClick={() => setDiagramMode('board')} title={`The selected board's own diagram (${MOD}2)`}>
-                      Board: {board.id}
-                    </button>
-                    <button role="tab" aria-selected={diagramMode === 'earthing'} className={diagramMode === 'earthing' ? 'on' : ''} onClick={() => setDiagramMode('earthing')} title={`Earth pits: earthing schematic, pit tests and checks (${MOD}3)`}>
-                      Earthing
-                    </button>
-                    <button role="tab" aria-selected={diagramMode === 'riser'} className={diagramMode === 'riser' ? 'on' : ''} onClick={() => setDiagramMode('riser')} title={`Riser diagram of a building: each board on its level (${MOD}4)`}>
-                      Riser
-                    </button>
+                  <div className="sld-tabs" data-doc-id="sld-view-tabs">
+                    <div className="seg" role="tablist" aria-label="Diagram">
+                      <button role="tab" aria-selected={diagramMode === 'system'} className={diagramMode === 'system' ? 'on' : ''} onClick={() => setDiagramMode('system')} title={`Every board on one diagram (${MOD}1)`}>
+                        System diagram
+                      </button>
+                      <button role="tab" aria-selected={diagramMode === 'board'} className={diagramMode === 'board' ? 'on' : ''} onClick={() => setDiagramMode('board')} title={`The selected board's own diagram (${MOD}2)`}>
+                        Board: {board.id}
+                      </button>
+                      <button role="tab" aria-selected={diagramMode === 'earthing'} className={diagramMode === 'earthing' ? 'on' : ''} onClick={() => setDiagramMode('earthing')} title={`Earth pits: earthing schematic, pit tests and checks (${MOD}3)`}>
+                        Earthing
+                      </button>
+                      <button role="tab" aria-selected={diagramMode === 'riser'} className={diagramMode === 'riser' ? 'on' : ''} onClick={() => setDiagramMode('riser')} title={`Riser diagram of a building: each board on its level (${MOD}4)`}>
+                        Riser
+                      </button>
+                    </div>
+                    <MenuButton open={sheetsMenu} onOpen={setSheetsMenu} label={<><Files size={14} strokeWidth={1.8} aria-hidden />Sheets</>}
+                      title={`Sheets of this diagram and the sheet set, in Design CAD → Sheets (${MOD}5). Paper, scale and pens: Page setups there`}>
+                      {(close) => (
+                        <SldSheetsMenu project={project} mode={diagramMode} boardId={board.id} close={close}
+                          onOpen={(id) => { setSheetTab(id); setView('drawings'); }} onTab={sheetRibbon.onTab} onMakeBoardSheet={makeBoardSheet} />
+                      )}
+                    </MenuButton>
                   </div>
                   <div className="sld-bar" data-doc-id="sld-command-bar">
                     <MenuButton label="+ Add" title="Add a feeder, a board, or paste a copied board">
