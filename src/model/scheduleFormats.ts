@@ -1,25 +1,45 @@
 import { pushLibrary } from '../database/librarySync';
 import type { Project } from '../types';
-import type { Sheet } from './sheets';
+import { MAX_COLS, MAX_ROWS, SHEET_PAPERS, type Sheet } from './sheets';
 
 /** Your office's schedule formats: a linked sheet layout saved once and reused for other boards and other projects. Kept like the
  * other libraries: a working copy in this computer's storage, synced through LV Database/Library.json. */
 
 export const FORMATS_KEY = 'lvds.scheduleFormats';
+export const SCHEDULE_FORMAT_FILE = 'lvds-schedule-format';
+export const SCHEDULE_FORMAT_FILE_VERSION = 1;
+export const SCHEDULE_FORMAT_FILE_EXT = 'lvds-format';
+export const MAX_SCHEDULE_FORMAT_FILE_BYTES = 2_000_000;
 
 /** A linked sheet layout saved for reuse: your office's own schedule format. */
-export interface ScheduleFormat { id: string; name: string; category: 'db' | 'md'; sheet: Sheet; updatedAt: string } // updatedAt: yyyy-mm-dd
+export interface ScheduleFormat { id: string; name: string; category: 'db' | 'md'; sheet: Sheet; updatedAt: string; version?: number } // updatedAt: yyyy-mm-dd
+
+export const formatVersion = <T extends object>(format: T & { version?: number }): number => Number.isInteger(format.version) && format.version! > 0 ? format.version! : 1;
+
+const obj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
+const strings = (x: unknown): x is Record<string, string> => obj(x) && Object.values(x).every((v) => typeof v === 'string');
+const validSheet = (sheet: unknown): sheet is Sheet => {
+  if (!obj(sheet) || typeof sheet.id !== 'string' || typeof sheet.name !== 'string' || !strings(sheet.cells)) return false;
+  if (!Number.isInteger(sheet.rows) || !Number.isInteger(sheet.cols) || Number(sheet.rows) < 1 || Number(sheet.rows) > MAX_ROWS || Number(sheet.cols) < 1 || Number(sheet.cols) > MAX_COLS) return false;
+  const link = sheet.link;
+  if (!obj(link) || !['db', 'md'].includes(String(link.category)) || !obj(link.cells) || !strings(link.columns) || !Number.isInteger(link.firstRow) || !Array.isArray(link.rows) || !link.rows.every((x) => typeof x === 'string')) return false;
+  if (Number(link.firstRow) < 1 || Number(link.firstRow) > MAX_ROWS || link.rows.length > MAX_ROWS) return false;
+  if (!Object.values(link.cells).every((v) => obj(v) && typeof v.field === 'string' && (v.before === undefined || typeof v.before === 'string') && (v.after === undefined || typeof v.after === 'string'))) return false;
+  if (link.mode !== undefined && !['output', 'linked'].includes(String(link.mode))) return false;
+  if (sheet.paper !== undefined && !SHEET_PAPERS.some((p) => p.key === sheet.paper)) return false;
+  return true;
+};
 
 const isFormat = (x: unknown): x is ScheduleFormat => {
   const f = x as ScheduleFormat;
-  return !!f && typeof f === 'object' && typeof f.id === 'string' && !!f.id && typeof f.name === 'string' && !!f.name && !!f.sheet && typeof f.sheet === 'object' && !!f.sheet.link;
+  return !!f && typeof f === 'object' && typeof f.id === 'string' && !!f.id && typeof f.name === 'string' && !!f.name && ['db', 'md'].includes(String(f.category ?? f.sheet?.link?.category)) && (f.version === undefined || (Number.isInteger(f.version) && f.version > 0)) && validSheet(f.sheet);
 };
 
 /** Your formats on this computer (synced from Library.json). */
 export function loadFormats(): ScheduleFormat[] {
   try {
     const v = JSON.parse(localStorage.getItem(FORMATS_KEY) ?? '[]');
-    return Array.isArray(v) ? v.filter(isFormat).map((f) => ({ ...f, category: f.sheet.link!.category ?? f.category ?? 'db' })) : [];
+    return Array.isArray(v) ? v.filter(isFormat).map((f) => ({ ...f, category: f.sheet.link!.category ?? f.category ?? 'db', version: formatVersion(f) })) : [];
   } catch { return []; }
 }
 export function saveFormats(list: ScheduleFormat[]): void {
@@ -41,11 +61,56 @@ const newId = () => `fmt-${Date.now().toString(36)}${Math.random().toString(36).
 export function withFormat(list: ScheduleFormat[], name: string, template: Sheet, at = new Date()): { list: ScheduleFormat[]; updated: boolean } {
   const t = name.trim(), updatedAt = at.toISOString().slice(0, 10), same = list.find((f) => f.name.trim().toLowerCase() === t.toLowerCase());
   const category = template.link?.category ?? 'db';
-  if (same) return { list: list.map((f) => (f === same ? { ...f, category, sheet: template, updatedAt } : f)), updated: true };
-  return { list: [...list, { id: newId(), name: t, category, sheet: template, updatedAt }], updated: false };
+  if (same) return { list: list.map((f) => (f === same ? { ...f, category, sheet: template, updatedAt, version: formatVersion(f) + 1 } : f)), updated: true };
+  return { list: [...list, { id: newId(), name: t, category, sheet: template, updatedAt, version: 1 }], updated: false };
 }
 export const renameFormat = (list: ScheduleFormat[], id: string, name: string): ScheduleFormat[] => list.map((f) => (f.id === id ? { ...f, name: name.trim() } : f));
 export const removeFormat = (list: ScheduleFormat[], id: string): ScheduleFormat[] => list.filter((f) => f.id !== id);
+
+// ---- one portable, versioned format file
+
+/** A format safe to share: never carries a board target or pending project edits, and imports as output-only. */
+function portable(format: ScheduleFormat): ScheduleFormat {
+  const { boardId: _boardId, pending: _pending, added: _added, ...link } = format.sheet.link!;
+  return { ...format, version: formatVersion(format), sheet: { ...format.sheet, link: { ...link, mode: 'output', rows: [] } } };
+}
+
+/** One schedule format as its portable JSON file. */
+export function scheduleFormatFileText(format: ScheduleFormat, at = new Date()): string {
+  return `${JSON.stringify({ format: SCHEDULE_FORMAT_FILE, version: SCHEDULE_FORMAT_FILE_VERSION, exportedAt: at.toISOString(), scheduleFormat: portable(format) }, null, 2)}\n`;
+}
+
+/** Reads one portable format. Imported packages are output-only until the user deliberately enables linked editing. */
+export function scheduleFormatFromFileText(text: string): ScheduleFormat {
+  if (new TextEncoder().encode(text).byteLength > MAX_SCHEDULE_FORMAT_FILE_BYTES) throw new Error('The schedule-format file is larger than 2 MB.');
+  let file: unknown;
+  try { file = JSON.parse(text); } catch { throw new Error('The file is not valid JSON.'); }
+  if (!obj(file) || file.format !== SCHEDULE_FORMAT_FILE) throw new Error('The file is not an LV Design Studio schedule format.');
+  if (typeof file.version !== 'number' || !Number.isInteger(file.version) || file.version < 1) throw new Error('The schedule-format file version is invalid.');
+  if (file.version > SCHEDULE_FORMAT_FILE_VERSION) throw new Error('The schedule format was made by a newer LV Design Studio version.');
+  if (!isFormat(file.scheduleFormat)) throw new Error('The schedule-format file is incomplete or damaged.');
+  return portable(file.scheduleFormat);
+}
+
+const uniqueImportedName = (list: ScheduleFormat[], name: string): string => {
+  const taken = new Set(list.map((f) => f.name.trim().toLowerCase()));
+  if (!taken.has(name.trim().toLowerCase())) return name.trim();
+  for (let n = 1; ; n++) {
+    const suffix = n === 1 ? ' (imported)' : ` (imported ${n})`, candidate = `${name.trim().slice(0, 60 - suffix.length)}${suffix}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+};
+
+/** Adds an imported format, updates the same stable ID, or keeps it as a separate copy when requested. */
+export function withImportedFormat(list: ScheduleFormat[], incoming: ScheduleFormat, copy = false): { list: ScheduleFormat[]; format: ScheduleFormat; action: 'added' | 'updated' | 'copied' } {
+  const same = list.find((f) => f.id === incoming.id);
+  if (same && !copy) {
+    const others = list.filter((f) => f.id !== same.id), format = { ...portable(incoming), name: uniqueImportedName(others, incoming.name) };
+    return { list: list.map((f) => (f.id === same.id ? format : f)), format, action: 'updated' };
+  }
+  const format = { ...portable(incoming), ...(same ? { id: newId() } : {}), name: uniqueImportedName(list, incoming.name) };
+  return { list: [...list, format], format, action: same ? 'copied' : 'added' };
+}
 
 // ---- the format a project uses
 
@@ -65,12 +130,12 @@ export function withProjectFormat(project: Project, category: PanelCategory, for
   if (format && PANEL_CATEGORIES.find((c) => c.key === category)?.kind !== format.category) return project;
   const { scheduleFormats: old, ...rest } = project;
   const { [category]: _gone, ...others } = old ?? {};
-  const next = format ? { ...others, [category]: { id: format.id, name: format.name, sheet: format.sheet, appliedAt: at.toISOString().slice(0, 10) } } : others;
+  const next = format ? { ...others, [category]: { id: format.id, name: format.name, version: formatVersion(format), sheet: format.sheet, appliedAt: at.toISOString().slice(0, 10) } } : others;
   return Object.keys(next).length ? { ...rest, scheduleFormats: next } : rest;
 }
 
 /** My formats holds a format with the project's format's id whose sheet differs from the project's copy. */
 export function projectFormatStale(project: Project, category: PanelCategory, list: ScheduleFormat[]): boolean {
   const own = projectFormat(project, category), now = own && list.find((f) => f.id === own.id);
-  return !!own && !!now && JSON.stringify(now.sheet) !== JSON.stringify(own.sheet);
+  return !!own && !!now && (formatVersion(now) !== (own.version ?? 1) || JSON.stringify(now.sheet) !== JSON.stringify(own.sheet));
 }

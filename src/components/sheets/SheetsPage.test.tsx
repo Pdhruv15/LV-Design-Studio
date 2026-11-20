@@ -6,12 +6,17 @@ import ExcelJS from 'exceljs';
 import SheetsPage from './SheetsPage';
 
 const saved: { name: string; bytes: Uint8Array }[] = [];
-vi.mock('../../util/files', async (orig) => ({ ...(await orig<typeof import('../../util/files')>()), saveBinary: async (name: string, bytes: Uint8Array) => { saved.push({ name, bytes }); return `Saved ${name}`; } }));
+const savedText: { name: string; text: string; ext: string }[] = [];
+vi.mock('../../util/files', async (orig) => ({
+  ...(await orig<typeof import('../../util/files')>()),
+  saveBinary: async (name: string, bytes: Uint8Array) => { saved.push({ name, bytes }); return `Saved ${name}`; },
+  saveText: async (name: string, text: string, _filter: string, ext: string) => { savedText.push({ name, text, ext }); return `Saved ${name}`; }
+}));
 import { sampleProject } from '../../data/sampleProject';
 import { templateData } from '../../docs/scheduleFields';
 import { panelRowKeys } from '../../docs/panelFields';
 import { linkBoards } from '../../docs/sheetLink';
-import { FORMATS_KEY, loadFormats, saveFormats, withFormat } from '../../model/scheduleFormats';
+import { FORMATS_KEY, loadFormats, saveFormats, scheduleFormatFileText, scheduleFormatFromFileText, withFormat } from '../../model/scheduleFormats';
 import { newSheet, withCells } from '../../model/sheets';
 import type { Project } from '../../types';
 
@@ -728,8 +733,8 @@ describe('Sheets page — My formats', () => {
   const template = () => ({ ...newSheet(), link: { category: 'db' as const, cells: {}, firstRow: 6, rows: [], columns: { A: 'row.ref', B: 'row.room' } } });
   const seed = (...names: string[]) => saveFormats(names.reduce((l, n) => withFormat(l, n, template()).list, [] as ReturnType<typeof loadFormats>));
   const data = templateData(sampleProject, 'DB-GF1');
-  beforeEach(() => localStorage.removeItem(FORMATS_KEY));
-  afterEach(() => { localStorage.removeItem(FORMATS_KEY); vi.restoreAllMocks(); });
+  beforeEach(() => { localStorage.removeItem(FORMATS_KEY); savedText.length = 0; });
+  afterEach(() => { localStorage.removeItem(FORMATS_KEY); savedText.length = 0; vi.restoreAllMocks(); });
 
   it('Save as my format stores the layout without its board and reports it; Escape closes the name row', () => {
     linkIt();
@@ -783,6 +788,34 @@ describe('Sheets page — My formats', () => {
     expect(status[status.length - 1]).toBe('Sheet DB-GF1 added from "Office DB".');
     expect(document.querySelector('.shx-sheets [aria-selected="true"]')!.textContent).toBe('DB-GF1');
     expect(td('A6').textContent).toBe(String(data.rows[0]['row.ref']));
+  });
+
+  it('exports one portable format package without a board target or project edits', async () => {
+    seed('Office DB');
+    render(sampleProject);
+    press('Electrical'); press('My formats');
+    await act(async () => { btn('My formats', 'Export…', true).click(); await vi.waitFor(() => expect(savedText).toHaveLength(1)); });
+    expect(savedText[0]).toMatchObject({ name: 'Office-DB.lvds-format', ext: 'lvds-format' });
+    const exported = scheduleFormatFromFileText(savedText[0].text);
+    expect(exported.name).toBe('Office DB');
+    expect(exported.sheet.link).toMatchObject({ mode: 'output', rows: [] });
+    expect(exported.sheet.link).not.toHaveProperty('boardId');
+    expect(status[status.length - 1]).toBe('Saved Office-DB.lvds-format');
+  });
+
+  it('imports a valid format package as output-only', async () => {
+    const incoming = withFormat([], 'Shared DB', { ...template(), link: { ...template().link!, mode: 'linked', boardId: 'DB-GF1' } }).list[0];
+    const text = scheduleFormatFileText(incoming), file = new File([text], 'Shared.lvds-format', { type: 'application/json' });
+    Object.defineProperty(file, 'text', { value: async () => text });
+    render(sampleProject);
+    press('Electrical'); press('My formats');
+    const input = aside('My formats')!.querySelector<HTMLInputElement>('input[aria-label="Schedule format file"]')!;
+    Object.defineProperty(input, 'files', { configurable: true, value: [file] });
+    await act(async () => { input.dispatchEvent(new Event('change', { bubbles: true })); await vi.waitFor(() => expect(loadFormats()).toHaveLength(1)); });
+    expect(loadFormats()[0]).toMatchObject({ name: 'Shared DB', sheet: { link: { mode: 'output', rows: [] } } });
+    expect(loadFormats()[0].sheet.link).not.toHaveProperty('boardId');
+    expect(aside('My formats')!.textContent).toContain('Shared DB');
+    expect(status[status.length - 1]).toBe('Format "Shared DB" imported. It is Output only.');
   });
 
   it('Add a sheet for every DB without one adds the rest in one step', () => {
