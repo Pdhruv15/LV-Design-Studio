@@ -43,7 +43,7 @@ import { fmtDate, fmtFixed, txt } from '../util/format';
 import { CO_GEN_REACH, ChangeoverIncomers } from '../diagram/ChangeoverSym';
 import { atsLines, atsOf, changeoverBreakers, isInterlocked } from '../model/changeover';
 import { isFitClick, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, wheelAction, ZoomChip } from './drawingView';
-import { gridLabel, rmuLabel, rmuRatings } from '../calc/hvSupply';
+import { gridLabel, rmuLabel, rmuRatings, txRatio } from '../calc/hvSupply';
 import CadMenu from './cad/CadMenu';
 import type { CtxItem } from './cad/cadContextMenu';
 import { sldAction, type sldMenu, type SldTarget } from '../model/sldMenu';
@@ -1464,7 +1464,7 @@ export default function SystemDiagram({
             <text className="m" x={r.x + 24} y={100 + mvDy}>
               {r.board.sourceKva ? `${r.board.sourceKva} kVA · ${r.board.sourceImpedancePct ?? '—'}% Z` : 'no source data'}
             </text>
-            {r.board.sourceKva && <text className="m" x={r.x + 24} y={113 + mvDy}>{r.board.vectorGroup ?? 'Dyn11'} · 11 / {(project.voltageV / 1000).toFixed(3)} kV</text>}
+            {r.board.sourceKva && <text className="m" x={r.x + 24} y={113 + mvDy}>{`${r.board.vectorGroup ?? 'Dyn11'} · ${txRatio(whole, r.board)}`}</text>}
             {r.board.existing && recordedText(project, r.board) && <text className="m" x={r.x + 24} y={127 + mvDy}>{recordedText(project, r.board)}</text>}
             <line x1={r.x} y1={106 + mvDy} x2={r.x} y2={r.headY - 58} className="ln" />
             <text className="m" x={r.x - 8} y={r.headY - (dewa ? 96 : protectionOf(r.board) ? 84 : 72)} textAnchor="end">{project.voltageV} V</text>

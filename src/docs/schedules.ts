@@ -3,6 +3,7 @@ import { STATUS_TEXT } from '../calc/statusText';
 import { boardLocation } from '../model/levels';
 import { cableRefOf } from '../model/cableRefs';
 import { evaluateFeeder, faultCurrentKA, impedanceToBoard, cableSizeText } from '../calc/electrical';
+import { txKv } from '../calc/hvSupply';
 import { cpcOf } from '../calc/earthing';
 import { boardSummary, boardsInSupplyOrder } from '../calc/summary';
 import { BOARD_KINDS, type Project } from '../types';
@@ -47,7 +48,7 @@ export function equipmentSchedule(project: Project): Schedule {
     if (!b.upstreamId && b.sourceKva) {
       rows.push([
         `TX-${b.id}`, `Transformer for ${b.id}`, 'Distribution transformer', `${b.sourceKva} kVA, ${b.sourceImpedancePct ?? '—'}% Z`,
-        fig.fault(faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV)), '', '', boardLocation(project, b), '', '', 'Utility 11 kV', ''
+        fig.fault(faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV)), '', '', boardLocation(project, b), '', '', `Utility ${txKv(project, b)} kV`, ''
       ]);
     }
     const s = boardSummary(project, b);

@@ -3,6 +3,7 @@ import { cableSchedule, equipmentSchedule } from './schedules';
 import { buildReportHtml } from './calcReport';
 import { toCsv } from '../util/files';
 import { sampleProject } from '../data/sampleProject';
+import type { Project } from '../types';
 
 describe('schedules', () => {
   it('cable schedule has one row per cable and the default CPC sizes', () => {
@@ -19,6 +20,11 @@ describe('schedules', () => {
   it('equipment schedule includes the transformer and every board', () => {
     const s = equipmentSchedule(sampleProject);
     expect(s.rows.map((r) => r[0])).toEqual(['TX-MDB-1', 'MDB-1', 'SMDB-GF', 'DB-GF1', 'SMDB-FF', 'MCC-1']);
+  });
+
+  it('equipment schedule: a transformer is fed from the utility at its grid source\'s voltage', () => {
+    const fed = (p: Project) => equipmentSchedule(p).rows.find((r) => r[0] === 'TX-MDB-1')![10];
+    expect([fed(sampleProject), fed({ ...sampleProject, gridSources: [{ id: 'G', name: 'G', kv: 33 }] })]).toEqual(['Utility 11 kV', 'Utility 33 kV']);
   });
 });
 

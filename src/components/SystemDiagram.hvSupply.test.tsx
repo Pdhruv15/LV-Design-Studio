@@ -47,6 +47,16 @@ describe('SLD: grid source and RMU', () => {
     expect(num(rmu.querySelectorAll('[data-sym]')[1], 'data-sym-x')).toBe(num(sym, 'data-sym-x'));
   });
 
+  it('labels each transformer with the voltage of its grid source, on one line or on the ring, and in DXF', () => {
+    const line = drawn({ ...sampleProject, gridSources: [{ id: 'G', name: 'GRID-1', kv: 22 }] });
+    expect(texts(line)).toEqual(expect.arrayContaining(['22 kV', 'Dyn11 · 22 / 0.415 kV']));
+    // On the ring: the source its RMU names.
+    const ring = drawn({ ...withRmu, gridSources: [{ id: 'A', name: 'A', kv: 11 }, { id: 'B', name: 'B', kv: 33 }], rmus: [{ name: 'RMU-1', sourceId: 'B' }] });
+    expect(texts(ring).filter((t) => t?.endsWith(' / 0.415 kV'))).toEqual(['Dyn11 · 33 / 0.415 kV']);
+    const dxf = svgToDxf(ring.querySelector('.sysdiag > svg')!.outerHTML.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"'), 1000);
+    expect(dxf.some((x) => x.type === 'text' && x.text === 'Dyn11 · 33 / 0.415 kV')).toBe(true);
+  });
+
   it('writes N/O beside the normally open ring switch, inside the RMU box', () => {
     const p: Project = { ...withRmu, rmus: [{ name: 'RMU-1', config: 'RRT', normallyOpen: 'R2' }] };
     const h = drawn(p), rmu = h.querySelector('g.rmu')!;

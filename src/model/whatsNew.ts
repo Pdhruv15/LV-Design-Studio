@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.223', date: '2026-11-20',
+    items: [
+      { title: 'MV voltage from the grid source', text: 'Each transformer\'s ratio on the SLD, the MV overview sheet\'s transformer schedule, a main board\'s incoming supply on the Board view, the equipment schedule and the BOQ\'s transformer and RMU lines now give the voltage of the grid source feeding the transformer: its RMU\'s source, else the first one in the MV supply and RMUs card (Panels → Transformers). Before, they said 11 kV whatever the source. The BOQ\'s transformer line also takes the project\'s LV voltage, as the SLD does. At 11 kV and 415 V nothing changes, and the BOQ keeps its item numbers.' }
+    ]
+  },
+  {
     version: '2.222', date: '2026-11-20',
     items: [
       { title: 'Sheets: one sheet per substation', text: 'Design CAD → Sheets → Make the sheets automatically has a fourth button, One sheet per substation, once a main board names its substation or RMU. It makes an MV overview sheet, then one sheet per substation in ring order with its main boards and everything they feed (a bus coupler between them stays on the sheet), then a sheet for each RMU or transformer in no substation and each board on an authority LV supply. One sheet per MDB stays as it was.' },

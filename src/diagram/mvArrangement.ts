@@ -1,5 +1,5 @@
 import type { Board, GridSource, Project } from '../types';
-import { gridLabel, rmuRecord, rmuSource, rmuWays } from '../calc/hvSupply';
+import { gridLabel, rmuRecord, rmuSource, rmuWays, txRatio } from '../calc/hvSupply';
 import { DM_TYPES } from '../calc/dmSubstation';
 import { txTag } from '../model/transformers';
 import { recordedText } from '../model/existing';
@@ -183,7 +183,7 @@ export function txLabelReach(project: Project, b: Board): number {
   const rows = [
     `${txTag(project, b.id) ?? 'Transformer'}${b.existing ? ' — EXISTING' : ''}`,
     b.sourceKva ? `${b.sourceKva} kVA · ${b.sourceImpedancePct ?? '—'}% Z` : 'no source data',
-    ...(b.sourceKva ? [`${b.vectorGroup ?? 'Dyn11'} · 11 / ${(project.voltageV / 1000).toFixed(3)} kV`] : []),
+    ...(b.sourceKva ? [`${b.vectorGroup ?? 'Dyn11'} · ${txRatio(project, b)}`] : []),
     ...(b.existing ? [recordedText(project, b) ?? ''] : [])
   ];
   return 24 + Math.max(...rows.map((t, i) => textWidth(t, i ? M : B, !i)));

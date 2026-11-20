@@ -41,4 +41,11 @@ describe('MV overview schedules', () => {
     expect(t.widths).toHaveLength(t.head.length);
     expect(txSchedule({ ...p, boards: [p.boards[4]] })).toBeUndefined();
   });
+
+  it('writes each ratio with the voltage of the grid source feeding the transformer', () => {
+    const ratios = (q: Project) => Object.fromEntries(txSchedule(q)!.rows.map((r) => [r[0], r[4]]));
+    const two: Project = { ...p, gridSources: [{ id: 'A', name: 'A', kv: 11 }, { id: 'B', name: 'B', kv: 33 }], rmus: p.rmus!.map((r) => (r.name === 'RMU-2' ? { ...r, sourceId: 'B' } : r)) };
+    expect(ratios(two)).toEqual({ 'TX-1': '11 / 0.400 kV', 'TX-2': '11 / 0.400 kV', 'TX-3': '33 / 0.400 kV', 'TX-4': '11 / 0.400 kV' });
+    expect(new Set(Object.values(ratios({ ...p, gridSources: [{ id: 'A', name: 'A', kv: 22 }] })))).toEqual(new Set(['22 / 0.400 kV']));
+  });
 });

@@ -1,5 +1,5 @@
-import type { GridSource, Project, Rmu } from '../types';
-import { C_MV, DEFAULT_GRID_XR, gridFaultMva, type Status } from './electrical';
+import type { Board, GridSource, Project, Rmu } from '../types';
+import { C_MV, DEFAULT_GRID_XR, gridFaultMva, gridSourceOf, type Status } from './electrical';
 
 /** MV supply and RMUs: the grid source's fault level and the RMU ratings checked against it. */
 
@@ -93,6 +93,18 @@ export function rmuLabel(project: Project, name: string): string {
   const kv = rmuSource(project, name)?.kv;
   return [name, r?.config, kv ? `${num(kv)} kV` : '11 kV'].filter(Boolean).join(' · ');
 }
+
+/** MV voltage of a main board's transformer primary as the labels write it (11, 22, 6.6): that of the grid source
+ * feeding it (`gridSourceOf`: the one its RMU names, else the project's first), 11 without one. */
+export function txKv(project: Project, board: Board): string {
+  const kv = gridSourceOf(project, board)?.kv;
+  return num(kv && kv > 0 ? kv : 11);
+}
+
+/** A transformer's voltage ratio as the SLD and its schedule write it, e.g. "22 / 0.415 kV" (the BOQ's "22/0.415 kV"
+ * with `sep` "/"): its grid source's voltage over the project's. */
+export const txRatio = (project: Project, board: Board, sep = ' / '): string =>
+  `${txKv(project, board)}${sep}${(project.voltageV / 1000).toFixed(3)} kV`;
 
 /** The RMU's ratings as one line (the SLD tooltip and the Transformers card). */
 export function rmuRatings(project: Project, name: string): string {

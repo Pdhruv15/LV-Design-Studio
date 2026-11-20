@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { newProject, type Board, type Project } from '../types';
 import { faultCurrentKA, gridImpedance, impedanceToBoard, transformerImpedance, zMagnitude } from './electrical';
 import { earthLoopToBoard } from './earthing';
-import { gridFaultKa, gridLabel, mvNetworkText, rmuChecks, rmuGrow, rmuLabel, rmuRatings, rmuTeeOffs, rmuWays } from './hvSupply';
+import { gridFaultKa, gridLabel, mvNetworkText, rmuChecks, rmuGrow, rmuLabel, rmuRatings, rmuTeeOffs, rmuWays, txKv, txRatio } from './hvSupply';
 import { fingerprint } from './runs';
 import { addGridSource, removeGridSource, updateGridSource, updateRmu } from '../model/hvSupply';
 import { checkReferences } from '../model/integrity';
@@ -126,6 +126,15 @@ describe('RMU checks and labels', () => {
     expect(mvNetworkText(p)).toContain('G (DEWA) 11 kV, S″kQ 500 MVA (26.2 kA), X/R 10');
     expect(mvNetworkText(project([tx('MDB-1', 1000)]))).toBeUndefined();
     expect(rmuRatings(base([{ name: 'RMU-1', ratedKv: 12, normallyOpen: 'R2' }]), 'RMU-1')).toBe('12 kV, R2 normally open');
+  });
+
+  it('writes a transformer\'s MV voltage and ratio from the grid source feeding it, 11 kV without one', () => {
+    const [a, b] = [tx('MDB-1', 1000, { rmu: 'RMU-1' }), tx('MDB-2', 1000)];
+    const p = project([a, b], { gridSources: [grid('A', 500, { kv: 22 }), grid('B', 500, { kv: 6.6 })], rmus: [{ name: 'RMU-1', sourceId: 'B' }] });
+    expect([txKv(p, a), txKv(p, b)]).toEqual(['6.6', '22']); // its RMU's source, else the first
+    expect([txRatio(p, a), txRatio(p, b, '/')]).toEqual(['6.6 / 0.400 kV', '22/0.400 kV']);
+    expect(txRatio(project([b]), b)).toBe('11 / 0.400 kV'); // no grid source: as before
+    expect(txKv(project([b], { gridSources: [grid('A', 500, { kv: 0 })] }), b)).toBe('11'); // no voltage entered
   });
 
   it('offers the unit with one more tee-off when a full RRT or RRTT takes another transformer', () => {
