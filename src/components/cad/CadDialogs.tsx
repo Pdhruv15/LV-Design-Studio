@@ -24,17 +24,20 @@ const inView = (p: Pos): Pos => ({ left: Math.min(Math.max(0, p.left), Math.max(
 const placeOf = (id: string): Pos => { try { const p = JSON.parse(localStorage.getItem(POS(id)) ?? 'null') as Pos | null; if (p && Number.isFinite(p.left) && Number.isFinite(p.top)) return inView(p); } catch { /* not remembered */ } return { left: 12 + (document.querySelector<HTMLElement>('.cad-work > .cad-dock.left')?.offsetWidth ?? 0), top: 12 }; };
 
 /** The dialog's frame: title (dragged to move it), body rows, and ? / Cancel / OK. */
-export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK', wide, extra, children }: {
+export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK', wide, form, extra, children }: {
   id: string; title: string; alias?: string; help?: string; onOk: () => void; onClose: () => void; okLabel?: string;
   /** A wider dialog (Drafting settings, Save As), and buttons before Cancel. */
   wide?: boolean; extra?: ReactNode; children: ReactNode;
+  /** A form (Block definition): a narrow label column and the value across the rest, so a row can hold several
+   * controls (a button, boxes, options) and grows to fit them. */
+  form?: boolean;
 }) {
   const [pos, setPos] = useState<Pos>(() => placeOf(id));
   const [showHelp, setShowHelp] = useState(false);
   const drag = useRef<{ x: number; y: number; at: Pos; to: Pos } | null>(null);
   const keep = (p: Pos) => { try { localStorage.setItem(POS(id), JSON.stringify(p)); } catch { /* not remembered */ } };
   return (
-    <div className={`cad-dlg${wide ? ' wide' : ''}`} role="dialog" aria-label={title} style={pos}
+    <div className={`cad-dlg${wide ? ' wide' : ''}${form ? ' form' : ''}`} role="dialog" aria-label={title} style={pos}
       onKeyDown={(e) => {
         if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); }
         else if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) { e.preventDefault(); e.stopPropagation(); onOk(); }
@@ -59,9 +62,14 @@ export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK
   );
 }
 
-/** A row: its label, and the value with its unit. */
-export function Row({ label, unit, children }: { label: string; unit?: string; children: ReactNode }) {
-  return <label className="cad-dlg-r"><span>{label}</span><span className="cad-dlg-in">{children}{unit && <u>{unit}</u>}</span></label>;
+/** A row: its label, and the value with its unit. `group`: a row of several controls (a button, boxes, options), named
+ * by its label or by the words given: the controls take the width left of the label, wrap, and the row grows to fit
+ * them. It is then not a label, since a click anywhere on a label presses the first control in it. */
+export function Row({ label, unit, group, children }: { label: string; unit?: string; group?: boolean | string; children: ReactNode }) {
+  const body = <><span>{label}</span><span className="cad-dlg-in">{children}{unit && <u>{unit}</u>}</span></>;
+  if (!group) return <label className="cad-dlg-r">{body}</label>;
+  const name = typeof group === 'string' ? group : label;
+  return <div className="cad-dlg-r cad-dlg-g" role={name ? 'group' : undefined} aria-label={name || undefined}>{body}</div>;
 }
 /** A number box: the text stays as typed and each whole number (0 or more, or any when `signed`) is passed on as it is
  * typed; a part such as "-" or nothing is let be until the box is left. A value set elsewhere (the command line) shows
@@ -413,7 +421,7 @@ export function PointStyleDialog({ style, onSave, onClose }: { style: PointStyle
         ))}
       </div>
       <Num label="Point size" value={size} onChange={setSize} unit={d.relative ? '%' : 'units'} />
-      <Row label="Size">
+      <Row label="Size" group>
         <label><input type="radio" name="cad-ptsize" aria-label="Size relative to screen" checked={d.relative} onChange={() => setD({ ...d, relative: true })} /> Relative to screen</label>
         <label><input type="radio" name="cad-ptsize" aria-label="Size in absolute units" checked={!d.relative} onChange={() => setD({ ...d, relative: false })} /> In absolute units</label>
       </Row>
@@ -458,23 +466,23 @@ export function BlockDialog({ draft, names, archNames, units, k, onDraft, onPick
   const ok = () => { if (nameErr || !draft.base || !draft.ids.length) return; if (exists && !draft.redefine) onDraft({ ...draft, redefine: true }); else onOk(); };
   const why = nameErr ?? (!draft.base ? 'Pick or type the base point.' : !draft.ids.length ? 'Select the objects.' : undefined);
   return (
-    <CadDialog id="block" title="Block definition" alias="BLOCK" onOk={ok} onClose={onClose}
+    <CadDialog id="block" title="Block definition" alias="BLOCK" onOk={ok} onClose={onClose} form
       help={BLOCK_HELP}>
       <Row label="Name">
         <input aria-label="Block name" list="cad-block-names" value={draft.name} autoFocus onChange={(e) => onDraft({ ...draft, name: e.target.value, redefine: false })} />
         <datalist id="cad-block-names">{names.map((n) => <option key={n} value={n} />)}</datalist>
       </Row>
-      <Row label="Base point">
+      <Row label="Base point" group>
         <button type="button" className="chip" onClick={() => onPick('base')}>Pick point</button>
-        <input aria-label="Base X" className="r" value={xy[0]} placeholder="X" onChange={(e) => coord(0, e.target.value)} />
-        <input aria-label="Base Y" className="r" value={xy[1]} placeholder="Y" onChange={(e) => coord(1, e.target.value)} />
-        <span className="m">m</span>
+        <u>X</u><input aria-label="Base X" className="r" value={xy[0]} onChange={(e) => coord(0, e.target.value)} />
+        <u>Y</u><input aria-label="Base Y" className="r" value={xy[1]} onChange={(e) => coord(1, e.target.value)} />
+        <u>m</u>
       </Row>
-      <Row label="Objects">
+      <Row label="Objects" group>
         <button type="button" className="chip" onClick={() => onPick('objects')}>Select objects</button>
         <span className="m" aria-label="Objects selected">{draft.ids.length} selected</span>
       </Row>
-      <Row label="">
+      <Row label="" group="What becomes of the objects">
         {([['retain', 'Retain'], ['convert', 'Convert to block'], ['delete', 'Delete']] as const).map(([id, label]) => (
           <label key={id}><input type="radio" name="cad-block-mode" aria-label={label} checked={draft.mode === id} onChange={() => onDraft({ ...draft, mode: id })} /> {label}</label>
         ))}
@@ -540,11 +548,11 @@ export function AttDefDialog({ draft, styles, k, onDraft, onPick, onOk, onClose 
       <Num label="Height" unit="mm" value={draft.heightMm} onChange={(v) => onDraft({ ...draft, heightMm: Number(v) })} />
       <Num label="Rotation" unit="°" value={draft.rot} onChange={(v) => onDraft({ ...draft, rot: Number(v) || 0 })} signed />
       <div className="cad-dlg-sec">Insertion point</div>
-      <Row label="">
-        <button type="button" className="chip" onClick={onPick}>Pick on plan</button>
-        <input aria-label="Insertion X" className="r" value={xy[0]} placeholder="X" onChange={(e) => coord(0, e.target.value)} />
-        <input aria-label="Insertion Y" className="r" value={xy[1]} placeholder="Y" onChange={(e) => coord(1, e.target.value)} />
-        <span className="m">m</span>
+      <Row label="" group><button type="button" className="chip" onClick={onPick}>Pick on plan</button></Row>
+      <Row label="" group="Insertion point">
+        <u>X</u><input aria-label="Insertion X" className="r" value={xy[0]} onChange={(e) => coord(0, e.target.value)} />
+        <u>Y</u><input aria-label="Insertion Y" className="r" value={xy[1]} onChange={(e) => coord(1, e.target.value)} />
+        <u>m</u>
       </Row>
       {why && <p className="cad-dlg-help" role="status">{why}</p>}
     </CadDialog>

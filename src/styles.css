@@ -2308,6 +2308,21 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-dlg-ft .p{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}
 .cad-dlg.wide{width:380px}
 .cad-dlg.wide .cad-dlg-r{grid-template-columns:1fr 170px}
+/* A row of several controls (a button, boxes, options): the label, then the controls across the rest; they wrap and the row grows to fit them */
+.cad-dlg-g{grid-template-columns:auto minmax(0,1fr);height:auto;min-height:22px}
+.cad-dlg-g>span:first-child:not(:empty){padding-right:8px}
+.cad-dlg-g .cad-dlg-in{justify-content:flex-start;flex-wrap:wrap;gap:3px 6px;padding:2px 0}
+.cad-dlg-g .cad-dlg-in input:not([type=checkbox]):not([type=radio]){flex:1 1 56px;width:auto}
+.cad-dlg-g .cad-dlg-in input[type=radio]{flex:none;width:14px;height:14px;padding:0}
+.cad-dlg-g .cad-dlg-in label{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.cad-dlg-g .cad-dlg-in .m,.cad-dlg.form .cad-dlg-in .m{color:var(--mut);white-space:nowrap}
+.cad-dlg-g .chip,.cad-dlg-help .chip{flex:none;min-height:0;height:18px;padding:0 8px;border-radius:3px;font-size:11.5px}
+.cad-dlg-help .chip{margin-left:6px}
+/* A form (Block definition): a narrow label column and the value across the rest, in every row */
+.cad-dlg.form{width:380px}
+.cad-dlg.form .cad-dlg-r{grid-template-columns:80px minmax(0,1fr);height:auto;min-height:24px}
+.cad-dlg.form .cad-dlg-in{justify-content:flex-start;padding:3px 0}
+.cad-dlg.form .cad-dlg-in input:not([type=checkbox]):not([type=radio]):not(.r){text-align:left}
 .cad-dlg-tabs.wrap{flex-wrap:wrap;margin-top:0}
 .cad-dlg-tabs.wrap button{flex:none;padding:0 8px}
 .cad-dlg-sec{padding:6px 8px 2px;color:var(--mut);font-size:11px}

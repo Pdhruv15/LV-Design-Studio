@@ -78,5 +78,35 @@
       "title": "Projects dashboard",
       "description": "Recent local projects, status, search and duplication."
     }
-  ]
+  ],
+  "getInvolved": {
+    "intro": "LV Design Studio is developed in the open. Follow the releases, report what does not work, and share the engineering data that improves the built-in references.",
+    "linkedin": "https://www.linkedin.com/in/palanisami-govindasamy/",
+    "items": [
+      {
+        "title": "Follow the project",
+        "description": "Follow the developer on LinkedIn for news about new releases.",
+        "linkLabel": "Follow on LinkedIn",
+        "target": "linkedin"
+      },
+      {
+        "title": "Report a problem",
+        "description": "Open an issue with the steps that led to the problem. In the app, Help has Copy error log, which gives the details to paste in.",
+        "linkLabel": "Open an issue",
+        "target": "issue"
+      },
+      {
+        "title": "Share engineering data",
+        "description": "Authority rules, manufacturer cable and breaker data and schedule formats can be reviewed for the built-in references. Name the source document so that it can be checked.",
+        "linkLabel": "Suggest data or an idea",
+        "target": "issue"
+      },
+      {
+        "title": "Contribute code",
+        "description": "The source is open under the MIT or Apache-2.0 licence. The README gives the setup and the test commands.",
+        "linkLabel": "View the source",
+        "target": "source"
+      }
+    ]
+  }
 }

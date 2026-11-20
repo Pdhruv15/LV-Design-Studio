@@ -24,6 +24,13 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.227', date: '2026-11-20',
+    items: [
+      { title: 'Design CAD: the Block definition dialog is laid out as a form', text: 'The Block definition dialog (BLOCK, B) is wider and each row fits what it holds: Pick point with the X and Y boxes on the Base point row, Select objects with the count beside it, then Retain, Convert to block and Delete on one line. Before, these overlapped. A click on the words Base point or Objects no longer starts picking; only the buttons do.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Design CAD: Point style and Attribute definition dialogs', text: 'In Point style (PTYPE), the two Size options, Relative to screen and In absolute units, are on a line each; before, their words ran over Cancel and OK. In Attribute definition (ATTDEF), Pick on plan has a row of its own and the X and Y boxes below it are wide enough to read; before, the button overlapped the rows and the boxes were too narrow to use.' }
+    ]
+  },
+  {
     version: '2.226', date: '2026-11-20',
     items: [
       { title: 'Design CAD: Trim cuts circles and arcs', text: 'Trim (TR) now works on a drawn circle or arc: click the part to cut away and it is cut at the nearest crossings on either side of the click, as a line is. A circle needs two crossings and becomes the arc that is left; an arc loses an end, or its middle and becomes two arcs. The part to go shows dashed before the click. A line trimmed or extended to a circle or arc now ends on the curve itself; before, it ended on a chord of it, a little off the curve.', action: 'cad', actionLabel: 'Open Design CAD' }
