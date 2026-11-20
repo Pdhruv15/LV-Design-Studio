@@ -10,7 +10,7 @@ The electrical layer on top of the Design CAD drawing (module 21-cad-core). On a
 3. **Place LV points** (light, 13 A socket, twin socket, ceiling fan, exhaust fan, split A/C, water heater, emergency light / exit sign / direction sign) on a chosen circuit, and **place a DB** at a point (`cadDevices.ts`). Placing a point adds 1 to that circuit's point count in the load schedule; deleting it takes 1 off.
 4. **Edit many devices at once** (`deviceEdit.ts`): align, space, array on a line, replace type, move to another circuit (with a warning against the Rules-sheet maximum points per circuit), match, copy, delete.
 5. **Wire circuits** (`cadWiring.ts`): each wired circuit's devices are joined by drawn arcs plus a home run to the DB; a wiring length is worked out.
-6. **Draw cable routes and tray runs** (drawn items in `project.cadSketch`, tools in `CadPage.tsx`) and **Update schedules** (`cadPlanSchedules.ts:updateSchedules`): tray route lengths and fittings, feeder lengths, feeder tray routes, wiring lengths go into the network model.
+6. **Draw cable routes and tray runs** (drawn items in `project.cadSketch`, tools in `CadPage.tsx`). An LV cable route can be drawn manually or proposed by the bounded, wall-aware route planner (`lvRoutePlanner.ts`); only an approved proposal is saved. **Update schedules** (`cadPlanSchedules.ts:updateSchedules`) sends tray route lengths and fittings, feeder lengths, feeder tray routes and wiring lengths into the network model.
 7. **Loads from CAD** (`cadLoads.ts`, `CadLoadsDialog.tsx`): fixture blocks with a circuit attribute (CCT = "DB-GF1/R3") in the open drawing are counted per circuit and, after review, replace the circuit's point counts / load items.
 8. **Plan sheets** (`src/docs/planLayout.ts`): lighting, power, ELV and containment layouts drawn from the model at true scale (output side, shared with 23 and 24).
 
@@ -28,11 +28,13 @@ The electrical layer on top of the Design CAD drawing (module 21-cad-core). On a
 | `src/model/cadWiring.ts` | model | `CadWiring` (:17), `arcPoints`/`arcLength`, `wiringOrder` (:53), `wiringLengthM` (:69), `wiringTag` (:77), `wiringLengths` (:95), `levelWiring` (:100), `wireLevel` (:125), `toggleWiring` (:132), `applyWiringLengths` (:140) | Wiring arcs and home run; length = (route + drop × devices) × (1 + allowance), rounded up. |
 | `src/model/cadLengths.ts` | model | `CAD_LENGTH_DEFAULTS` (:6), `metresPerUnit` (:11), `pullCadLengths` (:45), `applyCadLengths` (:65), `lengthBreakdown` (:74) | Feeder length = (route + vertical + terminations) × (1 + waste), rounded up to a whole metre; writes `Feeder.lengthM`. |
 | `src/model/cadPlanSchedules.ts` | model | `planDrawings` (:24), `updateSchedules` (:51), `scheduleSummary` (:119) | "Update schedules" (SCHED): tray lengths + fittings, feeder lengths, feeder tray routes, wiring lengths from every level's plan. |
+| `src/model/lvRoutePlanner.ts` | model | `LV_ROUTE_LIMITS`, `planLvRoutes` | LV-only orthogonal A* routing around shown Wall layers. Adapts grid size to stay below 60,000 cells, caps choices at three and reuses typed arrays between alternatives. The search grid is never stored in the project. |
 | `src/model/cadLoads.ts` | model | `CIRCUIT_ATTRIBUTES` (:15), `resolveBlock` (:43), `findCircuit` (:53), `pullCadLoads` (:71), `applyCadLoads` (:131) | Fixture blocks → circuit load items and point counts (review first). |
 | `src/model/cadViewPlan.ts` | model | `outlinePoints`, `objectPath`, `layerStatsOf`, `planOfView` (:43) | Turns the open Design CAD view into a `CadPlan` for the room reader. |
 | `src/model/cadTrays.ts` | model | `chain`, `traysAlong`, `pullCadTrays` (:86), `applyCadTrays` (:124) | Which tray routes a cable runs along; tray route lengths (shared with 19). |
 | `src/model/roomLights.ts`, `src/model/emergencyPlace.ts`, `src/model/luminaireSchedule.ts` | model | `placeRoomLights`, `placeEmergency…`, `luminaireSchedule` | Lighting placements that call `placeLvPoint`; luminaire schedule from placed points (module 18). |
-| `src/components/cad/CadPage.tsx` | screen | `placeItem` call (:2081), `finishCable` (:2147), `link` tool (:1861), `schedules` (:2154), `addFound` (:2130), wire tools (:1054, :1065), device edits (:1490–1523, :1811) | The Design CAD page: all electrical tools on the Plan tab. |
+| `src/components/cad/CadPage.tsx` | screen | `placeItem`, `finishCable`, `findLvRoute`, `approveLvRoute`, `schedules`, `addFound`, wire tools, device edits | The Design CAD page: all electrical tools on the Plan tab. An approved optimal LV route replaces earlier route pieces for that feeder on the open drawing and updates schedules in the same undo step. |
+| `src/components/cad/LvRoutePlannerPanel.tsx` | screen | `LvRoutePlannerPanel` | Manual/optimal LV route choice, bounded precision and alternative controls, route comparison, feeder-length impact and explicit approval. |
 | `src/components/cad/DeviceToolbar.tsx` | screen | `DeviceToolbar` | Floating toolbar for picked devices; circuit list with "before → after points" and ⚠ over the rule maximum. |
 | `src/components/cad/DeviceEditPanel.tsx` | screen | `SelectionPanel`, `ArlSettings`, `MatchSettings` | Side panels for several devices, Array on line, Match. |
 | `src/components/CadLoadsDialog.tsx` | screen | `CadLoadsDialog` (:13), `read` (:44), `apply` (:49) | "Loads from CAD floor plan" dialog (opened from `App.tsx:1794`). |
@@ -48,6 +50,7 @@ The electrical layer on top of the Design CAD drawing (module 21-cad-core). On a
 | Data | From module (ID) | File + function |
 |---|---|---|
 | Drawing geometry, layers, blocks, texts, handles, units | 21-cad-core | `src/engines/cad/cadEngine.ts` `CadView`; `cadViewPlan.ts:planOfView`; `cadDrawing.ts:planFromDrawing` |
+| Shown wall geometry for optimal LV routing | 21-cad-core | Layers mapped to the Wall role by `cadRooms.ts:layerMapFor`; other drawing layers are not route obstacles |
 | Drawn cable routes and tray runs (`SketchItem.cable`, `SketchItem.tray`) | 21-cad-core | `project.cadSketch`, read by `cadPlanSchedules.ts:planDrawings` |
 | Plan units (mm / cm / m), user override per file | 21-cad-core | `src/model/cadUnits.ts:planScale`, `planUnits` |
 | Buildings, levels, rooms with outlines | 04-building-load-assessment | `calc/building.ts:buildingInfoOf`, `model/levels.ts:floorList` |
@@ -84,12 +87,13 @@ The electrical layer on top of the Design CAD drawing (module 21-cad-core). On a
 **B. Wire and measure**
 1. WC (wire circuits) → `wireLevel` (`cadWiring.ts:125`) adds a `CadWiring {feederId}` for every circuit with devices on the level; W1 toggles one (`toggleWiring`).
 2. The canvas draws `levelWiring` (:100): nearest-neighbour arcs, home run to the DB if the DB is placed on this level, tag "DB-GF1/L3 · 2C × 1.5 mm² · 23 m".
-3. CR (cable route) → `finishCable` (`CadPage.tsx:2147`) draws a polyline with `cable: {feederId}`; LR copies a drawing line as such a route (`CadPage.tsx:1861`).
-4. SCHED → `schedules()` (`CadPage.tsx:2154`) → `updateSchedules` (`cadPlanSchedules.ts:51`):
+3. CR (cable route) defaults to manual points → `finishCable` draws a polyline with `cable: {feederId}`; LR copies a drawing line as such a route.
+4. With **Optimal LV route**, click source and destination → `planLvRoutes` searches only shown Wall layers and previews up to three bounded alternatives. Approve → `approveLvRoute` saves the chosen polyline and calls `updateSchedules` in the same undoable change. ELV supplies stay on the manual workflow.
+5. SCHED → `schedules()` → `updateSchedules` (`cadPlanSchedules.ts:51`):
    - tray lengths and fittings per tray route → `applyCadTrays`;
    - cable route length per feeder (all plans) → `pullCadLengths` (+ vertical 6 m + terminations 3 m, + 5 % waste) → `applyCadLengths` sets `lengthM` for every feeder that differs;
    - wired circuits without a drawn route → `applyWiringLengths` sets `lengthM`.
-5. Voltage drop and cable schedule re-run on the new `lengthM` like any length edit.
+6. Voltage drop and cable schedule re-run on the new `lengthM` like any length edit.
 
 **C. Loads from CAD**
 1. Open the plan in Design CAD; open "Loads from CAD floor plan" (`App.tsx:1794`).
