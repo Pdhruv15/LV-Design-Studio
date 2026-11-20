@@ -45,6 +45,23 @@ describe('public website source', () => {
     expect(html).not.toMatch(/<script\b|https:\/\/[^"']+\.js/i);
   });
 
+  it('adds Get involved with link addresses fixed by the generator, not taken from content text', () => {
+    const product = readProduct();
+    const html = renderAbout(product);
+    expect(html).toContain('<h2>Get involved</h2>');
+    expect(html).toContain(`href="${product.getInvolved.linkedin}">Follow on LinkedIn</a>`);
+    expect(html).toContain('href="https://github.com/Pdhruv15/LV-Design-Studio/issues/new">Open an issue</a>');
+    expect(html).toContain('href="https://github.com/Pdhruv15/LV-Design-Studio">View the source</a>');
+    const withLinkedin = (linkedin: unknown) => ({ ...product, getInvolved: { ...product.getInvolved, linkedin } });
+    for (const bad of ['https://example.test/in/someone/', 'http://www.linkedin.com/in/someone/', 'https://www.linkedin.com/in/someone/?x=1', 'https://www.linkedin.com/in/a"onclick="x/', 'javascript:alert(1)', undefined]) {
+      expect(() => renderAbout(withLinkedin(bad))).toThrow('getInvolved linkedin is invalid');
+    }
+    const item = { ...product.getInvolved.items[0], target: 'https://example.test/' };
+    expect(() => renderAbout({ ...product, getInvolved: { ...product.getInvolved, items: [item] } })).toThrow('getInvolved item 0 is invalid');
+    const escaped = renderAbout({ ...product, getInvolved: { ...product.getInvolved, items: [{ ...product.getInvolved.items[0], title: '<b>x</b>' }] } });
+    expect(escaped).toContain('<h3>&lt;b&gt;x&lt;/b&gt;</h3>');
+  });
+
   it('constructs installer links from fixed repository paths, not release-provided URLs or text', () => {
     const html = renderDownload(readProduct(), { ...beta, releaseNotes: '<img src=x onerror=alert(1)>', arbitraryUrl: 'https://example.test/evil.exe' });
     expect(html).toContain(`https://github.com/Pdhruv15/LV-Design-Studio/releases/download/v${version}/${names.windows}`);
