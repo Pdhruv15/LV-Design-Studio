@@ -65,8 +65,9 @@ export default function MvRing({ geom, rmuTitle, sourceTitle, onFrameOpen }: {
   );
 }
 
-/** One RMU: its box, ring switches from the ring line down to its busbar, and the tee-offs below with the cable to each
- * transformer (a jog where the transformer is not right under it), a stub to one drawn elsewhere, or SPARE. */
+/** One RMU: its box, ring switches from the ring line down to its busbar (N/O beside the normally open one), and the
+ * tee-offs below with the cable to each transformer (a jog where the transformer is not right under it), a stub to one
+ * drawn elsewhere, or SPARE. */
 function Rmu({ g, s, title }: { g: RmuGeom; s: number; title: string }) {
   const it = g.item;
   const last = g.ways[g.ways.length - 1].x;
@@ -99,6 +100,7 @@ function Rmu({ g, s, title }: { g: RmuGeom; s: number; title: string }) {
       ))}
       <text className="b" x={g.textX} y={Y.name} textAnchor="middle">{it.name}</text>
       {it.config && <text className="m" x={g.textX} y={Y.config} textAnchor="middle">{it.config}</text>}
+      {g.nop && <text className="b" x={g.nop.x} y={Y.ringSw + 16} textAnchor={g.nop.anchor} data-nop={it.normallyOpen}>N/O</text>}
       {g.note?.lines.map((t, k) => <text key={t} className="m" x={g.note!.x} y={Y.teeSw + 11 + k * 10} style={{ fontSize: 9 }}>{t}</text>)}
       {g.ways.filter((w) => w.kind === 'tee' && w.boardId).map((w) => {
         const stub = g.stubs.find((t) => t.x === w.x);

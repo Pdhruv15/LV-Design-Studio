@@ -18,8 +18,8 @@ export const MV_DY = 108;
 export const MV_ROWS = { frameTop: 8, title: 24, subtitle: 38, boxTop: 72, name: 89, config: 101, ringSw: 78, bus: 116, teeSw: 120, boxBottom: 160, stub: 167, jog: 174, txTop: 78 + MV_DY } as const;
 /** Switch slot height at switch scale (24 units). */
 export const MV_SLOT = 24;
-/** RMU way pitch, and the box margin past its outer ways. */
-const WAY = 32, BOX_PAD = 16;
+/** RMU way pitch, and the box margin past its outer ways; the normally open switch's N/O stands NOP_GAP from it. */
+const WAY = 32, BOX_PAD = 16, NOP_GAP = 10;
 /** Gaps kept between neighbouring substation frames (or RMUs outside a frame), and between RMUs in one frame. */
 const GAP_OUT = 20, GAP_IN = 14;
 /** Room between a frame and what it holds. */
@@ -48,6 +48,8 @@ export interface RmuItem {
   tOff?: 'fuse' | 'vcb';
   fuseA?: number;
   substation?: string;
+  /** The ring switch kept open (R1 where the ring comes in, R2 where it goes on); only on a unit with two ring switches. */
+  normallyOpen?: 'R1' | 'R2';
 }
 /** A transformer with no RMU entered: teed straight off the ring, as before. */
 export interface TapItem { kind: 'tap'; boardId: string; substation?: string }
@@ -60,17 +62,26 @@ export interface MvPlan {
   order: string[];
 }
 
+/** Where a substation stands in ring order: the place of its record (Panels → Transformers → Substations keeps the
+ * records in the order it lists them), or after every recorded one when it has none. */
+export function ssRank(project: Project): (name: string) => number {
+  const recs = (project.substations ?? []).map((s) => s.name.trim().toLowerCase());
+  return (name) => { const i = recs.indexOf(name.trim().toLowerCase()); return i < 0 ? recs.length : i; };
+}
+
 /** The rings, their RMUs and the main boards' order, from the whole project. A substation sits on the ring of its
- * first RMU; an RMU in the substation of its first transformer; a transformer with no RMU on the first ring. */
+ * first RMU; an RMU in the substation of its first transformer (else the one its record names); a transformer with no
+ * RMU on the first ring. On a ring the substations follow their records' order; RMUs and transformers in no
+ * substation keep their places. */
 export function mvPlan(project: Project): MvPlan {
   const mains = project.boards.filter(onMvSide);
   const sources = project.gridSources ?? [];
   const ringOfRmu = (name: string) => { const s = rmuSource(project, name); return s ? Math.max(0, sources.indexOf(s)) : 0; };
   const rmuSs = new Map<string, string | undefined>();
-  for (const b of mains) { const r = clean(b.rmu); if (r && !rmuSs.has(r)) rmuSs.set(r, clean(b.substation)); }
+  for (const b of mains) { const r = clean(b.rmu); if (r && !rmuSs.has(r)) rmuSs.set(r, clean(b.substation) ?? clean(rmuRecord(project, r)?.substation)); }
   const ssRing = new Map<string, number>();
   for (const [r, ss] of rmuSs) if (ss && !ssRing.has(ss)) ssRing.set(ss, ringOfRmu(r));
-  interface Group { items: RingItem[] }
+  interface Group { ss?: string; items: RingItem[] }
   const rings: { groups: Group[]; byKey: Map<string, Group> }[] = [];
   const rmus = new Map<string, RmuItem>();
   for (const b of mains) {
@@ -82,17 +93,26 @@ export function mvPlan(project: Project): MvPlan {
     const ring = (rings[ri] ??= { groups: [], byKey: new Map() });
     const key = ss !== undefined ? `ss:${ss}` : r ? `rmu:${r}` : `tx:${b.id}`;
     let g = ring.byKey.get(key);
-    if (!g) { g = { items: [] }; ring.byKey.set(key, g); ring.groups.push(g); }
+    if (!g) { g = { ss, items: [] }; ring.byKey.set(key, g); ring.groups.push(g); }
     if (r) {
       const rec = rmuRecord(project, r);
       const config = rec?.config?.trim().toUpperCase() || undefined;
-      const item: RmuItem = { kind: 'rmu', name: r, config, tees: [b.id], ringWays: config ? Math.max(1, rmuWays(config).ring) : 2, tOff: rec?.tOff, fuseA: rec?.fuseA, substation: ss };
+      const ringWays = config ? Math.max(1, rmuWays(config).ring) : 2;
+      const item: RmuItem = { kind: 'rmu', name: r, config, tees: [b.id], ringWays, tOff: rec?.tOff, fuseA: rec?.fuseA, substation: ss, ...(ringWays >= 2 && rec?.normallyOpen ? { normallyOpen: rec.normallyOpen } : {}) };
       rmus.set(r, item);
       g.items.push(item);
     } else g.items.push({ kind: 'tap', boardId: b.id, substation: ss });
   }
   // Every tee-off of the configuration is drawn: the ones with no transformer are spares.
   for (const it of rmus.values()) if (it.config) for (let n = rmuWays(it.config).tOff; it.tees.length < n;) it.tees.push(undefined);
+  // The substations in their records' order, in the places substations take on the ring.
+  const rank = ssRank(project);
+  for (const r of rings) {
+    if (!r) continue;
+    const slots = r.groups.flatMap((g, i) => (g.ss !== undefined ? [i] : []));
+    const sorted = slots.map((i) => r.groups[i]).sort((a, b) => rank(a.ss!) - rank(b.ss!));
+    slots.forEach((i, k) => { r.groups[i] = sorted[k]; });
+  }
   const out: Ring[] = [];
   rings.forEach((r, i) => { if (r) out.push({ source: sources[i], items: r.groups.flatMap((g) => g.items) }); });
   const boardsOf = (it: RingItem) => (it.kind === 'tap' ? [it.boardId] : it.tees.filter((t): t is string => !!t));
@@ -115,6 +135,8 @@ export interface RmuGeom {
   textX: number;
   /** Fuse rating or relay functions, right of the last tee-off. */
   note?: { x: number; lines: string[] };
+  /** N/O beside the normally open ring switch, on the side away from the other ways (inside the box). */
+  nop?: { x: number; anchor: 'start' | 'end' };
   /** Tee-offs to a transformer drawn elsewhere. */
   stubs: { x: number; dir: -1 | 1; text: string }[];
   /** Where each drawn transformer it feeds stands (main board id → x). */
@@ -306,16 +328,23 @@ function rmuGeom(project: Project, it: RmuItem, x: Map<string, number>): RmuGeom
   const note = lines.length ? { x: lastInner + 7, lines } : undefined;
   // An RT unit has one ring switch: its text stands right of it.
   const textX = r2 === undefined ? r1 + 9 + textW / 2 : (r1 + r2) / 2;
-  const x1 = r1 - BOX_PAD;
+  let x1 = r1 - BOX_PAD;
   let x2 = ways[ways.length - 1].x + BOX_PAD;
   if (r2 === undefined) x2 = Math.max(x2, r1 + 18 + textW);
   if (note) x2 = Math.max(x2, note.x + Math.max(...note.lines.map((t) => textWidth(t, S))) + 4);
+  // The normally open ring switch: N/O outside it (clear of the R1 blade), the box widened to take it in.
+  let nop: RmuGeom['nop'];
+  if (it.normallyOpen && r2 !== undefined) {
+    const w = textWidth('N/O', B, true);
+    if (it.normallyOpen === 'R1') { nop = { x: r1 - NOP_GAP, anchor: 'end' }; x1 = Math.min(x1, r1 - NOP_GAP - w - 4); }
+    else { nop = { x: r2 + NOP_GAP, anchor: 'start' }; x2 = Math.max(x2, r2 + NOP_GAP + w + 4); }
+  }
   // A tee-off to a transformer drawn elsewhere: a stub away from the drawn ones.
   const firstDrawn = drawnTees[0]?.i ?? 0;
   const stubs = tees.flatMap((w, i) => (w.boardId && !x.has(w.boardId)
     ? [{ x: w.x, dir: (i < firstDrawn ? -1 : 1) as -1 | 1, text: `to ${txTag(project, w.boardId) ?? 'Transformer'} · ${w.boardId}` }]
     : []));
-  return { item: it, x1, x2, ways, inX: r1, outX: r2 ?? r1, textX, note, stubs, txX: new Map(drawnTees.map((d) => [d.t, x.get(d.t)!])) };
+  return { item: it, x1, x2, ways, inX: r1, outX: r2 ?? r1, textX, note, ...(nop ? { nop } : {}), stubs, txX: new Map(drawnTees.map((d) => [d.t, x.get(d.t)!])) };
 }
 
 /** Extra room before main boards (by id) so that frames, RMUs and the ring's labels keep apart, for the main boards
@@ -361,7 +390,8 @@ export function mvSheetKey(project: Project, drawn: Board[]): unknown {
   const g = mvGeometry(project, plan, new Map(order.map((id, i) => [id, i * 1000])), { earth: false });
   return [
     g.runs.map((r) => [r.source?.id ?? null, r.head.kind === 'from' ? r.head.text : 'source', r.tail?.text ?? null]),
-    g.rmus.map((m) => [m.item.name, m.item.config ?? null, m.item.ringWays, m.item.tOff ?? null, m.item.fuseA ?? null, m.item.tees.map((t) => t ?? null), m.stubs.map((t) => t.text)]),
+    // The normally open switch only where one is entered: sheets issued before it keep their fingerprint.
+    g.rmus.map((m) => [m.item.name, m.item.config ?? null, m.item.ringWays, m.item.tOff ?? null, m.item.fuseA ?? null, m.item.tees.map((t) => t ?? null), m.stubs.map((t) => t.text), ...(m.item.normallyOpen ? [m.item.normallyOpen] : [])]),
     g.frames.map((f) => [f.name, f.sub ?? null]),
     g.taps.map((t) => t.boardId),
     order.map((id) => txTag(project, id) ?? null)

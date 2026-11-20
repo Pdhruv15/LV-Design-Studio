@@ -1291,7 +1291,8 @@ export default function App() {
     exportSld: () => { setView('design'); setDiagramMode('system'); setShowExport(true); },
     undo: history.undo, redo: history.redo,
     setTie: applyTie, removeTie: (id) => { void confirmRemoveTie(id); },
-    showPart: showPartKey
+    showPart: showPartKey,
+    askName: (title, initial) => askText(title, { label: 'Name', initial, required: true, confirmLabel: 'Add' })
   };
 
   /** The Board tab's menus: the same actions, with the view kept on this board (a sub-board's Edit opens its dialog without switching). */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { applyTransformers, mainBoards, mainOf, moveUnder, planTransformers, setTransformer, supplyChain, txTag, txTags } from './transformers';
+import { applyTransformers, mainBoards, mainOf, moveUnder, nextRmus, planTransformers, setTransformer, supplyChain, txTag, txTags } from './transformers';
 
 describe('transformers', () => {
   it('creates one MDB per DEWA transformer, numbered after the existing ones, with ties between pairs', () => {
@@ -47,5 +47,10 @@ describe('transformers', () => {
     expect([...all.values()]).toEqual(mainBoards(p).filter((b) => b.sourceKva).map((b, i) => `TX-${i + 1}`));
     for (const b of mainBoards(p)) expect(all.get(b.id)).toBe(txTag(p, b.id));
     expect(all.has('MDB-X')).toBe(false);
+  });
+
+  it('gives a new RMU a name clear of the RMU records that feed no transformer yet', () => {
+    const p = { ...sampleProject, boards: sampleProject.boards.map((b) => (b.id === 'MDB-1' ? { ...b, rmu: 'RMU-1' } : b)), rmus: [{ name: 'RMU-2', substation: 'SS-1' }] };
+    expect(nextRmus(p, 2)).toEqual(['RMU-3', 'RMU-4']);
   });
 });

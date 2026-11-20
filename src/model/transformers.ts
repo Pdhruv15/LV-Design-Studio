@@ -59,9 +59,9 @@ export interface TxPlan { boards: Board[]; ties: BusTie[]; problems: string[] }
 /** New transformers, each with its own MDB; optional normally-open bus ties between pairs (TX-1/TX-2, TX-3/TX-4 …). */
 /** RMU names in use (from the transformers), in order. */
 export const rmuNames = (project: Project) => [...new Set(mainBoards(project).map((b) => b.rmu?.trim()).filter((x): x is string => !!x))];
-/** Next free "RMU-n" names. */
+/** Next free "RMU-n" names (also clear of the RMU records that feed no transformer yet). */
 export function nextRmus(project: Project, count: number): string[] {
-  const used = new Set(rmuNames(project));
+  const used = new Set([...rmuNames(project), ...(project.rmus ?? []).map((r) => r.name)]);
   let n = Math.max(0, ...[...used].map((x) => Number(/^RMU-(\d+)$/.exec(x)?.[1] ?? 0)));
   return Array.from({ length: count }, () => { let id; do { id = `RMU-${++n}`; } while (used.has(id)); used.add(id); return id; });
 }

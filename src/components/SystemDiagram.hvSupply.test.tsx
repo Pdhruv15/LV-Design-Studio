@@ -5,6 +5,7 @@ import SystemDiagram from './SystemDiagram';
 import { sampleProject } from '../data/sampleProject';
 import { evaluateProject } from '../calc/electrical';
 import { MV_DY } from '../diagram/mvArrangement';
+import { svgToDxf } from '../diagram/exportSvg';
 import type { Board, Project } from '../types';
 
 const noop = () => {};
@@ -44,6 +45,22 @@ describe('SLD: grid source and RMU', () => {
     const sym = h.querySelector('g.tx [data-sym="tx"]')!;
     expect(num(sym, 'data-sym-y')).toBe(92 + MV_DY);
     expect(num(rmu.querySelectorAll('[data-sym]')[1], 'data-sym-x')).toBe(num(sym, 'data-sym-x'));
+  });
+
+  it('writes N/O beside the normally open ring switch, inside the RMU box', () => {
+    const p: Project = { ...withRmu, rmus: [{ name: 'RMU-1', config: 'RRT', normallyOpen: 'R2' }] };
+    const h = drawn(p), rmu = h.querySelector('g.rmu')!;
+    // DXF and DWG get it as text, like the RMU's name.
+    const dxf = svgToDxf(h.querySelector('.sysdiag > svg')!.outerHTML.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"'), 1000);
+    expect(dxf.filter((x) => x.type === 'text' && ['N/O', 'RMU-1'].includes(x.text)).map((x) => x.type === 'text' && [x.text, x.layer])).toEqual([['RMU-1', 'TEXT'], ['N/O', 'TEXT']]);
+    const nop = rmu.querySelector('text[data-nop]')!;
+    expect([nop.textContent, nop.getAttribute('data-nop'), nop.getAttribute('text-anchor'), nop.getAttribute('class')]).toEqual(['N/O', 'R2', 'start', 'b']);
+    const ring = [...rmu.querySelectorAll('[data-sym="isolator"]')].map((s) => num(s, 'data-sym-x'));
+    expect(num(nop, 'x')).toBe(ring[1] + 10);
+    const box = rmu.querySelector('rect.rmu-box')!;
+    expect(num(box, 'x') + num(box, 'width')).toBeGreaterThan(num(nop, 'x') + 20);
+    expect(rmu.querySelector('title')?.textContent).toContain('R2 normally open');
+    expect(drawn(withRmu).querySelector('text[data-nop]')).toBeNull();
   });
 
   it('frames a substation, titled with its type and building, and keeps a meter cabinet off the ring', () => {

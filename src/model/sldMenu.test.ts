@@ -123,7 +123,7 @@ describe('supply menu', () => {
   it('a transformer', () => {
     const m = menu({ kind: 'supply', boardId: 'MDB-1' });
     expect(m.head).toEqual({ icon: 'transformer', title: 'TX-1', detail: '1000 kVA · 5 % · feeds MDB-1' });
-    expect(labels(m.items)).toEqual(['Edit transformer…', 'Transformer & generator sizing', 'Scenario', 'Add', 'MV supply and RMUs…', '-', 'Zoom to MDB-1', 'Show TX-1 only', '-', 'Properties']);
+    expect(labels(m.items)).toEqual(['Edit transformer…', 'Transformer & generator sizing', 'Scenario', 'Add', 'MV supply and RMUs…', '-', 'Substation', 'RMU', '-', 'Zoom to MDB-1', 'Show TX-1 only', '-', 'Properties']);
     expect(labels(sub(m.items, 'Add'))).toEqual(['Generator + ATS', 'Generator + interlocked ACBs']);
   });
   it('Bus coupler is offered when there is another main board to tie to', () => {
@@ -336,13 +336,13 @@ describe('Show (a part of the network)', () => {
   it('an RMU and a substation frame: Show it only, and where they are entered', () => {
     const r = menu({ kind: 'rmu', name: 'RMU-1' }, state(ringed));
     expect(r.head).toEqual({ icon: 'hv', title: 'RMU-1', detail: 'RRTT · SS-1 · 2 transformers · 6 boards' });
-    expect(labels(r.items)).toEqual(['Show RMU-1 only', '-', 'MV supply and RMUs…']);
+    expect(labels(r.items)).toEqual(['Show RMU-1 only', '-', 'Configuration', 'Normally open', '-', 'MV supply and RMUs…']);
     expect(find(r.items, 'Show RMU-1 only')).toMatchObject({ arg: 'part|rmu:RMU-1', icon: 'isolate' });
     const f = menu({ kind: 'substation', name: 'SS-1' }, state(ringed));
     expect(f.head.title).toBe('Substation SS-1');
     expect(find(f.items, 'Show SS-1 only')).toMatchObject({ arg: 'part|ss:SS-1' });
     // While a part is shown they offer Show all too; an RMU that is no longer named has no menu.
-    expect(labels(menu({ kind: 'rmu', name: 'RMU-1' }, state(ringed, { part: 'ss:SS-1' })).items)).toEqual(['Show RMU-1 only', 'Show all', '-', 'MV supply and RMUs…']);
+    expect(labels(menu({ kind: 'rmu', name: 'RMU-1' }, state(ringed, { part: 'ss:SS-1' })).items)).toEqual(['Show RMU-1 only', 'Show all', '-', 'Configuration', 'Normally open', '-', 'MV supply and RMUs…']);
     expect(sldMenu(state(), { kind: 'rmu', name: 'RMU-1' })).toBeNull();
   });
   it('a transformer offers Show it only, marked while it is the part shown', () => {
@@ -353,5 +353,43 @@ describe('Show (a part of the network)', () => {
     expect(labels(menu({ kind: 'canvas' }).items)).not.toContain('Show all');
     expect(find(menu({ kind: 'canvas' }, state(project, { part: 'mv' })).items, 'Show all')).toMatchObject({ arg: 'part|all' });
     expect(SLD_MENU_ACTIONS).toContain('part');
+  });
+});
+
+describe('Entering the arrangement (proposal 2026-11-18 part 4)', () => {
+  const tx = (id: string, extra = {}) => ({ id, name: id, kind: 'MDB' as const, sourceKva: 1000, sourceImpedancePct: 6, ratedCurrentA: 1600, ...extra });
+  /** SS-1: RMU-1 (RRTT) feeding MDB-1 and MDB-2; RMU-2 (RRT) in SS-2 feeding nothing yet; MDB-3 on no RMU. */
+  const p: Project = {
+    ...project,
+    boards: [...project.boards.map((b) => (b.id === 'MDB-1' ? { ...b, rmu: 'RMU-1', substation: 'SS-1' } : b)), tx('MDB-2', { rmu: 'RMU-1', substation: 'SS-1' }), tx('MDB-3')],
+    rmus: [{ name: 'RMU-1', config: 'RRTT' }, { name: 'RMU-2', config: 'RRT', substation: 'SS-2' }]
+  };
+  const rowsOf = (list: CtxEntry[]) => list.map((x) => (x === '-' ? '-' : [x.label, x.key ?? '', !!x.now, !!x.off]));
+  it('a transformer: Substation ▸ in ring order with a new one, RMU ▸ with each RMU\'s tee-offs and a new one', () => {
+    const m = menu({ kind: 'supply', boardId: 'MDB-1' }, state(p));
+    expect(find(m.items, 'Substation')).toMatchObject({ icon: 'sld', key: 'SS-1' });
+    expect(rowsOf(sub(m.items, 'Substation'))).toEqual([['None', '', false, false], ['SS-1', '', true, true], ['SS-2', '', false, false], '-', ['New substation…', '', false, false]]);
+    expect((sub(m.items, 'Substation') as CtxItem[]).map((x) => x.arg)).toEqual(['txsubstation|', 'txsubstation|SS-1', 'txsubstation|SS-2', undefined, 'txsubstation|+']);
+    expect(find(m.items, 'RMU')).toMatchObject({ icon: 'hv', key: 'RMU-1' });
+    expect(rowsOf(sub(m.items, 'RMU'))).toEqual([['None', '', false, false], ['RMU-1', 'RRTT · 2 of 2', true, true], ['RMU-2', 'RRT · 0 of 1 · 1 free', false, false], '-', ['New RMU', 'starts as RRT', false, false]]);
+    // MDB-3 on no RMU: the full RRTT unit is offered as RRTTT; a full RRTTT unit is greyed.
+    const m3 = menu({ kind: 'supply', boardId: 'MDB-3' }, state(p));
+    expect(find(m3.items, 'Substation')?.key).toBe('none');
+    expect(rowsOf(sub(m3.items, 'RMU')).slice(0, 2)).toEqual([['None', '', true, true], ['RMU-1', 'RRTT · full → RRTTT', false, false]]);
+    const fullP: Project = { ...p, boards: [...p.boards, tx('MDB-4', { rmu: 'RMU-1' })], rmus: [{ name: 'RMU-1', config: 'RRTTT' }] };
+    expect(rowsOf(sub(menu({ kind: 'supply', boardId: 'MDB-3' }, state(fullP)).items, 'RMU'))[1]).toEqual(['RMU-1', 'RRTTT · full · 3 of 3', false, true]);
+  });
+  it('an RMU: Configuration ▸, a smaller one greyed while its transformers need the tee-offs; Normally open ▸ R1, R2 or none', () => {
+    const m = menu({ kind: 'rmu', name: 'RMU-1' }, state(p));
+    expect(find(m.items, 'Configuration')).toMatchObject({ icon: 'sliders', key: 'RRTT' });
+    expect(rowsOf(sub(m.items, 'Configuration'))).toEqual([['RRT', 'too few tee-offs', false, true], ['RRTT', '', true, true], ['RRRT', 'too few tee-offs', false, true], ['RT', 'too few tee-offs', false, true], ['RRTTT', '', false, false]]);
+    expect(find(m.items, 'Normally open')).toMatchObject({ icon: 'toggle', key: 'none' });
+    expect((sub(m.items, 'Normally open') as CtxItem[]).map((x) => [x.label, x.arg, !!x.now])).toEqual([['None', 'rmunop|', true], ['R1 (ring in)', 'rmunop|R1', false], ['R2 (ring out)', 'rmunop|R2', false]]);
+    const open: Project = { ...p, rmus: [{ name: 'RMU-1', config: 'RRTT', normallyOpen: 'R2' }] };
+    expect(find(menu({ kind: 'rmu', name: 'RMU-1' }, state(open)).items, 'Normally open')?.key).toBe('R2');
+    // An RT unit has one ring switch: no normally open point.
+    const rt: Project = { ...p, boards: p.boards.filter((b) => b.id !== 'MDB-2'), rmus: [{ name: 'RMU-1', config: 'RT' }] };
+    expect(labels(menu({ kind: 'rmu', name: 'RMU-1' }, state(rt)).items)).toEqual(['Show RMU-1 only', '-', 'Configuration', '-', 'MV supply and RMUs…']);
+    for (const a of ['txsubstation', 'txrmu', 'rmuconfig', 'rmunop']) expect(SLD_MENU_ACTIONS).toContain(a);
   });
 });

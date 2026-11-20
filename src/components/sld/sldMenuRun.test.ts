@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { evaluateProject } from '../../calc/electrical';
 import { sampleProject } from '../../data/sampleProject';
 import { SLD_MENU_ACTIONS, SLD_VIEW_ACTIONS, type SldTarget } from '../../model/sldMenu';
@@ -37,6 +37,10 @@ describe('the SLD menu runner', () => {
       case 'tierating': return [{ kind: 'tie', id: 'BC-1' }, '1600'];
       case 'tieremove': return [{ kind: 'tie', id: 'BC-1' }, undefined];
       case 'part': return [{ kind: 'substation', name: 'SS-1' }, 'ss:SS-1'];
+      case 'txsubstation': return [{ kind: 'supply', boardId: 'MDB-1' }, 'SS-1'];
+      case 'txrmu': return [{ kind: 'supply', boardId: 'MDB-1' }, '+'];
+      case 'rmuconfig': return [{ kind: 'rmu', name: 'RMU-1' }, 'RRTT'];
+      case 'rmunop': return [{ kind: 'rmu', name: 'RMU-1' }, 'R2'];
       default: return [{ kind: 'canvas' }, undefined];
     }
   };
@@ -114,6 +118,34 @@ describe('the SLD menu runner', () => {
   it('a bus coupler row sets the operation or the rating', () => {
     expect(run({ kind: 'tie', id: 'BC-1' }, 'tieop', 'open')).toEqual([['setTie', 'BC-1', { closed: false }]]);
     expect(run({ kind: 'tie', id: 'BC-1' }, 'tierating', '1600')).toEqual([['setTie', 'BC-1', { ratingA: 1600 }]]);
+  });
+  it('the arrangement rows: one undo step naming undo, only a message when nothing changes; New substation… asks first', async () => {
+    const sup: SldTarget = { kind: 'supply', boardId: 'MDB-1' };
+    const result = (calls: [string, ...unknown[]][]) => calls[0][1] as { project: Project; message: string };
+    const ss = run(sup, 'txsubstation', 'SS-4');
+    expect(ss[0][0]).toBe('apply');
+    expect(result(ss).project.boards.find((b) => b.id === 'MDB-1')?.substation).toBe('SS-4');
+    expect(result(ss).message).toBe('TX-1 is now in SS-4 (undo with ⌘Z)');
+    expect(run(sup, 'txsubstation', '')).toEqual([['status', 'TX-1 is in no substation']]);
+    const rmu = result(run(sup, 'txrmu', '+'));
+    expect(rmu.message).toBe('TX-1 now on a new RMU, RMU-1 (RRT) (undo with ⌘Z)');
+    expect(rmu.project.rmus).toEqual([{ name: 'RMU-1', config: 'RRT' }]);
+    expect(rmu.project.boards.find((b) => b.id === 'MDB-1')?.rmu).toBe('RMU-1');
+    const cfg = result(run({ kind: 'rmu', name: 'RMU-1' }, 'rmuconfig', 'RRTT'));
+    expect([cfg.project.rmus, cfg.message]).toEqual([[{ name: 'RMU-1', config: 'RRTT' }], 'RMU-1 is now RRTT (undo with ⌘Z)']);
+    const nop = result(run({ kind: 'rmu', name: 'RMU-1' }, 'rmunop', 'R2'));
+    expect([nop.project.rmus, nop.message]).toEqual([[{ name: 'RMU-1', normallyOpen: 'R2' }], 'RMU-1: R2 normally open (undo with ⌘Z)']);
+    // New substation…: asks with the next free name offered; a cancel changes nothing.
+    const asked: string[] = [];
+    const m = mock({ askName: (title, initial) => { asked.push(`${title}: ${initial}`); return Promise.resolve('SS-7'); } });
+    runSldMenu(m.ctx, sup, 'txsubstation', '+');
+    await vi.waitFor(() => expect(m.calls).toHaveLength(1));
+    expect(asked).toEqual(['New substation: SS-1']);
+    expect(result(m.calls).project.boards.find((b) => b.id === 'MDB-1')?.substation).toBe('SS-7');
+    const c = mock({ askName: () => Promise.resolve(null) });
+    runSldMenu(c.ctx, sup, 'txsubstation', '+');
+    await Promise.resolve();
+    expect(c.calls).toEqual([]);
   });
   describe('several picked', () => {
     const two: SldTarget = { kind: 'several', items: [{ kind: 'feeder', id: 'FF-OFF' }, { kind: 'feeder', id: 'FF-IT' }] };

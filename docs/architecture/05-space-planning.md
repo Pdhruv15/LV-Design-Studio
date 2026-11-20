@@ -59,6 +59,7 @@ Where the numbers come from — short answer:
 | DM-D-013 PDF in the Export centre ("Authority submission forms") | 25-reports-exports | `src/components/docs/exportCatalogue.ts:148-151` |
 | DM-D-013 PDF from the page | 34-electron-desktop (PDF render) | `src/components/docs/SubstationAreaView.tsx:43` `exportPdf` → `savePdf` |
 | Readiness tick "Substation and room areas" | 28-dashboard-readiness | `src/calc/projectReadiness.ts:62` `stageChecklist` |
+| Substation records (`project.substations`): type and building in the SLD's frame titles; their order is the SLD's ring order; the Substations card in Panels → Transformers edits the same records | 06-network-sld-editor, 12-transformer-generator | `src/diagram/mvArrangement.ts` `substationTitle`, `ssRank`; `src/model/substations.ts` `updateSubstation`, `moveSubstation` |
 | Space-plan total m² as GFA fallback on the dashboard | 28-dashboard-readiness | `src/calc/dashboard.ts:101-103` |
 | Change tracking of `spacePlan` and `substations` | 26-revisions-changes | `src/model/revisions.ts:149-150` `DATA_SETS`; `src/model/changeClass.ts:36` `PROJECT_CLASS` |
 | Help guide entry | 01-app-shell | `src/help/guide.ts:37` |

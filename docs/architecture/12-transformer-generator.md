@@ -25,7 +25,8 @@
 | `src/calc/electrical.ts` | calc (shared, module 06) | `transformerImpedance`, `parallelGroup`, `parallelZ`, `impedanceToBoard`, `faultCurrentKA`, `DEFAULT_TRANSFORMER_XR` (5), `C_MAX` (1.05) | Transformer impedance referred to LV, parallel source impedance, Ik″ |
 | `src/calc/scenario.ts` | calc (shared) | `GENERATOR_XD_SUBTRANSIENT_PCT` (15), `generatorScenario` | Network on generator supply, using standby kVA and X″d 15 % |
 | `src/components/studies/SizingStudy.tsx` | screen | `TransformerGeneratorStudy` (`apply`, `applyGen`, `exportSheet`) | Studies → Transformer and generator sizing page; PDF / Excel sheet |
-| `src/components/TransformersTab.tsx` | screen | `TransformersTab` | Panels → Transformers: add DEWA transformers + MDBs, loading table, move panels |
+| `src/components/TransformersTab.tsx` | screen | `TransformersTab` | Panels → Transformers: add DEWA transformers + MDBs, loading table (its RMU column lists each RMU's free tee-offs, `model/substations.ts` `rmuChoices`), move panels |
+| `src/components/SubstationsCard.tsx` | screen | `SubstationsCard` | Panels → Transformers → Substations: one row per substation in ring order (type, location, RMUs, transformers, owner, checks), ▲ ▼, + Substation, + RMU |
 | `src/model/transformers.ts` | model | `mainBoards`, `txTag`, `mainOf`, `supplyChain`, `withTransformer`, `planTransformers`, `applyTransformers`, `setTransformer`, `setRmu`, `setSubstation`, `nextRmus`, `moveUnder` | Edits to the project for transformers / MDBs / RMUs / bus ties |
 | `src/model/changeover.ts` | model | `ACB_FROM_A`, `isInterlocked`, `incomersOf`, `boardRatingA`, `generatorFlcA`, `changeoverBreakers`, `atsOf`, `atsLines`, `breakerLines` | Changeover device data for SLD labels and BOQ |
 | `src/diagram/ChangeoverSym.tsx` | screen (SLD drawing) | `CO_ROWS`, `CO_GEN_REACH`, `ChangeoverIncomers` | Draws the mains + generator incomers with instruments, PMU and SPD |
