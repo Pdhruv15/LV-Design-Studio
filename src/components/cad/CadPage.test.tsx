@@ -4178,6 +4178,9 @@ describe('CAD 2D gap plan: POINT, DIVIDE, MEASURE and the point style', () => {
     expect(last()).toBe('PTYPE  Points shown as dot');
     const dlg = () => document.querySelector('[role="dialog"][aria-label="Point style"]');
     expect(dlg()).not.toBeNull();
+    // The two Size options are a group that wraps, not a label of one small box.
+    const sizeRow = document.querySelector('input[aria-label="Size relative to screen"]')!.closest('.cad-dlg-r')!;
+    expect([sizeRow.tagName, sizeRow.className, sizeRow.getAttribute('role'), sizeRow.getAttribute('aria-label')]).toEqual(['DIV', 'cad-dlg-r cad-dlg-g', 'group', 'Size']);
     expect(document.querySelectorAll('[role="radiogroup"][aria-label="Point shape"] [role="radio"]')).toHaveLength(20);
     expect((document.querySelector('[role="radio"][aria-label="Dot"]') as HTMLButtonElement).getAttribute('aria-checked')).toBe('true');
     await act(async () => { (document.querySelector('[role="radio"][aria-label="Cross in a circle"]') as HTMLButtonElement).click(); });
@@ -4258,6 +4261,11 @@ describe('CAD 2D gap plan: BLOCK, a block from drawn objects', () => {
     await command('b');
     expect(dlg()).not.toBeNull();
     expect(dlg()!.textContent).toContain('Type a name for the block.');
+    // A form: a row of several controls is a group, not a label (a click anywhere on a label would press Pick point).
+    expect(dlg()!.className).toBe('cad-dlg form');
+    expect([...dlg()!.querySelectorAll('.cad-dlg-g[role="group"]')].map((r) => r.getAttribute('aria-label'))).toEqual(['Base point', 'Objects', 'What becomes of the objects']);
+    expect([button('Pick point'), button('Select objects'), field('Retain')].map((el) => el.closest('.cad-dlg-r')!.tagName)).toEqual(['DIV', 'DIV', 'DIV']);
+    expect(field('Block name').closest('.cad-dlg-r')!.tagName).toBe('LABEL');
     await setField('Block name', 'DB-A');
     expect(dlg()!.textContent).toContain('Pick or type the base point.');
     expect(document.querySelector('[aria-label="Objects selected"]')!.textContent).toBe('0 selected');
@@ -4459,6 +4467,10 @@ describe('CAD 2D gap plan: block attributes (ATTDEF, INSERT prompts, ATTEDIT)', 
     await command('att');
     expect(dlg('Attribute definition')).not.toBeNull();
     expect(dlg('Attribute definition')!.textContent).toContain('Type a tag');
+    // The insertion point: Pick on plan on a row of its own, then X and Y on the next, each a group that fits its controls.
+    expect([button('Pick on plan'), field('Insertion X'), field('Insertion Y')].map((el) => el.closest('.cad-dlg-r')!.className)).toEqual(['cad-dlg-r cad-dlg-g', 'cad-dlg-r cad-dlg-g', 'cad-dlg-r cad-dlg-g']);
+    expect(button('Pick on plan').closest('.cad-dlg-r')).not.toBe(field('Insertion X').closest('.cad-dlg-r'));
+    expect(field('Insertion X').closest('.cad-dlg-r')).toBe(field('Insertion Y').closest('.cad-dlg-r'));
     await setField('Tag', 'db ref');
     await setField('Prompt', 'Board reference');
     await setField('Default', 'DB-1');

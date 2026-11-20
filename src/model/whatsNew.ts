@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.227', date: '2026-11-20',
+    items: [
+      { title: 'Design CAD: the Block definition dialog is laid out as a form', text: 'The Block definition dialog (BLOCK, B) is wider and each row fits what it holds: Pick point with the X and Y boxes on the Base point row, Select objects with the count beside it, then Retain, Convert to block and Delete on one line. Before, these overlapped. A click on the words Base point or Objects no longer starts picking; only the buttons do.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Design CAD: Point style and Attribute definition dialogs', text: 'In Point style (PTYPE), the two Size options, Relative to screen and In absolute units, are on a line each; before, their words ran over Cancel and OK. In Attribute definition (ATTDEF), Pick on plan has a row of its own and the X and Y boxes below it are wide enough to read; before, the button overlapped the rows and the boxes were too narrow to use.' }
+    ]
+  },
+  {
     version: '2.225', date: '2026-11-20',
     items: [
       { title: 'Panel tree: the Group switch before substations are named', text: 'The panel tree\'s Group switch (Boards | Substations) now shows in every project with a main board fed from the MV side, not only once substations are named. Substations stays greyed until a main board names its substation or RMU, and its tooltip says where: Panels → Transformers. A project with only meter cabinets on an authority LV supply has no switch, as before.' }
