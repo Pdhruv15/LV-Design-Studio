@@ -49,4 +49,22 @@ describe('printed SLD colours', () => {
     expect(doc.querySelector('text:not(.way-no)')?.getAttribute('style')).toContain('fill:#444444');
     document.documentElement.style.removeProperty('--mut');
   });
+
+  it('prints MV cables solid black and the RMU box white', () => {
+    document.body.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg">
+      <line class="ln mv" x2="10" style="stroke: rgb(245, 179, 1); fill: none; opacity: 0.7"/>
+      <path class="ln mv" d="M0 0V5H9" style="stroke: rgb(245, 179, 1); fill: none; opacity: 0.7"/>
+      <rect class="sym rmu-box" width="40" height="30" style="stroke: rgb(1, 2, 3); fill: color(srgb 0.25 0.23 0.16)"/>
+      <rect class="sym" width="40" height="30" style="stroke: rgb(1, 2, 3); fill: rgb(9, 9, 9)"/></svg>`;
+    const out = printableSvg(document.querySelector('svg')!, 100, 50);
+    const doc = new DOMParser().parseFromString(out, 'image/svg+xml');
+    for (const el of doc.querySelectorAll('.ln.mv')) {
+      const style = el.getAttribute('style');
+      expect(style).toContain('stroke:#000000');
+      expect(style).toContain('opacity:1');
+      expect(style).not.toContain('fill:#000000'); // an unfilled line stays unfilled
+    }
+    expect(doc.querySelector('.rmu-box')?.getAttribute('style')).toContain('fill:#ffffff');
+    expect(doc.querySelector('rect:not(.rmu-box)')?.getAttribute('style')).toContain('fill:rgb(9, 9, 9)');
+  });
 });

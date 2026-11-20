@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.228', date: '2026-11-20',
+    items: [
+      { title: 'Printed SLD: MV cables black, RMU box white', text: 'On PDF sheets and SLD exports, the MV lines (the ring, the cables into each RMU and down to the transformers) now print solid black like every other cable. They printed grey and could look blurred when zoomed in. The RMU box now prints white; it printed as a dark fill that hid the switches drawn inside it. The drawing on screen is unchanged.' }
+    ]
+  },
+  {
     version: '2.225', date: '2026-11-20',
     items: [
       { title: 'Panel tree: the Group switch before substations are named', text: 'The panel tree\'s Group switch (Boards | Substations) now shows in every project with a main board fed from the MV side, not only once substations are named. Substations stays greyed until a main board names its substation or RMU, and its tooltip says where: Panels → Transformers. A project with only meter cabinets on an authority LV supply has no switch, as before.' }

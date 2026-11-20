@@ -12,9 +12,12 @@ export { pathPoints } from './svgPath';
 
 const STYLE_PROPS = ['stroke', 'stroke-width', 'stroke-dasharray', 'fill', 'opacity', 'font-size', 'font-weight', 'font-family', 'text-anchor', 'display', 'writing-mode'];
 const DROP = '.bus-hit, .sel-ring, title, .grid-bg, .status-dot';
-/** Marks in a status colour on screen (revision clouds, cable references, circuits that fail a check) and the
- * way numbers (muted and faded on screen) that print solid black, like the rest of the drawing. */
-const PRINT_BLACK = '.rev-cloud path, .cable-ref-c, .ln.warn, .ln.bad, .load.warn, .load.bad, .icon.warn *, .icon.bad *, .way-no';
+/** Marks in a status colour on screen (revision clouds, cable references, circuits that fail a check), the
+ * way numbers (muted and faded on screen) and the MV cables (accent colour, faded on screen) that print solid black,
+ * like the rest of the drawing. */
+const PRINT_BLACK = '.rev-cloud path, .cable-ref-c, .ln.warn, .ln.bad, .load.warn, .load.bad, .icon.warn *, .icon.bad *, .way-no, .ln.mv';
+/** Fills tinted on screen with a mix of two theme colours, which the palette cannot map (the RMU box): white on paper. */
+const PRINT_WHITE = '.rmu-box';
 /** Lines in the muted colour that stay grey on paper (the dashed panel frames); every other muted line prints black. */
 const PRINT_GREY = '.frame-ln';
 /** Colours shown on screen only (Colour by → Supply): taken off while the styles are read, so the drawing prints as drawn. */
@@ -73,7 +76,8 @@ function printableSvgDark(live: SVGSVGElement, width: number, height: number): s
       if (p === 'stroke' || p === 'fill') v = palette.get(v) ?? v;
       if (p === 'stroke' && (black || mutedLine)) v = '#000000';
       if (p === 'fill' && black && !KEEP_FILL.has(v)) v = '#000000';
-      // Faded text comes out soft (rasterised) in the PDF, so solid black marks print at full opacity.
+      if (p === 'fill' && el.matches(PRINT_WHITE)) v = '#ffffff';
+      // Faded text and lines come out soft (rasterised) in the PDF, so solid black marks print at full opacity.
       if (p === 'opacity' && black) v = '1';
       if (p === 'font-family') v = 'Arial, Helvetica, sans-serif';
       return `${p}:${v}`;
