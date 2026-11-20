@@ -277,9 +277,18 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
     const columns = Math.max(1, Math.floor((frame.w - 6) / colW));
     for (let j = 0; j < columns && cursor < flow.length; j++) writeColumn(first, frame.x + 3 + j * colW, top, bodyBottom);
   }
-  // A table under the drawing (a board sheet's load schedule), as high as the PDF prints it.
-  const table = one?.table, tableH = table ? tableHeightMm(table, tm) * k : 0;
-  if (table) first.push(...tableDxf(table, { x: frame.x + 3, y: bodyBottom, w: frame.w - 6 - (side ? colW : 0), h: tableH }, tm * k, k));
+  // A table under the drawing (a board sheet's load schedule; the MV overview's two schedules side by side, each as wide
+  // as its columns ask, 4 mm apart), as high as the PDF prints the taller one.
+  const table = one?.table, table2 = table ? one?.table2 : undefined;
+  const tableH = table ? Math.max(tableHeightMm(table, tm), table2 ? tableHeightMm(table2, tm) : 0) * k : 0;
+  if (table) {
+    const box = { x: frame.x + 3, y: bodyBottom, w: frame.w - 6 - (side ? colW : 0), h: tableH };
+    if (!table2) first.push(...tableDxf(table, box, tm * k, k));
+    else {
+      const wa = table.widths.reduce((a, b) => a + b, 0), wb = table2.widths.reduce((a, b) => a + b, 0), gap = 4 * k, w1 = (box.w - gap) * wa / (wa + wb);
+      first.push(...tableDxf(table, { ...box, w: w1 }, tm * k, k), ...tableDxf(table2, { ...box, x: box.x + w1 + gap, w: box.w - gap - w1 }, tm * k, k));
+    }
+  }
   // Legend and notes tables placed on a plan sheet's layout, at their place over the drawing area (y down there).
   for (const pt of one?.tables ?? []) first.push(...placeSvg(pt.svg, { x: frame.x + 3 + pt.x, y: bodyTop - pt.y - pt.h, w: pt.w, h: pt.h }, pt.kind === 'notes' ? 'E-NOTES' : 'E-LEGEND', false).items);
   const hasContinuation = cursor < flow.length;

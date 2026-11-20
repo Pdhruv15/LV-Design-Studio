@@ -79,6 +79,21 @@ describe('SLD Show: one part of the network', () => {
     expect(h.querySelectorAll('g.tx[data-lv-id^="board:"]')).toHaveLength(2);
     expect(texts(h)).not.toContain('SMDB-GF');
   });
+
+  it('the MV overview sheet names under each main board the sheet it is drawn on', () => {
+    const host = document.createElement('div');
+    host.innerHTML = renderToStaticMarkup(
+      <SystemDiagram project={partProject(whole, { kind: 'mv' })} wholeProject={whole} calcProject={whole} results={results} shown={chip({ kind: 'mv' })} drawnOn={{ 'MDB-1': 'E-SLD-002' }} hideLegend selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} />
+    );
+    const names = [...host.querySelectorAll('g.mv-name')];
+    expect(names.map((g) => [...g.querySelectorAll('text')].map((t) => t.textContent))).toEqual([['MDB-1', 'sheet E-SLD-002'], ['MDB-2']]);
+    const [name, sheet] = [...names[0].querySelectorAll('text')], box = names[0].querySelector('rect')!;
+    // Under the name box, centred on it.
+    expect(Number(sheet.getAttribute('y'))).toBeGreaterThan(Number(box.getAttribute('y')) + Number(box.getAttribute('height')));
+    expect(sheet.getAttribute('x')).toBe(name.getAttribute('x'));
+    // Without the sheet numbers (the screen's Show → MV overview), only the names.
+    expect(texts(drawn({ kind: 'mv' }))).not.toContain('sheet E-SLD-002');
+  });
 });
 
 describe('SLD Show: right-click and double-click', () => {

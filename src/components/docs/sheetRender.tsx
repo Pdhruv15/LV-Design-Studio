@@ -6,7 +6,7 @@ import type { CalcRun } from '../../calc/runs';
 import { evaluateProject } from '../../calc/electrical';
 import { buildAnnotations, SHEET_LAYERS } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
-import { autoSize, drawable, earthingSheetOf, furnitureOf, LEGEND_RESERVE_MM, RISER_SIDE_MM, minMmPerPx, fromSheetLabels, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
+import { autoSize, drawable, drawnProject, earthingSheetOf, furnitureOf, isMvView, LEGEND_RESERVE_MM, mainSheetNos, RISER_SIDE_MM, minMmPerPx, fromSheetLabels, scaleOn, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
 import { borderOf } from '../../model/titleBlock';
 import { buildSldSheetHtml, legendColsFor, legendColumnFits, SIDE_MM, sideInnerMm, stripInnerMm, type SheetInfo } from '../../docs/sldSheet';
 import { legendHeightMm, stringLegendSvg, stripColumns, type LegendItem } from '../../diagram/legendLayout';
@@ -20,7 +20,8 @@ import { cableRefsUsed } from '../../model/cableRefs';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import type { SaveValues } from '../../model/outputRoles';
 import { SHEET_MM } from '../../docs/sldSheet';
-import SystemDiagram, { LegendSvg } from '../SystemDiagram';
+import SystemDiagram, { LegendSvg, type ShownPart } from '../SystemDiagram';
+import { rmuSchedule, txSchedule } from '../../docs/mvSchedules';
 import { earthingDrawing } from '../../diagram/earthingDrawing';
 import { earthFloorDrawing, earthRiserDrawing, earthSheetRefs } from '../../diagram/earthRiserDrawing';
 import { dbRiserDrawing, dbRiserLegend, dbRiserSheetNos } from '../../diagram/dbRiserDrawing';
@@ -30,7 +31,7 @@ import { riserLayout } from '../../diagram/riserLayout';
 import FeederRiserDiagram, { FeederRiserLegendSvg } from '../../diagram/FeederRiserDiagram';
 import { feederRiserLayout } from '../../diagram/feederRiserLayout';
 import { boardIncomerLabel, scheduleTable } from '../../docs/loadScheduleDoc';
-import { tableHeightMm } from '../../docs/sheetTable';
+import { tableHeightMm, type SheetTable } from '../../docs/sheetTable';
 import { abbreviationsIn } from '../../docs/sldNotes';
 import SingleLineDiagram from '../SingleLineDiagram';
 import { dxfToDwg } from '../../engines/cad/cadEngine';
@@ -39,6 +40,8 @@ import { readSheetRefs } from '../cad/refFiles';
 import { diagramPenCss, inkOf, pensFor, plotOf, plotStamp } from '../../model/plotSetup';
 
 const noop = () => {};
+/** The MV overview sheet draws what SLD → Show → MV overview draws (its chip is screen only, outside the SVG). */
+const MV_SHEET: ShownPart = { key: 'mv', name: 'MV overview', counts: '', overview: true, onShowAll: noop };
 
 /** Draws one sheet off-screen and returns printable SVG with its size in px; a riser or earthing drawing whose legend
  * and notes the sheet's column takes (sheet furniture) returns them beside the SVG. */
@@ -79,13 +82,17 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
       return { svg: printableSvg(svg, w, h), w, h };
     }
     // Calculate the whole network (upstream voltage drop and source impedance
-    // included), then draw only this sheet's panels with those results.
-    const drawing = sheetProject(project, set, s);
+    // included), then draw only this sheet's panels with those results. The
+    // MV overview draws the MV side as SLD → Show → MV overview does, each
+    // main board as its name with the sheet it is drawn on.
+    const mv = isMvView(s);
+    const drawing = drawnProject(project, set, s);
     const full = evaluateProject(project);
     const onSheet = new Set(drawing.feeders.map((f) => f.id));
     const results = full.filter((r) => onSheet.has(r.feeder.id));
     flushSync(() => root.render(
       <SystemDiagram project={drawing} calcProject={drawing} wholeProject={project} results={results} annotations={buildAnnotations(project, full)} layers={s.tags ?? set.tags ?? SHEET_LAYERS} cableRefs={cableRefs} hideLegend clouds={s.clouds} arrows={s.arrows} anchors fromSheet={fromSheetLabels(project, set, s)}
+        {...(mv ? { shown: MV_SHEET, drawnOn: mainSheetNos(project, set) } : {})}
         selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} />
     ));
     await new Promise((r) => requestAnimationFrame(() => r(null)));
@@ -152,7 +159,7 @@ const reserveOf = (s: DrawingSheet) => (s.kind === 'board' ? 0 : s.kind === 'ris
 const legendColMm = (s: DrawingSheet) => sideInnerMm(s.kind === 'riser' && s.riserStyle === 'byLevel' ? RISER_SIDE_MM : undefined);
 /** The labels of a sheet's legend, for its height before it is drawn (the DB riser's legend keeps its own column). */
 function legendLabels(project: Project, set: DrawingSet, s: DrawingSheet): string[] {
-  if (s.kind === 'system') return project.drawing?.symbols === 'simple' || project.drawing?.legend === false ? [] : legendEntries(sheetProject(project, set, s)).map((e) => e.label);
+  if (s.kind === 'system') return project.drawing?.symbols === 'simple' || project.drawing?.legend === false ? [] : legendEntries(drawnProject(project, set, s)).map((e) => e.label);
   if (s.kind === 'riser' && s.buildingId && s.riserStyle !== 'byLevel') {
     const used = s.riserStyle === 'feeders' ? feederRiserLayout(project, s.buildingId).used : riserLayout(project, s.buildingId).used;
     return (s.riserStyle === 'feeders' ? FEEDER_RISER_LEGEND : RISER_LEGEND).filter((e) => used.has(e.key)).map((e) => e.label);
@@ -196,13 +203,16 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
   if (!r) return undefined;
   // With a legend sheet in the set, the SLD and board sheets refer to it instead of carrying a legend and abbreviations.
   const legendSheet = s.kind === 'system' || s.kind === 'board' ? set.sheets.find((x) => x.kind === 'legend') : undefined;
-  // A board sheet's load schedule under its diagram takes room from the drawing's height.
-  const table = s.kind === 'board' && s.schedule && s.boards[0] && project.boards.some((b) => b.id === s.boards[0]) ? scheduleTable(project, s.boards[0]) : undefined;
+  // A board sheet's load schedule under its diagram, or the MV overview's RMU and transformer schedules side by side,
+  // take room from the drawing's height.
+  const mvTables = isMvView(s) ? [rmuSchedule(project), txSchedule(project, mainSheetNos(project, set))].filter((t): t is SheetTable => !!t) : [];
+  const table = s.kind === 'board' && s.schedule && s.boards[0] && project.boards.some((b) => b.id === s.boards[0]) ? scheduleTable(project, s.boards[0]) : mvTables[0];
+  const table2 = mvTables[1];
   // The legend's place: a strip along the foot of the drawing area takes room from its height (as high as the legend
   // is on A3's width; a wider paper makes it shorter), two columns in the right column take room from its width.
   const labels = legendSheet ? [] : r.legendItems ? r.legendItems.map((e) => e.label) : legendLabels(project, set, s);
   const strip = fz.legendPlace === 'strip' && labels.length > 0;
-  const reserveH = (strip ? legendHeightMm(labels, stripInnerMm('A3'), tm, stripColumns(stripInnerMm('A3'))) + 6 : 0) + (table ? tableHeightMm(table, tm) + 2 : 0);
+  const reserveH = (strip ? legendHeightMm(labels, stripInnerMm('A3'), tm, stripColumns(stripInnerMm('A3'))) + 6 : 0) + (table ? Math.max(tableHeightMm(table, tm), table2 ? tableHeightMm(table2, tm) : 0) + 2 : 0);
   // A paper with a whole-border template offers the border's drawing area, not the frame's.
   const area = (size: SheetSize) => borderOf(project, size)?.border.area;
   let a = autoSize(r.w, r.h, reserveOf(s), min, reserveH, area);
@@ -215,7 +225,7 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
     r = (await renderSheet(project, set, s, run, true)) ?? r;
   }
   const colMm = strip ? stripInnerMm(size) : cols === 2 ? sideInnerMm(2 * SIDE_MM) : legendColMm(s), drawCols = strip ? stripColumns(colMm) : cols;
-  const legendSvg = legendSheet ? '' : r.legendItems ? stringLegendSvg(r.legendItems, colMm, tm, drawCols) : s.kind === 'system' ? await legendOf(sheetProject(project, set, s), colMm, tm, drawCols) : s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId ? (project.drawing?.legend === false ? '' : dbRiserLegend(dbRiserLayout({ ...project, drawingSet: set }, s.buildingId), s.part ?? 0, colMm, tm)) : s.kind === 'riser' && s.buildingId ? await riserLegendOf(project, s.buildingId, s.riserStyle === 'feeders', colMm, tm, drawCols) : '';
+  const legendSvg = legendSheet ? '' : r.legendItems ? stringLegendSvg(r.legendItems, colMm, tm, drawCols) : s.kind === 'system' ? await legendOf(drawnProject(project, set, s), colMm, tm, drawCols) : s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId ? (project.drawing?.legend === false ? '' : dbRiserLegend(dbRiserLayout({ ...project, drawingSet: set }, s.buildingId), s.part ?? 0, colMm, tm)) : s.kind === 'riser' && s.buildingId ? await riserLegendOf(project, s.buildingId, s.riserStyle === 'feeders', colMm, tm, drawCols) : '';
   const info = fullSheetInfo(project, set, s, refs || withLegend, legendSvg, withMarkups);
   if (strip && legendSvg) info.legendStrip = true;
   if (cols === 2 && legendSvg) info.sideMm = 2 * SIDE_MM;
@@ -223,6 +233,7 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
   if (r.notes?.length) { info.notes = [...r.notes, ...(info.notes ?? [])]; if (!fz.notesPlace) info.furniture = { ...(info.furniture ?? {}), notesPlace: 'column' }; }
   if (legendSheet) { info.abbreviations = []; info.notes = [`LEGEND AND ABBREVIATIONS: SEE ${legendSheet.number}`, ...(info.notes ?? [])]; }
   if (table) info.table = table;
+  if (table2) info.table2 = table2;
   const html = buildSldSheetHtml(project, r.svg, size, info);
   // Readable on the paper actually used (a chosen A3 can be too small too); and the legend column holds its contents.
   return { html, size, fits: scaleOn(size, r.w, r.h, reserveW, reserveH, area) >= min, columnFits: legendColumnFits(project, r.svg, size, info), refs, svg: r.svg, legendSvg, info };

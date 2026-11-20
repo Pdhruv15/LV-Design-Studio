@@ -356,6 +356,22 @@ describe('legend sheet and schedule table in DXF', () => {
     expect(num(title, 40)).toBeCloseTo(2.5 * 0.716, 6);
     expectPaperBounds(data, SHEET_MM.A3.w, SHEET_MM.A3.h);
   });
+  it('two tables under the drawing (the MV overview\'s schedules) stand side by side, each as wide as its columns ask', () => {
+    const a = { title: 'RMU SCHEDULE', lines: [], head: ['RMU', 'Feeds'], rows: [['RMU-1', 'TX-1, TX-2']], foot: [], widths: [30, 60], left: [0, 1] };
+    const b = { title: 'TRANSFORMER SCHEDULE', lines: [], head: ['TX', 'kVA'], rows: [['TX-1', '1000'], ['TX-2', '1000'], ['TX-3', '1500']], foot: [], widths: [60, 30], left: [0] };
+    const texts = (t: object) => entities(buildSheetDxf(dxfExportProject, svg, 'A3', { ...info, ...t })).filter((e) => e.type === 'TEXT');
+    const both = texts({ table: a, table2: b }), find = (v: string) => both.find((e) => e.v.get(1) === v)!;
+    const ta = find('RMU SCHEDULE'), tb = find('TRANSFORMER SCHEDULE'), lines = (data: string) => entities(data).filter((e) => e.type === 'LINE' && e.v.get(8) === 'E-NOTES');
+    // Both titles on one line, the second table half way along (equal shares, 4 mm apart), both under the drawing.
+    expect(num(tb, 20)).toBeCloseTo(num(ta, 20), 6);
+    expect(num(tb, 10) - num(ta, 10)).toBeGreaterThan(100);
+    expect(num(find('MDB ACB CT XLPE'), 20)).toBeGreaterThan(num(ta, 20));
+    expect(num(find('TX-3'), 20)).toBeLessThan(num(find('RMU-1'), 20));
+    // The taller table sets the band: the drawing stands as high as with that table alone.
+    const alone = texts({ table: b }).find((e) => e.v.get(1) === 'MDB ACB CT XLPE')!;
+    expect(num(find('MDB ACB CT XLPE'), 20)).toBeCloseTo(num(alone, 20), 6);
+    expect(lines(buildSheetDxf(dxfExportProject, svg, 'A3', { ...info, table: a, table2: b })).length).toBeGreaterThan(lines(buildSheetDxf(dxfExportProject, svg, 'A3', { ...info, table: b })).length);
+  });
 });
 
 describe('standard title block text in DXF', () => {

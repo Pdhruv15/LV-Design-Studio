@@ -62,6 +62,16 @@ describe('drawing sheet band', () => {
     expect([close.style.bottom, close.style.height]).toEqual(['16mm', `${rise}mm`]);
     expect(html).toContain(`bottom: -${rise}mm;`); // the legend column comes down to the template
   });
+  it('two tables under the drawing (the MV overview\'s schedules) stand side by side, each taking the share its columns ask', () => {
+    const a = { title: 'RMU SCHEDULE', lines: [], head: ['RMU', 'Feeds'], rows: [['RMU-1', 'TX-1']], foot: [], widths: [30, 60], left: [0] };
+    const b = { title: 'TRANSFORMER SCHEDULE', lines: [], head: ['TX', 'kVA'], rows: [['TX-1', '1000'], ['TX-2', '1000']], foot: [], widths: [40, 30], left: [0] };
+    const doc = parse(buildSldSheetHtml(sampleProject, svg, 'A3', { ...one, table: a, table2: b }));
+    expect([...doc.querySelectorAll<HTMLElement>('.tbls > .tbl')].map((t) => [t.querySelector('h5')?.textContent, t.style.flexGrow])).toEqual([['RMU SCHEDULE', '90'], ['TRANSFORMER SCHEDULE', '70']]);
+    expect(doc.querySelectorAll('.body > .tbl')).toHaveLength(0);
+    // One table stays as it was.
+    const single = parse(buildSldSheetHtml(sampleProject, svg, 'A3', { ...one, table: b }));
+    expect([single.querySelectorAll('.body > .tbl').length, single.querySelector<HTMLElement>('.body > .tbl')!.getAttribute('style')]).toEqual([1, null]);
+  });
 });
 
 /** The legend column prints at 2.5 mm (ISO 3098): the legend is drawn for the column's width, and the cable schedule,

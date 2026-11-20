@@ -3,6 +3,8 @@ import { boardsInSupplyOrder, boardSummary, boardTotals } from '../calc/summary'
 import { earthingLayout } from './earthingPlan';
 import { earthingDrawing, type EarthingSheet } from '../diagram/earthingDrawing';
 import { mvSheetKey } from '../diagram/mvArrangement';
+import { partMains, partProject, supplyTree, type SldPart } from '../diagram/mvShow';
+import { txTags } from './transformers';
 import { boardEarth } from './boardEarth';
 import { subtree } from '../calc/pfc';
 import { SHEET_MM } from '../docs/sldSheet';
@@ -32,6 +34,7 @@ export interface DrawingSheet {
   number: string; // e.g. E-SLD-002
   title: string; // e.g. SLD — MDB-1
   kind: 'system' | 'board' | 'riser' | 'earthing' | 'earthRiser' | 'earthFloor' | 'plan' | 'legend'; // board = one DB's circuit diagram; legend = the set's legend, abbreviations and general notes on a sheet of their own (numbered before the SLDs); riser = a building's riser diagram; earthing = earthing schematic; earthRiser = a building's earthing riser diagram; earthFloor = DB earthing of one floor (or typical floors); plan = a level's lighting, power, ELV or containment layout (src/docs/planLayout.ts)
+  view?: 'mv'; // system sheets: the MV overview (One sheet per substation) — the ring, substations, RMUs and transformers, each main board as its name with the sheet it is drawn on, and the RMU and transformer schedules; it holds no panels
   buildingId?: string; // riser, earth riser, floor earthing and plan sheets
   levelId?: string; // plan sheets
   plan?: PlanType; // plan sheets
@@ -148,8 +151,10 @@ export const renumber = (set: DrawingSet, force = false): DrawingSet => {
     })
   };
 };
+/** The MV overview sheet (One sheet per substation): it draws the MV side, and holds no panels of its own. */
+export const isMvView = (s: Pick<DrawingSheet, 'kind' | 'view'>) => s.kind === 'system' && s.view === 'mv';
 /** A sheet that has something to draw. */
-export const drawable = (s: DrawingSheet) => (s.kind === 'earthing' || s.kind === 'legend' ? true : s.kind === 'plan' ? !!(s.plan && s.buildingId && s.levelId) : s.kind === 'riser' || s.kind === 'earthRiser' || s.kind === 'earthFloor' ? !!s.buildingId : s.boards.length > 0);
+export const drawable = (s: DrawingSheet) => (s.kind === 'earthing' || s.kind === 'legend' || isMvView(s) ? true : s.kind === 'plan' ? !!(s.plan && s.buildingId && s.levelId) : s.kind === 'riser' || s.kind === 'earthRiser' || s.kind === 'earthFloor' ? !!s.buildingId : s.boards.length > 0);
 /** A new sheet starts PRELIMINARY unless the set has a status of its own (sheets without one follow the set). */
 export const startStatus = (set: DrawingSet) => (set.status ? undefined : 'PRELIMINARY');
 /** Board sheets for the given DBs (one each, in their order), with or without the load schedule under the diagram; a DB
@@ -311,11 +316,29 @@ export function earthSheetGaps(p: Project, set: DrawingSet): { buildingId: strin
 
 const isDb = (b: Board) => (b.kind ?? (b.upstreamId ? 'DB' : 'MDB')) === 'DB';
 
+/** Title of the MV overview sheet (One sheet per substation). */
+export const MV_OVERVIEW_TITLE = 'MV supply — ring, substations and transformers';
+
+/** Title of a part's sheet: "SLD — SS-1 (TX-1, TX-2)", "SLD — MDB-5 (TX-5)", "SLD — MDB-8 (authority LV supply)". */
+function partTitle(part: SldPart, mains: string[], tags: Map<string, string>): string {
+  const txs = mains.map((m) => tags.get(m) ?? m).join(', ');
+  switch (part.kind) {
+    case 'substation': case 'rmu': return `SLD — ${part.name} (${txs})`;
+    case 'tx': return `SLD — ${part.id}${tags.has(part.id) ? ` (${tags.get(part.id)})` : ''}`;
+    case 'supply': return `SLD — ${part.id} (authority LV supply)`;
+    default: return 'SLD';
+  }
+}
+
 /** Automatic sets. perMdb: an overview (when there are several MDBs) and one
  * sheet per MDB with everything it feeds. perSmdb: an overview of the MDBs
- * and SMDBs, then a sheet per SMDB / MCC with its DBs. dbSheets: also a
+ * and SMDBs, then a sheet per SMDB / MCC with its DBs. perSubstation
+ * (proposal 2026-11-18 part 5): the MV overview, then one sheet per
+ * substation in ring order with everything its main boards feed (a bus
+ * coupler between them stays on it), then each RMU or transformer in no
+ * substation and each board on an authority LV supply. dbSheets: also a
  * circuit diagram sheet for every DB. */
-export function autoSheets(p: Project, mode: 'perMdb' | 'perSmdb', dbSheets = false, prefix = 'E-SLD-'): DrawingSet {
+export function autoSheets(p: Project, mode: 'perMdb' | 'perSmdb' | 'perSubstation', dbSheets = false, prefix = 'E-SLD-'): DrawingSet {
   const order = boardsInSupplyOrder(p);
   const mains = order.filter((b) => !b.upstreamId);
   const sheets: Omit<DrawingSheet, 'number'>[] = [];
@@ -323,6 +346,14 @@ export function autoSheets(p: Project, mode: 'perMdb' | 'perSmdb', dbSheets = fa
   if (mode === 'perMdb') {
     if (mains.length > 1) sheets.push({ id: id(), title: 'SLD — overall (main boards and sub-mains)', kind: 'system', boards: order.filter((b) => !isDb(b)).map((b) => b.id), size: 'auto' });
     for (const m of mains) sheets.push({ id: id(), title: `SLD — ${m.id}`, kind: 'system', boards: order.filter((b) => subtree(p, m.id).has(b.id)).map((b) => b.id), size: 'auto' });
+  } else if (mode === 'perSubstation') {
+    sheets.push({ id: id(), title: MV_OVERVIEW_TITLE, kind: 'system', view: 'mv', boards: [], size: 'auto' });
+    const tags = txTags(p);
+    for (const n of supplyTree(p)) {
+      const top = partMains(p, n.part), below = new Set(top.flatMap((m) => [...subtree(p, m)]));
+      const boards = order.filter((b) => below.has(b.id)).map((b) => b.id);
+      if (boards.length) sheets.push({ id: id(), title: partTitle(n.part, top, tags), kind: 'system', boards, size: 'auto' });
+    }
   } else {
     const subs = order.filter((b) => b.upstreamId && mains.some((m) => m.id === b.upstreamId) && !isDb(b));
     sheets.push({ id: id(), title: 'SLD — main boards and sub-mains', kind: 'system', boards: [...mains, ...subs].map((b) => b.id), size: 'auto' });
@@ -370,6 +401,16 @@ export function sheetOfBoard(set: DrawingSet): Map<string, DrawingSheet> {
   for (const s of set.sheets) if (s.kind === 'system') for (const b of s.boards) if (!m.has(b)) m.set(b, s);
   return m;
 }
+
+/** The sheet each main board is drawn on, as the MV overview names it under the board's name. */
+export function mainSheetNos(p: Project, set: DrawingSet): Record<string, string> {
+  const where = sheetOfBoard(set), out: Record<string, string> = {};
+  for (const b of p.boards) if (!b.upstreamId) { const s = where.get(b.id); if (s) out[b.id] = s.number; }
+  return out;
+}
+
+/** The project a system sheet draws: its panels, or on the MV overview the main boards (each drawn as its name). */
+export const drawnProject = (p: Project, set: DrawingSet, s: DrawingSheet): Project => (isMvView(s) ? partProject(p, { kind: 'mv' }) : sheetProject(p, set, s));
 
 /** Cross-sheet references of a system sheet, both ways: outgoing ways to
  * panels drawn elsewhere ("To X — sheet N") and panels on this sheet fed
@@ -603,7 +644,10 @@ function shownValues(p: Project, s: DrawingSheet): unknown {
  * issued sheet is fingerprinted at the version it was issued with. */
 export function sheetHash(p: Project, set: DrawingSet, s: DrawingSheet): string {
   const v = s.issuedHash ? s.issuedHashV ?? 1 : SHEET_HASH_V;
-  const d = s.kind === 'board' ? { boards: p.boards.filter((b) => b.id === s.boards[0]), feeders: p.feeders.filter((f) => f.boardId === s.boards[0]) }
+  // The MV overview prints the MV side, each main board's name and sheet, and the RMU and transformer schedules.
+  const mv = isMvView(s), mains = mv ? p.boards.filter((b) => !b.upstreamId) : [];
+  const d = mv ? { boards: mains.map((b) => [b.id, b.sourceKva, b.sourceImpedancePct, b.vectorGroup, b.rmu, b.substation, !!b.supply]), feeders: [mainSheetNos(p, set), p.voltageV] }
+    : s.kind === 'board' ? { boards: p.boards.filter((b) => b.id === s.boards[0]), feeders: p.feeders.filter((f) => f.boardId === s.boards[0]) }
     : s.kind === 'legend' ? { boards: p.boards.map((b) => [b.id, b.kind, b.sourceKva, b.standby, b.pmu, b.spd, b.protection, b.instruments, b.existing]), feeders: [p.feeders.map((f) => [f.id, f.device, f.loadType, f.starter, f.rcdMa, f.kwhMeter, f.localIsolator, f.cableType, f.existing]), p.drawing?.notes, p.drawing?.abbreviations] }
     : s.kind === 'earthing' ? { boards: p.boards.filter((b) => !b.upstreamId).map((b) => [b.id, b.sourceKva, b.rmu, b.vectorGroup]), feeders: [p.earthingPlan] }
     : s.kind === 'earthRiser' || s.kind === 'earthFloor' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.kind, b.ratedCurrentA, ...(b.earthRiser ? [b.earthRiser] : [])]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.cpcMm2]), p.earthingPlan, p.earthPitIds, p.building] }
@@ -611,10 +655,10 @@ export function sheetHash(p: Project, set: DrawingSet, s: DrawingSheet): string 
     : sheetProject(p, set, s);
   const extra = v >= 3 && s.kind === 'plan' ? planValues(p, s) : v >= 2 ? shownValues(p, s) : undefined;
   // The MV ring as the sheet prints it (only where it is drawn: other sheets keep their hash).
-  const ring = v >= 4 && s.kind === 'system' ? mvSheetKey(p, (d as Project).boards) : undefined;
+  const ring = v >= 4 && s.kind === 'system' ? mvSheetKey(p, mv ? mains : (d as Project).boards) : undefined;
   // A sheet that draws a transformer also draws its grid source and RMU (only where they are set: older sheets keep their hash).
-  const hv = (p.gridSources?.length || p.rmus?.length) && (d.boards as unknown[]).some((b) => !!b && typeof b === 'object' && !Array.isArray(b) && !(b as Board).upstreamId && !!(b as Board).sourceKva);
-  const txt = JSON.stringify([d.boards, d.feeders, ...(hv ? [[p.gridSources ?? null, p.rmus ?? null]] : []), s.title, s.size, s.tags, s.notes, s.clouds, s.arrows, s.markups, ...(s.part !== undefined ? [s.part] : []), ...(extra !== undefined ? [extra] : []), ...(s.schedule ? ['schedule'] : []), ...(s.tables?.length ? [s.tables] : []), ...(ring !== undefined ? [ring] : [])]); // part / extra / schedule / tables / ring only where set: older sheets keep their hash
+  const hv = mv || ((p.gridSources?.length || p.rmus?.length) && (d.boards as unknown[]).some((b) => !!b && typeof b === 'object' && !Array.isArray(b) && !(b as Board).upstreamId && !!(b as Board).sourceKva));
+  const txt = JSON.stringify([d.boards, d.feeders, ...(hv ? [[p.gridSources ?? null, p.rmus ?? null]] : []), s.title, s.size, s.tags, s.notes, s.clouds, s.arrows, s.markups, ...(s.part !== undefined ? [s.part] : []), ...(extra !== undefined ? [extra] : []), ...(s.schedule ? ['schedule'] : []), ...(s.tables?.length ? [s.tables] : []), ...(ring !== undefined ? [ring] : []), ...(s.view ? [s.view] : [])]); // part / extra / schedule / tables / ring / view only where set: older sheets keep their hash
   let h = 2166136261;
   for (let i = 0; i < txt.length; i++) { h ^= txt.charCodeAt(i); h = Math.imul(h, 16777619); }
   return (h >>> 0).toString(36);
