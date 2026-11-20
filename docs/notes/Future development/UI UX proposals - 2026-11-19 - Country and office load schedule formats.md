@@ -6,6 +6,37 @@ Status: proposal and mockup only. No UI, calculation, report or export behaviour
 
 How should the built-in Sheets/Excel capability let an office customise load-schedule output for different countries and authorities, while keeping the app's calculations, checks and project data reliable?
 
+## Clarified decision
+
+The requirement is not to add a DEWA, UK, US or other country-specific table model. Those are only examples showing how differently an office may arrange the same design data.
+
+The recommended feature is a **controlled output-template mapper**:
+
+- the user designs the sheet in Excel;
+- the user places project, panel, circuit and summary parameters where they want them;
+- the app expands declared repeating regions and fills the mapped parameters;
+- the app generates Excel and PDF from the validated layout;
+- the project remains the source of all engineering data and calculations.
+
+Do not build a general spreadsheet editor or allow arbitrary workbook programming inside LV Design Studio. This controlled approach provides most useful layout freedom without turning the app into Excel.
+
+### Recommended freedom boundary
+
+| Template requirement | Support | Notes |
+|---|---|---|
+| Put a project or panel value in any cell | Yes | A field may be displayed in more than one place |
+| Choose circuit columns, order, headings and widths | Yes | The user controls presentation, not calculation meaning |
+| Hide unused fields | Yes | Unmapped data remains in the project |
+| Repeat one circuit row or a small circuit block | Yes | This is the main MVP capability |
+| Put totals, notes and signatures in chosen cells | Yes | Totals come from typed read-only fields |
+| Use merged headings, borders, fonts and page settings | Supported subset | The validator must identify unsupported formatting |
+| Several independent repeating regions | Later | For sectioned schedules and multiple panel blocks |
+| Two project records combined into one visual row | Later adapter | Only required when a real template needs this shape |
+| Macros, VBA, scripts or arbitrary nested loops | No | Too difficult to validate and unsafe as a report contract |
+| Let workbook formulas override sizing or compliance | No | Electrical results always come from LV Design Studio |
+
+The first implementation should deliberately target the common 80–90% case: fixed header cells, one repeating circuit region, and fixed summary/footer cells.
+
 ## What the app already has
 
 The current code is beyond a simple Excel export:
@@ -17,7 +48,7 @@ The current code is beyond a simple Excel export:
 - **Two-way scheduling.** Supported linked cells can be applied to the project. The app then creates or updates the panel, circuits/feeders and SLD through the normal model and sizing paths.
 - **Output in the user's layout.** A selected panel or all panels can be exported as black-and-white PDF or Excel in My format, with the selected paper size and repeated headings.
 
-The main remaining gap is not Excel editing. It is **country/authority ownership, a wider field catalogue, controlled sharing and support for schedule shapes that are not one circuit per row**.
+The main remaining gap is not Excel editing. It is **a clear mapping contract, a wider field catalogue, validation, PDF rendering and controlled sharing**. Country and authority metadata can help users discover the right saved template, but must not determine the table shape.
 
 ## Current limits that matter
 
@@ -43,6 +74,38 @@ This gives three clear layers:
 1. **Rules** — voltage, limits, sizing policy and engineering checks.
 2. **Project data** — panels, circuits, loads, selected devices and calculated results.
 3. **Format** — headings, column order, repeated areas, print paper and field links.
+
+### 1A. Use four mapping scopes
+
+Every available output parameter belongs to one of four scopes:
+
+| Scope | Example | Template behaviour |
+|---|---|---|
+| Project | `project.name`, `project.client`, `project.location` | Written to any mapped fixed cell |
+| Panel | `panel.reference`, `panel.voltage`, `panel.rating` | Written to any mapped fixed cell |
+| Circuit | `circuit.number`, `circuit.description`, `circuit.breaker.rating` | Written inside the declared repeating region |
+| Summary | `panel.connectedLoad`, `panel.maximumDemand`, `panel.phaseTotals` | Written to mapped fixed cells after the circuit region expands |
+
+A typed field may be mapped more than once. Display labels are free text; the stable field key is what connects the template to project data.
+
+### 1B. Make the repeating region explicit
+
+The workbook cannot infer report behaviour from visual formatting alone. The template must declare:
+
+- the worksheet and cell range forming one circuit record;
+- whether the record repeats down or across;
+- the spacing between repeated records;
+- the maximum records per page and repeated page headings;
+- the continuation behaviour when the circuit count exceeds the first page;
+- the location of summary/footer content after expansion.
+
+For the first version, support one downward-repeating row or block per worksheet. This can already represent many very different schedules because the fields may be arranged freely inside that block.
+
+### 1C. Treat Excel as the design surface, not the runtime
+
+The user prepares the appearance in Excel and imports it. LV Design Studio reads the supported cells, styles, merges, mappings and print settings into a validated internal layout model. The saved LVDS format package, rather than the original workbook alone, is the runtime report definition.
+
+This is needed so the app can generate the same layout offline as both Excel and PDF without depending on Microsoft Excel being installed. PDF output should promise fidelity only for the supported and validated Excel subset.
 
 ### 2. Make an authority format a recommendation, not a forced rule
 
@@ -120,15 +183,15 @@ A format check should report:
 
 A built-in format should also have regression samples for zero rows, one row, a long multi-page schedule, three-phase circuits, spares/spaces, mixed point loads and failed checks.
 
-## Country-format possibilities
+## Layout possibilities
 
-These are layout families, not claims that the mockup is an official authority form.
+These are layout families, not hard-coded country modes and not claims that the mockup is an official authority form.
 
 | Layout family | Example use | Fit with current model |
 |---|---|---|
 | One circuit per row, phase columns | UAE/IEC-style DB schedule with R/Y/B loads and point columns | Works now; extend the field catalogue |
 | One circuit per row, protection/results emphasis | UK/IEC final-circuit schedule | Works after adding device, RCD, Ib and voltage-drop fields |
-| Paired left/right circuits | North American panelboard with odd/even circuit numbers | Later layout engine: two repeated records in one visual row |
+| Paired left/right circuits | Any schedule that places two circuit records on one visual line | Later layout adapter: two repeated records in one visual row |
 | Sectioned official workbook | Authority workbook with several blocks, notes and summaries | Output-only first; needs repeated areas and controlled formulas |
 | Several panels on one sheet | Compact contractor or facility schedule | Later: one repeated panel block containing repeated circuit rows |
 
@@ -143,12 +206,12 @@ Add more fields but leave formats as an unclassified office list.
 - Small change.
 - Does not solve discovery, authority defaults, verification or sharing.
 
-### Option B — authority-aware format packs (recommended)
+### Option B — controlled template mapping and format packs (recommended)
 
-Keep the existing Sheets designer and project copies, add metadata, versioning, typed links, validation and import/export of a format package.
+Keep the existing Sheets designer and project copies, add an explicit repeating-region contract, metadata, versioning, typed links, validation and import/export of a format package.
 
 - Reuses what is already built.
-- Supports country/authority recommendations without coupling layout to calculations.
+- Lets the same engine support office, client, country and authority layouts without hard-coding each table.
 - Gives a controlled path from an office workbook to a reviewed reusable format.
 
 ### Option C — full Excel compatibility inside the app
@@ -161,37 +224,61 @@ Try to preserve every Excel feature and let arbitrary formulas drive the schedul
 
 ## Mockup workbook
 
-The companion workbook demonstrates Option B without changing the product:
+The revised companion workbook `controlled-template-mapping-mockup.xlsx` demonstrates Option B without changing the product:
 
-1. **Example output** — a black-and-white international DB schedule populated with sample circuits.
-2. **Template links** — the same structure using the current `{{project.…}}`, `{{board.…}}` and repeated `{{row.…}}` placeholders.
-3. **Format setup** — proposed country, authority, category, mode, paper, version and source metadata, plus format-selection priority.
-4. **Field catalogue** — fields available today and the first proposed additions, including read/write direction.
+1. **Decision** — the supported flexibility boundary and the excluded unrestricted Excel features.
+2. **Excel template** — a user-arranged black-and-white schedule with fixed fields, one circuit repeat region and summary fields.
+3. **Mapping definition** — the cell ranges, stable keys, scopes, types and repeat behaviour understood by the app.
+4. **Generated output** — sample project data filled into the template as the proposed Excel/PDF result.
+5. **Field catalogue** — an illustrative first-release list of project, panel, circuit and summary parameters.
 
 The example is deliberately general. It is not an official DEWA, ADDC, EtihadWE or other authority form.
+
+### Proposed mapping example
+
+The Excel cells may be visually arranged however the user wants. A separate mapping definition records their meaning:
+
+| Excel location | Mapping | Behaviour |
+|---|---|---|
+| `B2` | `project.name` | Fixed project value |
+| `F2` | `panel.reference` | Fixed panel value |
+| `B3` | `panel.voltage` | Fixed panel value |
+| `A8:H8` | Circuit repeating region | Copy this formatted block once per circuit |
+| `A8` | `circuit.number` | Circuit value inside each repeated block |
+| `B8:D8` | `circuit.description` | Circuit value may occupy a merged range |
+| `E8` | `circuit.breaker.rating` | Circuit value inside each repeated block |
+| `F8` | `circuit.cable.size` | Circuit value inside each repeated block |
+| `G8` | `circuit.connectedLoad` | Circuit value inside each repeated block |
+| `H8` | `circuit.remarks` | Circuit value inside each repeated block |
+| `G10` | `panel.connectedLoad` | Summary cell placed after the expanded region |
+| `G11` | `panel.maximumDemand` | Summary cell placed after the expanded region |
+
+The interface should not require the user to type JSON or field keys manually. The existing sheet-linking interaction can offer **Link fixed cell**, **Define circuit region**, **Link circuit field**, and **Link summary cell**, followed by **Validate and preview**.
 
 ## Suggested implementation stages
 
 Each stage should be a separate PR after approval.
 
-1. **Format metadata and resolution only.** Add country/authority compatibility, version, status and per-category defaults. Preserve all current outputs and General fallback.
-2. **Shareable format package.** Export/import one reviewed format with validation and conflict handling; keep `Library.json` sync.
-3. **Typed field catalogue.** Consolidate DB and panel field definitions, add units/direction, and expose the first read-only calculation/result fields.
-4. **Editable-field expansion.** Add only fields that already have a safe normal project edit path; keep Apply to project explicit.
-5. **Validation and sample preview.** Small/large sample panels, missing/unsupported field report, print/pagination preview and regression fixtures.
-6. **Authority defaults.** Ship built-in formats only from supplied, reviewed official workbooks. General remains the fallback.
-7. **Advanced layout kinds.** Paired left/right circuits, repeated panel blocks, load summary and busbar-riser formats.
+1. **Mapping contract and typed field catalogue.** Consolidate project, panel, circuit and summary fields; define one fixed-cell area, one repeating circuit region and fixed summary cells.
+2. **Template import, validation and sample preview.** Import the supported Excel subset; report missing links and unsupported features; preview small and multi-page sample panels.
+3. **Common Excel/PDF layout model.** Generate both outputs from the validated mapping, with defined pagination, repeated headings and continuation behaviour.
+4. **Shareable format package.** Export/import one reviewed format with version, status, source, conflict handling and `Library.json` compatibility.
+5. **Office and authority discovery.** Add optional country/authority compatibility and per-category defaults. General remains the fallback.
+6. **Editable-field expansion.** Only after output templates are stable, allow explicitly approved write links through Apply to project.
+7. **Advanced layout adapters.** Add multiple repeat regions, two-record visual rows or repeated panel blocks only against real accepted customer templates.
 8. **Legacy consolidation.** Read the old placeholder workbook into My formats where possible; keep the old exporter for existing users until migration is proven.
 
 ## Decisions needed
 
 Recommended choices are in bold.
 
-1. Should an authority format be forced or recommended? **Recommended, with an explicit project override.**
-2. Should an imported Excel file be allowed to write to the project immediately? **No; output-only until linked-edit validation is enabled.**
-3. Should format updates change open projects automatically? **No; keep the project copy until an engineer reviews Update format.**
-4. Should built-in country formats be invented when an official form is unavailable? **No; use General and mark office imports as draft.**
-5. Should rules and layout live in one object? **No; keep them separate and record compatibility between them.**
-6. Which advanced layout is needed first: paired left/right circuits, several panels per sheet, load summary, or busbar riser?
-7. Are logos and full Excel colours required, or is the existing black-and-white output rule sufficient?
-8. Which two or three real office/authority workbooks may be used as acceptance fixtures?
+1. Should the feature be skipped because unrestricted Excel is too complex? **No. Implement the bounded mapper; skip unrestricted Excel compatibility.**
+2. Should the first release support one circuit repeat region only? **Yes. Add other region shapes only from proven templates.**
+3. Should an authority format be forced or recommended? **Recommended, with an explicit project override.**
+4. Should an imported Excel file be allowed to write to the project immediately? **No; output-only until linked-edit validation is enabled.**
+5. Should format updates change open projects automatically? **No; keep the project copy until an engineer reviews Update format.**
+6. Should built-in country formats be invented when an official form is unavailable? **No; use General and mark office imports as draft.**
+7. Should rules and layout live in one object? **No; keep them separate and record compatibility between them.**
+8. Which advanced region shape should be added first after real template review?
+9. Are logos and full Excel colours required, or is the existing black-and-white output rule sufficient?
+10. Which two or three real office/authority workbooks may be used as acceptance fixtures?
