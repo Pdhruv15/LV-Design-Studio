@@ -18,6 +18,12 @@ export interface LvRouteSettings {
   precision: LvRoutePrecision;
   /** Clearance from a wall line, in metres. */
   clearanceM?: number;
+  /** Clearance from additional exclusion lines, in metres. */
+  avoidClearanceM?: number;
+  /** Distance either side of a preferred containment centreline. */
+  preferredClearanceM?: number;
+  /** Added cost per metre outside preferred containment; 0 disables the preference. */
+  offPreferredPenalty?: number;
   /** Search area beyond the start/end rectangle, in metres. */
   marginM?: number;
 }
@@ -33,6 +39,8 @@ export interface LvRouteStats {
   cells: number;
   gridM: number;
   wallSegments: number;
+  avoidSegments: number;
+  preferredSegments: number;
   rasterSamples: number;
   visited: number;
   /** Main typed-array storage; route point arrays are small and excluded. */
@@ -48,6 +56,10 @@ export interface LvRouteInput {
   end: Pt;
   /** Wall line segments. Only engineer-confirmed Wall layers should be supplied. */
   walls: Seg[];
+  /** Lines the route must avoid, such as LV power routes for ELV segregation. */
+  avoid?: Seg[];
+  /** Containment centrelines the route should prefer without requiring them. */
+  preferred?: Seg[];
   /** Metres per wall drawing unit; start and end are always metres. */
   metresPerUnit?: number;
   settings: LvRouteSettings;
@@ -147,13 +159,16 @@ class MinHeap {
 }
 
 /** Finds the shortest orthogonal LV route first, then up to two bounded alternatives. All geometry is in metres. */
-export function planLvRoutes({ start, end, walls, metresPerUnit = 1, settings }: LvRouteInput): LvRoutePlan {
+export function planLvRoutes({ start, end, walls, avoid = [], preferred = [], metresPerUnit = 1, settings }: LvRouteInput): LvRoutePlan {
   if (!finitePoint(start) || !finitePoint(end) || !(metresPerUnit > 0) || !Number.isFinite(metresPerUnit) || Math.hypot(end[0] - start[0], end[1] - start[1]) < 0.05) {
     return { ok: false, code: 'invalid', message: 'Choose two different route points.' };
   }
   const options = clamp(Math.floor(settings.options || 1), 1, LV_ROUTE_LIMITS.maxOptions);
   const desiredCell = CELL_M[settings.precision] ?? CELL_M.balanced;
   const clearance = clamp(settings.clearanceM ?? 0.2, 0, 2);
+  const avoidClearance = clamp(settings.avoidClearanceM ?? clearance, 0, 5);
+  const preferredClearance = clamp(settings.preferredClearanceM ?? 0.5, 0, 5);
+  const offPreferredPenalty = clamp(settings.offPreferredPenalty ?? 0, 0, 2);
   const margin = clamp(settings.marginM ?? 10, 2, 50);
   const minX = Math.min(start[0], end[0]) - margin, maxX = Math.max(start[0], end[0]) + margin;
   const minY = Math.min(start[1], end[1]) - margin, maxY = Math.max(start[1], end[1]) + margin;
@@ -167,34 +182,51 @@ export function planLvRoutes({ start, end, walls, metresPerUnit = 1, settings }:
   const cells = cols * rows;
   const x0 = minX, y0 = minY;
   const insideBounds = ([a, b]: Seg) => Math.max(a[0], b[0]) * metresPerUnit >= minX && Math.min(a[0], b[0]) * metresPerUnit <= maxX && Math.max(a[1], b[1]) * metresPerUnit >= minY && Math.min(a[1], b[1]) * metresPerUnit <= maxY;
-  let wallSegments = 0, rasterSamples = 0;
-  for (const wall of walls) {
-    if (!insideBounds(wall)) continue;
-    wallSegments += 1;
-    rasterSamples += Math.max(1, Math.ceil((Math.hypot(wall[1][0] - wall[0][0], wall[1][1] - wall[0][1]) * metresPerUnit / cell) * 2)) + 1;
-    if (wallSegments > LV_ROUTE_LIMITS.maxWallSegments) return { ok: false, code: 'limit', message: `The route area has more than ${LV_ROUTE_LIMITS.maxWallSegments.toLocaleString()} wall segments. Isolate or simplify the Wall layers, then try again.`, stats: { cells, gridM: cell, wallSegments, rasterSamples } };
-    if (rasterSamples > LV_ROUTE_LIMITS.maxRasterSamples) return { ok: false, code: 'limit', message: 'The Wall layers are too detailed for the bounded route search. Use Fast precision, isolate the required wall layers, or shorten the route area.', stats: { cells, gridM: cell, wallSegments, rasterSamples } };
+  let wallSegments = 0, avoidSegments = 0, preferredSegments = 0, rasterSamples = 0;
+  const count = (segments: Seg[], kind: 'wall' | 'avoid' | 'preferred') => {
+    for (const segment of segments) {
+      if (!insideBounds(segment)) continue;
+      if (kind === 'wall') wallSegments += 1; else if (kind === 'avoid') avoidSegments += 1; else preferredSegments += 1;
+      rasterSamples += Math.max(1, Math.ceil((Math.hypot(segment[1][0] - segment[0][0], segment[1][1] - segment[0][1]) * metresPerUnit / cell) * 2)) + 1;
+    }
+  };
+  count(walls, 'wall'); count(avoid, 'avoid'); count(preferred, 'preferred');
+  const obstacleSegments = wallSegments + avoidSegments + preferredSegments;
+  if (obstacleSegments > LV_ROUTE_LIMITS.maxWallSegments) {
+    return { ok: false, code: 'limit', message: `The route area has more than ${LV_ROUTE_LIMITS.maxWallSegments.toLocaleString()} obstacle and containment segments. Isolate or simplify the relevant layers, then try again.`, stats: { cells, gridM: cell, wallSegments, avoidSegments, preferredSegments, rasterSamples } };
+  }
+  if (rasterSamples > LV_ROUTE_LIMITS.maxRasterSamples) {
+    return { ok: false, code: 'limit', message: 'The route geometry is too detailed for the bounded search. Use Fast precision, isolate the required layers, or shorten the route area.', stats: { cells, gridM: cell, wallSegments, avoidSegments, preferredSegments, rasterSamples } };
   }
 
   const blocked = new Uint8Array(cells), penalty = new Float32Array(cells), cost = new Float32Array(cells);
   const parent = new Int32Array(cells), closed = new Uint8Array(cells);
+  const preferredMask = preferredSegments && offPreferredPenalty ? new Uint8Array(cells) : undefined;
   const heap = new MinHeap(cells);
-  const approxBytes = blocked.byteLength + penalty.byteLength + cost.byteLength + parent.byteLength + closed.byteLength + heap.nodes.byteLength + heap.scores.byteLength + heap.positions.byteLength;
+  const approxBytes = blocked.byteLength + penalty.byteLength + cost.byteLength + parent.byteLength + closed.byteLength + (preferredMask?.byteLength ?? 0) + heap.nodes.byteLength + heap.scores.byteLength + heap.positions.byteLength;
   const gx = (x: number) => clamp(Math.round((x - x0) / cell), 0, cols - 1);
   const gy = (y: number) => clamp(Math.round((y - y0) / cell), 0, rows - 1);
-  const radius = Math.ceil(clearance / cell);
-  const mark = (x: number, y: number) => {
+  const mark = (into: Uint8Array, x: number, y: number, radius: number) => {
     for (let dy = -radius; dy <= radius; dy += 1) for (let dx = -radius; dx <= radius; dx += 1) {
       if (dx * dx + dy * dy > radius * radius) continue;
       const xx = x + dx, yy = y + dy;
-      if (xx >= 0 && yy >= 0 && xx < cols && yy < rows) blocked[yy * cols + xx] = 1;
+      if (xx >= 0 && yy >= 0 && xx < cols && yy < rows) into[yy * cols + xx] = 1;
     }
   };
-  for (const [a, b] of walls) {
-    if (!insideBounds([a, b])) continue;
-    const am: Pt = [a[0] * metresPerUnit, a[1] * metresPerUnit], bm: Pt = [b[0] * metresPerUnit, b[1] * metresPerUnit];
-    const steps = Math.max(1, Math.ceil((Math.hypot(bm[0] - am[0], bm[1] - am[1]) / cell) * 2));
-    for (let s = 0; s <= steps; s += 1) mark(gx(am[0] + ((bm[0] - am[0]) * s) / steps), gy(am[1] + ((bm[1] - am[1]) * s) / steps));
+  const raster = (segments: Seg[], into: Uint8Array, clearanceM: number) => {
+    const radius = Math.ceil(clearanceM / cell);
+    for (const [a, b] of segments) {
+      if (!insideBounds([a, b])) continue;
+      const am: Pt = [a[0] * metresPerUnit, a[1] * metresPerUnit], bm: Pt = [b[0] * metresPerUnit, b[1] * metresPerUnit];
+      const steps = Math.max(1, Math.ceil((Math.hypot(bm[0] - am[0], bm[1] - am[1]) / cell) * 2));
+      for (let s = 0; s <= steps; s += 1) mark(into, gx(am[0] + ((bm[0] - am[0]) * s) / steps), gy(am[1] + ((bm[1] - am[1]) * s) / steps), radius);
+    }
+  };
+  raster(walls, blocked, clearance);
+  raster(avoid, blocked, avoidClearance);
+  if (preferredMask) {
+    raster(preferred, preferredMask, preferredClearance);
+    for (let i = 0; i < cells; i += 1) if (!preferredMask[i]) penalty[i] = cell * offPreferredPenalty;
   }
   const source = gy(start[1]) * cols + gx(start[0]), target = gy(end[1]) * cols + gx(end[0]);
   const clearEnd = (i: number) => {
@@ -256,7 +288,7 @@ export function planLvRoutes({ start, end, walls, metresPerUnit = 1, settings }:
       }
     }
   }
-  const stats: LvRouteStats = { cells, gridM: cell, wallSegments, rasterSamples, visited: totalVisited, approxBytes };
+  const stats: LvRouteStats = { cells, gridM: cell, wallSegments, avoidSegments, preferredSegments, rasterSamples, visited: totalVisited, approxBytes };
   if (!routes.length) return { ok: false, code: 'no-route', message: 'No route was found inside the bounded search area. Check the Wall layers or choose endpoints in connected spaces.', stats };
   return { ok: true, routes, stats };
 }

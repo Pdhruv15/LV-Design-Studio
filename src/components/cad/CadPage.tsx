@@ -72,10 +72,12 @@ import RoomLightingPanel, { lightingOf, LUX_START, type LuxSettings } from './Ro
 import { placeRoomLights } from '../../model/roomLights';
 import EmergencyPanel, { EM_PROMPT, EM_START, emFitting, type EmSettings } from './EmergencyPanel';
 import LvRoutePlannerPanel, { type LvRouteMode } from './LvRoutePlannerPanel';
+import ElvRoutePlannerPanel from '../../components/elv/ElvRoutePlannerPanel';
+import { approveElvCadRoute, checkElvRoute, elvCadRouteLabels, elvCadRouteSketches, elvRouteLayer, ELV_ROUTE_RULES, type ElvSystem } from '../../components/elv/elvCadRoutes';
 import { EMPHASIS_LABEL, emergencyLayout, OPEN_AREA_M2, type EmphasisKind } from '../../calc/emergencyLighting';
 import { placeEmergency } from '../../model/emergencyPlace';
 import { lengthBreakdown, pullCadLengths } from '../../model/cadLengths';
-import { planLvRoutes, type LvRoutePlan, type LvRoutePrecision } from '../../model/lvRoutePlanner';
+import { LV_ROUTE_LIMITS, planLvRoutes, type LvRoutePlan, type LvRoutePrecision } from '../../model/lvRoutePlanner';
 import { EMERGENCY_ITEMS } from '../../model/cadDevices';
 import { planLevel, setPlanLevel } from './cadFileMenu';
 import { pathOfPlan, type CadExport, type DraftTab, type SavedCopy } from './cadState';
@@ -269,6 +271,9 @@ const ALIGN_ASK = 'ALIGN  Scale objects to the alignment points? [Yes/No] <No>:'
 const mirrorAsk = (s: EditSettings) => `MIRROR  Erase source objects? [Yes/No] <${s.keep ? 'No' : 'Yes'}>:`;
 /** Layer of the cable routes drawn or linked in the app. */
 const CABLE_LAYER = 'E-CABLE';
+type RouteService = 'lv' | 'elv';
+const elvTrayService = (system: ElvSystem, service: string | undefined) => service === 'ELV'
+  || (system === 'fire-alarm' && service === 'Fire alarm') || ((system === 'ict' || system === 'cctv') && service === 'Data');
 /** The smallest room of a level whose outline (metres) is around a point (drawing units, `k` metres per unit). */
 function roomAtPointOf(p: Project, f: { ref: { building: string; level: string } }, at: Pt, k: number) {
   return buildingInfoOf(p).rooms
@@ -405,6 +410,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [lvRoutePrecision, setLvRoutePrecision] = useState<LvRoutePrecision>('balanced');
   const [lvRoutePlan, setLvRoutePlan] = useState<LvRoutePlan | null>(null);
   const [lvRouteSelected, setLvRouteSelected] = useState(0);
+  const [routeService, setRouteService] = useState<RouteService>('lv');
+  const [elvRouteSystem, setElvRouteSystem] = useState<ElvSystem>('ict');
   // Edit devices: several devices picked (Shift-click or a window; one device is cad.selected), the menu at the cursor
   // after a right click (canvas pixels), Array on line and Match settings, and the board being renamed.
   const [picked, setPicked] = useState<string[]>([]);
@@ -655,7 +662,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const he = heNext.current; heNext.current = null;
     const preHatches = tool === 'hatchedit' ? (pickedSk.length ? pickedSk : selSketch ? [selSketch] : []).filter((x) => x.hatch).map((x) => x.id) : [];
     setHeIds(he ? he.ids : preHatches); setHePhase(he?.phase ?? null); setBoundIsl(true);
-    cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? (tool === 'draworder' ? (drMode === 'above' || drMode === 'under' ? DR_REF : DR_OPTIONS) : tool === 'array' ? arrayType(edSet) : TEXT_TOOLS.includes(tool) ? textToolPrompt(tool) : `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : tool === 'align' ? ALIGN_SAY[0].slice(7) : 'Enter to join them:'}`) : tool === 'matchprop' && mp ? 'MATCHPROP  Select destination object(s):' : pre && tool === 'offset' ? OFFSET_SIDE : tool === 'insert' && !insBlock ? 'INSERT  Block name:' : tool === 'attpick' ? PROMPT.attpick : tool === 'blockpick' && blockDlg?.picking === 'objects' ? 'BLOCK  Select objects — Enter when done:' : tool === 'none' && recent[0] ? repeatHint(recent[0].label) : tool === 'cable' && lvRouteMode === 'optimal' ? 'ROUTE  Optimal LV route: choose the cable, then click source and destination.' : editPrompt(tool, edSet)}`);
+    cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? (tool === 'draworder' ? (drMode === 'above' || drMode === 'under' ? DR_REF : DR_OPTIONS) : tool === 'array' ? arrayType(edSet) : TEXT_TOOLS.includes(tool) ? textToolPrompt(tool) : `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : tool === 'align' ? ALIGN_SAY[0].slice(7) : 'Enter to join them:'}`) : tool === 'matchprop' && mp ? 'MATCHPROP  Select destination object(s):' : pre && tool === 'offset' ? OFFSET_SIDE : tool === 'insert' && !insBlock ? 'INSERT  Block name:' : tool === 'attpick' ? PROMPT.attpick : tool === 'blockpick' && blockDlg?.picking === 'objects' ? 'BLOCK  Select objects — Enter when done:' : tool === 'none' && recent[0] ? repeatHint(recent[0].label) : tool === 'cable' && routeService === 'elv' ? `ROUTE  Optimal ${SYSTEM_LABEL[elvRouteSystem]} route: click source and destination.` : tool === 'cable' && lvRouteMode === 'optimal' ? 'ROUTE  Optimal LV route: choose the cable, then click source and destination.' : editPrompt(tool, edSet)}`);
     if (tool === 'hatchedit' && preHatches.length && !he) cad.say(hatchEditSay(null, preHatches.length));
     // The multileader tools: what is picked already decides the first step.
     const mls = pickedSk.filter((x) => x.kind === 'mleader');
@@ -803,18 +810,25 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const drawingSegs = useMemo(() => (drawn && (tool === 'trim' || tool === 'extend') ? segmentsOn(drawn.segs, drawn.segLayers, drawn.info.origin, new Set(drawn.info.layers.map((_, i) => i).filter((i) => layersOn[i]))) : []), [drawn, layersOn, tool]);
   const fittings = useMemo(() => trayFittings(sketch, 0.001 / units.factor).fittings, [sketch, units.factor]);
   const cables = useMemo(() => cablesOf(project), [project]);
+  const lvPowerRouteSegments = useMemo(() => {
+    const ids = new Set(project.feeders.map((f) => f.id));
+    return sketch.filter((it) => it.cable && ids.has(it.cable.feederId)).flatMap((it) => segmentsOf(it));
+  }, [sketch, project.feeders]);
+  const elvPreferredSegments = useMemo(() => sketch.filter((it) => it.tray && elvTrayService(elvRouteSystem, it.tray.service)).flatMap((it) => segmentsOf(it)), [sketch, elvRouteSystem]);
   const lvRoute = lvRoutePlan?.ok ? lvRoutePlan.routes[Math.min(lvRouteSelected, lvRoutePlan.routes.length - 1)] : undefined;
   const lvRouteImpact = useMemo(() => {
     const feeder = project.feeders.find((f) => f.id === cad.cableFeeder);
-    if (!feeder || !lvRoute || !view) return undefined;
+    if (routeService !== 'lv' || !feeder || !lvRoute || !view) return undefined;
     const otherPlansM = planDrawings(project, { file: view.file, insunits: view.info.units }).reduce((total, drawing) => total + drawing.items.reduce((sum, it) => {
       if (it.cable?.feederId !== feeder.id || drawing.file.toLowerCase() === view.file.toLowerCase()) return sum;
       return sum + pathLength(it.pts) * drawing.mPerUnit;
     }, 0), 0);
     const proposal = pullCadLengths(project, [{ feederId: feeder.id, length: otherPlansM + lvRoute.lengthM, pieces: 1 }], 6).proposals[0];
     return { currentM: feeder.lengthM, proposedM: proposal?.proposedM ?? feeder.lengthM, detail: proposal ? lengthBreakdown(proposal) : `${lvRoute.lengthM.toFixed(1)} m route; the feeder length is already up to date.` };
-  }, [project, cad.cableFeeder, lvRoute, view]);
-  const lvRoutePreview: SketchItem[] = lvRoute && cad.cableFeeder ? [{ id: '_lv-route', kind: 'pline', layer: CABLE_LAYER, pts: lvRoute.points.map(([x, y]): Pt => [x / units.factor, y / units.factor]), cable: { feederId: cad.cableFeeder } }] : [];
+  }, [project, cad.cableFeeder, lvRoute, view, routeService]);
+  const activeRoutePreview: SketchItem[] = lvRoute && (routeService === 'elv' || cad.cableFeeder) ? [{ id: '_route-proposal', kind: 'pline', layer: routeService === 'elv' ? elvRouteLayer(elvRouteSystem) : CABLE_LAYER, pts: lvRoute.points.map(([x, y]): Pt => [x / units.factor, y / units.factor]), ...(routeService === 'lv' ? { cable: { feederId: cad.cableFeeder } } : {}) }] : [];
+  const approvedElvRoutes = useMemo(() => (floor ? elvCadRouteSketches(project, { building: floor.ref.building, level: floor.ref.level }, units.factor) : []), [project, floor, units.factor]);
+  const approvedElvLabels = useMemo(() => (floor ? elvCadRouteLabels(project, { building: floor.ref.building, level: floor.ref.level }) : {}), [project, floor]);
   // ELV: the device chosen (if an ELV one), its system for coverage and Copy to level, and the coverage / Fill preview.
   const elvItem = ELV_PALETTE.find((e) => e.id === cad.device);
   const elvSystem = elvSystemOf(elvItem?.kind.elv ?? 'smoke-detector');
@@ -827,6 +841,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const f = project.feeders.find((x) => x.id === it.cable!.feederId);
     return [it.id, f ? cableLabel(project, f).split(' · ')[0] : `${it.cable!.feederId} (removed)`];
   })), [sketch, project]);
+  const routeLabels = useMemo(() => ({ ...cableLabels, ...approvedElvLabels }), [cableLabels, approvedElvLabels]);
   // Annotation text height: paper mm at the annotation scale (2.5 mm at 1:100 = 0.25 m), in drawing units.
   const anno = annoOf(project);
   const textH = textUnits(anno, units.factor);
@@ -3323,6 +3338,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       draw({ kind: 'line', infinite: tool, layer: curLayer, pts: [last, at], ...newProps }, cmd === 'XLINE' ? 'Construction line' : 'Ray');
       cad.say(`${cmd}  Specify through point or Enter to stop:`); return;
     }
+    if (tool === 'cable' && routeService === 'elv') {
+      if (!floor || !levelSet) { cad.say('ROUTE  Set this drawing\'s level in File → Level before adding an ELV route.'); return; }
+      if (!wallLayerIds.length || !routeWalls.length) { cad.say('ROUTE  Set a shown drawing layer to Wall in File → Layer roles first.'); return; }
+      if (!points.length) { setLvRoutePlan(null); setLvRouteSelected(0); setPoints([at]); cad.say(`ROUTE  ${SYSTEM_LABEL[elvRouteSystem]} source set — click the destination:`); return; }
+      findElvRoute(points[0], at); return;
+    }
     if (tool === 'cable' && lvRouteMode === 'optimal') {
       if (!points.length) {
         const feeder = project.feeders.find((f) => f.id === cad.cableFeeder);
@@ -3659,7 +3680,27 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (result.ok) cad.say(`ROUTE  ${result.routes.length} bounded LV option${result.routes.length === 1 ? '' : 's'} found · recommended ${result.routes[0].lengthM.toFixed(1)} m · choose and approve in the panel.`);
     else cad.say(`ROUTE  ${result.message}`);
   }
-  function resetLvRoute() { setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); cad.say('ROUTE  Click the LV route source point:'); }
+  /** System-first ELV route search: walls are hard obstacles, LV routes are segregation exclusions and matching
+   * containment is a preference. All three geometry sets stay in drawing units until the bounded planner rasterises. */
+  function findElvRoute(startAt: Pt, endAt: Pt) {
+    setPoints([]); setLvRouteSelected(0);
+    if (!floor || !levelSet) { setLvRoutePlan({ ok: false, code: 'invalid', message: 'Set this drawing\'s level in File → Level first.' }); return; }
+    if (!wallLayerIds.length || !routeWalls.length) {
+      const message = 'No shown drawing layer is mapped as Wall. Set Wall in File → Layer roles, then try again.';
+      setLvRoutePlan({ ok: false, code: 'invalid', message }); cad.say(`ROUTE  ${message}`); return;
+    }
+    const result = planLvRoutes({
+      start: [startAt[0] * units.factor, startAt[1] * units.factor], end: [endAt[0] * units.factor, endAt[1] * units.factor],
+      walls: routeWalls, avoid: lvPowerRouteSegments, preferred: elvPreferredSegments, metresPerUnit: units.factor,
+      settings: { options: lvRouteOptions, precision: lvRoutePrecision, avoidClearanceM: ELV_ROUTE_RULES[elvRouteSystem].separationM, preferredClearanceM: 0.5, offPreferredPenalty: elvPreferredSegments.length ? 0.35 : 0 }
+    });
+    setLvRoutePlan(result);
+    if (result.ok) {
+      const check = checkElvRoute(elvRouteSystem, result.routes[0].lengthM);
+      cad.say(`ROUTE  ${result.routes.length} bounded ${SYSTEM_LABEL[elvRouteSystem]} option${result.routes.length === 1 ? '' : 's'} found · recommended ${result.routes[0].lengthM.toFixed(1)} m · ${check.status}.`);
+    } else cad.say(`ROUTE  ${result.message}`);
+  }
+  function resetLvRoute() { setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); cad.say(routeService === 'elv' ? `ROUTE  ${SYSTEM_LABEL[elvRouteSystem]}: click the source point:` : 'ROUTE  Click the LV route source point:'); }
   /** Approves one proposed route, replacing this drawing's earlier pieces for the feeder and updating schedules in the
    * same undoable project change. */
   function approveLvRoute() {
@@ -3674,6 +3715,18 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const letter = String.fromCharCode(65 + Math.min(lvRouteSelected, lvRoutePlan.routes.length - 1));
     const summary = updated.lengths || updated.feederTrays || updated.trays.length ? scheduleSummary(updated) : 'schedules already matched';
     change(updated.project, `LV route ${letter} approved for ${cableLabel(project, feeder)}: ${route.lengthM.toFixed(1)} m${old ? ` · replaced ${old} earlier route piece${old === 1 ? '' : 's'}` : ''} · ${summary} · ⌘Z to undo`);
+    setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0);
+  }
+  /** Stores only the approved ELV route in metres; alternatives and search arrays are discarded. */
+  function approveElvRoute() {
+    if (!floor || !levelSet || !lvRoutePlan?.ok) return;
+    const route = lvRoutePlan.routes[Math.min(lvRouteSelected, lvRoutePlan.routes.length - 1)];
+    if (!route) return;
+    const check = checkElvRoute(elvRouteSystem, route.lengthM);
+    if (check.status === 'fail') { cad.say(`ROUTE  ${check.text}; choose another route.`); return; }
+    const saved = approveElvCadRoute(project, { building: floor.ref.building, level: floor.ref.level }, elvRouteSystem, route.points, elvPreferredSegments.length > 0);
+    const letter = String.fromCharCode(65 + Math.min(lvRouteSelected, lvRoutePlan.routes.length - 1));
+    change(saved.project, `${saved.route.id} · ${SYSTEM_LABEL[elvRouteSystem]} route ${letter} approved: ${route.lengthM.toFixed(1)} m · ${check.status === 'review' ? 'length review required' : 'length check passed'} · ELV cable route schedule updated · ⌘Z to undo`);
     setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0);
   }
   /** Update schedules: tray route lengths and fittings, feeder lengths and tray routes, from every level's plan. */
@@ -4085,7 +4138,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       else if (tool === 'em') finishRoute();
       else if (tool === 'arl' && arlAt.length && points.length >= 2) placeArl();
       else if (renaming) { setRenaming(null); cad.say('*Cancel*'); }
-      else if (tool === 'cable' && lvRouteMode === 'manual') finishCable();
+      else if (tool === 'cable' && routeService === 'lv' && lvRouteMode === 'manual') finishCable();
       else if (tool === 'cable') resetLvRoute();
       else if (tool === 'point') cad.setTool('none');
       else if (tool === 'line') { setPoints([]); cad.say(PROMPT.line); }
@@ -4698,7 +4751,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
-            <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} cursorMode={cursorMode} hover={hover} cutAway={cutPiece && edgeLine ? [{ ...cutPiece, id: edgeLine.id }] : undefined} meets={addPiece ? [addPiece[1]] : undefined} shadowDevices={shadow?.devs.length ? shadow.devs : undefined} movingPoints={stretchLook?.pts} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap, pixel) => setCursor({ at, snap, pixel })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={[...pickedSk.map((it) => it.id), ...(stretchLook?.sk.map((it) => it.id) ?? [])]} extraSnaps={snapExtra} preview={[...preview, ...lvRoutePreview, ...emRoutes, ...(grip && cursor.at ? srcAll.filter((x) => x.id === grip.id).map((x) => gripMoved(x, grip.i, cursor.at!)) : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
+            <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} cursorMode={cursorMode} hover={hover} cutAway={cutPiece && edgeLine ? [{ ...cutPiece, id: edgeLine.id }] : undefined} meets={addPiece ? [addPiece[1]] : undefined} shadowDevices={shadow?.devs.length ? shadow.devs : undefined} movingPoints={stretchLook?.pts} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap, pixel) => setCursor({ at, snap, pixel })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={[...pickedSk.map((it) => it.id), ...(stretchLook?.sk.map((it) => it.id) ?? [])]} extraSnaps={snapExtra} preview={[...preview, ...approvedElvRoutes, ...activeRoutePreview, ...emRoutes, ...(grip && cursor.at ? srcAll.filter((x) => x.id === grip.id).map((x) => gripMoved(x, grip.i, cursor.at!)) : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={routeLabels} covers={elv?.covers} gaps={elv?.gaps}
               numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || ((tool === 'mleaderalign' || tool === 'mleadercollect') && ml?.step === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={gripList} hotGrip={gripOf(hotGrip)} pickedObjects={pickedDwIds} onGripStart={(k) => setGrip(gripList[k] ? { id: gripList[k].id, i: gripList[k].i } : null)}
               onGripEnd={(k, at, moved) => {
@@ -4846,17 +4899,24 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             <>
               <h4>Cable route</h4>
               <div className="cad-devform">
-                <label>Cable<select aria-label="Cable" value={cad.cableFeeder} onChange={(e) => { cad.setCableFeeder(e.target.value); setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); }}>
+                {tool === 'cable' && <label>Service<select aria-label="Route service" value={routeService} onChange={(e) => { const service = e.target.value as RouteService; setRouteService(service); setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); cad.say(service === 'elv' ? `ROUTE  Optimal ${SYSTEM_LABEL[elvRouteSystem]} route: click source and destination.` : lvRouteMode === 'optimal' ? 'ROUTE  Optimal LV route: choose the cable, then click source and destination.' : PROMPT.cable); }}>
+                  <option value="lv">LV feeder</option><option value="elv">ELV system</option>
+                </select></label>}
+                {(tool === 'link' || routeService === 'lv') && <label>Cable<select aria-label="Cable" value={cad.cableFeeder} onChange={(e) => { cad.setCableFeeder(e.target.value); setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); }}>
                   <option value="">Choose a cable…</option>
                   {cables.map((f) => <option key={f.id} value={f.id}>{cableLabel(project, f)}</option>)}
-                </select></label>
-                {tool === 'cable' ? <LvRoutePlannerPanel mode={lvRouteMode} onMode={(mode) => { setLvRouteMode(mode); setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); cad.say(mode === 'optimal' ? 'ROUTE  Optimal LV route: choose the cable, then click source and destination.' : PROMPT.cable); }}
+                </select></label>}
+                {tool === 'cable' && routeService === 'lv' ? <LvRoutePlannerPanel mode={lvRouteMode} onMode={(mode) => { setLvRouteMode(mode); setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); cad.say(mode === 'optimal' ? 'ROUTE  Optimal LV route: choose the cable, then click source and destination.' : PROMPT.cable); }}
                   options={lvRouteOptions} onOptions={(n) => { setLvRouteOptions(n); setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); }}
                   precision={lvRoutePrecision} onPrecision={(p) => { setLvRoutePrecision(p); setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); }}
                   plan={lvRoutePlan} selected={lvRouteSelected} onSelected={setLvRouteSelected} pickingStart={points.length > 0} impact={lvRouteImpact}
                   canApprove={!!lvRoute && !project.feeders.find((f) => f.id === cad.cableFeeder)?.elvLoad} onApprove={approveLvRoute} onReset={resetLvRoute} />
-                  : <span className="m">Click a line or polyline of the drawing (e.g. on a cable layer).</span>}
-                <span className="m">Update schedules gives the cable its length and the tray routes it runs along. An approved optimal route updates them in the same undo step.</span>
+                  : tool === 'cable' ? <ElvRoutePlannerPanel system={elvRouteSystem} onSystem={(system) => { setElvRouteSystem(system); setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); cad.say(`ROUTE  Optimal ${SYSTEM_LABEL[system]} route: click source and destination.`); }}
+                    options={lvRouteOptions} onOptions={(n) => { setLvRouteOptions(n); setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); }} precision={lvRoutePrecision} onPrecision={(p) => { setLvRoutePrecision(p); setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); }}
+                    plan={lvRoutePlan} selected={lvRouteSelected} onSelected={setLvRouteSelected} pickingStart={points.length > 0} lvObstacles={lvPowerRouteSegments.length} preferredRuns={elvPreferredSegments.length} maxOptions={LV_ROUTE_LIMITS.maxOptions} maxCells={LV_ROUTE_LIMITS.maxCells}
+                    canApprove={!!lvRoute && checkElvRoute(elvRouteSystem, lvRoute.lengthM).status !== 'fail'} onApprove={approveElvRoute} onReset={resetLvRoute} />
+                    : <span className="m">Click a line or polyline of the drawing (e.g. on a cable layer).</span>}
+                <span className="m">{tool === 'cable' && routeService === 'elv' ? 'Approved ELV routes are stored in metres on the level and appear in the ELV cable route schedule.' : 'Update schedules gives the cable its length and the tray routes it runs along. An approved optimal route updates them in the same undo step.'}</span>
               </div>
             </>
           )}

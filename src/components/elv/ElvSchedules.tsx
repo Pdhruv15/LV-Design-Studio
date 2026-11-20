@@ -8,13 +8,12 @@ import type { Project } from '../../types';
 import { renderPdf, safeFileName, saveBinary, savePdf, saveText } from '../../util/files';
 
 const TABS: { id: TableId; label: string }[] = [
-  { id: 'devices', label: 'Devices' }, { id: 'loops', label: 'Fire alarm loops' }, { id: 'zones', label: 'Zones' }, { id: 'ports', label: 'Ports and zones' }, { id: 'boq', label: 'BOQ' }
+  { id: 'devices', label: 'Devices' }, { id: 'routes', label: 'Cable routes' }, { id: 'loops', label: 'Fire alarm loops' }, { id: 'zones', label: 'Zones' }, { id: 'ports', label: 'Ports and zones' }, { id: 'boq', label: 'BOQ' }
 ];
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-/** The ELV schedules on the ELV page: devices per room and floor, fire alarm loops and zones, switch ports / doors /
- * PA zones, and the ELV BOQ, each with a Remarks column the engineer types in (kept with the project). Excel exports
- * every schedule, one sheet each. */
+/** The ELV schedules on the ELV page: devices, approved cable routes, fire alarm loops and zones, switch ports /
+ * doors / PA zones, and the ELV BOQ, each with a saved Remarks column. Excel exports every non-empty schedule. */
 export default function ElvSchedules({ project, estimate, stamp, onChange, onStatus }: {
   project: Project;
   estimate: ElvEstimate;
@@ -44,12 +43,12 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
       if (m) onStatus(m);
     } catch (e) { onStatus(e instanceof Error ? e.message : String(e)); }
   };
-  /** One A3 sheet per level with devices placed, all in one PDF (the browser prints the first level only). */
+  /** One A3 sheet per level with devices or routes, all in one PDF (the browser prints the first level only). */
   const exportSheets = async () => {
     try {
       const { planLevels, planSheetHtml } = await import('../../elv/planSheets');
       const levels = planLevels(project);
-      if (!levels.length) { onStatus('No ELV devices placed on the floor plans yet: place them in Design CAD first.'); return; }
+      if (!levels.length) { onStatus('No ELV devices or approved routes are on the floor plans yet.'); return; }
       const name = `${safeFileName(project.name)} - ELV plan sheets`;
       const parts: Uint8Array[] = [];
       for (const [i, lv] of levels.entries()) {
@@ -71,12 +70,12 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
       if (m) onStatus(m);
     } catch (e) { onStatus(e instanceof Error ? e.message : String(e)); }
   };
-  /** The devices of each level as DXF for the CAD team (one file, or a ZIP of one per level). */
+  /** The devices and approved routes of each level as DXF (one file, or a ZIP of one per level). */
   const exportDxf = async () => {
     try {
       const { levelUnits, planDxf, planLevels } = await import('../../elv/planSheets');
       const levels = planLevels(project);
-      if (!levels.length) { onStatus('No ELV devices placed on the floor plans yet: place them in Design CAD first.'); return; }
+      if (!levels.length) { onStatus('No ELV devices or approved routes are on the floor plans yet.'); return; }
       const files = levels.map((lv) => ({ name: `${safeFileName(`${project.name} ELV ${lv.name}`)}.dxf`, data: planDxf(project, lv) }));
       let m: string | null;
       if (files.length === 1) m = await saveText(files[0].name, files[0].data, 'DXF drawing (R12)', 'dxf', { output: 'drawingCad', project });
@@ -89,10 +88,10 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
       if (m) onStatus(`${m} — in ${units}, the plan's units, on its origin`);
     } catch (e) { onStatus(e instanceof Error ? e.message : String(e)); }
   };
-  const placedAny = (project.elvDevices ?? []).length > 0;
+  const planAny = (project.elvDevices ?? []).length > 0 || (project.elvRoutes ?? []).length > 0;
   return (
     <div className="card">
-      <h4>Schedules <span className="m">from the devices placed on the floor plans; levels with nothing placed use the room-area estimate</span></h4>
+      <h4>Schedules <span className="m">from floor-plan devices and approved routes; levels without devices use the room-area estimate</span></h4>
       <div className="seg" role="tablist" aria-label="ELV schedules">
         {TABS.map((x) => <button key={x.id} role="tab" aria-selected={x.id === tab} className={x.id === tab ? 'on' : undefined} onClick={() => setTab(x.id)}>{x.label}</button>)}
       </div>
@@ -121,8 +120,8 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
         <button className="chip" onClick={() => setBoqOpen(true)} disabled={!tables.some((x) => x.id === 'boq' && x.rows.length)}>{inBoq ? 'Project BOQ…' : 'Add to project BOQ…'}</button>
         <button className="chip" onClick={exportPdf} disabled={!tables.some((x) => x.rows.length)}>Schedules PDF…</button>
         <button className="chip" onClick={exportExcel} disabled={!tables.some((x) => x.rows.length)}>Excel…</button>
-        <button className="chip" onClick={exportSheets} disabled={!placedAny} title="One A3 sheet per level with ELV devices placed; a typical level names its floors">Plan sheets PDF…</button>
-        <button className="chip" onClick={exportDxf} disabled={!placedAny} title="ELV devices as DXF for the CAD team, in the plan's units on its origin">DXF for CAD…</button>
+        <button className="chip" onClick={exportSheets} disabled={!planAny} title="One A3 sheet per level with ELV devices or approved routes; a typical level names its floors">Plan sheets PDF…</button>
+        <button className="chip" onClick={exportDxf} disabled={!planAny} title="ELV devices and approved routes as DXF, in the plan's units on its origin">DXF for CAD…</button>
       </div>
       {boqOpen && <ProjectBoqDialog project={project} onClose={() => setBoqOpen(false)} onChange={(next, message) => { onChange(next); onStatus(message); setBoqOpen(false); }} />}
     </div>

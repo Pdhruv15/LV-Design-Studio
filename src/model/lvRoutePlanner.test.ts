@@ -62,4 +62,24 @@ describe('bounded LV route planner', () => {
     const b = planLvRoutes({ start: [0, 0], end: [8, 0], walls, settings });
     expect(a.ok && b.ok ? a.routes[0].points : undefined).toEqual(a.ok && b.ok ? b.routes[0].points : undefined);
   });
+
+  it('treats additional service lines as clearance obstacles', () => {
+    const result = planLvRoutes({ start: [0, 0], end: [10, 0], walls: [], avoid: [[[5, -1], [5, 1]]], settings: { ...settings, marginM: 2, avoidClearanceM: 0.3 } });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.routes[0].points.some((p) => Math.abs(p[1]) > 1)).toBe(true);
+    expect(result.stats.avoidSegments).toBe(1);
+  });
+
+  it('can prefer a containment corridor without requiring it', () => {
+    const result = planLvRoutes({
+      start: [0, 0], end: [10, 0], walls: [], preferred: [[[0, 2], [10, 2]]],
+      settings: { ...settings, marginM: 3, preferredClearanceM: 0.25, offPreferredPenalty: 1 }
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.routes[0].points.some((p) => p[1] > 1.5)).toBe(true);
+    expect(result.stats.preferredSegments).toBe(1);
+    expect(result.stats.approxBytes).toBeLessThan(2 * 1024 * 1024);
+  });
 });

@@ -7,17 +7,18 @@ import type { ElvSystem } from './defaults';
 import { ELV_DEVICES, type DeviceSymbol, type ElvDeviceType } from './devices';
 import { floorRef } from './outputs';
 import { devicesOn } from './placed';
+import { elvRoutesOn } from './routes';
 
-/** ELV plan sheets: one A3 sheet per level that has devices placed, all ELV systems on it, in the project's own sheet
+/** ELV plan sheets: one A3 sheet per level that has devices or approved routes, all ELV systems on it, in the project's own sheet
  * frame and title block (docs/sldSheet.ts). A typical level is drawn once and names the floors it stands for
  * (L05–L09, or L05, L07, L08). The plan is the level's room outlines and names in grey (from the CAD rooms, so every
- * level prints without its drawing open) with the devices in black, and a legend of the devices per floor. Black
+ * level prints without its drawing open) with devices and approved routes in black, and a legend per floor. Black
  * and white, like every report. The same plans export as DXF, in millimetres on the architect plan's origin. */
 
 type Pt = [number, number];
 export interface PlanLevel { buildingId: string; levelId: string; name: string; floors: string; count: number }
 
-/** The levels with ELV devices placed, in building order, with the floors each stands for. */
+/** The levels with ELV devices or routes, in building order, with the floors each stands for. */
 export function planLevels(p: Project): PlanLevel[] {
   const info = buildingInfoOf(p);
   const out: PlanLevel[] = [];
@@ -25,7 +26,7 @@ export function planLevels(p: Project): PlanLevel[] {
     const tags = new Map<string, string[]>();
     for (const f of floorsOf(info, b)) tags.set(f.level.id, [...(tags.get(f.level.id) ?? []), f.tag]);
     for (const l of b.levels) {
-      if (!devicesOn(p, b.id, l.id).length) continue;
+      if (!devicesOn(p, b.id, l.id).length && !elvRoutesOn(p, b.id, l.id).length) continue;
       out.push({ buildingId: b.id, levelId: l.id, name: `${info.buildings.length > 1 ? `${b.name} · ` : ''}${l.name}`, floors: floorRef(tags.get(l.id) ?? []), count: Math.max(1, Math.round(l.count ?? 1)) });
     }
   }
@@ -36,7 +37,7 @@ const SYSTEM_LAYER: Record<ElvSystem, string> = { 'fire-alarm': 'E-ELV-FA', cctv
 
 function bounds(p: Project, lv: PlanLevel) {
   const rooms = buildingInfoOf(p).rooms.filter((r) => r.buildingId === lv.buildingId && r.levelId === lv.levelId && r.outline && r.outline.length >= 3);
-  const pts: Pt[] = [...rooms.flatMap((r) => r.outline!), ...devicesOn(p, lv.buildingId, lv.levelId).map((d): Pt => [d.x, d.y])];
+  const pts: Pt[] = [...rooms.flatMap((r) => r.outline!), ...devicesOn(p, lv.buildingId, lv.levelId).map((d): Pt => [d.x, d.y]), ...elvRoutesOn(p, lv.buildingId, lv.levelId).flatMap((r) => r.points)];
   const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
   const pad = Math.max(1, (Math.max(...xs) - Math.min(...xs)) * 0.03);
   return { rooms, x0: Math.min(...xs) - pad, x1: Math.max(...xs) + pad, y0: Math.min(...ys) - pad, y1: Math.max(...ys) + pad };
@@ -57,7 +58,7 @@ export function symbolSvg(s: DeviceSymbol, x: number, y: number, r: number, rota
   return `<g fill="${fill}" stroke="#000" stroke-width="${sw}">${shape}${text}</g>`;
 }
 
-/** The plan as SVG, metres with y up (flipped for SVG): room outlines and names in grey, devices in black. */
+/** The plan as SVG, metres with y up (flipped for SVG): rooms in grey, devices and approved routes in black. */
 export function planSvg(p: Project, lv: PlanLevel): string {
   const { rooms, x0, x1, y0, y1 } = bounds(p, lv);
   const w = x1 - x0, h = y1 - y0;
@@ -72,9 +73,11 @@ export function planSvg(p: Project, lv: PlanLevel): string {
     return `<text x="${left + 0.5 * r}" y="${Y(top) + 1.5 * r}">${esc(rm.name.toUpperCase())}</text>`;
   }).join('');
   const devices = devicesOn(p, lv.buildingId, lv.levelId).map((d) => symbolSvg(ELV_DEVICES[d.type].symbol, d.x, Y(d.y), r, d.rotationDeg ?? 0)).join('');
+  const routes = elvRoutesOn(p, lv.buildingId, lv.levelId).map((route) => `<g><path d="M${route.points.map(([x, y]) => `${x} ${Y(y)}`).join('L')}"/><text x="${route.points[0][0] + 0.5 * r}" y="${Y(route.points[0][1]) - 0.5 * r}">${route.id}</text></g>`).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x0} ${y0} ${w} ${h}" font-family="Arial, sans-serif">
   <g fill="none" stroke="#999" stroke-width="${r * 0.12}">${outline}</g>
   <g fill="#777" font-size="${r * 1.2}">${names}</g>
+  <g fill="none" stroke="#000" stroke-width="${r * 0.18}">${routes}</g>
   <g>${devices}</g>
 </svg>`;
 }
@@ -100,7 +103,7 @@ export function sheetInfo(p: Project, lv: PlanLevel, index: number, count: numbe
     legendSvg: legendSvg(p, lv),
     notes: [
       ...(typical ? [`${typical}: this level is drawn once and applies to each of those floors.`] : []),
-      'Devices from the ELV design on the floor plan; room outlines from the architect plan. Detector coverage to BS 5839-1 (smoke 7.5 m, heat 5.3 m radius).',
+      'Devices and approved cable routes from the ELV design on the floor plan; room outlines from the architect plan. Detector coverage to BS 5839-1 (smoke 7.5 m, heat 5.3 m radius).',
       ...notes
     ]
   };
@@ -123,8 +126,8 @@ export function levelUnits(p: Project, lv: PlanLevel): string {
   return fromFile ?? (all.length === 1 ? all[0] : 'mm');
 }
 
-/** The level's ELV devices as DXF (R12) in the plan's own units on its origin, so it lies on the architect's
- * drawing: room outlines on A-ELV-ROOMS, each system's symbols on its own layer, each device tagged with its ID. */
+/** The level's ELV devices and approved routes as DXF (R12) in the plan's own units on its origin, so it lies on the
+ * architect's drawing: rooms, device systems, and route systems use distinct layers and stable entity tags. */
 export function planDxf(p: Project, lv: PlanLevel, units = levelUnits(p, lv)): string {
   const mm = 1 / (UNIT_M[units] ?? 0.001), r = 0.15 * mm; // symbols 300 mm across: 3 mm on paper at 1:100
   const items: DxfPrimitive[] = [];
@@ -146,5 +149,6 @@ export function planDxf(p: Project, lv: PlanLevel, units = levelUnits(p, lv)): s
     else items.push({ type: 'polyline', layer, points: turn([[-r, -0.45 * r], [-0.4 * r, -0.45 * r], [0.6 * r, -r], [0.6 * r, r], [-0.4 * r, 0.45 * r], [-r, 0.45 * r]]), closed: true, tag });
     if (s !== 'camera' && s !== 'speaker') items.push({ type: 'text', layer, x, y: y - 0.35 * r, height: 0.7 * r, text: spec.symbol.text, align: 'center', tag });
   }
-  return toDxf(items, { 'A-ELV-ROOMS': 8, 'E-ELV-FA': 1, 'E-ELV-CCTV': 5, 'E-ELV-ACS': 3, 'E-ELV-ICT': 4, 'E-ELV-PA': 6 });
+  for (const route of elvRoutesOn(p, lv.buildingId, lv.levelId)) items.push({ type: 'polyline', layer: `${SYSTEM_LAYER[route.system]}-ROUTE`, points: route.points.map(([x, y]): Pt => [x * mm, y * mm]), tag: `elv-route:${route.id}` });
+  return toDxf(items, { 'A-ELV-ROOMS': 8, 'E-ELV-FA': 1, 'E-ELV-CCTV': 5, 'E-ELV-ACS': 3, 'E-ELV-ICT': 4, 'E-ELV-PA': 6, 'E-ELV-FA-ROUTE': 1, 'E-ELV-CCTV-ROUTE': 5, 'E-ELV-ACS-ROUTE': 3, 'E-ELV-ICT-ROUTE': 4, 'E-ELV-PA-ROUTE': 6 });
 }
