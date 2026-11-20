@@ -4,7 +4,7 @@ import { sampleProject } from '../data/sampleProject';
 import { addSpareWay, isDbBoard } from '../model/spareWays';
 import { newSheet, withCells, withStyle, mergeArea, area, type Sheet, type SheetLink } from '../model/sheets';
 import type { Project } from '../types';
-import { fillLinked, linkAt, linkBoards, linkFromPlaceholders, linkNeeds, linkToBoard, LINK_FIELDS, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink, addCircuitRow, discardPending, pendingCount, typeLinked, typeRefusal, templateOf, sheetFromFormat, boardSheet, linkFields, linkLabel, panelCategoryOf, ownRows, asTemplate, pushTarget } from './sheetLink';
+import { fillLinked, linkAt, linkBoards, linkFromPlaceholders, linkMode, linkNeeds, linkToBoard, LINK_FIELDS, removeLink, setFirstRow, setLinkCell, setLinkColumn, setLinkMode, sheetsForBoards, startLink, suggestLink, addCircuitRow, discardPending, pendingCount, templateIssues, typeLinked, typeRefusal, templateOf, sheetFromFormat, boardSheet, linkFields, linkLabel, panelCategoryOf, ownRows, asTemplate, pushTarget } from './sheetLink';
 import { withProjectFormat } from '../model/scheduleFormats';
 import { deleteOutgoingFeeder } from '../model/mdFeeders';
 import { panelData, panelRowKeys } from './panelFields';
@@ -30,6 +30,8 @@ describe('LINK_FIELDS', () => {
     for (const f of LINK_FIELDS) if (f.key !== 'own') expect(have.has(f.key), f.key).toBe(true);
     expect(LINK_FIELDS.filter((f) => f.kind === 'cell').every((f) => !f.typed)).toBe(true);
     expect(LINK_FIELDS.find((f) => f.key === 'row.length')).toEqual({ key: 'row.length', label: 'Length, m', kind: 'row', typed: true });
+    expect(LINK_FIELDS.find((f) => f.key === 'row.designCurrent')).toEqual({ key: 'row.designCurrent', label: 'Design current, A', kind: 'row', typed: false });
+    expect(LINK_FIELDS.find((f) => f.key === 'project.owner')).toEqual({ key: 'project.owner', label: 'Owner / client', kind: 'cell', typed: false });
     expect(LINK_FIELDS[LINK_FIELDS.length - 1]).toEqual({ key: 'own', label: 'Your column · kept with each circuit', kind: 'row', typed: true });
   });
 });
@@ -245,13 +247,13 @@ describe('linking by hand', () => {
     expect(setLinkCell(s, 'C6', 'board.id')).toBe(s);
     expect(setLinkCell(s, 'D2', 'row.mcb')).toBe(s);
   });
-  it('setLinkColumn moves a field to the column chosen; own may be on several columns', () => {
+  it('setLinkColumn may display the same field in several columns; own may also be on several columns', () => {
     let s = setLinkColumn(linked(), 'c', 'row.room');
     s = setLinkColumn(s, 'D', 'row.room');
-    expect(s.link!.columns).toEqual({ D: 'row.room' });
+    expect(s.link!.columns).toEqual({ C: 'row.room', D: 'row.room' });
     s = setLinkColumn(setLinkColumn(s, 'E', 'own'), 'F', 'own');
-    expect(s.link!.columns).toEqual({ D: 'row.room', E: 'own', F: 'own' });
-    expect(setLinkColumn(s, 'D', undefined).link!.columns).toEqual({ E: 'own', F: 'own' });
+    expect(s.link!.columns).toEqual({ C: 'row.room', D: 'row.room', E: 'own', F: 'own' });
+    expect(setLinkColumn(s, 'D', undefined).link!.columns).toEqual({ C: 'row.room', E: 'own', F: 'own' });
     expect(setLinkColumn(s, 'G', 'board.id')).toBe(s);
   });
   it('setFirstRow deletes the extra rows of the block and unlinks a cell that lands on the new row', () => {
@@ -292,6 +294,41 @@ describe('suggestLink', () => {
     expect(suggestLink(sheet({ A1: 'Notes', A2: 'MCB', B2: 'CABLE' }))).toBeUndefined();
     const twice = suggestLink(sheet({ A1: 'MCB (A)', B1: 'BREAKER', C1: 'CABLE', D1: 'ROOM' }))!;
     expect(twice.link!.columns).toEqual({ A: 'row.mcb', C: 'row.wire', D: 'row.room' });
+  });
+});
+
+describe('output-template contract', () => {
+  it('keeps older links editable, and output-only refuses mapped edits while ordinary template cells remain editable', () => {
+    const editable = fillLinked(project, layout(), AT);
+    expect(linkMode(editable.link)).toBe('linked');
+    const output = setLinkMode(editable, 'output');
+    expect(linkMode(output.link)).toBe('output');
+    const typed = typeLinked(project, output, { B5: 'Changed', A1: 'Office heading' });
+    expect(typed.refused).toBe('B5 is filled from the project (output-only template).');
+    expect(typed.sheet.cells.A1).toBe('Office heading');
+    expect(typed.sheet.link!.pending).toBeUndefined();
+    expect(addCircuitRow(output)).toBe(output);
+    expect(linkMode(setLinkMode(output, 'linked').link)).toBe('linked');
+  });
+
+  it('drops pending project edits when a sheet is changed to output-only', () => {
+    const pending = typeLinked(project, fillLinked(project, layout(), AT), { B5: 'Changed' }).sheet;
+    expect(pendingCount(pending)).toBe(1);
+    const output = setLinkMode(pending, 'output');
+    expect(output.link!.pending).toBeUndefined();
+    expect(output.link!.added).toBeUndefined();
+    expect(pendingCount(output)).toBe(0);
+  });
+
+  it('validates one repeating data row and fixed cells, with warnings that do not block output', () => {
+    const valid = layout();
+    expect(templateIssues(valid)).toEqual([]);
+    const noCells = { ...valid, link: { ...valid.link!, cells: {} } };
+    expect(templateIssues(noCells)).toEqual([{ level: 'warning', message: 'No project, panel or summary cells are linked.' }]);
+    const noRows = { ...valid, link: { ...valid.link!, columns: {} } };
+    expect(templateIssues(noRows).some((i) => i.level === 'error' && i.message.includes('Link at least one circuit field'))).toBe(true);
+    const unknown = { ...valid, link: { ...valid.link!, columns: { A: 'row.unknown' } } };
+    expect(templateIssues(unknown)).toContainEqual({ level: 'error', message: 'Column A uses an unknown row field: row.unknown.' });
   });
 });
 

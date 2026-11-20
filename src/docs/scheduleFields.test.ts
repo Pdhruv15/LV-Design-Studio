@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
+import { breakerTypeOf, rcdOf } from '../calc/earthing';
+import { designCurrentA, runsOf, voltageDropPct } from '../calc/electrical';
 import { scheduleCircuits } from '../calc/loadSchedule';
+import { cableTypeOf } from '../model/cableTypes';
 import { balancePhases } from '../model/schedule';
 import { addSpareWay } from '../model/spareWays';
 import { scheduleRowKeys, templateData, TEMPLATE_FIELDS } from './scheduleFields';
@@ -23,6 +26,35 @@ describe('row.phase and row.length', () => {
     const keys = TEMPLATE_FIELDS.map((f) => f.key);
     expect(keys).toContain('row.phase');
     expect(keys).toContain('row.length');
+  });
+});
+
+describe('custom template output fields', () => {
+  it('exposes project information, useful circuit parameters and summary aliases', () => {
+    const p = { ...withSpare, info: { ...withSpare.info, owner: 'Example Owner', consultant: 'Example Consultant', projectNo: 'P-100' } };
+    const d = templateData(p, 'DB-GF1', AT), circuit = scheduleCircuits(p, 'DB-GF1')[0];
+    const row = d.rows.find((r) => r['row.ref'] === `${circuit.phase}${circuit.way}`)!;
+    expect(d.fields).toMatchObject({ 'project.owner': 'Example Owner', 'project.consultant': 'Example Consultant', 'project.number': 'P-100' });
+    expect(d.fields['panel.connectedLoadW']).toBe(d.fields['total.all']);
+    expect(d.fields['panel.maximumDemandW']).toBe(d.fields['md.all']);
+    expect(row).toMatchObject({
+      'row.description': circuit.room || circuit.name,
+      'row.demandFactor': circuit.demandFactor,
+      'row.powerFactor': circuit.powerFactor,
+      'row.breakerType': breakerTypeOf(circuit),
+      'row.breakerIcu': circuit.breakerIcuKa,
+      'row.cableType': cableTypeOf(p, circuit).value,
+      'row.cores': circuit.cores,
+      'row.runs': runsOf(circuit),
+      'row.rcdMa': rcdOf(p, circuit) ?? '',
+    });
+    expect(row['row.designCurrent']).toBe(Math.round(designCurrentA(circuit, p) * 100) / 100);
+    expect(row['row.voltageDrop']).toBe(Math.round(voltageDropPct(circuit, p) * 100) / 100);
+  });
+
+  it('lists the extended fields for Excel placeholders', () => {
+    const keys = TEMPLATE_FIELDS.map((f) => f.key);
+    for (const key of ['project.owner', 'project.number', 'panel.connectedLoadW', 'row.description', 'row.designCurrent', 'row.breakerType', 'row.cableType', 'row.voltageDrop']) expect(keys).toContain(key);
   });
 });
 

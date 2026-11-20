@@ -39,12 +39,16 @@ and `way` set (`isScheduleCircuit`, `src/calc/loadSchedule.ts:14`).
 | `src/docs/dbSheet.ts` | report / model | `buildDbSheet`, `applySheetEdits`, `isEditable` | DB schedule as a spreadsheet model (cells, merges, styles) and applying typed / pasted values |
 | `src/docs/mdSheet.ts` | report / model | `feederConnected`, `connectedPhaseKw`, `panelDf`, `panelSummary`, `buildMdSheet`, `applyMdEdits`, `mdFormOf`, `suggestedMeter` | MD form model, TCL per phase, DF and MDL, applying edits |
 | `src/docs/panelScheduleDocs.ts` | report | `panelScheduleDocs` | MD form and / or DB schedule HTML per panel for the issue package |
+| `src/docs/scheduleFields.ts`, `panelFields.ts` | report model | `projectFields`, `templateData`, `scheduleRowKeys`, `panelData`, `panelRowKeys` | Typed values exposed to custom schedule templates: project/panel cells, one repeating circuit/feeder row and summary cells |
+| `src/docs/sheetLink.ts` | report / model | `fillLinked`, `templateIssues`, `setLinkMode`, `setLinkCell`, `setLinkColumn` | Fills a custom layout, validates the bounded template contract and separates output-only templates from linked editing |
+| `src/model/scheduleFormats.ts`, `sheets.ts` | model | `withFormat`, `withProjectFormat`, `Sheet`, `SheetLink` | Office format library, project copies and the saved cell/row mapping including output-only mode |
 | `src/docs/boardSheets.ts` | report | `boardSheetPages`, `boardSheetHtml` | Board-wise SLD sheets (A3) numbered E-DB-001 … |
 | `src/components/docs/LoadScheduleView.tsx` | screen | `LoadScheduleView` | Load schedule page: tabs, DB grid, WATT/UNIT row, ELCB settings, Balance phases, exports |
 | `src/components/docs/CircuitEditDialog.tsx` | screen | `CircuitEditDialog` | Double-click edit dialog (Loads / Protection / General tabs) |
 | `src/components/docs/MdSheetView.tsx` | screen | `MdSheetView` | MD form grid (`ClassicGrid`), add feeder / spare / space |
 | `src/components/docs/BulkEditPanel.tsx` | screen | `BulkEditPanel` | Bulk edit search, preview, save draft / apply |
 | `src/components/docs/StandardLoadsDialog.tsx` | screen | `StandardLoadsDialog` | Writes the standard load set into Loads.xlsx |
+| `src/components/sheets/SheetsPage.tsx`, `LinkPanel.tsx`, `FormatsPanel.tsx` | screen | `SheetsPage`, `LinkPanel`, `FormatsPanel` | Opens an Excel layout, maps fixed cells and the repeating row, validates it, previews a board and saves it as an office format |
 | `src/components/BoardSheetView.tsx` | screen | `BoardSheetView` (`cyclePhase`, `balance`) | Board-wise SLD with phase tags and Balance |
 | `src/components/PanelsPage.tsx` | screen | `PanelsPage`, `QuickCreate`, `PanelList`, `NamingTab` | Panel list, bulk level / fed-from / location, renaming |
 | `src/components/PanelTree.tsx` | screen | `PanelTree` | Left tree of boards (uses `boardSummary`) |
@@ -100,9 +104,11 @@ and `way` set (`isScheduleCircuit`, `src/calc/loadSchedule.ts:14`).
 8. Balance phases → `balancePhases` (`schedule.ts:94`): lighting then power sections on ELCB boundaries, largest first onto lightest phase, **feeder ids renamed** to the new reference, `reslotSpares`.
 9. Delete → `ask` confirm → `deleteCircuit` (filters the feeder out).
 10. Export PDF / CSV → `buildLoadScheduleHtml` / `loadScheduleCsv`; Export Excel → `buildFormWorkbook`.
-11. MD form tab → `MdSheetView` → `buildMdSheet`; typed cells → `applyMdEdits` (TCL of an equipment feeder sets `loadKw` and re-sizes).
-12. Board-wise SLD → `BoardSheetView`: click phase tag → `setCircuitPhase`; Balance → `balanceBoardPhases`; status shows `phaseBalance` before/after.
-13. Bulk edit → `BulkEditPanel` → `previewBulkEdit` → `introducedIssues` → `applyModification` (one undo step).
+11. Custom output: Sheets → open/design an Excel layout → Link columns → choose **Output only** → map project/panel cells, one circuit row and summary cells → Template check → save in My formats. Mapped cells cannot change the project; the same filled sheet model feeds Excel and PDF.
+12. **Linked editing** is an explicit alternative. Supported typed cells wait for Apply to project and pass through the existing schedule validation/sizing paths; changing to Output only discards pending edits.
+13. MD form tab → `MdSheetView` → `buildMdSheet`; typed cells → `applyMdEdits` (TCL of an equipment feeder sets `loadKw` and re-sizes).
+14. Board-wise SLD → `BoardSheetView`: click phase tag → `setCircuitPhase`; Balance → `balanceBoardPhases`; status shows `phaseBalance` before/after.
+15. Bulk edit → `BulkEditPanel` → `previewBulkEdit` → `introducedIssues` → `applyModification` (one undo step).
 
 ## 6. Linked to (working connections)
 

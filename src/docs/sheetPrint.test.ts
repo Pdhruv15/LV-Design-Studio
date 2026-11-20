@@ -162,6 +162,13 @@ describe('formatSheetOf and formatSheetsOf', () => {
     expect(JSON.stringify(p)).toBe(before);
     expect(p.sheets).toBeUndefined();
   });
+  it('keeps an output-only format output-only while filling the same Excel/PDF layout', () => {
+    const output = { ...format, sheet: { ...dbLayout(), link: { ...dbLayout().link!, mode: 'output' as const } } };
+    const s = formatSheetOf(withProjectFormat(sampleProject, 'db', output), 'DB-GF1')!;
+    expect(s.link!.mode).toBe('output');
+    expect(s.cells.A4).toBeTruthy();
+    expect(sheetsHtml([s], 'DB output')).toContain(String(s.cells.A4));
+  });
   it('uses the book\'s sheet linked to the board, without typed values that were not applied', () => {
     const linked = linkToBoard(dbLayout(), 'DB-GF1');
     const typed = { ...linked, link: { ...linked.link!, pending: { x: { B: 'TYPED' } }, added: [{ B: 'NEW ROW' }] } };

@@ -24,7 +24,8 @@ export function panelData(project: Project, boardId: string, at = new Date()): {
     'board.id': board.id, 'board.name': board.name, 'board.location': boardLocation(project, board), 'board.fedFrom': upstream ?? board.supply?.fedFrom ?? supplyAuthorityOf(project),
     'incomer.poles': cell(0, 'sptp'), 'incomer.device': dev ?? '', 'incomer.rating': dev ? cell(0, dev) : '', 'incomer.fault': cell(0, 'fault'), 'incomer.cores': cell(0, 'cores'),
     'incomer.cableType': cell(0, 'type'), 'incomer.size': cell(0, 'size'), 'incomer.ecc': cell(0, 'ecc'), 'incomer.length': cell(0, 'length'),
-    'total.R': total('R'), 'total.Y': total('Y'), 'total.B': total('B'), 'panel.tcl': total('tcl'), 'panel.df': t.form.demandFactor, 'panel.mdl': total('mdl')
+    'total.R': total('R'), 'total.Y': total('Y'), 'total.B': total('B'), 'panel.tcl': total('tcl'), 'panel.df': t.form.demandFactor, 'panel.mdl': total('mdl'),
+    'panel.connectedLoadKw': total('tcl'), 'panel.maximumDemandKw': total('mdl')
   };
   const rows: Fields[] = [];
   t.rows.forEach((r, y) => {

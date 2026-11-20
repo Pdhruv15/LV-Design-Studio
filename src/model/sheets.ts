@@ -30,10 +30,13 @@ export interface Sheet {
   /** The paper its PDF is printed on (Load schedule → Export → PDF: my format); A4 landscape when not set. */
   paper?: SheetPaper;
 }
+export type SheetLinkMode = 'output' | 'linked';
 /** A sheet linked to one panel of the project; docs/sheetLink.ts fills it. Field keys are those of docs/scheduleFields. */
 export interface SheetLink {
   /** The panel category the sheet is a schedule of: a DB load schedule, or a panel schedule of an MDB, SMDB or MCC with one row per outgoing feeder. */
   category: 'db' | 'md';
+  /** Output-only sheets are filled from the project but cannot submit cell edits to it. Missing on older sheets means linked editing. */
+  mode?: SheetLinkMode;
   /** The board it shows; none while the sheet is a format not yet on a board. */
   boardId?: string;
   /** Cells holding one value of the board or the project: cell name → field key, with the text kept before and after the value ("FED FROM: "). */
