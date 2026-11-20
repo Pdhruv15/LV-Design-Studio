@@ -51,14 +51,38 @@ describe('Panel tree: Group → Substations', () => {
   });
   const all = ['SS-1', 'RMU-1', 'MDB-1', 'SMDB-1', 'DB-1', 'MDB-2', 'SS-2', 'RMU-2', 'MDB-3', 'DB-3', 'No substation', 'MDB-5', 'Authority supply', 'MDB-A', 'DB-A'];
 
-  it('has no switch until a main board names an RMU or a substation; Boards stays the tree as it was', () => {
+  const switches = () => [...host.querySelectorAll<HTMLButtonElement>('.tree-groupby button')].map((b) => [b.textContent, b.getAttribute('aria-pressed'), b.disabled, b.title]);
+  const asToday = ['MDB-A', 'DB-A', 'MDB-1', 'SMDB-1', 'DB-1', 'MDB-2', 'MDB-3', 'DB-3', 'MDB-5'];
+
+  it('greys Substations until a main board names an RMU or a substation, saying where; Boards stays the tree as it was', () => {
     draw(plain);
-    expect(host.querySelector('.tree-groupby')).toBeNull();
-    expect(rows()).toEqual(['MDB-A', 'DB-A', 'MDB-1', 'SMDB-1', 'DB-1', 'MDB-2', 'MDB-3', 'DB-3', 'MDB-5']);
+    expect(switches()).toEqual([
+      ['Boards', 'true', false, 'The boards as they are fed: main board → SMDB → DB'],
+      ['Substations', 'false', true, 'Name the substations or RMUs of the main boards first (Panels → Transformers)']
+    ]);
+    group('Substations'); // greyed: nothing happens
+    expect([rows(), localStorage.getItem('tree.group')]).toEqual([asToday, null]);
     draw(p);
-    expect([...host.querySelectorAll('.tree-groupby button')].map((b) => [b.textContent, b.getAttribute('aria-pressed')])).toEqual([['Boards', 'true'], ['Substations', 'false']]);
-    expect(rows()).toEqual(['MDB-A', 'DB-A', 'MDB-1', 'SMDB-1', 'DB-1', 'MDB-2', 'MDB-3', 'DB-3', 'MDB-5']);
+    expect(switches()[1]).toEqual(['Substations', 'false', false, 'By substation, then RMU, then main board']);
+    expect(rows()).toEqual(asToday);
     expect(row('MDB-1').querySelector('.tree-tx')?.textContent).toBe('1000 kVA');
+  });
+
+  it('has no switch in a project with only meter cabinets on an authority LV supply', () => {
+    draw({ ...p, boards: p.boards.filter((b) => b.id === 'MDB-A' || b.id === 'DB-A') });
+    expect(host.querySelector('.tree-groupby')).toBeNull();
+    expect(rows()).toEqual(['MDB-A', 'DB-A']);
+  });
+
+  it('a Substations choice kept from another project shows the boards while none is named', () => {
+    draw(p);
+    group('Substations');
+    draw(plain);
+    expect(switches().map((s) => s.slice(0, 3))).toEqual([['Boards', 'true', false], ['Substations', 'false', true]]);
+    expect(rows()).toEqual(asToday);
+    // Once one is named again, the tree is by substation again.
+    draw(p);
+    expect(rows()).toEqual(all);
   });
 
   it('Substations: substation → RMU → main board with its transformer → its boards, kept for next time', () => {

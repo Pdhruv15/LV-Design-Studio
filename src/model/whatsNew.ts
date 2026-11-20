@@ -18,9 +18,15 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.225', date: '2026-11-20',
+    version: '2.226', date: '2026-11-20',
     items: [
       { title: 'Design CAD: Trim cuts circles and arcs', text: 'Trim (TR) now works on a drawn circle or arc: click the part to cut away and it is cut at the nearest crossings on either side of the click, as a line is. A circle needs two crossings and becomes the arc that is left; an arc loses an end, or its middle and becomes two arcs. The part to go shows dashed before the click. A line trimmed or extended to a circle or arc now ends on the curve itself; before, it ended on a chord of it, a little off the curve.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.225', date: '2026-11-20',
+    items: [
+      { title: 'Panel tree: the Group switch before substations are named', text: 'The panel tree\'s Group switch (Boards | Substations) now shows in every project with a main board fed from the MV side, not only once substations are named. Substations stays greyed until a main board names its substation or RMU, and its tooltip says where: Panels → Transformers. A project with only meter cabinets on an authority LV supply has no switch, as before.' }
     ]
   },
   {

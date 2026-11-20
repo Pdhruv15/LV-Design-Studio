@@ -904,6 +904,7 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .tree-groupby{display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2) 0 var(--space-3);font-size:11px}
 .tree-groupby .m{color:var(--mut)}
 .tree-groupby .seg button{padding:1px 8px}
+.tree-groupby .seg button:disabled,.tree-groupby .seg button:disabled:hover{opacity:.45;cursor:not-allowed;background:transparent}
 .tree-body{flex:1;overflow:auto;padding:0 var(--space-1) var(--space-2)}
 .tree-row{display:flex;align-items:center;gap:var(--space-1);min-height:30px;padding:0 var(--space-2) 0 var(--space-1);border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap;font-size:13px;user-select:none}
 .tree-row:hover{background:var(--p2)}
