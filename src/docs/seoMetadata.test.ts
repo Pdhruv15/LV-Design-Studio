@@ -36,7 +36,7 @@ describe('public site discovery metadata', () => {
 
   it('generates distinct, conservative product and download pages', () => {
     expect(about).toContain(`rel="canonical" href="${siteUrl}about/"`);
-    expect(about).toContain('Low-voltage electrical design in one workspace.');
+    expect(about.replace(/<\/?em>/g, '')).toContain('Low-voltage electrical design in one workspace.');
     const aboutMetadata = about.slice(0, about.indexOf('</head>'));
     expect(aboutMetadata).not.toMatch(/\b(certified|approved|compliant)\b/i);
     expect(aboutMetadata).not.toMatch(/\bDEWA\b/);

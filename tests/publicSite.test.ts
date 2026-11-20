@@ -49,9 +49,9 @@ describe('public website source', () => {
     const product = readProduct();
     const html = renderAbout(product);
     expect(html).toContain('<h2>Get involved</h2>');
-    expect(html).toContain(`href="${product.getInvolved.linkedin}">Follow on LinkedIn</a>`);
-    expect(html).toContain('href="https://github.com/Pdhruv15/LV-Design-Studio/issues/new">Open an issue</a>');
-    expect(html).toContain('href="https://github.com/Pdhruv15/LV-Design-Studio">View the source</a>');
+    expect(html).toContain(`<a class="card-link" href="${product.getInvolved.linkedin}">Follow on LinkedIn</a>`);
+    expect(html).toContain('href="https://github.com/Pdhruv15/LV-Design-Studio/issues/new">Open an issue<svg');
+    expect(html).toContain('href="https://github.com/Pdhruv15/LV-Design-Studio">View the source<svg');
     const withLinkedin = (linkedin: unknown) => ({ ...product, getInvolved: { ...product.getInvolved, linkedin } });
     for (const bad of ['https://example.test/in/someone/', 'http://www.linkedin.com/in/someone/', 'https://www.linkedin.com/in/someone/?x=1', 'https://www.linkedin.com/in/a"onclick="x/', 'javascript:alert(1)', undefined]) {
       expect(() => renderAbout(withLinkedin(bad))).toThrow('getInvolved linkedin is invalid');
@@ -60,6 +60,33 @@ describe('public website source', () => {
     expect(() => renderAbout({ ...product, getInvolved: { ...product.getInvolved, items: [item] } })).toThrow('getInvolved item 0 is invalid');
     const escaped = renderAbout({ ...product, getInvolved: { ...product.getInvolved, items: [{ ...product.getInvolved.items[0], title: '<b>x</b>' }] } });
     expect(escaped).toContain('<h3>&lt;b&gt;x&lt;/b&gt;</h3>');
+  });
+
+  it('uses the Graphite colours of the app, dark by default and light by the visitor setting, on both pages', () => {
+    const tokens = readFileSync(join(root, 'src/theme/tokens.css'), 'utf8');
+    const dark = tokens.slice(tokens.indexOf(':root {'), tokens.indexOf(':root[data-theme="light"]'));
+    const light = tokens.slice(tokens.indexOf(':root[data-theme="light"]'), tokens.indexOf(':root[data-palette="blueprint"]'));
+    const token = (block: string, name: string) => new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{6})`).exec(block)?.[1];
+    for (const html of [renderAbout(readProduct()), renderDownload(readProduct(), beta)]) {
+      const style = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+      const split = style.indexOf('@media(prefers-color-scheme:light)');
+      expect(split).toBeGreaterThan(0);
+      const lightStyle = style.slice(split, style.indexOf('}}', split));
+      for (const name of ['bg', 'panel', 'line', 'tx', 'mut', 'acc', 'on-acc']) {
+        expect(style.slice(0, split)).toContain(`--${name}:${token(dark, name)}`);
+        expect(lightStyle).toContain(`--${name}:${token(light, name)}`);
+      }
+      expect(html).toContain(`<a class="out" href="${readProduct().getInvolved.linkedin}">Follow on LinkedIn</a>`);
+    }
+  });
+
+  it('leads with the first screenshot and shows the others in the gallery', () => {
+    const product = readProduct();
+    const html = renderAbout(product);
+    const [lead, second] = product.screenshots;
+    expect(html).toContain(`<img class="frame" src="../screenshots/${lead.file}"`);
+    expect(html).toContain(`<img class="frame small" src="../screenshots/${second.file}"`);
+    expect(html.match(/<figure class="shot">/g)).toHaveLength(product.screenshots.length - 1);
   });
 
   it('constructs installer links from fixed repository paths, not release-provided URLs or text', () => {
