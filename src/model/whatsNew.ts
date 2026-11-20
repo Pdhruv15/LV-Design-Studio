@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.220', date: '2026-11-20',
+    items: [
+      { title: 'Search opens the drawing sheet', text: 'Picking a sheet under Drawing sheets in Search (⌘K / Ctrl+K) now opens that sheet in Design CAD → Sheets. Before, it showed the SLD instead.' }
+    ]
+  },
+  {
     version: '2.219', date: '2026-11-19',
     items: [
       { title: 'Project folder: customise for this project', text: 'Overview → Project folder → Customise… shows this project\'s folders with what is on disk (present, to create, hidden here, renamed here). Add folders, rename, hide a template folder or move a role for this project only: the changes are saved in the project, and the office template is not changed unless you choose Save these changes back to the template…. A rename makes the new folder and lists the old one, with its file count; nothing is moved. Reset to template undoes the project\'s changes.' },
