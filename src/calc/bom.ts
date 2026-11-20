@@ -7,6 +7,7 @@ import { breakerTypeOf, cpcOf, rcdOf } from './earthing';
 import { lightningBoqLines } from './lightningProtection';
 import { spareBreaker, spareWaysOf } from '../model/spareWays';
 import { runsOf } from './electrical';
+import { txKv, txRatio } from './hvSupply';
 import { sizeRiser } from './busbar';
 import { earthingLayout, kindInfo, txUnits } from '../model/earthingPlan';
 import { BRAND_DEVICES } from '../data/brandDevices';
@@ -176,7 +177,10 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
       const mm = b.earthing?.conductorMm2 ?? (inc ? Math.max(16, cpcOf(inc)) : 50);
       add('I', `met:${mm}`, `Main earth terminal bar with test link; earth conductor 1C × ${mm} mm² Cu/PVC to the pits (length to site)`, 'set', 1, b.id);
     }
-    if (b.sourceKva) add('D', `tx:${b.sourceKva}:${b.sourceImpedancePct ?? '-'}`, `Distribution transformer ${b.sourceKva} kVA, 11/0.415 kV, ${b.vectorGroup ?? 'Dyn11'}${b.sourceImpedancePct ? `, Z ${b.sourceImpedancePct} %` : ''}`, 'no', (units ??= txUnits(p)).get(b.id) ?? 1, b.id);
+    if (b.sourceKva) {
+      const kv = txKv(p, b); // an 11 kV transformer keeps its key, and so its BOQ item number
+      add('D', `tx:${b.sourceKva}:${b.sourceImpedancePct ?? '-'}${kv === '11' ? '' : `:${kv}kV`}`, `Distribution transformer ${b.sourceKva} kVA, ${txRatio(p, b, '/')}, ${b.vectorGroup ?? 'Dyn11'}${b.sourceImpedancePct ? `, Z ${b.sourceImpedancePct} %` : ''}`, 'no', (units ??= txUnits(p)).get(b.id) ?? 1, b.id);
+    }
     if (k === 'UPS' && b.upsKva) add('D', `ups:${b.upsKva}`, `UPS ${b.upsKva} kVA online double conversion, with batteries`, 'no', 1, b.id);
   }
 
@@ -194,15 +198,16 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
   }
 
   // RMUs feeding the transformers (one line per RMU; normally DEWA supply)
-  const rmus = new Map<string, string[]>();
+  const rmus = new Map<string, { txs: string[]; kv: string }>();
   for (const b of mainBoards(p).filter((x) => x.sourceKva && !x.existing)) {
     const name = b.rmu?.trim() || `RMU (${txTag(p, b.id)})`;
     const key = `${b.substation?.trim() || ''}|${name}`;
-    rmus.set(key, [...(rmus.get(key) ?? []), txTag(p, b.id) ?? b.id]);
+    const r = rmus.get(key) ?? { txs: [], kv: txKv(p, b) };
+    rmus.set(key, { ...r, txs: [...r.txs, txTag(p, b.id) ?? b.id] });
   }
-  for (const [key, txs] of rmus) {
+  for (const [key, { txs, kv }] of rmus) {
     const name = key.split('|')[1];
-    add('D', 'rmu:11kV', '11 kV ring main unit (RMU): 2 × ring load-break switch + 1 × T-off switch-fuse, SF6 / solid insulated, with earthing switches', 'no', 1, `${name} (${txs.join(', ')})`, { supplyBy: 'others', installBy: 'others' });
+    add('D', `rmu:${kv}kV`, `${kv} kV ring main unit (RMU): 2 × ring load-break switch + 1 × T-off switch-fuse, SF6 / solid insulated, with earthing switches`, 'no', 1, `${name} (${txs.join(', ')})`, { supplyBy: 'others', installBy: 'others' });
   }
   // Bus couplers between main boards (normally open, or closed for transformers in parallel)
   for (const t of p.ties ?? []) {

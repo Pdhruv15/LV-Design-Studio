@@ -12,6 +12,7 @@ import { loadTypeOf } from '../calc/summary';
 import type { FeederResult } from '../calc/electrical';
 import { circuitRef } from '../calc/loadSchedule';
 import { runsOf } from '../calc/electrical';
+import { txKv } from '../calc/hvSupply';
 import { cpcOf } from '../calc/cableTable';
 import { cableTypeOf } from '../model/cableTypes';
 import { deviceKind, devicePoles } from '../diagram/deviceText';
@@ -242,7 +243,7 @@ export default function SingleLineDiagram({
         <>
           <line x1={cx} y1="0" x2={cx} y2="17" className="ln" />
           <text className="m" x={cx + 10} y="10">
-            11 kV incoming
+            {`${project ? txKv(project, board) : '11'} kV incoming`}
           </text>
           <circle cx={cx} cy="30" r="13" className="tr" />
           <circle cx={cx} cy="44" r="13" className="tr" />

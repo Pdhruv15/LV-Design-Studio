@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import SingleLineDiagram from './SingleLineDiagram';
 import { sampleProject } from '../data/sampleProject';
 import { evaluateProject } from '../calc/electrical';
+import type { Project } from '../types';
 
 /** The Board view draws each circuit's library symbol just above its card. */
 const results = evaluateProject(sampleProject);
@@ -44,5 +45,14 @@ describe('Board view symbols', () => {
   it('keeps the incomer breaker clear of the busbar, with a run of line below it', () => {
     const svg = view('SMDB-FF');
     expect(svg).toMatch(/<line x1="([\d.]+)" y1="86" x2="\1" y2="118"/);
+  });
+});
+
+describe('Board view: a main board\'s incoming supply', () => {
+  it('names the MV voltage of its grid source, 11 kV without one', () => {
+    const board = sampleProject.boards.find((b) => b.id === 'MDB-1')!;
+    const draw = (project?: Project) => renderToStaticMarkup(<SingleLineDiagram board={board} project={project} results={[]} selected={null} onSelect={() => {}} />);
+    expect([draw(sampleProject), draw()].every((svg) => svg.includes('>11 kV incoming</text>'))).toBe(true);
+    expect(draw({ ...sampleProject, gridSources: [{ id: 'G', name: 'G', kv: 22 }] })).toContain('>22 kV incoming</text>');
   });
 });

@@ -27,7 +27,7 @@ This module turns the design into a priced tender bill of quantities (BOQ). It h
 | B | Bus couplers (`tie:`) | `project.ties` | `bom.ts:204-207` |
 | B | Spare-way breakers; outgoing breakers (`mcb:`/`mccb:`/`acb:`/`switch-isol:`); RCDs (`rcd:`); local isolators (`iso:`) | `spareWaysOf`, every new feeder | `bom.ts:210-227` |
 | C | kWh meters, PMU, CT sets, APFC relay, ammeter / voltmeter / lamps | board / feeder flags, × incomers | `bom.ts:128-166`, `226` |
-| D | Generator (`gen:`), transformer (`tx:`, × `txUnits`), UPS (`ups:`, only a board of kind UPS with `upsKva`), RMU (`rmu:`, supply / install by others) | board fields | `bom.ts:161`, `176-177`, `193-202` |
+| D | Generator (`gen:`), transformer (`tx:`, × `txUnits`; ratio `txRatio`, the key ends `:<kV>kV` when not 11 kV), UPS (`ups:`, only a board of kind UPS with `upsKva`), RMU (`rmu:<kV>kV`, the grid source's voltage `txKv`; supply / install by others) | board fields | `bom.ts:165`, `180-183`, `200-211` |
 | D | Capacitor banks (`cap:`) | feeders with `kvar` (added by the PFC study's `addPfcBanks`) | `bom.ts:228` |
 | D | EV charger (`ev-charger:`) | load type EV, kW | `bom.ts:254-260` |
 | D | Solar PV modules, mounting, inverters, DC cable sets, connectors, DC isolators, DC SPD, AC isolator | `sizePv(p.pv)` | `bom.ts:263-285` |
@@ -76,7 +76,7 @@ All built-in rates are in AED (`rates.ts:36` `CURRENCY`). New database workbooks
 | `src/components/docs/BomView.tsx` | screen | `BomView`, `ScopePage`, `RevisionsPage`, `ItemForm`, `DesignForm`, `WastageForm`, `IssueForm` | BOQ screen: tabs BOQ / Scope & review / Revisions / Variations / Per circuit |
 | `src/components/BoqTable.tsx` | screen | `BoqTable`, `buildRows` | "Per circuit" quick cost: cable + breaker at the built-in rates only |
 | `src/components/docs/Documents.tsx` | screen | `EquipmentScheduleView` (line 64) | Equipment schedule page and CSV / PDF export |
-| `src/docs/schedules.ts` | report | `equipmentSchedule` (line 43) | Rows: transformer (`TX-<board id>`) + each board |
+| `src/docs/schedules.ts` | report | `equipmentSchedule` (line 44) | Rows: transformer (`TX-<board id>`, fed from "Utility <kV> kV", `txKv`) + each board |
 | `src/components/CatalogueManager.tsx` | screen | `CatalogueManager` | Enclosure catalogues + device dimension library (opened from Enclosure sizing) |
 | `src/components/ComponentEditor.tsx`, `src/model/components.ts` | screen / model | `ComponentEditor`, `componentPreset`, `syncComponent`, `loadComponentLibrary` | User load templates with formulas; library in `localStorage` `lvds.components` |
 | `src/database/catalog.ts` | model | `catalogRate`, `catalog` | Catalogue prices by BOQ key (store: Excel database, in memory) |

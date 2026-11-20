@@ -1,7 +1,7 @@
 import type { Project } from '../types';
 import type { SheetTable } from './sheetTable';
 import { mvPlan, onMvSide } from '../diagram/mvArrangement';
-import { rmuRecord } from '../calc/hvSupply';
+import { rmuRecord, txRatio } from '../calc/hvSupply';
 import { txTags } from '../model/transformers';
 
 /** The MV overview sheet's two schedules (One sheet per substation; proposal 2026-11-18 part 5), under its drawing and
@@ -37,11 +37,10 @@ export function txSchedule(project: Project, sheetOf: Record<string, string> = {
     if (it.kind === 'tap') where.set(it.boardId, { ss: it.substation });
     else it.tees.forEach((t, i) => { if (t) where.set(t, { ss: it.substation, way: `${it.name} / T${i + 1}` }); });
   }
-  const ratio = `11 / ${(project.voltageV / 1000).toFixed(3)} kV`;
   const byId = new Map(project.boards.map((b) => [b.id, b]));
   const rows = plan.order.map((id) => byId.get(id)!).filter((b) => onMvSide(b) && b.sourceKva).map((b) => {
     const w = where.get(b.id) ?? {};
-    return [tags.get(b.id) ?? '—', String(b.sourceKva), dash(b.sourceImpedancePct), b.vectorGroup ?? 'Dyn11', ratio, dash(w.ss), dash(w.way), b.id, dash(sheetOf[b.id])];
+    return [tags.get(b.id) ?? '—', String(b.sourceKva), dash(b.sourceImpedancePct), b.vectorGroup ?? 'Dyn11', txRatio(project, b), dash(w.ss), dash(w.way), b.id, dash(sheetOf[b.id])];
   });
   if (!rows.length) return undefined;
   return { title: 'TRANSFORMER SCHEDULE', lines: [], head: ['TX', 'kVA', 'Z %', 'Group', 'Ratio', 'S/S', 'RMU / way', 'Main board', 'Sheet'], rows, foot: [], widths: [46, 46, 38, 52, 80, 44, 84, 78, 76], left: [0, 7] };

@@ -276,6 +276,25 @@ describe('BOQ: RMU, bus couplers, manufacturer references, emergency lines, eart
     expect(rmu.supplyBy).toBe('others');
     expect(items.find((i) => i.key.startsWith('tie:'))).toMatchObject({ section: 'B', qty: 1 });
   });
+  it('writes the transformer and RMU lines at the voltage of their grid source; at 11 kV the keys stay as they were', () => {
+    const lines = (q: Project) => buildBom(q).filter((i) => /^(tx|rmu):/.test(i.key)).map((i) => [i.key, i.qty, i.description.replace(/ \(RMU\):.*/, ' (RMU)')]);
+    const p0 = withTx(); // the sample's TX-1 on its own, and TX-2, TX-3 on RMU-1
+    expect(lines(p0)).toEqual([
+      ['rmu:11kV', 2, '11 kV ring main unit (RMU)'],
+      ['tx:1000:5', 1, 'Distribution transformer 1000 kVA, 11/0.415 kV, Dyn11, Z 5 %'],
+      ['tx:1500:6', 2, 'Distribution transformer 1500 kVA, 11/0.415 kV, Dyn11, Z 6 %']
+    ]);
+    // RMU-1 on a 33 kV source; TX-1 on the first, 11 kV.
+    const p: Project = { ...p0, gridSources: [{ id: 'A', name: 'A', kv: 11 }, { id: 'B', name: 'B', kv: 33 }], rmus: [{ name: 'RMU-1', sourceId: 'B' }] };
+    expect(lines(p)).toEqual([
+      ['rmu:11kV', 1, '11 kV ring main unit (RMU)'],
+      ['rmu:33kV', 1, '33 kV ring main unit (RMU)'],
+      ['tx:1000:5', 1, 'Distribution transformer 1000 kVA, 11/0.415 kV, Dyn11, Z 5 %'],
+      ['tx:1500:6:33kV', 2, 'Distribution transformer 1500 kVA, 33/0.415 kV, Dyn11, Z 6 %']
+    ]);
+    // The LV side is the project's voltage, as on the SLD.
+    expect(lines({ ...p0, voltageV: 400 })[1][2]).toBe('Distribution transformer 1000 kVA, 11/0.400 kV, Dyn11, Z 5 %');
+  });
   it('breakers carry a manufacturer reference "or approved equal" without changing their keys', () => {
     const mcb = buildBom(sampleProject).find((i) => i.key.startsWith('mcb:') && / SP,/.test(i.description))!;
     expect(mcb.description).toMatch(/ref\. Schneider Electric Acti9 iC60N or approved equal/);
