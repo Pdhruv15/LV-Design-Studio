@@ -1,7 +1,7 @@
 import { cellAt, cellName, colName, shiftFormula } from '../calc/sheetFormula';
 import { panelKindOf } from '../model/addPanel';
 import { projectFormat, type PanelCategory } from '../model/scheduleFormats';
-import { deleteRows, insertRows, MAX_ROWS, mergeAt, newSheet, sheetNameError, withCells, type Area, type Sheet, type SheetLink, type SheetStyle } from '../model/sheets';
+import { deleteRows, insertRows, MAX_ROWS, mergeAt, newSheet, sheetNameError, withCells, type Area, type Sheet, type SheetLink, type SheetLinkMode, type SheetStyle } from '../model/sheets';
 import { isDbBoard } from '../model/spareWays';
 import { POINT_TYPES, type Board, type Project } from '../types';
 import { hasMdSheet, mdFormOf } from './mdSheet';
@@ -15,10 +15,13 @@ import { scheduleRowKeys, templateData, type Fields, type Value } from './schedu
 /** What a sheet can link to, for the pick list. `typed`: the user may type this value in the sheet. */
 export const LINK_FIELDS: { key: string; label: string; kind: 'cell' | 'row'; typed: boolean }[] = [
   ...([
-    ['project.name', 'Project name'], ['board.id', 'Board number'], ['board.name', 'Board name'], ['board.fedFrom', 'Fed from'], ['board.incomer', 'Incomer'],
+    ['project.name', 'Project name'], ['project.number', 'Project number'], ['project.owner', 'Owner / client'], ['project.consultant', 'Consultant'], ['project.contractor', 'Contractor'],
+    ['project.plotNo', 'Plot number'], ['project.area', 'Project area / location'], ['project.tel', 'Telephone'], ['project.fax', 'Fax'], ['project.completion', 'Planned completion'],
+    ['board.id', 'Board number'], ['board.name', 'Board name'], ['board.fedFrom', 'Fed from'], ['board.incomer', 'Incomer'],
     ['board.incomerCable', 'Incoming cable'], ['board.location', 'Location'], ['project.reference', 'Authority set'], ['project.revision', 'Revision'], ['date', 'Date'],
     ['total.R', 'Connected load R, W'], ['total.Y', 'Connected load Y, W'], ['total.B', 'Connected load B, W'], ['total.all', 'Connected load, W'],
-    ['md.R', 'Maximum demand R, W'], ['md.Y', 'Maximum demand Y, W'], ['md.B', 'Maximum demand B, W'], ['md.all', 'Maximum demand, W'], ['imbalance', 'Phase imbalance, %']
+    ['md.R', 'Maximum demand R, W'], ['md.Y', 'Maximum demand Y, W'], ['md.B', 'Maximum demand B, W'], ['md.all', 'Maximum demand, W'],
+    ['panel.connectedLoadW', 'Connected load, W'], ['panel.maximumDemandW', 'Maximum demand, W'], ['imbalance', 'Phase imbalance, %']
   ] as const).map(([key, label]) => ({ key, label, kind: 'cell' as const, typed: false })),
   // A point column's own heading and watts per unit, as the Excel template has them.
   ...POINT_TYPES.flatMap((t) => [
@@ -26,8 +29,11 @@ export const LINK_FIELDS: { key: string; label: string; kind: 'cell' | 'row'; ty
     { key: `wattUnit.${t.value}`, label: `Watts per unit: ${t.label}`, kind: 'cell' as const, typed: false }
   ]),
   ...([
-    ['row.sl', 'Serial number', false], ['row.ref', 'Circuit reference', false], ['row.phase', 'Phase', false], ['row.room', 'Room / area', true], ['row.watts', 'Circuit load, W', true],
+    ['row.sl', 'Serial number', false], ['row.ref', 'Circuit reference', false], ['row.phase', 'Phase', false], ['row.room', 'Room / area', true], ['row.description', 'Circuit description', false], ['row.watts', 'Circuit load, W', true],
     ['row.mcb', 'MCB rating, A', true], ['row.wire', 'Circuit wire, mm²', true], ['row.ecc', 'Earth wire, mm²', true], ['row.length', 'Length, m', true],
+    ['row.demandFactor', 'Demand factor', false], ['row.demandWatts', 'Maximum-demand load, W', false], ['row.powerFactor', 'Power factor', false], ['row.designCurrent', 'Design current, A', false],
+    ['row.breakerType', 'Breaker device / curve', false], ['row.breakerIcu', 'Breaker breaking capacity, kA', false], ['row.cableType', 'Cable construction', false], ['row.cores', 'Cable cores', false],
+    ['row.runs', 'Parallel cable runs', false], ['row.installMethod', 'Installation method', false], ['row.rcdMa', 'RCD / ELCB, mA', false], ['row.rcbo', 'RCBO', false], ['row.voltageDrop', 'Cable voltage drop, %', false],
     ['row.R', 'Load on R, W', false], ['row.Y', 'Load on Y, W', false], ['row.B', 'Load on B, W', false], ['row.elcb', 'ELCB, first row of its group', false], ['row.elcbGroup', 'ELCB', false],
     ['row.remarks', 'Remarks', true], ['row.status', 'Check', false],
     ...POINT_TYPES.map((t) => [`row.points.${t.value}`, `Points: ${t.label}`, true] as const),
@@ -39,10 +45,13 @@ const KNOWN = new Set(LINK_FIELDS.map((f) => f.key));
 /** The fields of a panel schedule (MDB, SMDB, MCC): the form's incomer and totals in cells, one row per outgoing feeder. */
 const PANEL_LINK_FIELDS: typeof LINK_FIELDS = [
   ...([
-    ['project.name', 'Project name'], ['board.id', 'Board number'], ['board.name', 'Board name'], ['board.fedFrom', 'Fed from'], ['board.location', 'Location'], ['project.reference', 'Authority set'],
+    ['project.name', 'Project name'], ['project.number', 'Project number'], ['project.owner', 'Owner / client'], ['project.consultant', 'Consultant'], ['project.contractor', 'Contractor'],
+    ['project.plotNo', 'Plot number'], ['project.area', 'Project area / location'], ['project.tel', 'Telephone'], ['project.fax', 'Fax'], ['project.completion', 'Planned completion'],
+    ['board.id', 'Board number'], ['board.name', 'Board name'], ['board.fedFrom', 'Fed from'], ['board.location', 'Location'], ['project.reference', 'Authority set'],
     ['project.revision', 'Revision'], ['date', 'Date'], ['incomer.poles', 'Incomer SP / TP'], ['incomer.device', 'Incomer device'], ['incomer.rating', 'Incomer rating, A'], ['incomer.fault', 'Incomer fault duty, kA'],
     ['incomer.cores', 'Incomer cable cores'], ['incomer.cableType', 'Incomer cable type'], ['incomer.size', 'Incomer cable size, mm²'], ['incomer.ecc', 'Incomer earth, mm²'], ['incomer.length', 'Incomer cable length, m'],
-    ['total.R', 'Connected load R, kW'], ['total.Y', 'Connected load Y, kW'], ['total.B', 'Connected load B, kW'], ['panel.tcl', 'Total connected load, kW'], ['panel.df', 'Demand factor'], ['panel.mdl', 'Maximum demand, kW']
+    ['total.R', 'Connected load R, kW'], ['total.Y', 'Connected load Y, kW'], ['total.B', 'Connected load B, kW'], ['panel.tcl', 'Total connected load, kW'], ['panel.df', 'Demand factor'], ['panel.mdl', 'Maximum demand, kW'],
+    ['panel.connectedLoadKw', 'Connected load, kW'], ['panel.maximumDemandKw', 'Maximum demand, kW']
   ] as const).map(([key, label]) => ({ key, label, kind: 'cell' as const, typed: false })),
   ...([
     ['row.sl', 'Serial number', false], ['row.name', 'Feeder / circuit name', true], ['row.to', 'Board it feeds', false], ['row.poles', 'SP / TP', false], ['row.device', 'Device: ACB, MCCB or ISOL', true],
@@ -65,6 +74,40 @@ const kindOf = (l: { category: Category } | undefined) => KIND[l?.category ?? 'd
 export const linkFields = (category: Category) => KIND[category].fields;
 /** What the category is called on the screen. */
 export const linkLabel = (category: Category) => KIND[category].label;
+/** Older linked sheets predate modes and keep their existing linked-edit behaviour. */
+export const linkMode = (link: SheetLink | undefined): SheetLinkMode => link?.mode ?? 'linked';
+
+/** Changes how a linked sheet is used. Output-only drops edits that were waiting to be applied to the project. */
+export function setLinkMode(sheet: Sheet, mode: SheetLinkMode): Sheet {
+  const link = sheet.link;
+  if (!link || linkMode(link) === mode) return sheet;
+  const { pending: _pending, added: _added, ...rest } = link;
+  return { ...sheet, link: { ...rest, mode } };
+}
+
+export interface TemplateIssue { level: 'error' | 'warning'; message: string }
+/** Checks the bounded output-template contract: fixed cells plus one downward-repeating circuit row. */
+export function templateIssues(sheet: Sheet): TemplateIssue[] {
+  const link = sheet.link;
+  if (!link) return [{ level: 'error', message: 'Link this sheet to a schedule.' }];
+  const issues: TemplateIssue[] = [], available = new Map(linkFields(link.category).map((f) => [f.key, f]));
+  if (!Number.isInteger(link.firstRow) || link.firstRow < 1 || link.firstRow > MAX_ROWS) issues.push({ level: 'error', message: 'Choose a valid first circuit row.' });
+  const dataColumns = Object.entries(link.columns).filter(([, field]) => field !== 'own');
+  if (!dataColumns.length) issues.push({ level: 'error', message: `Link at least one ${link.category === 'md' ? 'feeder' : 'circuit'} field in the repeating row.` });
+  for (const [letters, field] of Object.entries(link.columns)) {
+    const known = available.get(field);
+    if (!known || known.kind !== 'row') issues.push({ level: 'error', message: `Column ${letters} uses an unknown row field: ${field}.` });
+  }
+  for (const [cell, binding] of Object.entries(link.cells)) {
+    const at = cellAt(cell), known = available.get(binding.field);
+    if (!at) issues.push({ level: 'error', message: `Linked cell ${cell} is not a valid cell reference.` });
+    else if (inBlock(link, at.row)) issues.push({ level: 'error', message: `Linked cell ${cell} overlaps the repeating row.` });
+    if (!known || known.kind !== 'cell') issues.push({ level: 'error', message: `Cell ${cell} uses an unknown fixed field: ${binding.field}.` });
+  }
+  if (!Object.keys(link.cells).length) issues.push({ level: 'warning', message: 'No project, panel or summary cells are linked.' });
+  if (link.firstRow === 1) issues.push({ level: 'warning', message: 'The repeating row has no heading row above it for multi-page PDF output.' });
+  return issues;
+}
 
 /** What a sheet needs so the app can build the board and the single line diagram from it. */
 export function linkNeeds(link: SheetLink): { key: 'board' | 'fedFrom' | 'row'; label: string; ok: boolean }[] {
@@ -82,7 +125,7 @@ const ONLY_ROW = /^\s*\{\{\s*(row\.[A-Za-z0-9_.]+)\s*\}\}\s*$/;
 
 /** A sheet that carries the template's {{key}} placeholders, linked: the first row with a {{row.…}} cell is the pattern row,
  * a cell with one other placeholder is a linked cell. Keys the link does not know stay as they are and are listed. */
-export function linkFromPlaceholders(sheet: Sheet): { sheet: Sheet; unknown: string[] } | undefined {
+export function linkFromPlaceholders(sheet: Sheet, mode?: SheetLinkMode): { sheet: Sheet; unknown: string[] } | undefined {
   const at = Object.keys(sheet.cells).map((k) => ({ k, ...cellAt(k)! })).sort((a, b) => a.row - b.row || a.col - b.col);
   const first = at.find((c) => ONLY_ROW.test(sheet.cells[c.k]))?.row;
   if (first === undefined) return undefined;
@@ -101,7 +144,7 @@ export function linkFromPlaceholders(sheet: Sheet): { sheet: Sheet; unknown: str
       if (before + after) cells[c.k] = before + after; else delete cells[c.k];
     } else for (const m of found) if (!KNOWN.has(m[1])) note(m[1]);
   }
-  return { sheet: { ...sheet, cells, link: { category: 'db', cells: linked, firstRow: first, rows: [], columns } }, unknown };
+  return { sheet: { ...sheet, cells, link: { category: 'db', ...(mode && { mode }), cells: linked, firstRow: first, rows: [], columns } }, unknown };
 }
 
 /** A text from the project as the sheet holds it: one that would read as a number or a formula gets Excel's apostrophe (as in docs/sheetXlsx.ts). */
@@ -266,7 +309,7 @@ export function linkAt(sheet: Sheet, r: number, c: number): { field: string; lab
 }
 
 /** An empty link on a sheet without one: no cells, no columns, no board. */
-export const startLink = (sheet: Sheet, firstRow: number, category: Category = 'db'): Sheet => (sheet.link ? sheet : { ...sheet, link: { category, cells: {}, firstRow, rows: [], columns: {} } });
+export const startLink = (sheet: Sheet, firstRow: number, category: Category = 'db', mode?: SheetLinkMode): Sheet => (sheet.link ? sheet : { ...sheet, link: { category, ...(mode && { mode }), cells: {}, firstRow, rows: [], columns: {} } });
 export function removeLink(sheet: Sheet): Sheet {
   const { link: _l, ...rest } = sheet;
   return rest;
@@ -294,11 +337,11 @@ export function setLinkCell(sheet: Sheet, cell: string, field: string | undefine
   return { ...sheet, cells, link: { ...link, cells: { ...link.cells, [k]: { field, ...(before && { before }) } } } };
 }
 
-/** Links a column to a row field or 'own', or unlinks it. A field goes to one column (the last one chosen); 'own' to any number. */
+/** Links a column to a row field or 'own', or unlinks it. A field may be displayed in more than one column. */
 export function setLinkColumn(sheet: Sheet, letters: string, field: string | undefined): Sheet {
   const link = sheet.link, col = letters.toUpperCase();
   if (!link) return sheet;
-  const columns = Object.fromEntries(Object.entries(link.columns).filter(([l, f]) => l !== col && (field === undefined || field === 'own' || f !== field)));
+  const columns = Object.fromEntries(Object.entries(link.columns).filter(([l]) => l !== col));
   if (field !== undefined) {
     if (linkFields(link.category).find((f) => f.key === field)?.kind !== 'row') return sheet;
     columns[col] = field;
@@ -374,7 +417,7 @@ const CELL_LABELS: [string, string][] = [['LOCATION OF DB', 'board.location'], [
 /** Links guessed from the headings, for the user to check: the heading row (the one with most known headings, three at least),
  * the first circuit row under it, a column for each known heading, and the cells above it that are labelled (PANEL, FED FROM …).
  * A merged area is read from its first cell and counts for all its rows. Undefined when no heading row is found. */
-export function suggestLink(sheet: Sheet, category: Category = 'db'): Sheet | undefined {
+export function suggestLink(sheet: Sheet, category: Category = 'db', mode?: SheetLinkMode): Sheet | undefined {
   const md = category === 'md', fieldOf = md ? mdHeadingField : headingField, labels = md ? MD_CELL_LABELS : CELL_LABELS;
   const items = Object.keys(sheet.cells).flatMap((k) => {
     const p = cellAt(k)!, m = mergeAt(sheet, p.row, p.col), text = sheet.cells[k];
@@ -394,7 +437,7 @@ export function suggestLink(sheet: Sheet, category: Category = 'db'): Sheet | un
     const f = items.filter((i) => i.col === c && i.row >= head && i.row <= reach).sort((a, b) => b.row - a.row).map((i) => fieldOf(i.text)).find((x) => x !== undefined);
     if (typeof f === 'string' && !used.has(f)) { columns[colName(c)] = f; used.add(f); }
   }
-  let out = startLink({ ...sheet, link: undefined }, reach + 1, category);
+  let out = startLink({ ...sheet, link: undefined }, reach + 1, category, mode);
   out = { ...out, link: { ...out.link!, columns } };
   const field = new Set<string>();
   for (const i of items.filter((x) => x.row < head)) {
@@ -456,6 +499,7 @@ type Place = { refused: string } | { plain: true } | { key: string; letters: str
 function placeOf(sheet: Sheet, k: string): Place {
   const link = sheet.link, p = cellAt(k)!, at = link && linkAt(sheet, p.row, p.col);
   if (!link || !at || at.own) return { plain: true };
+  if (linkMode(link) === 'output') return { refused: `${k} is filled from the project (output-only template).` };
   if (link.cells[k]) return { refused: `${k} is filled from the project (${at.label}).` };
   if (!linkFields(link.category).find((f) => f.key === at.field)?.typed) return { refused: `${k} is worked out by the app (${at.label}).` };
   if (at.field === 'row.watts' && Object.values(link.columns).some((f) => f.startsWith('row.points.'))) return { refused: `${k}: the load comes from the points columns.` };
@@ -517,7 +561,7 @@ export function typeLinked(project: Project, sheet: Sheet, edits: Record<string,
 /** A new empty circuit row at the end of the block. The sheet itself without a link or a board. */
 export function addCircuitRow(sheet: Sheet): Sheet {
   const link = sheet.link;
-  return link?.boardId ? { ...sheet, link: { ...link, added: [...(link.added ?? []), {}] } } : sheet;
+  return link?.boardId && linkMode(link) === 'linked' ? { ...sheet, link: { ...link, added: [...(link.added ?? []), {}] } } : sheet;
 }
 /** The sheet without what was typed and not applied. */
 export function discardPending(sheet: Sheet): Sheet {

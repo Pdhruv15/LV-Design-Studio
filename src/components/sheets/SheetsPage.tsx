@@ -10,17 +10,15 @@ import {
   allBordered, allStyled, area, DEFAULT_WIDTH, deleteCols, deleteRows, edgesOf, fillDownEdits, insertCols, insertRows, mergeArea, mergeAt, newSheet, pasteEdits, rawRows, sheetNameError, sheetValues, shown, shownRows, sumFormula,
   unmergeArea, withNextWidth, withStyle, type Area, type Sheet, type SheetAlign, type SheetBook, type SheetNumberFormat, type SheetStyle
 } from '../../model/sheets';
-import { addCircuitRow, discardPending, fillLinked, linkAt, linkFields, pendingCount, typeLinked, typeRefusal } from '../../docs/sheetLink';
+import { addCircuitRow, discardPending, fillLinked, linkAt, linkFields, linkMode, pendingCount, typeLinked, typeRefusal } from '../../docs/sheetLink';
 import { applyLinked, pendingMarks } from '../../docs/sheetApply';
 import { parseClipboard, toClipboard } from '../grid/excelGrid';
 import FormatsPanel from './FormatsPanel';
 import LinkPanel from './LinkPanel';
 import { safeFileName, saveBinary } from '../../util/files';
 
-/** Sheets: the engineer's own schedules in an Excel-style grid with formulas, inside the app. This stage has the
- * grid, the formula bar, the sheet tabs, the File and Home tabs of the ribbon, opening and saving Excel files,
- * and linking a sheet to a DB of the project (Electrical tab, Link columns: LinkPanel.tsx). Writing typed values back to
- * the project and the other Electrical tools follow (docs/notes/Future development, Sheets proposal). */
+/** Sheets: the engineer's own schedules in an Excel-style grid with formulas, inside the app. The Electrical tab links
+ * fixed cells and one repeating circuit row to the project. A link is output-only or permits explicit Apply to project. */
 
 const LATER = 'Comes in a later stage';
 /** With more sheets than this the tab row also gets a list to jump to a sheet. */
@@ -144,8 +142,10 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo, openSh
   /** Opens the editor on a cell, unless it may not be typed in. */
   const openEditor = (k: string, text: string) => { const msg = typeRefusal(sheet, k); if (msg) { onStatus?.(msg); return; } ended.current = false; setEdit(text); };
   const waiting = pendingCount(sheet);
+  const editableLink = linkMode(sheet.link) === 'linked';
   const marks = useMemo(() => (pendingCount(sheet) ? pendingMarks(project, sheet) : {}), [project, sheet]);
   const apply = () => {
+    if (!editableLink) { onStatus?.('This is an output-only template. Change Template use to Linked editing before applying values.'); return; }
     const r = applyLinked(project, sheet), more = r.rejected.length > 1 ? ` and ${r.rejected.length - 1} more` : '';
     if (!r.changed && !r.added) { if (r.rejected.length) onStatus?.(`Nothing applied: ${r.rejected[0]}${more}`); return; }
     onChange({ ...r.project, sheets: { ...book, sheets: book.sheets.map((x) => (x.id === r.sheet.id ? r.sheet : x)) } }, true);
@@ -153,6 +153,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo, openSh
   };
   /** A new row for a circuit: the active cell goes to it, in the first column that takes typing. */
   const addCircuit = () => {
+    if (!sheet.link || !editableLink) return;
     const next = addCircuitRow(sheet), l = next.link!, here = l.rows.filter((k) => !k.startsWith('new:')).length + l.added!.length - 1;
     const col = Object.entries(l.columns).filter(([, f]) => linkFields(l.category).find((x) => x.key === f)?.typed && !(f === 'row.watts' && Object.values(l.columns).some((g) => g.startsWith('row.points.')))).map(([c]) => cellAt(`${c}1`)!.col).sort((a, b) => a - b)[0] ?? 1;
     save(next);
@@ -337,12 +338,12 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo, openSh
               <Big icon={Link2} label="Link columns" onClick={() => setPanel(panel === 'link' ? null : 'link')} pressed={panel === 'link'} />
               <div className="shx-col">
                 <Small icon={Eye} label="Show linked cells" onClick={() => setShowLinks(!showLinks)} pressed={showLinks} />
-                <Small icon={Upload} label="Apply to project" onClick={apply} disabled={!waiting} title={waiting ? `Apply to project — ${waiting} typed ${waiting === 1 ? 'value' : 'values'}` : undefined} />
+                <Small icon={Upload} label="Apply to project" onClick={apply} disabled={!editableLink || !waiting} title={!editableLink ? 'Output-only template' : waiting ? `Apply to project — ${waiting} typed ${waiting === 1 ? 'value' : 'values'}` : undefined} />
                 <Small icon={RefreshCw} label="Refresh from project" onClick={() => { save(discardPending(sheet)); onStatus?.('Typed values that were not applied are removed.'); }} disabled={!waiting && !sheet.link?.added?.length} />
               </div>
             </Group>
             <Group name="Circuits">
-              <Small icon={Plus} label={sheet.link?.category === 'md' ? 'Add feeder' : 'Add circuit'} onClick={addCircuit} disabled={!sheet.link?.boardId} />
+              <Small icon={Plus} label={sheet.link?.category === 'md' ? 'Add feeder' : 'Add circuit'} onClick={addCircuit} disabled={!editableLink || !sheet.link?.boardId} />
             </Group>
             <Group name="Sheets for a board">
               <Big icon={LayoutTemplate} label="My formats" onClick={() => setPanel(panel === 'formats' ? null : 'formats')} pressed={panel === 'formats'} />
@@ -407,7 +408,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo, openSh
               </div>
             </Group>
             <Group name="Project">
-              <Big icon={Check} label="Apply to project" onClick={apply} disabled={!waiting} />
+              <Big icon={Check} label="Apply to project" onClick={apply} disabled={!editableLink || !waiting} title={!editableLink ? 'Output-only template' : undefined} />
             </Group>
           </div>
         )}
@@ -465,7 +466,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo, openSh
       {panel === 'formats' && <FormatsPanel project={project} sheets={book.sheets} onStatus={onStatus} onClose={() => setPanel(null)} onProject={(next) => onChange(next, true)}
         onAddSheets={(made) => { onChange({ ...project, sheets: { ...book, sheets: [...book.sheets, ...made] } }, true); setSheetId(made[made.length - 1].id); setEdit(null); }} />}
       </div>
-      {waiting > 0 && <p className="shx-note">{waiting} typed {waiting === 1 ? 'value waits' : 'values wait'} for Apply to project.</p>}
+      {editableLink && waiting > 0 && <p className="shx-note">{waiting} typed {waiting === 1 ? 'value waits' : 'values wait'} for Apply to project.</p>}
 
       <div className="shx-sheetbar">
       {book.sheets.length > MANY_SHEETS && <select aria-label="Go to sheet" value={sheet.id} onChange={(e) => openSheet(e.target.value)}>{book.sheets.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>}

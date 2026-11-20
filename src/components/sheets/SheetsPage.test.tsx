@@ -326,7 +326,7 @@ describe('Sheets page — Link columns', () => {
     sel.dispatchEvent(new Event('change', { bubbles: true }));
   });
   const open = () => { press('Electrical'); press('Link columns'); };
-  const linkIt = () => { open(); act(() => button('Suggest links').click()); choose('Board', 'DB-GF1'); };
+  const linkIt = () => { open(); choose('Template use', 'linked'); act(() => button('Suggest links').click()); choose('Board', 'DB-GF1'); };
   const data = templateData(sampleProject, 'DB-GF1');
 
   it('the Electrical tab opens and has the link tools; Apply to project waits for something typed', () => {
@@ -344,11 +344,26 @@ describe('Sheets page — Link columns', () => {
     render(sampleProject);
     open();
     expect(panel()!.textContent).toContain('This sheet is not linked to the project.');
+    expect(document.querySelector<HTMLSelectElement>('.shl select[aria-label="Template use"]')!.value).toBe('output');
     expect(tool('Link columns').getAttribute('aria-pressed')).toBe('true');
     expect(button('Use the placeholders')).toBeUndefined();
     act(() => document.querySelector<HTMLButtonElement>('.shl button[aria-label="Close"]')!.click());
     expect(panel()).toBeNull();
     expect(changes).toBe(0);
+  });
+
+  it('starts a new output template safely and validates it for Excel and PDF', () => {
+    render(office());
+    open();
+    act(() => button('Suggest links').click());
+    choose('Board', 'DB-GF1');
+    expect(last.sheets!.sheets[0].link!.mode).toBe('output');
+    expect(panel()!.querySelector('[aria-label="Template check"]')!.textContent).toContain('Ready for Excel and PDF output.');
+    expect(tool('Apply to project').disabled).toBe(true);
+    expect(tool('Apply to project').title).toBe('Output-only template');
+    click('C6'); type('Changed');
+    expect(status[status.length - 1]).toBe('C6 is filled from the project (output-only template).');
+    expect(td('C6').textContent).toBe(String(data.rows[0]['row.room']));
   });
 
   it('Suggest links, then a board, fills the sheet from the project', () => {
@@ -498,6 +513,14 @@ describe('Sheets page — Link columns', () => {
     expect(status[status.length - 1]).toBe('No heading row found. Start with no links and pick the first circuit row.');
     expect(changes).toBe(0);
   });
+
+  it('does not save a template until its repeating row has a mapped circuit field', () => {
+    render(book({ A1: 'LOAD SCHEDULE' }));
+    open();
+    act(() => button('Start with no links').click());
+    expect(panel()!.querySelector('[aria-label="Template check"]')!.textContent).toContain('Link at least one circuit field in the repeating row.');
+    expect(button('Save as my format').disabled).toBe(true);
+  });
 });
 
 describe('Sheets page — panel schedules', () => {
@@ -509,7 +532,7 @@ describe('Sheets page — panel schedules', () => {
   const button = (text: string) => [...aside().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.startsWith(text))!;
   const choose = (label: string, value: string) => act(() => { const sel = aside().querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!; sel.value = value; sel.dispatchEvent(new Event('change', { bubbles: true })); });
   const open = () => { press('Electrical'); press('Link columns'); };
-  const linkPanel = () => { open(); choose('This sheet is a', 'md'); act(() => button('Suggest links').click()); choose('Board', 'SMDB-GF'); };
+  const linkPanel = () => { open(); choose('This sheet is a', 'md'); choose('Template use', 'linked'); act(() => button('Suggest links').click()); choose('Board', 'SMDB-GF'); };
   const M = panelRowKeys(sampleProject, 'SMDB-GF').length;
   const flush = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
   beforeEach(() => { vi.stubGlobal('confirm', vi.fn(() => true)); });
@@ -568,7 +591,7 @@ describe('Sheets page — panel schedules', () => {
     choose('This sheet is a', 'db');
     await flush();
     expect(asked).toHaveBeenCalledWith('Change this sheet to a DB schedule?\n\nIts links are removed: the two have different fields.');
-    expect(last.sheets!.sheets[0].link).toEqual({ category: 'db', cells: {}, firstRow: 5, rows: [], columns: {} });
+    expect(last.sheets!.sheets[0].link).toEqual({ category: 'db', mode: 'linked', cells: {}, firstRow: 5, rows: [], columns: {} });
     expect(aside().querySelector<HTMLSelectElement>('select[aria-label="This sheet is a"]')!.value).toBe('db');
     asked.mockClear();
     choose('This sheet is a', 'md');
@@ -599,7 +622,7 @@ describe('Sheets page — Push to load schedule', () => {
   const boxText = () => aside().querySelector('[aria-label="Rows of this sheet"]')?.textContent;
   const boardSelect = () => aside().querySelector('select[aria-label="Board"]');
   const choose = (label: string, value: string) => act(() => { const sel = aside().querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!; sel.value = value; sel.dispatchEvent(new Event('change', { bubbles: true })); });
-  const suggest = (kind?: string) => { press('Electrical'); press('Link columns'); if (kind) choose('This sheet is a', kind); act(() => button('Suggest links from the headings').click()); };
+  const suggest = (kind?: string) => { press('Electrical'); press('Link columns'); if (kind) choose('This sheet is a', kind); choose('Template use', 'linked'); act(() => button('Suggest links from the headings').click()); };
 
   it('a sheet with rows of its own shows the box with the count, the panel line and the buttons, and no Board select', () => {
     render(opened());

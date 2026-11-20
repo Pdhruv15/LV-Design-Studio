@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { addEarthingSheet, earthingSheetCount, earthingSheetOf, sheetChecks, addRiserSheet, addSheet, autoSheets, autoSize, issueSheets, renumber, sheetProject, sheetsByCount, furnitureOf, minMmPerPx, MIN_MM_PER_PX, scaleOn, addLegendSheet, addBoardSheets, drawable, sheetType, sheetHash } from './drawingSet';
+import { addEarthingSheet, earthingSheetCount, earthingSheetOf, sheetChecks, addRiserSheet, addSheet, autoSheets, autoSize, issueSheets, renumber, sheetProject, sheetsByCount, furnitureOf, minMmPerPx, MIN_MM_PER_PX, scaleOn, addLegendSheet, addBoardSheets, drawable, sheetType, sheetHash, sheetsOfView, statusText, type DrawingSet, type DrawingSheet } from './drawingSet';
 import type { Project } from '../types';
 import { applyTransformers, planTransformers } from './transformers';
 
@@ -180,5 +180,32 @@ describe('legend sheet and board sheets with schedule', () => {
     expect(addEarthingSheet({ prefix: 'E-SLD-', sheets: [] }, sampleProject).set.sheets.map((s) => [s.part, s.title])).toEqual([[undefined, 'Earthing schematic diagram']]);
     const a3 = { ...set, sheets: set.sheets.map((s) => ({ ...s, size: 'A3' as const })) };
     expect(earthingSheetCount(p, a3)).toBeGreaterThan(10);
+  });
+});
+
+describe('SLD page → Sheets menu', () => {
+  const sheet = (id: string, kind: DrawingSheet['kind'], boards: string[], more: Partial<DrawingSheet> = {}): DrawingSheet => ({ id, number: id, title: id, kind, boards, size: 'auto', ...more });
+  const set: DrawingSet = { prefix: 'E-SLD-', sheets: [
+    sheet('s1', 'system', ['MDB-1', 'DB-EV']), sheet('s2', 'system', ['SMDB-FF']), sheet('b1', 'board', ['SMDB-FF']),
+    sheet('r1', 'riser', [], { buildingId: 'A' }), sheet('r2', 'riser', [], { buildingId: 'B' }),
+    sheet('e1', 'earthing', []), sheet('e2', 'earthRiser', [], { buildingId: 'A' }), sheet('l', 'legend', [])
+  ] };
+  const ids = (r: { sheets: DrawingSheet[] }) => r.sheets.map((s) => s.id);
+  it('lists the sheets of the view on screen', () => {
+    expect(ids(sheetsOfView(set, 'system'))).toEqual(['s1', 's2']);
+    expect(ids(sheetsOfView(set, 'riser', undefined, 'B'))).toEqual(['r2']);
+    expect(ids(sheetsOfView(set, 'earthing'))).toEqual(['e1', 'e2']);
+  });
+  it('a board: its own sheet first, then the system sheets that show it; says when it has none', () => {
+    expect(sheetsOfView(set, 'board', 'SMDB-FF')).toMatchObject({ own: true });
+    expect(ids(sheetsOfView(set, 'board', 'SMDB-FF'))).toEqual(['b1', 's2']);
+    expect(sheetsOfView(set, 'board', 'MDB-1')).toMatchObject({ own: false });
+    expect(ids(sheetsOfView(set, 'board', 'MDB-1'))).toEqual(['s1']);
+    expect(ids(sheetsOfView(set, 'board', 'MCC-1'))).toEqual([]);
+  });
+  it('shows a status as a sentence', () => {
+    expect(statusText('FOR APPROVAL')).toBe('For approval');
+    expect(statusText('AS-BUILT')).toBe('As-built');
+    expect(statusText(undefined)).toBe('');
   });
 });

@@ -30,7 +30,7 @@
       "callouts": [
         { "number": 1, "target": "main-ribbon", "label": "SLD and selection commands" },
         { "number": 2, "target": "panel-tree", "label": "Panel tree" },
-        { "number": 3, "target": "sld-view-tabs", "label": "Diagram views" },
+        { "number": 3, "target": "sld-view-tabs", "label": "Diagram views and Sheets menu" },
         { "number": 4, "target": "sld-display-tools", "label": "Drawing display tools" },
         { "number": 5, "target": "sld-canvas", "label": "Interactive SLD canvas" },
         { "number": 6, "target": "sld-inspector", "label": "Board properties and circuit results" },

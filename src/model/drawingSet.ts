@@ -247,6 +247,21 @@ export function earthSheetFor(set: DrawingSet, project: Project, kind: 'earthing
   const next = addEarthRiserSheet(set, project, buildingId, kind).set;
   return { set: next, id: find(next) };
 }
+/** The SLD page's Sheets menu: the sheets of the diagram on screen. System: the system SLD sheets. Board: the board's own
+ * circuit-diagram sheet first (`own` says whether it has one), then every system sheet that shows it. Riser: the
+ * building's riser sheets. Earthing: the earthing schematic, earth riser and floor earthing sheets. */
+export function sheetsOfView(set: DrawingSet, view: 'system' | 'board' | 'earthing' | 'riser', boardId?: string, buildingId?: string): { sheets: DrawingSheet[]; own: boolean } {
+  if (view === 'board') {
+    const own = set.sheets.filter((s) => s.kind === 'board' && s.boards[0] === boardId);
+    return { sheets: [...own, ...set.sheets.filter((s) => s.kind === 'system' && !!boardId && s.boards.includes(boardId))], own: own.length > 0 };
+  }
+  const of = view === 'system' ? (s: DrawingSheet) => s.kind === 'system'
+    : view === 'riser' ? (s: DrawingSheet) => s.kind === 'riser' && s.buildingId === buildingId
+      : (s: DrawingSheet) => s.kind === 'earthing' || s.kind === 'earthRiser' || s.kind === 'earthFloor';
+  return { sheets: set.sheets.filter(of), own: false };
+}
+/** A sheet status as a menu shows it: FOR APPROVAL → For approval. */
+export const statusText = (status?: string) => (status ? status.charAt(0) + status.slice(1).toLowerCase() : '');
 /** A riser diagram sheet for a building. */
 export function addRiserSheet(set: DrawingSet, buildingId: string, buildingName: string, riserStyle?: 'feeders'): { set: DrawingSet; id: string } {
   const id = `sh-${Date.now().toString(36)}`;

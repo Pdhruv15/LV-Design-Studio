@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { linkBoards, linkLabel, sheetFromFormat } from '../../docs/sheetLink';
+import { linkBoards, linkLabel, linkMode, sheetFromFormat } from '../../docs/sheetLink';
 import { formatNameError, loadFormats, PANEL_CATEGORIES, projectFormat, projectFormatStale, removeFormat, renameFormat, saveFormats, withProjectFormat, type ScheduleFormat } from '../../model/scheduleFormats';
 import type { Sheet } from '../../model/sheets';
 import type { Project } from '../../types';
@@ -65,7 +65,7 @@ export default function FormatsPanel({ project, sheets, onAddSheets, onProject, 
                 <button type="button" className="shl-btn" onClick={() => setRenaming(null)}>Cancel</button>
               </div>
             : <span style={{ fontWeight: 500 }}>{f.name}</span>}
-          <span className="shl-mut">{linkLabel(f.category)} · saved {fmtDate(f.updatedAt)}</span>
+          <span className="shl-mut">{linkLabel(f.category)} · saved {fmtDate(f.updatedAt)} · {linkMode(f.sheet.link) === 'output' ? 'Output only' : 'Linked editing'}</span>
           <div className="shl-row">
             <select aria-label={`Board for ${f.name}`} value={boardOf[f.id] ?? ''} onChange={(e) => setBoardOf({ ...boardOf, [f.id]: e.target.value })}>
               <option value="">Choose a board</option>

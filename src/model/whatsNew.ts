@@ -18,9 +18,15 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.224', date: '2026-11-20',
+    version: '2.225', date: '2026-11-20',
     items: [
       { title: 'Design CAD: Trim cuts circles and arcs', text: 'Trim (TR) now works on a drawn circle or arc: click the part to cut away and it is cut at the nearest crossings on either side of the click, as a line is. A circle needs two crossings and becomes the arc that is left; an arc loses an end, or its middle and becomes two arcs. The part to go shows dashed before the click. A line trimmed or extended to a circle or arc now ends on the curve itself; before, it ended on a chord of it, a little off the curve.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.224', date: '2026-11-20',
+    items: [
+      { title: 'Sheets menu on the SLD page', text: 'A Sheets menu now follows the System diagram, Board, Earthing and Riser tabs (⌘5 / Ctrl+5). It lists the sheets of the view on screen, then All sheets, Sheet setup, Title block and numbering, and Issues and transmittals, and each item opens that sheet or tab in Design CAD → Sheets. On the board view, Make a sheet of … on its own adds the board\'s circuit-diagram sheet and opens it.' }
     ]
   },
   {
