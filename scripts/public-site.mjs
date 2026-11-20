@@ -15,6 +15,9 @@ export const README_START = '<!-- PUBLIC-PRODUCT:START — generated from docs/p
 export const README_END = '<!-- PUBLIC-PRODUCT:END -->';
 const REPOSITORY = 'https://github.com/Pdhruv15/LV-Design-Studio';
 const SITE = 'https://pdhruv15.github.io/LV-Design-Studio';
+// Get involved: the reviewed content names a target; the address is fixed here, so no text in the content can become a link.
+const LINKEDIN_PAGE = /^https:\/\/www\.linkedin\.com\/(in|company)\/[A-Za-z0-9_%-]{3,100}\/?$/;
+const INVOLVED_TARGETS = { linkedin: (involved) => involved.linkedin, issue: () => `${REPOSITORY}/issues/new`, source: () => REPOSITORY };
 
 const esc = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 const text = (value, name, max = 500) => {
@@ -48,6 +51,17 @@ export function validateProduct(value, screenshotsDir = SCREENSHOTS_DIR) {
     text(item.title, `screenshot ${index} title`, 120);
     text(item.description, `screenshot ${index} description`, 400);
     if (!existsSync(join(screenshotsDir, item.file))) throw new Error(`Screenshot is missing: ${item.file}`);
+  });
+  const involved = value.getInvolved;
+  if (!involved || typeof involved !== 'object' || Array.isArray(involved)) throw new Error('getInvolved is invalid');
+  text(involved.intro, 'getInvolved intro', 400);
+  if (typeof involved.linkedin !== 'string' || !LINKEDIN_PAGE.test(involved.linkedin)) throw new Error('getInvolved linkedin is invalid');
+  if (!Array.isArray(involved.items) || involved.items.length < 1 || involved.items.length > 6) throw new Error('getInvolved items are invalid');
+  involved.items.forEach((item, index) => {
+    if (!item || typeof item !== 'object' || !Object.hasOwn(INVOLVED_TARGETS, item.target)) throw new Error(`getInvolved item ${index} is invalid`);
+    text(item.title, `getInvolved item ${index} title`, 100);
+    text(item.description, `getInvolved item ${index} description`, 400);
+    text(item.linkLabel, `getInvolved item ${index} linkLabel`, 60);
   });
   return value;
 }
@@ -116,7 +130,7 @@ const STYLE = `
     .site-header{border-bottom:1px solid #ddddda}.header-inner{min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:24px}.brand{display:inline-flex;align-items:center;gap:12px;font-weight:750;text-decoration:none}.brand img{width:36px;height:36px}.nav{display:flex;flex-wrap:wrap;gap:18px;font-size:.94rem}
     .hero{padding:80px 0 68px;border-bottom:1px solid #ddddda}.eyebrow{margin:0 0 16px;color:#555550;font-size:.85rem;font-weight:750;letter-spacing:.09em;text-transform:uppercase}h1{max-width:900px;margin:0;font-size:clamp(2.6rem,7vw,5.4rem);line-height:.98;letter-spacing:-.055em}.lede{max-width:780px;margin:28px 0 0;color:#4b4b47;font-size:clamp(1.08rem,2vw,1.34rem)}
     .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}.button{display:inline-flex;min-height:46px;align-items:center;justify-content:center;padding:10px 18px;border:1px solid #151515;border-radius:4px;font-weight:700;text-decoration:none}.button-primary{color:#fff;background:#151515}.button-secondary{background:#fff}.facts{display:flex;flex-wrap:wrap;gap:10px 24px;margin:28px 0 0;padding:0;color:#555550;list-style:none;font-size:.93rem}.facts li::before{content:"✓";margin-right:8px;color:#151515;font-weight:800}
-    .section{padding:68px 0;border-bottom:1px solid #ddddda}.section-heading{display:grid;grid-template-columns:minmax(180px,.6fr) minmax(0,1.4fr);gap:32px;align-items:start;margin-bottom:36px}h2{margin:0;font-size:clamp(1.65rem,3vw,2.35rem);letter-spacing:-.025em}.section-intro{max-width:700px;margin:0;color:#555550;font-size:1.08rem}.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid #ddddda;border-left:1px solid #ddddda}.card{padding:28px;border-right:1px solid #ddddda;border-bottom:1px solid #ddddda;background:#fafaf8}.card h3{margin:0 0 10px;font-size:1.08rem}.card p{margin:0;color:#555550}
+    .section{padding:68px 0;border-bottom:1px solid #ddddda}.section-heading{display:grid;grid-template-columns:minmax(180px,.6fr) minmax(0,1.4fr);gap:32px;align-items:start;margin-bottom:36px}h2{margin:0;font-size:clamp(1.65rem,3vw,2.35rem);letter-spacing:-.025em}.section-intro{max-width:700px;margin:0;color:#555550;font-size:1.08rem}.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid #ddddda;border-left:1px solid #ddddda}.card{padding:28px;border-right:1px solid #ddddda;border-bottom:1px solid #ddddda;background:#fafaf8}.card h3{margin:0 0 10px;font-size:1.08rem}.card p{margin:0;color:#555550}.card-link{display:inline-block;margin-top:14px;font-weight:700}
     .product-video{display:block;width:100%;height:auto;border:1px solid #ddddda;background:#0f2a44}
     .gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}.shot{margin:0;border:1px solid #ddddda;background:#fafaf8}.shot img{display:block;width:100%;height:auto;border-bottom:1px solid #ddddda}.shot figcaption{padding:18px}.shot strong{display:block;margin-bottom:5px}.shot span{color:#555550}.two-column{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:48px}.two-column h2{margin-bottom:18px}.two-column p{margin:0 0 16px;color:#4b4b47}
     .warning{border:2px solid #151515;padding:24px;background:#fafaf8}.warning h2{font-size:1.35rem}.warning ul{margin-bottom:0;padding-left:22px}.downloads{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:30px}.download{border:1px solid #b8b8b3;padding:24px}.download h3{margin-top:0}.meta{color:#555550}.checksum{display:block;overflow-wrap:anywhere;padding:10px;background:#f0f0ed;font-size:.78rem}.stable{margin-top:32px;padding:22px;border-left:4px solid #777;background:#fafaf8}
@@ -138,11 +152,14 @@ export function renderAbout(product) {
   const facts = product.facts.map((fact) => `<li>${esc(fact)}</li>`).join('');
   const capabilities = product.capabilities.map((item) => `<article class="card"><h3>${esc(item.title)}</h3><p>${esc(item.description)}</p></article>`).join('');
   const screenshots = product.screenshots.map((shot) => `<figure class="shot"><img src="../screenshots/${esc(shot.file)}" alt="${esc(shot.title)}" loading="lazy" /><figcaption><strong>${esc(shot.title)}</strong><span>${esc(shot.description)}</span></figcaption></figure>`).join('');
+  const involved = product.getInvolved;
+  const ways = involved.items.map((item) => `<article class="card"><h3>${esc(item.title)}</h3><p>${esc(item.description)}</p><a class="card-link" href="${esc(INVOLVED_TARGETS[item.target](involved))}">${esc(item.linkLabel)}</a></article>`).join('');
   const body = `<main><section class="hero"><div class="shell"><p class="eyebrow">Open source · Offline first · Engineer controlled</p><h1>${esc(product.tagline)}</h1><p class="lede">${esc(product.summary)}</p><div class="actions"><a class="button button-primary" href="../download/">Download a beta</a><a class="button button-secondary" href="../">Open the browser app</a></div><ul class="facts">${facts}</ul></div></section>
 <section class="section"><div class="shell"><div class="section-heading"><h2>LV design in 30 seconds</h2><p class="section-intro">See how the single-line diagram, load schedules, electrical studies and engineering deliverables come together in one offline-first workspace.</p></div><video class="product-video" controls preload="metadata" playsinline aria-label="30-second introduction to LV Design Studio"><source src="../media/${INTRO_VIDEO_NAME}" type="video/mp4" />Your browser does not support embedded video.</video></div></section>
 <section class="section"><div class="shell"><div class="section-heading"><h2>One project model</h2><p class="section-intro">Design information is shared across calculations, drawings and deliverables, reducing repeated entry while keeping the engineer responsible for every decision.</p></div><div class="cards">${capabilities}</div></div></section>
 <section class="section"><div class="shell"><div class="section-heading"><h2>See the workspace</h2><p class="section-intro">These are the committed screenshots used by the project README. Replacing a reviewed screenshot updates both presentations on the next deployment.</p></div><div class="gallery">${screenshots}</div></div></section>
-<section class="section"><div class="shell two-column"><article><h2>Private by design</h2><p>The desktop application stores projects as local JSON files. The browser app keeps projects in that browser profile. No account, telemetry or hosted project database is required.</p><p>Back up project files regularly; clearing browser data removes browser-stored projects.</p></article><article><h2>Engineering responsibility</h2><p>${esc(product.engineeringStatus)}</p><a href="${REPOSITORY}/blob/main/docs/engineering/calculation-methods.md">Review calculation methods and limits</a></article></div></section></main>`;
+<section class="section"><div class="shell two-column"><article><h2>Private by design</h2><p>The desktop application stores projects as local JSON files. The browser app keeps projects in that browser profile. No account, telemetry or hosted project database is required.</p><p>Back up project files regularly; clearing browser data removes browser-stored projects.</p></article><article><h2>Engineering responsibility</h2><p>${esc(product.engineeringStatus)}</p><a href="${REPOSITORY}/blob/main/docs/engineering/calculation-methods.md">Review calculation methods and limits</a></article></div></section>
+<section class="section"><div class="shell"><div class="section-heading"><h2>Get involved</h2><p class="section-intro">${esc(involved.intro)}</p></div><div class="cards">${ways}</div></div></section></main>`;
   return page(`${product.name} — Offline low-voltage electrical design`, product.summary, 'About', body);
 }
 
