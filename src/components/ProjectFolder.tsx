@@ -9,6 +9,7 @@ import { saveBinary } from '../util/files';
 import {
   choiceReady, createChosenFolders, firstChoice, folderDisk, folderZip, plural, projectFolderOf, splitPath, useFolderTemplates, type FolderChoice, type FolderDisk
 } from './projectFolderActions';
+import { ChangeTemplateDialog, FolderCustomiseDialog } from './FolderCustomise';
 import { Modal } from './ui';
 
 const noSubmit = (e: KeyboardEvent<HTMLElement>) => { if (e.key === 'Enter') e.preventDefault(); };
@@ -152,6 +153,7 @@ export function ProjectFolderCard({ project, onChangeProject, onStatus, client, 
   project: Project; onChangeProject?: (p: Project) => void; onStatus: (m: string) => void; client?: TemplatesClient; disk?: FolderDisk;
 }) {
   const [dialog, setDialog] = useState(false);
+  const [other, setOther] = useState<'customise' | 'change' | null>(null);
   const [mem, setMem] = useState<RememberedFolder | undefined>(() => rememberedFolder(project.id));
   const [status, setStatus] = useState<DiskStatus | null>(null);
   const [error, setError] = useState('');
@@ -177,6 +179,12 @@ export function ProjectFolderCard({ project, onChangeProject, onStatus, client, 
     } catch (e) { setError(message(e)); }
   };
   const open = async () => { if (disk && mem) { const err = await disk.open(mem.root).catch(message); if (err) setError(err); } };
+  const folderTools = onChangeProject && folder && (
+    <>
+      <button type="button" className="chip" onClick={() => setOther('customise')}>Customise…</button>
+      <button type="button" className="chip" onClick={() => setOther('change')}>Change template…</button>
+    </>
+  );
 
   return (
     <section className="card dash-brief pf-card">
@@ -190,6 +198,7 @@ export function ProjectFolderCard({ project, onChangeProject, onStatus, client, 
       {!folder && <p className="m">No project folder. Create one from a folder template to keep this job's inputs, calculations, drawings and submissions in one place. Nothing existing is moved or deleted.</p>}
       {folder && !disk && <p className="m">The web version cannot make folders on your computer. Download the empty folder structure as a ZIP file and unzip it where the project should live.</p>}
       {folder && disk && !mem && <p className="m">This project uses the folder template “{folder.template.name}”, but its folder has not been chosen on this computer yet.</p>}
+      {folderTools && !(disk && mem) && <div className="ft-actions">{folderTools}</div>}
       {folder && disk && mem && (
         <>
           <p className="ft-path">{mem.root} <button type="button" className="chip" onClick={open}>Open</button></p>
@@ -206,6 +215,7 @@ export function ProjectFolderCard({ project, onChangeProject, onStatus, client, 
             {!!status?.exists && status.missing.length > 0 && <button type="button" className="chip primary" onClick={createMissing}>Create missing folders</button>}
             <button type="button" className="chip" onClick={() => setTick((t) => t + 1)}>Check again</button>
             {onChangeProject && <button type="button" className="chip" onClick={() => setDialog(true)}>Change folder or ticks…</button>}
+            {folderTools}
           </div>
         </>
       )}
@@ -214,6 +224,14 @@ export function ProjectFolderCard({ project, onChangeProject, onStatus, client, 
         <ProjectFolderDialog project={project} client={client} disk={disk} onClose={() => setDialog(false)}
           onDone={(p, s) => { setDialog(false); if (p.folder !== project.folder) onChangeProject(p); onStatus(s); setTick((t) => t + 1); }} />
       )}
+      {other && onChangeProject && folder && (() => {
+        const Dialog = other === 'customise' ? FolderCustomiseDialog : ChangeTemplateDialog;
+        return (
+          <Dialog project={{ ...project, folder }} root={disk ? mem?.root : undefined} unticked={mem?.unticked ?? []} disk={disk} client={client}
+            onClose={() => setOther(null)}
+            onDone={(p, s) => { setOther(null); if (p.folder !== project.folder) onChangeProject(p); onStatus(s); setMem(rememberedFolder(project.id)); setTick((t) => t + 1); }} />
+        );
+      })()}
     </section>
   );
 }

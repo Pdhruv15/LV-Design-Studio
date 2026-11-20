@@ -199,7 +199,7 @@ export default function FolderTemplatesPanel({ client: given, onEditing }: {
 
 type EditorTab = 'tree' | 'roles' | 'naming' | 'preview';
 
-function TemplateEditor({ template, isNew, onSave, onCancel }: {
+export function TemplateEditor({ template, isNew, onSave, onCancel }: {
   template: FolderTemplate; isNew: boolean; onSave: (t: FolderTemplate) => Promise<void>; onCancel: () => void;
 }) {
   const [hist, setHist] = useState<EditHistory<FolderTemplate>>(() => startHistory(template));

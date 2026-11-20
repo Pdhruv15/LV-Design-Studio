@@ -36,6 +36,8 @@ panels, circuits and about 100 optional sections) and keeps that project safe:
 | `src/model/anonymize.ts` | model | `anonymizeProject`, `ANONYMIZED_NAME`, `anonymizedFileName` | Allowlist copy of the electrical model with ids replaced (P01…, C001…). |
 | `src/model/folderRoles.ts` | model | `ROLE_CATALOGUE`, `isRole`, `roleById`, `DOC_TYPES` | What each project folder is for (calcVd, drawingsIssued, boq…). |
 | `src/model/folderTemplates.ts` | model | `ProjectFolder`, `FolderTemplate`, `validateTemplate`, `applyOverrides`, `expandTemplate`, `resolveRole`, `readProjectFolder`, `diffTemplates` | Folder-template tree, naming rule, project overrides. Pure functions. |
+| `src/model/folderCustomise.ts` | model | `addHere`, `renameHere`, `toggleHide`, `roleHere`, `roleOff`, `customiseRows`, `renamedOldPaths`, `changePlan`, `whereFilesGo` | Customise for this project (C6) and Change template (C8): project overrides and the switch plan. Pure; only folders are created. |
+| `src/components/FolderCustomise.tsx` | screen | `FolderCustomiseDialog`, `ChangeTemplateDialog` | Overview → Project folder → Customise… / Change template…. |
 | `src/model/folderTemplateBuiltins.ts` | model | `BUILT_IN_TEMPLATES`, `DEFAULT_TEMPLATE_ID`, `builtInTemplate`, `fromOutline` | Five built-in templates (consultant, villa, contractor, ISO 19650, multi-building). |
 | `src/components/SaveDialogs.tsx` | screen | `ConflictDialog`, `CompareDialog`, `ExternalChangeBar` | Conflict choices (overwrite / save copy / use disk), compare two files, "file changed on disk" bar. |
 | `src/components/ProjectSettings.tsx` | screen | `ProjectSettings` | Design-basis modal (V, Hz, ambient, VD limit, study targets, form header data, design rules). Mainly 03-parameters-rules. |

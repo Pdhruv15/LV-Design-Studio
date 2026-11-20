@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.219', date: '2026-11-19',
+    items: [
+      { title: 'Project folder: customise for this project', text: 'Overview → Project folder → Customise… shows this project\'s folders with what is on disk (present, to create, hidden here, renamed here). Add folders, rename, hide a template folder or move a role for this project only: the changes are saved in the project, and the office template is not changed unless you choose Save these changes back to the template…. A rename makes the new folder and lists the old one, with its file count; nothing is moved. Reset to template undoes the project\'s changes.' },
+      { title: 'Project folder: change template', text: 'Change template… compares the project\'s folders with another template before anything is done: folders to create, kept (and roles that move), and those not in the new template, which are left as they are with their file count. Show where old files would go lists each output\'s old and new folder. Apply only creates folders, switches the template and lists the project changes that no longer apply.' }
+    ]
+  },
+  {
     version: '2.218', date: '2026-11-19',
     items: [
       { title: 'Sheets: ELV formulas', text: 'Formulas in Sheets can now size ELV systems with the methods of the ELV estimate: FABATT(quiescent mA, alarm mA) for the fire alarm battery in Ah (24 h standby, 30 min alarm, × 1.25 unless given), FACHARGE(Ah) for the charger current, POESWITCH(devices, W each, ports, PoE budget W) for the PoE switches, CAMRANGE(field of view °, pixels, "R") for how far a camera can detect, observe, recognise or identify ("D", "O", "R", "I"), PAWATTS(speaker taps W) for the PA amplifier power, NVRTB(cameras, Mbps, days) for the recording storage in TB, and VDDC(mA, length m, mm²) for the voltage drop of a 24 V loop or sounder circuit.', action: 'sheets', actionLabel: 'Open Sheets' }

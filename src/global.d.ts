@@ -75,6 +75,9 @@ declare global {
         chooseParent: (start?: string) => Promise<string | null>;
         create: (root: string, paths: string[]) => Promise<{ root: string; rootMade: boolean; created: number; existed: number; failed: { path: string; reason: string }[] }>;
         status: (root: string, paths: string[]) => Promise<{ root: string; exists: boolean; present: string[]; missing: string[]; looseFiles: string[]; looseCount: number }>;
+        /** Files in each folder, subfolders included (counted only, never opened); -1 when the folder is not
+         * there. Missing in older desktop builds. */
+        fileCounts?: (root: string, paths: string[]) => Promise<number[]>;
         /** Shows the folder in the file manager; an error text, or null when it opened. */
         open: (root: string) => Promise<string | null>;
         /** Writes a copy of a saved project file (from the Projects folder) into a folder inside the project

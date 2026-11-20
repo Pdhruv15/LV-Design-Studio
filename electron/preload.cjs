@@ -60,6 +60,7 @@ contextBridge.exposeInMainWorld('lvds', {
     chooseParent: (start) => ipcRenderer.invoke('projectFolders:chooseParent', start),
     create: (root, paths) => ipcRenderer.invoke('projectFolders:create', { root, paths }),
     status: (root, paths) => ipcRenderer.invoke('projectFolders:status', { root, paths }),
+    fileCounts: (root, paths) => ipcRenderer.invoke('projectFolders:fileCounts', { root, paths }),
     open: (root) => ipcRenderer.invoke('projectFolders:open', root),
     saveCopy: (args) => ipcRenderer.invoke('projectFolders:saveCopy', args)
   },

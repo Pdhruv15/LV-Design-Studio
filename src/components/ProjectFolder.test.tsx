@@ -210,3 +210,107 @@ describe('a copy of the project file in the project folder on save (decision 1, 
     expect(await copyProjectFileToFolder(p, 'villa-copy1.lvds', diskWith(saveCopy))).toBeUndefined();
   });
 });
+
+describe('Overview: Customise for this project (C6) and Change template (C8)', () => {
+  const villa = builtInTemplate('villa-small')!;
+  const project = (): Project => ({ ...newProject('Villa'), id: 'p9', folder: { templateId: villa.id, version: 1, template: villa } });
+  /** The disk bridge, recording every call by name: only status, fileCounts and create may be used. */
+  const watched = (have: string[]) => {
+    const { disk, made } = fakeDisk(have);
+    const calls: string[] = [];
+    const full: FolderDisk = { ...disk, fileCounts: vi.fn(async (_r: string, paths: string[]) => paths.map((p) => (have.includes(p) ? 23 : -1))) };
+    const proxy = new Proxy(full, { get: (o, k) => { const v = (o as unknown as Record<string | symbol, unknown>)[k]; if (typeof v === 'function') calls.push(String(k)); return v; } });
+    return { disk: proxy, made, calls };
+  };
+  const show = async (disk: FolderDisk, p = project()) => {
+    rememberFolder('p9', { root: 'D:\\Jobs\\Villa', unticked: [] });
+    const onChange = vi.fn(), onStatus = vi.fn();
+    act(() => root.render(<ProjectFolderCard project={p} onChangeProject={onChange} onStatus={onStatus} client={client()} disk={disk} />));
+    await flush();
+    return { onChange, onStatus };
+  };
+  const rowOf = (name: string) => [...document.querySelectorAll('[role="treeitem"]')].find((r) => r.querySelector('.ft-name')?.textContent === name)!;
+
+  it('adds, renames and hides for this project, lists the old folder, and only creates folders', async () => {
+    const { disk, made, calls } = watched(['01_Admin', '04_Drawings', '04_Drawings/Issued']);
+    const { onChange, onStatus } = await show(disk);
+    click(button('Customise…'));
+    await flush();
+    expect(text()).toContain('Customise project folder: Villa');
+    expect(rowOf('01_Admin').textContent).toContain('✓ present');
+    // Rename 04_Drawings/Issued: the new name is created, the old folder is listed with its files.
+    click(rowOf('Issued'));
+    click(button('Rename'));
+    const input = document.querySelector<HTMLInputElement>('input.ft-rename')!;
+    type(input, 'Issued_for_Approval');
+    act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+    await flush();
+    expect(rowOf('Issued_for_Approval').textContent).toContain('renamed here');
+    expect(text()).toContain('“Issued” → “Issued_for_Approval”. The new folder is created. The old one is left as it is:');
+    expect(text()).toContain('04_Drawings\\Issued (23 files)');
+    // Hide a template folder and add one of this project's own.
+    click(rowOf('08_Transmittals'));
+    click(button('Hide for this project'));
+    expect(rowOf('08_Transmittals').textContent).toContain('hidden here');
+    click(button('+ Folder'));
+    const add = document.querySelector<HTMLInputElement>('input.ft-rename')!;
+    type(add, 'Phase-2-Annex');
+    act(() => { add.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+    await flush();
+    expect(rowOf('Phase-2-Annex').textContent).toContain('＋ to create · added here');
+    const create = [...document.querySelectorAll('button')].find((b) => /^Create \d+ folders$/.test(b.textContent ?? ''))!;
+    click(create);
+    await flush();
+    expect(made[0].paths).toContain('Phase-2-Annex');
+    expect(made[0].paths).toContain('04_Drawings/Issued_for_Approval');
+    expect(made[0].paths).not.toContain('08_Transmittals');
+    expect(made[0].paths).not.toContain('01_Admin');
+    const ov = onChange.mock.calls[0][0].folder.overrides;
+    expect(ov.hide).toEqual(['vs.transmittals']);
+    expect(ov.rename).toEqual([{ id: 'vs.drawings.issued', name: 'Issued_for_Approval' }]);
+    expect(ov.add.map((a: { node: { name: string } }) => a.node.name)).toEqual(['Phase-2-Annex']);
+    expect(onChange.mock.calls[0][0].folder.template).toBe(villa);
+    expect(onStatus.mock.calls[0][0]).toMatch(/^Created \d+ folders in D:\\Jobs\\Villa\./);
+    expect(calls.filter((c) => /rename|move|delete|remove|trash|unlink/i.test(c))).toEqual([]);
+    expect(new Set(calls)).toEqual(new Set(['status', 'fileCounts', 'create']));
+  });
+
+  it('Reset to template drops the project changes', async () => {
+    const { disk } = watched([]);
+    const p = project();
+    const { onChange } = await show(disk, { ...p, folder: { ...p.folder!, overrides: { add: [], rename: [], hide: ['vs.transmittals'], roles: {} } } });
+    click(button('Customise…'));
+    await flush();
+    click(button('Reset to template'));
+    click([...document.querySelectorAll('button')].find((b) => /^Create \d+ folders$/.test(b.textContent ?? ''))!);
+    await flush();
+    expect(onChange.mock.calls[0][0].folder).not.toHaveProperty('overrides');
+  });
+
+  it('Change template: shows the diff, keeps what applies, lists what is dropped, and only creates folders', async () => {
+    const { disk, made, calls } = watched(['01_Admin', '07_DEWA']);
+    const p = project();
+    const { onChange, onStatus } = await show(disk, { ...p, folder: { ...p.folder!, overrides: { add: [{ parentId: null, node: { id: 'p.1', name: 'Phase-2-Annex' } }], rename: [], hide: ['vs.dewa'], roles: {} } } });
+    click(button('Change template…'));
+    await flush();
+    expect(text()).toContain('Change folder template: Villa');
+    expect(field('From').value).toBe('Villa / small building v1');
+    expect(text()).toContain('= kept');
+    expect(text()).toContain('＋ to create');
+    expect(text()).toContain('○ not in the new template, left as is');
+    expect(text()).toContain('1 still applies. 1 no longer applies and is dropped: Hide vs.dewa: not in the template.');
+    click(document.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
+    expect(text()).toContain('Would go to');
+    const apply = [...document.querySelectorAll('button')].find((b) => /^Apply: create \d+ folders$/.test(b.textContent ?? ''))!;
+    click(apply);
+    await flush();
+    const f = onChange.mock.calls[0][0].folder;
+    expect(f.templateId).toBe('consultant-full');
+    expect(f.overrides.add[0].node.name).toBe('Phase-2-Annex');
+    expect(f.overrides.hide).toEqual([]);
+    expect(made[0].paths).not.toContain('01_Admin');
+    expect(made[0].paths.length).toBeGreaterThan(20);
+    expect(onStatus.mock.calls[0][0]).toMatch(/^The project now uses “Electrical consultant full”\. Created \d+ folders in D:\\Jobs\\Villa\. 1 project change no longer applied and was dropped\.$/);
+    expect(calls.filter((c) => /rename|move|delete|remove|trash|unlink/i.test(c))).toEqual([]);
+  });
+});
