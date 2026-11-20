@@ -10,10 +10,13 @@ import { isSinglePhase, phaseTag } from './phases';
 import { kindOf } from './renamePanels';
 import { canDrop, TIE_OPERATION, tieRatings, type MoveItem, type PaletteItem } from './sldEdit';
 import { branchItems, orderTarget, selectAll, type PickItem } from './sldMenuEdit';
-import { txTag } from './transformers';
+import { mainBoards, txTag } from './transformers';
 import { partInfo, partKey, partMains, type SldPart } from '../diagram/mvShow';
 import { isScheduleCircuit } from '../calc/loadSchedule';
-import { METER_TYPES, type Board, type Feeder, type Project } from '../types';
+import { rmuRecord, rmuWays } from '../calc/hvSupply';
+import { txUnits } from './earthingPlan';
+import { rmuChoices, substationNames, type RmuChoice } from './substations';
+import { METER_TYPES, RMU_CONFIGS, type Board, type Feeder, type Project } from '../types';
 import { txt } from '../util/format';
 
 /** The right-click menus of the single line diagram (docs/notes/Future development/UI UX proposals - 2026-11-18 - SLD
@@ -60,7 +63,7 @@ export interface SldMenuState {
 export const SLD_MENU_ACTIONS: readonly string[] = [
   'edit', 'schedule', 'diagram', 'add', 'copy', 'paste', 'duplicate', 'repeat', 'move', 'supplyfrom', 'moveto', 'order', 'rename', 'cabletype', 'lengthchecked', 'delete', 'plan', 'zoom', 'properties',
   'quickfix', 'editcable', 'change', 'together', 'similar', 'below', 'select', 'deselect', 'txsizing', 'hv', 'addsupply', 'scenario', 'tieop', 'tierating', 'tieremove',
-  'undo', 'redo', 'branch', 'showall', 'fit', 'grid', 'text', 'values', 'colour', 'export', 'part'
+  'undo', 'redo', 'branch', 'showall', 'fit', 'grid', 'text', 'values', 'colour', 'export', 'part', 'txsubstation', 'txrmu', 'rmuconfig', 'rmunop'
 ];
 
 /** Actions the drawing does itself (its view, its cable editor); the page is not told of them. */
@@ -249,6 +252,54 @@ function severalMenu(s: SldMenuState, items: PickItem[]) {
   return { head: { icon: 'selectall', title: `${n} picked`, detail } satisfies CtxHead, items: group, label: `${n} picked menu` };
 }
 
+/** An RMU in a transformer's RMU list: its configuration, then how many tee-offs are used and free, "full → RRTT"
+ * where taking this transformer makes it a bigger unit, or full. */
+function rmuKey(c: RmuChoice): string {
+  const use = c.current ? `${c.count} of ${c.max}` : c.grow ? `full → ${c.grow}` : c.full ? `full · ${c.count} of ${c.max}` : `${c.count} of ${c.max} · ${c.max - c.count} free`;
+  return [c.config, use].filter(Boolean).join(' · ');
+}
+
+/** Substation ▸ and RMU ▸ of a transformer (proposal 2026-11-18 part 4): the substations in ring order and a new one,
+ * and the RMUs with their free tee-offs and a new one, which starts as RRT. */
+function arrangementRows(project: Project, b: Board): CtxItem[] {
+  const ss = b.substation?.trim() || undefined, rmu = b.rmu?.trim() || undefined;
+  const same = (n: string) => !!ss && n.toLowerCase() === ss.toLowerCase();
+  return [
+    {
+      label: 'Substation', icon: 'sld', key: ss ?? 'none',
+      sub: [row('None', 'txsubstation|', { now: !ss, off: !ss }), ...substationNames(project).map((n) => row(n, `txsubstation|${n}`, { now: same(n), off: same(n) })), '-', row('New substation…', 'txsubstation|+')]
+    },
+    {
+      label: 'RMU', icon: 'hv', key: rmu ?? 'none',
+      sub: [row('None', 'txrmu|', { now: !rmu, off: !rmu }), ...rmuChoices(project, b.id).map((c) => row(c.name, `txrmu|${c.name}`, { now: c.current, off: c.current || (c.full && !c.grow), key: rmuKey(c) })), '-', row('New RMU', 'txrmu|+', { key: 'starts as RRT' })]
+    }
+  ];
+}
+
+/** Configuration ▸ and Normally open ▸ of an RMU: a configuration with fewer tee-offs than its transformers is greyed;
+ * the normally open switch only on a unit with two ring switches. */
+function rmuRows(project: Project, name: string): CtxItem[] {
+  const rec = rmuRecord(project, name);
+  const config = rec?.config?.trim().toUpperCase() || undefined;
+  const units = txUnits(project);
+  const used = mainBoards(project).filter((b) => b.sourceKva && b.rmu?.trim() === name).reduce((n, b) => n + (units.get(b.id) ?? 1), 0);
+  const nop = rec?.normallyOpen;
+  const ways: [string, 'R1' | 'R2' | ''][] = [['None', ''], ['R1 (ring in)', 'R1'], ['R2 (ring out)', 'R2']];
+  return [
+    {
+      label: 'Configuration', icon: 'sliders', key: config ?? '—',
+      sub: [...new Set([...RMU_CONFIGS, ...(config ? [config] : [])])].map((c) => {
+        const few = rmuWays(c).tOff < used;
+        return row(c, `rmuconfig|${c}`, { now: c === config, off: c === config || few, ...(few ? { key: 'too few tee-offs' } : {}) });
+      })
+    },
+    ...((config ? rmuWays(config).ring : 2) >= 2 ? [{
+      label: 'Normally open', icon: 'toggle' as const, key: nop ?? 'none',
+      sub: ways.map(([l, v]) => row(l, `rmunop|${v}`, { now: (nop ?? '') === v, off: (nop ?? '') === v }))
+    }] : [])
+  ];
+}
+
 function supplyMenu(s: SldMenuState, boardId: string) {
   const { project } = s;
   const b = project.boards.find((x) => x.id === boardId);
@@ -260,6 +311,7 @@ function supplyMenu(s: SldMenuState, boardId: string) {
     const detail = [`${b.sourceKva} kVA`, b.sourceImpedancePct !== undefined ? `${b.sourceImpedancePct} %` : undefined, `feeds ${boardId}`].filter(Boolean).join(' · ');
     const items = groups(
       [row('Edit transformer…', 'edit', { icon: 'edtext' }), row('Transformer & generator sizing', 'txsizing', { icon: 'txsizing' }), scenarioList(s), ...(add.length ? [{ label: 'Add', icon: 'plus' as const, sub: add }] : []), row('MV supply and RMUs…', 'hv', { icon: 'hv' })],
+      arrangementRows(project, b),
       [zoom, row(`Show ${txTag(project, boardId) ?? boardId} only`, `part|${partKey({ kind: 'tx', id: boardId })}`, { icon: 'isolate', now: s.part === partKey({ kind: 'tx', id: boardId }) })], props()
     );
     return { head: { icon: 'transformer', title: txTag(project, boardId) ?? 'Transformer', detail } satisfies CtxHead, items, label: 'Transformer menu' };
@@ -283,14 +335,15 @@ function tieMenu(s: SldMenuState, id: string) {
   return { head: { icon: 'join', title: id, detail: `${t.ratingA} A · ${t.a} ↔ ${t.b}` } satisfies CtxHead, items, label: `${id} menu` };
 }
 
-/** An RMU on the ring, or a substation frame (Show, proposal 2026-11-18 part 2): show that part only; the RMUs and
- * substations are named in Panels → Transformers (MV supply and RMUs…). */
+/** An RMU on the ring, or a substation frame (Show, proposal 2026-11-18 part 2): show that part only; an RMU also has
+ * its Configuration and Normally open (part 4). Ratings are entered in Panels → Transformers (MV supply and RMUs…). */
 function mvMenu(s: SldMenuState, t: { kind: 'rmu' | 'substation'; name: string }) {
   const part: SldPart = t.kind === 'rmu' ? { kind: 'rmu', name: t.name } : { kind: 'substation', name: t.name };
   if (!partMains(s.project, part).length) return null;
   const info = partInfo(s.project, part), key = partKey(part);
   const items = groups(
     [row(`Show ${t.name} only`, `part|${key}`, { icon: 'isolate', now: s.part === key }), ...(s.part ? [row('Show all', 'part|all', { icon: 'isolate' })] : [])],
+    t.kind === 'rmu' ? rmuRows(s.project, t.name) : [],
     [row('MV supply and RMUs…', 'hv', { icon: 'hv' })]
   );
   const detail = [info.detail, info.counts].filter(Boolean).join(' · ');

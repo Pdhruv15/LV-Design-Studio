@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { newProject, type Board, type Project } from '../types';
 import { faultCurrentKA, gridImpedance, impedanceToBoard, transformerImpedance, zMagnitude } from './electrical';
 import { earthLoopToBoard } from './earthing';
-import { gridFaultKa, gridLabel, mvNetworkText, rmuChecks, rmuLabel, rmuRatings, rmuTeeOffs, rmuWays } from './hvSupply';
+import { gridFaultKa, gridLabel, mvNetworkText, rmuChecks, rmuGrow, rmuLabel, rmuRatings, rmuTeeOffs, rmuWays } from './hvSupply';
 import { fingerprint } from './runs';
 import { addGridSource, removeGridSource, updateGridSource, updateRmu } from '../model/hvSupply';
 import { checkReferences } from '../model/integrity';
@@ -125,6 +125,11 @@ describe('RMU checks and labels', () => {
     expect(gridLabel(p.gridSources![0])).toBe('11 kV · 500 MVA');
     expect(mvNetworkText(p)).toContain('G (DEWA) 11 kV, S″kQ 500 MVA (26.2 kA), X/R 10');
     expect(mvNetworkText(project([tx('MDB-1', 1000)]))).toBeUndefined();
+    expect(rmuRatings(base([{ name: 'RMU-1', ratedKv: 12, normallyOpen: 'R2' }]), 'RMU-1')).toBe('12 kV, R2 normally open');
+  });
+
+  it('offers the unit with one more tee-off when a full RRT or RRTT takes another transformer', () => {
+    expect([rmuGrow('RRT'), rmuGrow(' rrtt '), rmuGrow('RRTTT'), rmuGrow('RT'), rmuGrow('RRRT'), rmuGrow(undefined)]).toEqual(['RRTT', 'RRTTT', undefined, undefined, undefined, undefined]);
   });
 });
 

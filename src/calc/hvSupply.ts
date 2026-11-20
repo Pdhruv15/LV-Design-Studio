@@ -35,6 +35,10 @@ export function rmuTeeOffs(project: Project, name: string): number {
   return config ? rmuWays(config).tOff : 2;
 }
 
+/** The standard configuration with one more tee-off, offered when another transformer goes on a full RMU. */
+const GROW: Record<string, string> = { RRT: 'RRTT', RRTT: 'RRTTT' };
+export const rmuGrow = (config?: string): string | undefined => (config ? GROW[config.trim().toUpperCase()] : undefined);
+
 export interface RmuCheck { label: string; status: Status; text: string }
 export interface RmuChecks { rmu: string; source?: GridSource; transformers: string[]; checks: RmuCheck[] }
 
@@ -100,6 +104,7 @@ export function rmuRatings(project: Project, name: string): string {
     r.ikKa ? `${num(r.ikKa)} kA ${r.ikDurationS ?? 1} s` : undefined,
     r.insulation ? (r.insulation === 'eco-gas' ? 'eco-gas' : r.insulation === 'SF6' ? 'SF6' : `${r.insulation} insulated`) : undefined,
     r.tOff === 'vcb' ? 'T-off circuit breaker + relay' : r.tOff === 'fuse' ? `T-off switch-fuse${r.fuseA ? ` ${num(r.fuseA, 0)} A` : ''}` : undefined,
-    r.owner ? `${r.owner === 'authority' ? 'authority' : 'consumer'} owned` : undefined
+    r.owner ? `${r.owner === 'authority' ? 'authority' : 'consumer'} owned` : undefined,
+    r.normallyOpen ? `${r.normallyOpen} normally open` : undefined
   ].filter(Boolean).join(', ');
 }

@@ -18,6 +18,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.221', date: '2026-11-20',
+    items: [
+      { title: 'Substations card', text: 'Panels → Transformers has a new Substations card, one row per substation in ring order: its DM-D-013 type and location (the same record as the Substation area page), its RMUs with their configuration, its transformers and spare tee-offs, the owner of its RMUs and its checks. The SLD draws the substations left to right in this order; ▲ ▼ change it. + Substation adds one, + RMU adds an RMU to a substation before it feeds a transformer. The checks show a POCKET type or open roof substation with too many transformers, an RMU with more transformers than tee-offs or feeding two substations, and two normally open points on one ring.' },
+      { title: 'SLD: right-click Substation, RMU, Configuration and Normally open', text: 'Right-click a transformer on the SLD for Substation ▸ (the substations in ring order, or a new one) and RMU ▸ (each RMU with its free tee-offs, or a new one, which starts as RRT). Right-click an RMU for Configuration ▸ and Normally open ▸ (R1, R2 or none). The normally open ring switch is marked N/O on the SLD, on sheets and in DXF.' },
+      { title: 'Transformer table: RMU tee-offs', text: 'The RMU column of the transformer table lists each RMU with its configuration and free tee-offs. A full RRT or RRTT unit is offered as RRTT or RRTTT, a transformer put on an RMU joins its substation, and a new RMU starts as RRT.' }
+    ]
+  },
+  {
     version: '2.220', date: '2026-11-20',
     items: [
       { title: 'Search opens the drawing sheet', text: 'Picking a sheet under Drawing sheets in Search (⌘K / Ctrl+K) now opens that sheet in Design CAD → Sheets. Before, it showed the SLD instead.' }

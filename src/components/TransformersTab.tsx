@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react';
 import type { Project } from '../types';
 import { settingsOf } from '../types';
 import { sizeTransformers } from '../calc/txGen';
-import { applyTransformers, DEWA_TRANSFORMER_KVA, mainBoards, mainOf, moveUnder, nextRmus, planTransformers, rmuNames, setRmu, setSubstation, setTransformer, txTag } from '../model/transformers';
+import { applyTransformers, DEWA_TRANSFORMER_KVA, mainBoards, mainOf, moveUnder, planTransformers, setSubstation, setTransformer, txTag } from '../model/transformers';
 import { toggleIn } from '../util/sets';
 import { txUnits } from '../model/earthingPlan';
 import { fmtFixed as fmt, txt } from '../util/format';
 import HvSupplyCard from './HvSupplyCard';
-import { rmuTeeOffs } from '../calc/hvSupply';
+import SubstationsCard from './SubstationsCard';
+import { rmuChoices, rmuChoiceText, txRmu } from '../model/substations';
 
 
 /** Panels → Transformers: DEWA transformers (one MDB each), their loading, and which panels each one feeds. */
@@ -23,10 +24,14 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
   const [sub, setSub] = useState('');
   const plan = useMemo(() => planTransformers(project, kvas.map((kva) => ({ kva })), ties, perRmu, sub), [project, kvas, ties, perRmu, sub]);
   const mains = mainBoards(project);
-  // An RMU feeds as many transformers as its configuration has tee-offs, 2 when none is entered (a board with N+1 counts its units).
+  // An RMU feeds as many transformers as its configuration has tee-offs, 2 when none is entered (a board with N+1
+  // counts its units); a full RRT or RRTT unit is offered as RRTT or RRTTT, and a new RMU starts as RRT.
   const units = useMemo(() => txUnits(project), [project]);
-  const unitsOf = (id: string) => units.get(id) ?? 1;
-  const rmuLoad = (rmu: string, except: string) => mains.filter((b) => b.sourceKva && b.rmu?.trim() === rmu && b.id !== except).reduce((s, b) => s + unitsOf(b.id), 0);
+  function putOnRmu(mainId: string, value: string) {
+    const r = txRmu(project, mainId, value);
+    if (r.project !== project) onChange(r.project);
+    if (r.message) onStatus(r.message);
+  }
   const rows = useMemo(() => { try { return sizeTransformers(project, { txBoards: [], sizeList: 'dewa', n1: [], includePfc: true, emergencyLoadingPct: 100, genBoards: {} }); } catch { return []; } }, [project]);
   const limit = settingsOf(project).transformerMaxLoadingPct;
   // Panels fed straight from a main board: these are moved between transformers.
@@ -81,7 +86,7 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
                   <td>{m.id}</td>
                   <td><select value={m.sourceKva ?? ''} onChange={(e) => onChange(setTransformer(project, m.id, e.target.value ? Number(e.target.value) : undefined))}><option value="">—</option>{[...new Set([...DEWA_TRANSFORMER_KVA, ...(m.sourceKva ? [m.sourceKva] : [])])].sort((a, b) => a - b).map((v) => <option key={v} value={v}>{v}</option>)}</select></td>
                   <td><input className="bi-text" style={{ width: 90 }} defaultValue={m.substation ?? ''} key={`${m.id}-${m.substation ?? ''}`} placeholder="—" onBlur={(e) => e.target.value.trim() !== (m.substation ?? '') && onChange(setSubstation(project, m.id, e.target.value))} /></td>
-                  <td><select value={m.rmu ?? ''} onChange={(e) => onChange(setRmu(project, m.id, e.target.value === '+' ? nextRmus(project, 1)[0] : e.target.value || undefined))}><option value="">—</option>{rmuNames(project).map((n) => { const max = rmuTeeOffs(project, n), full = rmuLoad(n, m.id) + unitsOf(m.id) > max; return <option key={n} value={n} disabled={full && m.rmu !== n}>{full ? `${n} (full — max ${max} TX)` : n}</option>; })}<option value="+">New RMU</option></select></td>
+                  <td><select value={m.rmu?.trim() ?? ''} onChange={(e) => putOnRmu(m.id, e.target.value)}><option value="">—</option>{rmuChoices(project, m.id, units).map((c) => <option key={c.name} value={c.name} disabled={c.full && !c.grow && !c.current}>{rmuChoiceText(c)}</option>)}<option value="+">New RMU (starts as RRT)</option></select></td>
                   <td>{txt.power(r?.demandKva)}</td>
                   <td className={pct === undefined ? 'm' : pct > limit ? 'bad' : 'ok'}>{pct === undefined ? '—' : `${fmt(pct, 1)} %`}</td>
                   <td>{r?.recommendedKva ? `${r.split > 1 ? `${r.split} × ` : ''}${r.recommendedKva} kVA` : '—'}</td>
@@ -120,6 +125,8 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
           <p className="m">Everything below a moved panel goes with it. Its incomer cable length is marked to check.</p>
         </>}
       </section>
+
+      <SubstationsCard project={project} onChange={onChange} onStatus={onStatus} />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { renamePanels, renameProblems } from '../../model/renamePanels';
 import type { DropResult, DropTarget, MoveItem, PaletteItem } from '../../model/sldEdit';
 import type { SldTarget } from '../../model/sldMenu';
 import { changeFeeder, changeFeeders, duplicateBoard, duplicateFeeder, duplicateMany, moveMany, orderTarget, pasteFeeders, type PickItem } from '../../model/sldMenuEdit';
+import { newSubstationName, rmuConfig, rmuNormallyOpen, txRmu, txSubstation } from '../../model/substations';
 import type { Feeder, Project } from '../../types';
 
 /** What the SLD menus' rows do (sldMenu.ts lists them): each action calls the page through this interface, so the page
@@ -60,6 +61,13 @@ export interface SldMenuCtx {
   removeTie: (id: string) => void;
   /** Show (SLD ribbon → View → Show): draw this part of the network (mvShow.ts partKey). */
   showPart?: (key: string) => void;
+  /** Asks for a name (New substation…): the typed name, or null when cancelled. */
+  askName?: (title: string, initial: string) => Promise<string | null>;
+}
+
+/** An edit of the MV arrangement: one undo step, or only its message when nothing changed. */
+function applyEdit(ctx: SldMenuCtx, r: DropResult): void {
+  if (r.project === ctx.project) { if (r.message) ctx.status(r.message); } else ctx.apply({ ...r, message: `${r.message} (undo with ⌘Z)` });
 }
 
 /** The Add load menu of the SLD ribbon. */
@@ -174,5 +182,15 @@ export function runSldMenu(ctx: SldMenuCtx, t: SldTarget, action: string, value?
     case 'tierating': if (t.kind === 'tie' && Number(value) > 0) ctx.setTie(t.id, { ratingA: Number(value) }); return;
     case 'tieremove': if (t.kind === 'tie') ctx.removeTie(t.id); return;
     case 'part': if (value) ctx.showPart?.(value); return;
+    case 'txsubstation': {
+      if (t.kind !== 'supply') return;
+      if (value !== '+') { applyEdit(ctx, txSubstation(project, t.boardId, value ?? '')); return; }
+      const asked = ctx.askName?.('New substation', newSubstationName(project));
+      if (asked) void asked.then((name) => { if (name?.trim()) applyEdit(ctx, txSubstation(project, t.boardId, name)); });
+      return;
+    }
+    case 'txrmu': if (t.kind === 'supply') applyEdit(ctx, txRmu(project, t.boardId, value ?? '')); return;
+    case 'rmuconfig': if (t.kind === 'rmu' && value) applyEdit(ctx, rmuConfig(project, t.name, value)); return;
+    case 'rmunop': if (t.kind === 'rmu') applyEdit(ctx, rmuNormallyOpen(project, t.name, value === 'R1' || value === 'R2' ? value : undefined)); return;
   }
 }

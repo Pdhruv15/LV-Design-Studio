@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { newProject, type Board, type Project } from '../types';
-import { mvGeometry, mvLeads, mvPlan, mvRingOn, substationTitle, type RmuItem } from './mvArrangement';
+import { mvGeometry, mvLeads, mvPlan, mvRingOn, mvSheetKey, ssRank, substationTitle, type RmuItem } from './mvArrangement';
 
 const tx = (id: string, extra: Partial<Board> = {}): Board => ({ id, name: id, kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 6, ...extra });
 const project = (boards: Board[], extra: Partial<Project> = {}): Project => ({ ...newProject('MV'), voltageV: 400, boards, feeders: [], ...extra });
@@ -53,6 +53,31 @@ describe('11 kV ring plan', () => {
     const plan = mvPlan(p);
     expect(plan.rings.map((r) => [r.source?.id, r.items.map(name)])).toEqual([['A', ['RMU-2', 'RMU-3']], ['B', ['RMU-1']]]);
     expect(plan.order).toEqual(['MDB-2', 'MDB-3', 'MDB-1']);
+  });
+
+  it('puts the substations in their records\' order (the Substations card); RMUs and transformers in none keep their places', () => {
+    const boards = [tx('MDB-1', { rmu: 'RMU-1', substation: 'SS-1' }), tx('MDB-2', { rmu: 'RMU-2' }), tx('MDB-3', { rmu: 'RMU-3', substation: 'SS-2' }), tx('MDB-4', { rmu: 'RMU-4', substation: 'SS-3' })];
+    expect(mvPlan(project(boards)).rings[0].items.map(name)).toEqual(['RMU-1', 'RMU-2', 'RMU-3', 'RMU-4']);
+    const recs = (...names: string[]) => names.map((n, i) => ({ id: `r${i}`, name: n, type: 'conventional' as const, transformers: 1 }));
+    // SS-3, then ss-1 (a record matches whatever the case); SS-2 has none, so it comes after them; RMU-2 (in no substation) stays second.
+    const p = project(boards, { substations: recs('SS-3', 'ss-1') });
+    expect(mvPlan(p).rings[0].items.map(name)).toEqual(['RMU-4', 'RMU-2', 'RMU-1', 'RMU-3']);
+    expect(mvPlan(p).order).toEqual(['MDB-4', 'MDB-2', 'MDB-1', 'MDB-3']);
+    expect(ssRank(p)('SS-1')).toBe(1);
+    expect(ssRank(p)('SS-2')).toBe(2);
+  });
+
+  it('puts an RMU in its first transformer\'s substation, else in the one its record names', () => {
+    const p = project([tx('MDB-1', { rmu: 'RMU-1' })], { rmus: [{ name: 'RMU-1', substation: 'SS-2' }] });
+    expect((mvPlan(p).rings[0].items[0] as RmuItem).substation).toBe('SS-2');
+    const q = project([tx('MDB-1', { rmu: 'RMU-1', substation: 'SS-1' })], { rmus: [{ name: 'RMU-1', substation: 'SS-2' }] });
+    expect((mvPlan(q).rings[0].items[0] as RmuItem).substation).toBe('SS-1');
+  });
+
+  it('keeps a normally open switch only on a unit with two ring switches', () => {
+    const p = project([tx('MDB-1', { rmu: 'RMU-1' }), tx('MDB-2', { rmu: 'RMU-2' }), tx('MDB-3', { rmu: 'RMU-3' })],
+      { rmus: [{ name: 'RMU-1', config: 'RRT', normallyOpen: 'R2' }, { name: 'RMU-2', config: 'RT', normallyOpen: 'R1' }, { name: 'RMU-3', normallyOpen: 'R1' }] });
+    expect((mvPlan(p).rings[0].items as RmuItem[]).map((r) => r.normallyOpen)).toEqual(['R2', undefined, 'R1']);
   });
 
   it('titles a substation frame with its DM-D-013 type and building', () => {
@@ -126,5 +151,25 @@ describe('11 kV ring geometry', () => {
     // MDB-3 alone: the ring comes in from RMU-1.
     const h = mvGeometry(p, mvPlan(p), new Map([['MDB-3', 600]]), opts);
     expect(h.runs[0].head).toMatchObject({ kind: 'from', text: 'from RMU-1 · SS-1' });
+  });
+
+  it('writes N/O beside the normally open ring switch, away from the other ways, and widens the box to take it', () => {
+    const p = (way?: 'R1' | 'R2') => project([tx('MDB-1', { rmu: 'RMU-1' })], { rmus: [{ name: 'RMU-1', config: 'RRT', ...(way ? { normallyOpen: way } : {}) }] });
+    const rmu = (way?: 'R1' | 'R2') => mvGeometry(p(way), mvPlan(p(way)), new Map([['MDB-1', 400]]), opts).rmus[0];
+    const plain = rmu(), r2 = rmu('R2'), r1 = rmu('R1');
+    expect(plain.nop).toBeUndefined();
+    expect(r2.nop).toEqual({ x: r2.ways[2].x + 10, anchor: 'start' });
+    expect([r2.x1, r2.x2 > plain.x2]).toEqual([plain.x1, true]);
+    expect(r1.nop).toEqual({ x: r1.ways[0].x - 10, anchor: 'end' });
+    expect([r1.x1 < plain.x1, r1.x2]).toEqual([true, plain.x2]);
+    expect(r1.ways.map((w) => w.x)).toEqual(plain.ways.map((w) => w.x));
+  });
+
+  it('a sheet\'s fingerprint takes in the normally open switch only where one is entered', () => {
+    const base = project([tx('MDB-1', { rmu: 'RMU-1' })], { rmus: [{ name: 'RMU-1', config: 'RRT' }] });
+    const open: Project = { ...base, rmus: [{ name: 'RMU-1', config: 'RRT', normallyOpen: 'R2' }] };
+    const rmuKey = (q: Project) => (mvSheetKey(q, q.boards) as unknown[][][])[1][0];
+    expect(rmuKey(base)).toEqual(['RMU-1', 'RRT', 2, null, null, ['MDB-1'], []]);
+    expect(rmuKey(open)).toEqual(['RMU-1', 'RRT', 2, null, null, ['MDB-1'], [], 'R2']);
   });
 });

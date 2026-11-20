@@ -340,6 +340,11 @@ export interface Rmu {
   tOff?: 'fuse' | 'vcb';
   fuseA?: number;
   owner?: 'authority' | 'consumer';
+  /** Substation of an RMU that feeds no transformer yet (Panels → Transformers → Substations); one that feeds a
+   * transformer is in its first transformer's substation. */
+  substation?: string;
+  /** The ring switch kept open (the ring's normally open point): R1 where the ring comes in, R2 where it goes on. */
+  normallyOpen?: 'R1' | 'R2';
 }
 
 /** Another building on a shared supply: its DEWA-approved / allocated load and its recorded demand.
