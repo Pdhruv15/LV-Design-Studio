@@ -41,7 +41,7 @@ and `way` set (`isScheduleCircuit`, `src/calc/loadSchedule.ts:14`).
 | `src/docs/panelScheduleDocs.ts` | report | `panelScheduleDocs` | MD form and / or DB schedule HTML per panel for the issue package |
 | `src/docs/scheduleFields.ts`, `panelFields.ts` | report model | `projectFields`, `templateData`, `scheduleRowKeys`, `panelData`, `panelRowKeys` | Typed values exposed to custom schedule templates: project/panel cells, one repeating circuit/feeder row and summary cells |
 | `src/docs/sheetLink.ts` | report / model | `fillLinked`, `templateIssues`, `setLinkMode`, `setLinkCell`, `setLinkColumn` | Fills a custom layout, validates the bounded template contract and separates output-only templates from linked editing |
-| `src/model/scheduleFormats.ts`, `sheets.ts` | model | `withFormat`, `withProjectFormat`, `Sheet`, `SheetLink` | Office format library, project copies and the saved cell/row mapping including output-only mode |
+| `src/model/scheduleFormats.ts`, `sheets.ts` | model | `withFormat`, `withImportedFormat`, `scheduleFormatFileText`, `scheduleFormatFromFileText`, `withProjectFormat`, `Sheet`, `SheetLink` | Versioned office format library, portable `.lvds-format` packages, project copies and the saved cell/row mapping including output-only mode |
 | `src/docs/boardSheets.ts` | report | `boardSheetPages`, `boardSheetHtml` | Board-wise SLD sheets (A3) numbered E-DB-001 … |
 | `src/components/docs/LoadScheduleView.tsx` | screen | `LoadScheduleView` | Load schedule page: tabs, DB grid, WATT/UNIT row, ELCB settings, Balance phases, exports |
 | `src/components/docs/CircuitEditDialog.tsx` | screen | `CircuitEditDialog` | Double-click edit dialog (Loads / Protection / General tabs) |
@@ -106,9 +106,10 @@ and `way` set (`isScheduleCircuit`, `src/calc/loadSchedule.ts:14`).
 10. Export PDF / CSV → `buildLoadScheduleHtml` / `loadScheduleCsv`; Export Excel → `buildFormWorkbook`.
 11. Custom output: Sheets → open/design an Excel layout → Link columns → choose **Output only** → map project/panel cells, one circuit row and summary cells → Template check → save in My formats. Mapped cells cannot change the project; the same filled sheet model feeds Excel and PDF.
 12. **Linked editing** is an explicit alternative. Supported typed cells wait for Apply to project and pass through the existing schedule validation/sizing paths; changing to Output only discards pending edits.
-13. MD form tab → `MdSheetView` → `buildMdSheet`; typed cells → `applyMdEdits` (TCL of an equipment feeder sets `loadKw` and re-sizes).
-14. Board-wise SLD → `BoardSheetView`: click phase tag → `setCircuitPhase`; Balance → `balanceBoardPhases`; status shows `phaseBalance` before/after.
-15. Bulk edit → `BulkEditPanel` → `previewBulkEdit` → `introducedIssues` → `applyModification` (one undo step).
+13. My formats → Export writes one versioned `.lvds-format` package. Import validates its bounded mapping, strips board targets and pending edits, and stores it as **Output only**; a matching stable format ID can be updated or kept as a separate copy. Packages contain no project or panel data.
+14. MD form tab → `MdSheetView` → `buildMdSheet`; typed cells → `applyMdEdits` (TCL of an equipment feeder sets `loadKw` and re-sizes).
+15. Board-wise SLD → `BoardSheetView`: click phase tag → `setCircuitPhase`; Balance → `balanceBoardPhases`; status shows `phaseBalance` before/after.
+16. Bulk edit → `BulkEditPanel` → `previewBulkEdit` → `introducedIssues` → `applyModification` (one undo step).
 
 ## 6. Linked to (working connections)
 

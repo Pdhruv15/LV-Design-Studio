@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { linkBoards, linkLabel, linkMode, sheetFromFormat } from '../../docs/sheetLink';
-import { formatNameError, loadFormats, PANEL_CATEGORIES, projectFormat, projectFormatStale, removeFormat, renameFormat, saveFormats, withProjectFormat, type ScheduleFormat } from '../../model/scheduleFormats';
+import { linkBoards, linkLabel, linkMode, sheetFromFormat, templateIssues } from '../../docs/sheetLink';
+import { formatNameError, formatVersion, loadFormats, MAX_SCHEDULE_FORMAT_FILE_BYTES, PANEL_CATEGORIES, projectFormat, projectFormatStale, removeFormat, renameFormat, saveFormats, scheduleFormatFileText, scheduleFormatFromFileText, SCHEDULE_FORMAT_FILE_EXT, withImportedFormat, withProjectFormat, type ScheduleFormat } from '../../model/scheduleFormats';
 import type { Sheet } from '../../model/sheets';
 import type { Project } from '../../types';
 import { fmtDate } from '../../util/format';
+import { safeFileName, saveText } from '../../util/files';
 import { ask } from '../ConfirmDialog';
 import { PANEL_CSS } from './panelCss';
 
@@ -13,6 +14,8 @@ export default function FormatsPanel({ project, sheets, onAddSheets, onProject, 
   const [list, setList] = useState<ScheduleFormat[]>(() => loadFormats());
   const [boardOf, setBoardOf] = useState<Record<string, string>>({});
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const boardsOf = (f: ScheduleFormat) => linkBoards(project, f.category), withoutOf = (f: ScheduleFormat) => boardsOf(f).filter((b) => !sheets.some((s) => s.link?.boardId === b.id));
   const general = (c: (typeof PANEL_CATEGORIES)[number]) => { onProject(withProjectFormat(project, c.key, undefined)); onStatus?.(`${c.plural} of this project use the app's own table.`); };
   const store = (next: ScheduleFormat[]) => { saveFormats(next); setList(next); };
@@ -34,10 +37,37 @@ export default function FormatsPanel({ project, sheets, onAddSheets, onProject, 
     setRenaming(null);
   };
   const remove = async (f: ScheduleFormat) => { if (await ask(`Delete the format "${f.name}"? Sheets already made from it stay.`)) store(removeFormat(list, f.id)); };
+  const exportFormat = async (format: ScheduleFormat) => {
+    setBusy(true);
+    try {
+      const message = await saveText(`${safeFileName(format.name)}.${SCHEDULE_FORMAT_FILE_EXT}`, scheduleFormatFileText(format), 'LV Design Studio schedule format', SCHEDULE_FORMAT_FILE_EXT, { output: 'scheduleFormatPackage' });
+      if (message) onStatus?.(message);
+    } catch (error) { onStatus?.(error instanceof Error ? error.message : String(error)); }
+    finally { setBusy(false); }
+  };
+  const importFormat = async (file: File) => {
+    setBusy(true);
+    try {
+      if (file.size > MAX_SCHEDULE_FORMAT_FILE_BYTES) throw new Error('The schedule-format file is larger than 2 MB.');
+      const incoming = scheduleFormatFromFileText(await file.text());
+      const invalid = templateIssues(incoming.sheet).find((issue) => issue.level === 'error');
+      if (invalid) throw new Error(`The schedule format is not usable: ${invalid.message}`);
+      const same = list.find((format) => format.id === incoming.id);
+      const copy = same ? !(await ask(`A format with the same identity is already saved as "${same.name}".\n\nPress OK to update it, or Cancel to import a separate copy.`)) : false;
+      const result = withImportedFormat(list, incoming, copy);
+      store(result.list);
+      onStatus?.(`Format "${result.format.name}" ${result.action === 'updated' ? 'updated from the package' : result.action === 'copied' ? 'imported as a separate copy' : 'imported'}. It is Output only.`);
+    } catch (error) { onStatus?.(error instanceof Error ? error.message : String(error)); }
+    finally { setBusy(false); }
+  };
   return (
     <aside className="shl" aria-label="My formats">
       <style>{PANEL_CSS}</style>
       <div className="shl-head"><h4>My formats</h4><button type="button" className="shl-btn shl-x" aria-label="Close" onClick={onClose}><X size={16} aria-hidden /></button></div>
+      <div className="shl-row">
+        <button type="button" className="shl-btn" disabled={busy} onClick={() => fileInput.current?.click()}>Import format…</button>
+        <input ref={fileInput} type="file" accept={`.${SCHEDULE_FORMAT_FILE_EXT},application/json`} hidden aria-label="Schedule format file" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void importFormat(file); }} />
+      </div>
       <div className="shl-needs">
         <span>This project's schedules use</span>
         {PANEL_CATEGORIES.map((c) => {
@@ -65,7 +95,7 @@ export default function FormatsPanel({ project, sheets, onAddSheets, onProject, 
                 <button type="button" className="shl-btn" onClick={() => setRenaming(null)}>Cancel</button>
               </div>
             : <span style={{ fontWeight: 500 }}>{f.name}</span>}
-          <span className="shl-mut">{linkLabel(f.category)} · saved {fmtDate(f.updatedAt)} · {linkMode(f.sheet.link) === 'output' ? 'Output only' : 'Linked editing'}</span>
+          <span className="shl-mut">{linkLabel(f.category)} · saved {fmtDate(f.updatedAt)} · v{formatVersion(f)} · {linkMode(f.sheet.link) === 'output' ? 'Output only' : 'Linked editing'}</span>
           <div className="shl-row">
             <select aria-label={`Board for ${f.name}`} value={boardOf[f.id] ?? ''} onChange={(e) => setBoardOf({ ...boardOf, [f.id]: e.target.value })}>
               <option value="">Choose a board</option>
@@ -83,12 +113,13 @@ export default function FormatsPanel({ project, sheets, onAddSheets, onProject, 
             })}
           </div>
           <div className="shl-row">
+            <button type="button" className="shl-btn" disabled={busy} onClick={() => void exportFormat(f)}>Export…</button>
             <button type="button" className="shl-btn" onClick={() => setRenaming(f.id)}>Rename</button>
             <button type="button" className="shl-btn" onClick={() => void remove(f)}>Delete</button>
           </div>
         </div>
       ))}
-      <p className="shl-note">Formats are kept with your office library, not with one project.</p>
+      <p className="shl-note">Formats are kept with your office library. A format package contains one layout and no project or panel data.</p>
     </aside>
   );
 }

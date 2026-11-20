@@ -662,7 +662,7 @@ export interface Project {
   spec?: import('./model/specDoc').SpecDoc; // the project specification (Specification page)
   sheets?: import('./model/sheets').SheetBook; // the engineer's own sheets (Sheets page)
   /** The schedule format each panel category (DB, SMDB, MDB, MCC) uses in Sheets: a copy of one of My formats, kept with the project. None: the app's own load schedule only. */
-  scheduleFormats?: Partial<Record<'db' | 'smdb' | 'mdb' | 'mcc', { id: string; name: string; sheet: import('./model/sheets').Sheet; appliedAt: string }>>;
+  scheduleFormats?: Partial<Record<'db' | 'smdb' | 'mdb' | 'mcc', { id: string; name: string; version?: number; sheet: import('./model/sheets').Sheet; appliedAt: string }>>;
   lightning?: import('./calc/lightningProtection').LpsInputs; // lightning protection study (concept): the engineer's own class values
   trays?: TrayPlan; // cable tray routes (A, B, C…) with the cables on each and the tray size
   /** CAD floor plan: block names that stand for a library item (blocks named like a library reference need no row). */
