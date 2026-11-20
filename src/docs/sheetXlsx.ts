@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { cellAt, cellName, colName, formulaFunctions, SHEET_FUNCTIONS, type CellValue } from '../calc/sheetFormula';
+import { APP_FUNCTIONS, cellAt, cellName, colName, formulaFunctions, SHEET_FUNCTIONS, type CellValue } from '../calc/sheetFormula';
 import { headingRows } from './sheetPrint';
 import { areaCells, DEFAULT_COLS, DEFAULT_ROWS, DEFAULT_WIDTH, MAX_COLS, MAX_ROWS, newSheet, sheetNameError, sheetValues, type Area, type Sheet, type SheetStyle } from '../model/sheets';
 
@@ -8,7 +8,9 @@ import { areaCells, DEFAULT_COLS, DEFAULT_ROWS, DEFAULT_WIDTH, MAX_COLS, MAX_ROW
  * bold / italic / underline, alignment, wrap, the 0.00 and percent formats, column widths and sheet names. A
  * formula the app cannot work out keeps its value from the file and goes back into the saved file unchanged.
  * Merged cells and borders (thin or thick) are kept too; border colours and dash patterns, and fill and text colours
- * are not (a filled cell becomes the app's one highlight). Not kept: charts, images, comments and anything else Excel-only. */
+ * are not (a filled cell becomes the app's one highlight). Not kept: charts, images, comments and anything else Excel-only.
+ * A formula with one of the app's own functions (AMPS, VD…), which Excel does not have, is saved as its value with the
+ * formula in the cell's note, and comes back as the formula when the file is opened here. */
 
 export interface XlsxReport {
   sheets: number;
@@ -44,6 +46,17 @@ function borderOf(c: ExcelJS.Cell): string {
   if (!b) return '';
   return (['top', 'right', 'bottom', 'left'] as const).map((side) => { const st = b[side]?.style; return st ? (THICK.has(st) ? side[0].toUpperCase() : side[0]) : ''; }).join('');
 }
+/** The first line of the note that carries an app formula in a saved file; the formula follows on the next line. */
+export const APP_FORMULA_NOTE = 'LV Design Studio formula:';
+/** The app formula a cell's note carries, if any. */
+function appFormula(c: ExcelJS.Cell): string | undefined {
+  const n = c.note as unknown;
+  const t = typeof n === 'string' ? n : (n as { texts?: { text: string }[] } | undefined)?.texts?.map((r) => r.text).join('') ?? '';
+  if (!t.startsWith(APP_FORMULA_NOTE)) return undefined;
+  const f = t.slice(APP_FORMULA_NOTE.length).trim();
+  return f.startsWith('=') && f.length > 1 ? f : undefined;
+}
+const EXCEL_ERRORS = new Set(['#DIV/0!', '#NAME?', '#VALUE!', '#REF!', '#N/A']);
 const value = (v: unknown): CellValue => (typeof v === 'number' || typeof v === 'boolean' ? v : v === null || v === undefined ? null : v instanceof Date ? v.toISOString().slice(0, 10) : text(v) || null);
 
 function styleOf(c: ExcelJS.Cell): SheetStyle | undefined {
@@ -99,12 +112,15 @@ export async function readXlsx(data: ArrayBuffer, fileName: string, existing: Sh
         const k = cellName(col, r);
         const st = styleOf(c);
         if (st) styles[k] = st;
-        const f = c.formula;
+        const f = c.formula, own = f ? undefined : appFormula(c);
         let typed = '';
         if (f) {
           typed = `=${f}`;
           report.formulas++;
           results[k] = value(c.result);
+        } else if (own) {
+          typed = own;
+          report.formulas++;
         } else if (typeof c.value === 'number') typed = String(c.value);
         else if (typeof c.value === 'boolean') typed = c.value ? 'TRUE' : 'FALSE';
         else typed = asTyped(text(c.value));
@@ -162,7 +178,8 @@ export function reportText(fileName: string, r: XlsxReport): string {
   return `${parts.join(' · ')}.`;
 }
 
-/** The book as an Excel workbook: formulas as formulas, with the app's values as their saved results. Worksheet names are made unique;
+/** The book as an Excel workbook: formulas as formulas, with the app's values as their saved results (an app formula: its value, the
+ * formula in the note). Worksheet names are made unique;
  * a linked sheet (a schedule) gets the paper of its format, fitted to the page width, with its heading rows repeated on every printed page. */
 export function buildXlsx(sheets: Sheet[]): ExcelJS.Workbook {
   const wb = new ExcelJS.Workbook();
@@ -183,7 +200,11 @@ export function buildXlsx(sheets: Sheet[]): ExcelJS.Workbook {
       const c = ws.getCell(k), r = values[k];
       if (typed.startsWith('=') && typed.length > 1) {
         const result = r?.error ? { error: r.error } : r?.value ?? undefined;
-        c.value = { formula: typed.slice(1), ...(result !== undefined && result !== null ? { result } : {}) } as ExcelJS.CellValue;
+        if (formulaFunctions(typed).some((f) => APP_FUNCTIONS.includes(f))) {
+          // Excel has no such function: the cell gets the value, its note the formula (read back by readXlsx).
+          c.value = (r?.error ? (EXCEL_ERRORS.has(r.error) ? { error: r.error } : r.error) : r?.value ?? null) as ExcelJS.CellValue;
+          c.note = `${APP_FORMULA_NOTE}\n${typed}`;
+        } else c.value = { formula: typed.slice(1), ...(result !== undefined && result !== null ? { result } : {}) } as ExcelJS.CellValue;
       } else if (typed.startsWith("'")) c.value = typed.slice(1);
       else c.value = (r?.value ?? typed) as ExcelJS.CellValue;
     }

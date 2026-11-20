@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cellAt, cellName, colIndex, colName, evaluateSheet, formulaFunctions, SHEET_FUNCTIONS, shiftFormula, type SheetCells } from './sheetFormula';
+import { APP_FUNCTIONS, cellAt, cellName, colIndex, colName, evaluateSheet, formulaFunctions, SHEET_FUNCTIONS, shiftFormula, type SheetCells } from './sheetFormula';
 
 const one = (formula: string, cells: SheetCells = {}) => evaluateSheet({ ...cells, Z99: formula }).Z99;
 const v = (formula: string, cells: SheetCells = {}) => one(formula, cells).value;
@@ -128,7 +128,8 @@ describe('sheet formulas — functions', () => {
   });
 
   it('lists what it has', () => {
-    expect(SHEET_FUNCTIONS).toEqual(['ABS', 'AND', 'AVERAGE', 'CEILING', 'CONCATENATE', 'COUNT', 'COUNTA', 'COUNTIF', 'FALSE', 'FLOOR', 'HLOOKUP', 'IF', 'IFERROR', 'INDEX', 'INT', 'ISBLANK', 'ISNUMBER', 'LEFT', 'LEN', 'LOWER', 'MATCH', 'MAX', 'MID', 'MIN', 'MOD', 'NOT', 'OR', 'PI', 'POWER', 'RIGHT', 'ROUND', 'ROUNDDOWN', 'ROUNDUP', 'SQRT', 'SUM', 'SUMIF', 'SUMPRODUCT', 'TRIM', 'TRUE', 'UPPER', 'VLOOKUP']);
+    // The app's electrical functions: sheetElectrical.test.ts.
+    expect(SHEET_FUNCTIONS.filter((f) => !APP_FUNCTIONS.includes(f))).toEqual(['ABS', 'AND', 'AVERAGE', 'CEILING', 'CONCATENATE', 'COUNT', 'COUNTA', 'COUNTIF', 'FALSE', 'FLOOR', 'HLOOKUP', 'IF', 'IFERROR', 'INDEX', 'INT', 'ISBLANK', 'ISNUMBER', 'LEFT', 'LEN', 'LOWER', 'MATCH', 'MAX', 'MID', 'MIN', 'MOD', 'NOT', 'OR', 'PI', 'POWER', 'RIGHT', 'ROUND', 'ROUNDDOWN', 'ROUNDUP', 'SQRT', 'SUM', 'SUMIF', 'SUMPRODUCT', 'TRIM', 'TRUE', 'UPPER', 'VLOOKUP']);
     expect(formulaFunctions('=IF(SUM(A1:A3)>0,XLOOKUP(1,A1:A3,B1:B3),0)').sort()).toEqual(['IF', 'SUM', 'XLOOKUP']);
     expect(formulaFunctions('=1+')).toEqual([]);
   });
