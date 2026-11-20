@@ -7,7 +7,7 @@ import type { CalcRun } from '../../calc/runs';
 import { LAYER_LABELS, SHEET_LAYERS } from '../../diagram/annotations';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import {
-  addEarthingSheet, addEarthRiserSheet, addRiserSheet, autoSheets, drawable, PAPERS, filterSheets, sheetHash, issueSheets, moveSheet, nextRev, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, statusColor,
+  addEarthingSheet, addEarthRiserSheet, addRiserSheet, autoSheets, drawable, isMvView, PAPERS, filterSheets, sheetHash, issueSheets, moveSheet, nextRev, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, statusColor,
   type DrawingIssue, type DrawingSet, type DrawingSheet, type SheetFilter, type SheetSize, type SheetSort
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
@@ -27,6 +27,7 @@ import { FurnitureFields } from './FurnitureFields';
 import { Page, Modal } from '../ui';
 import type { MainView } from '../../views';
 import { fmtDate } from '../../util/format';
+import { mvRingOn } from '../../diagram/mvArrangement';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 type Col = 'status' | 'rev' | 'date' | 'drawnBy' | 'checkedBy' | 'approvedBy' | 'scale';
@@ -136,7 +137,8 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
     return [
       { key: 'split', title: 'Split by panels', about: 'Fills each sheet with up to the number of panels below, in supply order, keeping a branch together where it fits. Best for authority submissions.', set: withEarthing(renumber(withDb(sheetsByCount(project, perSheet, set.prefix))), project) },
       { key: 'mdb', title: 'One sheet per MDB', about: 'Each main board with everything it feeds; an overview sheet when there are several MDBs.', set: autoSheets(project, 'perMdb', dbSheets, set.prefix) },
-      { key: 'smdb', title: 'Overview + one per SMDB', about: 'An overview of the main boards and sub-mains, then a sheet per SMDB / MCC with its DBs.', set: autoSheets(project, 'perSmdb', dbSheets, set.prefix) }
+      { key: 'smdb', title: 'Overview + one per SMDB', about: 'An overview of the main boards and sub-mains, then a sheet per SMDB / MCC with its DBs.', set: autoSheets(project, 'perSmdb', dbSheets, set.prefix) },
+      ...(mvRingOn(project) ? [{ key: 'ss', title: 'One sheet per substation', about: 'An MV overview (ring, substations, RMUs, transformers, with their schedules), then each substation with its main boards and everything they feed. A bus coupler between two main boards stays on their sheet.', set: autoSheets(project, 'perSubstation', dbSheets, set.prefix) }] : [])
     ];
   }, [set.sheets.length, project, perSheet, dbSheets, set.prefix]);
 
@@ -262,7 +264,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
                         <td><b>{s.number}</b></td>
                         <td>
                           {txt(s.title, (v) => v && setSheet(s.id, { title: v }), '', 260)}
-                          <div className="m dr-panels">{s.kind === 'legend' ? 'Legend, abbreviations and notes of the set' : s.kind === 'earthing' ? 'Earthing schematic (from Design → Earth pits)' : s.kind === 'plan' ? `${PLAN_LABEL[s.plan ?? 'lighting']} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'} (from Design CAD)` : s.kind === 'riser' ? `${s.riserStyle === 'byLevel' ? 'DB riser by level' : s.riserStyle ? 'Riser schematic' : 'Riser diagram'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}` : s.kind === 'earthRiser' || s.kind === 'earthFloor' ? `${s.kind === 'earthRiser' ? 'Earthing riser' : 'Floor earthing'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}${s.part ? ` · part ${s.part + 1}` : ''}` : s.kind === 'board' ? `${s.boards[0]} circuit diagram` : s.boards.length ? s.boards.join(', ') : <span className="warn">no panels — Edit to tick them</span>}</div>
+                          <div className="m dr-panels">{s.kind === 'legend' ? 'Legend, abbreviations and notes of the set' : s.kind === 'earthing' ? 'Earthing schematic (from Design → Earth pits)' : s.kind === 'plan' ? `${PLAN_LABEL[s.plan ?? 'lighting']} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'} (from Design CAD)` : s.kind === 'riser' ? `${s.riserStyle === 'byLevel' ? 'DB riser by level' : s.riserStyle ? 'Riser schematic' : 'Riser diagram'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}` : s.kind === 'earthRiser' || s.kind === 'earthFloor' ? `${s.kind === 'earthRiser' ? 'Earthing riser' : 'Floor earthing'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}${s.part ? ` · part ${s.part + 1}` : ''}` : s.kind === 'board' ? `${s.boards[0]} circuit diagram` : isMvView(s) ? 'MV overview: the ring, substations, RMUs and transformers, with their schedules' : s.boards.length ? s.boards.join(', ') : <span className="warn">no panels — Edit to tick them</span>}</div>
                         </td>
                         <td><select className="bi-sel" value={s.size} onChange={(e) => setSheet(s.id, { size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto</option>{PAPERS.map((z) => <option key={z.size} value={z.size}>{z.label}</option>)}</select></td>
                         <td><span className="dr-dot" style={{ background: statusColor(st) }} />{st || <span className="m">—</span>}</td>
@@ -320,6 +322,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
             <span className="sp" style={{ flex: 'none', width: 12 }} />
             <button className="chip" onClick={() => replaceSet(autoSheets(project, 'perMdb', dbSheets, set.prefix))}>One sheet per MDB</button>
             <button className="chip" onClick={() => replaceSet(autoSheets(project, 'perSmdb', dbSheets, set.prefix))}>Overview + one per SMDB</button>
+            <button className="chip" disabled={!mvRingOn(project)} title={mvRingOn(project) ? 'An MV overview (ring, substations, RMUs, transformers, with their schedules), then each substation with everything its main boards feed' : 'Name the substations or RMUs of the main boards first (Panels → Transformers)'} onClick={() => replaceSet(autoSheets(project, 'perSubstation', dbSheets, set.prefix))}>One sheet per substation</button>
             <label className="row"><input type="checkbox" checked={dbSheets} onChange={(e) => setDbSheets(e.target.checked)} /> Also a circuit diagram for every DB</label>
           </div>
           <p className="m">The size of each sheet is chosen from what's drawn (the smallest of A4 → A1 that stays readable). DBs show as a box with their circuit count and kW. Feeders to a panel on another sheet end in “to X — sheet N”.</p>
@@ -533,7 +536,7 @@ function SheetPanel({ sheet: s, set, project, boards, rev, onPatch, onClose, onR
           <p className="m">Blank fields use the project's value (shown in grey).</p>
 
           <h4>Panels on this sheet</h4>
-          {s.kind === 'board' ? <p>{s.boards[0]} <span className="m">— circuit diagram of this DB{s.schedule ? ' with its load schedule' : ''}</span></p> : s.kind === 'legend' ? <p className="m">The set's legend, abbreviations and notes</p> : (<>
+          {s.kind === 'board' ? <p>{s.boards[0]} <span className="m">— circuit diagram of this DB{s.schedule ? ' with its load schedule' : ''}</span></p> : s.kind === 'legend' ? <p className="m">The set's legend, abbreviations and notes</p> : isMvView(s) ? <p className="m">The MV overview holds no panels: it draws the ring, substations, RMUs and transformers, each main board as its name with the sheet it is drawn on, and the RMU and transformer schedules under them.</p> : (<>
             <p className="m">Panels not ticked are drawn on their own sheet; feeders to them end in “to … — sheet N”.</p>
             <div className="ds-pick">
               {boards.map((b) => {

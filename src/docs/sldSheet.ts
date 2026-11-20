@@ -110,6 +110,8 @@ export interface SheetInfo { no: string; title: string; count: number; index: nu
   abbreviations?: [string, string][];
   /** A table under the drawing (a board sheet's load schedule, src/docs/sheetTable.ts). */
   table?: SheetTable;
+  /** A second table beside the first (the MV overview sheet's transformer schedule beside its RMU schedule). */
+  table2?: SheetTable;
   /** Legend and notes tables placed on a plan sheet's layout (src/model/sheetTables.ts), drawn: where each goes (mm,
    * drawing area, from its top left corner), its width and height, and its SVG. */
   tables?: { id: string; kind: 'legend' | 'notes'; x: number; y: number; w: number; h: number; svg: string }[];
@@ -216,8 +218,10 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   const revBox = !!border && !revRowsIn(border);
   const notesInColumn = (fz.notesPlace === 'column' || strip || revBox) && side; // the notes join the column above the app's revision table in a border
   const notesW = Math.min(fz.notesWidthMm ?? tbW, (w - FRAME_W - 6) / k);
-  // A table under the drawing (a board sheet's load schedule): the drawing moves up by its height.
-  const table = one?.table, tableH = table ? tableHeightMm(table, tm) : 0;
+  // A table under the drawing (a board sheet's load schedule; the MV overview's two schedules side by side): the drawing
+  // moves up by the taller one's height.
+  const table = one?.table, table2 = table ? one?.table2 : undefined;
+  const tableH = table ? Math.max(tableHeightMm(table, tm), table2 ? tableHeightMm(table2, tm) : 0) : 0;
   const fire = cables.some((c) => c.fireRated);
   const { css: tbCss, html: tbHtml } = titleBlockFragment(project, t, custom, extra, one, sheet, k);
   // The revision table and the title block share the band along the frame's foot, row for row, so each line of one runs
@@ -264,6 +268,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .tbl h5 { margin: 0 0 ${mm(1)}; font-size: ${mm(tm)}; font-weight: 700; } .tbl p { margin: 0; line-height: ${mm(3.6 * tm / 2.5)}; }
     .tbl table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: ${mm(1)}; } .tbl th, .tbl td { border: ${mm(0.18 * lw)} solid #000; padding: 0 ${mm(0.8)}; height: ${mm(4.4 * tm / 2.5)}; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 400; }
     .tbl th { font-weight: 700; white-space: normal; height: auto; line-height: 1.1; padding-top: ${mm(0.4)}; padding-bottom: ${mm(0.4)}; } .tbl td.l { text-align: left; } .tbl tr.f td { font-weight: 700; }
+    .tbls { position: absolute; left: 3mm; right: calc(3mm + ${mm(csW)}); bottom: ${mm(3 + stripH)}; height: ${mm(tableH)}; display: flex; gap: ${mm(4)}; } .tbls .tbl { position: static; flex: 1 1 0; min-width: 0; height: 100%; }
     .lgsheet { position: absolute; inset: 3mm; display: flex; flex-direction: column; gap: ${mm(3)}; overflow: hidden; }
     .lgsheet .abbr, .lgsheet .notes { position: static; width: auto; border: ${mm(0.25 * lw)} solid #000; }
     .lgsheet .abbr { column-count: ${abbr.length > 24 ? 3 : abbr.length > 8 ? 2 : 1}; }
@@ -312,7 +317,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   <div class="brd">${drawnTitleBlockHtml(border, project, extra, false)}</div>` : ''}
   <div class="frame"><div class="body">${legendSheet ? `
     <div class="lgsheet">${legendSvg ? `<div class="lg">${legendSvg}</div>` : ''}${abbr.length ? abbrHtml : ''}${notesHtml}${revBoxHtml}</div>` : `
-    <div class="drawing">${svg}</div>${table ? tableHtml(table) : ''}${(one?.tables ?? []).map((pt) => `<div class="ptab" data-id="${esc(pt.id)}" style="left:${num(3 + pt.x)}mm;top:${num(3 + pt.y)}mm;width:${num(pt.w)}mm">${pt.svg}</div>`).join('')}`}
+    <div class="drawing">${svg}</div>${table ? (table2 ? `<div class="tbls">${tableHtml(table, true)}${tableHtml(table2, true)}</div>` : tableHtml(table)) : ''}${(one?.tables ?? []).map((pt) => `<div class="ptab" data-id="${esc(pt.id)}" style="left:${num(3 + pt.x)}mm;top:${num(3 + pt.y)}mm;width:${num(pt.w)}mm">${pt.svg}</div>`).join('')}`}
     ${strip ? `<div class="strip"><div class="lg">${legendSvg}</div></div>` : ''}
     ${side ? `<div class="side">${legendSvg && !strip ? `<div class="lg">${legendSvg}</div>` : ''}` : ''}
     ${cables.length ? `<div class="cs"><h5>CABLE SCHEDULE</h5><table>${cables.map((c) => `<tr><td class="n"><span>${c.ref}</span></td><td>${esc(c.text)}</td></tr>`).join('')}</table>${fire ? `<p><b>NOTE:</b> ${esc(FIRE_NOTE)}</p>` : ''}</div>` : ''}
@@ -333,11 +338,12 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
 
 const FRAME_W = 30, FRAME_H = 20, BAND = 44;
 
-/** A sheet table (src/docs/sheetTable.ts) as HTML: title, lines, head, rows and totals. */
-function tableHtml(t: SheetTable): string {
+/** A sheet table (src/docs/sheetTable.ts) as HTML: title, lines, head, rows and totals. Beside another (`grow`), it
+ * takes the share of the row its column widths ask. */
+function tableHtml(t: SheetTable, grow = false): string {
   const total = t.widths.reduce((a, b) => a + b, 0);
   const cell = (v: string, i: number, tag = 'td') => `<${tag}${t.left.includes(i) ? ' class="l"' : ''}>${esc(v)}</${tag}>`;
-  return `<div class="tbl"><h5>${esc(t.title)}</h5>${t.lines.map((l) => `<p>${esc(l)}</p>`).join('')}<table><colgroup>${t.widths.map((w) => `<col style="width:${+((w / total) * 100).toFixed(2)}%">`).join('')}</colgroup><thead><tr>${t.head.map((h, i) => cell(h, i, 'th')).join('')}</tr></thead><tbody>${t.rows.map((r) => `<tr>${r.map((v, i) => cell(v, i)).join('')}</tr>`).join('')}${t.foot.map((r) => `<tr class="f">${r.map((v, i) => cell(v, i)).join('')}</tr>`).join('')}</tbody></table></div>`;
+  return `<div class="tbl"${grow ? ` style="flex-grow:${num(total)}"` : ''}><h5>${esc(t.title)}</h5>${t.lines.map((l) => `<p>${esc(l)}</p>`).join('')}<table><colgroup>${t.widths.map((w) => `<col style="width:${+((w / total) * 100).toFixed(2)}%">`).join('')}</colgroup><thead><tr>${t.head.map((h, i) => cell(h, i, 'th')).join('')}</tr></thead><tbody>${t.rows.map((r) => `<tr>${r.map((v, i) => cell(v, i)).join('')}</tr>`).join('')}${t.foot.map((r) => `<tr class="f">${r.map((v, i) => cell(v, i)).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
 /** Zone references (ISO 5457): fields of about 50 mm along the frame, numbered along the top and bottom, lettered down

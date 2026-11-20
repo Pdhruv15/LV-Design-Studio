@@ -382,6 +382,7 @@ export default function SystemDiagram({
   onFixFeeder,
   arrows,
   fromSheet,
+  drawnOn,
   cull = false,
   onEditFeeder,
   onEditBoard,
@@ -448,6 +449,8 @@ export default function SystemDiagram({
   arrows?: { target: string; text: string; dir: 'ne' | 'nw' | 'se' | 'sw'; len?: number }[];
   /** Drawing sheets: the sheet number of the board feeding each panel drawn from another sheet. */
   fromSheet?: Record<string, string>;
+  /** The MV overview sheet: the sheet each main board is drawn on, printed under its name. */
+  drawnOn?: Record<string, string>;
   /** Draw only the boards and circuits in view (plus a margin) — for the interactive SLD on large
    * projects. Exports and sheets leave it off so everything is drawn. */
   cull?: boolean;
@@ -1953,6 +1956,7 @@ export default function SystemDiagram({
                 <rect x={n.x - w / 2} y={top} width={w} height={22} rx="2" className="sym" />
                 {sel && <rect x={n.x - w / 2 - 3} y={top - 3} width={w + 6} height={28} rx="3" style={{ fill: 'none', stroke: 'var(--acc)', strokeWidth: 2 }} />}
                 <text className="b" x={n.x} y={top + 15} textAnchor="middle">{b.id}</text>
+                {drawnOn?.[b.id] && <text className="m" x={n.x} y={top + 35} textAnchor="middle" data-sheet={drawnOn[b.id]}>sheet {drawnOn[b.id]}</text>}
               </g>
             );
           }

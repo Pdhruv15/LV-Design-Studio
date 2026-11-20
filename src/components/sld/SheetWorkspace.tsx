@@ -11,7 +11,7 @@ import { boardsInSupplyOrder } from '../../calc/summary';
 import { subtree } from '../../calc/pfc';
 import { evaluateProject } from '../../calc/electrical';
 import {
-  addBoardSheets, addLegendSheet, addDbRiserSheets, PAPERS, addEarthingSheet, addEarthRiserSheet, addRiserSheet, toggleRiserBreak, addSheet, applyTemplate, drawable, issueSheets, loadSheetTemplates, nextRev, renumber, saveSheetTemplates, setOf, SHEET_STATUSES, sheetChecks, sheetHash, sheetRev, sheetsByCount, statusColor, templateFromSheet,
+  addBoardSheets, addLegendSheet, addDbRiserSheets, PAPERS, addEarthingSheet, addEarthRiserSheet, addRiserSheet, toggleRiserBreak, addSheet, applyTemplate, drawable, isMvView, issueSheets, loadSheetTemplates, nextRev, renumber, saveSheetTemplates, setOf, SHEET_STATUSES, sheetChecks, sheetHash, sheetRev, sheetsByCount, statusColor, templateFromSheet,
   type DrawingSet, type DrawingSheet, type SheetCheck, type SheetSize,
   sheetRefs, type SheetRef
 } from '../../model/drawingSet';
@@ -410,7 +410,12 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
               })()}
             </details>
           )}
-          {s.kind === 'system' && (
+          {isMvView(s) && (
+            <details open><summary>Panels on this sheet (none)</summary>
+              <p className="m">The MV overview holds no panels: it draws the ring, substations, RMUs and transformers, each main board as its name with the sheet it is drawn on, and the RMU and transformer schedules under them.</p>
+            </details>
+          )}
+          {s.kind === 'system' && !isMvView(s) && (
             <details open><summary>Panels on this sheet ({s.boards.length})</summary>
               <div className="ds-pick">
                 {boards.map((b) => {
@@ -444,7 +449,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
             </div>
             <p className="m">Blank: as the set (Title block & numbering). What prints around the drawing on this sheet only.</p>
           </details>
-          {s.kind === 'system' && (
+          {s.kind === 'system' && !isMvView(s) && (
             <details><summary>Revision clouds ({(s.clouds ?? []).length})</summary>
               <CloudChanges project={project} set={set} s={s} rev={nextRev(sheetRev(s, rev?.id))} onCloud={(keys, r) => patch({ clouds: cloudChanges(s, keys, r).clouds })} />
               {(s.clouds ?? []).map((c, i) => (

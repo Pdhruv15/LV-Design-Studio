@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.222', date: '2026-11-20',
+    items: [
+      { title: 'Sheets: one sheet per substation', text: 'Design CAD → Sheets → Make the sheets automatically has a fourth button, One sheet per substation, once a main board names its substation or RMU. It makes an MV overview sheet, then one sheet per substation in ring order with its main boards and everything they feed (a bus coupler between them stays on the sheet), then a sheet for each RMU or transformer in no substation and each board on an authority LV supply. One sheet per MDB stays as it was.' },
+      { title: 'Sheets: the MV overview', text: 'The MV overview sheet draws the source, the ring, the substations with their RMUs and transformers, and each main board as its name with the sheet it is drawn on. Under the drawing, an RMU schedule (substation, ways, ratings, tee-off protection, what each tee-off feeds and the normally open switch) and a transformer schedule (kVA, Z %, group, ratio, substation, RMU way, main board and sheet) stand side by side, in the PDF and in DXF.' }
+    ]
+  },
+  {
     version: '2.221', date: '2026-11-20',
     items: [
       { title: 'Substations card', text: 'Panels → Transformers has a new Substations card, one row per substation in ring order: its DM-D-013 type and location (the same record as the Substation area page), its RMUs with their configuration, its transformers and spare tee-offs, the owner of its RMUs and its checks. The SLD draws the substations left to right in this order; ▲ ▼ change it. + Substation adds one, + RMU adds an RMU to a substation before it feeds a transformer. The checks show a POCKET type or open roof substation with too many transformers, an RMU with more transformers than tee-offs or feeding two substations, and two normally open points on one ring.' },
