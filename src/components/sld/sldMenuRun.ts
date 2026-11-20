@@ -58,6 +58,8 @@ export interface SldMenuCtx {
   redo: () => void;
   setTie: (id: string, patch: { closed?: boolean; ratingA?: number }) => void;
   removeTie: (id: string) => void;
+  /** Show (SLD ribbon → View → Show): draw this part of the network (mvShow.ts partKey). */
+  showPart?: (key: string) => void;
 }
 
 /** The Add load menu of the SLD ribbon. */
@@ -171,5 +173,6 @@ export function runSldMenu(ctx: SldMenuCtx, t: SldTarget, action: string, value?
     case 'tieop': if (t.kind === 'tie' && (value === 'open' || value === 'closed')) ctx.setTie(t.id, { closed: value === 'closed' }); return;
     case 'tierating': if (t.kind === 'tie' && Number(value) > 0) ctx.setTie(t.id, { ratingA: Number(value) }); return;
     case 'tieremove': if (t.kind === 'tie') ctx.removeTie(t.id); return;
+    case 'part': if (value) ctx.showPart?.(value); return;
   }
 }

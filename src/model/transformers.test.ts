@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { applyTransformers, mainBoards, mainOf, moveUnder, planTransformers, setTransformer, supplyChain, txTag } from './transformers';
+import { applyTransformers, mainBoards, mainOf, moveUnder, planTransformers, setTransformer, supplyChain, txTag, txTags } from './transformers';
 
 describe('transformers', () => {
   it('creates one MDB per DEWA transformer, numbered after the existing ones, with ties between pairs', () => {
@@ -39,5 +39,13 @@ describe('transformers', () => {
     const b = setTransformer(a, id, undefined);
     expect(b.boards.find((x) => x.id === id)!.sourceKva).toBeUndefined();
     expect(txTag(b, id)).toBeUndefined();
+  });
+
+  it('numbers every transformer at once as txTag does', () => {
+    const p = { ...sampleProject, boards: [...sampleProject.boards, { id: 'MDB-X', name: 'MDB-X', kind: 'MDB' as const }, { id: 'MDB-Y', name: 'MDB-Y', kind: 'MDB' as const, sourceKva: 1500 }] };
+    const all = txTags(p);
+    expect([...all.values()]).toEqual(mainBoards(p).filter((b) => b.sourceKva).map((b, i) => `TX-${i + 1}`));
+    for (const b of mainBoards(p)) expect(all.get(b.id)).toBe(txTag(p, b.id));
+    expect(all.has('MDB-X')).toBe(false);
   });
 });

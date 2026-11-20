@@ -101,6 +101,7 @@ ELV covers five systems (`src/elv/defaults.ts` `ELV_SYSTEMS`): **fire alarm**, *
 - **21-cad-core / 22-cad-electrical**: palette, placement, coverage overlay, edit tools, unit rescale of devices.
 - **23/24 sheets**: ELV plan type in the drawing set uses the same symbols (`elvPlanSymbols` → `symbolSvg`).
 - **31-headless-cli-mcp**: five ELV tools; the headless loads export.
+- **Sheets page (built-in Excel)**: `src/calc/sheetElv.ts` gives sheet formulas the estimate's methods and defaults (FABATT, FACHARGE, POESWITCH, CAMRANGE, PAWATTS, NVRTB, VDDC). LV may not import ELV, so the formulas are written there again; `sheetElv.test.ts` checks them against `DEFAULT_CATALOGUE` and `cameraRangeM`.
 - **02-project-storage**: all ELV data (`elv`, `elvDevices`, `elvDeviceSeq`, `elvRemarks`, `elvBoq`) is saved in the project file. Remarks and rule overrides persist.
 
 

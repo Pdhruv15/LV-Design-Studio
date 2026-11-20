@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 type Created = { root: string; rootMade: boolean; created: number; existed: number; failed: { path: string; reason: string }[] };
 type Status = { root: string; exists: boolean; present: string[]; missing: string[]; looseFiles: string[]; looseCount: number };
 const disk = createRequire(import.meta.url)('../../electron/projectFolders.cjs') as {
-  create: (a: unknown) => Created; status: (a: unknown) => Status; openable: (root: unknown) => string; args: (a: unknown) => { root: string; paths: string[] };
+  create: (a: unknown) => Created; status: (a: unknown) => Status; fileCounts: (a: unknown) => number[]; openable: (root: unknown) => string; args: (a: unknown) => { root: string; paths: string[] };
   startDir: (dir: unknown) => string | undefined; saveCopy: (a: unknown, source: unknown) => { file: string };
 };
 
@@ -175,5 +175,27 @@ describe('the copy of the project file in the project folder (decision 1, option
     const src = source();
     symlinkSync(src, join(base, 'linked.lvds'));
     expect(() => copy({ fileName: 'linked.lvds' }, join(base, 'linked.lvds'))).toThrow(/Refused/);
+  });
+});
+
+describe('counting the files in folders (C6 renamed, C8 left untouched)', () => {
+  it('counts files with their subfolders, -1 for a folder that is not there, and changes nothing', () => {
+    mkdirSync(join(root(), '06_Drawings', '02_Issued', 'Rev-A'), { recursive: true });
+    writeFileSync(join(root(), '06_Drawings', '02_Issued', 'E-101.pdf'), 'x');
+    writeFileSync(join(root(), '06_Drawings', '02_Issued', 'Rev-A', 'E-101.pdf'), 'x');
+    const before = readdirSync(root(), { recursive: true }).sort();
+    expect(disk.fileCounts({ root: root(), paths: ['06_Drawings/02_Issued', '06_Drawings', 'E-DEWA'] })).toEqual([2, 2, -1]);
+    expect(readdirSync(root(), { recursive: true }).sort()).toEqual(before);
+    expect(disk.fileCounts({ root: join(base, 'missing'), paths: ['A'] })).toEqual([-1]);
+  });
+  it('does not follow links and refuses paths outside the project folder', () => {
+    if (process.platform === 'win32') return;
+    mkdirSync(join(base, 'Elsewhere'), { recursive: true });
+    writeFileSync(join(base, 'Elsewhere', 'private.txt'), 'x');
+    mkdirSync(join(root(), 'A'), { recursive: true });
+    symlinkSync(join(base, 'Elsewhere'), join(root(), 'A', 'Linked'));
+    symlinkSync(join(base, 'Elsewhere'), join(root(), 'L'));
+    expect(disk.fileCounts({ root: root(), paths: ['A', 'L'] })).toEqual([0, -1]);
+    expect(() => disk.fileCounts({ root: root(), paths: ['../Elsewhere'] })).toThrow(/Refused/);
   });
 });

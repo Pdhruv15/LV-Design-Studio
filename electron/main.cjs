@@ -458,6 +458,7 @@ handle('projectFolders:chooseParent', async (evt, start) => {
 });
 handle('projectFolders:create', (_evt, args) => projectFolders.create(args));
 handle('projectFolders:status', (_evt, args) => projectFolders.status(args));
+handle('projectFolders:fileCounts', (_evt, args) => projectFolders.fileCounts(args));
 // After a project save: a copy of the project file in the project folder's projectFile folder (decision 1, option B).
 handle('projectFolders:saveCopy', (_evt, args) => {
   if (typeof args !== 'object' || args === null) throw new Error('Refused: project file copy');

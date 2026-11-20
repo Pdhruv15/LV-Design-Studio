@@ -8,7 +8,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const MAX = Object.freeze({ paths: 2000, depth: 12, nameChars: 120, rootChars: 400, pathChars: 240, looseFiles: 20 });
+const MAX = Object.freeze({ paths: 2000, depth: 12, nameChars: 120, rootChars: 400, pathChars: 240, looseFiles: 20, countFiles: 5000, countPaths: 200 });
 const ILLEGAL = /[<>:"/\\|?*]/;
 const RESERVED = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$/i;
 const fail = (what) => { throw new Error(`Refused: ${what}`); };
@@ -101,6 +101,34 @@ function status(a) {
 }
 
 /** An existing real folder to show in the file manager; throws otherwise. */
+/** How many files each folder holds, its subfolders included (C6 renamed, C8 left untouched): counted only,
+ * never opened, and their names are not returned. No link is followed. -1 when the folder is not there;
+ * at most MAX.countFiles per folder (the count then reads as "at least"). */
+function fileCounts(a) {
+  const { root, paths } = args(a);
+  if (paths.length > MAX.countPaths) fail('folder list');
+  if (kind(root) !== 'dir') return paths.map(() => -1);
+  return paths.map((rel) => {
+    const top = path.join(root, ...rel.split('/'));
+    let ok = true;
+    const parts = rel.split('/');
+    for (let i = 1; ok && i <= parts.length; i++) ok = kind(path.join(root, ...parts.slice(0, i))) === 'dir';
+    if (!ok) return -1;
+    let n = 0;
+    const queue = [top];
+    while (queue.length && n < MAX.countFiles) {
+      const dir = queue.shift();
+      let entries;
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+      for (const d of entries) {
+        if (d.isSymbolicLink()) continue;
+        if (d.isFile()) { if (++n >= MAX.countFiles) break; } else if (d.isDirectory()) queue.push(path.join(dir, d.name));
+      }
+    }
+    return n;
+  });
+}
+
 function openable(root) {
   if (typeof root !== 'string' || root.length > MAX.rootChars || !path.isAbsolute(root)) fail('folder to open');
   const full = path.resolve(root);
@@ -150,4 +178,4 @@ function saveCopy(a, sourceFile) {
   return { file: target };
 }
 
-module.exports = { MAX, args, create, status, openable, startDir, saveCopy };
+module.exports = { MAX, args, create, status, fileCounts, openable, startDir, saveCopy };

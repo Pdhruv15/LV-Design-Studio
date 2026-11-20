@@ -868,6 +868,29 @@ describe('CAD view', () => {
     expect(project.cadSketch![0].items[2]).toMatchObject({ layer: 'E-CABLE', cable: { feederId: f.id } });
   });
 
+  it('finds and approves a bounded optimal LV cable route, updating its schedule in the same change', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const f = villa.feeders[0];
+    await command('CR');
+    act(() => state.setCableFeeder(f.id));
+    const mode = document.querySelector('select[aria-label="Cable routing method"]') as HTMLSelectElement;
+    act(() => { mode.value = 'optimal'; mode.dispatchEvent(new Event('change', { bubbles: true })); });
+    await clickAt(2000, 3000);
+    await clickAt(4000, 3000);
+
+    expect(document.body.textContent).toContain('Route A · Recommended');
+    expect(document.body.textContent).toMatch(/Bounded search: [\d,]+ \/ 60,000 cells/);
+    act(() => button('Approve route A').click());
+
+    const routes = sketchOf(project, state.view!.file).filter((it) => it.cable?.feederId === f.id);
+    expect(routes).toHaveLength(1);
+    expect(routes[0]).toMatchObject({ kind: 'pline', layer: 'E-CABLE', cable: { feederId: f.id } });
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(/^LV route A approved .* · 1 cable length · ⌘Z to undo$/);
+    expect(project.feeders.find((x) => x.id === f.id)!.lengthM).not.toBe(f.lengthM);
+  });
+
   it('fills a room with an ELV device at its spacing, shows coverage, and copies the devices to another level', async () => {
     const twoLevels: Project = { ...villa, building: { ...villa.building!, buildings: [{ id: 'V', name: 'Villa', levels: [{ id: 'GF', name: 'Ground', kind: 'ground', heightM: 4 }, { id: 'FF', name: 'First', kind: 'typical', heightM: 4 }] }] } };
     act(() => root.render(<Host start={twoLevels} />));

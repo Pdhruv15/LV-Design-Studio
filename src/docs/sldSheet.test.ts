@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { STANDARD_BLOCK, standardTemplate, templateKindOf, templateOf, titleBlockHtml } from '../model/titleBlock';
 import type { Project } from '../types';
-import { buildSldSheetHtml, legendColsFor, legendColumnFits, stripInnerMm, zoneFields } from './sldSheet';
+import { buildSldSheetHtml, legendColsFor, legendColumnFits, partDrawing, stripInnerMm, zoneFields } from './sldSheet';
 
 /** The band along a drawing sheet's foot: the revision table and the title block share its rows, and the frame draws
  * its foot and right edge, so every line meets and none is drawn twice. The printed check is tests/pdf/sheetFrame.pdf.ts. */
@@ -231,5 +231,14 @@ describe('drawn title block on a sheet', () => {
     expect(doc.querySelector('.tbx svg')).not.toBeNull();
     expect(html).toContain('>E-SLD-001</text>');
     expect([...doc.querySelectorAll('.band .rv tr')]).toHaveLength(6); // the revision table divides the 44 mm block's height
+  });
+});
+
+describe('the title of a part of the network (SLD → Show, then Export)', () => {
+  it('adds the part to the drawing title, the default one too; the whole network keeps it', () => {
+    expect(partDrawing({ title: 'MAIN LV SLD ', number: 'E-1' }, 'SS-1')).toEqual({ title: 'MAIN LV SLD — SS-1', number: 'E-1' });
+    expect(partDrawing({}, 'TX-2').title).toBe('SINGLE LINE DIAGRAM — TX-2');
+    const d = { title: 'MAIN LV SLD' };
+    expect(partDrawing(d)).toBe(d);
   });
 });

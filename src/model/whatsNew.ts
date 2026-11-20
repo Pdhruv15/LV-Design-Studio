@@ -18,9 +18,43 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.215', date: '2026-11-19',
+    version: '2.220', date: '2026-11-20',
     items: [
       { title: 'Search opens the drawing sheet', text: 'Picking a sheet under Drawing sheets in Search (⌘K / Ctrl+K) now opens that sheet in Design CAD → Sheets. Before, it showed the SLD instead.' }
+    ]
+  },
+  {
+    version: '2.219', date: '2026-11-19',
+    items: [
+      { title: 'Project folder: customise for this project', text: 'Overview → Project folder → Customise… shows this project\'s folders with what is on disk (present, to create, hidden here, renamed here). Add folders, rename, hide a template folder or move a role for this project only: the changes are saved in the project, and the office template is not changed unless you choose Save these changes back to the template…. A rename makes the new folder and lists the old one, with its file count; nothing is moved. Reset to template undoes the project\'s changes.' },
+      { title: 'Project folder: change template', text: 'Change template… compares the project\'s folders with another template before anything is done: folders to create, kept (and roles that move), and those not in the new template, which are left as they are with their file count. Show where old files would go lists each output\'s old and new folder. Apply only creates folders, switches the template and lists the project changes that no longer apply.' }
+    ]
+  },
+  {
+    version: '2.218', date: '2026-11-19',
+    items: [
+      { title: 'Sheets: ELV formulas', text: 'Formulas in Sheets can now size ELV systems with the methods of the ELV estimate: FABATT(quiescent mA, alarm mA) for the fire alarm battery in Ah (24 h standby, 30 min alarm, × 1.25 unless given), FACHARGE(Ah) for the charger current, POESWITCH(devices, W each, ports, PoE budget W) for the PoE switches, CAMRANGE(field of view °, pixels, "R") for how far a camera can detect, observe, recognise or identify ("D", "O", "R", "I"), PAWATTS(speaker taps W) for the PA amplifier power, NVRTB(cameras, Mbps, days) for the recording storage in TB, and VDDC(mA, length m, mm²) for the voltage drop of a 24 V loop or sounder circuit.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
+    version: '2.217', date: '2026-11-19',
+    items: [
+      { title: 'Sheets: electrical formulas', text: 'Formulas in Sheets can now use the app\'s own electrical functions, worked out with its cable and breaker data: AMPS(kW, pf) for the current, KW(A, pf) for the power, VD(A, length m, mm², pf) for the voltage drop %, BREAKER(A) for the next breaker rating, CABLESIZE(A, length m, pf, ambient °C, VD limit %) for the cable, DERATE(ambient °C) for the rating factor, CPC(mm²) for the earth conductor, TXSIZE(kVA) for the transformer, FAULTKA(kVA, Z %) for the fault level and KVAR(kW, pf now, pf target) for the capacitors. Phases (3 or 1) and the voltage can follow; 400 V or 230 V is used without one. Excel does not have these functions, so a saved Excel file gets their values, with the formula in the cell\'s note; Sheets reads the formula back when it opens the file.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
+    version: '2.214', date: '2026-11-19',
+    items: [
+      { title: 'Panel tree: Group by substation', text: 'Once a main board names its RMU or substation (Panels → Transformers), the panel tree has a Group switch: Boards, as before, or Substations. Substations lists each substation, its RMUs and their main boards with the transformer\'s kVA (and its number, e.g. TX-1, when the tree is wide enough), then the boards below. Main boards in no substation go under "No substation", meter cabinets under "Authority supply". On the SLD page a click on a substation or RMU shows it on the drawing; on other pages a double-click does. Find a board… also finds a substation or RMU by name.' }
+    ]
+  },
+  {
+    version: '2.212', date: '2026-11-19',
+    items: [
+      { title: 'SLD: Show one substation, RMU or transformer', text: 'SLD ribbon → View → Show lists the whole network, the MV overview, then each substation with its RMUs and their transformers (with kVA, main board and the boards each holds) and the boards on an authority LV supply. Pick one to draw only that part, with everything its main boards feed. The ring, an RMU\'s other tee-offs and a bus coupler to a board not drawn become stubs, e.g. "BC-1 to MDB-1 (TX-1)". Only the view changes: results, checks and fault levels stay those of the whole network.' },
+      { title: 'SLD: the MV overview', text: 'Show → MV overview draws only the MV side: the source, the ring, the substations with their RMUs and transformers, and each main board as its name. Double-click a substation frame there to show that substation.' },
+      { title: 'SLD: the Showing chip', text: 'While a part is shown, a chip at the drawing\'s top left names it and what it holds, with ◀ ▶ for the previous or next substation, RMU or transformer, and Show all. Selecting a board outside the part (panel tree, Check, Find) shows that board\'s part.' },
+      { title: 'SLD: right-click Show … only', text: 'Right-click an RMU, a substation frame or a transformer on the SLD → Show … only; the empty drawing\'s menu has Show all while a part is shown. Export… exports what is shown, titled with it, e.g. "SINGLE LINE DIAGRAM — SS-1".' }
     ]
   },
   {

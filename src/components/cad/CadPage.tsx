@@ -71,8 +71,11 @@ import CadTabs from './CadTabs';
 import RoomLightingPanel, { lightingOf, LUX_START, type LuxSettings } from './RoomLightingPanel';
 import { placeRoomLights } from '../../model/roomLights';
 import EmergencyPanel, { EM_PROMPT, EM_START, emFitting, type EmSettings } from './EmergencyPanel';
+import LvRoutePlannerPanel, { type LvRouteMode } from './LvRoutePlannerPanel';
 import { EMPHASIS_LABEL, emergencyLayout, OPEN_AREA_M2, type EmphasisKind } from '../../calc/emergencyLighting';
 import { placeEmergency } from '../../model/emergencyPlace';
+import { lengthBreakdown, pullCadLengths } from '../../model/cadLengths';
+import { planLvRoutes, type LvRoutePlan, type LvRoutePrecision } from '../../model/lvRoutePlanner';
 import { EMERGENCY_ITEMS } from '../../model/cadDevices';
 import { planLevel, setPlanLevel } from './cadFileMenu';
 import { pathOfPlan, type CadExport, type DraftTab, type SavedCopy } from './cadState';
@@ -395,6 +398,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // Emergency (EM): the escape routes, points of emphasis and open-area rooms marked (metres), kept until Place or Cancel.
   const [em, setEm] = useState<{ routes: Pt[][]; points: { at: Pt; kind: EmphasisKind }[]; rooms: string[] }>({ routes: [], points: [], rooms: [] });
   const [emSet, setEmSet] = useState<EmSettings>(EM_START);
+  // LV optimal route: session-only settings and preview. Hard engine limits are in model/lvRoutePlanner.ts; no route
+  // search grid is saved in the project. ELV circuits deliberately stay on the manual route workflow for now.
+  const [lvRouteMode, setLvRouteMode] = useState<LvRouteMode>('manual');
+  const [lvRouteOptions, setLvRouteOptions] = useState(2);
+  const [lvRoutePrecision, setLvRoutePrecision] = useState<LvRoutePrecision>('balanced');
+  const [lvRoutePlan, setLvRoutePlan] = useState<LvRoutePlan | null>(null);
+  const [lvRouteSelected, setLvRouteSelected] = useState(0);
   // Edit devices: several devices picked (Shift-click or a window; one device is cad.selected), the menu at the cursor
   // after a right click (canvas pixels), Array on line and Match settings, and the board being renamed.
   const [picked, setPicked] = useState<string[]>([]);
@@ -539,7 +549,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [showXR, setShowXR] = useState(false);
   const [xDraft, setXDraft] = useState<CadRef | null>(null);
   const [xClip, setXClip] = useState<{ name: string; outline: boolean } | null>(null);
-  if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); setEm({ routes: [], points: [], rooms: [] }); setPicked([]); }
+  if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); setEm({ routes: [], points: [], rooms: [] }); setLvRoutePlan(null); setLvRouteSelected(0); setPicked([]); }
   const input = useRef<HTMLInputElement>(null);
   const last = rememberedDrawing(project.id);
   const units = planScale(project, view?.file, view?.info.units);
@@ -629,7 +639,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'none') { if (takenRef.current?.seen) cancelTakeOver(); }
     else if (pickedDw.length && TAKE_OVER_TOOLS.includes(tool)) { takeOverForTool(); return; }
     const pre = preset.current;
-    setPoints(pointsNext.current ?? []); pointsNext.current = null; setObjectMode(false); setLuxRoom(luxNext.current); luxNext.current = null; if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
+    setPoints(pointsNext.current ?? []); pointsNext.current = null; setObjectMode(false); setLuxRoom(luxNext.current); luxNext.current = null; setLvRoutePlan(null); setLvRouteSelected(0); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
     setCloudPoly(false); setCloudAsk(false); setEllAxis(false); setCircleDia(false);
     setEdStep(pre); preset.current = null; setStretchBox(null); const mp = mpNext.current; mpNext.current = null; setMpFrom(mp);
     const first = picked.some((k) => k.startsWith('sk:')) || !!cad.selected?.startsWith('sk:') || ((tool === 'mirror' || tool === 'array') && pickedDw.length > 0);
@@ -645,7 +655,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const he = heNext.current; heNext.current = null;
     const preHatches = tool === 'hatchedit' ? (pickedSk.length ? pickedSk : selSketch ? [selSketch] : []).filter((x) => x.hatch).map((x) => x.id) : [];
     setHeIds(he ? he.ids : preHatches); setHePhase(he?.phase ?? null); setBoundIsl(true);
-    cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? (tool === 'draworder' ? (drMode === 'above' || drMode === 'under' ? DR_REF : DR_OPTIONS) : tool === 'array' ? arrayType(edSet) : TEXT_TOOLS.includes(tool) ? textToolPrompt(tool) : `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : tool === 'align' ? ALIGN_SAY[0].slice(7) : 'Enter to join them:'}`) : tool === 'matchprop' && mp ? 'MATCHPROP  Select destination object(s):' : pre && tool === 'offset' ? OFFSET_SIDE : tool === 'insert' && !insBlock ? 'INSERT  Block name:' : tool === 'attpick' ? PROMPT.attpick : tool === 'blockpick' && blockDlg?.picking === 'objects' ? 'BLOCK  Select objects — Enter when done:' : tool === 'none' && recent[0] ? repeatHint(recent[0].label) : editPrompt(tool, edSet)}`);
+    cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? (tool === 'draworder' ? (drMode === 'above' || drMode === 'under' ? DR_REF : DR_OPTIONS) : tool === 'array' ? arrayType(edSet) : TEXT_TOOLS.includes(tool) ? textToolPrompt(tool) : `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : tool === 'align' ? ALIGN_SAY[0].slice(7) : 'Enter to join them:'}`) : tool === 'matchprop' && mp ? 'MATCHPROP  Select destination object(s):' : pre && tool === 'offset' ? OFFSET_SIDE : tool === 'insert' && !insBlock ? 'INSERT  Block name:' : tool === 'attpick' ? PROMPT.attpick : tool === 'blockpick' && blockDlg?.picking === 'objects' ? 'BLOCK  Select objects — Enter when done:' : tool === 'none' && recent[0] ? repeatHint(recent[0].label) : tool === 'cable' && lvRouteMode === 'optimal' ? 'ROUTE  Optimal LV route: choose the cable, then click source and destination.' : editPrompt(tool, edSet)}`);
     if (tool === 'hatchedit' && preHatches.length && !he) cad.say(hatchEditSay(null, preHatches.length));
     // The multileader tools: what is picked already decides the first step.
     const mls = pickedSk.filter((x) => x.kind === 'mleader');
@@ -683,14 +693,20 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // Layer roles (File → Layer roles): the project's, else a guess from the layer's name and what it holds.
   const layerStats = useMemo(() => (drawn ? layerStatsOf(drawn) : []), [drawn]);
   const roles = useMemo(() => layerMapFor(project, layerStats), [project, layerStats]);
-  // Walls for Room area: shown layers whose role is Wall, else every shown layer.
+  // Confirmed Wall layers are the route planner's obstacles. Room area keeps its earlier fallback to every shown layer
+  // when no Wall lines are available; the planner never uses that broad fallback (it would include furniture and text).
+  const wallLayerIds = useMemo(() => {
+    if (!view) return [];
+    const wallNames = layersWith(roles, 'wall');
+    return view.info.layers.map((_, i) => i).filter((i) => layersOn[i] && wallNames.has(view.info.layers[i].name.toLowerCase()));
+  }, [view, layersOn, roles]);
+  const routeWalls = useMemo(() => (!drawn ? [] : segmentsOn(drawn.segs, drawn.segLayers, drawn.info.origin, new Set(wallLayerIds))), [drawn, wallLayerIds]);
   const walls = useMemo(() => {
     if (!view || !drawn) return [];
-    const wallNames = layersWith(roles, 'wall');
+    if (routeWalls.length) return routeWalls;
     const shown = view.info.layers.map((_, i) => i).filter((i) => layersOn[i]);
-    const named = shown.filter((i) => wallNames.has(view.info.layers[i].name.toLowerCase()));
-    return segmentsOn(drawn.segs, drawn.segLayers, drawn.info.origin, new Set(named.length ? named : shown));
-  }, [view, drawn, layersOn, roles]);
+    return segmentsOn(drawn.segs, drawn.segLayers, drawn.info.origin, new Set(shown));
+  }, [view, drawn, layersOn, routeWalls]);
 
   // Devices are kept per level, in metres on its plan: the level this drawing shows, and what is placed on it.
   const floors = floorList(project.building).filter((f) => !f.ref.index);
@@ -787,6 +803,18 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const drawingSegs = useMemo(() => (drawn && (tool === 'trim' || tool === 'extend') ? segmentsOn(drawn.segs, drawn.segLayers, drawn.info.origin, new Set(drawn.info.layers.map((_, i) => i).filter((i) => layersOn[i]))) : []), [drawn, layersOn, tool]);
   const fittings = useMemo(() => trayFittings(sketch, 0.001 / units.factor).fittings, [sketch, units.factor]);
   const cables = useMemo(() => cablesOf(project), [project]);
+  const lvRoute = lvRoutePlan?.ok ? lvRoutePlan.routes[Math.min(lvRouteSelected, lvRoutePlan.routes.length - 1)] : undefined;
+  const lvRouteImpact = useMemo(() => {
+    const feeder = project.feeders.find((f) => f.id === cad.cableFeeder);
+    if (!feeder || !lvRoute || !view) return undefined;
+    const otherPlansM = planDrawings(project, { file: view.file, insunits: view.info.units }).reduce((total, drawing) => total + drawing.items.reduce((sum, it) => {
+      if (it.cable?.feederId !== feeder.id || drawing.file.toLowerCase() === view.file.toLowerCase()) return sum;
+      return sum + pathLength(it.pts) * drawing.mPerUnit;
+    }, 0), 0);
+    const proposal = pullCadLengths(project, [{ feederId: feeder.id, length: otherPlansM + lvRoute.lengthM, pieces: 1 }], 6).proposals[0];
+    return { currentM: feeder.lengthM, proposedM: proposal?.proposedM ?? feeder.lengthM, detail: proposal ? lengthBreakdown(proposal) : `${lvRoute.lengthM.toFixed(1)} m route; the feeder length is already up to date.` };
+  }, [project, cad.cableFeeder, lvRoute, view]);
+  const lvRoutePreview: SketchItem[] = lvRoute && cad.cableFeeder ? [{ id: '_lv-route', kind: 'pline', layer: CABLE_LAYER, pts: lvRoute.points.map(([x, y]): Pt => [x / units.factor, y / units.factor]), cable: { feederId: cad.cableFeeder } }] : [];
   // ELV: the device chosen (if an ELV one), its system for coverage and Copy to level, and the coverage / Fill preview.
   const elvItem = ELV_PALETTE.find((e) => e.id === cad.device);
   const elvSystem = elvSystemOf(elvItem?.kind.elv ?? 'smoke-detector');
@@ -3295,6 +3323,16 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       draw({ kind: 'line', infinite: tool, layer: curLayer, pts: [last, at], ...newProps }, cmd === 'XLINE' ? 'Construction line' : 'Ray');
       cad.say(`${cmd}  Specify through point or Enter to stop:`); return;
     }
+    if (tool === 'cable' && lvRouteMode === 'optimal') {
+      if (!points.length) {
+        const feeder = project.feeders.find((f) => f.id === cad.cableFeeder);
+        if (!feeder) { cad.say('ROUTE  Choose the LV cable first (the panel on the right).'); return; }
+        if (feeder.elvLoad) { cad.say('ROUTE  Optimal routing is LV-only in this release.'); return; }
+        if (!wallLayerIds.length || !routeWalls.length) { cad.say('ROUTE  Set a shown drawing layer to Wall in File → Layer roles first.'); return; }
+        setLvRoutePlan(null); setLvRouteSelected(0); setPoints([at]); cad.say('ROUTE  Specify destination point:'); return;
+      }
+      findLvRoute(points[0], at); return;
+    }
     if (tool === 'tray' || tool === 'cable') { setPoints((p) => [...p, at]); cad.say(`${tool === 'tray' ? 'TRAY' : 'ROUTE'}  Specify next point${points.length ? ', Enter to finish' : ''}:`); return; }
     if (tool === 'link') {
       const feeder = project.feeders.find((f) => f.id === cad.cableFeeder);
@@ -3599,6 +3637,44 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (!feeder) cad.say('ROUTE  Choose the cable first (the panel on the right).');
     else if (points.length >= 2) draw({ kind: 'pline', layer: CABLE_LAYER, pts: points, cable: { feederId: feeder.id } }, `Cable route of ${cableLabel(project, feeder)}: ${m(toM(pathLength(points)))}`);
     setPoints([]); cad.say(PROMPT.cable);
+  }
+  /** Bounded LV-only route search between two clicked points. The planner keeps no grid after this result is made. */
+  function findLvRoute(startAt: Pt, endAt: Pt) {
+    const feeder = project.feeders.find((f) => f.id === cad.cableFeeder);
+    setPoints([]); setLvRouteSelected(0);
+    if (!feeder) { setLvRoutePlan({ ok: false, code: 'invalid', message: 'Choose the LV cable first.' }); cad.say('ROUTE  Choose the LV cable first.'); return; }
+    if (feeder.elvLoad) { setLvRoutePlan({ ok: false, code: 'invalid', message: 'Optimal routing is LV-only in this release. Draw this ELV supply route manually.' }); cad.say('ROUTE  Optimal routing is LV-only in this release.'); return; }
+    if (!wallLayerIds.length || !routeWalls.length) {
+      const message = 'No shown drawing layer is mapped as Wall. Set Wall in File → Layer roles, then try again.';
+      setLvRoutePlan({ ok: false, code: 'invalid', message }); cad.say(`ROUTE  ${message}`); return;
+    }
+    const result = planLvRoutes({
+      start: [startAt[0] * units.factor, startAt[1] * units.factor],
+      end: [endAt[0] * units.factor, endAt[1] * units.factor],
+      walls: routeWalls,
+      metresPerUnit: units.factor,
+      settings: { options: lvRouteOptions, precision: lvRoutePrecision }
+    });
+    setLvRoutePlan(result);
+    if (result.ok) cad.say(`ROUTE  ${result.routes.length} bounded LV option${result.routes.length === 1 ? '' : 's'} found · recommended ${result.routes[0].lengthM.toFixed(1)} m · choose and approve in the panel.`);
+    else cad.say(`ROUTE  ${result.message}`);
+  }
+  function resetLvRoute() { setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); cad.say('ROUTE  Click the LV route source point:'); }
+  /** Approves one proposed route, replacing this drawing's earlier pieces for the feeder and updating schedules in the
+   * same undoable project change. */
+  function approveLvRoute() {
+    if (!view || !lvRoutePlan?.ok) return;
+    const feeder = project.feeders.find((f) => f.id === cad.cableFeeder);
+    const route = lvRoutePlan.routes[Math.min(lvRouteSelected, lvRoutePlan.routes.length - 1)];
+    if (!feeder || feeder.elvLoad || !route) return;
+    const old = sketch.filter((it) => it.cable?.feederId === feeder.id).length;
+    const withoutOld = old ? withSketchItems(project, view.file, sketch.filter((it) => it.cable?.feederId !== feeder.id)) : project;
+    const added = addSketch(withoutOld, view.file, { kind: 'pline', layer: CABLE_LAYER, pts: route.points.map(([x, y]): Pt => [x / units.factor, y / units.factor]), cable: { feederId: feeder.id } }).project;
+    const updated = updateSchedules(added, planDrawings(added, { file: view.file, insunits: view.info.units }));
+    const letter = String.fromCharCode(65 + Math.min(lvRouteSelected, lvRoutePlan.routes.length - 1));
+    const summary = updated.lengths || updated.feederTrays || updated.trays.length ? scheduleSummary(updated) : 'schedules already matched';
+    change(updated.project, `LV route ${letter} approved for ${cableLabel(project, feeder)}: ${route.lengthM.toFixed(1)} m${old ? ` · replaced ${old} earlier route piece${old === 1 ? '' : 's'}` : ''} · ${summary} · ⌘Z to undo`);
+    setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0);
   }
   /** Update schedules: tray route lengths and fittings, feeder lengths and tray routes, from every level's plan. */
   function schedules() {
@@ -4009,7 +4085,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       else if (tool === 'em') finishRoute();
       else if (tool === 'arl' && arlAt.length && points.length >= 2) placeArl();
       else if (renaming) { setRenaming(null); cad.say('*Cancel*'); }
-      else if (tool === 'cable') finishCable();
+      else if (tool === 'cable' && lvRouteMode === 'manual') finishCable();
+      else if (tool === 'cable') resetLvRoute();
       else if (tool === 'point') cad.setTool('none');
       else if (tool === 'line') { setPoints([]); cad.say(PROMPT.line); }
       else if (tool === 'xline' || tool === 'ray') { setPoints([]); cad.setTool('none'); cad.say(`${tool === 'xline' ? 'XLINE' : 'RAY'}  Ended.`); }
@@ -4621,7 +4698,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
-            <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} cursorMode={cursorMode} hover={hover} cutAway={cutPiece && edgeLine ? [{ ...cutPiece, id: edgeLine.id }] : undefined} meets={addPiece ? [addPiece[1]] : undefined} shadowDevices={shadow?.devs.length ? shadow.devs : undefined} movingPoints={stretchLook?.pts} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap, pixel) => setCursor({ at, snap, pixel })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={[...pickedSk.map((it) => it.id), ...(stretchLook?.sk.map((it) => it.id) ?? [])]} extraSnaps={snapExtra} preview={[...preview, ...emRoutes, ...(grip && cursor.at ? srcAll.filter((x) => x.id === grip.id).map((x) => gripMoved(x, grip.i, cursor.at!)) : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
+            <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} cursorMode={cursorMode} hover={hover} cutAway={cutPiece && edgeLine ? [{ ...cutPiece, id: edgeLine.id }] : undefined} meets={addPiece ? [addPiece[1]] : undefined} shadowDevices={shadow?.devs.length ? shadow.devs : undefined} movingPoints={stretchLook?.pts} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap, pixel) => setCursor({ at, snap, pixel })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={[...pickedSk.map((it) => it.id), ...(stretchLook?.sk.map((it) => it.id) ?? [])]} extraSnaps={snapExtra} preview={[...preview, ...lvRoutePreview, ...emRoutes, ...(grip && cursor.at ? srcAll.filter((x) => x.id === grip.id).map((x) => gripMoved(x, grip.i, cursor.at!)) : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps}
               numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || ((tool === 'mleaderalign' || tool === 'mleadercollect') && ml?.step === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={gripList} hotGrip={gripOf(hotGrip)} pickedObjects={pickedDwIds} onGripStart={(k) => setGrip(gripList[k] ? { id: gripList[k].id, i: gripList[k].i } : null)}
               onGripEnd={(k, at, moved) => {
@@ -4769,11 +4846,17 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             <>
               <h4>Cable route</h4>
               <div className="cad-devform">
-                <label>Cable<select aria-label="Cable" value={cad.cableFeeder} onChange={(e) => cad.setCableFeeder(e.target.value)}>
+                <label>Cable<select aria-label="Cable" value={cad.cableFeeder} onChange={(e) => { cad.setCableFeeder(e.target.value); setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); }}>
                   <option value="">Choose a cable…</option>
                   {cables.map((f) => <option key={f.id} value={f.id}>{cableLabel(project, f)}</option>)}
                 </select></label>
-                <span className="m">{tool === 'cable' ? 'Click the route\'s points, Enter to finish.' : 'Click a line or polyline of the drawing (e.g. on a cable layer).'} Update schedules then gives the cable its length, and the tray routes it runs along.</span>
+                {tool === 'cable' ? <LvRoutePlannerPanel mode={lvRouteMode} onMode={(mode) => { setLvRouteMode(mode); setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); cad.say(mode === 'optimal' ? 'ROUTE  Optimal LV route: choose the cable, then click source and destination.' : PROMPT.cable); }}
+                  options={lvRouteOptions} onOptions={(n) => { setLvRouteOptions(n); setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); }}
+                  precision={lvRoutePrecision} onPrecision={(p) => { setLvRoutePrecision(p); setPoints([]); setLvRoutePlan(null); setLvRouteSelected(0); }}
+                  plan={lvRoutePlan} selected={lvRouteSelected} onSelected={setLvRouteSelected} pickingStart={points.length > 0} impact={lvRouteImpact}
+                  canApprove={!!lvRoute && !project.feeders.find((f) => f.id === cad.cableFeeder)?.elvLoad} onApprove={approveLvRoute} onReset={resetLvRoute} />
+                  : <span className="m">Click a line or polyline of the drawing (e.g. on a cable layer).</span>}
+                <span className="m">Update schedules gives the cable its length and the tray routes it runs along. An approved optimal route updates them in the same undo step.</span>
               </div>
             </>
           )}
