@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 /** A toolbar button that opens a small panel (menu items, ticks, selects).
- * Closes on a click outside or Escape. */
-export default function MenuButton({ label, title, active, children, align = 'left' }: { label: React.ReactNode; title?: string; active?: boolean; children: (close: () => void) => React.ReactNode; align?: 'left' | 'right' }) {
-  const [open, setOpen] = useState(false);
+ * Closes on a click outside or Escape. With `open` and `onOpen` the caller holds the state (to open it from a key). */
+export default function MenuButton({ label, title, active, children, align = 'left', open: held, onOpen }: { label: React.ReactNode; title?: string; active?: boolean; children: (close: () => void) => React.ReactNode; align?: 'left' | 'right'; open?: boolean; onOpen?: (open: boolean) => void }) {
+  const [own, setOwn] = useState(false);
+  const open = held ?? own, setOpen = onOpen ?? setOwn;
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -13,7 +14,7 @@ export default function MenuButton({ label, title, active, children, align = 'le
     document.addEventListener('mousedown', down);
     document.addEventListener('keydown', key);
     return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
-  }, [open]);
+  }, [open, setOpen]);
   return (
     <div className="menu-btn" ref={ref}>
       <button className={`chip${active ? ' on' : ''}`} title={title} aria-expanded={open} onClick={() => setOpen(!open)}>{label} <ChevronDown size={14} strokeWidth={1.8} aria-hidden /></button>

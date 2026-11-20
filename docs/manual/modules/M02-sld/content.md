@@ -28,14 +28,18 @@ Confirm:
 Select the **SLD** tab, the third tab in the ribbon. **Stages > 2 Schematic > SLD** opens the same canvas. The SLD work area contains:
 
 1. The panel tree on the left.
-2. System, board, earthing, and riser view tabs.
+2. System, board, earthing, and riser view tabs, and the **Sheets** menu after them.
 3. The interactive drawing canvas.
 4. Drawing and zoom controls.
 5. Board properties or circuit results on the right.
 6. System, bus, and feeder results below the SLD.
 
 The drawing sheets are in **Design CAD > Sheets**. The **Sheets** button on the
-ribbon opens them.
+ribbon opens them. The **Sheets** menu after the view tabs (**Ctrl/Command+5**)
+lists the sheets of the view on screen, then **All sheets**, **Sheet setup**,
+**Title block and numbering**, and **Issues and transmittals**. Each item opens
+that sheet or tab in **Design CAD > Sheets**. On the board view, **Make a sheet of
+… on its own** adds the board's circuit-diagram sheet and opens it.
 
 <a id="SLD-040"></a>
 ## Navigate the drawing
@@ -196,7 +200,8 @@ The SLD is the full editable network. The controlled drawing sheets are in
 **Design CAD > Sheets**: SLDs, risers, and the earthing schematic, earth riser, and
 floor earthing sheets.
 
-1. Select **Sheets** on the ribbon, or **Design CAD > Sheets**.
+1. Select **Sheets** on the ribbon, the **Sheets** menu after the view tabs, or
+   **Design CAD > Sheets**.
 2. Select **+ New sheet** above the sheet list.
 3. Choose **Panel and its branch** (pick the panel), **Empty sheet**, a riser or
    earthing option, or **Split all panels into sheets**.

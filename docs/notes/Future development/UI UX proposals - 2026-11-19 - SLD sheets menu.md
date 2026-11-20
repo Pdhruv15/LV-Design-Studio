@@ -1,6 +1,7 @@
 # SLD sheets menu — proposal (2026-11-19)
 
-Status: **proposal, awaiting decisions 1–5.** Nothing is built.
+Status: **approved on 2026-11-20 with the recommended answers** (option A, "Sheet setup", ⌘5, the Earthing screen's Sheets button kept, "Make a sheet of … on its own"). The ⌘K fix went in as PR 707 (v2.220). Step 1, the menu, is v2.224.
+Built differently from the mockup: the footer line ("Opens Design CAD → Sheets. Paper, scale and pens: Page setups there") is in the button's tooltip, because the menu has no footer style. A view with no sheet yet shows a greyed line that says where to add one.
 Mockup: `docs/mockups/sld-sheets-menu-mockup.html` + `.png`.
 Follows the 2026-10-29 decision that every submission sheet lives in Design CAD → Sheets (v2.4). That decision stays.
 
