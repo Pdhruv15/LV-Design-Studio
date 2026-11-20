@@ -51,7 +51,7 @@ and `way` set (`isScheduleCircuit`, `src/calc/loadSchedule.ts:14`).
 | `src/components/sheets/SheetsPage.tsx`, `LinkPanel.tsx`, `FormatsPanel.tsx` | screen | `SheetsPage`, `LinkPanel`, `FormatsPanel` | Opens an Excel layout, maps fixed cells and the repeating row, validates it, previews a board and saves it as an office format |
 | `src/components/BoardSheetView.tsx` | screen | `BoardSheetView` (`cyclePhase`, `balance`) | Board-wise SLD with phase tags and Balance |
 | `src/components/PanelsPage.tsx` | screen | `PanelsPage`, `QuickCreate`, `PanelList`, `NamingTab` | Panel list, bulk level / fed-from / location, renaming |
-| `src/components/PanelTree.tsx` | screen | `PanelTree` | Left tree of boards (uses `boardSummary`) |
+| `src/components/PanelTree.tsx` | screen | `PanelTree` | Left tree of boards (uses `boardSummary`); the Group switch (Boards / Substations) wherever a main board is on the MV side (`onMvSide`), Substations greyed until one names its substation or RMU (`treeGroups`) |
 | `src/components/grid/excelGrid.ts`, `useExcelGrid.ts` | screen helper | `pasteEdits`, `fillDownEdits`, `useExcelGrid` | Excel keys on HTML tables; paste follows visible rows only |
 | `src/components/grid/ClassicGrid.tsx`, `RowEditDialog.tsx` | screen helper | `ClassicGrid`, `RowEditDialog` | Generic grid used by the MD form |
 | `src/components/docs/SheetGrid.tsx` | screen | `SheetGrid` | Not part of this module: drawing-set sheet grid used by `DrawingsView` (module 24-drawings-sld-sheets) |

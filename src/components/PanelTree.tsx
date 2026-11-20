@@ -6,6 +6,7 @@ import { boardSummary } from '../calc/summary';
 import { incomerOf, indentTarget, moveBlocked, outdentTarget, siblings } from '../model/moveBoard';
 import { txTags } from '../model/transformers';
 import { treeGroups, type TreeGroup, type TreeItem } from '../diagram/mvShow';
+import { onMvSide } from '../diagram/mvArrangement';
 import { groupBy } from '../util/sets';
 import { fmtFixed } from '../util/format';
 
@@ -100,6 +101,9 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
   // By substation: the groups, their collapse keys and the groups above each main board.
   const groups = useMemo(() => treeGroups(project), [project]);
   const grouped = grouping === 'substations' && !!groups;
+  // The switch stands wherever a main board could be in a substation (not only meter cabinets on an authority LV
+  // supply); Substations is greyed until one names its RMU or substation.
+  const groupable = useMemo(() => project.boards.some(onMvSide), [project.boards]);
   const gIndex = useMemo(() => groupIndex(grouped ? groups : undefined), [grouped, groups]);
   const tx = useMemo(() => (grouped ? txTags(project) : undefined), [grouped, project]);
 
@@ -322,12 +326,12 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
         <button className="icon-btn" title="Expand all" onClick={() => setCollapsed([])}><ChevronsUpDown size={14} /></button>
         <button className="icon-btn" title="Hide the panel tree" onClick={() => setHidden(true)}><PanelLeftClose size={14} /></button>
       </div>
-      {groups && (
+      {groupable && (
         <div className="tree-groupby">
           <span className="m">Group</span>
           <div className="seg" role="group" aria-label="Group the panel tree">
             <button className={grouped ? '' : 'on'} aria-pressed={!grouped} title="The boards as they are fed: main board → SMDB → DB" onClick={() => setGrouping('boards')}>Boards</button>
-            <button className={grouped ? 'on' : ''} aria-pressed={grouped} title="By substation, then RMU, then main board" onClick={() => setGrouping('substations')}>Substations</button>
+            <button className={grouped ? 'on' : ''} aria-pressed={grouped} disabled={!groups} title={groups ? 'By substation, then RMU, then main board' : 'Name the substations or RMUs of the main boards first (Panels → Transformers)'} onClick={() => setGrouping('substations')}>Substations</button>
           </div>
         </div>
       )}
