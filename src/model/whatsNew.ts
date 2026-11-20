@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.228', date: '2026-11-20',
+    items: [
+      { title: 'Printed SLD: MV cables black, RMU box white', text: 'On PDF sheets and SLD exports, the MV lines (the ring, the cables into each RMU and down to the transformers) now print solid black like every other cable. They printed grey and could look blurred when zoomed in. The RMU box now prints white; it printed as a dark fill that hid the switches drawn inside it. The drawing on screen is unchanged.' }
+    ]
+  },
+  {
     version: '2.227', date: '2026-11-20',
     items: [
       { title: 'Design CAD: the Block definition dialog is laid out as a form', text: 'The Block definition dialog (BLOCK, B) is wider and each row fits what it holds: Pick point with the X and Y boxes on the Base point row, Select objects with the count beside it, then Retain, Convert to block and Delete on one line. Before, these overlapped. A click on the words Base point or Objects no longer starts picking; only the buttons do.', action: 'cad', actionLabel: 'Open Design CAD' },
