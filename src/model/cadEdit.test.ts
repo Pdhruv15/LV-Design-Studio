@@ -77,13 +77,102 @@ describe('Trim and Extend — at drawn lines and the architect\'s walls', () => 
     expect(trimPiece(sq, [10, 2], crossingsOf(sq, walls.slice(4)))!.closed).toBeUndefined();
     // Nothing crossing it, or a shape Trim does not cut: no shadow.
     expect(trimPiece(line('S3', [2, 7], [5, 7]), [3, 7], crossingsOf(line('S3', [2, 7], [5, 7]), walls))).toBeNull();
-    expect(trimPiece({ id: 'C1', kind: 'circle', layer: 'L', pts: [[5, 5]], r: 1 }, [6, 5], [3])).toBeNull();
+    expect(trimPiece({ id: 'E1', kind: 'ellipse', layer: 'L', pts: [[5, 5]], ax: [2, 0], ratio: 0.5 }, [7, 5], [3])).toBeNull();
     // Extend: from the end nearer the click to the line ahead, as the click then lengthens it.
     const e = line('S1', [2, 7], [6, 7]);
     expect(r3(extendPiece(e, [5.5, 7], reachesOf(e, walls))!)).toEqual([[6, 7], [18, 7]]);
     expect(r3(extendPiece(e, [2.2, 7], reachesOf(e, walls))!)).toEqual([[2, 7], [0, 7]]);
     expect(extendPiece(e, [5, 7], reachesOf(e, []))).toBeNull();
     expect(extendPiece(sq, [10, 2], reachesOf(sq, walls))).toBeNull();
+  });
+});
+
+describe('Trim — circles and arcs, cut and cutting on the curve itself', () => {
+  const circle = (id: string, c: Pt, r: number, extra: Partial<SketchItem> = {}): SketchItem => ({ id, kind: 'circle', layer: 'LV-SKETCH', pts: [c], r, ...extra });
+  const arc = (id: string, c: Pt, r: number, a0: number, a1: number): SketchItem => ({ id, kind: 'arc', layer: 'LV-SKETCH', pts: [c], r, a0, a1 });
+  const rad = (d: number) => (d * Math.PI) / 180;
+  /** An arc's start and end, in degrees. */
+  const span = (x: Omit<SketchItem, 'id'>) => [x.a0!, x.a1!].map((a) => +((a * 180) / Math.PI).toFixed(6) + 0);
+  const long = (x: Omit<SketchItem, 'id'>) => { const s = (x.a1! - x.a0!) % (2 * Math.PI); return x.r! * (s > 0 ? s : s + 2 * Math.PI); };
+  const endsOf = (x: Omit<SketchItem, 'id'>) => [x.a0!, x.a1!].map((a): Pt => [x.pts[0][0] + x.r! * Math.cos(a), x.pts[0][1] + x.r! * Math.sin(a)]);
+
+  it('a circle opens into the arc left on the far side of the click', () => {
+    // A line through the centre crosses the circle at 0° (the circle's own start) and 180°.
+    const c = circle('C1', [10, 10], 5, { color: '#ff0000' }), edges = edgesFor([c, line('S1', [0, 10], [20, 10])], 'C1', []);
+    const top = trim(c, [10, 15], edges);
+    expect(top.items).toHaveLength(1);
+    expect(top.items![0]).toMatchObject({ kind: 'arc', layer: 'LV-SKETCH', color: '#ff0000', pts: [[10, 10]], r: 5 });
+    expect(span(top.items![0])).toEqual([180, 0]); // the upper half clicked: the lower half stays
+    expect(top.cut).toBeCloseTo(5 * Math.PI);
+    const bottom = trim(c, [10, 5], edges); // the lower half runs over the circle's start
+    expect(span(bottom.items![0])).toEqual([0, 180]);
+    expect(bottom.cut).toBeCloseTo(5 * Math.PI);
+    // The architect's lines cut it too: the partition at x = 9.
+    expect(span(trim(circle('C2', [9, 2], 1), [10, 2], walls).items![0])).toEqual([90, 270]);
+  });
+
+  it('a circle needs two crossings; with none it says so', () => {
+    const c = circle('C1', [10, 10], 5);
+    const none = edgesFor([c, line('S0', [0, 20], [20, 20])], 'C1', []); // a line that passes it by
+    expect(trim(c, [10, 15], none)).toEqual({ error: 'Nothing crosses it there to cut at: Erase it instead.' });
+    const once = edgesFor([c, line('S1', [10, 10], [20, 10])], 'C1', []); // a line that ends inside it
+    expect(trim(c, [10, 15], once)).toEqual({ error: 'A closed shape needs two crossings to cut a piece out.' });
+    expect([trimPiece(c, [10, 15], crossingsOf(c, none)), trimPiece(c, [10, 15], crossingsOf(c, once))]).toEqual([null, null]);
+  });
+
+  it('two circles cut each other where the circles themselves meet', () => {
+    // Radius 5 at (0, 0) and (6, 0): they meet at (3, ±4), 53.13° either side of the line of centres.
+    const a = circle('A', [0, 0], 5), b = circle('B', [6, 0], 5);
+    const r = trim(a, [5, 0], edgesFor([a, b], 'A', [])); // the part of A inside B
+    expect(span(r.items![0])).toEqual([53.130102, 306.869898]);
+    expect(r.cut).toBeCloseTo(10 * Math.atan2(4, 3));
+    for (const p of endsOf(r.items![0])) expect(Math.hypot(p[0] - 6, p[1])).toBeCloseTo(5, 9); // its new ends are on B
+  });
+
+  it('an arc is cut like an open line: an end piece, or the middle leaving two arcs', () => {
+    // The upper half of a circle of radius 10; lines at x = ±5 cross it at 60° and 120° (and miss it below).
+    const a = arc('A1', [0, 0], 10, 0, Math.PI), ups = [line('U1', [5, -20], [5, 20]), line('U2', [-5, -20], [-5, 20])];
+    const edges = edgesFor([a, ...ups], 'A1', []);
+    const mid = trim(a, [0, 10], edges);
+    expect(mid.items!.map(span)).toEqual([[0, 60], [120, 180]]);
+    expect([mid.items![0].a0, mid.items![1].a1]).toEqual([0, Math.PI]); // its own ends stay as they were
+    expect(mid.cut).toBeCloseTo((10 * Math.PI) / 3);
+    const end = trim(a, [10 * Math.cos(rad(30)), 10 * Math.sin(rad(30))], edges);
+    expect(end.items!.map(span)).toEqual([[60, 180]]);
+    expect(trim(a, [0, 10], edgesFor([a, line('U3', [20, -20], [20, 20])], 'A1', []))).toEqual({ error: 'Nothing crosses it there to cut at: Erase it instead.' });
+    // An arc over the 0° direction (270° to 90°), cut by a line along y = 0.
+    const right = arc('A2', [0, 0], 10, -Math.PI / 2, Math.PI / 2);
+    const low = trim(right, [10 * Math.cos(rad(45)), 10 * Math.sin(rad(45))], edgesFor([right, line('H', [0, 0], [20, 0])], 'A2', []));
+    expect(low.items).toHaveLength(1);
+    expect(low.items![0].a0).toBe(-Math.PI / 2);
+    expect(span(low.items![0])).toEqual([-90, 0]);
+  });
+
+  it('the shadow before the click is the piece the click then cuts away', () => {
+    const c = circle('C1', [10, 10], 5), a = arc('A1', [0, 0], 10, 0, Math.PI);
+    const cases: [SketchItem, Pt, SketchItem[]][] = [
+      [c, [10, 15], [line('S1', [0, 10], [20, 10])]], [c, [10, 5], [line('S1', [0, 10], [20, 10])]], [c, [15, 10.1], [line('S1', [0, 12], [20, 12]), line('S2', [0, 7], [20, 7])]],
+      [a, [0, 10], [line('U1', [5, -20], [5, 20]), line('U2', [-5, -20], [-5, 20])]], [a, [9.9, 1], [line('U1', [5, -20], [5, 20])]],
+    ];
+    for (const [it, at, others] of cases) {
+      const edges = edgesFor([it, ...others], it.id, []), piece = trimPiece(it, at, crossingsOf(it, edges))!, r = trim(it, at, edges);
+      expect(piece).toMatchObject({ kind: 'arc', layer: 'LV-SKETCH', r: it.r });
+      expect(long(piece)).toBeCloseTo(r.cut!);
+      expect(long(piece) + r.items!.reduce((t, x) => t + long(x), 0)).toBeCloseTo(it.kind === 'circle' ? 2 * Math.PI * it.r! : Math.PI * it.r!); // the shadow and what stays: all of it
+    }
+  });
+
+  it('a line is cut at, and extended to, the circle or arc itself, not a chord of it', () => {
+    // y = 3 crosses a circle of radius 5 at x = ±4 exactly.
+    const c = circle('C1', [0, 0], 5), l = line('S1', [-10, 3], [10, 3]);
+    expect(pts(trim(l, [0, 3], edgesFor([l, c], 'S1', [])))).toEqual([[[-10, 3], [-4, 3]], [[4, 3], [10, 3]]]);
+    const short = line('S2', [-10, 3], [-8, 3]), e = extend(short, [-8.2, 3], edgesFor([short, c], 'S2', []));
+    expect(pts(e)).toEqual([[[-10, 3], [-4, 3]]]);
+    expect(e.gain).toBeCloseTo(4, 9);
+    // An arc cuts only where the arc is: the first quarter, so at x = 4 and not at x = -4.
+    const q = arc('A1', [0, 0], 5, 0, Math.PI / 2);
+    expect(pts(trim(l, [8, 3], edgesFor([l, q], 'S1', [])))).toEqual([[[-10, 3], [4, 3]]]);
+    expect(extend(short, [-8.2, 3], edgesFor([short, arc('A2', [0, 0], 5, 0, rad(30))], 'S2', []))).toEqual({ error: 'No line ahead of that end to reach.' });
   });
 });
 
@@ -254,7 +343,7 @@ describe('Mirror, Scale, Stretch, Array, grips, window', () => {
     expect(gripMoved(e, 3, [10, -6]).ax!.map((v) => +v.toFixed(9) + 0)).toEqual([0, 6]);
     expect(gripMoved(e, 4, [10, -3]).ratio).toBe(0.75); // the -minor end sizes the minor
     const cloud: SketchItem = { id: 'C', kind: 'pline', layer: 'LV-ANNO', pts: [[0, 0], [10, 0], [10, 4], [0, 4]], closed: true, cloud: 2 };
-    expect(trim(cloud, [5, 0], walls).error).toBe('Trim works on lines, polylines, trays and cable routes.');
+    expect(trim(cloud, [5, 0], walls).error).toBe('Trim works on lines, polylines, circles, arcs, trays and cable routes.');
     expect(offset(cloud, 1, [5, -2]).error).toBe('Offset works on lines, polylines, circles, arcs, trays and cable routes.');
     expect(explode(cloud).error).toBe('A revision cloud stays one object: erase it and draw it again to change it.');
     expect(scaled(cloud, [0, 0], 2).cloud).toBe(4);

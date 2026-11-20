@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.224', date: '2026-11-20',
+    items: [
+      { title: 'Design CAD: Trim cuts circles and arcs', text: 'Trim (TR) now works on a drawn circle or arc: click the part to cut away and it is cut at the nearest crossings on either side of the click, as a line is. A circle needs two crossings and becomes the arc that is left; an arc loses an end, or its middle and becomes two arcs. The part to go shows dashed before the click. A line trimmed or extended to a circle or arc now ends on the curve itself; before, it ended on a chord of it, a little off the curve.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.223', date: '2026-11-20',
     items: [
       { title: 'MV voltage from the grid source', text: 'Each transformer\'s ratio on the SLD, the MV overview sheet\'s transformer schedule, a main board\'s incoming supply on the Board view, the equipment schedule and the BOQ\'s transformer and RMU lines now give the voltage of the grid source feeding the transformer: its RMU\'s source, else the first one in the MV supply and RMUs card (Panels → Transformers). Before, they said 11 kV whatever the source. The BOQ\'s transformer line also takes the project\'s LV voltage, as the SLD does. At 11 kV and 415 V nothing changes, and the BOQ keeps its item numbers.' }
