@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Project } from '../types';
 import { placeDevices } from './placed';
 import { legendSvg, levelUnits, planDxf, planLevels, planSheetHtml, planSvg, sheetInfo } from './planSheets';
+import { addElvRoute } from './routes';
 
 const box = (x1: number, y1: number, x2: number, y2: number): [number, number][] => [[x1, y1], [x2, y1], [x2, y2], [x1, y2]];
 const base = (): Project => ({
@@ -70,5 +71,21 @@ describe('ELV plan sheets', () => {
     expect(dxf).toMatch(/CIRCLE\n8\nE-ELV-FA\n10\n5\n20\n5\n30\n0\n40\n0\.15\n/); // detector at 5, 5 (metres), 0.15 m radius
     const mixed: Project = { ...inMetres, cadPlanUnits: { 'l1.dwg': 'm', 'gf.dwg': 'mm' }, building: { ...inMetres.building!, rooms: inMetres.building!.rooms.map((r) => ({ ...r, source: { app: 'cad' as const, file: 'L1.dwg' } })) } };
     expect(levelUnits(mixed, lv)).toBe('m'); // from the file of the level's rooms
+  });
+
+  it('includes approved routes on route-only sheets, SVG plans, and system DXF layers', () => {
+    const p = addElvRoute(base(), {
+      system: 'ict', buildingId: 'T', levelId: 'GF', points: [[1, 2], [4, 2], [4, 6]],
+      lvClearanceM: 0.3, preferredContainment: true
+    }).project;
+    const [lv] = planLevels(p);
+    expect(lv).toMatchObject({ buildingId: 'T', levelId: 'GF' });
+    const svg = planSvg(p, lv);
+    expect(svg).toContain('M1 6L4 6L4 2');
+    expect(svg).toContain('>ER1<');
+    const dxf = planDxf(p, lv).replace(/\r\n/g, '\n');
+    expect(dxf).toContain('\nE-ELV-ICT-ROUTE\n');
+    expect(dxf).toContain('elv-route:ER1');
+    expect(dxf).toMatch(/\n10\n1000\n20\n2000\n/);
   });
 });

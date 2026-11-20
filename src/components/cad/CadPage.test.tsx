@@ -891,6 +891,31 @@ describe('CAD view', () => {
     expect(project.feeders.find((x) => x.id === f.id)!.lengthM).not.toBe(f.lengthM);
   });
 
+  it('finds and approves a system-first ELV route in metres for the ELV route schedule', async () => {
+    const withPlan: Project = { ...villa, cadPlans: [{ building: 'V', level: 'GF', file: 'sample-villa-gf.dxf', units: 4 }] };
+    act(() => root.render(<Host start={withPlan} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    await command('CR');
+    const service = document.querySelector('select[aria-label="Route service"]') as HTMLSelectElement;
+    act(() => { service.value = 'elv'; service.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect((document.querySelector('select[aria-label="ELV route system"]') as HTMLSelectElement).value).toBe('ict');
+    expect(document.body.textContent).toContain('Permanent link ≤ 90 m');
+    await clickAt(2000, 3000);
+    await clickAt(4000, 3000);
+
+    expect(document.body.textContent).toContain('Route A · Recommended');
+    expect(document.body.textContent).toContain('No LV cable route is drawn on this plan');
+    act(() => button('Approve route A').click());
+
+    expect(project.elvRoutes).toHaveLength(1);
+    expect(project.elvRoutes![0]).toMatchObject({ id: 'ER1', system: 'ict', buildingId: 'V', levelId: 'GF', lvClearanceM: 0.3 });
+    expect(project.elvRoutes![0].points[0][0]).toBeCloseTo(2, 1);
+    const routePoints = project.elvRoutes![0].points;
+    expect(routePoints[routePoints.length - 1][0]).toBeCloseTo(4, 1);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(/^ER1 · Data and Wi-Fi route A approved: .* · length check passed · ELV cable route schedule updated · ⌘Z to undo$/);
+  });
+
   it('fills a room with an ELV device at its spacing, shows coverage, and copies the devices to another level', async () => {
     const twoLevels: Project = { ...villa, building: { ...villa.building!, buildings: [{ id: 'V', name: 'Villa', levels: [{ id: 'GF', name: 'Ground', kind: 'ground', heightM: 4 }, { id: 'FF', name: 'First', kind: 'typical', heightM: 4 }] }] } };
     act(() => root.render(<Host start={twoLevels} />));

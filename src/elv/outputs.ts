@@ -3,6 +3,7 @@ import type { Project } from '../types';
 import { ELV_SYSTEMS, type ElvSystem } from './defaults';
 import { ELV_DEVICES, type ElvDeviceType } from './devices';
 import { elvBasis, estimateElv, type DeviceCounts, type ElvEstimate, type ElvSettings } from './estimate';
+import { checkElvRoute, ELV_ROUTE_RULES, elvRouteBends, elvRouteLength } from './routes';
 import { elvSchedules, type DeviceRef } from './schedules';
 
 /** The ELV schedules as plain tables, for the ELV page, Excel and the PDF: devices per room and floor, fire alarm
@@ -10,7 +11,7 @@ import { elvSchedules, type DeviceRef } from './schedules';
  * they are placed and from the room-area estimate elsewhere (estimate.ts); loops and ports come from the placed
  * devices (schedules.ts). Every row has a stable key, so a remark the engineer types stays with its row. */
 
-export type TableId = 'devices' | 'loops' | 'zones' | 'ports' | 'boq';
+export type TableId = 'devices' | 'routes' | 'loops' | 'zones' | 'ports' | 'boq';
 export interface Column { label: string; title?: string; num?: boolean }
 export interface Row { key: string; cells: (string | number)[]; kind?: 'group' | 'sum' }
 export interface ScheduleTable { id: TableId; title: string; columns: Column[]; rows: Row[]; notes: string[] }
@@ -63,7 +64,33 @@ function floorTags(p: Project): Map<string, string[]> {
 }
 
 export function elvTables(p: Project, settings: ElvSettings | undefined = p.elv, estimate: ElvEstimate = estimateElv(p, settings)): ScheduleTable[] {
-  return [deviceTable(p, estimate), ...fireAlarmTables(p, settings, estimate), portsTable(p, settings), boqTable(p, settings, estimate)];
+  return [deviceTable(p, estimate), routeTable(p), ...fireAlarmTables(p, settings, estimate), portsTable(p, settings), boqTable(p, settings, estimate)];
+}
+
+function routeTable(p: Project): ScheduleTable {
+  const info = buildingInfoOf(p);
+  const multi = info.buildings.length > 1;
+  const rows: Row[] = [];
+  for (const route of p.elvRoutes ?? []) {
+    const building = info.buildings.find((b) => b.id === route.buildingId);
+    const level = building?.levels.find((l) => l.id === route.levelId);
+    const lengthM = elvRouteLength(route.points);
+    const check = checkElvRoute(route.system, lengthM);
+    rows.push({
+      key: route.id,
+      cells: [route.id, SYSTEM_TITLE[route.system], `${multi ? `${building?.name ?? route.buildingId} · ` : ''}${level?.name ?? route.levelId}`, Number(lengthM.toFixed(1)), elvRouteBends(route.points), route.preferredContainment ? 'Preference applied' : 'New route', check.status === 'pass' ? 'Pass' : check.status === 'fail' ? 'Fail' : 'Review']
+    });
+  }
+  return {
+    id: 'routes', title: 'ELV cable route schedule',
+    columns: [{ label: 'Route' }, { label: 'System' }, { label: 'Level' }, { label: 'Length m', num: true }, { label: 'Bends', num: true }, { label: 'Containment' }, { label: 'Check' }],
+    rows,
+    notes: [
+      `Length limits: data ${ELV_ROUTE_RULES.ict.maxLengthM} m permanent link; CCTV ${ELV_ROUTE_RULES.cctv.maxLengthM} m PoE channel. Other systems need the chosen equipment and cable calculation.`,
+      `Each route was proposed with ${ELV_ROUTE_RULES.ict.separationM} m clearance from LV routes visible at the time; recheck coordination after LV routes change.`,
+      ...(rows.length ? [] : ['No approved ELV cable routes yet: use Design CAD → Cable route → ELV system.'])
+    ]
+  };
 }
 
 function deviceTable(p: Project, e: ElvEstimate): ScheduleTable {

@@ -105,6 +105,19 @@ describe('ELV schedules', () => {
     expect(p.elvRemarks).toBeUndefined();
   });
 
+  it('lists approved system routes with their length rule status', () => {
+    const p: Project = { ...base(), elvRoutes: [
+      { id: 'ER1', system: 'ict', buildingId: 'T', levelId: 'GF', points: [[0, 0], [80, 0]], lvClearanceM: 0.3, preferredContainment: true },
+      { id: 'ER2', system: 'cctv', buildingId: 'T', levelId: 'GF', points: [[0, 0], [101, 0]], lvClearanceM: 0.3 }
+    ] };
+    const routes = table(p, 'routes');
+    expect(routes.rows.map((r) => r.cells)).toEqual([
+      ['ER1', 'Data and Wi-Fi', 'Ground', 80, 0, 'Preference applied', 'Pass'],
+      ['ER2', 'CCTV', 'Ground', 101, 0, 'New route', 'Fail']
+    ]);
+    expect(routes.notes.join(' ')).toMatch(/90 m permanent link.*100 m PoE channel/);
+  });
+
   it('exports every schedule with rows as a sheet, remarks in the last column', async () => {
     const p = withRemark(placed(), 'loops', 'T/P1-L1', 'Loop to riser A');
     const wb = await elvWorkbook(p, elvTables(p), 'REV A · 2026-10-28');

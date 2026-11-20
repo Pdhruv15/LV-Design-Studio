@@ -17,7 +17,7 @@ const plan: LvRoutePlan = {
     { points: [[0, 0], [10, 0]], lengthM: 10, bends: 0, visited: 40 },
     { points: [[0, 0], [0, 2], [10, 2], [10, 0]], lengthM: 14, bends: 2, visited: 80 }
   ],
-  stats: { cells: 1_200, gridM: 0.25, wallSegments: 12, rasterSamples: 240, visited: 120, approxBytes: 1_048_576 }
+  stats: { cells: 1_200, gridM: 0.25, wallSegments: 12, avoidSegments: 0, preferredSegments: 0, rasterSamples: 240, visited: 120, approxBytes: 1_048_576 }
 };
 
 const props = () => ({

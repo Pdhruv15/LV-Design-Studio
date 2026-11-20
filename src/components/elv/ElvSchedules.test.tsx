@@ -27,8 +27,18 @@ describe('ELV schedules on the ELV page', () => {
     expect((onChange.mock.calls[0][0] as Project).elvRemarks).toEqual({ 'devices:R2': 'Reader at the door' });
     act(() => tab('Fire alarm loops').click());
     expect(host.textContent).toMatch(/No fire alarm devices placed on the plans yet/);
+    act(() => tab('Cable routes').click());
+    expect(host.textContent).toMatch(/No approved ELV cable routes yet/);
     act(() => tab('BOQ').click());
     expect(host.textContent).toContain('Fire alarm control panel');
+  });
+
+  it('enables plan and DXF outputs when a level has an approved route but no devices', () => {
+    const routed: Project = { ...project, elvRoutes: [{ id: 'ER1', system: 'ict', buildingId: 'V', levelId: 'GF', points: [[0, 0], [5, 0]], lvClearanceM: 0.3 }] };
+    act(() => root.render(<ElvSchedules project={routed} estimate={estimateElv(routed)} onChange={() => {}} onStatus={() => {}} />));
+    const button = (text: string) => [...host.querySelectorAll('button')].find((b) => b.textContent === text) as HTMLButtonElement;
+    expect(button('Plan sheets PDF…').disabled).toBe(false);
+    expect(button('DXF for CAD…').disabled).toBe(false);
   });
 
   it('adds the ticked ELV systems to the project BOQ, none ticked at first', () => {

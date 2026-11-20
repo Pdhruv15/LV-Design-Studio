@@ -1,7 +1,9 @@
-# ELV optimal CAD routing — deferred decision
+# ELV optimal CAD routing — implemented decision
 
-**Decision 2026-11-20:** ship and assess bounded optimal routing for LV first. ELV optimal routing is not part of the current implementation and needs a separate mockup and approval.
+**Decision 2026-11-20:** after the LV implementation was merged, the system-first ELV mockup was approved for implementation. The engineer selects the system before source and destination; alternatives are constrained by that system's length/review rule, LV segregation and preferred containment.
 
-The LV geometry engine may be reused later, but ELV needs its own design rules before it is enabled: system segregation, permitted containment, maximum permanent-link or circuit lengths, equipment-room destinations and system-specific allowances. The future design should keep the same safety limits—no more than three alternatives, an adaptive grid capped at 60,000 cells, reusable typed arrays and no saved search grid—unless profiling supports a lower limit.
+The implementation reuses the bounded geometry engine with the same safety limits: no more than three alternatives, an adaptive grid capped at 60,000 cells, reusable typed arrays and no saved search grid. Shown walls remain hard obstacles; drawn LV cable routes are 0.3 m exclusion lines; matching ELV, data or fire-alarm containment is a preference rather than a hard requirement.
 
-Before implementation, decide which ELV systems are eligible and whether the objective is shortest length, containment preference, segregation, redundancy, or a weighted combination. Keep the current manual ELV route workflow until that decision is approved.
+All five systems are eligible. ICT checks a 90 m permanent link; CCTV checks a 100 m PoE channel. Fire alarm, access control and PA are explicitly marked for loop resistance, voltage-drop or manufacturer review instead of using a false universal limit. Only the approved route is stored in metres and added to the ELV route schedule and plan/DXF outputs.
+
+Future decisions remain manufacturer-specific limits, redundant/path-diverse routing and equipment-room destination rules. Those require separate approval.
