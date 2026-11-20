@@ -1,6 +1,6 @@
 # About page in the Graphite theme, dark and light — proposal (2026-11-20)
 
-Status: **proposed, waiting for approval.** Nothing in this note is built. The Get involved section was approved on 2026-11-20 and is built on its own in the page's present look.
+Status: **approved on 2026-11-20 with the recommended answers** (theme by the visitor's setting, LinkedIn in the header, card and footer, the new line under "See the workspace", Beta downloads in the same step, dark screenshots kept). Get involved is PR 722; the look is built in the PR after it.
 
 Mockup: `docs/mockups/about-page-graphite-mockup.html`. Opened in a browser it follows the computer's light or dark setting; add `#dark` or `#light` to the address to force one.
 
