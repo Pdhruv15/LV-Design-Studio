@@ -11,8 +11,12 @@ export const SCHEDULE_FORMAT_FILE_VERSION = 1;
 export const SCHEDULE_FORMAT_FILE_EXT = 'lvds-format';
 export const MAX_SCHEDULE_FORMAT_FILE_BYTES = 2_000_000;
 
-/** A linked sheet layout saved for reuse: your office's own schedule format. */
-export interface ScheduleFormat { id: string; name: string; category: 'db' | 'md'; sheet: Sheet; updatedAt: string; version?: number } // updatedAt: yyyy-mm-dd
+/** A linked sheet layout saved for reuse: your office's own schedule format. Compatibility helps discovery only;
+ * it never changes project rules or calculations. `defaultFor` is this office's choice and is not shared in packages. */
+export interface ScheduleFormat {
+  id: string; name: string; category: 'db' | 'md'; sheet: Sheet; updatedAt: string; version?: number; // updatedAt: yyyy-mm-dd
+  country?: string; authorityId?: string; defaultFor?: PanelCategory[];
+}
 
 export const formatVersion = <T extends object>(format: T & { version?: number }): number => Number.isInteger(format.version) && format.version! > 0 ? format.version! : 1;
 
@@ -32,7 +36,15 @@ const validSheet = (sheet: unknown): sheet is Sheet => {
 
 const isFormat = (x: unknown): x is ScheduleFormat => {
   const f = x as ScheduleFormat;
-  return !!f && typeof f === 'object' && typeof f.id === 'string' && !!f.id && typeof f.name === 'string' && !!f.name && ['db', 'md'].includes(String(f.category ?? f.sheet?.link?.category)) && (f.version === undefined || (Number.isInteger(f.version) && f.version > 0)) && validSheet(f.sheet);
+  const defaults = f?.defaultFor;
+  return !!f && typeof f === 'object' && typeof f.id === 'string' && !!f.id && typeof f.name === 'string' && !!f.name
+    && ['db', 'md'].includes(String(f.category ?? f.sheet?.link?.category))
+    && (f.version === undefined || (Number.isInteger(f.version) && f.version > 0))
+    && (f.country === undefined || (typeof f.country === 'string' && !!f.country.trim()))
+    && (f.authorityId === undefined || (typeof f.authorityId === 'string' && !!f.authorityId.trim()))
+    && !(f.country && f.authorityId)
+    && (defaults === undefined || (Array.isArray(defaults) && defaults.every((c) => PANEL_CATEGORIES.some((p) => p.key === c && p.kind === (f.category ?? f.sheet?.link?.category)))))
+    && validSheet(f.sheet);
 };
 
 /** Your formats on this computer (synced from Library.json). */
@@ -67,12 +79,63 @@ export function withFormat(list: ScheduleFormat[], name: string, template: Sheet
 export const renameFormat = (list: ScheduleFormat[], id: string, name: string): ScheduleFormat[] => list.map((f) => (f.id === id ? { ...f, name: name.trim() } : f));
 export const removeFormat = (list: ScheduleFormat[], id: string): ScheduleFormat[] => list.filter((f) => f.id !== id);
 
+// ---- discovery and office defaults
+
+export interface ScheduleFormatContext { country?: string; authorityId?: string }
+
+/** How closely a format fits a project: authority, then country, then a General format. Zero means another context. */
+export function formatMatchRank(format: ScheduleFormat, context: ScheduleFormatContext): number {
+  if (format.authorityId) return format.authorityId === context.authorityId ? 3 : 0;
+  if (format.country) return format.country === context.country ? 2 : 0;
+  return 1;
+}
+
+/** This office's most specific default, or undefined so the app's General form remains the fallback. */
+export function defaultFormatFor(list: ScheduleFormat[], category: PanelCategory, context: ScheduleFormatContext): ScheduleFormat | undefined {
+  const kind = PANEL_CATEGORIES.find((c) => c.key === category)?.kind;
+  return list.filter((f) => f.category === kind && f.defaultFor?.includes(category) && formatMatchRank(f, context) > 0)
+    .sort((a, b) => formatMatchRank(b, context) - formatMatchRank(a, context))[0];
+}
+
+export function defaultFormatIds(list: ScheduleFormat[], context: ScheduleFormatContext): Record<PanelCategory, string> {
+  return Object.fromEntries(PANEL_CATEGORIES.map((c) => [c.key, defaultFormatFor(list, c.key, context)?.id ?? ''])) as Record<PanelCategory, string>;
+}
+
+const scopeKey = (f: Pick<ScheduleFormat, 'country' | 'authorityId'>) => f.authorityId ? `authority:${f.authorityId}` : f.country ? `country:${f.country}` : 'general';
+
+/** Changes where a format is recommended. A default is cleared so it cannot silently move to another authority. */
+export function withFormatCompatibility(list: ScheduleFormat[], id: string, context: ScheduleFormatContext, at = new Date()): ScheduleFormat[] {
+  return list.map((f) => {
+    if (f.id !== id) return f;
+    const authorityId = context.authorityId?.trim() || undefined, country = authorityId ? undefined : context.country?.trim() || undefined;
+    if (f.authorityId === authorityId && f.country === country) return f;
+    const { authorityId: _oldAuthority, country: _oldCountry, defaultFor: _oldDefaults, ...rest } = f;
+    return { ...rest, ...(country && { country }), ...(authorityId && { authorityId }), updatedAt: at.toISOString().slice(0, 10), version: formatVersion(f) + 1 };
+  });
+}
+
+/** Marks one format as this office's default for its compatibility scope and panel category. */
+export function withFormatDefault(list: ScheduleFormat[], id: string, category: PanelCategory, on = true): ScheduleFormat[] {
+  const target = list.find((f) => f.id === id), kind = PANEL_CATEGORIES.find((c) => c.key === category)?.kind;
+  if (!target || target.category !== kind) return list;
+  const scope = scopeKey(target);
+  return list.map((f) => {
+    const drop = on && f.id !== id && scopeKey(f) === scope;
+    const next = (f.defaultFor ?? []).filter((c) => c !== category);
+    if (f.id === id && on) next.push(category);
+    if (!drop && f.id !== id) return f;
+    const { defaultFor: _old, ...rest } = f;
+    return next.length ? { ...rest, defaultFor: next } : rest;
+  });
+}
+
 // ---- one portable, versioned format file
 
 /** A format safe to share: never carries a board target or pending project edits, and imports as output-only. */
 function portable(format: ScheduleFormat): ScheduleFormat {
   const { boardId: _boardId, pending: _pending, added: _added, ...link } = format.sheet.link!;
-  return { ...format, version: formatVersion(format), sheet: { ...format.sheet, link: { ...link, mode: 'output', rows: [] } } };
+  const { defaultFor: _defaultFor, ...shared } = format;
+  return { ...shared, version: formatVersion(format), sheet: { ...format.sheet, link: { ...link, mode: 'output', rows: [] } } };
 }
 
 /** One schedule format as its portable JSON file. */
@@ -105,7 +168,8 @@ const uniqueImportedName = (list: ScheduleFormat[], name: string): string => {
 export function withImportedFormat(list: ScheduleFormat[], incoming: ScheduleFormat, copy = false): { list: ScheduleFormat[]; format: ScheduleFormat; action: 'added' | 'updated' | 'copied' } {
   const same = list.find((f) => f.id === incoming.id);
   if (same && !copy) {
-    const others = list.filter((f) => f.id !== same.id), format = { ...portable(incoming), name: uniqueImportedName(others, incoming.name) };
+    const keepDefaults = scopeKey(same) === scopeKey(incoming) ? same.defaultFor : undefined;
+    const others = list.filter((f) => f.id !== same.id), format = { ...portable(incoming), name: uniqueImportedName(others, incoming.name), ...(keepDefaults?.length && { defaultFor: keepDefaults }) };
     return { list: list.map((f) => (f.id === same.id ? format : f)), format, action: 'updated' };
   }
   const format = { ...portable(incoming), ...(same ? { id: newId() } : {}), name: uniqueImportedName(list, incoming.name) };

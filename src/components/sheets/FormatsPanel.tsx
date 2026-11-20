@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { loadReferences, startChoices } from '../../model/designReference';
 import { linkBoards, linkLabel, linkMode, sheetFromFormat, templateIssues } from '../../docs/sheetLink';
-import { formatNameError, formatVersion, loadFormats, MAX_SCHEDULE_FORMAT_FILE_BYTES, PANEL_CATEGORIES, projectFormat, projectFormatStale, removeFormat, renameFormat, saveFormats, scheduleFormatFileText, scheduleFormatFromFileText, SCHEDULE_FORMAT_FILE_EXT, withImportedFormat, withProjectFormat, type ScheduleFormat } from '../../model/scheduleFormats';
+import { formatNameError, formatVersion, loadFormats, MAX_SCHEDULE_FORMAT_FILE_BYTES, PANEL_CATEGORIES, projectFormat, projectFormatStale, removeFormat, renameFormat, saveFormats, scheduleFormatFileText, scheduleFormatFromFileText, SCHEDULE_FORMAT_FILE_EXT, withFormatCompatibility, withFormatDefault, withImportedFormat, withProjectFormat, type ScheduleFormat } from '../../model/scheduleFormats';
 import type { Sheet } from '../../model/sheets';
 import type { Project } from '../../types';
 import { fmtDate } from '../../util/format';
@@ -16,9 +17,21 @@ export default function FormatsPanel({ project, sheets, onAddSheets, onProject, 
   const [renaming, setRenaming] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const choices = startChoices(loadReferences());
+  const store = (next: ScheduleFormat[]) => { saveFormats(next); setList(next); };
+  const scopeValue = (f: ScheduleFormat) => f.authorityId ? `authority:${f.authorityId}` : f.country ? `country:${f.country}` : '';
+  const scopeLabel = (f: ScheduleFormat) => {
+    if (f.authorityId) return choices.flatMap((c) => c.authorities).find((a) => a.authority.id === f.authorityId)?.label ?? f.authorityId;
+    return f.country ?? 'General';
+  };
+  const setCompatibility = (f: ScheduleFormat, value: string) => {
+    const context = value.startsWith('authority:') ? { authorityId: value.slice(10) } : value.startsWith('country:') ? { country: value.slice(8) } : {};
+    const next = withFormatCompatibility(list, f.id, context);
+    store(next);
+    onStatus?.(`Format "${f.name}" is now for ${scopeLabel(next.find((x) => x.id === f.id)!)}. Choose its office defaults again if needed.`);
+  };
   const boardsOf = (f: ScheduleFormat) => linkBoards(project, f.category), withoutOf = (f: ScheduleFormat) => boardsOf(f).filter((b) => !sheets.some((s) => s.link?.boardId === b.id));
   const general = (c: (typeof PANEL_CATEGORIES)[number]) => { onProject(withProjectFormat(project, c.key, undefined)); onStatus?.(`${c.plural} of this project use the app's own table.`); };
-  const store = (next: ScheduleFormat[]) => { saveFormats(next); setList(next); };
   const addFor = (f: ScheduleFormat) => {
     const made = sheetFromFormat(f.sheet, sheets, boardOf[f.id]);
     onAddSheets([made]);
@@ -96,6 +109,26 @@ export default function FormatsPanel({ project, sheets, onAddSheets, onProject, 
               </div>
             : <span style={{ fontWeight: 500 }}>{f.name}</span>}
           <span className="shl-mut">{linkLabel(f.category)} · saved {fmtDate(f.updatedAt)} · v{formatVersion(f)} · {linkMode(f.sheet.link) === 'output' ? 'Output only' : 'Linked editing'}</span>
+          <label>Recommended for
+            <select aria-label={`Compatibility for ${f.name}`} value={scopeValue(f)} onChange={(e) => setCompatibility(f, e.target.value)}>
+              <option value="">General — any country or authority</option>
+              {f.country && !choices.some((c) => c.country === f.country) && <option value={`country:${f.country}`}>{f.country} — all authorities</option>}
+              {f.authorityId && !choices.some((c) => c.authorities.some((a) => a.authority.id === f.authorityId)) && <option value={`authority:${f.authorityId}`}>{f.authorityId}</option>}
+              {choices.map((c) => (
+                <optgroup key={c.country} label={c.country}>
+                  <option value={`country:${c.country}`}>{c.country} — all authorities</option>
+                  {c.authorities.map((a) => <option key={a.authority.id} value={`authority:${a.authority.id}`}>{a.label}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <div className="shl-row" style={{ flexWrap: 'wrap' }}>
+            <span className="shl-mut" style={{ width: 'auto' }}>Office default for</span>
+            {PANEL_CATEGORIES.filter((c) => c.kind === f.category).map((c) => {
+              const on = f.defaultFor?.includes(c.key) ?? false;
+              return <button type="button" key={c.key} className="shl-btn" aria-pressed={on} onClick={() => { store(withFormatDefault(list, f.id, c.key, !on)); onStatus?.(on ? `"${f.name}" is no longer the ${scopeLabel(f)} default for ${c.plural}.` : `"${f.name}" is the ${scopeLabel(f)} default for ${c.plural}.`); }}>Default: {c.plural}</button>;
+            })}
+          </div>
           <div className="shl-row">
             <select aria-label={`Board for ${f.name}`} value={boardOf[f.id] ?? ''} onChange={(e) => setBoardOf({ ...boardOf, [f.id]: e.target.value })}>
               <option value="">Choose a board</option>
@@ -119,7 +152,7 @@ export default function FormatsPanel({ project, sheets, onAddSheets, onProject, 
           </div>
         </div>
       ))}
-      <p className="shl-note">Formats are kept with your office library. A format package contains one layout and no project or panel data.</p>
+      <p className="shl-note">Formats are kept with your office library. Recommended for only guides new-project choices; it never changes design rules. A format package contains one layout and no project or panel data.</p>
     </aside>
   );
 }

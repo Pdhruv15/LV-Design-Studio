@@ -9,7 +9,7 @@ import { choiceReady, firstChoice, folderDisk, useFolderTemplates, type FolderCh
 import type { TemplatesClient } from '../model/folderTemplatesClient';
 import { cleanFolderName, folderFlags, joinPath } from '../model/projectFolderPlan';
 import { resolveReference, startChoices, type DesignReference } from '../model/designReference';
-import { loadFormats, PANEL_CATEGORIES, type PanelCategory, type ScheduleFormat } from '../model/scheduleFormats';
+import { defaultFormatIds, formatMatchRank, loadFormats, PANEL_CATEGORIES, type PanelCategory, type ScheduleFormat } from '../model/scheduleFormats';
 import { STUDY_DEFAULTS } from '../types';
 import {
   deliverableCatalog, newBrief, PARTY_LABEL, resetToRole, ROLE_LABEL, SCOPE_ITEMS, withRole, withScope,
@@ -118,6 +118,14 @@ function AuthorityPicker({ choices, country, authId, setId, ruleSet, refs, forma
   const r = ruleSet && resolveReference(ruleSet, refs);
   const v = (k: keyof NonNullable<typeof r>['values']) => r?.values[k]?.value;
   const pair = (a?: number, b?: number, unit = '') => (a === undefined && b === undefined ? undefined : `${a ?? '—'} / ${b ?? '—'}${unit}`);
+  const formatText = (f: ScheduleFormat, category: PanelCategory) => {
+    const selectedAuthority = auths.find((a) => a.authority.id === authId)?.label;
+    const isDefault = f.defaultFor?.includes(category);
+    if (f.authorityId === authId && authId) return `${f.name} — ${isDefault ? 'authority default' : selectedAuthority ?? 'this authority'}`;
+    if (f.country === country && country) return `${f.name} — ${isDefault ? 'country default' : country}`;
+    if (!f.authorityId && !f.country) return `${f.name} — ${isDefault ? 'General default' : 'yours'}`;
+    return `${f.name} — other country/authority`;
+  };
   const tags = r ? [
     v('voltageV') !== undefined && `${v('voltageV')} V${v('frequencyHz') ? ` · ${v('frequencyHz')} Hz` : ''}`,
     v('ambientC') !== undefined && `Ambient ${v('ambientC')} °C`,
@@ -164,7 +172,7 @@ function AuthorityPicker({ choices, country, authId, setId, ruleSet, refs, forma
             <label key={c.key}>{c.label} schedule format
               <select value={formatIds[c.key]} onChange={(e) => onFormat(c.key, e.target.value)}>
                 <option value="">{c.kind === 'db' ? "General — the app's load schedule" : "General — the app's panel form"}</option>
-                {formats.filter((f) => f.category === c.kind).map((f) => <option key={f.id} value={f.id}>{f.name} — yours</option>)}
+                {formats.filter((f) => f.category === c.kind).sort((a, b) => formatMatchRank(b, { country, authorityId: authId }) - formatMatchRank(a, { country, authorityId: authId })).map((f) => <option key={f.id} value={f.id}>{formatText(f, c.key)}</option>)}
               </select>
             </label>
           ))}
@@ -193,7 +201,6 @@ export function NewProjectWizard({ initialName, company, taken, templates = [], 
 }) {
   const [tpl, setTpl] = useState<SetupTemplate | undefined>();
   const [formats] = useState(() => loadFormats());
-  const [formatIds, setFormatIds] = useState<Record<PanelCategory, string>>({ db: '', smdb: '', mdb: '', mcc: '' });
   const [step, setStep] = useState(0);
   const [name, setName] = useState(initialName);
   const [projectNo, setProjectNo] = useState('');
@@ -214,19 +221,21 @@ export function NewProjectWizard({ initialName, company, taken, templates = [], 
   const [authId, setAuthId] = useState(() => inCountry[0]?.authority.id ?? '');
   const auth = inCountry.find((a) => a.authority.id === authId);
   const [setId, setSetId] = useState(() => auth?.authority.id ?? '');
+  const [formatIds, setFormatIds] = useState<Record<PanelCategory, string>>(() => defaultFormatIds(formats, { country, authorityId: authId }));
   const ruleSet = auth?.sets.find((r) => r.id === setId) ?? auth?.authority;
   const authName = auth?.label;
   /** The approving authority on the Parties step follows the choice here. */
   const withAuthority = (b: ProjectBrief, a: string | undefined): ProjectBrief => (a ? { ...b, authority: a, parties: b.parties.map((x) => (x.role === 'authority' ? { ...x, name: a } : x)) } : b);
-  const chooseAuthority = (id: string, list = inCountry) => {
+  const chooseAuthority = (id: string, list = inCountry, selectedCountry = country) => {
     const a = list.find((x) => x.authority.id === id);
     setAuthId(id); setSetId(a?.authority.id ?? '');
+    setFormatIds(defaultFormatIds(formats, { country: selectedCountry, authorityId: id }));
     setBrief((cur) => (cur ? withAuthority(cur, a?.label) : cur));
   };
   const chooseCountry = (c: string) => {
     setCountry(c);
     const list = choices.find((x) => x.country === c)?.authorities ?? [];
-    chooseAuthority(list[0]?.authority.id ?? '', list);
+    chooseAuthority(list[0]?.authority.id ?? '', list, c);
   };
   const pick = (r: ProjectRole) => setBrief((cur) => (cur ? withRole(cur, r, company) : newBrief(r, { company, ...(authName && { authority: authName }) })));
   const chosen = Object.fromEntries(PANEL_CATEGORIES.flatMap((c) => { const f = formats.find((x) => x.id === formatIds[c.key]); return f ? [[c.key, f]] : []; })) as Partial<Record<PanelCategory, ScheduleFormat>>;

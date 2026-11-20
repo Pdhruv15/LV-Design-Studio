@@ -818,6 +818,22 @@ describe('Sheets page — My formats', () => {
     expect(status[status.length - 1]).toBe('Format "Shared DB" imported. It is Output only.');
   });
 
+  it('sets a format compatibility and office default without changing the project', () => {
+    seed('Office DB');
+    render(sampleProject);
+    press('Electrical'); press('My formats');
+    const compatibility = aside('My formats')!.querySelector<HTMLSelectElement>('select[aria-label="Compatibility for Office DB"]')!;
+    expect(compatibility.value).toBe('');
+    act(() => { compatibility.value = 'authority:builtin-dewa'; compatibility.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(loadFormats()[0]).toMatchObject({ name: 'Office DB', authorityId: 'builtin-dewa', version: 2 });
+    expect(loadFormats()[0]).not.toHaveProperty('defaultFor');
+    const defaultButton = [...block('Office DB').querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Default: DBs')!;
+    act(() => defaultButton.click());
+    expect(loadFormats()[0].defaultFor).toEqual(['db']);
+    expect(changes).toBe(0);
+    expect(status[status.length - 1]).toBe('"Office DB" is the DEWA default for DBs.');
+  });
+
   it('Add a sheet for every DB without one adds the rest in one step', () => {
     seed('Office DB');
     const base = office(), db = sampleProject.boards.find((b) => b.id === 'DB-GF1')!;
@@ -896,8 +912,8 @@ describe('Sheets page — My formats', () => {
     press('Electrical'); press('My formats');
     expect(block('Alpha').textContent).toContain('DB schedule · saved');
     expect(block('Office panel').textContent).toContain('Panel schedule · saved');
-    expect([...block('Alpha').querySelectorAll('button[aria-pressed]')].map((b) => b.textContent)).toEqual(['DBs']);
-    expect([...block('Office panel').querySelectorAll('button[aria-pressed]')].map((b) => b.textContent)).toEqual(['SMDBs', 'MDBs', 'MCCs']);
+    expect([...block('Alpha').querySelectorAll('button[aria-pressed]')].map((b) => b.textContent)).toEqual(['Default: DBs', 'DBs']);
+    expect([...block('Office panel').querySelectorAll('button[aria-pressed]')].map((b) => b.textContent)).toEqual(['Default: SMDBs', 'Default: MDBs', 'Default: MCCs', 'SMDBs', 'MDBs', 'MCCs']);
     expect(block('Alpha').textContent).toContain('Use for this project\'s');
     expect(btn('My formats', 'Add a sheet for every DB without one (1)')).toBeDefined();
     expect(btn('My formats', 'Add a sheet for every panel without one (4)')).toBeDefined();
