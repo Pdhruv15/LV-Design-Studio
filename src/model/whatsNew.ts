@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.229', date: '2026-11-20',
+    items: [
+      { title: 'BOQ: each RMU as you entered it', text: 'The BOQ\'s RMU line now follows the RMU\'s details in Panels → Transformers: its ring switches and tee-offs from the configuration (RT, RRT, RRTT, RRRT, RRTTT), a switch-fuse or circuit breaker tee-off, and the insulation. With no configuration entered it has two ring switches and a tee-off for each transformer on it, as the SLD draws it. Before, every RMU had one switch-fuse tee-off, so an RMU feeding two transformers was listed one short. A standard RMU (two ring switches, one switch-fuse tee-off, no insulation entered) keeps its BOQ line and item number; any other gets a line of its own. An RMU with no name no longer shows its transformer twice in the Location column.' }
+    ]
+  },
+  {
     version: '2.227', date: '2026-11-20',
     items: [
       { title: 'Design CAD: the Block definition dialog is laid out as a form', text: 'The Block definition dialog (BLOCK, B) is wider and each row fits what it holds: Pick point with the X and Y boxes on the Base point row, Select objects with the count beside it, then Retain, Convert to block and Delete on one line. Before, these overlapped. A click on the words Base point or Objects no longer starts picking; only the buttons do.', action: 'cad', actionLabel: 'Open Design CAD' },

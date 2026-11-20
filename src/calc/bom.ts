@@ -1,4 +1,4 @@
-import type { Board, Feeder, PointType, Project } from '../types';
+import type { Board, Feeder, PointType, Project, Rmu } from '../types';
 import { form4SizeText } from './form4';
 import { BOARD_KINDS, POINT_TYPES } from '../types';
 import { PLAN_SYMBOLS } from '../model/planSymbols';
@@ -7,7 +7,7 @@ import { breakerTypeOf, cpcOf, rcdOf } from './earthing';
 import { lightningBoqLines } from './lightningProtection';
 import { spareBreaker, spareWaysOf } from '../model/spareWays';
 import { runsOf } from './electrical';
-import { txKv, txRatio } from './hvSupply';
+import { rmuRecord, rmuWays, txKv, txRatio } from './hvSupply';
 import { sizeRiser } from './busbar';
 import { earthingLayout, kindInfo, txUnits } from '../model/earthingPlan';
 import { BRAND_DEVICES } from '../data/brandDevices';
@@ -56,6 +56,8 @@ export interface BomItem {
 const kindOf = (b: Board) => b.kind ?? (b.upstreamId ? 'DB' : 'MDB');
 const kindLabel = (k: string) => BOARD_KINDS.find((x) => x.value === k)?.label ?? k;
 const isFinal = (f: Feeder) => !!f.phase;
+/** An RMU's insulation as its BOQ line writes it (none entered: "SF6 / solid insulated"). */
+const RMU_INSULATION: Record<NonNullable<Rmu['insulation']>, string> = { SF6: 'SF6 insulated', solid: 'solid insulated', air: 'air insulated', 'eco-gas': 'eco-gas insulated' };
 
 /** Poles of a feeder's devices. */
 export function polesOf(f: Feeder): string {
@@ -197,17 +199,30 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     if (L.links.length) add('I', `earth-link:${L.conductorMm2}`, `Earth pit interconnection 1C × ${L.conductorMm2} mm² Cu (length to site)`, 'no', L.links.length, 'Earthing schematic');
   }
 
-  // RMUs feeding the transformers (one line per RMU; normally DEWA supply)
-  const rmus = new Map<string, { txs: string[]; kv: string }>();
-  for (const b of mainBoards(p).filter((x) => x.sourceKva && !x.existing)) {
+  // RMUs feeding the transformers (one line per RMU with a new transformer; normally DEWA supply). Its ways, tee-off
+  // device and insulation follow its record (Panels → Transformers); with no configuration entered, the SLD's: two
+  // ring switches and a tee-off per main board on it. The standard unit keeps the key rmu:<kV>kV, and its item number.
+  const rmus = new Map<string, { txs: string[]; tees: number; kv: string; named: boolean }>();
+  for (const b of mainBoards(p).filter((x) => x.sourceKva || (x.rmu?.trim() && !x.supply))) {
     const name = b.rmu?.trim() || `RMU (${txTag(p, b.id)})`;
     const key = `${b.substation?.trim() || ''}|${name}`;
-    const r = rmus.get(key) ?? { txs: [], kv: txKv(p, b) };
-    rmus.set(key, { ...r, txs: [...r.txs, txTag(p, b.id) ?? b.id] });
+    const r = rmus.get(key) ?? { txs: [], tees: 0, kv: txKv(p, b), named: !!b.rmu?.trim() };
+    rmus.set(key, { ...r, txs: b.sourceKva && !b.existing ? [...r.txs, txTag(p, b.id) ?? b.id] : r.txs, tees: r.tees + 1 });
   }
-  for (const [key, { txs, kv }] of rmus) {
+  for (const [key, { txs, tees, kv, named }] of rmus) {
+    if (!txs.length) continue;
     const name = key.split('|')[1];
-    add('D', `rmu:${kv}kV`, `${kv} kV ring main unit (RMU): 2 × ring load-break switch + 1 × T-off switch-fuse, SF6 / solid insulated, with earthing switches`, 'no', 1, `${name} (${txs.join(', ')})`, { supplyBy: 'others', installBy: 'others' });
+    const rec = named ? rmuRecord(p, name) : undefined;
+    const config = rec?.config?.trim();
+    const ways = config ? rmuWays(config) : undefined;
+    const ring = ways ? Math.max(1, ways.ring) : 2;
+    const tOff = Math.max(ways?.tOff ?? 0, tees, 1);
+    const code = 'R'.repeat(ring) + 'T'.repeat(tOff);
+    const vcb = rec?.tOff === 'vcb';
+    const ins = rec?.insulation && RMU_INSULATION[rec.insulation] ? rec.insulation : undefined;
+    add('D', `rmu:${kv}kV${code === 'RRT' ? '' : `:${code}`}${vcb ? ':vcb' : ''}${ins ? `:${ins}` : ''}`,
+      `${kv} kV ring main unit (RMU): ${ring} × ring load-break switch + ${tOff} × T-off ${vcb ? 'circuit breaker with protection relay' : 'switch-fuse'}, ${ins ? RMU_INSULATION[ins] : 'SF6 / solid insulated'}, with earthing switches`,
+      'no', 1, named ? `${name} (${txs.join(', ')})` : name, { supplyBy: 'others', installBy: 'others' });
   }
   // Bus couplers between main boards (normally open, or closed for transformers in parallel)
   for (const t of p.ties ?? []) {
