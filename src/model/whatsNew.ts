@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.224', date: '2026-11-20',
+    items: [
+      { title: 'Sheets menu on the SLD page', text: 'A Sheets menu now follows the System diagram, Board, Earthing and Riser tabs (⌘5 / Ctrl+5). It lists the sheets of the view on screen, then All sheets, Sheet setup, Title block and numbering, and Issues and transmittals, and each item opens that sheet or tab in Design CAD → Sheets. On the board view, Make a sheet of … on its own adds the board\'s circuit-diagram sheet and opens it.' }
+    ]
+  },
+  {
     version: '2.223', date: '2026-11-20',
     items: [
       { title: 'MV voltage from the grid source', text: 'Each transformer\'s ratio on the SLD, the MV overview sheet\'s transformer schedule, a main board\'s incoming supply on the Board view, the equipment schedule and the BOQ\'s transformer and RMU lines now give the voltage of the grid source feeding the transformer: its RMU\'s source, else the first one in the MV supply and RMUs card (Panels → Transformers). Before, they said 11 kV whatever the source. The BOQ\'s transformer line also takes the project\'s LV voltage, as the SLD does. At 11 kV and 415 V nothing changes, and the BOQ keeps its item numbers.' }

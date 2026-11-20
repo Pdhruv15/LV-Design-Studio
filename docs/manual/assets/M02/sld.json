@@ -39,16 +39,16 @@
     {
       "number": 3,
       "target": "sld-view-tabs",
-      "label": "Diagram views",
+      "label": "Diagram views and Sheets menu",
       "rect": {
         "x": 246,
-        "y": 193.2890625,
-        "width": 360.828125,
-        "height": 30.1953125
+        "y": 192.390625,
+        "width": 474.5625,
+        "height": 32
       },
       "point": {
-        "x": 0.2665087890625,
-        "y": 0.20838671875
+        "x": 0.30205078125,
+        "y": 0.208390625
       }
     },
     {
