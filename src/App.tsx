@@ -1933,6 +1933,7 @@ export default function App() {
                 project={project}
                 onChange={(p, step) => setProject(p, step ? { step: true } : undefined)}
                 onStatus={setStatus}
+                onOpen={(v) => setView(v)}
                 onCreated={() => {
                   const first = project.boards[0]?.id;
                   setView('design');

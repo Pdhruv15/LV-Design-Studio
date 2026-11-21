@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.241', date: '2026-11-21',
+    items: [
+      { title: 'Space plan takes its loads and settings from the load assessment', text: 'Concept → Space plan now starts with a strip that shows the load assessment beside the plan: maximum demand, transformers, transformer sizes and settings, with what differs marked. "Take loads from the assessment…" shows the result first and then fills the plan with one row per building and load category (lighting, small power, HVAC, water heating, cooking, lifts, pumps, EV, special, fire and life safety, your custom loads), each with its diversity; a category is shared between the buildings by their floor area. Rows taken from the rooms or taken before are replaced; rows you typed and the panels already given are kept. "Use the assessment\'s settings" takes its max loading, power factor, spare and coincidence. With both, the plan\'s maximum demand equals the assessment\'s. "Keep my figures" hides the notice until the assessment changes. Nothing moves on its own. The areas grid has a FROM column (assessment, rooms or blank for typed rows), the settings have a Coincidence, and "Use types from my density standard" fills the use types from the density standard in place of a table typed by hand.' }
+    ]
+  },
+  {
     version: '2.240', date: '2026-11-21',
     items: [
       { title: 'Space plan: pick the transformer sizes from a list, with a new market standard list', text: 'Concept → Space plan has a "Size list" setting: "1,000 / 1,500 kVA" (as before, the default), "Market standard" (100, 160, 250, 315, 400, 500, 630, 800, 1,000, 1,250, 1,500, 1,600, 2,000, 2,500 and 3,150 kVA) or "My catalogue" (the sizes in your Transformers catalogue). With the market or catalogue list, "Largest size" sets the biggest transformer the plan may use (1,500 kVA to start with). "Automatic" then picks the smallest size that needs the fewest units, and the Transformer size list and the Size column of each transformer offer the same sizes. Saved plans are unchanged. Concept → Load assessment → Supply settings has a "Market standard sizes" button that fills its Transformer sizes with the same list.' }
