@@ -723,6 +723,8 @@ export interface Project {
   /** Links made on floor plans in the Floor plan window, per drawing file (the drawing is never changed). */
   cadPlanLinks?: CadPlanLinks[];
   substations?: DmSubstationRoom[]; // DM-D-013 minimum substation / LV room areas
+  /** The state of the plan / SLD against which the user kept the substations as they are: no notice until it changes. */
+  substationsKept?: string;
   studyReport?: StudyReportSetup; // the study report being prepared (Reports → Study reports)
   calcReportDocNo?: string; // document number on page 1 of the calculation report
   vdReportDocNo?: string; // document number on page 1 of the voltage drop report

@@ -26,9 +26,11 @@ Where the numbers come from — short answer:
 | File | Kind | Key functions or components | What they do |
 |---|---|---|---|
 | `src/calc/spacePlan.ts` | calc | `DEFAULT_USES`, `DEFAULT_PLAN_SETTINGS`, `PLAN_TRANSFORMER_SIZES`, `emptyPlan`, `usesOf`, `areaLoad`, `panelLoad`, `transformerLoad`, `transformersFor`, `planTransformerKva`, `summarize`, `autoAssign` | Area load (m² × W/m² × DF), panel load (own areas + SMDBs below), transformer loading %, plan summary (MD, transformers/RMUs needed, unassigned items), automatic area → MDB → transformer → RMU packing. |
-| `src/calc/dmSubstation.ts` | calc | `DM_TYPES`, `dmType`, `CONVENTIONAL`, `DETACHED`, `POCKET`, `OPEN_ROOF`, `DM_NOTES`, `NOTES_BY_TYPE`, `dmSubstationAreas`, `substationsFromProject` | DM-D-013 look-up tables, room list per type/count, error when the count exceeds the type's limit, and "one substation per RMU" derivation from the project. |
+| `src/calc/dmSubstation.ts` | calc | `DM_TYPES`, `dmType`, `CONVENTIONAL`, `DETACHED`, `POCKET`, `OPEN_ROOF`, `DM_NOTES`, `NOTES_BY_TYPE`, `dmSubstationAreas`, `substationsFromProject`, `substationLink`, `keepSubstations` | DM-D-013 look-up tables, room list per type/count, error when the count exceeds the type's limit, and "one substation per RMU" derivation from the project. |
 | `src/calc/spacePlanLink.ts` | calc | `assessmentLoads`, `takeLoads`, `withAssessmentSettings`, `planLink`, `keepPlanFigures`, `usesFromStandard`, `withStandardUses` | The load assessment against the plan: its loads as plan rows per building and category (`SpaceArea.from: 'la'`), its settings (with `SpacePlanSettings.coincidence`), the two side by side and what differs, use types from a density standard |
 | `src/components/docs/SpacePlanLink.tsx` | screen | `PlanLinkStrip`, `TakeLoadsDialog` | The link strip on Space plan and its Take loads dialog |
+| `src/calc/supplyProgress.ts` | calc | `supplyProgress` | The transformers as the load assessment gives them, as the plan arranges them and as the network has them (sizes, MD kVA, loading) |
+| `src/components/docs/SupplyConcept.tsx` | screen | `SupplyConceptTable` | The Transformers: concept to design table on Space plan and Panels → Transformers |
 | `src/docs/dmForm.ts` | report | `buildDmFormHtml` | HTML (printed to PDF) of the DM form: header, project info, room table, notes, remarks, undertaking, signature box; black-and-white. |
 | `src/docs/planSheet.ts` | screen helper | `buildPlanSheet`, `applyPlanEdits` | Excel-style grid model for the area schedule (paste from Excel), validation of typed values, linking floors to Building information levels. |
 | `src/model/planToSld.ts` | model | `updateSupply` (the button; boards tagged `sp:tx:<id>` / `sp:panel:<id>`, load feeders `sp:<area id>`, only its own incomers and load feeders sized, the assessment's `la:` feeders and empty MDBs removed, `reconcilePlanLoads` after), `planToSld` (the earlier replace-all build, kept for its tests), `USE_LOAD_TYPE`, `lvRating` | Builds boards + feeders from the plan (one LV switchboard per transformer, planned MDB/SMDB, one feeder per area) then sizes all breakers and cables via `applyAllRecommendations` (`src/calc/sizing.ts:331`). |
@@ -81,7 +83,7 @@ Where the numbers come from — short answer:
 
 **Substation area**
 1. Ribbon → *Substation area* → `SubstationAreaView` (`src/App.tsx:1649`).
-2. *Fill from project* → `fill()` → `substationsFromProject` (`src/calc/dmSubstation.ts:138`); replaces `project.substations` after confirmation.
+2. *Fill from project* → `fill()` → `substationsFromProject` (`src/calc/dmSubstation.ts`); replaces `project.substations` after confirmation. When the plan or the SLD later gives other substations, a notice (`substationLink`) offers *Update from the plan…* (the same `fill()`) and *Keep mine* (`keepSubstations`, `Project.substationsKept`).
 3. Or *+ Substation* → `add()`; then per card choose type / count / kVA / building / remarks → `patch()` → `project.substations`.
 4. Each card shows `dmSubstationAreas(type, n)` (`src/calc/dmSubstation.ts:99`) rooms or an error.
 5. *Export DM form (PDF)* or per-card *PDF* → `exportPdf` → `buildDmFormHtml` (`src/docs/dmForm.ts:14`) → `savePdf` (A4 portrait).

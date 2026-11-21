@@ -167,3 +167,30 @@ export function substationsFromProject(project: Project, type: DmSubstationType 
   });
   return { rooms, source };
 }
+
+// ---- The page against the project ------------------------------------------
+
+export interface SubstationLink {
+  source: 'space plan' | 'SLD' | 'none';
+  /** What the project gives now, e.g. "2 substations: RMU-1 2 × 1,500 kVA, RMU-2 1 × 1,000 kVA". */
+  now: string;
+  /** The substations on this page do not have the same names, transformer counts and kVA as the project gives. */
+  differs: boolean;
+  /** Differs, and the user has not kept their own against this state. */
+  notice: boolean;
+}
+
+const signature = (rooms: DmSubstationRoom[]) => rooms.map((r) => `${r.name}|${r.transformers}|${r.kva ?? ''}`).sort().join(';');
+
+/** Whether the substations on the page still follow the space plan / SLD (see `substationsFromProject`). An empty page never differs. */
+export function substationLink(project: Project): SubstationLink {
+  const { rooms, source } = substationsFromProject(project);
+  const now = `${rooms.length} substation${rooms.length === 1 ? '' : 's'}: ` + rooms.map((r) => `${r.name} ${r.transformers} × ${r.kva === undefined ? '?' : r.kva.toLocaleString('en-US')} kVA`).join(', ');
+  const differs = source !== 'none' && !!project.substations?.length && signature(project.substations) !== signature(rooms);
+  return { source, now, differs, notice: differs && project.substationsKept !== signature(rooms) };
+}
+
+/** Keep the substations as they are until the plan / SLD changes again. */
+export function keepSubstations(project: Project): Project {
+  return { ...project, substationsKept: signature(substationsFromProject(project).rooms) };
+}

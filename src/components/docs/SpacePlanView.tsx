@@ -13,6 +13,7 @@ import { txt } from '../../util/format';
 import { laStandards, standardOf } from '../../calc/loadAssessment';
 import { withStandardUses } from '../../calc/spacePlanLink';
 import { PlanLinkStrip } from './SpacePlanLink';
+import { SupplyConceptTable } from './SupplyConcept';
 
 
 /** Space planning: areas (power density or specific kW) → panels →
@@ -157,6 +158,8 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated, 
           </small>
         </div>
       </div>
+
+      <SupplyConceptTable project={project} heading={<h3 className="section-title flush">Transformers: concept to design <span className="m">— the load assessment, this plan and the network side by side</span></h3>} />
 
       <h3 className="section-title flush">1 · Areas</h3>
       <ClassicGrid

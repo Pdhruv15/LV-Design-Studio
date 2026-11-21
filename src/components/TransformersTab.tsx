@@ -8,6 +8,7 @@ import { txUnits } from '../model/earthingPlan';
 import { fmtFixed as fmt, txt } from '../util/format';
 import HvSupplyCard from './HvSupplyCard';
 import SubstationsCard from './SubstationsCard';
+import { SupplyConceptTable } from './docs/SupplyConcept';
 import { rmuChoices, rmuChoiceText, txRmu } from '../model/substations';
 
 
@@ -52,6 +53,8 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
   }
 
   return (
+    <>
+    <SupplyConceptTable project={project} heading={<h3 className="section-title flush">Transformers: concept to design <span className="m">— the load assessment, the space plan and this network side by side</span></h3>} />
     <div className="pp-cols tx-cols">
       <section className="card">
         <h4>Add transformers</h4>
@@ -128,5 +131,6 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
 
       <SubstationsCard project={project} onChange={onChange} onStatus={onStatus} />
     </div>
+    </>
   );
 }
