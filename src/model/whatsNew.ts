@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.246', date: '2026-11-21',
+    items: [
+      { title: 'Design CAD: Save As starts with DWG', text: 'Design CAD → Drafting settings (DS) → Units & level: "Save As starts with" is now DWG unless you choose otherwise, also for a drawing received as DXF. A format you chose before is kept, and a drawing saved before still starts with the format of its last copy.', action: 'cad', actionLabel: 'Open Design CAD' },
+    ]
+  },
+  {
     version: '2.245', date: '2026-11-21',
     items: [
       { title: 'Folder templates: start from a layout', text: 'Preferences → Folder templates → + New now starts from one of six layouts: Discipline-first, Stage-first (Concept, Schematic, Detailed, IFC, each with Calcs and Drawings), Building / phase-first, ISO 19650 containers, Flat & simple, or Blank. Building / phase-first asks what the folders repeat for (the buildings in Building information, or phases you type), the folder name pattern ({BuildingCode}_{BuildingName}) and the shared folders kept once at the top, with a preview for two buildings. Create and edit opens the template in the editor.' },

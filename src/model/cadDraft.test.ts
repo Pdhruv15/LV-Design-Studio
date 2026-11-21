@@ -5,7 +5,10 @@ describe('Design CAD drafting settings', () => {
   it('reads what was kept, and uses the default for anything missing, of the wrong kind or out of range', () => {
     expect(draftSettings(undefined)).toEqual(DRAFT_DEFAULTS);
     expect(draftSettings({ polarInc: 30, aperturePx: 500, gripPx: '9', osnap: 0xffff, polarExtra: [15, -3, 'x', 400], saveFormat: 'pdf', snapTip: false }))
-      .toMatchObject({ polarInc: 30, aperturePx: DRAFT_DEFAULTS.aperturePx, gripPx: DRAFT_DEFAULTS.gripPx, osnap: 511, polarExtra: [15], saveFormat: 'own', snapTip: false });
+      .toMatchObject({ polarInc: 30, aperturePx: DRAFT_DEFAULTS.aperturePx, gripPx: DRAFT_DEFAULTS.gripPx, osnap: 511, polarExtra: [15], saveFormat: 'dwg', snapTip: false });
+    // Save As starts with DWG unless a format was chosen; a choice kept before stays.
+    expect(DRAFT_DEFAULTS.saveFormat).toBe('dwg');
+    expect(['own', 'dxf', 'dwg'].map((f) => draftSettings({ saveFormat: f }).saveFormat)).toEqual(['own', 'dxf', 'dwg']);
     // The snap modes on before: all but nearest and perpendicular.
     expect(OSNAP_DEFAULT & OSNAP_BITS.nearest).toBe(0);
     expect(OSNAP_DEFAULT & OSNAP_BITS.endpoint).toBe(1);

@@ -68,7 +68,8 @@ export interface DraftSettings {
   pickLook: PickLook;
   selColor: SelColor;
   gripMax: number;
-  /** Saving: the format Save As starts with, and the previous copy kept as .bak when Save writes over it. */
+  /** Saving: the format Save As starts with (DWG unless chosen otherwise), and the previous copy kept as .bak when Save
+   * writes over it. */
   saveFormat: 'own' | 'dwg' | 'dxf';
   keepBak: boolean;
 }
@@ -91,7 +92,7 @@ export const DRAFT_DEFAULTS: DraftSettings = {
   windowFill: true, grips: true, gripPx: 8, pickBoxPx: 12, hoverMark: true, hoverTag: false,
   crossPct: 100, aperturePx: 10, markerPx: 7, snapTip: true, crossColor: 'ink', cursorOutline: true,
   pickLook: 'halo', selColor: 'blue', gripMax: 100,
-  saveFormat: 'own', keepBak: true
+  saveFormat: 'dwg', keepBak: true
 };
 
 const num = (v: unknown, lo: number, hi: number, d: number) => (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? v : d);
@@ -111,7 +112,7 @@ export function draftSettings(v: unknown): DraftSettings {
     crossPct: Math.round(num(o.crossPct, 1, 100, d.crossPct)), aperturePx: Math.round(num(o.aperturePx, 2, 40, d.aperturePx)), markerPx: Math.round(num(o.markerPx, 3, 20, d.markerPx)), snapTip: bool(o.snapTip, d.snapTip),
     crossColor: CROSS_COLORS.some((c) => c.k === o.crossColor) ? o.crossColor as CrossColor : d.crossColor, cursorOutline: bool(o.cursorOutline, d.cursorOutline),
     pickLook: PICK_LOOKS.some((c) => c.k === o.pickLook) ? o.pickLook as PickLook : d.pickLook, selColor: SEL_COLORS.some((c) => c.k === o.selColor) ? o.selColor as SelColor : d.selColor, gripMax: Math.round(num(o.gripMax, 1, 1000, d.gripMax)),
-    saveFormat: o.saveFormat === 'dwg' || o.saveFormat === 'dxf' ? o.saveFormat : 'own', keepBak: bool(o.keepBak, d.keepBak)
+    saveFormat: o.saveFormat === 'own' || o.saveFormat === 'dwg' || o.saveFormat === 'dxf' ? o.saveFormat : d.saveFormat, keepBak: bool(o.keepBak, d.keepBak)
   };
 }
 
