@@ -1,6 +1,6 @@
 # UI UX proposal – Tx & Gen sizing linked with the load assessment and the space plan (2026-11-21)
 
-Status: **proposed**, waiting for the user's decisions A–G. Nothing is built, apart from the fix in PR 747 noted under Today.
+Status: **approved 2026-11-21** — the user chose the recommended option for every decision (A–G). Built step by step, starting with one definition of the size lists.
 
 Mockup: `docs/mockups/txgen-link-mockup.html` (image: `txgen-link-mockup.png`).
 
@@ -17,7 +17,7 @@ Building, Load assessment and Space plan are linked (v2.230 to v2.243): what is 
 3. **Growth and loading are held in three places**: the assessment's supply settings, the plan's settings, and the project design settings this study uses (`settingsOf`). Nothing shows when they differ.
 4. **The generator is sized twice** (Load assessment, this study) and the two figures are never shown together. The transformers table of v2.243 is on Space plan and Panels → Transformers, not on this page.
 5. **The assessment's generator goes nowhere**: the emergency boards on Panels (`planEmergency`) start with a blank generator.
-6. **Fix in PR 747 (v2.247):** after Create / Update supply the plan's load feeders had no essential mark, so this study's generator came out too small. Rows from the assessment now carry their share on the generator and become essential feeders.
+6. **Fix in PR 747 (v2.248):** after Create / Update supply the plan's load feeders had no essential mark, so this study's generator came out too small. Rows from the assessment now carry their share on the generator and become essential feeders.
 
 ## Proposed
 
