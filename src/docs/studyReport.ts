@@ -14,7 +14,8 @@ import { isScheduleCircuit } from '../calc/loadSchedule';
 import { boardSummary, boardsInSupplyOrder } from '../calc/summary';
 import { settingsOf } from '../calc/sizing';
 import { planPfc, pfcPlanOf, STRATEGY_LABEL } from '../calc/pfc';
-import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf, type TxRow } from '../calc/txGen';
+import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf, txGenSizeList, type TxRow } from '../calc/txGen';
+import { txSizeListText } from '../calc/sizeLists';
 import { parallelOperation } from '../calc/parallelTx';
 import { existingChecks } from '../calc/existing';
 import { MATERIAL_LABEL, sizeRiser } from '../calc/busbar';
@@ -394,7 +395,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
     return {
       key, title: info.title, statuses,
       method: [
-        `Transformer per main board: maximum demand${pfcTaken ? ' (after the planned power factor correction)' : ''} × (1 + ${set.futureGrowthPct} % growth) ÷ ${set.transformerMaxLoadingPct} % design loading, next ${plan.sizeList === 'dewa' ? 'DEWA standard size (500 / 1000 / 1500 kVA)' : 'IEC standard size'}.`,
+        `Transformer per main board: maximum demand${pfcTaken ? ' (after the planned power factor correction)' : ''} × (1 + ${set.futureGrowthPct} % growth) ÷ ${set.transformerMaxLoadingPct} % design loading, next ${txSizeListText(txGenSizeList(plan))}.`,
         `For that size: full-load current and main breaker, LV fault level (typical IEC 60076-5 impedance, ${mvNetworkText(p) ? 'behind the grid source impedance' : 'infinite MV source'}), voltage regulation at the design demand.`,
         `Bus couplers: with one transformer out, the other carries both boards up to ${plan.emergencyLoadingPct} % of its rating. Duty / standby: two transformers, each for the whole load.`,
         ...(ex.length ? ['Existing installation: each existing board\'s recorded maximum demand covers the existing load on and below it, and the new load is added on top. Other buildings on a shared supply (not drawn here): the higher of each one\'s allocated and recorded load is kept for it; with a recorded MD, the existing load is the higher of the MD and the drawn existing load plus what is kept. Transformer: existing + new within the design loading; incomers, existing feeders and spare ways checked; a new transformer on an existing RMU needs a spare T-off way (at most 2 transformers per RMU).'] : []),

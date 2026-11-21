@@ -3,7 +3,10 @@ import { sampleProject } from '../data/sampleProject';
 import { DEFAULT_TYPES, newAssessment } from './loadAssessment';
 import { emptyPlan } from './spacePlan';
 import type { Project, SpacePlan } from '../types';
-import { supplyProgress } from './supplyProgress';
+import { newProject } from '../types';
+import { createMdbFromAssessment } from './loadAssessmentMdb';
+import { assess } from './loadAssessment';
+import { generatorProgress, supplyProgress } from './supplyProgress';
 
 const a = newAssessment(DEFAULT_TYPES[0], { gfaM2: 26400, floors: 21, parkingM2: 8000 }, { types: [] });
 const plan: SpacePlan = {
@@ -53,5 +56,32 @@ describe('Transformers: concept to design', () => {
     expect(n.count).toBe(1);
     expect(n.differs).toBe(true);
     expect(rows.map((r) => r.key)).toEqual(['assessment', 'plan', 'network']);
+  });
+});
+
+describe('This study row and the generator figures', () => {
+  const made = { ...createMdbFromAssessment({ ...newProject('T'), boards: [], feeders: [] }, a).project, loadAssessment: a };
+
+  it('adds the study row only when asked', () => {
+    expect(supplyProgress(made).map((r) => r.key)).not.toContain('study');
+    const rows = supplyProgress(made, true);
+    const st = rows.find((r) => r.key === 'study')!;
+    expect(st.count).toBeGreaterThan(0);
+    expect(st.totalKva).toBeGreaterThan(0);
+    expect(st.loadingPct).toBeCloseTo((st.demandKva / st.totalKva) * 100, 6);
+  });
+
+  it('gives the generator rows and the stand-in feeders', () => {
+    const g = generatorProgress(made);
+    expect(g.rows.map((r) => r.key)).toEqual(['assessment', 'study', 'network']);
+    expect(g.rows[2].setText).toBe('none on the SLD');
+    expect(g.rows[2].differs).toBe(true);
+    expect(g.standInFeeders).toBeGreaterThan(0);
+    expect(g.standInKw).toBeGreaterThan(0);
+    expect(Math.abs(g.standInKw - assess(a).generatorKw)).toBeLessThan(1);
+  });
+
+  it('has no generator rows for an empty project', () => {
+    expect(generatorProgress({ ...newProject('T'), boards: [], feeders: [] }).rows).toEqual([]);
   });
 });

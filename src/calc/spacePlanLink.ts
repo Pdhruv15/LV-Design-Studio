@@ -10,7 +10,8 @@ import { DEFAULT_USES, emptyPlan, planSizes, summarize, usesOf } from './spacePl
 const round2 = (x: number) => Math.round(x * 100) / 100;
 
 /** The assessment's loads as plan rows: one per building and load category (services and
- * custom loads included), each with its connected kW and its diversity. A category is shared
+ * custom loads included), each with its connected kW, its diversity and its share on the
+ * standby generator. A category is shared
  * between the counted buildings by their floor area. Fire and life safety is not in the
  * normal demand (demand factor 0). */
 export function assessmentLoads(project: Project, a: LoadAssessment): SpaceArea[] {
@@ -25,7 +26,7 @@ export function assessmentLoads(project: Project, a: LoadAssessment): SpaceArea[
     for (const c of assess(a).categories) {
       const kw = round2(c.connectedKw * share);
       if (kw < 0.005) continue;
-      out.push({ id: `la-${p.id}-${c.key.replace(':', '-')}`, building: p.name, name: c.label, use: 'services', kw, demandFactor: c.diversity, from: 'la', laKey: c.key });
+      out.push({ id: `la-${p.id}-${c.key.replace(':', '-')}`, building: p.name, name: c.label, use: 'services', kw, demandFactor: c.diversity, from: 'la', laKey: c.key, ...(c.generatorShare > 0 ? { genShare: Math.min(1, c.generatorShare) } : {}) });
     }
   }
   return out;

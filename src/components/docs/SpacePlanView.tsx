@@ -2,8 +2,8 @@ import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import type { PlanPanel, Project, SpacePlan, SpaceUse } from '../../types';
-import { autoAssign, DEFAULT_USES, emptyPlan, panelLoad, PLAN_SIZE_LISTS, planSizes, sizeListOf, summarize, usesOf, withSizeList, type PlanSizeList } from '../../calc/spacePlan';
-import { catalog } from '../../database/catalog';
+import { autoAssign, DEFAULT_USES, emptyPlan, panelLoad, planSizes, sizeListOf, summarize, usesOf, withSizeList, type PlanSizeList } from '../../calc/spacePlan';
+import { txSizeChoices } from '../../calc/sizeLists';
 import { applyPlanEdits, buildPlanSheet } from '../../docs/planSheet';
 import { updateSupply } from '../../model/planToSld';
 import ClassicGrid from '../grid/ClassicGrid';
@@ -97,9 +97,9 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated, 
     >
       <PlanLinkStrip project={project} plan={plan} onPlan={setPlan} onStatus={onStatus} onOpenAssessment={onOpen && (() => onOpen('load-assessment'))} />
       <div className="plan-settings">
-        <label title="Where the transformer sizes come from: the two usual DEWA sizes, the market standard sizes (100 to 3,150 kVA), or your Transformers catalogue">Size list
+        <label title="Where the transformer sizes come from: the DEWA sizes, the market standard sizes (100 to 3,150 kVA), or your Transformers catalogue. The same lists as on Load assessment and Tx &amp; Gen sizing">Size list
           <select value={s.sizeList ?? 'dewa'} onChange={(e) => setPlan({ ...plan, settings: withSizeList(s, e.target.value as PlanSizeList) })}>
-            {PLAN_SIZE_LISTS.filter((l) => l.value !== 'catalogue' || s.sizeList === 'catalogue' || catalog().transformers.length > 0).map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+            {txSizeChoices(s.sizeList).map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
           </select>
         </label>
         {s.sizeList && (

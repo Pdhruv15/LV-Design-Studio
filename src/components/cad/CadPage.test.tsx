@@ -3379,6 +3379,34 @@ describe('Design CAD File: Save, Save As, Close and Drafting settings', () => {
     expect(dialog('Drafting settings')!.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toBe('Snap & grid');
   });
 
+  it('DS pages: UNITS opens Drawing ("Not set"), Saving lists the formats and still reaches onPrefs, arrows move between pages', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('UNITS');
+    let d = dialog('Drafting settings')!;
+    expect(d.querySelector('[role="tablist"]')!.getAttribute('aria-orientation')).toBe('vertical');
+    expect(d.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toBe('Drawing');
+    expect((d.querySelector('select[aria-label="Level"]') as HTMLSelectElement).selectedOptions[0].textContent).toBe('Not set');
+    expect(d.textContent).toContain('The level this drawing is the plan of.');
+    const tabs = () => [...d.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const key = (el: HTMLElement, k: string) => act(async () => { el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true })); });
+    await key(tabs().find((t) => t.textContent === 'Drawing')!, 'ArrowUp');
+    expect(d.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toBe('Saving');
+    const fmt = d.querySelector('select[aria-label="Save As format"]') as HTMLSelectElement;
+    expect([...fmt.options].map((o) => o.textContent)).toEqual(['DWG (default)', 'DXF', "The drawing's own format"]);
+    expect(fmt.value).toBe('own'); // the test host keeps the sample drawing's own format; the app's default is DWG (cadDraft)
+    tick(d, 'Keep the previous copy as .bak on Save');
+    set(d.querySelector('input[aria-label="Recovery copy every"]') as HTMLInputElement, '7');
+    await press(d, 'OK');
+    expect(onPrefs.mock.calls[0][0]).toMatchObject({ autosaveMin: 7, draft: { keepBak: false } });
+    await command('DS');
+    d = dialog('Drafting settings')!;
+    await act(async () => { tabs().find((t) => t.textContent === 'Cursor')!.click(); });
+    await key(tabs().find((t) => t.textContent === 'Cursor')!, 'ArrowDown');
+    expect(d.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toBe('Saving');
+    expect(document.activeElement!.textContent).toBe('Saving');
+  });
+
   it('WBLOCK saves the objects picked as a DXF of their own; with none picked it says what to do', async () => {
     const saveBinary = vi.fn(async () => '/plans/objects.dxf');
     (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveBinary };

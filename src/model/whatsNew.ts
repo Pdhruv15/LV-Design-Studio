@@ -18,9 +18,34 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.246', date: '2026-11-21',
+    version: '2.251', date: '2026-11-21',
     items: [
-      { title: 'Design CAD: Save As starts with DWG', text: 'Design CAD → Drafting settings (DS) → Units & level: "Save As starts with" is now DWG unless you choose otherwise, also for a drawing received as DXF. A format you chose before is kept, and a drawing saved before still starts with the format of its last copy.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Design CAD: Save As starts with DWG', text: 'Design CAD → Drafting settings (DS) → Saving: "Save As format" is now DWG unless you choose otherwise, also for a drawing received as DXF. A format you chose before is kept, and a drawing saved before still starts with the format of its last copy.', action: 'cad', actionLabel: 'Open Design CAD' },
+    ]
+  },
+  {
+    version: '2.250', date: '2026-11-21',
+    items: [
+      { title: 'Tx & Gen sizing shows the load assessment and the space plan beside the study', text: 'Concept → Tx & Gen sizing now starts with a strip that lists future growth, max transformer loading, the size list and the generator margin as the load assessment, the space plan and this study have them, with what differs marked. It is for information: the concept figures and the design figures may differ on purpose, so nothing is changed for you, and "Keep my settings" hides the notice until one of them changes. The "Transformers: concept to design" table is on this page too, with a row for this study (network demand with growth, at the loading limit), and the transformers table has an "In the plan" column with the size and loading the space plan gives each board.' },
+      { title: 'Generator: the assessment, the study and the network side by side', text: 'Tx & Gen sizing has a "Generator: concept to design" table: the essential kW, the kVA needed and the set as the load assessment gives them and as this study sizes them, and the set on the network. A line says how much of the essential load is still stand-in feeders made from the load assessment or the space plan. When no generator is on the SLD, "Add emergency boards with a … kVA set…" opens Panels with the emergency boards switched on and the generator filled in. The Standby generator field of the emergency boards now starts with this study\'s set, or else the load assessment\'s; it started blank.' }
+    ]
+  },
+  {
+    version: '2.249', date: '2026-11-21',
+    items: [
+      { title: 'One set of transformer and generator size lists on the three concept pages', text: 'Load assessment, Space plan and Tx & Gen sizing now pick transformer sizes from the same three lists: "DEWA — 500, 1,000, 1,500 kVA", "Market standard — 100 to 3,150 kVA" (16 sizes, with both 200 and 1,500 kVA) and "My catalogue" (your Transformers catalogue, offered when it has sizes). Before, each page had its own lists and the same name meant different sizes. What changes: on Space plan the DEWA list now has 500 kVA, so a plan under about 400 kVA takes one 500 kVA and not one 1,000 kVA. On Tx & Gen sizing the "IEC standard" choice is now "Market standard" or "My catalogue", whichever it was reading. On Load assessment the Supply settings have a "Transformer sizes" list (with "A list I type" for your own sizes); with no catalogue it now starts from the market standard sizes, so a small building can get a transformer below 500 kVA. Generators: Load assessment now picks from the same sizes as Tx & Gen sizing, your Generators catalogue or else 22 standard sizes from 20 to 2,500 kVA; it had 11 sizes, so a set can come out one step smaller (800 kVA where it gave 1,000 kVA).' }
+    ]
+  },
+  {
+    version: '2.248', date: '2026-11-21',
+    items: [
+      { title: 'Space plan: Create / Update supply keeps the loads on the standby generator', text: 'Rows taken from the load assessment now carry their share on the standby generator, and "Create / Update supply" marks that share as essential in the network: a row fully on the generator (lighting, lifts) becomes one essential feeder, a row partly on it (small power, HVAC, pumps) becomes a normal feeder and an essential one, and fire and life safety runs at full load on the generator. The generator sizing on Tx & Gen sizing then sees the same essential load as the load assessment. From v2.242 until now these feeders were made with no essential mark, so the generator came out too small after Create / Update supply. Press "Take loads from the assessment…" and "Create / Update supply" again to bring a plan made since then up to date.' }
+    ]
+  },
+  {
+    version: '2.247', date: '2026-11-21',
+    items: [
+      { title: 'Design CAD: Drafting settings in pages', text: 'The Drafting settings pages are now a list on the left, and Units & level is now two pages: Drawing (the level and units of this drawing) and Saving (Save As format, the .bak copy and the recovery copy, kept on this computer). Labels no longer run into the next row.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {

@@ -3,7 +3,9 @@ import { settingsOf } from '../types';
 import { boardsInSupplyOrder, boardTotals } from './summary';
 import { DEFAULT_TRANSFORMER_XR, faultCurrentKA, gridImpedance, gridSourceOf, parallelGroup, parallelZ, transformerImpedance, type Impedance } from './electrical';
 import { switchedOnBoard } from './capSwitching';
-import { STANDARD_BREAKER_A, STANDARD_TRANSFORMER_KVA, chooseGenerator, isEssential, standbyBoards, type GeneratorChoice } from './sizing';
+import { STANDARD_BREAKER_A, chooseGenerator, isEssential, standbyBoards, type GeneratorChoice } from './sizing';
+import { catalogueTxKva, DEWA_TX_KVA, TX_SIZE_LISTS, txSizeList, type TxSizeList } from './sizeLists';
+import { assess, laSizeList } from './loadAssessment';
 import { GENERATOR_XD_TRANSIENT_PCT, isMotor, MOTOR_START_DIP_LIMIT_PCT, motorStartDipPct, runningKva, startingKva } from './motor';
 import { planPfc, subtree } from './pfc';
 import { transformerFor } from '../database/catalog';
@@ -19,8 +21,8 @@ import { transformerFor } from '../database/catalog';
 export interface TxGenPlan {
   /** Main boards to size (empty = all). */
   txBoards: string[];
-  /** Standard sizes: DEWA 11 / 0.415 kV (500, 1000, 1500 kVA) or the IEC list. */
-  sizeList: 'dewa' | 'iec';
+  /** The list the sizes come from (src/calc/sizeLists.ts). 'iec' was stored by earlier versions: the catalogue when it has sizes, else the market standard sizes. */
+  sizeList: TxSizeList | 'iec';
   /** Main boards with two transformers, each carrying the whole load (duty / standby). */
   n1: string[];
   /** Take the planned PF correction (Power factor page) off the demand. */
@@ -29,15 +31,19 @@ export interface TxGenPlan {
   emergencyLoadingPct: number;
   /** Boards on the generator, with the share of their load (100 = all of it). */
   genBoards: Record<string, number>;
+  /** The settings of the load assessment and the space plan the user kept as they are: no notice until they change. */
+  kept?: string;
 }
 
 export const TXGEN_DEFAULTS: TxGenPlan = { txBoards: [], sizeList: 'dewa', n1: [], includePfc: true, emergencyLoadingPct: 100, genBoards: {} };
 export const txGenPlanOf = (p: Project): TxGenPlan => ({ ...TXGEN_DEFAULTS, ...p.txGen, genBoards: { ...p.txGen?.genBoards } });
 
-export const DEWA_TRANSFORMER_KVA = [500, 1000, 1500];
+export const DEWA_TRANSFORMER_KVA = DEWA_TX_KVA;
 const SQRT3 = Math.sqrt(3);
 const nextStd = (list: number[], v: number) => list.find((x) => x >= v - 1e-9);
-export const sizesOf = (plan: TxGenPlan) => (plan.sizeList === 'dewa' ? DEWA_TRANSFORMER_KVA : STANDARD_TRANSFORMER_KVA);
+/** The plan's size list, with the earlier 'iec' read as it behaved: the catalogue when it has sizes, else the market standard sizes. */
+export const txGenSizeList = (plan: TxGenPlan): TxSizeList => (plan.sizeList === 'iec' ? (catalogueTxKva().length ? 'catalogue' : 'market') : plan.sizeList);
+export const sizesOf = (plan: TxGenPlan) => txSizeList(txGenSizeList(plan));
 
 /** Typical impedance (IEC 60076-5 minimum values). */
 export const typicalImpedancePct = (kva: number) => transformerFor(kva)?.zPct ?? (kva <= 630 ? 4 : kva <= 1250 ? 5 : 6);
@@ -276,4 +282,49 @@ export function sizeGeneratorByBoards(project: Project, plan: TxGenPlan = txGenP
     atsA: flcA ? nextStd(STANDARD_BREAKER_A, flcA) : undefined,
     mainBreakerA: flcA ? nextStd(STANDARD_BREAKER_A, flcA) : undefined
   };
+}
+
+export interface TxGenLinkRow { key: 'growth' | 'loading' | 'sizes' | 'generator'; assessment: string; plan: string; study: string; differs: boolean }
+export interface TxGenLink { rows: TxGenLinkRow[]; differs: boolean; notice: boolean }
+
+const listLabel = (k: TxSizeList) => TX_SIZE_LISTS.find((l) => l.value === k)?.label ?? k;
+
+/** The growth, loading, size list and generator margin of the load assessment and the space plan beside this study's. Undefined when the project has neither. */
+export function txGenLink(project: Project): TxGenLink | undefined {
+  const a = project.loadAssessment;
+  const sp = project.spacePlan?.areas.length ? project.spacePlan : undefined;
+  if (!a && !sp) return undefined;
+  const s = settingsOf(project);
+  const plan = txGenPlanOf(project);
+  const none = '—';
+  const apart = (r: { assessment: string; plan: string; study: string }) => new Set([r.assessment, r.plan, r.study].filter((x) => x !== none)).size > 1;
+  const mk = (key: TxGenLinkRow['key'], assessment: string, planText: string, study: string): TxGenLinkRow => {
+    const row = { key, assessment, plan: planText, study };
+    return { ...row, differs: apart(row) };
+  };
+  const rows: TxGenLinkRow[] = [
+    mk('growth', a ? `${a.supply.sparePct} %` : none, sp ? `${sp.settings.growthPct} %` : none, `${s.futureGrowthPct} %`),
+    mk('loading', a ? `${a.supply.maxLoadingPct} %` : none, sp ? `${sp.settings.maxLoadingPct} %` : none, `${s.transformerMaxLoadingPct} %`),
+    mk('sizes', a ? (a.supply.txSizes?.length ? 'a typed list' : listLabel(laSizeList(a.supply))) : none, sp ? listLabel(sp.settings.sizeList ?? 'dewa') : none, listLabel(txGenSizeList(plan))),
+    { key: 'generator', assessment: a ? `× ${a.supply.genMargin}` : none, plan: none, study: `${s.generatorMaxLoadingPct} % loading`, differs: !!a && Math.abs(a.supply.genMargin - 100 / s.generatorMaxLoadingPct) > 0.01 }
+  ];
+  const differs = rows.some((r) => r.differs);
+  const signature = rows.map((r) => `${r.assessment}|${r.plan}|${r.study}`).join(';');
+  return { rows, differs, notice: differs && plan.kept !== signature };
+}
+
+/** Keeps the study's own settings against the load assessment and the space plan as they are now: the notice returns when one changes. */
+export function keepTxGenSettings(project: Project): Project {
+  const link = txGenLink(project);
+  if (!link) return project;
+  return { ...project, txGen: { ...project.txGen, kept: link.rows.map((r) => `${r.assessment}|${r.plan}|${r.study}`).join(';') } };
+}
+
+/** The generator to start the emergency boards with: this study's recommended set, else the load assessment's. */
+export function suggestedGeneratorKva(project: Project): number | undefined {
+  try {
+    const g = sizeGeneratorByBoards(project);
+    if (g.demandKva > 0 && g.recommendedKva) return g.recommendedKva;
+  } catch { /* an incomplete project has no study figures yet */ }
+  return project.loadAssessment ? assess(project.loadAssessment).generatorKva : undefined;
 }

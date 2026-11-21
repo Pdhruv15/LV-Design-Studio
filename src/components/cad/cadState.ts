@@ -61,7 +61,7 @@ export const NO_ACTIONS: CadActions = { newDrawing: () => {}, save: () => {}, sa
  * cable routes' lengths as Excel. */
 export type CadExport = 'pdfView' | 'pdfLayout' | 'png' | 'wblock' | 'devices' | 'cables' | 'attributes' | 'attributesCsv';
 /** The tabs of the Drafting settings dialog (DS). */
-export type DraftTab = 'snap' | 'polar' | 'osnap' | 'dyn' | 'select' | 'cursor' | 'units';
+export type DraftTab = 'snap' | 'polar' | 'osnap' | 'dyn' | 'select' | 'cursor' | 'saving' | 'drawing';
 /** Where a drawing was last saved this session (Save writes there again): the file name and path (none for a browser
  * download), as what and in which version, and what went in. */
 export interface SavedCopy { name: string; path?: string; as: 'dwg' | 'dxf'; version: string; drawn: boolean; devices: boolean; wiring: boolean; bind: boolean }

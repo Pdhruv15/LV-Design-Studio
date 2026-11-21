@@ -76,7 +76,7 @@ describe('load assessment against the space plan', () => {
     // 60,000 m² × 80 W/m² × 0.7 ÷ 0.9 = 3,733 kVA in the plan.
     expect(md).toMatchObject({ plan: '3,733 kVA', differs: true });
     expect(l.rows.find((x) => x.key === 'settings')).toMatchObject({ assessment: '80 % · 0.90 · 0 % · 0.90', plan: '80 % · 0.90 · 0 % · 1.00', differs: true });
-    expect(l.rows.find((x) => x.key === 'sizes')!.plan).toBe('1,000 or 1,500 kVA');
+    expect(l.rows.find((x) => x.key === 'sizes')!.plan).toBe('500 to 1,500 kVA');
     expect(l.differs && l.notice).toBe(true);
     const kept = keepPlanFigures(plan, a);
     expect(planLink(project(kept))).toMatchObject({ differs: true, notice: false });

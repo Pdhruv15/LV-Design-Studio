@@ -4,14 +4,14 @@ import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import { CheckedNum, Page, type NumRule } from '../ui';
 import {
-  againstStandard, applyStandard, assess, buildingFigures, clgInBasis, COOL_SYSTEMS, DEFAULT_SPACES, DHW_SYSTEMS, isCooled, LA_LOCATIONS, laStandards, laTypes, loadLaLibrary, LOCAL_STANDARD, newAssessment, PLACEHOLDER_STANDARD, resetToStandard, rowArea, rowPct,
+  againstStandard, applyStandard, assess, laSizeList, buildingFigures, clgInBasis, COOL_SYSTEMS, DEFAULT_SPACES, DHW_SYSTEMS, isCooled, LA_LOCATIONS, laStandards, laTypes, loadLaLibrary, LOCAL_STANDARD, newAssessment, PLACEHOLDER_STANDARD, resetToStandard, rowArea, rowPct,
   saveLaLibrary, setAcBasis, setAreaMode, standardOf, standardsToSheet, typeFromAssessment, withStandardRows, type CategoryKey, type LaBuildingType, type LaCustomLoad, type LaFactors, type LaLibrary, type LaRow,
   type LaLocation, type LaServices, type LaSupply, type LoadAssessment
 } from '../../calc/loadAssessment';
 import { catalog } from '../../database/catalog';
 import { laLink } from '../../calc/loadAssessmentLink';
 import { createMdbFromAssessment, LA_MDB, mdbStep } from '../../calc/loadAssessmentMdb';
-import { MARKET_TX_KVA } from '../../calc/spacePlan';
+import { txSizeChoices, type TxSizeList } from '../../calc/sizeLists';
 import { txt } from '../../util/format';
 import { LinkStrip } from './LoadAssessmentLink';
 import { ConceptToDesignTable } from './ConceptToDesign';
@@ -428,11 +428,18 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
                 <label title="Generator kVA = essential demand ÷ pf × margin">Generator margin<Num value={a.supply.genMargin} onSet={(v) => setSup({ genMargin: v })} step={0.05} /></label>
               </div>
               <div className="bi-grid" style={{ marginTop: 8 }}>
-                <label style={{ flex: 1 }}>Transformer sizes kVA <span className="m">(blank: your Transformers catalogue, else standard sizes)</span>
-                  <input className="bi-text" defaultValue={a.supply.txSizes?.join(', ') ?? ''} key={a.supply.txSizes?.join(',') ?? ''} placeholder={r.txSizes.join(', ')}
-                    onBlur={(e) => { const s = e.target.value.split(/[\s,;]+/).map(Number).filter((x) => x > 0); setSup({ txSizes: s.length ? s : undefined }); }} />
+                <label title="Where the transformer sizes come from: the DEWA sizes, the market standard sizes, your Transformers catalogue, or a list you type. The same lists as on Space plan and Tx &amp; Gen sizing">Transformer sizes
+                  <select className="bi-sel" value={a.supply.txSizes?.length ? 'typed' : laSizeList(a.supply)} onChange={(e) => setSup(e.target.value === 'typed' ? { txSizes: [...r.txSizes] } : { txSizes: undefined, sizeList: e.target.value as TxSizeList })}>
+                    {txSizeChoices(laSizeList(a.supply)).map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+                    <option value="typed">A list I type</option>
+                  </select>
                 </label>
-                <button className="chip" style={{ alignSelf: 'end' }} title="Fill the list with the market standard sizes, 100 to 3,150 kVA. The largest one used is set above" onClick={() => setSup({ txSizes: [...MARKET_TX_KVA] })}>Market standard sizes</button>
+                {a.supply.txSizes?.length ? (
+                  <label style={{ flex: 1 }}>Sizes kVA
+                    <input className="bi-text" defaultValue={a.supply.txSizes.join(', ')} key={a.supply.txSizes.join(',')}
+                      onBlur={(e) => { const x = e.target.value.split(/[\s,;]+/).map(Number).filter((v) => v > 0); setSup({ txSizes: x.length ? x : undefined }); }} />
+                  </label>
+                ) : <span className="m" style={{ alignSelf: 'end' }}>{r.txSizes.join(', ')} kVA</span>}
               </div>
               <div className="bi-actions" style={{ marginBottom: 0 }}>
                 <button className="chip" onClick={() => setLib({ ...lib, supply: a.supply, diversity: a.diversity }, 'Saved the supply settings and diversities as your library — new assessments start with them')}>Save supply &amp; diversity as my library</button>
