@@ -6,7 +6,9 @@ import { sampleProject } from '../../data/sampleProject';
 import { DEFAULT_TYPES, newAssessment } from '../../calc/loadAssessment';
 import { emptyPlan } from '../../calc/spacePlan';
 import type { Project, SpacePlan } from '../../types';
-import { SupplyConceptTable } from './SupplyConcept';
+import { newProject } from '../../types';
+import { createMdbFromAssessment } from '../../calc/loadAssessmentMdb';
+import { GeneratorConceptTable, SupplyConceptTable } from './SupplyConcept';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 vi.setConfig({ testTimeout: 30000 });
@@ -23,7 +25,7 @@ async function until(what: string, isTrue: () => boolean) {
     await act(async () => { await new Promise((r) => { setTimeout(r, 20); }); });
   }
 }
-const show = async (p: Project) => { await act(async () => { root = createRoot(host); root.render(<SupplyConceptTable project={p} heading={<h3>Heading</h3>} />); }); };
+const show = async (p: Project, withStudy = false) => { await act(async () => { root = createRoot(host); root.render(<SupplyConceptTable project={p} heading={<h3>Heading</h3>} withStudy={withStudy} />); }); };
 
 const a = newAssessment(DEFAULT_TYPES[0], { gfaM2: 26400, floors: 21, parkingM2: 8000 }, { types: [] });
 const plan: SpacePlan = {
@@ -47,5 +49,28 @@ describe('Transformers: concept to design table', () => {
     await show({ ...sampleProject, boards: [], loadAssessment: a, spacePlan: undefined });
     await act(async () => { await new Promise((r) => { setTimeout(r, 50); }); });
     expect(host.innerHTML).toBe('');
+  });
+});
+
+describe('Study and generator tables', () => {
+  const made: Project = { ...createMdbFromAssessment({ ...newProject('T'), boards: [], feeders: [] }, a).project, loadAssessment: a };
+
+  it('shows This study in the transformers table only with withStudy', async () => {
+    await show(made);
+    await until('the table', () => text().includes('Assessment'));
+    expect(text()).not.toContain('This study');
+    act(() => root.unmount());
+    await show(made, true);
+    await until('the study row', () => text().includes('This study'));
+  });
+
+  it('shows the generator figures from the assessment, the study and the network', async () => {
+    await act(async () => { root = createRoot(host); root.render(<GeneratorConceptTable project={made} heading={<h3>Generator heading</h3>} />); });
+    await until('the table', () => text().includes('none on the SLD'));
+    expect(text()).toContain('Generator heading');
+    expect(text()).toContain('Assessment');
+    expect(text()).toContain('This study');
+    expect(text()).toContain('Network');
+    expect(text()).toContain('stand-in feeders');
   });
 });
