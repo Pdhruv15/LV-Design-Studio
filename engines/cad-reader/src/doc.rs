@@ -29,7 +29,8 @@ pub const PERPENDICULAR: u32 = 256;
 
 /// Colour for "foreground" (index 7: white on dark, black on light), decided by the view.
 const INK: u32 = 0xFF00_0007;
-const MAX_SEGMENTS: usize = 3_000_000;
+/// The most segments kept (about 55 bytes each here, 24 in the window); past it the rest is counted, not kept.
+const MAX_SEGMENTS: usize = 8_000_000;
 const MAX_DEPTH: u32 = 12;
 /// About how wide a letter of text of height 1 is: a text's height is its capitals, Arial's capitals are 1467 of its
 /// 2048 units, and its letters are about 0.6 of its font size wide (about 0.84; CHAR_W in src/model/cadText.ts).
@@ -140,6 +141,8 @@ pub struct CadDoc {
     layers: Vec<LayerInfo>,
     grid: Grid,
     truncated: bool,
+    /// Segments left out past MAX_SEGMENTS (so the view can say how much is shown).
+    dropped: usize,
     xrefs: Vec<XrefInfo>,
     /// Model-space objects erased in the app (CROP): not picked or snapped to (see `set_erased`).
     erased: Vec<bool>,
@@ -225,7 +228,7 @@ impl<'a> Builder<'a> {
     }
 
     fn seg(&mut self, t: &Affine, p: (f64, f64), q: (f64, f64), l: u16, rgb: u32, real: bool) {
-        if self.out.seg_layer.len() >= MAX_SEGMENTS { self.out.truncated = true; return; }
+        if self.out.seg_layer.len() >= MAX_SEGMENTS { self.out.truncated = true; self.out.dropped += 1; return; }
         let (x1, y1) = t.apply(p.0, p.1);
         let (x2, y2) = t.apply(q.0, q.1);
         if !(x1.is_finite() && y1.is_finite() && x2.is_finite() && y2.is_finite()) { return; }
@@ -680,7 +683,7 @@ impl CadDoc {
         serde_json::json!({
             "format": self.format, "units": self.units, "origin": [self.origin.0, self.origin.1],
             "extents": [x0, y0, x1, y1], "layers": self.layers, "texts": self.texts,
-            "segments": self.seg_layer.len(), "snaps": self.snaps.len(), "truncated": self.truncated,
+            "segments": self.seg_layer.len(), "snaps": self.snaps.len(), "truncated": self.truncated, "dropped": self.dropped,
             "linetypes": self.linetypes, "fills": self.fills, "xrefs": self.xrefs
         }).to_string()
     }
@@ -928,16 +931,20 @@ impl CadDoc {
 
     /// The drawing's extents; when a few stray objects lie far away, where nearly all of it is (1st–99th percentile).
     fn extents(&self) -> (f64, f64, f64, f64) {
-        let mut xs: Vec<f64> = self.segs.chunks(2).map(|p| p[0]).collect();
-        let mut ys: Vec<f64> = self.segs.chunks(2).map(|p| p[1]).collect();
-        for t in &self.texts { xs.push(t.x); ys.push(t.y); }
-        if xs.is_empty() { return (0.0, 0.0, 1000.0, 1000.0); }
-        // The value at a fraction of the sorted order, found without sorting (a full sort was most of an open's time).
-        let at = |v: &mut Vec<f64>, f: f64| { let k = ((v.len() - 1) as f64 * f) as usize; *v.select_nth_unstable_by(k, |a, b| a.partial_cmp(b).unwrap()).1 };
-        let lo_hi = |v: &Vec<f64>| v.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), &x| (a.min(x), b.max(x)));
-        let ((x0, x1), (y0, y1)) = (lo_hi(&xs), lo_hi(&ys));
+        if self.segs.is_empty() && self.texts.is_empty() { return (0.0, 0.0, 1000.0, 1000.0); }
+        // One axis at a time (half the working memory of a large drawing): its ends, and its values at 1 % and 99 % of
+        // the sorted order, found without sorting (a full sort was most of an open's time).
+        let axis = |k: usize| {
+            let mut v: Vec<f64> = self.segs.chunks(2).map(|p| p[k]).collect();
+            v.extend(self.texts.iter().map(|t| if k == 0 { t.x } else { t.y }));
+            let (lo, hi) = v.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), &x| (a.min(x), b.max(x)));
+            let mut at = |f: f64| { let i = ((v.len() - 1) as f64 * f) as usize; *v.select_nth_unstable_by(i, |a, b| a.partial_cmp(b).unwrap()).1 };
+            let (p1, p99) = (at(0.01), at(0.99));
+            (lo, hi, p1, p99)
+        };
+        let ((x0, x1, mx0, mx1), (y0, y1, my0, my1)) = (axis(0), axis(1));
         let full = (x0, y0, x1, y1);
-        let most = (at(&mut xs, 0.01), at(&mut ys, 0.01), at(&mut xs, 0.99), at(&mut ys, 0.99));
+        let most = (mx0, my0, mx1, my1);
         // The whole drawing, unless a few stray objects far away would make it much larger than where nearly all of it is.
         let area = |e: (f64, f64, f64, f64)| ((e.2 - e.0).max(1e-9)) * ((e.3 - e.1).max(1e-9));
         if area(full) <= 25.0 * area(most) { return full; }
@@ -985,7 +992,7 @@ fn tessellate(doc: &CadDocument, format: &'static str, ents: Vec<&EntityType>) -
         lt: 0,
         ltscale: if doc.header.linetype_scale > 0.0 { doc.header.linetype_scale } else { 1.0 },
         construction_box: (0.0, 0.0, 1000.0, 1000.0),
-        out: CadDoc { format, units: doc.header.insertion_units, origin: (0.0, 0.0), bounds: (0.0, 0.0, 1000.0, 1000.0), segs: vec![], seg_layer: vec![], seg_rgb: vec![], seg_real: vec![], seg_obj: vec![], seg_lt: vec![], linetypes: vec![vec![]], fills: vec![], objects: vec![], texts: vec![], snaps: vec![], layers: vec![], grid: Grid { x0: 0.0, y0: 0.0, cell: 1.0, nx: 1, ny: 1, segs: vec![vec![]], pts: vec![vec![]] }, truncated: false, xrefs: vec![], erased: vec![], layouts: vec![], papers: vec![] },
+        out: CadDoc { format, units: doc.header.insertion_units, origin: (0.0, 0.0), bounds: (0.0, 0.0, 1000.0, 1000.0), segs: vec![], seg_layer: vec![], seg_rgb: vec![], seg_real: vec![], seg_obj: vec![], seg_lt: vec![], linetypes: vec![vec![]], fills: vec![], objects: vec![], texts: vec![], snaps: vec![], layers: vec![], grid: Grid { x0: 0.0, y0: 0.0, cell: 1.0, nx: 1, ny: 1, segs: vec![vec![]], pts: vec![vec![]] }, truncated: false, dropped: 0, xrefs: vec![], erased: vec![], layouts: vec![], papers: vec![] },
     };
     for layer in doc.layers.iter() {
         let i = b.layer(&layer.name);

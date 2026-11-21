@@ -60,28 +60,40 @@ export interface LineBatch<P extends PathLike = PathLike> { layer: number; rgb: 
  * `extents` (so what is off screen is not drawn), in the order each batch first appears; a segment that goes on from
  * the last one of its batch continues its path (dashes run on). `gone`: segments left out (1). The segments of one
  * object follow each other and mostly share a batch, so the batch is looked up only when one of those changes: a
- * drawing of millions of segments is batched without a key per segment. */
-export function lineBatches<P extends PathLike>(segs: ArrayLike<number>, segLayers: ArrayLike<number>, segColors: ArrayLike<number>, segLinetypes: ArrayLike<number> | undefined, extents: [number, number, number, number], newPath: () => P, gone?: ArrayLike<number> | null): LineBatch<P>[] {
-  const by = new Map<string, LineBatch<P>>();
-  let b: LineBatch<P> | undefined;
+ * drawing of millions of segments is batched without a key per segment.
+ * `minLen` (drawing units, 0 = every segment): a run of short segments is drawn as fewer, longer ones, each point kept
+ * at least `minLen` from the last one drawn, and the run's last point always (the zoomed-out view of a large drawing:
+ * nothing is left out, curves just have fewer corners). */
+export function lineBatches<P extends PathLike>(segs: ArrayLike<number>, segLayers: ArrayLike<number>, segColors: ArrayLike<number>, segLinetypes: ArrayLike<number> | undefined, extents: [number, number, number, number], newPath: () => P, gone?: ArrayLike<number> | null, minLen = 0): LineBatch<P>[] {
+  // Each batch with the last point drawn and whether its run's end is still to draw (`held`).
+  type Run = { b: LineBatch<P>; at: [number, number]; held: boolean };
+  const by = new Map<string, Run>();
+  let r: Run | undefined;
   let layer = -1, rgb = -1, lt = -1, tile = -1;
+  const thin = minLen > 0, min2 = minLen * minLen;
   for (let i = 0; i < segLayers.length; i += 1) {
     if (gone?.[i]) continue;
     const x1 = segs[i * 4], y1 = segs[i * 4 + 1], x2 = segs[i * 4 + 2], y2 = segs[i * 4 + 3];
     const l = segLayers[i], c = segColors[i], t = segLinetypes?.[i] ?? 0, k = tileOf((x1 + x2) / 2, (y1 + y2) / 2, extents);
-    if (!b || l !== layer || c !== rgb || t !== lt || k !== tile) {
+    if (!r || l !== layer || c !== rgb || t !== lt || k !== tile) {
       layer = l; rgb = c; lt = t; tile = k;
       const key = `${l}:${c}:${t}:${k}`;
-      b = by.get(key);
-      if (!b) { b = { layer: l, rgb: c, lt: t, path: newPath(), box: [x1, y1, x1, y1], end: [NaN, NaN] }; by.set(key, b); }
+      r = by.get(key);
+      if (!r) { r = { b: { layer: l, rgb: c, lt: t, path: newPath(), box: [x1, y1, x1, y1], end: [NaN, NaN] }, at: [NaN, NaN], held: false }; by.set(key, r); }
     }
-    const { box, end } = b;
-    if (end[0] !== x1 || end[1] !== y1) b.path.moveTo(x1, y1);
-    b.path.lineTo(x2, y2);
+    const { b, at } = r, { box, end } = b;
+    if (end[0] !== x1 || end[1] !== y1) {
+      if (r.held) { b.path.lineTo(end[0], end[1]); r.held = false; }
+      b.path.moveTo(x1, y1); at[0] = x1; at[1] = y1;
+    }
+    if (thin && (x2 - at[0]) ** 2 + (y2 - at[1]) ** 2 < min2) r.held = true;
+    else { b.path.lineTo(x2, y2); at[0] = x2; at[1] = y2; r.held = false; }
     end[0] = x2; end[1] = y2;
     box[0] = Math.min(box[0], x1, x2); box[1] = Math.min(box[1], y1, y2); box[2] = Math.max(box[2], x1, x2); box[3] = Math.max(box[3], y1, y2);
   }
-  return [...by.values()];
+  const runs = [...by.values()];
+  for (const x of runs) if (x.held) x.b.path.lineTo(x.b.end[0], x.b.end[1]);
+  return runs.map((x) => x.b);
 }
 
 type Rgb = [number, number, number];

@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.253', date: '2026-11-22',
+    items: [
+      { title: 'Design CAD: larger drawings shown in full, and quick when zoomed out', text: 'Design CAD now shows drawings of up to 8 million line pieces in full (3 million before), so a typical 3 MB DWG opens complete. Zoomed out, a large drawing is drawn with fewer corners on its curves, which you cannot see at that size, so panning and zooming stay quick; snaps and picks still use the full drawing. A drawing larger still says how much of it is shown.', action: 'cad', actionLabel: 'Open Design CAD' },
+    ]
+  },
+  {
     version: '2.252', date: '2026-11-21',
     items: [
       { title: 'Design CAD: large drawings open up to 3 times faster', text: 'Opening a drawing in Design CAD is faster: a 1 MB DWG now opens in about a quarter of the time, a 3 MB DWG in about a third and a 10 MB DWG in a little over half. Nothing changes in how the drawing looks or snaps.', action: 'cad', actionLabel: 'Open Design CAD' },
