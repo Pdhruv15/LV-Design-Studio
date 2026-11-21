@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.230', date: '2026-11-21',
+    items: [
+      { title: 'Load assessment and Building: every building and the flats are counted', text: 'Concept → Load assessment: "GFA from Building" now adds up every building (GFA and car park; floors of the tallest one), and "From Building rooms" counts the flats placed on the levels as well as the rooms. Before, only the first building was read and the flats were left out. The rooms of a flat (living, bedroom, kitchen, bathroom) go into one Apartment row marked as a dwelling, so water heating and cooking are included; a toilet or pantry counts as back of house. Car park rooms on a repeated basement level count once per floor, and with no Car park rooms the basements\' gross area is used. Concept → Building: the Load and Rooms figures, the load per level and a busbar riser taken from the building now include the flats, so these figures rise for a building with flats. Press the two buttons again to bring an existing assessment up to date.' }
+    ]
+  },
+  {
     version: '2.229', date: '2026-11-20',
     items: [
       { title: 'BOQ: each RMU as you entered it', text: 'The BOQ\'s RMU line now follows the RMU\'s details in Panels → Transformers: its ring switches and tee-offs from the configuration (RT, RRT, RRTT, RRRT, RRTTT), a switch-fuse or circuit breaker tee-off, and the insulation. With no configuration entered it has two ring switches and a tee-off for each transformer on it, as the SLD draws it. Before, every RMU had one switch-fuse tee-off, so an RMU feeding two transformers was listed one short. A standard RMU (two ring switches, one switch-fuse tee-off, no insulation entered) keeps its BOQ line and item number; any other gets a line of its own. An RMU with no name no longer shows its transformer twice in the Location column.' }

@@ -1,6 +1,7 @@
 import type { Project } from '../types';
 import { catalog } from '../database/catalog';
-import { buildingInfoOf, summarizeBuilding } from './building';
+import type { BuildingInfo, ProjectBuilding } from '../types';
+import { buildingInfoOf, carParkAreaOf, roomTypesOf, summarizeBuilding, unitRoomLoads } from './building';
 
 /** Early-stage load assessment: building type → area schedule (W/m² per
  * space) → service requirements → maximum demand, transformers and the
@@ -218,15 +219,22 @@ export function typeFromAssessment(a: LoadAssessment, id: string, label: string)
 
 // ---- Starting an assessment
 
-/** GFA above ground, floors above ground and car park area from the project's first building. */
-export function buildingFigures(project: Project): { gfaM2?: number; floors?: number; parkingM2?: number } {
+/** The buildings an assessment counts: every building, or the ones named. */
+const countedBuildings = (info: BuildingInfo, ids?: string[]): ProjectBuilding[] => (ids?.length ? info.buildings.filter((b) => ids.includes(b.id)) : info.buildings);
+
+/** GFA above ground and car park area of the project's buildings (all of them, or the
+ * ones named) added up, and the floors above ground of the tallest one. */
+export function buildingFigures(project: Project, buildingIds?: string[]): { gfaM2?: number; floors?: number; parkingM2?: number } {
   const info = buildingInfoOf(project);
-  const b = info.buildings[0];
-  if (!b) return {};
-  const s = summarizeBuilding(info, b);
-  const above = s.levels.filter((l) => l.level.kind !== 'basement').reduce((a, l) => a + (l.level.grossM2 ?? 0) * l.count, 0);
-  const parkingM2 = info.rooms.filter((r) => r.buildingId === b.id && r.type === 'parking').reduce((a, r) => a + r.areaM2 * (r.count ?? 1), 0);
-  return { gfaM2: above || s.gfaM2 || undefined, floors: s.aboveGround || undefined, parkingM2: parkingM2 || undefined };
+  let gfaM2 = 0, floors = 0, parkingM2 = 0;
+  for (const b of countedBuildings(info, buildingIds)) {
+    const s = summarizeBuilding(info, b);
+    const above = s.levels.filter((l) => l.level.kind !== 'basement').reduce((a, l) => a + (l.level.grossM2 ?? 0) * l.count, 0);
+    gfaM2 += above || s.gfaM2;
+    floors = Math.max(floors, s.aboveGround);
+    parkingM2 += carParkAreaOf(info, b);
+  }
+  return { gfaM2: gfaM2 || undefined, floors: floors || undefined, parkingM2: parkingM2 || undefined };
 }
 
 export function newAssessment(t: LaBuildingType, base: Partial<LoadAssessment> = {}, lib: LaLibrary = loadLaLibrary()): LoadAssessment {
@@ -239,28 +247,38 @@ export function newAssessment(t: LaBuildingType, base: Partial<LoadAssessment> =
   };
 }
 
-/** The assessment's area schedule from the Building rooms (m² per room type, above ground). */
-export function rowsFromRooms(project: Project, spaces: LaSpace[] = laSpaces()): LaRow[] {
+/** The assessment space a room type counts as when no space has its id or name: the
+ * rooms of a flat are part of the apartment (a dwelling area), a toilet or pantry is
+ * back of house. */
+export const SPACE_OF_ROOM_TYPE: Record<string, string> = { apartment: 'apt', living: 'apt', bedroom: 'apt', kitchen: 'apt', bathroom: 'apt', toilet: 'bo' };
+
+/** The assessment's area schedule from the Building rooms and flats (m² per space, above
+ * ground) of every building, or of the ones named. Room types that count as the same
+ * space share one row. */
+export function rowsFromRooms(project: Project, spaces: LaSpace[] = laSpaces(), buildingIds?: string[]): LaRow[] {
   const info = buildingInfoOf(project);
-  const b = info.buildings[0];
-  if (!b) return [];
-  const below = new Set(b.levels.filter((l) => l.kind === 'basement').map((l) => l.id));
-  const s = summarizeBuilding(info, b);
-  const levelCount = new Map(s.levels.map((l) => [l.level.id, l.count]));
-  const types = new Map((info.roomTypes ?? catalog().roomTypes).map((t) => [t.id, t]));
+  const types = new Map(roomTypesOf(info).map((t) => [t.id, t]));
   const byType = new Map<string, number>();
-  for (const r of info.rooms) {
-    if (r.buildingId !== b.id || below.has(r.levelId) || r.type === 'parking') continue;
-    byType.set(r.type, (byType.get(r.type) ?? 0) + r.areaM2 * (r.count ?? 1) * (levelCount.get(r.levelId) ?? 1));
+  const add = (type: string, areaM2: number) => { if (type !== 'parking') byType.set(type, (byType.get(type) ?? 0) + areaM2); };
+  for (const b of countedBuildings(info, buildingIds)) {
+    const below = new Set(b.levels.filter((l) => l.kind === 'basement').map((l) => l.id));
+    const levelCount = new Map(summarizeBuilding(info, b).levels.map((l) => [l.level.id, l.count]));
+    for (const r of info.rooms) {
+      if (r.buildingId === b.id && !below.has(r.levelId)) add(r.type, r.areaM2 * (r.count ?? 1) * (levelCount.get(r.levelId) ?? 1));
+    }
+    for (const u of unitRoomLoads(info, b)) if (!below.has(u.levelId)) add(u.type, u.areaM2);
   }
-  return [...byType].map(([type, areaM2]) => {
-    const known = spaces.find((x) => x.id === type || x.label.toLowerCase() === (types.get(type)?.label ?? type).toLowerCase());
-    if (known) return { ...known, areaM2: Math.round(areaM2) };
+  const spaceById = (id?: string) => (id ? spaces.find((x) => x.id === id) ?? DEFAULT_SPACES.find((x) => x.id === id) : undefined);
+  const rows = new Map<string, LaRow>();
+  for (const [type, areaM2] of byType) {
     const rt = types.get(type);
+    const known = spaces.find((x) => x.id === type || x.label.toLowerCase() === (rt?.label ?? type).toLowerCase()) ?? spaceById(SPACE_OF_ROOM_TYPE[type]);
     const w = rt?.wPerM2 ?? 30;
     // Unknown space: the room type's W/m² split into lighting and power — review the cooling.
-    return { id: type, label: rt?.label ?? type, ltg: Math.min(10, Math.round(w * 0.2)), pwr: Math.round(w * 0.8), clg: 100, areaM2: Math.round(areaM2) };
-  });
+    const row: LaSpace = known ?? { id: type, label: rt?.label ?? type, ltg: Math.min(10, Math.round(w * 0.2)), pwr: Math.round(w * 0.8), clg: 100 };
+    rows.set(row.id, { ...row, areaM2: (rows.get(row.id)?.areaM2 ?? 0) + areaM2 });
+  }
+  return [...rows.values()].map((r) => ({ ...r, areaM2: Math.round(r.areaM2 ?? 0) }));
 }
 
 // ---- The calculation
