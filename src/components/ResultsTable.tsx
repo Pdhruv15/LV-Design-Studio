@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { STATUS_TEXT } from '../calc/statusText';
+import { REPORT_STATUS_TEXT, STATUS_TEXT } from '../calc/statusText';
 import { izText, type FeederResult } from '../calc/electrical';
 import { txt } from '../util/format';
 
@@ -52,8 +52,7 @@ export default function ResultsTable({
     return 'Holds';
   }
 
-  function statusCell(s: 'ok' | 'warn' | 'bad') {
-    const label = STATUS_TEXT[s];
+  function statusCell(s: 'ok' | 'warn' | 'bad', label = STATUS_TEXT[s]) {
     return <td className={`st ${s}`}>{label}</td>;
   }
 
@@ -94,7 +93,7 @@ export default function ResultsTable({
             {bar(`${txt.fault(r.breakerFaultKA)} of ${f.breakerIcuKa}`, r.breakerFaultKA, f.breakerIcuKa, r.icuStatus)}
             <td className="num">{txt.fault(f.breakerIcuKa - r.breakerFaultKA)}</td>
             <td className="num">{txt.fault(r.endFaultKA)}</td>
-            {statusCell(r.icuStatus)}
+            {statusCell(r.icuStatus, r.faultAssumed ? REPORT_STATUS_TEXT.nc : undefined)}
           </>
         );
       case 'prot':

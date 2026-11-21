@@ -2431,7 +2431,7 @@ export default function SystemDiagram({
               <dt>Cable</dt><dd>{runsOf(f) > 1 ? `${runsOf(f)}× ` : ''}{f.cores}C {f.cableCsaMm2} mm² · {f.lengthM} m</dd>
               <dt>Ib / In / Iz</dt><dd className={r.protectionStatus === 'bad' || r.ampacityStatus === 'bad' ? 'bad' : ''}>{txt.current(r.ib)} / {f.breakerRatingA} / {izText(r.ampacity)} A</dd>
               <dt>Voltage drop</dt><dd className={r.vdStatus}>{txt.pct(r.vdPct)} % cable · {txt.pct(r.vdTotalPct)} % total</dd>
-              <dt>Fault / Icu</dt><dd className={r.icuStatus === 'bad' ? 'bad' : ''}>{txt.fault(r.breakerFaultKA)} kA / {f.breakerIcuKa} kA</dd>
+              <dt>Fault / Icu</dt><dd className={r.icuStatus === 'ok' ? '' : r.icuStatus}>{txt.fault(r.breakerFaultKA)} kA / {f.breakerIcuKa} kA</dd>
             </dl>
             {reasons.length > 0 && <ul className="hc-why">{reasons.map((t) => <li key={t}>{t}</li>)}</ul>}
             {fixes.length > 0 && (

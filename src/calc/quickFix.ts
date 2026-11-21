@@ -19,6 +19,7 @@ export function failReasons(project: Project, r: FeederResult): string[] {
   else if (r.protectionStatus === 'bad' && !r.rating.missing) out.push(`Cable not protected: In ${f.breakerRatingA} A > Iz ${fmtFixed(r.ampacity, 1)} A`);
   if (r.vdStatus !== 'ok') out.push(`Voltage drop ${fmtFixed(r.vdTotalPct, 2)} % (limit ${project.vdLimitPct} %)`);
   if (r.icuStatus === 'bad') out.push(`Breaking capacity: Icu ${f.breakerIcuKa} kA < fault ${fmtFixed(r.breakerFaultKA, 2)} kA`);
+  else if (r.faultAssumed) out.push('Breaking capacity not verified: source fault level assumed');
   if (r.limits?.status === 'bad') out.push(r.limits.message);
   return out;
 }
@@ -54,7 +55,7 @@ export function quickFixes(project: Project, f: Feeder): QuickFix[] {
   if (bigger) tryPatch(`Cable ${bigger.csaMm2} mm²`, { cableCsaMm2: bigger.csaMm2, cpcMm2: undefined });
   // A parallel run (large cables, long runs).
   if (f.cableCsaMm2 >= 95 || now.vdStatus !== 'ok') tryPatch(`${runsOf(f) + 1} cables in parallel`, { parallel: runsOf(f) + 1 });
-  // Breaking capacity: the next Icu at or above the fault level.
+  // Breaking capacity: the next Icu at or above the fault level (never for an assumed fault level).
   if (now.icuStatus === 'bad') { const icu = icuSteps().find((k) => k >= now.breakerFaultKA); if (icu) tryPatch(`Breaker Icu ${icu} kA`, { breakerIcuKa: icu }); }
   return out.sort((a, b) => rank[a.after.status] - rank[b.after.status]).slice(0, 4);
 }

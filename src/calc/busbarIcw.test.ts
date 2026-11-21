@@ -31,3 +31,23 @@ describe('board busbar Icw', () => {
     expect(item?.text).toMatch(/^SMDB-GF: busbar Icw [\d.]+ kA \(1 s\) is below the [\d.]+ kA fault level$/);
   });
 });
+
+describe('busbar Icw on an assumed fault level', () => {
+  const noSource = (icw: number): Project => ({ ...sampleProject, boards: sampleProject.boards.map((b) => (b.upstreamId ? b : { ...b, sourceKva: undefined, sourceImpedancePct: undefined, busbarIcwKa: icw })) });
+  it('is flagged assumed, reported as a warning (never a pass or a fail)', () => {
+    for (const icw of [1, 100]) {
+      const p = noSource(icw);
+      const c = busbarIcwChecks(p).find((x) => !x.board.upstreamId)!;
+      expect(c.assumed).toBe(true);
+      expect(boardSummary(p, c.board).faultAssumed).toBe(true);
+      const item = buildDashboard(p).todo.find((t) => t.text.includes('busbar Icw'));
+      expect(item?.status).toBe('warn');
+      expect(item?.text).toMatch(/not verified: source fault level assumed$/);
+    }
+  });
+  it('a board with a source has no assumed key', () => {
+    const [c] = busbarIcwChecks(withIcw('SMDB-GF', 1));
+    expect('assumed' in c).toBe(false);
+    expect(boardSummary(sampleProject, c.board).faultAssumed).toBeUndefined();
+  });
+});

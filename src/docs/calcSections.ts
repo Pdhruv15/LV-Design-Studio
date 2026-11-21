@@ -51,7 +51,7 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
           const here = onBoard(b.id), fk = boardSummary(p, b).faultKA;
           if (!here.length) return [b.id, fig.fault(fk), '—', '—', '—', '—', '—', '—'];
           const g = here.reduce((a, r) => (r.feeder.breakerIcuKa / r.breakerFaultKA < a.feeder.breakerIcuKa / a.breakerFaultKA ? r : a)), st = here.map((r) => r.icuStatus);
-          return [b.id, fig.fault(fk), g.feeder.id, fig.fault(g.breakerFaultKA), g.feeder.breakerIcuKa, fig.fault(g.feeder.breakerIcuKa - g.breakerFaultKA), counts(st), S(worst(st))];
+          return [b.id, fig.fault(fk), g.feeder.id, fig.fault(g.breakerFaultKA), g.feeder.breakerIcuKa, fig.fault(g.feeder.breakerIcuKa - g.breakerFaultKA), counts(st), g.faultAssumed ? NC : S(worst(st))];
         }) };
       toAppendix(s, ['Breaker breaking capacity', 'Fault at the end of each cable']);
       break;
@@ -81,7 +81,7 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
           ['Design current (Ib)', `${fig.current(r.ib)} A`], ['Protective device (In)', `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`],
           ['Selected cable', cableSizeText(r.feeder)], ['Installation', `${r.rating.method} · derating ${factorsText(r.rating)}`], ['Derated capacity (Iz)', r.rating.missing ? `DATA REQUIRED — ${r.rating.missing}` : `${fig.current(r.ampacity)} A`],
           ['Ib ≤ In ≤ Iz', S(r.protectionStatus)], ['Voltage drop (total)', `${fig.pct(r.vdTotalPct)} % (limit ${p.vdLimitPct} %)`],
-          ['Breaking capacity check', S(r.icuStatus)], ['Overall status', S(cableStatus(r))]
+          ['Breaking capacity check', r.faultAssumed ? NC : S(r.icuStatus)], ['Overall status', S(cableStatus(r))]
         ]
       }));
       s.verification = { title: 'Circuits on each board', headers: ['Board', 'Circuits', 'Pass / check / fail', 'Status'],

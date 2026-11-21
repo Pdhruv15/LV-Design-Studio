@@ -1,5 +1,5 @@
 import type { Board, Feeder, Project } from '../types';
-import { settingsOf } from '../types';
+import { lvSupplied, settingsOf } from '../types';
 import { boardsInSupplyOrder, boardTotals } from './summary';
 import { DEFAULT_TRANSFORMER_XR, faultCurrentKA, gridImpedance, gridSourceOf, parallelGroup, parallelZ, transformerImpedance, type Impedance } from './electrical';
 import { switchedOnBoard } from './capSwitching';
@@ -117,7 +117,8 @@ export function sizeTransformers(project: Project, plan: TxGenPlan = txGenPlanOf
     const cap = pfc?.mains.find((m) => m.boardId === id)?.plannedKvar ?? 0;
     return { p: t.demandKw, q: Math.max(0, t.demandKvar - cap), cap };
   };
-  return (chosen.length ? chosen : mains).map((b) => {
+  // Default list: every first board that gets a transformer; one on an LV supply has none to size.
+  return (chosen.length ? chosen : mains.filter((b) => !lvSupplied(b))).map((b) => {
     const { p, q, cap } = pq(b.id);
     const demandKva = Math.hypot(p, q);
     const pf = demandKva > 0 ? p / demandKva : 1;

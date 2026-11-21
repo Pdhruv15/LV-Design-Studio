@@ -4,6 +4,7 @@ import { sampleProject } from '../data/sampleProject';
 import { newRiser } from '../calc/busbar';
 import { DEFAULT_TYPES, newAssessment } from '../calc/loadAssessment';
 import { runCalculations } from '../calc/runs';
+import type { ReportStatus } from '../calc/statusText';
 import { boardSummary } from '../calc/summary';
 import { buildDashboard } from '../calc/dashboard';
 import { vdCandidates, vdRows } from '../calc/voltageDrop';
@@ -213,5 +214,25 @@ describe('dates in reports', () => {
       const text = docs[name].replace(/<style[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ');
       expect(text.match(/\b20\d\d-\d\d-\d\d\b/), name).toBeNull();
     }
+  });
+});
+
+describe('reports on an assumed source fault level', () => {
+  const calc = (pr: Project): { d: CalcData; sc: ReturnType<typeof scopeOf> } => { const r = runCalculations(pr); return { d: { project: r.project, results: r.results, earthing: r.earthing, selectivity: r.selectivity }, sc: scopeOf(r.project, { boards: [], downstream: true }) }; };
+  const cells = (t: Table) => t.rows.flat().filter((c): c is { v: string | number; s: ReportStatus } => typeof c === 'object' && 's' in c);
+  it('shows breaking capacity as NOT CHECKED, never a pass', () => {
+    const { d, sc } = calc({ ...sampleProject, boards: sampleProject.boards.map((b) => (b.upstreamId ? b : { ...b, sourceKva: undefined, sourceImpedancePct: undefined })) });
+    const res = buildResults(d, sc);
+    expect(res.compliance.find((c) => c.check === 'Fault level (breaking capacity)')?.status).toBe('nc');
+    const sec = buildSection('sc', d, sc);
+    expect(cells(sec.tables.find((t) => t.title === 'Breaker breaking capacity')!).every((c) => c.s === 'nc')).toBe(true);
+    expect(sec.summary?.some((x) => /not verified/i.test(x.label))).toBe(true);
+  });
+  it('a project with a source is unchanged: pass / fail cells, no not-verified row', () => {
+    const { d, sc } = calc(sampleProject);
+    expect(buildResults(d, sc).compliance.find((c) => c.check === 'Fault level (breaking capacity)')?.status).not.toBe('nc');
+    const sec = buildSection('sc', d, sc);
+    expect(cells(sec.tables.find((t) => t.title === 'Breaker breaking capacity')!).some((c) => c.s === 'nc')).toBe(false);
+    expect(sec.summary?.some((x) => /not verified/i.test(x.label))).toBe(false);
   });
 });

@@ -18,6 +18,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.254', date: '2026-11-22',
+    items: [
+      { title: 'A source with no data is marked as assumed', text: 'When the first board has no transformer data and no supply fault level, the fault levels below it rest on a placeholder. They are now marked as assumed, and the breaking capacity and busbar Icw checks that use them say "not verified: source fault level assumed" instead of passing or failing.' },
+      { title: 'A board on an LV supply is checked from its supply', text: 'A first board with a supply fault level and no transformer now has its earth fault loop checked from that fault level (Ze shown with ≈), is loaded against its supply rating, is energised in the OpenDSS export and is no longer listed for transformer sizing.' },
+      { title: 'A project can start at an SMDB or a DB', text: 'A project whose first board is an SMDB or a DB can now complete the "Main boards entered" item of the design-stage checklist.' },
+    ]
+  },
+  {
     version: '2.252', date: '2026-11-21',
     items: [
       { title: 'Design CAD: large drawings open up to 3 times faster', text: 'Opening a drawing in Design CAD is faster: a 1 MB DWG now opens in about a quarter of the time, a 3 MB DWG in about a third and a 10 MB DWG in a little over half. Nothing changes in how the drawing looks or snaps.', action: 'cad', actionLabel: 'Open Design CAD' },

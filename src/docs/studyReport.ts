@@ -11,7 +11,7 @@ import { unbalancedFlow, VOLTAGE_UNBALANCE_LIMIT_PCT } from '../calc/unbalancedF
 import { breakerTypeOf, cpcOf, disconnectionLabel, loopFigures } from '../calc/earthing';
 import type { SelectivityResult } from '../calc/protection';
 import { isScheduleCircuit } from '../calc/loadSchedule';
-import { boardSummary, boardsInSupplyOrder } from '../calc/summary';
+import { boardRatedA, boardSummary, boardsInSupplyOrder } from '../calc/summary';
 import { settingsOf } from '../calc/sizing';
 import { planPfc, pfcPlanOf, STRATEGY_LABEL } from '../calc/pfc';
 import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf, txGenSizeList, type TxRow } from '../calc/txGen';
@@ -169,6 +169,7 @@ export interface CalcData {
 
 const LABEL: Record<Status, string> = STATUS_TEXT;
 const S = (s: Status): Cell => ({ v: LABEL[s], s });
+const NOT_CHECKED: Cell = { v: REPORT_STATUS_TEXT.nc, s: 'nc' };
 const worst = (xs: Status[]): Status => (xs.includes('bad') ? 'bad' : xs.includes('warn') ? 'warn' : 'ok');
 const tally = (xs: Status[]) => `${xs.filter((x) => x === 'ok').length} pass · ${xs.filter((x) => x === 'warn').length} warning · ${xs.filter((x) => x === 'bad').length} fail`;
 
@@ -204,13 +205,14 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
       ],
       summary: [
         { label: 'Highest busbar fault', value: sums.length ? `${fig.fault(Math.max(...sums.map((s) => s.faultKA)))} kA` : '—' },
-        { label: 'Breakers checked', value: tally(statuses), status: worst(statuses) }
+        { label: 'Breakers checked', value: tally(statuses), status: worst(statuses) },
+        ...(rs.some((r) => r.faultAssumed) ? [{ label: 'Not verified — source fault level assumed', value: `${rs.filter((r) => r.faultAssumed).length} breakers: the source has no transformer data or supply fault level`, status: 'warn' as const }] : [])
       ],
       tables: [
         { title: 'Fault levels at the busbars', headers: ['Board', 'Type', 'Fed from', 'Busbar rating (A)', 'Ik″ max (kA)'],
           rows: sums.map((s) => [s.board.id, s.board.kind ?? (s.board.upstreamId ? 'DB' : 'MDB'), s.board.upstreamId ?? (s.board.sourceKva ? `Transformer ${s.board.sourceKva} kVA, ${s.board.sourceImpedancePct ?? '—'} % Z` : 'Authority supply'), s.board.ratedCurrentA ?? '—', fig.fault(s.faultKA)]) },
         { title: 'Breaker breaking capacity', headers: ['Circuit', 'Board', 'To', 'Breaker', 'Ik″ at breaker (kA)', 'Icu (kA)', 'Margin', 'Result'],
-          rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`, fig.fault(r.breakerFaultKA), r.feeder.breakerIcuKa, `${fig.pct((r.feeder.breakerIcuKa / r.breakerFaultKA - 1) * 100)} %`, S(r.icuStatus)]) },
+          rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`, fig.fault(r.breakerFaultKA), r.feeder.breakerIcuKa, `${fig.pct((r.feeder.breakerIcuKa / r.breakerFaultKA - 1) * 100)} %`, r.faultAssumed ? NOT_CHECKED : S(r.icuStatus)]) },
         { title: 'Fault at the end of each cable', headers: ['Circuit', 'From', 'To', 'Cable', 'Length (m)', 'Ik at cable end (kA)'],
           rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), cableSizeText(r.feeder), r.feeder.lengthM, fig.fault(r.endFaultKA)]) }
       ]
@@ -239,7 +241,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
       ],
       tables: [
         { title: 'Busbars', headers: ['Board', 'Connected (kW)', 'Demand (kW)', 'Demand (kVA)', 'PF', 'Current (A)', 'Rating (A)', 'Loading', 'Voltage (V)', '% of nominal'],
-          rows: sums.map((s) => [s.board.id, fig.power(s.connectedKw), fig.power(s.demandKw), fig.power(s.demandKva), fig.ratio(s.powerFactor), fig.current(s.currentA), s.board.ratedCurrentA ?? '—', s.loadingPct === undefined ? '—' : { v: `${fig.loading(s.loadingPct)} %`, s: s.loadingStatus ?? 'ok' }, fig.volts(s.voltageV), fig.pct(s.voltagePct)]) },
+          rows: sums.map((s) => [s.board.id, fig.power(s.connectedKw), fig.power(s.demandKw), fig.power(s.demandKva), fig.ratio(s.powerFactor), fig.current(s.currentA), boardRatedA(s.board) ?? '—', s.loadingPct === undefined ? '—' : { v: `${fig.loading(s.loadingPct)} %`, s: s.loadingStatus ?? 'ok' }, fig.volts(s.voltageV), fig.pct(s.voltagePct)]) },
         { title: 'Feeders', headers: ['Circuit', 'From', 'To', 'Cable', 'Length (m)', 'Ib (A)', 'PF', 'ΔV cable (%)', 'ΔV total (%)', 'Result'],
           rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), cableSizeText(r.feeder), r.feeder.lengthM, fig.current(r.ib), r.feeder.feedsBoardId ? fig.ratio(incomerBasis(r.feeder, p).current.pf) : fig.ratio(r.feeder.powerFactor), fig.pct(r.vdPct), fig.pct(r.vdTotalPct), S(r.vdStatus)]) },
         ...(starts.length ? [{ title: `Motor starting — limit ${motorStartVdLimit()} % source to motor`, headers: ['Circuit', 'From', 'Motor', 'Running ΔV total (%)', 'Starting ΔV total (%)', 'Limit (%)', 'Result'],

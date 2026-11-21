@@ -1,6 +1,6 @@
 import { boardOf, feedersOn, withNetwork } from './network';
 import { cpcOf, defaultCpcMm2, getCable } from './cableTable';
-import { DEFAULT_TRANSFORMER_XR, gridImpedance, gridSourceOf, rOperatingOhmPerKm, runsOf, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
+import { DEFAULT_TRANSFORMER_XR, gridImpedance, gridSourceOf, rOperatingOhmPerKm, runsOf, supplyImpedance, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
 import { elcbGroups, isScheduleCircuit, rcbosOf } from './loadSchedule';
 import type { BreakerType, Feeder, Project } from '../types';
 import { fmtFixed } from '../util/format';
@@ -94,17 +94,23 @@ function cableLoop(f: Feeder): Impedance {
  * board this is the transformer's own impedance (Dyn transformer with
  * Z0 ≈ Z1, so a phase-earth fault at its terminals ≈ the 3-phase fault)
  * plus 2/3 of the grid source's impedance when its fault level is given;
+ * a main board on an LV supply without a transformer takes Ze ≈ the
+ * 3-phase source impedance from the supply fault level (`estimated`);
  * each incomer below adds its phase + protective conductor loop.
  * `missing` says why the path is incomplete (no source data, a missing
  * board or incomer, a loop in the board tree): z is then only the part
  * that is known — a lower bound, never a verified Ze. */
-export function earthLoopPath(project: Project, boardId: string, seen = new Set<string>()): { z: Impedance; missing?: string } {
+export function earthLoopPath(project: Project, boardId: string, seen = new Set<string>()): { z: Impedance; missing?: string; estimated?: string } {
   const board = boardOf(project, boardId);
   if (!board) return { z: { r: 0, x: 0 }, missing: `board ${boardId} not found` };
   if (seen.has(boardId)) return { z: { r: 0, x: 0 }, missing: `the supply path loops back to ${boardId}` };
   seen.add(boardId);
   if (!board.upstreamId) {
-    if (!board.sourceKva || !board.sourceImpedancePct) return { z: { r: 0, x: 0 }, missing: `no source data at ${board.id} (transformer kVA and impedance %)` };
+    if (!board.sourceKva || !board.sourceImpedancePct) {
+      const ka = board.supply?.faultKa;
+      if (ka && ka > 0) return { z: supplyImpedance(ka, project.voltageV), estimated: `Ze estimated from the supply fault level at ${board.id}` };
+      return { z: { r: 0, x: 0 }, missing: `no source data at ${board.id} (transformer kVA and impedance %, or the supply fault level)` };
+    }
     const zt = transformerImpedance(board.sourceKva, board.sourceImpedancePct, project.voltageV, board.sourceXr ?? DEFAULT_TRANSFORMER_XR);
     // MV network: in the positive and negative sequence only (the Dyn transformer blocks its zero
     // sequence), so it adds 2/3 of its impedance to the loop (2 Z1 + Z0) ÷ 3.
@@ -113,9 +119,10 @@ export function earthLoopPath(project: Project, boardId: string, seen = new Set<
   }
   const up = earthLoopPath(project, board.upstreamId, seen);
   const incomer = feedersOn(project, board.upstreamId!).find((f) => f.feedsBoardId === board.id);
-  if (!incomer) return { z: up.z, missing: up.missing ?? `no incomer feeder from ${board.upstreamId} to ${board.id}` };
+  const est = up.estimated ? { estimated: up.estimated } : {};
+  if (!incomer) return { z: up.z, missing: up.missing ?? `no incomer feeder from ${board.upstreamId} to ${board.id}`, ...est };
   const c = cableLoop(incomer);
-  return { z: { r: up.z.r + c.r, x: up.z.x + c.x }, ...(up.missing ? { missing: up.missing } : {}) };
+  return { z: { r: up.z.r + c.r, x: up.z.x + c.x }, ...(up.missing ? { missing: up.missing } : {}), ...est };
 }
 
 /** Known part of the loop impedance at a board (see earthLoopPath for whether it is complete). */
@@ -154,12 +161,14 @@ export interface EarthingResult {
   /** Why the loop to the supply is incomplete. Zs, If and the thermal check are then only the known
    * part (If is an upper bound); nothing is shown as verified. */
   sourceMissing?: string;
+  /** Ze comes from the supply fault level of a main board without a transformer (the loop still counts as verified). */
+  sourceEstimated?: string;
   status: Status;
 }
 
 export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
   const u0 = project.voltageV / SQRT3;
-  const { z: ze, missing: sourceMissing } = earthLoopPath(project, f.boardId);
+  const { z: ze, missing: sourceMissing, estimated: sourceEstimated } = earthLoopPath(project, f.boardId);
   const c = cableLoop(f);
   const zs = { r: ze.r + c.r, x: ze.x + c.x };
   const zsOhm = zMagnitude(zs);
@@ -221,6 +230,7 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
     adiabaticWholeMm2,
     ...(adiabaticNote ? { adiabaticNote } : {}),
     ...(sourceMissing ? { sourceMissing } : {}),
+    ...(sourceEstimated ? { sourceEstimated } : {}),
     status
   };
 }
@@ -234,7 +244,7 @@ export function disconnectionLabel(r: EarthingResult): string {
 }
 /** Ze, Zs and If as text: an incomplete loop shows Ze unknown, Zs as a minimum and If as a maximum. */
 export function loopFigures(r: EarthingResult, d = 4): { ze: string; zs: string; fault: string } {
-  if (!r.sourceMissing) return { ze: r.zeOhm.toFixed(d), zs: r.zsOhm.toFixed(d), fault: fmtFixed(r.faultA, 1) };
+  if (!r.sourceMissing) return { ze: `${r.sourceEstimated ? '≈ ' : ''}${r.zeOhm.toFixed(d)}`, zs: r.zsOhm.toFixed(d), fault: fmtFixed(r.faultA, 1) };
   return { ze: 'unknown', zs: `≥ ${r.zsOhm.toFixed(d)}`, fault: Number.isFinite(r.faultA) ? `≤ ${fmtFixed(r.faultA, 1)}` : '—' };
 }
 

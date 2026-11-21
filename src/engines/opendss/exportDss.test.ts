@@ -118,3 +118,20 @@ describe('OpenDSS export', () => {
     expect(lines(script, 'New Transformer.')).toHaveLength(0);
   });
 });
+
+describe('OpenDSS export: first board on an LV supply', () => {
+  const lv = (board: Project['boards'][number]): Project => ({ ...sampleProject, boards: [board] });
+  it('a supply fault level becomes a Vsource on the board busbar, not a warning', () => {
+    const { script, warnings } = exportDss(lv({ id: 'MDB-1', name: 'Main', supply: { faultKa: 25 } }));
+    const mva = (Math.sqrt(3) * 0.415 * 25).toFixed(4);
+    expect(lines(script, 'New Vsource.')).toEqual([`New Vsource.SRC_MDB-1 bus1=bb_MDB-1 basekv=0.415 pu=1.0 phases=3 MVAsc3=${Number(mva)} MVAsc1=${Number(mva)} x1r1=5 x0r0=5`]);
+    expect(warnings.filter((w) => /no transformer data/.test(w))).toEqual([]);
+    expect(lines(script, 'New Transformer.')).toHaveLength(0);
+  });
+  it('neither transformer nor fault level keeps the warning; a transformer board has no Vsource', () => {
+    const none = exportDss(lv({ id: 'MDB-1', name: 'Main', supply: { ratingA: 400 } }));
+    expect(none.warnings[0]).toMatch(/no transformer data/);
+    expect(lines(none.script, 'New Vsource.')).toHaveLength(0);
+    expect(lines(exportDss(sampleProject).script, 'New Vsource.')).toHaveLength(0);
+  });
+});

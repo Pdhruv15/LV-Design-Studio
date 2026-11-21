@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { buildDashboard } from '../calc/dashboard';
 import { runCalculations, type CalcRun } from '../calc/runs';
-import { boardSummary, boardsInSupplyOrder, systemSummary } from '../calc/summary';
+import { boardRatedA, boardSummary, boardsInSupplyOrder, systemSummary } from '../calc/summary';
 import { boardLocation } from '../model/levels';
 import { projectInputIssues } from '../model/projectValidate';
 import { STARTERS } from '../calc/motor';
@@ -136,8 +136,8 @@ export const TOOLS: Tool[] = [
         return {
           id: b.id, name: b.name, kind: b.kind, fedFrom: b.upstreamId ?? (b.sourceKva ? `${b.sourceKva} kVA transformer` : undefined),
           location: boardLocation(p, b) || undefined, circuits: s.outgoing,
-          demandKw: r(s.demandKw, 1), demandKva: r(s.demandKva, 1), currentA: r(s.currentA, 1), ratedA: b.ratedCurrentA,
-          loadingPct: r(s.loadingPct, 1), voltagePct: r(s.voltagePct), faultKA: r(s.faultKA, 1)
+          demandKw: r(s.demandKw, 1), demandKva: r(s.demandKva, 1), currentA: r(s.currentA, 1), ratedA: boardRatedA(b),
+          loadingPct: r(s.loadingPct, 1), voltagePct: r(s.voltagePct), faultKA: r(s.faultKA, 1), ...(s.faultAssumed && { faultAssumed: true })
         };
       });
     }
@@ -156,8 +156,8 @@ export const TOOLS: Tool[] = [
       const s = boardSummary(p, b);
       return {
         id: b.id, name: b.name, kind: b.kind, fedFrom: b.upstreamId, location: boardLocation(p, b) || undefined,
-        ratedA: b.ratedCurrentA, demandKw: r(s.demandKw, 1), demandKva: r(s.demandKva, 1), currentA: r(s.currentA, 1),
-        loadingPct: r(s.loadingPct, 1), voltagePct: r(s.voltagePct), faultKA: r(s.faultKA, 1),
+        ratedA: boardRatedA(b), demandKw: r(s.demandKw, 1), demandKva: r(s.demandKva, 1), currentA: r(s.currentA, 1),
+        loadingPct: r(s.loadingPct, 1), voltagePct: r(s.voltagePct), faultKA: r(s.faultKA, 1), ...(s.faultAssumed && { faultAssumed: true }),
         incomer: s.incomer ? { id: s.incomer.id, breakerA: s.incomer.breakerRatingA, cable: cableText(s.incomer) } : undefined,
         circuits: run.results.filter((x) => x.feeder.boardId === b.id).map(circuitRow)
       };
@@ -300,6 +300,7 @@ function circuitRow(x: CalcRun['results'][number]) {
     x.vdStatus !== 'ok' && `voltage drop ${r(x.vdTotalPct)} %`,
     x.limits?.status === 'bad' && x.limits.message,
     x.icuStatus === 'bad' && `breaker Icu ${f.breakerIcuKa} kA < fault ${r(x.breakerFaultKA, 1)} kA`,
+    x.faultAssumed && 'breaker Icu not verified: source fault level assumed',
     x.loadingPct > 85 && `loading ${r(x.loadingPct, 0)} %`
   ].filter((s): s is string => typeof s === 'string');
   return {

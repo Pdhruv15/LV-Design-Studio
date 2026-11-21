@@ -1,4 +1,4 @@
-import type { Board, GridSource, Project } from '../types';
+import { lvSupplied, type Board, type GridSource, type Project } from '../types';
 import { gridLabel, rmuRecord, rmuSource, rmuWays, txRatio } from '../calc/hvSupply';
 import { DM_TYPES } from '../calc/dmSubstation';
 import { txTag } from '../model/transformers';
@@ -28,7 +28,7 @@ const FRAME_PAD = 12;
 const B = 12, M = 11, S = 9;
 
 /** A main board on an authority LV supply (meter cabinet): its own source, off the 11 kV side. */
-export const authoritySupplied = (b: Board) => !b.upstreamId && !b.sourceKva && !!b.supply;
+export const authoritySupplied = lvSupplied;
 /** A main board hanging from the 11 kV side: every main board but one on an authority LV supply. */
 export const onMvSide = (b: Board) => !b.upstreamId && !authoritySupplied(b);
 const clean = (s?: string) => s?.trim() || undefined;

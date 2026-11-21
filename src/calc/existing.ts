@@ -99,7 +99,7 @@ export function existingChecks(project: Project, results: FeederResult[]): Exist
   }
   for (const r of results.filter((x) => x.feeder.existing)) {
     const f = r.feeder;
-    const why = [r.protectionStatus === 'bad' && 'Ib ≤ In ≤ Iz not met', r.ampacityStatus === 'bad' && 'cable too small', r.icuStatus === 'bad' && 'breaking capacity too low', r.vdStatus !== 'ok' && `Vd ${fig.pct(r.vdTotalPct)} %`].filter(Boolean);
+    const why = [r.protectionStatus === 'bad' && 'Ib ≤ In ≤ Iz not met', r.ampacityStatus === 'bad' && 'cable too small', r.icuStatus === 'bad' && 'breaking capacity too low', r.faultAssumed && 'breaking capacity not verified: source fault level assumed', r.vdStatus !== 'ok' && `Vd ${fig.pct(r.vdTotalPct)} %`].filter(Boolean);
     out.push({
       kind: 'feeder', id: f.id, item: `${f.boardId} → ${f.feedsBoardId ?? f.name} (existing ${f.breakerRatingA} A, ${f.parallel && f.parallel > 1 ? `${f.parallel} × ` : ''}${f.cableCsaMm2} mm²)`,
       value: `Ib ${fig.current(r.ib)} A · Iz ${fig.current(r.ampacity)} A · Vd ${fig.pct(r.vdTotalPct)} %`, limit: `In ${f.breakerRatingA} A · Vd ${project.vdLimitPct} %`,
