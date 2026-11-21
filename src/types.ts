@@ -817,6 +817,8 @@ export interface RoomType {
   lpdMax?: number;
   /** Typical total W/m² (density check benchmark). */
   benchWPerM2?: number;
+  /** The load assessment space this room type counts as (a space id, or 'carpark'); absent: by the same id or name. */
+  laSpace?: string;
 }
 
 /** Generation rules of a room type: points from the area, fixed points per room. */
