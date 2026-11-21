@@ -31,7 +31,7 @@ Where the numbers come from — short answer:
 | `src/model/planToSld.ts` | model | `planToSld`, `USE_LOAD_TYPE`, `lvRating` | Builds boards + feeders from the plan (one LV switchboard per transformer, planned MDB/SMDB, one feeder per area) then sizes all breakers and cables via `applyAllRecommendations` (`src/calc/sizing.ts:331`). |
 | `src/components/docs/SpacePlanView.tsx` | screen | `SpacePlanView` (`auto`, `createSld`, `addPanel`, `addTransformer`, `setUse`) | Settings bar, use-type editor, summary cards, area grid, panel table, transformer/RMU table, tree. |
 | `src/components/docs/SubstationAreaView.tsx` | screen | `SubstationAreaView` (`fill`, `add`, `exportPdf`), `DmReferenceTable` | One card per substation (type, count, kVA, building, remarks), totals, PDF export, full DM reference table. |
-| `src/calc/building.ts` | calc (other module) | `spaceAreasFromRooms` (`:241`) | "Take areas from the rooms": one area per Building-information room; room types replace the plan's use types. |
+| `src/calc/building.ts` | calc (other module) | `spaceAreasFromRooms` (`:241`) | "Take areas from the rooms": one area per Building-information room and one per flat layout placed on a level (all its flats); room types replace the plan's use types. |
 | `src/App.tsx` | screen wiring | lazy imports `:32`, `:34`; views `:1630-1642`, `:1649` | Mounts both pages; after Create SLD switches to the Network design system view. |
 | `src/types.ts` | model | `SpaceUse` `:786`, `SpaceArea` `:793`, `PlanPanel` `:807`, `PlanTransformer` `:816`, `SpacePlanSettings` `:822`, `SpacePlan` `:831`, `DmSubstationRoom` `:841`; `Project.spacePlan` `:577`, `Project.substations` `:629` | Saved data shapes. |
 
