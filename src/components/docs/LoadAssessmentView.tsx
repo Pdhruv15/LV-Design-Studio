@@ -11,6 +11,7 @@ import {
 import { catalog } from '../../database/catalog';
 import { laLink } from '../../calc/loadAssessmentLink';
 import { createMdbFromAssessment, LA_MDB, mdbStep } from '../../calc/loadAssessmentMdb';
+import { MARKET_TX_KVA } from '../../calc/spacePlan';
 import { txt } from '../../util/format';
 import { LinkStrip } from './LoadAssessmentLink';
 import { ConceptToDesignTable } from './ConceptToDesign';
@@ -390,6 +391,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
             </div>
             <ConceptToDesignTable project={project} here heading={<div className="m" style={{ margin: '10px 0 4px' }}><b>Concept to design</b></div>} />
 
+            {project.boards.some((b) => b.generated?.startsWith('sp:')) && <div className="la-flag">The supply is planned in Space plan ({project.boards.filter((b) => b.generated?.startsWith('sp:tx:')).map((b) => b.id).join(', ')}). Creating MDBs here would add a second supply beside it: use Space plan → Create / Update supply.</div>}
             {step && !step.inStep && <div className="la-flag warn">The feeders made from this assessment on {step.boards.join(' and ')} are out of step: they add up to {f0(step.feedersDemandKw)} kW demand and should now add up to {f0(step.expectedDemandKw)} kW{step.assessmentDemandKw - step.expectedDemandKw > 0.5 ? ` (the assessment's ${f0(step.assessmentDemandKw)} kW less what is already designed)` : ''}. {step.boards.every((b) => laMdbs.includes(b)) ? <>Press <b>Update MDB feeders</b></> : <>Pick the board below and press <b>Add feeders</b></>} to bring them in step.</div>}
             <div className="bi-actions">
               <select className="bi-sel" value={picked} onChange={(e) => setTarget(e.target.value)} title="Board the feeders go on">
@@ -430,6 +432,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
                   <input className="bi-text" defaultValue={a.supply.txSizes?.join(', ') ?? ''} key={a.supply.txSizes?.join(',') ?? ''} placeholder={r.txSizes.join(', ')}
                     onBlur={(e) => { const s = e.target.value.split(/[\s,;]+/).map(Number).filter((x) => x > 0); setSup({ txSizes: s.length ? s : undefined }); }} />
                 </label>
+                <button className="chip" style={{ alignSelf: 'end' }} title="Fill the list with the market standard sizes, 100 to 3,150 kVA. The largest one used is set above" onClick={() => setSup({ txSizes: [...MARKET_TX_KVA] })}>Market standard sizes</button>
               </div>
               <div className="bi-actions" style={{ marginBottom: 0 }}>
                 <button className="chip" onClick={() => setLib({ ...lib, supply: a.supply, diversity: a.diversity }, 'Saved the supply settings and diversities as your library — new assessments start with them')}>Save supply &amp; diversity as my library</button>

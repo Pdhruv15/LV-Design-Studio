@@ -6,8 +6,8 @@ import { cellName, parsePositive, STYLE, type SheetEdit, type SheetModel } from 
 /** The space plan's areas as an Excel-style sheet (paste an area schedule
  * straight from Excel). Blank rows at the end take new areas. */
 
-type Key = 'building' | 'floor' | 'name' | 'use' | 'areaM2' | 'wPerM2' | 'kw' | 'df' | 'panel' | 'connected' | 'demand';
-const KEYS: Key[] = ['building', 'floor', 'name', 'use', 'areaM2', 'wPerM2', 'kw', 'df', 'panel', 'connected', 'demand'];
+type Key = 'building' | 'floor' | 'name' | 'use' | 'areaM2' | 'wPerM2' | 'kw' | 'df' | 'panel' | 'connected' | 'demand' | 'from';
+const KEYS: Key[] = ['building', 'floor', 'name', 'use', 'areaM2', 'wPerM2', 'kw', 'df', 'panel', 'connected', 'demand', 'from'];
 const INPUT = new Set<Key>(['building', 'floor', 'name', 'use', 'areaM2', 'wPerM2', 'kw', 'df', 'panel']);
 export const SPARE_ROWS = 8;
 
@@ -28,7 +28,8 @@ export function buildPlanSheet(plan: SpacePlan, info?: BuildingInfo): PlanSheet 
     return [
       ...where(a), a.name, useLabel(a.use), a.areaM2 ?? '',
       a.wPerM2 ?? '', a.kw ?? '', a.demandFactor ?? '', a.panel ?? '',
-      l.connectedKw.toFixed(1), l.demandKw.toFixed(1)
+      l.connectedKw.toFixed(1), l.demandKw.toFixed(1),
+      a.from === 'la' ? 'assessment' : a.id.startsWith('room-') || a.id.startsWith('unit-') ? 'rooms' : ''
     ];
   });
   const at = (k: Key) => KEYS.indexOf(k);
@@ -51,7 +52,7 @@ export function buildPlanSheet(plan: SpacePlan, info?: BuildingInfo): PlanSheet 
     rows,
     data,
     merges: {},
-    groups: [{ title: 'WHERE', colspan: 3 }, { title: 'LOAD', colspan: 5 }, { title: '', colspan: 1 }, { title: 'CALCULATED (kW)', colspan: 2 }],
+    groups: [{ title: 'WHERE', colspan: 3 }, { title: 'LOAD', colspan: 5 }, { title: '', colspan: 1 }, { title: 'CALCULATED (kW)', colspan: 2 }, { title: '', colspan: 1 }],
     totals,
     styles,
     editable,
@@ -68,7 +69,8 @@ export function buildPlanSheet(plan: SpacePlan, info?: BuildingInfo): PlanSheet 
       { title: 'DEMAND FACTOR (blank = use type)', width: 100, input: true },
       { title: 'FED FROM PANEL', width: 120, input: true, source: ['', ...panels] },
       { title: 'CONNECTED', width: 85, input: false },
-      { title: 'DEMAND', width: 85, input: false }
+      { title: 'DEMAND', width: 85, input: false },
+      { title: 'FROM', width: 90, input: false, align: 'left' }
     ]
   };
 }

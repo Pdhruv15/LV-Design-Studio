@@ -18,9 +18,47 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.244', date: '2026-11-21',
+    version: '2.246', date: '2026-11-21',
     items: [
       { title: 'Design CAD: Save As starts with DWG', text: 'Design CAD → Drafting settings (DS) → Units & level: "Save As starts with" is now DWG unless you choose otherwise, also for a drawing received as DXF. A format you chose before is kept, and a drawing saved before still starts with the format of its last copy.', action: 'cad', actionLabel: 'Open Design CAD' },
+    ]
+  },
+  {
+    version: '2.245', date: '2026-11-21',
+    items: [
+      { title: 'Folder templates: start from a layout', text: 'Preferences → Folder templates → + New now starts from one of six layouts: Discipline-first, Stage-first (Concept, Schematic, Detailed, IFC, each with Calcs and Drawings), Building / phase-first, ISO 19650 containers, Flat & simple, or Blank. Building / phase-first asks what the folders repeat for (the buildings in Building information, or phases you type), the folder name pattern ({BuildingCode}_{BuildingName}) and the shared folders kept once at the top, with a preview for two buildings. Create and edit opens the template in the editor.' },
+      { title: 'Project folder: a set of folders per building', text: 'With a building-first template, a board\'s load schedule saves into the folder of the board\'s building (from its floor in Building information); schedules of every board and other outputs of the whole project save into the shared folder (00_Common). Customise… shows each building: a building added later is offered with its folders, and a renamed building gets new folders while its old folder is listed with its file count and left as it is.' }
+    ]
+  },
+  {
+    version: '2.243', date: '2026-11-21',
+    items: [
+      { title: 'Transformers: the assessment, the space plan and the network side by side', text: 'Concept → Space plan and Panels → Transformers now show one table with the transformers as the load assessment gives them, as the space plan arranges them (with its RMUs) and as the network has them: sizes, maximum demand in kVA and loading, with a bar each. A figure that is not the assessment\'s is marked. Before, the transformers were sized in these three places and never shown together. The table appears once two of the three exist.' },
+      { title: 'Substation area: a notice when the plan changed', text: 'Concept → Substation area now shows a notice when the space plan (or the SLD) gives other substations, transformer counts or sizes than the ones filled on the page, with "Update from the plan…" (it asks first, as Fill from project does) and "Keep mine", which hides the notice until the plan changes again.' }
+    ]
+  },
+  {
+    version: '2.242', date: '2026-11-21',
+    items: [
+      { title: 'Space plan: "Create / Update supply" keeps what you designed', text: 'The "Create SLD" button on Concept → Space plan is now "Create / Update supply". It makes the plan\'s transformer switchboards, MDBs and SMDBs with one load feeder per row, or brings them up to date when they are already there, and sizes only those incomers and load feeders. Every other board and feeder of the project is kept; before, Create SLD replaced the whole network. The load assessment\'s own MDBs and lump feeders are removed, because the plan\'s rows now carry those loads, so there is one start instead of two. A board the plan no longer has is removed when nothing of yours is on it, and left in place (and named in the status line) when it still feeds your boards. The load feeders of rows taken from the assessment shrink as real DBs and services are designed, the same way the assessment\'s feeders do: the ticked box in Common services… and Generate DBs… covers them too. Load assessment shows a note when the supply is planned in Space plan.' }
+    ]
+  },
+  {
+    version: '2.241', date: '2026-11-21',
+    items: [
+      { title: 'Space plan takes its loads and settings from the load assessment', text: 'Concept → Space plan now starts with a strip that shows the load assessment beside the plan: maximum demand, transformers, transformer sizes and settings, with what differs marked. "Take loads from the assessment…" shows the result first and then fills the plan with one row per building and load category (lighting, small power, HVAC, water heating, cooking, lifts, pumps, EV, special, fire and life safety, your custom loads), each with its diversity; a category is shared between the buildings by their floor area. Rows taken from the rooms or taken before are replaced; rows you typed and the panels already given are kept. "Use the assessment\'s settings" takes its max loading, power factor, spare and coincidence. With both, the plan\'s maximum demand equals the assessment\'s. "Keep my figures" hides the notice until the assessment changes. Nothing moves on its own. The areas grid has a FROM column (assessment, rooms or blank for typed rows), the settings have a Coincidence, and "Use types from my density standard" fills the use types from the density standard in place of a table typed by hand.' }
+    ]
+  },
+  {
+    version: '2.240', date: '2026-11-21',
+    items: [
+      { title: 'Space plan: pick the transformer sizes from a list, with a new market standard list', text: 'Concept → Space plan has a "Size list" setting: "1,000 / 1,500 kVA" (as before, the default), "Market standard" (100, 160, 250, 315, 400, 500, 630, 800, 1,000, 1,250, 1,500, 1,600, 2,000, 2,500 and 3,150 kVA) or "My catalogue" (the sizes in your Transformers catalogue). With the market or catalogue list, "Largest size" sets the biggest transformer the plan may use (1,500 kVA to start with). "Automatic" then picks the smallest size that needs the fewest units, and the Transformer size list and the Size column of each transformer offer the same sizes. Saved plans are unchanged. Concept → Load assessment → Supply settings has a "Market standard sizes" button that fills its Transformer sizes with the same list.' }
+    ]
+  },
+  {
+    version: '2.239', date: '2026-11-21',
+    items: [
+      { title: 'Space plan: "Take areas from the rooms" counts the flats', text: 'Concept → Space plan → "Take areas from the rooms" now adds one area for each flat layout placed on a level (for example "2BR apartment ×160"), with the W/m² and demand factor of its rooms together. Before, only the rooms typed on the levels were taken and the flats were left out, so a tower made of flats gave almost no load. Press the button again to bring an existing plan up to date; the panels already given to areas are kept.' }
     ]
   },
   {

@@ -8,9 +8,9 @@
 
 import type { Project } from '../types';
 import type { DocType } from './folderRoles';
-import { applyOverrides, fillName, nodeRoles, type FolderNode, type FolderVars, type ProjectFolder } from './folderTemplates';
+import { applyOverrides, fillName, nodeRoles, walkNodes, type FolderBuilding, type FolderNode, type FolderVars, type ProjectFolder } from './folderTemplates';
 import { formatName, type NameValues } from './fileNaming';
-import { folderVars, type RememberedFolder } from './projectFolderPlan';
+import { folderBuildings, folderVars, type RememberedFolder } from './projectFolderPlan';
 
 export interface OutputRole {
   /** Folder role from ROLE_CATALOGUE; none = saved as before. */
@@ -94,9 +94,10 @@ export const SEQUENCE: Partial<Record<DocType, readonly string[]>> = {
   SPC: ['SPEC']
 };
 
-/** Values a save call may know: file-name fields, and the BOQ revision and transmittal number that
- * "subfolders on use" patterns ("Rev-{BoqRev}", "TR-{TrNo}") need. */
-export type SaveValues = NameValues & { BoqRev?: string; TrNo?: string };
+/** Values a save call may know: file-name fields, the BOQ revision and transmittal number that
+ * "subfolders on use" patterns ("Rev-{BoqRev}", "TR-{TrNo}") need, and the building (id) an output of one
+ * building is for (a BOQ split by building). */
+export type SaveValues = NameValues & { BoqRev?: string; TrNo?: string; Building?: string };
 
 /** Short stage names, as STAGE_INFO[…].short (designStage.ts; a test keeps them the same). */
 export const STAGE_SHORT = { concept: 'Concept', schematic: 'Schematic', detailed: 'Detailed', tender: 'Tender', ifc: 'IFC' } as const;
@@ -114,24 +115,47 @@ export function projectValues(p: Pick<Project, 'name' | 'info' | 'studyReport' |
 }
 
 /** The folder of a role inside the project folder, as the project folder was made: the project's own
- * changes applied, unticked folders (and what is in them) left out, names filled from `vars`. A role in a
- * folder made for each building is not found (the save call does not say which building). */
-export function roleFolder(folder: ProjectFolder, role: string, vars: FolderVars, unticked: Iterable<string> = []): { path: string; onUse?: string } | undefined {
+ * changes applied, unticked folders (and what is in them) left out, names filled from `vars`. A role in the
+ * folder made for each building is that building's folder when `building` is given; without one (an output
+ * of the whole project) it is the shared folder at the top (spec C7: everything else saves into 00_Common). */
+export function roleFolder(folder: ProjectFolder, role: string, vars: FolderVars, unticked: Iterable<string> = [], building?: FolderBuilding): { path: string; onUse?: string } | undefined {
   if (folder.overrides?.roles[role] === '') return undefined;
   const off = new Set(unticked);
+  const tree = applyOverrides(folder.template, folder.overrides);
   let hit: { path: string; onUse?: string } | undefined;
-  const rec = (nodes: readonly FolderNode[], parent: string) => {
+  let inEach = false;
+  const rec = (nodes: readonly FolderNode[], parent: string, v: FolderVars, within: boolean) => {
     for (const n of nodes) {
-      if (hit || off.has(n.id) || n.when === 'building:each') continue;
-      const name = fillName(n.name, vars);
+      if (hit || off.has(n.id)) continue;
+      const each = n.when === 'building:each' && !within;
+      if (each && !building) {
+        if (!inEach) walkNodes([n], (x) => { if (!off.has(x.id) && nodeRoles(x).includes(role)) inEach = true; });
+        continue;
+      }
+      const nv = each && building ? { ...v, BuildingCode: building.code, BuildingName: building.name } : v;
+      const name = fillName(n.name, nv);
       if (!name) continue;
       const path = parent ? `${parent}/${name}` : name;
       if (nodeRoles(n).includes(role)) { hit = n.onUse ? { path, onUse: n.onUse } : { path }; return; }
-      if (n.children?.length) rec(n.children, path);
+      if (n.children?.length) rec(n.children, path, nv, within || each);
     }
   };
-  rec(applyOverrides(folder.template, folder.overrides), '');
-  return hit;
+  rec(tree, '', vars, false);
+  if (hit || !inEach) return hit;
+  const shared = (folder.template.repeat?.shared ?? []).map((id) => tree.find((n) => n.id === id && n.when !== 'building:each' && !off.has(n.id))).find(Boolean);
+  const name = shared ? fillName(shared.name, vars) : '';
+  return name ? { path: name } : undefined;
+}
+
+/** The copy of the "for each building" folder an output belongs to: the building of the board it is for
+ * (values.Board, from the board's floor in Building information), or the building named (values.Building,
+ * a building id). None for an output of the whole project. */
+export function outputBuilding(p: Pick<Project, 'building'> & { boards?: readonly Pick<Project['boards'][number], 'id' | 'level'>[] } & Pick<Project, 'folder'>, values: SaveValues | undefined): FolderBuilding | undefined {
+  if (!p.folder || !values) return undefined;
+  const t = p.folder.template;
+  if (t.repeat?.source === 'phases') return undefined;
+  const id = values.Building ?? (values.Board !== undefined ? p.boards?.find((x) => x.id === values.Board)?.level?.building : undefined);
+  return id ? folderBuildings(p, t).find((b) => b.id === id) : undefined;
 }
 
 const ON_USE_FIELD = /\{(\w+)\}/g;
@@ -175,7 +199,7 @@ export interface SaveTarget {
 }
 
 export interface SaveTargetInput {
-  project?: Pick<Project, 'name' | 'info' | 'studyReport' | 'stage' | 'revisions' | 'folder'> | null;
+  project?: (Pick<Project, 'name' | 'info' | 'studyReport' | 'stage' | 'revisions' | 'folder'> & Partial<Pick<Project, 'building' | 'boards'>>) | null;
   output: OutputKey;
   /** The app's own file name, with extension: used whenever the project folder does not apply. */
   defaultName: string;
@@ -200,12 +224,13 @@ export function saveTarget(i: SaveTargetInput): SaveTarget {
   const p = i.project;
   if (!out?.role || !p?.folder || (!i.web && !i.remembered?.root)) return plain;
   const vars = folderVars(p);
-  const found = roleFolder(p.folder, out.role, vars, i.remembered?.unticked ?? []);
+  const building = outputBuilding(p, i.values);
+  const found = roleFolder(p.folder, out.role, vars, i.remembered?.unticked ?? [], building);
   if (!found) return plain;
   let name = i.defaultName;
   if (out.docType) {
     const seq = out.seqKey ? (SEQUENCE[out.docType] ?? []).indexOf(out.seqKey) + 1 : 0;
-    const values: NameValues = { ...projectValues(p, i.now), ...(out.seqKey ? { Study: out.seqKey } : {}), ...(seq > 0 ? { Seq: seq } : {}), ...stripExtra(i.values) };
+    const values: NameValues = { ...projectValues(p, i.now), ...(out.seqKey ? { Study: out.seqKey } : {}), ...(seq > 0 ? { Seq: seq } : {}), ...(building ? { BuildingCode: building.code } : {}), ...stripExtra(i.values) };
     const base = formatName(p.folder.template.naming, out.docType, values);
     if (base) name = `${base}.${i.ext}`;
   }
@@ -221,7 +246,7 @@ export function saveTarget(i: SaveTargetInput): SaveTarget {
 
 function stripExtra(v: SaveValues | undefined): NameValues {
   if (!v) return {};
-  const { BoqRev: _b, TrNo: _t, ...rest } = v;
+  const { BoqRev: _b, TrNo: _t, Building: _g, ...rest } = v;
   return Object.fromEntries(Object.entries(rest).filter(([, x]) => x !== undefined && x !== '')) as NameValues;
 }
 

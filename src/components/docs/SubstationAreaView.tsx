@@ -2,7 +2,7 @@ import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useState } from 'react';
 import type { DmSubstationRoom, Project } from '../../types';
-import { dmSubstationAreas, DM_TITLE, DM_TYPES, dmType, substationsFromProject, type DmSubstationType } from '../../calc/dmSubstation';
+import { dmSubstationAreas, DM_TITLE, DM_TYPES, dmType, keepSubstations, substationLink, substationsFromProject, type DmSubstationType } from '../../calc/dmSubstation';
 import { buildDmFormHtml } from '../../docs/dmForm';
 import { safeFileName, savePdf } from '../../util/files';
 import { Page } from '../ui';
@@ -26,6 +26,7 @@ export default function SubstationAreaView({ project, onChange, onStatus }: {
   const patch = (id: string, p: Partial<DmSubstationRoom>, step = false) => set(list.map((s) => (s.id === id ? { ...s, ...p } : s)), step);
   const [busy, setBusy] = useState(false);
   const results = list.map((s) => ({ s, r: dmSubstationAreas(s.type, s.transformers) }));
+  const link = substationLink(project);
   const total = results.reduce((a, x) => a + x.r.totalAreaM2, 0);
 
   async function fill() {
@@ -62,6 +63,10 @@ export default function SubstationAreaView({ project, onChange, onStatus }: {
         </>
       }
     >
+      {link.notice && (
+        <div className="la-flag warn">The {link.source === 'space plan' ? 'space plan' : 'SLD'} now gives {link.now}. The substations below were filled before that change. <button className="chip" onClick={fill}>Update from the {link.source === 'space plan' ? 'plan' : 'SLD'}…</button> <button className="chip" onClick={() => onChange(keepSubstations(project))}>Keep mine</button></div>
+      )}
+
       {list.length > 0 && (
         <div className="plan-cards">
           <div><span>Substations</span><b>{list.length}</b></div>

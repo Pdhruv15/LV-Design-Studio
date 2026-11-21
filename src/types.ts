@@ -723,6 +723,8 @@ export interface Project {
   /** Links made on floor plans in the Floor plan window, per drawing file (the drawing is never changed). */
   cadPlanLinks?: CadPlanLinks[];
   substations?: DmSubstationRoom[]; // DM-D-013 minimum substation / LV room areas
+  /** The state of the plan / SLD against which the user kept the substations as they are: no notice until it changes. */
+  substationsKept?: string;
   studyReport?: StudyReportSetup; // the study report being prepared (Reports → Study reports)
   calcReportDocNo?: string; // document number on page 1 of the calculation report
   vdReportDocNo?: string; // document number on page 1 of the voltage drop report
@@ -900,6 +902,10 @@ export interface SpaceArea {
   kw?: number; // specific load (chiller, lift…) instead of area × W/m²
   demandFactor?: number; // overrides the use's
   panel?: string; // PlanPanel id
+  /** 'la': a load row taken from the load assessment (replaced the next time it is taken). */
+  from?: 'la';
+  /** Of a row taken from the load assessment: its load category (ltg, pwr, hvac … life, custom:<id>). */
+  laKey?: string;
 }
 
 export interface PlanPanel {
@@ -918,8 +924,14 @@ export interface PlanTransformer {
 }
 
 export interface SpacePlanSettings {
-  /** Transformer size: 1000, 1500, or 0 = the one giving fewer units. */
+  /** Transformer size: one of the size list, or 0 = the one giving fewer units. */
   transformerKva: number;
+  /** The list the sizes come from; absent: 1,000 / 1,500 kVA. */
+  sizeList?: 'dewa' | 'market' | 'catalogue';
+  /** The largest size used from the market or catalogue list; absent: 1,500 kVA. */
+  maxTransformerKva?: number;
+  /** Coincidence between the load categories, applied to every demand kVA; absent: 1. */
+  coincidence?: number;
   maxLoadingPct: number;
   maxTransformersPerRmu: number;
   powerFactor: number;
@@ -933,6 +945,8 @@ export interface SpacePlan {
   settings: SpacePlanSettings;
   /** Use types with W/m² and demand factor; defaults when absent. */
   uses?: SpaceUse[];
+  /** The state of the load assessment against which the user kept the plan's own figures: no notice until it changes. */
+  kept?: string;
 }
 
 /** A substation sized to Dubai Municipality form DM-D-013. */

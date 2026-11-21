@@ -2,22 +2,28 @@ import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import type { PlanPanel, Project, SpacePlan, SpaceUse } from '../../types';
-import { autoAssign, DEFAULT_USES, emptyPlan, panelLoad, PLAN_TRANSFORMER_SIZES, summarize, usesOf } from '../../calc/spacePlan';
+import { autoAssign, DEFAULT_USES, emptyPlan, panelLoad, PLAN_SIZE_LISTS, planSizes, sizeListOf, summarize, usesOf, withSizeList, type PlanSizeList } from '../../calc/spacePlan';
+import { catalog } from '../../database/catalog';
 import { applyPlanEdits, buildPlanSheet } from '../../docs/planSheet';
-import { planToSld } from '../../model/planToSld';
+import { updateSupply } from '../../model/planToSld';
 import ClassicGrid from '../grid/ClassicGrid';
 import { Page } from '../ui';
 import { spaceAreasFromRooms } from '../../calc/building';
 import { txt } from '../../util/format';
+import { laStandards, standardOf } from '../../calc/loadAssessment';
+import { withStandardUses } from '../../calc/spacePlanLink';
+import { PlanLinkStrip } from './SpacePlanLink';
+import { SupplyConceptTable } from './SupplyConcept';
 
 
 /** Space planning: areas (power density or specific kW) → panels →
- * transformers → RMUs, with automatic assignment and "Create SLD". */
-export default function SpacePlanView({ project, onChange, onStatus, onCreated }: {
+ * transformers → RMUs, with automatic assignment and "Create / Update supply". */
+export default function SpacePlanView({ project, onChange, onStatus, onCreated, onOpen }: {
   project: Project;
   onChange: (p: Project, step?: boolean) => void;
   onStatus: (m: string) => void;
   onCreated: () => void;
+  onOpen?: (view: 'load-assessment') => void;
 }) {
   const plan = project.spacePlan ?? emptyPlan();
   const setPlan = (next: SpacePlan, step = false) => onChange({ ...project, spacePlan: next }, step);
@@ -57,10 +63,13 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
       onStatus('Assign every area to a panel and every panel to a transformer first — use Auto-assign');
       return;
     }
-    if (!(await ask('Create the SLD from this plan? It replaces the current boards and feeders (you can undo).'))) return;
-    const r = planToSld(project, plan);
+    const own = project.boards.filter((b) => !b.generated?.startsWith('sp:') && b.generated !== 'la:mdb').length;
+    if (!(await ask(`Create or update the supply from this plan? Its transformers, panels and load feeders are made or brought up to date.${own ? ` The ${own} other boards of the project and their feeders are kept.` : ''} The load assessment's own MDB feeders are removed: the plan's rows carry those loads. You can undo.`))) return;
+    const r = updateSupply(project, plan);
     onChange({ ...r.project, spacePlan: plan }, true);
-    onStatus(`Created the SLD: ${r.counts.rmus} RMU${r.counts.rmus === 1 ? '' : 's'}, ${r.counts.transformers} transformers, ${r.counts.panels} panels, ${r.counts.loads} planned loads — breakers and cables sized`);
+    onStatus(`Supply ${r.updated.length ? 'updated' : 'created'}: ${r.counts.rmus} RMU${r.counts.rmus === 1 ? '' : 's'}, ${r.counts.transformers} transformers, ${r.counts.panels} panels, ${r.counts.loads} planned loads — their incomers and load feeders sized`
+      + (r.removed.length ? `; removed ${r.removed.join(', ')}` : '')
+      + (r.left.length ? `; ${r.left.join(', ')} ${r.left.length > 1 ? 'are' : 'is'} no longer in the plan but still feed${r.left.length > 1 ? '' : 's'} boards or loads of yours: move those, then delete ${r.left.length > 1 ? 'them' : 'it'}` : ''));
     onCreated();
   }
 
@@ -71,7 +80,7 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
   return (
     <Page
       title="Space planning — power density"
-      intro="Enter the areas (m² × W/m², or a specific kW), then Auto-assign: areas go to an MDB per building, MDBs to transformers at the loading limit (a transformer may feed MDBs in several buildings), transformers to RMUs. Change any assignment in the tables, then Create SLD."
+      intro="Enter the areas (m² × W/m², or a specific kW), then Auto-assign: areas go to an MDB per building, MDBs to transformers at the loading limit (a transformer may feed MDBs in several buildings), transformers to RMUs. Change any assignment in the tables, then Create / Update supply."
       actions={
         <>
           {!!project.building?.rooms.length && (
@@ -82,22 +91,41 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
           )}
           <button className="chip" onClick={() => auto(false)} title="Fill in what's missing, keeping your assignments">Auto-assign</button>
           <button className="chip" onClick={async () => (await ask('Clear all panels, transformers and assignments and plan again?')) && auto(true)}>Re-plan from scratch</button>
-          <button className="chip primary" onClick={createSld}>Create SLD</button>
+          <button className="chip primary" onClick={createSld} title="Makes or updates the plan's transformers, panels and load feeders in the network; the boards and feeders you designed are kept">Create / Update supply</button>
         </>
       }
     >
+      <PlanLinkStrip project={project} plan={plan} onPlan={setPlan} onStatus={onStatus} onOpenAssessment={onOpen && (() => onOpen('load-assessment'))} />
       <div className="plan-settings">
+        <label title="Where the transformer sizes come from: the two usual DEWA sizes, the market standard sizes (100 to 3,150 kVA), or your Transformers catalogue">Size list
+          <select value={s.sizeList ?? 'dewa'} onChange={(e) => setPlan({ ...plan, settings: withSizeList(s, e.target.value as PlanSizeList) })}>
+            {PLAN_SIZE_LISTS.filter((l) => l.value !== 'catalogue' || s.sizeList === 'catalogue' || catalog().transformers.length > 0).map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+          </select>
+        </label>
+        {s.sizeList && (
+          <label title="No transformer larger than this is planned">Largest size
+            <select value={s.maxTransformerKva ?? 1500} onChange={(e) => { const next = { ...s, maxTransformerKva: +e.target.value }; setPlan({ ...plan, settings: planSizes(next).includes(next.transformerKva) ? next : { ...next, transformerKva: 0 } }); }}>
+              {[...new Set([...sizeListOf(s.sizeList), s.maxTransformerKva ?? 1500])].sort((x, y) => x - y).map((k) => <option key={k} value={k}>{k} kVA</option>)}
+            </select>
+          </label>
+        )}
         <label>Transformer size
           <select value={s.transformerKva} onChange={(e) => setPlan({ ...plan, settings: { ...s, transformerKva: +e.target.value } })}>
             <option value={0}>Automatic (fewest units)</option>
-            {PLAN_TRANSFORMER_SIZES.map((k) => <option key={k} value={k}>{k} kVA</option>)}
+            {[...new Set([...planSizes(s), ...(s.transformerKva ? [s.transformerKva] : [])])].sort((x, y) => x - y).map((k) => <option key={k} value={k}>{k} kVA</option>)}
           </select>
         </label>
         <label>Max loading %<input inputMode="decimal" key={`maxLoadingPct-${s.maxLoadingPct}`} defaultValue={s.maxLoadingPct} onBlur={(e) => setPlan({ ...plan, settings: { ...s, maxLoadingPct: num(e.target.value, s.maxLoadingPct) } })} /></label>
         <label>Transformers per RMU<input inputMode="numeric" key={`maxTransformersPerRmu-${s.maxTransformersPerRmu}`} defaultValue={s.maxTransformersPerRmu} onBlur={(e) => setPlan({ ...plan, settings: { ...s, maxTransformersPerRmu: Math.max(1, Math.round(num(e.target.value, s.maxTransformersPerRmu))) } })} /></label>
         <label>Power factor<input inputMode="decimal" key={`powerFactor-${s.powerFactor}`} defaultValue={s.powerFactor} onBlur={(e) => setPlan({ ...plan, settings: { ...s, powerFactor: Math.min(1, Math.max(0.5, num(e.target.value, s.powerFactor))) } })} /></label>
         <label>Future growth %<input inputMode="decimal" key={`growthPct-${s.growthPct}`} defaultValue={s.growthPct} onBlur={(e) => setPlan({ ...plan, settings: { ...s, growthPct: num(e.target.value, s.growthPct) } })} /></label>
+        <label title="Between the load categories; 1 = none. Taken from the load assessment with “Use the assessment's settings”">Coincidence<input inputMode="decimal" key={`coincidence-${s.coincidence ?? 1}`} defaultValue={s.coincidence ?? 1} onBlur={(e) => { const c = Math.min(1, Math.max(0.1, num(e.target.value, s.coincidence ?? 1))); setPlan({ ...plan, settings: { ...s, coincidence: c === 1 ? undefined : c } }); }} /></label>
         <button className="chip" onClick={() => setShowUses(!showUses)}>{showUses ? 'Hide' : 'Edit'} use types (W/m²)</button>
+        <button className="chip" title="Fill the use types from the density standard of the load assessment: lighting, power and A/C W/m² together"
+          onClick={async () => {
+            const std = standardOf(project.loadAssessment?.standard, laStandards());
+            if (await ask(`Replace the use types with the ${std.spaces.length} spaces of “${std.name}”? Use types the areas refer to are kept.`)) { setPlan(withStandardUses(plan, std, project.loadAssessment), true); onStatus(`Use types taken from “${std.name}”`); }
+          }}>Use types from my density standard</button>
       </div>
 
       {showUses && (
@@ -130,6 +158,8 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
           </small>
         </div>
       </div>
+
+      <SupplyConceptTable project={project} heading={<h3 className="section-title flush">Transformers: concept to design <span className="m">— the load assessment, this plan and the network side by side</span></h3>} />
 
       <h3 className="section-title flush">1 · Areas</h3>
       <ClassicGrid
@@ -189,7 +219,7 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
                   <td><b>{t.transformer.id}</b></td>
                   <td>
                     <select value={t.transformer.kva} onChange={(e) => setPlan({ ...plan, transformers: plan.transformers.map((x) => (x.id === t.transformer.id ? { ...x, kva: +e.target.value } : x)) })}>
-                      {[...new Set([...PLAN_TRANSFORMER_SIZES, t.transformer.kva])].map((k) => <option key={k} value={k}>{k} kVA</option>)}
+                      {[...new Set([...planSizes(s), t.transformer.kva])].sort((x, y) => x - y).map((k) => <option key={k} value={k}>{k} kVA</option>)}
                     </select>
                   </td>
                   <td><input value={t.transformer.rmu ?? ''} placeholder="RMU-1" onChange={(e) => setPlan({ ...plan, transformers: plan.transformers.map((x) => (x.id === t.transformer.id ? { ...x, rmu: e.target.value || undefined } : x)) })} /></td>

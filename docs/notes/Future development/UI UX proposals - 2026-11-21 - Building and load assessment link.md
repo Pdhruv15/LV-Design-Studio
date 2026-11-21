@@ -1,6 +1,6 @@
 # UI UX proposal – Building information and Load assessment linked both ways (2026-11-21)
 
-Status: **approved 2026-11-21** — the user chose the recommended option for every decision (A–F). Built step by step, starting with step 0 (counting fixes).
+Status: **approved 2026-11-21** — the user chose the recommended option for every decision (A–F). Built and merged 2026-11-21: counting fixes PR 728 (v2.230); link strip, Building m² column and the assessment line PR 729 (v2.231); concept to design table and MDB notice PR 730 (v2.232); Common services from the assessment and no double counting PR 734 (v2.236); assessment space of a room type PR 736 (v2.238).
 
 Mockup: `docs/mockups/building-load-assessment-link-mockup.html` (image: `building-load-assessment-link-mockup.png`).
 

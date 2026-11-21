@@ -88,10 +88,10 @@ describe('where a save dialog opens and what it suggests', () => {
     expect(at('vdReport', { remembered: { root: 'C:\\Jobs\\P2611', unticked: [] } }).dir).toBe('C:\\Jobs\\P2611\\05_Calcs\\02_Volt_Drop');
     expect(joinInside('/a/b/', 'c/d')).toBe('/a/b/c/d');
   });
-  it('finds no folder made for each building, as the save does not say which, but finds the shared ones', () => {
+  it('an output of the whole project whose role is in the building folders saves into the shared folder', () => {
     const multi = builtInTemplate('multi-building')!;
     const f: ProjectFolder = { templateId: multi.id, version: multi.version, template: multi };
-    expect(roleFolder(f, 'calcVd', {})).toBeUndefined();
+    expect(roleFolder(f, 'calcVd', {})).toEqual({ path: '00_Common' });
     expect(roleFolder(f, 'transmittals', {})).toEqual({ path: '00_Common/Transmittals', onUse: 'TR-{TrNo}' });
   });
 });

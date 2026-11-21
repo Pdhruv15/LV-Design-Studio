@@ -12,6 +12,7 @@ import {
 import { allTemplates, defaultTemplateId, saveTemplate, templatesClient, type TemplatesClient, type TemplatesState } from '../model/folderTemplatesClient';
 import { ask } from './ConfirmDialog';
 import FolderLearnWizard from './FolderLearnWizard';
+import FolderNewTemplate from './FolderNewTemplate';
 import { NamingTab, RolesTab } from './FolderTemplateTabs';
 import { namingIssues } from '../model/fileNaming';
 
@@ -73,6 +74,8 @@ export default function FolderTemplatesPanel({ client: given, onEditing }: {
   const [learning, setLearningRaw] = useState(false);
   const setEditing = (t: FolderTemplate | null) => { setEditingRaw(t); onEditing?.(!!t); };
   const setLearning = (on: boolean) => { setLearningRaw(on); onEditing?.(on); };
+  const [starting, setStartingRaw] = useState(false);
+  const setStarting = (on: boolean) => { setStartingRaw(on); onEditing?.(on); };
 
   useEffect(() => {
     let live = true;
@@ -111,6 +114,10 @@ export default function FolderTemplatesPanel({ client: given, onEditing }: {
     );
   }
 
+  if (starting) {
+    return <FolderNewTemplate takenNames={all.map((t) => t.name)} onCancel={() => setStarting(false)} onCreate={(t) => { setStartingRaw(false); setEditing(t); }} />;
+  }
+
   if (editing) {
     return (
       <TemplateEditor
@@ -147,7 +154,7 @@ export default function FolderTemplatesPanel({ client: given, onEditing }: {
           {shown(state.templates).map(item)}
           {!state.templates.length && <p className="m">None yet.</p>}
           <div className="ft-actions">
-            <button type="button" className="chip" onClick={() => setEditing(blankTemplate())}>+ New</button>
+            <button type="button" className="chip" onClick={() => { setNote(''); setStarting(true); }}>+ New</button>
             <button type="button" className="chip" onClick={() => setEditing(duplicateTemplate(sel, all.map((t) => t.name)))}>Duplicate</button>
             {client.scanFolder && <button type="button" className="chip" onClick={() => { setNote(''); setLearning(true); }}>Learn from folder…</button>}
             {client.import && <button type="button" className="chip" onClick={() => run(async () => { const r = await client.import!(); if (r) setNote(`${r.added} template${r.added === 1 ? '' : 's'} added.`); return r; })}>Import…</button>}

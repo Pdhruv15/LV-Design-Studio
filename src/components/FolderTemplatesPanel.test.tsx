@@ -217,3 +217,48 @@ describe('Learn from folder (C5)', () => {
     expect(saved).toHaveLength(0);
   });
 });
+
+describe('New template: layouts and Repeat for (C7)', () => {
+  const type = (el: HTMLInputElement, v: string) => act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); });
+  const field = (label: string) => [...host.querySelectorAll('label')].find((l) => l.textContent?.startsWith(label))!.querySelector<HTMLInputElement>('input')!;
+  const card = (name: string) => [...host.querySelectorAll('[role=radio].ft-card')].find((c) => c.querySelector('b')?.textContent === name)!;
+  const preview = () => [...host.querySelectorAll('[aria-label=Preview] .ft-row:not(.root) .ft-name')].map((n) => n.textContent);
+
+  it('+ New shows the six layouts; building/phase-first previews a project with 2 buildings', async () => {
+    await render();
+    click(button('+ New'));
+    expect(host.textContent).toContain('New folder template');
+    expect([...host.querySelectorAll('.ft-card b')].map((b) => b.textContent)).toEqual(['Discipline-first', 'Stage-first', 'Building / phase-first', 'ISO 19650 containers', 'Flat & simple', 'Blank']);
+    expect(card('Building / phase-first').getAttribute('aria-checked')).toBe('true');
+    expect(host.textContent).toContain('Preview: project with 2 buildings');
+    expect(preview()).toEqual(expect.arrayContaining(['00_Common', 'B1_Villa-A', 'B2_Villa-B', 'Schedules']));
+    expect(field('Shared folders, once at the top').value).toBe('00_Common');
+    click(card('Stage-first'));
+    expect(host.textContent).not.toContain('Repeat for');
+    click(button('Cancel'));
+    expect(button('+ New')).toBeTruthy();
+  });
+
+  it('phases I type repeat instead of buildings, and the template opens in the editor to save', async () => {
+    await render();
+    click(button('+ New'));
+    click([...host.querySelectorAll<HTMLInputElement>('input[type=radio]')][1]);
+    type(field('Phases'), 'Phase 1, Phase 2, Phase 3');
+    type(field('Folder name'), '{BuildingName}');
+    expect(host.textContent).toContain('Preview: project with 3 phases');
+    expect(preview()).toEqual(expect.arrayContaining(['Phase-1', 'Phase-2', 'Phase-3']));
+    click(button('Create and edit'));
+    expect(names()).toContain('{BuildingName}');
+    click(button('Save template'));
+    await flush();
+    expect(saved[0]).toMatchObject({ name: 'New template', layout: 'building', repeat: { source: 'phases', name: '{BuildingName}', phases: ['Phase 1', 'Phase 2', 'Phase 3'] } });
+  });
+
+  it('Blank starts with the root only', async () => {
+    await render();
+    click(button('+ New'));
+    click(card('Blank'));
+    click(button('Create and edit'));
+    expect(names()).toEqual([]);
+  });
+});

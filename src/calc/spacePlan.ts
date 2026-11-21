@@ -1,4 +1,5 @@
 import type { PlanPanel, PlanTransformer, SpaceArea, SpacePlan, SpacePlanSettings, SpaceUse } from '../types';
+import { catalog } from '../database/catalog';
 
 /** Power density planning: area × W/m² (or a specific kW) × demand factor
  * per area; areas are fed from panels, panels from transformers (or a
@@ -30,6 +31,40 @@ export const DEFAULT_PLAN_SETTINGS: SpacePlanSettings = {
 /** DEWA's usual distribution transformer sizes. */
 export const PLAN_TRANSFORMER_SIZES = [1000, 1500];
 
+/** Market standard sizes: the preferred ratings distribution transformers are made in
+ * (100 to 3,150 kVA), with 1,500 kVA, a usual size with the Gulf utilities. */
+export const MARKET_TX_KVA = [100, 160, 250, 315, 400, 500, 630, 800, 1000, 1250, 1500, 1600, 2000, 2500, 3150];
+
+export type PlanSizeList = NonNullable<SpacePlanSettings['sizeList']>;
+export const PLAN_SIZE_LISTS: { value: PlanSizeList; label: string }[] = [
+  { value: 'dewa', label: '1,000 / 1,500 kVA' },
+  { value: 'market', label: 'Market standard' },
+  { value: 'catalogue', label: 'My catalogue' }
+];
+
+/** Every size of a list: the two DEWA sizes, the market standard sizes, or the
+ * Transformers catalogue (the DEWA sizes while the catalogue is empty). */
+export function sizeListOf(kind: PlanSizeList | undefined): number[] {
+  if (kind === 'market') return MARKET_TX_KVA;
+  const cat = kind === 'catalogue' ? [...new Set(catalog().transformers.map((t) => t.kva).filter((x) => x > 0))].sort((a, b) => a - b) : [];
+  return cat.length ? cat : PLAN_TRANSFORMER_SIZES;
+}
+
+/** The sizes the plan may use: its list, up to its largest size (1,500 kVA unless set). */
+export function planSizes(s: SpacePlanSettings): number[] {
+  const all = sizeListOf(s.sizeList);
+  const max = s.maxTransformerKva ?? 1500;
+  const cut = all.filter((x) => x <= max);
+  return cut.length ? cut : [all[0]];
+}
+
+/** The settings on another size list: a fixed size the new list lacks goes back to Automatic. */
+export function withSizeList(s: SpacePlanSettings, kind: PlanSizeList): SpacePlanSettings {
+  const { sizeList: _l, maxTransformerKva: _m, ...rest } = s;
+  const next: SpacePlanSettings = { ...rest, ...(kind === 'dewa' ? {} : { sizeList: kind }) };
+  return planSizes(next).includes(next.transformerKva) ? next : { ...next, transformerKva: 0 };
+}
+
 export const emptyPlan = (): SpacePlan => ({ areas: [], panels: [], transformers: [], settings: { ...DEFAULT_PLAN_SETTINGS } });
 
 export const usesOf = (plan: SpacePlan): SpaceUse[] => plan.uses ?? DEFAULT_USES;
@@ -50,8 +85,8 @@ export function areaLoad(plan: SpacePlan, a: SpaceArea): AreaLoad {
   return { area: a, wPerM2, demandFactor, connectedKw, demandKw: connectedKw * demandFactor };
 }
 
-/** Demand kVA with the plan's growth allowance, at the plan's PF. */
-const kvaOf = (plan: SpacePlan, kw: number) => (kw / plan.settings.powerFactor) * (1 + plan.settings.growthPct / 100);
+/** Demand kVA with the plan's growth allowance and coincidence, at the plan's PF. */
+const kvaOf = (plan: SpacePlan, kw: number) => (kw / plan.settings.powerFactor) * (1 + plan.settings.growthPct / 100) * (plan.settings.coincidence ?? 1);
 
 export interface PanelLoad {
   panel: PlanPanel;
@@ -118,12 +153,12 @@ export interface PlanSummary {
 /** How many transformers of a size carry `kva` at the loading limit. */
 export const transformersFor = (kva: number, size: number, maxLoadingPct: number) => (kva > 0 ? Math.ceil(kva / (size * (maxLoadingPct / 100)) - 1e-9) : 0);
 
-/** The size to plan with: the setting, or the DEWA size that needs fewer
- * units — the smaller one when both need the same number. */
+/** The size to plan with: the setting, or the size of the plan's list that needs the
+ * fewest units — the smallest one when several need the same number. */
 export function planTransformerKva(plan: SpacePlan, demandKva: number): number {
   if (plan.settings.transformerKva) return plan.settings.transformerKva;
   const n = (s: number) => transformersFor(demandKva, s, plan.settings.maxLoadingPct);
-  return n(1500) < n(1000) ? 1500 : 1000;
+  return planSizes(plan.settings).reduce((best, s) => (n(s) < n(best) ? s : best));
 }
 
 export function summarize(plan: SpacePlan): PlanSummary {

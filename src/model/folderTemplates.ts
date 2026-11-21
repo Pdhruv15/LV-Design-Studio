@@ -51,8 +51,9 @@ export interface FolderTemplate {
   /** The project's own folder, e.g. "{ProjectNo}_{ProjectShort}". */
   root: string;
   numbering?: FolderNumbering;
-  /** Building/phase-first: the building:each node repeats; `shared` lists node ids kept once at the top. */
-  repeat?: { source: 'buildings' | 'phases'; name: string; shared: string[] };
+  /** Building/phase-first: the building:each node repeats; `shared` lists node ids kept once at the top.
+   * With source "phases" the folder repeats for each of `phases` (typed by the user) instead of each building. */
+  repeat?: { source: 'buildings' | 'phases'; name: string; shared: string[]; phases?: string[] };
   naming: NamingRule;
   folders: FolderNode[];
 }
@@ -317,7 +318,9 @@ export function checkOverrides(t: FolderTemplate, ov: ProjectFolderOverrides): {
 
 /* ---------- expansion ---------- */
 
-export interface FolderBuilding { code: string; name: string }
+/** One copy of a folder made for each building: B1, B2… (or P1, P2… for phases); `id` is the building's
+ * id in Building information, so a renamed building can be told from a new one. */
+export interface FolderBuilding { code: string; name: string; id?: string }
 
 export interface ExpandedFolder {
   /** Relative to the project folder, "/" between folders. */

@@ -1034,7 +1034,7 @@ export default function App() {
     loadIntoApp(PANEL_CATEGORIES.reduce((p, c) => withProjectFormat(p, c.key, formats?.[c.key]), made), undefined, 'New project — not saved yet');
     const disk = folderDisk();
     if (folder && disk && choiceReady(folder, disk)) {
-      createChosenFolders(disk, made.id, folder, folderVars(made), folderBuildings(made))
+      createChosenFolders(disk, made.id, folder, folderVars(made), folderBuildings(made, folder.template))
         .then((m) => setStatus(`New project, not saved yet. ${m}`))
         .catch((e: unknown) => setStatus(`New project, not saved yet. The project folder was not made: ${e instanceof Error ? e.message : String(e)}`));
     }
@@ -1933,6 +1933,7 @@ export default function App() {
                 project={project}
                 onChange={(p, step) => setProject(p, step ? { step: true } : undefined)}
                 onStatus={setStatus}
+                onOpen={(v) => setView(v)}
                 onCreated={() => {
                   const first = project.boards[0]?.id;
                   setView('design');
