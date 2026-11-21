@@ -59,7 +59,7 @@ These fields are defined in `src/types.ts` (:594–620). A DWG is written only w
 | `engines/cad-reader/src/doc.rs` | engine (Rust) | `CadDoc::new` (:603), `Builder::entity_drawn` (:299), `describe` (:514), `entity_of` (:940), `define_block` (:1027), `with_additions` (:1051), `export_dxf` (:1126), `dwg_bytes` (:1135), `explode_objects` (:1151) | View reader, picking and snapping, and the DXF/DWG writer. |
 | `engines/cad-reader/src/doc/explode.rs` | engine (Rust) | `explode` | Exact pieces of an object, for CROP and the Blocks palette. |
 | `engines/cad-reader/src/lib.rs` | engine (Rust) | `item` (:65), `read`, `read_json`, `readDrawing` | Second, simpler reader: plan entities as JSON. |
-| `electron/cadFile.cjs` | desktop | `readDrawingFile`, `readDrawingBytes`, `listDrawingFolder`, `engineBytes`, `MAX_BYTES` | Reads drawing files in the main process. |
+| `electron/cadFile.cjs` | desktop | `readDrawingBytes`, `listDrawingFolder`, `engineBytes`, `MAX_BYTES` | Checks and reads drawing files in the main process; the window's engine reads the drawings. |
 | `electron/main.cjs` | desktop | `files:saveBinary` (:307), `files:overwriteBinary` (:319), `chosenDrawings` | Save dialog, and Save over a copy chosen this session. |
 
 ## 3. Inputs — where its data comes from
