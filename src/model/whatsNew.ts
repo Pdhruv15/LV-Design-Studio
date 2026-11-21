@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.247', date: '2026-11-21',
+    items: [
+      { title: 'Space plan: Create / Update supply keeps the loads on the standby generator', text: 'Rows taken from the load assessment now carry their share on the standby generator, and "Create / Update supply" marks that share as essential in the network: a row fully on the generator (lighting, lifts) becomes one essential feeder, a row partly on it (small power, HVAC, pumps) becomes a normal feeder and an essential one, and fire and life safety runs at full load on the generator. The generator sizing on Tx & Gen sizing then sees the same essential load as the load assessment. From v2.242 until now these feeders were made with no essential mark, so the generator came out too small after Create / Update supply. Press "Take loads from the assessment…" and "Create / Update supply" again to bring a plan made since then up to date.' }
+    ]
+  },
+  {
     version: '2.245', date: '2026-11-21',
     items: [
       { title: 'Folder templates: start from a layout', text: 'Preferences → Folder templates → + New now starts from one of six layouts: Discipline-first, Stage-first (Concept, Schematic, Detailed, IFC, each with Calcs and Drawings), Building / phase-first, ISO 19650 containers, Flat & simple, or Blank. Building / phase-first asks what the folders repeat for (the buildings in Building information, or phases you type), the folder name pattern ({BuildingCode}_{BuildingName}) and the shared folders kept once at the top, with a preview for two buildings. Create and edit opens the template in the editor.' },

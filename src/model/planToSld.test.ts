@@ -14,6 +14,8 @@ const empty = (): Project => ({ ...newProject('Test'), boards: [], feeders: [], 
 /** The plan with the assessment's loads and settings, auto-assigned. */
 const planFor = (p: Project): SpacePlan => autoAssign({ ...takeLoads(p, emptyPlan(), a), settings: withAssessmentSettings(emptyPlan().settings, a) });
 const planLoads = (p: Project) => p.feeders.filter((f) => f.fromRoom?.startsWith('sp:'));
+/** One load feeder per plan row, and one more for a row that is partly on the generator. */
+const feedersOf = (plan: SpacePlan) => plan.areas.length + plan.areas.filter((x) => (x.genShare ?? 0) > 0 && (x.genShare ?? 0) < 1).length;
 
 describe('Create / Update supply from the space plan', () => {
   it('makes the plan’s transformers, panels and load feeders on an empty project', () => {
@@ -25,8 +27,8 @@ describe('Create / Update supply from the space plan', () => {
     const tx = r.project.boards.filter((b) => b.generated?.startsWith('sp:tx:'));
     expect(tx.map((b) => b.sourceKva)).toEqual(plan.transformers.map((t) => t.kva));
     expect(r.project.boards.filter((b) => b.generated?.startsWith('sp:panel:'))).toHaveLength(plan.panels.length);
-    // One load feeder per plan row, carrying the row's kW and diversity.
-    expect(planLoads(r.project)).toHaveLength(plan.areas.length);
+    // A load feeder per plan row (two when it is partly on the generator), carrying the row's kW and diversity.
+    expect(planLoads(r.project)).toHaveLength(feedersOf(plan));
     expect(planLoads(r.project).reduce((s, f) => s + f.loadKw, 0)).toBeCloseTo(assess(a).connectedKw, 0);
     // Sized: no longer the starting 63 A on a load of hundreds of kW.
     const big = planLoads(r.project).sort((x, y) => y.loadKw - x.loadKw)[0];
@@ -51,7 +53,7 @@ describe('Create / Update supply from the space plan', () => {
     // The user's feeder and board are untouched; the plan's load feeders are not doubled.
     expect(again.project.feeders.find((f) => f.id === 'F-MINE')).toEqual(mine.feeders.find((f) => f.id === 'F-MINE'));
     expect(again.project.boards.some((b) => b.id === 'DB-MINE')).toBe(true);
-    expect(planLoads(again.project)).toHaveLength(plan.areas.length);
+    expect(planLoads(again.project)).toHaveLength(feedersOf(plan));
   });
 
   it('removes the load assessment’s own MDBs and lump feeders, and plan boards that are gone and empty', () => {
@@ -93,6 +95,26 @@ describe('Create / Update supply from the space plan', () => {
     expect(fresh.feeders.filter((f) => f.fromRoom?.startsWith('sp:') && f.name.startsWith('Lifts')).reduce((s, f) => s + f.loadKw, 0)).toBeCloseTo(liftKw - 44, 1);
     // Generated room circuits are not removed by it, and a designed DB is not counted as a stand-in.
     expect(generateBuildingDbs(fresh, 'none', board).project.feeders.filter((f) => f.fromRoom?.startsWith('sp:')).length).toBe(planLoads(fresh).length);
+  });
+
+  it('keeps each row’s share on the standby generator as an essential feeder', () => {
+    const plan = planFor(empty());
+    const p = updateSupply(empty(), plan).project;
+    const ess = planLoads(p).filter((f) => f.essential);
+    // The generator demand of the network's stand-in feeders is the assessment's essential demand.
+    expect(ess.reduce((s, f) => s + f.loadKw * f.demandFactor, 0)).toBeCloseTo(assess(a).generatorKw, 0);
+    // Lighting is all on the generator: one essential feeder. Small power is 30 % on it: two feeders.
+    expect(planLoads(p).filter((f) => f.name === 'Lighting').map((f) => !!f.essential)).toEqual([true]);
+    const power = planLoads(p).filter((f) => f.name.startsWith('Small power'));
+    expect(power.map((f) => [f.name, !!f.essential])).toEqual([['Small power', false], ['Small power (essential)', true]]);
+    expect(power[1].loadKw / (power[0].loadKw + power[1].loadKw)).toBeCloseTo(0.3, 2);
+    // Fire and life safety: not in the plan's normal demand, at full load on the generator.
+    const life = planLoads(p).find((f) => f.name.startsWith('Fire'))!;
+    expect(life).toMatchObject({ essential: true, demandFactor: 1 });
+    // The connected load is unchanged by the split.
+    expect(planLoads(p).reduce((s, f) => s + f.loadKw, 0)).toBeCloseTo(assess(a).connectedKw, 0);
+    // A second run does not double the pairs.
+    expect(planLoads(updateSupply(p, plan).project)).toHaveLength(planLoads(p).length);
   });
 
   it('adopts the boards of an SLD made before the tags existed, by their ids', () => {
