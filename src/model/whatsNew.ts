@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.236', date: '2026-11-21',
+    items: [
+      { title: 'Building: Common services start from the load assessment', text: 'Concept → Building → Common services… now starts from the load assessment where it has the figure: the lift count and kW, EV chargers from the share of parking bays, pool, façade lighting, fire and jockey pumps, stair fans, booster and transfer pumps and car park fans. A new column says where each starting value comes from; every quantity stays editable. With no assessment, or for a building the assessment does not count, the list starts as before.' },
+      { title: 'No double counting: the assessment\'s lump feeders shrink as loads are designed', text: 'The feeders made by Load assessment → "Create MDB + feeders" stand in for loads that are not designed yet. Common services… and Generate DBs… now have a ticked box that reduces those lump feeders by what is being designed (lifts, pumps, EV, lighting, sockets, A/C, water heaters, cookers), and removes a lump when nothing is left of it. "Create / Update MDB feeders" does the same and says how many kW were left out. Before, the real DBs and services were added on top, so the MDB counted the load twice until the lump feeders were deleted by hand. Loads made by hand as a motor or a general load cannot be told apart and are not taken off. On Load assessment, the notice above the button also shows when loads designed since then have put the feeders out of step.' }
+    ]
+  },
+  {
     version: '2.235', date: '2026-11-21',
     items: [
       { title: 'Load assessment: type your A/C figures as a cooling load or as an electrical load', text: 'Concept → Load assessment → Area schedule has an "A/C figures" switch. "Cooling load" is as before: thermal W/m², turned into electrical kW by the cooling system\'s factor. "Electrical load" is for a standard that gives the A/C load as electrical W/m²: the figures are used as typed and the system factor is not applied. Switching converts the figures with the factor of the cooling system in use, so the load stays the same until you type your own. A type saved as "my type", your space library and the reports remember which of the two the figures are.' }
