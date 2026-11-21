@@ -1,6 +1,6 @@
 # UI UX proposal – Drafting settings (DS) dialog (2026-11-21)
 
-Status: **proposed**, waiting for the user's decisions A–D. Nothing in the dialog's layout is built yet. The DWG default is built separately in PR 743 (v2.244), with no UI change.
+Status: **approved 2026-11-21** ("go with your recommendation"): Option A, and B, C, D as recommended. Being built (v2.245). The DWG default is built separately in PR 743 (v2.244), with no UI change.
 
 Mockup: `docs/mockups/cad-drafting-settings-redesign-mockup.html` (image: `cad-drafting-settings-redesign-mockup.png`).
 
