@@ -69,6 +69,7 @@ export function cadFileMenu(p: Project, cad: CadState, apply: Apply, status: (m:
     plans: plansMenu,
     plansSub: plans.length ? `${plans.filter((x) => x.file).length} of ${plans.length} levels` : undefined,
     level: floor && set ? floor.name : 'Level?',
+    levelSet: !!(floor && set),
     levelTitle: !view ? 'The level the drawing is the plan of' : set && floor ? `${view.file} is the plan of ${floorLabel(p.building, floor)}: rooms and devices go to it` : `Which level is ${view.file}? Choose it so rooms and devices go to that level`,
     levels: view ? plans.map((x) => ({ label: x.label, title: `${view.file} is the plan of ${x.label}`, onClick: () => setPlanLevel(p, view.file, x.floor, apply, view.info.units) })) : [],
     unit: scale ? `${scale.label}${scale.assumed ? '?' : ''}` : 'Units',

@@ -24,10 +24,12 @@ const inView = (p: Pos): Pos => ({ left: Math.min(Math.max(0, p.left), Math.max(
 const placeOf = (id: string): Pos => { try { const p = JSON.parse(localStorage.getItem(POS(id)) ?? 'null') as Pos | null; if (p && Number.isFinite(p.left) && Number.isFinite(p.top)) return inView(p); } catch { /* not remembered */ } return { left: 12 + (document.querySelector<HTMLElement>('.cad-work > .cad-dock.left')?.offsetWidth ?? 0), top: 12 }; };
 
 /** The dialog's frame: title (dragged to move it), body rows, and ? / Cancel / OK. */
-export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK', wide, form, extra, children }: {
+export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK', wide, pages, form, extra, children }: {
   id: string; title: string; alias?: string; help?: string; onOk: () => void; onClose: () => void; okLabel?: string;
   /** A wider dialog (Drafting settings, Save As), and buttons before Cancel. */
   wide?: boolean; extra?: ReactNode; children: ReactNode;
+  /** A page list on the left and the page on the right (Drafting settings): 480 px. */
+  pages?: boolean;
   /** A form (Block definition): a narrow label column and the value across the rest, so a row can hold several
    * controls (a button, boxes, options) and grows to fit them. */
   form?: boolean;
@@ -37,7 +39,7 @@ export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK
   const drag = useRef<{ x: number; y: number; at: Pos; to: Pos } | null>(null);
   const keep = (p: Pos) => { try { localStorage.setItem(POS(id), JSON.stringify(p)); } catch { /* not remembered */ } };
   return (
-    <div className={`cad-dlg${wide ? ' wide' : ''}${form ? ' form' : ''}`} role="dialog" aria-label={title} style={pos}
+    <div className={`cad-dlg${wide ? ' wide' : ''}${pages ? ' pages' : ''}${form ? ' form' : ''}`} role="dialog" aria-label={title} style={pos}
       onKeyDown={(e) => {
         if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); }
         else if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) { e.preventDefault(); e.stopPropagation(); onOk(); }
@@ -85,9 +87,10 @@ export function Num({ label, value, onChange, unit, signed }: { label: string; v
     </Row>
   );
 }
-export const Check = ({ label, value, onChange, disabled }: { label: string; value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) => (
-  <Row label={label}><input aria-label={label} type="checkbox" checked={value} disabled={disabled} onChange={(e) => onChange(e.target.checked)} /></Row>
-);
+/** A checkbox row; `lead` puts the box first and the label after it, on one line. */
+export const Check = ({ label, value, onChange, disabled, lead }: { label: string; value: boolean; onChange: (v: boolean) => void; disabled?: boolean; lead?: boolean }) => lead
+  ? <label className="cad-dlg-r cad-dlg-ck"><input aria-label={label} type="checkbox" checked={value} disabled={disabled} onChange={(e) => onChange(e.target.checked)} /><span>{label}</span></label>
+  : <Row label={label}><input aria-label={label} type="checkbox" checked={value} disabled={disabled} onChange={(e) => onChange(e.target.checked)} /></Row>;
 
 /** The tools with a settings dialog in place of the side panel. */
 export const DIALOG_TOOLS: EditTool[] = ['offset', 'fillet', 'chamfer', 'scale', 'mirror', 'array'];

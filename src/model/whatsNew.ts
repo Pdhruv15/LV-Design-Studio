@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.246', date: '2026-11-21',
+    items: [
+      { title: 'Design CAD: Drafting settings in pages', text: 'The Drafting settings pages are now a list on the left, and Units & level is now two pages: Drawing (the level and units of this drawing) and Saving (Save As format, the .bak copy and the recovery copy, kept on this computer). Labels no longer run into the next row.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.243', date: '2026-11-21',
     items: [
       { title: 'Transformers: the assessment, the space plan and the network side by side', text: 'Concept → Space plan and Panels → Transformers now show one table with the transformers as the load assessment gives them, as the space plan arranges them (with its RMUs) and as the network has them: sizes, maximum demand in kVA and loading, with a bar each. A figure that is not the assessment\'s is marked. Before, the transformers were sized in these three places and never shown together. The table appears once two of the three exist.' },
