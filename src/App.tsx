@@ -274,6 +274,7 @@ export default function App() {
   // What the Load schedule page says its ribbon tools can do (it clears this when it goes away).
   const [scheduleRibbon, setScheduleRibbon] = useState<RibbonActions['schedule']>();
   const [panelsTx, setPanelsTx] = useState<number | undefined>();
+  const [emgKva, setEmgKva] = useState<number>();
   const [dbTab, setDbTab] = useState<string>(); // the Database tab the Load assessment's Edit standards… opens
   // The SLD menu's Repeat branch on other floors: Panels opens on that tab with this board picked.
   const [repeatRoot, setRepeatRoot] = useState<string | undefined>();
@@ -329,6 +330,8 @@ export default function App() {
   const [subDraft, setSubDraft] = useState<Submission | undefined>();
   useEffect(() => onSubmissionOffer(setSubOffer), []);
   const [view, setViewState] = useState<MainView>(() => MANUAL_CAPTURE?.view ?? 'projects'); // the app starts on the projects list
+  // The generator handed over by Tx & Gen sizing is for that one visit to Panels.
+  useEffect(() => { if (view !== 'panels') setEmgKva(undefined); }, [view]);
   useEffect(() => { if (view !== 'sheets') setSheetToOpen(undefined); }, [view]); // Open in my format picks a sheet once, not on every later visit
   const [ribbonTab, setRibbonTab] = useState<RibbonTab>(() => (MANUAL_CAPTURE ? tabForView(MANUAL_CAPTURE.view) : 'home'));
   const [tool, setTool] = useState<DiagramTool>('select');
@@ -1884,7 +1887,7 @@ export default function App() {
                 they only apply changes while their results are up to date. */}
             {view === 'selection' && <SelectionStudy project={calcProject} focus={focus} onClearFocus={() => setFocus(null)} onChange={staleKeys.length ? blocked : setProject} />}
             {view === 'coordination' && <CoordinationStudy project={calcProject} board={board?.id} onBoard={setActiveBoardId} />}
-            {view === 'sizing' && <TransformerGeneratorStudy project={project} onStatus={setStatus} onChange={(p) => setProject(p, { step: true })} />}
+            {view === 'sizing' && <TransformerGeneratorStudy project={project} onStatus={setStatus} onOpen={(v, kva) => { if (v === 'panels') setEmgKva(kva); setView(v); }} onChange={(p) => setProject(p, { step: true })} />}
             {(view === 'drawings' || view === 'drawing-register') && (
               <CadSheets project={project} calcProject={calcProject} results={allResults} annotations={annotations} run={run} sheetId={sheetTab} tab={drawingsTab} ui={sheetUi}
                 onActive={setSheetTab} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpen={setView} />
@@ -1944,7 +1947,7 @@ export default function App() {
             )}
             {view === 'study-reports' && <StudyReportsView project={project} me={{ preparedBy: signature(prefs.profile), checkedBy: prefs.profile.checkedBy }} run={run} stale={stale} onRun={runNow} onChange={setProject} onStatus={setStatus} />}
             {view === 'calculators' && <QuickCalcs project={project} />}
-            {view === 'panels' && <PanelsPage key={panelsTx ?? 0} initialTab={repeatRoot ? 'repeat' : panelsTx ? 'tx' : undefined} repeatRoot={repeatRoot} project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onBuilding={() => setView('building')}
+            {view === 'panels' && <PanelsPage key={`${panelsTx ?? 0}-${emgKva ?? ''}`} emergencyKva={emgKva} initialTab={repeatRoot ? 'repeat' : panelsTx ? 'tx' : undefined} repeatRoot={repeatRoot} project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onBuilding={() => setView('building')}
               onCreated={(next, m, added) => { setProject(next, { step: true }); setCreatedPanelIds(added); setStatus(m); }} />}
             {view === 'earth-schematic' && <EarthingView project={project} onChange={(p) => setProject(p, { step: true })} onSheets={openEarthSheet} />}
             {view === 'enclosure' && <EnclosureSizing key={board?.id} project={project} boardId={board?.id} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}

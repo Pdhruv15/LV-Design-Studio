@@ -14,6 +14,7 @@ import TransformersTab from './TransformersTab';
 import { mainOf, txTag } from '../model/transformers';
 import { toggleIn } from '../util/sets';
 import { useStable } from '../util/useStable';
+import { suggestedGeneratorKva } from '../calc/txGen';
 
 type Tab = 'quick' | 'tx' | 'list' | 'naming' | 'floors' | 'repeat' | 'templates';
 const TABS: [Tab, string][] = [['quick', 'Quick create'], ['tx', 'Transformers'], ['list', 'Panel list'], ['naming', 'Naming'], ['floors', 'Typical floors'], ['repeat', 'Repeat group'], ['templates', 'Templates']];
@@ -22,7 +23,7 @@ const ROWS = 300; // panel list rows drawn at once; search narrows it
 /** Design → Panels: create panels quickly by count (levels later), then edit
  * levels, parents and locations in one list and rename by level. Typical
  * floors, repeat group and templates are the same builders as before. */
-export default function PanelsPage({ project, onChange, onCreated, onStatus, onBuilding, initialTab, repeatRoot }: {
+export default function PanelsPage({ project, onChange, onCreated, onStatus, onBuilding, initialTab, repeatRoot, emergencyKva }: {
   project: Project;
   onChange: (p: Project) => void;
   /** A batch was added: highlight it in the panel tree. */
@@ -33,6 +34,8 @@ export default function PanelsPage({ project, onChange, onCreated, onStatus, onB
   initialTab?: 'tx' | 'repeat';
   /** With the Repeat group tab: the board it starts on (the SLD's right-click menu). */
   repeatRoot?: string;
+  /** The Transformers and generator page asked for emergency boards with this generator: the section starts open with it. */
+  emergencyKva?: number;
 }) {
   const [tab, setTab] = useState<Tab>(initialTab ?? 'quick');
   const created = (next: Project, message: string) => {
@@ -42,7 +45,7 @@ export default function PanelsPage({ project, onChange, onCreated, onStatus, onB
   return (
     <Page title="Panels" intro="Create panels by count first, push them to the SLD and load schedules, then add levels, locations and connections later in Panel list. Names stay incremental (MDB-01, SMDB-01, DB-001) until a panel has a level; Rename by level then applies type – level – number (SMDB-L1, DB-L3-07).">
       <div className="seg pp-tabs">{TABS.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
-      {tab === 'quick' && <QuickCreate project={project} onCreate={created} onList={() => setTab('list')} onChange={onChange} />}
+      {tab === 'quick' && <QuickCreate project={project} emergencyKva={emergencyKva} onCreate={created} onList={() => setTab('list')} onChange={onChange} />}
       {tab === 'tx' && <TransformersTab project={project} onChange={onChange} onCreate={created} onStatus={onStatus} />}
       {tab === 'naming' && <NamingTab project={project} onChange={onChange} onStatus={onStatus} />}
       {tab === 'list' && <PanelList project={project} onChange={onChange} onStatus={onStatus} onBuilding={onBuilding} />}
@@ -53,7 +56,7 @@ export default function PanelsPage({ project, onChange, onCreated, onStatus, onB
 }
 
 /** Counts only: MDBs, SMDBs and DBs as totals, spread evenly, no levels needed. */
-function QuickCreate({ project, onCreate, onList }: { project: Project; onCreate: (next: Project, message: string) => void; onList: () => void; onChange: (p: Project) => void }) {
+function QuickCreate({ project, emergencyKva, onCreate, onList }: { project: Project; emergencyKva?: number; onCreate: (next: Project, message: string) => void; onList: () => void; onChange: (p: Project) => void }) {
   const mains = project.boards.filter((b) => !b.upstreamId);
   const [source, setSource] = useState<'create' | 'existing'>('create');
   const [mdb, setMdb] = useState('1');
@@ -63,10 +66,10 @@ function QuickCreate({ project, onCreate, onList }: { project: Project; onCreate
   const [incomers, setIncomers] = useState(true);
   const [done, setDone] = useState('');
   // Emergency panel: EMDB on an ATS (mains from a normal panel + standby generator), optional sub-panels.
-  const [emg, setEmg] = useState(false);
+  const [emg, setEmg] = useState(emergencyKva !== undefined);
   const [eCount, setECount] = useState('1');
   const [eMains, setEMains] = useState('');
-  const [eKva, setEKva] = useState('');
+  const [eKva, setEKva] = useState(() => String(emergencyKva ?? suggestedGeneratorKva(project) ?? ''));
   const [eSub, setESub] = useState('0');
   const [eDb, setEDb] = useState('0');
   const num = (v: string) => (v.trim() === '' ? NaN : Number(v));

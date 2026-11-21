@@ -1,10 +1,11 @@
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Link2 } from 'lucide-react';
 import { Fragment, useMemo, useState } from 'react';
 import type { Project, StudySettings } from '../../types';
 import { isEssential, settingsOf } from '../../calc/sizing';
 import { boardsInSupplyOrder, loadTypeOf } from '../../calc/summary';
 import { MOTOR_START_DIP_LIMIT_PCT, starterInfo, starterOf } from '../../calc/motor';
-import { applyTransformer, sizeGeneratorByBoards, sizeTransformers, txGenPlanOf, txGenSizeList, type TxGenPlan, type TxRow } from '../../calc/txGen';
+import { applyTransformer, keepTxGenSettings, sizeGeneratorByBoards, sizeTransformers, txGenLink, txGenPlanOf, txGenSizeList, type TxGenLinkRow, type TxGenPlan, type TxRow } from '../../calc/txGen';
+import { transformerLoad } from '../../calc/spacePlan';
 import { txSizeChoices } from '../../calc/sizeLists';
 import { subtree } from '../../calc/pfc';
 import { buildSection, buildStudyReportHtml, scopeOf, setupOf } from '../../docs/studyReport';
@@ -13,12 +14,15 @@ import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { NumberSetting, Page } from '../ui';
 import { ExistingChecksCard } from './ExistingChecks';
+import { GeneratorConceptTable, SupplyConceptTable } from '../docs/SupplyConcept';
 import { txt } from '../../util/format';
 
 
 /** Transformer per main board and the standby generator from whole boards:
  * no circuit lists unless you ask for them. */
-export function TransformerGeneratorStudy({ project, onChange, onStatus }: { project: Project; onChange: (p: Project) => void; onStatus?: (m: string) => void }) {
+const LINK_LABEL: Record<TxGenLinkRow['key'], string> = { growth: 'Future growth / spare', loading: 'Max transformer loading', sizes: 'Transformer sizes', generator: 'Generator margin / max loading' };
+
+export function TransformerGeneratorStudy({ project, onChange, onStatus, onOpen }: { project: Project; onChange: (p: Project) => void; onStatus?: (m: string) => void; onOpen?: (view: 'load-assessment' | 'space-planning' | 'panels', emergencyKva?: number) => void }) {
   const s = settingsOf(project);
   const setS = (k: keyof StudySettings, v: number) => onChange({ ...project, studySettings: { ...project.studySettings, [k]: v } });
   const plan = useMemo(() => txGenPlanOf(project), [project]);
@@ -27,6 +31,9 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
   const gen = useMemo(() => sizeGeneratorByBoards(project, plan), [project, plan]);
   const boards = useMemo(() => boardsInSupplyOrder(project), [project]);
   const mains = boards.filter((b) => !b.upstreamId);
+  const link = useMemo(() => txGenLink(project), [project]);
+  const spacePlan = project.spacePlan?.transformers.length ? project.spacePlan : undefined;
+  const cols = spacePlan ? 1 : 0;
   const [open, setOpen] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const depth = (id: string) => { let d = 0, b = project.boards.find((x) => x.id === id); while (b?.upstreamId && d < 20) { d++; b = project.boards.find((x) => x.id === b!.upstreamId); } return d; };
@@ -87,7 +94,30 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
         <button className="chip" disabled={busy} onClick={() => exportSheet('xlsx')}>Excel</button>
       </>}
     >
+      {link && (
+        <section className="card la-link">
+          <div className="la-link-head">
+            <b>Load assessment and space plan</b><Link2 size={14} aria-hidden /><b>this study</b>
+            {link.notice ? <span className="chip-lite warn">The settings differ</span> : !link.differs ? <span className="chip-lite ok">Same settings</span> : <span className="chip-lite">Your own settings are kept</span>}
+          </div>
+          <table className="bi-table la-table">
+            <thead><tr><th>Setting</th><th>Load assessment</th><th>Space plan</th><th>This study (project design settings)</th><th /></tr></thead>
+            <tbody>
+              {link.rows.map((r) => (
+                <tr key={r.key}><td>{LINK_LABEL[r.key]}</td><td>{r.assessment}</td><td>{r.plan}</td><td><b>{r.study}</b></td><td>{r.differs ? <span className="chip-lite warn">differs</span> : <span className="chip-lite ok">same</span>}</td></tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="bi-actions">
+            {link.notice && <button className="chip" onClick={() => { onChange(keepTxGenSettings(project)); onStatus?.('Your settings are kept — the notice returns when the load assessment or the space plan changes'); }}>Keep my settings</button>}
+            {onOpen && <button className="chip" onClick={() => onOpen('load-assessment')}>Open load assessment</button>}
+            {onOpen && <button className="chip" onClick={() => onOpen('space-planning')}>Open space plan</button>}
+            <span className="m">Shown for information: the concept figures and the design figures may differ on purpose. Nothing is changed for you.</span>
+          </div>
+        </section>
+      )}
       <ExistingChecksCard project={project} />
+      <SupplyConceptTable project={project} withStudy heading={<h3 className="section-title flush">Transformers: concept to design <span className="m">— the load assessment, the space plan, the network and this study side by side</span></h3>} />
       <section className="card txg-card">
         <div className="txg-head">
           <h4>Transformers</h4>
@@ -113,7 +143,7 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
         )}
         <table className="txg-table">
           <thead>
-            <tr><th>Main board</th><th>Demand</th><th>Design</th><th>Recommended</th><th>Installed</th><th>FLC · main breaker</th><th>LV fault · lowest Icu</th><th>Regulation</th><th>Busbar</th><th>Duty / standby</th><th /></tr>
+            <tr><th>Main board</th><th>Demand</th><th>Design</th><th>Recommended</th>{spacePlan && <th>In the plan</th>}<th>Installed</th><th>FLC · main breaker</th><th>LV fault · lowest Icu</th><th>Regulation</th><th>Busbar</th><th>Duty / standby</th><th /></tr>
           </thead>
           <tbody>
             {tx.map((r) => {
@@ -130,6 +160,7 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
                     <td>{txt.power(r.demandKva)} kVA<div className="m">PF {r.pf.toFixed(2)}{r.pfcKvar ? ` · −${txt.plain(r.pfcKvar, 1)} kvar PFC` : ''}</div></td>
                     <td>{txt.power(r.designKva)} kVA</td>
                     <td><b>{r.recommendedKva ? `${r.split > 1 ? `${r.split} × ` : r.n1 ? '2 × ' : ''}${r.recommendedKva} kVA` : '—'}</b>{r.split > 1 && <div className="warn">Above the largest size — split into {r.split} boards</div>}</td>
+                    {spacePlan && <td>{(() => { const t = r.board.generated?.startsWith('sp:tx:') ? spacePlan.transformers.find((x) => x.id === r.board.generated!.slice(6)) : undefined; return t ? `${t.kva.toLocaleString('en-US')} kVA · ${Math.round(transformerLoad(spacePlan, t).loadingPct)} %` : '—'; })()}</td>}
                     <td className={r.adequate === false ? 'bad' : ''}>{r.installedKva ? <>{r.installedKva} kVA<div className="m">{txt.loading(r.loadingPct!)} % loaded{r.adequate === false ? ' — too small' : ''}</div></> : 'Not set'}</td>
                     <td>{c ? <>{txt.current(c.flcA)} A<div className="m">{c.acbA >= 800 ? 'ACB' : 'MCCB'} {c.acbA} A</div></> : '—'}</td>
                     <td className={c?.icuOk === false ? 'bad' : ''}>{c ? <>{txt.fault(c.faultKa)} kA<div className="m">{c.impedancePct} % · lowest Icu {c.minIcuKa ?? '—'} kA</div></> : '—'}</td>
@@ -139,12 +170,12 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
                     <td>{r.recommendedKva && r.split === 1 && (same ? <span className="ok">On the SLD</span> : <button className="chip" onClick={() => apply(r)} title="Set this transformer (kVA, typical impedance) on the SLD">Apply to SLD</button>)}</td>
                   </tr>
                   {r.outage && (
-                    <tr className="sub"><td /><td colSpan={10} className={r.outage.ok ? 'm' : 'warn'}>
+                    <tr className="sub"><td /><td colSpan={10 + cols} className={r.outage.ok ? 'm' : 'warn'}>
                       Bus coupler: with the {r.outage.with} transformer out, this one carries {txt.power(r.outage.kva)} kVA{r.outage.pctOfRecommended !== undefined ? ` = ${txt.loading(r.outage.pctOfRecommended)} % of ${r.recommendedKva} kVA` : ''}{r.outage.ok ? ' — OK' : ` — above ${plan.emergencyLoadingPct} %; shed load on outage or go a size up`}
                     </td></tr>
                   )}
                   {isOpen && r.breakdown.map((x) => (
-                    <tr key={x.id} className="sub"><td style={{ paddingLeft: 30 }}>{x.id === r.board.id ? <span className="m">{x.label}</span> : <>{x.id} <span className="m">{x.label}</span></>}</td><td>{txt.power(x.kva)} kVA</td><td colSpan={9} /></tr>
+                    <tr key={x.id} className="sub"><td style={{ paddingLeft: 30 }}>{x.id === r.board.id ? <span className="m">{x.label}</span> : <>{x.id} <span className="m">{x.label}</span></>}</td><td>{txt.power(x.kva)} kVA</td><td colSpan={9 + cols} /></tr>
                   ))}
                 </Fragment>
               );
@@ -154,6 +185,7 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
         {tx.some((r) => r.checks?.icuOk === false) && <p className="bad">A breaker on the MDB is rated below the LV fault level — raise its breaking capacity.</p>}
       </section>
 
+      <GeneratorConceptTable project={project} heading={<h3 className="section-title flush">Generator: concept to design <span className="m">— the load assessment, this study and the network side by side</span></h3>} />
       <section className="card txg-card">
         <div className="txg-head">
           <h4>Standby generator</h4>
@@ -215,6 +247,7 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
             <dt>Installed</dt>
             <dd className={gen.installedOk === false ? 'bad' : ''}>
               {gen.installedKva ? `${gen.installedKva} kVA / ${txt.plain(gen.installedKva * 0.8)} kW${gen.installedOk === false ? ' — too small' : ''}` : 'None on the SLD'}
+              {!gen.installedKva && gen.recommendedKva && onOpen && <button className="chip" style={{ marginLeft: 8 }} onClick={() => onOpen('panels', gen.recommendedKva)}>Add emergency boards with a {gen.recommendedKva} kVA set…</button>}
               {standbyBoards.length === 1 && gen.recommendedKva && gen.installedKva !== gen.recommendedKva && <button className="chip" style={{ marginLeft: 8 }} onClick={applyGen}>Set {gen.recommendedKva} kVA on {standbyBoards[0].id}</button>}
             </dd>
           </dl>
