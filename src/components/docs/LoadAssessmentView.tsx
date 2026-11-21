@@ -4,9 +4,9 @@ import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import { CheckedNum, Page, type NumRule } from '../ui';
 import {
-  assess, buildingFigures, COOL_SYSTEMS, DEFAULT_SPACES, DHW_SYSTEMS, laSpaces, laTypes, loadLaLibrary, newAssessment, rowArea, rowPct,
+  assess, buildingFigures, COOL_SYSTEMS, DEFAULT_SPACES, DHW_SYSTEMS, isCooled, LA_LOCATIONS, laSpaces, laTypes, loadLaLibrary, newAssessment, rowArea, rowPct,
   saveLaLibrary, setAreaMode, typeFromAssessment, type CategoryKey, type LaBuildingType, type LaCustomLoad, type LaFactors, type LaLibrary, type LaRow,
-  type LaServices, type LaSupply, type LoadAssessment
+  type LaLocation, type LaServices, type LaSupply, type LoadAssessment
 } from '../../calc/loadAssessment';
 import { laLink } from '../../calc/loadAssessmentLink';
 import { createMdbFromAssessment, LA_MDB, mdbStep } from '../../calc/loadAssessmentMdb';
@@ -161,18 +161,19 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
                 <button className={a.areaMode === 'm2' ? 'on' : ''} onClick={() => set(setAreaMode(a, 'm2'))}>m²</button>
               </div>
             </div>
-            <table className="bi-table la-table">
-              <thead><tr><th>Space</th><th>{a.areaMode === 'pct' ? '% GFA' : 'Area m²'}</th><th>Area m²</th>{showB && <th title="Area of this space in Building information: rooms and flats above ground">Building m²</th>}<th>Lighting W/m²</th><th>Power W/m²</th><th title="Thermal">Cooling W/m²</th><th title="Counts for water heating and cooking">Dwelling</th><th /></tr></thead>
+            <table className="bi-table la-table la-area">
+              <thead><tr><th>Space</th><th title="Only an indoor, cooled space carries a cooling load; an outdoor space is outside the GFA">Location</th><th>{a.areaMode === 'pct' ? '% GFA' : 'Area m²'}</th><th>Area m²</th>{showB && <th title="Area of this space in Building information: rooms and flats above ground">Building m²</th>}<th>Lighting W/m²</th><th>Power W/m²</th><th title="Thermal">Cooling W/m²</th><th title="Counts for water heating and cooking">Dwelling</th><th /></tr></thead>
               <tbody>
                 {a.rows.map((row, i) => (
                   <tr key={`${row.id}-${i}`}>
-                    <td><Text value={row.label} onSet={(v) => setRow(i, { label: v })} /></td>
-                    <td>{a.areaMode === 'pct' ? <Num value={row.pct ?? 0} onSet={(v) => setRow(i, { pct: v })} /> : <Num value={row.areaM2 ?? 0} onSet={(v) => setRow(i, { areaM2: v })} width={90} />}</td>
+                    <td><Text value={row.label} onSet={(v) => setRow(i, { label: v })} width={130} /></td>
+                    <td><select className="bi-sel" style={{ width: 120 }} value={row.location ?? 'in'} onChange={(e) => setRow(i, { location: e.target.value === 'in' ? undefined : (e.target.value as LaLocation) })} aria-label="Location">{LA_LOCATIONS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}</select></td>
+                    <td>{a.areaMode === 'pct' ? <Num value={row.pct ?? 0} onSet={(v) => setRow(i, { pct: v })} width={56} /> : <Num value={row.areaM2 ?? 0} onSet={(v) => setRow(i, { areaM2: v })} width={80} />}</td>
                     <td className="m">{txt.size(rowArea(a, row))}{a.areaMode === 'm2' && g ? ` · ${txt.loading(rowPct(a, row))} %` : ''}</td>
                     {showB && <td className={link.spaces[i]?.differs ? 'warn' : ''}>{link.spaces[i]?.buildingM2 === undefined ? '—' : txt.size(link.spaces[i].buildingM2)}</td>}
-                    <td><Num value={row.ltg} onSet={(v) => setRow(i, { ltg: v })} /></td>
-                    <td><Num value={row.pwr} onSet={(v) => setRow(i, { pwr: v })} /></td>
-                    <td><Num value={row.clg} onSet={(v) => setRow(i, { clg: v })} /></td>
+                    <td><Num value={row.ltg} onSet={(v) => setRow(i, { ltg: v })} width={52} /></td>
+                    <td><Num value={row.pwr} onSet={(v) => setRow(i, { pwr: v })} width={52} /></td>
+                    <td>{isCooled(row) ? <Num value={row.clg} onSet={(v) => setRow(i, { clg: v })} width={52} /> : <span className="m" title="No cooling load: the space is not cooled or is outdoors">none</span>}</td>
                     <td style={{ textAlign: 'center' }}><input type="checkbox" checked={!!row.dwelling} onChange={(e) => setRow(i, { dwelling: e.target.checked || undefined })} /></td>
                     <td><button className="icon-btn" title="Remove" onClick={() => patch({ rows: a.rows.filter((_, j) => j !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                   </tr>
@@ -180,13 +181,15 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
               </tbody>
               <tfoot><tr>
                 <td><b>Total</b></td>
+                <td />
                 <td className={pctBad ? 'warn' : ''}><b>{a.areaMode === 'pct' ? `${txt.loading(r.pctTotal)} %` : txt.size(r.areaM2)}</b></td>
-                <td className={pctBad ? 'warn' : ''}><b>{txt.size(r.areaM2)}</b>{pctBad ? ` — GFA is ${txt.size(g)}` : ''}</td>
+                <td className={pctBad ? 'warn' : ''}><b>{txt.size(r.areaM2)}</b>{pctBad ? ` — GFA is ${txt.size(g)}` : ''}{r.outdoorM2 > 0 ? <span className="m"> + {txt.size(r.outdoorM2)} outdoor</span> : null}</td>
                 {showB && <td><b>{txt.size(link.buildingAreaM2)}</b></td>}
                 <td colSpan={5} />
               </tr></tfoot>
             </table>
             {showB && link.spaces.length > a.rows.length && <div className="m">In Building only: {link.spaces.slice(a.rows.length).map((x) => `${x.label} ${txt.size(x.buildingM2)} m²`).join(', ')}</div>}
+            <div className="m">Power is sockets and small power. A space that is not cooled or is outdoors carries no cooling load. An outdoor space is outside the GFA, so it is not in the total. The same space can be listed twice with two locations.</div>
             <div className="bi-actions">
               <select className="bi-sel" value="" onChange={(e) => { const s = spaces.find((x) => x.id === e.target.value); if (s) patch({ rows: [...a.rows, { ...s, ...(a.areaMode === 'pct' ? { pct: 0 } : { areaM2: 0 }) }] }); }}>
                 <option value="">+ Space from library…</option>
@@ -197,8 +200,9 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
               <button className="chip" title="Keep these spaces' densities in your space library (added to or replacing the same names)" onClick={() => {
                 const merged = [...spaces];
                 for (const row of a.rows) {
-                  const s = { id: row.id, label: row.label, ltg: row.ltg, pwr: row.pwr, clg: row.clg, dwelling: row.dwelling };
-                  const i = merged.findIndex((x) => x.id === row.id || x.label === row.label);
+                  const s = { id: row.id, label: row.label, ltg: row.ltg, pwr: row.pwr, clg: row.clg, dwelling: row.dwelling, location: row.location };
+                  // The same space at another location (indoor and outdoor seating) is a library entry of its own.
+                  const i = merged.findIndex((x) => (x.id === row.id && (x.location ?? 'in') === (row.location ?? 'in')) || x.label === row.label);
                   if (i >= 0) merged[i] = s; else merged.push(s);
                 }
                 setLib({ ...lib, spaces: merged }, `Saved ${a.rows.length} space densities to your library`);
