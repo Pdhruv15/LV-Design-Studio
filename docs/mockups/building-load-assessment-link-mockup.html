@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Building and load assessment link mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite light; sizes from src/styles.css (.card, .chip, .la-*, .bi-*) */
+:root{--bg:#F5F3EF;--panel:#ffffff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--ok:#177336;--warn:#8a5d00;--bad:#cf222e;--field:#857E70;--new:#7a3fd1}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/18px -apple-system,"Segoe UI",system-ui,sans-serif;width:1952px;padding:16px 20px 20px}
+h1{font-size:17px;margin:0 0 4px}
+h2{font-size:13px;margin:18px 0 6px;font-weight:600}
+h2 .hm{font-weight:400;color:var(--mut);margin-left:8px}
+p.lead{margin:0 0 6px;color:var(--mut)}
+.m{color:var(--mut)}
+.sp{flex:1}
+.n{display:inline-block;width:18px;height:18px;line-height:18px;border-radius:50%;background:var(--new);color:#fff;text-align:center;font-size:11px;font-weight:700;margin-right:6px;vertical-align:1px;flex:none}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin:0 5px 0 0;border:1.5px dashed var(--new)}
+.nw{outline:1.5px dashed var(--new);outline-offset:3px;border-radius:6px}
+td.nwc,th.nwc{background:rgba(122,63,209,.07);border-left:1.5px dashed var(--new);border-right:1.5px dashed var(--new)}
+.ic{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;flex:none}
+
+.frame{border:1px solid var(--line-strong);border-radius:8px;background:var(--bg);padding:14px 18px 16px}
+.ph{display:flex;align-items:flex-start;gap:16px;margin-bottom:10px}
+.ph h3{font-size:18px;font-weight:600;margin:0 0 2px}
+.ph p{margin:0;color:var(--mut);font-size:12px;max-width:1100px}
+.acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:6px;padding:0 12px;height:28px;font-size:12px;background:var(--p2);white-space:nowrap}
+.chip.primary{background:var(--acc);color:#fff;font-weight:600;border-color:var(--acc)}
+.chip.bad{border-color:#e0919a;color:var(--bad);background:transparent}
+.chip.gone{text-decoration:line-through;opacity:.55}
+.card{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:14px}
+.card h4{margin:0 0 10px;font-size:13px;font-weight:600;display:flex;gap:8px;align-items:center}
+.card h4 .m{font-weight:400;font-size:12px}
+.lan{width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;display:inline-grid;place-items:center;font-size:11px}
+.grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px;align-items:start}
+.t{width:100%;border-collapse:collapse;font-size:12px}
+.t th{text-align:left;font-weight:600;color:var(--mut);padding:5px 8px;border-bottom:1px solid var(--line-strong);white-space:nowrap}
+.t td{padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.t td.wrap{white-space:normal}
+.t tfoot td{border-bottom:0;font-weight:600}
+.t .r{text-align:right}
+.in{display:inline-block;border:1px solid var(--field);border-radius:5px;padding:2px 8px;background:#fff;min-width:54px;text-align:right}
+.in.txt{text-align:left;min-width:150px}
+.sel{display:inline-flex;align-items:center;gap:8px;justify-content:space-between;border:1px solid var(--field);border-radius:5px;padding:2px 8px;background:#fff;min-width:150px}
+.cb{display:inline-grid;place-items:center;width:13px;height:13px;border:1px solid var(--field);border-radius:3px;vertical-align:-2px;margin-right:5px;background:#fff}
+.cb.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.cb svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.tag{display:inline-block;border-radius:999px;padding:0 8px;font-size:11px;line-height:17px;border:1px solid var(--line)}
+.tag.w{border-color:#d9b765;color:var(--warn);background:#fdf6e3}
+.tag.ok{border-color:#9bcfae;color:var(--ok);background:#eef8f1}
+.tag.nw2{border-color:var(--new);color:var(--new);background:rgba(122,63,209,.07)}
+.warn{color:var(--warn)}.okc{color:var(--ok)}.badc{color:var(--bad)}
+.fl{display:flex;gap:12px;flex-wrap:wrap}
+.fl label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut)}
+.fl label .in,.fl label .sel{color:var(--tx)}
+.under{font-size:11px;color:var(--warn)}
+.types{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;margin-bottom:10px}
+.type{padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--p2);font-size:12px}
+.type.on{border-color:var(--acc);color:var(--acc);font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;font-size:12px}
+.seg span{padding:4px 12px}
+.seg span.on{background:var(--acc);color:#fff}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.kpis div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--p2);display:flex;flex-direction:column}
+.kpis b{font-size:18px;line-height:24px}
+.kpis span{font-size:11px;color:var(--mut);line-height:14px}
+.flag{border-radius:8px;padding:8px 10px;font-size:12px;margin-top:8px;border:1px solid var(--line)}
+.flag.ok{border-color:#9bcfae;color:var(--ok)}
+.flag.w{border-color:#d9b765;color:var(--warn)}
+.bar{height:8px;background:rgba(135,88,0,.12);border-radius:4px;overflow:hidden;width:110px;display:inline-block;vertical-align:middle}
+.bar i{display:block;height:100%;background:var(--acc)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* the link strip */
+.link{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:18px;align-items:start;margin-bottom:14px}
+.link .lh{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.link .lh b{font-size:13px}
+.pop{border:1px solid var(--line);border-radius:8px;background:var(--panel);box-shadow:0 8px 24px rgba(39,36,32,.16);padding:12px 14px}
+.pop h5{margin:0 0 8px;font-size:13px}
+.pop ul{margin:0 0 8px;padding-left:18px}
+.pop li{margin:0 0 3px}
+.pop .res{border:1px dashed var(--line-strong);border-radius:6px;padding:6px 10px;margin-bottom:10px}
+.kline{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;align-items:center}
+.two{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;margin-top:12px;align-items:start}
+.dlg{border:1px solid var(--line);border-radius:10px;background:var(--panel);box-shadow:0 8px 24px rgba(39,36,32,.16);padding:14px 16px}
+.dlg h5{margin:0 0 8px;font-size:14px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
+.box{border:1px solid var(--line-strong);border-radius:8px;background:var(--panel);padding:12px 16px}
+.box h4{margin:0 0 8px;font-size:13px}
+.box ol{margin:0;padding-left:20px}
+.box li{margin:0 0 5px}
+.rec{color:var(--ok);font-weight:600}
+.flow text{font:12px -apple-system,"Segoe UI",system-ui,sans-serif;fill:var(--tx)}
+.flow .mt{fill:var(--mut)}
+.flow .bt{font-weight:600;font-size:13px}
+.flow .nt{fill:var(--new);font-weight:600}
+.flow .rt{fill:var(--bad)}
+</style>
+</head>
+<body>
+<h1>Building information and Load assessment: two pages, linked both ways (mockup)</h1>
+<p class="lead">Sample figures: a residential tower (ground + 20 typical floors + roof, 2 basements) and a block of podium shops. The assessment was started before the building was entered, so it still holds its starting 24,000 m² and 20 floors.</p>
+<p class="lead legend"><i></i>Dashed purple outline and a purple number = new. Everything else is the page as it is today.</p>
+
+<h2>How the two pages exchange data</h2>
+<div class="frame" style="background:var(--panel);padding:8px 18px">
+<svg class="flow" viewBox="0 0 1900 262" width="1900" height="262" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#5D574C"/></marker>
+    <marker id="an" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#7a3fd1"/></marker>
+  </defs>
+  <!-- today -->
+  <text x="0" y="16" class="bt">Today</text>
+  <g fill="#EFECE5" stroke="#C2BBAC"><rect x="80" y="26" width="300" height="60" rx="8"/><rect x="800" y="26" width="300" height="60" rx="8"/><rect x="1520" y="26" width="300" height="60" rx="8"/></g>
+  <text x="230" y="51" text-anchor="middle" class="bt">Building information</text><text x="230" y="70" text-anchor="middle" class="mt">buildings, levels, rooms, flats, room types</text>
+  <text x="950" y="51" text-anchor="middle" class="bt">Load assessment</text><text x="950" y="70" text-anchor="middle" class="mt">type, area schedule, services: MD, transformers</text>
+  <text x="1670" y="51" text-anchor="middle" class="bt">Network</text><text x="1670" y="70" text-anchor="middle" class="mt">MDBs, feeders, DBs, load schedules</text>
+  <path d="M380 56H798" stroke="#5D574C" stroke-width="1.4" stroke-dasharray="6 5" fill="none" marker-end="url(#a)"/>
+  <text x="590" y="47" text-anchor="middle">two copy buttons, pressed by hand, once</text>
+  <text x="590" y="74" text-anchor="middle" class="rt">first building only · flats not counted · nothing comes back</text>
+  <path d="M1100 56H1518" stroke="#5D574C" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+  <text x="1310" y="47" text-anchor="middle">Create MDB + feeders</text>
+  <text x="1310" y="74" text-anchor="middle" class="mt">one lump feeder per load category</text>
+  <path d="M230 86V108H1670V88" stroke="#5D574C" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+  <text x="950" y="124" text-anchor="middle">Generate DBs… and Common services… use Building's own rules <tspan class="rt">· added on top of the lump feeders, so the MDB counts the load twice</tspan></text>
+  <line x1="0" y1="140" x2="1900" y2="140" stroke="#DCD7CC"/>
+  <!-- proposed -->
+  <text x="0" y="160" class="bt nt">Proposed</text>
+  <g fill="#EFECE5" stroke="#C2BBAC"><rect x="80" y="170" width="300" height="60" rx="8"/><rect x="800" y="170" width="300" height="60" rx="8"/><rect x="1520" y="170" width="300" height="60" rx="8"/></g>
+  <text x="230" y="195" text-anchor="middle" class="bt">Building information</text><text x="230" y="214" text-anchor="middle" class="mt">also shows the assessment's MD and supply</text>
+  <text x="950" y="195" text-anchor="middle" class="bt">Load assessment</text><text x="950" y="214" text-anchor="middle" class="mt">also shows Building's figures beside its own</text>
+  <text x="1670" y="195" text-anchor="middle" class="bt">Network</text><text x="1670" y="214" text-anchor="middle" class="mt">MDBs, feeders, DBs, load schedules</text>
+  <path d="M380 188H798" stroke="#7a3fd1" stroke-width="1.6" fill="none" marker-end="url(#an)"/>
+  <path d="M800 212H382" stroke="#7a3fd1" stroke-width="1.6" fill="none" marker-end="url(#an)"/>
+  <text x="590" y="181" text-anchor="middle" class="nt">areas, floors, car park, space mix · every building</text>
+  <text x="590" y="227" text-anchor="middle" class="nt">MD, transformers · lifts, EV chargers, pumps</text>
+  <text x="590" y="204" text-anchor="middle" class="mt" style="font-size:11px">a notice when they differ · one press to update</text>
+  <path d="M1100 200H1518" stroke="#5D574C" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+  <text x="1310" y="191" text-anchor="middle">Create / Update MDB + feeders</text>
+  <text x="1310" y="218" text-anchor="middle" class="nt">a notice when the MDB is older than the assessment</text>
+  <path d="M230 230V248H1670V232" stroke="#7a3fd1" stroke-width="1.6" fill="none" marker-end="url(#an)"/>
+  <text x="950" y="260" text-anchor="middle" class="nt">real DBs and service feeders replace the lump feeder of their category</text>
+</svg>
+</div>
+
+<h2>Load assessment <span class="hm">Concept tab · Load assessment</span></h2>
+<div class="frame">
+  <div class="ph">
+    <div><h3>Load assessment</h3><p>Area × W/m² per space gives lighting, small power and cooling; the cooling system turns cooling into electrical kW; services and your custom loads add their own. Each category has its own diversity.</p></div>
+    <div class="acts"><span class="chip gone">GFA from Building</span><span class="chip bad">Clear</span></div>
+  </div>
+
+  <div class="card link nw">
+    <div>
+      <div class="lh"><span class="n">1</span><b>Building information</b><svg class="ic" viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><path d="M8 12h8"/></svg><b>this assessment</b>
+        <span class="tag w">Building changed after these figures were taken</span><span class="sp"></span>
+        <span class="m">Buildings counted:</span>
+        <span><i class="cb on"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i>Tower A</span>
+        <span><i class="cb on"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i>Podium shops</span>
+      </div>
+      <table class="t">
+        <thead><tr><th>Figure</th><th>Building information now</th><th>This assessment</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>GFA above ground</td><td><b>26,400 m²</b> <span class="m">Tower A 25,200 + Podium shops 1,200</span></td><td>24,000 m²</td><td><span class="tag w">differs · +10 %</span></td></tr>
+          <tr><td>Floors above ground</td><td><b>22</b> <span class="m">tallest building: Tower A</span></td><td>20</td><td><span class="tag w">differs</span></td></tr>
+          <tr><td>Basement car park</td><td><b>8,400 m²</b> <span class="m">2 basements × 4,200</span></td><td>8,000 m²</td><td><span class="tag w">differs · +5 %</span></td></tr>
+          <tr><td>Space mix</td><td><b>5 spaces · 24,580 m²</b> <span class="m">rooms and 160 flats, above ground</span></td><td>"Residential tower" mix, % of GFA</td><td><span class="tag w">differs · see column 2</span></td></tr>
+        </tbody>
+      </table>
+      <div class="row" style="margin-top:10px">
+        <span class="chip primary">Update from Building…</span><span class="chip">Keep my figures</span><span class="chip">Open Building</span>
+        <span class="m">Nothing moves until you press Update. "Keep my figures" hides the notice until Building changes again.</span>
+      </div>
+    </div>
+    <div class="pop">
+      <h5>Update from Building: what changes</h5>
+      <ul>
+        <li><i class="cb on"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i>GFA 24,000 to <b>26,400 m²</b> · floors 20 to <b>22</b> · car park 8,000 to <b>8,400 m²</b></li>
+        <li><i class="cb on"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i>Area schedule: 5 spaces in m² from the rooms and flats <span class="m">(your W/m², services and diversities are kept)</span></li>
+      </ul>
+      <div class="res"><b>Result</b> · MD 1,689 to <b>1,738 kVA</b> · 70 to <b>66 VA/m²</b> · lifts 5 to <b>6</b> · transformers stay <b>2 × 1,250 kVA</b> (70 % loaded, limit 80 %) · generator stays <b>1,000 kVA</b></div>
+      <div class="row"><span class="m">One undo step.</span><span class="sp"></span><span class="chip">Cancel</span><span class="chip primary">Update</span></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <h4><span class="lan">1</span>Building type <span class="m">sets the space mix, services and diversities</span></h4>
+        <div class="types"><span class="type on">Residential tower</span><span class="type">Villa compound</span><span class="type">Office</span><span class="type">Retail mall</span><span class="type">Hotel</span><span class="type">Hospital</span><span class="type">School</span><span class="type">Warehouse</span><span class="type" style="border-style:dashed;color:var(--acc)">+ Custom type</span></div>
+        <div class="fl">
+          <label>GFA above ground (m²)<span class="in">24,000</span><span class="under nw" style="outline-offset:1px">Building: 26,400</span></label>
+          <label>Floors above ground<span class="in">20</span><span class="under nw" style="outline-offset:1px">Building: 22</span></label>
+          <label>Basement car park (m²)<span class="in">8,000</span><span class="under nw" style="outline-offset:1px">Building: 8,400</span></label>
+        </div>
+      </div>
+      <div class="card">
+        <h4><span class="lan">2</span>Area schedule <span class="m">every cell editable</span></h4>
+        <div class="row" style="margin-bottom:8px"><span class="seg"><span class="on">% of GFA</span><span>m²</span></span><span class="chip gone">From Building rooms</span><span class="m">both old buttons move into the strip above</span></div>
+        <table class="t">
+          <thead><tr><th>Space</th><th>% GFA</th><th class="r">Area m²</th><th class="nwc r"><span class="n">2</span>Building m²</th><th>Lighting W/m²</th><th>Power W/m²</th><th>Cooling W/m²</th><th>Dwelling</th></tr></thead>
+          <tbody>
+            <tr><td><span class="in txt">Apartment</span></td><td><span class="in">78</span></td><td class="r m">18,720</td><td class="nwc r">18,880</td><td><span class="in">8</span></td><td><span class="in">35</span></td><td><span class="in">110</span></td><td><i class="cb on"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i></td></tr>
+            <tr><td><span class="in txt">Lobby / corridor</span></td><td><span class="in">10</span></td><td class="r m">2,400</td><td class="nwc r warn"><b>3,300</b></td><td><span class="in">6</span></td><td><span class="in">5</span></td><td><span class="in">80</span></td><td><i class="cb"></i></td></tr>
+            <tr><td><span class="in txt">Gym / amenity</span></td><td><span class="in">3</span></td><td class="r m">720</td><td class="nwc r warn"><b>400</b></td><td><span class="in">10</span></td><td><span class="in">20</span></td><td><span class="in">150</span></td><td><i class="cb"></i></td></tr>
+            <tr><td><span class="in txt">Retail / shop</span></td><td><span class="in">4</span></td><td class="r m">960</td><td class="nwc r warn"><b>1,100</b></td><td><span class="in">15</span></td><td><span class="in">20</span></td><td><span class="in">160</span></td><td><i class="cb"></i></td></tr>
+            <tr><td><span class="in txt">Plant / electrical</span></td><td><span class="in">5</span></td><td class="r m">1,200</td><td class="nwc r warn"><b>900</b></td><td><span class="in">5</span></td><td><span class="in">10</span></td><td><span class="in">0</span></td><td><i class="cb"></i></td></tr>
+          </tbody>
+          <tfoot><tr><td>Total</td><td>100 %</td><td class="r">24,000</td><td class="nwc r">24,580</td><td colspan="4" class="m" style="font-weight:400">Building m² is read from the rooms and flats; more than 10 % away from the assessment is marked.</td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4><span class="lan">4</span>Maximum demand &amp; supply</h4>
+      <div class="kpis">
+        <div><b>2,849</b><span>Connected kW</span></div><div><b>1,689</b><span>Maximum demand kVA</span></div><div><b>70</b><span>VA/m² of GFA</span></div>
+        <div><b>2 × 1,250</b><span>Transformers kVA (≤ 80 %, N)</span></div><div><b>1,000</b><span>Standby generator kVA</span></div><div><b>1,804</b><span>LV incomer A / transformer</span></div>
+      </div>
+      <div class="nw" style="padding:2px 0 4px">
+        <div class="row" style="margin-bottom:4px"><span class="n">3</span><b>Concept to design</b><span class="m">three figures side by side, in place of the one "Designed so far" line</span></div>
+        <table class="t">
+          <thead><tr><th>Figure</th><th>From</th><th class="r">Connected kW</th><th class="r">Demand kW</th><th>Side by side</th></tr></thead>
+          <tbody>
+            <tr><td><b>Assessment</b> <span class="m">at the transformer</span></td><td class="m wrap">this page · MD 1,689 kVA</td><td class="r">2,849</td><td class="r"><b>1,520</b></td><td><span class="bar"><i style="width:57%"></i></span></td></tr>
+            <tr><td><b>Rooms</b> <span class="m">sum of rooms and flats</span></td><td class="m wrap">Building · no diversity between flats; no lifts, pumps or EV</td><td class="r">3,944</td><td class="r"><b>2,676</b></td><td><span class="bar"><i style="width:100%"></i></span> <span class="m">MD is 0.57 of it</span></td></tr>
+            <tr><td><b>Designed so far</b> <span class="m">load schedules</span></td><td class="m wrap">62 of 184 DBs</td><td class="r">1,310</td><td class="r"><b>905</b></td><td><span class="bar"><i style="width:34%"></i></span> <span class="m">60 % of the assessment</span></td></tr>
+          </tbody>
+        </table>
+        <div class="m" style="font-size:11px;margin:4px 8px 0">With more than one building the rows open per building. The same table is shown on Building information.</div>
+      </div>
+      <div class="flag ok">70 VA/m² is inside the typical 50–90 VA/m² for "Residential tower".</div>
+      <div class="flag w nw" style="margin-top:12px"><span class="n">7</span>MDB-1 and MDB-2 were made from this assessment before its last change (MD was 1,640 kVA). Press <b>Update MDB feeders</b> to bring them in step.</div>
+      <div class="row" style="margin-top:10px"><span class="sel">Assessment MDBs (MDB-1, MDB-2)<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span><span class="chip primary">Update MDB feeders</span><span class="sp"></span><span class="m">In the Design Basis report</span><span class="chip">Remove</span></div>
+    </div>
+  </div>
+</div>
+
+<h2>Building information <span class="hm">Concept tab · Building</span></h2>
+<div class="frame">
+  <div class="ph">
+    <div><h3>Building information</h3><p>The architectural data, entered once: buildings, levels, rooms with their type and area, and the DB serving them.</p></div>
+    <div class="acts"><span class="chip">+ Building</span><span class="chip">From preset / past project…</span><span class="chip">Save as preset…</span><span class="chip">Paste rooms from Excel</span><span class="chip">Room types</span><span class="chip">Common services…</span><span class="chip primary">Generate DBs…</span><span class="chip">Summary PDF</span><span class="chip">Summary Excel</span></div>
+  </div>
+  <div class="card">
+    <div class="fl" style="margin-bottom:10px">
+      <label>Building<span class="in txt" style="min-width:200px">Tower A</span></label>
+      <label>Use<span class="in txt">Residential tower</span></label>
+      <label>Plot area (m²)<span class="in" style="min-width:110px">6,000</span></label>
+      <label>GFA (m²)<span class="in" style="min-width:110px">25,200</span></label>
+      <label>Built-up area (m²)<span class="in" style="min-width:110px">33,600</span></label>
+    </div>
+    <div class="kline">
+      <span><b>2B + G + 20 + R</b> <span class="m">24 floors (2 below ground)</span></span>
+      <span>GFA <b>25,200 m²</b></span><span>Height <b>79.5 m</b></span><span>Rooms <b>31,880 m²</b></span>
+      <span>Load <b>3,812 kW</b> connected · <b>2,570 kW</b> demand <span class="m">· 102.0 W/m² GFA</span> <span class="tag nw2">160 flats now counted · today: 266 kW</span></span>
+      <span>Designed <b>1,310 kW</b> connected <span class="m">on 62 DBs · 54 flats</span></span>
+    </div>
+    <div class="kline nw" style="margin-top:10px;padding:6px 8px;background:rgba(122,63,209,.05)">
+      <span class="n">4</span>
+      <span>Load assessment <span class="m">Tower A + Podium shops</span> <b>MD 1,689 kVA</b> · <b>2 × 1,250 kVA</b> transformers · <b>1,000 kVA</b> generator · <b>70 VA/m²</b></span>
+      <span class="tag w">taken at GFA 24,000 m² · Building is now 26,400 m²</span>
+      <span class="sp"></span><span class="chip primary">Update the assessment…</span><span class="chip">Open load assessment</span>
+    </div>
+    <div class="m" style="font-size:11px;margin-top:6px">With no assessment yet, the line reads "No load assessment yet" with one button, <b>Start load assessment</b>, which opens it with the type that matches Use and the figures of the buildings.</div>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <h4>Room types <span class="m">this project's</span><span class="sp"></span><span class="chip">+ Type</span><span class="chip">Save as my library</span><span class="chip">Use my library</span></h4>
+      <table class="t">
+        <thead><tr><th>Type</th><th>W/m²</th><th>Demand factor</th><th>Lux</th><th>Rooms</th><th class="nwc"><span class="n">5</span>Assessment space</th><th class="nwc">Lighting / power / cooling W/m²</th></tr></thead>
+        <tbody>
+          <tr><td><span class="in txt">Flat — living / dining</span></td><td><span class="in">150</span></td><td><span class="in">0.7</span></td><td><span class="in">150</span></td><td>0</td><td class="nwc"><span class="sel">Apartment · dwelling<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td class="nwc m">8 / 35 / 110 <span class="tag nw2">today: guessed 10 / 120 / 100</span></td></tr>
+          <tr><td><span class="in txt">Flat — bedroom</span></td><td><span class="in">140</span></td><td><span class="in">0.7</span></td><td><span class="in">100</span></td><td>0</td><td class="nwc"><span class="sel">Apartment · dwelling<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td class="nwc m">8 / 35 / 110</td></tr>
+          <tr><td><span class="in txt">Flat — kitchen</span></td><td><span class="in">350</span></td><td><span class="in">0.6</span></td><td><span class="in">300</span></td><td>0</td><td class="nwc"><span class="sel">Apartment · dwelling<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td class="nwc m">8 / 35 / 110 <span class="tag nw2">today: guessed 10 / 280 / 100</span></td></tr>
+          <tr><td><span class="in txt">Lobby / corridor</span></td><td><span class="in">40</span></td><td><span class="in">0.9</span></td><td><span class="in">200</span></td><td>23</td><td class="nwc"><span class="sel">Lobby / corridor<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td class="nwc m">6 / 5 / 80</td></tr>
+          <tr><td><span class="in txt">Toilet / pantry</span></td><td><span class="in">30</span></td><td><span class="in">0.8</span></td><td><span class="in">200</span></td><td>22</td><td class="nwc"><span class="sel">Back of house<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td class="nwc m">7 / 25 / 90 <span class="tag nw2">today: guessed 6 / 24 / 100</span></td></tr>
+          <tr><td><span class="in txt">Car park</span></td><td><span class="in">10</span></td><td><span class="in">0.9</span></td><td><span class="in">75</span></td><td>2</td><td class="nwc"><span class="sel">Basement car park<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td class="nwc m">own line: lighting and fans</td></tr>
+        </tbody>
+      </table>
+      <div class="m" style="font-size:11px;margin-top:6px">One more column says which assessment space each room type counts as, so the space mix no longer depends on matching names. The flat room types are the rooms of the 160 flats; today they also lose the Dwelling tick. The two density tables stay as they are.</div>
+    </div>
+
+    <div class="dlg">
+      <h5>Common services: Tower A</h5>
+      <table class="t">
+        <thead><tr><th>Service</th><th>kW each</th><th>Qty</th><th class="nwc"><span class="n">6</span>From the load assessment</th><th class="m">Today's start</th></tr></thead>
+        <tbody>
+          <tr><td>Lift</td><td><span class="in">22</span></td><td><span class="in">6</span></td><td class="nwc">6 lifts <span class="m">auto from 22 floors</span></td><td class="m">3</td></tr>
+          <tr><td>Booster pump set</td><td><span class="in">7.5</span></td><td><span class="in">2</span></td><td class="nwc">2 × 7.5 kW</td><td class="m">2</td></tr>
+          <tr><td>Fire pump (electric)</td><td><span class="in">55</span></td><td><span class="in">1</span></td><td class="nwc">fire and life safety ticked</td><td class="m">1</td></tr>
+          <tr><td>Car park ventilation fans</td><td><span class="in">50.4</span></td><td><span class="in">1</span></td><td class="nwc">8,400 m² × 0.006 kW/m²</td><td class="m">1</td></tr>
+          <tr><td>EV charger 7.4 kW</td><td><span class="in">7.4</span></td><td><span class="in">34</span></td><td class="nwc">10 % of 336 bays</td><td class="m">0</td></tr>
+          <tr><td>Swimming pool plant</td><td><span class="in">15</span></td><td><span class="in">1</span></td><td class="nwc">pool ticked</td><td class="m">0</td></tr>
+          <tr><td>Façade lighting</td><td><span class="in">44</span></td><td><span class="in">1</span></td><td class="nwc">2 kW × 22 floors</td><td class="m">0</td></tr>
+        </tbody>
+      </table>
+      <div class="nw" style="margin-top:10px;padding:6px 8px"><i class="cb on"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i>Replace the assessment's lump feeders on MDB-1 and MDB-2 for these services <span class="m">(Lifts (6), Pumps / ventilation, EV charging)</span>, so the load is not counted twice</div>
+      <div class="row" style="margin-top:10px"><span class="m">Every quantity stays editable.</span><span class="sp"></span><span class="chip">Cancel</span><span class="chip primary">Add 46 feeders</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="cols">
+  <div class="box">
+    <h4>Found in the code today</h4>
+    <ol>
+      <li>The link is two copy buttons (<b>GFA from Building</b>, <b>From Building rooms</b>). After the press, nothing says that Building changed.</li>
+      <li>Only the <b>first building</b> is read; a second tower or a podium is left out.</li>
+      <li><b>Flats placed on levels are not counted</b>, only loose rooms: in the assessment's area schedule and in Building's own Load figure.</li>
+      <li>The car park area ignores the Floors count of a repeated basement level, and is 0 when the basement has a gross area but no Car park rooms.</li>
+      <li>Two density tables. A room type with no matching name gets a guessed split (20 % lighting, 80 % power, cooling 100 W/m²) and loses the Dwelling tick, so it adds no water heating or cooking.</li>
+      <li>Nothing comes back: Building never shows the assessment, and Common services starts from its own rules (here 3 lifts where the assessment has 6; no EV chargers, pool or façade).</li>
+      <li>Create MDB + feeders leaves one lump feeder per category. DBs and services generated under the same MDB are added on top, so the load is counted twice until the lump feeders are deleted by hand.</li>
+    </ol>
+  </div>
+  <div class="box">
+    <h4>Decisions for you</h4>
+    <ol type="A">
+      <li><b>Link or combine?</b> <span class="rec">Keep two pages, linked both ways (recommended).</span> Or one page with two tabs. Building also feeds drawings, risers, earthing and ELV, so it stays a page of its own.</li>
+      <li><b>When Building changes:</b> <span class="rec">a notice and one press to update, with the result shown first (recommended)</span>; your typed figures never move on their own. Or the assessment always follows Building and those cells are locked.</li>
+      <li><b>Several buildings:</b> <span class="rec">one assessment for the buildings you tick (recommended now).</span> Or one assessment per building, a larger step for later.</li>
+      <li><b>Densities:</b> <span class="rec">an "Assessment space" column on Room types (recommended).</span> Or one merged density table for both pages.</li>
+      <li><b>Common services</b> start from the assessment and replace its lump feeders <span class="rec">(recommended)</span>, or stay separate.</li>
+      <li><b>Counting fixes first?</b> Items 2 to 5 on the left need no screen change. <span class="rec">Do them now, ahead of the rest (recommended).</span></li>
+    </ol>
+  </div>
+</div>
+<script>
+document.head.appendChild(document.createElement('style')).textContent = '@page{size:1952px ' + (Math.ceil(document.documentElement.scrollHeight) + 4) + 'px;margin:0}';
+</script>
+</body>
+</html>

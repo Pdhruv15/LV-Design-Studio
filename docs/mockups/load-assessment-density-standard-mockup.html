@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Load assessment building type list and density standard mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite light; sizes from src/styles.css (.card, .chip, .la-*, .bi-*) */
+:root{--bg:#F5F3EF;--panel:#ffffff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--ok:#177336;--warn:#8a5d00;--bad:#cf222e;--field:#857E70;--new:#7a3fd1}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/18px -apple-system,"Segoe UI",system-ui,sans-serif;width:1952px;padding:16px 20px 20px}
+h1{font-size:17px;margin:0 0 4px}
+h2{font-size:13px;margin:18px 0 6px;font-weight:600}
+h2 .hm{font-weight:400;color:var(--mut);margin-left:8px}
+p.lead{margin:0 0 6px;color:var(--mut)}
+.m{color:var(--mut)}
+.sp{flex:1}
+.n{display:inline-block;width:18px;height:18px;line-height:18px;border-radius:50%;background:var(--new);color:#fff;text-align:center;font-size:11px;font-weight:700;margin-right:6px;vertical-align:1px;flex:none}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin:0 5px 0 0;border:1.5px dashed var(--new)}
+.nw{outline:1.5px dashed var(--new);outline-offset:3px;border-radius:6px}
+td.nwc,th.nwc{background:rgba(122,63,209,.07);border-left:1.5px dashed var(--new);border-right:1.5px dashed var(--new)}
+.ic{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;flex:none}
+
+.frame{border:1px solid var(--line-strong);border-radius:8px;background:var(--bg);padding:14px 18px 16px}
+.ph{display:flex;align-items:flex-start;gap:16px;margin-bottom:10px}
+.ph h3{font-size:18px;font-weight:600;margin:0 0 2px}
+.ph p{margin:0;color:var(--mut);font-size:12px;max-width:1100px}
+.acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:6px;padding:0 12px;height:28px;font-size:12px;background:var(--p2);white-space:nowrap}
+.chip.primary{background:var(--acc);color:#fff;font-weight:600;border-color:var(--acc)}
+.chip.bad{border-color:#e0919a;color:var(--bad);background:transparent}
+.chip.gone{text-decoration:line-through;opacity:.55}
+.card{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:14px}
+.card h4{margin:0 0 10px;font-size:13px;font-weight:600;display:flex;gap:8px;align-items:center}
+.card h4 .m{font-weight:400;font-size:12px}
+.lan{width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;display:inline-grid;place-items:center;font-size:11px}
+.grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px;align-items:start}
+.t{width:100%;border-collapse:collapse;font-size:12px}
+.t th{text-align:left;font-weight:600;color:var(--mut);padding:5px 8px;border-bottom:1px solid var(--line-strong);white-space:nowrap}
+.t td{padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.t td.wrap{white-space:normal}
+.t tfoot td{border-bottom:0;font-weight:600}
+.t .r{text-align:right}
+.in{display:inline-block;border:1px solid var(--field);border-radius:5px;padding:2px 8px;background:#fff;min-width:54px;text-align:right}
+.in.txt{text-align:left;min-width:150px}
+.sel{display:inline-flex;align-items:center;gap:8px;justify-content:space-between;border:1px solid var(--field);border-radius:5px;padding:2px 8px;background:#fff;min-width:150px}
+.cb{display:inline-grid;place-items:center;width:13px;height:13px;border:1px solid var(--field);border-radius:3px;vertical-align:-2px;margin-right:5px;background:#fff}
+.cb.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.cb svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.tag{display:inline-block;border-radius:999px;padding:0 8px;font-size:11px;line-height:17px;border:1px solid var(--line)}
+.tag.w{border-color:#d9b765;color:var(--warn);background:#fdf6e3}
+.tag.ok{border-color:#9bcfae;color:var(--ok);background:#eef8f1}
+.tag.nw2{border-color:var(--new);color:var(--new);background:rgba(122,63,209,.07)}
+.warn{color:var(--warn)}.okc{color:var(--ok)}.badc{color:var(--bad)}
+.fl{display:flex;gap:12px;flex-wrap:wrap}
+.fl label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut)}
+.fl label .in,.fl label .sel{color:var(--tx)}
+.under{font-size:11px;color:var(--warn)}
+.types{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;margin-bottom:10px}
+.type{padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--p2);font-size:12px}
+.type.on{border-color:var(--acc);color:var(--acc);font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;font-size:12px}
+.seg span{padding:4px 12px}
+.seg span.on{background:var(--acc);color:#fff}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.kpis div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--p2);display:flex;flex-direction:column}
+.kpis b{font-size:18px;line-height:24px}
+.kpis span{font-size:11px;color:var(--mut);line-height:14px}
+.flag{border-radius:8px;padding:8px 10px;font-size:12px;margin-top:8px;border:1px solid var(--line)}
+.flag.ok{border-color:#9bcfae;color:var(--ok)}
+.flag.w{border-color:#d9b765;color:var(--warn)}
+.bar{height:8px;background:rgba(135,88,0,.12);border-radius:4px;overflow:hidden;width:110px;display:inline-block;vertical-align:middle}
+.bar i{display:block;height:100%;background:var(--acc)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* the link strip */
+.link{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:18px;align-items:start;margin-bottom:14px}
+.link .lh{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.link .lh b{font-size:13px}
+.pop{border:1px solid var(--line);border-radius:8px;background:var(--panel);box-shadow:0 8px 24px rgba(39,36,32,.16);padding:12px 14px}
+.pop h5{margin:0 0 8px;font-size:13px}
+.pop ul{margin:0 0 8px;padding-left:18px}
+.pop li{margin:0 0 3px}
+.pop .res{border:1px dashed var(--line-strong);border-radius:6px;padding:6px 10px;margin-bottom:10px}
+.kline{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;align-items:center}
+.two{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;margin-top:12px;align-items:start}
+.dlg{border:1px solid var(--line);border-radius:10px;background:var(--panel);box-shadow:0 8px 24px rgba(39,36,32,.16);padding:14px 16px}
+.dlg h5{margin:0 0 8px;font-size:14px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
+.box{border:1px solid var(--line-strong);border-radius:8px;background:var(--panel);padding:12px 16px}
+.box h4{margin:0 0 8px;font-size:13px}
+.box ol{margin:0;padding-left:20px}
+.box li{margin:0 0 5px}
+.rec{color:var(--ok);font-weight:600}
+.flow text{font:12px -apple-system,"Segoe UI",system-ui,sans-serif;fill:var(--tx)}
+.flow .mt{fill:var(--mut)}
+.flow .bt{font-weight:600;font-size:13px}
+.flow .nt{fill:var(--new);font-weight:600}
+.flow .rt{fill:var(--bad)}
+
+.lock{display:inline-block;min-width:54px;text-align:right;padding:2px 8px;color:var(--mut);border:1px dashed var(--line-strong);border-radius:5px;background:var(--p2)}
+.lk{color:var(--acc);text-decoration:underline}
+.in.ref{min-width:190px;color:var(--mut)}
+.t.tight td,.t.tight th{padding:5px 6px}
+.t.tight .in.txt{min-width:128px}
+.t.tight .sel{min-width:128px !important}
+.t.tight .in{min-width:48px}
+.t.tight .in.ref{min-width:205px}
+tr.hi td{background:rgba(122,63,209,.06)}
+.menu{border:1px solid var(--line);border-radius:8px;background:var(--panel);box-shadow:0 8px 24px rgba(39,36,32,.16);padding:4px;width:300px;font-size:12px;margin-top:4px}
+.menu div{display:flex;justify-content:space-between;gap:10px;padding:5px 10px;border-radius:5px}
+.menu div.on{background:rgba(135,88,0,.10);color:var(--acc);font-weight:600}
+.menu .hd{font-size:11px;color:var(--mut);padding:4px 10px 2px;text-transform:uppercase;letter-spacing:.04em}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+.s1{display:grid;grid-template-columns:320px minmax(0,1fr);gap:18px;align-items:start}
+.lab{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin:0 0 6px}
+.boxd{border:1px dashed var(--line);border-radius:8px;padding:8px 10px}
+.radio{display:inline-block;width:13px;height:13px;border:1px solid var(--field);border-radius:50%;vertical-align:-2px;margin-right:5px;background:#fff}
+.radio.on{border:4px solid var(--acc)}
+.box ul{margin:0 0 8px;padding-left:20px}
+.box h5{margin:8px 0 4px;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+</style>
+</head>
+<body>
+<h1>Load assessment: building type as a list, and your own density standard (mockup)</h1>
+<p class="lead">Sample figures: a residential tower with shops and a restaurant that has indoor and outdoor seating. The numbers continue from the Building link mockup (1 to 7).</p>
+<p class="lead legend"><i></i>Dashed purple outline and a purple number = new. Everything else is the page as it is today.</p>
+
+<h2>Load assessment <span class="hm">Concept tab · Load assessment · sections 1 and 2</span></h2>
+<div class="frame">
+  <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <h4><span class="lan">1</span>Building type <span class="m">sets the space mix, services and diversities</span></h4>
+        <p class="lab">Today: nine buttons, two rows on a narrow window</p>
+        <div class="types" style="opacity:.6"><span class="type on">Residential tower</span><span class="type">Villa compound</span><span class="type">Office</span><span class="type">Retail mall</span><span class="type">Hotel</span><span class="type">Hospital</span><span class="type">School</span><span class="type">Warehouse</span><span class="type" style="border-style:dashed;color:var(--acc)">+ Custom type</span></div>
+        <p class="lab" style="color:var(--new)">Proposed: one list</p>
+        <div class="s1">
+          <div>
+            <div class="fl nw" style="padding:2px"><label><span><span class="n">8</span>Building type</span><span class="sel " style="min-width:290px">Residential tower<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></label></div>
+            <div class="menu">
+              <span class="hd">Starting types (placeholders)</span>
+              <div class="on">Residential tower<span>50–90 VA/m²</span></div>
+              <div>Villa compound<span class="m">60–110</span></div>
+              <div>Office<span class="m">70–120</span></div>
+              <div>Retail mall<span class="m">110–180</span></div>
+              <div>Hotel<span class="m">80–130</span></div>
+              <div>Hospital<span class="m">120–200</span></div>
+              <div>School<span class="m">40–80</span></div>
+              <div>Warehouse<span class="m">15–40</span></div>
+              <hr>
+              <span class="hd">My types</span>
+              <div>My residential tower<span class="m">55–85</span></div>
+              <div>My mixed-use podium<span class="m">90–140</span></div>
+              <hr>
+              <div style="color:var(--acc)">+ Save the current set-up as a new type…</div>
+            </div>
+          </div>
+          <div>
+            <div class="nw" style="padding:2px;margin-bottom:12px">
+              <div class="m" style="font-size:12px;margin-bottom:4px"><span class="n">9</span>Density standard</div>
+              <div class="row"><span class="sel " style="min-width:220px">My standard 2026<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span><span class="chip">Edit standard…</span><span class="m">the W/m² of each space come from this table</span></div>
+            </div>
+            <div class="boxd" style="margin-bottom:10px">
+              <div class="fl">
+                <label>Type name<span class="in txt">Residential tower</span></label>
+                <label>Typical VA/m² — low<span class="in ">50</span></label>
+                <label>Typical VA/m² — high<span class="in ">90</span></label>
+                <label>On generator (% of HVAC &amp; special)<span class="in ">15</span></label>
+              </div>
+              <div class="row" style="margin-top:8px"><span class="chip">Save as my type</span><span class="m">Placeholder figures — save yours to replace them</span></div>
+            </div>
+            <div class="fl">
+              <label>GFA above ground (m²)<span class="in ">26,400</span></label>
+              <label>Floors above ground<span class="in ">22</span></label>
+              <label>Basement car park (m²)<span class="in ">8,400</span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4><span class="lan">2</span>Area schedule <span class="m">every cell editable</span></h4>
+        <div class="row" style="margin-bottom:8px"><span class="seg"><span class="on">% of GFA</span><span>m²</span></span></div>
+        <table class="t tight">
+          <thead><tr><th>Space</th><th class="nwc"><span class="n">10</span>Location</th><th>% GFA</th><th>Lighting W/m²</th><th>Power W/m²</th><th>Cooling W/m²</th><th>Dwelling</th><th class="nwc"><span class="n">11</span>Against my standard</th></tr></thead>
+          <tbody>
+            <tr><td><span class="in txt">Apartment</span></td><td class="nwc"><span class="sel " style="min-width:140px">Indoor, cooled<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">76</span></td><td><span class="in ">8</span></td><td><span class="in ">35</span></td><td><span class="in ">110</span></td><td><i class="cb on"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i></td><td class="nwc"><span class="tag ok">standard</span></td></tr>
+            <tr><td><span class="in txt">Lobby / corridor</span></td><td class="nwc"><span class="sel " style="min-width:140px">Indoor, cooled<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">10</span></td><td><span class="in ">6</span></td><td><span class="in ">5</span></td><td><span class="in ">80</span></td><td><i class="cb"></i></td><td class="nwc"><span class="tag ok">standard</span></td></tr>
+            <tr><td><span class="in txt">F&amp;B — indoor seating</span></td><td class="nwc"><span class="sel " style="min-width:140px">Indoor, cooled<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">3</span></td><td><span class="in ">12</span></td><td><span class="in ">60</span></td><td><span class="in ">200</span></td><td><i class="cb"></i></td><td class="nwc"><span class="tag ok">standard</span></td></tr>
+            <tr><td><span class="in txt">F&amp;B — outdoor seating</span></td><td class="nwc"><span class="sel " style="min-width:140px">Outdoor, covered<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">2</span></td><td><span class="in ">6</span></td><td><span class="in ">15</span></td><td><span class="lock">none</span></td><td><i class="cb"></i></td><td class="nwc"><span class="tag ok">standard</span></td></tr>
+            <tr><td><span class="in txt">Retail / shop</span></td><td class="nwc"><span class="sel " style="min-width:140px">Indoor, cooled<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">4</span></td><td><span class="in ">15</span></td><td><span class="in ">30</span></td><td><span class="in ">160</span></td><td><i class="cb"></i></td><td class="nwc"><span class="tag w">edited</span> <span class="lk">Reset Power to 25</span></td></tr>
+            <tr><td><span class="in txt">Plant / electrical</span></td><td class="nwc"><span class="sel " style="min-width:140px">Indoor, not cooled<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">5</span></td><td><span class="in ">5</span></td><td><span class="in ">10</span></td><td><span class="lock">none</span></td><td><i class="cb"></i></td><td class="nwc"><span class="tag ok">standard</span></td></tr>
+          </tbody>
+          <tfoot><tr><td>Total</td><td class="nwc"></td><td>100 %</td><td colspan="4"></td><td class="nwc"></td></tr></tfoot>
+        </table>
+        <div class="row" style="margin-top:8px"><span class="sel " style="min-width:210px">+ Space from my standard…<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span><span class="chip">+ Custom space</span><span class="sp"></span><span class="chip nw" style="outline-offset:1px">Add these values to my standard…</span></div>
+        <div class="m" style="font-size:11px;margin-top:8px">Power is sockets and small power. A row that is not cooled or is outdoors carries no cooling load, so its cell is closed. The same space can be in the list twice with two locations.</div>
+      </div>
+    </div>
+
+    <div class="dlg nw">
+      <h5><span class="n">12</span>Space densities: my standard</h5>
+      <div class="row" style="margin-bottom:8px">
+        <span class="m">Standard</span><span class="sel " style="min-width:200px">My standard 2026<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span><span class="chip">+ New standard…</span><span class="chip">Duplicate</span><span class="chip">Rename</span>
+        <span class="sp"></span><span class="chip">Paste from Excel</span><span class="chip">Open in Sheets</span>
+      </div>
+      <div class="row" style="margin-bottom:10px">
+        <span class="m">Other standards:</span><span class="tag">Starting figures (placeholders)</span><span class="tag">Client A — hospitality</span><span class="tag">Authority guideline</span>
+        <span class="sp"></span><span class="m">Kept in the LV Database folder as SpaceDensities.xlsx</span>
+      </div>
+      <div class="row nw" style="margin-bottom:10px;padding:6px 8px"><span class="n">13</span><b>My A/C figures are</b>
+        <span><i class="radio on"></i>cooling load, W/m² <span class="m">(thermal; the cooling system's factor gives the electrical kW)</span></span>
+        <span><i class="radio"></i>electrical load, W/m² <span class="m">(used as typed)</span></span>
+      </div>
+      <table class="t tight">
+        <thead><tr><th>Space</th><th>Location</th><th>Lighting W/m²</th><th>Power W/m²</th><th>Cooling W/m²</th><th>Dwelling</th><th>Reference <span class="m" style="font-weight:400">where the value comes from</span></th></tr></thead>
+        <tbody>
+          <tr><td><span class="in txt">Apartment</span></td><td><span class="sel " style="min-width:140px">Indoor, cooled<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">8</span></td><td><span class="in ">35</span></td><td><span class="in ">110</span></td><td><i class="cb on"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i></td><td><span class="in txt ref">Company design guide, rev 3</span></td></tr>
+          <tr><td><span class="in txt">Office</span></td><td><span class="sel " style="min-width:140px">Indoor, cooled<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">9</span></td><td><span class="in ">25</span></td><td><span class="in ">130</span></td><td><i class="cb"></i></td><td><span class="in txt ref">Company design guide, rev 3</span></td></tr>
+          <tr><td><span class="in txt">Retail / shop</span></td><td><span class="sel " style="min-width:140px">Indoor, cooled<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">15</span></td><td><span class="in ">25</span></td><td><span class="in ">160</span></td><td><i class="cb"></i></td><td><span class="in txt ref">Company design guide, rev 3</span></td></tr>
+          <tr><td><span class="in txt">F&amp;B — indoor seating</span></td><td><span class="sel " style="min-width:140px">Indoor, cooled<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">12</span></td><td><span class="in ">60</span></td><td><span class="in ">200</span></td><td><i class="cb"></i></td><td><span class="in txt ref">Last three restaurant fit-outs</span></td></tr>
+          <tr class="hi"><td><span class="in txt">F&amp;B — outdoor seating</span></td><td><span class="sel " style="min-width:140px">Outdoor, covered<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">6</span></td><td><span class="in ">15</span></td><td><span class="lock">none</span></td><td><i class="cb"></i></td><td><span class="in txt ref">Terrace service points only</span></td></tr>
+          <tr><td><span class="in txt">Lobby / corridor</span></td><td><span class="sel " style="min-width:140px">Indoor, cooled<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">6</span></td><td><span class="in ">5</span></td><td><span class="in ">80</span></td><td><i class="cb"></i></td><td><span class="in txt ref">Company design guide, rev 3</span></td></tr>
+          <tr class="hi"><td><span class="in txt">Lobby / corridor — open</span></td><td><span class="sel " style="min-width:140px">Indoor, not cooled<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">5</span></td><td><span class="in ">3</span></td><td><span class="lock">none</span></td><td><i class="cb"></i></td><td><span class="in txt ref">Naturally ventilated corridors</span></td></tr>
+          <tr><td><span class="in txt">Gym / amenity</span></td><td><span class="sel " style="min-width:140px">Indoor, cooled<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">10</span></td><td><span class="in ">20</span></td><td><span class="in ">150</span></td><td><i class="cb"></i></td><td><span class="in txt ref">Company design guide, rev 3</span></td></tr>
+          <tr class="hi"><td><span class="in txt">Pool deck / landscape</span></td><td><span class="sel " style="min-width:140px">Outdoor, open<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">3</span></td><td><span class="in ">2</span></td><td><span class="lock">none</span></td><td><i class="cb"></i></td><td><span class="in txt ref">Pool plant counted as a service</span></td></tr>
+          <tr><td><span class="in txt">Plant / electrical</span></td><td><span class="sel " style="min-width:140px">Indoor, not cooled<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in ">5</span></td><td><span class="in ">10</span></td><td><span class="lock">none</span></td><td><i class="cb"></i></td><td><span class="in txt ref">Company design guide, rev 3</span></td></tr>
+        </tbody>
+      </table>
+      <div class="row" style="margin-top:10px"><span class="chip">+ Space</span><span class="chip">+ Same space, another location</span><span class="sp"></span><span class="chip">Close</span></div>
+      <div class="m" style="font-size:11px;margin-top:8px">One row per space and location. The shaded rows are the outdoor and not cooled versions. New assessments and "Space from my standard" read this table. A project keeps its own copy: changing the standard later does not move a project, and a row that differs is marked "edited" with Reset.</div>
+    </div>
+  </div>
+</div>
+
+<div class="cols">
+  <div class="box">
+    <h4>Where the densities are set</h4>
+    <h5>Today</h5>
+    <ul>
+      <li><b>Per project:</b> section 2, Area schedule. Lighting, Power and Cooling W/m² of every space row can be typed.</li>
+      <li><b>Your own values:</b> the buttons "Save densities as my library" and "Save as my type". They are kept on this computer only, not as a table you can open, share or back up with the database.</li>
+      <li><b>Indoor or outdoor:</b> only by adding a Custom space and typing its three values each time.</li>
+      <li><b>A/C:</b> typed as a cooling load (thermal). The cooling system's factor turns it into electrical kW.</li>
+    </ul>
+    <h5>Proposed</h5>
+    <ul>
+      <li>The same cells per project, with a Location on each row.</li>
+      <li>Your standard as a table in the LV Database folder: one row per space and location, with a Reference for each value. Several named standards, one picked per project.</li>
+      <li>Rows changed from the standard are marked, with Reset.</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h4>Decisions for you</h4>
+    <ol type="A" start="7">
+      <li><b>Building type:</b> <span class="rec">one list (recommended)</span>, or keep the buttons. The list saves a row of buttons and also shows your own types and each type's VA/m² band.</li>
+      <li><b>Indoor and outdoor:</b> <span class="rec">one row per space and location, each with its own values (recommended)</span>, or one row per space with an outdoor factor. Rows are what a design guide gives, and they are easier to check.</li>
+      <li><b>Where your standard is kept:</b> <span class="rec">a table in the LV Database folder, open in Sheets (recommended)</span>, or on this computer only as today.</li>
+      <li><b>How many standards:</b> <span class="rec">several named ones (company, client, authority), one picked per project (recommended)</span>, or a single library.</li>
+      <li><b>A/C figure:</b> <span class="rec">a choice per standard between cooling load and electrical load (recommended)</span>, or cooling load only as today.</li>
+    </ol>
+  </div>
+</div>
+<script>
+document.head.appendChild(document.createElement('style')).textContent = '@page{size:1952px ' + (Math.ceil(document.documentElement.scrollHeight) + 4) + 'px;margin:0}';
+</script>
+</body>
+</html>
