@@ -92,6 +92,9 @@ const sameFile = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 const sameBytes = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((x, i) => x === b[i]);
 /** Above this many lines open at once (about 1 GB of engine memory) the command line suggests closing some. */
 const MANY_LINES = 1_000_000;
+/** How much of a drawing cut off at the engine's limit is shown: "62 %" (rounded down, so never 100 %), or "part of it"
+ * from an engine that does not count what it left out. */
+export const shownPart = (info: { segments: number; dropped?: number }): string => (info.dropped ? `${Math.min(99, Math.floor((100 * info.segments) / (info.segments + info.dropped)))} %` : 'part of it');
 
 /** State of the CAD view, kept by the app so the drawings stay open while other pages are shown. */
 export function useCad(projectId: string | undefined) {
@@ -181,7 +184,7 @@ export function useCad(projectId: string | undefined) {
     changeTabs({ open: next, shown: v });
     setFitKey((k) => k + 1);
     rememberPath(projectId, v.file, v.path);
-    say(`Command: OPEN  ${v.file} — ${v.info.format}, ${v.info.layers.length} layers${v.info.truncated ? ' (very large: part of it shown)' : ''}`);
+    say(`Command: OPEN  ${v.file} — ${v.info.format}, ${v.info.layers.length} layers${v.info.truncated ? ` (very large: ${shownPart(v.info)} shown)` : ''}`);
     const lines = next.reduce((n, d) => n + d.view.info.segments, 0);
     if (next.length > 1 && lines > MANY_LINES) say(`${next.length} drawings open use about ${(lines / MANY_LINES).toFixed(1)} GB of memory. Close the ones you do not need (CLOSE).`);
   }, [projectId, say, show, changeTabs]);

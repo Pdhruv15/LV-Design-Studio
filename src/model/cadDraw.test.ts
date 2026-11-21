@@ -79,6 +79,17 @@ describe('drawing linetypes and hatches', () => {
     expect(b.path.calls).toEqual(['M0,0', 'L1,0', 'L2,0', 'L3,0']);
     expect(b.box).toEqual([0, 0, 3, 0]);
   });
+
+  it('zoomed out (minLen): draws a run of short segments with fewer corners, keeping its last point and every run', () => {
+    // A run of ten 1-unit steps, then a separate 0.5-unit piece, then a 5-unit line.
+    const segs = new Float32Array([...Array.from({ length: 10 }, (_, i) => [i, 0, i + 1, 0]).flat(), 20, 0, 20.5, 0, 30, 0, 35, 0]);
+    const n = segs.length / 4, one = new Uint16Array(n), ink = new Uint32Array(n).fill(7);
+    const [b] = lineBatches(segs, one, ink, undefined, [0, 0, 1000, 1000], () => new Rec(), null, 3);
+    expect(b.path.calls).toEqual(['M0,0', 'L3,0', 'L6,0', 'L9,0', 'L10,0', 'M20,0', 'L20.5,0', 'M30,0', 'L35,0']);
+    expect(b.box).toEqual([0, 0, 35, 0]);
+    // minLen 0 draws every segment, as before.
+    expect(lineBatches(segs, one, ink, undefined, [0, 0, 1000, 1000], () => new Rec(), null, 0)[0].path.calls).toHaveLength(15); // 3 moves + 12 lines
+  });
 });
 
 describe('drawing colours on screen', () => {
