@@ -5,7 +5,7 @@ import type { PlanPanel, Project, SpacePlan, SpaceUse } from '../../types';
 import { autoAssign, DEFAULT_USES, emptyPlan, panelLoad, PLAN_SIZE_LISTS, planSizes, sizeListOf, summarize, usesOf, withSizeList, type PlanSizeList } from '../../calc/spacePlan';
 import { catalog } from '../../database/catalog';
 import { applyPlanEdits, buildPlanSheet } from '../../docs/planSheet';
-import { planToSld } from '../../model/planToSld';
+import { updateSupply } from '../../model/planToSld';
 import ClassicGrid from '../grid/ClassicGrid';
 import { Page } from '../ui';
 import { spaceAreasFromRooms } from '../../calc/building';
@@ -16,7 +16,7 @@ import { PlanLinkStrip } from './SpacePlanLink';
 
 
 /** Space planning: areas (power density or specific kW) → panels →
- * transformers → RMUs, with automatic assignment and "Create SLD". */
+ * transformers → RMUs, with automatic assignment and "Create / Update supply". */
 export default function SpacePlanView({ project, onChange, onStatus, onCreated, onOpen }: {
   project: Project;
   onChange: (p: Project, step?: boolean) => void;
@@ -62,10 +62,13 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated, 
       onStatus('Assign every area to a panel and every panel to a transformer first — use Auto-assign');
       return;
     }
-    if (!(await ask('Create the SLD from this plan? It replaces the current boards and feeders (you can undo).'))) return;
-    const r = planToSld(project, plan);
+    const own = project.boards.filter((b) => !b.generated?.startsWith('sp:') && b.generated !== 'la:mdb').length;
+    if (!(await ask(`Create or update the supply from this plan? Its transformers, panels and load feeders are made or brought up to date.${own ? ` The ${own} other boards of the project and their feeders are kept.` : ''} The load assessment's own MDB feeders are removed: the plan's rows carry those loads. You can undo.`))) return;
+    const r = updateSupply(project, plan);
     onChange({ ...r.project, spacePlan: plan }, true);
-    onStatus(`Created the SLD: ${r.counts.rmus} RMU${r.counts.rmus === 1 ? '' : 's'}, ${r.counts.transformers} transformers, ${r.counts.panels} panels, ${r.counts.loads} planned loads — breakers and cables sized`);
+    onStatus(`Supply ${r.updated.length ? 'updated' : 'created'}: ${r.counts.rmus} RMU${r.counts.rmus === 1 ? '' : 's'}, ${r.counts.transformers} transformers, ${r.counts.panels} panels, ${r.counts.loads} planned loads — their incomers and load feeders sized`
+      + (r.removed.length ? `; removed ${r.removed.join(', ')}` : '')
+      + (r.left.length ? `; ${r.left.join(', ')} ${r.left.length > 1 ? 'are' : 'is'} no longer in the plan but still feed${r.left.length > 1 ? '' : 's'} boards or loads of yours: move those, then delete ${r.left.length > 1 ? 'them' : 'it'}` : ''));
     onCreated();
   }
 
@@ -76,7 +79,7 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated, 
   return (
     <Page
       title="Space planning — power density"
-      intro="Enter the areas (m² × W/m², or a specific kW), then Auto-assign: areas go to an MDB per building, MDBs to transformers at the loading limit (a transformer may feed MDBs in several buildings), transformers to RMUs. Change any assignment in the tables, then Create SLD."
+      intro="Enter the areas (m² × W/m², or a specific kW), then Auto-assign: areas go to an MDB per building, MDBs to transformers at the loading limit (a transformer may feed MDBs in several buildings), transformers to RMUs. Change any assignment in the tables, then Create / Update supply."
       actions={
         <>
           {!!project.building?.rooms.length && (
@@ -87,7 +90,7 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated, 
           )}
           <button className="chip" onClick={() => auto(false)} title="Fill in what's missing, keeping your assignments">Auto-assign</button>
           <button className="chip" onClick={async () => (await ask('Clear all panels, transformers and assignments and plan again?')) && auto(true)}>Re-plan from scratch</button>
-          <button className="chip primary" onClick={createSld}>Create SLD</button>
+          <button className="chip primary" onClick={createSld} title="Makes or updates the plan's transformers, panels and load feeders in the network; the boards and feeders you designed are kept">Create / Update supply</button>
         </>
       }
     >

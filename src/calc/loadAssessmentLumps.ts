@@ -1,7 +1,8 @@
-import type { Feeder, PointType, Project } from '../types';
+import type { Feeder, PointType, Project, SpaceArea } from '../types';
 import { applyRecommendation, recommend } from './sizing';
 import type { LoadAssessment } from './loadAssessment';
 import { assessmentFeeders, type LaFeederItem } from './loadAssessmentMdb';
+import { areaLoad } from './spacePlan';
 
 /** The lump feeders ("la:…" from the load assessment) stand in for loads that are not designed yet. When real
  * DBs or service feeders are designed under the same MDB, the lumps are reduced by what is designed, so the
@@ -25,7 +26,7 @@ const TYPE_LUMPS: Record<string, string> = { lighting: 'ltg', sockets: 'pwr', hv
 
 /** The lump a designed load belongs to, when it can be told. */
 export function lumpOfLoad(f: Feeder): string | undefined {
-  if (f.feedsBoardId || f.existing || f.fromRoom?.startsWith('la:')) return undefined;
+  if (f.feedsBoardId || f.existing || f.fromRoom?.startsWith('la:') || f.fromRoom?.startsWith('sp:')) return undefined;
   if (f.fromRoom?.startsWith('svc:')) return LUMP_OF_SERVICE[f.fromRoom.slice(4)];
   const pts = f.points;
   if (pts && Object.values(pts).some((n) => (n ?? 0) > 0)) {
@@ -83,6 +84,44 @@ export function reconcileLumps(project: Project, a: LoadAssessment): { project: 
     after.set(g, (after.get(g) ?? 0) + (Math.abs(f.loadKw - it.kw) >= 0.005 ? it.kw : f.loadKw));
     if (Math.abs(f.loadKw - it.kw) < 0.005) continue;
     const next = { ...f, loadKw: it.kw };
+    const tmp = { ...p, feeders: p.feeders.map((x) => (x.id === f.id ? next : x)) };
+    p = { ...tmp, feeders: tmp.feeders.map((x) => (x.id === f.id ? applyRecommendation(next, recommend(tmp, next, 'optimise')) : x)) };
+  }
+  const changes: LumpChange[] = [];
+  for (const [key, b] of before) { const toKw = after.get(key) ?? 0; if (Math.abs(b.kw - toKw) >= 0.005) changes.push({ key, label: b.label, fromKw: b.kw, toKw }); }
+  const planned = reconcilePlanLoads(p);
+  return { project: planned.project, changes: [...changes, ...planned.changes] };
+}
+
+/** The category group of a plan row taken from the assessment: a load category, 'life' for
+ * fire and life safety, undefined for a custom load or a row from elsewhere. */
+const planGroup = (a: SpaceArea): string | undefined => (a.from === 'la' && a.laKey && (CATEGORY.has(a.laKey) || a.laKey === 'life') ? a.laKey : undefined);
+
+/** The space plan's load feeders ("sp:<area id>", made by Create / Update supply) of rows taken
+ * from the load assessment, brought to the plan's kW less what is designed in their category:
+ * shared in proportion between the buildings, removed at zero, never added. Rows typed by
+ * hand or taken from the rooms are left as they are. */
+export function reconcilePlanLoads(project: Project): { project: Project; changes: LumpChange[] } {
+  const plan = project.spacePlan;
+  if (!plan || !project.feeders.some((f) => f.fromRoom?.startsWith('sp:'))) return { project, changes: [] };
+  const designed = designedByLump(project);
+  const done = (g: string) => (g === 'life' ? (designed.fire ?? 0) + (designed.jockey ?? 0) + (designed.stair ?? 0) : designed[g] ?? 0);
+  const rows = plan.areas.filter((a) => planGroup(a));
+  const full = new Map<string, number>();
+  for (const a of rows) full.set(planGroup(a)!, (full.get(planGroup(a)!) ?? 0) + areaLoad(plan, a).connectedKw);
+  const want = new Map<string, number>(rows.map((a) => { const g = planGroup(a)!, f = full.get(g) ?? 0; return [`sp:${a.id}`, f > 0 ? round((areaLoad(plan, a).connectedKw * Math.max(0, f - done(g))) / f) : 0]; }));
+  const group = new Map<string, string>(rows.map((a) => [`sp:${a.id}`, planGroup(a)!]));
+  const before = new Map<string, { label: string; kw: number }>(), after = new Map<string, number>();
+  let p = project;
+  for (const f of project.feeders) {
+    const kw = f.fromRoom ? want.get(f.fromRoom) : undefined;
+    if (kw === undefined) continue;
+    const g = group.get(f.fromRoom!)!;
+    before.set(g, { label: before.get(g)?.label ?? f.name, kw: (before.get(g)?.kw ?? 0) + f.loadKw });
+    if (kw < 0.005) { p = { ...p, feeders: p.feeders.filter((x) => x.id !== f.id) }; continue; }
+    after.set(g, (after.get(g) ?? 0) + kw);
+    if (Math.abs(f.loadKw - kw) < 0.005) continue;
+    const next = { ...f, loadKw: kw };
     const tmp = { ...p, feeders: p.feeders.map((x) => (x.id === f.id ? next : x)) };
     p = { ...tmp, feeders: tmp.feeders.map((x) => (x.id === f.id ? applyRecommendation(next, recommend(tmp, next, 'optimise')) : x)) };
   }

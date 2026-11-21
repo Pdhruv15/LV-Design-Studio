@@ -902,6 +902,8 @@ export interface SpaceArea {
   panel?: string; // PlanPanel id
   /** 'la': a load row taken from the load assessment (replaced the next time it is taken). */
   from?: 'la';
+  /** Of a row taken from the load assessment: its load category (ltg, pwr, hvac … life, custom:<id>). */
+  laKey?: string;
 }
 
 export interface PlanPanel {
