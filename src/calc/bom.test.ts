@@ -12,7 +12,7 @@ import { workbookBytes } from '../docs/formWorkbook';
 import { runsOf } from './electrical';
 import { BUILTIN_CATALOGUES, selectionFrom, sizeEnclosure } from './enclosure';
 import { PV_DEFAULTS, sizePv } from './solar';
-import type { Board, Feeder, Project } from '../types';
+import type { Board, Feeder, Project, Rmu } from '../types';
 
 const p = sampleProject;
 
@@ -272,15 +272,18 @@ describe('BOQ: RMU, bus couplers, manufacturer references, emergency lines, eart
   it('one RMU line per RMU, supplied by others; a bus coupler per tie', () => {
     const items = buildBom(withTx());
     const rmu = items.find((i) => i.key === 'rmu:11kV')!;
-    expect(rmu.qty).toBe(2); // sample TX-1 on its own RMU + RMU-1 for the two new transformers
-    expect(rmu.supplyBy).toBe('others');
+    expect(rmu).toMatchObject({ qty: 1, where: ['RMU (TX-1)'], supplyBy: 'others' }); // the sample's TX-1 on its own RMU
+    // RMU-1 feeds the two new transformers: a tee-off for each, as the SLD draws it.
+    expect(items.find((i) => i.key === 'rmu:11kV:RRTT')).toMatchObject({ qty: 1, where: ['RMU-1 (TX-2, TX-3)'], supplyBy: 'others',
+      description: '11 kV ring main unit (RMU): 2 × ring load-break switch + 2 × T-off switch-fuse, SF6 / solid insulated, with earthing switches' });
     expect(items.find((i) => i.key.startsWith('tie:'))).toMatchObject({ section: 'B', qty: 1 });
   });
   it('writes the transformer and RMU lines at the voltage of their grid source; at 11 kV the keys stay as they were', () => {
     const lines = (q: Project) => buildBom(q).filter((i) => /^(tx|rmu):/.test(i.key)).map((i) => [i.key, i.qty, i.description.replace(/ \(RMU\):.*/, ' (RMU)')]);
     const p0 = withTx(); // the sample's TX-1 on its own, and TX-2, TX-3 on RMU-1
     expect(lines(p0)).toEqual([
-      ['rmu:11kV', 2, '11 kV ring main unit (RMU)'],
+      ['rmu:11kV', 1, '11 kV ring main unit (RMU)'],
+      ['rmu:11kV:RRTT', 1, '11 kV ring main unit (RMU)'],
       ['tx:1000:5', 1, 'Distribution transformer 1000 kVA, 11/0.415 kV, Dyn11, Z 5 %'],
       ['tx:1500:6', 2, 'Distribution transformer 1500 kVA, 11/0.415 kV, Dyn11, Z 6 %']
     ]);
@@ -288,12 +291,40 @@ describe('BOQ: RMU, bus couplers, manufacturer references, emergency lines, eart
     const p: Project = { ...p0, gridSources: [{ id: 'A', name: 'A', kv: 11 }, { id: 'B', name: 'B', kv: 33 }], rmus: [{ name: 'RMU-1', sourceId: 'B' }] };
     expect(lines(p)).toEqual([
       ['rmu:11kV', 1, '11 kV ring main unit (RMU)'],
-      ['rmu:33kV', 1, '33 kV ring main unit (RMU)'],
+      ['rmu:33kV:RRTT', 1, '33 kV ring main unit (RMU)'],
       ['tx:1000:5', 1, 'Distribution transformer 1000 kVA, 11/0.415 kV, Dyn11, Z 5 %'],
       ['tx:1500:6:33kV', 2, 'Distribution transformer 1500 kVA, 33/0.415 kV, Dyn11, Z 6 %']
     ]);
     // The LV side is the project's voltage, as on the SLD.
-    expect(lines({ ...p0, voltageV: 400 })[1][2]).toBe('Distribution transformer 1000 kVA, 11/0.400 kV, Dyn11, Z 5 %');
+    expect(lines({ ...p0, voltageV: 400 })[2][2]).toBe('Distribution transformer 1000 kVA, 11/0.400 kV, Dyn11, Z 5 %');
+  });
+  it('describes an RMU as its record says, else as the SLD draws it; the standard unit keeps its key', () => {
+    const p0 = withTx(); // RMU-1 feeds TX-2 and TX-3, with no record
+    const [tx2, tx3] = p0.boards.filter((b) => b.rmu === 'RMU-1').map((b) => b.id);
+    const boards = (q: Project, f: (b: Board) => Board): Project => ({ ...q, boards: q.boards.map(f) });
+    const rec = (r: Omit<Rmu, 'name'>, q = p0): Project => ({ ...q, rmus: [{ name: 'RMU-1', ...r }] });
+    const rmu1 = (q: Project) => buildBom(q).find((i) => i.key.startsWith('rmu:') && i.where.some((w) => w.startsWith('RMU-1 (')));
+    const line = (q: Project) => { const i = rmu1(q)!; return [i.key, i.description.replace(/^11 kV ring main unit \(RMU\): (.*), with earthing switches$/, '$1')]; };
+    // The record's configuration, tee-off device and insulation.
+    expect(line(rec({ config: 'RRTT', tOff: 'vcb', insulation: 'SF6' }))).toEqual(['rmu:11kV:RRTT:vcb:SF6',
+      '2 × ring load-break switch + 2 × T-off circuit breaker with protection relay, SF6 insulated']);
+    expect(line(rec({ config: 'rrttt', insulation: 'eco-gas' }))).toEqual(['rmu:11kV:RRTTT:eco-gas', '2 × ring load-break switch + 3 × T-off switch-fuse, eco-gas insulated']); // one spare
+    // Never fewer tee-offs than the transformers on it (the RMU check warns about an RRT feeding two).
+    expect(line(rec({ config: 'RRT' }))[0]).toBe('rmu:11kV:RRTT');
+    // RMU-1 with TX-2 only: three ring switches as recorded; RMU-2 (TX-3) has no record.
+    const one = boards(p0, (b) => (b.id === tx3 ? { ...b, rmu: 'RMU-2' } : b));
+    expect(line(rec({ config: 'RRRT', insulation: 'solid' }, one))).toEqual(['rmu:11kV:RRRT:solid', '3 × ring load-break switch + 1 × T-off switch-fuse, solid insulated']);
+    // The standard unit (RRT, switch-fuse, no insulation entered) keeps rmu:11kV: TX-1's, RMU-1's and RMU-2's are one line.
+    expect(buildBom(rec({ config: 'RRT', tOff: 'fuse' }, one)).filter((i) => i.key.startsWith('rmu:')).map((i) => [i.key, i.qty])).toEqual([['rmu:11kV', 3]]);
+    // An insulation the app does not know (an edited file) counts as none entered.
+    expect(line(rec({ insulation: 'oil' as Rmu['insulation'] }))[0]).toBe('rmu:11kV:RRTT');
+    // An existing transformer is not listed but takes a tee-off; an RMU feeding only existing ones has no line.
+    expect(rmu1(boards(p0, (b) => (b.id === tx3 ? { ...b, existing: {} } : b)))).toMatchObject({ key: 'rmu:11kV:RRTT', where: ['RMU-1 (TX-2)'] });
+    expect(rmu1(boards(p0, (b) => (b.id === tx2 || b.id === tx3 ? { ...b, existing: {} } : b)))).toBeUndefined();
+    // A main board on RMU-1 with no transformer entered yet takes a tee-off, as on the SLD; one on an authority LV supply does not.
+    const add = (b: Partial<Board>): Project => ({ ...p0, boards: [...p0.boards, { id: 'MDB-X', name: 'MDB-X', kind: 'MDB', rmu: 'RMU-1', substation: 'SS-01', ...b }] });
+    expect(line(add({}))[0]).toBe('rmu:11kV:RRTTT');
+    expect(line(add({ supply: { fedFrom: 'DEWA' } }))[0]).toBe('rmu:11kV:RRTT');
   });
   it('breakers carry a manufacturer reference "or approved equal" without changing their keys', () => {
     const mcb = buildBom(sampleProject).find((i) => i.key.startsWith('mcb:') && / SP,/.test(i.description))!;

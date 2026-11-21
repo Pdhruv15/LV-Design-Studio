@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.229', date: '2026-11-20',
+    items: [
+      { title: 'BOQ: each RMU as you entered it', text: 'The BOQ\'s RMU line now follows the RMU\'s details in Panels → Transformers: its ring switches and tee-offs from the configuration (RT, RRT, RRTT, RRRT, RRTTT), a switch-fuse or circuit breaker tee-off, and the insulation. With no configuration entered it has two ring switches and a tee-off for each transformer on it, as the SLD draws it. Before, every RMU had one switch-fuse tee-off, so an RMU feeding two transformers was listed one short. A standard RMU (two ring switches, one switch-fuse tee-off, no insulation entered) keeps its BOQ line and item number; any other gets a line of its own. An RMU with no name no longer shows its transformer twice in the Location column.' }
+    ]
+  },
+  {
     version: '2.228', date: '2026-11-20',
     items: [
       { title: 'Printed SLD: MV cables black, RMU box white', text: 'On PDF sheets and SLD exports, the MV lines (the ring, the cables into each RMU and down to the transformers) now print solid black like every other cable. They printed grey and could look blurred when zoomed in. The RMU box now prints white; it printed as a dark fill that hid the switches drawn inside it. The drawing on screen is unchanged.' }
