@@ -26,7 +26,7 @@ describe('database catalogue', () => {
       generators: [{ kva: 500, xdPct: 14, price: 90000 }],
       busbar: [{ material: 'Cu', ratingA: 1600, rMohmPerM: 0.03, xMohmPerM: 0.01, ratePerM: 950 }],
       equipment: [{ category: 'SPD', description: 'SPD T2', price: 1800, boqKey: 'spd:T2' }],
-      roomTypes: [{ id: 'Office Open', label: 'Open office', wPerM2: 120, ltgM2PerPoint: 8 }],
+      roomTypes: [{ id: 'Office Open', label: 'Open office', wPerM2: 120, ltgM2PerPoint: 8, laSpace: 'Office' }],
       unitTypes: [{ unitType: '1BR', room: 'Living', roomType: 'living', areaM2: 30 }, { unitType: '1BR', room: 'Bed', roomType: 'bedroom', areaM2: 14, meter: '1-PH' }],
       prices: [{ list: 'Schneider', key: 'mccb:250:TP+N:36', rate: 2400, install: 150 }],
       rules: [{ key: 'pfMinimum', value: 0.95 }, { key: 'maxLtgPerCircuit', value: 8 }]
@@ -43,6 +43,7 @@ describe('database catalogue', () => {
     expect(loadPriceLists()[0].name).toBe('Schneider (Excel)');
     expect(catalog().unitTypes[0].rooms.length).toBe(2);
     expect(roomTypesOf({ buildings: [], rooms: [] })[0].id).toBe('office-open');
+    expect(roomTypesOf({ buildings: [], rooms: [] })[0].laSpace).toBe('office');
   });
   it('reads the space densities as named standards and skips bad rows', () => {
     const db = parseDatabase(raw({ spaceDensities: [

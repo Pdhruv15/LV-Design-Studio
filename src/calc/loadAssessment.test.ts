@@ -213,6 +213,17 @@ describe('load assessment from Building information', () => {
     expect(r.services.cook).toBeGreaterThan(0);
   });
 
+  it('a room type counts as the assessment space set on it, or as the car park', () => {
+    const info: BuildingInfo = {
+      ...twoBuildings, unitTypes: [],
+      roomTypes: [{ id: 'lab', label: 'Laboratory', wPerM2: 200, demandFactor: 0.8, laSpace: 'office' }, { id: 'ramp', label: 'Ramp', wPerM2: 5, demandFactor: 1, laSpace: 'carpark' }],
+      rooms: [{ id: 'x1', buildingId: 'P', levelId: 'P-G', name: 'Lab', type: 'lab', areaM2: 90 }, { id: 'x2', buildingId: 'P', levelId: 'P-G', name: 'Ramp', type: 'ramp', areaM2: 60 }]
+    };
+    expect(rowsFromRooms(withBuildings(info))).toEqual([{ id: 'office', label: 'Office', ltg: 9, pwr: 25, clg: 130, areaM2: 90 }]);
+    // The ramp is car park area: out of the area schedule, in the car park figure of its building.
+    expect(buildingFigures(withBuildings(info), ['P']).parkingM2).toBe(60);
+  });
+
   it('a room type with no space keeps its own row with a split of its W/m²', () => {
     const info: BuildingInfo = { ...twoBuildings, roomTypes: [{ id: 'lab', label: 'Laboratory', wPerM2: 200, demandFactor: 0.8 }], rooms: [{ id: 'x1', buildingId: 'P', levelId: 'P-G', name: 'Lab', type: 'lab', areaM2: 90 }], unitTypes: [] };
     expect(rowsFromRooms(withBuildings(info))).toEqual([{ id: 'lab', label: 'Laboratory', ltg: 10, pwr: 160, clg: 100, areaM2: 90 }]);

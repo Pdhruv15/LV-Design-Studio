@@ -1,7 +1,8 @@
 import type { Project } from '../types';
 import { catalog } from '../database/catalog';
 import type { BuildingInfo, ProjectBuilding } from '../types';
-import { buildingInfoOf, carParkAreaOf, roomTypesOf, summarizeBuilding, unitRoomLoads } from './building';
+import type { RoomType } from '../types';
+import { buildingInfoOf, carParkAreaOf, isCarParkType, roomTypesOf, summarizeBuilding, unitRoomLoads } from './building';
 
 /** Early-stage load assessment: building type → area schedule (W/m² per
  * space) → service requirements → maximum demand, transformers and the
@@ -353,6 +354,14 @@ export function newAssessment(t: LaBuildingType, base: Partial<LoadAssessment> =
  * back of house. */
 export const SPACE_OF_ROOM_TYPE: Record<string, string> = { apartment: 'apt', living: 'apt', bedroom: 'apt', kitchen: 'apt', bathroom: 'apt', toilet: 'bo' };
 
+/** The assessment space a room type counts as: the one set on it (Building → Room types),
+ * else the space with its id or name, else the built-in pairing. Undefined: none, so the
+ * room type gets a row of its own. */
+export function spaceOfRoomType(rt: RoomType | undefined, typeId: string, spaces: LaSpace[]): LaSpace | undefined {
+  const byId = (id?: string) => (id ? spaces.find((x) => x.id === id) ?? DEFAULT_SPACES.find((x) => x.id === id) : undefined);
+  return byId(rt?.laSpace) ?? spaces.find((x) => x.id === typeId || x.label.toLowerCase() === (rt?.label ?? typeId).toLowerCase()) ?? byId(SPACE_OF_ROOM_TYPE[typeId]);
+}
+
 /** The assessment's area schedule from the Building rooms and flats (m² per space, above
  * ground) of every building, or of the ones named. Room types that count as the same
  * space share one row. */
@@ -360,7 +369,7 @@ export function rowsFromRooms(project: Project, spaces: LaSpace[] = laSpaces(), 
   const info = buildingInfoOf(project);
   const types = new Map(roomTypesOf(info).map((t) => [t.id, t]));
   const byType = new Map<string, number>();
-  const add = (type: string, areaM2: number) => { if (type !== 'parking') byType.set(type, (byType.get(type) ?? 0) + areaM2); };
+  const add = (type: string, areaM2: number) => { if (!isCarParkType(info, type)) byType.set(type, (byType.get(type) ?? 0) + areaM2); };
   for (const b of countedBuildings(info, buildingIds)) {
     const below = new Set(b.levels.filter((l) => l.kind === 'basement').map((l) => l.id));
     const levelCount = new Map(summarizeBuilding(info, b).levels.map((l) => [l.level.id, l.count]));
@@ -369,11 +378,10 @@ export function rowsFromRooms(project: Project, spaces: LaSpace[] = laSpaces(), 
     }
     for (const u of unitRoomLoads(info, b)) if (!below.has(u.levelId)) add(u.type, u.areaM2);
   }
-  const spaceById = (id?: string) => (id ? spaces.find((x) => x.id === id) ?? DEFAULT_SPACES.find((x) => x.id === id) : undefined);
   const rows = new Map<string, LaRow>();
   for (const [type, areaM2] of byType) {
     const rt = types.get(type);
-    const known = spaces.find((x) => x.id === type || x.label.toLowerCase() === (rt?.label ?? type).toLowerCase()) ?? spaceById(SPACE_OF_ROOM_TYPE[type]);
+    const known = spaceOfRoomType(rt, type, spaces);
     const w = rt?.wPerM2 ?? 30;
     // Unknown space: the room type's W/m² split into lighting and power — review the cooling.
     const row: LaSpace = known ?? { id: type, label: rt?.label ?? type, ltg: Math.min(10, Math.round(w * 0.2)), pwr: Math.round(w * 0.8), clg: 100 };

@@ -3,7 +3,7 @@ import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import type { BuildingInfo, BuildingLevel, BuildingRoom, LevelKind, Project, ProjectBuilding, RoomType } from '../../types';
 import {
-  buildingInfoOf, dbChecks, DEFAULT_ROOM_TYPES, LEVEL_KINDS, loadRoomTypeLibrary, newBuilding, nextRoomId, roomLoad, roomsFromTable, roomTypesOf, saveRoomTypeLibrary, summarizeBuilding
+  buildingInfoOf, CAR_PARK_SPACE, dbChecks, DEFAULT_ROOM_TYPES, LEVEL_KINDS, loadRoomTypeLibrary, newBuilding, nextRoomId, roomLoad, roomsFromTable, roomTypesOf, saveRoomTypeLibrary, summarizeBuilding
 } from '../../calc/building';
 import { Page, Modal } from '../ui';
 import { applyRiserLengths, benchOf, floorLoads, lpdOf, rulesOf, unitLoads } from '../../calc/buildingDesign';
@@ -15,6 +15,7 @@ import { DensityPanel, GenerateDialog, LevelUnitsDialog, RoomRulesTable, Service
 import { ReuseDialog, SavePresetDialog } from './BuildingReuse';
 import { txt } from '../../util/format';
 import { AssessmentLine } from './LoadAssessmentLink';
+import { laStandards, spaceOfRoomType, standardOf } from '../../calc/loadAssessment';
 import { ConceptToDesignTable } from './ConceptToDesign';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -52,6 +53,9 @@ export default function BuildingView({ project, onChange, onStatus, onOpen }: { 
     if (m) onStatus(m);
   };
   const types = roomTypesOf(info);
+  // The spaces of the density standard the load assessment reads (not memoised: the catalogue changes outside React state).
+  const stdSpaces = standardOf(project.loadAssessment?.standard, laStandards()).spaces;
+  const laSpaceIds = stdSpaces.filter((s, i) => stdSpaces.findIndex((x) => x.id === s.id) === i);
   const sum = useMemo(() => (b ? summarizeBuilding(info, b) : undefined), [info, b]);
   const checks = useMemo(() => dbChecks(project), [project]);
   const designed = useMemo(() => {
@@ -291,7 +295,7 @@ export default function BuildingView({ project, onChange, onStatus, onOpen }: { 
             <button className="chip" onClick={() => { const i = types.length + 1; setTypes([...types, { id: `type${i}`, label: `Type ${i}`, wPerM2: 20, demandFactor: 0.8 }]); }}>+ Type</button>
             <button className="chip" title="Write these room types to RoomTypes.xlsx (database) — new projects start with them" onClick={async () => {
               if (window.lvds?.database.write) {
-                await window.lvds.database.write('roomTypes', types.map((t) => { const r = rulesOf(t); return { id: t.id, label: t.label, wPerM2: t.wPerM2, demandFactor: t.demandFactor, lux: t.lux ?? '', ltgM2PerPoint: r.ltgM2PerPoint ?? '', s13M2PerPoint: r.s13M2PerPoint ?? '', acM2PerUnit: r.acM2PerUnit ?? '', acKwPerUnit: r.acKwPerUnit ?? '', wh: r.wh ?? '', cooker: r.cooker ?? '', exfan: r.exfan ?? '', lpdMax: lpdOf(t) ?? '', benchWPerM2: benchOf(t) ?? '' }; }));
+                await window.lvds.database.write('roomTypes', types.map((t) => { const r = rulesOf(t); return { id: t.id, label: t.label, wPerM2: t.wPerM2, demandFactor: t.demandFactor, lux: t.lux ?? '', ltgM2PerPoint: r.ltgM2PerPoint ?? '', s13M2PerPoint: r.s13M2PerPoint ?? '', acM2PerUnit: r.acM2PerUnit ?? '', acKwPerUnit: r.acKwPerUnit ?? '', wh: r.wh ?? '', cooker: r.cooker ?? '', exfan: r.exfan ?? '', lpdMax: lpdOf(t) ?? '', benchWPerM2: benchOf(t) ?? '', laSpace: t.laSpace ?? '' }; }));
                 onStatus('Saved to RoomTypes.xlsx (database) — backup in Backups/');
               } else onStatus(saveRoomTypeLibrary(types) ? 'Saved as your room type library on this computer' : 'Could not store the library');
             }}>Save as my library</button>
@@ -299,7 +303,7 @@ export default function BuildingView({ project, onChange, onStatus, onOpen }: { 
             {info.roomTypes && <button className="chip" onClick={() => set({ ...info, roomTypes: undefined })}>Placeholders</button>}
           </div>
           <table className="bi-table">
-            <thead><tr><th>Type</th><th>W/m²</th><th>Demand factor</th><th>Lux</th><th>Rooms</th><th /></tr></thead>
+            <thead><tr><th>Type</th><th>W/m²</th><th>Demand factor</th><th>Lux</th><th>Rooms</th><th title="Which space of the load assessment the rooms of this type count as">Assessment space</th><th title="Of that space, in the density standard">Lighting / power / cooling W/m²</th><th /></tr></thead>
             <tbody>
               {types.map((t) => (
                 <tr key={t.id}>
@@ -308,6 +312,19 @@ export default function BuildingView({ project, onChange, onStatus, onOpen }: { 
                   <td><Cell value={t.demandFactor} onSet={(v) => v !== undefined && setTypes(types.map((x) => (x.id === t.id ? { ...x, demandFactor: v } : x)))} width={70} /></td>
                   <td><Cell value={t.lux} onSet={(v) => setTypes(types.map((x) => (x.id === t.id ? { ...x, lux: v } : x)))} width={70} /></td>
                   <td>{info.rooms.filter((r) => r.type === t.id).length}</td>
+                  <td>
+                    <select className="bi-sel" value={t.laSpace ?? ''} onChange={(e) => setTypes(types.map((x) => (x.id === t.id ? { ...x, laSpace: e.target.value || undefined } : x)))} aria-label={`Assessment space of ${t.label}`}>
+                      <option value="">By name</option>
+                      {laSpaceIds.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                      <option value={CAR_PARK_SPACE}>Basement car park</option>
+                      {t.laSpace && t.laSpace !== CAR_PARK_SPACE && !laSpaceIds.some((s) => s.id === t.laSpace) && <option value={t.laSpace}>{t.laSpace} (not in the standard)</option>}
+                    </select>
+                  </td>
+                  <td className="m">{(() => {
+                    if (t.laSpace === CAR_PARK_SPACE || (!t.laSpace && t.id === 'parking')) return 'car park: lighting and fans';
+                    const s = spaceOfRoomType(t, t.id, stdSpaces);
+                    return s ? `${s.label}: ${s.ltg} / ${s.pwr} / ${s.clg}${s.dwelling ? ' · dwelling' : ''}` : 'no space: a row of its own';
+                  })()}</td>
                   <td>{!info.rooms.some((r) => r.type === t.id) && <button className="icon-btn" title="Remove" onClick={() => setTypes(types.filter((x) => x.id !== t.id))} aria-label="Remove"><X size={14} aria-hidden /></button>}</td>
                 </tr>
               ))}

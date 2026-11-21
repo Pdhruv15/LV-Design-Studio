@@ -740,6 +740,12 @@
           "header": "Typical W/m²",
           "width": 13,
           "number": true
+        },
+        {
+          "key": "laSpace",
+          "header": "Assessment space",
+          "width": 20,
+          "help": "Which space of the load assessment this room type counts as: an Id from SpaceDensities.xlsx, or carpark for a car park. Blank = by the same Id or name."
         }
       ]
     },

@@ -230,7 +230,7 @@ function parseCatalog(raw: RawDatabase, bad: (file: string, row: unknown, why: s
     if (c.roomTypes.some((t) => t.id === id)) { bad(fileOf('roomTypes'), r._row, `duplicate id ${id}`); continue; }
     const t: RoomType = { id, label, wPerM2: w, demandFactor: pos(r.demandFactor) ?? 0.8, lux: opt(r.lux),
       rules: { ltgM2PerPoint: pos(r.ltgM2PerPoint), s13M2PerPoint: pos(r.s13M2PerPoint), acM2PerUnit: pos(r.acM2PerUnit), acKwPerUnit: pos(r.acKwPerUnit), wh: opt(r.wh), cooker: opt(r.cooker), exfan: opt(r.exfan) },
-      lpdMax: pos(r.lpdMax), benchWPerM2: pos(r.benchWPerM2) };
+      lpdMax: pos(r.lpdMax), benchWPerM2: pos(r.benchWPerM2), laSpace: str(r.laSpace).toLowerCase() || undefined };
     c.roomTypes.push(t);
   }
   for (const r of rowsOf('spaceDensities')) {

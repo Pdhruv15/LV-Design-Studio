@@ -124,10 +124,17 @@ export function unitRoomLoads(info: BuildingInfo, b: ProjectBuilding): UnitRoomL
   return out;
 }
 
+/** A room type that is a car park: the Car park type, or one set to count as the
+ * assessment's car park. */
+export const CAR_PARK_SPACE = 'carpark';
+export function isCarParkType(info: BuildingInfo, typeId: string): boolean {
+  return typeId === 'parking' || roomTypesOf(info).find((t) => t.id === typeId)?.laSpace === CAR_PARK_SPACE;
+}
+
 /** Car park area of a building: its Car park rooms, every copy on every identical
  * floor; when none are entered, the gross area of its basements. */
 export function carParkAreaOf(info: BuildingInfo, b: ProjectBuilding): number {
-  const rooms = info.rooms.filter((r) => r.buildingId === b.id && r.type === 'parking');
+  const rooms = info.rooms.filter((r) => r.buildingId === b.id && isCarParkType(info, r.type));
   if (rooms.length) return rooms.reduce((s, r) => s + roomLoad(info, r).areaM2, 0);
   return b.levels.filter((l) => l.kind === 'basement').reduce((s, l) => s + (l.grossM2 ?? 0) * countOf(l), 0);
 }
