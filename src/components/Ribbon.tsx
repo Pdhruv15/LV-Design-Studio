@@ -305,7 +305,7 @@ const GROUP_OF: Partial<Record<CadTool, number>> = {
   text: G.annotate, mtext: G.annotate, draworder: G.modify, texttofront: G.modify, block: G.blocks, blockpick: G.blocks, insert: G.blocks, attedit: G.blocks, attpick: G.blocks, dim: G.dims, dimlin: G.dims, dimcont: G.dims, dimbase: G.dims, dimrad: G.dims, dimdia: G.dims, dimang: G.dims, leader: G.leaders, mleader: G.leaders, mleaderadd: G.leaders, mleaderremove: G.leaders, mleaderalign: G.leaders, mleadercollect: G.leaders, rtag: G.leaders, rtall: G.leaders, north: G.drawnMarkup, keynote: G.leaders,
   tcount: G.annotate, tjust: G.annotate, th: G.annotate, talign: G.annotate, tcase: G.annotate, tframe: G.annotate, tmask: G.annotate, tcopy: G.annotate, matchprop: G.props, dist: G.measure, area: G.measure,
   xattach: G.reference, xclip: G.reference, crop: G.reference, room: G.rooms, trace: G.rooms, name: G.rooms, tray: G.cables, cable: G.cables, link: G.cables,
-  dev: G.devices, fill: G.devices, lux: G.devices, em: G.devices, arl: G.editDevices, match: G.editDevices, wire: G.wiring
+  dev: G.devices, fill: G.devices, lux: G.devices, roomtemplate: G.devices, em: G.devices, arl: G.editDevices, match: G.editDevices, wire: G.wiring
 };
 /** Under Text's arrow: Text and Numbered text, then the tools that change the texts picked (typed-only before v2.072). */
 const TEXT_TOOLS: [CadTool, string, string][] = [
@@ -1019,6 +1019,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Add device', icon: CirclePlus, cmd: 'DEV', title: 'Place lights, sockets, a DB or ELV devices on the plan (DEV): choose it and its circuit, then click', onClick: () => a.cad?.onTool('dev'), active: a.cad?.tool === 'dev', disabled: !a.cad?.hasDrawing },
         cadTool('fill', 'Fill room', Grid3x3, 'Choose an ELV device, point at a room to see it at its coverage spacing, click to place them all (FILL)'),
         cadTool('lux', 'Light room', Lightbulb, 'Point at a room: its luminaires by the lumen method for its outline, then placed as lights on a circuit (LUX)'),
+        sm(cadTool('roomtemplate', 'Room devices', LayoutTemplate, 'Click one room, preview a bounded LV and ELV device template, then approve it (RDT)')),
         sm(cadTool('em', 'Emergency', DoorOpen, 'Emergency lighting (BS 5266-1 / EN 1838): draw the escape routes, mark the points of emphasis and open areas; fittings and exit signs are placed at their spacing (EM)')),
         sm({ label: 'Coverage', icon: CircleDashed, cmd: 'COV', title: 'Show what the devices of the chosen ELV device\'s system cover, and what is not covered (COV)', onClick: () => a.cad?.onCoverage(), active: a.cad?.coverageOn, disabled: !a.cad?.hasDrawing }),
         sm({ label: 'Copy to level', icon: Copy, title: "Copy this level's devices of the chosen ELV device's system to another level, at the same plan positions", onClick: () => {}, menuOnly: true, disabled: !a.cad?.hasDrawing || !a.cad.copyLevels?.length, menu: a.cad?.copyLevels })

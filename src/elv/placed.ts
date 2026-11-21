@@ -108,8 +108,9 @@ export function placedOnLevel(p: Project, buildingId: string, levelId: string): 
 
 /** Fill room: a grid of devices inside a room outline at the spacing their coverage allows (√2 × radius, so the
  * squares' corners are covered; or the speaker spacing), each in the middle of its square. Points outside an L-shaped
- * outline are left out; a room too small for any point gets one device in the middle. */
-export function fillPoints(outline: [number, number][], type: ElvDeviceType): NewElvDevice[] {
+ * outline are left out; a room too small for any point gets one device in the middle. `maxPoints` stops bounded
+ * previews without building the rest of the array. */
+export function fillPoints(outline: [number, number][], type: ElvDeviceType, maxPoints = Number.POSITIVE_INFINITY): NewElvDevice[] {
   const c = ELV_DEVICES[type].coverage;
   const step = c?.kind === 'radius' ? c.m * Math.SQRT2 : c?.kind === 'spacing' ? c.m : 0;
   if (!step || outline.length < 3) return [];
@@ -117,12 +118,12 @@ export function fillPoints(outline: [number, number][], type: ElvDeviceType): Ne
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
   const nx = Math.max(1, Math.ceil((x1 - x0) / step - 1e-9)), ny = Math.max(1, Math.ceil((y1 - y0) / step - 1e-9));
   const r2 = (v: number) => Math.round(v * 100) / 100;
-  const out: NewElvDevice[] = [];
-  for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+  const out: NewElvDevice[] = [], limit = Math.max(0, Math.floor(maxPoints));
+  for (let i = 0; i < nx && out.length < limit; i++) for (let j = 0; j < ny && out.length < limit; j++) {
     const at: [number, number] = [x0 + ((i + 0.5) * (x1 - x0)) / nx, y0 + ((j + 0.5) * (y1 - y0)) / ny];
     if (inside(at, outline)) out.push({ type, x: r2(at[0]), y: r2(at[1]) });
   }
-  if (!out.length) out.push({ type, x: r2(xs.reduce((t, v) => t + v, 0) / xs.length), y: r2(ys.reduce((t, v) => t + v, 0) / ys.length) });
+  if (!out.length && limit > 0) out.push({ type, x: r2(xs.reduce((t, v) => t + v, 0) / xs.length), y: r2(ys.reduce((t, v) => t + v, 0) / ys.length) });
   return out;
 }
 
