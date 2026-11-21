@@ -14,6 +14,7 @@ import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { DensityPanel, GenerateDialog, LevelUnitsDialog, RoomRulesTable, ServicesDialog, UnitTypesCard } from './BuildingDesignPanels';
 import { ReuseDialog, SavePresetDialog } from './BuildingReuse';
 import { txt } from '../../util/format';
+import { AssessmentLine } from './LoadAssessmentLink';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -32,7 +33,7 @@ function TextCell({ value, onSet, width = 150 }: { value: string; onSet: (v: str
 /** Architectural information: buildings, levels (typical floors), rooms and
  * room types — entered once, used by space planning, the busbar riser, the
  * DEWA forms and the check of each DB against the rooms it serves. */
-export default function BuildingView({ project, onChange, onStatus }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
+export default function BuildingView({ project, onChange, onStatus, onOpen }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void; onOpen?: (view: 'load-assessment') => void }) {
   const info = buildingInfoOf(project);
   const set = (next: BuildingInfo) => onChange({ ...project, building: next });
   const [sel, setSel] = useState(info.buildings[0]?.id ?? '');
@@ -158,6 +159,7 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
                 {designed.dbs > 0 && <span title="Total of the DBs designed for this building's floors and flats">Designed <b>{txt.power(designed.kw)} kW</b> connected <span className="m">on {designed.dbs} DBs{designed.flats ? ` · ${designed.flats} flats` : ''}</span></span>}
               </div>
             )}
+            <AssessmentLine project={project} use={b.use} onChange={onChange} onStatus={onStatus} onOpen={onOpen && (() => onOpen('load-assessment'))} />
             <button className="linkish bad" style={{ marginLeft: 0, alignSelf: 'flex-start' }} onClick={async () => {
               if (!(await ask(`Delete ${b.name} and its ${info.rooms.filter((r) => r.buildingId === b.id).length} rooms?`))) return;
               set({ ...info, buildings: info.buildings.filter((x) => x.id !== b.id), rooms: info.rooms.filter((r) => r.buildingId !== b.id) });

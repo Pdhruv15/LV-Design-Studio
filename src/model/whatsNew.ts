@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.231', date: '2026-11-21',
+    items: [
+      { title: 'Load assessment and Building are linked both ways', text: 'Concept → Load assessment now starts with a strip that shows Building information beside the assessment: GFA above ground, floors, car park and the space mix, with what differs marked, and tick boxes for the buildings counted. "Update from Building…" shows the result first (maximum demand, VA/m², lifts, transformers, generator) and then takes the figures, the area schedule or both as one undo step; your own W/m², services and diversities are kept. "Keep my figures" hides the notice until Building changes again. Nothing moves on its own. The area schedule has a Building m² column beside each space. The strip replaces the "GFA from Building" and "From Building rooms" buttons. Concept → Building shows the assessment on its own line (maximum demand, transformers, generator, VA/m²) with "Update the assessment…" and "Open load assessment", or "Start load assessment" when there is none yet.' }
+    ]
+  },
+  {
     version: '2.230', date: '2026-11-21',
     items: [
       { title: 'Load assessment and Building: every building and the flats are counted', text: 'Concept → Load assessment: "GFA from Building" now adds up every building (GFA and car park; floors of the tallest one), and "From Building rooms" counts the flats placed on the levels as well as the rooms. Before, only the first building was read and the flats were left out. The rooms of a flat (living, bedroom, kitchen, bathroom) go into one Apartment row marked as a dwelling, so water heating and cooking are included; a toilet or pantry counts as back of house. Car park rooms on a repeated basement level count once per floor, and with no Car park rooms the basements\' gross area is used. Concept → Building: the Load and Rooms figures, the load per level and a busbar riser taken from the building now include the flats, so these figures rise for a building with flats. Press the two buttons again to bring an existing assessment up to date.' }

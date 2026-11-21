@@ -4,13 +4,15 @@ import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import { CheckedNum, Page, type NumRule } from '../ui';
 import {
-  assess, buildingFigures, COOL_SYSTEMS, DEFAULT_SPACES, DHW_SYSTEMS, laSpaces, laTypes, loadLaLibrary, newAssessment, rowArea, rowPct, rowsFromRooms,
+  assess, buildingFigures, COOL_SYSTEMS, DEFAULT_SPACES, DHW_SYSTEMS, laSpaces, laTypes, loadLaLibrary, newAssessment, rowArea, rowPct,
   saveLaLibrary, setAreaMode, typeFromAssessment, type CategoryKey, type LaBuildingType, type LaCustomLoad, type LaFactors, type LaLibrary, type LaRow,
   type LaServices, type LaSupply, type LoadAssessment
 } from '../../calc/loadAssessment';
 import { buildDashboard } from '../../calc/dashboard';
+import { laLink } from '../../calc/loadAssessmentLink';
 import { createMdbFromAssessment, LA_MDB } from '../../calc/loadAssessmentMdb';
 import { txt } from '../../util/format';
+import { LinkStrip } from './LoadAssessmentLink';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
@@ -30,7 +32,7 @@ const uid = (p: string) => `${p}${Date.now().toString(36)}${Math.floor(Math.rand
 /** Load assessment: building type → area schedule → services → maximum
  * demand and supply. Every value is editable; your own figures are kept as a
  * library on this computer and replace the placeholders. */
-export default function LoadAssessmentView({ project, onChange, onStatus }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
+export default function LoadAssessmentView({ project, onChange, onStatus, onOpen }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void; onOpen?: (view: 'building') => void }) {
   const [lib, setLibState] = useState<LaLibrary>(() => loadLaLibrary());
   const [editFactors, setEditFactors] = useState(false);
   const [target, setTarget] = useState('');
@@ -38,6 +40,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
   const spaces = useMemo(() => laSpaces(lib), [lib]);
   const a = project.loadAssessment;
   const r = useMemo(() => (a ? assess(a) : undefined), [a]);
+  const link = useMemo(() => (a ? laLink(project, a, spaces) : undefined), [project, a, spaces]);
   const designed = useMemo(() => { try { return buildDashboard(project); } catch { return undefined; } }, [project]);
 
   const setLib = (next: LaLibrary, msg: string) => { setLibState(next); onStatus(saveLaLibrary(next) ? msg : 'Could not store your library on this computer'); };
@@ -101,6 +104,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
   }
 
   const g = a.gfaM2;
+  const showB = !!link && link.buildingRows.length > 0;
   const pctBad = Math.abs(r.pctTotal - 100) > 0.5;
   const maxDemand = Math.max(1, ...r.categories.map((c) => c.demandKw));
   const svcKw = (k: string) => (r.services[k] ? <em>{txt.power(r.services[k])} kW</em> : null);
@@ -111,29 +115,15 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
       <div className="m">{hint}</div>{factors}
     </div>
   );
-  const fromBuilding = () => {
-    const fig = buildingFigures(project);
-    if (!fig.gfaM2 && !fig.floors) { onStatus('No building information yet — enter levels with their gross area in Building'); return; }
-    patch({ gfaM2: fig.gfaM2 ?? a.gfaM2, floors: fig.floors ?? a.floors, parkingM2: fig.parkingM2 ?? 0 });
-    onStatus('GFA, floors and car park taken from Building information');
-  };
-  const rowsFromBuilding = async () => {
-    const rows = rowsFromRooms(project, spaces);
-    if (!rows.length) { onStatus('No rooms above ground in Building information'); return; }
-    if (!(await ask(`Replace the area schedule with ${rows.length} spaces from the Building rooms (m²)?`))) return;
-    set({ ...setAreaMode(a, 'm2'), rows });
-    onStatus(`Area schedule from the Building rooms — check the densities of spaces not in your library`);
-  };
-
   return (
     <Page
       title="Load assessment"
       intro="Area × W/m² per space gives lighting, small power and cooling; the cooling system turns cooling into electrical kW; services and your custom loads add their own. Each category has its own diversity. Fire and life-safety loads are on the generator only. Built-in figures are placeholders — save your own as your library."
       actions={<>
-        <button className="chip" onClick={fromBuilding} title="GFA above ground, floors and car park area from Building information">GFA from Building</button>
         <button className="chip bad-btn" onClick={async () => (await ask('Clear this project’s load assessment?')) && onChange({ ...project, loadAssessment: undefined })}>Clear</button>
       </>}
     >
+      <LinkStrip project={project} a={a} spaces={spaces} onChange={set} onStatus={onStatus} onOpenBuilding={onOpen && (() => onOpen('building'))} />
       <div className="la-grid">
         <div>
           <section className="card la-sec">
@@ -156,9 +146,9 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
               </div>
             </div>
             <div className="bi-grid">
-              <label>GFA above ground (m²)<Num value={a.gfaM2} onSet={(v) => patch({ gfaM2: v })} width={110} rule={{ min: 0, unit: 'm²' }} /></label>
-              <label>Floors above ground<Num value={a.floors} onSet={(v) => patch({ floors: Math.max(1, Math.round(v)) })} width={80} /></label>
-              <label>Basement car park (m²)<Num value={a.parkingM2} onSet={(v) => patch({ parkingM2: v })} width={110} /></label>
+              <label>GFA above ground (m²)<Num value={a.gfaM2} onSet={(v) => patch({ gfaM2: v })} width={110} rule={{ min: 0, unit: 'm²' }} />{link?.figures[0].differs && <span className="la-under warn">Building: {f0(link.figures[0].building ?? 0)}</span>}</label>
+              <label>Floors above ground<Num value={a.floors} onSet={(v) => patch({ floors: Math.max(1, Math.round(v)) })} width={80} />{link?.figures[1].differs && <span className="la-under warn">Building: {link.figures[1].building}</span>}</label>
+              <label>Basement car park (m²)<Num value={a.parkingM2} onSet={(v) => patch({ parkingM2: v })} width={110} />{link?.figures[2].differs && <span className="la-under warn">Building: {f0(link.figures[2].building ?? 0)}</span>}</label>
             </div>
           </section>
 
@@ -169,16 +159,16 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
                 <button className={a.areaMode === 'pct' ? 'on' : ''} onClick={() => set(setAreaMode(a, 'pct'))}>% of GFA</button>
                 <button className={a.areaMode === 'm2' ? 'on' : ''} onClick={() => set(setAreaMode(a, 'm2'))}>m²</button>
               </div>
-              <button className="chip" onClick={rowsFromBuilding} title="m² per room type from Building → Rooms (above ground)">From Building rooms</button>
             </div>
             <table className="bi-table la-table">
-              <thead><tr><th>Space</th><th>{a.areaMode === 'pct' ? '% GFA' : 'Area m²'}</th><th>Area m²</th><th>Lighting W/m²</th><th>Power W/m²</th><th title="Thermal">Cooling W/m²</th><th title="Counts for water heating and cooking">Dwelling</th><th /></tr></thead>
+              <thead><tr><th>Space</th><th>{a.areaMode === 'pct' ? '% GFA' : 'Area m²'}</th><th>Area m²</th>{showB && <th title="Area of this space in Building information: rooms and flats above ground">Building m²</th>}<th>Lighting W/m²</th><th>Power W/m²</th><th title="Thermal">Cooling W/m²</th><th title="Counts for water heating and cooking">Dwelling</th><th /></tr></thead>
               <tbody>
                 {a.rows.map((row, i) => (
                   <tr key={`${row.id}-${i}`}>
                     <td><Text value={row.label} onSet={(v) => setRow(i, { label: v })} /></td>
                     <td>{a.areaMode === 'pct' ? <Num value={row.pct ?? 0} onSet={(v) => setRow(i, { pct: v })} /> : <Num value={row.areaM2 ?? 0} onSet={(v) => setRow(i, { areaM2: v })} width={90} />}</td>
                     <td className="m">{txt.size(rowArea(a, row))}{a.areaMode === 'm2' && g ? ` · ${txt.loading(rowPct(a, row))} %` : ''}</td>
+                    {showB && <td className={link.spaces[i]?.differs ? 'warn' : ''}>{link.spaces[i]?.buildingM2 === undefined ? '—' : txt.size(link.spaces[i].buildingM2)}</td>}
                     <td><Num value={row.ltg} onSet={(v) => setRow(i, { ltg: v })} /></td>
                     <td><Num value={row.pwr} onSet={(v) => setRow(i, { pwr: v })} /></td>
                     <td><Num value={row.clg} onSet={(v) => setRow(i, { clg: v })} /></td>
@@ -191,9 +181,11 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
                 <td><b>Total</b></td>
                 <td className={pctBad ? 'warn' : ''}><b>{a.areaMode === 'pct' ? `${txt.loading(r.pctTotal)} %` : txt.size(r.areaM2)}</b></td>
                 <td className={pctBad ? 'warn' : ''}><b>{txt.size(r.areaM2)}</b>{pctBad ? ` — GFA is ${txt.size(g)}` : ''}</td>
+                {showB && <td><b>{txt.size(link.buildingAreaM2)}</b></td>}
                 <td colSpan={5} />
               </tr></tfoot>
             </table>
+            {showB && link.spaces.length > a.rows.length && <div className="m">In Building only: {link.spaces.slice(a.rows.length).map((x) => `${x.label} ${txt.size(x.buildingM2)} m²`).join(', ')}</div>}
             <div className="bi-actions">
               <select className="bi-sel" value="" onChange={(e) => { const s = spaces.find((x) => x.id === e.target.value); if (s) patch({ rows: [...a.rows, { ...s, ...(a.areaMode === 'pct' ? { pct: 0 } : { areaM2: 0 }) }] }); }}>
                 <option value="">+ Space from library…</option>

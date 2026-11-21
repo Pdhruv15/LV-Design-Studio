@@ -127,6 +127,16 @@ export interface LoadAssessment {
   supply: LaSupply;
   /** Printed as a section of the Design Basis report. */
   inReport?: boolean;
+  /** How it follows Building information (src/calc/loadAssessmentLink.ts). */
+  from?: LaFromBuilding;
+}
+
+/** The link of an assessment to Building information. */
+export interface LaFromBuilding {
+  /** The buildings counted; absent: every building. */
+  buildingIds?: string[];
+  /** The state of Building information against which the user kept their own figures: no notice until it changes again. */
+  kept?: string;
 }
 
 // ---- PLACEHOLDER library — not authority figures; replace with yours.
