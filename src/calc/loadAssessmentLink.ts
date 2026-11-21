@@ -1,6 +1,6 @@
 import type { Project } from '../types';
 import { buildingInfoOf } from './building';
-import { buildingFigures, laSpaces, rowArea, rowsFromRooms, setAreaMode, type LaFromBuilding, type LaRow, type LaSpace, type LoadAssessment } from './loadAssessment';
+import { buildingFigures, isOutdoor, laSpaces, rowArea, rowsFromRooms, setAreaMode, type LaFromBuilding, type LaRow, type LaSpace, type LoadAssessment } from './loadAssessment';
 
 /** Building information against the load assessment: the figures and the space mix
  * Building gives now, beside the ones the assessment holds, and what differs. Nothing
@@ -63,7 +63,7 @@ export function laLink(project: Project, a: LoadAssessment, spaces: LaSpace[] = 
     const b = buildingRows.find((x) => !used.has(x) && sameSpace(x, r));
     if (b) used.add(b);
     const assessmentM2 = rowArea(a, r);
-    return { id: r.id, label: r.label, buildingM2: b?.areaM2, assessmentM2, differs: b ? apart(b.areaM2 ?? 0, assessmentM2) : buildingRows.length > 0 && assessmentM2 > 1 };
+    return { id: r.id, label: r.label, buildingM2: b?.areaM2, assessmentM2, differs: b ? apart(b.areaM2 ?? 0, assessmentM2) : buildingRows.length > 0 && assessmentM2 > 1 && !isOutdoor(r) };
   });
   for (const b of buildingRows) if (!used.has(b)) linkSpaces.push({ id: b.id, label: b.label, buildingM2: b.areaM2, differs: (b.areaM2 ?? 0) > 1 });
   const mixDiffers = buildingRows.length > 0 && linkSpaces.some((x) => x.differs);

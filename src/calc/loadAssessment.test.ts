@@ -99,6 +99,39 @@ const twoBuildings: BuildingInfo = {
 };
 const withBuildings = (building: BuildingInfo): Project => ({ ...sampleProject, building });
 
+describe('where a space is', () => {
+  const rows = [
+    { id: 'in', label: 'F&B — indoor seating', ltg: 12, pwr: 60, clg: 200, areaM2: 300 },
+    { id: 'out', label: 'F&B — outdoor seating', ltg: 6, pwr: 15, clg: 200, areaM2: 200, location: 'oc' as const },
+    { id: 'open', label: 'Open corridor', ltg: 5, pwr: 3, clg: 80, areaM2: 100, location: 'nc' as const }
+  ];
+  const a = { ...res({ areaMode: 'm2', rows }), gfaM2: 400, parkingM2: 0 };
+
+  it('only an indoor, cooled space carries a cooling load', () => {
+    const r = assess(a);
+    // Cooling: 300 m² × 200 W/m² thermal × the VRF factor; the outdoor and the not cooled rows add none.
+    expect(r.services.cool).toBeCloseTo(60 * a.factors.cool.vrf);
+    // Lighting and power count for every row.
+    expect(r.categories.find((c) => c.key === 'ltg')!.connectedKw).toBeCloseTo((300 * 12 + 200 * 6 + 100 * 5) / 1000);
+    expect(r.categories.find((c) => c.key === 'pwr')!.connectedKw).toBeCloseTo((300 * 60 + 200 * 15 + 100 * 3) / 1000);
+  });
+
+  it('an outdoor space is outside the GFA: not in the area total', () => {
+    const r = assess(a);
+    expect(r.areaM2).toBe(400);
+    expect(r.outdoorM2).toBe(200);
+    expect(r.pctTotal).toBeCloseTo(100);
+    // A row with no location is indoor and cooled, as before.
+    expect(assess({ ...a, rows: rows.map(({ location: _l, ...x }) => x) }).areaM2).toBe(600);
+  });
+
+  it('plant rooms and stores start as not cooled', () => {
+    const plant = res().rows.find((x) => x.id === 'plant')!;
+    expect(plant.location).toBe('nc');
+    expect(assess(res({ rows: res().rows.map((x) => (x.id === 'plant' ? { ...x, clg: 500 } : x)) })).services.cool).toBeCloseTo(assess(res()).services.cool);
+  });
+});
+
 describe('load assessment from Building information', () => {
   it('adds up every building: GFA, the tallest building’s floors and the car park', () => {
     const f = buildingFigures(withBuildings(twoBuildings));
