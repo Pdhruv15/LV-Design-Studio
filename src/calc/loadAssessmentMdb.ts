@@ -2,6 +2,7 @@ import type { Feeder, LoadType, Project } from '../types';
 import { applyTransformers, mainBoards, planTransformers, withTransformer } from '../model/transformers';
 import { applyRecommendation, boardDemandKva, recommend } from './sizing';
 import { assess, type LoadAssessment } from './loadAssessment';
+import { expectedLumps, reconcileLumps } from './loadAssessmentLumps';
 
 /** Load assessment → an MDB with one feeder per load category and per
  * custom load: connected kW and diversity as loadKw / demandFactor, the
@@ -68,7 +69,8 @@ export interface LaMdbResult {
   created: boolean; // a new board was made
   createdIds: string[];
   unused: string[]; // boards made by an earlier run that the assessment no longer needs (their assessment feeders removed)
-  added: number;
+  added: number; // feeders left on the boards
+  designedKw: number; // kW the lumps were reduced by for loads already designed
   replaced: number;
   loading: { boardId: string; pct: number }[]; // transformer loading, demand kVA / kVA
 }
@@ -105,6 +107,7 @@ export function createMdbFromAssessment(project: Project, a: LoadAssessment, boa
   const replaced = p.feeders.filter(mine).length;
   p = { ...p, feeders: p.feeders.filter((f) => !mine(f)) };
   let added = 0;
+  const lump = (f: Feeder) => ids.includes(f.boardId) && !!f.fromRoom?.startsWith('la:');
   const spread = spreadFeeders(assessmentFeeders(a), ids.length);
   ids.forEach((id, bi) => {
     for (const it of spread[bi]) {
@@ -122,14 +125,25 @@ export function createMdbFromAssessment(project: Project, a: LoadAssessment, boa
       added++;
     }
   });
+  const lumpKw = (q: Project) => q.feeders.filter(lump).reduce((s, f) => s + f.loadKw, 0);
+  const before = lumpKw(p);
+  p = reconcileLumps(p, a).project;
+  added = p.feeders.filter(lump).length;
+  const designedKw = before - lumpKw(p);
   const loading = ids.flatMap((id) => {
     const kva = p.boards.find((b) => b.id === id)?.sourceKva;
     return kva ? [{ boardId: id, pct: (boardDemandKva(p, id) / kva) * 100 }] : [];
   });
-  return { project: p, boardId: ids[0], boardIds: ids, created: createdIds.length > 0, createdIds, unused, added, replaced, loading };
+  return { project: p, boardId: ids[0], boardIds: ids, created: createdIds.length > 0, createdIds, unused, added, designedKw, replaced, loading };
 }
 
-export interface LaMdbStep { boards: string[]; inStep: boolean; feedersDemandKw: number; assessmentDemandKw: number }
+export interface LaMdbStep {
+  boards: string[];
+  inStep: boolean;
+  feedersDemandKw: number; // what the feeders add up to
+  assessmentDemandKw: number; // the assessment's sum of demands
+  expectedDemandKw: number; // what the feeders should add up to: the assessment's less the loads already designed
+}
 
 /** The boards that hold the assessment's feeders, and whether those feeders still equal what the assessment gives now. Undefined when there are none. */
 export function mdbStep(project: Project, a: LoadAssessment): LaMdbStep | undefined {
@@ -137,7 +151,7 @@ export function mdbStep(project: Project, a: LoadAssessment): LaMdbStep | undefi
   if (!la.length) return undefined;
   const ids = new Set(la.map((f) => f.boardId));
   const boards = project.boards.filter((b) => ids.has(b.id));
-  const items = assessmentFeeders(a);
+  const items = expectedLumps(project, a);
   const byKey = new Map(items.map((it) => [it.key, it]));
   const keys = new Set(la.map((f) => f.fromRoom!.slice(3)));
   let inStep = la.every((f) => { const it = byKey.get(f.fromRoom!.slice(3)); return !!it && Math.abs(f.loadKw - it.kw) < 0.01 && Math.abs(f.demandFactor - it.demandFactor) < 1e-6; })
@@ -146,5 +160,6 @@ export function mdbStep(project: Project, a: LoadAssessment): LaMdbStep | undefi
   const mdbs = boards.filter((b) => b.generated === LA_MDB);
   if (inStep && r.tx && mdbs.length) inStep = mdbs.length === r.tx.duty && mdbs.every((b) => b.sourceKva === r.tx!.kva);
   const feedersDemandKw = la.filter((f) => { const k = f.fromRoom!.slice(3); return !(k === 'fire' || k === 'jockey' || k.startsWith('stair')); }).reduce((s, f) => s + f.loadKw * f.demandFactor, 0);
-  return { boards: boards.map((b) => b.id), inStep, feedersDemandKw, assessmentDemandKw: r.sumDemandKw };
+  const expectedDemandKw = items.filter((it) => !(it.key === 'fire' || it.key === 'jockey' || it.key.startsWith('stair'))).reduce((s, it) => s + it.kw * it.demandFactor, 0);
+  return { boards: boards.map((b) => b.id), inStep, feedersDemandKw, assessmentDemandKw: r.sumDemandKw, expectedDemandKw };
 }

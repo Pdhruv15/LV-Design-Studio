@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { assess, buildingFigures, clgInBasis, DEFAULT_TYPES, newAssessment, rowArea, rowsFromRooms, setAcBasis, setAreaMode, typeFromAssessment, type LoadAssessment } from './loadAssessment';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setCatalog, EMPTY_CATALOG } from '../database/catalog';
+import {
+  againstStandard, applyStandard, assess, buildingFigures, clgInBasis, DEFAULT_SPACES, DEFAULT_TYPES, laSpaces, laStandards, LOCAL_STANDARD, newAssessment, PLACEHOLDER_STANDARD, resetToStandard, rowArea, rowsFromRooms,
+  setAcBasis, setAreaMode, standardOf, standardsToSheet, typeFromAssessment, withStandardRows, type LaStandard, type LoadAssessment
+} from './loadAssessment';
 import { loadAssessmentBasis } from '../docs/designBasis';
 import { sampleProject } from '../data/sampleProject';
 import { defaultServices } from './buildingDesign';
@@ -209,8 +213,94 @@ describe('load assessment from Building information', () => {
     expect(r.services.cook).toBeGreaterThan(0);
   });
 
+  it('a room type counts as the assessment space set on it, or as the car park', () => {
+    const info: BuildingInfo = {
+      ...twoBuildings, unitTypes: [],
+      roomTypes: [{ id: 'lab', label: 'Laboratory', wPerM2: 200, demandFactor: 0.8, laSpace: 'office' }, { id: 'ramp', label: 'Ramp', wPerM2: 5, demandFactor: 1, laSpace: 'carpark' }],
+      rooms: [{ id: 'x1', buildingId: 'P', levelId: 'P-G', name: 'Lab', type: 'lab', areaM2: 90 }, { id: 'x2', buildingId: 'P', levelId: 'P-G', name: 'Ramp', type: 'ramp', areaM2: 60 }]
+    };
+    expect(rowsFromRooms(withBuildings(info))).toEqual([{ id: 'office', label: 'Office', ltg: 9, pwr: 25, clg: 130, areaM2: 90 }]);
+    // The ramp is car park area: out of the area schedule, in the car park figure of its building.
+    expect(buildingFigures(withBuildings(info), ['P']).parkingM2).toBe(60);
+  });
+
   it('a room type with no space keeps its own row with a split of its W/m²', () => {
     const info: BuildingInfo = { ...twoBuildings, roomTypes: [{ id: 'lab', label: 'Laboratory', wPerM2: 200, demandFactor: 0.8 }], rooms: [{ id: 'x1', buildingId: 'P', levelId: 'P-G', name: 'Lab', type: 'lab', areaM2: 90 }], unitTypes: [] };
     expect(rowsFromRooms(withBuildings(info))).toEqual([{ id: 'lab', label: 'Laboratory', ltg: 10, pwr: 160, clg: 100, areaM2: 90 }]);
+  });
+});
+
+describe('density standards', () => {
+  afterEach(() => setCatalog(EMPTY_CATALOG));
+  const mine: LaStandard = { name: 'Mine', spaces: [
+    { id: 'office', label: 'Office', ltg: 10, pwr: 30, clg: 150 },
+    { id: 'fnb', label: 'F&B', ltg: 12, pwr: 60, clg: 200, reference: 'Table 4' },
+    { id: 'fnb', label: 'F&B', location: 'oo', ltg: 6, pwr: 10, clg: 0 }
+  ] };
+  const elec: LaStandard = { name: 'Electrical', acBasis: 'electrical', spaces: [{ id: 'office', label: 'Office', ltg: 10, pwr: 30, clg: 45 }] };
+  const withRows = (rows: LoadAssessment['rows'], patch: Partial<LoadAssessment> = {}) => ({ ...res(), services: { ...res().services, cool: 'vrf' as const }, rows, ...patch });
+
+  it('falls back to the placeholders, then lists the local library and the workbook standards', () => {
+    expect(laStandards({ types: [] })).toEqual([{ name: PLACEHOLDER_STANDARD, spaces: DEFAULT_SPACES }]);
+    expect(laSpaces({ types: [] })).toBe(DEFAULT_SPACES);
+    setCatalog({ ...EMPTY_CATALOG, spaceStandards: [mine, elec] });
+    const local = [{ id: 'x', label: 'X', ltg: 1, pwr: 2, clg: 3 }];
+    const all = laStandards({ types: [], spaces: local, spacesAcBasis: 'electrical' });
+    // The library on this computer stays the first, as it was the only one before the workbook.
+    expect(all.map((s) => s.name)).toEqual([LOCAL_STANDARD, 'Mine', 'Electrical']);
+    expect(all[0]).toMatchObject({ acBasis: 'electrical', spaces: local });
+    expect(laSpaces({ types: [] })).toBe(mine.spaces);
+    expect(standardOf('Electrical', all)).toBe(elec);
+    // An unknown or missing name reads the first standard.
+    expect(standardOf('gone', all)).toBe(all[0]);
+    expect(standardOf(undefined, all)).toBe(all[0]);
+  });
+
+  it('tells a row equal to its standard from an edited one and one the standard does not have', () => {
+    const a = withRows([{ id: 'office', label: 'Office', ltg: 10, pwr: 30, clg: 150, pct: 50 }, { id: 'office', label: 'Office', ltg: 10, pwr: 31, clg: 150, pct: 20 }, { id: 'zz', label: 'Zed', ltg: 1, pwr: 1, clg: 1, pct: 30 }]);
+    expect(againstStandard(a.rows[0], mine, a).state).toBe('standard');
+    expect(againstStandard(a.rows[1], mine, a).state).toBe('edited');
+    expect(againstStandard(a.rows[2], mine, a)).toEqual({ state: 'own' });
+    // the outdoor variant of the same id is its own space; cooling is ignored for a space that is not cooled
+    const out = { id: 'fnb', label: 'F&B', location: 'oo' as const, ltg: 6, pwr: 10, clg: 99, pct: 0 };
+    expect(againstStandard(out, mine, a).state).toBe('standard');
+    expect(againstStandard({ ...out, location: undefined }, mine, a)).toMatchObject({ state: 'edited', space: { ltg: 12 } });
+    expect(againstStandard({ id: 'q', label: 'office', ltg: 10, pwr: 30, clg: 150 }, mine, a).state).toBe('standard'); // same name
+  });
+
+  it('reads an electrical-basis standard against a thermal assessment', () => {
+    const a = withRows([{ id: 'office', label: 'Office', ltg: 10, pwr: 30, clg: 150, pct: 100 }]);
+    expect(againstStandard(a.rows[0], elec, a).state).toBe('standard'); // 45 kW electrical = 150 thermal at 0.3
+    const next = applyStandard({ ...a, rows: [{ ...a.rows[0], clg: 10 }] }, elec);
+    expect(next.rows[0].clg).toBe(150);
+    expect(next.standard).toBe('Electrical');
+    expect(next.acBasis).toBeUndefined();
+  });
+
+  it('resets a row and applies a standard to the rows it has', () => {
+    const a = withRows([{ id: 'fnb', label: 'F&B', ltg: 1, pwr: 1, clg: 1, dwelling: true, pct: 40 }, { id: 'zz', label: 'Zed', ltg: 1, pwr: 1, clg: 1, pct: 60 }]);
+    expect(resetToStandard(a.rows[0], mine.spaces[2], mine, a)).toEqual({ id: 'fnb', label: 'F&B', location: 'oo', ltg: 6, pwr: 10, clg: 0, dwelling: undefined, pct: 40 });
+    const next = applyStandard(a, mine);
+    expect(next.rows[0]).toMatchObject({ ltg: 12, pwr: 60, clg: 200, dwelling: undefined, pct: 40 });
+    expect(next.rows[1]).toBe(a.rows[1]);
+  });
+
+  it('writes the rows into a standard and back to the sheet', () => {
+    const a = withRows([{ id: 'fnb', label: 'F&B', ltg: 13, pwr: 61, clg: 210, pct: 50 }, { id: 'gym', label: 'Gym', ltg: 10, pwr: 20, clg: 150, dwelling: true, pct: 50 }]);
+    const out = withStandardRows([mine, elec], 'Mine', a);
+    expect(out[1]).toBe(elec);
+    expect(out[0].spaces).toHaveLength(4); // the outdoor F&B is kept, Gym added
+    expect(out[0].spaces[1]).toMatchObject({ id: 'fnb', ltg: 13, clg: 210, reference: 'Table 4' });
+    expect(out[0].spaces[3]).toMatchObject({ id: 'gym', dwelling: true });
+    // into an electrical standard the cooling is written in its basis; a new standard takes the assessment's
+    expect(withStandardRows([elec], 'Electrical', withRows([{ id: 'office', label: 'Office', ltg: 10, pwr: 30, clg: 150, pct: 100 }]))[0].spaces[0].clg).toBe(45);
+    const added = withStandardRows([mine], 'New', withRows([{ id: 'office', label: 'Office', ltg: 10, pwr: 30, clg: 150, pct: 100 }], { acBasis: 'electrical' }));
+    expect(added[1]).toMatchObject({ name: 'New', acBasis: 'electrical' });
+    expect(standardsToSheet([mine, elec, { name: LOCAL_STANDARD, spaces: DEFAULT_SPACES }, { name: PLACEHOLDER_STANDARD, spaces: DEFAULT_SPACES }])).toEqual([
+      { standard: 'Mine', id: 'office', label: 'Office', location: '', ltg: 10, pwr: 30, clg: 150, acBasis: '', dwelling: '', reference: '' },
+      { standard: 'Mine', id: 'fnb', label: 'F&B', location: '', ltg: 12, pwr: 60, clg: 200, acBasis: '', dwelling: '', reference: 'Table 4' },
+      { standard: 'Mine', id: 'fnb', label: 'F&B', location: 'Outdoor, open', ltg: 6, pwr: 10, clg: 0, acBasis: '', dwelling: '', reference: '' },
+      { standard: 'Electrical', id: 'office', label: 'Office', location: '', ltg: 10, pwr: 30, clg: 45, acBasis: 'Electrical load', dwelling: '', reference: '' }
+    ]);
   });
 });

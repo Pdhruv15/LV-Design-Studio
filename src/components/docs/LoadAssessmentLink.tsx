@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link2 } from 'lucide-react';
 import type { Project } from '../../types';
 import { Modal } from '../ui';
-import { assess, buildingFigures, laSpaces, laTypes, newAssessment, type LaSpace, type LoadAssessment } from '../../calc/loadAssessment';
+import { assess, buildingFigures, laStandards, laTypes, newAssessment, standardOf, type LaSpace, type LoadAssessment } from '../../calc/loadAssessment';
 import { countBuildings, keepFigures, laLink, updateFromBuilding, type LaLinkFigure } from '../../calc/loadAssessmentLink';
 import { txt } from '../../util/format';
 
@@ -138,7 +138,7 @@ export function LinkStrip({ project, a, spaces, onChange, onStatus, onOpenBuildi
 /** One line on the Building information page: the load assessment those buildings feed. */
 export function AssessmentLine({ project, use, onChange, onStatus, onOpen }: { project: Project; use?: string; onChange: (p: Project) => void; onStatus: (msg: string) => void; onOpen?: () => void }) {
   const a = project.loadAssessment;
-  const spaces = useMemo(() => laSpaces(), []);
+  const spaces = standardOf(a?.standard, laStandards()).spaces; // not memoised: the catalogue changes outside React state
   const link = useMemo(() => (a ? laLink(project, a, spaces) : undefined), [project, a, spaces]);
   const [open, setOpen] = useState(false);
   if (!a || !link) {

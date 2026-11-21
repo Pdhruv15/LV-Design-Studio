@@ -6,11 +6,14 @@ import { METER_TYPES } from '../../types';
 import { roomTypesOf } from '../../calc/building';
 import { unitTypeLibrary } from '../../model/buildingPreset';
 import { saveUnitTypesToLibrary, UnitLibraryDialog } from './BuildingReuse';
-import { addServices, benchOf, defaultServices, floorLoads, generateBuildingDbs, plannedDbs, roomDensities, rulesOf, lpdOf, unitLoads, type ServiceItem } from '../../calc/buildingDesign';
+import { addServices, benchOf, floorLoads, generateBuildingDbs, plannedDbs, roomDensities, rulesOf, lpdOf, servicesFromAssessment, unitLoads, type ServiceItem } from '../../calc/buildingDesign';
+import { reconcileLumps } from '../../calc/loadAssessmentLumps';
 import { txt } from '../../util/format';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
+const hasLumps = (p: Project) => !!p.loadAssessment && p.feeders.some((f) => f.fromRoom?.startsWith('la:'));
+const lumpNote = (changes: { label: string; fromKw: number; toKw: number }[]) => (changes.length ? `; the assessment's lump feeders were reduced: ${changes.map((c) => `${c.label} ${Math.round(c.fromKw)} to ${Math.round(c.toKw)} kW`).join(', ')}` : '');
 const num = (v: string) => (v.trim() === '' || Number.isNaN(+v.replace(/,/g, '')) ? undefined : +v.replace(/,/g, ''));
 
 function N({ value, onSet, width = 60, placeholder }: { value?: number; onSet: (v: number | undefined) => void; width?: number; placeholder?: string }) {
@@ -146,6 +149,7 @@ export function GenerateDialog({ project, b, onDone, onClose }: { project: Proje
   const [src, setSrc] = useState(b.riser?.fromBoardId ?? project.boards.find((x) => !x.upstreamId)?.id ?? '');
   const existing = plan.filter((d) => project.boards.some((x) => x.id === d.id)).length;
   const flats = plan.filter((d) => d.unit).length;
+  const [reduce, setReduce] = useState(true);
   return (
     <Modal onClose={onClose} className="modal" style={{ maxWidth: 560 }}>
       <h3>Generate DBs and load schedules — {b.name}</h3>
@@ -156,10 +160,12 @@ export function GenerateDialog({ project, b, onDone, onClose }: { project: Proje
       </label>
       <p className="m">Rooms with a DB chosen in “Served by” are left on that DB. Watts per point are placeholders (lighting 40 W, 13A socket 200 W, water heater 1.5 kW, cooker 3 kW, A/C by the rule) — edit them on each load schedule.</p>
       <div className="bi-plan">{plan.slice(0, 40).map((d) => <span key={d.id} className={project.boards.some((x) => x.id === d.id) ? 'm' : ''}>{d.id}</span>)}{plan.length > 40 && <span className="m">+{plan.length - 40} more</span>}</div>
+      {hasLumps(project) && <label className="row" style={{ gap: 6 }}><input type="checkbox" checked={reduce} onChange={(e) => setReduce(e.target.checked)} /> Reduce the load assessment's lump feeders by the load of these DBs, so it is not counted twice</label>}
       <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Cancel</button>
         <button className="chip primary" disabled={!plan.length || !src} onClick={() => {
           const r = generateBuildingDbs({ ...project, building: { ...project.building!, buildings: project.building!.buildings.map((x) => (x.id === b.id ? { ...x, riser: { ...x.riser, fromBoardId: src } } : x)) } }, b.id, src);
-          onDone(r.project, `${r.dbs.length} DBs, ${r.circuits} circuits${r.replaced ? ` (${r.replaced} earlier generated circuits replaced)` : ''} — check the load schedules`);
+          const rec = reduce && hasLumps(r.project) ? reconcileLumps(r.project, r.project.loadAssessment!) : undefined;
+          onDone(rec?.project ?? r.project, `${r.dbs.length} DBs, ${r.circuits} circuits${r.replaced ? ` (${r.replaced} earlier generated circuits replaced)` : ''} — check the load schedules${lumpNote(rec?.changes ?? [])}`);
         }}>Generate {plan.length} DBs</button>
       </div>
     </Modal>
@@ -168,16 +174,18 @@ export function GenerateDialog({ project, b, onDone, onClose }: { project: Proje
 
 /** Common area services checklist: lifts, pumps, fans, lighting, EV… */
 export function ServicesDialog({ project, b, onDone, onClose }: { project: Project; b: ProjectBuilding; onDone: (p: Project, msg: string) => void; onClose: () => void }) {
-  const [items, setItems] = useState<ServiceItem[]>(() => defaultServices(project, b.id));
+  const [items, setItems] = useState<ServiceItem[]>(() => servicesFromAssessment(project, b.id));
   const [board, setBoard] = useState(b.riser?.fromBoardId ?? project.boards.find((x) => !x.upstreamId)?.id ?? '');
   const set = (id: string, patch: Partial<ServiceItem>) => setItems(items.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   const total = items.reduce((s, x) => s + x.kw * x.qty, 0);
+  const fromLa = items.some((x) => x.from);
+  const [reduce, setReduce] = useState(true);
   return (
-    <Modal onClose={onClose} className="modal" style={{ maxWidth: 640 }}>
+    <Modal onClose={onClose} className="modal" style={{ maxWidth: fromLa ? 780 : 640 }}>
       <h3>Common area services — {b.name}</h3>
-      <p className="m">Typical starting values from the building (floors, car park area) — placeholders, set your own kW. Each unit becomes a feeder; standby units are left out of the TCL duty; life-safety loads are marked essential.</p>
+      <p className="m">{fromLa ? 'Starting values from the load assessment where it has them, else typical values from the building (floors, car park area)' : 'Typical starting values from the building (floors, car park area)'} — placeholders, set your own kW. Each unit becomes a feeder; standby units are left out of the TCL duty; life-safety loads are marked essential.</p>
       <table className="bi-table">
-        <thead><tr><th>Service</th><th>Qty</th><th>kW each</th><th>Standby</th><th>Essential</th></tr></thead>
+        <thead><tr><th>Service</th><th>Qty</th><th>kW each</th><th>Standby</th><th>Essential</th>{fromLa && <th>From the load assessment</th>}</tr></thead>
         <tbody>
           {items.map((x) => (
             <tr key={x.id} className={x.qty ? '' : 'm'}>
@@ -186,15 +194,21 @@ export function ServicesDialog({ project, b, onDone, onClose }: { project: Proje
               <td><input className="bi-num" style={{ width: 60 }} inputMode="decimal" value={x.kw} onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) set(x.id, { kw: v }); }} /></td>
               <td><input className="bi-num" style={{ width: 40 }} inputMode="numeric" value={x.standby ?? 0} onChange={(e) => set(x.id, { standby: Math.max(0, Math.round(Number(e.target.value) || 0)) || undefined })} /></td>
               <td><input type="checkbox" checked={!!x.essential} onChange={(e) => set(x.id, { essential: e.target.checked || undefined })} /></td>
+              {fromLa && <td className="m">{x.from ?? ''}</td>}
             </tr>
           ))}
         </tbody>
       </table>
+      {hasLumps(project) && <label className="row" style={{ gap: 6 }}><input type="checkbox" checked={reduce} onChange={(e) => setReduce(e.target.checked)} /> Reduce the load assessment's lump feeders by these services, so the load is not counted twice</label>}
       <div className="modal-actions">
         <label className="row" style={{ gap: 6 }}>On board <select className="bi-sel" value={board} onChange={(e) => setBoard(e.target.value)}>{project.boards.map((x) => <option key={x.id} value={x.id}>{x.id}</option>)}</select></label>
         <span className="m">{txt.power(total)} kW in {items.reduce((s, x) => s + x.qty, 0)} feeders</span>
         <span className="sp" /><button className="chip" onClick={onClose}>Cancel</button>
-        <button className="chip primary" disabled={!board || !items.some((x) => x.qty)} onClick={() => { const r = addServices(project, board, items.filter((x) => x.qty > 0)); onDone(r.project, `Added ${r.added} service feeders on ${board}`); }}>Add to {board}</button>
+        <button className="chip primary" disabled={!board || !items.some((x) => x.qty)} onClick={() => {
+          const r = addServices(project, board, items.filter((x) => x.qty > 0));
+          const rec = reduce && hasLumps(r.project) ? reconcileLumps(r.project, r.project.loadAssessment!) : undefined;
+          onDone(rec?.project ?? r.project, `Added ${r.added} service feeders on ${board}${lumpNote(rec?.changes ?? [])}`);
+        }}>Add to {board}</button>
       </div>
     </Modal>
   );

@@ -5,6 +5,7 @@ import { breakerRateAed, CABLE_RATE_PER_M, setBreakerPrices } from '../data/rate
 import { BUILT_IN_CABLES, cableBuildText, cableKey } from '../model/cableRefs';
 import { EMPTY_CATALOG, RULES, setCatalog, type Catalog, type CatalogBusbar } from './catalog';
 import { DEFAULT_ROOM_TYPES } from '../calc/building';
+import { DEFAULT_SPACES, LA_LOCATIONS } from '../calc/loadAssessment';
 import { DEFAULT_RULES } from '../calc/buildingDesign';
 import { LUMINAIRES } from '../calc/roomLighting';
 import { TYPICAL_BUSBAR_DATA } from '../calc/busbar';
@@ -197,7 +198,7 @@ const opt = (v: unknown) => { const n = num(v); return n !== undefined && !Numbe
 function parseCatalog(raw: RawDatabase, bad: (file: string, row: unknown, why: string) => void): Catalog {
   const rowsOf = (id: string) => raw.books[id]?.rows ?? [];
   const fileOf = (id: string) => raw.books[id]?.file ?? id;
-  const c: Catalog = { transformers: [], generators: [], busbar: [], equipment: [], roomTypes: [], luminaires: [], unitTypes: [], priceLists: [], rules: {}, cableRefs: [] };
+  const c: Catalog = { transformers: [], generators: [], busbar: [], equipment: [], roomTypes: [], spaceStandards: [], luminaires: [], unitTypes: [], priceLists: [], rules: {}, cableRefs: [] };
   for (const r of rowsOf('transformers')) {
     const kva = pos(r.kva);
     if (!kva) { bad(fileOf('transformers'), r._row, 'Rating (kVA) must be a positive number'); continue; }
@@ -229,8 +230,21 @@ function parseCatalog(raw: RawDatabase, bad: (file: string, row: unknown, why: s
     if (c.roomTypes.some((t) => t.id === id)) { bad(fileOf('roomTypes'), r._row, `duplicate id ${id}`); continue; }
     const t: RoomType = { id, label, wPerM2: w, demandFactor: pos(r.demandFactor) ?? 0.8, lux: opt(r.lux),
       rules: { ltgM2PerPoint: pos(r.ltgM2PerPoint), s13M2PerPoint: pos(r.s13M2PerPoint), acM2PerUnit: pos(r.acM2PerUnit), acKwPerUnit: pos(r.acKwPerUnit), wh: opt(r.wh), cooker: opt(r.cooker), exfan: opt(r.exfan) },
-      lpdMax: pos(r.lpdMax), benchWPerM2: pos(r.benchWPerM2) };
+      lpdMax: pos(r.lpdMax), benchWPerM2: pos(r.benchWPerM2), laSpace: str(r.laSpace).toLowerCase() || undefined };
     c.roomTypes.push(t);
+  }
+  for (const r of rowsOf('spaceDensities')) {
+    const standard = str(r.standard), id = str(r.id).replace(/\s+/g, '-').toLowerCase(), label = str(r.label), ltg = opt(r.ltg), pwr = opt(r.pwr);
+    if (!standard || !id || !label || ltg === undefined || pwr === undefined) { bad(fileOf('spaceDensities'), r._row, 'Standard, Id, Space, Lighting and Power are needed'); continue; }
+    const locText = str(r.location);
+    const loc = locText ? LA_LOCATIONS.find((l) => l.label.toLowerCase() === locText.toLowerCase()) : undefined;
+    if (locText && !loc) { bad(fileOf('spaceDensities'), r._row, `unknown location ${locText}`); continue; }
+    const location = loc && loc.value !== 'in' ? loc.value : undefined;
+    let std = c.spaceStandards.find((s) => s.name === standard);
+    if (std?.spaces.some((x) => x.id === id && (x.location ?? 'in') === (location ?? 'in'))) { bad(fileOf('spaceDensities'), r._row, `duplicate ${id} in ${standard}`); continue; }
+    if (!std) { std = { name: standard, spaces: [] }; c.spaceStandards.push(std); }
+    if (str(r.acBasis).toLowerCase() === 'electrical load') std.acBasis = 'electrical';
+    std.spaces.push({ id, label, ...(location ? { location } : {}), ltg, pwr, clg: opt(r.clg) ?? 0, ...(str(r.dwelling).toLowerCase() === 'yes' ? { dwelling: true } : {}), ...(str(r.reference) ? { reference: str(r.reference) } : {}) });
   }
   for (const r of rowsOf('luminaires')) {
     const id = str(r.id).replace(/\s+/g, '-').toLowerCase(), label = str(r.label), lumens = pos(r.lumens), watts = pos(r.watts);
@@ -325,6 +339,7 @@ export function databaseSeeds(): Record<string, (string | number)[][]> {
       ['kWh meter', 'kWh meter, CT operated, with CTs and test block', '', 'no', '', '', 'kwh:CT', '', '']
     ],
     roomTypes: DEFAULT_ROOM_TYPES.map((t) => { const r = DEFAULT_RULES[t.id] ?? {}; return [t.id, t.label, t.wPerM2, t.demandFactor, t.lux ?? '', r.ltgM2PerPoint ?? '', r.s13M2PerPoint ?? '', r.acM2PerUnit ?? '', r.acKwPerUnit ?? '', r.wh ?? '', r.cooker ?? '', r.exfan ?? '', r.lpdMax ?? '', r.benchWPerM2 ?? '']; }),
+    spaceDensities: DEFAULT_SPACES.map((x) => ['Starting figures', x.id, x.label, LA_LOCATIONS.find((l) => l.value === x.location)?.label ?? '', x.ltg, x.pwr, x.clg, '', x.dwelling ? 'Yes' : '', 'Placeholder — replace with your own']),
     luminaires: LUMINAIRES.map((l) => [l.id, l.label, l.lumens, l.watts, l.shrMax ?? '', '']),
     unitTypes: [['2BR apartment', 'Living / dining', 'living', 35, ''], ['2BR apartment', 'Bedroom 1', 'bedroom', 16, ''], ['2BR apartment', 'Bedroom 2', 'bedroom', 14, ''], ['2BR apartment', 'Kitchen', 'kitchen', 10, ''], ['2BR apartment', 'Bathroom 1', 'bathroom', 5, ''], ['2BR apartment', 'Bathroom 2', 'bathroom', 4, '']],
     prices: [],

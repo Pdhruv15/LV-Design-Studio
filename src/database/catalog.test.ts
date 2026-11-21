@@ -26,7 +26,7 @@ describe('database catalogue', () => {
       generators: [{ kva: 500, xdPct: 14, price: 90000 }],
       busbar: [{ material: 'Cu', ratingA: 1600, rMohmPerM: 0.03, xMohmPerM: 0.01, ratePerM: 950 }],
       equipment: [{ category: 'SPD', description: 'SPD T2', price: 1800, boqKey: 'spd:T2' }],
-      roomTypes: [{ id: 'Office Open', label: 'Open office', wPerM2: 120, ltgM2PerPoint: 8 }],
+      roomTypes: [{ id: 'Office Open', label: 'Open office', wPerM2: 120, ltgM2PerPoint: 8, laSpace: 'Office' }],
       unitTypes: [{ unitType: '1BR', room: 'Living', roomType: 'living', areaM2: 30 }, { unitType: '1BR', room: 'Bed', roomType: 'bedroom', areaM2: 14, meter: '1-PH' }],
       prices: [{ list: 'Schneider', key: 'mccb:250:TP+N:36', rate: 2400, install: 150 }],
       rules: [{ key: 'pfMinimum', value: 0.95 }, { key: 'maxLtgPerCircuit', value: 8 }]
@@ -43,6 +43,34 @@ describe('database catalogue', () => {
     expect(loadPriceLists()[0].name).toBe('Schneider (Excel)');
     expect(catalog().unitTypes[0].rooms.length).toBe(2);
     expect(roomTypesOf({ buildings: [], rooms: [] })[0].id).toBe('office-open');
+    expect(roomTypesOf({ buildings: [], rooms: [] })[0].laSpace).toBe('office');
+  });
+  it('reads the space densities as named standards and skips bad rows', () => {
+    const db = parseDatabase(raw({ spaceDensities: [
+      { standard: 'Authority A', id: 'Fine Dining', label: 'F&B', ltg: 12, pwr: 60, clg: 200, dwelling: 'no', reference: 'Table 4' },
+      { standard: 'Authority A', id: 'fine-dining', label: 'F&B terrace', location: 'outdoor, open', ltg: 6, pwr: 10 },
+      { standard: 'Authority A', id: 'fine-dining', label: 'F&B again', ltg: 1, pwr: 1 },
+      { standard: 'Authority A', id: 'x', label: 'Odd', location: 'Roof', ltg: 1, pwr: 1 },
+      { standard: 'Authority A', id: 'y', label: 'No power', ltg: 1 },
+      { standard: 'Company', id: 'apt', label: 'Apartment', ltg: 8, pwr: 35, clg: 40, acBasis: 'Electrical load', dwelling: 'Yes' },
+      { standard: 'Company', id: 'office', label: 'Office', location: 'Indoor, cooled', ltg: 9, pwr: 25, acBasis: '' }
+    ] }));
+    expect(db.issues.filter((i) => i.startsWith('spaceDensities.xlsx'))).toEqual([
+      'spaceDensities.xlsx row 4: duplicate fine-dining in Authority A — skipped',
+      'spaceDensities.xlsx row 5: unknown location Roof — skipped',
+      'spaceDensities.xlsx row 6: Standard, Id, Space, Lighting and Power are needed — skipped'
+    ]);
+    applyDatabase(db);
+    expect(catalog().spaceStandards).toEqual([
+      { name: 'Authority A', spaces: [
+        { id: 'fine-dining', label: 'F&B', ltg: 12, pwr: 60, clg: 200, reference: 'Table 4' },
+        { id: 'fine-dining', label: 'F&B terrace', location: 'oo', ltg: 6, pwr: 10, clg: 0 }
+      ] },
+      { name: 'Company', acBasis: 'electrical', spaces: [
+        { id: 'apt', label: 'Apartment', ltg: 8, pwr: 35, clg: 40, dwelling: true },
+        { id: 'office', label: 'Office', ltg: 9, pwr: 25, clg: 0 }
+      ] }
+    ]);
   });
   it('reads luminaires for Light room, skips bad rows, and falls back to the typical list when empty', () => {
     expect(luminairesOf()).toBe(LUMINAIRES);
@@ -73,7 +101,7 @@ describe('Excel workbooks (desktop side)', () => {
   it('creates the new workbooks with a Read me, saves from the app with a backup, keeps the dropdowns', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lvdb-'));
     const { created } = await database.ensureDatabase(dir, databaseSeeds());
-    expect(created).toEqual(expect.arrayContaining(['Transformers.xlsx', 'RoomTypes.xlsx', 'Luminaires.xlsx', 'Rules.xlsx', 'Prices.xlsx']));
+    expect(created).toEqual(expect.arrayContaining(['Transformers.xlsx', 'RoomTypes.xlsx', 'SpaceDensities.xlsx', 'Luminaires.xlsx', 'Rules.xlsx', 'Prices.xlsx']));
     const read1 = await database.readDatabase(dir);
     expect(read1.books.transformers.rows.length).toBeGreaterThan(10);
     expect(read1.books.roomTypes.rows.length).toBeGreaterThan(10);

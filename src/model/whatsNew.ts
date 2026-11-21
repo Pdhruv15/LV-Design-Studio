@@ -18,9 +18,28 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.237', date: '2026-11-21',
+    version: '2.244', date: '2026-11-21',
     items: [
       { title: 'Design CAD: Save As starts with DWG', text: 'Design CAD → Drafting settings (DS) → Units & level: "Save As starts with" is now DWG unless you choose otherwise, also for a drawing received as DXF. A format you chose before is kept, and a drawing saved before still starts with the format of its last copy.', action: 'cad', actionLabel: 'Open Design CAD' },
+    ]
+  },
+  {
+    version: '2.238', date: '2026-11-21',
+    items: [
+      { title: 'Building: choose which assessment space a room type counts as', text: 'Concept → Building → Room types has two new columns. "Assessment space" sets which space of the load assessment the rooms of that type count as: a space of your density standard, "Basement car park", or "By name" (the same Id or name, as before). Beside it you see that space\'s lighting, power and cooling W/m². The load assessment\'s "Update from Building…" and its Building m² column follow this choice, so the space mix no longer depends on names matching. A room type set to the car park counts in the car park area. "Save as my library" writes the choice to RoomTypes.xlsx in a new Assessment space column.' }
+    ]
+  },
+  {
+    version: '2.237', date: '2026-11-21',
+    items: [
+      { title: 'Your own density standards, kept in the LV Database folder', text: 'A new workbook, SpaceDensities.xlsx, holds your standard values of lighting, power and cooling W/m²: one row per space and location (indoor seating and outdoor seating are two rows), with a Reference for where each value comes from and whether the A/C figure is a cooling load or an electrical load. Rows with the same Standard name are one standard, so you can keep several (company, client, authority). Edit it on the Database page (Space densities tab) or in Excel; the previous file is kept in Backups. Concept → Load assessment has a "Density standard" list beside the building type and an "Edit standards…" button that opens the Database page. A starting type takes the standard\'s figures; a type of your own keeps the figures it was saved with. In the area schedule, a space whose figures differ from the standard is marked "edited" with Reset. "+ Space from my standard…" adds a space from it, and "Add these values to my standard…" writes the assessment\'s spaces back (it replaces "Save densities as my library"). The library kept on this computer is still there, as the first standard in the list. A project keeps its own copy: changing a standard later does not move a project.' }
+    ]
+  },
+  {
+    version: '2.236', date: '2026-11-21',
+    items: [
+      { title: 'Building: Common services start from the load assessment', text: 'Concept → Building → Common services… now starts from the load assessment where it has the figure: the lift count and kW, EV chargers from the share of parking bays, pool, façade lighting, fire and jockey pumps, stair fans, booster and transfer pumps and car park fans. A new column says where each starting value comes from; every quantity stays editable. With no assessment, or for a building the assessment does not count, the list starts as before.' },
+      { title: 'No double counting: the assessment\'s lump feeders shrink as loads are designed', text: 'The feeders made by Load assessment → "Create MDB + feeders" stand in for loads that are not designed yet. Common services… and Generate DBs… now have a ticked box that reduces those lump feeders by what is being designed (lifts, pumps, EV, lighting, sockets, A/C, water heaters, cookers), and removes a lump when nothing is left of it. "Create / Update MDB feeders" does the same and says how many kW were left out. Before, the real DBs and services were added on top, so the MDB counted the load twice until the lump feeders were deleted by hand. Loads made by hand as a motor or a general load cannot be told apart and are not taken off. On Load assessment, the notice above the button also shows when loads designed since then have put the feeders out of step.' }
     ]
   },
   {

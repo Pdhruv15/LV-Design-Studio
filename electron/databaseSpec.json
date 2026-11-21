@@ -740,6 +740,99 @@
           "header": "Typical W/m²",
           "width": 13,
           "number": true
+        },
+        {
+          "key": "laSpace",
+          "header": "Assessment space",
+          "width": 20,
+          "help": "Which space of the load assessment this room type counts as: an Id from SpaceDensities.xlsx, or carpark for a car park. Blank = by the same Id or name."
+        }
+      ]
+    },
+    {
+      "id": "spaceDensities",
+      "file": "SpaceDensities.xlsx",
+      "sheet": "Space densities",
+      "about": [
+        "Space densities for Concept → Load assessment: your own standard values of lighting, power and cooling W/m² per space and location. Rows with the same Standard name are one standard. Several can be kept and the assessment picks one. A project keeps its own copy."
+      ],
+      "columns": [
+        {
+          "key": "standard",
+          "header": "Standard (name of the set)",
+          "width": 26,
+          "required": true,
+          "help": "Rows with the same name are one standard. Pick the standard on the Load assessment page."
+        },
+        {
+          "key": "id",
+          "header": "Id (short, no spaces)",
+          "width": 16,
+          "required": true
+        },
+        {
+          "key": "label",
+          "header": "Space",
+          "width": 30,
+          "required": true
+        },
+        {
+          "key": "location",
+          "header": "Location",
+          "width": 20,
+          "list": [
+            "Indoor, cooled",
+            "Indoor, not cooled",
+            "Outdoor, covered",
+            "Outdoor, open"
+          ],
+          "help": "Blank = Indoor, cooled. Only an indoor, cooled space carries a cooling load."
+        },
+        {
+          "key": "ltg",
+          "header": "Lighting (W/m²)",
+          "width": 14,
+          "required": true,
+          "number": true
+        },
+        {
+          "key": "pwr",
+          "header": "Power (W/m²)",
+          "width": 14,
+          "required": true,
+          "number": true,
+          "help": "Sockets and small power."
+        },
+        {
+          "key": "clg",
+          "header": "Cooling (W/m²)",
+          "width": 14,
+          "number": true
+        },
+        {
+          "key": "acBasis",
+          "header": "A/C figure",
+          "width": 16,
+          "list": [
+            "Cooling load",
+            "Electrical load"
+          ],
+          "help": "How the Cooling W/m² of this standard are read. Blank = Cooling load (thermal). Use the same value on every row of a standard."
+        },
+        {
+          "key": "dwelling",
+          "header": "Dwelling",
+          "width": 10,
+          "list": [
+            "Yes",
+            "No"
+          ],
+          "help": "Yes: counts for water heating and cooking."
+        },
+        {
+          "key": "reference",
+          "header": "Reference (where the value comes from)",
+          "width": 40
         }
       ]
     },

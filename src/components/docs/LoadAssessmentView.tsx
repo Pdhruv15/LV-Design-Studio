@@ -4,10 +4,11 @@ import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import { CheckedNum, Page, type NumRule } from '../ui';
 import {
-  assess, buildingFigures, clgInBasis, COOL_SYSTEMS, DEFAULT_SPACES, DHW_SYSTEMS, isCooled, LA_LOCATIONS, laSpaces, laTypes, loadLaLibrary, newAssessment, rowArea, rowPct,
-  saveLaLibrary, setAcBasis, setAreaMode, typeFromAssessment, type CategoryKey, type LaBuildingType, type LaCustomLoad, type LaFactors, type LaLibrary, type LaRow,
+  againstStandard, applyStandard, assess, buildingFigures, clgInBasis, COOL_SYSTEMS, DEFAULT_SPACES, DHW_SYSTEMS, isCooled, LA_LOCATIONS, laStandards, laTypes, loadLaLibrary, LOCAL_STANDARD, newAssessment, PLACEHOLDER_STANDARD, resetToStandard, rowArea, rowPct,
+  saveLaLibrary, setAcBasis, setAreaMode, standardOf, standardsToSheet, typeFromAssessment, withStandardRows, type CategoryKey, type LaBuildingType, type LaCustomLoad, type LaFactors, type LaLibrary, type LaRow,
   type LaLocation, type LaServices, type LaSupply, type LoadAssessment
 } from '../../calc/loadAssessment';
+import { catalog } from '../../database/catalog';
 import { laLink } from '../../calc/loadAssessmentLink';
 import { createMdbFromAssessment, LA_MDB, mdbStep } from '../../calc/loadAssessmentMdb';
 import { txt } from '../../util/format';
@@ -49,13 +50,15 @@ const uid = (p: string) => `${p}${Date.now().toString(36)}${Math.floor(Math.rand
 /** Load assessment: building type → area schedule → services → maximum
  * demand and supply. Every value is editable; your own figures are kept as a
  * library on this computer and replace the placeholders. */
-export default function LoadAssessmentView({ project, onChange, onStatus, onOpen }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void; onOpen?: (view: 'building') => void }) {
+export default function LoadAssessmentView({ project, onChange, onStatus, onOpen }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void; onOpen?: (view: 'building' | 'database') => void }) {
   const [lib, setLibState] = useState<LaLibrary>(() => loadLaLibrary());
   const [editFactors, setEditFactors] = useState(false);
   const [target, setTarget] = useState('');
   const types = useMemo(() => laTypes(lib), [lib]);
-  const spaces = useMemo(() => laSpaces(lib), [lib]);
+  const standards = laStandards(lib); // not memoised: the catalogue changes outside React state
   const a = project.loadAssessment;
+  const std = standardOf(a?.standard, standards);
+  const spaces = std.spaces;
   const r = useMemo(() => (a ? assess(a) : undefined), [a]);
   const link = useMemo(() => (a ? laLink(project, a, spaces) : undefined), [project, a, spaces]);
   const step = useMemo(() => (a ? mdbStep(project, a) : undefined), [project, a]);
@@ -72,7 +75,9 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
   const pickType = async (t: LaBuildingType) => {
     if (a && a.typeId !== t.id && !(await ask(`Start again from “${t.label}”? The area schedule, services and diversities are replaced (GFA, custom loads and supply settings are kept).`))) return;
     const fig = buildingFigures(project);
-    set(newAssessment(t, a ? { gfaM2: a.gfaM2, floors: a.floors, parkingM2: a.parkingM2, custom: a.custom, supply: a.supply, inReport: a.inReport } : { ...(fig.gfaM2 ? { gfaM2: fig.gfaM2 } : {}), ...(fig.floors ? { floors: fig.floors } : {}), parkingM2: fig.parkingM2 ?? (fig.gfaM2 ? 0 : 8000) }, lib));
+    const next = newAssessment(t, a ? { gfaM2: a.gfaM2, floors: a.floors, parkingM2: a.parkingM2, custom: a.custom, supply: a.supply, inReport: a.inReport } : { ...(fig.gfaM2 ? { gfaM2: fig.gfaM2 } : {}), ...(fig.floors ? { floors: fig.floors } : {}), parkingM2: fig.parkingM2 ?? (fig.gfaM2 ? 0 : 8000) }, lib);
+    // A starting type takes the standard's figures; a type of your own keeps the figures it was saved with.
+    set(std.name === PLACEHOLDER_STANDARD ? next : t.mine ? { ...next, standard: std.name } : applyStandard(next, std));
   };
   const saveType = (asNew: boolean) => {
     if (!a) return;
@@ -101,7 +106,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
     const made = res.createdIds.length ? `Created ${res.createdIds.join(', ')}` : '';
     const updated = res.boardIds.filter((id) => !res.createdIds.includes(id));
     const over = res.loading.filter((x) => x.pct > a.supply.maxLoadingPct);
-    onStatus(`${[made, updated.length ? `Updated ${updated.join(', ')}` : ''].filter(Boolean).join('; ')}: ${res.added} feeders from the load assessment${res.boardIds.length > 1 ? `, demand balanced over ${res.boardIds.length} transformers` : ''}${res.replaced ? ` (replaced ${res.replaced})` : ''} — check the cable lengths`
+    onStatus(`${[made, updated.length ? `Updated ${updated.join(', ')}` : ''].filter(Boolean).join('; ')}: ${res.added} feeders from the load assessment${res.designedKw > 0 ? `, ${Math.round(res.designedKw).toLocaleString('en-US')} kW already designed left out` : ''}${res.boardIds.length > 1 ? `, demand balanced over ${res.boardIds.length} transformers` : ''}${res.replaced ? ` (replaced ${res.replaced})` : ''} — check the cable lengths`
       + (res.loading.length ? `. Transformer loading ${res.loading.map((x) => `${x.boardId} ${txt.loading(x.pct)} %`).join(', ')}` : '')
       + (over.length ? ` — over the ${a.supply.maxLoadingPct} % limit: the boards add the feeders' demand without the assessment's coincidence factor` : '')
       + (res.unused.length ? `. ${res.unused.join(', ')} no longer needed by the assessment: its assessment feeders were removed — delete it if it is empty` : '')
@@ -125,6 +130,37 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
   const showB = !!link && link.buildingRows.length > 0;
   const electrical = a.acBasis === 'electrical';
   const coolFactor = a.factors.cool[a.services.cool] ?? 0;
+  const canWrite = !!window.lvds?.database?.write;
+  const addToStandard = async () => {
+    const fromBook = std.name !== LOCAL_STANDARD && std.name !== PLACEHOLDER_STANDARD;
+    if (!canWrite) {
+      const base = lib.spaces?.length ? lib.spaces : DEFAULT_SPACES;
+      // Library entries kept in the other A/C basis move to this assessment's, so one library has one basis.
+      const merged = base.map((x) => ({ ...x, clg: clgInBasis(x.clg, lib.spaces?.length ? lib.spacesAcBasis : undefined, a.acBasis, coolFactor) }));
+      for (const row of a.rows) {
+        const s = { id: row.id, label: row.label, ltg: row.ltg, pwr: row.pwr, clg: row.clg, dwelling: row.dwelling, location: row.location };
+        // The same space at another location (indoor and outdoor seating) is a library entry of its own.
+        const i = merged.findIndex((x) => (x.id === row.id && (x.location ?? 'in') === (row.location ?? 'in')) || x.label === row.label);
+        if (i >= 0) merged[i] = s; else merged.push(s);
+      }
+      setLib({ ...lib, spaces: merged, spacesAcBasis: a.acBasis }, `Saved ${a.rows.length} space densities to your library`);
+      patch({ standard: LOCAL_STANDARD });
+      return;
+    }
+    const book = catalog().spaceStandards;
+    if (fromBook) {
+      if (!(await ask(`Write the ${a.rows.length} spaces of this assessment to “${std.name}” in SpaceDensities.xlsx? Spaces with the same name and location are replaced; the previous file is kept in Backups/.`))) return;
+      await window.lvds.database.write('spaceDensities', standardsToSheet(withStandardRows(book, std.name, a)));
+      patch({ standard: std.name });
+      onStatus(`Saved ${a.rows.length} spaces to “${std.name}” in SpaceDensities.xlsx — backup in Backups/`);
+      return;
+    }
+    let name = 'My standard';
+    for (let n = 2; book.some((x) => x.name === name); n++) name = `My standard ${n}`;
+    await window.lvds.database.write('spaceDensities', standardsToSheet(withStandardRows(book, name, a)));
+    patch({ standard: name });
+    onStatus(`Saved ${a.rows.length} spaces as “${name}” in SpaceDensities.xlsx — rename it on the Database page`);
+  };
   const pctBad = Math.abs(r.pctTotal - 100) > 0.5;
   const maxDemand = Math.max(1, ...r.categories.map((c) => c.demandKw));
   const svcKw = (k: string) => (r.services[k] ? <em>{txt.power(r.services[k])} kW</em> : null);
@@ -148,7 +184,15 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
         <div>
           <section className="card la-sec">
             <h4><span className="la-n">1</span>Building type <span className="m">sets the space mix, services and diversities</span></h4>
-            <div className="bi-grid" style={{ marginBottom: 10 }}><TypeList types={types} value={a.typeId} label={a.typeLabel} onPick={pickType} onSaveNew={() => saveType(true)} /></div>
+            <div className="bi-grid" style={{ marginBottom: 10 }}>
+              <TypeList types={types} value={a.typeId} label={a.typeLabel} onPick={pickType} onSaveNew={() => saveType(true)} />
+              <label>Density standard
+                <select className="bi-sel" value={std.name} onChange={async (e) => { const picked = standards.find((x) => x.name === e.target.value); if (picked && picked !== std && (await ask(`Use the densities of “${picked.name}” for the spaces it has? Spaces it does not have keep their figures.`))) set(applyStandard(a, picked)); }}>
+                  {standards.map((x) => <option key={x.name} value={x.name}>{x.name}</option>)}
+                </select>
+              </label>
+              <button className="chip" style={{ alignSelf: 'end' }} disabled={!canWrite} title={canWrite ? undefined : 'Needs the desktop app: the standards are kept in the LV Database folder'} onClick={() => onOpen?.('database')}>Edit standards…</button>
+            </div>
             <div className="la-box">
               <div className="bi-grid">
                 <label>Type name<Text value={a.typeLabel} onSet={(v) => patch({ typeLabel: v })} width={190} /></label>
@@ -187,7 +231,8 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
               <tbody>
                 {a.rows.map((row, i) => (
                   <tr key={`${row.id}-${i}`}>
-                    <td><Text value={row.label} onSet={(v) => setRow(i, { label: v })} width={130} /></td>
+                    <td><Text value={row.label} onSet={(v) => setRow(i, { label: v })} width={130} />
+                      {(() => { const st = againstStandard(row, std, a); return st.state === 'edited' && st.space ? <div className="la-under"><span className="warn">edited</span> <button className="linkish" style={{ marginLeft: 4 }} title={`Back to the figures of “${std.name}”`} onClick={() => setRow(i, resetToStandard(row, st.space!, std, a))}>Reset</button></div> : null; })()}</td>
                     <td><select className="bi-sel" style={{ width: 120 }} value={row.location ?? 'in'} onChange={(e) => setRow(i, { location: e.target.value === 'in' ? undefined : (e.target.value as LaLocation) })} aria-label="Location">{LA_LOCATIONS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}</select></td>
                     <td>{a.areaMode === 'pct' ? <Num value={row.pct ?? 0} onSet={(v) => setRow(i, { pct: v })} width={56} /> : <Num value={row.areaM2 ?? 0} onSet={(v) => setRow(i, { areaM2: v })} width={80} />}</td>
                     <td className="m">{txt.size(rowArea(a, row))}{a.areaMode === 'm2' && g ? ` · ${txt.loading(rowPct(a, row))} %` : ''}</td>
@@ -212,23 +257,13 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
             {showB && link.spaces.length > a.rows.length && <div className="m">In Building only: {link.spaces.slice(a.rows.length).map((x) => `${x.label} ${txt.size(x.buildingM2)} m²`).join(', ')}</div>}
             <div className="m">Power is sockets and small power. A space that is not cooled or is outdoors carries no cooling load. An outdoor space is outside the GFA, so it is not in the total. The same space can be listed twice with two locations.</div>
             <div className="bi-actions">
-              <select className="bi-sel" value="" onChange={(e) => { const s = spaces.find((x) => x.id === e.target.value); if (s) patch({ rows: [...a.rows, { ...s, clg: clgInBasis(s.clg, lib.spaces?.length ? lib.spacesAcBasis : undefined, a.acBasis, coolFactor), ...(a.areaMode === 'pct' ? { pct: 0 } : { areaM2: 0 }) }] }); }}>
-                <option value="">+ Space from library…</option>
-                {spaces.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+              <select className="bi-sel" value="" onChange={(e) => { const s = std.spaces[Number(e.target.value)]; if (s) patch({ rows: [...a.rows, { ...s, clg: clgInBasis(s.clg, std.acBasis, a.acBasis, coolFactor), ...(a.areaMode === 'pct' ? { pct: 0 } : { areaM2: 0 }) }] }); }}>
+                <option value="">+ Space from my standard…</option>
+                {std.spaces.map((s, k) => <option key={`${s.id}-${s.location ?? 'in'}`} value={k}>{s.label}{s.location ? ` (${LA_LOCATIONS.find((l) => l.value === s.location)?.label.toLowerCase()})` : ''}</option>)}
               </select>
               <button className="chip" onClick={() => patch({ rows: [...a.rows, { id: uid('sp'), label: 'Custom space', ltg: 8, pwr: 20, clg: 100, ...(a.areaMode === 'pct' ? { pct: 0 } : { areaM2: 0 }) }] })}>+ Custom space</button>
               <span className="sp" />
-              <button className="chip" title="Keep these spaces' densities in your space library (added to or replacing the same names)" onClick={() => {
-                // Library entries kept in the other A/C basis move to this assessment's, so one library has one basis.
-                const merged = spaces.map((x) => ({ ...x, clg: clgInBasis(x.clg, lib.spaces?.length ? lib.spacesAcBasis : undefined, a.acBasis, coolFactor) }));
-                for (const row of a.rows) {
-                  const s = { id: row.id, label: row.label, ltg: row.ltg, pwr: row.pwr, clg: row.clg, dwelling: row.dwelling, location: row.location };
-                  // The same space at another location (indoor and outdoor seating) is a library entry of its own.
-                  const i = merged.findIndex((x) => (x.id === row.id && (x.location ?? 'in') === (row.location ?? 'in')) || x.label === row.label);
-                  if (i >= 0) merged[i] = s; else merged.push(s);
-                }
-                setLib({ ...lib, spaces: merged, spacesAcBasis: a.acBasis }, `Saved ${a.rows.length} space densities to your library`);
-              }}>Save densities as my library</button>
+              <button className="chip" title="Keep these spaces' densities in your standard (added to or replacing the same names)" onClick={() => void addToStandard()}>Add these values to my standard…</button>
               {lib.spaces?.length ? <button className="chip" onClick={() => setLib({ ...lib, spaces: undefined, spacesAcBasis: undefined }, `Space library back to the ${DEFAULT_SPACES.length} placeholders`)}>Placeholder spaces</button> : null}
             </div>
           </section>
@@ -355,7 +390,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
             </div>
             <ConceptToDesignTable project={project} here heading={<div className="m" style={{ margin: '10px 0 4px' }}><b>Concept to design</b></div>} />
 
-            {step && !step.inStep && <div className="la-flag warn">The feeders on {step.boards.join(' and ')} were made from this assessment before its last change (they add up to {f0(step.feedersDemandKw)} kW demand; the assessment now has {f0(step.assessmentDemandKw)} kW). {step.boards.every((b) => laMdbs.includes(b)) ? <>Press <b>Update MDB feeders</b></> : <>Pick the board below and press <b>Add feeders</b></>} to bring them in step.</div>}
+            {step && !step.inStep && <div className="la-flag warn">The feeders made from this assessment on {step.boards.join(' and ')} are out of step: they add up to {f0(step.feedersDemandKw)} kW demand and should now add up to {f0(step.expectedDemandKw)} kW{step.assessmentDemandKw - step.expectedDemandKw > 0.5 ? ` (the assessment's ${f0(step.assessmentDemandKw)} kW less what is already designed)` : ''}. {step.boards.every((b) => laMdbs.includes(b)) ? <>Press <b>Update MDB feeders</b></> : <>Pick the board below and press <b>Add feeders</b></>} to bring them in step.</div>}
             <div className="bi-actions">
               <select className="bi-sel" value={picked} onChange={(e) => setTarget(e.target.value)} title="Board the feeders go on">
                 <option value="">{laMdbs.length ? `Assessment MDBs (${laMdbs.join(', ')})` : r.tx && r.tx.duty > 1 ? `New MDBs (${r.tx.duty} × ${txt.plain(r.tx.kva)} kVA transformers)` : `New MDB${r.tx ? ` (${txt.plain(r.tx.kva)} kVA transformer)` : ''}`}</option>
