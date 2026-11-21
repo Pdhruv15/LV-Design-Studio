@@ -1,6 +1,6 @@
 # Country and office load schedule formats — proposal (2026-11-19)
 
-Status: proposal and mockup only. No UI, calculation, report or export behaviour is changed.
+Status: approved and being built in separate stages. Stages 1–3 are merged in PR #715, stage 4 in PR #720, and stage 5 adds country/authority discovery and office defaults. The bounded mapper remains separate from design rules and calculations.
 
 ## Question
 
@@ -259,11 +259,11 @@ The interface should not require the user to type JSON or field keys manually. T
 
 Each stage should be a separate PR after approval.
 
-1. **Mapping contract and typed field catalogue.** Consolidate project, panel, circuit and summary fields; define one fixed-cell area, one repeating circuit region and fixed summary cells.
-2. **Template import, validation and sample preview.** Import the supported Excel subset; report missing links and unsupported features; preview small and multi-page sample panels.
-3. **Common Excel/PDF layout model.** Generate both outputs from the validated mapping, with defined pagination, repeated headings and continuation behaviour.
-4. **Shareable format package.** Export/import one reviewed format with version, status, source, conflict handling and `Library.json` compatibility.
-5. **Office and authority discovery.** Add optional country/authority compatibility and per-category defaults. General remains the fallback.
+1. **Mapping contract and typed field catalogue — built.** Consolidate project, panel, circuit and summary fields; define one fixed-cell area, one repeating circuit region and fixed summary cells.
+2. **Template import, validation and sample preview — built.** Import the supported Excel subset; report missing links and unsupported features; preview small and multi-page sample panels.
+3. **Common Excel/PDF layout model — built.** Generate both outputs from the validated mapping, with defined pagination, repeated headings and continuation behaviour.
+4. **Shareable format package — built.** Export/import one reviewed format with version, conflict handling and `Library.json` compatibility; office-default choices remain local to the library.
+5. **Office and authority discovery — built.** Add optional country/authority compatibility and per-category defaults. General remains the fallback.
 6. **Editable-field expansion.** Only after output templates are stable, allow explicitly approved write links through Apply to project.
 7. **Advanced layout adapters.** Add multiple repeat regions, two-record visual rows or repeated panel blocks only against real accepted customer templates.
 8. **Legacy consolidation.** Read the old placeholder workbook into My formats where possible; keep the old exporter for existing users until migration is proven.

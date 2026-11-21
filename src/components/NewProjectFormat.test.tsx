@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NewProjectWizard } from './BriefEditor';
 import { BUILT_IN_REFERENCES } from '../model/designReference';
-import { FORMATS_KEY, saveFormats, withFormat } from '../model/scheduleFormats';
+import { FORMATS_KEY, saveFormats, withFormat, withFormatCompatibility, withFormatDefault } from '../model/scheduleFormats';
 import { newSheet } from '../model/sheets';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -61,5 +61,30 @@ describe('new project: schedule formats', () => {
     show();
     go();
     expect(onCreate.mock.calls[0][4]).toEqual({});
+  });
+
+  it('starts with the authority default, falls back to the country default, and still offers an explicit override', () => {
+    let list = withFormat(withFormat(withFormat([], 'General office', dbSheet).list, 'UAE office', dbSheet).list, 'DEWA office', dbSheet).list;
+    const id = (name: string) => list.find((f) => f.name === name)!.id;
+    list = withFormatDefault(list, id('General office'), 'db');
+    list = withFormatCompatibility(list, id('UAE office'), { country: 'United Arab Emirates' });
+    list = withFormatDefault(list, id('UAE office'), 'db');
+    list = withFormatCompatibility(list, id('DEWA office'), { authorityId: 'builtin-dewa' });
+    list = withFormatDefault(list, id('DEWA office'), 'db');
+    saveFormats(list);
+    show();
+    expect(select('DB').value).toBe(id('DEWA office'));
+    expect(texts('DB')).toEqual([
+      "General — the app's load schedule",
+      'DEWA office — authority default',
+      'UAE office — country default',
+      'General office — General default'
+    ]);
+    const authority = [...document.querySelectorAll('label')].find((l) => l.textContent?.startsWith('Authority'))!.querySelector('select')!;
+    act(() => { authority.value = 'builtin-addc'; authority.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(select('DB').value).toBe(id('UAE office'));
+    expect(texts('DB')).toContain('DEWA office — other country/authority');
+    choose('DB', id('DEWA office'));
+    expect(select('DB').value).toBe(id('DEWA office'));
   });
 });

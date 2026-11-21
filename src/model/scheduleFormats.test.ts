@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LIBRARY_KEYS } from '../database/librarySync';
 import { sampleProject } from '../data/sampleProject';
-import { FORMATS_KEY, formatNameError, formatVersion, loadFormats, projectFormat, projectFormatStale, PANEL_CATEGORIES, removeFormat, renameFormat, saveFormats, scheduleFormatFileText, scheduleFormatFromFileText, SCHEDULE_FORMAT_FILE, SCHEDULE_FORMAT_FILE_VERSION, withFormat, withImportedFormat, withProjectFormat, type ScheduleFormat } from './scheduleFormats';
+import { defaultFormatFor, defaultFormatIds, FORMATS_KEY, formatMatchRank, formatNameError, formatVersion, loadFormats, projectFormat, projectFormatStale, PANEL_CATEGORIES, removeFormat, renameFormat, saveFormats, scheduleFormatFileText, scheduleFormatFromFileText, SCHEDULE_FORMAT_FILE, SCHEDULE_FORMAT_FILE_VERSION, withFormat, withFormatCompatibility, withFormatDefault, withImportedFormat, withProjectFormat, type ScheduleFormat } from './scheduleFormats';
 import { newSheet, type Sheet } from './sheets';
 
 const tpl = (): Sheet => ({ ...newSheet(), link: { category: 'db', cells: {}, firstRow: 5, rows: [], columns: { A: 'row.ref' } } });
@@ -78,13 +78,16 @@ describe('portable schedule-format file', () => {
     const base = fmt('a', 'Office DB'), linked: ScheduleFormat = {
       ...base,
       version: 3,
+      authorityId: 'builtin-dewa',
+      defaultFor: ['db'],
       sheet: { ...base.sheet, link: { ...base.sheet.link!, mode: 'linked', boardId: 'DB-GF1', rows: ['r1'], pending: { r1: { A: 'changed' } }, added: [{ A: 'new' }] } }
     };
     const text = scheduleFormatFileText(linked, new Date('2026-11-20T12:00:00Z'));
     const file = JSON.parse(text);
     expect(file).toMatchObject({ format: SCHEDULE_FORMAT_FILE, version: SCHEDULE_FORMAT_FILE_VERSION, exportedAt: '2026-11-20T12:00:00.000Z' });
     const back = scheduleFormatFromFileText(text);
-    expect(back).toMatchObject({ id: 'a', name: 'Office DB', version: 3 });
+    expect(back).toMatchObject({ id: 'a', name: 'Office DB', version: 3, authorityId: 'builtin-dewa' });
+    expect(back).not.toHaveProperty('defaultFor');
     expect(back.sheet.link).toMatchObject({ mode: 'output', rows: [] });
     expect(back.sheet.link).not.toHaveProperty('boardId');
     expect(back.sheet.link).not.toHaveProperty('pending');
@@ -100,11 +103,11 @@ describe('portable schedule-format file', () => {
   });
 
   it('updates the same stable ID, or imports a safe uniquely named copy', () => {
-    const existing = [fmt('a', 'Office DB'), fmt('b', 'Shared DB')], incoming = { ...fmt('a', 'Shared DB'), version: 4 };
+    const existing = [{ ...fmt('a', 'Office DB'), defaultFor: ['db' as const] }, fmt('b', 'Shared DB')], incoming = { ...fmt('a', 'Shared DB'), version: 4 };
     const updated = withImportedFormat(existing, incoming);
     expect(updated.action).toBe('updated');
     expect(updated.list).toHaveLength(2);
-    expect(updated.format).toMatchObject({ id: 'a', name: 'Shared DB (imported)', version: 4 });
+    expect(updated.format).toMatchObject({ id: 'a', name: 'Shared DB (imported)', version: 4, defaultFor: ['db'] });
     expect(updated.format.sheet.link!.mode).toBe('output');
     const copied = withImportedFormat(existing, incoming, true);
     expect(copied.action).toBe('copied');
@@ -114,6 +117,44 @@ describe('portable schedule-format file', () => {
     const added = withImportedFormat(existing, fmt('c', 'New format'));
     expect(added.action).toBe('added');
     expect(added.format.name).toBe('New format');
+  });
+});
+
+describe('schedule-format discovery and office defaults', () => {
+  const general = { ...fmt('g', 'General office'), defaultFor: ['db' as const] };
+  const uae = { ...fmt('u', 'UAE office'), country: 'United Arab Emirates', defaultFor: ['db' as const] };
+  const dewa = { ...fmt('d', 'DEWA office'), authorityId: 'builtin-dewa', defaultFor: ['db' as const] };
+  const list = [general, uae, dewa];
+
+  it('matches authority before country before General, and never treats another authority as compatible', () => {
+    const context = { country: 'United Arab Emirates', authorityId: 'builtin-dewa' };
+    expect(list.map((f) => formatMatchRank(f, context))).toEqual([1, 2, 3]);
+    expect(defaultFormatFor(list, 'db', context)?.id).toBe('d');
+    expect(defaultFormatFor(list, 'db', { country: 'United Arab Emirates', authorityId: 'builtin-addc' })?.id).toBe('u');
+    expect(defaultFormatFor(list, 'db', { country: 'United Kingdom', authorityId: 'builtin-bs7671' })?.id).toBe('g');
+    expect(defaultFormatIds(list, context)).toEqual({ db: 'd', smdb: '', mdb: '', mcc: '' });
+  });
+
+  it('changes compatibility, increments the version and clears a default that must not move silently', () => {
+    const changed = withFormatCompatibility([dewa], 'd', { country: 'United Kingdom' }, new Date('2026-11-21T10:00:00Z'))[0];
+    expect(changed).toMatchObject({ id: 'd', country: 'United Kingdom', version: 2, updatedAt: '2026-11-21' });
+    expect(changed).not.toHaveProperty('authorityId');
+    expect(changed).not.toHaveProperty('defaultFor');
+  });
+
+  it('keeps only one office default per scope and category, without affecting another authority', () => {
+    const a = { ...dewa, id: 'a', name: 'A' }, b = { ...dewa, id: 'b', name: 'B', defaultFor: undefined }, addc = { ...dewa, id: 'c', name: 'C', authorityId: 'builtin-addc' };
+    const picked = withFormatDefault([a, b, addc], 'b', 'db');
+    expect(picked.map((f) => [f.id, f.defaultFor])).toEqual([['a', undefined], ['b', ['db']], ['c', ['db']]]);
+    expect(withFormatDefault(picked, 'b', 'db', false).find((f) => f.id === 'b')).not.toHaveProperty('defaultFor');
+    expect(withFormatDefault(picked, 'b', 'mcc')).toBe(picked);
+  });
+
+  it('keeps an office default across a same-scope package update, but not when package compatibility changed', () => {
+    const same = withImportedFormat([dewa], { ...dewa, name: 'DEWA revised', version: 2 });
+    expect(same.format.defaultFor).toEqual(['db']);
+    const moved = withImportedFormat([dewa], { ...dewa, name: 'UK format', version: 2, authorityId: undefined, country: 'United Kingdom' });
+    expect(moved.format).not.toHaveProperty('defaultFor');
   });
 });
 
