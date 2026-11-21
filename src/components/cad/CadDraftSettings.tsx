@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import { CadDialog, Check, Num, Row } from './CadDialogs';
 import type { CadToggles } from './CadCanvas';
 import type { DraftTab } from './cadState';
@@ -8,8 +8,10 @@ type MenuItem = { label: string; title: string; onClick: () => void };
 
 const TABS: { k: DraftTab; label: string }[] = [
   { k: 'snap', label: 'Snap & grid' }, { k: 'polar', label: 'Polar tracking' }, { k: 'osnap', label: 'Object snap' }, { k: 'dyn', label: 'Dynamic input' },
-  { k: 'select', label: 'Selection' }, { k: 'cursor', label: 'Cursor' }, { k: 'units', label: 'Units & level' }
+  { k: 'select', label: 'Selection' }, { k: 'cursor', label: 'Cursor' }, { k: 'saving', label: 'Saving' }
 ];
+const DRAWING: { k: DraftTab; label: string } = { k: 'drawing', label: 'Drawing' };
+const PAGES = [...TABS, DRAWING];
 const HELP: Record<DraftTab, string> = {
   snap: 'Snap (F9) steps the cursor by the spacing; 0 follows the grid on screen. Grid (F7): 0 adapts to the zoom.',
   polar: 'Polar tracking (F10) holds the next point on the angles from the last one. ORTHO (F8) and polar turn each other off. Object snap tracking (F11): rest the cursor on a snap point to acquire it (again to let it go), then follow its alignment lines.',
@@ -17,17 +19,20 @@ const HELP: Record<DraftTab, string> = {
   dyn: 'Dynamic input (F12): the boxes, the short prompt and its options at the cursor.',
   select: 'Left to right: only what is fully inside. Right to left: what the window crosses. Shift-click adds or removes. A click picks what is inside the pick box.',
   cursor: 'The crosshair and its colour, the outline that keeps the cursor visible over any line, the snap aperture (how near a snap point must be) and the marker.',
-  units: 'Level and units belong to this drawing; the rest is kept for you on this computer.'
+  saving: 'Kept for you on this computer, for every drawing.',
+  drawing: 'Level and units belong to this drawing; each change is one undo step on OK.'
 };
 
-/** Drafting settings (DS / DSETTINGS): seven tabs. The settings and the status-bar toggles change together on OK; Esc,
+/** Drafting settings (DS / DSETTINGS): eight pages in a list on the left. The settings and the status-bar toggles change together on OK; Esc,
  * Cancel or × change nothing. Level and units run at once on OK, each one undo step, as from the File menu before. */
-export default function CadDraftSettings({ tab: first = 'snap', draft, toggles, gridDots, level, levels, unit, units, autosaveMin, onApply, onClose }: {
+export default function CadDraftSettings({ tab: first = 'snap', draft, toggles, gridDots, level, levelSet, levels, unit, units, autosaveMin, onApply, onClose }: {
   tab?: DraftTab;
   draft: DraftSettings;
   toggles: CadToggles;
   gridDots: boolean;
   level: string;
+  /** The drawing is the plan of a level (else the Level box reads "Not set"). */
+  levelSet: boolean;
   levels: MenuItem[];
   unit: string;
   units: MenuItem[];
@@ -37,6 +42,12 @@ export default function CadDraftSettings({ tab: first = 'snap', draft, toggles, 
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<DraftTab>(first);
+  const list = useRef<HTMLDivElement>(null);
+  const step = (e: React.KeyboardEvent, i: number) => {
+    const j = e.key === 'ArrowDown' ? i + 1 : e.key === 'ArrowUp' ? i - 1 : i;
+    if (j === i || j < 0 || j >= PAGES.length) return;
+    e.preventDefault(); setTab(PAGES[j].k); list.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[j]?.focus();
+  };
   const [d, setD] = useState(draft);
   const [t, setT] = useState(toggles);
   const [dots, setDots] = useState(gridDots);
@@ -56,10 +67,14 @@ export default function CadDraftSettings({ tab: first = 'snap', draft, toggles, 
     ? <button type="button" onClick={() => patch(tab === 'cursor' ? { crossPct: DRAFT_DEFAULTS.crossPct, crossColor: DRAFT_DEFAULTS.crossColor, cursorOutline: true, aperturePx: DRAFT_DEFAULTS.aperturePx, markerPx: DRAFT_DEFAULTS.markerPx, snapTip: true } : { windowFill: true, grips: true, gripPx: DRAFT_DEFAULTS.gripPx, pickBoxPx: DRAFT_DEFAULTS.pickBoxPx, hoverMark: true, hoverTag: false, pickLook: DRAFT_DEFAULTS.pickLook, selColor: DRAFT_DEFAULTS.selColor, gripMax: DRAFT_DEFAULTS.gripMax })}>Reset</button>
     : tab === 'osnap' ? <><button type="button" onClick={() => patch({ osnap: Object.values(OSNAP_BITS).reduce((a, b) => a | b, 0) })}>Select all</button><button type="button" onClick={() => patch({ osnap: 0 })}>Clear all</button></> : null;
   return (
-    <CadDialog id="dsettings" title="Drafting settings" alias="DS" help={HELP[tab]} onOk={ok} onClose={onClose} wide extra={reset}>
-      <div className="cad-dlg-tabs wrap" role="tablist" aria-label="Drafting settings">
-        {TABS.map((x) => <button key={x.k} type="button" role="tab" aria-selected={tab === x.k} onClick={() => setTab(x.k)}>{x.label}</button>)}
+    <CadDialog id="dsettings" title="Drafting settings" alias="DS" help={HELP[tab]} onOk={ok} onClose={onClose} pages extra={reset}>
+      <div className="cad-dlg-pl" ref={list} role="tablist" aria-orientation="vertical" aria-label="Drafting settings">
+        {PAGES.map((x, i) => <Fragment key={x.k}>
+          {x.k === 'drawing' && <hr aria-hidden="true" />}
+          <button type="button" role="tab" aria-selected={tab === x.k} onClick={() => setTab(x.k)} onKeyDown={(e) => step(e, i)}>{x.label}</button>
+        </Fragment>)}
       </div>
+      <div className="cad-dlg-pg">
       {tab === 'snap' && <>
         <div className="cad-dlg-sec">Snap (F9)</div>
         <Check label="Snap on" value={t.snap} onChange={tog('snap')} />
@@ -113,15 +128,22 @@ export default function CadDraftSettings({ tab: first = 'snap', draft, toggles, 
         <Check label="Snap name beside the marker" value={d.snapTip} onChange={(v) => patch({ snapTip: v })} />
         <Check label="Show lineweights (LWT)" value={t.lwt !== false} onChange={tog('lwt')} />
       </>}
-      {tab === 'units' && <>
-        <div className="cad-dlg-sec">This drawing</div>
-        <Row label="Level"><select aria-label="Level" value={lv} disabled={!levels.length} onChange={(e) => setLv(e.target.value)}><option value="">{level}</option>{levels.map((x) => <option key={x.label} value={x.label}>{x.label}</option>)}</select></Row>
-        <Row label="Units"><select aria-label="Units" value={un} disabled={!units.length} onChange={(e) => setUn(e.target.value)}><option value="">{unit}</option>{units.map((x) => <option key={x.label} value={x.label}>{x.label}</option>)}</select></Row>
-        <div className="cad-dlg-sec">Saving</div>
-        <Row label="Save As starts with"><select aria-label="Save As starts with" value={d.saveFormat} onChange={(e) => patch({ saveFormat: e.target.value as DraftSettings['saveFormat'] })}><option value="own">The drawing's own</option><option value="dwg">DWG</option><option value="dxf">DXF</option></select></Row>
-        <Check label="Keep the previous copy (.bak) on Save" value={d.keepBak} onChange={(v) => patch({ keepBak: v })} />
-        <Num label="Recovery copy every (0 = off)" unit="min" value={auto} onChange={(v) => setAuto(Math.round(Number(v)))} />
+      {tab === 'saving' && <>
+        <div className="cad-dlg-sec two">On this computer<i>used for every drawing</i></div>
+        <Row label="Save As format"><select aria-label="Save As format" value={d.saveFormat} onChange={(e) => patch({ saveFormat: e.target.value as DraftSettings['saveFormat'] })}><option value="dwg">DWG (default)</option><option value="dxf">DXF</option><option value="own">The drawing's own format</option></select></Row>
+        <p className="cad-dlg-note">A drawing saved before starts with the format of its last copy.</p>
+        <Check lead label="Keep the previous copy as .bak on Save" value={d.keepBak} onChange={(v) => patch({ keepBak: v })} />
+        <Num label="Recovery copy every" unit="min" value={auto} onChange={(v) => setAuto(Math.round(Number(v)))} />
+        <p className="cad-dlg-note">0 = off</p>
       </>}
+      {tab === 'drawing' && <>
+        <div className="cad-dlg-sec two">This drawing<i>each change is one undo step</i></div>
+        <Row label="Level"><select aria-label="Level" value={lv} disabled={!levels.length} onChange={(e) => setLv(e.target.value)}><option value="">{levelSet ? level : 'Not set'}</option>{levels.map((x) => <option key={x.label} value={x.label}>{x.label}</option>)}</select></Row>
+        <p className="cad-dlg-note">The level this drawing is the plan of.</p>
+        <Row label="Units"><select aria-label="Units" value={un} disabled={!units.length} onChange={(e) => setUn(e.target.value)}><option value="">{unit}</option>{units.map((x) => <option key={x.label} value={x.label}>{x.label}</option>)}</select></Row>
+        <p className="cad-dlg-note">Level and units change this drawing when you press OK. The other pages are kept for you on this computer.</p>
+      </>}
+      </div>
     </CadDialog>
   );
 }
