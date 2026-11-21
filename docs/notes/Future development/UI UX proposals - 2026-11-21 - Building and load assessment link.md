@@ -1,6 +1,6 @@
 # UI UX proposal – Building information and Load assessment linked both ways (2026-11-21)
 
-Status: **proposed**, waiting for the user's decisions A–F. Nothing is built.
+Status: **approved 2026-11-21** — the user chose the recommended option for every decision (A–F). Built step by step, starting with step 0 (counting fixes).
 
 Mockup: `docs/mockups/building-load-assessment-link-mockup.html` (image: `building-load-assessment-link-mockup.png`).
 

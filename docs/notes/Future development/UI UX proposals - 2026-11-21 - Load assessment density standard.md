@@ -1,6 +1,6 @@
 # UI UX proposal – Load assessment: building type list and your own density standard (2026-11-21)
 
-Status: **proposed**, waiting for the user's decisions G–K. Nothing is built. The letters and numbers continue from `UI UX proposals - 2026-11-21 - Building and load assessment link.md` (items 1–7, decisions A–F).
+Status: **approved 2026-11-21** — the user chose the recommended option for every decision (G–K). Built step by step after the Building link steps. The letters and numbers continue from `UI UX proposals - 2026-11-21 - Building and load assessment link.md` (items 1–7, decisions A–F).
 
 Mockup: `docs/mockups/load-assessment-density-standard-mockup.html` (image: `load-assessment-density-standard-mockup.png`).
 
