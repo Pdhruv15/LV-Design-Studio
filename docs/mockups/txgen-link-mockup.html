@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tx and Gen sizing link mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite light; sizes from src/styles.css (.card, .chip, .la-*, .bi-*) */
+:root{--bg:#F5F3EF;--panel:#ffffff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--ok:#177336;--warn:#8a5d00;--bad:#cf222e;--field:#857E70;--new:#7a3fd1}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/18px -apple-system,"Segoe UI",system-ui,sans-serif;width:1952px;padding:16px 20px 20px}
+h1{font-size:17px;margin:0 0 4px}
+h2{font-size:13px;margin:18px 0 6px;font-weight:600}
+h2 .hm{font-weight:400;color:var(--mut);margin-left:8px}
+p.lead{margin:0 0 6px;color:var(--mut)}
+.m{color:var(--mut)}
+.sp{flex:1}
+.n{display:inline-block;width:18px;height:18px;line-height:18px;border-radius:50%;background:var(--new);color:#fff;text-align:center;font-size:11px;font-weight:700;margin-right:6px;vertical-align:1px;flex:none}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin:0 5px 0 0;border:1.5px dashed var(--new)}
+.nw{outline:1.5px dashed var(--new);outline-offset:3px;border-radius:6px}
+td.nwc,th.nwc{background:rgba(122,63,209,.07);border-left:1.5px dashed var(--new);border-right:1.5px dashed var(--new)}
+.ic{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;flex:none}
+
+.frame{border:1px solid var(--line-strong);border-radius:8px;background:var(--bg);padding:14px 18px 16px}
+.ph{display:flex;align-items:flex-start;gap:16px;margin-bottom:10px}
+.ph h3{font-size:18px;font-weight:600;margin:0 0 2px}
+.ph p{margin:0;color:var(--mut);font-size:12px;max-width:1100px}
+.acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:6px;padding:0 12px;height:28px;font-size:12px;background:var(--p2);white-space:nowrap}
+.chip.primary{background:var(--acc);color:#fff;font-weight:600;border-color:var(--acc)}
+.chip.bad{border-color:#e0919a;color:var(--bad);background:transparent}
+.chip.gone{text-decoration:line-through;opacity:.55}
+.card{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:14px}
+.card h4{margin:0 0 10px;font-size:13px;font-weight:600;display:flex;gap:8px;align-items:center}
+.card h4 .m{font-weight:400;font-size:12px}
+.lan{width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;display:inline-grid;place-items:center;font-size:11px}
+.grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px;align-items:start}
+.t{width:100%;border-collapse:collapse;font-size:12px}
+.t th{text-align:left;font-weight:600;color:var(--mut);padding:5px 8px;border-bottom:1px solid var(--line-strong);white-space:nowrap}
+.t td{padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.t td.wrap{white-space:normal}
+.t tfoot td{border-bottom:0;font-weight:600}
+.t .r{text-align:right}
+.in{display:inline-block;border:1px solid var(--field);border-radius:5px;padding:2px 8px;background:#fff;min-width:54px;text-align:right}
+.in.txt{text-align:left;min-width:150px}
+.sel{display:inline-flex;align-items:center;gap:8px;justify-content:space-between;border:1px solid var(--field);border-radius:5px;padding:2px 8px;background:#fff;min-width:150px}
+.cb{display:inline-grid;place-items:center;width:13px;height:13px;border:1px solid var(--field);border-radius:3px;vertical-align:-2px;margin-right:5px;background:#fff}
+.cb.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.cb svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.tag{display:inline-block;border-radius:999px;padding:0 8px;font-size:11px;line-height:17px;border:1px solid var(--line)}
+.tag.w{border-color:#d9b765;color:var(--warn);background:#fdf6e3}
+.tag.ok{border-color:#9bcfae;color:var(--ok);background:#eef8f1}
+.tag.nw2{border-color:var(--new);color:var(--new);background:rgba(122,63,209,.07)}
+.warn{color:var(--warn)}.okc{color:var(--ok)}.badc{color:var(--bad)}
+.fl{display:flex;gap:12px;flex-wrap:wrap}
+.fl label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut)}
+.fl label .in,.fl label .sel{color:var(--tx)}
+.under{font-size:11px;color:var(--warn)}
+.types{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;margin-bottom:10px}
+.type{padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--p2);font-size:12px}
+.type.on{border-color:var(--acc);color:var(--acc);font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;font-size:12px}
+.seg span{padding:4px 12px}
+.seg span.on{background:var(--acc);color:#fff}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.kpis div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--p2);display:flex;flex-direction:column}
+.kpis b{font-size:18px;line-height:24px}
+.kpis span{font-size:11px;color:var(--mut);line-height:14px}
+.flag{border-radius:8px;padding:8px 10px;font-size:12px;margin-top:8px;border:1px solid var(--line)}
+.flag.ok{border-color:#9bcfae;color:var(--ok)}
+.flag.w{border-color:#d9b765;color:var(--warn)}
+.bar{height:8px;background:rgba(135,88,0,.12);border-radius:4px;overflow:hidden;width:110px;display:inline-block;vertical-align:middle}
+.bar i{display:block;height:100%;background:var(--acc)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* the link strip */
+.link{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:18px;align-items:start;margin-bottom:14px}
+.link .lh{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.link .lh b{font-size:13px}
+.pop{border:1px solid var(--line);border-radius:8px;background:var(--panel);box-shadow:0 8px 24px rgba(39,36,32,.16);padding:12px 14px}
+.pop h5{margin:0 0 8px;font-size:13px}
+.pop ul{margin:0 0 8px;padding-left:18px}
+.pop li{margin:0 0 3px}
+.pop .res{border:1px dashed var(--line-strong);border-radius:6px;padding:6px 10px;margin-bottom:10px}
+.kline{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;align-items:center}
+.two{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;margin-top:12px;align-items:start}
+.dlg{border:1px solid var(--line);border-radius:10px;background:var(--panel);box-shadow:0 8px 24px rgba(39,36,32,.16);padding:14px 16px}
+.dlg h5{margin:0 0 8px;font-size:14px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
+.box{border:1px solid var(--line-strong);border-radius:8px;background:var(--panel);padding:12px 16px}
+.box h4{margin:0 0 8px;font-size:13px}
+.box ol{margin:0;padding-left:20px}
+.box li{margin:0 0 5px}
+.rec{color:var(--ok);font-weight:600}
+.flow text{font:12px -apple-system,"Segoe UI",system-ui,sans-serif;fill:var(--tx)}
+.flow .mt{fill:var(--mut)}
+.flow .bt{font-weight:600;font-size:13px}
+.flow .nt{fill:var(--new);font-weight:600}
+.flow .rt{fill:var(--bad)}
+
+.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:10px 0}
+.cards div{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.cards span{font-size:12px;color:var(--mut)}
+.cards b{font-size:15px}
+.cards small{font-size:11px;color:var(--mut)}
+.setbar{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin:6px 0 4px}
+.setbar label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut)}
+.setbar .in,.setbar .sel{color:var(--tx)}
+.st{font-size:13px;font-weight:600;margin:14px 0 6px;display:flex;gap:8px;align-items:center}
+.half{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;align-items:start}
+.note{font-size:11px;color:var(--mut);margin-top:6px}
+.box ul{margin:0 0 8px;padding-left:20px}
+
+.menu{border:1px solid var(--line);border-radius:8px;background:var(--panel);box-shadow:0 8px 24px rgba(39,36,32,.16);padding:4px;width:330px;font-size:12px;margin-top:4px}
+.menu div{display:flex;justify-content:space-between;gap:10px;padding:5px 10px;border-radius:5px}
+.menu div.on{background:rgba(135,88,0,.10);color:var(--acc);font-weight:600}
+.dl{display:grid;grid-template-columns:190px 1fr;gap:4px 12px;font-size:12px;margin:0}
+.dl dt{color:var(--mut)}
+.dl dd{margin:0}
+</style>
+</head>
+<body>
+<h1>Tx &amp; Gen sizing: linked with the load assessment and the space plan (mockup)</h1>
+<p class="lead">Sample figures, continued: the assessment gives 1,738 kVA, 2 × 1,250 kVA and a 1,000 kVA generator. The plan has TX-1 and TX-2 at 1,500 kVA on RMU-1, made in the network by Create / Update supply.</p>
+<p class="lead legend"><i></i>Dashed purple outline and a purple number = new. Everything else is the page as it is today.</p>
+
+<h2>The chain so far, and the step that is still apart</h2>
+<div class="frame" style="background:var(--panel);padding:8px 18px">
+<svg class="flow" viewBox="0 0 1900 150" width="1900" height="150" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#5D574C"/></marker>
+    <marker id="an" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#7a3fd1"/></marker>
+  </defs>
+  <g fill="#EFECE5" stroke="#C2BBAC"><rect x="20" y="20" width="230" height="60" rx="8"/><rect x="420" y="20" width="230" height="60" rx="8"/><rect x="820" y="20" width="230" height="60" rx="8"/><rect x="1220" y="20" width="230" height="60" rx="8"/></g>
+  <rect x="1640" y="20" width="240" height="60" rx="8" fill="#EFECE5" stroke="#7a3fd1" stroke-dasharray="6 4" stroke-width="1.6"/>
+  <text x="135" y="45" text-anchor="middle" class="bt">Building</text><text x="135" y="64" text-anchor="middle" class="mt">what is there</text>
+  <text x="535" y="45" text-anchor="middle" class="bt">Load assessment</text><text x="535" y="64" text-anchor="middle" class="mt">how much</text>
+  <text x="935" y="45" text-anchor="middle" class="bt">Space plan</text><text x="935" y="64" text-anchor="middle" class="mt">from where</text>
+  <text x="1335" y="45" text-anchor="middle" class="bt">Network</text><text x="1335" y="64" text-anchor="middle" class="mt">SLD, panels, load schedules</text>
+  <text x="1760" y="45" text-anchor="middle" class="bt">Tx &amp; Gen sizing</text><text x="1760" y="64" text-anchor="middle" class="mt">checked from the network</text>
+  <path d="M250 50H418" stroke="#5D574C" stroke-width="1.4" fill="none" marker-end="url(#a)" marker-start="url(#a)"/>
+  <path d="M650 50H818" stroke="#5D574C" stroke-width="1.4" fill="none" marker-end="url(#a)" marker-start="url(#a)"/>
+  <path d="M1050 50H1218" stroke="#5D574C" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+  <path d="M1450 50H1638" stroke="#5D574C" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+  <text x="334" y="41" text-anchor="middle" class="mt">v2.231</text><text x="734" y="41" text-anchor="middle" class="mt">v2.241</text><text x="1134" y="41" text-anchor="middle" class="mt">v2.242</text>
+  <text x="1544" y="41" text-anchor="middle" class="mt">demand only</text>
+  <path d="M535 80V112H1760V82" stroke="#7a3fd1" stroke-width="1.6" fill="none" marker-end="url(#an)"/>
+  <text x="1150" y="130" text-anchor="middle" class="nt">proposed: the assessment's and the plan's transformers and generator shown beside the study's · one set of size lists · settings side by side</text>
+</svg>
+</div>
+
+<h2>Tx &amp; Gen sizing <span class="hm">Concept tab · Tx &amp; Gen sizing</span></h2>
+<div class="frame">
+  <div class="ph">
+    <div><h3>Transformer and generator sizing</h3><p>Sized at board level: a transformer for each main board, and the generator from the boards it supplies. The circuits below them are summed, not listed.</p></div>
+    <div class="acts"><span class="chip">PDF sheet</span><span class="chip">Excel</span></div>
+  </div>
+
+  <div class="card link nw">
+    <div>
+      <div class="lh"><span class="n">1</span><b>Load assessment and space plan</b><svg class="ic" viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><path d="M8 12h8"/></svg><b>this study</b><span class="tag w">The settings differ</span></div>
+      <table class="t">
+        <thead><tr><th>Setting</th><th>Load assessment</th><th>Space plan</th><th>This study <span class="m" style="font-weight:400">(project design settings)</span></th><th></th></tr></thead>
+        <tbody>
+          <tr><td>Future growth / spare</td><td>0 %</td><td>0 %</td><td><b>20 %</b></td><td><span class="tag w">differs</span></td></tr>
+          <tr><td>Max transformer loading</td><td>80 %</td><td>80 %</td><td><b>80 %</b></td><td><span class="tag ok">same</span></td></tr>
+          <tr><td>Transformer sizes</td><td>catalogue, up to 1,500 kVA</td><td>1,000 / 1,500 kVA</td><td><b>DEWA: 500, 1,000, 1,500 kVA</b></td><td><span class="tag w">differs</span></td></tr>
+          <tr><td>Generator margin / max loading</td><td>× 1.25</td><td class="m">—</td><td><b>80 % loading</b> <span class="m">= × 1.25</span></td><td><span class="tag ok">same</span></td></tr>
+        </tbody>
+      </table>
+      <div class="row" style="margin-top:10px"><span class="chip">Keep my settings</span><span class="chip">Open load assessment</span><span class="chip">Open space plan</span><span class="m">Shown for information: the concept figures and the design figures may differ on purpose. Nothing is changed for you.</span></div>
+    </div>
+    <div>
+      <div class="row" style="margin-bottom:6px"><span class="n">2</span><b>One set of size lists on the three pages</b></div>
+      <div class="fl"><label>Sizes<span class="sel " style="min-width:300px">DEWA — 500, 1,000, 1,500 kVA<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></label></div>
+      <div class="menu">
+        <div class="on">DEWA — 500, 1,000, 1,500 kVA<span></span></div>
+        <div>Market standard — 100 to 3,150 kVA<span class="m">16 sizes</span></div>
+        <div>My catalogue — Transformers.xlsx<span class="m">7 sizes</span></div>
+      </div>
+      <div class="note">Today the three pages each have their own lists: "DEWA" is 500 / 1,000 / 1,500 here and 1,000 / 1,500 on Space plan; the wide list has 200 kVA here and 1,500 kVA on Space plan. One definition, the same three choices on Load assessment, Space plan and here.</div>
+    </div>
+  </div>
+
+  <div class="half">
+    <div>
+      <div class="card nw" style="margin-bottom:14px">
+        <div class="row" style="margin-bottom:6px"><span class="n">3</span><b>Transformers: concept to design</b><span class="m">the table of Space plan and Panels → Transformers, here too</span></div>
+        <table class="t">
+          <thead><tr><th>Figure</th><th>From</th><th>Transformers</th><th class="r">MD kVA</th><th>Loading</th></tr></thead>
+          <tbody>
+            <tr><td><b>Assessment</b></td><td class="m">Load assessment · MD at the transformer</td><td>2 × 1,250 kVA</td><td class="r">1,738</td><td><span class="bar"><i style="width:70%"></i></span> 70 %</td></tr>
+            <tr><td><b>Space plan</b></td><td class="m">areas on MDBs, MDBs on transformers, 1 RMU</td><td class="warn"><b>2 × 1,500 kVA</b></td><td class="r">1,738</td><td><span class="bar"><i style="width:58%"></i></span> 58 %</td></tr>
+            <tr><td><b>Network</b></td><td class="m">Panels → Transformers</td><td class="warn"><b>2 × 1,500 kVA</b></td><td class="r">1,738</td><td><span class="bar"><i style="width:58%"></i></span> 58 %</td></tr>
+            <tr><td><b>This study</b></td><td class="m">network demand + 20 % growth, at 80 % loading</td><td class="warn"><b>2 × 1,500 kVA</b></td><td class="r">2,086</td><td><span class="bar"><i style="width:70%"></i></span> 70 %</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h4>Transformers</h4>
+        <div class="setbar" style="margin-top:0">
+          <label>Future growth %<span class="in ">20</span></label><label>Max loading %<span class="in ">80</span></label>
+          <label>Sizes<span class="sel " style="min-width:250px">DEWA — 500, 1,000, 1,500 kVA<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></label>
+          <span><i class="cb on"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i>After PF correction</span>
+        </div>
+        <table class="t">
+          <thead><tr><th>Main board</th><th class="r">Demand</th><th class="r">Design</th><th>Recommended</th><th class="nwc"><span class="n">4</span>In the plan</th><th>Installed</th><th>FLC · main breaker</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><b>TX-1</b> <span class="m">RMU-1</span></td><td class="r">928 kVA</td><td class="r">1,392 kVA</td><td><b>1,500 kVA</b></td><td class="nwc">1,500 kVA · 62 %</td><td>1,500 kVA</td><td>2,087 A · 2,500 A ACB</td><td><span class="okc">On the SLD</span></td></tr>
+            <tr><td><b>TX-2</b> <span class="m">RMU-1</span></td><td class="r">810 kVA</td><td class="r">1,215 kVA</td><td><b>1,500 kVA</b></td><td class="nwc">1,500 kVA · 54 %</td><td>1,500 kVA</td><td>2,087 A · 2,500 A ACB</td><td><span class="okc">On the SLD</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <div class="card nw" style="margin-bottom:14px">
+        <div class="row" style="margin-bottom:6px"><span class="n">5</span><b>Generator: concept to design</b><span class="m">sized in two places today, never shown together</span></div>
+        <table class="t">
+          <thead><tr><th>Figure</th><th>From</th><th class="r">Essential kW</th><th class="r">Needed kVA</th><th>Set</th></tr></thead>
+          <tbody>
+            <tr><td><b>Assessment</b></td><td class="m">each category's share on the generator, × 1.25</td><td class="r">594</td><td class="r">825</td><td>1,000 kVA</td></tr>
+            <tr><td><b>This study</b></td><td class="m">boards and essential circuits; fire pump started last</td><td class="r">594</td><td class="r">928</td><td>1,000 kVA</td></tr>
+            <tr><td><b>Network</b></td><td class="m">generator on the EMDB / ATS</td><td class="r m">—</td><td class="r m">—</td><td class="warn"><b>none on the SLD</b></td></tr>
+          </tbody>
+        </table>
+        <div class="note">Of the 594 kW, 521 kW are still the assessment's stand-in feeders (9 essential feeders made by Create / Update supply); 73 kW are fire and life safety. They are counted because they are marked essential.</div>
+      </div>
+      <div class="card">
+        <h4>Standby generator</h4>
+        <dl class="dl">
+          <dt>For the running load</dt><dd>kVA: 660 ÷ 0.80 = 825 kVA · kW: 594 ÷ (0.8 × 0.80) = 928 kVA <span class="m">The kW sets the size</span></dd>
+          <dt>Largest motor, started last</dt><dd>Fire pump (electric), direct on line: 412 kVA starting on top of 591 kVA running</dd>
+          <dt>Recommended</dt><dd><b>1,000 kVA / 800 kW (rated at 0.8 PF)</b></dd>
+          <dt>Installed</dt><dd>None on the SLD <span class="chip nw" style="margin-left:8px"><span class="n">6</span>Add emergency boards with a 1,000 kVA set…</span></dd>
+        </dl>
+        <div class="note">The button opens Panels → Emergency with the generator already filled in. Today its generator field starts blank ("to assign").</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="cols">
+  <div class="box">
+    <h4>Found in the code today</h4>
+    <ol>
+      <li><b>Four transformer size lists.</b> Load assessment: the catalogue, else 500 to 2,500 kVA in 8 sizes. Space plan: 1,000 / 1,500, or the market list (with 1,500, without 200). Tx &amp; Gen sizing: "DEWA" 500 / 1,000 / 1,500, or "IEC" (with 200, without 1,500). The same name means two different lists.</li>
+      <li><b>Two generator size lists</b>: 22 sizes here (20 to 2,500 kVA), 11 on Load assessment (100 to 2,500 kVA) unless the Generators catalogue has sizes.</li>
+      <li><b>Growth and loading are held in three places</b>: the assessment's supply settings, the plan's settings, and the project design settings this study uses. Nothing shows when they differ.</li>
+      <li><b>The generator is sized twice</b> (Load assessment, this study) and the two figures are never shown together. The transformers table added in v2.243 is on Space plan and Panels → Transformers, not on this page.</li>
+      <li><b>The assessment's generator goes nowhere</b>: the emergency boards on Panels start with a blank generator.</li>
+      <li><b>Fix waiting to be merged (PR 747, v2.247):</b> after Create / Update supply the plan's load feeders had no essential mark, so this study's generator came out too small.</li>
+    </ol>
+  </div>
+  <div class="box">
+    <h4>Decisions for you</h4>
+    <ol type="A">
+      <li><b>Size lists:</b> <span class="rec">one definition with the same three choices on the three pages (recommended).</span> Or each page keeps its own.</li>
+      <li><b>DEWA list:</b> <span class="rec">500, 1,000 and 1,500 kVA on every page (recommended, as this page has it).</span> Or 1,000 and 1,500 kVA only, as Space plan has it.</li>
+      <li><b>Market standard list:</b> <span class="rec">one list of 16 sizes, with both 200 and 1,500 kVA (recommended).</span> Or tell me the sizes you want.</li>
+      <li><b>Growth and loading:</b> <span class="rec">shown side by side with a notice, nothing changed for you (recommended)</span>: the concept figures and the design figures may differ on purpose. Or one press to take the assessment's.</li>
+      <li><b>Generator sizes:</b> <span class="rec">one list for both pages: the Generators catalogue, else the 22 standard sizes (recommended).</span> Or keep two.</li>
+      <li><b>Tables:</b> <span class="rec">the transformers table and a generator table on this page (recommended).</span> Or leave the page as it is.</li>
+      <li><b>Emergency boards:</b> <span class="rec">start with the generator from this study, else the assessment's (recommended).</span> Or blank as today.</li>
+    </ol>
+  </div>
+</div>
+<script>
+document.head.appendChild(document.createElement('style')).textContent = '@page{size:1952px ' + (Math.ceil(document.documentElement.scrollHeight) + 4) + 'px;margin:0}';
+</script>
+</body>
+</html>
