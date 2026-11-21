@@ -15,6 +15,7 @@ import { DensityPanel, GenerateDialog, LevelUnitsDialog, RoomRulesTable, Service
 import { ReuseDialog, SavePresetDialog } from './BuildingReuse';
 import { txt } from '../../util/format';
 import { AssessmentLine } from './LoadAssessmentLink';
+import { ConceptToDesignTable } from './ConceptToDesign';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -166,6 +167,7 @@ export default function BuildingView({ project, onChange, onStatus, onOpen }: { 
               setSel('');
             }}>Delete this building</button>
           </section>
+          <ConceptToDesignTable project={project} heading={<h3 className="section-title flush">Concept to design <span className="m">— the assessment, the rooms and the load schedules side by side</span></h3>} />
 
           <h3 className="section-title flush">Levels <span className="m">(bottom to top)</span></h3>
           <table className="bi-table">

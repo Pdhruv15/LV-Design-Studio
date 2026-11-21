@@ -128,3 +128,23 @@ export function createMdbFromAssessment(project: Project, a: LoadAssessment, boa
   });
   return { project: p, boardId: ids[0], boardIds: ids, created: createdIds.length > 0, createdIds, unused, added, replaced, loading };
 }
+
+export interface LaMdbStep { boards: string[]; inStep: boolean; feedersDemandKw: number; assessmentDemandKw: number }
+
+/** The boards that hold the assessment's feeders, and whether those feeders still equal what the assessment gives now. Undefined when there are none. */
+export function mdbStep(project: Project, a: LoadAssessment): LaMdbStep | undefined {
+  const la = project.feeders.filter((f) => f.fromRoom?.startsWith('la:'));
+  if (!la.length) return undefined;
+  const ids = new Set(la.map((f) => f.boardId));
+  const boards = project.boards.filter((b) => ids.has(b.id));
+  const items = assessmentFeeders(a);
+  const byKey = new Map(items.map((it) => [it.key, it]));
+  const keys = new Set(la.map((f) => f.fromRoom!.slice(3)));
+  let inStep = la.every((f) => { const it = byKey.get(f.fromRoom!.slice(3)); return !!it && Math.abs(f.loadKw - it.kw) < 0.01 && Math.abs(f.demandFactor - it.demandFactor) < 1e-6; })
+    && items.every((it) => keys.has(it.key));
+  const r = assess(a);
+  const mdbs = boards.filter((b) => b.generated === LA_MDB);
+  if (inStep && r.tx && mdbs.length) inStep = mdbs.length === r.tx.duty && mdbs.every((b) => b.sourceKva === r.tx!.kva);
+  const feedersDemandKw = la.filter((f) => { const k = f.fromRoom!.slice(3); return !(k === 'fire' || k === 'jockey' || k.startsWith('stair')); }).reduce((s, f) => s + f.loadKw * f.demandFactor, 0);
+  return { boards: boards.map((b) => b.id), inStep, feedersDemandKw, assessmentDemandKw: r.sumDemandKw };
+}

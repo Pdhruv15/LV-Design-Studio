@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.232', date: '2026-11-21',
+    items: [
+      { title: 'Concept to design: the assessment, the rooms and the load schedules side by side', text: 'Concept → Load assessment and Concept → Building now show one table with three figures: the assessment (maximum demand at the transformer), the rooms (the sum of the room types of Building, with no diversity between flats and no lifts, pumps or EV), and what the load schedules add up to so far, with the DBs made out of those planned. "Per building" opens the rows per building. The rooms figure is not meant to equal the assessment: the table shows how far apart they are. The table replaces the "Designed so far" line, and it no longer counts the assessment\'s own feeders as designed load.' },
+      { title: 'Load assessment: a notice when the MDB feeders are older than the assessment', text: 'After "Create MDB + feeders", a change to the assessment (or to its transformers) now shows a notice above the button with the two demand figures, until "Update MDB feeders" brings the feeders in step.' }
+    ]
+  },
+  {
     version: '2.231', date: '2026-11-21',
     items: [
       { title: 'Load assessment and Building are linked both ways', text: 'Concept → Load assessment now starts with a strip that shows Building information beside the assessment: GFA above ground, floors, car park and the space mix, with what differs marked, and tick boxes for the buildings counted. "Update from Building…" shows the result first (maximum demand, VA/m², lifts, transformers, generator) and then takes the figures, the area schedule or both as one undo step; your own W/m², services and diversities are kept. "Keep my figures" hides the notice until Building changes again. Nothing moves on its own. The area schedule has a Building m² column beside each space. The strip replaces the "GFA from Building" and "From Building rooms" buttons. Concept → Building shows the assessment on its own line (maximum demand, transformers, generator, VA/m²) with "Update the assessment…" and "Open load assessment", or "Start load assessment" when there is none yet.' }
