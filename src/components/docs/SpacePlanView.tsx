@@ -10,15 +10,19 @@ import ClassicGrid from '../grid/ClassicGrid';
 import { Page } from '../ui';
 import { spaceAreasFromRooms } from '../../calc/building';
 import { txt } from '../../util/format';
+import { laStandards, standardOf } from '../../calc/loadAssessment';
+import { withStandardUses } from '../../calc/spacePlanLink';
+import { PlanLinkStrip } from './SpacePlanLink';
 
 
 /** Space planning: areas (power density or specific kW) → panels →
  * transformers → RMUs, with automatic assignment and "Create SLD". */
-export default function SpacePlanView({ project, onChange, onStatus, onCreated }: {
+export default function SpacePlanView({ project, onChange, onStatus, onCreated, onOpen }: {
   project: Project;
   onChange: (p: Project, step?: boolean) => void;
   onStatus: (m: string) => void;
   onCreated: () => void;
+  onOpen?: (view: 'load-assessment') => void;
 }) {
   const plan = project.spacePlan ?? emptyPlan();
   const setPlan = (next: SpacePlan, step = false) => onChange({ ...project, spacePlan: next }, step);
@@ -87,6 +91,7 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
         </>
       }
     >
+      <PlanLinkStrip project={project} plan={plan} onPlan={setPlan} onStatus={onStatus} onOpenAssessment={onOpen && (() => onOpen('load-assessment'))} />
       <div className="plan-settings">
         <label title="Where the transformer sizes come from: the two usual DEWA sizes, the market standard sizes (100 to 3,150 kVA), or your Transformers catalogue">Size list
           <select value={s.sizeList ?? 'dewa'} onChange={(e) => setPlan({ ...plan, settings: withSizeList(s, e.target.value as PlanSizeList) })}>
@@ -110,7 +115,13 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
         <label>Transformers per RMU<input inputMode="numeric" key={`maxTransformersPerRmu-${s.maxTransformersPerRmu}`} defaultValue={s.maxTransformersPerRmu} onBlur={(e) => setPlan({ ...plan, settings: { ...s, maxTransformersPerRmu: Math.max(1, Math.round(num(e.target.value, s.maxTransformersPerRmu))) } })} /></label>
         <label>Power factor<input inputMode="decimal" key={`powerFactor-${s.powerFactor}`} defaultValue={s.powerFactor} onBlur={(e) => setPlan({ ...plan, settings: { ...s, powerFactor: Math.min(1, Math.max(0.5, num(e.target.value, s.powerFactor))) } })} /></label>
         <label>Future growth %<input inputMode="decimal" key={`growthPct-${s.growthPct}`} defaultValue={s.growthPct} onBlur={(e) => setPlan({ ...plan, settings: { ...s, growthPct: num(e.target.value, s.growthPct) } })} /></label>
+        <label title="Between the load categories; 1 = none. Taken from the load assessment with “Use the assessment's settings”">Coincidence<input inputMode="decimal" key={`coincidence-${s.coincidence ?? 1}`} defaultValue={s.coincidence ?? 1} onBlur={(e) => { const c = Math.min(1, Math.max(0.1, num(e.target.value, s.coincidence ?? 1))); setPlan({ ...plan, settings: { ...s, coincidence: c === 1 ? undefined : c } }); }} /></label>
         <button className="chip" onClick={() => setShowUses(!showUses)}>{showUses ? 'Hide' : 'Edit'} use types (W/m²)</button>
+        <button className="chip" title="Fill the use types from the density standard of the load assessment: lighting, power and A/C W/m² together"
+          onClick={async () => {
+            const std = standardOf(project.loadAssessment?.standard, laStandards());
+            if (await ask(`Replace the use types with the ${std.spaces.length} spaces of “${std.name}”? Use types the areas refer to are kept.`)) { setPlan(withStandardUses(plan, std, project.loadAssessment), true); onStatus(`Use types taken from “${std.name}”`); }
+          }}>Use types from my density standard</button>
       </div>
 
       {showUses && (

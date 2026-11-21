@@ -18,7 +18,7 @@ describe('space plan areas sheet', () => {
       { id: 'A2', building: 'Building B', floor: 'B1', name: 'Car park', use: 'parking', areaM2: 6000 }
     ]);
     const again = buildPlanSheet(p);
-    expect(again.data[0].slice(-2)).toEqual(['720.0', '504.0']);
+    expect(again.data[0].slice(-3, -1)).toEqual(['720.0', '504.0']);
     expect(again.totals![again.keys.indexOf('demand')]).toBe((504 + 54).toFixed(1));
   });
 
@@ -35,5 +35,16 @@ describe('space plan areas sheet', () => {
     ]);
     expect(rejected).toHaveLength(3);
     expect(p.areas[0]).toEqual({ id: 'A1', building: 'B', name: 'X', use: 'office', areaM2: 100 });
+  });
+
+  it('shows where a row came from in a read-only FROM column', () => {
+    const plan = { ...emptyPlan(), areas: [{ id: 'la-T-ltg', building: 'T', name: 'Lighting', use: 'services', kw: 10, from: 'la' as const }, { id: 'A1', building: 'T', name: 'Flats', use: 'residential', areaM2: 100 }, { id: 'room-1', building: 'T', name: 'Room', use: 'residential', areaM2: 10 }] };
+    const sheet = buildPlanSheet(plan);
+    const x = sheet.keys.indexOf('from');
+    expect(sheet.data.slice(0, 3).map((r) => r[x])).toEqual(['assessment', '', 'rooms']);
+    expect(sheet.cols![x]).toMatchObject({ title: 'FROM', input: false });
+    expect(sheet.editable!(0, x)).toBe(false);
+    const { plan: p } = applyPlanEdits(plan, sheet, [{ y: 1, x, value: 'assessment' }]);
+    expect(p.areas[1]).toEqual(plan.areas[1]);
   });
 });

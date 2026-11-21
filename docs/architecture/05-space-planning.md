@@ -16,7 +16,7 @@ Where the numbers come from — short answer:
 
 | Value | Source | Where |
 |---|---|---|
-| Max loading %, PF, growth %, transformers per RMU | Space plan's **own** settings (default 80 %, 0.9, **0 %**, 2) — not the project design settings | `src/calc/spacePlan.ts:22` `DEFAULT_PLAN_SETTINGS` |
+| Max loading %, PF, growth %, coincidence, transformers per RMU | Space plan's **own** settings (default 80 %, 0.9, **0 %**, 1, 2), or the load assessment's with "Use the assessment's settings" — not the project design settings | `src/calc/spacePlan.ts:22` `DEFAULT_PLAN_SETTINGS` |
 | Transformer count | Calculated: ceil(kVA ÷ (size × loading limit)) | `src/calc/spacePlan.ts` `transformersFor` |
 | Transformer sizes | The plan's size list: the two DEWA sizes (default), the market standard list or the Transformers catalogue, up to a largest size | `src/calc/spacePlan.ts` `PLAN_SIZE_LISTS`, `MARKET_TX_KVA`, `sizeListOf`, `planSizes`, `planTransformerKva` |
 | Transformer count per substation (DM page) | Space plan transformers grouped by RMU, else SLD main boards grouped by `board.rmu`, else typed by hand | `src/calc/dmSubstation.ts:138` `substationsFromProject` |
@@ -27,6 +27,8 @@ Where the numbers come from — short answer:
 |---|---|---|---|
 | `src/calc/spacePlan.ts` | calc | `DEFAULT_USES`, `DEFAULT_PLAN_SETTINGS`, `PLAN_TRANSFORMER_SIZES`, `emptyPlan`, `usesOf`, `areaLoad`, `panelLoad`, `transformerLoad`, `transformersFor`, `planTransformerKva`, `summarize`, `autoAssign` | Area load (m² × W/m² × DF), panel load (own areas + SMDBs below), transformer loading %, plan summary (MD, transformers/RMUs needed, unassigned items), automatic area → MDB → transformer → RMU packing. |
 | `src/calc/dmSubstation.ts` | calc | `DM_TYPES`, `dmType`, `CONVENTIONAL`, `DETACHED`, `POCKET`, `OPEN_ROOF`, `DM_NOTES`, `NOTES_BY_TYPE`, `dmSubstationAreas`, `substationsFromProject` | DM-D-013 look-up tables, room list per type/count, error when the count exceeds the type's limit, and "one substation per RMU" derivation from the project. |
+| `src/calc/spacePlanLink.ts` | calc | `assessmentLoads`, `takeLoads`, `withAssessmentSettings`, `planLink`, `keepPlanFigures`, `usesFromStandard`, `withStandardUses` | The load assessment against the plan: its loads as plan rows per building and category (`SpaceArea.from: 'la'`), its settings (with `SpacePlanSettings.coincidence`), the two side by side and what differs, use types from a density standard |
+| `src/components/docs/SpacePlanLink.tsx` | screen | `PlanLinkStrip`, `TakeLoadsDialog` | The link strip on Space plan and its Take loads dialog |
 | `src/docs/dmForm.ts` | report | `buildDmFormHtml` | HTML (printed to PDF) of the DM form: header, project info, room table, notes, remarks, undertaking, signature box; black-and-white. |
 | `src/docs/planSheet.ts` | screen helper | `buildPlanSheet`, `applyPlanEdits` | Excel-style grid model for the area schedule (paste from Excel), validation of typed values, linking floors to Building information levels. |
 | `src/model/planToSld.ts` | model | `planToSld`, `USE_LOAD_TYPE`, `lvRating` | Builds boards + feeders from the plan (one LV switchboard per transformer, planned MDB/SMDB, one feeder per area) then sizes all breakers and cables via `applyAllRecommendations` (`src/calc/sizing.ts:331`). |
