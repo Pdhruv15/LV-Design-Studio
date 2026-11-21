@@ -1918,8 +1918,8 @@ export default function App() {
               />
             )}
             {view === 'cad' && <CadPage cad={cadS} project={project} onUndo={history.undo} onRedo={history.redo} canUndo={history.canUndo} canRedo={history.canRedo} undoLabel={history.undoLabel} redoLabel={history.redoLabel} onShow={showFromCad} draft={cadDraft} autosaveMin={prefs.app.autosaveMin} onPrefs={(x) => { const p = { ...prefs, app: { ...prefs.app, cadDraft: x.draft, autosaveMin: x.autosaveMin } }; setPrefs(p); savePrefs(p); }} onChange={(next, message, join) => { setProject(next, { step: !join, join, label: stepLabel(message) }); setStatus(message); }} onStatus={setStatus} sheetUi={sheetUi} run={run} onSheet={(id) => { setSheetTab(id); setView('drawings'); }} />}
-            {view === 'building' && <BuildingView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
-            {view === 'load-assessment' && <LoadAssessmentView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
+            {view === 'building' && <BuildingView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpen={(v) => setView(v)} />}
+            {view === 'load-assessment' && <LoadAssessmentView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpen={(v) => setView(v)} />}
             {view === 'busbar' && <BusbarStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'pfc' && <PfcStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'cable-schedule' && <CableScheduleView project={calcProject} focus={focus} onClearFocus={() => setFocus(null)} onStatus={setStatus} />}

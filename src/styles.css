@@ -1934,6 +1934,17 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .la-flag{border-radius:8px;padding:8px 10px;font-size:12px;margin-top:8px;border:1px solid var(--line)}
 .la-flag.ok{border-color:color-mix(in srgb,var(--ok) 50%,transparent);color:var(--ok)}
 .la-flag.warn{border-color:color-mix(in srgb,var(--warn) 60%,transparent);color:var(--warn)}
+.la-link{margin-bottom:14px}
+.la-link-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.la-link-head label{display:inline-flex;gap:4px;align-items:center;font-size:12px}
+.la-link .bi-actions{margin-bottom:0}
+.la-under{font-size:11px}
+.la-line{align-items:center}
+.la-line-acts{display:inline-flex;gap:6px}
+.la-result{border:1px dashed var(--line);border-radius:8px;padding:6px 10px;margin:10px 0;font-size:12px}
+.la-take{margin:6px 0}
+.chip-lite.warn{border-color:color-mix(in srgb,var(--warn) 60%,transparent)}
+.chip-lite.ok{border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
 /* Spacing utilities (in place of repeated inline styles). Later rules win, so u-flush u-mb-2 = margin 0 0 8px. */
 .u-flush{margin:0}
 .u-mb-2{margin-bottom:var(--space-2)}
