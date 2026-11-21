@@ -15,6 +15,7 @@ The "LV Database" is a folder of 14 Excel workbooks (default `LV Database` insid
 | `Busbar.xlsx` | Busway catalogue for the riser study (replaces `TYPICAL_BUSBAR_DATA`). |
 | `Equipment.xlsx`, `Prices.xlsx` | BOQ prices (by BOQ key) and price lists. |
 | `RoomTypes.xlsx`, `UnitTypes.xlsx` | Room types (W/m², generation rules) and flat layouts for Building information. |
+| `SpaceDensities.xlsx` | Density standards for Load assessment: lighting, power and cooling W/m² per space and location, several named standards (`catalog().spaceStandards`). |
 | `Luminaires.xlsx` | Luminaire list for "Light room" (lux). |
 | `Rules.xlsx` | Authority/company rules: minimum PF, motor-start VD limit, points per circuit, kWh meter limits, watts per point on generated DBs. |
 | `CableSchedule.xlsx` | Cable reference numbers on SLD sheets and the cable schedule. |

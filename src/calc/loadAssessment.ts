@@ -57,6 +57,10 @@ export interface LaSpace {
   dwelling?: boolean; // counts for water heating and cooking
 }
 export interface LaRow extends LaSpace { pct?: number; areaM2?: number }
+/** A space of a density standard, with where its values come from. */
+export interface LaStandardSpace extends LaSpace { reference?: string }
+/** A named set of space densities (the Space densities workbook, or the library on this computer). */
+export interface LaStandard { name: string; acBasis?: AcBasis; spaces: LaStandardSpace[] }
 
 export interface LaServices {
   cool: CoolSystem;
@@ -149,6 +153,8 @@ export interface LoadAssessment {
   inReport?: boolean;
   /** How it follows Building information (src/calc/loadAssessmentLink.ts). */
   from?: LaFromBuilding;
+  /** The density standard its spaces were taken from. */
+  standard?: string;
 }
 
 /** The link of an assessment to Building information. */
@@ -235,7 +241,72 @@ export function laTypes(lib: LaLibrary = loadLaLibrary()): LaBuildingType[] {
   const mine = new Map(lib.types.map((t) => [t.id, t]));
   return [...DEFAULT_TYPES.map((t) => mine.get(t.id) ?? t), ...lib.types.filter((t) => !DEFAULT_TYPES.some((d) => d.id === t.id))];
 }
-export const laSpaces = (lib: LaLibrary = loadLaLibrary()): LaSpace[] => lib.spaces?.length ? lib.spaces : DEFAULT_SPACES;
+export const laSpaces = (lib: LaLibrary = loadLaLibrary()): LaSpace[] => laStandards(lib)[0].spaces;
+
+// ---- Density standards
+
+export const PLACEHOLDER_STANDARD = 'Starting figures (placeholders)';
+export const LOCAL_STANDARD = 'My library (this computer)';
+/** The density standards to pick from: the space library on this computer when it has one (it stays
+ * the first, as it was the only one before), then the Space densities workbook; with neither, the
+ * built-in starting figures. */
+export function laStandards(lib: LaLibrary = loadLaLibrary()): LaStandard[] {
+  const cat = catalog().spaceStandards;
+  const mine: LaStandard[] = lib.spaces?.length ? [{ name: LOCAL_STANDARD, acBasis: lib.spacesAcBasis, spaces: lib.spaces }] : [];
+  const all = [...mine, ...cat];
+  return all.length ? all : [{ name: PLACEHOLDER_STANDARD, spaces: DEFAULT_SPACES }];
+}
+/** The standard an assessment reads: the one it names, else the first. */
+export const standardOf = (name: string | undefined, standards: LaStandard[]): LaStandard => standards.find((s) => s.name === name) ?? standards[0];
+
+const sameSpace = (a: LaSpace, b: LaSpace): boolean => a.id === b.id && (a.location ?? 'in') === (b.location ?? 'in');
+const findSpace = (spaces: LaStandardSpace[], row: LaSpace): LaStandardSpace | undefined =>
+  spaces.find((x) => sameSpace(x, row)) ?? spaces.find((x) => x.label.toLowerCase() === row.label.toLowerCase());
+const coolFactorOf = (a: LoadAssessment): number => a.factors.cool[a.services.cool] ?? 0;
+/** A standard space's cooling figure in the assessment's basis. */
+const clgFor = (space: LaSpace, std: LaStandard, a: LoadAssessment): number => clgInBasis(space.clg, std.acBasis, a.acBasis, coolFactorOf(a));
+
+/** How a row stands against its standard: equal to it ('standard'), changed in this project ('edited'), or not in the standard ('own'). */
+export function againstStandard(row: LaRow, std: LaStandard, a: LoadAssessment): { state: 'standard' | 'edited' | 'own'; space?: LaStandardSpace } {
+  const space = findSpace(std.spaces, row);
+  if (!space) return { state: 'own' };
+  const eq = (x: number, y: number) => Math.abs(x - y) <= 0.05;
+  const same = eq(row.ltg, space.ltg) && eq(row.pwr, space.pwr) && !!row.dwelling === !!space.dwelling && (!isCooled(row) || eq(row.clg, clgFor(space, std, a)));
+  return { state: same ? 'standard' : 'edited', space };
+}
+
+/** The row with its standard's lighting, power, cooling, dwelling tick and location (area kept). */
+export function resetToStandard(row: LaRow, space: LaStandardSpace, std: LaStandard, a: LoadAssessment): LaRow {
+  return { ...row, ltg: space.ltg, pwr: space.pwr, clg: clgFor(space, std, a), dwelling: space.dwelling, location: space.location };
+}
+
+/** The assessment reading another standard: every row the standard has takes its figures; the others keep theirs. */
+export function applyStandard(a: LoadAssessment, std: LaStandard): LoadAssessment {
+  return { ...a, standard: std.name, rows: a.rows.map((r) => { const space = findSpace(std.spaces, r); return space ? resetToStandard(r, space, std, a) : r; }) };
+}
+
+/** The standards with the assessment's rows written into the one named (added when new): a space with the same id and location, or the same name, is replaced; the others are kept. */
+export function withStandardRows(standards: LaStandard[], name: string, a: LoadAssessment): LaStandard[] {
+  const old = standards.find((s) => s.name === name);
+  const basis = old ? old.acBasis : a.acBasis;
+  const spaces: LaStandardSpace[] = [...(old?.spaces ?? [])];
+  for (const r of a.rows) {
+    const space: LaStandardSpace = { id: r.id, label: r.label, location: r.location, ltg: r.ltg, pwr: r.pwr, clg: clgInBasis(r.clg, a.acBasis, basis, coolFactorOf(a)), dwelling: r.dwelling };
+    const i = spaces.findIndex((x) => sameSpace(x, r));
+    const j = i >= 0 ? i : spaces.findIndex((x) => x.label.toLowerCase() === r.label.toLowerCase());
+    if (j >= 0) spaces[j] = { ...space, ...(spaces[j].reference ? { reference: spaces[j].reference } : {}) }; else spaces.push(space);
+  }
+  const next: LaStandard = { name, ...(basis ? { acBasis: basis } : {}), spaces };
+  return old ? standards.map((s) => (s === old ? next : s)) : [...standards, next];
+}
+
+/** The standards as rows of the Space densities workbook. */
+export function standardsToSheet(standards: LaStandard[]): Record<string, string | number>[] {
+  return standards.filter((s) => s.name !== LOCAL_STANDARD && s.name !== PLACEHOLDER_STANDARD).flatMap((s) => s.spaces.map((x) => ({
+    standard: s.name, id: x.id, label: x.label, location: LA_LOCATIONS.find((l) => l.value === x.location && x.location !== 'in')?.label ?? '', ltg: x.ltg, pwr: x.pwr, clg: x.clg,
+    acBasis: s.acBasis === 'electrical' ? 'Electrical load' : '', dwelling: x.dwelling ? 'Yes' : '', reference: x.reference ?? ''
+  })));
+}
 export const laFactors = (lib: LaLibrary = loadLaLibrary()): LaFactors => ({ ...DEFAULT_FACTORS, ...lib.factors, cool: { ...DEFAULT_FACTORS.cool, ...lib.factors?.cool }, dhw: { ...DEFAULT_FACTORS.dhw, ...lib.factors?.dhw } });
 
 /** Saves the assessment's current set-up as one of your building types. */
