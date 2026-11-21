@@ -132,7 +132,7 @@ export function buildStudyDocx(project: Project, scope: Scope, sections: Section
       h3('Building');
       kvT([['Building type', l.typeLabel], ['Gross floor area above ground', `${n0(l.gfaM2)} m²`], ['Floors above ground', n0(l.floors)], ['Basement car park', l.parkingM2 ? `${n0(l.parkingM2)} m²` : 'None'],
         ['Typical maximum demand for this type', `${n0(l.vaBand[0])}–${n0(l.vaBand[1])} VA/m² of GFA`], ['Share of HVAC and special services on the generator', `${n0(l.essentialPct)} %`]]);
-      tbl('Area schedule', ['Space', '% of GFA', 'Area (m²)', 'Lighting (W/m²)', 'Small power (W/m²)', 'Cooling, thermal (W/m²)', 'Dwelling'],
+      tbl('Area schedule', ['Space', '% of GFA', 'Area (m²)', 'Lighting (W/m²)', 'Small power (W/m²)', l.acElectrical ? 'A/C, electrical (W/m²)' : 'Cooling, thermal (W/m²)', 'Dwelling'],
         [...l.rows.map((x) => [x.label, fmtFixed(x.pct, 1), n0(x.areaM2), n0(x.ltg, 1), n0(x.pwr, 1), n0(x.clg), x.dwelling ? 'Yes' : '']), [l.outdoorM2 ? 'Total without outdoor spaces' : 'Total', fmtFixed(l.pctTotal, 1), n0(l.areaM2), '', '', '', '']]);
       tbl('Service requirements', ['Service', 'Selection', 'Connected (kW)'], l.services.map((x) => [x.service, x.selection, fig.power(x.kw)]));
       if (l.notSelected.length) out.push(P(`Not selected: ${l.notSelected.join(', ')}.`, { size: 16 }));

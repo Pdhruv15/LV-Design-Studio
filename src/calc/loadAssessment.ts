@@ -42,6 +42,10 @@ export const LA_LOCATIONS: { value: LaLocation; label: string }[] = [
 export const isCooled = (s: { location?: LaLocation }): boolean => (s.location ?? 'in') === 'in';
 export const isOutdoor = (s: { location?: LaLocation }): boolean => s.location === 'oc' || s.location === 'oo';
 
+/** How the Cooling W/m² of the spaces are read: a cooling load (thermal: the cooling system's
+ * factor gives the electrical kW), or the electrical load of the air conditioning, used as typed. */
+export type AcBasis = 'thermal' | 'electrical';
+
 /** A space in the area schedule: its share of the GFA (or m²) and densities. */
 export interface LaSpace {
   id: string;
@@ -49,7 +53,7 @@ export interface LaSpace {
   location?: LaLocation; // absent: indoor, cooled
   ltg: number; // lighting W/m²
   pwr: number; // small power W/m²
-  clg: number; // cooling W/m² (thermal)
+  clg: number; // cooling W/m² (thermal, or electrical: see AcBasis)
   dwelling?: boolean; // counts for water heating and cooking
 }
 export interface LaRow extends LaSpace { pct?: number; areaM2?: number }
@@ -120,6 +124,7 @@ export interface LaBuildingType {
   services: LaServices;
   diversity?: Partial<LaDiversity>;
   mine?: boolean; // saved by you
+  acBasis?: AcBasis; // of its rows; absent: thermal
 }
 
 /** The project's assessment (a full copy — library changes never move it). */
@@ -133,6 +138,8 @@ export interface LoadAssessment {
   parkingM2: number;
   areaMode: 'pct' | 'm2';
   rows: LaRow[];
+  /** How the rows' Cooling W/m² are read; absent: thermal. */
+  acBasis?: AcBasis;
   services: LaServices;
   factors: LaFactors;
   diversity: LaDiversity;
@@ -210,7 +217,7 @@ export const DEFAULT_TYPES: LaBuildingType[] = [
 
 // ---- Your library (this computer)
 
-export interface LaLibrary { types: LaBuildingType[]; spaces?: LaSpace[]; factors?: LaFactors; diversity?: LaDiversity; supply?: LaSupply }
+export interface LaLibrary { types: LaBuildingType[]; spaces?: LaSpace[]; /** Of the spaces' Cooling W/m²; absent: thermal. */ spacesAcBasis?: AcBasis; factors?: LaFactors; diversity?: LaDiversity; supply?: LaSupply }
 const LIB_KEY = 'lvds.loadAssessmentLibrary';
 
 export function loadLaLibrary(): LaLibrary {
@@ -235,7 +242,7 @@ export const laFactors = (lib: LaLibrary = loadLaLibrary()): LaFactors => ({ ...
 export function typeFromAssessment(a: LoadAssessment, id: string, label: string): LaBuildingType {
   const g = a.gfaM2 || 1;
   return {
-    id, label, mine: true, vaBand: [...a.vaBand], essentialPct: a.essentialPct, services: { ...a.services }, diversity: { ...a.diversity },
+    id, label, mine: true, vaBand: [...a.vaBand], essentialPct: a.essentialPct, services: { ...a.services }, diversity: { ...a.diversity }, ...(a.acBasis === 'electrical' ? { acBasis: a.acBasis } : {}),
     rows: a.rows.map((r) => ({ ...r, pct: rowPct(a, r, g), areaM2: undefined }))
   };
 }
@@ -264,7 +271,7 @@ export function newAssessment(t: LaBuildingType, base: Partial<LoadAssessment> =
   return {
     gfaM2: 24000, floors: 20, parkingM2: 8000, supply: { ...DEFAULT_SUPPLY, ...lib.supply }, custom: [],
     ...base,
-    typeId: t.id, typeLabel: t.label, vaBand: [...t.vaBand], essentialPct: t.essentialPct, areaMode: 'pct',
+    typeId: t.id, typeLabel: t.label, vaBand: [...t.vaBand], essentialPct: t.essentialPct, areaMode: 'pct', acBasis: t.acBasis === 'electrical' ? 'electrical' : undefined,
     rows: t.rows.map((r) => ({ ...r })), services: { ...t.services },
     factors: laFactors(lib), diversity: { ...DEFAULT_DIVERSITY, ...lib.diversity, ...t.diversity }
   };
@@ -308,6 +315,21 @@ export function rowsFromRooms(project: Project, spaces: LaSpace[] = laSpaces(), 
 
 export const rowPct = (a: LoadAssessment, r: LaRow, gfa = a.gfaM2): number => (a.areaMode === 'pct' ? r.pct ?? 0 : gfa ? ((r.areaM2 ?? 0) / gfa) * 100 : 0);
 export const rowArea = (a: LoadAssessment, r: LaRow): number => (a.areaMode === 'pct' ? (a.gfaM2 * (r.pct ?? 0)) / 100 : r.areaM2 ?? 0);
+
+/** A Cooling W/m² figure moved from one basis to the other with the cooling system's factor
+ * (kW electrical per kW thermal), so the load stays the same. With no factor it is kept as typed. */
+export function clgInBasis(clg: number, from: AcBasis | undefined, to: AcBasis | undefined, factor: number): number {
+  const f = from ?? 'thermal', t = to ?? 'thermal';
+  if (f === t || !(factor > 0)) return clg;
+  return Math.round((t === 'electrical' ? clg * factor : clg / factor) * 10) / 10;
+}
+
+/** Switches how the rows' Cooling W/m² are read, converting them so the HVAC load stays the same. */
+export function setAcBasis(a: LoadAssessment, basis: AcBasis): LoadAssessment {
+  if ((a.acBasis ?? 'thermal') === basis) return a;
+  const factor = a.factors.cool[a.services.cool] ?? 0;
+  return { ...a, acBasis: basis === 'electrical' ? 'electrical' : undefined, rows: a.rows.map((r) => ({ ...r, clg: clgInBasis(r.clg, a.acBasis, basis, factor) })) };
+}
 
 /** Switches between % of GFA and m², keeping each row's area. */
 export function setAreaMode(a: LoadAssessment, mode: 'pct' | 'm2'): LoadAssessment {
@@ -371,7 +393,7 @@ export function assess(a: LoadAssessment): LaResult {
   }
   ltg += (park * f.carParkLtg) / 1000;
 
-  const hvac = clg * (f.cool[s.cool] ?? 0);
+  const hvac = s.cool === 'none' ? 0 : a.acBasis === 'electrical' ? clg : clg * (f.cool[s.cool] ?? 0);
   const dhw = s.dhw === 'local' ? (gfa * f.dhw.local) / 1000 : (dwell * (f.dhw[s.dhw] ?? 0)) / 1000;
   const cook = s.cook === 'elec' ? (dwell * f.cook) / 1000 : 0;
   const liftCount = s.lifts === 'none' ? 0 : s.lifts === 'custom' ? Math.max(0, Math.round(s.liftCount ?? 0))
