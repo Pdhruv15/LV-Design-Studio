@@ -101,8 +101,43 @@ export function roomLoad(info: BuildingInfo, r: BuildingRoom): RoomLoad {
   return { room: r, type, total, areaM2, connectedKw, demandKw: connectedKw * (type?.demandFactor ?? 1) };
 }
 
+/** A room of a flat (unit type) placed on a level, with all its copies. */
+export interface UnitRoomLoad { levelId: string; type: string; areaM2: number; connectedKw: number; demandKw: number }
+
+/** The rooms of the flats placed on a building's levels: flats per floor × the level's identical floors. */
+export function unitRoomLoads(info: BuildingInfo, b: ProjectBuilding): UnitRoomLoad[] {
+  const types = roomTypesOf(info);
+  const out: UnitRoomLoad[] = [];
+  for (const l of b.levels) {
+    for (const u of l.units ?? []) {
+      const ut = info.unitTypes?.find((x) => x.id === u.unitTypeId);
+      const n = Math.max(0, Math.round(u.count)) * countOf(l);
+      if (!ut || !n) continue;
+      for (const r of ut.rooms) {
+        const t = types.find((x) => x.id === r.type);
+        const areaM2 = r.areaM2 * n;
+        const connectedKw = (areaM2 * (t?.wPerM2 ?? 0)) / 1000;
+        out.push({ levelId: l.id, type: r.type, areaM2, connectedKw, demandKw: connectedKw * (t?.demandFactor ?? 1) });
+      }
+    }
+  }
+  return out;
+}
+
+/** Car park area of a building: its Car park rooms, every copy on every identical
+ * floor; when none are entered, the gross area of its basements. */
+export function carParkAreaOf(info: BuildingInfo, b: ProjectBuilding): number {
+  const rooms = info.rooms.filter((r) => r.buildingId === b.id && r.type === 'parking');
+  if (rooms.length) return rooms.reduce((s, r) => s + roomLoad(info, r).areaM2, 0);
+  return b.levels.filter((l) => l.kind === 'basement').reduce((s, l) => s + (l.grossM2 ?? 0) * countOf(l), 0);
+}
+
 export function summarizeBuilding(info: BuildingInfo, b: ProjectBuilding): BuildingSummary {
-  const loads = info.rooms.filter((r) => r.buildingId === b.id).map((r) => roomLoad(info, r));
+  // Rooms entered on the levels, and the rooms of the flats placed on them.
+  const loads: { levelId: string; areaM2: number; connectedKw: number; demandKw: number }[] = [
+    ...info.rooms.filter((r) => r.buildingId === b.id).map((r) => ({ ...roomLoad(info, r), levelId: r.levelId })),
+    ...unitRoomLoads(info, b)
+  ];
   // Elevations: basements go down from the ground floor (the one listed
   // last is just below it), the other levels up, in the order listed.
   const below = b.levels.filter((l) => l.kind === 'basement');
@@ -113,7 +148,7 @@ export function summarizeBuilding(info: BuildingInfo, b: ProjectBuilding): Build
   z = 0;
   for (const l of above) { elev.set(l.id, z); z += l.heightM * countOf(l); }
   const levels: LevelInfo[] = b.levels.map((l) => {
-    const ls = loads.filter((x) => x.room.levelId === l.id);
+    const ls = loads.filter((x) => x.levelId === l.id);
     const count = countOf(l);
     const demandKw = ls.reduce((s, x) => s + x.demandKw, 0);
     return {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { builtUpAreaOf, dbChecks, newBuilding, nextRoomId, roomLoad, roomsFromTable, spaceAreasFromRooms, summarizeBuilding } from './building';
+import { builtUpAreaOf, carParkAreaOf, dbChecks, newBuilding, nextRoomId, roomLoad, roomsFromTable, spaceAreasFromRooms, summarizeBuilding } from './building';
 import { riserFromBuilding } from './busbar';
 import { emptyPlan } from './spacePlan';
 import type { BuildingInfo, Project } from '../types';
@@ -58,6 +58,31 @@ describe('building information', () => {
     expect(f.floors[2].count).toBe(20);
     expect(f.floorHeightM).toBe(3.6);
     expect(f.offsetFloors).toBe(0);
+  });
+
+  it('counts the flats placed on a level: area, load per floor and the riser tap-off', () => {
+    const flats: BuildingInfo = {
+      buildings: [{ ...tower, levels: tower.levels.map((l) => (l.id === 'TYP' ? { ...l, units: [{ unitTypeId: 'U1', count: 6 }] } : l)) }],
+      unitTypes: [{ id: 'U1', name: '1BR', rooms: [{ name: 'Living', type: 'living', areaM2: 40 }, { name: 'Kitchen', type: 'kitchen', areaM2: 10 }] }],
+      rooms: info.rooms.filter((r) => r.id === 'r3')
+    };
+    const s = summarizeBuilding(flats, flats.buildings[0]);
+    const typ = s.levels.find((l) => l.level.id === 'TYP')!;
+    expect(typ.roomsM2).toBe(6 * 50 * 20);
+    // Living 40 m² × 150 W/m² and kitchen 10 m² × 350 W/m² per flat, 6 flats on each of 20 floors.
+    expect(typ.connectedKw).toBeCloseTo(6 * 20 * (40 * 150 + 10 * 350) / 1000);
+    expect(typ.perFloorDemandKw).toBeCloseTo(6 * (40 * 150 * 0.7 + 10 * 350 * 0.6) / 1000);
+    expect(s.roomsM2).toBe(6 * 50 * 20 + 400);
+    const f = riserFromBuilding({ ...sampleProject, building: flats }, 'T')!;
+    expect(f.floors.map((x) => x.id)).toEqual(['G', 'TYP']);
+    expect(f.floors[1]).toMatchObject({ kw: 37.8, count: 20 });
+  });
+
+  it('car park area: the Car park rooms on every identical floor, else the basements’ gross area', () => {
+    expect(carParkAreaOf(info, tower)).toBe(2300);
+    const twice = { ...tower, levels: tower.levels.map((l) => (l.id === 'B1' ? { ...l, count: 2 } : l)) };
+    expect(carParkAreaOf({ ...info, buildings: [twice] }, twice)).toBe(4600);
+    expect(carParkAreaOf({ ...info, rooms: [] }, tower)).toBe(5000);
   });
 
   it('each DB against the rooms it serves', () => {

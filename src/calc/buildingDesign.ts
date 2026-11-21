@@ -1,5 +1,5 @@
 import type { Board, Feeder, LoadType, MeterType, PointType, Project, ProjectBuilding, RoomRules, RoomType } from '../types';
-import { buildingInfoOf, floorsOf, roomTypesOf, summarizeBuilding, type FloorInstance } from './building';
+import { buildingInfoOf, carParkAreaOf, floorsOf, roomTypesOf, summarizeBuilding, type FloorInstance } from './building';
 import { addCircuit, balancePhases, updateCircuit } from '../model/schedule';
 import { applyRecommendation, recommend } from './sizing';
 import { boardTotals } from './summary';
@@ -182,7 +182,7 @@ export function defaultServices(project: Project, buildingId: string): ServiceIt
   const info = buildingInfoOf(project);
   const b = info.buildings.find((x) => x.id === buildingId);
   const sum = b ? summarizeBuilding(info, b) : undefined;
-  const parkingM2 = info.rooms.filter((r) => r.buildingId === buildingId && r.type === 'parking').reduce((s, r) => s + r.areaM2 * (r.count ?? 1), 0);
+  const parkingM2 = b ? carParkAreaOf(info, b) : 0;
   const floors = sum?.aboveGround ?? 1;
   const lifts = floors > 12 ? 3 : floors > 4 ? 2 : floors > 2 ? 1 : 0;
   return [
