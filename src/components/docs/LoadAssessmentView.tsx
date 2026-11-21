@@ -11,6 +11,7 @@ import {
 import { catalog } from '../../database/catalog';
 import { laLink } from '../../calc/loadAssessmentLink';
 import { createMdbFromAssessment, LA_MDB, mdbStep } from '../../calc/loadAssessmentMdb';
+import { MARKET_TX_KVA } from '../../calc/spacePlan';
 import { txt } from '../../util/format';
 import { LinkStrip } from './LoadAssessmentLink';
 import { ConceptToDesignTable } from './ConceptToDesign';
@@ -430,6 +431,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
                   <input className="bi-text" defaultValue={a.supply.txSizes?.join(', ') ?? ''} key={a.supply.txSizes?.join(',') ?? ''} placeholder={r.txSizes.join(', ')}
                     onBlur={(e) => { const s = e.target.value.split(/[\s,;]+/).map(Number).filter((x) => x > 0); setSup({ txSizes: s.length ? s : undefined }); }} />
                 </label>
+                <button className="chip" style={{ alignSelf: 'end' }} title="Fill the list with the market standard sizes, 100 to 3,150 kVA. The largest one used is set above" onClick={() => setSup({ txSizes: [...MARKET_TX_KVA] })}>Market standard sizes</button>
               </div>
               <div className="bi-actions" style={{ marginBottom: 0 }}>
                 <button className="chip" onClick={() => setLib({ ...lib, supply: a.supply, diversity: a.diversity }, 'Saved the supply settings and diversities as your library — new assessments start with them')}>Save supply &amp; diversity as my library</button>

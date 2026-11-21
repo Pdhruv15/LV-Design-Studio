@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.240', date: '2026-11-21',
+    items: [
+      { title: 'Space plan: pick the transformer sizes from a list, with a new market standard list', text: 'Concept → Space plan has a "Size list" setting: "1,000 / 1,500 kVA" (as before, the default), "Market standard" (100, 160, 250, 315, 400, 500, 630, 800, 1,000, 1,250, 1,500, 1,600, 2,000, 2,500 and 3,150 kVA) or "My catalogue" (the sizes in your Transformers catalogue). With the market or catalogue list, "Largest size" sets the biggest transformer the plan may use (1,500 kVA to start with). "Automatic" then picks the smallest size that needs the fewest units, and the Transformer size list and the Size column of each transformer offer the same sizes. Saved plans are unchanged. Concept → Load assessment → Supply settings has a "Market standard sizes" button that fills its Transformer sizes with the same list.' }
+    ]
+  },
+  {
     version: '2.239', date: '2026-11-21',
     items: [
       { title: 'Space plan: "Take areas from the rooms" counts the flats', text: 'Concept → Space plan → "Take areas from the rooms" now adds one area for each flat layout placed on a level (for example "2BR apartment ×160"), with the W/m² and demand factor of its rooms together. Before, only the rooms typed on the levels were taken and the flats were left out, so a tower made of flats gave almost no load. Press the button again to bring an existing plan up to date; the panels already given to areas are kept.' }
