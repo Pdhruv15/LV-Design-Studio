@@ -250,7 +250,7 @@ describe('what the main process may load', () => {
 
   it('loads nothing by a computed name, which the tests above could not see', () => {
     const computed = files.flatMap((f) => loads(f).filter((s) => !literal(s)).map((s) => `${f}: ${s}`));
-    expect(computed).toEqual(['cadFile.cjs: `${pathToFileURL(path.join(CAD_DIR']); // the reader in electron/cad
+    expect(computed).toEqual([]);
   });
 });
 

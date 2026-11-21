@@ -31,7 +31,7 @@
 | `electron/folderTemplates.cjs` | file access | `read`, `write`, `save`, `remove`, `setDefault`, `importText`, `exportText` | User folder templates in `folder-templates.json` (settings folder). |
 | `electron/pdfRender.cjs` | report output | `pdfSession`, `htmlToPdf`, `printerList`, `htmlToPrinter`, `SHEETS`, `MICRONS` | HTML → PDF bytes in a hidden window with no scripts and no network; silent print to a listed printer, black-and-white (`color: false`). |
 | `electron/engineRunner.cjs` | engine | `runJsonProcess` | Runs `engines/python/lvds_engine.py` once per request: JSON on stdin/stdout, timeout, bounded output, kill on failure. |
-| `electron/cadFile.cjs` | file access | `readDrawingBytes`, `listDrawingFolder`, `engineBytes`, `readDrawingFile`, `MAX_BYTES` | DWG/DXF bytes and the WebAssembly reader for Design CAD (100 MB cap). `readDrawingFile` is used only by `tests/cadFile.test.ts`. |
+| `electron/cadFile.cjs` | file access | `readDrawingBytes`, `listDrawingFolder`, `engineBytes`, `MAX_BYTES` | DWG/DXF bytes and the WebAssembly engine for Design CAD (100 MB cap). |
 | `electron/headlessExport.cjs` | headless | `run`, `finish` | `--lvds-headless-export <job> <result>`: hidden window renders DXF sheets / PDF reports for `lvds`. |
 | `electron/headlessPreload.cjs` | bridge | `lvds.files.pdfBytes` | The only bridge the headless window gets. |
 | `src/global.d.ts` | types | `Window.lvds`, `FolderTemplatesState` | TypeScript description of the bridge for the screens. |
