@@ -432,10 +432,13 @@
                     "type": "string",
                     "enum": [
                       "ok",
-                      "warn",
                       "bad"
-                    ],
-                    "description": "warn = not verified: the source fault level is assumed (no transformer data or supply fault level)"
+                    ]
+                  },
+                  "faultAssumed": {
+                    "description": "the source has no transformer data or supply fault level: the fault level is a placeholder and icu is not verified",
+                    "type": "boolean",
+                    "const": true
                   },
                   "disconnection": {
                     "type": "string",

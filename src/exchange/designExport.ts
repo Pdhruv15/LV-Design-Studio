@@ -55,7 +55,7 @@ export function designExport(project0: Project, o: { exportedAt: string; sha256:
         designCurrentA: r3(r.ib), ampacityA: r3(r.ampacity), loadingPct: r3(r.loadingPct), vdPct: r3(r.vdPct), vdTotalPct: r3(r.vdTotalPct),
         breakerFaultKa: r3(r.breakerFaultKA), endFaultKa: r3(r.endFaultKA),
         ...(e ? { zsOhm: r3(e.zsOhm), maxZsOhm: r3(e.maxZsOhm), disconnectionS: r3(e.requiredS) } : {}),
-        status: { vd: r.vdStatus, ampacity: r.ampacityStatus, protection: r.protectionStatus, icu: r.icuStatus, ...opt('disconnection', e?.disconnection), overall: r.status }
+        status: { vd: r.vdStatus, ampacity: r.ampacityStatus, protection: r.protectionStatus, icu: r.icuStatus === 'warn' ? (f.breakerIcuKa >= r.breakerFaultKA ? 'ok' : 'bad') : r.icuStatus, ...opt('faultAssumed', r.faultAssumed), ...opt('disconnection', e?.disconnection), overall: r.status }
       }
     };
   });
