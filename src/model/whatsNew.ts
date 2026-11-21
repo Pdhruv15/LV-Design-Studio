@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.239', date: '2026-11-21',
+    items: [
+      { title: 'Space plan: "Take areas from the rooms" counts the flats', text: 'Concept → Space plan → "Take areas from the rooms" now adds one area for each flat layout placed on a level (for example "2BR apartment ×160"), with the W/m² and demand factor of its rooms together. Before, only the rooms typed on the levels were taken and the flats were left out, so a tower made of flats gave almost no load. Press the button again to bring an existing plan up to date; the panels already given to areas are kept.' }
+    ]
+  },
+  {
     version: '2.238', date: '2026-11-21',
     items: [
       { title: 'Building: choose which assessment space a room type counts as', text: 'Concept → Building → Room types has two new columns. "Assessment space" sets which space of the load assessment the rooms of that type count as: a space of your density standard, "Basement car park", or "By name" (the same Id or name, as before). Beside it you see that space\'s lighting, power and cooling W/m². The load assessment\'s "Update from Building…" and its Building m² column follow this choice, so the space mix no longer depends on names matching. A room type set to the car park counts in the car park area. "Save as my library" writes the choice to RoomTypes.xlsx in a new Assessment space column.' }

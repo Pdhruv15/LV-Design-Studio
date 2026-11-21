@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { builtUpAreaOf, carParkAreaOf, dbChecks, newBuilding, nextRoomId, roomLoad, roomsFromTable, spaceAreasFromRooms, summarizeBuilding } from './building';
 import { riserFromBuilding } from './busbar';
-import { emptyPlan } from './spacePlan';
+import { areaLoad, emptyPlan } from './spacePlan';
 import type { BuildingInfo, Project } from '../types';
 
 const tower = { ...newBuilding('T', 'Tower A'), plotAreaM2: 3000, levels: [
@@ -76,6 +76,21 @@ describe('building information', () => {
     const f = riserFromBuilding({ ...sampleProject, building: flats }, 'T')!;
     expect(f.floors.map((x) => x.id)).toEqual(['G', 'TYP']);
     expect(f.floors[1]).toMatchObject({ kw: 37.8, count: 20 });
+  });
+
+  it('space planning takes the flats too: one area per flat layout on a level', () => {
+    const flats: BuildingInfo = {
+      buildings: [{ ...tower, levels: tower.levels.map((l) => (l.id === 'TYP' ? { ...l, units: [{ unitTypeId: 'U1', count: 6 }] } : l)) }],
+      unitTypes: [{ id: 'U1', name: '1BR', rooms: [{ name: 'Living', type: 'living', areaM2: 40 }, { name: 'Kitchen', type: 'kitchen', areaM2: 10 }] }],
+      rooms: info.rooms.filter((r) => r.id === 'r3')
+    };
+    const plan = spaceAreasFromRooms(flats, { ...emptyPlan(), areas: [{ id: 'unit-TYP-U1', building: 'Tower A', name: 'old', use: 'apartment', panel: 'MDB-A' }] });
+    expect(plan.areas.map((a) => a.id)).toEqual(['room-r3', 'unit-TYP-U1']);
+    // 6 flats of 50 m² on each of 20 floors; living 150 W/m² (DF 0.7) and kitchen 350 W/m² (DF 0.6) together.
+    expect(plan.areas[1]).toMatchObject({ building: 'Tower A', floor: 'L1–L20 (×20)', name: '1BR ×120', use: 'apartment', areaM2: 6000, wPerM2: 190, demandFactor: 0.66, panel: 'MDB-A' });
+    const load = areaLoad(plan, plan.areas[1]);
+    expect(load.connectedKw).toBeCloseTo(120 * (40 * 150 + 10 * 350) / 1000);
+    expect(load.demandKw).toBeCloseTo(load.connectedKw * 0.66);
   });
 
   it('car park area: the Car park rooms on every identical floor, else the basements’ gross area', () => {

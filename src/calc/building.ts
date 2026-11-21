@@ -278,11 +278,28 @@ export function saveRoomTypeLibrary(t: RoomType[]): boolean {
   try { localStorage.setItem(KEY, JSON.stringify(t)); return true; } catch { return false; }
 }
 
-/** Space planning areas from the rooms: one area per room (all its copies),
- * the room types as the use types. Panels already given to an area are kept. */
+/** Space planning areas from the rooms: one area per room (all its copies) and one per
+ * flat layout placed on a level (all its flats, with the W/m² and demand factor of its
+ * rooms together), the room types as the use types. Panels already given to an area are kept. */
 export function spaceAreasFromRooms(info: BuildingInfo, plan: SpacePlan): SpacePlan {
   const keep = new Map(plan.areas.map((a) => [a.id, a.panel]));
-  const areas: SpaceArea[] = info.rooms.map((r) => {
+  const types = roomTypesOf(info);
+  const flats: SpaceArea[] = info.buildings.flatMap((b) => b.levels.flatMap((l) => (l.units ?? []).flatMap((u): SpaceArea[] => {
+    const ut = info.unitTypes?.find((x) => x.id === u.unitTypeId);
+    const n = Math.max(0, Math.round(u.count)) * countOf(l);
+    const each = ut?.rooms.reduce((s, r) => s + r.areaM2, 0) ?? 0;
+    if (!ut || !n || !(each > 0)) return [];
+    // One flat's connected and demand load from its rooms' types.
+    const kw = ut.rooms.reduce((s, r) => s + (r.areaM2 * (types.find((t) => t.id === r.type)?.wPerM2 ?? 0)) / 1000, 0);
+    const demand = ut.rooms.reduce((s, r) => { const t = types.find((x) => x.id === r.type); return s + ((r.areaM2 * (t?.wPerM2 ?? 0)) / 1000) * (t?.demandFactor ?? 1); }, 0);
+    const id = `unit-${l.id}-${ut.id}`;
+    return [{
+      id, building: b.name, floor: `${l.name}${countOf(l) > 1 ? ` (×${countOf(l)})` : ''}`, level: { building: b.id, level: l.id },
+      name: `${ut.name} ×${n}`, use: types.some((t) => t.id === 'apartment') ? 'apartment' : ut.rooms[0].type, areaM2: Math.round(each * n * 10) / 10,
+      wPerM2: Math.round(((kw * 1000) / each) * 10) / 10, demandFactor: kw > 0 ? Math.round((demand / kw) * 100) / 100 : 1, panel: keep.get(id)
+    }];
+  })));
+  const rooms: SpaceArea[] = info.rooms.map((r) => {
     const b = info.buildings.find((x) => x.id === r.buildingId);
     const l = b?.levels.find((x) => x.id === r.levelId);
     const load = roomLoad(info, r);
@@ -291,7 +308,7 @@ export function spaceAreasFromRooms(info: BuildingInfo, plan: SpacePlan): SpaceP
       name: `${r.name}${load.total > 1 ? ` ×${load.total}` : ''}`, use: r.type, areaM2: Math.round(load.areaM2 * 10) / 10, panel: keep.get(`room-${r.id}`)
     };
   });
-  return { ...plan, areas, uses: roomTypesOf(info).map(({ id, label, wPerM2, demandFactor }) => ({ id, label, wPerM2, demandFactor })) };
+  return { ...plan, areas: [...rooms, ...flats], uses: types.map(({ id, label, wPerM2, demandFactor }) => ({ id, label, wPerM2, demandFactor })) };
 }
 
 /** Every floor of the building, bottom to top, with a short tag (B2, B1, G, L1… R). */
