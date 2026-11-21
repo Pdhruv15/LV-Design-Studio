@@ -1907,12 +1907,6 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .la-sec h4 .m{font-weight:400;font-size:12px}
 .la-n{width:20px;height:20px;border-radius:50%;background:var(--acc);color:var(--on-acc);display:inline-grid;place-items:center;font-size:11px}
 .la-sticky{position:sticky;top:0}
-.la-types{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;margin-bottom:10px}
-.la-type{padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--p2);color:var(--tx);text-align:left;font-size:12px}
-.la-type:hover{border-color:var(--line-strong)}
-.la-type.on{border-color:var(--acc);color:var(--acc);font-weight:600}
-.la-type.add{border-style:dashed;color:var(--acc)}
-.la-type i{display:block;font-style:normal;font-size:10px;color:var(--mut);font-weight:400}
 .la-box{border:1px dashed var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px}
 .la-table td,.la-table th{white-space:nowrap}
 .la-table tfoot td{border-top:1px solid var(--line)}

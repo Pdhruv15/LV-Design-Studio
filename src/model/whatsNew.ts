@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.234', date: '2026-11-21',
+    items: [
+      { title: 'Load assessment: the building type is one list', text: 'Concept → Load assessment: the row of building type buttons is now one list. It shows the starting types and then your own types in a group, each with its typical VA/m², and ends with "+ Save the current set-up as a new type…", which does what the "+ Custom type" button did. Picking another type still asks before it replaces the area schedule, services and diversities.' }
+    ]
+  },
+  {
     version: '2.233', date: '2026-11-21',
     items: [
       { title: 'Load assessment: a Location for each space (indoor, not cooled, outdoor)', text: 'Concept → Load assessment → Area schedule has a Location column: Indoor cooled, Indoor not cooled, Outdoor covered or Outdoor open. Lighting and power W/m² are typed per row, so the same space can be listed twice with its own values, for example indoor seating and outdoor seating. A space that is not cooled or is outdoors carries no cooling load: its Cooling cell reads "none". An outdoor space is outside the GFA, so it is shown beside the total and not in it. Plant rooms and stores now start as not cooled. The Design Basis and concept reports name the location of such spaces. Saved assessments are unchanged: a space with no location is indoor and cooled, as before.' }
