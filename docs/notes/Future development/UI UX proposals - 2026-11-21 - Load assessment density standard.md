@@ -1,6 +1,6 @@
 # UI UX proposal – Load assessment: building type list and your own density standard (2026-11-21)
 
-Status: **approved 2026-11-21** — the user chose the recommended option for every decision (G–K). Built step by step after the Building link steps. The letters and numbers continue from `UI UX proposals - 2026-11-21 - Building and load assessment link.md` (items 1–7, decisions A–F).
+Status: **approved 2026-11-21** — the user chose the recommended option for every decision (G–K). Built and merged 2026-11-21: Location per space PR 731 (v2.233); building type list PR 732 (v2.234); A/C figure choice PR 733 (v2.235); density standards workbook PR 735 (v2.237). Different from the mockup: outdoor spaces are left out of the GFA total; the standards are edited on the Database page (no separate dialog, no Sheets link); the edited mark sits under the space name, not in a column. The letters and numbers continue from `UI UX proposals - 2026-11-21 - Building and load assessment link.md` (items 1–7, decisions A–F).
 
 Mockup: `docs/mockups/load-assessment-density-standard-mockup.html` (image: `load-assessment-density-standard-mockup.png`).
 
