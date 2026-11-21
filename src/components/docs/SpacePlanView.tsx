@@ -2,7 +2,8 @@ import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import type { PlanPanel, Project, SpacePlan, SpaceUse } from '../../types';
-import { autoAssign, DEFAULT_USES, emptyPlan, panelLoad, PLAN_TRANSFORMER_SIZES, summarize, usesOf } from '../../calc/spacePlan';
+import { autoAssign, DEFAULT_USES, emptyPlan, panelLoad, PLAN_SIZE_LISTS, planSizes, sizeListOf, summarize, usesOf, withSizeList, type PlanSizeList } from '../../calc/spacePlan';
+import { catalog } from '../../database/catalog';
 import { applyPlanEdits, buildPlanSheet } from '../../docs/planSheet';
 import { planToSld } from '../../model/planToSld';
 import ClassicGrid from '../grid/ClassicGrid';
@@ -87,10 +88,22 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
       }
     >
       <div className="plan-settings">
+        <label title="Where the transformer sizes come from: the two usual DEWA sizes, the market standard sizes (100 to 3,150 kVA), or your Transformers catalogue">Size list
+          <select value={s.sizeList ?? 'dewa'} onChange={(e) => setPlan({ ...plan, settings: withSizeList(s, e.target.value as PlanSizeList) })}>
+            {PLAN_SIZE_LISTS.filter((l) => l.value !== 'catalogue' || s.sizeList === 'catalogue' || catalog().transformers.length > 0).map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+          </select>
+        </label>
+        {s.sizeList && (
+          <label title="No transformer larger than this is planned">Largest size
+            <select value={s.maxTransformerKva ?? 1500} onChange={(e) => { const next = { ...s, maxTransformerKva: +e.target.value }; setPlan({ ...plan, settings: planSizes(next).includes(next.transformerKva) ? next : { ...next, transformerKva: 0 } }); }}>
+              {[...new Set([...sizeListOf(s.sizeList), s.maxTransformerKva ?? 1500])].sort((x, y) => x - y).map((k) => <option key={k} value={k}>{k} kVA</option>)}
+            </select>
+          </label>
+        )}
         <label>Transformer size
           <select value={s.transformerKva} onChange={(e) => setPlan({ ...plan, settings: { ...s, transformerKva: +e.target.value } })}>
             <option value={0}>Automatic (fewest units)</option>
-            {PLAN_TRANSFORMER_SIZES.map((k) => <option key={k} value={k}>{k} kVA</option>)}
+            {[...new Set([...planSizes(s), ...(s.transformerKva ? [s.transformerKva] : [])])].sort((x, y) => x - y).map((k) => <option key={k} value={k}>{k} kVA</option>)}
           </select>
         </label>
         <label>Max loading %<input inputMode="decimal" key={`maxLoadingPct-${s.maxLoadingPct}`} defaultValue={s.maxLoadingPct} onBlur={(e) => setPlan({ ...plan, settings: { ...s, maxLoadingPct: num(e.target.value, s.maxLoadingPct) } })} /></label>
@@ -189,7 +202,7 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
                   <td><b>{t.transformer.id}</b></td>
                   <td>
                     <select value={t.transformer.kva} onChange={(e) => setPlan({ ...plan, transformers: plan.transformers.map((x) => (x.id === t.transformer.id ? { ...x, kva: +e.target.value } : x)) })}>
-                      {[...new Set([...PLAN_TRANSFORMER_SIZES, t.transformer.kva])].map((k) => <option key={k} value={k}>{k} kVA</option>)}
+                      {[...new Set([...planSizes(s), t.transformer.kva])].sort((x, y) => x - y).map((k) => <option key={k} value={k}>{k} kVA</option>)}
                     </select>
                   </td>
                   <td><input value={t.transformer.rmu ?? ''} placeholder="RMU-1" onChange={(e) => setPlan({ ...plan, transformers: plan.transformers.map((x) => (x.id === t.transformer.id ? { ...x, rmu: e.target.value || undefined } : x)) })} /></td>

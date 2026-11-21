@@ -918,8 +918,12 @@ export interface PlanTransformer {
 }
 
 export interface SpacePlanSettings {
-  /** Transformer size: 1000, 1500, or 0 = the one giving fewer units. */
+  /** Transformer size: one of the size list, or 0 = the one giving fewer units. */
   transformerKva: number;
+  /** The list the sizes come from; absent: 1,000 / 1,500 kVA. */
+  sizeList?: 'dewa' | 'market' | 'catalogue';
+  /** The largest size used from the market or catalogue list; absent: 1,500 kVA. */
+  maxTransformerKva?: number;
   maxLoadingPct: number;
   maxTransformersPerRmu: number;
   powerFactor: number;
