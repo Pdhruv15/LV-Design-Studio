@@ -1,6 +1,6 @@
 # Native drawing format – faster than DWG or DXF (2026-11-21)
 
-Status: **D1 and D2 approved 2026-11-21** ("go with your recommendation"): Phase 0 (measure) first, then Phase 1 (a hidden cache of decoded drawings), as a chunked package. D3 (name) and D4 (where drawn work lives) wait for Phase 2. The user asked that sending a drawing as DWG or DXF stays: it does. Save As DWG / DXF is unchanged in every phase.
+Status: **D1 and D2 approved 2026-11-21** ("go with your recommendation"): Phase 0 (measure) first, then Phase 1 (a hidden cache of decoded drawings), as a chunked package. Later the same day the user approved the rest as recommended ("ok go with recommendation"): the AI-ready layout below, D4 = drawn work in the native drawing file, and D3 = `.lvplan` as the working name (to confirm when Phase 2 starts). The user asked that sending a drawing as DWG or DXF stays: it does. Save As DWG / DXF is unchanged in every phase.
 
 The user asked whether the app could have its own drawing format that is faster and more efficient than DWG or DXF, and built for the future.
 
