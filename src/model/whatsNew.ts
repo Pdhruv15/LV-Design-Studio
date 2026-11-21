@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.237', date: '2026-11-21',
+    items: [
+      { title: 'Your own density standards, kept in the LV Database folder', text: 'A new workbook, SpaceDensities.xlsx, holds your standard values of lighting, power and cooling W/m²: one row per space and location (indoor seating and outdoor seating are two rows), with a Reference for where each value comes from and whether the A/C figure is a cooling load or an electrical load. Rows with the same Standard name are one standard, so you can keep several (company, client, authority). Edit it on the Database page (Space densities tab) or in Excel; the previous file is kept in Backups. Concept → Load assessment has a "Density standard" list beside the building type and an "Edit standards…" button that opens the Database page. A starting type takes the standard\'s figures; a type of your own keeps the figures it was saved with. In the area schedule, a space whose figures differ from the standard is marked "edited" with Reset. "+ Space from my standard…" adds a space from it, and "Add these values to my standard…" writes the assessment\'s spaces back (it replaces "Save densities as my library"). The library kept on this computer is still there, as the first standard in the list. A project keeps its own copy: changing a standard later does not move a project.' }
+    ]
+  },
+  {
     version: '2.236', date: '2026-11-21',
     items: [
       { title: 'Building: Common services start from the load assessment', text: 'Concept → Building → Common services… now starts from the load assessment where it has the figure: the lift count and kW, EV chargers from the share of parking bays, pool, façade lighting, fire and jockey pumps, stair fans, booster and transfer pumps and car park fans. A new column says where each starting value comes from; every quantity stays editable. With no assessment, or for a building the assessment does not count, the list starts as before.' },

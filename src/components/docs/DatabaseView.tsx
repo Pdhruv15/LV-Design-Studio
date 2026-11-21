@@ -21,6 +21,7 @@ const USED_FOR: Record<string, string> = {
   busbar: 'Busbar trunking catalogue for the riser study; rate per m for the BOQ.',
   equipment: 'Prices of other equipment for the BOQ (matched by BOQ key).',
   roomTypes: 'Room types and generation rules for Building information (new projects).',
+  spaceDensities: 'Load assessment: your density standards (lighting, power and cooling W/m² per space and location).',
   unitTypes: 'Flat / tenant layouts (Building → Flats / tenants → From library).',
   prices: 'BOQ price lists (BOQ → Use a saved price list).',
   rules: 'Authority / company rules: minimum PF, motor start drop, points per circuit, meters, watts per point.',
@@ -36,14 +37,15 @@ const loadSeen = (): Record<string, string[]> => { try { return JSON.parse(local
  * backs the file up first. Changes since you last looked are listed. */
 const books = BOOKS as unknown as Book[];
 
-export default function DatabaseView({ db, available, onRefresh, onApplyParameters, onStatus }: {
+export default function DatabaseView({ db, available, onRefresh, onApplyParameters, onStatus, initialTab }: {
   db: Database;
   available: boolean;
   onRefresh: () => void;
   onApplyParameters: () => void;
   onStatus?: (m: string) => void;
+  initialTab?: string; // the book shown first, when it names one
 }) {
-  const [tab, setTab] = useState(books[0].id);
+  const [tab, setTab] = useState(books.some((b) => b.id === initialTab) ? initialTab! : books[0].id);
   const [draft, setDraft] = useState<Row[] | null>(null); // editing copy
   const [busy, setBusy] = useState(false);
   const [standard, setStandard] = useState(false);

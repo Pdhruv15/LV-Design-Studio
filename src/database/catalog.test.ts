@@ -44,6 +44,33 @@ describe('database catalogue', () => {
     expect(catalog().unitTypes[0].rooms.length).toBe(2);
     expect(roomTypesOf({ buildings: [], rooms: [] })[0].id).toBe('office-open');
   });
+  it('reads the space densities as named standards and skips bad rows', () => {
+    const db = parseDatabase(raw({ spaceDensities: [
+      { standard: 'Authority A', id: 'Fine Dining', label: 'F&B', ltg: 12, pwr: 60, clg: 200, dwelling: 'no', reference: 'Table 4' },
+      { standard: 'Authority A', id: 'fine-dining', label: 'F&B terrace', location: 'outdoor, open', ltg: 6, pwr: 10 },
+      { standard: 'Authority A', id: 'fine-dining', label: 'F&B again', ltg: 1, pwr: 1 },
+      { standard: 'Authority A', id: 'x', label: 'Odd', location: 'Roof', ltg: 1, pwr: 1 },
+      { standard: 'Authority A', id: 'y', label: 'No power', ltg: 1 },
+      { standard: 'Company', id: 'apt', label: 'Apartment', ltg: 8, pwr: 35, clg: 40, acBasis: 'Electrical load', dwelling: 'Yes' },
+      { standard: 'Company', id: 'office', label: 'Office', location: 'Indoor, cooled', ltg: 9, pwr: 25, acBasis: '' }
+    ] }));
+    expect(db.issues.filter((i) => i.startsWith('spaceDensities.xlsx'))).toEqual([
+      'spaceDensities.xlsx row 4: duplicate fine-dining in Authority A — skipped',
+      'spaceDensities.xlsx row 5: unknown location Roof — skipped',
+      'spaceDensities.xlsx row 6: Standard, Id, Space, Lighting and Power are needed — skipped'
+    ]);
+    applyDatabase(db);
+    expect(catalog().spaceStandards).toEqual([
+      { name: 'Authority A', spaces: [
+        { id: 'fine-dining', label: 'F&B', ltg: 12, pwr: 60, clg: 200, reference: 'Table 4' },
+        { id: 'fine-dining', label: 'F&B terrace', location: 'oo', ltg: 6, pwr: 10, clg: 0 }
+      ] },
+      { name: 'Company', acBasis: 'electrical', spaces: [
+        { id: 'apt', label: 'Apartment', ltg: 8, pwr: 35, clg: 40, dwelling: true },
+        { id: 'office', label: 'Office', ltg: 9, pwr: 25, clg: 0 }
+      ] }
+    ]);
+  });
   it('reads luminaires for Light room, skips bad rows, and falls back to the typical list when empty', () => {
     expect(luminairesOf()).toBe(LUMINAIRES);
     const db = parseDatabase(raw({ luminaires: [
@@ -73,7 +100,7 @@ describe('Excel workbooks (desktop side)', () => {
   it('creates the new workbooks with a Read me, saves from the app with a backup, keeps the dropdowns', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lvdb-'));
     const { created } = await database.ensureDatabase(dir, databaseSeeds());
-    expect(created).toEqual(expect.arrayContaining(['Transformers.xlsx', 'RoomTypes.xlsx', 'Luminaires.xlsx', 'Rules.xlsx', 'Prices.xlsx']));
+    expect(created).toEqual(expect.arrayContaining(['Transformers.xlsx', 'RoomTypes.xlsx', 'SpaceDensities.xlsx', 'Luminaires.xlsx', 'Rules.xlsx', 'Prices.xlsx']));
     const read1 = await database.readDatabase(dir);
     expect(read1.books.transformers.rows.length).toBeGreaterThan(10);
     expect(read1.books.roomTypes.rows.length).toBeGreaterThan(10);

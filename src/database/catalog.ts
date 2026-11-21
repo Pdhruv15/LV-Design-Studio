@@ -1,4 +1,5 @@
 import type { BusbarType } from '../calc/busbar';
+import type { LaStandard } from '../calc/loadAssessment';
 import type { RoomType, UnitType } from '../types';
 import type { PriceList } from '../model/priceList';
 import { forgetNetworks } from '../calc/network';
@@ -21,6 +22,7 @@ export interface Catalog {
   busbar: CatalogBusbar[];
   equipment: CatalogEquipment[];
   roomTypes: RoomType[];
+  spaceStandards: LaStandard[]; // SpaceDensities.xlsx, one per Standard name
   luminaires: CatalogLuminaire[]; // Luminaires.xlsx (blank = built-in typical LED list)
   unitTypes: UnitType[];
   priceLists: PriceList[];
@@ -28,7 +30,7 @@ export interface Catalog {
   cableRefs: import('../model/cableRefs').CableRef[]; // CableSchedule.xlsx (blank = built-in list)
 }
 
-export const EMPTY_CATALOG: Catalog = { transformers: [], generators: [], busbar: [], equipment: [], roomTypes: [], luminaires: [], unitTypes: [], priceLists: [], rules: {}, cableRefs: [] };
+export const EMPTY_CATALOG: Catalog = { transformers: [], generators: [], busbar: [], equipment: [], roomTypes: [], spaceStandards: [], luminaires: [], unitTypes: [], priceLists: [], rules: {}, cableRefs: [] };
 let current: Catalog = EMPTY_CATALOG;
 export const catalog = () => current;
 export function setCatalog(c: Catalog): void { current = c; forgetNetworks(); }

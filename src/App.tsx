@@ -274,6 +274,7 @@ export default function App() {
   // What the Load schedule page says its ribbon tools can do (it clears this when it goes away).
   const [scheduleRibbon, setScheduleRibbon] = useState<RibbonActions['schedule']>();
   const [panelsTx, setPanelsTx] = useState<number | undefined>();
+  const [dbTab, setDbTab] = useState<string>(); // the Database tab the Load assessment's Edit standards… opens
   // The SLD menu's Repeat branch on other floors: Panels opens on that tab with this board picked.
   const [repeatRoot, setRepeatRoot] = useState<string | undefined>();
   const [inspectorShown, setInspectorShown] = useState(0); // the SLD menu's Properties brings a hidden inspector back
@@ -1853,6 +1854,7 @@ export default function App() {
             {view === 'database' && (
               <DatabaseView
                 db={db}
+                initialTab={dbTab}
                 available={hasDatabase}
                 onRefresh={() => window.lvds.database.read().then(receiveDatabase)}
                 onApplyParameters={() => {
@@ -1919,7 +1921,7 @@ export default function App() {
             )}
             {view === 'cad' && <CadPage cad={cadS} project={project} onUndo={history.undo} onRedo={history.redo} canUndo={history.canUndo} canRedo={history.canRedo} undoLabel={history.undoLabel} redoLabel={history.redoLabel} onShow={showFromCad} draft={cadDraft} autosaveMin={prefs.app.autosaveMin} onPrefs={(x) => { const p = { ...prefs, app: { ...prefs.app, cadDraft: x.draft, autosaveMin: x.autosaveMin } }; setPrefs(p); savePrefs(p); }} onChange={(next, message, join) => { setProject(next, { step: !join, join, label: stepLabel(message) }); setStatus(message); }} onStatus={setStatus} sheetUi={sheetUi} run={run} onSheet={(id) => { setSheetTab(id); setView('drawings'); }} />}
             {view === 'building' && <BuildingView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpen={(v) => setView(v)} />}
-            {view === 'load-assessment' && <LoadAssessmentView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpen={(v) => setView(v)} />}
+            {view === 'load-assessment' && <LoadAssessmentView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpen={(v) => { if (v === 'database') setDbTab('spaceDensities'); setView(v); }} />}
             {view === 'busbar' && <BusbarStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'pfc' && <PfcStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'cable-schedule' && <CableScheduleView project={calcProject} focus={focus} onClearFocus={() => setFocus(null)} onStatus={setStatus} />}

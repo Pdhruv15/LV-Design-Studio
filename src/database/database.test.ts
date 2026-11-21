@@ -88,6 +88,8 @@ describe('database drives the calculations', () => {
     expect(s.cables.length).toBeGreaterThan(10);
     expect(s.breakers[0][0]).toBe(6);
     expect(s.parameters.every((r) => r[1] === '')).toBe(true);
+    expect(s.spaceDensities[0].slice(0, 3)).toEqual(['Starting figures', 'apt', 'Apartment']);
+    expect(s.spaceDensities.find((r) => r[1] === 'plant')![3]).toBe('Indoor, not cooled');
   });
 });
 
