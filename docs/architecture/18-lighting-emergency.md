@@ -25,7 +25,7 @@ The module has four parts:
 | File | Kind | Key functions or components | What they do |
 |---|---|---|---|
 | `src/calc/lighting.ts` | calc | `LUX_TARGETS`, `REFLECTANCES`, `UF_TABLE` (private), `roomIndex`, `estimateUf`, `gridLayout`, `lumenMethod`, `LuxInput`, `LuxResult` | Rectangular lumen method, UF estimate table, target lux list for the quick calculator |
-| `src/calc/roomLighting.ts` | calc | `LUMINAIRES`, `luminairesOf`, `roomIndexOf`, `gridInOutline`, `roomLighting`, `roomLightingDefaults` | Lumen method for any room outline on a CAD level; default inputs from room type and level height; built-in luminaire list |
+| `src/calc/roomLighting.ts` | calc | `LUMINAIRES`, `luminairesOf`, `roomIndexOf`, `gridInOutline`, `roomLighting`, `roomLightingDefaults` | Lumen method for any room outline on a CAD level; optional `maxPoints` bounds transient template previews while retaining the full requirement; default inputs from room type and level height; built-in luminaire list |
 | `src/calc/emergencyLighting.ts` | calc | `EMPHASIS_LABEL`, `EMPHASIS_REACH_M`, `TYPICAL_FITTING`, `project`, `pointAt`, `escapeRoute`, `OPEN_AREA_M2`, `needsOpenArea`, `openArea`, `signViewingM`, `durationH`, `emergencyLayout` | Escape-route, open-area and sign layout by spacing table |
 | `src/model/roomLights.ts` | model | `placeRoomLights` | Puts the room's light points on one circuit; with `replace`, first removes every lighting point inside the room |
 | `src/model/emergencyPlace.ts` | model | `placeEmergency` | Puts each emergency fitting and sign on one circuit as an `ltg` point with an `emergency` tag |

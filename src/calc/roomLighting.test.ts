@@ -56,6 +56,13 @@ describe('room lighting on the plan — lumen method for any outline', () => {
     expect(r.warnings.some((w) => w.includes('W/m² limit'))).toBe(true);
   });
 
+  it('bounds preview point allocation while retaining the full lumen requirement', () => {
+    const r = roomLighting(rect(0, 0, 100, 100), { ...office, maxPoints: 32 });
+    expect(r.required).toBeGreaterThan(1000);
+    expect(r.points).toHaveLength(32);
+    expect(r.warnings.some((w) => w.includes('32 point preview limit'))).toBe(true);
+  });
+
   it('rejects a room without an outline, a luminaire below the working plane, and missing data', () => {
     expect(roomLighting([], office).invalid).toMatch(/no outline/);
     expect(roomLighting(rect(0, 0, 5, 5), { ...office, ceilingM: 0.8 }).invalid).toMatch(/above the working plane/);

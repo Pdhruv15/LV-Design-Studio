@@ -70,6 +70,9 @@ import CadLayerTable from '../CadLayerTable';
 import CadTabs from './CadTabs';
 import RoomLightingPanel, { lightingOf, LUX_START, type LuxSettings } from './RoomLightingPanel';
 import { placeRoomLights } from '../../model/roomLights';
+import RoomDeviceTemplatePanel from './RoomDeviceTemplatePanel';
+import { approveLvRoomTemplate, proposeLvRoomTemplate, type RoomDeviceTemplateKind, type RoomDeviceTemplateScope } from '../../model/roomDeviceTemplate';
+import { approveElvRoomTemplate, proposeElvRoomTemplate } from '../../components/elv/elvRoomTemplate';
 import EmergencyPanel, { EM_PROMPT, EM_START, emFitting, type EmSettings } from './EmergencyPanel';
 import LvRoutePlannerPanel, { type LvRouteMode } from './LvRoutePlannerPanel';
 import ElvRoutePlannerPanel from '../../components/elv/ElvRoutePlannerPanel';
@@ -138,7 +141,7 @@ const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.to
 const DOCK_W = 280, DOCK_MIN = 220, DOCK_MAX = 480, DOCK_KEY = 'lvds.cad.dock';
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'xline', 'ray', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TRACE (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGNH / ALIGNV / SPACE (the devices selected) · AL (align objects by points) · TR (trim) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · B (block from drawn objects: the dialog; -BLOCK on the command line) · I (the Blocks palette: this drawing, Recent, Library; -INSERT by name) · ATT (attribute definition for a block) · ATE (edit a block\'s attributes; or double-click it) · ATTEXT (the attributes as a table) · PO (point) · DIV (points at the divisions of an object) · ME (points every length along it) · PTYPE (point style) · DR (draw order: Front, Back, Above or Under an object) · TEXTTOFRONT (texts, dimensions, leaders over the rest) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · HE (edit a hatch: pattern, spacing, angle, origin, islands; or double-click it) · BO (boundary: a closed polyline round an area) · LE (leader) · RT (room tag) · NORTH · LA (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · XL (XLINE, construction line) · RAY · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · MLD (multileader) · MLEADERADD / MLEADERREMOVE · MLA (align multileaders) · MLC (collect them) · MLS (multileader style) · ED (edit a text, dimension or multileader in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · DRA (radius) · DDI (diameter) · DAN (angular) · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LAYERS (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TRACE (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · RDT (room device template) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGNH / ALIGNV / SPACE (the devices selected) · AL (align objects by points) · TR (trim) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · B (block from drawn objects: the dialog; -BLOCK on the command line) · I (the Blocks palette: this drawing, Recent, Library; -INSERT by name) · ATT (attribute definition for a block) · ATE (edit a block\'s attributes; or double-click it) · ATTEXT (the attributes as a table) · PO (point) · DIV (points at the divisions of an object) · ME (points every length along it) · PTYPE (point style) · DR (draw order: Front, Back, Above or Under an object) · TEXTTOFRONT (texts, dimensions, leaders over the rest) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · HE (edit a hatch: pattern, spacing, angle, origin, islands; or double-click it) · BO (boundary: a closed polyline round an area) · LE (leader) · RT (room tag) · NORTH · LA (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · XL (XLINE, construction line) · RAY · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · MLD (multileader) · MLEADERADD / MLEADERREMOVE · MLA (align multileaders) · MLC (collect them) · MLS (multileader style) · ED (edit a text, dimension or multileader in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · DRA (radius) · DDI (diameter) · DAN (angular) · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LAYERS (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Bind's count in the Save line: reference lines, texts and hatches. */
 const boundText = (shapes: { kind: string }[]) => {
   const n = (k: string) => shapes.filter((x) => x.kind === k).length, en = (v: number) => v.toLocaleString('en-GB');
@@ -158,6 +161,7 @@ const PROMPT: Record<CadTool, string> = {
   dev: 'DEV  Specify insertion point:',
   fill: 'FILL  Click inside a room: the ELV device chosen is placed at its coverage spacing:',
   lux: 'LUX  Point at a room to see its lights by the lumen method, click to keep them:',
+  roomtemplate: 'RDT  Click one room to preview its coordinated LV and ELV devices:',
   em: 'EM  Escape route: click its points from the far end to the exit, Enter to finish:',
   arl: 'ARL  Array on line: click the start of the line:',
   match: 'MA  Match: click the device (or drawn object) to copy from:',
@@ -400,6 +404,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // Light room (LUX): the room kept (its lights stay previewed while the panel is edited) and the panel's settings.
   const [luxRoom, setLuxRoom] = useState<string | null>(null);
   const [luxSet, setLuxSet] = useState<LuxSettings>(LUX_START);
+  // Room devices (RDT): one selected room and one bounded, session-only preview. Only approval writes device points.
+  const [roomTemplateRoom, setRoomTemplateRoom] = useState<string | null>(null);
+  const [roomTemplateKind, setRoomTemplateKind] = useState<RoomDeviceTemplateKind>('office');
+  const [roomTemplateScope, setRoomTemplateScope] = useState<RoomDeviceTemplateScope>('both');
+  const [roomTemplateLighting, setRoomTemplateLighting] = useState('');
+  const [roomTemplatePower, setRoomTemplatePower] = useState('');
+  const [roomTemplateReplace, setRoomTemplateReplace] = useState(true);
   // Emergency (EM): the escape routes, points of emphasis and open-area rooms marked (metres), kept until Place or Cancel.
   const [em, setEm] = useState<{ routes: Pt[][]; points: { at: Pt; kind: EmphasisKind }[]; rooms: string[] }>({ routes: [], points: [], rooms: [] });
   const [emSet, setEmSet] = useState<EmSettings>(EM_START);
@@ -556,7 +567,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [showXR, setShowXR] = useState(false);
   const [xDraft, setXDraft] = useState<CadRef | null>(null);
   const [xClip, setXClip] = useState<{ name: string; outline: boolean } | null>(null);
-  if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); setEm({ routes: [], points: [], rooms: [] }); setLvRoutePlan(null); setLvRouteSelected(0); setPicked([]); }
+  if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); setRoomTemplateRoom(null); setEm({ routes: [], points: [], rooms: [] }); setLvRoutePlan(null); setLvRouteSelected(0); setPicked([]); }
   const input = useRef<HTMLInputElement>(null);
   const last = rememberedDrawing(project.id);
   const units = planScale(project, view?.file, view?.info.units);
@@ -646,7 +657,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'none') { if (takenRef.current?.seen) cancelTakeOver(); }
     else if (pickedDw.length && TAKE_OVER_TOOLS.includes(tool)) { takeOverForTool(); return; }
     const pre = preset.current;
-    setPoints(pointsNext.current ?? []); pointsNext.current = null; setObjectMode(false); setLuxRoom(luxNext.current); luxNext.current = null; setLvRoutePlan(null); setLvRouteSelected(0); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
+    setPoints(pointsNext.current ?? []); pointsNext.current = null; setObjectMode(false); setLuxRoom(luxNext.current); luxNext.current = null; setRoomTemplateRoom(null); setLvRoutePlan(null); setLvRouteSelected(0); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
     setCloudPoly(false); setCloudAsk(false); setEllAxis(false); setCircleDia(false);
     setEdStep(pre); preset.current = null; setStretchBox(null); const mp = mpNext.current; mpNext.current = null; setMpFrom(mp);
     const first = picked.some((k) => k.startsWith('sk:')) || !!cad.selected?.startsWith('sk:') || ((tool === 'mirror' || tool === 'array') && pickedDw.length > 0);
@@ -864,6 +875,24 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const luxHover = tool === 'lux' && !luxRoom && cursor.at && floor ? roomAtPointOf(project, floor, cursor.at, units.factor)?.id : undefined;
   const luxOf = tool === 'lux' ? buildingInfoOf(project).rooms.find((r) => r.id === (luxRoom ?? luxHover)) : undefined;
   const lit = useMemo(() => (luxOf ? lightingOf(project, luxOf, luxSet) : undefined), [project, luxOf?.id, luxSet]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the room, not every pointer move
+  // Room template: calculate only the selected service scope, one room, with hard point limits in both helpers.
+  const roomTemplateOf = tool === 'roomtemplate' ? buildingInfoOf(project).rooms.find((r) => r.id === roomTemplateRoom) : undefined;
+  const lvRoomTemplate = useMemo(() => (roomTemplateOf && roomTemplateScope !== 'elv' ? proposeLvRoomTemplate(project, roomTemplateOf, roomTemplateKind) : undefined), [project, roomTemplateOf?.id, roomTemplateKind, roomTemplateScope]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the selected room
+  const elvRoomTemplate = useMemo(() => (roomTemplateOf && roomTemplateScope !== 'lv' ? proposeElvRoomTemplate(roomTemplateOf, roomTemplateKind) : undefined), [project, roomTemplateOf?.id, roomTemplateKind, roomTemplateScope]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the selected room
+  const roomTemplateGhosts: CanvasDevice[] = tool !== 'roomtemplate' ? [] : (() => {
+    const out: CanvasDevice[] = [];
+    const add = (at: Pt[], key: string, symbol: { shape: string; text: string; plan?: string; tag?: string }, elv = false) => at.forEach(([x, y], i) => out.push({ key: `${key}${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: symbol.shape, text: symbol.text, ...(symbol.plan ? { plan: symbol.plan, tag: symbol.tag } : {}), label: '', elv, ghost: true }));
+    if (lvRoomTemplate) {
+      add(lvRoomTemplate.lights, 'rdtl', { shape: 'cross', text: '' });
+      add(lvRoomTemplate.sockets, 'rdts', LV_PALETTE.find((x) => x.id === 's13t')!.symbol);
+    }
+    if (elvRoomTemplate) {
+      add(elvRoomTemplate.dataOutlets, 'rdtd', ELV_PALETTE.find((x) => x.id === 'data-outlet')!.symbol, true);
+      add(elvRoomTemplate.accessPoints, 'rdta', ELV_PALETTE.find((x) => x.id === 'access-point')!.symbol, true);
+      add(elvRoomTemplate.smokeDetectors, 'rdtf', ELV_PALETTE.find((x) => x.id === 'smoke-detector')!.symbol, true);
+    }
+    return out;
+  })();
   // Emergency: the layout of what is marked, previewed until placed.
   const emRooms = useMemo(() => buildingInfoOf(project).rooms.filter((r) => em.rooms.includes(r.id) && r.outline), [project, em.rooms]);
   const emLayout = useMemo(() => { const f = emFitting(emSet); return emergencyLayout(em.routes, em.points, emRooms.map((r) => ({ name: r.name, outline: r.outline! })), f.fitting, f.signViewM); }, [em, emRooms, emSet]);
@@ -882,6 +911,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const ghosts: CanvasDevice[] = [
     ...(elv?.symbols ?? []).filter((x) => x.ghost).map((x, i) => ({ key: `ghost${i}`, x: x.at[0], y: x.at[1], r: rUnits, shape: x.shape, text: x.text, label: '', elv: true, ghost: true })),
     ...(lit?.result.points ?? []).map(([x, y], i) => ({ key: `lux${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: 'cross', text: '', label: '', ghost: true })),
+    ...roomTemplateGhosts,
     ...emGhosts,
     ...arlAt.map(([x, y], i) => ({ key: `arl${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: arlItem?.symbol.shape ?? 'cross', text: arlItem?.symbol.text ?? '', label: '', ghost: true }))
   ];
@@ -1807,6 +1837,25 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       change(r.project, `${r.ids.length} light${r.ids.length === 1 ? '' : 's'} placed in ${luxOf.name} on ${circuitLabel(project, f).split(' · ')[0]} — ${Math.round(lit.result.achievedLux)} lx${r.removed ? ` (${r.removed} taken off first)` : ''} · ⌘Z to undo`);
       setLuxRoom(null);
     } catch (e) { cad.say(`LUX  ${e instanceof Error ? e.message : String(e)}`); }
+  }
+  /** Room devices: approves the bounded LV and/or ELV preview in one undoable project change. */
+  function approveRoomTemplate() {
+    if (!floor || !roomTemplateOf) return;
+    try {
+      let next = project, placed = 0, removed = 0, lvPlaced = 0, elvPlaced = 0;
+      if (roomTemplateScope !== 'elv') {
+        if (!lvRoomTemplate) throw new Error('Select a room to preview first.');
+        const r = approveLvRoomTemplate(next, floor.ref, lvRoomTemplate, roomTemplateLighting, roomTemplatePower, roomTemplateReplace);
+        next = r.project; placed += r.placed; lvPlaced = r.placed; removed += r.removed;
+      }
+      if (roomTemplateScope !== 'lv') {
+        if (!elvRoomTemplate) throw new Error('Select a room to preview first.');
+        const r = approveElvRoomTemplate(next, roomTemplateOf, elvRoomTemplate, roomTemplateReplace);
+        next = r.project; placed += r.placed; elvPlaced = r.placed; removed += r.removed;
+      }
+      change(next, `RDT  ${placed} device${placed === 1 ? '' : 's'} approved in ${roomTemplateOf.name}${lvPlaced && elvPlaced ? ` (${lvPlaced} LV, ${elvPlaced} ELV)` : ''}${removed ? ` · ${removed} replaced` : ''} · ⌘Z to undo`);
+      setRoomTemplateRoom(null);
+    } catch (e) { cad.say(`RDT  ${e instanceof Error ? e.message : String(e)}`); }
   }
   /** Emergency: the escape route being drawn becomes one of the routes. */
   function finishRoute() {
@@ -3604,6 +3653,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       const r = lightingOf(project, room, { ...luxSet, lux: undefined, ceil: undefined, wp: undefined });
       setLuxRoom(room.id); setLuxSet((s) => ({ ...s, lux: undefined, ceil: undefined, wp: undefined }));
       cad.say(r.result.invalid ? `LUX  ${room.name}: ${r.result.invalid}` : `LUX  ${room.name}: ${r.result.count} light${r.result.count === 1 ? '' : 's'} for ${r.input.targetLux} lx — set the luminaire and circuit, then Place.`);
+    } else if (tool === 'roomtemplate') {
+      if (!floor) { cad.say('RDT  Add the building and its levels in Building information first.'); return; }
+      const room = roomAtPointOf(project, floor, at, units.factor);
+      if (!room) { cad.say('RDT  No room with an outline there: add it first (Room area, Trace or Rooms).'); return; }
+      setRoomTemplateRoom(room.id);
+      if (!roomTemplateLighting) setRoomTemplateLighting(circuits.find((f) => (f.points?.ltg ?? 0) > 0 || /light/i.test(f.name ?? ''))?.id ?? '');
+      if (!roomTemplatePower) setRoomTemplatePower(circuits.find((f) => (f.points?.s13t ?? 0) > 0 || (f.points?.s13 ?? 0) > 0 || /power|socket/i.test(f.name ?? ''))?.id ?? '');
+      cad.say(`RDT  ${room.name}: review the bounded proposal and circuits, then Approve.`);
     } else if (tool === 'em') {
       if (!floor) { cad.say('EM  Add the building and its levels in Building information first.'); return; }
       const atM: Pt = [at[0] * units.factor, at[1] * units.factor];
@@ -4931,6 +4988,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
           )}
           {tool === 'lux' && view && (
             <RoomLightingPanel project={project} room={luxOf} lit={lit} settings={luxSet} onSettings={setLuxSet} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId} onPlace={placeLux} onCancel={() => { setLuxRoom(null); cad.say(`Command: ${PROMPT.lux}`); }} />
+          )}
+          {tool === 'roomtemplate' && view && (
+            <RoomDeviceTemplatePanel project={project} room={roomTemplateOf} kind={roomTemplateKind} onKind={setRoomTemplateKind} scope={roomTemplateScope} onScope={setRoomTemplateScope}
+              lv={lvRoomTemplate} elv={elvRoomTemplate} circuits={circuits} lightingFeederId={roomTemplateLighting} onLightingFeeder={setRoomTemplateLighting}
+              powerFeederId={roomTemplatePower} onPowerFeeder={setRoomTemplatePower} replace={roomTemplateReplace} onReplace={setRoomTemplateReplace}
+              onApprove={approveRoomTemplate} onCancel={() => { setRoomTemplateRoom(null); cad.say(`Command: ${PROMPT.roomtemplate}`); }} />
           )}
           {tool === 'arl' && view && (
             <ArrayPanel project={project} settings={arlSet} onSettings={setArlSet} palette={palette} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId}

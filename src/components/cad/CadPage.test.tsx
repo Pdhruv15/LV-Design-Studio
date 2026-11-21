@@ -980,6 +980,38 @@ describe('CAD view', () => {
     expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toContain(`(${n} taken off first)`);
   });
 
+  it('previews and approves one bounded coordinated room device template (RDT), then replaces it', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.actions.current.addFound());
+    const majlis = buildingInfoOf(project).rooms.find((r) => /majlis/i.test(r.name))!;
+    const [cx, cy] = majlis.outline!.reduce(([x, y], q) => [x + q[0] / majlis.outline!.length, y + q[1] / majlis.outline!.length], [0, 0]);
+    await command('RDT');
+    expect(state.tool).toBe('roomtemplate');
+    expect(document.body.textContent).toContain('Click one room to preview');
+    await clickAt(cx / 0.001, cy / 0.001);
+    expect(document.body.textContent).toContain(`Room devices ${majlis.name}`);
+    const choose = async (label: string, value: string) => {
+      const select = document.querySelector(`select[aria-label="${label}"]`) as HTMLSelectElement;
+      await act(async () => { Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(select, value); select.dispatchEvent(new Event('change', { bubbles: true })); });
+    };
+    await choose('Room template', 'meeting');
+    await choose('Template lighting circuit', 'DB-GF1-Y1');
+    await choose('Template power circuit', 'DB-GF1-B6');
+    const approve = () => [...document.querySelectorAll<HTMLButtonElement>('.cad-devbtns .chip.primary')].find((b) => b.textContent?.startsWith('Approve'))!;
+    expect(approve().disabled).toBe(false);
+    const count = Number(/Approve (\d+)/.exec(approve().textContent!)![1]);
+    await act(async () => { approve().click(); });
+    const lv = () => (project.lvPoints ?? []).filter((d) => d.buildingId === majlis.buildingId && d.levelId === majlis.levelId && (d.type === 'ltg' || d.type === 's13t'));
+    const elv = () => (project.elvDevices ?? []).filter((d) => d.roomId === majlis.id && ['data-outlet', 'access-point', 'smoke-detector'].includes(d.type));
+    expect(lv().length + elv().length).toBe(count);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(new RegExp(`^RDT  ${count} devices? approved in ${majlis.name}`));
+    await clickAt(cx / 0.001, cy / 0.001);
+    await act(async () => { approve().click(); });
+    expect(lv().length + elv().length).toBe(count);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toContain('replaced');
+  });
+
   it('lays out emergency lighting (EM): draws an escape route, an open area and a point of emphasis, then places them', async () => {
     act(() => root.render(<Host />));
     await flush();

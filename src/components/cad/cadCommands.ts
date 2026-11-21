@@ -58,6 +58,7 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['SCHED', 'SCHEDULES', 'UPDATE'], desc: 'Update schedules', action: 'schedules' },
   { aliases: ['FILL', 'FR'], desc: 'Fill a room with an ELV device', tool: 'fill' },
   { aliases: ['LUX', 'LIGHTROOM'], desc: 'Light a room by the lumen method', tool: 'lux' },
+  { aliases: ['RDT', 'ROOMDEVICES'], desc: 'Preview a coordinated room device template', tool: 'roomtemplate' },
   { aliases: ['EM', 'EMERGENCY'], desc: 'Emergency lighting', tool: 'em' },
   { aliases: ['SEL', 'SELECT'], desc: 'Select devices', action: 'select' },
   { aliases: ['QSELECT', 'QS'], desc: 'Quick select: drawn objects by kind, layer and property', action: 'qselect' },

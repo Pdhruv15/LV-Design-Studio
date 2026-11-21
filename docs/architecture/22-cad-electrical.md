@@ -13,6 +13,7 @@ The electrical layer on top of the Design CAD drawing (module 21-cad-core). On a
 6. **Draw cable routes and tray runs** (tools in `CadPage.tsx`). LV routes can be drawn manually or proposed by the bounded, wall-aware route planner. The same bounded geometry engine proposes system-first ELV routes while ELV rules and saved data stay in module 29. Only an approved proposal is saved. **Update schedules** (`cadPlanSchedules.ts:updateSchedules`) sends LV tray route lengths and fittings, feeder lengths, feeder tray routes and wiring lengths into the network model.
 7. **Loads from CAD** (`cadLoads.ts`, `CadLoadsDialog.tsx`): fixture blocks with a circuit attribute (CCT = "DB-GF1/R3") in the open drawing are counted per circuit and, after review, replace the circuit's point counts / load items.
 8. **Plan sheets** (`src/docs/planLayout.ts`): lighting, power, ELV and containment layouts drawn from the model at true scale (output side, shared with 23 and 24).
+9. **Room device templates** (`roomDeviceTemplate.ts`, `RoomDeviceTemplatePanel.tsx`): RDT selects one outlined room, previews an Office, Meeting room or Bedroom set, and approves LV lights/twin sockets plus the ELV boundary proposal in one undo step. The preview is session-only and hard-capped at 64 points.
 
 "Store" in this document = the project object the app keeps in memory and saves to the project file; every CAD action returns a new project (one undo step).
 
@@ -33,6 +34,7 @@ The electrical layer on top of the Design CAD drawing (module 21-cad-core). On a
 | `src/model/cadViewPlan.ts` | model | `outlinePoints`, `objectPath`, `layerStatsOf`, `planOfView` (:43) | Turns the open Design CAD view into a `CadPlan` for the room reader. |
 | `src/model/cadTrays.ts` | model | `chain`, `traysAlong`, `pullCadTrays` (:86), `applyCadTrays` (:124) | Which tray routes a cable runs along; tray route lengths (shared with 19). |
 | `src/model/roomLights.ts`, `src/model/emergencyPlace.ts`, `src/model/luminaireSchedule.ts` | model | `placeRoomLights`, `placeEmergency…`, `luminaireSchedule` | Lighting placements that call `placeLvPoint`; luminaire schedule from placed points (module 18). |
+| `src/model/roomDeviceTemplate.ts`, `src/components/cad/RoomDeviceTemplatePanel.tsx` | model + screen | `proposeLvRoomTemplate`, `approveLvRoomTemplate`, `roomPerimeterPoints`, `RoomDeviceTemplatePanel` | Bounded one-room LV proposal, circuit selection, preview summary and approval. It reuses the lumen method and normal LV point placement/counting; no preview cache is saved. |
 | `src/components/cad/CadPage.tsx` | screen | `placeItem`, `finishCable`, `findLvRoute`, `approveLvRoute`, `findElvRoute`, `approveElvRoute`, `schedules`, `addFound`, wire tools, device edits | The Design CAD page: all electrical tools on the Plan tab. The Cable route tool selects LV or ELV service. LV approval replaces that feeder's route and updates schedules; ELV approval stores the system route in module 29. |
 | `src/components/cad/LvRoutePlannerPanel.tsx` | screen | `LvRoutePlannerPanel` | Manual/optimal LV route choice, bounded precision and alternative controls, route comparison, feeder-length impact and explicit approval. |
 | `src/components/cad/DeviceToolbar.tsx` | screen | `DeviceToolbar` | Floating toolbar for picked devices; circuit list with "before → after points" and ⚠ over the rule maximum. |
@@ -83,6 +85,11 @@ The electrical layer on top of the Design CAD drawing (module 21-cad-core). On a
 2. Click on the plan → `placeItem` (`CadPage.tsx:2081` → `cadDevices.ts:139`) → `placeLvPoint` (:94) adds `LvPoint {id:"P12", feederId, x, y, level}`.
 3. `withCount` (:86) → `schedule.ts:updateCircuit` with `points.ltg + 1` → `refresh` recomputes `loadKw` from points × WATT/UNIT and re-sizes MCB and cable unless sized by hand.
 4. Status line: "Light placed on DB-GF1/R1 · Living lighting — 7 on the circuit".
+
+**A2. Coordinated room template**
+1. RDT → click one room with an outline → choose Office, Meeting room or Bedroom and LV + ELV / LV / ELV scope.
+2. The LV helper calculates at most 32 lights and 8 twin sockets; the ELV boundary helper contributes at most 24 devices. Only the selected scope is calculated.
+3. The canvas shows ghost points. Approval requires the two LV circuits when LV is included, replaces only template-managed types when selected, then stores all approved points in one project change. Cancel and approval discard the preview arrays.
 
 **B. Wire and measure**
 1. WC (wire circuits) → `wireLevel` (`cadWiring.ts:125`) adds a `CadWiring {feederId}` for every circuit with devices on the level; W1 toggles one (`toggleWiring`).

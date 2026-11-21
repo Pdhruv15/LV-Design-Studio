@@ -32,6 +32,8 @@ export interface RoomLightingInput {
   shrMax?: number;
   /** Lighting power density limit (W/m²), e.g. ASHRAE 90.1; flagged when exceeded. */
   lpdMax?: number;
+  /** Optional preview guard. The lumen result still reports the full requirement, but never allocates more points. */
+  maxPoints?: number;
 }
 
 export interface RoomLightingResult {
@@ -85,13 +87,19 @@ export function roomLighting(outline: Pt[], x: RoomLightingInput): RoomLightingR
   const ufEstimated = x.uf === undefined;
   const uf = x.uf ?? estimateUf(k, x.reflectance);
   const required = (x.targetLux * areaM2) / (x.lumens * uf * x.mf);
-  const { points, spacingXM, spacingYM } = gridInOutline(outline, Math.max(1, Math.ceil(required - 1e-9)));
+  const wanted = Math.max(1, Math.ceil(required - 1e-9));
+  const pointLimit = x.maxPoints === undefined ? wanted : Math.max(0, Math.floor(x.maxPoints));
+  const limited = wanted > pointLimit;
+  const grid = gridInOutline(outline, limited ? pointLimit : wanted);
+  const points = limited ? grid.points.slice(0, pointLimit) : grid.points;
+  const { spacingXM, spacingYM } = grid;
   const count = points.length;
   const achievedLux = (count * x.lumens * uf * x.mf) / areaM2;
   const totalW = count * x.watts;
   const wPerM2 = totalW / areaM2;
   const shr = Math.max(spacingXM, spacingYM) / hmM;
   const warnings = [
+    ...(limited ? [`${wanted} luminaires are required, above the ${pointLimit} point preview limit; divide the room or complete the layout manually.`] : []),
     ...(achievedLux < x.targetLux - 1e-9 ? [`${Math.round(achievedLux)} lx is below the ${x.targetLux} lx target: the outline leaves too few grid points; add luminaires by hand.`] : []),
     ...(x.shrMax && shr > x.shrMax + 1e-9 ? [`Spacing-to-height ratio ${shr.toFixed(2)} is above the luminaire's ${x.shrMax}: uniformity may be poor; use more, smaller luminaires.`] : []),
     ...(x.lpdMax && wPerM2 > x.lpdMax + 1e-9 ? [`${wPerM2.toFixed(1)} W/m² is above the ${x.lpdMax} W/m² limit of the room type.`] : []),
