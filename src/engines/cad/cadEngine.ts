@@ -25,6 +25,8 @@ export interface CadInfo {
   segments: number;
   snaps: number;
   truncated: boolean;
+  /** Segments left out past the engine's limit (none from an engine older than v2.253). */
+  dropped?: number;
   /** Dash patterns in drawing units (dash > 0, gap < 0, dot 0); the first is continuous (empty). */
   linetypes: number[][];
   /** Filled areas: solid hatches and 2D solids, or pattern hatches with their pattern lines (absolute drawing units). */

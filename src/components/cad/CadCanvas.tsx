@@ -28,6 +28,8 @@ type Pt = [number, number];
 
 /** The canvas colour when the theme gives none; the cursor's outline is drawn in it. */
 const BG = '#15171A';
+/** Segments from which a drawing also gets a zoomed-out copy with fewer corners (lineBatches minLen). */
+export const COARSE_FROM = 1_000_000;
 /** The font texts are drawn in. */
 const FONT = SCREEN_FONT;
 
@@ -301,6 +303,13 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     const [e0, e1, e2, e3] = view.info.extents;
     return lineBatches(view.segs, view.segLayers, view.segColors, view.segLinetypes, [e0 - o0, e1 - o1, e2 - o0, e3 - o1], () => new Path2D(), gone?.segs);
   }, [view, gone, o0, o1]);
+  // A large drawing also gets a zoomed-out copy: runs of short segments with fewer corners, drawn while each step left
+  // out is under half a pixel (snaps and picks always use every segment).
+  const coarse = useMemo(() => {
+    if (view.segLayers.length < COARSE_FROM) return null;
+    const [e0, e1, e2, e3] = view.info.extents, step = Math.max(e2 - e0, e3 - e1) / 4000;
+    return step > 0 ? { step, batches: lineBatches(view.segs, view.segLayers, view.segColors, view.segLinetypes, [e0 - o0, e1 - o1, e2 - o0, e3 - o1], () => new Path2D(), gone?.segs, step) } : null;
+  }, [view, gone, o0, o1]);
   // References: a path per reference and layer, relative to the origin.
   const refPaths = useMemo(() => refs.map((r) => {
     const by = new Map<number, Path2D>();
@@ -494,7 +503,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       }
     }
     const dashes = view.info.linetypes ?? [];
-    for (const b of batches) {
+    for (const b of coarse && coarse.step * scale <= 0.5 ? coarse.batches : batches) {
       if (!layersOn[b.layer] || !onScreen(b.box)) continue;
       ctx.strokeStyle = layerColour[b.layer] ?? shade(b.rgb);
       // A linetype too fine to see at this zoom (repeat under 4 pixels) is drawn continuous, as CAD does.
@@ -802,7 +811,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         ctx.fillText(fittingLabel(f), sx + fpx * 1.2, sy - fpx * 1.2);
       }
     }
-  }, [t, size, batches, fills, gone, layersOn, toggles.grid, toggles.lwt, draft.gridMm, draft.gridMajor, view, highlight, pickedObjects, draft.pickLook, draft.selColor, devices, wiring, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots, layerStyle, refPaths, pointStyle, fadeExcept]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
+  }, [t, size, batches, coarse, fills, gone, layersOn, toggles.grid, toggles.lwt, draft.gridMm, draft.gridMajor, view, highlight, pickedObjects, draft.pickLook, draft.selColor, devices, wiring, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots, layerStyle, refPaths, pointStyle, fadeExcept]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
 
   /** The cursor: crosshair and pick box, and the snap marker with its name. */
   function drawCursor(at: Pt | null, snap?: { p: Pt; kind: number }, guide?: Landing['guide']) {
