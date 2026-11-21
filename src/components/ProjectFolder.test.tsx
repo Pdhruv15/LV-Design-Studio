@@ -313,4 +313,28 @@ describe('Overview: Customise for this project (C6) and Change template (C8)', (
     expect(onStatus.mock.calls[0][0]).toMatch(/^The project now uses “Electrical consultant full”\. Created \d+ folders in D:\\Jobs\\Villa\. 1 project change no longer applied and was dropped\.$/);
     expect(calls.filter((c) => /rename|move|delete|remove|trash|unlink/i.test(c))).toEqual([]);
   });
+
+  it('Buildings: a renamed building gets new folders and its old one is listed; an added one is offered', async () => {
+    const multi = builtInTemplate('multi-building')!;
+    const info = (...names: string[]) => ({ buildings: names.map((name, i) => ({ id: `bld-${i + 1}`, name, levels: [] })), rooms: [] }) as unknown as Project['building'];
+    const old = ['00_Common', '00_Common/Admin', '00_Common/DEWA', '00_Common/Transmittals', 'B1_Villa-A', 'B1_Villa-A/Calcs', 'B1_Villa-A/Drawings', 'B1_Villa-A/Schedules', 'B1_Villa-A/BOQ', 'B2_Villa-B', 'B2_Villa-B/Calcs'];
+    const { disk, made, calls } = watched(old);
+    rememberFolder('p9', { root: 'D:\\Jobs\\Villa', unticked: [], buildings: [{ code: 'B1', name: 'Villa-A', id: 'bld-1' }, { code: 'B2', name: 'Villa-B', id: 'bld-2' }] });
+    const p: Project = { ...newProject('Villa'), id: 'p9', building: info('Villa A', 'Villa C', 'Villa D'), folder: { templateId: multi.id, version: 1, template: multi } };
+    const onChange = vi.fn(), onStatus = vi.fn();
+    act(() => root.render(<ProjectFolderCard project={p} onChangeProject={onChange} onStatus={onStatus} client={client()} disk={disk} />));
+    await flush();
+    click(button('Customise…'));
+    await flush();
+    expect(text()).toContain('✓ B1_Villa-A');
+    expect(text()).toContain('“B2_Villa-B” → “B2_Villa-C”: the building was renamed. Its new folders are created. The old one is left as it is:');
+    expect(text()).toContain('B2_Villa-B (23 files)');
+    expect(text()).toContain('＋ B3_Villa-D: 5 folders to create');
+    click([...document.querySelectorAll('button')].find((b) => /^Create \d+ folders$/.test(b.textContent ?? ''))!);
+    await flush();
+    expect(made[0].paths).toEqual(expect.arrayContaining(['B2_Villa-C', 'B2_Villa-C/Calcs', 'B3_Villa-D', 'B3_Villa-D/BOQ']));
+    expect(made[0].paths.some((x) => x.startsWith('B2_Villa-B') || x.startsWith('B1_Villa-A') || x.startsWith('00_Common'))).toBe(false);
+    expect(rememberedFolder('p9')?.buildings?.map((b) => `${b.code}_${b.name}`)).toEqual(['B1_Villa-A', 'B2_Villa-C', 'B3_Villa-D']);
+    expect(new Set(calls)).toEqual(new Set(['status', 'fileCounts', 'create']));
+  });
 });

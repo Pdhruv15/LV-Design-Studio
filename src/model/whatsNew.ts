@@ -18,9 +18,16 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.246', date: '2026-11-21',
+    version: '2.247', date: '2026-11-21',
     items: [
       { title: 'Design CAD: Drafting settings in pages', text: 'The Drafting settings pages are now a list on the left, and Units & level is now two pages: Drawing (the level and units of this drawing) and Saving (Save As format, the .bak copy and the recovery copy, kept on this computer). Labels no longer run into the next row.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.245', date: '2026-11-21',
+    items: [
+      { title: 'Folder templates: start from a layout', text: 'Preferences → Folder templates → + New now starts from one of six layouts: Discipline-first, Stage-first (Concept, Schematic, Detailed, IFC, each with Calcs and Drawings), Building / phase-first, ISO 19650 containers, Flat & simple, or Blank. Building / phase-first asks what the folders repeat for (the buildings in Building information, or phases you type), the folder name pattern ({BuildingCode}_{BuildingName}) and the shared folders kept once at the top, with a preview for two buildings. Create and edit opens the template in the editor.' },
+      { title: 'Project folder: a set of folders per building', text: 'With a building-first template, a board\'s load schedule saves into the folder of the board\'s building (from its floor in Building information); schedules of every board and other outputs of the whole project save into the shared folder (00_Common). Customise… shows each building: a building added later is offered with its folders, and a renamed building gets new folders while its old folder is listed with its file count and left as it is.' }
     ]
   },
   {

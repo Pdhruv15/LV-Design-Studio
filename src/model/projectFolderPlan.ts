@@ -31,9 +31,12 @@ export function folderFlags(project: Pick<Project, 'brief'>): FolderWhen[] {
   return SCOPE_FLAG.filter(([id]) => scope.includes(id)).map(([, flag]) => flag);
 }
 
-/** The project's buildings as folder names use them: B1, B2… and the building's name. */
-export function folderBuildings(project: Pick<Project, 'building'>): FolderBuilding[] {
-  return (project.building?.buildings ?? []).map((b, i) => ({ code: `B${i + 1}`, name: safeNamePart(b.name).replace(/\s+/g, '-') || `Building-${i + 1}` }));
+/** The copies a "for each building" folder is made for: the project's buildings (B1, B2… and the building's
+ * name), or, when the template repeats for phases, the phases typed in the template (P1, P2…). */
+export function folderBuildings(project: Pick<Project, 'building'>, t?: Pick<FolderTemplate, 'repeat'>): FolderBuilding[] {
+  const clean = (s: string, i: number, w: string) => safeNamePart(s).replace(/\s+/g, '-') || `${w}-${i + 1}`;
+  if (t?.repeat?.source === 'phases') return (t.repeat.phases ?? []).map((p, i) => ({ code: `P${i + 1}`, name: clean(p, i, 'Phase'), id: `phase:${i + 1}` }));
+  return (project.building?.buildings ?? []).map((b, i) => ({ code: `B${i + 1}`, name: clean(b.name, i, 'Building'), id: b.id }));
 }
 
 /** A folder name made safe for Windows as it is typed: reserved characters become "-", no trailing dot or space. */
@@ -82,7 +85,8 @@ export function joinPath(parent: string, name: string): string {
 /* ---------- where the project folder is, on this computer ---------- */
 
 type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
-export interface RememberedFolder { root: string; unticked: string[] }
+/** `buildings`: the copies folders were last made for here, to tell a renamed or new building (C6). */
+export interface RememberedFolder { root: string; unticked: string[]; buildings?: FolderBuilding[] }
 const KEY = (projectId: string | undefined) => `lvds.projectFolder.${projectId ?? 'new'}`;
 const store = (s?: Store): Store | undefined => s ?? (typeof localStorage === 'undefined' ? undefined : localStorage);
 
@@ -91,7 +95,8 @@ export function rememberedFolder(projectId: string | undefined, s?: Store): Reme
   try {
     const v = JSON.parse(store(s)?.getItem(KEY(projectId)) ?? 'null') as Partial<RememberedFolder> | null;
     if (!v || typeof v.root !== 'string' || !v.root) return undefined;
-    return { root: v.root, unticked: Array.isArray(v.unticked) ? v.unticked.filter((x): x is string => typeof x === 'string') : [] };
+    const buildings = Array.isArray(v.buildings) ? v.buildings.filter((b): b is FolderBuilding => !!b && typeof b.code === 'string' && typeof b.name === 'string' && (b.id === undefined || typeof b.id === 'string')).slice(0, 500) : undefined;
+    return { root: v.root, unticked: Array.isArray(v.unticked) ? v.unticked.filter((x): x is string => typeof x === 'string') : [], ...(buildings ? { buildings } : {}) };
   } catch { return undefined; }
 }
 

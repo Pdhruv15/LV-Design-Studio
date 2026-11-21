@@ -5,7 +5,8 @@ import {
 } from '../model/folderCustomise';
 import { ROLE_CATALOGUE, roleById } from '../model/folderRoles';
 import { duplicateTemplate, freeName } from '../model/folderTemplateEdit';
-import { emptyOverrides, type FolderTemplate, type ProjectFolder, type ProjectFolderOverrides } from '../model/folderTemplates';
+import { buildingFolders } from '../model/folderLayouts';
+import { applyOverrides, emptyOverrides, type FolderBuilding, type FolderTemplate, type ProjectFolder, type ProjectFolderOverrides } from '../model/folderTemplates';
 import { allTemplates, saveTemplate, templatesClient, type TemplatesClient } from '../model/folderTemplatesClient';
 import { cleanFolderName, folderBuildings, folderFlags, folderVars, offByDefault, rememberFolder } from '../model/projectFolderPlan';
 import type { Project } from '../types';
@@ -49,11 +50,13 @@ function statusText(r: CustomiseRow, known: boolean): ReactNode {
 
 /** Overview → Project folder → Customise… (spec C6): this project's own folders. The changes are kept in
  * the project (one undo step when saved); the office template is not changed. Only folders are created. */
-export function FolderCustomiseDialog({ project, root, unticked, disk, client: given, onDone, onClose }: {
+export function FolderCustomiseDialog({ project, root, unticked, made, disk, client: given, onDone, onClose }: {
   project: Project & { folder: ProjectFolder };
   /** The project folder on this computer, when chosen. */
   root?: string;
   unticked: readonly string[];
+  /** The buildings (or phases) the folders were last made for on this computer. */
+  made?: readonly FolderBuilding[];
   disk?: FolderDisk;
   client?: TemplatesClient;
   onDone: (p: Project, status: string) => void;
@@ -62,8 +65,8 @@ export function FolderCustomiseDialog({ project, root, unticked, disk, client: g
   const client = useMemo(() => given ?? templatesClient(), [given]);
   const state = useFolderTemplates(client);
   const vars = useMemo(() => folderVars(project), [project]);
-  const buildings = useMemo(() => folderBuildings(project), [project]);
   const [base, setBase] = useState<ProjectFolder>(project.folder);
+  const buildings = useMemo(() => folderBuildings(project, base.template), [project, base.template]);
   const [ov, setOv] = useState<ProjectFolderOverrides>(project.folder.overrides ?? emptyOverrides());
   const [sel, setSel] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -77,8 +80,11 @@ export function FolderCustomiseDialog({ project, root, unticked, disk, client: g
 
   const rowsAll = useMemo(() => customiseRows(t, ov, vars, buildings, unticked), [t, ov, vars, buildings, unticked]);
   const olds = useMemo(() => renamedOldPaths(t, ov, vars, buildings), [t, ov, vars, buildings]);
-  const allPaths = useMemo(() => [...new Set([...rowsAll.flatMap((r) => r.paths), ...olds.flatMap((o) => o.paths)])], [rowsAll, olds]);
-  const oldPaths = useMemo(() => olds.flatMap((o) => o.paths), [olds]);
+  const units = useMemo(() => buildingFolders(t, ov, vars, buildings, made, unticked), [t, ov, vars, buildings, made, unticked]);
+  const unitOld = useMemo(() => units.flatMap((u) => (u.renamedFrom ? [u.renamedFrom.path] : [])), [units]);
+  const allPaths = useMemo(() => [...new Set([...rowsAll.flatMap((r) => r.paths), ...olds.flatMap((o) => o.paths), ...unitOld])], [rowsAll, olds, unitOld]);
+  const oldPaths = useMemo(() => [...olds.flatMap((o) => o.paths), ...unitOld], [olds, unitOld]);
+  const hasEach = useMemo(() => applyOverrides(t, ov).some((n) => n.when === 'building:each'), [t, ov]);
   const disk$ = useOnDisk(disk, root, allPaths, oldPaths);
   const rows = useMemo(() => customiseRows(t, ov, vars, buildings, unticked, disk$.present), [t, ov, vars, buildings, unticked, disk$.present]);
   const counts = customiseCounts(rows, disk$.present);
@@ -139,6 +145,7 @@ export function FolderCustomiseDialog({ project, root, unticked, disk, client: g
       let status = noOverrides(ov) ? 'The project folder follows its template.' : 'The project folder changes are saved in this project.';
       if (disk && root && create) {
         const r = await disk.create(root, missing);
+        rememberFolder(project.id, { root: r.root, unticked: [...unticked], buildings });
         status = `Created ${plural(r.created + (r.rootMade ? 1 : 0), 'folder')} in ${r.root}.${r.failed.length ? ` ${plural(r.failed.length, 'folder')} could not be made: ${r.failed[0].reason}` : ''}`;
       }
       onDone({ ...project, folder }, status);
@@ -223,6 +230,26 @@ export function FolderCustomiseDialog({ project, root, unticked, disk, client: g
                 ))}
               </>
             )}
+            {hasEach && (
+              <>
+                <div className="ft-sec">{t.repeat?.source === 'phases' ? 'Phases' : 'Buildings'}</div>
+                {units.map((u) => {
+                  const shown = (p: string) => (root?.includes('\\') ? p.replace(/\//g, '\\') : p);
+                  if (u.renamedFrom) {
+                    return (
+                      <div key={u.unit.code}>
+                        <p className="m" style={{ margin: '0 0 2px' }}>“{u.renamedFrom.path}” → “{u.path}”: the building was renamed. Its new folders are created. The old one is left as it is:</p>
+                        <p className="ft-path"><code>{shown(u.renamedFrom.path)}</code>{disk$.present.has(u.renamedFrom.path) ? ` (${files(disk$.counts.get(u.renamedFrom.path)) || 'on disk'})` : ''}</p>
+                      </div>
+                    );
+                  }
+                  const fresh = disk$.known && !disk$.present.has(u.path);
+                  return <p key={u.unit.code} className="ft-path">{fresh ? `＋ ${u.path}: ${plural(u.count, 'folder')} to create` : disk$.known ? `✓ ${u.path}` : `${u.path}: ${plural(u.count, 'folder')}`}</p>;
+                })}
+                {!units.length && <p className="m" style={{ margin: 0 }}>{t.repeat?.source === 'phases' ? 'This template has no phases yet.' : 'No buildings yet: add them in Building information.'}</p>}
+                <p className="m" style={{ margin: 0 }}>{t.repeat?.source === 'phases' ? 'Each phase of the template gets its own folders.' : 'When a building is added, its folders are offered here.'}</p>
+              </>
+            )}
             <div className="ft-sec">Project only</div>
             <p className="m" style={{ margin: 0 }}>These changes are saved in this project. The office template is not changed.</p>
             {saveBack === 'ask' && ownTemplate
@@ -263,8 +290,8 @@ export function ChangeTemplateDialog({ project, root, unticked, disk, client, on
   const state = useFolderTemplates(client);
   const vars = useMemo(() => folderVars(project), [project]);
   const flags = useMemo(() => folderFlags(project), [project]);
-  const buildings = useMemo(() => folderBuildings(project), [project]);
   const folder = project.folder;
+  const buildings = useMemo(() => folderBuildings(project, folder.template), [project, folder.template]);
   const others = allTemplates(state).filter((x) => x.id !== folder.templateId);
   const [toId, setToId] = useState('');
   const [show, setShow] = useState(false);
@@ -272,7 +299,8 @@ export function ChangeTemplateDialog({ project, root, unticked, disk, client, on
   const [busy, setBusy] = useState(false);
   const next = others.find((x) => x.id === toId) ?? others.find((x) => x.id === state.defaultId) ?? others[0];
   const nextUnticked = useMemo(() => (next ? offByDefault(next.folders, flags) : []), [next, flags]);
-  const plan = useMemo(() => (next ? changePlan(folder, next, vars, buildings, unticked, nextUnticked) : null), [folder, next, vars, buildings, unticked, nextUnticked]);
+  const nextBuildings = useMemo(() => (next ? folderBuildings(project, next) : []), [project, next]);
+  const plan = useMemo(() => (next ? changePlan(folder, next, vars, buildings, unticked, nextUnticked, nextBuildings) : null), [folder, next, vars, buildings, unticked, nextUnticked, nextBuildings]);
   const untouched = useMemo(() => plan?.rows.filter((r) => r.kind === 'untouched').map((r) => r.path) ?? [], [plan]);
   const disk$ = useOnDisk(disk, root, untouched, untouched);
   if (!state.loaded) return null;
@@ -290,7 +318,7 @@ export function ChangeTemplateDialog({ project, root, unticked, disk, client, on
       let status = `The project now uses “${plan.folder.template.name}”.`;
       if (disk && root) {
         const r = await disk.create(root, createPaths);
-        rememberFolder(project.id, { root: r.root, unticked: nextUnticked });
+        rememberFolder(project.id, { root: r.root, unticked: nextUnticked, buildings: nextBuildings });
         status += ` Created ${plural(r.created + (r.rootMade ? 1 : 0), 'folder')} in ${r.root}.${r.failed.length ? ` ${plural(r.failed.length, 'folder')} could not be made: ${r.failed[0].reason}` : ''}`;
       }
       if (plan.dropped.length) status += ` ${plural(plan.dropped.length, 'project change')} no longer applied and ${plan.dropped.length === 1 ? 'was' : 'were'} dropped.`;

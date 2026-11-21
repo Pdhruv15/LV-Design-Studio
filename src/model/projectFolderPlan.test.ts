@@ -46,7 +46,7 @@ describe('names and scope from the project', () => {
   });
   it('names the project\'s buildings B1, B2…', () => {
     const p = { building: { buildings: [{ id: 'x', name: 'Tower A', levels: [] }, { id: 'y', name: ' ', levels: [] }], rooms: [] } } as unknown as Project;
-    expect(folderBuildings(p)).toEqual([{ code: 'B1', name: 'Tower-A' }, { code: 'B2', name: 'Building-2' }]);
+    expect(folderBuildings(p)).toEqual([{ code: 'B1', name: 'Tower-A', id: 'x' }, { code: 'B2', name: 'Building-2', id: 'y' }]);
   });
 });
 
