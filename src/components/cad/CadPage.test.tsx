@@ -68,11 +68,12 @@ beforeEach(() => {
 });
 afterEach(() => { act(() => root.unmount()); document.body.innerHTML = ''; delete (window as { lvds?: unknown }).lvds; });
 
-function Host({ start = villa, show, gripMax, undoLabel }: { start?: Project; show?: (s: CadShow) => void; gripMax?: number; undoLabel?: string }) {
+// Save As keeps the sample drawing's own format (DXF) unless a test passes the format set.
+function Host({ start = villa, show, gripMax, undoLabel, saveFormat = 'own' }: { start?: Project; show?: (s: CadShow) => void; gripMax?: number; undoLabel?: string; saveFormat?: DraftSettings['saveFormat'] }) {
   const cad = useCad('p1');
   const [p, setP] = useState(start);
   const sheetUi = useSheetUi();
-  const [draft, setDraft] = useState(gripMax ? { ...DRAFT_DEFAULTS, gripMax } : DRAFT_DEFAULTS);
+  const [draft, setDraft] = useState({ ...DRAFT_DEFAULTS, saveFormat, ...(gripMax ? { gripMax } : {}) });
   state = cad;
   return <CadPage cad={cad} project={p} onChange={(next, msg, join) => { setP(next); onChange(next, msg, join); }} onUndo={onUndo} onStatus={() => {}} sheetUi={sheetUi}
     draft={draft} onPrefs={(x) => { setDraft(x.draft); onPrefs(x); }} onShow={show} canUndo={!!undoLabel} undoLabel={undoLabel} />;
@@ -393,6 +394,18 @@ describe('CAD view', () => {
     const text = new TextDecoder().decode((saveBinary.mock.calls[0] as unknown as [{ bytes: Uint8Array }])[0].bytes);
     expect(text.match(/\nELLIPSE\r?\n/g)).toHaveLength(2);
     expect(text).toMatch(/\n\s*42\r?\n\s*0\.5\r?\n/);
+  });
+
+  it('saves a DXF drawing as DWG when Save As starts with the default format', async () => {
+    const saveBinary = vi.fn(async () => '/plans/out.dwg');
+    (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveBinary };
+    act(() => root.render(<Host saveFormat={DRAFT_DEFAULTS.saveFormat} />));
+    await flush();
+    await saveCmd('save');
+    await flush();
+    const arg = (saveBinary.mock.calls[0] as unknown as [{ defaultName: string; bytes: Uint8Array }])[0];
+    expect(arg.defaultName).toBe('sample-villa-gf - with devices.dwg');
+    expect(new TextDecoder().decode(arg.bytes.slice(0, 4))).toBe('AC10');
   });
 
   it('places an ELV device and saves the drawing as DXF with the devices on their layers', async () => {

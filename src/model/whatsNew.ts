@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.237', date: '2026-11-21',
+    items: [
+      { title: 'Design CAD: Save As starts with DWG', text: 'Design CAD → Drafting settings (DS) → Units & level: "Save As starts with" is now DWG unless you choose otherwise, also for a drawing received as DXF. A format you chose before is kept, and a drawing saved before still starts with the format of its last copy.', action: 'cad', actionLabel: 'Open Design CAD' },
+    ]
+  },
+  {
     version: '2.235', date: '2026-11-21',
     items: [
       { title: 'Load assessment: type your A/C figures as a cooling load or as an electrical load', text: 'Concept → Load assessment → Area schedule has an "A/C figures" switch. "Cooling load" is as before: thermal W/m², turned into electrical kW by the cooling system\'s factor. "Electrical load" is for a standard that gives the A/C load as electrical W/m²: the figures are used as typed and the system factor is not applied. Switching converts the figures with the factor of the cooling system in use, so the load stays the same until you type your own. A type saved as "my type", your space library and the reports remember which of the two the figures are.' }
