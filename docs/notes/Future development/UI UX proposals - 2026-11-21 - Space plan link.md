@@ -1,6 +1,6 @@
 # UI UX proposal – Space plan as the supply arrangement after the load assessment (2026-11-21)
 
-Status: **proposed**, waiting for the user's decisions A–G. Nothing is built.
+Status: **approved 2026-11-21** — the user chose the recommended option for every decision (A–G), and asked for one more thing: a new **market standard** list of transformer kVA sizes to pick from, beside the 1,000 / 1,500 kVA default and the catalogue sizes. Built step by step, starting with step 0.
 
 Mockup: `docs/mockups/space-plan-link-mockup.html` (image: `space-plan-link-mockup.png`).
 
@@ -48,6 +48,7 @@ Data: `SpaceArea` gets an optional mark for rows taken from the assessment; `Spa
 ## Build steps (after approval)
 
 0. Flats in `spaceAreasFromRooms`, with tests. No screen change.
+0b. Transformer size lists: 1,000 / 1,500 kVA (default), market standard (100 to 3,150 kVA), or the Transformers catalogue, with a largest size; the same market list offered on Load assessment.
 1. Loads from the assessment by building, the link strip and the From column (items 1 and 4).
 2. Settings and sizes from the assessment, use types from the density standard (items 1 and 2).
 3. Transformers: concept to design table on both pages (item 3).
