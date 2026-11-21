@@ -1943,6 +1943,12 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .la-line-acts{display:inline-flex;gap:6px}
 .la-result{border:1px dashed var(--line);border-radius:8px;padding:6px 10px;margin:10px 0;font-size:12px}
 .la-take{margin:6px 0}
+.la-c2d{display:flex;gap:2px 8px;align-items:center;flex-wrap:wrap}
+.la-c2d .la-bar{flex:0 0 80px}
+.la-c2d span{white-space:normal}
+.bi-table td.la-c2d-from{white-space:normal;min-width:110px}
+.bi-table td.la-c2d-fig{white-space:normal}
+.la-c2d-fig b{white-space:nowrap}
 .chip-lite.warn{border-color:color-mix(in srgb,var(--warn) 60%,transparent)}
 .chip-lite.ok{border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
 /* Spacing utilities (in place of repeated inline styles). Later rules win, so u-flush u-mb-2 = margin 0 0 8px. */
