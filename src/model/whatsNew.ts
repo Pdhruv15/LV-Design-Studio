@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.252', date: '2026-11-21',
+    items: [
+      { title: 'Design CAD: large drawings open up to 3 times faster', text: 'Opening a drawing in Design CAD is faster: a 1 MB DWG now opens in about a quarter of the time, a 3 MB DWG in about a third and a 10 MB DWG in a little over half. Nothing changes in how the drawing looks or snaps.', action: 'cad', actionLabel: 'Open Design CAD' },
+    ]
+  },
+  {
     version: '2.251', date: '2026-11-21',
     items: [
       { title: 'Design CAD: Save As starts with DWG', text: 'Design CAD → Drafting settings (DS) → Saving: "Save As format" is now DWG unless you choose otherwise, also for a drawing received as DXF. A format you chose before is kept, and a drawing saved before still starts with the format of its last copy.', action: 'cad', actionLabel: 'Open Design CAD' },
