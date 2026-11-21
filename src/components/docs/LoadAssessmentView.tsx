@@ -101,7 +101,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
     const made = res.createdIds.length ? `Created ${res.createdIds.join(', ')}` : '';
     const updated = res.boardIds.filter((id) => !res.createdIds.includes(id));
     const over = res.loading.filter((x) => x.pct > a.supply.maxLoadingPct);
-    onStatus(`${[made, updated.length ? `Updated ${updated.join(', ')}` : ''].filter(Boolean).join('; ')}: ${res.added} feeders from the load assessment${res.boardIds.length > 1 ? `, demand balanced over ${res.boardIds.length} transformers` : ''}${res.replaced ? ` (replaced ${res.replaced})` : ''} — check the cable lengths`
+    onStatus(`${[made, updated.length ? `Updated ${updated.join(', ')}` : ''].filter(Boolean).join('; ')}: ${res.added} feeders from the load assessment${res.designedKw > 0 ? `, ${Math.round(res.designedKw).toLocaleString('en-US')} kW already designed left out` : ''}${res.boardIds.length > 1 ? `, demand balanced over ${res.boardIds.length} transformers` : ''}${res.replaced ? ` (replaced ${res.replaced})` : ''} — check the cable lengths`
       + (res.loading.length ? `. Transformer loading ${res.loading.map((x) => `${x.boardId} ${txt.loading(x.pct)} %`).join(', ')}` : '')
       + (over.length ? ` — over the ${a.supply.maxLoadingPct} % limit: the boards add the feeders' demand without the assessment's coincidence factor` : '')
       + (res.unused.length ? `. ${res.unused.join(', ')} no longer needed by the assessment: its assessment feeders were removed — delete it if it is empty` : '')
@@ -355,7 +355,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
             </div>
             <ConceptToDesignTable project={project} here heading={<div className="m" style={{ margin: '10px 0 4px' }}><b>Concept to design</b></div>} />
 
-            {step && !step.inStep && <div className="la-flag warn">The feeders on {step.boards.join(' and ')} were made from this assessment before its last change (they add up to {f0(step.feedersDemandKw)} kW demand; the assessment now has {f0(step.assessmentDemandKw)} kW). {step.boards.every((b) => laMdbs.includes(b)) ? <>Press <b>Update MDB feeders</b></> : <>Pick the board below and press <b>Add feeders</b></>} to bring them in step.</div>}
+            {step && !step.inStep && <div className="la-flag warn">The feeders made from this assessment on {step.boards.join(' and ')} are out of step: they add up to {f0(step.feedersDemandKw)} kW demand and should now add up to {f0(step.expectedDemandKw)} kW{step.assessmentDemandKw - step.expectedDemandKw > 0.5 ? ` (the assessment's ${f0(step.assessmentDemandKw)} kW less what is already designed)` : ''}. {step.boards.every((b) => laMdbs.includes(b)) ? <>Press <b>Update MDB feeders</b></> : <>Pick the board below and press <b>Add feeders</b></>} to bring them in step.</div>}
             <div className="bi-actions">
               <select className="bi-sel" value={picked} onChange={(e) => setTarget(e.target.value)} title="Board the feeders go on">
                 <option value="">{laMdbs.length ? `Assessment MDBs (${laMdbs.join(', ')})` : r.tx && r.tx.duty > 1 ? `New MDBs (${r.tx.duty} × ${txt.plain(r.tx.kva)} kVA transformers)` : `New MDB${r.tx ? ` (${txt.plain(r.tx.kva)} kVA transformer)` : ''}`}</option>

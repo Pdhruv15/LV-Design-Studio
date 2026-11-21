@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { newBuilding } from './building';
-import { addServices, applyRiserLengths, defaultServices, floorLoads, floorsOf, generateBuildingDbs, plannedDbs, roomDensities, unitLoads } from './buildingDesign';
+import { addServices, applyRiserLengths, defaultServices, floorLoads, floorsOf, generateBuildingDbs, plannedDbs, roomDensities, servicesFromAssessment, unitLoads } from './buildingDesign';
+import { assess, DEFAULT_TYPES, newAssessment } from './loadAssessment';
 import { scheduleCircuits } from './loadSchedule';
 import type { Project } from '../types';
 import { EXPORT_NUMBERS } from '../../tests/fixtures/exportNumbers';
@@ -70,6 +71,37 @@ describe('building → design', () => {
     const added = r.project.feeders.filter((f) => f.id.startsWith('MDB-1-BOOSTER'));
     expect(added.length).toBe(2);
     expect(added.filter((f) => f.standbyUnit).length).toBe(1);
+  });
+});
+
+describe('services from the load assessment', () => {
+  const tower = { ...newAssessment(DEFAULT_TYPES[0], { gfaM2: 24000, floors: 22, parkingM2: 8000 }, { types: [] }) };
+  it('22-floor residential tower: lifts at the high-rise kW, EV 10 % of the bays, pool and façade on', () => {
+    const items = servicesFromAssessment({ ...p, loadAssessment: tower }, 'T1');
+    const by = (id: string) => items.find((x) => x.id === id)!;
+    expect(by('lift')).toMatchObject({ qty: assess(tower).liftCount, kw: tower.factors.liftKwHigh });
+    expect(by('lift').qty).toBe(6);
+    expect(by('lift').from).toBe('auto from 22 floors');
+    expect(by('ev').qty).toBe(Math.round((8000 / tower.factors.m2PerBay) * 0.1));
+    expect(by('pool').qty).toBe(1);
+    expect(by('facade')).toMatchObject({ qty: 1, kw: 22 * tower.factors.facadeKwPerFloor });
+    expect(by('stair').qty).toBe(2);
+    expect(by('lift').essential).toBe(true);
+  });
+  it('is defaultServices without an assessment or for a building it does not count', () => {
+    expect(servicesFromAssessment(p, 'T1')).toEqual(defaultServices(p, 'T1'));
+    const other = { ...tower, from: { buildingIds: ['OTHER'] } } as typeof tower;
+    expect(servicesFromAssessment({ ...p, loadAssessment: other }, 'T1')).toEqual(defaultServices(p, 'T1'));
+  });
+  it('tags service feeders and keeps them when the DBs are generated again', () => {
+    const s = addServices(p, 'DB-L01', [{ id: 'lift', label: 'Lift', kw: 15, qty: 1, loadType: 'motor' }]);
+    expect(s.project.feeders.find((f) => f.id.startsWith('DB-L01-LIFT'))!.fromRoom).toBe('svc:lift');
+    const g = generateBuildingDbs(generateBuildingDbs(s.project, 'T1', 'MDB-1').project, 'T1', 'MDB-1').project;
+    expect(g.feeders.some((f) => f.fromRoom === 'svc:lift')).toBe(true);
+    // On a board generated first, then given a service.
+    const first = generateBuildingDbs(p, 'T1', 'MDB-1').project;
+    const withSvc = addServices(first, 'DB-L01', [{ id: 'lift', label: 'Lift', kw: 15, qty: 1, loadType: 'motor' }]).project;
+    expect(generateBuildingDbs(withSvc, 'T1', 'MDB-1').project.feeders.filter((f) => f.fromRoom === 'svc:lift')).toHaveLength(1);
   });
 });
 

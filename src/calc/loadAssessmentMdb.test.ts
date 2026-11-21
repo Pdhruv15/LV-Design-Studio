@@ -4,6 +4,8 @@ import { assess, DEFAULT_TYPES, newAssessment, type LoadAssessment } from './loa
 import { assessmentFeeders, createMdbFromAssessment, LA_MDB, mdbStep } from './loadAssessmentMdb';
 import { boardTotals } from './summary';
 import { boardDemandKva, isEssential } from './sizing';
+import { reconcileLumps } from './loadAssessmentLumps';
+import { addServices } from './buildingDesign';
 
 const lib = { types: [] };
 const res = (patch: Partial<LoadAssessment> = {}): LoadAssessment => ({
@@ -161,5 +163,33 @@ describe('mdbStep', () => {
     const made = createMdbFromAssessment(empty(), res());
     const feeders = made.project.feeders.map((f, i) => (i === 0 ? { ...f, loadKw: f.loadKw + 5 } : f));
     expect(mdbStep({ ...made.project, feeders }, res())!.inStep).toBe(false);
+  });
+
+  it('leaves out what is already designed: no la:lift beside service lifts, and stays in step', () => {
+    const made = createMdbFromAssessment(empty(), res());
+    const id = made.boardIds[0];
+    const withLifts = addServices({ ...made.project, feeders: made.project.feeders.filter((f) => f.fromRoom !== 'la:lift' && f.fromRoom !== 'la:lift-e') }, id, [{ id: 'lift', label: 'Lift', kw: 500, qty: 1, loadType: 'motor' }]).project;
+    // A project that already holds the service feeders: a new run does not add the lift lump again.
+    const again = createMdbFromAssessment(withLifts, res());
+    expect(again.project.feeders.some((f) => f.fromRoom?.startsWith('la:lift'))).toBe(false);
+    expect(again.designedKw).toBeGreaterThan(0);
+    expect(createMdbFromAssessment(empty(), res()).designedKw).toBe(0);
+    const rec = reconcileLumps(again.project, res());
+    expect(mdbStep(rec.project, res())!.inStep).toBe(true);
+  });
+
+  it('designing a service puts the feeders out of step until the lumps are reduced', () => {
+    const a = res();
+    const made = createMdbFromAssessment(newProject('Test'), a);
+    const board = made.boardIds[0];
+    const withLift = addServices(made.project, board, [{ id: 'lift', label: 'Lift', kw: 22, qty: 2, loadType: 'motor' }]).project;
+    const s = mdbStep(withLift, a)!;
+    expect(s.inStep).toBe(false);
+    // Two 22 kW lifts are now designed: the feeders should add up to that much less, at the lifts' diversity.
+    expect(s.assessmentDemandKw - s.expectedDemandKw).toBeCloseTo(44 * a.diversity.lift, 1);
+    expect(s.feedersDemandKw).toBeCloseTo(s.assessmentDemandKw, 0);
+    const after = mdbStep(reconcileLumps(withLift, a).project, a)!;
+    expect(after.inStep).toBe(true);
+    expect(after.feedersDemandKw).toBeCloseTo(after.expectedDemandKw, 0);
   });
 });

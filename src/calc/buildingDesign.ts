@@ -5,6 +5,7 @@ import { applyRecommendation, recommend } from './sizing';
 import { boardTotals } from './summary';
 import { circuitWatts, pointWattsFor, scheduleCircuits } from './loadSchedule';
 import { rule } from '../database/catalog';
+import { assess } from './loadAssessment';
 
 /** Building → design: DBs and load schedules generated from the rooms and
  * the flats on each floor, incomer lengths from the riser, common services,
@@ -105,6 +106,9 @@ function roomCircuits(r: RoomSpec): Partial<Record<PointType, number>>[] {
 
 export interface GenerateResult { project: Project; dbs: string[]; circuits: number; replaced: number }
 
+/** A circuit this command made for a room (not a load-assessment lump "la:…" or a service "svc:…"). */
+const ownRoom = (f: Feeder) => !!f.fromRoom && !f.fromRoom.startsWith('la:') && !f.fromRoom.startsWith('svc:');
+
 /** Creates (or refreshes) the planned DBs: board, incomer from the riser's
  * source board with its length and meter, and the load schedule. Circuits
  * made earlier by this command are replaced; your own are kept. */
@@ -124,9 +128,9 @@ export function generateBuildingDbs(project: Project, buildingId: string, source
       p = { ...p, boards: [...p.boards, board] };
     } else {
       p = { ...p, boards: p.boards.map((x) => (x.id === spec.id ? board : x)) };
-      const old = p.feeders.filter((f) => f.boardId === spec.id && f.fromRoom).length;
+      const old = p.feeders.filter((f) => f.boardId === spec.id && ownRoom(f)).length;
       replaced += old;
-      p = { ...p, feeders: p.feeders.filter((f) => !(f.boardId === spec.id && f.fromRoom)) };
+      p = { ...p, feeders: p.feeders.filter((f) => !(f.boardId === spec.id && ownRoom(f))) };
     }
     for (const r of spec.rooms) {
       for (const pts of roomCircuits(r)) {
@@ -175,7 +179,7 @@ export function applyRiserLengths(project: Project, buildingId: string): { proje
 
 // ---- Common area services -------------------------------------------------
 
-export interface ServiceItem { id: string; label: string; kw: number; qty: number; loadType: LoadType; essential?: boolean; standby?: number /* units on standby */ }
+export interface ServiceItem { id: string; label: string; kw: number; qty: number; loadType: LoadType; essential?: boolean; standby?: number /* units on standby */; from?: string /* where the starting quantity comes from */ }
 
 /** PLACEHOLDER kW — typical values to start from; edit before adding. */
 export function defaultServices(project: Project, buildingId: string): ServiceItem[] {
@@ -204,6 +208,33 @@ export function defaultServices(project: Project, buildingId: string): ServiceIt
   ];
 }
 
+/** The services with their starting quantities and kW taken from the load assessment, where it counts this building; else defaultServices. */
+export function servicesFromAssessment(project: Project, buildingId: string): ServiceItem[] {
+  const base = defaultServices(project, buildingId);
+  const a = project.loadAssessment;
+  if (!a || (a.from?.buildingIds?.length && !a.from.buildingIds.includes(buildingId))) return base;
+  const r = assess(a), f = a.factors, s = a.services;
+  const floors = Math.max(1, a.floors || 1), park = Math.max(0, a.parkingM2 || 0), bays = park / Math.max(1, f.m2PerBay);
+  const fire = s.fire ? 'fire and life safety ticked' : 'fire and life safety not ticked';
+  const patch = (id: string): Partial<ServiceItem> => {
+    const d = base.find((x) => x.id === id)!;
+    switch (id) {
+      case 'lift': return { qty: r.liftCount, kw: floors > 12 ? f.liftKwHigh : f.liftKw, from: s.lifts === 'none' ? 'no lifts' : s.lifts === 'custom' ? 'count set in the assessment' : `auto from ${floors} floors` };
+      case 'booster': return { qty: 2, kw: f.boosterKw, from: `2 × ${f.boosterKw} kW` };
+      case 'transfer': return { qty: floors > 2 ? 2 : 0, kw: f.transferKw, from: floors > 2 ? `2 × ${f.transferKw} kW` : 'not above 2 floors' };
+      case 'fire': return { qty: s.fire ? 1 : 0, kw: f.firePumpKw, from: fire };
+      case 'jockey': return { qty: s.fire ? 1 : 0, kw: f.jockeyKw, from: fire };
+      case 'stair': return { qty: s.fire && floors > 4 ? 2 : 0, kw: f.stairFanKw, from: fire };
+      case 'carpark': return { qty: park ? 1 : 0, kw: park ? Math.round(Math.max(11, park * f.carParkFanKwPerM2) * 10) / 10 : d.kw, from: park ? `${Math.round(park).toLocaleString('en-US')} m² × ${f.carParkFanKwPerM2} kW/m²` : 'no car park' };
+      case 'facade': return { qty: s.facade ? 1 : 0, kw: s.facade ? floors * f.facadeKwPerFloor : d.kw, from: s.facade ? `${f.facadeKwPerFloor} kW × ${floors} floors` : 'façade lighting not ticked' };
+      case 'ev': return { qty: Math.round((bays * s.evPct) / 100), kw: f.evKw, label: `EV charger ${f.evKw} kW`, from: `${s.evPct} % of ${Math.round(bays)} bays` };
+      case 'pool': return { qty: s.pool ? 1 : 0, kw: f.poolKw, from: s.pool ? 'pool ticked' : 'pool not ticked' };
+      default: return {};
+    }
+  };
+  return base.map((it) => ({ ...it, ...patch(it.id) }));
+}
+
 /** Adds the services as feeders on a board (one per unit; standby units marked). */
 export function addServices(project: Project, boardId: string, items: ServiceItem[]): { project: Project; added: number } {
   let p = project;
@@ -215,7 +246,7 @@ export function addServices(project: Project, boardId: string, items: ServiceIte
       const f: Feeder = {
         id: `${boardId}-${it.id.toUpperCase()}${n}`, boardId, name: it.qty > 1 ? `${it.label} ${k + 1}` : it.label, loadKw: it.kw, demandFactor: 1,
         powerFactor: it.loadType === 'lighting' ? 0.9 : 0.85, lengthM: 40, cableCsaMm2: 6, cores: 4, breakerRatingA: 32, breakerIcuKa: 25,
-        loadType: it.loadType, essential: it.essential || undefined, standbyUnit: it.standby && k >= it.qty - it.standby ? true : undefined,
+        fromRoom: `svc:${it.id}`, loadType: it.loadType, essential: it.essential || undefined, standbyUnit: it.standby && k >= it.qty - it.standby ? true : undefined,
         localIsolator: it.loadType === 'motor' || it.loadType === 'fire-pump' ? true : undefined
       };
       const tmp = { ...p, feeders: [...p.feeders, f] };
