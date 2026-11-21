@@ -222,6 +222,10 @@ function folderTemplate(t) {
     const r = isObj(t.repeat) ? t.repeat : fail('repeat for');
     if (!Array.isArray(r.shared) || r.shared.length > 50) fail('shared folders');
     out.repeat = { source: oneOf(r.source, ['buildings', 'phases'], 'repeat source') ?? fail('repeat source'), name: folderName(r.name, 'repeated folder name'), shared: r.shared.map((s) => str(s, FT.idChars, 'shared folder')) };
+    if (r.phases !== undefined) {
+      if (!Array.isArray(r.phases) || r.phases.length > 50) fail('phases');
+      out.repeat.phases = r.phases.map((p) => folderName(p, 'phase name'));
+    }
   }
   return out;
 }

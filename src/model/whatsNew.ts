@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.245', date: '2026-11-21',
+    items: [
+      { title: 'Folder templates: start from a layout', text: 'Preferences → Folder templates → + New now starts from one of six layouts: Discipline-first, Stage-first (Concept, Schematic, Detailed, IFC, each with Calcs and Drawings), Building / phase-first, ISO 19650 containers, Flat & simple, or Blank. Building / phase-first asks what the folders repeat for (the buildings in Building information, or phases you type), the folder name pattern ({BuildingCode}_{BuildingName}) and the shared folders kept once at the top, with a preview for two buildings. Create and edit opens the template in the editor.' },
+      { title: 'Project folder: a set of folders per building', text: 'With a building-first template, a board\'s load schedule saves into the folder of the board\'s building (from its floor in Building information); schedules of every board and other outputs of the whole project save into the shared folder (00_Common). Customise… shows each building: a building added later is offered with its folders, and a renamed building gets new folders while its old folder is listed with its file count and left as it is.' }
+    ]
+  },
+  {
     version: '2.243', date: '2026-11-21',
     items: [
       { title: 'Transformers: the assessment, the space plan and the network side by side', text: 'Concept → Space plan and Panels → Transformers now show one table with the transformers as the load assessment gives them, as the space plan arranges them (with its RMUs) and as the network has them: sizes, maximum demand in kVA and loading, with a bar each. A figure that is not the assessment\'s is marked. Before, the transformers were sized in these three places and never shown together. The table appears once two of the three exist.' },

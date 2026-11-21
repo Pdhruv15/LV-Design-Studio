@@ -228,10 +228,10 @@ export function currentFolders(folder: ProjectFolder, vars: FolderVars, building
 /** What switching the project to `next` does: the folders to create, those kept, those left untouched,
  * the overrides that still apply and those dropped. `nextUnticked` are the new template's folders that
  * start unticked (their condition is off). Apply only creates folders. */
-export function changePlan(folder: ProjectFolder, next: FolderTemplate, vars: FolderVars, buildings: readonly FolderBuilding[], unticked: Iterable<string>, nextUnticked: Iterable<string>): ChangePlan {
+export function changePlan(folder: ProjectFolder, next: FolderTemplate, vars: FolderVars, buildings: readonly FolderBuilding[], unticked: Iterable<string>, nextUnticked: Iterable<string>, nextBuildings: readonly FolderBuilding[] = buildings): ChangePlan {
   const { kept, dropped } = folder.overrides ? checkOverrides(next, folder.overrides) : { kept: emptyOverrides(), dropped: [] };
   const now = currentFolders(folder, vars, buildings, unticked);
-  const then = expandTemplate({ ...next, folders: prune(applyOverrides(next, kept), new Set(nextUnticked)) }, vars, SCOPE_FLAGS, buildings).folders;
+  const then = expandTemplate({ ...next, folders: prune(applyOverrides(next, kept), new Set(nextUnticked)) }, vars, SCOPE_FLAGS, nextBuildings).folders;
   const diff = diffTemplates(now, then);
   const fold = (kind: ChangeRow['kind'], list: readonly ExpandedFolder[]): ChangeRow[] => {
     const paths = [...new Set(list.map((f) => f.path))];

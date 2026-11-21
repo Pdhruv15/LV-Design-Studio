@@ -45,7 +45,9 @@ export function FolderChoiceForm({ state, value, onChange, vars, flags, building
   const tree = useMemo(() => applyOverrides(value.template, overrides), [value.template, overrides]);
   const off = new Set(value.unticked);
   const root = disk && value.parent && value.name ? joinPath(value.parent, value.name) : '';
-  const plan = planFolders(value.template, overrides, vars, buildings, off, root);
+  // A template that repeats for phases makes its phases' folders, whatever buildings the project has.
+  const units = value.template.repeat?.source === 'phases' ? folderBuildings({}, value.template) : buildings;
+  const plan = planFolders(value.template, overrides, vars, units, off, root);
   const hasBuildingFolders = JSON.stringify(tree).includes('"building:each"');
   const toggle = (n: FolderNode, on: boolean) => {
     const ids = new Set(value.unticked);
@@ -100,11 +102,11 @@ export function ProjectFolderDialog({ project, onDone, onClose, client, disk = f
   const state = useFolderTemplates(client);
   const vars = useMemo(() => folderVars(project), [project]);
   const flags = useMemo(() => folderFlags(project), [project]);
-  const buildings = useMemo(() => folderBuildings(project), [project]);
   const had = project.folder;
   const [choice, setChoice] = useState<FolderChoice | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const buildings = useMemo(() => folderBuildings(project, choice?.template), [project, choice?.template]);
   useEffect(() => {
     if (!state.loaded) return;
     setChoice((cur) => {
@@ -160,7 +162,7 @@ export function ProjectFolderCard({ project, onChangeProject, onStatus, client, 
   const [tick, setTick] = useState(0);
   const folder = project.folder;
   const vars = useMemo(() => folderVars(project), [project]);
-  const buildings = useMemo(() => folderBuildings(project), [project]);
+  const buildings = useMemo(() => folderBuildings(project, folder?.template), [project, folder?.template]);
   const paths = useMemo(() => (folder && mem ? planFolders(folder.template, folder.overrides, vars, buildings, mem.unticked, mem.root).paths : []), [folder, mem, vars, buildings]);
   useEffect(() => { setMem(rememberedFolder(project.id)); }, [project.id, tick]);
   useEffect(() => {
@@ -225,12 +227,12 @@ export function ProjectFolderCard({ project, onChangeProject, onStatus, client, 
           onDone={(p, s) => { setDialog(false); if (p.folder !== project.folder) onChangeProject(p); onStatus(s); setTick((t) => t + 1); }} />
       )}
       {other && onChangeProject && folder && (() => {
-        const Dialog = other === 'customise' ? FolderCustomiseDialog : ChangeTemplateDialog;
-        return (
-          <Dialog project={{ ...project, folder }} root={disk ? mem?.root : undefined} unticked={mem?.unticked ?? []} disk={disk} client={client}
-            onClose={() => setOther(null)}
-            onDone={(p, s) => { setOther(null); if (p.folder !== project.folder) onChangeProject(p); onStatus(s); setMem(rememberedFolder(project.id)); setTick((t) => t + 1); }} />
-        );
+        const props = {
+          project: { ...project, folder }, root: disk ? mem?.root : undefined, unticked: mem?.unticked ?? [], disk, client,
+          onClose: () => setOther(null),
+          onDone: (p: Project, s: string) => { setOther(null); if (p.folder !== project.folder) onChangeProject(p); onStatus(s); setMem(rememberedFolder(project.id)); setTick((t) => t + 1); }
+        };
+        return other === 'customise' ? <FolderCustomiseDialog {...props} made={mem?.buildings} /> : <ChangeTemplateDialog {...props} />;
       })()}
     </section>
   );

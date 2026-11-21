@@ -43,7 +43,7 @@ export async function createChosenFolders(disk: FolderDisk, projectId: string | 
   const root = joinPath(c.parent.trim(), cleanFolderName(c.name));
   const { paths } = planFolders(c.template, overrides, vars, buildings, c.unticked, root);
   const r = await disk.create(root, paths);
-  rememberFolder(projectId, { root: r.root, unticked: c.unticked });
+  rememberFolder(projectId, { root: r.root, unticked: c.unticked, buildings: [...buildings] });
   const failed = r.failed.length ? ` ${plural(r.failed.length, 'folder')} could not be made: ${r.failed[0].reason}` : '';
   return `${r.created + (r.rootMade ? 1 : 0) ? `Created ${plural(r.created + (r.rootMade ? 1 : 0), 'folder')}` : 'Every folder was already there'} in ${r.root}.${failed}`;
 }

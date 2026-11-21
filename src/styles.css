@@ -828,6 +828,12 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .ft-chip button:disabled{opacity:.35}
 .ft-addtext{display:inline-flex;gap:4px;align-items:center}
 .ft-addtext input{width:90px}
+.ft-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.ft-card{border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px;background:var(--bg);display:flex;flex-direction:column;gap:6px;text-align:left;color:inherit;font-size:var(--fs-sm)}
+.ft-card:hover{border-color:var(--acc)}
+.ft-card.sel{border-color:var(--acc);outline:1px solid var(--acc)}
+.ft-card pre{margin:0;font:11px/1.45 ui-monospace,Menlo,monospace;color:var(--mut);white-space:pre}
+.ft-cols.repeat{grid-template-columns:minmax(0,1fr) 340px}
 .ft-preview{border:1px solid var(--line);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;line-height:1.8;overflow-wrap:anywhere}
 .ft-preview b{font-weight:500;color:var(--acc)}
 .pf-form{margin-top:var(--space-2)}
