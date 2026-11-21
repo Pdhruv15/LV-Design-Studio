@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Space plan link mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Graphite light; sizes from src/styles.css (.card, .chip, .la-*, .bi-*) */
+:root{--bg:#F5F3EF;--panel:#ffffff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--ok:#177336;--warn:#8a5d00;--bad:#cf222e;--field:#857E70;--new:#7a3fd1}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/18px -apple-system,"Segoe UI",system-ui,sans-serif;width:1952px;padding:16px 20px 20px}
+h1{font-size:17px;margin:0 0 4px}
+h2{font-size:13px;margin:18px 0 6px;font-weight:600}
+h2 .hm{font-weight:400;color:var(--mut);margin-left:8px}
+p.lead{margin:0 0 6px;color:var(--mut)}
+.m{color:var(--mut)}
+.sp{flex:1}
+.n{display:inline-block;width:18px;height:18px;line-height:18px;border-radius:50%;background:var(--new);color:#fff;text-align:center;font-size:11px;font-weight:700;margin-right:6px;vertical-align:1px;flex:none}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin:0 5px 0 0;border:1.5px dashed var(--new)}
+.nw{outline:1.5px dashed var(--new);outline-offset:3px;border-radius:6px}
+td.nwc,th.nwc{background:rgba(122,63,209,.07);border-left:1.5px dashed var(--new);border-right:1.5px dashed var(--new)}
+.ic{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;flex:none}
+
+.frame{border:1px solid var(--line-strong);border-radius:8px;background:var(--bg);padding:14px 18px 16px}
+.ph{display:flex;align-items:flex-start;gap:16px;margin-bottom:10px}
+.ph h3{font-size:18px;font-weight:600;margin:0 0 2px}
+.ph p{margin:0;color:var(--mut);font-size:12px;max-width:1100px}
+.acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:6px;padding:0 12px;height:28px;font-size:12px;background:var(--p2);white-space:nowrap}
+.chip.primary{background:var(--acc);color:#fff;font-weight:600;border-color:var(--acc)}
+.chip.bad{border-color:#e0919a;color:var(--bad);background:transparent}
+.chip.gone{text-decoration:line-through;opacity:.55}
+.card{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:14px}
+.card h4{margin:0 0 10px;font-size:13px;font-weight:600;display:flex;gap:8px;align-items:center}
+.card h4 .m{font-weight:400;font-size:12px}
+.lan{width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;display:inline-grid;place-items:center;font-size:11px}
+.grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px;align-items:start}
+.t{width:100%;border-collapse:collapse;font-size:12px}
+.t th{text-align:left;font-weight:600;color:var(--mut);padding:5px 8px;border-bottom:1px solid var(--line-strong);white-space:nowrap}
+.t td{padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.t td.wrap{white-space:normal}
+.t tfoot td{border-bottom:0;font-weight:600}
+.t .r{text-align:right}
+.in{display:inline-block;border:1px solid var(--field);border-radius:5px;padding:2px 8px;background:#fff;min-width:54px;text-align:right}
+.in.txt{text-align:left;min-width:150px}
+.sel{display:inline-flex;align-items:center;gap:8px;justify-content:space-between;border:1px solid var(--field);border-radius:5px;padding:2px 8px;background:#fff;min-width:150px}
+.cb{display:inline-grid;place-items:center;width:13px;height:13px;border:1px solid var(--field);border-radius:3px;vertical-align:-2px;margin-right:5px;background:#fff}
+.cb.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.cb svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.tag{display:inline-block;border-radius:999px;padding:0 8px;font-size:11px;line-height:17px;border:1px solid var(--line)}
+.tag.w{border-color:#d9b765;color:var(--warn);background:#fdf6e3}
+.tag.ok{border-color:#9bcfae;color:var(--ok);background:#eef8f1}
+.tag.nw2{border-color:var(--new);color:var(--new);background:rgba(122,63,209,.07)}
+.warn{color:var(--warn)}.okc{color:var(--ok)}.badc{color:var(--bad)}
+.fl{display:flex;gap:12px;flex-wrap:wrap}
+.fl label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut)}
+.fl label .in,.fl label .sel{color:var(--tx)}
+.under{font-size:11px;color:var(--warn)}
+.types{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;margin-bottom:10px}
+.type{padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--p2);font-size:12px}
+.type.on{border-color:var(--acc);color:var(--acc);font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;font-size:12px}
+.seg span{padding:4px 12px}
+.seg span.on{background:var(--acc);color:#fff}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.kpis div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--p2);display:flex;flex-direction:column}
+.kpis b{font-size:18px;line-height:24px}
+.kpis span{font-size:11px;color:var(--mut);line-height:14px}
+.flag{border-radius:8px;padding:8px 10px;font-size:12px;margin-top:8px;border:1px solid var(--line)}
+.flag.ok{border-color:#9bcfae;color:var(--ok)}
+.flag.w{border-color:#d9b765;color:var(--warn)}
+.bar{height:8px;background:rgba(135,88,0,.12);border-radius:4px;overflow:hidden;width:110px;display:inline-block;vertical-align:middle}
+.bar i{display:block;height:100%;background:var(--acc)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* the link strip */
+.link{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:18px;align-items:start;margin-bottom:14px}
+.link .lh{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.link .lh b{font-size:13px}
+.pop{border:1px solid var(--line);border-radius:8px;background:var(--panel);box-shadow:0 8px 24px rgba(39,36,32,.16);padding:12px 14px}
+.pop h5{margin:0 0 8px;font-size:13px}
+.pop ul{margin:0 0 8px;padding-left:18px}
+.pop li{margin:0 0 3px}
+.pop .res{border:1px dashed var(--line-strong);border-radius:6px;padding:6px 10px;margin-bottom:10px}
+.kline{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;align-items:center}
+.two{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;margin-top:12px;align-items:start}
+.dlg{border:1px solid var(--line);border-radius:10px;background:var(--panel);box-shadow:0 8px 24px rgba(39,36,32,.16);padding:14px 16px}
+.dlg h5{margin:0 0 8px;font-size:14px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
+.box{border:1px solid var(--line-strong);border-radius:8px;background:var(--panel);padding:12px 16px}
+.box h4{margin:0 0 8px;font-size:13px}
+.box ol{margin:0;padding-left:20px}
+.box li{margin:0 0 5px}
+.rec{color:var(--ok);font-weight:600}
+.flow text{font:12px -apple-system,"Segoe UI",system-ui,sans-serif;fill:var(--tx)}
+.flow .mt{fill:var(--mut)}
+.flow .bt{font-weight:600;font-size:13px}
+.flow .nt{fill:var(--new);font-weight:600}
+.flow .rt{fill:var(--bad)}
+
+.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:10px 0}
+.cards div{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.cards span{font-size:12px;color:var(--mut)}
+.cards b{font-size:15px}
+.cards small{font-size:11px;color:var(--mut)}
+.setbar{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin:6px 0 4px}
+.setbar label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut)}
+.setbar .in,.setbar .sel{color:var(--tx)}
+.st{font-size:13px;font-weight:600;margin:14px 0 6px;display:flex;gap:8px;align-items:center}
+.half{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;align-items:start}
+.note{font-size:11px;color:var(--mut);margin-top:6px}
+.box ul{margin:0 0 8px;padding-left:20px}
+</style>
+</head>
+<body>
+<h1>Space plan: the supply arrangement that follows the load assessment (mockup)</h1>
+<p class="lead">Sample figures, continued from the Building and Load assessment mockups: a residential tower with flats and a block of podium shops. The assessment gives 1,738 kVA and 2 × 1,250 kVA; the plan, filled from the rooms, gives 2,973 kVA and 3 × 1,500 kVA.</p>
+<p class="lead legend"><i></i>Dashed purple outline and a purple number = new. Everything else is the page as it is today.</p>
+
+<h2>What each concept tool answers, and what they exchange</h2>
+<div class="frame" style="background:var(--panel);padding:8px 18px">
+<svg class="flow" viewBox="0 0 1900 250" width="1900" height="250" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#5D574C"/></marker>
+    <marker id="an" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#7a3fd1"/></marker>
+  </defs>
+  <text x="0" y="16" class="bt">Today</text>
+  <g fill="#EFECE5" stroke="#C2BBAC"><rect x="70" y="26" width="250" height="60" rx="8"/><rect x="560" y="26" width="250" height="60" rx="8"/><rect x="1050" y="26" width="250" height="60" rx="8"/><rect x="1580" y="26" width="250" height="60" rx="8"/></g>
+  <text x="195" y="51" text-anchor="middle" class="bt">Building</text><text x="195" y="70" text-anchor="middle" class="mt">what is there: levels, rooms, flats</text>
+  <text x="685" y="51" text-anchor="middle" class="bt">Load assessment</text><text x="685" y="70" text-anchor="middle" class="mt">how much: MD, transformers, generator</text>
+  <text x="1175" y="51" text-anchor="middle" class="bt">Space plan</text><text x="1175" y="70" text-anchor="middle" class="mt">from where: MDB, transformer, RMU</text>
+  <text x="1705" y="51" text-anchor="middle" class="bt">Network and substation rooms</text><text x="1705" y="70" text-anchor="middle" class="mt">SLD, Transformers, Substation area</text>
+  <path d="M320 56H558" stroke="#7a3fd1" stroke-width="1.6" fill="none" marker-end="url(#an)" marker-start="url(#an)"/>
+  <text x="440" y="47" text-anchor="middle" class="mt">linked both ways (v2.231)</text>
+  <text x="930" y="47" text-anchor="middle" class="rt">nothing passes</text>
+  <text x="930" y="64" text-anchor="middle" class="rt">own densities and settings</text>
+  <path d="M1300 56H1578" stroke="#5D574C" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+  <text x="1440" y="47" text-anchor="middle">Create SLD</text>
+  <text x="1440" y="74" text-anchor="middle" class="rt">replaces every board and feeder</text>
+  <path d="M195 86V106H1175V88" stroke="#5D574C" stroke-width="1.4" stroke-dasharray="6 5" fill="none" marker-end="url(#a)"/>
+  <text x="560" y="121" text-anchor="middle">Take areas from the rooms, once <tspan class="rt">· flats not counted</tspan></text>
+  <path d="M685 86V98H1500V110H1705V88" stroke="#5D574C" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+  <text x="1440" y="124" text-anchor="middle">Create MDB + feeders <tspan class="rt">· a second, competing start</tspan></text>
+  <line x1="0" y1="138" x2="1900" y2="138" stroke="#DCD7CC"/>
+  <text x="0" y="158" class="bt nt">Proposed</text>
+  <g fill="#EFECE5" stroke="#C2BBAC"><rect x="70" y="168" width="250" height="60" rx="8"/><rect x="560" y="168" width="250" height="60" rx="8"/><rect x="1050" y="168" width="250" height="60" rx="8"/><rect x="1580" y="168" width="250" height="60" rx="8"/></g>
+  <text x="195" y="193" text-anchor="middle" class="bt">Building</text><text x="195" y="212" text-anchor="middle" class="mt">what is there</text>
+  <text x="685" y="193" text-anchor="middle" class="bt">Load assessment</text><text x="685" y="212" text-anchor="middle" class="mt">how much</text>
+  <text x="1175" y="193" text-anchor="middle" class="bt">Space plan</text><text x="1175" y="212" text-anchor="middle" class="mt">from where</text>
+  <text x="1705" y="193" text-anchor="middle" class="bt">Network and substation rooms</text><text x="1705" y="212" text-anchor="middle" class="mt">one start, kept in step</text>
+  <path d="M320 198H558" stroke="#7a3fd1" stroke-width="1.6" fill="none" marker-end="url(#an)" marker-start="url(#an)"/>
+  <path d="M810 186H1048" stroke="#7a3fd1" stroke-width="1.6" fill="none" marker-end="url(#an)"/>
+  <path d="M1050 210H812" stroke="#7a3fd1" stroke-width="1.6" fill="none" marker-end="url(#an)"/>
+  <text x="930" y="178" text-anchor="middle" class="nt">loads by building, MD, supply settings</text>
+  <text x="930" y="226" text-anchor="middle" class="nt">transformers and RMUs as planned</text>
+  <path d="M1300 198H1578" stroke="#7a3fd1" stroke-width="1.6" fill="none" marker-end="url(#an)"/>
+  <text x="1440" y="189" text-anchor="middle" class="nt">Create / Update supply</text>
+  <text x="1440" y="216" text-anchor="middle" class="nt">keeps what is designed · rooms follow</text>
+</svg>
+</div>
+
+<h2>Space plan <span class="hm">Concept tab · Space plan</span></h2>
+<div class="frame">
+  <div class="ph">
+    <div><h3>Space planning — power density</h3><p>Enter the areas (m² × W/m², or a specific kW), then Auto-assign: areas go to an MDB per building, MDBs to transformers at the loading limit, transformers to RMUs. Change any assignment in the tables, then Create SLD.</p></div>
+    <div class="acts"><span class="chip">Take areas from the rooms</span><span class="chip">Auto-assign</span><span class="chip">Re-plan from scratch</span><span class="chip primary nw"><span class="n">5</span>Create / Update supply</span></div>
+  </div>
+
+  <div class="card link nw">
+    <div>
+      <div class="lh"><span class="n">1</span><b>Load assessment</b><svg class="ic" viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><path d="M8 12h8"/></svg><b>this plan</b><span class="tag w">The plan and the assessment differ</span></div>
+      <table class="t">
+        <thead><tr><th>Figure</th><th>Load assessment</th><th>This plan</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>Maximum demand</td><td><b>1,738 kVA</b> <span class="m">categories with diversity, coincidence 0.9</span></td><td>2,973 kVA <span class="m">sum of the rooms, no diversity between flats</span></td><td><span class="tag w">differs · +71 %</span></td></tr>
+          <tr><td>Transformers</td><td><b>2 × 1,250 kVA</b> <span class="m">70 % loaded</span></td><td>3 × 1,500 kVA <span class="m">66 % loaded</span></td><td><span class="tag w">differs</span></td></tr>
+          <tr><td>Transformer sizes</td><td><b>500 to 1,500 kVA</b> <span class="m">Transformers catalogue, largest 1,500</span></td><td>1,000 or 1,500 kVA</td><td><span class="tag w">differs</span></td></tr>
+          <tr><td>Max loading · power factor · spare</td><td><b>80 % · 0.90 · 0 %</b></td><td>80 % · 0.90 · 0 %</td><td><span class="tag ok">same</span></td></tr>
+        </tbody>
+      </table>
+      <div class="row" style="margin-top:10px">
+        <span class="chip primary">Take loads from the assessment…</span><span class="chip">Use the assessment's settings</span><span class="chip">Keep my figures</span><span class="chip">Open load assessment</span>
+        <span class="m">Nothing moves until you press a button.</span>
+      </div>
+    </div>
+    <div class="pop">
+      <h5>Take loads from the load assessment: what changes</h5>
+      <ul>
+        <li><i class="cb on"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i><b>14 load rows by building</b> replace the 6 room rows: Tower A 9 (lighting, small power, HVAC, water heating, cooking, lifts, pumps, EV, special), Podium shops 3, fire and life safety 2</li>
+        <li><i class="cb on"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i>Each row carries its category's diversity; the total takes the assessment's coincidence 0.9</li>
+      </ul>
+      <div class="res"><b>Result</b> · MD 2,973 to <b>1,738 kVA</b> · transformers 3 × 1,500 to <b>2 × 1,500 kVA</b> (58 % loaded, limit 80 %) · RMUs 2 to <b>1</b> · substations 2 to <b>1</b></div>
+      <div class="row"><span class="m">Your panels, transformers and RMUs are kept where they still fit. One undo step.</span><span class="sp"></span><span class="chip">Cancel</span><span class="chip primary">Take loads</span></div>
+    </div>
+  </div>
+
+  <div class="setbar">
+    <label>Transformer size<span class="sel" style="min-width:190px">Automatic (fewer units)<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span><span class="under nw" style="outline-offset:1px">Assessment: catalogue sizes</span></label>
+    <label>Max loading %<span class="in ">80</span></label>
+    <label>Transformers per RMU<span class="in ">2</span></label>
+    <label>Power factor<span class="in ">0.9</span></label>
+    <label>Future growth %<span class="in ">0</span></label>
+    <span class="chip">Edit use types (W/m²)</span>
+    <span class="chip nw" style="outline-offset:1px"><span class="n">2</span>Use types from my density standard</span>
+  </div>
+  <div class="cards">
+    <div><span>Connected load</span><b>3,944 kW</b></div>
+    <div><span>Maximum demand</span><b>2,676 kW · 2,973 kVA</b></div>
+    <div><span>Transformers needed</span><b>3 × 1500 kVA</b><small>at ≤ 80% loading</small></div>
+    <div><span>RMUs needed</span><b>2</b><small>max 2 transformers each</small></div>
+    <div><span>In the plan</span><b>3 TX · 2 RMU · 4 panels</b><small class="okc">All assigned</small></div>
+  </div>
+
+  <div class="half">
+    <div>
+      <div class="card nw">
+        <div class="row" style="margin-bottom:6px"><span class="n">3</span><b>Transformers: concept to design</b><span class="m">sized in three places today, never shown together</span></div>
+        <table class="t">
+          <thead><tr><th>Figure</th><th>From</th><th>Transformers</th><th class="r">MD kVA</th><th>Loading</th></tr></thead>
+          <tbody>
+            <tr><td><b>Assessment</b></td><td class="m">Load assessment · MD at the transformer</td><td>2 × 1,250 kVA</td><td class="r">1,738</td><td><span class="bar"><i style="width:70%"></i></span> 70 %</td></tr>
+            <tr><td><b>This plan</b></td><td class="m">areas on MDBs, MDBs on transformers, 2 RMUs</td><td class="warn"><b>3 × 1,500 kVA</b></td><td class="r">2,973</td><td><span class="bar"><i style="width:66%"></i></span> 66 %</td></tr>
+            <tr><td><b>Network</b></td><td class="m">Panels → Transformers · MDB-01, MDB-02 so far</td><td>2 × 1,250 kVA</td><td class="r">1,006</td><td><span class="bar"><i style="width:40%"></i></span> 40 %</td></tr>
+          </tbody>
+        </table>
+        <div class="note">The same table is shown on Panels → Transformers. A figure that differs from the assessment is marked.</div>
+      </div>
+      <div class="st">1 · Areas <span class="m" style="font-weight:400">after "Take loads from the assessment"</span></div>
+      <table class="t" style="background:var(--panel)">
+        <thead><tr><th>Building</th><th>Area / load</th><th>Use type</th><th class="r">m²</th><th class="r">W/m²</th><th class="r">kW</th><th class="r">DF</th><th>Panel</th><th class="nwc"><span class="n">4</span>From</th></tr></thead>
+        <tbody>
+          <tr><td>Tower A</td><td>Lighting</td><td>Lighting</td><td class="r m">25,200</td><td class="r m">7.9</td><td class="r">198</td><td class="r">0.90</td><td>MDB-A1</td><td class="nwc"><span class="tag nw2">assessment</span></td></tr>
+          <tr><td>Tower A</td><td>Small power</td><td>Small power</td><td class="r m">25,200</td><td class="r m">26.2</td><td class="r">660</td><td class="r">0.50</td><td>MDB-A1</td><td class="nwc"><span class="tag nw2">assessment</span></td></tr>
+          <tr><td>Tower A</td><td>HVAC — VRF</td><td>HVAC</td><td class="r m">25,200</td><td class="r m">28.6</td><td class="r">720</td><td class="r">0.85</td><td>MDB-A2</td><td class="nwc"><span class="tag nw2">assessment</span></td></tr>
+          <tr><td>Tower A</td><td>Lifts (6)</td><td>Plant / services</td><td class="r m">—</td><td class="r m">—</td><td class="r">132</td><td class="r">0.60</td><td>MDB-A2</td><td class="nwc"><span class="tag nw2">assessment</span></td></tr>
+          <tr><td>Podium shops</td><td>Small power</td><td>Small power</td><td class="r m">1,200</td><td class="r m">18.3</td><td class="r">22</td><td class="r">0.50</td><td>MDB-P</td><td class="nwc"><span class="tag nw2">assessment</span></td></tr>
+          <tr><td>Tower A</td><td>Chiller for the lobby</td><td>Plant / services</td><td class="r m">—</td><td class="r m">—</td><td class="r">45</td><td class="r">0.80</td><td>MDB-A1</td><td class="nwc"><span class="tag">typed</span></td></tr>
+        </tbody>
+      </table>
+      <div class="note">Rows taken from the assessment are marked and are replaced the next time; rows you typed are kept. 9 more rows not shown.</div>
+    </div>
+    <div>
+      <div class="st" style="margin-top:0">3 · Transformers &amp; RMUs <span class="m" style="font-weight:400">after "Take loads from the assessment"</span> <span class="chip">+ Transformer</span></div>
+      <table class="t" style="background:var(--panel)">
+        <thead><tr><th>Transformer</th><th>Size</th><th>RMU</th><th>Panels</th><th class="r">MD (kVA)</th><th>Loading</th></tr></thead>
+        <tbody>
+          <tr><td>TX-1</td><td><span class="sel" style="min-width:90px">1500 kVA<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in txt">RMU-1</span></td><td>MDB-A1, MDB-P</td><td class="r">928</td><td>62 %</td></tr>
+          <tr><td>TX-2</td><td><span class="sel" style="min-width:90px">1500 kVA<svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></td><td><span class="in txt">RMU-1</span></td><td>MDB-A2</td><td class="r">810</td><td>54 %</td></tr>
+        </tbody>
+      </table>
+      <div class="card nw" style="margin-top:14px">
+        <div class="row" style="margin-bottom:6px"><span class="n">5</span><b>Create / Update supply</b><span class="m">in place of Create SLD</span></div>
+        <div style="font-size:12px">Makes or updates RMU-1, TX-1, TX-2 and their three MDBs, with one load feeder per row. <b>Kept:</b> the 62 DBs and the service feeders designed so far. <b>Removed:</b> MDB-01 and MDB-02 made from the assessment (their lump feeders move to the plan's MDBs). The load feeders shrink as real DBs are designed, as the assessment's do.</div>
+        <div class="note">Today Create SLD replaces every board and feeder of the project, and the assessment's Create MDB + feeders is a second start beside it.</div>
+      </div>
+      <div class="card nw" style="margin-top:14px">
+        <div class="row" style="margin-bottom:6px"><span class="n">6</span><b>Substation area follows the plan</b></div>
+        <div class="flag w" style="margin-top:0">Substation SS-1 was filled when the plan had 3 transformers on 2 RMUs. The plan now has 2 transformers on RMU-1: one conventional substation, 2 × 1,500 kVA.</div>
+        <div class="row" style="margin-top:8px"><span class="chip primary">Update from the plan…</span><span class="chip">Keep mine</span><span class="m">shown on Concept → Substation area</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="cols">
+  <div class="box">
+    <h4>Found in the code today</h4>
+    <ol>
+      <li>Space plan takes <b>nothing from the Load assessment</b>: it has its own use types (a third density table beside Room types and the density standards), its own settings and its own transformer count.</li>
+      <li>Its demand is the sum of areas × W/m² × demand factor. <b>Lifts, pumps, EV chargers and fire pumps</b> are in it only when typed as kW rows, and there is no coincidence between categories.</li>
+      <li>"Automatic" picks <b>1,000 or 1,500 kVA only</b>. The assessment picks from the Transformers catalogue up to its largest size, with N or N+1.</li>
+      <li><b>Transformers are sized in three places</b> (Load assessment, Space plan, Panels → Transformers) and the three figures are never shown side by side.</li>
+      <li>"Take areas from the rooms" reads loose rooms only: <b>flats placed on levels are left out</b>, the gap fixed for the assessment in v2.230.</li>
+      <li><b>Create SLD replaces every board and feeder</b> of the project. The assessment's Create MDB + feeders adds MDBs. The two starts compete, and Create SLD's load feeders do not shrink as DBs are designed.</li>
+      <li>Substation area is filled from the plan once ("Fill from project"). <b>Nothing says the plan changed</b> afterwards.</li>
+    </ol>
+  </div>
+  <div class="box">
+    <h4>Decisions for you</h4>
+    <ol type="A">
+      <li><b>What Space plan is for:</b> <span class="rec">the supply arrangement after the assessment: which load on which MDB, transformer and RMU (recommended).</span> Or fold it into the Load assessment page. Or leave the two apart.</li>
+      <li><b>Where its loads come from:</b> <span class="rec">the assessment's categories and services per building, with "Take areas from the rooms" kept as the other choice (recommended).</span> Or rooms only, as today.</li>
+      <li><b>Settings and sizes:</b> <span class="rec">follow the assessment's supply settings, with a notice when they differ; keep 1,000 / 1,500 kVA as the default sizes and offer the catalogue sizes (recommended).</span> Or its own settings as today.</li>
+      <li><b>Create SLD:</b> <span class="rec">becomes Create / Update supply, which keeps what is designed and replaces the assessment's own MDBs (recommended).</span> Or keeps replacing everything.</li>
+      <li><b>Substation area:</b> <span class="rec">a notice and one press to follow the plan (recommended).</span> Or filled by hand as today.</li>
+      <li><b>Name:</b> <span class="rec">keep "Space plan" for now (recommended).</span> Or rename it "Supply plan", which says what it gives.</li>
+      <li><b>Counting fix first:</b> flats in "Take areas from the rooms" need no screen change. <span class="rec">Do it now, ahead of the rest (recommended).</span></li>
+    </ol>
+  </div>
+</div>
+<script>
+document.head.appendChild(document.createElement('style')).textContent = '@page{size:1952px ' + (Math.ceil(document.documentElement.scrollHeight) + 4) + 'px;margin:0}';
+</script>
+</body>
+</html>
