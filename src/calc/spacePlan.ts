@@ -85,8 +85,8 @@ export function areaLoad(plan: SpacePlan, a: SpaceArea): AreaLoad {
   return { area: a, wPerM2, demandFactor, connectedKw, demandKw: connectedKw * demandFactor };
 }
 
-/** Demand kVA with the plan's growth allowance, at the plan's PF. */
-const kvaOf = (plan: SpacePlan, kw: number) => (kw / plan.settings.powerFactor) * (1 + plan.settings.growthPct / 100);
+/** Demand kVA with the plan's growth allowance and coincidence, at the plan's PF. */
+const kvaOf = (plan: SpacePlan, kw: number) => (kw / plan.settings.powerFactor) * (1 + plan.settings.growthPct / 100) * (plan.settings.coincidence ?? 1);
 
 export interface PanelLoad {
   panel: PlanPanel;

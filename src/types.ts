@@ -900,6 +900,8 @@ export interface SpaceArea {
   kw?: number; // specific load (chiller, lift…) instead of area × W/m²
   demandFactor?: number; // overrides the use's
   panel?: string; // PlanPanel id
+  /** 'la': a load row taken from the load assessment (replaced the next time it is taken). */
+  from?: 'la';
 }
 
 export interface PlanPanel {
@@ -924,6 +926,8 @@ export interface SpacePlanSettings {
   sizeList?: 'dewa' | 'market' | 'catalogue';
   /** The largest size used from the market or catalogue list; absent: 1,500 kVA. */
   maxTransformerKva?: number;
+  /** Coincidence between the load categories, applied to every demand kVA; absent: 1. */
+  coincidence?: number;
   maxLoadingPct: number;
   maxTransformersPerRmu: number;
   powerFactor: number;
@@ -937,6 +941,8 @@ export interface SpacePlan {
   settings: SpacePlanSettings;
   /** Use types with W/m² and demand factor; defaults when absent. */
   uses?: SpaceUse[];
+  /** The state of the load assessment against which the user kept the plan's own figures: no notice until it changes. */
+  kept?: string;
 }
 
 /** A substation sized to Dubai Municipality form DM-D-013. */
