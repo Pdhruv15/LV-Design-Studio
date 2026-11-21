@@ -4251,7 +4251,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       publish: () => setPublishing(true),
       dsettings: () => setDsTab('snap'),
       options: () => setDsTab('cursor'),
-      unitsTab: () => setDsTab('units'),
+      unitsTab: () => setDsTab('drawing'),
       plot: () => { if (!view) cad.say('PLOT  Open a drawing first.'); else if (cad.layout) cad.say('PLOT  Use Output → Plot for this layout.'); else void exportAs('pdfView'); },
       properties: () => { if (!view) cad.say('PROPERTIES  Open a drawing first.'); else { setShowProps(true); cad.say('PROPERTIES  The properties palette is open (Ctrl/Cmd+1 folds it).'); } },
       regen: () => cad.say(`${c}  Nothing to regenerate: the view redraws by itself.`),
@@ -5093,7 +5093,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         {closing && <CloseUnsaved files={closing.filter((v) => cad.isDirty(v.file)).map((v) => v.file)} canSave={!!view && closing.filter((v) => cad.isDirty(v.file)).every((v) => v === view)}
           onClose={() => setClosing(null)} onDiscard={() => closeNow(closing)}
           onSave={() => { const going = closing; setClosing(null); if (view && cad.saved.current.get(view.file.toLowerCase())) void saveNow().then((ok) => { if (ok) closeNow(going); }); else { closeAfterSave.current = going; startSaveAs(); } }} />}
-        {dsTab && fileLists && <CadDraftSettings tab={dsTab} draft={draft} toggles={cad.toggles} gridDots={cad.gridDots} level={fileLists.level} levels={fileLists.levels} unit={fileLists.unit} units={fileLists.units} autosaveMin={autosaveMin}
+        {dsTab && fileLists && <CadDraftSettings tab={dsTab} draft={draft} toggles={cad.toggles} gridDots={cad.gridDots} level={fileLists.level} levelSet={fileLists.levelSet} levels={fileLists.levels} unit={fileLists.unit} units={fileLists.units} autosaveMin={autosaveMin}
           onClose={() => setDsTab(null)}
           onApply={(x) => {
             setDsTab(null);

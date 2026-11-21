@@ -181,7 +181,7 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['PUBLISH'], desc: 'Publish the sheets', action: 'publish' },
   { aliases: ['DS', 'DSETTINGS', 'SE'], desc: 'Drafting settings', action: 'dsettings' },
   { aliases: ['OP', 'OPTIONS'], desc: 'Options: the Drafting settings at the Cursor tab (cursor, pick box, selection, snaps)', action: 'options' },
-  { aliases: ['UN', 'UNITS'], desc: 'Units: the Drafting settings at the Units tab (this drawing\'s units and level)', action: 'unitsTab' },
+  { aliases: ['UN', 'UNITS'], desc: 'Units: the Drafting settings at the Drawing page (this drawing\'s units and level)', action: 'unitsTab' },
   { aliases: ['LAYERS'], desc: 'Layers on or off', action: 'layers' },
   { aliases: ['PR', 'PROPS', 'PROPERTIES', 'CH'], desc: 'The properties palette (Ctrl/Cmd+1)', action: 'properties' },
   { aliases: ['OSNAP'], desc: 'Object snap (F3)', action: 'osnap' },
