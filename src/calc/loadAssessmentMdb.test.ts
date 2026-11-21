@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { newProject } from '../types';
 import { assess, DEFAULT_TYPES, newAssessment, type LoadAssessment } from './loadAssessment';
-import { assessmentFeeders, createMdbFromAssessment, LA_MDB } from './loadAssessmentMdb';
+import { assessmentFeeders, createMdbFromAssessment, LA_MDB, mdbStep } from './loadAssessmentMdb';
 import { boardTotals } from './summary';
 import { boardDemandKva, isEssential } from './sizing';
 
@@ -136,5 +136,30 @@ describe('load assessment → MDB + feeders', () => {
     expect(again.added).toBe(first.added - 1);
     expect(again.project.feeders.some((f) => f.id === 'LV-1-X')).toBe(true);
     expect(again.project.feeders.filter((f) => f.boardId === 'LV-1')).toHaveLength(again.added + 1);
+  });
+});
+
+describe('mdbStep', () => {
+  it('is undefined before any assessment feeders were made', () => {
+    expect(mdbStep(empty(), res())).toBeUndefined();
+  });
+
+  it('is in step right after the MDBs were made and the demand figures agree', () => {
+    const made = createMdbFromAssessment(empty(), res());
+    const s = mdbStep(made.project, res())!;
+    expect(s.boards).toEqual(made.boardIds);
+    expect(s.inStep).toBe(true);
+    expect(Math.abs(s.feedersDemandKw - s.assessmentDemandKw)).toBeLessThan(0.5);
+  });
+
+  it('is out of step after the assessment changed', () => {
+    const made = createMdbFromAssessment(empty(), res());
+    expect(mdbStep(made.project, res({ gfaM2: 30000 }))!.inStep).toBe(false);
+  });
+
+  it('is out of step when a lump feeder was edited by hand', () => {
+    const made = createMdbFromAssessment(empty(), res());
+    const feeders = made.project.feeders.map((f, i) => (i === 0 ? { ...f, loadKw: f.loadKw + 5 } : f));
+    expect(mdbStep({ ...made.project, feeders }, res())!.inStep).toBe(false);
   });
 });

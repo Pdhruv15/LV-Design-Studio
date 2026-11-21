@@ -8,11 +8,11 @@ import {
   saveLaLibrary, setAreaMode, typeFromAssessment, type CategoryKey, type LaBuildingType, type LaCustomLoad, type LaFactors, type LaLibrary, type LaRow,
   type LaServices, type LaSupply, type LoadAssessment
 } from '../../calc/loadAssessment';
-import { buildDashboard } from '../../calc/dashboard';
 import { laLink } from '../../calc/loadAssessmentLink';
-import { createMdbFromAssessment, LA_MDB } from '../../calc/loadAssessmentMdb';
+import { createMdbFromAssessment, LA_MDB, mdbStep } from '../../calc/loadAssessmentMdb';
 import { txt } from '../../util/format';
 import { LinkStrip } from './LoadAssessmentLink';
+import { ConceptToDesignTable } from './ConceptToDesign';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
@@ -41,7 +41,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
   const a = project.loadAssessment;
   const r = useMemo(() => (a ? assess(a) : undefined), [a]);
   const link = useMemo(() => (a ? laLink(project, a, spaces) : undefined), [project, a, spaces]);
-  const designed = useMemo(() => { try { return buildDashboard(project); } catch { return undefined; } }, [project]);
+  const step = useMemo(() => (a ? mdbStep(project, a) : undefined), [project, a]);
 
   const setLib = (next: LaLibrary, msg: string) => { setLibState(next); onStatus(saveLaLibrary(next) ? msg : 'Could not store your library on this computer'); };
   const set = (next: LoadAssessment) => onChange({ ...project, loadAssessment: next });
@@ -104,6 +104,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
   }
 
   const g = a.gfaM2;
+  const mdbLabel = picked ? `Add feeders to ${picked}` : laMdbs.length ? 'Update MDB feeders' : r.tx && r.tx.duty > 1 ? `Create ${r.tx.duty} MDBs + feeders` : 'Create MDB + feeders';
   const showB = !!link && link.buildingRows.length > 0;
   const pctBad = Math.abs(r.pctTotal - 100) > 0.5;
   const maxDemand = Math.max(1, ...r.categories.map((c) => c.demandKw));
@@ -326,20 +327,16 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
             <div className={`la-flag ${r.inBand ? 'ok' : 'warn'}`}>
               {f0(r.vaPerM2)} VA/m² is {r.inBand ? 'inside' : 'outside'} the typical {f0(a.vaBand[0])}–{f0(a.vaBand[1])} VA/m² for “{a.typeLabel}”{r.inBand ? '.' : ' — check the area mix and services.'}
             </div>
-            {designed && designed.demandKva > 0 && (
-              <div className="la-flag">
-                Designed so far (load schedules): <b>{txt.power(designed.demandKva)} kVA</b> demand, {txt.power(designed.connectedKw)} kW connected{designed.transformerKva ? `, ${txt.plain(designed.transformerKva)} kVA of transformers` : ''} —
-                {' '}{txt.loading((designed.demandKva / r.mdKva) * 100)} % of this assessment.
-              </div>
-            )}
+            <ConceptToDesignTable project={project} here heading={<div className="m" style={{ margin: '10px 0 4px' }}><b>Concept to design</b></div>} />
 
+            {step && !step.inStep && <div className="la-flag warn">The feeders on {step.boards.join(' and ')} were made from this assessment before its last change (they add up to {f0(step.feedersDemandKw)} kW demand; the assessment now has {f0(step.assessmentDemandKw)} kW). {step.boards.every((b) => laMdbs.includes(b)) ? <>Press <b>Update MDB feeders</b></> : <>Pick the board below and press <b>Add feeders</b></>} to bring them in step.</div>}
             <div className="bi-actions">
               <select className="bi-sel" value={picked} onChange={(e) => setTarget(e.target.value)} title="Board the feeders go on">
                 <option value="">{laMdbs.length ? `Assessment MDBs (${laMdbs.join(', ')})` : r.tx && r.tx.duty > 1 ? `New MDBs (${r.tx.duty} × ${txt.plain(r.tx.kva)} kVA transformers)` : `New MDB${r.tx ? ` (${txt.plain(r.tx.kva)} kVA transformer)` : ''}`}</option>
                 {mains.filter((b) => !laMdbs.includes(b.id)).map((b) => <option key={b.id} value={b.id}>{b.id} — {b.name}</option>)}
               </select>
               <button className="chip primary" onClick={createMdb} title="One feeder per load category and custom load: connected kW and diversity as load and demand factor; generator-backed loads marked essential. One MDB per duty transformer, demand balanced over them">
-                {picked ? `Add feeders to ${picked}` : laMdbs.length ? 'Update MDB feeders' : r.tx && r.tx.duty > 1 ? `Create ${r.tx.duty} MDBs + feeders` : 'Create MDB + feeders'}
+                {mdbLabel}
               </button>
               <span className="sp" />
               {a.inReport
