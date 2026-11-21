@@ -72,6 +72,8 @@ import RoomLightingPanel, { lightingOf, LUX_START, type LuxSettings } from './Ro
 import { placeRoomLights } from '../../model/roomLights';
 import RoomDeviceTemplatePanel from './RoomDeviceTemplatePanel';
 import { approveLvRoomTemplate, proposeLvRoomTemplate, type RoomDeviceTemplateKind, type RoomDeviceTemplateScope } from '../../model/roomDeviceTemplate';
+import ContainmentSegmentPanel from './ContainmentSegmentPanel';
+import { checkLvContainment, type ContainmentSegmentCheck } from '../../model/cadContainmentCheck';
 import { approveElvRoomTemplate, proposeElvRoomTemplate } from '../../components/elv/elvRoomTemplate';
 import EmergencyPanel, { EM_PROMPT, EM_START, emFitting, type EmSettings } from './EmergencyPanel';
 import LvRoutePlannerPanel, { type LvRouteMode } from './LvRoutePlannerPanel';
@@ -152,6 +154,7 @@ const PROMPT: Record<CadTool, string> = {
   none: 'Click an object to see what it is.',
   dist: 'DI  Specify first point:',
   area: 'AREA  Specify first corner point or [Object]:',
+  containment: 'CONTAINMENTCHECK  Select an LV cable-tray segment:',
   room: 'ROOM  Click inside a room (its outline comes from the walls):',
   trace: 'TRACE  Specify first corner of the room:',
   name: 'NAME  Click the room name on the drawing:',
@@ -411,6 +414,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [roomTemplateLighting, setRoomTemplateLighting] = useState('');
   const [roomTemplatePower, setRoomTemplatePower] = useState('');
   const [roomTemplateReplace, setRoomTemplateReplace] = useState(true);
+  // LV containment check: a selected drawn tray segment. The bounded results exist only while this tool is active.
+  const [containmentSegment, setContainmentSegment] = useState<string | null>(null);
   // Emergency (EM): the escape routes, points of emphasis and open-area rooms marked (metres), kept until Place or Cancel.
   const [em, setEm] = useState<{ routes: Pt[][]; points: { at: Pt; kind: EmphasisKind }[]; rooms: string[] }>({ routes: [], points: [], rooms: [] });
   const [emSet, setEmSet] = useState<EmSettings>(EM_START);
@@ -567,7 +572,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [showXR, setShowXR] = useState(false);
   const [xDraft, setXDraft] = useState<CadRef | null>(null);
   const [xClip, setXClip] = useState<{ name: string; outline: boolean } | null>(null);
-  if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); setRoomTemplateRoom(null); setEm({ routes: [], points: [], rooms: [] }); setLvRoutePlan(null); setLvRouteSelected(0); setPicked([]); }
+  if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); setRoomTemplateRoom(null); setContainmentSegment(null); setEm({ routes: [], points: [], rooms: [] }); setLvRoutePlan(null); setLvRouteSelected(0); setPicked([]); }
   const input = useRef<HTMLInputElement>(null);
   const last = rememberedDrawing(project.id);
   const units = planScale(project, view?.file, view?.info.units);
@@ -657,7 +662,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'none') { if (takenRef.current?.seen) cancelTakeOver(); }
     else if (pickedDw.length && TAKE_OVER_TOOLS.includes(tool)) { takeOverForTool(); return; }
     const pre = preset.current;
-    setPoints(pointsNext.current ?? []); pointsNext.current = null; setObjectMode(false); setLuxRoom(luxNext.current); luxNext.current = null; setRoomTemplateRoom(null); setLvRoutePlan(null); setLvRouteSelected(0); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
+    setPoints(pointsNext.current ?? []); pointsNext.current = null; setObjectMode(false); setLuxRoom(luxNext.current); luxNext.current = null; setRoomTemplateRoom(null); setContainmentSegment(null); setLvRoutePlan(null); setLvRouteSelected(0); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
     setCloudPoly(false); setCloudAsk(false); setEllAxis(false); setCircleDia(false);
     setEdStep(pre); preset.current = null; setStretchBox(null); const mp = mpNext.current; mpNext.current = null; setMpFrom(mp);
     const first = picked.some((k) => k.startsWith('sk:')) || !!cad.selected?.startsWith('sk:') || ((tool === 'mirror' || tool === 'array') && pickedDw.length > 0);
@@ -879,6 +884,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const roomTemplateOf = tool === 'roomtemplate' ? buildingInfoOf(project).rooms.find((r) => r.id === roomTemplateRoom) : undefined;
   const lvRoomTemplate = useMemo(() => (roomTemplateOf && roomTemplateScope !== 'elv' ? proposeLvRoomTemplate(project, roomTemplateOf, roomTemplateKind) : undefined), [project, roomTemplateOf?.id, roomTemplateKind, roomTemplateScope]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the selected room
   const elvRoomTemplate = useMemo(() => (roomTemplateOf && roomTemplateScope !== 'lv' ? proposeElvRoomTemplate(roomTemplateOf, roomTemplateKind) : undefined), [project, roomTemplateOf?.id, roomTemplateKind, roomTemplateScope]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the selected room
+  const containmentCheck = useMemo(() => tool === 'containment'
+    ? checkLvContainment(project, sketch)
+    : { segments: [], truncated: false, checkedRoutes: 0, issues: 0 }, [tool, project, sketch]);
   const roomTemplateGhosts: CanvasDevice[] = tool !== 'roomtemplate' ? [] : (() => {
     const out: CanvasDevice[] = [];
     const add = (at: Pt[], key: string, symbol: { shape: string; text: string; plan?: string; tag?: string }, elv = false) => at.forEach(([x, y], i) => out.push({ key: `${key}${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: symbol.shape, text: symbol.text, ...(symbol.plan ? { plan: symbol.plan, tag: symbol.tag } : {}), label: '', elv, ghost: true }));
@@ -1856,6 +1864,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       change(next, `RDT  ${placed} device${placed === 1 ? '' : 's'} approved in ${roomTemplateOf.name}${lvPlaced && elvPlaced ? ` (${lvPlaced} LV, ${elvPlaced} ELV)` : ''}${removed ? ` · ${removed} replaced` : ''} · ⌘Z to undo`);
       setRoomTemplateRoom(null);
     } catch (e) { cad.say(`RDT  ${e instanceof Error ? e.message : String(e)}`); }
+  }
+  /** Applies a single-tier recommendation to the drawn run; multi-tier recommendations stay in the tray schedule. */
+  function applyContainmentSize(segment: ContainmentSegmentCheck) {
+    if (!view || !segment.recommendedWidthMm || segment.recommendedTiers !== 1) return;
+    const item = sketch.find((candidate) => candidate.id === segment.id && candidate.tray);
+    if (!item?.tray || item.tray.widthMm === segment.recommendedWidthMm) return;
+    change(updateSketch(project, view.file, { ...item, tray: { ...item.tray, widthMm: segment.recommendedWidthMm } }), `CONTAINMENTCHECK  ${segment.name} changed to ${segment.recommendedWidthMm} mm · ⌘Z to undo`);
   }
   /** Emergency: the escape route being drawn becomes one of the routes. */
   function finishRoute() {
@@ -3216,6 +3231,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'xattach') { if (xDraft) setXDraft({ ...xDraft, at }); cad.setTool('none'); return; }
     if (tool === 'copybase') { copyClip(at); cad.setTool('none'); return; }
     if (tool === 'paste') { if (pasting) placeClip(pasting, at); setPasting(null); cad.setTool('none'); return; }
+    if (tool === 'containment') {
+      const tray = hitAt(pickable.filter((item) => item.tray), at, pickR * pixel);
+      const segment = tray && containmentCheck.segments.find((candidate) => candidate.id === tray.id);
+      if (!segment) { cad.say('CONTAINMENTCHECK  No checked cable-tray segment there. Select an LV cable-tray segment:'); return; }
+      setContainmentSegment(segment.id);
+      cad.say(`CONTAINMENTCHECK  ${segment.name}${segment.routeName ? ` · Route ${segment.routeName}` : ''}: ${segment.status === 'within-limit' ? 'within limit' : segment.status === 'overloaded' ? 'overloaded' : 'review'}.`);
+      return;
+    }
     if (tool === 'zoomwin') {
       if (!last) { setPoints([at]); cad.say('ZOOM  Opposite corner:'); return; }
       zoomTo({ kind: 'window', a: last, b: at }); setPoints([]); cad.setTool('none'); return;
@@ -4808,7 +4831,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
-            <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} cursorMode={cursorMode} hover={hover} cutAway={cutPiece && edgeLine ? [{ ...cutPiece, id: edgeLine.id }] : undefined} meets={addPiece ? [addPiece[1]] : undefined} shadowDevices={shadow?.devs.length ? shadow.devs : undefined} movingPoints={stretchLook?.pts} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap, pixel) => setCursor({ at, snap, pixel })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={[...pickedSk.map((it) => it.id), ...(stretchLook?.sk.map((it) => it.id) ?? [])]} extraSnaps={snapExtra} preview={[...preview, ...approvedElvRoutes, ...activeRoutePreview, ...emRoutes, ...(grip && cursor.at ? srcAll.filter((x) => x.id === grip.id).map((x) => gripMoved(x, grip.i, cursor.at!)) : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={routeLabels} covers={elv?.covers} gaps={elv?.gaps}
+            <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} cursorMode={cursorMode} hover={hover} cutAway={cutPiece && edgeLine ? [{ ...cutPiece, id: edgeLine.id }] : undefined} meets={addPiece ? [addPiece[1]] : undefined} shadowDevices={shadow?.devs.length ? shadow.devs : undefined} movingPoints={stretchLook?.pts} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap, pixel) => setCursor({ at, snap, pixel })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={[...pickedSk.map((it) => it.id), ...(stretchLook?.sk.map((it) => it.id) ?? []), ...(tool === 'containment' && containmentSegment ? [containmentSegment] : [])]} extraSnaps={snapExtra} preview={[...preview, ...approvedElvRoutes, ...activeRoutePreview, ...emRoutes, ...(grip && cursor.at ? srcAll.filter((x) => x.id === grip.id).map((x) => gripMoved(x, grip.i, cursor.at!)) : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={routeLabels} covers={elv?.covers} gaps={elv?.gaps}
               numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || ((tool === 'mleaderalign' || tool === 'mleadercollect') && ml?.step === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={gripList} hotGrip={gripOf(hotGrip)} pickedObjects={pickedDwIds} onGripStart={(k) => setGrip(gripList[k] ? { id: gripList[k].id, i: gripList[k].i } : null)}
               onGripEnd={(k, at, moved) => {
@@ -4951,6 +4974,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               </div>
               <Fittings fittings={fittings} title="Fittings on this plan" />
             </>
+          )}
+          {tool === 'containment' && view && (
+            <ContainmentSegmentPanel result={containmentCheck} selectedId={containmentSegment} onSelect={(id) => { setContainmentSegment(id); cad.say(`CONTAINMENTCHECK  ${containmentCheck.segments.find((segment) => segment.id === id)?.name ?? id} selected.`); }}
+              onApply={applyContainmentSize} onOpenAssignments={() => { onShow?.({ to: 'cable-tray' }); cad.say('CONTAINMENTCHECK  Cable-tray assignments opened.'); }} />
           )}
           {(tool === 'cable' || tool === 'link') && view && (
             <>

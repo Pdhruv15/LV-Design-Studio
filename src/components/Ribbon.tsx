@@ -1010,6 +1010,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ],
       [
         cadTool('tray', 'Cable tray', Rows3, 'Draw a cable tray run (CT): its points, Enter to finish, at the width chosen; the tray route can be assigned later'),
+        sm(cadTool('containment', 'Containment check', ListChecks, 'Check the LV cable loading of each tray segment on this drawing, on demand and within fixed memory limits (CC)')),
         cadTool('cable', 'Cable route', Cable, 'Draw the route of a cable (CR): choose the cable, click its points, Enter to finish'),
         sm(cadTool('link', 'Link route', Route, 'Click a line or polyline of the drawing: it becomes the chosen cable\'s route (LR)')),
         sm({ label: 'Place board', icon: CircuitBoard, title: 'Place a board on the plan: its room, level and position (Add device → DB)', onClick: () => a.cad?.onPlaceBoard(), active: a.cad?.placingBoard, disabled: !a.cad?.hasDrawing }),
