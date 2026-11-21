@@ -1,6 +1,6 @@
 # Drawing size limit in Design CAD (2026-11-22)
 
-Status: **proposed**, waiting for the user's decisions L1–L3. Nothing is built.
+Status: **approved 2026-11-22** ("go with recommendation"): L1 option 2, L2 yes, L3 yes. Built in PR 757 (v2.253).
 
 Step 3 of the drawing speed work (see `Native drawing format - 2026-11-21.md`). Steps 1–2 are done: PR 752 made opening up to 3.6 times faster, and PR 754 removed an unused reader.
 
@@ -37,3 +37,14 @@ In every option the message stays when a drawing is still cut off. Its wording c
 - **L2.** Can a hidden test window time zoomed-out frames with the test drawings only (no app, no user files, offline)? (Recommended: yes, before raising the limit.) Otherwise the user tries a large drawing in the app after the build.
 - **L3.** Say how much is shown in the "part of it shown" message? (Recommended: yes.)
 - **Question:** when the 3.16 MB drawing was opened, did the command line say "(very large: part of it shown)"?
+
+## Built (PR 757, v2.253)
+
+- The limit is 8,000,000 segments. The 3 MB test DWG is shown in full; the 10 MB one at 53 % ("very large: 53 % shown").
+- Zoomed-out frames, timed at 1920 × 1080 in a hidden offline window with the test drawings only (Apple M2):
+
+  | Test DWG | every segment | zoomed-out copy | extra build at open |
+  |---|---:|---:|---:|
+  | 1 MB (1.48 M) | 40 ms | 7 ms | 44 ms |
+  | 3 MB (4.47 M) | 120 ms | 14 ms | 133 ms |
+  | 10 MB (8 M) | 202 ms | 19 ms | 188 ms |
