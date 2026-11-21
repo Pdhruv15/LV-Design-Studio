@@ -62,6 +62,8 @@ export interface LoadAssessmentBasis {
   areaM2: number;
   /** Outdoor spaces: outside the GFA, not in the total. */
   outdoorM2: number;
+  /** The rows' Cooling W/m² are the A/C's electrical load, not a cooling load. */
+  acElectrical: boolean;
   services: { service: string; selection: string; kw: number }[];
   notSelected: string[];
   categories: { label: string; connectedKw: number; diversity?: number; demandKw?: number; generatorPct?: number }[];
@@ -221,7 +223,7 @@ export function loadAssessmentBasis(a: LoadAssessment): LoadAssessmentBasis {
   const services: LoadAssessmentBasis['services'] = [];
   const notSelected: string[] = [];
   const add = (on: boolean, service: string, selection: string, kw: number) => (on ? services.push({ service, selection, kw }) : notSelected.push(service));
-  add(s.cool !== 'none', 'Cooling', `${COOL_SYSTEMS.find((c) => c.value === s.cool)?.label ?? s.cool}, ${n(f.cool[s.cool] ?? 0, 2)} kW electrical per kW thermal`, r.services.cool);
+  add(s.cool !== 'none', 'Cooling', `${COOL_SYSTEMS.find((c) => c.value === s.cool)?.label ?? s.cool}, ${a.acBasis === 'electrical' ? 'A/C densities are the electrical load' : `${n(f.cool[s.cool] ?? 0, 2)} kW electrical per kW thermal`}`, r.services.cool);
   add(s.dhw !== 'none', 'Domestic hot water', `${DHW_SYSTEMS.find((c) => c.value === s.dhw)?.label ?? s.dhw}, ${n1(f.dhw[s.dhw] ?? 0)} W/m² of ${s.dhw === 'local' ? 'GFA' : 'dwelling areas'}`, r.services.dhw);
   add(s.cook === 'elec', 'Cooking', `Electric, ${n1(f.cook)} W/m² of dwelling areas`, r.services.cook);
   add(r.liftCount > 0, 'Lifts', `${r.liftCount} lift${r.liftCount === 1 ? '' : 's'}, ${s.lifts === 'auto' ? 'automatic from floors' : 'set count'}, ${n1(a.floors > 12 ? f.liftKwHigh : f.liftKw)} kW each`, r.services.lifts);
@@ -237,7 +239,7 @@ export function loadAssessmentBasis(a: LoadAssessment): LoadAssessmentBasis {
   return {
     typeLabel: a.typeLabel, gfaM2: a.gfaM2, floors: a.floors, parkingM2: a.parkingM2, vaBand: a.vaBand, essentialPct: a.essentialPct,
     rows: a.rows.map((x) => ({ label: isCooled(x) ? x.label : `${x.label} (${LA_LOCATIONS.find((l) => l.value === x.location)!.label.toLowerCase()})`, pct: rowPct(a, x), areaM2: rowArea(a, x), ltg: x.ltg, pwr: x.pwr, clg: isCooled(x) ? x.clg : 0, dwelling: !!x.dwelling })),
-    pctTotal: r.pctTotal, areaM2: r.areaM2, outdoorM2: r.outdoorM2, services, notSelected,
+    pctTotal: r.pctTotal, areaM2: r.areaM2, outdoorM2: r.outdoorM2, acElectrical: a.acBasis === 'electrical', services, notSelected,
     categories: r.categories.map((c) => ({
       label: c.key.startsWith('custom:') ? `${c.label} (custom)` : c.label, connectedKw: c.connectedKw,
       diversity: c.diversity || undefined, demandKw: c.diversity ? c.demandKw : undefined, generatorPct: c.generatorShare > 0 ? c.generatorShare * 100 : undefined
@@ -346,7 +348,7 @@ function loadAssessmentHtml(l: LoadAssessmentBasis): string {
     <tr><th>Share of HVAC and special services on the generator</th><td>${n(l.essentialPct)} %</td></tr>
   </tbody></table>
   <h3>Area schedule</h3>
-  <table><thead><tr><th>Space</th><th>% of GFA</th><th>Area (m²)</th><th>Lighting (W/m²)</th><th>Small power (W/m²)</th><th>Cooling, thermal (W/m²)</th><th>Dwelling</th></tr></thead><tbody>${l.rows.map((x) =>
+  <table><thead><tr><th>Space</th><th>% of GFA</th><th>Area (m²)</th><th>Lighting (W/m²)</th><th>Small power (W/m²)</th><th>${l.acElectrical ? 'A/C, electrical (W/m²)' : 'Cooling, thermal (W/m²)'}</th><th>Dwelling</th></tr></thead><tbody>${l.rows.map((x) =>
     `<tr><td>${esc(x.label)}</td><td>${n(x.pct, 1)}</td><td>${n(x.areaM2)}</td><td>${n1(x.ltg)}</td><td>${n1(x.pwr)}</td><td>${n(x.clg)}</td><td>${x.dwelling ? 'Yes' : ''}</td></tr>`).join('')}
     <tr class="total"><td>${l.outdoorM2 ? 'Total without outdoor spaces' : 'Total'}</td><td>${n(l.pctTotal, 1)}</td><td>${n(l.areaM2)}</td><td colspan="4"></td></tr></tbody></table>
   ${Math.abs(l.pctTotal - 100) > 0.5 ? `<p class="warning">The area schedule adds up to ${n(l.pctTotal, 1)} % of the GFA (${n(l.areaM2)} of ${n(l.gfaM2)} m²).</p>` : ''}

@@ -4,8 +4,8 @@ import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import { CheckedNum, Page, type NumRule } from '../ui';
 import {
-  assess, buildingFigures, COOL_SYSTEMS, DEFAULT_SPACES, DHW_SYSTEMS, isCooled, LA_LOCATIONS, laSpaces, laTypes, loadLaLibrary, newAssessment, rowArea, rowPct,
-  saveLaLibrary, setAreaMode, typeFromAssessment, type CategoryKey, type LaBuildingType, type LaCustomLoad, type LaFactors, type LaLibrary, type LaRow,
+  assess, buildingFigures, clgInBasis, COOL_SYSTEMS, DEFAULT_SPACES, DHW_SYSTEMS, isCooled, LA_LOCATIONS, laSpaces, laTypes, loadLaLibrary, newAssessment, rowArea, rowPct,
+  saveLaLibrary, setAcBasis, setAreaMode, typeFromAssessment, type CategoryKey, type LaBuildingType, type LaCustomLoad, type LaFactors, type LaLibrary, type LaRow,
   type LaLocation, type LaServices, type LaSupply, type LoadAssessment
 } from '../../calc/loadAssessment';
 import { laLink } from '../../calc/loadAssessmentLink';
@@ -123,6 +123,8 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
   const g = a.gfaM2;
   const mdbLabel = picked ? `Add feeders to ${picked}` : laMdbs.length ? 'Update MDB feeders' : r.tx && r.tx.duty > 1 ? `Create ${r.tx.duty} MDBs + feeders` : 'Create MDB + feeders';
   const showB = !!link && link.buildingRows.length > 0;
+  const electrical = a.acBasis === 'electrical';
+  const coolFactor = a.factors.cool[a.services.cool] ?? 0;
   const pctBad = Math.abs(r.pctTotal - 100) > 0.5;
   const maxDemand = Math.max(1, ...r.categories.map((c) => c.demandKw));
   const svcKw = (k: string) => (r.services[k] ? <em>{txt.power(r.services[k])} kW</em> : null);
@@ -174,9 +176,14 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
                 <button className={a.areaMode === 'pct' ? 'on' : ''} onClick={() => set(setAreaMode(a, 'pct'))}>% of GFA</button>
                 <button className={a.areaMode === 'm2' ? 'on' : ''} onClick={() => set(setAreaMode(a, 'm2'))}>m²</button>
               </div>
+              <span className="m">A/C figures</span>
+              <div className="seg" title="Cooling load: thermal W/m², turned into electrical kW by the cooling system's factor. Electrical load: the A/C's electrical W/m², used as typed. Switching converts the figures, so the load stays the same">
+                <button className={electrical ? '' : 'on'} onClick={() => set(setAcBasis(a, 'thermal'))}>Cooling load</button>
+                <button className={electrical ? 'on' : ''} onClick={() => set(setAcBasis(a, 'electrical'))}>Electrical load</button>
+              </div>
             </div>
             <table className="bi-table la-table la-area">
-              <thead><tr><th>Space</th><th title="Only an indoor, cooled space carries a cooling load; an outdoor space is outside the GFA">Location</th><th>{a.areaMode === 'pct' ? '% GFA' : 'Area m²'}</th><th>Area m²</th>{showB && <th title="Area of this space in Building information: rooms and flats above ground">Building m²</th>}<th>Lighting W/m²</th><th>Power W/m²</th><th title="Thermal">Cooling W/m²</th><th title="Counts for water heating and cooking">Dwelling</th><th /></tr></thead>
+              <thead><tr><th>Space</th><th title="Only an indoor, cooled space carries a cooling load; an outdoor space is outside the GFA">Location</th><th>{a.areaMode === 'pct' ? '% GFA' : 'Area m²'}</th><th>Area m²</th>{showB && <th title="Area of this space in Building information: rooms and flats above ground">Building m²</th>}<th>Lighting W/m²</th><th>Power W/m²</th><th title={electrical ? 'Electrical load of the air conditioning, used as typed' : 'Thermal'}>{electrical ? 'A/C W/m²' : 'Cooling W/m²'}</th><th title="Counts for water heating and cooking">Dwelling</th><th /></tr></thead>
               <tbody>
                 {a.rows.map((row, i) => (
                   <tr key={`${row.id}-${i}`}>
@@ -205,23 +212,24 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
             {showB && link.spaces.length > a.rows.length && <div className="m">In Building only: {link.spaces.slice(a.rows.length).map((x) => `${x.label} ${txt.size(x.buildingM2)} m²`).join(', ')}</div>}
             <div className="m">Power is sockets and small power. A space that is not cooled or is outdoors carries no cooling load. An outdoor space is outside the GFA, so it is not in the total. The same space can be listed twice with two locations.</div>
             <div className="bi-actions">
-              <select className="bi-sel" value="" onChange={(e) => { const s = spaces.find((x) => x.id === e.target.value); if (s) patch({ rows: [...a.rows, { ...s, ...(a.areaMode === 'pct' ? { pct: 0 } : { areaM2: 0 }) }] }); }}>
+              <select className="bi-sel" value="" onChange={(e) => { const s = spaces.find((x) => x.id === e.target.value); if (s) patch({ rows: [...a.rows, { ...s, clg: clgInBasis(s.clg, lib.spaces?.length ? lib.spacesAcBasis : undefined, a.acBasis, coolFactor), ...(a.areaMode === 'pct' ? { pct: 0 } : { areaM2: 0 }) }] }); }}>
                 <option value="">+ Space from library…</option>
                 {spaces.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
               <button className="chip" onClick={() => patch({ rows: [...a.rows, { id: uid('sp'), label: 'Custom space', ltg: 8, pwr: 20, clg: 100, ...(a.areaMode === 'pct' ? { pct: 0 } : { areaM2: 0 }) }] })}>+ Custom space</button>
               <span className="sp" />
               <button className="chip" title="Keep these spaces' densities in your space library (added to or replacing the same names)" onClick={() => {
-                const merged = [...spaces];
+                // Library entries kept in the other A/C basis move to this assessment's, so one library has one basis.
+                const merged = spaces.map((x) => ({ ...x, clg: clgInBasis(x.clg, lib.spaces?.length ? lib.spacesAcBasis : undefined, a.acBasis, coolFactor) }));
                 for (const row of a.rows) {
                   const s = { id: row.id, label: row.label, ltg: row.ltg, pwr: row.pwr, clg: row.clg, dwelling: row.dwelling, location: row.location };
                   // The same space at another location (indoor and outdoor seating) is a library entry of its own.
                   const i = merged.findIndex((x) => (x.id === row.id && (x.location ?? 'in') === (row.location ?? 'in')) || x.label === row.label);
                   if (i >= 0) merged[i] = s; else merged.push(s);
                 }
-                setLib({ ...lib, spaces: merged }, `Saved ${a.rows.length} space densities to your library`);
+                setLib({ ...lib, spaces: merged, spacesAcBasis: a.acBasis }, `Saved ${a.rows.length} space densities to your library`);
               }}>Save densities as my library</button>
-              {lib.spaces?.length ? <button className="chip" onClick={() => setLib({ ...lib, spaces: undefined }, `Space library back to the ${DEFAULT_SPACES.length} placeholders`)}>Placeholder spaces</button> : null}
+              {lib.spaces?.length ? <button className="chip" onClick={() => setLib({ ...lib, spaces: undefined, spacesAcBasis: undefined }, `Space library back to the ${DEFAULT_SPACES.length} placeholders`)}>Placeholder spaces</button> : null}
             </div>
           </section>
 
@@ -233,8 +241,8 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
               <div className="la-card">
                 <div className="la-card-t">Cooling system{svcKw('cool')}</div>
                 <select className="bi-sel" value={a.services.cool} onChange={(e) => setSvc({ cool: e.target.value as LaServices['cool'] })}>{COOL_SYSTEMS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select>
-                <div className="m">Cooling W/m² × kW electrical per kW thermal</div>
-                {fac('kW-e / kW-th', a.factors.cool[a.services.cool], (v) => setFac({ cool: { ...a.factors.cool, [a.services.cool]: v } }), 0.01)}
+                <div className="m">{electrical ? 'A/C W/m² are the electrical load: the system factor is not applied' : 'Cooling W/m² × kW electrical per kW thermal'}</div>
+                {!electrical && fac('kW-e / kW-th', a.factors.cool[a.services.cool], (v) => setFac({ cool: { ...a.factors.cool, [a.services.cool]: v } }), 0.01)}
               </div>
               <div className="la-card">
                 <div className="la-card-t">Domestic hot water{svcKw('dhw')}</div>

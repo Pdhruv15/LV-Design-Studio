@@ -46,4 +46,21 @@ describe('Load assessment: where a space is', () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     expect((onChange.mock.calls[0][0] as Project).loadAssessment!.rows[0].location).toBe('oo');
   });
+
+  it('switches the A/C figures to the electrical load, converting them', async () => {
+    const onChange = vi.fn();
+    const project: Project = { ...sampleProject, building: undefined, loadAssessment: a };
+    await act(async () => { root = createRoot(host); root.render(<LoadAssessmentView project={project} onChange={onChange} onStatus={() => {}} />); });
+    await until('the A/C switch', () => text().includes('Electrical load'));
+    expect(text()).toContain('Cooling W/m²');
+    const b = [...document.querySelectorAll('button')].find((x) => x.textContent === 'Electrical load')!;
+    await act(async () => b.click());
+    const next = (onChange.mock.calls[0][0] as Project).loadAssessment!;
+    // 200 W/m² thermal × the VRF factor 0.3.
+    expect(next).toMatchObject({ acBasis: 'electrical', rows: [{ clg: 60 }, { clg: 60 }] });
+    act(() => root.unmount());
+    await act(async () => { root = createRoot(host); root.render(<LoadAssessmentView project={{ ...project, loadAssessment: next }} onChange={onChange} onStatus={() => {}} />); });
+    await until('the A/C heading', () => text().includes('A/C W/m²'));
+    expect(text()).toContain('the system factor is not applied');
+  });
 });

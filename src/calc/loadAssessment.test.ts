@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { assess, buildingFigures, DEFAULT_TYPES, newAssessment, rowArea, rowsFromRooms, setAreaMode, typeFromAssessment, type LoadAssessment } from './loadAssessment';
+import { assess, buildingFigures, clgInBasis, DEFAULT_TYPES, newAssessment, rowArea, rowsFromRooms, setAcBasis, setAreaMode, typeFromAssessment, type LoadAssessment } from './loadAssessment';
+import { loadAssessmentBasis } from '../docs/designBasis';
 import { sampleProject } from '../data/sampleProject';
 import { defaultServices } from './buildingDesign';
 import type { BuildingInfo, Project } from '../types';
@@ -98,6 +99,43 @@ const twoBuildings: BuildingInfo = {
   ]
 };
 const withBuildings = (building: BuildingInfo): Project => ({ ...sampleProject, building });
+
+describe('A/C figures as a cooling load or as an electrical load', () => {
+  it('an electrical figure is used as typed, with no system factor', () => {
+    const a = res({ acBasis: 'electrical' });
+    const clg = a.rows.reduce((x, row) => x + (rowArea(a, row) * (row.location ? 0 : row.clg)) / 1000, 0);
+    expect(assess(a).services.cool).toBeCloseTo(clg);
+    // The cooling system no longer changes the load, but "No cooling" still means none.
+    expect(assess({ ...a, services: { ...a.services, cool: 'dc' } }).services.cool).toBeCloseTo(clg);
+    expect(assess({ ...a, services: { ...a.services, cool: 'none' } }).services.cool).toBe(0);
+  });
+
+  it('switching the basis converts the figures, so the HVAC load stays the same', () => {
+    const a = res();
+    const e = setAcBasis(a, 'electrical');
+    expect(e.acBasis).toBe('electrical');
+    // Apartment: 110 W/m² thermal × the VRF factor 0.3.
+    expect(e.rows.find((r) => r.id === 'apt')!.clg).toBe(33);
+    expect(assess(e).services.cool).toBeCloseTo(assess(a).services.cool);
+    const back = setAcBasis(e, 'thermal');
+    expect(back.acBasis).toBeUndefined();
+    expect(back.rows.find((r) => r.id === 'apt')!.clg).toBe(110);
+    expect(setAcBasis(a, 'thermal')).toBe(a);
+    // With no factor to convert with ("No cooling"), the figures are kept as typed.
+    expect(clgInBasis(110, 'thermal', 'electrical', 0)).toBe(110);
+  });
+
+  it('a saved type and the reports remember the basis', () => {
+    const e = setAcBasis(res(), 'electrical');
+    const t = typeFromAssessment(e, 'my1', 'My tower');
+    expect(t.acBasis).toBe('electrical');
+    expect(newAssessment(t, {}, lib).acBasis).toBe('electrical');
+    expect(newAssessment(DEFAULT_TYPES[0], { acBasis: 'electrical' }, lib).acBasis).toBeUndefined();
+    expect(loadAssessmentBasis(e).acElectrical).toBe(true);
+    expect(loadAssessmentBasis(e).services[0].selection).toContain('A/C densities are the electrical load');
+    expect(loadAssessmentBasis(res()).acElectrical).toBe(false);
+  });
+});
 
 describe('where a space is', () => {
   const rows = [
