@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.251', date: '2026-11-21',
+    items: [
+      { title: 'Design CAD: Save As starts with DWG', text: 'Design CAD → Drafting settings (DS) → Saving: "Save As format" is now DWG unless you choose otherwise, also for a drawing received as DXF. A format you chose before is kept, and a drawing saved before still starts with the format of its last copy.', action: 'cad', actionLabel: 'Open Design CAD' },
+    ]
+  },
+  {
     version: '2.250', date: '2026-11-21',
     items: [
       { title: 'Tx & Gen sizing shows the load assessment and the space plan beside the study', text: 'Concept → Tx & Gen sizing now starts with a strip that lists future growth, max transformer loading, the size list and the generator margin as the load assessment, the space plan and this study have them, with what differs marked. It is for information: the concept figures and the design figures may differ on purpose, so nothing is changed for you, and "Keep my settings" hides the notice until one of them changes. The "Transformers: concept to design" table is on this page too, with a row for this study (network demand with growth, at the loading limit), and the transformers table has an "In the plan" column with the size and loading the space plan gives each board.' },
