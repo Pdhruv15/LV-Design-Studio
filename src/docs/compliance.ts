@@ -58,7 +58,7 @@ export function buildResults(data: CalcData, scope: Scope): Results {
     rows: [[fig.power(gen.demandKva), fig.power(Math.max(gen.runningDesignKva, gen.startDesignKva)), gen.recommendedKva ? `${gen.recommendedKva} kVA` : 'Above the largest set', gen.installedKva ?? 'Not defined',
       C(gen.installedOk === false || !gen.recommendedKva ? 'bad' : gen.installedKva ? 'ok' : 'data')]] });
   equipment.push({ title: 'Distribution boards (MDB, SMDB, DB, MCC)', headers: ['Board', 'Type', 'Bus rating (A)', 'Demand (A)', 'Loading', 'Ik″ (kA)', 'Status'],
-    rows: sums.map((s) => [s.board.id, s.board.kind ?? (s.board.upstreamId ? 'DB' : 'MDB'), s.board.ratedCurrentA ?? 'Not defined', fig.current(s.currentA), s.loadingPct === undefined ? '—' : `${fig.loading(s.loadingPct)} %`, fig.fault(s.faultKA),
+    rows: sums.map((s) => [s.board.id, s.board.kind ?? (s.board.upstreamId ? 'DB' : 'MDB'), boardRatedA(s.board) ?? 'Not defined', fig.current(s.currentA), s.loadingPct === undefined ? '—' : `${fig.loading(s.loadingPct)} %`, fig.fault(s.faultKA),
       C(s.loadingStatus ?? 'data')]) });
   if (ups.length) equipment.push({ title: 'UPS', headers: ['UPS', 'Board', 'Load (kVA)', 'Selected (kVA)', 'Loading', 'Autonomy (min)', 'Status'],
     rows: ups.map(({ u, r }) => [u.name, u.boardId ?? '—', fig.power(r.loadKva), r.upsKva ?? 'Above the data', r.loadingPct !== undefined ? `${fig.loading(r.loadingPct)} %` : '—', u.autonomyMin,

@@ -2,7 +2,7 @@ import { evaluateProject, resistanceFactor, type Status } from '../calc/electric
 import { evaluateEarthingAll } from '../calc/earthing';
 import { evaluateSelectivity } from '../calc/protection';
 import { cableDataNotice } from '../calc/cableTable';
-import { CALC_DISCLAIMER, STATUS_TEXT } from '../calc/statusText';
+import { CALC_DISCLAIMER, REPORT_STATUS_TEXT, type ReportStatus } from '../calc/statusText';
 import { settingsOf } from '../calc/sizing';
 import { perProject, withNetwork } from '../calc/network/index';
 import type { Project, StudyReportKind } from '../types';
@@ -26,7 +26,7 @@ import { mvNetworkText } from '../calc/hvSupply';
 /** The studies the calculation report carries, in order. */
 export const CALC_REPORT_STUDIES: StudyReportKind[] = ['load', 'sizing', 'cable', 'lf', 'sc', 'earth', 'disc', 'pfc', 'schedules'];
 
-const LABEL: Record<Status, string> = STATUS_TEXT;
+const LABEL: Record<ReportStatus, string> = REPORT_STATUS_TEXT;
 const worst = (xs: Status[]): Status => (xs.includes('bad') ? 'bad' : xs.includes('warn') ? 'warn' : 'ok');
 const counts = (xs: Status[]) => { const t = tally(xs); return `${t.ok} pass · ${t.warn} warning · ${t.bad} fail`; };
 

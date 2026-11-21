@@ -286,7 +286,8 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
         `Disconnection per IEC 60364-4-41 Table 41.1 (TN, U0 in the 230 V band): 0.4 s for final circuits up to 63 A with socket-outlets and up to 32 A supplying fixed equipment only; 5 s for distribution circuits and other final circuits. Circuits whose purpose is not set are treated as socket-outlet circuits.${data.project.strictFinalDisconnection ? ' Project rule (stricter than the standard): every final circuit up to 63 A in 0.4 s.' : ''} Instantaneous tripping when If ≥ Ia; below that, a 5 s circuit needs the breaker's time-current curve checked. Protective conductor checked by the adiabatic equation (k = 143).`
       ],
       summary: [{ label: 'Circuits checked', value: tally(statuses), status: worst(statuses) },
-        ...(() => { const m = [...new Set(es.map((e) => e.sourceMissing).filter((x): x is string => !!x))]; return m.length ? [{ label: 'Not verified — supply loop incomplete', value: `${m.join('; ')} (Ze not assumed 0; Zs a minimum, If a maximum)`, status: 'warn' as const }] : []; })()],
+        ...(() => { const m = [...new Set(es.map((e) => e.sourceMissing).filter((x): x is string => !!x))]; return m.length ? [{ label: 'Not verified — supply loop incomplete', value: `${m.join('; ')} (Ze not assumed 0; Zs a minimum, If a maximum)`, status: 'warn' as const }] : []; })(),
+        ...(() => { const m = [...new Set(es.map((e) => e.sourceEstimated).filter((x): x is string => !!x))]; return m.length ? [{ label: 'Ze estimated from the supply fault level', value: `${m.join('; ')} (3-phase source impedance, without the return path of the supply cable: confirm Ze with the supply)` }] : []; })()],
       tables: [{
         title: 'Earth fault loop', headers: ['Circuit', 'Board', 'Breaker', 'CPC (mm²)', 'Zs (Ω)', 'Max Zs (Ω)', 'If (A)', 'Ia (A)', 'Required (s)', 'Disconnection', 'CPC min, each (mm²)', 'Result'],
         rows: es.map((e) => [tag(e.feeder), e.feeder.boardId, `${e.feeder.breakerRatingA} A ${breakerTypeOf(e.feeder)}`, e.cpcMm2, e.sourceMissing ? loopFigures(e).zs : fig.ohm(e.zsOhm), fig.ohm(e.maxZsOhm), e.sourceMissing ? (Number.isFinite(e.faultA) ? `≤ ${fig.current(e.faultA)}` : '—') : fig.current(e.faultA), fig.current(e.tripA), `${e.requiredS}${e.requiredBasis.startsWith('Project rule') ? ' (project rule)' : ''}${e.basisSupported ? '' : ' (not verified)'}`,
@@ -352,7 +353,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
 
   if (key === 'busbar') {
     const rs = (p.busRisers ?? []).filter((r) => !r.sourceBoardId || scope.all || scope.ids.has(r.sourceBoardId)).map((r) => sizeRiser(p, r));
-    const st = (x: ReturnType<typeof sizeRiser>): Status => (!x.type || x.icwOk === false ? 'bad' : x.vdTopPct > p.vdLimitPct / 2 ? 'warn' : 'ok');
+    const st = (x: ReturnType<typeof sizeRiser>): Status => (!x.type || x.icwOk === false ? 'bad' : x.icwAssumed || x.vdTopPct > p.vdLimitPct / 2 ? 'warn' : 'ok');
     const statuses = rs.map(st);
     return {
       key, title: info.title, statuses,
@@ -368,7 +369,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
         { title: 'Busbar risers', headers: ['Riser', 'From', 'Tap-offs', 'Diversity', 'Demand (kW)', 'Ib (A)', 'Breaker (A)', 'Busway', 'Area / phase (mm²)', 'Icw (kA) · fault (kA)', 'Vd top (%)', 'W × H (mm)', 'Length (m)', 'Weight (kg)', 'Result'],
           rows: rs.map((x) => [x.riser.name, x.riser.sourceBoardId ?? '—', x.tapOffs, `${x.diversity.toFixed(2)} (${x.diversityRule === 'forms' ? 'MD forms' : x.diversityRule === 'iec' ? 'IEC 61439' : 'typed'})`, fig.power(x.demandKw), fig.current(x.designA), fig.plain(x.feederBreakerA),
             x.type ? `${x.type.ratingA} A ${MATERIAL_LABEL[x.riser.material]}` : 'Above the data', x.type ? x.type.csaMm2 : '—',
-            x.type ? `${x.type.icwKa} · ${x.faultKa !== undefined ? fig.fault(x.faultKa) : '—'}` : '—', fig.pct(x.vdTopPct), x.type ? `${x.type.widthMm} × ${x.type.heightMm}` : '—', fig.fixed(x.lengthM, 1), x.weightKg !== undefined ? fig.fixed(x.weightKg, 0) : '—', S(st(x))]) },
+            x.type ? `${x.type.icwKa} · ${x.faultKa !== undefined ? `${fig.fault(x.faultKa)}${x.icwAssumed ? ' (assumed)' : ''}` : '—'}` : '—', fig.pct(x.vdTopPct), x.type ? `${x.type.widthMm} × ${x.type.heightMm}` : '—', fig.fixed(x.lengthM, 1), x.weightKg !== undefined ? fig.fixed(x.weightKg, 0) : '—', S(st(x))]) },
         ...rs.map((x) => ({ title: `${x.riser.name} — tap-offs`, headers: ['Floor', 'Board', 'Load (kW)', 'Current (A)', 'Tap-off (A)', 'Floors', 'Height (m)', 'Vd (%)'],
           rows: x.floors.map((f) => [f.floor.name, f.floor.boardId ?? '—', fig.power(f.kw), fig.current(f.currentA), f.tapOffA ?? '—', f.floor.count ?? 1, fig.fixed(f.heightM, 1), fig.pct(f.vdPct)]) }))
       ]

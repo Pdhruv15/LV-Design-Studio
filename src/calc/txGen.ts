@@ -106,6 +106,9 @@ export function transformerChecks(project: Project, board: Board, kva: number, d
   };
 }
 
+/** Boards sized when the plan names none: every first board that gets a transformer; one on an LV supply has none to size. */
+export const defaultTxBoards = (project: Project): Board[] => boardsInSupplyOrder(project).filter((b) => !b.upstreamId && !lvSupplied(b));
+
 export function sizeTransformers(project: Project, plan: TxGenPlan = txGenPlanOf(project)): TxRow[] {
   const s = settingsOf(project);
   const sizes = sizesOf(plan);
@@ -117,8 +120,7 @@ export function sizeTransformers(project: Project, plan: TxGenPlan = txGenPlanOf
     const cap = pfc?.mains.find((m) => m.boardId === id)?.plannedKvar ?? 0;
     return { p: t.demandKw, q: Math.max(0, t.demandKvar - cap), cap };
   };
-  // Default list: every first board that gets a transformer; one on an LV supply has none to size.
-  return (chosen.length ? chosen : mains.filter((b) => !lvSupplied(b))).map((b) => {
+  return (chosen.length ? chosen : defaultTxBoards(project)).map((b) => {
     const { p, q, cap } = pq(b.id);
     const demandKva = Math.hypot(p, q);
     const pf = demandKva > 0 ? p / demandKva : 1;

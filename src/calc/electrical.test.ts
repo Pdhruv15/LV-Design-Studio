@@ -232,4 +232,9 @@ describe('assumed source (no transformer data and no supply fault level)', () =>
       expect(evaluateFeeder(assumed(b, [weak]), weak).icuStatus).toBe('bad');
     }
   });
+  it('a supply fault level that is not above zero is no fault level: assumed, placeholder impedance', () => {
+    const neg = assumed({ id: 'MDB', name: 'M', supply: { faultKa: -5 } });
+    expect(sourceAssumed(neg, 'MDB')).toBe(true);
+    expect(evaluateFeeder(neg, feeder()).breakerFaultKA).toBeCloseTo(evaluateFeeder(assumed({ id: 'MDB', name: 'M' }), feeder()).breakerFaultKA, 6);
+  });
 });

@@ -1,5 +1,5 @@
 import { GENERATOR_KVA } from './sizeLists';
-import { vdEvaluator, feederRating, izEvaluator, designCurrentA, trayFactorOf, evaluateFeeder, faultCurrentKA, impedanceToBoard, runsOf, selectCableRuns, upstreamVoltageDropPct, voltageDropPct } from './electrical';
+import { vdEvaluator, feederRating, izEvaluator, designCurrentA, trayFactorOf, evaluateFeeder, faultCurrentKA, impedanceToBoard, runsOf, selectCableRuns, sourceAssumed, upstreamVoltageDropPct, voltageDropPct } from './electrical';
 import { boardTotals, loadTypeOf, systemSummary } from './summary';
 import { breakerTypeOf } from './earthing';
 import { isMotor, motorStartDipPct, runningKva, startingKva } from './motor';
@@ -276,7 +276,9 @@ export function recommend(project: Project, f: Feeder, mode: SelectionMode = 'fi
   const breakerRatingA = mode === 'fix' && minIn !== undefined && f.breakerRatingA >= minIn ? f.breakerRatingA : minIn;
   const faultKA = faultCurrentKA(impedanceToBoard(project, f.boardId), project.voltageV);
   const minIcu = nextStandard(icuSteps(), faultKA);
-  const breakerIcuKa = mode === 'fix' && f.breakerIcuKa >= faultKA ? f.breakerIcuKa : minIcu;
+  // A placeholder fault level (no source data) is no ground for a new Icu: the feeder's own stays.
+  const faultAssumed = sourceAssumed(project, f.boardId);
+  const breakerIcuKa = faultAssumed || (mode === 'fix' && f.breakerIcuKa >= faultKA) ? f.breakerIcuKa : minIcu;
   const current = breakerTypeOf(f);
   const isMcb = current === 'B' || current === 'C' || current === 'D';
   const breakerType: BreakerType =

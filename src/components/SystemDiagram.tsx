@@ -14,7 +14,7 @@ import { Sym, SYM_BOX, SYM_SCALE, type SymbolId } from '../diagram/symbolLibrary
 import { boardSymbolOf, panelSymbolOf } from '../diagram/panelBox';
 import { izText, type FeederResult, type Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
-import { failReasons, quickFixes } from '../calc/quickFix';
+import { failReasons, patchStatus, quickFixes } from '../calc/quickFix';
 import { boardLocation } from '../model/levels';
 import { boardPhaseKw } from '../calc/loadSchedule';
 import { DEWA_EXTRA_Y, ELCB_ROW, LEAF_W, layoutSystem } from '../diagram/layout';
@@ -31,7 +31,7 @@ import { upsLoadingPct } from '../calc/sizing';
 import { isMotor, starterInfo, starterOf } from '../calc/motor';
 import { sldDevices } from '../diagram/sldDevices';
 import { breakerText, cableLines, fireRatedWarning, icuText, incomerReach, incomerTexts, isolatorText, busbarLines, sparePoles, spareText, supplyReach, textWidth } from '../diagram/panelLabels';
-import { cableSizeText, faultCurrentKA, impedanceToBoard, runsOf, upstreamVoltageDropPct } from '../calc/electrical';
+import { cableSizeText, faultCurrentKA, impedanceToBoard, runsOf, sourceAssumed, upstreamVoltageDropPct } from '../calc/electrical';
 import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun, type OutageScenario } from '../calc/scenario';
 import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, supplyOf, supplyTint, SUPPLY_COLOR, SUPPLY_LEGEND, type ColorBy } from '../diagram/heatmap';
 import { evaluateEarthingAll } from '../calc/earthing';
@@ -529,7 +529,7 @@ export default function SystemDiagram({
   const icuShort = (id: string): Tag | false => {
     const f = project.feeders.find((x) => x.id === id);
     const ik = f && annotations?.boards[f.boardId]?.faultKA;
-    return !!f && ik !== undefined && f.breakerIcuKa > 0 && f.breakerIcuKa < ik && { text: `✕ Icu ${f.breakerIcuKa} < Ik ${ik.toFixed(1)} kA`, cls: 'bad' };
+    return !!f && ik !== undefined && f.breakerIcuKa > 0 && f.breakerIcuKa < ik && !sourceAssumed(project, f.boardId) && { text: `✕ Icu ${f.breakerIcuKa} < Ik ${ik.toFixed(1)} kA`, cls: 'bad' };
   };
   const boardTags = (id: string): Tag[] => {
     const a = annotations?.boards[id];
@@ -2438,7 +2438,7 @@ export default function SystemDiagram({
               <div className="hc-fix">
                 <span className="m">Quick fix:</span>
                 {fixes.map((x) => (
-                  <button key={x.label} className={`chip ${x.after.status}`} title={`After: Vd ${txt.pct(x.after.vdTotalPct)} %, Iz ${izText(x.after.ampacity)} A — ${x.after.status === 'ok' ? 'passes' : 'still to check'}`}
+                  <button key={x.label} className={`chip ${patchStatus(x.after)}`} title={`After: Vd ${txt.pct(x.after.vdTotalPct)} %, Iz ${izText(x.after.ampacity)} A — ${patchStatus(x.after) === 'ok' ? 'passes' : 'still to check'}`}
                     onClick={() => { onFixFeeder!(f.id, x.patch, x.label); setCard(null); }}>{x.label}</button>
                 ))}
               </div>

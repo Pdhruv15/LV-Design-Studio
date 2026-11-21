@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { applyTransformer, sizeGeneratorByBoards, sizeTransformers, TXGEN_DEFAULTS, typicalImpedancePct } from './txGen';
+import { applyTransformer, defaultTxBoards, sizeGeneratorByBoards, sizeTransformers, TXGEN_DEFAULTS, typicalImpedancePct } from './txGen';
 import { buildSection, scopeOf } from '../docs/studyReport';
 import type { Project } from '../types';
 
@@ -146,6 +146,10 @@ describe('transformer sizing list and first boards on an LV supply', () => {
   it('the default list leaves out a first board that has a supply and no transformer', () => {
     expect(sizeTransformers(lvProject, plan).map((r) => r.board.id)).toEqual(['MDB-1', 'MDB-2']);
     expect(sizeTransformers(twoMdbs, plan).map((r) => r.board.id)).toEqual(['MDB-1', 'MDB-2']);
+  });
+  it('defaultTxBoards is the list the sizing uses when the plan names none', () => {
+    expect(defaultTxBoards(lvProject).map((b) => b.id)).toEqual(['MDB-1', 'MDB-2']);
+    expect(defaultTxBoards(twoMdbs).map((b) => b.id)).toEqual(['MDB-1', 'MDB-2']);
   });
   it('a board the plan names stays, and a first board with neither stays in the default list', () => {
     expect(sizeTransformers(lvProject, { ...plan, txBoards: ['MDB-LV'] }).map((r) => r.board.id)).toEqual(['MDB-LV']);

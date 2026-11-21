@@ -3,7 +3,7 @@ import { factorsText } from '../calc/installation';
 import { cableSizeText } from '../calc/electrical';
 import { breakerTypeOf } from '../calc/earthing';
 import { REPORT_STATUS_TEXT, STATUS_TEXT } from '../calc/statusText';
-import { boardSummary } from '../calc/summary';
+import { boardRatedA, boardSummary } from '../calc/summary';
 import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf } from '../calc/txGen';
 import { settingsOf, type Feeder } from '../types';
 import type { CalcData, Cell, Scope, Section } from './studyReport';
@@ -168,7 +168,7 @@ export function distributionSection(data: CalcData, scope: Scope, title: string)
     summary: [{ label: 'Boards', value: String(sums.length) }, { label: 'Major feeders', value: String(major.length) }, ...(statuses.length ? [{ label: 'Checks', value: counts(statuses) + ' (pass / check / fail)', status: worst(statuses) }] : [])],
     tables: [
       { title: 'Distribution boards', headers: ['Board', 'Type', 'Fed from', 'Bus rating (A)', 'Demand (A)', 'Loading', 'Ik″ (kA)'],
-        rows: sums.map((s) => [s.board.id, s.board.kind ?? (s.board.upstreamId ? 'DB' : 'MDB'), s.board.upstreamId ?? 'Supply', s.board.ratedCurrentA ?? 'Not defined', fig.current(s.currentA),
+        rows: sums.map((s) => [s.board.id, s.board.kind ?? (s.board.upstreamId ? 'DB' : 'MDB'), s.board.upstreamId ?? 'Supply', boardRatedA(s.board) ?? 'Not defined', fig.current(s.currentA),
           s.loadingPct === undefined ? '—' : { v: `${fig.loading(s.loadingPct)} %`, s: s.loadingStatus ?? 'ok' }, fig.fault(s.faultKA)]) },
       { title: 'Major feeders', headers: ['From', 'To', 'Breaker', 'Cable', 'Ib (A)', 'Iz (A)', 'Status'],
         rows: major.map((r) => [r.feeder.boardId, r.feeder.feedsBoardId!, `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`, cableSizeText(r.feeder), fig.current(r.ib), fig.current(r.ampacity), S(worst([r.protectionStatus, r.ampacityStatus]))]) }

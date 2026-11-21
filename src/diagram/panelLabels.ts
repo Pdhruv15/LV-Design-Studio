@@ -2,7 +2,7 @@ import type { Board, Feeder, Project, SpareWay } from '../types';
 import { incomerDeviceOf } from '../types';
 import { cableTypeOf, needsFireRated } from '../model/cableTypes';
 import { cpcOf } from '../calc/cableTable';
-import { faultCurrentKA, impedanceToBoard, runsOf } from '../calc/electrical';
+import { faultCurrentKA, impedanceToBoard, runsOf, sourceAssumed } from '../calc/electrical';
 import { atsLines, atsOf, isInterlocked } from '../model/changeover';
 import { deviceKind, devicePoles } from './deviceText';
 import { elcbUnitOf, rcdInSwitch } from './IecSymbols';
@@ -77,7 +77,7 @@ export const spareReach = (w: SpareWay) => (w.kind === 'space'
   : 10 + Math.max(textWidth(spareText(w), 11, true), textWidth('SPARE', 12, true)));
 
 /** The incomer's switching device and its breaking capacity: "500 A TP MCCB (NA)", "Icu 36 kA" (with "< Isc …" when it
- * can't break the board's prospective fault current). */
+ * can't break the board's prospective fault current, unless that fault level is only assumed). */
 export function incomerTexts(project: Project, b: Board): { device: string; icu?: string; low: boolean } | undefined {
   const dev = incomerDeviceOf(b);
   if (!dev || b.standby) return undefined;
@@ -87,7 +87,8 @@ export function incomerTexts(project: Project, b: Board): { device: string; icu?
   const device = `${rating ? `${rating} A ` : ''}${poles} ${dev === 'MCCB-NA' ? 'MCCB (NA)' : dev === 'ISOL' ? 'ISOLATOR' : dev}`;
   if (!inc?.breakerIcuKa) return { device, low: false };
   const isc = faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV);
-  const low = Number.isFinite(isc) && inc.breakerIcuKa < isc - 1e-6;
+  // An assumed source (placeholder fault level) is no ground for calling the Icu too low.
+  const low = Number.isFinite(isc) && inc.breakerIcuKa < isc - 1e-6 && !sourceAssumed(project, b.id);
   return { device, icu: `Icu ${inc.breakerIcuKa} kA${low ? ` < Isc ${isc.toFixed(1)} kA` : ''}`, low };
 }
 

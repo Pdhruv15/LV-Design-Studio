@@ -55,6 +55,14 @@ describe('board sheet drawing', () => {
     expect(lowSvg).toContain('&gt; Icw — CHECK');
     expect(lowSvg).toContain('CHECK (below the fault level)');
   });
+  it('an Icw checked against an assumed fault level reads "not verified", not OK or CHECK', () => {
+    const bare = { ...run.project, boards: run.project.boards.map((b) => (b.upstreamId ? (b.id === 'SMDB-GF' ? { ...b, busbarIcwKa: 1.5 } : b) : { ...b, sourceKva: undefined, sourceImpedancePct: undefined })) };
+    const svg = boardSheetSvg(bare, bare.boards.find((b) => b.id === 'SMDB-GF')!, run.results).svg;
+    expect(svg).toContain('vs Icw — not verified');
+    expect(svg).toContain('kA / 1 s — not verified: assumed source<');
+    expect(svg).not.toContain('CHECK (below the fault level)');
+    expect(svg).not.toContain('> Icw — CHECK');
+  });
   it('draws ticked panel sections as labelled strips and moves the summary clear of them', () => {
     const base = boardSheetSvg(run.project, board('SMDB-GF'), run.results).svg;
     const p = { ...run.project, boards: run.project.boards.map((b) => (b.id === 'SMDB-GF' ? { ...b, sections: ['bms', 'fireAlarm'] as ('bms' | 'fireAlarm')[] } : b)) };

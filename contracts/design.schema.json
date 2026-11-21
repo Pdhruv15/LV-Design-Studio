@@ -434,7 +434,8 @@
                       "ok",
                       "warn",
                       "bad"
-                    ]
+                    ],
+                    "description": "warn = not verified: the source fault level is assumed (no transformer data or supply fault level)"
                   },
                   "disconnection": {
                     "type": "string",

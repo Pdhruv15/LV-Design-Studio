@@ -124,14 +124,25 @@ describe('OpenDSS export: first board on an LV supply', () => {
   it('a supply fault level becomes a Vsource on the board busbar, not a warning', () => {
     const { script, warnings } = exportDss(lv({ id: 'MDB-1', name: 'Main', supply: { faultKa: 25 } }));
     const mva = (Math.sqrt(3) * 0.415 * 25).toFixed(4);
-    expect(lines(script, 'New Vsource.')).toEqual([`New Vsource.SRC_MDB-1 bus1=bb_MDB-1 basekv=0.415 pu=1.0 phases=3 MVAsc3=${Number(mva)} MVAsc1=${Number(mva)} x1r1=5 x0r0=5`]);
+    expect(lines(script, 'New Vsource.')).toEqual([`New Vsource.SRC_MDB-1 bus1=bb_MDB-1 basekv=0.415 pu=1.0 phases=3 angle=-30 MVAsc3=${Number(mva)} MVAsc1=${Number(mva)} x1r1=5 x0r0=5`]);
     expect(warnings.filter((w) => /no transformer data/.test(w))).toEqual([]);
     expect(lines(script, 'New Transformer.')).toHaveLength(0);
+  });
+  it('a closed tie to a transformer board keeps the supply source in phase with its delta-wye secondary', () => {
+    const { script } = exportDss({
+      ...sampleProject,
+      boards: [...sampleProject.boards, { id: 'MDB-2', name: 'Main 2', supply: { faultKa: 25 } }],
+      ties: [{ id: 'BC1', a: 'MDB-1', b: 'MDB-2', ratingA: 1600, closed: true }]
+    });
+    expect(lines(script, 'New Transformer.')).toHaveLength(1);
+    expect(lines(script, 'New Vsource.')[0]).toContain('angle=-30');
+    expect(lines(script, 'New Line.TIE_')).toHaveLength(1);
   });
   it('neither transformer nor fault level keeps the warning; a transformer board has no Vsource', () => {
     const none = exportDss(lv({ id: 'MDB-1', name: 'Main', supply: { ratingA: 400 } }));
     expect(none.warnings[0]).toMatch(/no transformer data/);
     expect(lines(none.script, 'New Vsource.')).toHaveLength(0);
     expect(lines(exportDss(sampleProject).script, 'New Vsource.')).toHaveLength(0);
+    expect(exportDss(lv({ id: 'MDB-1', name: 'Main', supply: { faultKa: -5 } })).warnings[0]).toMatch(/no transformer data/); // a fault level must be above zero
   });
 });

@@ -3,7 +3,7 @@ import { recordedPQ } from '../model/existing';
 import { ambientCorrectionFactor, cables, getCable } from './cableTable';
 import { trayGrouping } from './cableTray';
 import { feederRatingBasis, type RatingBasis } from './installation';
-import type { Board, Feeder, GridSource, Project } from '../types';
+import { supplyFaultKa, type Board, type Feeder, type GridSource, type Project } from '../types';
 import { boardPhasePQ, type PhasePQ } from './loadSchedule';
 import { fmtFixed } from '../util/format';
 import { checkLimits, type LimitCheck } from './authorityLimits';
@@ -350,7 +350,7 @@ export function sourceAssumed(project: Project, boardId: string): boolean {
     const seen = new Set<string>();
     for (let b = boardOf(project, boardId); b && !seen.has(b.id); b = b.upstreamId ? boardOf(project, b.upstreamId) : undefined) {
       seen.add(b.id);
-      if (!b.upstreamId) return !(b.sourceKva && b.sourceImpedancePct) && !(b.supply?.faultKa && b.supply.faultKa > 0);
+      if (!b.upstreamId) return !(b.sourceKva && b.sourceImpedancePct) && !supplyFaultKa(b);
     }
     return true;
   });
@@ -387,7 +387,10 @@ function impedanceToBoardOf(project: Project, board: Board, seen: Set<string>): 
 
   if (!board.upstreamId) {
     // No transformer: a supply with a stated fault level (authority, or a neighbouring building's main board).
-    if (!board.sourceKva || !board.sourceImpedancePct) return board.supply?.faultKa ? supplyImpedance(board.supply.faultKa, project.voltageV) : fallback;
+    if (!board.sourceKva || !board.sourceImpedancePct) {
+      const ka = supplyFaultKa(board);
+      return ka ? supplyImpedance(ka, project.voltageV) : fallback;
+    }
     // A closed coupler joins the busbars: every transformer on them feeds a fault (couplers taken as 0 Ω),
     // each behind its MV network impedance when the grid fault level is given.
     return mainSourceImpedance(project, board);

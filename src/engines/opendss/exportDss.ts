@@ -1,7 +1,7 @@
 import { DEFAULT_TRANSFORMER_XR, boardDemandKw, resistanceFactor, rOperatingOhmPerKm, runsOf } from '../../calc/electrical';
 import { cablesSource } from '../../calc/cableTable';
 import { getCable } from '../../calc/cableTable';
-import type { Feeder, Project } from '../../types';
+import { supplyFaultKa, type Feeder, type Project } from '../../types';
 
 /** Nominal MV voltage the transformer primary is modelled at. The upstream
  * network is a stiff (effectively infinite) source, matching the built-in
@@ -90,12 +90,13 @@ export function exportDss(project: Project): DssExport {
   out.push(`! ---- Transformers ----`);
   for (const b of project.boards.filter((b) => !b.upstreamId)) {
     if (!b.sourceKva || !b.sourceImpedancePct) {
-      const ka = b.supply?.faultKa;
-      if (ka && ka > 0) {
-        // LV supply with a stated fault level: a source equivalent on the board's own busbar.
+      const ka = supplyFaultKa(b);
+      if (ka) {
+        // LV supply with a stated fault level: a source equivalent on the board's own busbar, at -30 deg
+        // like the LV side of the delta-wye transformers, so a closed tie to one of them carries no circulating current.
         const mva = fmt(Math.sqrt(3) * kvLL * ka, 4);
         out.push(
-          `New Vsource.SRC_${boardName(b.id)} bus1=${busbar(boardName(b.id))} basekv=${fmt(kvLL, 4)} pu=1.0 phases=3 ` +
+          `New Vsource.SRC_${boardName(b.id)} bus1=${busbar(boardName(b.id))} basekv=${fmt(kvLL, 4)} pu=1.0 phases=3 angle=-30 ` +
             `MVAsc3=${mva} MVAsc1=${mva} x1r1=${DEFAULT_TRANSFORMER_XR} x0r0=${DEFAULT_TRANSFORMER_XR}`
         );
         continue;

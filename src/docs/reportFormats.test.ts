@@ -236,3 +236,51 @@ describe('reports on an assumed source fault level', () => {
     expect(sec.summary?.some((x) => /not verified/i.test(x.label))).toBe(false);
   });
 });
+
+describe('reports: LV supply rating, estimated Ze and the issue list on an assumed source', () => {
+  const rootOf = (p: Project, f: (b: Project['boards'][number]) => Project['boards'][number]): Project => ({ ...p, boards: p.boards.map((b) => (b.upstreamId ? b : f(b))) });
+  const calc = (pr: Project): { d: CalcData; sc: ReturnType<typeof scopeOf> } => { const r = runCalculations(pr); return { d: { project: r.project, results: r.results, earthing: r.earthing, selectivity: r.selectivity }, sc: scopeOf(r.project, { boards: [], downstream: true }) }; };
+  const lv = rootOf(sampleProject, (b) => ({ ...b, sourceKva: undefined, sourceImpedancePct: undefined, ratedCurrentA: undefined, supply: { faultKa: 25, ratingA: 1600 } }));
+
+  it('the board tables show the supply rating the loading is divided by; a board with a busbar rating keeps it', () => {
+    const { d, sc } = calc(lv);
+    const bus = (t: Table) => t.rows.find((r) => r[0] === 'MDB-1')!;
+    expect(bus(buildResults(d, sc).equipment.find((t) => t.title?.startsWith('Distribution boards'))!)[2]).toBe(1600);
+    expect(bus(buildSection('dist', d, sc).tables.find((t) => t.title === 'Distribution boards')!)[3]).toBe(1600);
+    const base = calc(sampleProject);
+    expect(bus(buildResults(base.d, base.sc).equipment.find((t) => t.title?.startsWith('Distribution boards'))!)[2]).toBe(sampleProject.boards[0].ratedCurrentA);
+  });
+  it('the earth fault report says the Ze is estimated from the supply fault level', () => {
+    const { d, sc } = calc(lv);
+    const row = buildSection('earth', d, sc).summary.find((x) => x.label.startsWith('Ze estimated'));
+    expect(row?.value).toContain('Ze estimated from the supply fault level at MDB-1');
+    expect(row?.status).toBeUndefined();
+    const base = calc(sampleProject);
+    expect(buildSection('earth', base.d, base.sc).summary.some((x) => x.label.startsWith('Ze estimated'))).toBe(false);
+  });
+  it('the standard layouts (busbar verification, feeder cards) and the cable summary show NOT CHECKED for the Icu, and the sample keeps PASS', () => {
+    const assumed = rootOf(sampleProject, (b) => ({ ...b, sourceKva: undefined, sourceImpedancePct: undefined }));
+    const { d, sc } = calc(assumed);
+    const last = (r: Cell[]) => r[r.length - 1] as { v: string; s: string };
+    expect(buildSection('sc', d, sc).verification!.rows.filter((r) => r[2] !== '—').every((r) => last(r).s === 'nc')).toBe(true);
+    const cards = buildSection('cable', d, sc).cards!;
+    expect(cards.length).toBeGreaterThan(0);
+    for (const c of cards) expect(c.rows.find((r) => r[0] === 'Breaking capacity check')![1]).toMatchObject({ s: 'nc' });
+    const cab = (x: ReturnType<typeof calc>) => buildResults(x.d, x.sc).equipment.concat(buildResults(x.d, x.sc).cables).filter((t) => t.title === 'Cable summary').flatMap((t) => t.rows.map(last));
+    expect(cab({ d, sc }).length).toBeGreaterThan(0);
+    expect(cab({ d, sc }).every((c) => c.s !== 'ok')).toBe(true);
+    const base = calc(sampleProject);
+    for (const c of buildSection('cable', base.d, base.sc).cards!) expect(c.rows.find((r) => r[0] === 'Breaking capacity check')![1]).toMatchObject({ s: 'ok' });
+    expect(cab(base).some((c) => c.s === 'ok')).toBe(true);
+  });
+  it('the issue list and the calculation report name an unchecked breaking capacity, never "undefined"', () => {
+    const assumed = rootOf(sampleProject, (b) => ({ ...b, sourceKva: undefined, sourceImpedancePct: undefined }));
+    const { d, sc } = calc(assumed);
+    const open = unresolvedChecks([buildSection('sc', d, sc)]);
+    expect(open.some((u) => u.status === 'nc' && u.value === 'NOT CHECKED')).toBe(true);
+    const html = buildReportHtml(assumed);
+    expect(html).not.toContain('undefined');
+    expect(html).toContain('NOT CHECKED');
+    expect(buildReportHtml(sampleProject)).not.toContain('undefined');
+  });
+});

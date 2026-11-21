@@ -82,6 +82,21 @@ describe('tools', () => {
     expect(r.circuits.map((x: { id: string }) => x.id)).toContain('GF-SKT');
     expect(c.circuits.find((x: { circuit: string }) => x.circuit === 'GF-SKT')?.issues.length).toBeGreaterThan(0);
   });
+  it('a project with no source data: boards flagged faultAssumed, circuits say the Icu is not verified; the sample is unchanged', () => {
+    const assumed: Project = { ...sampleProject, name: 'Assumed copy', boards: sampleProject.boards.map((b) => (b.upstreamId ? b : { ...b, sourceKva: undefined, sourceImpedancePct: undefined, ratedCurrentA: undefined, supply: { ratingA: 2000 } })) };
+    const file = path.join(folder, 'Assumed.json');
+    fs.writeFileSync(file, JSON.stringify(assumed));
+    try {
+      const root = assumed.boards.find((b) => !b.upstreamId)!.id;
+      const panels = run('list_panels', { project: 'Assumed' }) as unknown as { id: string; faultAssumed?: boolean; ratedA?: number }[];
+      expect(panels.find((x) => x.id === root)).toMatchObject({ faultAssumed: true, ratedA: 2000 });
+      expect(run('get_panel', { project: 'Assumed', panel: root }).faultAssumed).toBe(true);
+      const rows = run('circuit_results', { project: 'Assumed', status: 'all' }).circuits as { issues?: string[] }[];
+      expect(rows.some((x) => x.issues?.includes('breaker Icu not verified: source fault level assumed'))).toBe(true);
+    } finally { fs.rmSync(file, { force: true }); }
+    expect((run('list_panels', { project: 'Villa' }) as unknown as object[]).some((x) => 'faultAssumed' in x)).toBe(false);
+    expect(JSON.stringify(run('circuit_results', { project: 'Villa', status: 'all' }))).not.toContain('not verified');
+  });
   it('get_panel lists the circuits of one panel', () => {
     const p = run('get_panel', { project: 'Villa', panel: 'smdb-gf' });
     expect(p.id).toBe('SMDB-GF');

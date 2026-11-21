@@ -189,3 +189,21 @@ describe('busbar riser', () => {
     });
   });
 });
+
+describe('busbar riser Icw on an assumed source', () => {
+  const assumed: Project = { ...sampleProject, boards: sampleProject.boards.map((b) => (b.upstreamId ? b : { ...b, sourceKva: undefined, sourceImpedancePct: undefined })) };
+  it('is not verified, neither passed nor failed, and the notes and report say so', () => {
+    const r = sizeRiser(assumed, tower);
+    expect(r.icwAssumed).toBe(true);
+    expect(r.icwOk).toBeUndefined();
+    expect(r.notes.some((n) => n.includes('not verified: source fault level assumed'))).toBe(true);
+    const p: Project = { ...assumed, busRisers: [tower] };
+    const sec = buildSection('busbar', { project: p, results: [], earthing: [], selectivity: [] }, scopeOf(p, { boards: [], downstream: true }));
+    expect(sec.statuses).toEqual(['warn']);
+  });
+  it('a real source is checked as before, with no flag', () => {
+    const r = sizeRiser(sampleProject, tower);
+    expect('icwAssumed' in r).toBe(false);
+    expect(typeof r.icwOk).toBe('boolean');
+  });
+});

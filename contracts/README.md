@@ -31,4 +31,7 @@ rename. The app only writes this file; it never reads it back. `sha256` covers t
 UPDATE_CONTRACTS=1 npx vitest run src/exchange/designExport.test.ts
 ```
 
+`status.icu` is `ok`, `warn` or `bad`: `warn` means not verified, because the board's source has no transformer data or
+supply fault level and the fault level is a placeholder (the circuit's `overall` is then at least `warn`).
+
 Export it with the headless tool `export_design_package` (preview first; exporting needs the approving engineer's name).

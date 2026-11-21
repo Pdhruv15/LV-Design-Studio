@@ -2,7 +2,7 @@ import { boardOf, feedersOn, withNetwork } from './network';
 import { cpcOf, defaultCpcMm2, getCable } from './cableTable';
 import { DEFAULT_TRANSFORMER_XR, gridImpedance, gridSourceOf, rOperatingOhmPerKm, runsOf, supplyImpedance, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
 import { elcbGroups, isScheduleCircuit, rcbosOf } from './loadSchedule';
-import type { BreakerType, Feeder, Project } from '../types';
+import { supplyFaultKa, type BreakerType, type Feeder, type Project } from '../types';
 import { fmtFixed } from '../util/format';
 
 const SQRT3 = Math.sqrt(3);
@@ -107,8 +107,8 @@ export function earthLoopPath(project: Project, boardId: string, seen = new Set<
   seen.add(boardId);
   if (!board.upstreamId) {
     if (!board.sourceKva || !board.sourceImpedancePct) {
-      const ka = board.supply?.faultKa;
-      if (ka && ka > 0) return { z: supplyImpedance(ka, project.voltageV), estimated: `Ze estimated from the supply fault level at ${board.id}` };
+      const ka = supplyFaultKa(board);
+      if (ka) return { z: supplyImpedance(ka, project.voltageV), estimated: `Ze estimated from the supply fault level at ${board.id}` };
       return { z: { r: 0, x: 0 }, missing: `no source data at ${board.id} (transformer kVA and impedance %, or the supply fault level)` };
     }
     const zt = transformerImpedance(board.sourceKva, board.sourceImpedancePct, project.voltageV, board.sourceXr ?? DEFAULT_TRANSFORMER_XR);

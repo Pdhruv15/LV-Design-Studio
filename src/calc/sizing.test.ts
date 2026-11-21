@@ -92,6 +92,13 @@ describe('breaker and cable selection', () => {
     expect(opt.changed).toBe(true);
   });
 
+  it('keeps the feeder Icu when the source fault level is only assumed; a real source still raises it', () => {
+    const f = feeder({ loadKw: 20, powerFactor: 0.85, breakerRatingA: 40, breakerIcuKa: 6, cableCsaMm2: 16 });
+    const bare = project([f], { boards: [{ id: 'MDB', name: 'M' }] });
+    for (const mode of ['fix', 'optimise'] as const) expect(recommend(bare, f, mode).breakerIcuKa).toBe(6);
+    expect(recommend(project([f]), f).breakerIcuKa).toBeGreaterThan(6);
+  });
+
   it('the sample project needs no changes in fix mode', () => {
     expect(sampleProject.feeders.filter((f) => recommend(sampleProject, f).changed).map((f) => f.id)).toEqual([]);
   });

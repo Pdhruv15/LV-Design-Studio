@@ -1,6 +1,6 @@
 import type { FeederResult } from '../calc/electrical';
 import { breakerTypeOf } from '../calc/earthing';
-import { failReasons, quickFixes } from '../calc/quickFix';
+import { failReasons, patchStatus, quickFixes } from '../calc/quickFix';
 import type { SupplyMode } from '../calc/scenario';
 import { groups, type CtxEntry, type CtxHead, type CtxItem } from '../components/cad/cadContextMenu';
 import { COLOR_BY, type ColorBy } from '../diagram/heatmap';
@@ -212,7 +212,7 @@ function loadMenu(s: SldMenuState, id: string, where: SldWhere) {
   const items = groups(
     [...(fixes.length ? [{
       label: 'Quick fix', icon: 'tools' as const,
-      sub: fixes.map((x, i) => row(x.label, `quickfix|${i}`, { key: x.after.status === 'ok' ? 'passes' : 'still to check' }))
+      sub: fixes.map((x, i) => row(x.label, `quickfix|${i}`, { key: patchStatus(x.after) === 'ok' ? 'passes' : 'still to check' }))
     }] : []),
     row(`Edit ${id}…`, 'edit', { key: 'F2', icon: 'edtext' }), ...(sys ? [row('Edit cable…', 'editcable', { icon: 'route' })] : []),
     changeList(project, [f])],

@@ -190,7 +190,7 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
     ['TCL / DF / MDL', `${fmtFixed(ps.tclKw, 2)} kW / ${ps.df.toFixed(2)} / ${fmtFixed(ps.mdlKw, 2)} kW`],
     ['DEMAND CURRENT', `${fmtFixed(s.currentA, 1)} A${boardRatedA(board) ? ` of ${boardRatedA(board)} A (${fmtFixed(s.loadingPct ?? 0, 0)} %)` : ''}`],
     ['FAULT LEVEL', `${s.faultKA.toFixed(1)} kA`],
-    ...(icw ? [['BUSBAR Icw', `${fmtFixed(icw.icwKa, Number.isInteger(icw.icwKa) ? 0 : 1)} kA / 1 s — ${icw.assumed ? 'not verified: source fault level assumed' : icw.ok ? 'OK' : 'CHECK (below the fault level)'}`] as [string, string]] : []),
+    ...(icw ? [['BUSBAR Icw', `${fmtFixed(icw.icwKa, Number.isInteger(icw.icwKa) ? 0 : 1)} kA / 1 s — ${icw.assumed ? 'not verified: assumed source' : icw.ok ? 'OK' : 'CHECK (below the fault level)'}`] as [string, string]] : []),
     ...(sections.length ? [['SECTIONS', sections.map((x) => x.label).join(', ')] as [string, string]] : []),
     ['R / Y / B LOAD', `${three(pb.kw, 2)} kW`],
     ['R / Y / B CURRENT', `${three(pb.currentA, 1)} A`],
