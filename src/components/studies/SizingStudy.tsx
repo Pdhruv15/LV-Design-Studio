@@ -4,7 +4,8 @@ import type { Project, StudySettings } from '../../types';
 import { isEssential, settingsOf } from '../../calc/sizing';
 import { boardsInSupplyOrder, loadTypeOf } from '../../calc/summary';
 import { MOTOR_START_DIP_LIMIT_PCT, starterInfo, starterOf } from '../../calc/motor';
-import { applyTransformer, sizeGeneratorByBoards, sizeTransformers, txGenPlanOf, type TxGenPlan, type TxRow } from '../../calc/txGen';
+import { applyTransformer, sizeGeneratorByBoards, sizeTransformers, txGenPlanOf, txGenSizeList, type TxGenPlan, type TxRow } from '../../calc/txGen';
+import { txSizeChoices } from '../../calc/sizeLists';
 import { subtree } from '../../calc/pfc';
 import { buildSection, buildStudyReportHtml, scopeOf, setupOf } from '../../docs/studyReport';
 import { buildStudyWorkbook } from '../../docs/studyWorkbook';
@@ -94,9 +95,8 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
             <NumberSetting label="Future growth" value={s.futureGrowthPct} suffix="%" onChange={(v) => setS('futureGrowthPct', v)} />
             <NumberSetting label="Max loading" value={s.transformerMaxLoadingPct} min={10} max={100} suffix="%" onChange={(v) => setS('transformerMaxLoadingPct', v)} />
             <label className="txg-sel">Sizes
-              <select value={plan.sizeList} onChange={(e) => setPlan({ sizeList: e.target.value as TxGenPlan['sizeList'] })}>
-                <option value="dewa">DEWA 11 / 0.415 kV — 500, 1000, 1500 kVA</option>
-                <option value="iec">IEC standard — 100 … 3150 kVA</option>
+              <select value={txGenSizeList(plan)} onChange={(e) => setPlan({ sizeList: e.target.value as TxGenPlan['sizeList'] })}>
+                {txSizeChoices(txGenSizeList(plan)).map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
               </select>
             </label>
             <label className="row"><input type="checkbox" checked={plan.includePfc} onChange={(e) => setPlan({ includePfc: e.target.checked })} /> After PF correction</label>

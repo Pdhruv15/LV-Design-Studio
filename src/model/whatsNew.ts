@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.249', date: '2026-11-21',
+    items: [
+      { title: 'One set of transformer and generator size lists on the three concept pages', text: 'Load assessment, Space plan and Tx & Gen sizing now pick transformer sizes from the same three lists: "DEWA — 500, 1,000, 1,500 kVA", "Market standard — 100 to 3,150 kVA" (16 sizes, with both 200 and 1,500 kVA) and "My catalogue" (your Transformers catalogue, offered when it has sizes). Before, each page had its own lists and the same name meant different sizes. What changes: on Space plan the DEWA list now has 500 kVA, so a plan under about 400 kVA takes one 500 kVA and not one 1,000 kVA. On Tx & Gen sizing the "IEC standard" choice is now "Market standard" or "My catalogue", whichever it was reading. On Load assessment the Supply settings have a "Transformer sizes" list (with "A list I type" for your own sizes); with no catalogue it now starts from the market standard sizes, so a small building can get a transformer below 500 kVA. Generators: Load assessment now picks from the same sizes as Tx & Gen sizing, your Generators catalogue or else 22 standard sizes from 20 to 2,500 kVA; it had 11 sizes, so a set can come out one step smaller (800 kVA where it gave 1,000 kVA).' }
+    ]
+  },
+  {
     version: '2.248', date: '2026-11-21',
     items: [
       { title: 'Space plan: Create / Update supply keeps the loads on the standby generator', text: 'Rows taken from the load assessment now carry their share on the standby generator, and "Create / Update supply" marks that share as essential in the network: a row fully on the generator (lighting, lifts) becomes one essential feeder, a row partly on it (small power, HVAC, pumps) becomes a normal feeder and an essential one, and fire and life safety runs at full load on the generator. The generator sizing on Tx & Gen sizing then sees the same essential load as the load assessment. From v2.242 until now these feeders were made with no essential mark, so the generator came out too small after Create / Update supply. Press "Take loads from the assessment…" and "Create / Update supply" again to bring a plan made since then up to date.' }

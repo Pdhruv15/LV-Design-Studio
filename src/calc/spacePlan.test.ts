@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SpacePlan } from '../types';
-import { areaLoad, autoAssign, emptyPlan, MARKET_TX_KVA, panelLoad, planSizes, planTransformerKva, sizeListOf, summarize, transformersFor, withSizeList } from './spacePlan';
+import { areaLoad, autoAssign, emptyPlan, panelLoad, planSizes, planTransformerKva, sizeListOf, summarize, transformersFor, withSizeList } from './spacePlan';
+import { MARKET_TX_KVA } from './sizeLists';
 import { EMPTY_CATALOG, setCatalog } from '../database/catalog';
 
 /** Three buildings and a chiller plant, like the example. */
@@ -128,8 +129,10 @@ describe('create SLD from the plan', () => {
 describe('transformer size lists', () => {
   const plan = (settings: Partial<SpacePlan['settings']> = {}): SpacePlan => ({ ...emptyPlan(), settings: { ...emptyPlan().settings, ...settings } });
 
-  it('keeps the two DEWA sizes unless another list is picked', () => {
-    expect(planSizes(plan().settings)).toEqual([1000, 1500]);
+  it('keeps the DEWA sizes unless another list is picked', () => {
+    expect(planSizes(plan().settings)).toEqual([500, 1000, 1500]);
+    // A small demand takes one 500 kVA.
+    expect(planTransformerKva(plan(), 300)).toBe(500);
     // 1,500 kVA when it needs fewer units, else 1,000 kVA: as before.
     expect(planTransformerKva(plan(), 1100)).toBe(1500);
     expect(planTransformerKva(plan(), 700)).toBe(1000);
@@ -139,9 +142,9 @@ describe('transformer size lists', () => {
 
   it('the market standard list gives the smallest size that needs the fewest units', () => {
     const market = plan({ sizeList: 'market' });
-    expect(MARKET_TX_KVA).toEqual([100, 160, 250, 315, 400, 500, 630, 800, 1000, 1250, 1500, 1600, 2000, 2500, 3150]);
+    expect(MARKET_TX_KVA).toEqual([100, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1500, 1600, 2000, 2500, 3150]);
     // Up to 1,500 kVA unless a larger size is allowed.
-    expect(planSizes(market.settings)).toEqual([100, 160, 250, 315, 400, 500, 630, 800, 1000, 1250, 1500]);
+    expect(planSizes(market.settings)).toEqual([100, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1500]);
     // 300 kVA at 80 % loading: one 400 kVA; 900 kVA: one 1,250 kVA; 1,738 kVA: two 1,250 kVA.
     expect(planTransformerKva(market, 300)).toBe(400);
     expect(planTransformerKva(market, 900)).toBe(1250);
@@ -160,7 +163,8 @@ describe('transformer size lists', () => {
       expect(planSizes(plan({ sizeList: 'catalogue' }).settings)).toEqual([500, 800]);
       expect(planTransformerKva(plan({ sizeList: 'catalogue' }), 600)).toBe(800);
     } finally { setCatalog(EMPTY_CATALOG); }
-    expect(sizeListOf('catalogue')).toEqual([1000, 1500]);
+    // An empty catalogue gives the market standard sizes.
+    expect(sizeListOf('catalogue')).toEqual(MARKET_TX_KVA);
   });
 
   it('changing the list sends a fixed size it lacks back to Automatic', () => {

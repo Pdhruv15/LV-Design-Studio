@@ -1,5 +1,5 @@
 import type { PlanPanel, PlanTransformer, SpaceArea, SpacePlan, SpacePlanSettings, SpaceUse } from '../types';
-import { catalog } from '../database/catalog';
+import { txSizeList, type TxSizeList } from './sizeLists';
 
 /** Power density planning: area × W/m² (or a specific kW) × demand factor
  * per area; areas are fed from panels, panels from transformers (or a
@@ -28,27 +28,10 @@ export const DEFAULT_PLAN_SETTINGS: SpacePlanSettings = {
   growthPct: 0
 };
 
-/** DEWA's usual distribution transformer sizes. */
-export const PLAN_TRANSFORMER_SIZES = [1000, 1500];
+export type PlanSizeList = TxSizeList;
 
-/** Market standard sizes: the preferred ratings distribution transformers are made in
- * (100 to 3,150 kVA), with 1,500 kVA, a usual size with the Gulf utilities. */
-export const MARKET_TX_KVA = [100, 160, 250, 315, 400, 500, 630, 800, 1000, 1250, 1500, 1600, 2000, 2500, 3150];
-
-export type PlanSizeList = NonNullable<SpacePlanSettings['sizeList']>;
-export const PLAN_SIZE_LISTS: { value: PlanSizeList; label: string }[] = [
-  { value: 'dewa', label: '1,000 / 1,500 kVA' },
-  { value: 'market', label: 'Market standard' },
-  { value: 'catalogue', label: 'My catalogue' }
-];
-
-/** Every size of a list: the two DEWA sizes, the market standard sizes, or the
- * Transformers catalogue (the DEWA sizes while the catalogue is empty). */
-export function sizeListOf(kind: PlanSizeList | undefined): number[] {
-  if (kind === 'market') return MARKET_TX_KVA;
-  const cat = kind === 'catalogue' ? [...new Set(catalog().transformers.map((t) => t.kva).filter((x) => x > 0))].sort((a, b) => a - b) : [];
-  return cat.length ? cat : PLAN_TRANSFORMER_SIZES;
-}
+/** Every size of the plan's list: the DEWA sizes unless another list is picked. */
+export const sizeListOf = (kind: PlanSizeList | undefined): number[] => txSizeList(kind ?? 'dewa');
 
 /** The sizes the plan may use: its list, up to its largest size (1,500 kVA unless set). */
 export function planSizes(s: SpacePlanSettings): number[] {

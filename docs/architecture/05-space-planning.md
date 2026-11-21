@@ -18,7 +18,7 @@ Where the numbers come from — short answer:
 |---|---|---|
 | Max loading %, PF, growth %, coincidence, transformers per RMU | Space plan's **own** settings (default 80 %, 0.9, **0 %**, 1, 2), or the load assessment's with "Use the assessment's settings" — not the project design settings | `src/calc/spacePlan.ts:22` `DEFAULT_PLAN_SETTINGS` |
 | Transformer count | Calculated: ceil(kVA ÷ (size × loading limit)) | `src/calc/spacePlan.ts` `transformersFor` |
-| Transformer sizes | The plan's size list: the two DEWA sizes (default), the market standard list or the Transformers catalogue, up to a largest size | `src/calc/spacePlan.ts` `PLAN_SIZE_LISTS`, `MARKET_TX_KVA`, `sizeListOf`, `planSizes`, `planTransformerKva` |
+| Transformer sizes | The plan's size list: the DEWA sizes (default), the market standard list or the Transformers catalogue, up to a largest size. The lists are shared with Load assessment and Tx & Gen sizing | `src/calc/sizeLists.ts` `TX_SIZE_LISTS`, `DEWA_TX_KVA`, `MARKET_TX_KVA`, `txSizeList`; `src/calc/spacePlan.ts` `sizeListOf`, `planSizes`, `planTransformerKva` |
 | Transformer count per substation (DM page) | Space plan transformers grouped by RMU, else SLD main boards grouped by `board.rmu`, else typed by hand | `src/calc/dmSubstation.ts:138` `substationsFromProject` |
 
 ## 2. Files, components, functions and stores

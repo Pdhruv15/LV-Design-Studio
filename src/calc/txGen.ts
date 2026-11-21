@@ -3,7 +3,8 @@ import { settingsOf } from '../types';
 import { boardsInSupplyOrder, boardTotals } from './summary';
 import { DEFAULT_TRANSFORMER_XR, faultCurrentKA, gridImpedance, gridSourceOf, parallelGroup, parallelZ, transformerImpedance, type Impedance } from './electrical';
 import { switchedOnBoard } from './capSwitching';
-import { STANDARD_BREAKER_A, STANDARD_TRANSFORMER_KVA, chooseGenerator, isEssential, standbyBoards, type GeneratorChoice } from './sizing';
+import { STANDARD_BREAKER_A, chooseGenerator, isEssential, standbyBoards, type GeneratorChoice } from './sizing';
+import { catalogueTxKva, DEWA_TX_KVA, txSizeList, type TxSizeList } from './sizeLists';
 import { GENERATOR_XD_TRANSIENT_PCT, isMotor, MOTOR_START_DIP_LIMIT_PCT, motorStartDipPct, runningKva, startingKva } from './motor';
 import { planPfc, subtree } from './pfc';
 import { transformerFor } from '../database/catalog';
@@ -19,8 +20,8 @@ import { transformerFor } from '../database/catalog';
 export interface TxGenPlan {
   /** Main boards to size (empty = all). */
   txBoards: string[];
-  /** Standard sizes: DEWA 11 / 0.415 kV (500, 1000, 1500 kVA) or the IEC list. */
-  sizeList: 'dewa' | 'iec';
+  /** The list the sizes come from (src/calc/sizeLists.ts). 'iec' was stored by earlier versions: the catalogue when it has sizes, else the market standard sizes. */
+  sizeList: TxSizeList | 'iec';
   /** Main boards with two transformers, each carrying the whole load (duty / standby). */
   n1: string[];
   /** Take the planned PF correction (Power factor page) off the demand. */
@@ -34,10 +35,12 @@ export interface TxGenPlan {
 export const TXGEN_DEFAULTS: TxGenPlan = { txBoards: [], sizeList: 'dewa', n1: [], includePfc: true, emergencyLoadingPct: 100, genBoards: {} };
 export const txGenPlanOf = (p: Project): TxGenPlan => ({ ...TXGEN_DEFAULTS, ...p.txGen, genBoards: { ...p.txGen?.genBoards } });
 
-export const DEWA_TRANSFORMER_KVA = [500, 1000, 1500];
+export const DEWA_TRANSFORMER_KVA = DEWA_TX_KVA;
 const SQRT3 = Math.sqrt(3);
 const nextStd = (list: number[], v: number) => list.find((x) => x >= v - 1e-9);
-export const sizesOf = (plan: TxGenPlan) => (plan.sizeList === 'dewa' ? DEWA_TRANSFORMER_KVA : STANDARD_TRANSFORMER_KVA);
+/** The plan's size list, with the earlier 'iec' read as it behaved: the catalogue when it has sizes, else the market standard sizes. */
+export const txGenSizeList = (plan: TxGenPlan): TxSizeList => (plan.sizeList === 'iec' ? (catalogueTxKva().length ? 'catalogue' : 'market') : plan.sizeList);
+export const sizesOf = (plan: TxGenPlan) => txSizeList(txGenSizeList(plan));
 
 /** Typical impedance (IEC 60076-5 minimum values). */
 export const typicalImpedancePct = (kva: number) => transformerFor(kva)?.zPct ?? (kva <= 630 ? 4 : kva <= 1250 ? 5 : 6);

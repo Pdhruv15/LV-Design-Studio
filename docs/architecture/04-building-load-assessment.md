@@ -43,7 +43,7 @@ This module holds the architectural data of the project and the first, concept-s
 
 | Data | From module (ID) | File + function |
 |---|---|---|
-| Room types library (RoomTypes.xlsx), flat layouts (UnitTypes.xlsx), Transformers and Generators catalogues (sizes) | 32-component-database | `src/database/catalog.ts:catalog()` used in `building.ts:roomTypesOf`, `buildingPreset.ts:unitTypeLibrary`, `loadAssessment.ts:txSizesOf`/`genSizes` |
+| Room types library (RoomTypes.xlsx), flat layouts (UnitTypes.xlsx), Transformers and Generators catalogues (sizes) | 32-component-database | `src/database/catalog.ts:catalog()` used in `building.ts:roomTypesOf`, `buildingPreset.ts:unitTypeLibrary`, `src/calc/sizeLists.ts` (`txSizeList`, `generatorSizes`: the size lists shared by Load assessment, Space plan and Tx & Gen sizing) |
 | Watts per point, max points per circuit, meter limits | 03-parameters-rules (Rules.xlsx via catalog) | `buildingDesign.ts:genPointWatts`, `maxPerCircuit`, `meterFor` → `rule()` |
 | Rooms drawn on CAD plans (outline, area) | 22-cad-electrical | `src/model/cadRooms.ts` writes `project.building.rooms` (uses `roomTypesOf`) |
 | Rooms from the inbox / exchange package | 30-exchange-inbox | `src/exchange/inbox.ts` (uses `roomTypesOf`) |
