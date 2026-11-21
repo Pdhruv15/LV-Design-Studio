@@ -78,7 +78,7 @@ export function conceptReportHtml(r: ConceptReport): string {
     : `<p class="missing">Building type and GFA ${TO_CONFIRM} — no load assessment.</p>`;
   const areas = la ? `<table><thead><tr><th>Space</th><th class="r">% of GFA</th><th class="r">Area (m²)</th><th class="r">Lighting (W/m²)</th><th class="r">Small power (W/m²)</th><th class="r">Cooling, thermal (W/m²)</th></tr></thead><tbody>${la.rows.map((x) =>
     `<tr><td>${esc(x.label)}</td><td class="r">${n(x.pct, 1)}</td><td class="r">${n(x.areaM2)}</td><td class="r">${n(x.ltg, 1)}</td><td class="r">${n(x.pwr, 1)}</td><td class="r">${n(x.clg)}</td></tr>`).join('')}
-    <tr class="total"><td>Total</td><td class="r">${n(la.pctTotal, 1)}</td><td class="r">${n(la.areaM2)}</td><td colspan="3"></td></tr></tbody></table>`
+    <tr class="total"><td>${la.outdoorM2 ? 'Total without outdoor spaces' : 'Total'}</td><td class="r">${n(la.pctTotal, 1)}</td><td class="r">${n(la.areaM2)}</td><td colspan="3"></td></tr></tbody></table>`
     : `<p class="missing">Area schedule ${TO_CONFIRM}.</p>`;
   const demand = la ? `<table><thead><tr><th>Category</th><th class="r">Connected (kW)</th><th class="r">Diversity</th><th class="r">Demand (kW)</th></tr></thead><tbody>${la.categories.map((c) =>
     `<tr><td>${esc(c.label)}</td><td class="r">${fig.power(c.connectedKw)}</td><td class="r">${c.diversity === undefined ? '—' : n(c.diversity, 2)}</td><td class="r">${c.demandKw === undefined ? '—' : fig.power(c.demandKw)}</td></tr>`).join('')}

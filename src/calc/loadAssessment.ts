@@ -30,10 +30,23 @@ export const DHW_SYSTEMS: { value: DhwSystem; label: string }[] = [
   { value: 'solar', label: 'Solar + electric backup' }
 ];
 
+/** Where a space is. Only an indoor, cooled space carries a cooling load; an outdoor
+ * space (a terrace, a pool deck) is outside the GFA, so it is left out of the area total. */
+export type LaLocation = 'in' | 'nc' | 'oc' | 'oo';
+export const LA_LOCATIONS: { value: LaLocation; label: string }[] = [
+  { value: 'in', label: 'Indoor, cooled' },
+  { value: 'nc', label: 'Indoor, not cooled' },
+  { value: 'oc', label: 'Outdoor, covered' },
+  { value: 'oo', label: 'Outdoor, open' }
+];
+export const isCooled = (s: { location?: LaLocation }): boolean => (s.location ?? 'in') === 'in';
+export const isOutdoor = (s: { location?: LaLocation }): boolean => s.location === 'oc' || s.location === 'oo';
+
 /** A space in the area schedule: its share of the GFA (or m²) and densities. */
 export interface LaSpace {
   id: string;
   label: string;
+  location?: LaLocation; // absent: indoor, cooled
   ltg: number; // lighting W/m²
   pwr: number; // small power W/m²
   clg: number; // cooling W/m² (thermal)
@@ -150,11 +163,11 @@ export const DEFAULT_SPACES: LaSpace[] = [
   { id: 'hotel', label: 'Hotel room', ltg: 8, pwr: 20, clg: 110, dwelling: true },
   { id: 'lobby', label: 'Lobby / corridor', ltg: 6, pwr: 5, clg: 80 },
   { id: 'gym', label: 'Gym / amenity', ltg: 10, pwr: 20, clg: 150 },
-  { id: 'plant', label: 'Plant / electrical', ltg: 5, pwr: 10, clg: 0 },
+  { id: 'plant', label: 'Plant / electrical', ltg: 5, pwr: 10, clg: 0, location: 'nc' },
   { id: 'ward', label: 'Ward / patient room', ltg: 9, pwr: 30, clg: 140, dwelling: true },
   { id: 'theatre', label: 'Operating / ICU', ltg: 20, pwr: 120, clg: 250 },
   { id: 'class', label: 'Classroom', ltg: 9, pwr: 10, clg: 120 },
-  { id: 'store', label: 'Warehouse / store', ltg: 5, pwr: 5, clg: 0 },
+  { id: 'store', label: 'Warehouse / store', ltg: 5, pwr: 5, clg: 0, location: 'nc' },
   { id: 'bo', label: 'Back of house', ltg: 7, pwr: 25, clg: 90 }
 ];
 
@@ -313,8 +326,9 @@ export interface LaCategory {
 }
 
 export interface LaResult {
-  areaM2: number; // rows total
+  areaM2: number; // indoor rows total (the outdoor rows are outside the GFA)
   pctTotal: number;
+  outdoorM2: number; // outdoor rows total
   dwellingM2: number;
   services: Record<string, number>; // kW per service, for the service cards
   liftCount: number;
@@ -347,11 +361,12 @@ const genSizes = (): number[] => {
 export function assess(a: LoadAssessment): LaResult {
   const f = a.factors, s = a.services, d = a.diversity, ess = a.essentialPct / 100;
   const floors = Math.max(1, a.floors || 1), park = Math.max(0, a.parkingM2 || 0), gfa = Math.max(0, a.gfaM2 || 0);
-  let ltg = 0, pwr = 0, clg = 0, area = 0, pct = 0, dwell = 0;
+  let ltg = 0, pwr = 0, clg = 0, area = 0, pct = 0, dwell = 0, outdoor = 0;
   for (const r of a.rows) {
     const m2 = rowArea(a, r);
-    area += m2; pct += rowPct(a, r);
-    ltg += (m2 * r.ltg) / 1000; pwr += (m2 * r.pwr) / 1000; clg += (m2 * r.clg) / 1000;
+    if (isOutdoor(r)) outdoor += m2; else { area += m2; pct += rowPct(a, r); }
+    ltg += (m2 * r.ltg) / 1000; pwr += (m2 * r.pwr) / 1000;
+    if (isCooled(r)) clg += (m2 * r.clg) / 1000;
     if (r.dwelling) dwell += m2;
   }
   ltg += (park * f.carParkLtg) / 1000;
@@ -419,7 +434,7 @@ export function assess(a: LoadAssessment): LaResult {
     }
   }
   return {
-    areaM2: area, pctTotal: pct, dwellingM2: dwell, liftCount, categories, connectedKw, sumDemandKw, mdKw, mdKva, vaPerM2,
+    areaM2: area, pctTotal: pct, outdoorM2: outdoor, dwellingM2: dwell, liftCount, categories, connectedKw, sumDemandKw, mdKw, mdKva, vaPerM2,
     inBand: vaPerM2 >= a.vaBand[0] && vaPerM2 <= a.vaBand[1],
     services: { cool: hvac, dhw, cook, lifts: lift, ev, it: s.itKw || 0, fire: life, pool, kitchen, laundry, medical, facade },
     tx, txSizes, generatorKw, generatorKvaRequired, generatorKva, generatorCount,

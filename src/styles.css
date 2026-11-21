@@ -1949,6 +1949,8 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .bi-table td.la-c2d-from{white-space:normal;min-width:110px}
 .bi-table td.la-c2d-fig{white-space:normal}
 .la-c2d-fig b{white-space:nowrap}
+.la-area td,.la-area th{padding-left:5px;padding-right:5px}
+.la-area th{white-space:normal}
 .chip-lite.warn{border-color:color-mix(in srgb,var(--warn) 60%,transparent)}
 .chip-lite.ok{border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
 /* Spacing utilities (in place of repeated inline styles). Later rules win, so u-flush u-mb-2 = margin 0 0 8px. */

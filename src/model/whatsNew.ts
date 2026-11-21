@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.233', date: '2026-11-21',
+    items: [
+      { title: 'Load assessment: a Location for each space (indoor, not cooled, outdoor)', text: 'Concept → Load assessment → Area schedule has a Location column: Indoor cooled, Indoor not cooled, Outdoor covered or Outdoor open. Lighting and power W/m² are typed per row, so the same space can be listed twice with its own values, for example indoor seating and outdoor seating. A space that is not cooled or is outdoors carries no cooling load: its Cooling cell reads "none". An outdoor space is outside the GFA, so it is shown beside the total and not in it. Plant rooms and stores now start as not cooled. The Design Basis and concept reports name the location of such spaces. Saved assessments are unchanged: a space with no location is indoor and cooled, as before.' }
+    ]
+  },
+  {
     version: '2.232', date: '2026-11-21',
     items: [
       { title: 'Concept to design: the assessment, the rooms and the load schedules side by side', text: 'Concept → Load assessment and Concept → Building now show one table with three figures: the assessment (maximum demand at the transformer), the rooms (the sum of the room types of Building, with no diversity between flats and no lifts, pumps or EV), and what the load schedules add up to so far, with the DBs made out of those planned. "Per building" opens the rows per building. The rooms figure is not meant to equal the assessment: the table shows how far apart they are. The table replaces the "Designed so far" line, and it no longer counts the assessment\'s own feeders as designed load.' },

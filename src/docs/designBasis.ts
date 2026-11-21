@@ -2,7 +2,7 @@ import type { Status } from '../calc/electrical';
 import { REPORT_STATUS_TEXT } from '../calc/statusText';
 import { systemSummary } from '../calc/summary';
 import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf } from '../calc/txGen';
-import { assess, COOL_SYSTEMS, DHW_SYSTEMS, rowArea, rowPct, type LoadAssessment } from '../calc/loadAssessment';
+import { assess, COOL_SYSTEMS, DHW_SYSTEMS, isCooled, LA_LOCATIONS, rowArea, rowPct, type LoadAssessment } from '../calc/loadAssessment';
 import { OPTIONAL_SCOPE, SCOPE_ITEMS } from '../model/brief';
 import { referenceSourceOf, type RefKey } from '../model/designReference';
 import { STUDY_DEFAULTS, settingsOf, type Project, type StudyReportKind } from '../types';
@@ -60,6 +60,8 @@ export interface LoadAssessmentBasis {
   rows: { label: string; pct: number; areaM2: number; ltg: number; pwr: number; clg: number; dwelling: boolean }[];
   pctTotal: number;
   areaM2: number;
+  /** Outdoor spaces: outside the GFA, not in the total. */
+  outdoorM2: number;
   services: { service: string; selection: string; kw: number }[];
   notSelected: string[];
   categories: { label: string; connectedKw: number; diversity?: number; demandKw?: number; generatorPct?: number }[];
@@ -234,8 +236,8 @@ export function loadAssessmentBasis(a: LoadAssessment): LoadAssessmentBasis {
   for (const c of a.custom) if (c.qty * c.kw > 0) services.push({ service: `${c.label || 'Custom load'} (custom)`, selection: `${n(c.qty)} × ${n1(c.kw)} kW, diversity ${n(c.diversity, 2)}, ${c.onGenerator ? 'on' : 'not on'} the generator`, kw: c.qty * c.kw });
   return {
     typeLabel: a.typeLabel, gfaM2: a.gfaM2, floors: a.floors, parkingM2: a.parkingM2, vaBand: a.vaBand, essentialPct: a.essentialPct,
-    rows: a.rows.map((x) => ({ label: x.label, pct: rowPct(a, x), areaM2: rowArea(a, x), ltg: x.ltg, pwr: x.pwr, clg: x.clg, dwelling: !!x.dwelling })),
-    pctTotal: r.pctTotal, areaM2: r.areaM2, services, notSelected,
+    rows: a.rows.map((x) => ({ label: isCooled(x) ? x.label : `${x.label} (${LA_LOCATIONS.find((l) => l.value === x.location)!.label.toLowerCase()})`, pct: rowPct(a, x), areaM2: rowArea(a, x), ltg: x.ltg, pwr: x.pwr, clg: isCooled(x) ? x.clg : 0, dwelling: !!x.dwelling })),
+    pctTotal: r.pctTotal, areaM2: r.areaM2, outdoorM2: r.outdoorM2, services, notSelected,
     categories: r.categories.map((c) => ({
       label: c.key.startsWith('custom:') ? `${c.label} (custom)` : c.label, connectedKw: c.connectedKw,
       diversity: c.diversity || undefined, demandKw: c.diversity ? c.demandKw : undefined, generatorPct: c.generatorShare > 0 ? c.generatorShare * 100 : undefined
@@ -346,7 +348,7 @@ function loadAssessmentHtml(l: LoadAssessmentBasis): string {
   <h3>Area schedule</h3>
   <table><thead><tr><th>Space</th><th>% of GFA</th><th>Area (m²)</th><th>Lighting (W/m²)</th><th>Small power (W/m²)</th><th>Cooling, thermal (W/m²)</th><th>Dwelling</th></tr></thead><tbody>${l.rows.map((x) =>
     `<tr><td>${esc(x.label)}</td><td>${n(x.pct, 1)}</td><td>${n(x.areaM2)}</td><td>${n1(x.ltg)}</td><td>${n1(x.pwr)}</td><td>${n(x.clg)}</td><td>${x.dwelling ? 'Yes' : ''}</td></tr>`).join('')}
-    <tr class="total"><td>Total</td><td>${n(l.pctTotal, 1)}</td><td>${n(l.areaM2)}</td><td colspan="4"></td></tr></tbody></table>
+    <tr class="total"><td>${l.outdoorM2 ? 'Total without outdoor spaces' : 'Total'}</td><td>${n(l.pctTotal, 1)}</td><td>${n(l.areaM2)}</td><td colspan="4"></td></tr></tbody></table>
   ${Math.abs(l.pctTotal - 100) > 0.5 ? `<p class="warning">The area schedule adds up to ${n(l.pctTotal, 1)} % of the GFA (${n(l.areaM2)} of ${n(l.gfaM2)} m²).</p>` : ''}
   <h3>Service requirements</h3>
   ${l.services.length ? `<table><thead><tr><th>Service</th><th>Selection</th><th>Connected (kW)</th></tr></thead><tbody>${l.services.map((x) =>
