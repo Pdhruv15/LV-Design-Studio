@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.243', date: '2026-11-21',
+    items: [
+      { title: 'Transformers: the assessment, the space plan and the network side by side', text: 'Concept → Space plan and Panels → Transformers now show one table with the transformers as the load assessment gives them, as the space plan arranges them (with its RMUs) and as the network has them: sizes, maximum demand in kVA and loading, with a bar each. A figure that is not the assessment\'s is marked. Before, the transformers were sized in these three places and never shown together. The table appears once two of the three exist.' },
+      { title: 'Substation area: a notice when the plan changed', text: 'Concept → Substation area now shows a notice when the space plan (or the SLD) gives other substations, transformer counts or sizes than the ones filled on the page, with "Update from the plan…" (it asks first, as Fill from project does) and "Keep mine", which hides the notice until the plan changes again.' }
+    ]
+  },
+  {
     version: '2.242', date: '2026-11-21',
     items: [
       { title: 'Space plan: "Create / Update supply" keeps what you designed', text: 'The "Create SLD" button on Concept → Space plan is now "Create / Update supply". It makes the plan\'s transformer switchboards, MDBs and SMDBs with one load feeder per row, or brings them up to date when they are already there, and sizes only those incomers and load feeders. Every other board and feeder of the project is kept; before, Create SLD replaced the whole network. The load assessment\'s own MDBs and lump feeders are removed, because the plan\'s rows now carry those loads, so there is one start instead of two. A board the plan no longer has is removed when nothing of yours is on it, and left in place (and named in the status line) when it still feeds your boards. The load feeders of rows taken from the assessment shrink as real DBs and services are designed, the same way the assessment\'s feeders do: the ticked box in Common services… and Generate DBs… covers them too. Load assessment shows a note when the supply is planned in Space plan.' }
