@@ -74,7 +74,7 @@ export function exportDss(project: Project): DssExport {
     `! Modelling assumptions (same as the built-in engine):`,
     `!  - Stiff upstream MV network (${STIFF_SOURCE_MVA} MVA) at a nominal ${MV_KV} kV.`,
     `!  - Transformer %Z split into R/X by the board's X/R ratio (default ${DEFAULT_TRANSFORMER_XR}).`,
-    `!  - A main board with no transformer but a stated supply fault level gets a Vsource on its own busbar (MVAsc = sqrt(3) x U x Ik, X/R ${DEFAULT_TRANSFORMER_XR}).`,
+    `!  - A main board with no transformer but a stated supply fault level gets a Vsource on its own busbar (MVAsc = sqrt(3) x U x Ik, X/R as given, else ${DEFAULT_TRANSFORMER_XR}).`,
     `!  - Cable R at operating temperature = ${resistanceFactor(project.vdTempC).toFixed(3)} x R20 (${project.vdTempC === undefined ? 'standard factor 1.2' : `copper at ${project.vdTempC} °C`}); cable data: ${cablesSource()}; capacitance ignored.`,
     `!  - Zero-sequence cable data is a placeholder (R0/X0 = R1/X1). Replace it`,
     `!    before relying on single-phase / earth-fault results.`,

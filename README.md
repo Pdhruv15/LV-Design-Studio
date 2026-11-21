@@ -306,8 +306,13 @@ show a preview unless called with `mode` apply / propose (`--apply` /
   to **Reports → Changes**. The engineer accepts it with their name and applies
   it in the app, as one undo step. The tools never accept anything and never
   change the values themselves.
+- **Given upstream values are input data.** `set_supply` writes the values given
+  from upstream for a first panel (fault level, drop already used, Ze, the
+  upstream device, the incoming cable) to the file after the preview, as
+  `add_panel` does; it is not a sizing result. `undo_change` puts the previous
+  values back.
 - **Structure changes** (`add_panel`, `add_circuit`, `move_panel`,
-  `rename_panels`, `copy_panel`, `set_supply`) change the file after the preview. New panels
+  `rename_panels`, `copy_panel`) change the file after the preview. New panels
   and circuits are sized by the app's selection. `add_building` and `add_level`
   add to Building information, so a rooms package can be accepted into a
   project that does not have its building yet.

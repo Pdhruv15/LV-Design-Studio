@@ -25,6 +25,9 @@ import { commitProject, readLog, undoChange, WriteRefused } from './write';
  *   to Reports → Changes, and the engineer accepts and applies it in the app — one undo step, with the app's conflict
  *   checks. The working design is not changed by the tool, and the tool never accepts anything on anyone's behalf.
  * - Structure changes (add a panel or circuit, move, rename, copy a panel) change the file, after a preview.
+ * - set_supply is the one exception among the values: the values given from upstream for a first panel (fault level, drop
+ *   used, Ze, the upstream device, the incoming cable) are input data of the design, not a sizing result, so like the
+ *   structure changes it writes the file after a preview, and undo_change puts the previous values back.
  *
  * Every tool previews by default (nothing written). Writing keeps the previous version and logs it (undo_change). The
  * MCP server and the local API offer these tools only when started with --write. Deleting (delete_panel, delete_circuit)
@@ -294,7 +297,7 @@ export const EDIT_TOOLS: Tool[] = [
   {
     name: 'set_supply',
     title: 'Set the values given from upstream',
-    description: 'Sets the values given from upstream for a first panel with no transformer (fed by a supply or by a board outside the project): they apply at the feeding board\'s busbar, the supply point. Fault level (with X/R and minimum), voltage drop already used (%), earth loop impedance Ze, the upstream device (type, rating, setting), the incoming cable from the supply point to the panel and the load the supply can give. The calculations then use them; one left out is "not given" and its checks end not verified. A number of null clears a value. Creates the supply block when the panel has none.',
+    description: 'Sets the values given from upstream for a first panel with no transformer (fed by a supply or by a board outside the project): they apply at the feeding board\'s busbar, the supply point. Fault level (with X/R and minimum), voltage drop already used (%), earth loop impedance Ze, the upstream device (type, rating, setting), the incoming cable from the supply point to the panel and the load the supply can give. The calculations then use them; one left out is "not given" and its checks end not verified. null clears a value. Creates the supply block when the panel has none.',
     input: {
       project, panel: z.string().describe('First panel (no panel above it, no transformer)'),
       fedBy: z.enum(['source', 'board']).nullable().optional().describe('source = a supply source; board = a board outside this project'),

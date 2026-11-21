@@ -281,7 +281,14 @@ describe('values given from upstream (first board on an LV supply)', () => {
   it('a project that gives none of these values, and a transformer board, are unchanged', () => {
     const plain = lv({ faultKa: 12, ratingA: 63 });
     expect(upstreamVoltageDropPct(plain, 'MDB')).toBe(0);
-    expect(evaluateFeeder(plain, load())).toEqual(evaluateFeeder({ ...plain, boards: [{ id: 'MDB', name: 'M', supply: { faultKa: 12, ratingA: 63, fedBy: undefined } }] }, load()));
+    // Pinned to the step A figures, not to the new code: no upstream drop, 12 kA at the busbar, and no keys the result did not have.
+    const r = evaluateFeeder(plain, load());
+    expect(r.vdUpstreamPct).toBe(0);
+    expect(r.vdTotalPct).toBe(r.vdPct);
+    expect(r.vdPct).toBeCloseTo(0.624, 3);
+    expect(r.breakerFaultKA).toBeCloseTo(12, 6);
+    expect(Object.keys(r).sort()).toEqual(['ampacity', 'ampacityStatus', 'breakerFaultKA', 'endFaultKA', 'feeder', 'ib', 'icuStatus', 'limits', 'loadingPct', 'protectionStatus', 'rating', 'status', 'tray', 'vdPct', 'vdStatus', 'vdTotalPct', 'vdUpstreamPct']);
+    expect(evaluateFeeder({ ...plain, boards: [{ id: 'MDB', name: 'M', supply: { faultKa: 12, ratingA: 63, fedBy: undefined } }] }, load())).toEqual(r);
     expect(faultCurrentKA(impedanceToBoard(plain, 'MDB'), 415)).toBeCloseTo(12, 6); // default X/R: |Z| is the stated level
     // With a transformer, the supply block and all its given values are ignored, as before.
     const tx: Project = { ...project([load()]), boards: [{ id: 'MDB', name: 'M', sourceKva: 1000, sourceImpedancePct: 5, supply: given }] };

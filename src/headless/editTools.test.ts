@@ -315,6 +315,17 @@ describe('set_supply: the values given from upstream', () => {
     expect(s.vdUsedPct).toBe(1.2);
     expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1' })).toThrow(/at least one value/);
   });
+  it('CLI: --zeOhm null and --incomer null clear a value; null is refused where the tool does not allow it', async () => {
+    const out: string[] = [];
+    const io = { out: (s: string) => out.push(s), err: (s: string) => out.push(s) };
+    const supplyOf = () => load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply!;
+    expect(await main(['set-supply', 'Lv', '--panel', 'MDB-1', '--zeOhm', '0.05', '--incomer', '{"cableCsaMm2":240,"lengthM":20}', '--apply', '--folder', folder], '1', io)).toBe(0);
+    expect(supplyOf()).toMatchObject({ zeOhm: 0.05, incomer: { cableCsaMm2: 240 } });
+    expect(await main(['set-supply', 'Lv', '--panel', 'MDB-1', '--zeOhm', 'null', '--incomer', 'null', '--apply', '--folder', folder], '1', io)).toBe(0);
+    expect(supplyOf().zeOhm).toBeUndefined();
+    expect(supplyOf().incomer).toBeUndefined();
+    expect(await main(['add-panel', 'Lv', '--kind', 'null', '--folder', folder], '1', io)).toBe(2); // not a nullable flag: still an error
+  });
   it('checks values with the app rules; a transformer or a sub-panel takes none', () => {
     expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', vdUsedPct: 4 })).toThrow(/voltage drop used 4 %/);
     expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', faultKaMin: 30 })).toThrow(/above the fault level 25 kA/);

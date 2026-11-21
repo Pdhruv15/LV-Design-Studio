@@ -101,6 +101,10 @@ describe('project dashboard: values given from upstream', () => {
     expect(t).toContain('bad: MDB: demand 37.1 A is above the 30.0 A the supply can give (123.7 %)');
     expect(t).toContain('warn: MDB: discrimination with the supply device (63 A) not verified for 1 way');
   });
+  it('lists an incoming cable behind an isolator as not verified', () => {
+    const t = todo(lv({ faultKa: 12, ratingA: 63, device: 'ISOL', incomer: { cableCsaMm2: 16, lengthM: 25 } }));
+    expect(t).toContain('warn: MDB: incoming cable — the supply device is an isolator: protection of the incoming cable not verified (Ib ≤ In ≤ Iz not checked)');
+  });
   it('a sound incoming cable, an allowed load that is enough and no upstream values add no rows', () => {
     const ok = todo(lv({ ...given, allowedA: 50, incomer: { cableCsaMm2: 16, lengthM: 25 } }));
     expect(ok.filter((x) => /incoming cable|supply can give/.test(x))).toEqual([]);

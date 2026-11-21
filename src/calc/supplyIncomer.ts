@@ -7,7 +7,7 @@ import { fmtFixed } from '../util/format';
 /** The incoming cable of a first board on an LV supply, from the supply point (the feeding board's busbar, where
  * the values given from upstream apply) to this board, checked like an incomer feeder: Ib ≤ In ≤ Iz and the
  * voltage drop against the project's limit, with the drop already used upstream added. In is the supply's
- * device rating; when it is not given that check is skipped and ends 'warn' (not verified). */
+ * device rating; when it is not given, or the device is an isolator, that check is skipped and ends 'warn' (not verified). */
 export interface SupplyIncomerResult {
   board: Board;
   /** The cable as a Feeder (supplyIncomerFeeder), for the cable calculations. */
@@ -45,7 +45,9 @@ export function evaluateSupplyIncomer(project: Project, board: Board): SupplyInc
   const vdTotalPct = vdUsedPct + vdPct;
   const vdStatus: Status = vdTotalPct > project.vdLimitPct ? 'bad' : vdTotalPct > project.vdLimitPct * 0.85 ? 'warn' : 'ok';
   const ampacityStatus = izA >= ibA ? 'ok' : 'bad';
-  const protectionStatus: Status = inA === undefined ? 'warn' : ibA <= inA && inA <= izA ? 'ok' : 'bad';
+  // An isolator gives no overload protection: its rating can fail Ib, but the cable's protection is not verified.
+  const isolator = board.supply!.device === 'ISOL';
+  const protectionStatus: Status = inA === undefined ? 'warn' : ibA > inA ? 'bad' : isolator ? 'warn' : inA <= izA ? 'ok' : 'bad';
   const faultAssumed = sourceAssumed(project, board.id);
   const faultSupplyKA = supplyFaultKa(board);
   const faultBoardKA = faultCurrentKA(impedanceToBoard(project, board.id), project.voltageV);
@@ -55,7 +57,8 @@ export function evaluateSupplyIncomer(project: Project, board: Board): SupplyInc
   else if (ampacityStatus === 'bad') reasons.push(`Iz ${izText(izA)} A is below Ib ${fmtFixed(ibA, 1)} A`);
   if (inA === undefined) reasons.push('supply device rating not given: Ib ≤ In ≤ Iz not checked');
   else if (ibA > inA) reasons.push(`Ib ${fmtFixed(ibA, 1)} A is above the supply device ${fmtFixed(inA, 0)} A`);
-  else if (!(inA <= izA)) reasons.push(`the supply device ${fmtFixed(inA, 0)} A is above Iz ${izText(izA)} A: the cable is not protected`);
+  else if (isolator) reasons.push('the supply device is an isolator: protection of the incoming cable not verified (Ib ≤ In ≤ Iz not checked)');
+  else if (!rating.missing && !(inA <= izA)) reasons.push(`the supply device ${fmtFixed(inA, 0)} A is above Iz ${izText(izA)} A: the cable is not protected`);
   if (vdStatus !== 'ok') reasons.push(`voltage drop ${fmtFixed(vdTotalPct, 2)} % (${fmtFixed(vdUsedPct, 2)} % used upstream) ${vdStatus === 'bad' ? 'above' : 'close to'} the ${project.vdLimitPct} % limit`);
 
   const statuses: Status[] = [vdStatus, ampacityStatus, protectionStatus];

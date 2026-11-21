@@ -210,6 +210,7 @@ export async function main(argv: string[], version: string, io: { out: (s: strin
   // A list may also be given as plain text, comma separated: --sheets E-SLD-001,E-SLD-002
   for (const [k, v] of Object.entries(args)) {
     const s = t.input[k] as z.ZodType | undefined;
+    if (s && v === 'null' && s.safeParse(null).success) { args[k] = null; continue; } // --zeOhm null clears a value where the tool allows it
     if (s && (typeof v === 'string' || typeof v === 'number') && !s.safeParse(v).success) {
       const list = String(v).split(',').map((x) => x.trim()).filter(Boolean);
       if (s.safeParse(list).success) args[k] = list;

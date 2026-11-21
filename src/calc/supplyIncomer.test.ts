@@ -42,6 +42,21 @@ describe('the incoming cable of a first board on an LV supply, checked', () => {
     expect(none.reasons).toEqual(['supply device rating not given: Ib ≤ In ≤ Iz not checked']);
   });
 
+  it('an isolator gives no overload protection: the cable is not verified, whatever its rating', () => {
+    const iso = check(lv({ ...supply, device: 'ISOL' }))!;
+    expect(iso.protectionStatus).toBe('warn');
+    expect(iso.status).toBe('warn');
+    expect(iso.reasons).toEqual(['the supply device is an isolator: protection of the incoming cable not verified (Ib ≤ In ≤ Iz not checked)']);
+    expect(check(lv({ ...supply, device: 'ISOL', ratingA: 30 }))!.protectionStatus).toBe('bad'); // its rating can still be below Ib
+  });
+
+  it('a cable with no rating for its method gives that one reason, not also "the device is above Iz"', () => {
+    const none = check(lv({ ...supply, incomer: { cableCsaMm2: 16, lengthM: 25, installMethod: 'D2' } }))!; // the reference table has no D2 ratings
+    expect(none.izA).toBeNaN();
+    expect(none.ampacityStatus).toBe('bad');
+    expect(none.reasons).toEqual(['no rating for the incoming cable (no D2 rating for 16 mm² (Cables.xlsx or reference))']);
+  });
+
   it('a cable below Ib, and the voltage drop against the limit with the drop used added', () => {
     const small = check(lv({ ...supply, incomer: { cableCsaMm2: 2.5, lengthM: 25 } }))!; // 2.5 mm²: Iz = 36 × 0.87 = 31.3 A < 37.1 A
     expect(small.ampacityStatus).toBe('bad');

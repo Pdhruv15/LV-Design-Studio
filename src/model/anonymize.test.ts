@@ -49,7 +49,14 @@ describe('anonymizeProject', () => {
     const r = anonymizeProject(p);
     expect(r.project.boards[0].supply).toEqual({ faultKa: 25, fedBy: 'board', xr: 4, faultKaMin: 12, vdUsedPct: 1.5, zeOhm: 0.08, allowedA: 900, incomer: { cableCsaMm2: 240, lengthM: 20, parallel: 2, cores: 4, installMethod: 'D1' } });
     expect(JSON.stringify(r.project)).not.toContain('Letter');
-    expect(r.removed).toContain('panel.supply text (fed from, cable, reference)');
+    expect(r.removed).toContain('panel.supply reference');
+    expect(r.removed).toContain('panel.supply text (fed from, cable)'); // the other panels still have their fed-from / cable text
+    // A project that sets only the new reference gets its own note, and the old wording stays unchanged for it.
+    const only = richProject();
+    only.boards = only.boards.map((b) => ({ ...b, supply: { faultKa: 25, ref: 'Letter Real Client LLC 77' } }));
+    const o = anonymizeProject(only).removed;
+    expect(o).toContain('panel.supply reference');
+    expect(o).not.toContain('panel.supply text (fed from, cable)');
   });
 
   it('removes identifying data at every level, including fields it does not know', () => {

@@ -135,6 +135,8 @@ describe('earth fault loop with values given from upstream (first board on an LV
     expect(a).toEqual({ z: supplyImpedance(25, 415), estimated: 'Ze estimated from the supply fault level at MDB' });
     expect(earthLoopPath(lv({ ratingA: 400 }), 'MDB').missing).toMatch(/no source data/);
     expect(earthLoopPath(lv({ ratingA: 400, incomer }), 'MDB').missing).toMatch(/no source data/);
+    expect(earthLoopPath(lv({ ratingA: 400, incomer }), 'MDB').z.r).toBeCloseTo(0.069, 6); // the known part: the incoming cable loop, never dropped
+    expect(earthLoopPath(lv({ ratingA: 400 }), 'MDB').z).toEqual({ r: 0, x: 0 });
     const tx: Project = { ...project([feeder({})]), boards: [{ id: 'MDB', name: 'M', sourceKva: 1000, sourceImpedancePct: 5, supply: { zeOhm: 5, faultKaMin: 1, xr: 20, incomer } }] };
     expect(earthLoopPath(tx, 'MDB')).toEqual(earthLoopPath(project([feeder({})]), 'MDB'));
   });

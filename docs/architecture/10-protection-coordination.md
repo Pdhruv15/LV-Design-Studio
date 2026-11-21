@@ -22,7 +22,7 @@ Checks whether each protective device trips before the device above it (selectiv
 
 | File | Kind | Key functions or components | What they do |
 |---|---|---|---|
-| `src/calc/protection.ts` | calc | `instantaneousNoTripA`, `genericTripTimeS`, `selectivityPair`, `upstreamBreakers`, `discriminationChain`, `evaluateSelectivity`, type `SelectivityResult` | Trip thresholds, generic curve, and the pair, chain and project-wide selectivity checks |
+| `src/calc/protection.ts` | calc | `instantaneousNoTripA`, `genericTripTimeS`, `selectivityPair`, `upstreamBreakers`, `discriminationChain`, `evaluateSelectivity`, `evaluateSupplySelectivity`, type `SelectivityResult` | Trip thresholds, generic curve, and the pair, chain and project-wide selectivity checks; `evaluateSupplySelectivity` compares the upstream device of a first board on an LV supply with each of its outgoing breakers (a separate list, run.supplySelectivity; pairs the supply data cannot settle are 'not verified') |
 | `src/calc/earthing.ts` | calc (shared with 09) | `breakerTypeOf`, `instantaneousTripA` | Default device type (C ≤ 63 A, MCCB above) and the sure-trip magnetic current |
 | `src/components/studies/CoordinationStudy.tsx` | screen | `CoordinationStudy` | "Protection coordination" study page: summary cards, board picker, TCC chart for one sub-board, table of all pairs |
 | `src/components/DiscriminationPanel.tsx` | screen | `DiscriminationPanel` | Inspector panel for the selected circuit on the SLD: chain up to the main board plus a compact TCC chart |

@@ -182,6 +182,16 @@ def supply_board_of(project, board_id):
     return board_id
 
 
+def supply_used_pct(project, board_id):
+    """Voltage drop (%) given as already used upstream of the supply point of the main board a board is fed from;
+    only for a main board on an LV supply (no transformer), as in the built-in calculation."""
+    root = next((b for b in project["boards"] if b["id"] == supply_board_of(project, board_id)), None)
+    if not root or (root.get("sourceKva") and root.get("sourceImpedancePct")):
+        return 0.0
+    used = (root.get("supply") or {}).get("vdUsedPct") or 0
+    return float(used) if used > 0 else 0.0
+
+
 def probe():
     pins = tested_versions()
     out = {}
@@ -272,7 +282,12 @@ def run_opendss(project, script, cables=None):
     for f in feeders:
         single = f["cores"] == 2
         end_bus = f"bb_{dss_name(f['feedsBoardId'])}" if f.get("feedsBoardId") else f"ld_{dss_name(f['id'])}"
-        main_v = bus_vpu(f"bb_{dss_name(supply_board_of(project, f['boardId']))}", single)
+        root = dss_name(supply_board_of(project, f["boardId"]))
+        # A main board on an LV supply with an incoming cable has the source on its own bus: measure from there,
+        # so the cable's drop counts, and add the drop given as already used upstream of it.
+        main_v = bus_vpu(f"src_{root}", single)
+        if main_v is None:
+            main_v = bus_vpu(f"bb_{root}", single)
         end_v = bus_vpu(end_bus, single)
         if main_v is None or end_v is None:
             dead.append(f["id"])
@@ -280,7 +295,7 @@ def run_opendss(project, script, cables=None):
         dss.Circuit.SetActiveElement(f"Line.{dss_name(f['id'])}")
         nph = dss.CktElement.NumPhases()
         mags = dss.CktElement.CurrentsMagAng()[0::2][:nph]
-        results[f["id"]] = {"ib": max(mags), "vdTotalPct": (main_v - end_v) * 100, "_end": end_bus}
+        results[f["id"]] = {"ib": max(mags), "vdTotalPct": (main_v - end_v) * 100 + supply_used_pct(project, f["boardId"]), "_end": end_bus}
     if dead:
         messages.append(f"Not energised, so no results: {', '.join(dead)}.")
 
@@ -302,7 +317,7 @@ def run_opendss(project, script, cables=None):
         if v is None:
             messages.append(f"No load-flow voltage for board {b['id']} (not energised).")
         else:
-            boards[b["id"]] = {"voltagePct": v * 100}
+            boards[b["id"]] = {"voltagePct": v * 100 - supply_used_pct(project, b["id"])}
 
     # Fault study: disable loads, generation and capacitors (IEC 60909 neglects them) and
     # read each bus's positive-sequence short-circuit impedance.

@@ -100,11 +100,10 @@ function supplyEarthLoop(project: Project, board: Board): { z: Impedance; missin
   const base = ze !== undefined ? { z: { r: ze, x: 0 } } : ka || kaMin
     ? { z: supplyImpedance(kaMin ?? ka!, project.voltageV, supplyXr(board)), estimated: `Ze estimated from the supply ${kaMin ? 'minimum ' : ''}fault level at ${board.id}` }
     : undefined;
-  if (!base) return { z: { r: 0, x: 0 }, missing: `no source data at ${board.id} (transformer kVA and impedance %, or the supply fault level)` };
   const cable = supplyIncomerFeeder(board);
-  if (!cable) return base;
-  const c = cableLoop(cable);
-  return { ...base, z: { r: base.z.r + c.r, x: base.z.x + c.x } };
+  const c = cable ? cableLoop(cable) : { r: 0, x: 0 }; // the known part, even when there is no source data
+  if (!base) return { z: c, missing: `no source data at ${board.id} (transformer kVA and impedance %, or the supply fault level)` };
+  return cable ? { ...base, z: { r: base.z.r + c.r, x: base.z.x + c.x } } : base;
 }
 
 /** Earth fault loop impedance at a board's busbar (TN-S). At the main
