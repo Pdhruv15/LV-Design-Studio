@@ -28,7 +28,7 @@ export function ConceptToDesignTable({ project, here, heading }: { project: Proj
       <tbody>
         {c.rows.map((r) => <Fragment key={r.key}>
           <tr>
-            <td>{r.key === 'assessment' ? <><b>Assessment</b> <span className="m">at the transformer</span></>
+            <td className="la-c2d-fig">{r.key === 'assessment' ? <><b>Assessment</b> <span className="m">at the transformer</span></>
               : r.key === 'rooms' ? <><b>Rooms</b> <span className="m">sum of rooms and flats</span></>
               : <><b>Designed so far</b> <span className="m">load schedules</span></>}</td>
             <td className="m la-c2d-from">{from(r)}</td>
