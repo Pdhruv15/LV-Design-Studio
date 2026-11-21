@@ -27,6 +27,23 @@ function Text({ value, onSet, width = 170 }: { value: string; onSet: (v: string)
     onBlur={(e) => e.target.value !== value && onSet(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />;
 }
 
+/** The building types as one list: the starting types, then your own, each with its typical VA/m². */
+function TypeList({ types, value, label, onPick, onSaveNew }: { types: LaBuildingType[]; value: string; label?: string; onPick: (t: LaBuildingType) => void; onSaveNew?: () => void }) {
+  const option = (t: LaBuildingType) => <option key={t.id} value={t.id}>{t.label} · {t.vaBand[0]}–{t.vaBand[1]} VA/m²</option>;
+  const mine = types.filter((t) => t.mine);
+  return (
+    <label>Building type
+      <select className="bi-sel" value={value} onChange={(e) => { const t = types.find((x) => x.id === e.target.value); if (t) onPick(t); else if (e.target.value === '+') onSaveNew?.(); }}>
+        {!value && <option value="">Pick a building type…</option>}
+        {value && !types.some((t) => t.id === value) && <option value={value}>{label ?? value}</option>}
+        <optgroup label="Starting types (placeholders)">{types.filter((t) => !t.mine).map(option)}</optgroup>
+        {mine.length > 0 && <optgroup label="My types">{mine.map(option)}</optgroup>}
+        {onSaveNew && <option value="+">+ Save the current set-up as a new type…</option>}
+      </select>
+    </label>
+  );
+}
+
 const uid = (p: string) => `${p}${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
 
 /** Load assessment: building type → area schedule → services → maximum
@@ -96,7 +113,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
       <Page title="Load assessment" intro="Maximum demand, transformers and generator from the building type, its area schedule and the services it needs — before any load schedule exists. Pick a building type to start; everything can be edited.">
         <section className="card">
           <h4>Building type</h4>
-          <div className="la-types">{types.map((t) => <button key={t.id} className="la-type" onClick={() => pickType(t)}>{t.label}{t.mine && <i>my type</i>}</button>)}</div>
+          <div className="bi-grid" style={{ marginBottom: 10 }}><TypeList types={types} value="" onPick={pickType} /></div>
           <p className="m">{buildingFigures(project).gfaM2 ? 'GFA, floors and car park are taken from Building information.' : 'No building information yet — enter the GFA and floors after picking a type.'} The starting figures are placeholders until you save your own.</p>
         </section>
       </Page>
@@ -129,10 +146,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus, onOpen
         <div>
           <section className="card la-sec">
             <h4><span className="la-n">1</span>Building type <span className="m">sets the space mix, services and diversities</span></h4>
-            <div className="la-types">
-              {types.map((t) => <button key={t.id} className={`la-type${t.id === a.typeId ? ' on' : ''}`} onClick={() => pickType(t)}>{t.label}{t.mine && <i>my type</i>}</button>)}
-              <button className="la-type add" onClick={() => saveType(true)} title="Saves the current set-up as a new building type in your library">+ Custom type<i>copies the current one</i></button>
-            </div>
+            <div className="bi-grid" style={{ marginBottom: 10 }}><TypeList types={types} value={a.typeId} label={a.typeLabel} onPick={pickType} onSaveNew={() => saveType(true)} /></div>
             <div className="la-box">
               <div className="bi-grid">
                 <label>Type name<Text value={a.typeLabel} onSet={(v) => patch({ typeLabel: v })} width={190} /></label>
