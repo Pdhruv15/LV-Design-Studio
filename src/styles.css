@@ -2342,8 +2342,17 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-dlg.form .cad-dlg-r{grid-template-columns:80px minmax(0,1fr);height:auto;min-height:24px}
 .cad-dlg.form .cad-dlg-in{justify-content:flex-start;padding:3px 0}
 .cad-dlg.form .cad-dlg-in input:not([type=checkbox]):not([type=radio]):not(.r){text-align:left}
-.cad-dlg-tabs.wrap{flex-wrap:wrap;margin-top:0}
-.cad-dlg-tabs.wrap button{flex:none;padding:0 8px}
+.cad-dlg-ck{display:flex;align-items:center;gap:6px;height:auto;min-height:22px;padding:0 8px;color:var(--tx)}
+.cad-dlg.pages{width:480px}
+.cad-dlg.pages .cad-dlg-rows{display:grid;grid-template-columns:116px 1fr;padding:0}
+.cad-dlg.pages .cad-dlg-pl{display:flex;flex-direction:column;align-content:start;padding:4px 0;background:var(--bg);border-right:1px solid var(--line)}
+.cad-dlg.pages .cad-dlg-pl button{height:22px;padding:0 10px;background:none;border:0;color:var(--mut);font:inherit;font-size:11.5px;text-align:left}
+.cad-dlg.pages .cad-dlg-pl button[aria-selected=true]{color:var(--tx);background:var(--panel);box-shadow:inset 2px 0 0 var(--acc)}
+.cad-dlg.pages .cad-dlg-pl hr{width:auto;height:1px;margin:4px 8px;border:0;background:var(--line)}
+.cad-dlg.pages .cad-dlg-pg{min-width:0;padding:4px 0}
+.cad-dlg.pages .cad-dlg-pg .cad-dlg-r:not(.cad-dlg-ck){grid-template-columns:1fr 190px;height:auto;min-height:22px}
+.cad-dlg.pages .cad-dlg-sec.two{display:flex;justify-content:space-between;gap:8px}
+.cad-dlg.pages .cad-dlg-sec.two i{font-style:normal}
 .cad-dlg-sec{padding:6px 8px 2px;color:var(--mut);font-size:11px}
 .cad-dlg-note{margin:0;padding:2px 8px 4px;color:var(--mut);font-size:11px;line-height:1.35}
 .cad-tab-dirty{color:var(--acc);margin-left:4px}
