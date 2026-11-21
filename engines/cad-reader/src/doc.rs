@@ -124,6 +124,8 @@ pub struct CadDoc {
     format: &'static str,
     units: i16,
     origin: (f64, f64),
+    /// Most of the drawing (see `extents`), worked out once when the pick index is built: the segments are final then.
+    bounds: (f64, f64, f64, f64),
     segs: Vec<f64>, // x1, y1, x2, y2 in drawing units
     seg_layer: Vec<u16>,
     seg_rgb: Vec<u32>,
@@ -674,7 +676,7 @@ impl CadDoc {
 
     /// Drawing facts as JSON: format, units (INSUNITS), origin, extents (most of the drawing), layers, texts, counts.
     pub fn info(&self) -> String {
-        let (x0, y0, x1, y1) = self.extents();
+        let (x0, y0, x1, y1) = self.bounds;
         serde_json::json!({
             "format": self.format, "units": self.units, "origin": [self.origin.0, self.origin.1],
             "extents": [x0, y0, x1, y1], "layers": self.layers, "texts": self.texts,
@@ -930,11 +932,12 @@ impl CadDoc {
         let mut ys: Vec<f64> = self.segs.chunks(2).map(|p| p[1]).collect();
         for t in &self.texts { xs.push(t.x); ys.push(t.y); }
         if xs.is_empty() { return (0.0, 0.0, 1000.0, 1000.0); }
-        xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let at = |v: &Vec<f64>, f: f64| v[((v.len() - 1) as f64 * f) as usize];
-        let full = (xs[0], ys[0], xs[xs.len() - 1], ys[ys.len() - 1]);
-        let most = (at(&xs, 0.01), at(&ys, 0.01), at(&xs, 0.99), at(&ys, 0.99));
+        // The value at a fraction of the sorted order, found without sorting (a full sort was most of an open's time).
+        let at = |v: &mut Vec<f64>, f: f64| { let k = ((v.len() - 1) as f64 * f) as usize; *v.select_nth_unstable_by(k, |a, b| a.partial_cmp(b).unwrap()).1 };
+        let lo_hi = |v: &Vec<f64>| v.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), &x| (a.min(x), b.max(x)));
+        let ((x0, x1), (y0, y1)) = (lo_hi(&xs), lo_hi(&ys));
+        let full = (x0, y0, x1, y1);
+        let most = (at(&mut xs, 0.01), at(&mut ys, 0.01), at(&mut xs, 0.99), at(&mut ys, 0.99));
         // The whole drawing, unless a few stray objects far away would make it much larger than where nearly all of it is.
         let area = |e: (f64, f64, f64, f64)| ((e.2 - e.0).max(1e-9)) * ((e.3 - e.1).max(1e-9));
         if area(full) <= 25.0 * area(most) { return full; }
@@ -943,7 +946,8 @@ impl CadDoc {
     }
 
     fn build_grid(&mut self) {
-        let (x0, y0, x1, y1) = self.extents();
+        self.bounds = self.extents();
+        let (x0, y0, x1, y1) = self.bounds;
         self.origin = (x0, y0);
         // Cells over the main extents (with a margin); anything outside falls in the edge cells.
         let (w, h) = ((x1 - x0).max(1.0), (y1 - y0).max(1.0));
@@ -981,7 +985,7 @@ fn tessellate(doc: &CadDocument, format: &'static str, ents: Vec<&EntityType>) -
         lt: 0,
         ltscale: if doc.header.linetype_scale > 0.0 { doc.header.linetype_scale } else { 1.0 },
         construction_box: (0.0, 0.0, 1000.0, 1000.0),
-        out: CadDoc { format, units: doc.header.insertion_units, origin: (0.0, 0.0), segs: vec![], seg_layer: vec![], seg_rgb: vec![], seg_real: vec![], seg_obj: vec![], seg_lt: vec![], linetypes: vec![vec![]], fills: vec![], objects: vec![], texts: vec![], snaps: vec![], layers: vec![], grid: Grid { x0: 0.0, y0: 0.0, cell: 1.0, nx: 1, ny: 1, segs: vec![vec![]], pts: vec![vec![]] }, truncated: false, xrefs: vec![], erased: vec![], layouts: vec![], papers: vec![] },
+        out: CadDoc { format, units: doc.header.insertion_units, origin: (0.0, 0.0), bounds: (0.0, 0.0, 1000.0, 1000.0), segs: vec![], seg_layer: vec![], seg_rgb: vec![], seg_real: vec![], seg_obj: vec![], seg_lt: vec![], linetypes: vec![vec![]], fills: vec![], objects: vec![], texts: vec![], snaps: vec![], layers: vec![], grid: Grid { x0: 0.0, y0: 0.0, cell: 1.0, nx: 1, ny: 1, segs: vec![vec![]], pts: vec![vec![]] }, truncated: false, xrefs: vec![], erased: vec![], layouts: vec![], papers: vec![] },
     };
     for layer in doc.layers.iter() {
         let i = b.layer(&layer.name);
@@ -1000,6 +1004,8 @@ fn tessellate(doc: &CadDocument, format: &'static str, ents: Vec<&EntityType>) -
     // so it behaves as infinite without making Zoom extents enormous.
     for infinite in [false, true] {
         if infinite {
+            // Only infinite lines need the view box: skip working it out when there are none.
+            if !ents.iter().any(|e| matches!(e, EntityType::Ray(_) | EntityType::XLine(_))) { break; }
             let (x0, y0, x1, y1) = b.out.extents();
             let pad = 0.05 * (x1 - x0).max(y1 - y0).max(1.0);
             b.construction_box = (x0 - pad, y0 - pad, x1 + pad, y1 + pad);
@@ -1992,6 +1998,34 @@ mod tests {
     fn a_file_with_nothing_readable_is_still_an_error() {
         let cut = b"0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n".to_vec();
         assert!(read(cut).unwrap_err().contains("Unexpected EOF"), "the strict read's message");
+    }
+
+    #[test]
+    fn extents_match_the_sorted_percentiles() {
+        // The old way: sort every point, take the ends and the 1 % / 99 % values.
+        let sorted = |d: &CadDoc| {
+            let mut xs: Vec<f64> = d.segs.chunks(2).map(|p| p[0]).collect();
+            let mut ys: Vec<f64> = d.segs.chunks(2).map(|p| p[1]).collect();
+            for t in &d.texts { xs.push(t.x); ys.push(t.y); }
+            xs.sort_by(|a, b| a.partial_cmp(b).unwrap()); ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let at = |v: &Vec<f64>, f: f64| v[((v.len() - 1) as f64 * f) as usize];
+            let full = (xs[0], ys[0], xs[xs.len() - 1], ys[ys.len() - 1]);
+            let most = (at(&xs, 0.01), at(&ys, 0.01), at(&xs, 0.99), at(&ys, 0.99));
+            let area = |e: (f64, f64, f64, f64)| ((e.2 - e.0).max(1e-9)) * ((e.3 - e.1).max(1e-9));
+            if area(full) <= 25.0 * area(most) { return full; }
+            let (mx, my) = ((most.2 - most.0) * 0.05, (most.3 - most.1) * 0.05);
+            (most.0 - mx, most.1 - my, most.2 + mx, most.3 + my)
+        };
+        for name in ["plan-2018.dwg", "plan-tagged.dxf", "paper-layouts.dxf"] {
+            let d = CadDoc::new(fixture(name)).unwrap();
+            assert_eq!(d.extents(), sorted(&d), "{name}");
+        }
+        // Scattered points with a few strays far away (the trimmed case), in an order that is not sorted.
+        let mut d = CadDoc::new(fixture("plan-2018.dwg")).unwrap();
+        d.segs = (0..4001).flat_map(|i| { let v = ((i * 7919) % 4001) as f64; [v, v * 0.5, v + 1.0, v * 0.5 + 2.0] }).collect();
+        d.segs.extend([1e9, -1e9, 1e9 + 1.0, -1e9 + 1.0]);
+        d.texts.clear();
+        assert_eq!(d.extents(), sorted(&d));
     }
 
     /// Times read, tessellate and info for the drawings kept by tests/performance/cadOpen.perf.ts (CAD_BENCH_DUMP=<folder>),
