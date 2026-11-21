@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.242', date: '2026-11-21',
+    items: [
+      { title: 'Space plan: "Create / Update supply" keeps what you designed', text: 'The "Create SLD" button on Concept → Space plan is now "Create / Update supply". It makes the plan\'s transformer switchboards, MDBs and SMDBs with one load feeder per row, or brings them up to date when they are already there, and sizes only those incomers and load feeders. Every other board and feeder of the project is kept; before, Create SLD replaced the whole network. The load assessment\'s own MDBs and lump feeders are removed, because the plan\'s rows now carry those loads, so there is one start instead of two. A board the plan no longer has is removed when nothing of yours is on it, and left in place (and named in the status line) when it still feeds your boards. The load feeders of rows taken from the assessment shrink as real DBs and services are designed, the same way the assessment\'s feeders do: the ticked box in Common services… and Generate DBs… covers them too. Load assessment shows a note when the supply is planned in Space plan.' }
+    ]
+  },
+  {
     version: '2.241', date: '2026-11-21',
     items: [
       { title: 'Space plan takes its loads and settings from the load assessment', text: 'Concept → Space plan now starts with a strip that shows the load assessment beside the plan: maximum demand, transformers, transformer sizes and settings, with what differs marked. "Take loads from the assessment…" shows the result first and then fills the plan with one row per building and load category (lighting, small power, HVAC, water heating, cooking, lifts, pumps, EV, special, fire and life safety, your custom loads), each with its diversity; a category is shared between the buildings by their floor area. Rows taken from the rooms or taken before are replaced; rows you typed and the panels already given are kept. "Use the assessment\'s settings" takes its max loading, power factor, spare and coincidence. With both, the plan\'s maximum demand equals the assessment\'s. "Keep my figures" hides the notice until the assessment changes. Nothing moves on its own. The areas grid has a FROM column (assessment, rooms or blank for typed rows), the settings have a Coincidence, and "Use types from my density standard" fills the use types from the density standard in place of a table typed by hand.' }

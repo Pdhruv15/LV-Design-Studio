@@ -25,7 +25,7 @@ export function assessmentLoads(project: Project, a: LoadAssessment): SpaceArea[
     for (const c of assess(a).categories) {
       const kw = round2(c.connectedKw * share);
       if (kw < 0.005) continue;
-      out.push({ id: `la-${p.id}-${c.key.replace(':', '-')}`, building: p.name, name: c.label, use: 'services', kw, demandFactor: c.diversity, from: 'la' });
+      out.push({ id: `la-${p.id}-${c.key.replace(':', '-')}`, building: p.name, name: c.label, use: 'services', kw, demandFactor: c.diversity, from: 'la', laKey: c.key });
     }
   }
   return out;

@@ -107,7 +107,7 @@ function roomCircuits(r: RoomSpec): Partial<Record<PointType, number>>[] {
 export interface GenerateResult { project: Project; dbs: string[]; circuits: number; replaced: number }
 
 /** A circuit this command made for a room (not a load-assessment lump "la:…" or a service "svc:…"). */
-const ownRoom = (f: Feeder) => !!f.fromRoom && !f.fromRoom.startsWith('la:') && !f.fromRoom.startsWith('svc:');
+const ownRoom = (f: Feeder) => !!f.fromRoom && !f.fromRoom.startsWith('la:') && !f.fromRoom.startsWith('svc:') && !f.fromRoom.startsWith('sp:');
 
 /** Creates (or refreshes) the planned DBs: board, incomer from the riser's
  * source board with its length and meter, and the load schedule. Circuits

@@ -43,7 +43,7 @@ export function conceptToDesign(project: Project): ConceptToDesign | undefined {
   }
   let designed: ConceptRow | undefined;
   try {
-    const dash = buildDashboard({ ...project, feeders: project.feeders.filter((f) => !f.fromRoom?.startsWith('la:')) });
+    const dash = buildDashboard({ ...project, feeders: project.feeders.filter((f) => !f.fromRoom?.startsWith('la:') && !f.fromRoom?.startsWith('sp:')) });
     if (dash.demandKva > 0) designed = { key: 'designed', connectedKw: dash.connectedKw, demandKw: dash.demandKw, buildings: designedParts };
   } catch { /* an incomplete project has no designed figure */ }
   if (designed) rows.push(designed);

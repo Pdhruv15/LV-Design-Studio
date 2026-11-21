@@ -12,7 +12,7 @@ import { txt } from '../../util/format';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
-const hasLumps = (p: Project) => !!p.loadAssessment && p.feeders.some((f) => f.fromRoom?.startsWith('la:'));
+const hasLumps = (p: Project) => !!p.loadAssessment && p.feeders.some((f) => f.fromRoom?.startsWith('la:') || f.fromRoom?.startsWith('sp:'));
 const lumpNote = (changes: { label: string; fromKw: number; toKw: number }[]) => (changes.length ? `; the assessment's lump feeders were reduced: ${changes.map((c) => `${c.label} ${Math.round(c.fromKw)} to ${Math.round(c.toKw)} kW`).join(', ')}` : '');
 const num = (v: string) => (v.trim() === '' || Number.isNaN(+v.replace(/,/g, '')) ? undefined : +v.replace(/,/g, ''));
 
