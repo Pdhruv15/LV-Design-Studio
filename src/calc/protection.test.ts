@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateSelectivity, genericTripTimeS, instantaneousNoTripA } from './protection';
+import { evaluateSelectivity, evaluateSupplySelectivity, genericTripTimeS, instantaneousNoTripA } from './protection';
 import type { Feeder, Project } from '../types';
 
 function feeder(over: Partial<Feeder>): Feeder {
@@ -66,5 +66,32 @@ describe('selectivity', () => {
     const r = evaluateSelectivity(project([feeder({ id: 'D1', breakerRatingA: 250 })]))[0];
     expect(r.ratioOk).toBe(false);
     expect(r.status).toBe('bad');
+  });
+});
+
+describe('discrimination with the supply device (first board on an LV supply)', () => {
+  // The supply's device rating is the upstream In: In ratio ≥ 1.6 as between an incomer and the ways below it.
+  // 100 A upstream: 40 A way ratio 2.5; 63 A way ratio 1.59 < 1.6; 100 A way ratio 1.0 (not above it: fails).
+  // The short-circuit region needs the instantaneous setting, which the supply does not give: never 'ok'.
+  const ways = [feeder({ id: 'A', boardId: 'MDB', breakerRatingA: 40 }), feeder({ id: 'B', boardId: 'MDB', breakerRatingA: 63 }), feeder({ id: 'C', boardId: 'MDB', breakerRatingA: 100 })];
+  const lv = (supply: NonNullable<Project['boards'][number]['supply']>): Project => ({ ...project([]), boards: [{ id: 'MDB', name: 'M', supply }], feeders: ways });
+  it('the ratio is judged as for an incomer; the short-circuit region is not verified', () => {
+    const r = evaluateSupplySelectivity(lv({ faultKa: 25, ratingA: 100, device: 'MCCB', vdUsedPct: 1 }));
+    expect(r.map((x) => [x.downstream.id, +x.ratio.toFixed(2), x.ratioOk, x.status])).toEqual([['A', 2.5, true, 'warn'], ['B', 1.59, false, 'warn'], ['C', 1, false, 'bad']]);
+    expect(r[0].reasons).toEqual(['short circuit: the upstream device setting is not given']);
+    expect(r[1].reasons[0]).toBe('In ratio 1.59 is below 1.6');
+    expect(r[2].reasons[0]).toMatch(/not above C \(100 A\)/);
+    expect(r[0].upstream).toEqual({ device: 'MCCB', ratingA: 100 });
+    expect(r[0].faultKA).toBeGreaterThan(0);
+  });
+  it('an isolator gives no protective device to discriminate with', () => {
+    expect(evaluateSupplySelectivity(lv({ faultKa: 25, ratingA: 400, device: 'ISOL', zeOhm: 0.1 }))[0].reasons).toEqual(['the supply device is an isolator: no protective device to discriminate with']);
+  });
+  it('nothing without a device rating or given values (unchanged), and not for a transformer or a sub-board', () => {
+    expect(evaluateSupplySelectivity(lv({ faultKa: 25, ratingA: 100 }))).toEqual([]); // only the stated device: left as it was
+    expect(evaluateSupplySelectivity(lv({ faultKa: 25, vdUsedPct: 1 }))).toEqual([]);
+    expect(evaluateSupplySelectivity({ ...lv({ ratingA: 100, zeOhm: 0.1 }), boards: [{ id: 'MDB', name: 'M', sourceKva: 1000, sourceImpedancePct: 5, supply: { ratingA: 100, zeOhm: 0.1 } }] })).toEqual([]);
+    // The ordinary pairs are not touched.
+    expect(evaluateSelectivity(lv({ faultKa: 25, ratingA: 100, zeOhm: 0.1 }))).toEqual([]);
   });
 });

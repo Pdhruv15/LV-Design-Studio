@@ -55,6 +55,20 @@ export function projectInputIssues(p: Project): InputIssue[] {
     pos(b.sourceKva, 'transformer rating', ' kVA');
     pos(b.sourceImpedancePct, 'transformer impedance', ' %');
     pos(b.sourceXr, 'transformer X/R', '');
+    const sup = b.supply;
+    if (sup) {
+      pos(sup.xr, 'supply X/R', '');
+      pos(sup.faultKaMin, 'supply minimum fault level', ' kA');
+      pos(sup.zeOhm, 'supply Ze', ' Ω');
+      pos(sup.allowedA, 'supply allowed load', ' A');
+      if (sup.vdUsedPct !== undefined && (!fin(sup.vdUsedPct) || sup.vdUsedPct < 0 || (fin(p.vdLimitPct) && sup.vdUsedPct >= p.vdLimitPct))) bad.push(`supply voltage drop used ${show(sup.vdUsedPct)} % (must be 0 or more and below the ${show(p.vdLimitPct)} % limit)`);
+      if (fin(sup.faultKaMin) && fin(sup.faultKa) && sup.faultKaMin > sup.faultKa) bad.push(`supply minimum fault level ${sup.faultKaMin} kA (above the fault level ${sup.faultKa} kA)`);
+      if (sup.incomer) {
+        const c = sup.incomer;
+        if (!fin(c.cableCsaMm2) || c.cableCsaMm2 <= 0) bad.push(`supply incoming cable size ${show(c.cableCsaMm2)} mm² (must be above 0)`);
+        if (!fin(c.lengthM) || c.lengthM <= 0) bad.push(`supply incoming cable length ${show(c.lengthM)} m (must be above 0)`);
+      }
+    }
     if (bad.length) out.push({ status: 'bad', text: `Panel ${b.id}: ${bad.join('; ')}`, go: { view: 'sizing' } });
     else if (fin(b.sourceImpedancePct) && b.sourceImpedancePct > 20) out.push({ status: 'warn', text: `Panel ${b.id}: transformer impedance ${b.sourceImpedancePct} % is unusually high — check the value`, go: { view: 'sizing' } });
   }

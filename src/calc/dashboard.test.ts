@@ -87,3 +87,23 @@ describe('dashboard: an assumed source fault level', () => {
     expect(todo({ ...sampleProject, busRisers: [riser] }).some((x) => /Icw not verified/.test(x))).toBe(false);
   });
 });
+
+describe('project dashboard: values given from upstream', () => {
+  const load = { id: 'F', boardId: 'MDB', name: 'F', loadKw: 24, demandFactor: 1, powerFactor: 0.9, lengthM: 20, cableCsaMm2: 10, cores: 4 as const, breakerRatingA: 40, breakerIcuKa: 36 };
+  const lv = (supply: NonNullable<Project['boards'][number]['supply']>): Project =>
+    ({ name: 'T', voltageV: 415, frequencyHz: 50, ambientC: 45, vdLimitPct: 4, updatedAt: '', boards: [{ id: 'MDB', name: 'M', supply }], feeders: [load] });
+  const todo = (p: Project) => buildDashboard(p, runCalculations(p)).todo.map((t) => `${t.status}: ${t.text}`);
+  // 24 kW at PF 0.9 is 37.1 A. Incoming cable 2.5 mm² (Iz 31.3 A) is too small; the supply gives 30 A (37.1 A is 124 %).
+  const given = { faultKa: 12, ratingA: 63, device: 'MCCB' as const, allowedA: 30, incomer: { cableCsaMm2: 2.5, lengthM: 25 } };
+  it('lists a failing incoming cable, demand above the allowed load and the unverified upstream discrimination', () => {
+    const t = todo(lv(given));
+    expect(t).toContain('bad: MDB: incoming cable — Iz 31.3 A is below Ib 37.1 A; the supply device 63 A is above Iz 31.3 A: the cable is not protected');
+    expect(t).toContain('bad: MDB: demand 37.1 A is above the 30.0 A the supply can give (123.7 %)');
+    expect(t).toContain('warn: MDB: discrimination with the supply device (63 A) not verified for 1 way');
+  });
+  it('a sound incoming cable, an allowed load that is enough and no upstream values add no rows', () => {
+    const ok = todo(lv({ ...given, allowedA: 50, incomer: { cableCsaMm2: 16, lengthM: 25 } }));
+    expect(ok.filter((x) => /incoming cable|supply can give/.test(x))).toEqual([]);
+    expect(todo(lv({ faultKa: 12, ratingA: 63 })).filter((x) => /supply device|incoming cable|supply can give/.test(x))).toEqual([]);
+  });
+});

@@ -6,7 +6,7 @@ import { boardLocation } from '../model/levels';
 import { projectInputIssues } from '../model/projectValidate';
 import { STARTERS } from '../calc/motor';
 import * as quick from '../calc/quick';
-import type { Project } from '../types';
+import { supplyGiven, type Board, type Project } from '../types';
 import { listProjects, openProject } from './project';
 import { EDIT_TOOLS } from './editTools';
 import { EXPORT_TOOLS } from './exportTools';
@@ -137,7 +137,8 @@ export const TOOLS: Tool[] = [
           id: b.id, name: b.name, kind: b.kind, fedFrom: b.upstreamId ?? (b.sourceKva ? `${b.sourceKva} kVA transformer` : undefined),
           location: boardLocation(p, b) || undefined, circuits: s.outgoing,
           demandKw: r(s.demandKw, 1), demandKva: r(s.demandKva, 1), currentA: r(s.currentA, 1), ratedA: boardRatedA(b),
-          loadingPct: r(s.loadingPct, 1), voltagePct: r(s.voltagePct), faultKA: r(s.faultKA, 1), ...(s.faultAssumed && { faultAssumed: true })
+          loadingPct: r(s.loadingPct, 1), voltagePct: r(s.voltagePct), faultKA: r(s.faultKA, 1), ...(s.faultAssumed && { faultAssumed: true }),
+          ...(s.allowedA !== undefined && { allowedA: s.allowedA, allowedLoadingPct: r(s.allowedLoadingPct!, 1) })
         };
       });
     }
@@ -158,6 +159,7 @@ export const TOOLS: Tool[] = [
         id: b.id, name: b.name, kind: b.kind, fedFrom: b.upstreamId, location: boardLocation(p, b) || undefined,
         ratedA: boardRatedA(b), demandKw: r(s.demandKw, 1), demandKva: r(s.demandKva, 1), currentA: r(s.currentA, 1),
         loadingPct: r(s.loadingPct, 1), voltagePct: r(s.voltagePct), faultKA: r(s.faultKA, 1), ...(s.faultAssumed && { faultAssumed: true }),
+        ...(s.allowedA !== undefined && { allowedA: s.allowedA, allowedLoadingPct: r(s.allowedLoadingPct!, 1) }), ...supplyOf(b, run),
         incomer: s.incomer ? { id: s.incomer.id, breakerA: s.incomer.breakerRatingA, cable: cableText(s.incomer) } : undefined,
         circuits: run.results.filter((x) => x.feeder.boardId === b.id).map(circuitRow)
       };
@@ -290,6 +292,21 @@ export const TOOLS: Tool[] = [
 
 function cableText(f: Project['feeders'][number]): string {
   return `${(f.parallel ?? 1) > 1 ? `${f.parallel} × ` : ''}${f.cores}C × ${f.cableCsaMm2} mm², ${f.lengthM} m`;
+}
+
+/** The values given from upstream for a first board on an LV supply, its incoming cable check and its upstream device
+ * against its outgoing breakers; nothing for a board that has none of the given values. */
+function supplyOf(b: Board, run: CalcRun) {
+  if (!supplyGiven(b)) return {};
+  const { device, ratingA, faultKa, irSetting, fedBy, ref, xr, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer } = b.supply!;
+  const given = { fedBy: fedBy ?? 'source', ref, device, ratingA, irSetting, faultKa, xr, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer };
+  const cable = run.supplyIncomers?.find((x) => x.board.id === b.id);
+  const pairs = run.supplySelectivity?.filter((x) => x.board.id === b.id);
+  return {
+    supply: Object.fromEntries(Object.entries(given).filter(([, v]) => v !== undefined)),
+    ...(cable && { incomingCable: { ibA: r(cable.ibA, 1), inA: cable.inA, izA: r(cable.izA, 1), vdPct: r(cable.vdPct), vdUsedPct: r(cable.vdUsedPct), vdTotalPct: r(cable.vdTotalPct), faultAtSupplyKA: cable.faultSupplyKA, faultAtBoardKA: r(cable.faultBoardKA, 1), ...(cable.faultAssumed && { faultAssumed: true }), status: cable.status, ...(cable.reasons.length && { issues: cable.reasons }) } }),
+    ...(pairs?.length && { supplyDiscrimination: pairs.map((x) => ({ circuit: x.downstream.id, breakerA: x.downstream.breakerRatingA, supplyDeviceA: x.upstream.ratingA, ratio: r(x.ratio, 2), status: x.status, issues: x.reasons })) })
+  };
 }
 
 function circuitRow(x: CalcRun['results'][number]) {

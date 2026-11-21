@@ -4,11 +4,11 @@ import { groundChecks } from './installation';
 import { projectInputIssues } from '../model/projectValidate';
 import { proposalOutstanding } from '../model/proposalStatus';
 import type { BoardKind, Project } from '../types';
-import { BOARD_KINDS, LOAD_TYPES, PROJECT_STATUSES, settingsOf, supplyFaultKa } from '../types';
+import { BOARD_KINDS, LOAD_TYPES, PROJECT_STATUSES, lvSupplied, settingsOf, supplyFaultKa } from '../types';
 import type { Status } from './electrical';
 import type { CalcRun, StudyKey } from './runs';
 import { staleStudies, STUDY_LABEL } from './runs';
-import { boardsInSupplyOrder, boardTotals, loadTypeOf, systemSummary } from './summary';
+import { boardsInSupplyOrder, boardSummary, boardTotals, loadTypeOf, systemSummary } from './summary';
 import { boardDemandKva } from './sizing';
 import { summarizeBuilding, dbChecks } from './building';
 import { sizeGeneratorByBoards, sizeTransformers } from './txGen';
@@ -173,6 +173,17 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
     if (ew.length) todo.push({ status: 'warn', text: `${ew.length} earth fault loop${ew.length > 1 ? 's' : ''} to check`, go: { view: 'earthing' } });
     const sw = run.selectivity.filter((r) => r.status === 'warn');
     if (sw.length) todo.push({ status: 'warn', text: `${sw.length} breaker pair${sw.length > 1 ? 's' : ''} only partly selective`, go: { view: 'coordination' } });
+    // Values given from upstream for a board on an LV supply: its incoming cable and its device (the load it can give is below).
+    for (const c of run.supplyIncomers ?? []) if (c.status !== 'ok') todo.push({ status: c.status, text: `${c.board.id}: incoming cable — ${c.reasons.join('; ')}`, go: { view: 'design', boardId: c.board.id } });
+    for (const b of project.boards) {
+      const pairs = (run.supplySelectivity ?? []).filter((x) => x.board.id === b.id);
+      const failed = pairs.filter((x) => x.status === 'bad').length, ways = (n: number) => `${n} way${n > 1 ? 's' : ''}`;
+      if (pairs.length) todo.push({ status: 'warn', text: `${b.id}: ${failed ? `${ways(failed)} not selective with the supply device, ` : ''}discrimination with the supply device (${pairs[0].upstream.ratingA} A) not verified for ${ways(pairs.length)}`, go: { view: 'coordination' } });
+    }
+  }
+  for (const b of project.boards) {
+    const s = lvSupplied(b) && b.supply!.allowedA! > 0 ? boardSummary(project, b) : undefined;
+    if (s?.allowedLoadingPct !== undefined && s.allowedLoadingPct > 100) todo.push({ status: 'bad', text: `${b.id}: demand ${fig.current(s.currentA)} A is above the ${fig.current(s.allowedA)} A the supply can give (${fig.loading(s.allowedLoadingPct)} %)`, go: { view: 'design', boardId: b.id } });
   }
   for (const f of fireRatingIssues(project)) todo.push({ status: 'bad', text: `${f.id} (${f.name}) is life safety but not on fire-rated cable`, go: { view: 'design', feederId: f.id } });
   for (const t of transformers) if (t.status !== 'ok') todo.push({ status: t.status, text: `${t.boardId} transformer ${fig.loading(t.loadingPct)} % loaded (limit ${t.limitPct} %)`, go: { view: 'sizing' } });

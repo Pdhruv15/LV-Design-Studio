@@ -45,6 +45,16 @@ describe('revisions', () => {
     expect(db.to - db.from).toBeCloseTo(0.2 - 1.0, 9); // +2 lights, −External lighting (10 × 100 W)
   });
 
+  it('a value given from upstream, or a change inside the incoming cable, is an engineering change of the panel', () => {
+    const base = { ...sampleProject, boards: sampleProject.boards.map((b) => (b.id === 'MDB-1' ? { id: b.id, name: b.name, supply: { faultKa: 25, vdUsedPct: 1.6, incomer: { cableCsaMm2: 240, lengthM: 20 } } } : b)) };
+    const edit = (supply: object) => ({ ...base, boards: base.boards.map((b) => (b.id === 'MDB-1' ? { ...b, supply } : b)) });
+    for (const supply of [{ faultKa: 25, vdUsedPct: 2.1, incomer: { cableCsaMm2: 240, lengthM: 20 } }, { faultKa: 25, vdUsedPct: 1.6, incomer: { cableCsaMm2: 240, lengthM: 25 } }, { faultKa: 25, vdUsedPct: 1.6, zeOhm: 0.1, incomer: { cableCsaMm2: 240, lengthM: 20 } }]) {
+      const c = diffProjects(snapshotOf(base), snapshotOf(edit(supply))).changes.find((x) => x.id === 'MDB-1')!;
+      expect(c).toMatchObject({ kind: 'changed', what: 'board', class: 'engineering' });
+      expect(c.fields[0].field).toBe('Incoming supply');
+    }
+  });
+
   it('reports board and project setting changes, and nothing for identical projects', () => {
     expect(diffProjects(snapshotOf(sampleProject), sampleProject).changes).toEqual([]);
     const p = {

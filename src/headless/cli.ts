@@ -15,7 +15,7 @@ const ALIASES: Record<string, string> = {
   check: 'run_checks', results: 'circuit_results', current: 'calc_current', vd: 'calc_voltage_drop',
   cable: 'calc_cable_size', transformer: 'calc_transformer', fault: 'calc_fault_level', motor: 'calc_motor', pfc: 'calc_pf_correction',
   propose: 'propose_changes', size: 'size_circuits', 'add-panel': 'add_panel', 'add-circuit': 'add_circuit', move: 'move_panel',
-  rename: 'rename_panels', copy: 'copy_panel', changes: 'list_changes', undo: 'undo_change',
+  rename: 'rename_panels', copy: 'copy_panel', 'set-supply': 'set_supply', changes: 'list_changes', undo: 'undo_change',
   'delete-panel': 'delete_panel', 'delete-circuit': 'delete_circuit', 'add-building': 'add_building', 'add-level': 'add_level',
   'exchange-check': 'exchange_check', 'exchange-review': 'exchange_review', 'exchange-apply': 'exchange_apply', 'rooms-package': 'export_rooms_package', elv: 'elv_estimate', 'elv-package': 'export_elv_loads_package', 'elv-place': 'elv_place_loads', 'elv-devices': 'elv_devices', 'elv-place-devices': 'elv_place_devices', 'elv-schedules': 'elv_schedules',
   'cad-plan': 'cad_plan', 'rooms-from-cad': 'rooms_from_cad',

@@ -43,6 +43,15 @@ describe('anonymizeProject', () => {
     expect(p.boards[0].ratedCurrentA).toBe(before.boards[0].ratedCurrentA);
   });
 
+  it('keeps the numbers given from upstream (so a shared sample gives the same results) and drops their reference text', () => {
+    const p = richProject();
+    p.boards = p.boards.map((b, i) => (i === 0 ? { ...b, supply: { faultKa: 25, ref: 'Letter Real Client LLC 77', fedBy: 'board' as const, xr: 4, faultKaMin: 12, vdUsedPct: 1.5, zeOhm: 0.08, allowedA: 900, incomer: { cableCsaMm2: 240, lengthM: 20, parallel: 2, cores: 4 as const, installMethod: 'D1' as const } } } : b));
+    const r = anonymizeProject(p);
+    expect(r.project.boards[0].supply).toEqual({ faultKa: 25, fedBy: 'board', xr: 4, faultKaMin: 12, vdUsedPct: 1.5, zeOhm: 0.08, allowedA: 900, incomer: { cableCsaMm2: 240, lengthM: 20, parallel: 2, cores: 4, installMethod: 'D1' } });
+    expect(JSON.stringify(r.project)).not.toContain('Letter');
+    expect(r.removed).toContain('panel.supply text (fed from, cable, reference)');
+  });
+
   it('removes identifying data at every level, including fields it does not know', () => {
     const r = anonymizeProject(richProject());
     const text = JSON.stringify(r.project);

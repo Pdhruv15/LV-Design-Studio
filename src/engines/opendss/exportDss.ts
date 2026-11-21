@@ -1,7 +1,7 @@
 import { DEFAULT_TRANSFORMER_XR, boardDemandKw, resistanceFactor, rOperatingOhmPerKm, runsOf } from '../../calc/electrical';
 import { cablesSource } from '../../calc/cableTable';
 import { getCable } from '../../calc/cableTable';
-import { supplyFaultKa, type Feeder, type Project } from '../../types';
+import { supplyFaultKa, supplyIncomerFeeder, supplyXr, type Feeder, type Project } from '../../types';
 
 /** Nominal MV voltage the transformer primary is modelled at. The upstream
  * network is a stiff (effectively infinite) source, matching the built-in
@@ -45,6 +45,11 @@ const busbar = (boardName: string) => `bb_${boardName}`;
 const loadBus = (feederName: string) => `ld_${feederName}`;
 const isSinglePhase = (f: Feeder) => f.cores === 2;
 const lineCodeName = (csa: number, singlePhase: boolean, runs = 1) => `cu${String(csa).replace('.', 'p')}_${singlePhase ? '1ph' : '3ph'}${runs > 1 ? `_x${runs}` : ''}`;
+/** The Line of a cable between two buses (a feeder, or the incoming cable of a first board on an LV supply). */
+const lineText = (name: string, f: Feeder, bus1: string, bus2: string, nodes = '') =>
+  `New Line.${name} phases=${isSinglePhase(f) ? 1 : 3} bus1=${bus1}${nodes} bus2=${bus2}${nodes} ` +
+  `linecode=${lineCodeName(f.cableCsaMm2, isSinglePhase(f), runsOf(f))} length=${fmt(f.lengthM, 3)} units=m`;
+const sourceBus = (boardName: string) => `src_${boardName}`;
 
 /** Converts a project into a self-contained OpenDSS script (.dss) that
  * builds the same network — transformer, board busbars, feeder cables,
@@ -94,10 +99,12 @@ export function exportDss(project: Project): DssExport {
       if (ka) {
         // LV supply with a stated fault level: a source equivalent on the board's own busbar, at -30 deg
         // like the LV side of the delta-wye transformers, so a closed tie to one of them carries no circulating current.
+        // With an incoming cable the source sits on its own bus (the supply point) and the cable joins it to the busbar.
+        const xr = supplyXr(b) ?? DEFAULT_TRANSFORMER_XR;
         const mva = fmt(Math.sqrt(3) * kvLL * ka, 4);
         out.push(
-          `New Vsource.SRC_${boardName(b.id)} bus1=${busbar(boardName(b.id))} basekv=${fmt(kvLL, 4)} pu=1.0 phases=3 angle=-30 ` +
-            `MVAsc3=${mva} MVAsc1=${mva} x1r1=${DEFAULT_TRANSFORMER_XR} x0r0=${DEFAULT_TRANSFORMER_XR}`
+          `New Vsource.SRC_${boardName(b.id)} bus1=${supplyIncomerFeeder(b) ? sourceBus(boardName(b.id)) : busbar(boardName(b.id))} basekv=${fmt(kvLL, 4)} pu=1.0 phases=3 angle=-30 ` +
+            `MVAsc3=${mva} MVAsc1=${mva} x1r1=${fmt(xr)} x0r0=${fmt(xr)}`
         );
         continue;
       }
@@ -123,7 +130,8 @@ export function exportDss(project: Project): DssExport {
   // --- Line codes for every cable size in use ---
   out.push(`! ---- Cable line codes (ohm/km) ----`);
   const codes = new Map<string, string>();
-  for (const f of project.feeders) {
+  const incomers = project.boards.flatMap((b) => { const f = supplyIncomerFeeder(b); return f && supplyFaultKa(b) ? [{ board: b, feeder: f }] : []; });
+  for (const f of [...project.feeders, ...incomers.map((i) => i.feeder)]) {
     const single = isSinglePhase(f);
     const runs = runsOf(f);
     const name = lineCodeName(f.cableCsaMm2, single, runs);
@@ -137,6 +145,11 @@ export function exportDss(project: Project): DssExport {
     );
   }
   out.push(...codes.values(), ``);
+
+  // --- Incoming cables: from the supply point (source bus) to the busbar of a first board on an LV supply ---
+  if (incomers.length) out.push(`! ---- Supply incomers ----`);
+  for (const { board, feeder } of incomers) out.push(lineText(`SUPPLY_${boardName(board.id)}`, feeder, sourceBus(boardName(board.id)), busbar(boardName(board.id))));
+  if (incomers.length) out.push(``);
 
   // --- Feeders: cable + load / generator, or cable to a downstream board ---
   out.push(`! ---- Feeders ----`);
@@ -153,10 +166,7 @@ export function exportDss(project: Project): DssExport {
     const name = feederName(f.id);
 
     out.push(`! ${dssComment(f.id)} — ${dssComment(f.name)}`);
-    out.push(
-      `New Line.${name} phases=${phases} bus1=${busbar(boardName(f.boardId))}${nodes} bus2=${toBus}${nodes} ` +
-        `linecode=${lineCodeName(f.cableCsaMm2, single, runsOf(f))} length=${fmt(f.lengthM, 3)} units=m`
-    );
+    out.push(lineText(name, f, busbar(boardName(f.boardId)), toBus, nodes));
 
     if (f.feedsBoardId) {
       if (single) warnings.push(`Incomer ${f.id} is single-phase; downstream board ${f.feedsBoardId} will only be energised on phase 1.`);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { defaultCpcMm2, earthLoopToBoard, evaluateEarthing, instantaneousTripA, requiredDisconnectionS } from './earthing';
-import { transformerImpedance, zMagnitude } from './electrical';
+import { defaultCpcMm2, earthLoopPath, earthLoopToBoard, evaluateEarthing, instantaneousTripA, requiredDisconnectionS } from './earthing';
+import { supplyImpedance, transformerImpedance, zMagnitude } from './electrical';
 import type { Feeder, Project } from '../types';
 
 const U0 = 415 / Math.sqrt(3);
@@ -101,5 +101,41 @@ describe('earth fault loop', () => {
     const r = evaluateEarthing(project([f]), f);
     expect(r.adiabaticMinMm2).toBeCloseTo((r.faultA * Math.sqrt(0.1)) / 143, 9);
     expect(r.adiabatic).toBe(r.cpcMm2 >= r.adiabaticMinMm2 ? 'ok' : 'bad');
+  });
+});
+
+describe('earth fault loop with values given from upstream (first board on an LV supply)', () => {
+  // Incoming cable 4C × 16 mm² copper, 25 m, CPC 16 mm²: loop R (1.38 + 1.38) × 0.025 = 0.069 Ω, X 0.085 × 0.025 = 0.002125 Ω.
+  const incomer = { cableCsaMm2: 16, lengthM: 25 };
+  const lv = (supply: NonNullable<Project['boards'][number]['supply']>): Project => ({ ...project([feeder({})]), boards: [{ id: 'MDB', name: 'M', supply }] });
+  it('a typed Ze is purely resistive, not estimated and not missing; the incoming cable loop is added', () => {
+    const e = earthLoopPath(lv({ faultKa: 12, zeOhm: 0.08, incomer }), 'MDB');
+    expect(e.z.r).toBeCloseTo(0.08 + 0.069, 6); // 0.149 Ω
+    expect(e.z.x).toBeCloseTo(0.002125, 6);
+    expect(e.estimated).toBeUndefined();
+    expect(e.missing).toBeUndefined();
+    expect(earthLoopPath(lv({ zeOhm: 0.08 }), 'MDB')).toEqual({ z: { r: 0.08, x: 0 } }); // no fault level needed
+    const r = evaluateEarthing(lv({ faultKa: 12, zeOhm: 0.08, incomer }), feeder({}));
+    expect(r.sourceEstimated).toBeUndefined();
+    expect(r.zeOhm).toBeCloseTo(zMagnitude({ r: 0.149, x: 0.002125 }), 6);
+  });
+  it('without Ze: estimated from the minimum fault level when given, else the fault level, with the X/R', () => {
+    // Ik,min 8 kA: Z = 1.05 × 415 ÷ (√3 × 8 kA) = 0.031447 Ω; X/R 3: R 0.009944, X 0.029833; plus the cable loop: R 0.078944, X 0.031958.
+    const min = earthLoopPath(lv({ faultKa: 12, faultKaMin: 8, xr: 3, incomer }), 'MDB');
+    expect(min.z.r).toBeCloseTo(0.078944, 5);
+    expect(min.z.x).toBeCloseTo(0.031958, 5);
+    expect(min.estimated).toMatch(/minimum fault level/);
+    // Ik 12 kA, X/R 3: Z 0.020965 Ω, R 0.006630, X 0.019888.
+    expect(earthLoopPath(lv({ faultKa: 12, xr: 3 }), 'MDB').z.r).toBeCloseTo(0.00663, 5);
+    expect(earthLoopPath(lv({ faultKa: 12, xr: 3 }), 'MDB').z.x).toBeCloseTo(0.019888, 5);
+    expect(earthLoopPath(lv({ faultKaMin: 8 }), 'MDB').estimated).toMatch(/minimum fault level/);
+  });
+  it('unchanged: the fault level alone is the step A estimate; no source data stays missing; a transformer board ignores the values', () => {
+    const a = earthLoopPath(lv({ faultKa: 25 }), 'MDB');
+    expect(a).toEqual({ z: supplyImpedance(25, 415), estimated: 'Ze estimated from the supply fault level at MDB' });
+    expect(earthLoopPath(lv({ ratingA: 400 }), 'MDB').missing).toMatch(/no source data/);
+    expect(earthLoopPath(lv({ ratingA: 400, incomer }), 'MDB').missing).toMatch(/no source data/);
+    const tx: Project = { ...project([feeder({})]), boards: [{ id: 'MDB', name: 'M', sourceKva: 1000, sourceImpedancePct: 5, supply: { zeOhm: 5, faultKaMin: 1, xr: 20, incomer } }] };
+    expect(earthLoopPath(tx, 'MDB')).toEqual(earthLoopPath(project([feeder({})]), 'MDB'));
   });
 });

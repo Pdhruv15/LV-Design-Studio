@@ -101,3 +101,27 @@ describe('the out-of-date check agrees with the fingerprints', () => {
   ];
   for (const [name, p] of edits) it(name, () => expect(staleStudies(run, p)).toEqual(byFingerprint(p)));
 });
+
+describe('values given from upstream in a run', () => {
+  const lv = (supply: NonNullable<Project['boards'][number]['supply']>): Project => ({
+    ...sampleProject,
+    boards: [{ id: 'MDB-1', name: 'Main', supply }, ...sampleProject.boards.filter((b) => b.id !== 'MDB-1')]
+  });
+  it('a run has the incoming cable and discrimination lists only when there are some', () => {
+    const none = runCalculations(lv({ faultKa: 25, ratingA: 800 }));
+    expect('supplyIncomers' in none || 'supplySelectivity' in none).toBe(false);
+    expect('supplyIncomers' in runCalculations(sampleProject)).toBe(false);
+    const given = runCalculations(lv({ faultKa: 25, ratingA: 800, device: 'MCCB', incomer: { cableCsaMm2: 240, lengthM: 20, parallel: 2 } }));
+    expect(given.supplyIncomers?.map((x) => x.board.id)).toEqual(['MDB-1']);
+    expect(given.supplySelectivity?.length).toBeGreaterThan(0);
+  });
+  it('editing a given value makes the studies out of date; names do not', () => {
+    const base = lv({ faultKa: 25, ratingA: 800, device: 'MCCB', incomer: { cableCsaMm2: 240, lengthM: 20 } });
+    const run = runCalculations(base);
+    const edit = (patch: object) => ({ ...base, boards: base.boards.map((b) => (b.id === 'MDB-1' ? { ...b, supply: { ...b.supply, ...patch } } : b)) });
+    expect(staleStudies(run, edit({ vdUsedPct: 2 }))).toEqual(STUDY_KEYS);
+    expect(staleStudies(run, edit({ zeOhm: 0.1 }))).toEqual(STUDY_KEYS);
+    expect(staleStudies(run, edit({ incomer: { cableCsaMm2: 185, lengthM: 20 } }))).toEqual(STUDY_KEYS);
+    expect(fingerprint(edit({ allowedA: 500 }), 'vd')).not.toBe(fingerprint(base, 'vd'));
+  });
+});

@@ -113,3 +113,15 @@ describe('breaker and cable selection', () => {
     expect(evaluateProject(fixed).filter((r) => r.status !== 'ok').map((r) => r.feeder.id)).toEqual([]);
   });
 });
+
+describe('sizing with the drop already used upstream (first board on an LV supply)', () => {
+  // 24 kW at PF 0.9 (Ib 37.1 A), 60 m. The budget is 85 % of the 4 % limit = 3.4 % less what is used upstream.
+  // No drop given: 6 mm² (budget 3.4 %). 2 % used: budget 1.4 %; 10 mm² drops 1.87 %, 16 mm² drops 1.19 %: 16 mm².
+  const f = feeder({ id: 'F', loadKw: 24, powerFactor: 0.9, lengthM: 60, cableCsaMm2: 10, breakerRatingA: 40 });
+  const lv = (vdUsedPct?: number): Project => ({ ...project([f]), boards: [{ id: 'MDB', name: 'M', supply: { faultKa: 12, ...(vdUsedPct !== undefined && { vdUsedPct }) } }] });
+  it('takes the drop used off the budget of every circuit', () => {
+    expect(recommend(lv(), f, 'optimise').cableCsaMm2).toBe(6);
+    expect(recommend(lv(2), f, 'optimise').cableCsaMm2).toBe(16);
+    expect(recommend(lv(0), f, 'optimise')).toEqual(recommend(lv(), f, 'optimise'));
+  });
+});

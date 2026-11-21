@@ -194,6 +194,14 @@ describe.skipIf(!python)('external engine error messages', () => {
     if (has('pandapower')) expect(await errorOf('pandapower', lv)).toContain('No main board has transformer data');
   }, 60_000);
 
+  it.skipIf(!has('opendss'))('OpenDSS joins the supply source to the busbar by the given incoming cable: the busbar voltage falls below the source-side level', async () => {
+    const lv = (supply: object) => ({ ...net, boards: net.boards.map((b) => (b.id === 'MDB' ? { ...b, sourceKva: undefined, sourceImpedancePct: undefined, supply } : b)) });
+    const plain = await study('opendss', lv({ faultKa: 25 }));
+    const cabled = await study('opendss', lv({ faultKa: 25, incomer: { cableCsaMm2: 240, lengthM: 50, parallel: 4 } }));
+    expect(cabled.boards!.MDB.voltagePct).toBeGreaterThan(80);
+    expect(cabled.boards!.MDB.voltagePct).toBeLessThan(plain.boards!.MDB.voltagePct!); // the cable's own drop
+  }, 60_000);
+
   it.skipIf(!has('opendss'))('OpenDSS: loads below 95 % voltage are flagged, with the likely cause', async () => {
     const res = await study('opendss', overloaded);
     const note = res.messages.find((m) => m.startsWith('Load voltage is below 95 %'));
