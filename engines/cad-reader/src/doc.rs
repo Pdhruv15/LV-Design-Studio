@@ -1993,4 +1993,36 @@ mod tests {
         let cut = b"0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n".to_vec();
         assert!(read(cut).unwrap_err().contains("Unexpected EOF"), "the strict read's message");
     }
+
+    /// Times read, tessellate and info for the drawings kept by tests/performance/cadOpen.perf.ts (CAD_BENCH_DUMP=<folder>),
+    /// and estimates their decoded size. Run by hand: cargo test --release --lib time_open_steps -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn time_open_steps() {
+        let dir = std::env::var("CAD_BENCH_DUMP").unwrap();
+        for f in ["1mb.dwg", "1mb.dxf", "3mb.dwg", "3mb.dxf", "10mb.dwg", "10mb.dxf"] {
+            let bytes = std::fs::read(format!("{dir}/{f}")).unwrap();
+            let (mut tr, mut tt, mut ti) = (vec![], vec![], vec![]);
+            for _ in 0..3 {
+                let t0 = std::time::Instant::now();
+                let (doc, format) = read(bytes.clone()).unwrap();
+                let t1 = std::time::Instant::now();
+                let out = tessellate(&doc, format, doc.model_space_entities().collect());
+                let t2 = std::time::Instant::now();
+                let n = out.info().len();
+                let t3 = std::time::Instant::now();
+                tr.push((t1 - t0).as_secs_f64() * 1e3); tt.push((t2 - t1).as_secs_f64() * 1e3); ti.push((t3 - t2).as_secs_f64() * 1e3);
+                assert!(n > 0);
+            }
+            let med = |v: &mut Vec<f64>| { v.sort_by(|a, b| a.partial_cmp(b).unwrap()); v[1] };
+            println!("STEP {f}: read {:.1} ms, tessellate {:.1} ms, info {:.1} ms", med(&mut tr), med(&mut tt), med(&mut ti));
+            let (doc, format) = read(bytes.clone()).unwrap();
+            let o = tessellate(&doc, format, doc.model_space_entities().collect());
+            let gs: usize = o.grid.segs.iter().map(|v| v.len()).sum::<usize>() + o.grid.pts.iter().map(|v| v.len()).sum::<usize>();
+            let texts: usize = o.texts.iter().map(|t| 48 + t.s.len()).sum();
+            let fills: usize = o.fills.iter().map(|f| 16 + f.loops.len() * 8 + f.lines.len() * 64).sum();
+            let raw = o.segs.len() * 8 + o.seg_layer.len() * 2 + o.seg_rgb.len() * 4 + o.seg_real.len() + o.seg_obj.len() * 4 + o.seg_lt.len() * 2 + o.snaps.len() * 30 + gs * 4 + texts + fills + o.objects.len() * 64;
+            println!("SIZE {f}: segs {} snaps {} grid {} texts {} objects {} fills {} -> about {:.1} MB raw ({:.0}x the file)", o.seg_layer.len(), o.snaps.len(), gs, o.texts.len(), o.objects.len(), o.fills.len(), raw as f64 / 1048576.0, raw as f64 / bytes.len() as f64);
+        }
+    }
 }
