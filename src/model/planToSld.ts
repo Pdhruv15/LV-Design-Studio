@@ -198,15 +198,26 @@ export function updateSupply(project: Project, plan: SpacePlan): SupplyUpdate {
     if (!board) continue;
     const l = areaLoad(plan, a);
     const tag = `${SP_LOAD}${a.id}`;
-    const id = unique(`${board}-${slug(`${a.floor ?? ''} ${a.name}`)}`);
-    feeders.push({
-      id, boardId: board, name: [a.floor, a.name].filter(Boolean).join(' '),
-      loadKw: +l.connectedKw.toFixed(2), demandFactor: l.demandFactor, powerFactor: plan.settings.powerFactor,
-      lengthM: lengthOf.get(tag) ?? 30, cableCsaMm2: 16, cores: 4, breakerRatingA: 63, breakerIcuKa: 25,
-      loadType: USE_LOAD_TYPE[a.use] ?? 'general', fromRoom: tag,
-      remarks: a.areaM2 ? `${a.areaM2} m² × ${l.wPerM2} W/m² (planned)` : 'Specific load (planned)'
-    });
-    toSize.add(id);
+    const name = [a.floor, a.name].filter(Boolean).join(' ');
+    // The share of a row on the standby generator becomes an essential feeder of its own, so the
+    // generator sizing sees it. Fire and life safety is not in the plan's normal demand, but runs
+    // at full load on the generator.
+    const share = Math.min(1, Math.max(0, a.genShare ?? 0));
+    const demandFactor = a.laKey === 'life' ? 1 : l.demandFactor;
+    const parts = share > 0 && share < 1
+      ? [{ tag, kw: l.connectedKw * (1 - share), essential: false, name }, { tag: `${tag}~e`, kw: l.connectedKw * share, essential: true, name: `${name} (essential)` }]
+      : [{ tag, kw: l.connectedKw, essential: share >= 1, name }];
+    for (const part of parts) {
+      const id = unique(`${board}-${slug(`${a.floor ?? ''} ${part.name}`)}`);
+      feeders.push({
+        id, boardId: board, name: part.name,
+        loadKw: +part.kw.toFixed(2), demandFactor, powerFactor: plan.settings.powerFactor,
+        lengthM: lengthOf.get(part.tag) ?? 30, cableCsaMm2: 16, cores: 4, breakerRatingA: 63, breakerIcuKa: 25,
+        loadType: USE_LOAD_TYPE[a.use] ?? 'general', fromRoom: part.tag, ...(part.essential ? { essential: true } : {}),
+        remarks: a.areaM2 ? `${a.areaM2} m² × ${l.wPerM2} W/m² (planned)` : 'Specific load (planned)'
+      });
+      toSize.add(id);
+    }
     loads++;
   }
 

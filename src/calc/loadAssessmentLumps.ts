@@ -109,8 +109,15 @@ export function reconcilePlanLoads(project: Project): { project: Project; change
   const rows = plan.areas.filter((a) => planGroup(a));
   const full = new Map<string, number>();
   for (const a of rows) full.set(planGroup(a)!, (full.get(planGroup(a)!) ?? 0) + areaLoad(plan, a).connectedKw);
-  const want = new Map<string, number>(rows.map((a) => { const g = planGroup(a)!, f = full.get(g) ?? 0; return [`sp:${a.id}`, f > 0 ? round((areaLoad(plan, a).connectedKw * Math.max(0, f - done(g))) / f) : 0]; }));
-  const group = new Map<string, string>(rows.map((a) => [`sp:${a.id}`, planGroup(a)!]));
+  // A row partly on the generator has two feeders (sp:<id> and sp:<id>~e): both are reduced alike.
+  const want = new Map<string, number>(), group = new Map<string, string>();
+  for (const a of rows) {
+    const g = planGroup(a)!, f = full.get(g) ?? 0, k = f > 0 ? Math.max(0, f - done(g)) / f : 0;
+    const kw = areaLoad(plan, a).connectedKw, share = Math.min(1, Math.max(0, a.genShare ?? 0));
+    if (share > 0 && share < 1) { want.set(`sp:${a.id}`, round(kw * (1 - share) * k)); want.set(`sp:${a.id}~e`, round(kw * share * k)); }
+    else want.set(`sp:${a.id}`, round(kw * k));
+    group.set(`sp:${a.id}`, g); group.set(`sp:${a.id}~e`, g);
+  }
   const before = new Map<string, { label: string; kw: number }>(), after = new Map<string, number>();
   let p = project;
   for (const f of project.feeders) {

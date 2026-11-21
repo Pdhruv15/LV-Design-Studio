@@ -906,6 +906,8 @@ export interface SpaceArea {
   from?: 'la';
   /** Of a row taken from the load assessment: its load category (ltg, pwr, hvac … life, custom:<id>). */
   laKey?: string;
+  /** Share of the row's load on the standby generator (0 to 1); absent: none. */
+  genShare?: number;
 }
 
 export interface PlanPanel {

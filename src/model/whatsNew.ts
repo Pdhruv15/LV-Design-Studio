@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.248', date: '2026-11-21',
+    items: [
+      { title: 'Space plan: Create / Update supply keeps the loads on the standby generator', text: 'Rows taken from the load assessment now carry their share on the standby generator, and "Create / Update supply" marks that share as essential in the network: a row fully on the generator (lighting, lifts) becomes one essential feeder, a row partly on it (small power, HVAC, pumps) becomes a normal feeder and an essential one, and fire and life safety runs at full load on the generator. The generator sizing on Tx & Gen sizing then sees the same essential load as the load assessment. From v2.242 until now these feeders were made with no essential mark, so the generator came out too small after Create / Update supply. Press "Take loads from the assessment…" and "Create / Update supply" again to bring a plan made since then up to date.' }
+    ]
+  },
+  {
     version: '2.247', date: '2026-11-21',
     items: [
       { title: 'Design CAD: Drafting settings in pages', text: 'The Drafting settings pages are now a list on the left, and Units & level is now two pages: Drawing (the level and units of this drawing) and Saving (Save As format, the .bak copy and the recovery copy, kept on this computer). Labels no longer run into the next row.', action: 'cad', actionLabel: 'Open Design CAD' }
