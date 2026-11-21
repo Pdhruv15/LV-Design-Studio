@@ -1,6 +1,6 @@
 # SLD start at any level — proposal (2026-11-21)
 
-Status: **proposal, nothing built**. Decisions D1–D7 at the end are open.
+Status: **proposal, nothing built**. Decisions D1–D8 at the end are open.
 Mockup: `docs/mockups/sld-start-level-mockup.html` + `.png`.
 Related: [[UI UX proposals - 2026-11-11 - SLD supply sources, RMU and package substations]] (steps 2–5 still wait) and [[UI UX proposals - 2026-11-18 - SLD by substation, RMU and transformer]] (all built).
 
@@ -8,6 +8,7 @@ Related: [[UI UX proposals - 2026-11-11 - SLD supply sources, RMU and package su
 
 - An SLD does not always start at the authority's incoming line or the transformer. An engineer may be given only a final DB, an SMDB, an MDB or a substation, and must be able to work from there.
 - From generation down to the final DB: which stages exist, can the app start at each one, and what must change where it cannot.
+- Added 2026-11-22: one RMU can feed one transformer or two. Both must be offered.
 
 ## The stages, from generation to the final circuit
 
@@ -17,7 +18,7 @@ Related: [[UI UX proposals - 2026-11-11 - SLD supply sources, RMU and package su
 | 2 | Transmission and grid substation (400 / 132 kV) | authority | Not modelled |
 | 3 | Primary substation (132 / 11 kV or 33 / 11 kV) and its 11 kV feeder | authority | Only as one line of data: the grid source's voltage and fault level |
 | 4 | 11 kV ring at the plot (grid source) | authority | Record only. Nothing is drawn or calculated until a transformer board exists |
-| 5 | RMU or MV switchgear | authority or consumer | Record only, as stage 4 |
+| 5 | RMU or MV switchgear, feeding one transformer or two | authority or consumer | Record only, as stage 4 |
 | 6 | Transformer and LV main board | consumer | **Works.** The only start a new project offers |
 | 7 | Main board on an authority LV supply (meter cabinet, feeder pillar, LV feeder from the authority's substation) | consumer | **Partly.** See below |
 | 8 | Sub-main board: SMDB, ESMDB, MCC, busway tap-off, fed from a board that is not in this project | consumer | **No.** Cannot be made on the screen; no place for the values given from upstream |
@@ -35,6 +36,7 @@ Every finding below was read in the code by a search pass and confirmed by a sec
 - Dropping a board on the empty canvas works for MDB, LV-MDB, LV-ACB and meter cabinet only. A DB or SMDB can be dropped on a busbar only.
 - A board's Type can be changed to DB or SMDB and its transformer kVA cleared. The board then has no source at all.
 - Space plan → Create SLD leaves out every panel that has no transformer above it.
+- One RMU with one transformer (RRT) or two (RRTT) exists in the data: `RMU_CONFIGS` has RT, RRT, RRRT, RRTT and RRTTT, and the Substations card flags more transformers than tee-offs. It can be set only after a transformer board exists; no start offers it.
 - No command adds a board **above** the first board. A board on an authority supply can be connected under another board (`connectPanel`); a transformer board cannot.
 
 **Drawing**
@@ -92,10 +94,10 @@ New project asks once: **Start the SLD from**. Six tiles, each with a small draw
 2. Sub-main board (SMDB, ESMDB, MCC)
 3. Main board on an authority LV supply
 4. Transformer and main board (today's start, stays the default)
-5. RMU and transformer
+5. RMU and one or two transformers
 6. 11 kV ring with several substations
 
-Tiles 1–3 make one board of that type with an empty supply point. Tiles 5–6 open the MV supply and RMUs card after the project is made. Canvas drop accepts every board type as a first board.
+Tiles 1–3 make one board of that type with an empty supply point. Tile 5 asks **Transformers: 1 or 2**. One makes an RRT RMU, one transformer and one main board. Two makes an RRTT RMU, two transformers and two main boards with a bus coupler between them, drawn open. Tiles 5–6 open the MV supply and RMUs card after the project is made. Canvas drop accepts every board type as a first board.
 
 ### 3. Draw the supply point
 
@@ -115,6 +117,8 @@ Right-click a first board → **Add upstream board…** makes the board that fee
 ### 6. Start at the 11 kV side
 
 A grid source and an RMU with no transformer yet are drawn on the MV overview with their tee-offs marked SPARE. Right-click a tee-off → **Add transformer and main board**. Design then runs top-down.
+
+One RMU feeds one transformer (RRT) or two (RRTT); the mockup's part 5 shows both and an RMU with nothing below it yet. Adding a second transformer to an RRT RMU offers to change it to RRTT, as the Substations card does today. Three tee-offs (RRTTT) stay available from the RMU's Configuration menu.
 
 Above the grid source (stages 1–3) the authority's network stays one equivalent: voltage and fault level. The primary substation name and feeder reference stay as text.
 
@@ -138,7 +142,7 @@ One PR each, in this order. Steps A and B change no screen.
 | D | Supply tab: Fed from and its fields | inspector |
 | E | New project start level; any board type on the canvas | New project |
 | F | Add upstream board and Connect to | right-click menu |
-| G | Start at the 11 kV side: spare tee-offs, Add transformer and main board | MV overview |
+| G | Start at the 11 kV side: spare tee-offs, Add transformer and main board, one RMU with one or two transformers | MV overview |
 
 Later, with the supply sources proposal: generator as the only source, PV and battery as sources, MV switchboard and MV cables.
 
@@ -153,3 +157,4 @@ Later, with the supply sources proposal: generator as the only source, PV and ba
 | D5 | Stages 1–3 above the grid source | **Keep as one equivalent** (voltage and fault level). The other choice: model the primary substation; that is the MV switchboard step of the supply sources proposal |
 | D6 | Board types as first board | **Any type**, no rule on which type feeds which, as in the model today |
 | D7 | Step A now | **Yes**: it corrects results and changes no screen |
+| D8 | Two transformers on one RMU, made from the start | **Two main boards with a bus coupler, open.** The other choice: two main boards with no coupler |
