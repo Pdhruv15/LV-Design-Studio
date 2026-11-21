@@ -31,10 +31,10 @@ describe('Space plan: the transformer size list', () => {
     const onChange = vi.fn();
     await show({ ...sampleProject, spacePlan: { ...emptyPlan(), areas } }, onChange);
     await until('the settings', () => !!list('Size list'));
-    expect([...list('Size list')!.options].map((o) => o.textContent)).toEqual(['1,000 / 1,500 kVA', 'Market standard']);
+    expect([...list('Size list')!.options].map((o) => o.textContent)).toEqual(['DEWA — 500, 1,000, 1,500 kVA', 'Market standard — 100 to 3,150 kVA']);
     expect(list('Largest size')).toBeUndefined();
-    // 4,000 m² × 80 W/m² × 0.7 = 224 kW = 249 kVA: one 1,000 kVA from the DEWA sizes.
-    expect(text()).toContain('1 × 1000 kVA');
+    // 4,000 m² × 80 W/m² × 0.7 = 224 kW = 249 kVA: one 500 kVA from the DEWA sizes.
+    expect(text()).toContain('1 × 500 kVA');
     const s = list('Size list')!;
     await act(async () => { s.value = 'market'; s.dispatchEvent(new Event('change', { bubbles: true })); });
     const next = (onChange.mock.calls[0][0] as Project).spacePlan!;

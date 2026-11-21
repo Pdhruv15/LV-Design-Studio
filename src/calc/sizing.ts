@@ -1,3 +1,4 @@
+import { GENERATOR_KVA } from './sizeLists';
 import { vdEvaluator, feederRating, izEvaluator, designCurrentA, trayFactorOf, evaluateFeeder, faultCurrentKA, impedanceToBoard, runsOf, selectCableRuns, upstreamVoltageDropPct, voltageDropPct } from './electrical';
 import { boardTotals, loadTypeOf, systemSummary } from './summary';
 import { breakerTypeOf } from './earthing';
@@ -28,7 +29,7 @@ export function setBreakerLists(ratings: number[] | null, icu: number[] | null):
   forgetNetworks();
 }
 export const STANDARD_TRANSFORMER_KVA = [100, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150];
-export const STANDARD_GENERATOR_KVA = [20, 30, 45, 60, 80, 100, 125, 150, 200, 250, 300, 350, 400, 500, 630, 750, 800, 1000, 1250, 1500, 2000, 2500];
+export const STANDARD_GENERATOR_KVA = [...GENERATOR_KVA];
 
 export { settingsOf };
 const nextStandard = (list: number[], v: number) => list.find((x) => x >= v - 1e-9);

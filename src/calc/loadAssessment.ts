@@ -1,5 +1,6 @@
 import type { Project } from '../types';
 import { catalog } from '../database/catalog';
+import { catalogueTxKva, generatorSizes, txSizeList, type TxSizeList } from './sizeLists';
 import type { BuildingInfo, ProjectBuilding } from '../types';
 import type { RoomType } from '../types';
 import { buildingInfoOf, carParkAreaOf, isCarParkType, roomTypesOf, summarizeBuilding, unitRoomLoads } from './building';
@@ -116,7 +117,9 @@ export interface LaSupply {
   redundancy: 'N' | 'N+1';
   genMargin: number;
   sparePct: number;
-  txSizes?: number[]; // blank: the Transformers catalogue, else standard sizes
+  txSizes?: number[]; // a typed list; blank: the size list below
+  /** The list the transformer sizes come from (src/calc/sizeLists.ts); absent: the catalogue when it has sizes, else the market standard sizes. */
+  sizeList?: TxSizeList;
 }
 
 /** A building type: the starting point of an assessment. */
@@ -197,8 +200,6 @@ export const DEFAULT_DIVERSITY: LaDiversity = { ltg: 0.9, pwr: 0.5, hvac: 0.85, 
 
 export const DEFAULT_SUPPLY: LaSupply = { coincidence: 0.9, pf: 0.9, voltage: 400, maxLoadingPct: 80, maxTxKva: 1500, redundancy: 'N', genMargin: 1.25, sparePct: 0 };
 
-export const STANDARD_TX_KVA = [500, 630, 800, 1000, 1250, 1500, 2000, 2500];
-export const STANDARD_GEN_KVA = [100, 200, 250, 350, 500, 750, 1000, 1250, 1500, 2000, 2500];
 
 const sp = (id: string, pct: number): LaRow => ({ ...DEFAULT_SPACES.find((s) => s.id === id)!, pct });
 const svc = (s: Partial<LaServices>): LaServices => ({ cool: 'vrf', dhw: 'local', cook: 'none', lifts: 'auto', fire: true, evPct: 0, itKw: 0, pool: false, kitchen: false, laundry: false, medical: false, facade: false, ...s });
@@ -449,15 +450,13 @@ export interface LaResult {
   incomerA?: number;
 }
 
+/** The supply's size list in use: the one picked, else the catalogue (the market standard sizes while it is empty). */
+export const laSizeList = (s: LaSupply): TxSizeList => s.sizeList ?? (catalogueTxKva().length ? 'catalogue' : 'market');
 const txSizesOf = (s: LaSupply): number[] => {
   const own = s.txSizes?.filter((x) => x > 0);
-  const cat = catalog().transformers.map((t) => t.kva).filter((x) => x > 0);
-  return [...new Set(own?.length ? own : cat.length ? cat : STANDARD_TX_KVA)].sort((a, b) => a - b);
+  return [...new Set(own?.length ? own : txSizeList(laSizeList(s)))].sort((a, b) => a - b);
 };
-const genSizes = (): number[] => {
-  const cat = catalog().generators.map((g) => g.kva).filter((x) => x > 0);
-  return [...new Set(cat.length ? cat : STANDARD_GEN_KVA)].sort((a, b) => a - b);
-};
+const genSizes = (): number[] => generatorSizes();
 
 export function assess(a: LoadAssessment): LaResult {
   const f = a.factors, s = a.services, d = a.diversity, ess = a.essentialPct / 100;
