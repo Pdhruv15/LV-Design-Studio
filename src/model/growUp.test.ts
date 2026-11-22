@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { buildBom } from '../calc/bom';
 import { evaluateEarthing } from '../calc/earthing';
 import { evaluateFeeder } from '../calc/electrical';
 import { runCalculations } from '../calc/runs';
 import type { Board, Feeder, Project } from '../types';
-import { addUpstreamBoard, connectBlocked, connectPlan, connectTo, FEEDING_KINDS, growBlocked, upstreamKind, upstreamPlan } from './growUp';
+import { addUpstreamBoard, connectBlocked, connectPlan, connectTo, FEEDING_KINDS, growBlocked, stayOnBoardAfter, upstreamKind, upstreamPlan } from './growUp';
+import { changeoverBreakers } from './changeover';
+import { earthingLayout, withEarthPitIds } from './earthingPlan';
 import { checkReferences } from './integrity';
 import { moveBoard } from './moveBoard';
 import { projectInputIssues } from './projectValidate';
@@ -220,7 +223,7 @@ describe('the questions', () => {
     const src = upstreamPlan(proj({ fedFrom: 'Utility A', meter: 'CT' }), 'DB-1');
     expect(src.lines).toContain('The source Utility A and its meter move to the new board.');
     const empty = upstreamPlan(proj(), 'DB-1');
-    expect(empty.lines).toEqual(['A 63 A way with a cable sized for it is added from the new board to DB-1 (30 m, to check).']);
+    expect(empty.lines).toEqual(['A 63 A way with a cable sized for it is added from the new board to DB-1 (30 m, to check): the fault level and voltage drop at DB-1 change by this cable.']);
     expect(empty.id).toBe('SMDB-1');
     const main = upstreamPlan(proj({ fedBy: 'board', faultKa: 12 }, { kind: 'MDB' }), 'DB-1');
     expect(main).toEqual({ transformer: true, title: 'Add a transformer to DB-1?', lines: ['DB-1 gets a 1000 kVA transformer with a typical impedance.', 'The values given for its supply are kept but no longer used.'] });
@@ -232,5 +235,147 @@ describe('the questions', () => {
       title: 'Connect DB-1 to MDB-1?', loses: true,
       lines: ['The incoming cable 4C × 16 mm², 25 m and its 63 A MCCB become the way from MDB-1 to DB-1.', 'The given values (Ik″ 12 kA, X/R 3, drop used 1.6 %) are removed: from then on they are calculated from MDB-1.']
     });
+  });
+});
+
+describe('step F review fixes', () => {
+  const inc = (p: Project) => p.feeders.find((f) => f.feedsBoardId === 'DB-1')!;
+  const two = (supply: Board['supply'] | null = { fedBy: 'board', ...given }): Project => {
+    const p = proj(supply ?? undefined);
+    return { ...p, boards: [{ id: 'MDB-1', name: 'MDB 1', kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 6 }, ...p.boards] };
+  };
+
+  it('1: the way takes its breaking capacity from the fault level, never below 36 kA', () => {
+    const p = outside({ ...given, faultKa: 50 });
+    const r = addUpstreamBoard(p, 'DB-1');
+    expect(inc(r.project).breakerIcuKa).toBe(50);
+    expect(inc(addUpstreamBoard(outside({ ...given, faultKa: 12 }), 'DB-1').project).breakerIcuKa).toBe(36);
+    expect(inc(addUpstreamBoard(outside({ ...given, faultKa: 120 }), 'DB-1').project).breakerIcuKa).toBe(100);
+    expect(inc(addUpstreamBoard(outside({ fedBy: 'board' }), 'DB-1').project).breakerIcuKa).toBe(36);
+    // A standby changeover at the old board keeps its breaking capacity.
+    const sb = (q: Project) => ({ ...q, boards: q.boards.map((b) => (b.id === 'DB-1' ? { ...b, standby: { kva: 500, changeover: 'ACB' as const } } : b)) });
+    const before = changeoverBreakers(sb(p), board(sb(p), 'DB-1'))!.mains.icuKa;
+    expect(before).toBe(50);
+    const after = sb(r.project);
+    expect(changeoverBreakers(after, board(after, 'DB-1'))!.mains.icuKa).toBe(50);
+  });
+  it('1: Connect to takes it from the calculated fault level at the parent busbar', () => {
+    const q = two(), r = connectTo(q, 'DB-1', 'MDB-1');
+    const ka = [6, 10, 15, 25, 36, 50, 65, 70, 85, 100];
+    expect(ka).toContain(inc(r.project).breakerIcuKa);
+    expect(inc(r.project).breakerIcuKa).toBeGreaterThanOrEqual(36);
+    // A placeholder source at the parent is no known level: 36.
+    const open = { ...q, boards: q.boards.map((b) => (b.id === 'MDB-1' ? { id: 'MDB-1', name: 'MDB 1', kind: 'MDB' as const } : b)) };
+    expect(inc(connectTo(open, 'DB-1', 'MDB-1').project).breakerIcuKa).toBe(36);
+  });
+
+  it('2: an isolator is not copied to the way; the lines and the message say so', () => {
+    const s = { ...given, device: 'ISOL' as const };
+    const r = addUpstreamBoard(outside(s), 'DB-1');
+    expect(inc(r.project).device).toBeUndefined();
+    expect(inc(r.project).breakerType).toBe('C');
+    expect(r.message).toBe('Added SMDB-1 above DB-1: the incoming cable 4C × 16 mm², 25 m with a 63 A breaker is now the way to DB-1; the given values moved to SMDB-1; set the real protective device of the way');
+    const up = upstreamPlan(outside(s), 'DB-1').lines;
+    expect(up[0]).toBe('The incoming cable 4C × 16 mm², 25 m becomes the way from the new board to DB-1.');
+    expect(up).toContain('The supply device was typed as an isolator: the way is made with a 63 A breaker — set the real device.');
+    const c = connectTo(two({ fedBy: 'board', ...s }), 'DB-1', 'MDB-1');
+    expect(inc(c.project).device).toBeUndefined();
+    expect(c.message).toMatch(/; set the real protective device of the way$/);
+    expect(connectPlan(two({ fedBy: 'board', ...s }), 'DB-1', 'MDB-1').lines).toContain('The supply device was typed as an isolator: the way is made with a 63 A breaker — set the real device.');
+  });
+  it('2: no supply rating typed with a cable: the board rating is used and the line says so', () => {
+    const s = { fedBy: 'board' as const, faultKa: 12, incomer: { cableCsaMm2: 16, lengthM: 25 } };
+    const up = upstreamPlan(outside(s), 'DB-1').lines;
+    expect(up[0]).toBe('The incoming cable 4C × 16 mm², 25 m becomes the way from the new board to DB-1.');
+    expect(up).toContain("No supply device rating was typed: the way is made with a 63 A breaker (the board's rating).");
+    expect(connectPlan(two(s), 'DB-1', 'MDB-1').lines).toContain("No supply device rating was typed: the way is made with a 63 A breaker (the board's rating).");
+    expect(upstreamPlan(outside(), 'DB-1').lines.join(' ')).not.toMatch(/No supply device rating/);
+  });
+
+  it('3: the earth pits move with their numbers to the new board', () => {
+    const p0 = outside(), pits = { 'lv:DB-1': 3 };
+    const p = withEarthPitIds({ ...p0, earthingPlan: { pits, unlinked: ['lv:DB-1'] }, boards: p0.boards.map((b) => ({ ...b, earthing: { pits: 3 } })) });
+    const ids = (q: Project, key: string) => q.earthPitIds?.[key];
+    const r = addUpstreamBoard(p, 'DB-1');
+    const next = withEarthPitIds(r.project, p);
+    expect(ids(next, 'lv:SMDB-1')).toEqual(ids(p, 'lv:DB-1'));
+    expect(ids(next, 'lv:SMDB-1')).toHaveLength(3);
+    expect(next.earthingPlan?.pits?.['lv:SMDB-1']).toBe(3);
+    expect(next.earthingPlan?.pits?.['lv:DB-1']).toBeUndefined();
+    expect(next.earthingPlan?.unlinked).toEqual(['lv:SMDB-1']);
+    const lay = (q: Project) => earthingLayout(q).pits.filter((x) => x.kind === 'lv').map((x) => x.id);
+    expect(lay(next)).toEqual(lay(p));
+    expect(lay(next)).toHaveLength(3);
+    const qty = (q: Project) => buildBom(q).filter((i) => /Earth pit/.test(i.description)).reduce((a, i) => a + i.qty, 0);
+    expect(qty(next)).toBe(qty(p));
+  });
+
+  it('4: an existing board with a typed cable: the way is the installed cable and nothing is priced new', () => {
+    const p = outside(), e = { ...p, boards: p.boards.map((b) => ({ ...b, existing: {} })) };
+    const r = addUpstreamBoard(e, 'DB-1');
+    expect(inc(r.project).existing).toBe(true);
+    expect(board(r.project, 'SMDB-1').existing).toEqual({});
+    expect(buildBom(r.project).filter((i) => i.where.some((w) => w === 'SMDB-1' || w === 'DB-1' || w === 'INC-DB-1'))).toEqual(buildBom(e).filter((i) => i.where.some((w) => w === 'DB-1')));
+    expect(buildBom(r.project).filter((i) => i.where.includes('SMDB-1'))).toEqual([]);
+    const t = two({ fedBy: 'board', ...given }), et = { ...t, boards: t.boards.map((b) => (b.id === 'DB-1' ? { ...b, existing: {} } : b)) };
+    expect(inc(connectTo(et, 'DB-1', 'MDB-1').project).existing).toBe(true);
+    // Not existing, or no cable typed: the way is new.
+    expect(inc(addUpstreamBoard(p, 'DB-1').project).existing).toBeUndefined();
+    expect(board(addUpstreamBoard(p, 'DB-1').project, 'SMDB-1').existing).toBeUndefined();
+    const nc = { ...outside({ fedBy: 'board', faultKa: 12 }) }, enc = { ...nc, boards: nc.boards.map((b) => ({ ...b, existing: {} })) };
+    expect(inc(addUpstreamBoard(enc, 'DB-1').project).existing).toBeUndefined();
+  });
+
+  it('5: everything typed moves up, also in board mode', () => {
+    const r = addUpstreamBoard(outside({ ...given, fedFrom: 'SMDB-3F', ref: 'R9', meter: 'CT', ctRatio: '100/5A', cable: 'BY SUPPLIER', ecc: '1X16', kind: 'pv', irSetting: 0.8 }), 'DB-1');
+    expect(board(r.project, 'SMDB-3F').supply).toEqual({ fedBy: 'board', ref: 'R9', meter: 'CT', ctRatio: '100/5A', cable: 'BY SUPPLIER', ecc: '1X16', kind: 'pv', faultKa: 12, xr: 3, vdUsedPct: 1.6 });
+    const lines = upstreamPlan(outside({ ...given, meter: 'CT' }), 'DB-1').lines;
+    expect(lines).toContain('Its meter moves to the new board.');
+    expect(lines.join(' ')).not.toMatch(/The source/);
+  });
+
+  it('6: a size without a length keeps the size, uses 30 m and is to check', () => {
+    const s = { fedBy: 'board' as const, faultKa: 12, ratingA: 63, device: 'MCCB' as const, incomer: { cableCsaMm2: 35, lengthM: 0, parallel: 2, cores: 3 as const, cpcMm2: 16, installMethod: 'D1' as const } };
+    const r = addUpstreamBoard(outside(s), 'DB-1');
+    expect(inc(r.project)).toMatchObject({ cableCsaMm2: 35, parallel: 2, cores: 3, cpcMm2: 16, installMethod: 'D1', lengthM: 30, lengthToCheck: true });
+    expect(r.message).toMatch(/ — check the cable length$/);
+    expect(upstreamPlan(outside(s), 'DB-1').lines[0]).toBe('The incoming cable 2 × 3C × 35 mm² has no length: 30 m is used, to check.');
+    expect(connectPlan(two(s), 'DB-1', 'MDB-1').lines[0]).toMatch(/has no length: 30 m is used, to check\.$/);
+  });
+
+  it('7: a board rating of 0 does not make a 0 A way; the supply rating becomes the board rating', () => {
+    const z = proj({ fedBy: 'board', faultKa: 12 }, { ratedCurrentA: 0 });
+    expect(inc(addUpstreamBoard(z, 'DB-1').project).breakerRatingA).toBe(63);
+    const z2 = proj({ fedBy: 'board', faultKa: 12 }, { ratedCurrentA: 0, kind: 'SMDB' });
+    expect(inc(addUpstreamBoard(z2, 'DB-1').project).breakerRatingA).toBe(250);
+    const own = proj({ fedBy: 'board', ...given, ratingA: 100 }, { ratedCurrentA: undefined });
+    expect(board(addUpstreamBoard(own, 'DB-1').project, 'DB-1').ratedCurrentA).toBe(100);
+    expect(board(connectTo({ ...own, boards: [{ id: 'MDB-1', name: 'M', kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 6 }, ...own.boards] }, 'DB-1', 'MDB-1').project, 'DB-1').ratedCurrentA).toBe(100);
+    expect(board(addUpstreamBoard(proj({ fedBy: 'board', ...given, ratingA: 100 }, { ratedCurrentA: 63 }), 'DB-1').project, 'DB-1').ratedCurrentA).toBe(63);
+  });
+
+  it('8: no numeric value given: the question names what is removed', () => {
+    const p = two({ fedBy: 'board', fedFrom: 'SMDB-3F', meter: 'CT' });
+    const plan = connectPlan(p, 'DB-1', 'MDB-1');
+    expect(plan.loses).toBe(true);
+    expect(plan.lines).toContain('The name, reference and meter typed for its supply are removed.');
+    expect(plan.lines.join(' ')).not.toMatch(/given values/);
+    expect(connectTo(p, 'DB-1', 'MDB-1').message).not.toMatch(/now calculated/);
+    expect(connectTo(two(), 'DB-1', 'MDB-1').message).toMatch(/now calculated/);
+  });
+
+  it('13: on the Board tab the selection stays on the board whose menu was used', () => {
+    const r = addUpstreamBoard(outside(), 'DB-1');
+    expect(r.select).toEqual({ type: 'board', id: 'SMDB-1' });
+    expect(stayOnBoardAfter(r, 'DB-1').select).toEqual({ type: 'board', id: 'DB-1' });
+    expect(stayOnBoardAfter(r, 'DB-1').message).toBe(r.message);
+    expect(stayOnBoardAfter(r, undefined)).toBe(r);
+    expect(stayOnBoardAfter({ project: r.project, message: 'x' }, 'DB-1').select).toBeUndefined();
+  });
+
+  it('9: the default way says it changes the results', () => {
+    const tail = 'the fault level and voltage drop at DB-1 change by this cable.';
+    expect(upstreamPlan(proj(), 'DB-1').lines[0]).toMatch(new RegExp(`from the new board to DB-1 \\(30 m, to check\\): ${tail}$`));
+    expect(connectPlan(two(null), 'DB-1', 'MDB-1').lines[0]).toBe(`A 63 A way with a cable sized for it is added from MDB-1 to DB-1 (30 m, to check): ${tail}`);
   });
 });

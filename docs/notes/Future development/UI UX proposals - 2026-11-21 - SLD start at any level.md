@@ -210,15 +210,22 @@ Later, with the supply sources proposal: generator as the only source, PV and ba
 
 | Value | Goes to |
 |---|---|
-| Typed incoming cable and upstream device | The real way from the new board to the old one (default way, 30 m, marked to check, when no cable was typed) |
+| Typed incoming cable and upstream device | The real way from the new board to the old one (default way, 30 m, marked to check, when no cable was typed). Its breaking capacity is the next standard step above the fault level at its busbar, never below 36 kA (no fault level known: 36 kA). A device typed as an isolator is not copied: the way gets a breaker by rating, and the question and the message say to set the real device. With no supply rating typed the board's rating is used, and the question says so. A size typed without a length keeps its size and gets 30 m, marked to check |
 | Given values (Ik″, X/R, minimum Ik″, drop used, Ze, allowed load) | The new first board |
-| Source name, kind, reference, meter, CT ratio, cable and earth text (source start) | The new first board |
+| Everything else typed at the supply: source name and kind (source start), reference, meter, CT ratio, cable and earth text; also for a board outside the project (its own name excepted: that becomes the new reference) | The new first board |
 | Ir setting | Stays at the old board (as its protection setting) |
-| Earth pits | The new first board |
+| Earth pits (the board's pit settings, and the pit numbers and test records kept under the old board's number) | The new first board: the numbers move with them, so the pit count and the BOQ quantity do not change |
+| Existing board with a typed cable | The way is marked existing (the installed cable), and the new board above it is marked existing too, so nothing is priced as new |
 
-- Fault level, voltage drop and earth loop at the old board are the same before and after when a cable was typed (proved to 6 decimals in `growUp.test.ts`, also with parallel runs, protective conductor and Ze). With no typed cable the default way is new, so the fault level falls and the drop grows by its cable; the message says to check the length. A second step on a board that has no typed cable therefore changes the results at the DB.
-- Questions: Add upstream board… asks for board type and reference (a transformer start asks to confirm "Add a transformer"); Connect to… asks only when values given for the supply would be removed. One undo step each.
-- Panel tree and `move_panel`: moving a first board used to leave its supply block and add no incomer. It now uses Connect to, so the typed cable becomes the incomer and the given values are calculated from the new source.
+- Fault level, voltage drop and earth loop at the old board are the same before and after when a cable was typed (proved to 6 decimals in `growUp.test.ts`, also with parallel runs, protective conductor and Ze). With no typed cable the default way is new, so the fault level falls and the drop grows by its cable; the message says to check the length. A second step on a board that has no typed cable therefore changes the results at the DB; the question says so ("the fault level and voltage drop at <board> change by this cable"). A rating of 0 on the board is not used for the way; a supply rating typed on a board with no rating of its own becomes the board's rating.
+- Questions: Add upstream board… asks for board type and reference (a transformer start asks to confirm "Add a transformer"); Connect to… asks only when values given for the supply would be removed, and names what is removed (the given values, or only "the name, reference and meter typed for its supply"). Its list reads the whole project also while only a part of the network is drawn, and shows "below it" for a board fed from the one being connected. On the Board tab, Add upstream board… keeps the view on that board (it shows its new incomer); the status line names the new board. One undo step each.
+- Panel tree and `move_panel`: moving a first board used to leave its supply block and add no incomer. It now uses Connect to, so the typed cable becomes the incomer and the given values are calculated from the new source; the confirmation text carries the same lines as Connect to…, and the status ends with "check the incomer cable length" only when the new incomer is marked to check. `move_panel` does the same only for a first board that Connect to accepts (not a meter cabinet, not an end of a bus coupler), and its warnings carry those lines.
+
+#### Open after step F
+
+- An isolator typed as a feeder's device is still checked as a breaker of that rating by the feeder checks (engine change, not done).
+- A second Add upstream board with no typed cable adds a default 30 m way, so the results at the boards below change by it.
+- A first board with a typed incoming cable but no fault level given: the calculation returns the placeholder source alone and ignores the cable (a test, "B1 fault level" in `src/calc/electrical.test.ts`, states this on purpose: "The incoming cable is not added to the placeholder source (no fault level: still assumed)"). Adding the cable there would be consistent with the case that has a fault level, but it changes the assumed fault level of existing projects; decision needed. Until then, Add upstream board… on such a board makes the cable a real way, so the fault level at the old board falls by it (the assumed source now stands at the new board).
 
 ### Wording still naming one supplier (for step D or a separate sweep)
 

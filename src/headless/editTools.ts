@@ -5,6 +5,7 @@ import { evaluateFeeder, runsOf } from '../calc/electrical';
 import { runCalculations } from '../calc/runs';
 import { applyRecommendation, recommend } from '../calc/sizing';
 import { addOp, newModification, PROPOSABLE, transition, withProposal, withRecord, type ModTarget } from '../model/designChanges';
+import { connectPlan, growBlocked } from '../model/growUp';
 import { moveBlocked, moveBoard } from '../model/moveBoard';
 import { renamePanels, renameProblems } from '../model/renamePanels';
 import { buildPanel } from '../model/addPanel';
@@ -254,15 +255,16 @@ export const EDIT_TOOLS: Tool[] = [
   {
     name: 'move_panel',
     title: 'Move a panel',
-    description: 'Supplies a panel (with everything below it) from another panel. Its incomer moves to the new source and its length is flagged for checking, since the route changed. A main board with no board above it gets an incomer from the new source (its typed incoming cable, else a default way to check) and loses its supply block: its fault level, voltage drop and earth loop are calculated from the new source from then on.',
+    description: 'Supplies a panel (with everything below it) from another panel. Its incomer moves to the new source and its length is flagged for checking, since the route changed. A first board without its own transformer (not a meter cabinet, not an end of a bus coupler) gets an incomer from the new source (its typed incoming cable, else a default way to check) and loses its supply block: its fault level, voltage drop and earth loop are calculated from the new source from then on.',
     input: { project, panel: z.string(), to: z.string().describe('New supplying panel'), mode: preview('apply') },
     usesProject: true, writes: true,
     run: (a, ctx) => edit(a, ctx, 'move_panel', a.mode === 'apply', (p) => {
       const b = findBoard(p, String(a.panel)), to = findBoard(p, String(a.to));
       const blocked = moveBlocked(p, b.id, to.id);
       if (blocked) throw new Error(blocked);
-      const typed = !b.upstreamId && !!supplyIncomerFeeder(b);
-      return { next: moveBoard(p, b.id, to.id), summary: `Move ${b.id} from ${b.upstreamId ?? 'its own supply'} to ${to.id}`, warnings: [typed ? `The typed incoming cable of ${b.id} is now its incomer from ${to.id}.` : 'The incomer length is flagged "to check": the cable route changed.'] };
+      const typed = !growBlocked(p, b.id) && !!supplyIncomerFeeder(b);
+      const plan = !growBlocked(p, b.id) ? connectPlan(p, b.id, to.id).lines : [];
+      return { next: moveBoard(p, b.id, to.id), summary: `Move ${b.id} from ${b.upstreamId ?? 'its own supply'} to ${to.id}`, warnings: [typed ? `The typed incoming cable of ${b.id} is now its incomer from ${to.id}.` : 'The incomer length is flagged "to check": the cable route changed.', ...plan] };
     })
   },
   {

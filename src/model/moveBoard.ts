@@ -1,6 +1,6 @@
 import type { Board, Project } from '../types';
 import { boardSummary } from '../calc/summary';
-import { connectTo, growBlocked } from './growUp';
+import { connectPlan, connectTo, growBlocked } from './growUp';
 
 /** Moving a board (with everything below it) to another source in the
  * panel tree: its incomer feeder moves to the new source's schedule and is
@@ -95,6 +95,8 @@ export function moveSummary(project: Project, id: string, to: string): string {
     return `${label} ${bid}: ${k === 0 ? 'demand unchanged' : `${k > 0 ? '+' : ''}${k} kW`}${pct}`;
   };
   const n = below(project, id).size;
-  return [`${id}${n ? ` and the ${n} board(s) below it` : ''} will be supplied from ${to}.`, part(to, 'New source'), part(old, 'Old source'), incomerOf(project, id) ? 'The incomer cable moves with it — check its length (the route changed).' : '']
+  // A first board: what its supply block becomes (the same lines as "Connect to…").
+  const plan = !growBlocked(project, id) && !moveBlocked(project, id, to) ? connectPlan(project, id, to).lines : [];
+  return [`${id}${n ? ` and the ${n} board(s) below it` : ''} will be supplied from ${to}.`, ...plan, part(to, 'New source'), part(old, 'Old source'), incomerOf(project, id) ? 'The incomer cable moves with it — check its length (the route changed).' : '']
     .filter(Boolean).join('\n');
 }

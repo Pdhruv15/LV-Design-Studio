@@ -2494,10 +2494,10 @@ export default function SystemDiagram({
             <div className="tree-menu-h">{heading}… <span className="sp" /><button className="icon-btn" title="Close" aria-label="Close" onClick={close}><X size={14} aria-hidden /></button></div>
             <input autoFocus type="search" placeholder="Find a board…" value={moveQ} onChange={(e) => setMoveQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } }} />
             <div className="tree-move-list">
-              {project.boards.filter((t) => !(connect && t.id === item.id) && `${t.id} ${t.name}`.toLowerCase().includes(q)).map((t) => {
+              {(connect ? whole : project).boards.filter((t) => !(connect && t.id === item.id) && `${t.id} ${t.name}`.toLowerCase().includes(q)).map((t) => {
                 const sub = several?.some((x) => x.kind === 'board' && (x.id === t.id || below(project, x.id).has(t.id)));
-                const why = connect ? connectBlocked(project, item.id, t.id) : several ? (sub ? `${t.id} is a picked board or below one` : undefined) : item.kind === 'board' ? moveBlocked(project, item.id, t.id) : t.id === own ? `${item.id} is already on ${t.id}` : undefined;
-                const note = why ? (several ? 'picked branch' : item.kind === 'feeder' ? 'current board' : why.includes('already') ? 'current source' : why.includes('loop') ? 'below it' : '') : t.name !== t.id ? t.name : '';
+                const why = connect ? connectBlocked(whole, item.id, t.id) : several ? (sub ? `${t.id} is a picked board or below one` : undefined) : item.kind === 'board' ? moveBlocked(project, item.id, t.id) : t.id === own ? `${item.id} is already on ${t.id}` : undefined;
+                const note = why ? (several ? 'picked branch' : item.kind === 'feeder' ? 'current board' : why.includes('already') ? 'current source' : why.includes('loop') || why === `${t.id} is fed from ${item.id}` ? 'below it' : '') : t.name !== t.id ? t.name : '';
                 return <button key={t.id} disabled={!!why} title={why ?? (connect ? `Connect ${item.id} to ${t.id}` : several ? `Move ${several.length} to ${t.id}` : item.kind === 'board' ? `Supply ${item.id} from ${t.id}` : `Move ${item.id} to ${t.id}`)} onClick={() => { close(); if (connect) onMenu?.({ kind: 'board', id: item.id }, 'connectto', t.id); else if (several) onMenu?.({ kind: 'several', items: several }, 'moveto', t.id); else onMoveItem?.(item, { type: 'bus', boardId: t.id }); }}><b>{t.id}</b> <span className="m">{note}</span></button>;
               })}
             </div>

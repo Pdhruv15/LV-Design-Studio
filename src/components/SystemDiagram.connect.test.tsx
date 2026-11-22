@@ -32,12 +32,14 @@ describe('SLD Connect to…', () => {
   });
   afterEach(() => { act(() => root.unmount()); document.body.innerHTML = ''; vi.unstubAllGlobals(); });
 
-  const draw = (project: Project = withFirst) => {
-    const results = evaluateProject(project);
+  /** `part`: only that part of the network is drawn (the project prop), the menu and the list read the whole. */
+  const draw = (whole: Project = withFirst, part?: Project) => {
+    const project = part ?? whole;
+    const results = evaluateProject(whole);
     act(() => root.render(
-      <SystemDiagram project={project} calcProject={project} results={results} selectedFeederId={null} selectedBoardId={null}
+      <SystemDiagram project={project} wholeProject={whole} calcProject={whole} results={results} selectedFeederId={null} selectedBoardId={null}
         onSelectFeeder={noop} onSelectBoard={noop} onDrawing={noop} onPatchFeeder={noop}
-        menuFor={(t, v) => sldMenu({ project, calcProject: project, results, canUndo: false, canRedo: false, layers: DEFAULT_LAYERS, colorBy: 'none', supply: 'normal', hasGenerator: false, outages: [], grid: v.grid, detail: v.detail }, t)}
+        menuFor={(t, v) => sldMenu({ project: whole, calcProject: whole, results, canUndo: false, canRedo: false, layers: DEFAULT_LAYERS, colorBy: 'none', supply: 'normal', hasGenerator: false, outages: [], grid: v.grid, detail: v.detail }, t)}
         onMenu={(t, a, v) => menus.push([t, a, v])} />
     ));
   };
@@ -60,6 +62,19 @@ describe('SLD Connect to…', () => {
     act(() => btn('SMDB-FF').click());
     expect(menus).toEqual([[{ kind: 'board', id: 'DB-LV' }, 'connectto', 'SMDB-FF']]);
     expect(host.querySelector('.tree-move')).toBeNull();
+  });
+
+  it('while only a part is drawn, the list offers the boards of the whole project and says "below it" for the one below', () => {
+    const part: Project = { ...withFirst, boards: withFirst.boards.filter((b) => b.id.startsWith('DB-LV')), feeders: withFirst.feeders.filter((f) => f.boardId.startsWith('DB-LV')) };
+    draw(withFirst, part);
+    rightClick(host.querySelector('.sysdiag > svg g.bd[data-lv-id="board:DB-LV"]')!);
+    act(() => menuRow('Connect to…').click());
+    const btns = [...host.querySelectorAll<HTMLButtonElement>('.tree-move-list button')];
+    expect(btns.map((b) => b.querySelector('b')!.textContent)).toEqual(withFirst.boards.filter((b) => b.id !== 'DB-LV').map((b) => b.id));
+    const below = btns.find((b) => b.querySelector('b')!.textContent === 'DB-LV-1')!;
+    expect(below.disabled).toBe(true);
+    expect(below.querySelector('.m')!.textContent).toBe('below it');
+    expect(btns.find((b) => b.querySelector('b')!.textContent === 'SMDB-FF')!.disabled).toBe(false);
   });
 
   it('a fed board has neither row', () => {

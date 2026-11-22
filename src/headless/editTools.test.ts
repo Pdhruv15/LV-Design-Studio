@@ -134,11 +134,22 @@ describe('move_panel on a first board', () => {
     fs.writeFileSync(file('First'), JSON.stringify(extra, null, 2));
     const v = run('move_panel', { project: 'First', panel: 'DB-LV', to: 'SMDB-GF' });
     expect(v.warnings.join(' ')).toMatch(/typed incoming cable of DB-LV is now its incomer from SMDB-GF/);
+    expect(v.warnings.join(' ')).toMatch(/The given values \(Ik″ 10 kA\) are removed/);
     run('move_panel', { project: 'First', panel: 'DB-LV', to: 'SMDB-GF', mode: 'apply' });
     const p = load('First');
     expect(p.boards.find((b) => b.id === 'DB-LV')).toMatchObject({ upstreamId: 'SMDB-GF' });
     expect(p.boards.find((b) => b.id === 'DB-LV')!.supply).toBeUndefined();
     expect(p.feeders.find((f) => f.feedsBoardId === 'DB-LV')).toMatchObject({ boardId: 'SMDB-GF', cableCsaMm2: 16, lengthM: 25, breakerRatingA: 63 });
+  });
+});
+
+describe('move_panel on a board that is not grown upward', () => {
+  it('a meter cabinet with a typed cable is only moved: no incomer is promised', () => {
+    const extra: Project = { ...villa, id: 'proj-mc', boards: [...villa.boards, { id: 'MC-1', name: 'MC 1', kind: 'MC', supply: { faultKa: 10, ratingA: 63, incomer: { cableCsaMm2: 16, lengthM: 25 } } }] };
+    fs.writeFileSync(file('Meter'), JSON.stringify(extra, null, 2));
+    const v = run('move_panel', { project: 'Meter', panel: 'MC-1', to: 'SMDB-GF' });
+    expect(v.warnings.join(' ')).not.toMatch(/typed incoming cable/);
+    expect(v.warnings.join(' ')).toMatch(/flagged "to check"/);
   });
 });
 

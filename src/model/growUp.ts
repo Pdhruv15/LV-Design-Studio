@@ -1,6 +1,7 @@
-import { cableSizeText, selectCable } from '../calc/electrical';
+import { cableSizeText, faultCurrentKA, impedanceToBoard, selectCable, sourceAssumed } from '../calc/electrical';
+import { icuSteps } from '../calc/sizing';
 import { supplyMode } from '../diagram/supplyPoint';
-import { supplyIncomerFeeder, type Board, type BoardKind, type Feeder, type Project } from '../types';
+import { supplyFaultKa, supplyIncomerFeeder, type Board, type BoardKind, type Feeder, type Project } from '../types';
 import { BOARD_RATING, panelKindOf } from './addPanel';
 import { below } from './moveBoard';
 import { allIds, newBoard, uniqueId, type DropResult } from './sldEdit';
@@ -20,8 +21,8 @@ const ABOVE: Partial<Record<BoardKind, BoardKind>> = { DB: 'SMDB', EDB: 'ESMDB',
 /** What normally feeds a board of this type: 'transformer' for a main board. */
 export const upstreamKind = (b: Board): BoardKind | 'transformer' => (b.kind && ABOVE[b.kind]) || 'transformer';
 
-const GIVEN = ['faultKa', 'xr', 'faultKaMin', 'vdUsedPct', 'zeOhm', 'allowedA'] as const;
-const SOURCE_KEYS = ['fedFrom', 'kind', 'ref', 'meter', 'ctRatio', 'cable', 'ecc'] as const;
+/** What stays with the way (or the board) and does not move up with the given values. */
+const STAYS = new Set(['device', 'ratingA', 'irSetting', 'incomer']);
 const num = (v: number) => String(+v.toFixed(2));
 const named = (s?: string) => (typeof s === 'string' ? s.trim() || undefined : undefined);
 const boardOf = (p: Project, id: string) => p.boards.find((b) => b.id === id);
@@ -59,25 +60,52 @@ function suggestion(project: Project, x: Board, kind?: BoardKind): { kind: Board
   return { kind: k, id: g.id, name: g.name, typed: false };
 }
 
-interface Way { feeder: Feeder; typed: boolean; deviceText: string; cableText: string }
+interface Way { feeder: Feeder; typed: boolean; half: boolean; isol: boolean; its: boolean; unrated: boolean; deviceText: string; cableText: string }
+
+const MIN_ICU_KA = 36;
+/** The breaking capacity of the new way: the next standard step above the fault level at its busbar, never below 36 kA. */
+const icuFor = (ka?: number) => Math.max(MIN_ICU_KA, ka && ka > 0 ? icuSteps().find((k) => k >= ka) ?? icuSteps()[icuSteps().length - 1] : 0);
 
 /** The way from `parentId` to `x`: the typed incoming cable and device when there is one (what the calculations already
- * treated as a virtual feeder), else a way at the board's rating with a cable sized for it, 30 m, to check. */
-function wayTo(project: Project, x: Board, parentId: string, taken: Set<string>): Way {
-  const sup = x.supply, virtual = supplyIncomerFeeder(x);
-  const rating = sup?.ratingA && sup.ratingA > 0 ? sup.ratingA : x.ratedCurrentA ?? (x.kind ? BOARD_RATING[x.kind] : 63);
-  const device = sup?.device;
+ * treated as a virtual feeder), else a way at the board's rating with a cable sized for it, 30 m, to check.
+ * `ka` is the fault level at the busbar the way starts from (its breaking capacity follows it). */
+function wayTo(project: Project, x: Board, parentId: string, taken: Set<string>, ka?: number): Way {
+  const sup = x.supply, virtual = supplyIncomerFeeder(x), inc = sup?.incomer;
+  const half = !virtual && lvSuppliedBoard(x) && !!inc && inc.cableCsaMm2 > 0;
+  const rating = [sup?.ratingA, x.ratedCurrentA, x.kind ? BOARD_RATING[x.kind] : undefined, 63].find((v) => v !== undefined && v > 0)!;
+  const isol = sup?.device === 'ISOL', device = isol ? undefined : sup?.device;
   const id = taken.has(`INC-${x.id}`) ? uniqueId(taken, `INC-${x.id}`) : `INC-${x.id}`;
   const base: Feeder = {
     id, boardId: parentId, feedsBoardId: x.id, name: `Incomer to ${x.name}`, loadKw: 0, demandFactor: 1, powerFactor: 0.85,
-    lengthM: 30, cableCsaMm2: 0, cores: 4, breakerRatingA: rating, breakerIcuKa: 36,
+    lengthM: 30, cableCsaMm2: 0, cores: 4, breakerRatingA: rating, breakerIcuKa: icuFor(ka),
     breakerType: device === 'ACB' ? 'ACB' : device === 'MCCB' ? 'MCCB' : rating > 1600 ? 'ACB' : rating > 63 ? 'MCCB' : 'C',
     ...(device ? { device } : {})
   };
+  const kept = (c: { cores?: 2 | 3 | 4; parallel?: number; cpcMm2?: number; installMethod?: Feeder['installMethod'] }) => ({ cores: c.cores ?? 4, ...(c.parallel !== undefined ? { parallel: c.parallel } : {}), ...(c.cpcMm2 !== undefined ? { cpcMm2: c.cpcMm2 } : {}), ...(c.installMethod ? { installMethod: c.installMethod } : {}) });
   const feeder: Feeder = virtual
-    ? { ...base, lengthM: virtual.lengthM, cableCsaMm2: virtual.cableCsaMm2, cores: virtual.cores, ...(virtual.parallel !== undefined ? { parallel: virtual.parallel } : {}), ...(virtual.cpcMm2 !== undefined ? { cpcMm2: virtual.cpcMm2 } : {}), ...(virtual.installMethod ? { installMethod: virtual.installMethod } : {}) }
-    : { ...base, cableCsaMm2: selectCable(rating, 30, project.voltageV, 4, 0.85, project.ambientC, 100, rating) ?? 300, lengthToCheck: true };
-  return { feeder, typed: !!virtual, deviceText: `${rating} A ${device ?? 'breaker'}`, cableText: `${cableSizeText(feeder)}, ${feeder.lengthM} m` };
+    ? { ...base, lengthM: virtual.lengthM, cableCsaMm2: virtual.cableCsaMm2, ...kept(virtual) }
+    : half
+      ? { ...base, cableCsaMm2: inc!.cableCsaMm2, ...kept(inc!), lengthToCheck: true }
+      : { ...base, cableCsaMm2: selectCable(rating, 30, project.voltageV, 4, 0.85, project.ambientC, 100, rating) ?? 300, lengthToCheck: true };
+  if (x.existing && (virtual || half)) feeder.existing = true;
+  const typedRating = !!sup?.ratingA && sup.ratingA > 0;
+  return {
+    feeder, typed: !!virtual, half, isol, its: typedRating && !isol, unrated: (!!virtual || half) && !typedRating,
+    deviceText: `${rating} A ${device ?? 'breaker'}`, cableText: `${cableSizeText(feeder)}, ${feeder.lengthM} m`
+  };
+}
+
+const lvSuppliedBoard = (b: Board) => !b.upstreamId && !b.sourceKva && !!b.supply;
+
+/** The lines about the way: the typed cable and device (or what was missing), or the default way, and what it does to the results. */
+function wayLines(way: Way, from: string, x: Board): string[] {
+  const f = way.feeder, out: string[] = [];
+  if (way.half) out.push(`The incoming cable ${cableSizeText(f)} has no length: 30 m is used, to check.`);
+  else if (way.typed) out.push(way.its ? `The incoming cable ${way.cableText} and its ${way.deviceText} become the way from ${from} to ${x.id}.` : `The incoming cable ${way.cableText} becomes the way from ${from} to ${x.id}.`);
+  else out.push(`A ${f.breakerRatingA} A way with a cable sized for it is added from ${from} to ${x.id} (30 m, to check): the fault level and voltage drop at ${x.id} change by this cable.`);
+  if (way.isol) out.push(`The supply device was typed as an isolator: the way is made with a ${f.breakerRatingA} A breaker — set the real device.`);
+  else if (way.unrated) out.push(`No supply device rating was typed: the way is made with a ${f.breakerRatingA} A breaker (the board's rating).`);
+  return out;
 }
 
 export interface UpstreamPlan { transformer: boolean; kind?: BoardKind; id?: string; title: string; lines: string[] }
@@ -93,23 +121,23 @@ export function upstreamPlan(project: Project, boardId: string, kind?: BoardKind
   }
   const s = suggestion(project, x, kind), way = wayTo(project, x, '', new Set());
   const given = givenList(x.supply), sup = x.supply;
-  const lines = [way.typed
-    ? `The incoming cable ${way.cableText} and its ${way.deviceText} become the way from the new board to ${x.id}.`
-    : `A ${way.feeder.breakerRatingA} A way with a cable sized for it is added from the new board to ${x.id} (30 m, to check).`];
+  const lines = wayLines(way, 'the new board', x);
   if (given.length) lines.push(`The given values (${given.join(', ')}) move to the new board.`);
   const src = named(sup?.fedFrom);
   if (supplyMode(x) === 'source' && (src || sup?.meter)) lines.push(`The source${src ? ` ${src}` : ''}${sup?.meter ? ' and its meter' : ''} move${sup?.meter ? '' : 's'} to the new board.`);
-  if (way.typed || given.length || (sup && supplyMode(x) === 'source')) lines.push(`From then on the values at ${x.id} are calculated.`);
+  else if (supplyMode(x) === 'board' && sup?.meter) lines.push('Its meter moves to the new board.');
+  if (way.typed || way.half || given.length || (sup && supplyMode(x) === 'source')) lines.push(`From then on the values at ${x.id} are calculated.`);
   return { transformer: false, kind: s.kind, id: s.id, title: `Add a board above ${x.id}`, lines };
 }
 
-/** The supply block the new first board gets: the values given at the old one move up. */
+/** The supply block the new first board gets: everything typed at the old one moves up, except what is now the way
+ * (device, rating, Ir setting, incomer) and, for a board outside the project, its own name. */
 function movedSupply(x: Board): Supply | undefined {
   const sup = x.supply, mode = supplyMode(x);
   if (!sup || mode === 'unset' || mode === 'transformer') return undefined;
-  const out: Record<string, unknown> = mode === 'board' ? { fedBy: 'board' } : {};
-  for (const k of mode === 'source' ? SOURCE_KEYS : (['ref'] as const)) if (sup[k] !== undefined) out[k] = sup[k];
-  for (const k of GIVEN) if (sup[k] !== undefined) out[k] = sup[k];
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(sup)) if (v !== undefined && !STAYS.has(k) && !(mode === 'board' && k === 'fedFrom')) out[k] = v;
+  if (mode === 'board') out.fedBy = 'board';
   return out as Supply;
 }
 
@@ -117,7 +145,19 @@ function movedSupply(x: Board): Supply | undefined {
 function fedFromAbove(x: Board, parentId: string): Board {
   const { supply: sup, ...rest } = x;
   const ir = sup?.irSetting;
-  return { ...rest, upstreamId: parentId, ...(ir !== undefined && x.protection?.irSetting === undefined ? { protection: { ...x.protection, irSetting: ir } } : {}) };
+  return { ...rest, upstreamId: parentId, ...(!(x.ratedCurrentA && x.ratedCurrentA > 0) && sup?.ratingA && sup.ratingA > 0 ? { ratedCurrentA: sup.ratingA } : {}), ...(ir !== undefined && x.protection?.irSetting === undefined ? { protection: { ...x.protection, irSetting: ir } } : {}) };
+}
+
+/** The pits of a first board belong to its number: they follow it to the new board (as renaming does). */
+function moveEarthPits(project: Project, from: string, to: string): Project {
+  const key = (k: string) => (k === `lv:${from}` ? `lv:${to}` : k);
+  const rekey = <T,>(o: Record<string, T> | undefined) => (o ? Object.fromEntries(Object.entries(o).map(([k, v]) => [key(k), v])) : o);
+  const plan = project.earthingPlan;
+  return {
+    ...project,
+    ...(project.earthPitIds ? { earthPitIds: rekey(project.earthPitIds) } : {}),
+    ...(plan ? { earthingPlan: { ...plan, ...(plan.pits ? { pits: rekey(plan.pits) } : {}), ...(plan.unlinked ? { unlinked: plan.unlinked.map(key) } : {}) } } : {})
+  };
 }
 
 /** Makes the board above `boardId`: a transformer for a main board, else a new board of the usual type (or `opts.kind`). */
@@ -138,22 +178,29 @@ export function addUpstreamBoard(project: Project, boardId: string, opts: { kind
     name = id === newBoard(project, s.kind).id ? newBoard(project, s.kind).name : id;
   }
   if (used.has(id)) return refuse(`${id} already exists in the project`);
-  const way = wayTo(project, x, id, new Set([...used, id]));
+  const way = wayTo(project, x, id, new Set([...used, id]), supplyFaultKa(x));
   const given = movedSupply(x), earthing = x.earthing;
   const n: Board = {
     id, name, kind: s.kind, ratedCurrentA: Math.max(BOARD_RATING[s.kind], x.ratedCurrentA ?? 0, way.feeder.breakerRatingA),
-    ...(given ? { supply: given } : {}), ...(earthing ? { earthing } : {})
+    ...(given ? { supply: given } : {}), ...(earthing ? { earthing } : {}),
+    // The cable up to an existing board is installed, so what feeds it is too (not priced as new).
+    ...(x.existing && way.feeder.existing ? { existing: {} } : {})
   };
   const { earthing: _e, ...x0 } = fedFromAbove(x, id);
   const boards = project.boards.flatMap((b) => (b.id === x.id ? [n, x0] : [b]));
-  const what = way.typed
-    ? `the incoming cable ${way.cableText} with ${x.supply?.ratingA ? 'its' : 'a'} ${way.deviceText} is now the way to ${x.id}`
+  const what = way.typed || way.half
+    ? `the incoming cable ${way.cableText} with ${way.its ? 'its' : 'a'} ${way.deviceText} is now the way to ${x.id}`
     : `a ${way.feeder.breakerRatingA} A way with ${way.cableText.replace(', ', ' cable, ')}, was added`;
   const moved = given && Object.keys(given).some((k) => k !== 'fedBy') ? `; the given values moved to ${id}` : '';
   return {
-    project: { ...project, boards, feeders: [...project.feeders, way.feeder] }, select: { type: 'board', id },
-    message: `Added ${id} above ${x.id}: ${what}${moved}${way.typed ? '' : ' — check the cable length'}`
+    project: moveEarthPits({ ...project, boards, feeders: [...project.feeders, way.feeder] }, x.id, id), select: { type: 'board', id },
+    message: `Added ${id} above ${x.id}: ${what}${moved}${way.feeder.lengthToCheck ? ' — check the cable length' : ''}${way.isol ? '; set the real protective device of the way' : ''}`
   };
+}
+
+/** On the Board tab the view stays on the board the menu was used on: a board made above it is shown by its incomer there. */
+export function stayOnBoardAfter(r: DropResult, boardId?: string): DropResult {
+  return boardId && r.select?.type === 'board' && r.select.id !== boardId ? { ...r, select: { type: 'board', id: boardId } } : r;
 }
 
 /** Why X cannot be connected to P, or undefined. */
@@ -175,11 +222,16 @@ export function connectPlan(project: Project, boardId: string, parentId: string)
   if (!x || connectBlocked(project, boardId, parentId)) return { title, lines: [], loses: false };
   const way = wayTo(project, x, parentId, new Set());
   const given = givenList(x.supply), loses = losesAtConnect(x);
-  const lines = [way.typed
-    ? `The incoming cable ${way.cableText} and its ${way.deviceText} become the way from ${parentId} to ${x.id}.`
-    : `A ${way.feeder.breakerRatingA} A way with a cable sized for it is added from ${parentId} to ${x.id} (30 m, to check).`];
-  if (loses) lines.push(given.length ? `The given values (${given.join(', ')}) are removed: from then on they are calculated from ${parentId}.` : `The values given for its supply are removed: from then on they are calculated from ${parentId}.`);
+  const lines = wayLines(way, parentId, x);
+  if (loses) lines.push(given.length ? `The given values (${given.join(', ')}) are removed: from then on they are calculated from ${parentId}.` : 'The name, reference and meter typed for its supply are removed.');
   return { title, lines, loses };
+}
+
+/** The fault level (kA) at a board's busbar when it is known (not the placeholder source), else undefined. */
+function faultAt(project: Project, id: string): number | undefined {
+  if (sourceAssumed(project, id)) return undefined;
+  const ka = faultCurrentKA(impedanceToBoard(project, id), project.voltageV);
+  return Number.isFinite(ka) && ka > 0 ? ka : undefined;
 }
 
 /** Joins a first board to a board already in the project, with the typed incoming cable (or a default way) as the way between them. */
@@ -187,11 +239,11 @@ export function connectTo(project: Project, boardId: string, parentId: string): 
   const blocked = connectBlocked(project, boardId, parentId);
   if (blocked) return { project, message: blocked };
   const x = boardOf(project, boardId)!;
-  const way = wayTo(project, x, parentId, allIds(project));
-  const loses = losesAtConnect(x);
+  const way = wayTo(project, x, parentId, allIds(project), faultAt(project, parentId));
+  const lost = givenList(x.supply).length > 0;
   return {
     project: { ...project, boards: project.boards.map((b) => (b.id === x.id ? fedFromAbove(x, parentId) : b)), feeders: [...project.feeders, way.feeder] },
     select: { type: 'board', id: x.id },
-    message: `Connected ${x.id} to ${parentId} with a ${way.deviceText} and ${way.cableText}${loses ? '; the values given for its supply are now calculated' : ''}${way.typed ? '' : ' — check the cable length'}`
+    message: `Connected ${x.id} to ${parentId} with a ${way.deviceText} and ${way.cableText}${lost ? '; the values given for its supply are now calculated' : ''}${way.feeder.lengthToCheck ? ' — check the cable length' : ''}${way.isol ? '; set the real protective device of the way' : ''}`
   };
 }

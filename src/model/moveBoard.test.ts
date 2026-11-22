@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Project } from '../types';
 import { sampleProject } from '../data/sampleProject';
-import { below, incomerOf, indentTarget, moveBlocked, moveBoard, outdentTarget, reorderBoard, siblings } from './moveBoard';
+import { below, incomerOf, indentTarget, moveBlocked, moveBoard, moveSummary, outdentTarget, reorderBoard, siblings } from './moveBoard';
 
 const p = sampleProject;
 const root = p.boards.find((b) => !b.upstreamId)!;
@@ -34,6 +34,13 @@ describe('moving boards in the panel tree', () => {
     expect(q.boards.find((b) => b.id === 'DB-LV')!.upstreamId).toBe(root.id);
     expect(incomerOf(q, 'DB-LV')).toMatchObject({ boardId: root.id, cableCsaMm2: 16, lengthM: 25, breakerRatingA: 63 });
     expect(moveBoard(first, 'DB-LV', 'DB-LV')).toBe(first); // moveBlocked still decides
+  });
+
+  it('the summary of a first board says what happens to its supply block; a fed board has no such lines', () => {
+    const first: Project = { ...p, boards: [...p.boards, { id: 'DB-LV', name: 'DB LV', kind: 'DB', ratedCurrentA: 63, supply: { fedBy: 'board', faultKa: 10, ratingA: 63, incomer: { cableCsaMm2: 16, lengthM: 25 } } }] };
+    expect(moveSummary(first, 'DB-LV', root.id)).toContain('The given values (Ik″ 10 kA) are removed');
+    expect(moveSummary(first, 'DB-LV', root.id)).toContain(`The incoming cable 4C × 16 mm², 25 m and its 63 A breaker become the way from ${root.id} to DB-LV.`);
+    expect(moveSummary(p, grand.id, root.id)).not.toContain('The incoming cable');
   });
 
   it('outdent goes to the source of the source; indent to the board above', () => {
