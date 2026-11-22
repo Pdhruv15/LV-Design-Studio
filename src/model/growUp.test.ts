@@ -25,6 +25,7 @@ const firsts = (p: Project) => p.boards.filter((b) => !b.upstreamId).map((b) => 
 describe('Add upstream board: the results at the old board do not change', () => {
   const cases: [string, Board['supply']][] = [
     ['typed cable', given],
+    ['typed cable, no fault level given (assumed source)', { ratingA: 63, device: 'MCCB', incomer: { cableCsaMm2: 16, lengthM: 25 } }],
     ['cpc, parallel runs and Ze', { ...given, zeOhm: 0.35, incomer: { cableCsaMm2: 95, lengthM: 40, parallel: 2, cpcMm2: 25, cores: 4 } }]
   ];
   it.each(cases)('%s: Ik″, drop and Zs are equal before and after', (_n, s) => {

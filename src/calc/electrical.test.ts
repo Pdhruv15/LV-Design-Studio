@@ -274,9 +274,16 @@ describe('values given from upstream (first board on an LV supply)', () => {
     expect(evaluateFeeder(lv(given), load()).breakerFaultKA).toBeCloseTo(6.04, 2);
     // Only the X/R: same |Z| and R + jX split as the supply alone with X/R 3: 12 kA at the busbar.
     expect(faultCurrentKA(impedanceToBoard(lv({ faultKa: 12, xr: 3 }), 'MDB'), 415)).toBeCloseTo(12, 6);
-    // The incoming cable is not added to the placeholder source (no fault level: still assumed).
-    expect(sourceAssumed(lv({ incomer: { cableCsaMm2: 16, lengthM: 25 } }), 'MDB')).toBe(true);
-    expect(impedanceToBoard(lv({ incomer: { cableCsaMm2: 16, lengthM: 25 } }), 'MDB')).toEqual({ r: 0, x: 0.01 });
+    // No fault level given: the placeholder source (0.01 Ω reactive, still assumed) stands at the supply point and the
+    // incoming cable is added to it. R 0.02875, X 0.01 + 0.002125 = 0.012125: |Z| = 0.031202 Ω,
+    // Ik = 1.05 × 415 ÷ (√3 × 0.031202) = 8.06 kA at the busbar (25.16 kA without the cable).
+    const assumed = lv({ incomer: { cableCsaMm2: 16, lengthM: 25 } });
+    expect(sourceAssumed(assumed, 'MDB')).toBe(true);
+    expect(impedanceToBoard(assumed, 'MDB').r).toBeCloseTo(0.02875, 6);
+    expect(impedanceToBoard(assumed, 'MDB').x).toBeCloseTo(0.012125, 6);
+    expect(evaluateFeeder(assumed, load()).breakerFaultKA).toBeCloseTo(8.06, 2);
+    // Parallel runs halve the cable: R 0.014375, X 0.01 + 0.0010625.
+    expect(impedanceToBoard(lv({ incomer: { cableCsaMm2: 16, lengthM: 25, parallel: 2 } }), 'MDB').r).toBeCloseTo(0.014375, 6);
   });
 
   it('B2 voltage drop: the drop used upstream plus the incoming cable, added to every circuit', () => {

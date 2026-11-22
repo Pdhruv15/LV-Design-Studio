@@ -469,14 +469,11 @@ export function parallelZ(zs: Impedance[]): Impedance {
 }
 
 function impedanceToBoardOf(project: Project, board: Board, seen: Set<string>): Impedance {
-  const fallback = PLACEHOLDER_SOURCE_Z;
-
   if (!board.upstreamId) {
     // No transformer: a supply with a stated fault level (authority, or a neighbouring building's main board).
     if (!board.sourceKva || !board.sourceImpedancePct) {
-      const level = supplySourceLevel(project, board);
-      if (level.basis === 'assumed') return fallback;
-      const zs = level.z;
+      // An assumed level is the placeholder source at the supply point: the typed incoming cable still counts.
+      const zs = supplySourceLevel(project, board).z;
       const cable = supplyIncomerFeeder(board); // the incoming cable from the supply point to this board
       return cable ? addZ(zs, cableImpedance(cable.cableCsaMm2, cable.lengthM, runsOf(cable))) : zs;
     }
