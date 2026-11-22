@@ -137,3 +137,21 @@ describe('supplyLines and supplyReach follow the model', () => {
     expect(supplyReach(project(uns), uns, false)).toBeGreaterThan(60);
   });
 });
+
+describe('a calculated fault level', () => {
+  // 415 V: 250 kVA, X″d 15 %: 1.05 × (250 000 ÷ (√3 × 415)) ÷ 0.15 = 2.43 kA. 100 kVA PV at 1.2 × rated: 1.2 × 139.1 A = 0.167 kA.
+  it('says calculated, one decimal from 1 kA and two below, with the basis on the next line', () => {
+    expect(point(first({ kind: 'generator', ratedKva: 250 })).lines).toEqual(['Ik″ 2.4 kA calculated', '250 kVA · X″d 15 %']);
+    expect(point(first({ kind: 'pv', ratedKva: 100 })).lines).toEqual(['Ik″ 0.17 kA calculated', '100 kVA · 1.2 × rated']);
+    expect(point(first({ kind: 'generator', ratedKva: 250, ratingA: 400, device: 'ACB' })).lines).toEqual(['400 A ACB', 'Ik″ 2.4 kA calculated', '250 kVA · X″d 15 %']);
+    expect(point(first({ kind: 'generator', ratedKva: 250 })).brief).toEqual(['Ik″ 2.4 kA calculated']);
+  });
+  it('the authority style keeps its rule: the fault line (and its basis) when there is no device line to stand on', () => {
+    expect(point(first({ kind: 'generator', ratedKva: 250, meter: '3-PH' }), true).lines).toEqual(['METER CABINET', 'Ik″ 2.4 kA calculated', '250 kVA · X″d 15 %']);
+  });
+  it('a typed level wins; without a rating the level stays assumed; a board outside the project reads no rating', () => {
+    expect(point(first({ kind: 'generator', ratedKva: 250, faultKa: 12 })).lines).toEqual(['Ik″ 12 kA given']);
+    expect(point(first({ kind: 'pv' })).lines).toEqual(['Ik″ 25.2 kA assumed']);
+    expect(point(first({ kind: 'generator', ratedKva: 250, fedBy: 'board' })).lines).toEqual(['not in this project', 'Ik″ 25.2 kA assumed']);
+  });
+});

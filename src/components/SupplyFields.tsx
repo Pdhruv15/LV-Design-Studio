@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 import { ask } from './ConfirmDialog';
 import { INSTALL_METHODS, cables, type InstallMethod } from '../calc/cableTable';
-import { DEFAULT_TRANSFORMER_XR, assumedSourceFaultKa } from '../calc/electrical';
+import { DEFAULT_TRANSFORMER_XR, GENERATOR_XD_SUBTRANSIENT_PCT, INVERTER_FAULT_MULTIPLE, assumedSourceFaultKa, supplySourceLevel } from '../calc/electrical';
 import { supplyNameSuggestion } from '../model/designReference';
 import { FED_FROM, fedFromOfBoard, hasSupplyValues, losesValues, setFedFrom, setIncomerValue, setSupplyValue, type FedFrom } from '../model/supplyEdit';
 import { METER_TYPES, SOURCE_KINDS, SWITCH_DEVICES, type Board, type MeterType, type Project, type SourceKind, type SupplyIncomer, type SwitchDevice } from '../types';
@@ -42,7 +42,7 @@ export default function SupplyFields({ project, board, onChange }: { project: Pr
     }
     onChange(setFedFrom(project, board, to));
   }
-  const num = (label: string, key: 'faultKa' | 'xr' | 'faultKaMin' | 'vdUsedPct' | 'zeOhm' | 'allowedA' | 'ratingA' | 'irSetting', step: number, placeholder = '') => (
+  const num = (label: string, key: 'faultKa' | 'xr' | 'ratedKva' | 'xdPct' | 'faultMultiple' | 'faultKaMin' | 'vdUsedPct' | 'zeOhm' | 'allowedA' | 'ratingA' | 'irSetting', step: number, placeholder = '') => (
     <label>{label}
       <input type="number" aria-label={label} step={step} min="0" placeholder={placeholder} value={s[key] ?? ''} onChange={(e) => onChange(setSupplyValue(board, key, numOrU(e.target.value)))} />
     </label>
@@ -61,11 +61,15 @@ export default function SupplyFields({ project, board, onChange }: { project: Pr
   const sizes = withCurrent(inc?.cableCsaMm2);
   const cpcSizes = withCurrent(inc?.cpcMm2);
 
+  const level = supplySourceLevel(project, board);
+  const kind = s.kind ?? 'utility';
+  const machine = kind === 'generator' || kind === 'wind', inverter = kind === 'pv' || kind === 'battery' || kind === 'wind';
+
   // Rows of the one grid the source / feeding board rows start, so every group's fields line up.
   const shared = (
     <>
         <h4 className="kv-head">Given values</h4>
-        {num('Fault level Ik″ (kA)', 'faultKa', 0.1, `${assumedSourceFaultKa(project).toFixed(1)} assumed`)}
+        {num('Fault level Ik″ (kA)', 'faultKa', 0.1, `${level.ka.toFixed(1)} ${level.basis === 'calculated' ? 'calculated' : 'assumed'}`)}
         {num('X/R', 'xr', 0.5, String(DEFAULT_TRANSFORMER_XR))}
         {num('Minimum Ik (kA)', 'faultKaMin', 0.1, 'not given')}
         {num('Drop already used (%)', 'vdUsedPct', 0.1, '0')}
@@ -148,11 +152,15 @@ export default function SupplyFields({ project, board, onChange }: { project: Pr
                 {SOURCE_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
               </select>
             </label>
+            {(machine || inverter) && num('Rating (kVA)', 'ratedKva', 1, 'not given')}
+            {machine && num('X″d (%)', 'xdPct', 0.5, String(GENERATOR_XD_SUBTRANSIENT_PCT))}
+            {inverter && num('Fault current (× rated)', 'faultMultiple', 0.1, String(INVERTER_FAULT_MULTIPLE))}
             {text('Name', 'fedFrom', 'Source', suggestion ? listId : undefined)}
             {text('Reference', 'ref', 'drawing or letter')}
             {shared}
           </div>
           {suggestion && <datalist id={listId}><option value={suggestion} /></datalist>}
+          {kind === 'wind' && <p className="m">Type the fault current multiple for an inverter-coupled turbine; leave it blank for a generator.</p>}
           {cableHint}
         </>
       )}

@@ -5,8 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SupplyFields from './SupplyFields';
 import { sampleProject } from '../data/sampleProject';
 import { assumedSourceFaultKa } from '../calc/electrical';
+import { supplyPoint } from '../diagram/supplyPoint';
 import { BUILT_IN_REFERENCES, applyReference, supplyNameSuggestion } from '../model/designReference';
-import type { Board, Project } from '../types';
+import type { Board, Project, SourceKind } from '../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -173,5 +174,40 @@ describe('SupplyFields', () => {
     show(first({ supply: {} }), named);
     expect(document.querySelector('datalist option')!.getAttribute('value')).toBe(supplyNameSuggestion(named));
     expect(input('Name').placeholder).toBe('Source');
+  });
+  it('the rating rows follow the kind: kVA for every machine and inverter, X″d for a machine, fault multiple for an inverter', () => {
+    const rows = (kind?: SourceKind) => { show(first({ supply: { kind } })); return ['Rating (kVA)', 'X″d (%)', 'Fault current (× rated)'].map((l) => !!input(l)); };
+    expect(rows(undefined)).toEqual([false, false, false]);
+    expect(rows('utility')).toEqual([false, false, false]);
+    expect(rows('other')).toEqual([false, false, false]);
+    expect(rows('generator')).toEqual([true, true, false]);
+    expect(rows('pv')).toEqual([true, false, true]);
+    expect(rows('battery')).toEqual([true, false, true]);
+    expect(rows('wind')).toEqual([true, true, true]);
+    expect(host.textContent).toContain('Type the fault current multiple for an inverter-coupled turbine; leave it blank for a generator.');
+    rows('generator');
+    expect(host.textContent).not.toContain('inverter-coupled turbine');
+    show(first({ supply: { kind: 'generator', fedBy: 'board' } }));
+    expect(input('Rating (kVA)')).toBeNull();
+    expect(input('X″d (%)')).toBeNull();
+  });
+
+  it('typing a rating turns the fault placeholder to calculated and changes the drawn fault line; the kind change keeps the values', () => {
+    show(first({ supply: { kind: 'generator' } }));
+    expect(input('Fault level Ik″ (kA)').placeholder).toBe(`${assumedSourceFaultKa(project).toFixed(1)} assumed`);
+    expect(input('X″d (%)').placeholder).toBe('15');
+    expect(input('Fault current (× rated)')).toBeNull();
+    type(input('Rating (kVA)'), '250');
+    expect(last!.supply).toEqual({ kind: 'generator', ratedKva: 250 });
+    expect(input('Fault level Ik″ (kA)').placeholder).toBe('2.4 calculated'); // 1.05 × 347.8 A ÷ 0.15 = 2.43 kA
+    expect(supplyPoint(project, last!, false)!.lines).toEqual(['Ik″ 2.4 kA calculated', '250 kVA · X″d 15 %']);
+    type(input('X″d (%)'), '20');
+    expect(input('Fault level Ik″ (kA)').placeholder).toBe('1.8 calculated'); // 1.05 × 347.8 ÷ 0.20 = 1.83 kA
+    choose(select('Kind'), 'pv');
+    expect(last!.supply).toEqual({ kind: 'pv', ratedKva: 250, xdPct: 20 }); // kept, not read by a PV source
+    expect(input('X″d (%)')).toBeNull();
+    expect(input('Fault current (× rated)').placeholder).toBe('1.2');
+    type(input('Fault level Ik″ (kA)'), '12');
+    expect(supplyPoint(project, last!, false)!.lines).toEqual(['Ik″ 12 kA given']);
   });
 });

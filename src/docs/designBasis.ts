@@ -1,4 +1,4 @@
-import type { Status } from '../calc/electrical';
+import { calculatedSourceText, type Status } from '../calc/electrical';
 import { REPORT_STATUS_TEXT } from '../calc/statusText';
 import { systemSummary } from '../calc/summary';
 import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf } from '../calc/txGen';
@@ -150,7 +150,9 @@ export function buildDesignBasis(project: Project, studies: { key: StudyReportKi
     : { defined: false, included: [], excluded: [], boundaries: boundaries(project) };
 
   // System description
-  const supply = mains.map((m) => m.supply
+  const supply = mains.map((m) => m.supply && calculatedSourceText(project, m)
+    ? `${m.id}: ${calculatedSourceText(project, m)}`
+    : m.supply
     ? `${m.id}: supplied by ${m.supply.fedFrom ?? NOT_DEFINED}${m.supply.ratingA ? `, ${m.supply.ratingA} A ${m.supply.device ?? 'incomer'}` : ''}${m.supply.faultKa ? `, ${m.supply.faultKa} kA fault level` : ''}${m.supply.meter ? `, ${m.supply.meter} metering` : ''}`
     : m.sourceKva ? `${m.id}: from a dedicated transformer${m.rmu ? ` fed by RMU ${m.rmu}` : ''}${m.substation ? ` in substation ${m.substation}` : ''}` : `${m.id}: incoming supply ${NOT_DEFINED}`);
   const transformersText = mains.filter((m) => m.sourceKva).map((m) =>

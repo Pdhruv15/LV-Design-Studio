@@ -1,6 +1,6 @@
 import type { Board, Project, SourceKind } from '../types';
 import { SOURCE_KINDS, supplyFaultKa, supplyIncomerFeeder } from '../types';
-import { assumedSourceFaultKa, cableSizeText } from '../calc/electrical';
+import { cableSizeText, supplySourceLevel } from '../calc/electrical';
 
 /** What a first board's supply point shows on the SLD, the Board tab and the printed board sheet, from one place so
  * the three cannot say different things. A first board is one with no board above it. */
@@ -47,7 +47,12 @@ export function supplyPoint(project: Pick<Project, 'voltageV'>, b: Board, dewa: 
   // A kind from a newer or hand-edited file draws as a utility rather than failing.
   const kind: SourceKind = SOURCE_KINDS.some((k) => k.value === s?.kind) ? s!.kind! : 'utility';
   const given = supplyFaultKa(b);
-  const fault = given ? `Ik″ ${given} kA given` : `Ik″ ${assumedSourceFaultKa(project).toFixed(1)} kA assumed`;
+  const level = supplySourceLevel(project, b);
+  // Two decimals below 1 kA, else one (an inverter source gives a small level).
+  const kaText = level.ka < 1 ? level.ka.toFixed(2) : level.ka.toFixed(1);
+  const fault = given ? `Ik″ ${given} kA given` : `Ik″ ${kaText} kA ${level.basis}`;
+  // What a calculated level rests on ("250 kVA · X″d 15 %"), the line after the fault line.
+  const basis = level.basis === 'calculated' && level.text ? level.text : '';
   if (mode === 'unset') {
     return { mode, kind: 'utility', title: 'Supply not set', lines: [fault, 'checks: not verified'], brief: [fault], meter: false, tooltip: 'Supply not set — double-click to edit' };
   }
@@ -58,7 +63,7 @@ export function supplyPoint(project: Pick<Project, 'voltageV'>, b: Board, dewa: 
   const tail = (...xs: string[]) => xs.filter(Boolean);
   if (mode === 'board') {
     const device = s?.ratingA ? `${`${s.ratingA} A ${s.device ?? ''}`.trim()}${name ? ` at ${name}` : ''}${s.meter ? ` · ${s.meter} meter` : ''}` : '';
-    const lines = tail('not in this project', fault, used, device, cable, ref);
+    const lines = tail('not in this project', fault, basis, used, device, cable, ref);
     return { mode, kind, title: name ? `From ${name}` : 'From a board not named', name, lines, brief: tail(fault, cable || device), meter: false, refLine: ref || undefined, tooltip: `Fed from ${name ?? 'a board'} outside this project — double-click to edit` };
   }
   const title = kind === 'utility' ? (name ? `${name} supply` : 'Source') : name ?? 'Source';
@@ -68,10 +73,10 @@ export function supplyPoint(project: Pick<Project, 'voltageV'>, b: Board, dewa: 
   if (!meter) {
     // No meter cabinet: the device line only when a rating is set, in both styles.
     device = s?.ratingA ? `${s.ratingA} A ${s.device ?? ''}`.trim() : '';
-    lines = tail(device, fault, used, cable, ref);
+    lines = tail(device, fault, basis, used, cable, ref);
   } else if (!dewa) {
     device = `${s?.ratingA ? `${s.ratingA} A ${s.device ?? ''}` : 'meter cabinet'}${s?.meter ? ` · ${s.meter} meter` : ''}`;
-    lines = tail(device, fault, used, cable, ref);
+    lines = tail(device, fault, basis, used, cable, ref);
   } else {
     const ct = s?.ctRatio ?? b.protection?.ctRatio;
     device = s?.ratingA ? `${s.ratingA}A TP ${s.device ?? 'MCCB'}${given ? ` ${given} kA` : ''}` : '';
@@ -79,7 +84,7 @@ export function supplyPoint(project: Pick<Project, 'voltageV'>, b: Board, dewa: 
     const faultLine = !given || !device ? fault : '';
     // "Cable by" is a supplier's wording: not for an own source (generator, PV, wind, battery) that has a meter.
     const by = kind !== 'utility' ? '' : name ? `CABLE BY ${name} · FED FROM ${name}` : 'CABLE BY THE SUPPLIER';
-    lines = tail(`METER CABINET${ct ? ` · CTM ${ct}` : ''}`, device, faultLine, used, cable || by, ref);
+    lines = tail(`METER CABINET${ct ? ` · CTM ${ct}` : ''}`, device, faultLine, faultLine && basis, used, cable || by, ref);
   }
   return { mode, kind, title, name, lines, brief: tail(fault, cable || device), meter, refLine: ref || undefined, tooltip: `${title} — double-click to edit` };
 }
