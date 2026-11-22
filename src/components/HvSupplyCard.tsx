@@ -38,7 +38,7 @@ export default function HvSupplyCard({ project, onChange }: { project: Project; 
           <tbody>{grids.map((s) => (
             <tr key={s.id}>
               <td>{textIn(s.name, `${s.id}-name`, (v) => g(s, { name: v ?? s.id }), 80)}</td>
-              <td>{textIn(s.operator, `${s.id}-op`, (v) => g(s, { operator: v }), 90, 'grid-operators')}</td>
+              <td>{textIn(s.operator, `${s.id}-op`, (v) => g(s, { operator: v }), 130, 'grid-operators')}</td>
               <td>{numIn(s.kv, `${s.id}-kv`, (v) => v && g(s, { kv: v }), 50)}</td>
               <td>{numIn(s.faultMva, `${s.id}-mva`, (v) => g(s, { faultMva: v }))}</td>
               <td>{numIn(s.faultMva ? undefined : s.faultKa, `${s.id}-ka`, (v) => g(s, { faultKa: v, ...(v ? { faultMva: undefined } : {}) }), 50)}</td>

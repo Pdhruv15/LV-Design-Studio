@@ -1,3 +1,4 @@
+import { cables } from '../calc/cableTable';
 import { POINT_TYPES, SOURCE_KINDS, type Project } from '../types';
 import type { MainView } from '../views';
 import { unsafeReason } from './projectSafety';
@@ -69,6 +70,8 @@ export function projectInputIssues(p: Project): InputIssue[] {
         if (!fin(c.cableCsaMm2) || c.cableCsaMm2 <= 0) bad.push(`supply incoming cable size ${show(c.cableCsaMm2)} mm² (must be above 0)`);
         if (!fin(c.lengthM) || c.lengthM <= 0) bad.push(`supply incoming cable length ${show(c.lengthM)} m (must be above 0)`);
         if (c.cpcMm2 !== undefined && (!fin(c.cpcMm2) || c.cpcMm2 <= 0)) bad.push(`supply incoming cable earth conductor ${show(c.cpcMm2)} mm² (must be above 0)`);
+        // A size with no cable data cannot be put through the earth fault loop.
+        else if (c.cpcMm2 !== undefined && !cables().some((x) => x.csaMm2 === c.cpcMm2)) bad.push(`supply incoming cable earth conductor ${c.cpcMm2} mm² (not a size in the cable data)`);
         if (c.parallel !== undefined && (!fin(c.parallel) || c.parallel < 1 || !Number.isInteger(c.parallel))) bad.push(`supply incoming cable parallel runs ${show(c.parallel)} (a whole number, 1 or more)`);
       }
     }

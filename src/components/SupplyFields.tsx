@@ -61,9 +61,9 @@ export default function SupplyFields({ project, board, onChange }: { project: Pr
   const sizes = withCurrent(inc?.cableCsaMm2);
   const cpcSizes = withCurrent(inc?.cpcMm2);
 
+  // Rows of the one grid the source / feeding board rows start, so every group's fields line up.
   const shared = (
     <>
-      <div className="form-kv">
         <h4 className="kv-head">Given values</h4>
         {num('Fault level Ik″ (kA)', 'faultKa', 0.1, `${assumedSourceFaultKa(project).toFixed(1)} assumed`)}
         {num('X/R', 'xr', 0.5, String(DEFAULT_TRANSFORMER_XR))}
@@ -71,8 +71,6 @@ export default function SupplyFields({ project, board, onChange }: { project: Pr
         {num('Drop already used (%)', 'vdUsedPct', 0.1, '0')}
         {num('Earth loop Ze (Ω)', 'zeOhm', 0.01, 'estimated from Ik')}
         {num('Allowed load (A)', 'allowedA', 1, 'not given')}
-      </div>
-      <div className="form-kv">
         <h4 className="kv-head">Upstream device</h4>
         <label>Device
           <select aria-label="Device" value={s.device ?? ''} onChange={(e) => onChange(setSupplyValue(board, 'device', (e.target.value || undefined) as SwitchDevice | undefined))}>
@@ -90,8 +88,6 @@ export default function SupplyFields({ project, board, onChange }: { project: Pr
             </select>
           </label>
         )}
-      </div>
-      <div className="form-kv">
         <h4 className="kv-head">Incoming cable</h4>
         <label>Size (mm²)
           <select aria-label="Size (mm²)" value={inc?.cableCsaMm2 || ''} onChange={(e) => onChange(setIncomerValue(board, 'cableCsaMm2', numOrU(e.target.value)))}>
@@ -120,10 +116,9 @@ export default function SupplyFields({ project, board, onChange }: { project: Pr
             {INSTALL_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
           </select>
         </label>
-      </div>
-      <p className="m">Checked like a feeder: current, voltage drop and fault level at the board.</p>
     </>
   );
+  const cableHint = <p className="m">Checked like a feeder: current, voltage drop and fault level at the board.</p>;
 
   return (
     <>
@@ -155,9 +150,10 @@ export default function SupplyFields({ project, board, onChange }: { project: Pr
             </label>
             {text('Name', 'fedFrom', 'Source', suggestion ? listId : undefined)}
             {text('Reference', 'ref', 'drawing or letter')}
+            {shared}
           </div>
           {suggestion && <datalist id={listId}><option value={suggestion} /></datalist>}
-          {shared}
+          {cableHint}
         </>
       )}
       {mode === 'board' && (
@@ -166,8 +162,9 @@ export default function SupplyFields({ project, board, onChange }: { project: Pr
             <h4 className="kv-head">Feeding board</h4>
             {text('Feeding board', 'fedFrom', 'e.g. SMDB-3F')}
             {text('Reference', 'ref', 'drawing or letter')}
+            {shared}
           </div>
-          {shared}
+          {cableHint}
         </>
       )}
       {mode === 'unset' && <p className="m">Nothing is entered for the supply. The calculations assume a source of {assumedSourceFaultKa(project).toFixed(1)} kA and mark the checks that depend on it as not verified.</p>}
