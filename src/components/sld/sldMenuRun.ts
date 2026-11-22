@@ -6,7 +6,7 @@ import { renamePanels, renameProblems } from '../../model/renamePanels';
 import type { DropResult, DropTarget, MoveItem, PaletteItem } from '../../model/sldEdit';
 import type { SldTarget } from '../../model/sldMenu';
 import { changeFeeder, changeFeeders, duplicateBoard, duplicateFeeder, duplicateMany, moveMany, orderTarget, pasteFeeders, type PickItem } from '../../model/sldMenuEdit';
-import { addRmu } from '../../model/mvGrow';
+import { addRmu, removeRmu } from '../../model/mvGrow';
 import { newSubstationName, rmuConfig, rmuNormallyOpen, txRmu, txSubstation } from '../../model/substations';
 import type { Feeder, Project } from '../../types';
 
@@ -202,6 +202,7 @@ export function runSldMenu(ctx: SldMenuCtx, t: SldTarget, action: string, value?
     case 'txrmu': if (t.kind === 'supply') applyEdit(ctx, txRmu(project, t.boardId, value ?? '')); return;
     case 'addtx': if (t.kind === 'rmu') ctx.addTxOnRmu(t.name); return;
     case 'rmuconfig': if (t.kind === 'rmu' && value) applyEdit(ctx, rmuConfig(project, t.name, value)); return;
+    case 'rmuremove': if (t.kind === 'rmu') applyEdit(ctx, removeRmu(project, t.name)); return;
     case 'rmunop': if (t.kind === 'rmu') applyEdit(ctx, rmuNormallyOpen(project, t.name, value === 'R1' || value === 'R2' ? value : undefined)); return;
   }
 }

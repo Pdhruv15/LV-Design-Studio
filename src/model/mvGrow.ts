@@ -71,3 +71,14 @@ export function addRmu(project: Project, substation?: string): DropResult {
   const ss = substation?.trim();
   return { project: updateRmu(project, name, { config: 'RRT', ...(ss ? { substation: ss } : {}) }), message: `Added ${name} (RRT, no transformer yet): right-click it → Add transformer and main board` };
 }
+
+/** Remove an RMU record that feeds nothing (one undo step); refused while a board names it. */
+export function removeRmu(project: Project, rmu: string): DropResult {
+  const name = rmu.trim();
+  if (!rmuRecord(project, name)) return { project, message: `No RMU ${name}` };
+  const user = project.boards.find((b) => b.rmu?.trim() === name);
+  if (user) return { project, message: `${name} feeds ${user.id}: it cannot be removed` };
+  const rmus = (project.rmus ?? []).filter((r) => r.name.trim() !== name);
+  const { rmus: _r, ...rest } = project;
+  return { project: rmus.length ? { ...rest, rmus } : rest, message: `Removed ${name}` };
+}

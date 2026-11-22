@@ -186,7 +186,7 @@ describe('an RMU that feeds nothing yet', () => {
     expect(rows.find((r) => r.key === 'ss:SS-9')).toMatchObject({ disabled: true });
     expect(rows.find((r) => r.key === 'rmu:RMU-1')?.disabled).toBeUndefined();
     expect(rows.find((r) => r.key === 'mv')?.disabled).toBeFalsy();
-    const only: Project = { ...q, boards: [{ id: 'MDB-A', name: 'MDB-A', kind: 'MDB', supply: { fedFrom: 'DEWA', ratingA: 200 } }], feeders: [], ties: [] };
+    const only: Project = { ...q, boards: [{ id: 'MDB-A', name: 'MDB-A', kind: 'MDB', supply: { fedFrom: 'Source', ratingA: 200 } }], feeders: [], ties: [] };
     expect(showRows(only, WHOLE_NETWORK).find((r) => r.key === 'mv')?.disabled).toBeFalsy();
     expect(partSteps(q, { kind: 'rmu', name: 'RMU-3' }).next).toBeUndefined();
     expect(partSteps(q, { kind: 'rmu', name: 'RMU-2' })).toEqual({ prev: { kind: 'rmu', name: 'RMU-1' }, next: { kind: 'rmu', name: 'RMU-3' } });

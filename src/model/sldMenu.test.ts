@@ -200,6 +200,9 @@ describe('empty drawing menu', () => {
     expect((m.items[1] as CtxItem).off).toBe(true);
     expect(labels(sub(m.items, 'Add'))).toEqual(['Transformer', 'Meter cabinet', 'RMU', '-', 'MV supply and RMUs…']);
     expect(find(sub(m.items, 'Add'), 'RMU')).toMatchObject({ arg: 'addsupply|rmu' });
+    // A part of the network does not draw the RMU: offered on the whole network and the MV overview only.
+    expect(labels(sub(menu({ kind: 'canvas' }, state(project, { part: 'mv' })).items, 'Add'))).toContain('RMU');
+    for (const part of ['rmu:RMU-1', 'ss:SS-1', 'tx:MDB-1']) expect(labels(sub(menu({ kind: 'canvas' }, state(project, { part })).items, 'Add')), part).not.toContain('RMU');
     const nowOf = (name: string) => (sub(m.items, name) as CtxItem[]).filter((x) => x.now).map((x) => x.label);
     expect(nowOf('Grid')).toEqual(['Dots']);
     expect(nowOf('Text')).toEqual(['Follows the zoom']);
@@ -414,19 +417,25 @@ describe('Entering the arrangement (proposal 2026-11-18 part 4)', () => {
     // An RT unit has one ring switch: no normally open point.
     const rt: Project = { ...p, boards: p.boards.filter((b) => b.id !== 'MDB-2'), rmus: [{ name: 'RMU-1', config: 'RT' }] };
     expect(labels(menu({ kind: 'rmu', name: 'RMU-1' }, state(rt)).items)).toEqual(['Show RMU-1 only', '-', 'Add transformer and main board', 'Configuration', '-', 'MV supply and RMUs…']);
-    for (const a of ['txsubstation', 'txrmu', 'rmuconfig', 'rmunop', 'addtx']) expect(SLD_MENU_ACTIONS).toContain(a);
+    for (const a of ['txsubstation', 'txrmu', 'rmuconfig', 'rmunop', 'addtx', 'rmuremove']) expect(SLD_MENU_ACTIONS).toContain(a);
   });
   it('an RMU feeding nothing yet has a menu: no Show, Add transformer and main board first, its substation from the record', () => {
     const m = menu({ kind: 'rmu', name: 'RMU-2' }, state(p));
     expect(m.head).toEqual({ icon: 'hv', title: 'RMU-2', detail: 'RRT · SS-2 · no transformer yet' });
-    expect(labels(m.items)).toEqual(['Add transformer and main board', 'Configuration', 'Normally open', '-', 'MV supply and RMUs…']);
+    expect(labels(m.items)).toEqual(['Add transformer and main board', 'Configuration', 'Normally open', 'Remove RMU-2', '-', 'MV supply and RMUs…']);
+    expect(find(m.items, 'Remove RMU-2')).toMatchObject({ arg: 'rmuremove', icon: 'delete', bad: true });
+    // An RMU that feeds a board has no Remove row.
+    expect(labels(menu({ kind: 'rmu', name: 'RMU-1' }, state(p)).items)).not.toContain('Remove RMU-1');
     expect(find(m.items, 'Add transformer and main board')).toMatchObject({ arg: 'addtx', icon: 'plus', key: '1 free', off: false });
     // Shown part: still no Show rows for it.
     expect(labels(menu({ kind: 'rmu', name: 'RMU-2' }, state(p, { part: 'ss:SS-1' })).items)).not.toContain('Show all');
     // The key says what happens when full: a unit that grows, a unit that cannot.
-    expect(find(menu({ kind: 'rmu', name: 'RMU-1' }, state(p)).items, 'Add transformer and main board')).toMatchObject({ key: 'full → RRTTT', off: false });
+    expect(find(menu({ kind: 'rmu', name: 'RMU-1' }, state(p)).items, 'Add transformer and main board')).toMatchObject({ key: '→ RRTTT', off: false });
     const full: Project = { ...p, boards: [...p.boards, tx('MDB-4', { rmu: 'RMU-1' })], rmus: [{ name: 'RMU-1', config: 'RRTTT' }] };
     expect(find(menu({ kind: 'rmu', name: 'RMU-1' }, state(full)).items, 'Add transformer and main board')).toMatchObject({ key: 'full', off: true });
+    // A main board on the 11 kV side that names the RMU takes its tee-off before it has a kVA: RRT with one such board is full.
+    const noKva: Project = { ...p, boards: [...p.boards.filter((b) => b.id === 'MDB-1' || b.id === 'MDB-3').map((b) => (b.id === 'MDB-1' ? { ...b, sourceKva: undefined } : b))], rmus: [{ name: 'RMU-1', config: 'RRT' }] };
+    expect(find(menu({ kind: 'rmu', name: 'RMU-1' }, state(noKva)).items, 'Add transformer and main board')).toMatchObject({ key: '→ RRTT', off: false });
     // A name no board or record holds has no menu.
     expect(sldMenu(state(p), { kind: 'rmu', name: 'RMU-9' })).toBeNull();
     expect(sldMenu(state(p), { kind: 'substation', name: 'SS-2' })).toBeNull();

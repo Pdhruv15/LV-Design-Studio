@@ -65,7 +65,8 @@ describe('Add upstream board… in the App', () => {
     await until('the single DB again', () => !boards().includes('board:SMDB-1') && boards().join() === before.join());
   });
 
-  it('a start from one RMU and one transformer: right-click RMU-1 → Add transformer and main board asks about RRTT, then MDB-2 is on the drawing', async () => {
+  /** A new project started from "RMU, one transformer", on the SLD with RMU-1 drawn. */
+  async function startFromRmu() {
     await act(async () => { root = createRoot(host); root.render(<App />); });
     await until('the New project button', () => !![...host.querySelectorAll('button')].find((b) => b.textContent?.includes('New project')));
     await act(async () => ([...host.querySelectorAll('button')].find((b) => b.textContent?.includes('New project')) as HTMLButtonElement).click());
@@ -87,15 +88,45 @@ describe('Add upstream board… in the App', () => {
     await act(async () => (document.querySelector('button[title="Single line diagram"]') as HTMLButtonElement).click());
     await until('the RMU on the drawing', () => !!document.querySelector('svg g.rmu[data-rmu="RMU-1"]'));
     const boards = () => [...document.querySelectorAll('svg g.bd')].map((g) => g.getAttribute('data-lv-id'));
+    const config = () => document.querySelector('svg g.rmu[data-rmu="RMU-1"]')?.textContent ?? '';
     expect(boards()).not.toContain('board:MDB-2');
-    await act(async () => { document.querySelector('svg g.rmu[data-rmu="RMU-1"] rect')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 120, clientY: 90 })); });
-    const row = () => [...document.querySelectorAll<HTMLButtonElement>('.cad-menu button')].find((b) => b.querySelector('.lb')?.textContent === 'Add transformer and main board');
-    await until('the Add transformer and main board row', () => !!row());
-    expect(row()!.textContent).toContain('full → RRTT');
-    await act(async () => row()!.click());
-    await until('the question about RRTT', () => document.body.textContent?.includes('it becomes RRTT') ?? false);
+    const askRow = async () => {
+      await act(async () => { document.querySelector('svg g.rmu[data-rmu="RMU-1"] rect')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 120, clientY: 90 })); });
+      const row = () => [...document.querySelectorAll<HTMLButtonElement>('.cad-menu button')].find((b) => b.querySelector('.lb')?.textContent === 'Add transformer and main board');
+      await until('the Add transformer and main board row', () => !!row());
+      expect(row()!.textContent).toContain('→ RRTT');
+      await act(async () => row()!.click());
+      await until('the question about RRTT', () => document.body.textContent?.includes('it becomes RRTT') ?? false);
+    };
+    return { boards, config, askRow };
+  }
+
+  it('a start from one RMU and one transformer: right-click RMU-1 → Add transformer and main board asks about RRTT, then MDB-2 is on the drawing', async () => {
+    const { boards, config, askRow } = await startFromRmu();
+    await askRow();
     await act(async () => button('Add transformer', document.querySelector('.modal') as HTMLElement)!.click());
     await until('MDB-2 on the drawing', () => boards().includes('board:MDB-2'));
-    await until('RMU-1 as RRTT', () => !!document.querySelector('svg g.rmu[data-rmu="RMU-1"]')?.textContent?.includes('RRTT'));
+    await until('RMU-1 as RRTT', () => config().includes('RRTT'));
+  });
+
+  it('Cancel on the RRTT question changes nothing', async () => {
+    const { boards, config, askRow } = await startFromRmu();
+    const before = boards().join();
+    await askRow();
+    await act(async () => button('Cancel', document.querySelector('.modal') as HTMLElement)!.click());
+    await until('the question gone', () => !document.querySelector('.modal'));
+    await act(async () => { await new Promise((r) => { setTimeout(r, 50); }); });
+    expect(boards().join()).toBe(before);
+    expect(config()).not.toContain('RRTT');
+  });
+
+  it('one Ctrl+Z after confirming removes the new board and puts RMU-1 back to RRT', async () => {
+    const { boards, config, askRow } = await startFromRmu();
+    const before = boards().join();
+    await askRow();
+    await act(async () => button('Add transformer', document.querySelector('.modal') as HTMLElement)!.click());
+    await until('MDB-2 on the drawing', () => boards().includes('board:MDB-2') && config().includes('RRTT'));
+    await act(async () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true })); });
+    await until('both undone at once', () => boards().join() === before && !config().includes('RRTT'));
   });
 });

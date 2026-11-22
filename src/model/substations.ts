@@ -2,7 +2,7 @@ import type { DmSubstationRoom, Project, Rmu } from '../types';
 import { dmType, type DmSubstationType } from '../calc/dmSubstation';
 import type { Status } from '../calc/electrical';
 import { rmuGrow, rmuRecord, rmuTeeOffs, rmuWays } from '../calc/hvSupply';
-import { mvPlan, ssRank } from '../diagram/mvArrangement';
+import { mvPlan, onMvSide, ssRank } from '../diagram/mvArrangement';
 import { txUnits } from './earthingPlan';
 import { updateRmu } from './hvSupply';
 import type { DropResult } from './sldEdit';
@@ -229,7 +229,7 @@ export function rmuChoices(project: Project, mainId: string, units: Map<string, 
   const u = (id: string) => units.get(id) ?? 1;
   const me = project.boards.find((b) => b.id === mainId);
   const need = u(mainId);
-  const txs = mainBoards(project).filter((b) => b.sourceKva);
+  const txs = mainBoards(project).filter(onMvSide);
   const names = [...new Set([...rmuNames(project), ...(project.rmus ?? []).map((r) => r.name)])];
   return names.map((name) => {
     const current = clean(me?.rmu) === name;
@@ -240,6 +240,12 @@ export function rmuChoices(project: Project, mainId: string, units: Map<string, 
     const g = full && !current ? rmuGrow(config) : undefined;
     return { name, config, count: others + (current ? need : 0), max, current, full, ...(g && others + need <= rmuWays(g).tOff ? { grow: g } : {}) };
   });
+}
+
+/** Tee-offs of an RMU in use: every main board on the 11 kV side that names it (a transformer unit each, more where
+ * the board needs several; a board with no kVA yet is one). */
+export function rmuUsed(project: Project, name: string, units: Map<string, number> = txUnits(project)): number {
+  return mainBoards(project).filter((b) => onMvSide(b) && clean(b.rmu) === name).reduce((n, b) => n + (units.get(b.id) ?? 1), 0);
 }
 
 /** Short text of a choice: "RMU-5 · RRTT · 1 free", "RMU-1 · RRT → RRTT", "RMU-2 · RRT · full". */

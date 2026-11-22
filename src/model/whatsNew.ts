@@ -21,7 +21,8 @@ export const RELEASES: Release[] = [
     version: '2.260', date: '2026-11-22',
     items: [
       { title: 'RMUs that feed nothing yet are drawn', text: 'A grid source and an RMU record with no transformer yet are now drawn on the 11 kV side of the system diagram and in the MV overview, with every tee-off marked SPARE. They stand in their substation, after the RMUs that feed transformers, and the Substations card and the schedules list them as before.' },
-      { title: 'Add transformer and main board, from the RMU', text: 'Right-click an RMU (or a spare tee-off) and choose Add transformer and main board: a new main board with a 1000 kVA transformer is put on the RMU, in its substation, as one undo step. When the RMU is full it asks first, and offers to change RRT to RRTT or RRTT to RRTTT. Right-click the empty drawing, Add ▸ RMU adds an RMU that feeds nothing yet.' }
+      { title: 'Add transformer and main board, from the RMU', text: 'Right-click an RMU (or a spare tee-off) and choose Add transformer and main board: a new main board with a 1000 kVA transformer is put on the RMU, in its substation, as one undo step. When the RMU is full it asks first, and offers to change RRT to RRTT or RRTT to RRTTT. Right-click the empty drawing, Add ▸ RMU adds an RMU that feeds nothing yet; Remove RMU-x on the menu of an RMU that feeds nothing takes it away again.' },
+      { title: 'An RMU entered earlier now shows', text: 'An RMU you entered earlier that feeds nothing now appears on the drawing, in the MV overview and on the sheets that draw the ring (those sheets show as changed). The RMU box is drawn without a fill colour.' }
     ]
   },
   {

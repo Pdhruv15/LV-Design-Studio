@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { newProject, type Board, type Project } from '../types';
+import { newProject, type Board, type Feeder, type Project } from '../types';
 import { runCalculations } from '../calc/runs';
 import { mvPlan, type RmuItem } from '../diagram/mvArrangement';
-import { addRmu, addTransformerOnRmu, rmuAddPlan } from './mvGrow';
+import { addRmu, addTransformerOnRmu, removeRmu, rmuAddPlan } from './mvGrow';
 import { txTag } from './transformers';
 
 const tx = (id: string, extra: Partial<Board> = {}): Board => ({ id, name: id, kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 6, ...extra });
@@ -72,6 +72,47 @@ describe('Add transformer and main board on an RMU', () => {
     expect(r.project.boards.find((b) => b.id === 'MDB-2')!.rmu).toBe('RMU-3');
     expect(txTag(r.project, 'MDB-2')).toBe('TX-2');
     expect(addTransformerOnRmu(r.project, 'RMU-3').project).toBe(r.project);
+  });
+});
+
+describe('Add transformer and main board: other cases', () => {
+  it('goes on an RMU of a second grid source and keeps its ring', () => {
+    const p = project([tx('MDB-1', { rmu: 'RMU-1' })], { gridSources: [{ id: 'A', name: 'A', kv: 11 }, { id: 'B', name: 'B', kv: 11 }], rmus: [{ name: 'RMU-1', config: 'RRT', sourceId: 'A' }, { name: 'RMU-2', config: 'RRT', sourceId: 'B' }] });
+    const r = addTransformerOnRmu(p, 'RMU-2');
+    expect(r.project.boards.find((b) => b.id === 'MDB-2')!.rmu).toBe('RMU-2');
+    expect(mvPlan(r.project).rings.map((x) => [x.source?.id, x.items.map((i) => (i.kind === 'rmu' ? i.name : i.boardId))])).toEqual([['A', ['RMU-1']], ['B', ['RMU-2']]]);
+    expect(rmuOf(r.project, 'RMU-2').tees).toEqual(['MDB-2']);
+  });
+  it('takes a board id no board and no load holds', () => {
+    const p = project([tx('MDB-1')], { rmus: [{ name: 'RMU-1', config: 'RRT' }], feeders: [{ id: 'MDB-2', boardId: 'MDB-1' } as Feeder] });
+    expect(addTransformerOnRmu(p, 'RMU-1').project.boards.map((b) => b.id)).toEqual(['MDB-1', 'MDB-3']);
+  });
+  it('counts a main board on the 11 kV side that has no kVA yet as using its tee-off', () => {
+    const p = project([tx('MDB-1', { rmu: 'RMU-1', sourceKva: undefined })], { rmus: [{ name: 'RMU-1', config: 'RRT' }] });
+    expect(rmuAddPlan(p, 'RMU-1').grow).toBe('RRTT');
+    const r = addTransformerOnRmu(p, 'RMU-1');
+    expect(r.project.rmus![0].config).toBe('RRTT');
+    expect(rmuOf(r.project, 'RMU-1').tees).toEqual(['MDB-1', 'MDB-2']);
+  });
+});
+
+describe('Remove RMU', () => {
+  it('drops the record of an RMU that feeds nothing, and leaves the input alone', () => {
+    const before = JSON.stringify(base);
+    const r = removeRmu(base, ' RMU-1 ');
+    expect(JSON.stringify(base)).toBe(before);
+    expect(r.project.rmus).toBeUndefined();
+    expect(r.message).toBe('Removed RMU-1');
+    const two = { ...base, rmus: [...base.rmus!, { name: 'RMU-2', config: 'RRTT' }] };
+    expect(removeRmu(two, 'RMU-2').project.rmus).toEqual(base.rmus);
+    expect(mvPlan(r.project).rings.flatMap((x) => x.items).some((i) => i.kind === 'rmu')).toBe(false);
+  });
+  it('is refused while a board names it, and for a name with no record', () => {
+    const named = project([tx('MDB-1', { rmu: 'RMU-1' })], { rmus: [{ name: 'RMU-1', config: 'RRT' }] });
+    const r = removeRmu(named, 'RMU-1');
+    expect(r.project).toBe(named);
+    expect(r.message).toBe('RMU-1 feeds MDB-1: it cannot be removed');
+    expect(removeRmu(base, 'RMU-9')).toEqual({ project: base, message: 'No RMU RMU-9' });
   });
 });
 
