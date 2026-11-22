@@ -146,7 +146,7 @@ Deleting a board also removes its downstream network.
 Use the right-side tabs to review:
 
 - **General**: identity, type, rating, busbar, and SLD display options.
-- **Supply**: transformer, upstream chain, incomer, fault level, and voltage drop.
+- **Supply**: for a first board, what feeds it (a transformer, an LV source, a board outside the project, or not set) with the values that choice needs (a source's kind and name, the given fault level, drop already used, upstream device and incoming cable); for other boards, the upstream chain, incomer, fault level, and voltage drop.
 - **Electrical**: voltage, fault level, power factor, and source.
 - **Protection**: incomer device and protection checks.
 - **Location**: building level, room, manufacturer, and installation information.

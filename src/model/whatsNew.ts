@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.257', date: '2026-11-22',
+    items: [
+      { title: 'The Supply tab of a first board starts with Fed from', text: 'Select a first board and open its Supply tab (or double-click the board and open Supply): it now starts with Fed from, four choices: a transformer, an LV source (a utility, a supplier or your own generation), a board outside this project, or not set yet. A transformer shows its rating, impedance, X/R and vector group as before. A source shows its Kind (utility, diesel generator, solar PV, wind, battery storage or other), its Name and a Reference. A board outside the project shows the Feeding board and a Reference. Both then take the values given from upstream (fault level, X/R, minimum fault level, drop already used, earth loop impedance, allowed load), the upstream device and the incoming cable, which is checked like a feeder. Changing the choice asks first when it would remove values you typed. Supplied from, the supply chain line and Related equipment now say what feeds the board.' },
+      { title: 'The grid source operator is free text', text: 'In Panels → Transformers the Operator of an MV grid source is now typed (it suggests the authority of the applied design reference and the operators already on the project), and a new grid source starts with no operator.' }
+    ]
+  },
+  {
     version: '2.256', date: '2026-11-22',
     items: [
       { title: 'A first board without a transformer shows its supply', text: 'On the system diagram, the Board tab and the printed board sheet, a first board with no transformer now draws where it is fed from: a source (a utility with its meter; a generator, solar, wind or battery source without a meter cabinet unless a meter type is entered), a continuation marker "From <name>" for a board outside the project, or a dashed "Supply not set" stub when nothing is entered. With no name typed it says "Source", never a supplier name (the feeder riser drawing too); on the printed sheet the name keeps the case you typed, and the lists that group these boards say "LV source"; a new first board is named only when a design reference is applied. Each source kind has its own symbol (utility, generator, solar PV, wind, battery, other); for now the kind is set with the set-supply command (--kind), and the Supply tab follows.' }

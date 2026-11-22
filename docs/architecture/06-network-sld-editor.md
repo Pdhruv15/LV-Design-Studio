@@ -34,10 +34,12 @@ Under the screen sits the **core electrical calculation** used by every study:
 | `src/calc/scenario.ts` | calc | `generatorScenario`, `transformerOutage`, `GENERATOR_XD_SUBTRANSIENT_PCT` | Generator-supply and transformer-outage versions of the network for the SLD |
 | `src/components/SystemDiagram.tsx` | screen | `SystemDiagram`, `sldLayout`, `nameBox`, hover card with quick fixes, cable label editor `saveCable`, drag/move handlers | The interactive system SLD |
 | `src/components/SingleLineDiagram.tsx` | screen | `SingleLineDiagram`, `wrapText` | One board's SLD (Board tab, board sheets) |
-| `src/components/BoardPanel.tsx` | screen | `BoardPanel` (tabs General / Supply / Electrical / Protection / Location) | Inspector for a board; edits apply as you type |
+| `src/components/BoardPanel.tsx` | screen | `BoardPanel` (tabs General / Supply / Electrical / Protection / Location) | Inspector for a board; edits apply as you type; the Supply tab of a first board is `SupplyFields`, "Supplied from" is `suppliedFromText` |
+| `src/components/SupplyFields.tsx` | screen | `SupplyFields` | Supply fields of a first board: Fed from (transformer / LV source / board outside the project / not set), then the fields of that choice (Kind, Name, Reference, given values, upstream device, incoming cable); asks before a switch that removes typed values; used by `BoardPanel` and `BoardEditForm` |
+| `src/model/supplyEdit.ts` | model | `setFedFrom`, `losesValues`, `setSupplyValue`, `setIncomerValue`, `suppliedFromText`, `FED_FROM` | Pure edits behind `SupplyFields`: change what feeds a first board, write or clear one supply value or incoming-cable value, the "Supplied from" wording |
 | `src/components/BoardFields.tsx` | screen | `BoardFields`, `BOARD_FIELD_GROUPS` | Editable board fields shared by the inspector and the edit dialog |
 | `src/components/BoardForm.tsx` | screen | `BoardForm` | "Add downstream board" dialog: board + incomer feeder |
-| `src/components/BoardEditForm.tsx` | screen | `BoardEditForm` | Double-click edit dialog for a board (applies on Save) |
+| `src/components/BoardEditForm.tsx` | screen | `BoardEditForm` | Double-click edit dialog for a board (applies on Save); a first board's last tab is Supply (`SupplyFields`) |
 | `src/components/FeederForm.tsx` | screen | `FeederForm`, `suggestCable` | Add / edit feeder dialog with live Ib and VD |
 | `src/components/InspectorPanel.tsx` | screen | `InspectorPanel` | Resizable right-hand panel wrapper |
 | `src/components/EquipmentPalette.tsx`, `paletteSymbols.tsx` | screen | `EquipmentPalette` | Drag source for `PaletteItem`s (loads, boards, devices, presets, components) |

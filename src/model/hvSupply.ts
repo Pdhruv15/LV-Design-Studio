@@ -10,10 +10,10 @@ export function nextGridId(project: Project): string {
   return id;
 }
 
-/** Add a grid source: 11 kV from the authority, fault level to be entered. */
-export function addGridSource(project: Project, operator = 'DEWA'): Project {
+/** Add a grid source: 11 kV, fault level to be entered; no operator unless one is given. */
+export function addGridSource(project: Project, operator?: string): Project {
   const id = nextGridId(project);
-  return { ...project, gridSources: [...(project.gridSources ?? []), { id, name: id, operator, kv: 11 }] };
+  return { ...project, gridSources: [...(project.gridSources ?? []), { id, name: id, ...(operator ? { operator } : {}), kv: 11 }] };
 }
 
 /** Change a grid source; blank optional values are dropped. */

@@ -145,9 +145,10 @@ describe('RMU checks and labels', () => {
 describe('MV supply edits', () => {
   it('adds, changes and removes grid sources, clearing RMU links', () => {
     let p = addGridSource(project([tx('MDB-1', 1000, { rmu: 'RMU-1' })]));
-    expect(p.gridSources).toEqual([{ id: 'GRID-1', name: 'GRID-1', operator: 'DEWA', kv: 11 }]);
+    expect(p.gridSources).toEqual([{ id: 'GRID-1', name: 'GRID-1', kv: 11 }]);
     p = updateGridSource(p, 'GRID-1', { faultMva: 350, primarySubstation: '' });
-    expect(p.gridSources![0]).toEqual({ id: 'GRID-1', name: 'GRID-1', operator: 'DEWA', kv: 11, faultMva: 350 });
+    expect(p.gridSources![0]).toEqual({ id: 'GRID-1', name: 'GRID-1', kv: 11, faultMva: 350 });
+    expect(addGridSource(project([]), 'Network A').gridSources![0].operator).toBe('Network A');
     p = updateRmu(p, 'RMU-1', { sourceId: 'GRID-1', config: 'RRT' });
     expect(checkReferences(p)).toEqual([]);
     p = removeGridSource(p, 'GRID-1');

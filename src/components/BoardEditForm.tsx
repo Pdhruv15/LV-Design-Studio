@@ -1,6 +1,8 @@
 import { ask } from './ConfirmDialog';
 import { useState } from 'react';
 import type { Board, Project } from '../types';
+import SupplyFields from './SupplyFields';
+import { fedFromOfBoard, suppliedFromText } from '../model/supplyEdit';
 import BoardFields, { BOARD_FIELD_GROUPS, type BoardFieldGroup } from './BoardFields';
 import { Modal } from './ui';
 
@@ -26,7 +28,7 @@ export default function BoardEditForm({
   const [draft, setDraft] = useState<Board>(board);
   const [tab, setTab] = useState<Tab>('board');
   const isMain = !board.upstreamId;
-  const tabs: [Tab, string][] = [...BOARD_FIELD_GROUPS, ...(isMain ? [['transformer', 'Transformer'] as [Tab, string]] : [])];
+  const tabs: [Tab, string][] = [...BOARD_FIELD_GROUPS, ...(isMain ? [['transformer', 'Supply'] as [Tab, string]] : [])];
   const subBoards = project.boards.filter((b) => b.upstreamId === board.id).length;
   const feeders = project.feeders.filter((f) => f.boardId === board.id).length;
 
@@ -39,13 +41,13 @@ export default function BoardEditForm({
   return (
     <Modal onClose={onClose} onSubmit={submit}>
       <h3>Edit board: {board.id}</h3>
-      <p className="m">{isMain ? 'Main board, supplied by the transformer.' : `Supplied from ${board.upstreamId}.`} {feeders} outgoing feeder(s).</p>
+      <p className="m">{!isMain ? `Supplied from ${board.upstreamId}.` : fedFromOfBoard(draft) === 'transformer' ? 'Main board, supplied by the transformer.' : fedFromOfBoard(draft) === 'unset' ? 'First board, supply not set.' : `First board, fed from ${suppliedFromText(project, draft)}.`} {feeders} outgoing feeder(s).</p>
       <div className="tabs feeder-tabs" role="tablist">
         {tabs.map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>)}
       </div>
       <div className="board-tab-body">
         {tab === 'transformer'
-          ? <BoardFields board={draft} onChange={setDraft} section="source" />
+          ? <SupplyFields project={project} board={draft} onChange={setDraft} />
           : <BoardFields board={draft} onChange={setDraft} section="general" building={project.building} earthing={project.earthingPlan} groups={[tab]} />}
       </div>
       <div className="modal-actions">

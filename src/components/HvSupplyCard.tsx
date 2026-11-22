@@ -3,15 +3,17 @@ import type { GridSource, Project, Rmu } from '../types';
 import { RMU_CONFIGS } from '../types';
 import { gridFaultMva } from '../calc/electrical';
 import { gridFaultKa, rmuChecks } from '../calc/hvSupply';
+import { supplyNameSuggestion } from '../model/designReference';
 import { addGridSource, removeGridSource, updateGridSource, updateRmu } from '../model/hvSupply';
 
-const OPERATORS = ['DEWA', 'ADDC', 'AADC', 'SEWA', 'FEWA', 'EtihadWE', 'Private network'];
 const num = (v: string) => (v.trim() === '' ? undefined : Number(v));
 const shown = (v: number | undefined, d = 1) => (v === undefined ? '—' : v.toLocaleString('en-US', { maximumFractionDigits: d }));
 
 /** Panels → Transformers: the authority MV supply (its fault level sets the LV fault levels) and each RMU's details. */
 export default function HvSupplyCard({ project, onChange }: { project: Project; onChange: (p: Project) => void }) {
   const grids = project.gridSources ?? [];
+  // Operator suggestions: the design reference's authority, and the operators already typed on this project.
+  const operators = [...new Set([supplyNameSuggestion(project), ...grids.map((x) => x.operator)].filter((o): o is string => !!o))];
   const checks = useMemo(() => rmuChecks(project), [project]);
   const g = (s: GridSource, patch: Partial<GridSource>) => onChange(updateGridSource(project, s.id, patch));
   const r = (name: string, patch: Partial<Rmu>) => onChange(updateRmu(project, name, patch));
@@ -21,8 +23,8 @@ export default function HvSupplyCard({ project, onChange }: { project: Project; 
     <input className="bi-num" style={{ width }} inputMode="decimal" defaultValue={value ?? ''} key={`${key}-${value ?? ''}`} placeholder="—"
       onBlur={(e) => { const v = num(e.target.value); if (v !== value && (v === undefined || (Number.isFinite(v) && v > 0))) set(v); }} />
   );
-  const textIn = (value: string | undefined, key: string, set: (v: string | undefined) => void, width = 90) => (
-    <input className="bi-text" style={{ width }} defaultValue={value ?? ''} key={`${key}-${value ?? ''}`} placeholder="—"
+  const textIn = (value: string | undefined, key: string, set: (v: string | undefined) => void, width = 90, list?: string) => (
+    <input className="bi-text" style={{ width }} list={list} defaultValue={value ?? ''} key={`${key}-${value ?? ''}`} placeholder="—"
       onBlur={(e) => { const v = e.target.value.trim() || undefined; if (v !== value) set(v); }} />
   );
 
@@ -36,7 +38,7 @@ export default function HvSupplyCard({ project, onChange }: { project: Project; 
           <tbody>{grids.map((s) => (
             <tr key={s.id}>
               <td>{textIn(s.name, `${s.id}-name`, (v) => g(s, { name: v ?? s.id }), 80)}</td>
-              <td><select value={s.operator ?? ''} onChange={(e) => g(s, { operator: e.target.value || undefined })}><option value="">—</option>{[...new Set([...OPERATORS, ...(s.operator ? [s.operator] : [])])].map((o) => <option key={o} value={o}>{o}</option>)}</select></td>
+              <td>{textIn(s.operator, `${s.id}-op`, (v) => g(s, { operator: v }), 90, 'grid-operators')}</td>
               <td>{numIn(s.kv, `${s.id}-kv`, (v) => v && g(s, { kv: v }), 50)}</td>
               <td>{numIn(s.faultMva, `${s.id}-mva`, (v) => g(s, { faultMva: v }))}</td>
               <td>{numIn(s.faultMva ? undefined : s.faultKa, `${s.id}-ka`, (v) => g(s, { faultKa: v, ...(v ? { faultMva: undefined } : {}) }), 50)}</td>
@@ -50,6 +52,7 @@ export default function HvSupplyCard({ project, onChange }: { project: Project; 
           ))}</tbody>
         </table>
       </div>
+      <datalist id="grid-operators">{operators.map((o) => <option key={o} value={o} />)}</datalist>
       <button className="chip" onClick={() => onChange(addGridSource(project))}>Add grid source</button>
 
       {checks.length > 0 && <>
