@@ -17,6 +17,7 @@ import { escapeHtmlAttr } from '../util/escape';
 import { fmtFixed } from '../util/format';
 import { boardSymbolOf } from './panelBox';
 import { supplyPoint, type SupplyPoint } from './supplyPoint';
+import { textWidth } from './panelLabels';
 import { sourceSymSvg } from './sourceSymbol';
 import { symSvg, SYM_SCALE } from './symbolLibrary';
 
@@ -105,12 +106,15 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
   const incomer = s.incomer;
   const dev = incomerDeviceOf(board);
   const sp = supplyPoint(project, board, false);
+  let supplyRight = 0; // where the supply rows end, so the summary table starts beyond them
   if (sp) {
     // No transformer: the source's symbol, a continuation marker or a dashed stub, and the supply's lines beside it.
     if (sp.mode === 'source') out.push(sourceSymSvg(sp.kind, cx, 30), ln(cx, 41, cx, 90));
     else if (sp.mode === 'board') out.push(ln(cx, 0, cx, 90), `<path d="M${cx - 7} 20 L${cx} 32 L${cx + 7} 20" stroke="#000" stroke-width="1.2" fill="none"/>`);
     else out.push(`<line x1="${cx}" y1="0" x2="${cx}" y2="90" stroke="#000" stroke-width="1.2" stroke-dasharray="5 3"/>`);
-    [sp.title.toUpperCase(), ...sp.lines.slice(0, 4)].forEach((t, i) => out.push(tx(sp.mode === 'board' ? cx + 14 : cx + 20, 14 + i * 15, t, { bold: !i })));
+    const rows = [sp.title.toUpperCase(), ...sp.lines.slice(0, 4)], rx = sp.mode === 'board' ? cx + 14 : cx + 20;
+    rows.forEach((t, i) => out.push(tx(rx, 14 + i * 15, t, { bold: !i })));
+    supplyRight = rx + Math.max(...rows.map((t, i) => textWidth(t, 11, !i)));
   } else if (!board.upstreamId) {
     out.push(ln(cx, 0, cx, 18), `<circle cx="${cx}" cy="30" r="12" fill="none" stroke="#000" stroke-width="1.2"/><circle cx="${cx}" cy="44" r="12" fill="none" stroke="#000" stroke-width="1.2"/>`);
     out.push(tx(cx + 22, 30, `TRANSFORMER ${board.sourceKva ?? '—'} kVA`, { bold: true }), tx(cx + 22, 44, `11/${(project.voltageV / 1000).toFixed(3)} kV · Z ${board.sourceImpedancePct ?? '—'} %`));
@@ -215,7 +219,7 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
     ...(pb.unassigned.length ? [['NO PHASE SET', `${pb.unassigned.length} single-phase circuit${pb.unassigned.length === 1 ? '' : 's'}`] as [string, string]] : []),
     ...earthRows(boardEarth(project, board))
   ];
-  const sx = Math.max(diagramW - MARGIN, sections.length ? secX0 + sections.length * SEC_W : 0) + GAP; // beside the diagram and its sections
+  const sx = Math.max(diagramW - MARGIN, supplyRight, sections.length ? secX0 + sections.length * SEC_W : 0) + GAP; // beside the diagram and its sections
   out.push(tx(sx, SUM_Y - 8, 'PANEL SUMMARY', { bold: true, size: 12 }));
   out.push(`<rect x="${sx}" y="${SUM_Y}" width="${SUM_W}" height="${rows.length * ROW}" fill="none" stroke="#000" stroke-width="1"/>`);
   rows.forEach(([k, v], i) => {

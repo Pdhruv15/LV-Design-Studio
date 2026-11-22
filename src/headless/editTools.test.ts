@@ -357,6 +357,7 @@ describe('set_supply: the source kind', () => {
   it('sets the kind, keeps the other fields, and null clears it', () => {
     run('set_supply', { project: 'Lv', panel: 'MDB-1', kind: 'generator', mode: 'apply' });
     expect(load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply).toEqual({ faultKa: 25, kind: 'generator' });
+    expect(run('get_panel', { project: 'Lv', panel: 'MDB-1' }).supply?.kind).toBe('generator');
     run('set_supply', { project: 'Lv', panel: 'MDB-1', kind: null, mode: 'apply' });
     expect(load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply).toEqual({ faultKa: 25 });
   });

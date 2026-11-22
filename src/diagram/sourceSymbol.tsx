@@ -22,8 +22,8 @@ const PRIMS: Record<SourceKind, Prim[]> = {
   generator: [CIRCLE, G],
   pv: [
     ...CONVERTER,
-    { t: 'path', d: 'M-26 -18 L-20 -10 M-20 -10 l-1 -5 M-20 -10 l-5 1', thin: true },
-    { t: 'path', d: 'M-20 -19 L-14 -13 M-14 -13 l-1 -5 M-14 -13 l-5 1', thin: true }
+    { t: 'path', d: 'M-26 -16 L-20 -10 M-20 -10 l-1 -5 M-20 -10 l-5 -1', thin: true },
+    { t: 'path', d: 'M-20 -19 L-14 -13 M-14 -13 l-1 -5 M-14 -13 l-5 -1', thin: true }
   ],
   wind: [CIRCLE, G, { t: 'path', d: 'M-23 0 V-7 M-23 0 L-29.06 3.5 M-23 0 L-16.94 3.5 M-23 0 H-11' }],
   battery: [...CONVERTER, { t: 'path', d: 'M-17 -6 V6 M-20 -3 V3 M-17 0 H-11' }],
@@ -37,7 +37,7 @@ export function SourceSym({ kind, x, y }: { kind: SourceKind; x: number; y: numb
     <>
       {PRIMS[kind].map((p, i) => p.t === 'circle' ? <circle key={i} cx={x} cy={y} r={p.r} className="sym" />
         : p.t === 'rect' ? <rect key={i} x={x - 11} y={y - 11} width={22} height={22} className="sym" />
-        : p.t === 'path' ? <path key={i} d={p.d} transform={`translate(${x} ${y})`} className="ln" {...(p.thin ? { strokeWidth: 1 } : {})} />
+        : p.t === 'path' ? <path key={i} d={p.d} transform={`translate(${x} ${y})`} className="ln" {...(p.thin ? { style: { strokeWidth: 1 } } : {})} />
         : <text key={i} x={x + p.x} y={y + p.y} textAnchor="middle" className="b" style={{ fontSize: 11 }}>{p.s}</text>)}
     </>
   );

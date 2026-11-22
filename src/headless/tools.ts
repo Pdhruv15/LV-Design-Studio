@@ -297,9 +297,9 @@ function cableText(f: Project['feeders'][number]): string {
 /** The values given from upstream for a first board on an LV supply, its incoming cable check and its upstream device
  * against its outgoing breakers; nothing for a board that has none of the given values. */
 function supplyOf(b: Board, run: CalcRun) {
-  if (!supplyGiven(b)) return {};
-  const { device, ratingA, faultKa, irSetting, fedBy, ref, xr, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer } = b.supply!;
-  const given = { fedBy: fedBy ?? 'source', ref, device, ratingA, irSetting, faultKa, xr, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer };
+  if (!supplyGiven(b) && !b.supply?.kind) return {};
+  const { kind, device, ratingA, faultKa, irSetting, fedBy, ref, xr, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer } = b.supply!;
+  const given = { kind, fedBy: fedBy ?? 'source', ref, device, ratingA, irSetting, faultKa, xr, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer };
   const cable = run.supplyIncomers?.find((x) => x.board.id === b.id);
   const pairs = run.supplySelectivity?.filter((x) => x.board.id === b.id);
   return {

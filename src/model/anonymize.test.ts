@@ -43,6 +43,14 @@ describe('anonymizeProject', () => {
     expect(p.boards[0].ratedCurrentA).toBe(before.boards[0].ratedCurrentA);
   });
 
+  it('keeps a supply kind from the list and drops any other', () => {
+    const p = richProject();
+    p.boards = p.boards.map((b, i) => (i === 0 ? { ...b, supply: { faultKa: 25, kind: 'pv' as const } } : i === 1 ? { ...b, supply: { faultKa: 25, kind: 'steam' as never } } : b));
+    const r = anonymizeProject(p);
+    expect(r.project.boards[0].supply?.kind).toBe('pv');
+    expect(r.project.boards[1].supply?.kind).toBeUndefined();
+  });
+
   it('keeps the numbers given from upstream (so a shared sample gives the same results) and drops their reference text', () => {
     const p = richProject();
     p.boards = p.boards.map((b, i) => (i === 0 ? { ...b, supply: { faultKa: 25, ref: 'Letter Real Client LLC 77', fedBy: 'board' as const, xr: 4, faultKaMin: 12, vdUsedPct: 1.5, zeOhm: 0.08, allowedA: 900, incomer: { cableCsaMm2: 240, lengthM: 20, parallel: 2, cores: 4 as const, installMethod: 'D1' as const } } } : b));

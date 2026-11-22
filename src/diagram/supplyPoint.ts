@@ -1,12 +1,12 @@
 import type { Board, Project, SourceKind } from '../types';
-import { supplyFaultKa, supplyIncomerFeeder } from '../types';
+import { SOURCE_KINDS, supplyFaultKa, supplyIncomerFeeder } from '../types';
 import { assumedSourceFaultKa, cableSizeText } from '../calc/electrical';
 
 /** What a first board's supply point shows on the SLD, the Board tab and the printed board sheet, from one place so
  * the three cannot say different things. A first board is one with no board above it. */
 export type SupplyMode = 'transformer' | 'source' | 'board' | 'unset';
 
-const named = (s?: string) => s?.trim() || undefined;
+const named = (s?: string) => (typeof s === 'string' ? s.trim() || undefined : undefined);
 
 /** How a first board is supplied: a transformer (its own, or an RMU / substation named), a supply source, a board
  * outside this project, or not set. Undefined for a board that has a board above it. */
@@ -39,7 +39,8 @@ export function supplyPoint(project: Pick<Project, 'voltageV' | 'boards'>, b: Bo
   if (!mode || mode === 'transformer') return undefined;
   const s = b.supply;
   const name = named(s?.fedFrom);
-  const kind: SourceKind = s?.kind ?? 'utility';
+  // A kind from a newer or hand-edited file draws as a utility rather than failing.
+  const kind: SourceKind = SOURCE_KINDS.some((k) => k.value === s?.kind) ? s!.kind! : 'utility';
   const given = supplyFaultKa(b);
   const fault = given ? `Ik″ ${given} kA given` : `Ik″ ${assumedSourceFaultKa(project).toFixed(1)} kA assumed`;
   if (mode === 'unset') {

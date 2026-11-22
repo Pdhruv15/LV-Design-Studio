@@ -45,9 +45,9 @@ describe('supplyPoint: source', () => {
     expect(point(first({})).kind).toBe('utility');
   });
   it('the legacy named case in the authority style keeps its four strings; the standard style its two', () => {
-    const b = first({ fedFrom: 'DEWA', ratingA: 200, device: 'MCCB', faultKa: 36, ctRatio: '400/5A' });
-    expect(point(b, true).lines).toEqual(['METER CABINET · CTM 400/5A', '200A TP MCCB 36 kA', 'CABLE BY DEWA · FED FROM DEWA']);
-    expect([point(b, true).title, ...point(b, true).lines]).toEqual(['DEWA supply', 'METER CABINET · CTM 400/5A', '200A TP MCCB 36 kA', 'CABLE BY DEWA · FED FROM DEWA']);
+    const b = first({ fedFrom: 'Grid', ratingA: 200, device: 'MCCB', faultKa: 36, ctRatio: '400/5A' });
+    expect(point(b, true).lines).toEqual(['METER CABINET · CTM 400/5A', '200A TP MCCB 36 kA', 'CABLE BY Grid · FED FROM Grid']);
+    expect([point(b, true).title, ...point(b, true).lines]).toEqual(['Grid supply', 'METER CABINET · CTM 400/5A', '200A TP MCCB 36 kA', 'CABLE BY Grid · FED FROM Grid']);
     expect(point(b).lines).toEqual(['200 A MCCB', 'Ik″ 36 kA given']);
     expect(point(first({ fedFrom: 'X', meter: 'CT' })).lines[0]).toBe('meter cabinet · CT meter');
   });

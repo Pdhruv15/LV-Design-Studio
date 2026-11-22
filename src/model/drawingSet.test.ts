@@ -208,4 +208,8 @@ describe('SLD page → Sheets menu', () => {
     expect(statusText('AS-BUILT')).toBe('As-built');
     expect(statusText(undefined)).toBe('');
   });
+  it('a main board with no supply set is titled by its id alone in the per-substation set', () => {
+    const p: Project = { ...sampleProject, boards: [...sampleProject.boards, { id: 'MDB-U', name: 'MDB-U', kind: 'MDB', ratedCurrentA: 200 }] };
+    expect(autoSheets(p, 'perSubstation').sheets.map((x) => x.title)).toContain('SLD — MDB-U');
+  });
 });

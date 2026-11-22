@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SOURCE_KINDS } from '../types';
 import { SourceSym, sourceSymSvg } from './sourceSymbol';
+import { supplyPoint } from './supplyPoint';
+import { sampleProject } from '../data/sampleProject';
 
 const draw = (kind: Parameters<typeof SourceSym>[0]['kind']) => { const h = document.createElement('div'); h.innerHTML = `<svg>${renderToStaticMarkup(<SourceSym kind={kind} x={100} y={50} />)}</svg>`; return h; };
 
@@ -22,8 +24,11 @@ describe('source symbols', () => {
     expect(draw('battery').querySelector('rect')).not.toBeNull();
     expect(draw('other').querySelectorAll('path,text')).toHaveLength(0);
   });
+  it('an unknown kind is drawn as a utility by supplyPoint (no throw)', () => {
+    expect(supplyPoint(sampleProject, { id: 'M', name: 'M', kind: 'MDB', supply: { kind: 'solar' as never } }, false)?.kind).toBe('utility');
+  });
   it('pv: two light arrows outside the upper-left corner, the highest point at y = -19', () => {
-    const arrows = [...draw('pv').querySelectorAll('path[stroke-width="1"]')].map((p) => p.getAttribute('d') ?? '');
+    const arrows = [...draw('pv').querySelectorAll('path[style*="stroke-width"]')].map((p) => p.getAttribute('d') ?? '');
     expect(arrows).toHaveLength(2);
     expect(arrows[1]).toContain('-19');
   });

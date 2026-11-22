@@ -10,7 +10,7 @@ const noop = () => {};
 function drawn(project: Project, dewa = false): HTMLElement {
   const host = document.createElement('div');
   host.innerHTML = renderToStaticMarkup(
-    <SystemDiagram project={dewa ? { ...project, sldStyle: 'dewa' } as Project : project} results={evaluateProject(project)} hideLegend selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} />
+    <SystemDiagram project={{ ...project, drawing: { ...project.drawing, sldStyle: dewa ? 'dewa' : 'standard' } } as Project} results={evaluateProject(project)} hideLegend selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} />
   );
   return host;
 }
@@ -20,6 +20,11 @@ const group = (h: Element, id: string) => h.querySelector(`g.tx[data-lv-id="boar
 const base = { id: 'MDB-A', name: 'MDB-A', kind: 'MDB' as const, ratedCurrentA: 200 };
 
 describe('SLD: the supply point of a first board', () => {
+  it('the standard style: lower-case meter cabinet and the assumed fault level', () => {
+    const t = texts(group(drawn(withBoard({ ...base, supply: {} })), 'MDB-A'));
+    expect(t).toEqual(expect.arrayContaining(['meter cabinet', 'Ik″ 25.2 kA assumed']));
+    expect(t).not.toContain('CABLE BY THE SUPPLIER');
+  });
   it('a board fed from outside the project: a chevron marker and "From <name>"', () => {
     const h = drawn(withBoard({ ...base, supply: { fedBy: 'board', fedFrom: 'SMDB-3F', faultKa: 12 } }));
     const g = group(h, 'MDB-A');

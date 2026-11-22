@@ -4,6 +4,7 @@ import { sampleProject } from '../data/sampleProject';
 import type { Board, Project } from '../types';
 import { boardSheetSvg } from './boardSheet';
 import { sourceSymSvg } from './sourceSymbol';
+import { textWidth } from './panelLabels';
 
 const sheet = (board: Board) => {
   const project: Project = { ...sampleProject, boards: [board, ...sampleProject.boards.filter((b) => b.id !== board.id)] };
@@ -35,6 +36,12 @@ describe('the printed board sheet: the supply point', () => {
     expect(svg).toContain('>SUPPLY NOT SET<');
     expect(svg).toContain('stroke-dasharray="5 3"');
     expect(svg).toContain('>Not set<');
+  });
+  it('the summary table starts beyond the longest supply row', () => {
+    const svg = sheet({ ...base, supply: { fedBy: 'board', fedFrom: 'MDB-TOWER-A', ratingA: 63, device: 'MCCB', meter: '3-PH' } });
+    const row = svg.match(/<text x="([\d.]+)"[^>]*>63 A MCCB at MDB-TOWER-A/)!;
+    const table = svg.match(/<text x="([\d.]+)"[^>]*>PANEL SUMMARY/)!;
+    expect(Number(table[1])).toBeGreaterThanOrEqual(Number(row[1]) + textWidth('63 A MCCB at MDB-TOWER-A · 3-PH meter', 11));
   });
   it('is black only, and no supplier name appears', () => {
     for (const kind of ['utility', 'generator', 'pv', 'wind', 'battery', 'other'] as const) {
