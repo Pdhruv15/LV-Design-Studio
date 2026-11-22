@@ -57,7 +57,7 @@ describe('start level of a new project', () => {
     const p = make({ level: 'rmu', transformers: 2 });
     expect(p.boards.map((b) => [b.id, b.name, b.rmu])).toEqual([['MDB-1', 'Main Distribution Board 1', 'RMU-1'], ['MDB-2', 'Main Distribution Board 2', 'RMU-1']]);
     expect(p.rmus).toEqual([{ name: 'RMU-1', config: 'RRTT' }]);
-    expect(p.ties).toEqual([{ id: 'BC-MDB-1-MDB-2', a: 'MDB-1', b: 'MDB-2', ratingA: 1600 }]);
+    expect(p.ties).toEqual([{ id: 'BC-1', a: 'MDB-1', b: 'MDB-2', ratingA: 1600 }]);
     expect(modes(p)).toEqual(['transformer', 'transformer']);
     expect(parallelGroup(p, 'MDB-1').map((b) => b.id)).toEqual(['MDB-1']);
     const rings = mvPlan(p).rings;

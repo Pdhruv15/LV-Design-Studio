@@ -15,7 +15,7 @@ export const START_LEVELS: { id: StartLevel; title: string; note: string }[] = [
   { id: 'submain', title: 'Sub-main board', note: 'An SMDB with the DBs below it. Fed from a board outside the project.' },
   { id: 'source', title: 'Main board, LV source', note: 'Utility LV supply, feeder pillar or own generation.' },
   { id: 'transformer', title: 'Transformer and main board', note: 'One transformer and its main board. The default.' },
-  { id: 'rmu', title: 'RMU and one or two transformers', note: 'One RMU feeding one transformer (RRT) or two (RRTT).' },
+  { id: 'rmu', title: 'RMU, one or two transformers', note: 'One RMU feeding one transformer (RRT) or two (RRTT).' },
   { id: 'ring', title: '11 kV ring, two substations', note: 'Grid source, two RMUs and two transformers. More are added afterwards.' }
 ];
 
@@ -53,7 +53,7 @@ export function applyStartLevel(project: Project, choice: StartChoice): Project 
       const rmu = p.boards[0].rmu ?? 'RMU-1';
       p = txRmu(p, 'MDB-2', rmu).project;
       const ratingA = Math.min(...p.boards.map((b) => b.ratedCurrentA ?? 0));
-      return withUids({ ...p, ties: [...(p.ties ?? []), { id: 'BC-MDB-1-MDB-2', a: 'MDB-1', b: 'MDB-2', ratingA }] });
+      return withUids({ ...p, ties: [...(p.ties ?? []), { id: 'BC-1', a: 'MDB-1', b: 'MDB-2', ratingA }] });
     }
     case 'ring': {
       const one = { ...first, name: 'Main Distribution Board 1' };

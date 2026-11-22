@@ -44,7 +44,7 @@ describe('New project with the RMU start', () => {
     const modal = () => document.querySelector('.modal') as HTMLElement;
     await act(async () => button('Next', modal())!.click());
     await until('the SLD start step', () => !!modal().textContent?.includes('SLD start'));
-    await act(async () => ([...modal().querySelectorAll<HTMLButtonElement>('button[role=radio]')].find((b) => b.textContent?.includes('RMU and one or two transformers')))!.click());
+    await act(async () => ([...modal().querySelectorAll<HTMLButtonElement>('button[role=radio]')].find((b) => b.textContent?.includes('RMU, one or two transformers')))!.click());
     for (let i = 0; i < 5; i++) await act(async () => button('Next', modal())!.click());
     await act(async () => button('Skip folders', modal())?.click());
     await act(async () => button('Create project', modal())!.click());

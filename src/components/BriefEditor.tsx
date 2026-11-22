@@ -244,7 +244,7 @@ export function NewProjectWizard({ initialName, company, taken, templates = [], 
   const chosen = Object.fromEntries(PANEL_CATEGORIES.flatMap((c) => { const f = formats.find((x) => x.id === formatIds[c.key]); return f ? [[c.key, f]] : []; })) as Partial<Record<PanelCategory, ScheduleFormat>>;
   const canNext = step === 0 ? !!name.trim() && !!brief : true;
   return (
-    <Modal onClose={onCancel} style={{ maxWidth: 680 }} onSubmit={(e) => { e.preventDefault(); if (step < STEPS.length - 1) { if (canNext) setStep(step + 1); } else if (brief && name.trim() && folderOk) onCreate(name.trim(), brief, tpl, ruleSet, chosen, skipFolder ? undefined : folderChoice, projectNo.trim() || undefined, start); }}>
+    <Modal onClose={onCancel} style={{ maxWidth: 780 }} onSubmit={(e) => { e.preventDefault(); if (step < STEPS.length - 1) { if (canNext) setStep(step + 1); } else if (brief && name.trim() && folderOk) onCreate(name.trim(), brief, tpl, ruleSet, chosen, skipFolder ? undefined : folderChoice, projectNo.trim() || undefined, start); }}>
       <h3>New project <span className="m">— step {step + 1} of {STEPS.length}: {STEPS[step]}</span></h3>
       <div className="tabs feeder-tabs" role="tablist">
         {STEPS.map((s, i) => <button key={s} type="button" role="tab" aria-selected={step === i} className={step === i ? 'on' : ''} disabled={i > 0 && !brief} onClick={() => (i === 0 || brief) && setStep(i)}>{i + 1}. {s}</button>)}
