@@ -168,3 +168,28 @@ describe('OpenDSS export: values given from upstream', () => {
     expect(exportDss(tx).script.replace(/! Exported.*/, '')).toBe(exportDss(sampleProject).script.replace(/! Exported.*/, ''));
   });
 });
+
+describe('OpenDSS export: a source with its rating typed', () => {
+  const lv = (supply: NonNullable<Project['boards'][number]['supply']>): Project => ({ ...sampleProject, boards: [{ id: 'MDB-1', name: 'Main', supply }] });
+  it('a generator becomes a Vsource at its calculated level (250 kVA, X″d 15 %: 2.43 kA) with X/R 10', () => {
+    const { script, warnings } = exportDss(lv({ kind: 'generator', ratedKva: 250 }));
+    const mva = Number((Math.sqrt(3) * 0.415 * 2.4337).toFixed(2)); // 1.05 × 347.8 A ÷ 0.15 = 2433.7 A
+    const line = lines(script, 'New Vsource.')[0];
+    expect(line).toMatch(/x1r1=10 x0r0=10$/);
+    expect(Number(/MVAsc3=([\d.]+)/.exec(line)![1])).toBeCloseTo(mva, 1);
+    expect(warnings.filter((w) => /no transformer data/.test(w))).toEqual([]);
+  });
+  it('a calculated source warns that it is for the fault study only, in the list and in the script', () => {
+    const w = 'source equivalent of MDB-1 is for the fault study only: load-flow voltages are not valid';
+    for (const supply of [{ kind: 'pv' as const, ratedKva: 100 }, { kind: 'generator' as const, ratedKva: 250 }]) {
+      const { script, warnings } = exportDss(lv(supply));
+      expect(warnings).toContain(w);
+      expect(script).toContain(`! WARNING: ${w}`);
+    }
+    expect(exportDss(lv({ faultKa: 12 })).warnings).not.toContain(w); // a typed level is a real source level
+  });
+  it('an inverter source is nearly resistive (x1r1 0.1); an assumed one stays unconnected', () => {
+    expect(lines(exportDss(lv({ kind: 'pv', ratedKva: 100 })).script, 'New Vsource.')[0]).toMatch(/x1r1=0\.1 x0r0=0\.1$/);
+    expect(exportDss(lv({ kind: 'pv' })).warnings[0]).toMatch(/no transformer data/);
+  });
+});

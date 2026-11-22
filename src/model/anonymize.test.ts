@@ -137,4 +137,9 @@ describe('anonymizeProject', () => {
     expect(r.project.feeders).toHaveLength(p.feeders.length - 1);
     expect(r.removed).toContain('circuits on a missing panel');
   });
+  it('keeps the source rating values given for the supply', () => {
+    const p = richProject();
+    p.boards = p.boards.map((b, i) => (i === 0 ? { ...b, sourceKva: undefined, supply: { kind: 'generator' as const, ratedKva: 250, xdPct: 15, faultMultiple: 1.2 } } : b));
+    expect(anonymizeProject(p).project.boards[0].supply).toEqual({ kind: 'generator', ratedKva: 250, xdPct: 15, faultMultiple: 1.2 });
+  });
 });

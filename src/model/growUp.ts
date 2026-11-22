@@ -1,7 +1,7 @@
-import { cableSizeText, faultCurrentKA, impedanceToBoard, selectCable, sourceAssumed } from '../calc/electrical';
+import { cableSizeText, faultCurrentKA, impedanceToBoard, selectCable, sourceAssumed, sourceKindTakes, supplySourceLevel, takesSourceRating } from '../calc/electrical';
 import { icuSteps } from '../calc/sizing';
 import { supplyMode } from '../diagram/supplyPoint';
-import { supplyFaultKa, supplyIncomerFeeder, type Board, type BoardKind, type Feeder, type Project } from '../types';
+import { supplyIncomerFeeder, type Board, type BoardKind, type Feeder, type Project } from '../types';
 import { BOARD_RATING, panelKindOf } from './addPanel';
 import { below } from './moveBoard';
 import { allIds, newBoard, uniqueId, type DropResult } from './sldEdit';
@@ -40,10 +40,14 @@ export function growBlocked(project: Project, boardId: string): string | undefin
 }
 
 /** The values given from upstream, in words: "Ik″ 12 kA, drop used 1.6 %, Ze 0.35 Ω". */
-function givenList(s: Supply | undefined): string[] {
+function givenList(x: Board): string[] {
+  const s = x.supply;
   if (!s) return [];
+  // The rating, X″d and fault multiple count only while the board's source level reads them.
+  const reads = takesSourceRating(x), k = sourceKindTakes(s.kind);
   const t: [number | undefined, (v: number) => string][] = [
-    [s.faultKa, (v) => `Ik″ ${num(v)} kA`], [s.xr, (v) => `X/R ${num(v)}`], [s.faultKaMin, (v) => `minimum Ik″ ${num(v)} kA`],
+    [s.faultKa, (v) => `Ik″ ${num(v)} kA`], [s.xr, (v) => `X/R ${num(v)}`],
+    [reads ? s.ratedKva : undefined, (v) => `${num(v)} kVA`], [reads && k.machine ? s.xdPct : undefined, (v) => `X″d ${num(v)} %`], [reads && k.inverter ? s.faultMultiple : undefined, (v) => `fault current ${num(v)} × rated`], [s.faultKaMin, (v) => `minimum Ik″ ${num(v)} kA`],
     [s.vdUsedPct, (v) => `drop used ${num(v)} %`], [s.zeOhm, (v) => `Ze ${num(v)} Ω`], [s.allowedA, (v) => `allowed load ${num(v)} A`]
   ];
   return t.flatMap(([v, f]) => (v !== undefined ? [f(v)] : []));
@@ -120,7 +124,7 @@ export function upstreamPlan(project: Project, boardId: string, kind?: BoardKind
     return { transformer: true, title: `Add a transformer to ${x.id}?`, lines };
   }
   const s = suggestion(project, x, kind), way = wayTo(project, x, '', new Set());
-  const given = givenList(x.supply), sup = x.supply;
+  const given = givenList(x), sup = x.supply;
   const lines = wayLines(way, 'the new board', x);
   if (given.length) lines.push(`The given values (${given.join(', ')}) move to the new board.`);
   const src = named(sup?.fedFrom);
@@ -178,7 +182,8 @@ export function addUpstreamBoard(project: Project, boardId: string, opts: { kind
     name = id === newBoard(project, s.kind).id ? newBoard(project, s.kind).name : id;
   }
   if (used.has(id)) return refuse(`${id} already exists in the project`);
-  const way = wayTo(project, x, id, new Set([...used, id]), supplyFaultKa(x));
+  const level = supplySourceLevel(project, x); // the typed fault level, or the one calculated from the source rating
+  const way = wayTo(project, x, id, new Set([...used, id]), level.basis === 'assumed' ? undefined : level.ka);
   const given = movedSupply(x), earthing = x.earthing;
   const n: Board = {
     id, name, kind: s.kind, ratedCurrentA: Math.max(BOARD_RATING[s.kind], x.ratedCurrentA ?? 0, way.feeder.breakerRatingA),
@@ -214,14 +219,14 @@ export function connectBlocked(project: Project, boardId: string, parentId: stri
 }
 
 /** Whether connecting removes values the user typed at X (they are calculated from the parent from then on). */
-const losesAtConnect = (x: Board) => givenList(x.supply).length > 0 || !!named(x.supply?.fedFrom) || !!x.supply?.ref || !!x.supply?.meter || !!x.supply?.cable || !!x.supply?.ecc || !!x.supply?.ctRatio;
+const losesAtConnect = (x: Board) => givenList(x).length > 0 || !!named(x.supply?.fedFrom) || !!x.supply?.ref || !!x.supply?.meter || !!x.supply?.cable || !!x.supply?.ecc || !!x.supply?.ctRatio;
 
 /** The text of the "Connect to…" question, without changing anything. */
 export function connectPlan(project: Project, boardId: string, parentId: string): { title: string; lines: string[]; loses: boolean } {
   const x = boardOf(project, boardId), title = `Connect ${boardId} to ${parentId}?`;
   if (!x || connectBlocked(project, boardId, parentId)) return { title, lines: [], loses: false };
   const way = wayTo(project, x, parentId, new Set());
-  const given = givenList(x.supply), loses = losesAtConnect(x);
+  const given = givenList(x), loses = losesAtConnect(x);
   const lines = wayLines(way, parentId, x);
   if (loses) lines.push(given.length ? `The given values (${given.join(', ')}) are removed: from then on they are calculated from ${parentId}.` : 'The name, reference and meter typed for its supply are removed.');
   return { title, lines, loses };
@@ -240,7 +245,7 @@ export function connectTo(project: Project, boardId: string, parentId: string): 
   if (blocked) return { project, message: blocked };
   const x = boardOf(project, boardId)!;
   const way = wayTo(project, x, parentId, allIds(project), faultAt(project, parentId));
-  const lost = givenList(x.supply).length > 0;
+  const lost = givenList(x).length > 0;
   return {
     project: { ...project, boards: project.boards.map((b) => (b.id === x.id ? fedFromAbove(x, parentId) : b)), feeders: [...project.feeders, way.feeder] },
     select: { type: 'board', id: x.id },

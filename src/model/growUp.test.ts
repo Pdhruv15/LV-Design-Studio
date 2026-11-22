@@ -379,3 +379,31 @@ describe('step F review fixes', () => {
     expect(connectPlan(two(null), 'DB-1', 'MDB-1').lines[0]).toBe(`A 63 A way with a cable sized for it is added from MDB-1 to DB-1 (30 m, to check): ${tail}`);
   });
 });
+
+describe('Add upstream board: a source with its rating typed', () => {
+  // 250 kVA generator, X″d 15 %: 2.43 kA at the supply point. The rating, X″d and fault multiple move up with the source.
+  const gen = proj({ kind: 'generator', ratedKva: 250, xdPct: 15, faultMultiple: 1.2, ratingA: 63, device: 'MCCB', incomer: { cableCsaMm2: 16, lengthM: 25 } });
+  it('the values move to the new first board and the results at the old board do not change', () => {
+    const before = figures(gen), r = addUpstreamBoard(gen, 'DB-1');
+    const n = r.project.boards.find((b) => !b.upstreamId)!;
+    expect(n.id).not.toBe('DB-1');
+    expect(n.supply).toMatchObject({ kind: 'generator', ratedKva: 250, xdPct: 15, faultMultiple: 1.2 });
+    expect(board(r.project, 'DB-1').supply).toBeUndefined();
+    const after = figures(r.project);
+    expect(after.ik).toBeCloseTo(before.ik, 6);
+    expect(after.vd).toBeCloseTo(before.vd, 6);
+    expect(r.project.feeders.find((f) => f.feedsBoardId === 'DB-1')!.breakerIcuKa).toBe(36); // the floor of the way
+  });
+  it('the way\'s breaking capacity follows the calculated level: 1000 kVA at X″d 2 % gives 1.05 × 1391.3 A ÷ 0.02 = 73 kA, so 85 kA', () => {
+    const big = proj({ kind: 'generator', ratedKva: 1000, xdPct: 2 }), r = addUpstreamBoard(big, 'DB-1');
+    expect(r.project.feeders.find((f) => f.feedsBoardId === 'DB-1')!.breakerIcuKa).toBe(85);
+    const typed = proj({ kind: 'generator', ratedKva: 1000, xdPct: 2, faultKa: 12 });
+    expect(addUpstreamBoard(typed, 'DB-1').project.feeders.find((f) => f.feedsBoardId === 'DB-1')!.breakerIcuKa).toBe(36);
+  });
+  it('the questions list them in words', () => {
+    // A generator reads the rating and X″d; the fault multiple it also holds is hidden by its kind and not listed.
+    expect(upstreamPlan(gen, 'DB-1').lines).toContain('The given values (250 kVA, X″d 15 %) move to the new board.');
+    const pv = proj({ kind: 'pv', ratedKva: 100, xdPct: 15, faultMultiple: 1.5 });
+    expect(upstreamPlan(pv, 'DB-1').lines).toContain('The given values (100 kVA, fault current 1.5 × rated) move to the new board.');
+  });
+});

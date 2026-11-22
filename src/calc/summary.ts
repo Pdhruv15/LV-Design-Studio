@@ -1,4 +1,4 @@
-import { faultCurrentKA, impedanceToBoard, sourceAssumed, upstreamVoltageDropPct, type Status } from './electrical';
+import { faultCurrentKA, impedanceToBoard, sourceAssumed, supplySourceLevel, upstreamVoltageDropPct, type Status } from './electrical';
 import { lvSupplied, settingsOf, type Board, type Feeder, type LoadType, type Project } from '../types';
 import { switchedOnBoard } from './capSwitching';
 import { boardOf, feedersOn, memoized, perProject } from './network';
@@ -106,6 +106,14 @@ export function boardRatedA(board: Board): number | undefined {
   return board.ratedCurrentA ?? (!board.upstreamId ? board.supply?.ratingA : undefined);
 }
 
+/** Load (A) the supply of a first board can give: the typed allowed load, else the rated current of a source whose
+ * fault level is calculated from its rating (I = S ÷ (√3 · U)); undefined when neither is given. */
+export function supplyAllowedA(project: Project, board: Board): number | undefined {
+  if (!lvSupplied(board)) return undefined;
+  if (board.supply!.allowedA! > 0) return board.supply!.allowedA;
+  return supplySourceLevel(project, board).basis === 'calculated' ? (board.supply!.ratedKva! * 1000) / (SQRT3 * project.voltageV) : undefined;
+}
+
 export function boardSummary(project: Project, board: Board): BoardSummary {
   const totals = boardTotals(project, board.id);
   const demandKva = Math.hypot(totals.demandKw, totals.demandKvar);
@@ -113,7 +121,7 @@ export function boardSummary(project: Project, board: Board): BoardSummary {
   const ratedA = boardRatedA(board);
   const loadingPct = ratedA ? (currentA / ratedA) * 100 : undefined;
   const voltagePct = 100 - upstreamVoltageDropPct(project, board.id);
-  const allowedA = lvSupplied(board) && board.supply!.allowedA! > 0 ? board.supply!.allowedA : undefined;
+  const allowedA = supplyAllowedA(project, board);
   return {
     ...totals,
     board,

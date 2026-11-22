@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { buildDashboard } from '../calc/dashboard';
 import { runCalculations, type CalcRun } from '../calc/runs';
+import { supplySourceLevel } from '../calc/electrical';
 import { boardRatedA, boardSummary, boardsInSupplyOrder, systemSummary } from '../calc/summary';
 import { boardLocation } from '../model/levels';
 import { projectInputIssues } from '../model/projectValidate';
@@ -138,7 +139,7 @@ export const TOOLS: Tool[] = [
           location: boardLocation(p, b) || undefined, circuits: s.outgoing,
           demandKw: r(s.demandKw, 1), demandKva: r(s.demandKva, 1), currentA: r(s.currentA, 1), ratedA: boardRatedA(b),
           loadingPct: r(s.loadingPct, 1), voltagePct: r(s.voltagePct), faultKA: r(s.faultKA, 1), ...(s.faultAssumed && { faultAssumed: true }),
-          ...(s.allowedA !== undefined && { allowedA: s.allowedA, allowedLoadingPct: r(s.allowedLoadingPct!, 1) })
+          ...(s.allowedA !== undefined && { allowedA: r(s.allowedA, 1), allowedLoadingPct: r(s.allowedLoadingPct!, 1) })
         };
       });
     }
@@ -159,7 +160,7 @@ export const TOOLS: Tool[] = [
         id: b.id, name: b.name, kind: b.kind, fedFrom: b.upstreamId, location: boardLocation(p, b) || undefined,
         ratedA: boardRatedA(b), demandKw: r(s.demandKw, 1), demandKva: r(s.demandKva, 1), currentA: r(s.currentA, 1),
         loadingPct: r(s.loadingPct, 1), voltagePct: r(s.voltagePct), faultKA: r(s.faultKA, 1), ...(s.faultAssumed && { faultAssumed: true }),
-        ...(s.allowedA !== undefined && { allowedA: s.allowedA, allowedLoadingPct: r(s.allowedLoadingPct!, 1) }), ...supplyOf(b, run),
+        ...(s.allowedA !== undefined && { allowedA: r(s.allowedA, 1), allowedLoadingPct: r(s.allowedLoadingPct!, 1) }), ...supplyOf(b, run),
         incomer: s.incomer ? { id: s.incomer.id, breakerA: s.incomer.breakerRatingA, cable: cableText(s.incomer) } : undefined,
         circuits: run.results.filter((x) => x.feeder.boardId === b.id).map(circuitRow)
       };
@@ -298,13 +299,15 @@ function cableText(f: Project['feeders'][number]): string {
  * against its outgoing breakers; nothing for a board that has none of the given values. */
 function supplyOf(b: Board, run: CalcRun) {
   if (!supplyGiven(b) && !b.supply?.kind) return {};
-  const { kind, device, ratingA, faultKa, irSetting, fedBy, ref, xr, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer } = b.supply!;
-  const given = { kind, fedBy: fedBy ?? 'source', ref, device, ratingA, irSetting, faultKa, xr, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer };
+  const { kind, device, ratingA, faultKa, irSetting, fedBy, ref, xr, ratedKva, xdPct, faultMultiple, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer } = b.supply!;
+  const given = { kind, fedBy: fedBy ?? 'source', ref, device, ratingA, irSetting, faultKa, xr, ratedKva, xdPct, faultMultiple, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer };
+  const level = supplySourceLevel(run.project, b); // typed, calculated from the source rating, or assumed
   const cable = run.supplyIncomers?.find((x) => x.board.id === b.id);
   const pairs = run.supplySelectivity?.filter((x) => x.board.id === b.id);
   return {
     supply: Object.fromEntries(Object.entries(given).filter(([, v]) => v !== undefined)),
-    ...(cable && { incomingCable: { ibA: r(cable.ibA, 1), inA: cable.inA, izA: r(cable.izA, 1), vdPct: r(cable.vdPct), vdUsedPct: r(cable.vdUsedPct), vdTotalPct: r(cable.vdTotalPct), faultAtSupplyKA: cable.faultSupplyKA, faultAtBoardKA: r(cable.faultBoardKA, 1), ...(cable.faultAssumed && { faultAssumed: true }), status: cable.status, ...(cable.reasons.length && { issues: cable.reasons }) } }),
+    ...(level.basis === 'calculated' && { supplyFaultLevel: { kA: r(level.ka, 2), basis: level.basis, from: level.text } }),
+    ...(cable && { incomingCable: { ibA: r(cable.ibA, 1), inA: cable.inA, izA: r(cable.izA, 1), vdPct: r(cable.vdPct), vdUsedPct: r(cable.vdUsedPct), vdTotalPct: r(cable.vdTotalPct), faultAtSupplyKA: r(cable.faultSupplyKA, 2), faultAtBoardKA: r(cable.faultBoardKA, 1), ...(cable.faultAssumed && { faultAssumed: true }), status: cable.status, ...(cable.reasons.length && { issues: cable.reasons }) } }),
     ...(pairs?.length && { supplyDiscrimination: pairs.map((x) => ({ circuit: x.downstream.id, breakerA: x.downstream.breakerRatingA, supplyDeviceA: x.upstream.ratingA, ratio: r(x.ratio, 2), status: x.status, issues: x.reasons })) })
   };
 }

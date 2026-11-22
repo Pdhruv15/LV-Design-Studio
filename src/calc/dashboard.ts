@@ -5,11 +5,11 @@ import { groundChecks } from './installation';
 import { projectInputIssues } from '../model/projectValidate';
 import { proposalOutstanding } from '../model/proposalStatus';
 import type { BoardKind, Project } from '../types';
-import { BOARD_KINDS, LOAD_TYPES, PROJECT_STATUSES, lvSupplied, settingsOf, supplyFaultKa } from '../types';
-import type { Status } from './electrical';
+import { BOARD_KINDS, LOAD_TYPES, PROJECT_STATUSES, settingsOf } from '../types';
+import { sourceRatingHint, supplySourceLevel, type Status } from './electrical';
 import type { CalcRun, StudyKey } from './runs';
 import { staleStudies, STUDY_LABEL } from './runs';
-import { boardsInSupplyOrder, boardSummary, boardTotals, loadTypeOf, systemSummary } from './summary';
+import { boardsInSupplyOrder, boardSummary, supplyAllowedA, boardTotals, loadTypeOf, systemSummary } from './summary';
 import { boardDemandKva } from './sizing';
 import { summarizeBuilding, dbChecks } from './building';
 import { sizeGeneratorByBoards, sizeTransformers } from './txGen';
@@ -183,7 +183,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
     }
   }
   for (const b of project.boards) {
-    const s = lvSupplied(b) && b.supply!.allowedA! > 0 ? boardSummary(project, b) : undefined;
+    const s = supplyAllowedA(project, b) !== undefined ? boardSummary(project, b) : undefined;
     if (s?.allowedLoadingPct !== undefined && s.allowedLoadingPct > 100) todo.push({ status: 'bad', text: `${b.id}: demand ${fig.current(s.currentA)} A is above the ${fig.current(s.allowedA)} A the supply can give (${fig.loading(s.allowedLoadingPct)} %)`, go: { view: 'design', boardId: b.id } });
   }
   for (const f of fireRatingIssues(project)) todo.push({ status: 'bad', text: `${f.id} (${f.name}) is life safety but not on fire-rated cable`, go: { view: 'design', feederId: f.id } });
@@ -225,7 +225,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
   if (amb.problem) todo.push({ status: amb.status === 'bad' ? 'bad' : 'warn', text: amb.problem });
   for (const c of cableDataFindings(project)) todo.push({ ...c, go: { view: 'database' } });
   for (const c of groundChecks(project)) todo.push({ ...c });
-  for (const b of project.boards) if (!b.upstreamId && !(b.sourceKva && b.sourceImpedancePct) && !supplyFaultKa(b)) todo.push({ status: 'warn', text: `${b.id}: no transformer kVA / %Z or supply fault level — fault levels below it use a placeholder source impedance (0.01 Ω), not a real fault level`, go: { view: 'sizing' } });
+  for (const b of project.boards) if (!b.upstreamId && !(b.sourceKva && b.sourceImpedancePct) && supplySourceLevel(project, b).basis === 'assumed') todo.push({ status: 'warn', text: `${b.id}: no transformer kVA / %Z or supply fault level${sourceRatingHint(b)} — fault levels below it use a placeholder source impedance (0.01 Ω), not a real fault level`, go: { view: 'sizing' } });
   // References to panels and circuits that no longer exist (a deleted panel that a riser, plan or selection still names).
   for (const i of checkReferences(project)) if (i.view !== 'ups') todo.push({ status: 'bad', text: `${i.where}: ${i.problem} (“${i.ref}”) — reassign or remove it`, go: i.view ? { view: i.view } : undefined });
   if (project.pv) {

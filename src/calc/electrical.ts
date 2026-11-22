@@ -3,7 +3,7 @@ import { recordedPQ } from '../model/existing';
 import { ambientCorrectionFactor, cables, getCable } from './cableTable';
 import { trayGrouping } from './cableTray';
 import { feederRatingBasis, type RatingBasis } from './installation';
-import { lvSupplied, supplyFaultKa, supplyIncomerFeeder, supplyXr, type Board, type Feeder, type GridSource, type Project } from '../types';
+import { SOURCE_KINDS, lvSupplied, supplyFaultKa, supplyIncomerFeeder, supplyXr, type Board, type Feeder, type GridSource, type Project } from '../types';
 import { boardPhasePQ, type PhasePQ } from './loadSchedule';
 import { fmtFixed } from '../util/format';
 import { checkLimits, type LimitCheck } from './authorityLimits';
@@ -14,6 +14,12 @@ const SQRT3 = Math.sqrt(3);
  * for 500–2000 kVA distribution transformers; it only affects how the
  * transformer's %Z is split between R and X, not its magnitude. */
 export const DEFAULT_TRANSFORMER_XR = 5;
+/** Generator subtransient reactance X″d (%), for fault levels on generator supply; typical for LV diesel sets. */
+export const GENERATOR_XD_SUBTRANSIENT_PCT = 15;
+/** X/R of a generator set's fault impedance when none is given. */
+export const GENERATOR_XR = 10;
+/** Fault current of an inverter source as a multiple of its rated current, when none is given (inverters limit it to about 1.1 to 1.5 × In). */
+export const INVERTER_FAULT_MULTIPLE = 1.2;
 
 /** Complex impedance in ohms. Series impedances are added as R+jX phasors
  * (not as scalar magnitudes), which matters once cable R dominates. */
@@ -348,6 +354,69 @@ export const PLACEHOLDER_SOURCE_Z: Impedance = { r: 0, x: 0.01 };
 /** The fault level (kA) of that placeholder source at the project voltage, as the SLD prints it ("assumed"). */
 export const assumedSourceFaultKa = (project: Pick<Project, 'voltageV'>): number => faultCurrentKA(PLACEHOLDER_SOURCE_Z, project.voltageV);
 
+export type SourceBasis = 'given' | 'calculated' | 'assumed';
+export interface SourceLevel { basis: SourceBasis; ka: number; z: Impedance; text?: string }
+const n2 = (v: number): string => String(+v.toFixed(2));
+const positiveNum = (n: number | undefined): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0;
+/** The fault level at the supply point of a first board without a transformer, and where it comes from.
+ * given: the typed Ik″. calculated: from the typed rating of the source, by kind. assumed: the placeholder source.
+ * - Machine (diesel generator, wind turbine as a generator): Ik″ = c · I_rated ÷ x″d, i.e. the impedance
+ *   U² · x″d ÷ S as in the standby-generator scenario (default X″d 15 %, X/R 10).
+ * - Inverter (solar PV, battery, wind turbine with a fault multiple): the fault current is k · I_rated (default
+ *   k 1.2), with no voltage factor: an inverter limits its current, it is no voltage source behind an impedance.
+ *   It is carried as the resistive impedance |Z| = c · U ÷ (√3 · k · I_rated) that gives exactly that current at
+ *   the supply point; downstream of the incoming cable the model gives slightly less than k · I_rated, which is on
+ *   the safe side for the disconnection checks and immaterial for breaking capacity.
+ * Limits: one source per first board (no parallel sources); the minimum fault current of a generator is taken from
+ * the same X″d (its sustained fault current is lower: type the minimum fault level); motor contribution is not applied. */
+export function supplySourceLevel(project: Pick<Project, 'voltageV'>, board: Board): SourceLevel {
+  const typed = supplyFaultKa(board);
+  if (typed) return { basis: 'given', ka: typed, z: supplyImpedance(typed, project.voltageV, supplyXr(board)) };
+  const s = board.supply;
+  if (lvSupplied(board) && s && s.fedBy !== 'board' && positiveNum(s.ratedKva)) { // a board outside the project is the source: its own rating is not read
+    const kind = s.kind, v = project.voltageV;
+    const iRated = (s.ratedKva * 1000) / (SQRT3 * v);
+    const kva = `${n2(s.ratedKva)} kVA`;
+    const machine = kind === 'generator' || (kind === 'wind' && !positiveNum(s.faultMultiple));
+    if (machine) {
+      const xd = positiveNum(s.xdPct) ? s.xdPct : GENERATOR_XD_SUBTRANSIENT_PCT;
+      const z = transformerImpedance(s.ratedKva, xd, v, supplyXr(board) ?? GENERATOR_XR);
+      return { basis: 'calculated', ka: faultCurrentKA(z, v), z, text: `${kva} · X″d ${n2(xd)} %` };
+    }
+    if (kind === 'pv' || kind === 'battery' || kind === 'wind') {
+      const k = positiveNum(s.faultMultiple) ? s.faultMultiple : INVERTER_FAULT_MULTIPLE;
+      const zAbs = (C_MAX * v) / (SQRT3 * k * iRated);
+      return { basis: 'calculated', ka: (k * iRated) / 1000, z: { r: zAbs, x: 0 }, text: `${kva} · ${n2(k)} × rated` };
+    }
+  }
+  return { basis: 'assumed', ka: assumedSourceFaultKa(project), z: PLACEHOLDER_SOURCE_Z };
+}
+
+/** The level's number as printed: two decimals below 1 kA (an inverter source gives a small level), else one. */
+export const levelKaText = (ka: number): string => (ka < 1 ? ka.toFixed(2) : ka.toFixed(1));
+
+/** What a source kind reads: a machine takes a rating and X″d, an inverter a rating and a fault multiple. */
+export const sourceKindTakes = (kind: string | undefined): { machine: boolean; inverter: boolean } => ({ machine: kind === 'generator' || kind === 'wind', inverter: kind === 'pv' || kind === 'battery' || kind === 'wind' });
+
+/** True when the board's source level reads a typed rating (a kind that takes one, not fed from a board outside the project). */
+export function takesSourceRating(board: Board): boolean {
+  const t = sourceKindTakes(board.supply?.kind);
+  return lvSupplied(board) && board.supply!.fedBy !== 'board' && (t.machine || t.inverter);
+}
+
+/** The hint tail for a source with no level: ", or the source rating" when its kind takes one, else nothing. */
+export const sourceRatingHint = (board: Board): string => (takesSourceRating(board) ? ', or the source rating' : '');
+
+/** A calculated source in a sentence for the documents: "solar PV 100 kVA, fault current 1.2 × rated, 0.17 kA calculated";
+ * undefined when the level is typed or assumed (those keep their own wording). */
+export function calculatedSourceText(project: Pick<Project, 'voltageV'>, board: Board): string | undefined {
+  const level = supplySourceLevel(project, board);
+  if (level.basis !== 'calculated' || !level.text) return undefined;
+  const label = SOURCE_KINDS.find((k) => k.value === board.supply?.kind)?.label ?? 'source';
+  const basis = level.text.replace(' · ', ', ').replace(/([\d.]+) × rated/, 'fault current $1 × rated');
+  return `${label.charAt(0).toLowerCase()}${label.slice(1)} ${basis}, ${level.ka.toFixed(2)} kA calculated`;
+}
+
 /** Impedance from the source (transformer) up to and including a board's
  * busbar, walking up the board hierarchy: main board -> transformer only;
  * any downstream board -> its parent's impedance plus its incomer cable. */
@@ -367,7 +436,7 @@ export function sourceAssumed(project: Project, boardId: string): boolean {
     const seen = new Set<string>();
     for (let b = boardOf(project, boardId); b && !seen.has(b.id); b = b.upstreamId ? boardOf(project, b.upstreamId) : undefined) {
       seen.add(b.id);
-      if (!b.upstreamId) return !(b.sourceKva && b.sourceImpedancePct) && !supplyFaultKa(b);
+      if (!b.upstreamId) return !(b.sourceKva && b.sourceImpedancePct) && supplySourceLevel(project, b).basis === 'assumed';
     }
     return true;
   });
@@ -405,9 +474,9 @@ function impedanceToBoardOf(project: Project, board: Board, seen: Set<string>): 
   if (!board.upstreamId) {
     // No transformer: a supply with a stated fault level (authority, or a neighbouring building's main board).
     if (!board.sourceKva || !board.sourceImpedancePct) {
-      const ka = supplyFaultKa(board);
-      if (!ka) return fallback;
-      const zs = supplyImpedance(ka, project.voltageV, supplyXr(board));
+      const level = supplySourceLevel(project, board);
+      if (level.basis === 'assumed') return fallback;
+      const zs = level.z;
       const cable = supplyIncomerFeeder(board); // the incoming cable from the supply point to this board
       return cable ? addZ(zs, cableImpedance(cable.cableCsaMm2, cable.lengthM, runsOf(cable))) : zs;
     }

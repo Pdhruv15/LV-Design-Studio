@@ -1,7 +1,7 @@
 import type { Board, Feeder, Project } from '../types';
 import { incomerDeviceOf, PANEL_SECTIONS } from '../types';
 import type { FeederResult } from '../calc/electrical';
-import { runsOf } from '../calc/electrical';
+import { levelKaText, runsOf } from '../calc/electrical';
 import { circuitRef } from '../calc/loadSchedule';
 import { phaseBalance, PHASE_UNBALANCE_CHECK_PCT } from '../calc/phaseBalance';
 import { boardRatedA, boardSummary } from '../calc/summary';
@@ -169,7 +169,7 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
     if (label.length && fits(joined)) label[label.length - 1] = joined; else label.push(part);
   }
   label.forEach((t, i) => out.push(tx(x1, BUS_Y - 8 - (label.length - 1 - i) * 14, t, { bold: true })));
-  out.push(tx(x2, BUS_Y - 8, `Isc ${s.faultKA.toFixed(1)} kA${icw ? (icw.assumed ? ' vs Icw — not verified' : icw.ok ? ' ≤ Icw' : ' > Icw — CHECK') : ''}`, { anchor: 'end' }));
+  out.push(tx(x2, BUS_Y - 8, `Isc ${levelKaText(s.faultKA)} kA${icw ? (icw.assumed ? ' vs Icw — not verified' : icw.ok ? ' ≤ Icw' : ' > Icw — CHECK') : ''}`, { anchor: 'end' }));
 
   // Panel sections (fire alarm interface, control, BMS…) as labelled strips at the busbar's end.
   const secX0 = Math.max((n ? xs[Math.min(n, perRow) - 1] + SP / 2 : x2) + SEC_X, x2 + 14); // past the busbar and the last way's text

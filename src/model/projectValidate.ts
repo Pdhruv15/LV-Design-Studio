@@ -60,6 +60,12 @@ export function projectInputIssues(p: Project): InputIssue[] {
     if (sup) {
       if (sup.kind !== undefined && !SOURCE_KINDS.some((k) => k.value === sup.kind)) bad.push(`supply kind ${show(sup.kind)} (must be one of ${SOURCE_KINDS.map((k) => k.value).join(', ')})`);
       pos(sup.xr, 'supply X/R', '');
+      pos(sup.ratedKva, 'supply source rating', ' kVA');
+      pos(sup.xdPct, 'supply source X″d', ' %');
+      if (fin(sup.xdPct) && sup.xdPct >= 100) bad.push(`supply source X″d ${sup.xdPct} % (must be below 100 %)`);
+      pos(sup.faultMultiple, 'supply source fault current multiple', '');
+      if (fin(sup.faultMultiple) && sup.faultMultiple > 10) bad.push(`supply source fault current multiple ${sup.faultMultiple} (must be between 1 and 10 × rated)`);
+      else if (fin(sup.faultMultiple) && sup.faultMultiple > 0 && sup.faultMultiple < 1) bad.push(`supply source fault current multiple ${sup.faultMultiple} (must be between 1 and 10 × rated)`);
       pos(sup.faultKaMin, 'supply minimum fault level', ' kA');
       pos(sup.zeOhm, 'supply Ze', ' Ω');
       pos(sup.allowedA, 'supply allowed load', ' A');

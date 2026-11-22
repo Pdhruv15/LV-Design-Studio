@@ -138,3 +138,18 @@ describe('supply kind', () => {
     expect(projectInputIssues(at('steam')).map((i) => i.text).join(' ')).toMatch(/supply kind "?steam"? \(must be one of utility, generator, pv, wind, battery, other\)/);
   });
 });
+
+describe('source rating values on the supply', () => {
+  const lv = (supply: NonNullable<Project['boards'][number]['supply']>) => proj([{ id: 'MDB', name: 'M', supply }], [fd({})]);
+  const text = (supply: NonNullable<Project['boards'][number]['supply']>) => projectInputIssues(lv(supply)).map((i) => i.text);
+  it('sound values raise nothing; each impossible one names the panel', () => {
+    expect(text({ kind: 'generator', ratedKva: 250, xdPct: 15, faultMultiple: 1.2 })).toEqual([]);
+    expect(text({ ratedKva: 0 })).toEqual(['Panel MDB: supply source rating 0 kVA (must be above 0)']);
+    expect(text({ xdPct: 100 })).toEqual(['Panel MDB: supply source X″d 100 % (must be below 100 %)']);
+    expect(text({ xdPct: -1 })[0]).toMatch(/supply source X″d -1 %/);
+    expect(text({ faultMultiple: 0.5 })).toEqual(['Panel MDB: supply source fault current multiple 0.5 (must be between 1 and 10 × rated)']);
+    expect(text({ faultMultiple: 11 })).toEqual(['Panel MDB: supply source fault current multiple 11 (must be between 1 and 10 × rated)']);
+    expect(text({ faultMultiple: 10 })).toEqual([]);
+    expect(text({ faultMultiple: 1 })).toEqual([]);
+  });
+});

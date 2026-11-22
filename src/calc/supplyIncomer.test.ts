@@ -89,3 +89,14 @@ describe('the incoming cable of a first board on an LV supply, checked', () => {
     expect(check(lv({ ...supply, incomer: { cableCsaMm2: 16, lengthM: 25, installMethod: 'D1' } }))!.rating.method).toBe('D1');
   });
 });
+
+describe('the incoming cable on a calculated source', () => {
+  it('faultSupplyKA is the calculated level (250 kVA, X″d 15 %: 2.43 kA); an assumed source has none', () => {
+    const r = check(lv({ kind: 'generator', ratedKva: 250, incomer: { cableCsaMm2: 16, lengthM: 25 } }))!;
+    expect(r.faultSupplyKA).toBeCloseTo(2.43, 2);
+    expect(r.faultAssumed).toBeUndefined();
+    const a = check(lv({ kind: 'generator', incomer: { cableCsaMm2: 16, lengthM: 25 } }))!;
+    expect(a.faultSupplyKA).toBeUndefined();
+    expect(a.faultAssumed).toBe(true);
+  });
+});

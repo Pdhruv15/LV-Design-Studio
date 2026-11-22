@@ -33,6 +33,11 @@ describe('board sheet drawing', () => {
     expect(svg).toContain('PH R');
     for (const t of ['PANEL SUMMARY', 'TCL / DF / MDL', 'R / Y / B LOAD', 'NEUTRAL CURRENT', 'CURRENT UNBALANCE', 'EARTH', 'CIRCUITS', 'TOTAL']) expect(svg).toContain(t);
   });
+  it('a small calculated level keeps two decimals on the busbar line (0.17 kA, not 0.2)', () => {
+    const base = { ...sampleProject, feeders: sampleProject.feeders.filter((f) => f.feedsBoardId !== 'MDB-1') };
+    const p = { ...base, boards: [{ id: 'MDB-1', name: 'Main', supply: { kind: 'pv' as const, ratedKva: 100 } }] }, r = runCalculations(p); // 1.2 × 139.1 A = 0.167 kA
+    expect(boardSheetSvg(r.project, r.project.boards[0], r.results).svg).toMatch(/Isc 0\.17 kA/);
+  });
   it('writes the busbar as rating, 3φ 4W, frequency and material, with Icw when entered', () => {
     const plain = boardSheetSvg(run.project, board('SMDB-GF'), run.results).svg;
     expect(plain).toContain('SMDB-GF · 630 A, 3φ 4W, 50 Hz CU BUSBAR</text>');

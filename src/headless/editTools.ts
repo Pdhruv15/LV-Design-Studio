@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { z } from 'zod';
 import { buildDashboard } from '../calc/dashboard';
-import { evaluateFeeder, runsOf } from '../calc/electrical';
+import { evaluateFeeder, runsOf, sourceRatingHint, supplySourceLevel } from '../calc/electrical';
 import { runCalculations } from '../calc/runs';
 import { applyRecommendation, recommend } from '../calc/sizing';
 import { addOp, newModification, PROPOSABLE, transition, withProposal, withRecord, type ModTarget } from '../model/designChanges';
@@ -300,14 +300,17 @@ export const EDIT_TOOLS: Tool[] = [
   {
     name: 'set_supply',
     title: 'Set the values given from upstream',
-    description: 'Sets the values given from upstream for a first panel with no transformer (fed by a supply or by a board outside the project): they apply at the feeding board\'s busbar, the supply point. Fault level (with X/R and minimum), voltage drop already used (%), earth loop impedance Ze, the upstream device (type, rating, setting), the incoming cable from the supply point to the panel and the load the supply can give. The calculations then use them; one left out is "not given" and its checks end not verified. null clears a value. Creates the supply block when the panel has none.',
+    description: 'Sets the values given from upstream for a first panel with no transformer (fed by a supply or by a board outside the project): they apply at the feeding board\'s busbar, the supply point. Fault level (with X/R and minimum), or the source rating (kVA; with X″d for a generator, a fault current multiple for an inverter source) for a calculated fault level, voltage drop already used (%), earth loop impedance Ze, the upstream device (type, rating, setting), the incoming cable from the supply point to the panel and the load the supply can give. The calculations then use them; one left out is "not given" and its checks end not verified. null clears a value. Creates the supply block when the panel has none.',
     input: {
       project, panel: z.string().describe('First panel (no panel above it, no transformer)'),
       fedBy: z.enum(['source', 'board']).nullable().optional().describe('source = a supply source; board = a board outside this project'),
       kind: z.enum(SOURCE_KINDS.map((k) => k.value) as [SourceKind, ...SourceKind[]]).nullable().optional().describe('What the supply point is: utility, generator, pv, wind, battery or other (sets the symbol drawn; blank draws as utility)'),
       ref: z.string().trim().max(200).nullable().optional().describe('Drawing or letter reference of the given values'),
       faultKa: z.number().positive().nullable().optional().describe('Fault level Ik″ at the supply point, kA'),
-      xr: z.number().positive().nullable().optional().describe('X/R of that fault level (default: the transformer default)'),
+      xr: z.number().positive().nullable().optional().describe('X/R of that fault level (default: the transformer default; a generator 10)'),
+      ratedKva: z.number().positive().nullable().optional().describe('Rating of the source, kVA (a generator set, or the inverters together): with no fault level typed, the fault level is calculated from it'),
+      xdPct: z.number().positive().lt(100).nullable().optional().describe('Sub-transient reactance X″d of a generator (or wind turbine as a generator), % on its rating (default 15)'),
+      faultMultiple: z.number().min(1).max(10).nullable().optional().describe('Fault current of an inverter source (pv, battery, wind turbine coupled by inverter) as a multiple of its rated current (default 1.2)'),
       faultKaMin: z.number().positive().nullable().optional().describe('Minimum fault level, kA (used for Ze when none is given)'),
       vdUsedPct: z.number().nonnegative().nullable().optional().describe('Voltage drop already used upstream of the supply point, % of nominal'),
       zeOhm: z.number().positive().nullable().optional().describe('Earth fault loop impedance at the supply point, Ω'),
@@ -329,7 +332,7 @@ export const EDIT_TOOLS: Tool[] = [
       const b = findBoard(p, String(a.panel));
       if (b.upstreamId) throw new Error(`${b.id} is fed from ${b.upstreamId}: the values given from upstream apply to a first panel.`);
       if (b.sourceKva) throw new Error(`${b.id} has a transformer: it ignores the values given from upstream.`);
-      const KEYS = ['fedBy', 'kind', 'ref', 'faultKa', 'xr', 'faultKaMin', 'vdUsedPct', 'zeOhm', 'allowedA', 'device', 'ratingA', 'irSetting', 'incomer'] as const;
+      const KEYS = ['fedBy', 'kind', 'ref', 'faultKa', 'xr', 'ratedKva', 'xdPct', 'faultMultiple', 'faultKaMin', 'vdUsedPct', 'zeOhm', 'allowedA', 'device', 'ratingA', 'irSetting', 'incomer'] as const;
       const given = KEYS.filter((k) => a[k] !== undefined);
       if (!given.length) throw new Error(`Give at least one value to set (${KEYS.join(', ')}); null clears one.`);
       const supply: Record<string, unknown> = { ...b.supply };
@@ -340,7 +343,7 @@ export const EDIT_TOOLS: Tool[] = [
       const s = next.boards.find((x) => x.id === b.id)!.supply!;
       const warnings = [
         ...(b.supply ? [] : [`${b.id} had no supply block: it now counts as fed from a supply with no transformer.`]),
-        ...(!s.faultKa ? ['No fault level: the fault levels below stay assumed (not verified).'] : [])
+        ...(supplySourceLevel(next, next.boards.find((x) => x.id === b.id)!).basis === 'assumed' ? [`No fault level${sourceRatingHint(next.boards.find((x) => x.id === b.id)!)}: the fault levels below stay assumed (not verified).`] : [])
       ];
       return { next, summary: `Set ${given.map((k) => (a[k] === null ? `${k} cleared` : k)).join(', ')} for the supply of ${b.id}`, details: { supply: s }, warnings: warnings.length ? warnings : undefined };
     })

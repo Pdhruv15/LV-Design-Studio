@@ -1,7 +1,7 @@
 import { withNetwork } from './network';
-import { faultCurrentKA, feederRating, impedanceToBoard, incomerBasis, izText, sourceAssumed, supplyVdUsedPct, voltageDropPct, type Status } from './electrical';
+import { faultCurrentKA, feederRating, impedanceToBoard, incomerBasis, izText, sourceAssumed, supplySourceLevel, supplyVdUsedPct, voltageDropPct, type Status } from './electrical';
 import type { RatingBasis } from './installation';
-import { lvSupplied, supplyFaultKa, supplyIncomerFeeder, type Board, type Feeder, type Project } from '../types';
+import { lvSupplied, supplyIncomerFeeder, type Board, type Feeder, type Project } from '../types';
 import { fmtFixed } from '../util/format';
 
 /** The incoming cable of a first board on an LV supply, from the supply point (the feeding board's busbar, where
@@ -49,7 +49,8 @@ export function evaluateSupplyIncomer(project: Project, board: Board): SupplyInc
   const isolator = board.supply!.device === 'ISOL';
   const protectionStatus: Status = inA === undefined ? 'warn' : ibA > inA ? 'bad' : isolator ? 'warn' : inA <= izA ? 'ok' : 'bad';
   const faultAssumed = sourceAssumed(project, board.id);
-  const faultSupplyKA = supplyFaultKa(board);
+  const level = supplySourceLevel(project, board); // the fault level at the supply point: typed, or calculated from the source rating
+  const faultSupplyKA = level.basis === 'assumed' ? undefined : level.ka;
   const faultBoardKA = faultCurrentKA(impedanceToBoard(project, board.id), project.voltageV);
 
   const reasons: string[] = [];

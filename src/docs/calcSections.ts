@@ -1,6 +1,6 @@
 import type { FeederResult, Status } from '../calc/electrical';
 import { factorsText } from '../calc/installation';
-import { cableSizeText } from '../calc/electrical';
+import { cableSizeText, calculatedSourceText } from '../calc/electrical';
 import { breakerTypeOf } from '../calc/earthing';
 import { REPORT_STATUS_TEXT, STATUS_TEXT } from '../calc/statusText';
 import { boardRatedA, boardSummary } from '../calc/summary';
@@ -23,7 +23,7 @@ const counts = (xs: Status[]) => `${xs.filter((x) => x === 'ok').length} / ${xs.
 
 const sourceText = (data: CalcData, scope: Scope) => scope.roots.map((b) => {
   const m = data.project.boards.find((x) => x.id === b.id)!;
-  return m.upstreamId ? `${m.id}: fed from ${m.upstreamId}` : m.sourceKva ? `${m.id}: transformer ${m.sourceKva} kVA, ${m.sourceImpedancePct ?? '—'} % Z` : m.supply?.fedBy === 'board' ? `${m.id}: fed from a board outside this project` : m.supply ? `${m.id}: ${m.supply.fedFrom ?? 'authority'} supply${m.supply.faultKa ? `, ${m.supply.faultKa} kA` : ''}` : `${m.id}: supply not defined`;
+  return m.upstreamId ? `${m.id}: fed from ${m.upstreamId}` : m.sourceKva ? `${m.id}: transformer ${m.sourceKva} kVA, ${m.sourceImpedancePct ?? '—'} % Z` : m.supply?.fedBy === 'board' ? `${m.id}: fed from a board outside this project` : m.supply && calculatedSourceText(data.project, m) ? `${m.id}: ${calculatedSourceText(data.project, m)}` : m.supply ? `${m.id}: ${m.supply.fedFrom ?? 'authority'} supply${m.supply.faultKa ? `, ${m.supply.faultKa} kA` : ''}` : `${m.id}: supply not defined`;
 }).join('; ');
 
 /** A circuit's cable check: overload protection, ampacity, voltage drop and breaking capacity. */

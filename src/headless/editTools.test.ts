@@ -351,6 +351,25 @@ describe('set_supply: the values given from upstream', () => {
     expect(supplyOf().incomer).toBeUndefined();
     expect(await main(['add-panel', 'Lv', '--kind', 'null', '--folder', folder], '1', io)).toBe(2); // not a nullable flag: still an error
   });
+  it('a source rating gives a calculated level: the three inputs are written, no "assumed" warning, and the level is reported', () => {
+    run('set_supply', { project: 'Lv', panel: 'MDB-1', faultKa: null, kind: 'generator', mode: 'apply' });
+    const noRating = run('set_supply', { project: 'Lv', panel: 'MDB-1', xdPct: 15, mode: 'apply' });
+    expect(noRating.warnings).toEqual(['No fault level, or the source rating: the fault levels below stay assumed (not verified).']);
+    const a = run('set_supply', { project: 'Lv', panel: 'MDB-1', ratedKva: 250, xdPct: 20, faultMultiple: 1.5, mode: 'apply' });
+    expect(a.warnings).toBeUndefined(); // 250 kVA at X″d 20 %: 1.05 × 347.8 ÷ 0.2 = 1.83 kA, calculated
+    expect(load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply).toMatchObject({ kind: 'generator', ratedKva: 250, xdPct: 20, faultMultiple: 1.5 });
+    const shown = run('get_panel', { project: 'Lv', panel: 'MDB-1' }) as { supplyFaultLevel?: { kA: number; basis: string; from: string } };
+    expect(shown.supplyFaultLevel).toEqual({ kA: 1.83, basis: 'calculated', from: '250 kVA · X″d 20 %' });
+    expect((run('get_panel', { project: 'Lv', panel: 'MDB-1' }) as { allowedA?: number }).allowedA).toBe(347.8); // 250 000 ÷ (√3 × 415), one decimal
+    run('set_supply', { project: 'Lv', panel: 'MDB-1', ratedKva: null, mode: 'apply' });
+    expect(load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply!.ratedKva).toBeUndefined();
+  });
+  it('refuses a rating or reactance the app rules refuse', () => {
+    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', ratedKva: 0 })).toThrow();
+    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', xdPct: 100 })).toThrow();
+    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', faultMultiple: 0.9 })).toThrow();
+    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', faultMultiple: 11 })).toThrow();
+  });
   it('checks values with the app rules; a transformer or a sub-panel takes none', () => {
     expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', vdUsedPct: 4 })).toThrow(/voltage drop used 4 %/);
     expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', faultKaMin: 30 })).toThrow(/above the fault level 25 kA/);
