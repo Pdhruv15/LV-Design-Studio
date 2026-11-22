@@ -49,5 +49,6 @@ describe('New project with the RMU start', () => {
     await act(async () => button('Skip folders', modal())?.click());
     await act(async () => button('Create project', modal())!.click());
     await until('the MV supply and RMUs card', () => [...document.querySelectorAll('h4')].some((h) => h.textContent === 'MV supply and RMUs'));
+    await until('the RMU on the transformer row', () => [...document.querySelectorAll('select')].some((s) => s.value === 'RMU-1'));
   });
 });

@@ -524,7 +524,7 @@ export function dropMany(project: Project, item: PaletteItem, target: DropTarget
  * transformer-fed main board not already tied to it. */
 export function tiePartner(project: Project, boardId: string): Board | undefined {
   const here = project.boards.find((b) => b.id === boardId);
-  if (!here || here.upstreamId) return undefined;
+  if (!here || here.upstreamId || here.supply?.fedBy === 'board') return undefined;
   const tied = new Set((project.ties ?? []).filter((t) => t.a === boardId || t.b === boardId).map((t) => (t.a === boardId ? t.b : t.a)));
   return project.boards.find((b) => b.id !== boardId && !b.upstreamId && !!b.sourceKva && !tied.has(b.id));
 }

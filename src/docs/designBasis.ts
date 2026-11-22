@@ -255,7 +255,7 @@ export function loadAssessmentBasis(a: LoadAssessment): LoadAssessmentBasis {
 function boundaries(project: Project): string[] {
   const mains = project.boards.filter((b) => !b.upstreamId);
   return [
-    `Starts at: ${mains.map((m) => (m.supply ? `the incoming ${m.supply.fedFrom ?? 'authority'} supply of ${m.id}` : m.sourceKva ? `the LV terminals of the transformer feeding ${m.id}` : `${m.id} (supply ${NOT_DEFINED.toLowerCase()})`)).join('; ') || NOT_DEFINED}.`,
+    `Starts at: ${mains.map((m) => (m.supply?.fedBy === 'board' ? `the incoming supply of ${m.id}, from a board outside this project` : m.supply ? `the incoming ${m.supply.fedFrom ?? 'authority'} supply of ${m.id}` : m.sourceKva ? `the LV terminals of the transformer feeding ${m.id}` : `${m.id} (supply ${NOT_DEFINED.toLowerCase()})`)).join('; ') || NOT_DEFINED}.`,
     mvNetworkText(project) ? `MV network upstream of the transformers: only its fault level (${mvNetworkText(project)}).` : 'MV network upstream of the transformers is outside the calculations (treated as an infinite source).',
     'Ends at: the final circuits on the DB load schedules and the loads connected to them.'
   ];

@@ -21,7 +21,7 @@ export const RELEASES: Release[] = [
     version: '2.258', date: '2026-11-22',
     items: [
       { title: 'New project: choose where the SLD starts', text: 'The New project wizard has a new second step, SLD start, with six pictures: a final DB, a sub-main board, a main board on an LV source, a transformer and main board (the default), an RMU with one or two transformers, or an 11 kV ring with two substations. The project is made with the first board or boards of that start; the two 11 kV starts open the MV supply and RMUs card straight after. Quick create keeps the transformer start. The choice can be changed afterwards on the board\'s Supply tab.' },
-      { title: 'Any board can be the first board on the empty canvas', text: 'On the system diagram every board type can now be dropped on the empty canvas. A board other than a main board starts as a first board fed from a board outside the project; set its supply on the Supply tab. The busbar rules are unchanged.' }
+      { title: 'Any board can be the first board on the empty canvas', text: 'On the system diagram every board type can now be dropped on the empty canvas. Main boards (MDB, LV-MDB, LV-ACB) and meter cabinets are made as before; any other board starts as a first board fed from a board outside the project. Set its supply on the Supply tab. The busbar rules are unchanged.' }
     ]
   },
   {

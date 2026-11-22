@@ -23,7 +23,7 @@ const counts = (xs: Status[]) => `${xs.filter((x) => x === 'ok').length} / ${xs.
 
 const sourceText = (data: CalcData, scope: Scope) => scope.roots.map((b) => {
   const m = data.project.boards.find((x) => x.id === b.id)!;
-  return m.upstreamId ? `${m.id}: fed from ${m.upstreamId}` : m.sourceKva ? `${m.id}: transformer ${m.sourceKva} kVA, ${m.sourceImpedancePct ?? '—'} % Z` : m.supply ? `${m.id}: ${m.supply.fedFrom ?? 'authority'} supply${m.supply.faultKa ? `, ${m.supply.faultKa} kA` : ''}` : `${m.id}: supply not defined`;
+  return m.upstreamId ? `${m.id}: fed from ${m.upstreamId}` : m.sourceKva ? `${m.id}: transformer ${m.sourceKva} kVA, ${m.sourceImpedancePct ?? '—'} % Z` : m.supply?.fedBy === 'board' ? `${m.id}: fed from a board outside this project` : m.supply ? `${m.id}: ${m.supply.fedFrom ?? 'authority'} supply${m.supply.faultKa ? `, ${m.supply.faultKa} kA` : ''}` : `${m.id}: supply not defined`;
 }).join('; ');
 
 /** A circuit's cable check: overload protection, ampacity, voltage drop and breaking capacity. */

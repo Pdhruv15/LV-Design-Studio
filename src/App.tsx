@@ -1038,13 +1038,14 @@ export default function App() {
     const made = folder ? { ...briefed, folder: projectFolderOf(folder.template) } : briefed;
     const started = applyStartLevel(made, start ?? DEFAULT_START);
     const opensMv = !!start && startOpensMv(start);
-    loadIntoApp(PANEL_CATEGORIES.reduce((p, c) => withProjectFormat(p, c.key, formats?.[c.key]), started), undefined, opensMv ? 'New project — not saved yet. Enter the MV supply and the RMUs here.' : 'New project — not saved yet');
-    if (opensMv) { setPanelsTx(Date.now()); setView('panels'); }
+    const mvHint = ' Enter the MV supply and the RMUs here.';
+    loadIntoApp(PANEL_CATEGORIES.reduce((p, c) => withProjectFormat(p, c.key, formats?.[c.key]), started), undefined, opensMv ? `New project — not saved yet.${mvHint}` : 'New project — not saved yet');
+    if (opensMv) { setRepeatRoot(undefined); setPanelsTx(Date.now()); setView('panels'); }
     const disk = folderDisk();
     if (folder && disk && choiceReady(folder, disk)) {
       createChosenFolders(disk, made.id, folder, folderVars(made), folderBuildings(made, folder.template))
-        .then((m) => setStatus(`New project, not saved yet. ${m}`))
-        .catch((e: unknown) => setStatus(`New project, not saved yet. The project folder was not made: ${e instanceof Error ? e.message : String(e)}`));
+        .then((m) => setStatus(`New project, not saved yet. ${m}${opensMv ? mvHint : ''}`))
+        .catch((e: unknown) => setStatus(`New project, not saved yet. The project folder was not made: ${e instanceof Error ? e.message : String(e)}${opensMv ? mvHint : ''}`));
     }
   }
 
