@@ -128,6 +128,20 @@ describe('structure changes', () => {
   });
 });
 
+describe('move_panel on a first board', () => {
+  it('its typed incoming cable becomes the way from the new source and the supply block goes', () => {
+    const extra: Project = { ...villa, id: 'proj-first', boards: [...villa.boards, { id: 'DB-LV', name: 'DB LV', kind: 'DB', ratedCurrentA: 63, supply: { faultKa: 10, ratingA: 63, device: 'MCCB', incomer: { cableCsaMm2: 16, lengthM: 25 } } }] };
+    fs.writeFileSync(file('First'), JSON.stringify(extra, null, 2));
+    const v = run('move_panel', { project: 'First', panel: 'DB-LV', to: 'SMDB-GF' });
+    expect(v.warnings.join(' ')).toMatch(/typed incoming cable of DB-LV is now its incomer from SMDB-GF/);
+    run('move_panel', { project: 'First', panel: 'DB-LV', to: 'SMDB-GF', mode: 'apply' });
+    const p = load('First');
+    expect(p.boards.find((b) => b.id === 'DB-LV')).toMatchObject({ upstreamId: 'SMDB-GF' });
+    expect(p.boards.find((b) => b.id === 'DB-LV')!.supply).toBeUndefined();
+    expect(p.feeders.find((f) => f.feedsBoardId === 'DB-LV')).toMatchObject({ boardId: 'SMDB-GF', cableCsaMm2: 16, lengthM: 25, breakerRatingA: 63 });
+  });
+});
+
 describe('backup, log and undo', () => {
   it('undo puts back the exact file, newest change first', () => {
     const original = read('Villa');

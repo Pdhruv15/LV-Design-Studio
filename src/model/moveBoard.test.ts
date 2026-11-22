@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Project } from '../types';
 import { sampleProject } from '../data/sampleProject';
 import { below, incomerOf, indentTarget, moveBlocked, moveBoard, outdentTarget, reorderBoard, siblings } from './moveBoard';
 
@@ -24,6 +25,15 @@ describe('moving boards in the panel tree', () => {
       expect(inc!.lengthToCheck).toBe(true);
     }
     expect(moveBoard(p, kid.id, grand.id)).toBe(p); // a loop is refused
+  });
+
+  it('a first board gets its incoming cable as the way, and its supply block goes', () => {
+    const first: Project = { ...p, boards: [...p.boards, { id: 'DB-LV', name: 'DB LV', kind: 'DB', ratedCurrentA: 63, supply: { faultKa: 10, ratingA: 63, incomer: { cableCsaMm2: 16, lengthM: 25 } } }] };
+    const q = moveBoard(first, 'DB-LV', root.id);
+    expect(q.boards.find((b) => b.id === 'DB-LV')).not.toHaveProperty('supply');
+    expect(q.boards.find((b) => b.id === 'DB-LV')!.upstreamId).toBe(root.id);
+    expect(incomerOf(q, 'DB-LV')).toMatchObject({ boardId: root.id, cableCsaMm2: 16, lengthM: 25, breakerRatingA: 63 });
+    expect(moveBoard(first, 'DB-LV', 'DB-LV')).toBe(first); // moveBlocked still decides
   });
 
   it('outdent goes to the source of the source; indent to the board above', () => {

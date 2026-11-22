@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.259', date: '2026-11-22',
+    items: [
+      { title: 'Add upstream board…: grow the project upward', text: 'Right-click a first board on the system diagram (or on its Board tab) and choose Add upstream board…. A DB gets an SMDB above it, an SMDB an MDB, and an MDB a transformer. The incoming cable you typed becomes the way from the new board, the values given from upstream move up to the new first board, and the values at the old board are calculated from then on. One undo step, nothing to re-enter.' },
+      { title: 'Connect to…: join a first board to a board in the project', text: 'Right-click a first board on the system diagram and choose Connect to… to pick a board already in the project. The typed incoming cable becomes the way from that board (a default way, marked to check, when none was typed). It asks first only when values you gave for the supply would be removed. Moving a first board in the panel tree does the same.' }
+    ]
+  },
+  {
     version: '2.258', date: '2026-11-22',
     items: [
       { title: 'New project: choose where the SLD starts', text: 'The New project wizard has a new second step, SLD start, with six pictures: a final DB, a sub-main board, a main board on an LV source, a transformer and main board (the default), an RMU with one or two transformers, or an 11 kV ring with two substations. The project is made with the first board or boards of that start; the two 11 kV starts open the MV supply and RMUs card straight after. Quick create keeps the transformer start. The choice can be changed afterwards on the board\'s Supply tab.' },

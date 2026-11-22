@@ -21,7 +21,7 @@ const run = (t: SldTarget, action: string, value?: string, more: Partial<SldMenu
 describe('the SLD menu runner', () => {
   const target = (action: string): [SldTarget, string | undefined] => {
     switch (action) {
-      case 'edit': case 'schedule': case 'diagram': case 'copy': case 'paste': case 'duplicate': case 'repeat': case 'lengthchecked': case 'delete': case 'plan': case 'zoom': case 'properties': return [board, undefined];
+      case 'edit': case 'addupstream': case 'schedule': case 'diagram': case 'copy': case 'paste': case 'duplicate': case 'repeat': case 'lengthchecked': case 'delete': case 'plan': case 'zoom': case 'properties': return [board, undefined];
       case 'add': return [board, 'load'];
       case 'together': return [{ kind: 'several', items: [load, { kind: 'feeder', id: 'FF-IT' }] }, undefined];
       case 'order': return [load, 'left'];
@@ -52,9 +52,15 @@ describe('the SLD menu runner', () => {
     expect(calls.length, action).toBeGreaterThan(0);
   });
   it('leaves the view actions to the drawing, and an unknown action alone', () => {
-    for (const a of SLD_VIEW_ACTIONS) expect(run(board, a, 'x')).toEqual([]);
+    // Connect to… opens the drawing's list; only the chosen board (its value) reaches the page.
+    for (const a of SLD_VIEW_ACTIONS) expect(run(board, a, a === 'connectto' ? undefined : 'x')).toEqual([]);
     expect(run(board, 'nonsense', 'x')).toEqual([]);
     expect(SLD_VIEW_ACTIONS.every((a) => SLD_MENU_ACTIONS.includes(a))).toBe(true);
+  });
+  it('Add upstream board… and Connect to… reach the page with the board and the chosen parent', () => {
+    expect(run(board, 'addupstream')).toEqual([['addUpstream', 'SMDB-FF']]);
+    expect(run(board, 'connectto', 'MDB-1')).toEqual([['connectTo', 'SMDB-FF', 'MDB-1']]);
+    expect(run(load, 'addupstream')).toEqual([]);
   });
   it('Edit selects a board first, a load goes to its form, a transformer to its board', () => {
     expect(run(board, 'edit')).toEqual([['selectBoard', 'SMDB-FF'], ['editBoard', 'SMDB-FF']]);

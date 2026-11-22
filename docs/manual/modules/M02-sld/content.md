@@ -73,6 +73,7 @@ colour by, scenario and export. Keys on the drawing: **Z** zooms to the selectio
 place it before that one; Esc or a right-click cancels. **Supply from…** and
 **Move to board…** pick the board from a list instead. A board moved to another source
 gets **len?** under its values until its incomer length is checked.
+On a first board (one with no board above it, no transformer and not a meter cabinet), **Add upstream board…** makes the board that feeds it (a DB gets an SMDB, an SMDB an MDB, an MDB a transformer): the incoming cable you typed becomes the way to it and the values given from upstream move to the new board. **Connect to…** joins it to a board already in the project instead; both are one undo step.
 **Show this branch only** (on a board) dims everything not fed from it, on screen only;
 **Esc**, or **Show everything** on the empty drawing, ends it. The Board tab has the same
 right-click menus for its ways and sub-boards, without the tools that need the whole

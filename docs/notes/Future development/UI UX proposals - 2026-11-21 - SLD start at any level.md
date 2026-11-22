@@ -1,6 +1,6 @@
 # SLD start at any level — proposal (2026-11-21)
 
-Status: **approved 2026-11-22: all ten decisions with the recommended answers.** Build order A to H, one PR each. Built: A (v2.254), B (v2.255), C (v2.256), D (v2.257), E (v2.258). Next: F.
+Status: **approved 2026-11-22: all ten decisions with the recommended answers.** Build order A to H, one PR each. Built: A (v2.254), B (v2.255), C (v2.256), D (v2.257), E (v2.258), F (v2.259). Next: G.
 Mockup: `docs/mockups/sld-start-level-mockup.html` + `.png`.
 Related: [[UI UX proposals - 2026-11-11 - SLD supply sources, RMU and package substations]] (steps 2–5 still wait) and [[UI UX proposals - 2026-11-18 - SLD by substation, RMU and transformer]] (all built).
 
@@ -201,6 +201,24 @@ Later, with the supply sources proposal: generator as the only source, PV and ba
   - A first board fed from a board outside the project is still drawn and priced with its own earth pits and main earth terminal (the default "earthing shown on every first board" is older than this proposal). It can be unticked on the board. Proposed: off by default for such a board.
   - After an 11 kV start the page with the MV supply and RMUs card opens, but the ribbon shows the tab of the project's stage (Concept), as after opening any project.
   - A coupler between two boards with no outgoing ways is drawn through the "NO OUTGOING WAYS" text of the left board (older drawing rule; clears once the board has ways).
+
+### Step F as built (v2.259)
+
+- Rows: **Add upstream board…** on the system diagram and the Board tab, **Connect to…** on the system diagram only (and only when another board can take it). Both sit first in the group where a fed board has Move and Supply from…. No rows for a board with a board above it, a transformer board, a meter cabinet or an end of a bus coupler.
+- Board above, by type: DB → SMDB, EDB → ESMDB, SMDB / MCC / FP / UPS / EMDB / LV-EMDB → MDB, ESMDB / EMCC → EMDB, MDB / LV-MDB / LV-ACB / no type → a transformer (the same as Fed from → Transformer on the Supply tab). The type can be changed in the question. A name typed for a board outside the project ("From SMDB-3F") becomes the new board's reference when free.
+- What moves where:
+
+| Value | Goes to |
+|---|---|
+| Typed incoming cable and upstream device | The real way from the new board to the old one (default way, 30 m, marked to check, when no cable was typed) |
+| Given values (Ik″, X/R, minimum Ik″, drop used, Ze, allowed load) | The new first board |
+| Source name, kind, reference, meter, CT ratio, cable and earth text (source start) | The new first board |
+| Ir setting | Stays at the old board (as its protection setting) |
+| Earth pits | The new first board |
+
+- Fault level, voltage drop and earth loop at the old board are the same before and after when a cable was typed (proved to 6 decimals in `growUp.test.ts`, also with parallel runs, protective conductor and Ze). With no typed cable the default way is new, so the fault level falls and the drop grows by its cable; the message says to check the length. A second step on a board that has no typed cable therefore changes the results at the DB.
+- Questions: Add upstream board… asks for board type and reference (a transformer start asks to confirm "Add a transformer"); Connect to… asks only when values given for the supply would be removed. One undo step each.
+- Panel tree and `move_panel`: moving a first board used to leave its supply block and add no incomer. It now uses Connect to, so the typed cable becomes the incomer and the given values are calculated from the new source.
 
 ### Wording still naming one supplier (for step D or a separate sweep)
 

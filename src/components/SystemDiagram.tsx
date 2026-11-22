@@ -50,6 +50,7 @@ import CadMenu from './cad/CadMenu';
 import type { CtxItem } from './cad/cadContextMenu';
 import { sldAction, type sldMenu, type SldTarget } from '../model/sldMenu';
 import { renameProblems } from '../model/renamePanels';
+import { connectBlocked } from '../model/growUp';
 import { below, moveBlocked } from '../model/moveBoard';
 import { branchItems, moveBlockedReason, selectAll, similarLoads, type PickItem } from '../model/sldMenuEdit';
 import { mergePicks, pickInWindow, pickPoints, zoomBox, type Rect } from './sld/sldPick';
@@ -1181,7 +1182,7 @@ export default function SystemDiagram({
     onMoveItem?.(item, t.target);
   }
   // Supply from… / Move to board…: the Panels tree's list of boards, at the menu's point.
-  const [moveList, setMoveList] = useState<{ item: MoveItem; several?: PickItem[]; x: number; y: number } | null>(null);
+  const [moveList, setMoveList] = useState<{ item: MoveItem; several?: PickItem[]; connect?: true; x: number; y: number } | null>(null);
   const [moveQ, setMoveQ] = useState('');
   useEffect(() => {
     if (!moveList) return;
@@ -1268,6 +1269,7 @@ export default function SystemDiagram({
     else if (a === 'showall') setBranchOf(null);
     else if (a === 'select' && v) { const [what, kind] = v.split('|'); if (what === 'loads' || what === 'failing' || what === 'warn' || what === 'kind') setPicks(selectAll(project, results, what, kind)); }
     else if (a === 'moveto' && m.t.kind === 'several') { setMoveQ(''); setMoveList({ item: { kind: 'feeder', id: '' }, several: m.t.items, x: m.x, y: m.y }); }
+    else if (a === 'connectto' && m.t.kind === 'board') { setMoveQ(''); setMoveList({ item: { kind: 'board', id: m.t.id }, connect: true, x: m.x, y: m.y }); }
     else if (a === 'move') startMove(m.t);
     else if ((a === 'supplyfrom' && m.t.kind === 'board') || (a === 'moveto' && m.t.kind === 'feeder')) { setMoveQ(''); setMoveList({ item: { kind: m.t.kind === 'board' ? 'board' : 'feeder', id: m.t.id }, x: m.x, y: m.y }); }
     else if (a === 'rename' && m.t.kind === 'board') setRenaming({ from: m.t.id, to: m.t.id, x: m.x, y: m.y });
@@ -2479,8 +2481,8 @@ export default function SystemDiagram({
       })()}
       {menu && menuData && <CadMenu left={menu.x + 4} top={menu.y + 4} head={menuData.head} items={menuData.items} label={menuData.label} onPick={pickMenu} onClose={() => setMenu(null)} />}
       {moveList && (() => {
-        const { item, several } = moveList;
-        const heading = several ? `Move ${several.length} to` : item.kind === 'board' ? `Supply ${item.id} from` : `Move ${item.id} to`;
+        const { item, several, connect } = moveList;
+        const heading = connect ? `Connect ${item.id} to` : several ? `Move ${several.length} to` : item.kind === 'board' ? `Supply ${item.id} from` : `Move ${item.id} to`;
         const host = rootRef.current?.getBoundingClientRect();
         const left = Math.max(8, Math.min(moveList.x, (host?.width ?? 800) - 300 - 8));
         const top = Math.max(8, Math.min(moveList.y, (host?.height ?? 600) - 340));
@@ -2492,11 +2494,11 @@ export default function SystemDiagram({
             <div className="tree-menu-h">{heading}… <span className="sp" /><button className="icon-btn" title="Close" aria-label="Close" onClick={close}><X size={14} aria-hidden /></button></div>
             <input autoFocus type="search" placeholder="Find a board…" value={moveQ} onChange={(e) => setMoveQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } }} />
             <div className="tree-move-list">
-              {project.boards.filter((t) => `${t.id} ${t.name}`.toLowerCase().includes(q)).map((t) => {
+              {project.boards.filter((t) => !(connect && t.id === item.id) && `${t.id} ${t.name}`.toLowerCase().includes(q)).map((t) => {
                 const sub = several?.some((x) => x.kind === 'board' && (x.id === t.id || below(project, x.id).has(t.id)));
-                const why = several ? (sub ? `${t.id} is a picked board or below one` : undefined) : item.kind === 'board' ? moveBlocked(project, item.id, t.id) : t.id === own ? `${item.id} is already on ${t.id}` : undefined;
+                const why = connect ? connectBlocked(project, item.id, t.id) : several ? (sub ? `${t.id} is a picked board or below one` : undefined) : item.kind === 'board' ? moveBlocked(project, item.id, t.id) : t.id === own ? `${item.id} is already on ${t.id}` : undefined;
                 const note = why ? (several ? 'picked branch' : item.kind === 'feeder' ? 'current board' : why.includes('already') ? 'current source' : why.includes('loop') ? 'below it' : '') : t.name !== t.id ? t.name : '';
-                return <button key={t.id} disabled={!!why} title={why ?? (several ? `Move ${several.length} to ${t.id}` : item.kind === 'board' ? `Supply ${item.id} from ${t.id}` : `Move ${item.id} to ${t.id}`)} onClick={() => { close(); if (several) onMenu?.({ kind: 'several', items: several }, 'moveto', t.id); else onMoveItem?.(item, { type: 'bus', boardId: t.id }); }}><b>{t.id}</b> <span className="m">{note}</span></button>;
+                return <button key={t.id} disabled={!!why} title={why ?? (connect ? `Connect ${item.id} to ${t.id}` : several ? `Move ${several.length} to ${t.id}` : item.kind === 'board' ? `Supply ${item.id} from ${t.id}` : `Move ${item.id} to ${t.id}`)} onClick={() => { close(); if (connect) onMenu?.({ kind: 'board', id: item.id }, 'connectto', t.id); else if (several) onMenu?.({ kind: 'several', items: several }, 'moveto', t.id); else onMoveItem?.(item, { type: 'bus', boardId: t.id }); }}><b>{t.id}</b> <span className="m">{note}</span></button>;
               })}
             </div>
           </div>

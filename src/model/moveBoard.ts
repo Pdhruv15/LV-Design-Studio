@@ -1,5 +1,6 @@
 import type { Board, Project } from '../types';
 import { boardSummary } from '../calc/summary';
+import { connectTo, growBlocked } from './growUp';
 
 /** Moving a board (with everything below it) to another source in the
  * panel tree: its incomer feeder moves to the new source's schedule and is
@@ -28,9 +29,11 @@ export function moveBlocked(project: Project, id: string, to: string): string | 
 /** The incomer feeder of a board (on its source's schedule). */
 export const incomerOf = (project: Project, id: string) => project.feeders.find((f) => f.feedsBoardId === id);
 
-/** Supply `id` from `to`. The incomer feeder moves to `to` (placed last) and its length is flagged. */
+/** Supply `id` from `to`. The incomer feeder moves to `to` (placed last) and its length is flagged. A first board gets an incomer
+ * way from `to` (its typed incoming cable, or a default one) and loses its supply block: the values are calculated from then on. */
 export function moveBoard(project: Project, id: string, to: string): Project {
   if (moveBlocked(project, id, to)) return project;
+  if (!growBlocked(project, id)) return connectTo(project, id, to).project;
   const inc = incomerOf(project, id);
   const boards = project.boards.map((b) => (b.id === id ? { ...b, upstreamId: to } : b));
   let feeders = project.feeders;

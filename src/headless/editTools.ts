@@ -12,7 +12,7 @@ import { pasteBoard } from '../model/copyBoard';
 import { boardAndDescendants, deleteBoard } from '../model/edit';
 import { removeDanglingReferences } from '../model/integrity';
 import { deleteCircuit } from '../model/schedule';
-import { BOARD_KINDS, LOAD_TYPES, SOURCE_KINDS, type Board, type BoardKind, type Feeder, type LoadType, type Project, type SourceKind } from '../types';
+import { BOARD_KINDS, LOAD_TYPES, SOURCE_KINDS, supplyIncomerFeeder, type Board, type BoardKind, type Feeder, type LoadType, type Project, type SourceKind } from '../types';
 import { openProject } from './project';
 import { INSTALL_METHODS, type InstallMethod } from '../calc/cableTable';
 import { projectInputIssues } from '../model/projectValidate';
@@ -254,14 +254,15 @@ export const EDIT_TOOLS: Tool[] = [
   {
     name: 'move_panel',
     title: 'Move a panel',
-    description: 'Supplies a panel (with everything below it) from another panel. Its incomer moves to the new source and its length is flagged for checking, since the route changed.',
+    description: 'Supplies a panel (with everything below it) from another panel. Its incomer moves to the new source and its length is flagged for checking, since the route changed. A main board with no board above it gets an incomer from the new source (its typed incoming cable, else a default way to check) and loses its supply block: its fault level, voltage drop and earth loop are calculated from the new source from then on.',
     input: { project, panel: z.string(), to: z.string().describe('New supplying panel'), mode: preview('apply') },
     usesProject: true, writes: true,
     run: (a, ctx) => edit(a, ctx, 'move_panel', a.mode === 'apply', (p) => {
       const b = findBoard(p, String(a.panel)), to = findBoard(p, String(a.to));
       const blocked = moveBlocked(p, b.id, to.id);
       if (blocked) throw new Error(blocked);
-      return { next: moveBoard(p, b.id, to.id), summary: `Move ${b.id} from ${b.upstreamId ?? 'its own supply'} to ${to.id}`, warnings: ['The incomer length is flagged "to check": the cable route changed.'] };
+      const typed = !b.upstreamId && !!supplyIncomerFeeder(b);
+      return { next: moveBoard(p, b.id, to.id), summary: `Move ${b.id} from ${b.upstreamId ?? 'its own supply'} to ${to.id}`, warnings: [typed ? `The typed incoming cable of ${b.id} is now its incomer from ${to.id}.` : 'The incomer length is flagged "to check": the cable route changed.'] };
     })
   },
   {
