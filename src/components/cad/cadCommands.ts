@@ -53,6 +53,7 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['RAY'], desc: 'Ray: infinite from its start point', tool: 'ray' },
   { aliases: ['PL', 'PLINE', 'POLYLINE'], desc: 'Polyline', tool: 'pline' },
   { aliases: ['CT', 'TRAY', 'CABLETRAY'], desc: 'Cable tray run', tool: 'tray' },
+  { aliases: ['CC', 'CONTAINMENTCHECK'], desc: 'Check the LV cable loading of tray segments on this drawing', tool: 'containment' },
   { aliases: ['CR', 'ROUTE', 'CABLEROUTE'], desc: 'Cable route', tool: 'cable' },
   { aliases: ['LR', 'LINK'], desc: 'Link a line as a cable route', tool: 'link' },
   { aliases: ['SCHED', 'SCHEDULES', 'UPDATE'], desc: 'Update schedules', action: 'schedules' },

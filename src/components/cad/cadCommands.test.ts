@@ -62,6 +62,8 @@ const ADDED: Record<string, string> = { ST: '!textStyle', STYLE: '!textStyle', D
   XL: 'xline', XLINE: 'xline', RAY: 'ray',
   // Coordinated one-room LV/ELV device template preview.
   RDT: 'roomtemplate', ROOMDEVICES: 'roomtemplate',
+  // On-demand, bounded LV containment segment inspector.
+  CC: 'containment', CONTAINMENTCHECK: 'containment',
   // Multileaders (S12): draw, add and remove a leader, align, collect, and the style.
   MLD: 'mleader', MLEADER: 'mleader', MLEADERADD: 'mleaderadd', MLEADERREMOVE: 'mleaderremove', MLA: 'mleaderalign', MLEADERALIGN: 'mleaderalign', MLC: 'mleadercollect', MLEADERCOLLECT: 'mleadercollect', MLS: '!mleaderStyle', MLEADERSTYLE: '!mleaderStyle',
   PLOT: '!plot', PP: '!plot', PRINT: '!plot', OP: '!options', OPTIONS: '!options', UN: '!unitsTab', UNITS: '!unitsTab',

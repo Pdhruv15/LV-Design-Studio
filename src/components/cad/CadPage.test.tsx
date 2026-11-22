@@ -4949,6 +4949,25 @@ describe('right-click menus, phase 2: LV and ELV objects and the tools behind th
     await pickEntry('Fill ratio check');
     expect(hist()).toMatch(/^TRAY {2}This tray is on no route/);
   });
+
+  it('checks LV containment segments on demand, applies a one-tier recommendation and opens cable assignments', async () => {
+    const X = 200000, show = vi.fn();
+    const tray: SketchItem = { id: 'T1', kind: 'pline', layer: 'E-TRAY', pts: [[X, 10000], [X + 6000, 10000]], tray: { widthMm: 100, service: 'Power', route: 'A' } };
+    const p: Project = { ...lit, trays: { ...trayPlanOf(lit), routes: [{ id: 'RA', name: 'A', cables: [{ id: 'M1', cores: 4, csaMm2: 240, qty: 1 }] }] }, cadSketch: [{ file: 'sample-villa-gf.dxf', items: [tray] }] };
+    await start(p, show);
+    await command('CC');
+    expect(state.tool).toBe('containment');
+    expect(document.body.textContent).toContain('Containment check LV only');
+    await clickAt(X + 3000, 10000);
+    expect(hist()).toMatch(/^CONTAINMENTCHECK {2}S1 · Route A: overloaded\.$/);
+    expect(document.body.textContent).toContain('Assigned LV cables1');
+    const apply = button('Apply recommended size');
+    expect(apply.disabled).toBe(false);
+    await act(async () => { apply.click(); });
+    expect(sketchOf(project, 'sample-villa-gf.dxf').find((item) => item.id === 'T1')!.tray!.widthMm).toBeGreaterThan(100);
+    await act(async () => { button('Open cable assignments').click(); });
+    expect(show).toHaveBeenCalledWith({ to: 'cable-tray' });
+  });
 });
 
 describe('right-click menus, phase 3: blocks, references and layouts', () => {

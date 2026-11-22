@@ -14,6 +14,7 @@ This module covers three screens and their calculations:
 
   Export is PDF or Excel. Route paths, route lengths and fittings can also be filled from the Design CAD plans.
 - **Containment calculator** ("Custom calculation" mode). This is a standalone calculation that needs no design. You list cables and choose a containment: tray, ladder, basket, trunking, conduit, a trench (direct buried) or a duct bank. It gives the size, the fill, a to-scale cross-section and, for buried cables, the ground-temperature × soil × grouping derating. Export is a PDF.
+- **CAD LV containment check**: an on-demand inspector for the cable-tray runs drawn in the open plan. It compares each run's installed width with the LV cables assigned to its tray route, shows fill and sizing issues, and can apply a single-tier recommended width. It does not need a building level, save a route index or run in the background.
 
 Terms used below: a *store* is the place the app keeps the project in memory. A *project object* is the in-memory project. A *pure function* is a calculation that only reads its inputs and returns a result.
 
@@ -35,6 +36,8 @@ Terms used below: a *store* is the place the app keeps the project in memory. A 
 | `src/docs/containmentReport.ts` | report | `containmentReportHtml` (:9) | Containment PDF (A4) |
 | `src/model/cadTrays.ts` | model | `pullCadTrays` (:86), `applyCadTrays` (:124), `chain`, `traysAlong`, `TRAY_TOLERANCE_M`, `TRAY_MIN_RUN_M` | Proposes each feeder's tray path, and each route's length, from CAD tray runs and cable routes |
 | `src/model/cadTrayFittings.ts` | model | `trayFittings` (:41), `fittingLabel`, `fittingCounts` | Finds bends, tees, crosses and reducers from the drawn tray runs |
+| `src/model/cadContainmentCheck.ts` | model | `checkLvContainment`, `CONTAINMENT_CHECK_LIMITS` | Bounded, current-drawing LV tray-segment check; sizes each referenced route once and keeps only compact results |
+| `src/components/cad/ContainmentSegmentPanel.tsx` | screen | `ContainmentSegmentPanel` | Segment list and selected-segment result, recommendation and apply/open-schedule actions in Design CAD |
 | `src/types.ts` | model | `TrayPlan`, `TrayRoute`, `TrayCable`, `TraySettings`, `CableOd` (:895–971), `Feeder.trayRoute` (:252), `Project.containmentCalc` (:657), `Project.cableRefs` (:648) | Saved data shapes |
 
 ## 3. Inputs: where the data comes from
@@ -87,6 +90,12 @@ Terms used below: a *store* is the place the app keeps the project in memory. A 
 1. Cable trays page → *Custom calculation* → `ContainmentCalculator`.
 2. Every edit calls `set()`, which saves `project.containmentCalc`. `calcContainment(input)` and `containmentSvg` re-run.
 3. *Report (PDF)* → `containmentReportHtml` → `savePdf`.
+
+**CAD LV containment check**
+1. Design CAD → *Containment check* (`CC`) calculates only the tray runs in the open drawing. One drawn run is one segment; its optional `tray.route` links it to the tray schedule.
+2. `checkLvContainment` sizes each referenced LV route once, then checks every segment at its own drawn width. The check is capped at 256 segments, 128 routes and 2,048 cable instances per route.
+3. Selecting a segment shows its LV cable count, fill, design limit and recommended width. *Apply recommended size* changes only a one-tier drawn width in one undo step; multi-tier recommendations remain for the tray schedule. *Open cable assignments* opens the Cable trays page.
+4. Closing the tool discards the calculated summaries. Nothing is stored in the project and no geometry/search index is retained.
 
 ## 6. Linked to (working connections)
 
