@@ -146,3 +146,25 @@ describe('OpenDSS export: first board on an LV supply', () => {
     expect(exportDss(lv({ id: 'MDB-1', name: 'Main', supply: { faultKa: -5 } })).warnings[0]).toMatch(/no transformer data/); // a fault level must be above zero
   });
 });
+
+describe('OpenDSS export: values given from upstream', () => {
+  const lv = (supply: NonNullable<Project['boards'][number]['supply']>): Project => ({ ...sampleProject, boards: [{ id: 'MDB-1', name: 'Main', supply }] });
+  it('the given X/R sets the source X/R', () => {
+    const { script } = exportDss(lv({ faultKa: 25, xr: 3 }));
+    expect(lines(script, 'New Vsource.')[0]).toMatch(/x1r1=3 x0r0=3$/);
+  });
+  it('an incoming cable puts the source on its own bus, joined to the busbar by a Line built like a feeder line', () => {
+    const { script } = exportDss(lv({ faultKa: 25, incomer: { cableCsaMm2: 240, lengthM: 30, parallel: 2 } }));
+    expect(lines(script, 'New Vsource.')[0]).toContain('bus1=src_MDB-1 ');
+    expect(lines(script, 'New Line.SUPPLY_')).toEqual(['New Line.SUPPLY_MDB-1 phases=3 bus1=src_MDB-1 bus2=bb_MDB-1 linecode=cu240_3ph_x2 length=30 units=m']);
+    expect(script).toContain('New LineCode.cu240_3ph_x2 '); // defined before it is used
+    expect(script.indexOf('New LineCode.cu240_3ph_x2')).toBeLessThan(script.indexOf('New Line.SUPPLY_MDB-1'));
+  });
+  it('unchanged without the values, with no fault level, and on a transformer board', () => {
+    expect(lines(exportDss(lv({ faultKa: 25 })).script, 'New Vsource.')[0]).toContain('bus1=bb_MDB-1 ');
+    expect(lines(exportDss(lv({ faultKa: 25 })).script, 'New Line.SUPPLY_')).toEqual([]);
+    expect(lines(exportDss(lv({ incomer: { cableCsaMm2: 240, lengthM: 30 } })).script, 'New Line.SUPPLY_')).toEqual([]); // no source to join
+    const tx: Project = { ...sampleProject, boards: sampleProject.boards.map((b) => (b.id === 'MDB-1' ? { ...b, supply: { faultKa: 25, xr: 3, incomer: { cableCsaMm2: 240, lengthM: 30 } } } : b)) };
+    expect(exportDss(tx).script.replace(/! Exported.*/, '')).toBe(exportDss(sampleProject).script.replace(/! Exported.*/, ''));
+  });
+});

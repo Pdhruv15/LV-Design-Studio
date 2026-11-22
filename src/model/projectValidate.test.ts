@@ -96,6 +96,18 @@ describe('engineering input checks', () => {
     expect(projectInputIssues(high)[0].status).toBe('warn');
   });
 
+  it('values given from upstream: an impossible one is a failure naming the panel; sound ones raise nothing', () => {
+    const lv = (supply: NonNullable<Project['boards'][number]['supply']>) => proj([{ id: 'MDB', name: 'M', supply }], [fd({})]);
+    const text = (supply: NonNullable<Project['boards'][number]['supply']>) => projectInputIssues(lv(supply)).map((i) => i.text);
+    expect(text({ faultKa: 12, faultKaMin: 8, xr: 3, vdUsedPct: 1.6, zeOhm: 0.08, allowedA: 100, incomer: { cableCsaMm2: 16, lengthM: 25 } })).toEqual([]);
+    expect(text({ vdUsedPct: -0.5 })).toEqual(['Panel MDB: supply voltage drop used -0.5 % (must be 0 or more and below the 4 % limit)']);
+    expect(text({ vdUsedPct: 4 })[0]).toMatch(/supply voltage drop used 4 %/); // not below the limit
+    expect(text({ zeOhm: 0, xr: -1, faultKaMin: 0, allowedA: 0 })).toEqual(['Panel MDB: supply X/R -1 (must be above 0); supply minimum fault level 0 kA (must be above 0); supply Ze 0 Ω (must be above 0); supply allowed load 0 A (must be above 0)']);
+    expect(text({ faultKa: 10, faultKaMin: 12 })).toEqual(['Panel MDB: supply minimum fault level 12 kA (above the fault level 10 kA)']);
+    expect(text({ incomer: { cableCsaMm2: 0, lengthM: -3 } })).toEqual(['Panel MDB: supply incoming cable size 0 mm² (must be above 0); supply incoming cable length -3 m (must be above 0)']);
+    expect(text({ vdUsedPct: 1, ratingA: 400 })).toEqual([]); // the old fields alone raise nothing
+  });
+
   it('a circuit names each impossible input', () => {
     const p = tree([fd({ id: 'BAD', powerFactor: 0, demandFactor: 1.5, lengthM: -5, breakerRatingA: 0, parallel: 1.5, loadKw: NaN, cores: 1 as 2 })]);
     const i = projectInputIssues(p);

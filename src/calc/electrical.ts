@@ -3,7 +3,7 @@ import { recordedPQ } from '../model/existing';
 import { ambientCorrectionFactor, cables, getCable } from './cableTable';
 import { trayGrouping } from './cableTray';
 import { feederRatingBasis, type RatingBasis } from './installation';
-import { supplyFaultKa, type Board, type Feeder, type GridSource, type Project } from '../types';
+import { lvSupplied, supplyFaultKa, supplyIncomerFeeder, supplyXr, type Board, type Feeder, type GridSource, type Project } from '../types';
 import { boardPhasePQ, type PhasePQ } from './loadSchedule';
 import { fmtFixed } from '../util/format';
 import { checkLimits, type LimitCheck } from './authorityLimits';
@@ -181,9 +181,21 @@ function findIncomer(project: Project, board: Board): Feeder | undefined {
  * is added to each feeder's own drop before comparing with the limit. */
 export function upstreamVoltageDropPct(project: Project, boardId: string, seen = new Set<string>()): number {
   const board = boardOf(project, boardId);
-  if (!board?.upstreamId || seen.has(boardId)) return 0;
+  if (!board || seen.has(boardId)) return 0;
+  // A first board on an LV supply starts at the drop already used upstream plus its incoming cable.
+  if (!board.upstreamId) return lvSupplied(board) ? memoized(project, `vdUp:${boardId}`, () => supplyVoltageDropPct(project, board)) : 0;
   seen.add(boardId);
   return memoized(project, `vdUp:${boardId}`, () => upstreamVdOf(project, board, seen));
+}
+
+/** The drop already used upstream of the supply point (%): the given value when it is a number above zero, else 0. */
+export const supplyVdUsedPct = (board: Board): number => { const v = board.supply?.vdUsedPct; return v !== undefined && Number.isFinite(v) && v > 0 ? v : 0; };
+
+/** Drop (%) at the busbar of an LV-supplied first board: the drop given from upstream (`supply.vdUsedPct`, at the
+ * feeding board) plus the incoming cable's own drop, worked out as the drop of a sub-board's incomer. */
+export function supplyVoltageDropPct(project: Project, board: Board): number {
+  const cable = supplyIncomerFeeder(board);
+  return supplyVdUsedPct(board) + (cable ? voltageDropPct(cable, project) : 0);
 }
 
 function upstreamVdOf(project: Project, board: Board, seen: Set<string>): number {
@@ -389,7 +401,10 @@ function impedanceToBoardOf(project: Project, board: Board, seen: Set<string>): 
     // No transformer: a supply with a stated fault level (authority, or a neighbouring building's main board).
     if (!board.sourceKva || !board.sourceImpedancePct) {
       const ka = supplyFaultKa(board);
-      return ka ? supplyImpedance(ka, project.voltageV) : fallback;
+      if (!ka) return fallback;
+      const zs = supplyImpedance(ka, project.voltageV, supplyXr(board));
+      const cable = supplyIncomerFeeder(board); // the incoming cable from the supply point to this board
+      return cable ? addZ(zs, cableImpedance(cable.cableCsaMm2, cable.lengthM, runsOf(cable))) : zs;
     }
     // A closed coupler joins the busbars: every transformer on them feeds a fault (couplers taken as 0 Ω),
     // each behind its MV network impedance when the grid fault level is given.

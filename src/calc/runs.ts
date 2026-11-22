@@ -1,7 +1,8 @@
 import { withNetwork } from './network';
 import { evaluateProject, type FeederResult } from './electrical';
 import { evaluateEarthingAll, type EarthingResult } from './earthing';
-import { evaluateSelectivity, type SelectivityResult } from './protection';
+import { evaluateSelectivity, evaluateSupplySelectivity, type SelectivityResult, type SupplySelectivityResult } from './protection';
+import { supplyIncomers, type SupplyIncomerResult } from './supplyIncomer';
 import type { Board, Feeder, Project } from '../types';
 
 /** Network studies run on demand ("Run calculations", F5) rather than on
@@ -71,6 +72,10 @@ export interface CalcRun {
   results: FeederResult[];
   earthing: EarthingResult[];
   selectivity: SelectivityResult[];
+  /** The incoming cable of each first board on an LV supply that has one, and its upstream device against its outgoing
+   * breakers: absent when there are none. */
+  supplyIncomers?: SupplyIncomerResult[];
+  supplySelectivity?: SupplySelectivityResult[];
   at: number;
   ms: number;
 }
@@ -83,8 +88,11 @@ export const autoRunDelayMs = (lastRunMs: number | undefined): number => (lastRu
 export function runCalculations(project: Project, now = Date.now()): CalcRun {
   const t0 = performance.now();
   // One network index for the whole run: every study reuses the same walks of the board tree.
-  const { results, earthing, selectivity } = withNetwork(project, () => ({ results: evaluateProject(project), earthing: evaluateEarthingAll(project), selectivity: evaluateSelectivity(project) }));
-  return { project, results, earthing, selectivity, at: now, ms: performance.now() - t0 };
+  const { results, earthing, selectivity, incomers, supplySel } = withNetwork(project, () => ({
+    results: evaluateProject(project), earthing: evaluateEarthingAll(project), selectivity: evaluateSelectivity(project),
+    incomers: supplyIncomers(project), supplySel: evaluateSupplySelectivity(project)
+  }));
+  return { project, results, earthing, selectivity, ...(incomers.length && { supplyIncomers: incomers }), ...(supplySel.length && { supplySelectivity: supplySel }), at: now, ms: performance.now() - t0 };
 }
 
 const sameList = <T extends object>(a: T[], b: T[], keys: (keyof T)[]) =>

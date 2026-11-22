@@ -1,4 +1,4 @@
-import { ambientCorrectionFactor, INSTALL_METHODS, isBuried, methodOf, methodRating, type CableSource, type InstallMethod } from './cableTable';
+import { ambientCorrectionFactor, cablesInUse, INSTALL_METHODS, isBuried, methodOf, methodRating, type CableSource, type InstallMethod } from './cableTable';
 import { bunchedFactor } from './cableTray';
 import { buriedGroupFactor, GROUND_TEMP_RANGE_C, groundTempFactor, SOIL_RANGE_KMW, soilFactor } from './containment';
 import type { Feeder, Project } from '../types';
@@ -65,7 +65,7 @@ export const factorsText = (b: RatingBasis) => b.factors.map((f) => (Number.isFi
 /** Ground conditions the buried circuits use: 'bad' when a value is not a number or outside the tables,
  * 'warn' when the IEC reference is used because the project gives none. */
 export function groundChecks(project: Project): { status: 'warn' | 'bad'; text: string }[] {
-  if (!project.feeders.some((f) => isBuried(methodOf(f)))) return [];
+  if (!cablesInUse(project).some((f) => isBuried(methodOf(f)))) return [];
   const out: { status: 'warn' | 'bad'; text: string }[] = [];
   const check = (v: number | undefined, ref: number, name: string, unit: string, min: number, max: number) => {
     if (v === undefined) out.push({ status: 'warn', text: `Buried cables: ${name} not set — the IEC reference ${ref} ${unit} is used (Project settings)` });

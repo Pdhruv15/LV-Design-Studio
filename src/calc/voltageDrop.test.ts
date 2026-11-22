@@ -120,3 +120,17 @@ describe('voltage drop page additions', async () => {
     expect(v.uniformTopPct).toBeGreaterThanOrEqual(v.exactTopPct - 1e-9);
   });
 });
+
+describe('voltage drop study with values given from upstream', () => {
+  it('a circuit on a first board on an LV supply starts at the drop used upstream plus the incoming cable', () => {
+    const f = { id: 'F', boardId: 'MDB', name: 'F', loadKw: 24, demandFactor: 1, powerFactor: 0.9, lengthM: 20, cableCsaMm2: 10, cores: 4 as const, breakerRatingA: 40, breakerIcuKa: 36 };
+    const base = { name: 'T', voltageV: 415, frequencyHz: 50, ambientC: 45, vdLimitPct: 4, updatedAt: '', feeders: [f] };
+    const p = { ...base, boards: [{ id: 'MDB', name: 'M', supply: { faultKa: 12, vdUsedPct: 1.6, incomer: { cableCsaMm2: 16, lengthM: 25 } } }] };
+    // The same figures as the checks table: 1.6 % used + 0.495 % in the 16 mm², 25 m cable (Ib 37.1 A, PF 0.9) = 2.095 %; the circuit's own 0.624 %.
+    const r = vdRow(p, f);
+    expect(r.upstreamPct).toBeCloseTo(2.095, 3);
+    expect(r.vdPct).toBeCloseTo(0.624, 3);
+    expect(r.totalPct).toBeCloseTo(2.719, 3);
+    expect(vdRow({ ...base, boards: [{ id: 'MDB', name: 'M', supply: { faultKa: 12 } }] }, f).upstreamPct).toBe(0);
+  });
+});

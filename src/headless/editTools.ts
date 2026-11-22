@@ -14,6 +14,8 @@ import { removeDanglingReferences } from '../model/integrity';
 import { deleteCircuit } from '../model/schedule';
 import { BOARD_KINDS, LOAD_TYPES, type Board, type BoardKind, type Feeder, type LoadType, type Project } from '../types';
 import { openProject } from './project';
+import { INSTALL_METHODS, type InstallMethod } from '../calc/cableTable';
+import { projectInputIssues } from '../model/projectValidate';
 import { circuitIssues, r, type Tool, type ToolContext } from './tools';
 import { commitProject, readLog, undoChange, WriteRefused } from './write';
 
@@ -23,6 +25,9 @@ import { commitProject, readLog, undoChange, WriteRefused } from './write';
  *   to Reports → Changes, and the engineer accepts and applies it in the app — one undo step, with the app's conflict
  *   checks. The working design is not changed by the tool, and the tool never accepts anything on anyone's behalf.
  * - Structure changes (add a panel or circuit, move, rename, copy a panel) change the file, after a preview.
+ * - set_supply is the one exception among the values: the values given from upstream for a first panel (fault level, drop
+ *   used, Ze, the upstream device, the incoming cable) are input data of the design, not a sizing result, so like the
+ *   structure changes it writes the file after a preview, and undo_change puts the previous values back.
  *
  * Every tool previews by default (nothing written). Writing keeps the previous version and logs it (undo_change). The
  * MCP server and the local API offer these tools only when started with --write. Deleting (delete_panel, delete_circuit)
@@ -287,6 +292,53 @@ export const EDIT_TOOLS: Tool[] = [
       const res = pasteBoard(p, b.id, to.id, { idFind: String(a.idFind ?? ''), idReplace: String(a.idReplace ?? ''), nameFind: String(a.nameFind ?? ''), nameReplace: String(a.nameReplace ?? '') });
       const added = res.project.boards.filter((x) => !p.boards.some((y) => y.id === x.id)).map((x) => x.id);
       return { next: res.project, summary: `Copy ${b.id} onto ${to.id} as ${res.rootId} (${added.length} panel(s), ${res.project.feeders.length - p.feeders.length} circuit(s))`, details: { panels: added } };
+    })
+  },
+  {
+    name: 'set_supply',
+    title: 'Set the values given from upstream',
+    description: 'Sets the values given from upstream for a first panel with no transformer (fed by a supply or by a board outside the project): they apply at the feeding board\'s busbar, the supply point. Fault level (with X/R and minimum), voltage drop already used (%), earth loop impedance Ze, the upstream device (type, rating, setting), the incoming cable from the supply point to the panel and the load the supply can give. The calculations then use them; one left out is "not given" and its checks end not verified. null clears a value. Creates the supply block when the panel has none.',
+    input: {
+      project, panel: z.string().describe('First panel (no panel above it, no transformer)'),
+      fedBy: z.enum(['source', 'board']).nullable().optional().describe('source = a supply source; board = a board outside this project'),
+      ref: z.string().trim().max(200).nullable().optional().describe('Drawing or letter reference of the given values'),
+      faultKa: z.number().positive().nullable().optional().describe('Fault level Ik″ at the supply point, kA'),
+      xr: z.number().positive().nullable().optional().describe('X/R of that fault level (default: the transformer default)'),
+      faultKaMin: z.number().positive().nullable().optional().describe('Minimum fault level, kA (used for Ze when none is given)'),
+      vdUsedPct: z.number().nonnegative().nullable().optional().describe('Voltage drop already used upstream of the supply point, % of nominal'),
+      zeOhm: z.number().positive().nullable().optional().describe('Earth fault loop impedance at the supply point, Ω'),
+      allowedA: z.number().positive().nullable().optional().describe('Load the supply can give, A'),
+      device: z.enum(['ACB', 'MCCB', 'ISOL']).nullable().optional().describe('Upstream device type'),
+      ratingA: z.number().positive().nullable().optional().describe('Upstream device rating In, A'),
+      irSetting: z.number().positive().max(1).nullable().optional().describe('Upstream device long-time setting, × In (e.g. 0.85)'),
+      incomer: z.object({
+        cableCsaMm2: z.number().positive(), lengthM: z.number().positive(),
+        parallel: z.number().int().min(1).max(8).optional().describe('Cable runs in parallel'),
+        cores: z.union([z.literal(3), z.literal(4)]).optional().describe('3 or 4 (default 4)'),
+        cpcMm2: z.number().positive().optional(),
+        installMethod: z.enum(INSTALL_METHODS.map((m) => m.id) as [InstallMethod, ...InstallMethod[]]).optional()
+      }).nullable().optional().describe('The incoming cable from the supply point to the panel'),
+      mode: preview('apply')
+    },
+    usesProject: true, writes: true,
+    run: (a, ctx) => edit(a, ctx, 'set_supply', a.mode === 'apply', (p) => {
+      const b = findBoard(p, String(a.panel));
+      if (b.upstreamId) throw new Error(`${b.id} is fed from ${b.upstreamId}: the values given from upstream apply to a first panel.`);
+      if (b.sourceKva) throw new Error(`${b.id} has a transformer: it ignores the values given from upstream.`);
+      const KEYS = ['fedBy', 'ref', 'faultKa', 'xr', 'faultKaMin', 'vdUsedPct', 'zeOhm', 'allowedA', 'device', 'ratingA', 'irSetting', 'incomer'] as const;
+      const given = KEYS.filter((k) => a[k] !== undefined);
+      if (!given.length) throw new Error(`Give at least one value to set (${KEYS.join(', ')}); null clears one.`);
+      const supply: Record<string, unknown> = { ...b.supply };
+      for (const k of given) { if (a[k] === null) delete supply[k]; else supply[k] = a[k]; }
+      const next = { ...p, boards: p.boards.map((x) => (x.id === b.id ? { ...x, supply: supply as Board['supply'] } : x)) };
+      const issues = projectInputIssues(next).filter((i) => i.text.startsWith(`Panel ${b.id}:`) && i.text.includes('supply'));
+      if (issues.length) throw new Error(issues.map((i) => i.text).join('; '));
+      const s = next.boards.find((x) => x.id === b.id)!.supply!;
+      const warnings = [
+        ...(b.supply ? [] : [`${b.id} had no supply block: it now counts as fed from a supply with no transformer.`]),
+        ...(!s.faultKa ? ['No fault level: the fault levels below stay assumed (not verified).'] : [])
+      ];
+      return { next, summary: `Set ${given.map((k) => (a[k] === null ? `${k} cleared` : k)).join(', ')} for the supply of ${b.id}`, details: { supply: s }, warnings: warnings.length ? warnings : undefined };
     })
   },
   {

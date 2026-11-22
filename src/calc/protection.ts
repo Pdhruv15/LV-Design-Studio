@@ -1,7 +1,7 @@
 import { networkOf, withNetwork } from './network';
 import { evaluateFeeder, type Status } from './electrical';
 import { breakerTypeOf, instantaneousTripA } from './earthing';
-import type { Feeder, Project } from '../types';
+import { lvSupplied, supplyGiven, type Board, type Feeder, type Project, type SwitchDevice } from '../types';
 
 /** Lower edge of the magnetic band — the largest current at which the
  * breaker is guaranteed NOT to trip instantaneously: 3/5/10 In for MCB
@@ -89,6 +89,46 @@ export function evaluateSelectivity(project: Project): SelectivityResult[] {
     const ix = networkOf(project)!;
     for (const up of project.feeders.filter((f) => f.feedsBoardId)) {
       for (const down of ix.feedersByBoard.get(up.feedsBoardId!) ?? []) out.push(selectivityPair(project, up, down));
+    }
+    return out;
+  });
+}
+
+/** Discrimination between the supply's upstream device (Board.supply) and an outgoing breaker of the first board it
+ * feeds. The overload region is judged as selectivityPair does: In(up) ÷ In(down) ≥ 1.6, with In = supply.ratingA.
+ * The short-circuit region needs the upstream device's instantaneous setting, which the supply does not hold, so it is
+ * not invented: the pair is not verified (status 'warn', never 'ok'), unless the overload region already fails ('bad'). */
+export interface SupplySelectivityResult {
+  board: Board;
+  upstream: { device?: SwitchDevice; ratingA: number; irSetting?: number };
+  downstream: Feeder;
+  ratio: number; // supply In ÷ In downstream
+  ratioOk: boolean; // ≥ 1.6 gives overload (time) selectivity
+  faultKA: number; // maximum fault at the downstream breaker
+  status: Status;
+  reasons: string[];
+}
+
+/** The supply device against each outgoing breaker, for every first board on an LV supply that has a device rating and
+ * at least one value given from upstream (a supply with only its stated rating is left as it was). */
+export function evaluateSupplySelectivity(project: Project): SupplySelectivityResult[] {
+  return withNetwork(project, () => {
+    const out: SupplySelectivityResult[] = [];
+    const ix = networkOf(project)!;
+    for (const board of project.boards) {
+      const sup = board.supply;
+      if (!lvSupplied(board) || !sup?.ratingA || !(sup.ratingA > 0) || !supplyGiven(board)) continue;
+      const upstream = { ...(sup.device && { device: sup.device }), ratingA: sup.ratingA, ...(sup.irSetting && { irSetting: sup.irSetting }) };
+      for (const down of ix.feedersByBoard.get(board.id) ?? []) {
+        const ratio = sup.ratingA / down.breakerRatingA;
+        const ratioOk = ratio >= 1.6;
+        const bad = !ratioOk && sup.ratingA <= down.breakerRatingA;
+        const reasons: string[] = [];
+        if (bad) reasons.push(`the supply device ${sup.ratingA} A is not above ${down.id} (${down.breakerRatingA} A)`);
+        else if (!ratioOk) reasons.push(`In ratio ${ratio.toFixed(2)} is below 1.6`);
+        reasons.push(sup.device === 'ISOL' ? 'the supply device is an isolator: no protective device to discriminate with' : 'short circuit: the upstream device setting is not given');
+        out.push({ board, upstream, downstream: down, ratio, ratioOk, faultKA: evaluateFeeder(project, down).breakerFaultKA, status: bad ? 'bad' : 'warn', reasons });
+      }
     }
     return out;
   });

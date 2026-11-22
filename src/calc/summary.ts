@@ -1,5 +1,5 @@
 import { faultCurrentKA, impedanceToBoard, sourceAssumed, upstreamVoltageDropPct, type Status } from './electrical';
-import { settingsOf, type Board, type Feeder, type LoadType, type Project } from '../types';
+import { lvSupplied, settingsOf, type Board, type Feeder, type LoadType, type Project } from '../types';
 import { switchedOnBoard } from './capSwitching';
 import { boardOf, feedersOn, memoized, perProject } from './network';
 import { recordedPQ } from '../model/existing';
@@ -78,6 +78,9 @@ export interface BoardSummary extends PowerTotals {
   voltageV: number;
   faultKA: number; // 3-phase prospective fault at the busbar
   faultAssumed?: boolean; // the source has no data: faultKA rests on the placeholder
+  /** Load the supply can give (A) and the demand current as % of it: only on a first board on an LV supply that is given one. */
+  allowedA?: number;
+  allowedLoadingPct?: number;
   outgoing: number; // feeders on this board (including incomers to sub-boards)
   incomer?: Feeder; // the feeder supplying this board (sub-boards only)
 }
@@ -110,6 +113,7 @@ export function boardSummary(project: Project, board: Board): BoardSummary {
   const ratedA = boardRatedA(board);
   const loadingPct = ratedA ? (currentA / ratedA) * 100 : undefined;
   const voltagePct = 100 - upstreamVoltageDropPct(project, board.id);
+  const allowedA = lvSupplied(board) && board.supply!.allowedA! > 0 ? board.supply!.allowedA : undefined;
   return {
     ...totals,
     board,
@@ -123,6 +127,7 @@ export function boardSummary(project: Project, board: Board): BoardSummary {
     voltageV: (project.voltageV * voltagePct) / 100,
     faultKA: faultCurrentKA(impedanceToBoard(project, board.id), project.voltageV),
     ...(sourceAssumed(project, board.id) && { faultAssumed: true }),
+    ...(allowedA !== undefined && { allowedA, allowedLoadingPct: (currentA / allowedA) * 100 }),
     outgoing: feedersOn(project, board.id).length,
     incomer: board.upstreamId ? feedersOn(project, board.upstreamId).find((f) => f.feedsBoardId === board.id) : undefined
   };

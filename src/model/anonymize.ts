@@ -1,3 +1,4 @@
+import { INSTALL_METHODS } from '../calc/cableTable';
 import { LOAD_TYPES, CABLE_TYPES, type Board, type BusTie, type CircuitLoadItem, type Feeder, type Project, type SpareWay, type StudySettings, type TrayCable, type TrayPlan, type TrayRoute } from '../types';
 
 /** Export anonymized sample: a copy of a project that keeps the electrical model (panels, circuits, cables,
@@ -87,8 +88,9 @@ export function anonymizeProject(source: Project): AnonymizeResult {
   const outBoards: Board[] = boards.map((b) => {
     for (const k of Object.keys(b)) if (!(BOARD_KEEP as readonly string[]).includes(k) && !BOARD_REBUILT.has(k) && (b as unknown as Record<string, unknown>)[k] !== undefined) note(`panel.${k}`);
     const id = boardIds[b.id];
-    const supply = b.supply ? prune({ device: b.supply.device, ratingA: num(b.supply.ratingA), faultKa: num(b.supply.faultKa), meter: b.supply.meter, irSetting: num(b.supply.irSetting), ctRatio: onlyIf(b.supply.ctRatio, CT_RATIO), ecc: onlyIf(b.supply.ecc, ECC) }) : undefined;
+    const supply = b.supply ? prune({ device: b.supply.device, ratingA: num(b.supply.ratingA), faultKa: num(b.supply.faultKa), meter: b.supply.meter, irSetting: num(b.supply.irSetting), fedBy: b.supply.fedBy === 'board' ? 'board' : undefined, xr: num(b.supply.xr), faultKaMin: num(b.supply.faultKaMin), vdUsedPct: num(b.supply.vdUsedPct), zeOhm: num(b.supply.zeOhm), allowedA: num(b.supply.allowedA), incomer: b.supply.incomer ? prune({ cableCsaMm2: num(b.supply.incomer.cableCsaMm2), lengthM: num(b.supply.incomer.lengthM), parallel: num(b.supply.incomer.parallel), cores: b.supply.incomer.cores === 3 || b.supply.incomer.cores === 4 ? b.supply.incomer.cores : undefined, cpcMm2: num(b.supply.incomer.cpcMm2), installMethod: INSTALL_METHODS.find((m) => m.id === b.supply!.incomer!.installMethod)?.id }) : undefined, ctRatio: onlyIf(b.supply.ctRatio, CT_RATIO), ecc: onlyIf(b.supply.ecc, ECC) }) : undefined;
     if (b.supply && (b.supply.fedFrom || b.supply.cable)) note('panel.supply text (fed from, cable)');
+    if (b.supply?.ref) note('panel.supply reference');
     const spareWays = b.spareWays?.map((s, i): SpareWay => prune({ id: `S${i + 1}`, kind: s.kind, phase: s.phase, way: num(s.way), ratingA: s.ratingA, device: s.device, icuKa: num(s.icuKa) }));
     if (b.spareWays?.some((s) => s.remarks)) note('panel.spareWays remarks');
     if (b.name) note('panel names');

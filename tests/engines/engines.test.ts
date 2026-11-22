@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { engineRequest } from '../../src/engines/external';
 import type { EngineProbe, StudyResults } from '../../src/engines/types';
 import { getCable } from '../../src/calc/cableTable';
-import { resistanceFactor } from '../../src/calc/electrical';
+import { evaluateProject, resistanceFactor } from '../../src/calc/electrical';
 import type { Project } from '../../src/types';
 import { referenceNetworks } from './referenceNetworks';
 
@@ -192,6 +192,23 @@ describe.skipIf(!python)('external engine error messages', () => {
     const res = await study('opendss', lv);
     expect(res.boards!.MDB.voltagePct).toBeGreaterThan(90);
     if (has('pandapower')) expect(await errorOf('pandapower', lv)).toContain('No main board has transformer data');
+  }, 60_000);
+
+  it.skipIf(!has('opendss'))('OpenDSS joins the supply source to the busbar by the given incoming cable: the busbar voltage falls below the source-side level', async () => {
+    const lv = (supply: object) => ({ ...net, boards: net.boards.map((b) => (b.id === 'MDB' ? { ...b, sourceKva: undefined, sourceImpedancePct: undefined, supply } : b)) });
+    const plain = await study('opendss', lv({ faultKa: 25 }));
+    const cabled = await study('opendss', lv({ faultKa: 25, incomer: { cableCsaMm2: 240, lengthM: 50, parallel: 4 } }));
+    expect(cabled.boards!.MDB.voltagePct).toBeGreaterThan(80);
+    expect(cabled.boards!.MDB.voltagePct).toBeLessThan(plain.boards!.MDB.voltagePct!); // the cable's own drop
+  }, 60_000);
+
+  it.skipIf(!has('opendss'))('OpenDSS voltage drop agrees with the built-in one for a supply with drop already used and an incoming cable (0.25 points, as the compare screen)', async () => {
+    const lv = (supply: object) => ({ ...net, boards: net.boards.map((b) => (b.id === 'MDB' ? { ...b, sourceKva: undefined, sourceImpedancePct: undefined, supply } : b)) });
+    for (const supply of [{ faultKa: 25, xr: 3, vdUsedPct: 1.6 }, { faultKa: 25, xr: 3, vdUsedPct: 1.6, incomer: { cableCsaMm2: 240, lengthM: 50, parallel: 2 } }]) {
+      const p = lv(supply);
+      const res = await study('opendss', p);
+      for (const r of evaluateProject(p)) expect(Math.abs(res.feeders[r.feeder.id].vdTotalPct! - r.vdTotalPct), `${r.feeder.id} ${JSON.stringify(supply)}`).toBeLessThanOrEqual(0.25);
+    }
   }, 60_000);
 
   it.skipIf(!has('opendss'))('OpenDSS: loads below 95 % voltage are flagged, with the likely cause', async () => {

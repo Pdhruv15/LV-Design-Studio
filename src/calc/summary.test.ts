@@ -95,3 +95,25 @@ describe('board loading against the supply rating', () => {
     expect(boardSummary({ ...lv, boards: [{ id: 'MDB', name: 'Main' }, lv.boards[1]] }, { id: 'MDB', name: 'Main' }).loadingPct).toBeUndefined();
   });
 });
+
+describe('board summary with values given from upstream', () => {
+  // 24 kW at PF 0.9 on a board fed by a supply: Ib 37.1 A.
+  const f = feeder({ id: 'L', loadKw: 24, powerFactor: 0.9, cableCsaMm2: 10, lengthM: 20, breakerRatingA: 40 });
+  const lv = (supply: NonNullable<Project['boards'][number]['supply']>): Project => ({ ...project, boards: [{ id: 'MDB', name: 'Main', supply }], feeders: [f] });
+  it('voltagePct starts below 100 % by the drop at the busbar; allowed load as a share of the demand current', () => {
+    // 1.6 % used + 0.495 % in the 16 mm², 25 m incoming cable = 2.095 %; 37.1 A of 50 A allowed = 74.2 %.
+    const p = lv({ faultKa: 12, vdUsedPct: 1.6, allowedA: 50, incomer: { cableCsaMm2: 16, lengthM: 25 } });
+    const s = boardSummary(p, p.boards[0]);
+    expect(s.voltagePct).toBeCloseTo(100 - 2.095, 3);
+    expect(s.allowedA).toBe(50);
+    expect(s.allowedLoadingPct).toBeCloseTo(74.2, 1);
+  });
+  it('without them: voltagePct 100, no allowed-load keys; a transformer board ignores allowedA', () => {
+    const p = lv({ faultKa: 12 });
+    const s = boardSummary(p, p.boards[0]);
+    expect(s.voltagePct).toBe(100);
+    expect('allowedA' in s || 'allowedLoadingPct' in s).toBe(false);
+    const tx: Project = { ...project, boards: [{ id: 'MDB', name: 'Main', sourceKva: 1000, sourceImpedancePct: 5, supply: { allowedA: 10 } }], feeders: [f] };
+    expect('allowedA' in boardSummary(tx, tx.boards[0])).toBe(false);
+  });
+});

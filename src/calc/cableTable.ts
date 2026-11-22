@@ -1,4 +1,4 @@
-import type { Feeder, Project } from '../types';
+import { supplyIncomerFeeder, type Feeder, type Project } from '../types';
 import { forgetNetworks } from './network';
 
 // Reference data for copper, XLPE-insulated, steel-wire-armoured (SWA) cable,
@@ -174,11 +174,15 @@ export function methodRating(csaMm2: number, method: InstallMethod): { a: number
   return ref ? { a: ref, source: usingReferenceCables() ? 'reference' : 'fallback' } : null;
 }
 
+/** The cables the project uses: its feeders and the incoming cable of each first board on an LV supply. */
+type CableUse = Pick<Project, 'feeders'> & Partial<Pick<Project, 'boards'>>;
+export const cablesInUse = (project: CableUse): Feeder[] => [...project.feeders, ...(project.boards ?? []).flatMap((b) => supplyIncomerFeeder(b) ?? [])];
+
 /** Where the data for each cable size the project uses comes from (phase and
  * protective conductors), smallest size first. `missing`: sizes no data has. */
-export function cableDataStatus(project: Pick<Project, 'feeders'>): { sizes: { csaMm2: number; source: CableSource }[]; missing: number[]; methods: { csaMm2: number; method: InstallMethod; source?: CableSource }[] } {
+export function cableDataStatus(project: CableUse): { sizes: { csaMm2: number; source: CableSource }[]; missing: number[]; methods: { csaMm2: number; method: InstallMethod; source?: CableSource }[] } {
   const used = new Set<number>(), byMethod = new Map<string, { csaMm2: number; method: InstallMethod }>();
-  for (const f of project.feeders) {
+  for (const f of cablesInUse(project)) {
     used.add(f.cableCsaMm2); if (f.cpcMm2 !== undefined) used.add(f.cpcMm2);
     const m = methodOf(f); if (m !== 'E') byMethod.set(`${f.cableCsaMm2}|${m}`, { csaMm2: f.cableCsaMm2, method: m });
   }
@@ -194,7 +198,7 @@ export function cableDataStatus(project: Pick<Project, 'feeders'>): { sizes: { c
 }
 
 /** One line for reports: which sizes (and installation-method ratings) are not manufacturer data, by source; '' when all are. */
-export function cableDataNotice(project: Pick<Project, 'feeders'>): string {
+export function cableDataNotice(project: CableUse): string {
   const { sizes, missing, methods } = cableDataStatus(project);
   const by = (s: CableSource) => [...sizes.filter((x) => x.source === s).map((x) => `${x.csaMm2}`), ...methods.filter((x) => x.source === s).map((x) => `${x.csaMm2} (${x.method})`)];
   const list = (xs: string[]) => `${xs.join(', ')} mm²`;
@@ -209,7 +213,7 @@ export function cableDataNotice(project: Pick<Project, 'feeders'>): string {
  * because Cables.xlsx lacks it is always flagged; a circuit whose installation
  * method has no rating fails (DATA REQUIRED); with `strictCableData` (final
  * design) every size or method rating without manufacturer data must be fixed. */
-export function cableDataFindings(project: Pick<Project, 'feeders' | 'strictCableData'>): { status: 'warn' | 'bad'; text: string }[] {
+export function cableDataFindings(project: CableUse & Pick<Project, 'strictCableData'>): { status: 'warn' | 'bad'; text: string }[] {
   const { sizes, missing, methods } = cableDataStatus(project);
   const strict = !!project.strictCableData;
   const out: { status: 'warn' | 'bad'; text: string }[] = [];

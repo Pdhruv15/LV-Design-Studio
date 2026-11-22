@@ -52,7 +52,7 @@ describe('offered only with --write', () => {
   it('servers without --write offer read-only tools only', () => {
     expect(offeredTools({ folder: '.', anywhere: false }).some((t) => t.writes)).toBe(false);
     expect(offeredTools({ folder: '.', anywhere: false, write: true }).filter((t) => t.writes).map((t) => t.name)).toEqual(
-      expect.arrayContaining(['propose_changes', 'size_circuits', 'add_panel', 'add_circuit', 'move_panel', 'rename_panels', 'copy_panel', 'undo_change']));
+      expect.arrayContaining(['propose_changes', 'size_circuits', 'add_panel', 'add_circuit', 'move_panel', 'rename_panels', 'copy_panel', 'set_supply', 'undo_change']));
   });
   it('every tool that deletes or exports asks for the approving engineer', () => {
     const gated = offeredTools({ folder: '.', anywhere: false, write: true }).filter((t) => /delete|remove|export_/.test(t.name));
@@ -281,5 +281,72 @@ describe('servers', () => {
     expect(await main(['rename', 'Villa', '--renames', '[{"from":"SMDB-FF","to":"SMDB-L1"}]', '--apply', '--folder', folder], '1', io)).toBe(0);
     expect(load('Villa').boards.some((b) => b.id === 'SMDB-L1')).toBe(true);
     expect(await main(['check', 'Villa', '--apply', '--folder', folder], '1', io)).toBe(2);
+  });
+});
+
+describe('set_supply: the values given from upstream', () => {
+  // A copy of the villa whose main board is fed by a supply with no transformer.
+  const lvProject = (): Project => ({ ...sampleProject, id: 'proj-lv', boards: sampleProject.boards.map((b) => (b.id === 'MDB-1' ? { id: b.id, name: b.name, kind: b.kind, supply: { faultKa: 25, ratingA: 1600, device: 'ACB' as const } } : b)) });
+  beforeEach(() => fs.writeFileSync(file('Lv'), JSON.stringify(lvProject(), null, 2)));
+  const given = { project: 'Lv', panel: 'MDB-1', vdUsedPct: 1.2, zeOhm: 0.05, xr: 4, allowedA: 1400, incomer: { cableCsaMm2: 240, lengthM: 20, parallel: 2 } };
+
+  it('previews by default and writes nothing', () => {
+    const before = read('Lv');
+    const v = run('set_supply', given);
+    expect(v).toMatchObject({ mode: 'preview', written: false });
+    expect(v.summary).toMatch(/xr, vdUsedPct, zeOhm, allowedA, incomer/);
+    expect(read('Lv')).toBe(before);
+    expect(readLog(folder)).toEqual([]);
+  });
+  it('applies, keeps the other supply fields, logs and undoes', () => {
+    const before = read('Lv');
+    const a = run('set_supply', { ...given, mode: 'apply' });
+    expect(a.written).toBe(true);
+    expect(load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply).toEqual({ faultKa: 25, ratingA: 1600, device: 'ACB', vdUsedPct: 1.2, zeOhm: 0.05, xr: 4, allowedA: 1400, incomer: { cableCsaMm2: 240, lengthM: 20, parallel: 2 } });
+    run('undo_change', { project: 'Lv', change: a.change, mode: 'apply' });
+    expect(read('Lv')).toBe(before);
+  });
+  it('null clears a value; nothing to set is an error', () => {
+    run('set_supply', { ...given, mode: 'apply' });
+    run('set_supply', { project: 'Lv', panel: 'MDB-1', zeOhm: null, incomer: null, mode: 'apply' });
+    const s = load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply!;
+    expect(s.zeOhm).toBeUndefined();
+    expect(s.incomer).toBeUndefined();
+    expect(s.vdUsedPct).toBe(1.2);
+    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1' })).toThrow(/at least one value/);
+  });
+  it('CLI: --zeOhm null and --incomer null clear a value; null is refused where the tool does not allow it', async () => {
+    const out: string[] = [];
+    const io = { out: (s: string) => out.push(s), err: (s: string) => out.push(s) };
+    const supplyOf = () => load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply!;
+    expect(await main(['set-supply', 'Lv', '--panel', 'MDB-1', '--zeOhm', '0.05', '--incomer', '{"cableCsaMm2":240,"lengthM":20}', '--apply', '--folder', folder], '1', io)).toBe(0);
+    expect(supplyOf()).toMatchObject({ zeOhm: 0.05, incomer: { cableCsaMm2: 240 } });
+    expect(await main(['set-supply', 'Lv', '--panel', 'MDB-1', '--zeOhm', 'null', '--incomer', 'null', '--apply', '--folder', folder], '1', io)).toBe(0);
+    expect(supplyOf().zeOhm).toBeUndefined();
+    expect(supplyOf().incomer).toBeUndefined();
+    expect(await main(['add-panel', 'Lv', '--kind', 'null', '--folder', folder], '1', io)).toBe(2); // not a nullable flag: still an error
+  });
+  it('checks values with the app rules; a transformer or a sub-panel takes none', () => {
+    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', vdUsedPct: 4 })).toThrow(/voltage drop used 4 %/);
+    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', faultKaMin: 30 })).toThrow(/above the fault level 25 kA/);
+    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', zeOhm: -1 })).toThrow();
+    expect(() => run('set_supply', { project: 'Villa', panel: 'MDB-1', zeOhm: 0.1 })).toThrow(/has a transformer/);
+    expect(() => run('set_supply', { project: 'Lv', panel: 'SMDB-GF', zeOhm: 0.1 })).toThrow(/first panel/);
+  });
+  it('creates the supply block on a first panel without one and says so; panel outputs show the values and the checks', () => {
+    const none: Project = { ...lvProject(), id: 'proj-none', boards: lvProject().boards.map((b) => (b.id === 'MDB-1' ? { id: b.id, name: b.name, kind: b.kind } : b)) };
+    fs.writeFileSync(file('None'), JSON.stringify(none));
+    const v = run('set_supply', { project: 'None', panel: 'MDB-1', zeOhm: 0.1 });
+    expect(v.warnings.join(' ')).toMatch(/no supply block/);
+    run('set_supply', { ...given, mode: 'apply' });
+    const g = run('get_panel', { project: 'Lv', panel: 'MDB-1' });
+    expect(g.supply).toMatchObject({ fedBy: 'source', faultKa: 25, ratingA: 1600, vdUsedPct: 1.2, zeOhm: 0.05, incomer: { cableCsaMm2: 240 } });
+    expect(g.incomingCable).toMatchObject({ vdUsedPct: 1.2, status: expect.stringMatching(/ok|warn|bad/) });
+    expect(g.supplyDiscrimination.length).toBeGreaterThan(0);
+    expect(g.allowedA).toBe(1400);
+    expect(run('list_panels', { project: 'Lv' })[0].allowedLoadingPct).toBeGreaterThan(0);
+    // Unchanged: a panel without given values has none of these keys.
+    const plain = run('get_panel', { project: 'None', panel: 'MDB-1' });
+    expect(Object.keys(plain).filter((k) => /supply|incomingCable|allowed/.test(k))).toEqual([]);
   });
 });

@@ -9,7 +9,7 @@ An open-source, offline-first workspace for single-line diagrams, load schedules
 · [Calculation methods and limits](docs/engineering/calculation-methods.md)
 · [Privacy and project data](docs/privacy.md)
 
-**Version 2.254** (see `package.json`). The app is in active use and active development.
+**Version 2.255** (see `package.json`). The app is in active use and active development.
 
 > **Engineering status.** The calculations are first-pass design checks, not a substitute for an engineer's verified study. Built-in cable values are approximate references until replaced with manufacturer data, and some study methods are intentionally simplified. Nothing in the app constitutes approval by an electrical authority. Methods, assumptions and limits are in [docs/engineering/calculation-methods.md](docs/engineering/calculation-methods.md).
 
@@ -306,6 +306,11 @@ show a preview unless called with `mode` apply / propose (`--apply` /
   to **Reports → Changes**. The engineer accepts it with their name and applies
   it in the app, as one undo step. The tools never accept anything and never
   change the values themselves.
+- **Given upstream values are input data.** `set_supply` writes the values given
+  from upstream for a first panel (fault level, drop already used, Ze, the
+  upstream device, the incoming cable) to the file after the preview, as
+  `add_panel` does; it is not a sizing result. `undo_change` puts the previous
+  values back.
 - **Structure changes** (`add_panel`, `add_circuit`, `move_panel`,
   `rename_panels`, `copy_panel`) change the file after the preview. New panels
   and circuits are sized by the app's selection. `add_building` and `add_level`

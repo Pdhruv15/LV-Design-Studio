@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.255', date: '2026-11-22',
+    items: [
+      { title: 'Values given from upstream are used in the calculations', text: 'For a first board that is not fed by its own transformer, the calculations now take the fault level with its X/R, the voltage drop already used upstream, the earth loop impedance, the incoming cable from the supply point (checked as an incomer), the upstream device (compared with the outgoing breakers) and the load the supply can give. The Overview lists what fails. For now they are set through the command-line and assistant tools (set_supply); the Supply tab follows.' },
+    ]
+  },
+  {
     version: '2.254', date: '2026-11-22',
     items: [
       { title: 'A source with no data is marked as assumed', text: 'When the first board has no transformer data and no supply fault level, the fault levels below it rest on a placeholder. They are now marked as assumed, and the breaking capacity and busbar Icw checks that use them say "not verified: source fault level assumed" instead of passing or failing.' },

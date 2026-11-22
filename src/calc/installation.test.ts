@@ -80,6 +80,16 @@ describe('installation method ratings', () => {
     expect(cableDataNotice(p)).toContain('95 (D2) mm²: no rating for the installation method');
   });
 
+  it('the incoming cable of a first board on an LV supply counts for the cable data findings and the ground conditions', () => {
+    const p: Project = { ...project([feeder({})]), boards: [{ id: 'MDB', name: 'Main', supply: { faultKa: 12, incomer: { cableCsaMm2: 35, lengthM: 25, installMethod: 'D1' } } }] };
+    expect(groundChecks(p).map((c) => c.status)).toEqual(['warn', 'warn']); // ground temperature and soil: not set
+    expect(groundChecks(project([feeder({})]))).toEqual([]);
+    expect(cableDataNotice(p)).toContain('35 (D1) mm²: no rating for the installation method'); // the reference has no D1 rating
+    expect(cableDataFindings(p)).toContainEqual({ status: 'bad', text: 'Cable data required: no current rating for 35 mm² D1 — add the installation-method rating in Cables.xlsx' });
+    expect(cableDataFindings({ ...p, strictCableData: true }).map((c) => c.text).join()).toContain('35, 95 mm² without manufacturer data'); // 35 mm² is the incoming cable
+    expect(cableDataFindings(project([feeder({})]))).toEqual([]);
+  });
+
   it('a Cables.xlsx row without its own method rating: none is invented', () => {
     setCables([{ ...ref(95), ...maker }]);
     expect(methodRating(95, 'D2')).toBeNull();

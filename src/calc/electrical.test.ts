@@ -238,3 +238,61 @@ describe('assumed source (no transformer data and no supply fault level)', () =>
     expect(evaluateFeeder(neg, feeder()).breakerFaultKA).toBeCloseTo(evaluateFeeder(assumed({ id: 'MDB', name: 'M' }), feeder()).breakerFaultKA, 6);
   });
 });
+
+describe('values given from upstream (first board on an LV supply)', () => {
+  // 415 V, Ik 12 kA with X/R 3 at the supply point, 1.6 % already used there, incoming cable 4C × 16 mm² copper, 25 m
+  // (R20 1.15, X 0.085 Ω/km; operating R 1.2 × 1.15 = 1.38 Ω/km), a 24 kW load at PF 0.9 on the board (Ib 37.1 A).
+  const given = { faultKa: 12, ratingA: 63, xr: 3, vdUsedPct: 1.6, incomer: { cableCsaMm2: 16, lengthM: 25 } };
+  const load = (over: Partial<Feeder> = {}): Feeder => ({ id: 'F', boardId: 'MDB', name: 'F', loadKw: 24, demandFactor: 1, powerFactor: 0.9, lengthM: 20, cableCsaMm2: 10, cores: 4, breakerRatingA: 40, breakerIcuKa: 36, ...over });
+  const lv = (supply: NonNullable<Project['boards'][number]['supply']>, f = load()): Project => ({ ...project([f]), boards: [{ id: 'MDB', name: 'M', supply }] });
+
+  it('B1 fault level: supply impedance with its X/R plus the incoming cable', () => {
+    // Zs = 1.05 × 415 ÷ (√3 × 12 kA) = 0.020965 Ω; X/R 3: R 0.006630, X 0.019888. Cable at 20 °C: R 1.15 × 0.025 = 0.02875, X 0.085 × 0.025 = 0.002125.
+    // Sum R 0.035380, X 0.022013: |Z| = 0.041670 Ω, Ik = 1.05 × 415 ÷ (√3 × 0.041670) = 6.04 kA.
+    const z = impedanceToBoard(lv(given), 'MDB');
+    expect(z.r).toBeCloseTo(0.03538, 5);
+    expect(z.x).toBeCloseTo(0.022013, 5);
+    expect(faultCurrentKA(z, 415)).toBeCloseTo(6.04, 2);
+    expect(evaluateFeeder(lv(given), load()).breakerFaultKA).toBeCloseTo(6.04, 2);
+    // Only the X/R: same |Z| and R + jX split as the supply alone with X/R 3: 12 kA at the busbar.
+    expect(faultCurrentKA(impedanceToBoard(lv({ faultKa: 12, xr: 3 }), 'MDB'), 415)).toBeCloseTo(12, 6);
+    // The incoming cable is not added to the placeholder source (no fault level: still assumed).
+    expect(sourceAssumed(lv({ incomer: given.incomer }), 'MDB')).toBe(true);
+    expect(impedanceToBoard(lv({ incomer: given.incomer }), 'MDB')).toEqual({ r: 0, x: 0.01 });
+  });
+
+  it('B2 voltage drop: the drop used upstream plus the incoming cable, added to every circuit', () => {
+    // Incoming cable: √3 × 37.1 A × 0.025 km × (1.38 × 0.9 + 0.085 × 0.4359) ÷ 415 V = 0.495 %; busbar 1.6 + 0.495 = 2.095 %.
+    // The 10 mm² circuit, 20 m: √3 × 37.1 × 0.020 × (2.196 × 0.9 + 0.09 × 0.4359) ÷ 415 = 0.624 %; total 2.719 %.
+    const p = lv(given);
+    expect(upstreamVoltageDropPct(p, 'MDB')).toBeCloseTo(2.095, 3);
+    const r = evaluateFeeder(p, load());
+    expect(r.vdUpstreamPct).toBeCloseTo(2.095, 3);
+    expect(r.vdPct).toBeCloseTo(0.624, 3);
+    expect(r.vdTotalPct).toBeCloseTo(2.719, 3);
+    expect(upstreamVoltageDropPct(lv({ faultKa: 12, vdUsedPct: 1.6 }), 'MDB')).toBe(1.6); // the given drop alone
+    expect(upstreamVoltageDropPct(lv({ faultKa: 12, vdUsedPct: -1 }), 'MDB')).toBe(0); // never a credit
+    // The sub-boards below add their own incomers to the busbar's drop (here 10 kW only is on the supply's cable).
+    const sub: Project = { ...p, boards: [...p.boards, { id: 'SUB', name: 'S', upstreamId: 'MDB' }], feeders: [{ ...load({ id: 'INC', feedsBoardId: 'SUB', lengthM: 10, cableCsaMm2: 16 }) }, load({ id: 'L2', boardId: 'SUB', loadKw: 10 })] };
+    expect(upstreamVoltageDropPct(sub, 'SUB')).toBeCloseTo(upstreamVoltageDropPct(sub, 'MDB') + voltageDropPct(sub.feeders[0], sub), 9);
+    expect(upstreamVoltageDropPct(sub, 'MDB')).toBeGreaterThan(1.6 + 0.2); // 1.6 % used + the cable's own drop at 10 kW (about 0.21 %)
+  });
+
+  it('a project that gives none of these values, and a transformer board, are unchanged', () => {
+    const plain = lv({ faultKa: 12, ratingA: 63 });
+    expect(upstreamVoltageDropPct(plain, 'MDB')).toBe(0);
+    // Pinned to the step A figures, not to the new code: no upstream drop, 12 kA at the busbar, and no keys the result did not have.
+    const r = evaluateFeeder(plain, load());
+    expect(r.vdUpstreamPct).toBe(0);
+    expect(r.vdTotalPct).toBe(r.vdPct);
+    expect(r.vdPct).toBeCloseTo(0.624, 3);
+    expect(r.breakerFaultKA).toBeCloseTo(12, 6);
+    expect(Object.keys(r).sort()).toEqual(['ampacity', 'ampacityStatus', 'breakerFaultKA', 'endFaultKA', 'feeder', 'ib', 'icuStatus', 'limits', 'loadingPct', 'protectionStatus', 'rating', 'status', 'tray', 'vdPct', 'vdStatus', 'vdTotalPct', 'vdUpstreamPct']);
+    expect(evaluateFeeder({ ...plain, boards: [{ id: 'MDB', name: 'M', supply: { faultKa: 12, ratingA: 63, fedBy: undefined } }] }, load())).toEqual(r);
+    expect(faultCurrentKA(impedanceToBoard(plain, 'MDB'), 415)).toBeCloseTo(12, 6); // default X/R: |Z| is the stated level
+    // With a transformer, the supply block and all its given values are ignored, as before.
+    const tx: Project = { ...project([load()]), boards: [{ id: 'MDB', name: 'M', sourceKva: 1000, sourceImpedancePct: 5, supply: given }] };
+    expect(evaluateFeeder(tx, load())).toEqual(evaluateFeeder(project([load()]), load()));
+    expect(upstreamVoltageDropPct(tx, 'MDB')).toBe(0);
+  });
+});

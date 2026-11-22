@@ -2,7 +2,7 @@ import { boardOf, feedersOn, withNetwork } from './network';
 import { cpcOf, defaultCpcMm2, getCable } from './cableTable';
 import { DEFAULT_TRANSFORMER_XR, gridImpedance, gridSourceOf, rOperatingOhmPerKm, runsOf, supplyImpedance, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
 import { elcbGroups, isScheduleCircuit, rcbosOf } from './loadSchedule';
-import { supplyFaultKa, type BreakerType, type Feeder, type Project } from '../types';
+import { lvSupplied, supplyFaultKa, supplyIncomerFeeder, supplyXr, type Board, type BreakerType, type Feeder, type Project } from '../types';
 import { fmtFixed } from '../util/format';
 
 const SQRT3 = Math.sqrt(3);
@@ -90,6 +90,22 @@ function cableLoop(f: Feeder): Impedance {
   };
 }
 
+/** Loop impedance at the busbar of an LV-supplied first board. A Ze typed at the supply point is taken as given
+ * (purely resistive: the conservative split once cable loops are added); without one it is estimated from the
+ * minimum fault level when that is given, else from the fault level. The incoming cable's phase + protective
+ * conductor loop is then added. No fault level and no Ze: no source data. */
+function supplyEarthLoop(project: Project, board: Board): { z: Impedance; missing?: string; estimated?: string } {
+  const sup = board.supply!, ze = sup.zeOhm !== undefined && sup.zeOhm > 0 ? sup.zeOhm : undefined;
+  const ka = supplyFaultKa(board), kaMin = sup.faultKaMin !== undefined && sup.faultKaMin > 0 ? sup.faultKaMin : undefined;
+  const base = ze !== undefined ? { z: { r: ze, x: 0 } } : ka || kaMin
+    ? { z: supplyImpedance(kaMin ?? ka!, project.voltageV, supplyXr(board)), estimated: `Ze estimated from the supply ${kaMin ? 'minimum ' : ''}fault level at ${board.id}` }
+    : undefined;
+  const cable = supplyIncomerFeeder(board);
+  const c = cable ? cableLoop(cable) : { r: 0, x: 0 }; // the known part, even when there is no source data
+  if (!base) return { z: c, missing: `no source data at ${board.id} (transformer kVA and impedance %, or the supply fault level)` };
+  return cable ? { ...base, z: { r: base.z.r + c.r, x: base.z.x + c.x } } : base;
+}
+
 /** Earth fault loop impedance at a board's busbar (TN-S). At the main
  * board this is the transformer's own impedance (Dyn transformer with
  * Z0 ≈ Z1, so a phase-earth fault at its terminals ≈ the 3-phase fault)
@@ -108,6 +124,7 @@ export function earthLoopPath(project: Project, boardId: string, seen = new Set<
   if (!board.upstreamId) {
     if (!board.sourceKva || !board.sourceImpedancePct) {
       const ka = supplyFaultKa(board);
+      if (lvSupplied(board)) return supplyEarthLoop(project, board);
       if (ka) return { z: supplyImpedance(ka, project.voltageV), estimated: `Ze estimated from the supply fault level at ${board.id}` };
       return { z: { r: 0, x: 0 }, missing: `no source data at ${board.id} (transformer kVA and impedance %, or the supply fault level)` };
     }

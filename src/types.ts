@@ -180,6 +180,31 @@ export const incomerDeviceOf = (b: Board): Exclude<IncomerDevice, 'NONE'> | unde
 
 /** A first board on an LV supply: no transformer of its own, a supply block instead (stated fault level, rating). */
 export const lvSupplied = (b: Board) => !b.upstreamId && !b.sourceKva && !!b.supply;
+/** The incoming cable from a supply point to a first board: the Feeder fields the calculations read. */
+export interface SupplyIncomer {
+  cableCsaMm2: number;
+  lengthM: number;
+  parallel?: number; // cable runs in parallel (default 1)
+  cores?: 3 | 4; // default 4
+  cpcMm2?: number; // protective conductor; default per IEC 60364-5-54 Table 54.2
+  installMethod?: import('./calc/cableTable').InstallMethod; // blank = E
+}
+const positive = (n: number | undefined): n is number => typeof n === 'number' && n > 0;
+/** The incoming cable of an LV-supplied first board as a Feeder carrying the board's demand (feedsBoardId), for the
+ * cable calculations; undefined without a usable cable. Its boardId is empty: the supply point is not a board. */
+export const supplyIncomerFeeder = (b: Board): Feeder | undefined => {
+  const c = b.supply?.incomer;
+  if (!lvSupplied(b) || !c || !positive(c.cableCsaMm2) || !positive(c.lengthM)) return undefined;
+  return {
+    id: `${b.id}:supply`, boardId: '', name: 'Incoming cable', loadKw: 0, demandFactor: 1, powerFactor: 1,
+    lengthM: c.lengthM, cableCsaMm2: c.cableCsaMm2, parallel: c.parallel, cores: c.cores ?? 4, breakerRatingA: b.supply?.ratingA ?? 0, breakerIcuKa: 0,
+    feedsBoardId: b.id, cpcMm2: c.cpcMm2, installMethod: c.installMethod
+  };
+};
+/** The given X/R of the supply fault level of an LV-supplied first board (above zero), else undefined. */
+export const supplyXr = (b: Board): number | undefined => (lvSupplied(b) && positive(b.supply?.xr) ? b.supply.xr : undefined);
+/** Whether any value given from upstream (beyond the stated fault level, device and rating) is set. */
+export const supplyGiven = (b: Board): boolean => lvSupplied(b) && !!b.supply && ['fedBy', 'ref', 'xr', 'faultKaMin', 'vdUsedPct', 'zeOhm', 'allowedA', 'incomer'].some((k) => (b.supply as Record<string, unknown>)[k] !== undefined);
 /** The supply's stated fault level (kA), when there is a usable one (above zero). */
 export const supplyFaultKa = (b: Board): number | undefined => (b.supply?.faultKa && b.supply.faultKa > 0 ? b.supply.faultKa : undefined);
 
@@ -433,6 +458,17 @@ export interface Board {
     meter?: MeterType;
     irSetting?: number; // main breaker long-time setting, × In (e.g. 0.85)
     ctRatio?: string; // main meter CT, e.g. "2400/5A" (else from the setting)
+    // Values given from upstream. They apply at the busbar of the feeding board (the supply point); the
+    // incoming cable from there to this board is calculated here. Used only by a first board without a
+    // transformer (lvSupplied); each one left out is "not given".
+    fedBy?: 'source' | 'board'; // 'board' = a board outside this project feeds it; absent = 'source'
+    ref?: string; // drawing or letter reference of the given values
+    xr?: number; // X/R of the supply fault level (absent = the default of supplyImpedance)
+    faultKaMin?: number; // minimum fault level, kA: the Ze estimate when no Ze is typed
+    vdUsedPct?: number; // voltage drop already used upstream of the supply point, % of nominal
+    zeOhm?: number; // earth fault loop impedance at the supply point, Ω
+    allowedA?: number; // load the supply can give, A
+    incomer?: SupplyIncomer; // the incoming cable from the supply point to this board
   };
   /** Made by Building → Generate DBs: building / floor / unit key; 'la:mdb' for an MDB made by Load assessment → Create MDB + feeders. */
   generated?: string;
