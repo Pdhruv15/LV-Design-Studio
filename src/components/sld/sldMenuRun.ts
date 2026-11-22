@@ -28,6 +28,10 @@ export interface SldMenuCtx {
   openBoardDiagram: (boardId: string) => void;
   addLoad: (boardId: string, preset: Partial<Feeder>) => void;
   addBoard: (boardId: string) => void;
+  /** Add upstream board…: the board (or transformer) that feeds this first board, after asking. */
+  addUpstream: (boardId: string) => void;
+  /** Connect to…: joins this first board to a board already in the project, asking first when values are lost. */
+  connectTo: (boardId: string, parentId: string) => void;
   copyBoard: (id: string) => void;
   copyLoad: (id: string) => void;
   /** Several loads on the clipboard, in order. */
@@ -121,6 +125,8 @@ export function runSldMenu(ctx: SldMenuCtx, t: SldTarget, action: string, value?
       if (!boardId || !value) return;
       if (value === 'board') ctx.addBoard(boardId); else if (ADD_PRESETS[value]) ctx.addLoad(boardId, ADD_PRESETS[value]);
       return;
+    case 'addupstream': if (t.kind === 'board') ctx.addUpstream(t.id); return;
+    case 'connectto': if (t.kind === 'board' && value) ctx.connectTo(t.id, value); return;
     case 'copy': if (t.kind === 'board') ctx.copyBoard(t.id); else if (feederId) ctx.copyLoad(feederId); return;
     case 'paste':
       if (t.kind !== 'board') return;

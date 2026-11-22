@@ -7,6 +7,7 @@ import { COLOR_BY, type ColorBy } from '../diagram/heatmap';
 import { LAYER_LABELS, type ResultLayers } from '../diagram/annotations';
 import { autoCableTypeOf, CABLE_TYPE_DEFS } from './cableTypes';
 import { isSinglePhase, phaseTag } from './phases';
+import { connectBlocked, growBlocked } from './growUp';
 import { kindOf } from './renamePanels';
 import { canDrop, TIE_OPERATION, tieRatings, type MoveItem, type PaletteItem } from './sldEdit';
 import { branchItems, orderTarget, selectAll, type PickItem } from './sldMenuEdit';
@@ -62,13 +63,13 @@ export interface SldMenuState {
 
 /** Every action the menus run (sldMenuRun.ts handles each one). */
 export const SLD_MENU_ACTIONS: readonly string[] = [
-  'edit', 'schedule', 'diagram', 'add', 'copy', 'paste', 'duplicate', 'repeat', 'move', 'supplyfrom', 'moveto', 'order', 'rename', 'cabletype', 'lengthchecked', 'delete', 'plan', 'zoom', 'properties',
+  'edit', 'schedule', 'diagram', 'add', 'copy', 'paste', 'duplicate', 'repeat', 'move', 'supplyfrom', 'addupstream', 'connectto', 'moveto', 'order', 'rename', 'cabletype', 'lengthchecked', 'delete', 'plan', 'zoom', 'properties',
   'quickfix', 'editcable', 'change', 'together', 'similar', 'below', 'select', 'deselect', 'txsizing', 'hv', 'addsupply', 'scenario', 'tieop', 'tierating', 'tieremove',
   'undo', 'redo', 'branch', 'showall', 'fit', 'grid', 'text', 'values', 'colour', 'export', 'part', 'txsubstation', 'txrmu', 'rmuconfig', 'rmunop'
 ];
 
 /** Actions the drawing does itself (its view, its cable editor); the page is not told of them. */
-export const SLD_VIEW_ACTIONS: readonly string[] = ['fit', 'branch', 'showall', 'grid', 'text', 'editcable', 'move', 'supplyfrom', 'moveto', 'similar', 'below', 'select', 'deselect'];
+export const SLD_VIEW_ACTIONS: readonly string[] = ['fit', 'branch', 'showall', 'grid', 'text', 'editcable', 'move', 'supplyfrom', 'connectto', 'moveto', 'similar', 'below', 'select', 'deselect'];
 
 /** Where a menu opens: the system diagram, or one board's tab (which leaves off the rows whose tools live only on the system diagram). */
 export type SldWhere = 'system' | 'board';
@@ -133,6 +134,7 @@ function boardMenu(s: SldMenuState, id: string, where: SldWhere, here?: string) 
   const kva = b.sourceKva ? `${b.sourceKva} kVA transformer` : undefined;
   const detail = [kindOf(b), b.ratedCurrentA ? `${b.ratedCurrentA} A` : undefined, b.upstreamId ? `from ${b.upstreamId}` : kva].filter(Boolean).join(' · ');
   const up = b.upstreamId;
+  const grow = !growBlocked(project, id);
   const copied = s.copiedBoard && s.copiedBoard !== id && project.boards.some((x) => x.id === s.copiedBoard) ? s.copiedBoard : undefined;
   const loads = copied ? [] : (s.copiedLoads ?? []).filter((x) => project.feeders.some((f) => f.id === x && !f.feedsBoardId));
   const incomerChecked = project.feeders.some((f) => f.feedsBoardId === id && f.lengthToCheck);
@@ -147,7 +149,8 @@ function boardMenu(s: SldMenuState, id: string, where: SldWhere, here?: string) 
     [row('Copy with everything below', 'copy', { key: 'Ctrl+C', icon: 'copy' }),
       ...(copied ? [row(`Paste ${copied} here`, 'paste', { key: 'Ctrl+V', icon: 'paste' })] : loads.length ? [row(`Paste ${loads.length === 1 ? loads[0] : `${loads.length} loads`} here`, 'paste', { key: 'Ctrl+V', icon: 'paste' })] : []),
       ...(up ? [row('Duplicate', 'duplicate', { key: 'Ctrl+D', icon: 'copyplus' }), row('Repeat branch on other floors…', 'repeat', { icon: 'layers' })] : [])],
-    [...(up ? [...(sys ? [row('Move', 'move', { key: 'M', icon: 'move' }), row('Supply from…', 'supplyfrom', { icon: 'plug' })] : []), orderList(project, item, up)] : []),
+    [...(grow ? [row('Add upstream board…', 'addupstream', { icon: 'plus' }), ...(sys && project.boards.some((x) => x.id !== id && !connectBlocked(project, id, x.id)) ? [row('Connect to…', 'connectto', { icon: 'plug' })] : [])] : []),
+      ...(up ? [...(sys ? [row('Move', 'move', { key: 'M', icon: 'move' }), row('Supply from…', 'supplyfrom', { icon: 'plug' })] : []), orderList(project, item, up)] : []),
       {
         label: 'Change', icon: 'sliders',
         sub: [row('Rename…', 'rename', { icon: 'textcursor' }), ...(cables ? [cables] : []), ...(incomerChecked ? [row('Incomer length checked', 'lengthchecked', { icon: 'status' })] : [])]

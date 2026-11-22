@@ -250,14 +250,14 @@ export function stayOnBoard(project: Project, select: DropResult['select'], boar
   return way ? { type: 'feeder', id: way.id } : select;
 }
 
-function uniqueId(taken: Set<string>, base: string): string {
+export function uniqueId(taken: Set<string>, base: string): string {
   for (let n = 1; ; n++) {
     const id = `${base}-${n}`;
     if (!taken.has(id)) return id;
   }
 }
 
-const allIds = (p: Project) => new Set([...p.boards.map((b) => b.id), ...p.feeders.map((f) => f.id)]);
+export const allIds = (p: Project) => new Set([...p.boards.map((b) => b.id), ...p.feeders.map((f) => f.id)]);
 
 /** Sizes a new feeder with the app's breaker and cable selection. */
 function sized(project: Project, f: Feeder): Feeder {
@@ -278,7 +278,7 @@ function boardIncomer(project: Project, parentId: string, board: Board): Feeder 
   };
 }
 
-function newBoard(project: Project, kind: BoardKind, upstreamId?: string): Board {
+export function newBoard(project: Project, kind: BoardKind, upstreamId?: string): Board {
   const id = uniqueId(allIds(project), kind);
   const n = id.slice(kind.length + 1);
   return {

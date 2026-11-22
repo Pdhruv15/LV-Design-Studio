@@ -57,6 +57,7 @@ const CadSheets = lazy(() => import('./components/cad/CadSheets'));
 import { withCableRefs } from './model/cableRefs';
 import { withEarthPitIds } from './model/earthingPlan';
 import type { DrawingsTab } from './components/docs/DrawingsView';
+import { addUpstreamBoard, connectPlan, connectTo, FEEDING_KINDS, stayOnBoardAfter, upstreamPlan } from './model/growUp';
 import { addBoardSheets, earthSheetFor, publishState, setOf } from './model/drawingSet';
 import { boardsInSupplyOrder } from './calc/summary';
 const ComponentEditor = onDemand(() => import('./components/ComponentEditor'));
@@ -1081,6 +1082,28 @@ export default function App() {
     if (await askUser({ title: `Delete ${id} and everything fed from it?`, confirmLabel: `Delete ${id}`, danger: true })) removeBoard(id);
   }
 
+  /** Add upstream board… on a first board: asks for the board type and reference (or confirms the transformer), then one undo step; on the Board tab (`stay`) the view stays on that board. */
+  async function addUpstream(id: string, stay?: string) {
+    const plan = upstreamPlan(project, id);
+    const message = <>{plan.lines.map((l) => <p key={l}>{l}</p>)}</>;
+    if (plan.transformer) {
+      if (await askUser({ title: plan.title, message, confirmLabel: 'Add transformer' })) showResult(stayOnBoardAfter(addUpstreamBoard(project, id), stay));
+      return;
+    }
+    const a = await askForm({ title: plan.title, message, fields: [{ key: 'kind', label: 'Board type', initial: plan.kind, options: FEEDING_KINDS, required: true }, { key: 'id', label: 'Reference', initial: plan.id, required: true }], confirmLabel: 'Add board' });
+    if (!a) return;
+    const kind = a.kind as BoardKind, ref = a.id.trim();
+    // A reference left as the suggested <type>-n while the type changed is suggested again for the new type.
+    const generated = ref === plan.id && kind !== plan.kind && new RegExp(`^${plan.kind}-\\d+$`).test(ref);
+    showResult(stayOnBoardAfter(addUpstreamBoard(project, id, { kind, ...(generated ? {} : { id: ref }) }), stay));
+  }
+  /** Connect to… on a first board: asks first only when values given for its supply would be removed. */
+  async function connectToBoard(id: string, to: string) {
+    const plan = connectPlan(project, id, to);
+    if (plan.loses && !(await askUser({ title: plan.title, message: <>{plan.lines.map((l) => <p key={l}>{l}</p>)}</>, confirmLabel: 'Connect' }))) return;
+    showResult(connectTo(project, id, to));
+  }
+
   function editFeeder(id: string) {
     selectFeeder(id);
     setShowFeederForm('edit');
@@ -1293,6 +1316,8 @@ export default function App() {
     openBoardDiagram: () => setDiagramMode('board'),
     addLoad: (id, preset) => { setActiveBoardId(id); openAddFeeder(preset); },
     addBoard: (id) => { setActiveBoardId(id); setBoardPreset(undefined); setShowBoardForm(true); },
+    addUpstream: (id) => { void addUpstream(id); },
+    connectTo: (id, to) => { void connectToBoard(id, to); },
     copyBoard, copyLoad, copyLoads,
     openTogether: setEditTogether,
     deleteMany: (items) => { void confirmDeleteMany(items); },
@@ -1320,6 +1345,7 @@ export default function App() {
   const boardTabMenuCtx: SldMenuCtx = {
     ...sldMenuCtx,
     apply: (r) => showResult(r, board.id),
+    addUpstream: (id) => { void addUpstream(id, board.id); },
     selectBoard: (id) => { if (id === board.id) selectBoard(id); },
     openBoardDiagram: (id) => { selectBoard(id); setDiagramMode('board'); },
     pasteBoard: (id) => { setPasteStay(board.id); setPasteTarget(id); },
@@ -1641,8 +1667,9 @@ export default function App() {
             onDelete: (id) => { void confirmRemoveBoard(id); },
             onMove: async (id, to) => {
               if (!(await askUser({ title: `Supply ${id} from ${to}?`, message: `${moveSummary(project, id, to)}\n\nCtrl+Z / ⌘Z undoes it.`, confirmLabel: 'Move it' }))) return;
-              setProject(moveBoard(project, id, to), { step: true });
-              setStatus(`${id} is now supplied from ${to} — check the incomer cable length.`);
+              const moved = moveBoard(project, id, to);
+              setProject(moved, { step: true });
+              setStatus(`${id} is now supplied from ${to}${moved.feeders.find((f) => f.feedsBoardId === id)?.lengthToCheck ? ' — check the incomer cable length' : ''}.`);
             },
             onReorder: (id, dir) => setProject(reorderBoard(project, id, dir), { step: true }),
             onLengthChecked: setLengthChecked,

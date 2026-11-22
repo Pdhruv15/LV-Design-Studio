@@ -1,5 +1,6 @@
 import type { Board, Project } from '../types';
 import { boardSummary } from '../calc/summary';
+import { connectPlan, connectTo, growBlocked } from './growUp';
 
 /** Moving a board (with everything below it) to another source in the
  * panel tree: its incomer feeder moves to the new source's schedule and is
@@ -28,9 +29,11 @@ export function moveBlocked(project: Project, id: string, to: string): string | 
 /** The incomer feeder of a board (on its source's schedule). */
 export const incomerOf = (project: Project, id: string) => project.feeders.find((f) => f.feedsBoardId === id);
 
-/** Supply `id` from `to`. The incomer feeder moves to `to` (placed last) and its length is flagged. */
+/** Supply `id` from `to`. The incomer feeder moves to `to` (placed last) and its length is flagged. A first board gets an incomer
+ * way from `to` (its typed incoming cable, or a default one) and loses its supply block: the values are calculated from then on. */
 export function moveBoard(project: Project, id: string, to: string): Project {
   if (moveBlocked(project, id, to)) return project;
+  if (!growBlocked(project, id)) return connectTo(project, id, to).project;
   const inc = incomerOf(project, id);
   const boards = project.boards.map((b) => (b.id === id ? { ...b, upstreamId: to } : b));
   let feeders = project.feeders;
@@ -92,6 +95,8 @@ export function moveSummary(project: Project, id: string, to: string): string {
     return `${label} ${bid}: ${k === 0 ? 'demand unchanged' : `${k > 0 ? '+' : ''}${k} kW`}${pct}`;
   };
   const n = below(project, id).size;
-  return [`${id}${n ? ` and the ${n} board(s) below it` : ''} will be supplied from ${to}.`, part(to, 'New source'), part(old, 'Old source'), incomerOf(project, id) ? 'The incomer cable moves with it — check its length (the route changed).' : '']
+  // A first board: what its supply block becomes (the same lines as "Connect to…").
+  const plan = !growBlocked(project, id) && !moveBlocked(project, id, to) ? connectPlan(project, id, to).lines : [];
+  return [`${id}${n ? ` and the ${n} board(s) below it` : ''} will be supplied from ${to}.`, ...plan, part(to, 'New source'), part(old, 'Old source'), incomerOf(project, id) ? 'The incomer cable moves with it — check its length (the route changed).' : '']
     .filter(Boolean).join('\n');
 }

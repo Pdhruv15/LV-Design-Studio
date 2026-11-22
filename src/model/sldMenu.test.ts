@@ -44,6 +44,29 @@ describe('board menu', () => {
     const l = labels(m.items);
     for (const x of ['Duplicate', 'Repeat branch on other floors…', 'Move', 'Supply from…', 'Order']) expect(l).not.toContain(x);
   });
+  it('a first board fed from outside gets Add upstream board… and Connect to…; the Board tab only the first', () => {
+    const first: Project = { ...project, boards: [...project.boards, { id: 'DB-LV', name: 'DB LV', kind: 'DB', ratedCurrentA: 63, supply: { fedBy: 'board', faultKa: 12 } }] };
+    const m = menu({ kind: 'board', id: 'DB-LV' }, state(first));
+    expect(labels(m.items)).toEqual([
+      'Edit DB-LV…', 'Load schedule', 'Board diagram', 'Add', '-',
+      'Copy with everything below', '-',
+      'Add upstream board…', 'Connect to…', 'Change', 'Delete DB-LV and everything below…', '-',
+      'Show on plan', 'Zoom to DB-LV', 'Show this branch only', '-', 'Properties'
+    ]);
+    expect(find(m.items, 'Add upstream board…')!.arg).toBe('addupstream');
+    expect(find(m.items, 'Connect to…')!.arg).toBe('connectto');
+    const tab = sldMenu(state(first), { kind: 'board', id: 'DB-LV' }, 'board', 'DB-LV')!;
+    expect(labels(tab.items)).toContain('Add upstream board…');
+    expect(labels(tab.items)).not.toContain('Connect to…');
+    // No row for a fed board, a transformer board or a meter cabinet; no Connect to… when it is the only board.
+    for (const id of ['SMDB-FF', 'MDB-1']) expect(labels(menu({ kind: 'board', id }).items)).not.toContain('Add upstream board…');
+    const mc: Project = { ...first, boards: [...first.boards, { id: 'MC-1', name: 'MC', kind: 'MC', supply: { device: 'MCCB' } }] };
+    expect(labels(menu({ kind: 'board', id: 'MC-1' }, state(mc)).items)).not.toContain('Add upstream board…');
+    const alone: Project = { ...first, boards: [first.boards[first.boards.length - 1]], feeders: [] };
+    const l = labels(menu({ kind: 'board', id: 'DB-LV' }, state(alone)).items);
+    expect(l).toContain('Add upstream board…');
+    expect(l).not.toContain('Connect to…');
+  });
   it('Order shows only the moves that change something', () => {
     expect(labels(sub(menu({ kind: 'board', id: 'SMDB-GF' }).items, 'Order'))).toEqual(['Move right', '-', "Last on MDB-1's busbar"]);
     expect(labels(sub(menu({ kind: 'feeder', id: 'DB-PV' }).items, 'Order'))).toEqual(['Move left', '-', "First on MDB-1's busbar"]);
