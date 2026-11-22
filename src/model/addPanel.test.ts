@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
+import { applyReference, BUILT_IN_REFERENCES } from './designReference';
 import { addPanel, BOARD_RATING, buildPanel, connectPanel, panelKindOf } from './addPanel';
 
 describe('addPanel', () => {
@@ -63,5 +64,13 @@ describe('connectPanel', () => {
     expect(() => connectPanel(main, 'MDB-1', 'SMDB-GF')).toThrow('own supply');
     expect(() => connectPanel(main, 'SMDB-M', 'SMDB-M')).toThrow('or below');
     expect(() => connectPanel(addPanel(main, 'DB-L', 'DB', 'SMDB-M'), 'SMDB-M', 'DB-L')).toThrow('or below');
+  });
+});
+
+describe('a new first board’s supply name', () => {
+  it('is left blank without a design reference, and the authority with one', () => {
+    expect(buildPanel(sampleProject, 'MDB-2', 'MDB').board.supply).toEqual({});
+    const p = applyReference({ ...sampleProject, designReference: undefined }, BUILT_IN_REFERENCES.find((r) => r.id === 'builtin-addc')!);
+    expect(buildPanel(p, 'MDB-2', 'MDB').board.supply).toEqual({ fedFrom: 'ADDC' });
   });
 });

@@ -19,6 +19,17 @@ export const LOAD_TYPES: { value: LoadType; label: string }[] = [
   { value: 'capacitor', label: 'Capacitor bank' }
 ];
 
+/** What feeds a first board's supply point; sets the symbol drawn on the SLD. */
+export type SourceKind = 'utility' | 'generator' | 'pv' | 'wind' | 'battery' | 'other';
+export const SOURCE_KINDS: { value: SourceKind; label: string }[] = [
+  { value: 'utility', label: 'Utility supply' },
+  { value: 'generator', label: 'Diesel generator' },
+  { value: 'pv', label: 'Solar PV' },
+  { value: 'wind', label: 'Wind' },
+  { value: 'battery', label: 'Battery storage' },
+  { value: 'other', label: 'Other' }
+];
+
 export type BreakerType = 'B' | 'C' | 'D' | 'MCCB' | 'ACB';
 
 export const BREAKER_TYPES: { value: BreakerType; label: string }[] = [
@@ -462,6 +473,7 @@ export interface Board {
     // incoming cable from there to this board is calculated here. Used only by a first board without a
     // transformer (lvSupplied); each one left out is "not given".
     fedBy?: 'source' | 'board'; // 'board' = a board outside this project feeds it; absent = 'source'
+    kind?: SourceKind; // sets the drawn symbol; blank draws as utility; the calculations do not read it yet
     ref?: string; // drawing or letter reference of the given values
     xr?: number; // X/R of the supply fault level (absent = the default of supplyImpedance)
     faultKaMin?: number; // minimum fault level, kA: the Ze estimate when no Ze is typed

@@ -30,7 +30,7 @@ describe('One sheet per substation (proposal 2026-11-18 part 5)', () => {
       ['E-SLD-003', 'SLD — SS-2 (TX-3)'],
       ['E-SLD-004', 'SLD — RMU-3 (TX-4)'],
       ['E-SLD-005', 'SLD — MDB-5 (TX-5)'],
-      ['E-SLD-006', 'SLD — MDB-A (authority LV supply)']
+      ['E-SLD-006', 'SLD — MDB-A (LV source)']
     ]);
     expect(set.sheets.some((s) => s.kind === 'earthing')).toBe(true);
     // The MV overview holds no panels; every board is on the sheet of its substation, RMU, transformer or supply.
@@ -64,5 +64,14 @@ describe('One sheet per substation (proposal 2026-11-18 part 5)', () => {
     // A substation's own sheet does change with its loads.
     const ss1Load: Project = { ...p, feeders: p.feeders.map((f) => (f.boardId === 'DB-GF1' ? { ...f, loadKw: f.loadKw + 5 } : f)) };
     expect(sheetHash(ss1Load, set, sld[1])).not.toBe(sheetHash(p, set, sld[1]));
+  });
+});
+
+describe('sheet titles of boards without a transformer', () => {
+  it('an LV-supplied board is "(LV source)"; one with no supply set keeps the plain title', () => {
+    const q: Project = { ...p, boards: [...p.boards, { id: 'MDB-U', name: 'MDB-U', kind: 'MDB' }] };
+    const titles = autoSheets(q, 'perSubstation').sheets.filter((s) => s.kind === 'system').map((s) => s.title);
+    expect(titles).toEqual(expect.arrayContaining(['SLD — MDB-A (LV source)', 'SLD — MDB-U']));
+    expect(titles.join('|')).not.toMatch(/authority/i);
   });
 });

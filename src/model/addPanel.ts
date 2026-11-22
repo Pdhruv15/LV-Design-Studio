@@ -1,6 +1,6 @@
 import { selectCable } from '../calc/electrical';
 import { applyRecommendation, recommend } from '../calc/sizing';
-import { supplyAuthorityOf } from './designReference';
+import { fedFromOf } from './designReference';
 import type { Board, BoardKind, Feeder, Project } from '../types';
 import { below } from './moveBoard';
 
@@ -24,7 +24,7 @@ export function buildPanel(p: Project, id: string, kind: BoardKind, parentId?: s
   if (parentId && !parent) throw new Error(`${parentId} is not in the project.`);
   const board: Board = {
     id, name: a.name ?? id, kind, ratedCurrentA: a.ratedA ?? BOARD_RATING[kind],
-    ...(parent ? { upstreamId: parent.id } : { supply: { fedFrom: supplyAuthorityOf(p) } }),
+    ...(parent ? { upstreamId: parent.id } : { supply: { ...fedFromOf(p) } }),
     ...(a.location ? { location: a.location } : {}),
     ...(a.transformerKva !== undefined ? { sourceKva: a.transformerKva, sourceImpedancePct: a.impedancePct } : {})
   };

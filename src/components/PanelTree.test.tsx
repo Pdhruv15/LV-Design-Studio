@@ -49,7 +49,7 @@ describe('Panel tree: Group → Substations', () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, text);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  const all = ['SS-1', 'RMU-1', 'MDB-1', 'SMDB-1', 'DB-1', 'MDB-2', 'SS-2', 'RMU-2', 'MDB-3', 'DB-3', 'No substation', 'MDB-5', 'Authority supply', 'MDB-A', 'DB-A'];
+  const all = ['SS-1', 'RMU-1', 'MDB-1', 'SMDB-1', 'DB-1', 'MDB-2', 'SS-2', 'RMU-2', 'MDB-3', 'DB-3', 'No substation', 'MDB-5', 'LV source', 'MDB-A', 'DB-A'];
 
   const switches = () => [...host.querySelectorAll<HTMLButtonElement>('.tree-groupby button')].map((b) => [b.textContent, b.getAttribute('aria-pressed'), b.disabled, b.title]);
   const asToday = ['MDB-A', 'DB-A', 'MDB-1', 'SMDB-1', 'DB-1', 'MDB-2', 'MDB-3', 'DB-3', 'MDB-5'];
@@ -91,7 +91,7 @@ describe('Panel tree: Group → Substations', () => {
     expect(rows()).toEqual(all);
     expect([...row('SS-1').querySelectorAll('.m')].map((m) => m.textContent)).toEqual(['2 TX · 4 boards']);
     expect([...row('RMU-2').querySelectorAll('.m')].map((m) => m.textContent)).toEqual(['RRT']);
-    expect([...row('Authority supply').querySelectorAll('.m')].map((m) => m.textContent)).toEqual(['2 boards']);
+    expect([...row('LV source').querySelectorAll('.m')].map((m) => m.textContent)).toEqual(['2 boards']);
     expect(['MDB-1', 'MDB-3', 'MDB-5'].map((id) => row(id).querySelector('.tree-tx')?.textContent)).toEqual(['TX-1 · 1000 kVA', 'TX-3 · 1000 kVA', 'TX-4 · 1000 kVA']);
     expect(localStorage.getItem('tree.group')).toBe('"substations"');
     // A project with nothing to group shows the boards, and the choice comes back with one that has.
@@ -113,7 +113,7 @@ describe('Panel tree: Group → Substations', () => {
     // The arrow folds a substation; "No substation" folds on a click (it is not a part).
     click(row('SS-1').querySelector('.tree-tw')!);
     click(row('No substation'));
-    expect(rows()).toEqual(['SS-1', 'SS-2', 'RMU-2', 'MDB-3', 'DB-3', 'No substation', 'Authority supply', 'MDB-A', 'DB-A']);
+    expect(rows()).toEqual(['SS-1', 'SS-2', 'RMU-2', 'MDB-3', 'DB-3', 'No substation', 'LV source', 'MDB-A', 'DB-A']);
     expect(show).toHaveBeenCalledTimes(2);
     // Another page: a click folds, a double-click shows it on the SLD.
     draw(p, { view: 'load-schedule' });
@@ -144,9 +144,9 @@ describe('Panel tree: Group → Substations', () => {
     draw(p);
     group('Substations');
     click(host.querySelector('button[title="Collapse all"]')!);
-    expect(rows()).toEqual(['SS-1', 'SS-2', 'No substation', 'Authority supply']);
+    expect(rows()).toEqual(['SS-1', 'SS-2', 'No substation', 'LV source']);
     draw(p, { highlightedIds: ['DB-3'] });
-    expect(rows()).toEqual(['SS-1', 'SS-2', 'RMU-2', 'MDB-3', 'DB-3', 'No substation', 'Authority supply']);
+    expect(rows()).toEqual(['SS-1', 'SS-2', 'RMU-2', 'MDB-3', 'DB-3', 'No substation', 'LV source']);
     click(host.querySelector('button[title="Expand all"]')!);
     expect(rows()).toEqual(all);
     // Back to Boards: the tree as it was.

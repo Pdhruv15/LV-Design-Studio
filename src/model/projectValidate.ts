@@ -1,4 +1,4 @@
-import { POINT_TYPES, type Project } from '../types';
+import { POINT_TYPES, SOURCE_KINDS, type Project } from '../types';
 import type { MainView } from '../views';
 import { unsafeReason } from './projectSafety';
 
@@ -57,6 +57,7 @@ export function projectInputIssues(p: Project): InputIssue[] {
     pos(b.sourceXr, 'transformer X/R', '');
     const sup = b.supply;
     if (sup) {
+      if (sup.kind !== undefined && !SOURCE_KINDS.some((k) => k.value === sup.kind)) bad.push(`supply kind ${show(sup.kind)} (must be one of ${SOURCE_KINDS.map((k) => k.value).join(', ')})`);
       pos(sup.xr, 'supply X/R', '');
       pos(sup.faultKaMin, 'supply minimum fault level', ' kA');
       pos(sup.zeOhm, 'supply Ze', ' Ω');

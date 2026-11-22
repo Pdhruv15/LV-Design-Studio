@@ -16,6 +16,9 @@ import { deviceKind, devicePoles } from './deviceText';
 import { escapeHtmlAttr } from '../util/escape';
 import { fmtFixed } from '../util/format';
 import { boardSymbolOf } from './panelBox';
+import { supplyPoint, type SupplyPoint } from './supplyPoint';
+import { textWidth } from './panelLabels';
+import { sourceSymSvg } from './sourceSymbol';
 import { symSvg, SYM_SCALE } from './symbolLibrary';
 
 /** One board's single line diagram as a printable drawing (black on white,
@@ -39,6 +42,20 @@ const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` 
 const ln = (x1: number, y1: number, x2: number, y2: number, w = 1.2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#000" stroke-width="${w}"/>`;
 const tx = (x: number, y: number, s: string, o: { anchor?: 'start' | 'middle' | 'end'; bold?: boolean; size?: number } = {}) =>
   `<text x="${x}" y="${y}" fill="#000" font-family="Arial, Helvetica, sans-serif" font-size="${o.size ?? 11}"${o.bold ? ' font-weight="bold"' : ''}${o.anchor && o.anchor !== 'start' ? ` text-anchor="${o.anchor}"` : ''}>${esc(s)}</text>`;
+/** The bold row of a first board's supply on the sheet: the fixed words in capitals, the typed name as typed. */
+export function sheetSupplyTitle(sp: SupplyPoint): string {
+  if (sp.mode === 'unset') return 'SUPPLY NOT SET';
+  if (sp.mode === 'board') return `FROM ${sp.name ?? 'A BOARD NOT NAMED'}`;
+  if (!sp.name) return 'SOURCE';
+  return sp.kind === 'utility' ? `${sp.name} SUPPLY` : sp.name;
+}
+/** The SUPPLY row of the summary for a first board without a transformer. */
+function supplyRow(sp: SupplyPoint, board: Board): string {
+  const ref = board.supply?.ref?.trim();
+  const tail = ref ? `, ${ref}` : '';
+  if (sp.mode === 'unset') return 'Not set';
+  return sp.mode === 'board' ? `${sp.title} (not in this project)${tail}` : `${sp.title}${tail}`;
+}
 const kw = (v: number) => (v > 0.005 ? fmtFixed(v, 2) : '—');
 
 /** IEC 60617 switching device on a vertical line from (x, y) to (x, y + 16), as on the SLD canvas. */
@@ -95,7 +112,20 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
   const sections = PANEL_SECTIONS.filter((x) => board.sections?.includes(x.value));
   const incomer = s.incomer;
   const dev = incomerDeviceOf(board);
-  if (!board.upstreamId) {
+  const sp = supplyPoint(project, board, false);
+  let supplyRight = 0; // where the supply rows end, so the summary table starts beyond them
+  if (sp) {
+    // No transformer: the source's symbol, a continuation marker or a dashed stub, and the supply's lines beside it.
+    if (sp.mode === 'source') out.push(sourceSymSvg(sp.kind, cx, 30), ln(cx, 41, cx, 90));
+    else if (sp.mode === 'board') out.push(ln(cx, 0, cx, 90), `<path d="M${cx - 7} 20 L${cx} 32 L${cx + 7} 20" stroke="#000" stroke-width="1.2" fill="none"/>`);
+    else out.push(`<line x1="${cx}" y1="0" x2="${cx}" y2="90" stroke="#000" stroke-width="1.2" stroke-dasharray="5 3"/>`);
+    // The title and every line but the reference (the SUPPLY row below carries it). Up to 6 rows: the pitch tightens to
+    // 13 for the sixth, so the last baseline (79) stays 12 or more above the INCOMER label's (108).
+    const rows = [sheetSupplyTitle(sp), ...(sp.refLine ? sp.lines.slice(0, -1) : sp.lines)], rx = sp.mode === 'board' ? cx + 14 : cx + 20;
+    const pitch = rows.length > 5 ? 13 : 15;
+    rows.forEach((t, i) => out.push(tx(rx, 14 + i * pitch, t, { bold: !i })));
+    supplyRight = rx + Math.max(...rows.map((t, i) => textWidth(t, 11, !i)));
+  } else if (!board.upstreamId) {
     out.push(ln(cx, 0, cx, 18), `<circle cx="${cx}" cy="30" r="12" fill="none" stroke="#000" stroke-width="1.2"/><circle cx="${cx}" cy="44" r="12" fill="none" stroke="#000" stroke-width="1.2"/>`);
     out.push(tx(cx + 22, 30, `TRANSFORMER ${board.sourceKva ?? '—'} kVA`, { bold: true }), tx(cx + 22, 44, `11/${(project.voltageV / 1000).toFixed(3)} kV · Z ${board.sourceImpedancePct ?? '—'} %`));
     out.push(ln(cx, 56, cx, 90));
@@ -186,7 +216,7 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
   const rows: [string, string][] = [
     ['BOARD', cut(`${board.id}${board.name && board.name !== board.id ? ` — ${board.name}` : ''}`, 40)],
     ['LOCATION', cut(boardLocation(project, board) || '—', 40)],
-    ['SUPPLY', riser ? `Tap-off from ${riser.name} (${board.upstreamId})${opts.fromSheet ? `, sheet ${opts.fromSheet}` : ''}` : board.upstreamId ? `From ${board.upstreamId}${opts.fromSheet ? `, sheet ${opts.fromSheet}` : ''}` : `Transformer ${board.sourceKva ?? '—'} kVA`],
+    ['SUPPLY', riser ? `Tap-off from ${riser.name} (${board.upstreamId})${opts.fromSheet ? `, sheet ${opts.fromSheet}` : ''}` : board.upstreamId ? `From ${board.upstreamId}${opts.fromSheet ? `, sheet ${opts.fromSheet}` : ''}` : sp ? supplyRow(sp, board) : `Transformer ${board.sourceKva ?? '—'} kVA`],
     ['TCL / DF / MDL', `${fmtFixed(ps.tclKw, 2)} kW / ${ps.df.toFixed(2)} / ${fmtFixed(ps.mdlKw, 2)} kW`],
     ['DEMAND CURRENT', `${fmtFixed(s.currentA, 1)} A${boardRatedA(board) ? ` of ${boardRatedA(board)} A (${fmtFixed(s.loadingPct ?? 0, 0)} %)` : ''}`],
     ['FAULT LEVEL', `${s.faultKA.toFixed(1)} kA`],
@@ -199,7 +229,7 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
     ...(pb.unassigned.length ? [['NO PHASE SET', `${pb.unassigned.length} single-phase circuit${pb.unassigned.length === 1 ? '' : 's'}`] as [string, string]] : []),
     ...earthRows(boardEarth(project, board))
   ];
-  const sx = Math.max(diagramW - MARGIN, sections.length ? secX0 + sections.length * SEC_W : 0) + GAP; // beside the diagram and its sections
+  const sx = Math.max(diagramW - MARGIN, supplyRight, sections.length ? secX0 + sections.length * SEC_W : 0) + GAP; // beside the diagram and its sections
   out.push(tx(sx, SUM_Y - 8, 'PANEL SUMMARY', { bold: true, size: 12 }));
   out.push(`<rect x="${sx}" y="${SUM_Y}" width="${SUM_W}" height="${rows.length * ROW}" fill="none" stroke="#000" stroke-width="1"/>`);
   rows.forEach(([k, v], i) => {

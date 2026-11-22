@@ -12,6 +12,7 @@ import { canDrop, TIE_OPERATION, tieRatings, type MoveItem, type PaletteItem } f
 import { branchItems, orderTarget, selectAll, type PickItem } from './sldMenuEdit';
 import { mainBoards, txTag } from './transformers';
 import { partInfo, partKey, partMains, type SldPart } from '../diagram/mvShow';
+import { supplyPoint } from '../diagram/supplyPoint';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import { rmuRecord, rmuWays } from '../calc/hvSupply';
 import { txUnits } from './earthingPlan';
@@ -316,11 +317,19 @@ function supplyMenu(s: SldMenuState, boardId: string) {
     );
     return { head: { icon: 'transformer', title: txTag(project, boardId) ?? 'Transformer', detail } satisfies CtxHead, items, label: 'Transformer menu' };
   }
-  if (!b.supply) return null;
+  const sp = supplyPoint(project, b, false);
+  if (!sp) return null;
+  if (sp.mode === 'unset') {
+    return {
+      head: { icon: 'board', title: sp.title, detail: `feeds ${boardId}` } satisfies CtxHead,
+      items: groups([row('Edit supply…', 'edit', { icon: 'edtext' })], [zoom], props()),
+      label: 'Supply menu'
+    };
+  }
   return {
-    head: { icon: 'board', title: 'Meter cabinet', detail: `${b.supply.fedFrom ?? 'DEWA'} supply · feeds ${boardId}` } satisfies CtxHead,
+    head: { icon: 'board', title: sp.mode === 'board' || !sp.meter ? 'Supply point' : 'Meter cabinet', detail: `${sp.title} · feeds ${boardId}` } satisfies CtxHead,
     items: groups([row('Edit supply…', 'edit', { icon: 'edtext' })], [zoom, row(`Show ${boardId} only`, `part|${partKey({ kind: 'supply', id: boardId })}`, { icon: 'isolate', now: s.part === partKey({ kind: 'supply', id: boardId }) })], props()),
-    label: 'Meter cabinet menu'
+    label: sp.mode === 'board' || !sp.meter ? 'Supply menu' : 'Meter cabinet menu'
   };
 }
 

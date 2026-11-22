@@ -393,3 +393,22 @@ describe('Entering the arrangement (proposal 2026-11-18 part 4)', () => {
     for (const a of ['txsubstation', 'txrmu', 'rmuconfig', 'rmunop']) expect(SLD_MENU_ACTIONS).toContain(a);
   });
 });
+
+describe('supply menu head by supply mode', () => {
+  const only = (supply?: Project['boards'][number]['supply']): Project => ({ ...project, boards: project.boards.map((b) => (b.id === 'MDB-1' ? { ...b, sourceKva: undefined, sourceImpedancePct: undefined, supply } : b)) });
+  it('a board outside the project: "Supply point", titled by the model; no supplier name is made up', () => {
+    const m = menu({ kind: 'supply', boardId: 'MDB-1' }, state(only({ fedBy: 'board', fedFrom: 'SMDB-3F' })));
+    expect(m.head).toEqual({ icon: 'board', title: 'Supply point', detail: 'From SMDB-3F · feeds MDB-1' });
+    expect(menu({ kind: 'supply', boardId: 'MDB-1' }, state(only({}))).head).toEqual({ icon: 'board', title: 'Meter cabinet', detail: 'Source · feeds MDB-1' });
+  });
+  it('a source with no meter (generator, no meter type) is a "Supply point", not a meter cabinet', () => {
+    const m = menu({ kind: 'supply', boardId: 'MDB-1' }, state(only({ kind: 'generator', fedFrom: 'Genset 1' })));
+    expect(m.head).toEqual({ icon: 'board', title: 'Supply point', detail: 'Genset 1 · feeds MDB-1' });
+    expect(m.label).toBe('Supply menu');
+  });
+  it('an unset supply gets a small menu with no "Show only" row', () => {
+    const m = menu({ kind: 'supply', boardId: 'MDB-1' }, state(only(undefined)));
+    expect(m.head).toEqual({ icon: 'board', title: 'Supply not set', detail: 'feeds MDB-1' });
+    expect(labels(m.items)).toEqual(['Edit supply…', '-', 'Zoom to MDB-1', '-', 'Properties']);
+  });
+});

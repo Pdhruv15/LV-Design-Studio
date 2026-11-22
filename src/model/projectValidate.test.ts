@@ -127,3 +127,11 @@ describe('engineering input checks', () => {
     expect(projectInputIssues(p)).toEqual([]);
   });
 });
+
+describe('supply kind', () => {
+  it('a kind outside the list is an input issue; a listed one is not', () => {
+    const at = (kind: string) => proj([{ id: 'MDB', name: 'M', supply: { kind: kind as never } }], [fd({})]);
+    expect(projectInputIssues(at('generator')).filter((i) => i.text.includes('supply kind'))).toEqual([]);
+    expect(projectInputIssues(at('steam')).map((i) => i.text).join(' ')).toMatch(/supply kind "?steam"? \(must be one of utility, generator, pv, wind, battery, other\)/);
+  });
+});

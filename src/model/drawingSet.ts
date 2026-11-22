@@ -3,6 +3,7 @@ import { boardsInSupplyOrder, boardSummary, boardTotals } from '../calc/summary'
 import { earthingLayout } from './earthingPlan';
 import { earthingDrawing, type EarthingSheet } from '../diagram/earthingDrawing';
 import { mvSheetKey } from '../diagram/mvArrangement';
+import { supplyMode } from '../diagram/supplyPoint';
 import { partMains, partProject, supplyTree, type SldPart } from '../diagram/mvShow';
 import { txTags } from './transformers';
 import { boardEarth } from './boardEarth';
@@ -334,13 +335,13 @@ const isDb = (b: Board) => (b.kind ?? (b.upstreamId ? 'DB' : 'MDB')) === 'DB';
 /** Title of the MV overview sheet (One sheet per substation). */
 export const MV_OVERVIEW_TITLE = 'MV supply — ring, substations and transformers';
 
-/** Title of a part's sheet: "SLD — SS-1 (TX-1, TX-2)", "SLD — MDB-5 (TX-5)", "SLD — MDB-8 (authority LV supply)". */
-function partTitle(part: SldPart, mains: string[], tags: Map<string, string>): string {
+/** Title of a part's sheet: "SLD — SS-1 (TX-1, TX-2)", "SLD — MDB-5 (TX-5)", "SLD — MDB-8 (LV source)". */
+function partTitle(part: SldPart, mains: string[], tags: Map<string, string>, unsetSupply = false): string {
   const txs = mains.map((m) => tags.get(m) ?? m).join(', ');
   switch (part.kind) {
     case 'substation': case 'rmu': return `SLD — ${part.name} (${txs})`;
     case 'tx': return `SLD — ${part.id}${tags.has(part.id) ? ` (${tags.get(part.id)})` : ''}`;
-    case 'supply': return `SLD — ${part.id} (authority LV supply)`;
+    case 'supply': return unsetSupply ? `SLD — ${part.id}` : `SLD — ${part.id} (LV source)`;
     default: return 'SLD';
   }
 }
@@ -351,7 +352,7 @@ function partTitle(part: SldPart, mains: string[], tags: Map<string, string>): s
  * (proposal 2026-11-18 part 5): the MV overview, then one sheet per
  * substation in ring order with everything its main boards feed (a bus
  * coupler between them stays on it), then each RMU or transformer in no
- * substation and each board on an authority LV supply. dbSheets: also a
+ * substation and each board on an LV source. dbSheets: also a
  * circuit diagram sheet for every DB. */
 export function autoSheets(p: Project, mode: 'perMdb' | 'perSmdb' | 'perSubstation', dbSheets = false, prefix = 'E-SLD-'): DrawingSet {
   const order = boardsInSupplyOrder(p);
@@ -367,7 +368,7 @@ export function autoSheets(p: Project, mode: 'perMdb' | 'perSmdb' | 'perSubstati
     for (const n of supplyTree(p)) {
       const top = partMains(p, n.part), below = new Set(top.flatMap((m) => [...subtree(p, m)]));
       const boards = order.filter((b) => below.has(b.id)).map((b) => b.id);
-      if (boards.length) sheets.push({ id: id(), title: partTitle(n.part, top, tags), kind: 'system', boards, size: 'auto' });
+      if (boards.length) sheets.push({ id: id(), title: partTitle(n.part, top, tags, (n.part.kind === 'supply' && supplyMode(p.boards.find((b) => b.id === (n.part as { id: string }).id)!) === 'unset')), kind: 'system', boards, size: 'auto' });
     }
   } else {
     const subs = order.filter((b) => b.upstreamId && mains.some((m) => m.id === b.upstreamId) && !isDb(b));
