@@ -1,5 +1,6 @@
 import type { Board, Project } from '../types';
 import { txTag } from '../model/transformers';
+import { supplyPoint } from './supplyPoint';
 import { offMvSide, mvPlan, mvRingOn, onMvSide, substationTitle } from './mvArrangement';
 
 /** Show (SLD ribbon → View → Show; proposal 2026-11-18, part 2): the part of the network the system diagram draws. The
@@ -169,11 +170,15 @@ export function partInfo(project: Project, part: SldPart): PartInfo {
       const where = [b?.substation?.trim(), b?.rmu?.trim()].filter(Boolean).join(' / ');
       return { name: txTag(project, part.id) ?? part.id, detail: [b?.sourceKva ? `${b.sourceKva} kVA` : '', where].filter(Boolean).join(' · ') || undefined, counts: plural(boards, 'board') };
     }
-    case 'supply': return { name: part.id, detail: supplyText(board(part.id)), counts: plural(boards, 'board') };
+    case 'supply': return { name: part.id, detail: supplyText(project, board(part.id)), counts: plural(boards, 'board') };
   }
 }
 
-const supplyText = (b?: Board) => (b?.supply ? `meter cabinet${b.supply.ratingA ? ` ${b.supply.ratingA} A` : ''}` : undefined);
+/** What a first board's supply row says: "meter cabinet" for a utility, else the model's own title. */
+const supplyText = (project: Project, b?: Board): string | undefined => {
+  const sp = b?.supply && supplyPoint(project, b, false);
+  return sp && sp.mode !== 'unset' ? `${sp.meter ? 'meter cabinet' : sp.title}${b?.supply?.ratingA ? ` ${b.supply.ratingA} A` : ''}` : undefined;
+};
 /** An RMU's configuration and its tee-offs with no transformer. */
 function rmuNode(project: Project, name: string): { config?: string; spares: number } | undefined {
   for (const r of mvPlan(project).rings) for (const it of r.items) if (it.kind === 'rmu' && it.name === name) return { config: it.config, spares: it.tees.filter((t) => !t).length };
@@ -246,7 +251,7 @@ export function showRows(project: Project, current: SldPart, selected?: string):
     rows.push({ key: 'head:supply', label: 'LV source', depth: 0, head: true, sep: true, title: '' });
     for (const n of supply) {
       const id = (n.part as { id: string }).id;
-      rows.push({ key: partKey(n.part), part: partKey(n.part), label: id, detail: supplyText(project.boards.find((b) => b.id === id)), note: plural(count([id]), 'board'), depth: 1, checked: partKey(n.part) === now, title: `Show ${id} only, with everything it feeds` });
+      rows.push({ key: partKey(n.part), part: partKey(n.part), label: id, detail: supplyText(project, project.boards.find((b) => b.id === id)), note: plural(count([id]), 'board'), depth: 1, checked: partKey(n.part) === now, title: `Show ${id} only, with everything it feeds` });
     }
   }
   const sel = selected && project.boards.some((b) => b.id === selected) ? partOfBoard(project, selected) : undefined;
@@ -255,8 +260,8 @@ export function showRows(project: Project, current: SldPart, selected?: string):
   return rows;
 }
 
-/** A group row of the panel tree by substation (proposal part 3): a substation, an RMU, "No substation" or "Authority
- * supply". Its items are RMUs and main boards (by id), in ring order. */
+/** A group row of the panel tree by substation (proposal part 3): a substation, an RMU, "No substation" or "LV
+ * source". Its items are RMUs and main boards (by id), in ring order. */
 export interface TreeGroup {
   /** Unique: a substation's or an RMU's part key, else "none" or "supply". */
   key: string;

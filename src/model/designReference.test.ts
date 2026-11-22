@@ -245,6 +245,7 @@ describe('the name suggested for a new first board’s supply', () => {
   });
   it('fedFromOf writes the name only when there is one', () => {
     expect(fedFromOf(base)).toEqual({});
-    expect(fedFromOf(applyReference(base, ref('builtin-addc')))).toEqual({ fedFrom: 'ADDC' });
+    const named = BUILT_IN_REFERENCES.map((r) => applyReference(base, r)).find((x) => supplyNameSuggestion(x))!;
+    expect(fedFromOf(named)).toEqual({ fedFrom: supplyNameSuggestion(named) });
   });
 });

@@ -327,9 +327,9 @@ function supplyMenu(s: SldMenuState, boardId: string) {
     };
   }
   return {
-    head: { icon: 'board', title: sp.mode === 'board' ? 'Supply point' : 'Meter cabinet', detail: `${sp.title} · feeds ${boardId}` } satisfies CtxHead,
+    head: { icon: 'board', title: sp.mode === 'board' || !sp.meter ? 'Supply point' : 'Meter cabinet', detail: `${sp.title} · feeds ${boardId}` } satisfies CtxHead,
     items: groups([row('Edit supply…', 'edit', { icon: 'edtext' })], [zoom, row(`Show ${boardId} only`, `part|${partKey({ kind: 'supply', id: boardId })}`, { icon: 'isolate', now: s.part === partKey({ kind: 'supply', id: boardId }) })], props()),
-    label: 'Meter cabinet menu'
+    label: sp.mode === 'board' || !sp.meter ? 'Supply menu' : 'Meter cabinet menu'
   };
 }
 

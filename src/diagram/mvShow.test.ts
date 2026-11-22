@@ -111,6 +111,10 @@ describe('Show: the parts of the network', () => {
     expect(partInfo(p, { kind: 'rmu', name: 'RMU-1' })).toEqual({ name: 'RMU-1', detail: 'RRTT · SS-1', counts: '2 transformers · 5 boards' });
     expect(partInfo(p, { kind: 'tx', id: 'MDB-2' })).toEqual({ name: 'TX-2', detail: '1000 kVA · SS-1 / RMU-1', counts: '2 boards' });
     expect(partInfo(p, { kind: 'supply', id: 'MDB-A' })).toEqual({ name: 'MDB-A', detail: 'meter cabinet 200 A', counts: '2 boards' });
+    // A source that is not a utility, or a board-fed supply, has no meter cabinet: the row says what the drawing says.
+    const withSupply = (supply: Board['supply']): Project => ({ ...p, boards: p.boards.map((b) => (b.id === 'MDB-A' ? { ...b, supply } : b)) });
+    expect(partInfo(withSupply({ kind: 'generator', ratingA: 400 }), { kind: 'supply', id: 'MDB-A' }).detail).toBe('Source 400 A');
+    expect(partInfo(withSupply({ fedBy: 'board', fedFrom: 'SMDB-3F' }), { kind: 'supply', id: 'MDB-A' }).detail).toBe('From SMDB-3F');
     expect(partInfo(p, { kind: 'mv' })).toEqual({ name: 'MV overview', counts: '2 substations · 5 transformers' });
     expect(partSteps(p, ss1)).toEqual({ prev: undefined, next: { kind: 'substation', name: 'SS-2' } });
     expect(partSteps(p, { kind: 'tx', id: 'MDB-3' })).toEqual({ prev: { kind: 'tx', id: 'MDB-2' }, next: { kind: 'tx', id: 'MDB-4' } });

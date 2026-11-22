@@ -401,6 +401,11 @@ describe('supply menu head by supply mode', () => {
     expect(m.head).toEqual({ icon: 'board', title: 'Supply point', detail: 'From SMDB-3F · feeds MDB-1' });
     expect(menu({ kind: 'supply', boardId: 'MDB-1' }, state(only({}))).head).toEqual({ icon: 'board', title: 'Meter cabinet', detail: 'Source · feeds MDB-1' });
   });
+  it('a source with no meter (generator, no meter type) is a "Supply point", not a meter cabinet', () => {
+    const m = menu({ kind: 'supply', boardId: 'MDB-1' }, state(only({ kind: 'generator', fedFrom: 'Genset 1' })));
+    expect(m.head).toEqual({ icon: 'board', title: 'Supply point', detail: 'Genset 1 · feeds MDB-1' });
+    expect(m.label).toBe('Supply menu');
+  });
   it('an unset supply gets a small menu with no "Show only" row', () => {
     const m = menu({ kind: 'supply', boardId: 'MDB-1' }, state(only(undefined)));
     expect(m.head).toEqual({ icon: 'board', title: 'Supply not set', detail: 'feeds MDB-1' });
