@@ -1,7 +1,7 @@
-import { DEFAULT_TRANSFORMER_XR, boardDemandKw, resistanceFactor, rOperatingOhmPerKm, runsOf } from '../../calc/electrical';
+import { DEFAULT_TRANSFORMER_XR, GENERATOR_XR, boardDemandKw, resistanceFactor, rOperatingOhmPerKm, runsOf, supplySourceLevel } from '../../calc/electrical';
 import { cablesSource } from '../../calc/cableTable';
 import { getCable } from '../../calc/cableTable';
-import { supplyFaultKa, supplyIncomerFeeder, supplyXr, type Feeder, type Project } from '../../types';
+import { supplyIncomerFeeder, supplyXr, type Feeder, type Project } from '../../types';
 
 /** Nominal MV voltage the transformer primary is modelled at. The upstream
  * network is a stiff (effectively infinite) source, matching the built-in
@@ -95,12 +95,13 @@ export function exportDss(project: Project): DssExport {
   out.push(`! ---- Transformers ----`);
   for (const b of project.boards.filter((b) => !b.upstreamId)) {
     if (!b.sourceKva || !b.sourceImpedancePct) {
-      const ka = supplyFaultKa(b);
+      const level = supplySourceLevel(project, b), ka = level.basis === 'assumed' ? undefined : level.ka;
       if (ka) {
         // LV supply with a stated fault level: a source equivalent on the board's own busbar, at -30 deg
         // like the LV side of the delta-wye transformers, so a closed tie to one of them carries no circulating current.
         // With an incoming cable the source sits on its own bus (the supply point) and the cable joins it to the busbar.
-        const xr = supplyXr(b) ?? DEFAULT_TRANSFORMER_XR;
+        // A calculated source: a machine keeps its X/R (generator default 10); an inverter is resistive (0.1 keeps the export valid).
+        const xr = level.basis === 'calculated' ? (level.z.x > 0 ? supplyXr(b) ?? GENERATOR_XR : 0.1) : supplyXr(b) ?? DEFAULT_TRANSFORMER_XR;
         const mva = fmt(Math.sqrt(3) * kvLL * ka, 4);
         out.push(
           `New Vsource.SRC_${boardName(b.id)} bus1=${supplyIncomerFeeder(b) ? sourceBus(boardName(b.id)) : busbar(boardName(b.id))} basekv=${fmt(kvLL, 4)} pu=1.0 phases=3 angle=-30 ` +
@@ -130,7 +131,7 @@ export function exportDss(project: Project): DssExport {
   // --- Line codes for every cable size in use ---
   out.push(`! ---- Cable line codes (ohm/km) ----`);
   const codes = new Map<string, string>();
-  const incomers = project.boards.flatMap((b) => { const f = supplyIncomerFeeder(b); return f && supplyFaultKa(b) ? [{ board: b, feeder: f }] : []; });
+  const incomers = project.boards.flatMap((b) => { const f = supplyIncomerFeeder(b); return f && supplySourceLevel(project, b).basis !== 'assumed' ? [{ board: b, feeder: f }] : []; });
   for (const f of [...project.feeders, ...incomers.map((i) => i.feeder)]) {
     const single = isSinglePhase(f);
     const runs = runsOf(f);

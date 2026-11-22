@@ -117,3 +117,23 @@ describe('board summary with values given from upstream', () => {
     expect('allowedA' in boardSummary(tx, tx.boards[0])).toBe(false);
   });
 });
+
+describe('allowed load from the source rating', () => {
+  // 24 kW at PF 0.9 on the board: Ib 37.1 A. A 250 kVA generator is rated 250 000 ÷ (√3 × 415) = 347.8 A: 37.1 ÷ 347.8 = 10.67 %.
+  const f = feeder({ id: 'L', loadKw: 24, powerFactor: 0.9, cableCsaMm2: 10, lengthM: 20, breakerRatingA: 40 });
+  const lv = (supply: NonNullable<Project['boards'][number]['supply']>): Project => ({ ...project, boards: [{ id: 'MDB', name: 'Main', supply }], feeders: [f] });
+  it('with no allowed load typed, a calculated source gives its rated current; a typed allowed load wins', () => {
+    const p = lv({ kind: 'generator', ratedKva: 250 });
+    const s = boardSummary(p, p.boards[0]);
+    expect(s.allowedA).toBeCloseTo(347.8, 1);
+    expect(s.allowedLoadingPct).toBeCloseTo(10.67, 2);
+    const typed = lv({ kind: 'generator', ratedKva: 250, allowedA: 50 });
+    expect(boardSummary(typed, typed.boards[0]).allowedA).toBe(50);
+  });
+  it('a rating that gives no calculated level (utility, no rating) or a transformer board gives no allowed load', () => {
+    for (const supply of [{ kind: 'utility' as const, ratedKva: 250 }, { kind: 'generator' as const }]) {
+      const p = lv(supply);
+      expect('allowedA' in boardSummary(p, p.boards[0])).toBe(false);
+    }
+  });
+});

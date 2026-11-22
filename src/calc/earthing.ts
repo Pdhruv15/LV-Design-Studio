@@ -1,6 +1,6 @@
 import { boardOf, feedersOn, withNetwork } from './network';
 import { cpcOf, defaultCpcMm2, getCable } from './cableTable';
-import { DEFAULT_TRANSFORMER_XR, gridImpedance, gridSourceOf, rOperatingOhmPerKm, runsOf, supplyImpedance, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
+import { DEFAULT_TRANSFORMER_XR, gridImpedance, gridSourceOf, rOperatingOhmPerKm, runsOf, supplyImpedance, supplySourceLevel, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
 import { elcbGroups, isScheduleCircuit, rcbosOf } from './loadSchedule';
 import { lvSupplied, supplyFaultKa, supplyIncomerFeeder, supplyXr, type Board, type BreakerType, type Feeder, type Project } from '../types';
 import { fmtFixed } from '../util/format';
@@ -96,10 +96,14 @@ function cableLoop(f: Feeder): Impedance {
  * conductor loop is then added. No fault level and no Ze: no source data. */
 function supplyEarthLoop(project: Project, board: Board): { z: Impedance; missing?: string; estimated?: string } {
   const sup = board.supply!, ze = sup.zeOhm !== undefined && sup.zeOhm > 0 ? sup.zeOhm : undefined;
-  const ka = supplyFaultKa(board), kaMin = sup.faultKaMin !== undefined && sup.faultKaMin > 0 ? sup.faultKaMin : undefined;
+  const level = supplySourceLevel(project, board), ka = supplyFaultKa(board), kaMin = sup.faultKaMin !== undefined && sup.faultKaMin > 0 ? sup.faultKaMin : undefined;
+  // A calculated source (rating typed, no fault level): its impedance is the Ze estimate, said by what it rests on.
+  const from = level.z.x === 0 ? 'the inverter fault current' : 'the generator data';
   const base = ze !== undefined ? { z: { r: ze, x: 0 } } : ka || kaMin
     ? { z: supplyImpedance(kaMin ?? ka!, project.voltageV, supplyXr(board)), estimated: `Ze estimated from the supply ${kaMin ? 'minimum ' : ''}fault level at ${board.id}` }
-    : undefined;
+    : level.basis === 'calculated'
+      ? { z: level.z, estimated: `Ze estimated from ${from} at ${board.id}` }
+      : undefined;
   const cable = supplyIncomerFeeder(board);
   const c = cable ? cableLoop(cable) : { r: 0, x: 0 }; // the known part, even when there is no source data
   if (!base) return { z: c, missing: `no source data at ${board.id} (transformer kVA and impedance %, or the supply fault level)` };

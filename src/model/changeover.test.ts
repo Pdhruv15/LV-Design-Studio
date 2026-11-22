@@ -39,3 +39,16 @@ describe('emergency changeover', () => {
     expect(incomersOf(q.boards[0])).toBe(1);
   });
 });
+
+describe('changeover breaking capacity on a calculated source', () => {
+  const on = (supply: NonNullable<Board['supply']>): Project => ({
+    ...sampleProject, feeders: sampleProject.feeders.filter((f) => f.feedsBoardId !== 'MDB-1'),
+    boards: [{ id: 'MDB-1', name: 'Main', ratedCurrentA: 800, standby: { kva: 100, changeover: 'ACB' }, supply }]
+  });
+  it('250 kVA generator, 2.43 kA: the next standard step 6 kA; the placeholder source (25.2 kA) gives 36 kA', () => {
+    const p = on({ kind: 'generator', ratedKva: 250 });
+    expect(changeoverBreakers(p, p.boards[0])!.mains.icuKa).toBe(6);
+    const q = on({ kind: 'generator' });
+    expect(changeoverBreakers(q, q.boards[0])!.mains.icuKa).toBe(36);
+  });
+});

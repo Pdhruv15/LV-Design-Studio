@@ -1,7 +1,7 @@
-import { cableSizeText, faultCurrentKA, impedanceToBoard, selectCable, sourceAssumed } from '../calc/electrical';
+import { cableSizeText, faultCurrentKA, impedanceToBoard, selectCable, sourceAssumed, supplySourceLevel } from '../calc/electrical';
 import { icuSteps } from '../calc/sizing';
 import { supplyMode } from '../diagram/supplyPoint';
-import { supplyFaultKa, supplyIncomerFeeder, type Board, type BoardKind, type Feeder, type Project } from '../types';
+import { supplyIncomerFeeder, type Board, type BoardKind, type Feeder, type Project } from '../types';
 import { BOARD_RATING, panelKindOf } from './addPanel';
 import { below } from './moveBoard';
 import { allIds, newBoard, uniqueId, type DropResult } from './sldEdit';
@@ -43,7 +43,8 @@ export function growBlocked(project: Project, boardId: string): string | undefin
 function givenList(s: Supply | undefined): string[] {
   if (!s) return [];
   const t: [number | undefined, (v: number) => string][] = [
-    [s.faultKa, (v) => `Ik″ ${num(v)} kA`], [s.xr, (v) => `X/R ${num(v)}`], [s.faultKaMin, (v) => `minimum Ik″ ${num(v)} kA`],
+    [s.faultKa, (v) => `Ik″ ${num(v)} kA`], [s.xr, (v) => `X/R ${num(v)}`],
+    [s.ratedKva, (v) => `${num(v)} kVA`], [s.xdPct, (v) => `X″d ${num(v)} %`], [s.faultMultiple, (v) => `fault current ${num(v)} × rated`], [s.faultKaMin, (v) => `minimum Ik″ ${num(v)} kA`],
     [s.vdUsedPct, (v) => `drop used ${num(v)} %`], [s.zeOhm, (v) => `Ze ${num(v)} Ω`], [s.allowedA, (v) => `allowed load ${num(v)} A`]
   ];
   return t.flatMap(([v, f]) => (v !== undefined ? [f(v)] : []));
@@ -178,7 +179,8 @@ export function addUpstreamBoard(project: Project, boardId: string, opts: { kind
     name = id === newBoard(project, s.kind).id ? newBoard(project, s.kind).name : id;
   }
   if (used.has(id)) return refuse(`${id} already exists in the project`);
-  const way = wayTo(project, x, id, new Set([...used, id]), supplyFaultKa(x));
+  const level = supplySourceLevel(project, x); // the typed fault level, or the one calculated from the source rating
+  const way = wayTo(project, x, id, new Set([...used, id]), level.basis === 'assumed' ? undefined : level.ka);
   const given = movedSupply(x), earthing = x.earthing;
   const n: Board = {
     id, name, kind: s.kind, ratedCurrentA: Math.max(BOARD_RATING[s.kind], x.ratedCurrentA ?? 0, way.feeder.breakerRatingA),

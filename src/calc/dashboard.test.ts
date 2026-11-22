@@ -111,3 +111,20 @@ describe('project dashboard: values given from upstream', () => {
     expect(todo(lv({ faultKa: 12, ratingA: 63 })).filter((x) => /supply device|incoming cable|supply can give/.test(x))).toEqual([]);
   });
 });
+
+describe('project dashboard: a source with its rating typed', () => {
+  const load = { id: 'F', boardId: 'MDB', name: 'F', loadKw: 24, demandFactor: 1, powerFactor: 0.9, lengthM: 20, cableCsaMm2: 10, cores: 4 as const, breakerRatingA: 40, breakerIcuKa: 36 };
+  const lv = (supply: NonNullable<Project['boards'][number]['supply']>): Project =>
+    ({ name: 'T', voltageV: 415, frequencyHz: 50, ambientC: 45, vdLimitPct: 4, updatedAt: '', boards: [{ id: 'MDB', name: 'M', supply }], feeders: [load] });
+  const todo = (p: Project) => buildDashboard(p, runCalculations(p)).todo.map((t) => `${t.status}: ${t.text}`);
+  const noLevel = (t: string[]) => t.filter((x) => /no transformer kVA/.test(x));
+  it('the "no fault level" row shows for an assumed source, not for a calculated one', () => {
+    expect(noLevel(todo(lv({ kind: 'generator' })))).toHaveLength(1);
+    expect(noLevel(todo(lv({ kind: 'generator', ratedKva: 250 })))).toEqual([]);
+    expect(noLevel(todo(lv({ kind: 'pv', ratedKva: 100 })))).toEqual([]);
+  });
+  it('demand above the rating of a 20 kVA generator (20 000 ÷ (√3 × 415) = 27.8 A) is listed: 37.1 A is 133.3 %', () => {
+    expect(todo(lv({ kind: 'generator', ratedKva: 20 }))).toContain('bad: MDB: demand 37.1 A is above the 27.8 A the supply can give (133.3 %)');
+    expect(todo(lv({ kind: 'generator', ratedKva: 250 })).filter((x) => /supply can give/.test(x))).toEqual([]);
+  });
+});

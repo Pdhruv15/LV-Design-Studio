@@ -141,3 +141,29 @@ describe('earth fault loop with values given from upstream (first board on an LV
     expect(earthLoopPath(tx, 'MDB')).toEqual(earthLoopPath(project([feeder({})]), 'MDB'));
   });
 });
+
+describe('earth fault loop from a source rating (calculated fault level)', () => {
+  const lv = (supply: NonNullable<Project['boards'][number]['supply']>): Project => ({ ...project([feeder({})]), boards: [{ id: 'MDB', name: 'M', supply }] });
+  it('Ze from the generator data: Z = 415² × 0.15 ÷ 250 000 = 0.103335 Ω, X/R 10 (R 0.010282, X 0.10282)', () => {
+    const e = earthLoopPath(lv({ kind: 'generator', ratedKva: 250 }), 'MDB');
+    expect(e.z.r).toBeCloseTo(0.010282, 5);
+    expect(e.z.x).toBeCloseTo(0.10282, 5);
+    expect(e.estimated).toBe('Ze estimated from the generator data at MDB');
+    expect(e.missing).toBeUndefined();
+  });
+  it('Ze from the inverter current: |Z| = 1.05 × 415 ÷ (√3 × 1.2 × 139.1 A) = 1.507 Ω, resistive', () => {
+    const e = earthLoopPath(lv({ kind: 'pv', ratedKva: 100 }), 'MDB');
+    expect(e.z.r).toBeCloseTo(1.507, 3);
+    expect(e.z.x).toBe(0);
+    expect(e.estimated).toBe('Ze estimated from the inverter fault current at MDB');
+  });
+  it('a typed Ze, a minimum fault level and a typed fault level all win over the rating', () => {
+    expect(earthLoopPath(lv({ kind: 'generator', ratedKva: 250, zeOhm: 0.08 }), 'MDB')).toEqual({ z: { r: 0.08, x: 0 } });
+    expect(earthLoopPath(lv({ kind: 'generator', ratedKva: 250, faultKaMin: 8 }), 'MDB').estimated).toMatch(/minimum fault level/);
+    expect(earthLoopPath(lv({ kind: 'generator', ratedKva: 250, faultKa: 25 }), 'MDB')).toEqual({ z: supplyImpedance(25, 415), estimated: 'Ze estimated from the supply fault level at MDB' });
+  });
+  it('a source with no usable rating still has no source data', () => {
+    expect(earthLoopPath(lv({ kind: 'generator' }), 'MDB').missing).toMatch(/no source data/);
+    expect(earthLoopPath(lv({ kind: 'utility', ratedKva: 250 }), 'MDB').missing).toMatch(/no source data/);
+  });
+});

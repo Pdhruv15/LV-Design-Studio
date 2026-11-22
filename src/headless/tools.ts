@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { buildDashboard } from '../calc/dashboard';
 import { runCalculations, type CalcRun } from '../calc/runs';
+import { supplySourceLevel } from '../calc/electrical';
 import { boardRatedA, boardSummary, boardsInSupplyOrder, systemSummary } from '../calc/summary';
 import { boardLocation } from '../model/levels';
 import { projectInputIssues } from '../model/projectValidate';
@@ -298,13 +299,15 @@ function cableText(f: Project['feeders'][number]): string {
  * against its outgoing breakers; nothing for a board that has none of the given values. */
 function supplyOf(b: Board, run: CalcRun) {
   if (!supplyGiven(b) && !b.supply?.kind) return {};
-  const { kind, device, ratingA, faultKa, irSetting, fedBy, ref, xr, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer } = b.supply!;
-  const given = { kind, fedBy: fedBy ?? 'source', ref, device, ratingA, irSetting, faultKa, xr, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer };
+  const { kind, device, ratingA, faultKa, irSetting, fedBy, ref, xr, ratedKva, xdPct, faultMultiple, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer } = b.supply!;
+  const given = { kind, fedBy: fedBy ?? 'source', ref, device, ratingA, irSetting, faultKa, xr, ratedKva, xdPct, faultMultiple, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer };
+  const level = supplySourceLevel(run.project, b); // typed, calculated from the source rating, or assumed
   const cable = run.supplyIncomers?.find((x) => x.board.id === b.id);
   const pairs = run.supplySelectivity?.filter((x) => x.board.id === b.id);
   return {
     supply: Object.fromEntries(Object.entries(given).filter(([, v]) => v !== undefined)),
-    ...(cable && { incomingCable: { ibA: r(cable.ibA, 1), inA: cable.inA, izA: r(cable.izA, 1), vdPct: r(cable.vdPct), vdUsedPct: r(cable.vdUsedPct), vdTotalPct: r(cable.vdTotalPct), faultAtSupplyKA: cable.faultSupplyKA, faultAtBoardKA: r(cable.faultBoardKA, 1), ...(cable.faultAssumed && { faultAssumed: true }), status: cable.status, ...(cable.reasons.length && { issues: cable.reasons }) } }),
+    ...(level.basis === 'calculated' && { supplyFaultLevel: { kA: r(level.ka, 2), basis: level.basis, from: level.text } }),
+    ...(cable && { incomingCable: { ibA: r(cable.ibA, 1), inA: cable.inA, izA: r(cable.izA, 1), vdPct: r(cable.vdPct), vdUsedPct: r(cable.vdUsedPct), vdTotalPct: r(cable.vdTotalPct), faultAtSupplyKA: r(cable.faultSupplyKA, 2), faultAtBoardKA: r(cable.faultBoardKA, 1), ...(cable.faultAssumed && { faultAssumed: true }), status: cable.status, ...(cable.reasons.length && { issues: cable.reasons }) } }),
     ...(pairs?.length && { supplyDiscrimination: pairs.map((x) => ({ circuit: x.downstream.id, breakerA: x.downstream.breakerRatingA, supplyDeviceA: x.upstream.ratingA, ratio: r(x.ratio, 2), status: x.status, issues: x.reasons })) })
   };
 }

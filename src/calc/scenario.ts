@@ -1,5 +1,5 @@
 import { boardDemandKva, standbyBoards } from './sizing';
-import { designCurrentA } from './electrical';
+import { designCurrentA, GENERATOR_XD_SUBTRANSIENT_PCT, GENERATOR_XR } from './electrical';
 import { isMotor, motorStartDipPct, startingKva } from './motor';
 
 export { GENERATOR_XD_TRANSIENT_PCT, MOTOR_START_DIP_LIMIT_PCT, motorStartDipPct } from './motor';
@@ -9,10 +9,7 @@ import type { Board, Feeder, Project } from '../types';
  * generators after their ATSs have changed over (mains lost). */
 export type SupplyMode = 'normal' | 'generator' | `outage:${string}`;
 
-/** Generator subtransient reactance X″d (%), for fault levels on
- * generator supply; typical for LV diesel sets. */
-export const GENERATOR_XD_SUBTRANSIENT_PCT = 15;
-const GENERATOR_XR = 10;
+export { GENERATOR_XD_SUBTRANSIENT_PCT };
 
 export interface GeneratorRun {
   boardId: string; // the board the generator feeds through its ATS

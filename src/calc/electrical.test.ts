@@ -7,6 +7,7 @@ import {
   impedanceToBoard,
   selectCable,
   sourceAssumed,
+  supplySourceLevel,
   transformerImpedance,
   upstreamVoltageDropPct,
   voltageDropPct,
@@ -294,5 +295,89 @@ describe('values given from upstream (first board on an LV supply)', () => {
     const tx: Project = { ...project([load()]), boards: [{ id: 'MDB', name: 'M', sourceKva: 1000, sourceImpedancePct: 5, supply: given }] };
     expect(evaluateFeeder(tx, load())).toEqual(evaluateFeeder(project([load()]), load()));
     expect(upstreamVoltageDropPct(tx, 'MDB')).toBe(0);
+  });
+});
+
+describe('a source with its rating typed (first board on an LV supply, no fault level)', () => {
+  const load = (): Feeder => ({ id: 'F', boardId: 'MDB', name: 'F', loadKw: 24, demandFactor: 1, powerFactor: 0.9, lengthM: 20, cableCsaMm2: 10, cores: 4, breakerRatingA: 40, breakerIcuKa: 36 });
+  const lv = (supply: NonNullable<Project['boards'][number]['supply']>): Project => ({ ...project([load()]), boards: [{ id: 'MDB', name: 'M', supply }] });
+  const ik = (p: Project) => faultCurrentKA(impedanceToBoard(p, 'MDB'), 415);
+  const level = (p: Project) => supplySourceLevel(p, p.boards[0]);
+  // 415 V: 250 kVA gives I = 250 000 ÷ (√3 × 415) = 347.8 A; 100 kVA gives 139.1 A.
+
+  it('a generator: Ik″ = 1.05 × I ÷ x″d, from 250 kVA and the default X″d 15 %', () => {
+    // 1.05 × 347.8 ÷ 0.15 = 2434 A. By impedance: Z = 415² × 0.15 ÷ 250 000 = 0.103335 Ω; Ik = 1.05 × 415 ÷ (√3 × 0.103335) = 2.43 kA.
+    const p = lv({ kind: 'generator', ratedKva: 250 });
+    expect(ik(p)).toBeCloseTo(2.43, 2);
+    expect(zMagnitude(level(p).z)).toBeCloseTo(0.103335, 6);
+    expect(level(p)).toMatchObject({ basis: 'calculated', text: '250 kVA · X″d 15 %' });
+    expect(level(p).ka).toBeCloseTo(2.43, 2);
+    expect(evaluateFeeder(p, load()).breakerFaultKA).toBeCloseTo(2.43, 2);
+    // The default X/R of a generator is 10: R = 0.103335 ÷ √101 = 0.010282, X = 0.10282.
+    expect(level(p).z.x / level(p).z.r).toBeCloseTo(10, 6);
+  });
+  it('a typed X″d and a typed X/R: X″d 20 % gives 1.05 × 347.8 ÷ 0.20 = 1.83 kA; X/R changes the split, not the level', () => {
+    expect(ik(lv({ kind: 'generator', ratedKva: 250, xdPct: 20 }))).toBeCloseTo(1.83, 2);
+    expect(level(lv({ kind: 'generator', ratedKva: 250, xdPct: 20 })).text).toBe('250 kVA · X″d 20 %');
+    const p = lv({ kind: 'generator', ratedKva: 250, xr: 5 });
+    expect(ik(p)).toBeCloseTo(2.43, 2);
+    expect(level(p).z.x / level(p).z.r).toBeCloseTo(5, 6);
+  });
+  it('an incoming cable is added to a calculated source, so the board sees less', () => {
+    // 16 mm² × 25 m at 20 °C: R 0.02875, X 0.002125 Ω. Source (X/R 10): R 0.010282, X 0.10282. Sum R 0.039032, X 0.104945:
+    // |Z| = 0.11199 Ω, Ik = 1.05 × 415 ÷ (√3 × 0.11199) = 2.25 kA.
+    const p = lv({ kind: 'generator', ratedKva: 250, incomer: { cableCsaMm2: 16, lengthM: 25 } });
+    expect(ik(p)).toBeCloseTo(2.25, 2);
+    expect(ik(p)).toBeLessThan(ik(lv({ kind: 'generator', ratedKva: 250 })));
+  });
+  it('wind: a generator without a fault multiple, an inverter with one', () => {
+    expect(ik(lv({ kind: 'wind', ratedKva: 250 }))).toBeCloseTo(2.43, 2);
+    // 100 kVA, k 1.5: 1.5 × 139.1 A = 208.7 A.
+    const p = lv({ kind: 'wind', ratedKva: 100, faultMultiple: 1.5 });
+    expect(ik(p)).toBeCloseTo(0.209, 3);
+    expect(level(p).text).toBe('100 kVA · 1.5 × rated');
+  });
+  it('solar PV and battery: Ik = k × I_rated with no voltage factor (100 kVA, k 1.2 gives 1.2 × 139.1 = 166.9 A)', () => {
+    for (const kind of ['pv', 'battery'] as const) {
+      const p = lv({ kind, ratedKva: 100 });
+      expect(level(p).ka).toBeCloseTo(0.1669, 4);
+      expect(ik(p)).toBeCloseTo(0.1669, 4); // |Z| = 1.05 × 415 ÷ (√3 × 166.9) = 1.5075 Ω gives it back through the same formula
+      expect(level(p).z.x).toBe(0);
+      expect(level(p).text).toBe('100 kVA · 1.2 × rated');
+    }
+    expect(ik(lv({ kind: 'pv', ratedKva: 100, faultMultiple: 1.5 }))).toBeCloseTo(0.2087, 4); // 1.5 × 139.1 A
+  });
+  it('a typed fault level wins over the rating; utility, other and a source without a rating stay assumed', () => {
+    const typed = lv({ kind: 'generator', ratedKva: 250, faultKa: 12 });
+    expect(level(typed)).toMatchObject({ basis: 'given', ka: 12 });
+    expect(ik(typed)).toBeCloseTo(12, 6);
+    for (const supply of [{ kind: 'utility' as const, ratedKva: 250 }, { kind: 'other' as const, ratedKva: 250 }, { ratedKva: 250 }, { kind: 'generator' as const }, { kind: 'pv' as const, ratedKva: 0 }]) {
+      const p = lv(supply);
+      expect(level(p).basis).toBe('assumed');
+      expect(sourceAssumed(p, 'MDB')).toBe(true);
+      expect(impedanceToBoard(p, 'MDB')).toEqual({ r: 0, x: 0.01 });
+    }
+    // A board outside the project is the source: its own rating is not read.
+    expect(level(lv({ kind: 'generator', ratedKva: 250, fedBy: 'board' })).basis).toBe('assumed');
+  });
+  it('a calculated source is not "assumed": checks run, and the result has no faultAssumed key', () => {
+    const p = lv({ kind: 'generator', ratedKva: 250 });
+    expect(sourceAssumed(p, 'MDB')).toBe(false);
+    const r = evaluateFeeder(p, load());
+    expect('faultAssumed' in r).toBe(false);
+    // Icu 36 kA against 2.43 kA: ok, and a breaker of 2 kA is now a real failure.
+    expect(r.icuStatus).toBe('ok');
+    const weak = { ...load(), breakerIcuKa: 2 };
+    expect(evaluateFeeder({ ...p, feeders: [weak] }, weak).icuStatus).toBe('bad');
+  });
+  it('a transformer board ignores the rating', () => {
+    const tx: Project = { ...project([load()]), boards: [{ id: 'MDB', name: 'M', sourceKva: 1000, sourceImpedancePct: 5, supply: { kind: 'generator', ratedKva: 250 } }] };
+    expect(evaluateFeeder(tx, load())).toEqual(evaluateFeeder(project([load()]), load()));
+  });
+  it('a project with none of the new values is unchanged', () => {
+    for (const supply of [{ kind: 'generator' as const }, { faultKa: 12 }, {}]) {
+      const a = lv(supply), b = lv({ ...supply, ratedKva: undefined, xdPct: undefined, faultMultiple: undefined });
+      expect(evaluateFeeder(a, load())).toEqual(evaluateFeeder(b, load()));
+    }
   });
 });
