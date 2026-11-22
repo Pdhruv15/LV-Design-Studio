@@ -74,8 +74,9 @@ def root_boards(project):
     return [b for b in project["boards"] if not b.get("upstreamId")]
 
 
-def check_project(project):
-    """Rejects a project the engines cannot model, with every reason found."""
+def check_project(project, supply_source=False):
+    """Rejects a project the engines cannot model, with every reason found.
+    supply_source: a main board on an LV supply with a stated fault level (no transformer) counts as a source."""
     problems = []
     if not project.get("voltageV") or project["voltageV"] <= 0:
         problems.append("The project voltage must be above 0 V.")
@@ -98,7 +99,7 @@ def check_project(project):
             at = up[at]
         if at in seen:
             problems.append(f"Board {b['id']} is in a loop of upstream boards ({' -> '.join(sorted(seen))}).")
-    if boards and not any(b.get("sourceKva") and b.get("sourceImpedancePct") for b in root_boards(project)):
+    if boards and not any((b.get("sourceKva") and b.get("sourceImpedancePct")) or (supply_source and ((b.get("supply") or {}).get("faultKa") or 0) > 0) for b in root_boards(project)):
         problems.append("No main board has transformer data (kVA and %Z), so nothing in the network is energised.")
     for f in project.get("feeders") or []:
         name = f"Feeder {f['id']}"
@@ -223,7 +224,7 @@ def check_dss_line(line):
 
 
 def run_opendss(project, script, cables=None):
-    check_project(project)
+    check_project(project, supply_source=True)
     table = {float(c[0]): (c[1], c[2], c[3]) for c in cables} if cables else CABLES
     dss = need("opendssdirect", "opendssdirect.py")
 

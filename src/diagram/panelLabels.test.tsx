@@ -5,7 +5,7 @@ import SystemDiagram, { sldLayout } from '../components/SystemDiagram';
 import { sampleProject } from '../data/sampleProject';
 import { evaluateProject } from '../calc/electrical';
 import { buildAnnotations, SHEET_LAYERS } from './annotations';
-import { textWidth } from './panelLabels';
+import { incomerTexts, textWidth } from './panelLabels';
 import { SYM_SCALE, SYMBOLS, type SymPrim } from './symbolLibrary';
 import type { Project } from '../types';
 
@@ -156,4 +156,21 @@ describe('new main panels side by side', () => {
       for (const a of left) for (const b of right) expect(overlaps(a, b), JSON.stringify({ a, b })).toBe(false);
     });
   }
+});
+
+describe('breaking-capacity labels on an assumed source fault level', () => {
+  const weak = (p: Project): Project => ({ ...p, feeders: p.feeders.map((f) => ({ ...f, breakerIcuKa: 4 })) });
+  const bare = (p: Project): Project => ({ ...p, boards: p.boards.map((b) => (b.upstreamId ? b : { ...b, sourceKva: undefined, sourceImpedancePct: undefined })) });
+  const sub = (p: Project) => p.boards.find((b) => b.upstreamId)!;
+  it('a placeholder fault level is not called a short Icu, in the incomer label or on the SLD tags', () => {
+    const assumed = weak(bare(sampleProject));
+    expect(incomerTexts(assumed, sub(assumed))?.low).toBe(false);
+    expect(incomerTexts(assumed, sub(assumed))?.icu).toBe('Icu 4 kA');
+    expect(drawn(assumed).textContent).not.toContain('✕ Icu');
+  });
+  it('a real fault level still flags it', () => {
+    const real = weak(sampleProject);
+    expect(incomerTexts(real, sub(real))?.low).toBe(true);
+    expect(drawn(real).textContent).toContain('✕ Icu');
+  });
 });

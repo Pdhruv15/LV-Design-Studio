@@ -3,7 +3,7 @@ import { cableSizeText } from '../calc/electrical';
 import { breakerTypeOf } from '../calc/earthing';
 import { planPfc } from '../calc/pfc';
 import { REPORT_STATUS_TEXT, type ReportStatus } from '../calc/statusText';
-import { boardSummary } from '../calc/summary';
+import { boardRatedA, boardSummary } from '../calc/summary';
 import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf } from '../calc/txGen';
 import { sizeUps } from '../calc/ups';
 import { settingsOf } from '../types';
@@ -19,6 +19,8 @@ import { fig } from '../util/format';
 
 const C =(s: ReportStatus): Cell => ({ v: REPORT_STATUS_TEXT[s], s });
 const worst = (xs: Status[]): Status => (xs.includes('bad') ? 'bad' : xs.includes('warn') ? 'warn' : 'ok');
+/** A breaking-capacity result on an assumed fault level is a check not made: not a pass, not a warning. */
+const icuOnly = (r: FeederResult, others: Status[]): ReportStatus => { const w = worst(others); return w === 'ok' && r.faultAssumed ? 'nc' : worst([...others, r.icuStatus]); };
 const pick = <T,>(xs: T[], key: (x: T) => number) => xs.reduce<T | undefined>((a, x) => (a === undefined || key(x) > key(a) ? x : a), undefined);
 
 export interface ComplianceRow { check: string; item: string; calculated: string; requirement: string; margin: string; status: ReportStatus }
@@ -56,7 +58,7 @@ export function buildResults(data: CalcData, scope: Scope): Results {
     rows: [[fig.power(gen.demandKva), fig.power(Math.max(gen.runningDesignKva, gen.startDesignKva)), gen.recommendedKva ? `${gen.recommendedKva} kVA` : 'Above the largest set', gen.installedKva ?? 'Not defined',
       C(gen.installedOk === false || !gen.recommendedKva ? 'bad' : gen.installedKva ? 'ok' : 'data')]] });
   equipment.push({ title: 'Distribution boards (MDB, SMDB, DB, MCC)', headers: ['Board', 'Type', 'Bus rating (A)', 'Demand (A)', 'Loading', 'Ik″ (kA)', 'Status'],
-    rows: sums.map((s) => [s.board.id, s.board.kind ?? (s.board.upstreamId ? 'DB' : 'MDB'), s.board.ratedCurrentA ?? 'Not defined', fig.current(s.currentA), s.loadingPct === undefined ? '—' : `${fig.loading(s.loadingPct)} %`, fig.fault(s.faultKA),
+    rows: sums.map((s) => [s.board.id, s.board.kind ?? (s.board.upstreamId ? 'DB' : 'MDB'), boardRatedA(s.board) ?? 'Not defined', fig.current(s.currentA), s.loadingPct === undefined ? '—' : `${fig.loading(s.loadingPct)} %`, fig.fault(s.faultKA),
       C(s.loadingStatus ?? 'data')]) });
   if (ups.length) equipment.push({ title: 'UPS', headers: ['UPS', 'Board', 'Load (kVA)', 'Selected (kVA)', 'Loading', 'Autonomy (min)', 'Status'],
     rows: ups.map(({ u, r }) => [u.name, u.boardId ?? '—', fig.power(r.loadKva), r.upsKva ?? 'Above the data', r.loadingPct !== undefined ? `${fig.loading(r.loadingPct)} %` : '—', u.autonomyMin,
@@ -78,7 +80,7 @@ export function buildResults(data: CalcData, scope: Scope): Results {
   // ---- Cable summary (feeders and incomers; final circuits are on the DB schedules)
   const cables: Table = { title: 'Cable summary', headers: ['From', 'To', 'Load (kW)', 'Current (A)', 'Cable', 'Protective device', 'Voltage drop (%)', 'Status'],
     rows: circuits.map((r) => [r.feeder.boardId, r.feeder.feedsBoardId ?? r.feeder.name, r.feeder.feedsBoardId ? '—' : fig.power(r.feeder.loadKw * r.feeder.demandFactor), fig.current(r.ib), cableSizeText(r.feeder),
-      `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`, fig.pct(r.vdTotalPct), C(worst([r.protectionStatus, r.ampacityStatus, r.vdStatus, r.icuStatus]))]) };
+      `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`, fig.pct(r.vdTotalPct), C(icuOnly(r, [r.protectionStatus, r.ampacityStatus, r.vdStatus]))]) };
 
   // ---- Compliance summary: the governing (least margin) item of each check
   const compliance: ComplianceRow[] = [];
@@ -89,7 +91,7 @@ export function buildResults(data: CalcData, scope: Scope): Results {
     ? { check: 'Generator loading', item: 'Standby generator', calculated: `${fig.power(gen.demandKva)} kVA`, requirement: `${gen.installedKva} kVA`, margin: `${fig.power(gen.installedKva - gen.demandKva)} kVA`, status: gen.installedOk === false ? 'bad' : 'ok' }
     : { check: 'Generator loading', item: 'Standby generator', calculated: `${fig.power(gen.demandKva)} kVA`, requirement: 'Installed rating not defined', margin: '—', status: 'data' });
   const fault = pick(circuits, (r) => r.breakerFaultKA - r.feeder.breakerIcuKa);
-  if (fault) compliance.push({ check: 'Fault level (breaking capacity)', item: fault.feeder.id, calculated: `${fig.fault(fault.breakerFaultKA)} kA`, requirement: `${fault.feeder.breakerIcuKa} kA`, margin: `${fig.fault(fault.feeder.breakerIcuKa - fault.breakerFaultKA)} kA`, status: worst(circuits.map((r) => r.icuStatus)) });
+  if (fault) compliance.push({ check: 'Fault level (breaking capacity)', item: fault.feeder.id, calculated: `${fig.fault(fault.breakerFaultKA)} kA`, requirement: `${fault.feeder.breakerIcuKa} kA`, margin: `${fig.fault(fault.feeder.breakerIcuKa - fault.breakerFaultKA)} kA`, status: circuits.some((r) => r.icuStatus === 'bad') ? 'bad' : circuits.some((r) => r.faultAssumed) ? 'nc' : worst(circuits.map((r) => r.icuStatus)) });
   const vd = pick(withFinals, (r) => r.vdTotalPct);
   if (vd) compliance.push({ check: 'Voltage drop', item: vd.feeder.id, calculated: `${fig.pct(vd.vdTotalPct)} %`, requirement: `${p.vdLimitPct} %`, margin: `${fig.pct(p.vdLimitPct - vd.vdTotalPct)} %`, status: worst(withFinals.map((r) => r.vdStatus)) });
   const amp = pick(withFinals, (r) => r.ib / r.ampacity);
@@ -105,7 +107,7 @@ export function buildResults(data: CalcData, scope: Scope): Results {
   }
   const rated = sums.filter((s) => s.loadingPct !== undefined);
   const busy = pick(rated, (s) => s.loadingPct!);
-  if (busy) compliance.push({ check: 'Board loading', item: busy.board.id, calculated: `${fig.current(busy.currentA)} A`, requirement: `${busy.board.ratedCurrentA} A`, margin: `${fig.current(busy.board.ratedCurrentA! - busy.currentA)} A`, status: worst(rated.map((s) => s.loadingStatus!)) });
+  if (busy) compliance.push({ check: 'Board loading', item: busy.board.id, calculated: `${fig.current(busy.currentA)} A`, requirement: `${boardRatedA(busy.board)} A`, margin: `${fig.current(boardRatedA(busy.board)! - busy.currentA)} A`, status: worst(rated.map((s) => s.loadingStatus!)) });
   if (rated.length < sums.length) compliance.push({ check: 'Board loading', item: sums.filter((s) => s.loadingPct === undefined).map((s) => s.board.id).join(', '), calculated: '—', requirement: 'Bus rating not defined', margin: '—', status: 'data' });
   const zs = pick(earth, (e) => e.zsOhm / e.maxZsOhm);
   if (zs) compliance.push({ check: 'Earth fault disconnection', item: zs.feeder.id, calculated: `Zs ${fig.ohm(zs.zsOhm)} Ω`, requirement: `≤ ${fig.ohm(zs.maxZsOhm)} Ω`, margin: `${fig.ohm(zs.maxZsOhm - zs.zsOhm)} Ω`, status: worst(earth.map((e) => e.status)) });
@@ -166,7 +168,7 @@ const table = (t: Table) => `${t.title ? `<h3>${esc(t.title)}</h3>` : ''}${t.row
 /** "Results summary" and "Compliance summary" sections, each {title, html}; numbered by the report. */
 export function resultsSections(r: Results, figureStart = 1): { title: string; html: string }[] {
   const counts = (Object.keys(REPORT_STATUS_TEXT) as ReportStatus[]).map((s) => [s, r.compliance.filter((c) => c.status === s).length] as const).filter(([, k]) => k);
-  const overall: ReportStatus = r.compliance.some((c) => c.status === 'bad') ? 'bad' : r.compliance.some((c) => c.status === 'warn' || c.status === 'data') ? 'warn' : r.compliance.length ? 'ok' : 'nc';
+  const overall: ReportStatus = r.compliance.some((c) => c.status === 'bad') ? 'bad' : r.compliance.some((c) => c.status === 'warn' || c.status === 'data' || c.status === 'nc') ? 'warn' : r.compliance.length ? 'ok' : 'nc';
   const results = `
   ${r.equipment.map(table).join('')}
   ${table(r.load)}

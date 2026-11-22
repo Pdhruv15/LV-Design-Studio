@@ -3,7 +3,7 @@ import { runsOf } from '../calc/electrical';
 import { cpcOf } from '../calc/cableTable';
 import { circuitRef } from '../calc/loadSchedule';
 import { runCalculations, STUDY_KEYS, fingerprint } from '../calc/runs';
-import { boardSummary, loadTypeOf } from '../calc/summary';
+import { boardRatedA, boardSummary, loadTypeOf } from '../calc/summary';
 import { cableTypeOf } from '../model/cableTypes';
 import { withUids } from '../model/stableIds';
 import type { Project } from '../types';
@@ -32,7 +32,7 @@ export function designExport(project0: Project, o: { exportedAt: string; sha256:
     return {
       uid: b.uid!, tag: b.id, name: b.name,
       ...opt('kind', b.kind), ...opt('upstreamUid', b.upstreamId ? uidOfBoard.get(b.upstreamId) : undefined), ...opt('incomerUid', incomerOf.get(b.id)),
-      ...opt('level', b.level ? `${b.level.building} / ${b.level.level}` : undefined), ...opt('location', b.location), ...opt('ratedCurrentA', b.ratedCurrentA),
+      ...opt('level', b.level ? `${b.level.building} / ${b.level.level}` : undefined), ...opt('location', b.location), ...opt('ratedCurrentA', boardRatedA(b)),
       ...(b.sourceKva ? { source: { kva: b.sourceKva, ...opt('impedancePct', b.sourceImpedancePct), ...opt('xr', b.sourceXr), ...opt('vectorGroup', b.vectorGroup) } } : {}),
       results: {
         demandKw: r3(s.demandKw), demandKva: r3(s.demandKva), powerFactor: r3(s.powerFactor), currentA: r3(s.currentA),
@@ -55,7 +55,7 @@ export function designExport(project0: Project, o: { exportedAt: string; sha256:
         designCurrentA: r3(r.ib), ampacityA: r3(r.ampacity), loadingPct: r3(r.loadingPct), vdPct: r3(r.vdPct), vdTotalPct: r3(r.vdTotalPct),
         breakerFaultKa: r3(r.breakerFaultKA), endFaultKa: r3(r.endFaultKA),
         ...(e ? { zsOhm: r3(e.zsOhm), maxZsOhm: r3(e.maxZsOhm), disconnectionS: r3(e.requiredS) } : {}),
-        status: { vd: r.vdStatus, ampacity: r.ampacityStatus, protection: r.protectionStatus, icu: r.icuStatus, ...opt('disconnection', e?.disconnection), overall: r.status }
+        status: { vd: r.vdStatus, ampacity: r.ampacityStatus, protection: r.protectionStatus, icu: r.icuStatus === 'warn' ? (f.breakerIcuKa >= r.breakerFaultKA ? 'ok' : 'bad') : r.icuStatus, ...opt('faultAssumed', r.faultAssumed), ...opt('disconnection', e?.disconnection), overall: r.status }
       }
     };
   });

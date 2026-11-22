@@ -1,4 +1,4 @@
-import type { Status } from '../calc/electrical';
+import type { ReportStatus } from '../calc/statusText';
 import type { Project } from '../types';
 import { currentRevision } from '../model/revisions';
 import { esc } from './report';
@@ -23,7 +23,7 @@ export function snapshotId(project: Project): string {
   return (h >>> 0).toString(16).toUpperCase().padStart(8, '0');
 }
 
-export interface Unresolved { study: string; item: string; check: string; value: string; status: Exclude<Status, 'ok'> }
+export interface Unresolved { study: string; item: string; check: string; value: string; status: Exclude<ReportStatus, 'ok'> }
 
 /** Everything not passing, as the reports state it: each table row's failing
  * or unverified cells (with the column it sits in), and each summary line that
@@ -42,7 +42,7 @@ export function unresolvedChecks(sections: Section[]): Unresolved[] {
         const shown = bad.length ? bad : overall && flagged(row[last]) ? [{ c: row[last], i: last }] : [];
         const text = (c: (typeof row)[number]) => String(typeof c === 'object' && 's' in c ? c.v : c);
         for (const { c, i } of shown) {
-          const cell = c as { v: string | number; s: Exclude<Status, 'ok'> };
+          const cell = c as { v: string | number; s: Exclude<ReportStatus, 'ok'> };
           // Only the overall result is flagged: show the row's figures so the reader sees what to check.
           const check = bad.length ? t.headers[i] ?? '' : row.slice(1, last).map((x, k) => `${t.headers[k + 1]}: ${text(x)}`).join(' · ');
           out.push({ study: s.title, item: text(row[0]), check, value: String(cell.v), status: cell.s });

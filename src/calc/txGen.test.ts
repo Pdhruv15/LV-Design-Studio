@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { applyTransformer, sizeGeneratorByBoards, sizeTransformers, TXGEN_DEFAULTS, typicalImpedancePct } from './txGen';
+import { applyTransformer, defaultTxBoards, sizeGeneratorByBoards, sizeTransformers, TXGEN_DEFAULTS, typicalImpedancePct } from './txGen';
 import { buildSection, scopeOf } from '../docs/studyReport';
 import type { Project } from '../types';
 
@@ -137,5 +137,29 @@ describe('ENG-004: a proposed split never counts as installed transformers', () 
       expect(r.split).toBeGreaterThan(1);
       expect(r.adequate).toBe(false);
     }
+  });
+});
+
+describe('transformer sizing list and first boards on an LV supply', () => {
+  const lvBoard = { id: 'MDB-LV', name: 'LV supplied', kind: 'MDB' as const, supply: { faultKa: 25, ratingA: 400 } };
+  const lvProject: Project = { ...twoMdbs, boards: [...twoMdbs.boards, lvBoard], feeders: [...twoMdbs.feeders, { id: 'LV-L1', boardId: 'MDB-LV', name: 'Load', loadKw: 50, demandFactor: 1, powerFactor: 0.9, lengthM: 20, cableCsaMm2: 95, cores: 4, breakerRatingA: 125, breakerIcuKa: 36 }] };
+  it('the default list leaves out a first board that has a supply and no transformer', () => {
+    expect(sizeTransformers(lvProject, plan).map((r) => r.board.id)).toEqual(['MDB-1', 'MDB-2']);
+    expect(sizeTransformers(twoMdbs, plan).map((r) => r.board.id)).toEqual(['MDB-1', 'MDB-2']);
+  });
+  it('defaultTxBoards is the list the sizing uses when the plan names none', () => {
+    expect(defaultTxBoards(lvProject).map((b) => b.id)).toEqual(['MDB-1', 'MDB-2']);
+    expect(defaultTxBoards(twoMdbs).map((b) => b.id)).toEqual(['MDB-1', 'MDB-2']);
+  });
+  it('a board the plan names stays, and a first board with neither stays in the default list', () => {
+    expect(sizeTransformers(lvProject, { ...plan, txBoards: ['MDB-LV'] }).map((r) => r.board.id)).toEqual(['MDB-LV']);
+    const bare: Project = { ...lvProject, boards: lvProject.boards.map((b) => (b.id === 'MDB-LV' ? { ...b, supply: undefined } : b)) };
+    expect(sizeTransformers(bare, plan).map((r) => r.board.id)).toContain('MDB-LV');
+  });
+  it('a project with only LV-supplied first boards gives an empty list, and the report sections cope', () => {
+    const only: Project = { ...lvProject, boards: [lvBoard], feeders: lvProject.feeders.filter((f) => f.boardId === 'MDB-LV') };
+    expect(sizeTransformers(only, plan)).toEqual([]);
+    const text = JSON.stringify(buildSection('sizing', { project: only, results: [], earthing: [], selectivity: [] }, scopeOf(only, { boards: [], downstream: true })));
+    expect(text).not.toContain('undefined');
   });
 });

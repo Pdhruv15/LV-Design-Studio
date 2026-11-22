@@ -80,3 +80,18 @@ describe('system summary', () => {
     expect(boardsInSupplyOrder(project).map((b) => b.id)).toEqual(['MDB', 'SMDB']);
   });
 });
+
+describe('board loading against the supply rating', () => {
+  const lv: Project = { ...project, boards: [{ id: 'MDB', name: 'Main', supply: { faultKa: 25, ratingA: 400 } }, project.boards[1]] };
+  it('a first board with no busbar rating uses its supply rating', () => {
+    const s = boardSummary(lv, lv.boards[0]);
+    expect(s.loadingPct).toBeCloseTo((s.currentA / 400) * 100, 6);
+    expect(s.loadingStatus).toBeDefined();
+  });
+  it('a busbar rating wins; a sub-board and a board with neither stay unrated', () => {
+    const rated = { ...lv.boards[0], ratedCurrentA: 800 };
+    expect(boardSummary({ ...lv, boards: [rated, lv.boards[1]] }, rated).loadingPct).toBeCloseTo((boardSummary(lv, lv.boards[0]).currentA / 800) * 100, 6);
+    expect(boardSummary(lv, { ...lv.boards[1], supply: { ratingA: 100 }, ratedCurrentA: undefined }).loadingPct).toBeUndefined();
+    expect(boardSummary({ ...lv, boards: [{ id: 'MDB', name: 'Main' }, lv.boards[1]] }, { id: 'MDB', name: 'Main' }).loadingPct).toBeUndefined();
+  });
+});

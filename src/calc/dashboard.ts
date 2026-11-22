@@ -4,7 +4,7 @@ import { groundChecks } from './installation';
 import { projectInputIssues } from '../model/projectValidate';
 import { proposalOutstanding } from '../model/proposalStatus';
 import type { BoardKind, Project } from '../types';
-import { BOARD_KINDS, LOAD_TYPES, PROJECT_STATUSES, settingsOf } from '../types';
+import { BOARD_KINDS, LOAD_TYPES, PROJECT_STATUSES, settingsOf, supplyFaultKa } from '../types';
 import type { Status } from './electrical';
 import type { CalcRun, StudyKey } from './runs';
 import { staleStudies, STUDY_LABEL } from './runs';
@@ -12,6 +12,7 @@ import { boardsInSupplyOrder, boardTotals, loadTypeOf, systemSummary } from './s
 import { boardDemandKva } from './sizing';
 import { summarizeBuilding, dbChecks } from './building';
 import { sizeGeneratorByBoards, sizeTransformers } from './txGen';
+import { patchStatus } from './quickFix';
 import { planPfc } from './pfc';
 import { sizeRiser } from './busbar';
 import { busbarIcwChecks } from './busbarIcw';
@@ -166,7 +167,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
     if (ef.length) todo.push({ status: 'bad', text: `${ef.length} circuit${ef.length > 1 ? 's' : ''} fail earth fault disconnection`, go: { view: 'earthing' } });
     const sf = run.selectivity.filter((r) => r.status === 'bad');
     if (sf.length) todo.push({ status: 'warn', text: `${sf.length} breaker pair${sf.length > 1 ? 's are' : ' is'} not selective`, go: { view: 'coordination' } });
-    const fw = run.results.filter((r) => r.status === 'warn');
+    const fw = run.results.filter((r) => r.status === 'warn' && patchStatus(r) !== 'ok'); // not a circuit that is only 'not verified' on an assumed fault level
     if (fw.length) todo.push({ status: 'warn', text: `${fw.length} circuit${fw.length > 1 ? 's' : ''} to check — close to a cable, breaker or voltage-drop limit`, go: { view: 'selection' } });
     const ew = run.earthing.filter((r) => r.status === 'warn');
     if (ew.length) todo.push({ status: 'warn', text: `${ew.length} earth fault loop${ew.length > 1 ? 's' : ''} to check`, go: { view: 'earthing' } });
@@ -181,8 +182,14 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
   const pfc = planPfc(project);
   for (const m of pfc.mains) if (m.pfBefore < pfc.pfTarget - 1e-6 && m.existingKvar === 0) todo.push({ status: 'warn', text: `${m.boardId} PF ${m.pfBefore.toFixed(2)} — no capacitor bank yet (${fig.power(m.plannedKvar)} kvar planned)`, go: { view: 'pfc' } });
   for (const c of dbChecks(project)) if (c.status === 'warn' && c.ratio !== undefined) todo.push({ status: 'warn', text: `${c.boardId} designed for ${fig.loading(c.ratio * 100)} % of its rooms’ expected load`, go: { view: 'load-schedule', boardId: c.boardId } });
-  for (const c of busbarIcwChecks(project)) if (!c.ok) todo.push({ status: 'bad', text: `${c.board.id}: busbar Icw ${fig.fault(c.icwKa)} kA (1 s) is below the ${fig.fault(c.faultKa)} kA fault level`, go: { view: 'design', boardId: c.board.id } });
-  for (const r of risers) if (!r.type || r.icwOk === false) todo.push({ status: 'bad', text: `${r.riser.name}: ${!r.type ? 'above the busway data' : 'Icw below the fault level'}`, go: { view: 'busbar' } });
+  for (const c of busbarIcwChecks(project)) {
+    if (c.assumed) todo.push({ status: 'warn', text: `${c.board.id}: busbar Icw ${fig.fault(c.icwKa)} kA (1 s) not verified: source fault level assumed`, go: { view: 'design', boardId: c.board.id } });
+    else if (!c.ok) todo.push({ status: 'bad', text: `${c.board.id}: busbar Icw ${fig.fault(c.icwKa)} kA (1 s) is below the ${fig.fault(c.faultKa)} kA fault level`, go: { view: 'design', boardId: c.board.id } });
+  }
+  for (const r of risers) {
+    if (!r.type || r.icwOk === false) todo.push({ status: 'bad', text: `${r.riser.name}: ${!r.type ? 'above the busway data' : 'Icw below the fault level'}`, go: { view: 'busbar' } });
+    else if (r.icwAssumed) todo.push({ status: 'warn', text: `${r.riser.name}: Icw not verified: source fault level assumed`, go: { view: 'busbar' } });
+  }
   for (const u of project.upsSystems ?? []) {
     const r = sizeUps(project, u);
     const add = (status: Status, message: string) => todo.push({ status, text: `${u.name}: ${message}`, go: { view: 'ups' } });
@@ -206,7 +213,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
   if (amb.problem) todo.push({ status: amb.status === 'bad' ? 'bad' : 'warn', text: amb.problem });
   for (const c of cableDataFindings(project)) todo.push({ ...c, go: { view: 'database' } });
   for (const c of groundChecks(project)) todo.push({ ...c });
-  for (const b of project.boards) if (!b.upstreamId && !(b.sourceKva && b.sourceImpedancePct) && !b.supply?.faultKa) todo.push({ status: 'warn', text: `${b.id}: no transformer kVA / %Z or supply fault level — fault levels below it use a placeholder source impedance (0.01 Ω), not a real fault level`, go: { view: 'sizing' } });
+  for (const b of project.boards) if (!b.upstreamId && !(b.sourceKva && b.sourceImpedancePct) && !supplyFaultKa(b)) todo.push({ status: 'warn', text: `${b.id}: no transformer kVA / %Z or supply fault level — fault levels below it use a placeholder source impedance (0.01 Ω), not a real fault level`, go: { view: 'sizing' } });
   // References to panels and circuits that no longer exist (a deleted panel that a riser, plan or selection still names).
   for (const i of checkReferences(project)) if (i.view !== 'ups') todo.push({ status: 'bad', text: `${i.where}: ${i.problem} (“${i.ref}”) — reassign or remove it`, go: i.view ? { view: i.view } : undefined });
   if (project.pv) {

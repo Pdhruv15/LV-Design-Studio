@@ -62,7 +62,7 @@ const circuit = z.object({
     vdPct: num.describe("This circuit's own cable"), vdTotalPct: num.describe('Source to the end of this circuit'),
     breakerFaultKa: num, endFaultKa: num,
     zsOhm: num.optional(), maxZsOhm: num.optional(), disconnectionS: num.optional(),
-    status: z.object({ vd: status, ampacity: z.enum(['ok', 'bad']), protection: z.enum(['ok', 'bad']), icu: z.enum(['ok', 'bad']), disconnection: status.optional(), overall: status }).strict()
+    status: z.object({ vd: status, ampacity: z.enum(['ok', 'bad']), protection: z.enum(['ok', 'bad']), icu: z.enum(['ok', 'bad']), faultAssumed: z.literal(true).optional().describe('the source has no transformer data or supply fault level: the fault level is a placeholder and icu is not verified'), disconnection: status.optional(), overall: status }).strict()
   }).strict()
 }).strict();
 

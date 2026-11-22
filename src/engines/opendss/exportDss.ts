@@ -1,7 +1,7 @@
 import { DEFAULT_TRANSFORMER_XR, boardDemandKw, resistanceFactor, rOperatingOhmPerKm, runsOf } from '../../calc/electrical';
 import { cablesSource } from '../../calc/cableTable';
 import { getCable } from '../../calc/cableTable';
-import type { Feeder, Project } from '../../types';
+import { supplyFaultKa, type Feeder, type Project } from '../../types';
 
 /** Nominal MV voltage the transformer primary is modelled at. The upstream
  * network is a stiff (effectively infinite) source, matching the built-in
@@ -69,6 +69,7 @@ export function exportDss(project: Project): DssExport {
     `! Modelling assumptions (same as the built-in engine):`,
     `!  - Stiff upstream MV network (${STIFF_SOURCE_MVA} MVA) at a nominal ${MV_KV} kV.`,
     `!  - Transformer %Z split into R/X by the board's X/R ratio (default ${DEFAULT_TRANSFORMER_XR}).`,
+    `!  - A main board with no transformer but a stated supply fault level gets a Vsource on its own busbar (MVAsc = sqrt(3) x U x Ik, X/R ${DEFAULT_TRANSFORMER_XR}).`,
     `!  - Cable R at operating temperature = ${resistanceFactor(project.vdTempC).toFixed(3)} x R20 (${project.vdTempC === undefined ? 'standard factor 1.2' : `copper at ${project.vdTempC} °C`}); cable data: ${cablesSource()}; capacitance ignored.`,
     `!  - Zero-sequence cable data is a placeholder (R0/X0 = R1/X1). Replace it`,
     `!    before relying on single-phase / earth-fault results.`,
@@ -89,6 +90,17 @@ export function exportDss(project: Project): DssExport {
   out.push(`! ---- Transformers ----`);
   for (const b of project.boards.filter((b) => !b.upstreamId)) {
     if (!b.sourceKva || !b.sourceImpedancePct) {
+      const ka = supplyFaultKa(b);
+      if (ka) {
+        // LV supply with a stated fault level: a source equivalent on the board's own busbar, at -30 deg
+        // like the LV side of the delta-wye transformers, so a closed tie to one of them carries no circulating current.
+        const mva = fmt(Math.sqrt(3) * kvLL * ka, 4);
+        out.push(
+          `New Vsource.SRC_${boardName(b.id)} bus1=${busbar(boardName(b.id))} basekv=${fmt(kvLL, 4)} pu=1.0 phases=3 angle=-30 ` +
+            `MVAsc3=${mva} MVAsc1=${mva} x1r1=${DEFAULT_TRANSFORMER_XR} x0r0=${DEFAULT_TRANSFORMER_XR}`
+        );
+        continue;
+      }
       warnings.push(`Main board ${b.id} has no transformer data (kVA / %Z) and was left unconnected.`);
       out.push(`! WARNING: ${dssComment(b.id)} has no transformer data — not connected to a source.`);
       continue;

@@ -3,7 +3,7 @@ import { factorsText } from '../calc/installation';
 import { cableSizeText } from '../calc/electrical';
 import { breakerTypeOf } from '../calc/earthing';
 import { REPORT_STATUS_TEXT, STATUS_TEXT } from '../calc/statusText';
-import { boardSummary } from '../calc/summary';
+import { boardRatedA, boardSummary } from '../calc/summary';
 import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf } from '../calc/txGen';
 import { settingsOf, type Feeder } from '../types';
 import type { CalcData, Cell, Scope, Section } from './studyReport';
@@ -51,7 +51,7 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
           const here = onBoard(b.id), fk = boardSummary(p, b).faultKA;
           if (!here.length) return [b.id, fig.fault(fk), '—', '—', '—', '—', '—', '—'];
           const g = here.reduce((a, r) => (r.feeder.breakerIcuKa / r.breakerFaultKA < a.feeder.breakerIcuKa / a.breakerFaultKA ? r : a)), st = here.map((r) => r.icuStatus);
-          return [b.id, fig.fault(fk), g.feeder.id, fig.fault(g.breakerFaultKA), g.feeder.breakerIcuKa, fig.fault(g.feeder.breakerIcuKa - g.breakerFaultKA), counts(st), S(worst(st))];
+          return [b.id, fig.fault(fk), g.feeder.id, fig.fault(g.breakerFaultKA), g.feeder.breakerIcuKa, fig.fault(g.feeder.breakerIcuKa - g.breakerFaultKA), counts(st), g.faultAssumed ? NC : S(worst(st))];
         }) };
       toAppendix(s, ['Breaker breaking capacity', 'Fault at the end of each cable']);
       break;
@@ -81,7 +81,7 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
           ['Design current (Ib)', `${fig.current(r.ib)} A`], ['Protective device (In)', `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`],
           ['Selected cable', cableSizeText(r.feeder)], ['Installation', `${r.rating.method} · derating ${factorsText(r.rating)}`], ['Derated capacity (Iz)', r.rating.missing ? `DATA REQUIRED — ${r.rating.missing}` : `${fig.current(r.ampacity)} A`],
           ['Ib ≤ In ≤ Iz', S(r.protectionStatus)], ['Voltage drop (total)', `${fig.pct(r.vdTotalPct)} % (limit ${p.vdLimitPct} %)`],
-          ['Breaking capacity check', S(r.icuStatus)], ['Overall status', S(cableStatus(r))]
+          ['Breaking capacity check', r.faultAssumed ? NC : S(r.icuStatus)], ['Overall status', S(cableStatus(r))]
         ]
       }));
       s.verification = { title: 'Circuits on each board', headers: ['Board', 'Circuits', 'Pass / check / fail', 'Status'],
@@ -168,7 +168,7 @@ export function distributionSection(data: CalcData, scope: Scope, title: string)
     summary: [{ label: 'Boards', value: String(sums.length) }, { label: 'Major feeders', value: String(major.length) }, ...(statuses.length ? [{ label: 'Checks', value: counts(statuses) + ' (pass / check / fail)', status: worst(statuses) }] : [])],
     tables: [
       { title: 'Distribution boards', headers: ['Board', 'Type', 'Fed from', 'Bus rating (A)', 'Demand (A)', 'Loading', 'Ik″ (kA)'],
-        rows: sums.map((s) => [s.board.id, s.board.kind ?? (s.board.upstreamId ? 'DB' : 'MDB'), s.board.upstreamId ?? 'Supply', s.board.ratedCurrentA ?? 'Not defined', fig.current(s.currentA),
+        rows: sums.map((s) => [s.board.id, s.board.kind ?? (s.board.upstreamId ? 'DB' : 'MDB'), s.board.upstreamId ?? 'Supply', boardRatedA(s.board) ?? 'Not defined', fig.current(s.currentA),
           s.loadingPct === undefined ? '—' : { v: `${fig.loading(s.loadingPct)} %`, s: s.loadingStatus ?? 'ok' }, fig.fault(s.faultKA)]) },
       { title: 'Major feeders', headers: ['From', 'To', 'Breaker', 'Cable', 'Ib (A)', 'Iz (A)', 'Status'],
         rows: major.map((r) => [r.feeder.boardId, r.feeder.feedsBoardId!, `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`, cableSizeText(r.feeder), fig.current(r.ib), fig.current(r.ampacity), S(worst([r.protectionStatus, r.ampacityStatus]))]) }

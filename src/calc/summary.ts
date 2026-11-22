@@ -1,4 +1,4 @@
-import { faultCurrentKA, impedanceToBoard, upstreamVoltageDropPct, type Status } from './electrical';
+import { faultCurrentKA, impedanceToBoard, sourceAssumed, upstreamVoltageDropPct, type Status } from './electrical';
 import { settingsOf, type Board, type Feeder, type LoadType, type Project } from '../types';
 import { switchedOnBoard } from './capSwitching';
 import { boardOf, feedersOn, memoized, perProject } from './network';
@@ -77,6 +77,7 @@ export interface BoardSummary extends PowerTotals {
   voltagePct: number;
   voltageV: number;
   faultKA: number; // 3-phase prospective fault at the busbar
+  faultAssumed?: boolean; // the source has no data: faultKA rests on the placeholder
   outgoing: number; // feeders on this board (including incomers to sub-boards)
   incomer?: Feeder; // the feeder supplying this board (sub-boards only)
 }
@@ -97,11 +98,17 @@ export function loadingStatus(pct: number): Status {
   return pct > 100 ? 'bad' : pct > 80 ? 'warn' : 'ok';
 }
 
+/** Rating the board's loading is compared with: its busbar rating, else (first board) its supply's rating. */
+export function boardRatedA(board: Board): number | undefined {
+  return board.ratedCurrentA ?? (!board.upstreamId ? board.supply?.ratingA : undefined);
+}
+
 export function boardSummary(project: Project, board: Board): BoardSummary {
   const totals = boardTotals(project, board.id);
   const demandKva = Math.hypot(totals.demandKw, totals.demandKvar);
   const currentA = (demandKva * 1000) / (SQRT3 * project.voltageV);
-  const loadingPct = board.ratedCurrentA ? (currentA / board.ratedCurrentA) * 100 : undefined;
+  const ratedA = boardRatedA(board);
+  const loadingPct = ratedA ? (currentA / ratedA) * 100 : undefined;
   const voltagePct = 100 - upstreamVoltageDropPct(project, board.id);
   return {
     ...totals,
@@ -115,6 +122,7 @@ export function boardSummary(project: Project, board: Board): BoardSummary {
     voltagePct,
     voltageV: (project.voltageV * voltagePct) / 100,
     faultKA: faultCurrentKA(impedanceToBoard(project, board.id), project.voltageV),
+    ...(sourceAssumed(project, board.id) && { faultAssumed: true }),
     outgoing: feedersOn(project, board.id).length,
     incomer: board.upstreamId ? feedersOn(project, board.upstreamId).find((f) => f.feedsBoardId === board.id) : undefined
   };

@@ -4,7 +4,7 @@ import type { Project, StudySettings } from '../../types';
 import { isEssential, settingsOf } from '../../calc/sizing';
 import { boardsInSupplyOrder, loadTypeOf } from '../../calc/summary';
 import { MOTOR_START_DIP_LIMIT_PCT, starterInfo, starterOf } from '../../calc/motor';
-import { applyTransformer, keepTxGenSettings, sizeGeneratorByBoards, sizeTransformers, txGenLink, txGenPlanOf, txGenSizeList, type TxGenLinkRow, type TxGenPlan, type TxRow } from '../../calc/txGen';
+import { applyTransformer, defaultTxBoards, keepTxGenSettings, sizeGeneratorByBoards, sizeTransformers, txGenLink, txGenPlanOf, txGenSizeList, type TxGenLinkRow, type TxGenPlan, type TxRow } from '../../calc/txGen';
 import { transformerLoad } from '../../calc/spacePlan';
 import { txSizeChoices } from '../../calc/sizeLists';
 import { subtree } from '../../calc/pfc';
@@ -39,11 +39,12 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus, onOpen 
   const depth = (id: string) => { let d = 0, b = project.boards.find((x) => x.id === id); while (b?.upstreamId && d < 20) { d++; b = project.boards.find((x) => x.id === b!.upstreamId); } return d; };
   const standbyBoards = project.boards.filter((b) => b.standby);
 
-  const txTicked = (id: string) => !plan.txBoards.length || plan.txBoards.includes(id);
+  const txDefault = defaultTxBoards(project).map((b) => b.id);
+  const txTicked = (id: string) => (plan.txBoards.length ? plan.txBoards : txDefault).includes(id);
   const tickTx = (id: string, on: boolean) => {
-    const cur = plan.txBoards.length ? plan.txBoards : mains.map((b) => b.id);
+    const cur = plan.txBoards.length ? plan.txBoards : txDefault;
     const next = on ? [...cur, id] : cur.filter((x) => x !== id);
-    setPlan({ txBoards: next.length === mains.length ? [] : next });
+    setPlan({ txBoards: next.length === txDefault.length && txDefault.every((x) => next.includes(x)) ? [] : next });
   };
   const setGenBoard = (id: string, pct: number | undefined) => {
     const g = { ...plan.genBoards };

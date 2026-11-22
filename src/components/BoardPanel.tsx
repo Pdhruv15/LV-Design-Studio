@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { form4SizeText } from '../calc/form4';
 import type { Board, Project } from '../types';
 import { izText, type FeederResult } from '../calc/electrical';
-import { boardSummary } from '../calc/summary';
+import { boardRatedA, boardSummary } from '../calc/summary';
 import BoardFields from './BoardFields';
 import { roleOf } from '../model/emergency';
 import { txt } from '../util/format';
@@ -190,7 +190,7 @@ export default function BoardPanel({
               <span className={s.loadingStatus} style={{ width: `${Math.min(s.loadingPct, 100)}%` }} />
               <b>{txt.loading(s.loadingPct)}%</b>
             </div>
-            <p className={`m ${s.loadingStatus}`}>{statusLabel[s.loadingStatus!]} of {board.ratedCurrentA} A rating</p>
+            <p className={`m ${s.loadingStatus}`}>{statusLabel[s.loadingStatus!]} of {boardRatedA(board)} A rating</p>
           </>
         ) : (
           <p className="m">Set a rated current on the General tab to see board loading.</p>

@@ -44,6 +44,9 @@ export function projectReadiness(p: Project, d: Dashboard, run?: CalcRun, stale:
 export interface StageCheck { label: string; done: boolean; go: MainView | 'settings' }
 export interface StageCard { stage: DesignStage; label: string; does: string; state: 'done' | 'current' | 'next'; checks: StageCheck[]; gate?: StageGate }
 const MAIN_KINDS = new Set(['LV-ACB', 'MDB', 'LV-MDB', 'SMDB', 'LV-EMDB', 'EMDB', 'MCC']);
+/** Board kinds at main-board level; a first board of any other kind (SMDB, DB …) means the project starts below the main board. */
+const MAIN_LEVEL_KINDS = new Set(['LV-ACB', 'MDB', 'LV-MDB', 'LV-EMDB', 'EMDB']);
+const startsBelowMain = (p: Project) => { const roots = p.boards.filter((b) => !b.upstreamId); return roots.length > 0 && roots.every((b) => !MAIN_LEVEL_KINDS.has(b.kind ?? 'MDB')); };
 
 /** The checklist of every stage the project goes through: what each stage needs before its package is issued.
  * Derived from the inputs, never stored; a stage is done when its gate has been passed. */
@@ -62,7 +65,7 @@ export function stageChecklist(p: Project, d: Dashboard, run?: CalcRun, stale: S
       { label: 'Substation and room areas', done: !!p.substations?.length, go: 'substation-area' }
     ],
     schematic: [
-      { label: 'Main boards entered', done: p.boards.filter((b) => MAIN_KINDS.has(b.kind ?? '')).length > 0 && p.boards.length > 1, go: 'panels' },
+      { label: 'Main boards entered', done: (p.boards.filter((b) => MAIN_KINDS.has(b.kind ?? '')).length > 0 && p.boards.length > 1) || startsBelowMain(p), go: 'panels' },
       { label: 'Board loads entered', done: r('design').done, go: 'design' },
       { label: 'Riser / schematic drawing', done: sheets.some((s) => (s.kind as string) === 'riser' || (s.kind as string) === 'system'), go: 'drawings' },
       { label: 'Main checks clear', done: !upTo('schematic').some((t) => t.status === 'bad'), go: 'dashboard' }

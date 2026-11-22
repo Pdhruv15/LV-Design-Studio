@@ -3,6 +3,7 @@ import { sampleProject } from '../data/sampleProject';
 import { runCalculations } from './runs';
 import { buildDashboard, sizesText } from './dashboard';
 import { buildDashboardHtml } from '../docs/dashboardPdf';
+import { newRiser } from './busbar';
 import type { Project } from '../types';
 
 describe('project dashboard', () => {
@@ -62,5 +63,27 @@ describe('dashboard: calculation-input findings', () => {
   it('a main board without transformer data warns that its fault level is a placeholder', () => {
     const boards = sampleProject.boards.map((b) => (b.upstreamId ? b : { ...b, sourceKva: undefined }));
     expect(texts({ ...sampleProject, boards }).some((t) => /placeholder source impedance/.test(t.text))).toBe(true);
+  });
+});
+
+describe('dashboard: an assumed source fault level', () => {
+  const bare = (p: Project): Project => ({ ...p, boards: p.boards.map((b) => (b.upstreamId ? b : { ...b, sourceKva: undefined, sourceImpedancePct: undefined })) });
+  const todo = (p: Project) => buildDashboard(p, runCalculations(p)).todo.map((t) => t.text);
+  const close = /circuits? to check — close to/;
+  it('does not count circuits as close to a limit only because their Icu is not verified', () => {
+    const t = todo(bare(sampleProject));
+    expect(t.some((x) => close.test(x))).toBe(false);
+    expect(t.some((x) => /placeholder source impedance/.test(x))).toBe(true);
+    expect(todo(sampleProject).some((x) => close.test(x))).toBe(false);
+  });
+  it('still counts a circuit that is close to a voltage-drop limit for its own reason', () => {
+    const worst = Math.max(...runCalculations(bare(sampleProject)).results.map((r) => r.vdTotalPct));
+    const p = { ...bare(sampleProject), vdLimitPct: worst / 0.9 };
+    expect(todo(p).some((x) => close.test(x))).toBe(true);
+  });
+  it('a busway riser Icw is a not-verified row, not a pass or a fail', () => {
+    const riser = { ...newRiser('BR-1', 'MDB-1'), floors: [{ id: 'T', name: 'Typical', kw: 45, pf: 0.9, count: 20 }] };
+    expect(todo({ ...bare(sampleProject), busRisers: [riser] })).toContain('Busbar riser BR-1: Icw not verified: source fault level assumed');
+    expect(todo({ ...sampleProject, busRisers: [riser] }).some((x) => /Icw not verified/.test(x))).toBe(false);
   });
 });

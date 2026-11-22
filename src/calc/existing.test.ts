@@ -49,6 +49,16 @@ describe('recorded maximum demand of an existing installation', () => {
     expect(recordedText(project, project.boards[0])).toBe('MD 610 kVA (DEWA reading, 12 Aug 2026)');
   });
 
+  it('an existing feeder on an assumed fault level is "not verified", never "too low"', () => {
+    const bare: Project = { ...project, boards: project.boards.map((b) => (b.id === 'MDB-1' ? { ...b, sourceKva: undefined, sourceImpedancePct: undefined } : b)) };
+    const weak: Project = { ...bare, feeders: bare.feeders.map((f) => (f.id === 'INC-OLD' ? { ...f, breakerIcuKa: 4 } : f)) };
+    const old = existingChecks(weak, evaluateProject(weak)).find((x) => x.kind === 'feeder' && x.id === 'INC-OLD')!;
+    expect(old.result).toContain('breaking capacity not verified: source fault level assumed');
+    expect(old.result).not.toContain('too low');
+    const real: Project = { ...project, feeders: project.feeders.map((f) => (f.id === 'INC-OLD' ? { ...f, breakerIcuKa: 4 } : f)) };
+    expect(existingChecks(real, evaluateProject(real)).find((x) => x.kind === 'feeder' && x.id === 'INC-OLD')!.result).toContain('breaking capacity too low');
+  });
+
   it('checks transformer spare capacity, the existing incomer, existing feeders and spare ways', () => {
     const c = existingChecks(project, evaluateProject(project));
     const tx = c.find((x) => x.kind === 'transformer')!;

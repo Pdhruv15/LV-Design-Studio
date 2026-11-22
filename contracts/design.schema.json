@@ -435,6 +435,11 @@
                       "bad"
                     ]
                   },
+                  "faultAssumed": {
+                    "description": "the source has no transformer data or supply fault level: the fault level is a placeholder and icu is not verified",
+                    "type": "boolean",
+                    "const": true
+                  },
                   "disconnection": {
                     "type": "string",
                     "enum": [

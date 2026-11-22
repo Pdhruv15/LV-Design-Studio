@@ -71,3 +71,31 @@ describe('ENG-019 earthing: missing source loop is unknown, not zero', () => {
     expect(html).toContain('≤ 396.6');
   });
 });
+
+describe('earth fault loop on a main board with an LV supply (no transformer)', () => {
+  it('reads Ze from the supply fault level: estimated, verified, Ze shown with ≈', () => {
+    const f = F();
+    const r = evaluateEarthing(P([{ id: 'MDB', name: 'M', supply: { faultKa: 25 } }], [f]), f);
+    expect(r.sourceMissing).toBeUndefined();
+    expect(r.sourceEstimated).toBe('Ze estimated from the supply fault level at MDB');
+    expect(r.zeOhm).toBeCloseTo((1.05 * 400) / (Math.sqrt(3) * 25000), 6); // 0.0097 Ω
+    expect(r.disconnection).toBe('ok');
+    expect(r.adiabatic).toBe('ok');
+    expect(loopFigures(r).ze).toMatch(/^≈ 0\.0097$/);
+  });
+  it('carries the estimate to a board below, and a neither-transformer-nor-fault-level root stays missing', () => {
+    const boards: Board[] = [{ id: 'MDB', name: 'M', supply: { faultKa: 25 } }, { id: 'SUB', name: 'S', upstreamId: 'MDB' }];
+    const inc = F({ id: 'INC', feedsBoardId: 'SUB', cableCsaMm2: 70 });
+    const f = F({ boardId: 'SUB' });
+    expect(earthLoopPath(P(boards, [inc, f]), 'SUB').estimated).toMatch(/at MDB/);
+    const none = evaluateEarthing(P([{ id: 'MDB', name: 'M', supply: { ratingA: 400 } }], [F()]), F());
+    expect(none.sourceMissing).toMatch(/no source data at MDB \(transformer kVA and impedance %, or the supply fault level\)/);
+    expect(none.sourceEstimated).toBeUndefined();
+  });
+  it('a transformer project is unchanged: no estimate, no ≈', () => {
+    const f = F();
+    const r = evaluateEarthing(P([{ id: 'MDB', name: 'M', sourceKva: 1000, sourceImpedancePct: 5, supply: { faultKa: 25 } }], [f]), f);
+    expect(r.sourceEstimated).toBeUndefined();
+    expect(loopFigures(r).ze).toBe('0.0080');
+  });
+});

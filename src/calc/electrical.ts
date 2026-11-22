@@ -3,7 +3,7 @@ import { recordedPQ } from '../model/existing';
 import { ambientCorrectionFactor, cables, getCable } from './cableTable';
 import { trayGrouping } from './cableTray';
 import { feederRatingBasis, type RatingBasis } from './installation';
-import type { Board, Feeder, GridSource, Project } from '../types';
+import { supplyFaultKa, type Board, type Feeder, type GridSource, type Project } from '../types';
 import { boardPhasePQ, type PhasePQ } from './loadSchedule';
 import { fmtFixed } from '../util/format';
 import { checkLimits, type LimitCheck } from './authorityLimits';
@@ -342,6 +342,20 @@ export function impedanceToBoard(project: Project, boardId: string, seen = new S
   return memoized(project, `zUp:${boardId}`, () => impedanceToBoardOf(project, board, seen));
 }
 
+/** True when the fault level at a board rests on the placeholder source: the first board at the top of its supply
+ * chain has neither transformer data nor a supply fault level (or the chain is broken). Its fault-level checks
+ * are then not verified. */
+export function sourceAssumed(project: Project, boardId: string): boolean {
+  return memoized(project, `srcAssumed:${boardId}`, () => {
+    const seen = new Set<string>();
+    for (let b = boardOf(project, boardId); b && !seen.has(b.id); b = b.upstreamId ? boardOf(project, b.upstreamId) : undefined) {
+      seen.add(b.id);
+      if (!b.upstreamId) return !(b.sourceKva && b.sourceImpedancePct) && !supplyFaultKa(b);
+    }
+    return true;
+  });
+}
+
 /** Main boards joined to this one by closed bus couplers (transformers in
  * parallel), this one first. Only main boards with transformer data take part;
  * a board without closed ties is alone. */
@@ -373,7 +387,10 @@ function impedanceToBoardOf(project: Project, board: Board, seen: Set<string>): 
 
   if (!board.upstreamId) {
     // No transformer: a supply with a stated fault level (authority, or a neighbouring building's main board).
-    if (!board.sourceKva || !board.sourceImpedancePct) return board.supply?.faultKa ? supplyImpedance(board.supply.faultKa, project.voltageV) : fallback;
+    if (!board.sourceKva || !board.sourceImpedancePct) {
+      const ka = supplyFaultKa(board);
+      return ka ? supplyImpedance(ka, project.voltageV) : fallback;
+    }
     // A closed coupler joins the busbars: every transformer on them feeds a fault (couplers taken as 0 Ω),
     // each behind its MV network impedance when the grid fault level is given.
     return mainSourceImpedance(project, board);
@@ -430,8 +447,10 @@ export interface FeederResult {
    * for minimum-fault / disconnection-time checks). 3-phase fault for
    * 3/4-core circuits, line-to-neutral for 2-core circuits. */
   endFaultKA: number;
-  /** Breaker breaking capacity Icu ≥ fault at its terminals. */
-  icuStatus: 'ok' | 'bad';
+  /** Breaker breaking capacity Icu ≥ fault at its terminals; 'warn' (not verified) when the fault level is assumed. */
+  icuStatus: Status;
+  /** The source behind this board has no transformer data or supply fault level: the fault levels are placeholders. */
+  faultAssumed?: true;
   /** The authority's cable / breaker limits (DEWA Table 3, DB feeder minimum); absent when none apply. */
   limits?: LimitCheck;
   status: Status;
@@ -470,7 +489,8 @@ function evaluateFeederOf(project: Project, feeder: Feeder): FeederResult {
   const vdStatus: Status = vdTotalPct > project.vdLimitPct ? 'bad' : vdTotalPct > project.vdLimitPct * 0.85 ? 'warn' : 'ok';
   const ampacityStatus = ampacity >= ib ? 'ok' : 'bad';
   const protectionStatus = ib <= feeder.breakerRatingA && feeder.breakerRatingA <= ampacity ? 'ok' : 'bad';
-  const icuStatus = feeder.breakerIcuKa >= breakerFaultKA ? 'ok' : 'bad';
+  const faultAssumed = sourceAssumed(project, feeder.boardId);
+  const icuStatus: Status = faultAssumed ? 'warn' : feeder.breakerIcuKa >= breakerFaultKA ? 'ok' : 'bad';
   const loadingStatus: Status = loadingPct > 100 ? 'bad' : loadingPct > 85 ? 'warn' : 'ok';
 
   const limits = checkLimits(project, feeder, ib, runsOf(feeder));
@@ -479,7 +499,7 @@ function evaluateFeederOf(project: Project, feeder: Feeder): FeederResult {
 
   return {
     feeder, ib, ampacity, tray, rating, loadingPct, vdPct, vdUpstreamPct, vdTotalPct, vdStatus,
-    ampacityStatus, protectionStatus, breakerFaultKA, endFaultKA, icuStatus, ...(limits && { limits }), status
+    ampacityStatus, protectionStatus, breakerFaultKA, endFaultKA, icuStatus, ...(faultAssumed && { faultAssumed }), ...(limits && { limits }), status
   };
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { evaluateFeeder } from './electrical';
-import { failReasons, quickFixes } from './quickFix';
+import { failReasons, patchStatus, quickFixes } from './quickFix';
 
 describe('quick fixes', () => {
   it('offers nothing for a passing circuit', () => {
@@ -41,5 +41,39 @@ describe('engines get the same cable data', async () => {
     expect(d.cables[0]).toEqual([cables()[0].csaMm2, cables()[0].rOhmPerKm20C, cables()[0].xOhmPerKm, cables()[0].ampacityA]);
     expect(d.rFactor).toBeCloseTo(1 + 0.00393 * 70, 5);
     expect(engineCableData(sampleProject).rFactor).toBe(1.2);
+  });
+});
+
+describe('quick fixes on an assumed fault level', () => {
+  const assumed = { ...sampleProject, boards: sampleProject.boards.map((b) => (b.upstreamId ? b : { ...b, sourceKva: undefined, sourceImpedancePct: undefined })) };
+  const f = { ...assumed.feeders.find((x) => !x.feedsBoardId && x.boardId === 'MDB-1')!, breakerIcuKa: 6 };
+  it('says the breaking capacity is not verified and never offers a bigger Icu', () => {
+    const r = evaluateFeeder(assumed, f);
+    expect(r.faultAssumed).toBe(true);
+    expect(failReasons(assumed, r)).toContain('Breaking capacity not verified: source fault level assumed');
+    expect(quickFixes(assumed, f).some((x) => 'breakerIcuKa' in x.patch)).toBe(false);
+  });
+  it('still offers a cable for an undersized one, judged apart from the assumed Icu', () => {
+    const g = { ...f, cableCsaMm2: 1.5 };
+    const r = evaluateFeeder(assumed, g);
+    expect(r.ampacityStatus).toBe('bad');
+    const fix = quickFixes(assumed, g).find((x) => x.label.startsWith('Cable'));
+    expect(fix).toBeDefined();
+    expect(patchStatus(fix!.after)).toBe('ok');
+    expect(fix!.after.icuStatus).toBe('warn');
+    expect(quickFixes(assumed, g).some((x) => 'breakerIcuKa' in x.patch)).toBe(false);
+    // The same circuit with the transformer present gets a cable too (unchanged behaviour).
+    expect(quickFixes(sampleProject, { ...g, breakerIcuKa: 36 }).some((x) => x.label.startsWith('Cable'))).toBe(true);
+  });
+  it('a circuit that only lacks a verified fault level has nothing to fix', () => {
+    expect(patchStatus(evaluateFeeder(assumed, f))).toBe('ok');
+    expect(quickFixes(assumed, f)).toEqual([]);
+  });
+  it('a real fault level below the Icu still offers it', () => {
+    const real = { ...sampleProject, boards: sampleProject.boards.map((b) => (b.upstreamId ? b : { ...b, sourceKva: 1500, sourceImpedancePct: 5 })) };
+    const g = { ...f, boardId: 'MDB-1', breakerIcuKa: 6 };
+    expect(evaluateFeeder(real, g).icuStatus).toBe('bad');
+    expect(quickFixes(real, g).some((x) => 'breakerIcuKa' in x.patch)).toBe(true);
+    expect(failReasons(real, evaluateFeeder(real, g)).join()).toMatch(/Breaking capacity: Icu 6 kA/);
   });
 });

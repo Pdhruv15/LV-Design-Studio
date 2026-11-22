@@ -59,4 +59,13 @@ describe('lvds.design version 1', () => {
     const longer = exportOf({ ...p, feeders: p.feeders.map((f, i) => (i === 0 ? { ...f, lengthM: f.lengthM + 10 } : f)) });
     expect(longer.calculation.fingerprint).not.toBe(before.calculation.fingerprint);
   });
+
+  it('a project with no source data exports faultAssumed beside a plain ok / bad icu and still validates; the sample has none', () => {
+    const bare: Project = { ...project(), boards: project().boards.map((b) => (b.upstreamId ? b : { ...b, sourceKva: undefined, sourceImpedancePct: undefined, ratedCurrentA: undefined, supply: { ratingA: 2000 } })) };
+    const pkg = exportOf(bare);
+    expect(designPackage.safeParse(pkg).success).toBe(true);
+    expect(pkg.circuits.every((c) => c.results.status.faultAssumed === true && c.results.status.icu !== ('warn' as string) && c.results.status.overall !== 'ok')).toBe(true);
+    expect(pkg.boards.find((b) => !b.upstreamUid)?.ratedCurrentA).toBe(2000); // the rating the loading was divided by
+    expect(exportOf(project()).circuits.some((c) => 'faultAssumed' in c.results.status)).toBe(false);
+  });
 });

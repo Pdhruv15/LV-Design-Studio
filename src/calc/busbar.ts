@@ -2,7 +2,7 @@ import type { Project } from '../types';
 import { summarizeBuilding } from './building';
 import { boardTotals } from './summary';
 import { panelSummary } from './panelDemand';
-import { faultCurrentKA, impedanceToBoard, upstreamVoltageDropPct } from './electrical';
+import { faultCurrentKA, impedanceToBoard, sourceAssumed, upstreamVoltageDropPct } from './electrical';
 import { STANDARD_BREAKER_A } from './sizing';
 import { fig } from '../util/format';
 
@@ -154,6 +154,8 @@ export interface RiserResult {
   feederBreakerA?: number;
   faultKa?: number;
   icwOk?: boolean;
+  /** The fault level rests on the placeholder source: icwOk is then left open ("not verified"). */
+  icwAssumed?: true;
   floors: RiserFloorResult[];
   /** The feed and each riser section with the (diversified) P and signed Q it carries and its own drop
    * (ENG-011) — one evaluator for the page, the floor rows, the VD study and the reports. */
@@ -215,6 +217,7 @@ export function sizeRiser(project: Project, r: BusRiser, data: BusbarData = proj
     ? faultCurrentKA(impedanceToBoard(project, r.sourceBoardId), project.voltageV)
     : undefined;
   const fault = faultKa !== undefined && Number.isFinite(faultKa) ? faultKa : undefined;
+  const icwAssumed = fault !== undefined && !!type && sourceAssumed(project, r.sourceBoardId!);
 
   // Voltage drop, section by section (balanced, first order): each section carries the diversified
   // P and signed Q of the tap-offs above it — summed before the apparent power, so floors with
@@ -262,7 +265,8 @@ export function sizeRiser(project: Project, r: BusRiser, data: BusbarData = proj
   const lengthM = r.feedM + vertical;
   const notes: string[] = [];
   if (!type) notes.push(`Above the largest ${MATERIAL_LABEL[r.material].toLowerCase()} rating in the data — two risers, or split the floors`);
-  if (fault !== undefined && type && type.icwKa < fault) notes.push(`Fault at ${r.sourceBoardId} is ${fig.fault(fault)} kA — above the busway's Icw ${type.icwKa} kA; take the next rating or a current-limiting breaker`);
+  if (icwAssumed) notes.push(`Icw ${type!.icwKa} kA not verified: source fault level assumed at ${r.sourceBoardId}`);
+  else if (fault !== undefined && type && type.icwKa < fault) notes.push(`Fault at ${r.sourceBoardId} is ${fig.fault(fault)} kA — above the busway's Icw ${type.icwKa} kA; take the next rating or a current-limiting breaker`);
   notes.push(...demandNotes, ...tapOffNotes);
   if (diversityRule === 'typed') notes.push(`Diversity ${diversity} (typed)`);
   else if (diversityRule === 'forms') notes.push('Diversity 1.0: each tap-off at its maximum demand on its MD form (TCL × DF)');
@@ -274,7 +278,7 @@ export function sizeRiser(project: Project, r: BusRiser, data: BusbarData = proj
     type, alternative: { material: other, type: pick(other) },
     currentDensity: type ? designA / type.csaMm2 : undefined,
     feederBreakerA: inA,
-    faultKa: fault, icwOk: fault !== undefined && type ? type.icwKa >= fault : undefined,
+    faultKa: fault, icwOk: fault !== undefined && type && !icwAssumed ? type.icwKa >= fault : undefined, ...(icwAssumed && { icwAssumed: true as const }),
     floors: floorResults, sections, vdTopPct: vdAt[vdAt.length - 1] ?? 0,
     lengthM, elements: Math.ceil(lengthM / Math.max(0.5, r.elementM)), weightKg: type ? type.kgPerM * lengthM : undefined,
     notes

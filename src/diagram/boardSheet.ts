@@ -4,7 +4,7 @@ import type { FeederResult } from '../calc/electrical';
 import { runsOf } from '../calc/electrical';
 import { circuitRef } from '../calc/loadSchedule';
 import { phaseBalance, PHASE_UNBALANCE_CHECK_PCT } from '../calc/phaseBalance';
-import { boardSummary } from '../calc/summary';
+import { boardRatedA, boardSummary } from '../calc/summary';
 import { busbarIcwCheck } from '../calc/busbarIcw';
 import { panelSummary } from '../docs/mdSheet';
 import { boardLocation } from '../model/levels';
@@ -139,7 +139,7 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
     if (label.length && fits(joined)) label[label.length - 1] = joined; else label.push(part);
   }
   label.forEach((t, i) => out.push(tx(x1, BUS_Y - 8 - (label.length - 1 - i) * 14, t, { bold: true })));
-  out.push(tx(x2, BUS_Y - 8, `Isc ${s.faultKA.toFixed(1)} kA${icw ? (icw.ok ? ' ≤ Icw' : ' > Icw — CHECK') : ''}`, { anchor: 'end' }));
+  out.push(tx(x2, BUS_Y - 8, `Isc ${s.faultKA.toFixed(1)} kA${icw ? (icw.assumed ? ' vs Icw — not verified' : icw.ok ? ' ≤ Icw' : ' > Icw — CHECK') : ''}`, { anchor: 'end' }));
 
   // Panel sections (fire alarm interface, control, BMS…) as labelled strips at the busbar's end.
   const secX0 = Math.max((n ? xs[Math.min(n, perRow) - 1] + SP / 2 : x2) + SEC_X, x2 + 14); // past the busbar and the last way's text
@@ -188,9 +188,9 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
     ['LOCATION', cut(boardLocation(project, board) || '—', 40)],
     ['SUPPLY', riser ? `Tap-off from ${riser.name} (${board.upstreamId})${opts.fromSheet ? `, sheet ${opts.fromSheet}` : ''}` : board.upstreamId ? `From ${board.upstreamId}${opts.fromSheet ? `, sheet ${opts.fromSheet}` : ''}` : `Transformer ${board.sourceKva ?? '—'} kVA`],
     ['TCL / DF / MDL', `${fmtFixed(ps.tclKw, 2)} kW / ${ps.df.toFixed(2)} / ${fmtFixed(ps.mdlKw, 2)} kW`],
-    ['DEMAND CURRENT', `${fmtFixed(s.currentA, 1)} A${board.ratedCurrentA ? ` of ${board.ratedCurrentA} A (${fmtFixed(s.loadingPct ?? 0, 0)} %)` : ''}`],
+    ['DEMAND CURRENT', `${fmtFixed(s.currentA, 1)} A${boardRatedA(board) ? ` of ${boardRatedA(board)} A (${fmtFixed(s.loadingPct ?? 0, 0)} %)` : ''}`],
     ['FAULT LEVEL', `${s.faultKA.toFixed(1)} kA`],
-    ...(icw ? [['BUSBAR Icw', `${fmtFixed(icw.icwKa, Number.isInteger(icw.icwKa) ? 0 : 1)} kA / 1 s — ${icw.ok ? 'OK' : 'CHECK (below the fault level)'}`] as [string, string]] : []),
+    ...(icw ? [['BUSBAR Icw', `${fmtFixed(icw.icwKa, Number.isInteger(icw.icwKa) ? 0 : 1)} kA / 1 s — ${icw.assumed ? 'not verified: assumed source' : icw.ok ? 'OK' : 'CHECK (below the fault level)'}`] as [string, string]] : []),
     ...(sections.length ? [['SECTIONS', sections.map((x) => x.label).join(', ')] as [string, string]] : []),
     ['R / Y / B LOAD', `${three(pb.kw, 2)} kW`],
     ['R / Y / B CURRENT', `${three(pb.currentA, 1)} A`],

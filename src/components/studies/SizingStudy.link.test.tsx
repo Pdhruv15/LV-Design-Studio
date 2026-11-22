@@ -37,4 +37,18 @@ describe('Transformer and generator sizing: link to the concept', () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange.mock.calls[0][0].txGen.kept).toBeTruthy();
   });
+
+  it('the "Size:" boxes follow the default list: a first board on an LV supply is not ticked and stays out of it', async () => {
+    const onChange = vi.fn();
+    const mdb2 = { ...sampleProject.boards[0], id: 'MDB-2', name: 'MDB 2' };
+    const lv = { id: 'MDB-LV', name: 'LV supplied', kind: 'MDB' as const, supply: { faultKa: 25, ratingA: 400 } };
+    const p: Project = { ...project, boards: [...sampleProject.boards, mdb2, lv] };
+    await act(async () => { root = createRoot(host); root.render(<TransformerGeneratorStudy project={p} onChange={onChange} />); });
+    await until('the picker', () => text().includes('Size:'));
+    const box = (id: string) => [...host.querySelectorAll<HTMLLabelElement>('.txg-pick label')].find((l) => l.textContent?.trim() === id)!.querySelector('input')!;
+    expect([box('MDB-1').checked, box('MDB-2').checked, box('MDB-LV').checked]).toEqual([true, true, false]);
+    await act(async () => { box('MDB-2').click(); });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0].txGen.txBoards).toEqual(['MDB-1']);
+  });
 });

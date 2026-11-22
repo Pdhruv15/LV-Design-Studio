@@ -51,7 +51,7 @@ export default function EarthingStudy({ project, onSelectFeeder, focus, onClearF
                 <td>{f.boardId}</td>
                 <td>{f.breakerRatingA} A {breakerTypeOf(f)}</td>
                 <td>{f.cableCsaMm2} / {r.cpcMm2}</td>
-                <td title={r.sourceMissing}>{lf.ze}</td>
+                <td title={r.sourceMissing ?? r.sourceEstimated}>{lf.ze}</td>
                 <td className={r.zsOhm > r.maxZsOhm ? r.disconnection : ''}>{lf.zs}</td>
                 <td>{r.maxZsOhm.toFixed(4)}</td>
                 <td>{lf.fault}</td>

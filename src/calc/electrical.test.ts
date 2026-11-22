@@ -6,6 +6,7 @@ import {
   faultCurrentKA,
   impedanceToBoard,
   selectCable,
+  sourceAssumed,
   transformerImpedance,
   upstreamVoltageDropPct,
   voltageDropPct,
@@ -197,5 +198,43 @@ describe('voltage-drop cable suggestion', () => {
     // 35 mm² gives 2.62 %; 50 mm² gives √3 × 100 A × 0.1 km × 0.4644 Ω/km / 415 V × 100 = 1.94 %.
     expect(result.csaMm2).toBe(50);
     expect(result.totalPct).toBeCloseTo(1.938, 3);
+  });
+});
+
+describe('assumed source (no transformer data and no supply fault level)', () => {
+  const feeder = (over: Partial<Feeder> = {}): Feeder => ({ id: 'F', boardId: 'MDB', name: 'F', loadKw: 20, demandFactor: 1, powerFactor: 0.9, lengthM: 30, cableCsaMm2: 35, cores: 4, breakerRatingA: 63, breakerIcuKa: 36, ...over });
+  const assumed = (b: Project['boards'][number], fs: Feeder[] = [feeder()]): Project => ({ ...project(fs), boards: [b] });
+
+  it('sourceAssumed: only a root with neither a transformer nor a fault level, walked from below', () => {
+    expect(sourceAssumed(assumed({ id: 'MDB', name: 'M' }), 'MDB')).toBe(true);
+    expect(sourceAssumed(assumed({ id: 'MDB', name: 'M', sourceKva: 1000 }), 'MDB')).toBe(true); // no impedance
+    expect(sourceAssumed(assumed({ id: 'MDB', name: 'M', supply: { faultKa: 25 } }), 'MDB')).toBe(false);
+    expect(sourceAssumed(assumed({ id: 'MDB', name: 'M', sourceKva: 1000, sourceImpedancePct: 5 }), 'MDB')).toBe(false);
+    const below = { ...assumed({ id: 'MDB', name: 'M' }), boards: [{ id: 'MDB', name: 'M' }, { id: 'SUB', name: 'S', upstreamId: 'MDB' }] };
+    expect(sourceAssumed(below, 'SUB')).toBe(true);
+    expect(sourceAssumed({ ...below, boards: [{ id: 'MDB', name: 'M', supply: { faultKa: 25 } }, below.boards[1]] }, 'SUB')).toBe(false);
+    expect(sourceAssumed(below, 'NOPE')).toBe(true);
+    expect(sourceAssumed({ ...below, boards: [{ id: 'A', name: 'A', upstreamId: 'B' }, { id: 'B', name: 'B', upstreamId: 'A' }] }, 'A')).toBe(true);
+  });
+  it('icuStatus is warn (not verified) with faultAssumed, even when Icu is far below the placeholder fault', () => {
+    const r = evaluateFeeder(assumed({ id: 'MDB', name: 'M' }, [feeder({ breakerIcuKa: 6 })]), feeder({ breakerIcuKa: 6 }));
+    expect(r.breakerFaultKA).toBeGreaterThan(20); // placeholder 25.2 kA
+    expect(r.icuStatus).toBe('warn');
+    expect(r.faultAssumed).toBe(true);
+    expect(r.status).not.toBe('ok');
+  });
+  it('a transformer or a supply fault level: same statuses as before and no faultAssumed key', () => {
+    for (const b of [{ id: 'MDB', name: 'M', sourceKva: 1000, sourceImpedancePct: 5 }, { id: 'MDB', name: 'M', supply: { faultKa: 10 } }]) {
+      const ok = evaluateFeeder(assumed(b), feeder());
+      expect(ok.icuStatus).toBe('ok');
+      expect('faultAssumed' in ok).toBe(false);
+      const weak = feeder({ breakerIcuKa: 6 });
+      expect(evaluateFeeder(assumed(b, [weak]), weak).icuStatus).toBe('bad');
+    }
+  });
+  it('a supply fault level that is not above zero is no fault level: assumed, placeholder impedance', () => {
+    const neg = assumed({ id: 'MDB', name: 'M', supply: { faultKa: -5 } });
+    expect(sourceAssumed(neg, 'MDB')).toBe(true);
+    expect(evaluateFeeder(neg, feeder()).breakerFaultKA).toBeCloseTo(evaluateFeeder(assumed({ id: 'MDB', name: 'M' }), feeder()).breakerFaultKA, 6);
   });
 });

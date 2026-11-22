@@ -178,6 +178,11 @@ export const incomerDeviceOf = (b: Board): Exclude<IncomerDevice, 'NONE'> | unde
   return d === 'NONE' ? undefined : d;
 };
 
+/** A first board on an LV supply: no transformer of its own, a supply block instead (stated fault level, rating). */
+export const lvSupplied = (b: Board) => !b.upstreamId && !b.sourceKva && !!b.supply;
+/** The supply's stated fault level (kA), when there is a usable one (above zero). */
+export const supplyFaultKa = (b: Board): number | undefined => (b.supply?.faultKa && b.supply.faultKa > 0 ? b.supply.faultKa : undefined);
+
 export type SwitchDevice = 'ACB' | 'MCCB' | 'ISOL';
 export const SWITCH_DEVICES: SwitchDevice[] = ['ACB', 'MCCB', 'ISOL'];
 

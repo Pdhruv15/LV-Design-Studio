@@ -18,6 +18,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.254', date: '2026-11-22',
+    items: [
+      { title: 'A source with no data is marked as assumed', text: 'When the first board has no transformer data and no supply fault level, the fault levels below it rest on a placeholder. They are now marked as assumed, and the breaking capacity and busbar Icw checks that use them say "not verified: source fault level assumed" instead of passing or failing.' },
+      { title: 'A board on an LV supply is checked from its supply', text: 'A first board with a supply fault level and no transformer now has its earth fault loop checked from that fault level (Ze shown with ≈), is loaded against its supply rating, is energised in the OpenDSS export and is no longer listed for transformer sizing.' },
+      { title: 'A project can start at an SMDB or a DB', text: 'A project whose first board is an SMDB or a DB can now complete the "Main boards entered" item of the design-stage checklist.' },
+    ]
+  },
+  {
     version: '2.253', date: '2026-11-22',
     items: [
       { title: 'Design CAD: larger drawings shown in full, and quick when zoomed out', text: 'Design CAD now shows drawings of up to 8 million line pieces in full (3 million before), so a typical 3 MB DWG opens complete. Zoomed out, a large drawing is drawn with fewer corners on its curves, which you cannot see at that size, so panning and zooming stay quick; snaps and picks still use the full drawing. A drawing larger still says how much of it is shown.', action: 'cad', actionLabel: 'Open Design CAD' },

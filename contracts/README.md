@@ -31,4 +31,8 @@ rename. The app only writes this file; it never reads it back. `sha256` covers t
 UPDATE_CONTRACTS=1 npx vitest run src/exchange/designExport.test.ts
 ```
 
+`status.faultAssumed` (optional, `true`): the board's source has no transformer data or supply fault level, so the
+fault level is a placeholder. `status.icu` is then the plain comparison with that placeholder, not a verified check
+(the circuit's `overall` is at least `warn`).
+
 Export it with the headless tool `export_design_package` (preview first; exporting needs the approving engineer's name).

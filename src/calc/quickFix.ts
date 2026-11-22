@@ -1,5 +1,5 @@
 import type { Feeder, Project } from '../types';
-import { evaluateFeeder, runsOf, type FeederResult } from './electrical';
+import { evaluateFeeder, runsOf, type FeederResult, type Status } from './electrical';
 import { cables } from './cableTable';
 import { breakerRatings, icuSteps } from './sizing';
 import { fmtFixed } from '../util/format';
@@ -10,6 +10,14 @@ export interface QuickFix { label: string; patch: Partial<Feeder>; after: Feeder
 
 const rank = { ok: 0, warn: 1, bad: 2 } as const;
 
+/** Overall status as a patch can change it: with an assumed fault level the breaking capacity stays "not verified"
+ * whatever the patch, so it is left out. */
+export function patchStatus(r: FeederResult): Status {
+  if (!r.faultAssumed) return r.status;
+  const rest: Status[] = [r.vdStatus, r.ampacityStatus, r.protectionStatus, r.loadingPct > 100 ? 'bad' : r.loadingPct > 85 ? 'warn' : 'ok', r.limits?.status ?? 'ok'];
+  return rest.includes('bad') ? 'bad' : rest.includes('warn') ? 'warn' : 'ok';
+}
+
 /** Why a circuit fails, in words. */
 export function failReasons(project: Project, r: FeederResult): string[] {
   const f = r.feeder, out: string[] = [];
@@ -19,17 +27,18 @@ export function failReasons(project: Project, r: FeederResult): string[] {
   else if (r.protectionStatus === 'bad' && !r.rating.missing) out.push(`Cable not protected: In ${f.breakerRatingA} A > Iz ${fmtFixed(r.ampacity, 1)} A`);
   if (r.vdStatus !== 'ok') out.push(`Voltage drop ${fmtFixed(r.vdTotalPct, 2)} % (limit ${project.vdLimitPct} %)`);
   if (r.icuStatus === 'bad') out.push(`Breaking capacity: Icu ${f.breakerIcuKa} kA < fault ${fmtFixed(r.breakerFaultKA, 2)} kA`);
+  else if (r.faultAssumed) out.push('Breaking capacity not verified: source fault level assumed');
   if (r.limits?.status === 'bad') out.push(r.limits.message);
   return out;
 }
 
 export function quickFixes(project: Project, f: Feeder): QuickFix[] {
   const now = evaluateFeeder(project, f);
-  if (now.status === 'ok') return [];
+  if (patchStatus(now) === 'ok') return [];
   const out: QuickFix[] = [];
   const tryPatch = (label: string, patch: Partial<Feeder>) => {
     const after = evaluateFeeder(project, { ...f, ...patch });
-    if (rank[after.status] < rank[now.status] && !out.some((x) => x.label === label)) out.push({ label, patch, after });
+    if (rank[patchStatus(after)] < rank[patchStatus(now)] && !out.some((x) => x.label === label)) out.push({ label, patch, after });
     return after;
   };
   // Breaker: the next rating at or above Ib (and its cable, if In then exceeds Iz).
@@ -37,8 +46,8 @@ export function quickFixes(project: Project, f: Feeder): QuickFix[] {
     const In = breakerRatings().find((a) => a >= now.ib);
     if (In) {
       const a = tryPatch(`Breaker ${In} A`, { breakerRatingA: In });
-      if (a.status !== 'ok') {
-        const c = cables().find((c) => c.csaMm2 > f.cableCsaMm2 && evaluateFeeder(project, { ...f, breakerRatingA: In, cableCsaMm2: c.csaMm2, cpcMm2: undefined }).status === 'ok');
+      if (patchStatus(a) !== 'ok') {
+        const c = cables().find((c) => c.csaMm2 > f.cableCsaMm2 && patchStatus(evaluateFeeder(project, { ...f, breakerRatingA: In, cableCsaMm2: c.csaMm2, cpcMm2: undefined })) === 'ok');
         if (c) tryPatch(`Breaker ${In} A + cable ${c.csaMm2} mm²`, { breakerRatingA: In, cableCsaMm2: c.csaMm2, cpcMm2: undefined });
       }
     }
@@ -50,11 +59,11 @@ export function quickFixes(project: Project, f: Feeder): QuickFix[] {
     if (In) tryPatch(`Breaker ${In} A`, { breakerRatingA: In });
   }
   // Cable: the smallest larger size that passes (current, protection, voltage drop).
-  const bigger = cables().find((c) => c.csaMm2 > f.cableCsaMm2 && evaluateFeeder(project, { ...f, cableCsaMm2: c.csaMm2, cpcMm2: undefined }).status === 'ok');
+  const bigger = cables().find((c) => c.csaMm2 > f.cableCsaMm2 && patchStatus(evaluateFeeder(project, { ...f, cableCsaMm2: c.csaMm2, cpcMm2: undefined })) === 'ok');
   if (bigger) tryPatch(`Cable ${bigger.csaMm2} mm²`, { cableCsaMm2: bigger.csaMm2, cpcMm2: undefined });
   // A parallel run (large cables, long runs).
   if (f.cableCsaMm2 >= 95 || now.vdStatus !== 'ok') tryPatch(`${runsOf(f) + 1} cables in parallel`, { parallel: runsOf(f) + 1 });
-  // Breaking capacity: the next Icu at or above the fault level.
+  // Breaking capacity: the next Icu at or above the fault level (never for an assumed fault level).
   if (now.icuStatus === 'bad') { const icu = icuSteps().find((k) => k >= now.breakerFaultKA); if (icu) tryPatch(`Breaker Icu ${icu} kA`, { breakerIcuKa: icu }); }
-  return out.sort((a, b) => rank[a.after.status] - rank[b.after.status]).slice(0, 4);
+  return out.sort((a, b) => rank[patchStatus(a.after)] - rank[patchStatus(b.after)]).slice(0, 4);
 }

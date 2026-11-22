@@ -213,7 +213,7 @@ export default function BusbarStudy({ project, onChange, onStatus }: { project: 
                   <dt>Needed (÷ {res.derate.toFixed(2)} at {res.ambientC} °C)</dt><dd>{txt.current(res.requiredA)} A</dd>
                   <dt>Selected</dt><dd><b className={res.type ? 'ok' : 'bad'}>{typeText(res)}</b></dd>
                   {res.type && <><dt>Conductor area</dt><dd>{txt.plain(res.type.csaMm2)} mm² per phase · {txt.fixed(res.currentDensity!, 2)} A/mm² at Ib</dd></>}
-                  {res.type && <><dt>Short-circuit withstand</dt><dd className={res.icwOk === false ? 'bad' : res.icwOk ? 'ok' : ''}>Icw {res.type.icwKa} kA 1 s{res.faultKa !== undefined ? ` vs ${txt.fault(res.faultKa)} kA at ${riser.sourceBoardId}` : ''}</dd></>}
+                  {res.type && <><dt>Short-circuit withstand</dt><dd className={res.icwAssumed ? 'warn' : res.icwOk === false ? 'bad' : res.icwOk ? 'ok' : ''}>Icw {res.type.icwKa} kA 1 s{res.faultKa !== undefined ? ` vs ${txt.fault(res.faultKa)} kA at ${riser.sourceBoardId}` : ''}{res.icwAssumed ? ' — not verified: source fault level assumed' : ''}</dd></>}
                   {!project.busbarData && <><dt /><dd className="warn">Typical busway data — confirm with the manufacturer</dd></>}
                   <dt>Vd at the top tap-off</dt><dd className={res.vdTopPct > project.vdLimitPct / 2 ? 'warn' : 'ok'}>{txt.pct(res.vdTopPct)} % <span className="m">(riser only)</span></dd>
                 </dl>

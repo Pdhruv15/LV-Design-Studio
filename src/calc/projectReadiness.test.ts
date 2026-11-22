@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { runCalculations } from './runs';
 import { buildDashboard } from './dashboard';
-import { projectReadiness } from './projectReadiness';
+import { projectReadiness, stageChecklist } from './projectReadiness';
 import { UPS_DEFAULTS } from './ups';
 import { PV_DEFAULTS } from './solar';
 import { startChecklist } from '../help/guide';
@@ -44,5 +44,19 @@ describe('project readiness', () => {
     const d = { ...buildDashboard(sampleProject, run), todo: [{ status: 'warn' as const, text: 'Manufacturer data missing' }] };
     expect(projectReadiness(sampleProject, d, run).find(s => s.id === 'resolve')!.done).toBe(false);
     expect(projectReadiness(sampleProject, { ...d, todo: [] }, run).find(s => s.id === 'resolve')!.done).toBe(true);
+  });
+});
+
+describe('checklist: main boards entered when the project starts below the main board', () => {
+  const item = (p: typeof sampleProject) => stageChecklist(p, buildDashboard(p), undefined).find((s) => s.stage === 'schematic')!.checks.find((c) => c.label === 'Main boards entered')!;
+  const one = (kind?: string) => ({ ...sampleProject, boards: [{ id: 'B1', name: 'B1', ...(kind ? { kind } : {}) }], feeders: [] }) as typeof sampleProject;
+  it('a project that is only an SMDB or only a DB ticks it', () => {
+    expect(item(one('SMDB')).done).toBe(true);
+    expect(item(one('DB')).done).toBe(true);
+  });
+  it('a default new project (one MDB, or a root with no kind) stays not done; the sample project stays done', () => {
+    expect(item(one('MDB')).done).toBe(false);
+    expect(item(one()).done).toBe(false);
+    expect(item(sampleProject).done).toBe(true);
   });
 });
