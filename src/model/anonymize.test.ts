@@ -43,6 +43,12 @@ describe('anonymizeProject', () => {
     expect(p.boards[0].ratedCurrentA).toBe(before.boards[0].ratedCurrentA);
   });
 
+  it('keeps an LV-supplied board with no values as LV-supplied', () => {
+    const p = richProject();
+    p.boards = p.boards.map((b, i) => (i === 0 ? { ...b, sourceKva: undefined, supply: { fedFrom: 'Grid' } } : b));
+    expect(anonymizeProject(p).project.boards[0].supply).toEqual({});
+  });
+
   it('keeps a supply kind from the list and drops any other', () => {
     const p = richProject();
     p.boards = p.boards.map((b, i) => (i === 0 ? { ...b, supply: { faultKa: 25, kind: 'pv' as const } } : i === 1 ? { ...b, supply: { faultKa: 25, kind: 'steam' as never } } : b));

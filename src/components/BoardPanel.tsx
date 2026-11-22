@@ -48,6 +48,7 @@ export default function BoardPanel({
   onTab?: (t: Tab) => void;
 }) {
   const [localTab, setLocalTab] = useState<Tab>('general');
+  const [headHeld, setHeadHeld] = useState<string>(); // the head's transformer fields stay while its rating is blank
   const tab = tabProp ?? localTab;
   const setTab = onTab ?? setLocalTab;
   const s = useMemo(() => boardSummary(project, board), [project, board]);
@@ -60,7 +61,8 @@ export default function BoardPanel({
     return out;
   }, [project, board]);
   const head = main ?? (isMain ? board : undefined);
-  const headMode = head ? fedFromOfBoard(head) : undefined;
+  const headData = head ? fedFromOfBoard(head) : undefined;
+  const headMode = head && headData !== 'transformer' && headHeld === head.id && !head.sourceKva ? 'transformer' : headData;
   const incomerCable = board.supply?.incomer && board.supply.incomer.cableCsaMm2 > 0 && board.supply.incomer.lengthM > 0 ? `${board.supply.incomer.cableCsaMm2} mm² × ${board.supply.incomer.lengthM} m` : '—';
   const firstIncomer = fedFromOfBoard(board) === 'transformer' ? 'Transformer secondary' : incomerCable;
 
@@ -99,13 +101,13 @@ export default function BoardPanel({
                 <>
                   <h4>Transformer (supplies {head.id})</h4>
                   {!head.sourceKva && <p className="m warn">No transformer rating yet — enter it below.</p>}
-                  <BoardFields board={head} onChange={onChange} section="source" />
+                  <BoardFields board={head} onChange={(nb) => { if (!nb.sourceKva) setHeadHeld(nb.id); onChange(nb); }} section="source" />
                   <p className="m">Changes here apply to every board {head.id} supplies.</p>
                 </>
               ) : (
                 <>
                   <h4>Supply (of {head.id})</h4>
-                  <p className="m">{head.id} is fed from {suppliedFromText(project, head)}. Select {head.id} to change its supply.</p>
+                  <p className="m">{headMode === 'unset' ? `The supply of ${head.id} is not set. Select ${head.id} to set it.` : `${head.id} is fed from ${suppliedFromText(project, head).replace(/^A board not/, 'a board not')}. Select ${head.id} to change its supply.`}</p>
                 </>
               )
             ) : <p className="m">No main board found above {board.id}.</p>}

@@ -68,8 +68,27 @@ describe('setFedFrom', () => {
   it('a board with only an RMU named is a transformer; leaving it removes nothing silently', () => {
     const b = first({ rmu: 'RMU-1' });
     expect(fedFromOfBoard(b)).toBe('transformer');
-    expect(losesValues(b, 'source')).toBe(true);
+    expect(losesValues(b, 'source')).toBe(false); // no rating or impedance goes
     expect(setFedFrom(project(b), b, 'source').rmu).toBe('RMU-1');
+  });
+  it('a transformer keeps the board rated current both ways', () => {
+    const b = first({ ratedCurrentA: 250 });
+    const t = setFedFrom(project(b), b, 'transformer');
+    expect(t.ratedCurrentA).toBe(250);
+    expect(setFedFrom(project(t), t, 'unset').ratedCurrentA).toBe(250);
+    const s = src();
+    expect(setFedFrom(project(s), setFedFrom(project(s), s, 'transformer'), 'source').ratedCurrentA).toBe(200);
+  });
+  it('a board outside the project takes no source name and drops the meter, asking first', () => {
+    const named = BUILT_IN_REFERENCES.map((r) => applyReference(project(unset()), r)).find((x) => supplyNameSuggestion(x))!;
+    expect(setFedFrom(named, unset(), 'board').supply).toEqual({ fedBy: 'board' });
+    const m = first({ supply: { fedFrom: 'Grid', meter: 'CT', ratingA: 250 } });
+    expect(losesValues(m, 'board')).toBe(true);
+    expect(setFedFrom(project(m), m, 'board').supply).toEqual({ fedFrom: 'Grid', ratingA: 250, fedBy: 'board' });
+    expect(losesValues(src(), 'board')).toBe(false);
+  });
+  it('the mode marker alone is not a typed value', () => {
+    expect(losesValues(first({ supply: { fedBy: 'board' } }), 'unset')).toBe(false);
   });
 });
 
@@ -120,6 +139,13 @@ describe('setIncomerValue', () => {
     const b = setIncomerValue(src(), 'lengthM', 30);
     expect(b.supply!.incomer).toEqual({ cableCsaMm2: 0, lengthM: 30 });
     expect(setIncomerValue(a, 'lengthM', 30).supply!.incomer).toEqual({ cableCsaMm2: 120, lengthM: 30 });
+  });
+  it('parallel runs and the protective conductor that are not above 0 are cleared', () => {
+    const a = setIncomerValue(setIncomerValue(src(), 'cableCsaMm2', 95), 'cpcMm2', 16);
+    expect(a.supply!.incomer!.cpcMm2).toBe(16);
+    expect(setIncomerValue(a, 'cpcMm2', 0).supply!.incomer).toEqual({ cableCsaMm2: 95, lengthM: 0 });
+    expect(setIncomerValue(a, 'parallel', 0).supply!.incomer!.parallel).toBeUndefined();
+    expect(setIncomerValue(src(), 'parallel', 0).supply!.incomer).toBeUndefined();
   });
   it('removes the cable when size and length are both blank or 0 and nothing else is set', () => {
     let b = setIncomerValue(src(), 'cableCsaMm2', 120);

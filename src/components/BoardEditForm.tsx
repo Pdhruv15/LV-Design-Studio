@@ -41,7 +41,7 @@ export default function BoardEditForm({
   return (
     <Modal onClose={onClose} onSubmit={submit}>
       <h3>Edit board: {board.id}</h3>
-      <p className="m">{!isMain ? `Supplied from ${board.upstreamId}.` : fedFromOfBoard(draft) === 'transformer' ? 'Main board, supplied by the transformer.' : fedFromOfBoard(draft) === 'unset' ? 'First board, supply not set.' : `First board, fed from ${suppliedFromText(project, draft)}.`} {feeders} outgoing feeder(s).</p>
+      <p className="m">{!isMain ? `Supplied from ${board.upstreamId}.` : fedFromOfBoard(draft) === 'transformer' ? 'Main board, supplied by the transformer.' : fedFromOfBoard(draft) === 'unset' ? 'First board, supply not set.' : `First board, fed from ${suppliedFromText(project, draft).replace(/^A board not/, 'a board not')}.`} {feeders} outgoing feeder(s).</p>
       <div className="tabs feeder-tabs" role="tablist">
         {tabs.map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>)}
       </div>

@@ -106,25 +106,50 @@ describe('SupplyFields', () => {
   it('a switch that removes values asks first and does nothing on no', async () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     show(first({ sourceKva: 800, sourceImpedancePct: 5 }));
-    act(() => radio(S).click());
-    await vi.waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    await act(async () => { radio(S).click(); });
+    expect(confirm).toHaveBeenCalledTimes(1);
     expect(confirm.mock.calls[0][0]).toContain('Change the supply of MDB-A to "LV source (utility, supplier, own generation)"?');
     expect(confirm.mock.calls[0][0]).toContain('This removes the transformer rating and impedance.');
     expect(last).toBeUndefined();
     expect(radio(T).checked).toBe(true);
     confirm.mockReturnValue(true);
-    act(() => radio(S).click());
-    await vi.waitFor(() => expect(last?.sourceKva).toBeUndefined());
+    await act(async () => { radio(S).click(); });
+    expect(last).toBeDefined();
+    expect(last!.sourceKva).toBeUndefined();
     expect(last!.supply).toEqual({});
-    await vi.waitFor(() => expect(radio(S).checked).toBe(true));
+    expect(radio(S).checked).toBe(true);
   });
 
   it('a switch to not set names the supply values it removes', async () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     show(first({ supply: { faultKa: 20 } }));
-    act(() => radio(U).click());
-    await vi.waitFor(() => expect(last?.supply).toBeUndefined());
+    await act(async () => { radio(U).click(); });
+    expect(last).toBeDefined();
+    expect(last!.supply).toBeUndefined();
     expect(confirm.mock.calls[0][0]).toContain('This removes the supply values typed for it.');
+  });
+
+  it('clearing the transformer rating keeps the transformer fields and the choice', () => {
+    show(first({ sourceKva: 800, sourceImpedancePct: 6.25 }));
+    const kvaField = () => [...document.querySelectorAll('label')].find((l) => l.textContent?.startsWith('Transformer (kVA)'))!.querySelector('input')!;
+    const kva = kvaField();
+    type(kva, '');
+    expect(kvaField()).toBe(kva);
+    expect(radio(T).checked).toBe(true);
+    expect(host.textContent).toContain('No transformer rating yet — enter it below.');
+    type(kva, '1500');
+    expect(kvaField()).toBe(kva);
+    expect(last!.sourceKva).toBe(1500);
+    expect(last!.sourceImpedancePct).toBe(6.25);
+  });
+
+  it('the protective conductor is chosen from the cable sizes; 0 in parallel runs is not stored', () => {
+    show(first({ supply: { incomer: { cableCsaMm2: 95, lengthM: 30 } } }));
+    expect([...select('Protective conductor (mm²)').options].map((o) => o.value)).toContain('16');
+    choose(select('Protective conductor (mm²)'), '16');
+    expect(last!.supply!.incomer!.cpcMm2).toBe(16);
+    type(input('Runs in parallel'), '0');
+    expect(last!.supply!.incomer!.parallel).toBeUndefined();
   });
 
   it('a switch that loses nothing does not ask', () => {

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import BoardPanel, { type BoardTab } from './BoardPanel';
@@ -69,6 +69,31 @@ describe('BoardPanel: supply of a first board', () => {
     expect(host.textContent).toContain('Supply (of MDB-A)');
     expect(host.textContent).toContain('MDB-A is fed from SMDB-3F (not in this project). Select MDB-A to change its supply.');
     expect(document.querySelector('.supply-chain span')!.textContent).toBe('From SMDB-3F');
+  });
+
+  it('a downstream board under a head with no supply or an unnamed outside board reads as a sentence', () => {
+    const u = first();
+    panel(projectOf(u), sub, 'supply', u);
+    expect(host.textContent).toContain('The supply of MDB-A is not set. Select MDB-A to set it.');
+    const h = first({ supply: { fedBy: 'board' } });
+    panel(projectOf(h), sub, 'supply', h);
+    expect(host.textContent).toContain('MDB-A is fed from a board not in this project. Select MDB-A to change its supply.');
+  });
+
+  it('clearing the head rating on a downstream board keeps the transformer section', () => {
+    const Wrap = () => {
+      const [h, setH] = useState(first({ sourceKva: 800, sourceImpedancePct: 5 }));
+      const p = projectOf(h);
+      return <BoardPanel project={p} board={sub} results={evaluateProject(p)} onChange={(b) => setH(b)} onSelectFeeder={() => {}} tab="supply" main={h} />;
+    };
+    act(() => root.render(<Wrap />));
+    const kva = [...document.querySelectorAll('label')].find((l) => l.textContent?.startsWith('Transformer (kVA)'))!.querySelector('input')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(kva, '');
+      kva.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(host.textContent).toContain('Transformer (supplies MDB-A)');
+    expect(host.textContent).toContain('No transformer rating yet');
   });
 
   it('a downstream board under a transformer is unchanged', () => {

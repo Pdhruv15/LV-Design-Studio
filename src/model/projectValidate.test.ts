@@ -105,6 +105,8 @@ describe('engineering input checks', () => {
     expect(text({ zeOhm: 0, xr: -1, faultKaMin: 0, allowedA: 0 })).toEqual(['Panel MDB: supply X/R -1 (must be above 0); supply minimum fault level 0 kA (must be above 0); supply Ze 0 Ω (must be above 0); supply allowed load 0 A (must be above 0)']);
     expect(text({ faultKa: 10, faultKaMin: 12 })).toEqual(['Panel MDB: supply minimum fault level 12 kA (above the fault level 10 kA)']);
     expect(text({ incomer: { cableCsaMm2: 0, lengthM: -3 } })).toEqual(['Panel MDB: supply incoming cable size 0 mm² (must be above 0); supply incoming cable length -3 m (must be above 0)']);
+    expect(text({ incomer: { cableCsaMm2: 95, lengthM: 30, cpcMm2: 1 } })).toEqual([]); // sizes are the editor's to offer
+    expect(text({ incomer: { cableCsaMm2: 95, lengthM: 30, cpcMm2: -4, parallel: 1.5 } })).toEqual(['Panel MDB: supply incoming cable earth conductor -4 mm² (must be above 0); supply incoming cable parallel runs 1.5 (a whole number, 1 or more)']);
     expect(text({ vdUsedPct: 1, ratingA: 400 })).toEqual([]); // the old fields alone raise nothing
   });
 

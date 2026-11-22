@@ -68,6 +68,8 @@ export function projectInputIssues(p: Project): InputIssue[] {
         const c = sup.incomer;
         if (!fin(c.cableCsaMm2) || c.cableCsaMm2 <= 0) bad.push(`supply incoming cable size ${show(c.cableCsaMm2)} mm² (must be above 0)`);
         if (!fin(c.lengthM) || c.lengthM <= 0) bad.push(`supply incoming cable length ${show(c.lengthM)} m (must be above 0)`);
+        if (c.cpcMm2 !== undefined && (!fin(c.cpcMm2) || c.cpcMm2 <= 0)) bad.push(`supply incoming cable earth conductor ${show(c.cpcMm2)} mm² (must be above 0)`);
+        if (c.parallel !== undefined && (!fin(c.parallel) || c.parallel < 1 || !Number.isInteger(c.parallel))) bad.push(`supply incoming cable parallel runs ${show(c.parallel)} (a whole number, 1 or more)`);
       }
     }
     if (bad.length) out.push({ status: 'bad', text: `Panel ${b.id}: ${bad.join('; ')}`, go: { view: 'sizing' } });
