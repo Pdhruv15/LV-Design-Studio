@@ -1,7 +1,7 @@
 import type { Board, Project } from '../types';
 import { txTag } from '../model/transformers';
 import { supplyPoint } from './supplyPoint';
-import { offMvSide, mvPlan, mvRingOn, onMvSide, substationTitle } from './mvArrangement';
+import { offMvSide, mvPlan, mvRingOn, onMvSide, spareRmus, substationTitle } from './mvArrangement';
 
 /** Show (SLD ribbon → View → Show; proposal 2026-11-18, part 2): the part of the network the system diagram draws. The
  * whole network; the MV overview (the MV side only, each main board as its name); a substation, an RMU or a transformer
@@ -162,7 +162,7 @@ export function partInfo(project: Project, part: SldPart): PartInfo {
     case 'substation': return { name: part.name, detail: substationTitle(project, part.name).sub, counts: `${plural(tx, 'transformer')} · ${plural(boards, 'board')}` };
     case 'rmu': {
       const it = rmuNode(project, part.name);
-      const ss = mains.map((id) => board(id)?.substation?.trim()).find(Boolean);
+      const ss = mains.map((id) => board(id)?.substation?.trim()).find(Boolean) ?? it?.substation;
       return { name: part.name, detail: [it?.config, ss].filter(Boolean).join(' · ') || undefined, counts: `${plural(tx, 'transformer')} · ${plural(boards, 'board')}` };
     }
     case 'tx': {
@@ -180,8 +180,8 @@ const supplyText = (project: Project, b?: Board): string | undefined => {
   return sp && sp.mode !== 'unset' ? `${sp.meter ? 'meter cabinet' : sp.title}${b?.supply?.ratingA ? ` ${b.supply.ratingA} A` : ''}` : undefined;
 };
 /** An RMU's configuration and its tee-offs with no transformer. */
-function rmuNode(project: Project, name: string): { config?: string; spares: number } | undefined {
-  for (const r of mvPlan(project).rings) for (const it of r.items) if (it.kind === 'rmu' && it.name === name) return { config: it.config, spares: it.tees.filter((t) => !t).length };
+function rmuNode(project: Project, name: string): { config?: string; spares: number; substation?: string } | undefined {
+  for (const r of mvPlan(project).rings) for (const it of r.items) if (it.kind === 'rmu' && it.name === name) return { config: it.config, spares: it.tees.filter((t) => !t).length, substation: it.substation };
   return undefined;
 }
 
@@ -189,7 +189,8 @@ function rmuNode(project: Project, name: string): { config?: string; spares: num
  * undefined at the ends. The whole network and the MV overview have none. */
 export function partSteps(project: Project, part: SldPart): { prev?: SldPart; next?: SldPart } {
   if (part.kind === 'all' || part.kind === 'mv') return {};
-  const list = flat(supplyTree(project)).map((n) => n.part).filter((p) => p.kind === part.kind);
+  // An RMU or substation that feeds no board shows nothing: the steps skip it.
+  const list = flat(supplyTree(project)).filter((n) => n.part.kind === part.kind && (same(n.part, part) || mainsOf(n).length)).map((n) => n.part);
   const i = list.findIndex((p) => same(p, part));
   return i < 0 ? {} : { prev: list[i - 1], next: list[i + 1] };
 }
@@ -223,7 +224,7 @@ export function showRows(project: Project, current: SldPart, selected?: string):
   const all = partInfo(project, WHOLE_NETWORK), mv = partInfo(project, { kind: 'mv' });
   const rows: ShowRow[] = [
     { key: 'all', part: 'all', label: 'Whole network', note: all.counts, depth: 0, checked: now === 'all', title: 'Draw the whole network' },
-    { key: 'mv', part: 'mv', label: 'MV overview', note: mv.counts, depth: 0, checked: now === 'mv', disabled: !project.boards.some(onMvSide),
+    { key: 'mv', part: 'mv', label: 'MV overview', note: mv.counts, depth: 0, checked: now === 'mv', disabled: !project.boards.some(onMvSide) && !spareRmus(project).length,
       title: 'Only the MV side: the source, the ring, the substations with their RMUs and transformers, and each main board as its name' }
   ];
   const named = tree.some((n) => n.part.kind === 'substation' || n.part.kind === 'rmu');
@@ -231,11 +232,11 @@ export function showRows(project: Project, current: SldPart, selected?: string):
   const walk = (n: SupplyNode, depth: 0 | 1 | 2) => {
     const p = n.part, key = partKey(p), mains = mainsOf(n), checked = key === now;
     if (p.kind === 'substation') {
-      rows.push({ key, part: key, label: p.name, detail: substationTitle(project, p.name).sub, note: `${txCount(project, mains)} TX · ${plural(count(mains), 'board')}`, depth, checked, title: `Show ${p.name} only: its RMUs, transformers and main boards with everything they feed` });
+      rows.push({ key, part: key, label: p.name, detail: substationTitle(project, p.name).sub, note: `${txCount(project, mains)} TX · ${plural(count(mains), 'board')}`, depth, checked, ...(mains.length ? {} : { disabled: true }), title: mains.length ? `Show ${p.name} only: its RMUs, transformers and main boards with everything they feed` : `${p.name} feeds no main board yet: nothing to show` });
     } else if (p.kind === 'rmu') {
       const it = rmuNode(project, p.name);
       const spare = it?.spares ? `${plural(it.spares, 'tee-off')} spare` : '';
-      rows.push({ key, part: key, label: p.name, detail: [it?.config, spare].filter(Boolean).join(' · ') || undefined, depth, checked, title: `Show ${p.name} only: its transformers and their main boards` });
+      rows.push({ key, part: key, label: p.name, detail: [it?.config, spare].filter(Boolean).join(' · ') || undefined, depth, checked, ...(mains.length ? {} : { disabled: true }), title: mains.length ? `Show ${p.name} only: its transformers and their main boards` : `${p.name} feeds no transformer yet: nothing to show` });
     } else if (p.kind === 'tx') {
       const b = project.boards.find((x) => x.id === p.id);
       rows.push({ key, part: key, label: txTag(project, p.id) ?? p.id, detail: `${b?.sourceKva ? `${b.sourceKva} kVA` : 'no source data'} → ${p.id}`, note: plural(count(mains), 'board'), depth, checked, title: `Show ${p.id}'s transformer only, with everything it feeds` });
@@ -292,12 +293,12 @@ export function treeGroups(project: Project): TreeItem[] | undefined {
   const item = (n: SupplyNode): TreeItem => {
     const p = n.part, key = partKey(p), mains = mainsOf(n);
     if (p.kind === 'substation') {
-      return { key, part: key, label: p.name, note: holds(mains, true), title: [p.name, substationTitle(project, p.name).sub, holds(mains)].filter(Boolean).join(' · '), items: n.children.map(item) };
+      return { key, part: mains.length ? key : undefined, label: p.name, note: holds(mains, true), title: [p.name, substationTitle(project, p.name).sub, holds(mains)].filter(Boolean).join(' · '), items: n.children.map(item) };
     }
     if (p.kind === 'rmu') {
       const it = rmuNode(project, p.name);
       const spare = it?.spares ? `${plural(it.spares, 'tee-off')} spare` : '';
-      return { key, part: key, label: p.name, detail: it?.config, title: [p.name, it?.config, spare, holds(mains)].filter(Boolean).join(' · '), items: n.children.map(item) };
+      return { key, part: mains.length ? key : undefined, label: p.name, detail: it?.config, title: [p.name, it?.config, spare, holds(mains)].filter(Boolean).join(' · '), items: n.children.map(item) };
     }
     return mains[0];
   };

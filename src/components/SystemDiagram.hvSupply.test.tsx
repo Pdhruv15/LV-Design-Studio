@@ -96,4 +96,30 @@ describe('SLD: grid source and RMU', () => {
     // Without the whole project the sheet could only guess.
     expect(texts(drawn(sheet))).toContain('TX-1');
   });
+
+  it('draws an RMU that feeds nothing yet with every tee-off SPARE, for a transformer project and for a project of DBs only', () => {
+    const p: Project = { ...withRmu, rmus: [{ name: 'RMU-1', config: 'RRT' }, { name: 'RMU-2', config: 'RRTT', substation: 'SS-2' }] };
+    const h = drawn(p), spare = h.querySelector('g.rmu[data-rmu="RMU-2"]')!;
+    expect(spare).not.toBeNull();
+    expect(texts(spare)).toEqual(['SPARE', 'SPARE', 'RMU-2', 'RRTT']);
+    expect(spare.querySelector('title')?.textContent).toContain('RMU-2');
+    expect([...spare.querySelectorAll('.rmu-tee title')].map((t) => t.textContent)).toEqual(Array(2).fill('Spare tee-off: right-click → Add transformer and main board'));
+    expect(h.querySelector('.ss-frame[data-ss="SS-2"]')).not.toBeNull();
+    // Right of RMU-1 and clear of it; every coordinate is a number.
+    const box = (g: Element) => { const r = g.querySelector('rect.rmu-box')!; return [num(r, 'x'), num(r, 'x') + num(r, 'width')]; };
+    expect(box(spare)[0]).toBeGreaterThan(box(h.querySelector('g.rmu[data-rmu="RMU-1"]')!)[1] + 13);
+    expect(h.innerHTML).not.toContain('NaN');
+    // Only boards off the 11 kV side (a meter cabinet) and an RMU record: the ring is drawn above, at the left, the board stays.
+    const dbOnly: Project = { ...sampleProject, boards: [meterCabinet], feeders: [], rmus: [{ name: 'RMU-2', config: 'RRT' }], gridSources: [{ id: 'G', name: 'GRID-1', kv: 11 }] };
+    const d = drawn(dbOnly);
+    expect(texts(d.querySelector('g.rmu[data-rmu="RMU-2"]')!)).toEqual(['SPARE', 'RMU-2', 'RRT']);
+    expect(d.querySelector('.mvRing-source')).not.toBeNull();
+    expect(d.querySelector('g.tx[data-lv-id="board:MDB-A"] circle')).not.toBeNull();
+    expect(d.innerHTML).not.toContain('NaN');
+    // A sheet of one main board does not draw it.
+    const two: Project = { ...p, boards: [...p.boards, { id: 'MDB-2', name: 'MDB-2', kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 6, rmu: 'RMU-1' }] };
+    const sheet: Project = { ...two, boards: two.boards.filter((b) => b.id === 'MDB-2'), feeders: [] };
+    expect(drawn(sheet, two).querySelector('g.rmu[data-rmu="RMU-2"]')).toBeNull();
+    expect(drawn(sheet, two).querySelector('g.rmu[data-rmu="RMU-1"]')).not.toBeNull();
+  });
 });

@@ -65,6 +65,14 @@ describe('One sheet per substation (proposal 2026-11-18 part 5)', () => {
     const ss1Load: Project = { ...p, feeders: p.feeders.map((f) => (f.boardId === 'DB-GF1' ? { ...f, loadKw: f.loadKw + 5 } : f)) };
     expect(sheetHash(ss1Load, set, sld[1])).not.toBe(sheetHash(p, set, sld[1]));
   });
+
+  it('the overview\'s fingerprint follows an RMU record that feeds nothing yet', () => {
+    const h = sheetHash(p, set, sld[0]);
+    const added: Project = { ...p, rmus: [...p.rmus!, { name: 'RMU-9', config: 'RRT' }] };
+    const grown: Project = { ...p, rmus: [...p.rmus!, { name: 'RMU-9', config: 'RRTT' }] };
+    expect(sheetHash(added, set, sld[0])).not.toBe(h);
+    expect(sheetHash(grown, set, sld[0])).not.toBe(sheetHash(added, set, sld[0]));
+  });
 });
 
 describe('sheet titles of boards without a transformer', () => {

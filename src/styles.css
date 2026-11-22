@@ -708,7 +708,7 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .sysdiag-tools .chip.on{border-color:var(--acc);color:var(--acc)}
 .sysdiag .ln.fr{stroke-dasharray:7 3;stroke-width:2.6}
 .fr-cell{color:var(--bad);font-weight:700}
-.sysdiag .rmu-box{fill:color-mix(in srgb,var(--acc) 12%,var(--p2))}
+.sysdiag .rmu-box{fill:transparent}
 /* ---- Classic tables with Excel-style editing (ClassicGrid / useExcelGrid) ---- */
 .gx-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px}
 .gx{border-collapse:collapse;width:100%;font-size:var(--fs-sm)}

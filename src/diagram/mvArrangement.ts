@@ -1,4 +1,4 @@
-import { lvSupplied, type Board, type GridSource, type Project } from '../types';
+import { lvSupplied, type Board, type GridSource, type Project, type Rmu } from '../types';
 import { gridLabel, rmuRecord, rmuSource, rmuWays, txRatio } from '../calc/hvSupply';
 import { DM_TYPES } from '../calc/dmSubstation';
 import { txTag } from '../model/transformers';
@@ -37,8 +37,22 @@ export const onMvSide = (b: Board) => !b.upstreamId && !authoritySupplied(b) && 
 export const offMvSide = (b: Board) => !b.upstreamId && !onMvSide(b);
 const clean = (s?: string) => s?.trim() || undefined;
 
-/** The ring arrangement is drawn once a main board on the 11 kV side names its RMU or its substation. */
-export const mvRingOn = (project: Project) => project.boards.some((b) => onMvSide(b) && (!!clean(b.rmu) || !!clean(b.substation)));
+/** RMU records that no main board on the 11 kV side names: they feed no transformer yet (start at the 11 kV side),
+ * and are drawn with their tee-offs spare. In record order, one per name. */
+export function spareRmus(project: Project): Rmu[] {
+  const named = new Set(project.boards.filter(onMvSide).map((b) => clean(b.rmu)));
+  const seen = new Set<string>();
+  return (project.rmus ?? []).filter((r) => { const n = r.name.trim(); if (!n || named.has(n) || seen.has(n)) return false; seen.add(n); return true; });
+}
+
+/** The ring arrangement is drawn once a main board on the 11 kV side names its RMU or its substation, or an RMU
+ * record feeds nothing yet. */
+export const mvRingOn = (project: Project) => project.boards.some((b) => onMvSide(b) && (!!clean(b.rmu) || !!clean(b.substation))) || spareRmus(project).length > 0;
+
+/** The drawing of `drawn` (a part of `whole`) holds the ring: a board on the 11 kV side, or, where every main board
+ * is drawn, RMU records that feed nothing yet (a project whose only boards are off the 11 kV side). */
+export const drawsRing = (drawn: Project, whole: Project) => mvRingOn(whole)
+  && (drawn.boards.some(onMvSide) || (spareRmus(whole).length > 0 && whole.boards.filter((b) => !b.upstreamId).every((b) => drawn.boards.some((d) => d.id === b.id))));
 
 export interface RmuItem {
   kind: 'rmu';
@@ -107,8 +121,24 @@ export function mvPlan(project: Project): MvPlan {
       g.items.push(item);
     } else g.items.push({ kind: 'tap', boardId: b.id, substation: ss });
   }
-  // Every tee-off of the configuration is drawn: the ones with no transformer are spares.
-  for (const it of rmus.values()) if (it.config) for (let n = rmuWays(it.config).tOff; it.tees.length < n;) it.tees.push(undefined);
+  // RMU records that feed nothing yet: drawn with every tee-off spare, on the ring of their grid source (as an RMU
+  // with a board), in their substation's group there, after the RMUs that feed transformers.
+  for (const rec of [...spareRmus(project)].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))) {
+    const name = rec.name.trim(), ss = clean(rec.substation);
+    const ri = ringOfRmu(name);
+    const ring = (rings[ri] ??= { groups: [], byKey: new Map() });
+    const key = ss !== undefined ? `ss:${ss}` : `rmu:${name}`;
+    let g = ring.byKey.get(key);
+    if (!g) { g = { ss, items: [] }; ring.byKey.set(key, g); ring.groups.push(g); }
+    const config = rec.config?.trim().toUpperCase() || undefined;
+    const ringWays = config ? Math.max(1, rmuWays(config).ring) : 2;
+    const item: RmuItem = { kind: 'rmu', name, config, tees: [], ringWays, tOff: rec.tOff, fuseA: rec.fuseA, substation: ss, ...(ringWays >= 2 && rec.normallyOpen ? { normallyOpen: rec.normallyOpen } : {}) };
+    rmus.set(name, item);
+    g.items.push(item);
+  }
+  // Every tee-off of the configuration is drawn: the ones with no transformer are spares (2 with no configuration, on a
+  // unit that feeds nothing yet).
+  for (const it of rmus.values()) { const n = it.config ? rmuWays(it.config).tOff : it.tees.length ? 0 : 2; while (it.tees.length < n) it.tees.push(undefined); }
   // The substations in their records' order, in the places substations take on the ring.
   const rank = ssRank(project);
   for (const r of rings) {
@@ -197,36 +227,81 @@ const itemName = (project: Project, it: RingItem) => (it.kind === 'rmu' ? it.nam
 
 /** A level-0 block (a frame, or an RMU or tap outside one) or a level-1 block (an RMU or tap inside a frame), and
  * the main board whose lead moves it. Used to keep them apart (mvLeads). */
-interface Block { root: string; left: number; right: number; level: 0 | 1; frame?: number }
+interface Block { root: string; left: number; right: number; level: 0 | 1; frame?: number; /** Stands where the block before it leaves room (an RMU feeding nothing yet), so no lead moves it. */ fixed?: boolean }
 
 /** Where everything on the 11 kV side goes, for the main boards drawn at `x` (board id → incomer x). */
 export function mvGeometry(project: Project, plan: MvPlan, x: Map<string, number>, opts: MvOptions): MvGeom & { blocks: Block[] } {
   const byId = new Map(project.boards.map((b) => [b.id, b]));
   const runs: RunGeom[] = [], rmus: RmuGeom[] = [], taps: TapGeom[] = [], frames: FrameGeom[] = [], blocks: Block[] = [];
   let right = -Infinity;
+  /** Right end of everything placed on the rings before (a ring that starts with a spare RMU stands right of it). */
+  let placed = -Infinity;
+  /** The last board whose lead moves something already placed (the root a spare RMU at a ring's start borrows). */
+  let lastRoot: string | undefined;
+  // An RMU feeding nothing yet is drawn only where every transformer is (the whole network, the MV overview).
+  const spareOnly = (it: RingItem) => it.kind === 'rmu' && it.tees.every((t) => !t);
+  const allDrawn = plan.rings.every((r) => r.items.every((it) => (it.kind === 'tap' ? x.has(it.boardId) : it.tees.every((t) => !t || x.has(t)))));
   const txLeft = (id: string) => x.get(id)! - (opts.earth ? 70 : 24);
   const txRight = (id: string) => x.get(id)! + txLabelReach(project, byId.get(id)!);
   for (const ring of plan.rings) {
-    const drawn = (it: RingItem) => (it.kind === 'tap' ? x.has(it.boardId) : it.tees.some((t) => t && x.has(t)));
+    const own = (it: RingItem) => (it.kind === 'tap' ? x.has(it.boardId) : it.tees.some((t) => t && x.has(t)));
+    // ... and where another item of its substation is drawn on this ring (a part showing that substation).
+    const drawn = (it: RingItem) => own(it) || (spareOnly(it) && (allDrawn || (it.substation !== undefined && ring.items.some((o) => o !== it && o.substation === it.substation && own(o)))));
     // Stretches of consecutive drawn items: a gap (items drawn elsewhere) breaks the ring into stubs.
     const stretches: number[][] = [];
     ring.items.forEach((it, i) => { if (!drawn(it)) return; const last = stretches[stretches.length - 1]; if (last && last[last.length - 1] === i - 1) last.push(i); else stretches.push([i]); });
     for (const st of stretches) {
-      // Each item: its geometry, extent and the board whose lead moves it.
-      const items = st.map((i) => {
+      const mark = blocks.length;
+      // Each item: its geometry, extent and the board whose lead moves it (an RMU feeding nothing yet has none: it
+      // stands right of the item before it, and takes the root of a neighbour for its place in the order).
+      interface Placed { it: RingItem; root?: string; left: number; right: number; inX: number; outX: number; dot?: number; txs: string[]; spare?: boolean }
+      const items: Placed[] = [];
+      const reach = (p: Placed) => Math.max(p.right, ...p.txs.map(txRight));
+      const frameOf = (ss: string, part: Placed[]) => {
+        const t = substationTitle(project, ss);
+        const txs = part.flatMap((p) => p.txs);
+        const x1 = Math.min(...part.map((p) => p.left), ...txs.map(txLeft)) - FRAME_PAD;
+        const x2 = Math.max(...part.map((p) => p.right), ...txs.map(txRight), x1 + Math.max(textWidth(t.name, B, true), t.sub ? textWidth(t.sub, M) : 0) + 2 * 9) + FRAME_PAD;
+        return { t, x1, x2 };
+      };
+      /** Left edge for the RMU feeding nothing yet that comes after `items`: clear of what is before it by the usual gaps. */
+      const spareLeft = (it: RmuItem, first: number) => {
+        const k = items.length, prev = items[k - 1], pad = it.substation !== undefined ? FRAME_PAD : 0;
+        if (!prev) return Math.max(8, placed + GAP_OUT) + pad + (first === 0 ? 13 + Math.max(31, sourceLabelWidth(ring.source) - 3) : 4 + textWidth(`from ${itemName(project, ring.items[first - 1])}`, M) + 20);
+        if (it.substation !== undefined && prev.it.substation === it.substation) return reach(prev) + GAP_IN;
+        let right = reach(prev);
+        if (prev.it.substation !== undefined) {
+          let s0 = k - 1;
+          while (s0 > 0 && items[s0 - 1].it.substation === prev.it.substation) s0--;
+          right = frameOf(prev.it.substation, items.slice(s0)).x2;
+        }
+        return right + GAP_OUT + pad;
+      };
+      for (const i of st) {
         const it = ring.items[i];
         if (it.kind === 'tap') {
           const tx = x.get(it.boardId)!;
           taps.push({ x: tx, boardId: it.boardId });
-          return { it, root: it.boardId, left: tx - 8, right: tx + 8, inX: tx, outX: tx, dot: tx, txs: [it.boardId] };
+          items.push({ it, root: it.boardId, left: tx - 8, right: tx + 8, inX: tx, outX: tx, dot: tx, txs: [it.boardId] });
+          continue;
         }
-        const g = rmuGeom(project, it, x);
+        const spare = !it.tees.some((t) => t && x.has(t));
+        const g = rmuGeom(project, it, x, spare ? spareLeft(it, st[0]) : undefined);
         rmus.push(g);
         const txs = it.tees.filter((t): t is string => !!t && x.has(t));
         const stubRight = Math.max(-Infinity, ...g.stubs.filter((s) => s.dir > 0).map((s) => s.x + 46 + textWidth(s.text, M)));
         const stubLeft = Math.min(Infinity, ...g.stubs.filter((s) => s.dir < 0).map((s) => s.x - 46 - textWidth(s.text, M)));
-        return { it, root: txs[0], left: Math.min(g.x1, stubLeft), right: Math.max(g.x2, stubRight), inX: g.inX, outX: g.outX, dot: g.inX === g.outX ? g.inX : undefined, txs };
+        items.push({ it, root: txs[0], left: Math.min(g.x1, stubLeft), right: Math.max(g.x2, stubRight), inX: g.inX, outX: g.outX, dot: g.inX === g.outX ? g.inX : undefined, txs, ...(spare ? { spare } : {}) });
+      }
+      // An RMU feeding nothing yet moves with the main board before it in the ring (else the one after it).
+      items.forEach((p, k) => {
+        if (p.root !== undefined) return;
+        const before = items.slice(0, k).reverse().find((q) => q.root !== undefined)?.root;
+        p.root = before ?? lastRoot ?? items.slice(k).find((q) => q.root !== undefined)?.root ?? plan.order.find((id) => x.has(id)) ?? '';
       });
+      lastRoot = [...items].reverse().find((q) => q.txs.length)?.root ?? lastRoot;
+      // An item after an RMU feeding nothing yet starts at its transformers' left edges if they stand left of its box.
+      const leftOf = (k: number) => (items[k - 1]?.spare && !items[k].spare && items[k].txs.length ? Math.min(items[k].left, ...items[k].txs.map(txLeft)) : items[k].left);
       // Frames: consecutive items of one substation.
       const outer: { root: string; left: number; right: number }[] = [];
       for (let k = 0; k < items.length;) {
@@ -234,18 +309,16 @@ export function mvGeometry(project: Project, plan: MvPlan, x: Map<string, number
         let e = k + 1;
         while (ss !== undefined && e < items.length && items[e].it.substation === ss) e++;
         const part = items.slice(k, e);
+        const root = part[0].root!;
         if (ss === undefined) {
-          blocks.push({ root: part[0].root, left: part[0].left, right: part[0].right, level: 0 });
-          outer.push(part[0]);
+          blocks.push({ root, left: leftOf(k), right: part[0].right, level: 0, ...(part[0].spare ? { fixed: true } : {}) });
+          outer.push({ root, left: leftOf(k), right: part[0].right });
         } else {
-          const t = substationTitle(project, ss);
-          const txs = part.flatMap((p) => p.txs);
-          const x1 = Math.min(...part.map((p) => p.left), ...txs.map(txLeft)) - FRAME_PAD;
-          const x2 = Math.max(...part.map((p) => p.right), ...txs.map(txRight), x1 + Math.max(textWidth(t.name, B, true), t.sub ? textWidth(t.sub, M) : 0) + 2 * 9) + FRAME_PAD;
+          const { t, x1, x2 } = frameOf(ss, part);
           frames.push({ name: t.name, sub: t.sub, x1, x2 });
-          blocks.push({ root: part[0].root, left: x1, right: x2, level: 0 });
-          part.forEach((p) => blocks.push({ root: p.root, left: p.left, right: p.right, level: 1, frame: frames.length - 1 }));
-          outer.push({ root: part[0].root, left: x1, right: x2 });
+          blocks.push({ root, left: x1, right: x2, level: 0, ...(part[0].spare ? { fixed: true } : {}) });
+          part.forEach((p, j) => blocks.push({ root: p.root!, left: leftOf(k + j), right: p.right, level: 1, frame: frames.length - 1, ...(p.spare ? { fixed: true } : {}) }));
+          outer.push({ root, left: x1, right: x2 });
         }
         k = e;
       }
@@ -272,10 +345,9 @@ export function mvGeometry(project: Project, plan: MvPlan, x: Map<string, number
       const end = stops ? R : R + Math.max(24, textWidth(tailText, M) + 10);
       const tail: RunGeom['tail'] = stops ? undefined : { kind: atEnd ? 'end' : 'to', x: end, text: tailText };
       // The head and tail widen the first and last level-0 blocks of the stretch.
-      const firstBlock = blocks.find((b) => b.level === 0 && b.root === outer[0].root)!;
-      firstBlock.left = headLeft;
-      const lastBlock = [...blocks].reverse().find((b) => b.level === 0 && b.root === outer[outer.length - 1].root)!;
-      lastBlock.right = end + 4;
+      const level0 = blocks.slice(mark).filter((b) => b.level === 0);
+      level0[0].left = headLeft;
+      level0[level0.length - 1].right = end + 4;
       const segs: [number, number][] = [];
       let from = start;
       for (const p of items) { segs.push([from, p.inX]); from = p.outX; }
@@ -284,6 +356,7 @@ export function mvGeometry(project: Project, plan: MvPlan, x: Map<string, number
       const dots = items.filter((p, k) => p.dot !== undefined && (p.it.kind === 'tap' || k < items.length - 1 || !!tail)).map((p) => p.dot!);
       runs.push({ source: ring.source, head, tail, segs: segs.filter(([a, b]) => b - a > 0.5), dots });
       right = Math.max(right, end + 4);
+      placed = Math.max(placed, right, ...items.map(reach));
     }
   }
   return { frameBottom: MV_DY + (opts.earth ? 156 : 138), runs, rmus, taps, frames, right, blocks };
@@ -310,7 +383,7 @@ export function sourceLabels(g?: GridSource): { text: string; b?: boolean; below
  * tee-off over a single drawn transformer stands right above it; over two or more the box is centred on them. The
  * name and configuration sit between the two ring switches, which move apart when the name needs more room (the
  * tee-offs start below the text, at the RMU's busbar). */
-function rmuGeom(project: Project, it: RmuItem, x: Map<string, number>): RmuGeom {
+function rmuGeom(project: Project, it: RmuItem, x: Map<string, number>, anchor?: number): RmuGeom {
   // A third ring switch (RRRT) stands next to the first, so the tee-offs (and their fuse or relay note) come last.
   const inner: WayKind[] = [...Array.from({ length: Math.max(0, it.ringWays - 2) }, (): WayKind => 'ring-spare'), ...it.tees.map((): WayKind => 'tee')];
   const twoRing = it.ringWays >= 2;
@@ -322,7 +395,7 @@ function rmuGeom(project: Project, it: RmuItem, x: Map<string, number>): RmuGeom
   const drawnTees = it.tees.map((t, i) => ({ t, i })).filter((d): d is { t: string; i: number } => !!d.t && x.has(d.t));
   const xs = drawnTees.map((d) => x.get(d.t)!);
   const span = offs[offs.length - 1];
-  const x0 = drawnTees.length === 1 ? xs[0] - offs[1 + Math.max(0, it.ringWays - 2) + drawnTees[0].i] : (Math.min(...xs) + Math.max(...xs)) / 2 - span / 2;
+  const x0 = drawnTees.length === 1 ? xs[0] - offs[1 + Math.max(0, it.ringWays - 2) + drawnTees[0].i] : drawnTees.length ? (Math.min(...xs) + Math.max(...xs)) / 2 - span / 2 : 0;
   const spares = kinds.filter((k) => k === 'ring-spare').length;
   const ways: WayGeom[] = kinds.map((kind, i) => ({ x: x0 + offs[i], kind, boardId: kind === 'tee' ? it.tees[i - 1 - spares] : undefined }));
   const r1 = ways[0].x, r2 = twoRing ? ways[ways.length - 1].x : undefined;
@@ -348,7 +421,12 @@ function rmuGeom(project: Project, it: RmuItem, x: Map<string, number>): RmuGeom
   const stubs = tees.flatMap((w, i) => (w.boardId && !x.has(w.boardId)
     ? [{ x: w.x, dir: (i < firstDrawn ? -1 : 1) as -1 | 1, text: `to ${txTag(project, w.boardId) ?? 'Transformer'} · ${w.boardId}` }]
     : []));
-  return { item: it, x1, x2, ways, inX: r1, outX: r2 ?? r1, textX, note, ...(nop ? { nop } : {}), stubs, txX: new Map(drawnTees.map((d) => [d.t, x.get(d.t)!])) };
+  const g: RmuGeom = { item: it, x1, x2, ways, inX: r1, outX: r2 ?? r1, textX, note, ...(nop ? { nop } : {}), stubs, txX: new Map(drawnTees.map((d) => [d.t, x.get(d.t)!])) };
+  if (anchor === undefined || drawnTees.length) return g;
+  // An RMU feeding nothing yet has no transformer to stand over: its box starts at `anchor`.
+  const dx = anchor - g.x1;
+  return { ...g, x1: g.x1 + dx, x2: g.x2 + dx, ways: g.ways.map((w) => ({ ...w, x: w.x + dx })), inX: g.inX + dx, outX: g.outX + dx, textX: g.textX + dx,
+    note: g.note && { ...g.note, x: g.note.x + dx }, ...(g.nop ? { nop: { ...g.nop, x: g.nop.x + dx } } : {}) };
 }
 
 /** Extra room before main boards (by id) so that frames, RMUs and the ring's labels keep apart, for the main boards
@@ -363,14 +441,16 @@ export function mvLeads(project: Project, plan: MvPlan, roots: { id: string; x: 
     const g = mvGeometry(project, plan, new Map(roots.filter((r) => onSide.has(r.id)).map((r) => [r.id, xs[at.get(r.id)!]])), opts);
     // Boards drawn after the 11 kV side (LV sources, parts fed from elsewhere) keep clear of it too.
     const others: Block[] = roots.filter((r) => !onSide.has(r.id)).map((r) => ({ root: r.id, left: xs[at.get(r.id)!] - 20, right: xs[at.get(r.id)!] + 20, level: 0 }));
-    const outer = [...g.blocks.filter((b) => b.level === 0), ...others].sort((a, b) => at.get(a.root)! - at.get(b.root)! || a.left - b.left);
+    const pos = (id: string) => at.get(id) ?? -1;
+    // Blocks sharing a root (an RMU feeding nothing yet borrows one) keep the ring's order.
+    const outer = [...g.blocks.filter((b) => b.level === 0), ...others].map((b, i) => ({ b, i })).sort((a, b) => pos(a.b.root) - pos(b.b.root) || a.i - b.i).map((e) => e.b);
     const clashes: { root: string; need: number }[] = [];
     let prev = 8 - GAP_OUT;
-    for (const b of outer) { const d = prev + GAP_OUT - b.left; if (d > 0.5) { clashes.push({ root: b.root, need: d }); break; } prev = Math.max(prev, b.right); }
+    for (const b of outer) { const d = b.fixed ? 0 : prev + GAP_OUT - b.left; if (d > 0.5 && at.has(b.root)) { clashes.push({ root: b.root, need: d }); break; } prev = Math.max(prev, b.right); }
     const inner = g.blocks.filter((b) => b.level === 1);
     for (let i = 1; i < inner.length; i++) {
       const a = inner[i - 1], b = inner[i];
-      const d = a.frame === b.frame ? a.right + GAP_IN - b.left : 0;
+      const d = a.frame === b.frame && !b.fixed ? a.right + GAP_IN - b.left : 0;
       if (d > 0.5) { clashes.push({ root: b.root, need: d }); break; }
     }
     if (!clashes.length) break;
@@ -390,7 +470,9 @@ export function mvSheetKey(project: Project, drawn: Board[]): unknown {
   const plan = mvPlan(project);
   const ids = new Set(drawn.filter(onMvSide).map((b) => b.id));
   const order = plan.order.filter((id) => ids.has(id));
-  if (!order.length) return undefined;
+  // A sheet with every main board also draws the RMUs that feed nothing yet.
+  const spares = spareRmus(project).length > 0 && project.boards.filter((b) => !b.upstreamId).every((b) => drawn.some((d) => d.id === b.id));
+  if (!order.length && !spares) return undefined;
   const g = mvGeometry(project, plan, new Map(order.map((id, i) => [id, i * 1000])), { earth: false });
   return [
     g.runs.map((r) => [r.source?.id ?? null, r.head.kind === 'from' ? r.head.text : 'source', r.tail?.text ?? null]),
