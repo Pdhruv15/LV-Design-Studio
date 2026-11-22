@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { newProject, type Board, type Project } from '../types';
-import { mvGeometry, mvLeads, mvPlan, mvRingOn, mvSheetKey, ssRank, substationTitle, type RmuItem } from './mvArrangement';
+import { mvGeometry, mvLeads, mvPlan, mvRingOn, mvSheetKey, offMvSide, onMvSide, sourceLabels, ssRank, substationTitle, type RmuItem } from './mvArrangement';
 
 const tx = (id: string, extra: Partial<Board> = {}): Board => ({ id, name: id, kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 6, ...extra });
 const project = (boards: Board[], extra: Partial<Project> = {}): Project => ({ ...newProject('MV'), voltageV: 400, boards, feeders: [], ...extra });
@@ -171,5 +171,24 @@ describe('11 kV ring geometry', () => {
     const rmuKey = (q: Project) => (mvSheetKey(q, q.boards) as unknown[][][])[1][0];
     expect(rmuKey(base)).toEqual(['RMU-1', 'RRT', 2, null, null, ['MDB-1'], []]);
     expect(rmuKey(open)).toEqual(['RMU-1', 'RRT', 2, null, null, ['MDB-1'], [], 'R2']);
+  });
+});
+
+describe('a first board with no supply set', () => {
+  const unset: Board = { id: 'MDB-U', name: 'MDB-U', kind: 'MDB', ratedCurrentA: 200 };
+  it('is off the 11 kV side, listed after the transformer boards, and none is lost', () => {
+    const p = project([unset, tx('MDB-1', { rmu: 'RMU-1' }), { id: 'MDB-A', name: 'MDB-A', kind: 'MDB', supply: { fedFrom: 'X' } }]);
+    expect(onMvSide(unset)).toBe(false);
+    expect(offMvSide(unset)).toBe(true);
+    expect(onMvSide(tx('MDB-1'))).toBe(true);
+    expect(mvPlan(p).order).toEqual(['MDB-1', 'MDB-U', 'MDB-A']);
+    // Alone, it draws no ring.
+    expect(mvRingOn(project([unset]))).toBe(false);
+  });
+  it('a board naming its RMU is a transformer board, not unset', () => {
+    expect(onMvSide({ ...unset, rmu: 'RMU-1' })).toBe(true);
+  });
+  it('the grid source label says MV source when none is recorded', () => {
+    expect(sourceLabels(undefined)[0].text).toBe('MV source');
   });
 });

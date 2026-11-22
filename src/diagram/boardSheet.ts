@@ -16,6 +16,8 @@ import { deviceKind, devicePoles } from './deviceText';
 import { escapeHtmlAttr } from '../util/escape';
 import { fmtFixed } from '../util/format';
 import { boardSymbolOf } from './panelBox';
+import { supplyPoint, type SupplyPoint } from './supplyPoint';
+import { sourceSymSvg } from './sourceSymbol';
 import { symSvg, SYM_SCALE } from './symbolLibrary';
 
 /** One board's single line diagram as a printable drawing (black on white,
@@ -39,6 +41,13 @@ const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` 
 const ln = (x1: number, y1: number, x2: number, y2: number, w = 1.2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#000" stroke-width="${w}"/>`;
 const tx = (x: number, y: number, s: string, o: { anchor?: 'start' | 'middle' | 'end'; bold?: boolean; size?: number } = {}) =>
   `<text x="${x}" y="${y}" fill="#000" font-family="Arial, Helvetica, sans-serif" font-size="${o.size ?? 11}"${o.bold ? ' font-weight="bold"' : ''}${o.anchor && o.anchor !== 'start' ? ` text-anchor="${o.anchor}"` : ''}>${esc(s)}</text>`;
+/** The SUPPLY row of the summary for a first board without a transformer. */
+function supplyRow(sp: SupplyPoint, board: Board): string {
+  const ref = board.supply?.ref?.trim();
+  const tail = ref ? `, ${ref}` : '';
+  if (sp.mode === 'unset') return 'Not set';
+  return sp.mode === 'board' ? `${sp.title} (not in this project)${tail}` : `${sp.title}${tail}`;
+}
 const kw = (v: number) => (v > 0.005 ? fmtFixed(v, 2) : '—');
 
 /** IEC 60617 switching device on a vertical line from (x, y) to (x, y + 16), as on the SLD canvas. */
@@ -95,7 +104,14 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
   const sections = PANEL_SECTIONS.filter((x) => board.sections?.includes(x.value));
   const incomer = s.incomer;
   const dev = incomerDeviceOf(board);
-  if (!board.upstreamId) {
+  const sp = supplyPoint(project, board, false);
+  if (sp) {
+    // No transformer: the source's symbol, a continuation marker or a dashed stub, and the supply's lines beside it.
+    if (sp.mode === 'source') out.push(sourceSymSvg(sp.kind, cx, 30), ln(cx, 41, cx, 90));
+    else if (sp.mode === 'board') out.push(ln(cx, 0, cx, 90), `<path d="M${cx - 7} 20 L${cx} 32 L${cx + 7} 20" stroke="#000" stroke-width="1.2" fill="none"/>`);
+    else out.push(`<line x1="${cx}" y1="0" x2="${cx}" y2="90" stroke="#000" stroke-width="1.2" stroke-dasharray="5 3"/>`);
+    [sp.title.toUpperCase(), ...sp.lines.slice(0, 4)].forEach((t, i) => out.push(tx(sp.mode === 'board' ? cx + 14 : cx + 20, 14 + i * 15, t, { bold: !i })));
+  } else if (!board.upstreamId) {
     out.push(ln(cx, 0, cx, 18), `<circle cx="${cx}" cy="30" r="12" fill="none" stroke="#000" stroke-width="1.2"/><circle cx="${cx}" cy="44" r="12" fill="none" stroke="#000" stroke-width="1.2"/>`);
     out.push(tx(cx + 22, 30, `TRANSFORMER ${board.sourceKva ?? '—'} kVA`, { bold: true }), tx(cx + 22, 44, `11/${(project.voltageV / 1000).toFixed(3)} kV · Z ${board.sourceImpedancePct ?? '—'} %`));
     out.push(ln(cx, 56, cx, 90));
@@ -186,7 +202,7 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
   const rows: [string, string][] = [
     ['BOARD', cut(`${board.id}${board.name && board.name !== board.id ? ` — ${board.name}` : ''}`, 40)],
     ['LOCATION', cut(boardLocation(project, board) || '—', 40)],
-    ['SUPPLY', riser ? `Tap-off from ${riser.name} (${board.upstreamId})${opts.fromSheet ? `, sheet ${opts.fromSheet}` : ''}` : board.upstreamId ? `From ${board.upstreamId}${opts.fromSheet ? `, sheet ${opts.fromSheet}` : ''}` : `Transformer ${board.sourceKva ?? '—'} kVA`],
+    ['SUPPLY', riser ? `Tap-off from ${riser.name} (${board.upstreamId})${opts.fromSheet ? `, sheet ${opts.fromSheet}` : ''}` : board.upstreamId ? `From ${board.upstreamId}${opts.fromSheet ? `, sheet ${opts.fromSheet}` : ''}` : sp ? supplyRow(sp, board) : `Transformer ${board.sourceKva ?? '—'} kVA`],
     ['TCL / DF / MDL', `${fmtFixed(ps.tclKw, 2)} kW / ${ps.df.toFixed(2)} / ${fmtFixed(ps.mdlKw, 2)} kW`],
     ['DEMAND CURRENT', `${fmtFixed(s.currentA, 1)} A${boardRatedA(board) ? ` of ${boardRatedA(board)} A (${fmtFixed(s.loadingPct ?? 0, 0)} %)` : ''}`],
     ['FAULT LEVEL', `${s.faultKA.toFixed(1)} kA`],

@@ -4,6 +4,7 @@ import { DM_TYPES } from '../calc/dmSubstation';
 import { txTag } from '../model/transformers';
 import { recordedText } from '../model/existing';
 import { textWidth } from './panelLabels';
+import { supplyMode } from './supplyPoint';
 
 /** The 11 kV side of the system SLD once a main board names its RMU or substation (proposal 2026-11-18, part 1):
  * one ring per grid source through its RMUs, each RMU drawn with its ring switches and tee-offs, and a dash-dot
@@ -29,8 +30,11 @@ const B = 12, M = 11, S = 9;
 
 /** A main board on an authority LV supply (meter cabinet): its own source, off the 11 kV side. */
 export const authoritySupplied = lvSupplied;
-/** A main board hanging from the 11 kV side: every main board but one on an authority LV supply. */
-export const onMvSide = (b: Board) => !b.upstreamId && !authoritySupplied(b);
+/** A main board hanging from the 11 kV side: every main board but one on an authority LV supply, or with its supply
+ * not set (no transformer, no RMU, no supply: nothing to hang from the 11 kV line). */
+export const onMvSide = (b: Board) => !b.upstreamId && !authoritySupplied(b) && supplyMode(b) !== 'unset';
+/** A main board drawn after the 11 kV side with a supply point of its own: an LV supply, or one not set. */
+export const offMvSide = (b: Board) => !b.upstreamId && !onMvSide(b);
 const clean = (s?: string) => s?.trim() || undefined;
 
 /** The ring arrangement is drawn once a main board on the 11 kV side names its RMU or its substation. */
@@ -58,7 +62,7 @@ export interface Ring { source?: GridSource; items: RingItem[] }
 export interface MvPlan {
   rings: Ring[];
   /** Main boards left to right: by ring, then substation, then RMU (inside a group in project order); main boards on
-   * an authority LV supply last, so the 11 kV side never runs over them. */
+   * an LV supply or with no supply set last, so the 11 kV side never runs over them. */
   order: string[];
 }
 
@@ -116,7 +120,7 @@ export function mvPlan(project: Project): MvPlan {
   const out: Ring[] = [];
   rings.forEach((r, i) => { if (r) out.push({ source: sources[i], items: r.groups.flatMap((g) => g.items) }); });
   const boardsOf = (it: RingItem) => (it.kind === 'tap' ? [it.boardId] : it.tees.filter((t): t is string => !!t));
-  const order = [...out.flatMap((r) => r.items.flatMap(boardsOf)), ...project.boards.filter(authoritySupplied).map((b) => b.id)];
+  const order = [...out.flatMap((r) => r.items.flatMap(boardsOf)), ...project.boards.filter(offMvSide).map((b) => b.id)];
   return { rings: out, order };
 }
 
@@ -293,7 +297,7 @@ function sourceLabelWidth(g?: GridSource): number {
 
 /** The grid source's labels: name or operator and voltage above the ring, primary substation and feeder below. */
 export function sourceLabels(g?: GridSource): { text: string; b?: boolean; below?: boolean }[] {
-  if (!g) return [{ text: 'Utility', b: true }, { text: '11 kV' }];
+  if (!g) return [{ text: 'MV source', b: true }, { text: '11 kV' }];
   return [
     { text: g.operator || g.name, b: true },
     { text: gridLabel(g) },

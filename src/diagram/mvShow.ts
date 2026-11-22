@@ -1,6 +1,6 @@
 import type { Board, Project } from '../types';
 import { txTag } from '../model/transformers';
-import { authoritySupplied, mvPlan, mvRingOn, onMvSide, substationTitle } from './mvArrangement';
+import { offMvSide, mvPlan, mvRingOn, onMvSide, substationTitle } from './mvArrangement';
 
 /** Show (SLD ribbon → View → Show; proposal 2026-11-18, part 2): the part of the network the system diagram draws. The
  * whole network; the MV overview (the MV side only, each main board as its name); a substation, an RMU or a transformer
@@ -59,7 +59,7 @@ export function supplyTree(project: Project): SupplyNode[] {
     if (!ss) { ss = { part: { kind: 'substation', name: it.substation }, children: [] }; subs.set(it.substation, ss); out.push(ss); }
     ss.children.push(node);
   }
-  for (const b of project.boards.filter(authoritySupplied)) out.push({ part: { kind: 'supply', id: b.id }, children: [] });
+  for (const b of project.boards.filter(offMvSide)) out.push({ part: { kind: 'supply', id: b.id }, children: [] });
   return out;
 }
 

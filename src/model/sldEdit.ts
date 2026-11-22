@@ -4,7 +4,7 @@ import type { LibraryLoad } from '../database/database';
 import { BOARD_KINDS, settingsOf, type Board, type BoardKind, type Feeder, type LoadType, type Project, type StarterType } from '../types';
 import { isMotor, STARTERS } from '../calc/motor';
 import { applyPreset, canDropPreset, type FeederPreset } from './presets';
-import { supplyAuthorityOf } from './designReference';
+import { supplyNameSuggestion } from './designReference';
 
 /** Building the SLD by drag and drop: what each library item does when it
  * is dropped on a busbar, on a feeder, or on the empty canvas. Every drop
@@ -278,6 +278,9 @@ function boardIncomer(project: Project, parentId: string, board: Board): Feeder 
   };
 }
 
+/** The name of a new first board's supply: only when the project applied a design reference. */
+const fedFromOf = (p: Project) => { const n = supplyNameSuggestion(p); return n ? { fedFrom: n } : {}; };
+
 function newBoard(project: Project, kind: BoardKind, upstreamId?: string): Board {
   const id = uniqueId(allIds(project), kind);
   const n = id.slice(kind.length + 1);
@@ -287,7 +290,7 @@ function newBoard(project: Project, kind: BoardKind, upstreamId?: string): Board
     kind,
     upstreamId,
     ratedCurrentA: BOARD_RATING[kind],
-    ...(kind === 'MC' ? { supply: { fedFrom: supplyAuthorityOf(project), device: 'MCCB' as const, ratingA: BOARD_RATING.MC, meter: 'CT' as const } } : {})
+    ...(kind === 'MC' ? { supply: { ...fedFromOf(project), device: 'MCCB' as const, ratingA: BOARD_RATING.MC, meter: 'CT' as const } } : {})
   };
 }
 
@@ -300,7 +303,7 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
     const parent = target.type === 'bus' ? target.boardId : undefined;
     const board = newBoard(project, item.board, parent);
     if (!parent) {
-      const withSupply = item.board === 'MDB' || item.board === 'LV-MDB' || item.board === 'LV-ACB' ? { ...board, supply: { fedFrom: supplyAuthorityOf(project) } } : board;
+      const withSupply = item.board === 'MDB' || item.board === 'LV-MDB' || item.board === 'LV-ACB' ? { ...board, supply: { ...fedFromOf(project) } } : board;
       return { project: { ...project, boards: [...project.boards, withSupply] }, select: { type: 'board', id: board.id }, message: `Added ${board.id} (new supply) — set its data in the properties panel` };
     }
     const incomer = boardIncomer(project, parent, board);

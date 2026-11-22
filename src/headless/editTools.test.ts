@@ -350,3 +350,23 @@ describe('set_supply: the values given from upstream', () => {
     expect(Object.keys(plain).filter((k) => /supply|incomingCable|allowed/.test(k))).toEqual([]);
   });
 });
+
+describe('set_supply: the source kind', () => {
+  const lv = (): Project => ({ ...sampleProject, id: 'proj-lv', boards: sampleProject.boards.map((b) => (b.id === 'MDB-1' ? { id: b.id, name: b.name, kind: b.kind, supply: { faultKa: 25 } } : b)) });
+  beforeEach(() => fs.writeFileSync(file('Lv'), JSON.stringify(lv(), null, 2)));
+  it('sets the kind, keeps the other fields, and null clears it', () => {
+    run('set_supply', { project: 'Lv', panel: 'MDB-1', kind: 'generator', mode: 'apply' });
+    expect(load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply).toEqual({ faultKa: 25, kind: 'generator' });
+    run('set_supply', { project: 'Lv', panel: 'MDB-1', kind: null, mode: 'apply' });
+    expect(load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply).toEqual({ faultKa: 25 });
+  });
+  it('refuses a kind that is not in the list', () => {
+    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', kind: 'steam' })).toThrow();
+  });
+  it('CLI: --kind sets it', async () => {
+    const out: string[] = [];
+    const io = { out: (s: string) => out.push(s), err: (s: string) => out.push(s) };
+    expect(await main(['set-supply', 'Lv', '--panel', 'MDB-1', '--kind', 'pv', '--apply', '--folder', folder], '1', io)).toBe(0);
+    expect(load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply?.kind).toBe('pv');
+  });
+});

@@ -31,6 +31,8 @@ import { upsLoadingPct } from '../calc/sizing';
 import { isMotor, starterInfo, starterOf } from '../calc/motor';
 import { sldDevices } from '../diagram/sldDevices';
 import { breakerText, cableLines, fireRatedWarning, icuText, incomerReach, incomerTexts, isolatorText, busbarLines, sparePoles, spareText, supplyReach, textWidth } from '../diagram/panelLabels';
+import { supplyMode, supplyPoint } from '../diagram/supplyPoint';
+import { SourceSym } from '../diagram/sourceSymbol';
 import { cableSizeText, faultCurrentKA, impedanceToBoard, runsOf, sourceAssumed, upstreamVoltageDropPct } from '../calc/electrical';
 import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun, type OutageScenario } from '../calc/scenario';
 import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, supplyOf, supplyTint, SUPPLY_COLOR, SUPPLY_LEGEND, type ColorBy } from '../diagram/heatmap';
@@ -135,7 +137,7 @@ export function sldLayout(project: Project, dewa: boolean, cableRefs = false, ro
   const rootLead = new Map(earthLead);
   for (const r of base.roots) {
     const b = r.board;
-    const reach = Math.max(!b.upstreamId && !b.sourceKva ? supplyReach(b, dewa) : 0, r.terminal ? boardSymbolReach(project, b) + (dewa ? BOARD_FRAME_PAD : 0) : 0);
+    const reach = Math.max(supplyReach(project, b, dewa), r.terminal ? boardSymbolReach(project, b) + (dewa ? BOARD_FRAME_PAD : 0) : 0);
     if (reach > 0) rootReach.set(b.id, reach);
     const pits = hasEarthPits(b) ? lvPitCount(b, planned) : 0;
     if (pits > 0 && !(dewa && !r.terminal)) rootLead.set(b.id, earthDetailWidth(project, b, pits, planned.get(`lv:${b.id}`)) + EARTH_DETAIL_GAP - 62);
@@ -1414,7 +1416,7 @@ export default function SystemDiagram({
             <circle cx={utilityX} cy="22" r="11" className="sym" />
             <path d={`M${utilityX - 5} 22 q2.5 -6 5 0 t5 0`} className="ln" />
             {hvGrid && <title>{gridTitle(hvGrid)}</title>}
-            <text className="b" x={utilityX + 18} y="20">{hvGrid ? hvGrid.operator || hvGrid.name : 'Utility'}</text>
+            <text className="b" x={utilityX + 18} y="20">{hvGrid ? hvGrid.operator || hvGrid.name : 'MV source'}</text>
             <text className="m" x={utilityX + 18} y="34">{hvGrid ? gridLabel(hvGrid) : '11 kV'}</text>
             {mvRoots.length > 1 && (
               <line x1={mvRoots[0].x} y1="50" x2={mvRoots[mvRoots.length - 1].x} y2="50" className="ln mv" />
@@ -1435,27 +1437,47 @@ export default function SystemDiagram({
               {inc && <text className="m" x={r.x + 14} y={60 + mvDy}>{inc.id}: {cableSizeText(inc)}, {inc.lengthM} m · {inc.breakerRatingA} A</text>}
             </g>
           );
-        })() : !r.board.sourceKva && r.board.supply ? (
-          <g key={`sup-${r.board.id}`} className="tx" data-lv-id={`board:${r.board.id}`} onDoubleClick={edit(onEditBoard, r.board.id)}>
-            <title>Supply from the authority — double-click to edit</title>
-            {/* Its own source, off the 11 kV side. */}
-            <circle cx={r.x} cy={22 + mvDy} r="11" className="sym" />
-            <path d={`M${r.x - 5} ${22 + mvDy} q2.5 -6 5 0 t5 0`} className="ln" />
-            <text className="b" x={r.x + 18} y={20 + mvDy}>{r.board.supply.fedFrom ?? 'DEWA'} supply</text>
-            <rect x={r.x - 16} y={52 + mvDy} width={32} height={26} rx={3} className="sym" />
-            <text className="b" x={r.x} y={69 + mvDy} textAnchor="middle" style={{ fontSize: 10 }}>kWh</text>
-            {dewa ? (
-              <>
-                <text className="m" x={r.x + 24} y={76 + mvDy}>METER CABINET{r.board.supply.ctRatio || r.board.protection?.ctRatio ? ` · CTM ${r.board.supply.ctRatio ?? r.board.protection?.ctRatio}` : ''}</text>
-                {r.board.supply.ratingA && <text className="m" x={r.x + 24} y={90 + mvDy}>{r.board.supply.ratingA}A TP {r.board.supply.device ?? 'MCCB'}{r.board.supply.faultKa ? ` ${r.board.supply.faultKa} kA` : ''}</text>}
-                <text className="m" x={r.x + 24} y={104 + mvDy}>CABLE BY {r.board.supply.fedFrom ?? 'DEWA'} · FED FROM {r.board.supply.fedFrom ?? 'DEWA'}</text>
-              </>
-            ) : <text className="m" x={r.x + 24} y={76 + mvDy}>{r.board.supply.ratingA ? `${r.board.supply.ratingA} A ${r.board.supply.device ?? ''}` : 'meter cabinet'}{r.board.supply.meter ? ` · ${r.board.supply.meter} meter` : ''}</text>}
-            <line x1={r.x} y1={33 + mvDy} x2={r.x} y2={52 + mvDy} className="ln" />
-            <line x1={r.x} y1={78 + mvDy} x2={r.x} y2={r.headY - 58} className="ln" />
-            <text className="m" x={r.x - 8} y={r.headY - 72} textAnchor="end">{project.voltageV} V</text>
-          </g>
-        ) : (
+        })() : supplyMode(r.board) === 'unset' ? (() => {
+          // No transformer, no supply, no RMU or substation: a dashed stub that says so.
+          const sp = supplyPoint(project, r.board, dewa)!;
+          return (
+            <g key={`sup-${r.board.id}`} className="tx" data-lv-id={`board:${r.board.id}`} onDoubleClick={edit(onEditBoard, r.board.id)}>
+              <title>{sp.tooltip}</title>
+              <line x1={r.x} y1={40 + mvDy} x2={r.x} y2={r.headY - 58} className="ln" strokeDasharray="5 3" />
+              <path d={`M${r.x - 7} ${40 + mvDy} H${r.x + 7}`} className="ln" strokeDasharray="5 3" />
+              <text className="b" x={r.x + 14} y={46 + mvDy}>{sp.title}</text>
+              {sp.lines.map((t, i) => <text key={i} className="m" x={r.x + 14} y={60 + mvDy + 14 * i}>{t}</text>)}
+              <text className="m" x={r.x - 8} y={r.headY - 72} textAnchor="end">{project.voltageV} V</text>
+            </g>
+          );
+        })() : !r.board.sourceKva && r.board.supply ? (() => {
+          const sp = supplyPoint(project, r.board, dewa)!;
+          if (sp.mode === 'board') return (
+            // Fed from a board outside this project: a continuation marker, as for a board above that is not drawn.
+            <g key={`sup-${r.board.id}`} className="tx from-up" data-lv-id={`board:${r.board.id}`} onDoubleClick={edit(onEditBoard, r.board.id)}>
+              <title>{sp.tooltip}</title>
+              <line x1={r.x} y1={14 + mvDy} x2={r.x} y2={r.headY - 58} className="ln" />
+              <path d={`M${r.x - 7} ${60 + mvDy} L${r.x} ${72 + mvDy} L${r.x + 7} ${60 + mvDy}`} className="ln" />
+              <text className="b" x={r.x + 14} y={20 + mvDy}>{sp.title}</text>
+              {sp.lines.map((t, i) => <text key={i} className="m" x={r.x + 14} y={34 + mvDy + 14 * i}>{t}</text>)}
+              <text className="m" x={r.x - 8} y={r.headY - 72} textAnchor="end">{project.voltageV} V</text>
+            </g>
+          );
+          return (
+            <g key={`sup-${r.board.id}`} className="tx" data-lv-id={`board:${r.board.id}`} onDoubleClick={edit(onEditBoard, r.board.id)}>
+              <title>{sp.tooltip}</title>
+              {/* Its own source, off the 11 kV side. */}
+              <SourceSym kind={sp.kind} x={r.x} y={22 + mvDy} />
+              <text className="b" x={r.x + 18} y={20 + mvDy}>{sp.title}</text>
+              <rect x={r.x - 16} y={52 + mvDy} width={32} height={26} rx={3} className="sym" />
+              <text className="b" x={r.x} y={69 + mvDy} textAnchor="middle" style={{ fontSize: 10 }}>kWh</text>
+              {sp.lines.map((t, i) => <text key={i} className="m" x={r.x + 24} y={76 + mvDy + 14 * i}>{t}</text>)}
+              <line x1={r.x} y1={33 + mvDy} x2={r.x} y2={52 + mvDy} className="ln" />
+              <line x1={r.x} y1={78 + mvDy} x2={r.x} y2={r.headY - 58} className="ln" />
+              <text className="m" x={r.x - 8} y={r.headY - 72} textAnchor="end">{project.voltageV} V</text>
+            </g>
+          );
+        })() : (
           <g key={`tx-${r.board.id}`} className={`tx${r.board.existing ? ' existing' : ''}`} data-lv-id={`board:${r.board.id}`} onDoubleClick={edit(onEditBoard, r.board.id)}>
             <title>Double-click to edit the transformer</title>
             {!mvRing && <line x1={r.x} y1="50" x2={r.x} y2="78" className="ln mv" />}
@@ -1524,7 +1546,7 @@ export default function SystemDiagram({
           // outgoing panels) under the detail, ending left of the incomer's result rows, and
           // dropped below the incomer's voltage label where it would run through it.
           const metX1 = framed ? r.busX1 - 7 + nb.w + 13 : r.x - 58;
-          const voltY = b.upstreamId ? undefined : r.headY - (!b.sourceKva && b.supply ? 72 : dewa ? 96 : protectionOf(b) ? 84 : 72); // as drawn at the root's head
+          const voltY = b.upstreamId ? undefined : r.headY - (supplyMode(b) === 'source' || supplyMode(b) === 'board' || supplyMode(b) === 'unset' ? 72 : dewa ? 96 : protectionOf(b) ? 84 : 72); // as drawn at the root's head
           const metAt = oy + 90;
           const metY = framed ? y1 + 20 : voltY !== undefined && metAt > voltY - 13 && metAt < voltY + 5 ? voltY + 10 : metAt;
           const metMid = metX1 + 25;

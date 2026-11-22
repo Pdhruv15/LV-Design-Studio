@@ -42,7 +42,8 @@ describe('drag and drop SLD', () => {
   it('starts a new project from the empty canvas: meter cabinet → MDB → SMDB → DB', () => {
     let p: Project = { ...newProject('Blank'), boards: [], feeders: [] };
     p = applyDrop(p, { kind: 'board', board: 'MC' }, canvas).project;
-    expect(p.boards[0]).toMatchObject({ id: 'MC-1', kind: 'MC', supply: { fedFrom: 'DEWA' } });
+    expect(p.boards[0]).toMatchObject({ id: 'MC-1', kind: 'MC', supply: { device: 'MCCB' } });
+    expect(p.boards[0].supply?.fedFrom).toBeUndefined();
     p = applyDrop(p, { kind: 'board', board: 'MDB' }, bus('MC-1')).project;
     p = applyDrop(p, { kind: 'board', board: 'SMDB' }, bus('MDB-1')).project;
     p = applyDrop(p, { kind: 'board', board: 'DB' }, bus('SMDB-1')).project;
@@ -248,5 +249,18 @@ describe('what a board takes on the Board tab', () => {
     expect(stayOnBoard(r.project, r.select, 'MDB-1')).toEqual({ type: 'board', id: 'DB-1' }); // fed from another board
     expect(stayOnBoard(r.project, { type: 'feeder', id: 'FF-OFF' }, 'SMDB-FF')).toEqual({ type: 'feeder', id: 'FF-OFF' });
     expect(stayOnBoard(r.project, undefined, 'SMDB-FF')).toBeUndefined();
+  });
+});
+
+describe('the supply name of a dropped first board', () => {
+  const empty = (p: Project = newProject('Blank')): Project => ({ ...p, boards: [], feeders: [] });
+  it('is blank without a design reference', () => {
+    const p = applyDrop(empty(), { kind: 'board', board: 'MDB' }, canvas).project;
+    expect(p.boards[0].supply).toEqual({});
+  });
+  it('is the authority of the applied design reference', () => {
+    const withRef = applyReference(empty(), BUILT_IN_REFERENCES.find((r) => r.id === 'builtin-addc')!);
+    expect(applyDrop(withRef, { kind: 'board', board: 'MDB' }, canvas).project.boards[0].supply).toEqual({ fedFrom: 'ADDC' });
+    expect(applyDrop(withRef, { kind: 'board', board: 'MC' }, canvas).project.boards[0].supply?.fedFrom).toBe('ADDC');
   });
 });

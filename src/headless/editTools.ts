@@ -12,7 +12,7 @@ import { pasteBoard } from '../model/copyBoard';
 import { boardAndDescendants, deleteBoard } from '../model/edit';
 import { removeDanglingReferences } from '../model/integrity';
 import { deleteCircuit } from '../model/schedule';
-import { BOARD_KINDS, LOAD_TYPES, type Board, type BoardKind, type Feeder, type LoadType, type Project } from '../types';
+import { BOARD_KINDS, LOAD_TYPES, SOURCE_KINDS, type Board, type BoardKind, type Feeder, type LoadType, type Project, type SourceKind } from '../types';
 import { openProject } from './project';
 import { INSTALL_METHODS, type InstallMethod } from '../calc/cableTable';
 import { projectInputIssues } from '../model/projectValidate';
@@ -301,6 +301,7 @@ export const EDIT_TOOLS: Tool[] = [
     input: {
       project, panel: z.string().describe('First panel (no panel above it, no transformer)'),
       fedBy: z.enum(['source', 'board']).nullable().optional().describe('source = a supply source; board = a board outside this project'),
+      kind: z.enum(SOURCE_KINDS.map((k) => k.value) as [SourceKind, ...SourceKind[]]).nullable().optional().describe('What the supply point is: utility, generator, pv, wind, battery or other (sets the symbol drawn; blank draws as utility)'),
       ref: z.string().trim().max(200).nullable().optional().describe('Drawing or letter reference of the given values'),
       faultKa: z.number().positive().nullable().optional().describe('Fault level Ik″ at the supply point, kA'),
       xr: z.number().positive().nullable().optional().describe('X/R of that fault level (default: the transformer default)'),
@@ -325,7 +326,7 @@ export const EDIT_TOOLS: Tool[] = [
       const b = findBoard(p, String(a.panel));
       if (b.upstreamId) throw new Error(`${b.id} is fed from ${b.upstreamId}: the values given from upstream apply to a first panel.`);
       if (b.sourceKva) throw new Error(`${b.id} has a transformer: it ignores the values given from upstream.`);
-      const KEYS = ['fedBy', 'ref', 'faultKa', 'xr', 'faultKaMin', 'vdUsedPct', 'zeOhm', 'allowedA', 'device', 'ratingA', 'irSetting', 'incomer'] as const;
+      const KEYS = ['fedBy', 'kind', 'ref', 'faultKa', 'xr', 'faultKaMin', 'vdUsedPct', 'zeOhm', 'allowedA', 'device', 'ratingA', 'irSetting', 'incomer'] as const;
       const given = KEYS.filter((k) => a[k] !== undefined);
       if (!given.length) throw new Error(`Give at least one value to set (${KEYS.join(', ')}); null clears one.`);
       const supply: Record<string, unknown> = { ...b.supply };

@@ -3,7 +3,7 @@ import { sampleProject } from '../data/sampleProject';
 import { buildDesignBasis } from '../docs/designBasis';
 import {
   BUILT_IN_REFERENCES, REFERENCES_KEY, applyReference, appliedStatus, authorityChange, changedSinceApplied, duplicateReference, exportReferences, importReferences,
-  loadReferences, loadUserReferences, newReference, originOf, projectValue, referenceChanges, referenceIssues, referenceSourceOf, resolveReference, saveReference, saveUserReferences, settingSource, startChoices, supplyAuthorityOf
+  loadReferences, loadUserReferences, newReference, originOf, projectValue, referenceChanges, referenceIssues, referenceSourceOf, resolveReference, saveReference, saveUserReferences, settingSource, startChoices, supplyAuthorityOf, supplyNameSuggestion
 } from './designReference';
 import type { Project } from '../types';
 
@@ -234,5 +234,13 @@ describe('changing the authority of a running project', () => {
     const gone: Project = { ...base, designReference: { id: 'ref-gone', name: 'My office DEWA', version: 1, appliedAt: '2026-11-14', values: {} } };
     expect(authorityChange(gone, ref('builtin-addc'))).toEqual({ from: 'DEWA', to: 'ADDC' });
     expect(authorityChange(gone, ref('builtin-dewa'))).toBeUndefined();
+  });
+});
+
+describe('the name suggested for a new first board’s supply', () => {
+  it('is the applied authority, and nothing when no design reference is applied or its set is under no authority', () => {
+    expect(supplyNameSuggestion(base)).toBeUndefined();
+    expect(supplyNameSuggestion(applyReference(base, ref('builtin-addc')))).toBe('ADDC');
+    expect(supplyNameSuggestion(applyReference(base, ref('builtin-iec')))).toBeUndefined();
   });
 });

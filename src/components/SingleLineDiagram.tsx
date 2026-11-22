@@ -19,6 +19,8 @@ import { deviceKind, devicePoles } from '../diagram/deviceText';
 import { nextPhase, phaseTag } from '../model/phases';
 import { splitSld } from '../model/sldScope';
 import { fmtFixed } from '../util/format';
+import { supplyPoint } from '../diagram/supplyPoint';
+import { SourceSym } from '../diagram/sourceSymbol';
 import { addsWay, canDrop, type DropTarget, type PaletteItem } from '../model/sldEdit';
 import { dropTargetAt, getArmedItem, getDragItem, setArmedItem, setDragItem, subscribeArmedItem } from '../diagram/dragItem';
 
@@ -101,6 +103,7 @@ export default function SingleLineDiagram({
   const busX1 = Math.min(cx - 60, (xs[0] ?? cx) - 60);
   const busX2 = Math.max(cx + 60, (xs[n - 1] ?? cx) + 60);
   const isMain = !board.upstreamId;
+  const sp = isMain ? supplyPoint(project ?? { voltageV, boards: [board] }, board, false) : undefined;
   const dev = incomerDeviceOf(board);
   const incKind: SwitchKind = dev === 'ISOL' ? 'isolator' : dev === 'ACB' ? 'acb' : dev === 'MCCB-NA' ? 'nonauto' : 'breaker';
 
@@ -241,18 +244,31 @@ export default function SingleLineDiagram({
     <svg ref={svgRef} {...armProps} onContextMenu={menuFor ? onContextMenu : undefined} viewBox={`0 0 ${width} ${H}`} style={{ minWidth, width: '100%', height: 'auto', display: 'block' }} role="img" aria-label={`Single line diagram of ${board.name}`}>
       {isMain ? (
         <>
-          <line x1={cx} y1="0" x2={cx} y2="17" className="ln" />
-          <text className="m" x={cx + 10} y="10">
-            {`${project ? txKv(project, board) : '11'} kV incoming`}
-          </text>
-          <circle cx={cx} cy="30" r="13" className="tr" />
-          <circle cx={cx} cy="44" r="13" className="tr" />
-          <text className="b" x={cx + 22} y="32">
-            TX · {board.sourceKva ?? '—'} kVA
-          </text>
-          <text className="m" x={cx + 22} y="46">
-            11/{(voltageV / 1000).toFixed(3)} kV · Z {board.sourceImpedancePct ?? '—'}%
-          </text>
+          {sp ? (
+            // No transformer: the source's symbol, a continuation marker or a dashed stub, with the supply's own lines.
+            <>
+              {sp.mode === 'source' && <><SourceSym kind={sp.kind} x={cx} y={30} /><line x1={cx} y1="41" x2={cx} y2="68" className="ln" /></>}
+              {sp.mode === 'board' && <><line x1={cx} y1="6" x2={cx} y2="68" className="ln" /><path d={`M${cx - 7} 24 L${cx} 36 L${cx + 7} 24`} className="ln" /></>}
+              {sp.mode === 'unset' && <><line x1={cx} y1="10" x2={cx} y2="68" className="ln" strokeDasharray="5 3" /><path d={`M${cx - 7} 10 H${cx + 7}`} className="ln" strokeDasharray="5 3" /></>}
+              <text className="b" x={cx + 22} y={sp.mode === 'unset' ? 32 : 26}>{sp.title}</text>
+              {sp.mode === 'unset' ? <text className="m" x={cx + 22} y="46">{sp.brief[0]}</text> : sp.brief.map((t, i) => <text key={i} className="m" x={cx + 22} y={40 + 14 * i}>{t}</text>)}
+            </>
+          ) : (
+            <>
+              <line x1={cx} y1="0" x2={cx} y2="17" className="ln" />
+              <text className="m" x={cx + 10} y="10">
+                {`${project ? txKv(project, board) : '11'} kV incoming`}
+              </text>
+              <circle cx={cx} cy="30" r="13" className="tr" />
+              <circle cx={cx} cy="44" r="13" className="tr" />
+              <text className="b" x={cx + 22} y="32">
+                TX · {board.sourceKva ?? '—'} kVA
+              </text>
+              <text className="m" x={cx + 22} y="46">
+                11/{(voltageV / 1000).toFixed(3)} kV · Z {board.sourceImpedancePct ?? '—'}%
+              </text>
+            </>
+          )}
           <line x1={cx} y1="57" x2={cx} y2="68" className="ln" />
           {dev ? <SwitchSym x={cx} y={68} kind={incKind} /> : <line x1={cx} y1="68" x2={cx} y2="84" className="ln" />}
           <line x1={cx} y1="84" x2={cx} y2="118" className="ln" />

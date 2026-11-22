@@ -7,6 +7,7 @@ import { atsLines, atsOf, isInterlocked } from '../model/changeover';
 import { deviceKind, devicePoles } from './deviceText';
 import { elcbUnitOf, rcdInSwitch } from './IecSymbols';
 import { sldDevices } from './sldDevices';
+import { supplyPoint } from './supplyPoint';
 
 /** What a DEWA-style panel prints beside its ways and its incomer, shared by the SLD (which draws it) and the layout
  * (which sizes each panel's frame, and the room after it, to it), so a panel's labels stay inside its own frame. */
@@ -92,23 +93,21 @@ export function incomerTexts(project: Project, b: Board): { device: string; icu?
   return { device, icu: `Icu ${inc.breakerIcuKa} kA${low ? ` < Isc ${isc.toFixed(1)} kA` : ''}`, low };
 }
 
-/** The authority supply's lines right of its meter, title first (bold), as the SLD prints them (keep in step with
- * SystemDiagram's supply header). */
-export function supplyLines(b: Board, dewa: boolean): string[] {
-  const s = b.supply;
-  if (!s) return [];
-  const from = s.fedFrom ?? 'DEWA', ct = s.ctRatio ?? b.protection?.ctRatio;
-  if (!dewa) return [`${from} supply`, `${s.ratingA ? `${s.ratingA} A ${s.device ?? ''}` : 'meter cabinet'}${s.meter ? ` · ${s.meter} meter` : ''}`];
-  return [
-    `${from} supply`, `METER CABINET${ct ? ` · CTM ${ct}` : ''}`,
-    ...(s.ratingA ? [`${s.ratingA}A TP ${s.device ?? 'MCCB'}${s.faultKa ? ` ${s.faultKa} kA` : ''}`] : []),
-    `CABLE BY ${from} · FED FROM ${from}`
-  ];
+/** A first board's supply lines, title first (bold), as the SLD prints them: from the shared supply model, so the
+ * drawing, the Board tab and the sheet agree. Empty for a transformer or a board with a board above it. */
+export function supplyLines(project: Pick<Project, 'voltageV' | 'boards'>, b: Board, dewa: boolean): string[] {
+  const sp = supplyPoint(project, b, dewa);
+  return sp ? [sp.title, ...sp.lines] : [];
 }
 
-/** How far right of its supply line the authority supply's lines reach (they start 24 right of it). */
-export const supplyReach = (b: Board, dewa: boolean): number =>
-  Math.max(0, ...supplyLines(b, dewa).map((t, i) => 24 + (i ? textWidth(t, 11) : textWidth(t, 12, true))));
+/** How far right of its supply line a first board's supply texts reach, from the offsets and font sizes the SLD draws
+ * them with: a source (symbol, then lines 24 right), a board outside the project or an unset supply (11 px, 14 right). */
+export function supplyReach(project: Pick<Project, 'voltageV' | 'boards'>, b: Board, dewa: boolean): number {
+  const sp = supplyPoint(project, b, dewa);
+  if (!sp) return 0;
+  if (sp.mode === 'source') return Math.max(18 + textWidth(sp.title, 12, true), ...sp.lines.map((t) => 24 + textWidth(t, 11)));
+  return Math.max(7, 14 + textWidth(sp.title, sp.mode === 'board' ? 11 : 12, true), ...sp.lines.map((t) => 14 + textWidth(t, 11)));
+}
 
 /** How far right of the incomer line its labels reach: the device and its breaking capacity, or an ATS and its
  * generator (a mains / generator changeover draws its own incomers, kept clear by its slots). */

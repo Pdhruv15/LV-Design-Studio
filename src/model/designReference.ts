@@ -475,6 +475,11 @@ export function supplyAuthorityOf(p: Pick<Project, 'designReference'>, list: Des
   return projectAuthority(p, list) ?? 'AUTHORITY';
 }
 
+/** The name a new first board's supply is given: the authority of the design reference the project applied, else
+ * none (the supply is then left unnamed, and the SLD says "Source"). Never a placeholder word. */
+export const supplyNameSuggestion = (p: Pick<Project, 'designReference'>, list: DesignReference[] = loadReferences()): string | undefined =>
+  p.designReference ? projectAuthority(p, list) : undefined;
+
 /** The authority's short name the project is under: from the applied set's origin, else from the set's name
  * ("My office DEWA" → DEWA). Undefined when the project has no set, or its set is under no authority. */
 export function projectAuthority(p: Pick<Project, 'designReference'>, list: DesignReference[] = loadReferences()): string | undefined {

@@ -343,12 +343,17 @@ export function cableImpedance(csaMm2: number, lengthM: number, runs = 1): Imped
   };
 }
 
+/** Placeholder source impedance (Ω) used where a first board has no transformer data and no supply fault level. */
+export const PLACEHOLDER_SOURCE_Z: Impedance = { r: 0, x: 0.01 };
+/** The fault level (kA) of that placeholder source at the project voltage, as the SLD prints it ("assumed"). */
+export const assumedSourceFaultKa = (project: Pick<Project, 'voltageV'>): number => faultCurrentKA(PLACEHOLDER_SOURCE_Z, project.voltageV);
+
 /** Impedance from the source (transformer) up to and including a board's
  * busbar, walking up the board hierarchy: main board -> transformer only;
  * any downstream board -> its parent's impedance plus its incomer cable. */
 export function impedanceToBoard(project: Project, boardId: string, seen = new Set<string>()): Impedance {
   const board = boardOf(project, boardId);
-  const fallback = { r: 0, x: 0.01 };
+  const fallback = PLACEHOLDER_SOURCE_Z;
   if (!board || seen.has(boardId)) return fallback;
   seen.add(boardId);
   return memoized(project, `zUp:${boardId}`, () => impedanceToBoardOf(project, board, seen));
@@ -395,7 +400,7 @@ export function parallelZ(zs: Impedance[]): Impedance {
 }
 
 function impedanceToBoardOf(project: Project, board: Board, seen: Set<string>): Impedance {
-  const fallback = { r: 0, x: 0.01 };
+  const fallback = PLACEHOLDER_SOURCE_Z;
 
   if (!board.upstreamId) {
     // No transformer: a supply with a stated fault level (authority, or a neighbouring building's main board).

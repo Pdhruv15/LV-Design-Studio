@@ -24,7 +24,7 @@ const meterCabinet: Board = { id: 'MDB-A', name: 'MDB-A', kind: 'MDB', ratedCurr
 describe('SLD: grid source and RMU', () => {
   it('draws one 11 kV line under the utility without RMU or substation names; a meter cabinet has its own source', () => {
     const h = drawn({ ...sampleProject, boards: [meterCabinet, ...sampleProject.boards] });
-    expect(texts(h)).toEqual(expect.arrayContaining(['Utility', '11 kV', 'DEWA supply']));
+    expect(texts(h)).toEqual(expect.arrayContaining(['MV source', '11 kV', 'DEWA supply']));
     expect(h.querySelector('.mvRing-ring')).toBeNull();
     // The main board on the authority supply moves after the transformers, with its own source symbol.
     const sup = h.querySelector('g.tx[data-lv-id="board:MDB-A"]')!;
