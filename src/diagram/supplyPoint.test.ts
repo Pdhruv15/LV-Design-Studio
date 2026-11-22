@@ -76,6 +76,8 @@ describe('supplyPoint: source', () => {
     // No rating: no device line either; the cable line stays.
     expect(point(first({ kind: 'pv', incomer: { cableCsaMm2: 16, lengthM: 25 } }), true).lines).toEqual(['Ik″ 25.2 kA assumed', expect.stringMatching(/16 mm².* · 25 m$/)]);
     for (const kind of ['generator', 'pv', 'wind', 'battery', 'other'] as const) expect(point(first({ kind })).meter).toBe(false);
+    // With a meter type it has the meter cabinet, but never the supplier's "cable by" line.
+    expect(point(first({ kind: 'wind', fedFrom: 'WT-1', meter: 'CT' }), true).lines).toEqual(['METER CABINET', 'Ik″ 25.2 kA assumed']);
     expect(point(first({ kind: 'generator', meter: 'CT' })).meter).toBe(true);
     expect(point(first({ kind: 'generator', meter: 'CT' })).lines[0]).toBe('meter cabinet · CT meter');
     expect(point(first({ kind: 'utility' })).meter).toBe(true);

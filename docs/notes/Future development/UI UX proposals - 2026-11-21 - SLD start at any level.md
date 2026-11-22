@@ -1,6 +1,6 @@
 # SLD start at any level — proposal (2026-11-21)
 
-Status: **approved 2026-11-22: all ten decisions with the recommended answers.** Build order A to H, one PR each; nothing built yet.
+Status: **approved 2026-11-22: all ten decisions with the recommended answers.** Build order A to H, one PR each. Built: A (v2.254), B (v2.255), C (v2.256). Next: D.
 Mockup: `docs/mockups/sld-start-level-mockup.html` + `.png`.
 Related: [[UI UX proposals - 2026-11-11 - SLD supply sources, RMU and package substations]] (steps 2–5 still wait) and [[UI UX proposals - 2026-11-18 - SLD by substation, RMU and transformer]] (all built).
 
@@ -169,6 +169,25 @@ One PR each, in this order. Steps A, B and H change no screen.
 | H | Source kinds in the calculations: generator from kVA and X″d, inverter sources from rated current | none |
 
 Later, with the supply sources proposal: generator as the only source, PV and battery as sources, MV switchboard and MV cables.
+
+### Step C as built (v2.256)
+
+- A source that is not a utility (generator, solar PV, wind, battery, other) is drawn without a meter cabinet unless a meter type is entered. A blank kind counts as a utility, so existing drawings keep their meter.
+- The marker reads "From <name>", in the same letter case as the existing marker between sheets.
+- A first board with nothing entered is no longer counted on the 11 kV side: the 11 kV line does not run over it, and a project whose first boards are all like that has no Boards / Substations grouping in the panel tree.
+- Not drawn: a legend entry for the source symbols, and the "% left for the final circuits" note of the mockup.
+- Known limit: in the standard style with the earth pits hidden, the supply lines of a first board that also has a standby generator through an ATS run into the ATS label. One supply line already did so before this step; it needs a lower first busbar in that case.
+
+### Wording still naming one supplier (for step D or a separate sweep)
+
+Found in the code on 2026-11-22; each needs the neutral word or the chosen design reference's authority:
+
+- Data defaults: the grid source's operator and its fixed list; a new brief's authority; a saved setup template's authority.
+- Forms and fields that fall back to one name when no design reference is chosen: the "Fed from" field of sheet formats, the connected-load sheet's "connected to" line, the TCL by transformer summary.
+- Fixed text: the calculation record's status line, note 4 of the earthing drawing, the default BOQ fees line, the "Submitted" status option, the report type "submission" and its title, the standard general notes button.
+- Page intros and tooltips: transformers tab, emergency panels, earthing, power factor, space plan and load assessment pickers, export centre, ribbon tooltips for the load schedule, the guide's forms task.
+- The drawing style switch is labelled with one authority's name on the SLD toolbar and in Drawings; that style is on by default.
+
 
 ## Decisions
 

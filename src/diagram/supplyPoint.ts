@@ -77,7 +77,9 @@ export function supplyPoint(project: Pick<Project, 'voltageV'>, b: Board, dewa: 
     device = s?.ratingA ? `${s.ratingA}A TP ${s.device ?? 'MCCB'}${given ? ` ${given} kA` : ''}` : '';
     // The fault level already stands on the device line when it is given and there is one.
     const faultLine = !given || !device ? fault : '';
-    lines = tail(`METER CABINET${ct ? ` · CTM ${ct}` : ''}`, device, faultLine, used, cable || (name ? `CABLE BY ${name} · FED FROM ${name}` : 'CABLE BY THE SUPPLIER'), ref);
+    // "Cable by" is a supplier's wording: not for an own source (generator, PV, wind, battery) that has a meter.
+    const by = kind !== 'utility' ? '' : name ? `CABLE BY ${name} · FED FROM ${name}` : 'CABLE BY THE SUPPLIER';
+    lines = tail(`METER CABINET${ct ? ` · CTM ${ct}` : ''}`, device, faultLine, used, cable || by, ref);
   }
   return { mode, kind, title, name, lines, brief: tail(fault, cable || device), meter, refLine: ref || undefined, tooltip: `${title} — double-click to edit` };
 }
