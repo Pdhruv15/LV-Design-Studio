@@ -46,7 +46,9 @@ Under the screen sits the **core electrical calculation** used by every study:
 | `src/components/SystemSummaryCards.tsx` | screen | `SystemSummaryCards` | Results drawer: system summary and bus voltages & loading table |
 | `src/components/BuildHierarchyDialog.tsx`, `BranchPanel.tsx` | screen | `BuildHierarchyDialog`, `BranchPanel` | Bulk panel creation, repeat a branch on other floors, saved assemblies |
 | `src/components/PasteBoardDialog.tsx` | screen | `PasteBoardDialog` | Rename rules when pasting a copied board |
-| `src/model/sldEdit.ts` | model | `PALETTE`, `canDrop`, `applyDrop`, `dropMany`, `boardIncomer`, `sized`, `canMove`, `applyMove`, `removeTie`, `updateTie`, `tiePartner` | What a drop or a move does to the project |
+| `src/model/sldEdit.ts` | model | `PALETTE`, `canDrop`, `applyDrop`, `dropMany`, `boardIncomer`, `sized`, `canMove`, `applyMove`, `removeTie`, `updateTie`, `tiePartner` | Every board type can also be dropped on the empty canvas as a first board (fed from a board outside the project). What a drop or a move does to the project |
+| `src/model/startLevel.ts` | model | `applyStartLevel`, `START_LEVELS`, `startOpensMv`, `startLevelText` | The first board(s) of a new project for the six SLD starts (final DB, sub-main, LV source, transformer, RMU with one or two transformers, 11 kV ring); the DB and sub-main starts use `applyDrop` on the empty canvas. |
+| `src/components/StartLevelPicker.tsx` | screen (wizard step) | `StartLevelPicker` | The six picture tiles and the RMU transformer count in the New project wizard (`BriefEditor.tsx`, step 2). |
 | `src/model/sldScope.ts` | model | `onSld`, `splitSld`, `SLD_FINAL_CIRCUIT_MAX_A` | Which ways are drawn on the SLD vs left to the DB schedule |
 | `src/model/hierarchy.ts` | model | `planHierarchy` (only tests), `applyHierarchy`, `levelRef`, `panelName`, `evenAssignment` | Older hierarchy planner; `applyHierarchy` still used |
 | `src/model/copyBoard.ts` | model | `suggestRename`, `planPaste`, `pasteBoard` | Copy / paste a board and everything below it |

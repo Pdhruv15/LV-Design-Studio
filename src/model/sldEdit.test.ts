@@ -3,6 +3,9 @@ import { sampleProject } from '../data/sampleProject';
 import { evaluateFeeder } from '../calc/electrical';
 import { layoutSystem } from '../diagram/layout';
 import { newProject, type Project } from '../types';
+import { BOARD_KINDS } from '../types';
+import { runCalculations } from '../calc/runs';
+import { supplyMode } from '../diagram/supplyPoint';
 import { applyDrop, applyMove, armHint, boardTakes, canDrop, canMove, dropHint, stayOnBoard, type PaletteItem } from './sldEdit';
 import { applyReference, BUILT_IN_REFERENCES } from './designReference';
 
@@ -82,7 +85,6 @@ describe('drag and drop SLD', () => {
   it('refuses drops that make no sense, with a hint', () => {
     const cases: [PaletteItem, Parameters<typeof canDrop>[2]][] = [
       [{ kind: 'load', preset: 'ahu' }, canvas],
-      [{ kind: 'board', board: 'DB' }, canvas],
       [{ kind: 'board', board: 'MC' }, bus('MDB-1')],
       [{ kind: 'board', board: 'MDB' }, bus('SMDB-GF')],
       [{ kind: 'transformer' }, bus('SMDB-GF')],
@@ -95,6 +97,40 @@ describe('drag and drop SLD', () => {
       expect(r.project).toBe(sampleProject);
       expect(r.message).toBe(dropHint(item));
     }
+  });
+});
+
+describe('any board as a first board on the empty canvas', () => {
+  const empty = (): Project => ({ ...newProject('Blank'), boards: [], feeders: [] });
+  const MAIN = ['MDB', 'LV-MDB', 'LV-ACB', 'MC'];
+  it('adds one first board of every kind, calculates, and a non-main one is fed from a board', () => {
+    for (const { value } of BOARD_KINDS) {
+      const r = applyDrop(empty(), { kind: 'board', board: value }, canvas);
+      expect(r.project.boards).toHaveLength(1);
+      expect(r.project.boards[0]).toMatchObject({ kind: value });
+      expect(r.project.feeders).toEqual([]);
+      expect(() => runCalculations(r.project)).not.toThrow();
+      if (!MAIN.includes(value)) {
+        expect(supplyMode(r.project.boards[0])).toBe('board');
+        expect(r.project.boards[0].supply).toEqual({ fedBy: 'board' });
+        expect(r.message).toBe(`Added ${r.project.boards[0].id} as a first board, fed from a board outside this project — set its supply on the Supply tab`);
+      } else expect(r.message).toMatch(/\(new supply\)/);
+    }
+    expect(applyDrop(empty(), { kind: 'board', board: 'UPS' }, canvas).project.boards[0].upsKva).toBe(10);
+  });
+  it('a second first board leaves the transformer board as it was', () => {
+    const base = { ...newProject('X') };
+    const r = applyDrop(base, { kind: 'board', board: 'DB' }, canvas);
+    expect(r.project.boards.map((b) => b.id)).toEqual(['MDB-1', 'DB-1']);
+    expect(r.project.boards[0]).toBe(base.boards[0]);
+  });
+  it('keeps the busbar rules and gives the hints', () => {
+    expect(canDrop(sampleProject, { kind: 'board', board: 'MDB' }, bus('SMDB-GF'))).toBe(false);
+    expect(canDrop(sampleProject, { kind: 'board', board: 'MC' }, bus('MDB-1'))).toBe(false);
+    expect(dropHint({ kind: 'board', board: 'DB' })).toBe('Drop the DB on a busbar, or on the empty canvas to start from it');
+    expect(dropHint({ kind: 'board', board: 'LV-MDB' })).toBe('Drop the LV-MDB on the empty canvas, or on a meter cabinet busbar');
+    expect(dropHint({ kind: 'board', board: 'MDB' })).toBe('Drop an MDB on the empty canvas, or on a meter cabinet busbar');
+    expect(armHint({ kind: 'board', board: 'DB' }, 'DB')).toContain('busbar or canvas');
   });
 });
 

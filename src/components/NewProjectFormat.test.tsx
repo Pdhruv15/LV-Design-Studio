@@ -44,7 +44,7 @@ describe('new project: schedule formats', () => {
     show();
     const go = () => {
       act(() => document.querySelector<HTMLButtonElement>('.home-act')!.click());
-      for (let i = 0; i < 5; i++) act(() => [...document.querySelectorAll<HTMLButtonElement>('button[type="submit"]')].find((b) => b.textContent === 'Next')!.click());
+      for (let i = 0; i < 6; i++) act(() => [...document.querySelectorAll<HTMLButtonElement>('button[type="submit"]')].find((b) => b.textContent === 'Next')!.click());
       act(() => [...document.querySelectorAll<HTMLButtonElement>('button[type="submit"]')].find((b) => b.textContent === 'Create project')!.click());
     };
     choose('DB', idOf('Office DB'));

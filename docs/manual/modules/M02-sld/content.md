@@ -127,6 +127,8 @@ drop while editing.
 - Or choose it on the ribbon: **Supply** (transformer, meter cabinet, generator, bus
   coupler) and **Devices** (protection, metering, capacitor bank) pick the same
   library items. Then click the target on the drawing.
+- A new project asks where the SLD starts (step 2, **SLD start**): a final DB, a sub-main board, a main board on an LV source, a transformer and main board (the default), an RMU with one or two transformers, or an 11 kV ring with two substations. The two 11 kV starts open the MV supply and RMUs card after the project is made. Quick create keeps the transformer start, and the choice can be changed later on the board's **Supply** tab.
+- Any board type can be dropped on the empty canvas as a first board. A board other than a main board is then fed from a board outside the project; set its supply on the **Supply** tab. The busbar rules do not change.
 - Drag an existing board, load, or incomer to another valid target to reconnect it.
 - Use **Edit** or **F2** to change the selected item.
 - Use **Delete** to remove the selected item after reviewing the confirmation.
