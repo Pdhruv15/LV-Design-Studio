@@ -227,7 +227,7 @@ Later, with the supply sources proposal: generator as the only source, PV and ba
 
 - An isolator typed as a feeder's device is still checked as a breaker of that rating by the feeder checks (engine change, not done).
 - A second Add upstream board with no typed cable adds a default 30 m way, so the results at the boards below change by it.
-- A first board with a typed incoming cable but no fault level given: the calculation returns the placeholder source alone and ignores the cable (a test, "B1 fault level" in `src/calc/electrical.test.ts`, states this on purpose: "The incoming cable is not added to the placeholder source (no fault level: still assumed)"). Adding the cable there would be consistent with the case that has a fault level, but it changes the assumed fault level of existing projects; decision needed. Until then, Add upstream board… on such a board makes the cable a real way, so the fault level at the old board falls by it (the assumed source now stands at the new board).
+- Closed in v2.262 (approved 2026-11-22): a first board with a typed incoming cable but no fault level given now counts the cable on top of the placeholder source, as it does with a given fault level. The assumed level at such a board is lower by the cable (16 mm², 25 m: 8.06 kA instead of 25.16 kA); it stays marked assumed. Add upstream board… on such a board no longer changes the fault level at the old board.
 
 ### Step G as built (v2.260)
 
