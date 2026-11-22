@@ -57,6 +57,7 @@ const CadSheets = lazy(() => import('./components/cad/CadSheets'));
 import { withCableRefs } from './model/cableRefs';
 import { withEarthPitIds } from './model/earthingPlan';
 import type { DrawingsTab } from './components/docs/DrawingsView';
+import { addTransformerOnRmu, rmuAddPlan } from './model/mvGrow';
 import { addUpstreamBoard, connectPlan, connectTo, FEEDING_KINDS, stayOnBoardAfter, upstreamPlan } from './model/growUp';
 import { addBoardSheets, earthSheetFor, publishState, setOf } from './model/drawingSet';
 import { boardsInSupplyOrder } from './calc/summary';
@@ -1097,6 +1098,13 @@ export default function App() {
     const generated = ref === plan.id && kind !== plan.kind && new RegExp(`^${plan.kind}-\\d+$`).test(ref);
     showResult(stayOnBoardAfter(addUpstreamBoard(project, id, { kind, ...(generated ? {} : { id: ref }) }), stay));
   }
+  /** Add transformer and main board on an RMU (start at the 11 kV side): asks first when the RMU is full and would grow (RRT → RRTT), else adds at once; one undo step. */
+  async function addTxOnRmu(name: string) {
+    const plan = rmuAddPlan(project, name);
+    if (plan.blocked) { setStatus(plan.blocked); return; }
+    if (plan.grow && !(await askUser({ title: plan.title, message: <>{plan.lines.map((l) => <p key={l}>{l}</p>)}</>, confirmLabel: 'Add transformer' }))) return;
+    showResult(addTransformerOnRmu(project, name));
+  }
   /** Connect to… on a first board: asks first only when values given for its supply would be removed. */
   async function connectToBoard(id: string, to: string) {
     const plan = connectPlan(project, id, to);
@@ -1317,6 +1325,7 @@ export default function App() {
     addLoad: (id, preset) => { setActiveBoardId(id); openAddFeeder(preset); },
     addBoard: (id) => { setActiveBoardId(id); setBoardPreset(undefined); setShowBoardForm(true); },
     addUpstream: (id) => { void addUpstream(id); },
+    addTxOnRmu: (name) => { void addTxOnRmu(name); },
     connectTo: (id, to) => { void connectToBoard(id, to); },
     copyBoard, copyLoad, copyLoads,
     openTogether: setEditTogether,

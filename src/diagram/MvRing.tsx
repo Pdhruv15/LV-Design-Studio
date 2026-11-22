@@ -85,6 +85,7 @@ function Rmu({ g, s, title }: { g: RmuGeom; s: number; title: string }) {
         </g>
       ) : (
         <g key={i} className={w.kind === 'tee' ? 'rmu-tee' : 'rmu-ring-spare'}>
+          {w.kind === 'tee' && !w.boardId && <title>Spare tee-off: right-click → Add transformer and main board</title>}
           <line x1={w.x} y1={Y.bus} x2={w.x} y2={Y.teeSw} className="ln" />
           <Sym id={w.kind === 'tee' ? teeSym : 'isolator'} x={w.x} y={Y.teeSw + 16 * s} s={s} />
           {w.kind === 'tee' && w.boardId ? (

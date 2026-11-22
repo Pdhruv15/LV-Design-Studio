@@ -15,8 +15,9 @@ import { mainBoards, txTag } from './transformers';
 import { partInfo, partKey, partMains, type SldPart } from '../diagram/mvShow';
 import { supplyPoint } from '../diagram/supplyPoint';
 import { isScheduleCircuit } from '../calc/loadSchedule';
-import { rmuRecord, rmuWays } from '../calc/hvSupply';
+import { rmuRecord, rmuTeeOffs, rmuWays } from '../calc/hvSupply';
 import { txUnits } from './earthingPlan';
+import { rmuAddPlan } from './mvGrow';
 import { rmuChoices, substationNames, type RmuChoice } from './substations';
 import { METER_TYPES, RMU_CONFIGS, type Board, type Feeder, type Project } from '../types';
 import { txt } from '../util/format';
@@ -65,7 +66,7 @@ export interface SldMenuState {
 export const SLD_MENU_ACTIONS: readonly string[] = [
   'edit', 'schedule', 'diagram', 'add', 'copy', 'paste', 'duplicate', 'repeat', 'move', 'supplyfrom', 'addupstream', 'connectto', 'moveto', 'order', 'rename', 'cabletype', 'lengthchecked', 'delete', 'plan', 'zoom', 'properties',
   'quickfix', 'editcable', 'change', 'together', 'similar', 'below', 'select', 'deselect', 'txsizing', 'hv', 'addsupply', 'scenario', 'tieop', 'tierating', 'tieremove',
-  'undo', 'redo', 'branch', 'showall', 'fit', 'grid', 'text', 'values', 'colour', 'export', 'part', 'txsubstation', 'txrmu', 'rmuconfig', 'rmunop'
+  'undo', 'redo', 'branch', 'showall', 'fit', 'grid', 'text', 'values', 'colour', 'export', 'part', 'txsubstation', 'txrmu', 'rmuconfig', 'rmunop', 'addtx'
 ];
 
 /** Actions the drawing does itself (its view, its cable editor); the page is not told of them. */
@@ -348,18 +349,29 @@ function tieMenu(s: SldMenuState, id: string) {
 }
 
 /** An RMU on the ring, or a substation frame (Show, proposal 2026-11-18 part 2): show that part only; an RMU also has
- * its Configuration and Normally open (part 4). Ratings are entered in Panels → Transformers (MV supply and RMUs…). */
+ * Add transformer and main board (start at the 11 kV side), its Configuration and Normally open (part 4). An RMU that
+ * feeds nothing yet has a menu too, without Show. Ratings are entered in Panels → Transformers (MV supply and RMUs…). */
 function mvMenu(s: SldMenuState, t: { kind: 'rmu' | 'substation'; name: string }) {
   const part: SldPart = t.kind === 'rmu' ? { kind: 'rmu', name: t.name } : { kind: 'substation', name: t.name };
-  if (!partMains(s.project, part).length) return null;
+  const feeds = partMains(s.project, part).length > 0;
+  if (!feeds && !(t.kind === 'rmu' && rmuRecord(s.project, t.name))) return null;
   const info = partInfo(s.project, part), key = partKey(part);
   const items = groups(
-    [row(`Show ${t.name} only`, `part|${key}`, { icon: 'isolate', now: s.part === key }), ...(s.part ? [row('Show all', 'part|all', { icon: 'isolate' })] : [])],
-    t.kind === 'rmu' ? rmuRows(s.project, t.name) : [],
+    feeds ? [row(`Show ${t.name} only`, `part|${key}`, { icon: 'isolate', now: s.part === key }), ...(s.part ? [row('Show all', 'part|all', { icon: 'isolate' })] : [])] : [],
+    t.kind === 'rmu' ? [addTxRow(s.project, t.name), ...rmuRows(s.project, t.name)] : [],
     [row('MV supply and RMUs…', 'hv', { icon: 'hv' })]
   );
-  const detail = [info.detail, info.counts].filter(Boolean).join(' · ');
+  const detail = [info.detail, feeds ? info.counts : 'no transformer yet'].filter(Boolean).join(' · ');
   return { head: { icon: t.kind === 'rmu' ? 'hv' : 'sld', title: t.kind === 'rmu' ? t.name : `Substation ${t.name}`, detail } satisfies CtxHead, items, label: `${t.name} menu` };
+}
+
+/** Add transformer and main board: "n free" when a tee-off is spare, "full → RRTT" when the unit would grow, off when full. */
+function addTxRow(project: Project, name: string): CtxItem {
+  const plan = rmuAddPlan(project, name);
+  const units = txUnits(project);
+  const used = mainBoards(project).filter((b) => b.sourceKva && b.rmu?.trim() === name).reduce((n, b) => n + (units.get(b.id) ?? 1), 0);
+  const key = plan.blocked ? 'full' : plan.grow ? `full → ${plan.grow}` : `${Math.max(0, rmuTeeOffs(project, name) - used)} free`;
+  return row('Add transformer and main board', 'addtx', { icon: 'plus', key, off: !!plan.blocked });
 }
 
 /** The empty drawing's Select list: only the choices that would pick something. */
@@ -384,6 +396,7 @@ function canvasMenu(s: SldMenuState) {
   const add: CtxEntry[] = [];
   if (canDrop(project, { kind: 'transformer' }, canvas)) add.push(row('Transformer', 'addsupply|transformer'));
   if (canDrop(project, { kind: 'board', board: 'MC' }, canvas)) add.push(row('Meter cabinet', 'addsupply|mc'));
+  add.push(row('RMU', 'addsupply|rmu'));
   add.push('-', row('MV supply and RMUs…', 'hv', { icon: 'hv' }));
   const items = groups(
     [row('Undo', 'undo', { key: 'Ctrl+Z', icon: 'undo', off: !s.canUndo }), row('Redo', 'redo', { key: 'Ctrl+Y', icon: 'redo', off: !s.canRedo })],

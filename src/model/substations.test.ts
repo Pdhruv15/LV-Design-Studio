@@ -21,16 +21,19 @@ const board = (q: Project, id: string) => q.boards.find((b) => b.id === id)!;
 
 describe('Substations card: rows in ring order', () => {
   it('lists the substations on the ring as drawn, then the ones nothing is drawn of yet', () => {
+    // SS-3 holds an RMU feeding nothing yet: mvPlan draws it, so it is on the ring (once)
     expect(shape(p)).toEqual([
       ['SS-1', 0, ['RMU-1>MDB-1+MDB-2'], ['MDB-1', 'MDB-2']],
       ['SS-2', 0, ['RMU-2>MDB-3 (1 spare)'], ['MDB-3', 'MDB-4']],
-      ['SS-3', null, ['RMU-3 (1 spare)'], []]
+      ['SS-3', 0, ['RMU-3 (1 spare)'], []]
     ]);
+    // With no ring to draw it on (no source or board), a record-only RMU in a substation is still listed once.
+    expect(shape({ ...p, boards: [] }).map((r) => r[0])).toEqual(['SS-3']);
     const ss2 = substationRows(p)[1].rmus[0];
     expect([ss2.config, ss2.tOff, ss2.normallyOpen]).toEqual(['RRTT', 'vcb', 'R2']);
     expect(substationNames(p)).toEqual(['SS-1', 'SS-2', 'SS-3']);
-    // A record of the Substation area page is a row too. Off the ring, as on it, the recorded ones come first.
-    expect(substationNames({ ...p, substations: [rec('SS-1'), rec('SS-9')] })).toEqual(['SS-1', 'SS-2', 'SS-9', 'SS-3']);
+    // A record of the Substation area page is a row too: after the ones on the ring (SS-3's RMU is drawn on it).
+    expect(substationNames({ ...p, substations: [rec('SS-1'), rec('SS-9')] })).toEqual(['SS-1', 'SS-2', 'SS-3', 'SS-9']);
     // The records' order is the ring order.
     expect(substationNames({ ...p, substations: [rec('SS-2'), rec('SS-1')] })).toEqual(['SS-2', 'SS-1', 'SS-3']);
   });
@@ -71,11 +74,13 @@ describe('Substations card: edits', () => {
 
   it('▲ ▼ change the ring order the SLD draws, next to a substation on the same ring', () => {
     const rows = substationRows(p);
-    expect([canMoveSubstation(rows, 0, -1), canMoveSubstation(rows, 1, -1), canMoveSubstation(rows, 1, 1), canMoveSubstation(rows, 2, -1)]).toEqual([false, true, false, false]);
+    expect([canMoveSubstation(rows, 0, -1), canMoveSubstation(rows, 1, -1), canMoveSubstation(rows, 1, 1), canMoveSubstation(rows, 2, -1)]).toEqual([false, true, true, true]);
     const q = moveSubstation(p, 'SS-2', -1);
     expect(substationNames(q)).toEqual(['SS-2', 'SS-1', 'SS-3']);
     expect(mvPlan(q).order).toEqual(['MDB-3', 'MDB-4', 'MDB-1', 'MDB-2', 'MDB-5']);
-    expect(moveSubstation(p, 'SS-3', -1)).toBe(p);
+    // SS-3 is on the ring now (its RMU is drawn), so it moves like the others.
+    expect(substationNames(moveSubstation(p, 'SS-3', -1))).toEqual(['SS-1', 'SS-3', 'SS-2']);
+    expect(moveSubstation(p, 'SS-1', -1)).toBe(p);
   });
 
   it('a rename reaches the main boards, the RMU records and the record; a name in use is refused', () => {

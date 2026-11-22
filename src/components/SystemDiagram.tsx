@@ -19,7 +19,7 @@ import { boardLocation } from '../model/levels';
 import { boardPhaseKw } from '../calc/loadSchedule';
 import { DEWA_EXTRA_Y, ELCB_ROW, LEAF_W, layoutSystem } from '../diagram/layout';
 import MvRing from '../diagram/MvRing';
-import { MV_DY, mvGeometry, mvLeads, mvPlan, mvRingOn, onMvSide, type MvGeom } from '../diagram/mvArrangement';
+import { MV_DY, drawsRing, mvGeometry, mvLeads, mvPlan, onMvSide, type MvGeom } from '../diagram/mvArrangement';
 import { partKey } from '../diagram/mvShow';
 import { panelSummary } from '../docs/mdSheet';
 import { cpcOf } from '../calc/cableTable';
@@ -112,8 +112,9 @@ export function sldLayout(project: Project, dewa: boolean, cableRefs = false, ro
   const extraY = dewa ? DEWA_EXTRA_Y : 0;
   const iec = (project.drawing?.symbols ?? 'iec') === 'iec';
   const plan = mvPlan(whole);
-  // Only a drawing that holds a board on the MV side draws the ring (not a meter cabinet's part or sheet on its own).
-  const ring = mvRingOn(whole) && project.boards.some(onMvSide);
+  // Only a drawing that holds a board on the MV side draws the ring (not a meter cabinet's part or sheet on its own), or
+  // every main board when RMUs feed nothing yet.
+  const ring = drawsRing(project, whole);
   if (ring) rootExtraY += MV_DY + mvFrameRoom(project, dewa);
   const rootOrder = plan.order;
   let base = layoutSystem(project, extraY, { frames: dewa, cableRefs, rootExtraY, iec, rootOrder });

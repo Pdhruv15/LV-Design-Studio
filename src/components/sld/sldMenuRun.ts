@@ -6,6 +6,7 @@ import { renamePanels, renameProblems } from '../../model/renamePanels';
 import type { DropResult, DropTarget, MoveItem, PaletteItem } from '../../model/sldEdit';
 import type { SldTarget } from '../../model/sldMenu';
 import { changeFeeder, changeFeeders, duplicateBoard, duplicateFeeder, duplicateMany, moveMany, orderTarget, pasteFeeders, type PickItem } from '../../model/sldMenuEdit';
+import { addRmu } from '../../model/mvGrow';
 import { newSubstationName, rmuConfig, rmuNormallyOpen, txRmu, txSubstation } from '../../model/substations';
 import type { Feeder, Project } from '../../types';
 
@@ -67,6 +68,8 @@ export interface SldMenuCtx {
   showPart?: (key: string) => void;
   /** Asks for a name (New substation…): the typed name, or null when cancelled. */
   askName?: (title: string, initial: string) => Promise<string | null>;
+  /** Add transformer and main board on an RMU: asks first when the RMU would grow, then one undo step. */
+  addTxOnRmu: (name: string) => void;
 }
 
 /** An edit of the MV arrangement: one undo step, or only its message when nothing changed. */
@@ -174,6 +177,7 @@ export function runSldMenu(ctx: SldMenuCtx, t: SldTarget, action: string, value?
     case 'txsizing': ctx.txSizing(); return;
     case 'hv': ctx.hvSupply(); return;
     case 'addsupply': {
+      if (value === 'rmu' && t.kind === 'canvas') { applyEdit(ctx, addRmu(project)); return; }
       const what = value ? SUPPLY_ITEMS[value] : undefined;
       if (what && (t.kind === 'supply' || t.kind === 'canvas')) ctx.dropItem(what, t.kind === 'supply' ? { type: 'bus', boardId: t.boardId } : { type: 'canvas' });
       return;
@@ -196,6 +200,7 @@ export function runSldMenu(ctx: SldMenuCtx, t: SldTarget, action: string, value?
       return;
     }
     case 'txrmu': if (t.kind === 'supply') applyEdit(ctx, txRmu(project, t.boardId, value ?? '')); return;
+    case 'addtx': if (t.kind === 'rmu') ctx.addTxOnRmu(t.name); return;
     case 'rmuconfig': if (t.kind === 'rmu' && value) applyEdit(ctx, rmuConfig(project, t.name, value)); return;
     case 'rmunop': if (t.kind === 'rmu') applyEdit(ctx, rmuNormallyOpen(project, t.name, value === 'R1' || value === 'R2' ? value : undefined)); return;
   }

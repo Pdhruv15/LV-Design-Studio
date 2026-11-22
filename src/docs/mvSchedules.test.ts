@@ -18,6 +18,11 @@ const p: Project = {
 };
 
 describe('MV overview schedules', () => {
+  it('RMU SCHEDULE: an RMU feeding nothing yet prints its tee-offs as spare, after the ones that feed', () => {
+    const t = rmuSchedule({ ...p, rmus: [...p.rmus!, { name: 'RMU-9', config: 'RRTT', substation: 'SS-9' }, { name: 'RMU-10' }] })!;
+    expect(t.rows.slice(-2)).toEqual([['RMU-9', 'SS-9', 'RRTT', '—', '—', '—', 'T1 spare, T2 spare'], ['RMU-10', '—', '—', '—', '—', '—', 'T1 spare, T2 spare']]);
+    expect(rmuSchedule({ ...p, boards: [], rmus: [{ name: 'RMU-9' }] })!.rows).toHaveLength(1);
+  });
   it('RMU SCHEDULE: each RMU in ring order with its substation, ways, ratings, protection and what each tee-off feeds', () => {
     const t = rmuSchedule(p)!;
     expect([t.title, t.head]).toEqual(['RMU SCHEDULE', ['RMU', 'S/S', 'Ways', 'Rating', 'Short-time', 'Tee-off protection', 'Feeds']]);
@@ -26,7 +31,7 @@ describe('MV overview schedules', () => {
       ['RMU-2', 'SS-2', 'RRT', '—', '—', 'CB, relay 50/51, 50N/51N', 'TX-3 · N/O on R2']
     ]);
     expect(t.widths).toHaveLength(t.head.length);
-    expect(rmuSchedule({ ...p, boards: p.boards.map((b) => ({ ...b, rmu: undefined })) })).toBeUndefined();
+    expect(rmuSchedule({ ...p, rmus: undefined, boards: p.boards.map((b) => ({ ...b, rmu: undefined })) })).toBeUndefined();
   });
 
   it('TRANSFORMER SCHEDULE: each transformer with rating, impedance, group, ratio, substation, RMU way, main board and sheet', () => {

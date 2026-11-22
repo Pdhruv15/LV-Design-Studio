@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { newProject, type Board, type Feeder, type Project } from '../types';
-import { parsePart, partBoards, partInfo, partKey, partOfBoard, partProject, partSteps, shownPart, showRows, treeGroups, WHOLE_NETWORK, type SldPart, type TreeItem } from './mvShow';
+import { parsePart, partBoards, partInfo, partKey, partMains, partOfBoard, partProject, partSteps, shownPart, showRows, supplyTree, treeGroups, validPart, WHOLE_NETWORK, type SldPart, type TreeItem } from './mvShow';
 
 const tx = (id: string, extra: Partial<Board> = {}): Board => ({ id, name: id, kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 6, ...extra });
 const db = (id: string, up: string): Board => ({ id, name: id, kind: 'DB', upstreamId: up });
@@ -58,7 +58,7 @@ describe('Show: the parts of the network', () => {
   });
 
   it('heads the list "Transformers" when no RMU or substation is named', () => {
-    const plain: Project = { ...p, boards: p.boards.map((b) => ({ ...b, rmu: undefined, substation: undefined })) };
+    const plain: Project = { ...p, rmus: undefined, boards: p.boards.map((b) => ({ ...b, rmu: undefined, substation: undefined })) };
     expect(showRows(plain, WHOLE_NETWORK).map((r) => r.label).slice(2, 8)).toEqual(['Transformers', 'TX-1', 'TX-2', 'TX-3', 'TX-4', 'TX-5']);
   });
 
@@ -145,7 +145,7 @@ describe('Panel tree by substation', () => {
   });
 
   it('has nothing to group until a main board names an RMU or a substation', () => {
-    expect(treeGroups({ ...p, boards: p.boards.map((b) => ({ ...b, rmu: undefined, substation: undefined })) })).toBeUndefined();
+    expect(treeGroups({ ...p, rmus: undefined, boards: p.boards.map((b) => ({ ...b, rmu: undefined, substation: undefined })) })).toBeUndefined();
   });
 
   it('with RMUs but no substation named, puts the RMUs at the top; a board whose upstream board is gone joins the rest', () => {
@@ -156,5 +156,46 @@ describe('Panel tree by substation', () => {
     ]);
     const orphan: Project = { ...p, boards: [...p.boards, db('DB-9', 'GONE')] };
     expect(shape(treeGroups(orphan)![2])).toEqual(['No substation', '', '2 TX · 3 boards', [['RMU-3', '', '', ['MDB-4']], 'MDB-5', 'DB-9']]);
+  });
+});
+
+describe('an RMU that feeds nothing yet', () => {
+  // RMU-9 (RRT, record only, in SS-9) and RMU-10 (no configuration, no substation) join the sample's tree.
+  const q: Project = { ...p, rmus: [...p.rmus!, { name: 'RMU-9', config: 'RRT', substation: 'SS-9' }, { name: 'RMU-10' }] };
+  const rmu9: SldPart = { kind: 'rmu', name: 'RMU-9' };
+
+  it('is a node of the supply tree with no children, in its substation', () => {
+    const tree = supplyTree(q);
+    const ss9 = tree.find((n) => partKey(n.part) === 'ss:SS-9')!;
+    expect(ss9.children.map((n) => [partKey(n.part), n.children.length])).toEqual([['rmu:RMU-9', 0]]);
+    expect(tree.map((n) => partKey(n.part))).toContain('rmu:RMU-10');
+    // Nothing to show: the part falls back to the whole network.
+    expect(partMains(q, rmu9)).toEqual([]);
+    expect(validPart(q, rmu9)).toEqual(WHOLE_NETWORK);
+    expect(validPart(q, { kind: 'substation', name: 'SS-9' })).toEqual(WHOLE_NETWORK);
+  });
+
+  it('counts none and takes its substation from the record', () => {
+    expect(partInfo(q, rmu9)).toEqual({ name: 'RMU-9', detail: 'RRT · SS-9', counts: '0 transformers · 0 boards' });
+    expect(partInfo(q, { kind: 'rmu', name: 'RMU-10' })).toEqual({ name: 'RMU-10', detail: undefined, counts: '0 transformers · 0 boards' });
+  });
+
+  it('is not offered by Show, nor stepped to, and the MV overview stays enabled', () => {
+    const rows = showRows(q, WHOLE_NETWORK);
+    expect(rows.find((r) => r.key === 'rmu:RMU-9')).toMatchObject({ disabled: true, detail: 'RRT · 1 tee-off spare' });
+    expect(rows.find((r) => r.key === 'ss:SS-9')).toMatchObject({ disabled: true });
+    expect(rows.find((r) => r.key === 'rmu:RMU-1')?.disabled).toBeUndefined();
+    expect(rows.find((r) => r.key === 'mv')?.disabled).toBeFalsy();
+    const only: Project = { ...q, boards: [{ id: 'MDB-A', name: 'MDB-A', kind: 'MDB', supply: { fedFrom: 'DEWA', ratingA: 200 } }], feeders: [], ties: [] };
+    expect(showRows(only, WHOLE_NETWORK).find((r) => r.key === 'mv')?.disabled).toBeFalsy();
+    expect(partSteps(q, { kind: 'rmu', name: 'RMU-3' }).next).toBeUndefined();
+    expect(partSteps(q, { kind: 'rmu', name: 'RMU-2' })).toEqual({ prev: { kind: 'rmu', name: 'RMU-1' }, next: { kind: 'rmu', name: 'RMU-3' } });
+    expect(partSteps(q, { kind: 'substation', name: 'SS-2' }).next).toBeUndefined();
+  });
+
+  it('is a group of the panel tree with nothing to show', () => {
+    const g = treeGroups(q)!;
+    const ss9 = g.find((x) => typeof x !== 'string' && x.key === 'ss:SS-9') as Exclude<TreeItem, string>;
+    expect(ss9).toMatchObject({ part: undefined, note: '0 TX · 0 boards', items: [{ key: 'rmu:RMU-9', part: undefined, detail: 'RRT', title: 'RMU-9 · RRT · 1 tee-off spare · 0 transformers · 0 boards' }] });
   });
 });

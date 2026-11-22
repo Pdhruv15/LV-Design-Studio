@@ -141,3 +141,40 @@ describe('SLD Show: right-click and double-click', () => {
     expect([go.mock.calls.length, all.mock.calls.length]).toEqual([1, 1]);
   });
 });
+
+describe('SLD Show: an RMU that feeds nothing yet', () => {
+  const withSpare: Project = { ...whole, rmus: [...whole.rmus!, { name: 'RMU-2', config: 'RRT', substation: 'SS-2' }] };
+  let host: HTMLDivElement, root: Root;
+  beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); localStorage.clear(); host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host); });
+  afterEach(() => { act(() => root.unmount()); document.body.innerHTML = ''; vi.unstubAllGlobals(); });
+
+  it('right-click it opens its menu; Add transformer and main board reaches the page with the RMU', () => {
+    const menus: [SldTarget, string, string | undefined][] = [];
+    act(() => root.render(
+      <SystemDiagram project={withSpare} wholeProject={withSpare} calcProject={withSpare} results={evaluateProject(withSpare)} selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop}
+        menuFor={(t, v) => sldMenu({ project: withSpare, calcProject: withSpare, results: [], canUndo: false, canRedo: false, layers: DEFAULT_LAYERS, colorBy: 'none', supply: 'normal', hasGenerator: false, outages: [], grid: v.grid, detail: v.detail }, t)}
+        onMenu={(t, a, v) => menus.push([t, a, v])} />
+    ));
+    // A right-click on a spare tee-off is inside the RMU.
+    const spare = host.querySelector('.sysdiag > svg g.rmu[data-rmu="RMU-2"] .rmu-tee')!;
+    act(() => { spare.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 100, clientY: 60 })); });
+    expect(host.querySelector('.cad-menu-hd b')?.textContent).toBe('RMU-2');
+    const labels = [...host.querySelectorAll<HTMLButtonElement>('.cad-menu button')].map((b) => b.querySelector('.lb')?.textContent);
+    expect(labels.slice(0, 3)).toEqual(['Add transformer and main board', 'Configuration', 'Normally open']);
+    act(() => [...host.querySelectorAll<HTMLButtonElement>('.cad-menu button')].find((b) => b.querySelector('.lb')?.textContent === 'Add transformer and main board')!.click());
+    expect(menus).toEqual([[{ kind: 'rmu', name: 'RMU-2' }, 'addtx', undefined]]);
+  });
+
+  it('Show RMU-2 only shows nothing: its part falls back to the whole network, and the MV overview keeps it', () => {
+    expect(partProject(withSpare, { kind: 'mv' }).boards.map((b) => b.id)).toEqual(withSpare.boards.filter((b) => !b.upstreamId).map((b) => b.id));
+    const h = document.createElement('div');
+    h.innerHTML = renderToStaticMarkup(<SystemDiagram project={partProject(withSpare, { kind: 'mv' })} wholeProject={withSpare} calcProject={withSpare} results={[]} hideLegend selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} />);
+    expect(h.querySelector('g.rmu[data-rmu="RMU-2"]')).not.toBeNull();
+    // On one transformer's sheet it is left out.
+    const one: SldPart = { kind: 'tx', id: 'MDB-2' };
+    const s = document.createElement('div');
+    s.innerHTML = renderToStaticMarkup(<SystemDiagram project={partProject(withSpare, one)} wholeProject={withSpare} calcProject={withSpare} results={[]} hideLegend selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} />);
+    expect(s.querySelector('g.rmu[data-rmu="RMU-2"]')).toBeNull();
+    expect(s.innerHTML).not.toContain('NaN');
+  });
+});

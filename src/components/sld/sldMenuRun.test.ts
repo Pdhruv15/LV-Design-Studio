@@ -41,6 +41,7 @@ describe('the SLD menu runner', () => {
       case 'txrmu': return [{ kind: 'supply', boardId: 'MDB-1' }, '+'];
       case 'rmuconfig': return [{ kind: 'rmu', name: 'RMU-1' }, 'RRTT'];
       case 'rmunop': return [{ kind: 'rmu', name: 'RMU-1' }, 'R2'];
+      case 'addtx': return [{ kind: 'rmu', name: 'RMU-1' }, undefined];
       default: return [{ kind: 'canvas' }, undefined];
     }
   };
@@ -50,6 +51,18 @@ describe('the SLD menu runner', () => {
     const failing: Project = { ...project, feeders: project.feeders.map((f) => (f.id === 'FF-LAB' ? { ...f, cableCsaMm2: 4 } : f)) };
     const calls = run(t, action, v, { project: failing, calcProject: failing });
     expect(calls.length, action).toBeGreaterThan(0);
+  });
+  it('Add transformer and main board goes to the page with the RMU; Add ▸ RMU adds a record in one step', () => {
+    expect(run({ kind: 'rmu', name: 'RMU-1' }, 'addtx')).toEqual([['addTxOnRmu', 'RMU-1']]);
+    expect(run({ kind: 'canvas' }, 'addtx')).toEqual([]);
+    const calls = run({ kind: 'canvas' }, 'addsupply', 'rmu');
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0]).toBe('apply');
+    const r = calls[0][1] as { project: Project; message: string };
+    expect(r.project.rmus!.some((x) => x.config === 'RRT' && !project.rmus?.some((y) => y.name === x.name))).toBe(true);
+    expect(r.message).toContain('no transformer yet');
+    // Not from a transformer's Add list.
+    expect(run({ kind: 'supply', boardId: 'MDB-1' }, 'addsupply', 'rmu')).toEqual([]);
   });
   it('leaves the view actions to the drawing, and an unknown action alone', () => {
     // Connect to… opens the drawing's list; only the chosen board (its value) reaches the page.

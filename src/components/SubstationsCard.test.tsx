@@ -56,7 +56,8 @@ describe('Panels → Transformers → Substations', () => {
   it('▲ ▼ change the ring order, greyed where a row cannot move', () => {
     draw(p);
     const arrow = (r: number, dir: 'up' | 'down') => rows()[r].querySelector<HTMLButtonElement>(`button[aria-label$=" ${dir}"]`)!;
-    expect([arrow(0, 'up'), arrow(1, 'up'), arrow(1, 'down'), arrow(2, 'up')].map((b) => b.disabled)).toEqual([true, false, true, true]);
+    expect([arrow(0, 'up'), arrow(1, 'up'), arrow(1, 'down'), arrow(2, 'up')].map((b) => b.disabled)).toEqual([true, false, false, false]);
+    // SS-3 holds an RMU feeding nothing yet, which is drawn on the ring: it moves like the others.
     act(() => arrow(0, 'down').click());
     expect(last().substations!.map((s) => s.name)).toEqual(['SS-2', 'SS-1', 'SS-3']);
   });

@@ -73,8 +73,8 @@ export function substationRows(project: Project): SubstationRow[] {
       r.transformers.push(...feeds);
     }
   });
-  // RMUs that feed no transformer yet, in the substation their record names.
-  const inUse = new Set(rmuNames(project));
+  // RMUs that feed no transformer yet, in the substation their record names: the ones mvPlan holds are listed above.
+  const inUse = new Set([...rmuNames(project), ...plan.rings.flatMap((r) => r.items.flatMap((it) => (it.kind === 'rmu' ? [it.name] : [])))]);
   for (const rec of project.rmus ?? []) {
     const ss = clean(rec.substation);
     if (!ss || inUse.has(rec.name)) continue;

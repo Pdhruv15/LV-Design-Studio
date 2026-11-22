@@ -20,7 +20,7 @@ const p: Project = {
   feeders: [],
   rmus: [{ name: 'RMU-1', config: 'RRTT' }, { name: 'RMU-2', config: 'RRT' }]
 };
-const plain: Project = { ...p, boards: p.boards.map((b) => ({ ...b, rmu: undefined, substation: undefined })) };
+const plain: Project = { ...p, rmus: undefined, boards: p.boards.map((b) => ({ ...b, rmu: undefined, substation: undefined })) };
 const noop = () => {};
 const menu = new Proxy({}, { get: () => noop }) as never;
 
