@@ -1,6 +1,6 @@
 # Native drawing file (.lvplan): Phase 2 plan (2026-11-22)
 
-Status: **plan only, waiting for the user's OK.** Follows [Native drawing format - 2026-11-21](Native%20drawing%20format%20-%202026-11-21.md). There, the user approved the chunked package, the layout for AI tools, drawn work in the native file (D4) and `.lvplan` as the working name (D3). Phase 1 (b), the faster engine, is merged (PRs 752, 756, 757). The cache, Phase 1 (a), waits until it is needed.
+Status: **approved 2026-11-22** ("Next" after the plan: P1–P5 as recommended). Step 0 measured the same day (results below). Follows [Native drawing format - 2026-11-21](Native%20drawing%20format%20-%202026-11-21.md). There, the user approved the chunked package, the layout for AI tools, drawn work in the native file (D4) and `.lvplan` as the working name (D3). Phase 1 (b), the faster engine, is merged (PRs 752, 756, 757). The cache, Phase 1 (a), waits until it is needed.
 
 ## Goal
 
@@ -64,6 +64,31 @@ Today every issued revision stores a full copy of the project, drawn work includ
 
 In step 4, a revision keeps only the sha256 of each drawing's content. The content is stored once under `revisions/` in `.lvplan`, and revisions with the same drawing share it. Revision compare keeps working because it merges the content back first.
 
+## Step 0 results (2026-11-22)
+
+Measured with `tests/performance/projectSave.perf.ts` (`npm run bench -- projectSave`; `BENCH_PLAN_MB`, `BENCH_REVS`). Machine: Apple M2, Node 24. The project is the 200-board test network with drawn work over 4 drawings (lines, polylines, texts, dimensions, inserts). Sizes are the drawn work as compact JSON. Save is `projectText`, as the desktop writes it, and load is `JSON.parse`. Disk, sync and IPC time come on top.
+
+With 3 issued revisions:
+
+| Drawn work | `.lvds` today | Save / load | `.lvds`, drawing fields moved | `.lvds` after step 4 | `.lvplan` (deflate) |
+|---|---:|---:|---:|---:|---:|
+| 1 MB | 17.0 MB | 37 / 27 ms | 14.2 MB | 3.4 MB | 0.15 MB |
+| 3 MB | 44.1 MB | 94 / 67 ms | 35.8 MB | 3.4 MB | 0.43 MB |
+| 10 MB | 139.1 MB | 288 / 251 ms | 111.6 MB | 3.4 MB | 1.45 MB |
+
+With no revisions, the `.lvds` goes from 3.5, 9.0 and 28.3 MB to 0.71 MB, and save from 7, 20 and 61 ms to 1 ms.
+
+Writing the `.lvplan` takes 18, 53 and 196 ms with deflate (9, 25 and 78 ms stored without compression). Reading it back takes 9, 24 and 86 ms. The sha256 check takes 1 ms or less.
+
+What this means:
+
+1. **Drawn work is most of the file.** The project's pretty-printed JSON makes each MB of drawn work about 3.6 MB in the `.lvds`, because every point is on its own lines.
+2. **Revisions are the biggest part.** Each revision copies all drawn work. Moving the drawing fields alone shrinks the file by only about 20 %. Doing it together with step 4 shrinks it from 139 MB to under 5 MB.
+3. **The gain is mainly size, not save time.** Turning the project into text takes at most 0.3 s today. A file 30 times smaller helps most with disk writes, `.bak` copies, cloud sync and sending the project.
+4. **Deflate makes drawn work about 6.7 times smaller** for about twice the write time. It is worth it.
+
+Change to the order: **step 4 goes in with step 2**, so the first release that writes `.lvplan` already stores drawings once per revision. Without it, most of the gain is missed.
+
 ## Steps
 
 Each step is its own PR. Every step except the docs step gets a version bump.
@@ -77,7 +102,7 @@ Each step is its own PR. Every step except the docs step gets a version bump.
 | 4 | **Revisions stored once.** Snapshots keep sha256 references, and the content lives in `revisions/`. | `src/model/revisions.ts`, `planPackage.ts` | Compare and restore tests; size before and after |
 | 5 | **Cache slot (only if needed).** Phase 1 (a): a decoded architect drawing, stored in the app cache, not in `.lvplan`. | — | Only if large drawings still feel slow |
 
-Steps 1 → 2 → 3 must go in that order. Step 4 can follow at any time after step 2.
+Steps 1 → 2 (with 4) → 3 go in that order. Step 0 showed that revisions hold most of the drawn work.
 
 ## Decisions for the user
 
