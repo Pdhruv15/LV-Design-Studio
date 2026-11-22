@@ -75,6 +75,7 @@ export function exportDss(project: Project): DssExport {
     `!  - Stiff upstream MV network (${STIFF_SOURCE_MVA} MVA) at a nominal ${MV_KV} kV.`,
     `!  - Transformer %Z split into R/X by the board's X/R ratio (default ${DEFAULT_TRANSFORMER_XR}).`,
     `!  - A main board with no transformer but a stated supply fault level gets a Vsource on its own busbar (MVAsc = sqrt(3) x U x Ik, X/R as given, else ${DEFAULT_TRANSFORMER_XR}).`,
+    `!    A source calculated from a generator or inverter rating is the same kind of equivalent: for the fault study only, not for the load flow.`,
     `!  - Cable R at operating temperature = ${resistanceFactor(project.vdTempC).toFixed(3)} x R20 (${project.vdTempC === undefined ? 'standard factor 1.2' : `copper at ${project.vdTempC} °C`}); cable data: ${cablesSource()}; capacitance ignored.`,
     `!  - Zero-sequence cable data is a placeholder (R0/X0 = R1/X1). Replace it`,
     `!    before relying on single-phase / earth-fault results.`,
@@ -103,6 +104,11 @@ export function exportDss(project: Project): DssExport {
         // A calculated source: a machine keeps its X/R (generator default 10); an inverter is resistive (0.1 keeps the export valid).
         const xr = level.basis === 'calculated' ? (level.z.x > 0 ? supplyXr(b) ?? GENERATOR_XR : 0.1) : supplyXr(b) ?? DEFAULT_TRANSFORMER_XR;
         const mva = fmt(Math.sqrt(3) * kvLL * ka, 4);
+        if (level.basis === 'calculated') {
+          const w = `source equivalent of ${b.id} is for the fault study only: load-flow voltages are not valid`;
+          warnings.push(w);
+          out.push(`! WARNING: ${dssComment(w)}`);
+        }
         out.push(
           `New Vsource.SRC_${boardName(b.id)} bus1=${supplyIncomerFeeder(b) ? sourceBus(boardName(b.id)) : busbar(boardName(b.id))} basekv=${fmt(kvLL, 4)} pu=1.0 phases=3 angle=-30 ` +
             `MVAsc3=${mva} MVAsc1=${mva} x1r1=${fmt(xr)} x0r0=${fmt(xr)}`

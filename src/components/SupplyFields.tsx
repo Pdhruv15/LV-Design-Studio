@@ -1,7 +1,9 @@
 import { useId, useState } from 'react';
 import { ask } from './ConfirmDialog';
 import { INSTALL_METHODS, cables, type InstallMethod } from '../calc/cableTable';
-import { DEFAULT_TRANSFORMER_XR, GENERATOR_XD_SUBTRANSIENT_PCT, INVERTER_FAULT_MULTIPLE, assumedSourceFaultKa, supplySourceLevel } from '../calc/electrical';
+import { DEFAULT_TRANSFORMER_XR, GENERATOR_XD_SUBTRANSIENT_PCT, GENERATOR_XR, INVERTER_FAULT_MULTIPLE, assumedSourceFaultKa, levelKaText, supplySourceLevel } from '../calc/electrical';
+import { supplyAllowedA } from '../calc/summary';
+import { fmtFixed } from '../util/format';
 import { supplyNameSuggestion } from '../model/designReference';
 import { FED_FROM, fedFromOfBoard, hasSupplyValues, losesValues, setFedFrom, setIncomerValue, setSupplyValue, type FedFrom } from '../model/supplyEdit';
 import { METER_TYPES, SOURCE_KINDS, SWITCH_DEVICES, type Board, type MeterType, type Project, type SourceKind, type SupplyIncomer, type SwitchDevice } from '../types';
@@ -63,18 +65,19 @@ export default function SupplyFields({ project, board, onChange }: { project: Pr
 
   const level = supplySourceLevel(project, board);
   const kind = s.kind ?? 'utility';
+  const allowedFromRating = !(s.allowedA! > 0) ? supplyAllowedA(project, board) : undefined;
   const machine = kind === 'generator' || kind === 'wind', inverter = kind === 'pv' || kind === 'battery' || kind === 'wind';
 
   // Rows of the one grid the source / feeding board rows start, so every group's fields line up.
   const shared = (
     <>
         <h4 className="kv-head">Given values</h4>
-        {num('Fault level Ik″ (kA)', 'faultKa', 0.1, `${level.ka.toFixed(1)} ${level.basis === 'calculated' ? 'calculated' : 'assumed'}`)}
-        {num('X/R', 'xr', 0.5, String(DEFAULT_TRANSFORMER_XR))}
+        {num('Fault level Ik″ (kA)', 'faultKa', 0.1, `${levelKaText(level.ka)} ${level.basis === 'calculated' ? 'calculated' : 'assumed'}`)}
+        {num('X/R', 'xr', 0.5, level.basis === 'calculated' ? (level.z.x === 0 ? 'not used' : String(GENERATOR_XR)) : String(DEFAULT_TRANSFORMER_XR))}
         {num('Minimum Ik (kA)', 'faultKaMin', 0.1, 'not given')}
         {num('Drop already used (%)', 'vdUsedPct', 0.1, '0')}
         {num('Earth loop Ze (Ω)', 'zeOhm', 0.01, 'estimated from Ik')}
-        {num('Allowed load (A)', 'allowedA', 1, 'not given')}
+        {num('Allowed load (A)', 'allowedA', 1, allowedFromRating !== undefined ? `${fmtFixed(allowedFromRating, 1)} from the rating` : 'not given')}
         <h4 className="kv-head">Upstream device</h4>
         <label>Device
           <select aria-label="Device" value={s.device ?? ''} onChange={(e) => onChange(setSupplyValue(board, 'device', (e.target.value || undefined) as SwitchDevice | undefined))}>

@@ -401,6 +401,9 @@ describe('Add upstream board: a source with its rating typed', () => {
     expect(addUpstreamBoard(typed, 'DB-1').project.feeders.find((f) => f.feedsBoardId === 'DB-1')!.breakerIcuKa).toBe(36);
   });
   it('the questions list them in words', () => {
-    expect(upstreamPlan(gen, 'DB-1').lines).toContain('The given values (250 kVA, X″d 15 %, fault current 1.2 × rated) move to the new board.');
+    // A generator reads the rating and X″d; the fault multiple it also holds is hidden by its kind and not listed.
+    expect(upstreamPlan(gen, 'DB-1').lines).toContain('The given values (250 kVA, X″d 15 %) move to the new board.');
+    const pv = proj({ kind: 'pv', ratedKva: 100, xdPct: 15, faultMultiple: 1.5 });
+    expect(upstreamPlan(pv, 'DB-1').lines).toContain('The given values (100 kVA, fault current 1.5 × rated) move to the new board.');
   });
 });

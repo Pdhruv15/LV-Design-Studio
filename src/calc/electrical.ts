@@ -392,6 +392,21 @@ export function supplySourceLevel(project: Pick<Project, 'voltageV'>, board: Boa
   return { basis: 'assumed', ka: assumedSourceFaultKa(project), z: PLACEHOLDER_SOURCE_Z };
 }
 
+/** The level's number as printed: two decimals below 1 kA (an inverter source gives a small level), else one. */
+export const levelKaText = (ka: number): string => (ka < 1 ? ka.toFixed(2) : ka.toFixed(1));
+
+/** What a source kind reads: a machine takes a rating and X″d, an inverter a rating and a fault multiple. */
+export const sourceKindTakes = (kind: string | undefined): { machine: boolean; inverter: boolean } => ({ machine: kind === 'generator' || kind === 'wind', inverter: kind === 'pv' || kind === 'battery' || kind === 'wind' });
+
+/** True when the board's source level reads a typed rating (a kind that takes one, not fed from a board outside the project). */
+export function takesSourceRating(board: Board): boolean {
+  const t = sourceKindTakes(board.supply?.kind);
+  return lvSupplied(board) && board.supply!.fedBy !== 'board' && (t.machine || t.inverter);
+}
+
+/** The hint tail for a source with no level: ", or the source rating" when its kind takes one, else nothing. */
+export const sourceRatingHint = (board: Board): string => (takesSourceRating(board) ? ', or the source rating' : '');
+
 /** A calculated source in a sentence for the documents: "solar PV 100 kVA, fault current 1.2 × rated, 0.17 kA calculated";
  * undefined when the level is typed or assumed (those keep their own wording). */
 export function calculatedSourceText(project: Pick<Project, 'voltageV'>, board: Board): string | undefined {

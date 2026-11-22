@@ -210,4 +210,19 @@ describe('SupplyFields', () => {
     type(input('Fault level Ik″ (kA)'), '12');
     expect(supplyPoint(project, last!, false)!.lines).toEqual(['Ik″ 12 kA given']);
   });
+
+  it('placeholders: 0.17 calculated for a small level, X/R 10 for a machine and "not used" for an inverter, the allowed load from the rating', () => {
+    show(first({ supply: { kind: 'pv', ratedKva: 100 } }));
+    expect(input('Fault level Ik″ (kA)').placeholder).toBe('0.17 calculated'); // 1.2 × 139.1 A = 0.167 kA
+    expect(input('X/R').placeholder).toBe('not used');
+    expect(input('Allowed load (A)').placeholder).toBe('139.1 from the rating'); // 100 000 ÷ (√3 × 415)
+    show(first({ supply: { kind: 'generator', ratedKva: 250 } }));
+    expect(input('X/R').placeholder).toBe('10');
+    expect(input('Allowed load (A)').placeholder).toBe('347.8 from the rating');
+    show(first({ supply: { kind: 'generator', ratedKva: 250, allowedA: 300 } }));
+    expect(input('Allowed load (A)').placeholder).toBe('not given');
+    show(first({ supply: { kind: 'generator' } }));
+    expect(input('X/R').placeholder).toBe('5');
+    expect(input('Allowed load (A)').placeholder).toBe('not given');
+  });
 });

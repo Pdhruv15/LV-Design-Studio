@@ -1,6 +1,6 @@
 import type { Board, Project, SourceKind } from '../types';
 import { SOURCE_KINDS, supplyFaultKa, supplyIncomerFeeder } from '../types';
-import { cableSizeText, supplySourceLevel } from '../calc/electrical';
+import { cableSizeText, levelKaText, supplySourceLevel } from '../calc/electrical';
 
 /** What a first board's supply point shows on the SLD, the Board tab and the printed board sheet, from one place so
  * the three cannot say different things. A first board is one with no board above it. */
@@ -48,8 +48,7 @@ export function supplyPoint(project: Pick<Project, 'voltageV'>, b: Board, dewa: 
   const kind: SourceKind = SOURCE_KINDS.some((k) => k.value === s?.kind) ? s!.kind! : 'utility';
   const given = supplyFaultKa(b);
   const level = supplySourceLevel(project, b);
-  // Two decimals below 1 kA, else one (an inverter source gives a small level).
-  const kaText = level.ka < 1 ? level.ka.toFixed(2) : level.ka.toFixed(1);
+  const kaText = levelKaText(level.ka);
   const fault = given ? `Ik″ ${given} kA given` : `Ik″ ${kaText} kA ${level.basis}`;
   // What a calculated level rests on ("250 kVA · X″d 15 %"), the line after the fault line.
   const basis = level.basis === 'calculated' && level.text ? level.text : '';

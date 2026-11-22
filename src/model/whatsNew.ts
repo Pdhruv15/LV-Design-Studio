@@ -20,7 +20,7 @@ export const RELEASES: Release[] = [
   {
     version: '2.261', date: '2026-11-22',
     items: [
-      { title: 'A generator or inverter source gives a calculated fault level', text: 'On the Supply tab of a first board fed by an LV source, type the rating (kVA) of a diesel generator, solar PV, wind or battery source and the fault level is calculated: a generator from its rating and X″d (default 15 %), an inverter source from a multiple of its rated current (default 1.2 ×). The system diagram says "calculated", the breaking capacity and busbar checks run on it, and the earth loop and the allowed load follow. A fault level you type still wins; with no rating the level stays assumed, as before.' }
+      { title: 'A generator or inverter source gives a calculated fault level', text: 'On the Supply tab of a first board fed by an LV source, type the rating (kVA) of a diesel generator, solar PV, wind or battery source and the fault level is calculated: a generator from its rating and X″d (default 15 %), an inverter source from a multiple of its rated current (default 1.2 ×). The system diagram says "calculated", the breaking capacity and busbar checks run on it, and the earth loop and the allowed load follow. A fault level you type still wins; with no rating the level stays assumed, as before. A generator with no minimum fault level typed is marked not verified for earth-fault disconnection, and a fault current at or below the breaker rating now fails it.' }
     ]
   },
   {

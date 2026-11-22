@@ -179,6 +179,15 @@ describe('OpenDSS export: a source with its rating typed', () => {
     expect(Number(/MVAsc3=([\d.]+)/.exec(line)![1])).toBeCloseTo(mva, 1);
     expect(warnings.filter((w) => /no transformer data/.test(w))).toEqual([]);
   });
+  it('a calculated source warns that it is for the fault study only, in the list and in the script', () => {
+    const w = 'source equivalent of MDB-1 is for the fault study only: load-flow voltages are not valid';
+    for (const supply of [{ kind: 'pv' as const, ratedKva: 100 }, { kind: 'generator' as const, ratedKva: 250 }]) {
+      const { script, warnings } = exportDss(lv(supply));
+      expect(warnings).toContain(w);
+      expect(script).toContain(`! WARNING: ${w}`);
+    }
+    expect(exportDss(lv({ faultKa: 12 })).warnings).not.toContain(w); // a typed level is a real source level
+  });
   it('an inverter source is nearly resistive (x1r1 0.1); an assumed one stays unconnected', () => {
     expect(lines(exportDss(lv({ kind: 'pv', ratedKva: 100 })).script, 'New Vsource.')[0]).toMatch(/x1r1=0\.1 x0r0=0\.1$/);
     expect(exportDss(lv({ kind: 'pv' })).warnings[0]).toMatch(/no transformer data/);

@@ -1,6 +1,6 @@
 import { boardOf, feedersOn, withNetwork } from './network';
 import { cpcOf, defaultCpcMm2, getCable } from './cableTable';
-import { DEFAULT_TRANSFORMER_XR, gridImpedance, gridSourceOf, rOperatingOhmPerKm, runsOf, supplyImpedance, supplySourceLevel, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
+import { DEFAULT_TRANSFORMER_XR, gridImpedance, gridSourceOf, rOperatingOhmPerKm, runsOf, sourceRatingHint, supplyImpedance, supplySourceLevel, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
 import { elcbGroups, isScheduleCircuit, rcbosOf } from './loadSchedule';
 import { lvSupplied, supplyFaultKa, supplyIncomerFeeder, supplyXr, type Board, type BreakerType, type Feeder, type Project } from '../types';
 import { fmtFixed } from '../util/format';
@@ -94,19 +94,20 @@ function cableLoop(f: Feeder): Impedance {
  * (purely resistive: the conservative split once cable loops are added); without one it is estimated from the
  * minimum fault level when that is given, else from the fault level. The incoming cable's phase + protective
  * conductor loop is then added. No fault level and no Ze: no source data. */
-function supplyEarthLoop(project: Project, board: Board): { z: Impedance; missing?: string; estimated?: string } {
+function supplyEarthLoop(project: Project, board: Board): { z: Impedance; missing?: string; estimated?: string; subTransient?: boolean } {
   const sup = board.supply!, ze = sup.zeOhm !== undefined && sup.zeOhm > 0 ? sup.zeOhm : undefined;
   const level = supplySourceLevel(project, board), ka = supplyFaultKa(board), kaMin = sup.faultKaMin !== undefined && sup.faultKaMin > 0 ? sup.faultKaMin : undefined;
   // A calculated source (rating typed, no fault level): its impedance is the Ze estimate, said by what it rests on.
-  const from = level.z.x === 0 ? 'the inverter fault current' : 'the generator data';
+  const inverter = level.z.x === 0;
+  const from = inverter ? `the inverter fault current at ${board.id}` : `the generator's sub-transient reactance at ${board.id} (its sustained fault current is lower: type the minimum fault level)`;
   const base = ze !== undefined ? { z: { r: ze, x: 0 } } : ka || kaMin
     ? { z: supplyImpedance(kaMin ?? ka!, project.voltageV, supplyXr(board)), estimated: `Ze estimated from the supply ${kaMin ? 'minimum ' : ''}fault level at ${board.id}` }
     : level.basis === 'calculated'
-      ? { z: level.z, estimated: `Ze estimated from ${from} at ${board.id}` }
+      ? { z: level.z, estimated: `Ze estimated from ${from}`, ...(inverter ? {} : { subTransient: true }) }
       : undefined;
   const cable = supplyIncomerFeeder(board);
   const c = cable ? cableLoop(cable) : { r: 0, x: 0 }; // the known part, even when there is no source data
-  if (!base) return { z: c, missing: `no source data at ${board.id} (transformer kVA and impedance %, or the supply fault level)` };
+  if (!base) return { z: c, missing: `no source data at ${board.id} (transformer kVA and impedance %, or the supply fault level${sourceRatingHint(board)})` };
   return cable ? { ...base, z: { r: base.z.r + c.r, x: base.z.x + c.x } } : base;
 }
 
@@ -120,7 +121,7 @@ function supplyEarthLoop(project: Project, board: Board): { z: Impedance; missin
  * `missing` says why the path is incomplete (no source data, a missing
  * board or incomer, a loop in the board tree): z is then only the part
  * that is known — a lower bound, never a verified Ze. */
-export function earthLoopPath(project: Project, boardId: string, seen = new Set<string>()): { z: Impedance; missing?: string; estimated?: string } {
+export function earthLoopPath(project: Project, boardId: string, seen = new Set<string>()): { z: Impedance; missing?: string; estimated?: string; subTransient?: boolean } {
   const board = boardOf(project, boardId);
   if (!board) return { z: { r: 0, x: 0 }, missing: `board ${boardId} not found` };
   if (seen.has(boardId)) return { z: { r: 0, x: 0 }, missing: `the supply path loops back to ${boardId}` };
@@ -140,7 +141,7 @@ export function earthLoopPath(project: Project, boardId: string, seen = new Set<
   }
   const up = earthLoopPath(project, board.upstreamId, seen);
   const incomer = feedersOn(project, board.upstreamId!).find((f) => f.feedsBoardId === board.id);
-  const est = up.estimated ? { estimated: up.estimated } : {};
+  const est = up.estimated ? { estimated: up.estimated, ...(up.subTransient ? { subTransient: true } : {}) } : {};
   if (!incomer) return { z: up.z, missing: up.missing ?? `no incomer feeder from ${board.upstreamId} to ${board.id}`, ...est };
   const c = cableLoop(incomer);
   return { z: { r: up.z.r + c.r, x: up.z.x + c.x }, ...(up.missing ? { missing: up.missing } : {}), ...est };
@@ -184,12 +185,17 @@ export interface EarthingResult {
   sourceMissing?: string;
   /** Ze comes from the supply fault level of a main board without a transformer (the loop still counts as verified). */
   sourceEstimated?: string;
+  /** Ze rests on a generator's sub-transient reactance alone (no minimum fault level typed): the sustained
+   * current is lower, so a pass on this basis is not verified (disconnection 'warn'). */
+  subTransientOnly?: boolean;
+  /** If is at or below the device rating: it cannot trip. */
+  belowRating?: boolean;
   status: Status;
 }
 
 export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
   const u0 = project.voltageV / SQRT3;
-  const { z: ze, missing: sourceMissing, estimated: sourceEstimated } = earthLoopPath(project, f.boardId);
+  const { z: ze, missing: sourceMissing, estimated: sourceEstimated, subTransient } = earthLoopPath(project, f.boardId);
   const c = cableLoop(f);
   const zs = { r: ze.r + c.r, x: ze.x + c.x };
   const zsOhm = zMagnitude(zs);
@@ -206,9 +212,11 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
 
   const instantaneous = faultA >= tripA;
   // Instantaneous (< 0.1 s) meets every TN time; otherwise the time limit only counts on the supported basis.
+  // A current at or below the device rating can never trip it (complete loop): too slow, whatever the source.
+  const belowRating = !sourceMissing && Number.isFinite(faultA) && faultA <= f.breakerRatingA;
   const disconnection: Status = sourceMissing
     ? (Number.isFinite(faultA) && !instantaneous && requiredS < 5 && db.supported ? 'bad' : 'warn')
-    : instantaneous ? 'ok' : requiredS >= 5 || !db.supported ? 'warn' : 'bad';
+    : belowRating ? 'bad' : instantaneous ? (subTransient ? 'warn' : 'ok') : requiredS >= 5 || !db.supported ? 'warn' : 'bad';
 
   // Fault duration for the adiabatic check: 0.1 s when the breaker trips
   // instantaneously (conservative for MCCBs), otherwise the full required
@@ -252,6 +260,8 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
     ...(adiabaticNote ? { adiabaticNote } : {}),
     ...(sourceMissing ? { sourceMissing } : {}),
     ...(sourceEstimated ? { sourceEstimated } : {}),
+    ...(subTransient ? { subTransientOnly: true } : {}),
+    ...(belowRating ? { belowRating: true } : {}),
     status
   };
 }
@@ -260,7 +270,9 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
 export function disconnectionLabel(r: EarthingResult): string {
   if (r.sourceMissing) return r.disconnection === 'bad' ? 'Too slow (even without the missing source impedance)' : 'Not verified — supply loop incomplete';
   if (r.disconnection === 'ok') return '< 0.1 s';
+  if (r.belowRating) return `Will not disconnect — If ${fmtFixed(r.faultA, 1)} A is not above the ${r.feeder.breakerRatingA} A device rating`;
   if (r.disconnection === 'bad') return 'Too slow';
+  if (r.subTransientOnly && r.faultA >= r.tripA) return 'Not verified — sub-transient estimate, type the minimum fault level';
   return r.basisSupported ? `Thermal — check curve for ${r.requiredS} s` : 'Required time not determined for this supply';
 }
 /** Ze, Zs and If as text: an incomplete loop shows Ze unknown, Zs as a minimum and If as a maximum. */

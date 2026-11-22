@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultCpcMm2, earthLoopPath, earthLoopToBoard, evaluateEarthing, instantaneousTripA, requiredDisconnectionS } from './earthing';
+import { defaultCpcMm2, disconnectionLabel, earthLoopPath, earthLoopToBoard, evaluateEarthing, instantaneousTripA, requiredDisconnectionS } from './earthing';
 import { supplyImpedance, transformerImpedance, zMagnitude } from './electrical';
 import type { Feeder, Project } from '../types';
 
@@ -148,7 +148,7 @@ describe('earth fault loop from a source rating (calculated fault level)', () =>
     const e = earthLoopPath(lv({ kind: 'generator', ratedKva: 250 }), 'MDB');
     expect(e.z.r).toBeCloseTo(0.010282, 5);
     expect(e.z.x).toBeCloseTo(0.10282, 5);
-    expect(e.estimated).toBe('Ze estimated from the generator data at MDB');
+    expect(e.estimated).toBe("Ze estimated from the generator's sub-transient reactance at MDB (its sustained fault current is lower: type the minimum fault level)");
     expect(e.missing).toBeUndefined();
   });
   it('Ze from the inverter current: |Z| = 1.05 × 415 ÷ (√3 × 1.2 × 139.1 A) = 1.507 Ω, resistive', () => {
@@ -165,5 +165,47 @@ describe('earth fault loop from a source rating (calculated fault level)', () =>
   it('a source with no usable rating still has no source data', () => {
     expect(earthLoopPath(lv({ kind: 'generator' }), 'MDB').missing).toMatch(/no source data/);
     expect(earthLoopPath(lv({ kind: 'utility', ratedKva: 250 }), 'MDB').missing).toMatch(/no source data/);
+  });
+});
+
+describe('earth fault disconnection: sub-transient estimate and a current below the rating', () => {
+  const lv = (supply: NonNullable<Project['boards'][number]['supply']>, f: Partial<Feeder> = {}): [Project, Feeder] => {
+    const fd = feeder({ breakerRatingA: 160, cableCsaMm2: 70, lengthM: 20, ...f });
+    return [{ ...project([fd]), boards: [{ id: 'MDB', name: 'M', supply }] }, fd];
+  };
+  it('a generator with no minimum fault level: a pass on the sub-transient current alone is not verified (warn)', () => {
+    // 250 kVA, X″d 15 %: Ze 0.1033 Ω; the 160 A way trips instantaneously at 1600 A (10 In) and If is about 1950 A, but a
+    // sustained 3 × rated current is about 1043 A, below the trip: the pass cannot be shown.
+    const [p, f] = lv({ kind: 'generator', ratedKva: 250 });
+    const r = evaluateEarthing(p, f);
+    expect(r.faultA).toBeGreaterThan(r.tripA);
+    expect(r.disconnection).toBe('warn');
+    expect(r.status).toBe('warn');
+    expect(r.sourceEstimated).toBe("Ze estimated from the generator's sub-transient reactance at MDB (its sustained fault current is lower: type the minimum fault level)");
+    expect(disconnectionLabel(r)).toMatch(/^Not verified/);
+  });
+  it('with a minimum fault level or a Ze typed the normal result stands', () => {
+    const [p, f] = lv({ kind: 'generator', ratedKva: 250, faultKaMin: 8 });
+    expect(evaluateEarthing(p, f).disconnection).toBe('ok');
+    const [p2, f2] = lv({ kind: 'generator', ratedKva: 250, zeOhm: 0.1 });
+    expect(evaluateEarthing(p2, f2).disconnection).toBe('ok');
+  });
+  it('an inverter source keeps its own result (its current is limited, not a sub-transient estimate)', () => {
+    const [p, f] = lv({ kind: 'pv', ratedKva: 100, faultMultiple: 6 });
+    expect(evaluateEarthing(p, f).subTransientOnly).toBeUndefined();
+  });
+  it('If at or below the device rating can never trip it: bad, whatever the source', () => {
+    // PV 100 kVA: I_rated 139.1 A, k 1.2: the source alone limits If to about 147 A on a 160 A way.
+    const [p, f] = lv({ kind: 'pv', ratedKva: 100 });
+    const r = evaluateEarthing(p, f);
+    expect(r.faultA).toBeLessThanOrEqual(160);
+    expect(r.disconnection).toBe('bad');
+    expect(r.status).toBe('bad');
+    expect(disconnectionLabel(r)).toMatch(/^Will not disconnect — If [\d.]+ A is not above the 160 A device rating/);
+  });
+  it('an incomplete loop is not judged by this rule (still not verified)', () => {
+    const [p, f] = lv({ kind: 'utility' }, { lengthM: 20 });
+    const r = evaluateEarthing({ ...p, boards: [{ id: 'MDB', name: 'M' }] }, f);
+    expect(r.belowRating).toBeUndefined();
   });
 });

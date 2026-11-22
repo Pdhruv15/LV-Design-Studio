@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { z } from 'zod';
 import { buildDashboard } from '../calc/dashboard';
-import { evaluateFeeder, runsOf, supplySourceLevel } from '../calc/electrical';
+import { evaluateFeeder, runsOf, sourceRatingHint, supplySourceLevel } from '../calc/electrical';
 import { runCalculations } from '../calc/runs';
 import { applyRecommendation, recommend } from '../calc/sizing';
 import { addOp, newModification, PROPOSABLE, transition, withProposal, withRecord, type ModTarget } from '../model/designChanges';
@@ -343,7 +343,7 @@ export const EDIT_TOOLS: Tool[] = [
       const s = next.boards.find((x) => x.id === b.id)!.supply!;
       const warnings = [
         ...(b.supply ? [] : [`${b.id} had no supply block: it now counts as fed from a supply with no transformer.`]),
-        ...(supplySourceLevel(next, next.boards.find((x) => x.id === b.id)!).basis === 'assumed' ? ['No fault level: the fault levels below stay assumed (not verified).'] : [])
+        ...(supplySourceLevel(next, next.boards.find((x) => x.id === b.id)!).basis === 'assumed' ? [`No fault level${sourceRatingHint(next.boards.find((x) => x.id === b.id)!)}: the fault levels below stay assumed (not verified).`] : [])
       ];
       return { next, summary: `Set ${given.map((k) => (a[k] === null ? `${k} cleared` : k)).join(', ')} for the supply of ${b.id}`, details: { supply: s }, warnings: warnings.length ? warnings : undefined };
     })

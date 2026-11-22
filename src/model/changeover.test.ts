@@ -52,3 +52,22 @@ describe('changeover breaking capacity on a calculated source', () => {
     expect(changeoverBreakers(q, q.boards[0])!.mains.icuKa).toBe(36);
   });
 });
+
+describe('changeover breaking capacity also faces the standby set', () => {
+  const on = (supply: NonNullable<Board['supply']>, kva: number): Project => ({
+    ...sampleProject, feeders: sampleProject.feeders.filter((f) => f.feedsBoardId !== 'MDB-1'),
+    boards: [{ id: 'MDB-1', name: 'Main', ratedCurrentA: 800, standby: { kva, changeover: 'ACB' }, supply }]
+  });
+  it('800 kVA set: I = 1113 A, 1.05 × 1113 ÷ 0.15 = 7.79 kA: the next step 10 kA on both incomers, not the 6 kA of the 250 kVA normal supply', () => {
+    const p = on({ kind: 'generator', ratedKva: 250 }, 800), k = changeoverBreakers(p, p.boards[0])!;
+    expect(k.mains.icuKa).toBe(10);
+    expect(k.generator.icuKa).toBe(10);
+    const pv = on({ kind: 'pv', ratedKva: 100 }, 800);
+    expect(changeoverBreakers(pv, pv.boards[0])!.mains.icuKa).toBe(10);
+  });
+  it('a typed supply level takes the same maximum; a bigger typed level stays as typed', () => {
+    const lo = on({ faultKa: 4 }, 800), hi = on({ faultKa: 25 }, 800);
+    expect(changeoverBreakers(lo, lo.boards[0])!.mains.icuKa).toBe(10);
+    expect(changeoverBreakers(hi, hi.boards[0])!.mains.icuKa).toBe(25);
+  });
+});

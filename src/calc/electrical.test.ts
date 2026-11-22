@@ -5,6 +5,8 @@ import {
   evaluateFeeder,
   faultCurrentKA,
   impedanceToBoard,
+  levelKaText,
+  sourceRatingHint,
   selectCable,
   sourceAssumed,
   supplySourceLevel,
@@ -14,6 +16,8 @@ import {
   zMagnitude
 } from './electrical';
 import { suggestCable } from './voltageDrop';
+import { runCalculations } from './runs';
+import { sampleProject } from '../data/sampleProject';
 import type { Feeder, Project } from '../types';
 
 const SQRT3 = Math.sqrt(3);
@@ -240,6 +244,19 @@ describe('assumed source (no transformer data and no supply fault level)', () =>
   });
 });
 
+describe('the printed level', () => {
+  it('two decimals below 1 kA, else one', () => {
+    expect([0.167, 0.5, 0.999, 1, 2.43, 25.16].map(levelKaText)).toEqual(['0.17', '0.50', '1.00', '1.0', '2.4', '25.2']);
+  });
+  it('the hint tail only for a kind that takes a rating, not fed from a board outside', () => {
+    const b = (supply: NonNullable<Project['boards'][number]['supply']>) => ({ id: 'M', name: 'M', supply });
+    expect(sourceRatingHint(b({ kind: 'generator' }))).toBe(', or the source rating');
+    expect(sourceRatingHint(b({ kind: 'battery' }))).toBe(', or the source rating');
+    expect(sourceRatingHint(b({ kind: 'utility' }))).toBe('');
+    expect(sourceRatingHint(b({ kind: 'generator', fedBy: 'board' }))).toBe('');
+  });
+});
+
 describe('values given from upstream (first board on an LV supply)', () => {
   // 415 V, Ik 12 kA with X/R 3 at the supply point, 1.6 % already used there, incoming cable 4C × 16 mm² copper, 25 m
   // (R20 1.15, X 0.085 Ω/km; operating R 1.2 × 1.15 = 1.38 Ω/km), a 24 kW load at PF 0.9 on the board (Ib 37.1 A).
@@ -258,8 +275,8 @@ describe('values given from upstream (first board on an LV supply)', () => {
     // Only the X/R: same |Z| and R + jX split as the supply alone with X/R 3: 12 kA at the busbar.
     expect(faultCurrentKA(impedanceToBoard(lv({ faultKa: 12, xr: 3 }), 'MDB'), 415)).toBeCloseTo(12, 6);
     // The incoming cable is not added to the placeholder source (no fault level: still assumed).
-    expect(sourceAssumed(lv({ incomer: given.incomer }), 'MDB')).toBe(true);
-    expect(impedanceToBoard(lv({ incomer: given.incomer }), 'MDB')).toEqual({ r: 0, x: 0.01 });
+    expect(sourceAssumed(lv({ incomer: { cableCsaMm2: 16, lengthM: 25 } }), 'MDB')).toBe(true);
+    expect(impedanceToBoard(lv({ incomer: { cableCsaMm2: 16, lengthM: 25 } }), 'MDB')).toEqual({ r: 0, x: 0.01 });
   });
 
   it('B2 voltage drop: the drop used upstream plus the incoming cable, added to every circuit', () => {
@@ -374,10 +391,26 @@ describe('a source with its rating typed (first board on an LV supply, no fault 
     const tx: Project = { ...project([load()]), boards: [{ id: 'MDB', name: 'M', sourceKva: 1000, sourceImpedancePct: 5, supply: { kind: 'generator', ratedKva: 250 } }] };
     expect(evaluateFeeder(tx, load())).toEqual(evaluateFeeder(project([load()]), load()));
   });
-  it('a project with none of the new values is unchanged', () => {
-    for (const supply of [{ kind: 'generator' as const }, { faultKa: 12 }, {}]) {
-      const a = lv(supply), b = lv({ ...supply, ratedKva: undefined, xdPct: undefined, faultMultiple: undefined });
-      expect(evaluateFeeder(a, load())).toEqual(evaluateFeeder(b, load()));
-    }
+  it('a project with none of the new values: the figures stay as before (pinned)', () => {
+    // {} : the placeholder source alone, 0.01 Ω reactive: Ik = 1.05 × 415 ÷ (√3 × 0.01) = 25.16 kA.
+    expect(impedanceToBoard(lv({}), 'MDB')).toEqual({ r: 0, x: 0.01 });
+    expect(evaluateFeeder(lv({}), load()).breakerFaultKA).toBeCloseTo(25.16, 2);
+    // A rating-less generator is the same placeholder.
+    expect(evaluateFeeder(lv({ kind: 'generator' }), load()).breakerFaultKA).toBeCloseTo(25.16, 2);
+    // A typed level with X/R 3 and the incoming cable: the "B1 fault level" figures, 6.04 kA at the busbar.
+    const z = impedanceToBoard(lv({ faultKa: 12, xr: 3, incomer: { cableCsaMm2: 16, lengthM: 25 } }), 'MDB');
+    expect(z.r).toBeCloseTo(0.03538, 5);
+    expect(z.x).toBeCloseTo(0.022013, 5);
+    expect(evaluateFeeder(lv({ faultKa: 12, xr: 3, incomer: { cableCsaMm2: 16, lengthM: 25 } }), load()).breakerFaultKA).toBeCloseTo(6.04, 2);
+  });
+  it('the sample project: key figures pinned (fault level at three boards, drop and Zs of two circuits)', () => {
+    const run = runCalculations(sampleProject), res = (id: string) => run.results.find((r) => r.feeder.id === id)!, earth = (id: string) => run.earthing.find((r) => r.feeder.id === id)!;
+    expect(res('INC-GF').breakerFaultKA).toBeCloseTo(29.22, 2); // MDB-1
+    expect(res('GF-LTG').breakerFaultKA).toBeCloseTo(23.98, 2); // SMDB-GF
+    expect(res('FF-LTG').breakerFaultKA).toBeCloseTo(14.3, 2); // SMDB-FF
+    expect(res('GF-SKT').vdTotalPct).toBeCloseTo(2.33, 2);
+    expect(earth('GF-SKT').zsOhm).toBeCloseTo(0.3958, 4);
+    expect(res('FF-LTG').vdTotalPct).toBeCloseTo(2.57, 2);
+    expect(earth('FF-LTG').zsOhm).toBeCloseTo(0.2991, 4);
   });
 });

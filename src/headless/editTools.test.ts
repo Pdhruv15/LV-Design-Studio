@@ -354,12 +354,13 @@ describe('set_supply: the values given from upstream', () => {
   it('a source rating gives a calculated level: the three inputs are written, no "assumed" warning, and the level is reported', () => {
     run('set_supply', { project: 'Lv', panel: 'MDB-1', faultKa: null, kind: 'generator', mode: 'apply' });
     const noRating = run('set_supply', { project: 'Lv', panel: 'MDB-1', xdPct: 15, mode: 'apply' });
-    expect(noRating.warnings).toEqual(['No fault level: the fault levels below stay assumed (not verified).']);
+    expect(noRating.warnings).toEqual(['No fault level, or the source rating: the fault levels below stay assumed (not verified).']);
     const a = run('set_supply', { project: 'Lv', panel: 'MDB-1', ratedKva: 250, xdPct: 20, faultMultiple: 1.5, mode: 'apply' });
     expect(a.warnings).toBeUndefined(); // 250 kVA at X″d 20 %: 1.05 × 347.8 ÷ 0.2 = 1.83 kA, calculated
     expect(load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply).toMatchObject({ kind: 'generator', ratedKva: 250, xdPct: 20, faultMultiple: 1.5 });
     const shown = run('get_panel', { project: 'Lv', panel: 'MDB-1' }) as { supplyFaultLevel?: { kA: number; basis: string; from: string } };
     expect(shown.supplyFaultLevel).toEqual({ kA: 1.83, basis: 'calculated', from: '250 kVA · X″d 20 %' });
+    expect((run('get_panel', { project: 'Lv', panel: 'MDB-1' }) as { allowedA?: number }).allowedA).toBe(347.8); // 250 000 ÷ (√3 × 415), one decimal
     run('set_supply', { project: 'Lv', panel: 'MDB-1', ratedKva: null, mode: 'apply' });
     expect(load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply!.ratedKva).toBeUndefined();
   });

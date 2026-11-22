@@ -1,6 +1,6 @@
 import type { Board, Project } from '../types';
 import { breakerRatings, icuSteps } from '../calc/sizing';
-import { faultCurrentKA, impedanceToBoard } from '../calc/electrical';
+import { GENERATOR_XD_SUBTRANSIENT_PCT, GENERATOR_XR, faultCurrentKA, impedanceToBoard, transformerImpedance } from '../calc/electrical';
 
 /** Emergency supply changeover of a board with a standby generator (an EMDB).
  *
@@ -34,13 +34,17 @@ const breaker = (ratingA: number | undefined, icuKa: number | undefined, irSetti
   return { ratingA, device, drawOut: device === 'ACB', icuKa, irSetting };
 };
 
-/** Breaking capacity for both incomers: the incoming breaker's Icu, else the next standard step above the board's fault level. */
+/** Breaking capacity for both incomers: the incoming breaker's Icu, else the next standard step above the larger of
+ * the normal supply's fault level and the standby set's own (X″d 15 %, the scenario's basis): both incomers face
+ * both sources. */
 function icuOf(project: Project, b: Board): number | undefined {
   const inc = project.feeders.find((f) => f.feedsBoardId === b.id);
   if (inc?.breakerIcuKa) return inc.breakerIcuKa;
-  if (b.supply?.faultKa) return b.supply.faultKa;
-  const isc = faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV);
-  return Number.isFinite(isc) && isc > 0 ? next(icuSteps(), isc) : undefined;
+  const set = b.standby?.kva ? faultCurrentKA(transformerImpedance(b.standby.kva, GENERATOR_XD_SUBTRANSIENT_PCT, project.voltageV, GENERATOR_XR), project.voltageV) : 0;
+  const normal = b.supply?.faultKa ? b.supply.faultKa : faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV);
+  const isc = Math.max(Number.isFinite(normal) ? normal : 0, Number.isFinite(set) ? set : 0);
+  if (b.supply?.faultKa && !(set > b.supply.faultKa)) return b.supply.faultKa;
+  return isc > 0 ? next(icuSteps(), isc) : undefined;
 }
 
 /** Mains and generator incomer breakers of an interlocked changeover. */

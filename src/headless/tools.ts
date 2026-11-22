@@ -139,7 +139,7 @@ export const TOOLS: Tool[] = [
           location: boardLocation(p, b) || undefined, circuits: s.outgoing,
           demandKw: r(s.demandKw, 1), demandKva: r(s.demandKva, 1), currentA: r(s.currentA, 1), ratedA: boardRatedA(b),
           loadingPct: r(s.loadingPct, 1), voltagePct: r(s.voltagePct), faultKA: r(s.faultKA, 1), ...(s.faultAssumed && { faultAssumed: true }),
-          ...(s.allowedA !== undefined && { allowedA: s.allowedA, allowedLoadingPct: r(s.allowedLoadingPct!, 1) })
+          ...(s.allowedA !== undefined && { allowedA: r(s.allowedA, 1), allowedLoadingPct: r(s.allowedLoadingPct!, 1) })
         };
       });
     }
@@ -160,7 +160,7 @@ export const TOOLS: Tool[] = [
         id: b.id, name: b.name, kind: b.kind, fedFrom: b.upstreamId, location: boardLocation(p, b) || undefined,
         ratedA: boardRatedA(b), demandKw: r(s.demandKw, 1), demandKva: r(s.demandKva, 1), currentA: r(s.currentA, 1),
         loadingPct: r(s.loadingPct, 1), voltagePct: r(s.voltagePct), faultKA: r(s.faultKA, 1), ...(s.faultAssumed && { faultAssumed: true }),
-        ...(s.allowedA !== undefined && { allowedA: s.allowedA, allowedLoadingPct: r(s.allowedLoadingPct!, 1) }), ...supplyOf(b, run),
+        ...(s.allowedA !== undefined && { allowedA: r(s.allowedA, 1), allowedLoadingPct: r(s.allowedLoadingPct!, 1) }), ...supplyOf(b, run),
         incomer: s.incomer ? { id: s.incomer.id, breakerA: s.incomer.breakerRatingA, cable: cableText(s.incomer) } : undefined,
         circuits: run.results.filter((x) => x.feeder.boardId === b.id).map(circuitRow)
       };

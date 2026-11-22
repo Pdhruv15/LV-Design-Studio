@@ -123,6 +123,10 @@ describe('project dashboard: a source with its rating typed', () => {
     expect(noLevel(todo(lv({ kind: 'generator', ratedKva: 250 })))).toEqual([]);
     expect(noLevel(todo(lv({ kind: 'pv', ratedKva: 100 })))).toEqual([]);
   });
+  it('the hint names the cure only for a kind that takes a rating', () => {
+    expect(noLevel(todo(lv({ kind: 'generator' })))[0]).toContain('supply fault level, or the source rating —');
+    expect(noLevel(todo(lv({ kind: 'utility' })))[0]).toContain('supply fault level — fault');
+  });
   it('demand above the rating of a 20 kVA generator (20 000 ÷ (√3 × 415) = 27.8 A) is listed: 37.1 A is 133.3 %', () => {
     expect(todo(lv({ kind: 'generator', ratedKva: 20 }))).toContain('bad: MDB: demand 37.1 A is above the 27.8 A the supply can give (133.3 %)');
     expect(todo(lv({ kind: 'generator', ratedKva: 250 })).filter((x) => /supply can give/.test(x))).toEqual([]);

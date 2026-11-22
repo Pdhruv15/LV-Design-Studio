@@ -1,4 +1,4 @@
-import { cableSizeText, faultCurrentKA, impedanceToBoard, selectCable, sourceAssumed, supplySourceLevel } from '../calc/electrical';
+import { cableSizeText, faultCurrentKA, impedanceToBoard, selectCable, sourceAssumed, sourceKindTakes, supplySourceLevel, takesSourceRating } from '../calc/electrical';
 import { icuSteps } from '../calc/sizing';
 import { supplyMode } from '../diagram/supplyPoint';
 import { supplyIncomerFeeder, type Board, type BoardKind, type Feeder, type Project } from '../types';
@@ -40,11 +40,14 @@ export function growBlocked(project: Project, boardId: string): string | undefin
 }
 
 /** The values given from upstream, in words: "Ik″ 12 kA, drop used 1.6 %, Ze 0.35 Ω". */
-function givenList(s: Supply | undefined): string[] {
+function givenList(x: Board): string[] {
+  const s = x.supply;
   if (!s) return [];
+  // The rating, X″d and fault multiple count only while the board's source level reads them.
+  const reads = takesSourceRating(x), k = sourceKindTakes(s.kind);
   const t: [number | undefined, (v: number) => string][] = [
     [s.faultKa, (v) => `Ik″ ${num(v)} kA`], [s.xr, (v) => `X/R ${num(v)}`],
-    [s.ratedKva, (v) => `${num(v)} kVA`], [s.xdPct, (v) => `X″d ${num(v)} %`], [s.faultMultiple, (v) => `fault current ${num(v)} × rated`], [s.faultKaMin, (v) => `minimum Ik″ ${num(v)} kA`],
+    [reads ? s.ratedKva : undefined, (v) => `${num(v)} kVA`], [reads && k.machine ? s.xdPct : undefined, (v) => `X″d ${num(v)} %`], [reads && k.inverter ? s.faultMultiple : undefined, (v) => `fault current ${num(v)} × rated`], [s.faultKaMin, (v) => `minimum Ik″ ${num(v)} kA`],
     [s.vdUsedPct, (v) => `drop used ${num(v)} %`], [s.zeOhm, (v) => `Ze ${num(v)} Ω`], [s.allowedA, (v) => `allowed load ${num(v)} A`]
   ];
   return t.flatMap(([v, f]) => (v !== undefined ? [f(v)] : []));
@@ -121,7 +124,7 @@ export function upstreamPlan(project: Project, boardId: string, kind?: BoardKind
     return { transformer: true, title: `Add a transformer to ${x.id}?`, lines };
   }
   const s = suggestion(project, x, kind), way = wayTo(project, x, '', new Set());
-  const given = givenList(x.supply), sup = x.supply;
+  const given = givenList(x), sup = x.supply;
   const lines = wayLines(way, 'the new board', x);
   if (given.length) lines.push(`The given values (${given.join(', ')}) move to the new board.`);
   const src = named(sup?.fedFrom);
@@ -216,14 +219,14 @@ export function connectBlocked(project: Project, boardId: string, parentId: stri
 }
 
 /** Whether connecting removes values the user typed at X (they are calculated from the parent from then on). */
-const losesAtConnect = (x: Board) => givenList(x.supply).length > 0 || !!named(x.supply?.fedFrom) || !!x.supply?.ref || !!x.supply?.meter || !!x.supply?.cable || !!x.supply?.ecc || !!x.supply?.ctRatio;
+const losesAtConnect = (x: Board) => givenList(x).length > 0 || !!named(x.supply?.fedFrom) || !!x.supply?.ref || !!x.supply?.meter || !!x.supply?.cable || !!x.supply?.ecc || !!x.supply?.ctRatio;
 
 /** The text of the "Connect to…" question, without changing anything. */
 export function connectPlan(project: Project, boardId: string, parentId: string): { title: string; lines: string[]; loses: boolean } {
   const x = boardOf(project, boardId), title = `Connect ${boardId} to ${parentId}?`;
   if (!x || connectBlocked(project, boardId, parentId)) return { title, lines: [], loses: false };
   const way = wayTo(project, x, parentId, new Set());
-  const given = givenList(x.supply), loses = losesAtConnect(x);
+  const given = givenList(x), loses = losesAtConnect(x);
   const lines = wayLines(way, parentId, x);
   if (loses) lines.push(given.length ? `The given values (${given.join(', ')}) are removed: from then on they are calculated from ${parentId}.` : 'The name, reference and meter typed for its supply are removed.');
   return { title, lines, loses };
@@ -242,7 +245,7 @@ export function connectTo(project: Project, boardId: string, parentId: string): 
   if (blocked) return { project, message: blocked };
   const x = boardOf(project, boardId)!;
   const way = wayTo(project, x, parentId, allIds(project), faultAt(project, parentId));
-  const lost = givenList(x.supply).length > 0;
+  const lost = givenList(x).length > 0;
   return {
     project: { ...project, boards: project.boards.map((b) => (b.id === x.id ? fedFromAbove(x, parentId) : b)), feeders: [...project.feeders, way.feeder] },
     select: { type: 'board', id: x.id },
