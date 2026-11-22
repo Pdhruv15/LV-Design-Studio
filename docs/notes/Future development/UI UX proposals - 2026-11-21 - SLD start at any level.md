@@ -1,6 +1,6 @@
 # SLD start at any level — proposal (2026-11-21)
 
-Status: **approved 2026-11-22: all ten decisions with the recommended answers.** Build order A to H, one PR each. Built: A (v2.254), B (v2.255), C (v2.256). Next: D.
+Status: **approved 2026-11-22: all ten decisions with the recommended answers.** Build order A to H, one PR each. Built: A (v2.254), B (v2.255), C (v2.256), D (v2.257). Next: E.
 Mockup: `docs/mockups/sld-start-level-mockup.html` + `.png`.
 Related: [[UI UX proposals - 2026-11-11 - SLD supply sources, RMU and package substations]] (steps 2–5 still wait) and [[UI UX proposals - 2026-11-18 - SLD by substation, RMU and transformer]] (all built).
 

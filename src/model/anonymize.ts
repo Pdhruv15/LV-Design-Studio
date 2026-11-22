@@ -104,7 +104,7 @@ export function anonymizeProject(source: Project): AnonymizeResult {
       standby: b.standby ? prune({ kva: b.standby.kva, changeover: b.standby.changeover }) : undefined,
       protection: b.protection ? prune({ ctRatio: onlyIf(b.protection.ctRatio, CT_RATIO), irSetting: num(b.protection.irSetting), relays: b.protection.relays ? [...b.protection.relays] : undefined, apfc: b.protection.apfc }) : undefined,
       earthing: b.earthing ? prune({ show: b.earthing.show, pits: num(b.earthing.pits), conductorMm2: num(b.earthing.conductorMm2), electrodeM: num(b.earthing.electrodeM), spacingM: num(b.earthing.spacingM) }) : undefined,
-      supply: supply && Object.keys(supply).length ? supply : undefined,
+      supply: b.supply ? supply ?? {} : undefined,
       spareWays
     }) as Board;
   });

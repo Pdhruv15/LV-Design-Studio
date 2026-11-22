@@ -4,6 +4,7 @@ import { STANDARD_BREAKER_A } from '../calc/sizing';
 import { sequence } from './hierarchyBuilder';
 import { boardAndDescendants } from './edit';
 import { prefixOf } from './emergency';
+import { supplyPoint } from '../diagram/supplyPoint';
 
 /** Transformers of a project. One transformer feeds one main board (MDB):
  * the main board carries its rating (sourceKva). TX-1, TX-2 … are numbered
@@ -41,7 +42,7 @@ export function supplyChain(project: Project, boardId: string): string[] {
   for (let b = byId.get(boardId); b && !seen.has(b.id); b = b.upstreamId ? byId.get(b.upstreamId) : undefined) { seen.add(b.id); path.unshift(b.id); }
   const main = byId.get(path[0]);
   const tag = main && txTag(project, main.id);
-  const source = main?.sourceKva ? `${tag} (${main.sourceKva} kVA)` : main?.supply ? 'Authority supply' : 'Source not set';
+  const source = main?.sourceKva ? `${tag} (${main.sourceKva} kVA)` : (main && supplyPoint(project, main, false)?.title) || 'Supply not set';
   return [source, ...path];
 }
 

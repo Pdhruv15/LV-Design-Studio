@@ -2028,8 +2028,6 @@ export default function App() {
         <span>{hasBridge ? `Projects folder: ${projectsFolder}` : 'Web version — projects are saved in this browser'}</span>
       </div>}
 
-      <ConfirmHost />
-
       {showFeederForm && board && (
         <FeederForm
           project={project}
@@ -2202,6 +2200,7 @@ export default function App() {
       {showBoardForm && board && (
         <BoardForm project={project} parentBoardId={board.id} preset={boardPreset} onSave={addBoard} onClose={() => { setShowBoardForm(false); setBoardPreset(undefined); }} />
       )}
+      <ConfirmHost />
     </div>
   );
 }

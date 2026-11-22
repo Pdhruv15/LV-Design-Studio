@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Board } from '../types';
 import { sampleProject } from '../data/sampleProject';
 import { applyTransformers, mainBoards, mainOf, moveUnder, nextRmus, planTransformers, setTransformer, supplyChain, txTag, txTags } from './transformers';
 
@@ -30,6 +31,14 @@ describe('transformers', () => {
     expect(moved.feeders.find((f) => f.feedsBoardId === sub.id)?.boardId ?? newMain.id).toBe(newMain.id);
     // A board can't be moved under itself or its own children
     expect(moveUnder(moved, [newMain.id], sub.id)).toBe(moved);
+  });
+
+  it('names the supply of a first board without a transformer from the supply model', () => {
+    const board = { id: 'MDB-A', name: 'MDB-A', kind: 'MDB' as const };
+    const of = (b: Board) => supplyChain({ ...sampleProject, boards: [b] }, 'MDB-A')[0];
+    expect(of({ ...board, supply: { fedFrom: 'Grid' } })).toBe('Grid supply');
+    expect(of({ ...board, supply: {} })).toBe('Source');
+    expect(of(board)).toBe('Supply not set');
   });
 
   it('setting or clearing a transformer on a main board', () => {

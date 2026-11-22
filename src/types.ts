@@ -345,7 +345,7 @@ export interface ExistingInfo {
 export interface GridSource {
   id: string;
   name: string;
-  /** Network operator: DEWA, ADDC, SEWA, FEWA, EtihadWE, or a private master-community network. */
+  /** Network operator, free text (blank = not named). */
   operator?: string;
   primarySubstation?: string;
   /** Feeder / circuit reference at the primary substation. */

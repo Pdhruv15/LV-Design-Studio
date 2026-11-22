@@ -4,6 +4,9 @@ import type { Board, Project } from '../types';
 import { izText, type FeederResult } from '../calc/electrical';
 import { boardRatedA, boardSummary } from '../calc/summary';
 import BoardFields from './BoardFields';
+import SupplyFields from './SupplyFields';
+import { supplyPoint } from '../diagram/supplyPoint';
+import { fedFromOfBoard, suppliedFromText } from '../model/supplyEdit';
 import { roleOf } from '../model/emergency';
 import { txt } from '../util/format';
 
@@ -45,6 +48,7 @@ export default function BoardPanel({
   onTab?: (t: Tab) => void;
 }) {
   const [localTab, setLocalTab] = useState<Tab>('general');
+  const [headHeld, setHeadHeld] = useState<string>(); // the head's transformer fields stay while its rating is blank
   const tab = tabProp ?? localTab;
   const setTab = onTab ?? setLocalTab;
   const s = useMemo(() => boardSummary(project, board), [project, board]);
@@ -57,6 +61,10 @@ export default function BoardPanel({
     return out;
   }, [project, board]);
   const head = main ?? (isMain ? board : undefined);
+  const headData = head ? fedFromOfBoard(head) : undefined;
+  const headMode = head && headData !== 'transformer' && headHeld === head.id && !head.sourceKva ? 'transformer' : headData;
+  const incomerCable = board.supply?.incomer && board.supply.incomer.cableCsaMm2 > 0 && board.supply.incomer.lengthM > 0 ? `${board.supply.incomer.cableCsaMm2} mm² × ${board.supply.incomer.lengthM} m` : '—';
+  const firstIncomer = fedFromOfBoard(board) === 'transformer' ? 'Transformer secondary' : incomerCable;
 
   return (
     <>
@@ -84,23 +92,31 @@ export default function BoardPanel({
         {tab === 'supply' && (
           <>
             <p className="supply-chain">
-              <span>{head?.sourceKva ? `Transformer · ${head.sourceKva} kVA` : 'Transformer'}</span>
+              <span>{head && headMode !== 'transformer' ? supplyPoint(project, head, false)?.title ?? 'Supply not set' : head?.sourceKva ? `Transformer · ${head.sourceKva} kVA` : 'Transformer'}</span>
               {chain.map((b) => <span key={b.id}><i aria-hidden="true">→</i><b className={b.id === board.id ? 'on' : ''}>{b.id}</b></span>)}
             </p>
             {head ? (
-              <>
-                <h4>Transformer{isMain ? '' : ` (supplies ${head.id})`}</h4>
-                {!head.sourceKva && <p className="m warn">No transformer rating yet — enter it below.</p>}
-                <BoardFields board={head} onChange={onChange} section="source" />
-                {!isMain && <p className="m">Changes here apply to every board {head.id} supplies.</p>}
-              </>
+              isMain ? <SupplyFields project={project} board={board} onChange={onChange} />
+              : headMode === 'transformer' ? (
+                <>
+                  <h4>Transformer (supplies {head.id})</h4>
+                  {!head.sourceKva && <p className="m warn">No transformer rating yet — enter it below.</p>}
+                  <BoardFields board={head} onChange={(nb) => { if (!nb.sourceKva) setHeadHeld(nb.id); onChange(nb); }} section="source" />
+                  <p className="m">Changes here apply to every board {head.id} supplies.</p>
+                </>
+              ) : (
+                <>
+                  <h4>Supply (of {head.id})</h4>
+                  <p className="m">{headMode === 'unset' ? `The supply of ${head.id} is not set. Select ${head.id} to set it.` : `${head.id} is fed from ${suppliedFromText(project, head).replace(/^A board not/, 'a board not')}. Select ${head.id} to change its supply.`}</p>
+                </>
+              )
             ) : <p className="m">No main board found above {board.id}.</p>}
             <h4>At this board</h4>
             <dl className="kv">
               <dt>Incoming feeder</dt>
-              <dd>{s.incomer ? <><button className="linkish" onClick={() => onSelectFeeder(s.incomer!.id)}>{s.incomer.id}</button> · {s.incomer.cableCsaMm2} mm² × {s.incomer.lengthM} m</> : isMain ? 'Transformer secondary' : '—'}</dd>
+              <dd>{s.incomer ? <><button className="linkish" onClick={() => onSelectFeeder(s.incomer!.id)}>{s.incomer.id}</button> · {s.incomer.cableCsaMm2} mm² × {s.incomer.lengthM} m</> : isMain ? firstIncomer : '—'}</dd>
               <dt>Fault level Ik″</dt>
-              <dd>{txt.fault(s.faultKA)} kA</dd>
+              <dd>{txt.fault(s.faultKA)} kA{s.faultAssumed ? ' (assumed source)' : ''}</dd>
               <dt>Voltage drop</dt>
               <dd>{txt.pct(100 - s.voltagePct)} % (cumulative)</dd>
             </dl>
@@ -119,7 +135,7 @@ export default function BoardPanel({
               <dt>Power factor</dt>
               <dd>{s.powerFactor.toFixed(2)}</dd>
               <dt>Supplied from</dt>
-              <dd>{isMain ? 'Transformer' : board.upstreamId}</dd>
+              <dd>{suppliedFromText(project, board)}</dd>
             </dl>
           </>
         )}
@@ -201,7 +217,7 @@ export default function BoardPanel({
         <h3>Related equipment</h3>
         <dl className="kv">
           <dt>Incoming feeder</dt>
-          <dd>{s.incomer ? s.incomer.id : isMain && board.sourceKva ? `${board.sourceKva} kVA transformer` : '—'}</dd>
+          <dd>{s.incomer ? s.incomer.id : isMain ? (fedFromOfBoard(board) === 'transformer' ? (board.sourceKva ? `${board.sourceKva} kVA transformer` : '—') : suppliedFromText(project, board)) : '—'}</dd>
           <dt>Outgoing feeders</dt>
           <dd>{s.outgoing}</dd>
           <dt>Sub-boards</dt>
