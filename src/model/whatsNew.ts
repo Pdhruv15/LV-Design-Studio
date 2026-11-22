@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.258', date: '2026-11-22',
+    items: [
+      { title: 'New project: choose where the SLD starts', text: 'The New project wizard has a new second step, SLD start, with six pictures: a final DB, a sub-main board, a main board on an LV source, a transformer and main board (the default), an RMU with one or two transformers, or an 11 kV ring with two substations. The project is made with the first board or boards of that start; the two 11 kV starts open the MV supply and RMUs card straight after. Quick create keeps the transformer start. The choice can be changed afterwards on the board\'s Supply tab.' },
+      { title: 'Any board can be the first board on the empty canvas', text: 'On the system diagram every board type can now be dropped on the empty canvas. Main boards (MDB, LV-MDB, LV-ACB) and meter cabinets are made as before; any other board starts as a first board fed from a board outside the project. Set its supply on the Supply tab. The busbar rules are unchanged.' }
+    ]
+  },
+  {
     version: '2.257', date: '2026-11-22',
     items: [
       { title: 'The Supply tab of a first board starts with Fed from', text: 'Select a first board and open its Supply tab (or double-click the board and open Supply): it now starts with Fed from, four choices: a transformer, an LV source (a utility, a supplier or your own generation), a board outside this project, or not set yet. A transformer shows its rating, impedance, X/R and vector group as before. A source shows its Kind (utility, diesel generator, solar PV, wind, battery storage or other), its Name and a Reference. A board outside the project shows the Feeding board and a Reference. Both then take the values given from upstream (fault level, X/R, minimum fault level, drop already used, earth loop impedance, allowed load), the upstream device and the incoming cable, which is checked like a feeder. Changing the choice asks first when it would remove values you typed. Supplied from, the supply chain line and Related equipment now say what feeds the board.' },

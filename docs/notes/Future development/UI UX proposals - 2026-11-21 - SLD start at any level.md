@@ -1,6 +1,6 @@
 # SLD start at any level — proposal (2026-11-21)
 
-Status: **approved 2026-11-22: all ten decisions with the recommended answers.** Build order A to H, one PR each. Built: A (v2.254), B (v2.255), C (v2.256), D (v2.257). Next: E.
+Status: **approved 2026-11-22: all ten decisions with the recommended answers.** Build order A to H, one PR each. Built: A (v2.254), B (v2.255), C (v2.256), D (v2.257), E (v2.258). Next: F.
 Mockup: `docs/mockups/sld-start-level-mockup.html` + `.png`.
 Related: [[UI UX proposals - 2026-11-11 - SLD supply sources, RMU and package substations]] (steps 2–5 still wait) and [[UI UX proposals - 2026-11-18 - SLD by substation, RMU and transformer]] (all built).
 
@@ -177,6 +177,30 @@ Later, with the supply sources proposal: generator as the only source, PV and ba
 - A first board with nothing entered is no longer counted on the 11 kV side: the 11 kV line does not run over it, and a project whose first boards are all like that has no Boards / Substations grouping in the panel tree.
 - Not drawn: a legend entry for the source symbols, and the "% left for the final circuits" note of the mockup.
 - Known limit: in the standard style with the earth pits hidden, the supply lines of a first board that also has a standby generator through an ATS run into the ATS label. One supply line already did so before this step; it needs a lower first busbar in that case.
+
+### Step E as built (v2.258)
+
+- The wizard has a new second step, **SLD start** (seven steps now): six picture tiles, the transformer start chosen. Quick create makes the transformer start.
+- What each start makes:
+
+| Start | Boards | Supply |
+|---|---|---|
+| Final DB | `DB-1`, 63 A | Fed from a board outside the project |
+| Sub-main board | `SMDB-1`, 250 A | Fed from a board outside the project |
+| Main board, LV source | `MDB-1`, 1600 A, no transformer | LV source, name from the design reference when one is applied |
+| Transformer and main board | `MDB-1`, 1000 kVA | Transformer (today's start) |
+| RMU, one transformer | `MDB-1` | RMU-1 (RRT) |
+| RMU, two transformers | `MDB-1`, `MDB-2` | RMU-1 (RRTT), bus coupler normally open |
+| 11 kV ring | `MDB-1`, `MDB-2` | Grid source, SS-1 and SS-2, RMU-1 and RMU-2 (RRT each) |
+
+- The two 11 kV starts open Panels with the MV supply and RMUs card after the project is made.
+- Differs from the mockup: two rows of three tiles instead of one row (the dialog is 780 px wide so that the seven step tabs fit); the 1 / 2 transformer choice sits below the tiles; no Default badge (the note says it); the tile title is "RMU, one or two transformers" (one line); the sub-main tile makes an SMDB (the type is changed afterwards); the ring start makes two substations; the coupler of the two-transformer start is named `BC-1`.
+- Canvas rule: every board type can be dropped on the empty canvas. Main boards and meter cabinets are made as before; any other kind is a first board fed from a board outside the project.
+- Corrected with it: a bus coupler is no longer offered on a first board fed from a board outside the project; the Overview counts only transformer-fed first boards as substations; the calculation report, the design basis and the per-substation sheet title say "fed from a board outside this project" for such a board.
+- Open after step E (each needs a decision):
+  - A first board fed from a board outside the project is still drawn and priced with its own earth pits and main earth terminal (the default "earthing shown on every first board" is older than this proposal). It can be unticked on the board. Proposed: off by default for such a board.
+  - After an 11 kV start the page with the MV supply and RMUs card opens, but the ribbon shows the tab of the project's stage (Concept), as after opening any project.
+  - A coupler between two boards with no outgoing ways is drawn through the "NO OUTGOING WAYS" text of the left board (older drawing rule; clears once the board has ways).
 
 ### Wording still naming one supplier (for step D or a separate sweep)
 

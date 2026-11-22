@@ -104,6 +104,7 @@ import { StaleBanner } from './components/ui';
 import { generatorScenario, transformerOutage, type SupplyMode } from './calc/scenario';
 import { removeTie, TIE_OPERATION, tieRatings, updateTie } from './model/sldEdit';
 import type { ColorBy } from './diagram/heatmap';
+import { applyStartLevel, DEFAULT_START, startOpensMv, type StartChoice } from './model/startLevel';
 import { applyMove, armHint, boardTakes, dropMany, libraryEntries, stayOnBoard, type DropResult, type DropTarget, type MoveItem, type PaletteItem } from './model/sldEdit';
 import { sldMenu, type SldMenuState, type SldTarget } from './model/sldMenu';
 import { describeBulk } from './model/bulkEdit';
@@ -1024,7 +1025,7 @@ export default function App() {
     setStatus(`Opened ${boardId} in Sheets.`);
   }
 
-  function createProject(name: string, brief?: ProjectBrief, template?: SetupTemplate, reference?: DesignReference, formats?: Partial<Record<PanelCategory, ScheduleFormat>>, folder?: FolderChoice, projectNo?: string) {
+  function createProject(name: string, brief?: ProjectBrief, template?: SetupTemplate, reference?: DesignReference, formats?: Partial<Record<PanelCategory, ScheduleFormat>>, folder?: FolderChoice, projectNo?: string, start?: StartChoice) {
     setWizard(false);
     // Your Parameters.xlsx defaults, then your profile's defaults and details, then a setup template,
     // then the authority's rule set chosen in the wizard, then the brief.
@@ -1035,12 +1036,16 @@ export default function App() {
     const briefed = projectNo ? { ...briefed0, info: { ...briefed0.info, projectNo } } : briefed0;
     // The project keeps its own copy of the folder template; where the folder is stays on this computer.
     const made = folder ? { ...briefed, folder: projectFolderOf(folder.template) } : briefed;
-    loadIntoApp(PANEL_CATEGORIES.reduce((p, c) => withProjectFormat(p, c.key, formats?.[c.key]), made), undefined, 'New project — not saved yet');
+    const started = applyStartLevel(made, start ?? DEFAULT_START);
+    const opensMv = !!start && startOpensMv(start);
+    const mvHint = ' Enter the MV supply and the RMUs here.';
+    loadIntoApp(PANEL_CATEGORIES.reduce((p, c) => withProjectFormat(p, c.key, formats?.[c.key]), started), undefined, opensMv ? `New project — not saved yet.${mvHint}` : 'New project — not saved yet');
+    if (opensMv) { setRepeatRoot(undefined); setPanelsTx(Date.now()); setView('panels'); }
     const disk = folderDisk();
     if (folder && disk && choiceReady(folder, disk)) {
       createChosenFolders(disk, made.id, folder, folderVars(made), folderBuildings(made, folder.template))
-        .then((m) => setStatus(`New project, not saved yet. ${m}`))
-        .catch((e: unknown) => setStatus(`New project, not saved yet. The project folder was not made: ${e instanceof Error ? e.message : String(e)}`));
+        .then((m) => setStatus(`New project, not saved yet. ${m}${opensMv ? mvHint : ''}`))
+        .catch((e: unknown) => setStatus(`New project, not saved yet. The project folder was not made: ${e instanceof Error ? e.message : String(e)}${opensMv ? mvHint : ''}`));
     }
   }
 

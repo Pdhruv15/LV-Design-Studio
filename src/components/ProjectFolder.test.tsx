@@ -45,12 +45,12 @@ describe('New project: the Project folder step (F1)', () => {
     act(() => root.render(<NewProjectWizard initialName="Villa Jumeirah" references={BUILT_IN_REFERENCES} folderParent={disk ? 'D:\\Projects' : ''} folderClient={client()} folderDisk={disk} onQuick={() => {}} onCreate={onCreate} onCancel={() => {}} />));
     await flush();
     click(document.querySelector('.home-act')!);
-    for (let i = 0; i < 4; i++) click(button('Next'));
+    for (let i = 0; i < 5; i++) click(button('Next'));
   };
   it('offers the default template, the place, the name and the folders, with the count', async () => {
     const { disk } = fakeDisk();
     await show(disk);
-    expect(text()).toContain('step 5 of 6: Project folder');
+    expect(text()).toContain('step 6 of 7: Project folder');
     expect(field('Folder name').value).toBe('Villa Jumeirah');
     expect(field('Location').value).toBe('D:\\Projects');
     expect(text()).toContain('D:\\Projects\\Villa Jumeirah');
@@ -80,7 +80,7 @@ describe('New project: the Project folder step (F1)', () => {
     await flush();
     type(field('Project number'), ' P2611 ');
     click(document.querySelector('.home-act')!);
-    for (let i = 0; i < 4; i++) click(button('Next'));
+    for (let i = 0; i < 5; i++) click(button('Next'));
     expect(field('Folder name').value).toBe('P2611_Villa Jumeirah');
     click(button('Next'));
     click(button('Create project'));

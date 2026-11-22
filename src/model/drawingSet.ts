@@ -368,7 +368,7 @@ export function autoSheets(p: Project, mode: 'perMdb' | 'perSmdb' | 'perSubstati
     for (const n of supplyTree(p)) {
       const top = partMains(p, n.part), below = new Set(top.flatMap((m) => [...subtree(p, m)]));
       const boards = order.filter((b) => below.has(b.id)).map((b) => b.id);
-      if (boards.length) sheets.push({ id: id(), title: partTitle(n.part, top, tags, (n.part.kind === 'supply' && supplyMode(p.boards.find((b) => b.id === (n.part as { id: string }).id)!) === 'unset')), kind: 'system', boards, size: 'auto' });
+      if (boards.length) sheets.push({ id: id(), title: partTitle(n.part, top, tags, (n.part.kind === 'supply' && ['unset', 'board'].includes(supplyMode(p.boards.find((b) => b.id === (n.part as { id: string }).id)!)!))), kind: 'system', boards, size: 'auto' });
     }
   } else {
     const subs = order.filter((b) => b.upstreamId && mains.some((m) => m.id === b.upstreamId) && !isDb(b));

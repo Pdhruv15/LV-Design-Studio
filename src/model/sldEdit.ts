@@ -178,7 +178,7 @@ const isRoot = (p: Project, boardId: string) => !p.boards.find((b) => b.id === b
 export function canDrop(project: Project, item: PaletteItem, target: DropTarget): boolean {
   switch (item.kind) {
     case 'board':
-      if (target.type === 'canvas') return item.board === 'MDB' || item.board === 'LV-MDB' || item.board === 'LV-ACB' || item.board === 'MC';
+      if (target.type === 'canvas') return true;
       if (target.type !== 'bus') return false;
       if (item.board === 'MC') return false;
       // An MDB goes under a meter cabinet; other boards go on any board.
@@ -217,7 +217,7 @@ export function dropsOn(item: PaletteItem): DropTarget['type'][] {
   switch (item.kind) {
     case 'board':
       if (item.board === 'MC') return ['canvas'];
-      return item.board === 'MDB' || item.board === 'LV-MDB' || item.board === 'LV-ACB' ? ['bus', 'canvas'] : ['bus'];
+      return ['bus', 'canvas'];
     case 'transformer':
       return ['bus', 'canvas'];
     case 'device':
@@ -300,7 +300,12 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
     const parent = target.type === 'bus' ? target.boardId : undefined;
     const board = newBoard(project, item.board, parent);
     if (!parent) {
-      const withSupply = item.board === 'MDB' || item.board === 'LV-MDB' || item.board === 'LV-ACB' ? { ...board, supply: { ...fedFromOf(project) } } : board;
+      if (item.board !== 'MDB' && item.board !== 'LV-MDB' && item.board !== 'LV-ACB' && item.board !== 'MC') {
+        // Any other kind as a first board: fed from a board outside the project, the rest left for the Supply tab.
+        const first: Board = { ...board, supply: { fedBy: 'board' }, ...(item.board === 'UPS' ? { upsKva: 10 } : {}) };
+        return { project: { ...project, boards: [...project.boards, first] }, select: { type: 'board', id: board.id }, message: `Added ${board.id} as a first board, fed from a board outside this project — set its supply on the Supply tab` };
+      }
+      const withSupply = item.board === 'MC' ? board : { ...board, supply: { ...fedFromOf(project) } };
       return { project: { ...project, boards: [...project.boards, withSupply] }, select: { type: 'board', id: board.id }, message: `Added ${board.id} (new supply) — set its data in the properties panel` };
     }
     const incomer = boardIncomer(project, parent, board);
@@ -519,7 +524,7 @@ export function dropMany(project: Project, item: PaletteItem, target: DropTarget
  * transformer-fed main board not already tied to it. */
 export function tiePartner(project: Project, boardId: string): Board | undefined {
   const here = project.boards.find((b) => b.id === boardId);
-  if (!here || here.upstreamId) return undefined;
+  if (!here || here.upstreamId || here.supply?.fedBy === 'board') return undefined;
   const tied = new Set((project.ties ?? []).filter((t) => t.a === boardId || t.b === boardId).map((t) => (t.a === boardId ? t.b : t.a)));
   return project.boards.find((b) => b.id !== boardId && !b.upstreamId && !!b.sourceKva && !tied.has(b.id));
 }
@@ -552,7 +557,8 @@ export function dropHint(item: PaletteItem): string {
     case 'board':
       return item.board === 'MC' ? 'Drop a meter cabinet on the empty canvas'
         : item.board === 'MDB' ? 'Drop an MDB on the empty canvas, or on a meter cabinet busbar'
-          : `Drop the ${item.board} on a busbar`;
+          : item.board === 'LV-MDB' || item.board === 'LV-ACB' ? `Drop the ${item.board} on the empty canvas, or on a meter cabinet busbar`
+            : `Drop the ${item.board} on a busbar, or on the empty canvas to start from it`;
     case 'transformer':
       return 'Drop a transformer on the empty canvas, or on a main board';
     case 'load':

@@ -1,3 +1,4 @@
+import { supplyMode } from '../diagram/supplyPoint';
 import { checkReferences } from '../model/integrity';
 import { ambientCheck, cableDataFindings } from './cableTable';
 import { groundChecks } from './installation';
@@ -79,7 +80,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
     const loadingPct = pct(demandKva, b.sourceKva!);
     return { boardId: b.id, kva: b.sourceKva!, demandKva, loadingPct, limitPct: s.transformerMaxLoadingPct, status: loadingPct > 100 ? 'bad' : loadingPct > s.transformerMaxLoadingPct ? 'warn' : 'ok' };
   });
-  const substations = new Set(mains.map((b) => (b.substation || b.rmu || 'SUBSTATION-01').toUpperCase())).size;
+  const substations = new Set(mains.filter((b) => supplyMode(b) === 'transformer').map((b) => (b.substation || b.rmu || 'SUBSTATION-01').toUpperCase())).size;
 
   // Generators.
   const generators = project.boards.filter((b) => b.standby).map((b) => ({ boardId: b.id, kva: b.standby!.kva }));

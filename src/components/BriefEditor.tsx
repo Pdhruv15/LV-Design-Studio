@@ -11,6 +11,8 @@ import { cleanFolderName, folderFlags, joinPath } from '../model/projectFolderPl
 import { resolveReference, startChoices, type DesignReference } from '../model/designReference';
 import { defaultFormatIds, formatMatchRank, loadFormats, PANEL_CATEGORIES, type PanelCategory, type ScheduleFormat } from '../model/scheduleFormats';
 import { STUDY_DEFAULTS } from '../types';
+import { DEFAULT_START, startLevelText, type StartChoice } from '../model/startLevel';
+import { StartLevelPicker } from './StartLevelPicker';
 import {
   deliverableCatalog, newBrief, PARTY_LABEL, resetToRole, ROLE_LABEL, SCOPE_ITEMS, withRole, withScope,
   type Deliverable, type Party, type ProjectBrief, type ProjectRole, type ScopeId
@@ -106,7 +108,7 @@ function RoleCards({ role, onPick }: { role?: ProjectRole; onPick: (r: ProjectRo
   );
 }
 
-const STEPS = ['Name and role', 'Parties', 'Scope', 'Deliverables', 'Project folder', 'Review'];
+const STEPS = ['Name and role', 'SLD start', 'Parties', 'Scope', 'Deliverables', 'Project folder', 'Review'];
 
 /** Country → authority → rule set, with the values the project starts with. */
 function AuthorityPicker({ choices, country, authId, setId, ruleSet, refs, formats, formatIds, onCountry, onAuthority, onSet, onFormat }: {
@@ -197,11 +199,12 @@ export function NewProjectWizard({ initialName, company, taken, templates = [], 
   folderParent?: string; folderClient?: TemplatesClient; folderDisk?: FolderDisk;
   /** Design references to choose the authority and rule set from (default: built-in and yours). */
   references?: DesignReference[];
-  onQuick: (name: string) => void; onCreate: (name: string, brief: ProjectBrief, template?: SetupTemplate, reference?: DesignReference, formats?: Partial<Record<PanelCategory, ScheduleFormat>>, folder?: FolderChoice, projectNo?: string) => void; onCancel: () => void;
+  onQuick: (name: string) => void; onCreate: (name: string, brief: ProjectBrief, template?: SetupTemplate, reference?: DesignReference, formats?: Partial<Record<PanelCategory, ScheduleFormat>>, folder?: FolderChoice, projectNo?: string, start?: StartChoice) => void; onCancel: () => void;
 }) {
   const [tpl, setTpl] = useState<SetupTemplate | undefined>();
   const [formats] = useState(() => loadFormats());
   const [step, setStep] = useState(0);
+  const [start, setStart] = useState<StartChoice>(DEFAULT_START);
   const [name, setName] = useState(initialName);
   const [projectNo, setProjectNo] = useState('');
   const [brief, setBrief] = useState<ProjectBrief | null>(null);
@@ -241,7 +244,7 @@ export function NewProjectWizard({ initialName, company, taken, templates = [], 
   const chosen = Object.fromEntries(PANEL_CATEGORIES.flatMap((c) => { const f = formats.find((x) => x.id === formatIds[c.key]); return f ? [[c.key, f]] : []; })) as Partial<Record<PanelCategory, ScheduleFormat>>;
   const canNext = step === 0 ? !!name.trim() && !!brief : true;
   return (
-    <Modal onClose={onCancel} style={{ maxWidth: 680 }} onSubmit={(e) => { e.preventDefault(); if (step < STEPS.length - 1) { if (canNext) setStep(step + 1); } else if (brief && name.trim() && folderOk) onCreate(name.trim(), brief, tpl, ruleSet, chosen, skipFolder ? undefined : folderChoice, projectNo.trim() || undefined); }}>
+    <Modal onClose={onCancel} style={{ maxWidth: 780 }} onSubmit={(e) => { e.preventDefault(); if (step < STEPS.length - 1) { if (canNext) setStep(step + 1); } else if (brief && name.trim() && folderOk) onCreate(name.trim(), brief, tpl, ruleSet, chosen, skipFolder ? undefined : folderChoice, projectNo.trim() || undefined, start); }}>
       <h3>New project <span className="m">— step {step + 1} of {STEPS.length}: {STEPS[step]}</span></h3>
       <div className="tabs feeder-tabs" role="tablist">
         {STEPS.map((s, i) => <button key={s} type="button" role="tab" aria-selected={step === i} className={step === i ? 'on' : ''} disabled={i > 0 && !brief} onClick={() => (i === 0 || brief) && setStep(i)}>{i + 1}. {s}</button>)}
@@ -266,17 +269,24 @@ export function NewProjectWizard({ initialName, company, taken, templates = [], 
             <RoleCards role={brief?.role} onPick={pick} />
           </>
         )}
-        {step === 1 && brief && <PartiesStep brief={brief} onChange={setBrief} />}
-        {step === 2 && brief && <ScopeStep brief={brief} onChange={setBrief} />}
-        {step === 3 && brief && <DeliverablesStep brief={brief} onChange={setBrief} />}
-        {step === 4 && brief && (skipFolder
+        {step === 1 && brief && (
+          <>
+            <StartLevelPicker value={start} onChange={setStart} />
+            <p className="m">The choice only sets up the first board. It can be changed afterwards on the board's Supply tab.</p>
+          </>
+        )}
+        {step === 2 && brief && <PartiesStep brief={brief} onChange={setBrief} />}
+        {step === 3 && brief && <ScopeStep brief={brief} onChange={setBrief} />}
+        {step === 4 && brief && <DeliverablesStep brief={brief} onChange={setBrief} />}
+        {step === 5 && brief && (skipFolder
           ? <p className="m">No project folder will be made for this project. You can make one later from the project's Overview. <button type="button" className="linkish" onClick={() => setSkipFolder(false)}>Make a project folder</button></p>
           : <FolderChoiceForm state={folderTemplates} value={folderChoice} onChange={setPicked} vars={folderVarsNow} flags={folderFlagsNow} buildings={[]} disk={disk} />)}
-        {step === 5 && brief && (
+        {step === 6 && brief && (
           <div className="brief-review">
             <p><b>{name.trim() || 'Untitled project'}</b> — {ROLE_LABEL[brief.role].title}</p>
             <p className="m">Authority: {brief.authority || '—'}</p>
             <p className="m">Design rules: {ruleSet ? `${ruleSet.name} v${ruleSet.version}${ruleSet.status === 'verified' ? '' : ', to verify'}` : 'none — the app defaults'}</p>
+            <p><b>SLD starts from:</b> {startLevelText(start)}</p>
             <p>{brief.parties.filter((p) => p.role !== 'authority' && p.name.trim()).map((p) => `${PARTY_LABEL[p.role]}: ${p.name}`).join(' · ') || <span className="m">No parties entered yet — you can add them in Project settings.</span>}</p>
             <p><b>Scope:</b> {brief.scope.map((s) => SCOPE_ITEMS.find((x) => x.id === s)?.label).join(', ') || 'nothing selected'}</p>
             <p><b>Deliverables ({brief.deliverables.length}):</b> {brief.deliverables.map((d) => d.title).join(' · ') || '—'}</p>
@@ -300,7 +310,7 @@ export function NewProjectWizard({ initialName, company, taken, templates = [], 
         <span className="sp" />
         <button type="button" className="chip" onClick={onCancel}>Cancel</button>
         {step > 0 && <button type="button" className="chip" onClick={() => setStep(step - 1)}>Back</button>}
-        {step === 4 && !skipFolder && <button type="button" className="chip" onClick={() => { setSkipFolder(true); setStep(5); }}>Skip folders</button>}
+        {step === 5 && !skipFolder && <button type="button" className="chip" onClick={() => { setSkipFolder(true); setStep(6); }}>Skip folders</button>}
         {step < STEPS.length - 1
           ? <button type="submit" className="chip primary" disabled={!canNext}>Next</button>
           : <button type="submit" className="chip primary" disabled={!brief || !name.trim() || !folderOk}>Create project</button>}
