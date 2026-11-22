@@ -103,7 +103,7 @@ export default function SingleLineDiagram({
   const busX1 = Math.min(cx - 60, (xs[0] ?? cx) - 60);
   const busX2 = Math.max(cx + 60, (xs[n - 1] ?? cx) + 60);
   const isMain = !board.upstreamId;
-  const sp = isMain ? supplyPoint(project ?? { voltageV, boards: [board] }, board, false) : undefined;
+  const sp = isMain ? supplyPoint({ voltageV: project?.voltageV ?? voltageV }, board, false) : undefined;
   const dev = incomerDeviceOf(board);
   const incKind: SwitchKind = dev === 'ISOL' ? 'isolator' : dev === 'ACB' ? 'acb' : dev === 'MCCB-NA' ? 'nonauto' : 'breaker';
 

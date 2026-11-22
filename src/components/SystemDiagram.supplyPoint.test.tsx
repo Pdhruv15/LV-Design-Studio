@@ -55,12 +55,28 @@ describe('SLD: the supply point of a first board', () => {
   it('a generator source draws a G; a source with no name says "Source" and prints no supplier name', () => {
     const h = drawn(withBoard({ ...base, supply: { kind: 'generator', fedFrom: 'Genset 1' } }));
     const g = group(h, 'MDB-A');
-    expect(texts(g)).toEqual(expect.arrayContaining(['G', 'Genset 1', 'kWh']));
+    expect(texts(g)).toEqual(expect.arrayContaining(['G', 'Genset 1']));
+    expect(texts(g)).not.toContain('kWh');
     expect(g.querySelector('circle[r="11"]')).not.toBeNull();
     const plain = drawn(withBoard({ ...base, supply: {} }));
     expect(texts(group(plain, 'MDB-A'))).toEqual(expect.arrayContaining(['Source', 'kWh']));
     expect(texts(plain).join('|')).not.toMatch(/DEWA|AUTHORITY/);
     expect(texts(drawn(withBoard({ ...base, supply: {} }), true).querySelector('g.tx[data-lv-id="board:MDB-A"]')!)).toContain('CABLE BY THE SUPPLIER');
+  });
+
+  it('a source with no meter: no kWh box, one line from the symbol, lines 18 right from y 34; a meter type brings the box back', () => {
+    const h = drawn(withBoard({ ...base, supply: { kind: 'generator', fedFrom: 'Genset 1', ratingA: 400, device: 'ACB', ref: 'G-1' } }), true);
+    const g = group(h, 'MDB-A');
+    expect(texts(g)).toEqual(expect.arrayContaining(['400 A ACB', 'Ik″ 25.2 kA assumed', 'Ref. G-1']));
+    expect(texts(g).join('|')).not.toMatch(/meter cabinet|CABLE BY/i);
+    expect(g.querySelector('rect.sym[width="32"]')).toBeNull();
+    const x = Number(g.querySelector('line')!.getAttribute('x1'));
+    const lines = [...g.querySelectorAll('text.m')].filter((t) => /Ik″|400 A|Ref\./.test(t.textContent ?? ''));
+    expect(lines.map((t) => [Number(t.getAttribute('x')) - x, t.getAttribute('y')])).toEqual([[18, '34'], [18, '48'], [18, '62']]);
+    const ys = [...g.querySelectorAll('line.ln')].map((l) => l.getAttribute('y1'));
+    expect(ys).toEqual(['33']);
+    const metered = group(drawn(withBoard({ ...base, supply: { kind: 'generator', meter: 'CT' } })), 'MDB-A');
+    expect(texts(metered)).toContain('kWh');
   });
 
   it('a pv source draws the converter square', () => {

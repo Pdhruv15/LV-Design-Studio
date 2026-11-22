@@ -4,7 +4,7 @@ import { offMvSide, mvPlan, mvRingOn, onMvSide, substationTitle } from './mvArra
 
 /** Show (SLD ribbon → View → Show; proposal 2026-11-18, part 2): the part of the network the system diagram draws. The
  * whole network; the MV overview (the MV side only, each main board as its name); a substation, an RMU or a transformer
- * with everything its main boards feed; or a main board on an authority LV supply. Only the view changes: the
+ * with everything its main boards feed; or a main board on an LV source or with no supply set. Only the view changes: the
  * calculations, checks and results stay those of the whole network, and the drawing takes the ring, the RMUs' other
  * tee-offs and the transformer numbers from the whole project (stubs for what is not drawn). */
 export type SldPart =
@@ -42,7 +42,7 @@ export function parsePart(key: string): SldPart | undefined {
 }
 
 /** One row of the supply tree: a substation holds RMUs and transformers teed straight off the ring, an RMU its
- * transformers (by main board id). Main boards on an authority LV supply follow at the top level. */
+ * transformers (by main board id). Main boards on an LV source or with no supply set follow at the top level. */
 export interface SupplyNode { part: SldPart; children: SupplyNode[] }
 
 /** The supply tree in ring order (mvPlan: by ring, then substation, then RMU). A transformer with no RMU and no
@@ -65,7 +65,7 @@ export function supplyTree(project: Project): SupplyNode[] {
 
 const same = (a: SldPart, b: SldPart) => partKey(a) === partKey(b);
 const flat = (nodes: SupplyNode[]): SupplyNode[] => nodes.flatMap((n) => [n, ...flat(n.children)]);
-/** The main boards a node holds: its transformers' (or its own, for a transformer or an authority supply). */
+/** The main boards a node holds: its transformers' (or its own, for a transformer or an LV source). */
 const mainsOf = (n: SupplyNode): string[] => (n.part.kind === 'tx' || n.part.kind === 'supply' ? [n.part.id] : n.children.flatMap(mainsOf));
 
 /** The main boards (no upstream board) a part draws; none when the part is gone (renamed or deleted). */
@@ -121,7 +121,7 @@ export function partProject(project: Project, part: SldPart): Project {
 }
 
 /** The part a board belongs to, for a board picked outside the shown part (panel tree, Check, Find; decision 4): its
- * main board's substation, else its RMU, else its transformer (or authority supply). */
+ * main board's substation, else its RMU, else its transformer (or LV source). */
 export function partOfBoard(project: Project, boardId: string): SldPart {
   const byId = new Map(project.boards.map((b) => [b.id, b]));
   let b = byId.get(boardId);
@@ -180,7 +180,7 @@ function rmuNode(project: Project, name: string): { config?: string; spares: num
   return undefined;
 }
 
-/** The previous and next part of the same kind (substation, RMU, transformer or authority supply), in ring order;
+/** The previous and next part of the same kind (substation, RMU, transformer or LV source), in ring order;
  * undefined at the ends. The whole network and the MV overview have none. */
 export function partSteps(project: Project, part: SldPart): { prev?: SldPart; next?: SldPart } {
   if (part.kind === 'all' || part.kind === 'mv') return {};
@@ -208,7 +208,7 @@ export interface ShowRow {
 }
 
 /** The Show menu: Whole network, MV overview, the supply tree (each substation, its RMUs and their transformers, with
- * kVA and main board and the boards each holds), the main boards on an authority LV supply, and the substation of the
+ * kVA and main board and the boards each holds), the main boards on an LV source or with no supply set, and the substation of the
  * board selected on the drawing. */
 export function showRows(project: Project, current: SldPart, selected?: string): ShowRow[] {
   const kids = childIndex(project);
@@ -243,7 +243,7 @@ export function showRows(project: Project, current: SldPart, selected?: string):
     for (const n of mvNodes) walk(n, 0);
   }
   if (supply.length) {
-    rows.push({ key: 'head:supply', label: 'Authority LV supply', depth: 0, head: true, sep: true, title: '' });
+    rows.push({ key: 'head:supply', label: 'LV source', depth: 0, head: true, sep: true, title: '' });
     for (const n of supply) {
       const id = (n.part as { id: string }).id;
       rows.push({ key: partKey(n.part), part: partKey(n.part), label: id, detail: supplyText(project.boards.find((b) => b.id === id)), note: plural(count([id]), 'board'), depth: 1, checked: partKey(n.part) === now, title: `Show ${id} only, with everything it feeds` });
@@ -276,7 +276,7 @@ export type TreeItem = TreeGroup | string;
 
 /** The panel tree grouped by substation: each substation → its RMUs → their main boards, in ring order. RMUs and
  * transformers in no substation, and a board whose upstream board is gone, go under "No substation" (at the top level
- * when no substation is named); main boards on an authority LV supply under "Authority supply". Undefined when no main
+ * when no substation is named); main boards on an LV source or with no supply set under "LV source". Undefined when no main
  * board names an RMU or a substation: there is nothing to group, and the tree has no Group switch. */
 export function treeGroups(project: Project): TreeItem[] | undefined {
   if (!mvRingOn(project)) return undefined;
@@ -307,7 +307,7 @@ export function treeGroups(project: Project): TreeItem[] | undefined {
   } else top.push(...loose);
   const supply = tree.flatMap((n) => (n.part.kind === 'supply' ? [n.part.id] : []));
   if (supply.length) {
-    top.push({ key: 'supply', label: 'Authority supply', note: boards(supply), title: `${plural(supply.length, 'main board')} on an authority LV supply (meter cabinet) · ${boards(supply)}`, items: supply });
+    top.push({ key: 'supply', label: 'LV source', note: boards(supply), title: `${plural(supply.length, 'main board')} on an LV source or with no supply set · ${boards(supply)}`, items: supply });
   }
   return top;
 }

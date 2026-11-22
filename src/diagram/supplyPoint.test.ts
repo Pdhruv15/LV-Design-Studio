@@ -40,7 +40,7 @@ describe('supplyPoint: source', () => {
   it('a named utility is "<name> supply"; any other kind is the name itself', () => {
     expect(point(first({ fedFrom: ' Grid ' })).title).toBe('Grid supply');
     expect(point(first({ fedFrom: 'Grid', kind: 'utility' })).title).toBe('Grid supply');
-    expect(point(first({ fedFrom: 'Genset 1', kind: 'generator' }))).toMatchObject({ title: 'Genset 1', kind: 'generator', meter: true });
+    expect(point(first({ fedFrom: 'Genset 1', kind: 'generator' }))).toMatchObject({ title: 'Genset 1', kind: 'generator', meter: false });
     expect(point(first({ kind: 'pv' })).title).toBe('Source');
     expect(point(first({})).kind).toBe('utility');
   });
@@ -63,6 +63,23 @@ describe('supplyPoint: source', () => {
     expect(p.lines[3]).toMatch(/16 mm².* · 25 m$/);
     expect(p.brief).toEqual(['Ik″ 12 kA given', p.lines[3]]);
     expect(p.tooltip).toBe('Grid supply — double-click to edit');
+  });
+  it('a source that is not a utility has no meter cabinet unless a meter type is typed', () => {
+    const own = first({ kind: 'generator', fedFrom: 'Genset 1', ratingA: 400, device: 'ACB', ref: 'G-1' });
+    for (const dewa of [false, true]) {
+      const p = point(own, dewa);
+      expect(p.meter).toBe(false);
+      expect(p.lines).toEqual(['400 A ACB', 'Ik″ 25.2 kA assumed', 'Ref. G-1']);
+      expect(p.refLine).toBe('Ref. G-1');
+      expect(p.lines.join('|')).not.toMatch(/meter cabinet|CABLE BY/i);
+    }
+    // No rating: no device line either; the cable line stays.
+    expect(point(first({ kind: 'pv', incomer: { cableCsaMm2: 16, lengthM: 25 } }), true).lines).toEqual(['Ik″ 25.2 kA assumed', expect.stringMatching(/16 mm².* · 25 m$/)]);
+    for (const kind of ['generator', 'pv', 'wind', 'battery', 'other'] as const) expect(point(first({ kind })).meter).toBe(false);
+    expect(point(first({ kind: 'generator', meter: 'CT' })).meter).toBe(true);
+    expect(point(first({ kind: 'generator', meter: 'CT' })).lines[0]).toBe('meter cabinet · CT meter');
+    expect(point(first({ kind: 'utility' })).meter).toBe(true);
+    expect(point(first({})).meter).toBe(true);
   });
   it('no fault level: assumed from the placeholder source at the project voltage', () => {
     expect(point(first({})).lines).toContain('Ik″ 25.2 kA assumed');
@@ -97,6 +114,10 @@ describe('supplyPoint: unset', () => {
 });
 
 describe('supplyLines and supplyReach follow the model', () => {
+  it('a source with no meter box reaches 18 right of its line', () => {
+    const b = first({ kind: 'generator', fedFrom: 'Genset 1', ratingA: 400 });
+    expect(supplyReach(project(b), b, false)).toBeCloseTo(Math.max(18 + textWidth('Genset 1', 12, true), 18 + textWidth('400 A', 11), 18 + textWidth('Ik″ 25.2 kA assumed', 11)));
+  });
   it('title first; nothing for a transformer', () => {
     const b = first({ fedFrom: 'Grid' });
     expect(supplyLines(project(b), b, false)).toEqual(['Grid supply', 'meter cabinet', 'Ik″ 25.2 kA assumed']);

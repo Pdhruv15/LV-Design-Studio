@@ -221,8 +221,10 @@ export function feederRiserLayout(project: Project, buildingId: string): FeederR
       sources.push({ kind: 'tx', x, y: srcY, title: r.txRef ?? `TX-${r.id}`, sub: `${r.sourceKva} kVA` });
       wires.push({ points: [[x, yIn], [x, srcY - 0.82 * U]] });
       used.add('tx');
-    } else if (r.supply?.fedFrom) {
-      sources.push({ kind: 'tx', x, y: srcY, title: `From ${r.supply.fedFrom}`, sub: r.supply.ratingA ? `${r.supply.ratingA} A` : '' });
+    } else if (r.supply) {
+      // Any first board with a supply draws its source: "From <name>", or "Source" when no name is typed.
+      const from = r.supply.fedFrom?.trim();
+      sources.push({ kind: 'tx', x, y: srcY, title: from ? `From ${from}` : 'Source', sub: r.supply.ratingA ? `${r.supply.ratingA} A` : '' });
       wires.push({ points: [[x, yIn], [x, srcY - 0.82 * U]] });
       used.add('tx');
     }

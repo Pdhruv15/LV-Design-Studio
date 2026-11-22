@@ -20,7 +20,7 @@ export const RELEASES: Release[] = [
   {
     version: '2.256', date: '2026-11-22',
     items: [
-      { title: 'A first board without a transformer shows its supply', text: 'On the system diagram, the Board tab and the printed board sheet, a first board with no transformer now draws where it is fed from: a source with its meter, a continuation marker "From <name>" for a board outside the project, or a dashed "Supply not set" stub when nothing is entered. With no name typed it says "Source", never a supplier name; a new first board is named only when a design reference is applied. Each source kind has its own symbol (utility, generator, solar PV, wind, battery, other); for now the kind is set with the set-supply command (--kind), and the Supply tab follows.' }
+      { title: 'A first board without a transformer shows its supply', text: 'On the system diagram, the Board tab and the printed board sheet, a first board with no transformer now draws where it is fed from: a source (a utility with its meter; a generator, solar, wind or battery source without a meter cabinet unless a meter type is entered), a continuation marker "From <name>" for a board outside the project, or a dashed "Supply not set" stub when nothing is entered. With no name typed it says "Source", never a supplier name (the feeder riser drawing too); on the printed sheet the name keeps the case you typed, and the lists that group these boards say "LV source"; a new first board is named only when a design reference is applied. Each source kind has its own symbol (utility, generator, solar PV, wind, battery, other); for now the kind is set with the set-supply command (--kind), and the Supply tab follows.' }
     ]
   },
   {

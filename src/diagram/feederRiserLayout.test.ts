@@ -141,3 +141,26 @@ describe('a sub-panel beside its parent that feeds a level below', () => {
     expect(drop.x).toBeGreaterThan(mdb.x2);
   });
 });
+
+describe('feederRiserLayout: the source of a first board without a transformer', () => {
+  const at0 = { building: 'A', level: 'g' };
+  const withSupply = (supply: Board['supply']): Project => ({
+    ...sampleProject, building: info, busRisers: [],
+    boards: [{ id: 'MDB', name: 'MDB', kind: 'MDB', ratedCurrentA: 400, supply, level: at0 }],
+    feeders: []
+  } as unknown as Project);
+  it('a named supply: "From <name>"', () => {
+    const L = feederRiserLayout(withSupply({ fedFrom: ' Grid ', ratingA: 400 }), 'A');
+    expect(L.sources.map((s) => [s.kind, s.title, s.sub])).toEqual([['tx', 'From Grid', '400 A']]);
+  });
+  it('a supply with no name still draws its source, as "Source"', () => {
+    for (const supply of [{}, { fedFrom: '  ' }, { kind: 'generator' as const }]) {
+      const L = feederRiserLayout(withSupply(supply), 'A');
+      expect(L.sources.map((s) => [s.kind, s.title])).toEqual([['tx', 'Source']]);
+      expect(L.wires).toHaveLength(1);
+    }
+  });
+  it('no supply and no transformer: no source', () => {
+    expect(feederRiserLayout(withSupply(undefined), 'A').sources).toEqual([]);
+  });
+});

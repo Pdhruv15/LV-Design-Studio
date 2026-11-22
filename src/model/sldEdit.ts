@@ -4,7 +4,7 @@ import type { LibraryLoad } from '../database/database';
 import { BOARD_KINDS, settingsOf, type Board, type BoardKind, type Feeder, type LoadType, type Project, type StarterType } from '../types';
 import { isMotor, STARTERS } from '../calc/motor';
 import { applyPreset, canDropPreset, type FeederPreset } from './presets';
-import { supplyNameSuggestion } from './designReference';
+import { fedFromOf } from './designReference';
 
 /** Building the SLD by drag and drop: what each library item does when it
  * is dropped on a busbar, on a feeder, or on the empty canvas. Every drop
@@ -277,9 +277,6 @@ function boardIncomer(project: Project, parentId: string, board: Board): Feeder 
     feedsBoardId: board.id
   };
 }
-
-/** The name of a new first board's supply: only when the project applied a design reference. */
-const fedFromOf = (p: Project) => { const n = supplyNameSuggestion(p); return n ? { fedFrom: n } : {}; };
 
 function newBoard(project: Project, kind: BoardKind, upstreamId?: string): Board {
   const id = uniqueId(allIds(project), kind);

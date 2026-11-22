@@ -263,7 +263,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
     );
   };
 
-  // By substation: a substation, RMU, "No substation" or "Authority supply" row over its RMUs and main boards. On the
+  // By substation: a substation, RMU, "No substation" or "LV source" row over its RMUs and main boards. On the
   // SLD page a click on a substation or RMU shows it there; elsewhere a click opens or closes the row and a
   // double-click shows it on the SLD.
   const item = (it: TreeItem, depth: number): JSX.Element | null => {

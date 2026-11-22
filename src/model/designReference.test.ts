@@ -3,7 +3,7 @@ import { sampleProject } from '../data/sampleProject';
 import { buildDesignBasis } from '../docs/designBasis';
 import {
   BUILT_IN_REFERENCES, REFERENCES_KEY, applyReference, appliedStatus, authorityChange, changedSinceApplied, duplicateReference, exportReferences, importReferences,
-  loadReferences, loadUserReferences, newReference, originOf, projectValue, referenceChanges, referenceIssues, referenceSourceOf, resolveReference, saveReference, saveUserReferences, settingSource, startChoices, supplyAuthorityOf, supplyNameSuggestion
+  loadReferences, loadUserReferences, newReference, originOf, projectValue, referenceChanges, referenceIssues, referenceSourceOf, resolveReference, saveReference, saveUserReferences, settingSource, startChoices, fedFromOf, supplyAuthorityOf, supplyNameSuggestion
 } from './designReference';
 import type { Project } from '../types';
 
@@ -242,5 +242,9 @@ describe('the name suggested for a new first board’s supply', () => {
     expect(supplyNameSuggestion(base)).toBeUndefined();
     expect(supplyNameSuggestion(applyReference(base, ref('builtin-addc')))).toBe('ADDC');
     expect(supplyNameSuggestion(applyReference(base, ref('builtin-iec')))).toBeUndefined();
+  });
+  it('fedFromOf writes the name only when there is one', () => {
+    expect(fedFromOf(base)).toEqual({});
+    expect(fedFromOf(applyReference(base, ref('builtin-addc')))).toEqual({ fedFrom: 'ADDC' });
   });
 });

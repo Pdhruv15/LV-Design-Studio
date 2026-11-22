@@ -42,6 +42,13 @@ const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` 
 const ln = (x1: number, y1: number, x2: number, y2: number, w = 1.2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#000" stroke-width="${w}"/>`;
 const tx = (x: number, y: number, s: string, o: { anchor?: 'start' | 'middle' | 'end'; bold?: boolean; size?: number } = {}) =>
   `<text x="${x}" y="${y}" fill="#000" font-family="Arial, Helvetica, sans-serif" font-size="${o.size ?? 11}"${o.bold ? ' font-weight="bold"' : ''}${o.anchor && o.anchor !== 'start' ? ` text-anchor="${o.anchor}"` : ''}>${esc(s)}</text>`;
+/** The bold row of a first board's supply on the sheet: the fixed words in capitals, the typed name as typed. */
+export function sheetSupplyTitle(sp: SupplyPoint): string {
+  if (sp.mode === 'unset') return 'SUPPLY NOT SET';
+  if (sp.mode === 'board') return `FROM ${sp.name ?? 'A BOARD NOT NAMED'}`;
+  if (!sp.name) return 'SOURCE';
+  return sp.kind === 'utility' ? `${sp.name} SUPPLY` : sp.name;
+}
 /** The SUPPLY row of the summary for a first board without a transformer. */
 function supplyRow(sp: SupplyPoint, board: Board): string {
   const ref = board.supply?.ref?.trim();
@@ -112,8 +119,11 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
     if (sp.mode === 'source') out.push(sourceSymSvg(sp.kind, cx, 30), ln(cx, 41, cx, 90));
     else if (sp.mode === 'board') out.push(ln(cx, 0, cx, 90), `<path d="M${cx - 7} 20 L${cx} 32 L${cx + 7} 20" stroke="#000" stroke-width="1.2" fill="none"/>`);
     else out.push(`<line x1="${cx}" y1="0" x2="${cx}" y2="90" stroke="#000" stroke-width="1.2" stroke-dasharray="5 3"/>`);
-    const rows = [sp.title.toUpperCase(), ...sp.lines.slice(0, 4)], rx = sp.mode === 'board' ? cx + 14 : cx + 20;
-    rows.forEach((t, i) => out.push(tx(rx, 14 + i * 15, t, { bold: !i })));
+    // The title and every line but the reference (the SUPPLY row below carries it). Up to 6 rows: the pitch tightens to
+    // 13 for the sixth, so the last baseline (79) stays 12 or more above the INCOMER label's (108).
+    const rows = [sheetSupplyTitle(sp), ...(sp.refLine ? sp.lines.slice(0, -1) : sp.lines)], rx = sp.mode === 'board' ? cx + 14 : cx + 20;
+    const pitch = rows.length > 5 ? 13 : 15;
+    rows.forEach((t, i) => out.push(tx(rx, 14 + i * pitch, t, { bold: !i })));
     supplyRight = rx + Math.max(...rows.map((t, i) => textWidth(t, 11, !i)));
   } else if (!board.upstreamId) {
     out.push(ln(cx, 0, cx, 18), `<circle cx="${cx}" cy="30" r="12" fill="none" stroke="#000" stroke-width="1.2"/><circle cx="${cx}" cy="44" r="12" fill="none" stroke="#000" stroke-width="1.2"/>`);

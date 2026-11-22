@@ -28,9 +28,9 @@ const FRAME_PAD = 12;
 /** Text sizes on the SLD: `b` 12 px bold, `m` 11 px, small notes 9 px. */
 const B = 12, M = 11, S = 9;
 
-/** A main board on an authority LV supply (meter cabinet): its own source, off the 11 kV side. */
+/** A main board on an LV source (a meter cabinet, a generator, solar…): its own source, off the 11 kV side. */
 export const authoritySupplied = lvSupplied;
-/** A main board hanging from the 11 kV side: every main board but one on an authority LV supply, or with its supply
+/** A main board hanging from the 11 kV side: every main board but one on an LV source, or with its supply
  * not set (no transformer, no RMU, no supply: nothing to hang from the 11 kV line). */
 export const onMvSide = (b: Board) => !b.upstreamId && !authoritySupplied(b) && supplyMode(b) !== 'unset';
 /** A main board drawn after the 11 kV side with a supply point of its own: an LV supply, or one not set. */
@@ -361,7 +361,7 @@ export function mvLeads(project: Project, plan: MvPlan, roots: { id: string; x: 
   const onSide = new Set(project.boards.filter(onMvSide).map((b) => b.id));
   for (let guard = 0; guard < 400; guard++) {
     const g = mvGeometry(project, plan, new Map(roots.filter((r) => onSide.has(r.id)).map((r) => [r.id, xs[at.get(r.id)!]])), opts);
-    // Boards drawn after the 11 kV side (authority supplies, parts fed from elsewhere) keep clear of it too.
+    // Boards drawn after the 11 kV side (LV sources, parts fed from elsewhere) keep clear of it too.
     const others: Block[] = roots.filter((r) => !onSide.has(r.id)).map((r) => ({ root: r.id, left: xs[at.get(r.id)!] - 20, right: xs[at.get(r.id)!] + 20, level: 0 }));
     const outer = [...g.blocks.filter((b) => b.level === 0), ...others].sort((a, b) => at.get(a.root)! - at.get(b.root)! || a.left - b.left);
     const clashes: { root: string; need: number }[] = [];

@@ -95,17 +95,17 @@ export function incomerTexts(project: Project, b: Board): { device: string; icu?
 
 /** A first board's supply lines, title first (bold), as the SLD prints them: from the shared supply model, so the
  * drawing, the Board tab and the sheet agree. Empty for a transformer or a board with a board above it. */
-export function supplyLines(project: Pick<Project, 'voltageV' | 'boards'>, b: Board, dewa: boolean): string[] {
+export function supplyLines(project: Pick<Project, 'voltageV'>, b: Board, dewa: boolean): string[] {
   const sp = supplyPoint(project, b, dewa);
   return sp ? [sp.title, ...sp.lines] : [];
 }
 
 /** How far right of its supply line a first board's supply texts reach, from the offsets and font sizes the SLD draws
- * them with: a source (symbol, then lines 24 right), a board outside the project or an unset supply (11 px, 14 right). */
-export function supplyReach(project: Pick<Project, 'voltageV' | 'boards'>, b: Board, dewa: boolean): number {
+ * them with: a source (symbol, then lines 24 right beside its meter box, 18 right without one), a board outside the project or an unset supply (11 px, 14 right). */
+export function supplyReach(project: Pick<Project, 'voltageV'>, b: Board, dewa: boolean): number {
   const sp = supplyPoint(project, b, dewa);
   if (!sp) return 0;
-  if (sp.mode === 'source') return Math.max(18 + textWidth(sp.title, 12, true), ...sp.lines.map((t) => 24 + textWidth(t, 11)));
+  if (sp.mode === 'source') return Math.max(18 + textWidth(sp.title, 12, true), ...sp.lines.map((t) => (sp.meter ? 24 : 18) + textWidth(t, 11)));
   return Math.max(7, 14 + textWidth(sp.title, sp.mode === 'board' ? 11 : 12, true), ...sp.lines.map((t) => 14 + textWidth(t, 11)));
 }
 

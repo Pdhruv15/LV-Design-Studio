@@ -1469,11 +1469,20 @@ export default function SystemDiagram({
               {/* Its own source, off the 11 kV side. */}
               <SourceSym kind={sp.kind} x={r.x} y={22 + mvDy} />
               <text className="b" x={r.x + 18} y={20 + mvDy}>{sp.title}</text>
-              <rect x={r.x - 16} y={52 + mvDy} width={32} height={26} rx={3} className="sym" />
-              <text className="b" x={r.x} y={69 + mvDy} textAnchor="middle" style={{ fontSize: 10 }}>kWh</text>
-              {sp.lines.map((t, i) => <text key={i} className="m" x={r.x + 24} y={76 + mvDy + 14 * i}>{t}</text>)}
-              <line x1={r.x} y1={33 + mvDy} x2={r.x} y2={52 + mvDy} className="ln" />
-              <line x1={r.x} y1={78 + mvDy} x2={r.x} y2={r.headY - 58} className="ln" />
+              {sp.meter ? (
+                <>
+                  <rect x={r.x - 16} y={52 + mvDy} width={32} height={26} rx={3} className="sym" />
+                  <text className="b" x={r.x} y={69 + mvDy} textAnchor="middle" style={{ fontSize: 10 }}>kWh</text>
+                  {sp.lines.map((t, i) => <text key={i} className="m" x={r.x + 24} y={76 + mvDy + 14 * i}>{t}</text>)}
+                  <line x1={r.x} y1={33 + mvDy} x2={r.x} y2={52 + mvDy} className="ln" />
+                  <line x1={r.x} y1={78 + mvDy} x2={r.x} y2={r.headY - 58} className="ln" />
+                </>
+              ) : (
+                <>
+                  {sp.lines.map((t, i) => <text key={i} className="m" x={r.x + 18} y={34 + mvDy + 14 * i}>{t}</text>)}
+                  <line x1={r.x} y1={33 + mvDy} x2={r.x} y2={r.headY - 58} className="ln" />
+                </>
+              )}
               <text className="m" x={r.x - 8} y={r.headY - 72} textAnchor="end">{project.voltageV} V</text>
             </g>
           );

@@ -335,13 +335,13 @@ const isDb = (b: Board) => (b.kind ?? (b.upstreamId ? 'DB' : 'MDB')) === 'DB';
 /** Title of the MV overview sheet (One sheet per substation). */
 export const MV_OVERVIEW_TITLE = 'MV supply — ring, substations and transformers';
 
-/** Title of a part's sheet: "SLD — SS-1 (TX-1, TX-2)", "SLD — MDB-5 (TX-5)", "SLD — MDB-8 (authority LV supply)". */
+/** Title of a part's sheet: "SLD — SS-1 (TX-1, TX-2)", "SLD — MDB-5 (TX-5)", "SLD — MDB-8 (LV source)". */
 function partTitle(part: SldPart, mains: string[], tags: Map<string, string>, unsetSupply = false): string {
   const txs = mains.map((m) => tags.get(m) ?? m).join(', ');
   switch (part.kind) {
     case 'substation': case 'rmu': return `SLD — ${part.name} (${txs})`;
     case 'tx': return `SLD — ${part.id}${tags.has(part.id) ? ` (${tags.get(part.id)})` : ''}`;
-    case 'supply': return unsetSupply ? `SLD — ${part.id}` : `SLD — ${part.id} (authority LV supply)`;
+    case 'supply': return unsetSupply ? `SLD — ${part.id}` : `SLD — ${part.id} (LV source)`;
     default: return 'SLD';
   }
 }
@@ -352,7 +352,7 @@ function partTitle(part: SldPart, mains: string[], tags: Map<string, string>, un
  * (proposal 2026-11-18 part 5): the MV overview, then one sheet per
  * substation in ring order with everything its main boards feed (a bus
  * coupler between them stays on it), then each RMU or transformer in no
- * substation and each board on an authority LV supply. dbSheets: also a
+ * substation and each board on an LV source. dbSheets: also a
  * circuit diagram sheet for every DB. */
 export function autoSheets(p: Project, mode: 'perMdb' | 'perSmdb' | 'perSubstation', dbSheets = false, prefix = 'E-SLD-'): DrawingSet {
   const order = boardsInSupplyOrder(p);

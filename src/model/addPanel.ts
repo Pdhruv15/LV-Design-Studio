@@ -1,6 +1,6 @@
 import { selectCable } from '../calc/electrical';
 import { applyRecommendation, recommend } from '../calc/sizing';
-import { supplyNameSuggestion } from './designReference';
+import { fedFromOf } from './designReference';
 import type { Board, BoardKind, Feeder, Project } from '../types';
 import { below } from './moveBoard';
 
@@ -13,9 +13,6 @@ export interface NewPanel { name?: string; ratedA?: number; lengthM?: number; lo
 
 const taken = (p: Project) => new Set([...p.boards.map((b) => b.id), ...p.feeders.map((f) => f.id)]);
 const uniqueId = (p: Project, base: string) => { const t = taken(p); for (let n = 1; ; n++) if (!t.has(`${base}-${n}`)) return `${base}-${n}`; };
-
-/** The name of a new first board's supply: only when the project applied a design reference. */
-const fedFromOf = (p: Project) => { const n = supplyNameSuggestion(p); return n ? { fedFrom: n } : {}; };
 
 /** The project with the panel, and the panel and its incomer feeder. Under a parent the incomer is a feeder on the parent with its
  * breaker at the panel's rating and a cable sized by the app; without one the panel is a main board with its own supply.
