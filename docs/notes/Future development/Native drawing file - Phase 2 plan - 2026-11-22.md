@@ -1,6 +1,6 @@
 # Native drawing file (.lvplan): Phase 2 plan (2026-11-22)
 
-Status: **approved 2026-11-22** ("Next" after the plan: P1–P5 as recommended). Step 0 measured the same day (results below). Follows [Native drawing format - 2026-11-21](Native%20drawing%20format%20-%202026-11-21.md). There, the user approved the chunked package, the layout for AI tools, drawn work in the native file (D4) and `.lvplan` as the working name (D3). Phase 1 (b), the faster engine, is merged (PRs 752, 756, 757). The cache, Phase 1 (a), waits until it is needed.
+Status: **approved 2026-11-22** ("Next" after the plan: P1–P5 as recommended). Step 0 measured the same day (results below). Step 1 built 2026-11-23 (`src/model/planPackage.ts`, layout in `contracts/README.md`). Follows [Native drawing format - 2026-11-21](Native%20drawing%20format%20-%202026-11-21.md). There, the user approved the chunked package, the layout for AI tools, drawn work in the native file (D4) and `.lvplan` as the working name (D3). Phase 1 (b), the faster engine, is merged (PRs 752, 756, 757). The cache, Phase 1 (a), waits until it is needed.
 
 ## Goal
 
@@ -91,18 +91,32 @@ Change to the order: **step 4 goes in with step 2**, so the first release that w
 
 ## Steps
 
-Each step is its own PR. Every step except the docs step gets a version bump.
+Each step is its own PR. Every step that changes the app gets a version bump (step 1 does not: nothing uses it yet).
 
 | Step | What | Files | Proof |
 |---|---|---|---|
 | 0 | **Measure.** Build a test project with 1, 3 and 10 MB of drawn work. Time saves and loads, and measure the file sizes, today and after the split. | `tests/performance/projectSave.perf.ts` | Numbers in this note |
-| 1 | **Split and merge.** Pure functions `splitPlan(project)` → `{ project, plan }` and `mergePlan(project, plan)`, the schema and the format note. No change in the app. | `src/model/planPackage.ts`, `contracts/plan.schema.json`, `docs/formats/lvplan.md` | Round trip equals the original for every field; schema test |
+| 1 | **Split and merge.** Pure functions `splitPlan(project)` → `{ project, plan }` and `mergePlan(project, plan)`, the schema and the format note. No change in the app. | `src/model/planPackage.ts`, `contracts/plan.schema.json`, `contracts/README.md` | Round trip equals the original for every field; schema test |
 | 2 | **Desktop save and load.** Write and read `.lvplan` with the safe-save order; raise `CURRENT_SCHEMA`; trash, restore and conflict copies also handle the `.lvplan`. | `electron/projectFiles.cjs`, `electron/main.cjs` | Tests: kill between the two writes, hash mismatch, `.bak` fallback, old project moved on save |
 | 3 | **Headless CLI and MCP.** `lvds` reads and writes through the same functions. `cad_plan` and the other tools work unchanged. | `src/headless/project.ts` | Headless tests on a moved project |
 | 4 | **Revisions stored once.** Snapshots keep sha256 references, and the content lives in `revisions/`. | `src/model/revisions.ts`, `planPackage.ts` | Compare and restore tests; size before and after |
 | 5 | **Cache slot (only if needed).** Phase 1 (a): a decoded architect drawing, stored in the app cache, not in `.lvplan`. | — | Only if large drawings still feel slow |
 
 Steps 1 → 2 (with 4) → 3 go in that order. Step 0 showed that revisions hold most of the drawn work.
+
+## Step 1 results (2026-11-23)
+
+- **Parts are named by their SHA-256**, not by drawing name: `drawings/<sha256>.json` and `shared/<sha256>.json`. `manifest.json` names each part's drawing file. That gives the shared revision storage of step 4 for free, and the same drawn work always gives the same bytes.
+- **The layout is described in `contracts/README.md`**, with `contracts/plan.schema.json` and `contracts/plan-drawing.schema.json` generated from the code, like the other contracts. It is not in a separate `docs/formats` note.
+- **Timing** (`npm run bench -- projectSave`, same projects as step 0, 3 revisions):
+
+| Drawn work | `splitPlan` | `.lvds` left | `.lvplan` / `planZip` | `readPlanZip` / `mergePlan` |
+|---|---:|---:|---:|---:|
+| 1 MB | 14 ms | 3.4 MB | 0.15 MB / 14 ms | 5 / 23 ms |
+| 3 MB | 42 ms | 3.4 MB | 0.44 MB / 42 ms | 12 / 57 ms |
+| 10 MB | 148 ms | 3.4 MB | 1.45 MB / 164 ms | 37 / 199 ms |
+
+  The app's own SHA-256 made `splitPlan` take 1.0 s at 10 MB. It now hashes each different part once, with the system's SHA-256 (the app's is kept as a fallback). Saving the 10 MB case takes about 0.3 s of work, the same as writing the 139 MB `.lvds` today, but writes 4.9 MB instead of 139 MB. Loading is about the same as today. Step 2 should zip in the background, so typing does not wait for it.
 
 ## Decisions for the user
 

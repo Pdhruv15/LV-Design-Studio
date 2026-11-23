@@ -36,3 +36,30 @@ fault level is a placeholder. `status.icu` is then the plain comparison with tha
 (the circuit's `overall` is at least `warn`).
 
 Export it with the headless tool `export_design_package` (preview first; exporting needs the approving engineer's name).
+
+## Native drawing file (`lvds.plan`, version 1)
+
+`Name.lvplan` sits beside the project file `Name.lvds` and holds what is drawn in Design CAD: drawn objects, the
+drawing's own blocks, erased architect objects, layouts, references, layer settings, units and the drawing styles.
+Devices, wiring, cable routes and what blocks and layers mean electrically stay in the project file, because the
+calculations read them. Made from `src/model/planPackage.ts`:
+
+```bash
+UPDATE_CONTRACTS=1 npx vitest run src/model/planPackage.test.ts
+```
+
+The file is a zip:
+
+```
+manifest.json            plan.schema.json: format, version, the drawings of the project and of each issued revision
+drawings/<sha256>.json   plan-drawing.schema.json: one drawing file's part, with the project fields of that drawing
+shared/<sha256>.json     the drawing settings that belong to no single drawing (text, dimension and point styles…)
+```
+
+- Each part is named by the SHA-256 of its JSON text. A drawing that did not change between issued revisions is
+  stored once, and the same drawn work always gives the same file.
+- `manifest.live.drawings` names each drawing's file, so a reader finds a plan without opening every part.
+  `order` lists, per project field, which drawings hold it, in the project's order.
+- A reader refuses a newer `version` and a package whose revisions do not match the project file's.
+- Points are drawing units, as in the drawing. Each object keeps its `id`, `kind`, `layer` and `pts`; other keys
+  are as the app writes them, so a reader keeps what it does not know.
