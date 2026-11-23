@@ -97,6 +97,9 @@ describe('design tokens', () => {
       'components/BriefEditor.tsx': 1, 'components/EarthingView.tsx': 10, 'components/EnclosureSizing.tsx': 12, 'components/FileDialogs.tsx': 1,
       'components/Form4Sizing.tsx': 10, 'components/PaperPreview.tsx': 1, 'components/ProjectsDashboard.tsx': 1, 'components/cad/CadCanvas.tsx': 19, 'components/cad/CadFilePaper.tsx': 5,
       'components/docs/sheetRender.tsx': 1, 'components/sld/SheetMarkupLayer.tsx': 6, 'components/sld/SheetWorkspace.tsx': 8, 'diagram/symbolLibrary.tsx': 8,
+      // The Dimension style preview is paper: the light theme's gold for the part being set, readable on white in both
+      // themes, and the grey of the room's walls behind the dimensions.
+      'components/cad/CadDialogs.tsx': 2,
       // The specification's page is paper: white, black text, and the shaded and red marks on project values;
       // plus the footer rule of the page, the white behind the logo preview and the grey page-break mark.
       'components/spec/SpecPage.tsx': 19
