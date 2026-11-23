@@ -32,19 +32,19 @@ beforeAll(() => {
 });
 afterAll(() => { fs.rmSync(folder, { recursive: true, force: true }); fs.rmSync(outside, { force: true }); });
 
-const run = (name: string, args: Record<string, unknown> = {}) => callTool(toolByName(name)!, args, ctx) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- tool results are checked field by field below
+const run = async (name: string, args: Record<string, unknown> = {}): Promise<Record<string, any>> => (await callTool(toolByName(name)!, args, ctx)) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- tool results are checked field by field below
 
 describe('project files', () => {
-  it('lists only project files', () => {
+  it('lists only project files', async () => {
     const list = listProjects(folder);
     expect(list.map((p) => p.file).sort()).toEqual(['Failing.json', 'Villa.json']);
     expect(list.find((p) => p.file === 'Villa.json')).toMatchObject({ name: sampleProject.name, panels: sampleProject.boards.length, circuits: sampleProject.feeders.length });
   });
-  it('opens by name with or without .json', () => {
+  it('opens by name with or without .json', async () => {
     expect(resolveProject({ ref: 'Villa', folder, anywhere: false })).toBe(path.join(folder, 'Villa.json'));
     expect(resolveProject({ ref: 'Villa.json', folder, anywhere: false })).toBe(path.join(folder, 'Villa.json'));
   });
-  it('lists and opens native .lvds projects, before an older .json of the same name', () => {
+  it('lists and opens native .lvds projects, before an older .json of the same name', async () => {
     const native = path.join(folder, 'Tower.lvds'), twin = path.join(folder, 'Villa.lvds');
     fs.writeFileSync(native, JSON.stringify({ format: 'lvds.project', ...sampleProject, name: 'Tower' }));
     try {
@@ -56,7 +56,7 @@ describe('project files', () => {
       expect(resolveProject({ ref: 'Villa.json', folder, anywhere: false })).toBe(path.join(folder, 'Villa.json'));
     } finally { fs.rmSync(native, { force: true }); fs.rmSync(twin, { force: true }); }
   });
-  it('MCP / API cannot open files outside the projects folder', () => {
+  it('MCP / API cannot open files outside the projects folder', async () => {
     expect(() => resolveProject({ ref: outside, folder, anywhere: false })).toThrow(/inside the projects folder/);
     expect(() => resolveProject({ ref: '../x', folder, anywhere: false })).toThrow();
     expect(resolveProject({ ref: outside, folder, anywhere: true })).toBe(outside);
@@ -64,53 +64,53 @@ describe('project files', () => {
 });
 
 describe('tools', () => {
-  it('every tool is read only and has a description', () => {
+  it('every tool is read only and has a description', async () => {
     for (const t of TOOLS) expect(t.description.length).toBeGreaterThan(20);
   });
-  it('project summary matches the app summary figures', () => {
-    const s = run('project_summary', { project: 'Villa' });
+  it('project summary matches the app summary figures', async () => {
+    const s = await run('project_summary', { project: 'Villa' });
     expect(s.name).toBe(sampleProject.name);
     expect(s.panels).toBe(5);
     expect(s.demandKw).toBeGreaterThan(0);
     expect(s.todo.fail).toBe(0);
   });
-  it('run_checks reports the undersized cable on the failing copy', () => {
-    const c = run('run_checks', { project: 'Failing' });
+  it('run_checks reports the undersized cable on the failing copy', async () => {
+    const c = await run('run_checks', { project: 'Failing' });
     expect(c.fail).toBeGreaterThan(0);
     expect(c.items.some((i: { circuit?: string; text: string }) => i.circuit === 'GF-SKT' || i.text.includes('GF-SKT'))).toBe(true);
-    const r = run('circuit_results', { project: 'Failing' });
+    const r = await run('circuit_results', { project: 'Failing' });
     expect(r.circuits.map((x: { id: string }) => x.id)).toContain('GF-SKT');
     expect(c.circuits.find((x: { circuit: string }) => x.circuit === 'GF-SKT')?.issues.length).toBeGreaterThan(0);
   });
-  it('a project with no source data: boards flagged faultAssumed, circuits say the Icu is not verified; the sample is unchanged', () => {
+  it('a project with no source data: boards flagged faultAssumed, circuits say the Icu is not verified; the sample is unchanged', async () => {
     const assumed: Project = { ...sampleProject, name: 'Assumed copy', boards: sampleProject.boards.map((b) => (b.upstreamId ? b : { ...b, sourceKva: undefined, sourceImpedancePct: undefined, ratedCurrentA: undefined, supply: { ratingA: 2000 } })) };
     const file = path.join(folder, 'Assumed.json');
     fs.writeFileSync(file, JSON.stringify(assumed));
     try {
       const root = assumed.boards.find((b) => !b.upstreamId)!.id;
-      const panels = run('list_panels', { project: 'Assumed' }) as unknown as { id: string; faultAssumed?: boolean; ratedA?: number }[];
+      const panels = (await run('list_panels', { project: 'Assumed' })) as unknown as { id: string; faultAssumed?: boolean; ratedA?: number }[];
       expect(panels.find((x) => x.id === root)).toMatchObject({ faultAssumed: true, ratedA: 2000 });
-      expect(run('get_panel', { project: 'Assumed', panel: root }).faultAssumed).toBe(true);
-      const rows = run('circuit_results', { project: 'Assumed', status: 'all' }).circuits as { issues?: string[] }[];
+      expect((await run('get_panel', { project: 'Assumed', panel: root })).faultAssumed).toBe(true);
+      const rows = (await run('circuit_results', { project: 'Assumed', status: 'all' })).circuits as { issues?: string[] }[];
       expect(rows.some((x) => x.issues?.includes('breaker Icu not verified: source fault level assumed'))).toBe(true);
     } finally { fs.rmSync(file, { force: true }); }
-    expect((run('list_panels', { project: 'Villa' }) as unknown as object[]).some((x) => 'faultAssumed' in x)).toBe(false);
-    expect(JSON.stringify(run('circuit_results', { project: 'Villa', status: 'all' }))).not.toContain('not verified');
+    expect(((await run('list_panels', { project: 'Villa' })) as unknown as object[]).some((x) => 'faultAssumed' in x)).toBe(false);
+    expect(JSON.stringify((await run('circuit_results', { project: 'Villa', status: 'all' })))).not.toContain('not verified');
   });
-  it('get_panel lists the circuits of one panel', () => {
-    const p = run('get_panel', { project: 'Villa', panel: 'smdb-gf' });
+  it('get_panel lists the circuits of one panel', async () => {
+    const p = await run('get_panel', { project: 'Villa', panel: 'smdb-gf' });
     expect(p.id).toBe('SMDB-GF');
     expect(p.circuits.every((c: { panel: string }) => c.panel === 'SMDB-GF')).toBe(true);
-    expect(() => run('get_panel', { project: 'Villa', panel: 'NOPE' })).toThrow(/No panel "NOPE"/);
+    await expect(run('get_panel', { project: 'Villa', panel: 'NOPE' })).rejects.toThrow(/No panel "NOPE"/);
   });
-  it('quick calcs give rounded results and reject bad input', () => {
-    expect(run('calc_current', { power: 100, unit: 'kW', pf: 0.85 }).currentA).toBeCloseTo(163.68, 1);
-    expect(run('calc_transformer', { kva: 1000 })).toMatchObject({ flc: 1391.21 });
-    expect(run('calc_cable_size', { current: 100, length: 50 }).status).toBe('ok');
-    expect(() => run('calc_voltage_drop', { current: 10 })).toThrow(/length/);
-    expect(() => run('calc_current', { power: 1, nonsense: 2 })).toThrow();
+  it('quick calcs give rounded results and reject bad input', async () => {
+    expect((await run('calc_current', { power: 100, unit: 'kW', pf: 0.85 })).currentA).toBeCloseTo(163.68, 1);
+    expect((await run('calc_transformer', { kva: 1000 }))).toMatchObject({ flc: 1391.21 });
+    expect((await run('calc_cable_size', { current: 100, length: 50 })).status).toBe('ok');
+    await expect(run('calc_voltage_drop', { current: 10 })).rejects.toThrow(/length/);
+    await expect(run('calc_current', { power: 1, nonsense: 2 })).rejects.toThrow();
   });
-  it('never changes a project file', () => {
+  it('never changes a project file', async () => {
     const before = fs.readFileSync(path.join(folder, 'Failing.json'), 'utf-8');
     for (const t of TOOLS.filter((x) => x.usesProject)) {
       try { callTool(t, { project: 'Failing', ...(t.name === 'get_panel' ? { panel: 'MDB-1' } : {}) }, ctx); } catch { /* inputs only */ }
@@ -125,7 +125,7 @@ describe('command line', () => {
     const code = await main([...argv, '--folder', folder], '1.0', { out: (s) => out.push(s), err: (s) => err.push(s) });
     return { code, out: out.join('\n'), err: err.join('\n') };
   };
-  it('parses flags, numbers and positional arguments', () => {
+  it('parses flags, numbers and positional arguments', async () => {
     expect(parseArgs(['panel', 'Villa', 'MDB-1', '--limit', '5', '--json', '--status=all'])).toMatchObject({ command: 'panel', positional: ['Villa', 'MDB-1'], json: true, flags: { limit: 5, status: 'all' } });
   });
   it('check exits 0 when everything passes and 1 on failures', async () => {
@@ -205,7 +205,7 @@ describe('local API', () => {
     expect((await fetch(`${base}/api/tools/get_panel?project=${encodeURIComponent(outside)}&panel=MDB-1`, { headers: auth })).status).toBe(400);
   });
 
-  it('compares tokens in constant time and makes long random ones', () => {
+  it('compares tokens in constant time and makes long random ones', async () => {
     expect(tokenMatches(token, token)).toBe(true);
     expect(tokenMatches(undefined, token)).toBe(false);
     expect(tokenMatches('', token)).toBe(false);
@@ -277,7 +277,7 @@ describe('MCP settings for the engineer\'s own AI program', () => {
     expect(bad.err).toMatch(/Unknown tool group/);
   });
 
-  it('in the installed app, the app itself runs it as Node: no window, no separate Node', () => {
+  it('in the installed app, the app itself runs it as Node: no window, no separate Node', async () => {
     expect(mcpConfig(app, false).mcpServers['lv-design-studio']).toEqual({ command: app.execPath, args: [app.script, 'mcp'], env: { ELECTRON_RUN_AS_NODE: '1' } });
     expect(mcpConfig(node, false).mcpServers['lv-design-studio']).not.toHaveProperty('env');
   });

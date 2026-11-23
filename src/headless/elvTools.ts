@@ -10,7 +10,7 @@ import { findLevel } from './cadTools';
 import { authorOf, edit } from './editTools';
 import type { Project } from '../types';
 import { readFile } from './exchangeTools';
-import { openProject } from './project';
+import { openProjectFull } from './project';
 import type { Tool, ToolContext } from './tools';
 
 /** The ELV estimate from the command line, MCP and the local API (read-only). The loads package for LV is
@@ -49,8 +49,8 @@ export const ELV_TOOLS: Tool[] = [
     description: 'The ELV devices placed on a level\'s floor plan (metres on the plan, the room each is in), and the count per type. Once any device of a system is placed on a level, the ELV estimate counts placed devices there instead of the room-area rules.',
     input: { project, ...atLevel },
     usesProject: true,
-    run: (a, ctx) => {
-      const { project: p } = openProject({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
+    run: async (a, ctx) => {
+      const { project: p } = await openProjectFull({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
       return listDevices(p, String(a.building), String(a.level));
     }
   },
@@ -63,8 +63,8 @@ export const ELV_TOOLS: Tool[] = [
       detail: z.enum(['summary', 'groups', 'devices']).default('groups').describe('summary = counts; groups = every loop / switch / controller / zone; devices = also every device with its address')
     },
     usesProject: true,
-    run: (a, ctx) => {
-      const { project: p } = openProject({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
+    run: async (a, ctx) => {
+      const { project: p } = await openProjectFull({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
       const s = elvSchedules(p, elvSettingsFor(p, {}, ctx));
       const strip = a.detail !== 'devices';
       return {
@@ -126,8 +126,8 @@ export const ELV_TOOLS: Tool[] = [
       limit: z.number().int().min(1).max(5000).default(200).describe('Most supplies / rooms to list')
     },
     usesProject: true,
-    run: (a, ctx) => {
-      const { project: p } = openProject({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
+    run: async (a, ctx) => {
+      const { project: p } = await openProjectFull({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
       const e = estimateElv(p, elvSettingsFor(p, a, ctx));
       const n = Number(a.limit);
       const kW = Math.round(e.supplies.reduce((t, s) => t + s.kW, 0) * 1000) / 1000;
