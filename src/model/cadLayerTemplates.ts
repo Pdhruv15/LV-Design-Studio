@@ -15,11 +15,12 @@ const clean = (t: CadLayerTemplate): CadLayerTemplate => ({
   layers: t.layers.filter((m) => m && typeof m.layer === 'string' && m.layer.trim() && ROLES.has(m.role))
 });
 
+/** Layer templates from a file or the library: only the valid ones, their layers checked, sorted by name. */
+export function parseLayerTemplates(v: unknown): CadLayerTemplate[] {
+  return Array.isArray(v) ? v.filter(isTemplate).map(clean).sort((a, b) => a.name.localeCompare(b.name)) : [];
+}
 export function loadLayerTemplates(): CadLayerTemplate[] {
-  try {
-    const v = JSON.parse(localStorage.getItem(CAD_LAYER_TEMPLATES_KEY) ?? '[]');
-    return Array.isArray(v) ? v.filter(isTemplate).map(clean).sort((a, b) => a.name.localeCompare(b.name)) : [];
-  } catch { return []; }
+  try { return parseLayerTemplates(JSON.parse(localStorage.getItem(CAD_LAYER_TEMPLATES_KEY) ?? '[]')); } catch { return []; }
 }
 export function saveLayerTemplates(list: CadLayerTemplate[]): boolean {
   try { localStorage.setItem(CAD_LAYER_TEMPLATES_KEY, JSON.stringify(list)); void pushLibrary(); return true; } catch { return false; }
