@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.269', date: '2026-11-23',
+    items: [
+      { title: 'A click on empty space no longer picks a whole plan', text: 'In Design CAD, a click that landed on no line but inside a block picked that block, however large: on a drawing with a frame or a plan kept as one block, a near miss picked everything. A click inside a block now picks it only while the block is symbol-sized on screen (a board, a fitting); on its lines it is picked as before.' }
+    ]
+  },
+  {
     version: '2.267', date: '2026-11-23',
     items: [
       { title: 'The command line and AI connection read the drawing file too', text: 'lvds (the command line, the MCP server for your own AI assistant and the local API) now opens a project with its Name.lvplan drawing file, as the app does, so exports, ELV schedules and the floor plan tools see the drawn work and the drawing units you chose. A change made through lvds keeps the drawing file as it is, and a change is refused if the drawing file was changed by someone else in the meantime.' },

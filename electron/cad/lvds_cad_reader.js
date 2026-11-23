@@ -126,7 +126,9 @@ export class CadDoc {
     /**
      * The object under (x, y) within `tol` (drawing units) on shown layers, as JSON (ObjInfo with its `id`), or "".
      * The nearest drawn line wins; a text wins when the point is on it. `closed_only` considers only objects with an
-     * area (closed polylines, circles, hatches…), as for AREA → Object.
+     * area (closed polylines, circles, hatches…), as for AREA → Object. A point on no line but inside a block picks that
+     * block only while the block is symbol-sized on screen (its longer side within MISS_BLOCK_TOLS × `tol`): a miss inside
+     * a frame or a whole plan kept as one block picks nothing.
      * @param {number} x
      * @param {number} y
      * @param {number} tol
