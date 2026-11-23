@@ -43,7 +43,7 @@ New, not in the app before:
 
 - **Mouse**: right-click in the drawing opens the menu or repeats the last command; the wheel's zoom step; reverse the wheel direction.
 - **Your settings file**: Options, typed names, keys and the libraries on this computer (layer and layout templates, page setups, hatch patterns) exported to one file and imported on another computer; Reset all.
-- **A new layout starts with**: a paper size, a page setup, and whether Page setup opens when a layout is made.
+- **A new layout starts with**: a paper size, landscape or portrait, and whether Page setup opens when a layout is made.
 - **Typed names and keys**: a name of the user's own added to any command (the standard names stay); a name already in use is refused and the command that has it is named; the same for keys.
 
 ## Decisions (2026-11-23, all as recommended)
@@ -62,4 +62,4 @@ One PR per step.
 2. **Previews** on Display and Selection (v2.277).
 3. **Shortcuts & aliases**: typed names and keys the user can add to (v2.278). The standard names and keys stay; the user's are additions.
 4. **Your settings file**: export, import, reset all. (v2.279) Import fills the window; OK keeps it. The folders and the printer are not in the file.
-5. **Mouse and new-layout defaults.**
+5. **Mouse and new-layout defaults.** (v2.280) A layout made on the drawing has a paper only, so the row for a named page setup became Orientation; named page setups belong to sheets. The wheel step and direction apply in the drawing and in a layout; the sheets keep the app's own wheel. In the find results and on the Changed page a short label says what it belongs to ("Grid · Style", "New layout · Paper").

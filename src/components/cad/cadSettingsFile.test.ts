@@ -37,6 +37,8 @@ describe('Design CAD settings file', () => {
   it('falls back for values that are out of range or of the wrong type', () => {
     const r = readSettingsFile({ kind: 'lvds.cadSettings', options: { draft: { gripPx: 999 }, autosaveMin: 500, theme: 'pink', palette: 7, cadLabels: 'yes', ribbonOrder: ['a', 3, null, 'b'], aliases: { LINE: copyId, OK1: copyId, nope: copyId }, keys: { F1: copyId, F4: copyId, Q: copyId } } })!;
     expect(r.options.draft.gripPx).toBe(DRAFT_DEFAULTS.gripPx);
+    expect(readSettingsFile({ kind: 'lvds.cadSettings', options: { draft: { wheelPct: 30 } } })!.options.draft.wheelPct).toBe(30);
+    expect(readSettingsFile({ kind: 'lvds.cadSettings', options: { draft: { wheelPct: 500 } } })!.options.draft.wheelPct).toBe(15);
     expect(r.options).toMatchObject({ autosaveMin: 2, theme: 'dark', palette: 'graphite', cadLabels: false, ribbonOrder: ['a', 'b'], aliases: { OK1: copyId }, keys: { F4: copyId } });
     expect(readSettingsFile({ kind: 'lvds.cadSettings', options: { autosaveMin: 'x', ribbonOrder: 'layers' } })!.options).toMatchObject({ autosaveMin: 2, ribbonOrder: [] });
   });

@@ -52,6 +52,15 @@ describe('Options settings list', () => {
     expect(ids(changedSettings({ ...OPT_DEFAULTS, keys: { F4: 'L' } }))).toEqual(['ownKeys']);
     expect(resetSettings(v, changedSettings(v))).toEqual(OPT_DEFAULTS);
   });
+  it('counts the mouse and new-layout settings on their pages, and resets each', () => {
+    const v = withDraft({ rightClick: 'repeat', wheelPct: 25, wheelReverse: true, layoutPaper: 'A1', layoutPortrait: true, layoutSetupOpen: true });
+    expect(ids(changedSettings(v, 'general'))).toEqual(['rightClick', 'wheelPct', 'wheelReverse']);
+    expect(ids(changedSettings(v, 'plot'))).toEqual(['layoutPaper', 'layoutPortrait', 'layoutSetupOpen']);
+    expect(changedSettings(resetSettings(v, changedSettings(v)))).toEqual([]);
+    expect(ids(OPT_SETTINGS.filter((s) => s.page === 'plot'))[0]).toBe('layoutPaper');
+    expect(ids(findSettings('wheel'))).toEqual(['wheelPct', 'wheelReverse']);
+    expect(ids(findSettings('new layout'))).toEqual(['layoutPaper', 'layoutPortrait', 'layoutSetupOpen']);
+  });
   it('lists the Shortcuts & aliases page after Plot & publish and before This drawing', () => {
     const k = OPT_PAGES.map((p) => p.k);
     expect(k.indexOf('shortcuts')).toBe(k.indexOf('plot') + 1);
@@ -61,13 +70,19 @@ describe('Options settings list', () => {
 });
 
 describe('find a setting', () => {
+  it('names what a short label belongs to, for the rows shown alone', () => {
+    const ctx = (id: string) => OPT_SETTINGS.find((s) => s.id === id)?.ctx;
+    expect([ctx('gridStyle'), ctx('snapX'), ctx('layoutPaper'), ctx('folderProjects'), ctx('gripPx')]).toEqual(['Grid', 'Snap', 'New layout', 'Folder', undefined]);
+    expect(ids(findSettings('new layout'))).toEqual(['layoutPaper', 'layoutPortrait', 'layoutSetupOpen']);
+  });
   it('is empty for no text', () => { expect(findSettings('')).toEqual([]); expect(findSettings('   ')).toEqual([]); });
   it('finds every label with the word, in the order the rows show', () => {
     const r = findSettings('size');
     expect(r.length).toBeGreaterThan(0);
     for (const s of r) expect(`${s.label} ${s.words}`.toLowerCase()).toContain('size');
-    expect(ids(r)).toEqual(['crossPct', 'markerPx', 'pickBoxPx', 'gripPx']);
-    expect(ids(r)).toEqual(ids(OPT_SETTINGS.filter((s) => s.label.toLowerCase().includes('size'))));
+    expect(ids(r)).toEqual(['crossPct', 'markerPx', 'pickBoxPx', 'gripPx', 'layoutPaper']); // the paper by its words: "paper size"
+    expect(ids(r.filter((s) => s.label.toLowerCase().includes('size')))).toEqual(['crossPct', 'markerPx', 'pickBoxPx', 'gripPx']);
+    expect(ids(r.filter((s) => s.label.toLowerCase().includes('size')))).toEqual(ids(OPT_SETTINGS.filter((s) => s.label.toLowerCase().includes('size'))));
   });
   it('needs every word of a query', () => {
     expect(ids(findSettings('grid major'))).toEqual(['gridMajor']);
