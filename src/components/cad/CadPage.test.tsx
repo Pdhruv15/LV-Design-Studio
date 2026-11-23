@@ -56,7 +56,7 @@ const villa: Project = {
 let root: Root, host: HTMLDivElement, state: CadState, project: Project;
 const onChange = vi.fn((p: Project, _message: string, _join?: boolean) => { project = p; });
 const onUndo = vi.fn();
-const onPrefs = vi.fn((_p: { draft: DraftSettings; autosaveMin: number; app?: { theme: string; palette: string; cadLabels: boolean; resetRibbonOrder: boolean } }) => {});
+const onPrefs = vi.fn((_p: { draft: DraftSettings; autosaveMin: number; app?: { theme: string; palette: string; cadLabels: boolean; resetRibbonOrder: boolean; aliases: Record<string, string>; keys: Record<string, string> } }) => {});
 /** Whether the architect's layer i shows: its On, kept in the project (Layer palette or the Layers list). */
 const shown = (i: number) => archOnOf(project, state.view!.file, state.view!.info.layers)[i];
 beforeEach(() => {
@@ -3445,7 +3445,7 @@ describe('Design CAD File: Save, Save As, Close and Options', () => {
     expect(d.textContent).toContain('The level this drawing is the plan of.');
     const tabs = () => [...d.querySelectorAll<HTMLButtonElement>('[role="tablist"][aria-label="Options"] > [role="tab"]')];
     await keyOn(pageTab(d, 'This drawing'), { key: 'ArrowUp' });
-    expect(shownTab(d)).toEqual(['Plot & publish']);
+    expect(shownTab(d)).toEqual(['Shortcuts & aliases']); // the page between Plot & publish and This drawing
     await openPage(d, 'Files & saving');
     const fmt = d.querySelector('select[aria-label="Save As format"]') as HTMLSelectElement;
     expect([...fmt.options].map((o) => o.textContent)).toEqual(['DWG (default)', 'DXF', "The drawing's own format"]);
@@ -3615,7 +3615,7 @@ describe('Design CAD File: Save, Save As, Close and Options', () => {
     set(field(d, 'Colour theme'), 'light');
     set(field(d, 'Colour palette'), 'blueprint');
     await press(d, 'OK');
-    expect(onPrefs.mock.calls[0][0].app).toEqual({ theme: 'light', palette: 'blueprint', cadLabels: true, resetRibbonOrder: true });
+    expect(onPrefs.mock.calls[0][0].app).toEqual({ theme: 'light', palette: 'blueprint', cadLabels: true, resetRibbonOrder: true, aliases: {}, keys: {} });
   });
 
   it('Options: Plot & publish opens Page setups and Pen tables, and keeps the printer chosen', async () => {
@@ -3678,6 +3678,197 @@ describe('Design CAD File: Save, Save As, Close and Options', () => {
     expect(d.querySelector('[role="group"][aria-label="Projects"]')).toBeNull();
     set(field(d, 'Find a setting'), 'folder');
     expect(d.querySelector('.cad-dlg-hits')!.textContent).toContain('No setting matches');
+  });
+
+  // Options → Shortcuts & aliases: typed names and keys of the user's own.
+  const rowOf = (d: HTMLElement, id: string) => d.querySelector(`[data-cmd="${id}"]`) as HTMLElement;
+  const click = (el: Element) => act(async () => { (el as HTMLElement).click(); });
+  const subOf = (d: HTMLElement, name: string) => [...d.querySelectorAll<HTMLButtonElement>('.cad-dlg-tabs [role="tab"]')].find((t) => t.textContent === name)!;
+  const warn = (d: HTMLElement) => d.querySelector('[role="alert"]')?.textContent ?? '';
+  const addName = async (d: HTMLElement, id: string, full: string, text: string) => {
+    await click(rowOf(d, id).querySelector(`[aria-label="Add a typed name to ${full}"]`)!);
+    const box = field(d, `New typed name for ${full}`);
+    set(box, text);
+    await keyOn(box, { key: 'Enter' });
+  };
+  const addKey = async (d: HTMLElement, id: string, full: string, init: KeyboardEventInit) => {
+    await click(rowOf(d, id).querySelector(`[aria-label="Add a key to ${full}"]`)!);
+    await keyOn(field(d, `Press a key for ${full}`), init);
+  };
+
+  it('Options: Shortcuts & aliases adds a typed name of your own, refuses one in use naming its command, and OK hands it to Preferences', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    await openPage(d, 'Shortcuts & aliases');
+    expect(shownTab(d)).toEqual(['Shortcuts & aliases']);
+    expect(subTab(d)).toBe('Typed names');
+    expect(rowOf(d, 'CO').textContent).toContain('COPY');
+    expect(rowOf(d, 'CO').querySelectorAll('.cad-dlg-al')).toHaveLength(3);
+    await click(rowOf(d, 'CO').querySelector('[aria-label="Add a typed name to COPY"]')!);
+    const box = field(d, 'New typed name for COPY');
+    set(box, 'c');
+    expect(box.value).toBe('C');
+    expect(warn(d)).toBe('C is the typed name of CIRCLE. Choose another.');
+    await keyOn(box, { key: 'Enter' });
+    expect(rowOf(d, 'CO').querySelector('.cad-dlg-al.own')).toBeNull();
+    expect(field(d, 'New typed name for COPY')).not.toBeNull();
+    set(box, 'copy');
+    expect(warn(d)).toBe('COPY is already a typed name of COPY.');
+    set(box, 'cx');
+    expect(warn(d)).toBe('');
+    await keyOn(box, { key: 'Enter' });
+    expect(rowOf(d, 'CO').querySelector('.cad-dlg-al.own')!.textContent).toContain('CX');
+    expect(rowOf(d, 'CO').querySelector('[aria-label="Remove CX"]')).not.toBeNull();
+    expect(rowOf(d, 'CO').className).toContain('chg');
+    expect(countOf(d, 'Shortcuts & aliases')).toBe('1');
+    await press(d, 'OK');
+    expect(onPrefs.mock.calls[0][0].app).toMatchObject({ aliases: { CX: 'CO' }, keys: {} });
+  });
+
+  it('Options: a typed name of your own starts its command and shows in the suggestions', async () => {
+    act(() => root.render(<Host extra={{ aliases: { CX: 'CO' } }} />));
+    await flush();
+    const input = document.querySelector('input[aria-label="Command"]') as HTMLInputElement;
+    set(input, 'CX');
+    expect(document.querySelector('[aria-label="Matching commands"]')?.textContent).toContain('CX');
+    await command('CX');
+    expect(state.tool).toBe('copy');
+    await command('UNKNOWNX');
+    expect(document.querySelector('.cad-hist')?.textContent).toMatch(/Unknown command "UNKNOWNX"/);
+  });
+
+  it('Options: Enter and Esc in the name box do not press OK or close the window', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    await openPage(d, 'Shortcuts & aliases');
+    await click(rowOf(d, 'CO').querySelector('[aria-label="Add a typed name to COPY"]')!);
+    const box = field(d, 'New typed name for COPY');
+    set(box, 'zz');
+    await keyOn(box, { key: 'Enter' });
+    expect(opt()).not.toBeNull();
+    expect(onPrefs).not.toHaveBeenCalled();
+    await click(rowOf(d, 'CO').querySelector('[aria-label="Add a typed name to COPY"]')!);
+    set(field(d, 'New typed name for COPY'), 'qq');
+    await keyOn(field(d, 'New typed name for COPY'), { key: 'Escape' });
+    expect(opt()).not.toBeNull();
+    expect(d.querySelector('[aria-label="New typed name for COPY"]')).toBeNull();
+    expect(rowOf(d, 'CO').textContent).not.toContain('QQ'); // Esc drops what was typed
+    expect(onPrefs).not.toHaveBeenCalled();
+    // Leaving the box any other way keeps a name that can be added (a click on OK must not lose it).
+    await click(rowOf(d, 'CO').querySelector('[aria-label="Add a typed name to COPY"]')!);
+    set(field(d, 'New typed name for COPY'), 'yy');
+    await act(async () => { field(d, 'New typed name for COPY').blur(); });
+    expect(d.querySelector('[aria-label="New typed name for COPY"]')).toBeNull();
+    expect([...rowOf(d, 'CO').querySelectorAll('.cad-dlg-al.own')].map((x) => x.textContent!.replace('×', ''))).toEqual(['ZZ', 'YY']);
+    // … but not one that is in use.
+    await click(rowOf(d, 'CO').querySelector('[aria-label="Add a typed name to COPY"]')!);
+    set(field(d, 'New typed name for COPY'), 'c');
+    await act(async () => { field(d, 'New typed name for COPY').blur(); });
+    expect(rowOf(d, 'CO').querySelectorAll('.cad-dlg-al.own')).toHaveLength(2);
+  });
+
+  it('Options: Shortcuts & aliases lists the standard keys, refuses a key in use or one a command cannot have, adds its own, and OK hands it to Preferences', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    await openPage(d, 'Shortcuts & aliases');
+    await click(subOf(d, 'Keys'));
+    expect(subTab(d)).toBe('Keys');
+    expect(rowOf(d, 'ORTHO').textContent).toContain('F8');
+    expect(rowOf(d, 'ORTHO').querySelector('.cad-dlg-al button')).toBeNull();
+    expect(rowOf(d, 'PR').textContent).toContain('Ctrl+1');
+    await addKey(d, 'L', 'LINE', { key: 'F8', bubbles: true });
+    expect(warn(d)).toBe('F8 is the key of ORTHO. Choose another.');
+    expect(state.toggles.ortho).toBe(false); // the key went no further than the button
+    await keyOn(field(d, 'Press a key for LINE'), { key: 'a' });
+    expect(warn(d)).toBe('Use F1 to F12, alone or with Ctrl, Alt or Shift, or Ctrl with a digit.');
+    await keyOn(field(d, 'Press a key for LINE'), { key: 'F4' });
+    expect(rowOf(d, 'L').querySelector('.cad-dlg-al.own')!.textContent).toContain('F4');
+    expect(rowOf(d, 'L').querySelector('[aria-label="Remove F4"]')).not.toBeNull();
+    expect(countOf(d, 'Shortcuts & aliases')).toBe('1');
+    await press(d, 'OK');
+    expect(onPrefs.mock.calls[0][0].app).toMatchObject({ aliases: {}, keys: { F4: 'L' } });
+  });
+
+  it('Options: a key of your own starts its command, but not while a field has text; a switch works while a command runs', async () => {
+    act(() => root.render(<Host extra={{ keys: { F4: 'L', F5: 'ORTHO' } }} />));
+    await flush();
+    const input = document.querySelector('input[aria-label="Command"]') as HTMLInputElement;
+    set(input, 'abc');
+    await keyOn(input, { key: 'F4' });
+    expect(state.tool).not.toBe('line');
+    set(input, '');
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F4' })); });
+    expect(state.tool).toBe('line');
+    expect(state.toggles.ortho).toBe(false);
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F5' })); });
+    expect(state.tool).toBe('line');
+    expect(state.toggles.ortho).toBe(true);
+  });
+
+  it('Options: a standard key with Shift is the user\'s once they give it a command, and the standard switch as before when they do not', async () => {
+    act(() => root.render(<Host extra={{ keys: { 'Shift+F8': 'C' } }} />));
+    await flush();
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F8', shiftKey: true })); });
+    expect(state.tool).toBe('circle');
+    expect(state.toggles.ortho).toBe(false); // not ORTHO's
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F8' })); });
+    expect(state.toggles.ortho).toBe(true); // F8 alone stays ORTHO's
+    const snap = state.toggles.snap;
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F9', shiftKey: true })); });
+    expect(state.toggles.snap).toBe(!snap); // Shift+F9 has no command of the user's: SNAP, as before
+  });
+
+  it('Options: the filter narrows the rows; Reset all clears a tab\'s own entries, Reset page both; Changed lists them', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    await openPage(d, 'Shortcuts & aliases');
+    const total = d.querySelectorAll('.cad-dlg-tbody .cad-dlg-tr').length;
+    expect(total).toBeGreaterThan(100);
+    set(field(d, 'Filter commands'), 'copy');
+    const some = d.querySelectorAll('.cad-dlg-tbody .cad-dlg-tr').length;
+    expect(some).toBeGreaterThan(0);
+    expect(some).toBeLessThan(total);
+    expect(rowOf(d, 'CO')).not.toBeNull();
+    expect((d.querySelector('.cad-dlg-btns button') as HTMLButtonElement).disabled).toBe(true);
+    await addName(d, 'CO', 'COPY', 'CX');
+    await click(subOf(d, 'Keys'));
+    await addKey(d, 'CO', 'COPY', { key: 'F4' });
+    expect(countOf(d, 'Shortcuts & aliases')).toBe('2');
+    await click(pageTab(d, 'Changed'));
+    expect(d.textContent).toContain('Typed names of your own');
+    expect(d.textContent).toContain('Keys of your own');
+    expect(d.textContent).toContain('1 added');
+    await openPage(d, 'Shortcuts & aliases');
+    await press(d, 'Reset all');
+    expect(countOf(d, 'Shortcuts & aliases')).toBe('1');
+    await click(subOf(d, 'Typed names'));
+    expect(rowOf(d, 'CO').querySelector('.cad-dlg-al.own')).not.toBeNull();
+    await press(d, 'Reset page');
+    expect(countOf(d, 'Shortcuts & aliases')).toBe('');
+    expect(rowOf(d, 'CO').querySelector('.cad-dlg-al.own')).toBeNull();
+  });
+
+  it('DYN turns dynamic input on and off as F12 does; HISTORY opens the command history as F2 does', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    expect(state.toggles.dyn).toBe(true);
+    await command('DYN');
+    expect(state.toggles.dyn).toBe(false);
+    await command('DYNMODE');
+    expect(state.toggles.dyn).toBe(true);
+    expect(document.querySelector('[aria-label="Command history (F2)"]')).toBeNull();
+    await command('HISTORY');
+    expect(document.querySelector('[aria-label="Command history (F2)"]')).not.toBeNull();
+    await command('HISTORY');
+    expect(document.querySelector('[aria-label="Command history (F2)"]')).toBeNull();
   });
 
   it('WBLOCK saves the objects picked as a DXF of their own; with none picked it says what to do', async () => {

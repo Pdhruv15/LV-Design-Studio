@@ -1,17 +1,17 @@
 import { DRAFT_DEFAULTS, OSNAP_BITS, OSNAP_DEFAULT, OSNAP_MODES, type DraftSettings, type OsnapMode } from './cadDraft';
 import type { PalettePref, ThemePref } from '../theme/theme';
 
-/** Design CAD's Options window (OP): every setting on seven pages, which of them are not at their default, and the
+/** Design CAD's Options window (OP): every setting on eight pages, which of them are not at their default, and the
  * words to find one by. Pure: the window and its tests read it. */
 
-export type OptPage = 'general' | 'files' | 'display' | 'drafting' | 'selection' | 'plot' | 'drawing';
+export type OptPage = 'general' | 'files' | 'display' | 'drafting' | 'selection' | 'plot' | 'shortcuts' | 'drawing';
 export type DraftTab = 'snap' | 'polar' | 'osnap' | 'dyn';
 /** Where Options opens: a page, a tab of the Drafting page, or the page last used. */
 export type OptAt = OptPage | DraftTab | 'last';
 
 export const OPT_PAGES: { k: OptPage; label: string }[] = [
   { k: 'general', label: 'General' }, { k: 'files', label: 'Files & saving' }, { k: 'display', label: 'Display' }, { k: 'drafting', label: 'Drafting' },
-  { k: 'selection', label: 'Selection' }, { k: 'plot', label: 'Plot & publish' }, { k: 'drawing', label: 'This drawing' }
+  { k: 'selection', label: 'Selection' }, { k: 'plot', label: 'Plot & publish' }, { k: 'shortcuts', label: 'Shortcuts & aliases' }, { k: 'drawing', label: 'This drawing' }
 ];
 export const DRAFT_TABS: { k: DraftTab; label: string }[] = [
   { k: 'snap', label: 'Snap & grid' }, { k: 'polar', label: 'Polar tracking' }, { k: 'osnap', label: 'Object snap' }, { k: 'dyn', label: 'Dynamic input' }
@@ -30,8 +30,11 @@ export interface OptValues {
   ribbonOrder: boolean;
   /** The printer plots go to; '' = the built-in PDF. */
   printer: string;
+  /** The user's own typed names (name → the id of its command) and keys (chord → the id), kept in Preferences. */
+  aliases: Readonly<Record<string, string>>;
+  keys: Readonly<Record<string, string>>;
 }
-export const OPT_DEFAULTS: OptValues = { draft: DRAFT_DEFAULTS, autosaveMin: 2, theme: 'dark', palette: 'graphite', cadLabels: false, ribbonOrder: false, printer: '' };
+export const OPT_DEFAULTS: OptValues = { draft: DRAFT_DEFAULTS, autosaveMin: 2, theme: 'dark', palette: 'graphite', cadLabels: false, ribbonOrder: false, printer: '', aliases: {}, keys: {} };
 
 export interface OptSetting {
   id: string;
@@ -125,6 +128,8 @@ export const OPT_SETTINGS: OptSetting[] = [
   { id: 'printer', page: 'plot', label: 'Plot to', words: 'printer plot print', def: 'PDF', ...tk('printer') },
   { id: 'pageSetups', page: 'plot', label: 'Page setups', words: 'page setup paper plot' },
   { id: 'penTables', page: 'plot', label: 'Pen tables', words: 'pens lineweights ctb stb plot' },
+  { id: 'ownAliases', page: 'shortcuts', label: 'Typed names of your own', words: 'alias aliases shortcut command typed name', def: 'none', changed: (v) => Object.keys(v.aliases).length > 0, reset: (v) => ({ ...v, aliases: {} }) },
+  { id: 'ownKeys', page: 'shortcuts', label: 'Keys of your own', words: 'keyboard shortcut key f-key function', def: 'none', changed: (v) => Object.keys(v.keys).length > 0, reset: (v) => ({ ...v, keys: {} }) },
   { id: 'level', page: 'drawing', label: 'Level', words: 'level plan drawing' },
   { id: 'units', page: 'drawing', label: 'Units', words: 'units mm drawing un' }
 ];

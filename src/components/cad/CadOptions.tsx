@@ -1,9 +1,11 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
-import { FolderOpen, RotateCcw, Search, X } from 'lucide-react';
+import { FolderOpen, RotateCcw, Search, TriangleAlert, X } from 'lucide-react';
 import { CadDialog } from './CadDialogs';
 import { DisplayPreview, SelectionPreview } from './CadOptionsPreview';
 import type { CadToggles } from './CadCanvas';
 import { isNumber } from './cadPrompt';
+import { CAD_COMMANDS, aliasesOf, commandFullName, commandId, type CadCommand, type OwnAliases } from './cadCommands';
+import { aliasProblem, chordLabel, chordOf, commandRows, keyProblem, keysOf, type OwnKeys } from './cadShortcuts';
 import { CROSS_COLORS, OSNAP_BITS, OSNAP_MODES, parseAngles, PICK_LOOKS, POLAR_INCREMENTS, SEL_COLORS, type CrossColor, type DraftSettings, type OsnapMode, type PickLook, type SelColor } from '../../model/cadDraft';
 import { changedSettings, DRAFT_TABS, findSettings, OPT_PAGES, OPT_SETTINGS, placeKey, placeLabel, placeOf, resetSettings, type OptAt, type OptPage, type OptSetting, type OptValues } from '../../model/cadOptions';
 import { PALETTE_LABEL, THEME_LABEL, type PalettePref, type ThemePref } from '../../theme/theme';
@@ -15,7 +17,8 @@ type App = { theme: ThemePref; palette: PalettePref; cadLabels: boolean; ribbonO
 
 const PLACE_KEY = 'lvds.cad.optPage';
 /** The find box's key, as the app names the modifier elsewhere. */
-const FIND_KEY = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘F' : 'Ctrl F';
+const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+const FIND_KEY = MAC ? '⌘F' : 'Ctrl F';
 const BY_ID = new Map(OPT_SETTINGS.map((s) => [s.id, s]));
 const HELP: Record<Exclude<OptPage, 'drafting'> | 'drafting/snap' | 'drafting/polar' | 'drafting/osnap' | 'drafting/dyn' | 'found', string> = {
   general: "The ribbon's tool names and the order of its panels, as in Profile & preferences.",
@@ -27,6 +30,7 @@ const HELP: Record<Exclude<OptPage, 'drafting'> | 'drafting/snap' | 'drafting/po
   'drafting/dyn': 'Dynamic input (F12): the boxes, the short prompt and its options at the cursor.',
   selection: 'Left to right: only what is fully inside. Right to left: what the window crosses. Shift-click adds or removes. A click picks what is inside the pick box. The preview shows the result before OK.',
   plot: 'The printer plots go to on this computer. Page setups and pen tables belong to the project.',
+  shortcuts: 'Typed names and keys of your own for any command. The standard ones stay; one already in use is refused and its command is named. Kept on this computer.',
   drawing: 'Level and units belong to this drawing; each change is one undo step on OK.',
   found: 'An amber dot marks a setting that is not at its default; the arrow beside it puts it back.'
 };
@@ -66,7 +70,7 @@ function NumRow({ label, lab, rs, chg, unit, value, onChange }: { label: string;
 /** Options (OP / OPTIONS): every Design CAD setting in one window, seven pages in a list, a box to find a setting, and a
  * mark, a count and a reset for what is not at its default. Nothing changes until OK; Esc, Cancel or × change nothing.
  * Level and units run at once on OK, each one undo step. */
-export default function CadOptions({ at = 'last', draft, toggles, gridDots, level, levelSet, levels, unit, units, autosaveMin, app, setups, penTables, blockFolder, onBlockFolder, folders, onOutput, onApply, onClose }: {
+export default function CadOptions({ at = 'last', draft, toggles, gridDots, level, levelSet, levels, unit, units, autosaveMin, app, setups, penTables, blockFolder, onBlockFolder, folders, onOutput, aliases = {}, keys = {}, onApply, onClose }: {
   at?: OptAt;
   draft: DraftSettings;
   toggles: CadToggles;
@@ -91,7 +95,10 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
   folders?: { chooseProjects: () => Promise<void>; chooseDatabase: () => Promise<void> };
   /** Opens Page setups or Pen tables over the window. */
   onOutput?: (which: 'setups' | 'pens') => void;
-  onApply: (next: { draft: DraftSettings; toggles: CadToggles; gridDots: boolean; autosaveMin: number; app: { theme: ThemePref; palette: PalettePref; cadLabels: boolean; resetRibbonOrder: boolean }; printer: string; level?: MenuItem; unit?: MenuItem }) => void;
+  /** The user's own typed names and keys (Shortcuts & aliases). */
+  aliases?: OwnAliases;
+  keys?: OwnKeys;
+  onApply: (next: { draft: DraftSettings; toggles: CadToggles; gridDots: boolean; autosaveMin: number; app: { theme: ThemePref; palette: PalettePref; cadLabels: boolean; resetRibbonOrder: boolean; aliases: OwnAliases; keys: OwnKeys }; printer: string; level?: MenuItem; unit?: MenuItem }) => void;
   onClose: () => void;
 }) {
   const [place, setPlace] = useState(() => { let last: string | null = null; try { last = localStorage.getItem(PLACE_KEY); } catch { /* none */ } return placeOf(at, last); });
@@ -107,7 +114,14 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
     openedAt.current = at;
     if (at !== 'last') { setPlace(placeOf(at)); setQ(''); setMode('page'); }
   }, [at]);
-  const [v, setV] = useState<OptValues>(() => ({ draft, autosaveMin, theme: app.theme, palette: app.palette, cadLabels: app.cadLabels, ribbonOrder: app.ribbonOrder, printer: plotPrinter() }));
+  const [v, setV] = useState<OptValues>(() => ({ draft, autosaveMin, theme: app.theme, palette: app.palette, cadLabels: app.cadLabels, ribbonOrder: app.ribbonOrder, printer: plotPrinter(), aliases, keys }));
+  // Shortcuts & aliases: the page's tab (not kept), the filter, and the row a name or a key is being added to.
+  const [sub, setSub] = useState<'names' | 'keys'>('names');
+  const [filter, setFilter] = useState('');
+  const [addName, setAddName] = useState<{ id: string; text: string } | null>(null);
+  const [addKey, setAddKey] = useState<{ id: string; problem?: string } | null>(null);
+  /** Esc in the name box: what is typed is dropped, where leaving the box any other way keeps a name that can be added. */
+  const nameDropped = useRef(false);
   const [t, setT] = useState(toggles);
   const [dots, setDots] = useState(gridDots);
   const [extra, setExtra] = useState(draft.polarExtra.join(', '));
@@ -144,6 +158,12 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
     e.preventDefault(); setPlace((p) => ({ ...p, tab: DRAFT_TABS[j].k })); tabs.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[j]?.focus();
   };
 
+  const stepSub = (e: React.KeyboardEvent, i: number) => {
+    const j = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : i;
+    if (j === i || j < 0 || j > 1) return;
+    e.preventDefault(); setSub(j ? 'keys' : 'names'); setAddName(null); setAddKey(null); tabs.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[j]?.focus();
+  };
+
   const changedHere = (s: OptSetting) => !!s.changed?.(cur);
   const marked = (label: string) => {
     const ws = query.toLowerCase().split(/\s+/).filter(Boolean);
@@ -151,7 +171,8 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
     const re = new RegExp(`(${ws.map(esc).join('|')})`, 'gi');
     return label.split(re).map((p, i) => (i % 2 ? <mark key={i}>{p}</mark> : <Fragment key={i}>{p}</Fragment>));
   };
-  const lab = (s: OptSetting) => marked(s.label);
+  /** A row's label in one piece, so the part found is marked inside the word it belongs to. */
+  const lab = (s: OptSetting) => <span>{marked(s.label)}</span>;
   const rs = (s: OptSetting) => (changedHere(s)
     ? <button type="button" className="cad-dlg-rs" aria-label={`Reset ${s.label}`} title={`Reset to ${s.def}`} onClick={() => resetOf([s])}><RotateCcw size={11} aria-hidden /></button> : null);
   const cls = (s: OptSetting) => (changedHere(s) ? ' chg' : '');
@@ -160,7 +181,7 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
     <div key={s.id} className={`cad-dlg-r${cls(s)}`}><span className="cad-dlg-l">{lab(s)}{rs(s)}</span><span className="cad-dlg-in">{control}{unitText && <u>{unitText}</u>}</span></div>
   );
   const crow = (s: OptSetting, on: boolean, set: (b: boolean) => void) => (
-    <div key={s.id} className={`cad-dlg-r cad-dlg-ck${cls(s)}`}><label><input type="checkbox" aria-label={s.label} checked={on} onChange={(e) => set(e.target.checked)} /><span>{lab(s)}</span></label>{rs(s)}</div>
+    <div key={s.id} className={`cad-dlg-r cad-dlg-ck${cls(s)}`}><label><input type="checkbox" aria-label={s.label} checked={on} onChange={(e) => set(e.target.checked)} />{lab(s)}</label>{rs(s)}</div>
   );
   const nrow = (s: OptSetting, value: number, set: (x: string) => void, unitText?: string) => <NumRow key={s.id} label={s.label} lab={lab(s)} rs={rs(s)} chg={changedHere(s)} unit={unitText} value={value} onChange={set} />;
   const opts = (items: readonly { k: string; label: string }[]) => items.map((c) => <option key={c.k} value={c.k}>{c.label}</option>);
@@ -197,7 +218,7 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
       return (
         <div key={id} className={`cad-dlg-mode${cls(s)}`}>
           <label><input type="checkbox" aria-label={m.label} checked={(d.osnap & bit) !== 0} onChange={(e) => patch({ osnap: e.target.checked ? d.osnap | bit : d.osnap & ~bit })} />
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">{MODE_MARK[m.k]}</svg><span>{lab(s)}</span></label>{rs(s)}
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">{MODE_MARK[m.k]}</svg>{lab(s)}</label>{rs(s)}
         </div>
       );
     }
@@ -260,6 +281,8 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
       );
       case 'level': return vrow(s, <select aria-label="Level" value={lv} disabled={!levels.length} onChange={(e) => setLv(e.target.value)}><option value="">{levelSet ? level : 'Not set'}</option>{levels.map((x) => <option key={x.label} value={x.label}>{x.label}</option>)}</select>);
       case 'units': return vrow(s, <select aria-label="Units" value={un} disabled={!units.length} onChange={(e) => setUn(e.target.value)}><option value="">{unit}</option>{units.map((x) => <option key={x.label} value={x.label}>{x.label}</option>)}</select>);
+      case 'ownAliases': { const n = Object.keys(v.aliases).length; return vrow(s, <span className="m">{n ? `${n} added` : 'None'}</span>); }
+      case 'ownKeys': { const n = Object.keys(v.keys).length; return vrow(s, <span className="m">{n ? `${n} added` : 'None'}</span>); }
       default: return null;
     }
   };
@@ -296,6 +319,76 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
     <div className="cad-dlg-modes">{OSNAP_MODES.map((m) => r(`osnap.${m.k}`))}</div>
   );
   const preview = (drawing: ReactNode) => <div className="cad-dlg-pv"><span>Preview</span>{drawing}<p>Follows the values on this page</p></div>;
+  /** Shortcuts & aliases: every command with its typed names or its keys, and a + to add one of your own. */
+  const shortcutsPage = (): ReactNode => {
+    const names = sub === 'names';
+    // First the commands that had a name (or key) of the user's own when the window opened, then on Keys those with a
+    // standard key, then the rest in the list's order. By what was there on opening, so a row stays put as one is added.
+    const rank = (c: CadCommand) => (names ? (aliasesOf(c, aliases).length > c.aliases.length ? 0 : 2) : keysOf(c, keys).some((k) => k.own) ? 0 : keysOf(c, {}).length ? 1 : 2);
+    const rows = commandRows(filter).sort((a, b) => rank(a) - rank(b));
+    const ownOn = (c: CadCommand) => (names ? aliasesOf(c, v.aliases).length > c.aliases.length : keysOf(c, v.keys).some((k) => k.own));
+    const dropName = (a: string) => setV((x) => { const n = { ...x.aliases }; delete n[a]; return { ...x, aliases: n }; });
+    const dropKey = (a: string) => setV((x) => { const n = { ...x.keys }; delete n[a]; return { ...x, keys: n }; });
+    const nameCell = (c: CadCommand, id: string, full: string) => <>
+      {c.aliases.map((a) => <span key={a} className="cad-dlg-al">{a}</span>)}
+      {aliasesOf(c, v.aliases).slice(c.aliases.length).map((a) => <span key={a} className="cad-dlg-al own">{a}<button type="button" aria-label={`Remove ${a}`} onClick={() => dropName(a)}>×</button></span>)}
+      {addName?.id === id
+        ? <input className={`cad-dlg-ali${addName.text && aliasProblem(addName.text, id, v.aliases) ? ' bad' : ''}`} aria-label={`New typed name for ${full}`} autoFocus maxLength={16} autoComplete="off" spellCheck={false} value={addName.text}
+          onChange={(e) => setAddName({ id, text: e.target.value.toUpperCase() })}
+          onBlur={() => { const n = addName.text; if (!nameDropped.current && n && !aliasProblem(n, id, v.aliases)) setV((x) => ({ ...x, aliases: { ...x.aliases, [n]: id } })); setAddName(null); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (!addName.text) setAddName(null); else if (!aliasProblem(addName.text, id, v.aliases)) { const n = addName.text; setV((x) => ({ ...x, aliases: { ...x.aliases, [n]: id } })); setAddName(null); } }
+            else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); nameDropped.current = true; setAddName(null); }
+          }} />
+        : <button type="button" className="cad-dlg-add" aria-label={`Add a typed name to ${full}`} title="Add a typed name" onClick={() => { nameDropped.current = false; setAddKey(null); setAddName({ id, text: '' }); }}>+</button>}
+    </>;
+    const keyCell = (c: CadCommand, id: string, full: string) => <>
+      {keysOf(c, v.keys).map((k) => { const label = chordLabel(k.chord, MAC); return k.own
+        ? <span key={k.chord} className="cad-dlg-al own">{label}<button type="button" aria-label={`Remove ${label}`} onClick={() => dropKey(k.chord)}>×</button></span>
+        : <span key={k.chord} className="cad-dlg-al">{label}</span>; })}
+      {addKey?.id === id
+        ? <button type="button" className={`cad-dlg-ali${addKey.problem ? ' bad' : ''}`} autoFocus aria-label={`Press a key for ${full}`} onBlur={() => setAddKey(null)}
+          onKeyDown={(e) => {
+            if (e.key === 'Tab' || e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
+            e.preventDefault(); e.stopPropagation();
+            if (e.key === 'Escape') { setAddKey(null); return; }
+            const chord = chordOf(e);
+            const problem = chord ? keyProblem(chord, id, v.keys) : 'Use F1 to F12, alone or with Ctrl, Alt or Shift, or Ctrl with a digit.';
+            if (chord && !problem) { setV((x) => ({ ...x, keys: { ...x.keys, [chord]: id } })); setAddKey(null); } else setAddKey({ id, problem: problem ?? undefined });
+          }}>Press a key…</button>
+        : <button type="button" className="cad-dlg-add" aria-label={`Add a key to ${full}`} title="Add a key" onClick={() => { setAddName(null); setAddKey({ id }); }}>+</button>}
+    </>;
+    const own = names ? v.aliases : v.keys;
+    return <>
+      <div className="cad-dlg-tabs" role="tablist" aria-label="Shortcuts & aliases" ref={tabs}>
+        {(['names', 'keys'] as const).map((k, i) => <button key={k} type="button" role="tab" aria-selected={sub === k} onClick={() => { setSub(k); setAddName(null); setAddKey(null); }} onKeyDown={(e) => stepSub(e, i)}>{k === 'names' ? 'Typed names' : 'Keys'}</button>)}
+      </div>
+      {sec(names ? 'Commands and their typed names' : 'Commands and their keys', 'on this computer')}
+      <div className="cad-dlg-find cad-dlg-filter">
+        <Search size={11} aria-hidden />
+        <input aria-label="Filter commands" placeholder={`Filter ${CAD_COMMANDS.length} commands`} value={filter} onChange={(e) => setFilter(e.target.value)} />
+        {filter && <button type="button" aria-label="Clear" onClick={() => setFilter('')}><X size={10} aria-hidden /></button>}
+      </div>
+      <div className="cad-dlg-tb" role="table" aria-label={names ? 'Typed names' : 'Keys'}>
+        <div className="cad-dlg-tr h" role="row"><span role="columnheader">Command</span><span role="columnheader">{names ? 'Typed names' : 'Keys'}</span></div>
+        <div className="cad-dlg-tbody">
+          {rows.map((c) => {
+            const id = commandId(c), full = commandFullName(c);
+            const problem = names ? (addName?.id === id && addName.text ? aliasProblem(addName.text, id, v.aliases) : null) : addKey?.id === id ? addKey.problem : null;
+            return <Fragment key={id}>
+              <div className={`cad-dlg-tr${ownOn(c) ? ' chg' : ''}`} role="row" data-cmd={id}>
+                <span role="cell" title={c.desc}>{c.desc}</span>
+                <span role="cell" className="cad-dlg-chips">{names ? nameCell(c, id, full) : keyCell(c, id, full)}</span>
+              </div>
+              {problem && <div className="cad-dlg-warn" role="alert"><TriangleAlert size={11} aria-hidden />{problem}</div>}
+            </Fragment>;
+          })}
+        </div>
+      </div>
+      <p className="cad-dlg-note">{names ? 'Add a typed name of your own to any command. The standard names stay.' : 'Add a key of your own to any command by pressing it. The standard keys stay.'}</p>
+      <div className="cad-dlg-btns"><button type="button" disabled={!Object.keys(own).length} onClick={() => setV((x) => (names ? { ...x, aliases: {} } : { ...x, keys: {} }))}>Reset all</button></div>
+    </>;
+  };
   const pageBody = (): ReactNode => {
     switch (page) {
       case 'general': return <>
@@ -376,6 +469,7 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
         {sec('Page setups and pen tables', 'this project')}
         {r('pageSetups')}{r('penTables')}
       </>;
+      case 'shortcuts': return shortcutsPage();
       default: return <>
         {sec('This drawing', 'each change is one undo step')}
         {r('level')}
@@ -395,10 +489,10 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
 
   const ok = () => onApply({
     draft: { ...d, polarExtra: parseAngles(extra) }, toggles: t, gridDots: dots, autosaveMin: v.autosaveMin,
-    app: { theme: v.theme, palette: v.palette, cadLabels: v.cadLabels, resetRibbonOrder: app.ribbonOrder && !v.ribbonOrder },
+    app: { theme: v.theme, palette: v.palette, cadLabels: v.cadLabels, resetRibbonOrder: app.ribbonOrder && !v.ribbonOrder, aliases: v.aliases, keys: v.keys },
     printer: v.printer, level: levels.find((x) => x.label === lv), unit: units.find((x) => x.label === un)
   });
-  const keys = (e: React.KeyboardEvent) => {
+  const dlgKeys = (e: React.KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); finder.current?.focus(); finder.current?.select(); }
   };
   const findKeys = (e: React.KeyboardEvent) => {
@@ -407,7 +501,7 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
   };
 
   return (
-    <CadDialog id="options" title="Options" alias="OP" help={HELP[helpKey]} onOk={ok} onClose={onClose} pages cls="opt" onKeyDown={keys}
+    <CadDialog id="options" title="Options" alias="OP" help={HELP[helpKey]} onOk={ok} onClose={onClose} pages cls="opt" onKeyDown={dlgKeys}
       extra={<button type="button" disabled={!resetList.length} onClick={() => resetOf(resetList)}>{resetLabel}</button>}>
       <div className="cad-dlg-pl">
         <div className="cad-dlg-find">
