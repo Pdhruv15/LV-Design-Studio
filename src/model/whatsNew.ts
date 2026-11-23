@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.264', date: '2026-11-23',
+    items: [
+      { title: 'Sample projects for every SLD start level', text: 'Eight ready-made projects, one for each way a new project can start (a final DB, a sub-main board, a main board on an LV source, a transformer, an RMU with one or two transformers, an 11 kV ring, and a generator with solar), are in the docs/samples/start-levels folder. Open one with File → Open, then Save as under a new name to keep the sample unchanged.' },
+    ]
+  },
+  {
     version: '2.263', date: '2026-11-23',
     items: [
       { title: 'Design CAD no longer stops on a very large selection', text: 'Picking a very large number of objects at once (Select all on a dense drawing, for example) could stop the page with "Maximum call stack size exceeded". The selection toolbar, zoom to objects, the right-click menu from the keyboard and the block dialog now handle any number of picked objects.' }
