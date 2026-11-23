@@ -56,7 +56,7 @@ Answered 2026-11-23: the answer in bold for all five.
 
 Built 2026-11-23 (PR 779, steps 1 and 2 in one PR):
 - As proposed. The value with the cursor wins over the row under the mouse, so the part marked is the one being typed; with no value in use, the row under the mouse is marked. A hidden extension line shows dashed while its row is marked. Units rows mark the whole length written.
-- The preview's vertical dimension sits on the room's left wall, not the right as in the mockup. With Outside text, a dimension whose line is on the side that is down as its text reads (below a horizontal dimension's points, or right of a vertical one reading bottom to top) has its text across its line, on the canvas and on the sheets alike. That is an engine fault older than this dialog, to be fixed on its own.
+- The preview's vertical dimension sits on the room's left wall, not the right as in the mockup. With Outside text, a dimension whose line is on the side that is down as its text reads (below a horizontal dimension's points, or right of a vertical one reading bottom to top) has its text across its line, on the canvas and on the sheets alike. That is an engine fault older than this dialog, fixed on its own in PR 781 (v2.270): the text now sits fully on the far side.
 - The user also asked (2026-11-23) how to set the text position: Text tab → Placement → Vertical (Outside, Above, Centred, Below) and Along the line (Centred, At extension line 1, At extension line 2) for new dimensions; right-click a drawn dimension → Dimension tools → Text position for one already drawn.
 
 Related: [[UI UX proposals - 2026-11-16 - CAD edit previews and repeat]], [[CAD dimension styles - DWG import and DXF export - 2026-11-08]].
