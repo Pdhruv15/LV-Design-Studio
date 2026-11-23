@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.266', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD: the Hatch strip', text: 'While you hatch (H) or edit a hatch (HE), a strip takes the ribbon\'s place instead of the side panel: Boundary, Pattern, Properties, Origin, Options and a Done button. Pattern swatches show the real pattern with a plain name (Diagonal, Cross, Brick), and All patterns lists your own and imports or exports a pattern file.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Hatch: Select, Set point, Match and Outline', text: 'New hatches can be made by clicking a closed polyline, rectangle or circle (Select), take their pattern origin from a click or from the corner or centre of the boundary (Set point), or copy another hatch (Match). Outline draws a polyline along the edge of the hatch being edited.' },
+    ]
+  },
+  {
     version: '2.265', date: '2026-11-23',
     items: [
       { title: 'Drawings are kept in their own file beside the project', text: 'What you draw in Design CAD (drawn objects, the drawing\'s own blocks, erased objects, layouts, layer settings, units and drawing styles) is now saved in a second file beside the project, Name.lvplan, and the project file links to it. A project with a lot of drawn work is about 12 times smaller, and a save writes the drawing file only when the drawn work changed. Keep the two files together when you copy, send or back up a project. An older project moves its drawings to the new file at its next save; earlier versions of the app then open it read-only. If the drawing file is missing or does not match, the project opens without its drawings, read-only, and nothing is saved over them.' },

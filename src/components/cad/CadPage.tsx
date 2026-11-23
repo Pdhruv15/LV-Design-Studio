@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import CadCanvas, { type CadHover, type CadMarks, type CadToggles, type CanvasDevice, type CanvasWiring } from './CadCanvas';
 import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadRibbonInfo, type CadState, type CadTool } from './cadState';
 import { cadCommand, toolName, type CadAction } from './cadCommands';
@@ -43,8 +44,8 @@ import { planSymbolShapes, symbolBox } from '../../model/planSymbols';
 import type { ShapeOut } from '../../model/cadSketch';
 import { newDrawingDxf, newDrawingName } from '../../model/cadNewDrawing';
 import { boundaryOfPiece, cropItems, cropNote, cropPieces, hatchLookup, type CropBoundary, type CropSide } from '../../model/cadCrop';
-import { builtInAsCustom, formatPat, parsePat, specWith, withPatterns, type CustomPattern } from '../../model/cadHatch';
-import { circlePts, isAssociative, lostAssociation } from '../../model/cadHatchAssoc';
+import { builtInAsCustom, formatPat, parsePat, specCopy, specWith, withPatterns, type CustomPattern } from '../../model/cadHatch';
+import { circlePts, isAssociative, loopOf, lostAssociation } from '../../model/cadHatchAssoc';
 import { keepComputerPatterns, loadComputerPatterns } from '../../model/cadPatternStore';
 import { erasedOf, restoredErased, shownView, withErased, type ErasedParts } from '../../model/cadErased';
 import { CIRCUIT_ATTRIBUTES } from '../../model/cadLoads';
@@ -112,8 +113,9 @@ import { floorLabel, floorList, type Floor } from '../../model/levels';
 import type { CadLayerMap, CadLayerRole, Project } from '../../types';
 import { fmtFixed, fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
-import { AnnoPanel, HatchPanel, type HatchOpts } from './AnnotatePanel';
-import { annoOf, centreOf, hatchArea, hatchItem, hatchOutline, hatchOutlinePts, islandsIn, HATCH_START, leaderItems, northArrowItems, roomTagItems, symbolUnits, SYMBOL_R_MM, textUnits, unitsPerPaperMm, type HatchSpec } from '../../model/cadAnnotate';
+import { AnnoPanel, type HatchOpts } from './AnnotatePanel';
+import { HatchStrip, type HatchOriginAt, type HatchPick } from './HatchStrip';
+import { annoOf, centreOf, hatchArea, hatchBox, hatchBoundaryItems, hatchItem, hatchOutline, hatchOutlinePts, islandsIn, HATCH_START, leaderItems, northArrowItems, roomTagItems, symbolUnits, SYMBOL_R_MM, textUnits, unitsPerPaperMm, type HatchSpec } from '../../model/cadAnnotate';
 import { alignedTo, alignEdge, cased, centredAt, ISO_TEXT_MM, justLabel, keynoteItems, legendNext, nextKeynote, numberText, oriented, padOf, parseFrame, parseJust, rejustified, spaced, textBox, textWidth, untaggedRooms, withTextHeight, type AlignMode, type CaseMode, type OrientMode } from '../../model/cadText';
 import { LayerPalette, layerRows, type LayerRow } from './CadLayerManager';
 import { PropertiesPalette } from './CadProperties';
@@ -131,6 +133,8 @@ import { ArrayPanel, ARL_START, MatchPanel, MATCH_START, SelectionPanel, type Ar
 import { alongLine, arranged, circuitAfter, copyDevices, deleteDevices, editsFor, inWindow, matchDevice, moveDevices, onBoard, placeAlong, renameBoard, replaceDevices, replacements, rotateDevices, toCircuit, typeOf, type DeviceEdit } from '../../model/deviceEdit';
 
 type Pt = [number, number];
+/** What Edit hatch asks of a click: the pattern's origin, an island to keep clear (add) or hatch again (remove), a hatch to copy. */
+type HePhase = 'origin' | 'add' | 'remove' | 'match';
 type Result =
   | { kind: 'dist'; a: Pt; b: Pt }
   | { kind: 'area'; points: Pt[]; how: 'corners' | 'object' | 'room' | 'trace'; name?: string }
@@ -169,8 +173,8 @@ const PROMPT: Record<CadTool, string> = {
   arl: 'ARL  Array on line: click the start of the line:',
   match: 'MA  Match: click the device (or drawn object) to copy from:',
   matchprop: 'MATCHPROP  Select the source object:',
-  hatch: 'HATCH  Pick an internal point (inside a closed object or a room):',
-  hatchedit: 'HATCHEDIT  Select a hatch:',
+  hatch: 'HATCH  Pick an internal point (inside a closed object or a room), or use the Hatch strip: Select, Set point, Match:',
+  hatchedit: 'HATCHEDIT  Select a hatch (its settings are in the Hatch strip):',
   boundary: 'BOUNDARY  Pick internal point or [Islands] <Islands on>:',
   leader: 'LEADER  Specify leader arrow point:',
   mleader: 'MLEADER  Specify leader arrowhead location:',
@@ -562,9 +566,20 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [computerPats, setComputerPats] = useState<CustomPattern[]>(loadComputerPatterns);
   // HATCHEDIT: the hatches being edited and what is asked of a click (the pattern's origin, islands to add or remove).
   const [heIds, setHeIds] = useState<string[]>([]);
-  const [hePhase, setHePhase] = useState<null | 'origin' | 'add' | 'remove'>(null);
+  const [hePhase, setHePhase] = useState<null | HePhase>(null);
+  // HATCH: what the next click does (the hatch strip's pick modes), and where the strip is shown (the ribbon's row, else here).
+  const [hatchPick, setHatchPick] = useState<'point' | 'select' | 'origin' | 'match'>('point');
+  const [stripHost, setStripHost] = useState<HTMLElement | null>(null);
+  // After every commit: the ribbon (a sibling) makes or drops its host in the same commit; no change, no re-render.
+  useLayoutEffect(() => { const el = tool === 'hatch' || tool === 'hatchedit' ? document.getElementById('cad-hatch-strip-host') : null; setStripHost((h) => (h === el ? h : el)); }); // eslint-disable-line react-hooks/exhaustive-deps
+  // The ribbon may draw its host a moment after this page: look once more on the next frame.
+  useEffect(() => {
+    if (tool !== 'hatch' && tool !== 'hatchedit') return;
+    const id = requestAnimationFrame(() => setStripHost((h) => { const el = document.getElementById('cad-hatch-strip-host'); return h === el ? h : el; }));
+    return () => cancelAnimationFrame(id);
+  }, [tool]);
   const mpNext = useRef<string | null>(null);
-  const heNext = useRef<{ ids: string[]; phase: 'origin' | 'add' | 'remove' | null } | null>(null);
+  const heNext = useRef<{ ids: string[]; phase: HePhase | null } | null>(null);
   // BOUNDARY: whether islands get their own polylines.
   const [boundIsl, setBoundIsl] = useState(true);
   // References: the manager shown, the reference being attached (its dialog, or a point being picked for it), the one
@@ -677,7 +692,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     // HATCHEDIT with hatches picked first: they are edited at once; BOUNDARY starts with islands on.
     const he = heNext.current; heNext.current = null;
     const preHatches = tool === 'hatchedit' ? (pickedSk.length ? pickedSk : selSketch ? [selSketch] : []).filter((x) => x.hatch).map((x) => x.id) : [];
-    setHeIds(he ? he.ids : preHatches); setHePhase(he?.phase ?? null); setBoundIsl(true);
+    setHeIds(he ? he.ids : preHatches); setHePhase(he?.phase ?? null); setHatchPick('point'); setBoundIsl(true);
     cad.say(`Command: ${PICK_FIRST.includes(tool) && first ? (tool === 'draworder' ? (drMode === 'above' || drMode === 'under' ? DR_REF : DR_OPTIONS) : tool === 'array' ? arrayType(edSet) : TEXT_TOOLS.includes(tool) ? textToolPrompt(tool) : `${tool.toUpperCase()}  ${tool === 'mirror' ? 'Specify first point of the mirror line:' : tool === 'scale' ? 'Specify base point:' : tool === 'align' ? ALIGN_SAY[0].slice(7) : 'Enter to join them:'}`) : tool === 'matchprop' && mp ? 'MATCHPROP  Select destination object(s):' : pre && tool === 'offset' ? OFFSET_SIDE : tool === 'insert' && !insBlock ? 'INSERT  Block name:' : tool === 'attpick' ? PROMPT.attpick : tool === 'blockpick' && blockDlg?.picking === 'objects' ? 'BLOCK  Select objects — Enter when done:' : tool === 'none' && recent[0] ? repeatHint(recent[0].label) : tool === 'cable' && routeService === 'elv' ? `ROUTE  Optimal ${SYSTEM_LABEL[elvRouteSystem]} route: click source and destination.` : tool === 'cable' && lvRouteMode === 'optimal' ? 'ROUTE  Optimal LV route: choose the cable, then click source and destination.' : editPrompt(tool, edSet)}`);
     if (tool === 'hatchedit' && preHatches.length && !he) cad.say(hatchEditSay(null, preHatches.length));
     // The multileader tools: what is picked already decides the first step.
@@ -1525,17 +1540,18 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** The hatches being edited (HE), as they are now. */
   const heItems = useMemo(() => sketch.filter((x) => x.hatch && heIds.includes(x.id)), [sketch, heIds]);
   /** HE on these hatches, with a click asked of the first at once (the pattern's origin, islands) when `phase` is set. */
-  function startHatchEdit(items: SketchItem[], phase: 'origin' | 'add' | 'remove' | null) {
+  function startHatchEdit(items: SketchItem[], phase: HePhase | null) {
     const ids = items.filter((x) => x.hatch).map((x) => x.id);
     if (!ids.length) return;
     pick([], items.filter((x) => x.hatch));
     if (tool === 'hatchedit') { setHeIds(ids); setHePhase(phase); cad.say(hatchEditSay(phase, ids.length)); }
     else { heNext.current = { ids, phase }; cad.setTool('hatchedit'); setTimeout(() => cad.say(hatchEditSay(phase, ids.length))); }
   }
-  const hatchEditSay = (phase: 'origin' | 'add' | 'remove' | null, n: number) => (phase === 'origin' ? 'HATCHEDIT  Click the pattern\'s origin:'
+  const hatchEditSay = (phase: HePhase | null, n: number) => (phase === 'origin' ? 'HATCHEDIT  Click the pattern\'s origin:'
     : phase === 'add' ? 'HATCHEDIT  Click inside closed objects in the hatch to keep clear (Enter ends):'
     : phase === 'remove' ? 'HATCHEDIT  Click inside an island to hatch it again (Enter ends):'
-    : `HATCHEDIT  ${n} hatch${n === 1 ? '' : 'es'} selected: change ${n === 1 ? 'it' : 'them'} in the panel on the right, or click another hatch (Enter ends)`);
+    : phase === 'match' ? 'HATCHEDIT  Click the hatch to copy the pattern from (Esc steps back):'
+    : `HATCHEDIT  ${n} hatch${n === 1 ? '' : 'es'} selected: change ${n === 1 ? 'it' : 'them'} in the Hatch strip, or click another hatch (Enter ends)`);
   /** One undo step: the hatches being edited changed by `fn`. */
   function heUpdate(fn: (it: SketchItem) => SketchItem, what: string) {
     if (!view || !heItems.length) return;
@@ -1555,6 +1571,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   function heClick(at: Pt, pixel: number) {
     const h = heItems[0];
     if (hePhase && h) {
+      if (hePhase === 'match') {
+        const src = hatchAtPoint(at, pixel);
+        if (!src?.hatch) { cad.say('HATCHEDIT  No hatch there. Click a hatch to copy from, or Esc:'); return; }
+        const from = src.hatch;
+        heUpdate((it) => ({ ...it, hatch: specCopy(from) }), `Matched to ${from.custom?.name ?? from.pattern.toUpperCase()}: scale ${from.scale} mm, angle ${from.angle}°`);
+        setHePhase(null);
+        return;
+      }
       if (hePhase === 'origin') { heUpdate((it) => ({ ...it, hatch: { ...it.hatch!, origin: at } }), `Origin ${m(toM(at[0]))}, ${m(toM(at[1]))}`); setHePhase(null); return; }
       if (hePhase === 'add') {
         const o = hatchOutline(pickable.filter((x) => x.id !== h.id), at, [], false);
@@ -1575,6 +1599,71 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const hit = hatchAtPoint(at, pixel);
     if (!hit) { cad.say('HATCHEDIT  Nothing there. Select a hatch:'); return; }
     startHatchEdit([hit], null);
+  }
+  /** The Hatch strip's pick buttons: what the next click does. A second press of Set point or Match goes back to the default. */
+  function hatchMode(m: HatchPick) {
+    if (tool === 'hatch') {
+      const next = m === 'keep' || m === 'again' ? 'point' : m, on = (next === 'origin' || next === 'match') && next === hatchPick ? 'point' : next;
+      setHatchPick(on);
+      cad.say(on === 'select' ? 'HATCH  Click a closed polyline, rectangle or circle to hatch it:'
+        : on === 'origin' ? 'HATCH  Click the pattern origin for the next hatches:'
+        : on === 'match' ? 'HATCH  Click a hatch to copy its pattern, scale, angle and origin:' : PROMPT.hatch);
+    } else if (tool === 'hatchedit') {
+      const want: HePhase | null = m === 'keep' ? 'add' : m === 'again' ? 'remove' : m === 'origin' || m === 'match' ? m : null, next = want && want === hePhase ? null : want;
+      setHePhase(next);
+      cad.say(hatchEditSay(next, heIds.length));
+    }
+  }
+  /** The strip's Origin list: the corner or the centre of the one hatch edited, or no origin (0, 0) for it or the next hatches. */
+  function hatchOrigin(k: HatchOriginAt) {
+    if (k === 'reset') {
+      if (tool === 'hatch') { setHatchSet(({ origin: _o, ...rest }) => rest); cad.say('HATCH  The pattern origin is 0, 0 again.'); return; }
+      heUpdate((it) => { const { origin: _o, ...rest } = it.hatch!; return { ...it, hatch: rest }; }, 'Origin reset to 0, 0');
+      return;
+    }
+    const h = heItems[0];
+    if (!h || heItems.length !== 1) return;
+    const at = hatchBox(h)[k === 'corner' ? 'corner' : 'centre'];
+    heUpdate((it) => ({ ...it, hatch: { ...it.hatch!, origin: at } }), `Origin ${m(toM(at[0]))}, ${m(toM(at[1]))} (${k === 'corner' ? 'bottom left' : 'centre'} of the boundary)`);
+  }
+  /** The strip's Outline: a closed polyline (a circle for a round hatch) along the outline of each hatch edited, on the current layer. */
+  function outlineHatches() {
+    if (!view || !heItems.length) return;
+    const made = hatchBoundaryItems(heItems, curLayer);
+    change(made.reduce((q, x) => addSketch(q, fileOf(), x).project, project), `HATCHEDIT  ${made.length} outline${made.length === 1 ? '' : 's'} drawn on ${curLayer} · ⌘Z to undo`);
+  }
+  /** The strip's Follow boundary: for the next hatches on or off; for a hatch edited, let go of its boundary objects. */
+  function hatchFollow() {
+    if (tool === 'hatch') { setHatchOpts((o) => ({ ...o, assoc: !o.assoc })); return; }
+    heUpdate((it) => { const { assoc: _a, ...rest } = it; return rest; }, 'No longer associative');
+  }
+  /** A new hatch on an outline found (a point inside it, or a drawn object selected), with its islands as asked. */
+  function makeHatch(o: NonNullable<ReturnType<typeof hatchOutline>>) {
+    const assoc = hatchOpts.assoc ? o.ids : undefined, item = hatchItem(o, hatchSet, assoc), n = o.holes.length;
+    draw(item, `Hatch ${hatchSet.pattern.toUpperCase()}${o.from === 'room' ? ' in the room' : ''}, ${m2(toM2(hatchArea(item)))}${n ? ` · ${n} island${n === 1 ? '' : 's'}` : ''}${assoc ? ' · associative' : ''}`);
+  }
+  /** HATCH with Set point, Match or Select chosen: the click sets the origin, copies a hatch, or hatches the closed object clicked. */
+  function hatchClick(at: Pt, pixel: number) {
+    if (hatchPick === 'origin') {
+      setHatchSet((s) => ({ ...s, origin: at })); setHatchPick('point');
+      cad.say(`HATCH  Pattern origin set at ${m(toM(at[0]))}, ${m(toM(at[1]))} m: used by the next hatches. Pick an internal point:`);
+      return;
+    }
+    if (hatchPick === 'match') {
+      const src = hatchAtPoint(at, pixel);
+      if (!src?.hatch) { cad.say('HATCH  No hatch there. Click a hatch to copy, or choose Pick point:'); return; }
+      setHatchSet(specCopy(src.hatch)); setHatchPick('point');
+      cad.say(`HATCH  Matched ${src.hatch.custom?.name ?? src.hatch.pattern.toUpperCase()}: scale ${src.hatch.scale} mm, angle ${src.hatch.angle}° for the next hatches. Pick an internal point:`);
+      return;
+    }
+    if (hatchPick === 'select') {
+      const it = itemAt(pickable.filter((x) => !x.hatch && !!loopOf(x)), at, pickR * pixel, defs);
+      const loop = it && loopOf(it);
+      if (!it || !loop) { cad.say('HATCH  No closed polyline, rectangle or circle there. Click on its edge, or choose Pick point:'); return; }
+      const circle = it.kind === 'circle' && it.r ? { c: it.pts[0], r: it.r } : undefined, pts = circle ? it.pts : loop;
+      const isl = hatchOpts.islands ? islandsIn(pickable, { pts: loop, circle }, it.id) : { holes: [], ids: [] };
+      makeHatch({ pts, ...(circle ? { circle } : {}), from: 'object', holes: isl.holes, islandIds: isl.ids, ids: [it.id, ...isl.ids] });
+    }
   }
   /** CROP: cuts the block (or drawn items) along the outline; the kept pieces become drawn items, the block is erased. */
   async function doCrop(side: CropSide) {
@@ -3573,10 +3662,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return;
     }
     if (tool === 'hatch') {
+      if (hatchPick !== 'point') { hatchClick(at, pixel); return; }
       const o = areaAround(at, hatchOpts.islands);
       if (!o) { cad.say('HATCH  No closed object, room or area bounded by lines around that point: draw a closed polyline first.'); return; }
-      const assoc = hatchOpts.assoc ? o.ids : undefined, item = hatchItem(o, hatchSet, assoc), n = o.holes.length;
-      draw(item, `Hatch ${hatchSet.pattern.toUpperCase()}${o.from === 'room' ? ' in the room' : ''}, ${m2(toM2(hatchArea(item)))}${n ? ` · ${n} island${n === 1 ? '' : 's'}` : ''}${assoc ? ' · associative' : ''}`);
+      makeHatch(o);
       return;
     }
     if (tool === 'leader') { setPoints((p) => [...p, at]); cad.say(points.length ? 'LEADER  Next point, or type the text and Enter:' : 'LEADER  Specify next point:'); if (points.length) input.current?.focus(); return; }
@@ -5032,14 +5121,6 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               step={edStep ? `${kindOf(sketch.find((x) => x.id === edStep.id) ?? sketch[0])} picked — ${tool === 'offset' ? 'click the side' : tool === 'break' ? 'click the second point, or Enter' : 'click the second line'}` : stretchBox ? 'Window set — click the base point, then the second point' : PICK_FIRST.includes(tool) && edPhase === 'points' ? (TEXT_TOOLS.includes(tool) ? 'Picked — type the value on the command line' : 'Objects picked — now the points') : undefined}
               onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
           )}
-          {tool === 'hatch' && view && <HatchPanel spec={hatchSet} onSpec={setHatchSet} patterns={project.cadPatterns} computer={computerPats} onImport={importPat} onExport={() => void exportPat()} opts={hatchOpts} onOpts={setHatchOpts} />}
-          {tool === 'hatchedit' && view && heItems.length > 0 && heItems[0].hatch && <HatchPanel key={heItems[0].id} spec={heItems[0].hatch} onSpec={heSpec} patterns={project.cadPatterns} computer={computerPats} editing={{
-            count: heItems.length, origin: [(heItems[0].hatch.origin?.[0] ?? 0) * units.factor, (heItems[0].hatch.origin?.[1] ?? 0) * units.factor], islands: heItems[0].holes?.length ?? 0,
-            assoc: isAssociative(heItems[0], sketch), canAssoc: isAssociative(heItems[0], sketch),
-            onOrigin: ([x, y]) => heUpdate((it) => ({ ...it, hatch: { ...it.hatch!, origin: [x / units.factor, y / units.factor] } }), `Origin ${x.toFixed(2)}, ${y.toFixed(2)} m`),
-            onPick: () => { setHePhase('origin'); cad.say(hatchEditSay('origin', 1)); }, onAdd: () => { setHePhase('add'); cad.say(hatchEditSay('add', 1)); }, onRemove: () => { setHePhase('remove'); cad.say(hatchEditSay('remove', 1)); },
-            onAssoc: () => heUpdate((it) => { const { assoc: _a, ...rest } = it; return rest; }, 'No longer associative')
-          }} />}
           {(tool === 'text' || tool === 'mtext' || tool === 'dim' || tool === 'dimlin' || tool === 'dimcont' || tool === 'dimbase' || tool === 'leader' || tool === 'mleader' || tool === 'mleaderadd' || tool === 'mleaderremove' || tool === 'mleaderalign' || tool === 'mleadercollect' || tool === 'rtag' || tool === 'rtall' || tool === 'north') && view && (
             <AnnoPanel anno={anno} onAnno={(a) => onChange({ ...project, cadAnno: a }, `Annotation: ${a.textMm} mm text at 1:${a.scale}`)}
               {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, mtext: { title: 'Notes', cmd: 'MT', help: 'Two corners for the box, then type; lines wrap to its width.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Two points, then where the dimension line goes.' }, dimlin: { title: 'Linear dimension', cmd: 'DLI', help: 'Two points, then where the dimension line goes: above or below them it is horizontal, beside them vertical.' }, dimcont: { title: 'Continue dimension', cmd: 'DCO', help: 'Click each next point: a dimension from the last one\'s second point, in line with it. Esc stops.' }, dimbase: { title: 'Baseline dimension', cmd: 'DBA', help: 'Click each next point: a dimension from the last one\'s first point, one step further out. Esc stops.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, mleader: { title: 'Multileader', cmd: 'MLD', help: 'Click the arrowhead, then the landing; type the words in the note editor (several leaders, one note).' }, mleaderadd: { title: 'Add leader', cmd: 'MLEADERADD', help: 'Pick a multileader, then click each arrowhead to add; Enter ends.' }, mleaderremove: { title: 'Remove leader', cmd: 'MLEADERREMOVE', help: 'Pick a multileader, then click the leader to remove; one always stays.' }, mleaderalign: { title: 'Align multileaders', cmd: 'MLA', help: 'Pick the multileaders, Enter, the one to align to, then a direction (Enter: vertical).' }, mleadercollect: { title: 'Collect multileaders', cmd: 'MLC', help: 'Pick two or more multileaders, Enter, then click where the collected one goes.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, rtall: { title: 'Tag all rooms', cmd: 'RTALL', help: 'Enter tags every room of the level with no tag yet; A tags them all again.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
@@ -5146,8 +5227,24 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     </aside>
   );
   const fileLists = dsTab ? cadFileMenu(project, cad, (next, message) => onChange(next, message), onStatus) : null;
+  // The Hatch strip: in the ribbon's row while Hatch or Edit hatch runs (inline at the top of the page when there is no ribbon).
+  const hatchStrip = (tool === 'hatch' || tool === 'hatchedit') && view ? (() => {
+    const edit = tool === 'hatchedit', one = heItems.length === 1 ? heItems[0] : undefined, first = heItems[0];
+    const follows = first ? isAssociative(first, sketch) : false;
+    return (
+      <HatchStrip mode={edit ? 'edit' : 'hatch'} spec={edit ? first?.hatch : hatchSet} onSpec={edit ? heSpec : setHatchSet} patterns={project.cadPatterns} computer={computerPats}
+        pick={edit ? (hePhase === 'add' ? 'keep' : hePhase === 'remove' ? 'again' : hePhase ?? 'select') : hatchPick} onPick={hatchMode}
+        edited={edit ? heItems.length : undefined} islands={one?.holes?.length ?? 0} origin={one?.hatch?.origin ? [toM(one.hatch.origin[0]), toM(one.hatch.origin[1])] : undefined}
+        hasOrigin={edit ? heItems.some((x) => !!x.hatch?.origin) : !!hatchSet.origin} onOutline={outlineHatches} onOrigin={hatchOrigin}
+        follow={edit ? follows : hatchOpts.assoc} canFollow={edit ? follows : true} onFollow={hatchFollow}
+        findIslands={hatchOpts.islands} onFindIslands={() => setHatchOpts((o) => ({ ...o, islands: !o.islands }))}
+        keep={hatchOpts.keep} onKeep={(on) => setHatchOpts((o) => ({ ...o, keep: on }))} onImport={importPat} onExport={() => void exportPat()}
+        onDone={() => { cad.setTool('none'); cad.say(edit ? 'HATCHEDIT  Ended.' : 'HATCH  Ended.'); }} />
+    );
+  })() : null;
   return (
     <section className="cad" ref={page}>
+      {hatchStrip && (stripHost ? createPortal(hatchStrip, stripHost) : <div className="hatch-strip-inline">{hatchStrip}</div>)}
       <CadTabs cad={cad} project={project} busy={busy} onOpen={openFile} onClose={closeDrawings} />
       <div className="cad-work" style={{ gridTemplateColumns: workColumns }}>
         {dockSide === 'left' ? dock : info}

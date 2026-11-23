@@ -7,6 +7,14 @@ const box: [number, number, number, number] = [0, 0, 60, 40];
 const spec = (pattern: HatchSpec['pattern'], angle = 0): HatchSpec => ({ pattern, scale: 3, angle });
 const r6 = (p: Pt) => p.map((v) => +v.toFixed(6));
 
+describe('hatch pattern names on swatches', () => {
+  it('every built-in has a short plain name, none says ANSI, and the long labels are unchanged', () => {
+    for (const id of HATCH_IDS) { const d = patternOf(id); expect(d.short, id).toBeTruthy(); expect(d.short).not.toMatch(/ansi/i); }
+    expect(patternOf('ansi31')).toMatchObject({ short: 'Diagonal', label: 'ANSI31 (45° lines)' });
+    expect(HATCH_IDS.map((id) => patternOf(id).short)).toEqual(['Solid', 'Diagonal', 'Cross', 'Grid', 'Dots', 'Lines 0°', 'Lines 90°', 'Dashed 45°', 'Double 45°', 'Bands', 'Dashed 0°', 'Brick', 'Block', 'Concrete', 'Earth', 'Gravel', 'Sand', 'Insulation']);
+  });
+});
+
 describe('hatch patterns', () => {
   it('every pattern but Solid draws lines or dots in a box, all finite', () => {
     expect(HATCH_IDS.length).toBeGreaterThanOrEqual(18);
