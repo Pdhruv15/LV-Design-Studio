@@ -28,13 +28,16 @@ const BEFORE: Record<string, string> = {
   ALIGN: 'align', ALIGNV: '!alignDevices', SPACE: '!alignDevices', WC: '!wireAll', WIRE: '!wireAll', WIRECIRCUITS: '!wireAll', W1: 'wire', WIREONE: 'wire',
   TAGS: '!wireTags', COV: '!coverage', COVERAGE: '!coverage', REC: 'rect', RECTANG: 'rect', RECTANGLE: 'rect',
   C: 'circle', CIRCLE: 'circle', A: 'arc', ARC: 'arc', T: 'text', DT: 'text', TEXT: 'text', MT: 'mtext', MTEXT: 'mtext', DR: 'draworder', DRAWORDER: 'draworder', TEXTTOFRONT: 'texttofront', PO: 'point', POINT: 'point', DIV: 'divide', DIVIDE: 'divide', ME: 'measure', MEASURE: 'measure', PTYPE: '!pointStyle', DDPTYPE: '!pointStyle', B: '!blockDialog', BLOCK: '!blockDialog', '-BLOCK': 'block', ED: 'textedit', TEXTEDIT: 'textedit', DDEDIT: 'textedit',
-  DIM: 'dim', DIMALIGNED: 'dim', DAL: 'dim', DLI: 'dimlin', E: '!erase', ERASE: '!erase', DEL: '!erase', DELETE: '!erase', RESTOREDWG: '!restoreDwg',
+  DIM: 'dim', DLI: 'dimlin', E: '!erase', ERASE: '!erase', DEL: '!erase', DELETE: '!erase', RESTOREDWG: '!restoreDwg',
   SAVE: '!save', SAVEDWG: '!saveDwg', DWGOUT: '!saveDwg',
   LA: '!layerManager', LAYERS: '!layers', OSNAP: '!osnap', GRID: '!grid', ORTHO: '!ortho', SNAP: '!snap',
   HELP: '!help', '?': '!help'
 };
 // Added since: the text and dimension styles (STYLE, DIMSTYLE).
-const ADDED: Record<string, string> = { ST: '!textStyle', STYLE: '!textStyle', D: '!dimStyle', DST: '!dimStyle', DIMSTY: '!dimStyle', DIMSTYLE: '!dimStyle', TBSAVE: '!tbSave',
+const ADDED: Record<string, string> = {
+  // Dimensions panel (v2.269): DIM takes its kind from what is clicked; Aligned has its own tool; DIMLAYER.
+  DIMALIGNED: 'dimal', DAL: 'dimal', DIMLAYER: '!dimLayer',
+  ST: '!textStyle', STYLE: '!textStyle', D: '!dimStyle', DST: '!dimStyle', DIMSTY: '!dimStyle', DIMSTYLE: '!dimStyle', TBSAVE: '!tbSave',
   // Right-click menus, phase 1: the tools behind the blank-canvas, command and selection menus.
   P: 'pan', PAN: 'pan', UNDO: '!undo', REDO: '!redo', SELECTALL: '!selectAll', FIND: '!find', FINDREPLACE: '!find', CUTCLIP: '!cutClip', BE: '!bedit', BEDIT: '!bedit', BSAVE: '!bsave', BCLOSE: '!bclose', REFEDIT: '!refedit', REFCLOSE: '!refclose', COUNT: '!count', ADDSELECTED: '!addSelected', QM: '!quickMeasure', QUICKMEASURE: '!quickMeasure',
   ISOLATEOBJECTS: '!isolateObjects', ISO: '!isolateObjects', HIDEOBJECTS: '!hideObjects', UNISOLATEOBJECTS: '!unisolateObjects', UNHIDE: '!unisolateObjects',
