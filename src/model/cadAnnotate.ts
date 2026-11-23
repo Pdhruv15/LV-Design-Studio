@@ -76,6 +76,19 @@ export function hatchItem(o: { pts: Pt[]; circle?: { c: Pt; r: number }; holes?:
   const extra = { ...(o.holes?.length ? { holes: o.holes } : {}), ...(assoc?.length ? { assoc } : {}) };
   return o.circle ? { kind: 'circle', layer: HATCH_LAYER, pts: [o.circle.c], r: o.circle.r, hatch: spec, ...extra } : { kind: 'pline', layer: HATCH_LAYER, pts: o.pts, closed: true, hatch: spec, ...extra };
 }
+/** The closed objects that follow the outline of each hatch given (the outer outline, not its islands) on `layer`: a circle
+ * for a circular hatch, else a closed polyline. Items that are not hatches give none. */
+export function hatchBoundaryItems(hatches: SketchItem[], layer: string): Omit<SketchItem, 'id'>[] {
+  return hatches.filter((h) => h.hatch).map((h): Omit<SketchItem, 'id'> => (h.kind === 'circle' && h.r
+    ? { kind: 'circle', layer, pts: [[h.pts[0][0], h.pts[0][1]]], r: h.r }
+    : { kind: 'pline', layer, pts: h.pts.map((q): Pt => [q[0], q[1]]), closed: true }));
+}
+/** The lower-left corner and the centre of a hatch's outline box (drawing units), for the pattern origin. */
+export function hatchBox(it: Pick<SketchItem, 'kind' | 'pts' | 'r'>): { corner: Pt; centre: Pt } {
+  const pts = hatchOutlinePts(it), xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  return { corner: [x0, y0], centre: [(x0 + x1) / 2, (y0 + y1) / 2] };
+}
 /** A hatch's net area (drawing units²): the outline less its islands, an island inside an island counted back in. */
 export function hatchArea(it: Pick<SketchItem, 'kind' | 'pts' | 'r' | 'holes'>): number {
   const loops: { pts: Pt[]; a: number }[] = [{ pts: hatchOutlinePts(it), a: it.kind === 'circle' ? Math.PI * (it.r ?? 0) ** 2 : area(it.pts) }, ...(it.holes ?? []).map((h) => ({ pts: h, a: area(h) }))];

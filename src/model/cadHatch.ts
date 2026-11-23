@@ -12,6 +12,8 @@ type Box = [number, number, number, number];
 export interface PatternLine { angle: number; base: Pt; offset: Pt; dashes: number[] }
 export interface PatternDef {
   label: string;
+  /** The plain name on a swatch (Diagonal, Cross, Brick…); the built-in patterns all have one. */
+  short?: string;
   lines: PatternLine[];
   solid?: boolean;
   /** Drawn the same at any angle (the hatch's angle is not offered). */
@@ -22,24 +24,24 @@ const L = (angle: number, base: Pt, offset: Pt, dashes: number[] = []): PatternL
 const R3 = Math.sqrt(3);
 
 export const HATCH_PATTERNS = {
-  solid: { label: 'Solid', lines: [], solid: true },
-  ansi31: { label: 'ANSI31 (45° lines)', lines: [L(45, [0, 0], [0, 1])] },
-  ansi37: { label: 'ANSI37 (cross 45°)', lines: [L(45, [0, 0], [0, 1]), L(135, [0, 0], [0, 1])] },
-  net: { label: 'Net (square grid)', lines: [L(0, [0, 0], [0, 1]), L(90, [0, 0], [0, 1])] },
-  dots: { label: 'Dots', lines: [L(0, [0, 0], [0, 1], [0, -1])], noAngle: true },
-  horizontal: { label: 'Lines 0° (horizontal)', lines: [L(0, [0, 0], [0, 1])] },
-  vertical: { label: 'Lines 90° (vertical)', lines: [L(90, [0, 0], [0, 1])] },
-  dash45: { label: 'Dashed 45° (removed or existing)', lines: [L(45, [0, 0], [0.5, 1], [1, -0.5])] },
-  steel: { label: 'Steel (double 45°)', lines: [L(45, [0, 0], [0, 1.5]), L(45, [-0.3 / Math.SQRT2, 0.3 / Math.SQRT2], [0, 1.5])] },
-  hazard: { label: 'Hazard (45° bands, no-go zones)', lines: [0, 0.15, 0.3].map((d) => L(45, [-d / Math.SQRT2, d / Math.SQRT2], [0, 1.5])) },
-  trench: { label: 'Dashed lines (cable trench)', lines: [L(0, [0, 0], [0.75, 1], [1, -0.5])] },
-  brick: { label: 'Brick', lines: [L(0, [0, 0], [0, 1]), L(90, [0, 0], [1, -1], [1, -1])] },
-  block: { label: 'Block work', lines: [L(0, [0, 0], [0, 1]), L(90, [0, 0], [1, -1.5], [1, -1])] },
-  concrete: { label: 'Concrete', lines: [L(50, [0, 0], [0.6, 1.5], [0.4, -1.6]), L(140, [0.3, 0.2], [0.5, 1.7], [0.3, -1.9]), L(20, [0.1, 0.6], [1.1, 1.3], [0, -2.2])] },
-  earth: { label: 'Earth', lines: [...[0, 0.15, 0.3].map((y) => L(0, [0, y], [0.5, 0.5], [0.5, -0.5])), ...[0.6, 0.75, 0.9].map((x) => L(90, [x, 0], [0.5, -0.5], [0.35, -0.65]))] },
-  gravel: { label: 'Gravel', lines: [L(0, [0, 0], [0.5, 0.9], [0, -1.3]), L(30, [0.3, 0.4], [0.7, 1.1], [0, -0.9]), L(60, [0.6, 0.1], [0.9, 1.2], [0.2, -1.5])] },
-  sand: { label: 'Sand', lines: [L(0, [0, 0], [0.25, 0.5], [0, -0.6]), L(0, [0.3, 0.25], [0.35, 0.5], [0, -0.8])], noAngle: true },
-  insulation: { label: 'Insulation (zigzag)', lines: [L(60, [0, 0], [0.5, -R3 / 2], [1, -1]), L(120, [0, 0], [-0.5, -R3 / 2], [1, -1])] }
+  solid: { label: 'Solid', short: 'Solid', lines: [], solid: true },
+  ansi31: { label: 'ANSI31 (45° lines)', short: 'Diagonal', lines: [L(45, [0, 0], [0, 1])] },
+  ansi37: { label: 'ANSI37 (cross 45°)', short: 'Cross', lines: [L(45, [0, 0], [0, 1]), L(135, [0, 0], [0, 1])] },
+  net: { label: 'Net (square grid)', short: 'Grid', lines: [L(0, [0, 0], [0, 1]), L(90, [0, 0], [0, 1])] },
+  dots: { label: 'Dots', short: 'Dots', lines: [L(0, [0, 0], [0, 1], [0, -1])], noAngle: true },
+  horizontal: { label: 'Lines 0° (horizontal)', short: 'Lines 0°', lines: [L(0, [0, 0], [0, 1])] },
+  vertical: { label: 'Lines 90° (vertical)', short: 'Lines 90°', lines: [L(90, [0, 0], [0, 1])] },
+  dash45: { label: 'Dashed 45° (removed or existing)', short: 'Dashed 45°', lines: [L(45, [0, 0], [0.5, 1], [1, -0.5])] },
+  steel: { label: 'Steel (double 45°)', short: 'Double 45°', lines: [L(45, [0, 0], [0, 1.5]), L(45, [-0.3 / Math.SQRT2, 0.3 / Math.SQRT2], [0, 1.5])] },
+  hazard: { label: 'Hazard (45° bands, no-go zones)', short: 'Bands', lines: [0, 0.15, 0.3].map((d) => L(45, [-d / Math.SQRT2, d / Math.SQRT2], [0, 1.5])) },
+  trench: { label: 'Dashed lines (cable trench)', short: 'Dashed 0°', lines: [L(0, [0, 0], [0.75, 1], [1, -0.5])] },
+  brick: { label: 'Brick', short: 'Brick', lines: [L(0, [0, 0], [0, 1]), L(90, [0, 0], [1, -1], [1, -1])] },
+  block: { label: 'Block work', short: 'Block', lines: [L(0, [0, 0], [0, 1]), L(90, [0, 0], [1, -1.5], [1, -1])] },
+  concrete: { label: 'Concrete', short: 'Concrete', lines: [L(50, [0, 0], [0.6, 1.5], [0.4, -1.6]), L(140, [0.3, 0.2], [0.5, 1.7], [0.3, -1.9]), L(20, [0.1, 0.6], [1.1, 1.3], [0, -2.2])] },
+  earth: { label: 'Earth', short: 'Earth', lines: [...[0, 0.15, 0.3].map((y) => L(0, [0, y], [0.5, 0.5], [0.5, -0.5])), ...[0.6, 0.75, 0.9].map((x) => L(90, [x, 0], [0.5, -0.5], [0.35, -0.65]))] },
+  gravel: { label: 'Gravel', short: 'Gravel', lines: [L(0, [0, 0], [0.5, 0.9], [0, -1.3]), L(30, [0.3, 0.4], [0.7, 1.1], [0, -0.9]), L(60, [0.6, 0.1], [0.9, 1.2], [0.2, -1.5])] },
+  sand: { label: 'Sand', short: 'Sand', lines: [L(0, [0, 0], [0.25, 0.5], [0, -0.6]), L(0, [0.3, 0.25], [0.35, 0.5], [0, -0.8])], noAngle: true },
+  insulation: { label: 'Insulation (zigzag)', short: 'Insulation', lines: [L(60, [0, 0], [0.5, -R3 / 2], [1, -1]), L(120, [0, 0], [-0.5, -R3 / 2], [1, -1])] }
 } satisfies Record<string, PatternDef>;
 
 export type HatchPattern = keyof typeof HATCH_PATTERNS;
@@ -132,6 +134,8 @@ export function withPatterns(list: CustomPattern[] | undefined, add: CustomPatte
 }
 /** A hatch spec for a project pattern, keeping the spacing and angle. */
 export const specWith = (spec: HatchSpec, c: CustomPattern): HatchSpec => ({ ...spec, pattern: c.name, custom: c });
+/** A copy of a hatch's settings (pattern, scale, angle, own pattern and origin), to match another hatch. */
+export const specCopy = (h: HatchSpec): HatchSpec => ({ pattern: h.pattern, scale: h.scale, angle: h.angle, ...(h.custom ? { custom: h.custom } : {}), ...(h.origin ? { origin: [h.origin[0], h.origin[1]] as [number, number] } : {}) });
 
 /** A pattern line placed: angle (radians), base point, the step to the next line and dashes, in the units given. */
 export interface PlacedLine { angle: number; base: Pt; offset: Pt; dashes: number[] }

@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design CAD: the Hatch strip (mockup)</title>
+<style>
+/* App tokens (src/theme), Graphite dark default. Static mockup: no network. */
+:root{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--on-acc:#1D2024;--new:#b784ff}
+*{box-sizing:border-box}
+body{margin:0;width:1952px;background:var(--bg);color:var(--tx);font:13px/18px -apple-system,"Segoe UI",system-ui,sans-serif}
+.wrap{width:1480px;margin:0 auto;padding:16px}
+h1{font-size:17px;margin:0 0 4px}
+h2{font-size:14px;margin:26px 0 6px;display:flex;gap:6px;align-items:center}
+h2 .n{background:var(--acc);color:var(--on-acc);border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex:none}
+p{margin:0 0 8px;color:var(--mut);max-width:1100px}
+p b{color:var(--tx)}
+.new{color:var(--new)}
+.app{border:1px solid var(--line-strong);border-radius:8px;background:var(--panel);width:1440px;overflow:hidden}
+.tabs{display:flex;gap:3px;padding:6px 10px 0;font-size:12px}
+.tabs span{padding:4px 12px;border-radius:6px 6px 0 0;color:var(--mut)}
+.tabs span.on{background:var(--acc);color:var(--on-acc);font-weight:600}
+.tabs span.ctx{border:1px solid var(--acc);border-bottom:0;color:var(--acc);font-weight:600}
+.rib{display:flex;align-items:stretch;padding:6px 8px 0;border-top:1px solid var(--acc);background:var(--panel)}
+.panel{display:flex;flex-direction:column;border-right:1px solid var(--line);padding:0 8px;flex:none}
+.panel:last-child{border-right:0}
+.tools{display:flex;gap:4px;align-items:stretch;height:78px}
+.cap{font-size:11px;color:var(--mut);text-align:center;padding:3px 0 4px;white-space:nowrap}
+.col{display:grid;grid-template-rows:repeat(3,24px);gap:3px;align-content:start}
+.b{position:relative;display:inline-flex;align-items:center;border:1px solid transparent;border-radius:4px;color:var(--tx);font-size:11px;white-space:nowrap}
+.b svg{stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.b.lg{flex-direction:column;gap:4px;padding:8px 6px 0;min-width:52px;height:78px;text-align:center;line-height:13px}
+.b.lg svg{width:28px;height:28px}
+.b.row{gap:6px;padding:0 8px 0 5px;height:24px}
+.b.row svg{width:16px;height:16px}
+.b.hover{background:var(--p2);border-color:var(--line-strong)}
+.b.on{background:rgba(245,179,1,.14);border-color:var(--acc);color:var(--acc)}
+.b.off{color:#5d646d}
+.b.done{background:var(--acc);color:var(--on-acc);font-weight:700;min-width:64px}
+.b .nw{position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:var(--new)}
+.b.row .nw{top:8px;right:-2px}
+/* swatches */
+.strip{display:flex;gap:4px}
+.sw{width:50px;height:78px;border:1px solid var(--line);border-radius:4px;background:var(--p2);display:flex;flex-direction:column;align-items:center;padding:4px 0 0;font-size:10px;line-height:12px;color:var(--mut);text-align:center}
+.sw svg{width:40px;height:40px;border-radius:2px;background:#101214;margin-bottom:3px}
+.sw.on{border-color:var(--acc);color:var(--tx);box-shadow:inset 0 0 0 1px var(--acc)}
+.sw.hover{border-color:var(--line-strong);color:var(--tx)}
+.scroll{display:grid;grid-template-rows:repeat(3,24px);gap:3px;margin-left:2px}
+.scroll span{width:18px;height:24px;border:1px solid var(--line);border-radius:3px;display:flex;align-items:center;justify-content:center}
+.scroll svg{width:10px;height:10px;stroke:var(--mut);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+/* property rows */
+.props{display:grid;grid-template-columns:auto 132px auto 96px;grid-template-rows:repeat(3,24px);gap:3px 6px;align-items:center;font-size:11px}
+.props label{color:var(--mut)}
+.in{height:22px;border:1px solid var(--line-strong);border-radius:4px;background:var(--bg);display:flex;align-items:center;gap:6px;padding:0 6px;font-size:11px;color:var(--tx)}
+.in .chev{margin-left:auto}
+.chev{width:9px;height:9px;stroke:var(--mut);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.chip{width:12px;height:12px;border-radius:2px;border:1px solid var(--line-strong);flex:none}
+.chip.none{background:linear-gradient(135deg,transparent 45%,#e5484d 45%,#e5484d 55%,transparent 55%)}
+.step{padding:0;gap:0}
+.step i{width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-style:normal;color:var(--mut);font-size:14px}
+.step b{flex:1;text-align:center;font-weight:400;border-left:1px solid var(--line);border-right:1px solid var(--line);line-height:20px}
+.slider{grid-column:2 / 5;display:flex;align-items:center;gap:8px}
+.track{flex:1;height:4px;border-radius:2px;background:var(--line-strong);position:relative}
+.track::before{content:'';position:absolute;left:0;top:0;bottom:0;width:70%;background:var(--acc);border-radius:2px}
+.track::after{content:'';position:absolute;left:70%;top:-5px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--tx);border:2px solid var(--acc)}
+.slider .in{width:56px;justify-content:flex-end}
+/* canvas */
+.canvas{position:relative;height:330px;background:#101214;border-top:1px solid var(--line)}
+.canvas svg{display:block}
+.cmd{border-top:1px solid var(--line);background:var(--p2);padding:5px 10px;font:12px/18px ui-monospace,Menlo,Consolas,monospace;color:var(--mut)}
+.cmd b{color:var(--tx);font-weight:600}
+.cmd kbd,.tip kbd,td kbd{font:11px ui-monospace,Menlo,monospace;border:1px solid var(--line-strong);border-radius:3px;padding:0 4px;color:var(--tx);background:var(--bg)}
+.tip{position:absolute;background:#0c0d0f;border:1px solid var(--line-strong);border-radius:6px;padding:7px 10px;font-size:11px;line-height:16px;color:var(--mut);width:250px;box-shadow:0 6px 18px rgba(0,0,0,.5)}
+.tip b{color:var(--tx);font-size:12px}
+.note{position:absolute;font-size:11px;color:var(--acc)}
+/* lower sections */
+.two{display:flex;gap:24px;align-items:flex-start}
+.card{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:12px}
+.grid{display:grid;grid-template-columns:repeat(9,50px);gap:6px}
+.grid .sw{height:72px}
+.gh{font-size:11px;color:var(--mut);margin:0 0 6px;display:flex;justify-content:space-between}
+.gh + .grid{margin-bottom:12px}
+table{border-collapse:collapse;font-size:12px}
+td,th{border-bottom:1px solid var(--line);padding:5px 10px 5px 0;text-align:left;vertical-align:middle;color:var(--mut)}
+th{color:var(--tx);font-weight:600}
+td:first-child{color:var(--tx);white-space:nowrap}
+.states{display:flex;gap:10px;align-items:flex-end}
+.states div{text-align:center;font-size:11px;color:var(--mut)}
+.states .b{margin-bottom:4px}
+.narrow{width:1024px}
+.more{display:flex;align-items:center;justify-content:center;width:26px;border:1px solid var(--line);border-radius:4px;height:78px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <g id="pstyle" stroke="#E6E8EB" stroke-width="1" fill="none"></g>
+    <pattern id="p-diag" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><line x1="0" y1="0" x2="8" y2="0" stroke="#E6E8EB" stroke-width="1"/></pattern>
+    <pattern id="p-fine" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><line x1="0" y1="0" x2="4" y2="0" stroke="#E6E8EB" stroke-width=".8"/></pattern>
+    <pattern id="p-cross" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0H8M0 0V8" stroke="#E6E8EB" stroke-width="1"/></pattern>
+    <pattern id="p-grid" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M0 .5H8M.5 0V8" stroke="#E6E8EB" stroke-width="1"/></pattern>
+    <pattern id="p-dots" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r=".9" fill="#E6E8EB"/></pattern>
+    <pattern id="p-horiz" width="8" height="7" patternUnits="userSpaceOnUse"><line x1="0" y1="3.5" x2="8" y2="3.5" stroke="#E6E8EB" stroke-width="1"/></pattern>
+    <pattern id="p-vert" width="7" height="8" patternUnits="userSpaceOnUse"><line x1="3.5" y1="0" x2="3.5" y2="8" stroke="#E6E8EB" stroke-width="1"/></pattern>
+    <pattern id="p-dash" width="12" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><line x1="0" y1="3.5" x2="7" y2="3.5" stroke="#E6E8EB" stroke-width="1"/></pattern>
+    <pattern id="p-double" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><path d="M0 2H10M0 4.5H10" stroke="#E6E8EB" stroke-width="1"/></pattern>
+    <pattern id="p-band" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="12" height="5" fill="#E6E8EB"/></pattern>
+    <pattern id="p-trench" width="14" height="8" patternUnits="userSpaceOnUse"><line x1="0" y1="4" x2="9" y2="4" stroke="#E6E8EB" stroke-width="1"/></pattern>
+    <pattern id="p-brick" width="16" height="12" patternUnits="userSpaceOnUse"><path d="M0 .5H16M0 6.5H16M.5 0V6M8.5 6V12" stroke="#E6E8EB" stroke-width="1"/></pattern>
+    <pattern id="p-block" width="20" height="16" patternUnits="userSpaceOnUse"><path d="M0 .5H20M0 8.5H20M.5 0V8M10.5 8V16" stroke="#E6E8EB" stroke-width="1"/></pattern>
+    <pattern id="p-conc" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M3 4l3-3M12 8l4 2M6 14l2 3M15 16l3-2M10 2l2 1" stroke="#E6E8EB" stroke-width="1"/><circle cx="4" cy="10" r=".8" fill="#E6E8EB"/><circle cx="16" cy="4" r=".8" fill="#E6E8EB"/><circle cx="11" cy="13" r=".8" fill="#E6E8EB"/></pattern>
+    <pattern id="p-earth" width="16" height="16" patternUnits="userSpaceOnUse"><path d="M0 1.5H8M0 4H8M0 6.5H8M9.5 8V16M12 8V16M14.5 8V16" stroke="#E6E8EB" stroke-width="1"/></pattern>
+    <pattern id="p-gravel" width="18" height="18" patternUnits="userSpaceOnUse"><path d="M2 5l3-3 4 2-1 4-4 1zM11 12l4-1 2 3-3 3-3-2zM12 3l3 1-1 3" stroke="#E6E8EB" stroke-width="1" fill="none"/></pattern>
+    <pattern id="p-sand" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r=".6" fill="#E6E8EB"/><circle cx="7" cy="4" r=".6" fill="#E6E8EB"/><circle cx="4" cy="8" r=".6" fill="#E6E8EB"/></pattern>
+    <pattern id="p-zig" width="10" height="12" patternUnits="userSpaceOnUse"><path d="M0 10L5 2L10 10" stroke="#E6E8EB" stroke-width="1" fill="none"/></pattern>
+    <pattern id="p-own1" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M6 1L11 6L6 11L1 6Z" stroke="#E6E8EB" stroke-width="1" fill="none"/></pattern>
+    <pattern id="p-own2" width="14" height="8" patternUnits="userSpaceOnUse"><path d="M0 4q3.5-5 7 0t7 0" stroke="#E6E8EB" stroke-width="1" fill="none"/></pattern>
+    <pattern id="cgrid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M0 .5H40M.5 0V40" stroke="#1c1f23" stroke-width="1"/></pattern>
+    <pattern id="p-room" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="translate(250 270) rotate(-45)"><line x1="0" y1="0" x2="14" y2="0" stroke="#5cc8ff" stroke-width="1.2"/></pattern>
+    <!-- icons, drawn for this strip -->
+    <symbol id="i-pick" viewBox="0 0 28 28"><path d="M4 6h14l6 6v10H4z"/><circle cx="13" cy="15" r="1.4" fill="currentColor"/><path d="M13 9.5v3M13 17.5v3M7.5 15h3M15.5 15h3"/></symbol>
+    <symbol id="i-select" viewBox="0 0 16 16"><rect x="2" y="2.5" width="9" height="8" rx="1"/><path d="M8 7l5.5 2.2-2.3.9 1.4 2.6-1.2.6-1.4-2.6-1.6 1.7z" fill="currentColor" stroke-width=".8"/></symbol>
+    <symbol id="i-remove" viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="11" rx="1" stroke-dasharray="2.2 2"/><path d="M5.5 8h5"/></symbol>
+    <symbol id="i-outline" viewBox="0 0 16 16"><path d="M3 13V5.5L6.5 3H13v6.5" /><path d="M13.5 11.5a3 3 0 1 1-1-2.3M13.6 8.2v1.6H12"/></symbol>
+    <symbol id="i-origin" viewBox="0 0 28 28"><path d="M5 5v18h18" /><circle cx="5" cy="23" r="2.6"/><path d="M11 23V11M5 17h12M17 11h-6" stroke-dasharray="1.5 2.5"/><path d="M19 9l4-4M23 9V5h-4"/></symbol>
+    <symbol id="i-follow" viewBox="0 0 16 16"><rect x="1.8" y="5.5" width="6.4" height="5" rx="2.5"/><rect x="7.8" y="5.5" width="6.4" height="5" rx="2.5"/></symbol>
+    <symbol id="i-sheet" viewBox="0 0 16 16"><path d="M2 12.5L12.5 2l1.5 1.5L3.5 14zM5 9.5l1 1M7.3 7.2l1 1M9.6 4.9l1 1"/></symbol>
+    <symbol id="i-match" viewBox="0 0 16 16"><path d="M9.5 3.5l3 3M11 2l3 3-2 2-3-3zM9.8 5.2L3 12v1.5h1.5l6.8-6.8"/></symbol>
+    <symbol id="i-done" viewBox="0 0 28 28"><circle cx="14" cy="14" r="10"/><path d="M9 14.5l3.5 3.5L19.5 10.5"/></symbol>
+    <symbol id="i-up" viewBox="0 0 10 10"><path d="M2 6.5L5 3.5L8 6.5"/></symbol>
+    <symbol id="i-dn" viewBox="0 0 10 10"><path d="M2 3.5L5 6.5L8 3.5"/></symbol>
+    <symbol id="i-all" viewBox="0 0 10 10"><path d="M2 2.5L5 5L8 2.5M2 6L5 8.5L8 6"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+<h1>Design CAD: the Hatch strip (mockup)</h1>
+<p>Shown only while <b>Hatch (H)</b> or <b>Edit hatch (HE)</b> is running; it takes the ribbon's place and goes away on <b>Done</b>. A purple dot <span class="new">●</span> marks a control that is new; everything else exists today and is only gathered here. Graphite dark, 1440 px window.</p>
+
+<h2><span class="n">1</span>The strip in the window</h2>
+<div class="app" id="app">
+  <div class="tabs"><span>Project</span><span>Stages</span><span>LVCAD</span><span>Annotate</span><span>Electrical</span><span>ELV</span><span>Sheets</span><span>Output</span><span class="ctx">Hatch</span></div>
+  <div class="rib">
+    <div class="panel"><div class="tools">
+      <div class="b lg on"><svg><use href="#i-pick"/></svg>Pick<br>point</div>
+      <div class="col">
+        <div class="b row"><svg><use href="#i-select"/></svg>Select</div>
+        <div class="b row"><svg><use href="#i-remove"/></svg>Remove<span class="nw"></span></div>
+        <div class="b row"><svg><use href="#i-outline"/></svg>Outline</div>
+      </div></div><div class="cap">Boundary</div></div>
+
+    <div class="panel"><div class="tools">
+      <div class="strip">
+        <div class="sw"><svg><rect width="40" height="40" fill="#E6E8EB"/></svg>Solid</div>
+        <div class="sw on"><svg><rect width="40" height="40" fill="url(#p-diag)"/></svg>Diagonal</div>
+        <div class="sw"><svg><rect width="40" height="40" fill="url(#p-fine)"/></svg>Fine diagonal</div>
+        <div class="sw hover"><svg><rect width="40" height="40" fill="url(#p-cross)"/></svg>Cross</div>
+        <div class="sw"><svg><rect width="40" height="40" fill="url(#p-grid)"/></svg>Grid</div>
+        <div class="sw"><svg><rect width="40" height="40" fill="url(#p-dots)"/></svg>Dots</div>
+        <div class="sw"><svg><rect width="40" height="40" fill="url(#p-brick)"/></svg>Brick</div>
+        <div class="sw"><svg><rect width="40" height="40" fill="url(#p-conc)"/></svg>Concrete</div>
+      </div>
+      <div class="scroll"><span><svg><use href="#i-up"/></svg></span><span><svg><use href="#i-dn"/></svg></span><span><svg><use href="#i-all"/></svg></span></div>
+    </div><div class="cap">Pattern</div></div>
+
+    <div class="panel"><div class="tools">
+      <div class="props">
+        <label>Type</label><div class="in">Pattern<svg class="chev"><use href="#i-dn"/></svg></div>
+        <label>Angle</label><div class="in">45°</div>
+        <label>Line <span class="new">●</span></label><div class="in"><span class="chip" style="background:#5cc8ff"></span>ByLayer<svg class="chev"><use href="#i-dn"/></svg></div>
+        <label>Scale</label><div class="in step"><i>−</i><b>1</b><i>+</i></div>
+        <label>Back <span class="new">●</span></label><div class="in"><span class="chip none"></span>None<svg class="chev"><use href="#i-dn"/></svg></div>
+        <label style="grid-column:3">Opacity <span class="new">●</span></label><div class="slider" style="grid-column:4"><div class="track"></div></div>
+      </div>
+      <div class="col" style="margin-left:6px;align-content:end"><span></span><span></span><div class="in" style="width:52px;justify-content:flex-end">70 %</div></div>
+    </div><div class="cap">Properties</div></div>
+
+    <div class="panel"><div class="tools">
+      <div class="b lg"><svg><use href="#i-origin"/></svg>Set<br>point</div>
+      <div class="scroll" style="align-content:center;grid-template-rows:24px"><span><svg><use href="#i-dn"/></svg></span></div>
+    </div><div class="cap">Origin</div></div>
+
+    <div class="panel"><div class="tools">
+      <div class="col">
+        <div class="b row on"><svg><use href="#i-follow"/></svg>Follow boundary</div>
+        <div class="b row off"><svg><use href="#i-sheet"/></svg>Sheet scale<span class="nw"></span></div>
+        <div class="b row"><svg><use href="#i-match"/></svg>Match</div>
+      </div></div><div class="cap">Options</div></div>
+
+    <div class="panel"><div class="tools">
+      <div class="b lg done"><svg><use href="#i-done"/></svg>Done<span class="nw"></span></div>
+    </div><div class="cap">Finish</div></div>
+  </div>
+
+  <div class="canvas">
+    <svg width="1438" height="330">
+      <rect width="1438" height="330" fill="url(#cgrid)"/>
+      <!-- other plan lines -->
+      <path d="M90 60H250V270H90zM760 60H1100V180H930V270H760z" stroke="#59616b" stroke-width="1.5" fill="none"/>
+      <!-- the room being hatched, with a column left clear -->
+      <path d="M250 60H760V270H250z M470 140H540V200H470z" fill="url(#p-room)" fill-rule="evenodd" opacity=".7"/>
+      <path d="M250 60H760V270H250z" stroke="#F5B301" stroke-width="1.6" stroke-dasharray="7 4" fill="none"/>
+      <path d="M470 140H540V200H470z" stroke="#59616b" stroke-width="1.5" fill="none"/>
+      <!-- origin marker -->
+      <g stroke="#F5B301" stroke-width="1.6" fill="none"><circle cx="250" cy="270" r="6"/><path d="M238 270h24M250 258v24"/></g>
+      <!-- cursor -->
+      <g stroke="#E6E8EB" stroke-width="1"><path d="M640 120v90M595 165h90"/><rect x="636" y="161" width="8" height="8" fill="none"/></g>
+      <!-- cross pattern preview in the next room while the Cross swatch is hovered -->
+      <text x="246" y="298" fill="#F5B301" font-size="11" text-anchor="end">pattern origin</text>
+      <text x="505" y="174" fill="#A3ABB5" font-size="11" text-anchor="middle">island</text>
+      <text x="768" y="76" fill="#F5B301" font-size="11">boundary found (dashed while the command runs)</text>
+    </svg>
+    <div class="tip" style="left:12px;top:8px"><b>Pick point</b> &nbsp;<kbd>K</kbd><br>Click inside a closed area or a room. The hatch stops at the nearest closed outline and leaves islands clear.</div>
+  </div>
+  <div class="cmd"><b>HATCH</b> &nbsp;Pick a point inside an area, or [<b>S</b>elect objects / <b>R</b>emove / <b>O</b>rigin / <b>M</b>atch] &nbsp;·&nbsp; <kbd>Enter</kbd> Done &nbsp; <kbd>Esc</kbd> Cancel</div>
+</div>
+<p style="margin-top:6px" id="w"></p>
+
+<div class="two">
+<div>
+<h2><span class="n">2</span>All patterns (the double arrow under the scroll arrows)</h2>
+<div class="card" style="width:536px">
+  <div class="gh"><span>Built in</span><span>18</span></div>
+  <div class="grid">
+    <div class="sw"><svg><rect width="40" height="40" fill="#E6E8EB"/></svg>Solid</div>
+    <div class="sw on"><svg><rect width="40" height="40" fill="url(#p-diag)"/></svg>Diagonal</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-fine)"/></svg>Fine diag.</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-cross)"/></svg>Cross</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-grid)"/></svg>Grid</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-dots)"/></svg>Dots</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-horiz)"/></svg>Lines 0°</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-vert)"/></svg>Lines 90°</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-dash)"/></svg>Dashed 45°</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-double)"/></svg>Double 45°</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-band)"/></svg>Bands</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-trench)"/></svg>Dashed 0°</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-brick)"/></svg>Brick</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-block)"/></svg>Block</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-conc)"/></svg>Concrete</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-earth)"/></svg>Earth</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-gravel)"/></svg>Gravel</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-sand)"/></svg>Sand</div>
+  </div>
+  <div class="gh"><span>Own patterns (this computer and this drawing)</span><span>Import a pattern file…</span></div>
+  <div class="grid" style="margin-bottom:0">
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-zig)"/></svg>Insulation</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-own1)"/></svg>Paving</div>
+    <div class="sw"><svg><rect width="40" height="40" fill="url(#p-own2)"/></svg>Water</div>
+  </div>
+</div>
+</div>
+
+<div>
+<h2><span class="n">3</span>Button states and keys</h2>
+<div class="card" style="width:700px">
+  <div class="states" style="margin-bottom:12px">
+    <div><div class="b lg"><svg><use href="#i-pick"/></svg>Pick<br>point</div><br>Rest</div>
+    <div><div class="b lg hover"><svg><use href="#i-pick"/></svg>Pick<br>point</div><br>Pointer over</div>
+    <div><div class="b lg on"><svg><use href="#i-pick"/></svg>Pick<br>point</div><br>Running</div>
+    <div><div class="b lg off"><svg><use href="#i-pick"/></svg>Pick<br>point</div><br>Not available</div>
+    <div style="margin-left:18px"><div class="b row"><svg><use href="#i-follow"/></svg>Follow boundary</div><br>Off</div>
+    <div><div class="b row on"><svg><use href="#i-follow"/></svg>Follow boundary</div><br>On</div>
+    <div><div class="b row off"><svg><use href="#i-sheet"/></svg>Sheet scale</div><br>Tooltip says why</div>
+  </div>
+  <table>
+    <tr><th>Control</th><th>Key in the command</th><th>What it does</th></tr>
+    <tr><td>Pick point</td><td><kbd>K</kbd></td><td>Click inside a closed area or a room</td></tr>
+    <tr><td>Select</td><td><kbd>S</kbd></td><td>Pick closed objects as the boundary</td></tr>
+    <tr><td>Remove <span class="new">●</span></td><td><kbd>R</kbd></td><td>Click a region or island to take it out of the hatch</td></tr>
+    <tr><td>Outline</td><td><kbd>B</kbd></td><td>Draw a polyline around the hatch again</td></tr>
+    <tr><td>Swatches</td><td><kbd>←</kbd> <kbd>→</kbd></td><td>Pointer over = preview on the drawing; click = use it</td></tr>
+    <tr><td>Scale − / +</td><td></td><td>Halve or double; or type a number</td></tr>
+    <tr><td>Set point</td><td><kbd>O</kbd></td><td>Click the pattern origin; the arrow lists corner, centre, reset</td></tr>
+    <tr><td>Match</td><td><kbd>M</kbd></td><td>Click another hatch to copy its settings</td></tr>
+    <tr><td>Done <span class="new">●</span></td><td><kbd>Enter</kbd></td><td>Keep the hatch and leave; <kbd>Esc</kbd> leaves without keeping</td></tr>
+  </table>
+</div>
+</div>
+</div>
+
+<h2><span class="n">4</span>On a 1024 px window</h2>
+<p>The swatch strip shows fewer patterns first, then Options and Origin fold into one "more" button. Boundary, Properties and Done always stay.</p>
+<div class="app narrow">
+  <div class="rib" style="border-top:0">
+    <div class="panel"><div class="tools">
+      <div class="b lg on"><svg><use href="#i-pick"/></svg>Pick<br>point</div>
+      <div class="col">
+        <div class="b row"><svg><use href="#i-select"/></svg>Select</div>
+        <div class="b row"><svg><use href="#i-remove"/></svg>Remove</div>
+        <div class="b row"><svg><use href="#i-outline"/></svg>Outline</div>
+      </div></div><div class="cap">Boundary</div></div>
+    <div class="panel"><div class="tools">
+      <div class="strip">
+        <div class="sw"><svg><rect width="40" height="40" fill="#E6E8EB"/></svg>Solid</div>
+        <div class="sw on"><svg><rect width="40" height="40" fill="url(#p-diag)"/></svg>Diagonal</div>
+        <div class="sw"><svg><rect width="40" height="40" fill="url(#p-fine)"/></svg>Fine diagonal</div>
+        <div class="sw"><svg><rect width="40" height="40" fill="url(#p-cross)"/></svg>Cross</div>
+      </div>
+      <div class="scroll"><span><svg><use href="#i-up"/></svg></span><span><svg><use href="#i-dn"/></svg></span><span><svg><use href="#i-all"/></svg></span></div>
+    </div><div class="cap">Pattern</div></div>
+    <div class="panel"><div class="tools">
+      <div class="props">
+        <label>Type</label><div class="in">Pattern<svg class="chev"><use href="#i-dn"/></svg></div>
+        <label>Angle</label><div class="in">45°</div>
+        <label>Line</label><div class="in"><span class="chip" style="background:#5cc8ff"></span>ByLayer<svg class="chev"><use href="#i-dn"/></svg></div>
+        <label>Scale</label><div class="in step"><i>−</i><b>1</b><i>+</i></div>
+        <label>Back</label><div class="in"><span class="chip none"></span>None<svg class="chev"><use href="#i-dn"/></svg></div>
+        <label>Opacity</label><div class="in" style="justify-content:flex-end">70 %</div>
+      </div>
+    </div><div class="cap">Properties</div></div>
+    <div class="panel"><div class="tools"><div class="more"><svg class="chev"><use href="#i-all"/></svg></div></div><div class="cap">More</div></div>
+    <div class="panel"><div class="tools">
+      <div class="b lg done"><svg><use href="#i-done"/></svg>Done</div>
+    </div><div class="cap">Finish</div></div>
+  </div>
+</div>
+</div>
+<script>
+const rib = document.querySelector('#app .rib');
+const used = [...rib.children].reduce((s, p) => s + p.getBoundingClientRect().width, 0);
+document.getElementById('w').textContent = 'Strip as drawn: ' + Math.round(used + 16) + ' px wide, ' + Math.round(rib.getBoundingClientRect().height) + ' px tall.';
+document.head.appendChild(document.createElement('style')).textContent = '@page{size:1952px ' + (Math.ceil(document.documentElement.scrollHeight) + 4) + 'px;margin:0}';
+</script>
+</body>
+</html>
