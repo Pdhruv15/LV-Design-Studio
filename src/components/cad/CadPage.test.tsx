@@ -1448,7 +1448,7 @@ describe('CAD view', () => {
     const items = () => project.cadSketch![0].items;
     const last = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
     await command('H');
-    expect(document.body.textContent).toContain('Hatch H');
+    expect(document.querySelector('[role="toolbar"][aria-label="Hatch"]')).not.toBeNull(); // the Hatch strip
     await clickAt(X + 1000, 1000);
     expect(items()[1]).toEqual({ id: 'S2', kind: 'pline', layer: 'LV-HATCH', closed: true, pts: items()[0].pts, hatch: { pattern: 'ansi31', scale: 3, angle: 0 }, assoc: ['S1'] });
     expect(last()).toBe('Hatch ANSI31, 12.00 m² · associative · ⌘Z to undo');
@@ -5152,7 +5152,7 @@ describe('right-click menus, phase 4: texts, dimensions, hatches, polylines, hot
     await esc();
     await right(X + 4000, 42000);
     await pickEntry('Hatch tools', 'Edit hatch…');
-    await until(() => document.body.textContent!.includes('Edit hatch'));
+    await until(() => !!document.querySelector('[role="toolbar"][aria-label="Edit hatch"]'));
   });
 
   it('a polyline: Close / Open, Reverse direction, Use as room boundary, Explode', async () => {
@@ -5382,21 +5382,24 @@ describe('Design CAD hatch package: islands, associative hatches, HATCHEDIT and 
     await act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('dblclick', { clientX: sx, clientY: sy, button: 0, bubbles: true })); });
   };
   const press = async (label: string) => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent === label); expect(b, label).toBeTruthy(); await act(async () => { b!.click(); }); };
-  const choose = async (label: string, value: string) => {
-    const s = document.querySelector(`select[aria-label="${label}"]`) as HTMLSelectElement;
-    await act(async () => { s.value = value; s.dispatchEvent(new Event('change', { bubbles: true })); });
-  };
   const outer = sq('S1', 0, 0, 10000, 10000), island = sq('S2', 2000, 2000, 4000, 4000);
+  /** The Hatch strip (H) or Edit hatch strip (HE), shown inline here: the ribbon is not part of this page. */
+  const strip = (label = 'Hatch') => document.querySelector(`[role="toolbar"][aria-label="${label}"]`);
+  const aria = async (label: string) => { const b = document.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement; expect(b, label).toBeTruthy(); await act(async () => { b.click(); }); };
+  const pickPattern = async (name: string) => { await aria('All patterns'); const o = [...document.querySelectorAll('[role="dialog"] [role="option"]')].find((x) => x.textContent === name) as HTMLElement; expect(o, name).toBeTruthy(); await act(async () => { o.click(); }); };
+  const pressed = (label: string) => [...document.querySelectorAll('button')].find((x) => x.textContent === label)!.getAttribute('aria-pressed');
 
   it('HATCH leaves the closed objects inside clear as islands and follows the boundary; the message says so', async () => {
     await begin(withItems(outer, island));
     await command('H');
-    expect(document.body.textContent).toContain('Find islands');
+    expect(strip()).not.toBeNull();
+    expect([pressed('Islands'), pressed('Follow boundary')]).toEqual(['true', 'true']);
     await clickAt(X + 6000, 1000);
     expect(last()).toBe('Hatch ANSI31, 96.00 m² · 1 island · associative · ⌘Z to undo');
     expect(items()[2]).toMatchObject({ kind: 'pline', layer: 'LV-HATCH', holes: [island.pts], assoc: ['S1', 'S2'] });
     // With both ticks off: the whole outline, tied to nothing.
-    for (const l of ['Find islands', 'Associative']) await act(async () => { (document.querySelector(`input[aria-label="${l}"]`) as HTMLInputElement).click(); });
+    for (const l of ['Islands', 'Follow boundary']) await press(l);
+    expect([pressed('Islands'), pressed('Follow boundary')]).toEqual(['false', 'false']);
     await clickAt(X + 6000, 1000);
     expect(last()).toBe('Hatch ANSI31, 100.00 m² · ⌘Z to undo');
     expect(items()[3].holes).toBeUndefined();
@@ -5417,23 +5420,28 @@ describe('Design CAD hatch package: islands, associative hatches, HATCHEDIT and 
     await command('H');
     await clickAt(X + 6000, 1000);
     await command('HE');
-    expect(hist()).toBe('Command: HATCHEDIT  Select a hatch:');
+    expect(hist()).toBe('Command: HATCHEDIT  Select a hatch (its settings are in the Hatch strip):');
     await clickAt(X + 6000, 1000);
-    await until(() => !!document.querySelector('select[aria-label="Hatch pattern"]') && document.body.textContent!.includes('Edit hatch'));
-    expect(document.body.textContent).toContain('Islands: 1');
+    await until(() => !!strip('Edit hatch') && !!document.querySelector('[role="option"][aria-selected="true"]'));
+    await aria('Remove: more');
+    expect((document.querySelector('[role="menu"] [role="menuitem"]:last-child') as HTMLButtonElement).disabled).toBe(false); // one island to hatch again
+    await act(async () => { document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); });
     const calls = onChange.mock.calls.length;
-    await choose('Hatch pattern', 'brick');
+    await pickPattern('Brick');
     expect(onChange.mock.calls.length).toBe(calls + 1);
     expect(last()).toBe('HATCHEDIT  Pattern BRICK · ⌘Z to undo');
     expect(items()[2].hatch).toMatchObject({ pattern: 'brick', scale: 3 });
     expect(items()[2].assoc).toEqual(['S1', 'S2']);
-    await press('Remove islands');
+    await aria('Remove: more');
+    await press('Hatch an island again');
+    expect(pressed('Remove')).toBe('true');
     expect(hist()).toBe('HATCHEDIT  Click inside an island to hatch it again (Enter ends):');
     await clickAt(X + 3000, 3000);
     expect(last()).toBe('HATCHEDIT  Island hatched again (0 left) · ⌘Z to undo');
     expect(items()[2].holes).toBeUndefined();
     expect(items()[2].assoc).toEqual(['S1']);
-    await press('Add islands');
+    expect((document.querySelector('button[aria-label="Remove: more"]') as HTMLButtonElement).disabled).toBe(false);
+    await press('Remove');
     expect(hist()).toBe('HATCHEDIT  Click inside closed objects in the hatch to keep clear (Enter ends):');
     await clickAt(X + 3000, 3000);
     expect(last()).toBe('HATCHEDIT  Island added (1) · ⌘Z to undo');
@@ -5451,16 +5459,18 @@ describe('Design CAD hatch package: islands, associative hatches, HATCHEDIT and 
     await clickAt(X + 6000, 1000);
     await command('HE');
     await clickAt(X + 6000, 1000);
-    await until(() => document.body.textContent!.includes('Origin X'));
-    await press('Pick…');
+    await until(() => !!strip('Edit hatch') && !!document.querySelector('[role="option"][aria-selected="true"]'));
+    await press('Set point');
+    expect(pressed('Set point')).toBe('true');
     expect(hist()).toBe('HATCHEDIT  Click the pattern\'s origin:');
     await clickAt(X + 5000, 5000);
     expect(items()[2].hatch!.origin).toEqual([X + 5000, 5000]);
     expect(last()).toMatch(/^HATCHEDIT {2}Origin .* · ⌘Z to undo$/);
-    await act(async () => { (document.querySelector('input[aria-label="Associative"]') as HTMLInputElement).click(); });
+    expect(pressed('Set point')).toBe('false');
+    await press('Follow boundary');
     expect(items()[2].assoc).toBeUndefined();
     expect(last()).toBe('HATCHEDIT  No longer associative · ⌘Z to undo');
-    expect(document.querySelector<HTMLInputElement>('input[aria-label="Associative"]')!.disabled).toBe(true);
+    expect([...document.querySelectorAll('button')].find((x) => x.textContent === 'Follow boundary')!.disabled).toBe(true);
   });
 
   it('a double-click on a hatch edits it; HE with a hatch picked first edits it at once', async () => {
@@ -5470,13 +5480,146 @@ describe('Design CAD hatch package: islands, associative hatches, HATCHEDIT and 
     act(() => state.setTool('none'));
     await dblClickAt(X + 6000, 1000);
     expect(state.tool).toBe('hatchedit');
-    await until(() => document.body.textContent!.includes('Edit hatch'));
+    await until(() => !!strip('Edit hatch'));
     await command('');
     expect(state.tool).toBe('none');
     // Picked first (in a window with the objects it was made from): the hatches among them are edited at once.
     await dragWindow([X - 500, -500], [X + 10500, 10500]);
     await command('HE');
-    await until(() => document.body.textContent!.includes('Edit hatch'));
+    await until(() => !!strip('Edit hatch'));
+  });
+
+  it('the Hatch strip shows while H or HE runs (in the ribbon\'s place, inline here), and Done leaves it', async () => {
+    await begin(withItems(outer, island));
+    expect(strip()).toBeNull();
+    expect(strip('Edit hatch')).toBeNull();
+    await command('H');
+    expect(strip()).not.toBeNull();
+    expect(pressed('Pick point')).toBe('true');
+    await press('Done');
+    expect(state.tool).toBe('none');
+    expect(strip()).toBeNull();
+    await command('H');
+    await clickAt(X + 6000, 1000);
+    await command('HE');
+    expect(strip()).toBeNull();
+    expect(strip('Edit hatch')).not.toBeNull();
+    expect(pressed('Select')).toBe('true'); // click a hatch to edit
+    await press('Done');
+    expect(state.tool).toBe('none');
+    expect(strip('Edit hatch')).toBeNull();
+    expect(document.querySelector('[role="toolbar"][aria-label="Hatch"]')).toBeNull();
+  });
+
+  it('H with Select hatches the closed object clicked on (its islands clear), and says so when there is none there', async () => {
+    await begin(withItems(outer, island));
+    await command('H');
+    await press('Select');
+    expect(pressed('Select')).toBe('true');
+    expect(hist()).toBe('HATCH  Click a closed polyline, rectangle or circle to hatch it:');
+    const calls = onChange.mock.calls.length;
+    await clickAt(X + 5000, 7000); // inside, not on an object
+    expect(hist()).toMatch(/^HATCH {2}No closed polyline, rectangle or circle there/);
+    expect(onChange.mock.calls.length).toBe(calls);
+    await clickAt(X + 10000, 5000); // on the outer's edge
+    expect(last()).toBe('Hatch ANSI31, 96.00 m² · 1 island · associative · ⌘Z to undo');
+    expect(items()[2]).toMatchObject({ kind: 'pline', layer: 'LV-HATCH', holes: [island.pts], assoc: ['S1', 'S2'] });
+    expect(pressed('Select')).toBe('true'); // stays, to hatch the next one
+    await clickAt(X + 4000, 3000); // the island's own edge: a hatch of just that
+    expect(last()).toBe('Hatch ANSI31, 4.00 m² · associative · ⌘Z to undo');
+    expect(items()[3].assoc).toEqual(['S2']);
+  });
+
+  it('H with Set point: the next click sets the origin of the hatches to come, then Pick point is back', async () => {
+    await begin(withItems(outer, island));
+    await command('H');
+    await press('Set point');
+    expect(pressed('Set point')).toBe('true');
+    expect(hist()).toBe('HATCH  Click the pattern origin for the next hatches:');
+    const calls = onChange.mock.calls.length;
+    await clickAt(X + 5000, 5000);
+    expect(onChange.mock.calls.length).toBe(calls); // no hatch made by that click
+    expect(hist()).toMatch(/^HATCH {2}Pattern origin set at .* Pick an internal point:$/);
+    expect([pressed('Set point'), pressed('Pick point')]).toEqual(['false', 'true']);
+    await clickAt(X + 6000, 1000);
+    expect(items()[2].hatch!.origin).toEqual([X + 5000, 5000]);
+    // Reset to 0, 0 takes it away again.
+    await aria('Origin: more');
+    await press('Reset to 0, 0');
+    await clickAt(X + 6000, 1000);
+    expect(items()[3].hatch!.origin).toBeUndefined();
+  });
+
+  it('H with Match copies a hatch\'s pattern, scale, angle and origin to the next one; no hatch there says so', async () => {
+    const other: SketchItem = { ...sq('S3', 20000, 0, 24000, 4000), layer: 'LV-HATCH', hatch: { pattern: 'brick', scale: 5, angle: 30, origin: [X + 21000, 1000] } };
+    await begin(withItems(outer, island, other));
+    await command('H');
+    await press('Match');
+    expect(pressed('Match')).toBe('true');
+    await clickAt(X + 12000, 12000);
+    expect(hist()).toMatch(/^HATCH {2}No hatch there/);
+    expect(pressed('Match')).toBe('true');
+    await clickAt(X + 22000, 2000);
+    expect(hist()).toMatch(/^HATCH {2}Matched BRICK: scale 5 mm, angle 30°/);
+    expect(pressed('Pick point')).toBe('true');
+    await clickAt(X + 6000, 1000);
+    expect(items()[3].hatch).toEqual({ pattern: 'brick', scale: 5, angle: 30, origin: [X + 21000, 1000] });
+  });
+
+  it('HE with Match copies another hatch onto the one edited, one undo step', async () => {
+    const other: SketchItem = { ...sq('S3', 20000, 0, 24000, 4000), layer: 'LV-HATCH', hatch: { pattern: 'brick', scale: 5, angle: 30 } };
+    await begin(withItems(outer, island, other));
+    await command('H');
+    await clickAt(X + 6000, 1000);
+    await command('HE');
+    await clickAt(X + 6000, 1000);
+    await until(() => !!document.querySelector('[role="option"][aria-selected="true"]'));
+    await press('Match');
+    expect(hist()).toBe('HATCHEDIT  Click the hatch to copy the pattern from (Esc steps back):');
+    const calls = onChange.mock.calls.length;
+    await clickAt(X + 12000, 12000);
+    expect(hist()).toMatch(/^HATCHEDIT {2}No hatch there/);
+    expect(onChange.mock.calls.length).toBe(calls);
+    await clickAt(X + 22000, 2000);
+    expect(onChange.mock.calls.length).toBe(calls + 1);
+    expect(last()).toBe('HATCHEDIT  Matched to BRICK: scale 5 mm, angle 30° · ⌘Z to undo');
+    expect(items()[3].hatch).toEqual({ pattern: 'brick', scale: 5, angle: 30 });
+    expect(pressed('Match')).toBe('false');
+  });
+
+  it('HE: Outline draws a closed polyline along the hatch on the current layer, one undo step, and says how many', async () => {
+    await begin(withItems(outer, island));
+    await command('H');
+    await clickAt(X + 6000, 1000);
+    await command('HE');
+    await clickAt(X + 6000, 1000);
+    await until(() => !!document.querySelector('[role="option"][aria-selected="true"]'));
+    const calls = onChange.mock.calls.length, n = items().length;
+    await press('Outline');
+    expect(onChange.mock.calls.length).toBe(calls + 1);
+    expect(items()).toHaveLength(n + 1);
+    expect(items()[n]).toMatchObject({ kind: 'pline', closed: true, layer: 'LV-SKETCH', pts: outer.pts });
+    expect(items()[n].hatch).toBeUndefined();
+    expect(last()).toBe('HATCHEDIT  1 outline drawn on LV-SKETCH · ⌘Z to undo');
+  });
+
+  it('HE: Origin list sets the corner or centre of the boundary, and Reset takes it away, one step each', async () => {
+    await begin(withItems(outer, island));
+    await command('H');
+    await clickAt(X + 6000, 1000);
+    await command('HE');
+    await clickAt(X + 6000, 1000);
+    await until(() => !!document.querySelector('[role="option"][aria-selected="true"]'));
+    await aria('Origin: more');
+    await press('Centre of the boundary');
+    expect(items()[2].hatch!.origin).toEqual([X + 5000, 5000]);
+    await aria('Origin: more');
+    await press('Bottom left of the boundary');
+    expect(items()[2].hatch!.origin).toEqual([X, 0]);
+    await aria('Origin: more');
+    await press('Reset to 0, 0');
+    expect(items()[2].hatch!.origin).toBeUndefined();
+    expect(last()).toBe('HATCHEDIT  Origin reset to 0, 0 · ⌘Z to undo');
   });
 
   it('BOUNDARY makes a closed polyline round the area and one per island, and repeats; I turns islands off', async () => {

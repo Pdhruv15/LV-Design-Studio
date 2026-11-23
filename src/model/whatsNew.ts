@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.263', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD: the Hatch strip', text: 'While you hatch (H) or edit a hatch (HE), a strip takes the ribbon\'s place instead of the side panel: Boundary, Pattern, Properties, Origin, Options and a Done button. Pattern swatches show the real pattern with a plain name (Diagonal, Cross, Brick), and All patterns lists your own and imports or exports a pattern file.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Hatch: Select, Set point, Match and Outline', text: 'New hatches can be made by clicking a closed polyline, rectangle or circle (Select), take their pattern origin from a click or from the corner or centre of the boundary (Set point), or copy another hatch (Match). Outline draws a polyline along the edge of the hatch being edited.' },
+    ]
+  },
+  {
     version: '2.262', date: '2026-11-22',
     items: [
       { title: 'The incoming cable counts in an assumed fault level', text: 'A first board with an incoming cable typed on its Supply tab and no fault level given used to take the assumed source level (about 25 kA at 415 V) at its busbar, ignoring the cable. The cable is now counted, as it already is when a fault level is given, so the level at the board is lower. The level is still marked assumed and its checks stay not verified until a fault level or a source rating is typed.' },
