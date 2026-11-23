@@ -1,0 +1,173 @@
+{
+  "$id": "https://lv-design-studio/contracts/plan.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "lvds.plan"
+    },
+    "version": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Format version: a reader refuses a newer one"
+    },
+    "live": {
+      "description": "The drawn work of the project as saved",
+      "type": "object",
+      "properties": {
+        "drawings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "type": "string",
+                "description": "The drawing file this part belongs to (lower case), for readers; the part holds it too"
+              },
+              "part": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "description": "SHA-256 of the part (its key in parts)"
+              }
+            },
+            "required": [
+              "file",
+              "part"
+            ]
+          }
+        },
+        "order": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "description": "Per project field, the drawings (indexes) that hold it, in the project's order"
+        },
+        "shared": {
+          "description": "The part with the drawing settings that belong to no single drawing",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "drawings",
+        "order"
+      ]
+    },
+    "revisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Position of the revision in the project file's revisions"
+          },
+          "id": {
+            "type": "string",
+            "description": "Its revision letter, checked against the project file"
+          },
+          "tree": {
+            "type": "object",
+            "properties": {
+              "drawings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "file": {
+                      "type": "string",
+                      "description": "The drawing file this part belongs to (lower case), for readers; the part holds it too"
+                    },
+                    "part": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$",
+                      "description": "SHA-256 of the part (its key in parts)"
+                    }
+                  },
+                  "required": [
+                    "file",
+                    "part"
+                  ]
+                }
+              },
+              "order": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "description": "Per project field, the drawings (indexes) that hold it, in the project's order"
+              },
+              "shared": {
+                "description": "The part with the drawing settings that belong to no single drawing",
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "drawings",
+              "order"
+            ]
+          }
+        },
+        "required": [
+          "index",
+          "id",
+          "tree"
+        ]
+      },
+      "description": "The drawn work as each issued revision recorded it"
+    },
+    "parts": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "path",
+          "bytes"
+        ]
+      },
+      "description": "Every part in the package by SHA-256 of its JSON text"
+    }
+  },
+  "required": [
+    "format",
+    "version",
+    "revisions",
+    "parts"
+  ]
+}
