@@ -137,7 +137,7 @@ import { pasteBoard } from './model/copyBoard';
 import { draftFromOffer, onSubmissionOffer, type Submission, type SubmissionOffer } from './model/submissions';
 import { applyDefaults, applyProfile, initialsOf, loadPrefs, savePrefs, signature, type Preferences } from './model/profile';
 import { applyPalette, applyTheme } from './theme/theme';
-import { clearRecovery, deleteProjectFile, inDesktop, keepUnsavedWork, listProjects, loadProject, emptyTrash, listTrash, loadProjectStamped, readRecoveries, recentFiles, recoveryIsCurrent, restoreProject, saveProjectFile, statProject, touchRecent, whenText, writeRecovery, type ProjectMeta, type Recovery, type TrashedProject } from './model/projectStore';
+import { clearRecovery, deleteProjectFile, inDesktop, keepUnsavedWork, listProjects, loadProject, emptyTrash, listTrash, loadProjectStamped, readRecoveries, recentFiles, recoveryIsCurrent, restoreProject, saveProjectFile, statProject, takePendingProject, touchRecent, whenText, writeRecovery, type ProjectMeta, type Recovery, type TrashedProject } from './model/projectStore';
 import { applyDetails, withArchived, type ProjectDetails } from './model/projectList';
 const ProjectDetailsDialog = onDemand(() => import('./components/ProjectDetailsDialog'));
 const BriefDialog = onDemand(async () => ({ default: (await import('./components/BriefEditor')).BriefDialog }));
@@ -157,6 +157,7 @@ const ExportCentre = lazy(() => import('./components/docs/ExportCentre'));
 import { applyBrief, type ProjectBrief } from './model/brief';
 import { defaultsPreview } from './model/setupPreview';
 import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
+import { planLinkOf, planMissingNote } from './model/planLink';
 import { withUids } from './model/stableIds';
 import { checkProjectShape } from './model/projectValidate';
 import type { FileStamp } from './model/saveSafety';
@@ -835,7 +836,8 @@ export default function App() {
     setExternal(null);
     setConflict(null);
     setSaveState({ kind: 'idle' });
-    setReadOnly(isFutureSchema(p) ? 'This project was saved by a newer version of LV Design Studio, so it is open read-only.' : null);
+    const drawnWorkMissing = planLinkOf(p); // its drawn work file could not be read (model/planPackage)
+    setReadOnly(isFutureSchema(p) ? 'This project was saved by a newer version of LV Design Studio, so it is open read-only.' : drawnWorkMissing ? planMissingNote(drawnWorkMissing) : null);
     setRun(runCalculations(opened)); // results for the project as opened
     // Presets saved with the project join this computer's presets.
     if (p.feederPresets?.length) {
@@ -846,7 +848,7 @@ export default function App() {
     setActiveBoardId(p.boards[0]?.id ?? '');
     setCreatedPanelIds([]);
     setSelected(null);
-    setStatus(isFutureSchema(p) ? `${message} — read-only (saved by a newer version)` : message);
+    setStatus(isFutureSchema(p) ? `${message} — read-only (saved by a newer version)` : drawnWorkMissing ? `${message} — read-only (drawn work missing)` : message);
     setView('dashboard'); // a project opens on its dashboard
   }
 
@@ -877,7 +879,7 @@ export default function App() {
   useEffect(() => {
     const projects = window.lvds?.projects;
     if (!projects?.takePending) return;
-    const take = () => void projects.takePending!().then((r) => openPickedRef.current(r as { file?: string; data?: Project; from?: string } | null))
+    const take = () => void takePendingProject().then((r) => openPickedRef.current(r))
       .catch((e: unknown) => setStatus(`Could not open the project: ${e instanceof Error ? e.message : String(e)}`));
     take();
     return projects.onPending?.(take);

@@ -3,6 +3,7 @@ import { pointsWithItems } from '../calc/loadSchedule';
 import { withUids } from './stableIds';
 import { readProjectFolder } from './folderTemplates';
 import { unpackRevisions } from './revisionStore';
+import { withoutPlanLink } from './planLink';
 
 /** Project identity, file-format version and copying.
  *
@@ -22,8 +23,12 @@ import { unpackRevisions } from './revisionStore';
  *
  * Version 4: in the file, issued revisions keep each distinct panel, circuit and section once (model/revisionStore)
  * and no longer a whole copy of the project each. An older app cannot read those revisions, so it opens a version 4
- * file read-only. This app still opens every older file; it is written as version 4 at the next save. */
-export const CURRENT_SCHEMA = 4;
+ * file read-only.
+ *
+ * Version 5: the drawn work of Design CAD is kept beside the project file, in name.lvplan (model/planPackage), and the
+ * file links to it. An older app would open such a file without its drawings and could save it without the link, so it
+ * opens a version 5 file read-only. This app still opens every older file; it is written as version 5 at the next save. */
+export const CURRENT_SCHEMA = 5;
 
 const fnv = (s: string): string => {
   let h = 2166136261;
@@ -89,7 +94,7 @@ export type CopyKind = 'save-as' | 'duplicate';
 export function copyProject(p: Project, kind: CopyKind, name: string, by?: string, now = new Date()): Project {
   const at = now.toISOString();
   const copy: Project = {
-    ...p,
+    ...withoutPlanLink(p), // a copy gets its own drawn work file, never a link to this one's
     id: newProjectId(),
     schemaVersion: CURRENT_SCHEMA,
     createdAt: at,

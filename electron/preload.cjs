@@ -12,7 +12,7 @@ contextBridge.exposeInMainWorld('lvds', {
     load: (file) => ipcRenderer.invoke('projects:load', file),
     read: (file) => ipcRenderer.invoke('projects:read', file),
     stat: (file) => ipcRenderer.invoke('projects:stat', file),
-    save: (file, data, expected, force) => ipcRenderer.invoke('projects:save', { file, data, expected, force }),
+    save: (file, data, expected, force, plan) => ipcRenderer.invoke('projects:save', { file, data, expected, force, plan }),
     delete: (file) => ipcRenderer.invoke('projects:delete', file),
     trashList: () => ipcRenderer.invoke('projects:trashList'),
     restore: (trashFile) => ipcRenderer.invoke('projects:restore', trashFile),

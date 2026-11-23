@@ -22,8 +22,48 @@ const isProjectFile = (file) => PROJECT_FILE.test(file);
 const stemOf = (file) => file.replace(PROJECT_FILE, '');
 /** The text of a project file. */
 const projectText = (data) => JSON.stringify(Object.assign({ format: PROJECT_FORMAT }, data, { format: PROJECT_FORMAT }), null, 2);
-/** Whether a project file of either kind has this name (without extension) in the folder. */
-const stemTaken = (folder, stem) => lexists(path.join(folder, `${stem}${PROJECT_EXT}`)) || lexists(path.join(folder, `${stem}.json`));
+/** Whether a project file of either kind, or drawn work of one, has this name (without extension) in the folder. */
+const stemTaken = (folder, stem) => lexists(path.join(folder, `${stem}${PROJECT_EXT}`)) || lexists(path.join(folder, `${stem}.json`)) || lexists(path.join(folder, `${stem}${PLAN_EXT}`));
+
+// ---- The drawn work beside it: name.lvplan ------------------------------------------
+// What is drawn in Design CAD is kept in name.lvplan beside name.lvds (src/model/planPackage.ts makes and reads it), and
+// the project file links to it: "plan": { file, sha256, version }. Only a .lvds has one; an older .json never does.
+const PLAN_EXT = '.lvplan';
+const PLAN_VERSION = 1; // lvds.plan version, as PLAN_VERSION in src/model/planPackage.ts
+const PLAN_NAME = /^[^\\/:*?"<>|]+\.lvplan$/i;
+/** The drawn work file of a .lvds project file; undefined for an older .json. */
+const planFileOf = (file) => (file.toLowerCase().endsWith(PROJECT_EXT) ? `${stemOf(file)}${PLAN_EXT}` : undefined);
+/** The project file's link to its drawn work, when it has one this app wrote. */
+function planLinkOf(data) {
+  const l = data && data.plan;
+  return l && typeof l === 'object' && typeof l.file === 'string' && typeof l.sha256 === 'string' && /^[0-9a-f]{64}$/.test(l.sha256) ? l : undefined;
+}
+/** A file's content when it is a plain file within the size limit; undefined when it is missing, a link or too large. */
+const fileBytes = (full) => bestEffort(`read ${path.basename(full)}`, () => readFileNoFollow(full, { max: LIMITS.projectBytes }).buffer);
+/** SHA-256 of a file's bytes; null when there is no such plain file. */
+const fileSha = (full) => { const b = full && fileBytes(full); return b ? sha(b) : null; };
+
+/** The drawn work a project file links to: whichever of name.lvplan and name.lvplan.bak (then the file the link names,
+ * and its .bak) has the SHA-256 the link records. A save writes the .lvplan before the project file, so after a crash
+ * or a sync tool that delivered one file but not the other, the .bak is the copy that matches. undefined when no copy
+ * does: the app then opens the project without its drawings, and nothing is saved over them. */
+function readPlanFor(dir, file, link) {
+  const names = [planFileOf(file), PLAN_NAME.test(link.file) && !link.file.startsWith('.') ? link.file : undefined].filter(Boolean);
+  for (const n of [...new Set(names)]) {
+    for (const f of [n, `${n}.bak`]) {
+      const b = fileBytes(path.join(dir, f));
+      if (b && sha(b) === link.sha256) return b;
+    }
+  }
+  return undefined;
+}
+
+/** stampOf the project file, with the SHA-256 of its drawn work file beside it (null when there is none). */
+function projectStampOf(full) {
+  const s = stampOf(full);
+  const plan = planFileOf(path.basename(full));
+  return s && { ...s, plan: plan ? fileSha(path.join(path.dirname(full), plan)) : null };
+}
 
 /** A step that may fail without stopping the operation it belongs to (a backup copy, a cache, a
  * cleanup). A file that is not there is expected and stays quiet; any other failure is logged with
@@ -51,9 +91,13 @@ function stampOf(full) {
 /** Whether a save may go ahead. `expected` is what the file was when this app opened or last saved it;
  * `disk` is what it is now. A file that is missing, or whose content is what we expect (even if a sync
  * tool touched its date), is safe to write. Anything else was changed by someone else: a conflict. */
-function decideSave(expected, disk) {
+function decideSave(expected, disk, nextPlan) {
   if (!disk || !expected) return 'write';
-  return expected.hash === disk.hash ? 'write' : 'conflict';
+  if (expected.hash !== disk.hash) return 'conflict';
+  // The drawn work beside it was changed by someone else (or a sync tool delivered it first): not written over either.
+  // A stamp from before name.lvplan has no plan; a drawn work file that is gone is safe to write.
+  if (expected.plan !== undefined && disk.plan != null && disk.plan !== expected.plan && disk.plan !== nextPlan) return 'conflict';
+  return 'write';
 }
 
 /** Writes a file safely: to a temporary file first, flushed to disk, then renamed over the old one (a
@@ -80,10 +124,28 @@ function writeFileSafe(full, text, opts = {}) {
     bestEffort('remove the temporary file', () => fs.unlinkSync(tmp));
     throw e;
   }
-  const back = readFileNoFollow(full).buffer.toString('utf-8');
+  const back = readFileNoFollow(full).buffer;
   if (sha(back) !== sha(text)) throw new Error('The file was written but reading it back did not match; it may not have been saved correctly.');
-  if (verifyJson) JSON.parse(back);
+  if (verifyJson) JSON.parse(back.toString('utf-8'));
   return stampOf(full);
+}
+
+/** Saves a project file with its drawn work: name.lvplan first (written only when it is not already what is on disk),
+ * then the project file with the link to it, so a crash between the two leaves a pair that still opens (readPlanFor).
+ * `plan` is the .lvplan's bytes. Without them the project is written as given: with no link, or with the link it kept
+ * because its drawn work could not be read (nothing is written over that drawn work). Returns projectStampOf. */
+function saveProjectPair(full, data, plan, { keepTheirs = false } = {}) {
+  let out = data;
+  const name = planFileOf(path.basename(full));
+  const planFull = name && path.join(path.dirname(full), name);
+  if (plan) {
+    if (!planFull) throw new Error(`${path.basename(full)} is not a .lvds project file, so it cannot keep drawn work beside it.`);
+    const sha256 = sha(plan);
+    if (fileSha(planFull) !== sha256) writeFileSafe(planFull, plan, { keepTheirs });
+    out = { ...data, plan: { file: name, sha256, version: PLAN_VERSION } };
+  }
+  writeFileSafe(full, projectText(out), { keepTheirs, verifyJson: true });
+  return projectStampOf(full);
 }
 
 /** name.lvds, or name-2.lvds, name-3.lvds … when that name is taken (by a .lvds or an older .json). */
@@ -109,7 +171,9 @@ function pickedProject(folder, full) {
   let data;
   try { data = readJsonLimited(full, LIMITS.projectBytes, name, { follow: true }); } catch (e) { throw new Error(`${name} could not be read as a project (${e.message}).`); }
   if (!data || typeof data !== 'object' || !Array.isArray(data.boards) || !Array.isArray(data.feeders)) throw new Error(`${name} is not an LV Design Studio project.`);
-  return { data, from: full };
+  const link = planLinkOf(data);
+  const plan = link && readPlanFor(path.dirname(path.resolve(full)), name, link);
+  return plan ? { data, from: full, plan } : { data, from: full };
 }
 
 /** After an older name.json was saved as `native`: the .json becomes the backup of the new file (never a
@@ -248,7 +312,14 @@ function moveToTrash(folder, file, now = Date.now()) {
   const name = trashName(file, now);
   fs.renameSync(path.join(folder, file), path.join(dir, name));
   bestEffort(`move ${file}.bak to the trash`, () => fs.renameSync(path.join(folder, `${file}.bak`), path.join(dir, `${name}.bak`)));
+  const plan = planFileOf(file); // its drawn work goes with it, under the same time
+  if (plan) for (const f of [plan, `${plan}.bak`]) moveIfPlain(path.join(folder, f), path.join(dir, trashName(f, now)), `move ${f} to the trash`);
   return name;
+}
+
+/** Renames a file that is there and is not a link (a link is never moved, opened or deleted). */
+function moveIfPlain(from, to, what) {
+  bestEffort(what, () => { if (lexists(from)) { assertNotLink(from, path.basename(from)); fs.renameSync(from, to); } });
 }
 
 /** Deleted projects, newest first, with their name and when they will be removed for good. */
@@ -279,6 +350,9 @@ function restoreFromTrash(folder, trashFile) {
   const file = stemTaken(folder, stemOf(parts.file)) ? uniqueFileName(folder, stemOf(parts.file)) : parts.file;
   fs.renameSync(src, path.join(folder, file));
   bestEffort(`restore ${file}.bak`, () => fs.renameSync(`${src}.bak`, path.join(folder, `${file}.bak`)));
+  // Its drawn work under the name the project now has (its link names the old one; readPlanFor looks here first).
+  const from = planFileOf(parts.file), to = planFileOf(file);
+  if (from && to) for (const [a, b] of [[from, to], [`${from}.bak`, `${to}.bak`]]) moveIfPlain(path.join(trashDir(folder), trashName(a, parts.deletedAt)), path.join(folder, b), `restore ${b}`);
   return file;
 }
 
@@ -299,4 +373,4 @@ function purgeTrash(folder, days = TRASH_DAYS, now = Date.now()) {
   return n;
 }
 
-module.exports = { bestEffort, metaFromProject, listProjectsMeta, moveToTrash, listTrash, restoreFromTrash, purgeTrash, TRASH_DAYS, sha, stampOf, decideSave, writeFileSafe, uniqueFileName, nativeFileName, retireOldFile, pickedProject, isProjectFile, stemOf, projectText, PROJECT_EXT, PROJECT_FORMAT, conflictSiblings, writeRecovery, clearRecovery, readRecoveries, recoveryFile };
+module.exports = { bestEffort, metaFromProject, PLAN_EXT, PLAN_VERSION, planFileOf, planLinkOf, readPlanFor, projectStampOf, saveProjectPair, fileSha, listProjectsMeta, moveToTrash, listTrash, restoreFromTrash, purgeTrash, TRASH_DAYS, sha, stampOf, decideSave, writeFileSafe, uniqueFileName, nativeFileName, retireOldFile, pickedProject, isProjectFile, stemOf, projectText, PROJECT_EXT, PROJECT_FORMAT, conflictSiblings, writeRecovery, clearRecovery, readRecoveries, recoveryFile };

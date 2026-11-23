@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.265', date: '2026-11-23',
+    items: [
+      { title: 'Drawings are kept in their own file beside the project', text: 'What you draw in Design CAD (drawn objects, the drawing\'s own blocks, erased objects, layouts, layer settings, units and drawing styles) is now saved in a second file beside the project, Name.lvplan, and the project file links to it. A project with a lot of drawn work is about 12 times smaller, and a save writes the drawing file only when the drawn work changed. Keep the two files together when you copy, send or back up a project. An older project moves its drawings to the new file at its next save; earlier versions of the app then open it read-only. If the drawing file is missing or does not match, the project opens without its drawings, read-only, and nothing is saved over them.' },
+    ]
+  },
+  {
     version: '2.262', date: '2026-11-22',
     items: [
       { title: 'The incoming cable counts in an assumed fault level', text: 'A first board with an incoming cable typed on its Supply tab and no fault level given used to take the assumed source level (about 25 kA at 415 V) at its busbar, ignoring the cable. The cable is now counted, as it already is when a fault level is given, so the level at the board is lower. The level is still marked assumed and its checks stay not verified until a fault level or a source rating is typed.' },

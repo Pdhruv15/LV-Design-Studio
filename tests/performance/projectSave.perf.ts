@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 import { network } from '../fixtures/networks';
 import { issueRevision } from '../../src/model/revisions';
 import { packRevisions } from '../../src/model/revisionStore';
-import { mergePlan, planZip, readPlanZip, splitPlan } from '../../src/model/planPackage';
+import { mergePlan, packPlan, planZip, readPlanZip, splitPlan } from '../../src/model/planPackage';
 import type { Project, SketchItem } from '../../src/types';
 
 /** Phase 2 step 0 of the native drawing file (docs/notes/Future development/Native drawing file - Phase 2 plan -
@@ -129,12 +129,15 @@ it('as the desktop really saves: revisions packed (revisionStore.ts), today agai
     const [load] = median(() => JSON.parse(text));
     const [split, s] = await medianAsync(async () => { const x = await splitPlan(p); return { x, text: projectText(packRevisions(x.project)), bytes: await planZip(x.plan!) }; });
     const [load2] = await medianAsync(async () => mergePlan(JSON.parse(s.text) as Project, await readPlanZip(s.bytes)));
-    rows.push(`| ${size} MB | ${mb(text.length)} | ${ms(save)} / ${ms(load)} | ${mb(s.text.length)} + ${mb(s.bytes.length)} | ${ms(split)} / ${ms(load2)} |`);
+    // Step 2 as the app saves (projectStore.ts): packPlan; saving again with the drawn work unchanged skips the zip.
+    await packPlan(p);
+    const [again] = await medianAsync(async () => { const x = await packPlan({ ...p, updatedAt: 'again' }); return projectText(packRevisions(x.project)); });
+    rows.push(`| ${size} MB | ${mb(text.length)} | ${ms(save)} / ${ms(load)} | ${mb(s.text.length)} + ${mb(s.bytes.length)} | ${ms(split)} / ${ms(load2)} | ${ms(again)} |`);
   }
   process.stdout.write([
     `Real save path: network(200 boards), drawn work in 4 drawings, ${REVS} issued revisions (unpacking on load not timed).`,
-    '| Drawn work | .lvds today | save / load | .lvds + .lvplan | save / load |',
-    '|---|---|---|---|---|',
+    '| Drawn work | .lvds today | save / load | .lvds + .lvplan | save / load | save again, drawn work unchanged |',
+    '|---|---|---|---|---|---|',
     ...rows
   ].join('\n') + '\n');
 });

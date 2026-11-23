@@ -2,6 +2,9 @@ import { z } from 'zod';
 import JSZip from 'jszip';
 import { sha256Hex } from '../util/sha256';
 import type { Project } from '../types';
+import { planLinkOf, planMissingNote, withoutPlanLink } from './planLink';
+
+export { planLinkOf, planMissingNote, withoutPlanLink, type PlanLink } from './planLink';
 
 /** The native drawing file (.lvplan, contract lvds.plan version 1): what is drawn in Design CAD, kept beside the
  * project file instead of inside it (docs/notes/Future development/Native drawing file - Phase 2 plan - 2026-11-22.md).
@@ -148,13 +151,18 @@ export async function splitPlan(project: Project): Promise<{ project: Project; p
   if (!live.tree && revisions.length === 0) return { project };
   const parts: Record<string, string> = {};
   const index: PlanManifest['parts'] = {};
-  const hashes = await Promise.all(pending.map(async ({ dir, text }) => {
+  const sizes: number[] = [];
+  const hashes = await Promise.all(pending.map(({ text }, i) => {
     const bytes = new TextEncoder().encode(text);
-    const h = await sha256(bytes, text);
-    index[h] = { path: `${dir}/${h}.json`, bytes: bytes.length };
-    parts[index[h].path] = text;
-    return h;
+    sizes[i] = bytes.length;
+    return sha256(bytes, text);
   }));
+  // Listed in the order the parts were met, not the order the hashes finished: the same drawn work, the same manifest.
+  pending.forEach(({ dir, text }, i) => {
+    const h = hashes[i];
+    index[h] = { path: `${dir}/${h}.json`, bytes: sizes[i] };
+    parts[index[h].path] = text;
+  });
   const named = (t: PlanTree): PlanTree => ({ ...t, drawings: t.drawings.map((d) => ({ ...d, part: hashes[Number(d.part)] })), ...(t.shared ? { shared: hashes[Number(t.shared)] } : {}) });
   const rest = (revisions.length ? { ...live.rest, revisions: revs } : live.rest) as unknown as Project;
   const manifest: PlanManifest = { format: PLAN_FORMAT, version: PLAN_VERSION, ...(live.tree ? { live: named(live.tree) } : {}), revisions: revisions.map((r) => ({ ...r, tree: named(r.tree) })), parts: index };
@@ -218,8 +226,9 @@ const FIXED_DATE = new Date(Date.UTC(2026, 0, 1));
 /** The .lvplan file: a zip of manifest.json and the parts, compressed (about 6.7 times smaller, step 0). */
 export function planZip(plan: PlanFiles): Promise<Uint8Array> {
   const zip = new JSZip();
-  zip.file('manifest.json', `${JSON.stringify(plan.manifest, null, 2)}\n`, { date: FIXED_DATE });
-  for (const path of Object.keys(plan.parts).sort()) zip.file(path, plan.parts[path], { date: FIXED_DATE });
+  // No folder entries: the zip would date them now, and the same drawn work would not give the same file.
+  zip.file('manifest.json', `${JSON.stringify(plan.manifest, null, 2)}\n`, { date: FIXED_DATE, createFolders: false });
+  for (const path of Object.keys(plan.parts).sort()) zip.file(path, plan.parts[path], { date: FIXED_DATE, createFolders: false });
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE', compressionOptions: { level: 1 } });
 }
 
@@ -239,4 +248,33 @@ export async function readPlanZip(bytes: Uint8Array | ArrayBuffer): Promise<Plan
     parts[path] = await f.async('string');
   }
   return { manifest, parts };
+}
+
+// The .lvplan made last. The manifest names every part by its SHA-256, so the same manifest is the same file: a save
+// whose drawn work did not change sends the same bytes again without compressing them, and nothing is written.
+let lastZip: { manifest: string; bytes: Uint8Array } | undefined;
+
+/** What a project file is written as: the project without its drawn work, and the .lvplan bytes (none when nothing is
+ * drawn). A project that kept its link keeps it, with no .lvplan; if it was drawn on as well, it is refused, because its
+ * own drawn work could not be read and would be written over. */
+export async function packPlan(project: Project): Promise<{ project: Project; bytes?: Uint8Array }> {
+  const { project: rest, plan } = await splitPlan(project);
+  if (!plan) return { project: rest };
+  const link = planLinkOf(project);
+  if (link) throw new PlanError(planMissingNote(link));
+  const manifest = JSON.stringify(plan.manifest);
+  if (lastZip?.manifest !== manifest) lastZip = { manifest, bytes: await planZip(plan) };
+  return { project: rest, bytes: lastZip.bytes };
+}
+
+/** A project read from its file with its drawn work put back. The bytes are the .lvplan whose SHA-256 the link records
+ * (the main process checks it). Without them, or when they cannot be used, the project keeps its link: it opens
+ * without its drawings, read-only (planMissingNote). */
+export async function unpackPlan(project: Project, bytes?: Uint8Array): Promise<Project> {
+  if (!bytes || !planLinkOf(project)) return project;
+  try {
+    return withoutPlanLink(mergePlan(project, await readPlanZip(bytes)));
+  } catch {
+    return project;
+  }
 }

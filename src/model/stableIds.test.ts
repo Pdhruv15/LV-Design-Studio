@@ -13,7 +13,7 @@ describe('permanent IDs for boards and circuits', () => {
   it('opening a version 1 file gives every board and circuit a unique uid and raises the file version', () => {
     const p = migrateProject(v1(), 'job.json');
     expect(p.schemaVersion).toBe(CURRENT_SCHEMA);
-    expect(CURRENT_SCHEMA).toBe(4); // 2: uids; 3: Design CAD blocks; 4: revisions kept once in the file (src/model/projectMigrate.ts)
+    expect(CURRENT_SCHEMA).toBe(5); // 2: uids; 3: Design CAD blocks; 4: revisions kept once in the file; 5: drawn work in name.lvplan (src/model/projectMigrate.ts)
     const all = uids(p);
     expect(all.every((u) => typeof u === 'string' && u.length > 10)).toBe(true);
     expect(new Set(all).size).toBe(all.length);
