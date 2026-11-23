@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.274', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD: Text style and Multileader style match Dimension style', text: 'Annotate → Text style and Multileader style open in the same wider layout as Dim style: the styles beside the preview, with New, Delete and Set current under them. Text style now shows a sample of its text on paper, its height marked at the left. In both, the part the value you are setting changes shows in gold, named under the preview, and Multileader style has a swatch beside its arrowhead list.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.270', date: '2026-11-23',
     items: [
       { title: 'Design CAD: dimension text no longer crosses its line', text: 'With the text Outside (the usual place, and every dimension drawn before dimension styles), a dimension drawn below what it measures, or to the right of it with the text reading upwards, had its text across its own line. The text now sits fully on the side away from what is measured, the same distance off the line as above it. Dimensions already drawn that way show their text moved out, on the plan, on the sheets and in Save DXF / DWG.', action: 'cad', actionLabel: 'Open Design CAD' }
