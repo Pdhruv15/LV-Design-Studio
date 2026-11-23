@@ -2416,6 +2416,11 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-dlg-mode svg{flex:none;color:var(--ok)}
 .cad-dlg-hits{display:flex;justify-content:space-between;gap:8px;padding:6px 8px 2px 14px;color:var(--mut);font-size:11px;line-height:14px}
 .cad-dlg.opt .cad-dlg-tabs{margin:-4px 0 4px}
+.cad-dlg-two{display:grid;grid-template-columns:310px minmax(0,1fr)}
+.cad-dlg.opt .cad-dlg-two .cad-dlg-r:not(.cad-dlg-ck){grid-template-columns:1fr 140px}
+.cad-dlg-pv{padding:6px 8px 0 0;color:var(--mut);font-size:11px;line-height:16px}
+.cad-dlg-pv svg{display:block;background:var(--cad-bg);border-radius:2px}
+.cad-dlg-pv p{margin:0;font-size:10.5px;text-align:center}
 .cad-tab-dirty{color:var(--acc);margin-left:4px}
 .cad-log-x{position:sticky;top:0;float:right;padding:0 4px;background:none;border:0;color:var(--mut);font:inherit}
 .cad-cmd input{flex:1;min-width:120px;background:transparent;border:0;outline:0;color:var(--tx);font:inherit}

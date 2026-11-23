@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { FolderOpen, RotateCcw, Search, X } from 'lucide-react';
 import { CadDialog } from './CadDialogs';
+import { DisplayPreview, SelectionPreview } from './CadOptionsPreview';
 import type { CadToggles } from './CadCanvas';
 import { isNumber } from './cadPrompt';
 import { CROSS_COLORS, OSNAP_BITS, OSNAP_MODES, parseAngles, PICK_LOOKS, POLAR_INCREMENTS, SEL_COLORS, type CrossColor, type DraftSettings, type OsnapMode, type PickLook, type SelColor } from '../../model/cadDraft';
@@ -19,12 +20,12 @@ const BY_ID = new Map(OPT_SETTINGS.map((s) => [s.id, s]));
 const HELP: Record<Exclude<OptPage, 'drafting'> | 'drafting/snap' | 'drafting/polar' | 'drafting/osnap' | 'drafting/dyn' | 'found', string> = {
   general: "The ribbon's tool names and the order of its panels, as in Profile & preferences.",
   files: 'The folders the app uses, and how a drawing is saved. Kept for you on this computer, for every drawing.',
-  display: 'The crosshair and its colour, the outline that keeps the cursor visible over any line, and line widths on screen. Colour theme and palette are the app\'s own.',
+  display: 'The crosshair and its colour, the outline that keeps the cursor visible over any line, and line widths on screen. Colour theme and palette are the app\'s own. The preview shows the result before OK.',
   'drafting/snap': 'Snap (F9) steps the cursor by the spacing; 0 follows the grid on screen. Grid (F7): 0 adapts to the zoom.',
   'drafting/polar': 'Polar tracking (F10) holds the next point on the angles from the last one. ORTHO (F8) and polar turn each other off. Object snap tracking (F11): rest the cursor on a snap point to acquire it (again to let it go), then follow its alignment lines.',
   'drafting/osnap': 'The snap points the cursor finds (F3 turns them all on or off), the snap aperture (how near a snap point must be) and the marker. Perpendicular is from the last point picked. Shift-click and a window select, as before.',
   'drafting/dyn': 'Dynamic input (F12): the boxes, the short prompt and its options at the cursor.',
-  selection: 'Left to right: only what is fully inside. Right to left: what the window crosses. Shift-click adds or removes. A click picks what is inside the pick box.',
+  selection: 'Left to right: only what is fully inside. Right to left: what the window crosses. Shift-click adds or removes. A click picks what is inside the pick box. The preview shows the result before OK.',
   plot: 'The printer plots go to on this computer. Page setups and pen tables belong to the project.',
   drawing: 'Level and units belong to this drawing; each change is one undo step on OK.',
   found: 'An amber dot marks a setting that is not at its default; the arrow beside it puts it back.'
@@ -241,7 +242,7 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
       case 'hoverMark': return crow(s, d.hoverMark, (b) => patch({ hoverMark: b }));
       case 'hoverTag': return crow(s, d.hoverTag, (b) => patch({ hoverTag: b }));
       case 'windowFill': return crow(s, d.windowFill, (b) => patch({ windowFill: b }));
-      case 'pickLook': return vrow(s, <select aria-label="Picked objects look" value={d.pickLook} onChange={(e) => patch({ pickLook: e.target.value as PickLook })}>{opts(PICK_LOOKS)}</select>);
+      case 'pickLook': return vrow(s, <select aria-label="Picked objects look" title={PICK_LOOKS.find((c) => c.k === d.pickLook)?.label} value={d.pickLook} onChange={(e) => patch({ pickLook: e.target.value as PickLook })}>{opts(PICK_LOOKS)}</select>);
       case 'selColor': return vrow(s, <select aria-label="Selection colour" value={d.selColor} onChange={(e) => patch({ selColor: e.target.value as SelColor })}>{opts(SEL_COLORS)}</select>);
       case 'grips': return crow(s, d.grips, (b) => patch({ grips: b }));
       case 'gripPx': return nrow(s, d.gripPx, whole('gripPx', 4, 20), 'px');
@@ -294,6 +295,7 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
   const modes = (
     <div className="cad-dlg-modes">{OSNAP_MODES.map((m) => r(`osnap.${m.k}`))}</div>
   );
+  const preview = (drawing: ReactNode) => <div className="cad-dlg-pv"><span>Preview</span>{drawing}<p>Follows the values on this page</p></div>;
   const pageBody = (): ReactNode => {
     switch (page) {
       case 'general': return <>
@@ -315,7 +317,7 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
         {r('autosaveMin')}
         <p className="cad-dlg-note">0 = off. The same setting as Recovery copy of unsaved work in Profile &amp; preferences.</p>
       </>;
-      case 'display': return <>
+      case 'display': return <div className="cad-dlg-two"><div>
         {sec('Screen colours', 'the whole app')}
         {r('theme')}{r('palette')}
         <p className="cad-dlg-note">Changes the screen only. Drawings, PDFs and DXF files are always black on white.</p>
@@ -325,7 +327,7 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
         {r('crossColor')}{r('cursorOutline')}
         {sec('Drawing', 'a status-bar switch')}
         {r('lwt')}
-      </>;
+      </div>{preview(<DisplayPreview draft={d} lwt={t.lwt !== false} />)}</div>;
       case 'drafting': return <>
         <div className="cad-dlg-tabs" role="tablist" aria-label="Drafting" ref={tabs}>
           {DRAFT_TABS.map((x, i) => <button key={x.k} type="button" role="tab" aria-selected={tab === x.k} onClick={() => setPlace((p) => ({ ...p, tab: x.k }))} onKeyDown={(e) => stepTab(e, i)}>{x.label}</button>)}
@@ -359,14 +361,14 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
           <p className="cad-dlg-note">A point typed: x,y from the last point; # before it for an absolute point; @ for relative; length&lt;angle for polar.</p>
         </>}
       </>;
-      case 'selection': return <>
+      case 'selection': return <div className="cad-dlg-two"><div>
         {sec('Picking', 'on this computer')}
         {r('pickBoxPx')}{r('hoverMark')}{r('hoverTag')}{r('windowFill')}
         {sec('Picked objects', 'on this computer')}
         {r('pickLook')}{r('selColor')}
         {sec('Grips', 'on this computer')}
         {r('grips')}{r('gripPx')}{r('gripMax')}
-      </>;
+      </div>{preview(<SelectionPreview draft={d} />)}</div>;
       case 'plot': return <>
         {sec('Plotting', 'on this computer')}
         {r('printer')}
