@@ -16,18 +16,19 @@ declare global {
         list: () => Promise<import('./model/projectStore').ProjectMeta[]>;
         load: (file: string) => Promise<import('./types').Project>;
         /** The project and the stamp of the file it was read from (missing in older desktop builds). */
-        read?: (file: string) => Promise<{ project: import('./types').Project; stamp: import('./model/saveSafety').FileStamp | null }>;
+        read?: (file: string) => Promise<{ project: import('./types').Project; stamp: import('./model/saveSafety').FileStamp | null; plan?: Uint8Array }>;
         stat?: (file: string) => Promise<import('./model/saveSafety').FileStamp | null>;
-        /** With `expected` (what the file was when opened or last saved) a changed file is a conflict, not overwritten, unless `force`. */
-        save: (file: string | undefined, data: import('./types').Project, expected?: import('./model/saveSafety').FileStamp, force?: boolean) => Promise<{ file: string; stamp?: import('./model/saveSafety').FileStamp | null; conflict?: boolean; disk?: import('./model/saveSafety').FileStamp | null }>;
+        /** With `expected` (what the file was when opened or last saved) a changed file is a conflict, not overwritten, unless `force`.
+         * `plan`: the drawn work as name.lvplan bytes, written beside it (model/planPackage). */
+        save: (file: string | undefined, data: import('./types').Project, expected?: import('./model/saveSafety').FileStamp, force?: boolean, plan?: Uint8Array) => Promise<{ file: string; stamp?: import('./model/saveSafety').FileStamp | null; conflict?: boolean; disk?: import('./model/saveSafety').FileStamp | null }>;
         /** Moves the project to the trash (kept 30 days). */
         delete: (file: string) => Promise<boolean>;
         trashList?: () => Promise<import('./model/projectStore').TrashedProject[]>;
         restore?: (trashFile: string) => Promise<string>;
         emptyTrash?: () => Promise<number>;
-        pick: () => Promise<{ file?: string; data?: unknown; from?: string } | null>;
+        pick: () => Promise<{ file?: string; data?: unknown; from?: string; plan?: Uint8Array } | null>;
         /** The next project opened from Finder / Explorer (a .lvds double-clicked), as pick answers; null when there is none. */
-        takePending?: () => Promise<{ file?: string; data?: unknown; from?: string } | null>;
+        takePending?: () => Promise<{ file?: string; data?: unknown; from?: string; plan?: Uint8Array } | null>;
         /** Called when a project is opened from Finder / Explorer while the app runs; returns the unsubscribe. */
         onPending?: (cb: () => void) => () => void;
       };

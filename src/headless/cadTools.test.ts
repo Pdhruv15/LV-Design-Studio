@@ -69,3 +69,10 @@ describe('CAD tools (built-in DWG / DXF reader)', () => {
     await expect(run('cad_plan', { project: 'Villa', drawing: 'notes.txt' })).rejects.toThrow(/not a DWG or DXF/);
   });
 });
+
+describe('a project that keeps its drawn work in a .lvplan', () => {
+  it('is refused by the plan tools until lvds reads that file, so a plan is never measured in the wrong units', async () => {
+    fs.writeFileSync(path.join(folder, 'Villa.json'), JSON.stringify({ ...villa, plan: { file: 'Villa.lvplan', sha256: 'a'.repeat(64), version: 1 } }, null, 2));
+    await expect(run('cad_plan', { project: 'Villa', drawing: 'GF plan.dwg' })).rejects.toThrow(/Villa\.lvplan, which this version of lvds cannot read yet/);
+  });
+});

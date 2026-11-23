@@ -4,6 +4,8 @@ import crypto from 'node:crypto';
 import JSZip from 'jszip';
 import { network } from '../fixtures/networks';
 import { issueRevision } from '../../src/model/revisions';
+import { packRevisions } from '../../src/model/revisionStore';
+import { mergePlan, packPlan, planZip, readPlanZip, splitPlan } from '../../src/model/planPackage';
 import type { Project, SketchItem } from '../../src/types';
 
 /** Phase 2 step 0 of the native drawing file (docs/notes/Future development/Native drawing file - Phase 2 plan -
@@ -94,4 +96,48 @@ it('project save and load with drawn work: today against a split-off .lvplan', a
     '|---|---|---|---|---|---|---|---|',
     ...rows
   ].join("\n") + "\n");
+});
+
+it('the .lvplan functions on the same projects: split, zip, read, merge', async () => {
+  const base = network(200, 'shallow');
+  const rows: string[] = [];
+  for (const size of SIZES) {
+    let p = withPlan(base, size);
+    for (let r = 0; r < REVS; r++) p = issueRevision(p, { description: `Rev ${r}`, date: '2026-11-22' });
+    const [split, s] = await medianAsync(() => splitPlan(p));
+    const [lvds, text] = median(() => projectText(s.project));
+    const [zip, bytes] = await medianAsync(() => planZip(s.plan!));
+    const [read, files] = await medianAsync(() => readPlanZip(bytes));
+    const [merge] = median(() => mergePlan(JSON.parse(text) as Project, files));
+    rows.push(`| ${size} MB | ${ms(split)} | ${mb(text.length)} / ${ms(lvds)} | ${mb(bytes.length)} / ${ms(zip)} | ${ms(read)} / ${ms(merge)} |`);
+  }
+  process.stdout.write([
+    `.lvplan functions: network(200 boards), drawn work in 4 drawings, ${REVS} issued revisions.`,
+    '| Drawn work | splitPlan (SHA-256 of each part) | .lvds size / text | .lvplan size / planZip | readPlanZip / mergePlan |',
+    '|---|---|---|---|---|',
+    ...rows
+  ].join('\n') + '\n');
+});
+
+it('as the desktop really saves: revisions packed (revisionStore.ts), today against .lvds + .lvplan', async () => {
+  const base = network(200, 'shallow');
+  const rows: string[] = [];
+  for (const size of SIZES) {
+    let p = withPlan(base, size);
+    for (let r = 0; r < REVS; r++) p = issueRevision(p, { description: `Rev ${r}`, date: '2026-11-22' });
+    const [save, text] = median(() => projectText(packRevisions(p)));
+    const [load] = median(() => JSON.parse(text));
+    const [split, s] = await medianAsync(async () => { const x = await splitPlan(p); return { x, text: projectText(packRevisions(x.project)), bytes: await planZip(x.plan!) }; });
+    const [load2] = await medianAsync(async () => mergePlan(JSON.parse(s.text) as Project, await readPlanZip(s.bytes)));
+    // Step 2 as the app saves (projectStore.ts): packPlan; saving again with the drawn work unchanged skips the zip.
+    await packPlan(p);
+    const [again] = await medianAsync(async () => { const x = await packPlan({ ...p, updatedAt: 'again' }); return projectText(packRevisions(x.project)); });
+    rows.push(`| ${size} MB | ${mb(text.length)} | ${ms(save)} / ${ms(load)} | ${mb(s.text.length)} + ${mb(s.bytes.length)} | ${ms(split)} / ${ms(load2)} | ${ms(again)} |`);
+  }
+  process.stdout.write([
+    `Real save path: network(200 boards), drawn work in 4 drawings, ${REVS} issued revisions (unpacking on load not timed).`,
+    '| Drawn work | .lvds today | save / load | .lvds + .lvplan | save / load | save again, drawn work unchanged |',
+    '|---|---|---|---|---|---|',
+    ...rows
+  ].join('\n') + '\n');
 });

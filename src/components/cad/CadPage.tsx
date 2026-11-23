@@ -58,7 +58,7 @@ import type { SketchItem } from '../../types';
 import { ELV_PALETTE, elvPlacedOn, elvSystemOf, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
 import { copyTo, coverageNote, elvLayer, fillAt, rotate as rotateElv, SYSTEM_LABEL } from '../../components/elv/elvPlan';
 import { safeFileName, saveBinary, saveBinaryAt, savePdf, saveText } from '../../util/files';
-import { angleDeg, areaOf, distance, inside, m, m2, roomAround, segmentsOn } from '../../model/cadMeasure';
+import { angleDeg, areaOf, boxOf, distance, inside, m, m2, roomAround, segmentsOn } from '../../model/cadMeasure';
 import { layerMapFor, layersWith, roomsFromPlan, withLayerMap } from '../../model/cadRooms';
 import { layerStatsOf, objectPath, outlinePoints, planOfView } from '../../model/cadViewPlan';
 import { planDrawings, scheduleSummary, updateSchedules } from '../../model/cadPlanSchedules';
@@ -2850,7 +2850,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   function openBlockDialog() {
     if (!view) { cad.say('BLOCK  Open a drawing first.'); return; }
     const items = pickedSk.filter(blockable), pts = items.flatMap((it) => it.pts);
-    setBlockDlg({ name: '', base: pts.length ? [Math.min(...pts.map((q) => q[0])), Math.min(...pts.map((q) => q[1]))] : null, ids: items.map((it) => it.id), mode: 'convert', description: '' });
+    setBlockDlg({ name: '', base: ((bx) => (bx ? [bx[0], bx[1]] : null))(boxOf(pts)), ids: items.map((it) => it.id), mode: 'convert', description: '' });
     cad.say(`BLOCK  Block definition${items.length ? `: ${picks(items.length)}` : ''}`);
   }
   /** The block defined from the objects (trays and cable routes left out), the objects then kept, replaced by one insert
@@ -4468,8 +4468,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         // The objects picked: drawn ones by their segments, devices by their point, objects of the opened drawing by theirs.
         const pts: Pt[] = [...pickedItems.map((d): Pt => [d.x / units.factor, d.y / units.factor]), ...pickedSk.flatMap((it) => { const sg = segmentsOf(it, 0.001, defs); return sg.length ? sg.flat() : it.pts; }),
           ...pickedDw.flatMap((o) => { const q: Pt[] = []; for (let i = o.seg_start; i < o.seg_end; i += 1) q.push([view.segs[i * 4] + view.info.origin[0], view.segs[i * 4 + 1] + view.info.origin[1]], [view.segs[i * 4 + 2] + view.info.origin[0], view.segs[i * 4 + 3] + view.info.origin[1]]); return q; })];
-        if (!pts.length) { cad.say('ZOOM  Pick the objects first.'); return; }
-        const x0 = Math.min(...pts.map((q) => q[0])), x1 = Math.max(...pts.map((q) => q[0])), y0 = Math.min(...pts.map((q) => q[1])), y1 = Math.max(...pts.map((q) => q[1]));
+        const bx = boxOf(pts);
+        if (!bx) { cad.say('ZOOM  Pick the objects first.'); return; }
+        const [x0, y0, x1, y1] = bx;
         const pad = Math.max(0.1 * Math.max(x1 - x0, y1 - y0), 1 / units.factor);
         zoomTo({ kind: 'window', a: [x0 - pad, y0 - pad], b: [x1 + pad, y1 + pad] });
         cad.say(`ZOOM  ${picks(pickedItems.length + pickedSk.length + pickedDw.length)} filled the view`);
@@ -4684,7 +4685,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   function menuFromKeyboard() {
     const ts = toScreenRef.current;
     const pts: Pt[] = [...pickedItems.map((d): Pt => [d.x / units.factor, d.y / units.factor]), ...pickedSk.flatMap((it) => { const sg = segmentsOf(it, 0.001, defs); return sg.length ? sg.flat() : it.pts; })];
-    const at: Pt | null = pts.length ? [(Math.min(...pts.map((q) => q[0])) + Math.max(...pts.map((q) => q[0]))) / 2, (Math.min(...pts.map((q) => q[1])) + Math.max(...pts.map((q) => q[1]))) / 2] : cursor.at;
+    const bx = boxOf(pts), at: Pt | null = bx ? [(bx[0] + bx[2]) / 2, (bx[1] + bx[3]) / 2] : cursor.at;
     if (!ts || !at) { cad.say('Move the cursor over the drawing first.'); return; }
     const k = Math.abs(ts([1, 0])[0] - ts([0, 0])[0]);
     void contextAt(at, k > 0 ? 1 / k : 1e-3, ts(at), false, true);
@@ -4975,8 +4976,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 if (tool !== 'none' || moving || grip !== null || (!pickedItems.length && !srcSk.length)) return dyn;
                 if (!srcSk.length && (!floor || !cad.showDevices)) return null;
                 const skPts = srcSk.flatMap((it) => { const sg = segmentsOf(it, 0.001, defs); return sg.length ? sg.flat() : it.pts; });
-                const xs = [...pickedItems.map((d) => d.x / units.factor), ...skPts.map((q) => q[0])], ys = [...pickedItems.map((d) => d.y / units.factor), ...skPts.map((q) => q[1])], pad = rUnits * 2;
-                const [l, t] = toScreen([Math.min(...xs) - pad, Math.max(...ys) + pad]), [, b] = toScreen([0, Math.min(...ys) - pad]);
+                const [bx0, by0, , by1] = boxOf([...pickedItems.map((d): Pt => [d.x / units.factor, d.y / units.factor]), ...skPts])!, pad = rUnits * 2;
+                const [l, t] = toScreen([bx0 - pad, by1 + pad]), [, b] = toScreen([0, by0 - pad]);
                 const at = t < 60 ? { left: Math.max(4, l), top: b + 8, place: 'below' as const } : { left: Math.max(4, l), top: t - 8, place: 'above' as const };
                 if (srcSk.length) {
                   const one = srcSk.length === 1 && !pickedItems.length && isPath(srcSk[0]) ? srcSk[0] : undefined;
