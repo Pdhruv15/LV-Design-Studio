@@ -18,6 +18,15 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.272', date: '2026-11-23',
+    items: [
+      { title: 'Load schedule: every ELCB is its own device', text: 'Click an ELCB on the DB schedule and choose 3, 6, 9 or 12 circuits: only that ELCB and the one next to it change. Edit and Remove are on the same menu, and on ELCB / RCD with a circuit selected.' },
+      { title: 'New ELCBs and Re-group all ELCBs', text: '"ELCB per" is now "New ELCBs" (3, 6, 9 or 12 circuits): the size for ways that have no ELCB yet, so changing it no longer changes every ELCB on the DB. Re-group all ELCBs… cuts the whole DB again after showing before and after, keeping lighting and power apart if you ask.' },
+      { title: 'Balance phases keeps each ELCB', text: 'Balance phases now moves 1-phase circuits only inside their own ELCB, so every ELCB keeps its circuits and its size.' },
+      { title: 'Excel sheet shows the ELCBs of a new DB', text: 'A DB whose ELCB size was never changed printed an empty ELCB column on its Excel sheet; it now shows the same ELCBs as the schedule and the PDF.' }
+    ]
+  },
+  {
     version: '2.270', date: '2026-11-23',
     items: [
       { title: 'Design CAD: dimension text no longer crosses its line', text: 'With the text Outside (the usual place, and every dimension drawn before dimension styles), a dimension drawn below what it measures, or to the right of it with the text reading upwards, had its text across its own line. The text now sits fully on the side away from what is measured, the same distance off the line as above it. Dimensions already drawn that way show their text moved out, on the plan, on the sheets and in Save DXF / DWG.', action: 'cad', actionLabel: 'Open Design CAD' }
