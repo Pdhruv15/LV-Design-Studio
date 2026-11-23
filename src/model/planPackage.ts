@@ -65,6 +65,18 @@ export interface PlanFiles { manifest: PlanManifest; parts: Record<string, strin
 export class PlanError extends Error {}
 
 type Obj = Record<string, unknown>;
+// A value's JSON text. Nothing in the app changes a project in place (undo relies on that, and revisionStore.ts),
+// so the same object always has the same text: saving again turns only what was edited since into text.
+const texts = new WeakMap<object, string>();
+function textOf(v: unknown): string | undefined {
+  if (!v || typeof v !== 'object') return JSON.stringify(v);
+  let t = texts.get(v);
+  if (t === undefined) { t = JSON.stringify(v); texts.set(v, t); }
+  return t;
+}
+/** JSON.stringify of a part, from the texts of its values. */
+const partText = (o: Obj): string => `{${Object.entries(o).flatMap(([k, v]) => { const t = textOf(v); return t === undefined ? [] : [`${JSON.stringify(k)}:${t}`]; }).join(',')}}`;
+
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 const named = (v: unknown): v is { file: string }[] => Array.isArray(v) && v.every((e) => isObj(e) && typeof e.file === 'string');
 
@@ -120,7 +132,7 @@ export async function splitPlan(project: Project): Promise<{ project: Project; p
   const seen = new Map<string, number>();
   const pending: { dir: 'drawings' | 'shared'; text: string }[] = [];
   const put = (dir: 'drawings' | 'shared', value: Obj) => {
-    const text = JSON.stringify(value);
+    const text = partText(value);
     let n = seen.get(text);
     if (n === undefined) { n = pending.push({ dir, text }) - 1; seen.set(text, n); }
     return String(n);
@@ -162,11 +174,18 @@ export function readManifest(v: unknown): PlanManifest {
 /** The project with its drawn work put back, as it was before splitPlan. */
 export function mergePlan(project: Project, plan: PlanFiles): Project {
   const manifest = readManifest(plan.manifest);
+  // A part is read once: the project and the revisions that share a drawing share its objects, as unpackRevisions
+  // does, which is safe because nothing in the app changes a project in place.
+  const parsed = new Map<string, Obj>();
   const read = (h: string): Obj => {
+    let o = parsed.get(h);
+    if (o) return o;
     const p = manifest.parts[h];
     const text = p ? plan.parts[p.path] : undefined;
     if (text === undefined) throw new PlanError('Part of the drawn work is missing from its file.');
-    return JSON.parse(text) as Obj;
+    o = JSON.parse(text) as Obj;
+    parsed.set(h, o);
+    return o;
   };
   const mergeTree = (src: Obj, t: PlanTree): Obj => {
     const out = { ...src };

@@ -1,6 +1,6 @@
 # Native drawing file (.lvplan): Phase 2 plan (2026-11-22)
 
-Status: **approved 2026-11-22** ("Next" after the plan: P1–P5 as recommended). Step 0 measured the same day (results below). Step 1 built 2026-11-23 (`src/model/planPackage.ts`, layout in `contracts/README.md`). Follows [Native drawing format - 2026-11-21](Native%20drawing%20format%20-%202026-11-21.md). There, the user approved the chunked package, the layout for AI tools, drawn work in the native file (D4) and `.lvplan` as the working name (D3). Phase 1 (b), the faster engine, is merged (PRs 752, 756, 757). The cache, Phase 1 (a), waits until it is needed.
+Status: **approved 2026-11-22** ("Next" after the plan: P1–P5 as recommended). Step 0 measured the same day (results below). Step 1 built 2026-11-23 (`src/model/planPackage.ts`, layout in `contracts/README.md`). **Step 0 was corrected on 2026-11-23** (see Correction below). Step 2 waits for the user's decision on the corrected numbers (P6). Follows [Native drawing format - 2026-11-21](Native%20drawing%20format%20-%202026-11-21.md). There, the user approved the chunked package, the layout for AI tools, drawn work in the native file (D4) and `.lvplan` as the working name (D3). Phase 1 (b), the faster engine, is merged (PRs 752, 756, 757). The cache, Phase 1 (a), waits until it is needed.
 
 ## Goal
 
@@ -60,9 +60,9 @@ revisions/<sha256>.json  drawn work as it was at each issued revision, stored on
 
 ## Revisions
 
-Today every issued revision stores a full copy of the project, drawn work included (`snapshotOf`, `src/model/revisions.ts`). Ten revisions of a large plan means ten copies inside `.lvds`.
+In the app, every issued revision holds a full copy of the project, drawn work included (`snapshotOf`, `src/model/revisions.ts`). In the file, revisions are already packed: each distinct piece is stored once (`packRevisions`, `src/model/revisionStore.ts`, project file format version 4). This plan first missed that.
 
-In step 4, a revision keeps only the sha256 of each drawing's content. The content is stored once under `revisions/` in `.lvplan`, and revisions with the same drawing share it. Revision compare keeps working because it merges the content back first.
+In the `.lvplan`, parts are named by their SHA-256 (step 1), so a revision whose drawing did not change shares the part. Revision compare keeps working because the drawn work is merged back first. Step 4 is therefore part of step 1.
 
 ## Step 0 results (2026-11-22)
 
@@ -87,7 +87,27 @@ What this means:
 3. **The gain is mainly size, not save time.** Turning the project into text takes at most 0.3 s today. A file 30 times smaller helps most with disk writes, `.bak` copies, cloud sync and sending the project.
 4. **Deflate makes drawn work about 6.7 times smaller** for about twice the write time. It is worth it.
 
-Change to the order: **step 4 goes in with step 2**, so the first release that writes `.lvplan` already stores drawings once per revision. Without it, most of the gain is missed.
+~~Change to the order: step 4 goes in with step 2.~~ Withdrawn: see the correction below.
+
+## Correction (2026-11-23)
+
+The step 0 test turned the project into text without packing its revisions. The desktop app packs them before every save (`packRevisions` in `saveProjectFile`, `src/model/projectStore.ts`), so points 2 and 3 above are wrong for real files: revisions do **not** copy the drawn work in the file. Measured again on the real save path (`npm run bench -- projectSave -t "really saves"`, 3 revisions, unpacking on load not timed):
+
+| Drawn work | `.lvds` today | Save / load today | `.lvds` + `.lvplan` | Save / load |
+|---|---:|---:|---:|---:|
+| 1 MB | 3.6 MB | 8 / 6 ms | 0.85 + 0.15 MB | 20 / 10 ms |
+| 3 MB | 9.1 MB | 20 / 16 ms | 0.85 + 0.44 MB | 54 / 25 ms |
+| 10 MB | 28.4 MB | 72 / 51 ms | 0.85 + 1.45 MB | 182 / 78 ms |
+
+With the `.lvplan`, save is a later save with nothing drawn changed since: a part is turned into text only when it is edited.
+
+What this means now:
+
+1. **Files are about 12 times smaller, not 30.** 28.4 MB becomes 2.3 MB. Point 1 above still holds: drawn work is most of the file, made 3.6 times larger by the pretty-printed JSON.
+2. **A save that writes the `.lvplan` costs more work**: 0.18 s against 0.07 s at 10 MB, mostly the compression. Step 2 can skip the `.lvplan` when nothing drawn changed, which is most saves. Those saves would then write 0.85 MB instead of 28.4 MB, and be faster than today.
+3. **The real gain is the size**: cloud sync, the `.bak` copies, sending the project, and a drawing file that AI tools can read. Save time stays small either way.
+4. **A smaller alternative exists**: keep one file and write the drawn work without indentation. That needs no second file, but gives a file only about 3 times smaller (decision P6).
+
 
 ## Steps
 
@@ -116,9 +136,11 @@ Steps 1 → 2 (with 4) → 3 go in that order. Step 0 showed that revisions hold
 | 3 MB | 42 ms | 3.4 MB | 0.44 MB / 42 ms | 12 / 57 ms |
 | 10 MB | 148 ms | 3.4 MB | 1.45 MB / 164 ms | 37 / 199 ms |
 
-  The app's own SHA-256 made `splitPlan` take 1.0 s at 10 MB. It now hashes each different part once, with the system's SHA-256 (the app's is kept as a fallback). Saving the 10 MB case takes about 0.3 s of work, the same as writing the 139 MB `.lvds` today, but writes 4.9 MB instead of 139 MB. Loading is about the same as today. Step 2 should zip in the background, so typing does not wait for it.
+  The app's own SHA-256 made `splitPlan` take 1.0 s at 10 MB. It now hashes each different part once, with the system's SHA-256 (the app's is kept as a fallback). Each value's text is also kept between saves, and parts shared by revisions are read once, which gives the corrected table above. The `.lvds` sizes in this table are without packed revisions; see the correction.
 
 ## Decisions for the user
+
+- **P6 (2026-11-23, after the correction).** Go on with step 2, the two files, about 12 times smaller, with the `.lvplan` written only when drawn work changed (recommended)? Or keep one file and only write the drawn work compactly, about 3 times smaller, with no second file?
 
 - **P1.** Leave devices, wiring and routes in the project for now, and move only the drawing data? (Recommended: yes. They are small, and many tools read them.)
 - **P2.** Zip, so one file sits beside the project (recommended), or a folder package, where only changed parts are written but which is awkward to email or sync?

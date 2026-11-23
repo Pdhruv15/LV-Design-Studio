@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import JSZip from 'jszip';
 import { network } from '../fixtures/networks';
 import { issueRevision } from '../../src/model/revisions';
+import { packRevisions } from '../../src/model/revisionStore';
 import { mergePlan, planZip, readPlanZip, splitPlan } from '../../src/model/planPackage';
 import type { Project, SketchItem } from '../../src/types';
 
@@ -113,6 +114,26 @@ it('the .lvplan functions on the same projects: split, zip, read, merge', async 
   process.stdout.write([
     `.lvplan functions: network(200 boards), drawn work in 4 drawings, ${REVS} issued revisions.`,
     '| Drawn work | splitPlan (SHA-256 of each part) | .lvds size / text | .lvplan size / planZip | readPlanZip / mergePlan |',
+    '|---|---|---|---|---|',
+    ...rows
+  ].join('\n') + '\n');
+});
+
+it('as the desktop really saves: revisions packed (revisionStore.ts), today against .lvds + .lvplan', async () => {
+  const base = network(200, 'shallow');
+  const rows: string[] = [];
+  for (const size of SIZES) {
+    let p = withPlan(base, size);
+    for (let r = 0; r < REVS; r++) p = issueRevision(p, { description: `Rev ${r}`, date: '2026-11-22' });
+    const [save, text] = median(() => projectText(packRevisions(p)));
+    const [load] = median(() => JSON.parse(text));
+    const [split, s] = await medianAsync(async () => { const x = await splitPlan(p); return { x, text: projectText(packRevisions(x.project)), bytes: await planZip(x.plan!) }; });
+    const [load2] = await medianAsync(async () => mergePlan(JSON.parse(s.text) as Project, await readPlanZip(s.bytes)));
+    rows.push(`| ${size} MB | ${mb(text.length)} | ${ms(save)} / ${ms(load)} | ${mb(s.text.length)} + ${mb(s.bytes.length)} | ${ms(split)} / ${ms(load2)} |`);
+  }
+  process.stdout.write([
+    `Real save path: network(200 boards), drawn work in 4 drawings, ${REVS} issued revisions (unpacking on load not timed).`,
+    '| Drawn work | .lvds today | save / load | .lvds + .lvplan | save / load |',
     '|---|---|---|---|---|',
     ...rows
   ].join('\n') + '\n');
