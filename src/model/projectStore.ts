@@ -2,6 +2,7 @@ import type { Project, ProjectStatus } from '../types';
 import { currentRevision } from './revisions';
 import type { FileStamp, SaveOutcome } from './saveSafety';
 import { packRevisions, unpackRevisions } from './revisionStore';
+import { withoutPlanLink } from './planLink';
 import { webGet, webRemove, webSet } from './webStore';
 import { fmtDate } from '../util/format';
 
@@ -52,6 +53,8 @@ export const metaOf = (file: string, p: Project, updatedAt = Date.parse(p.update
 });
 
 const bridge = () => (typeof window !== 'undefined' && window.lvds ? window.lvds : undefined);
+/** The drawn work file code (model/planPackage), loaded the first time a project is saved or opened on the desktop. */
+const plans = () => import('./planPackage');
 export const inDesktop = () => !!bridge();
 
 // ---- Browser storage (no desktop app) --------------------------------------
@@ -77,13 +80,14 @@ export async function loadProject(file: string): Promise<Project> {
 export async function loadProjectStamped(file: string): Promise<{ project: Project; stamp?: FileStamp | null }> {
   const b = bridge();
   if (b) {
-    const r = b.projects.read ? await b.projects.read(file) : { project: await b.projects.load(file), stamp: undefined };
+    const r: { project: Project; stamp?: FileStamp | null; plan?: Uint8Array } = b.projects.read ? await b.projects.read(file) : { project: await b.projects.load(file) };
     const p = r.project as Project & { _restoredFromBackup?: boolean };
     if (p._restoredFromBackup) {
       delete p._restoredFromBackup;
       window.alert(`${file} was damaged (for example by a crash or a sync during saving). The last good version (${file}.bak) was opened instead — check it and save.`);
     }
-    return { project: unpackRevisions(p), stamp: r.stamp };
+    // Its drawn work, kept beside it in name.lvplan (model/planPackage), back in: revisions first, as they were split.
+    return { project: await (await plans()).unpackPlan(unpackRevisions(p), r.plan), stamp: r.stamp };
   }
   const s = await webGet(fileKey(file));
   if (!s) throw new Error(`${file} is not in this browser`);
@@ -102,8 +106,10 @@ export async function statProject(file: string): Promise<FileStamp | null | unde
 export async function saveProjectFile(file: string | undefined, p: Project, opts: { expected?: FileStamp | null; force?: boolean } = {}): Promise<SaveOutcome> {
   const b = bridge();
   if (b) {
+    // The drawn work goes to name.lvplan beside it (model/planPackage); a new file never links to another one's.
     // In the file, revisions keep each distinct piece once (model/revisionStore).
-    const r = await b.projects.save(file, packRevisions(p), opts.expected ?? undefined, opts.force);
+    const { project: rest, bytes } = await (await plans()).packPlan(file ? p : withoutPlanLink(p));
+    const r = await b.projects.save(file, packRevisions(rest), opts.expected ?? undefined, opts.force, bytes);
     return r.conflict ? { conflict: true, file: r.file, disk: r.disk } : { file: r.file, stamp: r.stamp };
   }
   const f = file ?? `${slug(p.name)}-${(p.id ?? String(Date.now())).replace(/[^a-z0-9]/gi, '').slice(0, 8)}.json`;
@@ -286,6 +292,17 @@ export function whenText(ms: number, now = Date.now()): string {
 export async function pickProject(): Promise<{ file?: string; data?: Project; from?: string } | null> {
   const b = bridge();
   if (!b) return null;
-  const r = (await b.projects.pick()) as { file?: string; data?: Project; from?: string } | null;
-  return r?.data ? { ...r, data: unpackRevisions(r.data) } : r;
+  return picked(await b.projects.pick());
+}
+
+/** The next project opened from Finder / Explorer (a .lvds double-clicked), as pickProject answers; null when there is none. */
+export async function takePendingProject(): Promise<{ file?: string; data?: Project; from?: string } | null> {
+  const take = bridge()?.projects.takePending;
+  return take ? picked(await take()) : null;
+}
+
+/** A project from outside the projects folder as the app uses it: revisions unpacked, and its drawn work back in. */
+async function picked(r: { file?: string; data?: unknown; from?: string; plan?: Uint8Array } | null): Promise<{ file?: string; data?: Project; from?: string } | null> {
+  if (!r?.data) return r as { file?: string; from?: string } | null;
+  return { file: r.file, from: r.from, data: await (await plans()).unpackPlan(unpackRevisions(r.data as Project), r.plan) };
 }

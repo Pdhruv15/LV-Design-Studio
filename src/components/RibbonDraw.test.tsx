@@ -224,6 +224,37 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
   });
 });
 
+describe('Design CAD ribbon: the Hatch strip\'s place', () => {
+  it('while Hatch or Edit hatch runs the tools row is an empty host for the strip, with a Hatch tab; the panels come back after', () => {
+    const s = show({ tool: 'none' });
+    expect(document.getElementById('cad-hatch-strip-host')).toBeNull();
+    expect(document.getElementById('ribbon-tools')).not.toBeNull();
+    for (const t of ['hatch', 'hatchedit'] as const) {
+      s.rerender({ tool: t });
+      const host = document.getElementById('cad-hatch-strip-host')!;
+      expect(host).not.toBeNull();
+      expect(host.className).toContain('ribbon-tools'); // the same row, so the page does not jump
+      expect(host.children).toHaveLength(0);
+      expect(document.getElementById('ribbon-tools')).toBeNull();
+      expect(document.querySelector('.ribbon-file')).toBeNull();
+      const tabLabel = document.querySelector('.ribbon-subtabs [role="tab"][aria-selected="true"]')!;
+      expect(tabLabel.textContent).toBe('Hatch');
+      expect(tabLabel.className).toContain('hatch-strip-tab');
+    }
+    s.rerender({ tool: 'none' });
+    expect(document.getElementById('cad-hatch-strip-host')).toBeNull();
+    expect(document.getElementById('ribbon-tools')).not.toBeNull();
+    expect(document.querySelector('.ribbon-file')).not.toBeNull();
+  });
+
+  it('is not taken over on another page, or by another tool', () => {
+    const s = show({ tool: 'hatch' }, { view: 'dashboard' });
+    expect(document.getElementById('cad-hatch-strip-host')).toBeNull();
+    s.rerender({ tool: 'line' }, { view: 'cad' });
+    expect(document.getElementById('cad-hatch-strip-host')).toBeNull();
+  });
+});
+
 describe('Design CAD ribbon: the main tools named, every tool\'s name on hover', () => {
   it('shows a tool\'s name, command and what it does after a short rest, and hides it when the mouse leaves', () => {
     vi.useFakeTimers();

@@ -1225,6 +1225,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   };
   // The cursor rests on a tool, greyed ones too (a disabled button gets no mouse events of its own, so the toolbar
   // watches for them).
+  // Hatch (H) or Edit hatch (HE) running on the Design CAD page: the Hatch strip (CadPage) takes the tools row.
+  const hatching = a.view === 'cad' && tab === 'cad' && (a.cad?.tool === 'hatch' || a.cad?.tool === 'hatchedit');
   const cadNamed = tab === 'cad' && !labels;
   const smallNamed = cadNamed && !!sub.smallNamed;
   const overTool = (e: React.MouseEvent<HTMLElement>) => {
@@ -1419,7 +1421,12 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
         </button>
       </div>
-      {tab === 'cad' && (!collapsed || peek) && (
+      {hatching && (
+        <div className="ribbon-subtabs">
+          <button type="button" role="tab" aria-selected="true" tabIndex={-1} className="on hatch-strip-tab" title="The Hatch strip is shown while Hatch or Edit hatch runs; Done leaves it">Hatch</button>
+        </div>
+      )}
+      {tab === 'cad' && !hatching && (!collapsed || peek) && (
         <div className="ribbon-subtabs">
           <div className="ribbon-file" ref={fileRef}>
             <button type="button" className={fileOpen ? 'on' : ''} aria-haspopup="menu" aria-expanded={fileOpen} title="Open, save and close drawings; the level and units of the drawing"
@@ -1451,7 +1458,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           ))}
         </div>
       )}
-      {(!collapsed || peek) && tab !== 'sheets' && tab !== 'spec' && <div id="ribbon-tools" ref={toolsRef} className={`ribbon-tools${collapsed ? ' peek' : ''}`} onMouseOver={cadNamed ? overTool : undefined} onMouseOut={cadNamed ? offTool : undefined} onClick={(e) => {
+      {hatching && <div id="cad-hatch-strip-host" className="ribbon-tools hatch-strip-host" />}
+      {!hatching && (!collapsed || peek) && tab !== 'sheets' && tab !== 'spec' && <div id="ribbon-tools" ref={toolsRef} className={`ribbon-tools${collapsed ? ' peek' : ''}`} onMouseOver={cadNamed ? overTool : undefined} onMouseOut={cadNamed ? offTool : undefined} onClick={(e) => {
         // A tool was used: put the dropped-down tools away (not for buttons that open a menu of their own).
         const b = (e.target as HTMLElement).closest('button');
         if (collapsed && b && !b.hasAttribute('aria-haspopup') && !b.hasAttribute('aria-expanded')) setPeek(false);

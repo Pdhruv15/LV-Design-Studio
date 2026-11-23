@@ -1,0 +1,172 @@
+{
+  "format": "lvds.project",
+  "id": "sample-01",
+  "schemaVersion": 5,
+  "createdAt": "2026-11-23T00:00:00.000Z",
+  "name": "Sample 01 — Final DB",
+  "voltageV": 415,
+  "frequencyHz": 50,
+  "ambientC": 45,
+  "vdLimitPct": 4,
+  "info": {
+    "mdDemandFactor": 0.8
+  },
+  "stage": {
+    "current": "concept"
+  },
+  "boards": [
+    {
+      "id": "DB-1",
+      "name": "DB 1",
+      "kind": "DB",
+      "ratedCurrentA": 32,
+      "supply": {
+        "fedBy": "board",
+        "fedFrom": "SMDB-1 (not in this project)",
+        "ref": "Board schedule, Rev A",
+        "device": "MCCB",
+        "ratingA": 32,
+        "faultKa": 15,
+        "xr": 4,
+        "vdUsedPct": 0.8,
+        "zeOhm": 0.15,
+        "allowedA": 32,
+        "incomer": {
+          "cableCsaMm2": 6,
+          "lengthM": 35,
+          "cores": 4
+        }
+      },
+      "uid": "sample-01-board-1",
+      "spareWays": [
+        {
+          "id": "sp1",
+          "kind": "spare",
+          "phase": "R",
+          "way": 3,
+          "ratingA": 20,
+          "icuKa": 10
+        }
+      ]
+    }
+  ],
+  "feeders": [
+    {
+      "id": "DB-1-R1",
+      "boardId": "DB-1",
+      "name": "Lighting",
+      "loadKw": 1.2,
+      "demandFactor": 1,
+      "powerFactor": 0.9,
+      "lengthM": 30,
+      "cableCsaMm2": 2.5,
+      "cores": 2,
+      "breakerRatingA": 10,
+      "breakerIcuKa": 6,
+      "loadType": "lighting",
+      "phase": "R",
+      "way": 1,
+      "circuitPurpose": "fixed",
+      "breakerType": "C",
+      "uid": "sample-01-circuit-2"
+    },
+    {
+      "id": "DB-1-Y1",
+      "boardId": "DB-1",
+      "name": "Lighting 2",
+      "loadKw": 0.9,
+      "demandFactor": 1,
+      "powerFactor": 0.9,
+      "lengthM": 25,
+      "cableCsaMm2": 1.5,
+      "cores": 2,
+      "breakerRatingA": 6,
+      "breakerIcuKa": 6,
+      "loadType": "lighting",
+      "phase": "Y",
+      "way": 1,
+      "circuitPurpose": "fixed",
+      "breakerType": "C",
+      "uid": "sample-01-circuit-3"
+    },
+    {
+      "id": "DB-1-B1",
+      "boardId": "DB-1",
+      "name": "Sockets",
+      "loadKw": 2.2,
+      "demandFactor": 1,
+      "powerFactor": 0.9,
+      "lengthM": 28,
+      "cableCsaMm2": 4,
+      "cores": 2,
+      "breakerRatingA": 16,
+      "breakerIcuKa": 6,
+      "loadType": "sockets",
+      "phase": "B",
+      "way": 1,
+      "circuitPurpose": "sockets",
+      "rcdMa": 30,
+      "breakerType": "C",
+      "uid": "sample-01-circuit-4"
+    },
+    {
+      "id": "DB-1-R2",
+      "boardId": "DB-1",
+      "name": "Sockets 2",
+      "loadKw": 2.2,
+      "demandFactor": 1,
+      "powerFactor": 0.9,
+      "lengthM": 22,
+      "cableCsaMm2": 4,
+      "cores": 2,
+      "breakerRatingA": 16,
+      "breakerIcuKa": 6,
+      "loadType": "sockets",
+      "phase": "R",
+      "way": 2,
+      "circuitPurpose": "sockets",
+      "rcdMa": 30,
+      "breakerType": "C",
+      "uid": "sample-01-circuit-5"
+    },
+    {
+      "id": "DB-1-Y2",
+      "boardId": "DB-1",
+      "name": "AC unit",
+      "loadKw": 2.8,
+      "demandFactor": 1,
+      "powerFactor": 0.85,
+      "lengthM": 20,
+      "cableCsaMm2": 4,
+      "cores": 2,
+      "breakerRatingA": 20,
+      "breakerIcuKa": 6,
+      "loadType": "hvac",
+      "phase": "Y",
+      "way": 2,
+      "circuitPurpose": "fixed",
+      "breakerType": "C",
+      "uid": "sample-01-circuit-6"
+    },
+    {
+      "id": "DB-1-B2",
+      "boardId": "DB-1",
+      "name": "Water heater",
+      "loadKw": 3,
+      "demandFactor": 1,
+      "powerFactor": 1,
+      "lengthM": 15,
+      "cableCsaMm2": 2.5,
+      "cores": 2,
+      "breakerRatingA": 16,
+      "breakerIcuKa": 6,
+      "loadType": "general",
+      "phase": "B",
+      "way": 2,
+      "circuitPurpose": "fixed",
+      "breakerType": "C",
+      "uid": "sample-01-circuit-7"
+    }
+  ],
+  "updatedAt": "2026-11-23T00:00:00.000Z"
+}

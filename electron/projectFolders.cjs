@@ -155,7 +155,10 @@ function saveCopy(a, sourceFile) {
   const rel = paths[0];
   const fileName = segment(a.fileName);
   if (!PROJECT_FILE.test(fileName) || fileName.startsWith('.')) fail(`project file name "${String(a.fileName).slice(0, 40)}"`);
-  if (root.length + 1 + rel.length + 1 + fileName.length > MAX.pathChars) fail(`file path longer than ${MAX.pathChars} characters`);
+  // A .lvds keeps its drawn work in name.lvplan beside it (electron/projectFiles.cjs): copied with it, under the copy's name.
+  const planFrom = /\.lvds$/i.test(sourceFile) && /\.lvds$/i.test(fileName) ? sourceFile.replace(/\.lvds$/i, '.lvplan') : undefined;
+  const planName = planFrom && fileName.replace(/\.lvds$/i, '.lvplan');
+  if (root.length + 1 + rel.length + 1 + (planName ?? fileName).length > MAX.pathChars) fail(`file path longer than ${MAX.pathChars} characters`);
   if (typeof sourceFile !== 'string' || !path.isAbsolute(sourceFile)) fail('project file to copy');
   const st = fs.lstatSync(sourceFile);
   if (!st.isFile()) fail('project file to copy: not a plain file');
@@ -163,19 +166,25 @@ function saveCopy(a, sourceFile) {
   const parts = rel.split('/');
   for (let i = 1; i <= parts.length; i++) make(path.join(root, ...parts.slice(0, i)), parts.slice(0, i).join('/'));
   const dir = path.join(root, ...parts);
-  const target = path.join(dir, fileName);
-  const there = kind(target);
-  if (there !== 'none' && there !== 'a file') throw new Error(`${rel}/${fileName} is ${there}; it is left as it is.`);
-  const tmp = path.join(dir, `.${fileName}.${process.pid}.${Date.now().toString(36)}.tmp`);
+  const put = (name, data) => {
+    const target = path.join(dir, name);
+    const there = kind(target);
+    if (there !== 'none' && there !== 'a file') throw new Error(`${rel}/${name} is ${there}; it is left as it is.`);
+    const tmp = path.join(dir, `.${name}.${process.pid}.${Date.now().toString(36)}.tmp`);
+    try {
+      fs.writeFileSync(tmp, data, { flag: 'wx' });
+      fs.renameSync(tmp, target);
+    } catch (e) {
+      try { fs.unlinkSync(tmp); } catch { /* not made */ }
+      throw e;
+    }
+    return target;
+  };
   const data = fs.readFileSync(sourceFile);
-  try {
-    fs.writeFileSync(tmp, data, { flag: 'wx' });
-    fs.renameSync(tmp, target);
-  } catch (e) {
-    try { fs.unlinkSync(tmp); } catch { /* not made */ }
-    throw e;
-  }
-  return { file: target };
+  // The drawn work first, as a save writes them, so the copy never links to drawn work it does not have yet.
+  const planSt = planFrom && (() => { try { return fs.lstatSync(planFrom); } catch { return undefined; } })();
+  if (planSt && planSt.isFile()) put(planName, fs.readFileSync(planFrom));
+  return { file: put(fileName, data) };
 }
 
 module.exports = { MAX, args, create, status, fileCounts, openable, startDir, saveCopy };

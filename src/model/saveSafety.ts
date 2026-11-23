@@ -1,7 +1,11 @@
 import type { Project } from '../types';
 
 /** What a project file is at a moment: modified time, size and a content hash (made by the desktop app's main process). */
-export interface FileStamp { mtimeMs: number; size: number; hash: string }
+export interface FileStamp {
+  mtimeMs: number; size: number; hash: string;
+  /** SHA-256 of the drawn work file beside it (name.lvplan); null when there is none, missing in older stamps. */
+  plan?: string | null;
+}
 
 export type SaveOutcome =
   | { conflict?: false; file: string; stamp?: FileStamp | null }

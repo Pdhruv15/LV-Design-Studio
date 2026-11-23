@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { annoOf, centreOf, hatchArea, hatchItem, hatchOutline, leaderItems, northArrowItems, roomTagItems, textUnits, unitsPerPaperMm } from './cadAnnotate';
+import { annoOf, centreOf, hatchArea, hatchBox, hatchBoundaryItems, hatchItem, hatchOutline, leaderItems, northArrowItems, roomTagItems, textUnits, unitsPerPaperMm } from './cadAnnotate';
 import { placedLines } from './cadHatch';
 import { CHAR_W } from './cadText';
 import type { SketchItem } from '../types';
@@ -111,5 +111,26 @@ describe('hatch islands, association and area', () => {
     expect(hatchArea({ kind: 'pline', pts: outerRect.pts })).toBeCloseTo(100);
     expect(hatchArea(item as SketchItem)).toBeCloseTo(100 - 4 + 1); // 100 less the island 4, the 1 inside it hatched again
     expect(hatchArea({ kind: 'circle', pts: [[0, 0]], r: 1, holes: [[[0, 0], [0.5, 0], [0.5, 0.5], [0, 0.5]]] })).toBeCloseTo(Math.PI - 0.25, 6);
+  });
+});
+
+describe('hatch outline as drawn objects', () => {
+  const h = (it: Partial<SketchItem>): SketchItem => ({ id: 'H', kind: 'pline', layer: 'LV-HATCH', pts: [[1, 2], [5, 2], [5, 6]], closed: true, hatch: { pattern: 'ansi31', scale: 3, angle: 0 }, ...it });
+  it('a closed polyline per hatch on the layer given, a circle for a circular hatch, islands left out', () => {
+    const out = hatchBoundaryItems([h({ holes: [[[2, 3], [3, 3], [3, 4]]] }), h({ id: 'C', kind: 'circle', pts: [[9, 9]], r: 2 })], 'LV-SKETCH');
+    expect(out).toEqual([{ kind: 'pline', layer: 'LV-SKETCH', pts: [[1, 2], [5, 2], [5, 6]], closed: true }, { kind: 'circle', layer: 'LV-SKETCH', pts: [[9, 9]], r: 2 }]);
+    expect(out[0]).not.toHaveProperty('hatch');
+  });
+  it('items that are not hatches give nothing, and the points are copies', () => {
+    const plain = h({}); delete plain.hatch;
+    expect(hatchBoundaryItems([plain], 'L')).toEqual([]);
+    const src = h({}), [o] = hatchBoundaryItems([src], 'L');
+    expect(o.pts[0]).not.toBe(src.pts[0]);
+  });
+  it('the box of a hatch: its lower-left corner and centre, a circle by its radius', () => {
+    expect(hatchBox(h({}))).toEqual({ corner: [1, 2], centre: [3, 4] });
+    const c = hatchBox({ kind: 'circle', pts: [[10, 10]], r: 4 });
+    expect(c.corner).toEqual([6, 6]);
+    expect(c.centre[0]).toBeCloseTo(10); expect(c.centre[1]).toBeCloseTo(10);
   });
 });
