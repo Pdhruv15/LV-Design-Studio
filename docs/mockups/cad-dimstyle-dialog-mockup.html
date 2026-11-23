@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Design CAD — Dimension style dialog (mockup)</title>
+<style>
+  *{box-sizing:border-box}
+  body{width:1952px;margin:0;padding:24px 28px 40px;background:#E9E6E0;color:#272420;font:13px/18px system-ui,-apple-system,"Segoe UI",sans-serif}
+  h1{font-size:18px;line-height:24px;margin:0 0 4px} h2{font-size:14px;line-height:18px;margin:30px 0 12px;color:#5D574C;text-transform:uppercase;letter-spacing:.06em}
+  h3{font-size:13px;line-height:18px;margin:0 0 8px}
+  p.lead{color:#5D574C;margin:0 0 8px}
+  svg{display:block}
+  .z{zoom:1.5}
+  /* Theme tokens (src/theme/tokens.css): Graphite light and dark. */
+  .th-light{--bg:#F5F3EF;--panel:#ffffff;--p2:#EFECE5;--line:#DCD7CC;--line-strong:#C2BBAC;--tx:#272420;--mut:#5D574C;--acc:#875800;--on-acc:#ffffff;--field-line:#857E70;--shadow-pop:0 8px 24px rgba(20,32,53,.16)}
+  .th-dark{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--line-strong:#4A5058;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;--on-acc:#1D2024;--field-line:#6C7580;--shadow-pop:0 8px 24px rgba(0,0,0,.4)}
+  /* The dialog rules as they are today (src/styles.css, .cad-dlg …). */
+  .cad-dlg{position:relative;width:236px;background:var(--panel);border:1px solid var(--line-strong);border-radius:4px;box-shadow:var(--shadow-pop);font-size:12px;line-height:normal;color:var(--tx)}
+  .cad-dlg-t{display:flex;align-items:center;gap:6px;height:22px;padding:0 3px 0 8px;background:var(--p2);border-bottom:1px solid var(--line);font-size:11.5px}
+  .cad-dlg-t span{color:var(--mut)} .cad-dlg-t .sp{flex:1}
+  .cad-dlg-t .x{width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:var(--mut)}
+  .cad-dlg-rows{padding:4px 0}
+  .cad-dlg-r{position:relative;display:grid;grid-template-columns:1fr 96px;align-items:center;height:22px;padding:0 8px;color:var(--mut)}
+  .cad-dlg-in{display:flex;align-items:center;justify-content:flex-end;gap:3px;color:var(--tx)}
+  .fi,.fs{width:100%;min-width:0;height:18px;padding:0 4px;background:var(--bg);border:1px solid var(--field-line);border-radius:2px;color:var(--tx);font:11.5px/16px ui-monospace,Menlo,monospace;text-align:right;white-space:nowrap;overflow:hidden}
+  .fs{display:flex;align-items:center;justify-content:space-between;text-align:left;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+  .fs svg{flex:none}
+  .fi.dis{color:var(--mut);border-color:var(--line)}
+  .fi.focus,.fs.focus{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+  .cad-dlg-in u{flex:none;min-width:10px;color:var(--mut);text-decoration:none;font:11.5px ui-monospace,Menlo,monospace}
+  .ck{flex:none;width:13px;height:13px;border:1px solid var(--field-line);border-radius:2px;background:var(--bg)}
+  .cad-dlg-tabs{display:flex;margin:-4px 0 4px;border-bottom:1px solid var(--line)}
+  .cad-dlg-tabs b{flex:1;height:20px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--mut);font-weight:400;font-size:11.5px;line-height:13px;position:relative}
+  .cad-dlg-tabs b.on{color:var(--tx);box-shadow:inset 0 -2px 0 var(--acc)}
+  .cad-dlg-prev{position:relative;display:flex;align-items:center;justify-content:center;padding:4px 8px;color:var(--mut)}
+  .cad-dlg-list{position:relative;display:flex;flex-direction:column;max-height:88px;margin:0 8px 4px;border:1px solid var(--line);border-radius:2px;background:var(--bg)}
+  .cad-dlg-list b{display:flex;justify-content:space-between;height:20px;align-items:center;padding:0 6px;font-weight:400;color:var(--tx)}
+  .cad-dlg-list b.on{background:var(--p2)} .cad-dlg-list small{color:var(--mut);font-size:10.5px}
+  .cad-dlg-btns{position:relative;display:flex;gap:4px;padding:0 8px 4px}
+  .btn{height:20px;padding:0 10px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line-strong);border-radius:3px;color:var(--tx);font-size:11.5px;white-space:nowrap}
+  .btn.p{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}
+  .btn.q{width:20px;padding:0;margin-right:auto}
+  .cad-dlg-help{position:relative;margin:0;padding:4px 8px;color:var(--mut);font-size:11.5px;line-height:1.35;border-top:1px solid var(--line)}
+  .cad-dlg-ft{position:relative;display:flex;gap:4px;justify-content:flex-end;padding:4px 6px;border-top:1px solid var(--line)}
+  .cad-dlg-sec{padding:6px 8px 2px;color:var(--mut);font-size:11px;line-height:13px}
+  /* Proposed: the wide frame (380 px, as Drafting settings), styles beside the preview, one body height. */
+  .cad-dlg.dim{width:380px}
+  .cad-dlg.dim .cad-dlg-r{grid-template-columns:1fr 170px}
+  .dim-top{display:grid;grid-template-columns:168px 188px;gap:8px;padding:6px 8px}
+  .dim-top .cad-dlg-list{margin:0;height:100px;max-height:none}
+  .dim-btns{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px}
+  .dim-btns .btn{padding:0 4px}
+  .dim-btns .btn.dis{color:var(--mut)}
+  .dim-name{display:grid;grid-template-columns:36px 1fr;align-items:center;height:20px;margin-bottom:4px;color:var(--mut)}
+  .dim-name .fi{text-align:left;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+  .dim-paper{background:#fff;border:1px solid var(--line);border-radius:2px}
+  .dim-cap{height:16px;line-height:16px;font-size:11px;color:var(--mut);white-space:nowrap;overflow:hidden}
+  .dim-cap.hl{color:var(--acc)}
+  .cad-dlg.dim .cad-dlg-tabs{margin:0}
+  .dim-body{height:228px;padding:4px 0}
+  .cad-dlg-r.focus>span:first-child{color:var(--tx)}
+  .sw{flex:none;width:22px;height:18px;background:#fff;border:1px solid var(--field-line);border-radius:2px}
+  .pair{display:flex;gap:12px;justify-content:flex-end;width:100%;color:var(--tx);font-size:11.5px}
+  .pair span{display:flex;gap:4px;align-items:center}
+  /* Mockup notes. */
+  .nb{position:absolute;z-index:3;width:13px;height:13px;border-radius:7px;background:#1D5FBF;color:#fff;font:700 9px/13px system-ui,sans-serif;text-align:center;font-style:normal}
+  .today{display:grid;grid-template-columns:354px 1fr;gap:48px;align-items:start}
+  ol.pr{margin:0;padding:0;list-style:none;font-size:13px;line-height:19px}
+  ol.pr li{display:flex;gap:10px;margin:0 0 9px;max-width:980px}
+  ol.pr li i{flex:none;width:20px;height:20px;border-radius:10px;background:#1D5FBF;color:#fff;font:700 12px/20px system-ui,sans-serif;text-align:center;font-style:normal}
+  .three{display:grid;grid-template-columns:repeat(3,570px);gap:0 60px}
+  .cap{font-size:12.5px;line-height:18px;margin:10px 0 0;color:#3d3830}
+  .tiles{display:grid;grid-template-columns:repeat(6,282px);gap:0 30px}
+  .tile .pp{background:#fff;border:1px solid #C2BBAC;border-radius:3px}
+  .tile p{margin:6px 0 0;font-size:12px;line-height:17px}
+  .tile p b{color:#875800}
+  .arrows{display:flex;gap:12px}
+  .arrows div{width:96px;text-align:center;font-size:11.5px;line-height:15px;color:#3d3830}
+  .arrows svg{background:#fff;border:1px solid #C2BBAC;border-radius:3px;margin:0 auto 4px}
+  .last{display:grid;grid-template-columns:618px 1fr;gap:60px;align-items:start}
+  .band{background:#15171A;padding:24px;border-radius:4px}
+  .band .cap{color:#A3ABB5}
+  .box{background:#fff;border:1px solid #C2BBAC;border-radius:4px;padding:14px 18px;font-size:13px;line-height:19px}
+  .box h3{margin-bottom:6px}
+  .box ol{margin:0 0 0 0;padding-left:22px} .box li{margin:0 0 6px}
+  .box .d{color:#5D574C}
+</style>
+</head>
+<body>
+<h1>Design CAD — Dimension style dialog (DIMSTYLE)</h1>
+<p class="lead">Proposal mockup, 2026-11-23. Today and proposed, Graphite light, drawn 1.5 × the dialog's size; a Graphite dark check at the end. Sizes in the notes are the dialog's own. The values, the tabs and what each setting does stay as they are.</p>
+
+<h2>Today</h2>
+<div class="today">
+  <div class="z th-light">
+    <div class="cad-dlg">
+      <div class="cad-dlg-t"><b>Dimension style</b><span>DIMSTYLE</span><i class="sp"></i><span class="x" data-x></span></div>
+      <div class="cad-dlg-rows">
+        <div class="cad-dlg-list"><b class="on"><span>Standard</span><small>current</small></b><i class="nb" style="right:-16px;top:3px">3</i></div>
+        <div class="cad-dlg-btns"><span class="btn">New</span><span class="btn">Delete</span><span class="btn">Set current</span></div>
+        <div class="cad-dlg-r"><span>Name</span><span class="cad-dlg-in"><span class="fi dis">Standard</span></span></div>
+        <div class="cad-dlg-prev"><span data-today></span><i class="nb" style="right:22px;top:6px">4</i></div>
+        <div class="cad-dlg-tabs"><b class="on">Lines &amp; arrows<i class="nb" style="right:-2px;top:-8px">1</i></b><b>Text</b><b>Units</b></div>
+        <div class="cad-dlg-sec">Arrows</div>
+        <div class="cad-dlg-r"><span>Arrow</span><span class="cad-dlg-in"><span class="fs" data-sel>Tick</span></span><i class="nb" style="left:44px;top:4px">5</i></div>
+        <div class="cad-dlg-r"><span>Second arrow</span><span class="cad-dlg-in"><span class="fs" data-sel>As first</span></span></div>
+        <div class="cad-dlg-r"><span>Arrow size</span><span class="cad-dlg-in"><span class="fi">2.5</span><u>mm</u></span></div>
+        <div class="cad-dlg-sec">Lines</div>
+        <div class="cad-dlg-r"><span>Offset from origin</span><span class="cad-dlg-in"><span class="fi">0.6</span><u>mm</u></span></div>
+        <div class="cad-dlg-r"><span>Extend beyond line</span><span class="cad-dlg-in"><span class="fi">1.25</span><u>mm</u></span></div>
+        <div class="cad-dlg-r"><span style="line-height:14px">Line past extension lines</span><span class="cad-dlg-in"><span class="fi">0</span><u>mm</u></span><i class="nb" style="left:-12px;top:4px">2</i></div>
+        <div class="cad-dlg-r"><span>Hide extension line 1</span><span class="cad-dlg-in"><span class="ck"></span></span><i class="nb" style="left:142px;top:4px">6</i></div>
+        <div class="cad-dlg-r"><span>Hide extension line 2</span><span class="cad-dlg-in"><span class="ck"></span></span></div>
+        <p class="cad-dlg-help">Standard draws as before (sizes follow each dimension's length) until it is changed.<i class="nb" style="right:4px;top:-7px">9</i></p>
+      </div>
+      <div class="cad-dlg-ft"><span class="btn q">?</span><span class="btn">Import DXF…</span><span class="btn">Cancel</span><span class="btn p">OK</span><i class="nb" style="left:52px;top:-6px">8</i><i class="nb" style="right:-6px;bottom:-6px">7</i></div>
+    </div>
+  </div>
+  <ol class="pr">
+    <li><i>1</i><span>The tab <b>Lines &amp; arrows</b> breaks over two lines in its 78 px; the gold underline sits under half of it.</span></li>
+    <li><i>2</i><span><b>Line past extension lines</b> breaks over two lines and runs into the rows above and below (the label column is 124 px).</span></li>
+    <li><i>3</i><span>Managing styles takes three rows: the list (one row high with one style), New / Delete / Set current, and a Name box that repeats the name in the list (greyed for Standard).</span></li>
+    <li><i>4</i><span>The preview is small (156 × 66 px), drawn in the dialog's colours rather than as on paper, and does not show which part a value changes. The multileader style preview is already black on white.</span></li>
+    <li><i>5</i><span>The arrow lists give names only (13 kinds: Tick, Architectural tick, Dot blank…); the shape is seen only in the small preview.</span></li>
+    <li><i>6</i><span>Two rows each hold one checkbox, for extension line 1 and 2.</span></li>
+    <li><i>7</i><span>The dialog changes height with each tab: the Text tab is about 110 px shorter than Lines &amp; arrows, so OK and Cancel jump when the tab changes.</span></li>
+    <li><i>8</i><span><b>Import DXF…</b> adds styles to the list but sits in the footer with Cancel and OK, away from New and Delete.</span></li>
+    <li><i>9</i><span>The note about Standard drawing as before takes three lines in the body; it is shown on every tab while Standard is unchanged.</span></li>
+  </ol>
+</div>
+
+<h2>Proposed — one dialog, its three tabs</h2>
+<div class="three">
+  <div><div class="z th-light" data-dlg="lines"></div>
+    <p class="cap"><b>Lines &amp; arrows</b> — styles on the left with their buttons (Import DXF… among them), the preview on paper on the right. Extend beyond dimension line has the cursor, so its two short pieces show in gold in the preview and the line under it names them.</p></div>
+  <div><div class="z th-light" data-dlg="text"></div>
+    <p class="cap"><b>Text</b> — Text height has the cursor: the two lengths show in gold. The body keeps the height of the tallest tab, so OK and Cancel stay where they are.</p></div>
+  <div><div class="z th-light" data-dlg="units"></div>
+    <p class="cap"><b>Units</b> — the preview writes the length as the style will, here with the suffix " m" (in gold while Suffix has the cursor). Prefix and suffix share one row, as do the two options of how the length is written.</p></div>
+</div>
+
+<h2>The preview marks the part a value changes</h2>
+<div class="tiles" data-tiles></div>
+
+<h2>The swatch beside each arrow list shows the arrow chosen</h2>
+<div class="arrows" data-arrows></div>
+
+<h2>Graphite dark, Standard not changed yet</h2>
+<div class="last">
+  <div class="band"><div class="z th-dark" data-dlg="dark"></div>
+    <p class="cap">The paper stays white in both themes, as it prints; the gold for the marked part is the light theme's (#875800), so it reads on white. With Standard not changed yet, the line under the preview says so in one line; the full sentence moves to ?.</p></div>
+  <div class="box">
+    <h3>What changes (numbers as in Today)</h3>
+    <ol>
+      <li>The dialog takes the wide frame (380 px, as Drafting settings and Save As): every tab name and label fits on one line.</li>
+      <li>Wording: <b>Extend beyond line</b> → <b>Extend beyond dimension line</b>; <b>Line past extension lines</b> → <b>Extend past extension lines</b>, under a new heading <b>Dimension line</b>; the heading <b>Lines</b> → <b>Extension lines</b>.</li>
+      <li>The style list (five rows) sits beside the preview, with New, Delete, Set current and Import DXF… under it in two rows. The Name box moves above the preview; Standard's stays greyed.</li>
+      <li>The preview is 188 × 104 px, black on white as on paper, with a horizontal and a vertical dimension (so Text always horizontal and the second arrow show). The part the value with the cursor changes is drawn in gold, and named under it.</li>
+      <li>A swatch beside Arrow and Second arrow shows the arrow chosen; the lists stay as they are.</li>
+      <li>One row: Hide extension lines ☐ Line 1 ☐ Line 2.</li>
+      <li>The body keeps one height on every tab (the tallest, Lines &amp; arrows), so OK and Cancel do not move.</li>
+      <li>Import DXF… joins New, Delete and Set current; the footer keeps ?, Cancel and OK.</li>
+      <li>The note becomes one line under the preview (Draws as before until changed); the full sentence is in ?.</li>
+    </ol>
+    <p class="d" style="margin:8px 0 0">Not changed: the fields, their values and units, what each one does, the three tabs and their order, Enter / Esc, moving the dialog by its title, and the dialog's place on screen.</p>
+  </div>
+</div>
+
+<script>
+const A = '#875800';
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const chev = '<svg width="8" height="5" viewBox="0 0 8 5"><path d="M.5 .5 4 4 7.5 .5" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>';
+const xmark = '<svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 1 7 7M7 1 1 7" stroke="currentColor" stroke-width="1.2"/></svg>';
+const tick = '<svg width="9" height="9" viewBox="0 0 9 9" style="display:block"><path d="M1.5 4.6 3.6 6.7 7.6 2" fill="none" stroke="#fff" stroke-width="1.6"/></svg>';
+document.querySelectorAll('[data-sel]').forEach((e) => e.insertAdjacentHTML('beforeend', chev));
+document.querySelectorAll('[data-x]').forEach((e) => (e.innerHTML = xmark));
+
+/** One arrowhead with its tip at E, pointing along d (outward), size L px; t is the line's own direction (for ticks). */
+function arrow(type, E, d, t, L, col, w) {
+  const [ex, ey] = E, n = [-d[1], d[0]], P = (a, b) => `${(ex + a).toFixed(2)} ${(ey + b).toFixed(2)}`;
+  const tri = (h) => `M${P(0, 0)}L${P(-d[0] * L + n[0] * h, -d[1] * L + n[1] * h)}L${P(-d[0] * L - n[0] * h, -d[1] * L - n[1] * h)}Z`;
+  const v = (h, k = L) => `M${P(-d[0] * k + n[0] * h, -d[1] * k + n[1] * h)}L${P(0, 0)}L${P(-d[0] * k - n[0] * h, -d[1] * k - n[1] * h)}`;
+  const u = [(t[0] - t[1]) / Math.SQRT2, (t[1] + t[0]) / Math.SQRT2];
+  const halo = col === A ? `<circle cx="${ex - d[0] * L / 3}" cy="${ey - d[1] * L / 3}" r="${L * 0.7}" fill="${A}" fill-opacity=".18"/>` : '';
+  return halo + one();
+  function one() {
+  switch (type) {
+    case 'filled': return `<path d="${tri(L / 6)}" fill="${col}" stroke="${col}" stroke-width="${w}"/>`;
+    case 'closed': return `<path d="${tri(L / 6)}" fill="#fff" stroke="${col}" stroke-width="${w}"/>`;
+    case 'open': return `<path d="${v(L / 6)}" fill="none" stroke="${col}" stroke-width="${w}"/>`;
+    case 'open30': return `<path d="${v(L * 0.268)}" fill="none" stroke="${col}" stroke-width="${w}"/>`;
+    case 'open90': return `<path d="${v(L / 2, L / 2)}" fill="none" stroke="${col}" stroke-width="${w}"/>`;
+    case 'tick': case 'archTick': return `<path d="M${P(-u[0] * L / 2, -u[1] * L / 2)}L${P(u[0] * L / 2, u[1] * L / 2)}" stroke="${col}" stroke-width="${type === 'archTick' ? w * 3 : w * 1.6}"/>`;
+    case 'dot': return `<circle cx="${ex}" cy="${ey}" r="${L / 4}" fill="#fff" stroke="${col}" stroke-width="${w}"/>`;
+    case 'dotFilled': return `<circle cx="${ex}" cy="${ey}" r="${L / 4}" fill="${col}"/>`;
+    case 'dotSmall': return `<circle cx="${ex}" cy="${ey}" r="${L / 9}" fill="${col}"/>`;
+    case 'box': return `<rect x="${ex - L / 4}" y="${ey - L / 4}" width="${L / 2}" height="${L / 2}" fill="#fff" stroke="${col}" stroke-width="${w}"/>`;
+    case 'boxFilled': return `<rect x="${ex - L / 4}" y="${ey - L / 4}" width="${L / 2}" height="${L / 2}" fill="${col}"/>`;
+    default: return '';
+  }
+  }
+}
+const line = (a, b, col = '#000', w = 0.75) => (col === A ? `<path d="M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" stroke="${A}" stroke-opacity=".22" stroke-width="6" stroke-linecap="round" fill="none"/>` : '') + `<path d="M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" stroke="${col}" stroke-width="${w}" fill="none"/>`;
+
+/** The proposed preview, 188 × 104 px on white (3 px per paper mm): a room corner with a horizontal and a vertical
+ * dimension, the part `hl` changes in gold. */
+function preview(o, W = 188, H = 104) {
+  const s = 3, k = { arrow: 'filled', size: 2.5, off: 0.6, ext: 1.25, dle: 0, textMm: 2.5, gap: 0.6, suffix: '', hl: '', ...o };
+  const cap = k.textMm * s, fs = cap / 0.716, off = k.off * s, ext = k.ext * s, dle = k.dle * s, gap = k.gap * s, L = k.size * s;
+  const c = (key) => (k.hl === key ? A : '#000'), w = (key) => (k.hl === key ? 1.6 : 0.75);
+  let g = `<path d="M20 96V44H132V96" fill="none" stroke="#a7a39c" stroke-width="1"/>`;
+  // Horizontal: the top wall, dimension line at y 24.
+  const y = 24, x1 = 20, x2 = 132;
+  for (const x of [x1, x2]) { g += line([x, 44 - off], [x, y], '#000') + line([x, y], [x, y - ext], c('ext'), w('ext')); if (k.hl === 'off') g += line([x, 44], [x, 44 - off], A, 1.6); }
+  g += line([x1, y], [x2, y]); if (dle) { g += line([x1 - dle, y], [x1, y], c('dle'), w('dle')) + line([x2, y], [x2 + dle, y], c('dle'), w('dle')); }
+  g += arrow(k.arrow, [x1, y], [-1, 0], [1, 0], L, c('arrow'), 0.75) + arrow(k.arrow, [x2, y], [1, 0], [1, 0], L, c('arrow'), 0.75);
+  const tx = (v, x, yy, rot) => `<text x="${x}" y="${yy}" text-anchor="middle" style="font:${fs.toFixed(2)}px Arial,sans-serif;fill:${c('text')}"${rot ? ` transform="rotate(-90 ${x} ${yy})"` : ''}>${v}${k.suffix ? `<tspan style="fill:${k.hl === 'suffix' ? A : 'inherit'}">${esc(k.suffix).replace(/ /g, '&#160;')}</tspan>` : ''}</text>`;
+  g += tx('3.20', (x1 + x2) / 2, y - gap, false);
+  if (k.hl === 'gap') g += `<rect x="${(x1 + x2) / 2 - 18}" y="${y - gap}" width="36" height="${gap}" fill="${A}" fill-opacity=".45"/><rect x="156.5" y="52" width="${gap}" height="36" fill="${A}" fill-opacity=".45"/>`;
+  // Vertical: the right wall, dimension line at x 156.
+  const x = 156, y1 = 44, y2 = 96;
+  for (const yy of [y1, y2]) { g += line([132 + off, yy], [x, yy]) + line([x, yy], [x + ext, yy], c('ext'), w('ext')); if (k.hl === 'off') g += line([132, yy], [132 + off, yy], A, 1.6); }
+  g += line([x, y1], [x, y2]); if (dle) { g += line([x, y1 - dle], [x, y1], c('dle'), w('dle')) + line([x, y2], [x, y2 + dle], c('dle'), w('dle')); }
+  g += arrow(k.arrow, [x, y1], [0, -1], [0, -1], L, c('arrow'), 0.75) + arrow(k.arrow, [x, y2], [0, 1], [0, -1], L, c('arrow'), 0.75);
+  g += tx('1.80', x + gap + cap, (y1 + y2) / 2, true);
+  return `<svg width="${W}" height="${H}" viewBox="0 0 188 104">${g}</svg>`;
+}
+
+/** Today's preview: one 3.20 dimension in the dialog's text colour, 156 × 66 px. */
+function todayPreview() {
+  const P = (x, y) => [(x + 6) * 3, (-y + 18) * 3], col = '#272420';
+  let g = '';
+  for (const x of [0, 40]) g += line(P(x, 0.6), P(x, 9.25), col);
+  g += line(P(0, 8), P(40, 8), col);
+  g += arrow('tick', P(0, 8), [-1, 0], [1, 0], 7.5, col, 0.75) + arrow('tick', P(40, 8), [1, 0], [1, 0], 7.5, col, 0.75);
+  const t = P(20, 8.6);
+  g += `<text x="${t[0]}" y="${t[1]}" text-anchor="middle" style="font:${(6 / 0.716).toFixed(2)}px Arial,sans-serif;fill:#5D574C">3.20</text>`;
+  return `<svg width="156" height="66" viewBox="0 0 156 66">${g}</svg>`;
+}
+document.querySelector('[data-today]').outerHTML = todayPreview();
+
+/** The arrow chosen, as a swatch: a short dimension line ending at an extension line. */
+const swatch = (type) => `<span class="sw"><svg width="20" height="16" viewBox="0 0 20 16">${line([15, 2], [15, 14])}${line([2, 8], [15, 8])}${arrow(type, [15, 8], [1, 0], [1, 0], 7, '#000', 0.75)}</svg></span>`;
+
+const row = (label, value, unit, focus) => `<div class="cad-dlg-r${focus ? ' focus' : ''}"><span>${label}</span><span class="cad-dlg-in">${value}${unit ? `<u>${unit}</u>` : ''}</span></div>`;
+const num = (v, focus) => `<span class="fi${focus ? ' focus' : ''}">${v}</span>`;
+const sel = (v) => `<span class="fs">${v}${chev}</span>`;
+const ck = (on) => `<span class="ck"${on ? ' style="background:var(--acc);border-color:var(--acc)"' : ''}>${on ? tick : ''}</span>`;
+const sec = (t) => `<div class="cad-dlg-sec">${t}</div>`;
+
+function dialog({ tab, style, focus, arrow, suffix, asBefore, capText }) {
+  const styles = [['Standard', true], ['Plans 1:100', false], ['Sections', false]];
+  const list = styles.map(([n, cur]) => `<b class="${n === style ? 'on' : ''}"><span>${n}</span>${cur ? '<small>current</small>' : ''}</b>`).join('');
+  const std = style === 'Standard';
+  const hlOf = { ext: 'ext', text: 'text', suffix: 'suffix' };
+  const pv = preview({ arrow, suffix, textMm: std ? 2 : 2.5, hl: hlOf[focus] ?? '' });
+  const cap = capText ? `<div class="dim-cap${focus ? ' hl' : ''}">${capText}</div>` : '<div class="dim-cap"></div>';
+  let body = '';
+  if (tab === 'lines') body = sec('Arrows')
+    + row('Arrow', `${swatch(arrow)}${sel(arrow === 'tick' ? 'Tick' : 'Closed filled')}`)
+    + row('Second arrow', `${swatch(arrow)}${sel('As first')}`)
+    + row('Arrow size', num('2.5'), 'mm')
+    + sec('Extension lines')
+    + row('Offset from origin', num('0.6'), 'mm')
+    + row('Extend beyond dimension line', num('1.25', focus === 'ext'), 'mm', focus === 'ext')
+    + row('Hide extension lines', `<span class="pair"><span>${ck(false)}Line 1</span><span>${ck(false)}Line 2</span></span>`)
+    + sec('Dimension line')
+    + row('Extend past extension lines', num('0'), 'mm');
+  if (tab === 'text') body = sec('Text')
+    + row('Text height', num('2.5', focus === 'text'), 'mm', focus === 'text')
+    + row('Gap from line', num('0.6'), 'mm')
+    + sec('Placement')
+    + row('Vertical', sel('Outside'))
+    + row('Along the line', sel('Centred'))
+    + row('Text always horizontal', ck(false));
+  if (tab === 'units') body = sec('Length')
+    + row('Unit', sel('m'))
+    + row('Decimal places', num('2'))
+    + row('Round to (0 = off)', num('0'), 'm')
+    + row('Measurement scale', num('1'), '×')
+    + sec('Written as')
+    + row('Drop trailing zeros', ck(false))
+    + row('Decimal comma', ck(false))
+    + row('Prefix · suffix', `<span class="fi" style="width:60px">&#160;</span><span class="fi${focus === 'suffix' ? ' focus' : ''}" style="width:60px">&#160;m</span>`, '', focus === 'suffix');
+  const tabs = [['lines', 'Lines &amp; arrows'], ['text', 'Text'], ['units', 'Units']].map(([k, l]) => `<b class="${k === tab ? 'on' : ''}">${l}</b>`).join('');
+  return `<div class="cad-dlg dim">
+    <div class="cad-dlg-t"><b>Dimension style</b><span>DIMSTYLE</span><i class="sp"></i><span class="x">${xmark}</span></div>
+    <div class="dim-top">
+      <div><div class="cad-dlg-list">${list}</div>
+        <div class="dim-btns"><span class="btn">New</span><span class="btn">Delete</span><span class="btn${std ? ' dis' : ''}">Set current</span><span class="btn">Import DXF…</span></div></div>
+      <div><div class="dim-name"><span>Name</span><span class="fi${std ? ' dis' : ''}">${style}</span></div>
+        <div class="dim-paper">${pv}</div>${cap}</div>
+    </div>
+    <div class="cad-dlg-tabs">${tabs}</div>
+    <div class="dim-body">${body}</div>
+    <div class="cad-dlg-ft"><span class="btn q">?</span><span class="btn">Cancel</span><span class="btn p">OK</span></div>
+  </div>`;
+}
+const D = {
+  lines: { tab: 'lines', style: 'Plans 1:100', focus: 'ext', arrow: 'filled', capText: 'Extend beyond dimension line' },
+  text: { tab: 'text', style: 'Plans 1:100', focus: 'text', arrow: 'filled', capText: 'Text height · 2.5 mm' },
+  units: { tab: 'units', style: 'Plans 1:100', focus: 'suffix', arrow: 'filled', suffix: ' m', capText: 'Suffix · written after the length' },
+  dark: { tab: 'lines', style: 'Standard', arrow: 'tick', capText: 'Draws as before until changed' }
+};
+document.querySelectorAll('[data-dlg]').forEach((e) => (e.innerHTML = dialog(D[e.dataset.dlg])));
+
+const tiles = [
+  ['arrow', 'Arrow, Second arrow, Arrow size', 'the four arrowheads'],
+  ['off', 'Offset from origin', 'the gap between each point measured and its extension line'],
+  ['ext', 'Extend beyond dimension line', 'the extension lines past the dimension line'],
+  ['dle', 'Extend past extension lines', 'the dimension line past the extension lines (here 1.5 mm)'],
+  ['text', 'Text height', 'the two lengths'],
+  ['gap', 'Gap from line', 'the space between the line and the text (here 1.5 mm)']
+];
+document.querySelector('[data-tiles]').innerHTML = tiles.map(([k, f, what]) =>
+  `<div class="tile"><div class="pp">${preview({ hl: k, dle: k === 'dle' ? 1.5 : 0, gap: k === 'gap' ? 1.5 : 0.6 }, 280, 155)}</div><p><b>${f}</b> has the cursor: ${what} in gold.</p></div>`).join('');
+
+const AR = [['closed', 'Closed'], ['filled', 'Closed filled'], ['open', 'Open'], ['open30', 'Open 30°'], ['open90', 'Right angle'], ['tick', 'Tick'], ['archTick', 'Architectural tick'], ['dot', 'Dot blank'], ['dotFilled', 'Dot'], ['dotSmall', 'Dot small'], ['box', 'Box'], ['boxFilled', 'Box filled'], ['none', 'None']];
+document.querySelector('[data-arrows]').innerHTML = AR.map(([k, l]) =>
+  `<div><svg width="66" height="54" viewBox="0 0 20 16">${line([15, 2], [15, 14])}${line([2, 8], [15, 8])}${arrow(k, [15, 8], [1, 0], [1, 0], 7, '#000', 0.75)}</svg>${l}</div>`).join('');
+
+document.head.appendChild(document.createElement('style')).textContent = '@page{size:1952px ' + (Math.ceil(document.documentElement.scrollHeight) + 4) + 'px;margin:0}';
+</script>
+</body>
+</html>
