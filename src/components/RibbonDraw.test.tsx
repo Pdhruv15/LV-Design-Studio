@@ -101,13 +101,13 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
       return { panels, seen };
     };
     const shown = look(['LVCAD', 'Annotate', ELEC, 'Output']);
-    expect(shown.panels).toEqual({ LVCAD: DRAFTING, Annotate: ANNOTATE, [ELEC]: ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Reference', 'Sheet set'], Output: ['Layout', 'Plot', 'Publish', 'Export'] });
+    expect(shown.panels).toEqual({ LVCAD: DRAFTING, Annotate: ANNOTATE, [ELEC]: ['Rooms', 'Cables and boards', 'Devices', 'Level', 'Edit devices', 'Wiring', 'Reference', 'Sheet set'], Output: ['Layout', 'Plot', 'Publish', 'Export'] });
     expect(shown.seen).not.toContain('Object snap'); // the status bar's toggles stay on the status bar
     rerender({ labels: true });
     const all = look(['LVCAD', 'Annotate', 'Layers & properties', 'Electrical & ELV', 'Sheets', 'Layout', 'Output']);
     expect(all.panels).toEqual({
       LVCAD: ['Draw', 'Modify', 'Blocks'], Annotate: ANNOTATE, 'Layers & properties': ['Layers', 'Properties', 'Measure and view'],
-      'Electrical & ELV': ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring'], Sheets: ['Reference', 'Sheet set'], Layout: ['Layout'], Output: ['Plot', 'Publish', 'Export']
+      'Electrical & ELV': ['Rooms', 'Cables and boards', 'Devices', 'Level', 'Edit devices', 'Wiring'], Sheets: ['Reference', 'Sheet set'], Layout: ['Layout'], Output: ['Plot', 'Publish', 'Export']
     });
     expect([...all.seen].sort()).toEqual([...shown.seen].sort()); // the same tools, only arranged otherwise
     // The place is kept: Layers & properties with labels is Drafting as shown, and back.
@@ -646,5 +646,108 @@ describe('Blocks (S9 of the Design CAD 2D gap plan)', () => {
     expect(cad.onCommand).toHaveBeenLastCalledWith('INSERT');
     click(tool('Create'));
     expect(cad.onCommand).toHaveBeenLastCalledWith('BLOCK');
+  });
+});
+
+describe('Design CAD ribbon: Devices and Level', () => {
+  const tip = (name: string) => tool(name).getAttribute('data-tip-text')!;
+  const arrow = (name: string) => document.querySelector(`#ribbon-tools button[title="${name}: more options"]`) as HTMLButtonElement;
+  const rows = () => [...document.querySelectorAll('.ribbon-split-menu button[role^="menuitem"]')] as HTMLButtonElement[];
+  const row = (label: string) => rows().find((b) => b.textContent!.startsWith(label))!;
+  const gallery = () => document.querySelector('[role="dialog"][aria-label="Devices"]') as HTMLElement | null;
+  const shownNames = () => [...gallery()!.querySelectorAll('button span')].map((x) => x.textContent);
+  const headings = () => [...gallery()!.querySelectorAll('.cad-pal-h')].map((x) => x.textContent);
+
+  it('holds the tools of a whole room in Devices and those of the whole level in Level, the small ones named', () => {
+    show();
+    pick(ELEC);
+    expect(tools('Devices')).toEqual(['Add device', 'Fill room', 'Light room', 'Room devices', 'Emergency']);
+    expect(tools('Level')).toEqual(['Coverage', 'Copy to level']);
+    for (const name of ['Room devices', 'Emergency', 'Coverage', 'Copy to level']) expect(tool(name).querySelector('span')?.textContent).toBe(name);
+    expect(group('Rooms').querySelector('button[aria-label="Trace"] span')).toBeNull(); // a small tool of another panel stays icon only
+  });
+
+  it("chooses Fill room's device on its arrow and starts FILL from the main button", () => {
+    const onFill = vi.fn(), onTool = vi.fn();
+    show({ onFill, onTool, fillDevice: 'access-point' });
+    pick(ELEC);
+    click(tool('Fill room'));
+    expect(onTool).toHaveBeenCalledWith('fill');
+    click(arrow('Fill room'));
+    expect(document.querySelector('.ribbon-split-menu .hd')!.textContent).toBe('Fill with');
+    expect(rows().slice(0, 4).map((b) => b.textContent)).toEqual(['Smoke detector10.6 m', 'Heat detector7.5 m', 'Wi-Fi access point17.0 m', 'Ceiling speaker6.0 m']);
+    expect(rows().filter((b) => b.getAttribute('aria-checked') === 'true').map((b) => b.textContent)).toEqual(['Wi-Fi access point17.0 m']);
+    click(row('Heat detector'));
+    expect(onFill).toHaveBeenCalledWith('heat-detector');
+  });
+
+  it("chooses Coverage's system on its arrow and switches it off there", () => {
+    const onCoverage = vi.fn(), onCoverageOf = vi.fn();
+    show({ onCoverage, onCoverageOf, coverageOn: true, coverageSystem: 'cctv' });
+    pick(ELEC);
+    click(tool('Coverage'));
+    expect(onCoverage).toHaveBeenCalled();
+    click(arrow('Coverage'));
+    expect(rows().map((b) => b.textContent)).toEqual(['Fire alarm', 'CCTV', 'Data and Wi-Fi', 'Public address', 'Off']);
+    expect(rows().filter((b) => b.getAttribute('aria-checked') === 'true').map((b) => b.textContent)).toEqual(['CCTV']);
+    click(row('Data and Wi-Fi'));
+    expect(onCoverageOf).toHaveBeenCalledWith('ict');
+    click(arrow('Coverage'));
+    click(row('Off'));
+    expect(onCoverageOf).toHaveBeenCalledWith(null);
+  });
+
+  it('says why a greyed tool of these panels is greyed', () => {
+    const { rerender } = show({ hasDrawing: false });
+    pick(ELEC);
+    expect(tip('Add device').startsWith('Not available: open a drawing first.')).toBe(true);
+    expect(tip('Coverage').startsWith('Not available: open a drawing first.')).toBe(true);
+    rerender({ hasDrawing: true, copyWhy: 'the project has no other level' });
+    expect(tip('Copy to level').startsWith('Not available: the project has no other level.')).toBe(true);
+    expect(tip('Add device').startsWith('Not available')).toBe(false);
+  });
+
+  it("opens Add device's gallery on its arrow: Recent, the groups, Find, a click picks one", () => {
+    const onDevice = vi.fn();
+    show({ onDevice, recentDevices: ['s13t', 'ltg'] });
+    pick(ELEC);
+    click(arrow('Add device'));
+    expect(gallery()!.querySelector('input[aria-label="Find a device"]')).not.toBeNull();
+    expect(headings()).toEqual(['Recent', 'Lighting', 'Sockets', 'Switches', 'Equipment', 'Boards', 'Boxes', 'ELV']);
+    const recent = [...gallery()!.querySelectorAll('.cad-gallery-list button')].slice(0, 2).map((b) => b.getAttribute('title'));
+    expect(recent).toEqual(['Twin socket', 'Light']);
+    const find = gallery()!.querySelector('input') as HTMLInputElement;
+    const type = (v: string) => act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(find, v); find.dispatchEvent(new Event('input', { bubbles: true })); });
+    type('sock');
+    expect(headings()).toEqual(['Sockets']);
+    expect(shownNames().every((n) => /sock/i.test(n!))).toBe(true);
+    click([...gallery()!.querySelectorAll('button')].find((b) => b.textContent === 'Twin socket')!);
+    expect(onDevice).toHaveBeenCalledWith('s13t');
+    expect(gallery()).toBeNull();
+  });
+
+  it('takes the device placed last on Enter in an empty Find box', () => {
+    const onDevice = vi.fn();
+    show({ onDevice, recentDevices: ['s13t', 'ltg'] });
+    pick(ELEC);
+    click(arrow('Add device'));
+    act(() => { gallery()!.querySelector('input')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+    expect(onDevice).toHaveBeenCalledWith('s13t');
+  });
+
+  it('picks the first match on Enter, and has no arrow without a way to choose', () => {
+    const onDevice = vi.fn();
+    show({ onDevice });
+    pick(ELEC);
+    click(arrow('Add device'));
+    const find = gallery()!.querySelector('input') as HTMLInputElement;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(find, 'camera'); find.dispatchEvent(new Event('input', { bubbles: true })); });
+    act(() => { find.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+    expect(onDevice).toHaveBeenCalledWith('camera');
+    act(() => root.unmount());
+    root = createRoot(host);
+    show();
+    pick(ELEC);
+    expect(arrow('Add device')).toBeNull();
   });
 });

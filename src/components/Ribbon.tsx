@@ -27,6 +27,10 @@ import { PALETTE, type PaletteEntry, type PaletteItem } from '../model/sldEdit';
 import { LAYER_LABELS, type ResultLayers } from '../diagram/annotations';
 import { COLOR_BY, type ColorBy } from '../diagram/heatmap';
 import type { SupplyMode } from '../calc/scenario';
+import type { ElvSystem } from '../elv/defaults';
+import type { ElvDeviceType } from '../elv/devices';
+import { coverageSystems, fillChoices } from './elv/elvLabels';
+import CadDeviceGallery from './cad/CadDeviceGallery';
 
 export type BomCommand = 'boq' | 'scope' | 'changes' | 'variations' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup' | 'document' | 'issue-rev';
 export type RibbonTab = 'schedule' | 'sld' | 'home' | 'concept' | 'schematic' | 'detailed' | 'cad' | 'sheets' | 'spec' | 'reports' | 'issue' | 'cost' | 'standards';
@@ -66,6 +70,10 @@ interface Tool {
   cmd?: string;
   /** The whole button opens its `menu` (it has no action of its own). */
   menuOnly?: boolean;
+  /** Why it is greyed, said first in its tooltip ("Not available: …."). */
+  why?: string;
+  /** The arrow opens this panel instead of a list (Add device: the device gallery); `close` puts it away. */
+  pop?: (close: () => void) => React.ReactNode;
 }
 
 export interface RibbonActions {
@@ -199,6 +207,14 @@ export interface RibbonActions {
     file: { plans: Tool['menu']; plansSub?: string; level: string; levelTitle: string; levels: Tool['menu']; unit: string; unitTitle: string; units: Tool['menu'] };
     onRoles: () => void; rolesOn: boolean; onAddFound: () => void; onSchedules: () => void; onPlaceBoard: () => void; placingBoard: boolean;
     onCoverage: () => void; coverageOn: boolean; copyLevels: Tool['menu'];
+    /** Add device: the device it places, the devices placed last (newest first) and choosing one in the gallery (which starts DEV). */
+    device?: string; recentDevices?: string[]; onDevice?: (id: string) => void;
+    /** Fill room's own ELV device, and choosing it on the arrow (which starts FILL). */
+    fillDevice?: ElvDeviceType; onFill?: (type: ElvDeviceType) => void;
+    /** Coverage's own system, and showing one from the arrow (null: off). */
+    coverageSystem?: ElvSystem; onCoverageOf?: (system: ElvSystem | null) => void;
+    /** Why Copy to level is greyed while a drawing is open. */
+    copyWhy?: string;
     onWireAll: () => void; onTags: () => void; tagsOn: boolean;
   };
   /** Design CAD → Output: the dialogs that work without an open sheet (Plot needs one). */
@@ -232,23 +248,31 @@ export interface RibbonActions {
  * Sheet) and the engineering and sheet-set panels. */
 const G = {
   draw: 0, modify: 1, annotate: 2, blocks: 3, layers: 4, props: 5, measure: 6, markup: 7, onPanels: 8, sheet: 9,
-  rooms: 10, cables: 11, devices: 12, editDevices: 13, wiring: 14, reference: 15, sheetSet: 16, layouts: 17, viewports: 18, plot: 19, publish: 20, export: 21,
-  dims: 22, leaders: 23, drawnMarkup: 24
+  rooms: 10, cables: 11, devices: 12, level: 13, editDevices: 14, wiring: 15, reference: 16, sheetSet: 17, layouts: 18, viewports: 19, plot: 20, publish: 21, export: 22,
+  dims: 23, leaders: 24, drawnMarkup: 25
 } as const;
-/** Stable IDs kept in Preferences for the user's Design CAD panel order. New panels append to an older saved order. */
+/** Stable IDs kept in Preferences for the user's Design CAD panel order. New panels append to an older saved order,
+ * or go beside a neighbour (PANEL_AFTER). */
 export const CAD_PANEL_IDS = [
   'draw', 'modify', 'annotate', 'blocks', 'layers', 'properties', 'measure', 'markup', 'on-panels', 'sheet',
-  'rooms', 'cables', 'devices', 'edit-devices', 'wiring', 'reference', 'sheet-set', 'layout', 'viewports', 'plot', 'publish', 'export',
+  'rooms', 'cables', 'devices', 'level', 'edit-devices', 'wiring', 'reference', 'sheet-set', 'layout', 'viewports', 'plot', 'publish', 'export',
   'dimensions', 'leaders', 'drawn-markup'
 ] as const;
 const CAD_PANEL_SET = new Set<string>(CAD_PANEL_IDS);
 const panelId = (group: number): string => CAD_PANEL_IDS[group] ?? `panel-${group}`;
 
-/** A saved order without duplicates or removed panels, followed by panels introduced since it was saved. */
+/** A panel that belongs beside another: where it goes in an order saved before it existed (any other new panel is appended). */
+const PANEL_AFTER: Record<string, string> = { level: 'devices' };
+
+/** A saved order without duplicates or removed panels, followed by panels introduced since it was saved (a panel that
+ * belongs beside another goes right after it). */
 export function normaliseCadPanelOrder(order?: string[]): string[] {
   const seen = new Set<string>();
   const kept = (order ?? []).filter((id) => CAD_PANEL_SET.has(id) && !seen.has(id) && !!seen.add(id));
-  return [...kept, ...CAD_PANEL_IDS.filter((id) => !seen.has(id))];
+  const beside = CAD_PANEL_IDS.filter((id) => !seen.has(id) && PANEL_AFTER[id] && seen.has(PANEL_AFTER[id]));
+  for (const id of beside) kept.splice(kept.indexOf(PANEL_AFTER[id]) + 1, 0, id);
+  const placed = new Set(kept);
+  return [...kept, ...CAD_PANEL_IDS.filter((id) => !placed.has(id))];
 }
 
 /** The panels of this sub-tab in the user's global panel order. */
@@ -278,12 +302,14 @@ export interface CadTab { id: string; label: string; groups: number[]; sheet?: n
  * layout's paper, Annotate shows the markup instead. File (open, save, close) is a menu beside them. The layout tools
  * (Layout, and on a layout Layout viewports) are the first panels of Output, which reads Layout · Layout viewports ·
  * Plot · Publish · Export with its small tools named too (1,281 px on a layout, inside a 1,366 px window); with Show
- * labels they would make it wider than the window, so there they have a sub-tab of their own between Sheets and Output. */
+ * labels they would make it wider than the window, so there they have a sub-tab of their own between Sheets and Output.
+ * On Electrical the Devices and Level panels name their small tools too (the tab as a whole stays icon-only for small tools:
+ * named, it would be wider than the window). */
 export const CAD_TABS: Record<'named' | 'labels', CadTab[]> = {
   named: [
     { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.blocks, G.layers, G.props, G.measure], paper: [G.draw, G.modify, G.layers, G.props, G.measure], sheet: [], smallNamed: true },
     { id: 'annotate', label: 'Annotate', groups: [G.annotate, G.dims, G.leaders, G.drawnMarkup], paper: [G.markup], sheet: [], smallNamed: true },
-    { id: 'elec', label: 'Electrical, ELV & sheets', groups: [G.rooms, G.cables, G.devices, G.editDevices, G.wiring, G.reference, G.sheetSet],
+    { id: 'elec', label: 'Electrical, ELV & sheets', groups: [G.rooms, G.cables, G.devices, G.level, G.editDevices, G.wiring, G.reference, G.sheetSet],
       sheet: [G.markup, G.onPanels, G.sheet, G.sheetSet] },
     { id: 'output', label: 'Output', groups: [G.layouts, G.plot, G.publish, G.export], layout: [G.viewports], sheet: [G.plot, G.publish, G.export], smallNamed: true }
   ],
@@ -291,12 +317,15 @@ export const CAD_TABS: Record<'named' | 'labels', CadTab[]> = {
     { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.blocks], paper: [G.draw, G.modify], sheet: [] },
     { id: 'annotate', label: 'Annotate', groups: [G.annotate, G.dims, G.leaders, G.drawnMarkup], paper: [G.markup], sheet: [G.markup, G.onPanels] },
     { id: 'layers', label: 'Layers & properties', groups: [G.layers, G.props, G.measure], sheet: [] },
-    { id: 'elec', label: 'Electrical & ELV', groups: [G.rooms, G.cables, G.devices, G.editDevices, G.wiring], sheet: [] },
+    { id: 'elec', label: 'Electrical & ELV', groups: [G.rooms, G.cables, G.devices, G.level, G.editDevices, G.wiring], sheet: [] },
     { id: 'sheets', label: 'Sheets', groups: [G.reference, G.sheetSet], sheet: [G.sheet, G.sheetSet] },
     { id: 'layout', label: 'Layout', groups: [G.layouts], layout: [G.viewports], sheet: [] },
     { id: 'output', label: 'Output', groups: [G.plot, G.publish, G.export], sheet: [G.plot, G.publish, G.export] }
   ]
 };
+/** The panels whose small tools are named even where the tab's small tools are icon only. */
+const NAMED_PANELS: ReadonlySet<number> = new Set([G.devices, G.level]);
+const NO_DRAWING = 'open a drawing first';
 const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
 /** The panel a tool is on, so the ribbon shows the tool in use (a typed command moves it there). */
 const GROUP_OF: Partial<Record<CadTool, number>> = {
@@ -338,10 +367,11 @@ function cadTabOf(tabs: CadTab[], id: string): CadTab {
 
 /** The tooltip of an icon-only tool: its name and typed command (and its state, such as a colour) in bold, then what
  * it does: its title, less a leading "Name (CMD): " that the bold line already says. */
-export function tipOf(t: Pick<Tool, 'label' | 'title' | 'cmd' | 'sub'>): { head: string; text: string } {
+export function tipOf(t: Pick<Tool, 'label' | 'title' | 'cmd' | 'sub' | 'disabled' | 'why'>): { head: string; text: string } {
   const lead = t.cmd ? `${t.label} (${t.cmd})` : undefined;
   const rest = lead && t.title.startsWith(lead) ? t.title.slice(lead.length).replace(/^[:,]?\s*/, '') : t.title;
-  return { head: `${lead ?? t.label}${t.sub ? ` · ${t.sub}` : ''}`, text: rest.charAt(0).toUpperCase() + rest.slice(1) };
+  const why = t.disabled && t.why ? `Not available: ${t.why}. ` : '';
+  return { head: `${lead ?? t.label}${t.sub ? ` · ${t.sub}` : ''}`, text: why + rest.charAt(0).toUpperCase() + rest.slice(1) };
 }
 
 /** Group captions under the ribbon groups (same order as the groups). */
@@ -353,7 +383,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Calculate', 'Stage'],
   cad: ['Draw', 'Modify', 'Text', 'Blocks', 'Layers', 'Properties', 'Measure and view', 'Markup', 'On panels', 'Sheet',
-    'Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Reference', 'Sheet set', 'Layout', 'Layout viewports', 'Plot', 'Publish', 'Export', 'Dimensions', 'Leaders and tags', 'Markup'],
+    'Rooms', 'Cables and boards', 'Devices', 'Level', 'Edit devices', 'Wiring', 'Reference', 'Sheet set', 'Layout', 'Layout viewports', 'Plot', 'Publish', 'Export', 'Dimensions', 'Leaders and tags', 'Markup'],
   sheets: [],
   spec: [],
   reports: ['Schedules', 'Drawings and reports'],
@@ -594,6 +624,17 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const cadTool = (t: CadTool, label: string, icon: Icon, title: string, cmd = toolAlias(t)): Tool => ({ label, icon, title, cmd, onClick: () => a.cad?.onTool(t), active: a.cad?.tool === t, disabled: !a.cad?.hasDrawing });
   /** A tool that runs a command as if typed on the command line. */
   const cadCmd = (label: string, icon: Icon, cmd: string, title: string, text = cmd): Tool => ({ label, icon, cmd, title, onClick: () => a.cad?.onCommand?.(text), disabled: !a.cad?.hasDrawing || !a.cad.onCommand });
+  // Fill room's arrow: the ELV device it fills with. Coverage's arrow: the system shown.
+  const fillMenu: MenuRow[] = [
+    { label: 'Fill with', title: '', onClick: () => {}, head: true },
+    ...fillChoices().map((c) => ({ label: c.label, note: `${c.spacingM.toFixed(1)} m`, checked: (a.cad?.fillDevice ?? 'smoke-detector') === c.type, title: `Fill rooms with it, ${c.spacingM.toFixed(1)} m apart`, onClick: () => a.cad?.onFill?.(c.type) })),
+    { label: 'Other ELV devices have no spacing: Add device', title: 'A device without a coverage spacing is placed one by one with Add device', onClick: () => {}, disabled: true, sep: true }
+  ];
+  const coverageMenu: MenuRow[] = [
+    { label: 'Show coverage of', title: '', onClick: () => {}, head: true },
+    ...coverageSystems().map((s) => ({ label: s.label, checked: !!a.cad?.coverageOn && (a.cad.coverageSystem ?? 'fire-alarm') === s.id, title: `What the ${s.label} devices cover on this level`, onClick: () => a.cad?.onCoverageOf?.(s.id) })),
+    { label: 'Off', title: 'Hide the coverage', sep: true, checked: !a.cad?.coverageOn, onClick: () => a.cad?.onCoverageOf?.(null) }
+  ];
   /** A tool with its other forms under its arrow (Trim: Extend; Fillet: Chamfer), shown in use while any of them runs. */
   const withList = (t: Tool, forms: [CadTool, string, string][]): Tool => ({
     ...t, active: forms.some(([k]) => a.cad?.tool === k), menu: forms.map(([k, label, title]) => ({ label, title, onClick: () => a.cad?.onTool(k) }))
@@ -1017,13 +1058,18 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Update schedules', icon: ListChecks, cmd: 'SCHED', title: 'From the trays and cable routes on every level\'s plan: tray route lengths and fittings (tray schedule and BOQ), cable lengths, and the tray routes each cable runs along — one undo step (SCHED)', onClick: () => a.cad?.onSchedules(), disabled: !a.cad?.hasDrawing }
       ],
       [
-        { label: 'Add device', icon: CirclePlus, cmd: 'DEV', title: 'Place lights, sockets, a DB or ELV devices on the plan (DEV): choose it and its circuit, then click', onClick: () => a.cad?.onTool('dev'), active: a.cad?.tool === 'dev', disabled: !a.cad?.hasDrawing },
-        cadTool('fill', 'Fill room', Grid3x3, 'Choose an ELV device, point at a room to see it at its coverage spacing, click to place them all (FILL)'),
-        cadTool('lux', 'Light room', Lightbulb, 'Point at a room: its luminaires by the lumen method for its outline, then placed as lights on a circuit (LUX)'),
-        sm(cadTool('roomtemplate', 'Room devices', LayoutTemplate, 'Click one room, preview a bounded LV and ELV device template, then approve it (RDT)')),
-        sm(cadTool('em', 'Emergency', DoorOpen, 'Emergency lighting (BS 5266-1 / EN 1838): draw the escape routes, mark the points of emphasis and open areas; fittings and exit signs are placed at their spacing (EM)')),
-        sm({ label: 'Coverage', icon: CircleDashed, cmd: 'COV', title: 'Show what the devices of the chosen ELV device\'s system cover, and what is not covered (COV)', onClick: () => a.cad?.onCoverage(), active: a.cad?.coverageOn, disabled: !a.cad?.hasDrawing }),
-        sm({ label: 'Copy to level', icon: Copy, title: "Copy this level's devices of the chosen ELV device's system to another level, at the same plan positions", onClick: () => {}, menuOnly: true, disabled: !a.cad?.hasDrawing || !a.cad.copyLevels?.length, menu: a.cad?.copyLevels })
+        // Devices: one device (Add device, its gallery on the arrow), then a whole room at a time.
+        { label: 'Add device', icon: CirclePlus, cmd: 'DEV', title: 'Place lights, sockets, a DB or ELV devices on the plan (DEV): choose it and its circuit, then click', onClick: () => a.cad?.onTool('dev'), active: a.cad?.tool === 'dev', disabled: !a.cad?.hasDrawing, why: NO_DRAWING,
+          pop: a.cad?.onDevice ? (close) => <CadDeviceGallery device={a.cad!.device ?? ''} recent={a.cad!.recentDevices ?? []} onPick={(id) => { close(); a.cad!.onDevice!(id); }} onClose={close} /> : undefined },
+        { ...cadTool('fill', 'Fill room', Grid3x3, 'Point at a room to see the device chosen on the arrow at its coverage spacing, click to place them all (FILL)'), why: NO_DRAWING, menu: fillMenu },
+        { ...cadTool('lux', 'Light room', Lightbulb, 'Point at a room: its luminaires by the lumen method for its outline, then placed as lights on a circuit (LUX)'), why: NO_DRAWING },
+        sm({ ...cadTool('roomtemplate', 'Room devices', LayoutTemplate, 'Click one room, preview a bounded LV and ELV device template, then approve it (RDT)'), why: NO_DRAWING }),
+        sm({ ...cadTool('em', 'Emergency', DoorOpen, 'Emergency lighting (BS 5266-1 / EN 1838): draw the escape routes, mark the points of emphasis and open areas; fittings and exit signs are placed at their spacing (EM)'), why: NO_DRAWING })
+      ],
+      // Level: what acts on the whole level.
+      [
+        sm({ label: 'Coverage', icon: CircleDashed, cmd: 'COV', title: 'Show what the devices of the system chosen on the arrow cover, and what is not covered (COV)', onClick: () => a.cad?.onCoverage(), active: a.cad?.coverageOn, disabled: !a.cad?.hasDrawing, why: NO_DRAWING, menu: coverageMenu }),
+        sm({ label: 'Copy to level', icon: Copy, title: "Copy this level's devices of the chosen ELV device's system to another level, at the same plan positions", onClick: () => {}, menuOnly: true, disabled: !a.cad?.hasDrawing || !a.cad.copyLevels?.length, why: a.cad?.hasDrawing ? a.cad.copyWhy : NO_DRAWING, menu: a.cad?.copyLevels })
       ],
       [
         sm(cadTool('none', 'Select', BoxSelect, 'Select devices (SEL): click one, Shift-click to add or remove, or drag a window — left to right picks what is inside, right to left also what it crosses; a toolbar beside them has the edits that suit them', 'SEL')),
@@ -1470,7 +1516,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           const order = tab === 'cad' ? { order: shown.indexOf(gi) + 1 } : undefined;
           const canReorder = tab === 'cad' && shown.length > 1 && !!a.cad?.onPanelOrder;
           const shownAt = shown.indexOf(gi);
-          const panelClass = `ribbon-group${canReorder ? ' cad-reorderable' : ''}${dragPanel === gi ? ' cad-dragging' : ''}${dropPanel?.group === gi ? (dropPanel.after ? ' cad-drop-after' : ' cad-drop-before') : ''}`;
+          const panelClass = `ribbon-group${cadNamed && NAMED_PANELS.has(gi) ? ' named' : ''}${canReorder ? ' cad-reorderable' : ''}${dragPanel === gi ? ' cad-dragging' : ''}${dropPanel?.group === gi ? (dropPanel.after ? ' cad-drop-after' : ' cad-drop-before') : ''}`;
           const panelDnD = canReorder ? { onDragOver: overPanel(gi), onDrop: dropOnPanel(gi) } : {};
           const captionDrag = canReorder ? { draggable: true, onDragStart: startPanelDrag(gi), onDragEnd: endPanelDrag, title: `${caption}: drag to rearrange this panel` } : {};
           const panelMoves = canReorder && (
@@ -1515,20 +1561,28 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           // Design CAD as shown: the main tools named under their icons, the small ones icon only; each with its name,
           // command and what it does on hover. With Show labels every tool is named.
           const button = (t: Tool) => {
-            const { label, icon: I, title, onClick, active, disabled, stale, page, menu, sub, small, menuOnly } = t;
+            const { label, icon: I, title, onClick, active, disabled, stale, page, menu, sub, small, menuOnly, pop } = t;
             const openList = (e: React.MouseEvent<HTMLElement>) => { e.stopPropagation(); const r = (e.currentTarget.closest('.ribbon-split') ?? e.currentTarget).getBoundingClientRect(); setSplitAt({ x: r.left, y: r.bottom + 2 }); setSplitOpen(splitOpen === label ? null : label); };
             const said = cadNamed ? tipOf(t) : undefined;
-            const hint = said ? tipAttrs(label, said.head, said.text) : { title };
+            const hint = said ? tipAttrs(label, said.head, said.text) : { title: disabled && t.why ? `Not available: ${t.why}. ${title}` : title };
             // SLD → Results: a small tool with its setting beside its name.
             const shows = !!sub && !!small && tab === 'sld';
             const btn = (
               <button key={label} className={`${active ? (page ? 'page-on' : 'on') : ''}${stale ? ' stale' : ''}${shows ? ' has-val' : ''}`} {...hint} aria-pressed={page || menuOnly ? undefined : active} aria-current={page && active ? 'page' : undefined}
                 aria-haspopup={menuOnly ? 'menu' : undefined} aria-expanded={menuOnly ? splitOpen === label : undefined} disabled={disabled} onClick={(e) => { hideTip(); if (menuOnly && menu) openList(e); else onClick(); }}>
                 <I size={cadNamed ? (small ? 16 : 22) : small ? 15 : 20} strokeWidth={1.6} />
-                {(!cadNamed || !small || smallNamed) && <span>{label}</span>}
+                {(!cadNamed || !small || smallNamed || NAMED_PANELS.has(gi)) && <span>{label}</span>}
                 {sub && !small && !cadNamed && <span className="ribbon-sub">{sub}</span>}
                 {shows && <span className="ribbon-val">{sub}</span>}
               </button>
+            );
+            if (pop) return (
+              <span key={label} className="ribbon-split">
+                {btn}
+                <button className="ribbon-split-arrow" title={`${label}: more options`} aria-haspopup="dialog" aria-expanded={splitOpen === label} disabled={disabled}
+                  onClick={openList}><ChevronDown size={small ? 12 : 14} strokeWidth={1.8} aria-hidden /></button>
+                {splitOpen === label && <div className="ribbon-split-pop" style={{ left: Math.max(4, Math.min(splitAt.x, window.innerWidth - 400)), top: splitAt.y }} onMouseDown={(e) => e.stopPropagation()}>{pop(() => setSplitOpen(null))}</div>}
+              </span>
             );
             if (!menu) return btn;
             return (

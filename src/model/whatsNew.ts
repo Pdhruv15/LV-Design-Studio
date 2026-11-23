@@ -18,6 +18,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.275', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD: Devices and Level panels, every tool named', text: 'On Electrical, ELV & sheets the Devices panel now shows the name of each of its tools: Add device, Fill room, Light room, Room devices and Emergency. Coverage and Copy to level moved beside it to a new Level panel, for the tools that act on the whole level. A greyed tool of these panels says why in its tooltip.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Add device: every device on its arrow', text: 'The arrow beside Add device shows every device with its plan symbol, a Find box and the six devices placed last on this computer. Click one to place it. The list in the side panel stays as it was.' },
+      { title: 'Fill room and Coverage keep their own choice', text: 'The arrow beside Fill room chooses the ELV device it fills with (smoke detector, heat detector, Wi-Fi access point or ceiling speaker, each with its spacing). It starts on the smoke detector, so FILL no longer asks for a device first. The arrow beside Coverage chooses the system shown: fire alarm, CCTV, data and Wi-Fi or public address. Neither follows the device chosen in the side panel any more.' }
+    ]
+  },
+  {
     version: '2.270', date: '2026-11-23',
     items: [
       { title: 'Design CAD: dimension text no longer crosses its line', text: 'With the text Outside (the usual place, and every dimension drawn before dimension styles), a dimension drawn below what it measures, or to the right of it with the text reading upwards, had its text across its own line. The text now sits fully on the side away from what is measured, the same distance off the line as above it. Dimensions already drawn that way show their text moved out, on the plan, on the sheets and in Save DXF / DWG.', action: 'cad', actionLabel: 'Open Design CAD' }
