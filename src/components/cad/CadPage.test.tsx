@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { act, useState } from 'react';
+import { act, useState, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CadPage from './CadPage';
@@ -19,6 +19,7 @@ import { sampleProject } from '../../data/sampleProject';
 import { placeBoard, placeLvPoint } from '../../model/cadDevices';
 import { planTarget, type PlanTarget } from '../../model/planTarget';
 import { archOnOf } from '../../model/cadLayerState';
+import { plotPrinter, setPlotPrinter } from '../../util/printers';
 import { dimLabel, dimMeasure, sketchOf } from '../../model/cadSketch';
 import { annoOf, unitsPerPaperMm } from '../../model/cadAnnotate';
 import { drawingLayoutsOf } from '../../model/drawingLayouts';
@@ -55,7 +56,7 @@ const villa: Project = {
 let root: Root, host: HTMLDivElement, state: CadState, project: Project;
 const onChange = vi.fn((p: Project, _message: string, _join?: boolean) => { project = p; });
 const onUndo = vi.fn();
-const onPrefs = vi.fn((_p: { draft: DraftSettings; autosaveMin: number }) => {});
+const onPrefs = vi.fn((_p: { draft: DraftSettings; autosaveMin: number; app?: { theme: string; palette: string; cadLabels: boolean; resetRibbonOrder: boolean } }) => {});
 /** Whether the architect's layer i shows: its On, kept in the project (Layer palette or the Layers list). */
 const shown = (i: number) => archOnOf(project, state.view!.file, state.view!.info.layers)[i];
 beforeEach(() => {
@@ -69,14 +70,14 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); document.body.innerHTML = ''; delete (window as { lvds?: unknown }).lvds; });
 
 // Save As keeps the sample drawing's own format (DXF) unless a test passes the format set.
-function Host({ start = villa, show, gripMax, undoLabel, saveFormat = 'own' }: { start?: Project; show?: (s: CadShow) => void; gripMax?: number; undoLabel?: string; saveFormat?: DraftSettings['saveFormat'] }) {
+function Host({ start = villa, show, gripMax, undoLabel, saveFormat = 'own', extra }: { start?: Project; show?: (s: CadShow) => void; gripMax?: number; undoLabel?: string; saveFormat?: DraftSettings['saveFormat']; extra?: Partial<ComponentProps<typeof CadPage>> }) {
   const cad = useCad('p1');
   const [p, setP] = useState(start);
   const sheetUi = useSheetUi();
   const [draft, setDraft] = useState({ ...DRAFT_DEFAULTS, saveFormat, ...(gripMax ? { gripMax } : {}) });
   state = cad;
   return <CadPage cad={cad} project={p} onChange={(next, msg, join) => { setP(next); onChange(next, msg, join); }} onUndo={onUndo} onStatus={() => {}} sheetUi={sheetUi}
-    draft={draft} onPrefs={(x) => { setDraft(x.draft); onPrefs(x); }} onShow={show} canUndo={!!undoLabel} undoLabel={undoLabel} />;
+    draft={draft} onPrefs={(x) => { setDraft(x.draft); onPrefs(x); }} onShow={show} canUndo={!!undoLabel} undoLabel={undoLabel} {...extra} />;
 }
 /** Waits for something on screen (a slower machine takes longer), up to 10 s. */
 const until = async (ok: () => boolean) => { for (let i = 0; i < 200 && !ok(); i += 1) await act(async () => { await new Promise((r) => setTimeout(r, 50)); }); expect(ok()).toBe(true); };
@@ -3308,7 +3309,7 @@ describe('CAD command line', () => {
 });
 
 
-describe('Design CAD File: Save, Save As, Close and Drafting settings', () => {
+describe('Design CAD File: Save, Save As, Close and Options', () => {
   const dialog = (name: string) => document.querySelector(`[role="dialog"][aria-label="${name}"]`) as HTMLElement | null;
   const press = async (d: HTMLElement, label: string) => { const b = [...d.querySelectorAll('button')].find((x) => x.textContent === label) as HTMLButtonElement; expect(b, label).toBeTruthy(); await act(async () => { b.click(); }); await flush(); };
   const set = (el: HTMLInputElement | HTMLSelectElement, value: string) => act(() => {
@@ -3375,31 +3376,44 @@ describe('Design CAD File: Save, Save As, Close and Drafting settings', () => {
     expect(state.view).toBeNull();
   });
 
-  it('DS opens the Drafting settings at a tab; OK changes the toggles and the settings, Cancel nothing', async () => {
+  // Options (OP): the page names are the labels of the page list (the changed count sits in its own <i>).
+  const opt = () => dialog('Options')!;
+  const pageTab = (d: HTMLElement, name: string) => [...d.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((t) => t.querySelector('span')?.textContent === name || t.textContent === name)!;
+  const shownTab = (d: HTMLElement) => [...d.querySelectorAll('.cad-dlg-pl [role="tab"][aria-selected="true"]')].map((t) => t.querySelector('span')?.textContent ?? t.textContent);
+  const subTab = (d: HTMLElement) => d.querySelector('.cad-dlg-tabs [role="tab"][aria-selected="true"]')?.textContent;
+  const countOf = (d: HTMLElement, name: string) => pageTab(d, name).querySelector('i')?.textContent ?? '';
+  const openPage = async (d: HTMLElement, name: string) => { await act(async () => { pageTab(d, name).click(); }); };
+  const field = (d: HTMLElement, label: string) => d.querySelector(`[aria-label="${label}"]`) as HTMLInputElement & HTMLSelectElement;
+  const keyOn = (el: Element, init: KeyboardEventInit) => act(async () => { el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })); });
+
+  it('DS opens Options at the Drafting page; OK changes the toggles and the settings, Cancel nothing', async () => {
     act(() => root.render(<Host />));
     await flush();
     await command('OS');
-    let d = dialog('Drafting settings')!;
-    expect(d.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toBe('Object snap');
+    let d = opt();
+    expect(shownTab(d)).toEqual(['Drafting']);
+    expect(subTab(d)).toBe('Object snap');
     expect(d.closest('.cad-work'), 'over the drawing, not under the ribbon').not.toBeNull();
-    tick(d, '⊥  Perpendicular');
+    tick(d, 'Perpendicular');
     await press(d, 'Cancel');
     expect(onPrefs).not.toHaveBeenCalled();
     await command('DS');
-    d = dialog('Drafting settings')!;
+    d = opt();
+    expect(subTab(d)).toBe('Snap & grid');
     await act(async () => { ([...d.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Polar tracking') as HTMLButtonElement).click(); });
     tick(d, 'Polar tracking on');
     set(d.querySelector('select[aria-label="Increment angle"]') as HTMLSelectElement, '30');
     set(d.querySelector('input[aria-label="Extra angles"]') as HTMLInputElement, '15, 400');
-    await act(async () => { ([...d.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Cursor') as HTMLButtonElement).click(); });
+    await act(async () => { ([...d.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Object snap') as HTMLButtonElement).click(); });
     set(d.querySelector('input[aria-label="Snap aperture"]') as HTMLInputElement, '14');
+    await openPage(d, 'Display');
     set(d.querySelector('select[aria-label="Crosshair colour"]') as HTMLSelectElement, 'accent');
     tick(d, 'Outline the cursor');
-    await act(async () => { ([...d.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Selection') as HTMLButtonElement).click(); });
+    await openPage(d, 'Selection');
     tick(d, 'Highlight what is under the pick box');
     tick(d, 'Name tag after a pause');
     await press(d, 'OK');
-    expect(dialog('Drafting settings')).toBeNull();
+    expect(opt()).toBeNull();
     expect(state.toggles.polar).toBe(true);
     expect(onPrefs.mock.calls[0][0].draft).toMatchObject({ polarInc: 30, polarExtra: [15], aperturePx: 14, crossColor: 'accent', cursorOutline: false, hoverMark: false, hoverTag: true });
     act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F8' })); });
@@ -3408,22 +3422,31 @@ describe('Design CAD File: Save, Save As, Close and Drafting settings', () => {
     expect(state.toggles.otrack).toBe(true);
     // Right-click on a status-bar toggle: its settings.
     await act(async () => { document.querySelector('.cad-status button[title^="Grid:"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); });
-    expect(dialog('Drafting settings')!.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toBe('Snap & grid');
+    expect(subTab(opt())).toBe('Snap & grid');
   });
 
-  it('DS pages: UNITS opens Drawing ("Not set"), Saving lists the formats and still reaches onPrefs, arrows move between pages', async () => {
+  it('OP opens the page last used; UNITS opens This drawing ("Not set"), Files & saving lists the formats and still reaches onPrefs, arrows move between pages', async () => {
     act(() => root.render(<Host />));
     await flush();
+    await command('OP');
+    let d = opt();
+    expect(shownTab(d)).toEqual(['General']); // nothing used yet
+    await openPage(d, 'Selection');
+    await press(d, 'Cancel');
+    await command('OP');
+    d = opt();
+    expect(shownTab(d)).toEqual(['Selection']);
+    await press(d, 'Cancel');
     await command('UNITS');
-    let d = dialog('Drafting settings')!;
+    d = opt();
     expect(d.querySelector('[role="tablist"]')!.getAttribute('aria-orientation')).toBe('vertical');
-    expect(d.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toBe('Drawing');
+    expect(shownTab(d)).toEqual(['This drawing']);
     expect((d.querySelector('select[aria-label="Level"]') as HTMLSelectElement).selectedOptions[0].textContent).toBe('Not set');
     expect(d.textContent).toContain('The level this drawing is the plan of.');
-    const tabs = () => [...d.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
-    const key = (el: HTMLElement, k: string) => act(async () => { el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true })); });
-    await key(tabs().find((t) => t.textContent === 'Drawing')!, 'ArrowUp');
-    expect(d.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toBe('Saving');
+    const tabs = () => [...d.querySelectorAll<HTMLButtonElement>('[role="tablist"][aria-label="Options"] > [role="tab"]')];
+    await keyOn(pageTab(d, 'This drawing'), { key: 'ArrowUp' });
+    expect(shownTab(d)).toEqual(['Plot & publish']);
+    await openPage(d, 'Files & saving');
     const fmt = d.querySelector('select[aria-label="Save As format"]') as HTMLSelectElement;
     expect([...fmt.options].map((o) => o.textContent)).toEqual(['DWG (default)', 'DXF', "The drawing's own format"]);
     expect(fmt.value).toBe('own'); // the test host keeps the sample drawing's own format; the app's default is DWG (cadDraft)
@@ -3432,11 +3455,209 @@ describe('Design CAD File: Save, Save As, Close and Drafting settings', () => {
     await press(d, 'OK');
     expect(onPrefs.mock.calls[0][0]).toMatchObject({ autosaveMin: 7, draft: { keepBak: false } });
     await command('DS');
-    d = dialog('Drafting settings')!;
-    await act(async () => { tabs().find((t) => t.textContent === 'Cursor')!.click(); });
-    await key(tabs().find((t) => t.textContent === 'Cursor')!, 'ArrowDown');
-    expect(d.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toBe('Saving');
-    expect(document.activeElement!.textContent).toBe('Saving');
+    d = opt();
+    await act(async () => { tabs().find((t) => t.querySelector('span')?.textContent === 'Display')!.click(); });
+    await keyOn(pageTab(d, 'Display'), { key: 'ArrowDown' });
+    expect(shownTab(d)).toEqual(['Drafting']);
+    expect(document.activeElement!.textContent).toBe('Drafting');
+    // OS and the status bar's LWT open their own place.
+    await press(d, 'Cancel');
+    await act(async () => { tg('LWT').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); });
+    expect(shownTab(opt())).toEqual(['Display']);
+  });
+
+  it('Options takes the keyboard when it opens, and goes to another place when asked for again while open, keeping what was changed', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('OP');
+    let d = opt();
+    expect(document.activeElement).toBe(field(d, 'Find a setting')); // type to find a setting, Esc closes
+    await openPage(d, 'Selection');
+    set(field(d, 'Grip size'), '12');
+    await command('OS'); // typed while the window is open
+    d = opt();
+    expect([shownTab(d), subTab(d)]).toEqual([['Drafting'], 'Object snap']);
+    expect(countOf(d, 'Selection')).toBe('1');
+    await press(d, 'OK');
+    expect(onPrefs.mock.calls[0][0].draft).toMatchObject({ gripPx: 12 });
+  });
+
+  it('Options: find a setting shows the real rows from several pages; Esc clears, Ctrl F focuses, Enter opens the first match', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    const box = field(d, 'Find a setting');
+    set(box, 'size');
+    expect(d.querySelector('.cad-dlg-hits')!.textContent).toContain('4 settings match “size”');
+    expect([...d.querySelectorAll('.cad-dlg-sec.go b')].map((x) => x.textContent)).toEqual(['Display', 'Drafting › Object snap', 'Selection']);
+    expect(['Crosshair size', 'Snap marker size', 'Pick box size', 'Grip size'].every((l) => !!d.querySelector(`input[aria-label="${l}"]`))).toBe(true);
+    expect(d.querySelector('mark')?.textContent?.toLowerCase()).toBe('size');
+    expect(shownTab(d)).toEqual([]); // no page is selected while finding
+    set(field(d, 'Grip size'), '12');
+    // Esc with text clears it and keeps the window.
+    await keyOn(box, { key: 'Escape' });
+    expect(box.value).toBe('');
+    expect(opt()).not.toBeNull();
+    set(box, 'size');
+    await act(async () => { (d.querySelector('button[aria-label="Go to Selection"]') as HTMLButtonElement).click(); });
+    expect(box.value).toBe('');
+    expect(shownTab(d)).toEqual(['Selection']);
+    expect((field(d, 'Grip size')).value).toBe('12');
+    // Ctrl F anywhere in the window.
+    (document.activeElement as HTMLElement | null)?.blur();
+    await keyOn(pageTab(d, 'Display'), { key: 'f', ctrlKey: true });
+    expect(document.activeElement).toBe(box);
+    // Enter opens the first match and does not press OK.
+    set(box, 'osnap f3');
+    await keyOn(box, { key: 'Enter' });
+    expect(opt()).not.toBeNull();
+    expect(box.value).toBe('');
+    expect(shownTab(d)).toEqual(['Drafting']);
+    expect(subTab(d)).toBe('Object snap');
+    expect(onPrefs).not.toHaveBeenCalled();
+    await press(d, 'OK');
+    expect(onPrefs.mock.calls[0][0].draft.gripPx).toBe(12); // a value changed in the find results is what OK applies
+  });
+
+  it('Options: a setting not at its default has a dot, a count and a reset; Reset page and Changed work', async () => {
+    act(() => root.render(<Host saveFormat="dwg" />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    await openPage(d, 'Selection');
+    expect(d.querySelector('.chg')).toBeNull();
+    expect(countOf(d, 'Selection')).toBe('');
+    set(field(d, 'Grip size'), '12');
+    expect(d.querySelectorAll('.cad-dlg-pg .chg')).toHaveLength(1);
+    expect(countOf(d, 'Selection')).toBe('1');
+    expect(pageTab(d, 'Changed').querySelector('i')!.textContent).toBe('1');
+    // Its own reset puts the default back, and the counts drop.
+    await act(async () => { (d.querySelector('button[aria-label="Reset Grip size"]') as HTMLButtonElement).click(); });
+    expect(field(d, 'Grip size').value).toBe('8');
+    expect(d.querySelector('.cad-dlg-pg .chg')).toBeNull();
+    expect(countOf(d, 'Selection')).toBe('');
+    expect(pageTab(d, 'Changed').querySelector('i')).toBeNull();
+    // Reset page resets the page shown only.
+    set(field(d, 'Grip size'), '12');
+    set(field(d, 'Pick box size'), '20');
+    await openPage(d, 'Display');
+    set(field(d, 'Crosshair size'), '50');
+    await openPage(d, 'Selection');
+    expect(countOf(d, 'Selection')).toBe('2');
+    await press(d, 'Reset page');
+    expect(field(d, 'Grip size').value).toBe('8');
+    expect(countOf(d, 'Selection')).toBe('');
+    expect(countOf(d, 'Display')).toBe('1');
+    expect((d.querySelector('.cad-dlg-ft button:not(.q)') as HTMLButtonElement).disabled).toBe(true); // nothing changed on this page
+    // The Changed page lists what is left, and Reset all clears it.
+    await act(async () => { pageTab(d, 'Changed').click(); });
+    expect(shownTab(d)).toEqual(['Changed']); // no page is selected, only Changed
+    expect(d.querySelector('.cad-dlg-hits')!.textContent).toBe('1 setting is not at its default');
+    expect(field(d, 'Crosshair size').value).toBe('50');
+    await press(d, 'Reset all');
+    expect(d.querySelector('.cad-dlg-hits')!.textContent).toBe('Every setting is at its default.');
+    await openPage(d, 'Display');
+    expect(field(d, 'Crosshair size').value).toBe('100');
+  });
+
+  it('Options: a snap mode and extra polar angles are marked and reset on the Drafting tab', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('OS');
+    const d = opt();
+    tick(d, 'Nearest');
+    tick(d, 'Endpoint');
+    expect(d.querySelectorAll('.cad-dlg-mode.chg')).toHaveLength(2);
+    expect(countOf(d, 'Drafting')).toBe('2');
+    await act(async () => { (d.querySelector('button[aria-label="Reset Nearest"]') as HTMLButtonElement).click(); });
+    expect(countOf(d, 'Drafting')).toBe('1');
+    await act(async () => { ([...d.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Polar tracking') as HTMLButtonElement).click(); });
+    set(field(d, 'Extra angles'), '60');
+    expect(countOf(d, 'Drafting')).toBe('2');
+    await press(d, 'Reset tab'); // this tab only
+    expect(field(d, 'Extra angles').value).toBe('');
+    expect(countOf(d, 'Drafting')).toBe('1');
+  });
+
+  it('Options: Colour theme and palette, tool names and the panel order reach onPrefs as the app\'s settings', async () => {
+    act(() => root.render(<Host extra={{ appPrefs: { ribbonOrder: true } }} />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    expect(d.textContent).toContain('Your own');
+    expect(pageTab(d, 'General').querySelector('i')!.textContent).toBe('1');
+    await act(async () => { button('Reset order').click(); });
+    expect(d.textContent).toContain('Standard');
+    expect((button('Reset order') as HTMLButtonElement).disabled).toBe(true);
+    tick(d, 'Show the name of every tool, the small ones too');
+    await openPage(d, 'Display');
+    set(field(d, 'Colour theme'), 'light');
+    set(field(d, 'Colour palette'), 'blueprint');
+    await press(d, 'OK');
+    expect(onPrefs.mock.calls[0][0].app).toEqual({ theme: 'light', palette: 'blueprint', cadLabels: true, resetRibbonOrder: true });
+  });
+
+  it('Options: Plot & publish opens Page setups and Pen tables, and keeps the printer chosen', async () => {
+    (window as unknown as { lvds: { files?: unknown } }).lvds.files = { printers: async () => [{ name: 'Office', displayName: 'Office laser', isDefault: false }] };
+    const onOutput = vi.fn();
+    act(() => root.render(<Host extra={{ onOutput }} />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    await openPage(d, 'Plot & publish');
+    const inGroup = (name: string) => d.querySelector(`[role="group"][aria-label="${name}"]`) as HTMLElement;
+    expect(inGroup('Page setups').textContent).toContain('None named');
+    expect(inGroup('Pen tables').textContent).toContain('LVDS Electrical');
+    await act(async () => { ([...inGroup('Page setups').querySelectorAll('button')].find((b) => b.textContent === 'Open…') as HTMLButtonElement).click(); });
+    await act(async () => { ([...inGroup('Pen tables').querySelectorAll('button')].find((b) => b.textContent === 'Open…') as HTMLButtonElement).click(); });
+    expect(onOutput.mock.calls).toEqual([['setups'], ['pens']]);
+    expect(opt()).not.toBeNull(); // Options stays open behind the manager
+    const sel = field(d, 'Plot to');
+    await until(() => [...sel.options].some((o) => o.value === 'Office'));
+    set(sel, 'Office');
+    expect(countOf(d, 'Plot & publish')).toBe('1');
+    await press(d, 'OK');
+    expect(plotPrinter()).toBe('Office');
+    setPlotPrinter('');
+  });
+
+  it('Options: Files & saving shows the four folders from the desktop app, Change… asks and reads again; a browser shows only a note', async () => {
+    let projects = '/home/u/Projects';
+    const showFolder = vi.fn(async () => '');
+    (window as unknown as { lvds: Record<string, unknown> }).lvds.settings = { get: vi.fn(async () => ({ projectsFolder: projects })), showFolder };
+    (window as unknown as { lvds: Record<string, unknown> }).lvds.database = { open: vi.fn(async () => '') };
+    const chooseProjects = vi.fn(async () => { projects = '/data/Plans'; });
+    act(() => root.render(<Host extra={{ folders: { chooseProjects, chooseDatabase: async () => {} } }} />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    await openPage(d, 'Files & saving');
+    const grp = (name: string) => d.querySelector(`[role="group"][aria-label="${name}"]`) as HTMLElement;
+    await until(() => grp('Projects').textContent!.includes('/home/u/Projects'));
+    expect(grp('LV Database').textContent).toContain('/home/u/Projects/LV Database');
+    expect(grp('Block library').textContent).toContain('Not set');
+    expect(grp('Recovery copies').textContent).toContain('App data › recovery');
+    expect(grp('Block library').textContent).not.toContain('Change…'); // no chooser without the desktop CAD bridge
+    expect((grp('Block library').querySelector('button.cad-dlg-ib') as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => { (grp('Recovery copies').querySelector('button.cad-dlg-ib') as HTMLButtonElement).click(); });
+    expect(showFolder).toHaveBeenCalledWith('recovery');
+    await act(async () => { ([...grp('Projects').querySelectorAll('button')].find((b) => b.textContent === 'Change…') as HTMLButtonElement).click(); });
+    expect(chooseProjects).toHaveBeenCalled();
+    await until(() => grp('Projects').textContent!.includes('/data/Plans'));
+    expect(d.textContent).toContain('A folder changes at once, without OK.');
+  });
+
+  it('Options: without the desktop app Files & saving shows only a note in place of the folders', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    await openPage(d, 'Files & saving');
+    expect(d.textContent).toContain('Folders belong to the desktop app.');
+    expect(d.querySelector('[role="group"][aria-label="Projects"]')).toBeNull();
+    set(field(d, 'Find a setting'), 'folder');
+    expect(d.querySelector('.cad-dlg-hits')!.textContent).toContain('No setting matches');
   });
 
   it('WBLOCK saves the objects picked as a DXF of their own; with none picked it says what to do', async () => {
