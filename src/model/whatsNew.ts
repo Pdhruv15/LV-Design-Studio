@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.265', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD: a clearer Dimension style dialog', text: 'Annotate → Dimensions → Dim style (D) opens a wider dialog, so no name breaks over two lines. The styles sit beside the preview, with New, Delete, Set current and Import DXF… under them. The preview is drawn black on white as on the sheets, with a horizontal and a vertical dimension, and the part the value you are setting changes shows in gold, named under it. A swatch beside each arrow list shows the arrow chosen. The tabs keep one height, so Cancel and OK stay put. Two names are clearer: Extend beyond dimension line, and Extend past extension lines.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.262', date: '2026-11-22',
     items: [
       { title: 'The incoming cable counts in an assumed fault level', text: 'A first board with an incoming cable typed on its Supply tab and no fault level given used to take the assumed source level (about 25 kA at 415 V) at its busbar, ignoring the cable. The cable is now counted, as it already is when a fault level is given, so the level at the board is lower. The level is still marked assumed and its checks stay not verified until a fault level or a source rating is typed.' },
