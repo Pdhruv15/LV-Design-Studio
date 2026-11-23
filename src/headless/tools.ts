@@ -8,7 +8,7 @@ import { projectInputIssues } from '../model/projectValidate';
 import { STARTERS } from '../calc/motor';
 import * as quick from '../calc/quick';
 import { supplyGiven, type Board, type Project } from '../types';
-import { listProjects, openProject } from './project';
+import { listProjects, openProjectFull } from './project';
 import { EDIT_TOOLS } from './editTools';
 import { EXPORT_TOOLS } from './exportTools';
 import { EXCHANGE_TOOLS } from './exchangeTools';
@@ -70,8 +70,8 @@ const phases = z.union([z.literal(1), z.literal(3)]).default(3).describe('1 or 3
 const voltage = z.number().positive().default(415).describe('System voltage, V (phase-phase for 3 phase, phase-neutral for 1 phase)');
 const pf = z.number().min(0).max(1).default(0.85).describe('Power factor');
 
-function open(args: Record<string, unknown>, ctx: ToolContext): { p: Project; run: CalcRun } {
-  const { project: p } = openProject({ ref: String(args.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
+async function open(args: Record<string, unknown>, ctx: ToolContext): Promise<{ p: Project; run: CalcRun }> {
+  const { project: p } = await openProjectFull({ ref: String(args.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
   return { p, run: runCalculations(p) };
 }
 
@@ -101,8 +101,8 @@ export const TOOLS: Tool[] = [
     description: 'Headline figures of a project: system settings, connected and maximum demand, transformers and their loading, number of panels and circuits, and how many checks pass, need checking or fail.',
     input: { project },
     usesProject: true,
-    run: (a, ctx) => {
-      const { p, run } = open(a, ctx);
+    run: async (a, ctx) => {
+      const { p, run } = await open(a, ctx);
       const sys = systemSummary(p);
       const d = buildDashboard(p, run);
       return {
@@ -130,8 +130,8 @@ export const TOOLS: Tool[] = [
     description: 'Every panel (board) of a project in supply order: id, name, kind, fed from, location, demand, current, busbar loading, voltage and fault level.',
     input: { project },
     usesProject: true,
-    run: (a, ctx) => {
-      const { p } = open(a, ctx);
+    run: async (a, ctx) => {
+      const { p } = await open(a, ctx);
       return boardsInSupplyOrder(p).map((b) => {
         const s = boardSummary(p, b);
         return {
@@ -150,8 +150,8 @@ export const TOOLS: Tool[] = [
     description: 'One panel with all its circuits and their results: design current, breaker, cable, derated rating Iz, voltage drop, fault levels and the status of each check.',
     input: { project, panel: z.string().describe('Panel id, e.g. "SMDB-GF"') },
     usesProject: true,
-    run: (a, ctx) => {
-      const { p, run } = open(a, ctx);
+    run: async (a, ctx) => {
+      const { p, run } = await open(a, ctx);
       const id = String(a.panel ?? '');
       const b = p.boards.find((x) => x.id === id) ?? p.boards.find((x) => x.id.toLowerCase() === id.toLowerCase());
       if (!b) throw new Error(`No panel "${id}". Panels: ${p.boards.map((x) => x.id).join(', ')}`);
@@ -172,8 +172,8 @@ export const TOOLS: Tool[] = [
     description: "Runs every calculation (cables, breakers, voltage drop, fault level, earth fault disconnection, selectivity) and returns the project's to-do list: what fails or needs checking, naming the panel or circuit. The same list the app's dashboard shows.",
     input: { project, status: statusFilter, limit },
     usesProject: true,
-    run: (a, ctx) => {
-      const { p, run } = open(a, ctx);
+    run: async (a, ctx) => {
+      const { p, run } = await open(a, ctx);
       const d = buildDashboard(p, run);
       const status = String(a.status ?? 'bad');
       const items = d.todo.filter((t) => keep(t.status, status));
@@ -195,8 +195,8 @@ export const TOOLS: Tool[] = [
     description: 'Calculation results per circuit (design current, breaker, cable, Iz, loading, voltage drop, fault levels, check status), optionally for one panel or only failing circuits.',
     input: { project, panel: z.string().optional().describe('Only circuits on this panel'), status: statusFilter, limit },
     usesProject: true,
-    run: (a, ctx) => {
-      const { run } = open(a, ctx);
+    run: async (a, ctx) => {
+      const { run } = await open(a, ctx);
       const status = String(a.status ?? 'bad');
       const panel = a.panel ? String(a.panel).toLowerCase() : undefined;
       const rows = run.results.filter((x) => (!panel || x.feeder.boardId.toLowerCase() === panel) && keep(x.status, status));

@@ -1,14 +1,17 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { checkProjectShape } from '../model/projectValidate';
 import { isFutureSchema, migrateProject } from '../model/projectMigrate';
+import { planLinkOf, type PlanLink } from '../model/planLink';
+import { unpackPlan } from '../model/planPackage';
 import type { Project } from '../types';
 import { fileOfAlias } from './privacy';
-import { confine, findFile, MAX_PROJECT_BYTES, readFileWithin } from './safeFiles';
+import { confine, findFile, MAX_PROJECT_BYTES, readFileLimited, readFileWithin } from './safeFiles';
 
-/** Finding and opening project files without the app (command line, MCP server, local API).
- * Read only: nothing here writes a file. */
+/** Finding and opening project files without the app (command line, MCP server, local API), with the drawn work kept
+ * beside them. Read only: nothing here writes a file. */
 
 /** A listing reads at most this many project files, and this much in all, newest first (far above real use: a project
  * file is ~20 KB), so a folder of large or crafted files cannot hold up the MCP server or the local API. */
@@ -84,12 +87,61 @@ export function resolveProject({ ref, folder, anywhere }: ProjectRef): string {
   return confine(full, { folder, anywhere }, outsideFolder(folder));
 }
 
+/** The project file as it is, without its drawn work: for what needs only the file (its name, the change log, undo).
+ * A project that keeps its drawn work in name.lvplan has the link to it; openProjectFull puts the drawn work back. */
 export function openProject(r: ProjectRef): { project: Project; file: string; text: string } {
   const file = resolveProject(r);
   const bytes = readFileWithin(file, r, MAX_PROJECT_BYTES, outsideFolder(r.folder));
   if (!bytes) throw new Error(`${path.basename(file)} is larger than ${MAX_PROJECT_BYTES / 1024 / 1024} MB.`);
   const text = bytes.toString('utf-8');
   return { project: parseProject(text, path.basename(file)), file, text };
+}
+
+// ---- The drawn work beside it: name.lvplan (src/model/planPackage.ts), as the desktop app keeps it ----
+
+/** The drawn work file of a .lvds project file; undefined for an older .json, which never has one. */
+export const planFileOf = (file: string): string | undefined => (/\.lvds$/i.test(file) ? file.replace(/\.lvds$/i, '.lvplan') : undefined);
+export const sha256Of = (data: string | Buffer): string => crypto.createHash('sha256').update(data).digest('hex');
+/** A plain file's bytes; undefined when it is missing, a link (never followed) or too large. */
+const plainBytes = (full: string): Buffer | undefined => { try { return readFileLimited(full, MAX_PROJECT_BYTES); } catch { return undefined; } };
+/** SHA-256 of the drawn work file beside a project file; null when there is none. */
+export function planShaOf(file: string): string | null {
+  const f = planFileOf(file);
+  const b = f ? plainBytes(f) : undefined;
+  return b ? sha256Of(b) : null;
+}
+
+/** The drawn work a project file links to: the copy whose SHA-256 the link records, tried in the desktop app's order
+ * (electron/projectFiles.cjs readPlanFor): name.lvplan, its .bak, then the file the link names and its .bak. */
+export function planBytesFor(file: string, link: PlanLink): Buffer | undefined {
+  const named = /^[^\\/:*?"<>|]+\.lvplan$/i.test(link.file) && !link.file.startsWith('.') ? path.join(path.dirname(file), link.file) : undefined;
+  for (const n of new Set([planFileOf(file), named].filter((x): x is string => !!x))) {
+    for (const f of [n, `${n}.bak`]) {
+      const b = plainBytes(f);
+      if (b && sha256Of(b) === link.sha256) return b;
+    }
+  }
+  return undefined;
+}
+
+export interface OpenedProject {
+  project: Project; file: string; text: string;
+  /** SHA-256 of name.lvplan beside it when it was read (null: none), to notice a change before writing. */
+  planSha: string | null;
+  /** Its drawn work file is missing or does not match: the project has no drawings, and keeps this link. */
+  drawnWorkMissing?: PlanLink;
+}
+
+/** A project as the app opens it: with its drawn work (name.lvplan) put back. When that cannot be read, the project
+ * keeps the link (drawnWorkMissing), and a write leaves the drawn work as it is (write.ts commitProject). */
+export async function openProjectFull(r: ProjectRef): Promise<OpenedProject> {
+  const o = openProject(r);
+  const planSha = planShaOf(o.file);
+  const link = planLinkOf(o.project);
+  if (!link) return { ...o, planSha };
+  const project = await unpackPlan(o.project, planBytesFor(o.file, link));
+  const missing = planLinkOf(project);
+  return { ...o, project, planSha, ...(missing ? { drawnWorkMissing: missing } : {}) };
 }
 
 export interface ProjectListing { file: string; name: string; panels: number; circuits: number; status?: string; revision?: string; modified: string }

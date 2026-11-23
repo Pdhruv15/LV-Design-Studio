@@ -14,7 +14,7 @@ import { boardAndDescendants, deleteBoard } from '../model/edit';
 import { removeDanglingReferences } from '../model/integrity';
 import { deleteCircuit } from '../model/schedule';
 import { BOARD_KINDS, LOAD_TYPES, SOURCE_KINDS, supplyIncomerFeeder, type Board, type BoardKind, type Feeder, type LoadType, type Project, type SourceKind } from '../types';
-import { openProject } from './project';
+import { openProject, openProjectFull } from './project';
 import { INSTALL_METHODS, type InstallMethod } from '../calc/cableTable';
 import { projectInputIssues } from '../model/projectValidate';
 import { circuitIssues, r, type Tool, type ToolContext } from './tools';
@@ -56,8 +56,8 @@ function checksOf(p: Project) {
 }
 
 /** Runs a planned change: a preview, or the change written with a backup. */
-export function edit(args: Record<string, unknown>, ctx: ToolContext, tool: string, write: boolean, plan: (p: Project) => Planned) {
-  const { project: p, file, text } = openProject({ ref: String(args.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
+export async function edit(args: Record<string, unknown>, ctx: ToolContext, tool: string, write: boolean, plan: (p: Project) => Planned) {
+  const { project: p, file, text, planSha } = await openProjectFull({ ref: String(args.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
   const out = plan(p);
   const before = checksOf(p), after = checksOf(out.designAfter ?? out.next);
   const result = {
@@ -73,7 +73,7 @@ export function edit(args: Record<string, unknown>, ctx: ToolContext, tool: stri
   };
   if (!write) return { mode: 'preview', written: false, ...result, next: 'Nothing was written. Call again with mode apply / propose to make the change.' };
   if (out.next === p) return { mode: 'done', written: false, ...result };
-  const entry = commitProject(ctx.folder, file, text, out.next, tool, out.summary, ctx.client);
+  const entry = await commitProject(ctx.folder, file, text, out.next, tool, out.summary, ctx.client, planSha);
   return { mode: 'done', written: true, change: entry.id, file: path.basename(file), ...result, note: `Undo with undo_change (change ${entry.id}). If the project is open in the app, open it again to see the change.` };
 }
 
@@ -101,10 +101,10 @@ export function proposal(p: Project, title: string, reason: string, changes: Val
   return t.record;
 }
 
-function proposeTool(args: Record<string, unknown>, ctx: ToolContext, tool: string, make: (p: Project) => { title: string; reason: string; changes: ValueChange[]; warnings?: string[] }) {
+async function proposeTool(args: Record<string, unknown>, ctx: ToolContext, tool: string, make: (p: Project) => { title: string; reason: string; changes: ValueChange[]; warnings?: string[] }) {
   const write = args.mode === 'propose';
   // Only the record is written; the checks show the design as it would be once the engineer applies it.
-  const res = edit(args, ctx, tool, write, (p) => {
+  const res = await edit(args, ctx, tool, write, (p) => {
     const m = make(p);
     const rec = proposal(p, m.title, m.reason, m.changes, authorOf(ctx));
     return {

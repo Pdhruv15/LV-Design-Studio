@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { z } from 'zod';
 import { decide, readPackage, reviewPackage, type Review } from '../exchange/inbox';
-import { openProject } from './project';
+import { openProjectFull } from './project';
 import { edit } from './editTools';
 import { findFile, readFileWithin } from './safeFiles';
 import type { Tool, ToolContext } from './tools';
@@ -64,8 +64,8 @@ export const EXCHANGE_TOOLS: Tool[] = [
     description: 'What accepting a package would do to the project: rooms added, changed, renamed or removed (matched by source ID, then by name on the level), or luminaire / ELV load rows added, changed or removed since the last accepted package from the same file. Rows that cannot be applied are listed as problems. Nothing is written.',
     input: { project, file, limit: z.number().int().min(1).max(5000).default(200).describe('Most changes to list') },
     usesProject: true,
-    run: (a, ctx) => {
-      const { project: p } = openProject({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
+    run: async (a, ctx) => {
+      const { project: p } = await openProjectFull({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
       const { pkg, hash, warnings, name } = checked(String(a.file), ctx);
       return { file: name, ...summary(reviewPackage(p, pkg, hash), Number(a.limit)), ...(warnings.length ? { warnings } : {}) };
     }

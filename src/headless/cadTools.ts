@@ -9,8 +9,8 @@ import type { CadPlan } from '../model/cadPlaces';
 import type { CadLayerMap, CadLayerRole, Project } from '../types';
 import { edit } from './editTools';
 import { planUnits } from '../model/cadUnits';
-import { planLinkOf } from '../model/planLink';
-import { openProject } from './project';
+import { planLinkOf, planMissingNote } from '../model/planLink';
+import { openProjectFull } from './project';
 import { confine, findFile, readFileWithin } from './safeFiles';
 import { r, type Tool, type ToolContext } from './tools';
 
@@ -61,10 +61,10 @@ export function findLevel(p: Project, buildingRef: string, levelRef: string): { 
 
 /** The plan read in the units chosen for its file in the project (Design CAD), else the drawing's own. */
 function withChosenUnits(p: Project, plan: CadPlan): CadPlan {
-  // The chosen units of a project that keeps its drawn work in name.lvplan are in that file, which lvds reads from
-  // Phase 2 step 3 on (docs/notes/Future development/Native drawing file - Phase 2 plan): refused, not measured wrongly.
+  // The chosen units are kept with the drawn work, in name.lvplan: a project that still has its link could not read it
+  // (project.ts openProjectFull), so its plan is not measured in units that may be wrong.
   const link = planLinkOf(p);
-  if (link) throw new Error(`This project keeps its Design CAD settings, the drawing units included, in ${link.file}, which this version of lvds cannot read yet. Use Rooms and areas from CAD floor plan in the app.`);
+  if (link) throw new Error(`${planMissingNote(link)} The drawing units chosen in Design CAD are kept in it, so the plan is not read.`);
   const u = planUnits(p, plan.file, plan.units);
   return u.code !== undefined ? { ...plan, units: u.code } : plan;
 }
@@ -76,8 +76,8 @@ export const CAD_TOOLS: Tool[] = [
     description: 'Reads a floor plan with the built-in reader (no CAD program needed): drawing format and units, each layer with what it holds and its role (saved map or guess), and the rooms its room-outline layers give. Nothing is written.',
     input: { project, drawing, roles },
     usesProject: true,
-    run: (a, ctx) => {
-      const { project: p } = openProject({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
+    run: async (a, ctx) => {
+      const { project: p } = await openProjectFull({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
       const plan = withChosenUnits(p, readPlan(String(a.drawing), ctx));
       const map = layerMap(p, plan, a.roles);
       const read = roomsFromPlan(plan, map, p.cadLength);
