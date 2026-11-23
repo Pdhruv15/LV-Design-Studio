@@ -142,6 +142,15 @@ describe('the copy of the project file in the project folder (decision 1, option
     expect(readFileSync(join(root(), '03_Project_File', 'other.lvds'), 'utf8')).toBe('keep');
     expect(readdirSync(join(root(), '03_Project_File')).sort()).toEqual(['other.lvds', 'villa-p1.lvds']); // no temporary file left
   });
+  it('copies the drawn work beside it (name.lvplan) under the copy\'s name, and nothing when there is none', () => {
+    mkdirSync(root());
+    copy();
+    expect(readdirSync(join(root(), '03_Project_File'))).toEqual(['villa-p1.lvds']);
+    const src = source();
+    writeFileSync(src.replace(/\.lvds$/, '.lvplan'), 'PK drawn work');
+    copy({ fileName: 'villa.lvds' }, src);
+    expect(readFileSync(join(root(), '03_Project_File', 'villa.lvplan'), 'utf8')).toBe('PK drawn work');
+  });
   it('never makes the project folder itself', () => {
     expect(() => copy()).toThrow(/not on this computer/);
     expect(existsSync(root())).toBe(false);

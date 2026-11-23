@@ -222,10 +222,18 @@ handle('projects:read', (_evt, file) => readProject(file));
 
 function readProject(file) {
   const full = projectPath(ensureProjectsFolder(), file);
+  const project = readProjectText(full, file);
+  const stamp = projectFiles.projectStampOf(full);
+  // Its drawn work (name.lvplan beside it) as bytes; the renderer puts it back (src/model/projectStore.ts).
+  const link = projectFiles.planLinkOf(project);
+  const plan = link && projectFiles.readPlanFor(path.dirname(full), path.basename(full), link);
+  return plan ? { project, stamp, plan } : { project, stamp };
+}
+
+function readProjectText(full, file) {
   const text = readTextFileLimited(full, LIMITS.projectBytes, file);
-  const stamp = projectFiles.stampOf(full);
   try {
-    return { project: JSON.parse(text), stamp };
+    return JSON.parse(text);
   } catch (e) {
     // A damaged file: offer the last good version kept beside it.
     const bak = `${full}.bak`;
@@ -234,34 +242,35 @@ function readProject(file) {
       try { p = readJsonLimited(bak, LIMITS.projectBytes, `${file}.bak`); } catch (e2) {
         throw new Error(`${file} is damaged and could not be read (${e.message}); its backup ${file}.bak is damaged too (${e2.message}).`);
       }
-      return { project: { ...p, _restoredFromBackup: true }, stamp };
+      return { ...p, _restoredFromBackup: true };
     }
     throw new Error(`${file} is damaged and could not be read (${e.message}).`);
   }
 }
 
-handle('projects:stat', (_evt, file) => projectFiles.stampOf(projectPath(ensureProjectsFolder(), file)));
+handle('projects:stat', (_evt, file) => projectFiles.projectStampOf(projectPath(ensureProjectsFolder(), file)));
 
 /** Saves a project. `expected` is what the file was when this app opened or last saved it; when the file
  * now holds something else (another computer, a sync tool, another program) nothing is written and the
  * answer is a conflict — unless `force`, which keeps the other version as name.lvds.theirs-….bak.
- * An older name.json is saved as name.lvds, and the .json stays as its backup (name.lvds.bak). */
+ * An older name.json is saved as name.lvds, and the .json stays as its backup (name.lvds.bak).
+ * `plan`: the drawn work as name.lvplan bytes, written beside it first (projectFiles.saveProjectPair). */
 handle('projects:save', (_evt, args) => {
-  const { file, data, expected, force } = check.projectSaveArgs(args);
+  const { file, data, plan, expected, force } = check.projectSaveArgs(args);
   const folder = ensureProjectsFolder();
   const idPart = String((data && data.id) || Date.now()).replace(/[^a-z0-9]/gi, '').slice(0, 8);
   const safeFile = file || projectFiles.uniqueFileName(folder, `${slugify(data.name || 'untitled')}-${idPart}`);
   const full = projectPath(folder, safeFile);
   let conflicted = false;
   if (file) {
-    const disk = projectFiles.stampOf(full);
-    if (projectFiles.decideSave(expected, disk) === 'conflict') {
+    const disk = projectFiles.projectStampOf(full);
+    if (projectFiles.decideSave(expected, disk, plan && projectFiles.sha(plan)) === 'conflict') {
       if (!force) return { conflict: true, file: safeFile, disk };
       conflicted = true;
     }
   }
   const native = projectFiles.nativeFileName(folder, safeFile);
-  const stamp = projectFiles.writeFileSafe(projectPath(folder, native), projectFiles.projectText(data), { keepTheirs: conflicted, verifyJson: true });
+  const stamp = projectFiles.saveProjectPair(projectPath(folder, native), data, plan, { keepTheirs: conflicted });
   projectFiles.retireOldFile(folder, safeFile, native);
   return { file: native, stamp };
 });

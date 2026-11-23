@@ -76,7 +76,14 @@ function projectSaveArgs(a) {
   if (!isObj(a) || !isObj(a.data) || !Array.isArray(a.data.boards) || !Array.isArray(a.data.feeders)) fail('saving something that is not a project');
   if (a.file !== undefined && a.file !== null && typeof a.file !== 'string') fail('project file name');
   assertJsonWithin(a.data, LIMITS.projectBytes, 'The project');
-  return { file: a.file || undefined, data: a.data, expected: a.expected, force: a.force === true };
+  // The drawn work as a .lvplan (a zip): bytes within the project limit, starting with the zip signature.
+  let plan;
+  if (a.plan !== undefined && a.plan !== null) {
+    if (!(a.plan instanceof Uint8Array) || a.plan.length < 4 || a.plan[0] !== 0x50 || a.plan[1] !== 0x4b) fail('drawn work that is not a .lvplan file');
+    if (a.plan.length > LIMITS.projectBytes) fail('drawn work larger than a project may be');
+    plan = Buffer.from(a.plan.buffer, a.plan.byteOffset, a.plan.byteLength);
+  }
+  return { file: a.file || undefined, data: a.data, plan, expected: a.expected, force: a.force === true };
 }
 
 /** An entry for the error log: text, cut to a sensible length. */

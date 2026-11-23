@@ -61,5 +61,9 @@ shared/<sha256>.json     the drawing settings that belong to no single drawing (
 - `manifest.live.drawings` names each drawing's file, so a reader finds a plan without opening every part.
   `order` lists, per project field, which drawings hold it, in the project's order.
 - A reader refuses a newer `version` and a package whose revisions do not match the project file's.
+- The project file links to it as `"plan": { "file": "Name.lvplan", "sha256": "…", "version": 1 }`, the SHA-256 of the
+  whole .lvplan file. The app writes the .lvplan first and keeps the one before as `Name.lvplan.bak`, so a reader
+  takes whichever of the two has that SHA-256. If neither does, the drawn work is missing: the app opens the project
+  without it, read-only, and writes nothing over it.
 - Points are drawing units, as in the drawing. Each object keeps its `id`, `kind`, `layer` and `pts`; other keys
   are as the app writes them, so a reader keeps what it does not know.

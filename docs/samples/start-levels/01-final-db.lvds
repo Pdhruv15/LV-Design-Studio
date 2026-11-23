@@ -1,7 +1,7 @@
 {
   "format": "lvds.project",
   "id": "sample-01",
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "createdAt": "2026-11-23T00:00:00.000Z",
   "name": "Sample 01 — Final DB",
   "voltageV": 415,

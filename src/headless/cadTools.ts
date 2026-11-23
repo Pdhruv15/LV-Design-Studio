@@ -9,6 +9,7 @@ import type { CadPlan } from '../model/cadPlaces';
 import type { CadLayerMap, CadLayerRole, Project } from '../types';
 import { edit } from './editTools';
 import { planUnits } from '../model/cadUnits';
+import { planLinkOf } from '../model/planLink';
 import { openProject } from './project';
 import { confine, findFile, readFileWithin } from './safeFiles';
 import { r, type Tool, type ToolContext } from './tools';
@@ -60,6 +61,10 @@ export function findLevel(p: Project, buildingRef: string, levelRef: string): { 
 
 /** The plan read in the units chosen for its file in the project (Design CAD), else the drawing's own. */
 function withChosenUnits(p: Project, plan: CadPlan): CadPlan {
+  // The chosen units of a project that keeps its drawn work in name.lvplan are in that file, which lvds reads from
+  // Phase 2 step 3 on (docs/notes/Future development/Native drawing file - Phase 2 plan): refused, not measured wrongly.
+  const link = planLinkOf(p);
+  if (link) throw new Error(`This project keeps its Design CAD settings, the drawing units included, in ${link.file}, which this version of lvds cannot read yet. Use Rooms and areas from CAD floor plan in the app.`);
   const u = planUnits(p, plan.file, plan.units);
   return u.code !== undefined ? { ...plan, units: u.code } : plan;
 }

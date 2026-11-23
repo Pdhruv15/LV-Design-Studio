@@ -88,7 +88,7 @@ describe('revisions in the project file', () => {
 
   it('an app of the version before reads a version 4 file as newer (read-only)', () => {
     expect(isFutureSchema({ ...sampleProject, schemaVersion: CURRENT_SCHEMA + 1 })).toBe(true);
-    expect(CURRENT_SCHEMA).toBe(4);
+    expect(CURRENT_SCHEMA).toBeGreaterThanOrEqual(4); // 5: drawn work in name.lvplan (projectPlanFiles.test.ts)
   });
 });
 

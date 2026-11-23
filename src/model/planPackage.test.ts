@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import { z } from 'zod';
 import { sampleProject } from '../data/sampleProject';
@@ -71,6 +71,12 @@ describe('.lvplan split and merge', () => {
     expect(canon(mergePlan(project, viaText(plan!)))).toBe(canon(p));
   });
 
+  it('lists the parts in the order they are met, whatever order their hashes finish in', async () => {
+    const big = Array.from({ length: 20000 }, (_, i) => line(`B${i}`, i));
+    const { plan } = await splitPlan({ ...sampleProject, cadSketch: [{ file: 'big.dwg', items: big }, { file: 'small.dwg', items: [line('S1', 0)] }] } as Project);
+    expect(Object.values(plan!.manifest.parts).map((x) => x.path)).toEqual(plan!.manifest.live!.drawings.map((d) => plan!.manifest.parts[d.part].path));
+  });
+
   it('gives the same fingerprint after every further save and load', async () => {
     const once = async (p: Project) => { const s = await splitPlan(p); return mergePlan(s.project, viaText(s.plan!)); };
     const a = await once(base());
@@ -118,6 +124,17 @@ describe('.lvplan file', () => {
     expect(Buffer.from(await planZip((await splitPlan(p)).plan!)).equals(Buffer.from(bytes))).toBe(true);
     const back = mergePlan(project, await readPlanZip(bytes));
     expect(canon(back)).toBe(canon(p));
+  });
+
+  it('gives the same bytes whatever the time it is made (no entry is dated now)', async () => {
+    const { plan } = await splitPlan(base());
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+      const a = await planZip(plan!);
+      vi.setSystemTime(new Date('2027-06-30T13:45:07Z'));
+      expect(Buffer.from(await planZip(plan!)).equals(Buffer.from(a))).toBe(true);
+    } finally { vi.useRealTimers(); }
   });
 
   it('refuses a file that is not a .lvplan, or has lost a part', async () => {

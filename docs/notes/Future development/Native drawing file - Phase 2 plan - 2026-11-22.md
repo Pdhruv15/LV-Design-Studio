@@ -1,6 +1,6 @@
 # Native drawing file (.lvplan): Phase 2 plan (2026-11-22)
 
-Status: **approved 2026-11-22** ("Next" after the plan: P1–P5 as recommended). Step 0 measured the same day (results below). Step 1 built 2026-11-23 (`src/model/planPackage.ts`, layout in `contracts/README.md`). **Step 0 was corrected on 2026-11-23** (see Correction below). Step 2 waits for the user's decision on the corrected numbers (P6). Follows [Native drawing format - 2026-11-21](Native%20drawing%20format%20-%202026-11-21.md). There, the user approved the chunked package, the layout for AI tools, drawn work in the native file (D4) and `.lvplan` as the working name (D3). Phase 1 (b), the faster engine, is merged (PRs 752, 756, 757). The cache, Phase 1 (a), waits until it is needed.
+Status: **approved 2026-11-22** ("Next" after the plan: P1–P5 as recommended). Step 0 measured the same day (results below). Step 1 built 2026-11-23 (`src/model/planPackage.ts`, layout in `contracts/README.md`). **Step 0 was corrected on 2026-11-23** (see Correction below). P6 decided the same day: two files ("GO WITH A"). Step 2 built 2026-11-23 (v2.265, results below); step 3 is next. Follows [Native drawing format - 2026-11-21](Native%20drawing%20format%20-%202026-11-21.md). There, the user approved the chunked package, the layout for AI tools, drawn work in the native file (D4) and `.lvplan` as the working name (D3). Phase 1 (b), the faster engine, is merged (PRs 752, 756, 757). The cache, Phase 1 (a), waits until it is needed.
 
 ## Goal
 
@@ -138,9 +138,35 @@ Steps 1 → 2 (with 4) → 3 go in that order. Step 0 showed that revisions hold
 
   The app's own SHA-256 made `splitPlan` take 1.0 s at 10 MB. It now hashes each different part once, with the system's SHA-256 (the app's is kept as a fallback). Each value's text is also kept between saves, and parts shared by revisions are read once, which gives the corrected table above. The `.lvds` sizes in this table are without packed revisions; see the correction.
 
+## Step 2 results (2026-11-23)
+
+Built as planned, with these details:
+
+- **Who does what.** The app (renderer) splits the project and zips the drawn work (`packPlan`, `src/model/planPackage.ts`), and sends the project and the `.lvplan` bytes to the main process. The main process names the file (`<project file name>.lvplan`), works out its SHA-256, writes the `.lvplan`, then the `.lvds` with the link (`saveProjectPair`, `electron/projectFiles.cjs`). On opening, the main process returns the bytes of the copy whose SHA-256 matches the link, and the app puts the drawn work back (`unpackPlan`).
+- **Written only when changed.** The same drawn work always gives the same manifest, so the app reuses the last zip without compressing again, and the main process skips the write when the file on disk already has that SHA-256. `name.lvplan.bak` is then the version before the last change of drawn work.
+- **Opening.** The main process tries `name.lvplan`, `name.lvplan.bak`, then the file the link names and its `.bak`, so a project restored or renamed under another name still finds its drawn work. A link at the `.lvplan` name is never followed.
+- **Missing or out of date (P4).** No copy matches: the project opens without its drawings and read-only, with the P4 sentence. It keeps the link in memory, so a change made to that file from the projects list (status, archive) keeps the link and leaves the `.lvplan` alone. New drawings on it are refused. Save as and Duplicate make a project with its own `.lvplan`.
+- **Conflicts.** The file stamp now carries the SHA-256 of the `.lvplan` beside it. A save is a conflict when someone else changed the `.lvplan` (for example a sync tool that delivered it before the `.lvds`). Overwriting keeps their copy as `name.lvplan.theirs-….bak`. A `.lvplan` that is gone is written again with no question.
+- **Other file operations.** Moving to the trash, restoring (under the restored name), emptying the trash, and the copy in the project folder (project folder customisation) all take the `.lvplan` along. A deleted older `.json` project never takes the `.lvplan` of a `.lvds` with the same name, and a new project never takes the name of a `.lvplan` left on its own.
+- **Schema 5.** `CURRENT_SCHEMA` is 5, so the app of v2.264 and before opens a saved project read-only.
+- **Not changed.** Recovery copies still hold the whole project, drawn work included (they are one file in the app's own folder). The web version keeps one stored copy, as before.
+- **Headless until step 3.** `lvds` does not read the `.lvplan` yet. Its tools do not read the drawn work, except `cad_plan` and `rooms_from_cad`, which read the drawing units chosen in Design CAD: they refuse a project that has a link, rather than measure in the wrong units. A write by `lvds` keeps the link, so the drawn work stays as it is. Step 3 removes the refusal.
+- **Two bugs from step 1 found and fixed.** The manifest listed parts in the order their hashes finished, so the same drawn work could give a different file; it now lists them in the order they are met. The zip also dated its folder entries with the current time; it now has none. Both have regression tests.
+- **The zip is not moved to a background worker.** It runs only when the drawn work changed.
+
+**Timing** (`npm run bench -- projectSave -t "really saves"`, 200 boards, 4 drawings, 3 issued revisions; times exclude the disk):
+
+| Drawn work | `.lvds` today | save / load | `.lvds` + `.lvplan` | save / load, drawn work changed | save, drawn work unchanged |
+|---|---:|---:|---:|---:|---:|
+| 1 MB | 3.6 MB | 8 / 6 ms | 0.85 + 0.15 MB | 22 / 10 ms | 5 ms |
+| 3 MB | 9.1 MB | 21 / 16 ms | 0.85 + 0.44 MB | 56 / 25 ms | 8 ms |
+| 10 MB | 28.4 MB | 70 / 51 ms | 0.85 + 1.45 MB | 181 / 78 ms | 21 ms |
+
+Most saves do not change the drawn work: at 10 MB they take 21 ms against 70 ms today, and write 0.85 MB instead of 28.4 MB.
+
 ## Decisions for the user
 
-- **P6 (2026-11-23, after the correction).** Go on with step 2, the two files, about 12 times smaller, with the `.lvplan` written only when drawn work changed (recommended)? Or keep one file and only write the drawn work compactly, about 3 times smaller, with no second file?
+- **P6 (2026-11-23, after the correction): decided, two files.** Go on with step 2, the two files, about 12 times smaller, with the `.lvplan` written only when drawn work changed (recommended)? Or keep one file and only write the drawn work compactly, about 3 times smaller, with no second file? The user chose the two files ("GO WITH A").
 
 - **P1.** Leave devices, wiring and routes in the project for now, and move only the drawing data? (Recommended: yes. They are small, and many tools read them.)
 - **P2.** Zip, so one file sits beside the project (recommended), or a folder package, where only changed parts are written but which is awkward to email or sync?

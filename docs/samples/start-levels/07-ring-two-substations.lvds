@@ -1,7 +1,7 @@
 {
   "format": "lvds.project",
   "id": "sample-07",
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "createdAt": "2026-11-23T00:00:00.000Z",
   "name": "Sample 07 — 11 kV ring, two substations",
   "voltageV": 415,
