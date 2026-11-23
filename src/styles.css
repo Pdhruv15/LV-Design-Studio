@@ -2327,6 +2327,23 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-dlg-ft .p{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}
 .cad-dlg.wide{width:380px}
 .cad-dlg.wide .cad-dlg-r{grid-template-columns:1fr 170px}
+/* Dimension style: the styles beside the preview on paper (its caption names the part being set), then the tabs over a
+   body of one height, the tallest tab's, so Cancel and OK stay put */
+.cad-dlg-top{display:grid;grid-template-columns:168px minmax(0,1fr);gap:8px;padding:2px 8px 6px}
+.cad-dlg-top .cad-dlg-list{height:100px;max-height:none;margin:0}
+.cad-dlg-top .cad-dlg-btns{display:grid;grid-template-columns:1fr 1fr;padding:4px 0 0}
+.cad-dlg-top .cad-dlg-btns button{padding:0 4px}
+.cad-dlg.dim .cad-dlg-top .cad-dlg-r{grid-template-columns:36px minmax(0,1fr);height:20px;margin-bottom:4px;padding:0}
+.cad-dlg.dim .cad-dlg-top .cad-dlg-in input{text-align:left;font-family:inherit}
+.cad-dlg.dim .cad-dlg-prev{padding:0;border:1px solid var(--line);border-radius:2px}
+.cad-dlg-cap{height:16px;margin:0;color:var(--mut);font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cad-dlg-cap.on{color:var(--acc)}
+.cad-dlg.dim .cad-dlg-tabs{margin:0 0 4px}
+.cad-dlg.dim .cad-dlg-sec{line-height:13px}
+.cad-dlg-body{min-height:217px}
+.cad-dlg.dim .cad-dlg-g{grid-template-columns:1fr 170px}
+.cad-dlg.dim .cad-dlg-g .cad-dlg-in{justify-content:flex-end;flex-wrap:nowrap;gap:3px 8px}
+.cad-dlg-sw{flex:none;border:1px solid var(--field-line);border-radius:2px}
 /* A row of several controls (a button, boxes, options): the label, then the controls across the rest; they wrap and the row grows to fit them */
 .cad-dlg-g{grid-template-columns:auto minmax(0,1fr);height:auto;min-height:22px}
 .cad-dlg-g>span:first-child:not(:empty){padding-right:8px}
