@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.264', date: '2026-11-23',
+    items: [
+      { title: 'Sample projects for every SLD start level', text: 'Eight ready-made projects, one for each way a new project can start (a final DB, a sub-main board, a main board on an LV source, a transformer, an RMU with one or two transformers, an 11 kV ring, and a generator with solar), are in the docs/samples/start-levels folder. Open one with File → Open, then Save as under a new name to keep the sample unchanged.' },
+    ]
+  },
+  {
     version: '2.262', date: '2026-11-22',
     items: [
       { title: 'The incoming cable counts in an assumed fault level', text: 'A first board with an incoming cable typed on its Supply tab and no fault level given used to take the assumed source level (about 25 kA at 415 V) at its busbar, ignoring the cable. The cable is now counted, as it already is when a fault level is given, so the level at the board is lower. The level is still marked assumed and its checks stay not verified until a fault level or a source rating is typed.' },
