@@ -3623,7 +3623,7 @@ describe('Design CAD File: Save, Save As, Close and Options', () => {
   });
 
   it('Options: Files & saving shows the four folders from the desktop app, Change… asks and reads again; a browser shows only a note', async () => {
-    let projects = '/home/u/Projects';
+    let projects = '/plans/Projects';
     const showFolder = vi.fn(async () => '');
     (window as unknown as { lvds: Record<string, unknown> }).lvds.settings = { get: vi.fn(async () => ({ projectsFolder: projects })), showFolder };
     (window as unknown as { lvds: Record<string, unknown> }).lvds.database = { open: vi.fn(async () => '') };
@@ -3634,8 +3634,8 @@ describe('Design CAD File: Save, Save As, Close and Options', () => {
     const d = opt();
     await openPage(d, 'Files & saving');
     const grp = (name: string) => d.querySelector(`[role="group"][aria-label="${name}"]`) as HTMLElement;
-    await until(() => grp('Projects').textContent!.includes('/home/u/Projects'));
-    expect(grp('LV Database').textContent).toContain('/home/u/Projects/LV Database');
+    await until(() => grp('Projects').textContent!.includes('/plans/Projects'));
+    expect(grp('LV Database').textContent).toContain('/plans/Projects/LV Database');
     expect(grp('Block library').textContent).toContain('Not set');
     expect(grp('Recovery copies').textContent).toContain('App data › recovery');
     expect(grp('Block library').textContent).not.toContain('Change…'); // no chooser without the desktop CAD bridge
