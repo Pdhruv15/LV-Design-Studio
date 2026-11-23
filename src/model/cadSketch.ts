@@ -350,8 +350,13 @@ export function dimensionLines(p1: Pt, p2: Pt, at: Pt, look?: DimLook, box?: Dim
   const pos = look?.textPos;
   let text: Pt;
   if (!pos) {
-    const lift = side * size * 0.5;
-    text = [base[0] + nx * lift, base[1] + ny * lift];
+    // Over the line on the side away from the points, its nearest edge half a size off the line. The text's point is
+    // the middle of its baseline, so where that side is down as the text reads, the baseline goes a text height further
+    // out; horizontal text beside a steep line also clears it by half its width across the line.
+    const fx = nx * side, fy = ny * side;
+    const up = -Math.sin(angle) * fx + Math.cos(angle) * fy, across = Math.cos(angle) * fx + Math.sin(angle) * fy;
+    const lift = size * 0.5 + Math.max(0, -up) * h + (Math.abs(across) * w) / 2;
+    text = [base[0] + fx * lift, base[1] + fy * lift];
   } else {
     // The side of the line that is up as the text reads, and how far the text's middle sits from the line.
     const upx = -Math.sin(lineAngle), upy = Math.cos(lineAngle);
@@ -381,7 +386,7 @@ export function dimOf(it: SketchItem, metresPerUnit: number) {
   const look = it.look;
   const label = look || it.dimKind || it.text?.includes(MEASURED) ? dimLabel(it, metresPerUnit) : it.text ?? '';
   const h = it.h ?? (it.dimKind === 'angular' ? angularArc(it).r : dimMeasure(it)) * 0.04;
-  const box = look && (look.textPos || look.textAlong) ? { w: textWidth(label, h), h } : undefined;
+  const box = { w: textWidth(label, h), h };
   const g: DimLines = it.dimKind === 'angular' ? angularDimLines(it, look, h) : it.dimKind ? radialDimLines(it, look)
     : { ...dimensionLines(it.pts[0], it.pts[1], it.pts[2], look, box, it.dir), arcs: [] };
   return { ...g, label, h };
