@@ -1,6 +1,6 @@
 # UI UX proposal – Design CAD Devices tools (2026-11-23)
 
-Status: **proposed**, waiting for the user's decisions A–F. Nothing is built.
+Status: **approved 2026-11-23** ("go with recommendation": decisions A–F as recommended). Built so far: nothing; step 1 is next.
 
 Mockup: `docs/mockups/cad-devices-panel-mockup.html` (image: `cad-devices-panel-mockup.png`).
 
@@ -59,7 +59,11 @@ All six keep the rule of 2026-11-03: nothing is read from the architect's drawin
 - Mounting heights, and anything in elevation or 3D.
 - The other panels of the Electrical tab: their small tools stay icons.
 
-## Decisions for the user
+## Decisions (all as recommended, 2026-11-23)
+
+A: two panels as drawn. B: the names as drawn. C: all six tools, in the order of the build steps. D: warn and offer the next circuit with room. E: decided when step 6 is built. F: a small proposal of its own, with samples.
+
+As they were asked:
 
 - **A. Arrangement.** Two panels, Devices and Level, as drawn (recommended), or keep one panel and only add the names?
 - **B. Names.** "Socket room", "Check level", "Copy to levels" and the panel name "Level" as drawn (recommended), or other words?
@@ -68,7 +72,7 @@ All six keep the rule of 2026-11-03: nothing is read from the architect's drawin
 - **E. Typical levels.** A typical level has one plan and one set of devices for all its floors, while each floor has its own boards. Should Copy to levels also put the same points on the boards of the other floors of a typical level? Recommended: decide with step 6, after a look at the load schedule side.
 - **F. Colours.** Give ELV devices a colour of their own on Graphite, or leave them as they are? Recommended: a small proposal of its own, with samples.
 
-## Build steps (after approval)
+## Build steps
 
 1. The two panels with names, the arrows of Fill room and Coverage, tooltips that say why a tool is greyed, and the device gallery. Screen only.
 2. Circuit list with the room left, and the next circuit with room on the command line.
