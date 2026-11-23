@@ -1,6 +1,6 @@
 # UI UX proposal – Design CAD Dimension style dialog (2026-11-23)
 
-Status: **approved 2026-11-23** (the recommended answer, in bold, for all five decisions); steps 1 and 2 **built** together in PR 779 (v2.268); step 3 (Text style and Multileader style) **built** in PR 784 (v2.274).
+Status: **approved 2026-11-23** (the recommended answer, in bold, for all five decisions); steps 1 and 2 **built** together in PR 779 (v2.268); step 3 (Text style and Multileader style) **built** in PR 785 (v2.274).
 
 On 2026-11-23 the user sent a screenshot of the Dimension style dialog (DIMSTYLE, Graphite light) and asked for a better design.
 
