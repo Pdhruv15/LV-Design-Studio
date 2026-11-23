@@ -1132,7 +1132,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'DWG', icon: FileDown, title: onSheet ? 'This sheet as DWG (2018 format)' : inModel ? 'Save the drawing as DWG: the version and what goes in (SAVEAS)' : noDrawing, onClick: () => onSheet ? act().exportAs('dwg') : a.cad?.onSaveDwg?.(), disabled: onSheet ? false : !inModel || !a.cad?.onSaveDwg },
         { label: 'Register', icon: FileSpreadsheet, title: 'The sheet register as an Excel workbook', onClick: () => a.output?.onRegister(), disabled: !a.output }
       ],
-      // Dimensions (v2.269, on the Annotate sub-tab): Dimension takes its kind from what is clicked; beside the style and
+      // Dimensions (v2.273, on the Annotate sub-tab): Dimension takes its kind from what is clicked; beside the style and
       // layer lists (PANEL) Update; under them Linear and Continue, each keeping the form used last. ↘: Dimension style.
       [
         cadTool('dim', 'Dimension', MoveHorizontal, 'Dimension (DIM): click a line, arc or circle, or two points, then where the dimension goes. An arc gives its radius, a circle its diameter; a line or two points one horizontal or vertical by where you drag, aligned beside a sloping one'),

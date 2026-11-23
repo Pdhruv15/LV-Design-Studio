@@ -3092,7 +3092,7 @@ describe('CAD command line', () => {
     const dlg = () => document.querySelector('[role="dialog"][aria-label="Dimension style"]') as HTMLElement;
     const pick = (name: string, v: string) => act(() => { const el = dlg().querySelector(`[aria-label="${name}"]`) as HTMLSelectElement | HTMLInputElement; Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value')!.set!.call(el, v); el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true })); });
     const ok = () => act(async () => { (dlg().querySelector('.cad-dlg-ft .p') as HTMLButtonElement).click(); });
-    expect(dlg().querySelector('[role="note"]')!.textContent).toBe('Standard draws as before (sizes follow each dimension\'s length) until it is changed.');
+    expect(dlg().querySelector('[role="note"]')!.textContent).toBe('Draws as before until changed');
     const changes = onChange.mock.calls.length;
     await ok(); // nothing changed: nothing kept, the dimensions draw as before
     expect(onChange.mock.calls).toHaveLength(changes);
@@ -3797,7 +3797,7 @@ describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', 
     expect(last()).toContain('No dimension on this drawing to go on from');
   });
 
-  it('DIM takes its kind from what is clicked: a circle its diameter, an arc its radius, a line its length, aligned beside a sloping one (v2.269)', async () => {
+  it('DIM takes its kind from what is clicked: a circle its diameter, an arc its radius, a line its length, aligned beside a sloping one (v2.273)', async () => {
     const start: Project = { ...villa, cadLayerFile: undefined, cadSketch: [{ file: F, items: [
       { id: 'C1', kind: 'circle', layer: 'LV-SKETCH', pts: [[X, 0]], r: 500 },
       { id: 'A1', kind: 'arc', layer: 'LV-SKETCH', pts: [[X + 3000, 0]], r: 400, a0: 0, a1: Math.PI },
@@ -3846,7 +3846,7 @@ describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', 
     expect(dimMeasure(dims()[5])).toBeCloseTo(5000, 6);
   });
 
-  it('DIMLAYER sets where new dimensions go; DIMSTYLE R makes a style current, DIMSTYLE A gives it to the dimensions picked (v2.269)', async () => {
+  it('DIMLAYER sets where new dimensions go; DIMSTYLE R makes a style current, DIMSTYLE A gives it to the dimensions picked (v2.273)', async () => {
     const styles = { styles: [{ name: 'Standard' }, { name: 'LV 1:100', arrow: 'filled', arrowMm: 3, textMm: 2.5, offsetMm: 1, extendMm: 2, decimals: 0, unit: 'mm' }], current: 'Standard' } as Project['cadDimStyles'];
     const start: Project = { ...villa, cadLayerFile: undefined, cadDimStyles: styles, cadSketch: [{ file: F, items: [] }] };
     act(() => root.render(<Host start={start} />));

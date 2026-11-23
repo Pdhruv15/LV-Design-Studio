@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { addSketch, arcStartCentreEnd, arcThrough, bulgeArc, circle2P, cloudLobes, constructionDistance, constructionSegment, dimensionLines, dimOf, ellipseOf, ellipsePoints, itemAt, moved, polygonPts, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLabel, trayLength, trayLine, typedPoint, updateSketch } from './cadSketch';
+import { addSketch, arcStartCentreEnd, arcThrough, bulgeArc, circle2P, cloudLobes, constructionDistance, constructionSegment, dimensionLines, dimOf, ellipseOf, ellipsePoints, itemAt, moved, polygonPts, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, textWidth, trayLabel, trayLength, trayLine, typedPoint, updateSketch } from './cadSketch';
 import { CHAR_W } from './cadText';
 import type { SketchItem } from '../types';
 
@@ -91,6 +91,33 @@ describe('drawing in the CAD view', () => {
       expect(text, it.id).toHaveLength(1);
       expect(text[0], it.id).toMatchObject({ pts: [d.text], h: d.h, rot: d.angle, just: 'C' });
     }
+  });
+
+  it('keeps Outside text clear of its line on the side away from the points, whichever way that side faces', () => {
+    // The text's point is the middle of its baseline. Its line below the points used to put the baseline just past the
+    // line and the capitals back across it; so did a vertical line right of its points (text reading bottom to top).
+    const look = { arrow: 'tick' as const, size: 100, off: 20, ext: 50 };
+    /** How far each corner of the text lies past the line (at x or y = `at`), out on the side away from the points. */
+    const past = (it: SketchItem, axis: 0 | 1, at: number, away: 1 | -1) => {
+      const d = dimOf(it, 0.001), w = textWidth(d.label, d.h), c = Math.cos(d.angle), s = Math.sin(d.angle);
+      return [-w / 2, w / 2].flatMap((a) => [0, d.h].map((b) => (d.text[axis] + (axis ? a * s + b * c : a * c - b * s) - at) * away));
+    };
+    const dim = (pts: [number, number][], more: Partial<SketchItem> = {}): SketchItem => ({ id: 'D', kind: 'dim', layer: 'LV-ANNO', pts, h: 100, ...more });
+    const cases: { name: string; it: SketchItem; axis: 0 | 1; at: number; away: 1 | -1; clear: number }[] = [];
+    for (const [k, more, clear] of [['style', { look }, 50], ['as before', { text: '4.00' }, 30]] as const) {
+      cases.push(
+        { name: `${k}: line above`, it: dim([[0, 0], [4000, 0], [2000, 800]], more), axis: 1, at: 800, away: 1, clear },
+        { name: `${k}: line below`, it: dim([[0, 0], [4000, 0], [2000, -800]], more), axis: 1, at: -800, away: -1, clear },
+        { name: `${k}: line right, reading up`, it: dim([[0, 0], [0, 4000], [600, 2000]], more), axis: 0, at: 600, away: 1, clear },
+        { name: `${k}: line left, reading up`, it: dim([[0, 0], [0, 4000], [-600, 2000]], more), axis: 0, at: -600, away: -1, clear }
+      );
+    }
+    // Horizontal text beside a vertical line clears it by its half width too.
+    cases.push({ name: 'flat text, line right', it: dim([[0, 0], [0, 4000], [600, 2000]], { look: { ...look, textFlat: true } }), axis: 0, at: 600, away: 1, clear: 50 });
+    for (const c of cases) expect(Math.min(...past(c.it, c.axis, c.at, c.away)), c.name).toBeCloseTo(c.clear, 6);
+    // Where the text was clear, it stays where it was.
+    expect(dimOf(dim([[0, 0], [4000, 0], [2000, 800]], { text: '4.00' }), 0.001).text).toEqual([2000, 830]);
+    expect(dimOf(dim([[0, 0], [4000, 0], [2000, 800]], { look }), 0.001).text).toEqual([2000, 850]);
   });
 
   it('picks a justified text by its box, and writes its justification for the DXF', () => {
