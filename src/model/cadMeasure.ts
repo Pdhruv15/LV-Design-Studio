@@ -16,6 +16,15 @@ export function drawingUnits(insunits: number): { factor: number; label: string;
 
 export const distance = (a: Pt, b: Pt) => Math.hypot(b[0] - a[0], b[1] - a[1]);
 
+/** The box around points as [x0, y0, x1, y1]; null for none. A loop, not Math.min(...), which runs out of stack on a
+ * large selection (every point becomes one argument). */
+export function boxOf(pts: readonly Pt[]): [number, number, number, number] | null {
+  if (!pts.length) return null;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of pts) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  return [x0, y0, x1, y1];
+}
+
 /** The point constrained horizontally or vertically from `from` (ORTHO), whichever is nearer the cursor. */
 export function ortho(from: Pt, to: Pt): Pt {
   return Math.abs(to[0] - from[0]) >= Math.abs(to[1] - from[1]) ? [to[0], from[1]] : [from[0], to[1]];

@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { angleDeg, areaOf, distance, drawingUnits, ortho } from './cadMeasure';
+import { angleDeg, areaOf, boxOf, distance, drawingUnits, ortho } from './cadMeasure';
 
 describe('measuring on a CAD drawing', () => {
+  it('boxes any number of points without running out of stack', () => {
+    expect(boxOf([])).toBeNull();
+    expect(boxOf([[3, -2], [-1, 5], [2, 2]])).toEqual([-1, -2, 3, 5]);
+    // 400,000 points: Math.min(...) over these throws "Maximum call stack size exceeded".
+    const many = Array.from({ length: 400_000 }, (_, i): [number, number] => [i, 1 - i]);
+    expect(boxOf(many)).toEqual([0, -399_998, 399_999, 1]);
+  });
+
   it('knows the drawing units, and takes unitless drawings as millimetres', () => {
     expect(drawingUnits(4)).toEqual({ factor: 0.001, label: 'mm', assumed: false });
     expect(drawingUnits(6).factor).toBe(1);

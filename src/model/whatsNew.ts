@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.263', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD no longer stops on a very large selection', text: 'Picking a very large number of objects at once (Select all on a dense drawing, for example) could stop the page with "Maximum call stack size exceeded". The selection toolbar, zoom to objects, the right-click menu from the keyboard and the block dialog now handle any number of picked objects.' }
+    ]
+  },
+  {
     version: '2.262', date: '2026-11-22',
     items: [
       { title: 'The incoming cable counts in an assumed fault level', text: 'A first board with an incoming cable typed on its Supply tab and no fault level given used to take the assumed source level (about 25 kA at 415 V) at its busbar, ignoring the cable. The cable is now counted, as it already is when a fault level is given, so the level at the board is lower. The level is still marked assumed and its checks stay not verified until a fault level or a source rating is typed.' },
