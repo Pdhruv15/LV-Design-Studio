@@ -51,6 +51,7 @@
     "test:pdf:update": "UPDATE_BASELINES=1 vitest run -c tests/pdf/vitest.config.ts tests/pdf/visual.pdf.ts",
     "build:cli": "vite build -c vite.cli.config.ts",
     "build:cad": "bash scripts/build-cad.sh",
+    "samples:start-levels": "node scripts/make-start-samples.mjs",
     "lvds": "node dist-cli/lvds.mjs"
   },
   "dependencies": {
