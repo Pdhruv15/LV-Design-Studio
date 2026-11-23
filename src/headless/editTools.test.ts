@@ -26,7 +26,7 @@ const file = (n: string) => path.join(folder, `${n}.json`);
 const read = (n: string) => fs.readFileSync(file(n), 'utf-8');
 const load = (n: string) => parseProject(read(n), `${n}.json`);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tool results are checked field by field
-const run = (name: string, args: Record<string, unknown>): Record<string, any> => callTool(toolByName(name)!, args, ctx) as Record<string, any>;
+const run = async (name: string, args: Record<string, unknown>): Promise<Record<string, any>> => (await callTool(toolByName(name)!, args, ctx)) as Record<string, any>;
 /** Symbolic links need permission on Windows; skip there when they cannot be made. */
 const canLink = (() => {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), 'lvds-link-'));
@@ -49,12 +49,12 @@ beforeEach(() => {
 });
 
 describe('offered only with --write', () => {
-  it('servers without --write offer read-only tools only', () => {
+  it('servers without --write offer read-only tools only', async () => {
     expect(offeredTools({ folder: '.', anywhere: false }).some((t) => t.writes)).toBe(false);
     expect(offeredTools({ folder: '.', anywhere: false, write: true }).filter((t) => t.writes).map((t) => t.name)).toEqual(
       expect.arrayContaining(['propose_changes', 'size_circuits', 'add_panel', 'add_circuit', 'move_panel', 'rename_panels', 'copy_panel', 'set_supply', 'undo_change']));
   });
-  it('every tool that deletes or exports asks for the approving engineer', () => {
+  it('every tool that deletes or exports asks for the approving engineer', async () => {
     const gated = offeredTools({ folder: '.', anywhere: false, write: true }).filter((t) => /delete|remove|export_/.test(t.name));
     expect(gated.length).toBeGreaterThan(0);
     for (const t of gated) expect(Object.keys(t.input)).toContain('approvedBy');
@@ -62,22 +62,22 @@ describe('offered only with --write', () => {
 });
 
 describe('preview writes nothing', () => {
-  it('every write tool previews by default', () => {
+  it('every write tool previews by default', async () => {
     const before = read('Villa');
-    run('add_panel', { project: 'Villa', kind: 'SMDB', fedFrom: 'MDB-1' });
-    run('add_circuit', { project: 'Villa', panel: 'SMDB-GF', name: 'Pump', loadKw: 11, lengthM: 20 });
-    run('move_panel', { project: 'Villa', panel: 'DB-GF1', to: 'SMDB-FF' });
-    run('rename_panels', { project: 'Villa', renames: [{ from: 'SMDB-FF', to: 'SMDB-L1' }] });
-    run('copy_panel', { project: 'Villa', panel: 'SMDB-GF', to: 'MDB-1', idFind: 'GF', idReplace: 'L2' });
-    run('size_circuits', { project: 'Failing' });
+    await run('add_panel', { project: 'Villa', kind: 'SMDB', fedFrom: 'MDB-1' });
+    await run('add_circuit', { project: 'Villa', panel: 'SMDB-GF', name: 'Pump', loadKw: 11, lengthM: 20 });
+    await run('move_panel', { project: 'Villa', panel: 'DB-GF1', to: 'SMDB-FF' });
+    await run('rename_panels', { project: 'Villa', renames: [{ from: 'SMDB-FF', to: 'SMDB-L1' }] });
+    await run('copy_panel', { project: 'Villa', panel: 'SMDB-GF', to: 'MDB-1', idFind: 'GF', idReplace: 'L2' });
+    await run('size_circuits', { project: 'Failing' });
     expect(read('Villa')).toBe(before);
     expect(readLog(folder)).toEqual([]);
   });
 });
 
 describe('proposals: the engineer applies them', () => {
-  it('size_circuits proposes the fix; the design is unchanged until accepted and applied in the app', () => {
-    const p = run('size_circuits', { project: 'Failing', mode: 'propose' });
+  it('size_circuits proposes the fix; the design is unchanged until accepted and applied in the app', async () => {
+    const p = await run('size_circuits', { project: 'Failing', mode: 'propose' });
     expect(p.written).toBe(true);
     expect(p.checks.fixed).toContain('GF-SKT');
     const saved = load('Failing');
@@ -92,50 +92,50 @@ describe('proposals: the engineer applies them', () => {
     if (!applied.ok) throw new Error(applied.error);
     expect(evaluateProject(applied.project).find((r) => r.feeder.id === 'GF-SKT')!.status).toBe('ok');
   });
-  it('propose_changes checks fields and values with the app rules', () => {
-    expect(() => run('propose_changes', { project: 'Villa', title: 'Bad', reason: 'test', changes: [{ target: 'feeder', id: 'GF-SKT', field: 'name', value: 'x' }] })).toThrow(/cannot be proposed/);
-    expect(() => run('propose_changes', { project: 'Villa', title: 'Bad', reason: 'test', changes: [{ target: 'feeder', id: 'NOPE', field: 'lengthM', value: 10 }] })).toThrow(/does not exist/);
-    const ok = run('propose_changes', { project: 'Villa', title: 'Longer run', reason: 'Route changed', changes: [{ target: 'feeder', id: 'GF-SKT', field: 'lengthM', value: 120 }] });
+  it('propose_changes checks fields and values with the app rules', async () => {
+    await expect(run('propose_changes', { project: 'Villa', title: 'Bad', reason: 'test', changes: [{ target: 'feeder', id: 'GF-SKT', field: 'name', value: 'x' }] })).rejects.toThrow(/cannot be proposed/);
+    await expect(run('propose_changes', { project: 'Villa', title: 'Bad', reason: 'test', changes: [{ target: 'feeder', id: 'NOPE', field: 'lengthM', value: 10 }] })).rejects.toThrow(/does not exist/);
+    const ok = await run('propose_changes', { project: 'Villa', title: 'Longer run', reason: 'Route changed', changes: [{ target: 'feeder', id: 'GF-SKT', field: 'lengthM', value: 120 }] });
     expect(ok.details.changes[0]).toMatchObject({ item: 'GF-SKT', from: 35, to: 120 });
     expect(ok.checks.newlyFailing).toContain('GF-SKT'); // the preview shows the consequence
   });
-  it('says so when nothing needs sizing', () => {
-    expect(() => run('size_circuits', { project: 'Villa' })).toThrow(/No circuits in scope|already pass/);
+  it('says so when nothing needs sizing', async () => {
+    await expect(run('size_circuits', { project: 'Villa' })).rejects.toThrow(/No circuits in scope|already pass/);
   });
 });
 
 describe('structure changes', () => {
-  it('add_panel and add_circuit size what they add and pass the checks', () => {
-    const a = run('add_panel', { project: 'Villa', kind: 'SMDB', id: 'SMDB-L2', fedFrom: 'MDB-1', lengthM: 60, mode: 'apply' });
+  it('add_panel and add_circuit size what they add and pass the checks', async () => {
+    const a = await run('add_panel', { project: 'Villa', kind: 'SMDB', id: 'SMDB-L2', fedFrom: 'MDB-1', lengthM: 60, mode: 'apply' });
     expect(a.written).toBe(true);
-    const c = run('add_circuit', { project: 'Villa', panel: 'SMDB-L2', name: 'Chiller 1', loadKw: 90, loadType: 'hvac', lengthM: 45, mode: 'apply' });
+    const c = await run('add_circuit', { project: 'Villa', panel: 'SMDB-L2', name: 'Chiller 1', loadKw: 90, loadType: 'hvac', lengthM: 45, mode: 'apply' });
     expect(c.details).toMatchObject({ circuit: 'SMDB-L2-C1', status: 'ok' });
     expect(c.checks.after.fail).toBe(0);
     const p = load('Villa');
     expect(p.boards.find((b) => b.id === 'SMDB-L2')!.upstreamId).toBe('MDB-1');
     expect(p.feeders.find((f) => f.id === 'INC-SMDB-L2')!.feedsBoardId).toBe('SMDB-L2');
-    expect(() => run('add_panel', { project: 'Villa', kind: 'DB', id: 'SMDB-L2', fedFrom: 'MDB-1' })).toThrow(/already exists/);
+    await expect(run('add_panel', { project: 'Villa', kind: 'DB', id: 'SMDB-L2', fedFrom: 'MDB-1' })).rejects.toThrow(/already exists/);
   });
-  it('move, rename and copy use the app rules', () => {
-    expect(() => run('move_panel', { project: 'Villa', panel: 'SMDB-GF', to: 'DB-GF1' })).toThrow(/loop/);
-    expect(() => run('rename_panels', { project: 'Villa', renames: [{ from: 'SMDB-FF', to: 'SMDB-GF' }] })).toThrow(/already exists/);
-    run('rename_panels', { project: 'Villa', renames: [{ from: 'SMDB-FF', to: 'SMDB-L1' }], mode: 'apply' });
+  it('move, rename and copy use the app rules', async () => {
+    await expect(run('move_panel', { project: 'Villa', panel: 'SMDB-GF', to: 'DB-GF1' })).rejects.toThrow(/loop/);
+    await expect(run('rename_panels', { project: 'Villa', renames: [{ from: 'SMDB-FF', to: 'SMDB-GF' }] })).rejects.toThrow(/already exists/);
+    await run('rename_panels', { project: 'Villa', renames: [{ from: 'SMDB-FF', to: 'SMDB-L1' }], mode: 'apply' });
     const p = load('Villa');
     expect(p.boards.some((b) => b.id === 'SMDB-L1')).toBe(true);
     expect(p.feeders.find((f) => f.feedsBoardId === 'SMDB-L1')).toBeDefined();
-    const cp = run('copy_panel', { project: 'Villa', panel: 'SMDB-GF', to: 'MDB-1', idFind: 'GF', idReplace: 'L2', mode: 'apply' });
+    const cp = await run('copy_panel', { project: 'Villa', panel: 'SMDB-GF', to: 'MDB-1', idFind: 'GF', idReplace: 'L2', mode: 'apply' });
     expect(cp.details.panels).toEqual(expect.arrayContaining(['SMDB-L2', 'DB-L21']));
   });
 });
 
 describe('move_panel on a first board', () => {
-  it('its typed incoming cable becomes the way from the new source and the supply block goes', () => {
+  it('its typed incoming cable becomes the way from the new source and the supply block goes', async () => {
     const extra: Project = { ...villa, id: 'proj-first', boards: [...villa.boards, { id: 'DB-LV', name: 'DB LV', kind: 'DB', ratedCurrentA: 63, supply: { faultKa: 10, ratingA: 63, device: 'MCCB', incomer: { cableCsaMm2: 16, lengthM: 25 } } }] };
     fs.writeFileSync(file('First'), JSON.stringify(extra, null, 2));
-    const v = run('move_panel', { project: 'First', panel: 'DB-LV', to: 'SMDB-GF' });
+    const v = await run('move_panel', { project: 'First', panel: 'DB-LV', to: 'SMDB-GF' });
     expect(v.warnings.join(' ')).toMatch(/typed incoming cable of DB-LV is now its incomer from SMDB-GF/);
     expect(v.warnings.join(' ')).toMatch(/The given values \(Ik″ 10 kA\) are removed/);
-    run('move_panel', { project: 'First', panel: 'DB-LV', to: 'SMDB-GF', mode: 'apply' });
+    await run('move_panel', { project: 'First', panel: 'DB-LV', to: 'SMDB-GF', mode: 'apply' });
     const p = load('First');
     expect(p.boards.find((b) => b.id === 'DB-LV')).toMatchObject({ upstreamId: 'SMDB-GF' });
     expect(p.boards.find((b) => b.id === 'DB-LV')!.supply).toBeUndefined();
@@ -144,34 +144,34 @@ describe('move_panel on a first board', () => {
 });
 
 describe('move_panel on a board that is not grown upward', () => {
-  it('a meter cabinet with a typed cable is only moved: no incomer is promised', () => {
+  it('a meter cabinet with a typed cable is only moved: no incomer is promised', async () => {
     const extra: Project = { ...villa, id: 'proj-mc', boards: [...villa.boards, { id: 'MC-1', name: 'MC 1', kind: 'MC', supply: { faultKa: 10, ratingA: 63, incomer: { cableCsaMm2: 16, lengthM: 25 } } }] };
     fs.writeFileSync(file('Meter'), JSON.stringify(extra, null, 2));
-    const v = run('move_panel', { project: 'Meter', panel: 'MC-1', to: 'SMDB-GF' });
+    const v = await run('move_panel', { project: 'Meter', panel: 'MC-1', to: 'SMDB-GF' });
     expect(v.warnings.join(' ')).not.toMatch(/typed incoming cable/);
     expect(v.warnings.join(' ')).toMatch(/flagged "to check"/);
   });
 });
 
 describe('backup, log and undo', () => {
-  it('undo puts back the exact file, newest change first', () => {
+  it('undo puts back the exact file, newest change first', async () => {
     const original = read('Villa');
-    run('add_panel', { project: 'Villa', kind: 'DB', id: 'DB-X', fedFrom: 'SMDB-GF', mode: 'apply' });
+    await run('add_panel', { project: 'Villa', kind: 'DB', id: 'DB-X', fedFrom: 'SMDB-GF', mode: 'apply' });
     const afterFirst = read('Villa');
-    run('add_circuit', { project: 'Villa', panel: 'DB-X', name: 'Load', loadKw: 3, lengthM: 15, phases: 1, mode: 'apply' });
+    await run('add_circuit', { project: 'Villa', panel: 'DB-X', name: 'Load', loadKw: 3, lengthM: 15, phases: 1, mode: 'apply' });
     expect(readLog(folder)).toHaveLength(2);
-    expect(run('undo_change', { project: 'Villa' }).mode).toBe('preview');
-    run('undo_change', { project: 'Villa', mode: 'apply' });
+    expect((await run('undo_change', { project: 'Villa' })).mode).toBe('preview');
+    await run('undo_change', { project: 'Villa', mode: 'apply' });
     expect(read('Villa')).toBe(afterFirst);
-    run('undo_change', { project: 'Villa', mode: 'apply' });
+    await run('undo_change', { project: 'Villa', mode: 'apply' });
     expect(read('Villa')).toBe(original);
-    expect(() => run('undo_change', { project: 'Villa', mode: 'apply' })).toThrow(/No change to undo/);
-    expect(run('list_changes', { project: 'Villa' }).filter((e: { undone?: boolean }) => e.undone)).toHaveLength(2);
+    await expect(run('undo_change', { project: 'Villa', mode: 'apply' })).rejects.toThrow(/No change to undo/);
+    expect((await run('list_changes', { project: 'Villa' })).filter((e: { undone?: boolean }) => e.undone)).toHaveLength(2);
   });
-  it('undo refuses when the file changed since, and says where the backup is', () => {
-    const a = run('add_panel', { project: 'Villa', kind: 'DB', id: 'DB-Y', fedFrom: 'SMDB-GF', mode: 'apply' });
+  it('undo refuses when the file changed since, and says where the backup is', async () => {
+    const a = await run('add_panel', { project: 'Villa', kind: 'DB', id: 'DB-Y', fedFrom: 'SMDB-GF', mode: 'apply' });
     fs.writeFileSync(file('Villa'), read('Villa').replace('"Demonstration Project', '"Edited Demonstration Project')); // saved from the app
-    expect(() => run('undo_change', { project: 'Villa', change: a.change, mode: 'apply' })).toThrow(/has changed since.*\.lvds-agent/);
+    await expect(run('undo_change', { project: 'Villa', change: a.change, mode: 'apply' })).rejects.toThrow(/has changed since.*\.lvds-agent/);
   });
 });
 
@@ -183,10 +183,10 @@ describe('a log changed by someone else cannot make undo copy another file into 
   const forge = (id: string, backup: string, extra: Record<string, unknown> = {}) => fs.appendFileSync(log(),
     JSON.stringify({ id, at: new Date().toISOString(), file: 'Villa.json', tool: 'add_panel', summary: 'Forged', beforeHash: sha(SECRET), afterHash: sha(read('Villa')), backup, ...extra }) + '\n');
 
-  it('leaves out lines that are not changes these tools wrote, and keeps the real ones', () => {
+  it('leaves out lines that are not changes these tools wrote, and keeps the real ones', async () => {
     const secret = path.join(root, 'secret.json');
     fs.writeFileSync(secret, SECRET);
-    const a = run('add_panel', { project: 'Villa', kind: 'DB', id: 'DB-T', fedFrom: 'SMDB-GF', mode: 'apply' });
+    const a = await run('add_panel', { project: 'Villa', kind: 'DB', id: 'DB-T', fedFrom: 'SMDB-GF', mode: 'apply' });
     const now = read('Villa');
     forge('C-20990101000000-aaaa', path.relative(folder, secret)); // ../secret.json
     forge('C-20990101000000-bbbb', secret); // absolute
@@ -197,15 +197,15 @@ describe('a log changed by someone else cannot make undo copy another file into 
     fs.appendFileSync(log(), 'not json\n[1, 2]\nnull\n');
     expect(readLog(folder).map((e) => e.id)).toEqual([a.change]);
     for (const change of ['C-20990101000000-aaaa', 'C-20990101000000-bbbb', 'C-20990101000000-cccc', '../../secret', 'C-20990101000000-eeee']) {
-      expect(() => run('undo_change', { project: 'Villa', change, mode: 'apply' })).toThrow(/No change/);
+      await expect(run('undo_change', { project: 'Villa', change, mode: 'apply' })).rejects.toThrow(/No change/);
     }
     expect(read('Villa')).toBe(now);
-    run('undo_change', { project: 'Villa', mode: 'apply' }); // the real change is still the one undone
+    await run('undo_change', { project: 'Villa', mode: 'apply' }); // the real change is still the one undone
     expect(read('Villa')).not.toContain('DB-T');
   });
 
-  it_('reads only the version that change kept: not a link, not in a linked folder, not changed', () => {
-    const a = run('add_panel', { project: 'Villa', kind: 'DB', id: 'DB-U', fedFrom: 'SMDB-GF', mode: 'apply' });
+  it_('reads only the version that change kept: not a link, not in a linked folder, not changed', async () => {
+    const a = await run('add_panel', { project: 'Villa', kind: 'DB', id: 'DB-U', fedFrom: 'SMDB-GF', mode: 'apply' });
     const now = read('Villa');
     const dir = path.join(folder, '.lvds-agent', 'backups', 'Villa');
     const kept = path.join(dir, `${a.change}.json`);
@@ -213,32 +213,32 @@ describe('a log changed by someone else cannot make undo copy another file into 
     fs.copyFileSync(kept, copy); // the same text: only the link is wrong
     fs.rmSync(kept);
     fs.symlinkSync(copy, kept);
-    expect(() => run('undo_change', { project: 'Villa', mode: 'apply' })).toThrow(/missing or was changed/);
+    await expect(run('undo_change', { project: 'Villa', mode: 'apply' })).rejects.toThrow(/missing or was changed/);
     fs.rmSync(kept);
     fs.writeFileSync(kept, fs.readFileSync(copy, 'utf-8').replace('Demonstration', 'Changed'));
-    expect(() => run('undo_change', { project: 'Villa', mode: 'apply' })).toThrow(/missing or was changed/);
+    await expect(run('undo_change', { project: 'Villa', mode: 'apply' })).rejects.toThrow(/missing or was changed/);
     fs.copyFileSync(copy, kept);
     fs.renameSync(dir, `${dir}-real`);
     fs.symlinkSync(`${dir}-real`, dir, 'dir');
-    expect(() => run('undo_change', { project: 'Villa', mode: 'apply' })).toThrow(/missing or was changed/);
+    await expect(run('undo_change', { project: 'Villa', mode: 'apply' })).rejects.toThrow(/missing or was changed/);
     expect(read('Villa')).toBe(now);
     fs.unlinkSync(dir);
     fs.renameSync(`${dir}-real`, dir);
-    run('undo_change', { project: 'Villa', mode: 'apply' }); // its own backup, as it was kept
+    await run('undo_change', { project: 'Villa', mode: 'apply' }); // its own backup, as it was kept
     expect(read('Villa')).not.toContain('DB-U');
   });
 });
 
 describe('never over unsaved work', () => {
-  it('refuses while the app has unsaved changes for the project', () => {
+  it('refuses while the app has unsaved changes for the project', async () => {
     fs.mkdirSync(path.join(appData, 'recovery'), { recursive: true });
     fs.writeFileSync(path.join(appData, 'recovery', 'proj-villa.json'), '{}');
     const before = read('Villa');
-    expect(() => run('add_panel', { project: 'Villa', kind: 'DB', fedFrom: 'SMDB-GF', mode: 'apply' })).toThrow(/unsaved changes/);
+    await expect(run('add_panel', { project: 'Villa', kind: 'DB', fedFrom: 'SMDB-GF', mode: 'apply' })).rejects.toThrow(/unsaved changes/);
     expect(read('Villa')).toBe(before);
-    expect(() => run('add_panel', { project: 'Failing', kind: 'DB', fedFrom: 'SMDB-GF', mode: 'apply' })).not.toThrow(); // other projects are fine
+    await expect(run('add_panel', { project: 'Failing', kind: 'DB', fedFrom: 'SMDB-GF', mode: 'apply' })).resolves.toMatchObject({ written: true }); // other projects are fine
   });
-  it('refuses when the file changed after it was read', () => {
+  it('refuses when the file changed after it was read', async () => {
     const text = read('Villa');
     fs.writeFileSync(file('Villa'), text + '\n');
     expect(writeBlocked(load('Villa'), file('Villa'), text)).toMatch(/changed while/);
@@ -274,11 +274,11 @@ describe('servers', () => {
       expect(readLog(folder).slice(-1)[0].client).toBe('Test bClient/b 9.9');
     } finally { await client.close(); }
   });
-  it('a client name is cleaned and kept short; the command line names no client', () => {
+  it('a client name is cleaned and kept short; the command line names no client', async () => {
     expect(clientLabel({ name: 'x'.repeat(200), version: '1' })).toBe(`${'x'.repeat(60)} 1`);
     expect(clientLabel({ name: '\u0007<>' })).toBeUndefined();
     expect(clientLabel(undefined)).toBeUndefined();
-    run('add_panel', { project: 'Villa', kind: 'DB', fedFrom: 'SMDB-GF', mode: 'apply' });
+    await run('add_panel', { project: 'Villa', kind: 'DB', fedFrom: 'SMDB-GF', mode: 'apply' });
     expect(readLog(folder).slice(-1)[0].client).toBeUndefined();
   });
   it('API: a change needs POST with JSON', async () => {
@@ -315,30 +315,30 @@ describe('set_supply: the values given from upstream', () => {
   beforeEach(() => fs.writeFileSync(file('Lv'), JSON.stringify(lvProject(), null, 2)));
   const given = { project: 'Lv', panel: 'MDB-1', vdUsedPct: 1.2, zeOhm: 0.05, xr: 4, allowedA: 1400, incomer: { cableCsaMm2: 240, lengthM: 20, parallel: 2 } };
 
-  it('previews by default and writes nothing', () => {
+  it('previews by default and writes nothing', async () => {
     const before = read('Lv');
-    const v = run('set_supply', given);
+    const v = await run('set_supply', given);
     expect(v).toMatchObject({ mode: 'preview', written: false });
     expect(v.summary).toMatch(/xr, vdUsedPct, zeOhm, allowedA, incomer/);
     expect(read('Lv')).toBe(before);
     expect(readLog(folder)).toEqual([]);
   });
-  it('applies, keeps the other supply fields, logs and undoes', () => {
+  it('applies, keeps the other supply fields, logs and undoes', async () => {
     const before = read('Lv');
-    const a = run('set_supply', { ...given, mode: 'apply' });
+    const a = await run('set_supply', { ...given, mode: 'apply' });
     expect(a.written).toBe(true);
     expect(load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply).toEqual({ faultKa: 25, ratingA: 1600, device: 'ACB', vdUsedPct: 1.2, zeOhm: 0.05, xr: 4, allowedA: 1400, incomer: { cableCsaMm2: 240, lengthM: 20, parallel: 2 } });
-    run('undo_change', { project: 'Lv', change: a.change, mode: 'apply' });
+    await run('undo_change', { project: 'Lv', change: a.change, mode: 'apply' });
     expect(read('Lv')).toBe(before);
   });
-  it('null clears a value; nothing to set is an error', () => {
-    run('set_supply', { ...given, mode: 'apply' });
-    run('set_supply', { project: 'Lv', panel: 'MDB-1', zeOhm: null, incomer: null, mode: 'apply' });
+  it('null clears a value; nothing to set is an error', async () => {
+    await run('set_supply', { ...given, mode: 'apply' });
+    await run('set_supply', { project: 'Lv', panel: 'MDB-1', zeOhm: null, incomer: null, mode: 'apply' });
     const s = load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply!;
     expect(s.zeOhm).toBeUndefined();
     expect(s.incomer).toBeUndefined();
     expect(s.vdUsedPct).toBe(1.2);
-    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1' })).toThrow(/at least one value/);
+    await expect(run('set_supply', { project: 'Lv', panel: 'MDB-1' })).rejects.toThrow(/at least one value/);
   });
   it('CLI: --zeOhm null and --incomer null clear a value; null is refused where the tool does not allow it', async () => {
     const out: string[] = [];
@@ -351,46 +351,46 @@ describe('set_supply: the values given from upstream', () => {
     expect(supplyOf().incomer).toBeUndefined();
     expect(await main(['add-panel', 'Lv', '--kind', 'null', '--folder', folder], '1', io)).toBe(2); // not a nullable flag: still an error
   });
-  it('a source rating gives a calculated level: the three inputs are written, no "assumed" warning, and the level is reported', () => {
-    run('set_supply', { project: 'Lv', panel: 'MDB-1', faultKa: null, kind: 'generator', mode: 'apply' });
-    const noRating = run('set_supply', { project: 'Lv', panel: 'MDB-1', xdPct: 15, mode: 'apply' });
+  it('a source rating gives a calculated level: the three inputs are written, no "assumed" warning, and the level is reported', async () => {
+    await run('set_supply', { project: 'Lv', panel: 'MDB-1', faultKa: null, kind: 'generator', mode: 'apply' });
+    const noRating = await run('set_supply', { project: 'Lv', panel: 'MDB-1', xdPct: 15, mode: 'apply' });
     expect(noRating.warnings).toEqual(['No fault level, or the source rating: the fault levels below stay assumed (not verified).']);
-    const a = run('set_supply', { project: 'Lv', panel: 'MDB-1', ratedKva: 250, xdPct: 20, faultMultiple: 1.5, mode: 'apply' });
+    const a = await run('set_supply', { project: 'Lv', panel: 'MDB-1', ratedKva: 250, xdPct: 20, faultMultiple: 1.5, mode: 'apply' });
     expect(a.warnings).toBeUndefined(); // 250 kVA at X″d 20 %: 1.05 × 347.8 ÷ 0.2 = 1.83 kA, calculated
     expect(load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply).toMatchObject({ kind: 'generator', ratedKva: 250, xdPct: 20, faultMultiple: 1.5 });
-    const shown = run('get_panel', { project: 'Lv', panel: 'MDB-1' }) as { supplyFaultLevel?: { kA: number; basis: string; from: string } };
+    const shown = (await run('get_panel', { project: 'Lv', panel: 'MDB-1' })) as { supplyFaultLevel?: { kA: number; basis: string; from: string } };
     expect(shown.supplyFaultLevel).toEqual({ kA: 1.83, basis: 'calculated', from: '250 kVA · X″d 20 %' });
-    expect((run('get_panel', { project: 'Lv', panel: 'MDB-1' }) as { allowedA?: number }).allowedA).toBe(347.8); // 250 000 ÷ (√3 × 415), one decimal
-    run('set_supply', { project: 'Lv', panel: 'MDB-1', ratedKva: null, mode: 'apply' });
+    expect(((await run('get_panel', { project: 'Lv', panel: 'MDB-1' })) as { allowedA?: number }).allowedA).toBe(347.8); // 250 000 ÷ (√3 × 415), one decimal
+    await run('set_supply', { project: 'Lv', panel: 'MDB-1', ratedKva: null, mode: 'apply' });
     expect(load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply!.ratedKva).toBeUndefined();
   });
-  it('refuses a rating or reactance the app rules refuse', () => {
-    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', ratedKva: 0 })).toThrow();
-    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', xdPct: 100 })).toThrow();
-    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', faultMultiple: 0.9 })).toThrow();
-    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', faultMultiple: 11 })).toThrow();
+  it('refuses a rating or reactance the app rules refuse', async () => {
+    await expect(run('set_supply', { project: 'Lv', panel: 'MDB-1', ratedKva: 0 })).rejects.toThrow();
+    await expect(run('set_supply', { project: 'Lv', panel: 'MDB-1', xdPct: 100 })).rejects.toThrow();
+    await expect(run('set_supply', { project: 'Lv', panel: 'MDB-1', faultMultiple: 0.9 })).rejects.toThrow();
+    await expect(run('set_supply', { project: 'Lv', panel: 'MDB-1', faultMultiple: 11 })).rejects.toThrow();
   });
-  it('checks values with the app rules; a transformer or a sub-panel takes none', () => {
-    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', vdUsedPct: 4 })).toThrow(/voltage drop used 4 %/);
-    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', faultKaMin: 30 })).toThrow(/above the fault level 25 kA/);
-    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', zeOhm: -1 })).toThrow();
-    expect(() => run('set_supply', { project: 'Villa', panel: 'MDB-1', zeOhm: 0.1 })).toThrow(/has a transformer/);
-    expect(() => run('set_supply', { project: 'Lv', panel: 'SMDB-GF', zeOhm: 0.1 })).toThrow(/first panel/);
+  it('checks values with the app rules; a transformer or a sub-panel takes none', async () => {
+    await expect(run('set_supply', { project: 'Lv', panel: 'MDB-1', vdUsedPct: 4 })).rejects.toThrow(/voltage drop used 4 %/);
+    await expect(run('set_supply', { project: 'Lv', panel: 'MDB-1', faultKaMin: 30 })).rejects.toThrow(/above the fault level 25 kA/);
+    await expect(run('set_supply', { project: 'Lv', panel: 'MDB-1', zeOhm: -1 })).rejects.toThrow();
+    await expect(run('set_supply', { project: 'Villa', panel: 'MDB-1', zeOhm: 0.1 })).rejects.toThrow(/has a transformer/);
+    await expect(run('set_supply', { project: 'Lv', panel: 'SMDB-GF', zeOhm: 0.1 })).rejects.toThrow(/first panel/);
   });
-  it('creates the supply block on a first panel without one and says so; panel outputs show the values and the checks', () => {
+  it('creates the supply block on a first panel without one and says so; panel outputs show the values and the checks', async () => {
     const none: Project = { ...lvProject(), id: 'proj-none', boards: lvProject().boards.map((b) => (b.id === 'MDB-1' ? { id: b.id, name: b.name, kind: b.kind } : b)) };
     fs.writeFileSync(file('None'), JSON.stringify(none));
-    const v = run('set_supply', { project: 'None', panel: 'MDB-1', zeOhm: 0.1 });
+    const v = await run('set_supply', { project: 'None', panel: 'MDB-1', zeOhm: 0.1 });
     expect(v.warnings.join(' ')).toMatch(/no supply block/);
-    run('set_supply', { ...given, mode: 'apply' });
-    const g = run('get_panel', { project: 'Lv', panel: 'MDB-1' });
+    await run('set_supply', { ...given, mode: 'apply' });
+    const g = await run('get_panel', { project: 'Lv', panel: 'MDB-1' });
     expect(g.supply).toMatchObject({ fedBy: 'source', faultKa: 25, ratingA: 1600, vdUsedPct: 1.2, zeOhm: 0.05, incomer: { cableCsaMm2: 240 } });
     expect(g.incomingCable).toMatchObject({ vdUsedPct: 1.2, status: expect.stringMatching(/ok|warn|bad/) });
     expect(g.supplyDiscrimination.length).toBeGreaterThan(0);
     expect(g.allowedA).toBe(1400);
-    expect(run('list_panels', { project: 'Lv' })[0].allowedLoadingPct).toBeGreaterThan(0);
+    expect((await run('list_panels', { project: 'Lv' }))[0].allowedLoadingPct).toBeGreaterThan(0);
     // Unchanged: a panel without given values has none of these keys.
-    const plain = run('get_panel', { project: 'None', panel: 'MDB-1' });
+    const plain = await run('get_panel', { project: 'None', panel: 'MDB-1' });
     expect(Object.keys(plain).filter((k) => /supply|incomingCable|allowed/.test(k))).toEqual([]);
   });
 });
@@ -398,15 +398,15 @@ describe('set_supply: the values given from upstream', () => {
 describe('set_supply: the source kind', () => {
   const lv = (): Project => ({ ...sampleProject, id: 'proj-lv', boards: sampleProject.boards.map((b) => (b.id === 'MDB-1' ? { id: b.id, name: b.name, kind: b.kind, supply: { faultKa: 25 } } : b)) });
   beforeEach(() => fs.writeFileSync(file('Lv'), JSON.stringify(lv(), null, 2)));
-  it('sets the kind, keeps the other fields, and null clears it', () => {
-    run('set_supply', { project: 'Lv', panel: 'MDB-1', kind: 'generator', mode: 'apply' });
+  it('sets the kind, keeps the other fields, and null clears it', async () => {
+    await run('set_supply', { project: 'Lv', panel: 'MDB-1', kind: 'generator', mode: 'apply' });
     expect(load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply).toEqual({ faultKa: 25, kind: 'generator' });
-    expect(run('get_panel', { project: 'Lv', panel: 'MDB-1' }).supply?.kind).toBe('generator');
-    run('set_supply', { project: 'Lv', panel: 'MDB-1', kind: null, mode: 'apply' });
+    expect((await run('get_panel', { project: 'Lv', panel: 'MDB-1' })).supply?.kind).toBe('generator');
+    await run('set_supply', { project: 'Lv', panel: 'MDB-1', kind: null, mode: 'apply' });
     expect(load('Lv').boards.find((b) => b.id === 'MDB-1')!.supply).toEqual({ faultKa: 25 });
   });
-  it('refuses a kind that is not in the list', () => {
-    expect(() => run('set_supply', { project: 'Lv', panel: 'MDB-1', kind: 'steam' })).toThrow();
+  it('refuses a kind that is not in the list', async () => {
+    await expect(run('set_supply', { project: 'Lv', panel: 'MDB-1', kind: 'steam' })).rejects.toThrow();
   });
   it('CLI: --kind sets it', async () => {
     const out: string[] = [];

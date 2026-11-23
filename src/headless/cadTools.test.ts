@@ -1,4 +1,5 @@
 // @vitest-environment node
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -6,6 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import type { Project } from '../types';
 import { parseProject } from './project';
+import { packPlan } from '../model/planPackage';
 import { callTool, toolByName, type ToolContext } from './tools';
 
 let root: string, folder: string;
@@ -71,8 +73,26 @@ describe('CAD tools (built-in DWG / DXF reader)', () => {
 });
 
 describe('a project that keeps its drawn work in a .lvplan', () => {
-  it('is refused by the plan tools until lvds reads that file, so a plan is never measured in the wrong units', async () => {
-    fs.writeFileSync(path.join(folder, 'Villa.json'), JSON.stringify({ ...villa, plan: { file: 'Villa.lvplan', sha256: 'a'.repeat(64), version: 1 } }, null, 2));
-    await expect(run('cad_plan', { project: 'Villa', drawing: 'GF plan.dwg' })).rejects.toThrow(/Villa\.lvplan, which this version of lvds cannot read yet/);
+  /** Villa as the desktop app saves it: Villa.lvds linked to Villa.lvplan, which holds the drawn work and its units. */
+  async function savedAsPair(p: Project) {
+    const { bytes, project: rest } = await packPlan(p);
+    fs.writeFileSync(path.join(folder, 'Villa.lvplan'), bytes!);
+    fs.writeFileSync(path.join(folder, 'Villa.lvds'), JSON.stringify({ ...rest, plan: { file: 'Villa.lvplan', sha256: crypto.createHash('sha256').update(bytes!).digest('hex'), version: 1 } }, null, 2));
+    fs.rmSync(path.join(folder, 'Villa.json'));
+  }
+  const chosen = { ...villa, cadPlanUnits: { 'gf plan.dwg': 'cm' }, cadSketch: [{ file: 'gf plan.dwg', items: [] }] } as Project;
+
+  it('reads the drawing units chosen in Design CAD from the .lvplan', async () => {
+    fs.writeFileSync(path.join(folder, 'Villa.json'), JSON.stringify(chosen, null, 2));
+    const inside = await run('cad_plan', { project: 'Villa', drawing: 'GF plan.dwg' });
+    expect(inside.units).not.toBe('drawing in mm');
+    await savedAsPair(chosen);
+    expect((await run('cad_plan', { project: 'Villa', drawing: 'GF plan.dwg' })).units).toBe(inside.units);
+  });
+
+  it('refuses the plan when the .lvplan is missing or out of date, so it is never measured in the wrong units', async () => {
+    await savedAsPair(chosen);
+    fs.writeFileSync(path.join(folder, 'Villa.lvplan'), 'PK not the drawn work it links to');
+    await expect(run('cad_plan', { project: 'Villa', drawing: 'GF plan.dwg' })).rejects.toThrow(/The drawn work for this project \(Villa\.lvplan\) is missing or out of date/);
   });
 });

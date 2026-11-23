@@ -1,6 +1,6 @@
 # Native drawing file (.lvplan): Phase 2 plan (2026-11-22)
 
-Status: **approved 2026-11-22** ("Next" after the plan: P1–P5 as recommended). Step 0 measured the same day (results below). Step 1 built 2026-11-23 (`src/model/planPackage.ts`, layout in `contracts/README.md`). **Step 0 was corrected on 2026-11-23** (see Correction below). P6 decided the same day: two files ("GO WITH A"). Step 2 built 2026-11-23 (v2.265, results below); step 3 is next. Follows [Native drawing format - 2026-11-21](Native%20drawing%20format%20-%202026-11-21.md). There, the user approved the chunked package, the layout for AI tools, drawn work in the native file (D4) and `.lvplan` as the working name (D3). Phase 1 (b), the faster engine, is merged (PRs 752, 756, 757). The cache, Phase 1 (a), waits until it is needed.
+Status: **approved 2026-11-22** ("Next" after the plan: P1–P5 as recommended). Step 0 measured the same day (results below). Step 1 built 2026-11-23 (`src/model/planPackage.ts`, layout in `contracts/README.md`). **Step 0 was corrected on 2026-11-23** (see Correction below). P6 decided the same day: two files ("GO WITH A"). Step 2 built 2026-11-23 (v2.265), step 3 the same day (v2.266); results below. Step 5 (cache) only if needed. Follows [Native drawing format - 2026-11-21](Native%20drawing%20format%20-%202026-11-21.md). There, the user approved the chunked package, the layout for AI tools, drawn work in the native file (D4) and `.lvplan` as the working name (D3). Phase 1 (b), the faster engine, is merged (PRs 752, 756, 757). The cache, Phase 1 (a), waits until it is needed.
 
 ## Goal
 
@@ -150,7 +150,7 @@ Built as planned, with these details:
 - **Other file operations.** Moving to the trash, restoring (under the restored name), emptying the trash, and the copy in the project folder (project folder customisation) all take the `.lvplan` along. A deleted older `.json` project never takes the `.lvplan` of a `.lvds` with the same name, and a new project never takes the name of a `.lvplan` left on its own.
 - **Schema 5.** `CURRENT_SCHEMA` is 5, so the app of v2.264 and before opens a saved project read-only.
 - **Not changed.** Recovery copies still hold the whole project, drawn work included (they are one file in the app's own folder). The web version keeps one stored copy, as before.
-- **Headless until step 3.** `lvds` does not read the `.lvplan` yet. Its tools do not read the drawn work, except `cad_plan` and `rooms_from_cad`, which read the drawing units chosen in Design CAD: they refuse a project that has a link, rather than measure in the wrong units. A write by `lvds` keeps the link, so the drawn work stays as it is. Step 3 removes the refusal.
+- **Headless until step 3.** In step 2 alone, `lvds` did not read the `.lvplan`: `cad_plan` and `rooms_from_cad`, which read the drawing units chosen in Design CAD, refused a project with a link. Step 3 replaces that.
 - **Two bugs from step 1 found and fixed.** The manifest listed parts in the order their hashes finished, so the same drawn work could give a different file; it now lists them in the order they are met. The zip also dated its folder entries with the current time; it now has none. Both have regression tests.
 - **The zip is not moved to a background worker.** It runs only when the drawn work changed.
 
@@ -163,6 +163,14 @@ Built as planned, with these details:
 | 10 MB | 28.4 MB | 70 / 51 ms | 0.85 + 1.45 MB | 181 / 78 ms | 21 ms |
 
 Most saves do not change the drawn work: at 10 MB they take 21 ms against 70 ms today, and write 0.85 MB instead of 28.4 MB.
+
+## Step 3 results (2026-11-23)
+
+- **Reading.** Every `lvds` tool that reads a project's content (calculations, checks, ELV, exchange packages, exports, the plan tools) opens it with its drawn work put back (`openProjectFull`, `src/headless/project.ts`): the same candidates and SHA-256 check as the app, then `unpackPlan`. The change log, undo and the MCP name hiding read only the project file.
+- **Writing.** A write by `lvds` splits a `.lvds` as the app saves it (`packPlan`): the `.lvplan` first, only when it changed, with the one before as `.lvplan.bak`, then the project file with its link. `lvds` makes the same bytes as the app, so a change to a board or circuit never rewrites the `.lvplan`. An older `.lvds` with its drawings inside is moved at the first write, as the app does at its next save, and undo puts back the file as it was. An older `.json` keeps its drawings inside (it has no file beside it).
+- **Safety.** A write is refused when the `.lvplan` changed after the project was read. When the drawn work is missing, the project keeps its link and nothing is written over the `.lvplan`; the plan tools refuse it, and exports list it as a problem ("leave the drawings out", exported only with `exportAnyway`).
+- **Tools are async.** `openProjectFull` reads the zip, so the tools that read content, and `edit`, now return promises. The command line, MCP server and local API already waited for every tool.
+- **Checked with the built `lvds`** (`npm run build:cli`) on a pair saved by the app's own `saveProjectPair`: the JSON export holds the drawn work, and adding a panel leaves the `.lvplan` as it was.
 
 ## Decisions for the user
 

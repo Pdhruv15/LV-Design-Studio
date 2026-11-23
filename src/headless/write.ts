@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Project } from '../types';
 import { withUids } from '../model/stableIds';
-import { PROJECT_FILE, unsavedCopyInApp } from './project';
+import { packPlan, PLAN_VERSION, PlanError } from '../model/planPackage';
+import { planFileOf, planShaOf, PROJECT_FILE, sha256Of, unsavedCopyInApp } from './project';
 import { areRealDirs, MAX_PROJECT_BYTES, openToAppend, readFileLimited, realDirs } from './safeFiles';
 
 /** Writing a project file from outside the app (Stage 2), safely:
@@ -16,7 +17,7 @@ import { areRealDirs, MAX_PROJECT_BYTES, openToAppend, readFileLimited, realDirs
  * the folder (or a sync) can change the log, so each line is checked, and undo reads only the backup that change made,
  * found by the change's id: never a path written in the log. */
 
-const sha = (text: string) => crypto.createHash('sha256').update(text).digest('hex');
+const sha = sha256Of;
 const AGENT = '.lvds-agent';
 export const agentDir = (folder: string) => path.join(folder, AGENT);
 /** .lvds-agent, or a folder in it, made when missing; each must be a real folder, not a link. */
@@ -49,13 +50,35 @@ export interface ChangeEntry {
 
 export class WriteRefused extends Error {}
 
-function writeAtomic(full: string, text: string): void {
+function writeAtomic(full: string, data: string | Buffer): void {
   const tmp = `${full}.tmp-lvds-${process.pid}-${Date.now()}`;
   const fd = fs.openSync(tmp, 'wx'); // a new file: never through a link planted at that name
-  try { fs.writeFileSync(fd, text, 'utf-8'); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  try { fs.writeFileSync(fd, data); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
   fs.renameSync(tmp, full);
-  const back = readFileLimited(full, Buffer.byteLength(text, 'utf-8'));
-  if (!back || sha(back.toString('utf-8')) !== sha(text)) throw new Error('The file was written but reading it back did not match; it may not have been saved correctly.');
+  const back = readFileLimited(full, typeof data === 'string' ? Buffer.byteLength(data, 'utf-8') : data.length);
+  if (!back || sha(back) !== sha(data)) throw new Error('The file was written but reading it back did not match; it may not have been saved correctly.');
+}
+
+/** The drawn work of a write: the .lvplan bytes to keep beside the project file (none: it is left as it is), and the
+ * SHA-256 of the .lvplan there when the project was read. */
+export interface DrawnWork { bytes?: Buffer; readSha: string | null }
+
+/** Why the drawn work beside the project cannot be written over now, or undefined: it changed since it was read, and
+ * not into what this write would make it. A .lvplan that is gone is written again. */
+function drawnWorkBlocked(file: string, d: DrawnWork): string | undefined {
+  const now = planShaOf(file);
+  if (now === null || now === d.readSha || (d.bytes && now === sha(d.bytes))) return undefined;
+  return `${path.basename(planFileOf(file)!)} (the drawn work of ${path.basename(file)}) changed while this was being prepared (saved from the app or a sync). Run it again on the current file.`;
+}
+
+/** name.lvplan as the app writes it: only when it is not already that, with the one before kept as name.lvplan.bak. */
+function writeDrawnWork(file: string, bytes: Buffer): void {
+  const full = planFileOf(file)!;
+  if (planShaOf(file) === sha(bytes)) return;
+  let old: Buffer | undefined;
+  try { old = readFileLimited(full, MAX_PROJECT_BYTES); } catch { /* none yet */ }
+  if (old) writeAtomic(`${full}.bak`, old); // renamed into place: a link at the .bak name is replaced, never written through
+  writeAtomic(full, bytes);
 }
 
 /** Why the project cannot be written now, or undefined. */
@@ -107,9 +130,10 @@ function pruneBackups(dir: string): void {
   } catch { /* best effort */ }
 }
 
-/** Writes `text` over the project file that was read as `readText`, keeping a backup and logging the change. */
-export function commitText(folder: string, file: string, readText: string, text: string, tool: string, summary: string, project: Project, undoes?: string, client?: string): ChangeEntry {
-  const blocked = writeBlocked(project, file, readText);
+/** Writes `text` over the project file that was read as `readText`, keeping a backup and logging the change. With
+ * `drawn`, its .lvplan is written first (when it changed), as the app saves: the project file then links to it. */
+export function commitText(folder: string, file: string, readText: string, text: string, tool: string, summary: string, project: Project, undoes?: string, client?: string, drawn?: DrawnWork): ChangeEntry {
+  const blocked = writeBlocked(project, file, readText) ?? (drawn ? drawnWorkBlocked(file, drawn) : undefined);
   if (blocked) throw new WriteRefused(blocked);
   const name = path.basename(file);
   const at = new Date();
@@ -119,6 +143,7 @@ export function commitText(folder: string, file: string, readText: string, text:
   try {
     const backupFull = backupPath(folder, name, id);
     fs.writeFileSync(backupFull, readText, { encoding: 'utf-8', flag: 'wx' });
+    if (drawn?.bytes) writeDrawnWork(file, drawn.bytes);
     writeAtomic(file, text);
     const entry: ChangeEntry = { id, at: at.toISOString(), file: name, tool, summary, beforeHash: sha(readText), afterHash: sha(text), backup: path.relative(folder, backupFull), ...(undoes ? { undoes } : {}), ...(client ? { client } : {}) };
     fs.writeFileSync(log, JSON.stringify(entry) + '\n', 'utf-8');
@@ -129,10 +154,19 @@ export function commitText(folder: string, file: string, readText: string, text:
   }
 }
 
-/** Writes the project as the app does (2-space JSON), with a uid on every new or copied board and circuit. */
-export function commitProject(folder: string, file: string, readText: string, next0: Project, tool: string, summary: string, client?: string) {
+/** Writes the project as the app does (2-space JSON), with a uid on every new or copied board and circuit. A .lvds keeps
+ * its drawn work in name.lvplan beside it, linked by SHA-256, as the app saves it (model/planPackage packPlan): written
+ * only when it changed. One whose drawn work could not be read keeps its link, and the .lvplan is left as it is. An
+ * older .json keeps its drawn work inside, as before (the app moves it when it saves the project as .lvds).
+ * `readPlanSha` is what the .lvplan was when the project was read (openProjectFull). */
+export async function commitProject(folder: string, file: string, readText: string, next0: Project, tool: string, summary: string, client?: string, readPlanSha: string | null = null) {
   const next = withUids(next0);
-  return commitText(folder, file, readText, JSON.stringify(packRevisions(next), null, 2), tool, summary, next, undefined, client);
+  if (!planFileOf(file)) return commitText(folder, file, readText, JSON.stringify(packRevisions(next), null, 2), tool, summary, next, undefined, client);
+  let packed: Awaited<ReturnType<typeof packPlan>>;
+  try { packed = await packPlan(next); } catch (e) { throw e instanceof PlanError ? new WriteRefused(e.message) : e; }
+  const bytes = packed.bytes && Buffer.from(packed.bytes);
+  const out = bytes ? { ...packed.project, plan: { file: path.basename(planFileOf(file)!), sha256: sha(bytes), version: PLAN_VERSION } } : packed.project;
+  return commitText(folder, file, readText, JSON.stringify(packRevisions(out), null, 2), tool, summary, next, undefined, client, { bytes, readSha: readPlanSha });
 }
 
 /** Puts back the version from before a change. Only when the file is still exactly what that change wrote, and the

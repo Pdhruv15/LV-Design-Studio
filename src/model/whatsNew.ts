@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.267', date: '2026-11-23',
+    items: [
+      { title: 'The command line and AI connection read the drawing file too', text: 'lvds (the command line, the MCP server for your own AI assistant and the local API) now opens a project with its Name.lvplan drawing file, as the app does, so exports, ELV schedules and the floor plan tools see the drawn work and the drawing units you chose. A change made through lvds keeps the drawing file as it is, and a change is refused if the drawing file was changed by someone else in the meantime.' },
+    ]
+  },
+  {
     version: '2.266', date: '2026-11-23',
     items: [
       { title: 'Design CAD: the Hatch strip', text: 'While you hatch (H) or edit a hatch (HE), a strip takes the ribbon\'s place instead of the side panel: Boundary, Pattern, Properties, Origin, Options and a Done button. Pattern swatches show the real pattern with a plain name (Diagonal, Cross, Brick), and All patterns lists your own and imports or exports a pattern file.', action: 'cad', actionLabel: 'Open Design CAD' },

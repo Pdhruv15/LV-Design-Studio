@@ -23,7 +23,8 @@ import { estimateElv } from '../elv/estimate';
 import { elvLoadsPackage } from '../elv/package';
 import { elvInput, elvSettingsFor } from './elvTools';
 import type { Project } from '../types';
-import { openProject, PROJECT_FILE } from './project';
+import { openProjectFull, PROJECT_FILE } from './project';
+import { planMissingNote } from '../model/planLink';
 import type { Tool, ToolContext } from './tools';
 import { realAgentDir } from './write';
 import { findFile, openToAppend, readFileWithin, realDirs, writeNewFile } from './safeFiles';
@@ -66,7 +67,7 @@ function readiness(p: Project): Readiness {
 
 /** The shared preview / approval / write path of every export tool. */
 async function runExport(args: Record<string, unknown>, ctx: ToolContext, tool: string, make: (p: Project) => Promise<OutFile[] | Planned> | OutFile[] | Planned) {
-  const { project: p, file } = openProject({ ref: String(args.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
+  const { project: p, file, drawnWorkMissing } = await openProjectFull({ ref: String(args.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
   const ready = readiness(p);
   const made = await make(p);
   const planned = Array.isArray(made) ? undefined : made;
@@ -76,6 +77,7 @@ async function runExport(args: Record<string, unknown>, ctx: ToolContext, tool: 
   const sub = ['Exports', safeFileName(stem), new Date().toISOString().slice(0, 10)];
   const dir = path.join(ctx.folder, ...sub);
   const problems = [
+    ...(drawnWorkMissing ? [`${planMissingNote(drawnWorkMissing)} Exports leave the drawings out`] : []),
     ...(ready.fail ? [`${ready.fail} item(s) fail the checks (run_checks)`] : []),
     ...(ready.proposalsWaiting.length ? [`proposals waiting in Reports → Changes: ${ready.proposalsWaiting.join('; ')}`] : [])
   ];
@@ -158,8 +160,8 @@ export const EXPORT_TOOLS: Tool[] = [
     description: 'The documents this project can export (the app\'s Export centre list, plus the forms and BOQ workbooks and the earthing DXF), and why any cannot be made yet.',
     input: { project },
     usesProject: true,
-    run: (a, ctx) => {
-      const { project: p } = openProject({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
+    run: async (a, ctx) => {
+      const { project: p } = await openProjectFull({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
       const c = exportContext(p);
       const r = findRenderer();
       return {
