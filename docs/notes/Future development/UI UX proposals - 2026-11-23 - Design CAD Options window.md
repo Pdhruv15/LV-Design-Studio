@@ -1,6 +1,6 @@
 # UI UX proposal: one Options window for Design CAD (2026-11-23)
 
-Status: **approved 2026-11-23** ("go ahead", every decision as recommended). Built in five steps; step 1 is v2.275.
+Status: **approved 2026-11-23** ("go ahead", every decision as recommended). Built in five steps; step 1 is v2.276.
 
 ## Today
 
@@ -58,7 +58,7 @@ New, not in the app before:
 
 One PR per step.
 
-1. **The window with every existing setting, Find, the changed marks and reset** (v2.275). `src/components/cad/CadOptions.tsx` replaces `CadDraftSettings.tsx`; `src/model/cadOptions.ts` lists every setting with its page, its default and how to reset it, so a setting added later cannot be left out (a test checks every drafting setting is listed). One new desktop channel shows a folder in the file manager.
+1. **The window with every existing setting, Find, the changed marks and reset** (v2.276). `src/components/cad/CadOptions.tsx` replaces `CadDraftSettings.tsx`; `src/model/cadOptions.ts` lists every setting with its page, its default and how to reset it, so a setting added later cannot be left out (a test checks every drafting setting is listed). One new desktop channel shows a folder in the file manager.
 2. **Previews** on Display and Selection.
 3. **Shortcuts & aliases**: typed names and keys the user can add to.
 4. **Your settings file**: export, import, reset all.
