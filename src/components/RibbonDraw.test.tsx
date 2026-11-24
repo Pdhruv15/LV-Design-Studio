@@ -53,7 +53,7 @@ const ANNOTATE = ['Text', 'Dimensions', 'Leaders and tags', 'Markup'];
 /** The drawing's layers as the page tells the ribbon: two drawn layers, one frozen; nothing picked. */
 const INFO = { blocks: ['DB-A', 'DB-B'], layers: [{ name: 'LV-SKETCH', color: '#ffffff', on: true, freeze: false, lock: false }, { name: 'E-POWER', color: '#00ffff', on: false, freeze: false, lock: true }, { name: 'E-OLD', on: true, freeze: true, lock: false }], current: 'LV-SKETCH', picked: 0, props: {} };
 /** A split tool's arrow, then an item of its list. */
-const fromList = (tool: string, item: string) => { click(document.querySelector(`#ribbon-tools button[title="${tool}: more options"]`)!); click([...document.querySelectorAll('[role="menuitem"]')].find((b) => b.textContent === item)!); };
+const fromList = (tool: string, item: string) => { click(document.querySelector(`#ribbon-tools button[title="${tool}: more options"]`)!); click([...document.querySelectorAll('[role="menuitem"], [role="menuitemradio"]')].find((b) => b.textContent === item)!); };
 const click = (b: Element) => act(() => { (b as HTMLButtonElement).click(); });
 const fileButton = () => document.querySelector('.ribbon-file > button') as HTMLButtonElement;
 const items = () => [...document.querySelectorAll('[role="menu"][aria-label="File"] > button, [role="menu"][aria-label="File"] > .ribbon-file-sub > button')].map((b) => b.querySelector('span')!.textContent);
@@ -90,7 +90,7 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
       ['Distance', 'Area', 'Room area', 'Inspect', 'Zoom extents', 'Drafting settings']]);
     expect(group('Annotate')).toBeNull(); // the LVCAD row had grown wider than a laptop's window
     pick('Annotate');
-    expect(['Text', 'Dimensions', 'Leaders and tags', 'Markup'].map(tools)).toEqual([['Text', 'Text style'], ['Dimension', 'Dim style'],
+    expect(['Text', 'Dimensions', 'Leaders and tags', 'Markup'].map(tools)).toEqual([['Text', 'Text style'], ['Dimension', 'Dimension style', 'Update', 'Dimension layer', 'Linear', 'Continue', 'Dimension styles'],
       ['Multileader', 'Multileader style', 'Add leader', 'Align', 'Room tag', 'Tag all rooms', 'Keynote'], ['Revision cloud', 'North arrow']]);
     expect(document.querySelector('.ribbon')!.className).toContain('small-named'); // named beside their icons, as on LVCAD
     const look = (subTabs: string[]) => {
@@ -158,14 +158,15 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
       click(tool(t));
       expect(cad.onTool, t).toHaveBeenLastCalledWith(id);
     }
-    for (const [t, form, id] of [['Text', 'Notes (MT)', 'mtext'], ['Text', 'Numbered text (TCOUNT)', 'tcount'], ['Text', 'Justify (TJ)', 'tjust'], ['Text', 'Copy words (TCOPY)', 'tcopy'], ['Dimension', 'Linear (DLI)', 'dimlin'],
+    for (const [t, form, id] of [['Text', 'Notes (MT)', 'mtext'], ['Text', 'Numbered text (TCOUNT)', 'tcount'], ['Text', 'Justify (TJ)', 'tjust'], ['Text', 'Copy words (TCOPY)', 'tcopy'], ['Linear', 'Aligned (DAL)', 'dimal'], ['Linear', 'Angular (DAN)', 'dimang'], ['Linear', 'Radius (DRA)', 'dimrad'], ['Linear', 'Diameter (DDI)', 'dimdia'], ['Continue', 'Baseline (DBA)', 'dimbase'],
       ['Multileader', 'Leader (LE)', 'leader'], ['Multileader', 'Add leader (MLEADERADD)', 'mleaderadd'], ['Multileader', 'Remove leader (MLEADERREMOVE)', 'mleaderremove'], ['Multileader', 'Collect (MLC)', 'mleadercollect']]) {
       fromList(t, form);
       expect(cad.onTool, form).toHaveBeenLastCalledWith(id);
     }
     fromList('Multileader', 'Multileader style… (MLS)');
     expect(cad.onCommand).toHaveBeenLastCalledWith('MLEADERSTYLE');
-    for (const t of ['Text style', 'Dim style']) click(tool(t));
+    for (const t of ['Text style', 'Dimension styles']) click(tool(t));
+    expect(cad.onCommand).toHaveBeenLastCalledWith('DIMSTYLE');
     pick('LVCAD');
     for (const t of ['Inspect', 'Zoom extents', 'Drafting settings']) click(tool(t));
     for (const t of ['Off', 'Freeze', 'Lock', 'Isolate', 'Make current', 'All on', 'Thaw all', 'Unlock', 'Unisolate']) click(tool(t));
@@ -275,10 +276,67 @@ describe('Design CAD ribbon: the main tools named, every tool\'s name on hover',
     expect(document.querySelector('#ribbon-tip')).toBeNull();
   });
 
+  it('keeps the dimension form used last on Linear and Continue, ticked under their arrows', () => {
+    const { rerender } = show();
+    pick('Annotate');
+    expect(tool('Linear')).toBeTruthy();
+    rerender({ tool: 'dimrad' });
+    expect(tool('Linear')).toBeNull();
+    expect(tool('Radius').className).toContain('on');
+    rerender({ tool: 'none' });
+    expect(tool('Radius').className).not.toContain('on'); // still Radius once it ends
+    click(document.querySelector('#ribbon-tools button[title="Radius: more options"]')!);
+    const rows = [...document.querySelectorAll('[role="menuitemradio"]')].map((b) => [b.textContent, b.getAttribute('aria-checked')]);
+    expect(rows).toEqual([['Linear (DLI)', 'false'], ['Aligned (DAL)', 'false'], ['Angular (DAN)', 'false'], ['Radius (DRA)', 'true'], ['Diameter (DDI)', 'false']]);
+    rerender({ tool: 'dimbase' });
+    expect(tool('Baseline')).toBeTruthy();
+    expect(tool('Continue')).toBeNull();
+  });
+
+  it('lists the dimension styles: the current one for new dimensions, or the style of those picked to give them another', () => {
+    const { cad, rerender } = show({ info: { ...INFO, dimStyles: { names: ['Standard', 'LV 1:100'], current: 'LV 1:100' } } });
+    pick('Annotate');
+    const list = () => group('Dimensions').querySelector('.ribbon-layer') as HTMLButtonElement;
+    expect(list().querySelector('.nm')!.textContent).toBe('LV 1:100');
+    expect(tool('Update').disabled).toBe(true); // no dimensions picked
+    click(list());
+    click([...document.querySelectorAll('[aria-label="Dimension styles"] [role="menuitemradio"]')][0]);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('DIMSTYLE R Standard');
+    rerender({ info: { ...INFO, picked: 2, dimStyles: { names: ['Standard', 'LV 1:100'], current: 'LV 1:100', picked: 'varies' } } });
+    expect(list().querySelector('.nm')!.textContent).toBe('varies');
+    click(list());
+    expect(document.querySelector('[aria-label="Dimension styles"] .hd')!.textContent).toBe('The dimensions picked');
+    click([...document.querySelectorAll('[aria-label="Dimension styles"] [role="menuitemradio"]')][1]);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('DIMSTYLE A LV 1:100');
+    click(tool('Update'));
+    expect(cad.onCommand).toHaveBeenLastCalledWith('DIMSTYLE A');
+    click(list());
+    click(item('Dimension style… (D)'));
+    expect(cad.onCommand).toHaveBeenLastCalledWith('DIMSTYLE');
+  });
+
+  it('lists the layers new dimensions can go on: LV-ANNO as before, the current layer, or a drawn layer', () => {
+    const { cad, rerender } = show();
+    pick('Annotate');
+    const list = () => group('Dimensions').querySelectorAll('.ribbon-layer')[1] as HTMLButtonElement;
+    expect(list().querySelector('.nm')!.textContent).toBe('LV-ANNO');
+    click(list());
+    const rows = () => [...document.querySelectorAll('[aria-label="Dimension layer"] [role="menuitemradio"]')] as HTMLButtonElement[];
+    expect(rows().map((b) => [b.textContent, b.getAttribute('aria-checked')])).toEqual([['Use current (LV-SKETCH)', 'false'], ['LV-ANNO', 'true'],
+      ...INFO.layers.map((l) => [l.name, 'false'])]);
+    click(rows()[0]);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('DIMLAYER .');
+    rerender({ info: { ...INFO, dimLayer: '.' } });
+    expect(list().querySelector('.nm')!.textContent).toBe('Use current');
+    click(list());
+    click(rows().find((b) => b.textContent === 'E-POWER')!);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('DIMLAYER E-POWER');
+  });
+
   it('shows the current multileader style under Multileader and lists the styles to make another current', () => {
     const { cad } = show({ info: { ...INFO, mleaderStyles: { names: ['Standard', 'Circuit'], current: 'Standard' } } });
     pick('Annotate');
-    const list = document.querySelector('.ribbon-layer') as HTMLButtonElement;
+    const list = group('Leaders and tags').querySelector('.ribbon-layer') as HTMLButtonElement;
     expect(list.querySelector('.nm')!.textContent).toBe('Standard');
     click(list);
     const rows = [...document.querySelectorAll('[role="menu"][aria-label="Multileader styles"] [role="menuitemradio"]')] as HTMLButtonElement[];
