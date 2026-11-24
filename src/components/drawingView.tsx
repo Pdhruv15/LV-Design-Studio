@@ -22,12 +22,12 @@ export function isTrackpad(e: Wheel): boolean {
 }
 
 /** A wheel event as a zoom (factor above 1 zooms in, about the cursor) or a pan (screen pixels): a mouse wheel zooms,
- * a trackpad pinch zooms, two fingers on a trackpad pan. */
-export function wheelAction(e: Wheel): { zoom: number } | { pan: [number, number] } {
+ * a trackpad pinch zooms, two fingers on a trackpad pan. `step` and `reverse` are for a mouse wheel only (Design CAD's Options). */
+export function wheelAction(e: Wheel, step = WHEEL_STEP, reverse = false): { zoom: number } | { pan: [number, number] } {
   const pad = isTrackpad(e);
   if (pad && e.ctrlKey) return { zoom: Math.min(2, Math.max(0.5, Math.exp(-e.deltaY / 100))) };
   if (pad) return { pan: [e.deltaX, e.deltaY] };
-  return { zoom: e.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP };
+  return { zoom: (e.deltaY < 0) !== reverse ? step : 1 / step };
 }
 
 export type ViewKey = 'fit' | 'in' | 'out' | 'grid' | { pan: [number, number] };

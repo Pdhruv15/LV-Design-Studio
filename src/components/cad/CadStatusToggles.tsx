@@ -1,17 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Settings } from 'lucide-react';
 import type { CadToggles } from './CadCanvas';
-import type { DraftTab } from './cadState';
+import type { OptAt } from '../../model/cadOptions';
 import { OSNAP_BITS, OSNAP_MODES, POLAR_INCREMENTS, type DraftSettings } from '../../model/cadDraft';
 import { DynIcon, FitIcon, GridIcon, LwtIcon, OrthoIcon, OsnapIcon, OtrackIcon, PolarIcon, SnapIcon } from '../icons/cadStatusIcons';
 
 /** The drafting switches on the Design CAD status bar, as icons in groups: drawing aids (grid, snap), direction
  * (ortho, polar), object snap (osnap, tracking), input and display (dyn, lineweights), view (fit, settings).
  * Object snap and polar have a ▾ for their modes and angle, and right-click opens that list too (it ends with their
- * settings); right-click on the others opens their Drafting settings tab. */
+ * settings); right-click on the others opens their page or tab of Options. */
 
 type K = keyof CadToggles;
-const SWITCHES: { k: K; label: string; name: string; key: string; tab: DraftTab; icon: (dots: boolean) => ReactNode }[][] = [
+const SWITCHES: { k: K; label: string; name: string; key: string; tab: OptAt; icon: (dots: boolean) => ReactNode }[][] = [
   [{ k: 'grid', label: 'GRID', name: 'Grid', key: 'F7', tab: 'snap', icon: (dots) => <GridIcon dots={dots} /> },
     { k: 'snap', label: 'SNAP', name: 'Snap', key: 'F9', tab: 'snap', icon: () => <SnapIcon /> }],
   [{ k: 'ortho', label: 'ORTHO', name: 'Ortho', key: 'F8', tab: 'polar', icon: () => <OrthoIcon /> },
@@ -19,7 +19,7 @@ const SWITCHES: { k: K; label: string; name: string; key: string; tab: DraftTab;
   [{ k: 'osnap', label: 'OSNAP', name: 'Object snap', key: 'F3', tab: 'osnap', icon: () => <OsnapIcon /> },
     { k: 'otrack', label: 'OTRACK', name: 'Object snap tracking', key: 'F11', tab: 'polar', icon: () => <OtrackIcon /> }],
   [{ k: 'dyn', label: 'DYN', name: 'Dynamic input', key: 'F12', tab: 'dyn', icon: () => <DynIcon /> },
-    { k: 'lwt', label: 'LWT', name: 'Show lineweights', key: 'LWT', tab: 'cursor', icon: () => <LwtIcon /> }]
+    { k: 'lwt', label: 'LWT', name: 'Show lineweights', key: 'LWT', tab: 'display', icon: () => <LwtIcon /> }]
 ];
 /** The switches with a ▾ menu. */
 type MenuK = 'osnap' | 'polar';
@@ -33,7 +33,7 @@ export function CadStatusToggles({ toggles, gridDots, draft, canFit, onToggle, o
   canFit: boolean;
   onToggle: (k: K) => void;
   onCycleGrid: () => void;
-  onSettings: (tab: DraftTab) => void;
+  onSettings: (tab: OptAt) => void;
   onFit: () => void;
   /** Saves changed drafting settings (the running snaps, the polar increment); absent = the menus are read-only. */
   onDraft?: (d: DraftSettings) => void;
@@ -71,7 +71,7 @@ export function CadStatusToggles({ toggles, gridDots, draft, canFit, onToggle, o
       ))}
       <span className="cad-tgg">
         <button className="cad-tg cad-tgi" aria-label="FIT" title="Fit the drawing to the window (FIT / ZE, or double-click the middle button)" disabled={!canFit} onClick={onFit}><FitIcon /></button>
-        <button className="cad-tg cad-tgi" aria-label="Drafting settings" title="Drafting settings (DS): snap, grid, tracking, object snap, dynamic input, selection, cursor, units" onClick={() => onSettings('snap')}><Settings size={16} strokeWidth={1.7} aria-hidden /></button>
+        <button className="cad-tg cad-tgi" aria-label="Drafting settings" title="Drafting settings (DS): snap, grid, tracking, object snap and dynamic input, in Options (OP)" onClick={() => onSettings('snap')}><Settings size={16} strokeWidth={1.7} aria-hidden /></button>
       </span>
       {menu && (
         <>

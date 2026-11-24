@@ -48,6 +48,9 @@ export interface AppPrefs {
   cadRibbonOrder?: string[];
   /** Design CAD drafting settings (DS), checked when read (model/cadDraft draftSettings); absent = the defaults. */
   cadDraft?: unknown;
+  /** Design CAD: the user's own typed names and keys (Options → Shortcuts & aliases), checked when read; absent = none. */
+  cadAliases?: unknown;
+  cadKeys?: unknown;
 }
 
 export interface Preferences {
