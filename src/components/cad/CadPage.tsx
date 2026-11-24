@@ -10,7 +10,7 @@ import { QuickSelectDialog } from './CadQuickSelect';
 import { CadStatusToggles } from './CadStatusToggles';
 import { CadFilePaper, type PaperEdit } from './CadFilePaper';
 import { fileLayoutId, fileLayoutOf, fileLayoutTitle, paperOf } from '../../model/fileLayouts';
-import { addDrawingViewport, alignDrawingView, arrangeDrawingViewports, asFileLayout, clipDrawingViewport, copyDrawingViewport, drawingLayoutId, drawingLayoutOf, drawingLayoutsOf, dvId, dvIndex, fitDrawingViewports, newDrawingLayout, nextLayoutName, panDrawingView, paperName, patchDrawingViewport, removeDrawingViewport, scaleDrawingViewport, viewportScaleN, unclipDrawingViewport, withDrawingLayouts, withPaper, withViewportBox, zoomDrawingView, type DrawingLayout } from '../../model/drawingLayouts';
+import { addDrawingViewport, alignDrawingView, arrangeDrawingViewports, asFileLayout, clipDrawingViewport, copyDrawingViewport, drawingLayoutId, drawingLayoutOf, drawingLayoutsOf, dvId, dvIndex, fitDrawingViewports, layoutPaperMm, newDrawingLayout, nextLayoutName, panDrawingView, paperName, patchDrawingViewport, removeDrawingViewport, scaleDrawingViewport, viewportScaleN, unclipDrawingViewport, withDrawingLayouts, withPaper, withViewportBox, zoomDrawingView, type DrawingLayout } from '../../model/drawingLayouts';
 import type { ZoomReq } from './CadCanvas';
 import type { ZoomMenuKey } from '../drawingView';
 import { parseZoomScale } from '../../model/cadView';
@@ -1117,11 +1117,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     move: (d, dir) => { const i = dwgLayouts.findIndex((l) => drawingLayoutId(l.name) === d.id), j = i + dir; if (i < 0 || j < 0 || j >= dwgLayouts.length) return; const list = [...dwgLayouts]; [list[i], list[j]] = [list[j], list[i]]; setDwgLayouts(list, `${d.name} moved ${dir < 0 ? 'left' : 'right'}`); },
     remove: (d) => { setDwgLayouts(dwgLayouts.filter((l) => drawingLayoutId(l.name) !== d.id), `${d.name} deleted`); if (cad.layout === d.id) cad.setLayout(null); }
   };
-  const addDrawingLayout = () => {
+  const addDrawingLayout = (fromManager = false) => {
     if (!view) return;
-    const l = newDrawingLayout(nextLayoutName(layoutNames), view.info.extents, units.factor * 1000);
-    setDwgLayouts([...dwgLayouts, l], `${l.name} — A3 paper, the whole drawing in one viewport at ${fileLayoutTitle(asFileLayout(l, 0), units.factor * 1000).split(' at ')[1] ?? '1:100'} · Page setup changes the paper`);
+    const l = newDrawingLayout(nextLayoutName(layoutNames), view.info.extents, units.factor * 1000, layoutPaperMm(draft.layoutPaper, draft.layoutPortrait));
+    setDwgLayouts([...dwgLayouts, l], `${l.name} — ${paperName(l.paper).replace(' landscape', '')} paper, the whole drawing in one viewport at ${fileLayoutTitle(asFileLayout(l, 0), units.factor * 1000).split(' at ')[1] ?? '1:100'} · Page setup changes the paper`);
     cad.setLayout(drawingLayoutId(l.name));
+    // Options → Plot & publish: its Page setup opens as it is made (not from the Layout manager, which stays open).
+    if (draft.layoutSetupOpen && !fromManager) setLayoutDlg('paper');
   };
   /** A layout tab picked (or opened from the Layout manager): shown, and what it is said in the command line. */
   const pickLayout = (id: string | null) => {
@@ -2235,7 +2237,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const mc = menuCommon();
     if (tool !== 'none') {
       const opts = promptOptions(cad.history[cad.history.length - 1] ?? '');
-      if (!opts.length && !shift) { run(''); return; }
+      if ((!opts.length || (draft.rightClick === 'repeat' && !byKey)) && !shift) { run(''); return; }
       const last = cad.history[cad.history.length - 1] ?? '', cmdName = toolName(tool) ?? tool.toUpperCase();
       setPromptMenu({ at: screen, items: commandMenu({ options: opts, inputs, toggles: cad.toggles, snapOnce: snapOnce === 'none' ? null : snapOnce }), head: { icon: TOOL_MENU_ICON[tool] ?? 'enter', title: cmdName, detail: shortPrompt(last) || undefined }, label: 'Command menu' });
       return;
@@ -2277,6 +2279,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       // A reference drawing's lines (phase 3).
       const r = refNear(xr.placed, at, pickR * pixel);
       if (r) { ctxObj.current = { ref: r.name }; setPromptMenu({ at: screen, items: xrefMenu(r) }); return; }
+      // Right-click set to repeat: on blank canvas it repeats the last command, as Space does; Shift and the menu key open the menu.
+      if (draft.rightClick === 'repeat' && !shift && !byKey) { run(''); return; }
       const blank = blankMenu({ ...mc, recent: recent.map((x) => x.label), objectsHidden: !!objHide && objHide.file === view?.file });
       // Inside a room with an outline: the room's tools first (phase 2).
       const rt = room ? roomTypesOf(buildingInfoOf(project)).find((t) => t.id === room.type) : undefined;
@@ -5441,7 +5445,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
           }} />}
         {view && paperL ? (
           <div className="cad-stage cad-paper" ref={paperStage} onMouseDown={() => setPaperCtx(null)}>
-            <CadFilePaper layout={paperL} model={view} layersOn={layersOn} design={paperDesign} edit={paperEdit} onContext={filePaperContext} onDblClick={() => cad.say(fileL ? `LAYOUT  ${fileL.name} is shown as the drawing file has it: work in the model on the Model tab.` : `LAYOUT  ${paperL.name} shows the model: work in it on the Model tab.`)} />
+            <CadFilePaper wheel={{ step: 1 + draft.wheelPct / 100, reverse: draft.wheelReverse }} layout={paperL} model={view} layersOn={layersOn} design={paperDesign} edit={paperEdit} onContext={filePaperContext} onDblClick={() => cad.say(fileL ? `LAYOUT  ${fileL.name} is shown as the drawing file has it: work in the model on the Model tab.` : `LAYOUT  ${paperL.name} shows the model: work in it on the Model tab.`)} />
             {paperCtx && <CadMenu left={paperCtx.at[0] + 4} top={paperCtx.at[1] + 4} head={paperCtx.head} items={paperCtx.items} label={paperCtx.label ?? 'Command menu'} onPick={(x) => { setPaperCtx(null); ctxPick(x); }} onClose={() => setPaperCtx(null)} />}
           </div>
         ) : view && sheetL ? (
@@ -5499,7 +5503,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       </div>
       <CadCommandLine aliases={aliases} history={cad.history} live={EDIT_TOOLS.includes(tool) ? promptNow(edSet) : undefined} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
       {view && <LayoutTabs files={view.layouts.map((l) => ({ id: fileLayoutId(l.name), name: l.name, title: fileLayoutTitle(l, units.factor * 1000) }))} drawings={dwgLayouts.map((l, n) => ({ id: drawingLayoutId(l.name), name: l.name, title: fileLayoutTitle(asFileLayout(l, n), units.factor * 1000) }))} layouts={layouts} active={sheetL?.id ?? (fileL ? fileLayoutId(fileL.name) : dwgL ? drawingLayoutId(dwgL.name) : null)} onPick={pickLayout}
-        onNew={addDrawingLayout} onNewSheet={addLayout}
+        onNew={() => addDrawingLayout()} onNewSheet={addLayout}
         onDrawing={{ ...drawingTabActs, pageSetup: (d) => { cad.setLayout(d.id); setLayoutDlg('paper'); } }}
         onTemplates={() => layoutCmd('LAYOUT T')} onImport={() => layoutCmd('LAYOUT I')} onManager={() => layoutCmd('LAYOUTMANAGER')} onPlotLayout={(id) => { cad.setLayout(id); setLayoutDlg('plot'); }} onSaveTemplate={(id) => { cad.setLayout(id); setLayoutDlg('templates'); }}
         onRename={(x) => { setRenamingLayout(x.id); cad.say(`RENAME  Type the new title of ${x.number} (now "${x.title}"):`); input.current?.focus(); }}
@@ -5553,7 +5557,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       {importList && <ImportLayoutsDialog file={importList.file} list={importList.list} onImport={importPicked} onClose={() => setImportList(null)} />}
       {layoutDlg === 'paper' && dwgL && <LayoutPaperDialog layout={dwgL} onClose={() => setLayoutDlg(null)} onSave={(paper) => setDwgLayouts(dwgLayouts.map((l) => (l === dwgL ? withPaper(dwgL, paper) : l)), `${dwgL.name}: ${paperName(paper)}`)} />}
       {layoutDlg === 'manager' && view && mgrCtx && managerActs && <LayoutManagerDialog file={view.file} rows={managerRows(project, mgrCtx, view.layouts, units.factor * 1000)} active={cad.layout} setups={setupsOf(project).map((x) => ({ id: x.id, name: x.name }))}
-        onOpen={pickLayout} onRename={managerActs.rename} onCopy={managerActs.copy} onMove={managerActs.move} onDelete={managerActs.remove} onApplySetup={managerActs.apply} onNew={addDrawingLayout} onClose={() => setLayoutDlg(null)} />}
+        onOpen={pickLayout} onRename={managerActs.rename} onCopy={managerActs.copy} onMove={managerActs.move} onDelete={managerActs.remove} onApplySetup={managerActs.apply} onNew={() => addDrawingLayout(true)} onClose={() => setLayoutDlg(null)} />}
       {layoutDlg === 'scales' && <ScaleListDialog scales={scalesOf(project)} onClose={() => setLayoutDlg(null)} onSave={(list) => change(withScales(project, list), `SCALELISTEDIT  ${list.length} scales in the list · ⌘Z to undo`)} />}
       {publishing && <PublishDialog project={project} run={calcRun} current={sheetL?.id} ticked={layouts.map((x) => x.id)} onClose={() => setPublishing(false)} onChange={(p) => onChange(p, 'Sheets issued · ⌘Z to undo')} onStatus={onStatus} onOpen={(id) => { setPublishing(false); onSheet?.(id); }} />}
       {showXR && view && <RefManager file={view.file} level={floor ? floorLabel(project.building, floor) : undefined} x={xr} onAttach={() => void startAttach()} onClip={startClip} onBind={() => { setShowXR(false); const c = copyOf(/^DXF/i.test(view.info.format) ? 'dxf' : 'dwg', true); if (c) void writeCopy({ ...c, path: undefined }, false, false); }} onClose={() => setShowXR(false)} />}

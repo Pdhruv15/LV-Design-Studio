@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addDrawingViewport, alignDrawingView, arrangeDrawingViewports, asFileLayout, copyDrawingViewport, dvId, dvIndex, fitDrawingViewports, LAYOUT_PAPERS, paperName, patchDrawingViewport, panDrawingView, removeDrawingViewport, scaleDrawingViewport,
-  viewportAt, viewportScaleN, viewportWindow, withPaper, withViewportBox, zoomDrawingView, drawingLayoutsOf, fitScale, newDrawingLayout, nextLayoutName, withDrawingLayouts
+  viewportAt, viewportScaleN, viewportWindow, withPaper, withViewportBox, zoomDrawingView, drawingLayoutsOf, fitScale, layoutPaperMm, newDrawingLayout, nextLayoutName, withDrawingLayouts
 } from './drawingLayouts';
 import { fileLayoutTitle, viewportScale } from './fileLayouts';
 import { arrangementOf } from './planViewports';
@@ -28,6 +28,23 @@ describe('layouts made on a drawing', () => {
     const f = asFileLayout(l, 3);
     expect(viewportScale(f.viewports[0], f.mm_per_unit, 1)).toBe('1:75');
     expect(fileLayoutTitle(f, 1)).toBe('420 × 297 mm · 1 viewport at 1:75');
+  });
+
+  it('new on another paper: the viewport fills it inside the same margin; a paper not given is A3 landscape', () => {
+    const ext: [number, number, number, number] = [1000, 2000, 31000, 22000];
+    const l = newDrawingLayout('Layout2', ext, 1, [594, 841]);
+    expect(l.paper).toEqual([594, 841]);
+    expect(l.viewports[0]).toMatchObject({ x: 10, y: 10, w: 574, h: 821, cx: 16000, cy: 12000 });
+    expect(newDrawingLayout('Layout2', ext, 1, [420, 297])).toEqual(newDrawingLayout('Layout2', ext, 1));
+  });
+
+  it('a paper of the list, across or upright; A3 for an id not in it', () => {
+    expect(layoutPaperMm('A1', false)).toEqual([841, 594]);
+    expect(layoutPaperMm('A1', true)).toEqual([594, 841]);
+    expect(layoutPaperMm('A4', true)).toEqual([210, 297]);
+    expect(layoutPaperMm('A3', false)).toEqual([420, 297]);
+    expect(layoutPaperMm('B7', false)).toEqual([420, 297]);
+    expect(layoutPaperMm('', true)).toEqual([297, 420]);
   });
 
   it('are kept by drawing file (case ignored); the last one gone takes the entry with it', () => {

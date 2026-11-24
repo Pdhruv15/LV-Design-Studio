@@ -97,6 +97,16 @@ describe('CadFilePaper: editing the viewports of a layout made here', () => {
     expect(w.onMs).toHaveBeenLastCalledWith(null);
   });
 
+  it('the wheel uses the step and the direction given (Options → General → Mouse); 1.2 and not reversed without them', () => {
+    const e = edit({ ms: 0 });
+    act(() => root.render(<CadFilePaper layout={asFileLayout(layoutOf(), 1)} model={model} edit={e} wheel={{ step: 1.3, reverse: true }} />));
+    const p = at(100, 100);
+    act(() => { pane().dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: -100, clientX: p.clientX, clientY: p.clientY })); });
+    expect(e.onZoom.mock.calls[0][1]).toBeCloseTo(1 / 1.3, 6); // reversed: wheel up zooms out
+    act(() => { pane().dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 100, clientX: p.clientX, clientY: p.clientY })); });
+    expect(e.onZoom.mock.calls[1][1]).toBeCloseTo(1.3, 6);
+  });
+
   it('in the viewport worked in the wheel zooms its view and a drag moves it; locked, neither; elsewhere the wheel zooms the paper', () => {
     const e = edit({ ms: 0 });
     show(e);

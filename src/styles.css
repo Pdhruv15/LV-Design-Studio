@@ -2436,6 +2436,7 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-dlg-tbody{height:190px;overflow:auto}
 .cad-dlg.opt .cad-dlg-pg .cad-dlg-btns{padding:2px 8px 4px 14px}
 .cad-dlg.opt .cad-dlg-note.bad{color:var(--warn)}
+.cad-dlg-ctx{font-style:normal;opacity:.7}
 .cad-dlg-tr{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 200px;align-items:center;gap:8px;min-height:22px;padding:0 6px 0 12px;border-top:1px solid var(--line)}
 .cad-dlg-tbody .cad-dlg-tr:first-child{border-top:0}
 .cad-dlg-tr.h{min-height:20px;background:var(--panel);border-top:0;border-bottom:1px solid var(--line);color:var(--mut);font-size:11px}

@@ -7,7 +7,8 @@ import { isNumber } from './cadPrompt';
 import { CAD_COMMANDS, aliasesOf, commandFullName, commandId, type CadCommand, type OwnAliases } from './cadCommands';
 import { aliasProblem, chordLabel, chordOf, commandRows, keyProblem, keysOf, type OwnKeys } from './cadShortcuts';
 import { librariesNow, readSettingsFile, settingsFile, settingsSummary, type CadSettingsLibraries } from './cadSettingsFile';
-import { CROSS_COLORS, OSNAP_BITS, OSNAP_MODES, parseAngles, PICK_LOOKS, POLAR_INCREMENTS, SEL_COLORS, type CrossColor, type DraftSettings, type OsnapMode, type PickLook, type SelColor } from '../../model/cadDraft';
+import { CROSS_COLORS, OSNAP_BITS, OSNAP_MODES, parseAngles, PICK_LOOKS, POLAR_INCREMENTS, RIGHT_CLICKS, SEL_COLORS, type CrossColor, type DraftSettings, type OsnapMode, type PickLook, type RightClick, type SelColor } from '../../model/cadDraft';
+import { LAYOUT_PAPERS } from '../../model/drawingLayouts';
 import { changedSettings, DRAFT_TABS, findSettings, OPT_PAGES, OPT_SETTINGS, placeKey, placeLabel, placeOf, resetSettings, type OptAt, type OptPage, type OptSetting, type OptValues } from '../../model/cadOptions';
 import { PALETTE_LABEL, THEME_LABEL, type PalettePref, type ThemePref } from '../../theme/theme';
 import { plotPrinter, usePrinters } from '../../util/printers';
@@ -23,7 +24,7 @@ const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator
 const FIND_KEY = MAC ? '⌘F' : 'Ctrl F';
 const BY_ID = new Map(OPT_SETTINGS.map((s) => [s.id, s]));
 const HELP: Record<Exclude<OptPage, 'drafting'> | 'drafting/snap' | 'drafting/polar' | 'drafting/osnap' | 'drafting/dyn' | 'found', string> = {
-  general: "The ribbon's tool names and the order of its panels, as in Profile & preferences. Your settings: one file with the options and libraries, for another computer.",
+  general: "The ribbon's tool names and the order of its panels, as in Profile & preferences. Mouse: what a right-click and the wheel do in the drawing. Your settings: one file with the options and libraries, for another computer.",
   files: 'The folders the app uses, and how a drawing is saved. Kept for you on this computer, for every drawing.',
   display: 'The crosshair and its colour, the outline that keeps the cursor visible over any line, and line widths on screen. Colour theme and palette are the app\'s own. The preview shows the result before OK.',
   'drafting/snap': 'Snap (F9) steps the cursor by the spacing; 0 follows the grid on screen. Grid (F7): 0 adapts to the zoom.',
@@ -31,7 +32,7 @@ const HELP: Record<Exclude<OptPage, 'drafting'> | 'drafting/snap' | 'drafting/po
   'drafting/osnap': 'The snap points the cursor finds (F3 turns them all on or off), the snap aperture (how near a snap point must be) and the marker. Perpendicular is from the last point picked. Shift-click and a window select, as before.',
   'drafting/dyn': 'Dynamic input (F12): the boxes, the short prompt and its options at the cursor.',
   selection: 'Left to right: only what is fully inside. Right to left: what the window crosses. Shift-click adds or removes. A click picks what is inside the pick box. The preview shows the result before OK.',
-  plot: 'The printer plots go to on this computer. Page setups and pen tables belong to the project.',
+  plot: 'A new layout starts with the paper chosen here. The printer plots go to on this computer. Page setups and pen tables belong to the project.',
   shortcuts: 'Typed names and keys of your own for any command. The standard ones stay; one already in use is refused and its command is named. Kept on this computer.',
   drawing: 'Level and units belong to this drawing; each change is one undo step on OK.',
   found: 'An amber dot marks a setting that is not at its default; the arrow beside it puts it back.'
@@ -196,7 +197,7 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
     return label.split(re).map((p, i) => (i % 2 ? <mark key={i}>{p}</mark> : <Fragment key={i}>{p}</Fragment>));
   };
   /** A row's label in one piece, so the part found is marked inside the word it belongs to. */
-  const lab = (s: OptSetting) => <span>{marked(s.label)}</span>;
+  const lab = (s: OptSetting) => <span>{!shown && s.ctx && <i className="cad-dlg-ctx">{s.ctx} · </i>}{marked(s.label)}</span>;
   const rs = (s: OptSetting) => (changedHere(s)
     ? <button type="button" className="cad-dlg-rs" aria-label={`Reset ${s.label}`} title={`Reset to ${s.def}`} onClick={() => resetOf([s])}><RotateCcw size={11} aria-hidden /></button> : null);
   const cls = (s: OptSetting) => (changedHere(s) ? ' chg' : '');
@@ -293,6 +294,12 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
       case 'grips': return crow(s, d.grips, (b) => patch({ grips: b }));
       case 'gripPx': return nrow(s, d.gripPx, whole('gripPx', 4, 20), 'px');
       case 'gripMax': return nrow(s, d.gripMax, whole('gripMax', 1, 1000), 'objects');
+      case 'rightClick': return vrow(s, <select aria-label="Right-click in the drawing" value={d.rightClick} onChange={(e) => patch({ rightClick: e.target.value as RightClick })}>{opts(RIGHT_CLICKS)}</select>);
+      case 'wheelPct': return nrow(s, d.wheelPct, whole('wheelPct', 5, 50), '%');
+      case 'wheelReverse': return crow(s, d.wheelReverse, (b) => patch({ wheelReverse: b }));
+      case 'layoutPaper': return vrow(s, <select aria-label="Paper" value={d.layoutPaper} onChange={(e) => patch({ layoutPaper: e.target.value })}>{LAYOUT_PAPERS.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}</select>);
+      case 'layoutPortrait': return vrow(s, <select aria-label="Orientation" value={d.layoutPortrait ? 'portrait' : 'landscape'} onChange={(e) => patch({ layoutPortrait: e.target.value === 'portrait' })}><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select>);
+      case 'layoutSetupOpen': return crow(s, d.layoutSetupOpen, (b) => patch({ layoutSetupOpen: b }));
       case 'printer': return vrow(s, <select aria-label="Plot to" value={v.printer} onChange={(e) => top({ printer: e.target.value })}>
         <option value="">PDF (built in)</option>
         {printers.map((p) => <option key={p.name} value={p.name}>{p.displayName}</option>)}
@@ -422,6 +429,10 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
         {r('cadLabels')}
         <p className="cad-dlg-note">The tools then take four sub-tabs.</p>
         {r('ribbonOrder')}
+        {sec('Mouse', 'on this computer')}
+        {r('rightClick')}
+        <p className="cad-dlg-note">Repeats: as Space does, it also ends the input of a running command. Shift + right-click then opens the menu.</p>
+        {r('wheelPct')}{r('wheelReverse')}
         {sec('Your settings', 'one file')}
         <p className="cad-dlg-note">Options, typed names, keys and the libraries of this computer (layer templates, layout templates, page setups with their pen tables, hatch patterns) in one file, to set up another computer the same way.</p>
         <div className="cad-dlg-btns" role="group" aria-label="Your settings file">
@@ -496,6 +507,8 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
         {r('grips')}{r('gripPx')}{r('gripMax')}
       </div>{preview(<SelectionPreview draft={d} />)}</div>;
       case 'plot': return <>
+        {sec('A new layout starts with', 'on this computer')}
+        {r('layoutPaper')}{r('layoutPortrait')}{r('layoutSetupOpen')}
         {sec('Plotting', 'on this computer')}
         {r('printer')}
         <p className="cad-dlg-note">The printer chosen last in Plot. Printing is always black-and-white.</p>

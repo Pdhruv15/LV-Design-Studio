@@ -72,11 +72,11 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); document.body.innerHTML = ''; delete (window as { lvds?: unknown }).lvds; });
 
 // Save As keeps the sample drawing's own format (DXF) unless a test passes the format set.
-function Host({ start = villa, show, gripMax, undoLabel, saveFormat = 'own', extra }: { start?: Project; show?: (s: CadShow) => void; gripMax?: number; undoLabel?: string; saveFormat?: DraftSettings['saveFormat']; extra?: Partial<ComponentProps<typeof CadPage>> }) {
+function Host({ start = villa, show, gripMax, undoLabel, saveFormat = 'own', extra, draft0 }: { start?: Project; show?: (s: CadShow) => void; gripMax?: number; undoLabel?: string; saveFormat?: DraftSettings['saveFormat']; extra?: Partial<ComponentProps<typeof CadPage>>; draft0?: Partial<DraftSettings> }) {
   const cad = useCad('p1');
   const [p, setP] = useState(start);
   const sheetUi = useSheetUi();
-  const [draft, setDraft] = useState({ ...DRAFT_DEFAULTS, saveFormat, ...(gripMax ? { gripMax } : {}) });
+  const [draft, setDraft] = useState({ ...DRAFT_DEFAULTS, saveFormat, ...(gripMax ? { gripMax } : {}), ...draft0 });
   state = cad;
   return <CadPage cad={cad} project={p} onChange={(next, msg, join) => { setP(next); onChange(next, msg, join); }} onUndo={onUndo} onStatus={() => {}} sheetUi={sheetUi}
     draft={draft} onPrefs={(x) => { setDraft(x.draft); onPrefs(x); }} onShow={show} canUndo={!!undoLabel} undoLabel={undoLabel} {...extra} />;
@@ -2269,6 +2269,44 @@ describe('file tabs', () => {
     expect(lastMsg()).toMatch(/Viewport 1: the whole level at 1:\d+ · ⌘Z to undo$/);
   });
 
+  it('A new layout starts with the paper in Options: A1 portrait named in the message; Page setup opens only when asked, and not from the Layout manager', async () => {
+    const make = async (draft0: Partial<DraftSettings>) => {
+      act(() => root.unmount()); root = createRoot(host);
+      act(() => root.render(<Host start={{ ...villa, building: undefined }} draft0={draft0} />));
+      await flush();
+      const v = await openDrawing('paper-layouts.dxf', bytes('tests/fixtures/cad/paper-layouts.dxf'));
+      act(() => state.open(v));
+      await flush();
+      return v.file.toLowerCase();
+    };
+    const setup = () => document.querySelector('[aria-label="Page setup"]');
+    // The defaults: A3, as before, Page setup stays shut.
+    let key = await make({});
+    await command('LAYOUT');
+    expect(lastMsg()).toMatch(/^LAYOUT {2}Layout2 — A3 paper, the whole drawing in one viewport at 1:\d+ · Page setup changes the paper · ⌘Z to undo$/);
+    expect(project.cadLayouts![key][0].paper).toEqual([420, 297]);
+    expect(setup()).toBeNull();
+    // A1 portrait, Page setup asked for: it opens for the new layout, which is the one shown.
+    key = await make({ layoutPaper: 'A1', layoutPortrait: true, layoutSetupOpen: true });
+    act(() => (document.querySelector('[aria-label="New layout"]') as HTMLButtonElement).click());
+    expect(project.cadLayouts![key][0].paper).toEqual([594, 841]);
+    expect(lastMsg()).toMatch(/^LAYOUT {2}Layout2 — A1 portrait paper, /);
+    expect(state.layout).toBe('dwg:Layout2');
+    await until(() => !!setup());
+    expect(setup()!.textContent).toContain('Layout2');
+    expect((document.querySelector('[aria-label="Paper"]') as HTMLSelectElement).value).toBe('A1');
+    act(() => button('Cancel').click());
+    expect(setup()).toBeNull();
+    // From the Layout manager: made, but the manager stays and Page setup does not open.
+    await command('LAYOUTMANAGER');
+    await until(() => !!document.querySelector('[aria-label="Layout manager"]'));
+    act(() => button('New layout').click());
+    expect(project.cadLayouts![key].map((l) => l.name)).toEqual(['Layout2', 'Layout3']);
+    expect(project.cadLayouts![key][1].paper).toEqual([594, 841]);
+    expect(document.querySelector('[aria-label="Layout manager"]')).not.toBeNull();
+    expect(setup()).toBeNull();
+  });
+
   it('Layouts made with +: VPORTS 4, VPFIT, VPSCALE, Page setup (paper and orientation), Save as template and New layout from it', async () => {
     localStorage.removeItem('lvds.layoutTemplates');
     act(() => root.render(<Host start={{ ...villa, building: undefined }} />));
@@ -2967,6 +3005,46 @@ describe('CAD command line', () => {
     expect(labels()).toContain('Snap overrides');
   });
 
+  it('right-click set to repeat: blank canvas repeats the last command, a running command takes Enter; Shift, the menu key and an object keep the menu', async () => {
+    project = two; act(() => root.render(<Host start={two} draft0={{ rightClick: 'repeat' }} />)); await flush(); act(() => state.toggle('osnap'));
+    const right = (x: number, y: number, shiftKey = false) => { const [sx, sy] = screenOf(x, y); return act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, shiftKey, bubbles: true, cancelable: true })); }); };
+    const menu = () => [...document.querySelectorAll('[aria-label="Command menu"] > button')].map((b) => rowLabel(b));
+    const blankMenu = () => document.querySelector('.cad-menu [role="menuitem"], [role="menu"] [role="menuitem"]');
+    await command('F');
+    expect(state.tool).toBe('fillet');
+    // A running command whose prompt has options: Enter, no menu.
+    await right(X + 20000, 20000);
+    expect(state.tool).toBe('none');
+    expect(menu()).toEqual([]);
+    // Nothing running: the last command again, no menu.
+    await right(X + 20000, 20000);
+    expect(state.tool).toBe('fillet');
+    expect(menu()).toEqual([]);
+    expect(blankMenu()).toBeNull();
+    // Shift + right-click while it runs: the command menu.
+    await right(X + 20000, 20000, true);
+    expect(menu()).toContain('Snap overrides');
+    await key('Escape');
+    await command('');
+    expect(state.tool).toBe('none');
+    // Shift + right-click on blank canvas: the blank-canvas menu, nothing repeated.
+    await right(X + 20000, 20000, true);
+    expect(state.tool).toBe('none');
+    expect(menu()).toContain('Repeat FILLET');
+    await key('Escape');
+    // The menu key opens the menu at the cursor.
+    await hover(X + 20000, 20000);
+    await key('ContextMenu');
+    expect(state.tool).toBe('none');
+    expect(menu()).toContain('Repeat FILLET');
+    await key('Escape');
+    // An object under the cursor: its own menu, as before.
+    await right(X + 2000, 0);
+    expect(state.tool).toBe('none');
+    expect(menu()).not.toContain('Repeat FILLET');
+    expect(document.querySelector('.cad-menu-hd')?.textContent ?? '').toContain('Line');
+  });
+
   it('dynamic input: a number typed goes to the length box at the cursor, Tab to the angle, Enter places the point; F12 turns it off', async () => {
     await start();
     const box = (name: string) => document.querySelector(`.cad-dyn input[aria-label="${name}"]`) as HTMLInputElement | null;
@@ -3467,6 +3545,38 @@ describe('Design CAD File: Save, Save As, Close and Options', () => {
     expect(subTab(opt())).toBe('Snap & grid');
   });
 
+  it('Options: General has a Mouse section; right-click, wheel step and direction show the amber dot, reset, and reach onPrefs; Plot & publish lists the new layout rows first', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    expect([...d.querySelectorAll('.cad-dlg-sec')].map((x) => x.firstChild?.textContent)).toEqual(['Ribbon', 'Mouse', 'Your settings']);
+    expect(field(d, 'Right-click in the drawing').value).toBe('menu');
+    expect([...field(d, 'Right-click in the drawing').options].map((o) => o.textContent)).toEqual(['Opens the menu', 'Repeats the last command']);
+    expect(field(d, 'Wheel zoom step').value).toBe('15');
+    expect(d.querySelectorAll('.cad-dlg-r.chg')).toHaveLength(0);
+    set(field(d, 'Right-click in the drawing'), 'repeat');
+    set(field(d, 'Wheel zoom step'), '25');
+    tick(d, 'Reverse the wheel direction');
+    expect(d.querySelectorAll('.cad-dlg-r.chg')).toHaveLength(3);
+    expect(countOf(d, 'General')).toBe('3');
+    await act(async () => { (d.querySelector('button[aria-label="Reset Wheel zoom step"]') as HTMLButtonElement).click(); });
+    expect(field(d, 'Wheel zoom step').value).toBe('15');
+    expect(d.querySelectorAll('.cad-dlg-r.chg')).toHaveLength(2);
+    set(field(d, 'Wheel zoom step'), '25');
+    await openPage(d, 'Plot & publish');
+    expect([...d.querySelectorAll('.cad-dlg-sec')].map((x) => x.firstChild?.textContent).slice(0, 2)).toEqual(['A new layout starts with', 'Plotting']);
+    expect([...d.querySelectorAll('.cad-dlg-r')].map((r) => r.textContent).slice(0, 3)).toEqual(['Paper', 'Orientation', 'Open Page setup when a layout is made'].map((t) => expect.stringContaining(t)));
+    expect([...field(d, 'Paper').options].map((o) => o.value)).toEqual(['A4', 'A3', 'A2', 'A1', 'A0']);
+    expect([field(d, 'Paper').value, field(d, 'Orientation').value]).toEqual(['A3', 'landscape']);
+    set(field(d, 'Paper'), 'A1');
+    set(field(d, 'Orientation'), 'portrait');
+    tick(d, 'Open Page setup when a layout is made');
+    expect(countOf(d, 'Plot & publish')).toBe('3');
+    await press(d, 'OK');
+    expect(onPrefs.mock.calls[0][0].draft).toMatchObject({ rightClick: 'repeat', wheelPct: 25, wheelReverse: true, layoutPaper: 'A1', layoutPortrait: true, layoutSetupOpen: true });
+  });
+
   it('OP opens the page last used; UNITS opens This drawing ("Not set"), Files & saving lists the formats and still reaches onPrefs, arrows move between pages', async () => {
     act(() => root.render(<Host />));
     await flush();
@@ -3531,9 +3641,9 @@ describe('Design CAD File: Save, Save As, Close and Options', () => {
     const d = opt();
     const box = field(d, 'Find a setting');
     set(box, 'size');
-    expect(d.querySelector('.cad-dlg-hits')!.textContent).toContain('4 settings match “size”');
-    expect([...d.querySelectorAll('.cad-dlg-sec.go b')].map((x) => x.textContent)).toEqual(['Display', 'Drafting › Object snap', 'Selection']);
-    expect(['Crosshair size', 'Snap marker size', 'Pick box size', 'Grip size'].every((l) => !!d.querySelector(`input[aria-label="${l}"]`))).toBe(true);
+    expect(d.querySelector('.cad-dlg-hits')!.textContent).toContain('5 settings match “size”'); // Paper (new layout) is found by its words
+    expect([...d.querySelectorAll('.cad-dlg-sec.go b')].map((x) => x.textContent)).toEqual(['Display', 'Drafting › Object snap', 'Selection', 'Plot & publish']);
+    expect(['Crosshair size', 'Snap marker size', 'Pick box size', 'Grip size'].every((l) => !!d.querySelector(`input[aria-label="${l}"]`)) && !!d.querySelector('select[aria-label="Paper"]')).toBe(true);
     expect(d.querySelector('mark')?.textContent?.toLowerCase()).toBe('size');
     expect(shownTab(d)).toEqual([]); // no page is selected while finding
     set(field(d, 'Grip size'), '12');
@@ -3546,6 +3656,11 @@ describe('Design CAD File: Save, Save As, Close and Options', () => {
     expect(box.value).toBe('');
     expect(shownTab(d)).toEqual(['Selection']);
     expect((field(d, 'Grip size')).value).toBe('12');
+    // A short label says what it belongs to in the find results, and not on its own page.
+    set(box, 'spacing');
+    expect([...d.querySelectorAll('.cad-dlg-ctx')].map((x) => x.textContent)).toEqual(['Snap · ', 'Snap · ', 'Grid · ']);
+    await act(async () => { (d.querySelector('button[aria-label="Go to Drafting › Snap & grid"]') as HTMLButtonElement).click(); });
+    expect(d.querySelector('.cad-dlg-ctx')).toBeNull();
     // Ctrl F anywhere in the window.
     (document.activeElement as HTMLElement | null)?.blur();
     await keyOn(pageTab(d, 'Display'), { key: 'f', ctrlKey: true });
