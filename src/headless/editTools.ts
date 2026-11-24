@@ -310,6 +310,8 @@ export const EDIT_TOOLS: Tool[] = [
       xr: z.number().positive().nullable().optional().describe('X/R of that fault level (default: the transformer default; a generator 10)'),
       ratedKva: z.number().positive().nullable().optional().describe('Rating of the source, kVA (a generator set, or the inverters together): with no fault level typed, the fault level is calculated from it'),
       xdPct: z.number().positive().lt(100).nullable().optional().describe('Sub-transient reactance X″d of a generator (or wind turbine as a generator), % on its rating (default 15)'),
+      xdTransientPct: z.number().positive().lt(100).nullable().optional().describe('Transient reactance X′d of a generator, % on its rating (default 25): gives its minimum fault current for the earth loop'),
+      sustainedMultiple: z.number().positive().max(10).nullable().optional().describe('Sustained fault current of a generator as a multiple of its rated current (excitation support, e.g. 3): the minimum fault current in place of X′d'),
       faultMultiple: z.number().min(1).max(10).nullable().optional().describe('Fault current of an inverter source (pv, battery, wind turbine coupled by inverter) as a multiple of its rated current (default 1.2)'),
       faultKaMin: z.number().positive().nullable().optional().describe('Minimum fault level, kA (used for Ze when none is given)'),
       vdUsedPct: z.number().nonnegative().nullable().optional().describe('Voltage drop already used upstream of the supply point, % of nominal'),
@@ -332,7 +334,7 @@ export const EDIT_TOOLS: Tool[] = [
       const b = findBoard(p, String(a.panel));
       if (b.upstreamId) throw new Error(`${b.id} is fed from ${b.upstreamId}: the values given from upstream apply to a first panel.`);
       if (b.sourceKva) throw new Error(`${b.id} has a transformer: it ignores the values given from upstream.`);
-      const KEYS = ['fedBy', 'kind', 'ref', 'faultKa', 'xr', 'ratedKva', 'xdPct', 'faultMultiple', 'faultKaMin', 'vdUsedPct', 'zeOhm', 'allowedA', 'device', 'ratingA', 'irSetting', 'incomer'] as const;
+      const KEYS = ['fedBy', 'kind', 'ref', 'faultKa', 'xr', 'ratedKva', 'xdPct', 'xdTransientPct', 'sustainedMultiple', 'faultMultiple', 'faultKaMin', 'vdUsedPct', 'zeOhm', 'allowedA', 'device', 'ratingA', 'irSetting', 'incomer'] as const;
       const given = KEYS.filter((k) => a[k] !== undefined);
       if (!given.length) throw new Error(`Give at least one value to set (${KEYS.join(', ')}); null clears one.`);
       const supply: Record<string, unknown> = { ...b.supply };
