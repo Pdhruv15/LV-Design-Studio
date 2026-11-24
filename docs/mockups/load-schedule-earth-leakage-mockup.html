@@ -119,6 +119,13 @@ table.ct{border-collapse:collapse;font-size:12px;line-height:16px;background:var
 table.ct th,table.ct td{border:1px solid var(--line);padding:5px 7px;text-align:left;vertical-align:top}
 table.ct th{background:#F3F7FC;font-weight:600}
 table.ct td.sc{color:var(--new);white-space:nowrap}
+table.ex{border-collapse:collapse;font-size:12px;line-height:16px;margin:0 0 10px;width:100%}
+table.ex th,table.ex td{border:1px solid var(--line);padding:3px 6px;text-align:left}
+table.ex th{background:#F3F7FC;font-weight:600}
+.chk{display:inline-flex;align-items:center;gap:6px;margin-right:14px}
+.chk i{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:3px;background:var(--acc);color:#fff}
+.chk i svg{width:9px;height:9px;stroke-width:2.4}
+.mini{display:inline-flex;border:1.5px dashed var(--new);border-radius:5px;padding:0 6px;font-size:11px;line-height:16px;color:var(--new);background:#FBF9FE;margin-left:4px}
 
 .notes{font-size:12px;line-height:17px}
 .notes ol{margin:0;padding-left:0;list-style:none}
@@ -129,8 +136,8 @@ table.ct td.sc{color:var(--new);white-space:nowrap}
 </style>
 </head>
 <body>
-<h1>Load distribution schedule — earth leakage: ELCB sizes, board schemes and devices (proposal, 2026-11-23)</h1>
-<p class="lead">"ELCB per" in the board bar is not a device: it is the rule the app uses to cut the whole DB into ELCB groups. This proposal lets you add an ELCB in the size you want — 3, 6, 9 or 12 circuits — with one click, adds the board schemes used in other countries (one ELCB at the incomer, an RCBO on every circuit), and adds the other earth leakage devices: 4P RCBO for 3-phase circuits, AFDD + RCBO, MCB + RCD add-on block, a circuit with no RCD, and the RCD type (AC / A / F / B). No country is applied by default.</p>
+<h1>Load distribution schedule — earth leakage: ELCB sizes, board schemes and devices (agreed 2026-11-23)</h1>
+<p class="lead"><b>Agreed plan (2026-11-23).</b> Every ELCB on the DB is its own device: click one to make it 3, 6, 9 or 12 circuits, and only that ELCB and its neighbour change. The board-bar list becomes "New ELCBs", the size for ways that have no ELCB yet, and never re-cuts the DB; <b>Re-group all ELCBs…</b> does that after showing before and after. When the app makes ELCBs it keeps 30 mA and 100 mA circuits apart. Then more devices for one circuit (4P RCBO, No RCD, AFDD + RCBO, MCB + RCD add-on block), the RCD type (AC / A / F / B) and the whole-board schemes. No country is applied by default.</p>
 <p class="legend"><i class="td"></i>exists today <i class="nw"></i>new</p>
 
 <h2><span class="n">1</span>What "way" means here, and what each ELCB size covers (DB with 8 ways = 24 circuits)</h2>
@@ -153,8 +160,8 @@ table.ct td.sc{color:var(--new);white-space:nowrap}
     <div class="rl"><b class="nwt">12 circuits (4 ways)</b><br><span class="m">2 ELCBs</span></div>
     <div class="br nw" style="grid-column:2 / span 12">ELCB-1</div><div class="br nw" style="grid-column:14 / span 12">ELCB-2</div>
 
-    <div class="rl"><b>Mixed</b> <span class="m">(the grid in 4)</span><br><span class="m">auto + by hand + per circuit</span></div>
-    <div class="br" style="grid-column:2 / span 6">ELCB-1 auto</div><div class="br nw" style="grid-column:8 / span 9">ELCB-2 by hand · 9 circuits</div><div class="br nw" style="grid-column:17 / span 3">RCBO-1 4P</div><div class="br rc" style="grid-column:20 / span 1">RCBO<br>-2</div><div class="br rc nw" style="grid-column:21 / span 1">AFDD<br>RCBO</div><div class="br rc nw" style="grid-column:22 / span 1">no<br>RCD</div><div class="br" style="grid-column:23 / span 3">ELCB-3 auto</div>
+    <div class="rl"><b>Mixed</b> <span class="m">(the grid in 4)</span><br><span class="m">one ELCB resized + per circuit</span></div>
+    <div class="br" style="grid-column:2 / span 6">ELCB-1 · 6</div><div class="br nw" style="grid-column:8 / span 9">ELCB-2 · 9 circuits (resized)</div><div class="br nw" style="grid-column:17 / span 3">RCBO-1 4P</div><div class="br rc" style="grid-column:20 / span 1">RCBO<br>-2</div><div class="br rc nw" style="grid-column:21 / span 1">AFDD<br>RCBO</div><div class="br rc nw" style="grid-column:22 / span 1">no<br>RCD</div><div class="br" style="grid-column:23 / span 3">ELCB-3 · 3</div>
   </div>
   <div class="card" style="flex:1">
     <div class="t">Today in the app (v2.262)</div>
@@ -167,7 +174,7 @@ table.ct td.sc{color:var(--new);white-space:nowrap}
   </div>
 </div>
 
-<h2><span class="n">2</span>Board bar: "ELCB per" becomes "Earth leakage", a scheme for the whole DB — and what other countries use</h2>
+<h2><span class="n">2</span>Board bar: "ELCB per" becomes "New ELCBs", the size for new ways only — and what other countries use</h2>
 <div class="frame">
   <div class="lshead">
     <span><span class="m">Project</span> <b>Demonstration Project — Not for Construction</b></span>
@@ -175,45 +182,40 @@ table.ct td.sc{color:var(--new);white-space:nowrap}
     <span><span class="m">Fed from</span> <b>SMDB-GF</b></span>
     <span><span class="m">Location</span> <span class="in" style="width:150px">Villa GF – store room</span></span>
     <span><span class="m">Incomer</span> <b>100 A TP&amp;N</b></span>
-    <span><span class="lbl-nw">Earth leakage</span> <span class="in nw">ELCB per 6 circuits (2 ways) <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span> <span class="tag">+ 5 placed by hand</span></span>
+    <span><span class="lbl-nw">New ELCBs</span> <span class="in nw">6 circuits (2 ways) <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span></span>
+    <span class="chip nwd" style="padding:3px 10px">Re-group all ELCBs…</span>
     <span><span class="m">Sensitivity</span> <span class="in">Auto (lighting 100 / power 30 mA) <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span></span>
     <span><span class="lbl-nw">RCD type</span> <span class="in nw">Auto (A; EV B, inverter F) <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span></span>
   </div>
   <div class="row" style="margin-top:8px">
     <div class="menu" style="width:470px;flex:none" id="scheme">
-      <span class="hd">ELCB groups (4P, over whole ways)</span>
-      <div class="it"><span><span class="ck"></span>ELCB per 3 circuits (1 way)</span><span class="m">one per way</span></div>
-      <div class="it hi"><span><span class="ck"><svg viewBox="0 0 12 12" style="width:11px;height:11px;stroke-width:2"><path d="M2 6.5 5 9.5 10 3"/></svg></span>ELCB per 6 circuits (2 ways)</span><span class="m">default, as today</span></div>
-      <div class="it nwd"><span><span class="ck"></span>ELCB per 9 circuits (3 ways)</span><span class="newpill">new</span></div>
-      <div class="it nwd"><span><span class="ck"></span>ELCB per 12 circuits (4 ways)</span><span class="newpill">new</span></div>
+      <span class="hd">Size for ways with no ELCB yet</span>
+      <div class="it"><span><span class="ck"></span>3 circuits (1 way)</span><span class="m">one per way</span></div>
+      <div class="it hi"><span><span class="ck"><svg viewBox="0 0 12 12" style="width:11px;height:11px;stroke-width:2"><path d="M2 6.5 5 9.5 10 3"/></svg></span>6 circuits (2 ways)</span><span class="m">default, as today</span></div>
+      <div class="it nwd"><span><span class="ck"></span>9 circuits (3 ways)</span><span class="newpill">new</span></div>
+      <div class="it nwd"><span><span class="ck"></span>12 circuits (4 ways)</span><span class="newpill">new</span></div>
       <hr>
-      <span class="hd">Whole DB</span>
-      <div class="it nwd"><span><span class="ck"></span>One ELCB at the incomer</span><span class="m">every circuit · e.g. 100 A 30 mA 4P <span class="newpill">new</span></span></div>
-      <hr>
-      <span class="hd">Per circuit</span>
-      <div class="it nwd"><span><span class="ck"></span>RCBO on every circuit</span><span class="m">1-phase 2P · 3-phase 4P <span class="newpill">new</span></span></div>
-      <hr>
-      <div class="it"><span><span class="ck"></span>No earth leakage on this DB</span><span class="m">an RCD upstream covers it (today "No ELCB")</span></div>
-      <div class="foot">ELCBs and devices placed by hand stay where they are; the scheme fills the ways that are left. Rating and mA stay Auto unless set.</div>
+      <div class="it"><span><span class="ck"></span>No ELCB for new ways</span><span class="m">an RCD upstream covers them</span></div>
+      <div class="foot"><b>Changing this never changes the ELCBs already on the DB.</b> It sets the size for circuits added in ways that have no ELCB yet. To cut the whole DB again, use <b>Re-group all ELCBs…</b> (3), which will also hold the whole-board schemes: one ELCB at the incomer, RCBO on every circuit (build step 5).</div>
     </div>
     <div style="flex:1">
       <table class="ct">
         <thead><tr><th style="width:190px">Where</th><th style="width:330px">30 mA protection required for</th><th>How DBs are usually arranged</th><th style="width:220px">Scheme in this proposal</th></tr></thead>
         <tbody>
           <tr><td><b>Gulf countries</b><br><span class="m">utility wiring rules, common practice</span></td><td>Socket and power circuits 30 mA; lighting often 100 mA (the app's settings today)</td><td>4P ELCB (RCCB) over 1 or 2 ways of a 3-phase DB, MCBs below; RCBO for single wet-area or outdoor circuits</td><td class="sc">ELCB per 6 or 3 circuits</td></tr>
-          <tr><td><b>UK &amp; Ireland</b><br><span class="m">BS 7671 · I.S. 10101</span></td><td>Sockets up to 32 A, mobile equipment outdoors, cables in walls less than 50 mm deep, all lighting in dwellings, bathrooms</td><td>Split-load board (two 30 mA RCCBs over banks of MCBs) or, now usual, an RCBO on every circuit so a fault trips one circuit only. AFDD on socket circuits up to 32 A in high-rise homes, HMOs, student housing and care homes (since A2:2022): AFDD + RCBO</td><td class="sc">RCBO on every circuit · AFDD + RCBO by hand</td></tr>
+          <tr><td><b>UK &amp; Ireland</b><br><span class="m">BS 7671 · I.S. 10101</span></td><td>Sockets up to 32 A, mobile equipment outdoors, cables in walls less than 50 mm deep, all lighting in dwellings, bathrooms</td><td>Split-load board (two 30 mA RCCBs over banks of MCBs) or, now usual, an RCBO on every circuit so a fault trips one circuit only. AFDD on socket circuits up to 32 A in high-rise homes, HMOs, student housing and care homes (since A2:2022): AFDD + RCBO</td><td class="sc">RCBO on every circuit · AFDD + RCBO per circuit</td></tr>
           <tr><td><b>Europe (IEC 60364)</b><br><span class="m">France NF C 15-100 and others</span></td><td>Sockets up to 32 A for ordinary persons and outdoor mobile equipment (IEC 60364-4-41); many countries add lighting in dwellings</td><td>Groups of circuits per 30 mA RCCB, several RCCBs so one trip does not cut the whole home. France: at least two 30 mA RCDs (one Type A), at most 8 circuits per RCD; Type A for cooker, washing machine and EV</td><td class="sc">ELCB per 9 or 12 circuits · RCD type A</td></tr>
           <tr><td><b>Australia &amp; New Zealand</b><br><span class="m">AS/NZS 3000:2018</span></td><td>All final subcircuits in homes (sockets, lighting, fixed appliances)</td><td>At most 3 circuits per RCD, at least two RCDs, lighting circuits shared between them; an RCBO per circuit is often recommended</td><td class="sc">ELCB per 3 circuits · RCBO on every circuit</td></tr>
           <tr><td><b>USA &amp; Canada</b><br><span class="m">NEC · CEC</span></td><td>GFCI (trips at about 5 mA) for receptacles in bathrooms, kitchens, outdoors, garages, basements, laundry; AFCI in dwelling rooms</td><td>No board-wide RCD: a GFCI, AFCI or dual-function breaker per circuit, or a GFCI receptacle at the outlet; 120/240 V split-phase</td><td class="sc">RCBO on every circuit <span class="m">(the 230/400 V DB form does not cover 120/240 V)</span></td></tr>
           <tr><td><b>Small DBs, TT supplies</b><br><span class="m">parts of South and South-East Asia</span></td><td>Whole installation, often 30 or 100 mA</td><td>One RCCB at the DB incomer for every circuit. On TT supplies a time-delayed (S-type) 100 mA RCD upstream lets 30 mA devices below trip first</td><td class="sc">One ELCB at the incomer (S-type when 30 mA devices are below)</td></tr>
         </tbody>
       </table>
-      <p class="m" style="margin:6px 0 0;font-size:11px">Summary for design only: check the edition and the local rules you design to. The app applies no country by default; a design rule could warn when a DB has more circuits per RCD than the rule allows (decision F).</p>
+      <p class="m" style="margin:6px 0 0;font-size:11px">Summary for design only: check the edition and the local rules you design to. The app applies no country by default; a design rule could warn when a DB has more circuits per RCD than the rule allows (a later option).</p>
     </div>
   </div>
 </div>
 
-<h2><span class="n">3</span>Add an ELCB in the size you want, and the other devices for one circuit (Add row above the grid, ELCB / RCD opened; R3 selected)</h2>
+<h2><span class="n">3</span>Change one ELCB: click its cell in the grid, or ELCB / RCD with a circuit selected (R3 selected, under ELCB-2)</h2>
 <div class="tools">
   <span class="lbl">Add</span>
   <span class="chip pri"><svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg><b>1-phase circuit</b></span>
@@ -227,13 +229,14 @@ table.ct td.sc{color:var(--new);white-space:nowrap}
   <span class="sep"></span>
   <span class="chip"><svg viewBox="0 0 16 16"><path d="M8 2.5v11M4 13.5h8M3 5.5h10M3 5.5 1.5 9h3L3 5.5ZM13 5.5 11.5 9h3L13 5.5Z"/></svg><b>Balance phases</b></span>
   <span class="sp"></span>
-  <span style="font-size:12px">Phase load (W): <b class="ph-r">R 12,067</b> · <b class="ph-y">Y 9,147</b> · <b class="ph-b">B 8,407</b> · imbalance <b style="color:var(--warn)">37%</b></span>
+  <span style="font-size:12px">Phase load (W): <b class="ph-r">R 12,067</b> · <b class="ph-y">Y 9,147</b> · <b class="ph-b">B 8,627</b> · imbalance <b style="color:var(--warn)">35%</b></span>
 </div>
 <div class="row" style="margin-top:6px">
   <div class="menu" style="width:520px;flex:none">
-    <span class="hd">ELCB (4P) over whole ways, from way 3 (selected R3)</span>
-    <div class="sizes"><span><b>3 circuits</b><i>1 way · 3</i></span><span><b>6 circuits</b><i>2 ways · 3–4</i></span><span style="background:#EAF1FB"><b>9 circuits</b><i>3 ways · 3–5</i></span><span><b>12 circuits</b><i>4 ways · 3–6</i></span></div>
-    <div class="it"><span>Other ways, poles, type, rating…</span><span class="m">opens the dialog</span></div>
+    <span class="hd">ELCB-2 — ways 3–5, 9 circuits</span>
+    <div class="sizes"><span><b>3 circuits</b><i>way 3</i></span><span><b>6 circuits</b><i>ways 3–4</i></span><span style="background:#EAF1FB"><b>9 circuits</b><i>ways 3–5 · now</i></span><span><b>12 circuits</b><i>ways 3–6</i></span></div>
+    <div class="it"><span>Edit ELCB-2…</span><span class="m">poles, RCD type, rating, mA</span></div>
+    <div class="it"><span>Remove ELCB-2</span><span class="m">ways 3–5 take the New ELCBs size</span></div>
     <hr>
     <span class="hd">For the selected circuit R3 (1-phase, 20 A)</span>
     <div class="it"><span>RCBO in place of the MCB</span><span class="m">2P (1P+N) · as today</span></div>
@@ -244,39 +247,45 @@ table.ct td.sc{color:var(--new);white-space:nowrap}
     <div class="it off"><span>ELCB for the selected 3-phase circuit only</span><span class="m">as today</span></div>
     <div class="it off nwd"><span>4P RCBO for the selected 3-phase circuit</span><span class="newpill">new</span></div>
     <hr>
-    <div class="it"><span>Edit ELCB-2…</span><span></span></div>
-    <div class="it"><span>Remove ELCB-2</span><span></span></div>
-    <div class="it"><span>All automatic again</span><span></span></div>
+    <div class="it nwd"><span>Re-group all ELCBs…</span><span class="m">cuts the whole DB again; asks first <span class="newpill">new</span></span></div>
   </div>
 
   <div class="card dlg">
-    <div class="t"><span>Add ELCB — DB-GF1</span><span class="m">×</span></div>
-    <div class="fr"><span>Covers</span><span class="seg nw"><span>3 circuits<i>1 way</i></span><span>6 circuits<i>2 ways</i></span><span class="on">9 circuits<i>3 ways</i></span><span>12 circuits<i>4 ways</i></span><span>Other<i>any ways</i></span></span></div>
-    <div class="fr"><span>From way</span><span class="two"><span class="in">3</span><span class="m">to way</span><span class="in" style="background:var(--p2)">5</span><span class="m">(from the size; "Other" lets you type it)</span></span></div>
-    <div class="fr"><span>Circuits</span><span class="cov">R3 · Y3 · B3 · R4 · Y4 · B4 · R5 · Y5 · B5 — <b>9 circuits</b> <span class="m">(7 in use, 1 spare, 1 space)</span></span></div>
-    <div class="fr"><span>Poles</span><span class="radio"><span><i class="on"></i>4P (TP&amp;N)</span><span><i></i>3P (no neutral)</span></span></div>
-    <div class="fr"><span class="lbl-nw">RCD type</span><span class="in nw">Auto — Type A (general circuits) <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span></div>
-    <div class="fr"><span>Rating</span><span class="in">Auto — 25 A (24.1 A per phase) <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span></div>
-    <div class="fr"><span>Sensitivity</span><span class="in">Auto — 30 mA (power circuit) <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span></div>
-    <p class="note">RCD type list: AC (plain AC loads only) · A (general, pulsating DC) · F (inverter washing machines and ACs) · B (EV chargers without 6 mA DC detection, 3-phase drives, PV inverters). Ways under another ELCB placed by hand are refused, as today; RCBO and "no RCD" circuits in these ways stay out of the ELCB.</p>
-    <div class="btns"><span class="chip">Cancel</span><span class="chip pri">Add ELCB</span></div>
+    <div class="t"><span>Re-group all ELCBs — DB-GF1</span><span class="m">×</span></div>
+    <div class="fr"><span>Cut every way into</span><span class="seg nw"><span>3 circuits<i>1 way</i></span><span class="on">6 circuits<i>2 ways</i></span><span>9 circuits<i>3 ways</i></span><span>12 circuits<i>4 ways</i></span></span></div>
+    <div class="fr"><span>Or</span><span class="radio"><span><i></i>One ELCB at the incomer</span><span><i></i>RCBO on every circuit</span><span><i></i>No ELCB</span></span></div>
+    <div class="fr"><span></span><span class="m" style="font-size:11px">The incomer and RCBO schemes come with build step 5.</span></div>
+    <div class="fr"><span>Keep</span><span><span class="chk"><i><svg viewBox="0 0 12 12" style="width:11px;height:11px;stroke-width:2"><path d="M2 6.5 5 9.5 10 3"/></svg></i>30 mA and 100 mA circuits apart</span><span class="chk"><i><svg viewBox="0 0 12 12" style="width:11px;height:11px;stroke-width:2"><path d="M2 6.5 5 9.5 10 3"/></svg></i>RCBOs and other per-circuit devices</span></span></div>
+    <div class="fr"><span>Before</span><span class="cov">5 ELCBs: 6 · 9 · 3 · 6 · 6 circuits; ELCB-1 mixes lighting and power (30 mA)</span></div>
+    <div class="fr"><span>After</span><span class="cov">6 ELCBs of up to 6 circuits: ELCB-1 lighting 100 mA (ways 1–2), ELCB-2 to ELCB-6 power 30 mA; circuits move to new ways, so their numbers change</span></div>
+    <p class="note">Ratings, mA and the numbers ELCB-1, 2 … are worked out again. Nothing changes until you press Re-group, and Undo puts it back.</p>
+    <div class="btns"><span class="chip">Cancel</span><span class="chip pri">Re-group</span></div>
   </div>
 
   <div class="card notes" style="flex:1">
-    <div class="t">What the menu does</div>
+    <div class="t">How one ELCB changes (4 ways, ELCBs of 6 circuits)</div>
+    <table class="ex">
+      <thead><tr><th>You do</th><th>ELCB-1</th><th>ELCB-2</th><th>ELCB-3</th></tr></thead>
+      <tbody>
+        <tr><td>Start</td><td>ways 1–2 (6)</td><td>ways 3–4 (6)</td><td>—</td></tr>
+        <tr><td>Set ELCB-1 to <b>3</b></td><td>way 1 (3)</td><td>way 2 (3), new</td><td>ways 3–4 (6), unchanged</td></tr>
+        <tr><td>Set ELCB-1 to <b>9</b> instead</td><td>ways 1–3 (9)</td><td>way 4 (3), smaller</td><td>—</td></tr>
+        <tr><td>Change New ELCBs to 3</td><td>no change</td><td>no change</td><td>only ways with no ELCB</td></tr>
+      </tbody>
+    </table>
     <ol>
-      <li><span class="n">a</span><b>Size buttons</b> add a 4P ELCB in one click, starting at the selected circuit's way (or the first way with no device placed by hand). They fit up to the last used way; the ELCB number follows way order (ELCB-1, 2, …), as today.</li>
-      <li><span class="n">b</span><b>9 and 12 circuits</b> are also in the board scheme list (2), so a whole DB can be cut into 3-way or 4-way groups automatically.</li>
-      <li><span class="n">c</span><b>AFDD + RCBO</b> is one RCBO with arc fault detection (IEC 62606); it prints as "RCBO-3 · 20 A 30 mA 2P + AFDD" and counts as one device in the BOQ.</li>
-      <li><span class="n">d</span><b>MCB + RCD add-on block</b>: for ratings or curves where an RCBO is not made; prints both and counts both.</li>
-      <li><span class="n">e</span><b>No RCD</b> is for a circuit that must not trip with others (fire alarm panel, smoke extract). The reason prints in the ELCB cell; the earth fault check then has to pass on the MCB alone.</li>
-      <li><span class="n">f</span><b>4P RCBO</b> gives a 3-phase circuit (EV charger, pump) its own MCB + earth leakage in one device instead of an ELCB and an MCB.</li>
-      <li><span class="n">g</span>A circuit still has one earth leakage device only (your rule, 2026-11-18): ELCB group, RCBO, AFDD + RCBO, add-on block or none.</li>
+      <li><span class="n">a</span><b>Bigger</b> takes ways from the next ELCB, which gets smaller; an ELCB left with no ways is removed.</li>
+      <li><span class="n">b</span><b>Smaller:</b> the ways it gives up get an ELCB of their own.</li>
+      <li><span class="n">c</span>Every ELCB stays as it is once it is on the DB, so "by hand" and "auto" go from the schedule. Old projects open with exactly the ELCBs they print today.</li>
+      <li><span class="n">d</span>A new circuit in a way under an ELCB joins it; in a way with no ELCB it gets one of the New ELCBs size.</li>
+      <li><span class="n">e</span><b>Balance phases</b> swaps R, Y and B only inside each ELCB, so every ELCB keeps its circuits and its size.</li>
+      <li><span class="n">f</span>When the app makes ELCBs (new ways, Re-group) it keeps 30 mA and 100 mA apart. A way with one odd circuit gets <b>Make RCBO</b> in the Check column (B2 in 4).</li>
+      <li><span class="n">g</span>One earth leakage device per circuit (your rule, 2026-11-18).</li>
     </ol>
   </div>
 </div>
 
-<h2><span class="n">4</span>The grid after these choices (DB-GF1, ELCB per 6 circuits, one 9-circuit ELCB and four per-circuit devices placed by hand)</h2>
+<h2><span class="n">4</span>The grid after these choices (DB-GF1: ELCB-2 set to 9 circuits, four per-circuit devices, B2 the one socket circuit under the lighting ELCB)</h2>
 <table class="ls">
   <thead>
     <tr><th rowspan="2">ELCB</th><th rowspan="2">Sl.</th><th rowspan="2">Cir No.</th><th rowspan="2">MCB (A)</th><th rowspan="2">CCT wire mm²</th><th rowspan="2">ECC mm²</th><th rowspan="2">Room / area</th>
@@ -285,14 +294,14 @@ table.ct td.sc{color:var(--new);white-space:nowrap}
     <tr class="watt"><td colspan="7" style="text-align:left"><b>WATT / UNIT</b></td><td>20</td><td>200</td><td>3000</td><td>3000</td><td>11000</td><td colspan="3" class="shade"></td><td colspan="3"></td></tr>
   </thead>
   <tbody>
-    <tr><td class="elcb" rowspan="6"><b>ELCB-1</b><br>25 A 100 mA 4P <span class="nwt">Type A</span><br><span class="m">lighting · auto</span></td><td>1</td><td><b class="ph-r">R1</b><span class="cat">L</span></td><td>10</td><td>2.5</td><td>2.5</td><td class="room">Living</td><td>12</td><td></td><td></td><td></td><td></td><td class="shade">240</td><td class="shade"></td><td class="shade"></td><td>20</td><td class="ok">OK</td><td class="rk"></td></tr>
+    <tr><td class="elcb" rowspan="6"><b>ELCB-1</b><br>25 A 30 mA 4P <span class="nwt">Type A</span><br><span style="color:var(--warn)">6 circuits · mixed</span></td><td>1</td><td><b class="ph-r">R1</b><span class="cat">L</span></td><td>10</td><td>2.5</td><td>2.5</td><td class="room">Living</td><td>12</td><td></td><td></td><td></td><td></td><td class="shade">240</td><td class="shade"></td><td class="shade"></td><td>20</td><td class="ok">OK</td><td class="rk"></td></tr>
     <tr><td>2</td><td><b class="ph-y">Y1</b><span class="cat">L</span></td><td>10</td><td>2.5</td><td>2.5</td><td class="room">Kitchen</td><td>10</td><td></td><td></td><td></td><td></td><td class="shade"></td><td class="shade">200</td><td class="shade"></td><td>20</td><td class="ok">OK</td><td class="rk"></td></tr>
     <tr><td>3</td><td><b class="ph-b">B1</b><span class="cat">L</span></td><td>10</td><td>2.5</td><td>2.5</td><td class="room">Bedroom 1</td><td>8</td><td></td><td></td><td></td><td></td><td class="shade"></td><td class="shade"></td><td class="shade">160</td><td>20</td><td class="ok">OK</td><td class="rk"></td></tr>
     <tr><td>4</td><td><b class="ph-r">R2</b><span class="cat">L</span></td><td>10</td><td>2.5</td><td>2.5</td><td class="room">Bedroom 2</td><td>8</td><td></td><td></td><td></td><td></td><td class="shade">160</td><td class="shade"></td><td class="shade"></td><td>20</td><td class="ok">OK</td><td class="rk"></td></tr>
     <tr><td>5</td><td><b class="ph-y">Y2</b><span class="cat">L</span></td><td>10</td><td>2.5</td><td>2.5</td><td class="room">Majlis</td><td>14</td><td></td><td></td><td></td><td></td><td class="shade"></td><td class="shade">280</td><td class="shade"></td><td>20</td><td class="ok">OK</td><td class="rk"></td></tr>
-    <tr><td>6</td><td><b class="ph-b">B2</b><span class="cat">L</span></td><td>10</td><td>2.5</td><td>2.5</td><td class="room">External</td><td>9</td><td></td><td></td><td></td><td></td><td class="shade"></td><td class="shade"></td><td class="shade">180</td><td>20</td><td class="ok">OK</td><td class="rk"></td></tr>
+    <tr><td>6</td><td><b class="ph-b">B2</b><span class="cat">P</span></td><td>20</td><td>4</td><td>4</td><td class="room">External sockets</td><td></td><td>2</td><td></td><td></td><td></td><td class="shade"></td><td class="shade"></td><td class="shade">400</td><td>20</td><td class="wn">Only power circuit on ELCB-1 <span class="mini">Make RCBO</span></td><td class="rk"></td></tr>
 
-    <tr class="alt"><td class="elcb hand" rowspan="9"><b>ELCB-2</b><br>25 A 30 mA 4P <span class="nwt">Type A</span><br><span class="nwt">by hand · 9 circuits (ways 3–5)</span></td><td>7</td><td><b class="ph-r">R3</b><span class="cat">P</span></td><td>20</td><td>4</td><td>4</td><td class="room">Living</td><td></td><td>6</td><td></td><td></td><td></td><td class="shade">1,200</td><td class="shade"></td><td class="shade"></td><td>20</td><td class="ok">OK</td><td class="rk"></td></tr>
+    <tr class="alt"><td class="elcb hand" rowspan="9"><b>ELCB-2</b><br>25 A 30 mA 4P <span class="nwt">Type A</span><br><span class="nwt">9 circuits · ways 3–5</span></td><td>7</td><td><b class="ph-r">R3</b><span class="cat">P</span></td><td>20</td><td>4</td><td>4</td><td class="room">Living</td><td></td><td>6</td><td></td><td></td><td></td><td class="shade">1,200</td><td class="shade"></td><td class="shade"></td><td>20</td><td class="ok">OK</td><td class="rk"></td></tr>
     <tr class="alt"><td>8</td><td><b class="ph-y">Y3</b><span class="cat">P</span></td><td>20</td><td>4</td><td>4</td><td class="room">Kitchen</td><td></td><td>5</td><td></td><td></td><td></td><td class="shade"></td><td class="shade">1,000</td><td class="shade"></td><td>20</td><td class="ok">OK</td><td class="rk"></td></tr>
     <tr class="alt"><td>9</td><td><b class="ph-b">B3</b><span class="cat">P</span></td><td>20</td><td>4</td><td>4</td><td class="room">Bedrooms</td><td></td><td>6</td><td></td><td></td><td></td><td class="shade"></td><td class="shade"></td><td class="shade">1,200</td><td>20</td><td class="ok">OK</td><td class="rk"></td></tr>
     <tr class="alt"><td>10</td><td><b class="ph-r">R4</b><span class="cat">P</span></td><td>20</td><td>4</td><td>4</td><td class="room">Living</td><td></td><td></td><td>1</td><td></td><td></td><td class="shade">3,000</td><td class="shade"></td><td class="shade"></td><td>20</td><td class="ok">OK</td><td class="rk"></td></tr>
@@ -302,42 +311,43 @@ table.ct td.sc{color:var(--new);white-space:nowrap}
     <tr class="alt spare"><td>14</td><td><b class="ph-y">Y5</b></td><td>20</td><td></td><td></td><td class="room"><b>Spare</b></td><td></td><td></td><td></td><td></td><td></td><td class="shade"></td><td class="shade"></td><td class="shade"></td><td></td><td></td><td class="rk">1-phase spare</td></tr>
     <tr class="alt spare"><td>15</td><td><b class="ph-b">B5</b></td><td><span class="m">—</span></td><td></td><td></td><td class="room"><b>Space</b></td><td></td><td></td><td></td><td></td><td></td><td class="shade"></td><td class="shade"></td><td class="shade"></td><td></td><td></td><td class="rk">1-phase space</td></tr>
 
-    <tr><td class="elcb hand"><b>RCBO-1</b><br>20 A 30 mA 4P <span class="nwt">Type B</span><br><span class="nwt">by hand · this circuit</span></td><td>16</td><td><b class="ph-ryb">RYB6</b><span class="cat">P</span></td><td>20</td><td>6</td><td>6</td><td class="room">Car porch</td><td></td><td></td><td></td><td></td><td>1</td><td class="shade">3,667</td><td class="shade">3,667</td><td class="shade">3,667</td><td>30</td><td class="ok">OK</td><td class="rk">EV charger 11 kW (no DC detection)</td></tr>
+    <tr><td class="elcb hand"><b>RCBO-1</b><br>20 A 30 mA 4P <span class="nwt">Type B</span><br><span class="m">this circuit</span></td><td>16</td><td><b class="ph-ryb">RYB6</b><span class="cat">P</span></td><td>20</td><td>6</td><td>6</td><td class="room">Car porch</td><td></td><td></td><td></td><td></td><td>1</td><td class="shade">3,667</td><td class="shade">3,667</td><td class="shade">3,667</td><td>30</td><td class="ok">OK</td><td class="rk">EV charger 11 kW (no DC detection)</td></tr>
 
-    <tr class="alt"><td class="elcb hand"><b>RCBO-2</b><br>20 A 30 mA 2P <span class="nwt">Type F</span><br><span class="m">by hand · this circuit</span></td><td>17</td><td><b class="ph-r">R7</b><span class="cat">P</span></td><td>20</td><td>4</td><td>4</td><td class="room">Bedroom 1</td><td></td><td></td><td>1</td><td></td><td></td><td class="shade">3,000</td><td class="shade"></td><td class="shade"></td><td>20</td><td class="ok">OK</td><td class="rk">Inverter split AC</td></tr>
-    <tr class="alt"><td class="elcb hand"><b>RCBO-3</b><br>20 A 30 mA 2P <span class="nwt">+ AFDD</span><br><span class="nwt">by hand · this circuit</span></td><td>18</td><td><b class="ph-y">Y7</b><span class="cat">P</span></td><td>20</td><td>4</td><td>4</td><td class="room">Bedroom 2</td><td></td><td>5</td><td></td><td></td><td></td><td class="shade"></td><td class="shade">1,000</td><td class="shade"></td><td>20</td><td class="ok">OK</td><td class="rk"></td></tr>
-    <tr class="alt"><td class="elcb hand"><b>No RCD</b><br><span class="nwt">by hand · fire alarm panel</span></td><td>19</td><td><b class="ph-b">B7</b><span class="cat">P</span></td><td>10</td><td>2.5</td><td>2.5</td><td class="room">Store</td><td></td><td>1</td><td></td><td></td><td></td><td class="shade"></td><td class="shade"></td><td class="shade">200</td><td>15</td><td class="ok">OK <span class="m">(Zs, MCB alone)</span></td><td class="rk">Fire alarm control panel</td></tr>
+    <tr class="alt"><td class="elcb hand"><b>RCBO-2</b><br>20 A 30 mA 2P <span class="nwt">Type F</span><br><span class="m">this circuit</span></td><td>17</td><td><b class="ph-r">R7</b><span class="cat">P</span></td><td>20</td><td>4</td><td>4</td><td class="room">Bedroom 1</td><td></td><td></td><td>1</td><td></td><td></td><td class="shade">3,000</td><td class="shade"></td><td class="shade"></td><td>20</td><td class="ok">OK</td><td class="rk">Inverter split AC</td></tr>
+    <tr class="alt"><td class="elcb hand"><b>RCBO-3</b><br>20 A 30 mA 2P <span class="nwt">+ AFDD</span><br><span class="m">this circuit</span></td><td>18</td><td><b class="ph-y">Y7</b><span class="cat">P</span></td><td>20</td><td>4</td><td>4</td><td class="room">Bedroom 2</td><td></td><td>5</td><td></td><td></td><td></td><td class="shade"></td><td class="shade">1,000</td><td class="shade"></td><td>20</td><td class="ok">OK</td><td class="rk"></td></tr>
+    <tr class="alt"><td class="elcb hand"><b>No RCD</b><br><span class="m">fire alarm panel</span></td><td>19</td><td><b class="ph-b">B7</b><span class="cat">P</span></td><td>10</td><td>2.5</td><td>2.5</td><td class="room">Store</td><td></td><td>1</td><td></td><td></td><td></td><td class="shade"></td><td class="shade"></td><td class="shade">200</td><td>15</td><td class="ok">OK <span class="m">(Zs, MCB alone)</span></td><td class="rk">Fire alarm control panel</td></tr>
 
-    <tr class="spare"><td class="elcb" rowspan="3"><b>ELCB-3</b><br>25 A 30 mA 4P <span class="nwt">Type A</span><br><span class="m">power · auto</span></td><td>20</td><td><b class="ph-r">R8</b></td><td>20</td><td></td><td></td><td class="room"><b>Spare</b></td><td></td><td></td><td></td><td></td><td></td><td class="shade"></td><td class="shade"></td><td class="shade"></td><td></td><td></td><td class="rk">1-phase spare</td></tr>
+    <tr class="spare"><td class="elcb" rowspan="3"><b>ELCB-3</b><br>25 A 30 mA 4P <span class="nwt">Type A</span><br><span class="m">3 circuits · power</span></td><td>20</td><td><b class="ph-r">R8</b></td><td>20</td><td></td><td></td><td class="room"><b>Spare</b></td><td></td><td></td><td></td><td></td><td></td><td class="shade"></td><td class="shade"></td><td class="shade"></td><td></td><td></td><td class="rk">1-phase spare</td></tr>
     <tr class="spare"><td>21</td><td><b class="ph-y">Y8</b></td><td>20</td><td></td><td></td><td class="room"><b>Spare</b></td><td></td><td></td><td></td><td></td><td></td><td class="shade"></td><td class="shade"></td><td class="shade"></td><td></td><td></td><td class="rk">1-phase spare</td></tr>
     <tr class="spare"><td>22</td><td><b class="ph-b">B8</b></td><td><span class="m">—</span></td><td></td><td></td><td class="room"><b>Space</b></td><td></td><td></td><td></td><td></td><td></td><td class="shade"></td><td class="shade"></td><td class="shade"></td><td></td><td></td><td class="rk">1-phase space</td></tr>
   </tbody>
 </table>
-<p class="m" style="margin:6px 0 0;font-size:12px">The PDF and Excel form print the same ELCB column in black and white; the coloured words here only mark what is new. The BOQ counts 3 ELCBs 4P 25 A (one 100 mA, two 30 mA), one 4P RCBO Type B, two 2P RCBOs (one with AFDD) and no RCD device for B7.</p>
+<p class="m" style="margin:6px 0 0;font-size:12px">The PDF and Excel form print the same ELCB column in black and white; the coloured words here only mark what is new. "Make RCBO" on B2 turns it into RCBO-4 and puts ELCB-1 back to 100 mA (lighting only). The BOQ counts 3 ELCBs 4P 25 A 30 mA, one 4P RCBO Type B, two 2P RCBOs (one with AFDD) and no RCD device for B7.</p>
 
-<h2><span class="n">5</span>Decisions for you, and build steps</h2>
+<h2><span class="n">5</span>Agreed plan and build steps</h2>
 <div class="row">
   <div class="card notes" style="flex:1">
-    <div class="t">Decisions (my recommendation first)</div>
-    <ol class="dec">
-      <li><b class="k">A.</b> Board bar: rename "ELCB per" to <b>Earth leakage</b> with the scheme list in 2 (recommended), or keep "ELCB per" and only add 9 and 12?</li>
-      <li><b class="k">B.</b> Sizes: <b>3 / 6 / 9 / 12 circuits + Other</b> (recommended), or only 3 / 6 / 9?</li>
-      <li><b class="k">C.</b> A size button starts at the <b>selected circuit's way</b> (recommended), or always at the first way with no device placed by hand?</li>
-      <li><b class="k">D.</b> New devices: <b>4P RCBO, No RCD and RCD type first</b> (recommended), then AFDD + RCBO and MCB + RCD add-on block? Or all together?</li>
-      <li><b class="k">E.</b> Print the RCD type in the ELCB cell of the PDF and Excel form ("25 A 30 mA 4P Type A")? Recommended yes, black and white, only when the type is not the default A — or always?</li>
-      <li><b class="k">F.</b> Country rules: <b>none by default</b> (recommended); optional design rule "most circuits per RCD" (e.g. 3 or 8) that only warns in the Check column?</li>
-      <li><b class="k">G.</b> "One ELCB at the incomer": one cell over all rows in the ELCB column and "+ ELCB 100 A 30 mA 4P" after the incomer (recommended); S-type offered when 30 mA devices sit below it?</li>
+    <div class="t">Agreed 2026-11-23 ("ok go ahead" to the recommended plan)</div>
+    <ol>
+      <li><span class="n">1</span><b>Every ELCB is its own device.</b> Click its cell and pick 3, 6, 9 or 12 circuits; only that ELCB and its neighbour change.</li>
+      <li><span class="n">2</span><b>New ELCBs</b> in the board bar is only the size for ways with no ELCB yet. <b>Re-group all ELCBs…</b> re-cuts the DB after showing before and after.</li>
+      <li><span class="n">3</span>When the app makes ELCBs it <b>keeps 30 mA and 100 mA apart</b>; one odd circuit in a way gets <b>Make RCBO</b> in the Check column.</li>
+      <li><span class="n">4</span><b>Devices:</b> 4P RCBO and No RCD first, then AFDD + RCBO and MCB + RCD add-on block.</li>
+      <li><span class="n">5</span><b>RCD type</b> AC / A / F / B set from the load, printed only when it is not Type A.</li>
+      <li><span class="n">6</span><b>Whole-board schemes</b> (one ELCB at the incomer, RCBO on every circuit) last, in Re-group.</li>
+      <li><span class="n">7</span><b>No country rule by default.</b> Old projects open with the ELCBs they print today.</li>
     </ol>
   </div>
   <div class="card notes" style="width:760px;flex:none">
-    <div class="t">Build steps after approval (one PR each)</div>
+    <div class="t">Build steps (one PR each)</div>
     <ol>
-      <li><span class="n">1</span><b>Sizes.</b> ELCB per 9 and 12 circuits; size buttons in the ELCB / RCD menu and the dialog. The data already allows any ways by hand; only the board rule gains 9 and 12.</li>
-      <li><span class="n">2</span><b>Devices.</b> 4P RCBO for 3-phase circuits, No RCD (with reason), AFDD + RCBO, MCB + RCD add-on block: one "earth leakage device" kind on the circuit in place of today's RCBO flag (old projects read as before). PDF, Excel, BOQ, enclosure list and earth fault check follow.</li>
-      <li><span class="n">3</span><b>RCD type.</b> AC / A / F / B on every ELCB and RCBO, Auto by load type (EV B, inverter AC F, otherwise A), printed per decision E, counted in the BOQ.</li>
-      <li><span class="n">4</span><b>Schemes.</b> One ELCB at the incomer and RCBO on every circuit in the Earth leakage list; S-type at the incomer per decision G.</li>
+      <li><span class="n">1</span><b>ELCB as its own device:</b> click to resize, New ELCBs 3 / 6 / 9 / 12, Re-group all ELCBs…, Balance phases inside each ELCB.</li>
+      <li><span class="n">2</span><b>Keep 30 mA and 100 mA apart</b> and Make RCBO for one odd circuit.</li>
+      <li><span class="n">3</span><b>Devices:</b> 4P RCBO and No RCD; then AFDD + RCBO and MCB + RCD add-on block. PDF, Excel, BOQ, enclosure list and earth fault check follow.</li>
+      <li><span class="n">4</span><b>RCD type</b> on every ELCB and RCBO, counted in the BOQ.</li>
+      <li><span class="n">5</span><b>Whole-board schemes</b> in Re-group; S-type at the incomer when 30 mA devices sit below it.</li>
     </ol>
-    <p class="m" style="margin:4px 0 0">Each step: tests for grouping, ratings, numbering and exports; Balance phases keeps circuits under devices placed by hand in their ways, as today.</p>
+    <p class="m" style="margin:4px 0 0">Each step adds tests for grouping, numbering, ratings and exports.</p>
   </div>
 </div>
 

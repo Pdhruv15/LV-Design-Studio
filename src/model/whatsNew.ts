@@ -31,6 +31,15 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.272', date: '2026-11-23',
+    items: [
+      { title: 'Load schedule: every ELCB is its own device', text: 'Click an ELCB on the DB schedule and choose 3, 6, 9 or 12 circuits: only that ELCB and the one next to it change. Edit and Remove are on the same menu, and on ELCB / RCD with a circuit selected.' },
+      { title: 'New ELCBs and Re-group all ELCBs', text: '"ELCB per" is now "New ELCBs" (3, 6, 9 or 12 circuits): the size for ways that have no ELCB yet, so changing it no longer changes every ELCB on the DB. Re-group all ELCBs… cuts the whole DB again after showing before and after, keeping lighting and power apart if you ask.' },
+      { title: 'Balance phases keeps each ELCB', text: 'Balance phases now moves 1-phase circuits only inside their own ELCB, so every ELCB keeps its circuits and its size.' },
+      { title: 'Excel sheet shows the ELCBs of a new DB', text: 'A DB whose ELCB size was never changed printed an empty ELCB column on its Excel sheet; it now shows the same ELCBs as the schedule and the PDF.' }
+    ]
+  },
+  {
     version: '2.271', date: '2026-11-23',
     items: [
       { title: 'A click on empty space no longer picks a whole plan', text: 'In Design CAD, a click that landed on no line but inside a block picked that block, however large: on a drawing with a frame or a plan kept as one block, a near miss picked everything. A click inside a block now picks it only while the block is symbol-sized on screen (a board, a fitting); on its lines it is picked as before.' }
