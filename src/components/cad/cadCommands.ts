@@ -5,7 +5,7 @@ import type { CadTool } from './cadState';
  * the text of TEXT), O in AREA (object) and the layout commands are read before these, on the page. */
 
 /** Commands that run something on the page rather than start a tool. */
-export type CadAction = 'new' | 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'layiso' | 'layuniso'
+export type CadAction = 'new' | 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'dimLayer' | 'layiso' | 'layuniso'
   | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
   | 'alignDevices' | 'plot' | 'properties' | 'options' | 'unitsTab' | 'regen' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
   | 'textStyle' | 'dimStyle' | 'mleaderStyle' | 'pointStyle' | 'blockDialog' | 'blocksPalette' | 'attDef' | 'attExport' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
@@ -152,7 +152,8 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['TMASK'], desc: 'A paper-colour mask under the texts picked', tool: 'tmask' },
   { aliases: ['TCOUNT', 'TNUM'], desc: 'Numbered texts: prefix, start, step, suffix, then click to place each, or renumber the texts picked', tool: 'tcount' },
   { aliases: ['KN', 'KEYNOTE'], desc: 'A numbered hexagon keynote with a line in the legend', tool: 'keynote' },
-  { aliases: ['DIM', 'DIMALIGNED', 'DAL'], desc: 'Aligned dimension', tool: 'dim' },
+  { aliases: ['DIM'], desc: 'Dimension: click a line, arc or circle (its length, radius or diameter), or two points', tool: 'dim' },
+  { aliases: ['DAL', 'DIMALIGNED'], desc: 'Aligned dimension: two points, along them', tool: 'dimal' },
   { aliases: ['DLI', 'DIMLINEAR'], desc: 'Linear dimension (horizontal or vertical)', tool: 'dimlin' },
   { aliases: ['DCO', 'DIMCONTINUE'], desc: 'Continue dimension', tool: 'dimcont' },
   { aliases: ['DBA', 'DIMBASELINE'], desc: 'Baseline dimension', tool: 'dimbase' },
@@ -168,7 +169,8 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['BCLOSE', 'BC'], desc: 'Block editor: close it (asks to save the changes)', action: 'bclose' },
   { aliases: ['B', 'BLOCK'], desc: 'Create a block from drawn objects (the dialog)', action: 'blockDialog' },
   { aliases: ['-BLOCK', '-B'], desc: 'Create a block on the command line: name, base point, objects', tool: 'block' },
-  { aliases: ['D', 'DST', 'DIMSTY', 'DIMSTYLE'], desc: 'Dimension style', action: 'dimStyle' },
+  { aliases: ['D', 'DST', 'DIMSTY', 'DIMSTYLE'], desc: 'Dimension style (DIMSTYLE A: the dimensions picked take the current one; R and a name: new ones take it)', action: 'dimStyle' },
+  { aliases: ['DIMLAYER'], desc: 'The layer new dimensions go on (DIMLAYER and a name; . for the current layer)', action: 'dimLayer' },
   { aliases: ['E', 'ERASE', 'DEL', 'DELETE'], desc: 'Erase', action: 'erase' },
   { aliases: ['RESTOREDWG'], desc: 'Bring back the objects of the drawing erased here', action: 'restoreDwg' },
   { aliases: ['SAVE', 'QSAVE', 'SA'], desc: 'Save to the copy saved last (the first time: Save As)', action: 'save' },
