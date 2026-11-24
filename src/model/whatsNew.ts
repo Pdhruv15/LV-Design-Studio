@@ -18,15 +18,63 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.283', date: '2026-11-24',
+    version: '2.286', date: '2026-11-24',
     items: [
       { title: 'Short circuit report in per unit', text: 'The short circuit study report has two new tables. Impedance data in per unit lists every source, transformer and cable between boards with its R, X and Z on a common base power, and how each was worked. Fault at the busbars in per unit gives the path impedance, X/R, Ik″ and the peak current ip at every board. The currents are the same as before: per unit is another way of writing the same calculation. The base power is 100 MVA; change it in Project settings → Sizing targets → Per-unit base power.' }
+    ]
+  },
+  {
+    version: '2.284', date: '2026-11-24',
+    items: [
+      { title: 'Load schedule: Make RCBO for the one odd circuit', text: 'When one power circuit sits on a lighting ELCB (or one lighting circuit on a power ELCB), its Check cell offers Make RCBO: the circuit gets an RCBO in place of its MCB and the ELCB keeps one kind, e.g. 100 mA for lighting.' },
+      { title: 'New ELCBs keep lighting and power apart', text: 'Once you change an ELCB on a DB, the ELCBs for new ways end where lighting and power circuits meet, so they never mix them. Re-group all ELCBs… turns this on or off with "Keep lighting and power circuits apart".' }
     ]
   },
   {
     version: '2.281', date: '2026-11-24',
     items: [
       { title: 'Cable data by type', text: 'Project settings has a new switch, Cable data by type (on in new projects, off in older ones). With it on, each cable is calculated with the data of its own type: copper or aluminium, XLPE or PVC, single-core or multicore. Voltage drop, fault levels, the earth loop and the cable rating all follow. The cable type list has three new types: Cu/XLPE single-core laid flat, Al/XLPE/SWA/PVC and Al/XLPE single-core. Cables.xlsx has three new columns in front (Conductor, Insulation, Form); left blank a row is copper / XLPE / multicore as before. The app has the resistance and reactance of the new families, but not their current ratings: add those rows from your datasheet, or the circuit shows DATA REQUIRED.' }
+    ]
+  },
+  {
+    version: '2.280', date: '2026-11-24',
+    items: [
+      { title: 'Options: what the mouse does in Design CAD', text: 'Options (OP) → General → Mouse: a right-click in the drawing can repeat the last command, as Space does, in place of opening the menu (Shift + right-click then opens it, and a click on an object still opens its menu). The wheel\'s zoom step can be set from 5 to 50 % (15 % as before), and its direction reversed. Both apply in a layout too, where a notch was 20 % before.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Options: what a new layout starts with', text: 'Options (OP) → Plot & publish → A new layout starts with: choose the paper and whether it is landscape or portrait, in place of always A3 landscape, and whether Page setup opens as soon as the layout is made.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.279', date: '2026-11-24',
+    items: [
+      { title: 'Options: your settings in one file', text: 'Design CAD → Options (OP) → General → Your settings: Export… writes one file with the options, your typed names and keys, the ribbon\'s panel order and the libraries of this computer (layer templates, layout templates, page setups with their pen tables, hatch patterns). Import… on another computer reads it: the amber dots show what it changes, OK keeps it and Cancel leaves everything as it was. Reset all puts every setting back to its default.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.278', date: '2026-11-24',
+    items: [
+      { title: 'Options: typed names and keys of your own', text: 'Design CAD → Options (OP) → Shortcuts & aliases lists every command. On Typed names, + adds a name of your own to a command, for example DUP for Copy; on Keys, + then a key press gives it a key: F1 to F12 alone or with Ctrl, Alt or Shift, or Ctrl with a digit. The standard names and keys stay. One already in use is refused, and the command that has it is named.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Design CAD: DYN and HISTORY can be typed', text: 'DYN turns dynamic input on or off, as F12 does, and HISTORY opens the command history, as F2 does.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.277', date: '2026-11-24',
+    items: [
+      { title: 'Options: a preview on Display and Selection', text: 'Design CAD → Options (OP) → Display and Selection now show a small preview beside the settings: the crosshair and pick box at their real size and colour, line widths, the look of a picked object, its grips, the highlight under the pick box and the selection window. It follows each value as you change it, before OK.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.276', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD: one Options window', text: 'Type OP (or right-click → Options…) for every Design CAD setting in one window: General, Files & saving, Display, Drafting, Selection, Plot & publish and This drawing. Drafting settings (DS) is now its Drafting page, with Snap & grid, Polar tracking, Object snap and Dynamic input as tabs; the Cursor settings are on Display and Object snap, and Saving is on Files & saving. Colour theme, palette, the ribbon\'s tool names, the folders and the printer can be set here too. Nothing changes its meaning or its default.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Options: find a setting, and see what you changed', text: 'Options opens with the cursor in "Find a setting": type a few letters and every matching setting shows, ready to change (Ctrl+F comes back to the box, Esc closes the window). An amber dot marks a setting that is not at its default, a number beside each page counts them, and "Changed" lists them all. The arrow beside a changed setting puts it back; Reset page does the same for the page.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.275', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD: Devices and Level panels, every tool named', text: 'On Electrical, ELV & sheets the Devices panel now shows the name of each of its tools: Add device, Fill room, Light room, Room devices and Emergency. Coverage and Copy to level moved beside it to a new Level panel, for the tools that act on the whole level. A greyed tool of these panels says why in its tooltip.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Add device: every device on its arrow', text: 'The arrow beside Add device shows every device with its plan symbol, a Find box and the six devices placed last on this computer. Click one to place it. The list in the side panel stays as it was.' },
+      { title: 'Fill room and Coverage keep their own choice', text: 'The arrow beside Fill room chooses the ELV device it fills with (smoke detector, heat detector, Wi-Fi access point or ceiling speaker, each with its spacing). It starts on the smoke detector, so FILL no longer asks for a device first. The arrow beside Coverage chooses the system shown: fire alarm, CCTV, data and Wi-Fi or public address. Neither follows the device chosen in the side panel any more.' }
     ]
   },
   {

@@ -14,7 +14,7 @@ export default function RegroupDialog({ project, board, onApply, onClose }: {
   onClose: () => void;
 }) {
   const [size, setSize] = useState<ElcbSize>((board.elcbGroupSize ?? 6) as ElcbSize);
-  const [keepApart, setKeepApart] = useState(true);
+  const [keepApart, setKeepApart] = useState(board.elcbKeepApart ?? true);
   const [keepRcbos, setKeepRcbos] = useState(true);
   const hasRcbos = useMemo(() => scheduleCircuits(project, board.id).some((f) => f.rcbo), [project, board.id]);
   const preview = useMemo(() => regroupPreview(project, board.id, { size, keepApart, keepRcbos }), [project, board.id, size, keepApart, keepRcbos]);

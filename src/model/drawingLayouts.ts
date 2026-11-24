@@ -51,9 +51,9 @@ export function fitScale(ext: [number, number, number, number], w: number, h: nu
   return SCALES.find((n) => n >= need) ?? Math.ceil(need / 1000) * 1000;
 }
 
-/** A new layout: A3 landscape with one viewport filling it inside a margin, the whole drawing in it at a standard scale. */
-export function newDrawingLayout(name: string, ext: [number, number, number, number], mmPerUnit: number): DrawingLayout {
-  const [pw, ph] = DEFAULT_PAPER, m = VIEWPORT_INSET_MM, w = pw - 2 * m, h = ph - 2 * m;
+/** A new layout: a paper (A3 landscape unless given) with one viewport filling it inside a margin, the whole drawing in it at a standard scale. */
+export function newDrawingLayout(name: string, ext: [number, number, number, number], mmPerUnit: number, paper: [number, number] = DEFAULT_PAPER): DrawingLayout {
+  const [pw, ph] = paper, m = VIEWPORT_INSET_MM, w = pw - 2 * m, h = ph - 2 * m;
   const n = fitScale(ext, w, h, mmPerUnit), mpu = mmPerUnit > 0 ? mmPerUnit : 1;
   const ok = Number.isFinite(ext[0]) && ext[2] >= ext[0];
   return { name, paper: [pw, ph], viewports: [{ x: m, y: m, w, h, cx: ok ? (ext[0] + ext[2]) / 2 : 0, cy: ok ? (ext[1] + ext[3]) / 2 : 0, vh: (h * n) / mpu }] };
@@ -73,6 +73,11 @@ export function asFileLayout(l: DrawingLayout, tab: number): FileLayout {
 export const LAYOUT_PAPERS: { id: string; mm: [number, number] }[] = [
   { id: 'A4', mm: [297, 210] }, { id: 'A3', mm: [420, 297] }, { id: 'A2', mm: [594, 420] }, { id: 'A1', mm: [841, 594] }, { id: 'A0', mm: [1189, 841] }
 ];
+/** A paper of the list in mm, across (landscape, long side first) or upright (portrait); A3 when the id is not in the list. */
+export function layoutPaperMm(id: string, portrait: boolean): [number, number] {
+  const [w, h] = (LAYOUT_PAPERS.find((p) => p.id === id) ?? LAYOUT_PAPERS.find((p) => p.id === 'A3')!).mm;
+  return portrait ? [Math.min(w, h), Math.max(w, h)] : [Math.max(w, h), Math.min(w, h)];
+}
 /** "A3 landscape", "A1 portrait", or "500 × 300 mm" for a paper not in the list (±1 mm). */
 export function paperName(paper: [number, number]): string {
   for (const { id, mm } of LAYOUT_PAPERS) {

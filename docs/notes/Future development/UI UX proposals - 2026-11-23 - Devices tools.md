@@ -1,6 +1,6 @@
 # UI UX proposal – Design CAD Devices tools (2026-11-23)
 
-Status: **approved 2026-11-23** ("go with recommendation": decisions A–F as recommended). Built so far: nothing; step 1 is next.
+Status: **approved 2026-11-23** ("go with recommendation": decisions A–F as recommended). Built so far: step 1 (v2.275); step 2 is next.
 
 Mockup: `docs/mockups/cad-devices-panel-mockup.html` (image: `cad-devices-panel-mockup.png`).
 
@@ -39,7 +39,7 @@ Two panels in place of one. The three main tools stay large, named and in the sa
 - Fill room and Coverage keep their own choice on an arrow, so they no longer depend on the side panel. Fill room starts with Smoke detector.
 - A greyed tool says why in its tooltip.
 - Width: Devices 335 px + Level 122 px = 457 px (267 px today). The Electrical tab grows from 1,120 px to 1,310 px, inside a 1,366 px window with 56 px to spare. After this the tab is full: the next tool added there needs a move or a fold.
-- With Show labels on, the Electrical & ELV tab is 1,543 px today, so its last panels already fold on a 1,366 px window. The two panels add about 30 px there.
+- With Show labels on, the Electrical & ELV tab is 1,543 px today, so its last panels already fold on a 1,366 px window. The two panels add about 45 px there (1,590 px as built).
 
 ### New tools
 
@@ -74,7 +74,7 @@ As they were asked:
 
 ## Build steps
 
-1. The two panels with names, the arrows of Fill room and Coverage, tooltips that say why a tool is greyed, and the device gallery. Screen only.
+1. The two panels with names, the arrows of Fill room and Coverage, tooltips that say why a tool is greyed, and the device gallery. Screen only. **Built (v2.275).** As built the Electrical tab measures 1,320 px: Copy to level keeps its arrow (a list of levels) until step 6. A panel order saved earlier gets Level right after Devices. The six devices placed last are kept per computer.
 2. Circuit list with the room left, and the next circuit with room on the command line.
 3. Check level.
 4. All rooms like this: Fill room first (no circuits), then Light room and Room devices.

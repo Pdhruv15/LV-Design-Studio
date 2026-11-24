@@ -127,7 +127,7 @@ export const FEEDER_FIELDS: Fields<Feeder> = [
 
 export const BOARD_FIELDS: Fields<Board> = [
   ['name', 'Name'], ['kind', 'Type'], ['upstreamId', 'Fed from'], ['ratedCurrentA', 'Rating (A)'], ['sourceKva', 'Transformer (kVA)'],
-  ['sourceImpedancePct', 'Transformer Z (%)'], ['location', 'Location'], ['planPoint', 'Position on the floor plan'], ['pointWatts', 'WATT / UNIT'], ['elcbGroupSize', 'New ELCBs (circuits each)'],
+  ['sourceImpedancePct', 'Transformer Z (%)'], ['location', 'Location'], ['planPoint', 'Position on the floor plan'], ['pointWatts', 'WATT / UNIT'], ['elcbGroupSize', 'New ELCBs (circuits each)'], ['elcbKeepApart', 'New ELCBs keep lighting and power apart'],
   ['elcbSensitivityMa', 'ELCB sensitivity'], ['supply', 'Incoming supply'], ['standby', 'Standby generator'], ['level', 'Level'], ['earthRiser', 'Earth riser'],
   ['sourceXr', 'Transformer X/R'], ['vectorGroup', 'Vector group'], ['protection', 'Incomer protection'], ['upsKva', 'UPS (kVA)'],
   ['busbarMaterial', 'Busbar material'], ['busbarIcwKa', 'Busbar Icw (kA, 1 s)'], ['sections', 'Panel sections'], ['ipRating', 'IP rating'], ['manufacturer', 'Manufacturer'], ['model', 'Model'], ['instruments', 'Instruments on the SLD'], ['incomerDevice', 'Incomer device on the SLD'],

@@ -512,6 +512,9 @@ export interface Board {
   elcbSensitivityMa?: number; // override; default by circuit type (lighting 100 mA, power 30 mA)
   /** ELCBs of their own over whole ways (placed, resized or edited by the user); the "New ELCBs" size covers the ways between them. */
   elcbs?: BoardElcb[];
+  /** Ways with no ELCB of their own are also cut where lighting and power circuits meet, so a new ELCB never mixes them.
+   * Set when the DB's ELCBs are first changed (nothing on the schedule moves then) and by Re-group all ELCBs. */
+  elcbKeepApart?: boolean;
 }
 
 /** An ELCB (RCCB) placed by hand over whole ways of a DB (R, Y and B of each way). */
