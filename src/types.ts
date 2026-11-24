@@ -602,6 +602,8 @@ export interface SketchItem {
    * or the angle between two lines (pts: the vertex, a point on each line, the arc's place). Left out: the distance
    * between two points, aligned or linear (src/model/cadSketch.ts). */
   dimKind?: 'radius' | 'diameter' | 'angular';
+  /** A dimension: the name of the dimension style it was drawn with, or last given (left out: Standard). */
+  dimStyle?: string;
   /** An ellipse (centre in pts[0]): its major axis from the centre, and the minor axis as a fraction of it (0–1). */
   ax?: [number, number];
   ratio?: number;
