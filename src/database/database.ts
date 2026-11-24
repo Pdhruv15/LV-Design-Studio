@@ -1,5 +1,6 @@
 import spec from '../../electron/databaseSpec.json';
 import { REFERENCE_CABLE_TABLE, setCables, type CableSpec } from '../calc/cableTable';
+import { familyFromWords, familyKey, familyLabel, isDefaultFamily } from '../calc/cableFamily';
 import { STANDARD_BREAKER_A, setBreakerLists } from '../calc/sizing';
 import { breakerRateAed, CABLE_RATE_PER_M, setBreakerPrices } from '../data/rates';
 import { BUILT_IN_CABLES, cableBuildText, cableKey } from '../model/cableRefs';
@@ -156,8 +157,11 @@ export function parseDatabase(raw: RawDatabase): Database {
       bad(cb.file, r._row, 'size, R, X and current rating must all be positive numbers');
       continue;
     }
-    if (cables.some((c) => c.csaMm2 === csa)) { bad(cb.file, r._row, `duplicate size ${csa} mm²`); continue; }
-    cables.push({ csaMm2: csa!, rOhmPerKm20C: rr!, xOhmPerKm: x!, ampacityA: amp!, ratePerM: rate !== undefined && !Number.isNaN(rate) ? rate : undefined,
+    const family = familyFromWords(str(r.conductor), str(r.insulation), str(r.form));
+    if (!family) { bad(cb.file, r._row, 'Conductor must be Cu or Al, Insulation XLPE or PVC, Form Multicore, Single-core trefoil or Single-core flat (or blank)'); continue; }
+    const own = isDefaultFamily(family);
+    if (cables.some((c) => c.csaMm2 === csa && (own ? !c.family : !!c.family && familyKey(c.family) === familyKey(family)))) { bad(cb.file, r._row, `duplicate size ${csa} mm²${own ? '' : ` for ${familyLabel(family)}`}`); continue; }
+    cables.push({ ...(own ? {} : { family }), csaMm2: csa!, rOhmPerKm20C: rr!, xOhmPerKm: x!, ampacityA: amp!, ratePerM: rate !== undefined && !Number.isNaN(rate) ? rate : undefined,
       manufacturer: str(r.manufacturer) || undefined, cableType: str(r.cableType) || undefined, installMethod: str(r.installMethod) || undefined, referenceDoc: str(r.referenceDoc) || undefined,
       methodRatings: methodRatingsOf(r) });
   }
@@ -326,7 +330,7 @@ export function applyDatabase(db: Database): void {
 export function databaseSeeds(): Record<string, (string | number)[][]> {
   return {
     loads: [],
-    cables: REFERENCE_CABLE_TABLE.map((c) => [c.csaMm2, c.rOhmPerKm20C, c.xOhmPerKm, c.ampacityA, CABLE_RATE_PER_M[c.csaMm2] ?? '', '', '', '', '', 'App reference value — replace with manufacturer data']),
+    cables: REFERENCE_CABLE_TABLE.map((c) => ['', '', '', c.csaMm2, c.rOhmPerKm20C, c.xOhmPerKm, c.ampacityA, CABLE_RATE_PER_M[c.csaMm2] ?? '', '', '', '', '', 'App reference value — replace with manufacturer data']),
     breakers: STANDARD_BREAKER_A.map((a) => [a, a <= 63 ? 'MCB' : a <= 1600 ? 'MCCB' : 'ACB', '', breakerRateAed(a), '', '']),
     parameters: PARAMETERS.map((p) => [p.label, '', p.unit, p.key]),
     transformers: BUILT_IN.tx.map((k) => [k, typicalImpedancePct(k), 5, 'Dyn11', '', '', '', '', '', '', 'Typical — replace with your supplier data']),

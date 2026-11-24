@@ -1,6 +1,7 @@
 import { boardOf, feedersOn, memoized, networkOf, withNetwork } from './network';
 import { recordedPQ } from '../model/existing';
 import { ambientCorrectionFactor, cables, getCable } from './cableTable';
+import { alphaOf, COPPER_ALPHA, feederFamily, type CableFamily } from './cableFamily';
 import { trayGrouping } from './cableTray';
 import { feederRatingBasis, type RatingBasis } from './installation';
 import { SOURCE_KINDS, lvSupplied, supplyFaultKa, supplyIncomerFeeder, supplyXr, type Board, type Feeder, type GridSource, type Project } from '../types';
@@ -35,14 +36,14 @@ export const zMagnitude = (z: Impedance): number => Math.hypot(z.r, z.x);
  * factor over the 20°C IEC 60228 value to account for the rise to ~90°C
  * conductor temperature. Skin/proximity effect is ignored (negligible below
  * ~120 mm² and a reasonable simplification above it for this tool). */
-export function rOperatingOhmPerKm(csaMm2: number, tempC?: number): number {
-  return getCable(csaMm2).rOhmPerKm20C * resistanceFactor(tempC);
+export function rOperatingOhmPerKm(csaMm2: number, tempC?: number, family?: CableFamily): number {
+  return getCable(csaMm2, family).rOhmPerKm20C * resistanceFactor(tempC, alphaOf(family));
 }
 
-/** R(θ) ÷ R(20 °C) for copper (α = 0.00393 /K). No temperature set: the
+/** R(θ) ÷ R(20 °C), for copper (α = 0.00393 /K) unless the conductor's α is given. No temperature set: the
  * flat 1.2 used everywhere so far (≈ 70 °C). */
-export const COPPER_ALPHA = 0.00393;
-export const resistanceFactor = (tempC?: number) => (tempC === undefined ? 1.2 : 1 + COPPER_ALPHA * (tempC - 20));
+export { COPPER_ALPHA };
+export const resistanceFactor = (tempC?: number, alpha = COPPER_ALPHA) => (tempC === undefined ? 1.2 : 1 + alpha * (tempC - 20));
 
 /** Number of cable runs in parallel (at least 1). */
 export const runsOf = (f: Pick<Feeder, 'parallel'>) => Math.max(1, Math.round(f.parallel ?? 1));
@@ -108,7 +109,8 @@ export function incomerBasis(feeder: Feeder, project: Project, csaMm2 = feeder.c
   };
   const all = (['R', 'Y', 'B'] as const).map(basis);
   const current = all.reduce((m, x) => (x.a > m.a ? x : m), all[0]);
-  const r = rOperatingOhmPerKm(csaMm2, project.vdTempC), x = getCable(csaMm2).xOhmPerKm;
+  const family = feederFamily(project, feeder);
+  const r = rOperatingOhmPerKm(csaMm2, project.vdTempC, family), x = getCable(csaMm2, family).xOhmPerKm;
   let vd: PhaseBasis & { pct: number };
   if (feeder.cores >= 3) {
     // Each phase conductor: ΔV = L × (R·Ip + X·Iq) ÷ runs, against U0 (equals √3·I·Z ÷ U when balanced).
@@ -131,7 +133,7 @@ export const vdEvaluator = (feeder: Feeder, project: Project): ((csaMm2: number,
  * used for the actual cable and for every candidate size (Fix / Optimise, suggestions). */
 export function feederVdPctAt(feeder: Feeder, project: Project, csaMm2: number, runs: number): number {
   if (feeder.feedsBoardId) return incomerBasis(feeder, project, csaMm2, runs).vd.pct;
-  return vdPctFor(designCurrentA(feeder, project), csaMm2, feeder.lengthM, feeder.cores, feeder.powerFactor, project.voltageV, runs, project.vdTempC);
+  return vdPctFor(designCurrentA(feeder, project), csaMm2, feeder.lengthM, feeder.cores, feeder.powerFactor, project.voltageV, runs, project.vdTempC, feederFamily(project, feeder));
 }
 
 /** Cable current rating after ambient temperature and grouping derating.
@@ -146,7 +148,7 @@ export function deratedAmpacityA(csaMm2: number, ambientC: number, runs = 1, tra
  * number of runs: the method's tabulated rating × ambient / ground and grouping factors × runs. Iz is NaN when
  * there is no rating for the method (DATA REQUIRED). */
 export function feederRating(project: Project, feeder: Feeder, csaMm2 = feeder.cableCsaMm2, runs = runsOf(feeder)): RatingBasis {
-  return feederRatingBasis(project, feeder, csaMm2, runs, trayFactorOf(project, feeder)?.factor, groupFactor);
+  return feederRatingBasis(project, feeder, csaMm2, runs, trayFactorOf(project, feeder)?.factor, groupFactor, feederFamily(project, feeder));
 }
 
 /** The Iz evaluator for cable selection: every candidate size and runs on the circuit's own installation method. */
@@ -159,9 +161,9 @@ export const trayFactorOf = (project: Project, feeder: Feeder) => trayGrouping(p
 /** Voltage drop as a percentage of nominal: 3-phase circuits use
  * √3·I·Z against the line-to-line voltage; single-phase circuits use the
  * phase + neutral loop (2·I·Z) against the phase-to-neutral voltage. */
-function vdPctFor(ib: number, csaMm2: number, lengthM: number, cores: 2 | 3 | 4, cosPhi: number, voltageV: number, runs = 1, tempC?: number): number {
-  const rOhmPerKm = rOperatingOhmPerKm(csaMm2, tempC) / runs;
-  const xOhmPerKm = getCable(csaMm2).xOhmPerKm / runs;
+function vdPctFor(ib: number, csaMm2: number, lengthM: number, cores: 2 | 3 | 4, cosPhi: number, voltageV: number, runs = 1, tempC?: number, family?: CableFamily): number {
+  const rOhmPerKm = rOperatingOhmPerKm(csaMm2, tempC, family) / runs;
+  const xOhmPerKm = getCable(csaMm2, family).xOhmPerKm / runs;
   const sinPhi = Math.sqrt(Math.max(0, 1 - cosPhi * cosPhi));
   const threePhase = cores >= 3;
   const multiplier = threePhase ? SQRT3 : 2;
@@ -342,10 +344,11 @@ export function mainSourceImpedance(project: Project, board: Board): Impedance {
  * (IEC 60909-0 uses the conductor at 20 °C for maximum currents — a cold
  * cable gives the highest fault). Minimum faults (earthing) use the
  * operating temperature instead. */
-export function cableImpedance(csaMm2: number, lengthM: number, runs = 1): Impedance {
+export function cableImpedance(csaMm2: number, lengthM: number, runs = 1, family?: CableFamily): Impedance {
+  const cable = getCable(csaMm2, family);
   return {
-    r: (getCable(csaMm2).rOhmPerKm20C * (lengthM / 1000)) / runs,
-    x: (getCable(csaMm2).xOhmPerKm * (lengthM / 1000)) / runs
+    r: (cable.rOhmPerKm20C * (lengthM / 1000)) / runs,
+    x: (cable.xOhmPerKm * (lengthM / 1000)) / runs
   };
 }
 
@@ -483,7 +486,7 @@ function impedanceToBoardOf(project: Project, board: Board, seen: Set<string>): 
   }
 
   const incomer = findIncomer(project, board);
-  const incomerZ = incomer ? cableImpedance(incomer.cableCsaMm2, incomer.lengthM, runsOf(incomer)) : { r: 0, x: 0 };
+  const incomerZ = incomer ? cableImpedance(incomer.cableCsaMm2, incomer.lengthM, runsOf(incomer), feederFamily(project, incomer)) : { r: 0, x: 0 };
   return addZ(impedanceToBoard(project, board.upstreamId!, seen), incomerZ);
 }
 
@@ -568,7 +571,7 @@ function evaluateFeederOf(project: Project, feeder: Feeder): FeederResult {
   const breakerFaultKA = faultCurrentKA(zBoard, project.voltageV);
   // Single-phase circuits: the fault at the far end is line-to-neutral, so
   // it flows through the phase and neutral conductors (2 × cable Z).
-  const zCable = cableImpedance(feeder.cableCsaMm2, feeder.lengthM, runsOf(feeder));
+  const zCable = cableImpedance(feeder.cableCsaMm2, feeder.lengthM, runsOf(feeder), feederFamily(project, feeder));
   const loop = feeder.cores >= 3 ? 1 : 2;
   const endFaultKA = faultCurrentKA(addZ(zBoard, { r: zCable.r * loop, x: zCable.x * loop }), project.voltageV);
 

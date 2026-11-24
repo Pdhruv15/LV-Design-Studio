@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.281', date: '2026-11-24',
+    items: [
+      { title: 'Cable data by type', text: 'Project settings has a new switch, Cable data by type (on in new projects, off in older ones). With it on, each cable is calculated with the data of its own type: copper or aluminium, XLPE or PVC, single-core or multicore. Voltage drop, fault levels, the earth loop and the cable rating all follow. The cable type list has three new types: Cu/XLPE single-core laid flat, Al/XLPE/SWA/PVC and Al/XLPE single-core. Cables.xlsx has three new columns in front (Conductor, Insulation, Form); left blank a row is copper / XLPE / multicore as before. The app has the resistance and reactance of the new families, but not their current ratings: add those rows from your datasheet, or the circuit shows DATA REQUIRED.' }
+    ]
+  },
+  {
     version: '2.271', date: '2026-11-23',
     items: [
       { title: 'A click on empty space no longer picks a whole plan', text: 'In Design CAD, a click that landed on no line but inside a block picked that block, however large: on a drawing with a frame or a plan kept as one block, a near miss picked everything. A click inside a block now picks it only while the block is symbol-sized on screen (a board, a fitting); on its lines it is picked as before.' }
