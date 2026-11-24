@@ -1484,6 +1484,12 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .ribbon-block{display:flex;flex-direction:column;gap:2px}
 .ribbon-rows{display:flex;gap:2px}
 .ribbon-side{display:flex;flex-direction:column;gap:2px}
+/* Dimensions: its lists one to a row, small tools beside them, and a row of small tools under them. */
+.ribbon-lines{display:grid;grid-template-rows:repeat(3,24px);gap:2px;align-content:start}
+.ribbon-line{display:flex;align-items:center;gap:2px}
+.ribbon .ribbon-line > .ribbon-stack{display:flex;flex-direction:row;align-items:center;gap:2px}
+.ribbon-layer .lead{flex:none;color:var(--mut)}
+.ribbon.cad-named.small-named .ribbon-group .ribbon-stack button.bare{width:24px;padding:0;justify-content:center}
 .ribbon-group .ribbon-layer{flex-direction:row;justify-content:flex-start;gap:5px;min-width:0;min-height:0;width:152px;height:24px;padding:0 6px;border:1px solid var(--line-strong);background:var(--bg);font-size:var(--fs-xs)}
 .ribbon-layer .sw,.ribbon-layer-menu .sw{width:10px;height:10px;border:1px solid var(--line);border-radius:2px;flex:none}
 .ribbon-layer .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:left}
@@ -2327,20 +2333,23 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-dlg-ft .p{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}
 .cad-dlg.wide{width:380px}
 .cad-dlg.wide .cad-dlg-r{grid-template-columns:1fr 170px}
-/* Dimension style: the styles beside the preview on paper (its caption names the part being set), then the tabs over a
-   body of one height, the tallest tab's, so Cancel and OK stay put */
+/* The style dialogs (Text, Dimension and Multileader style): the styles beside the preview on paper (its caption names
+   the part being set), then the tabs over a body of one height, the tallest tab's, so Cancel and OK stay put */
 .cad-dlg-top{display:grid;grid-template-columns:168px minmax(0,1fr);gap:8px;padding:2px 8px 6px}
 .cad-dlg-top .cad-dlg-list{height:100px;max-height:none;margin:0}
 .cad-dlg-top .cad-dlg-btns{display:grid;grid-template-columns:1fr 1fr;padding:4px 0 0}
 .cad-dlg-top .cad-dlg-btns button{padding:0 4px}
-.cad-dlg.dim .cad-dlg-top .cad-dlg-r{grid-template-columns:36px minmax(0,1fr);height:20px;margin-bottom:4px;padding:0}
-.cad-dlg.dim .cad-dlg-top .cad-dlg-in input{text-align:left;font-family:inherit}
-.cad-dlg.dim .cad-dlg-prev{padding:0;border:1px solid var(--line);border-radius:2px}
+.cad-dlg.wide .cad-dlg-top .cad-dlg-r{grid-template-columns:36px minmax(0,1fr);height:20px;margin-bottom:4px;padding:0}
+.cad-dlg.wide .cad-dlg-top .cad-dlg-in input{text-align:left;font-family:inherit}
+.cad-dlg-top .cad-dlg-prev{padding:0;border:1px solid var(--line);border-radius:2px}
 .cad-dlg-cap{height:16px;margin:0;color:var(--mut);font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cad-dlg-cap.on{color:var(--acc)}
-.cad-dlg.dim .cad-dlg-tabs{margin:0 0 4px}
+.cad-dlg-top+.cad-dlg-tabs{margin:0 0 4px}
+.cad-dlg-top+.cad-dlg-body{padding-top:4px;border-top:1px solid var(--line)}
 .cad-dlg.dim .cad-dlg-sec{line-height:13px}
-.cad-dlg-body{min-height:217px}
+.cad-dlg.dim .cad-dlg-body{min-height:217px}
+.cad-dlg.ml .cad-dlg-r{grid-template-columns:1fr 140px}
+.cad-dlg.ml .cad-dlg-body{min-height:110px}
 .cad-dlg.dim .cad-dlg-g{grid-template-columns:1fr 170px}
 .cad-dlg.dim .cad-dlg-g .cad-dlg-in{justify-content:flex-end;flex-wrap:nowrap;gap:3px 8px}
 .cad-dlg-sw{flex:none;border:1px solid var(--field-line);border-radius:2px}

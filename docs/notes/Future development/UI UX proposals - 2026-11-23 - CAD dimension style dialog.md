@@ -1,6 +1,6 @@
 # UI UX proposal – Design CAD Dimension style dialog (2026-11-23)
 
-Status: **approved 2026-11-23** (the recommended answer, in bold, for all five decisions); steps 1 and 2 **built** together in PR 779 (v2.268); step 3 (Text style and Multileader style) to follow.
+Status: **approved 2026-11-23** (the recommended answer, in bold, for all five decisions); steps 1 and 2 **built** together in PR 779 (v2.268); step 3 (Text style and Multileader style) **built** in PR 785 (v2.274).
 
 On 2026-11-23 the user sent a screenshot of the Dimension style dialog (DIMSTYLE, Graphite light) and asked for a better design.
 
@@ -57,6 +57,7 @@ Answered 2026-11-23: the answer in bold for all five.
 Built 2026-11-23 (PR 779, steps 1 and 2 in one PR):
 - As proposed. The value with the cursor wins over the row under the mouse, so the part marked is the one being typed; with no value in use, the row under the mouse is marked. A hidden extension line shows dashed while its row is marked. Units rows mark the whole length written.
 - The preview's vertical dimension sits on the room's left wall, not the right as in the mockup. With Outside text, a dimension whose line is on the side that is down as its text reads (below a horizontal dimension's points, or right of a vertical one reading bottom to top) has its text across its line, on the canvas and on the sheets alike. That is an engine fault older than this dialog, fixed on its own in PR 781 (v2.270): the text now sits fully on the far side.
+- Step 3 (2026-11-23): the top area is one component (`StyleTop`) and the marking one hook (`useMarks`) for all three dialogs. Text style had no preview: it gets a sample "AaBb 123" on paper at its height (the annotation height when 0), its height marked at the left. Multileader style marks the arrowheads, landing, words, gap and frame, gets the arrow swatch, and its value column is 140 px so "Text height (0 = annotation height)" fits on one line; the long circuit option puts its box first.
 - The user also asked (2026-11-23) how to set the text position: Text tab → Placement → Vertical (Outside, Above, Centred, Below) and Along the line (Centred, At extension line 1, At extension line 2) for new dimensions; right-click a drawn dimension → Dimension tools → Text position for one already drawn.
 
 Related: [[UI UX proposals - 2026-11-16 - CAD edit previews and repeat]], [[CAD dimension styles - DWG import and DXF export - 2026-11-08]].
