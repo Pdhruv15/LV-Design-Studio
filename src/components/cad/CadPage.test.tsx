@@ -948,6 +948,46 @@ describe('CAD view', () => {
     expect((project.elvDevices ?? []).filter((d) => d.levelId === 'FF')).toHaveLength(onGf().length);
   });
 
+  it("fills with Fill room's own device whatever Add device has chosen; the palette sets it while FILL runs, and Coverage keeps its own system", async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.actions.current.addFound());
+    const majlis = buildingInfoOf(project).rooms.find((r) => /majlis/i.test(r.name))!;
+    const [cx, cy] = majlis.outline!.reduce(([x, y], q) => [x + q[0] / majlis.outline!.length, y + q[1] / majlis.outline!.length], [0, 0]);
+    const types = () => new Set((project.elvDevices ?? []).map((d) => d.type));
+    const palette = (label: string) => [...document.querySelectorAll('.cad-pal button')].find((b) => b.querySelector('span')?.textContent === label) as HTMLButtonElement;
+    act(() => { state.setDevice('ltg'); state.setTool('fill'); });
+    await clickAt(cx / 0.001, cy / 0.001);
+    expect([...types()]).toEqual(['smoke-detector']);
+    act(() => { state.setFillDevice('heat-detector'); });
+    await clickAt(cx / 0.001, cy / 0.001);
+    expect(types().has('heat-detector')).toBe(true);
+    // While FILL runs, an ELV device with a spacing becomes Fill room's device; any other goes to Add device.
+    act(() => { state.setFillDevice('smoke-detector'); });
+    act(() => { palette('Ceiling speaker').click(); });
+    expect(state.fillDevice).toBe('ceiling-speaker');
+    expect(state.tool).toBe('fill');
+    expect(state.device).toBe('ltg');
+    act(() => { palette('Light').click(); });
+    expect(state.tool).toBe('dev');
+    expect(state.device).toBe('ltg');
+    act(() => { state.setCoverage(true); });
+    expect(document.body.textContent).toContain('Coverage: Fire alarm');
+    act(() => state.setCoverageSystem('cctv'));
+    expect(document.body.textContent).toContain('Coverage: CCTV');
+  });
+
+  it('keeps the devices placed last, newest first', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => { state.setDevice('smoke-detector'); state.setTool('dev'); });
+    await clickAt(3000, 8000);
+    act(() => { state.setDevice('camera'); });
+    await clickAt(5000, 5000);
+    expect(state.recentDevices.slice(0, 2)).toEqual(['camera', 'smoke-detector']);
+    expect(JSON.parse(localStorage.getItem('lvds.cadRecentDevices') ?? '[]').slice(0, 2)).toEqual(['camera', 'smoke-detector']);
+  });
+
   it('lights a room by the lumen method (LUX): keeps the room, changes the luminaire, places the lights, replaces them', async () => {
     act(() => root.render(<Host />));
     await flush();
