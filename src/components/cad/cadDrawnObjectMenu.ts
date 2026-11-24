@@ -102,7 +102,7 @@ function kindTools(s: DrawnMenuState, it: SketchItem): CtxEntry[] {
         { label: 'Align…', cmd: 'MLA', key: 'MLA' }, { label: 'Collect…', cmd: 'MLC', key: 'MLC' }, sk('Find and replace…', 'find', undefined, 'FIND', { icon: 'find' }), ...tail(addSel(), mkBlock())]);
     case 'dim':
       return list('Dimension tools', [sk('Edit text', 'edtext', undefined, 'ED', { icon: 'edtext' }), ...(it.text ? [sk('Remove text override', 'dimreset')] : []),
-        ...(s.dimStyles.length ? [choice('Dimension style', 'dimstyle', s.dimStyles.map((n) => ({ id: n, label: n })))] : []),
+        ...(s.dimStyles.length ? [choice('Dimension style', 'dimstyle', s.dimStyles.map((n) => ({ id: n, label: n })), it.dimStyle ?? 'Standard')] : []),
         choice('Precision', 'dimprec', [0, 1, 2, 3].map((d) => ({ id: String(d), label: d ? `0.${'0'.repeat(d)}` : '0' })), String(it.look?.decimals ?? 2)),
         ...(it.dimKind === 'angular' ? [] : [choice('Text position', 'dimpos', DIM_TEXT_POS, it.look?.textPos ?? 'outside')]), ...tail(addSel(), mkBlock())]);
     case 'insert':
