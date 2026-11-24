@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.276', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD: one Options window', text: 'Type OP (or right-click → Options…) for every Design CAD setting in one window: General, Files & saving, Display, Drafting, Selection, Plot & publish and This drawing. Drafting settings (DS) is now its Drafting page, with Snap & grid, Polar tracking, Object snap and Dynamic input as tabs; the Cursor settings are on Display and Object snap, and Saving is on Files & saving. Colour theme, palette, the ribbon\'s tool names, the folders and the printer can be set here too. Nothing changes its meaning or its default.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Options: find a setting, and see what you changed', text: 'Options opens with the cursor in "Find a setting": type a few letters and every matching setting shows, ready to change (Ctrl+F comes back to the box, Esc closes the window). An amber dot marks a setting that is not at its default, a number beside each page counts them, and "Changed" lists them all. The arrow beside a changed setting puts it back; Reset page does the same for the page.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.275', date: '2026-11-23',
     items: [
       { title: 'Design CAD: Devices and Level panels, every tool named', text: 'On Electrical, ELV & sheets the Devices panel now shows the name of each of its tools: Add device, Fill room, Light room, Room devices and Emergency. Coverage and Copy to level moved beside it to a new Level panel, for the tools that act on the whole level. A greyed tool of these panels says why in its tooltip.', action: 'cad', actionLabel: 'Open Design CAD' },
