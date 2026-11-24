@@ -17,7 +17,7 @@ export type SheetItems = Record<string, Record<string, unknown>>;
 const FEEDER_DRAWN = new Set(['name', 'loadKw', 'breakerRatingA', 'breakerType', 'breakerIcuKa', 'breakerImMultiple', 'device', 'cableCsaMm2', 'cores', 'cableType', 'cpcMm2', 'lengthM', 'parallel',
   'rcdMa', 'kvar', 'capSteps', 'starter', 'phase', 'way', 'kwhMeter', 'feedsBoardId', 'essential', 'existing', 'standbyUnit', 'localIsolator', 'rcbo']);
 const BOARD_DRAWN = new Set(['name', 'kind', 'upstreamId', 'ratedCurrentA', 'sourceKva', 'sourceImpedancePct', 'txRef', 'supply', 'standby', 'vectorGroup', 'protection', 'upsKva', 'busbarMaterial', 'busbarIcwKa', 'sections',
-  'instruments', 'incomerDevice', 'earthing', 'rmu', 'spd', 'pmu', 'existing', 'form4', 'spareWays', 'elcbs', 'elcbRatingA', 'elcbSensitivityMa', 'elcbGroupSize']);
+  'instruments', 'incomerDevice', 'earthing', 'rmu', 'spd', 'pmu', 'existing', 'form4', 'spareWays', 'elcbs', 'elcbRatingA', 'elcbSensitivityMa', 'elcbGroupSize', 'elcbKeepApart']);
 const FEEDER_LABELS = FEEDER_FIELDS.filter(([k]) => FEEDER_DRAWN.has(k)) as [string, string][];
 /** A DB drawn as one box shows its circuit count and connected load. */
 const BOARD_LABELS = [...BOARD_FIELDS.filter(([k]) => BOARD_DRAWN.has(k)), ['circuits', 'Circuits'], ['connectedKw', 'Connected load (kW)']] as [string, string][];

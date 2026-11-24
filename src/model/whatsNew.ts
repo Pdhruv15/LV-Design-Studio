@@ -18,9 +18,16 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.285', date: '2026-11-24',
+    version: '2.286', date: '2026-11-24',
     items: [
       { title: 'Compare a reference with its new revision', text: 'In Design CAD, right-click a reference drawing and choose Compare with new revision… (or type XCOMPARE), then pick the new file from the architect. The two are compared where the reference sits: lines added in the new revision show in green, lines taken out in red, and the command line says how many and in how many areas. Next zooms to each area in turn, Clouds draws a revision cloud round every area, Accept switches the reference to the new file, and Exit (or Esc) leaves it as it was.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.284', date: '2026-11-24',
+    items: [
+      { title: 'Load schedule: Make RCBO for the one odd circuit', text: 'When one power circuit sits on a lighting ELCB (or one lighting circuit on a power ELCB), its Check cell offers Make RCBO: the circuit gets an RCBO in place of its MCB and the ELCB keeps one kind, e.g. 100 mA for lighting.' },
+      { title: 'New ELCBs keep lighting and power apart', text: 'Once you change an ELCB on a DB, the ELCBs for new ways end where lighting and power circuits meet, so they never mix them. Re-group all ELCBs… turns this on or off with "Keep lighting and power circuits apart".' }
     ]
   },
   {

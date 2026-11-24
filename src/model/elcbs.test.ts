@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildBom } from '../calc/bom';
 import { rcdOf } from '../calc/earthing';
-import { elcbGroups, elcbSections, isRcbo, rcbosOf, scheduleCircuits } from '../calc/loadSchedule';
+import { elcbGroups, elcbSections, isRcbo, oddElcbCircuits, rcbosOf, scheduleCircuits } from '../calc/loadSchedule';
 import { buildLoadScheduleHtml, elcbColumn, loadScheduleRows, scheduleTable } from '../docs/loadScheduleDoc';
 import { buildDbSheet } from '../docs/dbSheet';
 import type { Feeder, Project } from '../types';
@@ -227,6 +227,56 @@ describe('every ELCB is its own device', () => {
     expect(new Set(taken).size).toBe(12);
     expect(taken).not.toContain(`${sp.phase}${sp.way}`);
     expect(scheduleCircuits(q, 'DB').every((f) => f.id === `DB-${f.phase}${f.way}`)).toBe(true);
+  });
+});
+
+describe('keeping lighting and power apart', () => {
+  /** Adds n 1-phase circuits in the next free ways: lighting (5 LTG) or power (2 sockets). */
+  const add = (p: Project, n: number, kind: 'lighting' | 'power') => {
+    for (let i = 0; i < n; i++) {
+      const r = addCircuit(p, 'DB');
+      p = updateCircuit(r.project, r.id, { points: kind === 'lighting' ? { ltg: 5 } : { s13: 2 } });
+    }
+    return p;
+  };
+  const cats = (p: Project) => elcbGroups(p, board(p)).map((g) => [g.ways, g.category]);
+
+  it('once a DB\'s ELCBs are changed, new ways get ELCBs that never mix lighting and power', () => {
+    let p = setNewElcbSize(db(12), 'DB', 6);
+    expect(board(p).elcbKeepApart).toBe(true);
+    p = add(add(p, 3, 'lighting'), 3, 'power');
+    expect(cats(p)).toEqual([[[1, 2], 'lighting'], [[3, 4], 'lighting'], [[5], 'lighting'], [[6, 7], 'power']]);
+    // Re-group without "keep apart" turns it off: the same new ways share one ELCB.
+    let q = regroupElcbs(db(12), 'DB', { size: 6, keepApart: false, keepRcbos: true });
+    expect(board(q).elcbKeepApart).toBe(false);
+    q = add(add(q, 3, 'lighting'), 3, 'power');
+    expect(cats(q)[cats(q).length - 1]).toEqual([[5, 6], 'mixed']);
+  });
+
+  it('an old DB keeps its ELCBs as they print today until one is changed', () => {
+    const p = withElcbs(add(add(db(3), 3, 'power'), 3, 'lighting'), [{ id: 'h', fromWay: 1, toWay: 1 }]);
+    expect(board(p).elcbKeepApart).toBeUndefined();
+    expect(cats(p)).toEqual([[[1], 'lighting'], [[2, 3], 'mixed']]);
+    expect(elcbGroups(p, board(p)).map((g) => g.ways)).toEqual(elcbSections(board(p), 3).map((s) => s.ways));
+  });
+
+  it('finds the one odd circuit of a mixed ELCB; an RCBO there leaves the ELCB with one kind', () => {
+    let p = updateCircuit(db(6), 'DB-B2', { points: { s13: 2 } });
+    const odd = oddElcbCircuits(elcbGroups(p, board(p)));
+    expect([...odd.keys()]).toEqual(['DB-B2']);
+    expect(odd.get('DB-B2')!.sensitivityMa).toBe(30);
+    p = setRcbo(p, 'DB-B2', true);
+    const g = elcbGroups(p, board(p))[0];
+    expect([g.category, g.sensitivityMa]).toEqual(['lighting', 100]);
+    expect(oddElcbCircuits(elcbGroups(p, board(p))).size).toBe(0);
+    // One of each: the power circuit is offered; two of each: none; a 3-phase circuit never.
+    const two = updateCircuit(db(2), 'DB-Y1', { points: { s13: 2 } });
+    expect([...oddElcbCircuits(elcbGroups(two, board(two))).keys()]).toEqual(['DB-Y1']);
+    const four = updateCircuit(updateCircuit(db(4), 'DB-Y1', { points: { s13: 2 } }), 'DB-R2', { points: { s13: 2 } });
+    expect(oddElcbCircuits(elcbGroups(four, board(four))).size).toBe(0);
+    let ryb = addCircuit(db(3), 'DB', 'RYB');
+    ryb = { ...ryb, project: updateCircuit(ryb.project, ryb.id, { points: { s13: 3 } }) };
+    expect(oddElcbCircuits(elcbGroups(ryb.project, board(ryb.project))).size).toBe(0);
   });
 });
 
