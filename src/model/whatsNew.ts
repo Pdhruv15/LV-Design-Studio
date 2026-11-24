@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.283', date: '2026-11-24',
+    items: [
+      { title: 'Short circuit report in per unit', text: 'The short circuit study report has two new tables. Impedance data in per unit lists every source, transformer and cable between boards with its R, X and Z on a common base power, and how each was worked. Fault at the busbars in per unit gives the path impedance, X/R, Ik″ and the peak current ip at every board. The currents are the same as before: per unit is another way of writing the same calculation. The base power is 100 MVA; change it in Project settings → Sizing targets → Per-unit base power.' }
+    ]
+  },
+  {
     version: '2.281', date: '2026-11-24',
     items: [
       { title: 'Cable data by type', text: 'Project settings has a new switch, Cable data by type (on in new projects, off in older ones). With it on, each cable is calculated with the data of its own type: copper or aluminium, XLPE or PVC, single-core or multicore. Voltage drop, fault levels, the earth loop and the cable rating all follow. The cable type list has three new types: Cu/XLPE single-core laid flat, Al/XLPE/SWA/PVC and Al/XLPE single-core. Cables.xlsx has three new columns in front (Conductor, Insulation, Form); left blank a row is copper / XLPE / multicore as before. The app has the resistance and reactance of the new families, but not their current ratings: add those rows from your datasheet, or the circuit shows DATA REQUIRED.' }
