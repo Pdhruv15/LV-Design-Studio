@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 import { ask } from './ConfirmDialog';
 import { INSTALL_METHODS, cables, type InstallMethod } from '../calc/cableTable';
-import { DEFAULT_TRANSFORMER_XR, GENERATOR_XD_SUBTRANSIENT_PCT, GENERATOR_XR, INVERTER_FAULT_MULTIPLE, assumedSourceFaultKa, levelKaText, supplySourceLevel } from '../calc/electrical';
+import { DEFAULT_TRANSFORMER_XR, GENERATOR_XD_SUBTRANSIENT_PCT, GENERATOR_XD_TRANSIENT_DEFAULT_PCT, GENERATOR_XR, INVERTER_FAULT_MULTIPLE, assumedSourceFaultKa, levelKaText, supplySourceLevel } from '../calc/electrical';
 import { supplyAllowedA } from '../calc/summary';
 import { fmtFixed } from '../util/format';
 import { supplyNameSuggestion } from '../model/designReference';
@@ -44,7 +44,7 @@ export default function SupplyFields({ project, board, onChange }: { project: Pr
     }
     onChange(setFedFrom(project, board, to));
   }
-  const num = (label: string, key: 'faultKa' | 'xr' | 'ratedKva' | 'xdPct' | 'faultMultiple' | 'faultKaMin' | 'vdUsedPct' | 'zeOhm' | 'allowedA' | 'ratingA' | 'irSetting', step: number, placeholder = '') => (
+  const num = (label: string, key: 'faultKa' | 'xr' | 'ratedKva' | 'xdPct' | 'xdTransientPct' | 'sustainedMultiple' | 'faultMultiple' | 'faultKaMin' | 'vdUsedPct' | 'zeOhm' | 'allowedA' | 'ratingA' | 'irSetting', step: number, placeholder = '') => (
     <label>{label}
       <input type="number" aria-label={label} step={step} min="0" placeholder={placeholder} value={s[key] ?? ''} onChange={(e) => onChange(setSupplyValue(board, key, numOrU(e.target.value)))} />
     </label>
@@ -157,6 +157,8 @@ export default function SupplyFields({ project, board, onChange }: { project: Pr
             </label>
             {(machine || inverter) && num('Rating (kVA)', 'ratedKva', 1, 'not given')}
             {machine && num('X″d (%)', 'xdPct', 0.5, String(GENERATOR_XD_SUBTRANSIENT_PCT))}
+            {machine && num('X′d (%)', 'xdTransientPct', 0.5, String(GENERATOR_XD_TRANSIENT_DEFAULT_PCT))}
+            {machine && num('Sustained fault (× rated)', 'sustainedMultiple', 0.1, 'from X′d')}
             {inverter && num('Fault current (× rated)', 'faultMultiple', 0.1, String(INVERTER_FAULT_MULTIPLE))}
             {text('Name', 'fedFrom', 'Source', suggestion ? listId : undefined)}
             {text('Reference', 'ref', 'drawing or letter')}

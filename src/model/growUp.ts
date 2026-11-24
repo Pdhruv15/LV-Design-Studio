@@ -47,7 +47,7 @@ function givenList(x: Board): string[] {
   const reads = takesSourceRating(x), k = sourceKindTakes(s.kind);
   const t: [number | undefined, (v: number) => string][] = [
     [s.faultKa, (v) => `Ik″ ${num(v)} kA`], [s.xr, (v) => `X/R ${num(v)}`],
-    [reads ? s.ratedKva : undefined, (v) => `${num(v)} kVA`], [reads && k.machine ? s.xdPct : undefined, (v) => `X″d ${num(v)} %`], [reads && k.inverter ? s.faultMultiple : undefined, (v) => `fault current ${num(v)} × rated`], [s.faultKaMin, (v) => `minimum Ik″ ${num(v)} kA`],
+    [reads ? s.ratedKva : undefined, (v) => `${num(v)} kVA`], [reads && k.machine ? s.xdPct : undefined, (v) => `X″d ${num(v)} %`], [reads && k.machine ? s.xdTransientPct : undefined, (v) => `X′d ${num(v)} %`], [reads && k.machine ? s.sustainedMultiple : undefined, (v) => `sustained fault ${num(v)} × rated`], [reads && k.inverter ? s.faultMultiple : undefined, (v) => `fault current ${num(v)} × rated`], [s.faultKaMin, (v) => `minimum Ik″ ${num(v)} kA`],
     [s.vdUsedPct, (v) => `drop used ${num(v)} %`], [s.zeOhm, (v) => `Ze ${num(v)} Ω`], [s.allowedA, (v) => `allowed load ${num(v)} A`]
   ];
   return t.flatMap(([v, f]) => (v !== undefined ? [f(v)] : []));
