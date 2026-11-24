@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { FolderOpen, RotateCcw, Search, TriangleAlert, X } from 'lucide-react';
 import { CadDialog } from './CadDialogs';
 import { DisplayPreview, SelectionPreview } from './CadOptionsPreview';
@@ -6,14 +6,16 @@ import type { CadToggles } from './CadCanvas';
 import { isNumber } from './cadPrompt';
 import { CAD_COMMANDS, aliasesOf, commandFullName, commandId, type CadCommand, type OwnAliases } from './cadCommands';
 import { aliasProblem, chordLabel, chordOf, commandRows, keyProblem, keysOf, type OwnKeys } from './cadShortcuts';
+import { librariesNow, readSettingsFile, settingsFile, settingsSummary, type CadSettingsLibraries } from './cadSettingsFile';
 import { CROSS_COLORS, OSNAP_BITS, OSNAP_MODES, parseAngles, PICK_LOOKS, POLAR_INCREMENTS, SEL_COLORS, type CrossColor, type DraftSettings, type OsnapMode, type PickLook, type SelColor } from '../../model/cadDraft';
 import { changedSettings, DRAFT_TABS, findSettings, OPT_PAGES, OPT_SETTINGS, placeKey, placeLabel, placeOf, resetSettings, type OptAt, type OptPage, type OptSetting, type OptValues } from '../../model/cadOptions';
 import { PALETTE_LABEL, THEME_LABEL, type PalettePref, type ThemePref } from '../../theme/theme';
 import { plotPrinter, usePrinters } from '../../util/printers';
 import { DATABASE_FOLDER } from '../../database/database';
+import { saveText } from '../../util/files';
 
 type MenuItem = { label: string; title: string; onClick: () => void };
-type App = { theme: ThemePref; palette: PalettePref; cadLabels: boolean; ribbonOrder: boolean };
+type App = { theme: ThemePref; palette: PalettePref; cadLabels: boolean; ribbonOrder: string[] };
 
 const PLACE_KEY = 'lvds.cad.optPage';
 /** The find box's key, as the app names the modifier elsewhere. */
@@ -21,7 +23,7 @@ const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator
 const FIND_KEY = MAC ? '⌘F' : 'Ctrl F';
 const BY_ID = new Map(OPT_SETTINGS.map((s) => [s.id, s]));
 const HELP: Record<Exclude<OptPage, 'drafting'> | 'drafting/snap' | 'drafting/polar' | 'drafting/osnap' | 'drafting/dyn' | 'found', string> = {
-  general: "The ribbon's tool names and the order of its panels, as in Profile & preferences.",
+  general: "The ribbon's tool names and the order of its panels, as in Profile & preferences. Your settings: one file with the options and libraries, for another computer.",
   files: 'The folders the app uses, and how a drawing is saved. Kept for you on this computer, for every drawing.',
   display: 'The crosshair and its colour, the outline that keeps the cursor visible over any line, and line widths on screen. Colour theme and palette are the app\'s own. The preview shows the result before OK.',
   'drafting/snap': 'Snap (F9) steps the cursor by the spacing; 0 follows the grid on screen. Grid (F7): 0 adapts to the zoom.',
@@ -98,7 +100,7 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
   /** The user's own typed names and keys (Shortcuts & aliases). */
   aliases?: OwnAliases;
   keys?: OwnKeys;
-  onApply: (next: { draft: DraftSettings; toggles: CadToggles; gridDots: boolean; autosaveMin: number; app: { theme: ThemePref; palette: PalettePref; cadLabels: boolean; resetRibbonOrder: boolean; aliases: OwnAliases; keys: OwnKeys }; printer: string; level?: MenuItem; unit?: MenuItem }) => void;
+  onApply: (next: { draft: DraftSettings; toggles: CadToggles; gridDots: boolean; autosaveMin: number; app: { theme: ThemePref; palette: PalettePref; cadLabels: boolean; ribbonOrder: string[]; aliases: OwnAliases; keys: OwnKeys }; printer: string; level?: MenuItem; unit?: MenuItem; libraries?: CadSettingsLibraries }) => void;
   onClose: () => void;
 }) {
   const [place, setPlace] = useState(() => { let last: string | null = null; try { last = localStorage.getItem(PLACE_KEY); } catch { /* none */ } return placeOf(at, last); });
@@ -114,7 +116,13 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
     openedAt.current = at;
     if (at !== 'last') { setPlace(placeOf(at)); setQ(''); setMode('page'); }
   }, [at]);
-  const [v, setV] = useState<OptValues>(() => ({ draft, autosaveMin, theme: app.theme, palette: app.palette, cadLabels: app.cadLabels, ribbonOrder: app.ribbonOrder, printer: plotPrinter(), aliases, keys }));
+  const [v, setV] = useState<OptValues>(() => ({ draft, autosaveMin, theme: app.theme, palette: app.palette, cadLabels: app.cadLabels, ribbonOrder: app.ribbonOrder.length > 0, printer: plotPrinter(), aliases, keys }));
+  // The ribbon's panel order as a list; `v.ribbonOrder` (what the model marks as changed) is always derived from it.
+  const [order, setOrder] = useState<string[]>(app.ribbonOrder);
+  // Your settings: the libraries of an imported file, held until OK, and the line under the buttons.
+  const [held, setHeld] = useState<CadSettingsLibraries | null>(null);
+  const [note, setNote] = useState<{ text: string; bad: boolean } | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   // Shortcuts & aliases: the page's tab (not kept), the filter, and the row a name or a key is being added to.
   const [sub, setSub] = useState<'names' | 'keys'>('names');
   const [filter, setFilter] = useState('');
@@ -135,7 +143,7 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
   const printers = usePrinters().list;
   const d = v.draft;
   /** The values as they stand now: the typed extra angles count at once. */
-  const cur: OptValues = { ...v, draft: { ...d, polarExtra: parseAngles(extra) } };
+  const cur: OptValues = { ...v, ribbonOrder: order.length > 0, draft: { ...d, polarExtra: parseAngles(extra) } };
   const query = q.trim();
   const bridge = typeof window !== 'undefined' ? window.lvds?.settings : undefined;
   const hits = query ? findSettings(query).filter((s) => bridge || !s.id.startsWith('folder')) : [];
@@ -145,7 +153,23 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
   const top = (p: Partial<OptValues>) => setV((x) => ({ ...x, ...p }));
   const tog = (k: keyof CadToggles) => (on: boolean) => setT((x) => ({ ...x, [k]: on, ...(k === 'ortho' && on ? { polar: false } : k === 'polar' && on ? { ortho: false } : {}) }));
   const whole = (k: keyof DraftSettings, lo: number, hi: number) => (s: string) => { const x = Math.round(Number(s)); if (x >= lo && x <= hi) patch({ [k]: x } as Partial<DraftSettings>); };
-  const resetOf = (l: OptSetting[]) => { setV(resetSettings(cur, l)); if (l.some((s) => s.id === 'polarExtra')) setExtra(''); };
+  const resetOf = (l: OptSetting[]) => { const nv = resetSettings(cur, l); setV(nv); if (!nv.ribbonOrder) setOrder([]); if (l.some((s) => s.id === 'polarExtra')) setExtra(''); };
+  const exportFile = async () => {
+    const o = { draft: cur.draft, autosaveMin: cur.autosaveMin, theme: cur.theme, palette: cur.palette, cadLabels: cur.cadLabels, ribbonOrder: order, aliases: cur.aliases, keys: cur.keys };
+    try { const m = await saveText('Design CAD settings.json', JSON.stringify(settingsFile(o, librariesNow(), __APP_VERSION__), null, 2), 'Design CAD settings', 'json', { output: 'cadSettings' }); setNote(m ? { text: m, bad: false } : null); } catch (err) { setNote({ text: `Could not save: ${err instanceof Error ? err.message : String(err)}`, bad: true }); }
+  };
+  const importFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const input = e.target, file = input.files?.[0];
+    if (!file) return;
+    let read: ReturnType<typeof readSettingsFile>;
+    try { read = readSettingsFile(JSON.parse(await file.text())); } catch { read = undefined; }
+    input.value = '';
+    if (!read) { setNote({ text: `${file.name} is not a Design CAD settings file.`, bad: true }); return; }
+    const o = read.options;
+    setV((x) => ({ ...x, draft: o.draft, autosaveMin: o.autosaveMin, theme: o.theme, palette: o.palette, cadLabels: o.cadLabels, aliases: o.aliases, keys: o.keys }));
+    setExtra(o.draft.polarExtra.join(', ')); setOrder(o.ribbonOrder); setHeld(read.libraries); setAddName(null); setAddKey(null);
+    setNote({ text: `From ${file.name}: ${settingsSummary(read)}. OK keeps them; Cancel leaves everything as it was.`, bad: false });
+  };
   const goTo = (s: OptSetting) => { setPlace((p) => ({ page: s.page, tab: s.tab ?? p.tab })); setQ(''); setMode('page'); };
   const step = (e: React.KeyboardEvent, i: number) => {
     const j = e.key === 'ArrowDown' ? i + 1 : e.key === 'ArrowUp' ? i - 1 : i;
@@ -209,6 +233,7 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
   const databasePath = paths ? paths.databaseFolder || `${projectsPath}${projectsPath.includes('\\') ? '\\' : '/'}${DATABASE_FOLDER}` : '';
   const showFolder = bridge?.showFolder;
 
+  const noteLine = note && <p key="settingsNote" className={`cad-dlg-note${note.bad ? ' bad' : ''}`} role={note.bad ? 'alert' : 'status'}>{note.text}</p>;
   /** One setting's row: the same control on its page, in the find results and on the Changed page. */
   const row = (s: OptSetting): ReactNode => {
     const id = s.id;
@@ -224,7 +249,7 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
     }
     switch (id) {
       case 'cadLabels': return crow(s, v.cadLabels, (b) => top({ cadLabels: b }));
-      case 'ribbonOrder': return vrow(s, <><span className="m">{v.ribbonOrder ? 'Your own' : 'Standard'}</span><button type="button" disabled={!v.ribbonOrder} onClick={() => top({ ribbonOrder: false })}>Reset order</button></>);
+      case 'ribbonOrder': return vrow(s, <><span className="m">{order.length ? 'Your own' : 'Standard'}</span><button type="button" disabled={!order.length} onClick={() => setOrder([])}>Reset order</button></>);
       case 'folderProjects': return folderRow(s, pathBox(projectsPath), afterChange(folders?.chooseProjects), showFolder ? { label: 'Projects', run: () => void showFolder('projects') } : undefined);
       case 'folderDatabase': return folderRow(s, pathBox(databasePath), afterChange(folders?.chooseDatabase), window.lvds?.database?.open ? { label: 'LV Database', run: () => void window.lvds.database.open() } : undefined);
       case 'folderBlocks': return folderRow(s, blockFolder ? pathBox(blockFolder) : <span className="m">Not set</span>, afterChange(onBlockFolder ? async () => { await onBlockFolder(); } : undefined), showFolder ? { label: 'Block library', run: () => void showFolder('blocks', blockFolder), off: !blockFolder } : undefined);
@@ -283,6 +308,7 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
       case 'units': return vrow(s, <select aria-label="Units" value={un} disabled={!units.length} onChange={(e) => setUn(e.target.value)}><option value="">{unit}</option>{units.map((x) => <option key={x.label} value={x.label}>{x.label}</option>)}</select>);
       case 'ownAliases': { const n = Object.keys(v.aliases).length; return vrow(s, <span className="m">{n ? `${n} added` : 'None'}</span>); }
       case 'ownKeys': { const n = Object.keys(v.keys).length; return vrow(s, <span className="m">{n ? `${n} added` : 'None'}</span>); }
+      case 'settingsFile': return <Fragment key={id}>{vrow(s, <><button type="button" onClick={() => void exportFile()}>Export…</button><button type="button" onClick={() => fileInput.current?.click()}>Import…</button></>)}{noteLine}</Fragment>;
       default: return null;
     }
   };
@@ -396,6 +422,13 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
         {r('cadLabels')}
         <p className="cad-dlg-note">The tools then take four sub-tabs.</p>
         {r('ribbonOrder')}
+        {sec('Your settings', 'one file')}
+        <p className="cad-dlg-note">Options, typed names, keys and the libraries of this computer (layer templates, layout templates, page setups with their pen tables, hatch patterns) in one file, to set up another computer the same way.</p>
+        <div className="cad-dlg-btns" role="group" aria-label="Your settings file">
+          <button type="button" onClick={() => void exportFile()}>Export…</button><button type="button" onClick={() => fileInput.current?.click()}>Import…</button>
+          <button type="button" disabled={!changedSettings(cur).length} onClick={() => resetOf(changedSettings(cur))}>Reset all</button>
+        </div>
+        {noteLine}
       </>;
       case 'files': return <>
         {sec('Folders', 'on this computer')}
@@ -489,8 +522,8 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
 
   const ok = () => onApply({
     draft: { ...d, polarExtra: parseAngles(extra) }, toggles: t, gridDots: dots, autosaveMin: v.autosaveMin,
-    app: { theme: v.theme, palette: v.palette, cadLabels: v.cadLabels, resetRibbonOrder: app.ribbonOrder && !v.ribbonOrder, aliases: v.aliases, keys: v.keys },
-    printer: v.printer, level: levels.find((x) => x.label === lv), unit: units.find((x) => x.label === un)
+    app: { theme: v.theme, palette: v.palette, cadLabels: v.cadLabels, ribbonOrder: order, aliases: v.aliases, keys: v.keys },
+    printer: v.printer, level: levels.find((x) => x.label === lv), unit: units.find((x) => x.label === un), ...(held ? { libraries: held } : {})
   });
   const dlgKeys = (e: React.KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); finder.current?.focus(); finder.current?.select(); }
@@ -524,6 +557,7 @@ export default function CadOptions({ at = 'last', draft, toggles, gridDots, leve
         </div>
       </div>
       <div className="cad-dlg-pg">
+        <input ref={fileInput} type="file" accept=".json,application/json" hidden aria-label="Settings file" onChange={(e) => void importFile(e)} />
         {shown && pageBody()}
         {!!query && <>
           <div className="cad-dlg-hits">

@@ -90,6 +90,7 @@ import { EMERGENCY_ITEMS } from '../../model/cadDevices';
 import { planLevel, setPlanLevel } from './cadFileMenu';
 import { pathOfPlan, type CadExport, type SavedCopy } from './cadState';
 import CadOptions from './CadOptions';
+import { keepLibraries } from './cadSettingsFile';
 import type { OptAt } from '../../model/cadOptions';
 import CadSaveAs, { CloseUnsaved } from './CadSaveAs';
 import { cadFileMenu } from './cadFileMenu';
@@ -364,12 +365,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** Drafting settings (DS), and the project's recovery-copy minutes, kept in Preferences by the app. */
   draft?: DraftSettings;
   autosaveMin?: number;
-  onPrefs?: (p: { draft: DraftSettings; autosaveMin: number; app?: { theme: ThemePref; palette: PalettePref; cadLabels: boolean; resetRibbonOrder: boolean; aliases: OwnAliases; keys: OwnKeys } }) => void;
+  onPrefs?: (p: { draft: DraftSettings; autosaveMin: number; app?: { theme: ThemePref; palette: PalettePref; cadLabels: boolean; ribbonOrder: string[]; aliases: OwnAliases; keys: OwnKeys } }) => void;
   /** The user's own typed names and keys (Options → Shortcuts & aliases), kept in Preferences by the app. */
   aliases?: OwnAliases;
   keys?: OwnKeys;
   /** The app's own settings Options shows on General and Display. */
-  appPrefs?: { theme?: ThemePref; palette?: PalettePref; cadLabels?: boolean; ribbonOrder?: boolean };
+  appPrefs?: { theme?: ThemePref; palette?: PalettePref; cadLabels?: boolean; ribbonOrder?: string[] };
   /** Options → Files & saving: the app's folder choosers (desktop app). */
   folders?: { chooseProjects: () => Promise<void>; chooseDatabase: () => Promise<void> };
   /** Options → Plot & publish: Page setups or Pen tables. */
@@ -5375,7 +5376,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
           onClose={() => setClosing(null)} onDiscard={() => closeNow(closing)}
           onSave={() => { const going = closing; setClosing(null); if (view && cad.saved.current.get(view.file.toLowerCase())) void saveNow().then((ok) => { if (ok) closeNow(going); }); else { closeAfterSave.current = going; startSaveAs(); } }} />}
         {optAt && fileLists && <CadOptions at={optAt} draft={draft} toggles={cad.toggles} gridDots={cad.gridDots} level={fileLists.level} levelSet={fileLists.levelSet} levels={fileLists.levels} unit={fileLists.unit} units={fileLists.units} autosaveMin={autosaveMin} aliases={aliases} keys={keys}
-          app={{ theme: appPrefs?.theme ?? 'dark', palette: appPrefs?.palette ?? 'graphite', cadLabels: !!appPrefs?.cadLabels, ribbonOrder: !!appPrefs?.ribbonOrder }}
+          app={{ theme: appPrefs?.theme ?? 'dark', palette: appPrefs?.palette ?? 'graphite', cadLabels: !!appPrefs?.cadLabels, ribbonOrder: appPrefs?.ribbonOrder ?? [] }}
           setups={setupsOf(project).length} penTables={penTablesOf(project).map((x) => x.name)} blockFolder={library.folder ?? ''} onBlockFolder={window.lvds?.cadFile?.chooseBlockFolder ? chooseLibraryFolder : undefined}
           folders={folders} onOutput={onOutput}
           onClose={() => setOptAt(null)}
@@ -5385,6 +5386,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             onPrefs?.({ draft: x.draft, autosaveMin: Math.max(0, Math.min(60, x.autosaveMin)), app: x.app });
             if (x.printer !== plotPrinter()) setPlotPrinter(x.printer);
             x.level?.onClick(); x.unit?.onClick();
+            if (x.libraries) keepLibraries(x.libraries);
             cad.say('OPTIONS  Options changed.');
           }} />}
         {dlg === 'edit' && DIALOG_TOOLS.includes(tool as EditTool) && <EditDialog tool={tool as EditTool} settings={edSet} onPatch={(p) => setEdSet((x) => ({ ...x, ...p }))} onClose={() => setDlg(null)} />}

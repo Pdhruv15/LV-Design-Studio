@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.279', date: '2026-11-24',
+    items: [
+      { title: 'Options: your settings in one file', text: 'Design CAD → Options (OP) → General → Your settings: Export… writes one file with the options, your typed names and keys, the ribbon\'s panel order and the libraries of this computer (layer templates, layout templates, page setups with their pen tables, hatch patterns). Import… on another computer reads it: the amber dots show what it changes, OK keeps it and Cancel leaves everything as it was. Reset all puts every setting back to its default.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.278', date: '2026-11-24',
     items: [
       { title: 'Options: typed names and keys of your own', text: 'Design CAD → Options (OP) → Shortcuts & aliases lists every command. On Typed names, + adds a name of your own to a command, for example DUP for Copy; on Keys, + then a key press gives it a key: F1 to F12 alone or with Ctrl, Alt or Shift, or Ctrl with a digit. The standard names and keys stay. One already in use is refused, and the command that has it is named.', action: 'cad', actionLabel: 'Open Design CAD' },

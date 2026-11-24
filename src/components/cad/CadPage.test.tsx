@@ -31,6 +31,8 @@ import { openTitleBlockInCad, TB_LAYERS } from '../../model/titleBlockCad';
 import type { TitleTemplate } from '../../model/titleBlock';
 import type { Project, SketchItem } from '../../types';
 import { DRAFT_DEFAULTS, type DraftSettings } from '../../model/cadDraft';
+import { loadLayerTemplates } from '../../model/cadLayerTemplates';
+import { settingsFile, type CadSettingsLibraries, type CadSettingsOptions } from './cadSettingsFile';
 import { clearClip } from './cadClipboardStore';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -56,7 +58,7 @@ const villa: Project = {
 let root: Root, host: HTMLDivElement, state: CadState, project: Project;
 const onChange = vi.fn((p: Project, _message: string, _join?: boolean) => { project = p; });
 const onUndo = vi.fn();
-const onPrefs = vi.fn((_p: { draft: DraftSettings; autosaveMin: number; app?: { theme: string; palette: string; cadLabels: boolean; resetRibbonOrder: boolean; aliases: Record<string, string>; keys: Record<string, string> } }) => {});
+const onPrefs = vi.fn((_p: { draft: DraftSettings; autosaveMin: number; app?: { theme: string; palette: string; cadLabels: boolean; ribbonOrder: string[]; aliases: Record<string, string>; keys: Record<string, string> }; libraries?: unknown }) => {});
 /** Whether the architect's layer i shows: its On, kept in the project (Layer palette or the Layers list). */
 const shown = (i: number) => archOnOf(project, state.view!.file, state.view!.info.layers)[i];
 beforeEach(() => {
@@ -3641,7 +3643,7 @@ describe('Design CAD File: Save, Save As, Close and Options', () => {
   });
 
   it('Options: Colour theme and palette, tool names and the panel order reach onPrefs as the app\'s settings', async () => {
-    act(() => root.render(<Host extra={{ appPrefs: { ribbonOrder: true } }} />));
+    act(() => root.render(<Host extra={{ appPrefs: { ribbonOrder: ['layers', 'draw'] } }} />));
     await flush();
     await command('OP');
     const d = opt();
@@ -3655,7 +3657,104 @@ describe('Design CAD File: Save, Save As, Close and Options', () => {
     set(field(d, 'Colour theme'), 'light');
     set(field(d, 'Colour palette'), 'blueprint');
     await press(d, 'OK');
-    expect(onPrefs.mock.calls[0][0].app).toEqual({ theme: 'light', palette: 'blueprint', cadLabels: true, resetRibbonOrder: true, aliases: {}, keys: {} });
+    expect(onPrefs.mock.calls[0][0].app).toEqual({ theme: 'light', palette: 'blueprint', cadLabels: true, ribbonOrder: [], aliases: {}, keys: {} });
+  });
+
+  it('Options: Your settings: Export… writes the options as the window shows them, with the panel order', async () => {
+    const saveText = vi.fn(async (_a: { defaultName: string; content: string }) => '/exports/Design CAD settings.json');
+    (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveText };
+    act(() => root.render(<Host extra={{ appPrefs: { ribbonOrder: ['layers', 'draw'] } }} />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    await openPage(d, 'Selection');
+    set(field(d, 'Grip size'), '12');
+    await openPage(d, 'General');
+    expect(d.querySelector('[role="group"][aria-label="Your settings file"]')).not.toBeNull();
+    await press(d, 'Export…');
+    await until(() => !!d.querySelector('p[role="status"]'));
+    expect(d.querySelector('p[role="status"]')!.textContent).toBe('Saved Design CAD settings.json');
+    const saved = JSON.parse(saveText.mock.calls[0][0].content);
+    expect(saveText.mock.calls[0][0].defaultName).toBe('Design CAD settings.json');
+    expect(saved).toMatchObject({ kind: 'lvds.cadSettings', version: 1, options: { draft: { gripPx: 12 }, ribbonOrder: ['layers', 'draw'] } });
+    expect(onPrefs).not.toHaveBeenCalled();
+  });
+
+  const settingsOptions = (over: Partial<CadSettingsOptions> = {}): CadSettingsOptions => ({ draft: { ...DRAFT_DEFAULTS, gripPx: 14 }, autosaveMin: 2, theme: 'dark', palette: 'graphite', cadLabels: false, ribbonOrder: [], aliases: { CX: 'CO' }, keys: {}, ...over });
+  const settingsLibraries: CadSettingsLibraries = { layerTemplates: [{ id: 'lt-1', name: 'Studio', layers: [{ layer: 'WALLS', role: 'wall' }], savedAt: '2026-11-01T00:00:00.000Z' }], layoutTemplates: [], setups: { kind: 'lvds.pageSetups', setups: [], tables: [] }, patterns: [] };
+  const giveFile = async (d: HTMLElement, name: string, text: string) => {
+    const input = d.querySelector('input[aria-label="Settings file"]') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { value: [new File([text], name, { type: 'application/json' })], configurable: true });
+    await act(async () => { input.dispatchEvent(new Event('change', { bubbles: true })); });
+  };
+
+  it('Options: Your settings: Import… fills the window; Cancel leaves everything, OK keeps the options and the libraries', async () => {
+    const text = JSON.stringify(settingsFile(settingsOptions({ ribbonOrder: ['layers'] }), settingsLibraries, '2.279'));
+    act(() => root.render(<Host />));
+    await flush();
+    await command('OP');
+    let d = opt();
+    await giveFile(d, 'studio.json', text);
+    await until(() => !!d.querySelector('p[role="status"]'));
+    expect(d.querySelector('p[role="status"]')!.textContent).toBe('From studio.json: options, 1 typed name, 1 layer template. OK keeps them; Cancel leaves everything as it was.');
+    expect(countOf(d, 'Selection')).toBe('1');
+    expect(countOf(d, 'Shortcuts & aliases')).toBe('1');
+    expect(countOf(d, 'General')).toBe('1');
+    expect(loadLayerTemplates()).toEqual([]);
+    await press(d, 'Cancel');
+    expect(loadLayerTemplates()).toEqual([]);
+    expect(onPrefs).not.toHaveBeenCalled();
+    await command('OP');
+    d = opt();
+    expect(countOf(d, 'Selection')).toBe('');
+    await giveFile(d, 'studio.json', text);
+    await until(() => !!d.querySelector('p[role="status"]'));
+    await press(d, 'OK');
+    expect(onPrefs.mock.calls[0][0].draft.gripPx).toBe(14);
+    expect(onPrefs.mock.calls[0][0].app).toMatchObject({ aliases: { CX: 'CO' }, ribbonOrder: ['layers'] });
+    expect(loadLayerTemplates().map((t) => t.name)).toEqual(['Studio']);
+  });
+
+  it('Options: Your settings: a file that is not a settings file is named in an alert and changes nothing', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    await giveFile(d, 'notes.json', '{"kind":"other"}');
+    await until(() => !!d.querySelector('p[role="alert"]'));
+    expect(d.querySelector('p[role="alert"]')!.textContent).toBe('notes.json is not a Design CAD settings file.');
+    await giveFile(d, 'broken.json', '{ not json');
+    await until(() => d.querySelector('p[role="alert"]')!.textContent === 'broken.json is not a Design CAD settings file.');
+    expect(countOf(d, 'Selection')).toBe('');
+    expect(countOf(d, 'Shortcuts & aliases')).toBe('');
+  });
+
+  it('Options: Your settings: Reset all puts every changed value back and is off when nothing is changed', async () => {
+    act(() => root.render(<Host saveFormat="dwg" />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    expect((button('Reset all') as HTMLButtonElement).disabled).toBe(true);
+    await openPage(d, 'Selection');
+    set(field(d, 'Grip size'), '12');
+    await openPage(d, 'General');
+    expect(countOf(d, 'Selection')).toBe('1');
+    const reset = d.querySelector('[role="group"][aria-label="Your settings file"] button:last-child') as HTMLButtonElement;
+    expect(reset.textContent).toBe('Reset all');
+    expect(reset.disabled).toBe(false);
+    await act(async () => { reset.click(); });
+    expect(countOf(d, 'Selection')).toBe('');
+    expect(reset.disabled).toBe(true);
+  });
+
+  it('Options: Reset order empties the ribbon\'s panel order on OK', async () => {
+    act(() => root.render(<Host extra={{ appPrefs: { ribbonOrder: ['layers'] } }} />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    await press(d, 'Reset order');
+    await press(d, 'OK');
+    expect(onPrefs.mock.calls[0][0].app!.ribbonOrder).toEqual([]);
   });
 
   it('Options: Plot & publish opens Page setups and Pen tables, and keeps the printer chosen', async () => {

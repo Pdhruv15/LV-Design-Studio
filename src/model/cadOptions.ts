@@ -81,6 +81,7 @@ const fi = (id: string, label: string, words: string, def?: string, k?: Exclude<
 export const OPT_SETTINGS: OptSetting[] = [
   { id: 'cadLabels', page: 'general', label: 'Show the name of every tool, the small ones too', words: 'ribbon tool names labels sub-tabs', def: 'off', ...tk('cadLabels') },
   { id: 'ribbonOrder', page: 'general', label: 'Panel order', words: 'ribbon panels order reset', def: 'Standard', ...tk('ribbonOrder') },
+  { id: 'settingsFile', page: 'general', label: 'Your settings file', words: 'export import backup another computer libraries reset all' },
   fi('folderProjects', 'Projects', 'folder projects files'),
   fi('folderDatabase', 'LV Database', 'folder database workbooks'),
   fi('folderBlocks', 'Block library', 'folder blocks library dwg dxf'),
