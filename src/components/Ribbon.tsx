@@ -820,7 +820,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     ],
     [
       { label: 'Balance phases', icon: Scale, sub: ls?.grid && ls.imbalancePct !== undefined ? `${ls.imbalancePct} % apart` : undefined,
-        title: gridOff ?? 'Lighting circuits first, then power, each starting on an ELCB section; spread over R/Y/B and renumber', onClick: () => ls?.onBalance(), disabled: !!gridOff || !ls?.canBalance }
+        title: gridOff ?? 'Spread the 1-phase circuits over R / Y / B inside each ELCB, so every ELCB keeps its circuits; circuits that move are renumbered', onClick: () => ls?.onBalance(), disabled: !!gridOff || !ls?.canBalance }
     ],
     [
       sm({ label: 'Copy', icon: Copy, title: rowsOff ?? 'Copy the selected cells (Ctrl/⌘ C)', onClick: () => ls?.onCopy(), disabled: !!rowsOff }),
