@@ -1,6 +1,6 @@
 # Per-unit fault study, fault points, transformers at any voltage and cable types — proposal (2026-11-24)
 
-Status: **approved 2026-11-24: all ten decisions (A–J) with the recommended answers.** Build order 1 to 7, one PR each. Built: none yet.
+Status: **approved 2026-11-24: all ten decisions (A–J) with the recommended answers.** Build order 1 to 7, one PR each. Built: step 1 cable data by type (PR 794, v2.281; MV cable rows and built-in ratings for the new families not included).
 Mockup: `docs/mockups/fault-study-pu-mockup.html` + `.png`.
 Related: [[UI UX proposals - 2026-11-21 - SLD start at any level]] (built) and [[UI UX proposals - 2026-11-11 - SLD supply sources, RMU and package substations]] (steps 2–5 wait).
 
