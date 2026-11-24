@@ -127,13 +127,13 @@ export const FEEDER_FIELDS: Fields<Feeder> = [
 
 export const BOARD_FIELDS: Fields<Board> = [
   ['name', 'Name'], ['kind', 'Type'], ['upstreamId', 'Fed from'], ['ratedCurrentA', 'Rating (A)'], ['sourceKva', 'Transformer (kVA)'],
-  ['sourceImpedancePct', 'Transformer Z (%)'], ['location', 'Location'], ['planPoint', 'Position on the floor plan'], ['pointWatts', 'WATT / UNIT'], ['elcbGroupSize', 'Circuits per ELCB'],
+  ['sourceImpedancePct', 'Transformer Z (%)'], ['location', 'Location'], ['planPoint', 'Position on the floor plan'], ['pointWatts', 'WATT / UNIT'], ['elcbGroupSize', 'New ELCBs (circuits each)'],
   ['elcbSensitivityMa', 'ELCB sensitivity'], ['supply', 'Incoming supply'], ['standby', 'Standby generator'], ['level', 'Level'], ['earthRiser', 'Earth riser'],
   ['sourceXr', 'Transformer X/R'], ['vectorGroup', 'Vector group'], ['protection', 'Incomer protection'], ['upsKva', 'UPS (kVA)'],
   ['busbarMaterial', 'Busbar material'], ['busbarIcwKa', 'Busbar Icw (kA, 1 s)'], ['sections', 'Panel sections'], ['ipRating', 'IP rating'], ['manufacturer', 'Manufacturer'], ['model', 'Model'], ['instruments', 'Instruments on the SLD'], ['incomerDevice', 'Incomer device on the SLD'],
   ['earthing', 'Earth pit detail on the SLD'], ['rmu', 'RMU'], ['spd', 'Surge protection'], ['pmu', 'Power meter (PMU) to BMS'], ['existing', 'Existing (recorded maximum demand)'], ['enclosure', 'Enclosure'], ['form4', 'Form-4 enclosure'], ['substation', 'Substation'],
   ['mdDemandFactor', 'MD demand factor'], ['txRef', 'Transformer reference'], ['summaryLoad', 'Summary load'], ['summaryMeters', 'Summary meters'],
-  ['pointItems', 'Library item per column'], ['spareNames', 'Spare names'], ['spareWays', 'Spares and spaces'], ['elcbs', 'ELCBs placed by hand'], ['elcbRatingA', 'ELCB rating (A)']
+  ['pointItems', 'Library item per column'], ['spareNames', 'Spare names'], ['spareWays', 'Spares and spaces'], ['elcbs', 'ELCBs (ways, poles, rating, mA)'], ['elcbRatingA', 'ELCB rating (A)']
 ];
 
 /** Single project settings. */
