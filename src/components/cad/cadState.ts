@@ -3,6 +3,8 @@ import type { CadView } from '../../engines/cad/cadEngine';
 import type { CadToggles } from './CadCanvas';
 import type { ObjectProps } from '../../model/cadLayerStyle';
 import type { PlanTarget } from '../../model/planTarget';
+import type { ElvSystem } from '../../elv/defaults';
+import type { ElvDeviceType } from '../../elv/devices';
 
 /** The tool working on the drawing: none (Select: a click inspects the object under it, Shift-click or a window picks
  * several devices or drawn objects), a measuring tool, an LV containment segment check (`containment`), a room tool (`room`
@@ -35,6 +37,11 @@ const RECENT = (projectId: string | undefined) => `lvds.cad.${projectId ?? 'new'
 /** The drawing a project had open in the CAD view last time on this computer (its path stays out of the project file). */
 export const rememberedDrawing = (projectId: string | undefined): string | undefined => { try { return localStorage.getItem(RECENT(projectId)) ?? undefined; } catch { return undefined; } };
 const remember = (projectId: string | undefined, path?: string) => { try { if (path) localStorage.setItem(RECENT(projectId), path); } catch { /* not remembered */ } };
+/** The devices placed last with Add device on this computer, newest first (the gallery's Recent row). */
+const RECENT_DEVICES = 'lvds.cadRecentDevices';
+/** `id` put first in the list of the devices placed last (once, at most `max`). */
+export const withRecentDevice = (list: string[], id: string, max = 6): string[] => [id, ...list.filter((x) => x !== id)].slice(0, max);
+const recentDevicesSaved = (): string[] => { try { const v = JSON.parse(localStorage.getItem(RECENT_DEVICES) ?? '[]') as unknown; return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 6) : []; } catch { return []; } };
 const PATHS = (projectId: string | undefined) => `lvds.cad.paths.${projectId ?? 'new'}`;
 const paths = (projectId: string | undefined): Record<string, string> => { try { return JSON.parse(localStorage.getItem(PATHS(projectId)) ?? '{}') as Record<string, string>; } catch { return {}; } };
 /** Where a plan file of the project was opened from on this computer, to open it again from Plans. */
@@ -126,6 +133,16 @@ export function useCad(projectId: string | undefined) {
   const [tool, setTool] = useState<CadTool>('none');
   // Devices: what Add device places, on which circuit / board, the device selected (the level is the plan's: cadPlans).
   const [device, setDevice] = useState('ltg');
+  /** Fill room (FILL): the ELV device it places — its own choice (the arrow of Fill room, or the palette while FILL runs). */
+  const [fillDevice, setFillDevice] = useState<ElvDeviceType>('smoke-detector');
+  /** The system Coverage shows — its own choice (the arrow of Coverage, or Coverage on a device's menu). */
+  const [coverageSystem, setCoverageSystem] = useState<ElvSystem>('fire-alarm');
+  const [recentDevices, setRecentDevices] = useState<string[]>(recentDevicesSaved);
+  const usedDevice = useCallback((id: string) => setRecentDevices((list) => {
+    const next = withRecentDevice(list, id);
+    try { localStorage.setItem(RECENT_DEVICES, JSON.stringify(next)); } catch { /* not remembered */ }
+    return next;
+  }), []);
   const [feederId, setFeederId] = useState('');
   const [boardId, setBoardId] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
@@ -137,7 +154,7 @@ export function useCad(projectId: string | undefined) {
   const setLayout = useCallback((id: string | null) => { setLayoutState(id); setVpSel(null); setMsVp(null); }, []);
   /** Cable tray runs: the width drawn, and the tray route (none until the engineer assigns one). */
   const [tray, setTray] = useState<{ widthMm: number; service: string; route: string }>({ widthMm: 300, service: 'Power', route: '' });
-  /** ELV coverage shown (Devices → Coverage) for the system of the ELV device chosen. */
+  /** ELV coverage shown (Level → Coverage) for the system chosen on its arrow. */
   const [coverage, setCoverage] = useState(false);
   /** Circuit wiring tags shown on the plan (Wiring → Tags). */
   const [wireTags, setWireTags] = useState(true);
@@ -228,7 +245,7 @@ export function useCad(projectId: string | undefined) {
     else { setToggles((t) => ({ ...t, grid: false })); setGridDots(false); }
   };
 
-  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, markDirty, isDirty, dirty, saved, setGridDots, setToggles, tabOf, projectOpened, sampleDone, toggles, toggle, gridDots, textPreset, setTextPreset, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, showBlocks, setShowBlocks, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, pending, ribbonInfo, setRibbonInfo, showProps, setShowProps, log, setLog, textAt, setTextAt, layout, setLayout, vpSel, setVpSel, msVp, setMsVp };
+  return { view, drawings: tabs.open.map((d) => d.view), open, show, close, markDirty, isDirty, dirty, saved, setGridDots, setToggles, tabOf, projectOpened, sampleDone, toggles, toggle, gridDots, textPreset, setTextPreset, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, showBlocks, setShowBlocks, history, say, tool, setTool, device, setDevice, fillDevice, setFillDevice, coverageSystem, setCoverageSystem, recentDevices, usedDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, pending, ribbonInfo, setRibbonInfo, showProps, setShowProps, log, setLog, textAt, setTextAt, layout, setLayout, vpSel, setVpSel, msVp, setMsVp };
 }
 
 export type CadState = ReturnType<typeof useCad>;
