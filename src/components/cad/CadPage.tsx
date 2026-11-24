@@ -57,8 +57,8 @@ import { addSketch, withSketchItems, pointStyleOut, blockDefsOut, arcStartCentre
 import { routeSettings, sizeRoute, trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
-import { ELV_PALETTE, elvPlacedOn, elvSystemOf, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
-import { copyTo, coverageNote, elvLayer, fillAt, rotate as rotateElv, SYSTEM_LABEL } from '../../components/elv/elvPlan';
+import { ELV_PALETTE, elvPlacedOn, elvSystemOf, isElvType, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
+import { canFill, copyTo, coverageNote, elvLayer, fillAt, rotate as rotateElv, SYSTEM_LABEL } from '../../components/elv/elvPlan';
 import { safeFileName, saveBinary, saveBinaryAt, savePdf, saveText } from '../../util/files';
 import { angleDeg, areaOf, boxOf, distance, inside, m, m2, roomAround, segmentsOn } from '../../model/cadMeasure';
 import { layerMapFor, layersWith, roomsFromPlan, withLayerMap } from '../../model/cadRooms';
@@ -880,14 +880,16 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const activeRoutePreview: SketchItem[] = lvRoute && (routeService === 'elv' || cad.cableFeeder) ? [{ id: '_route-proposal', kind: 'pline', layer: routeService === 'elv' ? elvRouteLayer(elvRouteSystem) : CABLE_LAYER, pts: lvRoute.points.map(([x, y]): Pt => [x / units.factor, y / units.factor]), ...(routeService === 'lv' ? { cable: { feederId: cad.cableFeeder } } : {}) }] : [];
   const approvedElvRoutes = useMemo(() => (floor ? elvCadRouteSketches(project, { building: floor.ref.building, level: floor.ref.level }, units.factor) : []), [project, floor, units.factor]);
   const approvedElvLabels = useMemo(() => (floor ? elvCadRouteLabels(project, { building: floor.ref.building, level: floor.ref.level }) : {}), [project, floor]);
-  // ELV: the device chosen (if an ELV one), its system for coverage and Copy to level, and the coverage / Fill preview.
+  // ELV: Fill room and Coverage keep their own choices; Copy to level goes by the system of the ELV device Add device places.
   const elvItem = ELV_PALETTE.find((e) => e.id === cad.device);
   const elvSystem = elvSystemOf(elvItem?.kind.elv ?? 'smoke-detector');
+  const fillItem = ELV_PALETTE.find((e) => e.id === cad.fillDevice) ?? ELV_PALETTE[0];
   const fillRoom = tool === 'fill' && cursor.at && floor ? roomAtPointOf(project, floor, cursor.at, units.factor)?.id : undefined;
   const elv = useMemo(() => (floor && (cad.coverage || fillRoom) ? elvLayer(project, { building: floor.ref.building, level: floor.ref.level }, units.factor, {
-    system: elvSystem, coverage: cad.coverage, selected: null,
-    ...(fillRoom && elvItem && cursor.at ? { preview: { type: elvItem.kind.elv, at: [cursor.at[0] * units.factor, cursor.at[1] * units.factor] as Pt } } : {})
-  }) : undefined), [project, floor?.key, elvSystem, cad.coverage, fillRoom, elvItem?.id, units.factor]); // eslint-disable-line react-hooks/exhaustive-deps -- the preview follows the room under the pointer, not every move
+    system: cad.coverage ? cad.coverageSystem : elvSystemOf(fillItem.kind.elv), coverage: cad.coverage, selected: null,
+    ...(fillRoom && cursor.at ? { preview: { type: fillItem.kind.elv, at: [cursor.at[0] * units.factor, cursor.at[1] * units.factor] as Pt } } : {})
+  }) : undefined), [project, floor?.key, cad.coverageSystem, cad.coverage, fillRoom, fillItem.id, units.factor]); // eslint-disable-line react-hooks/exhaustive-deps -- the preview follows the room under the pointer, not every move
+  const notCovered = elv ? elv.coverage.filter((c) => c.gaps.length).length : 0;
   const cableLabels = useMemo(() => Object.fromEntries(sketch.filter((it) => it.cable).map((it) => {
     const f = project.feeders.find((x) => x.id === it.cable!.feederId);
     return [it.id, f ? cableLabel(project, f).split(' · ')[0] : `${it.cable!.feederId} (removed)`];
@@ -2281,7 +2283,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       const editing = blockEditorOf(view?.file);
       const top: CtxEntry[] = editing ? [{ label: `Save block "${editing.name}"`, key: 'BSAVE', cmd: 'BSAVE' }, { label: 'Close block editor', key: 'BCLOSE', cmd: 'BCLOSE' }, '-']
         : re ? [{ label: `Save back to "${re.insert.block}"`, key: 'REFCLOSE', act: 'option', arg: 'REFCLOSE SAVE' }, { label: 'Discard changes', act: 'option', arg: 'REFCLOSE DISCARD' }, '-'] : [];
-      setPromptMenu({ at: screen, items: room ? [...top, roomEntry({ room, typeLabel: rt?.label, elv: elvItem?.label }), '-', ...blank] : [...top, ...blank] });
+      setPromptMenu({ at: screen, items: room ? [...top, roomEntry({ room, typeLabel: rt?.label, elv: fillItem.label }), '-', ...blank] : [...top, ...blank] });
       return;
     }
     // Drawn objects (and devices with them): the one menu of every picked object.
@@ -2406,8 +2408,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       }
       case 'em': setEm((e) => ({ ...e, rooms: e.rooms.includes(room.id) ? e.rooms : [...e.rooms, room.id] })); setEmSet((s) => ({ ...s, mode: 'open' })); cad.setTool('em'); setTimeout(() => cad.say(`EM  ${name} (${m2(room.areaM2)}): open area. Click more rooms or draw the escape routes, then Place.`)); return;
       case 'fill': {
-        if (!elvItem) { cad.setTool('fill'); setTimeout(() => cad.say('FILL  Choose an ELV device (a detector, speaker, data outlet…) in the Devices panel, then click the room.')); return; }
-        const r = fillAt(project, { building: floor.ref.building, level: floor.ref.level }, elvItem.kind.elv, [c.at[0] * units.factor, c.at[1] * units.factor]);
+        const r = fillAt(project, { building: floor.ref.building, level: floor.ref.level }, fillItem.kind.elv, [c.at[0] * units.factor, c.at[1] * units.factor]);
         if (r.next) change(r.next, r.message); else cad.say(`FILL  ${r.message}`); return;
       }
       case 'select': { const on = devicesInRoom(shownPlaced, room); pick(on); cad.say(`SEL  ${on.length} device${on.length === 1 ? '' : 's'} in ${name}`); return; }
@@ -3105,7 +3106,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         if (r.changed && f) change(r.project, `CIRCUIT  ${what} on ${circuitLabel(project, f).split(' · ')[0]} (${after.points} points${after.over ? `; ${after.over.n} of this type, over the ${after.over.max} allowed` : ''}) · ⌘Z to undo`);
         else cad.say('CIRCUIT  Already on that circuit.');
       } else if (e === 'coverage') {
-        cad.setDevice(typeOf(project, items[0]));
+        const t = typeOf(project, items[0]); if (isElvType(t)) cad.setCoverageSystem(elvSystemOf(t));
         if (!cad.coverage) cad.setCoverage(true);
       } else if (e === 'match') {
         setMatchFrom(items[0].key); cad.setTool('match');
@@ -3787,14 +3788,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         const [x, y] = [at[0] * units.factor, at[1] * units.factor];
         const r = 'elv' in item.kind ? placeElv(project, (ELV_PALETTE.find((e) => e.id === item.id) ?? ELV_PALETTE[0]).kind.elv, floor.ref, x, y)
           : placeItem(project, item, floor.ref, x, y, { feederId: cad.feederId, boardId: cad.boardId, rot: devRot });
-        change(r.project, `${r.message} · ⌘Z to undo`);
+        change(r.project, `${r.message} · ⌘Z to undo`); cad.usedDevice(item.id);
       } catch (e) { cad.say(`DEV  ${e instanceof Error ? e.message : String(e)}`); }
     } else if (tool === 'wire') {
       wireOne(at, pixel);
     } else if (tool === 'fill') {
       if (!floor) { cad.say('FILL  Add the building and its levels in Building information first.'); return; }
-      if (!elvItem) { cad.say('FILL  Choose an ELV device first (a detector, speaker, data outlet…) in the Devices panel.'); return; }
-      const r = fillAt(project, { building: floor.ref.building, level: floor.ref.level }, elvItem.kind.elv, [at[0] * units.factor, at[1] * units.factor]);
+      const r = fillAt(project, { building: floor.ref.building, level: floor.ref.level }, fillItem.kind.elv, [at[0] * units.factor, at[1] * units.factor]);
       if (r.next) change(r.next, r.message); else cad.say(`FILL  ${r.message}`);
     } else if (tool === 'lux') {
       if (!floor) { cad.say('LUX  Add the building and its levels in Building information first.'); return; }
@@ -5232,7 +5232,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                       <span className="cad-pal-h">{name}</span>
                       {items.map((x) => {
                         const s = x.symbol as PaletteItem['symbol'], icon = s.plan ?? s.icon;
-                        return <button key={x.id} aria-pressed={cad.device === x.id} className={'elv' in x.kind ? 'elv' : 'lv'} onClick={() => { cad.setDevice(x.id); if (tool !== 'fill' || !('elv' in x.kind)) cad.setTool('dev'); }}>{icon ? <PlanSymbolIcon id={icon} tag={s.tag} /> : x.symbol.text || '●'}<span>{x.label}</span></button>;
+                        return <button key={x.id} aria-pressed={tool === 'fill' ? x.id === cad.fillDevice : cad.device === x.id} className={'elv' in x.kind ? 'elv' : 'lv'} onClick={() => { if (tool === 'fill' && 'elv' in x.kind && isElvType(x.kind.elv) && canFill(x.kind.elv)) { cad.setFillDevice(x.kind.elv); return; } cad.setDevice(x.id); cad.setTool('dev'); }}>{icon ? <PlanSymbolIcon id={icon} tag={s.tag} /> : x.symbol.text || '●'}<span>{x.label}</span></button>;
                       })}
                     </Fragment>
                   );
@@ -5265,7 +5265,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                 )}
                 {!floors.length && <p className="m">Add the building and its levels in Building information first; devices are kept per level.</p>}
                 <span className="m">{placed.length} device{placed.length === 1 ? '' : 's'} on this level</span>
-                {elvItem && <span className="m">{elvItem.label}{coverageNote(elvItem.kind.elv)} · {SYSTEM_LABEL[elvSystem]}{cad.coverage && elv ? ` · ${elv.coverage.filter((c) => c.gaps.length).length} room${elv.coverage.filter((c) => c.gaps.length).length === 1 ? '' : 's'} not fully covered` : ''}</span>}
+                {tool === 'fill'
+                  ? <span className="m">{fillItem.label}{coverageNote(fillItem.kind.elv)} · {SYSTEM_LABEL[elvSystemOf(fillItem.kind.elv)]}</span>
+                  : elvItem && <span className="m">{elvItem.label}{coverageNote(elvItem.kind.elv)} · {SYSTEM_LABEL[elvSystem]}</span>}
+                {cad.coverage && elv && <span className="m">Coverage: {SYSTEM_LABEL[cad.coverageSystem]} · {notCovered} room{notCovered === 1 ? '' : 's'} not fully covered</span>}
               </div>
             </>
           )}
