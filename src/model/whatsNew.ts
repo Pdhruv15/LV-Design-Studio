@@ -18,10 +18,32 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.275', date: '2026-11-24',
+    version: '2.283', date: '2026-11-24',
     items: [
       { title: 'Load schedule: Make RCBO for the one odd circuit', text: 'When one power circuit sits on a lighting ELCB (or one lighting circuit on a power ELCB), its Check cell offers Make RCBO: the circuit gets an RCBO in place of its MCB and the ELCB keeps one kind, e.g. 100 mA for lighting.' },
       { title: 'New ELCBs keep lighting and power apart', text: 'Once you change an ELCB on a DB, the ELCBs for new ways end where lighting and power circuits meet, so they never mix them. Re-group all ELCBs… turns this on or off with "Keep lighting and power circuits apart".' }
+    ]
+  },
+  {
+    version: '2.275', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD: Devices and Level panels, every tool named', text: 'On Electrical, ELV & sheets the Devices panel now shows the name of each of its tools: Add device, Fill room, Light room, Room devices and Emergency. Coverage and Copy to level moved beside it to a new Level panel, for the tools that act on the whole level. A greyed tool of these panels says why in its tooltip.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Add device: every device on its arrow', text: 'The arrow beside Add device shows every device with its plan symbol, a Find box and the six devices placed last on this computer. Click one to place it. The list in the side panel stays as it was.' },
+      { title: 'Fill room and Coverage keep their own choice', text: 'The arrow beside Fill room chooses the ELV device it fills with (smoke detector, heat detector, Wi-Fi access point or ceiling speaker, each with its spacing). It starts on the smoke detector, so FILL no longer asks for a device first. The arrow beside Coverage chooses the system shown: fire alarm, CCTV, data and Wi-Fi or public address. Neither follows the device chosen in the side panel any more.' }
+    ]
+  },
+  {
+    version: '2.274', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD: Text style and Multileader style match Dimension style', text: 'Annotate → Text style and Multileader style open in the same wider layout as Dim style: the styles beside the preview, with New, Delete and Set current under them. Text style now shows a sample of its text on paper, its height marked at the left. In both, the part the value you are setting changes shows in gold, named under the preview, and Multileader style has a swatch beside its arrowhead list.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.273', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD: Dimension picks its kind from what you click', text: 'Annotate → Dimensions → Dimension (DIM): click a line for its length, an arc for its radius or a circle for its diameter, or two points as before; then click where the dimension goes. Two points or a line give a horizontal or vertical dimension by where you drag, and one along a sloping line beside it. Aligned is now DAL (Linear\'s arrow).', action: 'cad' },
+      { title: 'Dimensions: style and layer lists, and Update', text: 'The Dimensions panel shows the dimension style (with dimensions picked, theirs: choose another to change them) and the layer new dimensions go on: LV-ANNO as before, the current layer, or a layer you choose (DIMLAYER). Update (DIMSTYLE A) gives the dimensions picked the current style. The corner button opens Dimension style.', action: 'cad' },
+      { title: 'Dimensions: Linear and Continue keep the form you used last', text: 'Linear\'s arrow holds Linear, Aligned, Angular, Radius and Diameter; Continue\'s holds Continue and Baseline. Each button shows the form used last, ticked in its list.', action: 'cad' }
     ]
   },
   {
@@ -31,6 +53,12 @@ export const RELEASES: Release[] = [
       { title: 'New ELCBs and Re-group all ELCBs', text: '"ELCB per" is now "New ELCBs" (3, 6, 9 or 12 circuits): the size for ways that have no ELCB yet, so changing it no longer changes every ELCB on the DB. Re-group all ELCBs… cuts the whole DB again after showing before and after, keeping lighting and power apart if you ask.' },
       { title: 'Balance phases keeps each ELCB', text: 'Balance phases now moves 1-phase circuits only inside their own ELCB, so every ELCB keeps its circuits and its size.' },
       { title: 'Excel sheet shows the ELCBs of a new DB', text: 'A DB whose ELCB size was never changed printed an empty ELCB column on its Excel sheet; it now shows the same ELCBs as the schedule and the PDF.' }
+    ]
+  },
+  {
+    version: '2.271', date: '2026-11-23',
+    items: [
+      { title: 'A click on empty space no longer picks a whole plan', text: 'In Design CAD, a click that landed on no line but inside a block picked that block, however large: on a drawing with a frame or a plan kept as one block, a near miss picked everything. A click inside a block now picks it only while the block is symbol-sized on screen (a board, a fitting); on its lines it is picked as before.' }
     ]
   },
   {

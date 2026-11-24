@@ -1478,12 +1478,18 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .ribbon.cad-named .ribbon-group .ribbon-stack .ribbon-split-arrow{width:10px;height:24px}
 .ribbon.cad-named .ribbon-group .ribbon-caption-more{width:auto;height:auto}
 /* Drafting: the small tools named as well (icon and name on one line). */
-.ribbon.cad-named.small-named .ribbon-group .ribbon-stack button{width:auto;padding:0 6px 0 4px;gap:5px;justify-content:flex-start;white-space:nowrap}
+.ribbon.cad-named.small-named .ribbon-group .ribbon-stack button,.ribbon.cad-named .ribbon-group.named .ribbon-stack button{width:auto;padding:0 6px 0 4px;gap:5px;justify-content:flex-start;white-space:nowrap}
 /* Layers: the current layer list over two rows of tools. Properties: the colour, linetype and lineweight lists. A
    caption's ↘ shows the panel's palette. */
 .ribbon-block{display:flex;flex-direction:column;gap:2px}
 .ribbon-rows{display:flex;gap:2px}
 .ribbon-side{display:flex;flex-direction:column;gap:2px}
+/* Dimensions: its lists one to a row, small tools beside them, and a row of small tools under them. */
+.ribbon-lines{display:grid;grid-template-rows:repeat(3,24px);gap:2px;align-content:start}
+.ribbon-line{display:flex;align-items:center;gap:2px}
+.ribbon .ribbon-line > .ribbon-stack{display:flex;flex-direction:row;align-items:center;gap:2px}
+.ribbon-layer .lead{flex:none;color:var(--mut)}
+.ribbon.cad-named.small-named .ribbon-group .ribbon-stack button.bare{width:24px;padding:0;justify-content:center}
 .ribbon-group .ribbon-layer{flex-direction:row;justify-content:flex-start;gap:5px;min-width:0;min-height:0;width:152px;height:24px;padding:0 6px;border:1px solid var(--line-strong);background:var(--bg);font-size:var(--fs-xs)}
 .ribbon-layer .sw,.ribbon-layer-menu .sw{width:10px;height:10px;border:1px solid var(--line);border-radius:2px;flex:none}
 .ribbon-layer .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:left}
@@ -2327,20 +2333,23 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-dlg-ft .p{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}
 .cad-dlg.wide{width:380px}
 .cad-dlg.wide .cad-dlg-r{grid-template-columns:1fr 170px}
-/* Dimension style: the styles beside the preview on paper (its caption names the part being set), then the tabs over a
-   body of one height, the tallest tab's, so Cancel and OK stay put */
+/* The style dialogs (Text, Dimension and Multileader style): the styles beside the preview on paper (its caption names
+   the part being set), then the tabs over a body of one height, the tallest tab's, so Cancel and OK stay put */
 .cad-dlg-top{display:grid;grid-template-columns:168px minmax(0,1fr);gap:8px;padding:2px 8px 6px}
 .cad-dlg-top .cad-dlg-list{height:100px;max-height:none;margin:0}
 .cad-dlg-top .cad-dlg-btns{display:grid;grid-template-columns:1fr 1fr;padding:4px 0 0}
 .cad-dlg-top .cad-dlg-btns button{padding:0 4px}
-.cad-dlg.dim .cad-dlg-top .cad-dlg-r{grid-template-columns:36px minmax(0,1fr);height:20px;margin-bottom:4px;padding:0}
-.cad-dlg.dim .cad-dlg-top .cad-dlg-in input{text-align:left;font-family:inherit}
-.cad-dlg.dim .cad-dlg-prev{padding:0;border:1px solid var(--line);border-radius:2px}
+.cad-dlg.wide .cad-dlg-top .cad-dlg-r{grid-template-columns:36px minmax(0,1fr);height:20px;margin-bottom:4px;padding:0}
+.cad-dlg.wide .cad-dlg-top .cad-dlg-in input{text-align:left;font-family:inherit}
+.cad-dlg-top .cad-dlg-prev{padding:0;border:1px solid var(--line);border-radius:2px}
 .cad-dlg-cap{height:16px;margin:0;color:var(--mut);font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cad-dlg-cap.on{color:var(--acc)}
-.cad-dlg.dim .cad-dlg-tabs{margin:0 0 4px}
+.cad-dlg-top+.cad-dlg-tabs{margin:0 0 4px}
+.cad-dlg-top+.cad-dlg-body{padding-top:4px;border-top:1px solid var(--line)}
 .cad-dlg.dim .cad-dlg-sec{line-height:13px}
-.cad-dlg-body{min-height:217px}
+.cad-dlg.dim .cad-dlg-body{min-height:217px}
+.cad-dlg.ml .cad-dlg-r{grid-template-columns:1fr 140px}
+.cad-dlg.ml .cad-dlg-body{min-height:110px}
 .cad-dlg.dim .cad-dlg-g{grid-template-columns:1fr 170px}
 .cad-dlg.dim .cad-dlg-g .cad-dlg-in{justify-content:flex-end;flex-wrap:nowrap;gap:3px 8px}
 .cad-dlg-sw{flex:none;border:1px solid var(--field-line);border-radius:2px}
@@ -2416,6 +2425,20 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-devform{display:grid;gap:var(--space-2);padding:0 var(--space-3) var(--space-2)}
 .cad-devform label{display:grid;gap:2px;font-size:var(--fs-xs);color:var(--mut)}
 .cad-devbtns{display:flex;gap:var(--space-2);margin-top:var(--space-2)}
+/* Add device's gallery: Find, the devices placed last, the palette's groups; six to a row. It opens inside the
+   ribbon's panel, so the rules below also undo what the ribbon gives its own buttons (one line of text, its hover). */
+.ribbon-split-pop{position:fixed;z-index:200}
+.cad-gallery{--cad-dev:var(--warn);--cad-elv:var(--acc);display:flex;flex-direction:column;gap:var(--space-2);width:392px;max-height:min(70vh,560px);padding:var(--space-2);background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;box-shadow:var(--shadow-pop)}
+.cad-gallery input{flex:none;width:100%;height:26px;padding:0 var(--space-2);font-size:var(--fs-sm)}
+.cad-gallery-list{display:grid;grid-template-columns:repeat(6,1fr);gap:var(--space-1);align-content:start;overflow-y:auto;min-height:0}
+.cad-gallery-list button{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:2px;min-width:0;min-height:50px;padding:4px 1px;background:var(--p2);border:1px solid var(--line);border-radius:var(--radius-sm);font-size:10px;line-height:1.15;text-align:center;white-space:normal}
+.cad-gallery .cad-gallery-list button:hover:not(:disabled){background:var(--p2);border-color:var(--line-strong)}
+.cad-gallery .cad-gallery-list button[aria-pressed=true],.cad-gallery .cad-gallery-list button[aria-pressed=true]:hover:not(:disabled){border-color:var(--acc);background:color-mix(in srgb,var(--acc) 12%,var(--p2))}
+.cad-gallery-list button span{color:var(--tx);overflow-wrap:anywhere}
+.cad-gallery-list svg{flex:none;overflow:visible;fill:none;stroke:currentColor;stroke-width:.25}
+.cad-gallery-list svg text{fill:currentColor;stroke:none}
+.cad-gallery-list .elv{color:var(--cad-elv)}
+.cad-gallery-list .lv{color:var(--cad-dev)}
 /* Design CAD colour dialog: compact index colours 1–255 and true colour, portalled outside the ribbon. */
 .cad-colour{position:relative;display:inline-block}
 .cad-colour-btn{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-xs);padding:1px 6px;min-height:20px;border:1px solid var(--field-line);border-radius:3px;background:var(--p2);color:var(--tx);cursor:pointer;white-space:nowrap}

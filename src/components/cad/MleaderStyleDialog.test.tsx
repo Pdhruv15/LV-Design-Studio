@@ -87,6 +87,34 @@ describe('Multileader style dialog', () => {
     expect(saved.styles.map((x) => [x.name, x.circuit])).toEqual([['Standard', false], ['Style 1', true]]);
   });
 
+  it('puts the styles beside the preview, and marks in gold the part the value with the cursor or the row under the mouse changes', () => {
+    render();
+    expect([...document.querySelectorAll('.cad-dlg-top .cad-dlg-btns button')].map((b) => b.textContent)).toEqual(['New', 'Delete', 'Set current']);
+    expect(q('.cad-dlg-top [aria-label="Style name"]')).not.toBeNull();
+    expect(q('.cad-dlg-top [aria-label="Preview"]')).not.toBeNull();
+    expect(q('[aria-label="Arrowhead"]')!.parentElement!.querySelector('.cad-dlg-sw')).not.toBeNull();
+    const gold = () => [...document.querySelectorAll('[aria-label="Preview"] path')].filter((x) => x.getAttribute('stroke') === '#875800' && !x.getAttribute('stroke-opacity'));
+    const cap = () => q('.cad-dlg-cap')!.textContent;
+    act(() => { q<HTMLInputElement>('[aria-label="Arrow size"]')!.focus(); });
+    expect(cap()).toBe('Arrow size');
+    expect(gold()).toHaveLength(1); // the two arrowheads
+    act(() => { q<HTMLInputElement>('[aria-label="Arrow size"]')!.blur(); });
+    expect(gold()).toHaveLength(0);
+    tab('Leader structure');
+    act(() => { q('[aria-label="Landing length"]')!.dispatchEvent(new MouseEvent('pointerover', { bubbles: true })); });
+    expect(cap()).toBe('Landing length');
+    expect(gold()[0].getAttribute('d')!.match(/M/g)).toHaveLength(1);
+    tab('Content');
+    set('Frame', true);
+    act(() => { q('[aria-label="Frame"]')!.dispatchEvent(new MouseEvent('pointerover', { bubbles: true })); });
+    expect(gold()[0].getAttribute('d')!.endsWith('Z')).toBe(true);
+    act(() => { q<HTMLInputElement>('[aria-label="Gap"]')!.focus(); });
+    expect(cap()).toBe('Gap');
+    expect(q('[aria-label="Preview"] path[stroke-opacity="0.35"]')).not.toBeNull();
+    act(() => { q<HTMLInputElement>('[aria-label="Text height (0 = annotation height)"]')!.focus(); });
+    expect(q<SVGTextElement>('[aria-label="Preview"] text')!.style.fill).toBe('rgb(135, 88, 0)');
+  });
+
   it('refuses to delete Standard', () => {
     render();
     button('Delete');
