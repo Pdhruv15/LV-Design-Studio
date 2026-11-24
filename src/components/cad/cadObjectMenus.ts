@@ -109,7 +109,7 @@ export interface RoomMenuState {
   room: BuildingRoom;
   /** The room type's name. */
   typeLabel?: string;
-  /** The ELV device chosen in the Devices panel (Fill room with it). */
+  /** The ELV device Fill room places (chosen on the arrow of Fill room). */
   elv?: string;
 }
 export function roomEntry(s: RoomMenuState): CtxItem {

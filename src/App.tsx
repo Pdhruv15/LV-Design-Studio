@@ -1629,10 +1629,17 @@ export default function App() {
             onSchedules: () => cadDo((x) => x.schedules()),
             onPlaceBoard: () => { cadS.setDevice('db'); cadS.setTool('dev'); setView('cad'); }, placingBoard: cadS.tool === 'dev' && cadS.device === 'db',
             onCoverage: () => { cadS.setCoverage(!cadS.coverage); setView('cad'); }, coverageOn: cadS.coverage,
+            device: cadS.device, recentDevices: cadS.recentDevices, onDevice: (id) => { cadS.setDevice(id); cadS.setTool('dev'); setView('cad'); },
+            fillDevice: cadS.fillDevice, onFill: (t) => { cadS.setFillDevice(t); cadS.setTool('fill'); setView('cad'); },
+            coverageSystem: cadS.coverageSystem, onCoverageOf: (s) => { if (s) cadS.setCoverageSystem(s); cadS.setCoverage(!!s); setView('cad'); },
             onWireAll: () => cadDo((x) => x.wireAll()), onTags: () => { cadS.setWireTags(!cadS.wireTags); setView('cad'); }, tagsOn: cadS.wireTags,
             copyLevels: (() => {
               const here = planLevel(project, cadS.view?.file).floor;
               return view === 'cad' && here ? plansOf(project).filter((x) => x.floor.key !== here.key).map((x) => ({ label: x.label, title: `Copy to ${x.label}`, onClick: () => cadDo((a) => a.copyTo(x.floor.key)) })) : [];
+            })(),
+            copyWhy: (() => {
+              const here = planLevel(project, cadS.view?.file).floor;
+              return view !== 'cad' ? 'the drawing is not showing' : !here ? 'this drawing is not the plan of a level yet: set its level in Drafting settings (DS)' : plansOf(project).every((x) => x.floor.key === here.key) ? 'the project has no other level' : undefined;
             })() },
           output: { onPlot: () => { if (view === 'cad' && (isDrawingLayoutId(cadS.layout) || isFileLayoutId(cadS.layout))) cadDo((x) => x.layoutCmd('PLOT')); else setOutputDlg('plot'); }, onSetups: () => setOutputDlg('setups'), onPrinters: () => setOutputDlg('printers'), onPens: () => setOutputDlg('pens'), onBatch: () => setOutputDlg('batch'), onRegister: () => setOutputDlg('register') },
           onProfile: () => setShowPrefs(true),

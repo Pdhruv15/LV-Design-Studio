@@ -25,6 +25,20 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.275', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD: Devices and Level panels, every tool named', text: 'On Electrical, ELV & sheets the Devices panel now shows the name of each of its tools: Add device, Fill room, Light room, Room devices and Emergency. Coverage and Copy to level moved beside it to a new Level panel, for the tools that act on the whole level. A greyed tool of these panels says why in its tooltip.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Add device: every device on its arrow', text: 'The arrow beside Add device shows every device with its plan symbol, a Find box and the six devices placed last on this computer. Click one to place it. The list in the side panel stays as it was.' },
+      { title: 'Fill room and Coverage keep their own choice', text: 'The arrow beside Fill room chooses the ELV device it fills with (smoke detector, heat detector, Wi-Fi access point or ceiling speaker, each with its spacing). It starts on the smoke detector, so FILL no longer asks for a device first. The arrow beside Coverage chooses the system shown: fire alarm, CCTV, data and Wi-Fi or public address. Neither follows the device chosen in the side panel any more.' }
+    ]
+  },
+  {
+    version: '2.274', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD: Text style and Multileader style match Dimension style', text: 'Annotate → Text style and Multileader style open in the same wider layout as Dim style: the styles beside the preview, with New, Delete and Set current under them. Text style now shows a sample of its text on paper, its height marked at the left. In both, the part the value you are setting changes shows in gold, named under the preview, and Multileader style has a swatch beside its arrowhead list.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.273', date: '2026-11-23',
     items: [
       { title: 'Design CAD: Dimension picks its kind from what you click', text: 'Annotate → Dimensions → Dimension (DIM): click a line for its length, an arc for its radius or a circle for its diameter, or two points as before; then click where the dimension goes. Two points or a line give a horizontal or vertical dimension by where you drag, and one along a sloping line beside it. Aligned is now DAL (Linear\'s arrow).', action: 'cad' },
