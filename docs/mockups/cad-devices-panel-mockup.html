@@ -1,0 +1,1048 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design CAD: the Devices tools (mockup)</title>
+<style>
+:root {
+  
+  --bg: #15171A;          
+  --panel: #1D2024;       
+  --p2: #26292E;          
+  --line: #353A41;        
+  --line-strong: #4A5058; 
+  --tx: #E6E8EB;          
+  --mut: #A3ABB5;         
+  --acc: #F5B301;         
+  --on-acc: #1D2024;      
+  --bus: #ffb347;         
+  --ok: #37d67a;
+  --warn: #f5c04a;
+  --bad: #ff5d6c;
+  
+  --field-line: #6C7580;
+  --field-line-hover: #8A939E;
+
+  
+  --res-cur: #7fd1ff;
+  --sel: #4aa8ff;         
+  --res-fault: #ff9f43;
+  --res-pf: #b784ff;
+  --ph-r: #ff6b6b;
+  --ph-y: #f5c04a;
+  --ph-b: #4aa8ff;
+  --ph-ryb: #b784ff;
+
+  
+  --canvas-bg: var(--bg);
+  --canvas-ink: var(--tx);         
+  --canvas-grid: #272a2f;          
+  --canvas-grid-major: var(--line);
+  
+  --pit-pass: color-mix(in srgb, var(--ok) 70%, var(--bg));
+  --pit-fail: color-mix(in srgb, var(--bad) 70%, var(--bg));
+  --pit-untested: color-mix(in srgb, var(--mut) 35%, var(--bg));
+
+  
+  --backdrop: rgba(2, 6, 14, .6);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, .4);    
+  --shadow-modal: 0 12px 32px rgba(0, 0, 0, .35);
+  --shadow-palette: 0 18px 48px rgba(0, 0, 0, .5);
+  --shadow-paper: 0 2px 10px rgba(0, 0, 0, .35); 
+  --shadow-drawer: 0 -6px 18px rgba(0, 0, 0, .25); 
+  --shadow-side: -8px 0 24px rgba(0, 0, 0, .2);    
+  --row-sub: rgba(255, 255, 255, .015);         
+
+  
+  --border: var(--line);
+  --accent: var(--acc);
+  --fg: var(--tx);
+  --muted: var(--mut);
+
+  
+  
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --control-h: 32px;
+  --control-h-sm: 26px;
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 12px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --gutter: var(--space-4);
+
+  color-scheme: dark;
+  
+  --curve-1: #4aa8ff;
+  --curve-2: #b784ff;
+  --curve-3: #37d6c6;
+  --curve-4: #ff8fb1;
+  --curve-5: #9fd356;
+  --curve-6: #f5c04a;
+  --curve-7: #ff9f43;
+  --curve-8: #7fd1ff;
+}
+*{box-sizing:border-box}
+html,body,#root{height:100%;margin:0}
+body{background:var(--bg);color:var(--tx);font:13px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:where(input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),select,textarea){background:var(--p2);color:var(--tx);border:1px solid var(--field-line);border-radius:var(--radius-sm);padding:var(--space-1) var(--space-2);font:inherit}
+:where(input,textarea)::placeholder{color:var(--mut);opacity:1}
+:where(input,select,textarea):hover:not(:disabled){border-color:var(--field-line-hover)}
+:where(input,select,textarea):focus-visible{outline:2px solid var(--acc);outline-offset:-1px;border-color:var(--acc)}
+:where(input,select,textarea):disabled{opacity:.55;cursor:not-allowed}
+:where(input[type=checkbox],input[type=radio]){accent-color:var(--acc);width:14px;height:14px;margin:0}
+.chip{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-1);min-height:var(--control-h);padding:0 var(--space-3);border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--p2);color:var(--tx);white-space:nowrap;line-height:1.2;text-decoration:none;transition:border-color .12s,background-color .12s}
+.chip:hover:not(:disabled){border-color:var(--line-strong);background:color-mix(in srgb,var(--p2) 80%,var(--acc))}
+.chip.on,.chip[aria-pressed=true]{border-color:var(--acc);color:var(--acc)}
+td .chip,.chip.sm{min-height:var(--control-h-sm);padding:0 var(--space-2);font-size:var(--fs-sm)}
+.chip.primary{background:var(--acc);color:var(--on-acc);font-weight:600;border-color:var(--acc)}
+.chip.primary:hover:not(:disabled){background:color-mix(in srgb,var(--acc) 85%,#fff);border-color:color-mix(in srgb,var(--acc) 85%,#fff)}
+.chip.bad-btn{border-color:color-mix(in srgb,var(--bad) 70%,transparent);color:var(--bad);background:transparent}
+.chip.bad-btn:hover:not(:disabled){border-color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,transparent)}
+.chip:disabled,.chip[aria-disabled=true]{opacity:.55;cursor:not-allowed}
+.sysdiag-tools .chip{padding:0 var(--space-2);min-width:var(--control-h)}
+.sd-shown .chip{padding:0 var(--space-2);min-width:var(--control-h)}
+select.chip{padding:0 var(--space-2)}
+.ribbon{position:relative;z-index:20;background:var(--panel);border-bottom:1px solid var(--line)}
+.ribbon-tabs{display:flex;align-items:center;gap:var(--space-1);padding:var(--space-2) var(--gutter) 0;overflow-x:auto}
+.ribbon-tabs .ribbon-pin{min-height:28px;min-width:28px;padding:0;justify-content:center;border-radius:var(--radius-sm);flex:none}
+.ribbon.collapsed .ribbon-tabs{padding-bottom:var(--space-1)}
+.ribbon.collapsed .ribbon-tabs button[role=tab]{border-radius:var(--radius-sm)}
+.ribbon-tools.peek{position:absolute;left:0;right:0;top:100%;box-shadow:var(--shadow-pop);border-bottom:1px solid var(--line)}
+.ribbon-tabs button{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-h);padding:0 var(--space-4);border-radius:var(--radius-sm) var(--radius-sm) 0 0;color:var(--mut);white-space:nowrap}
+.ribbon-tabs button:hover{color:var(--tx);background:var(--p2)}
+.ribbon-tabs button.on{background:var(--acc);color:var(--on-acc);font-weight:600}
+.stage-now{font-size:var(--fs-xs);font-weight:600;line-height:1;padding:2px 6px;border:1px solid var(--ok);border-radius:999px;color:var(--ok)}
+.ribbon-tabs button.on .stage-now,.ribbon-subtabs button.on .stage-now{background:var(--panel)}
+.tab-sep{flex:none;width:1px;height:18px;margin:0 6px;background:var(--line)}
+.ribbon-tools{display:flex;align-items:stretch;gap:0;padding:var(--space-1) calc(var(--gutter) - var(--space-2));background:var(--p2);border-top:1px solid var(--line);overflow-x:auto}
+.ribbon-subtabs{display:flex;gap:2px;padding:0 var(--gutter);background:var(--p2);border-top:1px solid var(--line)}
+.ribbon-subtabs button{display:inline-flex;align-items:center;gap:6px;background:none;border:0;border-bottom:2px solid transparent;padding:4px 12px;font-size:12px;color:var(--mut);cursor:pointer}
+.ribbon-subtabs button.on{color:var(--tx);border-bottom-color:var(--acc)}
+.ribbon-group{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:2px;padding:0 var(--space-2);border-right:1px solid var(--line)}
+.ribbon-group-btns{display:flex;gap:2px;flex:1}
+.ribbon-caption{font-size:var(--fs-xs);color:var(--mut);text-align:center;letter-spacing:.02em;line-height:1.2;padding-top:1px;white-space:nowrap}
+.ribbon-group:last-child{border-right:0}
+.ribbon-group button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-1);min-width:56px;min-height:52px;padding:var(--space-1) 6px;border-radius:var(--radius-sm);color:var(--tx);font-size:var(--fs-sm);white-space:nowrap}
+.ribbon-group button:hover:not(:disabled){background:var(--panel)}
+.ribbon-group button.on{background:var(--acc);color:var(--on-acc)}
+.ribbon-group button.page-on{background:transparent;color:var(--acc);box-shadow:inset 0 -2px 0 var(--acc)}
+:root[data-theme="light"] .ribbon-tabs button.on{background:var(--p2);color:var(--acc);box-shadow:inset 0 2px 0 var(--acc)}
+:root[data-theme="light"] .ribbon-group button.on{background:color-mix(in srgb,var(--acc) 12%,var(--panel));color:var(--acc);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 45%,transparent)}
+.ribbon-selected{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:2px;padding:0 var(--space-3);margin-left:auto;border-left:1px solid var(--line);font-size:12px;min-width:110px;white-space:nowrap}
+.ribbon-reset-order{align-self:center;height:22px!important;min-height:22px!important;padding:0 7px!important;border:1px solid var(--line)!important;border-radius:3px!important;font-size:var(--fs-xs)!important;white-space:nowrap}
+.ribbon-panel-moves{position:absolute;right:2px;bottom:1px;z-index:2;display:inline-flex;gap:1px;opacity:.65}
+.ribbon-group:hover .ribbon-panel-moves,.ribbon-group:focus-within .ribbon-panel-moves{opacity:1}
+.ribbon-group .ribbon-panel-move{display:inline-flex;min-width:14px;min-height:14px;width:14px;height:14px;padding:0;flex-direction:row;border:1px solid transparent;border-radius:2px;color:var(--mut);background:var(--p2)}
+.ribbon-group .ribbon-panel-move:hover:not(:disabled){border-color:var(--line-strong);color:var(--tx)}
+.ribbon-group .ribbon-panel-move:disabled{opacity:.3}
+.ribbon-caption[draggable=true]{cursor:grab}
+.ribbon-caption[draggable=true]:active{cursor:grabbing}
+.ribbon-group.cad-dragging{opacity:.4}
+.ribbon-group.cad-drop-before::before,.ribbon-group.cad-drop-after::after{content:"";position:absolute;z-index:4;top:0;bottom:0;width:3px;border-radius:2px;background:var(--acc)}
+.ribbon-group.cad-drop-before::before{left:-2px}
+.ribbon-group.cad-drop-after::after{right:-2px}
+.ribbon-selected b{font-size:13px;color:var(--acc)}
+.ribbon-group button:disabled{opacity:.45;cursor:not-allowed}
+.ribbon-group.more{position:static}
+.ribbon-menu{position:absolute;top:100%;z-index:60;display:flex;flex-direction:column;min-width:200px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px;box-shadow:var(--shadow-pop)}
+.ribbon-menu button{flex-direction:row;justify-content:flex-start;min-width:0;padding:8px 10px;font-size:13px}
+.ls-actions .chip{display:inline-flex;align-items:center;gap:5px}
+.db-bar .chip,.stage-head .chip{display:inline-flex;align-items:center;gap:5px}
+.md-demand .chip{margin-left:auto}
+.rev-table td.rev-actions .chip{margin-right:6px}
+.section-title .chip{margin-left:6px;font-size:var(--fs-sm);padding:0 var(--space-2);min-height:var(--control-h-sm)}
+.sr-type-list .chip.on{background:var(--acc);color:var(--on-acc)}
+.sysdiag-tools .chip.on{border-color:var(--acc);color:var(--acc)}
+.run-chip.stale,.ribbon-tools button.stale{color:var(--warn);border-color:var(--warn);animation:runPulse 1.6s ease-in-out infinite}
+.foot .chip{padding:0 var(--space-2);font-size:var(--fs-xs);min-height:22px}
+.logo-row .chip{margin-right:6px}
+.ribbon-menu button.on{color:var(--acc)}
+.sheet-list .st-add>.chip{width:100%}
+.chip-lite{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--line)}
+.hc-fix .chip{font-size:var(--fs-xs);padding:0 var(--space-2);min-height:var(--control-h-sm)}
+.hc-fix .chip.ok{border-color:var(--ok)}
+.results-src select.chip{width:auto;max-width:260px;padding:0 26px 0 10px;border-radius:6px;color:var(--tx);background-color:var(--p2);cursor:pointer}
+.results-src select.chip:disabled{opacity:.6;cursor:default}
+.dw-option .chip.primary{align-self:flex-start}
+.ribbon-split{position:relative;display:inline-flex;align-items:stretch}
+.ribbon-stack{display:flex;flex-direction:column;justify-content:center;gap:1px}
+.ribbon-group .ribbon-stack button{flex-direction:row;justify-content:flex-start;gap:6px;min-width:0;min-height:0;height:20px;padding:0 6px;font-size:var(--fs-xs)}
+.ribbon-stack .ribbon-split{align-self:flex-start}
+.ribbon-stack .ribbon-split-arrow{height:20px}
+.ribbon-group .ribbon-caption-more{display:block;min-width:0;min-height:0;padding:1px 0 0;border:0;background:none;cursor:pointer;font-size:var(--fs-xs);color:var(--mut);text-align:center;letter-spacing:.02em;line-height:1.2;white-space:nowrap;border-radius:var(--radius-sm)}
+.ribbon-group.cad-reorderable>.ribbon-caption{padding-left:30px;padding-right:30px}
+.ribbon-group .ribbon-caption-more svg{vertical-align:-1px;margin-left:2px}
+.ribbon-group .ribbon-caption-more:hover,.ribbon-group .ribbon-caption-more[aria-expanded="true"]{color:var(--tx);background:var(--panel)}
+.ribbon-split > button:first-child{padding-right:4px}
+.ribbon-split-arrow{min-width:0 !important;padding:0 2px !important;align-self:center;height:28px}
+.ribbon-menu-label{display:inline-flex;align-items:center;gap:2px}
+.ribbon-split-menu{position:fixed;z-index:200;min-width:140px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow-pop);padding:4px;display:grid}
+.ribbon-split-menu button{all:unset;cursor:pointer;padding:6px 10px;border-radius:5px;font-size:var(--fs-sm);white-space:nowrap}
+.ribbon-split-menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+.ribbon-sub{font-size:var(--fs-xs);color:var(--mut);margin-top:-3px;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ribbon-split-menu button:hover,.ribbon-split-menu button:focus-visible{background:color-mix(in srgb,var(--acc) 18%,transparent)}
+.ribbon-split-menu button[aria-checked]{display:flex;align-items:center;gap:6px}
+.ribbon-split-menu .ck{display:inline-flex;width:12px;flex:none;color:var(--acc)}
+.ribbon-split-menu button:disabled{opacity:.45;cursor:not-allowed;background:none}
+.ribbon-split-menu .hd{font-size:var(--fs-xs);color:var(--mut);padding:6px 10px 2px;text-transform:uppercase;letter-spacing:.04em}
+.ribbon-split-menu button.rw{display:flex;align-items:center;gap:6px}
+.ribbon-split-menu button.in1{padding-left:28px}
+.ribbon-split-menu button.in2{padding-left:46px}
+.ribbon-split-menu button .m{color:var(--mut)}
+.ribbon-split-menu button .c{margin-left:auto;padding-left:18px;color:var(--mut);font-size:var(--fs-xs)}
+.ribbon-group .ribbon-stack button.has-val > span:first-of-type{color:var(--mut)}
+.ribbon-val{max-width:130px;overflow:hidden;text-overflow:ellipsis}
+.ribbon-over{position:absolute;top:100%;right:var(--space-2);z-index:60;display:flex;align-items:stretch;background:var(--p2);border:1px solid var(--line);border-radius:8px;padding:var(--space-1) 0;box-shadow:var(--shadow-pop)}
+.ribbon-over .ribbon-over-list{display:flex;flex-direction:column;justify-content:center;padding:0 var(--space-1)}
+.ribbon-group .ribbon-over-list button{flex-direction:row;justify-content:flex-start;min-width:0;min-height:0;padding:6px 10px;font-size:13px}
+.ribbon.cad-named .ribbon-tools > .ribbon-group{flex-shrink:0}
+.ribbon.cad-named .ribbon-group-btns{height:76px}
+.ribbon.cad-named .ribbon-group-btns > button,.ribbon.cad-named .ribbon-group-btns > .ribbon-split > button:first-child{min-width:44px;min-height:0;height:76px;padding:8px 4px 0;gap:5px;justify-content:flex-start;font-size:var(--fs-xs)}
+.ribbon.cad-named .ribbon-group-btns > .ribbon-split > .ribbon-split-arrow{width:12px;height:76px}
+.ribbon.cad-named .ribbon-group-btns > button > span,.ribbon.cad-named .ribbon-group-btns > .ribbon-split > button:first-child > span{max-width:64px;white-space:normal;line-height:1.15;text-align:center}
+.ribbon.cad-named .ribbon-stack{display:grid;grid-template-rows:repeat(3,24px);gap:2px;align-content:start;justify-content:start}
+.ribbon.cad-named .ribbon-rows .ribbon-stack{grid-template-rows:repeat(2,24px)}
+.ribbon.cad-named .ribbon-group .ribbon-stack button{min-width:0;width:24px;height:24px;padding:0;justify-content:center}
+.ribbon.cad-named .ribbon-stack .ribbon-split{align-self:auto}
+.ribbon.cad-named .ribbon-stack .ribbon-split > button:first-child{padding-right:0}
+.ribbon.cad-named .ribbon-group .ribbon-stack .ribbon-split-arrow{width:10px;height:24px}
+.ribbon.cad-named .ribbon-group .ribbon-caption-more{width:auto;height:auto}
+.ribbon.cad-named.small-named .ribbon-group .ribbon-stack button{width:auto;padding:0 6px 0 4px;gap:5px;justify-content:flex-start;white-space:nowrap}
+.ribbon-block{display:flex;flex-direction:column;gap:2px}
+.ribbon-rows{display:flex;gap:2px}
+.ribbon-side{display:flex;flex-direction:column;gap:2px}
+.ribbon-group .ribbon-layer{flex-direction:row;justify-content:flex-start;gap:5px;min-width:0;min-height:0;width:152px;height:24px;padding:0 6px;border:1px solid var(--line-strong);background:var(--bg);font-size:var(--fs-xs)}
+.ribbon-layer .sw,.ribbon-layer-menu .sw{width:10px;height:10px;border:1px solid var(--line);border-radius:2px;flex:none}
+.ribbon-layer .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.ribbon-layer .st{display:flex;gap:2px;color:var(--mut)}
+.ribbon-layer-menu{max-height:60vh;overflow:auto}
+.ribbon-split-menu.ribbon-layer-menu button{display:flex;align-items:center;gap:6px}
+.ribbon-layer-menu button[aria-checked="true"]{font-weight:600}
+.ribbon-layer-menu button:disabled{opacity:.45;cursor:not-allowed}
+.ribbon-prop{display:flex;align-items:center;gap:4px;width:114px;height:24px}
+.ribbon-prop .cad-colour{flex:1;min-width:0}
+.ribbon-group .ribbon-prop .cad-colour-btn{flex-direction:row;justify-content:flex-start;min-width:0;min-height:0;width:100%;height:24px;padding:0 6px;font-size:var(--fs-xs)}
+.ribbon-prop select{flex:1;min-width:0;height:24px;font-size:var(--fs-xs)}
+.ribbon-prop .pv{width:16px;flex:none;border-top:1.5px dashed var(--tx)}
+.ribbon-prop .pv.lw{border-top:3px solid var(--tx)}
+.ribbon-group .ribbon-launch{display:inline-flex;flex-direction:row;align-items:center;justify-content:center;min-width:0;min-height:0;width:14px;height:14px;padding:0;margin-left:4px;border:1px solid var(--line-strong);border-radius:2px;vertical-align:middle}
+.ribbon-group .ribbon-launch.on{background:var(--acc);color:var(--on-acc)}
+.ribbon-tip{position:fixed;z-index:210;max-width:250px;padding:6px 8px;background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--radius-sm);box-shadow:var(--shadow-pop);font-size:var(--fs-sm);line-height:1.35;color:var(--mut);pointer-events:none}
+.ribbon-tip b{display:block;color:var(--tx);font-weight:600}
+.ribbon-subtabs-list{display:flex;gap:2px}
+.ribbon-subtabs .ribbon-file{position:relative;display:flex;align-items:stretch;margin-right:var(--space-2)}
+.ribbon-subtabs .ribbon-file > button{color:var(--tx)}
+.ribbon-subtabs .ribbon-file > button.on{border-bottom-color:var(--acc)}
+.ribbon-file-menu{position:absolute;top:100%;left:0;z-index:60;display:grid;min-width:220px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow-pop)}
+.ribbon-file-menu.side{top:-5px;left:100%;margin-left:2px}
+.ribbon-file-menu button{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:var(--space-3);width:100%;cursor:pointer;padding:6px 10px;border-radius:5px;font-size:var(--fs-sm);color:var(--tx);white-space:nowrap}
+.ribbon-file-menu button > span:first-child{flex:1}
+.ribbon-file-menu button .k{color:var(--mut);font-size:var(--fs-xs)}
+.ribbon-file-menu button:hover:not(:disabled),.ribbon-file-menu button:focus-visible,.ribbon-file-menu button[aria-expanded="true"]{background:color-mix(in srgb,var(--acc) 18%,transparent)}
+.ribbon-file-menu button:disabled{opacity:.45;cursor:not-allowed}
+.ribbon-file-menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+.ribbon-file-sub{position:relative}
+.ribbon-labels{display:flex;align-items:center;gap:4px;font-size:var(--fs-xs);color:var(--mut);white-space:nowrap}
+.dash-actions .chip{padding:0 var(--space-4)}
+.sheet-refs .chip{padding:0 var(--space-2);font-size:var(--fs-xs);min-height:20px}
+.ls-panels .chip.on{border-color:var(--acc);color:var(--acc)}
+.chip-lite.warn{border-color:color-mix(in srgb,var(--warn) 60%,transparent)}
+.chip-lite.ok{border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
+.cad-ctx{position:absolute;z-index:5;display:flex;gap:2px;align-items:center;max-width:calc(100% - 8px);flex-wrap:wrap;padding:3px;background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--radius-md);box-shadow:var(--shadow-pop);font-size:var(--fs-sm);white-space:nowrap}
+.cad-ctx.above{transform:translateY(-100%)}
+.cad-ctx.vert{flex-direction:column;align-items:stretch;flex-wrap:nowrap}
+.cad-ctx.vert>*{flex-shrink:0}
+.cad-ctx button{display:flex;justify-content:space-between;gap:var(--space-2);height:24px;padding:0 var(--space-2);border:1px solid transparent;border-radius:var(--radius-sm);background:none;color:var(--tx);font:inherit}
+.cad-ctx button:hover:not(:disabled),.cad-ctx button[aria-expanded="true"]{background:var(--p2);border-color:var(--line)}
+.cad-ctx button:disabled{color:var(--mut);cursor:default}
+.cad-ctx-what{padding:0 var(--space-2);color:var(--mut);font-size:var(--fs-xs)}
+.cad-ctx-bar{align-self:stretch;width:1px;margin:0 2px;background:var(--line)}
+.cad-ctx.vert .cad-ctx-bar{width:auto;height:1px;margin:2px 0}
+.cad-ctx-list{position:absolute;left:0;top:calc(100% + 4px);display:flex;flex-direction:column;min-width:240px;max-height:260px;overflow-y:auto;padding:3px;background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--radius-md);box-shadow:var(--shadow-pop)}
+.cad-ctx.vert .cad-ctx-list{left:calc(100% + 4px);top:0}
+.cad-ctx-list small{color:var(--mut)}
+.cad-work:has(> .cad-lpal):not(:has(> .cad-side)){grid-template-columns:420px minmax(0,1fr)}
+.cad-side{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-width:0;min-height:0}
+.cad-side h4{margin:0;padding:var(--space-3) var(--space-3) var(--space-1);font-size:var(--fs-xs);color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.cad-lyr-all{margin-left:auto;text-transform:none;letter-spacing:0}
+.cad-lyr-all button{background:none;border:0;color:var(--acc);font-size:var(--fs-xs);padding:0}
+.cad-lyr{display:flex;align-items:center;gap:var(--space-2);width:100%;padding:3px var(--space-3);background:none;border:0;font-size:var(--fs-sm);text-align:left}
+.cad-lyr:hover{background:var(--p2)}
+.cad-lyr i{width:10px;height:10px;border-radius:2px;flex:none;border:1px solid var(--line)}
+.cad-lyr .m{margin-left:auto;font-size:var(--fs-xs)}
+.cad-lyr.off{opacity:.45}
+.cad-cmdbox{flex:none;position:relative;background:var(--panel);border-top:1px solid var(--line);font:12px ui-monospace,Menlo,monospace}
+.cad-cmd{display:flex;align-items:center;gap:var(--space-2);padding:5px var(--space-3);background:var(--panel);border-top:1px solid color-mix(in srgb,var(--line) 60%,transparent);font:inherit}
+.cad-dlg{position:absolute;z-index:7;width:236px;background:var(--panel);border:1px solid var(--line-strong);border-radius:4px;box-shadow:var(--shadow-pop);font-size:12px;color:var(--tx)}
+.cad-dlg-t{display:flex;align-items:center;gap:6px;height:22px;padding:0 3px 0 8px;background:var(--p2);border-bottom:1px solid var(--line);font-size:11.5px;cursor:move;user-select:none;touch-action:none}
+.cad-dlg-t span{color:var(--mut)}
+.cad-dlg-t .sp{flex:1}
+.cad-dlg-t button{width:18px;height:18px;padding:0;background:none;border:0;border-radius:3px;color:var(--mut);font:inherit;cursor:pointer}
+.cad-dlg-t button:hover{background:var(--panel);color:var(--tx)}
+.cad-dlg-rows{padding:4px 0}
+.cad-dlg-r{display:grid;grid-template-columns:1fr 96px;align-items:center;height:22px;padding:0 8px;color:var(--mut)}
+.cad-dlg-in{display:flex;align-items:center;justify-content:flex-end;gap:3px;color:var(--tx)}
+.cad-dlg-in input:not([type=checkbox]),.cad-dlg-in select{width:100%;min-width:0;height:18px;padding:0 4px;background:var(--bg);border:1px solid var(--field-line);border-radius:2px;color:var(--tx);font:11.5px ui-monospace,Menlo,monospace;text-align:right}
+.cad-dlg-in select{text-align:left;font-family:inherit}
+.cad-dlg-in input:focus,.cad-dlg-in select:focus{outline:0;border-color:var(--acc)}
+.cad-dlg-in u{flex:none;min-width:10px;color:var(--mut);text-decoration:none;font:11.5px ui-monospace,Menlo,monospace}
+.cad-dlg-tabs{display:flex;margin:-4px 0 4px;border-bottom:1px solid var(--line)}
+.cad-dlg-tabs button{flex:1;height:20px;background:none;border:0;color:var(--mut);font:inherit;font-size:11.5px}
+.cad-dlg-tabs button[aria-selected=true]{color:var(--tx);box-shadow:inset 0 -2px 0 var(--acc)}
+.cad-dlg-prev{display:flex;align-items:center;justify-content:center;gap:var(--space-2);padding:4px 8px;color:var(--mut)}
+.cad-dlg-grid{display:grid;gap:3px}
+.cad-dlg-grid i{display:block;width:8px;height:8px;border:1px solid var(--mut)}
+.cad-dlg-list{display:flex;flex-direction:column;max-height:88px;overflow:auto;margin:0 8px 4px;border:1px solid var(--line);border-radius:2px;background:var(--bg)}
+.cad-dlg-list button{display:flex;justify-content:space-between;height:20px;align-items:center;padding:0 6px;background:none;border:0;color:var(--tx);font:inherit;text-align:left}
+.cad-dlg-list button[aria-selected=true]{background:var(--p2)}
+.cad-dlg-list small{color:var(--mut)}
+.cad-dlg-btns{display:flex;gap:4px;padding:0 8px 4px}
+.cad-dlg-btns button,.cad-dlg-ft button{height:20px;padding:0 10px;background:none;border:1px solid var(--line-strong);border-radius:3px;color:var(--tx);font:inherit;font-size:11.5px}
+.cad-dlg-btns button:disabled{color:var(--mut)}
+.cad-dlg-help{margin:0;padding:4px 8px;color:var(--mut);font-size:11.5px;line-height:1.35;border-top:1px solid var(--line)}
+.cad-dlg-ft{display:flex;gap:4px;justify-content:flex-end;padding:4px 6px;border-top:1px solid var(--line)}
+.cad-dlg-ft .q{width:20px;margin-right:auto;padding:0}
+.cad-dlg-ft .p{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}
+.cad-dlg.wide{width:380px}
+.cad-dlg.wide .cad-dlg-r{grid-template-columns:1fr 170px}
+.cad-dlg-top{display:grid;grid-template-columns:168px minmax(0,1fr);gap:8px;padding:2px 8px 6px}
+.cad-dlg-top .cad-dlg-list{height:100px;max-height:none;margin:0}
+.cad-dlg-top .cad-dlg-btns{display:grid;grid-template-columns:1fr 1fr;padding:4px 0 0}
+.cad-dlg-top .cad-dlg-btns button{padding:0 4px}
+.cad-dlg.dim .cad-dlg-top .cad-dlg-r{grid-template-columns:36px minmax(0,1fr);height:20px;margin-bottom:4px;padding:0}
+.cad-dlg.dim .cad-dlg-top .cad-dlg-in input{text-align:left;font-family:inherit}
+.cad-dlg.dim .cad-dlg-prev{padding:0;border:1px solid var(--line);border-radius:2px}
+.cad-dlg-cap{height:16px;margin:0;color:var(--mut);font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cad-dlg-cap.on{color:var(--acc)}
+.cad-dlg.dim .cad-dlg-tabs{margin:0 0 4px}
+.cad-dlg.dim .cad-dlg-sec{line-height:13px}
+.cad-dlg-body{min-height:217px}
+.cad-dlg.dim .cad-dlg-g{grid-template-columns:1fr 170px}
+.cad-dlg.dim .cad-dlg-g .cad-dlg-in{justify-content:flex-end;flex-wrap:nowrap;gap:3px 8px}
+.cad-dlg-sw{flex:none;border:1px solid var(--field-line);border-radius:2px}
+.cad-dlg-g{grid-template-columns:auto minmax(0,1fr);height:auto;min-height:22px}
+.cad-dlg-g>span:first-child:not(:empty){padding-right:8px}
+.cad-dlg-g .cad-dlg-in{justify-content:flex-start;flex-wrap:wrap;gap:3px 6px;padding:2px 0}
+.cad-dlg-g .cad-dlg-in input:not([type=checkbox]):not([type=radio]){flex:1 1 56px;width:auto}
+.cad-dlg-g .cad-dlg-in input[type=radio]{flex:none;width:14px;height:14px;padding:0}
+.cad-dlg-g .cad-dlg-in label{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.cad-dlg-g .cad-dlg-in .m,.cad-dlg.form .cad-dlg-in .m{color:var(--mut);white-space:nowrap}
+.cad-dlg-g .chip,.cad-dlg-help .chip{flex:none;min-height:0;height:18px;padding:0 8px;border-radius:3px;font-size:11.5px}
+.cad-dlg-help .chip{margin-left:6px}
+.cad-dlg.form{width:380px}
+.cad-dlg.form .cad-dlg-r{grid-template-columns:80px minmax(0,1fr);height:auto;min-height:24px}
+.cad-dlg.form .cad-dlg-in{justify-content:flex-start;padding:3px 0}
+.cad-dlg.form .cad-dlg-in input:not([type=checkbox]):not([type=radio]):not(.r){text-align:left}
+.cad-dlg-ck{display:flex;align-items:center;gap:6px;height:auto;min-height:22px;padding:0 8px;color:var(--tx)}
+.cad-dlg.pages{width:480px}
+.cad-dlg.pages .cad-dlg-rows{display:grid;grid-template-columns:116px 1fr;padding:0}
+.cad-dlg.pages .cad-dlg-pl{display:flex;flex-direction:column;align-content:start;padding:4px 0;background:var(--bg);border-right:1px solid var(--line)}
+.cad-dlg.pages .cad-dlg-pl button{height:22px;padding:0 10px;background:none;border:0;color:var(--mut);font:inherit;font-size:11.5px;text-align:left}
+.cad-dlg.pages .cad-dlg-pl button[aria-selected=true]{color:var(--tx);background:var(--panel);box-shadow:inset 2px 0 0 var(--acc)}
+.cad-dlg.pages .cad-dlg-pl hr{width:auto;height:1px;margin:4px 8px;border:0;background:var(--line)}
+.cad-dlg.pages .cad-dlg-pg{min-width:0;padding:4px 0}
+.cad-dlg.pages .cad-dlg-pg .cad-dlg-r:not(.cad-dlg-ck){grid-template-columns:1fr 190px;height:auto;min-height:22px}
+.cad-dlg.pages .cad-dlg-sec.two{display:flex;justify-content:space-between;gap:8px}
+.cad-dlg.pages .cad-dlg-sec.two i{font-style:normal}
+.cad-dlg-sec{padding:6px 8px 2px;color:var(--mut);font-size:11px}
+.cad-dlg-note{margin:0;padding:2px 8px 4px;color:var(--mut);font-size:11px;line-height:1.35}
+.cad-cmd input{flex:1;min-width:120px;background:transparent;border:0;outline:0;color:var(--tx);font:inherit}
+.cad-props{display:grid;grid-template-columns:auto 1fr;gap:2px var(--space-2);margin:var(--space-2) 0 0;font-size:var(--fs-sm)}
+.cad-props dt{color:var(--mut)}
+.cad-props dd{margin:0;overflow-wrap:anywhere}
+.cad-props dd i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.cad-pal{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-1);padding:0 var(--space-3) var(--space-2)}
+.cad-pal button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 2px;background:var(--p2);border:1px solid var(--line);border-radius:var(--radius-sm);font-size:var(--fs-xs);line-height:1.2;text-align:center}
+.cad-pal button[aria-pressed=true]{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 12%,var(--p2))}
+.cad-pal-h{grid-column:1/-1;font-size:var(--fs-xs);color:var(--mut)}
+.cad-pal svg{flex:none;overflow:visible;fill:none;stroke:currentColor;stroke-width:.25}
+.cad-pal svg text{fill:currentColor;stroke:none}
+.cad-pal .elv{color:var(--cad-elv)}
+.cad-pal .lv{color:var(--cad-dev)}
+.cad-devform{display:grid;gap:var(--space-2);padding:0 var(--space-3) var(--space-2)}
+.cad-devform label{display:grid;gap:2px;font-size:var(--fs-xs);color:var(--mut)}
+.cad-devbtns{display:flex;gap:var(--space-2);margin-top:var(--space-2)}
+.ribbon-subtabs button.hatch-strip-tab{color:var(--acc);font-weight:600;cursor:default}
+.ribbon.cad-named .ribbon-group.named .ribbon-stack button{width:auto;padding:0 6px 0 4px;gap:5px;justify-content:flex-start;white-space:nowrap}
+/* ---- page rules (mockup only) ---- */
+html,body{height:auto}
+body{margin:0;width:1952px;line-height:18px;background:var(--bg);color:var(--tx);font:13px/18px -apple-system,"Segoe UI",system-ui,sans-serif}
+.mk-wrap{width:1480px;margin:0 auto;padding:16px;--cad-dev:#f5c04a;--cad-elv:#F5B301}
+.mk-wrap h1{font-size:17px;line-height:22px;margin:0 0 4px}
+.mk-wrap h2{font-size:14px;line-height:20px;margin:30px 0 8px;display:flex;gap:6px;align-items:center}
+.mk-n{background:var(--acc);color:var(--on-acc);border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;line-height:18px;flex:none}
+.mk-wrap p{margin:0 0 8px;color:var(--mut);max-width:1180px}
+.mk-wrap p b,.mk-wrap b.mk-t{color:var(--tx)}
+.mk-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#b784ff;vertical-align:middle;margin:0 3px;position:relative;top:-1px}
+.mk-ribbon-fix .ribbon-group button,.mk-wrap .ribbon-group button{position:relative}
+.mk-wrap .ribbon-group .nw{position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:#b784ff}
+.mk-wrap .ribbon-stack button .nw{top:9px;right:-7px}
+.mk-wrap .ribbon-subtabs .sp{flex:1}
+.mk-frame > .mk-cmd{position:relative;z-index:3}
+.mk-wrap .ribbon-split > .nw{top:2px;right:0}
+.mk-wrap .ribbon-split-arrow.open{background:var(--p2)}
+#mk-s2 #adddev{background:var(--acc);color:var(--on-acc)}
+.mk-card{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:12px}
+.mk-card h3{font-size:13px;line-height:18px;margin:0 0 8px;color:var(--tx)}
+.mk-frame{border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;background:var(--panel)}
+.mk-cmd{border-top:1px solid var(--line);background:var(--panel);padding:5px 12px;font:12px/18px ui-monospace,Menlo,Consolas,monospace;color:var(--mut)}
+.mk-cmd b{color:var(--tx)}
+kbd{font:11px/14px ui-monospace,Menlo,Consolas,monospace;border:1px solid var(--line-strong);border-radius:3px;background:var(--bg);padding:0 4px;color:var(--tx)}
+.m{color:var(--mut);font-size:11px;line-height:15px}
+.mk-note{color:var(--mut);font-size:11px;line-height:15px}
+.mk-co{position:absolute;color:var(--acc);font-size:11px;line-height:14px;white-space:nowrap}
+.mk-disc{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--acc);color:var(--on-acc);font-size:10px;line-height:16px;font-weight:700;flex:none}
+.mk-wrap .mk-pic .mk-disc{position:absolute;z-index:40}
+.mk-ol{list-style:none;margin:10px 0 0;padding:0;font-size:12px;line-height:16px}
+.mk-ol li{display:flex;gap:8px;align-items:flex-start;margin:0 0 7px}
+.mk-ol li>span:last-child{padding-top:0}
+.mk-ul{list-style:none;margin:10px 0 0;padding:0;font-size:12px;line-height:16px}
+.mk-ul li{position:relative;padding-left:14px;margin:0 0 6px}
+.mk-ul li::before{content:"";position:absolute;left:2px;top:5px;width:6px;height:6px;background:var(--acc)}
+.mk-pic{position:relative}
+.mk-zoom{zoom:1.5}
+.mk-zoom .ribbon-tools{overflow:visible;border-top:0}
+.mk-zoom.ribbon{border-bottom:0}
+.mk-flat .ribbon-tools{overflow:visible;border-top:0;background:transparent;padding:0}
+.mk-flat.ribbon{background:transparent;border-bottom:0}
+.mk-flat .ribbon-group{border-right:0;padding:0}
+/* canvases */
+.mk-cv{position:relative;overflow:hidden;background:#15171A}
+.mk-cv svg{display:block}
+.mk-sym{fill:none;stroke:currentColor;stroke-width:.37;overflow:visible}
+.mk-sym text{fill:currentColor;stroke:none}
+.mk-ts{fill:none;stroke:currentColor;stroke-width:.33;overflow:visible;max-height:24px;max-width:50px}
+.mk-ts text{fill:currentColor;stroke:none}
+/* gallery */
+.mk-gal{position:absolute;left:466px;top:151px;width:392px;z-index:30;background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:8px}
+.mk-search{display:flex;align-items:center;gap:6px;height:26px;background:var(--bg);border:1px solid var(--line-strong);border-radius:6px;padding:0 8px;color:var(--mut);font-size:12px;margin-bottom:6px}
+.mk-search svg{flex:none}
+.mk-gl{position:relative;height:326px;overflow:hidden}
+.mk-gl h5{margin:0;padding:4px 0 3px;font-size:11px;line-height:14px;font-weight:400;color:var(--mut)}
+.mk-trow{display:flex;flex-wrap:wrap;gap:4px;width:368px;margin-bottom:4px}
+.mk-tile{position:relative;width:58px;min-height:50px;background:var(--p2);border:1px solid var(--line);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:2px 1px 0;overflow:hidden}
+.mk-tile .mk-ti{height:22px;display:flex;align-items:center;justify-content:center;flex:none}
+.mk-tile span{font-size:10px;line-height:11px;text-align:center;color:var(--tx);display:block;max-height:33px;overflow:hidden;margin-top:1px;padding-bottom:2px}
+.mk-tile.lv{color:#f5c04a}
+.mk-tile.elv{color:#F5B301}
+.mk-tile.on{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 12%,var(--p2))}
+.mk-tile.pt{border-color:var(--line-strong)}
+.mk-sb{position:absolute;right:0;top:6px;width:4px;height:90px;border-radius:2px;background:var(--line-strong)}
+.mk-galfoot{margin-top:5px;font-size:11px;line-height:15px;color:var(--mut)}
+.mk-tip{position:absolute;background:#0c0d0f;border:1px solid var(--line-strong);border-radius:6px;padding:5px 9px;font-size:11px;line-height:15px;color:var(--mut);white-space:nowrap;z-index:5}
+.mk-tip b{color:var(--tx)}
+/* side panel pieces */
+.cad-side{width:260px}
+.cad-devbtns{flex-wrap:wrap}
+.cad-side .m{display:block}
+.mk-cfield{display:flex;align-items:center;gap:6px;height:28px;background:var(--p2);border:1px solid var(--field-line);border-radius:6px;padding:0 8px;font-size:12px;color:var(--tx)}
+.mk-cfield .mk-mono{margin-left:auto;font:11px/14px ui-monospace,Menlo,Consolas,monospace;color:var(--mut)}
+.mk-clist{position:relative;background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,.4);margin-top:2px}
+.mk-cfind{height:22px;display:flex;align-items:center;gap:5px;padding:0 6px;background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--mut);font-size:11px}
+.mk-ch{height:16px;line-height:16px;font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;padding:0 4px;margin-top:2px;display:flex;align-items:center;gap:4px}
+.mk-rows{position:relative}
+.mk-cr{height:22px;display:flex;align-items:center;gap:6px;padding:0 10px 0 6px;font-size:12px;border-left:2px solid transparent;color:var(--tx)}
+.mk-cr .mk-w{flex:1;white-space:nowrap}
+.mk-cr .mk-pts{display:inline-flex;align-items:center;gap:3px;font:11px/14px ui-monospace,Menlo,Consolas,monospace;color:var(--mut)}
+.mk-cr .mk-bar{display:block;width:34px;height:4px;border-radius:2px;background:var(--line);flex:none;position:relative;overflow:hidden}
+.mk-cr .mk-bar b{position:absolute;left:0;top:0;bottom:0;background:var(--mut);display:block}
+.mk-cr.full{color:var(--mut)}
+.mk-cr.full .mk-bar b{background:var(--warn)}
+.mk-cr.use{background:var(--p2);border-left-color:var(--acc)}
+.mk-thumb{position:absolute;right:1px;top:20px;width:3px;height:60px;border-radius:2px;background:var(--line-strong)}
+.mk-cr.oth{color:var(--tx)}
+.mk-cr.oth .mk-pts{margin-left:auto}
+.mk-cr.oth svg{color:var(--mut)}
+.mk-lbl{font-size:11px;color:var(--mut)}
+.mk-seg{display:flex;height:24px}
+.mk-seg span{flex:auto;padding:0 3px;display:flex;align-items:center;justify-content:center;font-size:11px;border:1px solid var(--line);background:var(--p2);color:var(--tx);margin-left:-1px;white-space:nowrap}
+.mk-seg span:first-child{border-radius:6px 0 0 6px;margin-left:0}
+.mk-seg span:last-child{border-radius:0 6px 6px 0}
+.mk-seg span.on{border-color:var(--acc);color:var(--acc);position:relative;z-index:1}
+.cad-props{padding:0 12px}
+.cad-props dd{font-size:12px;line-height:16px}
+.cad-props dt{font-size:12px;line-height:16px}
+.mk-ok{display:inline-flex;vertical-align:-2px;color:var(--ok);margin-right:3px}
+.mk-chk{display:flex;align-items:center;gap:6px;font-size:12px}
+.mk-cb{width:14px;height:14px;border:1px solid var(--field-line);border-radius:3px;background:var(--bg);display:inline-flex;align-items:center;justify-content:center;flex:none;color:var(--on-acc)}
+.mk-cb.t{background:var(--acc);border-color:var(--acc)}
+.mk-in{height:24px;display:flex;align-items:center;padding:0 8px;background:var(--p2);border:1px solid var(--field-line);border-radius:6px;font-size:12px;color:var(--tx)}
+/* check level */
+.mk-g{display:flex;align-items:center;height:18px;margin-top:8px;padding:0 12px;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+.mk-g span{margin-left:auto;font-size:11px}
+.mk-f{display:flex;align-items:center;gap:5px;height:20px;padding:0 8px 0 8px;font-size:11px;letter-spacing:-.1px;border-left:2px solid transparent;white-space:nowrap}
+.mk-f.sel{background:var(--p2);border-left-color:var(--acc)}
+.mk-f.mu{color:var(--mut)}
+.mk-f a{margin-left:auto;color:var(--acc);font-size:11px;padding-left:6px}
+.mk-f svg{flex:none}
+/* dialog */
+.mk-dlg{background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.5);width:620px;font-size:12px;line-height:16px}
+.mk-dlg-t{display:flex;align-items:center;height:28px;padding:0 6px 0 12px;background:var(--p2);border-bottom:1px solid var(--line);font-size:12px;font-weight:600}
+.mk-dlg-t svg{margin-left:auto;color:var(--mut)}
+.mk-dlg-b{padding:12px}
+.mk-gh{font-size:10px;line-height:14px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin:12px 0 6px}
+.mk-gh .mk-dot{margin-left:4px}
+.mk-two{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}
+.mk-two .mk-chk{height:18px}
+.mk-chk .mk-cn{font:11px/14px ui-monospace,Menlo,Consolas,monospace;color:var(--mut)}
+.mk-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.mk-tbl th{font-weight:400;color:var(--mut);text-align:left;padding:4px 8px 4px 0;border-bottom:1px solid var(--line)}
+.mk-tbl td{padding:4px 8px 4px 0;border-bottom:1px solid var(--line)}
+.mk-sel{display:flex;align-items:center;height:22px;padding:0 6px 0 8px;background:var(--bg);border:1px solid var(--field-line);border-radius:4px;font-size:12px;width:130px}
+.mk-sel svg{margin-left:auto;color:var(--mut)}
+/* data table */
+.mk-dt{border-collapse:collapse;font-size:12px;line-height:16px}
+.mk-dt th{text-align:left;color:var(--tx);font-weight:700;padding:5px 14px 5px 0;border-bottom:1px solid var(--line)}
+.mk-dt td{padding:5px 14px 5px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.mk-mt{border-collapse:collapse;font-size:12px;line-height:16px;width:100%}
+.mk-mt td{padding:5px 14px 5px 0;border-bottom:1px solid var(--line)}
+.mk-mt td:last-child{text-align:right;padding-right:0;font:12px/16px ui-monospace,Menlo,Consolas,monospace}
+.mk-ttip{background:#0c0d0f;border:1px solid var(--line-strong);border-radius:6px;padding:7px 10px;width:270px;font-size:11px;line-height:15px;color:var(--mut)}
+.mk-ttip b{display:block;font-size:12px;line-height:16px;color:var(--tx);margin-bottom:2px}
+.mk-menu{position:static !important;width:250px}
+.mk-menu .ck{width:12px}
+.mk-menu button.rw{height:26px;padding-top:0;padding-bottom:0;color:var(--tx)}
+.mk-menu .mono{margin-left:auto;padding-left:18px;font:11px/14px ui-monospace,Menlo,Consolas,monospace;color:var(--mut)}
+.mk-menu .hd{height:20px;padding-top:4px}
+.mk-menu .mu{color:var(--mut)}
+.mk-menu button.rw{width:100%;min-width:0;box-sizing:border-box}
+.mk-menu button.rw.mu{height:auto;padding-top:5px;padding-bottom:5px;white-space:normal;line-height:15px}
+.mk-flat.sm,.mk-flat.sm .ribbon-tools,.mk-flat.sm .ribbon-group{height:28px;min-height:0;overflow:visible}
+.mk-flat .ribbon-stack{grid-template-rows:24px}
+.mk-flat .ribbon-group-btns{height:auto}
+.mk-flat .ribbon-split > button:first-child{width:60px}
+</style>
+</head>
+<body>
+<div class="mk-wrap">
+
+<h1>Design CAD: the Devices tools (mockup)</h1>
+<p>Design CAD &rarr; Electrical, ELV &amp; sheets &rarr; Devices, as proposed. A purple dot <i class="mk-dot"></i> marks what is new; everything else exists today and is only named, regrouped or made to say what it does. Graphite dark, 1,366 px window. Sizes are measured with the app's own styles.</p>
+
+<!-- ============ 1 ============ -->
+<h2><span class="mk-n">1</span>Today and proposed</h2>
+<div style="display:flex;gap:24px;align-items:flex-start">
+
+  <div class="mk-card" style="width:684px">
+    <h3>Today &middot; one panel, 267 px</h3>
+    <div class="mk-pic" style="width:100%">
+      <div class="ribbon cad-named mk-zoom"><div class="ribbon-tools"><div class="ribbon-group" role="group" aria-label="Devices" style="order: 3;"><div class="ribbon-group-btns"><button class="" aria-label="Add device" data-tip-head="Add device (DEV)" data-tip-text="Place lights, sockets, a DB or ELV devices on the plan (DEV): choose it and its circuit, then click" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-plus"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg><span>Add device</span></button><button class="" aria-label="Fill room" data-tip-head="Fill room (FILL)" data-tip-text="Choose an ELV device, point at a room to see it at its coverage spacing, click to place them all (FILL)" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grid3x3"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M3 15h18"></path><path d="M9 3v18"></path><path d="M15 3v18"></path></svg><span>Fill room</span></button><button class="" aria-label="Light room" data-tip-head="Light room (LUX)" data-tip-text="Point at a room: its luminaires by the lumen method for its outline, then placed as lights on a circuit (LUX)" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lightbulb"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"></path><path d="M9 18h6"></path><path d="M10 22h4"></path></svg><span>Light room</span></button><div class="ribbon-stack"><button class="" aria-label="Room devices" data-tip-head="Room devices (RDT)" data-tip-text="Click one room, preview a bounded LV and ELV device template, then approve it (RDT)" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-template"><rect width="18" height="7" x="3" y="3" rx="1"></rect><rect width="9" height="7" x="3" y="14" rx="1"></rect><rect width="5" height="7" x="16" y="14" rx="1"></rect></svg></button><button class="" aria-label="Emergency" data-tip-head="Emergency (EM)" data-tip-text="Emergency lighting (BS 5266-1 / EN 1838): draw the escape routes, mark the points of emphasis and open areas; fittings and exit signs are placed at their spacing (EM)" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-door-open"><path d="M13 4h3a2 2 0 0 1 2 2v14"></path><path d="M2 20h3"></path><path d="M13 20h9"></path><path d="M10 12v.01"></path><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z"></path></svg></button><button class="" aria-label="Coverage" data-tip-head="Coverage (COV)" data-tip-text="Show what the devices of the chosen ELV device's system cover, and what is not covered (COV)" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-dashed"><path d="M10.1 2.182a10 10 0 0 1 3.8 0"></path><path d="M13.9 21.818a10 10 0 0 1-3.8 0"></path><path d="M17.609 3.721a10 10 0 0 1 2.69 2.7"></path><path d="M2.182 13.9a10 10 0 0 1 0-3.8"></path><path d="M20.279 17.609a10 10 0 0 1-2.7 2.69"></path><path d="M21.818 10.1a10 10 0 0 1 0 3.8"></path><path d="M3.721 6.391a10 10 0 0 1 2.7-2.69"></path><path d="M6.391 20.279a10 10 0 0 1-2.69-2.7"></path></svg></button></div><div class="ribbon-stack"><span class="ribbon-split"><button class="" aria-label="Copy to level" data-tip-head="Copy to level" data-tip-text="Copy this level's devices of the chosen ELV device's system to another level, at the same plan positions" aria-haspopup="menu" aria-expanded="false" disabled=""><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></button><button class="ribbon-split-arrow" title="Copy to level: more options" aria-haspopup="menu" aria-expanded="false" disabled=""><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></span></div></div><div class="ribbon-caption">Devices</div></div></div></div>
+      <span class="mk-disc" style="left:352px;top:55px">1</span>
+      <span class="mk-disc" style="left:127px;top:127px">2</span>
+      <span class="mk-disc" style="left:352px;top:94px">3</span>
+      <span class="mk-disc" style="left:407px;top:10px">4</span>
+      <span class="mk-disc" style="left:277px;top:127px">5</span>
+    </div>
+    <ol class="mk-ol" style="margin-top:14px">
+      <li><span class="mk-disc">1</span><span>Four of the seven tools show no name: Room devices, Emergency, Coverage, Copy to level.</span></li>
+      <li><span class="mk-disc">2</span><span>Fill room places ELV devices only, and only after one is chosen in the side panel.</span></li>
+      <li><span class="mk-disc">3</span><span>Coverage and Copy to level act on the system of the ELV device chosen in the side panel.</span></li>
+      <li><span class="mk-disc">4</span><span>Copy to level copies ELV devices only, and when greyed it does not say why.</span></li>
+      <li><span class="mk-disc">5</span><span>Every room tool does one room per run.</span></li>
+    </ol>
+  </div>
+
+  <div class="mk-card" style="width:740px">
+    <h3>Proposed &middot; two panels, 457 px</h3>
+    <div class="mk-pic">
+      <div class="ribbon cad-named mk-zoom"><div class="ribbon-tools"><div class="ribbon-group named" role="group" aria-label="Devices" style="order: 3;"><div class="ribbon-group-btns"><span class="ribbon-split"><button class="" aria-label="Add device" id="adddev"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-plus"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg><span>Add device</span></button><button class="ribbon-split-arrow" title="Add device: more options"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button><i class="nw"></i></span><span class="ribbon-split"><button class="" aria-label="Fill room"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grid3x3"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M3 15h18"></path><path d="M9 3v18"></path><path d="M15 3v18"></path></svg><span>Fill room</span></button><button class="ribbon-split-arrow" title="Fill room: more options"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></span><button class="" aria-label="Light room"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lightbulb"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"></path><path d="M9 18h6"></path><path d="M10 22h4"></path></svg><span>Light room</span></button><div class="ribbon-stack"><button class="" aria-label="Socket room"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plug-zap"><path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z"></path><path d="m2 22 3-3"></path><path d="M7.5 13.5 10 11"></path><path d="M10.5 16.5 13 14"></path><path d="m18 3-4 4h6l-4 4"></path></svg><span>Socket room</span><i class="nw"></i></button><button class="" aria-label="Room devices"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-template"><rect width="18" height="7" x="3" y="3" rx="1"></rect><rect width="9" height="7" x="3" y="14" rx="1"></rect><rect width="5" height="7" x="16" y="14" rx="1"></rect></svg><span>Room devices</span></button><button class="" aria-label="Emergency"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-door-open"><path d="M13 4h3a2 2 0 0 1 2 2v14"></path><path d="M2 20h3"></path><path d="M13 20h9"></path><path d="M10 12v.01"></path><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z"></path></svg><span>Emergency</span></button></div></div><div class="ribbon-caption">Devices</div></div><div class="ribbon-group named" role="group" aria-label="Level" style="order: 3;"><div class="ribbon-group-btns"><div class="ribbon-stack"><button class="" aria-label="Check level"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clipboard-check"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="m9 14 2 2 4-4"></path></svg><span>Check level</span><i class="nw"></i></button><span class="ribbon-split"><button class="" aria-label="Coverage"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-dashed"><path d="M10.1 2.182a10 10 0 0 1 3.8 0"></path><path d="M13.9 21.818a10 10 0 0 1-3.8 0"></path><path d="M17.609 3.721a10 10 0 0 1 2.69 2.7"></path><path d="M2.182 13.9a10 10 0 0 1 0-3.8"></path><path d="M20.279 17.609a10 10 0 0 1-2.7 2.69"></path><path d="M21.818 10.1a10 10 0 0 1 0 3.8"></path><path d="M3.721 6.391a10 10 0 0 1 2.7-2.69"></path><path d="M6.391 20.279a10 10 0 0 1-2.69-2.7"></path></svg><span>Coverage</span></button><button class="ribbon-split-arrow" title="Coverage: more options"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></span><button class="" aria-label="Copy to levels"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><span>Copy to levels</span><i class="nw"></i></button></div></div><div class="ribbon-caption">Level</div></div></div></div>
+    </div>
+    <ul class="mk-ul">
+      <li>The same three main tools in the same order; every other tool now shows its name.</li>
+      <li>Fill room and Coverage carry their own choice on an arrow: no trip to the side panel first.</li>
+      <li>Level: the tools that act on the whole level.</li>
+      <li>New <i class="mk-dot"></i>: the device gallery on the Add device arrow, Socket room, Check level, and lights and sockets in Copy to levels.</li>
+    </ul>
+    <div class="mk-note" style="margin-top:10px">Electrical tab: 1,120 px today, 1,310 px proposed, in a 1,366 px window.</div>
+  </div>
+</div>
+
+<!-- ============ 2 ============ -->
+<h2><span class="mk-n">2</span>Add device: a gallery on the arrow, and a circuit list that shows the room left</h2>
+<div class="mk-frame" id="mk-s2" style="width:1366px;position:relative">
+  <div class="ribbon cad-named" data-doc-id="main-ribbon"><div class="ribbon-tabs" role="tablist" aria-label="Ribbon"><button id="ribbon-tab-home" role="tab" aria-selected="false" aria-controls="ribbon-tools" tabindex="-1" class="" title="Double-click to collapse the ribbon (Ctrl+F1)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-house"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>Project</button><span class="tab-sep" aria-hidden="true"></span><button id="ribbon-tab-schedule" role="tab" aria-selected="false" aria-controls="ribbon-tools" tabindex="-1" class="" title="Double-click to collapse the ribbon (Ctrl+F1)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-table2"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"></path></svg>Load schedule</button><button id="ribbon-tab-sld" role="tab" aria-selected="false" aria-controls="ribbon-tools" tabindex="-1" class="" title="Double-click to collapse the ribbon (Ctrl+F1)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-network"><rect x="16" y="16" width="6" height="6" rx="1"></rect><rect x="2" y="16" width="6" height="6" rx="1"></rect><rect x="9" y="2" width="6" height="6" rx="1"></rect><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"></path><path d="M12 12V8"></path></svg>SLD</button><button id="ribbon-tab-cad" role="tab" aria-selected="true" aria-controls="ribbon-tools" tabindex="0" class="on" title="Double-click to collapse the ribbon (Ctrl+F1)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pen-tool"><path d="M15.707 21.293a1 1 0 0 1-1.414 0l-1.586-1.586a1 1 0 0 1 0-1.414l5.586-5.586a1 1 0 0 1 1.414 0l1.586 1.586a1 1 0 0 1 0 1.414z"></path><path d="m18 13-1.375-6.874a1 1 0 0 0-.746-.776L3.235 2.028a1 1 0 0 0-1.207 1.207L5.35 15.879a1 1 0 0 0 .776.746L13 18"></path><path d="m2.3 2.3 7.286 7.286"></path><circle cx="11" cy="11" r="2"></circle></svg>Design CAD</button><button id="ribbon-tab-sheets" role="tab" aria-selected="false" aria-controls="ribbon-tools" tabindex="-1" class="" title="Double-click to collapse the ribbon (Ctrl+F1)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grid3x3"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M3 15h18"></path><path d="M9 3v18"></path><path d="M15 3v18"></path></svg>Sheets</button><button id="ribbon-tab-spec" role="tab" aria-selected="false" aria-controls="ribbon-tools" tabindex="-1" class="" title="Double-click to collapse the ribbon (Ctrl+F1)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pen-line"><path d="M12 20h9"></path><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"></path></svg>Specification</button><span class="tab-sep" aria-hidden="true"></span><button id="ribbon-tab-stages" role="tab" aria-selected="false" aria-controls="ribbon-tools" tabindex="-1" class="" title="Double-click to collapse the ribbon (Ctrl+F1)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-waypoints"><circle cx="12" cy="4.5" r="2.5"></circle><path d="m10.2 6.3-3.9 3.9"></path><circle cx="4.5" cy="12" r="2.5"></circle><path d="M7 12h10"></path><circle cx="19.5" cy="12" r="2.5"></circle><path d="m13.8 17.7 3.9-3.9"></path><circle cx="12" cy="19.5" r="2.5"></circle></svg>Stages<span class="stage-now" title="The project is at Detailed design">Now</span></button><span class="tab-sep" aria-hidden="true"></span><button id="ribbon-tab-reports" role="tab" aria-selected="false" aria-controls="ribbon-tools" tabindex="-1" class="" title="Double-click to collapse the ribbon (Ctrl+F1)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg>Documents</button><button id="ribbon-tab-cost" role="tab" aria-selected="false" aria-controls="ribbon-tools" tabindex="-1" class="" title="Double-click to collapse the ribbon (Ctrl+F1)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-receipt"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 17.5v-11"></path></svg>BOM / Cost</button><span class="sp"></span><button id="ribbon-tab-standards" role="tab" aria-selected="false" aria-controls="ribbon-tools" tabindex="-1" class="" title="Double-click to collapse the ribbon (Ctrl+F1)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings2"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>Standards</button><button class="ribbon-pin" aria-pressed="true" aria-label="Collapse the ribbon" title="Collapse the ribbon to its tabs (Ctrl+F1)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-up"><path d="m18 15-6-6-6 6"></path></svg></button></div><div class="ribbon-subtabs"><div class="ribbon-file"><button type="button" class="" aria-haspopup="menu" aria-expanded="false" title="Open, save and close drawings; the level and units of the drawing"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></svg>File<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></div><div class="ribbon-subtabs-list" role="tablist" aria-label="Design CAD"><button id="ribbon-cad-drafting" role="tab" aria-selected="false" tabindex="-1" class="">LVCAD</button><button id="ribbon-cad-annotate" role="tab" aria-selected="false" tabindex="-1" class="">Annotate</button><button id="ribbon-cad-elec" role="tab" aria-selected="true" tabindex="0" class="on">Electrical, ELV &amp; sheets</button><button id="ribbon-cad-output" role="tab" aria-selected="false" tabindex="-1" class="">Output</button></div><span class="sp"></span><label class="ribbon-labels" title="The name of every tool, the small ones too; the names need more room, so the tools take more sub-tabs (also in Preferences → App)"><input type="checkbox">Show labels</label></div><div id="ribbon-tools" class="ribbon-tools" role="toolbar" aria-label="Design CAD tools"><div class="ribbon-group" role="group" aria-label="Rooms" style="order: 1;"><div class="ribbon-group-btns"><button class="" aria-label="Add found" data-tip-head="Add found (ROOMS)" data-tip-text="Add every room the plan outlines (closed outlines on the Room outline layers, named by the text inside) to Building information on this level — one undo step (ROOMS)"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-grid"><rect width="7" height="7" x="3" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="14" rx="1"></rect><rect width="7" height="7" x="3" y="14" rx="1"></rect></svg><span>Add found</span></button><button class="" aria-label="Click inside" data-tip-head="Click inside (RA)" data-tip-text="Click inside a room: its outline from the walls (doors closed), its area — then Add (RA)" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mouse-pointer-click"><path d="M14 4.1 12 6"></path><path d="m5.1 8-2.9-.8"></path><path d="m6 12-1.9 2"></path><path d="M7.2 2.2 8 5.1"></path><path d="M9.037 9.69a.498.498 0 0 1 .653-.653l11 4.5a.5.5 0 0 1-.074.949l-4.349 1.041a1 1 0 0 0-.74.739l-1.04 4.35a.5.5 0 0 1-.95.074z"></path></svg><span>Click inside</span></button><div class="ribbon-stack"><button class="" aria-label="Trace" data-tip-head="Trace (TRACE)" data-tip-text="Click the corners of a room, Enter to close — then Add (TRACE)" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pen-line"><path d="M12 20h9"></path><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"></path></svg></button><button class="" aria-label="Pick name" data-tip-head="Pick name (PN)" data-tip-text="Click the room name on the drawing: it names the room found, or renames the room it is in (PN)" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-type"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" x2="15" y1="20" y2="20"></line><line x1="12" x2="12" y1="4" y2="20"></line></svg></button></div></div><div class="ribbon-caption">Rooms</div></div><div class="ribbon-group" role="group" aria-label="Cables and boards" style="order: 2;"><div class="ribbon-group-btns"><button class="" aria-label="Cable tray" data-tip-head="Cable tray (CT)" data-tip-text="Draw a cable tray run (CT): its points, Enter to finish, at the width chosen; the tray route can be assigned later" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rows3"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M21 9H3"></path><path d="M21 15H3"></path></svg><span>Cable tray</span></button><div class="ribbon-stack"><button class="" aria-label="Containment check" data-tip-head="Containment check (CC)" data-tip-text="Check the LV cable loading of each tray segment on this drawing, on demand and within fixed memory limits (CC)" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-checks"><path d="m3 17 2 2 4-4"></path><path d="m3 7 2 2 4-4"></path><path d="M13 6h8"></path><path d="M13 12h8"></path><path d="M13 18h8"></path></svg></button></div><button class="" aria-label="Cable route" data-tip-head="Cable route (CR)" data-tip-text="Draw the route of a cable (CR): choose the cable, click its points, Enter to finish" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-cable"><path d="M17 21v-2a1 1 0 0 1-1-1v-1a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1a1 1 0 0 1-1 1"></path><path d="M19 15V6.5a1 1 0 0 0-7 0v11a1 1 0 0 1-7 0V9"></path><path d="M21 21v-2h-4"></path><path d="M3 5h4V3"></path><path d="M7 5a1 1 0 0 1 1 1v1a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a1 1 0 0 1 1-1V3"></path></svg><span>Cable route</span></button><div class="ribbon-stack"><button class="" aria-label="Link route" data-tip-head="Link route (LR)" data-tip-text="Click a line or polyline of the drawing: it becomes the chosen cable's route (LR)" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-route"><circle cx="6" cy="19" r="3"></circle><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"></path><circle cx="18" cy="5" r="3"></circle></svg></button><button class="" aria-label="Place board" data-tip-head="Place board" data-tip-text="Place a board on the plan: its room, level and position (Add device → DB)" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circuit-board"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M11 9h4a2 2 0 0 0 2-2V3"></path><circle cx="9" cy="9" r="2"></circle><path d="M7 21v-4a2 2 0 0 1 2-2h4"></path><circle cx="15" cy="15" r="2"></circle></svg></button></div><button class="" aria-label="Update schedules" data-tip-head="Update schedules (SCHED)" data-tip-text="From the trays and cable routes on every level's plan: tray route lengths and fittings (tray schedule and BOQ), cable lengths, and the tray routes each cable runs along — one undo step (SCHED)"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-checks"><path d="m3 17 2 2 4-4"></path><path d="m3 7 2 2 4-4"></path><path d="M13 6h8"></path><path d="M13 12h8"></path><path d="M13 18h8"></path></svg><span>Update schedules</span></button></div><div class="ribbon-caption">Cables and boards</div></div><div class="ribbon-group named" role="group" aria-label="Devices" style="order: 3;"><div class="ribbon-group-btns"><span class="ribbon-split"><button class="" aria-label="Add device" id="adddev"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-plus"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg><span>Add device</span></button><button class="ribbon-split-arrow open" title="Add device: more options"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button><i class="nw"></i></span><span class="ribbon-split"><button class="" aria-label="Fill room"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grid3x3"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M3 15h18"></path><path d="M9 3v18"></path><path d="M15 3v18"></path></svg><span>Fill room</span></button><button class="ribbon-split-arrow" title="Fill room: more options"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></span><button class="" aria-label="Light room"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lightbulb"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"></path><path d="M9 18h6"></path><path d="M10 22h4"></path></svg><span>Light room</span></button><div class="ribbon-stack"><button class="" aria-label="Socket room"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plug-zap"><path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z"></path><path d="m2 22 3-3"></path><path d="M7.5 13.5 10 11"></path><path d="M10.5 16.5 13 14"></path><path d="m18 3-4 4h6l-4 4"></path></svg><span>Socket room</span><i class="nw"></i></button><button class="" aria-label="Room devices"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-template"><rect width="18" height="7" x="3" y="3" rx="1"></rect><rect width="9" height="7" x="3" y="14" rx="1"></rect><rect width="5" height="7" x="16" y="14" rx="1"></rect></svg><span>Room devices</span></button><button class="" aria-label="Emergency"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-door-open"><path d="M13 4h3a2 2 0 0 1 2 2v14"></path><path d="M2 20h3"></path><path d="M13 20h9"></path><path d="M10 12v.01"></path><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z"></path></svg><span>Emergency</span></button></div></div><div class="ribbon-caption">Devices</div></div><div class="ribbon-group named" role="group" aria-label="Level" style="order: 3;"><div class="ribbon-group-btns"><div class="ribbon-stack"><button class="" aria-label="Check level"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clipboard-check"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="m9 14 2 2 4-4"></path></svg><span>Check level</span><i class="nw"></i></button><span class="ribbon-split"><button class="" aria-label="Coverage"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-dashed"><path d="M10.1 2.182a10 10 0 0 1 3.8 0"></path><path d="M13.9 21.818a10 10 0 0 1-3.8 0"></path><path d="M17.609 3.721a10 10 0 0 1 2.69 2.7"></path><path d="M2.182 13.9a10 10 0 0 1 0-3.8"></path><path d="M20.279 17.609a10 10 0 0 1-2.7 2.69"></path><path d="M21.818 10.1a10 10 0 0 1 0 3.8"></path><path d="M3.721 6.391a10 10 0 0 1 2.7-2.69"></path><path d="M6.391 20.279a10 10 0 0 1-2.69-2.7"></path></svg><span>Coverage</span></button><button class="ribbon-split-arrow" title="Coverage: more options"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></span><button class="" aria-label="Copy to levels"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><span>Copy to levels</span><i class="nw"></i></button></div></div><div class="ribbon-caption">Level</div></div><div class="ribbon-group" role="group" aria-label="Edit devices" style="order: 4;"><div class="ribbon-group-btns"><div class="ribbon-stack"><button class="on" aria-label="Select" data-tip-head="Select (SEL)" data-tip-text="Select devices (SEL): click one, Shift-click to add or remove, or drag a window — left to right picks what is inside, right to left also what it crosses; a toolbar beside them has the edits that suit them" aria-pressed="true"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square-dashed"><path d="M5 3a2 2 0 0 0-2 2"></path><path d="M19 3a2 2 0 0 1 2 2"></path><path d="M21 19a2 2 0 0 1-2 2"></path><path d="M5 21a2 2 0 0 1-2-2"></path><path d="M9 3h1"></path><path d="M9 21h1"></path><path d="M14 3h1"></path><path d="M14 21h1"></path><path d="M3 9v1"></path><path d="M21 9v1"></path><path d="M3 14v1"></path><path d="M21 14v1"></path></svg></button><button class="" aria-label="Array on line" data-tip-head="Array on line (ARL)" data-tip-text="Click the start and the end of a line; N devices evenly along it, by number or spacing, on a circuit" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ellipsis"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></button><button class="" aria-label="Match" data-tip-head="Match (MA)" data-tip-text="Click the device to copy from, then each device to change: its circuit, and its type if chosen. Click a drawn object first to copy its properties instead (as MP)" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-paintbrush"><path d="m14.622 17.897-10.68-2.913"></path><path d="M18.376 2.622a1 1 0 1 1 3.002 3.002L17.36 9.643a.5.5 0 0 0 0 .707l.944.944a2.41 2.41 0 0 1 0 3.408l-.944.944a.5.5 0 0 1-.707 0L8.354 7.348a.5.5 0 0 1 0-.707l.944-.944a2.41 2.41 0 0 1 3.408 0l.944.944a.5.5 0 0 0 .707 0z"></path><path d="M9 8c-1.804 2.71-3.97 3.46-6.583 3.948a.507.507 0 0 0-.302.819l7.32 8.883a1 1 0 0 0 1.185.204C12.735 20.405 16 16.792 16 15"></path></svg></button></div></div><div class="ribbon-caption">Edit devices</div></div><div class="ribbon-group" role="group" aria-label="Wiring" style="order: 5;"><div class="ribbon-group-btns"><button class="" aria-label="Wire circuits" data-tip-head="Wire circuits (WC) · all on this level" data-tip-text="Wire every circuit with devices on this level: arcs between its devices in circuit order and a home run to its DB, tagged with the circuit, cable and length; Update schedules gives the cable schedule the lengths (WC)"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-workflow"><rect width="8" height="8" x="3" y="3" rx="2"></rect><path d="M7 11v4a2 2 0 0 0 2 2h4"></path><rect width="8" height="8" x="13" y="13" rx="2"></rect></svg><span>Wire circuits</span></button><div class="ribbon-stack"><button class="" aria-label="Wire one" data-tip-head="Wire one (W1) · pick a device" data-tip-text="Click a device: its circuit is wired, or its wiring is taken off when it is wired (W1)" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plug"><path d="M12 22v-5"></path><path d="M9 8V2"></path><path d="M15 8V2"></path><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"></path></svg></button><button class="" aria-label="Tags" data-tip-head="Tags (TAGS) · off" data-tip-text="Show or hide the wiring tags (DB-GF1/L3 · 2C × 1.5 mm² · 23 m) on the plan" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tags"><path d="m15 5 6.3 6.3a2.4 2.4 0 0 1 0 3.4L17 19"></path><path d="M9.586 5.586A2 2 0 0 0 8.172 5H3a1 1 0 0 0-1 1v5.172a2 2 0 0 0 .586 1.414L8.29 18.29a2.426 2.426 0 0 0 3.42 0l3.58-3.58a2.426 2.426 0 0 0 0-3.42z"></path><circle cx="6.5" cy="9.5" r=".5" fill="currentColor"></circle></svg></button></div></div><div class="ribbon-caption">Wiring</div></div><div class="ribbon-group" role="group" aria-label="Reference" style="order: 6;"><div class="ribbon-group-btns"><button class="" aria-label="Attach" data-tip-head="Attach (XA)" data-tip-text="Attach a reference (XA): another drawing shown under this plan — the structure, other services, a site plan; its file is never changed"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-plus2"><path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M3 15h6"></path><path d="M6 12v6"></path></svg><span>Attach</span></button><div class="ribbon-stack"><button class="" aria-label="Clip" data-tip-head="Clip (XCLIP)" data-tip-text="Clip a reference (XCLIP): show part of it only, inside a window or a closed outline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-crop"><path d="M6 2v14a2 2 0 0 0 2 2h14"></path><path d="M18 22V8a2 2 0 0 0-2-2H2"></path></svg></button><button class="" aria-label="Crop" data-tip-head="Crop (CROP)" data-tip-text="Crop a block (CROP): cut it along a window, circle or closed outline — what is inside stays as drawn lines, the rest is deleted, not hidden" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square-scissors"><rect width="20" height="20" x="2" y="2" rx="2"></rect><circle cx="8" cy="8" r="2"></circle><path d="M9.414 9.414 12 12"></path><path d="M14.8 14.8 18 18"></path><circle cx="8" cy="16" r="2"></circle><path d="m18 6-8.586 8.586"></path></svg></button><button class="" aria-label="References" data-tip-head="References (XR)" data-tip-text="Other drawings shown under this plan — the structure, other services, a site plan. Attach (XA), reload, unload, detach, repath, clip, bind; the files are never changed"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-paperclip"><path d="M13.234 20.252 21 12.3"></path><path d="m16 6-8.414 8.586a2 2 0 0 0 0 2.828 2 2 0 0 0 2.828 0l8.414-8.586a4 4 0 0 0 0-5.656 4 4 0 0 0-5.656 0l-8.415 8.585a6 6 0 1 0 8.486 8.486"></path></svg></button></div></div><div class="ribbon-caption">Reference</div></div><div class="ribbon-group" role="group" aria-label="Sheet set" style="order: 7;"><div class="ribbon-group-btns"><button class="" aria-label="All sheets" data-tip-head="All sheets" data-tip-text="Every submission sheet: the register with filters, bulk changes, thumbnails and export (PDF, DXF, Excel)"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-files"><path d="M20 7h-3a2 2 0 0 1-2-2V2"></path><path d="M9 18a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h7l4 4v10a2 2 0 0 1-2 2Z"></path><path d="M3 7.6v12.8A1.6 1.6 0 0 0 4.6 22h9.8"></path></svg><span>All sheets</span></button><div class="ribbon-stack"><button class="" aria-label="Layout" data-tip-head="Layout" data-tip-text="How sheets are made and what they show: panels per sheet, values printed, legend"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-grid"><rect width="7" height="7" x="3" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="14" rx="1"></rect><rect width="7" height="7" x="3" y="14" rx="1"></rect></svg></button><button class="" aria-label="Title block" data-tip-head="Title block" data-tip-text="Title block and drawing numbering of the set"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-bottom"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 15h18"></path></svg></button><button class="" aria-label="Issues" data-tip-head="Issues" data-tip-text="Issue sheets: revisions and transmittals"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-stamp"><path d="M5 22h14"></path><path d="M19.27 13.73A2.5 2.5 0 0 0 17.5 13h-11A2.5 2.5 0 0 0 4 15.5V17a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1.5c0-.66-.26-1.3-.73-1.77Z"></path><path d="M14 13V8.5C14 7 15 7 15 5a3 3 0 0 0-3-3c-1.66 0-3 1-3 3s1 2 1 3.5V13"></path></svg></button></div></div><div class="ribbon-caption">Sheet set</div></div></div></div>
+  <div style="display:grid;grid-template-columns:1fr 260px;min-height:620px">
+    <div class="mk-cv" id="cv2" style="width:1105px;min-height:620px"></div>
+    <div class="cad-side" style="width:260px;overflow:hidden">
+      <h4>Devices</h4>
+      <div class="cad-pal">
+        <span class="cad-pal-h">Lighting</span>
+        <button class="lv" aria-pressed="true"><svg aria-hidden="true" width="16.8" height="16.8" viewBox="-2.1 -2.1 4.2 4.2"><path d="M-1.26 -1.26L1.26 1.26"></path><path d="M-1.26 1.26L1.26 -1.26"></path><circle cx="0" cy="0" r="1.8"></circle></svg><span>Light</span></button>
+        <button class="lv" aria-pressed="false"><svg aria-hidden="true" width="16.8" height="16.8" viewBox="-2.1 -2.1 4.2 4.2"><circle cx="0" cy="0" r="1.8"></circle><text x="0" y="0.9" style="font-size:2.5139664804469275px" text-anchor="middle">F</text></svg><span>Ceiling fan</span></button>
+        <button class="lv" aria-pressed="false"><svg aria-hidden="true" width="31.061840490797543" height="16.4" viewBox="-2.05 -2.05 7.765460122699386 4.1"><path d="M0 0L-1.35 -0.75L-1.35 0.75Z" style="fill:currentColor"></path><path d="M0 0L1.35 -0.75L1.35 0.75Z" style="fill:currentColor"></path><circle cx="0" cy="0" r="1.75"></circle><text x="2.4" y="0.9" style="font-size:2.5139664804469275px" text-anchor="start">EF</text></svg><span>Exhaust fan</span></button>
+      </div>
+      <div class="m" style="padding:0 12px 8px">Sockets, Switches, Equipment, Boards, Boxes and ELV follow, as today</div>
+      <div class="cad-devform">
+        <label>This drawing shows<select><option>Ground floor</option></select></label>
+        <label style="gap:3px"><span>Circuit <i class="mk-dot" style="margin:0 0 0 2px"></i></span>
+          <div class="mk-cfield"><span>DB-GF1 / Y1 &middot; Lighting 2</span><span class="mk-mono">7 / 10</span><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"></path></svg></div>
+          <div class="mk-clist">
+            <div class="mk-cfind"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>Find a circuit</div>
+            <div class="mk-ch">DB-GF1 &middot; this level</div>
+            <div class="mk-rows">
+              <div class="mk-cr full"><span class="mk-w">R1 &middot; Lighting 1</span><span class="mk-pts"><span style="color:var(--warn);display:inline-flex"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></span>10 / 10</span><i class="mk-bar"><b style="width:100%"></b></i></div>
+              <div class="mk-cr use"><span class="mk-w">Y1 &middot; Lighting 2</span><span class="mk-pts">7 / 10</span><i class="mk-bar"><b style="width:70%"></b></i></div>
+              <div class="mk-cr"><span class="mk-w">B1 &middot; Lighting 3</span><span class="mk-pts">3 / 10</span><i class="mk-bar"><b style="width:30%"></b></i></div>
+              <div class="mk-cr"><span class="mk-w">R2 &middot; Sockets 1</span><span class="mk-pts">4 / 6</span><i class="mk-bar"><b style="width:67%"></b></i></div>
+              <div class="mk-cr full"><span class="mk-w">Y2 &middot; Sockets 2</span><span class="mk-pts"><span style="color:var(--warn);display:inline-flex"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></span>6 / 6</span><i class="mk-bar"><b style="width:100%"></b></i></div>
+              <div class="mk-cr"><span class="mk-w">B2 &middot; Sockets 3</span><span class="mk-pts">2 / 6</span><i class="mk-bar"><b style="width:33%"></b></i></div>
+              <i class="mk-thumb"></i>
+            </div>
+            <div class="mk-ch" style="margin-top:4px">Other levels</div>
+            <div class="mk-cr oth"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right"><path d="m9 18 6-6-6-6"></path></svg><span class="mk-w">DB-1F1 &middot; First floor</span><span class="mk-pts" style="padding-right:4px">12</span></div>
+            <div class="mk-cr oth"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right"><path d="m9 18 6-6-6-6"></path></svg><span class="mk-w">DB-2F1 &middot; Second floor</span><span class="mk-pts" style="padding-right:4px">12</span></div>
+          </div>
+        </label>
+        <label>Rotation<select><option>0&deg;</option></select></label>
+        <span class="m">22 devices on this level</span>
+      </div>
+    </div>
+  </div>
+  <div class="mk-cmd"><b>DEV</b>&nbsp; Light placed on DB-GF1/Y1 &middot; Lighting 2 &mdash; 7 of 10 on the circuit</div>
+
+  <div class="mk-gal">
+    <div class="mk-search"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg><span>Find a device</span><i class="mk-dot" style="margin-left:auto"></i></div>
+    <div class="mk-gl" id="gal"><i class="mk-sb"></i></div>
+    <div class="mk-galfoot">Equipment &middot; Boards &middot; Boxes &middot; ELV follow</div>
+  </div>
+</div>
+<div class="mk-card" style="width:1366px;margin-top:10px;padding:8px 12px;display:flex;align-items:center;gap:12px">
+  <span style="font-size:12px;color:var(--tx);flex:none">When the circuit fills up:</span>
+  <div class="mk-cmd" style="border:1px solid var(--line);border-radius:6px;flex:none;background:var(--bg)"><b>DEV</b>&nbsp; DB-GF1/Y1 &middot; Lighting 2 is full: 10 of 10 (Rules sheet). Next with room: B1 &middot; Lighting 3 &mdash; <kbd>Tab</kbd> to use it, or pick a circuit</div>
+  <span class="mk-note" style="flex:1">A warning, not a stop: placing over the maximum stays possible, as today.</span>
+</div>
+
+<!-- ============ 3 ============ -->
+<h2><span class="mk-n">3</span>Socket room (SOCK) <i class="mk-dot"></i></h2>
+<p>Point at a room: sockets along its walls at the spacing set, each facing into the room. Click a wall to leave it out, click a socket to take it off; then Place. The socket partner of Light room.</p>
+<div class="mk-frame" style="width:1000px">
+  <div style="display:grid;grid-template-columns:1fr 260px">
+    <div class="mk-cv" id="cv3" style="width:739px;min-height:500px"></div>
+    <div class="cad-side" style="width:260px;padding-bottom:12px">
+      <h4>Socket room <span class="m" style="display:inline;text-transform:none;letter-spacing:0">Meeting 1.08 &middot; 17.3 m&sup2; &middot; walls 16.8 m</span></h4>
+      <div class="cad-devform">
+        <label>Socket<select><option>Socket 13 A</option></select></label>
+        <label>Place by
+          <span style="display:flex;gap:6px;align-items:center"><select style="flex:1"><option>Spacing</option></select><span class="mk-in" style="width:56px;justify-content:flex-end;height:26px">2.4</span><span style="font-size:12px;color:var(--mut)">m</span></span>
+        </label>
+        <label>Circuit<select><option>DB-GF1 / R2 &middot; Sockets 1 &nbsp;&nbsp;4 / 6</option></select></label>
+        <div class="mk-chk"><span class="mk-cb t"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"></path></svg></span><span>Replace the sockets already in this room</span></div>
+      </div>
+      <div class="mk-lbl" style="padding:6px 12px 0">Socket result</div>
+      <dl class="cad-props" style="padding:0 12px">
+        <dt>Walls used</dt><dd>12.0 m of 16.8 m</dd>
+        <dt>Sockets</dt><dd>5 (1 taken off)</dd>
+        <dt>Spacing</dt><dd>2.4 m, 1.8 m on short walls</dd>
+        <dt>Circuits</dt><dd>R2 +2 &rarr; 6 / 6 &middot; B2 +3 &rarr; 5 / 6</dd>
+      </dl>
+      <div class="cad-devform" style="margin-top:8px"><span class="m"><span class="mk-ok"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"></path></svg></span>Inside the 6 per circuit of the Rules sheet (Y2 is full: skipped)</span></div>
+      <div class="cad-devform" style="padding-bottom:0"><div class="cad-devbtns" style="margin-top:0"><button class="chip primary">Place 5 sockets</button><button class="chip">Cancel</button></div></div>
+      <div class="cad-devform" style="padding-top:8px"><span class="m">A wall at an angle takes the nearest right angle.</span></div>
+    </div>
+  </div>
+  <div class="mk-cmd"><b>SOCK</b>&nbsp; Meeting 1.08: 5 sockets on 12.0 m of wall &mdash; click a wall to leave it out, a socket to take it off, then Place.</div>
+</div>
+
+<!-- ============ 4 ============ -->
+<h2><span class="mk-n">4</span>All rooms like this <i class="mk-dot"></i></h2>
+<p>In Light room, Socket room, Fill room and Room devices: after the first room, the same again in every room of its type on the level, or in every room. Each room is worked out for its own outline; one undo step.</p>
+<div class="mk-frame" style="width:1160px">
+  <div style="display:grid;grid-template-columns:1fr 260px">
+    <div class="mk-cv" id="cv4" style="width:899px;min-height:400px"></div>
+    <div class="cad-side" style="width:260px;padding-bottom:12px">
+      <h4>Light room <span class="m" style="display:inline;text-transform:none;letter-spacing:0">Office 1.01 &middot; 12.0 m&sup2;</span></h4>
+      <div class="cad-devform">
+        <label>Target lux (room type: 500)<span class="mk-in" style="height:26px">500</span></label>
+        <label>Luminaire (database: Luminaires)<select><option>Panel 600 &times; 600 36 W &middot; 3600 lm</option></select></label>
+        <span class="m">Ceiling, working plane, reflectances and factors as today</span>
+      </div>
+      <div style="border-top:1px solid var(--line);margin:4px 12px 0;padding-top:8px">
+        <div class="mk-lbl" style="margin-bottom:3px">Rooms <i class="mk-dot"></i></div>
+        <div class="mk-seg"><span>This room</span><span class="on">Same type &middot; 6</span><span>Whole level &middot; 9</span></div>
+      </div>
+      <dl class="cad-props" style="margin-top:8px">
+        <dt>Rooms</dt><dd>6 Office rooms on Ground floor</dd>
+        <dt>Lights</dt><dd>26 (4 &middot; 4 &middot; 4 &middot; 6 &middot; 4 &middot; 4)</dd>
+        <dt>Achieved</dt><dd>520 to 560 lx</dd>
+        <dt>Circuits <i class="mk-dot" style="margin:0 0 0 2px"></i></dt><dd>Y1 +3 &rarr; 10&nbsp;/&nbsp;10<br>B1 +7 &rarr; 10&nbsp;/&nbsp;10<br>R3 +10 &rarr; 10&nbsp;/&nbsp;10<br>Y3 +6 &rarr; 6&nbsp;/&nbsp;10</dd>
+      </dl>
+      <div class="cad-devform" style="margin-top:8px"><span class="m"><span class="mk-ok"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"></path></svg></span>10 per circuit kept (Rules sheet): four circuits used</span></div>
+      <div class="cad-devform" style="padding-bottom:0"><div class="cad-devbtns" style="margin-top:0"><button class="chip primary">Place 26 lights in 6 rooms</button><button class="chip">Cancel</button></div></div>
+      <div class="cad-devform" style="padding-top:8px"><span class="m">Up to 40 rooms a run; a room over the limit is listed and left out.</span></div>
+    </div>
+  </div>
+  <div class="mk-cmd"><b>LUX</b>&nbsp; 6 Office rooms: 26 lights on 4 circuits &mdash; set the luminaire, then Place.</div>
+</div>
+
+<!-- ============ 5 ============ -->
+<h2><span class="mk-n">5</span>Check level (CHK) <i class="mk-dot"></i></h2>
+<p>One list for the level, worked out when you ask: what is missing, over a limit or left outside a room. Click a line to go there.</p>
+<div class="mk-frame" style="width:1160px">
+  <div style="display:grid;grid-template-columns:1fr 320px">
+    <div class="mk-cv" id="cv5" style="width:839px;min-height:440px"></div>
+    <div class="cad-side" style="width:320px;padding-bottom:12px">
+      <h4>Check level <span class="m" style="display:inline;text-transform:none;letter-spacing:0">Ground floor</span></h4>
+      <div style="padding:2px 12px 0;font-size:12px;line-height:16px">40 lights &middot; 18 sockets &middot; 9 switches &middot; 9 detectors &middot; 3 data &middot; 2 boards</div>
+      <div class="mk-g">Lighting<span>2</span></div>
+      <div class="mk-f sel"><span style="color:var(--warn);display:inline-flex"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></span>Office 1.04 &mdash; 4 lights, 6 needed for 500 lx<a>Light room</a></div>
+      <div class="mk-f"><span style="color:var(--warn);display:inline-flex"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></span>Store 1.09 &mdash; no light</div>
+      <div class="mk-f mu"><span style="color:var(--ok);display:inline-flex"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></span>7 rooms meet their target</div>
+      <div class="mk-g">Sockets<span>1</span></div>
+      <div class="mk-f"><span style="color:var(--warn);display:inline-flex"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></span>Meeting 1.08 &mdash; no socket</div>
+      <div class="mk-g">Circuits<span>2</span></div>
+      <div class="mk-f"><span style="color:var(--warn);display:inline-flex"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></span>DB-GF2/Y1 &middot; Lighting 2 &mdash; 12 points, maximum 10</div>
+      <div class="mk-f"><span style="color:var(--warn);display:inline-flex"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></span>2 devices on a circuit that was removed</div>
+      <div class="mk-g">Devices<span>1</span></div>
+      <div class="mk-f"><span style="color:var(--warn);display:inline-flex"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></span>3 devices outside every room</div>
+      <div class="mk-g">ELV coverage<span>1</span></div>
+      <div class="mk-f"><span style="color:var(--warn);display:inline-flex"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></span>Fire alarm &mdash; 2 rooms not fully covered<a>Coverage</a></div>
+      <div class="mk-f mu"><span style="color:var(--ok);display:inline-flex"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></span>Data and Wi-Fi &mdash; covered</div>
+      <div class="mk-g">Boards<span>0</span></div>
+      <div class="mk-f mu"><span style="color:var(--ok);display:inline-flex"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></span>Both boards of this level are on the plan</div>
+      <div style="padding:12px 12px 0;display:flex;align-items:center;gap:10px"><span class="m" style="display:inline">7 to look at &middot; 9 rooms and 81 devices checked</span><button class="chip sm" style="margin-left:auto">Check again</button></div>
+      <div style="padding:6px 12px 0"><span class="m">Lux is the lumen-method average, as Light room.</span></div>
+    </div>
+  </div>
+  <div class="mk-cmd"><b>CHK</b>&nbsp; Ground floor: 7 to look at in 9 rooms &mdash; click a line to go there.</div>
+</div>
+
+<!-- ============ 6 ============ -->
+<h2><span class="mk-n">6</span>Copy to levels: lights and sockets too <i class="mk-dot"></i></h2>
+<p>Today the tool copies the ELV devices of one system. Proposed: choose what to copy and to which levels; lights, sockets and switches go on the same way of the board you choose on each level.</p>
+<div style="display:flex;gap:24px;align-items:flex-start">
+  <div class="mk-dlg">
+    <div class="mk-dlg-t">Copy to levels<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></div>
+    <div class="mk-dlg-b">
+      <div>From <b>Ground floor</b> <span style="color:var(--mut)">&middot; gf.dwg</span></div>
+      <div class="mk-gh">What</div>
+      <div class="mk-two">
+        <div class="mk-chk"><span class="mk-cb t"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"></path></svg></span><span>Lights, sockets and equipment <i class="mk-dot" style="margin:0 2px"></i> &mdash; <span class="mk-cn">58</span></span></div>
+        <div class="mk-chk"><span class="mk-cb t"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"></path></svg></span><span>Fire alarm &mdash; <span class="mk-cn">9</span></span></div>
+        <div class="mk-chk"><span class="mk-cb t"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"></path></svg></span><span>Switches and boxes <i class="mk-dot" style="margin:0 2px"></i> &mdash; <span class="mk-cn">9</span></span></div>
+        <div class="mk-chk" style="opacity:.45"><span class="mk-cb"></span><span>CCTV &mdash; <span class="mk-cn">0</span></span></div>
+        <div></div>
+        <div class="mk-chk"><span class="mk-cb t"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"></path></svg></span><span>Data and Wi-Fi &mdash; <span class="mk-cn">3</span></span></div>
+        <div></div>
+        <div class="mk-chk" style="opacity:.45"><span class="mk-cb"></span><span>Public address &mdash; <span class="mk-cn">0</span></span></div>
+      </div>
+      <div class="mk-gh">To levels</div>
+      <div style="display:flex;gap:24px">
+        <div class="mk-chk"><span class="mk-cb t"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"></path></svg></span>First floor</div>
+        <div class="mk-chk"><span class="mk-cb t"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"></path></svg></span>Second floor</div>
+        <div class="mk-chk"><span class="mk-cb"></span>Roof</div>
+      </div>
+      <div class="mk-gh">Circuits on each level <i class="mk-dot"></i></div>
+      <table class="mk-tbl">
+        <tr><th style="width:170px">From this level</th><th>First floor</th><th>Second floor</th></tr>
+        <tr><td>DB-GF1 &middot; 12 ways</td><td><div class="mk-sel">DB-1F1<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"></path></svg></div></td><td><div class="mk-sel">DB-2F1<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"></path></svg></div></td></tr>
+        <tr><td>DB-GF2 &middot; 6 ways</td><td><div class="mk-sel">DB-1F2<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"></path></svg></div></td><td><div class="mk-sel">DB-2F2<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"></path></svg></div></td></tr>
+      </table>
+      <div class="m" style="margin-top:6px">A device goes on the same way of the board chosen (R1 &rarr; R1) and counts on that circuit. Where the way is missing, its devices are listed and left out.</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:10px"><span style="color:var(--warn);display:inline-flex"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></span><span>DB-2F1 has no way B4: 4 lights left out on Second floor</span></div>
+      <div class="mk-chk" style="margin-top:10px"><span class="mk-cb"></span>Replace the devices of these kinds already on those levels</div>
+      <div style="display:flex;align-items:center;border-top:1px solid var(--line);margin-top:12px;padding-top:10px"><span class="m">79 devices to First floor &middot; 75 to Second floor</span><span style="margin-left:auto;display:flex;gap:8px"><button class="chip primary">Copy</button><button class="chip">Cancel</button></span></div>
+    </div>
+  </div>
+  <div class="mk-card" style="width:400px">
+    <h3>What happens</h3>
+    <ul class="mk-ul" style="margin-top:0">
+      <li>Plan positions are kept: every level is drawn on the same origin.</li>
+      <li>Each copied light or socket adds a point to its new circuit, as placing it by hand does.</li>
+      <li>Boards are not copied: each level has its own.</li>
+      <li>One undo step for all levels.</li>
+    </ul>
+    <div class="mk-note" style="margin-top:12px">A typical level stands for all its floors: it has one plan and one set of devices.</div>
+  </div>
+</div>
+
+<!-- ============ 7 ============ -->
+<h2><span class="mk-n">7</span>Three small fixes to today's tools</h2>
+<div style="display:flex;gap:24px;align-items:flex-start">
+
+  <div class="mk-card" style="width:464px">
+    <h3>Fill room keeps its own device</h3>
+    <div class="ribbon cad-named mk-flat" style="width:100%"><div class="ribbon-tools"><div class="ribbon-group named"><div class="ribbon-group-btns" style="flex:none"><span class="ribbon-split"><button aria-label="Fill room"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grid3x3"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M3 15h18"></path><path d="M9 3v18"></path><path d="M15 3v18"></path></svg><span>Fill room</span></button><button class="ribbon-split-arrow open"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"></path></svg></button></span></div></div></div></div>
+    <div class="ribbon-split-menu mk-menu" style="margin-top:2px">
+      <div class="hd">Fill with</div>
+      <button class="rw"><span class="ck" style="color:var(--acc)"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"></path></svg></span><span>Smoke detector</span><span class="mono">10.6 m</span></button>
+      <button class="rw"><span class="ck"></span><span>Heat detector</span><span class="mono">7.5 m</span></button>
+      <button class="rw"><span class="ck"></span><span>Wi-Fi access point</span><span class="mono">17.0 m</span></button>
+      <button class="rw"><span class="ck"></span><span>Ceiling speaker</span><span class="mono">6.0 m</span></button>
+      <hr>
+      <button class="rw mu"><span class="ck"></span><span class="mu">Other ELV devices have no spacing: Add device</span></button>
+    </div>
+    <div class="mk-note" style="margin-top:10px">Today: FILL stops with 'Choose an ELV device first'.</div>
+  </div>
+
+  <div class="mk-card" style="width:464px">
+    <h3>Coverage keeps its own system</h3>
+    <div class="ribbon cad-named mk-flat sm" style="width:100%"><div class="ribbon-tools"><div class="ribbon-group named"><div class="ribbon-group-btns" style="flex:none"><div class="ribbon-stack"><span class="ribbon-split"><button aria-label="Coverage"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-dashed"><path d="M10.1 2.182a10 10 0 0 1 3.8 0"></path><path d="M13.9 21.818a10 10 0 0 1-3.8 0"></path><path d="M17.609 3.721a10 10 0 0 1 2.69 2.7"></path><path d="M2.182 13.9a10 10 0 0 1 0-3.8"></path><path d="M20.279 17.609a10 10 0 0 1-2.7 2.69"></path><path d="M21.818 10.1a10 10 0 0 1 0 3.8"></path><path d="M3.721 6.391a10 10 0 0 1 2.7-2.69"></path><path d="M6.391 20.279a10 10 0 0 1-2.69-2.7"></path></svg><span>Coverage</span></button><button class="ribbon-split-arrow open"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"></path></svg></button></span></div></div></div></div></div>
+    <div class="ribbon-split-menu mk-menu" style="margin-top:6px;width:220px">
+      <div class="hd">Show coverage of</div>
+      <button class="rw"><span class="ck" style="color:var(--acc)"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"></path></svg></span><span>Fire alarm</span></button>
+      <button class="rw"><span class="ck"></span><span>CCTV</span></button>
+      <button class="rw"><span class="ck"></span><span>Data and Wi-Fi</span></button>
+      <button class="rw"><span class="ck"></span><span>Public address</span></button>
+      <hr>
+      <button class="rw"><span class="ck"></span><span>Off</span></button>
+    </div>
+    <div class="mk-note" style="margin-top:10px">Today: it follows whichever ELV device is chosen in the side panel.</div>
+  </div>
+
+  <div class="mk-card" style="width:464px">
+    <h3>A greyed tool says why</h3>
+    <div class="ribbon cad-named mk-flat sm" style="width:100%"><div class="ribbon-tools"><div class="ribbon-group named"><div class="ribbon-group-btns" style="flex:none"><div class="ribbon-stack"><button aria-label="Copy to levels" style="opacity:.45"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><span>Copy to levels</span></button></div></div></div></div></div>
+    <div class="mk-ttip" style="margin-top:6px"><b>Copy to levels</b>Not available: this drawing is not the plan of a level yet. Set its level in Drafting settings (DS).</div>
+    <div class="mk-note" style="margin-top:10px">Today: the tooltip stays the same whether the tool works or not.</div>
+  </div>
+</div>
+
+<!-- ============ 8 ============ -->
+<h2><span class="mk-n">8</span>Names, commands and sizes</h2>
+<div style="display:flex;gap:24px;align-items:flex-start">
+  <div class="mk-card" style="padding:8px 12px">
+    <table class="mk-dt">
+      <tr><th>Tool</th><th>Command</th><th>Today</th><th>Proposed</th></tr>
+      <tr><td>Add device</td><td><kbd>DEV</kbd></td><td>large, named</td><td>the same, plus the gallery on its arrow <i class="mk-dot"></i></td></tr>
+      <tr><td>Fill room</td><td><kbd>FILL</kbd></td><td>large, named; needs an ELV device chosen first</td><td>the same, with its own device on the arrow</td></tr>
+      <tr><td>Light room</td><td><kbd>LUX</kbd></td><td>large, named</td><td>the same; All rooms like this <i class="mk-dot"></i></td></tr>
+      <tr><td>Socket room <i class="mk-dot"></i></td><td><kbd>SOCK</kbd></td><td>&mdash;</td><td>named row</td></tr>
+      <tr><td>Room devices</td><td><kbd>RDT</kbd></td><td>icon only</td><td>named row</td></tr>
+      <tr><td>Emergency</td><td><kbd>EM</kbd></td><td>icon only</td><td>named row</td></tr>
+      <tr><td>Check level <i class="mk-dot"></i></td><td><kbd>CHK</kbd></td><td>&mdash;</td><td>named row, Level panel</td></tr>
+      <tr><td>Coverage</td><td><kbd>COV</kbd></td><td>icon only; follows the chosen ELV device</td><td>named row with its own system, Level panel</td></tr>
+      <tr><td>Copy to levels</td><td><kbd>CL</kbd> <i class="mk-dot"></i></td><td>icon only; ELV only</td><td>named row; lights, sockets and switches too <i class="mk-dot"></i>, Level panel</td></tr>
+    </table>
+  </div>
+  <div class="mk-card" style="width:380px">
+    <h3>Measured with the app's own styles</h3>
+    <table class="mk-mt">
+      <tr><td>Devices panel today</td><td>267 px</td></tr>
+      <tr><td>Devices + Level, proposed</td><td>335 + 122 = 457 px</td></tr>
+      <tr><td>Electrical tab today</td><td>1,120 px</td></tr>
+      <tr><td>Electrical tab, proposed</td><td>1,310 px</td></tr>
+      <tr><td>Room left in a 1,366 px window</td><td>56 px</td></tr>
+    </table>
+    <div class="mk-note" style="margin-top:10px">On a narrower window the last panel folds to one button, as the ribbon already does.</div>
+  </div>
+</div>
+
+</div>
+
+<!-- symbol store -->
+<div id="mk-store" style="display:none">
+  <div data-id="ltg"><svg aria-hidden="true" width="16.8" height="16.8" viewBox="-2.1 -2.1 4.2 4.2"><path d="M-1.26 -1.26L1.26 1.26"></path><path d="M-1.26 1.26L1.26 -1.26"></path><circle cx="0" cy="0" r="1.8"></circle></svg></div><div data-id="cfan"><svg aria-hidden="true" width="16.8" height="16.8" viewBox="-2.1 -2.1 4.2 4.2"><circle cx="0" cy="0" r="1.8"></circle><text x="0" y="0.9" style="font-size:2.5139664804469275px" text-anchor="middle">F</text></svg></div><div data-id="exfan"><svg aria-hidden="true" width="31.061840490797543" height="16.4" viewBox="-2.05 -2.05 7.765460122699386 4.1"><path d="M0 0L-1.35 -0.75L-1.35 0.75Z" style="fill:currentColor"></path><path d="M0 0L1.35 -0.75L1.35 0.75Z" style="fill:currentColor"></path><circle cx="0" cy="0" r="1.75"></circle><text x="2.4" y="0.9" style="font-size:2.5139664804469275px" text-anchor="start">EF</text></svg></div>
+  <div data-id="s13"><svg aria-hidden="true" width="21.599999999999998" height="15.4" viewBox="-2.6999999999999997 -0.3000000000000002 5.3999999999999995 3.85"><path d="M-1.75 -2.143131898507868e-16L-1.723413567771364 0.3038843109171283L-1.6444620863753396 0.5985352508199202L-1.5155444566227676 0.8750000000000002L-1.3405777754582118 1.1248783169514436L-1.124878316951444 1.3405777754582113L-0.8750000000000008 1.5155444566227674L-0.5985352508199214 1.6444620863753394L-0.3038843109171281 1.723413567771364L-3.214697847761802e-16 1.75L0.3038843109171274 1.7234135677713642L0.5985352508199193 1.6444620863753399L0.8750000000000002 1.5155444566227676L1.1248783169514436 1.3405777754582118L1.340577775458211 1.1248783169514442L1.5155444566227672 0.8750000000000008L1.6444620863753396 0.5985352508199201L1.7234135677713638 0.30388431091712975L1.75 4.286263797015736e-16"></path><path d="M0 1.75L0 3.25"></path><path d="M-2.4 0L2.4 0"></path></svg></div><div data-id="s13t"><svg aria-hidden="true" width="21.599999999999998" height="15.4" viewBox="-2.6999999999999997 -0.3000000000000002 5.3999999999999995 3.85"><path d="M-1.75 -2.143131898507868e-16L-1.723413567771364 0.3038843109171283L-1.6444620863753396 0.5985352508199202L-1.5155444566227676 0.8750000000000002L-1.3405777754582118 1.1248783169514436L-1.124878316951444 1.3405777754582113L-0.8750000000000008 1.5155444566227674L-0.5985352508199214 1.6444620863753394L-0.3038843109171281 1.723413567771364L-3.214697847761802e-16 1.75L0.3038843109171274 1.7234135677713642L0.5985352508199193 1.6444620863753399L0.8750000000000002 1.5155444566227676L1.1248783169514436 1.3405777754582118L1.340577775458211 1.1248783169514442L1.5155444566227672 0.8750000000000008L1.6444620863753396 0.5985352508199201L1.7234135677713638 0.30388431091712975L1.75 4.286263797015736e-16"></path><path d="M-2.4 0L2.4 0"></path><path d="M-0.7 1.6L-0.7 3.25"></path><path d="M0.7 1.6L0.7 3.25"></path></svg></div><div data-id="s13-floor"><svg aria-hidden="true" width="35.661840490797545" height="15.4" viewBox="-2.6999999999999997 -0.3000000000000002 8.915460122699386 3.85"><path d="M-1.75 -2.143131898507868e-16L-1.723413567771364 0.3038843109171283L-1.6444620863753396 0.5985352508199202L-1.5155444566227676 0.8750000000000002L-1.3405777754582118 1.1248783169514436L-1.124878316951444 1.3405777754582113L-0.8750000000000008 1.5155444566227674L-0.5985352508199214 1.6444620863753394L-0.3038843109171281 1.723413567771364L-3.214697847761802e-16 1.75L0.3038843109171274 1.7234135677713642L0.5985352508199193 1.6444620863753399L0.8750000000000002 1.5155444566227676L1.1248783169514436 1.3405777754582118L1.340577775458211 1.1248783169514442L1.5155444566227672 0.8750000000000008L1.6444620863753396 0.5985352508199201L1.7234135677713638 0.30388431091712975L1.75 4.286263797015736e-16"></path><path d="M0 1.75L0 3.25"></path><path d="M-2.4 0L2.4 0"></path><text x="2.9" y="2.5" style="font-size:2.5139664804469275px" text-anchor="start">FL</text></svg></div>
+  <div data-id="s13-ceiling"><svg aria-hidden="true" width="29.63092024539877" height="15.4" viewBox="-2.6999999999999997 -0.3000000000000002 7.407730061349692 3.85"><path d="M-1.75 -2.143131898507868e-16L-1.723413567771364 0.3038843109171283L-1.6444620863753396 0.5985352508199202L-1.5155444566227676 0.8750000000000002L-1.3405777754582118 1.1248783169514436L-1.124878316951444 1.3405777754582113L-0.8750000000000008 1.5155444566227674L-0.5985352508199214 1.6444620863753394L-0.3038843109171281 1.723413567771364L-3.214697847761802e-16 1.75L0.3038843109171274 1.7234135677713642L0.5985352508199193 1.6444620863753399L0.8750000000000002 1.5155444566227676L1.1248783169514436 1.3405777754582118L1.340577775458211 1.1248783169514442L1.5155444566227672 0.8750000000000008L1.6444620863753396 0.5985352508199201L1.7234135677713638 0.30388431091712975L1.75 4.286263797015736e-16"></path><path d="M0 1.75L0 3.25"></path><path d="M-2.4 0L2.4 0"></path><text x="2.9" y="2.5" style="font-size:2.5139664804469275px" text-anchor="start">C</text></svg></div><div data-id="shaver"><svg aria-hidden="true" width="33.599999999999994" height="16.2" viewBox="-2.6999999999999997 -0.5 8.399999999999999 4.05"><path d="M-1.75 -2.143131898507868e-16L-1.723413567771364 0.3038843109171283L-1.6444620863753396 0.5985352508199202L-1.5155444566227676 0.8750000000000002L-1.3405777754582118 1.1248783169514436L-1.124878316951444 1.3405777754582113L-0.8750000000000008 1.5155444566227674L-0.5985352508199214 1.6444620863753394L-0.3038843109171281 1.723413567771364L-3.214697847761802e-16 1.75L0.3038843109171274 1.7234135677713642L0.5985352508199193 1.6444620863753399L0.8750000000000002 1.5155444566227676L1.1248783169514436 1.3405777754582118L1.340577775458211 1.1248783169514442L1.5155444566227672 0.8750000000000008L1.6444620863753396 0.5985352508199201L1.7234135677713638 0.30388431091712975L1.75 4.286263797015736e-16"></path><path d="M0 1.75L0 3.25"></path><path d="M-2.4 0L2.4 0"></path><circle cx="3.6" cy="0.6" r="0.8"></circle><circle cx="4.6" cy="0.6" r="0.8"></circle></svg></div><div data-id="s15"><svg aria-hidden="true" width="47.723680981595095" height="15.4" viewBox="-2.6999999999999997 -0.3000000000000002 11.930920245398774 3.85"><path d="M-1.75 -2.143131898507868e-16L-1.723413567771364 0.3038843109171283L-1.6444620863753396 0.5985352508199202L-1.5155444566227676 0.8750000000000002L-1.3405777754582118 1.1248783169514436L-1.124878316951444 1.3405777754582113L-0.8750000000000008 1.5155444566227674L-0.5985352508199214 1.6444620863753394L-0.3038843109171281 1.723413567771364L-3.214697847761802e-16 1.75L0.3038843109171274 1.7234135677713642L0.5985352508199193 1.6444620863753399L0.8750000000000002 1.5155444566227676L1.1248783169514436 1.3405777754582118L1.340577775458211 1.1248783169514442L1.5155444566227672 0.8750000000000008L1.6444620863753396 0.5985352508199201L1.7234135677713638 0.30388431091712975L1.75 4.286263797015736e-16"></path><path d="M0 1.75L0 3.25"></path><path d="M-2.4 0L2.4 0"></path><text x="2.9" y="2.5" style="font-size:2.5139664804469275px" text-anchor="start">15 A</text></svg></div>
+  <div data-id="db"><svg aria-hidden="true" width="30.4" height="16.4" viewBox="-3.8 -2.05 7.6 4.1"><path d="M-3.5 -1.75L3.5 -1.75L3.5 1.75L-3.5 1.75Z"></path><path d="M-3.5 1.75L3.5 -1.75"></path></svg></div><div data-id="isol"><svg aria-hidden="true" width="26.4" height="16.4" viewBox="-3.3 -2.05 6.6 4.1"><path d="M-3 -1.75L3 -1.75L3 1.75L-3 1.75Z"></path><path d="M-2.2 0L-0.9 0"></path><path d="M0.9 0L2.2 0"></path><path d="M0.9 0L-1 -1.1"></path><path d="M-0.9 -0.55L-0.9 0.55"></path><circle cx="-0.5" cy="0" r="0.4"></circle></svg></div><div data-id="switch"><svg aria-hidden="true" width="16.12" height="18.4" viewBox="-1.05 -2.05 4.03 4.6"><path d="M0.38 0.85L1.9 -1.75"></path><path d="M1.9 -1.75L2.68 -1.3"></path><circle cx="0" cy="1.5" r="0.75"></circle></svg></div>
+  <div data-id="switch-2way"><svg aria-hidden="true" width="23.84" height="28.4" viewBox="-2.98 -2.05 5.96 7.1"><path d="M0.38 0.85L1.9 -1.75"></path><path d="M1.9 -1.75L2.68 -1.3"></path><path d="M-0.38 2.15L-1.9 4.75"></path><path d="M-1.9 4.75L-2.68 4.3"></path><circle cx="0" cy="1.5" r="0.75"></circle></svg></div><div data-id="dimmer"><svg aria-hidden="true" width="17" height="19" viewBox="-1.05 -2.1999999999999997 4.25 4.75"><path d="M0.38 0.85L1.9 -1.75"></path><path d="M1.9 -1.75L2.68 -1.3"></path><path d="M1.9 -1.75L2.9 -1.9L2.2 -1Z" style="fill:currentColor"></path><circle cx="0" cy="1.5" r="0.75"></circle></svg></div><div data-id="switch-fan"><svg aria-hidden="true" width="25.03092024539877" height="19.4" viewBox="-1.25 -2.05 6.257730061349693 4.85"><path d="M-0.67 0.83L0.67 2.17"></path><path d="M-0.67 2.17L0.67 0.83"></path><path d="M0.48 0.68L1.9 -1.75"></path><path d="M1.9 -1.75L2.68 -1.3"></path><circle cx="0" cy="1.5" r="0.95"></circle><text x="3.2" y="2.5" style="font-size:2.5139664804469275px" text-anchor="start">F</text></svg></div>
+  <div data-id="limit-switch"><svg aria-hidden="true" width="30.261840490797546" height="19.4" viewBox="-1.05 -2.05 7.5654601226993865 4.85"><path d="M0.38 0.85L1.9 -1.75"></path><path d="M1.9 -1.75L2.68 -1.3"></path><circle cx="0" cy="1.5" r="0.75"></circle><text x="3.2" y="2.5" style="font-size:2.5139664804469275px" text-anchor="start">LS</text></svg></div><div data-id="push-button"><svg aria-hidden="true" width="12.4" height="12.4" viewBox="-1.55 -1.55 3.1 3.1"><circle cx="0" cy="0" r="1.25"></circle><circle cx="0" cy="0" r="0.55"></circle></svg></div><div data-id="switch-panel"><svg aria-hidden="true" width="26.4" height="16.4" viewBox="-3.3 -2.05 6.6 4.1"><path d="M-3 -1.75L3 -1.75L3 1.75L-3 1.75Z"></path><text x="0" y="0.9" style="font-size:2.5139664804469275px" text-anchor="middle">SP</text></svg></div>
+</div>
+
+<script>
+(function(){
+var WALL='#7d858f',SWING='#5b626b',MUT='#A3ABB5',LV='#f5c04a',ELV='#F5B301',ACC='#F5B301',WARN='#f5c04a',TX='#E6E8EB';
+var ST={};
+document.querySelectorAll('#mk-store [data-id]').forEach(function(e){
+  var s=e.querySelector('svg');
+  ST[e.getAttribute('data-id')]={vb:s.getAttribute('viewBox').split(/\s+/).map(Number),w:+s.getAttribute('width'),h:+s.getAttribute('height'),inner:s.innerHTML,raw:s.outerHTML};
+});
+/* symbol placed on a plan svg: origin of the symbol at (x,y); r = rotation; s = scale; mid = centre of the symbol at (x,y) */
+function sym(id,x,y,o){
+  o=o||{}; var s=ST[id],sc=o.s||1,k=(s.w/s.vb[2])*sc,W=s.w*sc,H=s.h*sc;
+  var ox=-s.vb[0]*k,oy=-s.vb[1]*k; if(o.mid){ox=W/2;oy=H/2;}
+  return '<g transform="rotate('+(o.r||0)+' '+x+' '+y+')" style="color:'+(o.c||LV)+'" opacity="'+(o.o||1)+'"><svg class="mk-sym" x="'+(x-ox)+'" y="'+(y-oy)+'" width="'+W+'" height="'+H+'" viewBox="'+s.vb.join(' ')+'">'+s.inner+'</svg></g>';
+}
+function symHTML(id){return ST[id].raw.replace('<svg ','<svg class="mk-ts" ');}
+/* ELV shapes in a 16 x 16 box */
+function elvInner(k){
+  var t=function(x,y,c,fs){return '<text x="'+x+'" y="'+y+'" font-size="'+(fs||9)+'" text-anchor="middle" fill="currentColor" stroke="none" font-weight="600">'+c+'</text>';};
+  switch(k){
+    case 'smoke':return '<circle cx="8" cy="8" r="7" />'+t(8,11.2,'S');
+    case 'heat':return '<circle cx="8" cy="8" r="7" />'+t(8,11.2,'H');
+    case 'cp':return '<rect x="1" y="1" width="14" height="14" />'+t(8,10.6,'CP',7.5);
+    case 'sd':return '<path d="M8 1.2L15 14.5H1Z" />'+t(8,12.6,'SD',6.5);
+    case 'cctv':return '<rect x="0.8" y="3.5" width="10.2" height="9" rx="1" /><path d="M11 6.6L15.2 4.4V11.6L11 9.4" />'+t(5.9,10.6,'C');
+    case 'cr':return '<rect x="1" y="1" width="14" height="14" />'+t(8,10.6,'CR',7.5);
+    case 'data':return '<path d="M8 1.2L15 14.5H1Z" />'+t(8,12.6,'D',8);
+    case 'ap':return '<path d="M4.5 1.5H11.5L15 8L11.5 14.5H4.5L1 8Z" />'+t(8,10.6,'AP',7);
+    case 'sp':return '<circle cx="7" cy="8" r="6" /><path d="M13 8H15.4" />'+t(7,10.6,'SP',7);
+  }
+  return '';
+}
+function elvHTML(k){return '<svg class="mk-ts" width="16" height="16" viewBox="0 0 16 16" style="stroke-width:1.5;max-height:none;max-width:none">'+elvInner(k)+'</svg>';}
+function elv(k,x,y,c){return '<svg x="'+(x-8)+'" y="'+(y-8)+'" width="16" height="16" viewBox="0 0 16 16" style="color:'+(c||ELV)+';fill:none;stroke:currentColor;stroke-width:1.5;overflow:visible">'+elvInner(k)+'</svg>';}
+
+/* grid + canvas */
+function grid(id,w,h){return '<defs><pattern id="gp'+id+'" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#1c1f23" stroke-width="1"/></pattern></defs><rect width="'+w+'" height="'+h+'" fill="#15171A"/><rect width="'+w+'" height="'+h+'" fill="url(#gp'+id+')"/>';}
+function text(x,y,t,o){o=o||{};return '<text x="'+x+'" y="'+y+'" font-size="'+(o.fs||11)+'" fill="'+(o.c||MUT)+'" text-anchor="'+(o.a||'middle')+'">'+t+'</text>';}
+function seg(x1,y1,x2,y2){return 'M'+x1+' '+y1+'L'+x2+' '+y2;}
+/* the office floor */
+function floor(P){
+  var ws=[1,1,1,1.5,1,1].map(function(f){return f*P.w;}),T=ws.reduce(function(a,b){return a+b;}),R={},x=P.ox,i;
+  for(i=0;i<6;i++){R['o'+(i+1)]={x:x,y:P.oy,w:ws[i],h:P.oh,name:'Office 1.0'+(i+1)};x+=ws[i];}
+  var y1=P.oy+P.oh,y2=y1+P.ch,y3=y2+P.lh,mw=Math.round(T*.6),D=18,d='';
+  R.cor={x:P.ox,y:y1,w:T,h:P.ch,name:'Corridor 1.07'};
+  R.meet={x:P.ox,y:y2,w:mw,h:P.lh,name:'Meeting 1.08'};
+  R.store={x:P.ox+mw,y:y2,w:T-mw,h:P.lh,name:'Store 1.09'};
+  var sw='',gaps1=[],gaps2=[];
+  for(i=1;i<=6;i++){var r=R['o'+i],g0=r.x+Math.round(r.w*.22);r.door=[g0,g0+D];gaps1.push(r.door);
+    sw+='<path d="M'+(g0+D)+' '+y1+'A'+D+' '+D+' 0 0 0 '+g0+' '+(y1-D)+'" fill="none" stroke="'+SWING+'" stroke-width="1"/><path d="'+seg(g0,y1,g0,y1-D)+'" stroke="'+SWING+'" stroke-width="1"/>';}
+  [R.meet,R.store].forEach(function(r,j){var g0=r.x+(j?26:44);r.door=[g0,g0+D];gaps2.push(r.door);
+    sw+='<path d="M'+(g0+D)+' '+y2+'A'+D+' '+D+' 0 0 1 '+g0+' '+(y2+D)+'" fill="none" stroke="'+SWING+'" stroke-width="1"/><path d="'+seg(g0,y2,g0,y2+D)+'" stroke="'+SWING+'" stroke-width="1"/>';});
+  function hline(y,gaps){var p=P.ox;gaps.forEach(function(g){d+=seg(p,y,g[0],y);p=g[1];});d+=seg(p,y,P.ox+T,y);}
+  d+=seg(P.ox,P.oy,P.ox+T,P.oy);hline(y1,gaps1);hline(y2,gaps2);d+=seg(P.ox,y3,P.ox+T,y3);
+  var xx=P.ox;for(i=0;i<=6;i++){d+=seg(xx,P.oy,xx,y1);xx+=ws[i]||0;}
+  d+=seg(P.ox,y1,P.ox,y3)+seg(P.ox+T,y1,P.ox+T,y3)+seg(P.ox+mw,y2,P.ox+mw,y3);
+  var s='<path d="'+d+'" fill="none" stroke="'+WALL+'" stroke-width="2" stroke-linecap="square"/>'+sw;
+  Object.keys(R).forEach(function(k){var r=R[k];
+    if(k==='cor')s+=text(r.x+T*.2,r.y+(r.h>40?14:r.h/2+4),r.name);
+    else s+=text(r.x+r.w/2,r.y+14,r.name);});
+  return {svg:s,R:R,T:T,y1:y1,y2:y2,y3:y3};
+}
+/* a grid of lights in a room */
+function lights(r,c,rw,o){o=o||{};var top=r.y+(o.top||32),bot=r.y+r.h-(o.bot||22),s='',i,j;
+  for(j=0;j<rw;j++)for(i=0;i<c;i++){if(o.max!==undefined&&j*c+i>=o.max)continue;
+    s+=sym('ltg',r.x+r.w*(i+.5)/c,top+(bot-top)*(j+.5)/rw,{mid:true,o:o.o,c:o.c});}
+  return s;}
+function switchAt(r,o){o=o||{};return sym('switch',r.door[1]+11,r.y+r.h-15,{mid:true,s:o.s});}
+function swDown(r){return sym('switch',r.door[1]+11,r.y+14,{mid:true});}
+function box(w,h,id,body){return '<svg style="position:absolute;left:0;top:0;width:100%;height:100%" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="gp'+id+'" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#1c1f23" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#gp'+id+')"/></svg><svg style="position:relative;font-family:-apple-system,\'Segoe UI\',system-ui,sans-serif" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" xmlns="http://www.w3.org/2000/svg">'+body+'</svg>';}
+function co(x,y,t,a){return '<text x="'+x+'" y="'+y+'" font-size="11" fill="'+ACC+'" text-anchor="'+(a||'start')+'">'+t+'</text>';}
+
+/* ---------- gallery ---------- */
+(function(){
+  var G=[
+   ['Recent',[['ltg','Light','on'],['s13t','Twin socket'],['switch','Switch'],['elv:smoke','Smoke detector'],['isol','Isolator'],['elv:data','Data outlet']]],
+   ['Lighting',[['ltg','Light'],['cfan','Ceiling fan'],['exfan','Exhaust fan']]],
+   ['Sockets',[['s13','Socket 13 A'],['s13t','Twin socket','pt'],['s13-floor','Floor socket'],['s13-ceiling','Socket above ceiling'],['shaver','Shaver outlet'],['s15','Power outlet 15 A']]],
+   ['Switches',[['switch','Switch'],['switch-2way','Two-way switch'],['dimmer','Dimmer switch'],['switch-fan','Fan switch with lamp'],['limit-switch','Limit switch'],['push-button','Push button'],['switch-panel','Switch panel']]]
+  ];
+  var h='';
+  G.forEach(function(g){
+    h+='<h5>'+g[0]+(g[0]==='Recent'?' <i class="mk-dot" style="margin:0 0 0 3px"></i>':'')+'</h5><div class="mk-trow">';
+    g[1].forEach(function(t){var e=t[0].indexOf('elv:')===0;
+      h+='<div class="mk-tile '+(e?'elv':'lv')+(t[2]?' '+t[2]:'')+'" data-n="'+t[1]+'"><div class="mk-ti">'+(e?elvHTML(t[0].slice(4)):symHTML(t[0]))+'</div><span>'+t[1]+'</span></div>';});
+    h+='</div>';});
+  var gl=document.getElementById('gal');gl.insertAdjacentHTML('afterbegin',h);
+  var pt=gl.querySelector('.pt'),gr=gl.getBoundingClientRect(),pr=pt.getBoundingClientRect();
+  var tip=document.createElement('div');tip.className='mk-tip';
+  tip.style.left=(pr.left-gr.left)+'px';tip.style.top=(pr.bottom-gr.top+1)+'px';
+  tip.innerHTML='<b>Twin socket</b> &middot; counts as a point on its circuit';
+  gl.appendChild(tip);
+})();
+
+/* ---------- section 2 canvas ---------- */
+(function(){
+  var F=floor({ox:416,oy:398,w:104,oh:94,ch:28,lh:78}),R=F.R,s=F.svg,k;
+  ['o4','o5','o6'].forEach(function(n){s+=lights(R[n],2,2);});
+  s+=lights(R.o3,2,2,{max:2});
+  s+=sym('s13',R.o1.x,R.o1.y+62,{r:-90});
+  s+=sym('s13',R.o4.x+R.o4.w,R.o4.y+62,{r:90});
+  s+=sym('s13',R.o6.x+R.o6.w,R.o6.y+62,{r:90});
+  s+=sym('s13',R.meet.x,R.meet.y+54,{r:-90});
+  ['o4','o5','o6'].forEach(function(n){s+=switchAt(R[n]);});
+  s+=sym('db',F.R.cor.x+F.T*.78,R.cor.y+R.cor.h/2,{mid:true,s:.8});
+  /* crosshair where the next light goes */
+  var cx=R.o3.x+R.o3.w*.25,cy=R.o3.y+32+(94-32-22)*.75;
+  s+='<g stroke="'+TX+'" stroke-width="1" fill="none"><path d="'+seg(cx-30,cy,cx+30,cy)+seg(cx,cy-30,cx,cy+30)+'"/><rect x="'+(cx-4)+'" y="'+(cy-4)+'" width="8" height="8" fill="#15171A"/></g>';
+  s+=co(870,34,'pick here, or in the side panel as today');
+  document.getElementById('cv2').innerHTML=box(1105,620,'2',s);
+})();
+
+/* ---------- section 3 canvas ---------- */
+(function(){
+  var rx=130,ry=70,W=480,H=360,s='';
+  var P='';
+  /* walls: top dashed handled separately */
+  P+=seg(rx+W,ry,rx+W,ry+H)+seg(rx,ry+H,rx+W,ry+H)+seg(rx,ry,rx,ry+240);   // right, bottom, left (down to the door gap)
+  s+='<path d="'+P+'" fill="none" stroke="'+WALL+'" stroke-width="2" stroke-linecap="square"/>';
+  s+='<path d="'+seg(rx,ry+330,rx,ry+H)+'" fill="none" stroke="'+WALL+'" stroke-width="2" stroke-linecap="square"/>';
+  /* door swing */
+  s+='<path d="M'+rx+' '+(ry+240)+'A90 90 0 0 1 '+(rx+90)+' '+(ry+330)+'" fill="none" stroke="'+SWING+'" stroke-width="1"/><path d="'+seg(rx,ry+330,rx+90,ry+330)+'" stroke="'+SWING+'" stroke-width="1"/>';
+  /* top wall left out: dashed muted, with the window line */
+  s+='<path d="'+seg(rx,ry,rx+W,ry)+'" fill="none" stroke="'+MUT+'" stroke-width="2" stroke-dasharray="7 5"/>';
+  s+='<path d="'+seg(rx+90,ry+5,rx+390,ry+5)+'" stroke="'+WALL+'" stroke-width="1"/>';
+  s+=text(rx+W/2,ry+H/2+4,'Meeting 1.08',{fs:11});
+  s+=co(rx+8,ry-10,'left out (window wall): clicked');
+  /* previewed sockets, enlarged */
+  var o={s:1.2,o:.45};
+  s+=sym('s13',rx+120,ry+H,{r:180,s:1.45,o:.45})+sym('s13',rx+360,ry+H,{r:180,s:1.45,o:.45});
+  s+=sym('s13',rx+W,ry+90,{r:90,s:1.45,o:.45})+sym('s13',rx+W,ry+270,{r:90,s:1.45,o:.45});
+  s+=sym('s13',rx,ry+90,{r:-90,s:1.45,o:.45});
+  /* taken off: on the door */
+  s+='<circle cx="'+(rx+14)+'" cy="'+(ry+270)+'" r="11" fill="none" stroke="'+MUT+'" stroke-width="1" stroke-dasharray="3 2"/><path d="'+seg(rx+10.5,ry+266.5,rx+17.5,ry+273.5)+seg(rx+17.5,ry+266.5,rx+10.5,ry+273.5)+'" stroke="'+MUT+'" stroke-width="1"/>';
+  s+=co(rx+8,ry+228,'taken off: on the door');
+  /* distance hint along the bottom wall */
+  var hy=ry+H-34;
+  s+='<path d="'+seg(rx+120,hy,rx+360,hy)+seg(rx+120,hy-4,rx+120,hy+4)+seg(rx+360,hy-4,rx+360,hy+4)+'" stroke="'+MUT+'" stroke-width="1" fill="none"/>';
+  s+='<rect x="'+(rx+220)+'" y="'+(hy-7)+'" width="40" height="14" fill="#15171A"/>'+text(rx+240,hy+3.5,'2.4 m',{fs:10});
+  document.getElementById('cv3').innerHTML=box(739,500,'3',s);
+})();
+
+/* ---------- section 4 canvas ---------- */
+(function(){
+  var F=floor({ox:24,oy:26,w:130,oh:170,ch:44,lh:100}),R=F.R,s=F.svg,i,k;
+  var cnt={o1:4,o2:4,o3:4,o4:6,o5:4,o6:4};
+  for(i=1;i<=6;i++){var n='o'+i,r=R[n];
+    s+=lights(r,n==='o4'?3:2,2,{o:.45,top:44,bot:24});
+    s+=text(r.x+r.w/2,r.y+27,String(cnt[n]),{fs:10});
+    var kept=(i===1);
+    s+='<rect x="'+(r.x+4)+'" y="'+(r.y+4)+'" width="'+(r.w-8)+'" height="'+(r.h-8)+'" fill="none" stroke="'+ACC+'" stroke-width="1.5"'+(kept?'':' stroke-dasharray="6 4"')+'/>';
+  }
+  s+=co(R.o4.x+R.o4.w/2,R.cor.y+R.cor.h/2+4,'its own outline: 6 lights','middle');
+  document.getElementById('cv4').innerHTML=box(899,400,'4',s);
+})();
+
+/* ---------- section 5 canvas ---------- */
+(function(){
+  var F=floor({ox:20,oy:56,w:108,oh:150,ch:50,lh:130}),R=F.R,s='',i,r;
+  /* findings: tinted and dashed rooms first, under the walls */
+  r=R.o4;s+='<rect x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+r.h+'" fill="#f5c04a" fill-opacity=".1"/><rect x="'+(r.x+3)+'" y="'+(r.y+3)+'" width="'+(r.w-6)+'" height="'+(r.h-6)+'" fill="none" stroke="'+WARN+'" stroke-width="1.5" stroke-dasharray="6 4"/>';
+  r=R.store;s+='<rect x="'+(r.x+3)+'" y="'+(r.y+3)+'" width="'+(r.w-6)+'" height="'+(r.h-6)+'" fill="none" stroke="'+WARN+'" stroke-width="1.5" stroke-dasharray="6 4"/>';
+  s+=F.svg;
+  for(i=1;i<=6;i++){r=R['o'+i];
+    s+=lights(r,2,2,{top:42,bot:34});
+    s+=elv('smoke',r.x+r.w-16,r.y+30);
+    s+=switchAt(r);
+  }
+  /* sockets on office walls */
+  /* two per office, at different heights so sockets on the two sides of one wall do not meet: 12 */
+  for(i=1;i<=6;i++){r=R['o'+i];s+=sym('s13',r.x,r.y+66,{r:-90})+sym('s13',r.x+r.w,r.y+104,{r:90});}
+  /* a data outlet in three offices: 3 */
+  for(i=1;i<=3;i++){r=R['o'+i];s+=elv('data',r.x+r.w-18,r.y+r.h-20);}
+  s+=sym('s13',R.store.x+R.store.w,R.store.y+60,{r:90})+sym('s13',R.store.x,R.store.y+60,{r:-90});
+  /* corridor: 7 lights in a line, smoke detector, DB, switch */
+  var c=R.cor,j;for(j=0;j<7;j++)s+=sym('ltg',c.x+130+j*(F.T-210)/6,c.y+c.h/2+8,{mid:true});
+  /* corridor sockets on its two end walls: 2 */
+  s+=sym('s13',c.x,c.y+c.h/2+8,{r:-90})+sym('s13',c.x+F.T,c.y+c.h/2-8,{r:90});
+  s+=elv('smoke',c.x+F.T-24,c.y+c.h/2+8);s+=sym('db',c.x+335,c.y+c.h/2+8,{mid:true,s:.8});
+  s+=sym('switch',R.meet.door[1]+11,R.cor.y+R.cor.h-14,{mid:true,s:.8});
+  /* meeting: 8 lights (4 x 2), smoke, switch */
+  r=R.meet;s+=lights(r,4,2,{top:34,bot:22});s+=elv('smoke',r.x+r.w-20,r.y+22);s+=sym('switch',r.door[1]+11,r.y+15,{mid:true});
+  r=R.store;s+=elv('smoke',r.x+r.w/2,r.y+r.h/2+10);s+=sym('switch',r.door[1]+11,r.y+15,{mid:true});
+  /* the second board of the level */
+  s+=sym('db',r.x+r.w-52,r.y+r.h-28,{mid:true,s:.8});
+  /* outside every room: two sockets and a light, ringed */
+  var ox=F.R.o6.x+F.R.o6.w+56,out=[['s13',ox,R.o2.y+50,{r:90}],['s13',ox+6,R.o4.y+120,{r:90}],['ltg',ox-4,R.cor.y+30,{mid:true}]];
+  out.forEach(function(d){s+=sym(d[0],d[1],d[2],d[3]);
+    var cx=d[1]+(d[0]==='s13'?-7:0),cy=d[2];
+    s+='<circle cx="'+cx+'" cy="'+cy+'" r="15" fill="none" stroke="'+WARN+'" stroke-width="1" stroke-dasharray="3 3"/>';});
+  s+=co(R.o4.x+R.o4.w/2,R.o4.y-10,'Office 1.04: 4 lights, 6 needed','middle');
+  document.getElementById('cv5').innerHTML=box(839,440,'5',s);
+})();
+
+/* ---------- print height ---------- */
+document.head.appendChild(document.createElement('style')).textContent='@page{size:1952px '+(Math.ceil(document.documentElement.scrollHeight)+4)+'px;margin:0}';
+})();
+</script>
+</body>
+</html>

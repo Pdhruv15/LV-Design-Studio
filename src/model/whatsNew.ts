@@ -25,6 +25,14 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.273', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD: Dimension picks its kind from what you click', text: 'Annotate → Dimensions → Dimension (DIM): click a line for its length, an arc for its radius or a circle for its diameter, or two points as before; then click where the dimension goes. Two points or a line give a horizontal or vertical dimension by where you drag, and one along a sloping line beside it. Aligned is now DAL (Linear\'s arrow).', action: 'cad' },
+      { title: 'Dimensions: style and layer lists, and Update', text: 'The Dimensions panel shows the dimension style (with dimensions picked, theirs: choose another to change them) and the layer new dimensions go on: LV-ANNO as before, the current layer, or a layer you choose (DIMLAYER). Update (DIMSTYLE A) gives the dimensions picked the current style. The corner button opens Dimension style.', action: 'cad' },
+      { title: 'Dimensions: Linear and Continue keep the form you used last', text: 'Linear\'s arrow holds Linear, Aligned, Angular, Radius and Diameter; Continue\'s holds Continue and Baseline. Each button shows the form used last, ticked in its list.', action: 'cad' }
+    ]
+  },
+  {
     version: '2.272', date: '2026-11-23',
     items: [
       { title: 'Load schedule: every ELCB is its own device', text: 'Click an ELCB on the DB schedule and choose 3, 6, 9 or 12 circuits: only that ELCB and the one next to it change. Edit and Remove are on the same menu, and on ELCB / RCD with a circuit selected.' },

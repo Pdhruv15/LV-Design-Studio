@@ -452,8 +452,8 @@ describe('CAD view', () => {
     await command('DB ROOM');
     expect(sk()[4]).toMatchObject({ kind: 'text', text: 'DB ROOM', layer: 'LV-ANNO' });
     await command('dim');
-    await clickAt(1000, 500);
-    await clickAt(4000, 500);
+    await command('1000,500'); // typed points: never a pick of what is under them
+    await command('4000,500');
     await clickAt(2500, 200);
     expect(sk()[5]).toMatchObject({ kind: 'dim', layer: 'LV-ANNO' });
     expect(Number(sk()[5].text)).toBeCloseTo(3, 1);
@@ -4016,6 +4016,90 @@ describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', 
     await command('dco');
     await command(`${X + 12000},0`);
     expect(last()).toContain('No dimension on this drawing to go on from');
+  });
+
+  it('DIM takes its kind from what is clicked: a circle its diameter, an arc its radius, a line its length, aligned beside a sloping one (v2.273)', async () => {
+    const start: Project = { ...villa, cadLayerFile: undefined, cadSketch: [{ file: F, items: [
+      { id: 'C1', kind: 'circle', layer: 'LV-SKETCH', pts: [[X, 0]], r: 500 },
+      { id: 'A1', kind: 'arc', layer: 'LV-SKETCH', pts: [[X + 3000, 0]], r: 400, a0: 0, a1: Math.PI },
+      { id: 'L1', kind: 'line', layer: 'LV-SKETCH', pts: [[X + 5000, 0], [X + 7000, 0]] },
+      { id: 'L2', kind: 'line', layer: 'LV-SKETCH', pts: [[X + 9000, 0], [X + 11000, 2000]] }
+    ] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap')); // no snaps: a click on an object picks it
+    const dims = () => project.cadSketch![0].items.filter((it) => it.kind === 'dim');
+    await command('dim');
+    expect(last()).toContain('DIM  Select a line, arc or circle, or specify first extension line origin:');
+    await clickAt(X + 500, 0);
+    expect(last()).toBe('DIM  Diameter of the circle: dimension line location:');
+    await clickAt(X + 200, 300);
+    expect(dims()[0]).toMatchObject({ dimKind: 'diameter', layer: 'LV-ANNO' });
+    expect(dimMeasure(dims()[0])).toBeCloseTo(1000, 6);
+    expect(last()).toBe('DIM  Select a line, arc or circle, or specify first extension line origin:'); // ready for the next
+    await clickAt(X + 3000, 400);
+    expect(last()).toBe('DIM  Radius of the arc: dimension line location:');
+    await clickAt(X + 3200, 200);
+    expect(dims()[1].dimKind).toBe('radius');
+    expect(dimMeasure(dims()[1])).toBeCloseTo(400, 6);
+    await clickAt(X + 6000, 0);
+    expect(last()).toBe('DIM  The line picked: dimension line location:');
+    await clickAt(X + 6000, 800);
+    expect(dims()[2]).toMatchObject({ dir: 0 });
+    expect(dims()[2].pts.slice(0, 2)).toEqual([[X + 5000, 0], [X + 7000, 0]]);
+    expect(dimMeasure(dims()[2])).toBeCloseTo(2000, 6);
+    await clickAt(X + 10000, 1000);
+    await clickAt(X + 9500, 1500); // beside the sloping line: along it
+    expect(dims()[3].dir).toBeUndefined();
+    expect(dimMeasure(dims()[3])).toBeCloseTo(2000 * Math.SQRT2, 6);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('Aligned dimension 2.83 m · ⌘Z to undo');
+    // Typed points are points even on a line; a horizontal pair gives a horizontal dimension.
+    await command(`${X + 5000},0`);
+    expect(last()).toBe('DIM  Specify second extension line origin:');
+    await command(`${X + 6000},0`);
+    await clickAt(X + 5500, -600);
+    expect(dimMeasure(dims()[4])).toBeCloseTo(1000, 6);
+    // DAL: always along the two points.
+    await command('dal');
+    expect(last()).toContain('DIMALIGNED  Specify first extension line origin:');
+    await command(`${X},3000`); await command(`${X + 3000},7000`); await clickAt(X, 7000);
+    expect(dims()[5].dir).toBeUndefined();
+    expect(dimMeasure(dims()[5])).toBeCloseTo(5000, 6);
+  });
+
+  it('DIMLAYER sets where new dimensions go; DIMSTYLE R makes a style current, DIMSTYLE A gives it to the dimensions picked (v2.273)', async () => {
+    const styles = { styles: [{ name: 'Standard' }, { name: 'LV 1:100', arrow: 'filled', arrowMm: 3, textMm: 2.5, offsetMm: 1, extendMm: 2, decimals: 0, unit: 'mm' }], current: 'Standard' } as Project['cadDimStyles'];
+    const start: Project = { ...villa, cadLayerFile: undefined, cadDimStyles: styles, cadSketch: [{ file: F, items: [] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const dims = () => project.cadSketch![0].items.filter((it) => it.kind === 'dim');
+    const dimAt = async (y: number) => { await command('dli'); await command(`${X},${y}`); await command(`${X + 2000},${y}`); await command(`${X + 1000},${y + 500}`); await command(''); };
+    await command('DIMLAYER');
+    expect(last()).toContain('DIMLAYER  New dimensions go on LV-ANNO.');
+    await command('DIMLAYER NOPE');
+    expect(last()).toBe('DIMLAYER  There is no layer NOPE. Add it with New layer in the layer palette (LM).');
+    await command('DIMLAYER .');
+    expect(Object.values(project.cadLayerFile!)[0].dimLayer).toBe('.');
+    await dimAt(0);
+    expect(dims()[0]).toMatchObject({ layer: 'LV-SKETCH' }); // the current layer
+    await command('DIMLAYER LV-ANNO');
+    expect(project.cadLayerFile).toBeUndefined(); // as before: nothing kept
+    await command('DIMSTYLE R LV 1:100');
+    expect(project.cadDimStyles!.current).toBe('LV 1:100');
+    await dimAt(3000);
+    expect(dims()[1]).toMatchObject({ layer: 'LV-ANNO', dimStyle: 'LV 1:100', look: { unit: 'mm', decimals: 0 } });
+    expect(dimLabel(dims()[1], 0.001)).toBe('2000');
+    await command('DIMSTYLE A');
+    expect(last()).toBe('DIMSTYLE  Pick the dimensions first, then Update (DIMSTYLE A).');
+    await command('SELECTALL');
+    await command('DIMSTYLE A Standard');
+    expect(dims().map((d) => d.dimStyle)).toEqual([undefined, undefined]);
+    await command('DIMSTYLE A');
+    expect(dims().map((d) => d.dimStyle)).toEqual(['LV 1:100', 'LV 1:100']);
+    expect(dims()[0].text).toBeUndefined(); // its length in metres, drawn before a style, now measured by the style
+    await command('DIMSTYLE R NOPE');
+    expect(last()).toBe('DIMSTYLE  There is no dimension style NOPE. D opens the styles.');
   });
 });
 
