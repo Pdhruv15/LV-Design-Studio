@@ -64,6 +64,10 @@ struct LayerInfo { name: String, rgb: u32, on: bool, count: u32 }
 #[derive(Serialize)]
 struct TextItem { x: f64, y: f64, h: f64, rot: f64, s: String, layer: u16, rgb: u32, align: u8, w: f64, o: u32 }
 
+/// The longest side, in pick tolerances, of a block that a click inside it (on none of its lines) still picks: with
+/// the usual pick box (12 px) that is a symbol of 240 px on screen.
+const MISS_BLOCK_TOLS: f64 = 40.0;
+
 /** What one object of model space is, for inspecting it: kind, layer, handle, block and attributes, and its length /
  * area in drawing units. Its drawn segments are `seg_start..seg_end`. */
 #[derive(Serialize, Clone, Default)]
@@ -721,7 +725,9 @@ impl CadDoc {
 
     /// The object under (x, y) within `tol` (drawing units) on shown layers, as JSON (ObjInfo with its `id`), or "".
     /// The nearest drawn line wins; a text wins when the point is on it. `closed_only` considers only objects with an
-    /// area (closed polylines, circles, hatches…), as for AREA → Object.
+    /// area (closed polylines, circles, hatches…), as for AREA → Object. A point on no line but inside a block picks that
+    /// block only while the block is symbol-sized on screen (its longer side within MISS_BLOCK_TOLS × `tol`): a miss inside
+    /// a frame or a whole plan kept as one block picks nothing.
     pub fn pick(&self, x: f64, y: f64, tol: f64, layers_on: &[u8], closed_only: bool) -> String {
         let on = |l: u16| layers_on.get(l as usize).map_or(true, |v| *v != 0);
         let wanted = |o: u32| !closed_only || self.objects.get(o as usize).map_or(false, |x| x.area.is_some());
@@ -761,6 +767,7 @@ impl CadDoc {
                     let (a, b, c, d) = self.seg_at(sgi as usize);
                     x0 = x0.min(a.min(c)); y0 = y0.min(b.min(d)); x1 = x1.max(a.max(c)); y1 = y1.max(b.max(d));
                 }
+                if (x1 - x0).max(y1 - y0) > MISS_BLOCK_TOLS * tol { continue; }
                 if x >= x0 && x <= x1 && y >= y0 && y <= y1 {
                     let area = (x1 - x0) * (y1 - y0);
                     if inside.map_or(true, |b| area < b.0) { inside = Some((area, i as u32)); }
@@ -1675,6 +1682,20 @@ mod tests {
         // Ten letters 10 high: about 84 wide.
         assert!(!d.pick(80.0, 5.0, 0.5, &on, false).is_empty(), "on its last letters");
         assert!(d.pick(86.0, 5.0, 0.5, &on, false).is_empty(), "past its end");
+    }
+
+    /// A click inside a block but on none of its lines picks it only while the block is symbol-sized on screen: zoomed
+    /// out (a large tolerance in drawing units) it does, zoomed in so the block fills the screen (a frame, a plan kept
+    /// as one block) it picks nothing. On a line of the block it is picked at any zoom.
+    #[test]
+    fn miss_inside_a_big_block_picks_nothing() {
+        let dxf = "0\nSECTION\n2\nBLOCKS\n0\nBLOCK\n8\n0\n2\nFRAME\n70\n0\n10\n0\n20\n0\n30\n0\n3\nFRAME\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n100\n21\n0\n0\nLINE\n8\n0\n10\n100\n20\n0\n11\n100\n21\n100\n0\nLINE\n8\n0\n10\n100\n20\n100\n11\n0\n21\n100\n0\nLINE\n8\n0\n10\n0\n20\n100\n11\n0\n21\n0\n0\nENDBLK\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\n0\n2\nFRAME\n10\n0\n20\n0\n30\n0\n0\nENDSEC\n0\nEOF\n";
+        let d = CadDoc::new(dxf.as_bytes().to_vec()).unwrap();
+        let on = vec![1u8; d.layers.len()];
+        assert_eq!(d.objects.len(), 1, "one insert");
+        assert!(!d.pick(50.0, 50.0, 5.0, &on, false).is_empty(), "symbol-sized (100 wide, tolerance 5): picked from inside");
+        assert!(d.pick(50.0, 50.0, 1.0, &on, false).is_empty(), "large on screen (tolerance 1): a miss picks nothing");
+        assert!(!d.pick(50.0, 0.5, 1.0, &on, false).is_empty(), "on its line it is picked at any zoom");
     }
 
     /// The drawing's own blocks: a BLOCK record with its objects and an INSERT of it, read back as one block, its
