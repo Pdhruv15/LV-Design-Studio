@@ -1,4 +1,4 @@
-import { circuitCategory, circuitRef, circuitWatts, dominantLoadType, elcbSections, minWireMm2, nextFreeSlot, normalizeLoadItems, pointsWithItems, scheduleCircuits, SINGLE_PHASES } from '../calc/loadSchedule';
+import { circuitCategory, circuitRef, circuitWatts, dominantLoadType, elcbSections, elcbSectionsOf, minWireMm2, nextFreeSlot, normalizeLoadItems, pointsWithItems, scheduleCircuits, SINGLE_PHASES } from '../calc/loadSchedule';
 import { applyRecommendation, recommend } from '../calc/sizing';
 import type { Board, Feeder, Phase, Project } from '../types';
 import { reslotSpares } from './spareWays';
@@ -176,7 +176,7 @@ export function balanceInsideElcbs(project: Project, boardId: string): Project {
   const spares = (board.spareWays ?? []).filter((s) => s.way);
   const last = Math.max(0, ...circuits.map((f) => f.way!), ...spares.map((s) => s.way!));
   // The blocks circuits may move within: each ELCB section, and each run of ways with none.
-  const sections = elcbSections(board as Board, last);
+  const sections = elcbSectionsOf(project, board as Board, last);
   const blocks: number[][] = [];
   for (let w = 1; w <= last;) {
     const sec = sections.find((x) => x.ways.includes(w));

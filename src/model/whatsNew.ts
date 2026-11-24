@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.275', date: '2026-11-24',
+    items: [
+      { title: 'Load schedule: Make RCBO for the one odd circuit', text: 'When one power circuit sits on a lighting ELCB (or one lighting circuit on a power ELCB), its Check cell offers Make RCBO: the circuit gets an RCBO in place of its MCB and the ELCB keeps one kind, e.g. 100 mA for lighting.' },
+      { title: 'New ELCBs keep lighting and power apart', text: 'Once you change an ELCB on a DB, the ELCBs for new ways end where lighting and power circuits meet, so they never mix them. Re-group all ELCBs… turns this on or off with "Keep lighting and power circuits apart".' }
+    ]
+  },
+  {
     version: '2.272', date: '2026-11-23',
     items: [
       { title: 'Load schedule: every ELCB is its own device', text: 'Click an ELCB on the DB schedule and choose 3, 6, 9 or 12 circuits: only that ELCB and the one next to it change. Edit and Remove are on the same menu, and on ELCB / RCD with a circuit selected.' },

@@ -4,11 +4,11 @@ import { projectFormat } from '../../model/scheduleFormats';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supplyChain } from '../../model/transformers';
 import { Keyboard, ListPlus, Scale, ShieldCheck, Square, SquareDashed, Trash2, X } from 'lucide-react';
-import type { Board, Phase, PointType, Project } from '../../types';
+import type { Board, Feeder, Phase, PointType, Project } from '../../types';
 import { cables } from '../../calc/cableTable';
 import { defaultCpcMm2 } from '../../calc/earthing';
 import { breakerRatings } from '../../calc/sizing';
-import { itemizedTypes, loadItemsText, missingWatts, pointColumns, pointLabel, pointWattsFor, isScheduleCircuit, rcbosOf, type ElcbGroup } from '../../calc/loadSchedule';
+import { elcbGroups, itemizedTypes, loadItemsText, missingWatts, oddElcbCircuits, pointColumns, pointLabel, pointWattsFor, isScheduleCircuit, rcbosOf, circuitCategory, type ElcbGroup } from '../../calc/loadSchedule';
 import { settingsOf } from '../../types';
 import { loadsForColumn, type Database } from '../../database/database';
 import { buildLoadScheduleHtml, elcbColumn, loadScheduleCsv, loadScheduleRows } from '../../docs/loadScheduleDoc';
@@ -252,6 +252,24 @@ export default function LoadScheduleView({
   const [cellMenu, setCellMenu] = useState<{ index: number; at: DOMRect } | null>(null);
   const elcbCells = useMemo(() => elcbColumn(data.entries), [data]);
   const activeGroup = activeRow?.rcbo ? undefined : activeRow?.group;
+  // The one circuit that makes its ELCB mix lighting and power: the Check column offers an RCBO in its place.
+  const odd = useMemo(() => oddElcbCircuits(data.groups), [data]);
+  const oddTitle = (f: Feeder, g: ElcbGroup) => {
+    const mine = circuitCategory(f), other = mine === 'power' ? 'lighting' : 'power';
+    return `Only ${mine} circuit on ELCB-${g.index}: an RCBO in place of its MCB leaves ELCB-${g.index} with ${other} circuits only`;
+  };
+  const makeOddRcbo = (f: Feeder, ref: string, g: ElcbGroup) => {
+    try {
+      const next = setRcbo(project, f.id, true);
+      onChange(next, { step: true });
+      const b = next.boards.find((x) => x.id === board.id)!;
+      const rc = rcbosOf(next, b).find((x) => x.circuit.id === f.id)!;
+      const ng = elcbGroups(next, b).find((x) => x.ways[0] === g.ways[0]);
+      onStatus(`${ref}: RCBO ${rc.ratingA} A ${rc.sensitivityMa} mA in place of the MCB${ng ? `; ELCB-${ng.index} is now ${ng.label} (${ng.category})` : ''}`);
+    } catch (e) {
+      onStatus(e instanceof Error ? e.message : String(e));
+    }
+  };
   const menuGroup = cellMenu ? elcbCells.find((c) => c?.group?.index === cellMenu.index)?.group : undefined;
   const editElcb = (g: ElcbGroup) => setElcbDlg({ kind: 'elcb', at: g.ways[0], from: g.ways[0], to: g.ways[g.ways.length - 1] });
   const resize = (g: ElcbGroup, circuits: number) => {
@@ -661,8 +679,9 @@ export default function LoadScheduleView({
                         <td><input inputMode="decimal" className="pt-in" key={f.lengthM} data-cell={cell(f.id, 'length')} defaultValue={f.lengthM}
                           onBlur={(e) => { const v = Number(e.target.value.replace(',', '.')); if (v > 0 && v !== f.lengthM) patch(f.id, { lengthM: v }); else e.target.value = String(f.lengthM); }}
                           aria-label={`${r.ref} length`} /></td>
-                        <td className={r.status} title={r.belowMin ? `Wire below the ${r.minWire} mm² minimum for ${r.category} circuits` : undefined}>
+                        <td className={r.status} title={r.belowMin ? `Wire below the ${r.minWire} mm² minimum for ${r.category} circuits` : odd.has(f.id) ? oddTitle(f, odd.get(f.id)!) : undefined}>
                           {r.belowMin ? `< ${r.minWire} mm²` : STATUS_LABEL[r.status]}
+                          {odd.has(f.id) && <>{' '}<button className="chip" title={oddTitle(f, odd.get(f.id)!)} onClick={() => makeOddRcbo(f, r.ref, odd.get(f.id)!)}>Make RCBO</button></>}
                         </td>
                         <td><input className="room" data-cell={cell(f.id, 'remarks')} value={f.remarks ?? ''} onChange={(e) => patch(f.id, { remarks: e.target.value || undefined })} aria-label={`${r.ref} remarks`} /></td>
                         <td>
