@@ -1,5 +1,6 @@
 import { supplyIncomerFeeder, type Feeder, type Project } from '../types';
 import { forgetNetworks } from './network';
+import { AL_R20_OHM_PER_KM, DEFAULT_FAMILY, familyKey, familyLabel, feederFamily, familyOfType, isDefaultFamily, maxTempOf, singleCoreXOhmPerKm, type CableFamily } from './cableFamily';
 
 // Reference data for copper, XLPE-insulated, steel-wire-armoured (SWA) cable,
 // 4-core, laid in free air at 30°C ambient — a common LV distribution cable
@@ -16,6 +17,8 @@ export interface CableSpec {
   /** Where the row's values come from (Cables.xlsx; blank on the built-in reference rows). */
   manufacturer?: string;
   cableType?: string; // e.g. "Cu/XLPE/SWA/PVC 0.6/1 kV, 4-core"
+  /** The row's cable family (src/calc/cableFamily.ts); absent = copper / XLPE / multicore. */
+  family?: CableFamily;
   installMethod?: string; // e.g. "IEC 60364-5-52 method E, free air"
   referenceDoc?: string; // datasheet or table the values were taken from
   /** Current rating (A, 30 °C air / 20 °C ground, before derating) for other installation methods. */
@@ -80,12 +83,15 @@ export const REFERENCE_CABLE_TABLE: CableSpec[] = [
 // temperature rise at that ambient over its rise at 30°C, √((90 − θ) / (90 − 30)),
 // at 5 K steps, rounded to two places. IEC 60364-5-52 Table B.52.14 is the
 // table to check them against.
+// PVC (70 °C) cable: the same formula with 70 in place of 90, to 60 °C as the table does.
 const XLPE_MAX_C = 90;
 const AMBIENT_REF_C = 30;
-const AMBIENT_POINTS: [number, number][] = Array.from({ length: 10 }, (_, i): [number, number] => {
+const ambientPoints = (maxC: number, count: number): [number, number][] => Array.from({ length: count }, (_, i): [number, number] => {
   const t = 25 + 5 * i;
-  return [t, Math.round(Math.sqrt((XLPE_MAX_C - t) / (XLPE_MAX_C - AMBIENT_REF_C)) * 100) / 100];
+  return [t, Math.round(Math.sqrt((maxC - t) / (maxC - AMBIENT_REF_C)) * 100) / 100];
 });
+const AMBIENT_POINTS = ambientPoints(XLPE_MAX_C, 10);
+const AMBIENT_POINTS_PVC = ambientPoints(70, 8);
 
 /** Range the correction table covers. Outside it the factor is held at the
  * end value (no extrapolation): conservative below 25 °C, NOT conservative
@@ -94,9 +100,12 @@ export const AMBIENT_RANGE_C = { min: AMBIENT_POINTS[0][0], max: AMBIENT_POINTS[
 
 /** Ambient correction factor, interpolated in the table. Not a number in →
  * NaN out (never a made-up 1.0), so a missing ambient fails every rating check. */
-export function ambientCorrectionFactor(ambientC: number): number {
+export function ambientCorrectionFactor(ambientC: number, family?: CableFamily): number {
   if (!Number.isFinite(ambientC)) return NaN;
-  const pts = AMBIENT_POINTS;
+  const pvc = maxTempOf(family) === 70;
+  const pts = pvc ? AMBIENT_POINTS_PVC : AMBIENT_POINTS;
+  // PVC above its table: no factor (the 60 °C value would overstate the rating).
+  if (pvc && ambientC > pts[pts.length - 1][0]) return NaN;
   if (ambientC <= pts[0][0]) return pts[0][1];
   if (ambientC >= pts[pts.length - 1][0]) return pts[pts.length - 1][1];
   for (let i = 0; i < pts.length - 1; i++) {
@@ -122,6 +131,9 @@ export function ambientCheck(ambientC: number): { status: 'ok' | 'warn' | 'bad';
 }
 
 let active: CableSpec[] = REFERENCE_CABLE_TABLE;
+/** Cables.xlsx rows of the other cable families, by family key. */
+let familyRows = new Map<string, CableSpec[]>();
+const builtInFamily = new Map<string, CableSpec | null>();
 
 /** Cable data in use: the database's Cables.xlsx when it has valid rows,
  * otherwise the built-in reference table. Sorted by size. */
@@ -131,7 +143,10 @@ export function cables(): CableSpec[] {
 
 /** Sets the cable data (null = back to the built-in reference). */
 export function setCables(rows: CableSpec[] | null): void {
-  active = rows && rows.length ? [...rows].sort((a, b) => a.csaMm2 - b.csaMm2) : REFERENCE_CABLE_TABLE;
+  const own = (rows ?? []).filter((r) => isDefaultFamily(r.family));
+  active = own.length ? [...own].sort((a, b) => a.csaMm2 - b.csaMm2) : REFERENCE_CABLE_TABLE;
+  familyRows = new Map();
+  for (const r of rows ?? []) if (!isDefaultFamily(r.family)) familyRows.set(familyKey(r.family!), [...(familyRows.get(familyKey(r.family!)) ?? []), r]);
   forgetNetworks();
 }
 /** True when the calculations use the app's built-in reference cable values
@@ -143,8 +158,29 @@ export const REFERENCE_DATA_NOTICE = 'Cable data: app reference values (approxim
 
 const sameValues = (a: CableSpec, b: CableSpec) => a.rOhmPerKm20C === b.rOhmPerKm20C && a.xOhmPerKm === b.xOhmPerKm && a.ampacityA === b.ampacityA;
 
-/** A cable size's data and where it comes from; null when no data has the size. */
-export function resolveCable(csaMm2: number): { spec: CableSpec; source: CableSource } | null {
+/** The app's own values for a size of another cable family: R at 20 °C from IEC 60228 (aluminium) or the
+ * reference table (copper); X of the reference table for a multicore cable (the same geometry) or calculated for
+ * single cores. No current rating is built in (NaN): the rating must come from Cables.xlsx, nothing is substituted. */
+function builtInFamilySpec(csaMm2: number, family: CableFamily): CableSpec | null {
+  const key = `${familyKey(family)}|${csaMm2}`;
+  if (!builtInFamily.has(key)) {
+    const ref = REFERENCE_CABLE_TABLE.find((c) => c.csaMm2 === csaMm2);
+    const r = family.conductor === 'al' ? AL_R20_OHM_PER_KM[csaMm2] : ref?.rOhmPerKm20C;
+    const x = family.form === 'multi' ? ref?.xOhmPerKm : singleCoreXOhmPerKm(csaMm2, family.form);
+    builtInFamily.set(key, r && x ? { csaMm2, rOhmPerKm20C: r, xOhmPerKm: x, ampacityA: NaN, family } : null);
+  }
+  return builtInFamily.get(key)!;
+}
+
+/** A cable size's data and where it comes from; null when no data has the size. `family`: the cable family
+ * (default copper / XLPE / multicore). */
+export function resolveCable(csaMm2: number, family: CableFamily = DEFAULT_FAMILY): { spec: CableSpec; source: CableSource } | null {
+  if (!isDefaultFamily(family)) {
+    const own = familyRows.get(familyKey(family))?.find((c) => c.csaMm2 === csaMm2);
+    if (own) return { spec: own, source: own.manufacturer?.trim() && own.referenceDoc?.trim() ? 'manufacturer' : 'user' };
+    const built = builtInFamilySpec(csaMm2, family);
+    return built ? { spec: built, source: 'reference' } : null;
+  }
   const ref = REFERENCE_CABLE_TABLE.find((c) => c.csaMm2 === csaMm2);
   if (usingReferenceCables()) return ref ? { spec: ref, source: 'reference' } : null;
   const db = active.find((c) => c.csaMm2 === csaMm2);
@@ -153,20 +189,24 @@ export function resolveCable(csaMm2: number): { spec: CableSpec; source: CableSo
   return { spec: db, source: ref && sameValues(db, ref) ? 'reference' : 'user' };
 }
 
-export function getCable(csaMm2: number): CableSpec {
+export function getCable(csaMm2: number, family?: CableFamily): CableSpec {
   // A project may use a size the database doesn't list; the reference value
   // is used for it rather than failing the whole calculation — resolveCable /
   // cableDataStatus report that it happened.
-  const c = resolveCable(csaMm2);
-  if (!c) throw new Error(`No cable data for ${csaMm2} mm²`);
+  const c = resolveCable(csaMm2, family);
+  if (!c) throw new Error(`No cable data for ${csaMm2} mm²${isDefaultFamily(family) ? '' : ` ${familyLabel(family!)}`}`);
   return c.spec;
 }
 
 /** The current rating of a size for an installation method (before derating), and where it comes from;
  * null when neither Cables.xlsx nor the built-in reference has one. Method E is the cable data's own rating. */
-export function methodRating(csaMm2: number, method: InstallMethod): { a: number; source: CableSource } | null {
-  const r = resolveCable(csaMm2);
+export function methodRating(csaMm2: number, method: InstallMethod, family?: CableFamily): { a: number; source: CableSource } | null {
+  const r = resolveCable(csaMm2, family);
   if (!r) return null;
+  if (!isDefaultFamily(family)) {
+    const a = method === 'E' ? r.spec.ampacityA : r.spec.methodRatings?.[method];
+    return a !== undefined && Number.isFinite(a) && a > 0 ? { a, source: r.source } : null;
+  }
   if (method === 'E') return { a: r.spec.ampacityA, source: r.source };
   const own = r.source === 'fallback' ? undefined : r.spec.methodRatings?.[method];
   if (own !== undefined && Number.isFinite(own) && own > 0) return { a: own, source: r.source === 'manufacturer' ? 'manufacturer' : usingReferenceCables() ? 'reference' : 'user' };
@@ -175,16 +215,23 @@ export function methodRating(csaMm2: number, method: InstallMethod): { a: number
 }
 
 /** The cables the project uses: its feeders and the incoming cable of each first board on an LV supply. */
-type CableUse = Pick<Project, 'feeders'> & Partial<Pick<Project, 'boards'>>;
+type CableUse = Pick<Project, 'feeders'> & Partial<Pick<Project, 'boards' | 'cableDataByType'>>;
 export const cablesInUse = (project: CableUse): Feeder[] => [...project.feeders, ...(project.boards ?? []).flatMap((b) => supplyIncomerFeeder(b) ?? [])];
 
 /** Where the data for each cable size the project uses comes from (phase and
  * protective conductors), smallest size first. `missing`: sizes no data has. */
-export function cableDataStatus(project: CableUse): { sizes: { csaMm2: number; source: CableSource }[]; missing: number[]; methods: { csaMm2: number; method: InstallMethod; source?: CableSource }[] } {
+export function cableDataStatus(project: CableUse): { sizes: { csaMm2: number; source: CableSource }[]; missing: number[]; methods: { csaMm2: number; method: InstallMethod; source?: CableSource }[]; families: FamilyUse[] } {
   const used = new Set<number>(), byMethod = new Map<string, { csaMm2: number; method: InstallMethod }>();
+  const byFamily = new Map<string, { csaMm2: number; method: InstallMethod; family: CableFamily }>();
   for (const f of cablesInUse(project)) {
+    const m = methodOf(f), family = feederFamily(project, f);
+    if (!isDefaultFamily(family)) {
+      // Another family: the cable's own data and rating; its protective conductor is the same family.
+      byFamily.set(`${familyKey(family)}|${f.cableCsaMm2}|${m}`, { csaMm2: f.cableCsaMm2, method: m, family });
+      continue;
+    }
     used.add(f.cableCsaMm2); if (f.cpcMm2 !== undefined) used.add(f.cpcMm2);
-    const m = methodOf(f); if (m !== 'E') byMethod.set(`${f.cableCsaMm2}|${m}`, { csaMm2: f.cableCsaMm2, method: m });
+    if (m !== 'E') byMethod.set(`${f.cableCsaMm2}|${m}`, { csaMm2: f.cableCsaMm2, method: m });
   }
   const sizes: { csaMm2: number; source: CableSource }[] = [], missing: number[] = [];
   for (const csa of [...used].sort((a, b) => a - b)) {
@@ -194,18 +241,36 @@ export function cableDataStatus(project: CableUse): { sizes: { csaMm2: number; s
   /** Ratings for the installation methods other than E, by size and method; no source = no rating. */
   const methods = [...byMethod.values()].sort((a, b) => a.csaMm2 - b.csaMm2 || a.method.localeCompare(b.method))
     .map((x) => ({ ...x, source: methodRating(x.csaMm2, x.method)?.source }));
-  return { sizes, missing, methods };
+  const families = [...byFamily.values()].sort((a, b) => familyKey(a.family).localeCompare(familyKey(b.family)) || a.csaMm2 - b.csaMm2 || a.method.localeCompare(b.method))
+    .map((x) => ({ ...x, label: familyLabel(x.family), source: resolveCable(x.csaMm2, x.family)?.source, rating: methodRating(x.csaMm2, x.method, x.family)?.source }));
+  return { sizes, missing, methods, families };
+}
+
+/** A size of another cable family the project uses, on one installation method: where its R and X come from
+ * (`source`; absent = no data for the size) and its current rating (`rating`; absent = none, DATA REQUIRED). */
+export interface FamilyUse { csaMm2: number; method: InstallMethod; family: CableFamily; label: string; source?: CableSource; rating?: CableSource }
+const familyText = (x: FamilyUse) => `${x.csaMm2} mm² ${x.label}${x.method === 'E' ? '' : ` (${x.method})`}`;
+
+/** Cables whose type has its own family data while the project still calculates every cable as copper / XLPE /
+ * multicore ("Cable data by type" off): the type labels, for a to-do line. */
+export function typesOnDefaultData(project: CableUse): string[] {
+  if (project.cableDataByType) return [];
+  return [...new Set(cablesInUse(project).filter((f) => !isDefaultFamily(familyOfType(f.cableType))).map((f) => familyLabel(familyOfType(f.cableType))))].sort();
 }
 
 /** One line for reports: which sizes (and installation-method ratings) are not manufacturer data, by source; '' when all are. */
 export function cableDataNotice(project: CableUse): string {
-  const { sizes, missing, methods } = cableDataStatus(project);
+  const { sizes, missing, methods, families } = cableDataStatus(project);
   const by = (s: CableSource) => [...sizes.filter((x) => x.source === s).map((x) => `${x.csaMm2}`), ...methods.filter((x) => x.source === s).map((x) => `${x.csaMm2} (${x.method})`)];
   const list = (xs: string[]) => `${xs.join(', ')} mm²`;
   const parts = (['reference', 'fallback', 'user'] as const).filter((s) => by(s).length).map((s) => `${list(by(s))}: ${CABLE_SOURCE_TEXT[s]}`);
   if (missing.length) parts.push(`${list(missing.map(String))}: no cable data`);
   const noRating = methods.filter((x) => !x.source);
   if (noRating.length) parts.push(`${list(noRating.map((x) => `${x.csaMm2} (${x.method})`))}: no rating for the installation method`);
+  const famRef = families.filter((x) => x.source && x.source !== 'manufacturer');
+  if (famRef.length) parts.push(`${[...new Set(famRef.map((x) => `${x.csaMm2} mm² ${x.label}`))].join(', ')}: R and X not manufacturer data (app values or user-entered)`);
+  const famNone = families.filter((x) => !x.source || !x.rating);
+  if (famNone.length) parts.push(`${famNone.map(familyText).join(', ')}: no ${famNone.some((x) => !x.source) ? 'cable data or ' : ''}current rating`);
   return parts.length ? `Cable data — ${parts.join('; ')}. Verify against the manufacturer's datasheet before relying on these results.` : '';
 }
 
@@ -214,7 +279,7 @@ export function cableDataNotice(project: CableUse): string {
  * method has no rating fails (DATA REQUIRED); with `strictCableData` (final
  * design) every size or method rating without manufacturer data must be fixed. */
 export function cableDataFindings(project: CableUse & Pick<Project, 'strictCableData'>): { status: 'warn' | 'bad'; text: string }[] {
-  const { sizes, missing, methods } = cableDataStatus(project);
+  const { sizes, missing, methods, families } = cableDataStatus(project);
   const strict = !!project.strictCableData;
   const out: { status: 'warn' | 'bad'; text: string }[] = [];
   const of = (s: CableSource) => [...sizes.filter((x) => x.source === s).map((x) => `${x.csaMm2}`), ...methods.filter((x) => x.source === s).map((x) => `${x.csaMm2} (${x.method})`)];
@@ -222,7 +287,15 @@ export function cableDataFindings(project: CableUse & Pick<Project, 'strictCable
   const noRating = methods.filter((x) => !x.source).map((x) => `${x.csaMm2} mm² ${x.method}`);
   if (noRating.length) out.push({ status: 'bad', text: `Cable data required: no current rating for ${noRating.join(', ')} — add the installation-method rating in Cables.xlsx` });
   if (of('fallback').length) out.push({ status: strict ? 'bad' : 'warn', text: `Cable data: ${of('fallback').join(', ')} mm² missing from Cables.xlsx — approximate app reference values used` });
+  const famNoData = families.filter((x) => !x.source);
+  if (famNoData.length) out.push({ status: 'bad', text: `Cable data: no data for ${[...new Set(famNoData.map((x) => `${x.csaMm2} mm² ${x.label}`))].join(', ')} — add the rows in Cables.xlsx` });
+  const famNoRating = families.filter((x) => x.source && !x.rating);
+  if (famNoRating.length) out.push({ status: 'bad', text: `Cable data required: no current rating for ${famNoRating.map(familyText).join(', ')} — add the rows (Conductor, Insulation, Form) in Cables.xlsx` });
+  const onDefault = typesOnDefaultData(project);
+  if (onDefault.length) out.push({ status: 'warn', text: `Cable data by type is off: ${onDefault.join(', ')} cables are calculated with copper / XLPE / multicore data — turn it on in Project settings` });
   if (strict) {
+    const famUnverified = [...new Set(families.filter((x) => x.source && x.source !== 'manufacturer').map((x) => `${x.csaMm2} mm² ${x.label}`))];
+    if (famUnverified.length) out.push({ status: 'bad', text: `Cable data: ${famUnverified.join(', ')} without manufacturer data (manufacturer and reference document in Cables.xlsx) — required for final design` });
     const unverified = [...of('reference'), ...of('user')];
     if (unverified.length) out.push({ status: 'bad', text: `Cable data: ${unverified.join(', ')} mm² without manufacturer data (manufacturer and reference document in Cables.xlsx) — required for final design` });
   }

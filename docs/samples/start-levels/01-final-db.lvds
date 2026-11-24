@@ -8,6 +8,7 @@
   "frequencyHz": 50,
   "ambientC": 45,
   "vdLimitPct": 4,
+  "cableDataByType": true,
   "info": {
     "mdDemandFactor": 0.8
   },
