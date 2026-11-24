@@ -50,7 +50,7 @@ import { keepComputerPatterns, loadComputerPatterns } from '../../model/cadPatte
 import { erasedOf, restoredErased, shownView, withErased, type ErasedParts } from '../../model/cadErased';
 import { CIRCUIT_ATTRIBUTES } from '../../model/cadLoads';
 import PlanSymbolIcon from './PlanSymbolIcon';
-import { cableLabel, cablesOf, circuitLabel, circuitTag, finalCircuits, LV_PALETTE, PALETTE_GROUPS, moveItem, placedOn, placeItem, placeAccessory, placeLvPoint, removeItem, rotateAccessories, rotateLvPoints, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
+import { cableLabel, cablesOf, circuitLabel, circuitTag, circuitWay, finalCircuits, LV_PALETTE, PALETTE_GROUPS, moveItem, placedOn, placeItem, placeAccessory, placeLvPoint, removeItem, rotateAccessories, rotateLvPoints, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
 import { addSketch, withSketchItems, pointStyleOut, blockDefsOut, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimLabel, dimMeasure, dimOf, linearDir, nextDim, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch, withText } from '../../model/cadSketch';
 import { routeSettings, sizeRoute, trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
@@ -110,6 +110,8 @@ import type { CalcRun } from '../../calc/runs';
 import { exportDrawingSet } from '../docs/sheetRender';
 import { pickedRoom, putRooms, renameRoom, setRoomType } from '../../model/floorPlanActions';
 import { floorLabel, floorList, type Floor } from '../../model/levels';
+import { circuitRoom, nextWithRoom, pointMax } from '../../model/circuitRoom';
+import CircuitPicker from './CircuitPicker';
 import type { CadLayerMap, CadLayerRole, Project } from '../../types';
 import { fmtFixed, fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
@@ -754,6 +756,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const palette: PaletteItem[] = [...LV_PALETTE, ...ELV_PALETTE];
   const item = palette.find((x) => x.id === cad.device) ?? palette[0];
   const circuits = useMemo(() => finalCircuits(project), [project]);
+  // Add device: the point type it places and, when its circuit is full for it, the next circuit with room (Tab takes it).
+  const devType = 'lv' in item.kind ? item.kind.lv : undefined;
+  const devNext = useMemo(() => nextWithRoom(circuits, circuits.find((f) => f.id === cad.feederId), devType), [circuits, cad.feederId, devType]);
   const selectedItem = placed.find((d) => d.key === cad.selected) ?? null;
   // The devices picked: several (Shift-click or a window), else the one selected.
   const pickedItems = useMemo(() => (picked.length ? placed.filter((d) => picked.includes(d.key)) : selectedItem ? [selectedItem] : []), [picked, placed, selectedItem]);
@@ -3751,6 +3756,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         const r = 'elv' in item.kind ? placeElv(project, (ELV_PALETTE.find((e) => e.id === item.id) ?? ELV_PALETTE[0]).kind.elv, floor.ref, x, y)
           : placeItem(project, item, floor.ref, x, y, { feederId: cad.feederId, boardId: cad.boardId, rot: devRot });
         change(r.project, `${r.message} · ⌘Z to undo`); cad.usedDevice(item.id);
+        // A circuit at or over the most the Rules sheet allows says so, and names the next one with room.
+        const max = pointMax(devType), now = r.project.feeders.find((f) => f.id === cad.feederId);
+        if (devType && max !== undefined && now && (now.points?.[devType] ?? 0) >= max) {
+          const n = now.points![devType]!, nx = nextWithRoom(finalCircuits(r.project), now, devType);
+          const nxName = nx && (nx.boardId === now.boardId ? circuitWay(nx) : circuitLabel(r.project, nx));
+          setTimeout(() => cad.say(`DEV  ${circuitLabel(r.project, now)} is ${n > max ? 'over' : 'full'}: ${n} of ${max} (Rules sheet).${nx ? ` Next with room: ${nxName} — Tab to use it, or pick a circuit` : ' No circuit with room: pick a circuit, or add one in the load schedule'}`));
+        }
       } catch (e) { cad.say(`DEV  ${e instanceof Error ? e.message : String(e)}`); }
     } else if (tool === 'wire') {
       wireOne(at, pixel);
@@ -4699,6 +4711,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (fn[e.key]) { e.preventDefault(); if (fn[e.key] === 'grid') cad.cycleGrid(); else cad.toggle(fn[e.key]); return; }
     // Keys in a dialog over the page (the layer manager, references…) are the dialog's.
     if (e.defaultPrevented || (e.target instanceof Element && e.target.closest('[aria-modal="true"], [role="dialog"]'))) return;
+    // Add device with its circuit full: Tab goes on to the next circuit with room.
+    if (e.key === 'Tab' && !mods && !e.shiftKey && tool === 'dev' && devNext && (!typing || (e.target === input.current && !input.current.value))) {
+      e.preventDefault();
+      cad.setFeederId(devNext.id);
+      const r = circuitRoom(devNext, devType);
+      cad.say(`DEV  Now on ${circuitLabel(project, devNext)} — ${r.n} of ${r.max} on the circuit`);
+      return;
+    }
     if ((e.key === 'F1' || e.key === 'F2') && !mods && !e.shiftKey && (!typing || e.target === input.current)) { e.preventDefault(); const k = e.key === 'F1' ? 'help' : 'history'; setLog(log === k ? null : k); return; }
     if (e.key === 'Escape' && (!typing || e.target === input.current)) {
       if (log) { setLog(null); return; }
@@ -5152,10 +5172,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                   <label>This drawing shows<select aria-label="Level of this drawing" value={floor?.key} onChange={(e) => { const f = floors.find((x) => x.key === e.target.value); if (f && view) setPlanLevel(project, view.file, f, change, view.info.units); }}>{floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}</select></label>
                 )}
                 {('lv' in item.kind || ('acc' in item.kind && item.kind.circuit)) && (
-                  <label>Circuit<select aria-label="Circuit" value={cad.feederId} onChange={(e) => cad.setFeederId(e.target.value)}>
-                    <option value="">Choose a circuit…</option>
-                    {circuits.map((f) => <option key={f.id} value={f.id}>{circuitLabel(project, f)}</option>)}
-                  </select></label>
+                  <div className="cad-cir-wrap"><span>Circuit</span><CircuitPicker project={project} circuits={circuits} value={cad.feederId} onChange={cad.setFeederId} placing={devType} level={floor?.ref} /></div>
                 )}
                 {('lv' in item.kind || 'acc' in item.kind) && item.symbol.plan && (
                   <label>Rotation<select aria-label="Rotation" value={devRot} onChange={(e) => {

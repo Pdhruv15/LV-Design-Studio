@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.282', date: '2026-11-24',
+    items: [
+      { title: 'Add device: the circuit list shows the room left', text: 'In the Add device panel the Circuit field now opens a list: the boards of this level first, each circuit with its points against the most the Rules sheet allows ("7 / 10"), full circuits marked, and a Find box. Lighting points and 13 A sockets have a limit; other circuits show their points.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'A full circuit offers the next one', text: 'Placing a light or a 13 A socket now says how full its circuit is ("7 of 10 on the circuit"). When the circuit is full, the command line names the next circuit with room: press Tab to go on with it, or pick another. It is a warning, not a stop.' }
+    ]
+  },
+  {
     version: '2.275', date: '2026-11-23',
     items: [
       { title: 'Design CAD: Devices and Level panels, every tool named', text: 'On Electrical, ELV & sheets the Devices panel now shows the name of each of its tools: Add device, Fill room, Light room, Room devices and Emergency. Coverage and Copy to level moved beside it to a new Level panel, for the tools that act on the whole level. A greyed tool of these panels says why in its tooltip.', action: 'cad', actionLabel: 'Open Design CAD' },

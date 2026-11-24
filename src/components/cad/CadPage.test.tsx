@@ -287,6 +287,23 @@ describe('CAD view', () => {
     expect(result()).toMatch(/Perimeter 18\.40 m · of the object picked/);
   });
 
+  it('shows the circuit with its room, warns when it is full and goes on to the next circuit with Tab', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('dev');
+    act(() => { state.setFeederId('DB-GF1-Y1'); state.toggle('osnap'); });
+    const field = document.querySelector('button[aria-label="Circuit"]');
+    expect(field?.textContent).toMatch(/10 \/ 10/);
+    await clickAt(3000, 9000); // the 11th light: still placed, over the most
+    expect(project.feeders.find((f) => f.id === 'DB-GF1-Y1')!.points?.ltg).toBe(11);
+    await flush();
+    const line = document.querySelector('.cad-hist')?.textContent ?? '';
+    expect(line).toMatch(/DB-GF1\/Y1 · Majlis lighting is over: 11 of 10 \(Rules sheet\)\. Next with room: /);
+    act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })); });
+    expect(state.feederId).not.toBe('DB-GF1-Y1');
+    expect(document.querySelector('.cad-hist')?.textContent).toContain('DEV  Now on ');
+  });
+
   it('places a light on a circuit, selects it with a click, and deletes it (the circuit count follows)', async () => {
     act(() => root.render(<Host />));
     await flush();

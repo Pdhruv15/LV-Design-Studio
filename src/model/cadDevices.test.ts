@@ -23,7 +23,8 @@ describe('devices placed in the CAD view', () => {
     const before = circuit.points?.ltg ?? 0;
     const { project, message } = placeItem(villa, light, level, 3, 9, { feederId: circuit.id });
     expect(project.feeders.find((f) => f.id === circuit.id)!.points?.ltg).toBe(before + 1);
-    expect(message).toBe(`Light placed on DB-GF1/Y1 · Majlis lighting — ${before + 1} on the circuit`);
+    expect(message).toBe(`Light placed on DB-GF1/Y1 · Majlis lighting — ${before + 1} of 10 on the circuit`);
+    expect(placeItem(villa, LV_PALETTE.find((x) => x.id === 'sac')!, level, 3, 9, { feederId: circuit.id }).message).toMatch(/— \d+ on the circuit$/);
     const placed = placedOn(project, level);
     expect(placed).toEqual([expect.objectContaining({ key: 'lv:P1', label: 'Light', detail: 'DB-GF1/Y1 · Majlis lighting', room: 'Majlis' })]);
     const moved = moveItem(project, placed[0], 4, 10, level);
