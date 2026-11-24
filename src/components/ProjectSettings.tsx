@@ -83,6 +83,10 @@ export default function ProjectSettings({ project, onSave, onClose }: { project:
           Final design: require manufacturer cable data (every cable size needs a manufacturer and reference document in Cables.xlsx; reference values become failures).
         </label>
         <label className="row" style={{ gridColumn: '1 / -1' }}>
+          <input type="checkbox" checked={!!p.cableDataByType} onChange={(e) => set('cableDataByType', e.target.checked || undefined)} />
+          Cable data by type: calculate each cable with the data of its own type (copper or aluminium, XLPE or PVC, single-core or multicore). Off: every cable is calculated as copper / XLPE / multicore.
+        </label>
+        <label className="row" style={{ gridColumn: '1 / -1' }}>
           <input type="checkbox" checked={!!p.calc?.autoRun} onChange={(e) => set('calc', { ...p.calc, autoRun: e.target.checked })} />
           Auto-run calculations on every change (otherwise: Run / F5). Load schedule and form totals are always live.
         </label>
