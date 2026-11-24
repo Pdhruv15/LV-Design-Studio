@@ -141,7 +141,7 @@ export default function BoardSheetView({ project, board, results, selected, onSe
           title="The SLD stops at final circuits: it draws feeders to boards and major equipment, and the lighting and power circuits as one box referring to the DB load schedule. Show them one by one to move phases on the drawing.">
           {allCircuits ? 'Hide final circuits' : 'Show final circuits'}
         </button>
-        <button className="chip" onClick={balance} title="Spread the single-phase circuits over R / Y / B (load-schedule ways are renumbered, lighting and power kept on separate ELCBs)">Balance phases</button>
+        <button className="chip" onClick={balance} title="Spread the single-phase circuits over R / Y / B (load-schedule circuits move only inside their own ELCB and are renumbered)">Balance phases</button>
         <MenuButton label={busy ? 'Exporting…' : 'Export sheets'} title="Board sheets: A3, black and white, one per board, with title block" align="right">
           {(close) => (
             <>

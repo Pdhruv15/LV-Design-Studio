@@ -1,6 +1,6 @@
 import { boardPhaseKw, isScheduleCircuit, nextFreeSlot, SINGLE_PHASES, type PhaseKw } from '../calc/loadSchedule';
 import type { Feeder, Phase, Project } from '../types';
-import { balancePhases } from './schedule';
+import { balanceInsideElcbs } from './schedule';
 
 /** R / Y / B on a board's own circuits, for the board-wise SLD:
  * which phase each circuit loads, moving a circuit to another phase, and
@@ -45,11 +45,11 @@ export function setCircuitPhase(project: Project, id: string, phase: 'R' | 'Y' |
 }
 
 /** Spreads a board's single-phase circuits over R / Y / B: load-schedule ways
- * first (balancePhases: lighting and power sections, renumbered), then each
+ * first (balanceInsideElcbs: inside each ELCB, renumbered), then each
  * other single-phase feeder, largest first, onto the phase that is lightest
  * with everything else on the board counted (sub-boards and 3-phase loads). */
 export function balanceBoardPhases(project: Project, boardId: string): Project {
-  let p = project.feeders.filter((f) => f.boardId === boardId && isScheduleCircuit(f)).length >= 2 ? balancePhases(project, boardId) : project;
+  let p = project.feeders.filter((f) => f.boardId === boardId && isScheduleCircuit(f)).length >= 2 ? balanceInsideElcbs(project, boardId) : project;
   const own = p.feeders.filter((f) => f.boardId === boardId);
   const free = own.filter((f) => isSinglePhase(f) && !isScheduleCircuit(f)).sort((a, b) => b.loadKw * b.demandFactor - a.loadKw * a.demandFactor);
   if (!free.length) return p;
