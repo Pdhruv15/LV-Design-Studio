@@ -171,6 +171,7 @@ import { NameDialog, UnsavedDialog } from './components/FileDialogs';
 import type { BoardKind, ProjectStatus } from './types';
 import { rememberedDrawing, useCad, type CadActions } from './components/cad/cadState';
 import { draftSettings } from './model/cadDraft';
+import { ownAliases, ownKeys } from './components/cad/cadShortcuts';
 import { cadFileMenu, planLevel } from './components/cad/cadFileMenu';
 import { plansOf } from './model/cadPlans';
 import { chooseDrawing, openDrawing } from './engines/cad/cadEngine';
@@ -359,6 +360,8 @@ export default function App() {
   // CAD view: the drawings stay open while other pages are shown.
   const cadS = useCad(project.id);
   const cadDraft = useMemo(() => draftSettings(prefs.app.cadDraft), [prefs.app.cadDraft]);
+  const cadAliases = useMemo(() => ownAliases(prefs.app.cadAliases), [prefs.app.cadAliases]);
+  const cadKeys = useMemo(() => ownKeys(prefs.app.cadKeys), [prefs.app.cadKeys]);
   /** Runs an action of the CAD page; from another page (the sheets) it shows the drawing first and runs once the page
    * is there. */
   const cadDo = (fn: (x: CadActions) => void) => { if (view === 'cad') fn(cadS.actions.current); else { cadS.pending.current = fn; setView('cad'); } };
@@ -1629,10 +1632,17 @@ export default function App() {
             onSchedules: () => cadDo((x) => x.schedules()),
             onPlaceBoard: () => { cadS.setDevice('db'); cadS.setTool('dev'); setView('cad'); }, placingBoard: cadS.tool === 'dev' && cadS.device === 'db',
             onCoverage: () => { cadS.setCoverage(!cadS.coverage); setView('cad'); }, coverageOn: cadS.coverage,
+            device: cadS.device, recentDevices: cadS.recentDevices, onDevice: (id) => { cadS.setDevice(id); cadS.setTool('dev'); setView('cad'); },
+            fillDevice: cadS.fillDevice, onFill: (t) => { cadS.setFillDevice(t); cadS.setTool('fill'); setView('cad'); },
+            coverageSystem: cadS.coverageSystem, onCoverageOf: (s) => { if (s) cadS.setCoverageSystem(s); cadS.setCoverage(!!s); setView('cad'); },
             onWireAll: () => cadDo((x) => x.wireAll()), onTags: () => { cadS.setWireTags(!cadS.wireTags); setView('cad'); }, tagsOn: cadS.wireTags,
             copyLevels: (() => {
               const here = planLevel(project, cadS.view?.file).floor;
               return view === 'cad' && here ? plansOf(project).filter((x) => x.floor.key !== here.key).map((x) => ({ label: x.label, title: `Copy to ${x.label}`, onClick: () => cadDo((a) => a.copyTo(x.floor.key)) })) : [];
+            })(),
+            copyWhy: (() => {
+              const here = planLevel(project, cadS.view?.file).floor;
+              return view !== 'cad' ? 'the drawing is not showing' : !here ? 'this drawing is not the plan of a level yet: set its level in Drafting settings (DS)' : plansOf(project).every((x) => x.floor.key === here.key) ? 'the project has no other level' : undefined;
             })() },
           output: { onPlot: () => { if (view === 'cad' && (isDrawingLayoutId(cadS.layout) || isFileLayoutId(cadS.layout))) cadDo((x) => x.layoutCmd('PLOT')); else setOutputDlg('plot'); }, onSetups: () => setOutputDlg('setups'), onPrinters: () => setOutputDlg('printers'), onPens: () => setOutputDlg('pens'), onBatch: () => setOutputDlg('batch'), onRegister: () => setOutputDlg('register') },
           onProfile: () => setShowPrefs(true),
@@ -1966,7 +1976,7 @@ export default function App() {
                 }}
               />
             )}
-            {view === 'cad' && <CadPage cad={cadS} project={project} onUndo={history.undo} onRedo={history.redo} canUndo={history.canUndo} canRedo={history.canRedo} undoLabel={history.undoLabel} redoLabel={history.redoLabel} onShow={showFromCad} draft={cadDraft} autosaveMin={prefs.app.autosaveMin} onPrefs={(x) => { const p = { ...prefs, app: { ...prefs.app, cadDraft: x.draft, autosaveMin: x.autosaveMin } }; setPrefs(p); savePrefs(p); }} onChange={(next, message, join) => { setProject(next, { step: !join, join, label: stepLabel(message) }); setStatus(message); }} onStatus={setStatus} sheetUi={sheetUi} run={run} onSheet={(id) => { setSheetTab(id); setView('drawings'); }} />}
+            {view === 'cad' && <CadPage cad={cadS} project={project} onUndo={history.undo} onRedo={history.redo} canUndo={history.canUndo} canRedo={history.canRedo} undoLabel={history.undoLabel} redoLabel={history.redoLabel} onShow={showFromCad} draft={cadDraft} aliases={cadAliases} keys={cadKeys} autosaveMin={prefs.app.autosaveMin} appPrefs={{ theme: prefs.app.theme, palette: prefs.app.palette, cadLabels: prefs.app.cadLabels, ribbonOrder: prefs.app.cadRibbonOrder ?? [] }} folders={hasBridge ? { chooseProjects: chooseFolder, chooseDatabase: async () => { await window.lvds.settings.chooseDatabaseFolder(); initDatabase(); } } : undefined} onOutput={(w) => setOutputDlg(w)} onPrefs={(x) => { const a = { ...prefs.app, cadDraft: x.draft, autosaveMin: x.autosaveMin }; if (x.app) { a.theme = x.app.theme; a.palette = x.app.palette; a.cadLabels = x.app.cadLabels || undefined; if (x.app.ribbonOrder.length) a.cadRibbonOrder = x.app.ribbonOrder; else delete a.cadRibbonOrder; if (Object.keys(x.app.aliases).length) a.cadAliases = x.app.aliases; else delete a.cadAliases; if (Object.keys(x.app.keys).length) a.cadKeys = x.app.keys; else delete a.cadKeys; } const p = { ...prefs, app: a }; setPrefs(p); savePrefs(p); }} onChange={(next, message, join) => { setProject(next, { step: !join, join, label: stepLabel(message) }); setStatus(message); }} onStatus={setStatus} sheetUi={sheetUi} run={run} onSheet={(id) => { setSheetTab(id); setView('drawings'); }} />}
             {view === 'building' && <BuildingView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpen={(v) => setView(v)} />}
             {view === 'load-assessment' && <LoadAssessmentView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpen={(v) => { if (v === 'database') setDbTab('spaceDensities'); setView(v); }} />}
             {view === 'busbar' && <BusbarStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}

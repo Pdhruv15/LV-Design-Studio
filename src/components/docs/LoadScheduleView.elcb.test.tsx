@@ -164,6 +164,20 @@ describe('Add → ELCB / RCD', () => {
     expect(status).toHaveBeenLastCalledWith(`${BOARD}: ELCBs re-grouped into 6 circuits each`);
   });
 
+  it('offers Make RCBO in the Check column for the one odd circuit of an ELCB', () => {
+    const g0 = elcbGroups(sampleProject, sampleProject.boards.find((b) => b.id === BOARD)!)[0];
+    const lighting = g0.circuits.find((f) => f.points?.ltg)!;
+    start = { ...sampleProject, feeders: sampleProject.feeders.map((f) => (g0.circuits.includes(f) ? { ...f, points: f.id === lighting.id ? { s13: 2 } : { ltg: 4 } } : f)) };
+    mount();
+    const btns = () => [...document.querySelectorAll<HTMLButtonElement>('table.ls button')].filter((b) => b.textContent === 'Make RCBO');
+    expect(btns()).toHaveLength(1);
+    expect(btns()[0].title).toBe(`Only power circuit on ELCB-${g0.index}: an RCBO in place of its MCB leaves ELCB-${g0.index} with lighting circuits only`);
+    act(() => btns()[0].click());
+    expect(latest.feeders.find((f) => f.id === lighting.id)!.rcbo).toBe(true);
+    expect(status).toHaveBeenLastCalledWith(expect.stringMatching(new RegExp(`; ELCB-${g0.index} is now \\d+ A 100 mA 4P \\(lighting\\)$`)));
+    expect(btns()).toHaveLength(0);
+  });
+
   it('has no ELCB / RCD menu on the MD form', () => {
     shown = 'MDB-1';
     mount();

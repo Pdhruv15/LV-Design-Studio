@@ -132,6 +132,15 @@ describe('Ribbon', () => {
     expect(moved).toHaveLength(CAPTIONS.cad.length);
   });
 
+  it('puts the Level panel right after Devices in an order saved without it', () => {
+    expect(normaliseCadPanelOrder().slice(12, 15)).toEqual(['devices', 'level', 'edit-devices']);
+    const full = normaliseCadPanelOrder().filter((id) => id !== 'level'), moved = ['wiring', ...full.filter((id) => id !== 'wiring')]; // a saved order from before Level
+    const next = normaliseCadPanelOrder(moved);
+    expect(next[next.indexOf('devices') + 1]).toBe('level');
+    expect(next).toHaveLength(CAPTIONS.cad.length);
+    expect(normaliseCadPanelOrder(['layers', 'draw']).slice(2, 4)).toEqual(['modify', 'annotate']); // neither panel saved: the app's order
+  });
+
   it('names the main tools under their icons and, on Drafting, the small ones beside theirs; Show labels names them all', () => {
     const shown = render('cad', { view: 'cad', cad: cad() });
     expect(shown).toContain('class="ribbon cad-named small-named"');
@@ -182,6 +191,8 @@ describe('Ribbon', () => {
     expect(tipOf({ label: 'Offset', cmd: 'O', title: 'Offset (O): the distance on the right, click the object' })).toEqual({ head: 'Offset (O)', text: 'The distance on the right, click the object' });
     expect(tipOf({ label: 'Layer palette', cmd: 'LM', title: 'Layer palette (LM), docked beside the drawing' })).toEqual({ head: 'Layer palette (LM)', text: 'Docked beside the drawing' });
     expect(tipOf({ label: 'Erase', cmd: 'E', title: 'Erase the selected object (E or Delete)' })).toEqual({ head: 'Erase (E)', text: 'Erase the selected object (E or Delete)' });
+    expect(tipOf({ label: 'Add device', cmd: 'DEV', title: 'Add device (DEV): place a device, then click', disabled: true, why: 'open a drawing first' })).toEqual({ head: 'Add device (DEV)', text: 'Not available: open a drawing first. Place a device, then click' });
+    expect(tipOf({ label: 'Add device', title: 'Place a device', why: 'open a drawing first' }).text).toBe('Place a device'); // not greyed: no reason said
     expect(tipOf({ label: 'Colour', title: 'Colour of new markups', sub: 'Black' })).toEqual({ head: 'Colour · Black', text: 'Colour of new markups' });
   });
 });

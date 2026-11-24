@@ -11,6 +11,8 @@ declare global {
         chooseProjectsFolder: () => Promise<{ projectsFolder: string; databaseFolder?: string; pythonPath?: string }>;
         chooseDatabaseFolder: (reset?: boolean) => Promise<{ projectsFolder: string; databaseFolder?: string; pythonPath?: string }>;
         choosePython: () => Promise<{ projectsFolder: string; databaseFolder?: string; pythonPath?: string }>;
+        /** Options → Folders: shows a folder in the file manager; '' when done, else why not (missing in older desktop builds). */
+        showFolder?: (kind: 'projects' | 'recovery' | 'blocks', folder?: string) => Promise<string>;
       };
       projects: {
         list: () => Promise<import('./model/projectStore').ProjectMeta[]>;

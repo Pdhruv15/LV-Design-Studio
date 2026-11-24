@@ -127,7 +127,7 @@ export const FEEDER_FIELDS: Fields<Feeder> = [
 
 export const BOARD_FIELDS: Fields<Board> = [
   ['name', 'Name'], ['kind', 'Type'], ['upstreamId', 'Fed from'], ['ratedCurrentA', 'Rating (A)'], ['sourceKva', 'Transformer (kVA)'],
-  ['sourceImpedancePct', 'Transformer Z (%)'], ['location', 'Location'], ['planPoint', 'Position on the floor plan'], ['pointWatts', 'WATT / UNIT'], ['elcbGroupSize', 'New ELCBs (circuits each)'],
+  ['sourceImpedancePct', 'Transformer Z (%)'], ['location', 'Location'], ['planPoint', 'Position on the floor plan'], ['pointWatts', 'WATT / UNIT'], ['elcbGroupSize', 'New ELCBs (circuits each)'], ['elcbKeepApart', 'New ELCBs keep lighting and power apart'],
   ['elcbSensitivityMa', 'ELCB sensitivity'], ['supply', 'Incoming supply'], ['standby', 'Standby generator'], ['level', 'Level'], ['earthRiser', 'Earth riser'],
   ['sourceXr', 'Transformer X/R'], ['vectorGroup', 'Vector group'], ['protection', 'Incomer protection'], ['upsKva', 'UPS (kVA)'],
   ['busbarMaterial', 'Busbar material'], ['busbarIcwKa', 'Busbar Icw (kA, 1 s)'], ['sections', 'Panel sections'], ['ipRating', 'IP rating'], ['manufacturer', 'Manufacturer'], ['model', 'Model'], ['instruments', 'Instruments on the SLD'], ['incomerDevice', 'Incomer device on the SLD'],
@@ -140,7 +140,7 @@ export const BOARD_FIELDS: Fields<Board> = [
 export const PROJECT_FIELDS: Fields<Snapshot> = [
   ['name', 'Project name'], ['voltageV', 'Voltage (V)'], ['frequencyHz', 'Frequency (Hz)'], ['ambientC', 'Ambient (°C)'], ['vdLimitPct', 'VD limit (%)'],
   ['pointTemplate', 'Schedule columns'], ['studySettings', 'Design settings'], ['designReference', 'Design reference'], ['designRules', 'Design rules'], ['standards', 'Project standards'], ['vdTempC', 'Cable temperature for voltage drop (°C)'],
-  ['strictFinalDisconnection', 'Strict final-circuit disconnection'], ['strictCableData', 'Require manufacturer cable data'], ['groundTempC', 'Ground temperature (°C)'], ['soilResistivityKmW', 'Soil thermal resistivity (K·m/W)'], ['vdFinalCircuits', 'Voltage drop: include final circuits'], ['status', 'Status'], ['stage', 'Design stage'], ['archivedAt', 'Archived']
+  ['strictFinalDisconnection', 'Strict final-circuit disconnection'], ['strictCableData', 'Require manufacturer cable data'], ['cableDataByType', 'Cable data by type'], ['groundTempC', 'Ground temperature (°C)'], ['soilResistivityKmW', 'Soil thermal resistivity (K·m/W)'], ['vdFinalCircuits', 'Voltage drop: include final circuits'], ['status', 'Status'], ['stage', 'Design stage'], ['archivedAt', 'Archived']
 ];
 
 /** Larger data sets: a summary line (with a count where it helps) and then the individual differences. */

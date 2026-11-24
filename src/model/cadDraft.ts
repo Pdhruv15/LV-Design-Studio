@@ -2,6 +2,8 @@
  * input, selection, the cursor, and saving. Kept for the user on this computer (Preferences → app.cadDraft), not in the
  * project; anything missing or out of range uses the default. Pure: the canvas and the page read it. */
 
+import { LAYOUT_PAPERS } from './drawingLayouts';
+
 type Pt = [number, number];
 
 /** Snap mode bits, as the engine has them (engines/cad-reader/src/doc.rs). */
@@ -72,7 +74,19 @@ export interface DraftSettings {
    * writes over it. */
   saveFormat: 'own' | 'dwg' | 'dxf';
   keepBak: boolean;
+  /** Mouse: a right-click in the drawing opens the menu or repeats the last command (as Space does; Shift + right-click then opens the menu), the wheel's zoom step in % per notch, and its direction reversed. */
+  rightClick: RightClick;
+  wheelPct: number;
+  wheelReverse: boolean;
+  /** A new layout starts with this paper (an id of LAYOUT_PAPERS), upright or across, and its Page setup opening as it is made. */
+  layoutPaper: string;
+  layoutPortrait: boolean;
+  layoutSetupOpen: boolean;
 }
+
+/** What a right-click in the drawing does. */
+export type RightClick = 'menu' | 'repeat';
+export const RIGHT_CLICKS: { k: RightClick; label: string }[] = [{ k: 'menu', label: 'Opens the menu' }, { k: 'repeat', label: 'Repeats the last command' }];
 
 /** The crosshair's colours to choose from. */
 export type CrossColor = 'ink' | 'accent' | 'cyan';
@@ -92,7 +106,8 @@ export const DRAFT_DEFAULTS: DraftSettings = {
   windowFill: true, grips: true, gripPx: 8, pickBoxPx: 12, hoverMark: true, hoverTag: false,
   crossPct: 100, aperturePx: 10, markerPx: 7, snapTip: true, crossColor: 'ink', cursorOutline: true,
   pickLook: 'halo', selColor: 'blue', gripMax: 100,
-  saveFormat: 'dwg', keepBak: true
+  saveFormat: 'dwg', keepBak: true,
+  rightClick: 'menu', wheelPct: 15, wheelReverse: false, layoutPaper: 'A3', layoutPortrait: false, layoutSetupOpen: false
 };
 
 const num = (v: unknown, lo: number, hi: number, d: number) => (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? v : d);
@@ -112,7 +127,9 @@ export function draftSettings(v: unknown): DraftSettings {
     crossPct: Math.round(num(o.crossPct, 1, 100, d.crossPct)), aperturePx: Math.round(num(o.aperturePx, 2, 40, d.aperturePx)), markerPx: Math.round(num(o.markerPx, 3, 20, d.markerPx)), snapTip: bool(o.snapTip, d.snapTip),
     crossColor: CROSS_COLORS.some((c) => c.k === o.crossColor) ? o.crossColor as CrossColor : d.crossColor, cursorOutline: bool(o.cursorOutline, d.cursorOutline),
     pickLook: PICK_LOOKS.some((c) => c.k === o.pickLook) ? o.pickLook as PickLook : d.pickLook, selColor: SEL_COLORS.some((c) => c.k === o.selColor) ? o.selColor as SelColor : d.selColor, gripMax: Math.round(num(o.gripMax, 1, 1000, d.gripMax)),
-    saveFormat: o.saveFormat === 'own' || o.saveFormat === 'dwg' || o.saveFormat === 'dxf' ? o.saveFormat : d.saveFormat, keepBak: bool(o.keepBak, d.keepBak)
+    saveFormat: o.saveFormat === 'own' || o.saveFormat === 'dwg' || o.saveFormat === 'dxf' ? o.saveFormat : d.saveFormat, keepBak: bool(o.keepBak, d.keepBak),
+    rightClick: RIGHT_CLICKS.some((c) => c.k === o.rightClick) ? o.rightClick as RightClick : d.rightClick, wheelPct: Math.round(num(o.wheelPct, 5, 50, d.wheelPct)), wheelReverse: bool(o.wheelReverse, d.wheelReverse),
+    layoutPaper: LAYOUT_PAPERS.some((p) => p.id === o.layoutPaper) ? o.layoutPaper as string : d.layoutPaper, layoutPortrait: bool(o.layoutPortrait, d.layoutPortrait), layoutSetupOpen: bool(o.layoutSetupOpen, d.layoutSetupOpen)
   };
 }
 

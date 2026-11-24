@@ -1,4 +1,4 @@
-import { CAD_COMMANDS, type CadCommand } from './cadCommands';
+import { CAD_COMMANDS, aliasesOf, cadCommand, type CadCommand, type OwnAliases } from './cadCommands';
 
 /** The command line's prompts, in the form `OFFSET  Specify offset distance or [Through/Erase/Layer] <0.30>:`: the
  * options in square brackets (the capital letters of each are its short key; a click works as typing it) and the
@@ -25,12 +25,12 @@ export const promptOptions = (line: string) => promptParts(line).flatMap((p) => 
 
 /** Commands whose name or an alias starts with what is typed (shortest first, the alias typed first), for the list
  * shown above the command line while typing. */
-export function matchingCommands(typed: string, max = 8): { alias: string; cmd: CadCommand }[] {
+export function matchingCommands(typed: string, max = 8, own?: OwnAliases): { alias: string; cmd: CadCommand }[] {
   const t = typed.trim().toUpperCase();
   if (!t || !/^[A-Z?][A-Z0-9 ]*$/.test(t)) return [];
   const out: { alias: string; cmd: CadCommand }[] = [];
   for (const cmd of CAD_COMMANDS) {
-    const hit = cmd.aliases.filter((a) => a.startsWith(t)).sort((a, b) => a.length - b.length)[0];
+    const hit = aliasesOf(cmd, own).filter((a) => a.startsWith(t)).sort((a, b) => a.length - b.length)[0];
     if (hit) out.push({ alias: hit, cmd });
   }
   return out.sort((a, b) => (a.alias === t ? -1 : b.alias === t ? 1 : a.alias.length - b.alias.length || a.alias.localeCompare(b.alias))).slice(0, max);
@@ -47,7 +47,7 @@ const isPoint = (s: string) => new RegExp(`^@?${NUM},${NUM}$|^@${NUM}<${NUM}$`).
  * input or a whole word: a command, an option of the prompt, a number or a point. Anything else (a part of a point such
  * as "3," or "@3", a word that is no command, a command that takes a value after it) gets the space. */
 export type SpaceMode = 'text' | 'value' | 'command';
-export function spaceEnters(typed: string, mode: SpaceMode = 'command', options: { option: string; key: string }[] = []): boolean {
+export function spaceEnters(typed: string, mode: SpaceMode = 'command', options: { option: string; key: string }[] = [], own?: OwnAliases): boolean {
   const t = typed.trim().toUpperCase();
   if (mode === 'text') return false;
   if (!t) return true;
@@ -57,11 +57,11 @@ export function spaceEnters(typed: string, mode: SpaceMode = 'command', options:
   if (isPoint(t)) return true;
   if (options.some((o) => o.key === t || o.option.toUpperCase() === t)) return true;
   if (TAKES_ARG.has(t)) return false;
-  return CAD_COMMANDS.some((c) => c.aliases.includes(t)) && !CAD_COMMANDS.some((c) => c.aliases.some((a) => a.startsWith(`${t} `)));
+  return cadCommand(t, own) !== undefined && !CAD_COMMANDS.some((c) => aliasesOf(c, own).some((a) => a.startsWith(`${t} `)));
 }
 
 /** The full command list (F1): each command once, its aliases and what it does. */
-export const commandList = () => CAD_COMMANDS.map((c) => ({ aliases: c.aliases.join(' · '), desc: c.desc }));
+export const commandList = (own?: OwnAliases) => CAD_COMMANDS.map((c) => ({ aliases: aliasesOf(c, own).join(' · '), desc: c.desc }));
 
 /** A prompt in short form for the box at the cursor: "OFFSET  Specify offset distance or [Through/Erase/Layer]
  * <0.30>:" → "Specify offset distance". */
