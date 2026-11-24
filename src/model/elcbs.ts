@@ -67,14 +67,17 @@ function holds(project: Project, boardId: string, a: number, b: number): boolean
 }
 
 /** Every ELCB the schedule shows becomes one of the board's own over the ways it has now, with rating, mA and poles left
- * Auto: nothing on the schedule or its prints changes. Afterwards the "New ELCBs" size reaches only ways with no ELCB. */
+ * Auto: nothing on the schedule or its prints changes. Afterwards the "New ELCBs" size reaches only ways with no ELCB,
+ * and those keep lighting and power apart (elcbKeepApart) unless Re-group turned that off. */
 export function fixElcbs(project: Project, boardId: string): Project {
   const board = boardOf(project, boardId);
   const auto = elcbGroups(project, board).filter((g) => !g.byHand);
-  if (!auto.length) return project;
+  if (!auto.length && board.elcbKeepApart !== undefined) return project;
   const list = [...(board.elcbs ?? [])];
   for (const g of auto) list.push({ id: nextId(list), fromWay: g.ways[0], toWay: g.ways[g.ways.length - 1] });
-  return { ...project, boards: project.boards.map((b) => (b.id === boardId ? { ...b, elcbs: list.sort(byWay) } : b)) };
+  // From now on new ELCBs keep lighting and power apart: every circuit is under an ELCB now, so nothing moves.
+  const keepApart = board.elcbKeepApart ?? true;
+  return { ...project, boards: project.boards.map((b) => (b.id === boardId ? { ...b, elcbs: list.length ? list.sort(byWay) : undefined, elcbKeepApart: keepApart } : b)) };
 }
 
 const withElcbs = (project: Project, boardId: string, list: BoardElcb[]): Project =>
@@ -183,11 +186,11 @@ export function setNewElcbSize(project: Project, boardId: string, size: ElcbSize
 export interface RegroupOptions { size: ElcbSize; keepApart: boolean; keepRcbos: boolean }
 
 /** Re-group all ELCBs: the DB is cut again into ELCBs of `size` circuits (none for 0), its own ELCBs go, and so do its
- * RCBOs unless kept. keepApart moves circuits so lighting and power start on ELCBs of their own (renumbering them);
- * without it no circuit moves. */
+ * RCBOs unless kept. keepApart moves circuits so lighting and power start on ELCBs of their own (renumbering them) and
+ * stays on for new ways; without it no circuit moves. */
 export function regroupElcbs(project: Project, boardId: string, o: RegroupOptions): Project {
   boardOf(project, boardId);
-  const sized = { ...project, boards: project.boards.map((b) => (b.id === boardId ? { ...b, elcbGroupSize: o.size } : b)) };
+  const sized = { ...project, boards: project.boards.map((b) => (b.id === boardId ? { ...b, elcbGroupSize: o.size, elcbKeepApart: o.keepApart } : b)) };
   let p = o.keepRcbos ? withElcbs(sized, boardId, []) : allAutomatic(sized, boardId);
   if (o.keepApart && o.size && scheduleCircuits(p, boardId).length >= 2) p = refreshBoard(balancePhases(p, boardId), boardId);
   return p;

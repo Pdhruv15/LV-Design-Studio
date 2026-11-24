@@ -1,7 +1,7 @@
 import { STATUS_TEXT } from '../calc/statusText';
 import { cables } from '../calc/cableTable';
 import { cpcOf } from '../calc/earthing';
-import { elcbSections, isRcbo, itemizedTypes, normalizeLoadItems, pointColumns, pointWattsFor, SINGLE_PHASES } from '../calc/loadSchedule';
+import { elcbSectionsOf, isRcbo, itemizedTypes, normalizeLoadItems, pointColumns, pointWattsFor, SINGLE_PHASES } from '../calc/loadSchedule';
 import { breakerRatings } from '../calc/sizing';
 import { addCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../model/schedule';
 import type { Board, Feeder, Phase, PointType, Project, SpareWay } from '../types';
@@ -181,7 +181,7 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
   const handPlaced = !!board.elcbs?.length || circuitRows.some((r) => r.rcbo);
   if (handPlaced) {
     // ELCBs placed by hand and RCBOs: a row's cell is its RCBO, else the section holding its way; rows of one cell merge.
-    const sections = elcbSections(board, ways);
+    const sections = elcbSectionsOf(project, board, ways);
     const wayOf = (row: SheetRow) => (row.type === 'circuit' ? row.feeder.way! : row.type === 'slot' ? row.way : row.type === 'spare' ? row.spare.way! : 0);
     const keyOf = (row: SheetRow): string => {
       if (row.type === 'circuit' && isRcbo(row.feeder)) return `rcbo:${row.feeder.id}`;

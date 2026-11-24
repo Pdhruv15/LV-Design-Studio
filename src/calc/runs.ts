@@ -42,7 +42,7 @@ const INPUTS: Record<StudyKey, { feeders: FeederField[]; boards: BoardField[]; p
   vd: { feeders: [...TOPOLOGY_F, ...LOAD_F, ...CABLE_F], boards: [...TOPOLOGY_B, 'mdDemandFactor'], project: ['voltageV', 'vdLimitPct', 'vdTempC', 'busRisers', 'busbarData'] },
   fault: { feeders: [...TOPOLOGY_F, ...CABLE_F, 'breakerIcuKa'], boards: TOPOLOGY_B, project: ['voltageV', 'busRisers', 'busbarData'] },
   checks: { feeders: [...TOPOLOGY_F, ...LOAD_F, ...CABLE_F, ...BREAKER_F, 'cableType', 'cpcMm2'], boards: [...TOPOLOGY_B, 'ratedCurrentA'], project: ['voltageV', 'vdLimitPct', 'vdTempC', 'ambientC'] },
-  earthing: { feeders: [...TOPOLOGY_F, ...CABLE_F, ...BREAKER_F, 'cpcMm2', 'rcdMa', 'rcbo', 'phase', 'way', 'points'], boards: [...TOPOLOGY_B, 'elcbGroupSize', 'elcbs', 'elcbSensitivityMa'], project: ['voltageV', 'vdTempC', 'studySettings'] },
+  earthing: { feeders: [...TOPOLOGY_F, ...CABLE_F, ...BREAKER_F, 'cpcMm2', 'rcdMa', 'rcbo', 'phase', 'way', 'points'], boards: [...TOPOLOGY_B, 'elcbGroupSize', 'elcbKeepApart', 'elcbs', 'elcbSensitivityMa'], project: ['voltageV', 'vdTempC', 'studySettings'] },
   protection: { feeders: [...TOPOLOGY_F, ...CABLE_F, ...BREAKER_F], boards: TOPOLOGY_B, project: ['voltageV'] },
   // Sizing also covers the transformer / generator plan, power factor correction and busbar risers.
   sizing: { feeders: [...TOPOLOGY_F, ...LOAD_F, 'essential', 'starter', 'loadType'], boards: [...TOPOLOGY_B, 'standby', 'kind', 'ratedCurrentA', 'mdDemandFactor'], project: ['voltageV', 'studySettings', 'txGen', 'pfc', 'busRisers', 'busbarData'] }

@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.284', date: '2026-11-24',
+    items: [
+      { title: 'Load schedule: Make RCBO for the one odd circuit', text: 'When one power circuit sits on a lighting ELCB (or one lighting circuit on a power ELCB), its Check cell offers Make RCBO: the circuit gets an RCBO in place of its MCB and the ELCB keeps one kind, e.g. 100 mA for lighting.' },
+      { title: 'New ELCBs keep lighting and power apart', text: 'Once you change an ELCB on a DB, the ELCBs for new ways end where lighting and power circuits meet, so they never mix them. Re-group all ELCBs… turns this on or off with "Keep lighting and power circuits apart".' }
+    ]
+  },
+  {
     version: '2.281', date: '2026-11-24',
     items: [
       { title: 'Cable data by type', text: 'Project settings has a new switch, Cable data by type (on in new projects, off in older ones). With it on, each cable is calculated with the data of its own type: copper or aluminium, XLPE or PVC, single-core or multicore. Voltage drop, fault levels, the earth loop and the cable rating all follow. The cable type list has three new types: Cu/XLPE single-core laid flat, Al/XLPE/SWA/PVC and Al/XLPE single-core. Cables.xlsx has three new columns in front (Conductor, Insulation, Form); left blank a row is copper / XLPE / multicore as before. The app has the resistance and reactance of the new families, but not their current ratings: add those rows from your datasheet, or the circuit shows DATA REQUIRED.' }
