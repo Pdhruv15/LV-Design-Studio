@@ -65,7 +65,8 @@ Defects found in the code (fixed in v2.105):
 | | Select all instances | ✗ (the engine lists inserts without what the canvas needs to highlight them) |
 | Reference | Open, Clip ▸ (New boundary, Remove clip), Fade ▸, Reload, Unload, Detach, Bind, Reference layers (palette) | ✓ (Polygonal boundary is New boundary with more corners) |
 | | Properties | ✓ **fix** (opens the References palette; it showed an empty one) |
-| | Invert clip, Isolate, Lock position, Move, Compare with new revision, Detect rooms from walls, Edit in place | ✗ |
+| | Compare with new revision | ✓ v2.285: XCOMPARE — lines added green, removed red; Next zooms to each area, Clouds marks them, Accept takes the new file |
+| | Invert clip, Isolate, Lock position, Move, Detect rooms from walls, Edit in place | ✗ |
 | Image / PDF underlay | all | ✗ (the app has no underlays) |
 | Viewport, plan sheet layout | Activate, Viewport scale ▸, Lock display, Plot, Page setup, Properties | ✓ (also Frame prints, Erase viewport) |
 | | Maximise viewport | ◐ Show on the Model tab (zoomed to its area) |

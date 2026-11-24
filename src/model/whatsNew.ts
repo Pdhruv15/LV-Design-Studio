@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.285', date: '2026-11-24',
+    items: [
+      { title: 'Compare a reference with its new revision', text: 'In Design CAD, right-click a reference drawing and choose Compare with new revision… (or type XCOMPARE), then pick the new file from the architect. The two are compared where the reference sits: lines added in the new revision show in green, lines taken out in red, and the command line says how many and in how many areas. Next zooms to each area in turn, Clouds draws a revision cloud round every area, Accept switches the reference to the new file, and Exit (or Esc) leaves it as it was.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.280', date: '2026-11-24',
     items: [
       { title: 'Options: what the mouse does in Design CAD', text: 'Options (OP) → General → Mouse: a right-click in the drawing can repeat the last command, as Space does, in place of opening the menu (Shift + right-click then opens it, and a click on an object still opens its menu). The wheel\'s zoom step can be set from 5 to 50 % (15 % as before), and its direction reversed. Both apply in a layout too, where a notch was 20 % before.', action: 'cad', actionLabel: 'Open Design CAD' },
