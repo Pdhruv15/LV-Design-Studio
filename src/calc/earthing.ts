@@ -1,6 +1,6 @@
 import { boardOf, feedersOn, withNetwork } from './network';
 import { cpcOf, defaultCpcMm2, getCable } from './cableTable';
-import { DEFAULT_TRANSFORMER_XR, gridImpedance, gridSourceOf, rOperatingOhmPerKm, runsOf, sourceRatingHint, supplyImpedance, supplySourceLevel, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
+import { DEFAULT_TRANSFORMER_XR, generatorMinSource, gridImpedance, gridSourceOf, rOperatingOhmPerKm, runsOf, sourceRatingHint, supplyImpedance, supplySourceLevel, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
 import { elcbGroups, isScheduleCircuit, rcbosOf } from './loadSchedule';
 import { lvSupplied, supplyFaultKa, supplyIncomerFeeder, supplyXr, type Board, type BreakerType, type Feeder, type Project } from '../types';
 import { fmtFixed } from '../util/format';
@@ -99,11 +99,13 @@ function supplyEarthLoop(project: Project, board: Board): { z: Impedance; missin
   const level = supplySourceLevel(project, board), ka = supplyFaultKa(board), kaMin = sup.faultKaMin !== undefined && sup.faultKaMin > 0 ? sup.faultKaMin : undefined;
   // A calculated source (rating typed, no fault level): its impedance is the Ze estimate, said by what it rests on.
   const inverter = level.z.x === 0;
-  const from = inverter ? `the inverter fault current at ${board.id}` : `the generator's sub-transient reactance at ${board.id} (its sustained fault current is lower: type the minimum fault level)`;
+  // A generator: its transient reactance (or typed sustained current), not the sub-transient level.
+  const gen = generatorMinSource(project, board, C_MIN);
+  const from = inverter || !gen ? `the inverter fault current at ${board.id}` : `the generator's ${gen.text} at ${board.id}${gen.assumed ? ' (assumed: type X′d, the sustained fault current or the minimum fault level)' : ''}`;
   const base = ze !== undefined ? { z: { r: ze, x: 0 } } : ka || kaMin
     ? { z: supplyImpedance(kaMin ?? ka!, project.voltageV, supplyXr(board)), estimated: `Ze estimated from the supply ${kaMin ? 'minimum ' : ''}fault level at ${board.id}` }
     : level.basis === 'calculated'
-      ? { z: level.z, estimated: `Ze estimated from ${from}`, ...(inverter ? {} : { subTransient: true }) }
+      ? { z: gen?.z ?? level.z, estimated: `Ze estimated from ${from}`, ...(gen?.assumed ? { subTransient: true } : {}) }
       : undefined;
   const cable = supplyIncomerFeeder(board);
   const c = cable ? cableLoop(cable) : { r: 0, x: 0 }; // the known part, even when there is no source data
@@ -272,7 +274,7 @@ export function disconnectionLabel(r: EarthingResult): string {
   if (r.disconnection === 'ok') return '< 0.1 s';
   if (r.belowRating) return `Will not disconnect — If ${fmtFixed(r.faultA, 1)} A is not above the ${r.feeder.breakerRatingA} A device rating`;
   if (r.disconnection === 'bad') return 'Too slow';
-  if (r.subTransientOnly && r.faultA >= r.tripA) return 'Not verified — sub-transient estimate, type the minimum fault level';
+  if (r.subTransientOnly && r.faultA >= r.tripA) return 'Not verified — generator X′d assumed, type X′d or the minimum fault level';
   return r.basisSupported ? `Thermal — check curve for ${r.requiredS} s` : 'Required time not determined for this supply';
 }
 /** Ze, Zs and If as text: an incomplete loop shows Ze unknown, Zs as a minimum and If as a maximum. */

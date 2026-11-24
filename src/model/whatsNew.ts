@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.282', date: '2026-11-24',
+    items: [
+      { title: 'Generator: minimum fault current from X′d', text: 'A board on a generator source has two new values beside X″d: X′d (25 % when not typed) and Sustained fault (× rated). The earth fault loop study now takes the generator\'s minimum fault current from X′d, or from the sustained current when you type it, in place of the sub-transient level. Breaking capacity still uses X″d. A pass that rests on the assumed 25 % shows as not verified until you type X′d, the sustained current or the minimum fault level. Earth loop results of projects on a generator source change: the fault current is lower than before.' }
+    ]
+  },
+  {
     version: '2.272', date: '2026-11-23',
     items: [
       { title: 'Load schedule: every ELCB is its own device', text: 'Click an ELCB on the DB schedule and choose 3, 6, 9 or 12 circuits: only that ELCB and the one next to it change. Edit and Remove are on the same menu, and on ELCB / RCD with a circuit selected.' },

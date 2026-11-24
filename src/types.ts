@@ -215,7 +215,7 @@ export const supplyIncomerFeeder = (b: Board): Feeder | undefined => {
 /** The given X/R of the supply fault level of an LV-supplied first board (above zero), else undefined. */
 export const supplyXr = (b: Board): number | undefined => (lvSupplied(b) && positive(b.supply?.xr) ? b.supply.xr : undefined);
 /** Whether any value given from upstream (beyond the stated fault level, device and rating) is set. */
-export const supplyGiven = (b: Board): boolean => lvSupplied(b) && !!b.supply && ['fedBy', 'ref', 'xr', 'ratedKva', 'xdPct', 'faultMultiple', 'faultKaMin', 'vdUsedPct', 'zeOhm', 'allowedA', 'incomer'].some((k) => (b.supply as Record<string, unknown>)[k] !== undefined);
+export const supplyGiven = (b: Board): boolean => lvSupplied(b) && !!b.supply && ['fedBy', 'ref', 'xr', 'ratedKva', 'xdPct', 'xdTransientPct', 'sustainedMultiple', 'faultMultiple', 'faultKaMin', 'vdUsedPct', 'zeOhm', 'allowedA', 'incomer'].some((k) => (b.supply as Record<string, unknown>)[k] !== undefined);
 /** The supply's stated fault level (kA), when there is a usable one (above zero). */
 export const supplyFaultKa = (b: Board): number | undefined => (b.supply?.faultKa && b.supply.faultKa > 0 ? b.supply.faultKa : undefined);
 
@@ -478,6 +478,8 @@ export interface Board {
     xr?: number; // X/R of the supply fault level (absent = the default of supplyImpedance)
     ratedKva?: number; // rating of the source, kVA (a generator set, or the inverters together): gives a calculated fault level
     xdPct?: number; // sub-transient reactance X″d of a generator, % on its rating (absent = 15)
+    xdTransientPct?: number; // transient reactance X′d of a generator, % on its rating (absent = 25): its minimum fault current
+    sustainedMultiple?: number; // sustained fault current of a generator, × rated current (excitation support, e.g. 3): the minimum fault current in place of X′d
     faultMultiple?: number; // fault current of an inverter source as a multiple of its rated current (absent = 1.2)
     faultKaMin?: number; // minimum fault level, kA: the Ze estimate when no Ze is typed
     vdUsedPct?: number; // voltage drop already used upstream of the supply point, % of nominal
