@@ -6,7 +6,7 @@ import LoadScheduleView from './LoadScheduleView';
 import type { Project } from '../../types';
 import { EMPTY_DATABASE } from '../../database/database';
 import { sampleProject } from '../../data/sampleProject';
-import { scheduleCircuits } from '../../calc/loadSchedule';
+import { elcbGroups, scheduleCircuits } from '../../calc/loadSchedule';
 import { addCircuit } from '../../model/schedule';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -55,13 +55,13 @@ describe('Add → ELCB / RCD', () => {
     const ryb = scheduleCircuits(start, BOARD).find((f) => f.phase === 'RYB')!;
     mount();
     openMenu();
-    expect(items().map((b) => b.textContent)).toEqual(['3-phase ELCB (4P, TP&N) over ways…', '3-phase ELCB for the selected 3-phase circuit', '1-phase RCBO for the selected circuit', 'All automatic again']);
+    expect(items().map((b) => b.textContent)).toEqual(['3-phase ELCB (4P, TP&N) over ways…', '3-phase ELCB for the selected 3-phase circuit', '1-phase RCBO for the selected circuit', 'Re-group all ELCBs…']);
     expect(item('3-phase ELCB for the selected 3-phase circuit').disabled).toBe(true);
     expect(item('1-phase RCBO for the selected circuit').disabled).toBe(true);
-    expect(item('All automatic again').disabled).toBe(true);
     expect(item('3-phase ELCB (4P, TP&N) over ways…').disabled).toBe(false);
     press(roomOf('R1'));
     openMenu();
+    expect(items().slice(0, 6).map((b) => b.textContent)).toEqual(['3 circuits', '6 circuits', '9 circuits', '12 circuits', 'Edit ELCB-1…', 'Remove ELCB-1']);
     expect(item('1-phase RCBO for R1').disabled).toBe(false);
     expect(item('3-phase ELCB for the selected 3-phase circuit').disabled).toBe(true);
     press(roomOf(`RYB${ryb.way}`));
@@ -78,17 +78,15 @@ describe('Add → ELCB / RCD', () => {
     const f = latest.feeders.find((x) => x.id === `${BOARD}-R1`)!;
     expect(f.rcbo).toBe(true);
     expect(status).toHaveBeenLastCalledWith(expect.stringMatching(/^R1: RCBO \d+ A \d+ mA in place of the MCB; it leaves ELCB-1$/));
-    expect(document.querySelector('.ls-head')!.textContent).toContain('+ 1 placed by hand');
-    expect(document.querySelector('table.ls')!.textContent).toMatch(/RCBO-1.*by hand · this circuit/);
+    expect(document.querySelector('table.ls')!.textContent).toMatch(/RCBO-1.*this circuit/);
     press(roomOf('R1'));
     openMenu();
     expect(items().map((b) => b.textContent)).toContain('Edit RCBO-1…');
     act(() => item('Remove RCBO-1').click());
     expect(latest.feeders.find((x) => x.id === `${BOARD}-R1`)!.rcbo).toBeUndefined();
-    expect(document.querySelector('.ls-head')!.textContent).not.toContain('placed by hand');
   });
 
-  it('adds a 3-phase ELCB over ways through the dialog, and refuses an overlap', () => {
+  it('adds a 3-phase ELCB over ways through the dialog; ELCBs already there give those ways up', () => {
     mount();
     openMenu();
     act(() => item('3-phase ELCB (4P, TP&N) over ways…').click());
@@ -100,30 +98,70 @@ describe('Add → ELCB / RCD', () => {
     act(() => [...document.querySelectorAll<HTMLInputElement>('.elcb-dialog input[type="radio"]')][1].click());
     act(() => document.querySelector<HTMLButtonElement>('.elcb-dialog button[type="submit"]')!.click());
     expect(document.querySelector('.elcb-dialog')).toBeNull();
-    expect(board().elcbs).toMatchObject([{ fromWay: 2, toWay: 2, poles: 3 }]);
+    expect(board().elcbs).toContainEqual(expect.objectContaining({ fromWay: 2, toWay: 2, poles: 3 }));
     expect(status).toHaveBeenLastCalledWith(expect.stringMatching(/placed over way 2$/));
-    expect(document.querySelector('.ls-head')!.textContent).toContain('+ 1 placed by hand');
-    expect(document.querySelector('table.ls')!.textContent).toContain('by hand · ');
-    // The same ways again: refused inline, the dialog stays.
+    const others = elcbGroups(latest, board()).filter((g) => !g.ways.includes(2)).map((g) => g.ways);
+    // Ways 2–3: the ELCB on way 2 and the one over way 3 give them up; no warning, nothing else moves.
     openMenu();
     act(() => item('3-phase ELCB (4P, TP&N) over ways…').click());
     type(document.querySelector<HTMLInputElement>('.elcb-dialog input[data-field="from"]')!, '2');
     type(document.querySelector<HTMLInputElement>('.elcb-dialog input[data-field="to"]')!, '3');
-    expect(document.querySelector('.elcb-dialog [role="alert"]')!.textContent).toMatch(/^Ways 2–3 overlap ELCB-\d+ \(way 2\)$/);
-    expect(document.querySelector<HTMLButtonElement>('.elcb-dialog button[type="submit"]')!.disabled).toBe(true);
-    act(() => [...document.querySelectorAll<HTMLButtonElement>('.elcb-dialog button')].find((b) => b.textContent === 'Cancel')!.click());
-    expect(board().elcbs).toHaveLength(1);
+    expect(document.querySelector('.elcb-dialog [role="alert"]')).toBeNull();
+    act(() => document.querySelector<HTMLButtonElement>('.elcb-dialog button[type="submit"]')!.click());
+    const now = elcbGroups(latest, board()).map((g) => g.ways);
+    expect(now).toContainEqual([2, 3]);
+    for (const w of others.filter((x) => !x.includes(3))) expect(now).toContainEqual(w);
   });
 
-  it('All automatic again asks, then removes what was placed by hand', async () => {
+  it('a click on an ELCB cell resizes that ELCB only', () => {
+    mount();
+    const before = elcbGroups(latest, board()).map((g) => g.ways);
+    expect(before[0]).toEqual([1, 2]);
+    act(() => document.querySelector<HTMLTableCellElement>('table.ls td.elcb')!.click());
+    const pop = document.querySelector('.menu-pop[role="menu"]')!;
+    expect(pop.textContent).toMatch(/^ELCB-1 · ways 1–2 · /);
+    act(() => [...pop.querySelectorAll('button')].find((b) => b.textContent === '3 circuits')!.click());
+    expect(document.querySelector('.menu-pop[role="menu"]')).toBeNull();
+    const after = elcbGroups(latest, board()).map((g) => g.ways);
+    expect(after.slice(0, 2)).toEqual([[1], [2]]);
+    expect(after.slice(2)).toEqual(before.slice(1));
+    expect(status).toHaveBeenLastCalledWith(expect.stringMatching(/^ELCB-1 .* over way 1 \(3 circuits\)$/));
+  });
+
+  it('changing New ELCBs keeps every ELCB already on the DB', () => {
+    mount();
+    const before = elcbGroups(latest, board()).map((g) => g.ways);
+    const sel = document.querySelector<HTMLSelectElement>('.ls-head select')!;
+    expect(sel.closest('label')!.textContent).toMatch(/^New ELCBs/);
+    expect([...sel.options].map((o) => o.textContent)).toEqual(['3 circuits (1 way)', '6 circuits (2 ways)', '9 circuits (3 ways)', '12 circuits (4 ways)', 'No ELCB']);
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(sel, '3');
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(board().elcbGroupSize).toBe(3);
+    expect(elcbGroups(latest, board()).map((g) => g.ways)).toEqual(before);
+  });
+
+  it('Re-group all ELCBs shows before and after, then cuts the whole DB again', () => {
     mount();
     press(roomOf('R1'));
     openMenu();
     act(() => item('1-phase RCBO for R1').click());
+    act(() => document.querySelector<HTMLTableCellElement>('table.ls td.elcb[rowspan]')!.click());
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('.menu-pop[role="menu"] button')].find((b) => b.textContent === '12 circuits')!.click());
+    expect(board().elcbs!.length).toBeGreaterThan(0);
     openMenu();
-    await act(async () => { item('All automatic again').click(); await Promise.resolve(); await Promise.resolve(); });
+    act(() => item('Re-group all ELCBs…').click());
+    const dlg = document.querySelector('.elcb-dialog')!;
+    expect(dlg.querySelector('h3')!.textContent).toBe(`Re-group all ELCBs — ${BOARD}`);
+    expect(dlg.textContent).toMatch(/Now: \d+ ELCBs? \(12 · .*After: /);
+    const keepRcbos = [...dlg.querySelectorAll('label')].find((l) => l.textContent!.includes('Keep the RCBOs'))!.querySelector('input')!;
+    act(() => keepRcbos.click());
+    act(() => dlg.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
+    expect(document.querySelector('.elcb-dialog')).toBeNull();
+    expect(board().elcbs).toBeUndefined();
     expect(latest.feeders.some((f) => f.rcbo)).toBe(false);
-    expect(document.querySelector('.ls-head')!.textContent).not.toContain('placed by hand');
+    expect(status).toHaveBeenLastCalledWith(`${BOARD}: ELCBs re-grouped into 6 circuits each`);
   });
 
   it('has no ELCB / RCD menu on the MD form', () => {
