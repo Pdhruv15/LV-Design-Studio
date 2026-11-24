@@ -27,6 +27,12 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.271', date: '2026-11-23',
+    items: [
+      { title: 'A click on empty space no longer picks a whole plan', text: 'In Design CAD, a click that landed on no line but inside a block picked that block, however large: on a drawing with a frame or a plan kept as one block, a near miss picked everything. A click inside a block now picks it only while the block is symbol-sized on screen (a board, a fitting); on its lines it is picked as before.' }
+    ]
+  },
+  {
     version: '2.270', date: '2026-11-23',
     items: [
       { title: 'Design CAD: dimension text no longer crosses its line', text: 'With the text Outside (the usual place, and every dimension drawn before dimension styles), a dimension drawn below what it measures, or to the right of it with the text reading upwards, had its text across its own line. The text now sits fully on the side away from what is measured, the same distance off the line as above it. Dimensions already drawn that way show their text moved out, on the plan, on the sheets and in Save DXF / DWG.', action: 'cad', actionLabel: 'Open Design CAD' }
