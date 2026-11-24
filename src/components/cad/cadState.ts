@@ -12,7 +12,7 @@ import type { OptAt } from '../../model/cadOptions';
  * (`dev`), wiring a circuit (`wire`, Wire one), devices along a line (`arl`) or
  * matching another (`match`), modifying the selected object (`move`, `copy`, `rotate`, `mirror`, `scale`, `stretch`), editing what was drawn (`trim`,
  * `extend`, `offset`, `fillet`, `chamfer`, `break`, `join`, `explode`, `array`), drawing (`line`, `pline`, `rect`, `circle`, `arc`)
- * or annotating (`text`, `dim`; linear `dimlin`, continued `dimcont`, baseline `dimbase`), or placing (`xattach`) or clipping (`xclip`) a reference, or cropping a block (`crop`). More drawing tools: `polygon`,
+ * or annotating (`text`, `dim` (its kind from what is clicked); linear `dimlin`, aligned `dimal`, continued `dimcont`, baseline `dimbase`), or placing (`xattach`) or clipping (`xclip`) a reference, or cropping a block (`crop`). More drawing tools: `polygon`,
  * `ellipse`, the circle by two or three points (`circle2p`, `circle3p`) or by its diameter (`circled`), the arc by start,
  * centre and end (`arcsce`), and the revision cloud (`revcloud`). Text tools on the texts picked: `tjust` (justify
  * without moving), `th` (height on paper), `talign` (line up or space), `tcase`, `tprefix` / `tsuffix`, `torient` (readable),
@@ -21,7 +21,7 @@ import type { OptAt } from '../../model/cadOptions';
  * with a legend line; `rtall` tags every room of the level. */
 export type CadTool = 'none' | 'dist' | 'area' | 'containment' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'lux' | 'roomtemplate' | 'em' | 'arl' | 'match' | 'wire' | 'move' | 'copy' | 'rotate' | 'mirror' | 'scale' | 'align' | 'stretch' | 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'array' | 'matchprop' | 'hatch' | 'leader' | 'rtag' | 'north' | 'line' | 'xline' | 'ray' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim' | 'xattach' | 'xclip'
   | 'polygon' | 'ellipse' | 'circle2p' | 'circle3p' | 'circled' | 'arcsce' | 'revcloud' | 'crop'
-  | 'dimlin' | 'dimcont' | 'dimbase' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'rtall' | 'tframe' | 'tmask' | 'tcount' | 'keynote' | 'mtext' | 'mleader' | 'mleaderadd' | 'mleaderremove' | 'mleaderalign' | 'mleadercollect' | 'draworder' | 'texttofront' | 'point' | 'divide' | 'measure' | 'block' | 'blockpick' | 'insert' | 'attedit' | 'attpick' | 'copybase' | 'paste'
+  | 'dimlin' | 'dimal' | 'dimcont' | 'dimbase' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'rtall' | 'tframe' | 'tmask' | 'tcount' | 'keynote' | 'mtext' | 'mleader' | 'mleaderadd' | 'mleaderremove' | 'mleaderalign' | 'mleadercollect' | 'draworder' | 'texttofront' | 'point' | 'divide' | 'measure' | 'block' | 'blockpick' | 'insert' | 'attedit' | 'attpick' | 'copybase' | 'paste'
   | 'zoom' | 'zoomwin' | 'zoomscale' | 'pan' | 'selsim' | 'dimrad' | 'dimdia' | 'dimang' | 'textedit' | 'hatchedit' | 'boundary';
 
 /** Sample plans shipped with the app (electron/samples, made by scripts/make-sample-villa-plans.mjs), shown while no
@@ -77,6 +77,11 @@ export interface CadRibbonInfo {
   blocks: string[];
   /** The multileader styles and the current one, for the Annotate list. */
   mleaderStyles?: { names: string[]; current: string };
+  /** The dimension styles, the current one, and the style of the dimensions picked ('varies' when they differ; left
+   * out with none picked), for the Dimensions list. */
+  dimStyles?: { names: string[]; current: string; picked?: string };
+  /** The drawing's DIMLAYER: a layer's name, '.' for the current layer, or left out for the annotation layer. */
+  dimLayer?: string;
   /** The scales offered for viewports (1:n). */
   scales?: number[];
   /** The viewport the layout tools act on: locked, and whether its frame prints. */
