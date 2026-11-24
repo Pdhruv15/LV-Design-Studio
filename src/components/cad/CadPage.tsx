@@ -39,7 +39,8 @@ import BlocksPalette, { INSERT_DEFAULTS, type InsertSettings, type LibraryFile }
 import { alignedMleaders, collectedMleaders, mleaderNote, newMleader, nearestLeader, withLeaderAdded, withLeaderRemoved } from '../../model/cadMleader';
 import { attachLabel, attachOf, noteAttached, noteBox, noteWithWidth, parseAttach, plainText, type NoteAttach, type NotePara } from '../../model/cadMtext';
 import { ATT_DRAFT, AttDefDialog, AttEditDialog, AttPromptDialog, BlockDialog, DIALOG_TOOLS, DimStyleDialog, EditDialog, MleaderStyleDialog, PointStyleDialog, TextStyleDialog, type AttDraft, type BlockDraft } from './CadDialogs';
-import { currentDimStyle, currentMleaderStyle, currentTextStyle, dimLookOf, mleaderStylesOf, mleaderStylesToStore, dimStandardAsBefore, dimStylesOf, dimStylesToStore, fullDimStyle, lookOf, textStylesOf, textStylesToStore } from '../../model/cadStyles';
+import { dimDirFor, dimLayerOf, dimLayerSetting, dimPicksObject, pickedDimStyle, restyledDims, USE_CURRENT, withDimLayer } from '../../model/cadDimTools';
+import { currentDimStyle, currentMleaderStyle, currentTextStyle, dimLookOf, mleaderStylesOf, mleaderStylesToStore, dimStandardAsBefore, dimStylesOf, dimStylesToStore, lookOf, STANDARD, textStylesOf, textStylesToStore } from '../../model/cadStyles';
 import { chooseDrawing, drawingWithDevices, explodeObjects, openDrawing, readRefGeometry, reopenDrawing, sampleDrawing, type CadObject, type CadView, type DeviceOut } from '../../engines/cad/cadEngine';
 import { planSymbolShapes, symbolBox } from '../../model/planSymbols';
 import type { ShapeOut } from '../../model/cadSketch';
@@ -150,8 +151,8 @@ const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.to
 /** The properties dock's width: default and limits (px), and where its side and width are kept. */
 const DOCK_W = 280, DOCK_MIN = 220, DOCK_MAX = 480, DOCK_KEY = 'lvds.cad.dock';
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
-const POINT_TOOLS: CadTool[] = ['line', 'xline', 'ray', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TRACE (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · RDT (room device template) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGNH / ALIGNV / SPACE (the devices selected) · AL (align objects by points) · TR (trim) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · B (block from drawn objects: the dialog; -BLOCK on the command line) · I (the Blocks palette: this drawing, Recent, Library; -INSERT by name) · ATT (attribute definition for a block) · ATE (edit a block\'s attributes; or double-click it) · ATTEXT (the attributes as a table) · PO (point) · DIV (points at the divisions of an object) · ME (points every length along it) · PTYPE (point style) · DR (draw order: Front, Back, Above or Under an object) · TEXTTOFRONT (texts, dimensions, leaders over the rest) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · HE (edit a hatch: pattern, spacing, angle, origin, islands; or double-click it) · BO (boundary: a closed polyline round an area) · LE (leader) · RT (room tag) · NORTH · LA (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · XL (XLINE, construction line) · RAY · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · MLD (multileader) · MLEADERADD / MLEADERREMOVE · MLA (align multileaders) · MLC (collect them) · MLS (multileader style) · ED (edit a text, dimension or multileader in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM · DRA (radius) · DDI (diameter) · DAN (angular) · ST (text style) · D (dimension style) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LAYERS (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const POINT_TOOLS: CadTool[] = ['line', 'xline', 'ray', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'dimal', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TRACE (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · RDT (room device template) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGNH / ALIGNV / SPACE (the devices selected) · AL (align objects by points) · TR (trim) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · B (block from drawn objects: the dialog; -BLOCK on the command line) · I (the Blocks palette: this drawing, Recent, Library; -INSERT by name) · ATT (attribute definition for a block) · ATE (edit a block\'s attributes; or double-click it) · ATTEXT (the attributes as a table) · PO (point) · DIV (points at the divisions of an object) · ME (points every length along it) · PTYPE (point style) · DR (draw order: Front, Back, Above or Under an object) · TEXTTOFRONT (texts, dimensions, leaders over the rest) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · HE (edit a hatch: pattern, spacing, angle, origin, islands; or double-click it) · BO (boundary: a closed polyline round an area) · LE (leader) · RT (room tag) · NORTH · LA (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · XL (XLINE, construction line) · RAY · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · MLD (multileader) · MLEADERADD / MLEADERREMOVE · MLA (align multileaders) · MLC (collect them) · MLS (multileader style) · ED (edit a text, dimension or multileader in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM (click a line, arc or circle, or two points) · DLI (linear) · DAL (aligned) · DRA (radius) · DDI (diameter) · DAN (angular) · DIMLAYER (layer of new dimensions) · ST (text style) · D (dimension style; DIMSTYLE A updates the dimensions picked) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LAYERS (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Bind's count in the Save line: reference lines, texts and hatches. */
 const boundText = (shapes: { kind: string }[]) => {
   const n = (k: string) => shapes.filter((x) => x.kind === k).length, en = (v: number) => v.toLocaleString('en-GB');
@@ -252,8 +253,9 @@ const PROMPT: Record<CadTool, string> = {
   insert: 'INSERT  Insertion point or [Scale/Rotate]:',
   attedit: 'ATTEDIT  Select a block:',
   attpick: 'ATTDEF  Specify insertion point:',
-  dim: 'DIM  Specify first extension line origin:',
+  dim: 'DIM  Select a line, arc or circle, or specify first extension line origin:',
   dimlin: 'DIMLINEAR  Specify first extension line origin:',
+  dimal: 'DIMALIGNED  Specify first extension line origin:',
   dimcont: 'DIMCONTINUE  Specify second extension line origin (from the last dimension):',
   dimbase: 'DIMBASELINE  Specify second extension line origin (from the last dimension):',
   dimrad: 'DIMRADIUS  Select arc or circle:',
@@ -339,7 +341,7 @@ const TCASE_PROMPT = 'TCASE  Case [Upper/Lower/Title/Sentence] <Upper>:';
 const TORIENT_PROMPT = 'TORIENT  Readable from [Bottom/Right/Both] <Both>:';
 const TJUST_PROMPT = (now: string) => `TJUST  Justify [Left/Centre/Right/TL/TC/TR/ML/MC/MR/BL/BC/BR] <${now}>:`;
 const TH_PROMPT = (mm: number, forNew: boolean) => `TXTHEIGHT  Height on paper (mm)${forNew ? ' for new text' : ''} ${ISO_TEXT_MM.join(' · ')} <${mm}>:`;
-const DRAW_TOOLS: CadTool[] = ['point', 'line', 'xline', 'ray', 'pline', 'tray', 'cable', 'rect', 'circle', 'arc', 'text', 'dim', 'dimlin', 'dimcont', 'dimbase', 'move', 'copy', 'rotate', 'polygon', 'ellipse', 'circle2p', 'circle3p', 'circled', 'arcsce', 'revcloud'];
+const DRAW_TOOLS: CadTool[] = ['point', 'line', 'xline', 'ray', 'pline', 'tray', 'cable', 'rect', 'circle', 'arc', 'text', 'dim', 'dimlin', 'dimal', 'dimcont', 'dimbase', 'move', 'copy', 'rotate', 'polygon', 'ellipse', 'circle2p', 'circle3p', 'circled', 'arcsce', 'revcloud'];
 
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
  * a command line and a status bar. Engine in Rust (WebAssembly), desktop and web alike. Measure a distance, an area (by
@@ -567,7 +569,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [zoomReq, setZoomReq] = useState<ZoomReq | undefined>();
   /** TEXTEDIT: the drawn text or dimension being typed over in the box on the canvas, and what is typed so far. */
   const [edText, setEdText] = useState<{ id: string; value: string } | null>(null);
-  const [radPick, setRadPick] = useState<{ c: Pt; r: number } | null>(null);
+  // The arc or circle a radius or diameter dimension is drawn on (DIM: `k`, the kind its pick gave).
+  const [radPick, setRadPick] = useState<{ c: Pt; r: number; k?: 'radius' | 'diameter' } | null>(null);
   const [angPick, setAngPick] = useState<{ seg1?: [Pt, Pt]; at1?: Pt; v?: Pt; p1?: Pt; p2?: Pt; vertex?: true } | null>(null);
   const [ssOpts, setSsOpts] = useState<SimilarOpts>({ colour: false, linetype: false });
   const [ssAsk, setSsAsk] = useState(false);
@@ -1178,9 +1181,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     return {
       layers: lRows.filter((r) => r.group === 'drawn').map((r) => ({ name: r.name, color: colourCss(r.color), on: r.on, freeze: r.freeze, lock: r.lock })), current: curLayer, picked: pickedSk.length, blocks: defs.map((d) => d.name),
       props: pickedSk.length ? { color: shared('color'), lt: shared('lt'), lw: shared('lw') } : newProps, mleaderStyles: { names: mleaderStylesOf(project).styles.map((x) => x.name), current: mleaderStylesOf(project).current },
-      scales: scalesOf(project), vp: vpState
+      dimStyles: { names: dimStylesOf(project).styles.map((x) => x.name), current: dimStylesOf(project).current, ...(pickedDimStyle(pickedSk) ? { picked: pickedDimStyle(pickedSk) } : {}) },
+      dimLayer: dimLayerSetting(project, view.file), scales: scalesOf(project), vp: vpState
     };
-  }, [view, lRows, curLayer, pickedSk, newProps, defs, project.plot?.scales, project.cadMleaderStyles, vpState?.locked, vpState?.frame]); // eslint-disable-line react-hooks/exhaustive-deps -- the scale list, not the whole project
+  }, [view, lRows, curLayer, pickedSk, newProps, defs, project.plot?.scales, project.cadMleaderStyles, project.cadDimStyles, project.cadLayerFile, vpState?.locked, vpState?.frame]); // eslint-disable-line react-hooks/exhaustive-deps -- the scale list, not the whole project
   // Set by what it says, not by identity: the page draws on every mouse move, and the ribbon redraws with what it sets.
   const ribbonKey = JSON.stringify(ribbonInfo);
   useEffect(() => { cad.setRibbonInfo(ribbonInfo); }, [ribbonKey]); // eslint-disable-line react-hooks/exhaustive-deps -- by value
@@ -2701,10 +2705,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         put({ ...it, look: arg === 'outside' ? rest : { ...rest, textPos: arg as 'above' | 'centered' | 'below', gap: b.gap ?? currentDimStyle(project).gapMm * k } }, `DIM  Text ${arg === 'centered' ? 'centred' : arg}`); return;
       }
       case 'dimstyle': {
-        const st = dimStylesOf(project).styles.find((x) => x.name === arg);
-        if (!st) return;
-        const full = fullDimStyle(st, project);
-        put({ ...it, look: lookOf(full, k), h: full.textMm * k }, `DIM  Style "${full.name}"`); return;
+        const [next] = arg ? restyledDims(project, [it], arg, k, units.factor) ?? [] : [];
+        if (next) put(next, `DIM  Style "${next.dimStyle ?? STANDARD}"`);
+        return;
       }
       case 'hscale': if (it.hatch) put({ ...it, hatch: { ...it.hatch, scale: +(it.hatch.scale * Number(arg)).toPrecision(6) } }, `HATCH  Scale ${+(it.hatch.scale * Number(arg)).toPrecision(6)}`); return;
       case 'hangle': if (it.hatch) put({ ...it, hatch: { ...it.hatch, angle: Number(arg) } }, `HATCH  Angle ${arg}°`); return;
@@ -3303,11 +3306,17 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   // ---- DIMRADIUS, DIMDIAMETER, DIMANGULAR (S4; src/model/cadSketch.ts radialDimLines / angularDimLines, cadDims.ts)
 
-  /** A new radius, diameter or angular dimension in the current dimension style (plain, as DIM is, without one). */
-  const dimItem = (pts: Pt[], dimKind: NonNullable<SketchItem['dimKind']>): Omit<SketchItem, 'id'> => {
+  /** The layer new dimensions go on (DIMLAYER: LV-ANNO unless the drawing sets another, or the current layer). */
+  const dimLayerNow = dimLayerOf(project, view?.file, curLayer);
+  /** What a new dimension takes from the current dimension style: its text height, look and the style's name; none
+   * while Standard is unchanged (sized from its length, as before). */
+  const newDim = (): Pick<SketchItem, 'h' | 'look' | 'dimStyle'> | undefined => {
     const ds = dimLookOf(project, units.factor);
-    return { kind: 'dim', dimKind, layer: ANNO_LAYER, pts, ...(ds ? { h: ds.textH, look: ds.look } : { h: textH * 0.8 }) };
+    return ds && { h: ds.textH, look: ds.look, ...(ds.style.name !== STANDARD ? { dimStyle: ds.style.name } : {}) };
   };
+  /** A new radius, diameter or angular dimension in the current dimension style (plain, as DIM is, without one). */
+  const dimItem = (pts: Pt[], dimKind: NonNullable<SketchItem['dimKind']>): Omit<SketchItem, 'id'> =>
+    ({ kind: 'dim', dimKind, layer: dimLayerNow, pts, ...(newDim() ?? { h: textH * 0.8 }) });
   const radialItem = (q: { c: Pt; r: number }, at: Pt, k: 'radius' | 'diameter') => dimItem([q.c, onRound(q.c, q.r, at), at], k);
   /** What is under a click for the dimensions: a drawn arc or circle (an arc with its ends) or the straight piece of a
    * drawn line, else the same of the opened drawing (its circles and arcs come as segments; src/model/cadDims.ts). */
@@ -3693,15 +3702,27 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return;
     }
     if (tool === 'north') { if (view) change(northArrowItems(at, textH).reduce((q, x) => addSketch(q, view.file, x).project, project), 'North arrow · ⌘Z to undo'); cad.setTool('none'); return; }
-    if (tool === 'dim' || tool === 'dimlin') {
-      const name = tool === 'dim' ? 'DIM' : 'DIMLINEAR';
+    if (tool === 'dim' || tool === 'dimlin' || tool === 'dimal') {
+      const name = tool === 'dim' ? 'DIM' : tool === 'dimlin' ? 'DIMLINEAR' : 'DIMALIGNED';
+      // DIM takes its kind from what is clicked first: an arc its radius, a circle its diameter, a line its two ends;
+      // a snapped point, a typed one or nothing under the click starts one between two points.
+      if (tool === 'dim' && radPick) {
+        const item = radialItem(radPick, at, radPick.k ?? 'diameter');
+        draw(item, `${radPick.k === 'radius' ? 'Radius' : 'Diameter'} dimension ${dimLabel(item as SketchItem, units.factor)}`);
+        setRadPick(null); cad.say(PROMPT.dim); return;
+      }
+      if (tool === 'dim' && !points.length && pixel > 1e-6 && dimPicksObject(cursor.snap)) {
+        const { round, line } = await roundOrLineAt(at, pixel);
+        if (round) { const k = round.ends ? 'radius' : 'diameter'; setRadPick({ c: round.c, r: round.r, k }); cad.say(`DIM  ${k === 'radius' ? 'Radius of the arc' : 'Diameter of the circle'}: dimension line location:`); return; }
+        if (line && distance(line[0], line[1]) > 0) { setPoints([line[0], line[1]]); cad.say('DIM  The line picked: dimension line location:'); return; }
+      }
       if (points.length < 2) { setPoints((p) => [...p, at]); cad.say(points.length ? `${name}  Specify dimension line location:` : `${name}  Specify second extension line origin:`); return; }
-      // Linear: horizontal or vertical by where the line is dragged; it measures along that line.
-      const dir = tool === 'dimlin' ? linearDir(points[0], points[1], at) : undefined;
+      // Linear: horizontal or vertical by where the line is dragged; DIM is aligned beside an oblique pair, as Aligned
+      // always is. It measures along its line.
+      const dir = tool === 'dimlin' ? linearDir(points[0], points[1], at) : tool === 'dim' ? dimDirFor(points[0], points[1], at) : undefined;
       const len = dimMeasure({ pts: points, dir });
-      const ds = dimLookOf(project, units.factor);
       // A dimension of a style keeps no text: it is measured (in the style's unit) wherever it is drawn or saved.
-      draw({ kind: 'dim', layer: ANNO_LAYER, pts: [points[0], points[1], at], ...(dir !== undefined ? { dir } : {}), ...(ds ? { h: ds.textH, look: ds.look } : { text: toM(len).toFixed(2), h: textH * 0.8 }) }, `${dir === undefined ? 'Dimension' : 'Linear dimension'} ${m(toM(len))}`);
+      draw({ kind: 'dim', layer: dimLayerNow, pts: [points[0], points[1], at], ...(dir !== undefined ? { dir } : {}), ...(newDim() ?? { text: toM(len).toFixed(2), h: textH * 0.8 }) }, `${dir === undefined ? 'Aligned dimension' : 'Linear dimension'} ${m(toM(len))}`);
       setPoints([]); cad.say(PROMPT[tool]); return;
     }
     if (tool === 'dimcont' || tool === 'dimbase') {
@@ -3711,7 +3732,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (!next) { cad.say(`${name}  That point measures nothing along the dimension line.`); return; }
       const len = dimMeasure(next);
       // One drawn before dimension styles carries its length as text: so does the next.
-      draw(next.look ? next : { ...next, text: toM(len).toFixed(2) }, `${tool === 'dimcont' ? 'Continued' : 'Baseline'} dimension ${m(toM(len))}`);
+      draw({ ...(next.look ? next : { ...next, text: toM(len).toFixed(2) }), layer: dimLayerNow }, `${tool === 'dimcont' ? 'Continued' : 'Baseline'} dimension ${m(toM(len))}`);
       cad.say(PROMPT[tool]); return;
     }
     if (tool === 'none') {
@@ -4308,6 +4329,35 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       else if (row.name !== st.current) { const keep = mleaderStylesToStore({ ...st, current: row.name }), { cadMleaderStyles: _m, ...rest } = project; change(keep ? { ...project, cadMleaderStyles: keep } : rest, `CMLEADERSTYLE  Current multileader style: ${row.name} · ⌘Z to undo`); }
       return;
     }
+    // DIMSTYLE A (Update): the dimensions picked take the current style, or the one named; DIMSTYLE R and a name: new
+    // dimensions take it. The ribbon's style list runs these.
+    const dst = /^-?DIMSTYLE\s+(A|APPLY|R|RESTORE)(?:\s+(.+))?$/i.exec(raw.trim());
+    if (dst && view) {
+      const apply = dst[1][0].toUpperCase() === 'A', st = dimStylesOf(project), want = dst[2]?.trim();
+      const row = want ? st.styles.find((x) => x.name.toLowerCase() === want.toLowerCase()) : st.styles.find((x) => x.name === st.current);
+      cad.say(`Command: ${raw.trim()}`);
+      if (!row) { cad.say(want ? `DIMSTYLE  There is no dimension style ${want}. D opens the styles.` : 'DIMSTYLE  Type R and a style name, or A to update the dimensions picked.'); return; }
+      if (!apply) {
+        if (row.name !== st.current) { const keep = dimStylesToStore(project, { ...st, current: row.name }), { cadDimStyles: _d, ...rest } = project; change(keep ? { ...project, cadDimStyles: keep } : rest, `DIMSTYLE  Current dimension style: ${row.name} · ⌘Z to undo`); }
+        return;
+      }
+      const dims = restyledDims(project, pickedSk, row.name, unitsPerPaperMm(anno, units.factor), units.factor) ?? [];
+      if (!dims.length) { cad.say('DIMSTYLE  Pick the dimensions first, then Update (DIMSTYLE A).'); return; }
+      change(dims.reduce((q, x) => updateSketch(q, view.file, x), project), `DIMSTYLE  ${dims.length} dimension${dims.length === 1 ? '' : 's'} in "${row.name}" · ⌘Z to undo`);
+      return;
+    }
+    // DIMLAYER and a layer's name (or . for the current layer): where new dimensions go.
+    const dl = /^DIMLAYER\s+(.+)$/i.exec(raw.trim());
+    if (dl && view) {
+      const want = dl[1].trim(), row = lRows.find((r) => r.name.toLowerCase() === want.toLowerCase());
+      cad.say(`Command: DIMLAYER ${want}`);
+      if (want === USE_CURRENT) { change(withDimLayer(project, view.file, USE_CURRENT), `DIMLAYER  New dimensions go on the current layer (${curLayer}) · ⌘Z to undo`); return; }
+      if (!row && want.toUpperCase() !== ANNO_LAYER) { cad.say(`DIMLAYER  There is no layer ${want}. Add it with New layer in the layer palette (LM).`); return; }
+      if (row && row.group !== 'drawn') { cad.say(`DIMLAYER  ${row.name} is ${row.group === 'arch' ? "the architect's" : "a reference's"}; new dimensions go on the app's drawn layers.`); return; }
+      if (row?.freeze) { cad.say(`DIMLAYER  ${row.name} is frozen; thaw it first.`); return; }
+      change(withDimLayer(project, view.file, row?.name ?? ANNO_LAYER), `DIMLAYER  New dimensions go on ${row?.name ?? ANNO_LAYER} · ⌘Z to undo`);
+      return;
+    }
     if (ML_TOOLS.includes(tool) && mlTyped(c)) return;
     if (tool === 'revcloud' && cloudAsk) {
       if (!c) { setCloudAsk(false); cad.say(PROMPT.revcloud); return; }
@@ -4399,6 +4449,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); },
       newLayer: () => { if (!view) { cad.say('LAYER  Open a drawing first.'); return; } setShowLM(true); const n = addLayer(); cad.say(`LAYER  ${n} added. Double-click its name in the layer palette (or F2) to rename it.`); },
       clayer: () => cad.say(`CLAYER  Current layer: ${curLayer}. Type CLAYER and a layer name to change it, e.g. CLAYER ${curLayer}.`),
+      dimLayer: () => { const v = dimLayerSetting(project, view?.file); cad.say(`DIMLAYER  New dimensions go on ${v === USE_CURRENT ? `the current layer (${curLayer})` : v ?? ANNO_LAYER}. Type DIMLAYER and a layer name to change it, or DIMLAYER . for the current layer.`); },
       layiso: () => {
         const keep = pickedLayers();
         if (!view) cad.say('LAYISO  Open a drawing first.'); else if (!keep.length) cad.say('LAYISO  Pick the objects whose layers stay on first (or select layers in the layer palette, then Iso).'); else isolateLayers(keep);
@@ -4883,8 +4934,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     if (tool === 'revcloud' && cloudPoly && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
     if (tool === 'revcloud' && lastPt) { const o = rectangle(lastPt, cur); return areaOf(o).area > 0 ? [{ ...base, kind: 'pline', pts: o, closed: true, cloud: cloudArc ?? 15 * unitsPerPaperMm(anno, units.factor) }] : []; }
-    if (tool === 'dim' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
-    if (tool === 'dim' && points.length === 2) { const look = dimLookOf(project, units.factor)?.look; return [{ ...base, kind: 'dim', pts: [points[0], points[1], cur], ...(look ? { look } : {}) }]; }
+    if (tool === 'dim' && radPick) return [{ ...base, ...radialItem(radPick, cur, radPick.k ?? 'diameter') }];
+    if ((tool === 'dim' || tool === 'dimal') && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
+    if ((tool === 'dim' || tool === 'dimal') && points.length === 2) {
+      const look = dimLookOf(project, units.factor)?.look, dir = tool === 'dim' ? dimDirFor(points[0], points[1], cur) : undefined;
+      return [{ ...base, kind: 'dim', pts: [points[0], points[1], cur], ...(dir !== undefined ? { dir } : {}), ...(look ? { look } : {}) }];
+    }
     if (tool === 'dimlin' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
     if (tool === 'dimlin' && points.length === 2) { const look = dimLookOf(project, units.factor)?.look; return [{ ...base, kind: 'dim', pts: [points[0], points[1], cur], dir: linearDir(points[0], points[1], cur), ...(look ? { look } : {}) }]; }
     if ((tool === 'dimcont' || tool === 'dimbase') && lastDim) { const n = chainDim(lastDim, cur); return n ? [{ ...n, id: '_' }] : []; }
@@ -4894,7 +4949,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (addPiece) return [{ ...base, kind: 'line', pts: addPiece }];
     return [];
   })();
-  const liveLabel = cur && lastPt && ['line', 'xline', 'ray', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'move', 'copy'].includes(tool) ? `${m(toM(distance(lastPt, cur)))}  ${angleDeg(lastPt, cur).toFixed(1)}°`
+  const liveLabel = cur && lastPt && ['line', 'xline', 'ray', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'dimal', 'move', 'copy'].includes(tool) ? `${m(toM(distance(lastPt, cur)))}  ${angleDeg(lastPt, cur).toFixed(1)}°`
     : cur && lastPt && tool === 'circle' ? `R ${m(toM(distance(lastPt, cur)))}` : undefined;
   // Dynamic input (DYN, F12): length and angle while a point is asked for after a first one, a radius for a circle,
   // else the distance, radius or factor of Offset, Fillet and Scale; and the prompt in short form with its options.
@@ -5156,9 +5211,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               step={edStep ? `${kindOf(sketch.find((x) => x.id === edStep.id) ?? sketch[0])} picked — ${tool === 'offset' ? 'click the side' : tool === 'break' ? 'click the second point, or Enter' : 'click the second line'}` : stretchBox ? 'Window set — click the base point, then the second point' : PICK_FIRST.includes(tool) && edPhase === 'points' ? (TEXT_TOOLS.includes(tool) ? 'Picked — type the value on the command line' : 'Objects picked — now the points') : undefined}
               onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
           )}
-          {(tool === 'text' || tool === 'mtext' || tool === 'dim' || tool === 'dimlin' || tool === 'dimcont' || tool === 'dimbase' || tool === 'leader' || tool === 'mleader' || tool === 'mleaderadd' || tool === 'mleaderremove' || tool === 'mleaderalign' || tool === 'mleadercollect' || tool === 'rtag' || tool === 'rtall' || tool === 'north') && view && (
+          {(tool === 'text' || tool === 'mtext' || tool === 'dim' || tool === 'dimlin' || tool === 'dimal' || tool === 'dimcont' || tool === 'dimbase' || tool === 'leader' || tool === 'mleader' || tool === 'mleaderadd' || tool === 'mleaderremove' || tool === 'mleaderalign' || tool === 'mleadercollect' || tool === 'rtag' || tool === 'rtall' || tool === 'north') && view && (
             <AnnoPanel anno={anno} onAnno={(a) => onChange({ ...project, cadAnno: a }, `Annotation: ${a.textMm} mm text at 1:${a.scale}`)}
-              {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, mtext: { title: 'Notes', cmd: 'MT', help: 'Two corners for the box, then type; lines wrap to its width.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Two points, then where the dimension line goes.' }, dimlin: { title: 'Linear dimension', cmd: 'DLI', help: 'Two points, then where the dimension line goes: above or below them it is horizontal, beside them vertical.' }, dimcont: { title: 'Continue dimension', cmd: 'DCO', help: 'Click each next point: a dimension from the last one\'s second point, in line with it. Esc stops.' }, dimbase: { title: 'Baseline dimension', cmd: 'DBA', help: 'Click each next point: a dimension from the last one\'s first point, one step further out. Esc stops.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, mleader: { title: 'Multileader', cmd: 'MLD', help: 'Click the arrowhead, then the landing; type the words in the note editor (several leaders, one note).' }, mleaderadd: { title: 'Add leader', cmd: 'MLEADERADD', help: 'Pick a multileader, then click each arrowhead to add; Enter ends.' }, mleaderremove: { title: 'Remove leader', cmd: 'MLEADERREMOVE', help: 'Pick a multileader, then click the leader to remove; one always stays.' }, mleaderalign: { title: 'Align multileaders', cmd: 'MLA', help: 'Pick the multileaders, Enter, the one to align to, then a direction (Enter: vertical).' }, mleadercollect: { title: 'Collect multileaders', cmd: 'MLC', help: 'Pick two or more multileaders, Enter, then click where the collected one goes.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, rtall: { title: 'Tag all rooms', cmd: 'RTALL', help: 'Enter tags every room of the level with no tag yet; A tags them all again.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
+              {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, mtext: { title: 'Notes', cmd: 'MT', help: 'Two corners for the box, then type; lines wrap to its width.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Click a line, arc or circle, or two points; then where the dimension goes. An arc gives its radius, a circle its diameter; two points or a line give a horizontal or vertical one by where you drag, aligned beside a sloping one.' }, dimal: { title: 'Aligned dimension', cmd: 'DAL', help: 'Two points, then where the dimension line goes: along the two points.' }, dimlin: { title: 'Linear dimension', cmd: 'DLI', help: 'Two points, then where the dimension line goes: above or below them it is horizontal, beside them vertical.' }, dimcont: { title: 'Continue dimension', cmd: 'DCO', help: 'Click each next point: a dimension from the last one\'s second point, in line with it. Esc stops.' }, dimbase: { title: 'Baseline dimension', cmd: 'DBA', help: 'Click each next point: a dimension from the last one\'s first point, one step further out. Esc stops.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, mleader: { title: 'Multileader', cmd: 'MLD', help: 'Click the arrowhead, then the landing; type the words in the note editor (several leaders, one note).' }, mleaderadd: { title: 'Add leader', cmd: 'MLEADERADD', help: 'Pick a multileader, then click each arrowhead to add; Enter ends.' }, mleaderremove: { title: 'Remove leader', cmd: 'MLEADERREMOVE', help: 'Pick a multileader, then click the leader to remove; one always stays.' }, mleaderalign: { title: 'Align multileaders', cmd: 'MLA', help: 'Pick the multileaders, Enter, the one to align to, then a direction (Enter: vertical).' }, mleadercollect: { title: 'Collect multileaders', cmd: 'MLC', help: 'Pick two or more multileaders, Enter, then click where the collected one goes.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, rtall: { title: 'Tag all rooms', cmd: 'RTALL', help: 'Enter tags every room of the level with no tag yet; A tags them all again.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
           )}
           {tool === 'matchprop' && view && <><h4>Match properties <span className="m">MP</span></h4><div className="cad-devform"><span className="m">{mpFrom ? 'Click each object to give it the layer, colour, linetype and lineweight of the first; Esc stops. Trays and cable routes keep their layers.' : 'Click the object to copy from.'}</span></div></>}
           {tool === 'match' && view && <MatchPanel from={placed.find((x) => x.key === matchFrom)} settings={matchSet} onSettings={setMatchSet} />}
