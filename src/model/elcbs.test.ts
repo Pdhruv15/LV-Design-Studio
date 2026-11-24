@@ -6,8 +6,8 @@ import { buildLoadScheduleHtml, elcbColumn, loadScheduleRows, scheduleTable } fr
 import { buildDbSheet } from '../docs/dbSheet';
 import type { Feeder, Project } from '../types';
 import { neededDevices } from './enclosureLibrary';
-import { addBoardElcb, allAutomatic, removeBoardElcb, setRcbo, updateBoardElcb } from './elcbs';
-import { addCircuit, balancePhases, updateCircuit } from './schedule';
+import { addBoardElcb, allAutomatic, editElcbAt, fixElcbs, regroupElcbs, regroupPreview, removeBoardElcb, removeElcbAt, resizeElcb, setNewElcbSize, setRcbo, updateBoardElcb } from './elcbs';
+import { addCircuit, balanceInsideElcbs, balancePhases, updateCircuit } from './schedule';
 
 const WATTS = { ltg: 100, cfan: 80, exfan: 40, shaver: 20, s13: 250, wh: 3000, hd: 1800, cooker: 6000, s15: 1000, wac: 2000, sac: 2500, pump: 750 };
 
@@ -82,16 +82,21 @@ describe('ELCB sections and groups', () => {
 });
 
 describe('placing ELCBs and RCBOs', () => {
-  it('adds, refuses an overlap, updates and removes a hand ELCB', () => {
+  it('adds an ELCB without moving the others, takes the ways of one it overlaps, updates and removes it', () => {
     const p = db(21);
     const a = addBoardElcb(p, 'DB', { fromWay: 5, toWay: 5 });
     expect(a.message).toMatch(/^ELCB-3 \d+ A \d+ mA 4P placed over way 5$/);
-    expect(() => addBoardElcb(a.project, 'DB', { fromWay: 4, toWay: 5 })).toThrow('Ways 4–5 overlap ELCB-3 (way 5)');
+    expect(ways(a.project)).toEqual([[1, 2], [3, 4], [5], [6], [7, 8]]);
+    expect(ways(addBoardElcb(a.project, 'DB', { fromWay: 4, toWay: 5 }).project)).toEqual([[1, 2], [3], [4, 5], [6], [7, 8]]);
+    expect(ways(addBoardElcb(p, 'DB', { fromWay: 2, toWay: 3 }).project)).toEqual([[1], [2, 3], [4], [5, 6], [7, 8]]);
     expect(() => addBoardElcb(p, 'DB', { fromWay: 3, toWay: 2 })).toThrow();
     expect(() => addBoardElcb(p, 'MDB', { fromWay: 1, toWay: 1 })).toThrow();
     const u = updateBoardElcb(a.project, 'DB', a.id, { toWay: 6, poles: 3, ratingA: 63 });
-    expect(board(u.project).elcbs).toEqual([{ id: a.id, fromWay: 5, toWay: 6, poles: 3, ratingA: 63 }]);
-    expect(board(removeBoardElcb(u.project, 'DB', a.id)).elcbs).toBeUndefined();
+    expect(board(u.project).elcbs!.find((e) => e.id === a.id)).toEqual({ id: a.id, fromWay: 5, toWay: 6, poles: 3, ratingA: 63 });
+    expect(ways(u.project)).toEqual([[1, 2], [3, 4], [5, 6], [7, 8]]);
+    const r = removeBoardElcb(u.project, 'DB', a.id);
+    expect(ways(r)).toEqual([[1, 2], [3, 4], [5, 6], [7, 8]]);
+    expect(elcbGroups(r, board(r))[2].byHand).toBeUndefined();
   });
 
   it('setRcbo turns an RCBO on and off; a 3-phase circuit cannot be one', () => {
@@ -124,6 +129,104 @@ describe('placing ELCBs and RCBOs', () => {
     const q = setRcbo(p, 'DB-R1', true, 10);
     expect(rcdOf(q, q.feeders.find((f) => f.id === 'DB-R1')!)).toBe(10);
     expect(before).toBe(100); // lighting group, project setting
+  });
+});
+
+describe('every ELCB is its own device', () => {
+  const groups = (p: Project) => elcbGroups(p, board(p)).map((g) => [g.index, g.ways, g.label, g.circuits.map((c) => c.id)]);
+
+  it('fixElcbs changes nothing on the schedule or its prints', () => {
+    let p = setRcbo(db(21), 'DB-Y3', true);
+    p = { ...p, boards: p.boards.map((b) => (b.id === 'DB' ? { ...b, spareWays: [{ id: 'sp1', kind: 'spare', phase: 'R', way: 9, ratingA: 20 }] } : b)) };
+    const q = fixElcbs(p, 'DB');
+    expect(board(q).elcbs!.map((e) => [e.fromWay, e.toWay])).toEqual([[1, 2], [3, 4], [5, 6], [7, 8]]);
+    expect(groups(q)).toEqual(groups(p));
+    expect(buildLoadScheduleHtml(q, 'DB')).toBe(buildLoadScheduleHtml(p, 'DB'));
+    // What the sheet shows: its cells, merges and texts (rows and board carry the data objects; functions are left out).
+    const sheet = (x: Project) => JSON.stringify({ ...buildDbSheet(x, 'DB'), board: undefined, rows: undefined });
+    expect(sheet(q)).toEqual(sheet(p));
+    const plain = db(9);
+    expect(sheet(fixElcbs(plain, 'DB'))).toEqual(sheet(plain));
+    expect(fixElcbs(q, 'DB')).toBe(q);
+  });
+
+  it('changing the New ELCBs size keeps every ELCB already on the DB', () => {
+    let p = db(12);
+    expect(ways(p)).toEqual([[1, 2], [3, 4]]);
+    p = setNewElcbSize(p, 'DB', 3);
+    expect(board(p).elcbGroupSize).toBe(3);
+    expect(ways(p)).toEqual([[1, 2], [3, 4]]);
+    for (let i = 0; i < 3; i++) p = addCircuit(p, 'DB').project;
+    expect(ways(p)).toEqual([[1, 2], [3, 4], [5]]);
+    p = setNewElcbSize(p, 'DB', 12);
+    for (let i = 0; i < 3; i++) p = addCircuit(p, 'DB').project;
+    expect(ways(p)).toEqual([[1, 2], [3, 4], [5], [6, 7, 8, 9]]);
+  });
+
+  it('resizes one ELCB: bigger takes the next ways, smaller gives the freed ways their own ELCB', () => {
+    const p = db(12);
+    expect(ways(resizeElcb(p, 'DB', 1, 3).project)).toEqual([[1], [2], [3, 4]]);
+    expect(ways(resizeElcb(p, 'DB', 2, 9).project)).toEqual([[1, 2, 3], [4]]);
+    const all = resizeElcb(p, 'DB', 1, 12);
+    expect(ways(all.project)).toEqual([[1, 2, 3, 4]]);
+    expect(all.message).toMatch(/^ELCB-1 \d+ A \d+ mA 4P over ways 1–4 \(12 circuits\)$/);
+    const same = resizeElcb(p, 'DB', 3, 6);
+    expect(same.project).toBe(p);
+    expect(same.message).toBe('ELCB-2 already covers 6 circuits');
+    // Freed ways with nothing in them get no ELCB.
+    expect(ways(resizeElcb(db(3), 'DB', 1, 3).project)).toEqual([[1]]);
+    expect(() => resizeElcb(p, 'DB', 1, 4)).toThrow(/3, 6, 9 or 12/);
+    expect(ways(setNewElcbSize(db(3), 'DB', 0))).toEqual([[1, 2]]);
+    expect(() => resizeElcb(regroupElcbs(db(3), 'DB', { size: 0, keepApart: false, keepRcbos: true }), 'DB', 1, 3)).toThrow('Way 1 has no ELCB');
+  });
+
+  it('edits and removes an automatic ELCB like one of its own; its ways then take the New ELCBs size', () => {
+    const p = db(12);
+    const e = editElcbAt(p, 'DB', 3, { poles: 3 });
+    expect(elcbGroups(e.project, board(e.project)).map((g) => [g.ways, g.poles])).toEqual([[[1, 2], 4], [[3, 4], 3]]);
+    const split = resizeElcb(p, 'DB', 1, 3).project;
+    const gone = removeElcbAt(split, 'DB', 2);
+    expect(ways(gone)).toEqual([[1], [2], [3, 4]]);
+    expect(elcbGroups(gone, board(gone))[1].byHand).toBeUndefined();
+  });
+
+  it('Re-group cuts the whole DB again; it keeps lighting and power apart and the RCBOs when asked', () => {
+    let p = resizeElcb(db(12), 'DB', 1, 3).project;
+    p = updateCircuit(setRcbo(p, 'DB-B4', true), 'DB-R1', { points: { s13: 4 } });
+    const plain = regroupElcbs(p, 'DB', { size: 6, keepApart: false, keepRcbos: true });
+    expect(board(plain).elcbs).toBeUndefined();
+    expect(ways(plain)).toEqual([[1, 2], [3, 4]]);
+    expect(plain.feeders.find((f) => f.id === 'DB-B4')!.rcbo).toBe(true);
+    expect(elcbGroups(plain, board(plain))[0].category).toBe('mixed');
+    const apart = regroupElcbs(p, 'DB', { size: 6, keepApart: true, keepRcbos: false });
+    expect(apart.feeders.some((f) => f.rcbo)).toBe(false);
+    expect(elcbGroups(apart, board(apart)).map((g) => g.category)).toEqual(['lighting', 'lighting', 'power']);
+    const pv = regroupPreview(p, 'DB', { size: 6, keepApart: true, keepRcbos: false });
+    expect(pv.before).toEqual([3, 3, 6]);
+    expect(pv.after).toEqual([6, 6, 6]);
+    expect(pv.moved).toBeGreaterThan(0);
+    expect(regroupPreview(p, 'DB', { size: 12, keepApart: false, keepRcbos: true })).toEqual({ before: [3, 3, 6], after: [12], moved: 0 });
+  });
+
+  it('Balance phases keeps every circuit and spare inside its own ELCB', () => {
+    let p = db(12);
+    p = updateCircuit(p, 'DB-R1', { points: { ltg: 30 } });
+    p = updateCircuit(p, 'DB-R2', { points: { ltg: 25 } });
+    p = resizeElcb(p, 'DB', 1, 3).project;
+    p = { ...p, boards: p.boards.map((b) => (b.id === 'DB' ? { ...b, spareWays: [{ id: 'sp1', kind: 'spare', phase: 'R', way: 5, ratingA: 20 }] } : b)) };
+    p = resizeElcb(p, 'DB', 3, 9).project; // ways 3–5, with the spare
+    const before = groups(p).map((g) => g[1]);
+    const blockOf = (q: Project, room: string) => before.findIndex((w) => (w as number[]).includes(scheduleCircuits(q, 'DB').find((f) => f.room === room)!.way!));
+    const q = balanceInsideElcbs(p, 'DB');
+    expect(groups(q).map((g) => g[1])).toEqual(before);
+    for (let i = 1; i <= 12; i++) expect(blockOf(q, `Room ${i}`), `Room ${i}`).toBe(blockOf(p, `Room ${i}`));
+    const sp = board(q).spareWays![0];
+    expect(sp.way).toBeGreaterThanOrEqual(3);
+    expect(sp.way).toBeLessThanOrEqual(5);
+    const taken = scheduleCircuits(q, 'DB').map((f) => `${f.phase}${f.way}`);
+    expect(new Set(taken).size).toBe(12);
+    expect(taken).not.toContain(`${sp.phase}${sp.way}`);
+    expect(scheduleCircuits(q, 'DB').every((f) => f.id === `DB-${f.phase}${f.way}`)).toBe(true);
   });
 });
 
@@ -231,6 +334,13 @@ describe('schedule documents', () => {
     const labels = sheet.data.map((r) => String(r[e])).filter(Boolean);
     expect(labels.some((l) => l.startsWith('RCBO-1 '))).toBe(true);
     expect(Object.values(sheet.merges).some(([, span]) => span === 3)).toBe(true);
+  });
+
+  it('a DB with no ELCB size saved shows its ELCBs on the Excel sheet too (6 circuits, as on the schedule)', () => {
+    const p = db(9);
+    expect(board(p).elcbGroupSize).toBeUndefined();
+    const elcbCol = buildDbSheet(p, 'DB').data.map((r) => r[1]).filter((c) => /^ELCB-/.test(String(c)));
+    expect(elcbCol.map((c) => String(c).split(' ')[0])).toEqual(['ELCB-1', 'ELCB-2']);
   });
 
   it('with nothing placed by hand the printed forms are unchanged', () => {

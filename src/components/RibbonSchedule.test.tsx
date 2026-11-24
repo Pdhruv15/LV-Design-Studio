@@ -198,7 +198,7 @@ describe('the Load schedule tab', () => {
     expect(sub('Balance phases')).toBe('27 % apart');
     click(tool('Balance phases'));
     expect(s.onBalance).toHaveBeenCalledTimes(1);
-    expect(tool('Balance phases').title).toContain('Lighting circuits first');
+    expect(tool('Balance phases').title).toContain('inside each ELCB');
     s = show({ canBalance: false, imbalancePct: 0 });
     expect(tool('Balance phases').disabled).toBe(true);
     expect(sub('Balance phases')).toBe('0 % apart');
