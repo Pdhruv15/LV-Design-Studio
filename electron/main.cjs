@@ -317,6 +317,19 @@ handle('recovery:write', (_evt, r) => projectFiles.writeRecovery(recoveryDir, ch
 handle('recovery:readAll', () => projectFiles.readRecoveries(recoveryDir, ensureProjectsFolder(), legacyRecoveryPath));
 handle('recovery:read', () => projectFiles.readRecoveries(recoveryDir, ensureProjectsFolder(), legacyRecoveryPath)[0] || null);
 handle('recovery:clear', (_evt, id) => (typeof id === 'string' && id ? projectFiles.clearRecovery(recoveryDir, id) : true));
+/** Options → Files & saving: shows one of the app's own folders in the file manager. The block library is the only
+ * folder the screen names, so it is only pointed out in its parent folder, never opened. */
+handle('settings:showFolder', async (_evt, kind, folder) => {
+  if (kind === 'projects') return shell.openPath(ensureProjectsFolder());
+  if (kind === 'recovery') { fs.mkdirSync(recoveryDir, { recursive: true }); return shell.openPath(recoveryDir); }
+  if (kind === 'blocks') {
+    const dir = typeof folder === 'string' && folder.length < 4096 && path.isAbsolute(folder) ? folder : undefined;
+    if (!dir || !fs.statSync(dir, { throwIfNoEntry: false })?.isDirectory()) return 'The folder was not found';
+    shell.showItemInFolder(dir);
+    return '';
+  }
+  throw new Error('Refused: folder');
+});
 
 // ---- IPC: the error log (src/util/errorLog.ts) ----
 handle('log:error', (_evt, text) => errorLog.appendError(logDir, check.logText(text)));

@@ -92,4 +92,14 @@ describe('attribute prompts in a dialog (S11)', () => {
     expect(draftSettings({ gripMax: 5000 }).gripMax).toBe(100);
     expect(draftSettings({ gripMax: 1000 }).gripMax).toBe(1000);
   });
+
+  it('the mouse and new-layout settings: right-click opens the menu, wheel step 15 %, A3 landscape, Page setup not opened; checked when read', () => {
+    expect(DRAFT_DEFAULTS).toMatchObject({ rightClick: 'menu', wheelPct: 15, wheelReverse: false, layoutPaper: 'A3', layoutPortrait: false, layoutSetupOpen: false });
+    expect(draftSettings({ rightClick: 'repeat', wheelPct: 24.6, wheelReverse: true, layoutPaper: 'A1', layoutPortrait: true, layoutSetupOpen: true })).toMatchObject({ rightClick: 'repeat', wheelPct: 25, wheelReverse: true, layoutPaper: 'A1', layoutPortrait: true, layoutSetupOpen: true });
+    expect(draftSettings({ rightClick: 'enter', wheelPct: 4, wheelReverse: 'yes', layoutPaper: 'A9', layoutPortrait: 1, layoutSetupOpen: 'on' })).toMatchObject({ rightClick: 'menu', wheelPct: 15, wheelReverse: false, layoutPaper: 'A3', layoutPortrait: false, layoutSetupOpen: false });
+    expect(draftSettings({ wheelPct: 51 }).wheelPct).toBe(15);
+    expect(draftSettings({ wheelPct: 50 }).wheelPct).toBe(50);
+    expect(draftSettings({ wheelPct: 5 }).wheelPct).toBe(5);
+    expect(draftSettings({ layoutPaper: 7 }).layoutPaper).toBe('A3');
+  });
 });

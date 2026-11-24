@@ -2,14 +2,15 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { createPortal } from 'react-dom';
 import CadCanvas, { type CadHover, type CadMarks, type CadToggles, type CanvasDevice, type CanvasWiring } from './CadCanvas';
 import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadRibbonInfo, type CadState, type CadTool } from './cadState';
-import { cadCommand, toolName, type CadAction } from './cadCommands';
+import { cadCommand, commandFullName, toolName, type CadAction, type OwnAliases } from './cadCommands';
+import { chordOf, type OwnKeys } from './cadShortcuts';
 import { getClip, hasClip, putClip } from './cadClipboardStore';
 import { hasPreviousView } from './cadViewHistory';
 import { QuickSelectDialog } from './CadQuickSelect';
 import { CadStatusToggles } from './CadStatusToggles';
 import { CadFilePaper, type PaperEdit } from './CadFilePaper';
 import { fileLayoutId, fileLayoutOf, fileLayoutTitle, paperOf } from '../../model/fileLayouts';
-import { addDrawingViewport, alignDrawingView, arrangeDrawingViewports, asFileLayout, clipDrawingViewport, copyDrawingViewport, drawingLayoutId, drawingLayoutOf, drawingLayoutsOf, dvId, dvIndex, fitDrawingViewports, newDrawingLayout, nextLayoutName, panDrawingView, paperName, patchDrawingViewport, removeDrawingViewport, scaleDrawingViewport, viewportScaleN, unclipDrawingViewport, withDrawingLayouts, withPaper, withViewportBox, zoomDrawingView, type DrawingLayout } from '../../model/drawingLayouts';
+import { addDrawingViewport, alignDrawingView, arrangeDrawingViewports, asFileLayout, clipDrawingViewport, copyDrawingViewport, drawingLayoutId, drawingLayoutOf, drawingLayoutsOf, dvId, dvIndex, fitDrawingViewports, layoutPaperMm, newDrawingLayout, nextLayoutName, panDrawingView, paperName, patchDrawingViewport, removeDrawingViewport, scaleDrawingViewport, viewportScaleN, unclipDrawingViewport, withDrawingLayouts, withPaper, withViewportBox, zoomDrawingView, type DrawingLayout } from '../../model/drawingLayouts';
 import type { ZoomReq } from './CadCanvas';
 import type { ZoomMenuKey } from '../drawingView';
 import { parseZoomScale } from '../../model/cadView';
@@ -87,8 +88,10 @@ import { lengthBreakdown, pullCadLengths } from '../../model/cadLengths';
 import { LV_ROUTE_LIMITS, planLvRoutes, type LvRoutePlan, type LvRoutePrecision } from '../../model/lvRoutePlanner';
 import { EMERGENCY_ITEMS } from '../../model/cadDevices';
 import { planLevel, setPlanLevel } from './cadFileMenu';
-import { pathOfPlan, type CadExport, type DraftTab, type SavedCopy } from './cadState';
-import CadDraftSettings from './CadDraftSettings';
+import { pathOfPlan, type CadExport, type SavedCopy } from './cadState';
+import CadOptions from './CadOptions';
+import { keepLibraries } from './cadSettingsFile';
+import type { OptAt } from '../../model/cadOptions';
 import CadSaveAs, { CloseUnsaved } from './CadSaveAs';
 import { cadFileMenu } from './cadFileMenu';
 import { cursorModeOf, DRAFT_DEFAULTS, OSNAP_BITS, pickRadiusPx, type DraftSettings, type OsnapMode } from '../../model/cadDraft';
@@ -101,7 +104,9 @@ import { drawingLayoutFromTemplate, layoutsFromTemplates, loadLayoutTemplates, s
 import { layoutDesign, layoutPlotHtml } from '../../docs/layoutPlot';
 import { ImportLayoutsDialog, LayoutManagerDialog, LayoutPaperDialog, LayoutPlotDialog, LayoutTemplatesDialog, ScaleListDialog } from './CadLayoutDialogs';
 import { applySetupManaged, copyManaged, deleteManaged, managerRows, moveManaged, renameManaged, type ManagerCtx } from './cadLayoutManager';
-import { setupsOf } from '../../model/plotSetup';
+import { setupsOf, tablesOf as penTablesOf } from '../../model/plotSetup';
+import { plotPrinter, setPlotPrinter } from '../../util/printers';
+import type { PalettePref, ThemePref } from '../../theme/theme';
 import { alignView, arrangementOf, arrangeViewports, clipViewport, copyViewport, fitView, isFrozen, isLocked, scalesOf, toggleFrozen, unclipViewport, vpName, vpToModel, vpWindow, withScales, type PlanViewport } from '../../model/planViewports';
 import { renumber, setOf, type PlanType } from '../../model/drawingSet';
 import { PublishDialog, SheetWorkspace } from '../sld/SheetWorkspace';
@@ -342,7 +347,10 @@ const DRAW_TOOLS: CadTool[] = ['point', 'line', 'xline', 'ray', 'pline', 'tray',
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
  * a command line and a status bar. Engine in Rust (WebAssembly), desktop and web alike. Measure a distance, an area (by
  * corners, a closed object, or inside a room), and click any object to see what it is. */
-export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run: calcRun, onSheet, draft = DRAFT_DEFAULTS, autosaveMin = 2, onPrefs, onUndo, onRedo, canUndo = false, canRedo = false, undoLabel, redoLabel, onShow }: {
+const NO_ALIASES: OwnAliases = {};
+const NO_KEYS: OwnKeys = {};
+
+export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run: calcRun, onSheet, draft = DRAFT_DEFAULTS, autosaveMin = 2, onPrefs, aliases = NO_ALIASES, keys = NO_KEYS, appPrefs, folders, onOutput, onUndo, onRedo, canUndo = false, canRedo = false, undoLabel, redoLabel, onShow }: {
   cad: CadState;
   /** Opens a board's load schedule, the SLD, the riser, the cable schedule or the ELV page (the right-click menus). */
   onShow?: (s: CadShow) => void;
@@ -357,7 +365,16 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** Drafting settings (DS), and the project's recovery-copy minutes, kept in Preferences by the app. */
   draft?: DraftSettings;
   autosaveMin?: number;
-  onPrefs?: (p: { draft: DraftSettings; autosaveMin: number }) => void;
+  onPrefs?: (p: { draft: DraftSettings; autosaveMin: number; app?: { theme: ThemePref; palette: PalettePref; cadLabels: boolean; ribbonOrder: string[]; aliases: OwnAliases; keys: OwnKeys } }) => void;
+  /** The user's own typed names and keys (Options → Shortcuts & aliases), kept in Preferences by the app. */
+  aliases?: OwnAliases;
+  keys?: OwnKeys;
+  /** The app's own settings Options shows on General and Display. */
+  appPrefs?: { theme?: ThemePref; palette?: PalettePref; cadLabels?: boolean; ribbonOrder?: string[] };
+  /** Options → Files & saving: the app's folder choosers (desktop app). */
+  folders?: { chooseProjects: () => Promise<void>; chooseDatabase: () => Promise<void> };
+  /** Options → Plot & publish: Page setups or Pen tables. */
+  onOutput?: (which: 'setups' | 'pens') => void;
   project: Project;
   /** `join`: part of the step before it (a take-over of the drawing's objects and the edit after it undo together). */
   onChange: (next: Project, message: string, join?: boolean) => void;
@@ -835,7 +852,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (OWN_STEP.includes(p.e)) takenRef.current = null;
     else setTimeout(() => { if (takenRef.current?.seen && toolRef.current === 'none') cancelTakeOver(); }, 80);
   }, [editTick]); // eslint-disable-line react-hooks/exhaustive-deps -- once per take-over
-  // Grips on every drawn object picked, up to the limit set in Drafting settings; each in a shape that suits it.
+  // Grips on every drawn object picked, up to the limit set in Options; each in a shape that suits it.
   const gripList = useMemo(() => (draft.grips && tool === 'none' && srcSk.length > 0 && pickedSk.length + pickedItems.length + pickedDw.length <= draft.gripMax
     ? srcSk.flatMap((it) => gripsOf(it).map((g, i) => ({ id: it.id, i, ...g, shape: (g.kind === 'radius' || g.kind === 'width' ? 'diamond' : g.kind === 'mid' && it.pts.length > 2 ? 'bar' : 'square') as 'square' | 'bar' | 'diamond' }))) : []),
   [draft.grips, draft.gripMax, tool, srcSk, pickedSk.length, pickedItems.length, pickedDw.length]);
@@ -1100,11 +1117,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     move: (d, dir) => { const i = dwgLayouts.findIndex((l) => drawingLayoutId(l.name) === d.id), j = i + dir; if (i < 0 || j < 0 || j >= dwgLayouts.length) return; const list = [...dwgLayouts]; [list[i], list[j]] = [list[j], list[i]]; setDwgLayouts(list, `${d.name} moved ${dir < 0 ? 'left' : 'right'}`); },
     remove: (d) => { setDwgLayouts(dwgLayouts.filter((l) => drawingLayoutId(l.name) !== d.id), `${d.name} deleted`); if (cad.layout === d.id) cad.setLayout(null); }
   };
-  const addDrawingLayout = () => {
+  const addDrawingLayout = (fromManager = false) => {
     if (!view) return;
-    const l = newDrawingLayout(nextLayoutName(layoutNames), view.info.extents, units.factor * 1000);
-    setDwgLayouts([...dwgLayouts, l], `${l.name} — A3 paper, the whole drawing in one viewport at ${fileLayoutTitle(asFileLayout(l, 0), units.factor * 1000).split(' at ')[1] ?? '1:100'} · Page setup changes the paper`);
+    const l = newDrawingLayout(nextLayoutName(layoutNames), view.info.extents, units.factor * 1000, layoutPaperMm(draft.layoutPaper, draft.layoutPortrait));
+    setDwgLayouts([...dwgLayouts, l], `${l.name} — ${paperName(l.paper).replace(' landscape', '')} paper, the whole drawing in one viewport at ${fileLayoutTitle(asFileLayout(l, 0), units.factor * 1000).split(' at ')[1] ?? '1:100'} · Page setup changes the paper`);
     cad.setLayout(drawingLayoutId(l.name));
+    // Options → Plot & publish: its Page setup opens as it is made (not from the Layout manager, which stays open).
+    if (draft.layoutSetupOpen && !fromManager) setLayoutDlg('paper');
   };
   /** A layout tab picked (or opened from the Layout manager): shown, and what it is said in the command line. */
   const pickLayout = (id: string | null) => {
@@ -1907,11 +1926,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       say(await saveBinary(`${base} - ${kind === 'devices' ? 'devices' : 'cable routes'}.xlsx`, await workbookBytes(wb), 'Excel workbook', 'xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', { output: 'cadDrawing', project }));
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
   }
-  // Drafting settings (DS) open at a tab; Publish (the sheets of this drawing's layouts ticked).
-  const [dsTab, setDsTab] = useState<DraftTab | null>(null);
+  // Options (OP) open at a page (DS: Drafting, UN: This drawing); Publish (the sheets of this drawing's layouts ticked).
+  const [optAt, setOptAt] = useState<OptAt | null>(null);
   const [publishing, setPublishing] = useState(false)
 ;
-  cad.actions.current = { newDrawing: newFile, save: () => void saveNow(), saveDwg: () => startSaveAs('dwg'), saveAs: () => startSaveAs(), exportAs: (k) => void exportAs(k), publish: () => setPublishing(true), settings: (t) => setDsTab(t ?? 'snap'), close: () => { if (view) closeDrawings([view]); }, closeOthers: () => { if (view) closeDrawings(cad.drawings.filter((v) => v !== view)); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); }, command: (t) => run(t), setProps, showOnPlan, reopen: () => { if (last) void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.'); } };
+  cad.actions.current = { newDrawing: newFile, save: () => void saveNow(), saveDwg: () => startSaveAs('dwg'), saveAs: () => startSaveAs(), exportAs: (k) => void exportAs(k), publish: () => setPublishing(true), settings: (t) => setOptAt(t ?? 'snap'), close: () => { if (view) closeDrawings([view]); }, closeOthers: () => { if (view) closeDrawings(cad.drawings.filter((v) => v !== view)); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); }, command: (t) => run(t), setProps, showOnPlan, reopen: () => { if (last) void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.'); } };
   // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
   useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
   // Show on plan: once the target's drawing is the one shown, pick the target and zoom to it.
@@ -2218,7 +2237,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const mc = menuCommon();
     if (tool !== 'none') {
       const opts = promptOptions(cad.history[cad.history.length - 1] ?? '');
-      if (!opts.length && !shift) { run(''); return; }
+      if ((!opts.length || (draft.rightClick === 'repeat' && !byKey)) && !shift) { run(''); return; }
       const last = cad.history[cad.history.length - 1] ?? '', cmdName = toolName(tool) ?? tool.toUpperCase();
       setPromptMenu({ at: screen, items: commandMenu({ options: opts, inputs, toggles: cad.toggles, snapOnce: snapOnce === 'none' ? null : snapOnce }), head: { icon: TOOL_MENU_ICON[tool] ?? 'enter', title: cmdName, detail: shortPrompt(last) || undefined }, label: 'Command menu' });
       return;
@@ -2260,6 +2279,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       // A reference drawing's lines (phase 3).
       const r = refNear(xr.placed, at, pickR * pixel);
       if (r) { ctxObj.current = { ref: r.name }; setPromptMenu({ at: screen, items: xrefMenu(r) }); return; }
+      // Right-click set to repeat: on blank canvas it repeats the last command, as Space does; Shift and the menu key open the menu.
+      if (draft.rightClick === 'repeat' && !shift && !byKey) { run(''); return; }
       const blank = blankMenu({ ...mc, recent: recent.map((x) => x.label), objectsHidden: !!objHide && objHide.file === view?.file });
       // Inside a room with an outline: the room's tools first (phase 2).
       const rt = room ? roomTypesOf(buildingInfoOf(project)).find((t) => t.id === room.type) : undefined;
@@ -2801,7 +2822,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** The block placed: into the drawing's blocks when it is not there yet, then one insert at the point (or, with
    * Explode ticked, its objects), one undo step; Recent remembers it. Repeat placement keeps the tool. */
   function placeInsert(def: CadBlockDef, at: Pt) {
-    // A block with attributes: each prompt first (on the command line, or in a dialog as Drafting settings has it).
+    // A block with attributes: each prompt first (on the command line, or in a dialog as Options has it).
     const asked = insSet.explode ? [] : askedAttdefs(def);
     if (asked.length) {
       if (draft.attDialog) { setAttPend({ def, at, asked, i: 0, values: {}, dialog: true }); return; }
@@ -4081,7 +4102,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     if (tool === 'pan' && !c) { cad.setTool('none'); cad.say('PAN  Ended.'); return; }
     // A value typed at a prompt (a number, a point, a distance) is kept for Recent input ▸ on the command menu.
-    if (tool !== 'none' && /\d/.test(raw) && !cadCommand(c)) setInputs((l) => [raw, ...l.filter((x) => x !== raw)].slice(0, 8));
+    if (tool !== 'none' && /\d/.test(raw) && !cadCommand(c, aliases)) setInputs((l) => [raw, ...l.filter((x) => x !== raw)].slice(0, 8));
     // Width… on a note's right-click menu: the box's new width in metres (its left edge stays).
     if (mtAsk?.step === 'ntwidth' && mtAsk.id) {
       const it = sketch.find((x) => x.id === mtAsk.id), n = Number(raw.replace(',', '.'));
@@ -4469,15 +4490,17 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       pngOut: () => void exportAs('png'),
       wblock: () => void exportAs('wblock'),
       publish: () => setPublishing(true),
-      dsettings: () => setDsTab('snap'),
-      options: () => setDsTab('cursor'),
-      unitsTab: () => setDsTab('drawing'),
+      dsettings: () => setOptAt('snap'),
+      options: () => setOptAt('last'),
+      unitsTab: () => setOptAt('drawing'),
       plot: () => { if (!view) cad.say('PLOT  Open a drawing first.'); else if (cad.layout) cad.say('PLOT  Use Output → Plot for this layout.'); else void exportAs('pdfView'); },
       properties: () => { if (!view) cad.say('PROPERTIES  Open a drawing first.'); else { setShowProps(true); cad.say('PROPERTIES  The properties palette is open (Ctrl/Cmd+1 folds it).'); } },
       regen: () => cad.say(`${c}  Nothing to regenerate: the view redraws by itself.`),
-      osnapSettings: () => setDsTab('osnap'),
+      osnapSettings: () => setOptAt('osnap'),
       polar: () => cad.toggle('polar'),
       otrack: () => cad.toggle('otrack'),
+      dyn: () => cad.toggle('dyn'),
+      history: () => setLog(log === 'history' ? null : 'history'),
       lwt: () => cad.toggle('lwt'),
       copyClip: () => copyClip(),
       cutClip: () => cutClip(),
@@ -4550,7 +4573,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         cad.say(q.n ? `QUICKMEASURE  ${q.n} object${q.n === 1 ? '' : 's'}: length ${m(toM(q.length))}${q.area > 0 ? ` · closed area ${m2(toM2(q.area))}` : ''}` : 'QUICKMEASURE  Nothing with a length is picked.');
       }
     };
-    const command = cadCommand(c);
+    const command = cadCommand(c, aliases);
     if (command) setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30));
     if (command && 'action' in command && command.action !== 'help') setRecent((r) => [{ label: c, text: c }, ...r.filter((x) => x.label !== c)].slice(0, 8));
     if (!command) cad.say(`Unknown command "${c}". Press F1 for the list.`);
@@ -4745,6 +4768,23 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
     const mods = e.metaKey || e.ctrlKey || e.altKey;
     const fn: Record<string, keyof CadToggles> = { F3: 'osnap', F7: 'grid', F8: 'ortho', F9: 'snap', F10: 'polar', F11: 'otrack', F12: 'dyn' };
+    // A key of the user's own (Options → Shortcuts & aliases), before the standard keys: F8 with Shift is the user's
+    // when they gave it a command, and ORTHO's as before when they did not. Its command runs as if typed. A switch or
+    // the properties palette works at once, as its standard key does; any other command only outside a dialog and
+    // when no field is being typed in (the empty command line counts).
+    const chord = chordOf(e), ownCmd = chord && keys[chord] !== undefined ? cadCommand(keys[chord]) : undefined;
+    if (ownCmd) {
+      e.preventDefault();
+      if (e.repeat) return;
+      const act = 'action' in ownCmd ? ownCmd.action : undefined;
+      if (act === 'grid') cad.cycleGrid();
+      else if (act === 'osnap' || act === 'ortho' || act === 'snap' || act === 'polar' || act === 'otrack' || act === 'dyn' || act === 'lwt') cad.toggle(act);
+      else if (act === 'properties') setShowProps((v) => !v);
+      else if (e.target instanceof Element && e.target.closest('[aria-modal="true"], [role="dialog"]')) return;
+      else if (act === 'help' || act === 'history') { if (!typing || e.target === input.current) setLog(log === act ? null : act); }
+      else if (!typing || (e.target === input.current && !cmd.trim())) run(commandFullName(ownCmd));
+      return;
+    }
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === '1') { e.preventDefault(); setShowProps((v) => !v); return; }
     if ((e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) && !typing && !e.ctrlKey && !e.metaKey && !e.altKey && !(e.target instanceof Element && e.target.closest('[aria-modal="true"], [role="dialog"]'))) { e.preventDefault(); if (!e.repeat) menuFromKeyboard(); return; }
     if (fn[e.key]) { e.preventDefault(); if (fn[e.key] === 'grid') cad.cycleGrid(); else cad.toggle(fn[e.key]); return; }
@@ -5284,7 +5324,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       </div>
     </aside>
   );
-  const fileLists = dsTab ? cadFileMenu(project, cad, (next, message) => onChange(next, message), onStatus) : null;
+  const fileLists = optAt ? cadFileMenu(project, cad, (next, message) => onChange(next, message), onStatus) : null;
   // The Hatch strip: in the ribbon's row while Hatch or Edit hatch runs (inline at the top of the page when there is no ribbon).
   const hatchStrip = (tool === 'hatch' || tool === 'hatchedit') && view ? (() => {
     const edit = tool === 'hatchedit', one = heItems.length === 1 ? heItems[0] : undefined, first = heItems[0];
@@ -5333,20 +5373,25 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             onDeleteState={(name) => change(withoutState(project, view.file, name), `Layer state ${name} deleted · ⌘Z to undo`)}
             onClose={() => setShowLM(false)} />
         )}
-        {/* Save As, Close with changes and Drafting settings float over the drawing, as the other CAD dialogs do. */}
+        {/* Save As, Close with changes and Options float over the drawing, as the other CAD dialogs do. */}
         {saveAs && view && <CadSaveAs key={view.file} initial={saveAs} own={view.info.format} hasRefs={xr.refs.length > 0} onClose={() => { setSaveAs(null); closeAfterSave.current = null; }}
           onSave={(c) => { setSaveAs(null); const after = closeAfterSave.current; void writeCopy(c, false).then((ok) => { if (ok && after) closeNow(after); }); }} />}
         {closing && <CloseUnsaved files={closing.filter((v) => cad.isDirty(v.file)).map((v) => v.file)} canSave={!!view && closing.filter((v) => cad.isDirty(v.file)).every((v) => v === view)}
           onClose={() => setClosing(null)} onDiscard={() => closeNow(closing)}
           onSave={() => { const going = closing; setClosing(null); if (view && cad.saved.current.get(view.file.toLowerCase())) void saveNow().then((ok) => { if (ok) closeNow(going); }); else { closeAfterSave.current = going; startSaveAs(); } }} />}
-        {dsTab && fileLists && <CadDraftSettings tab={dsTab} draft={draft} toggles={cad.toggles} gridDots={cad.gridDots} level={fileLists.level} levelSet={fileLists.levelSet} levels={fileLists.levels} unit={fileLists.unit} units={fileLists.units} autosaveMin={autosaveMin}
-          onClose={() => setDsTab(null)}
+        {optAt && fileLists && <CadOptions at={optAt} draft={draft} toggles={cad.toggles} gridDots={cad.gridDots} level={fileLists.level} levelSet={fileLists.levelSet} levels={fileLists.levels} unit={fileLists.unit} units={fileLists.units} autosaveMin={autosaveMin} aliases={aliases} keys={keys}
+          app={{ theme: appPrefs?.theme ?? 'dark', palette: appPrefs?.palette ?? 'graphite', cadLabels: !!appPrefs?.cadLabels, ribbonOrder: appPrefs?.ribbonOrder ?? [] }}
+          setups={setupsOf(project).length} penTables={penTablesOf(project).map((x) => x.name)} blockFolder={library.folder ?? ''} onBlockFolder={window.lvds?.cadFile?.chooseBlockFolder ? chooseLibraryFolder : undefined}
+          folders={folders} onOutput={onOutput}
+          onClose={() => setOptAt(null)}
           onApply={(x) => {
-            setDsTab(null);
+            setOptAt(null);
             cad.setToggles(x.toggles); cad.setGridDots(x.gridDots);
-            onPrefs?.({ draft: x.draft, autosaveMin: Math.max(0, Math.min(60, x.autosaveMin)) });
+            onPrefs?.({ draft: x.draft, autosaveMin: Math.max(0, Math.min(60, x.autosaveMin)), app: x.app });
+            if (x.printer !== plotPrinter()) setPlotPrinter(x.printer);
             x.level?.onClick(); x.unit?.onClick();
-            cad.say('DSETTINGS  Drafting settings changed.');
+            if (x.libraries) keepLibraries(x.libraries);
+            cad.say('OPTIONS  Options changed.');
           }} />}
         {dlg === 'edit' && DIALOG_TOOLS.includes(tool as EditTool) && <EditDialog tool={tool as EditTool} settings={edSet} onPatch={(p) => setEdSet((x) => ({ ...x, ...p }))} onClose={() => setDlg(null)} />}
         {attDlg && tool !== 'attpick' && <AttDefDialog draft={attDlg} styles={textStylesOf(project).styles.map((x) => x.name)} k={units.factor} onDraft={setAttDlg} onClose={() => setAttDlg(null)}
@@ -5400,7 +5445,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
           }} />}
         {view && paperL ? (
           <div className="cad-stage cad-paper" ref={paperStage} onMouseDown={() => setPaperCtx(null)}>
-            <CadFilePaper layout={paperL} model={view} layersOn={layersOn} design={paperDesign} edit={paperEdit} onContext={filePaperContext} onDblClick={() => cad.say(fileL ? `LAYOUT  ${fileL.name} is shown as the drawing file has it: work in the model on the Model tab.` : `LAYOUT  ${paperL.name} shows the model: work in it on the Model tab.`)} />
+            <CadFilePaper wheel={{ step: 1 + draft.wheelPct / 100, reverse: draft.wheelReverse }} layout={paperL} model={view} layersOn={layersOn} design={paperDesign} edit={paperEdit} onContext={filePaperContext} onDblClick={() => cad.say(fileL ? `LAYOUT  ${fileL.name} is shown as the drawing file has it: work in the model on the Model tab.` : `LAYOUT  ${paperL.name} shows the model: work in it on the Model tab.`)} />
             {paperCtx && <CadMenu left={paperCtx.at[0] + 4} top={paperCtx.at[1] + 4} head={paperCtx.head} items={paperCtx.items} label={paperCtx.label ?? 'Command menu'} onPick={(x) => { setPaperCtx(null); ctxPick(x); }} onClose={() => setPaperCtx(null)} />}
           </div>
         ) : view && sheetL ? (
@@ -5456,9 +5501,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         )}
         {dockSide === 'right' ? dock : info}
       </div>
-      <CadCommandLine history={cad.history} live={EDIT_TOOLS.includes(tool) ? promptNow(edSet) : undefined} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
+      <CadCommandLine aliases={aliases} history={cad.history} live={EDIT_TOOLS.includes(tool) ? promptNow(edSet) : undefined} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
       {view && <LayoutTabs files={view.layouts.map((l) => ({ id: fileLayoutId(l.name), name: l.name, title: fileLayoutTitle(l, units.factor * 1000) }))} drawings={dwgLayouts.map((l, n) => ({ id: drawingLayoutId(l.name), name: l.name, title: fileLayoutTitle(asFileLayout(l, n), units.factor * 1000) }))} layouts={layouts} active={sheetL?.id ?? (fileL ? fileLayoutId(fileL.name) : dwgL ? drawingLayoutId(dwgL.name) : null)} onPick={pickLayout}
-        onNew={addDrawingLayout} onNewSheet={addLayout}
+        onNew={() => addDrawingLayout()} onNewSheet={addLayout}
         onDrawing={{ ...drawingTabActs, pageSetup: (d) => { cad.setLayout(d.id); setLayoutDlg('paper'); } }}
         onTemplates={() => layoutCmd('LAYOUT T')} onImport={() => layoutCmd('LAYOUT I')} onManager={() => layoutCmd('LAYOUTMANAGER')} onPlotLayout={(id) => { cad.setLayout(id); setLayoutDlg('plot'); }} onSaveTemplate={(id) => { cad.setLayout(id); setLayoutDlg('templates'); }}
         onRename={(x) => { setRenamingLayout(x.id); cad.say(`RENAME  Type the new title of ${x.number} (now "${x.title}"):`); input.current?.focus(); }}
@@ -5467,7 +5512,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         onDelete={(x) => { const set = setOf(project); change({ ...project, drawingSet: { ...set, sheets: set.sheets.filter((y) => y.id !== x.id) } }, `LAYOUT  ${x.number} ${x.title} deleted (its sheet too) · ⌘Z to undo`); if (cad.layout === x.id) cad.setLayout(null); }}
         onPageSetup={(x) => onSheet?.(x.id)} onPlot={(x) => onPlot(x.id)} />}
       <div className="cad-status">
-        <CadStatusToggles toggles={cad.toggles} gridDots={cad.gridDots} draft={draft} canFit={!!view} onToggle={cad.toggle} onCycleGrid={cad.cycleGrid} onSettings={setDsTab} onFit={() => cad.fit()}
+        <CadStatusToggles toggles={cad.toggles} gridDots={cad.gridDots} draft={draft} canFit={!!view} onToggle={cad.toggle} onCycleGrid={cad.cycleGrid} onSettings={setOptAt} onFit={() => cad.fit()}
           onDraft={onPrefs ? (d) => onPrefs({ draft: d, autosaveMin }) : undefined} />
         <span className="sp" />
         {paperL ? <>
@@ -5512,7 +5557,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       {importList && <ImportLayoutsDialog file={importList.file} list={importList.list} onImport={importPicked} onClose={() => setImportList(null)} />}
       {layoutDlg === 'paper' && dwgL && <LayoutPaperDialog layout={dwgL} onClose={() => setLayoutDlg(null)} onSave={(paper) => setDwgLayouts(dwgLayouts.map((l) => (l === dwgL ? withPaper(dwgL, paper) : l)), `${dwgL.name}: ${paperName(paper)}`)} />}
       {layoutDlg === 'manager' && view && mgrCtx && managerActs && <LayoutManagerDialog file={view.file} rows={managerRows(project, mgrCtx, view.layouts, units.factor * 1000)} active={cad.layout} setups={setupsOf(project).map((x) => ({ id: x.id, name: x.name }))}
-        onOpen={pickLayout} onRename={managerActs.rename} onCopy={managerActs.copy} onMove={managerActs.move} onDelete={managerActs.remove} onApplySetup={managerActs.apply} onNew={addDrawingLayout} onClose={() => setLayoutDlg(null)} />}
+        onOpen={pickLayout} onRename={managerActs.rename} onCopy={managerActs.copy} onMove={managerActs.move} onDelete={managerActs.remove} onApplySetup={managerActs.apply} onNew={() => addDrawingLayout(true)} onClose={() => setLayoutDlg(null)} />}
       {layoutDlg === 'scales' && <ScaleListDialog scales={scalesOf(project)} onClose={() => setLayoutDlg(null)} onSave={(list) => change(withScales(project, list), `SCALELISTEDIT  ${list.length} scales in the list · ⌘Z to undo`)} />}
       {publishing && <PublishDialog project={project} run={calcRun} current={sheetL?.id} ticked={layouts.map((x) => x.id)} onClose={() => setPublishing(false)} onChange={(p) => onChange(p, 'Sheets issued · ⌘Z to undo')} onStatus={onStatus} onOpen={(id) => { setPublishing(false); onSheet?.(id); }} />}
       {showXR && view && <RefManager file={view.file} level={floor ? floorLabel(project.building, floor) : undefined} x={xr} onAttach={() => void startAttach()} onClip={startClip} onBind={() => { setShowXR(false); const c = copyOf(/^DXF/i.test(view.info.format) ? 'dxf' : 'dwg', true); if (c) void writeCopy({ ...c, path: undefined }, false, false); }} onClose={() => setShowXR(false)} />}
