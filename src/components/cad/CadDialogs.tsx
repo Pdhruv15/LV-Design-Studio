@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FocusEvent, type PointerEvent, type ReactNode } from 'react';
 import { toolAlias } from './cadCommands';
 import { EDIT_HELP, EDIT_TITLE, type EditSettings, type EditTool } from './SketchEditPanel';
 import { isNumber } from './cadPrompt';
@@ -209,6 +209,45 @@ function NameRow<T extends { name: string }>({ draft, sel, onRename, err }: { dr
 const renamed = <T extends { name: string }>(d: CadStyles<T>, from: string, to: string): CadStyles<T> =>
   ({ styles: d.styles.map((x) => (x.name === from ? { ...x, name: to } : x)), current: d.current === from ? to : d.current });
 
+/** A style dialog's top: the styles and their buttons (and `more`) on the left; the selected one's name, its preview on
+ * paper and a line under it on the right. The line names the part `mark` is, or else gives `note`. */
+function StyleTop<T extends { name: string }>({ draft, sel, onSel, onDraft, err, more, preview, mark, note }: {
+  draft: CadStyles<T>; sel: string; onSel: (name: string) => void; onDraft: (d: CadStyles<T>) => void; err: (m: string | undefined) => void;
+  more?: ReactNode; preview: ReactNode; mark?: string; note?: string;
+}) {
+  return (
+    <div className="cad-dlg-top">
+      <div><StyleList draft={draft} sel={sel} onSel={onSel} onDraft={onDraft} make={(from, name) => ({ ...from, name })} err={err} more={more} /></div>
+      <div>
+        <NameRow draft={draft} sel={sel} onRename={(to) => { onDraft(renamed(draft, sel, to)); onSel(to); }} err={err} />
+        {preview}
+        {mark ? <p className="cad-dlg-cap on">{mark}</p> : note ? <p className="cad-dlg-cap" role="note">{note}</p> : <p className="cad-dlg-cap" />}
+      </div>
+    </div>
+  );
+}
+
+/** The part of a style's preview that the value with the cursor, or else the row under the mouse, changes: `at` wraps a
+ * row with its part, and the rows' container takes `body`. */
+function useMarks<P extends string>() {
+  const [hover, setHover] = useState<{ part: P; label: string }>();
+  const [focus, setFocus] = useState<{ part: P; label: string }>();
+  const of = (t: EventTarget | null) => {
+    const el = t instanceof Element ? t.closest('[data-part]') : null;
+    return el ? { part: el.getAttribute('data-part') as P, label: el.querySelector('.cad-dlg-r > span')?.textContent ?? '' } : undefined;
+  };
+  return {
+    mark: focus ?? hover,
+    at: (part: P, row: ReactNode) => <div data-part={part}>{row}</div>,
+    body: {
+      onPointerOver: (e: PointerEvent) => { const m = of(e.target); setHover((h) => (h?.part === m?.part && h?.label === m?.label ? h : m)); },
+      onPointerLeave: () => setHover(undefined),
+      onFocus: (e: FocusEvent) => setFocus(of(e.target)),
+      onBlur: () => setFocus(undefined)
+    }
+  };
+}
+
 /** STYLE: the project's text styles. */
 export function TextStyleDialog({ styles, annoMm, onSave, onClose }: { styles: CadStyles<CadTextStyle>; annoMm: number; onSave: (s: CadStyles<CadTextStyle>) => void; onClose: () => void }) {
   const [d, setD] = useState(styles);
@@ -216,13 +255,16 @@ export function TextStyleDialog({ styles, annoMm, onSave, onClose }: { styles: C
   const [msg, setMsg] = useState<string>();
   const one = d.styles.find((x) => x.name === sel) ?? d.styles[0];
   const patch = (p: Partial<CadTextStyle>) => setD({ ...d, styles: d.styles.map((x) => (x.name === one.name ? { ...x, ...p } : x)) });
+  const { mark, at, body } = useMarks<TextPart>();
   return (
-    <CadDialog id="style" title="Text style" alias="STYLE" onOk={() => onSave(d)} onClose={onClose}
+    <CadDialog id="style" title="Text style" alias="STYLE" wide cls="styles" onOk={() => onSave(d)} onClose={onClose}
       help={`Text takes the current style. Height 0 asks each time (starting at ${annoMm} mm, the annotation text height). Fonts: those that print the same on the sheets and in Save DXF.`}>
-      <StyleList draft={d} sel={one.name} onSel={setSel} onDraft={setD} make={(from, name) => ({ ...from, name })} err={setMsg} />
-      <NameRow draft={d} sel={one.name} onRename={(to) => { setD(renamed(d, one.name, to)); setSel(to); }} err={setMsg} />
-      <Row label="Font"><select aria-label="Font" value={one.font} onChange={(e) => patch({ font: e.target.value as CadFont })}>{CAD_FONTS.map((f) => <option key={f} value={f}>{f}</option>)}</select></Row>
-      <Num label="Height" unit="mm" value={one.heightMm} onChange={(v) => patch({ heightMm: Number(v) })} />
+      <StyleTop draft={d} sel={one.name} onSel={setSel} onDraft={setD} err={setMsg} preview={<TextPreview s={one} annoMm={annoMm} mark={mark?.part} />}
+        mark={mark?.label} note={one.heightMm > 0 ? undefined : `Asked each time, from ${annoMm} mm`} />
+      <div className="cad-dlg-body" {...body}>
+        {at('text', <Row label="Font"><select aria-label="Font" value={one.font} onChange={(e) => patch({ font: e.target.value as CadFont })}>{CAD_FONTS.map((f) => <option key={f} value={f}>{f}</option>)}</select></Row>)}
+        {at('height', <Num label="Height" unit="mm" value={one.heightMm} onChange={(v) => patch({ heightMm: Number(v) })} />)}
+      </div>
       {msg && <p className="cad-dlg-help" role="alert">{msg}</p>}
     </CadDialog>
   );
@@ -241,9 +283,7 @@ export function DimStyleDialog({ styles, asBefore, onSave, onClose }: {
   const [tab, setTab] = useState<DimTab>('lines');
   const [msg, setMsg] = useState<string>();
   const [note, setNote] = useState<string>();
-  // The part of the preview the value with the cursor, or else the row under the mouse, changes.
-  const [hover, setHover] = useState<DimMark>();
-  const [focus, setFocus] = useState<DimMark>();
+  const { mark, at, body } = useMarks<DimPart>();
   const fileRef = useRef<HTMLInputElement>(null);
   const one = d.styles.find((x) => x.name === sel) ?? d.styles[0];
   const patch = (p: Partial<CadDimStyle>) => setD({ ...d, styles: d.styles.map((x) => (x.name === one.name ? { ...x, ...p } : x)) });
@@ -253,14 +293,6 @@ export function DimStyleDialog({ styles, asBefore, onSave, onClose }: {
     <Row label={label}><ArrowSwatch kind={value === 'same' ? one.arrow : (value as DimArrow)} /><select aria-label={label} value={value} onChange={(e) => set(e.target.value)}>{same && <option value="same">As first</option>}{DIM_ARROWS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></Row>
   );
   const hide = (k: 'hideExt1' | 'hideExt2', n: 1 | 2) => <label><input aria-label={`Hide extension line ${n}`} type="checkbox" checked={one[k]} onChange={(e) => patch({ [k]: e.target.checked })} />Line {n}</label>;
-  /** A row and the part of the preview it changes. */
-  const at = (part: DimPart, row: ReactNode) => <div data-part={part}>{row}</div>;
-  const markOf = (t: EventTarget | null): DimMark | undefined => {
-    const el = t instanceof Element ? t.closest('[data-part]') : null;
-    return el ? { part: el.getAttribute('data-part') as DimPart, label: el.querySelector('.cad-dlg-r > span')?.textContent ?? '' } : undefined;
-  };
-  const same = (a?: DimMark, b?: DimMark) => a?.part === b?.part && a?.label === b?.label;
-  const mark = focus ?? hover;
   const standardAsBefore = asBefore && one.name === STANDARD && JSON.stringify(one) === JSON.stringify(styles.styles.find((x) => x.name === STANDARD));
   const importFile = async (f: File) => {
     try {
@@ -276,25 +308,17 @@ export function DimStyleDialog({ styles, asBefore, onSave, onClose }: {
     } catch (e) { setNote(undefined); setMsg((e as Error).message); }
   };
   return (
-    <CadDialog id="dimstyle" title="Dimension style" alias="DIMSTYLE" wide cls="dim" onOk={() => onSave(d)} onClose={onClose} help={DIM_HELP[tab] + (standardAsBefore ? ` ${AS_BEFORE}` : '')}>
-      <div className="cad-dlg-top">
-        <div>
-          <StyleList draft={d} sel={one.name} onSel={setSel} onDraft={setD} make={(from, name) => ({ ...from, name })} err={setMsg}
-            more={<button type="button" onClick={() => fileRef.current?.click()}>Import DXF…</button>} />
+    <CadDialog id="dimstyle" title="Dimension style" alias="DIMSTYLE" wide cls="styles dim" onOk={() => onSave(d)} onClose={onClose} help={DIM_HELP[tab] + (standardAsBefore ? ` ${AS_BEFORE}` : '')}>
+      <StyleTop draft={d} sel={one.name} onSel={setSel} onDraft={setD} err={setMsg} preview={<DimPreview s={one} mark={mark?.part} />}
+        mark={mark?.label} note={standardAsBefore ? 'Draws as before until changed' : undefined}
+        more={<>
+          <button type="button" onClick={() => fileRef.current?.click()}>Import DXF…</button>
           <input ref={fileRef} type="file" accept=".dxf" hidden aria-label="Import dimension styles" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void importFile(f); }} />
-        </div>
-        <div>
-          <NameRow draft={d} sel={one.name} onRename={(to) => { setD(renamed(d, one.name, to)); setSel(to); }} err={setMsg} />
-          <DimPreview s={one} mark={mark?.part} />
-          {mark ? <p className="cad-dlg-cap on">{mark.label}</p>
-            : standardAsBefore ? <p className="cad-dlg-cap" role="note">Draws as before until changed</p> : <p className="cad-dlg-cap" />}
-        </div>
-      </div>
+        </>} />
       <div className="cad-dlg-tabs" role="tablist" aria-label="Dimension style">
         {DIM_TABS.map((x) => <button key={x.k} type="button" role="tab" aria-selected={tab === x.k} onClick={() => setTab(x.k)}>{x.label}</button>)}
       </div>
-      <div className="cad-dlg-body" onPointerOver={(e) => { const m = markOf(e.target); setHover((h) => (same(h, m) ? h : m)); }} onPointerLeave={() => setHover(undefined)}
-        onFocus={(e) => setFocus(markOf(e.target))} onBlur={() => setFocus(undefined)}>
+      <div className="cad-dlg-body" {...body}>
         {tab === 'lines' && <>
           <div className="cad-dlg-sec">Arrows</div>
           {at('arrow', arrows('Arrow', one.arrow, (v) => patch({ arrow: v as DimArrow })))}
@@ -341,7 +365,6 @@ type DimTab = 'lines' | 'text' | 'units';
 /** What a row changes in the preview: the arrowheads (the second end's only), the gap at the points measured, the
  * extension lines past the dimension line or whole, the dimension line past them, the text, or the gap under it. */
 type DimPart = 'arrow' | 'arrow2' | 'off' | 'ext' | 'extline' | 'dle' | 'text' | 'gap';
-interface DimMark { part: DimPart; label: string }
 const AS_BEFORE = 'Standard draws as before (sizes follow each dimension\'s length) until it is changed.';
 const DIM_TABS: { k: DimTab; label: string }[] = [{ k: 'lines', label: 'Lines & arrows' }, { k: 'text', label: 'Text' }, { k: 'units', label: 'Units' }];
 const DIM_HELP: Record<DimTab, string> = {
@@ -373,56 +396,101 @@ export function MleaderStyleDialog({ styles, annoMm, onSave, onClose }: {
   const one = d.styles.find((x) => x.name === sel) ?? d.styles[0];
   const patch = (p: Partial<CadMleaderStyle>) => setD({ ...d, styles: d.styles.map((x) => (x.name === one.name ? { ...x, ...p } : x)) });
   const mm = (k: 'arrowMm' | 'landingMm' | 'textMm' | 'gapMm', label: string) => <Num label={label} unit="mm" value={one[k]} onChange={(v) => patch({ [k]: Number(v) })} />;
+  const { mark, at, body } = useMarks<MlPart>();
   return (
-    <CadDialog id="mleaderstyle" title="Multileader style" alias="MLEADERSTYLE" onOk={() => onSave(d)} onClose={onClose} help={ML_HELP[tab]}>
-      <StyleList draft={d} sel={one.name} onSel={setSel} onDraft={setD} make={(from, name) => ({ ...from, name })} err={setMsg} />
-      <NameRow draft={d} sel={one.name} onRename={(to) => { setD(renamed(d, one.name, to)); setSel(to); }} err={setMsg} />
-      <MleaderPreview s={one} annoMm={annoMm} />
+    <CadDialog id="mleaderstyle" title="Multileader style" alias="MLEADERSTYLE" wide cls="styles ml" onOk={() => onSave(d)} onClose={onClose} help={ML_HELP[tab]}>
+      <StyleTop draft={d} sel={one.name} onSel={setSel} onDraft={setD} err={setMsg} preview={<MleaderPreview s={one} annoMm={annoMm} mark={mark?.part} />} mark={mark?.label} />
       <div className="cad-dlg-tabs" role="tablist" aria-label="Multileader style">
         {ML_TABS.map((x) => <button key={x.k} type="button" role="tab" aria-selected={tab === x.k} onClick={() => setTab(x.k)}>{x.label}</button>)}
       </div>
-      {tab === 'format' && <>
-        <Row label="Arrowhead"><select aria-label="Arrowhead" value={one.arrow} onChange={(e) => patch({ arrow: e.target.value as DimArrow })}>{DIM_ARROWS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></Row>
-        {mm('arrowMm', 'Arrow size')}
-      </>}
-      {tab === 'structure' && <>
-        <Check label="Landing" value={one.landing} onChange={(v) => patch({ landing: v })} />
-        {mm('landingMm', 'Landing length')}
-      </>}
-      {tab === 'content' && <>
-        <Row label="Content"><select aria-label="Content" value={one.content} onChange={(e) => patch({ content: e.target.value as CadMleaderStyle['content'] })}><option value="note">Notes</option><option value="none">None</option></select></Row>
-        {mm('textMm', 'Text height (0 = annotation height)')}
-        {mm('gapMm', 'Gap')}
-        <Check label="Frame" value={one.frame} onChange={(v) => patch({ frame: v })} />
-        <Check label="Fill in the circuit of the device at the arrowhead" value={one.circuit} onChange={(v) => patch({ circuit: v })} />
-      </>}
+      <div className="cad-dlg-body" {...body}>
+        {tab === 'format' && <>
+          {at('arrow', <Row label="Arrowhead"><ArrowSwatch kind={one.arrow} /><select aria-label="Arrowhead" value={one.arrow} onChange={(e) => patch({ arrow: e.target.value as DimArrow })}>{DIM_ARROWS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></Row>)}
+          {at('arrow', mm('arrowMm', 'Arrow size'))}
+        </>}
+        {tab === 'structure' && <>
+          {at('landing', <Check label="Landing" value={one.landing} onChange={(v) => patch({ landing: v })} />)}
+          {at('landing', mm('landingMm', 'Landing length'))}
+        </>}
+        {tab === 'content' && <>
+          {at('text', <Row label="Content"><select aria-label="Content" value={one.content} onChange={(e) => patch({ content: e.target.value as CadMleaderStyle['content'] })}><option value="note">Notes</option><option value="none">None</option></select></Row>)}
+          {at('text', mm('textMm', 'Text height (0 = annotation height)'))}
+          {at('gap', mm('gapMm', 'Gap'))}
+          {at('frame', <Check label="Frame" value={one.frame} onChange={(v) => patch({ frame: v })} />)}
+          {at('text', <Check lead label="Fill in the circuit of the device at the arrowhead" value={one.circuit} onChange={(v) => patch({ circuit: v })} />)}
+        </>}
+      </div>
       {msg && <p className="cad-dlg-help" role="alert">{msg}</p>}
     </CadDialog>
   );
 }
 
-/** The selected style at paper size, black on white: two leaders to a landing and the words "L1-03". Text size and colour
- * are inline styles here and in DimPreview, so the app's `svg text` rule (11 px, the theme's text colour) does not
- * replace them. */
-function MleaderPreview({ s, annoMm }: { s: CadMleaderStyle; annoMm: number }) {
+/** What a row of the Multileader style dialog changes in the preview: the arrowheads, the landing, the words, the gap
+ * before them, or the frame round them. */
+type MlPart = 'arrow' | 'landing' | 'text' | 'gap' | 'frame';
+/** What a row of the Text style dialog changes in the preview: the text, or its height (the capitals). */
+type TextPart = 'text' | 'height';
+
+/** A view of paper mm (svg y down) at 3 px a millimetre in the 186 × 102 preview, centred on the box given and zoomed
+ * out when that is larger. */
+const paperView = (x0: number, y0: number, x1: number, y1: number, pad = 3) => {
+  const k = Math.max(1, (x1 - x0 + 2 * pad) / 62, (y1 - y0 + 2 * pad) / 34), w = 62 * k, h = 34 * k;
+  return `${((x0 + x1 - w) / 2).toFixed(2)} ${((y0 + y1 - h) / 2).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}`;
+};
+
+/** The selected style at paper size, black on white: two leaders to a landing and the words "L1-03", the part `mark`
+ * changes in gold. Text size and colour are inline styles here and in the other previews, so the app's `svg text` rule
+ * (11 px, the theme's text colour) does not replace them. */
+function MleaderPreview({ s, annoMm, mark }: { s: CadMleaderStyle; annoMm: number; mark?: MlPart }) {
   const note = [{ runs: [{ s: 'L1-03' }] }];
-  const it: SketchItem = { id: 'preview', ...newMleader([0, 0], [16, -4], s.content === 'note' ? note : undefined, s, 1, '', annoMm), pts: [[16, -4], [0, 0], [0, -8]] };
-  const parts = mleaderParts(it), n = mleaderNote(it), P = (q: [number, number]) => `${q[0].toFixed(2)} ${(-q[1]).toFixed(2)}`;
+  const it: SketchItem = { id: 'preview', ...newMleader([0, 0], [20, -8], s.content === 'note' ? note : undefined, s, 1, '', annoMm), pts: [[20, -8], [0, 0], [0, -16]] };
+  const parts = mleaderParts(it), n = mleaderNote(it), P = (q: Pt) => `${q[0].toFixed(2)} ${(-q[1]).toFixed(2)}`;
+  const path = (segs: [Pt, Pt][]) => segs.map(([a, c]) => `M${P(a)}L${P(c)}`).join('');
   const segs = [...parts.legs, ...(parts.landing ? [parts.landing] : []), ...parts.arrows];
   const b = n ? noteBox(n) : undefined;
+  const words = b ? b.lines.flatMap((line) => line.segs.map((seg) => ({ key: `${line.y}-${seg.x}`, at: noteSegAt(b, line, seg), seg }))) : [];
+  const frame = parts.frame ? `M${parts.frame.map(P).join('L')}Z` : '';
+  // Where the words start, and where the landing (or the leaders) ends before them: the gap.
+  const end = (parts.landing ?? [it.pts[0], it.pts[0]]).reduce((a, c) => (c[0] > a[0] ? c : a));
+  const marked: [Pt, Pt][] = mark === 'arrow' ? parts.arrows : mark === 'landing' && parts.landing ? [parts.landing] : [];
+  const pts = [...segs.flat(), ...(parts.frame ?? []), ...words.flatMap((w) => [w.at, [w.at[0] + textWidth(w.seg.s, w.seg.h), w.at[1] + w.seg.h] as Pt])];
+  const view = paperView(Math.min(...pts.map((q) => q[0])), Math.min(...pts.map((q) => -q[1])), Math.max(...pts.map((q) => q[0])), Math.max(...pts.map((q) => -q[1])));
   return (
     <div className="cad-dlg-prev" aria-label="Preview">
-      <svg viewBox="-3 -6 40 12" width="160" height="48" aria-hidden="true" style={{ background: 'white' }}>
-        <path d={segs.map(([a, c]) => `M${P(a)}L${P(c)}`).join('') + (parts.frame ? `M${parts.frame.map(P).join('L')}Z` : '')} fill="none" stroke="black" strokeWidth="0.25" />
-        {n && b && b.lines.flatMap((line) => line.segs.map((seg) => { const at = noteSegAt(b, line, seg); return <text key={`${line.y}-${seg.x}`} x={at[0].toFixed(2)} y={(-at[1]).toFixed(2)} style={{ fontSize: +(seg.h * EM_PER_CAP).toFixed(2), fill: 'black' }}>{seg.s}</text>; }))}
+      <svg viewBox={view} width="186" height="102" aria-hidden="true" style={{ background: 'white' }}>
+        <path d={path(segs) + frame} fill="none" stroke="black" strokeWidth="0.25" />
+        {marked.length > 0 && <><path d={path(marked)} fill="none" stroke={MARK} strokeOpacity="0.2" strokeWidth="2" strokeLinecap="round" /><path d={path(marked)} fill="none" stroke={MARK} strokeWidth="0.5" /></>}
+        {mark === 'frame' && frame && <path d={frame} fill="none" stroke={MARK} strokeWidth="0.5" />}
+        {mark === 'gap' && words[0] && <path d={`M${P([end[0], words[0].at[1] + words[0].seg.h / 2])}L${P([words[0].at[0], words[0].at[1] + words[0].seg.h / 2])}`} stroke={MARK} strokeOpacity="0.35" strokeWidth={words[0].seg.h.toFixed(2)} />}
+        {words.map((w) => <text key={w.key} x={w.at[0].toFixed(2)} y={(-w.at[1]).toFixed(2)} style={{ fontSize: +(w.seg.h * EM_PER_CAP).toFixed(2), fill: mark === 'text' ? MARK : 'black' }}>{w.seg.s}</text>)}
+      </svg>
+    </div>
+  );
+}
+
+const TEXT_SAMPLE = 'AaBb 123';
+/** The selected text style at paper size, black on white: a sample on its baseline and capital line (grey), with its
+ * height marked at the left; the part `mark` changes in gold. Height 0 shows the annotation text height. */
+function TextPreview({ s, annoMm, mark }: { s: CadTextStyle; annoMm: number; mark?: TextPart }) {
+  const h = s.heightMm > 0 ? s.heightMm : annoMm, w = textWidth(TEXT_SAMPLE, h), t = Math.max(0.6, h * 0.2);
+  const bar = `M-3 0V${-h}M${-3 - t} 0H${-3 + t}M${-3 - t} ${-h}H${-3 + t}`;
+  return (
+    <div className="cad-dlg-prev" aria-label={`Preview: ${TEXT_SAMPLE}, ${h} mm`}>
+      <svg viewBox={paperView(-3 - t, -h, w + 1, h * 0.25)} width="186" height="102" aria-hidden="true" style={{ background: 'white' }}>
+        <path d={`M-1 0H${(w + 1).toFixed(2)}M-1 ${-h}H${(w + 1).toFixed(2)}`} stroke={GUIDE} strokeWidth="0.15" />
+        {mark === 'height' && <path d={bar} fill="none" stroke={MARK} strokeOpacity="0.2" strokeWidth="2" strokeLinecap="round" />}
+        <path d={bar} fill="none" stroke={mark === 'height' ? MARK : 'black'} strokeWidth={mark === 'height' ? 0.5 : 0.25} />
+        <text x="0" y="0" style={{ fontSize: +(h * EM_PER_CAP).toFixed(3), fill: mark === 'text' ? MARK : 'black', fontFamily: s.font }}>{TEXT_SAMPLE}</text>
       </svg>
     </div>
   );
 }
 
 type Pt = [number, number];
-/** The light theme's gold (--acc): it reads on the preview's white paper in every theme. */
+/** The light theme's gold (--acc): it reads on the previews' white paper in every theme. */
 const MARK = '#875800';
+/** The grey of what a preview draws behind the style: a room's walls, a text's baseline and capital line. */
+const GUIDE = '#9a9a9a';
 /** The preview's dimensions (paper mm): a room's corner, 3.20 m along its top wall with the line above it, and 1.80 m
  * up its left wall with the line to the left, its text reading from the right (the points measured, then where the
  * line runs). */
@@ -461,7 +529,7 @@ function DimPreview({ s, mark }: { s: CadDimStyle; mark?: DimPart }) {
   return (
     <div className="cad-dlg-prev" aria-label={`Preview: ${dims[0].label}`}>
       <svg viewBox="-19.25 -13 62 34" width="186" height="102" aria-hidden="true" style={{ background: 'white' }}>
-        <path d="M0 18V0H32V18" fill="none" stroke="#9a9a9a" strokeWidth="0.25" />
+        <path d="M0 18V0H32V18" fill="none" stroke={GUIDE} strokeWidth="0.25" />
         {halo.length > 0 && <path d={path(halo)} fill="none" stroke={MARK} strokeOpacity="0.2" strokeWidth="2" strokeLinecap="round" />}
         {bands.map((b, i) => <path key={i} d={`M${P(b.a)}L${P(b.b)}`} stroke={MARK} strokeOpacity="0.35" strokeWidth={b.w.toFixed(2)} />)}
         <path d={dims.map((g) => path(g.lines)).join('')} fill="none" stroke="black" strokeWidth="0.25" />

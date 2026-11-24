@@ -9,11 +9,9 @@ import type { Project } from '../../types';
  * placed items (src/model/cadDevices.ts), so the CAD page lists both together. */
 
 type Level = { building: string; level: string };
-export interface ElvPaletteItem { id: string; label: string; kind: { elv: ElvDeviceType }; symbol: { shape: string; text: string } }
 export interface ElvPlaced { key: string; id: string; what: 'elv'; x: number; y: number; label: string; detail: string; symbol: { shape: string; text: string }; room?: string }
 
-const PICK: ElvDeviceType[] = ['smoke-detector', 'heat-detector', 'call-point', 'sounder', 'camera', 'card-reader', 'data-outlet', 'access-point', 'ceiling-speaker'];
-export const ELV_PALETTE: ElvPaletteItem[] = PICK.map((t) => ({ id: t, label: ELV_DEVICES[t].label, kind: { elv: t }, symbol: ELV_DEVICES[t].symbol }));
+export { ELV_PALETTE, type ElvPaletteItem } from './elvLabels';
 
 export function placeElv(p: Project, type: ElvDeviceType, level: Level, x: number, y: number): { project: Project; message: string } {
   const { project } = placeDevices(p, level.building, level.level, [{ type, x, y }]);
