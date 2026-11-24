@@ -8,11 +8,11 @@ import type { Board, Phase, PointType, Project } from '../../types';
 import { cables } from '../../calc/cableTable';
 import { defaultCpcMm2 } from '../../calc/earthing';
 import { breakerRatings } from '../../calc/sizing';
-import { itemizedTypes, loadItemsText, missingWatts, pointColumns, pointLabel, pointWattsFor, isScheduleCircuit, rcbosOf } from '../../calc/loadSchedule';
+import { itemizedTypes, loadItemsText, missingWatts, pointColumns, pointLabel, pointWattsFor, isScheduleCircuit, rcbosOf, type ElcbGroup } from '../../calc/loadSchedule';
 import { settingsOf } from '../../types';
 import { loadsForColumn, type Database } from '../../database/database';
 import { buildLoadScheduleHtml, elcbColumn, loadScheduleCsv, loadScheduleRows } from '../../docs/loadScheduleDoc';
-import { addCircuit, balancePhases, circuitRef, deleteCircuit, duplicateCircuit, fixCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../../model/schedule';
+import { addCircuit, balanceInsideElcbs, circuitRef, deleteCircuit, duplicateCircuit, fixCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../../model/schedule';
 import { isFail, isProblem, nextProblemBoard, problemRows, rowFixes, rowReasons, type ScheduleRow, type ScheduleFix } from '../../docs/scheduleCheck';
 import { saveBinary, saveCsv, savePdf, safeFileName } from '../../util/files';
 import { buildFormWorkbook, workbookBytes, type WorkbookScope } from '../../docs/formWorkbook';
@@ -32,7 +32,9 @@ import { SCHEDULE_GROUPS, scheduleBoardOrder, scheduleGroupOf, scheduleGroups, t
 import MenuButton from '../MenuButton';
 import CircuitEditDialog from './CircuitEditDialog';
 import ElcbDialog, { type ElcbTarget, type ElcbValues } from './ElcbDialog';
-import { addBoardElcb, allAutomatic, removeBoardElcb, setRcbo, updateBoardElcb } from '../../model/elcbs';
+import { addBoardElcb, editElcbAt, ELCB_SIZES, regroupElcbs, removeElcbAt, resizeElcb, setNewElcbSize, setRcbo, type ElcbSize } from '../../model/elcbs';
+import ElcbCellMenu, { ElcbSizes, elcbWaysText } from './ElcbCellMenu';
+import RegroupDialog from './RegroupDialog';
 import TemplateExportDialog from './TemplateExportDialog';
 import { addSpareWay, deleteSpareWay, spareLabel, spareRef, updateSpareWay } from '../../model/spareWays';
 import { convertSpareWay } from '../../model/wayConversion';
@@ -243,11 +245,29 @@ export default function LoadScheduleView({
     onStatus(r.message);
     if (r.id) setEditing({ id: r.id });
   };
-  // ELCBs placed by hand and RCBOs (Add → ELCB / RCD): the dialog, and what the menu does to the selected circuit.
+  // ELCBs and RCBOs (Add → ELCB / RCD, or a click on an ELCB cell): the dialogs, and what the menus do. Every ELCB is a
+  // device of its own: changing one moves no other; Re-group all ELCBs cuts the whole DB again.
   const [elcbDlg, setElcbDlg] = useState<ElcbTarget | null>(null);
+  const [regroupOpen, setRegroupOpen] = useState(false);
+  const [cellMenu, setCellMenu] = useState<{ index: number; at: DOMRect } | null>(null);
   const elcbCells = useMemo(() => elcbColumn(data.entries), [data]);
-  const handCount = (board.elcbs?.length ?? 0) + data.rows.filter((r) => r.rcbo).length;
-  const underHand = activeRow?.group?.byHand;
+  const activeGroup = activeRow?.rcbo ? undefined : activeRow?.group;
+  const menuGroup = cellMenu ? elcbCells.find((c) => c?.group?.index === cellMenu.index)?.group : undefined;
+  const editElcb = (g: ElcbGroup) => setElcbDlg({ kind: 'elcb', at: g.ways[0], from: g.ways[0], to: g.ways[g.ways.length - 1] });
+  const resize = (g: ElcbGroup, circuits: number) => {
+    try {
+      const r = resizeElcb(project, board.id, g.ways[0], circuits);
+      if (r.project !== project) onChange(r.project, { step: true });
+      onStatus(r.message);
+    } catch (e) {
+      onStatus(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const newSize = board.elcbGroupSize ?? 6;
+  const removeElcb = (g: ElcbGroup) => {
+    onChange(removeElcbAt(project, board.id, g.ways[0]), { step: true });
+    onStatus(`ELCB-${g.index} removed: ${elcbWaysText(g.ways)} take the New ELCBs size (${newSize ? `${newSize} circuits` : 'no ELCB'})`);
+  };
   const placeRcbo = () => {
     if (!activeRow) return;
     try {
@@ -268,7 +288,7 @@ export default function LoadScheduleView({
         return undefined;
       }
       const body = { fromWay: v.fromWay, toWay: v.toWay, poles: v.poles === 3 ? 3 as const : undefined, ratingA: v.ratingA, sensitivityMa: v.sensitivityMa };
-      const r = target.id ? updateBoardElcb(project, board.id, target.id, body) : addBoardElcb(project, board.id, body);
+      const r = target.at !== undefined ? editElcbAt(project, board.id, target.at, body) : addBoardElcb(project, board.id, body);
       onChange(r.project, { step: true });
       onStatus(r.message);
       return undefined;
@@ -276,21 +296,14 @@ export default function LoadScheduleView({
       return e instanceof Error ? e.message : String(e);
     }
   };
-  const removeHand = () => {
-    if (!underHand) return;
-    onChange(removeBoardElcb(project, board.id, underHand.id), { step: true });
-    onStatus(`ELCB-${activeRow!.group!.index} removed: its ways go back to automatic`);
-  };
   const removeRcbo = () => {
     if (!activeRow?.rcbo) return;
     onChange(setRcbo(project, activeRow.f.id, false), { step: true });
     onStatus(`RCBO-${activeRow.rcbo.index} removed: ${activeRow.ref} has its MCB again and is back on the ELCB`);
   };
-  const resetAutomatic = async () => {
-    if (await ask(`Remove the ${handCount} ELCB / RCBO placed by hand on ${board.id}? Its ELCBs go back to the “ELCB per” grouping and RCBO circuits get their MCB again.`)) {
-      onChange(allAutomatic(project, board.id), { step: true });
-      onStatus(`${board.id}: ELCBs back to automatic`);
-    }
+  const regroup = (o: Parameters<typeof regroupElcbs>[2]) => {
+    onChange(regroupElcbs(project, board.id, o), { step: true });
+    onStatus(`${board.id}: ELCBs re-grouped${o.size ? ` into ${o.size} circuits each` : ': no ELCB'}`);
   };
   const removeCircuit = async (r: { f: { id: string }; ref: string }) => {
     if (await ask(`Delete circuit ${r.ref}?`)) onChange(deleteCircuit(project, r.f.id));
@@ -328,7 +341,7 @@ export default function LoadScheduleView({
     fill: () => (form === 'md' ? mdTools.current?.fillDown() : cmds.fillDown()),
     edit: () => { if (form === 'md') mdTools.current?.edit(); else if (form === 'tx') txTools.current?.edit(); else if (form === 'riser') onOpenRiser?.(); else if (activeRow) setEditing({ id: activeRow.f.id }); },
     remove: () => { if (form === 'md') mdTools.current?.remove(); else if (form === 'tx') txTools.current?.remove(); else if (activeRow) void removeCircuit(activeRow); },
-    balance: () => onChange(balancePhases(project, board.id)), copy: () => { if (form === 'md') mdTools.current?.copy(); else cmds.copy(); }, paste: pasteClipboard, exportKind,
+    balance: () => onChange(balanceInsideElcbs(project, board.id)), copy: () => { if (form === 'md') mdTools.current?.copy(); else cmds.copy(); }, paste: pasteClipboard, exportKind,
     step: (d: -1 | 1) => { const to = d < 0 ? prevBoard : nextBoard; if (to) onBoard(to); }, check,
     duplicate: () => { if (form === 'md') mdTools.current?.duplicate(); else duplicate(); },
     addTransformer: (newSubstation: boolean) => txTools.current?.addTransformer(newSubstation), formDetails: onSettings, openSheet: () => onOpenSheet?.(board.id) };
@@ -428,14 +441,13 @@ export default function LoadScheduleView({
             <span><span className="m">Fed from</span> <b>{board.upstreamId ?? 'Transformer'}</b></span>
             <label><span className="m">Location</span> <input value={board.location ?? ''} onChange={(e) => setBoard({ location: e.target.value || undefined })} /></label>
             <span><span className="m">Incomer</span> <b>{data.incomer ? `${data.incomer.breakerRatingA} A TP&N` : board.ratedCurrentA ? `${board.ratedCurrentA} A` : '—'}</b></span>
-            <label><span className="m">ELCB per</span>
-              <select value={board.elcbGroupSize ?? 6} onChange={(e) => setBoard({ elcbGroupSize: +e.target.value as 0 | 3 | 6 })}>
-                <option value={6}>6 circuits (2 ways)</option>
-                <option value={3}>3 circuits (1 way)</option>
+            <label title="The size of the ELCBs for ways that have none yet; the ELCBs already on this DB keep their ways"><span className="m">New ELCBs</span>
+              <select value={newSize} onChange={(e) => onChange(setNewElcbSize(project, board.id, +e.target.value as ElcbSize), { step: true })}>
+                {ELCB_SIZES.map((n) => <option key={n} value={n}>{n} circuits ({n / 3} way{n > 3 ? 's' : ''})</option>)}
                 <option value={0}>No ELCB</option>
               </select>
             </label>
-            {handCount > 0 && <span className="m">+ {handCount} placed by hand</span>}
+            <button className="chip" title="Cut the whole DB again into ELCBs of one size, after showing what changes" onClick={() => setRegroupOpen(true)}>Re-group all ELCBs…</button>
             <label><span className="m">Sensitivity</span>
               <select value={board.elcbSensitivityMa ?? ''} onChange={(e) => setBoard({ elcbSensitivityMa: e.target.value === '' ? undefined : +e.target.value })}>
                 <option value="">Auto (lighting {settings.elcbLightingMa} / power {settings.elcbPowerMa} mA)</option>
@@ -454,24 +466,26 @@ export default function LoadScheduleView({
             <button className="chip primary" title={`Add a circuit in the next free way of ${board.id}`} onClick={() => add()}><ListPlus size={15} /> 1-phase circuit</button>
             <button className="chip" title={`Add a 3-phase circuit (RYB) to ${board.id}`} onClick={() => add('RYB')}><ListPlus size={15} /> 3-phase circuit</button>
             <span className="ls-sep" aria-hidden />
-            <MenuButton label={<><ShieldCheck size={15} /> ELCB / RCD</>} title="Earth leakage protection placed by hand: a 3-phase ELCB over ways, or a 1-phase RCBO in place of a circuit's MCB">
+            <MenuButton label={<><ShieldCheck size={15} /> ELCB / RCD</>} title="Earth leakage protection: the selected circuit's ELCB, an ELCB over ways, or a 1-phase RCBO in place of a circuit's MCB">
               {(close) => (
                 <>
-                  <div className="mp-h">Earth leakage protection placed by hand</div>
-                  <button title="An ELCB over whole ways (R, Y and B of each way)" onClick={() => { close(); setElcbDlg({ kind: 'elcb', from: activeRow?.f.way ?? 1, to: activeRow?.f.way ?? 1 }); }}>3-phase ELCB (4P, TP&amp;N) over ways…</button>
-                  {activeRow && activeRow.f.phase === 'RYB' && !underHand
-                    ? <button title="An ELCB over the way of this 3-phase circuit" onClick={() => { close(); setElcbDlg({ kind: 'elcb', from: activeRow.f.way!, to: activeRow.f.way! }); }}>3-phase ELCB for {activeRow.ref} only</button>
-                    : <button disabled title="Select a 3-phase circuit (not under an ELCB placed by hand) first">3-phase ELCB for the selected 3-phase circuit</button>}
+                  {activeGroup && (
+                    <>
+                      <div className="mp-h">ELCB-{activeGroup.index} · {elcbWaysText(activeGroup.ways)} · size</div>
+                      <ElcbSizes group={activeGroup} onPick={(n) => { close(); resize(activeGroup, n); }} />
+                      <button onClick={() => { close(); editElcb(activeGroup); }}>Edit ELCB-{activeGroup.index}…</button>
+                      <button title="Its ways take the New ELCBs size" onClick={() => { close(); removeElcb(activeGroup); }}>Remove ELCB-{activeGroup.index}</button>
+                      <hr />
+                    </>
+                  )}
+                  <div className="mp-h">Earth leakage protection</div>
+                  <button title="An ELCB over whole ways (R, Y and B of each way); ELCBs already there give those ways up" onClick={() => { close(); setElcbDlg({ kind: 'elcb', from: activeRow?.f.way ?? 1, to: activeRow?.f.way ?? 1 }); }}>3-phase ELCB (4P, TP&amp;N) over ways…</button>
+                  {activeRow && activeRow.f.phase === 'RYB' && !(activeGroup && activeGroup.ways.length === 1)
+                    ? <button title="An ELCB over the way of this 3-phase circuit; the ELCB it is under gives that way up" onClick={() => { close(); setElcbDlg({ kind: 'elcb', from: activeRow.f.way!, to: activeRow.f.way! }); }}>3-phase ELCB for {activeRow.ref} only</button>
+                    : <button disabled title="Select a 3-phase circuit that does not have an ELCB of its own yet">3-phase ELCB for the selected 3-phase circuit</button>}
                   {activeRow && activeRow.f.phase !== 'RYB' && !activeRow.rcbo
                     ? <button title="The circuit's breaker becomes an RCBO (MCB and earth leakage in one); it leaves the ELCB of its ways" onClick={() => { close(); placeRcbo(); }}>1-phase RCBO for {activeRow.ref}</button>
                     : <button disabled title="Select a 1-phase circuit that is not an RCBO yet first">1-phase RCBO for the selected circuit</button>}
-                  {underHand && activeRow?.group && (
-                    <>
-                      <hr />
-                      <button onClick={() => { close(); setElcbDlg({ kind: 'elcb', id: underHand.id, from: underHand.fromWay, to: underHand.toWay }); }}>Edit ELCB-{activeRow.group.index}…</button>
-                      <button onClick={() => { close(); removeHand(); }}>Remove ELCB-{activeRow.group.index}</button>
-                    </>
-                  )}
                   {activeRow?.rcbo && (
                     <>
                       <hr />
@@ -480,7 +494,7 @@ export default function LoadScheduleView({
                     </>
                   )}
                   <hr />
-                  <button disabled={!handCount} title={handCount ? undefined : 'Nothing is placed by hand on this DB'} onClick={() => { close(); void resetAutomatic(); }}>All automatic again</button>
+                  <button title="Cut the whole DB again into ELCBs of one size, after showing what changes" onClick={() => { close(); setRegroupOpen(true); }}>Re-group all ELCBs…</button>
                 </>
               )}
             </MenuButton>
@@ -496,7 +510,7 @@ export default function LoadScheduleView({
               )}
             </MenuButton>
             <span className="ls-sep" aria-hidden />
-            <button className="chip" title="Lighting circuits first, then power, each starting on an ELCB section; spread over R/Y/B and renumber" disabled={!canBalance} onClick={() => now.balance()}><Scale size={15} /> Balance phases</button>
+            <button className="chip" title="Spread the 1-phase circuits over R / Y / B inside each ELCB, so every ELCB keeps its circuits; circuits that move are renumbered" disabled={!canBalance} onClick={() => now.balance()}><Scale size={15} /> Balance phases</button>
             <span className="sp" />
             <span>
               Phase load (W): <b className="ph-r">R {fmtFixed(data.phaseW.R * 1000, 0)}</b> · <b className="ph-y">Y {fmtFixed(data.phaseW.Y * 1000, 0)}</b> ·{' '}
@@ -570,14 +584,14 @@ export default function LoadScheduleView({
                     const g = e.group;
                     const c = elcbCells[i];
                     const cg = c?.group;
-                    const mixed = !!cg && cg.category === 'mixed' && !cg.byHand;
-                    const handWays = cg?.byHand ? (cg.circuits.length === 1 ? 'this circuit' : cg.ways.length === 1 ? `way ${cg.ways[0]}` : `ways ${cg.ways[0]}–${cg.ways[cg.ways.length - 1]}`) : '';
+                    const mixed = !!cg && cg.category === 'mixed';
+                    const covers = !cg ? '' : cg.ways.length === 1 && cg.circuits.length === 1 && cg.circuits[0].phase === 'RYB' ? 'this circuit' : `${cg.ways.length * 3} circuits`;
                     const elcbTd = !c ? null : c.rcbo ? (
-                      <td className="elcb">RCBO-{c.rcbo.index}<br />{c.rcbo.label}<br /><span className="m">by hand · this circuit</span></td>
+                      <td className="elcb">RCBO-{c.rcbo.index}<br />{c.rcbo.label}<br /><span className="m">this circuit</span></td>
                     ) : cg ? (
-                      <td rowSpan={c.span} className={`elcb ${mixed ? 'warn' : ''}`}
-                        title={mixed ? 'Lighting and power share this ELCB — use Load schedule → Balance phases to separate them' : undefined}>
-                        ELCB-{cg.index}<br />{cg.label}<br /><span className="m">{cg.byHand ? `by hand · ${handWays}` : mixed ? 'mixed!' : cg.category}</span>
+                      <td rowSpan={c.span} className={`elcb ${mixed ? 'warn' : ''}`} onClick={(ev) => setCellMenu({ index: cg.index, at: ev.currentTarget.getBoundingClientRect() })}
+                        title={`${mixed ? 'Lighting and power share this ELCB — Re-group all ELCBs… with “Keep lighting and power circuits apart” separates them. ' : ''}Click to change ELCB-${cg.index} (${elcbWaysText(cg.ways)})`}>
+                        ELCB-{cg.index}<br />{cg.label}<br /><span className="m">{covers} · {mixed ? 'mixed!' : cg.category}</span>
                       </td>
                     ) : <td />;
                     if (e.type === 'spare') {
@@ -671,6 +685,11 @@ export default function LoadScheduleView({
             </div>
           )}
           {elcbDlg && <ElcbDialog project={project} board={board} target={elcbDlg} onSave={(v) => saveElcb(elcbDlg, v)} onClose={() => setElcbDlg(null)} />}
+          {regroupOpen && <RegroupDialog project={project} board={board} onApply={regroup} onClose={() => setRegroupOpen(false)} />}
+          {cellMenu && menuGroup && (
+            <ElcbCellMenu group={menuGroup} at={cellMenu.at} onClose={() => setCellMenu(null)}
+              onResize={(n) => resize(menuGroup, n)} onEdit={() => editElcb(menuGroup)} onRemove={() => removeElcb(menuGroup)} onRegroup={() => setRegroupOpen(true)} />
+          )}
           {templateOpen && <TemplateExportDialog project={project} boardId={board.id} onStatus={onStatus} onClose={() => setTemplateOpen(false)} />}
           {editRow && (
             <CircuitEditDialog project={project} board={board} feeder={editRow.f} circuitRef={editRow.ref} columns={columns} library={db.loads} focus={editing!.focus}

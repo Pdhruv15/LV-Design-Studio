@@ -164,4 +164,62 @@ export function balancePhases(project: Project, boardId: string): Project {
   return reslotSpares({ ...project, feeders }, boardId);
 }
 
+/** Balance phases with every ELCB kept (the page's and the panels page's Balance phases): each ELCB's 1-phase circuits
+ * are spread over the R / Y / B slots of its own ways, largest first onto the phase that is lightest with the whole DB
+ * counted, so every ELCB keeps its circuits and its size. 3-phase circuits and spares stay in their way; 1-phase spares
+ * and spaces take the slots left in their ELCB. A run of ways with no ELCB is balanced the same way, on its own.
+ * Circuit ids are renamed to match their new references. */
+export function balanceInsideElcbs(project: Project, boardId: string): Project {
+  const board = project.boards.find((b) => b.id === boardId);
+  if (!board) return project;
+  const circuits = scheduleCircuits(project, boardId);
+  const spares = (board.spareWays ?? []).filter((s) => s.way);
+  const last = Math.max(0, ...circuits.map((f) => f.way!), ...spares.map((s) => s.way!));
+  // The blocks circuits may move within: each ELCB section, and each run of ways with none.
+  const sections = elcbSections(board as Board, last);
+  const blocks: number[][] = [];
+  for (let w = 1; w <= last;) {
+    const sec = sections.find((x) => x.ways.includes(w));
+    if (sec) {
+      blocks.push(sec.ways);
+      w = sec.ways[sec.ways.length - 1] + 1;
+      continue;
+    }
+    const run: number[] = [];
+    while (w <= last && !sections.some((x) => x.ways.includes(w))) run.push(w++);
+    blocks.push(run);
+  }
+  const kw = (f: Feeder) => f.loadKw * f.demandFactor;
+  const load = { R: 0, Y: 0, B: 0 };
+  for (const f of circuits) if (f.phase === 'RYB') SINGLE_PHASES.forEach((p) => (load[p] += kw(f) / 3));
+  const circuitAt = new Map<string, { phase: Phase; way: number }>();
+  const spareAt = new Map<string, { phase: Phase; way: number }>();
+  for (const ways of blocks) {
+    const inBlock = (w?: number) => !!w && ways.includes(w);
+    const three = new Set([...circuits, ...spares].filter((x) => x.phase === 'RYB' && inBlock(x.way)).map((x) => x.way!));
+    const open = ways.filter((w) => !three.has(w)); // ways with an R, a Y and a B slot
+    const byPhase: Record<'R' | 'Y' | 'B', Feeder[]> = { R: [], Y: [], B: [] };
+    for (const f of circuits.filter((x) => x.phase !== 'RYB' && inBlock(x.way)).sort((a, b) => kw(b) - kw(a))) {
+      // Lightest phase with a slot left in this ELCB; ties go to the phase with fewer circuits so ways fill evenly.
+      const p = SINGLE_PHASES.filter((x) => byPhase[x].length < open.length).sort((a, b) => load[a] - load[b] || byPhase[a].length - byPhase[b].length)[0];
+      if (!p) break;
+      load[p] += kw(f);
+      byPhase[p].push(f);
+    }
+    for (const p of SINGLE_PHASES) byPhase[p].forEach((f, i) => circuitAt.set(f.id, { phase: p, way: open[i] }));
+    const free = open.flatMap((w, i) => SINGLE_PHASES.filter((p) => byPhase[p].length <= i).map((p) => ({ phase: p as Phase, way: w })));
+    const order = (ph: Phase) => SINGLE_PHASES.indexOf(ph as 'R');
+    spares.filter((x) => x.phase !== 'RYB' && inBlock(x.way)).sort((a, b) => a.way! - b.way! || order(a.phase) - order(b.phase))
+      .forEach((x, i) => { if (free[i]) spareAt.set(x.id, free[i]); });
+  }
+  const feeders = project.feeders.map((f) => {
+    const at = circuitAt.get(f.id);
+    return at && (at.phase !== f.phase || at.way !== f.way) ? { ...f, phase: at.phase, way: at.way, id: circuitId(boardId, at.phase, at.way) } : f;
+  });
+  const boards = project.boards.map((b) => (b.id !== boardId || !b.spareWays ? b : {
+    ...b, spareWays: b.spareWays.map((x) => { const at = spareAt.get(x.id); return at ? { ...x, phase: at.phase, way: at.way } : x; })
+  }));
+  return { ...project, feeders, boards };
+}
+
 export { circuitRef };
