@@ -1,7 +1,7 @@
 import type { Project } from '../types';
 import { BUILTIN_CATALOGUES, type EnclosureCatalogue } from '../calc/enclosure';
 import { breakerTypeOf } from '../calc/earthing';
-import { elcbGroups, isRcbo, scheduleCircuits } from '../calc/loadSchedule';
+import { elcbGroups, hasNoRcd, isRcbo, scheduleCircuits } from '../calc/loadSchedule';
 import { spareBreaker, spareWaysOf } from './spareWays';
 import { BRAND_DEVICES } from '../data/brandDevices';
 import { pushLibrary } from '../database/librarySync';
@@ -136,7 +136,7 @@ export function neededDevices(project: Project, boardId: string, devices: Device
   const groups = elcbGroups(project, board);
   const inGroup = new Set(groups.flatMap((g) => g.circuits.map((c) => c.id)));
   for (const f of circuits.length ? circuits : project.feeders.filter((x) => x.boardId === boardId)) {
-    const own = (isRcbo(f) || !!f.rcdMa) && !inGroup.has(f.id);
+    const own = (isRcbo(f) || !!f.rcdMa) && !inGroup.has(f.id) && !hasNoRcd(f);
     const t = breakerTypeOf(f);
     list.push({ kind: own ? 'RCBO' : t === 'MCCB' || t === 'ACB' ? 'MCCB' : 'MCB', poles: f.cores === 2 ? 1 : 3, ratingA: f.breakerRatingA, what: own ? 'Circuit with RCBO' : 'Circuit breaker' });
   }

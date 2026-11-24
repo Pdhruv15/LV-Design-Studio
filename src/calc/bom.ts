@@ -247,7 +247,8 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     if (isScheduleCircuit(f) && isRcbo(f)) {
       // An RCBO is the circuit's breaker and its earth leakage protection in one: no MCB, no RCCB share.
       const ma = rcdOf(p, f);
-      add('B', `rcbo:${ma}:SP+N:${f.breakerRatingA}`, `RCBO ${f.breakerRatingA} A, ${ma} mA, SP+N${brandRef('RCBO', 'SP+N', f.breakerRatingA)}`, 'no', 1, f.boardId);
+      const rp = f.phase === 'RYB' ? 'TP+N' : 'SP+N';
+      add('B', `rcbo:${ma}:${rp}:${f.breakerRatingA}`, `RCBO ${f.breakerRatingA} A, ${ma} mA, ${rp}${brandRef('RCBO', rp, f.breakerRatingA)}`, 'no', 1, f.boardId);
     } else {
       const bi = breakerItem(f);
       add('B', bi.key, bi.description, 'no', 1, f.boardId);

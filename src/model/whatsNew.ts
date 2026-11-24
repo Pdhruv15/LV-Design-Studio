@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.287', date: '2026-11-24',
+    items: [
+      { title: 'Load schedule: 4P RCBO for a 3-phase circuit', text: 'Select a 3-phase circuit and choose ELCB / RCD → RCBO for it: one 4P RCBO in place of its MCB, so it leaves the ELCB of its ways. It prints 4P and is counted TP+N in the BOQ.' },
+      { title: 'Load schedule: No RCD for one circuit', text: 'ELCB / RCD → No RCD… takes a circuit off its ELCB on purpose (for example a fire alarm panel) and asks why. The reason prints in the ELCB column, no earth leakage device is counted, and the earth fault check rests on the MCB alone. Put back on its ELCB undoes it.' }
+    ]
+  },
+  {
     version: '2.285', date: '2026-11-24',
     items: [
       { title: 'Generator: minimum fault current from X′d', text: 'A board on a generator source has two new values beside X″d: X′d (25 % when not typed) and Sustained fault (× rated). The earth fault loop study now takes the generator\'s minimum fault current from X′d, or from the sustained current when you type it, in place of the sub-transient level. Breaking capacity still uses X″d. A pass that rests on the assumed 25 % shows as not verified until you type X′d, the sustained current or the minimum fault level. Earth loop results of projects on a generator source change: the fault current is lower than before.' }

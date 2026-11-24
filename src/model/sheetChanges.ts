@@ -15,7 +15,7 @@ import { sheetProject, type DrawingSet, type DrawingSheet, type SheetCloud } fro
 export type SheetItems = Record<string, Record<string, unknown>>;
 
 const FEEDER_DRAWN = new Set(['name', 'loadKw', 'breakerRatingA', 'breakerType', 'breakerIcuKa', 'breakerImMultiple', 'device', 'cableCsaMm2', 'cores', 'cableType', 'cpcMm2', 'lengthM', 'parallel',
-  'rcdMa', 'kvar', 'capSteps', 'starter', 'phase', 'way', 'kwhMeter', 'feedsBoardId', 'essential', 'existing', 'standbyUnit', 'localIsolator', 'rcbo']);
+  'rcdMa', 'kvar', 'capSteps', 'starter', 'phase', 'way', 'kwhMeter', 'feedsBoardId', 'essential', 'existing', 'standbyUnit', 'localIsolator', 'rcbo', 'noRcd']);
 const BOARD_DRAWN = new Set(['name', 'kind', 'upstreamId', 'ratedCurrentA', 'sourceKva', 'sourceImpedancePct', 'txRef', 'supply', 'standby', 'vectorGroup', 'protection', 'upsKva', 'busbarMaterial', 'busbarIcwKa', 'sections',
   'instruments', 'incomerDevice', 'earthing', 'rmu', 'spd', 'pmu', 'existing', 'form4', 'spareWays', 'elcbs', 'elcbRatingA', 'elcbSensitivityMa', 'elcbGroupSize', 'elcbKeepApart']);
 const FEEDER_LABELS = FEEDER_FIELDS.filter(([k]) => FEEDER_DRAWN.has(k)) as [string, string][];

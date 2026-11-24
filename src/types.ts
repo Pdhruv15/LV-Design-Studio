@@ -288,7 +288,8 @@ export interface Feeder {
    * treated as sockets (the stricter case). The load type alone never makes it 'fixed'. */
   circuitPurpose?: 'sockets' | 'fixed';
   rcdMa?: number; // earth leakage protection (RCD / ELCB / RCBO) on this feeder, IΔn in mA
-  rcbo?: boolean; // DB circuit: the breaker is an RCBO instead of an MCB; it leaves the ELCB of its ways (IΔn = rcdMa, else Auto); 1-phase only
+  rcbo?: boolean; // DB circuit: the breaker is an RCBO instead of an MCB; it leaves the ELCB of its ways (IΔn = rcdMa, else Auto); 2P on a 1-phase circuit, 4P on a 3-phase one
+  noRcd?: string; // DB circuit: no earth leakage device on purpose, and why (fire alarm panel, life safety); it leaves the ELCB of its ways
   localIsolator?: boolean; // isolator at the equipment end (e.g. AC unit, pump)
   capSteps?: number; // capacitor bank: number of steps
   detunedPct?: number; // capacitor bank: detuning reactor, % (e.g. 7)

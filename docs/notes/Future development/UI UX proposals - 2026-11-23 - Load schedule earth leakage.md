@@ -1,6 +1,6 @@
 # UI UX proposal – Load schedule earth leakage: ELCB sizes, board schemes and devices (2026-11-23)
 
-Status: **approved on 2026-11-23** ("ok go ahead" to the recommended plan below). Step 1 in PR 782 (v2.272, merged 2026-11-24); step 2 in PR 792 (v2.284); steps 3–5 wait.
+Status: **approved on 2026-11-23** ("ok go ahead" to the recommended plan below). Steps 1 (PR 782, v2.272) and 2 (PR 792, v2.284) merged 2026-11-24; step 3a (4P RCBO, No RCD) in PR STEP3A (v2.287); 3b (AFDD + RCBO, MCB + RCD add-on), 4 and 5 wait.
 
 Mockup: `docs/mockups/load-schedule-earth-leakage-mockup.html` (image: `load-schedule-earth-leakage-mockup.png`).
 
