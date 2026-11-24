@@ -15,6 +15,17 @@ describe('one set of view controls for every drawing', () => {
     expect(wheelAction(wheel(3, { deltaMode: 1 }))).toEqual({ zoom: 1 / WHEEL_STEP }); // lines: a mouse
   });
 
+  it('takes the wheel step and direction from the settings for a mouse wheel only', () => {
+    expect(1 + 15 / 100).toBe(WHEEL_STEP); // the default step is today's
+    expect(wheelAction(wheel(-100, { wheelDeltaY: 120 }), 1.3)).toEqual({ zoom: 1.3 });
+    expect(wheelAction(wheel(100, { wheelDeltaY: -120 }), 1.3)).toEqual({ zoom: 1 / 1.3 });
+    expect(wheelAction(wheel(-100, { wheelDeltaY: 120 }), WHEEL_STEP, true)).toEqual({ zoom: 1 / WHEEL_STEP });
+    expect(wheelAction(wheel(100, { wheelDeltaY: -120 }), WHEEL_STEP, true)).toEqual({ zoom: WHEEL_STEP });
+    expect(wheelAction(wheel(3, { deltaMode: 1 }), 1.5, true)).toEqual({ zoom: 1.5 });
+    expect(wheelAction(wheel(6, { wheelDeltaY: -18 }), 1.5, true)).toEqual({ pan: [0, 6] }); // a pan is untouched
+    expect(wheelAction(wheel(-4.5, { ctrlKey: true, wheelDeltaY: 13.5 }), 1.5, true)).toEqual(wheelAction(wheel(-4.5, { ctrlKey: true, wheelDeltaY: 13.5 }))); // so is a pinch
+  });
+
   it('pans with two fingers on a trackpad and zooms with a pinch', () => {
     expect(isTrackpad(wheel(6, { wheelDeltaY: -18 }))).toBe(true);
     expect(wheelAction(wheel(6, { wheelDeltaY: -18 }))).toEqual({ pan: [0, 6] });

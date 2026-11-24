@@ -1209,7 +1209,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
         onWheel={(e) => {
           const [sx, sy] = local(e);
           // A mouse wheel and a pinch zoom; two fingers on a trackpad pan.
-          const w = wheelAction(e.nativeEvent);
+          const w = wheelAction(e.nativeEvent, 1 + draft.wheelPct / 100, draft.wheelReverse);
           if ('pan' in w) move((v) => ({ ...v, ox: v.ox + w.pan[0] / v.scale, oy: v.oy - w.pan[1] / v.scale }));
           else zoomAt(sx, sy, w.zoom);
         }}

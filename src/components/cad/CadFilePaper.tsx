@@ -49,7 +49,9 @@ export interface PaperEdit {
 
 const boxOf = (a: Pt, b: Pt): Box => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])];
 
-export function CadFilePaper({ layout, model, layersOn, design, onDblClick, onContext, edit }: {
+export function CadFilePaper({ layout, model, layersOn, design, onDblClick, onContext, edit, wheel }: {
+  /** The mouse wheel's zoom step (1.15 = 15 % a notch) and whether its direction is reversed (Options → General → Mouse); 1.2 as before when not given. */
+  wheel?: { step: number; reverse: boolean };
   layout: FileLayout;
   model: Pick<CadView, 'segs' | 'segLayers' | 'info'>;
   /** The model's layers that show, in the drawing's order, as the app has them (default: as the drawing has them). */
@@ -221,7 +223,7 @@ export function CadFilePaper({ layout, model, layersOn, design, onDblClick, onCo
   return (
     <div ref={host} className="cad-filepaper" role="img" aria-label={`Layout ${layout.name}: ${Math.round(paper.w)} × ${Math.round(paper.h)} mm paper, ${layout.viewports.length} viewport${layout.viewports.length === 1 ? '' : 's'}`}
       onWheel={(e) => {
-        const f = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+        const step = wheel?.step ?? 1.2, f = (e.deltaY < 0) !== !!wheel?.reverse ? step : 1 / step;
         // In the viewport worked in, the wheel zooms its view (not when locked); elsewhere, the paper.
         if (edit && edit.ms !== null && vpAt(mmAt(e)) === edit.ms) { if (!layout.viewports[edit.ms]?.locked) edit.onZoom(edit.ms, f, mmAt(e)); return; }
         const r = e.currentTarget.getBoundingClientRect();

@@ -28,7 +28,7 @@ export const OUTPUTS = {
   projectBackup: {}, // a backup archive with checkpoints
   anonymizedSample: {}, // a sample to send to the developers
   openDss: {}, // a model exchange file for another program
-  feederPresets: {}, buildingPresets: {}, designReferences: {}, pageSetups: {}, layoutTemplate: {}, hatchPatterns: {},
+  feederPresets: {}, buildingPresets: {}, designReferences: {}, pageSetups: {}, layoutTemplate: {}, hatchPatterns: {}, cadSettings: {},
   enclosureLibrary: {}, catalogueTemplate: {}, priceTemplate: {}, specFile: {}, scheduleFormatPackage: {}, elvLoadsPackage: {},
   folderZip: {}, // the empty project folders as a ZIP
   documentsPack: {}, // documents of every kind in one PDF or ZIP

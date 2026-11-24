@@ -24,6 +24,39 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.280', date: '2026-11-24',
+    items: [
+      { title: 'Options: what the mouse does in Design CAD', text: 'Options (OP) → General → Mouse: a right-click in the drawing can repeat the last command, as Space does, in place of opening the menu (Shift + right-click then opens it, and a click on an object still opens its menu). The wheel\'s zoom step can be set from 5 to 50 % (15 % as before), and its direction reversed. Both apply in a layout too, where a notch was 20 % before.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Options: what a new layout starts with', text: 'Options (OP) → Plot & publish → A new layout starts with: choose the paper and whether it is landscape or portrait, in place of always A3 landscape, and whether Page setup opens as soon as the layout is made.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.279', date: '2026-11-24',
+    items: [
+      { title: 'Options: your settings in one file', text: 'Design CAD → Options (OP) → General → Your settings: Export… writes one file with the options, your typed names and keys, the ribbon\'s panel order and the libraries of this computer (layer templates, layout templates, page setups with their pen tables, hatch patterns). Import… on another computer reads it: the amber dots show what it changes, OK keeps it and Cancel leaves everything as it was. Reset all puts every setting back to its default.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.278', date: '2026-11-24',
+    items: [
+      { title: 'Options: typed names and keys of your own', text: 'Design CAD → Options (OP) → Shortcuts & aliases lists every command. On Typed names, + adds a name of your own to a command, for example DUP for Copy; on Keys, + then a key press gives it a key: F1 to F12 alone or with Ctrl, Alt or Shift, or Ctrl with a digit. The standard names and keys stay. One already in use is refused, and the command that has it is named.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Design CAD: DYN and HISTORY can be typed', text: 'DYN turns dynamic input on or off, as F12 does, and HISTORY opens the command history, as F2 does.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.277', date: '2026-11-24',
+    items: [
+      { title: 'Options: a preview on Display and Selection', text: 'Design CAD → Options (OP) → Display and Selection now show a small preview beside the settings: the crosshair and pick box at their real size and colour, line widths, the look of a picked object, its grips, the highlight under the pick box and the selection window. It follows each value as you change it, before OK.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.276', date: '2026-11-23',
+    items: [
+      { title: 'Design CAD: one Options window', text: 'Type OP (or right-click → Options…) for every Design CAD setting in one window: General, Files & saving, Display, Drafting, Selection, Plot & publish and This drawing. Drafting settings (DS) is now its Drafting page, with Snap & grid, Polar tracking, Object snap and Dynamic input as tabs; the Cursor settings are on Display and Object snap, and Saving is on Files & saving. Colour theme, palette, the ribbon\'s tool names, the folders and the printer can be set here too. Nothing changes its meaning or its default.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Options: find a setting, and see what you changed', text: 'Options opens with the cursor in "Find a setting": type a few letters and every matching setting shows, ready to change (Ctrl+F comes back to the box, Esc closes the window). An amber dot marks a setting that is not at its default, a number beside each page counts them, and "Changed" lists them all. The arrow beside a changed setting puts it back; Reset page does the same for the page.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.275', date: '2026-11-23',
     items: [
       { title: 'Design CAD: Devices and Level panels, every tool named', text: 'On Electrical, ELV & sheets the Devices panel now shows the name of each of its tools: Add device, Fill room, Light room, Room devices and Emergency. Coverage and Copy to level moved beside it to a new Level panel, for the tools that act on the whole level. A greyed tool of these panels says why in its tooltip.', action: 'cad', actionLabel: 'Open Design CAD' },
