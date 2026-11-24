@@ -3560,6 +3560,26 @@ describe('Design CAD File: Save, Save As, Close and Options', () => {
     expect(onPrefs.mock.calls[0][0].draft.gripPx).toBe(12); // a value changed in the find results is what OK applies
   });
 
+  it('Options: Display and Selection show a live preview that follows the values before OK; find results show none', async () => {
+    act(() => root.render(<Host saveFormat="dwg" />));
+    await flush();
+    await command('OP');
+    const d = opt();
+    await openPage(d, 'Display');
+    expect(d.querySelector('.cad-dlg-pv svg[aria-label="Preview: the cursor and line widths"]')).not.toBeNull();
+    await openPage(d, 'Selection');
+    const grip = () => d.querySelector('.cad-dlg-pv [data-part="grip"]')!.getAttribute('width');
+    expect(d.querySelector('.cad-dlg-pv svg[aria-label="Preview: picking, picked objects and grips"]')).not.toBeNull();
+    expect(grip()).toBe('8');
+    set(field(d, 'Grip size'), '12');
+    expect(grip()).toBe('12');
+    await act(async () => { (d.querySelector('button[aria-label="Reset Grip size"]') as HTMLButtonElement).click(); });
+    expect(grip()).toBe('8');
+    set(field(d, 'Find a setting'), 'grip');
+    expect(d.querySelector('.cad-dlg-pv')).toBeNull();
+    await press(d, 'Cancel');
+  });
+
   it('Options: a setting not at its default has a dot, a count and a reset; Reset page and Changed work', async () => {
     act(() => root.render(<Host saveFormat="dwg" />));
     await flush();

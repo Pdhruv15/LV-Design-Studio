@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.277', date: '2026-11-24',
+    items: [
+      { title: 'Options: a preview on Display and Selection', text: 'Design CAD → Options (OP) → Display and Selection now show a small preview beside the settings: the crosshair and pick box at their real size and colour, line widths, the look of a picked object, its grips, the highlight under the pick box and the selection window. It follows each value as you change it, before OK.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.276', date: '2026-11-23',
     items: [
       { title: 'Design CAD: one Options window', text: 'Type OP (or right-click → Options…) for every Design CAD setting in one window: General, Files & saving, Display, Drafting, Selection, Plot & publish and This drawing. Drafting settings (DS) is now its Drafting page, with Snap & grid, Polar tracking, Object snap and Dynamic input as tabs; the Cursor settings are on Display and Object snap, and Saving is on Files & saving. Colour theme, palette, the ribbon\'s tool names, the folders and the printer can be set here too. Nothing changes its meaning or its default.', action: 'cad', actionLabel: 'Open Design CAD' },
