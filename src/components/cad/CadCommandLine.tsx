@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type ComponentProps, type RefObject } from 'react';
 import { commandList, matchingCommands, promptOptions, promptParts, spaceEnters, type SpaceMode } from './cadPrompt';
 import CadMenu from './CadMenu';
+import type { OwnAliases } from './cadCommands';
 
 /** Design CAD's command line: three lines of history, the prompt with its options (a click works as typing the key),
  * the input with the commands matching what is typed (Tab or the arrows pick one), Up / Down in the empty input for
  * the commands typed before, and the taller history (F2) or the command list (F1) over the drawing. */
-export default function CadCommandLine({ history, live, cmd, setCmd, inputRef, typed, space, log, onLog, onRun }: {
+export default function CadCommandLine({ history, live, cmd, setCmd, inputRef, typed, space, log, onLog, onRun, aliases }: {
   history: string[];
   /** The prompt as it is now (an edit tool's, with its values now): shown in place of the last message when that is the
    * same prompt said with other values. */
@@ -20,11 +21,13 @@ export default function CadCommandLine({ history, live, cmd, setCmd, inputRef, t
   log: 'history' | 'help' | null;
   onLog: (log: 'history' | 'help' | null) => void;
   onRun: (text: string) => void;
+  /** The user's own typed names (Options → Shortcuts & aliases). */
+  aliases?: OwnAliases;
 }) {
   // The command picked in the list (arrows), and the place in the commands typed before (Up / Down).
   const [hi, setHi] = useState(-1);
   const [back, setBack] = useState(-1);
-  const matches = space !== 'command' || back >= 0 ? [] : matchingCommands(cmd);
+  const matches = space !== 'command' || back >= 0 ? [] : matchingCommands(cmd, 8, aliases);
   const said = history[history.length - 1];
   const before = (s: string) => s.replace(/^Command:\s*/, '').split(' <')[0];
   const last = said !== undefined && live && live !== said && before(said) === before(live) ? `${said.startsWith('Command: ') ? 'Command: ' : ''}${live}` : said;
@@ -44,7 +47,7 @@ export default function CadCommandLine({ history, live, cmd, setCmd, inputRef, t
         <div ref={logRef} className="cad-log" role="log" aria-label={log === 'help' ? 'Command list (F1)' : 'Command history (F2)'}>
           <button className="cad-log-x" aria-label="Close" onClick={() => onLog(null)}>×</button>
           {log === 'help'
-            ? commandList().map((c) => <div key={c.aliases}><b>{c.aliases}</b>  {c.desc}</div>)
+            ? commandList(aliases).map((c) => <div key={c.aliases}><b>{c.aliases}</b>  {c.desc}</div>)
             : history.map((h, i) => <div key={i}>{h}</div>)}
         </div>
       )}
@@ -69,7 +72,7 @@ export default function CadCommandLine({ history, live, cmd, setCmd, inputRef, t
           onChange={(e) => { setCmd(e.target.value); setHi(-1); setBack(-1); }}
           onKeyDown={(e) => {
             // Space ends the input as Enter does (the command picked in the list, if one is), once per press.
-            if (e.key === ' ' && ((hi >= 0 && matches[hi]) || spaceEnters(cmd, space, promptOptions(last ?? '')))) { e.preventDefault(); if (!e.repeat) submit(hi >= 0 && matches[hi] ? matches[hi].alias : cmd); return; }
+            if (e.key === ' ' && ((hi >= 0 && matches[hi]) || spaceEnters(cmd, space, promptOptions(last ?? ''), aliases))) { e.preventDefault(); if (!e.repeat) submit(hi >= 0 && matches[hi] ? matches[hi].alias : cmd); return; }
             if (matches.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); const n = matches.length, down = e.key === 'ArrowDown'; setHi((h) => (h < 0 ? (down ? 0 : n - 1) : (h + (down ? 1 : n - 1)) % n)); return; }
             if (matches.length && e.key === 'Tab') { e.preventDefault(); setCmd(matches[Math.max(0, hi)].alias); setHi(-1); return; }
             if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && space === 'command' && (!cmd || back >= 0)) { e.preventDefault(); step(e.key === 'ArrowUp' ? -1 : 1); }

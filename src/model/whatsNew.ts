@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.278', date: '2026-11-24',
+    items: [
+      { title: 'Options: typed names and keys of your own', text: 'Design CAD → Options (OP) → Shortcuts & aliases lists every command. On Typed names, + adds a name of your own to a command, for example DUP for Copy; on Keys, + then a key press gives it a key: F1 to F12 alone or with Ctrl, Alt or Shift, or Ctrl with a digit. The standard names and keys stay. One already in use is refused, and the command that has it is named.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Design CAD: DYN and HISTORY can be typed', text: 'DYN turns dynamic input on or off, as F12 does, and HISTORY opens the command history, as F2 does.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.277', date: '2026-11-24',
     items: [
       { title: 'Options: a preview on Display and Selection', text: 'Design CAD → Options (OP) → Display and Selection now show a small preview beside the settings: the crosshair and pick box at their real size and colour, line widths, the look of a picked object, its grips, the highlight under the pick box and the selection window. It follows each value as you change it, before OK.', action: 'cad', actionLabel: 'Open Design CAD' }

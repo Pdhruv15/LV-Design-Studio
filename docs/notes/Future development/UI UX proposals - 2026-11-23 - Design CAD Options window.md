@@ -60,6 +60,6 @@ One PR per step.
 
 1. **The window with every existing setting, Find, the changed marks and reset** (v2.276). `src/components/cad/CadOptions.tsx` replaces `CadDraftSettings.tsx`; `src/model/cadOptions.ts` lists every setting with its page, its default and how to reset it, so a setting added later cannot be left out (a test checks every drafting setting is listed). One new desktop channel shows a folder in the file manager.
 2. **Previews** on Display and Selection (v2.277).
-3. **Shortcuts & aliases**: typed names and keys the user can add to.
+3. **Shortcuts & aliases**: typed names and keys the user can add to (v2.278). The standard names and keys stay; the user's are additions.
 4. **Your settings file**: export, import, reset all.
 5. **Mouse and new-layout defaults.**

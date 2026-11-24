@@ -2,7 +2,8 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { createPortal } from 'react-dom';
 import CadCanvas, { type CadHover, type CadMarks, type CadToggles, type CanvasDevice, type CanvasWiring } from './CadCanvas';
 import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadRibbonInfo, type CadState, type CadTool } from './cadState';
-import { cadCommand, toolName, type CadAction } from './cadCommands';
+import { cadCommand, commandFullName, toolName, type CadAction, type OwnAliases } from './cadCommands';
+import { chordOf, type OwnKeys } from './cadShortcuts';
 import { getClip, hasClip, putClip } from './cadClipboardStore';
 import { hasPreviousView } from './cadViewHistory';
 import { QuickSelectDialog } from './CadQuickSelect';
@@ -345,7 +346,10 @@ const DRAW_TOOLS: CadTool[] = ['point', 'line', 'xline', 'ray', 'pline', 'tray',
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
  * a command line and a status bar. Engine in Rust (WebAssembly), desktop and web alike. Measure a distance, an area (by
  * corners, a closed object, or inside a room), and click any object to see what it is. */
-export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run: calcRun, onSheet, draft = DRAFT_DEFAULTS, autosaveMin = 2, onPrefs, appPrefs, folders, onOutput, onUndo, onRedo, canUndo = false, canRedo = false, undoLabel, redoLabel, onShow }: {
+const NO_ALIASES: OwnAliases = {};
+const NO_KEYS: OwnKeys = {};
+
+export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run: calcRun, onSheet, draft = DRAFT_DEFAULTS, autosaveMin = 2, onPrefs, aliases = NO_ALIASES, keys = NO_KEYS, appPrefs, folders, onOutput, onUndo, onRedo, canUndo = false, canRedo = false, undoLabel, redoLabel, onShow }: {
   cad: CadState;
   /** Opens a board's load schedule, the SLD, the riser, the cable schedule or the ELV page (the right-click menus). */
   onShow?: (s: CadShow) => void;
@@ -360,7 +364,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** Drafting settings (DS), and the project's recovery-copy minutes, kept in Preferences by the app. */
   draft?: DraftSettings;
   autosaveMin?: number;
-  onPrefs?: (p: { draft: DraftSettings; autosaveMin: number; app?: { theme: ThemePref; palette: PalettePref; cadLabels: boolean; resetRibbonOrder: boolean } }) => void;
+  onPrefs?: (p: { draft: DraftSettings; autosaveMin: number; app?: { theme: ThemePref; palette: PalettePref; cadLabels: boolean; resetRibbonOrder: boolean; aliases: OwnAliases; keys: OwnKeys } }) => void;
+  /** The user's own typed names and keys (Options → Shortcuts & aliases), kept in Preferences by the app. */
+  aliases?: OwnAliases;
+  keys?: OwnKeys;
   /** The app's own settings Options shows on General and Display. */
   appPrefs?: { theme?: ThemePref; palette?: PalettePref; cadLabels?: boolean; ribbonOrder?: boolean };
   /** Options → Files & saving: the app's folder choosers (desktop app). */
@@ -4090,7 +4097,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     if (tool === 'pan' && !c) { cad.setTool('none'); cad.say('PAN  Ended.'); return; }
     // A value typed at a prompt (a number, a point, a distance) is kept for Recent input ▸ on the command menu.
-    if (tool !== 'none' && /\d/.test(raw) && !cadCommand(c)) setInputs((l) => [raw, ...l.filter((x) => x !== raw)].slice(0, 8));
+    if (tool !== 'none' && /\d/.test(raw) && !cadCommand(c, aliases)) setInputs((l) => [raw, ...l.filter((x) => x !== raw)].slice(0, 8));
     // Width… on a note's right-click menu: the box's new width in metres (its left edge stays).
     if (mtAsk?.step === 'ntwidth' && mtAsk.id) {
       const it = sketch.find((x) => x.id === mtAsk.id), n = Number(raw.replace(',', '.'));
@@ -4487,6 +4494,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       osnapSettings: () => setOptAt('osnap'),
       polar: () => cad.toggle('polar'),
       otrack: () => cad.toggle('otrack'),
+      dyn: () => cad.toggle('dyn'),
+      history: () => setLog(log === 'history' ? null : 'history'),
       lwt: () => cad.toggle('lwt'),
       copyClip: () => copyClip(),
       cutClip: () => cutClip(),
@@ -4559,7 +4568,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         cad.say(q.n ? `QUICKMEASURE  ${q.n} object${q.n === 1 ? '' : 's'}: length ${m(toM(q.length))}${q.area > 0 ? ` · closed area ${m2(toM2(q.area))}` : ''}` : 'QUICKMEASURE  Nothing with a length is picked.');
       }
     };
-    const command = cadCommand(c);
+    const command = cadCommand(c, aliases);
     if (command) setTyped((t) => [...t.filter((x) => x !== c), c].slice(-30));
     if (command && 'action' in command && command.action !== 'help') setRecent((r) => [{ label: c, text: c }, ...r.filter((x) => x.label !== c)].slice(0, 8));
     if (!command) cad.say(`Unknown command "${c}". Press F1 for the list.`);
@@ -4754,6 +4763,23 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
     const mods = e.metaKey || e.ctrlKey || e.altKey;
     const fn: Record<string, keyof CadToggles> = { F3: 'osnap', F7: 'grid', F8: 'ortho', F9: 'snap', F10: 'polar', F11: 'otrack', F12: 'dyn' };
+    // A key of the user's own (Options → Shortcuts & aliases), before the standard keys: F8 with Shift is the user's
+    // when they gave it a command, and ORTHO's as before when they did not. Its command runs as if typed. A switch or
+    // the properties palette works at once, as its standard key does; any other command only outside a dialog and
+    // when no field is being typed in (the empty command line counts).
+    const chord = chordOf(e), ownCmd = chord && keys[chord] !== undefined ? cadCommand(keys[chord]) : undefined;
+    if (ownCmd) {
+      e.preventDefault();
+      if (e.repeat) return;
+      const act = 'action' in ownCmd ? ownCmd.action : undefined;
+      if (act === 'grid') cad.cycleGrid();
+      else if (act === 'osnap' || act === 'ortho' || act === 'snap' || act === 'polar' || act === 'otrack' || act === 'dyn' || act === 'lwt') cad.toggle(act);
+      else if (act === 'properties') setShowProps((v) => !v);
+      else if (e.target instanceof Element && e.target.closest('[aria-modal="true"], [role="dialog"]')) return;
+      else if (act === 'help' || act === 'history') { if (!typing || e.target === input.current) setLog(log === act ? null : act); }
+      else if (!typing || (e.target === input.current && !cmd.trim())) run(commandFullName(ownCmd));
+      return;
+    }
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === '1') { e.preventDefault(); setShowProps((v) => !v); return; }
     if ((e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) && !typing && !e.ctrlKey && !e.metaKey && !e.altKey && !(e.target instanceof Element && e.target.closest('[aria-modal="true"], [role="dialog"]'))) { e.preventDefault(); if (!e.repeat) menuFromKeyboard(); return; }
     if (fn[e.key]) { e.preventDefault(); if (fn[e.key] === 'grid') cad.cycleGrid(); else cad.toggle(fn[e.key]); return; }
@@ -5348,7 +5374,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         {closing && <CloseUnsaved files={closing.filter((v) => cad.isDirty(v.file)).map((v) => v.file)} canSave={!!view && closing.filter((v) => cad.isDirty(v.file)).every((v) => v === view)}
           onClose={() => setClosing(null)} onDiscard={() => closeNow(closing)}
           onSave={() => { const going = closing; setClosing(null); if (view && cad.saved.current.get(view.file.toLowerCase())) void saveNow().then((ok) => { if (ok) closeNow(going); }); else { closeAfterSave.current = going; startSaveAs(); } }} />}
-        {optAt && fileLists && <CadOptions at={optAt} draft={draft} toggles={cad.toggles} gridDots={cad.gridDots} level={fileLists.level} levelSet={fileLists.levelSet} levels={fileLists.levels} unit={fileLists.unit} units={fileLists.units} autosaveMin={autosaveMin}
+        {optAt && fileLists && <CadOptions at={optAt} draft={draft} toggles={cad.toggles} gridDots={cad.gridDots} level={fileLists.level} levelSet={fileLists.levelSet} levels={fileLists.levels} unit={fileLists.unit} units={fileLists.units} autosaveMin={autosaveMin} aliases={aliases} keys={keys}
           app={{ theme: appPrefs?.theme ?? 'dark', palette: appPrefs?.palette ?? 'graphite', cadLabels: !!appPrefs?.cadLabels, ribbonOrder: !!appPrefs?.ribbonOrder }}
           setups={setupsOf(project).length} penTables={penTablesOf(project).map((x) => x.name)} blockFolder={library.folder ?? ''} onBlockFolder={window.lvds?.cadFile?.chooseBlockFolder ? chooseLibraryFolder : undefined}
           folders={folders} onOutput={onOutput}
@@ -5469,7 +5495,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         )}
         {dockSide === 'right' ? dock : info}
       </div>
-      <CadCommandLine history={cad.history} live={EDIT_TOOLS.includes(tool) ? promptNow(edSet) : undefined} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
+      <CadCommandLine aliases={aliases} history={cad.history} live={EDIT_TOOLS.includes(tool) ? promptNow(edSet) : undefined} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
       {view && <LayoutTabs files={view.layouts.map((l) => ({ id: fileLayoutId(l.name), name: l.name, title: fileLayoutTitle(l, units.factor * 1000) }))} drawings={dwgLayouts.map((l, n) => ({ id: drawingLayoutId(l.name), name: l.name, title: fileLayoutTitle(asFileLayout(l, n), units.factor * 1000) }))} layouts={layouts} active={sheetL?.id ?? (fileL ? fileLayoutId(fileL.name) : dwgL ? drawingLayoutId(dwgL.name) : null)} onPick={pickLayout}
         onNew={addDrawingLayout} onNewSheet={addLayout}
         onDrawing={{ ...drawingTabActs, pageSetup: (d) => { cad.setLayout(d.id); setLayoutDlg('paper'); } }}

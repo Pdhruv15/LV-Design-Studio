@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DRAFT_DEFAULTS, OSNAP_BITS, OSNAP_MODES } from './cadDraft';
-import { changedSettings, findSettings, OPT_DEFAULTS, OPT_SETTINGS, placeKey, placeLabel, placeOf, resetSettings, type OptValues } from './cadOptions';
+import { changedSettings, findSettings, OPT_DEFAULTS, OPT_PAGES, OPT_SETTINGS, placeKey, placeLabel, placeOf, resetSettings, type OptValues } from './cadOptions';
 
 const withDraft = (p: Partial<typeof DRAFT_DEFAULTS>): OptValues => ({ ...OPT_DEFAULTS, draft: { ...DRAFT_DEFAULTS, ...p } });
 const ids = (l: { id: string }[]) => l.map((s) => s.id);
@@ -44,6 +44,19 @@ describe('Options settings list', () => {
     const v: OptValues = { ...OPT_DEFAULTS, theme: 'light', palette: 'blueprint', cadLabels: true, ribbonOrder: true, autosaveMin: 5, printer: 'Office' };
     expect(ids(changedSettings(v)).sort()).toEqual(['autosaveMin', 'cadLabels', 'palette', 'printer', 'ribbonOrder', 'theme']);
     expect(changedSettings(resetSettings(v, changedSettings(v)))).toEqual([]);
+  });
+  it('counts the names and keys of the user\'s own on the Shortcuts & aliases page, and resets them', () => {
+    const v: OptValues = { ...OPT_DEFAULTS, aliases: { CX: 'CO' }, keys: { F4: 'L' } };
+    expect(ids(changedSettings(v))).toEqual(['ownAliases', 'ownKeys']);
+    expect(ids(changedSettings(v, 'shortcuts'))).toEqual(['ownAliases', 'ownKeys']);
+    expect(ids(changedSettings({ ...OPT_DEFAULTS, keys: { F4: 'L' } }))).toEqual(['ownKeys']);
+    expect(resetSettings(v, changedSettings(v))).toEqual(OPT_DEFAULTS);
+  });
+  it('lists the Shortcuts & aliases page after Plot & publish and before This drawing', () => {
+    const k = OPT_PAGES.map((p) => p.k);
+    expect(k.indexOf('shortcuts')).toBe(k.indexOf('plot') + 1);
+    expect(k.indexOf('drawing')).toBe(k.indexOf('shortcuts') + 1);
+    expect(ids(findSettings('shortcut'))).toEqual(['ownAliases', 'ownKeys']);
   });
 });
 

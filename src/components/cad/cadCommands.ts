@@ -8,7 +8,7 @@ import type { CadTool } from './cadState';
 export type CadAction = 'new' | 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'dimLayer' | 'layiso' | 'layuniso'
   | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
   | 'alignDevices' | 'plot' | 'properties' | 'options' | 'unitsTab' | 'regen' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
-  | 'textStyle' | 'dimStyle' | 'mleaderStyle' | 'pointStyle' | 'blockDialog' | 'blocksPalette' | 'attDef' | 'attExport' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt'
+  | 'textStyle' | 'dimStyle' | 'mleaderStyle' | 'pointStyle' | 'blockDialog' | 'blocksPalette' | 'attDef' | 'attExport' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt' | 'dyn' | 'history'
   | 'copyClip' | 'cutClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave' | 'zoomPrev' | 'qselect'
   | 'undo' | 'redo' | 'selectAll' | 'selectInvert' | 'zoomSel' | 'count' | 'isolateObjects' | 'hideObjects' | 'unisolateObjects' | 'addSelected' | 'quickMeasure' | 'find' | 'bedit' | 'bsave' | 'bclose' | 'refedit' | 'refclose';
 
@@ -192,6 +192,8 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['OS'], desc: 'Object snap settings', action: 'osnapSettings' },
   { aliases: ['POLAR'], desc: 'Polar tracking (F10)', action: 'polar' },
   { aliases: ['OTRACK'], desc: 'Object snap tracking (F11)', action: 'otrack' },
+  { aliases: ['DYN', 'DYNMODE'], desc: 'Dynamic input (F12)', action: 'dyn' },
+  { aliases: ['HISTORY'], desc: 'The command history (F2)', action: 'history' },
   { aliases: ['LWT', 'LWDISPLAY'], desc: 'Show lineweights', action: 'lwt' },
   { aliases: ['GRID'], desc: 'Grid (F7)', action: 'grid' },
   { aliases: ['ORTHO', 'OR'], desc: 'Ortho (F8)', action: 'ortho' },
@@ -202,8 +204,21 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
 
 const BY_ALIAS = new Map(CAD_COMMANDS.flatMap((x) => x.aliases.map((a) => [a, x] as const)));
 
-/** The command typed (upper case, single spaces), if it is one. */
-export const cadCommand = (c: string): CadCommand | undefined => BY_ALIAS.get(c);
+/** The user's own typed names: name (upper case) → the id of its command (the command's first alias). */
+export type OwnAliases = Readonly<Record<string, string>>;
+/** The command's id: its first alias. */
+export const commandId = (c: CadCommand): string => c.aliases[0];
+/** The command's full name: the longest of its aliases (LINE, ZOOM EXTENTS). */
+export const commandFullName = (c: CadCommand): string => c.aliases.reduce((a, b) => (b.length > a.length ? b : a));
+/** The command typed (upper case, single spaces), if it is one: a standard name first, then one of the user's own. */
+export const cadCommand = (c: string, own?: OwnAliases): CadCommand | undefined => BY_ALIAS.get(c) ?? (own?.[c] !== undefined ? BY_ALIAS.get(own[c]) : undefined);
+/** A command's typed names: the standard ones, then the user's own for it. */
+export const aliasesOf = (c: CadCommand, own?: OwnAliases): readonly string[] => {
+  if (!own) return c.aliases;
+  const id = commandId(c);
+  const mine = Object.keys(own).filter((k) => own[k] === id && !BY_ALIAS.has(k));
+  return mine.length ? [...c.aliases, ...mine] : c.aliases;
+};
 
 /** The alias shown for a tool, e.g. EX for Extend. */
 /** The command's full name for a tool (the longest of its aliases), for the command menu's header. */
