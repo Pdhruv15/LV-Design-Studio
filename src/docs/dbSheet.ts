@@ -97,9 +97,10 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
     const list = sparesByWay.get(way);
     if (list) list.push(spare); else sparesByWay.set(way, [spare]);
   }
-  const lastWay = Math.max(circuitRows.reduce((m, r) => Math.max(m, r.f.way!), 0), ...spares.map((s) => s.way!), ...(board.elcbs ?? []).map((h) => h.toWay));
+  const lastWay = Math.max(circuitRows.reduce((m, r) => Math.max(m, r.f.way!), 0), ...spares.map((s) => s.way!));
   const waysPerElcb = Math.max(1, (board.elcbGroupSize || 6) / 3);
-  const ways = Math.max(waysPerElcb, Math.ceil((lastWay + 1) / waysPerElcb) * waysPerElcb);
+  // One free way after the last used one, rounded up to a whole ELCB; ELCBs of the board's own reach at least their last way.
+  const ways = Math.max(waysPerElcb, Math.ceil((lastWay + 1) / waysPerElcb) * waysPerElcb, ...(board.elcbs ?? []).map((h) => h.toWay));
   const rows: SheetRow[] = [{ type: 'watts' }];
   for (let way = 1; way <= ways; way++) {
     const onWay = circuitsByWay.get(way) ?? [];
@@ -201,7 +202,7 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
       if (end - y > 1) merges[`${colName(at('elcb'))}${y + 1}`] = [1, end - y];
       y = end;
     }
-  } else if (board.elcbGroupSize) {
+  } else if ((board.elcbGroupSize ?? 6) > 0) { // unset is the default 6 circuits, as on the schedule and the PDF
     const ysByGroup = new Map<number, number[]>();
     rows.forEach((row, y) => {
       const way = row.type === 'circuit' ? row.feeder.way! : row.type === 'slot' ? row.way : row.type === 'spare' ? row.spare.way! : 0;

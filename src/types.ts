@@ -507,10 +507,10 @@ export interface Board {
   /** Spare ways (breaker fitted, nothing connected) and spaces (empty way for a future breaker).
    * Not feeders: no load, cable or study; shown on the schedules, SLD, BOQ and enclosure counts. */
   spareWays?: SpareWay[];
-  elcbGroupSize?: 0 | 3 | 6; // circuits per ELCB: 3 = one per way, 6 = one per two ways, 0 = none
+  elcbGroupSize?: 0 | 3 | 6 | 9 | 12; // "New ELCBs": circuits per ELCB on ways with no ELCB of their own (3 = one per way … 12 = one per four ways), 0 = none
   elcbRatingA?: number; // override; default from the group's load
   elcbSensitivityMa?: number; // override; default by circuit type (lighting 100 mA, power 30 mA)
-  /** ELCBs placed by hand over whole ways; the board's "ELCB per" grouping covers the ways between them. */
+  /** ELCBs of their own over whole ways (placed, resized or edited by the user); the "New ELCBs" size covers the ways between them. */
   elcbs?: BoardElcb[];
 }
 
