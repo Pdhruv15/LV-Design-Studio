@@ -3,6 +3,7 @@ import { withNetwork } from './network';
 import { boardPhasePQ } from './loadSchedule';
 import { boardsInSupplyOrder } from './summary';
 import { getCable } from './cableTable';
+import { feederFamily } from './cableFamily';
 import { DEFAULT_TRANSFORMER_XR, feederRating, rOperatingOhmPerKm, runsOf, transformerImpedance, type Status } from './electrical';
 
 /** Unbalanced (per-phase) load flow: a backward / forward sweep on the radial
@@ -75,7 +76,7 @@ export interface UnbalancedFlow {
 }
 
 const cableZ = (project: Project, f: Feeder): C =>
-  c((rOperatingOhmPerKm(f.cableCsaMm2, project.vdTempC) * f.lengthM) / 1000 / runsOf(f), (getCable(f.cableCsaMm2).xOhmPerKm * f.lengthM) / 1000 / runsOf(f));
+  c((rOperatingOhmPerKm(f.cableCsaMm2, project.vdTempC, feederFamily(project, f)) * f.lengthM) / 1000 / runsOf(f), (getCable(f.cableCsaMm2, feederFamily(project, f)).xOhmPerKm * f.lengthM) / 1000 / runsOf(f));
 
 const vdStatus = (pct: number, limit: number): Status => (pct > limit + 1e-9 ? 'bad' : pct > limit * 0.85 ? 'warn' : 'ok');
 

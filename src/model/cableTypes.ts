@@ -6,8 +6,10 @@ import { boardOf } from '../calc/network';
 /** Cable constructions: what the SLD label, the schedules, the BOQ and the
  * tray schedule say about each cable. Fire-rated cable (BS 8491 / BS 6387
  * CWZ / IEC 60331) is drawn dashed and marked FR; it's the default for life
- * safety circuits, and a check flags them on any other cable. The
- * calculations use the copper cable data for every type. */
+ * safety circuits, and a check flags them on any other cable. With the
+ * project's "Cable data by type" setting the calculations use each type's
+ * own family data (src/calc/cableFamily.ts); otherwise the copper / XLPE /
+ * multicore data for every type. */
 
 export interface CableTypeDef {
   value: string; // stored on the feeder (older projects' values kept)
@@ -25,6 +27,9 @@ export const CABLE_TYPE_DEFS: CableTypeDef[] = [
   { value: 'XLPE/LSF/SWA', label: 'Cu/XLPE/LSF/SWA (low smoke and fume)', code: 'LSF', lszh: true, armoured: true },
   { value: 'XLPE/PVC', label: 'Cu/XLPE/PVC (unarmoured)', code: 'XLPE' },
   { value: 'XLPE 1C', label: 'Cu/XLPE single-core', code: '1C XLPE' },
+  { value: 'XLPE 1C FLAT', label: 'Cu/XLPE single-core, laid flat', code: '1C XLPE' },
+  { value: 'AL/XLPE/SWA/PVC', label: 'Al/XLPE/SWA/PVC (aluminium, armoured)', code: 'AL XLPE/SWA', armoured: true },
+  { value: 'AL/XLPE 1C', label: 'Al/XLPE single-core (aluminium)', code: '1C AL XLPE' },
   { value: 'PVC/PVC', label: 'Cu/PVC/PVC (flexible / wiring)', code: 'PVC' },
   { value: 'PVC/SWA/PVC', label: 'Cu/PVC/SWA/PVC (armoured)', code: 'PVC/SWA', armoured: true },
   { value: 'PVC 1C', label: 'Cu/PVC single-core wires in conduit', code: '1C PVC' },

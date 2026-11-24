@@ -25,6 +25,12 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.281', date: '2026-11-24',
+    items: [
+      { title: 'Cable data by type', text: 'Project settings has a new switch, Cable data by type (on in new projects, off in older ones). With it on, each cable is calculated with the data of its own type: copper or aluminium, XLPE or PVC, single-core or multicore. Voltage drop, fault levels, the earth loop and the cable rating all follow. The cable type list has three new types: Cu/XLPE single-core laid flat, Al/XLPE/SWA/PVC and Al/XLPE single-core. Cables.xlsx has three new columns in front (Conductor, Insulation, Form); left blank a row is copper / XLPE / multicore as before. The app has the resistance and reactance of the new families, but not their current ratings: add those rows from your datasheet, or the circuit shows DATA REQUIRED.' }
+    ]
+  },
+  {
     version: '2.280', date: '2026-11-24',
     items: [
       { title: 'Options: what the mouse does in Design CAD', text: 'Options (OP) → General → Mouse: a right-click in the drawing can repeat the last command, as Space does, in place of opening the menu (Shift + right-click then opens it, and a click on an object still opens its menu). The wheel\'s zoom step can be set from 5 to 50 % (15 % as before), and its direction reversed. Both apply in a layout too, where a notch was 20 % before.', action: 'cad', actionLabel: 'Open Design CAD' },
