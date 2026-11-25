@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.303', date: '2026-11-25',
+    items: [
+      { title: 'Room devices: all rooms like this', text: 'Room devices now has Rooms too: This room, Same type, Whole level. One approval places the template in every room of the choice: each room\'s lights on one lighting circuit (going on to the next with room), its twin sockets on the power circuit, and the ELV devices. Rooms that cannot be done are listed and left out. One undo step; up to 40 rooms and 400 devices a run.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.302', date: '2026-11-25',
     items: [
       { title: 'Fill room and Light room: all rooms like this', text: "Both tools now have Rooms: This room, Same type, Whole level. Fill room then places the ELV device in every room of that type on the level, or in every room, with one click; Light room works out each room for its own outline and puts each room's lights on one circuit, going on to the next lighting circuit with room when one is full. Rooms that fit on no circuit are listed and left out. One undo step; up to 40 rooms and 400 ELV devices a run.", action: 'cad', actionLabel: 'Open Design CAD' }

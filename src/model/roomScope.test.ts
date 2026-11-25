@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { pointMax } from './circuitRoom';
-import { planRoomLights, ROOM_SCOPE_MAX, roomsInScope, scopeCounts } from './roomScope';
+import { planRoomLights, planRoomSets, ROOM_SCOPE_MAX, ROOM_SET_MAX, roomsInScope, scopeCounts } from './roomScope';
 import type { BuildingRoom, Feeder, Project } from '../types';
 
 const box = (x: number): [number, number][] => [[x, 0], [x + 4, 0], [x + 4, 4], [x, 4]];
@@ -53,5 +53,43 @@ describe('Lights of several rooms on the lighting circuits', () => {
     expect(full).toMatchObject({ lights: 0, rooms: 0, circuits: [] });
     expect(planRoomLights([f('X')], 'X', [rooms[0]], () => undefined).rows[0].why).toBe('its lights cannot be worked out');
     expect(planRoomLights([f('X')], 'nope', [rooms[0]], lights(1)).rows[0].why).toBe('choose the circuit first');
+  });
+});
+
+describe('Room devices over several rooms', () => {
+  const max = pointMax('ltg')!;
+  const f = (id: string, ltg = 0): Feeder => ({ id, boardId: 'DB1', points: ltg ? { ltg } : undefined } as Feeder);
+  const rooms = ['A', 'B', 'C'].map((n) => room(n, 'office'));
+  const pts = (n: number) => Array.from({ length: n }, (_, i): [number, number] => [i, 0]);
+  const of = (lights: number, sockets = 2, elv = 3, limited = false) => () => ({ lights: pts(lights), sockets, elv, limited });
+  it('keeps the rooms with their totals and circuits', () => {
+    const plan = planRoomSets([f('X')], 'X', rooms, of(3), true);
+    expect(plan.rooms).toBe(3);
+    expect([plan.lights, plan.sockets, plan.elv, plan.devices]).toEqual([9, 6, 9, 24]);
+    expect(plan.circuits.map((c) => [c.feeder.id, c.added, c.after])).toEqual([['X', 9, 9]]);
+    expect(plan.rows.every((r) => r.feederId === 'X')).toBe(true);
+  });
+  it('leaves out a limited room and one that cannot be worked out', () => {
+    const plan = planRoomSets([f('X')], 'X', rooms, (r) => (r.id === 'A' ? undefined : r.id === 'B' ? { lights: pts(2), sockets: 1, elv: 1, limited: true } : of(2)()), true);
+    expect(plan.rows.map((r) => r.why)).toEqual(['its devices cannot be worked out', 'over the limit of one room: divide it or place it by hand', undefined]);
+    expect(plan.rooms).toBe(1);
+  });
+  it('leaves out a room that fits on no lighting circuit', () => {
+    const plan = planRoomSets([f('X', max - 1)], 'X', rooms.slice(0, 1), of(4), true);
+    expect(plan.rows[0].why).toBe('no lighting circuit with room');
+    expect(plan.devices).toBe(0);
+  });
+  it('stops at the devices of a run and works the circuits out from the rooms kept', () => {
+    const many = Array.from({ length: 3 }, (_, i) => room(`R${i}`, 'office'));
+    const plan = planRoomSets([f('X'), f('Y'), f('Z')], 'X', many, of(max, 100, 50), true);
+    expect(plan.rows.map((r) => r.why)).toEqual([undefined, undefined, `${ROOM_SET_MAX} devices a run`]);
+    expect(plan.devices).toBe(2 * (max + 150));
+    expect(plan.circuits.map((c) => c.added)).toEqual([max, max]);
+  });
+  it('needs no circuit for ELV only', () => {
+    const plan = planRoomSets([], '', rooms, of(4), false);
+    expect(plan.rooms).toBe(3);
+    expect([plan.lights, plan.sockets, plan.elv]).toEqual([0, 0, 9]);
+    expect(plan.circuits).toEqual([]);
   });
 });
