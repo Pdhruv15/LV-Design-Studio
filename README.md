@@ -9,7 +9,7 @@ An open-source, offline-first workspace for single-line diagrams, load schedules
 · [Calculation methods and limits](docs/engineering/calculation-methods.md)
 · [Privacy and project data](docs/privacy.md)
 
-**Version 2.297** (see `package.json`). The app is in active use and active development.
+**Version 2.299** (see `package.json`). The app is in active use and active development.
 
 > **Engineering status.** The calculations are first-pass design checks, not a substitute for an engineer's verified study. Built-in cable values are approximate references until replaced with manufacturer data, and some study methods are intentionally simplified. Nothing in the app constitutes approval by an electrical authority. Methods, assumptions and limits are in [docs/engineering/calculation-methods.md](docs/engineering/calculation-methods.md).
 

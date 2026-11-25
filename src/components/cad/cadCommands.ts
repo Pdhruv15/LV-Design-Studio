@@ -10,7 +10,7 @@ export type CadAction = 'new' | 'open' | 'close' | 'fit' | 'addRooms' | 'schedul
   | 'alignDevices' | 'plot' | 'properties' | 'options' | 'unitsTab' | 'regen' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
   | 'textStyle' | 'dimStyle' | 'mleaderStyle' | 'pointStyle' | 'blockDialog' | 'blocksPalette' | 'attDef' | 'attExport' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt' | 'dyn' | 'history'
   | 'copyClip' | 'cutClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave' | 'zoomPrev' | 'qselect'
-  | 'undo' | 'redo' | 'selectAll' | 'selectInvert' | 'zoomSel' | 'count' | 'isolateObjects' | 'hideObjects' | 'unisolateObjects' | 'addSelected' | 'quickMeasure' | 'find' | 'bedit' | 'bsave' | 'bclose' | 'refedit' | 'refclose' | 'xcompare';
+  | 'undo' | 'redo' | 'selectAll' | 'selectInvert' | 'zoomSel' | 'count' | 'isolateObjects' | 'hideObjects' | 'unisolateObjects' | 'addSelected' | 'quickMeasure' | 'find' | 'bedit' | 'bsave' | 'bclose' | 'refedit' | 'refclose' | 'xcompare' | 'detectRooms';
 
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
 
@@ -30,6 +30,7 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['DI', 'DIST', 'DISTANCE'], desc: 'Measure a distance', tool: 'dist' },
   { aliases: ['AREA', 'AA'], desc: 'Measure an area', tool: 'area' },
   { aliases: ['RA', 'ROOM', 'ROOMAREA'], desc: 'Room area: click inside a room', tool: 'room' },
+  { aliases: ['DETECTROOMS', 'ROOMSW'], desc: 'Detect rooms from walls: every room round a room-name text, found from the wall lines (doors bridged), added to the level', action: 'detectRooms' },
   { aliases: ['ROOMS', 'ADDROOMS'], desc: 'Add the rooms found', action: 'addRooms' },
   { aliases: ['TRACE'], desc: 'Trace a room', tool: 'trace' },
   { aliases: ['PN', 'NAME'], desc: 'Pick a room name', tool: 'name' },

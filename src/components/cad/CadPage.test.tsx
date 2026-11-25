@@ -4585,7 +4585,7 @@ describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', 
     expect(last()).toBe('DIMSTYLE  There is no dimension style NOPE. D opens the styles.');
   });
 
-  it('QDIM dimensions a pick in one row: Baseline or Continuous, horizontal above it, each place once (v2.290)', async () => {
+  it('QDIM dimensions a pick in one row: Baseline or Continuous, horizontal above it, each place once (v2.299)', async () => {
     const start: Project = { ...villa, cadLayerFile: undefined, cadSketch: [{ file: F, items: [
       { id: 'L1', kind: 'line', layer: 'LV-SKETCH', pts: [[X, 0], [X + 6000, 0]] },
       { id: 'C1', kind: 'circle', layer: 'LV-SKETCH', pts: [[X + 2000, 1000]], r: 300 },
@@ -4623,7 +4623,7 @@ describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', 
     expect(last()).not.toContain('QDIM  Specify dimension line position');
   });
 
-  it('DIMSPACE spaces the dimensions picked out from the base: a gap in metres, or Auto, leaving others (v2.290)', async () => {
+  it('DIMSPACE spaces the dimensions picked out from the base: a gap in metres, or Auto, leaving others (v2.299)', async () => {
     const lin = (id: string, y: number): SketchItem => ({ id, kind: 'dim', layer: 'LV-ANNO', pts: [[X, 0], [X + 2000, 0], [X, y]], dir: 0, h: 250 });
     const start: Project = { ...villa, cadLayerFile: undefined, cadSketch: [{ file: F, items: [
       lin('D1', 1000), lin('D2', 2500), lin('D3', 6000),
@@ -6917,5 +6917,22 @@ describe('compare a reference with a new revision (XCOMPARE)', () => {
     project = villa; act(() => root.render(<Host start={villa} />)); await flush();
     await command('XCOMPARE');
     expect(hist()).toBe('XCOMPARE  This drawing has no reference loaded (XA attaches one).');
+  });
+});
+
+describe('detect rooms from walls (DETECTROOMS)', () => {
+  it('finds the sample villa\'s rooms round their name texts from the wall lines, each once, named by the text; again it updates them', async () => {
+    project = villa; act(() => root.render(<Host />)); await flush();
+    await command('DETECTROOMS');
+    const rooms = () => buildingInfoOf(project).rooms;
+    const last = onChange.mock.calls[onChange.mock.calls.length - 1][1];
+    expect(last).toMatch(/^DETECTROOMS {2}\d+ rooms? found from the walls on Ground/);
+    const names = rooms().map((r) => r.name.toLowerCase());
+    expect(names).toEqual(expect.arrayContaining(['kitchen', 'majlis', 'guest bedroom', 'store'])); // two that have no outline for ROOMS
+    expect(new Set(names).size).toBe(names.length); // each room once
+    for (const r of rooms()) { expect(r.outline!.length).toBeGreaterThanOrEqual(3); expect(r.areaM2).toBeGreaterThan(0.5); }
+    const n = rooms().length;
+    await command('ROOMSW');
+    expect(rooms()).toHaveLength(n);
   });
 });

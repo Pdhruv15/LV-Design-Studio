@@ -18,10 +18,16 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.297', date: '2026-11-25',
+    version: '2.299', date: '2026-11-25',
     items: [
       { title: 'Design CAD: Quick dimension', text: 'Annotate → Dimensions → Quick (QDIM): pick lines, polylines, arcs and circles, drawn or of the opened drawing (a window too), press Enter, then click where the row goes. It draws one dimension between each pair of points in one go: horizontal above or below them, vertical beside them. Type C or B first for Continuous (a chain) or Baseline (each from the first); the choice is kept.', action: 'cad' },
       { title: 'Dimensions: Adjust space', text: 'Adjust space (DIMSPACE, beside the style list): click the base dimension, then the ones to space, Enter, then the gap in metres. Enter alone spaces them twice the text apart; 0 lines them up with the base. Dimensions in one chain stay in one row. Update has moved beside the layer list.', action: 'cad' }
+    ]
+  },
+  {
+    version: '2.297', date: '2026-11-25',
+    items: [
+      { title: 'Detect rooms from walls', text: 'In Design CAD, type DETECTROOMS (or ROOMSW), or right-click a reference drawing and choose Detect rooms from walls. Every room with its name written inside is found at once from the wall lines round it, doors up to 1.2 m bridged as Room area (RA) does for one click, and added to the level with its outline and area, named by that text. A room with two texts in it is added once, and running it again updates the rooms rather than adding them twice. No room-outline layer is needed.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {

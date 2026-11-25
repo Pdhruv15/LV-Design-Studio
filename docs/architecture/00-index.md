@@ -1,7 +1,8 @@
 # LV Design Studio — architecture index
 
-How LV Design Studio is built: every feature (module), what it does, its main files, and how the modules pass data to each other. Written from the code on `main` (commit `8fa5f75`), 2026-11-11.
+The module map describes how LV Design Studio is built and how its modules pass data to each other. The map and its counts are based on `main` at commit `8fa5f75` (2026-11-11).
 
+- [Screen and ribbon inventory](01-app-shell.md#routing-every-mainview-and-its-screen) — checked against v2.297, including Lightning, Sheets and Specification
 - [Integration map (diagram of working links)](99-integration-map.md)
 - [Interactive navigator](navigator.html) — also on the web: https://pdhruv15.github.io/LV-Design-Studio/architecture/
 

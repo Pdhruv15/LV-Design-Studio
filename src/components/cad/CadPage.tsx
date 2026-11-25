@@ -20,6 +20,7 @@ import { clipPayload, clipText, lowerLeft, parseClip, pastedItems, withPasted, t
 import CadCommandLine from './CadCommandLine';
 import CadMenu from './CadMenu';
 import { addSelectedTool, blankMenu, commandMenu, countLine, measureOf, shownBy, SNAP_OVERRIDES, TOOL_MENU_ICON, type CtxEntry, type CtxHead, type CtxItem, type MenuCommon, type ObjectHide } from './cadContextMenu';
+import { detectRooms, seedsOf } from '../../model/cadRoomDetect';
 import { compareLine, compareRefLines, type RefDiff } from '../../model/cadRefCompare';
 import { closeRefEdit, refEditOf, startRefEdit, workingSet } from '../../model/cadRefEdit';
 import { blockEditorChanged, blockEditorOf, closeBlockEditor, openBlockEditor, saveBlockEditor } from '../../model/cadBlockEditor';
@@ -131,7 +132,7 @@ import { PropertiesPalette } from './CadProperties';
 import { isTbFile, LOGO_BOX, logoItems, saveTitleBlockFromCad, TB_FIELDS, TB_LAYERS, tbIdOf } from '../../model/titleBlockCad';
 import { LOGO_FIELD } from '../../model/titleBlock';
 import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
-import { placeRef, refGeometry, refNear, type CadRef } from '../../model/cadRefs';
+import { placeRef, placeRefExtras, refGeometry, refNear, type CadRef } from '../../model/cadRefs';
 import { standInHandle, standInsFor, takeOverNote, takeOverSummary, type TakeOverCtx } from '../../model/cadTakeOver';
 import { drawnLayers, effective, layerStylesOf, LINETYPES, matchedProps, styleOf, withProps, type ObjectProps } from '../../model/cadLayerStyle';
 import { colourCss, colourLabel } from '../../model/cadColours';
@@ -2579,6 +2580,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       case 'unload': xr.actions.unload(r); return;
       case 'detach': xr.actions.detach(r); return;
       case 'compare': void startCompare(r); return;
+      case 'rooms': detectRoomsFrom(r); return;
       case 'bind': { const c = copyOf(/^DXF/i.test(view.info.format) ? 'dxf' : 'dwg', true); if (c) void writeCopy({ ...c, path: undefined }, false, false); return; }
       case 'print': xr.actions.update(r, { print: !r.print }, r.print ? 'does not print on the plan sheets' : 'prints on the plan sheets'); return;
       case 'layers': setShowLM(true); return;
@@ -3998,6 +4000,24 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   /** Add found rooms: the closed outlines on the room-outline layers (Layer roles), named by the text inside, added to
    * Building information on the plan's level (a room found again keeps its ID; one undo step). */
+  /** DETECTROOMS: every room round a room-name text, found from the walls (the drawing's, or a reference's lines and
+   * texts), each once, named by its text, added to the level (as ROOMS adds them). */
+  function detectRoomsFrom(r?: CadRef) {
+    if (!view) return;
+    if (!floor) { cad.say('DETECTROOMS  Add the building and its levels in Building information first; rooms are kept per level.'); return; }
+    const pl = r ? xr.placed.find((x) => x.ref.name === r.name) : undefined;
+    if (r && !pl) { cad.say(`DETECTROOMS  ${r.name} is not loaded: Reload it first.`); return; }
+    const w: [Pt, Pt][] = pl ? Array.from({ length: pl.segs.length / 4 }, (_, i): [Pt, Pt] => [[pl.segs[i * 4], pl.segs[i * 4 + 1]], [pl.segs[i * 4 + 2], pl.segs[i * 4 + 3]]]) : walls;
+    const texts = pl ? placeRefExtras(pl.g, pl.ref).texts.map((t) => ({ x: t.x, y: t.y, s: t.s, layer: pl.g.layers[t.layer]?.name }))
+      : (drawn?.info.texts ?? []).filter((t) => layersOn[t.layer]).map((t) => ({ x: t.x, y: t.y, s: t.s, layer: view.info.layers[t.layer]?.name }));
+    const { seeds, capped } = seedsOf(texts);
+    if (!w.length || !seeds.length) { cad.say(`DETECTROOMS  ${!w.length ? 'No wall lines shown' : 'No room names (texts) shown'}${r ? ` in ${r.name}` : ''}: rooms are found round their name texts.`); return; }
+    const found = detectRooms(seeds, (at) => roomAround(w, at, units.factor), 0.5 / units.factor ** 2);
+    if (!found.length) { cad.say('DETECTROOMS  No closed room round any room name: the walls may be open, or on a layer that is off. Use RA (click inside) or Trace.'); return; }
+    const k = units.factor, rooms = found.map((f) => pickedRoom(project, f.name, f.area * k * k, view.file, floor.ref, f.points.map(([x, y]): Pt => [Math.round(x * k * 1000) / 1000, Math.round(y * k * 1000) / 1000])));
+    const { project: next } = putRooms(project, rooms, floor.ref, roles);
+    change(next, `DETECTROOMS  ${rooms.length} room${rooms.length === 1 ? '' : 's'} found from the walls${r ? ` of ${r.name}` : ''} on ${floorLabel(project.building, floor)}, ${m2(rooms.reduce((t, x) => t + x.areaM2, 0))} in all${capped ? ' (the first 400 room names tried)' : ''} · ⌘Z to undo`);
+  }
   function addFound() {
     if (!view) return;
     if (!floor) { cad.say('ROOMS  Add the building and its levels in Building information first; rooms are kept per level.'); return; }
@@ -4599,6 +4619,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       close: () => { if (view) closeDrawings(c === 'CLOSE' ? [view] : undefined); else cad.say('No drawing open.'); },
       fit: () => cad.fit(),
       addRooms: () => addFound(),
+      detectRooms: () => detectRoomsFrom(),
       schedules: () => schedules(),
       select: () => { cad.setTool('none'); cad.say('SEL  Click a device, Shift-click to add or remove, or drag a window (left to right: inside; right to left: crossing):'); },
       xref: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); },
