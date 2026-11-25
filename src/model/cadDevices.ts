@@ -1,6 +1,7 @@
 import { buildingInfoOf } from '../calc/building';
 import { updateCircuit } from './schedule';
 import { circuitRef } from '../calc/loadSchedule';
+import { pointMax } from './circuitRoom';
 import type { LevelRef } from './levels';
 import { PLAN_SYMBOLS } from './planSymbols';
 import { boardSymbolOf } from '../diagram/panelBox';
@@ -119,6 +120,12 @@ export function circuitLabel(_p: Project, f: Feeder): string {
   return `${f.boardId}${ref ? `/${ref}` : ''}${f.name ? ` · ${f.name}` : ''}`;
 }
 
+/** A circuit without its board, as the list of one board's circuits names it: "R1 · Living lighting". */
+export function circuitWay(f: Feeder): string {
+  const ref = circuitRef(f);
+  return ref ? `${ref}${f.name ? ` · ${f.name}` : ''}` : f.name || f.id;
+}
+
 /** A final circuit as multileaders fill it in: "DB-L1-01/L3" (the board and the circuit's reference). */
 export const circuitTag = (f: Feeder): string => { const ref = circuitRef(f); return `${f.boardId}${ref ? `/${ref}` : ''}`; };
 
@@ -220,7 +227,8 @@ export function placeItem(p: Project, item: PaletteItem, level: LevelRef, x: num
   if ('lv' in item.kind) {
     const { project } = placeLvPoint(p, level, item.kind.lv, target.feederId ?? '', x, y, undefined, undefined, item.symbol.plan ? target.rot : undefined, item.variant);
     const f = project.feeders.find((q) => q.id === target.feederId)!;
-    return { project, message: `${item.label} placed on ${circuitLabel(project, f)} — ${f.points?.[item.kind.lv] ?? 0} on the circuit` };
+    const n = f.points?.[item.kind.lv] ?? 0, max = pointMax(item.kind.lv);
+    return { project, message: `${item.label} placed on ${circuitLabel(project, f)} — ${max === undefined ? n : `${n} of ${max}`} on the circuit` };
   }
   if ('acc' in item.kind) {
     const { project } = placeAccessory(p, level, item.kind.acc, x, y, { rot: target.rot, ...(item.kind.circuit ? { feederId: target.feederId } : {}) });

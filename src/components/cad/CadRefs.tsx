@@ -129,6 +129,10 @@ export function useCadRefs({ project, view, tabOf, change, say }: {
       if (r.unloaded) change(updateRef(project, host, r.name, { unloaded: undefined }), `XREF  ${r.name} reloaded · ⌘Z to undo`);
       void load(r.file, true);
     },
+    /** XCOMPARE: a newer revision of a reference chosen and read (kept, so Accept shows it at once). */
+    async newRevision(): Promise<RefGeometry | null> {
+      try { return await choose(); } catch (e) { say(e instanceof Error ? e.message : String(e)); return null; }
+    },
     reloadAll() { for (const r of refs) if (!r.unloaded) { dropRefGeometry(r.file); void load(r.file, true); } },
     unload(r: CadRef) { if (host) change(updateRef(project, host, r.name, { unloaded: r.unloaded ? undefined : true }), `XREF  ${r.name} ${r.unloaded ? 'loaded' : 'unloaded: kept in the list, not drawn'} · ⌘Z to undo`); },
     detach(r: CadRef) {

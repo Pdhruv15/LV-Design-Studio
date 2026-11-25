@@ -50,7 +50,8 @@ export function xrefMenu(r: Pick<CadRef, 'name' | 'clip' | 'fade' | 'unloaded' |
     x('Open reference', 'open', undefined, undefined, undefined, 'open'), '-',
     { label: 'Clip', icon: 'crop', sub: [x('New boundary', 'clip', undefined, 'XCLIP'), x('Remove clip', 'unclip', undefined, undefined, !r.clip)] },
     { label: 'Fade', sub: REF_FADES.map((f) => val(x(`${f} %`, 'fade', String(f)), r.fade === f)) },
-    x('Reload', 'reload', undefined, undefined, undefined, 'reload'), x(r.unloaded ? 'Load' : 'Unload', 'unload', undefined, undefined, undefined, 'unload'), x('Detach', 'detach', undefined, undefined, undefined, 'detach'), x('Bind (save a copy)…', 'bind', undefined, undefined, undefined, 'bind'), '-',
+    x('Compare with new revision…', 'compare', undefined, 'XCOMPARE'), x('Reload', 'reload', undefined, undefined, undefined, 'reload'),
+     x(r.unloaded ? 'Load' : 'Unload', 'unload', undefined, undefined, undefined, 'unload'), x('Detach', 'detach', undefined, undefined, undefined, 'detach'), x('Bind (save a copy)…', 'bind', undefined, undefined, undefined, 'bind'), '-',
     x(r.print ? 'Do not print on sheets' : 'Print on sheets', 'print', undefined, undefined, undefined, 'print'), x('Reference layers…', 'layers', undefined, 'LM', undefined, 'layers'), '-',
     x('Properties (References palette)…', 'manager', undefined, 'XR', undefined, 'references')
   ]);

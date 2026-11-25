@@ -12,6 +12,7 @@ import { buildingInfoOf, DEFAULT_ROOM_TYPES } from '../../calc/building';
 import type { CadShow } from './cadObjectMenus';
 import { sizeRoute, trayPlanOf } from '../../calc/cableTray';
 import { explodeObjects, openDrawing } from '../../engines/cad/cadEngine';
+import { toDxf } from '../../docs/dxf';
 import { dropRefGeometry, keepRefGeometry } from '../../model/cadRefs';
 vi.mock('../../engines/cad/cadEngine', async (orig) => { const m = await orig<typeof import('../../engines/cad/cadEngine')>(); return { ...m, explodeObjects: vi.fn(m.explodeObjects) }; });
 import '../../engines/cad/cadOps'; // loaded ahead: the engine loads it on demand, which a busy test run can make slow
@@ -288,6 +289,23 @@ describe('CAD view', () => {
     await clickAt(2500, 150); // the kitchen outline (A-ROOM), 4.85 × 4.35 m
     expect(result()).toMatch(/Area 21\.10 m²/);
     expect(result()).toMatch(/Perimeter 18\.40 m · of the object picked/);
+  });
+
+  it('shows the circuit with its room, warns when it is full and goes on to the next circuit with Tab', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('dev');
+    act(() => { state.setFeederId('DB-GF1-Y1'); state.toggle('osnap'); });
+    const field = document.querySelector('button[aria-label="Circuit"]');
+    expect(field?.textContent).toMatch(/10 \/ 10/);
+    await clickAt(3000, 9000); // the 11th light: still placed, over the most
+    expect(project.feeders.find((f) => f.id === 'DB-GF1-Y1')!.points?.ltg).toBe(11);
+    await flush();
+    const line = document.querySelector('.cad-hist')?.textContent ?? '';
+    expect(line).toMatch(/DB-GF1\/Y1 · Majlis lighting is over: 11 of 10 \(Rules sheet\)\. Next with room: /);
+    act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })); });
+    expect(state.feederId).not.toBe('DB-GF1-Y1');
+    expect(document.querySelector('.cad-hist')?.textContent).toContain('DEV  Now on ');
   });
 
   it('places a light on a circuit, selects it with a click, and deletes it (the circuit count follows)', async () => {
@@ -6797,5 +6815,40 @@ describe('CAD 2D gap plan: MLEADER, a multileader (several leaders, one note)', 
     await command('L1-0');
     await command('K9-');
     expect(items().map(text)).toEqual(['K9-1', 'K9-2', 'K9-3']);
+  });
+});
+
+describe('compare a reference with a new revision (XCOMPARE)', () => {
+  const X = 200000, F = 'sample-villa-gf.dxf';
+  const hist = () => document.querySelector('.cad-hist')!.textContent;
+  const right = (x: number, y: number) => { const [sx, sy] = screenOf(x, y); return act(async () => { document.querySelector('canvas.cad-over')!.dispatchEvent(new MouseEvent('contextmenu', { clientX: sx, clientY: sy, button: 2, bubbles: true, cancelable: true })); }); };
+  const entry = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find((b) => rowLabel(b) === label)!;
+  afterEach(() => { dropRefGeometry('REF.dxf'); dropRefGeometry('REF-B.dxf'); });
+
+  it('from the reference\'s menu: the new revision chosen and compared; Next zooms to the change, Clouds marks it, Accept takes it', async () => {
+    keepRefGeometry({ file: 'REF.dxf', units: 4, segs: new Float64Array([0, 0, 5000, 0, 0, 0, 0, 3000]), segLayers: new Uint16Array([0, 0]), layers: [{ name: 'A-WALL', rgb: 0 }] });
+    // Rev B: the wall along the bottom kept, the one up the side gone, a new one 2 m up.
+    const revB = toDxf([{ type: 'line', layer: 'A-WALL', x1: 0, y1: 0, x2: 5000, y2: 0 }, { type: 'line', layer: 'A-WALL', x1: 0, y1: 2000, x2: 5000, y2: 2000 }], {}, { insunits: 4 });
+    (window as unknown as { lvds: { cadFile: { openBytes: ReturnType<typeof vi.fn> } } }).lvds.cadFile.openBytes.mockResolvedValueOnce({ file: 'REF-B.dxf', path: '/refs/REF-B.dxf', bytes: new TextEncoder().encode(revB) });
+    const p: Project = { ...villa, cadRefs: { [F]: [{ name: 'REF', file: 'REF.dxf', type: 'overlay', at: [X, 50000], scale: 1, rot: 0, fade: 50, print: true }] } };
+    project = p; act(() => root.render(<Host start={p} />)); await flush(); act(() => state.toggle('osnap'));
+    await right(X + 2500, 50000);
+    await act(async () => { entry('Compare with new revision…').click(); });
+    await until(() => /^XCOMPARE {2}\[Next/.test(hist()));
+    expect(state.history).toContain('XCOMPARE  REF: 1 line added (green), 1 removed (red), in 1 area · 1 the same');
+    await command('N');
+    expect(hist()).toBe('XCOMPARE  Area 1 of 1 · [Next/Clouds/Accept/Exit] <Next>:');
+    await command('C');
+    expect(sketchOf(project, F).filter((it) => it.cloud)).toHaveLength(1);
+    await command('A');
+    expect(project.cadRefs![F][0].file).toBe('REF-B.dxf');
+    await command('L');
+    expect(state.tool).toBe('line'); // the comparison is over: commands work again
+  });
+
+  it('XCOMPARE with no reference loaded says so', async () => {
+    project = villa; act(() => root.render(<Host start={villa} />)); await flush();
+    await command('XCOMPARE');
+    expect(hist()).toBe('XCOMPARE  This drawing has no reference loaded (XA attaches one).');
   });
 });
