@@ -141,7 +141,8 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     const threePhase = !!inc && inc.cores >= 3 || circuits.some((c) => c.cores !== 2 || c.phase === 'RYB') || new Set(circuits.map((c) => c.phase)).size > 1;
     for (const group of elcbGroups(p, b)) {
       const poles = group.byHand?.poles === 3 ? 'TP' : threePhase ? 'TP+N' : 'SP+N';
-      add('B', `rccb:${group.sensitivityMa}:${poles}:${group.ratingA}`, `RCCB / ELCB ${group.sensitivityMa} mA, ${poles}, ${group.ratingA} A${brandRef('RCCB', poles, group.ratingA)}`, 'no', 1, b.id,
+      const t = group.rcdType === 'A' ? '' : group.rcdType; // Type A, the usual one, keeps the line as before
+      add('B', `rccb:${group.sensitivityMa}:${poles}:${group.ratingA}${t ? `:${t}` : ''}`, `RCCB / ELCB ${group.sensitivityMa} mA, ${poles}, ${group.ratingA} A${t ? `, Type ${t}` : ''}${brandRef('RCCB', poles, group.ratingA)}`, 'no', 1, b.id,
         { quantitySource: 'Load schedule ELCB groups' });
       group.circuits.forEach((c) => groupedRcdCircuits.add(c.id));
     }
@@ -247,6 +248,7 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
   }
 
   // Outgoing ways: breakers, earth leakage, meters, isolators, equipment (existing ways are already installed)
+  const ownRcd = new Map(p.boards.flatMap((b) => rcbosOf(p, b).map((r) => [r.circuit.id, r] as const)));
   for (const f of p.feeders) {
     if (f.existing) continue;
     const poles = polesOf(f);
@@ -256,12 +258,15 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
       const ma = rcdOf(p, f);
       const rp = f.phase === 'RYB' ? 'TP+N' : 'SP+N';
       const A = f.breakerRatingA;
+      const own = ownRcd.get(f.id);
+      const t = !own || own.rcdType === 'A' ? '' : own.rcdType;
+      const tk = t ? `:${t}` : '', td = t ? `, Type ${t}` : '';
       if (f.rcboKind === 'addon') {
         const bi = breakerItem(f);
         add('B', bi.key, bi.description, 'no', 1, f.boardId);
-        add('B', `rcdaddon:${ma}:${rp}:${A}`, `RCD add-on block ${ma} mA, ${rp}, for a ${A} A MCB${brandRef('RCD add-on', rp, A)}`, 'no', 1, f.boardId);
-      } else if (f.rcboKind === 'afdd') add('B', `afdd:${ma}:${rp}:${A}`, `AFDD + RCBO ${A} A, ${ma} mA, ${rp}, arc fault detection (IEC 62606)${brandRef('AFDD+RCBO', rp, A)}`, 'no', 1, f.boardId);
-      else add('B', `rcbo:${ma}:${rp}:${A}`, `RCBO ${A} A, ${ma} mA, ${rp}${brandRef('RCBO', rp, A)}`, 'no', 1, f.boardId);
+        add('B', `rcdaddon:${ma}:${rp}:${A}${tk}`, `RCD add-on block ${ma} mA, ${rp}${td}, for a ${A} A MCB${brandRef('RCD add-on', rp, A)}`, 'no', 1, f.boardId);
+      } else if (f.rcboKind === 'afdd') add('B', `afdd:${ma}:${rp}:${A}${tk}`, `AFDD + RCBO ${A} A, ${ma} mA, ${rp}${td}, arc fault detection (IEC 62606)${brandRef('AFDD+RCBO', rp, A)}`, 'no', 1, f.boardId);
+      else add('B', `rcbo:${ma}:${rp}:${A}${tk}`, `RCBO ${A} A, ${ma} mA, ${rp}${td}${brandRef('RCBO', rp, A)}`, 'no', 1, f.boardId);
     } else {
       const bi = breakerItem(f);
       add('B', bi.key, bi.description, 'no', 1, f.boardId);

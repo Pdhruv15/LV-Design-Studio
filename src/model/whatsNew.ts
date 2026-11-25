@@ -18,10 +18,16 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.299', date: '2026-11-25',
+    version: '2.305', date: '2026-11-25',
     items: [
       { title: 'Design CAD: Quick dimension', text: 'Annotate → Dimensions → Quick (QDIM): pick lines, polylines, arcs and circles, drawn or of the opened drawing (a window too), press Enter, then click where the row goes. It draws one dimension between each pair of points in one go: horizontal above or below them, vertical beside them. Type C or B first for Continuous (a chain) or Baseline (each from the first); the choice is kept.', action: 'cad' },
       { title: 'Dimensions: Adjust space', text: 'Adjust space (DIMSPACE, beside the style list): click the base dimension, then the ones to space, Enter, then the gap in metres. Enter alone spaces them twice the text apart; 0 lines them up with the base. Dimensions in one chain stay in one row. Update has moved beside the layer list.', action: 'cad' }
+    ]
+  },
+  {
+    version: '2.303', date: '2026-11-25',
+    items: [
+      { title: 'Load schedule: RCD type AC / A / F / B', text: 'Every ELCB and RCBO now has an RCD type. Auto picks Type B when a circuit\'s remarks name an EV charger, a 3-phase drive or PV, Type F for a 1-phase drive, else Type A. Choose a type for the whole DB in the board bar (RCD type), or for one ELCB or RCBO in its dialog. The schedule, PDF, Excel and BOQ show it only when it is not Type A.' }
     ]
   },
   {
