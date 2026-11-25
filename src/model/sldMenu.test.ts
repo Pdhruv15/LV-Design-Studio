@@ -31,7 +31,7 @@ describe('board menu', () => {
     expect(labels(m.items)).toEqual([
       'Edit SMDB-FF…', 'Load schedule', 'Board diagram', 'Add', '-',
       'Copy with everything below', 'Duplicate', 'Repeat branch on other floors…', '-',
-      'Move', 'Supply from…', 'Order', 'Change', 'Delete SMDB-FF and everything below…', '-',
+      'Move', 'Supply from…', 'Order', 'Change', 'Fault point', 'Delete SMDB-FF and everything below…', '-',
       'Show on plan', 'Zoom to SMDB-FF', 'Show this branch only', '-', 'Select everything below', '-', 'Properties'
     ]);
     expect(labels(sub(m.items, 'Add'))).toEqual(['Load…', 'Motor…', 'Solar PV…', 'EV charger…', 'Feeder cable…', '-', 'Sub-board…']);
@@ -50,7 +50,7 @@ describe('board menu', () => {
     expect(labels(m.items)).toEqual([
       'Edit DB-LV…', 'Load schedule', 'Board diagram', 'Add', '-',
       'Copy with everything below', '-',
-      'Add upstream board…', 'Connect to…', 'Change', 'Delete DB-LV and everything below…', '-',
+      'Add upstream board…', 'Connect to…', 'Change', 'Fault point', 'Delete DB-LV and everything below…', '-',
       'Show on plan', 'Zoom to DB-LV', 'Show this branch only', '-', 'Properties'
     ]);
     expect(find(m.items, 'Add upstream board…')!.arg).toBe('addupstream');
@@ -100,7 +100,7 @@ describe('load menu', () => {
   it('lists its groups in order, with the load in the header', () => {
     const m = menu({ kind: 'feeder', id: 'FF-LAB' });
     expect(m.head).toEqual({ icon: 'circuit', title: 'FF-LAB', detail: 'Lab · 50.00 kW · on SMDB-FF' });
-    expect(labels(m.items)).toEqual(['Edit FF-LAB…', 'Edit cable…', 'Change', '-', 'Copy', 'Duplicate', 'Move', 'Move to board…', 'Order', 'Delete FF-LAB', '-', 'Show on plan', 'Zoom to FF-LAB', '-', 'Select similar', '-', 'Properties']);
+    expect(labels(m.items)).toEqual(['Edit FF-LAB…', 'Edit cable…', 'Change', '-', 'Copy', 'Duplicate', 'Move', 'Move to board…', 'Order', 'Delete FF-LAB', '-', 'Show on plan', 'Zoom to FF-LAB', '-', 'Select similar', 'Fault point', '-', 'Properties']);
     expect(labels(sub(m.items, 'Change'))).toEqual(['Switching device', 'Earth leakage', 'kWh meter', 'Cable type', '-', 'Essential (on the generator)', 'Existing', 'Local isolator']);
   });
   it('marks the current device, leakage, meter and switches', () => {
@@ -458,5 +458,22 @@ describe('supply menu head by supply mode', () => {
     const m = menu({ kind: 'supply', boardId: 'MDB-1' }, state(only(undefined)));
     expect(m.head).toEqual({ icon: 'board', title: 'Supply not set', detail: 'feeds MDB-1' });
     expect(labels(m.items)).toEqual(['Edit supply…', '-', 'Zoom to MDB-1', '-', 'Properties']);
+  });
+});
+
+describe('Fault point ▸', () => {
+  const args = (list: CtxEntry[]) => list.filter((x): x is CtxItem => x !== '-').map((x) => x.arg);
+  it('a board offers Mark on this busbar, and Remove for each mark on it', () => {
+    const p: Project = { ...project, faultPoints: [{ id: 'F1', boardId: 'SMDB-FF' }, { id: 'F2', feederId: 'FF-LAB', distanceM: 0 }] };
+    const list = sub(menu({ kind: 'board', id: 'SMDB-FF' }, state(p)).items, 'Fault point');
+    expect(labels(list)).toEqual(['Mark on this busbar', '-', 'Remove F1']);
+    expect(args(list)).toEqual(['faultadd', 'faultremove|F1']);
+  });
+  it('a circuit offers the far end, and for each mark where along the cable it sits (the present place ticked)', () => {
+    const p: Project = { ...project, faultPoints: [{ id: 'F2', feederId: 'FF-LAB', distanceM: 0 }] };
+    const list = sub(menu({ kind: 'feeder', id: 'FF-LAB' }, state(p)).items, 'Fault point');
+    expect(labels(list)).toEqual(['Mark at the far end of the cable', '-', 'F2: at the board', 'F2: quarter way', 'F2: half way', 'F2: three quarters', 'F2: far end', 'Remove F2']);
+    expect(list.filter((x): x is CtxItem => x !== '-' && !!x.now).map((x) => x.label)).toEqual(['F2: at the board']);
+    expect(args(list)[3]).toBe('faultat|F2:0.5');
   });
 });

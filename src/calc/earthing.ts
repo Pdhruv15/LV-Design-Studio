@@ -158,6 +158,17 @@ export function earthLoopToBoard(project: Project, boardId: string): Impedance {
   return earthLoopPath(project, boardId).z;
 }
 
+/** Minimum line-to-earth fault current (A) at a board's busbar, or on a circuit from it at `fraction` of the
+ * cable's length (1 = the far end): c min · U0 ÷ Zs, as the earth loop study works it. Undefined when the loop
+ * to the board is not known (no source data). */
+export function earthFaultAtA(project: Project, boardId: string, f?: Feeder, fraction = 1): number | undefined {
+  const path = earthLoopPath(project, boardId);
+  if (path.missing) return undefined;
+  const c = f ? cableLoop(project, f) : { r: 0, x: 0 };
+  const zs = Math.hypot(path.z.r + c.r * fraction, path.z.x + c.x * fraction);
+  return zs > 0 ? (C_MIN * project.voltageV) / SQRT3 / zs : undefined;
+}
+
 export interface EarthingResult {
   feeder: Feeder;
   cpcMm2: number;

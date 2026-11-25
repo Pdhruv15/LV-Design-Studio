@@ -18,9 +18,16 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.300', date: '2026-11-25',
+    version: '2.301', date: '2026-11-25',
     items: [
       { title: 'Design CAD: Check level', text: 'Level → Check level (CHK) lists what to look at on the level showing: rooms short of lights by the lumen method or with none, rooms with no socket, circuits over the most the Rules sheet allows, devices on a removed circuit or outside every room, ELV coverage gaps by system and boards not yet on the plan, with the counts by type. Click a line to go there; some lines open Light room or Coverage. It is worked out when you ask, and Check again repeats it.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.298', date: '2026-11-25',
+    items: [
+      { title: 'Fault points on the SLD', text: 'The SLD tab has a new tool, Fault point, beside Values. Click it, then click a busbar or a cable: a numbered mark (F1, F2…) appears there. A mark on a cable starts at its far end; right-click the circuit → Fault point to move it to the board, a quarter, half or three quarters of the way, or to remove it. Right-click a board → Fault point does the same for its busbar. The marks print on the SLD sheet and go out with the PDF, DXF and DWG.' },
+      { title: 'Fault points table in the short circuit report', text: 'The short circuit study report lists every fault point: where it is, the path impedance in per unit, X/R, Ik″, the peak current, the minimum line-to-earth current and the breaking capacity of the breaker that must clear it. The per-unit base now prints as a plain number (100 MVA).' }
     ]
   },
   {

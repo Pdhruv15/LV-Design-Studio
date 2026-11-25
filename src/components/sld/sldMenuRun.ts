@@ -4,6 +4,8 @@ import type { ColorBy } from '../../diagram/heatmap';
 import type { ResultLayers } from '../../diagram/annotations';
 import { renamePanels, renameProblems } from '../../model/renamePanels';
 import type { DropResult, DropTarget, MoveItem, PaletteItem } from '../../model/sldEdit';
+import { applyDrop } from '../../model/sldEdit';
+import { faultPointResult, removeFaultPoint, updateFaultPoint } from '../../calc/faultPoints';
 import type { SldTarget } from '../../model/sldMenu';
 import { changeFeeder, changeFeeders, duplicateBoard, duplicateFeeder, duplicateMany, moveMany, orderTarget, pasteFeeders, type PickItem } from '../../model/sldMenuEdit';
 import { addRmu, removeRmu } from '../../model/mvGrow';
@@ -171,6 +173,18 @@ export function runSldMenu(ctx: SldMenuCtx, t: SldTarget, action: string, value?
       return;
     }
     case 'delete': if (t.kind === 'board') ctx.deleteBoard(t.id); else if (feederId) ctx.deleteLoad(feederId); return;
+    case 'faultadd': if (picked) ctx.apply(applyDrop(project, { kind: 'faultPoint' }, picked.kind === 'board' ? { type: 'bus', boardId: picked.id } : { type: 'feeder', feederId: picked.id })); return;
+    case 'faultremove': if (value) ctx.apply({ project: removeFaultPoint(project, value), message: `Fault point ${value} removed (undo with ⌘Z)` }); return;
+    case 'faultat': {
+      // value: "F1:0.5" — the mark and how far along the circuit's cable (0 = at the board, 1 = the far end).
+      const [id, k] = (value ?? '').split(':'), f = feederId ? project.feeders.find((x) => x.id === feederId) : undefined;
+      if (!id || !f || !Number.isFinite(Number(k))) return;
+      const d = Number(k) >= 1 ? undefined : Math.round(f.lengthM * Number(k) * 10) / 10;
+      const next = updateFaultPoint(project, id, { distanceM: d });
+      const made = next.faultPoints?.find((p) => p.id === id);
+      ctx.apply({ project: next, message: made ? `Fault point ${id}: ${faultPointResult(next, made).place}` : `Fault point ${id} is not on the drawing` });
+      return;
+    }
     case 'plan': if (picked) ctx.showOnPlan({ [picked.kind]: picked.id }); return;
     case 'zoom': if (picked) ctx.zoomTo(picked.kind, picked.id); return;
     case 'properties': if (picked) ctx.properties(picked.kind, picked.id); return;
