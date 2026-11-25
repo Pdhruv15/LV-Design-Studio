@@ -18,9 +18,22 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.292', date: '2026-11-25',
+    version: '2.294', date: '2026-11-25',
     items: [
       { title: 'Forms: calculated source fault level', text: 'The TCL summary and the maximum-demand form now print the fault level calculated from a generator or inverter source rating when none is typed, marked "(calc.)", with its basis in the remarks of the incomer line of the maximum-demand form.' }
+    ]
+  },
+  {
+    version: '2.291', date: '2026-11-25',
+    items: [
+      { title: 'Add device: the circuit list shows the room left', text: 'In the Add device panel the Circuit field now opens a list: the boards of this level first, each circuit with its points against the most the Rules sheet allows ("7 / 10"), full circuits marked, and a Find box. Lighting points and 13 A sockets have a limit; other circuits show their points.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'A full circuit offers the next one', text: 'Placing a light or a 13 A socket now says how full its circuit is ("7 of 10 on the circuit"). When the circuit is full, the command line names the next circuit with room: press Tab to go on with it, or pick another. It is a warning, not a stop.' }
+    ]
+  },
+  {
+    version: '2.289', date: '2026-11-25',
+    items: [
+      { title: 'Compare a reference with its new revision', text: 'In Design CAD, right-click a reference drawing and choose Compare with new revision… (or type XCOMPARE), then pick the new file from the architect. The two are compared where the reference sits: lines added in the new revision show in green, lines taken out in red, and the command line says how many and in how many areas. Next zooms to each area in turn, Clouds draws a revision cloud round every area, Accept switches the reference to the new file, and Exit (or Esc) leaves it as it was.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {
