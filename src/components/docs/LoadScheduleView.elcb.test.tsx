@@ -223,6 +223,30 @@ describe('Add → ELCB / RCD', () => {
     expect(items().map((b) => b.textContent)).toEqual(expect.arrayContaining(['Edit RCD-1…', 'Remove RCD-1']));
   });
 
+  it('chooses the RCD type for the DB in the board bar, and for one ELCB in its dialog', () => {
+    mount();
+    const sel = [...document.querySelectorAll<HTMLSelectElement>('.ls-head select')].find((x) => x.closest('label')!.textContent!.startsWith('RCD type'))!;
+    expect([...sel.options].map((o) => o.textContent)).toEqual(['Auto (A; B for EV, drives, PV)', 'All Type AC (plain AC loads only)', 'All Type A (general circuits)', 'All Type F (1-phase drives, inverter units)', 'All Type B (EV chargers, 3-phase drives, PV)']);
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(sel, 'F');
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(board().rcdType).toBe('F');
+    expect(elcbGroups(latest, board()).every((g) => g.rcdType === 'F')).toBe(true);
+    act(() => document.querySelector<HTMLTableCellElement>('table.ls td.elcb[rowspan]')!.click());
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('.menu-pop[role="menu"] button')].find((x) => x.textContent === 'Edit ELCB-1…')!.click());
+    const dlg = document.querySelector('.elcb-dialog')!;
+    const type = [...dlg.querySelectorAll('label')].find((l) => l.textContent!.startsWith('RCD type'))!.querySelector('select')!;
+    expect(type.options[0].textContent).toBe("Auto — Type F (the DB's choice)");
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(type, 'B');
+      type.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    act(() => dlg.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
+    expect(elcbGroups(latest, board())[0]).toMatchObject({ rcdType: 'B' });
+    expect(elcbGroups(latest, board())[0].label).toMatch(/Type B$/);
+  });
+
   it('has no ELCB / RCD menu on the MD form', () => {
     shown = 'MDB-1';
     mount();

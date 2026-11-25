@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.297', date: '2026-11-25',
+    items: [
+      { title: 'Load schedule: RCD type AC / A / F / B', text: 'Every ELCB and RCBO now has an RCD type. Auto picks Type B when a circuit\'s remarks name an EV charger, a 3-phase drive or PV, Type F for a 1-phase drive, else Type A. Choose a type for the whole DB in the board bar (RCD type), or for one ELCB or RCBO in its dialog. The schedule, PDF, Excel and BOQ show it only when it is not Type A.' }
+    ]
+  },
+  {
     version: '2.296', date: '2026-11-25',
     items: [
       { title: 'No earth pits for a board fed from outside', text: 'A first board that is fed from a board outside the project no longer gets earth pits, a main earth terminal or pit lines in the earthing layout, the SLD and the BOQ, because its earth is at the board that feeds it. Tick Earth pit detail on the board to add them.' },

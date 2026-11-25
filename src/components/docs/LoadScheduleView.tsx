@@ -4,7 +4,7 @@ import { projectFormat } from '../../model/scheduleFormats';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supplyChain } from '../../model/transformers';
 import { Keyboard, ListPlus, Scale, ShieldCheck, Square, SquareDashed, Trash2, X } from 'lucide-react';
-import type { Board, Feeder, Phase, PointType, Project } from '../../types';
+import { RCD_TYPES, type Board, type Feeder, type Phase, type PointType, type Project, type RcdType } from '../../types';
 import { cables } from '../../calc/cableTable';
 import { defaultCpcMm2 } from '../../calc/earthing';
 import { breakerRatings } from '../../calc/sizing';
@@ -301,7 +301,7 @@ export default function LoadScheduleView({
   const saveElcb = (target: ElcbTarget, v: ElcbValues): string | undefined => {
     try {
       if (target.kind === 'rcbo') {
-        onChange(setRcbo(project, target.feederId, true, v.sensitivityMa), { step: true });
+        onChange(setRcbo(project, target.feederId, true, v.sensitivityMa, undefined, v.rcdType ?? null), { step: true });
         const f = project.feeders.find((x) => x.id === target.feederId);
         onStatus(`${f ? circuitRef(f) : ''}: RCBO earth leakage ${v.sensitivityMa ? `${v.sensitivityMa} mA` : 'Auto'}`);
         return undefined;
@@ -313,7 +313,7 @@ export default function LoadScheduleView({
         onStatus(`${f ? circuitRef(f) : ''}: no RCD (${v.reason})${was ? `; it leaves ELCB-${was.index}` : ''}. Its earth fault check rests on the MCB alone`);
         return undefined;
       }
-      const body = { fromWay: v.fromWay, toWay: v.toWay, poles: v.poles === 3 ? 3 as const : undefined, ratingA: v.ratingA, sensitivityMa: v.sensitivityMa };
+      const body = { fromWay: v.fromWay, toWay: v.toWay, poles: v.poles === 3 ? 3 as const : undefined, ratingA: v.ratingA, sensitivityMa: v.sensitivityMa, rcdType: v.rcdType };
       const r = target.at !== undefined ? editElcbAt(project, board.id, target.at, body) : addBoardElcb(project, board.id, body);
       onChange(r.project, { step: true });
       onStatus(r.message);
@@ -483,6 +483,12 @@ export default function LoadScheduleView({
               <select value={board.elcbSensitivityMa ?? ''} onChange={(e) => setBoard({ elcbSensitivityMa: e.target.value === '' ? undefined : +e.target.value })}>
                 <option value="">Auto (lighting {settings.elcbLightingMa} / power {settings.elcbPowerMa} mA)</option>
                 {[30, 100, 300].map((m) => <option key={m} value={m}>All {m} mA</option>)}
+              </select>
+            </label>
+            <label title="RCD type of the ELCBs and RCBOs that have none of their own. Auto: Type A, or B for an EV charger, 3-phase drive or PV named in the remarks, F for a 1-phase drive; printed only when it is not A"><span className="m">RCD type</span>
+              <select value={board.rcdType ?? ''} onChange={(e) => setBoard({ rcdType: (e.target.value || undefined) as RcdType | undefined })}>
+                <option value="">Auto (A; B for EV, drives, PV)</option>
+                {RCD_TYPES.map((t) => <option key={t.value} value={t.value}>All {t.label}</option>)}
               </select>
             </label>
           </div>
