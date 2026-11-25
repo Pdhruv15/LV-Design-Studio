@@ -525,7 +525,7 @@ export function pfcSection(p: Project, scope: Scope): Section {
 export type { ReportMeta } from './reportFrame';
 
 export const defaultTitle = (studies: StudyReportKind[], type?: ReportType) =>
-  type === 'authority' ? 'DEWA submission — single line diagram and load schedule' : studies.length === 1 ? studyInfo(studies[0]).title : 'Electrical design studies';
+  type === 'authority' ? 'Authority submission — single line diagram and load schedule' : studies.length === 1 ? studyInfo(studies[0]).title : 'Electrical design studies';
 
 /** The studies that get an SLD sheet. The plain SLD of the schedules is drawn only
  * when no study with results on its SLD is in the report (e.g. a DEWA submission). */

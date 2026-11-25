@@ -38,7 +38,7 @@ export function SavePresetDialog({ info, b, onClose, onStatus }: { info: Buildin
       <h3>Save {b.name} as a building preset</h3>
       <p className="m">For the next project of this kind: the levels and their heights, flats placed on them, {rooms ? 'the rooms, ' : ''}the flat layouts and the room types they use, the riser lengths. Not saved: the DBs serving the rooms{links ? ` (${links} links)` : ''} and the board the riser is fed from — they belong to this project’s single-line diagram.</p>
       <label>Preset name<input value={name} autoFocus onChange={(e) => setName(e.target.value)} placeholder="e.g. Residential tower G+10+R" /></label>
-      <label>Note <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="optional — e.g. DEWA, 2BR/3BR mix" /></label>
+      <label>Note <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="optional — e.g. 2BR/3BR mix" /></label>
       <label className="row" style={{ flexDirection: 'row', gap: 6 }}><input type="checkbox" checked={rooms} onChange={(e) => setRooms(e.target.checked)} /> Rooms on the levels</label>
       <label className="row" style={{ flexDirection: 'row', gap: 6 }}><input type="checkbox" checked={areas} onChange={(e) => setAreas(e.target.checked)} /> Plot area, GFA and built-up area typed for this building</label>
       {line && <p className="m"><b>{line.description || 'No levels'}</b> · {preview.buildings[0].levels.length} levels · {line.rooms} rooms · {line.flats} flats · {preview.unitTypes.length} layouts · {preview.roomTypes.length} room types</p>}

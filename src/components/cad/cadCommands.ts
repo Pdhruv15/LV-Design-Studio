@@ -10,7 +10,7 @@ export type CadAction = 'new' | 'open' | 'close' | 'fit' | 'addRooms' | 'schedul
   | 'alignDevices' | 'plot' | 'properties' | 'options' | 'unitsTab' | 'regen' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
   | 'textStyle' | 'dimStyle' | 'mleaderStyle' | 'pointStyle' | 'blockDialog' | 'blocksPalette' | 'attDef' | 'attExport' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt' | 'dyn' | 'history'
   | 'copyClip' | 'cutClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave' | 'zoomPrev' | 'qselect'
-  | 'undo' | 'redo' | 'selectAll' | 'selectInvert' | 'zoomSel' | 'count' | 'isolateObjects' | 'hideObjects' | 'unisolateObjects' | 'addSelected' | 'quickMeasure' | 'find' | 'bedit' | 'bsave' | 'bclose' | 'refedit' | 'refclose';
+  | 'undo' | 'redo' | 'selectAll' | 'selectInvert' | 'zoomSel' | 'count' | 'isolateObjects' | 'hideObjects' | 'unisolateObjects' | 'addSelected' | 'quickMeasure' | 'find' | 'bedit' | 'bsave' | 'bclose' | 'refedit' | 'refclose' | 'xcompare';
 
 export type CadCommand = { aliases: readonly string[]; desc: string } & ({ tool: CadTool } | { action: CadAction });
 
@@ -104,6 +104,7 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['NORTH'], desc: 'North arrow', tool: 'north' },
   { aliases: ['XR', 'XREF', 'XREFS', 'ER', 'EXTERNALREFERENCES'], desc: 'References', action: 'xref' },
   { aliases: ['XA', 'XATTACH'], desc: 'Attach a reference', action: 'xattach' },
+  { aliases: ['XCOMPARE'], desc: 'Compare a reference with a new revision of its drawing: lines added in green, removed in red', action: 'xcompare' },
   { aliases: ['XCLIP', 'XC'], desc: 'Clip a reference', action: 'xclip' },
   { aliases: ['CROP', 'BCROP'], desc: 'Crop a block: cut it along an outline', tool: 'crop' },
   { aliases: ['LM', 'LAYER', 'LAYERMANAGER', 'LAYMAN', 'LA'], desc: 'Layer palette on or off', action: 'layerManager' },

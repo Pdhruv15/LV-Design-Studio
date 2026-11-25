@@ -2509,6 +2509,32 @@ input.cad-dlg-ali{width:64px}
 .cad-gallery-list svg text{fill:currentColor;stroke:none}
 .cad-gallery-list .elv{color:var(--cad-elv)}
 .cad-gallery-list .lv{color:var(--cad-dev)}
+/* Add device's Circuit field: the circuit in use with the room left on it; opened, a list in the panel: Find, the next
+   circuit with room, the boards of this level, then the others. */
+.cad-cir-wrap{display:grid;gap:2px;font-size:var(--fs-xs);color:var(--mut)}
+.cad-cir{display:grid;gap:2px}
+.cad-cir-field{display:flex;align-items:center;gap:var(--space-2);width:100%;min-height:28px;padding:0 var(--space-2);background:var(--p2);border:1px solid var(--field-line);border-radius:var(--radius-sm);color:var(--tx);font-size:var(--fs-sm);text-align:left}
+.cad-cir-field > span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cad-cir-field svg{flex:none;color:var(--mut)}
+.cad-cir-n{flex:none;color:var(--mut);font:11px ui-monospace,Menlo,monospace}
+.cad-cir-n.full{color:var(--warn)}
+.cad-cir-list{display:grid;gap:1px;max-height:300px;overflow-y:auto;padding:var(--space-1);background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--radius-sm);box-shadow:var(--shadow-pop)}
+.cad-cir-list input{width:100%;height:24px;padding:0 var(--space-2);margin-bottom:2px;font-size:var(--fs-xs)}
+.cad-cir-h{display:flex;align-items:center;gap:4px;padding:5px 4px 2px;background:none;border:0;color:var(--mut);font-size:10px;letter-spacing:.04em;text-transform:uppercase;text-align:left}
+.cad-cir-h:disabled{cursor:default}
+.cad-cir-h > span{margin-left:auto;letter-spacing:0}
+.cad-cir-row{display:flex;align-items:center;gap:6px;min-height:22px;padding:0 4px;background:none;border:0;border-left:2px solid transparent;border-radius:3px;color:var(--tx);font-size:var(--fs-sm);text-align:left}
+.cad-cir-row:hover{background:var(--p2)}
+.cad-cir-row[aria-selected=true]{background:var(--p2);border-left-color:var(--acc)}
+.cad-cir-row .w{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cad-cir-row .n{flex:none;color:var(--mut);font:11px ui-monospace,Menlo,monospace}
+.cad-cir-row svg{flex:none;color:var(--warn)}
+.cad-cir-bar{flex:none;width:34px;height:4px;border-radius:2px;background:var(--line)}
+.cad-cir-bar b{display:block;height:100%;border-radius:2px;background:var(--mut)}
+.cad-cir-row.full .w{color:var(--mut)}
+.cad-cir-row.full .cad-cir-bar b{background:var(--warn)}
+.cad-cir-row.next .w{color:var(--acc)}
+.cad-cir-none{padding:4px;color:var(--mut);font-size:var(--fs-xs)}
 /* Design CAD colour dialog: compact index colours 1–255 and true colour, portalled outside the ribbon. */
 .cad-colour{position:relative;display:inline-block}
 .cad-colour-btn{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-xs);padding:1px 6px;min-height:20px;border:1px solid var(--field-line);border-radius:3px;background:var(--p2);color:var(--tx);cursor:pointer;white-space:nowrap}

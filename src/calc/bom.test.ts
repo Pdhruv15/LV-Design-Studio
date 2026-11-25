@@ -1,6 +1,6 @@
 import { applyTransformers, planTransformers } from '../model/transformers';
 import { planEmergency } from '../model/emergency';
-import { earthingLayout } from '../model/earthingPlan';
+import { earthingLayout, withEarthPitIds } from '../model/earthingPlan';
 import { fallbackPriceEntry } from '../model/priceList';
 import { describe, expect, it } from 'vitest';
 import ExcelJS from 'exceljs';
@@ -418,5 +418,58 @@ describe('solar PV and EV chargers', () => {
     expect(line(rows, 'ev-charger:7.4:1P')).toMatchObject({ section: 'D', qty: 1, where: ['DB-GF1'] });
     expect(line(rows, 'ev-charger:22:3P')!.qty).toBe(1);
     expect(rows.filter((x) => x.key.startsWith('ev-charger:')).reduce((a, x) => a + x.qty, 0)).toBe(before + 2);
+  });
+});
+
+describe('BOQ: earth pits by supply of a first board, spare RMUs', () => {
+  const pitsOf = (q: Project) => buildBom(q).filter((i) => i.key.startsWith('earth-pit')).reduce((a, i) => a + i.qty, 0);
+  const metOf = (q: Project) => buildBom(q).filter((i) => i.key.startsWith('met:')).length;
+  const asFirst = (mut: Partial<Board>): Project => ({ ...sampleProject, boards: sampleProject.boards.map((b) => (b.id === 'MDB-1' ? { ...b, sourceKva: undefined, sourceImpedancePct: undefined, ...mut } : b)) });
+  it('a first board with its own transformer keeps its pits (pinned: 2 without a plan, 2 in the layout)', () => {
+    expect(pitsOf(sampleProject)).toBe(2);
+    const plan = { ...sampleProject, earthingPlan: {} };
+    expect(pitsOf(plan)).toBe(earthingLayout(plan).pits.length);
+    expect(earthingLayout(plan).pits.filter((x) => x.kind === 'lv')).toHaveLength(2);
+  });
+  it('a source-fed first board keeps its pits', () => {
+    const q = asFirst({ supply: { fedBy: 'source' } });
+    expect(pitsOf(q)).toBe(2);
+    expect(earthingLayout({ ...q, earthingPlan: {} }).pits.filter((x) => x.kind === 'lv')).toHaveLength(2);
+  });
+  it('a first board fed from a board outside the project has no pits or main earth bar by default', () => {
+    const q = asFirst({ supply: { fedBy: 'board' } });
+    expect(pitsOf(q)).toBe(0);
+    expect(metOf(q)).toBe(0);
+    const plan = { ...q, earthingPlan: {} };
+    expect(pitsOf(plan)).toBe(0);
+    const L = earthingLayout(plan);
+    expect(L.pits.filter((x) => x.kind === 'lv')).toHaveLength(0);
+    expect(withEarthPitIds(plan).earthPitIds?.['lv:MDB-1']).toBeUndefined();
+  });
+  it('an explicit setting on the board or in the plan still wins', () => {
+    const on = asFirst({ supply: { fedBy: 'board' }, earthing: { show: true, pits: 3 } });
+    expect(pitsOf(on)).toBe(3);
+    expect(earthingLayout({ ...on, earthingPlan: {} }).pits.filter((x) => x.kind === 'lv')).toHaveLength(2);
+    const counted = { ...asFirst({ supply: { fedBy: 'board' } }), earthingPlan: { pits: { 'lv:MDB-1': 3 } } };
+    expect(earthingLayout(counted).pits.filter((x) => x.kind === 'lv')).toHaveLength(3);
+    expect(pitsOf(counted)).toBe(3);
+  });
+
+  const rmuProject = (extra: Rmu[]): Project => {
+    const p0 = applyTransformers({ ...sampleProject }, planTransformers(sampleProject, [{ kva: 1500 }, { kva: 1500 }], true, 2, 'SS-01'));
+    return { ...p0, rmus: [{ name: 'RMU-1', config: 'RRTT' }, ...extra] };
+  };
+  const rmuLines = (q: Project) => buildBom(q).filter((i) => i.key.startsWith('rmu:')).map((i) => [i.key, i.qty, i.where]);
+  it('an RMU record no board names is priced like a used one, with no transformer or cable lines', () => {
+    const used = rmuLines(rmuProject([]));
+    expect(used).toEqual([['rmu:11kV', 1, ['RMU (TX-1)']], ['rmu:11kV:RRTT', 1, ['RMU-1 (TX-2, TX-3)']]]);
+    const q = rmuProject([{ name: 'RMU-SPARE', config: 'RRTT' }]);
+    expect(rmuLines(q)).toEqual([...used.slice(0, 1), ['rmu:11kV:RRTT', 2, ['RMU-1 (TX-2, TX-3)', 'RMU-SPARE']]]);
+    expect(buildBom(q).filter((i) => i.key.startsWith('tx:')).length).toBe(buildBom(rmuProject([])).filter((i) => i.key.startsWith('tx:')).length);
+    expect(rmuLines(rmuProject([{ name: 'RMU-S2' }]))[0]).toEqual(['rmu:11kV', 2, ['RMU (TX-1)', 'RMU-S2']]);
+  });
+  it('a project with no RMU records and the sample project are unchanged', () => {
+    expect(rmuLines(sampleProject)).toEqual([['rmu:11kV', 1, ['RMU (TX-1)']]]);
+    expect(rmuLines({ ...sampleProject, rmus: [] })).toEqual([['rmu:11kV', 1, ['RMU (TX-1)']]]);
   });
 });

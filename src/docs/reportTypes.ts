@@ -29,7 +29,7 @@ export const REPORT_TYPES: ReportTypeInfo[] = [
     studies: ['cable', 'lf', 'schedules'], designBasis: false, resultsSummary: true, sld: true },
   { key: 'sc', label: 'Short-circuit report', description: 'Fault levels, breaking capacity and discrimination',
     studies: ['sc', 'disc'], designBasis: false, resultsSummary: false, sld: true },
-  { key: 'authority', label: 'DEWA submission', description: 'What DEWA checks: the single line diagram and the load schedule, with voltage drop only if you add it',
+  { key: 'authority', label: 'Authority submission', description: 'What the authority checks: the single line diagram and the load schedule, with voltage drop only if you add it',
     studies: ['load', 'schedules'], designBasis: false, resultsSummary: false, sld: true, optional: ['lf'] }
 ];
 

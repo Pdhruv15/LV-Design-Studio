@@ -17,6 +17,10 @@ export function supplyMode(b: Board): SupplyMode | undefined {
   return named(b.rmu) || named(b.substation) ? 'transformer' : 'unset';
 }
 
+/** Whether a board shows and prices LV earth pits unless its own setting says otherwise: a first board, except one fed from
+ * a board outside this project (its earth is at that board). */
+export const earthPitsByDefault = (b: Board): boolean => !b.upstreamId && supplyMode(b) !== 'board';
+
 export interface SupplyPoint {
   mode: 'source' | 'board' | 'unset';
   /** Symbol in mode 'source'; utility when blank. */

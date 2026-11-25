@@ -116,7 +116,7 @@ export default function BuildingView({ project, onChange, onStatus, onOpen }: { 
   return (
     <Page
       title="Building information"
-      intro="The architectural data, entered once: buildings, levels (typical floors counted as many times as they repeat), rooms with their type and area, and the DB serving them. Used by Space planning, the busbar riser, the DEWA forms (built-up area) and the check of each DB against its rooms."
+      intro="The architectural data, entered once: buildings, levels (typical floors counted as many times as they repeat), rooms with their type and area, and the DB serving them. Used by Space planning, the busbar riser, the authority forms (built-up area) and the check of each DB against its rooms."
       actions={<>
         <button className="chip" onClick={addBuilding}>+ Building</button>
         <button className="chip" onClick={() => setDialog('reuse')} title="Start from one of your building presets, or copy buildings from a past project">From preset / past project…</button>

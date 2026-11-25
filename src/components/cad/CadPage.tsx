@@ -20,6 +20,7 @@ import { clipPayload, clipText, lowerLeft, parseClip, pastedItems, withPasted, t
 import CadCommandLine from './CadCommandLine';
 import CadMenu from './CadMenu';
 import { addSelectedTool, blankMenu, commandMenu, countLine, measureOf, shownBy, SNAP_OVERRIDES, TOOL_MENU_ICON, type CtxEntry, type CtxHead, type CtxItem, type MenuCommon, type ObjectHide } from './cadContextMenu';
+import { compareLine, compareRefLines, type RefDiff } from '../../model/cadRefCompare';
 import { closeRefEdit, refEditOf, startRefEdit, workingSet } from '../../model/cadRefEdit';
 import { blockEditorChanged, blockEditorOf, closeBlockEditor, openBlockEditor, saveBlockEditor } from '../../model/cadBlockEditor';
 import { closedToggled, findCount, findReplace, gripMenu, withVertexAdded, withVertexRemoved } from './cadDrawnMenus';
@@ -52,7 +53,7 @@ import { keepComputerPatterns, loadComputerPatterns } from '../../model/cadPatte
 import { erasedOf, restoredErased, shownView, withErased, type ErasedParts } from '../../model/cadErased';
 import { CIRCUIT_ATTRIBUTES } from '../../model/cadLoads';
 import PlanSymbolIcon from './PlanSymbolIcon';
-import { cableLabel, cablesOf, circuitLabel, circuitTag, finalCircuits, LV_PALETTE, PALETTE_GROUPS, moveItem, placedOn, placeItem, placeAccessory, placeLvPoint, removeItem, rotateAccessories, rotateLvPoints, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
+import { cableLabel, cablesOf, circuitLabel, circuitTag, circuitWay, finalCircuits, LV_PALETTE, PALETTE_GROUPS, moveItem, placedOn, placeItem, placeAccessory, placeLvPoint, removeItem, rotateAccessories, rotateLvPoints, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
 import { addSketch, withSketchItems, pointStyleOut, blockDefsOut, arcStartCentreEnd, arcThrough, circle2P, circleThrough, dimLabel, dimMeasure, dimOf, linearDir, nextDim, ellipseOf, polygonPts, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch, withText } from '../../model/cadSketch';
 import { routeSettings, sizeRoute, trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
@@ -116,6 +117,8 @@ import type { CalcRun } from '../../calc/runs';
 import { exportDrawingSet } from '../docs/sheetRender';
 import { pickedRoom, putRooms, renameRoom, setRoomType } from '../../model/floorPlanActions';
 import { floorLabel, floorList, type Floor } from '../../model/levels';
+import { circuitRoom, nextWithRoom, pointMax } from '../../model/circuitRoom';
+import CircuitPicker from './CircuitPicker';
 import type { CadLayerMap, CadLayerRole, Project } from '../../types';
 import { fmtFixed, fmtUpTo } from '../../util/format';
 import DeviceToolbar from './DeviceToolbar';
@@ -128,7 +131,7 @@ import { PropertiesPalette } from './CadProperties';
 import { isTbFile, LOGO_BOX, logoItems, saveTitleBlockFromCad, TB_FIELDS, TB_LAYERS, tbIdOf } from '../../model/titleBlockCad';
 import { LOGO_FIELD } from '../../model/titleBlock';
 import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
-import { refGeometry, refNear, type CadRef } from '../../model/cadRefs';
+import { placeRef, refGeometry, refNear, type CadRef } from '../../model/cadRefs';
 import { standInHandle, standInsFor, takeOverNote, takeOverSummary, type TakeOverCtx } from '../../model/cadTakeOver';
 import { drawnLayers, effective, layerStylesOf, LINETYPES, matchedProps, styleOf, withProps, type ObjectProps } from '../../model/cadLayerStyle';
 import { colourCss, colourLabel } from '../../model/cadColours';
@@ -492,6 +495,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [beClose, setBeClose] = useState(false);
   /** REFCLOSE without Save or Discard: asked which. */
   const [reClose, setReClose] = useState(false);
+  /** XCOMPARE: a reference beside its new revision — the lines added and removed, the areas of change, the one shown. */
+  const [cmp, setCmp] = useState<{ ref: string; file: string; d: RefDiff; i: number } | null>(null);
   /** The object of the opened drawing, or the reference, the last right-click was on. */
   const ctxObj = useRef<{ dw?: CadObject; ref?: string; vp?: string; fvp?: number } | null>(null);
   /** The right-click menu on a layout's paper or one of its viewports (phase 3), at a point of the paper's stage. */
@@ -787,6 +792,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const palette: PaletteItem[] = [...LV_PALETTE, ...ELV_PALETTE];
   const item = palette.find((x) => x.id === cad.device) ?? palette[0];
   const circuits = useMemo(() => finalCircuits(project), [project]);
+  // Add device: the point type it places and, when its circuit is full for it, the next circuit with room (Tab takes it).
+  const devType = 'lv' in item.kind ? item.kind.lv : undefined;
+  const devNext = useMemo(() => nextWithRoom(circuits, circuits.find((f) => f.id === cad.feederId), devType), [circuits, cad.feederId, devType]);
   const selectedItem = placed.find((d) => d.key === cad.selected) ?? null;
   // The devices picked: several (Shift-click or a window), else the one selected.
   const pickedItems = useMemo(() => (picked.length ? placed.filter((d) => picked.includes(d.key)) : selectedItem ? [selectedItem] : []), [picked, placed, selectedItem]);
@@ -1036,6 +1044,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     onChange(next, said, join || undefined); cad.say(said); if (view) cad.markDirty(view.file);
   };
   const xr = useCadRefs({ project, view, tabOf: cad.tabOf, change, say: cad.say });
+  // XCOMPARE: the lines removed (the theme's bad colour, red) and added (its ok colour, green) over the references.
+  const cmpRefs = useMemo(() => {
+    if (!cmp) return xr.placed;
+    const tone = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+    return [...xr.placed,
+      { segs: cmp.d.removed, segLayers: new Uint16Array(cmp.d.removed.length / 4), colours: [tone('--bad', 'red')], fade: 0 },
+      { segs: cmp.d.added, segLayers: new Uint16Array(cmp.d.added.length / 4), colours: [tone('--ok', 'green')], fade: 0 }];
+  }, [xr.placed, cmp]);
   const snapRef = snapOnce ? (x: number, y: number, r: number) => { const q = xr.snap(x, y, r); return q && q.kind & snapBit ? q : undefined; } : xr.snap;
 
   // Layer palette (LM): the drawing's layer record (current layer, layers added, states), its rows, and the changes made
@@ -2562,11 +2578,46 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       case 'reload': xr.actions.reload(r); return;
       case 'unload': xr.actions.unload(r); return;
       case 'detach': xr.actions.detach(r); return;
+      case 'compare': void startCompare(r); return;
       case 'bind': { const c = copyOf(/^DXF/i.test(view.info.format) ? 'dxf' : 'dwg', true); if (c) void writeCopy({ ...c, path: undefined }, false, false); return; }
       case 'print': xr.actions.update(r, { print: !r.print }, r.print ? 'does not print on the plan sheets' : 'prints on the plan sheets'); return;
       case 'layers': setShowLM(true); return;
       case 'manager': setShowXR(true); return;
     }
+  }
+  /** XCOMPARE: the new revision chosen, placed as the reference is, its lines compared (5 mm; areas within 2 m). */
+  async function startCompare(r: CadRef) {
+    const now = xr.placed.find((x) => x.ref.name === r.name);
+    if (!now) { cad.say(`XCOMPARE  ${r.name} is not loaded: Reload it first.`); return; }
+    cad.say(`XCOMPARE  ${r.name}: choose the new revision of ${r.file}`);
+    const g = await xr.actions.newRevision();
+    if (!g) { cad.say('XCOMPARE  Nothing chosen.'); return; }
+    if (g.file.toLowerCase() === r.file.toLowerCase()) { cad.say(`XCOMPARE  That is ${r.file} itself: choose the new revision's file (another name).`); return; }
+    const d = compareRefLines(now.segs, placeRef(g, { ...r, file: g.file }).segs, 0.005 / units.factor, 2 / units.factor);
+    setCmp({ ref: r.name, file: g.file, d, i: -1 });
+    cad.say(compareLine(r.name, d));
+    cad.say(d.areas.length ? 'XCOMPARE  [Next/Clouds/Accept/Exit] <Next>:' : 'XCOMPARE  [Accept/Exit] <Exit>:');
+    input.current?.focus();
+  }
+  /** An option typed while comparing: the next area, clouds round every area, the new revision taken, or the end. */
+  function compareOption(c: string) {
+    if (!cmp) return;
+    const n = cmp.d.areas.length, a = c[0] ?? (n ? 'N' : 'E'), r = xr.refs.find((x) => x.name === cmp.ref);
+    const ask = n ? '[Next/Clouds/Accept/Exit] <Next>:' : '[Accept/Exit] <Exit>:';
+    if (a === 'N' && n) {
+      const i = (cmp.i + 1) % n, [x0, y0, x1, y1] = cmp.d.areas[i];
+      setCmp({ ...cmp, i }); zoomTo({ kind: 'window', a: [x0, y0], b: [x1, y1] });
+      cad.say(`XCOMPARE  Area ${i + 1} of ${n} · ${ask}`); return;
+    }
+    if (a === 'C' && n && view) {
+      const arc = 15 * unitsPerPaperMm(anno, units.factor);
+      const next = cmp.d.areas.reduce((q, [x0, y0, x1, y1]) => addSketch(q, view.file, { kind: 'pline', layer: ANNO_LAYER, closed: true, cloud: arc, pts: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] }).project, project);
+      change(next, `XCOMPARE  ${n} revision cloud${n === 1 ? '' : 's'} round the changes of ${cmp.ref} · ⌘Z to undo`);
+      cad.say(`XCOMPARE  ${ask}`); return;
+    }
+    if (a === 'A' && r) { setCmp(null); xr.actions.update(r, { file: cmp.file, unloaded: undefined }, `now the new revision ${cmp.file}`); return; }
+    if (a === 'E' || a === 'X') { setCmp(null); cad.say(`XCOMPARE  Done: ${cmp.ref} is still ${r?.file ?? ''}.`); return; }
+    cad.say(`XCOMPARE  ${ask}`);
   }
   /** A viewport or the paper of a layout, from its right-click menu. */
   function layoutAct(kind: 'vp' | 'paper', a: string) {
@@ -3886,6 +3937,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
         const r = 'elv' in item.kind ? placeElv(project, (ELV_PALETTE.find((e) => e.id === item.id) ?? ELV_PALETTE[0]).kind.elv, floor.ref, x, y)
           : placeItem(project, item, floor.ref, x, y, { feederId: cad.feederId, boardId: cad.boardId, rot: devRot });
         change(r.project, `${r.message} · ⌘Z to undo`); cad.usedDevice(item.id);
+        // A circuit at or over the most the Rules sheet allows says so, and names the next one with room.
+        const max = pointMax(devType), now = r.project.feeders.find((f) => f.id === cad.feederId);
+        if (devType && max !== undefined && now && (now.points?.[devType] ?? 0) >= max) {
+          const n = now.points![devType]!, nx = nextWithRoom(finalCircuits(r.project), now, devType);
+          const nxName = nx && (nx.boardId === now.boardId ? circuitWay(nx) : circuitLabel(r.project, nx));
+          setTimeout(() => cad.say(`DEV  ${circuitLabel(r.project, now)} is ${n > max ? 'over' : 'full'}: ${n} of ${max} (Rules sheet).${nx ? ` Next with room: ${nxName} — Tab to use it, or pick a circuit` : ' No circuit with room: pick a circuit, or add one in the load schedule'}`));
+        }
       } catch (e) { cad.say(`DEV  ${e instanceof Error ? e.message : String(e)}`); }
     } else if (tool === 'wire') {
       wireOne(at, pixel);
@@ -4217,6 +4275,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       change({ ...project, drawingSet: { ...set, sheets: set.sheets.map((x) => (x.id === id ? { ...x, title: raw } : x)) } }, `LAYOUT  renamed "${raw}" · ⌘Z to undo`);
       return;
     }
+    if (cmp) { compareOption(c); return; }
     if (reClose) {
       setReClose(false);
       const a = c[0];
@@ -4653,6 +4712,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       hideObjects: () => hideObjects('hide'),
       unisolateObjects: () => { if (objHide && objHide.file === view?.file) { setObjHide(null); setDwHide(null); cad.say('UNISOLATEOBJECTS  All objects shown again.'); } else cad.say('UNISOLATEOBJECTS  No objects are isolated or hidden.'); },
       addSelected: () => addSelected(),
+      xcompare: () => { const live = xr.refs.filter((x) => !x.unloaded); if (live.length === 1) void startCompare(live[0]); else cad.say(live.length ? 'XCOMPARE  Right-click the reference to compare: Compare with new revision…' : 'XCOMPARE  This drawing has no reference loaded (XA attaches one).'); },
       refedit: () => refEdit(),
       refclose: () => refClose(),
       bedit: () => blockEdit(),
@@ -4828,7 +4888,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (edNote) { const mlNew = !!edNote.ml; setEdNote(null); cad.say('*Cancel*'); if (tool === 'mtext') cad.setTool('none'); if (mlNew) { setPoints([]); cad.say(PROMPT.mleader); } }
     else if (points.length || objectMode || cad.textAt || mtAsk) { setPoints([]); setObjectMode(false); cad.setTextAt(null); setTextAsk(null); setEdAsk(null); setMtAsk(null); cad.say('*Cancel*'); }
     else if (edStep || edAsk === 'radius' || edAsk === 'd1' || edAsk === 'd2') { setEdStep(null); setEdAsk(null); cad.say('*Cancel*'); cad.say(tool === 'offset' ? PROMPT.offset : editPrompt(tool, edSet)); }
-    else if (renaming || roomAsk || findAsk || beClose || reClose) { setRenaming(null); setRoomAsk(null); setFindAsk(null); setBeClose(false); setReClose(false); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); setPicked([]); }
+    else if (renaming || roomAsk || findAsk || beClose || reClose || cmp) { setRenaming(null); setRoomAsk(null); setFindAsk(null); setBeClose(false); setReClose(false); setCmp(null); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); setPicked([]); }
   }
   /** What Space does in the command line: types a space in text (a name, TEXT contents, a leader's text); at TEXT's
    * height and rotation, where a word is the text, ends only an empty input or a number; else ends a whole word. */
@@ -4884,6 +4944,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (fn[e.key]) { e.preventDefault(); if (fn[e.key] === 'grid') cad.cycleGrid(); else cad.toggle(fn[e.key]); return; }
     // Keys in a dialog over the page (the layer manager, references…) are the dialog's.
     if (e.defaultPrevented || (e.target instanceof Element && e.target.closest('[aria-modal="true"], [role="dialog"]'))) return;
+    // Add device with its circuit full: Tab goes on to the next circuit with room.
+    if (e.key === 'Tab' && !mods && !e.shiftKey && tool === 'dev' && devNext && (!typing || (e.target === input.current && !input.current.value))) {
+      e.preventDefault();
+      cad.setFeederId(devNext.id);
+      const r = circuitRoom(devNext, devType);
+      cad.say(`DEV  Now on ${circuitLabel(project, devNext)} — ${r.n} of ${r.max} on the circuit`);
+      return;
+    }
     if ((e.key === 'F1' || e.key === 'F2') && !mods && !e.shiftKey && (!typing || e.target === input.current)) { e.preventDefault(); const k = e.key === 'F1' ? 'help' : 'history'; setLog(log === k ? null : k); return; }
     if (e.key === 'Escape' && (!typing || e.target === input.current)) {
       if (log) { setLog(null); return; }
@@ -5112,7 +5180,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
             <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} cursorMode={cursorMode} hover={hover} cutAway={cutPiece && edgeLine ? [{ ...cutPiece, id: edgeLine.id }] : undefined} meets={addPiece ? [addPiece[1]] : undefined} shadowDevices={shadow?.devs.length ? shadow.devs : undefined} movingPoints={stretchLook?.pts} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap, pixel) => setCursor({ at, snap, pixel })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={[...pickedSk.map((it) => it.id), ...(stretchLook?.sk.map((it) => it.id) ?? []), ...(tool === 'containment' && containmentSegment ? [containmentSegment] : [])]} extraSnaps={snapExtra} preview={[...preview, ...approvedElvRoutes, ...activeRoutePreview, ...emRoutes, ...(grip && cursor.at ? srcAll.filter((x) => x.id === grip.id).map((x) => gripMoved(x, grip.i, cursor.at!)) : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={routeLabels} covers={elv?.covers} gaps={elv?.gaps}
-              numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || ((tool === 'mleaderalign' || tool === 'mleadercollect') && ml?.step === 'pick') || ((tool === 'qdim' || tool === 'dimspace') && dq?.step === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
+              numbersTyped={valuesTyped} layerStyle={styles} refs={cmpRefs} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || ((tool === 'mleaderalign' || tool === 'mleadercollect') && ml?.step === 'pick') || ((tool === 'qdim' || tool === 'dimspace') && dq?.step === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={gripList} hotGrip={gripOf(hotGrip)} pickedObjects={pickedDwIds} onGripStart={(k) => setGrip(gripList[k] ? { id: gripList[k].id, i: gripList[k].i } : null)}
               onGripEnd={(k, at, moved) => {
                 setGrip(null);
@@ -5342,10 +5410,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
                   <label>This drawing shows<select aria-label="Level of this drawing" value={floor?.key} onChange={(e) => { const f = floors.find((x) => x.key === e.target.value); if (f && view) setPlanLevel(project, view.file, f, change, view.info.units); }}>{floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}</select></label>
                 )}
                 {('lv' in item.kind || ('acc' in item.kind && item.kind.circuit)) && (
-                  <label>Circuit<select aria-label="Circuit" value={cad.feederId} onChange={(e) => cad.setFeederId(e.target.value)}>
-                    <option value="">Choose a circuit…</option>
-                    {circuits.map((f) => <option key={f.id} value={f.id}>{circuitLabel(project, f)}</option>)}
-                  </select></label>
+                  <div className="cad-cir-wrap"><span>Circuit</span><CircuitPicker project={project} circuits={circuits} value={cad.feederId} onChange={cad.setFeederId} placing={devType} level={floor?.ref} /></div>
                 )}
                 {('lv' in item.kind || 'acc' in item.kind) && item.symbol.plan && (
                   <label>Rotation<select aria-label="Rotation" value={devRot} onChange={(e) => {

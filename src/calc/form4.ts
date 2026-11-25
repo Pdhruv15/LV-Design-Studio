@@ -56,7 +56,7 @@ export const FORM4_COLUMNS: Form4Column[] = [
 ];
 
 export const FORM4_GROUPS: { id: Form4Group; label: string }[] = [
-  { id: 'incomer', label: 'Incomer (DEWA / generator)' },
+  { id: 'incomer', label: 'Incomer (utility / generator)' },
   { id: 'riser', label: 'Bus bar riser' },
   { id: 'capacitor', label: 'Capacitor bank' },
   { id: 'outgoing', label: 'Outgoings — full-width cubicles' },

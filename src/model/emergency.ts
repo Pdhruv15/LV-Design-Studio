@@ -53,7 +53,7 @@ const whole = (n: number, min: number, max: number) => Number.isInteger(n) && n 
 export function planEmergency(project: Project, spec: EmergencySpec): { boards: Board[]; feeders: Feeder[]; checks: PlanCheck[]; ok: boolean } {
   const checks: PlanCheck[] = [];
   const bad = (text: string) => checks.push({ level: 'bad', text });
-  if (!whole(spec.count, 1, 10)) bad('Emergency main boards: a whole number from 1 to 10 (DEWA practice is normally 1).');
+  if (!whole(spec.count, 1, 10)) bad('Emergency main boards: a whole number from 1 to 10 (normally 1).');
   if (!whole(spec.esmdb, 0, 500) || !whole(spec.edb, 0, 2000)) bad('Emergency sub-panel counts must be whole numbers of 0 or more.');
   if (spec.generatorKva !== undefined && !(spec.generatorKva > 0)) bad('Generator rating must be above 0 kVA, or leave it blank to assign later.');
   const mains = project.boards.find((b) => b.id === spec.mainsFrom);
@@ -83,7 +83,7 @@ export function planEmergency(project: Project, spec: EmergencySpec): { boards: 
   })) : [];
   if (feeders.some((f) => taken.has(f.id))) bad('An incomer id is already used — rename the existing feeder first.');
   checks.push({ level: 'warn', text: `ATS: mains from ${mains!.id}, standby ${spec.generatorKva ? `generator ${spec.generatorKva} kVA` : 'generator to assign (enter its kVA on the EMDB)'} — everything on and below ${emdbs.map((b) => b.id).join(', ')} counts as essential load.` });
-  if (spec.count > 1) checks.push({ level: 'warn', text: 'More than one EMDB — DEWA practice is normally one dedicated emergency panel.' });
+  if (spec.count > 1) checks.push({ level: 'warn', text: 'More than one EMDB — usual practice is normally one dedicated emergency panel.' });
   if (feeders.length) checks.push({ level: 'warn', text: `${feeders.length} incomers are placeholders: sizing pending, lengths to check.` });
   if (!checks.some((c) => c.level === 'bad')) checks.push({ level: 'ok', text: 'Names are unique and every panel has a parent.' });
   return { boards, feeders, checks, ok: !checks.some((c) => c.level === 'bad') };

@@ -304,7 +304,7 @@ export default function EarthingView({ project, onChange, onSheets, embedded = f
   );
   if (embedded) return <div className="earth-embedded">{body}</div>;
   return (
-    <Page title="Earthing schematic" intro="Earth pits of the RMUs, transformers, generators and main boards (DEWA practice). Earthing system: shared MV body earth — each RMU has 2 body-earth pits and the tank / body earth bars of the transformers it feeds (at most 2) connect to the RMU earth bar; each transformer has its own neutral pit. Body, neutral and LV earths are separate systems, each linked pit to pit. Lightning protection is not part of this schematic.">
+    <Page title="Earthing schematic" intro="Earth pits of the RMUs, transformers, generators and main boards (usual practice). Earthing system: shared MV body earth — each RMU has 2 body-earth pits and the tank / body earth bars of the transformers it feeds (at most 2) connect to the RMU earth bar; each transformer has its own neutral pit. Body, neutral and LV earths are separate systems, each linked pit to pit. Lightning protection is not part of this schematic.">
       {body}
     </Page>
   );

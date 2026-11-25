@@ -3,6 +3,7 @@ import { othersKva } from '../model/existing';
 import { findFloor, floorList, levelKey } from '../model/levels';
 import { DEFAULT_TRANSFORMER_XR } from '../calc/electrical';
 import { txt } from '../util/format';
+import { earthPitsByDefault } from '../diagram/supplyPoint';
 
 /** Groups of the 'general' fields, so the edit dialog can show them as tabs. */
 export type BoardFieldGroup = 'board' | 'incomer' | 'sld' | 'location';
@@ -17,6 +18,7 @@ export default function BoardFields({ board, onChange, section, building, groups
   const head = (g: BoardFieldGroup) => (!groups || groups.length > 1) && <h4 className="kv-head">{BOARD_FIELD_GROUPS.find(([k]) => k === g)?.[1]}</h4>;
   const floors = floorList(building);
   const isMain = !board.upstreamId;
+  const earthDefault = earthPitsByDefault(board);
   function set<K extends keyof Board>(key: K, value: Board[K]) {
     onChange({ ...board, [key]: value });
   }
@@ -99,7 +101,7 @@ export default function BoardFields({ board, onChange, section, building, groups
                     {others.map((o, i) => (
                       <div key={i} className="earth-kv">
                         <label>Name<input value={o.name} placeholder="e.g. Block B" aria-label={`Other building ${i + 1} name`} onChange={(e) => setOther(i, { name: e.target.value })} /></label>
-                        <label>Reference<input value={o.ref ?? ''} placeholder="DEWA NOC / load letter" aria-label={`Other building ${i + 1} reference`} onChange={(e) => setOther(i, { ref: e.target.value || undefined })} /></label>
+                        <label>Reference<input value={o.ref ?? ''} placeholder="Utility NOC / load letter" aria-label={`Other building ${i + 1} reference`} onChange={(e) => setOther(i, { ref: e.target.value || undefined })} /></label>
                         <label>Allocated (kVA)<input inputMode="decimal" value={o.allocatedKva ?? ''} aria-label={`Other building ${i + 1} allocated kVA`} onChange={(e) => setOther(i, { allocatedKva: n(e.target.value) })} /></label>
                         <label>Recorded (kVA)<input inputMode="decimal" value={o.recordedKva ?? ''} aria-label={`Other building ${i + 1} recorded kVA`} onChange={(e) => setOther(i, { recordedKva: n(e.target.value) })} /></label>
                         <button type="button" className="icon-btn" title="Remove building" aria-label={`Remove other building ${i + 1}`} onClick={() => setOthers(others.filter((_, j) => j !== i))}>×</button>
@@ -233,10 +235,10 @@ export default function BoardFields({ board, onChange, section, building, groups
               Power meter (PMU) to BMS
             </label>
             <label className="row">
-              <input type="checkbox" checked={board.earthing?.show ?? isMain} onChange={(e) => setEarth({ show: e.target.checked === isMain ? undefined : e.target.checked })} />
+              <input type="checkbox" checked={board.earthing?.show ?? earthDefault} onChange={(e) => setEarth({ show: e.target.checked === earthDefault ? undefined : e.target.checked })} />
               Earth pit detail{!isMain && ' (main boards only)'}
             </label>
-            {(board.earthing?.show ?? isMain) && (
+            {(board.earthing?.show ?? earthDefault) && (
               <div className="earth-kv">
                 <label title="Blank: the count from Design ▸ Earth pits">Pits <input inputMode="numeric" value={board.earthing?.pits ?? ''} placeholder="plan" onChange={(e) => setEarth({ pits: numOrU(e.target.value) })} /></label>
                 <label>Earth conductor mm² <input inputMode="decimal" value={board.earthing?.conductorMm2 ?? ''} placeholder="auto" onChange={(e) => setEarth({ conductorMm2: numOrU(e.target.value) })} /></label>
