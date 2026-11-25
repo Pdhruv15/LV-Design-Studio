@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.300', date: '2026-11-25',
+    items: [
+      { title: 'Cable data by type: ratings built in', text: 'With Cable data by type on, PVC, aluminium and single-core cables now have built-in current ratings for the default installation method (free air / on a tray): industry-standard values, shown as reference values like the copper ones. These cables no longer show DATA REQUIRED there. Single cores smaller than 25 mm² take the multicore rating, which is the lower one. A row in Cables.xlsx still replaces a built-in value, and other installation methods still need their rating from your datasheet.' }
+    ]
+  },
+  {
     version: '2.297', date: '2026-11-25',
     items: [
       { title: 'Detect rooms from walls', text: 'In Design CAD, type DETECTROOMS (or ROOMSW), or right-click a reference drawing and choose Detect rooms from walls. Every room with its name written inside is found at once from the wall lines round it, doors up to 1.2 m bridged as Room area (RA) does for one click, and added to the level with its outline and area, named by that text. A room with two texts in it is added once, and running it again updates the rooms rather than adding them twice. No room-outline layer is needed.', action: 'cad', actionLabel: 'Open Design CAD' }
