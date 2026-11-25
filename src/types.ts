@@ -351,6 +351,16 @@ export interface ExistingInfo {
   others?: OtherBuilding[];
 }
 
+/** A fault point marked on the SLD: on a board's busbar (`boardId`), or on a circuit's cable (`feederId`) at
+ * `distanceM` from the board it leaves (absent = the far end, 0 = the start). `id` is the mark's number, F1, F2… */
+export interface FaultPoint {
+  id: string;
+  name?: string;
+  boardId?: string;
+  feederId?: string;
+  distanceM?: number;
+}
+
 /** Authority MV supply (an 11 / 22 / 33 kV infeed from a primary substation) feeding the project's RMUs
  * and transformers. Its fault level gives the network impedance in series with each transformer
  * (IEC 60909-0 §6.2); without one the MV network is taken as infinite. */
@@ -716,6 +726,8 @@ export interface Project {
   /** Final design: every cable size must have manufacturer data in Cables.xlsx (reference, user-entered
    * and fallback values become failures in the to-do list instead of notes). */
   strictCableData?: boolean;
+  /** Fault points placed on the SLD (F1, F2…), listed in the short circuit report. */
+  faultPoints?: FaultPoint[];
   /** Base power of the per-unit tables in the short circuit report, MVA (absent = 100). */
   baseMva?: number;
   /** Cable data by type: each cable is calculated with the R, X, rating, temperature limits and k of its own
