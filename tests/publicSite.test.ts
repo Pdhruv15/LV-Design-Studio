@@ -42,7 +42,10 @@ describe('public website source', () => {
     expect(html).toContain("media-src 'self'");
     expect(html).toContain('<video class="product-video" controls preload="metadata" playsinline');
     expect(html).toContain('../media/lv-design-studio-product-intro-30s.mp4');
-    expect(html).not.toMatch(/<script\b|https:\/\/[^"']+\.js/i);
+    // No script element and nothing that loads a .js file; a plain link to an address ending in .js is not a script.
+    expect(html).not.toMatch(/<script\b|\bsrc=["'][^"']+\.js\b|<link\b[^>]*\.js\b/i);
+    expect('<a href="https://example.test/lib.js">lib</a>').not.toMatch(/<script\b|\bsrc=["'][^"']+\.js\b|<link\b[^>]*\.js\b/i);
+    for (const bad of ['<script src="a.js"></script>', '<img src="https://example.test/a.js">', '<link rel="modulepreload" href="https://example.test/a.js">']) expect(bad).toMatch(/<script\b|\bsrc=["'][^"']+\.js\b|<link\b[^>]*\.js\b/i);
   });
 
   it('adds Get involved with link addresses fixed by the generator, not taken from content text', () => {
