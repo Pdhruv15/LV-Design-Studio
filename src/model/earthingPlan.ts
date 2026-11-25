@@ -3,6 +3,7 @@ import { mainBoards, txTag } from './transformers';
 import { sizesOf, sizeTransformers, txGenPlanOf } from '../calc/txGen';
 import { perProject } from '../calc/network';
 import { lightningProtection } from '../calc/lightningProtection';
+import { supplyMode } from '../diagram/supplyPoint';
 
 /** Transformers on each main board, as the transformer sizing shows them: 2 when two are planned
  * (N+1, each for the whole load), n when the load is split over n of the largest size, else 1.
@@ -117,7 +118,7 @@ function equipmentOf(project: Project): Omit<EarthItem, 'pits' | 'linked'>[] {
       }
     }
     const gLv = lv.filter((b) => subOf(b) === g);
-    for (const b of gLv) out.push({ key: `lv:${b.id}`, kind: 'lv', group: g, equipment: b.id, point: 'Main earth bar (MET)', defaultPits: lv.length === 1 ? 2 : 1 });
+    for (const b of gLv) out.push({ key: `lv:${b.id}`, kind: 'lv', group: g, equipment: b.id, point: 'Main earth bar (MET)', defaultPits: supplyMode(b) === 'board' && b.earthing?.show !== true ? 0 : lv.length === 1 ? 2 : 1 });
     // SMDBs may have their own pits where the design asks for it (none by default).
     for (const b of project.boards.filter((x) => (x.kind === 'SMDB' || x.kind === 'ESMDB') && gLv.some((m) => m.id === mainOfId(project, x.id)))) out.push({ key: `sub:${b.id}`, kind: 'sub', group: g, equipment: b.id, point: 'Earth bar', defaultPits: 0 });
   }

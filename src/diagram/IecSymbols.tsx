@@ -6,6 +6,7 @@ import { cableTypeDef, cableTypeOf, labelCode } from '../model/cableTypes';
 import { DEFAULT_CABLE_TYPE, incomerDeviceOf } from '../types';
 import { PANEL_SYMBOL_IDS, Sym, SYM_SCALE, SYMBOLS, type SymbolId } from './symbolLibrary';
 import { sldDevices } from './sldDevices';
+import { earthPitsByDefault } from './supplyPoint';
 import { boardSymbolOf, hiddenBoardIds, symbolBoardIds } from './panelBox';
 
 /** IEC 60617 symbols for the single line diagram, drawn with the diagram's
@@ -143,7 +144,7 @@ export function legendEntries(project: Project): LegendEntry[] {
     add('am', 'Ammeter (A) / voltmeter (V), selector switch (SS)', (x, y) => <g><Sym id="ammeter" x={x - 10} y={y} s={SYM_SCALE.legend} /><Sym id="voltmeter" x={x + 10} y={y} s={SYM_SCALE.legend} /></g>);
     add('lamps', 'Phase indicating lamps R, Y, B', (x, y) => <Sym id="lamp" x={x - 6} y={y} s={SYM_SCALE.legend} />);
   }
-  if (shown.some((b) => b.earthing?.show ?? main(b))) add('pit', 'Earth pit with inspection cover', (x, y) => (
+  if (shown.some((b) => b.earthing?.show ?? earthPitsByDefault(b))) add('pit', 'Earth pit with inspection cover', (x, y) => (
     <g className="iec"><rect x={x - 7} y={y - 11} width="14" height="9" className="sym" /><line x1={x} y1={y - 6} x2={x} y2={y + 6} className="ln" /><path d={`M${x - 7} ${y + 6} h14 M${x - 4.5} ${y + 9} h9 M${x - 2} ${y + 12} h4`} className="ln" /></g>
   ));
   if (drawn.some((f) => f.kwhMeter)) add('kwh', 'kWh meter', (x, y) => <Sym id="kwh" x={x} y={y} s={SYM_SCALE.legend} />);

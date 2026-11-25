@@ -9,6 +9,8 @@ import { spareBreaker, spareWaysOf } from '../model/spareWays';
 import { runsOf } from './electrical';
 import { rmuRecord, rmuWays, txKv, txRatio } from './hvSupply';
 import { sizeRiser } from './busbar';
+import { earthPitsByDefault } from '../diagram/supplyPoint';
+import { spareRmus } from '../diagram/mvArrangement';
 import { earthingLayout, kindInfo, txUnits } from '../model/earthingPlan';
 import { BRAND_DEVICES } from '../data/brandDevices';
 import { matchDevice, type DeviceKind } from '../model/enclosureLibrary';
@@ -171,7 +173,7 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
       add('C', 'voltmeter-ss', 'Voltmeter with selector switch and protection fuses, 96 × 96 mm', 'no', incomers, b.id);
       add('C', 'lamps-ryb', 'Indicating lamps R-Y-B, LED, with fuses', 'set', incomers, b.id);
     }
-    if (b.earthing?.show ?? !b.upstreamId) {
+    if (b.earthing?.show ?? earthPitsByDefault(b)) {
       const el = b.earthing?.electrodeM ?? p.earthingPlan?.electrodeM ?? 3;
       // With an earthing schematic, its pits are counted below instead.
       if (!p.earthingPlan) add('I', `earth-pit:${el}`, `Earth pit: ${el} m copper-bonded earth electrode with inspection pit and cover, tested`, 'no', b.earthing?.pits ?? 2, b.id);
@@ -209,10 +211,7 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     const r = rmus.get(key) ?? { txs: [], tees: 0, kv: txKv(p, b), named: !!b.rmu?.trim() };
     rmus.set(key, { ...r, txs: b.sourceKva && !b.existing ? [...r.txs, txTag(p, b.id) ?? b.id] : r.txs, tees: r.tees + 1 });
   }
-  for (const [key, { txs, tees, kv, named }] of rmus) {
-    if (!txs.length) continue;
-    const name = key.split('|')[1];
-    const rec = named ? rmuRecord(p, name) : undefined;
+  const addRmu = (kv: string, rec: Rmu | undefined, tees: number, who: string) => {
     const config = rec?.config?.trim();
     const ways = config ? rmuWays(config) : undefined;
     const ring = ways ? Math.max(1, ways.ring) : 2;
@@ -222,8 +221,15 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     const ins = rec?.insulation && RMU_INSULATION[rec.insulation] ? rec.insulation : undefined;
     add('D', `rmu:${kv}kV${code === 'RRT' ? '' : `:${code}`}${vcb ? ':vcb' : ''}${ins ? `:${ins}` : ''}`,
       `${kv} kV ring main unit (RMU): ${ring} × ring load-break switch + ${tOff} × T-off ${vcb ? 'circuit breaker with protection relay' : 'switch-fuse'}, ${ins ? RMU_INSULATION[ins] : 'SF6 / solid insulated'}, with earthing switches`,
-      'no', 1, named ? `${name} (${txs.join(', ')})` : name, { supplyBy: 'others', installBy: 'others' });
+      'no', 1, who, { supplyBy: 'others', installBy: 'others' });
+  };
+  for (const [key, { txs, tees, kv, named }] of rmus) {
+    if (!txs.length) continue;
+    const name = key.split('|')[1];
+    addRmu(kv, named ? rmuRecord(p, name) : undefined, tees, named ? `${name} (${txs.join(', ')})` : name);
   }
+  // An RMU record no main board names feeds nothing yet, but is still bought: priced like a used one, no transformer.
+  for (const r of spareRmus(p)) addRmu(txKv(p, { rmu: r.name } as Board), r, 0, r.name);
   // Bus couplers between main boards (normally open, or closed for transformers in parallel)
   for (const t of p.ties ?? []) {
     const dev = t.ratingA > 630 ? 'ACB' : 'MCCB';
