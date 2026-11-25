@@ -280,8 +280,10 @@ export function nextFreeSlot(project: Project, boardId: string, phase?: Phase): 
   throw new Error('No free way');
 }
 
-/** A circuit whose breaker is an RCBO (MCB + earth leakage in one): single-phase circuits only. */
-export const isRcbo = (f: Feeder) => !!f.rcbo && f.phase !== 'RYB';
+/** A circuit whose breaker is an RCBO (MCB + earth leakage in one): 2P on a 1-phase circuit, 4P on a 3-phase one. */
+export const isRcbo = (f: Feeder) => !!f.rcbo;
+/** A circuit left with no earth leakage device on purpose (fire alarm panel, life safety): on no ELCB, no RCBO. */
+export const hasNoRcd = (f: Feeder) => !!f.noRcd && !f.rcbo;
 
 /** What the circuits of a way are, for keeping lighting and power on ELCBs of their own; undefined for a way with none. */
 export type WayKind = CircuitCategory | 'mixed';
@@ -326,7 +328,7 @@ export function elcbSectionsOf(project: Project, board: Board, lastWay: number) 
   if (!board.elcbKeepApart) return elcbSections(board, lastWay);
   const kinds = new Map<number, Set<CircuitCategory>>();
   for (const f of scheduleCircuits(project, board.id)) {
-    if (isRcbo(f)) continue;
+    if (isRcbo(f) || hasNoRcd(f)) continue;
     const set = kinds.get(f.way!) ?? new Set<CircuitCategory>();
     kinds.set(f.way!, set.add(circuitCategory(f)));
   }
@@ -368,7 +370,7 @@ function sensitivityFor(project: Project, board: Board, cs: Feeder[], category: 
  * mA when set; RCBO circuits are not in any group. */
 export function elcbGroups(project: Project, board: Board): ElcbGroup[] {
   const all = scheduleCircuits(project, board.id);
-  const circuits = all.filter((f) => !isRcbo(f));
+  const circuits = all.filter((f) => !isRcbo(f) && !hasNoRcd(f));
   const lastWay = Math.max(0, ...all.map((f) => f.way!), ...(board.spareWays ?? []).map((sp) => sp.way ?? 0));
   const u0 = project.voltageV / Math.sqrt(3);
   const groups: ElcbGroup[] = [];
@@ -402,7 +404,7 @@ export function elcbGroups(project: Project, board: Board): ElcbGroup[] {
 
 /** The circuit that alone makes its ELCB mix lighting and power — the one power circuit among lighting ones, or the one
  * lighting circuit among power ones (power first when there is one of each) — keyed by circuit id. An RCBO in its place
- * leaves the ELCB with one kind. 3-phase circuits are never offered (an RCBO here is 1-phase). */
+ * leaves the ELCB with one kind (2P, or 4P for a 3-phase circuit). */
 export function oddElcbCircuits(groups: ElcbGroup[]): Map<string, ElcbGroup> {
   const out = new Map<string, ElcbGroup>();
   for (const g of groups) {
@@ -410,19 +412,32 @@ export function oddElcbCircuits(groups: ElcbGroup[]): Map<string, ElcbGroup> {
     const power = g.circuits.filter((f) => circuitCategory(f) === 'power');
     const lighting = g.circuits.filter((f) => circuitCategory(f) === 'lighting');
     const odd = power.length === 1 ? power[0] : lighting.length === 1 ? lighting[0] : undefined;
-    if (odd && odd.phase !== 'RYB') out.set(odd.id, g);
+    if (odd) out.set(odd.id, g);
   }
   return out;
 }
 
-export interface Rcbo { index: number; circuit: Feeder; ratingA: number; sensitivityMa: number; label: string }
+/** A circuit's own earth leakage device: an RCBO, an AFDD + RCBO, or its MCB with an RCD add-on block. */
+export type RcboKind = 'rcbo' | 'afdd' | 'addon';
+export const rcboKindOf = (f: Feeder): RcboKind => f.rcboKind ?? 'rcbo';
+/** How each kind is named on the schedule and in messages. */
+export const RCBO_KIND_TEXT: Record<RcboKind, string> = { rcbo: 'RCBO', afdd: 'AFDD + RCBO', addon: 'MCB + RCD add-on block' };
 
-/** The board's RCBO circuits in way order (then R, Y, B), numbered RCBO-1, 2, …: rated as the circuit's breaker, IΔn
- * as chosen (rcdMa) else as an ELCB over that circuit would be. Printed as 2P (1P+N). */
+export interface Rcbo { index: number; name: string; kind: RcboKind; circuit: Feeder; ratingA: number; sensitivityMa: number; label: string }
+
+/** The board's circuits with an earth leakage device of their own, in way order (then R, Y, B): RCBOs and AFDD + RCBOs
+ * numbered RCBO-1, 2, …, MCBs with an RCD add-on block RCD-1, 2, …. Rated as the circuit's breaker, IΔn as chosen
+ * (rcdMa) else as an ELCB over that circuit would be. Printed 2P (1P+N), or 4P (3P+N) on a 3-phase circuit:
+ * "20 A 30 mA 2P", "20 A 30 mA 2P + AFDD", "20 A 30 mA 2P add-on". */
 export function rcbosOf(project: Project, board: Board): Rcbo[] {
-  return scheduleCircuits(project, board.id).filter(isRcbo).map((f, i) => {
+  let rcbos = 0, addons = 0;
+  return scheduleCircuits(project, board.id).filter(isRcbo).map((f) => {
+    const kind = rcboKindOf(f);
+    const index = kind === 'addon' ? ++addons : ++rcbos;
     const ratingA = f.breakerRatingA;
     const sensitivityMa = f.rcdMa ?? sensitivityFor(project, board, [f], circuitCategory(f));
-    return { index: i + 1, circuit: f, ratingA, sensitivityMa, label: `${ratingA} A ${sensitivityMa} mA 2P` };
+    const base = `${ratingA} A ${sensitivityMa} mA ${f.phase === 'RYB' ? '4P' : '2P'}`;
+    const label = kind === 'afdd' ? `${base} + AFDD` : kind === 'addon' ? `${base} add-on` : base;
+    return { index, name: `${kind === 'addon' ? 'RCD' : 'RCBO'}-${index}`, kind, circuit: f, ratingA, sensitivityMa, label };
   });
 }

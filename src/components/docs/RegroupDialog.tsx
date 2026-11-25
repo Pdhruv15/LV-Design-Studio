@@ -16,7 +16,7 @@ export default function RegroupDialog({ project, board, onApply, onClose }: {
   const [size, setSize] = useState<ElcbSize>((board.elcbGroupSize ?? 6) as ElcbSize);
   const [keepApart, setKeepApart] = useState(board.elcbKeepApart ?? true);
   const [keepRcbos, setKeepRcbos] = useState(true);
-  const hasRcbos = useMemo(() => scheduleCircuits(project, board.id).some((f) => f.rcbo), [project, board.id]);
+  const hasRcbos = useMemo(() => scheduleCircuits(project, board.id).some((f) => f.rcbo || f.noRcd), [project, board.id]);
   const preview = useMemo(() => regroupPreview(project, board.id, { size, keepApart, keepRcbos }), [project, board.id, size, keepApart, keepRcbos]);
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +35,7 @@ export default function RegroupDialog({ project, board, onApply, onClose }: {
         <label className="row"><input type="radio" name="regroup-size" checked={size === 0} onChange={() => setSize(0)} /> No ELCB</label>
       </fieldset>
       <label className="row"><input type="checkbox" checked={keepApart && size > 0} disabled={!size} onChange={(e) => setKeepApart(e.target.checked)} /> Keep lighting and power circuits apart (circuits move, so their numbers change)</label>
-      {hasRcbos && <label className="row"><input type="checkbox" checked={keepRcbos} onChange={(e) => setKeepRcbos(e.target.checked)} /> Keep the RCBOs</label>}
+      {hasRcbos && <label className="row"><input type="checkbox" checked={keepRcbos} onChange={(e) => setKeepRcbos(e.target.checked)} /> Keep the RCBOs and No RCD circuits</label>}
       <p className="m">Now: {elcbList(preview.before)}.<br />After: {elcbList(preview.after)}{preview.moved ? `; ${preview.moved} circuit${preview.moved === 1 ? '' : 's'} change reference` : ''}.</p>
       <p className="m">Ratings, mA and the numbers ELCB-1, 2 … are worked out again. Undo puts it back.</p>
       <div className="modal-actions">

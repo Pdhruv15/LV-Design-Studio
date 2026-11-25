@@ -1,7 +1,7 @@
 import { evaluateFeeder, type Status } from '../calc/electrical';
 import { boardLocation } from '../model/levels';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
-import { boardPhaseKw, circuitCategory, circuitRef, circuitWatts, elcbGroups, type ElcbGroup, imbalancePct, loadItemsText, minWireMm2, pointColumns, rcbosOf, type Rcbo, scheduleCircuits, wattUnitText } from '../calc/loadSchedule';
+import { boardPhaseKw, circuitCategory, circuitRef, circuitWatts, elcbGroups, type ElcbGroup, hasNoRcd, imbalancePct, loadItemsText, minWireMm2, pointColumns, rcbosOf, type Rcbo, scheduleCircuits, wattUnitText } from '../calc/loadSchedule';
 import { incomerDeviceOf, type Board, type Feeder, type Project, type SpareWay } from '../types';
 import { dbSpares, spareLabel, spareRef } from '../model/spareWays';
 import { polesOf } from '../calc/bom';
@@ -46,30 +46,34 @@ const PH = { R: 0, Y: 1, B: 2, RYB: 0 } as const;
 
 /** One row of the DB schedule in way order: a circuit, or a spare / space. */
 export type ScheduleEntry<R> =
-  | { type: 'circuit'; row: R; way: number; ph: number; sl: number; group?: ElcbGroup; rcbo?: Rcbo }
-  | { type: 'spare'; spare: SpareWay; way: number; ph: number; sl: number; group?: ElcbGroup; rcbo?: undefined };
+  | { type: 'circuit'; row: R; way: number; ph: number; sl: number; group?: ElcbGroup; rcbo?: Rcbo; none?: string }
+  | { type: 'spare'; spare: SpareWay; way: number; ph: number; sl: number; group?: ElcbGroup; rcbo?: undefined; none?: undefined };
 
-/** The ELCB column of a schedule, one item per row: for the first row of a cell its span with the ELCB group or RCBO it
- * shows, null for the rows under it. A cell runs over consecutive rows of one group; an RCBO circuit is a one-row cell of
- * its own (it splits a group around it); any other row is a one-row blank cell. */
-export function elcbColumn(entries: { group?: ElcbGroup; rcbo?: Rcbo }[]): ({ span: number; group?: ElcbGroup; rcbo?: Rcbo } | null)[] {
-  const out: ({ span: number; group?: ElcbGroup; rcbo?: Rcbo } | null)[] = [];
+type ElcbCellOf = { group?: ElcbGroup; rcbo?: Rcbo; none?: string };
+const ownCell = (e: ElcbCellOf) => !!e.rcbo || !!e.none;
+
+/** The ELCB column of a schedule, one item per row: for the first row of a cell its span with the ELCB group, RCBO or No
+ * RCD reason it shows, null for the rows under it. A cell runs over consecutive rows of one group; an RCBO or No RCD
+ * circuit is a one-row cell of its own (it splits a group around it); any other row is a one-row blank cell. */
+export function elcbColumn(entries: ElcbCellOf[]): ({ span: number } & ElcbCellOf | null)[] {
+  const out: ({ span: number } & ElcbCellOf | null)[] = [];
   let head = -1;
   entries.forEach((e, i) => {
-    if (e.group && !e.rcbo && head >= 0 && entries[head].group === e.group && !entries[head].rcbo) {
+    if (e.group && !ownCell(e) && head >= 0 && entries[head].group === e.group && !ownCell(entries[head])) {
       out.push(null);
       out[head]!.span++;
       return;
     }
     head = i;
-    out.push({ span: 1, group: e.rcbo ? undefined : e.group, rcbo: e.rcbo });
+    out.push({ span: 1, group: ownCell(e) ? undefined : e.group, rcbo: e.rcbo, none: e.rcbo ? undefined : e.none });
   });
   return out;
 }
 
-/** The ELCB column text of a row: "ELCB-2 40 A 30 mA 4P", "RCBO-1 20 A 30 mA 2P", or blank. */
-export const elcbText = (e: { group?: ElcbGroup; rcbo?: Rcbo }): string =>
-  e.rcbo ? `RCBO-${e.rcbo.index} ${e.rcbo.label}` : e.group ? `ELCB-${e.group.index} ${e.group.label}` : '';
+/** The ELCB column text of a row: "ELCB-2 40 A 30 mA 4P", "RCBO-1 20 A 30 mA 2P", "RCD-1 20 A 30 mA 2P add-on",
+ * "No RCD (fire alarm panel)", or blank. */
+export const elcbText = (e: ElcbCellOf): string =>
+  e.rcbo ? `${e.rcbo.name} ${e.rcbo.label}` : e.none ? `No RCD (${e.none})` : e.group ? `ELCB-${e.group.index} ${e.group.label}` : '';
 
 /** Remarks as printed: the user's remarks, then the mixed load items (e.g. "6×L1 10 W + 4×L2 20 W"). */
 export const remarksText = (f: Feeder) => [f.remarks, loadItemsText(f)].filter(Boolean).join('; ');
@@ -95,11 +99,11 @@ function loadScheduleRowsOf(project: Project, boardId: string) {
     // A hand-set wire below the type's minimum is flagged for checking.
     const belowMin = f.cableCsaMm2 < minWire;
     const status: Status = calc === 'bad' ? 'bad' : belowMin ? 'warn' : calc;
-    return { f, sl: i + 1, ref: circuitRef(f)!, watts: w, ph, group: groupOf.get(f.id), rcbo: rcboOf.get(f.id), category: circuitCategory(f), minWire, belowMin, status };
+    return { f, sl: i + 1, ref: circuitRef(f)!, watts: w, ph, group: groupOf.get(f.id), rcbo: rcboOf.get(f.id), none: hasNoRcd(f) ? f.noRcd : undefined, category: circuitCategory(f), minWire, belowMin, status };
   });
   // Spares and spaces in their slots between the circuits; Sl. No. runs over both.
   const entries: ScheduleEntry<(typeof rows)[number]>[] = [
-    ...rows.map((r) => ({ type: 'circuit' as const, row: r, way: r.f.way!, ph: PH[r.f.phase!], sl: 0, group: r.group, rcbo: r.rcbo })),
+    ...rows.map((r) => ({ type: 'circuit' as const, row: r, way: r.f.way!, ph: PH[r.f.phase!], sl: 0, group: r.group, rcbo: r.rcbo, none: r.none })),
     ...dbSpares(board).map((sp) => ({ type: 'spare' as const, spare: sp, way: sp.way!, ph: PH[sp.phase], sl: 0, group: groups.find((g) => g.ways.includes(sp.way!)) }))
   ].sort((a, b) => a.way - b.way || a.ph - b.ph);
   entries.forEach((e, i) => {
@@ -158,12 +162,13 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
 
   // ELCB cells span their group's rows.
   const cells = elcbColumn(rows);
-  const noElcb = !groups.length && !rows.some((r) => r.rcbo);
+  const noElcb = !groups.length && !rows.some((r) => r.rcbo || r.none);
   const elcbCell = (i: number) => {
     if (noElcb) return i === 0 ? `<td rowspan="${rows.length}"></td>` : '';
     const c = cells[i];
     if (!c) return '';
-    if (c.rcbo) return `<td class="v" rowspan="${c.span}">RCBO-${c.rcbo.index}<br>${esc(c.rcbo.label)}</td>`;
+    if (c.rcbo) return `<td class="v" rowspan="${c.span}">${c.rcbo.name}<br>${esc(c.rcbo.label)}</td>`;
+    if (c.none) return `<td class="v" rowspan="${c.span}">No RCD<br>${esc(c.none)}</td>`;
     if (c.group) return `<td class="v" rowspan="${c.span}">ELCB-${c.group.index}<br>${esc(c.group.label)}</td>`; // a spare in a section with no circuits has no cell text
     return '<td></td>';
   };

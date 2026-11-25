@@ -245,9 +245,17 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     if (f.existing) continue;
     const poles = polesOf(f);
     if (isScheduleCircuit(f) && isRcbo(f)) {
-      // An RCBO is the circuit's breaker and its earth leakage protection in one: no MCB, no RCCB share.
+      // An RCBO is the circuit's breaker and its earth leakage protection in one: no MCB, no RCCB share. An AFDD + RCBO adds
+      // arc fault detection; an RCD add-on block keeps the MCB and clips the earth leakage protection to it.
       const ma = rcdOf(p, f);
-      add('B', `rcbo:${ma}:SP+N:${f.breakerRatingA}`, `RCBO ${f.breakerRatingA} A, ${ma} mA, SP+N${brandRef('RCBO', 'SP+N', f.breakerRatingA)}`, 'no', 1, f.boardId);
+      const rp = f.phase === 'RYB' ? 'TP+N' : 'SP+N';
+      const A = f.breakerRatingA;
+      if (f.rcboKind === 'addon') {
+        const bi = breakerItem(f);
+        add('B', bi.key, bi.description, 'no', 1, f.boardId);
+        add('B', `rcdaddon:${ma}:${rp}:${A}`, `RCD add-on block ${ma} mA, ${rp}, for a ${A} A MCB${brandRef('RCD add-on', rp, A)}`, 'no', 1, f.boardId);
+      } else if (f.rcboKind === 'afdd') add('B', `afdd:${ma}:${rp}:${A}`, `AFDD + RCBO ${A} A, ${ma} mA, ${rp}, arc fault detection (IEC 62606)${brandRef('AFDD+RCBO', rp, A)}`, 'no', 1, f.boardId);
+      else add('B', `rcbo:${ma}:${rp}:${A}`, `RCBO ${A} A, ${ma} mA, ${rp}${brandRef('RCBO', rp, A)}`, 'no', 1, f.boardId);
     } else {
       const bi = breakerItem(f);
       add('B', bi.key, bi.description, 'no', 1, f.boardId);
