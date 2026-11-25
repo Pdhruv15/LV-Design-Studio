@@ -2,7 +2,7 @@ import { boardOf, feedersOn, withNetwork } from './network';
 import { cpcOf, defaultCpcMm2, getCable, resolveCable } from './cableTable';
 import { feederFamily, kCpcOf } from './cableFamily';
 import { DEFAULT_TRANSFORMER_XR, generatorMinSource, gridImpedance, gridSourceOf, rOperatingOhmPerKm, runsOf, sourceRatingHint, supplyImpedance, supplySourceLevel, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
-import { elcbGroups, isScheduleCircuit, rcbosOf } from './loadSchedule';
+import { elcbGroups, hasNoRcd, isScheduleCircuit, rcbosOf } from './loadSchedule';
 import { lvSupplied, supplyFaultKa, supplyIncomerFeeder, supplyXr, type Board, type BreakerType, type Feeder, type Project } from '../types';
 import { fmtFixed } from '../util/format';
 
@@ -292,6 +292,7 @@ const elcbCache = new WeakMap<Project, Map<string, number>>();
 /** Earth leakage protection of a circuit (mA): its own RCD, else the ELCB
  * group of its DB when it is a load schedule circuit. */
 export function rcdOf(project: Project, f: Feeder): number | undefined {
+  if (isScheduleCircuit(f) && hasNoRcd(f)) return undefined; // No RCD on purpose: the MCB alone clears an earth fault
   if (f.rcdMa) return f.rcdMa;
   if (!isScheduleCircuit(f)) return undefined;
   let m = elcbCache.get(project);

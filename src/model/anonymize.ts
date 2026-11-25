@@ -29,8 +29,8 @@ const REBUILT_PROJECT = new Set<string>(['name', 'boards', 'feeders', 'ties', 'v
 
 const BOARD_KEEP = ['sourceKva', 'sourceImpedancePct', 'sourceXr', 'kind', 'ratedCurrentA', 'busbarMaterial', 'busbarIcwKa', 'sections', 'incomerDevice', 'instruments', 'upsKva', 'spd', 'mdDemandFactor', 'pointWatts', 'elcbGroupSize', 'elcbKeepApart', 'elcbs', 'elcbRatingA', 'elcbSensitivityMa', 'summaryLoad', 'summaryMeters'] as const;
 const BOARD_REBUILT = new Set<string>(['id', 'name', 'upstreamId', 'vectorGroup', 'ipRating', 'standby', 'protection', 'earthing', 'supply', 'spareWays']);
-const FEEDER_KEEP = ['loadKw', 'demandFactor', 'powerFactor', 'lengthM', 'cableCsaMm2', 'parallel', 'cores', 'breakerRatingA', 'breakerIcuKa', 'generation', 'loadType', 'breakerType', 'breakerImMultiple', 'cpcMm2', 'installMethod', 'standbyUnit', 'essential', 'phase', 'way', 'points', 'manualSize', 'starter', 'kvar', 'device', 'kwhMeter', 'circuitPurpose', 'rcdMa', 'localIsolator', 'rcbo', 'capSteps', 'detunedPct', 'lengthToCheck', 'sizingPending'] as const;
-const FEEDER_REBUILT = new Set<string>(['id', 'boardId', 'feedsBoardId', 'name', 'cableType', 'loadItems', 'trayRoute']);
+const FEEDER_KEEP = ['loadKw', 'demandFactor', 'powerFactor', 'lengthM', 'cableCsaMm2', 'parallel', 'cores', 'breakerRatingA', 'breakerIcuKa', 'generation', 'loadType', 'breakerType', 'breakerImMultiple', 'cpcMm2', 'installMethod', 'standbyUnit', 'essential', 'phase', 'way', 'points', 'manualSize', 'starter', 'kvar', 'device', 'kwhMeter', 'circuitPurpose', 'rcdMa', 'localIsolator', 'rcbo', 'rcboKind', 'capSteps', 'detunedPct', 'lengthToCheck', 'sizingPending'] as const;
+const FEEDER_REBUILT = new Set<string>(['id', 'boardId', 'feedsBoardId', 'name', 'cableType', 'loadItems', 'trayRoute', 'noRcd']);
 
 /** Short technical codes that cannot carry a name: vector group, IP rating, CT ratio, cable codes. */
 const VECTOR_GROUP = /^[DYZdyz]{1,2}[n]?\d{0,2}[dyzn]{0,2}\d{0,2}$/;
@@ -128,7 +128,8 @@ export function anonymizeProject(source: Project): AnonymizeResult {
       name: feeds ? `Incomer to ${feeds}` : `${typeLabel(f)} ${id}`,
       cableType: typeof f.cableType === 'string' && CABLE_TYPES.includes(f.cableType) ? f.cableType : undefined,
       loadItems,
-      trayRoute
+      trayRoute,
+      noRcd: f.noRcd ? 'No RCD' : undefined // the reason is free text: kept as the fact only
     }) as Feeder;
   });
 

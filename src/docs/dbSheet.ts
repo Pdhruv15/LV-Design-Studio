@@ -1,7 +1,7 @@
 import { STATUS_TEXT } from '../calc/statusText';
 import { cables } from '../calc/cableTable';
 import { cpcOf } from '../calc/earthing';
-import { elcbSectionsOf, isRcbo, itemizedTypes, normalizeLoadItems, pointColumns, pointWattsFor, SINGLE_PHASES } from '../calc/loadSchedule';
+import { elcbSectionsOf, hasNoRcd, isRcbo, itemizedTypes, normalizeLoadItems, pointColumns, pointWattsFor, SINGLE_PHASES } from '../calc/loadSchedule';
 import { breakerRatings } from '../calc/sizing';
 import { addCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../model/schedule';
 import type { Board, Feeder, Phase, PointType, Project, SpareWay } from '../types';
@@ -178,19 +178,22 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
   const merges: Record<string, [number, number]> = { [`${colName(at('incomer'))}${first + 1}`]: [1, count] };
 
   // One ELCB cell per section (all rows of its ways), labelled when it has circuits.
-  const handPlaced = !!board.elcbs?.length || circuitRows.some((r) => r.rcbo);
+  const handPlaced = !!board.elcbs?.length || circuitRows.some((r) => r.rcbo || r.none);
   if (handPlaced) {
     // ELCBs placed by hand and RCBOs: a row's cell is its RCBO, else the section holding its way; rows of one cell merge.
     const sections = elcbSectionsOf(project, board, ways);
     const wayOf = (row: SheetRow) => (row.type === 'circuit' ? row.feeder.way! : row.type === 'slot' ? row.way : row.type === 'spare' ? row.spare.way! : 0);
     const keyOf = (row: SheetRow): string => {
       if (row.type === 'circuit' && isRcbo(row.feeder)) return `rcbo:${row.feeder.id}`;
+      if (row.type === 'circuit' && hasNoRcd(row.feeder)) return `none:${row.feeder.id}`;
       const sec = sections.find((s) => s.ways.includes(wayOf(row)));
       return sec ? `elcb:${sec.index}` : '';
     };
     const labelOf = (key: string): string => {
       const r = circuitRows.find((x) => `rcbo:${x.f.id}` === key)?.rcbo;
-      if (r) return `RCBO-${r.index} ${r.label}`;
+      if (r) return `${r.name} ${r.label}`;
+      const none = circuitRows.find((x) => `none:${x.f.id}` === key)?.none;
+      if (none) return `No RCD (${none})`;
       const g = key.startsWith('elcb:') ? elcbs.find((x) => x.index === Number(key.slice(5))) : undefined;
       return g ? `ELCB-${g.index} ${g.label}` : '';
     };
