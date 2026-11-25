@@ -25,6 +25,12 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.289', date: '2026-11-25',
+    items: [
+      { title: 'Compare a reference with its new revision', text: 'In Design CAD, right-click a reference drawing and choose Compare with new revision… (or type XCOMPARE), then pick the new file from the architect. The two are compared where the reference sits: lines added in the new revision show in green, lines taken out in red, and the command line says how many and in how many areas. Next zooms to each area in turn, Clouds draws a revision cloud round every area, Accept switches the reference to the new file, and Exit (or Esc) leaves it as it was.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.288', date: '2026-11-25',
     items: [
       { title: 'Load schedule: AFDD + RCBO', text: 'ELCB / RCD → AFDD + RCBO gives a 1-phase circuit an RCBO with arc fault detection (IEC 62606) in place of its MCB. It prints "+ AFDD" after the RCBO and has its own BOQ line and enclosure device.' },
