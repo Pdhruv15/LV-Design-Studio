@@ -1,6 +1,6 @@
 # UI UX proposal – Load schedule earth leakage: ELCB sizes, board schemes and devices (2026-11-23)
 
-Status: **approved on 2026-11-23** ("ok go ahead" to the recommended plan below). Steps 1, 2, 3a and 3b merged (PRs 782, 792, 799, 800; 2026-11-24/25); step 4 (RCD type) in PR 807 (v2.298); step 5 waits.
+Status: **approved on 2026-11-23** ("ok go ahead" to the recommended plan below). Steps 1, 2, 3a and 3b merged (PRs 782, 792, 799, 800; 2026-11-24/25); step 4 (RCD type) in PR 807 (v2.298); step 5 (whole-board schemes) built (v2.304).
 
 Mockup: `docs/mockups/load-schedule-earth-leakage-mockup.html` (image: `load-schedule-earth-leakage-mockup.png`).
 
@@ -53,6 +53,6 @@ Check the edition and local rules of each project; the app applies no country by
 2. **Keep 30 mA and 100 mA apart** when ELCBs are made, and Make RCBO for one odd circuit. Built: `Board.elcbKeepApart` is set the first time a DB's ELCBs are changed (every circuit is under an ELCB then, so nothing moves) and by Re-group; with it, automatic ELCBs on new ways end where lighting and power meet. Old projects keep their ELCBs until one is changed. Make RCBO is offered for a single odd 1-phase circuit (power first when there is one of each).
 3. **Devices:** one earth leakage device kind on the circuit in place of the `rcbo` flag (old projects read as RCBO); 4P RCBO for RYB circuits; No RCD; then AFDD + RCBO and MCB + RCD add-on block. PDF, Excel, BOQ, enclosure list and earth fault check (`rcdOf`) follow.
 4. **RCD type** on `BoardElcb`, the board and the circuit device; counted in the BOQ. Built: Auto is Type B when a circuit's remarks name an EV charger, a 3-phase drive (or a VFD starter) or PV, Type F for a 1-phase drive, else Type A; an ELCB takes the strictest its circuits need. The app cannot tell an inverter air conditioner from its points, so Type F for one is chosen by hand. Printed (schedule, PDF, Excel, BOQ) only when it is not Type A, so old projects print as before unless a remark names one of those loads.
-5. **Whole-board schemes** in Re-group.
+5. **Whole-board schemes** in Re-group. Built: One ELCB at the incomer is an ELCB of the board's own over every way (ways added later too), rated at least as the incomer's breaker (the warning in Re-group says when the incomer is above the largest ELCB, 125 A: an earth leakage relay on the incomer breaker then); the RCBO circuits sit below it and their load counts for its rating. Its mA is what its circuits without an RCBO need (100 mA over RCBOs alone), and it is S-type (time-delayed) when RCBOs of a lower mA sit below it; S-type can be set in its dialog, and is printed and priced. It cannot be resized and no other ELCB can be placed beside it; Re-group cuts it into ELCBs. RCBO on every circuit gives every circuit without a device an RCBO, and circuits added later too, until a New ELCBs size is chosen or the DB is re-grouped. Neither scheme moves a circuit. A New ELCBs choice that shows the RCBO scheme in the board bar would need a UI decision.
 
 Each step adds tests for grouping, numbering, ratings and exports.

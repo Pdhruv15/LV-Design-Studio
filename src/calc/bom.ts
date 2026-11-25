@@ -142,7 +142,8 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     for (const group of elcbGroups(p, b)) {
       const poles = group.byHand?.poles === 3 ? 'TP' : threePhase ? 'TP+N' : 'SP+N';
       const t = group.rcdType === 'A' ? '' : group.rcdType; // Type A, the usual one, keeps the line as before
-      add('B', `rccb:${group.sensitivityMa}:${poles}:${group.ratingA}${t ? `:${t}` : ''}`, `RCCB / ELCB ${group.sensitivityMa} mA, ${poles}, ${group.ratingA} A${t ? `, Type ${t}` : ''}${brandRef('RCCB', poles, group.ratingA)}`, 'no', 1, b.id,
+      const s = group.sType ? ':S' : '';
+      add('B', `rccb:${group.sensitivityMa}:${poles}:${group.ratingA}${t ? `:${t}` : ''}${s}`, `RCCB / ELCB ${group.sensitivityMa} mA, ${poles}, ${group.ratingA} A${t ? `, Type ${t}` : ''}${s ? ', S-type (time-delayed)' : ''}${brandRef('RCCB', poles, group.ratingA)}`, 'no', 1, b.id,
         { quantitySource: 'Load schedule ELCB groups' });
       group.circuits.forEach((c) => groupedRcdCircuits.add(c.id));
     }

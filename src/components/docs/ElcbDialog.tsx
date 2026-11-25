@@ -7,7 +7,7 @@ import { RCD_TYPES, type Board, type BoardElcb, type Feeder, type Project, type 
 /** What the dialog is for: a 3-phase ELCB over ways (new, or the one over way `at`), the earth leakage setting of an RCBO
  * circuit, or why a circuit has no RCD. */
 export type ElcbTarget = { kind: 'elcb'; at?: number; from: number; to: number } | { kind: 'rcbo'; feederId: string } | { kind: 'none'; feederId: string };
-export interface ElcbValues { fromWay: number; toWay: number; poles: 3 | 4; ratingA?: number; sensitivityMa?: number; rcdType?: RcdType; reason?: string }
+export interface ElcbValues { fromWay: number; toWay: number; poles: 3 | 4; ratingA?: number; sensitivityMa?: number; rcdType?: RcdType; sType?: boolean; reason?: string }
 
 /** Why Auto picks this type: the DB's choice, or the circuit that needs it (e.g. "EV charger, R3"). */
 function autoWhy(board: Board, type: RcdType, circuits: Feeder[]): string {
@@ -40,6 +40,8 @@ export default function ElcbDialog({ project, board, target, onSave, onClose }: 
   const [rating, setRating] = useState(editing?.ratingA ? String(editing.ratingA) : '');
   const ownType = target.kind === 'rcbo' ? rcboFeeder?.rcdType : editing?.rcdType;
   const [rcdType, setRcdType] = useState<string>(ownType ?? '');
+  const incomer = !!editing?.incomer;
+  const [sType, setSType] = useState(editing?.sType === undefined ? '' : editing.sType ? 'yes' : 'no');
   const [ma, setMa] = useState((target.kind === 'rcbo' ? rcboFeeder?.rcdMa : editing?.sensitivityMa) ? String(target.kind === 'rcbo' ? rcboFeeder?.rcdMa : editing?.sensitivityMa) : '');
   const [error, setError] = useState<string>();
 
@@ -56,7 +58,7 @@ export default function ElcbDialog({ project, board, target, onSave, onClose }: 
       return r && { ratingA: r.ratingA, sensitivityMa: r.sensitivityMa, maxPhaseA: 0, category: circuitCategory(next.feeders.find((f) => f.id === target.feederId)!), rcdType: r.rcdType, rcdWhy: autoWhy(board, r.rcdType, [r.circuit]) };
     }
     const g = elcbPreview(project, board.id, { fromWay, toWay, poles }, at);
-    return g && { ratingA: g.ratingA, sensitivityMa: g.sensitivityMa, maxPhaseA: g.maxPhaseA, category: g.category === 'lighting' ? 'lighting' as const : 'power' as const, rcdType: g.rcdType, rcdWhy: autoWhy(board, g.rcdType, g.circuits) };
+    return g && { ratingA: g.ratingA, sensitivityMa: g.sensitivityMa, maxPhaseA: g.maxPhaseA, category: g.category === 'lighting' ? 'lighting' as const : 'power' as const, rcdType: g.rcdType, rcdWhy: autoWhy(board, g.rcdType, g.circuits), sType: g.sType };
   }, [project, board, target, at, fromWay, toWay, poles]);
 
   const circuits = target.kind === 'elcb' && !problem ? scheduleCircuits(project, board.id).filter((f) => f.way! >= fromWay && f.way! <= toWay) : [];
@@ -65,11 +67,11 @@ export default function ElcbDialog({ project, board, target, onSave, onClose }: 
   const circuitName = rcboFeeder ? `${circuitRef(rcboFeeder) ?? rcboFeeder.id} ${rcboFeeder.room || rcboFeeder.name}`.trim() : '';
   const title = target.kind === 'rcbo' ? `${own?.name ?? 'RCBO'} — ${circuitName}`
     : target.kind === 'none' ? `No RCD — ${circuitName}`
-    : group ? `ELCB-${number ?? ''} — ${board.id}` : `Add 3-phase ELCB — ${board.id}`;
+    : group ? `ELCB-${number ?? ''}${incomer ? ' at the incomer' : ''} — ${board.id}` : `Add 3-phase ELCB — ${board.id}`;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const why = problem ?? onSave({ fromWay, toWay, poles, ratingA: pick(rating), sensitivityMa: pick(ma), rcdType: (rcdType || undefined) as RcdType | undefined, reason: reason.trim() || undefined });
+    const why = problem ?? onSave({ fromWay, toWay, poles, ratingA: pick(rating), sensitivityMa: pick(ma), rcdType: (rcdType || undefined) as RcdType | undefined, sType: incomer && sType ? sType === 'yes' : undefined, reason: reason.trim() || undefined });
     if (why) setError(why); else onClose();
   };
   const shownError = problem ?? error;
@@ -79,11 +81,11 @@ export default function ElcbDialog({ project, board, target, onSave, onClose }: 
       <h3>{title}</h3>
       {target.kind === 'elcb' && (
         <>
-          <div className="row">
+          {incomer ? <p className="m">One ELCB at the incomer: it covers every circuit of the DB, and the RCBOs sit below it.</p> : <div className="row">
             <label>Way <input data-field="from" inputMode="numeric" value={from} onChange={(e) => { setFrom(e.target.value); setError(undefined); }} aria-invalid={!!problem} /></label>
             <label>to way <input data-field="to" inputMode="numeric" value={to} onChange={(e) => { setTo(e.target.value); setError(undefined); }} aria-invalid={!!problem} /></label>
-          </div>
-          {circuits.length > 0 && <p className="m">Covers {circuits.map((f) => `${circuitRef(f)} ${f.room || f.name}`.trim()).join(', ')}.</p>}
+          </div>}
+          {circuits.length > 0 && !incomer && <p className="m">Covers {circuits.map((f) => `${circuitRef(f)} ${f.room || f.name}`.trim()).join(', ')}.</p>}
           <fieldset>
             <legend>Poles</legend>
             <label className="row"><input type="radio" name="elcb-poles" checked={poles === 4} onChange={() => setPoles(4)} /> 4P (TP&amp;N)</label>
@@ -116,7 +118,15 @@ export default function ElcbDialog({ project, board, target, onSave, onClose }: 
           {RCD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
       </label>}
-      {target.kind === 'elcb' && <p className="m">ELCBs already over these ways give them up; no other ELCB moves. RCBO circuits in these ways keep their RCBO.</p>}
+      {incomer && <label>Time-delayed (S-type)
+        <select value={sType} onChange={(e) => setSType(e.target.value)}>
+          <option value="">Auto{auto ? ` — ${auto.sType ? 'yes: RCBOs of a lower mA below it' : 'no'}` : ''}</option>
+          <option value="yes">Yes, S-type</option>
+          <option value="no">No</option>
+        </select>
+      </label>}
+      {target.kind === 'elcb' && !incomer && <p className="m">ELCBs already over these ways give them up; no other ELCB moves. RCBO circuits in these ways keep their RCBO.</p>}
+      {incomer && <p className="m">Re-group all ELCBs… cuts it into ELCBs over ways.</p>}
       {shownError && <p className="warn" role="alert">{shownError}</p>}
       <div className="modal-actions">
         <span className="sp" />
