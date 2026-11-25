@@ -130,7 +130,7 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated, 
 
       {showUses && (
         <div className="plan-uses">
-          <p className="warn m">{plan.uses ? 'Your values.' : 'PLACEHOLDER values — replace with your DEWA / company W/m² and demand factors.'}</p>
+          <p className="warn m">{plan.uses ? 'Your values.' : 'PLACEHOLDER values — replace with your authority / company W/m² and demand factors.'}</p>
           <table className="schedule">
             <thead><tr><th>Use type</th><th>W/m²</th><th>Demand factor</th></tr></thead>
             <tbody>

@@ -226,7 +226,7 @@ export function earthingLayout(project: Project): EarthLayout {
     if (n > 2) checks.push({ level: 'bad', text: `${r.equipment} feeds ${n} transformers — an RMU feeds at most 2` });
   }
   const lv = items.filter((i) => i.kind === 'lv');
-  if (lv.length === 1 && lv[0].pits < 2) checks.push({ level: 'warn', text: `${lv[0].equipment} is the only main board: DEWA asks for 2 pits` });
+  if (lv.length === 1 && lv[0].pits < 2) checks.push({ level: 'warn', text: `${lv[0].equipment} is the only main board: the utility usually asks for 2 pits` });
   const multi = new Set(items.map((i) => i.group)).size > 1;
   for (const net of nets) {
     const k = kindInfo(net.kind);

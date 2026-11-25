@@ -101,7 +101,7 @@ export default function BoardFields({ board, onChange, section, building, groups
                     {others.map((o, i) => (
                       <div key={i} className="earth-kv">
                         <label>Name<input value={o.name} placeholder="e.g. Block B" aria-label={`Other building ${i + 1} name`} onChange={(e) => setOther(i, { name: e.target.value })} /></label>
-                        <label>Reference<input value={o.ref ?? ''} placeholder="DEWA NOC / load letter" aria-label={`Other building ${i + 1} reference`} onChange={(e) => setOther(i, { ref: e.target.value || undefined })} /></label>
+                        <label>Reference<input value={o.ref ?? ''} placeholder="Utility NOC / load letter" aria-label={`Other building ${i + 1} reference`} onChange={(e) => setOther(i, { ref: e.target.value || undefined })} /></label>
                         <label>Allocated (kVA)<input inputMode="decimal" value={o.allocatedKva ?? ''} aria-label={`Other building ${i + 1} allocated kVA`} onChange={(e) => setOther(i, { allocatedKva: n(e.target.value) })} /></label>
                         <label>Recorded (kVA)<input inputMode="decimal" value={o.recordedKva ?? ''} aria-label={`Other building ${i + 1} recorded kVA`} onChange={(e) => setOther(i, { recordedKva: n(e.target.value) })} /></label>
                         <button type="button" className="icon-btn" title="Remove building" aria-label={`Remove other building ${i + 1}`} onClick={() => setOthers(others.filter((_, j) => j !== i))}>×</button>

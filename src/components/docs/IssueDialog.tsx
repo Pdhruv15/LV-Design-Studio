@@ -14,8 +14,8 @@ export function IssueDialog({ sheets, projectRev, onClose, onIssue }: { sheets: 
       <div className="grid2">
         <label>Date<input type="date" required value={o.date} onChange={(e) => setO({ ...o, date: e.target.value })} /></label>
         <label>Purpose of issue<select value={o.purpose} onChange={(e) => setO({ ...o, purpose: e.target.value })}>{SHEET_STATUSES.map((x) => <option key={x}>{x}</option>)}</select></label>
-        <label style={{ gridColumn: '1 / -1' }}>What changed (revision table and transmittal)<input value={o.description} placeholder="e.g. Updated MDB feeder sizes per DEWA comments" onChange={(e) => setO({ ...o, description: e.target.value })} /></label>
-        <label>To<input value={o.to ?? ''} placeholder="e.g. DEWA, client, contractor" onChange={(e) => setO({ ...o, to: e.target.value })} /></label>
+        <label style={{ gridColumn: '1 / -1' }}>What changed (revision table and transmittal)<input value={o.description} placeholder="e.g. Updated MDB feeder sizes per authority comments" onChange={(e) => setO({ ...o, description: e.target.value })} /></label>
+        <label>To<input value={o.to ?? ''} placeholder="e.g. authority, client, contractor" onChange={(e) => setO({ ...o, to: e.target.value })} /></label>
         <label className="row"><input type="checkbox" checked={o.bump} onChange={(e) => setO({ ...o, bump: e.target.checked })} /> Move to the next revision</label>
       </div>
       <div className="tw dr-issue-list">

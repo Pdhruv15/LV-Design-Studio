@@ -814,7 +814,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       onClick: () => ls?.onCheck(), disabled: !!gridOff }
   ];
   const lsSchedule: Tool[] = [
-    view('load-schedule', 'Load schedule', Table2, 'DEWA load distribution schedule per DB'), boards[0], boards[1], boards[3],
+    view('load-schedule', 'Load schedule', Table2, 'Load distribution schedule per DB'), boards[0], boards[1], boards[3],
     sm({ label: 'Previous board', icon: ChevronLeft, title: stepOff(ls?.prevBoard, 'First') ?? `Previous board: ${ls?.prevBoard}`, onClick: () => ls?.onBoardStep(-1), disabled: !!stepOff(ls?.prevBoard, 'First') }),
     sm({ label: 'Next board', icon: ChevronRight, title: stepOff(ls?.nextBoard, 'Last') ?? `Next board: ${ls?.nextBoard}`, onClick: () => ls?.onBoardStep(1), disabled: !!stepOff(ls?.nextBoard, 'Last') })
   ];
@@ -1212,7 +1212,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     ],
     reports: [
       [
-        view('load-schedule', 'Load schedule', Table2, 'DEWA load distribution schedule per DB'),
+        view('load-schedule', 'Load schedule', Table2, 'Load distribution schedule per DB'),
         view('cable-schedule', 'Cable schedule', Cable, 'Every cable in the installation'),
         view('cable-tray', 'Cable trays', Rows3, 'Cable tray schedule: routes A, B, C… with the cables on each and the tray size'),
         view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards')

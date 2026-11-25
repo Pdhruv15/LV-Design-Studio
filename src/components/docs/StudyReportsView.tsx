@@ -387,7 +387,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
             return gaps.length ? <p className="warn">Shown as "Not defined" in the report: {gaps.join(', ')}. Client, consultant and contractor come from the project information; the revision from Revisions.</p> : null;
           })()}
           <label className="sr-standards">Project standards and specifications <span className="m">(one per line; listed under Codes and standards — none are assumed)</span>
-            <textarea rows={4} key={(project.standards ?? []).join('\n')} defaultValue={(project.standards ?? []).join('\n')} placeholder={'e.g. DEWA Regulations for Electrical Installations 2017\nProject specification Section 26 05 00'}
+            <textarea rows={4} key={(project.standards ?? []).join('\n')} defaultValue={(project.standards ?? []).join('\n')} placeholder={'e.g. Supply authority regulations for electrical installations\nProject specification Section 26 05 00'}
               onBlur={(e) => { const v = e.target.value.split('\n').map((x) => x.trim()).filter(Boolean); if (v.join('\n') !== (project.standards ?? []).join('\n')) onChange({ ...project, standards: v.length ? v : undefined }); }} /></label>
           <h4 className="sr-sub">Saved report sets</h4>
           <div className="sr-presets">

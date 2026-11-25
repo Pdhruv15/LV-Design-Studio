@@ -271,7 +271,7 @@ export const EXTRAS: ({ section: string; description: string; unit: string; qty:
   { section: 'J', description: 'Emergency luminaire: type and autonomy to schedule', unit: 'no', qty: 0 },
   { section: 'J', description: 'Exit sign: type and autonomy to schedule', unit: 'no', qty: 0 },
   { section: 'K', description: 'Testing and commissioning of the LV installation, with test certificates', unit: 'LS', qty: 1 },
-  { section: 'K', description: 'DEWA inspection, meter application and authority fees', unit: 'LS', qty: 1 },
+  { section: 'K', description: 'Utility inspection, meter application and authority fees', unit: 'LS', qty: 1 },
   { section: 'K', description: 'Insulation resistance and earth loop impedance tests of all circuits', unit: 'LS', qty: 1 },
   { section: 'K', description: 'As-built drawings (SLD, layouts, schedules), 3 hard copies + soft copy', unit: 'set', qty: 1 },
   { section: 'K', description: 'Operation and maintenance manuals', unit: 'set', qty: 1 },
