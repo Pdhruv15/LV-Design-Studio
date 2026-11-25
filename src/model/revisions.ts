@@ -122,13 +122,13 @@ export const FEEDER_FIELDS: Fields<Feeder> = [
   ['rcdMa', 'RCD (mA)'], ['essential', 'Essential (generator)'], ['standbyUnit', 'Standby unit'], ['kvar', 'Capacitor (kvar)'], ['starter', 'Starter'],
   ['loadType', 'Load type'], ['phase', 'Phase'], ['way', 'Way'], ['kwhMeter', 'kWh meter'], ['feedsBoardId', 'Feeds'], ['remarks', 'Remarks'],
   ['boardId', 'On board'], ['generation', 'Generation (PV / generator)'], ['existing', 'Existing (already installed)'], ['componentId', 'Component'], ['componentValues', 'Component values'], ['fromRoom', 'Standby unit from'],
-  ['manualSize', 'Sizes set by hand'], ['circuitPurpose', 'Circuit purpose'], ['localIsolator', 'Local isolator'], ['rcbo', 'RCBO'], ['rcboKind', 'AFDD + RCBO or RCD add-on'], ['noRcd', 'No RCD (reason)'], ['capSteps', 'Capacitor steps'], ['detunedPct', 'Detuning (%)']
+  ['manualSize', 'Sizes set by hand'], ['circuitPurpose', 'Circuit purpose'], ['localIsolator', 'Local isolator'], ['rcbo', 'RCBO'], ['rcboKind', 'AFDD + RCBO or RCD add-on'], ['rcdType', 'RCD type'], ['noRcd', 'No RCD (reason)'], ['capSteps', 'Capacitor steps'], ['detunedPct', 'Detuning (%)']
 ];
 
 export const BOARD_FIELDS: Fields<Board> = [
   ['name', 'Name'], ['kind', 'Type'], ['upstreamId', 'Fed from'], ['ratedCurrentA', 'Rating (A)'], ['sourceKva', 'Transformer (kVA)'],
   ['sourceImpedancePct', 'Transformer Z (%)'], ['location', 'Location'], ['planPoint', 'Position on the floor plan'], ['pointWatts', 'WATT / UNIT'], ['elcbGroupSize', 'New ELCBs (circuits each)'], ['elcbKeepApart', 'New ELCBs keep lighting and power apart'],
-  ['elcbSensitivityMa', 'ELCB sensitivity'], ['supply', 'Incoming supply'], ['standby', 'Standby generator'], ['level', 'Level'], ['earthRiser', 'Earth riser'],
+  ['elcbSensitivityMa', 'ELCB sensitivity'], ['rcdType', 'RCD type'], ['supply', 'Incoming supply'], ['standby', 'Standby generator'], ['level', 'Level'], ['earthRiser', 'Earth riser'],
   ['sourceXr', 'Transformer X/R'], ['vectorGroup', 'Vector group'], ['protection', 'Incomer protection'], ['upsKva', 'UPS (kVA)'],
   ['busbarMaterial', 'Busbar material'], ['busbarIcwKa', 'Busbar Icw (kA, 1 s)'], ['sections', 'Panel sections'], ['ipRating', 'IP rating'], ['manufacturer', 'Manufacturer'], ['model', 'Model'], ['instruments', 'Instruments on the SLD'], ['incomerDevice', 'Incomer device on the SLD'],
   ['earthing', 'Earth pit detail on the SLD'], ['rmu', 'RMU'], ['spd', 'Surge protection'], ['pmu', 'Power meter (PMU) to BMS'], ['existing', 'Existing (recorded maximum demand)'], ['enclosure', 'Enclosure'], ['form4', 'Form-4 enclosure'], ['substation', 'Substation'],

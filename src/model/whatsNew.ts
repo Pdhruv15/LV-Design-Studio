@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.303', date: '2026-11-25',
+    items: [
+      { title: 'Load schedule: RCD type AC / A / F / B', text: 'Every ELCB and RCBO now has an RCD type. Auto picks Type B when a circuit\'s remarks name an EV charger, a 3-phase drive or PV, Type F for a 1-phase drive, else Type A. Choose a type for the whole DB in the board bar (RCD type), or for one ELCB or RCBO in its dialog. The schedule, PDF, Excel and BOQ show it only when it is not Type A.' }
+    ]
+  },
+  {
     version: '2.298', date: '2026-11-25',
     items: [
       { title: 'Fault points on the SLD', text: 'The SLD tab has a new tool, Fault point, beside Values. Click it, then click a busbar or a cable: a numbered mark (F1, F2…) appears there. A mark on a cable starts at its far end; right-click the circuit → Fault point to move it to the board, a quarter, half or three quarters of the way, or to remove it. Right-click a board → Fault point does the same for its busbar. The marks print on the SLD sheet and go out with the PDF, DXF and DWG.' },
