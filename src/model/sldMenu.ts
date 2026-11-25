@@ -65,7 +65,7 @@ export interface SldMenuState {
 export const SLD_MENU_ACTIONS: readonly string[] = [
   'edit', 'schedule', 'diagram', 'add', 'copy', 'paste', 'duplicate', 'repeat', 'move', 'supplyfrom', 'addupstream', 'connectto', 'moveto', 'order', 'rename', 'cabletype', 'lengthchecked', 'delete', 'plan', 'zoom', 'properties',
   'quickfix', 'editcable', 'change', 'together', 'similar', 'below', 'select', 'deselect', 'txsizing', 'hv', 'addsupply', 'scenario', 'tieop', 'tierating', 'tieremove',
-  'undo', 'redo', 'branch', 'showall', 'fit', 'grid', 'text', 'values', 'colour', 'export', 'part', 'txsubstation', 'txrmu', 'rmuconfig', 'rmunop', 'addtx', 'rmuremove'
+  'undo', 'redo', 'branch', 'showall', 'fit', 'grid', 'text', 'values', 'colour', 'export', 'part', 'txsubstation', 'txrmu', 'rmuconfig', 'rmunop', 'addtx', 'rmuremove', 'faultadd', 'faultat', 'faultremove'
 ];
 
 /** Actions the drawing does itself (its view, its cable editor); the page is not told of them. */
@@ -81,6 +81,22 @@ export const sldAction = (x: CtxItem): [string, string | undefined] => {
 };
 
 const row = (label: string, arg: string, more: Partial<CtxItem> = {}): CtxItem => ({ label, act: 'sld', arg, ...more });
+
+/** Fault point ▸ on a board or a circuit: mark one here, and for each mark already here where along the cable it
+ * sits (a circuit only) and Remove. */
+const FAULT_AT: [string, number][] = [['At the board', 0], ['Quarter way', 0.25], ['Half way', 0.5], ['Three quarters', 0.75], ['Far end', 1]];
+function faultPointList(project: Project, at: { boardId: string } | { feeder: Feeder }): CtxItem {
+  const f = 'feeder' in at ? at.feeder : undefined;
+  const here = (project.faultPoints ?? []).filter((p) => (f ? p.feederId === f.id : !p.feederId && p.boardId === (at as { boardId: string }).boardId));
+  const frac = (d: number | undefined) => (f && f.lengthM > 0 ? (d ?? f.lengthM) / f.lengthM : 1);
+  return {
+    label: 'Fault point', icon: 'status',
+    sub: [row(f ? 'Mark at the far end of the cable' : 'Mark on this busbar', 'faultadd', { icon: 'plus' }),
+      ...here.flatMap((p): (CtxItem | '-')[] => ['-',
+        ...(f ? FAULT_AT.map(([label, k]) => row(`${p.id}: ${label.charAt(0).toLowerCase()}${label.slice(1)}`, `faultat|${p.id}:${k}`, { now: Math.abs(frac(p.distanceM) - k) < 1e-6 })) : []),
+        row(`Remove ${p.id}`, `faultremove|${p.id}`, { icon: 'delete' })])]
+  };
+}
 
 /** The Scenario list: also on a transformer, a bus coupler and the empty drawing. */
 const scenarioList = (s: SldMenuState): CtxItem => ({
@@ -155,6 +171,7 @@ function boardMenu(s: SldMenuState, id: string, where: SldWhere, here?: string) 
         label: 'Change', icon: 'sliders',
         sub: [row('Rename…', 'rename', { icon: 'textcursor' }), ...(cables ? [cables] : []), ...(incomerChecked ? [row('Incomer length checked', 'lengthchecked', { icon: 'status' })] : [])]
       },
+      ...(sys ? [faultPointList(project, { boardId: id })] : []),
       row(`Delete ${id} and everything below…`, 'delete', { key: 'Del', icon: 'delete', bad: true })],
     [...view(id, sys), ...(sys && s.branch !== id ? [row('Show this branch only', 'branch', { icon: 'isolate' })] : [])],
     sys && branchItems(project, id).length ? [row('Select everything below', 'below', { icon: 'similar' })] : [],
@@ -222,7 +239,7 @@ function loadMenu(s: SldMenuState, id: string, where: SldWhere) {
     changeList(project, [f])],
     [row('Copy', 'copy', { key: 'Ctrl+C', icon: 'copy' }), row('Duplicate', 'duplicate', { key: 'Ctrl+D', icon: 'copyplus' }), ...(sys ? [row('Move', 'move', { key: 'M', icon: 'move' }), row('Move to board…', 'moveto', { icon: 'plug' })] : []), orderList(project, { kind: 'feeder', id }, f.boardId), row(`Delete ${id}`, 'delete', { key: 'Del', icon: 'delete', bad: true })],
     view(id, sys),
-    sys ? [similarList(s, f)] : [],
+    sys ? [similarList(s, f), faultPointList(project, { feeder: f })] : [],
     props()
   );
   return { head, items, label: `${id} menu` };
