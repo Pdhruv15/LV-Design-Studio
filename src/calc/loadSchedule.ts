@@ -2,7 +2,7 @@ import { boardOf, feedersOn, memoized } from './network';
 import { recordedPQ } from '../model/existing';
 import { switchedOnBoard } from './capSwitching';
 import { hasRules, resolveRule, type RuleContext } from '../model/designRules';
-import { DEFAULT_POINT_WATTS, LIGHTING_POINTS, POINT_TYPES, pointTemplateOf, settingsOf, type Board, type BoardElcb, type CircuitLoadItem, type Feeder, type LoadType, type Phase, type PointType, type Project } from '../types';
+import { DEFAULT_POINT_WATTS, LIGHTING_POINTS, POINT_TYPES, pointTemplateOf, settingsOf, type Board, type BoardElcb, type CircuitLoadItem, type Feeder, type LoadType, type Phase, type PointType, type Project, type RcdType } from '../types';
 
 export const SINGLE_PHASES: ('R' | 'Y' | 'B')[] = ['R', 'Y', 'B'];
 const PHASE_ORDER: Record<Phase, number> = { R: 0, Y: 1, B: 2, RYB: 3 };
@@ -292,11 +292,14 @@ export type WayKind = CircuitCategory | 'mixed';
  * over its ways; the ways between them are cut into automatic sections of "New ELCBs" ÷ 3 ways (none when the board has
  * no ELCBs). With `kindOf`, an automatic section also ends where the next way's circuits are of another kind. */
 export function elcbSections(board: Board, lastWay: number, kindOf?: (way: number) => WayKind | undefined): { index: number; ways: number[]; elcb?: BoardElcb }[] {
+  const span = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+  // One ELCB at the incomer covers every way the DB has now.
+  const incomer = board.elcbs?.find((h) => h.incomer);
+  if (incomer) return [{ index: 1, ways: span(1, Math.max(lastWay, 1)), elcb: incomer }];
   const hand = [...(board.elcbs ?? [])].sort((a, b) => a.fromWay - b.fromWay);
   const per = (board.elcbGroupSize ?? 6) / 3;
   const last = Math.max(lastWay, ...hand.map((h) => h.toWay));
   const out: { index: number; ways: number[]; elcb?: BoardElcb }[] = [];
-  const span = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
   let way = 1;
   while (way <= last) {
     const h = hand.find((x) => x.fromWay <= way && way <= x.toWay);
@@ -338,6 +341,23 @@ export function elcbSectionsOf(project: Project, board: Board, lastWay: number) 
   });
 }
 
+const RCD_ORDER: Record<RcdType, number> = { AC: 0, A: 1, F: 2, B: 3 };
+/** The type that covers all of them (B covers F, F covers A, A covers AC); Type A when there are none. */
+export const strictestRcdType = (types: RcdType[]): RcdType => types.reduce<RcdType>((m, t) => (RCD_ORDER[t] > RCD_ORDER[m] ? t : m), 'A');
+/** Printed after the poles only when the type is not A, so the usual case prints as before. */
+const typeText = (t: RcdType) => (t === 'A' ? '' : ` Type ${t}`);
+
+/** The RCD type a circuit needs, Auto, from what the schedule knows of it: Type B for an EV charger (named in its remarks),
+ * a 3-phase drive (VFD starter or remarks) or PV; Type F for a 1-phase drive; else Type A. Type AC is never chosen
+ * automatically. An inverter air conditioner cannot be told from its points: choose F for it by hand when its maker asks. */
+export function rcdTypeNeeded(f: Feeder): { type: RcdType; why?: string } {
+  const remarks = f.remarks ?? '';
+  if (/\bEV\b|\bcharg(er|ing)\b|\bEVSE\b/i.test(remarks) || f.loadType === 'ev') return { type: 'B', why: 'EV charger' };
+  if (f.generation || f.loadType === 'pv' || /\b(PV|solar)\b/i.test(remarks)) return { type: 'B', why: 'PV inverter' };
+  if (f.starter === 'VFD' || /\b(VFD|VSD|inverter drive)\b/i.test(remarks)) return f.phase === 'RYB' ? { type: 'B', why: '3-phase drive' } : { type: 'F', why: '1-phase drive' };
+  return { type: 'A' };
+}
+
 export interface ElcbGroup {
   index: number; // 1-based
   ways: number[];
@@ -349,7 +369,12 @@ export interface ElcbGroup {
   sensitivityMa: number;
   poles: 3 | 4;
   byHand?: BoardElcb;
-  label: string; // e.g. "40 A 30 mA 4P"
+  rcdType: RcdType;
+  /** The one ELCB at the DB's incomer (BoardElcb.incomer): over every way, with the RCBO circuits below it. */
+  incomer?: boolean;
+  /** Time-delayed (S-type), so the 30 mA RCBOs below it trip first. */
+  sType: boolean;
+  label: string; // e.g. "40 A 30 mA 4P", "40 A 30 mA 4P Type B" (the type only when it is not A), "100 A 100 mA 4P S-type"
 }
 
 /** IΔn for earth leakage protection over the given circuits: the board's override, else with ELCB rules the most sensitive
@@ -377,9 +402,13 @@ export function elcbGroups(project: Project, board: Board): ElcbGroup[] {
   for (const sec of elcbSectionsOf(project, board, lastWay)) {
     const cs = circuits.filter((f) => sec.ways.includes(f.way!));
     if (!cs.length && !sec.elcb) continue;
+    const incomer = !!sec.elcb?.incomer;
+    // The ELCB at the incomer also carries the RCBO circuits below it (not No RCD ones, which are fed ahead of it).
+    const rcbosBelow = incomer ? all.filter(isRcbo) : [];
+    const carried = [...cs, ...rcbosBelow];
     const phaseKw: PhaseKw = { R: 0, Y: 0, B: 0 };
     const phaseKvar: PhaseKw = { R: 0, Y: 0, B: 0 };
-    for (const f of cs) {
+    for (const f of carried) {
       const kw = f.loadKw * f.demandFactor;
       const pf = Math.min(Math.max(f.powerFactor, 0.01), 1);
       const kvar = kw * Math.tan(Math.acos(pf));
@@ -391,13 +420,21 @@ export function elcbGroups(project: Project, board: Board): ElcbGroup[] {
       }
     }
     const maxPhaseA = Math.max(...SINGLE_PHASES.map((p) => Math.hypot(phaseKw[p], phaseKvar[p]) * 1000 / u0));
-    const ratingA = sec.elcb?.ratingA ?? board.elcbRatingA ?? STANDARD_ELCB_A.find((r) => r >= maxPhaseA) ?? STANDARD_ELCB_A[STANDARD_ELCB_A.length - 1];
+    // At the incomer it is rated for the incomer's breaker too, which protects it.
+    const incomerA = incomer ? project.feeders.find((f) => f.feedsBoardId === board.id && f.boardId === board.upstreamId)?.breakerRatingA ?? board.ratedCurrentA ?? 0 : 0;
+    const needA = Math.max(maxPhaseA, incomerA);
+    const ratingA = sec.elcb?.ratingA ?? board.elcbRatingA ?? STANDARD_ELCB_A.find((r) => r >= needA) ?? STANDARD_ELCB_A[STANDARD_ELCB_A.length - 1];
     const cats = new Set(cs.map(circuitCategory));
     const category: ElcbGroup['category'] = !cs.length ? 'power' : cats.size === 1 ? [...cats][0] : 'mixed';
-    // With ELCB rules, the most sensitive value any circuit in the group needs.
-    const sensitivityMa = sec.elcb?.sensitivityMa ?? sensitivityFor(project, board, cs, category);
+    // With ELCB rules, the most sensitive value any circuit in the group needs. An incomer ELCB over RCBOs alone is 100 mA.
+    const overRcbosAlone = incomer && !cs.length && rcbosBelow.length > 0 && board.elcbSensitivityMa === undefined;
+    const sensitivityMa = sec.elcb?.sensitivityMa ?? (overRcbosAlone ? 100 : sensitivityFor(project, board, cs, category));
     const poles = sec.elcb?.poles ?? 4;
-    groups.push({ index: sec.index, ways: sec.ways, circuits: cs, category, phaseKw, maxPhaseA, ratingA, sensitivityMa, poles, byHand: sec.elcb, label: `${ratingA} A ${sensitivityMa} mA ${poles}P` });
+    const rcdType = sec.elcb?.rcdType ?? board.rcdType ?? strictestRcdType(carried.map((c) => rcdTypeNeeded(c).type));
+    // Auto S-type: an incomer ELCB with RCBOs of a lower IΔn below it waits for them to trip first.
+    const sType = sec.elcb?.sType ?? rcbosBelow.some((f) => (f.rcdMa ?? sensitivityFor(project, board, [f], circuitCategory(f))) < sensitivityMa);
+    groups.push({ index: sec.index, ways: sec.ways, circuits: cs, category, phaseKw, maxPhaseA, ratingA, sensitivityMa, poles, byHand: sec.elcb, rcdType, incomer: incomer || undefined, sType,
+      label: `${ratingA} A ${sensitivityMa} mA ${poles}P${typeText(rcdType)}${sType ? ' S-type' : ''}` });
   }
   return groups;
 }
@@ -423,12 +460,12 @@ export const rcboKindOf = (f: Feeder): RcboKind => f.rcboKind ?? 'rcbo';
 /** How each kind is named on the schedule and in messages. */
 export const RCBO_KIND_TEXT: Record<RcboKind, string> = { rcbo: 'RCBO', afdd: 'AFDD + RCBO', addon: 'MCB + RCD add-on block' };
 
-export interface Rcbo { index: number; name: string; kind: RcboKind; circuit: Feeder; ratingA: number; sensitivityMa: number; label: string }
+export interface Rcbo { index: number; name: string; kind: RcboKind; circuit: Feeder; ratingA: number; sensitivityMa: number; rcdType: RcdType; label: string }
 
 /** The board's circuits with an earth leakage device of their own, in way order (then R, Y, B): RCBOs and AFDD + RCBOs
  * numbered RCBO-1, 2, …, MCBs with an RCD add-on block RCD-1, 2, …. Rated as the circuit's breaker, IΔn as chosen
  * (rcdMa) else as an ELCB over that circuit would be. Printed 2P (1P+N), or 4P (3P+N) on a 3-phase circuit:
- * "20 A 30 mA 2P", "20 A 30 mA 2P + AFDD", "20 A 30 mA 2P add-on". */
+ * "20 A 30 mA 2P", "20 A 30 mA 2P + AFDD", "20 A 30 mA 2P add-on", with " Type B" after the poles when the type is not A. */
 export function rcbosOf(project: Project, board: Board): Rcbo[] {
   let rcbos = 0, addons = 0;
   return scheduleCircuits(project, board.id).filter(isRcbo).map((f) => {
@@ -436,8 +473,9 @@ export function rcbosOf(project: Project, board: Board): Rcbo[] {
     const index = kind === 'addon' ? ++addons : ++rcbos;
     const ratingA = f.breakerRatingA;
     const sensitivityMa = f.rcdMa ?? sensitivityFor(project, board, [f], circuitCategory(f));
-    const base = `${ratingA} A ${sensitivityMa} mA ${f.phase === 'RYB' ? '4P' : '2P'}`;
+    const rcdType = f.rcdType ?? board.rcdType ?? rcdTypeNeeded(f).type;
+    const base = `${ratingA} A ${sensitivityMa} mA ${f.phase === 'RYB' ? '4P' : '2P'}${typeText(rcdType)}`;
     const label = kind === 'afdd' ? `${base} + AFDD` : kind === 'addon' ? `${base} add-on` : base;
-    return { index, name: `${kind === 'addon' ? 'RCD' : 'RCBO'}-${index}`, kind, circuit: f, ratingA, sensitivityMa, label };
+    return { index, name: `${kind === 'addon' ? 'RCD' : 'RCBO'}-${index}`, kind, circuit: f, ratingA, sensitivityMa, rcdType, label };
   });
 }

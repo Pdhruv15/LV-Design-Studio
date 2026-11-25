@@ -170,6 +170,15 @@ export const SPD_TYPES: { value: SpdType; label: string }[] = [
 ];
 /** Earth leakage sensitivities (mA). */
 export const RCD_MA = [10, 30, 100, 300, 500];
+/** RCD types by the residual currents they detect: AC (sine only), A (+ pulsating DC), F (+ mixed frequencies, 1-phase
+ * drives), B (+ smooth DC: EV chargers, 3-phase drives, PV inverters). Each covers the ones before it. */
+export type RcdType = 'AC' | 'A' | 'F' | 'B';
+export const RCD_TYPES: { value: RcdType; label: string }[] = [
+  { value: 'AC', label: 'Type AC (plain AC loads only)' },
+  { value: 'A', label: 'Type A (general circuits)' },
+  { value: 'F', label: 'Type F (1-phase drives, inverter units)' },
+  { value: 'B', label: 'Type B (EV chargers, 3-phase drives, PV)' }
+];
 
 /** Switching device column of the connected load / MD form. */
 export type IncomerDevice = 'MCCB' | 'MCCB-NA' | 'ISOL' | 'ACB' | 'NONE';
@@ -289,6 +298,7 @@ export interface Feeder {
   circuitPurpose?: 'sockets' | 'fixed';
   rcdMa?: number; // earth leakage protection (RCD / ELCB / RCBO) on this feeder, IΔn in mA
   rcbo?: boolean; // DB circuit: the breaker is an RCBO instead of an MCB; it leaves the ELCB of its ways (IΔn = rcdMa, else Auto); 2P on a 1-phase circuit, 4P on a 3-phase one
+  rcdType?: RcdType; // DB circuit with an earth leakage device of its own (RCBO, AFDD + RCBO, add-on block): its RCD type; unset = the board's, else Auto
   rcboKind?: 'afdd' | 'addon'; // with rcbo: 'afdd' = AFDD + RCBO (arc fault detection, IEC 62606; 1-phase), 'addon' = the MCB kept with an RCD add-on block; unset = an RCBO
   noRcd?: string; // DB circuit: no earth leakage device on purpose, and why (fire alarm panel, life safety); it leaves the ELCB of its ways
   localIsolator?: boolean; // isolator at the equipment end (e.g. AC unit, pump)
@@ -524,15 +534,20 @@ export interface Board {
   elcbGroupSize?: 0 | 3 | 6 | 9 | 12; // "New ELCBs": circuits per ELCB on ways with no ELCB of their own (3 = one per way … 12 = one per four ways), 0 = none
   elcbRatingA?: number; // override; default from the group's load
   elcbSensitivityMa?: number; // override; default by circuit type (lighting 100 mA, power 30 mA)
+  rcdType?: RcdType; // RCD type of the board's ELCBs and RCBOs that have none of their own; unset = Auto (from their circuits)
   /** ELCBs of their own over whole ways (placed, resized or edited by the user); the "New ELCBs" size covers the ways between them. */
   elcbs?: BoardElcb[];
   /** Ways with no ELCB of their own are also cut where lighting and power circuits meet, so a new ELCB never mixes them.
    * Set when the DB's ELCBs are first changed (nothing on the schedule moves then) and by Re-group all ELCBs. */
   elcbKeepApart?: boolean;
+  /** "RCBO on every circuit" (Re-group): circuits added later get an RCBO too. Cleared by another Re-group or New ELCBs size. */
+  rcboEveryCircuit?: boolean;
 }
 
-/** An ELCB (RCCB) placed by hand over whole ways of a DB (R, Y and B of each way). */
-export interface BoardElcb { id: string; fromWay: number; toWay: number; poles?: 3 | 4; ratingA?: number; sensitivityMa?: number }
+/** An ELCB (RCCB) placed by hand over whole ways of a DB (R, Y and B of each way). With `incomer` it is the one ELCB at
+ * the DB's incomer: it covers every way (ways added later too) and the RCBOs below it; `sType` makes it time-delayed
+ * (S-type), unset = Auto (S-type when RCBOs of a lower IΔn sit below it). */
+export interface BoardElcb { id: string; fromWay: number; toWay: number; poles?: 3 | 4; ratingA?: number; sensitivityMa?: number; rcdType?: RcdType; incomer?: true; sType?: boolean }
 
 /** One CAD block name → the library item (Loads.xlsx reference) it is, and how many it counts as (twin socket: 2). */
 export interface CadBlockMap { block: string; reference: string; per?: number }
