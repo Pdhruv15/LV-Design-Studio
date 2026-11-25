@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.302', date: '2026-11-25',
+    items: [
+      { title: 'Fill room and Light room: all rooms like this', text: "Both tools now have Rooms: This room, Same type, Whole level. Fill room then places the ELV device in every room of that type on the level, or in every room, with one click; Light room works out each room for its own outline and puts each room's lights on one circuit, going on to the next lighting circuit with room when one is full. Rooms that fit on no circuit are listed and left out. One undo step; up to 40 rooms and 400 ELV devices a run.", action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.301', date: '2026-11-25',
     items: [
       { title: 'Design CAD: Check level', text: 'Level → Check level (CHK) lists what to look at on the level showing: rooms short of lights by the lumen method or with none, rooms with no socket, circuits over the most the Rules sheet allows, devices on a removed circuit or outside every room, ELV coverage gaps by system and boards not yet on the plan, with the counts by type. Click a line to go there; some lines open Light room or Coverage. It is worked out when you ask, and Check again repeats it.', action: 'cad', actionLabel: 'Open Design CAD' }

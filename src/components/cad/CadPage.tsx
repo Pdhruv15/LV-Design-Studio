@@ -60,7 +60,7 @@ import { routeSettings, sizeRoute, trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
 import { ELV_PALETTE, elvPlacedOn, elvSystemOf, isElvType, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
-import { canFill, copyTo, coverageGaps, coverageNote, elvLayer, fillAt, rotate as rotateElv, SYSTEM_LABEL } from '../../components/elv/elvPlan';
+import { canFill, copyTo, coverageGaps, coverageNote, elvLayer, fillAt, fillRooms, rotate as rotateElv, SYSTEM_LABEL } from '../../components/elv/elvPlan';
 import { safeFileName, saveBinary, saveBinaryAt, savePdf, saveText } from '../../util/files';
 import { angleDeg, areaOf, boxOf, distance, inside, m, m2, roomAround, segmentsOn } from '../../model/cadMeasure';
 import { layerMapFor, layersWith, roomsFromPlan, withLayerMap } from '../../model/cadRooms';
@@ -121,6 +121,8 @@ import { exportDrawingSet } from '../docs/sheetRender';
 import { pickedRoom, putRooms, renameRoom, setRoomType } from '../../model/floorPlanActions';
 import { floorLabel, floorList, type Floor } from '../../model/levels';
 import { circuitRoom, nextWithRoom, pointMax } from '../../model/circuitRoom';
+import { planRoomLights, ROOM_SCOPE_MAX, roomsInScope, scopeCounts, type RoomScope } from '../../model/roomScope';
+import RoomScopeButtons from './RoomScopeButtons';
 import CircuitPicker from './CircuitPicker';
 import type { CadLayerMap, CadLayerRole, Project } from '../../types';
 import { fmtFixed, fmtUpTo } from '../../util/format';
@@ -437,6 +439,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // Light room (LUX): the room kept (its lights stay previewed while the panel is edited) and the panel's settings.
   const [luxRoom, setLuxRoom] = useState<string | null>(null);
   const [luxSet, setLuxSet] = useState<LuxSettings>(LUX_START);
+  // All rooms like this: the rooms one run of Fill room or Light room takes; kept when the tool is left.
+  const [roomScope, setRoomScope] = useState<RoomScope>('room');
   // Room devices (RDT): one selected room and one bounded, session-only preview. Only approval writes device points.
   const [roomTemplateRoom, setRoomTemplateRoom] = useState<string | null>(null);
   const [roomTemplateKind, setRoomTemplateKind] = useState<RoomDeviceTemplateKind>('office');
@@ -899,11 +903,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const elvItem = ELV_PALETTE.find((e) => e.id === cad.device);
   const elvSystem = elvSystemOf(elvItem?.kind.elv ?? 'smoke-detector');
   const fillItem = ELV_PALETTE.find((e) => e.id === cad.fillDevice) ?? ELV_PALETTE[0];
-  const fillRoom = tool === 'fill' && cursor.at && floor ? roomAtPointOf(project, floor, cursor.at, units.factor)?.id : undefined;
+  const fillRoomOf = tool === 'fill' && cursor.at && floor ? roomAtPointOf(project, floor, cursor.at, units.factor) : undefined;
+  const fillRoom = fillRoomOf?.id;
   const elv = useMemo(() => (floor && (cad.coverage || fillRoom) ? elvLayer(project, { building: floor.ref.building, level: floor.ref.level }, units.factor, {
     system: cad.coverage ? cad.coverageSystem : elvSystemOf(fillItem.kind.elv), coverage: cad.coverage, selected: null,
-    ...(fillRoom && cursor.at ? { preview: { type: fillItem.kind.elv, at: [cursor.at[0] * units.factor, cursor.at[1] * units.factor] as Pt } } : {})
-  }) : undefined), [project, floor?.key, cad.coverageSystem, cad.coverage, fillRoom, fillItem.id, units.factor]); // eslint-disable-line react-hooks/exhaustive-deps -- the preview follows the room under the pointer, not every move
+    ...(fillRoom && cursor.at ? { preview: { type: fillItem.kind.elv, at: [cursor.at[0] * units.factor, cursor.at[1] * units.factor] as Pt, ...(fillRoomOf && roomScope !== 'room' ? { rooms: roomsInScope(project, fillRoomOf, roomScope).rooms.map((r) => r.outline!) } : {}) } } : {})
+  }) : undefined), [project, floor?.key, cad.coverageSystem, cad.coverage, fillRoom, roomScope, fillItem.id, units.factor]); // eslint-disable-line react-hooks/exhaustive-deps -- the preview follows the room under the pointer, not every move
   const notCovered = elv ? elv.coverage.filter((c) => c.gaps.length).length : 0;
   const cableLabels = useMemo(() => Object.fromEntries(sketch.filter((it) => it.cable).map((it) => {
     const f = project.feeders.find((x) => x.id === it.cable!.feederId);
@@ -932,6 +937,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const luxHover = tool === 'lux' && !luxRoom && cursor.at && floor ? roomAtPointOf(project, floor, cursor.at, units.factor)?.id : undefined;
   const luxOf = tool === 'lux' ? buildingInfoOf(project).rooms.find((r) => r.id === (luxRoom ?? luxHover)) : undefined;
   const lit = useMemo(() => (luxOf ? lightingOf(project, luxOf, luxSet) : undefined), [project, luxOf?.id, luxSet]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the room, not every pointer move
+  // All rooms like this for Light room: each room worked out for its own outline, its lights on one circuit.
+  const luxPlan = useMemo(() => (luxOf && roomScope !== 'room' ? planRoomLights(circuits, cad.feederId, roomsInScope(project, luxOf, roomScope).rooms, (room) => {
+    const r = lightingOf(project, room, room.id === luxOf.id ? luxSet : { ...luxSet, lux: undefined, ceil: undefined, wp: undefined });
+    return r.result.invalid || !r.result.count ? undefined : { points: r.result.points, lux: r.result.achievedLux };
+  }) : undefined), [project, luxOf?.id, luxSet, roomScope, circuits, cad.feederId]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the room, not every pointer move
   // Room template: calculate only the selected service scope, one room, with hard point limits in both helpers.
   const roomTemplateOf = tool === 'roomtemplate' ? buildingInfoOf(project).rooms.find((r) => r.id === roomTemplateRoom) : undefined;
   const lvRoomTemplate = useMemo(() => (roomTemplateOf && roomTemplateScope !== 'elv' ? proposeLvRoomTemplate(project, roomTemplateOf, roomTemplateKind) : undefined), [project, roomTemplateOf?.id, roomTemplateKind, roomTemplateScope]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the selected room
@@ -984,7 +994,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const emRoutes: SketchItem[] = tool !== 'em' ? [] : em.routes.map((r, i) => ({ id: `_em${i}`, layer: '', kind: 'pline', pts: r.map(([x, y]): Pt => [x / units.factor, y / units.factor]) }));
   const ghosts: CanvasDevice[] = [
     ...(elv?.symbols ?? []).filter((x) => x.ghost).map((x, i) => ({ key: `ghost${i}`, x: x.at[0], y: x.at[1], r: rUnits, shape: x.shape, text: x.text, label: '', elv: true, ghost: true })),
-    ...(lit?.result.points ?? []).map(([x, y], i) => ({ key: `lux${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: 'cross', text: '', label: '', ghost: true })),
+    ...(luxPlan ? luxPlan.rows.filter((r) => r.feederId).flatMap((r) => r.points) : lit?.result.points ?? []).map(([x, y], i) => ({ key: `lux${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: 'cross', text: '', label: '', ghost: true })),
     ...roomTemplateGhosts,
     ...emGhosts,
     ...arlAt.map(([x, y], i) => ({ key: `arl${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: arlItem?.symbol.shape ?? 'cross', text: arlItem?.symbol.text ?? '', label: '', ghost: true }))
@@ -1991,6 +2001,16 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   function placeLux() {
     if (!floor || !luxOf || !lit) return;
     try {
+      if (luxPlan) {
+        const got = luxPlan.rows.filter((r) => r.feederId);
+        if (!got.length) { cad.say(`LUX  No room could be lit: ${luxPlan.rows[0]?.why ?? 'no room'}`); return; }
+        let next = project;
+        for (const row of got) next = placeRoomLights(next, floor.ref, row.room.id, row.feederId!, row.points, luxSet.replace, lit.luminaire).project;
+        const out = luxPlan.rows.length - got.length;
+        change(next, `${luxPlan.lights} light${luxPlan.lights === 1 ? '' : 's'} placed in ${got.length} room${got.length === 1 ? '' : 's'} on ${luxPlan.circuits.length} circuit${luxPlan.circuits.length === 1 ? '' : 's'}${out ? ` — ${out} room${out === 1 ? '' : 's'} left out` : ''} · ⌘Z to undo`);
+        setLuxRoom(null);
+        return;
+      }
       const r = placeRoomLights(project, floor.ref, luxOf.id, cad.feederId, lit.result.points, luxSet.replace, lit.luminaire);
       const f = project.feeders.find((x) => x.id === cad.feederId)!;
       change(r.project, `${r.ids.length} light${r.ids.length === 1 ? '' : 's'} placed in ${luxOf.name} on ${circuitLabel(project, f).split(' · ')[0]} — ${Math.round(lit.result.achievedLux)} lx${r.removed ? ` (${r.removed} taken off first)` : ''} · ⌘Z to undo`);
@@ -3878,7 +3898,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       wireOne(at, pixel);
     } else if (tool === 'fill') {
       if (!floor) { cad.say('FILL  Add the building and its levels in Building information first.'); return; }
-      const r = fillAt(project, { building: floor.ref.building, level: floor.ref.level }, fillItem.kind.elv, [at[0] * units.factor, at[1] * units.factor]);
+      const level = { building: floor.ref.building, level: floor.ref.level }, here = roomAtPointOf(project, floor, at, units.factor);
+      if (here && roomScope !== 'room') {
+        const { rooms, left } = roomsInScope(project, here, roomScope);
+        const r = fillRooms(project, level, fillItem.kind.elv, rooms.map((x) => ({ name: x.name, outline: x.outline! })));
+        const message = left ? r.message.replace(' · ⌘Z to undo', ` — ${left} more over ${ROOM_SCOPE_MAX} rooms a run · ⌘Z to undo`) : r.message;
+        if (r.next) change(r.next, message); else cad.say(`FILL  ${message}`);
+        return;
+      }
+      const r = fillAt(project, level, fillItem.kind.elv, [at[0] * units.factor, at[1] * units.factor]);
       if (r.next) change(r.next, r.message); else cad.say(`FILL  ${r.message}`);
     } else if (tool === 'lux') {
       if (!floor) { cad.say('LUX  Add the building and its levels in Building information first.'); return; }
@@ -5332,7 +5360,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             </>
           )}
           {tool === 'lux' && view && (
-            <RoomLightingPanel project={project} room={luxOf} lit={lit} settings={luxSet} onSettings={setLuxSet} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId} onPlace={placeLux} onCancel={() => { setLuxRoom(null); cad.say(`Command: ${PROMPT.lux}`); }} />
+            <RoomLightingPanel project={project} room={luxOf} lit={lit} settings={luxSet} onSettings={setLuxSet} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId} onPlace={placeLux} scope={roomScope} onScope={setRoomScope} counts={luxOf ? scopeCounts(project, luxOf) : undefined} plan={luxPlan} levelName={floor ? floorLabel(project.building, floor) : undefined} typeLabel={luxOf ? roomTypesOf(buildingInfoOf(project)).find((t) => t.id === luxOf.type)?.label : undefined} onCancel={() => { setLuxRoom(null); cad.say(`Command: ${PROMPT.lux}`); }} />
           )}
           {tool === 'roomtemplate' && view && (
             <RoomDeviceTemplatePanel project={project} room={roomTemplateOf} kind={roomTemplateKind} onKind={setRoomTemplateKind} scope={roomTemplateScope} onScope={setRoomTemplateScope}
@@ -5378,6 +5406,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               <div className="cad-devform">
                 {floors.length > 0 && (
                   <label>This drawing shows<select aria-label="Level of this drawing" value={floor?.key} onChange={(e) => { const f = floors.find((x) => x.key === e.target.value); if (f && view) setPlanLevel(project, view.file, f, change, view.info.units); }}>{floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}</select></label>
+                )}
+                {tool === 'fill' && (
+                  <div className="cad-scope-wrap"><span>Rooms</span><RoomScopeButtons scope={roomScope} onScope={setRoomScope} counts={fillRoomOf ? scopeCounts(project, fillRoomOf) : undefined} /></div>
                 )}
                 {('lv' in item.kind || ('acc' in item.kind && item.kind.circuit)) && (
                   <div className="cad-cir-wrap"><span>Circuit</span><CircuitPicker project={project} circuits={circuits} value={cad.feederId} onChange={cad.setFeederId} placing={devType} level={floor?.ref} /></div>

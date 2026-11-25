@@ -1,6 +1,6 @@
 # UI UX proposal – Design CAD Devices tools (2026-11-23)
 
-Status: **approved 2026-11-23** ("go with recommendation": decisions A–F as recommended). Built so far: steps 1 (v2.275), 2 (v2.291) and 3 (v2.301); step 4 is next.
+Status: **approved 2026-11-23** ("go with recommendation": decisions A–F as recommended). Built so far: steps 1 (v2.275), 2 (v2.291) 3 (v2.301) and 4 for Fill room and Light room (v2.302); Room devices in step 4, then step 5, are next.
 
 Mockup: `docs/mockups/cad-devices-panel-mockup.html` (image: `cad-devices-panel-mockup.png`).
 
@@ -46,7 +46,7 @@ Two panels in place of one. The three main tools stay large, named and in the sa
 1. **Device gallery** on the Add device arrow: Find, the six devices used last, then the same groups as the side panel. The side-panel list stays as it is.
 2. **Circuit list with the room left**, in the Add device panel: the boards of this level first, each circuit with its points against the Rules-sheet maximum ("7 / 10"), a filter, full circuits marked. When the circuit in use fills up, the command line names the next circuit with room, and Tab takes it. A warning, not a stop, as today.
 3. **Socket room (SOCK)**: point at a room; sockets along its walls at the spacing typed, each turned to face into the room (right angles, as the saved rotation allows). Click a wall to leave it out, click a socket to take it off, then Place. The circuits used show before placing; a full circuit is skipped.
-4. **All rooms like this**, in Light room, Socket room, Fill room and Room devices: This room · Same type on the level · Whole level. Each room is worked out for its own outline. Lights and sockets go on to the next circuit with room at the Rules-sheet maximum. One undo step, and a fixed limit of rooms and points a run, in keeping with the limits of Room devices.
+4. **All rooms like this**, in Light room, Socket room, Fill room and Room devices: This room · Same type on the level · Whole level. Each room is worked out for its own outline. Lights and sockets go on to the next circuit with room at the Rules-sheet maximum. One undo step, and a fixed limit of rooms and points a run, in keeping with the limits of Room devices. **Built for Fill room and Light room (v2.302).** Each room's lights go on one circuit (a room is not split over two); a room that fits on none is listed and left out. Room devices still takes one room per run.
 5. **Check level (CHK)**: one list for the level, worked out on demand. Rooms short of lights by the lumen method or with none, rooms with no socket, circuits over the Rules-sheet maximum, devices on a removed circuit, devices outside every room, ELV coverage gaps by system, boards of the level not on the plan, and the counts by type. A line goes to its place on the plan; some lines open the tool that fixes them.
 6. **Copy to levels** for lights, sockets and switches too: choose what to copy and to which levels; for each board of this level choose the board on the other level. A device goes on the same way of that board and counts on that circuit. Devices whose way is missing are listed and left out.
 
