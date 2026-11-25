@@ -22,7 +22,7 @@ export default function ProjectDetailsDialog({ file, project, onSave, onCancel }
         <label>Plot no.<input value={d.plotNo} onChange={(e) => up('plotNo', e.target.value)} /></label>
         <label>Area<input value={d.area} onChange={(e) => up('area', e.target.value)} placeholder="e.g. VILLA, UAE" /></label>
       </div>
-      <label>Tags <span className="m">(comma separated, for finding projects)</span><input value={d.tags} onChange={(e) => up('tags', e.target.value)} placeholder="villa, DEWA, 2026" /></label>
+      <label>Tags <span className="m">(comma separated, for finding projects)</span><input value={d.tags} onChange={(e) => up('tags', e.target.value)} placeholder="villa, 2026" /></label>
       <label>Notes<textarea rows={3} value={d.notes} onChange={(e) => up('notes', e.target.value)} /></label>
       <p className="m">File: {file} · created {created}{project.origin?.copiedFromName ? ` · copied from ${project.origin.copiedFromName}` : ''}. The file name stays the same when a project is renamed.</p>
       <div className="modal-actions"><span className="sp" /><button type="button" className="chip" onClick={onCancel}>Cancel</button><button type="submit" className="chip primary" disabled={!d.name.trim()}>Save details</button></div>

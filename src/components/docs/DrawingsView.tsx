@@ -372,7 +372,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
               <label>Checked by{txt(pp.checkedBy ?? d.checkedBy, (v) => setPerson('checkedBy', v))}</label>
               <label>Approved by{txt(pp.approvedBy ?? d.approvedBy, (v) => setPerson('approvedBy', v))}</label>
               <label>Submission date{txt(pp.submissionDate, (v) => setParam('submissionDate', v), 'e.g. 15 Oct 2026')}</label>
-              <label>Authority ref.{txt(pp.authorityRef, (v) => setParam('authorityRef', v), 'DEWA / DM reference')}</label>
+              <label>Authority ref.{txt(pp.authorityRef, (v) => setParam('authorityRef', v), 'Authority / municipality reference')}</label>
             </div>
             <div className="dr-line">
               <span>Project revision: <b>{rev ? `${rev.id} — ${fmtDate(rev.date)}` : 'not issued'}</b> <button className="linkish" onClick={() => onOpen('revisions')}>Revisions…</button></span>

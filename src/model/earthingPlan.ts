@@ -3,6 +3,7 @@ import { mainBoards, txTag } from './transformers';
 import { sizesOf, sizeTransformers, txGenPlanOf } from '../calc/txGen';
 import { perProject } from '../calc/network';
 import { lightningProtection } from '../calc/lightningProtection';
+import { supplyMode } from '../diagram/supplyPoint';
 
 /** Transformers on each main board, as the transformer sizing shows them: 2 when two are planned
  * (N+1, each for the whole load), n when the load is split over n of the largest size, else 1.
@@ -117,7 +118,7 @@ function equipmentOf(project: Project): Omit<EarthItem, 'pits' | 'linked'>[] {
       }
     }
     const gLv = lv.filter((b) => subOf(b) === g);
-    for (const b of gLv) out.push({ key: `lv:${b.id}`, kind: 'lv', group: g, equipment: b.id, point: 'Main earth bar (MET)', defaultPits: lv.length === 1 ? 2 : 1 });
+    for (const b of gLv) out.push({ key: `lv:${b.id}`, kind: 'lv', group: g, equipment: b.id, point: 'Main earth bar (MET)', defaultPits: supplyMode(b) === 'board' && b.earthing?.show !== true ? 0 : lv.length === 1 ? 2 : 1 });
     // SMDBs may have their own pits where the design asks for it (none by default).
     for (const b of project.boards.filter((x) => (x.kind === 'SMDB' || x.kind === 'ESMDB') && gLv.some((m) => m.id === mainOfId(project, x.id)))) out.push({ key: `sub:${b.id}`, kind: 'sub', group: g, equipment: b.id, point: 'Earth bar', defaultPits: 0 });
   }
@@ -225,7 +226,7 @@ export function earthingLayout(project: Project): EarthLayout {
     if (n > 2) checks.push({ level: 'bad', text: `${r.equipment} feeds ${n} transformers — an RMU feeds at most 2` });
   }
   const lv = items.filter((i) => i.kind === 'lv');
-  if (lv.length === 1 && lv[0].pits < 2) checks.push({ level: 'warn', text: `${lv[0].equipment} is the only main board: DEWA asks for 2 pits` });
+  if (lv.length === 1 && lv[0].pits < 2) checks.push({ level: 'warn', text: `${lv[0].equipment} is the only main board: the utility usually asks for 2 pits` });
   const multi = new Set(items.map((i) => i.group)).size > 1;
   for (const net of nets) {
     const k = kindInfo(net.kind);

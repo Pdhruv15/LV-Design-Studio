@@ -854,7 +854,7 @@ export type ProjectStatus = 'design' | 'review' | 'submitted' | 'comments' | 'ap
 export const PROJECT_STATUSES: { value: ProjectStatus; label: string }[] = [
   { value: 'design', label: 'Design' },
   { value: 'review', label: 'Internal review' },
-  { value: 'submitted', label: 'Submitted (DEWA / DM)' },
+  { value: 'submitted', label: 'Submitted (authority / municipality)' },
   { value: 'comments', label: 'Comments to address' },
   { value: 'approved', label: 'Approved' },
   { value: 'ifc', label: 'Issued for construction' },

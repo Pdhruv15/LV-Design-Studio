@@ -408,3 +408,19 @@ describe('Add upstream board: a source with its rating typed', () => {
     expect(upstreamPlan(pv, 'DB-1').lines).toContain('The given values (100 kVA, fault current 1.5 × rated) move to the new board.');
   });
 });
+
+describe('Add upstream board: a first board fed from outside has no earth pits by default', () => {
+  it('none before, none on the new first board; a source or transformer there gets the usual pits', () => {
+    const p0 = { ...outside(), earthingPlan: {} };
+    const lvPits = (q: Project) => earthingLayout(q).pits.filter((x) => x.kind === 'lv').length;
+    expect(lvPits(p0)).toBe(0);
+    const r = addUpstreamBoard(p0, 'DB-1');
+    expect(firsts(r.project)).toEqual([r.select!.id]);
+    expect(lvPits(r.project)).toBe(0);
+    expect(buildBom(r.project).some((i) => i.key.startsWith('earth-pit') || i.key.startsWith('met:'))).toBe(false);
+    expect(Object.keys(r.project.earthPitIds ?? {}).filter((k) => k.startsWith('lv:'))).toEqual([]);
+    const top = r.select!.id;
+    const asSource = { ...r.project, boards: r.project.boards.map((b) => (b.id === top ? { ...b, supply: { fedBy: 'source' as const } } : b)) };
+    expect(lvPits(asSource)).toBe(2);
+  });
+});

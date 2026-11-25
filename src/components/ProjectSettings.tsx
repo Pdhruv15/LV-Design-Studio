@@ -165,7 +165,7 @@ export default function ProjectSettings({ project, onSave, onClose }: { project:
       </div>
       <p className="m">
         Calculations follow IEC 60364 (cable sizing, protection, earthing) and a simplified, preliminary IEC 60909-based fault-level method (c max = 1.05, cable R at 20 °C, infinite MV source — not a full IEC 60909 study). Set the voltage
-        drop limit and ambient to your authority's requirements (e.g. DEWA).
+        drop limit and ambient to your authority's requirements.
         {' '}{p.designReference
           ? <>Design reference: <b>{p.designReference.name}</b> version {p.designReference.version} (Standards → Design references).</>
           : <>Or apply a design reference (DEWA, IEC, BS 7671, ADDC, EtihadWE or your own) from Standards → Design references.</>}

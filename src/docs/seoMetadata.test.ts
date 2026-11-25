@@ -45,4 +45,13 @@ describe('public site discovery metadata', () => {
     expect(about).toContain("script-src 'none'");
     expect(download).toContain("script-src 'none'");
   });
+
+  it('thanks the open-source projects used by the application', () => {
+    expect(about).toContain('Thank you, open source');
+    for (const project of ['Electron', 'React', 'OpenDSSDirect.py', 'pandapower', 'acadrust', 'ExcelJS', 'docx', 'pdf-lib', 'PDF.js', 'JSZip', 'DOMPurify', 'Lucide', 'Model Context Protocol SDK', 'Zod', 'xmldom']) {
+      expect(about).toContain(`>${project}</a>`);
+    }
+    expect(about).toContain('/blob/main/NOTICE.md');
+    expect(about).toContain('href="../third-party-licences.md"');
+  });
 });

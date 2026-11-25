@@ -20,7 +20,7 @@ export const PEOPLE: { key: keyof ProjectParams; name: string; hint: string }[] 
   { key: 'checkedBy', name: 'CheckedBy', hint: '' },
   { key: 'approvedBy', name: 'ApprovedBy', hint: '' },
   { key: 'submissionDate', name: 'SubmissionDate', hint: 'e.g. 15 Oct 2026' },
-  { key: 'authorityRef', name: 'AuthorityRef', hint: 'DEWA / DM reference' },
+  { key: 'authorityRef', name: 'AuthorityRef', hint: 'Authority / municipality reference' },
   { key: 'discipline', name: 'Discipline', hint: 'e.g. ELECTRICAL' }
 ];
 

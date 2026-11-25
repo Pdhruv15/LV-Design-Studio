@@ -14,7 +14,7 @@ export const SUB_STATUS: Record<SubStatus, string> = {
 export const SUB_KINDS = ['BOQ', 'Drawings', 'Report', 'Variation', 'Schedule', 'Forms', 'Other'] as const;
 export type SubKind = (typeof SUB_KINDS)[number];
 export const PURPOSES = ['For approval', 'For review', 'For tender', 'For construction', 'For information', 'For record'];
-export const RECIPIENTS = ['Client', 'Consultant', 'Authority (DEWA)', 'Main contractor'];
+export const RECIPIENTS = ['Client', 'Consultant', 'Authority', 'Main contractor'];
 
 export interface SubDoc { number: string; title: string; rev: string; format?: string; copies?: number }
 export interface SubComment { id: string; from?: string; text: string; action?: string; closed?: string /* YYYY-MM-DD */ }
