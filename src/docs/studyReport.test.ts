@@ -85,3 +85,16 @@ describe('report scope is explicit', () => {
     expect(missingBoards(sampleProject, ['MDB-1', 'GONE'])).toEqual(['GONE']);
   });
 });
+
+describe('short circuit report in per unit', () => {
+  const sc = buildSection('sc', data, scopeOf(sampleProject, { boards: [], downstream: true }));
+  it('names the base power as a plain number in the table title and the method line', () => {
+    expect(sc.tables.map((t) => t.title)).toContain('Impedance data in per unit — base 100 MVA');
+    expect(sc.tables.map((t) => t.title)).toContain('Fault at the busbars in per unit');
+    expect(sc.method.some((m) => m.startsWith(`Per-unit tables: base 100 MVA; at ${sampleProject.voltageV} V the base current is `))).toBe(true);
+  });
+  it('gives every board the Ik″ of the busbar table', () => {
+    const pu = sc.tables.find((t) => t.title === 'Fault at the busbars in per unit')!, ohm = sc.tables.find((t) => t.title === 'Fault levels at the busbars')!;
+    expect(pu.rows.map((r) => [r[0], r[6]])).toEqual(ohm.rows.map((r) => [r[0], r[4]]));
+  });
+});
