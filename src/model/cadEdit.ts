@@ -470,7 +470,9 @@ export function mirrored(it: SketchItem, a: Pt, b: Pt): Omit<SketchItem, 'id'> {
   if (it.kind === 'arc') { const th = Math.atan2(b[1] - a[1], b[0] - a[0]); return { ...rest, pts, a0: 2 * th - (it.a1 ?? 0), a1: 2 * th - (it.a0 ?? 0) }; }
   // An ellipse's axis is a direction: mirrored as one.
   if (it.kind === 'ellipse' && it.ax) return { ...rest, pts, ax: sub(reflect(add(it.pts[0], it.ax), a, b), pts[0]) };
-  // A linear dimension's line is a direction too; an insert turns to face the mirror (its block is not flipped).
+  // A linear dimension's line is a direction too, and so is a dimension's turned text (kept reading from the bottom or
+  // the right); an insert turns to face the mirror (its block is not flipped).
+  if (it.kind === 'dim' && it.rot !== undefined) { let r = 2 * Math.atan2(b[1] - a[1], b[0] - a[0]) - it.rot; while (r > Math.PI / 2) r -= Math.PI; while (r <= -Math.PI / 2) r += Math.PI; rest.rot = r; }
   if (it.kind === 'dim' && it.dir !== undefined) { const th = Math.atan2(b[1] - a[1], b[0] - a[0]); return { ...rest, pts, dir: 2 * th - it.dir }; }
   if (it.kind === 'insert') { const th = Math.atan2(b[1] - a[1], b[0] - a[0]); return { ...rest, pts, rot: 2 * th - (it.rot ?? 0) }; }
   return { ...rest, pts };
@@ -482,7 +484,7 @@ export function scaled(it: SketchItem, base: Pt, k: number): SketchItem {
     ...it, ...(it.holes ? { holes: it.holes.map((h) => h.map(sc)) } : {}), ...(it.hatch ? { hatch: { ...it.hatch, scale: it.hatch.scale * k, origin: sc(it.hatch.origin ?? [0, 0]) } } : {}), pts: it.pts.map((q) => add(base, mul(sub(q, base), k))), ...(it.r !== undefined ? { r: it.r * k } : {}), ...(it.h !== undefined ? { h: it.h * k } : {}), ...(it.w !== undefined ? { w: it.w * k } : {}), ...(it.kind === 'insert' ? { sc: (it.sc ?? 1) * k } : {}),
     ...(it.ml ? { ml: { ...it.ml, size: it.ml.size * k, land: it.ml.land * k, gap: it.ml.gap * k } } : {}),
     ...(it.ax ? { ax: mul(it.ax, k) } : {}), ...(it.cloud !== undefined ? { cloud: it.cloud * k } : {}),
-    ...(it.look ? { look: scaleLook(it.look, k) } : {})
+    ...(it.look ? { look: scaleLook(it.look, k) } : {}), ...(it.brk ? { brk: it.brk.map(([e, t]): [0 | 1 | 2, number] => [e, t * k]) } : {})
   };
 }
 /** Align: the turn (radians), scale and move that take s1 to d1 and the direction s1→s2 to d1→d2 (one pair: a move); null when the two source points, or the two destination points, are the same. */

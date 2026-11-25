@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.305', date: '2026-11-25',
+    items: [
+      { title: 'Dimensions: Dimension break', text: 'Annotate → Dimensions → Dimension break (DIMBREAK, beside the style list): pick dimensions, Enter, then Enter again for a gap wherever a line crosses them: walls, other dimensions, the opened drawing. Or click the objects to break at first, then Enter. R takes the gaps off. The gaps stay where they are when the lines move: break again.', action: 'cad' },
+      { title: 'Dimensions: Text position', text: 'Text position (DIMTEDIT, beside the layer list): click a dimension, then where its text goes. Or type L or R for next to an extension line, C for centred, H for where its style puts it, or A and an angle to turn it. A text moved this way goes with the dimension when you move, copy or turn it.', action: 'cad' }
+    ]
+  },
+  {
     version: '2.299', date: '2026-11-25',
     items: [
       { title: 'Design CAD: Quick dimension', text: 'Annotate → Dimensions → Quick (QDIM): pick lines, polylines, arcs and circles, drawn or of the opened drawing (a window too), press Enter, then click where the row goes. It draws one dimension between each pair of points in one go: horizontal above or below them, vertical beside them. Type C or B first for Continuous (a chain) or Baseline (each from the first); the choice is kept.', action: 'cad' },

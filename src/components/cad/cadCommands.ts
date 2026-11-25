@@ -157,6 +157,8 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['DIM'], desc: 'Dimension: click a line, arc or circle (its length, radius or diameter), or two points', tool: 'dim' },
   { aliases: ['DAL', 'DIMALIGNED'], desc: 'Aligned dimension: two points, along them', tool: 'dimal' },
   { aliases: ['QDIM'], desc: 'Quick dimension: pick the objects, then where the row of dimensions goes (Continuous or Baseline)', tool: 'qdim' },
+  { aliases: ['DIMBREAK'], desc: 'Dimension break: gaps in the dimensions picked where other lines cross them (Auto), at the objects clicked, or Remove', tool: 'dimbreak' },
+  { aliases: ['DIMTEDIT', 'DIMTED'], desc: 'Text position: move a dimension\'s text, put it Left, Right or Center, Home, or turn it (Angle)', tool: 'dimtedit' },
   { aliases: ['DIMSPACE'], desc: 'Adjust space: the base dimension, the dimensions to space, then the gap (Auto, or 0 to line them up)', tool: 'dimspace' },
   { aliases: ['DLI', 'DIMLINEAR'], desc: 'Linear dimension (horizontal or vertical)', tool: 'dimlin' },
   { aliases: ['DCO', 'DIMCONTINUE'], desc: 'Continue dimension', tool: 'dimcont' },
