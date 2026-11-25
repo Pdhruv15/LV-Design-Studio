@@ -1,4 +1,4 @@
-import { faultCurrentKA, impedanceToBoard } from '../calc/electrical';
+import { calculatedLevelCell, faultCurrentKA, impedanceToBoard } from '../calc/electrical';
 import { boardLocation } from '../model/levels';
 import { supplyAuthorityOf } from '../model/designReference';
 import { STANDARD_ICU_KA } from '../calc/sizing';
@@ -27,6 +27,8 @@ export interface TxSummaryRow {
   ratingA?: number;
   setting?: number; // × In, when below 1
   faultKa?: number;
+  /** Fault level calculated from the source rating (no typed level, no transformer), for the exported form. */
+  faultCalc?: string;
   cable: string;
   ecc: string;
   phases: PhaseKw;
@@ -102,7 +104,7 @@ export function buildTxSummary(project: Project): TxSummary {
     }
     const standbyKw = feeders.filter((f: Feeder) => f.standbyUnit && !f.feedsBoardId).reduce((s, f) => s + f.loadKw, 0);
     return {
-      board: b, poles: '4P', device, ratingA, setting, faultKa, cable: b.supply?.cable ?? `BY ${b.supply?.fedFrom ?? authority}`, ecc: b.supply?.ecc ?? '',
+      board: b, poles: '4P', device, ratingA, setting, faultKa, ...(faultKa === undefined && !b.sourceKva && calculatedLevelCell(project, b) && { faultCalc: calculatedLevelCell(project, b)!.cell }), cable: b.supply?.cable ?? `BY ${b.supply?.fedFrom ?? authority}`, ecc: b.supply?.ecc ?? '',
       phases, tclKw, df, mdlKw: tclKw * df, standbyKw, meters, cts, manual
     };
   });

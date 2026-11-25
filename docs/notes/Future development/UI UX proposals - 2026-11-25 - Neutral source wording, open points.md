@@ -1,6 +1,6 @@
 # Neutral source wording: open points (2026-11-25)
 
-Default texts that named one authority were neutralised in v2.292. These items still name an authority, because changing them changes behaviour or a stored value. Each needs a decision.
+Default texts that named one authority were neutralised in v2.295. These items still name an authority, because changing them changes behaviour or a stored value. Each needs a decision.
 
 | # | What | Where | Options | Recommended |
 |---|------|-------|---------|-------------|

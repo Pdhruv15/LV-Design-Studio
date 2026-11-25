@@ -176,4 +176,14 @@ describe('connected load & maximum demand sheet', () => {
     expect(bad.rejected).toHaveLength(2);
     expect(bad.project).toBe(sampleProject);
   });
+  it("the incomer's fault duty: a calculated source level is marked, a typed one and a transformer are unchanged", () => {
+    const on = (supply: object, transformer = false) => ({ ...sampleProject, boards: sampleProject.boards.map((b) => (b.id === 'MDB-1' ? { ...b, ...(transformer ? {} : { sourceKva: undefined, sourceImpedancePct: undefined }), supply } : b)) }) as typeof sampleProject;
+    const inc = (p: typeof sampleProject) => { const s = buildMdSheet(p, 'MDB-1'); return [s.data[0][col(s, 'fault')], s.data[0][col(s, 'remarks')]]; };
+    expect(inc(on({ kind: 'generator', ratedKva: 250, ratingA: 400 }))).toEqual(['2.4 (calc.)', 'Ik″ 2.4 kA calculated: 250 kVA · X″d 15 %']);
+    expect(inc(on({ kind: 'pv', ratedKva: 100, ratingA: 200 }))).toEqual(['0.17 (calc.)', 'Ik″ 0.17 kA calculated: 100 kVA · 1.2 × rated']);
+    expect(inc(on({ kind: 'generator', ratedKva: 250, faultKa: 20 }))).toEqual([20, '']);
+    expect(inc(on({ kind: 'generator', ratingA: 400 }))).toEqual(['', '']);
+    expect(inc(on({ kind: 'generator', ratedKva: 250, fedBy: 'board' }))).toEqual(['', '']);
+    expect(inc(on({ kind: 'generator', ratedKva: 250 }, true))).toEqual(['', '']);
+  });
 });
