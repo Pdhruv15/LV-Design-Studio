@@ -445,6 +445,15 @@ export function calculatedSourceText(project: Pick<Project, 'voltageV'>, board: 
   return `${label.charAt(0).toLowerCase()}${label.slice(1)} ${basis}, ${level.ka.toFixed(2)} kA calculated`;
 }
 
+/** A calculated supply fault level for a form cell and its remark ("2.4 (calc.)", "Ik″ 2.4 kA calculated: 250 kVA · X″d 15 %");
+ * undefined when the level is typed or assumed (the form prints those as before). */
+export function calculatedLevelCell(project: Pick<Project, 'voltageV'>, board: Board): { cell: string; remark: string } | undefined {
+  const level = supplySourceLevel(project, board);
+  if (level.basis !== 'calculated') return undefined;
+  const ka = levelKaText(level.ka);
+  return { cell: `${ka} (calc.)`, remark: `Ik″ ${ka} kA calculated${level.text ? `: ${level.text}` : ''}` };
+}
+
 /** Impedance from the source (transformer) up to and including a board's
  * busbar, walking up the board hierarchy: main board -> transformer only;
  * any downstream board -> its parent's impedance plus its incomer cable. */

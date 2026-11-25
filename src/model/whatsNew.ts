@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.292', date: '2026-11-25',
+    items: [
+      { title: 'Forms: calculated source fault level', text: 'The TCL summary and the maximum-demand form now print the fault level calculated from a generator or inverter source rating when none is typed, marked "(calc.)", with its basis in the remarks of the incomer line of the maximum-demand form.' }
+    ]
+  },
+  {
     version: '2.288', date: '2026-11-25',
     items: [
       { title: 'Load schedule: AFDD + RCBO', text: 'ELCB / RCD → AFDD + RCBO gives a 1-phase circuit an RCBO with arc fault detection (IEC 62606) in place of its MCB. It prints "+ AFDD" after the RCBO and has its own BOQ line and enclosure device.' },
