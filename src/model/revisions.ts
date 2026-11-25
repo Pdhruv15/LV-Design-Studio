@@ -122,7 +122,7 @@ export const FEEDER_FIELDS: Fields<Feeder> = [
   ['rcdMa', 'RCD (mA)'], ['essential', 'Essential (generator)'], ['standbyUnit', 'Standby unit'], ['kvar', 'Capacitor (kvar)'], ['starter', 'Starter'],
   ['loadType', 'Load type'], ['phase', 'Phase'], ['way', 'Way'], ['kwhMeter', 'kWh meter'], ['feedsBoardId', 'Feeds'], ['remarks', 'Remarks'],
   ['boardId', 'On board'], ['generation', 'Generation (PV / generator)'], ['existing', 'Existing (already installed)'], ['componentId', 'Component'], ['componentValues', 'Component values'], ['fromRoom', 'Standby unit from'],
-  ['manualSize', 'Sizes set by hand'], ['circuitPurpose', 'Circuit purpose'], ['localIsolator', 'Local isolator'], ['rcbo', 'RCBO'], ['capSteps', 'Capacitor steps'], ['detunedPct', 'Detuning (%)']
+  ['manualSize', 'Sizes set by hand'], ['circuitPurpose', 'Circuit purpose'], ['localIsolator', 'Local isolator'], ['rcbo', 'RCBO'], ['rcboKind', 'AFDD + RCBO or RCD add-on'], ['noRcd', 'No RCD (reason)'], ['capSteps', 'Capacitor steps'], ['detunedPct', 'Detuning (%)']
 ];
 
 export const BOARD_FIELDS: Fields<Board> = [
@@ -140,7 +140,7 @@ export const BOARD_FIELDS: Fields<Board> = [
 export const PROJECT_FIELDS: Fields<Snapshot> = [
   ['name', 'Project name'], ['voltageV', 'Voltage (V)'], ['frequencyHz', 'Frequency (Hz)'], ['ambientC', 'Ambient (°C)'], ['vdLimitPct', 'VD limit (%)'],
   ['pointTemplate', 'Schedule columns'], ['studySettings', 'Design settings'], ['designReference', 'Design reference'], ['designRules', 'Design rules'], ['standards', 'Project standards'], ['vdTempC', 'Cable temperature for voltage drop (°C)'],
-  ['strictFinalDisconnection', 'Strict final-circuit disconnection'], ['strictCableData', 'Require manufacturer cable data'], ['cableDataByType', 'Cable data by type'], ['groundTempC', 'Ground temperature (°C)'], ['soilResistivityKmW', 'Soil thermal resistivity (K·m/W)'], ['vdFinalCircuits', 'Voltage drop: include final circuits'], ['status', 'Status'], ['stage', 'Design stage'], ['archivedAt', 'Archived']
+  ['strictFinalDisconnection', 'Strict final-circuit disconnection'], ['strictCableData', 'Require manufacturer cable data'], ['cableDataByType', 'Cable data by type'], ['baseMva', 'Per-unit base power (MVA)'], ['groundTempC', 'Ground temperature (°C)'], ['soilResistivityKmW', 'Soil thermal resistivity (K·m/W)'], ['vdFinalCircuits', 'Voltage drop: include final circuits'], ['status', 'Status'], ['stage', 'Design stage'], ['archivedAt', 'Archived']
 ];
 
 /** Larger data sets: a summary line (with a count where it helps) and then the individual differences. */

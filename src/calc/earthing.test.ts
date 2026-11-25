@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultCpcMm2, disconnectionLabel, earthLoopPath, earthLoopToBoard, evaluateEarthing, instantaneousTripA, requiredDisconnectionS } from './earthing';
-import { supplyImpedance, transformerImpedance, zMagnitude } from './electrical';
+import { supplyImpedance, supplySourceLevel, transformerImpedance, zMagnitude } from './electrical';
 import type { Feeder, Project } from '../types';
 
 const U0 = 415 / Math.sqrt(3);
@@ -144,12 +144,30 @@ describe('earth fault loop with values given from upstream (first board on an LV
 
 describe('earth fault loop from a source rating (calculated fault level)', () => {
   const lv = (supply: NonNullable<Project['boards'][number]['supply']>): Project => ({ ...project([feeder({})]), boards: [{ id: 'MDB', name: 'M', supply }] });
-  it('Ze from the generator data: Z = 415² × 0.15 ÷ 250 000 = 0.103335 Ω, X/R 10 (R 0.010282, X 0.10282)', () => {
+  it('Ze from the generator transient reactance: Z = 415² × 0.25 ÷ 250 000 = 0.172225 Ω, X/R 10 (R 0.017137, X 0.17137); assumed', () => {
     const e = earthLoopPath(lv({ kind: 'generator', ratedKva: 250 }), 'MDB');
-    expect(e.z.r).toBeCloseTo(0.010282, 5);
-    expect(e.z.x).toBeCloseTo(0.10282, 5);
-    expect(e.estimated).toBe("Ze estimated from the generator's sub-transient reactance at MDB (its sustained fault current is lower: type the minimum fault level)");
+    expect(e.z.r).toBeCloseTo(0.017137, 5);
+    expect(e.z.x).toBeCloseTo(0.17137, 5);
+    expect(e.estimated).toBe("Ze estimated from the generator's transient reactance X′d 25 % at MDB (assumed: type X′d, the sustained fault current or the minimum fault level)");
+    expect(e.subTransient).toBe(true);
     expect(e.missing).toBeUndefined();
+  });
+  it('a typed X′d is used as given: 20 % gives 0.13778 Ω, not marked assumed', () => {
+    const e = earthLoopPath(lv({ kind: 'generator', ratedKva: 250, xdTransientPct: 20 }), 'MDB');
+    expect(Math.hypot(e.z.r, e.z.x)).toBeCloseTo(0.13778, 5);
+    expect(e.estimated).toBe("Ze estimated from the generator's transient reactance X′d 20 % at MDB");
+    expect(e.subTransient).toBeUndefined();
+  });
+  it('a typed sustained fault current replaces X′d: 3 × 347.8 A gives |Z| = 0.95 × 415 ÷ (√3 × 1043.4 A) = 0.21815 Ω, resistive', () => {
+    const e = earthLoopPath(lv({ kind: 'generator', ratedKva: 250, xdTransientPct: 20, sustainedMultiple: 3 }), 'MDB');
+    expect(e.z.r).toBeCloseTo(0.21815, 4);
+    expect(e.z.x).toBe(0);
+    expect(e.estimated).toBe("Ze estimated from the generator's sustained fault current 3 × rated at MDB");
+    expect(e.subTransient).toBeUndefined();
+  });
+  it('the sub-transient level still sets the maximum fault: X″d is not changed by X′d', () => {
+    const a = lv({ kind: 'generator', ratedKva: 250 }), b = lv({ kind: 'generator', ratedKva: 250, xdTransientPct: 30, sustainedMultiple: 3 });
+    expect(supplySourceLevel(b, b.boards[0]).ka).toBe(supplySourceLevel(a, a.boards[0]).ka);
   });
   it('Ze from the inverter current: |Z| = 1.05 × 415 ÷ (√3 × 1.2 × 139.1 A) = 1.507 Ω, resistive', () => {
     const e = earthLoopPath(lv({ kind: 'pv', ratedKva: 100 }), 'MDB');
@@ -173,16 +191,23 @@ describe('earth fault disconnection: sub-transient estimate and a current below 
     const fd = feeder({ breakerRatingA: 160, cableCsaMm2: 70, lengthM: 20, ...f });
     return [{ ...project([fd]), boards: [{ id: 'MDB', name: 'M', supply }] }, fd];
   };
-  it('a generator with no minimum fault level: a pass on the sub-transient current alone is not verified (warn)', () => {
-    // 250 kVA, X″d 15 %: Ze 0.1033 Ω; the 160 A way trips instantaneously at 1600 A (10 In) and If is about 1950 A, but a
-    // sustained 3 × rated current is about 1043 A, below the trip: the pass cannot be shown.
-    const [p, f] = lv({ kind: 'generator', ratedKva: 250 });
+  it('a generator with X′d assumed: an instantaneous pass is not verified (warn); with X′d typed it stands', () => {
+    // 500 kVA, X′d 25 % assumed: Ze 0.0861 Ω; the 160 A way trips instantaneously at 1600 A (10 In) and If is above it.
+    const [p, f] = lv({ kind: 'generator', ratedKva: 500 });
     const r = evaluateEarthing(p, f);
     expect(r.faultA).toBeGreaterThan(r.tripA);
     expect(r.disconnection).toBe('warn');
     expect(r.status).toBe('warn');
-    expect(r.sourceEstimated).toBe("Ze estimated from the generator's sub-transient reactance at MDB (its sustained fault current is lower: type the minimum fault level)");
-    expect(disconnectionLabel(r)).toMatch(/^Not verified/);
+    expect(disconnectionLabel(r)).toBe('Not verified — generator X′d assumed, type X′d or the minimum fault level');
+    const [p2, f2] = lv({ kind: 'generator', ratedKva: 500, xdTransientPct: 25 });
+    expect(evaluateEarthing(p2, f2).faultA).toBeCloseTo(r.faultA, 9);
+    expect(evaluateEarthing(p2, f2).disconnection).toBe('ok');
+  });
+  it('a smaller set no longer passes on the sub-transient current: 250 kVA gives If below the instantaneous trip', () => {
+    const [p, f] = lv({ kind: 'generator', ratedKva: 250 });
+    const r = evaluateEarthing(p, f);
+    expect(r.faultA).toBeLessThan(r.tripA);
+    expect(r.disconnection).not.toBe('ok');
   });
   it('with a minimum fault level or a Ze typed the normal result stands', () => {
     const [p, f] = lv({ kind: 'generator', ratedKva: 250, faultKaMin: 8 });

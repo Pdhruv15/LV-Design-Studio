@@ -23,14 +23,14 @@ export interface AnonymizeResult {
 }
 
 /** Project fields kept as they are (numbers, flags and enums the calculations use). */
-const KEEP_PROJECT = ['schemaVersion', 'voltageV', 'frequencyHz', 'ambientC', 'vdLimitPct', 'strictFinalDisconnection', 'strictCableData', 'cableDataByType', 'vdTempC', 'groundTempC', 'soilResistivityKmW', 'vdFinalCircuits', 'pointTemplate'] as const;
+const KEEP_PROJECT = ['schemaVersion', 'voltageV', 'frequencyHz', 'ambientC', 'vdLimitPct', 'strictFinalDisconnection', 'strictCableData', 'cableDataByType', 'baseMva', 'vdTempC', 'groundTempC', 'soilResistivityKmW', 'vdFinalCircuits', 'pointTemplate'] as const;
 /** Project fields rebuilt below (with ids rewritten or text removed). Everything else is dropped and listed. */
 const REBUILT_PROJECT = new Set<string>(['name', 'boards', 'feeders', 'ties', 'vdSelection', 'studySettings', 'calc', 'info', 'trays', 'updatedAt', 'id']);
 
 const BOARD_KEEP = ['sourceKva', 'sourceImpedancePct', 'sourceXr', 'kind', 'ratedCurrentA', 'busbarMaterial', 'busbarIcwKa', 'sections', 'incomerDevice', 'instruments', 'upsKva', 'spd', 'mdDemandFactor', 'pointWatts', 'elcbGroupSize', 'elcbKeepApart', 'elcbs', 'elcbRatingA', 'elcbSensitivityMa', 'summaryLoad', 'summaryMeters'] as const;
 const BOARD_REBUILT = new Set<string>(['id', 'name', 'upstreamId', 'vectorGroup', 'ipRating', 'standby', 'protection', 'earthing', 'supply', 'spareWays']);
-const FEEDER_KEEP = ['loadKw', 'demandFactor', 'powerFactor', 'lengthM', 'cableCsaMm2', 'parallel', 'cores', 'breakerRatingA', 'breakerIcuKa', 'generation', 'loadType', 'breakerType', 'breakerImMultiple', 'cpcMm2', 'installMethod', 'standbyUnit', 'essential', 'phase', 'way', 'points', 'manualSize', 'starter', 'kvar', 'device', 'kwhMeter', 'circuitPurpose', 'rcdMa', 'localIsolator', 'rcbo', 'capSteps', 'detunedPct', 'lengthToCheck', 'sizingPending'] as const;
-const FEEDER_REBUILT = new Set<string>(['id', 'boardId', 'feedsBoardId', 'name', 'cableType', 'loadItems', 'trayRoute']);
+const FEEDER_KEEP = ['loadKw', 'demandFactor', 'powerFactor', 'lengthM', 'cableCsaMm2', 'parallel', 'cores', 'breakerRatingA', 'breakerIcuKa', 'generation', 'loadType', 'breakerType', 'breakerImMultiple', 'cpcMm2', 'installMethod', 'standbyUnit', 'essential', 'phase', 'way', 'points', 'manualSize', 'starter', 'kvar', 'device', 'kwhMeter', 'circuitPurpose', 'rcdMa', 'localIsolator', 'rcbo', 'rcboKind', 'capSteps', 'detunedPct', 'lengthToCheck', 'sizingPending'] as const;
+const FEEDER_REBUILT = new Set<string>(['id', 'boardId', 'feedsBoardId', 'name', 'cableType', 'loadItems', 'trayRoute', 'noRcd']);
 
 /** Short technical codes that cannot carry a name: vector group, IP rating, CT ratio, cable codes. */
 const VECTOR_GROUP = /^[DYZdyz]{1,2}[n]?\d{0,2}[dyzn]{0,2}\d{0,2}$/;
@@ -88,7 +88,7 @@ export function anonymizeProject(source: Project): AnonymizeResult {
   const outBoards: Board[] = boards.map((b) => {
     for (const k of Object.keys(b)) if (!(BOARD_KEEP as readonly string[]).includes(k) && !BOARD_REBUILT.has(k) && (b as unknown as Record<string, unknown>)[k] !== undefined) note(`panel.${k}`);
     const id = boardIds[b.id];
-    const supply = b.supply ? prune({ device: b.supply.device, ratingA: num(b.supply.ratingA), faultKa: num(b.supply.faultKa), meter: b.supply.meter, irSetting: num(b.supply.irSetting), fedBy: b.supply.fedBy === 'board' ? 'board' : undefined, kind: SOURCE_KINDS.find((k) => k.value === b.supply!.kind)?.value, xr: num(b.supply.xr), ratedKva: num(b.supply.ratedKva), xdPct: num(b.supply.xdPct), faultMultiple: num(b.supply.faultMultiple), faultKaMin: num(b.supply.faultKaMin), vdUsedPct: num(b.supply.vdUsedPct), zeOhm: num(b.supply.zeOhm), allowedA: num(b.supply.allowedA), incomer: b.supply.incomer ? prune({ cableCsaMm2: num(b.supply.incomer.cableCsaMm2), lengthM: num(b.supply.incomer.lengthM), parallel: num(b.supply.incomer.parallel), cores: b.supply.incomer.cores === 3 || b.supply.incomer.cores === 4 ? b.supply.incomer.cores : undefined, cpcMm2: num(b.supply.incomer.cpcMm2), installMethod: INSTALL_METHODS.find((m) => m.id === b.supply!.incomer!.installMethod)?.id }) : undefined, ctRatio: onlyIf(b.supply.ctRatio, CT_RATIO), ecc: onlyIf(b.supply.ecc, ECC) }) : undefined;
+    const supply = b.supply ? prune({ device: b.supply.device, ratingA: num(b.supply.ratingA), faultKa: num(b.supply.faultKa), meter: b.supply.meter, irSetting: num(b.supply.irSetting), fedBy: b.supply.fedBy === 'board' ? 'board' : undefined, kind: SOURCE_KINDS.find((k) => k.value === b.supply!.kind)?.value, xr: num(b.supply.xr), ratedKva: num(b.supply.ratedKva), xdPct: num(b.supply.xdPct), xdTransientPct: num(b.supply.xdTransientPct), sustainedMultiple: num(b.supply.sustainedMultiple), faultMultiple: num(b.supply.faultMultiple), faultKaMin: num(b.supply.faultKaMin), vdUsedPct: num(b.supply.vdUsedPct), zeOhm: num(b.supply.zeOhm), allowedA: num(b.supply.allowedA), incomer: b.supply.incomer ? prune({ cableCsaMm2: num(b.supply.incomer.cableCsaMm2), lengthM: num(b.supply.incomer.lengthM), parallel: num(b.supply.incomer.parallel), cores: b.supply.incomer.cores === 3 || b.supply.incomer.cores === 4 ? b.supply.incomer.cores : undefined, cpcMm2: num(b.supply.incomer.cpcMm2), installMethod: INSTALL_METHODS.find((m) => m.id === b.supply!.incomer!.installMethod)?.id }) : undefined, ctRatio: onlyIf(b.supply.ctRatio, CT_RATIO), ecc: onlyIf(b.supply.ecc, ECC) }) : undefined;
     if (b.supply && (b.supply.fedFrom || b.supply.cable)) note('panel.supply text (fed from, cable)');
     if (b.supply?.ref) note('panel.supply reference');
     const spareWays = b.spareWays?.map((s, i): SpareWay => prune({ id: `S${i + 1}`, kind: s.kind, phase: s.phase, way: num(s.way), ratingA: s.ratingA, device: s.device, icuKa: num(s.icuKa) }));
@@ -128,7 +128,8 @@ export function anonymizeProject(source: Project): AnonymizeResult {
       name: feeds ? `Incomer to ${feeds}` : `${typeLabel(f)} ${id}`,
       cableType: typeof f.cableType === 'string' && CABLE_TYPES.includes(f.cableType) ? f.cableType : undefined,
       loadItems,
-      trayRoute
+      trayRoute,
+      noRcd: f.noRcd ? 'No RCD' : undefined // the reason is free text: kept as the fact only
     }) as Feeder;
   });
 

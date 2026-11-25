@@ -18,9 +18,35 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.286', date: '2026-11-24',
+    version: '2.289', date: '2026-11-25',
     items: [
       { title: 'Compare a reference with its new revision', text: 'In Design CAD, right-click a reference drawing and choose Compare with new revision… (or type XCOMPARE), then pick the new file from the architect. The two are compared where the reference sits: lines added in the new revision show in green, lines taken out in red, and the command line says how many and in how many areas. Next zooms to each area in turn, Clouds draws a revision cloud round every area, Accept switches the reference to the new file, and Exit (or Esc) leaves it as it was.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.288', date: '2026-11-25',
+    items: [
+      { title: 'Load schedule: AFDD + RCBO', text: 'ELCB / RCD → AFDD + RCBO gives a 1-phase circuit an RCBO with arc fault detection (IEC 62606) in place of its MCB. It prints "+ AFDD" after the RCBO and has its own BOQ line and enclosure device.' },
+      { title: 'Load schedule: MCB + RCD add-on block', text: 'ELCB / RCD → MCB + RCD add-on block keeps the circuit\'s MCB and clips an RCD block to it, for ratings or curves with no RCBO. It shows as RCD-1, 2 … and the BOQ and enclosure count the MCB and the block.' }
+    ]
+  },
+  {
+    version: '2.287', date: '2026-11-24',
+    items: [
+      { title: 'Load schedule: 4P RCBO for a 3-phase circuit', text: 'Select a 3-phase circuit and choose ELCB / RCD → RCBO for it: one 4P RCBO in place of its MCB, so it leaves the ELCB of its ways. It prints 4P and is counted TP+N in the BOQ.' },
+      { title: 'Load schedule: No RCD for one circuit', text: 'ELCB / RCD → No RCD… takes a circuit off its ELCB on purpose (for example a fire alarm panel) and asks why. The reason prints in the ELCB column, no earth leakage device is counted, and the earth fault check rests on the MCB alone. Put back on its ELCB undoes it.' }
+    ]
+  },
+  {
+    version: '2.286', date: '2026-11-24',
+    items: [
+      { title: 'Short circuit report in per unit', text: 'The short circuit study report has two new tables. Impedance data in per unit lists every source, transformer and cable between boards with its R, X and Z on a common base power, and how each was worked. Fault at the busbars in per unit gives the path impedance, X/R, Ik″ and the peak current ip at every board. The currents are the same as before: per unit is another way of writing the same calculation. The base power is 100 MVA; change it in Project settings → Sizing targets → Per-unit base power.' }
+    ]
+  },
+  {
+    version: '2.285', date: '2026-11-24',
+    items: [
+      { title: 'Generator: minimum fault current from X′d', text: 'A board on a generator source has two new values beside X″d: X′d (25 % when not typed) and Sustained fault (× rated). The earth fault loop study now takes the generator\'s minimum fault current from X′d, or from the sustained current when you type it, in place of the sub-transient level. Breaking capacity still uses X″d. A pass that rests on the assumed 25 % shows as not verified until you type X′d, the sustained current or the minimum fault level. Earth loop results of projects on a generator source change: the fault current is lower than before.' }
     ]
   },
   {

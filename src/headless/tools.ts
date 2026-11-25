@@ -299,8 +299,8 @@ function cableText(f: Project['feeders'][number]): string {
  * against its outgoing breakers; nothing for a board that has none of the given values. */
 function supplyOf(b: Board, run: CalcRun) {
   if (!supplyGiven(b) && !b.supply?.kind) return {};
-  const { kind, device, ratingA, faultKa, irSetting, fedBy, ref, xr, ratedKva, xdPct, faultMultiple, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer } = b.supply!;
-  const given = { kind, fedBy: fedBy ?? 'source', ref, device, ratingA, irSetting, faultKa, xr, ratedKva, xdPct, faultMultiple, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer };
+  const { kind, device, ratingA, faultKa, irSetting, fedBy, ref, xr, ratedKva, xdPct, xdTransientPct, sustainedMultiple, faultMultiple, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer } = b.supply!;
+  const given = { kind, fedBy: fedBy ?? 'source', ref, device, ratingA, irSetting, faultKa, xr, ratedKva, xdPct, xdTransientPct, sustainedMultiple, faultMultiple, faultKaMin, vdUsedPct, zeOhm, allowedA, incomer };
   const level = supplySourceLevel(run.project, b); // typed, calculated from the source rating, or assumed
   const cable = run.supplyIncomers?.find((x) => x.board.id === b.id);
   const pairs = run.supplySelectivity?.filter((x) => x.board.id === b.id);

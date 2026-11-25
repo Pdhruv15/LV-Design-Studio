@@ -175,7 +175,7 @@ Left off (no tool yet; each needs a decision or a data-model change):
 
 1. Engine-heavy items: the user asked on 2026-11-12 to build them, block editor first. Block editor built in v2.111
    (BEDIT / BSAVE / BCLOSE, on the menu of a block drawn here); edit block in place in v2.112 (REFEDIT / REFCLOSE).
-   Compare with a new revision in v2.286 (XCOMPARE). Still to build: edit reference in place, detect rooms from walls. Fill ratio (Phase 2) and Bind (Phase 3) were already
+   Compare with a new revision in v2.289 (XCOMPARE). Still to build: edit reference in place, detect rooms from walls. Fill ratio (Phase 2) and Bind (Phase 3) were already
    there.
 2. ELV loops, zones and panels / racks: add them to ELV devices (then Loop / zone ▸, Assign to panel and
    Select same loop can be built), or leave the ELV menu as it is.

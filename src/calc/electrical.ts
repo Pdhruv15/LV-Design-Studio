@@ -370,8 +370,8 @@ const positiveNum = (n: number | undefined): n is number => typeof n === 'number
  *   It is carried as the resistive impedance |Z| = c · U ÷ (√3 · k · I_rated) that gives exactly that current at
  *   the supply point; downstream of the incoming cable the model gives slightly less than k · I_rated, which is on
  *   the safe side for the disconnection checks and immaterial for breaking capacity.
- * Limits: one source per first board (no parallel sources); the minimum fault current of a generator is taken from
- * the same X″d (its sustained fault current is lower: type the minimum fault level); motor contribution is not applied. */
+ * Limits: one source per first board (no parallel sources); motor contribution is not applied. The minimum fault
+ * current of a generator is not this level: see generatorMinSource. */
 export function supplySourceLevel(project: Pick<Project, 'voltageV'>, board: Board): SourceLevel {
   const typed = supplyFaultKa(board);
   if (typed) return { basis: 'given', ka: typed, z: supplyImpedance(typed, project.voltageV, supplyXr(board)) };
@@ -393,6 +393,31 @@ export function supplySourceLevel(project: Pick<Project, 'voltageV'>, board: Boa
     }
   }
   return { basis: 'assumed', ka: assumedSourceFaultKa(project), z: PLACEHOLDER_SOURCE_Z };
+}
+
+/** Transient reactance X′d of a generator (%), for its minimum fault current; typical for LV diesel sets (the
+ * value the motor-start dip uses, src/calc/motor.ts). */
+export const GENERATOR_XD_TRANSIENT_DEFAULT_PCT = 25;
+
+/** The source impedance for the minimum fault current of a generator source (a machine with a typed rating and
+ * no typed fault level); undefined for every other source. The sub-transient current has decayed before a
+ * protective device clears an earth fault, so the loop is taken on:
+ * - the typed sustained fault current, k × rated (excitation support): the resistive impedance
+ *   |Z| = c · U ÷ (√3 · k · I_rated) that gives exactly that current at the supply point for the voltage factor
+ *   `c` of the study that asks; or
+ * - the transient reactance X′d (typed, or 25 % assumed: `assumed`), with the source's X/R. */
+export function generatorMinSource(project: Pick<Project, 'voltageV'>, board: Board, c: number): { z: Impedance; text: string; assumed: boolean } | undefined {
+  const s = board.supply;
+  if (supplyFaultKa(board) || !lvSupplied(board) || !s || s.fedBy === 'board' || !positiveNum(s.ratedKva)) return undefined;
+  if (!(s.kind === 'generator' || (s.kind === 'wind' && !positiveNum(s.faultMultiple)))) return undefined;
+  const v = project.voltageV;
+  if (positiveNum(s.sustainedMultiple)) {
+    const iRated = (s.ratedKva * 1000) / (SQRT3 * v);
+    return { z: { r: (c * v) / (SQRT3 * s.sustainedMultiple * iRated), x: 0 }, text: `sustained fault current ${n2(s.sustainedMultiple)} × rated`, assumed: false };
+  }
+  const typed = positiveNum(s.xdTransientPct);
+  const xd = typed ? s.xdTransientPct! : GENERATOR_XD_TRANSIENT_DEFAULT_PCT;
+  return { z: transformerImpedance(s.ratedKva, xd, v, supplyXr(board) ?? GENERATOR_XR), text: `transient reactance X′d ${n2(xd)} %`, assumed: !typed };
 }
 
 /** The level's number as printed: two decimals below 1 kA (an inverter source gives a small level), else one. */

@@ -63,6 +63,10 @@ export function projectInputIssues(p: Project): InputIssue[] {
       pos(sup.ratedKva, 'supply source rating', ' kVA');
       pos(sup.xdPct, 'supply source X″d', ' %');
       if (fin(sup.xdPct) && sup.xdPct >= 100) bad.push(`supply source X″d ${sup.xdPct} % (must be below 100 %)`);
+      pos(sup.xdTransientPct, 'supply source X′d', ' %');
+      if (fin(sup.xdTransientPct) && sup.xdTransientPct >= 100) bad.push(`supply source X′d ${sup.xdTransientPct} % (must be below 100 %)`);
+      pos(sup.sustainedMultiple, 'supply source sustained fault current multiple', '');
+      if (fin(sup.sustainedMultiple) && sup.sustainedMultiple > 10) bad.push(`supply source sustained fault current multiple ${sup.sustainedMultiple} (must be at most 10 × rated)`);
       pos(sup.faultMultiple, 'supply source fault current multiple', '');
       if (fin(sup.faultMultiple) && sup.faultMultiple > 10) bad.push(`supply source fault current multiple ${sup.faultMultiple} (must be between 1 and 10 × rated)`);
       else if (fin(sup.faultMultiple) && sup.faultMultiple > 0 && sup.faultMultiple < 1) bad.push(`supply source fault current multiple ${sup.faultMultiple} (must be between 1 and 10 × rated)`);

@@ -215,7 +215,7 @@ export const supplyIncomerFeeder = (b: Board): Feeder | undefined => {
 /** The given X/R of the supply fault level of an LV-supplied first board (above zero), else undefined. */
 export const supplyXr = (b: Board): number | undefined => (lvSupplied(b) && positive(b.supply?.xr) ? b.supply.xr : undefined);
 /** Whether any value given from upstream (beyond the stated fault level, device and rating) is set. */
-export const supplyGiven = (b: Board): boolean => lvSupplied(b) && !!b.supply && ['fedBy', 'ref', 'xr', 'ratedKva', 'xdPct', 'faultMultiple', 'faultKaMin', 'vdUsedPct', 'zeOhm', 'allowedA', 'incomer'].some((k) => (b.supply as Record<string, unknown>)[k] !== undefined);
+export const supplyGiven = (b: Board): boolean => lvSupplied(b) && !!b.supply && ['fedBy', 'ref', 'xr', 'ratedKva', 'xdPct', 'xdTransientPct', 'sustainedMultiple', 'faultMultiple', 'faultKaMin', 'vdUsedPct', 'zeOhm', 'allowedA', 'incomer'].some((k) => (b.supply as Record<string, unknown>)[k] !== undefined);
 /** The supply's stated fault level (kA), when there is a usable one (above zero). */
 export const supplyFaultKa = (b: Board): number | undefined => (b.supply?.faultKa && b.supply.faultKa > 0 ? b.supply.faultKa : undefined);
 
@@ -288,7 +288,9 @@ export interface Feeder {
    * treated as sockets (the stricter case). The load type alone never makes it 'fixed'. */
   circuitPurpose?: 'sockets' | 'fixed';
   rcdMa?: number; // earth leakage protection (RCD / ELCB / RCBO) on this feeder, IΔn in mA
-  rcbo?: boolean; // DB circuit: the breaker is an RCBO instead of an MCB; it leaves the ELCB of its ways (IΔn = rcdMa, else Auto); 1-phase only
+  rcbo?: boolean; // DB circuit: the breaker is an RCBO instead of an MCB; it leaves the ELCB of its ways (IΔn = rcdMa, else Auto); 2P on a 1-phase circuit, 4P on a 3-phase one
+  rcboKind?: 'afdd' | 'addon'; // with rcbo: 'afdd' = AFDD + RCBO (arc fault detection, IEC 62606; 1-phase), 'addon' = the MCB kept with an RCD add-on block; unset = an RCBO
+  noRcd?: string; // DB circuit: no earth leakage device on purpose, and why (fire alarm panel, life safety); it leaves the ELCB of its ways
   localIsolator?: boolean; // isolator at the equipment end (e.g. AC unit, pump)
   capSteps?: number; // capacitor bank: number of steps
   detunedPct?: number; // capacitor bank: detuning reactor, % (e.g. 7)
@@ -478,6 +480,8 @@ export interface Board {
     xr?: number; // X/R of the supply fault level (absent = the default of supplyImpedance)
     ratedKva?: number; // rating of the source, kVA (a generator set, or the inverters together): gives a calculated fault level
     xdPct?: number; // sub-transient reactance X″d of a generator, % on its rating (absent = 15)
+    xdTransientPct?: number; // transient reactance X′d of a generator, % on its rating (absent = 25): its minimum fault current
+    sustainedMultiple?: number; // sustained fault current of a generator, × rated current (excitation support, e.g. 3): the minimum fault current in place of X′d
     faultMultiple?: number; // fault current of an inverter source as a multiple of its rated current (absent = 1.2)
     faultKaMin?: number; // minimum fault level, kA: the Ze estimate when no Ze is typed
     vdUsedPct?: number; // voltage drop already used upstream of the supply point, % of nominal
@@ -697,6 +701,8 @@ export interface Project {
   /** Final design: every cable size must have manufacturer data in Cables.xlsx (reference, user-entered
    * and fallback values become failures in the to-do list instead of notes). */
   strictCableData?: boolean;
+  /** Base power of the per-unit tables in the short circuit report, MVA (absent = 100). */
+  baseMva?: number;
   /** Cable data by type: each cable is calculated with the R, X, rating, temperature limits and k of its own
    * family (conductor, insulation, single-core or multicore; src/calc/cableFamily.ts). Off (older projects):
    * every cable is calculated as copper / XLPE / multicore. On for new projects. */
