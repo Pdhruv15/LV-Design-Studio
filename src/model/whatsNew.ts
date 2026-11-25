@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.290', date: '2026-11-25',
+    items: [
+      { title: 'Fault points on the SLD', text: 'The SLD tab has a new tool, Fault point, beside Values. Click it, then click a busbar or a cable: a numbered mark (F1, F2…) appears there. A mark on a cable starts at its far end; right-click the circuit → Fault point to move it to the board, a quarter, half or three quarters of the way, or to remove it. Right-click a board → Fault point does the same for its busbar. The marks print on the SLD sheet and go out with the PDF, DXF and DWG.' },
+      { title: 'Fault points table in the short circuit report', text: 'The short circuit study report lists every fault point: where it is, the path impedance in per unit, X/R, Ik″, the peak current, the minimum line-to-earth current and the breaking capacity of the breaker that must clear it. The per-unit base now prints as a plain number (100 MVA).' }
+    ]
+  },
+  {
     version: '2.288', date: '2026-11-25',
     items: [
       { title: 'Load schedule: AFDD + RCBO', text: 'ELCB / RCD → AFDD + RCBO gives a 1-phase circuit an RCBO with arc fault detection (IEC 62606) in place of its MCB. It prints "+ AFDD" after the RCBO and has its own BOQ line and enclosure device.' },

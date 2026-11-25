@@ -1805,7 +1805,7 @@ export default function SystemDiagram({
               {dewa && <text x={n.x - (iec ? 12 : 5)} y={y + (iec ? 12 : 13)} textAnchor="end" className="acc-t way-no">{wayNo.get(f.id)}</text>}
               <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}${cableTypeOf(project, f).fireRated ? ' fr' : ''}${supplyC ? ' screen-c' : ''}`}
                 style={supplyC ? { stroke: supplyC } : feederHeat(f.id) ? { stroke: feederHeat(f.id), strokeWidth: 3.5 } : undefined} />
-              {(project.faultPoints ?? []).filter((p) => p.feederId === f.id).map((p) => <FaultMark key={p.id} point={p} x={n.x} y={y + 34 + (f.lengthM > 0 ? Math.min(1, Math.max(0, faultPointDistanceM(p, f) / f.lengthM)) : 1) * (endY - y - 34)} />)}
+              {(project.faultPoints ?? []).filter((p) => p.feederId === f.id).map((p) => <FaultMark key={p.id} point={p} left x={n.x} y={y + 34 + (f.lengthM > 0 ? Math.min(1, Math.max(0, faultPointDistanceM(p, f) / f.lengthM)) : 1) * (endY - y - 34)} />)}
               {dewa ? <text className="dev" x={n.x + 10} y={y + 26} data-dxf-max-width={cadDeviceWidth}>{breakerText(f, iec)}</text>
                 : <text className="b" x={n.x + 10} y={y + 30} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA} A{(iec ? rcdInSwitch(f) : f.rcdMa) && (sldDevices(f).elcb?.ma ?? f.rcdMa) ? <tspan className="acc-t"> · {iec ? sldDevices(f).elcb?.ma ?? f.rcdMa : f.rcdMa} mA</tspan> : null}</text>}
               <text
@@ -2028,7 +2028,7 @@ export default function SystemDiagram({
               <title>{`${b.id} — double-click to edit`}</title>
               {!n.terminal && <line x1={n.busX1} y1={real.busY} x2={n.busX2} y2={real.busY} className={`bus ${sel ? 'sel' : ''}`}
                 style={boardHeat(b.id) ? { stroke: boardHeat(b.id) } : undefined} />}
-              {(project.faultPoints ?? []).filter((p) => !p.feederId && p.boardId === b.id).map((p, i) => <FaultMark key={p.id} point={p} x={n.busX2 - 12 - i * 34} y={real.busY} />)}
+              {(project.faultPoints ?? []).filter((p) => !p.feederId && p.boardId === b.id).map((p, i) => <FaultMark key={p.id} point={p} x={n.busX1 + 14 + i * 80} y={real.busY} />)}
               {/* Wide invisible band along the busbar, so drops don't need pixel precision. */}
               {onDropItem && <line x1={n.busX1 - 20} y1={real.busY} x2={n.busX2 + 20} y2={real.busY} className="bus-hit" />}
               {!n.terminal && <line x1={n.x} y1={n.busY - 22} x2={n.x} y2={n.busY} className="ln" />}

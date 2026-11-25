@@ -30,8 +30,8 @@ describe('fault point marks on the SLD', () => {
     const bus = board.querySelector('line.bus')!;
     const [x1, y1] = tip(marks[0]), [x2] = tip(marks[1]);
     expect(y1).toBe(Number(bus.getAttribute('y1')));
-    expect(x1).toBeLessThanOrEqual(Number(bus.getAttribute('x2')));
-    expect(x1 - x2).toBe(34); // the second stands clear of the first
+    expect(x1).toBeGreaterThanOrEqual(Number(bus.getAttribute('x1'))); // at the left end, clear of the busbar's rating text
+    expect(x2 - x1).toBeCloseTo(80, 6); // the second stands clear of the first
   });
   it('a mark on a cable moves down the cable with its distance: start above half way above the far end', () => {
     const at = (distanceM?: number) => tip(draw({ ...sampleProject, faultPoints: [{ id: 'F1', feederId: incomer.id, distanceM }] }).querySelector('g.fault-mark')!);
@@ -39,6 +39,13 @@ describe('fault point marks on the SLD', () => {
     expect(xs).toBe(xe);
     expect(ym).toBeCloseTo((ys + ye) / 2, 6);
     expect(ye).toBeGreaterThan(ys);
+  });
+  it('a cable mark leans left, away from the cable text; a busbar mark leans right', () => {
+    const tagX = (g: Element) => Number(g.querySelector('rect')!.getAttribute('x'));
+    const cable = draw({ ...sampleProject, faultPoints: [{ id: 'F1', feederId: incomer.id }] }).querySelector('g.fault-mark')!;
+    const bus = draw({ ...sampleProject, faultPoints: [{ id: 'F1', boardId: main.id }] }).querySelector('g.fault-mark')!;
+    expect(tagX(cable)).toBeLessThan(tip(cable)[0]);
+    expect(tagX(bus)).toBeGreaterThan(tip(bus)[0]);
   });
   it('uses the theme colours that print as black on white, with no screen-only class', () => {
     const g = draw({ ...sampleProject, faultPoints: [{ id: 'F1', boardId: main.id }] }).querySelector('g.fault-mark')!;
