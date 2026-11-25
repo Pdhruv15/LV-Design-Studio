@@ -55,7 +55,7 @@ describe('Add → ELCB / RCD', () => {
     const ryb = scheduleCircuits(start, BOARD).find((f) => f.phase === 'RYB')!;
     mount();
     openMenu();
-    expect(items().map((b) => b.textContent)).toEqual(['3-phase ELCB (4P, TP&N) over ways…', '3-phase ELCB for the selected 3-phase circuit', 'RCBO for the selected circuit', 'No RCD for the selected circuit…', 'Re-group all ELCBs…']);
+    expect(items().map((b) => b.textContent)).toEqual(['3-phase ELCB (4P, TP&N) over ways…', '3-phase ELCB for the selected 3-phase circuit', 'RCBO for the selected circuit', 'AFDD + RCBO for the selected 1-phase circuit', 'MCB + RCD add-on block for the selected circuit', 'No RCD for the selected circuit…', 'Re-group all ELCBs…']);
     expect(item('3-phase ELCB for the selected 3-phase circuit').disabled).toBe(true);
     expect(item('RCBO for the selected circuit').disabled).toBe(true);
     expect(item('3-phase ELCB (4P, TP&N) over ways…').disabled).toBe(false);
@@ -68,6 +68,8 @@ describe('Add → ELCB / RCD', () => {
     openMenu();
     expect(item(`3-phase ELCB for RYB${ryb.way} only`).disabled).toBe(false);
     expect(item(`RCBO for RYB${ryb.way} (4P)`).disabled).toBe(false);
+    expect(item('AFDD + RCBO for the selected 1-phase circuit').disabled).toBe(true);
+    expect(item(`MCB + RCD add-on block for RYB${ryb.way}`).disabled).toBe(false);
   });
 
   it('makes the selected 1-phase circuit an RCBO and says so; it can be removed again', () => {
@@ -77,7 +79,7 @@ describe('Add → ELCB / RCD', () => {
     act(() => item('RCBO for R1 (2P)').click());
     const f = latest.feeders.find((x) => x.id === `${BOARD}-R1`)!;
     expect(f.rcbo).toBe(true);
-    expect(status).toHaveBeenLastCalledWith(expect.stringMatching(/^R1: RCBO \d+ A \d+ mA 2P in place of the MCB; it leaves ELCB-1$/));
+    expect(status).toHaveBeenLastCalledWith(expect.stringMatching(/^R1: RCBO \d+ A \d+ mA 2P in place of the MCB \(RCBO-1\); it leaves ELCB-1$/));
     expect(document.querySelector('table.ls')!.textContent).toMatch(/RCBO-1.*this circuit/);
     press(roomOf('R1'));
     openMenu();
@@ -200,6 +202,25 @@ describe('Add → ELCB / RCD', () => {
     expect(items().map((b) => b.textContent)).toContain('Edit the No RCD reason…');
     act(() => item('Put Y1 back on its ELCB').click());
     expect(latest.feeders.find((f) => f.id === `${BOARD}-Y1`)!.noRcd).toBeUndefined();
+  });
+
+  it('gives a circuit an AFDD + RCBO, then an RCD add-on block in its place, and names each', () => {
+    mount();
+    press(roomOf('Y1'));
+    openMenu();
+    act(() => item('AFDD + RCBO for Y1').click());
+    expect(latest.feeders.find((f) => f.id === `${BOARD}-Y1`)).toMatchObject({ rcbo: true, rcboKind: 'afdd' });
+    expect(status).toHaveBeenLastCalledWith(expect.stringMatching(/^Y1: AFDD \+ RCBO \d+ A \d+ mA 2P \+ AFDD in place of the MCB \(RCBO-1\); it leaves ELCB-1$/));
+    expect(document.querySelector('table.ls')!.textContent).toMatch(/RCBO-1\d+ A \d+ mA 2P \+ AFDDthis circuit/);
+    press(roomOf('Y1'));
+    openMenu();
+    expect(item('AFDD + RCBO for the selected 1-phase circuit').disabled).toBe(true);
+    act(() => item('MCB + RCD add-on block for Y1').click());
+    expect(latest.feeders.find((f) => f.id === `${BOARD}-Y1`)!.rcboKind).toBe('addon');
+    expect(document.querySelector('table.ls')!.textContent).toMatch(/RCD-1\d+ A \d+ mA 2P add-onthis circuit/);
+    press(roomOf('Y1'));
+    openMenu();
+    expect(items().map((b) => b.textContent)).toEqual(expect.arrayContaining(['Edit RCD-1…', 'Remove RCD-1']));
   });
 
   it('has no ELCB / RCD menu on the MD form', () => {

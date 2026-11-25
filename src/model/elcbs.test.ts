@@ -328,6 +328,54 @@ describe('4P RCBO and No RCD', () => {
   });
 });
 
+describe('AFDD + RCBO and MCB + RCD add-on block', () => {
+  const sockets = (p: Project, id: string) => updateCircuit(p, id, { points: { s13: 2 } });
+
+  it('an AFDD + RCBO is a 1-phase RCBO with arc fault detection: RCBO-n, its own BOQ line and enclosure device', () => {
+    let p = sockets(db(6), 'DB-R2');
+    p = setRcbo(p, 'DB-R2', true, undefined, 'afdd');
+    expect(p.feeders.find((f) => f.id === 'DB-R2')).toMatchObject({ rcbo: true, rcboKind: 'afdd' });
+    const r = rcbosOf(p, board(p))[0];
+    expect([r.name, r.kind, r.label]).toEqual(['RCBO-1', 'afdd', `${r.ratingA} A 30 mA 2P + AFDD`]);
+    expect(elcbGroups(p, board(p))[0].circuits.map((c) => c.id)).not.toContain('DB-R2');
+    const bom = buildBom(p).map((l) => l.description);
+    expect(bom.filter((d) => /AFDD/.test(d))).toEqual([expect.stringMatching(/^AFDD \+ RCBO \d+ A, 30 mA, SP\+N, arc fault detection \(IEC 62606\)/)]);
+    expect(bom.some((d) => /^RCBO /.test(d))).toBe(false);
+    expect(neededDevices(p, 'DB').filter((d) => d.kind === 'AFDD+RCBO').map((d) => d.count)).toEqual([1]);
+    expect(buildLoadScheduleHtml(p, 'DB')).toMatch(/RCBO-1<br>\d+ A 30 mA 2P \+ AFDD/);
+    // 1-phase only.
+    const ryb = addCircuit(p, 'DB', 'RYB');
+    expect(() => setRcbo(ryb.project, ryb.id, true, undefined, 'afdd')).toThrow(/1-phase/);
+  });
+
+  it('an RCD add-on block keeps the MCB: RCD-n, an MCB and an add-on block in the BOQ and the enclosure', () => {
+    let p = setRcbo(sockets(db(6), 'DB-Y2'), 'DB-Y2', true, 100);
+    p = setRcbo(sockets(p, 'DB-B2'), 'DB-B2', true, undefined, 'addon');
+    expect(rcbosOf(p, board(p)).map((r) => [r.name, r.label.split(' ').slice(-1)[0]])).toEqual([['RCBO-1', '2P'], ['RCD-1', 'add-on']]);
+    const bom = buildBom(p).map((l) => l.description);
+    expect(bom.filter((d) => /^RCD add-on block/.test(d))).toEqual([expect.stringMatching(/^RCD add-on block 30 mA, SP\+N, for a \d+ A MCB/)]);
+    const devices = neededDevices(p, 'DB');
+    expect(devices.filter((d) => d.kind === 'RCD add-on').map((d) => d.count)).toEqual([1]);
+    expect(devices.filter((d) => d.kind === 'RCBO').map((d) => d.count)).toEqual([1]);
+    expect(buildDbSheet(p, 'DB').data.map((r) => String(r[1] ?? '')).filter((c) => /^RCD-/.test(c))).toEqual([expect.stringMatching(/^RCD-1 \d+ A 30 mA 2P add-on$/)]);
+    expect(rcdOf(p, p.feeders.find((f) => f.id === 'DB-B2')!)).toBe(30);
+    // A 3-phase circuit can take one too.
+    const ryb = addCircuit(p, 'DB', 'RYB');
+    const q = setRcbo(ryb.project, ryb.id, true, undefined, 'addon');
+    expect(rcbosOf(q, board(q)).find((r) => r.circuit.id === ryb.id)!.label).toMatch(/4P add-on$/);
+  });
+
+  it('a sensitivity edit keeps the kind; another kind replaces it; off, No RCD and Re-group clear it', () => {
+    const p = setRcbo(db(6), 'DB-R2', true, undefined, 'afdd');
+    expect(setRcbo(p, 'DB-R2', true, 10).feeders.find((f) => f.id === 'DB-R2')).toMatchObject({ rcboKind: 'afdd', rcdMa: 10 });
+    expect(setRcbo(p, 'DB-R2', true, undefined, 'rcbo').feeders.find((f) => f.id === 'DB-R2')).not.toHaveProperty('rcboKind');
+    expect(setRcbo(p, 'DB-R2', true, undefined, 'addon').feeders.find((f) => f.id === 'DB-R2')!.rcboKind).toBe('addon');
+    for (const q of [setRcbo(p, 'DB-R2', false), setNoRcd(p, 'DB-R2', 'Fire alarm panel'), regroupElcbs(p, 'DB', { size: 6, keepApart: false, keepRcbos: false })]) {
+      expect(q.feeders.find((f) => f.id === 'DB-R2')).not.toHaveProperty('rcboKind');
+    }
+  });
+});
+
 describe('earth leakage of circuits', () => {
   it('an Auto RCBO gets the setting for its type, a chosen mA stays, a circuit under a hand ELCB gets its mA', () => {
     let p = db(6);

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Modal } from '../ui';
-import { circuitCategory, circuitRef, elcbGroups, rcbosOf, scheduleCircuits, STANDARD_ELCB_A } from '../../calc/loadSchedule';
+import { circuitCategory, circuitRef, elcbGroups, RCBO_KIND_TEXT, rcbosOf, scheduleCircuits, STANDARD_ELCB_A } from '../../calc/loadSchedule';
 import { elcbPreview, elcbWaysProblem } from '../../model/elcbs';
 import type { Board, BoardElcb, Project } from '../../types';
 
@@ -51,9 +51,10 @@ export default function ElcbDialog({ project, board, target, onSave, onClose }: 
   }, [project, board, target, at, fromWay, toWay, poles]);
 
   const circuits = target.kind === 'elcb' && !problem ? scheduleCircuits(project, board.id).filter((f) => f.way! >= fromWay && f.way! <= toWay) : [];
-  const number = target.kind === 'elcb' ? group?.index : target.kind === 'rcbo' ? rcbosOf(project, board).find((r) => r.circuit.id === target.feederId)?.index : undefined;
+  const number = target.kind === 'elcb' ? group?.index : undefined;
+  const own = target.kind === 'rcbo' ? rcbosOf(project, board).find((r) => r.circuit.id === target.feederId) : undefined;
   const circuitName = rcboFeeder ? `${circuitRef(rcboFeeder) ?? rcboFeeder.id} ${rcboFeeder.room || rcboFeeder.name}`.trim() : '';
-  const title = target.kind === 'rcbo' ? `RCBO-${number ?? ''} — ${circuitName}`
+  const title = target.kind === 'rcbo' ? `${own?.name ?? 'RCBO'} — ${circuitName}`
     : target.kind === 'none' ? `No RCD — ${circuitName}`
     : group ? `ELCB-${number ?? ''} — ${board.id}` : `Add 3-phase ELCB — ${board.id}`;
 
@@ -87,7 +88,7 @@ export default function ElcbDialog({ project, board, target, onSave, onClose }: 
           </label>
         </>
       )}
-      {target.kind === 'rcbo' && <p className="m">Rating {rcboFeeder?.breakerRatingA} A (the circuit&apos;s breaker), {rcboFeeder?.phase === 'RYB' ? '4P' : '2P'}</p>}
+      {target.kind === 'rcbo' && <p className="m">{own ? RCBO_KIND_TEXT[own.kind] : 'RCBO'}, rating {rcboFeeder?.breakerRatingA} A (the circuit&apos;s breaker), {rcboFeeder?.phase === 'RYB' ? '4P' : '2P'}</p>}
       {target.kind === 'none' && (
         <>
           <label>Reason <input data-field="reason" value={reason} onChange={(e) => { setReason(e.target.value); setError(undefined); }} aria-invalid={!!problem} /></label>

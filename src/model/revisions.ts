@@ -122,7 +122,7 @@ export const FEEDER_FIELDS: Fields<Feeder> = [
   ['rcdMa', 'RCD (mA)'], ['essential', 'Essential (generator)'], ['standbyUnit', 'Standby unit'], ['kvar', 'Capacitor (kvar)'], ['starter', 'Starter'],
   ['loadType', 'Load type'], ['phase', 'Phase'], ['way', 'Way'], ['kwhMeter', 'kWh meter'], ['feedsBoardId', 'Feeds'], ['remarks', 'Remarks'],
   ['boardId', 'On board'], ['generation', 'Generation (PV / generator)'], ['existing', 'Existing (already installed)'], ['componentId', 'Component'], ['componentValues', 'Component values'], ['fromRoom', 'Standby unit from'],
-  ['manualSize', 'Sizes set by hand'], ['circuitPurpose', 'Circuit purpose'], ['localIsolator', 'Local isolator'], ['rcbo', 'RCBO'], ['noRcd', 'No RCD (reason)'], ['capSteps', 'Capacitor steps'], ['detunedPct', 'Detuning (%)']
+  ['manualSize', 'Sizes set by hand'], ['circuitPurpose', 'Circuit purpose'], ['localIsolator', 'Local isolator'], ['rcbo', 'RCBO'], ['rcboKind', 'AFDD + RCBO or RCD add-on'], ['noRcd', 'No RCD (reason)'], ['capSteps', 'Capacitor steps'], ['detunedPct', 'Detuning (%)']
 ];
 
 export const BOARD_FIELDS: Fields<Board> = [

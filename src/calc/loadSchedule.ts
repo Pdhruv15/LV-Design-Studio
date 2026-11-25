@@ -417,14 +417,27 @@ export function oddElcbCircuits(groups: ElcbGroup[]): Map<string, ElcbGroup> {
   return out;
 }
 
-export interface Rcbo { index: number; circuit: Feeder; ratingA: number; sensitivityMa: number; label: string }
+/** A circuit's own earth leakage device: an RCBO, an AFDD + RCBO, or its MCB with an RCD add-on block. */
+export type RcboKind = 'rcbo' | 'afdd' | 'addon';
+export const rcboKindOf = (f: Feeder): RcboKind => f.rcboKind ?? 'rcbo';
+/** How each kind is named on the schedule and in messages. */
+export const RCBO_KIND_TEXT: Record<RcboKind, string> = { rcbo: 'RCBO', afdd: 'AFDD + RCBO', addon: 'MCB + RCD add-on block' };
 
-/** The board's RCBO circuits in way order (then R, Y, B), numbered RCBO-1, 2, …: rated as the circuit's breaker, IΔn
- * as chosen (rcdMa) else as an ELCB over that circuit would be. Printed as 2P (1P+N), or 4P (3P+N) on a 3-phase circuit. */
+export interface Rcbo { index: number; name: string; kind: RcboKind; circuit: Feeder; ratingA: number; sensitivityMa: number; label: string }
+
+/** The board's circuits with an earth leakage device of their own, in way order (then R, Y, B): RCBOs and AFDD + RCBOs
+ * numbered RCBO-1, 2, …, MCBs with an RCD add-on block RCD-1, 2, …. Rated as the circuit's breaker, IΔn as chosen
+ * (rcdMa) else as an ELCB over that circuit would be. Printed 2P (1P+N), or 4P (3P+N) on a 3-phase circuit:
+ * "20 A 30 mA 2P", "20 A 30 mA 2P + AFDD", "20 A 30 mA 2P add-on". */
 export function rcbosOf(project: Project, board: Board): Rcbo[] {
-  return scheduleCircuits(project, board.id).filter(isRcbo).map((f, i) => {
+  let rcbos = 0, addons = 0;
+  return scheduleCircuits(project, board.id).filter(isRcbo).map((f) => {
+    const kind = rcboKindOf(f);
+    const index = kind === 'addon' ? ++addons : ++rcbos;
     const ratingA = f.breakerRatingA;
     const sensitivityMa = f.rcdMa ?? sensitivityFor(project, board, [f], circuitCategory(f));
-    return { index: i + 1, circuit: f, ratingA, sensitivityMa, label: `${ratingA} A ${sensitivityMa} mA ${f.phase === 'RYB' ? '4P' : '2P'}` };
+    const base = `${ratingA} A ${sensitivityMa} mA ${f.phase === 'RYB' ? '4P' : '2P'}`;
+    const label = kind === 'afdd' ? `${base} + AFDD` : kind === 'addon' ? `${base} add-on` : base;
+    return { index, name: `${kind === 'addon' ? 'RCD' : 'RCBO'}-${index}`, kind, circuit: f, ratingA, sensitivityMa, label };
   });
 }

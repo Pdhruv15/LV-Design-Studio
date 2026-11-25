@@ -68,7 +68,7 @@ export const TEMPLATE_FIELDS: { key: string; about: string }[] = [
   { key: 'row.runs', about: 'Parallel cable runs' },
   { key: 'row.installMethod', about: 'Cable installation method' },
   { key: 'row.rcdMa', about: 'RCD / ELCB sensitivity, mA' },
-  { key: 'row.rcbo', about: 'RCBO: Yes or blank' },
+  { key: 'row.rcbo', about: 'Own earth leakage device: Yes (RCBO), AFDD + RCBO, MCB + RCD add-on, or blank' },
   { key: 'row.voltageDrop', about: 'Circuit cable voltage drop, %' },
   { key: 'row.elcb', about: 'ELCB label, on the first row of its group only' },
   { key: 'row.elcbGroup', about: 'ELCB label, on every row of the group' },
@@ -128,7 +128,7 @@ export function templateData(project: Project, boardId: string, at = new Date())
       'row.demandFactor': r.f.demandFactor, 'row.demandWatts': num(r.watts * r.f.demandFactor), 'row.powerFactor': r.f.powerFactor,
       'row.designCurrent': Math.round(designCurrentA(r.f, project) * 100) / 100, 'row.breakerType': breakerTypeOf(r.f), 'row.breakerIcu': r.f.breakerIcuKa,
       'row.cableType': cableTypeOf(project, r.f).value, 'row.cores': r.f.cores, 'row.runs': runsOf(r.f), 'row.installMethod': r.f.installMethod ?? 'E',
-      'row.rcdMa': rcdOf(project, r.f) ?? '', 'row.rcbo': r.f.rcbo ? 'Yes' : '', 'row.voltageDrop': Math.round(voltageDropPct(r.f, project) * 100) / 100,
+      'row.rcdMa': rcdOf(project, r.f) ?? '', 'row.rcbo': !r.f.rcbo ? '' : r.f.rcboKind === 'afdd' ? 'AFDD + RCBO' : r.f.rcboKind === 'addon' ? 'MCB + RCD add-on' : 'Yes', 'row.voltageDrop': Math.round(voltageDropPct(r.f, project) * 100) / 100,
       'row.remarks': remarksText(r.f),
       'row.status': r.status === 'bad' ? 'fails check' : r.status === 'warn' ? 'check' : ''
     };

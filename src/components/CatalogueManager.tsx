@@ -12,7 +12,7 @@ import { safeFileName, saveBinary, saveText } from '../util/files';
 
 import { BRAND_DEVICES } from '../data/brandDevices';
 import { Modal } from './ui';
-const KINDS: DeviceKind[] = ['MCB', 'RCBO', 'RCCB', 'MCCB', 'ACB', 'Isolator', 'SPD', 'Contactor', 'Meter', 'Pilot light', 'Other'];
+const KINDS: DeviceKind[] = ['MCB', 'RCBO', 'AFDD+RCBO', 'RCD add-on', 'RCCB', 'MCCB', 'ACB', 'Isolator', 'SPD', 'Contactor', 'Meter', 'Pilot light', 'Other'];
 const n = (v: string): number | undefined => (v.trim() === '' || !Number.isFinite(Number(v)) ? undefined : Number(v));
 
 /** Catalogue manager: enclosure catalogues (supplier, range, sizes, allowance cases) and device

@@ -1,4 +1,4 @@
-import { elcbGroups, isScheduleCircuit, scheduleCircuits, type ElcbGroup } from '../calc/loadSchedule';
+import { elcbGroups, isScheduleCircuit, scheduleCircuits, type ElcbGroup, type RcboKind } from '../calc/loadSchedule';
 import type { BoardElcb, Project } from '../types';
 import { balancePhases, refreshBoard } from './schedule';
 import { isDbBoard } from './spareWays';
@@ -206,19 +206,25 @@ export function regroupPreview(project: Project, boardId: string, o: RegroupOpti
   return { before: sizes(project), after: sizes(next), moved };
 }
 
-/** Makes a circuit's breaker an RCBO (on: 2P, or 4P on a 3-phase circuit), IΔn as given or Auto, or an MCB again (off).
- * An RCBO replaces No RCD. */
-export function setRcbo(project: Project, feederId: string, on: boolean, rcdMa?: number): Project {
+/** Gives a circuit an earth leakage device of its own (on): an RCBO in place of its MCB (2P, or 4P on a 3-phase circuit),
+ * an AFDD + RCBO (1-phase only), or an RCD add-on block on its MCB — `kind` as given, else the one it has; IΔn as given
+ * or Auto. Off: its MCB again, back on the ELCB of its ways. This replaces No RCD. */
+export function setRcbo(project: Project, feederId: string, on: boolean, rcdMa?: number, kind?: RcboKind): Project {
   const f = project.feeders.find((x) => x.id === feederId);
   if (!f || !isScheduleCircuit(f)) throw new Error('That circuit is no longer on a load schedule');
+  const k = kind ?? f.rcboKind ?? 'rcbo';
+  if (on && k === 'afdd' && f.phase === 'RYB') throw new Error('An AFDD + RCBO is for 1-phase circuits; give a 3-phase circuit a 4P RCBO or an RCD add-on block');
   const next = { ...f };
   if (on) {
     next.rcbo = true;
+    if (k === 'rcbo') delete next.rcboKind;
+    else next.rcboKind = k;
     delete next.noRcd;
     if (rcdMa) next.rcdMa = rcdMa;
     else delete next.rcdMa;
   } else {
     delete next.rcbo;
+    delete next.rcboKind;
     delete next.rcdMa;
   }
   return refreshBoard({ ...project, feeders: project.feeders.map((x) => (x.id === feederId ? next : x)) }, f.boardId);
@@ -234,6 +240,7 @@ export function setNoRcd(project: Project, feederId: string, reason?: string): P
   if (why) {
     next.noRcd = why;
     delete next.rcbo;
+    delete next.rcboKind;
     delete next.rcdMa;
   } else delete next.noRcd;
   return refreshBoard({ ...project, feeders: project.feeders.map((x) => (x.id === feederId ? next : x)) }, f.boardId);
@@ -247,6 +254,7 @@ export function allAutomatic(project: Project, boardId: string): Project {
     if (!own.has(f.id)) return f;
     const rest = { ...f };
     delete rest.rcbo;
+    delete rest.rcboKind;
     delete rest.rcdMa;
     delete rest.noRcd;
     return rest;

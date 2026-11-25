@@ -191,7 +191,7 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
     };
     const labelOf = (key: string): string => {
       const r = circuitRows.find((x) => `rcbo:${x.f.id}` === key)?.rcbo;
-      if (r) return `RCBO-${r.index} ${r.label}`;
+      if (r) return `${r.name} ${r.label}`;
       const none = circuitRows.find((x) => `none:${x.f.id}` === key)?.none;
       if (none) return `No RCD (${none})`;
       const g = key.startsWith('elcb:') ? elcbs.find((x) => x.index === Number(key.slice(5))) : undefined;

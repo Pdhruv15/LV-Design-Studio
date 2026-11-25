@@ -8,7 +8,7 @@ import type { Board, Feeder, Phase, PointType, Project } from '../../types';
 import { cables } from '../../calc/cableTable';
 import { defaultCpcMm2 } from '../../calc/earthing';
 import { breakerRatings } from '../../calc/sizing';
-import { elcbGroups, itemizedTypes, loadItemsText, missingWatts, oddElcbCircuits, pointColumns, pointLabel, pointWattsFor, isScheduleCircuit, rcbosOf, circuitCategory, type ElcbGroup } from '../../calc/loadSchedule';
+import { RCBO_KIND_TEXT, type RcboKind, elcbGroups, itemizedTypes, loadItemsText, missingWatts, oddElcbCircuits, pointColumns, pointLabel, pointWattsFor, isScheduleCircuit, rcbosOf, circuitCategory, type ElcbGroup } from '../../calc/loadSchedule';
 import { settingsOf } from '../../types';
 import { loadsForColumn, type Database } from '../../database/database';
 import { buildLoadScheduleHtml, elcbColumn, loadScheduleCsv, loadScheduleRows } from '../../docs/loadScheduleDoc';
@@ -286,13 +286,14 @@ export default function LoadScheduleView({
     onChange(removeElcbAt(project, board.id, g.ways[0]), { step: true });
     onStatus(`ELCB-${g.index} removed: ${elcbWaysText(g.ways)} take the New ELCBs size (${newSize ? `${newSize} circuits` : 'no ELCB'})`);
   };
-  const placeRcbo = () => {
+  const placeRcbo = (kind: RcboKind = 'rcbo') => {
     if (!activeRow) return;
     try {
-      const next = setRcbo(project, activeRow.f.id, true);
+      const next = setRcbo(project, activeRow.f.id, true, undefined, kind);
       onChange(next, { step: true });
       const r = rcbosOf(next, next.boards.find((b) => b.id === board.id)!).find((x) => x.circuit.id === activeRow.f.id)!;
-      onStatus(`${activeRow.ref}: RCBO ${r.label} in place of the MCB${activeRow.group ? `; it leaves ELCB-${activeRow.group.index}` : ''}`);
+      const what = kind === 'addon' ? `RCD add-on block ${r.label} on its MCB (${r.name})` : `${RCBO_KIND_TEXT[kind]} ${r.label} in place of the MCB (${r.name})`;
+      onStatus(`${activeRow.ref}: ${what}${activeRow.group ? `; it leaves ELCB-${activeRow.group.index}` : ''}`);
     } catch (e) {
       onStatus(e instanceof Error ? e.message : String(e));
     }
@@ -324,7 +325,7 @@ export default function LoadScheduleView({
   const removeRcbo = () => {
     if (!activeRow?.rcbo) return;
     onChange(setRcbo(project, activeRow.f.id, false), { step: true });
-    onStatus(`RCBO-${activeRow.rcbo.index} removed: ${activeRow.ref} has its MCB again and is back on the ELCB`);
+    onStatus(`${activeRow.rcbo.name} removed: ${activeRow.ref} has its MCB again and is back on the ELCB`);
   };
   const backOnElcb = () => {
     if (!activeRow?.none) return;
@@ -513,17 +514,23 @@ export default function LoadScheduleView({
                   {activeRow && activeRow.f.phase === 'RYB' && !(activeGroup && activeGroup.ways.length === 1)
                     ? <button title="An ELCB over the way of this 3-phase circuit; the ELCB it is under gives that way up" onClick={() => { close(); setElcbDlg({ kind: 'elcb', from: activeRow.f.way!, to: activeRow.f.way! }); }}>3-phase ELCB for {activeRow.ref} only</button>
                     : <button disabled title="Select a 3-phase circuit that does not have an ELCB of its own yet">3-phase ELCB for the selected 3-phase circuit</button>}
-                  {activeRow && !activeRow.rcbo
+                  {activeRow && activeRow.rcbo?.kind !== 'rcbo'
                     ? <button title={`The circuit's breaker becomes an RCBO (MCB and earth leakage in one, ${activeRow.f.phase === 'RYB' ? '4P' : '2P'}); it leaves the ELCB of its ways`} onClick={() => { close(); placeRcbo(); }}>RCBO for {activeRow.ref} ({activeRow.f.phase === 'RYB' ? '4P' : '2P'})</button>
                     : <button disabled title="Select a circuit that is not an RCBO yet first">RCBO for the selected circuit</button>}
+                  {activeRow && activeRow.f.phase !== 'RYB' && activeRow.rcbo?.kind !== 'afdd'
+                    ? <button title="An RCBO with arc fault detection (IEC 62606) in place of the MCB; it leaves the ELCB of its ways" onClick={() => { close(); placeRcbo('afdd'); }}>AFDD + RCBO for {activeRow.ref}</button>
+                    : <button disabled title="Select a 1-phase circuit that has no AFDD + RCBO yet first">AFDD + RCBO for the selected 1-phase circuit</button>}
+                  {activeRow && activeRow.rcbo?.kind !== 'addon'
+                    ? <button title="The MCB stays and an RCD add-on block is clipped to it, for ratings or curves where no RCBO is made; it leaves the ELCB of its ways" onClick={() => { close(); placeRcbo('addon'); }}>MCB + RCD add-on block for {activeRow.ref}</button>
+                    : <button disabled title="Select a circuit that has no RCD add-on block yet first">MCB + RCD add-on block for the selected circuit</button>}
                   {activeRow && !activeRow.none
                     ? <button title="No earth leakage device on purpose (fire alarm panel, life safety); asks the reason" onClick={() => { close(); setElcbDlg({ kind: 'none', feederId: activeRow.f.id }); }}>No RCD for {activeRow.ref}…</button>
                     : !activeRow && <button disabled title="Select a circuit first">No RCD for the selected circuit…</button>}
                   {activeRow?.rcbo && (
                     <>
                       <hr />
-                      <button onClick={() => { close(); setElcbDlg({ kind: 'rcbo', feederId: activeRow.f.id }); }}>Edit RCBO-{activeRow.rcbo.index}…</button>
-                      <button onClick={() => { close(); removeRcbo(); }}>Remove RCBO-{activeRow.rcbo.index}</button>
+                      <button onClick={() => { close(); setElcbDlg({ kind: 'rcbo', feederId: activeRow.f.id }); }}>Edit {activeRow.rcbo.name}…</button>
+                      <button onClick={() => { close(); removeRcbo(); }}>Remove {activeRow.rcbo.name}</button>
                     </>
                   )}
                   {activeRow?.none && (
@@ -627,7 +634,7 @@ export default function LoadScheduleView({
                     const mixed = !!cg && cg.category === 'mixed';
                     const covers = !cg ? '' : cg.ways.length === 1 && cg.circuits.length === 1 && cg.circuits[0].phase === 'RYB' ? 'this circuit' : `${cg.ways.length * 3} circuits`;
                     const elcbTd = !c ? null : c.rcbo ? (
-                      <td className="elcb">RCBO-{c.rcbo.index}<br />{c.rcbo.label}<br /><span className="m">this circuit</span></td>
+                      <td className="elcb">{c.rcbo.name}<br />{c.rcbo.label}<br /><span className="m">this circuit</span></td>
                     ) : c.none ? (
                       <td className="elcb" title="No earth leakage device on purpose: the earth fault check rests on the MCB alone">No RCD<br /><span className="m">{c.none}</span></td>
                     ) : cg ? (

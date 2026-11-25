@@ -70,9 +70,10 @@ export function elcbColumn(entries: ElcbCellOf[]): ({ span: number } & ElcbCellO
   return out;
 }
 
-/** The ELCB column text of a row: "ELCB-2 40 A 30 mA 4P", "RCBO-1 20 A 30 mA 2P", "No RCD (fire alarm panel)", or blank. */
+/** The ELCB column text of a row: "ELCB-2 40 A 30 mA 4P", "RCBO-1 20 A 30 mA 2P", "RCD-1 20 A 30 mA 2P add-on",
+ * "No RCD (fire alarm panel)", or blank. */
 export const elcbText = (e: ElcbCellOf): string =>
-  e.rcbo ? `RCBO-${e.rcbo.index} ${e.rcbo.label}` : e.none ? `No RCD (${e.none})` : e.group ? `ELCB-${e.group.index} ${e.group.label}` : '';
+  e.rcbo ? `${e.rcbo.name} ${e.rcbo.label}` : e.none ? `No RCD (${e.none})` : e.group ? `ELCB-${e.group.index} ${e.group.label}` : '';
 
 /** Remarks as printed: the user's remarks, then the mixed load items (e.g. "6×L1 10 W + 4×L2 20 W"). */
 export const remarksText = (f: Feeder) => [f.remarks, loadItemsText(f)].filter(Boolean).join('; ');
@@ -166,7 +167,7 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
     if (noElcb) return i === 0 ? `<td rowspan="${rows.length}"></td>` : '';
     const c = cells[i];
     if (!c) return '';
-    if (c.rcbo) return `<td class="v" rowspan="${c.span}">RCBO-${c.rcbo.index}<br>${esc(c.rcbo.label)}</td>`;
+    if (c.rcbo) return `<td class="v" rowspan="${c.span}">${c.rcbo.name}<br>${esc(c.rcbo.label)}</td>`;
     if (c.none) return `<td class="v" rowspan="${c.span}">No RCD<br>${esc(c.none)}</td>`;
     if (c.group) return `<td class="v" rowspan="${c.span}">ELCB-${c.group.index}<br>${esc(c.group.label)}</td>`; // a spare in a section with no circuits has no cell text
     return '<td></td>';
