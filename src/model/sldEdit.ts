@@ -5,6 +5,7 @@ import { BOARD_KINDS, settingsOf, type Board, type BoardKind, type Feeder, type 
 import { isMotor, STARTERS } from '../calc/motor';
 import { applyPreset, canDropPreset, type FeederPreset } from './presets';
 import { fedFromOf } from './designReference';
+import { addFaultPoint, faultPointResult } from '../calc/faultPoints';
 
 /** Building the SLD by drag and drop: what each library item does when it
  * is dropped on a busbar, on a feeder, or on the empty canvas. Every drop
@@ -48,7 +49,9 @@ export type PaletteItem =
   | { kind: 'device'; device: ProtectionDevice }
   | { kind: 'accessory'; accessory: Accessory }
   | { kind: 'preset'; preset: FeederPreset }
-  | { kind: 'cable' };
+  | { kind: 'cable' }
+  /** A fault point mark (F1, F2…): on a busbar, or at the far end of a circuit's cable. */
+  | { kind: 'faultPoint' };
 
 /** Devices added to a feeder or a busbar without changing its breaker. */
 export type Accessory = 'meter' | 'ct-meter' | 'rcd' | 'isolator' | 'spd' | 'pmu' | 'cable-fr' | 'cable-lszh';
@@ -177,6 +180,8 @@ const isRoot = (p: Project, boardId: string) => !p.boards.find((b) => b.id === b
 /** Whether an item can go on a target: shown while dragging. */
 export function canDrop(project: Project, item: PaletteItem, target: DropTarget): boolean {
   switch (item.kind) {
+    case 'faultPoint':
+      return target.type === 'bus' ? project.boards.some((b) => b.id === target.boardId) : target.type === 'feeder' && project.feeders.some((f) => f.id === target.feederId);
     case 'board':
       if (target.type === 'canvas') return true;
       if (target.type !== 'bus') return false;
@@ -224,6 +229,8 @@ export function dropsOn(item: PaletteItem): DropTarget['type'][] {
     case 'cable':
     case 'starter':
       return ['feeder'];
+    case 'faultPoint':
+      return ['bus', 'feeder'];
     case 'accessory':
       return BUS_ACCESSORIES.includes(item.accessory) ? ['bus'] : ['feeder'];
     default:
@@ -295,6 +302,12 @@ export function newBoard(project: Project, kind: BoardKind, upstreamId?: string)
  * item can't go there. */
 export function applyDrop(project: Project, item: PaletteItem, target: DropTarget, library: LibraryLoad[] = []): DropResult {
   if (!canDrop(project, item, target)) return { project, message: dropHint(item) };
+
+  if (item.kind === 'faultPoint') {
+    const next = addFaultPoint(project, target.type === 'bus' ? { boardId: target.boardId } : { feederId: (target as { feederId: string }).feederId });
+    const made = next.faultPoints![next.faultPoints!.length - 1];
+    return { project: next, message: `Fault point ${made.id} on ${faultPointResult(next, made).place} — its values are in the short circuit report` };
+  }
 
   if (item.kind === 'board') {
     const parent = target.type === 'bus' ? target.boardId : undefined;
@@ -554,6 +567,8 @@ export const updateTie = (project: Project, id: string, patch: { ratingA?: numbe
 /** Where an item can go, for when it's dropped somewhere it can't. */
 export function dropHint(item: PaletteItem): string {
   switch (item.kind) {
+    case 'faultPoint':
+      return 'Click a busbar or a cable to mark a fault point';
     case 'board':
       return item.board === 'MC' ? 'Drop a meter cabinet on the empty canvas'
         : item.board === 'MDB' ? 'Drop an MDB on the empty canvas, or on a meter cabinet busbar'

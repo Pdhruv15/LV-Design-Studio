@@ -97,4 +97,26 @@ describe('short circuit report in per unit', () => {
     const pu = sc.tables.find((t) => t.title === 'Fault at the busbars in per unit')!, ohm = sc.tables.find((t) => t.title === 'Fault levels at the busbars')!;
     expect(pu.rows.map((r) => [r[0], r[6]])).toEqual(ohm.rows.map((r) => [r[0], r[4]]));
   });
+  it('has no Fault points table when no mark is placed', () => {
+    expect(sc.tables.map((t) => t.title)).not.toContain('Fault points');
+  });
+});
+
+describe('short circuit report: fault points', () => {
+  it('lists the marks on boards and circuits in scope, with the busbar mark equal to the busbar table', () => {
+    const f = sampleProject.feeders.find((x) => x.feedsBoardId === sub.id)!;
+    const marked = { ...sampleProject, faultPoints: [{ id: 'F1', boardId: sub.id }, { id: 'F2', feederId: f.id, name: 'Riser' }, { id: 'F3', boardId: 'GONE' }] };
+    const r = runCalculations(marked);
+    const d: CalcData = { project: r.project, results: r.results, earthing: r.earthing, selectivity: r.selectivity };
+    const sc = buildSection('sc', d, scopeOf(marked, { boards: [], downstream: true }));
+    const points = sc.tables.find((t) => t.title === 'Fault points')!;
+    expect(points.headers).toEqual(['Point', 'Place', 'kV', 'R (p.u.)', 'X (p.u.)', 'Z (p.u.)', 'X/R', 'Ik″ (kA)', 'Peak ip (kA)', 'Line-earth, minimum (kA)', 'Breaker Icu (kA)']);
+    expect(points.rows.map((row) => row[0])).toEqual(['F1', 'F2']); // F3's board is gone: left off
+    expect(points.rows[0][1]).toBe(`${sub.id} busbar`);
+    expect(String(points.rows[1][1])).toMatch(/^Riser: /);
+    const busbars = sc.tables.find((t) => t.title === 'Fault at the busbars in per unit')!;
+    const row = busbars.rows.find((x) => x[0] === sub.id)!;
+    expect(points.rows[0][7]).toEqual(row[6]); // Ik″
+    expect(points.rows[0][8]).toEqual(row[8]); // ip
+  });
 });
