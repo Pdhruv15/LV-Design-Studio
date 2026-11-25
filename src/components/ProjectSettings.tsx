@@ -6,6 +6,7 @@ import { loadReferences, settingSource, type RefKey } from '../model/designRefer
 import { RuleRows, newRule } from './docs/RuleRows';
 import { ruleIssues } from '../model/designRules';
 import { fmtDate } from '../util/format';
+import { DEFAULT_BASE_MVA } from '../calc/perUnit';
 
 type SettingsTab = 'system' | 'targets' | 'forms' | 'schedule';
 const SETTINGS_TABS: [SettingsTab, string][] = [['system', 'System & limits'], ['targets', 'Sizing targets'], ['forms', 'Submission forms'], ['schedule', 'Load schedule']];
@@ -98,6 +99,7 @@ export default function ProjectSettings({ project, onSave, onClose }: { project:
         <label>Future load growth (%)<input type="number" min="0" max="100" value={study.futureGrowthPct} onChange={(e) => setStudy('futureGrowthPct', num(e.target.value, study.futureGrowthPct))} /></label>
         <label>Transformer max loading (%)<input type="number" min="10" max="100" value={study.transformerMaxLoadingPct} onChange={(e) => setStudy('transformerMaxLoadingPct', num(e.target.value, study.transformerMaxLoadingPct))} /></label>
         <label>Generator max loading (%)<input type="number" min="10" max="100" value={study.generatorMaxLoadingPct} onChange={(e) => setStudy('generatorMaxLoadingPct', num(e.target.value, study.generatorMaxLoadingPct))} /></label>
+        <label>Per-unit base power (MVA)<input type="number" min="1" step="1" placeholder={String(DEFAULT_BASE_MVA)} value={p.baseMva ?? ''} onChange={(e) => set('baseMva', Number(e.target.value) > 0 ? Number(e.target.value) : undefined)} /></label>
         </div>
       )}
       {tab === 'forms' && (

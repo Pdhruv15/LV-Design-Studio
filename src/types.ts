@@ -699,6 +699,8 @@ export interface Project {
   /** Final design: every cable size must have manufacturer data in Cables.xlsx (reference, user-entered
    * and fallback values become failures in the to-do list instead of notes). */
   strictCableData?: boolean;
+  /** Base power of the per-unit tables in the short circuit report, MVA (absent = 100). */
+  baseMva?: number;
   /** Cable data by type: each cable is calculated with the R, X, rating, temperature limits and k of its own
    * family (conductor, insulation, single-core or multicore; src/calc/cableFamily.ts). Off (older projects):
    * every cable is calculated as copper / XLPE / multicore. On for new projects. */

@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.286', date: '2026-11-24',
+    items: [
+      { title: 'Short circuit report in per unit', text: 'The short circuit study report has two new tables. Impedance data in per unit lists every source, transformer and cable between boards with its R, X and Z on a common base power, and how each was worked. Fault at the busbars in per unit gives the path impedance, X/R, Ik″ and the peak current ip at every board. The currents are the same as before: per unit is another way of writing the same calculation. The base power is 100 MVA; change it in Project settings → Sizing targets → Per-unit base power.' }
+    ]
+  },
+  {
     version: '2.285', date: '2026-11-24',
     items: [
       { title: 'Generator: minimum fault current from X′d', text: 'A board on a generator source has two new values beside X″d: X′d (25 % when not typed) and Sustained fault (× rated). The earth fault loop study now takes the generator\'s minimum fault current from X′d, or from the sustained current when you type it, in place of the sub-transient level. Breaking capacity still uses X″d. A pass that rests on the assumed 25 % shows as not verified until you type X′d, the sustained current or the minimum fault level. Earth loop results of projects on a generator source change: the fault current is lower than before.' }
