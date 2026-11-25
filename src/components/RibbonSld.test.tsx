@@ -55,7 +55,7 @@ describe('the SLD tab', () => {
     expect(names('Boards')).toEqual(['Boards', 'Board', 'Schedule', 'Enclosure']);
     expect(names('Equipment')).toEqual(['Supply', 'Add load', 'Devices']);
     expect(names('Selection')).toEqual(['Edit', 'Delete', 'Show on plan']);
-    expect(names('Results')).toEqual(['Values', 'Colour by', 'Scenario']);
+    expect(names('Results')).toEqual(['Values', 'Fault point', 'Colour by', 'Scenario']);
     expect(names('Copy and undo')).toEqual(['Copy', 'Paste', 'Undo', 'Redo']);
     // Copy and Paste in one column, Undo and Redo in the next.
     expect([...group('Copy and undo').querySelectorAll('.ribbon-stack')].map((c) => c.children.length)).toEqual([2, 2]);
@@ -131,7 +131,7 @@ describe('the SLD tab', () => {
 
   it('greys the result lists and Fit away from the system diagram', () => {
     show({ system: false });
-    for (const name of ['Values', 'Colour by', 'Scenario', 'Fit']) { expect(tool(name).disabled, name).toBe(true); expect(tool(name).title, name).toBe('On the system diagram'); }
+    for (const name of ['Values', 'Fault point', 'Colour by', 'Scenario', 'Fit']) { expect(tool(name).disabled, name).toBe(true); expect(tool(name).title, name).toBe('On the system diagram'); }
     expect(tool('Export').disabled).toBe(false); // Export shows the system diagram first
   });
 

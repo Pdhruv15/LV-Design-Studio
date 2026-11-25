@@ -6,7 +6,7 @@
 The app shell is the frame every screen sits in. It:
 
 - keeps the **open project in memory** with undo / redo (`App` in `src/App.tsx`, through `useHistory`). "In memory" means the copy the app works on while it runs; it is written to disk only by Save or by the recovery copy;
-- decides **which screen is shown** (the `view` state, one of the 44 names in `MainView`, `src/views.ts`) and keeps the **ribbon** (the tab bar of tool buttons at the top, `src/components/Ribbon.tsx`) on the matching tab;
+- decides **which screen is shown** (`view` state, typed as `MainView` in `src/views.ts`) and keeps the **ribbon** (the tab bar of tool buttons at the top, `src/components/Ribbon.tsx`) on the matching tab.
 
 Other modules own the screens themselves; this document only covers how the shell routes to them and what it passes in.
 
@@ -15,8 +15,8 @@ Other modules own the screens themselves; this document only covers how the shel
 | File | Kind | Key functions or components | What they do |
 |---|---|---|---|
 | `src/main.tsx` | screen (entry) | top-level script | `?lvds-export` → headless renderer (`src/headless/rendererExport`); otherwise `watchForErrors`, `loadPrefs` → `applyTheme` / `applyPalette`, renders `<ErrorBoundary level="app"><App/>` |
-| `src/App.tsx` | screen + store | `App`, `normalised`, `setView`, `commands`, `runNow`, `loadIntoApp`, `saveProject`, `guard`, `pickBoard`, keyboard `onKey` effect (`:1081`) | The whole shell: ~100 `useState` values, the routing chain (`:1350`–`:1697`), all dialogs, the ribbon wiring (`:1243`–`:1335`) |
-| `src/components/Ribbon.tsx` | screen | `Ribbon`, `RibbonActions`, `TAB_VIEWS`, `TAB_PAGE`, `HOME_TAB`, `tabForView`, `viewForTab`, `tabForStage`, `CAD_TABS`, `STAGE_TABS` | Ribbon tabs (Project, Load schedule, SLD, Design CAD, Stages 1–4, Documents, BOM / Cost, Standards) and which screens belong to which tab |
+| `src/App.tsx` | screen + store | `App`, `normalised`, `setView`, `commands`, `PALETTE_PAGES`, `runNow`, `loadIntoApp`, `saveProject`, `guard`, `pickBoard`, keyboard `onKey` effect | Project state, screen routing, search commands, dialogs and ribbon wiring |
+| `src/components/Ribbon.tsx` | screen | `Ribbon`, `RibbonActions`, `TAB_VIEWS`, `TAB_PAGE`, `HOME_TAB`, `tabForView`, `viewForTab`, `tabForStage`, `CAD_TABS`, `STAGE_TABS` | Ribbon tabs (Project, Load schedule, SLD, Design CAD, Sheets, Specification, Stages 1–4, Documents, BOM / Cost, Standards) and which screens belong to which tab |
 | `src/components/CommandPalette.tsx` | screen | `CommandPalette`, `filterCommands`, `SHORTCUTS`, `ShortcutHelp` | ⌘K search over boards, sheets, pages, commands; the shortcut list (also shown in Help) |
 | `src/components/MenuButton.tsx` | screen | `MenuButton` | Drop-down button used on the SLD command bar (+ Add, feeder menu) |
 | `src/components/PreferencesDialog.tsx` | screen | `PreferencesDialog` | My details, New project defaults, Appearance & saving (theme, palette, CAD labels, recovery interval) |
@@ -58,7 +58,7 @@ Other modules own the screens themselves; this document only covers how the shel
 
 | Result | Used by module (ID) | File + function |
 |---|---|---|
-| Screen routing (`view === …`) | all screen modules (table below) | `App.tsx:1350`–`:1697` |
+| Screen routing (`view === …`) | all screen modules (table below) | `App.tsx`, main workspace render |
 | `calcProject` | 09-earthing | `EarthingStudy project={calcProject} focus` (`:1581`) |
 | `calcProject` | 10-protection-coordination | `CoordinationStudy`, `DiscriminationPanel`, `chain` (`discriminationChain`) |
 | `calcProject`, `allResults`, `annotations`, `run` | 24-drawings-sld-sheets | `CadSheets` (`:1587`) |
@@ -73,6 +73,8 @@ Other modules own the screens themselves; this document only covers how the shel
 
 ### Routing: every `MainView` and its screen
 
+The 47 routes below were checked against `src/views.ts`, the workspace render and `PALETTE_PAGES` in `src/App.tsx`, and `TAB_VIEWS` in `src/components/Ribbon.tsx` on `main` at `9f2a2107` (v2.297, 2026-11-25). The ribbon column lists the tabs that stay selected for that view. A page can also be opened by a button on another tab.
+
 | `MainView` | Screen (component) | Owner | Ribbon tab (`TAB_VIEWS`) | ⌘K | Notes |
 |---|---|---|---|---|---|
 | projects | `ProjectsDashboard` | 28 | home | no | Start screen; ribbon hidden (`home`) |
@@ -82,6 +84,7 @@ Other modules own the screens themselves; this document only covers how the shel
 | dashboard | `ProjectDashboard` | 28 | home, concept | yes | Every project opens here (`loadIntoApp`) |
 | building | `BuildingView` | 04 | home, concept | yes | |
 | load-assessment | `LoadAssessmentView` | 04 | concept | yes | |
+| sizing | `TransformerGeneratorStudy` | 12 | concept | yes | |
 | design | SLD workspace (`SystemDiagram`, `BoardSheetView`, `RiserView`, `EarthingView embedded`) | 06 | sld, home, schematic | yes | Renders only when a board exists |
 | cad | `CadPage` | 21 | cad | yes | |
 | space-planning | `SpacePlanView` | 05 | concept | yes | |
@@ -89,18 +92,29 @@ Other modules own the screens themselves; this document only covers how the shel
 | enclosure | `EnclosureSizing` | 17 | schedule, sld | yes | |
 | earth-schematic | `EarthingView` | 09 | schematic | yes | |
 | panels | `PanelsPage` | 07 | sld, schematic | yes | |
-| load-schedule | `LoadScheduleView` | 07 | schedule, reports | yes | Renders only when a board exists |
-| calculators | `QuickCalcs` | 33 | sld (More) | yes | |
+| load-schedule | `LoadScheduleView` | 07 | schedule | yes | Renders only when a board exists |
+| calculators | `QuickCalcs` | 33 | sld | yes | SLD → More |
+| voltage-drop | `VoltageDropStudy` | 08 | detailed | yes | |
+| earthing | `EarthingStudy` | 09 | detailed | yes | Earth-fault-loop study |
+| selection | `SelectionStudy` | 11 | detailed | yes | Breaker and cable selection |
+| coordination | `CoordinationStudy` | 10 | detailed | yes | |
 | pfc | `PfcStudy` | 13 | schematic | yes | |
 | busbar | `BusbarStudy` | 14 | schematic | yes | |
 | ups | `UpsStudy` | 15 | schematic | yes | |
 | solar | `SolarStudy` | 15 | schematic | yes | |
-| engines | `EngineCompare` | 16 | sld (More) | yes | |
+| lightning | [`LightningStudy`](../../src/components/studies/LightningStudy.tsx) | — | schematic | yes | Concept sizing, preliminary risk assessment, plan placement and PDF/Word/Excel reports |
+| sheets | [`SheetsPage`](../../src/components/sheets/SheetsPage.tsx) | — | sheets | yes | Excel-style workbook editing and linked panel schedules |
+| specification | [`SpecPage`](../../src/components/spec/SpecPage.tsx) | — | spec | yes | Electrical and ELV specifications with project values and Word/PDF export |
+| engines | `EngineCompare` | 16 | sld | yes | SLD → More |
 | drawings | `CadSheets` | 24 / 23 | cad | yes | |
+| drawing-register | `CadSheets` | 24 / 23 | cad | yes | Shares the drawing workspace |
+| cable-schedule | `CableScheduleView` | 19 | reports | yes | |
 | cable-tray | `TrayScheduleView` | 19 | reports | yes | |
+| equipment | `EquipmentScheduleView` | 20 | reports | yes | |
 | study-reports | `StudyReportsView` | 25 | reports | yes | |
+| report | `ReportView` | 25 | reports | yes | Calculation report |
 | boq | `BomView` | 20 | cost | yes | Reached through `onBom` commands |
-| export-centre | `ExportCentre` | 25 | reports | no | |
+| export-centre | `ExportCentre` | 25 | reports | no | Documents → Export centre |
 | revisions | `RevisionsView` + `CheckpointsPanel` | 26 | issue | yes | |
 | modifications | `ChangesView` | 26 | issue | yes | |
 | review | `ReviewView` | 27 | issue | yes | |
