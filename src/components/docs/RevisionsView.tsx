@@ -57,7 +57,7 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
 
   function issue() {
     if (!description.trim()) {
-      onStatus('Enter a description for the revision (e.g. "Issued for DEWA approval")');
+      onStatus('Enter a description for the revision (e.g. "Issued for authority approval")');
       return;
     }
     const next = issueRevision(project, { description, by });
@@ -81,11 +81,11 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
   return (
     <Page
       title="Revisions"
-      intro="Issue a revision each time the design is submitted (Rev A, B, C…). The app keeps a copy of the design as it was, so you can see exactly what changed since — for DEWA resubmissions and transmittals — or go back to it. Revisions are saved inside the project file."
+      intro="Issue a revision each time the design is submitted (Rev A, B, C…). The app keeps a copy of the design as it was, so you can see exactly what changed since — for authority resubmissions and transmittals — or go back to it. Revisions are saved inside the project file."
     >
       <div className="rev-issue">
         <b>Issue Rev {nextRevisionId(project)}</b>
-        <input value={description} placeholder="Description, e.g. Issued for DEWA approval" onChange={(e) => setDescription(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && issue()} />
+        <input value={description} placeholder="Description, e.g. Issued for authority approval" onChange={(e) => setDescription(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && issue()} />
         <input value={by} placeholder="By (initials)" className="rev-by" onChange={(e) => setBy(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && issue()} />
         <button className="chip primary" onClick={issue}>Issue revision</button>
         <span className="m">

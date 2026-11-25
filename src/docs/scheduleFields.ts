@@ -21,7 +21,7 @@ export const TEMPLATE_FIELDS: { key: string; about: string }[] = [
   { key: 'project.voltage', about: 'System voltage, V' },
   { key: 'project.frequency', about: 'Frequency, Hz' },
   { key: 'project.revision', about: 'Revision stamp' },
-  { key: 'project.reference', about: 'Design reference applied (e.g. DEWA (Dubai) v1)' },
+  { key: 'project.reference', about: 'Design reference applied (name and version)' },
   { key: 'project.number', about: 'Project number' },
   { key: 'project.owner', about: 'Owner / client' },
   { key: 'project.consultant', about: 'Consultant' },

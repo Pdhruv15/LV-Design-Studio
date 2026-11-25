@@ -94,7 +94,7 @@ export function existingChecks(project: Project, results: FeederResult[]): Exist
       kind: 'rmu', id: rmu, item: `RMU ${rmu} (existing): new transformer ${added.map((b) => `${b.id} ${b.sourceKva} kVA`).join(', ')}`,
       value: `${n} transformers with existing ${old.map((b) => `${b.id} ${b.sourceKva} kVA`).join(', ')}`, limit: '2 transformers per RMU',
       status: n > 2 ? 'bad' : 'warn',
-      result: n > 2 ? `${n - 2} more than the RMU can feed: a new RMU is needed` : 'Confirm the existing RMU has a spare T-off way (else extend it or add an RMU) with DEWA'
+      result: n > 2 ? `${n - 2} more than the RMU can feed: a new RMU is needed` : 'Confirm the existing RMU has a spare T-off way (else extend it or add an RMU) with the utility'
     });
   }
   for (const r of results.filter((x) => x.feeder.existing)) {

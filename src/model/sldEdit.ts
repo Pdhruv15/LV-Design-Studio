@@ -73,7 +73,7 @@ export const PALETTE: { group: string; entries: PaletteEntry[] }[] = [
     group: 'Supply',
     entries: [
       { item: { kind: 'transformer' }, label: 'Transformer', title: 'Drop on the empty canvas for a new supply with its MDB, or on a main board to give it a transformer' },
-      { item: { kind: 'board', board: 'MC' }, label: 'Meter cabinet', title: 'Authority supply (e.g. DEWA meter cabinet) — drop on the empty canvas' },
+      { item: { kind: 'board', board: 'MC' }, label: 'Meter cabinet', title: 'Authority supply (e.g. utility meter cabinet) — drop on the empty canvas' },
       { item: { kind: 'tie' }, label: 'Bus coupler / tie', title: 'Drop on a main board: a normally-open tie to the other transformer-fed main board, for the “transformer failed” scenario' },
       { item: { kind: 'generator' }, label: 'Generator + ATS', title: 'Drop on a board (e.g. an EMDB): a standby generator through an ATS (4P, switched neutral), sized for that board; everything below it becomes essential load' },
       { item: { kind: 'generator', changeover: 'ACB' }, label: 'Generator + interlocked ACBs', title: 'Drop on a board (e.g. an EMDB): mains and generator incomers, each with its own breaker, ammeters, R-Y-B lamps, PMU to BMS and voltmeter, electro-mechanically interlocked; the generator is sized for that board' }

@@ -25,7 +25,7 @@ export function PartiesStep({ brief, onChange }: { brief: ProjectBrief; onChange
   const setAuthority = (authority: string) => onChange({ ...brief, authority, parties: brief.parties.map((p) => (p.role === 'authority' ? { ...p, name: authority } : p)) });
   return (
     <div className="brief-parties">
-      <label>Approving authority<input value={brief.authority} placeholder="e.g. DEWA" onChange={(e) => setAuthority(e.target.value)} /></label>
+      <label>Approving authority<input value={brief.authority} placeholder="e.g. the supply authority" onChange={(e) => setAuthority(e.target.value)} /></label>
       {brief.parties.filter((p) => p.role !== 'authority').map((p) => (
         <fieldset key={p.role} className="brief-party">
           <legend>{PARTY_LABEL[p.role]}{p.role === brief.role ? ' (you)' : ''}</legend>

@@ -9,7 +9,7 @@ import { useStable } from '../../util/useStable';
 import { sanitizeSvg } from '../../util/sanitize';
 import { txt } from '../../util/format';
 
-const MODES: [PfcInputMode, string][] = [['kw-pf', 'kW + PF'], ['kva-pf', 'kVA + PF'], ['vi-pf', 'V, A + PF'], ['bill', 'DEWA bill'], ['loads', 'List of loads']];
+const MODES: [PfcInputMode, string][] = [['kw-pf', 'kW + PF'], ['kva-pf', 'kVA + PF'], ['vi-pf', 'V, A + PF'], ['bill', 'Utility bill'], ['loads', 'List of loads']];
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
 function Num({ label, value, onSet, unit, step = 'any', title }: { label: string; value?: number; onSet: (v: number | undefined) => void; unit?: string; step?: string; title?: string }) {
@@ -53,7 +53,7 @@ export default function PfcCalculator({ project, onChange, onStatus }: { project
           {input.mode === 'vi-pf' && <><Num label="Current (per phase)" unit="A" value={input.currentA} onSet={(v) => set({ currentA: v })} /><Num label="Power factor now" value={input.pf} onSet={(v) => set({ pf: v })} /></>}
           {input.mode === 'bill' && <><Num label="Active energy" unit="kWh" value={input.kwh} onSet={(v) => set({ kwh: v })} /><Num label="Reactive energy" unit="kvarh" value={input.kvarh} onSet={(v) => set({ kvarh: v })} /><Num label="Operating hours in the period" unit="h" value={input.hours} onSet={(v) => set({ hours: v })} title="e.g. 720 for a month running 24 h; fewer for an office" /></>}
           <Num label="Voltage" unit="V" value={input.voltageV} onSet={(v) => v && set({ voltageV: v })} />
-          <Num label="Target power factor" value={input.targetPf} onSet={(v) => v && set({ targetPf: v })} title="DEWA minimum 0.90; 0.95 is usual" />
+          <Num label="Target power factor" value={input.targetPf} onSet={(v) => v && set({ targetPf: v })} title="Utility minimum is often 0.90; 0.95 is usual" />
           <label>Step size<select value={input.stepKvar} onChange={(e) => set({ stepKvar: Number(e.target.value) })}>{[5, 10, 12.5, 25, 50].map((s) => <option key={s} value={s}>{s} kvar</option>)}</select></label>
           <label>Harmonics<select value={input.harmonics} onChange={(e) => set({ harmonics: e.target.value as PfcCalcInput['harmonics'] })}>
             <option value="none">None — mostly linear loads</option><option value="some">Some — VFDs, UPS, LED (≤ 25 %)</option><option value="high">High — mostly VFD / UPS / IT</option>

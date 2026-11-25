@@ -184,7 +184,7 @@ export default function ModificationsPanel({ project, me, run, onChange, onApply
             ))}
             {editable && <button className="chip" onClick={async () => {
               const v = await askForm({ title: 'Add a reference', confirmLabel: 'Add', fields: [
-                { key: 'ref', label: 'Reference', placeholder: 'e.g. DEWA comment 12, markup SLD-03, document RD-002', required: true },
+                { key: 'ref', label: 'Reference', placeholder: 'e.g. authority comment 12, markup SLD-03, document RD-002', required: true },
                 { key: 'note', label: 'Note' }
               ] });
               if (v) edit({ ...rec, evidence: [...(rec.evidence ?? []), { ref: v.ref, note: v.note || undefined }] });

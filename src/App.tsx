@@ -2219,7 +2219,7 @@ export default function App() {
       )}
       {briefDialog && (
         <BriefDialog initial={project.brief} company={prefs.profile.company}
-          onSaveTemplate={async (b) => { const n = await askText('Save as a setup template', { label: 'Template name', placeholder: 'e.g. Villa, DEWA consultant', required: true }); if (!n) return; const t = templateFrom(applyBrief(project, b), n); setStatus(saveTemplates([...loadTemplates(), t]) ? `Saved setup template “${n}”: scope, deliverables and system defaults. No party names or project data are kept.` : 'Could not save the template in this browser'); }}
+          onSaveTemplate={async (b) => { const n = await askText('Save as a setup template', { label: 'Template name', placeholder: 'e.g. Villa, authority consultant', required: true }); if (!n) return; const t = templateFrom(applyBrief(project, b), n); setStatus(saveTemplates([...loadTemplates(), t]) ? `Saved setup template “${n}”: scope, deliverables and system defaults. No party names or project data are kept.` : 'Could not save the template in this browser'); }}
           onCancel={() => setBriefDialog(false)}
           onSave={(b) => { setBriefDialog(false); setProject(applyBrief(project, b), { step: true }); setStatus('Scope and deliverables updated — save the project to keep them'); }} />
       )}

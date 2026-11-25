@@ -84,7 +84,7 @@ export function CableLimitsCard({ limits, own, from, base, readOnly, authority, 
 
       {tab && <>
         <div className="grid2" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-          <label>Table name (shown in remarks)<input value={tab.label} disabled={readOnly} placeholder="e.g. DEWA Table 3" onChange={(e) => setTable(tab.id, { label: e.target.value })} /></label>
+          <label>Table name (shown in remarks)<input value={tab.label} disabled={readOnly} placeholder="e.g. Table 3" onChange={(e) => setTable(tab.id, { label: e.target.value })} /></label>
           <label>Circuits
             <select value={tab.phases ?? ''} disabled={readOnly} onChange={(e) => setTable(tab.id, { phases: (e.target.value || undefined) as CableLimitTable['phases'] })}>
               <option value="">Single- and three-phase</option><option value="single">Single-phase only</option><option value="three">Three-phase only</option>
