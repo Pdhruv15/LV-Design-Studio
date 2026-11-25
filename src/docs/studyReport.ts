@@ -22,6 +22,7 @@ import { MATERIAL_LABEL, sizeRiser } from '../calc/busbar';
 import { motorStartVdLimit, vdRow, type VdRow } from '../calc/voltageDrop';
 import { incomerBasis } from '../calc/electrical';
 import { baseMvaOf, lvBase, puElements, puFaultAt } from '../calc/perUnit';
+import { faultPointResults } from '../calc/faultPoints';
 import { GENERATOR_XD_TRANSIENT_PCT, MOTOR_START_DIP_LIMIT_PCT } from '../calc/motor';
 import type { ResultLayers } from '../diagram/annotations';
 import type { ColorBy } from '../diagram/heatmap';
@@ -198,6 +199,9 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
     const pu3 = (v: number) => (Number.isFinite(v) ? v.toFixed(3) : '—');
     const base = lvBase(p), inScope = new Set(scope.boards.map((b) => b.id));
     const puFaults = scope.boards.map((b) => puFaultAt(p, b));
+    // Fault points marked on the SLD: those on a board or circuit in scope.
+    const inFeeders = new Set([...circuits, ...scope.finals].map((f) => f.id));
+    const marks = faultPointResults(p).filter((r) => (r.point.feederId ? inFeeders.has(r.point.feederId) : !!r.point.boardId && inScope.has(r.point.boardId)));
     return {
       key, title: info.title, statuses,
       method: [
@@ -207,7 +211,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
         ...((p.ties ?? []).some((t) => t.closed) ? ['Main boards joined by a closed bus coupler: the transformers run in parallel and their impedances combine (coupler impedance neglected), so the busbar fault is from all of them together.'] : []),
         'Breaking capacity check: the fault at the breaker terminals (supply busbar) must not exceed the breaker Icu. Fault at the cable end: 3-phase for 3/4-core circuits, line-to-neutral for 2-core.',
         'Motor contribution and generation are neglected.',
-        `Per-unit tables: base ${fig.power(baseMvaOf(p))} MVA; at ${fig.power(p.voltageV)} V the base current is ${base.ika.toFixed(2)} kA and the base impedance ${(base.zOhm * 1000).toFixed(3)} mΩ. Ik″ = c × base current ÷ Z (p.u.), the same current as the ohm method above. Peak current ip = κ × √2 × Ik″, with κ = 1.02 + 0.98 e^(−3R/X) (IEC 60909-0).`
+        `Per-unit tables: base ${String(+baseMvaOf(p).toFixed(2))} MVA; at ${String(+p.voltageV.toFixed(1))} V the base current is ${base.ika.toFixed(2)} kA and the base impedance ${(base.zOhm * 1000).toFixed(3)} mΩ. Ik″ = c × base current ÷ Z (p.u.), the same current as the ohm method above. Peak current ip = κ × √2 × Ik″, with κ = 1.02 + 0.98 e^(−3R/X) (IEC 60909-0).`
       ],
       summary: [
         { label: 'Highest busbar fault', value: sums.length ? `${fig.fault(Math.max(...sums.map((s) => s.faultKA)))} kA` : '—' },
@@ -221,10 +225,15 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
           rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`, fig.fault(r.breakerFaultKA), r.feeder.breakerIcuKa, `${fig.pct((r.feeder.breakerIcuKa / r.breakerFaultKA - 1) * 100)} %`, r.faultAssumed ? NOT_CHECKED : S(r.icuStatus)]) },
         { title: 'Fault at the end of each cable', headers: ['Circuit', 'From', 'To', 'Cable', 'Length (m)', 'Ik at cable end (kA)'],
           rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), cableSizeText(r.feeder), r.feeder.lengthM, fig.fault(r.endFaultKA)]) },
-        { title: `Impedance data in per unit — base ${fig.power(baseMvaOf(p))} MVA`, headers: ['Element', 'Data', 'Base kV', 'R (p.u.)', 'X (p.u.)', 'Z (p.u.)', 'How'],
+        { title: `Impedance data in per unit — base ${String(+baseMvaOf(p).toFixed(2))} MVA`, headers: ['Element', 'Data', 'Base kV', 'R (p.u.)', 'X (p.u.)', 'Z (p.u.)', 'How'],
           rows: puElements(p, inScope).map((e) => [e.element, e.data, e.baseKv, pu3(e.pu.r), pu3(e.pu.x), pu3(e.pu.z), e.how]) },
         { title: 'Fault at the busbars in per unit', headers: ['Board', 'kV', 'R (p.u.)', 'X (p.u.)', 'Z (p.u.)', 'X/R', 'Ik″ (kA)', 'κ', 'Peak ip (kA)'],
-          rows: puFaults.map((f) => [f.board.id, String(+f.kv.toFixed(3)), pu3(f.pu.r), pu3(f.pu.x), pu3(f.pu.z), Number.isFinite(f.xr) ? f.xr.toFixed(1) : '—', fig.fault(f.ikKa), f.kappa.toFixed(2), fig.fault(f.ipKa)]) }
+          rows: puFaults.map((f) => [f.board.id, String(+f.kv.toFixed(3)), pu3(f.pu.r), pu3(f.pu.x), pu3(f.pu.z), Number.isFinite(f.xr) ? f.xr.toFixed(1) : '—', fig.fault(f.ikKa), f.kappa.toFixed(2), fig.fault(f.ipKa)]) },
+        ...(marks.length ? [{ title: 'Fault points', headers: ['Point', 'Place', 'kV', 'R (p.u.)', 'X (p.u.)', 'Z (p.u.)', 'X/R', 'Ik″ (kA)', 'Peak ip (kA)', 'Line-earth, minimum (kA)', 'Breaker Icu (kA)'],
+          rows: marks.map((r) => (r.problem
+            ? [r.point.id, `${r.point.name ? `${r.point.name}: ` : ''}${r.place}`, '—', '—', '—', '—', '—', '—', '—', '—', { v: `No result: ${r.problem}`, s: 'warn' as const }]
+            : [r.point.id, `${r.point.name ? `${r.point.name}: ` : ''}${r.place}`, String(+r.kv.toFixed(3)), pu3(r.pu.r), pu3(r.pu.x), pu3(r.pu.z), Number.isFinite(r.xr) ? r.xr.toFixed(1) : '—', fig.fault(r.ikKa), fig.fault(r.ipKa), r.earthKa !== undefined ? fig.fault(r.earthKa) : '—',
+              r.icuKa === undefined ? '—' : { v: `${r.icuKa} — ${r.icuOk ? 'OK' : 'below the fault at its terminals'}`, s: r.icuOk ? 'ok' as const : 'bad' as const }])) }] : [])
       ]
     };
   }
