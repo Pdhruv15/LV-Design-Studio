@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.294', date: '2026-11-25',
+    items: [
+      { title: 'Forms: calculated source fault level', text: 'The TCL summary and the maximum-demand form now print the fault level calculated from a generator or inverter source rating when none is typed, marked "(calc.)", with its basis in the remarks of the incomer line of the maximum-demand form.' }
+    ]
+  },
+  {
     version: '2.291', date: '2026-11-25',
     items: [
       { title: 'Add device: the circuit list shows the room left', text: 'In the Add device panel the Circuit field now opens a list: the boards of this level first, each circuit with its points against the most the Rules sheet allows ("7 / 10"), full circuits marked, and a Find box. Lighting points and 13 A sockets have a limit; other circuits show their points.', action: 'cad', actionLabel: 'Open Design CAD' },

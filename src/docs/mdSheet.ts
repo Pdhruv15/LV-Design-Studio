@@ -2,7 +2,7 @@ import { boardLocation } from '../model/levels';
 import { cables } from '../calc/cableTable';
 import { builtUpAreaOf } from '../calc/building';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
-import { runsOf } from '../calc/electrical';
+import { calculatedLevelCell, runsOf } from '../calc/electrical';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import { applyRecommendation, breakerRatings, recommend } from '../calc/sizing';
 import { CABLE_TYPES, DEFAULT_CABLE_TYPE, type Board, type Feeder, type MeterType, type Project, type SpareWay, type SwitchDevice } from '../types';
@@ -170,6 +170,7 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
       line[at('sptp')] = 'TP';
       if (rating) line[at(s.device ?? 'MCCB')] = rating;
       if (s.faultKa) line[at('fault')] = s.faultKa;
+      else if (!board.sourceKva && calculatedLevelCell(project, board)) { const c = calculatedLevelCell(project, board)!; line[at('fault')] = c.cell; line[at('remarks')] = c.remark; }
       line[at('cores')] = s.cable ?? `BY ${s.fedFrom ?? authority}`;
       merges[cellName(at('cores'), y)] = [3, 1];
       line[at('ecc')] = s.ecc ?? '';
