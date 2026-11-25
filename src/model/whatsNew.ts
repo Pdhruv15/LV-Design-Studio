@@ -18,9 +18,21 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.301', date: '2026-11-25',
+    version: '2.307', date: '2026-11-25',
     items: [
       { title: 'Design CAD: Check level', text: 'Level → Check level (CHK) lists what to look at on the level showing: rooms short of lights by the lumen method or with none, rooms with no socket, circuits over the most the Rules sheet allows, devices on a removed circuit or outside every room, ELV coverage gaps by system and boards not yet on the plan, with the counts by type. Click a line to go there; some lines open Light room or Coverage. It is worked out when you ask, and Check again repeats it.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.304', date: '2026-11-25',
+    items: [
+      { title: 'Load schedule: one ELCB at the incomer, or an RCBO on every circuit', text: 'Re-group all ELCBs now also offers two whole-board schemes. One ELCB at the incomer covers every circuit of the DB, ways added later too, rated at least as the incomer; it is time-delayed (S-type) when 30 mA RCBOs sit below it, which you can change in its dialog. RCBO on every circuit gives each circuit an RCBO, and new circuits get one too until you choose a New ELCBs size. No circuit moves in either scheme.' }
+    ]
+  },
+  {
+    version: '2.303', date: '2026-11-25',
+    items: [
+      { title: 'Load schedule: RCD type AC / A / F / B', text: 'Every ELCB and RCBO now has an RCD type. Auto picks Type B when a circuit\'s remarks name an EV charger, a 3-phase drive or PV, Type F for a 1-phase drive, else Type A. Choose a type for the whole DB in the board bar (RCD type), or for one ELCB or RCBO in its dialog. The schedule, PDF, Excel and BOQ show it only when it is not Type A.' }
     ]
   },
   {

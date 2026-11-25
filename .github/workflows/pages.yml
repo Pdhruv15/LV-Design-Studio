@@ -18,15 +18,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -66,6 +63,34 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: dist
+
+  # Deploy in its own job, and look for the artifact again if it is not listed yet:
+  # GitHub can take seconds to list an artifact that was just uploaded, and
+  # re-running a failed job would upload a second one ("Multiple artifacts").
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url || steps.retry.outputs.page_url || steps.last_try.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - name: Wait for the artifact to be listed
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 20
+      - name: Deploy to GitHub Pages (second try)
+        id: retry
+        if: steps.deployment.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - name: Wait longer for the artifact to be listed
+        if: steps.deployment.outcome == 'failure' && steps.retry.outcome == 'failure'
+        run: sleep 60
+      - name: Deploy to GitHub Pages (last try)
+        id: last_try
+        if: steps.deployment.outcome == 'failure' && steps.retry.outcome == 'failure'
         uses: actions/deploy-pages@v4
