@@ -39,7 +39,7 @@ const ADDED: Record<string, string> = {
   DIMALIGNED: 'dimal', DAL: 'dimal', DIMLAYER: '!dimLayer',
   ST: '!textStyle', STYLE: '!textStyle', D: '!dimStyle', DST: '!dimStyle', DIMSTY: '!dimStyle', DIMSTYLE: '!dimStyle', TBSAVE: '!tbSave',
   // Right-click menus, phase 1: the tools behind the blank-canvas, command and selection menus.
-  P: 'pan', PAN: 'pan', UNDO: '!undo', REDO: '!redo', SELECTALL: '!selectAll', FIND: '!find', FINDREPLACE: '!find', CUTCLIP: '!cutClip', BE: '!bedit', BEDIT: '!bedit', BSAVE: '!bsave', BCLOSE: '!bclose', REFEDIT: '!refedit', REFCLOSE: '!refclose', XCOMPARE: '!xcompare', COUNT: '!count', ADDSELECTED: '!addSelected', QM: '!quickMeasure', QUICKMEASURE: '!quickMeasure',
+  P: 'pan', PAN: 'pan', UNDO: '!undo', REDO: '!redo', SELECTALL: '!selectAll', FIND: '!find', FINDREPLACE: '!find', CUTCLIP: '!cutClip', BE: '!bedit', BEDIT: '!bedit', BSAVE: '!bsave', BCLOSE: '!bclose', REFEDIT: '!refedit', REFCLOSE: '!refclose', XCOMPARE: '!xcompare', DETECTROOMS: '!detectRooms', ROOMSW: '!detectRooms', COUNT: '!count', ADDSELECTED: '!addSelected', QM: '!quickMeasure', QUICKMEASURE: '!quickMeasure',
   ISOLATEOBJECTS: '!isolateObjects', ISO: '!isolateObjects', HIDEOBJECTS: '!hideObjects', UNISOLATEOBJECTS: '!unisolateObjects', UNHIDE: '!unisolateObjects',
   // Right-click menus, stage 2: Invert selection and Zoom to selection.
   SELECTINVERT: '!selectInvert', INVERTSELECTION: '!selectInvert', 'Z O': '!zoomSel', 'ZOOM O': '!zoomSel', 'ZOOM OBJECT': '!zoomSel',

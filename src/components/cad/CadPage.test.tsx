@@ -6852,3 +6852,20 @@ describe('compare a reference with a new revision (XCOMPARE)', () => {
     expect(hist()).toBe('XCOMPARE  This drawing has no reference loaded (XA attaches one).');
   });
 });
+
+describe('detect rooms from walls (DETECTROOMS)', () => {
+  it('finds the sample villa\'s rooms round their name texts from the wall lines, each once, named by the text; again it updates them', async () => {
+    project = villa; act(() => root.render(<Host />)); await flush();
+    await command('DETECTROOMS');
+    const rooms = () => buildingInfoOf(project).rooms;
+    const last = onChange.mock.calls[onChange.mock.calls.length - 1][1];
+    expect(last).toMatch(/^DETECTROOMS {2}\d+ rooms? found from the walls on Ground/);
+    const names = rooms().map((r) => r.name.toLowerCase());
+    expect(names).toEqual(expect.arrayContaining(['kitchen', 'majlis', 'guest bedroom', 'store'])); // two that have no outline for ROOMS
+    expect(new Set(names).size).toBe(names.length); // each room once
+    for (const r of rooms()) { expect(r.outline!.length).toBeGreaterThanOrEqual(3); expect(r.areaM2).toBeGreaterThan(0.5); }
+    const n = rooms().length;
+    await command('ROOMSW');
+    expect(rooms()).toHaveLength(n);
+  });
+});

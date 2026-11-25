@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.297', date: '2026-11-25',
+    items: [
+      { title: 'Detect rooms from walls', text: 'In Design CAD, type DETECTROOMS (or ROOMSW), or right-click a reference drawing and choose Detect rooms from walls. Every room with its name written inside is found at once from the wall lines round it, doors up to 1.2 m bridged as Room area (RA) does for one click, and added to the level with its outline and area, named by that text. A room with two texts in it is added once, and running it again updates the rooms rather than adding them twice. No room-outline layer is needed.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.296', date: '2026-11-25',
     items: [
       { title: 'No earth pits for a board fed from outside', text: 'A first board that is fed from a board outside the project no longer gets earth pits, a main earth terminal or pit lines in the earthing layout, the SLD and the BOQ, because its earth is at the board that feeds it. Tick Earth pit detail on the board to add them.' },
