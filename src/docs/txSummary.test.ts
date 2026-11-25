@@ -83,3 +83,37 @@ describe('adding rows on the TCL summary', () => {
     expect(s.groups[0].rows[0].manual).toBe(false); // MDB-1 has its boards
   });
 });
+
+describe('a first board fed from a source with a typed rating (no transformer)', () => {
+  const withSource = (supply: NonNullable<Project['boards'][number]['supply']>, transformer = false): Project => ({
+    ...sampleProject, boards: sampleProject.boards.map((b) => (b.id === 'MDB-1' ? { ...b, ...(transformer ? {} : { sourceKva: undefined, sourceImpedancePct: undefined }), supply: { ...supply } } : b))
+  });
+  const fault = async (p: Project) => {
+    const row = buildTxSummary(p).groups[0].rows[0];
+    const ws = (await (async () => { const b = new ExcelJS.Workbook(); await b.xlsx.load((await workbookBytes(buildFormWorkbook(p, { forms: ['tx'] }))).buffer as ArrayBuffer); return b; })()).worksheets[0];
+    const cells: string[] = [];
+    ws.eachRow((r) => r.eachCell((c) => { if (c.value !== null && c.value !== undefined) cells.push(String(c.value)); }));
+    return { row, cells };
+  };
+
+  it('prints the calculated fault level, marked, for a generator and for an inverter source', async () => {
+    const gen = await fault(withSource({ kind: 'generator', ratedKva: 250, ratingA: 400, device: 'MCCB' }));
+    expect(gen.row.faultKa).toBeUndefined();
+    expect(gen.row.faultCalc).toBe('2.4 (calc.)');
+    expect(gen.cells).toContain('2.4 (calc.)');
+    const pv = await fault(withSource({ kind: 'pv', ratedKva: 100, ratingA: 200, device: 'MCCB' }));
+    expect(pv.row.faultCalc).toBe('0.17 (calc.)');
+  });
+
+  it('keeps a typed fault level, an assumed one and a transformer board as they were', () => {
+    const typed = buildTxSummary(withSource({ kind: 'generator', ratedKva: 250, faultKa: 20 })).groups[0].rows[0];
+    expect([typed.faultKa, typed.faultCalc]).toEqual([20, undefined]);
+    const assumed = buildTxSummary(withSource({ kind: 'generator', ratingA: 400 })).groups[0].rows[0];
+    expect([assumed.faultKa, assumed.faultCalc]).toEqual([undefined, undefined]);
+    const board = buildTxSummary(withSource({ kind: 'generator', ratedKva: 250, fedBy: 'board' })).groups[0].rows[0];
+    expect([board.faultKa, board.faultCalc]).toEqual([undefined, undefined]);
+    const tx = buildTxSummary(withSource({ kind: 'generator', ratedKva: 250 }, true)).groups[0].rows[0];
+    expect([tx.faultKa, tx.faultCalc]).toEqual([36, undefined]);
+    expect(buildTxSummary(sampleProject).groups[0].rows.every((r) => r.faultCalc === undefined)).toBe(true);
+  });
+});
