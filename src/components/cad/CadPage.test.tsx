@@ -4585,7 +4585,7 @@ describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', 
     expect(last()).toBe('DIMSTYLE  There is no dimension style NOPE. D opens the styles.');
   });
 
-  it('QDIM dimensions a pick in one row: Baseline or Continuous, horizontal above it, each place once (v2.299)', async () => {
+  it('QDIM dimensions a pick in one row: Baseline or Continuous, horizontal above it, each place once (v2.305)', async () => {
     const start: Project = { ...villa, cadLayerFile: undefined, cadSketch: [{ file: F, items: [
       { id: 'L1', kind: 'line', layer: 'LV-SKETCH', pts: [[X, 0], [X + 6000, 0]] },
       { id: 'C1', kind: 'circle', layer: 'LV-SKETCH', pts: [[X + 2000, 1000]], r: 300 },
@@ -4623,7 +4623,7 @@ describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', 
     expect(last()).not.toContain('QDIM  Specify dimension line position');
   });
 
-  it('DIMSPACE spaces the dimensions picked out from the base: a gap in metres, or Auto, leaving others (v2.299)', async () => {
+  it('DIMSPACE spaces the dimensions picked out from the base: a gap in metres, or Auto, leaving others (v2.305)', async () => {
     const lin = (id: string, y: number): SketchItem => ({ id, kind: 'dim', layer: 'LV-ANNO', pts: [[X, 0], [X + 2000, 0], [X, y]], dir: 0, h: 250 });
     const start: Project = { ...villa, cadLayerFile: undefined, cadSketch: [{ file: F, items: [
       lin('D1', 1000), lin('D2', 2500), lin('D3', 6000),
@@ -4658,7 +4658,7 @@ describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', 
     { id: 'L1', kind: 'line', layer: 'LV-SKETCH', pts: [[X + 1000, -500], [X + 1000, 3000]] }
   ] }] });
 
-  it('DIMBREAK cuts a gap where a line crosses a dimension: Auto, at the object clicked, and Remove (v2.300)', async () => {
+  it('DIMBREAK cuts a gap where a line crosses a dimension: Auto, at the object clicked, and Remove (v2.306)', async () => {
     act(() => root.render(<Host start={brkStart()} />));
     await flush();
     act(() => state.toggle('osnap'));
@@ -4685,7 +4685,7 @@ describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', 
     expect(d1().brk).toHaveLength(1);
   });
 
-  it('DIMTEDIT moves a dimension\'s text, puts it Left, turns it and sends it Home (v2.300)', async () => {
+  it('DIMTEDIT moves a dimension\'s text, puts it Left, turns it and sends it Home (v2.306)', async () => {
     act(() => root.render(<Host start={brkStart()} />));
     await flush();
     act(() => state.toggle('osnap'));

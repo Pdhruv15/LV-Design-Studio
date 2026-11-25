@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildBom } from '../calc/bom';
 import { rcdOf } from '../calc/earthing';
-import { elcbGroups, elcbSections, isRcbo, oddElcbCircuits, rcbosOf, scheduleCircuits } from '../calc/loadSchedule';
+import { elcbGroups, elcbSections, isRcbo, oddElcbCircuits, rcbosOf, rcdTypeNeeded, scheduleCircuits, strictestRcdType } from '../calc/loadSchedule';
 import { buildLoadScheduleHtml, elcbColumn, loadScheduleRows, scheduleTable } from '../docs/loadScheduleDoc';
 import { buildDbSheet } from '../docs/dbSheet';
 import type { Feeder, Project } from '../types';
@@ -373,6 +373,51 @@ describe('AFDD + RCBO and MCB + RCD add-on block', () => {
     for (const q of [setRcbo(p, 'DB-R2', false), setNoRcd(p, 'DB-R2', 'Fire alarm panel'), regroupElcbs(p, 'DB', { size: 6, keepApart: false, keepRcbos: false })]) {
       expect(q.feeders.find((f) => f.id === 'DB-R2')).not.toHaveProperty('rcboKind');
     }
+  });
+});
+
+describe('RCD type', () => {
+  const withBoard = (p: Project, patch: Partial<Project['boards'][number]>): Project => ({ ...p, boards: p.boards.map((b) => (b.id === 'DB' ? { ...b, ...patch } : b)) });
+
+  it('Auto: B for an EV charger, a 3-phase drive or PV; F for a 1-phase drive; else A, never AC', () => {
+    const f = (x: Partial<Feeder>) => ({ id: 'x', boardId: 'DB', name: '', loadKw: 1, demandFactor: 1, powerFactor: 1, lengthM: 1, cableCsaMm2: 2.5, cores: 2, breakerRatingA: 20, breakerIcuKa: 6, phase: 'R', way: 1, ...x }) as Feeder;
+    expect(rcdTypeNeeded(f({ remarks: 'EV charger 7 kW' }))).toEqual({ type: 'B', why: 'EV charger' });
+    expect(rcdTypeNeeded(f({ starter: 'VFD', phase: 'RYB' })).type).toBe('B');
+    expect(rcdTypeNeeded(f({ remarks: 'Pump VFD' })).type).toBe('F');
+    expect(rcdTypeNeeded(f({ remarks: 'Solar PV inverter' })).type).toBe('B');
+    expect(rcdTypeNeeded(f({ remarks: 'Split AC' })).type).toBe('A');
+    expect(strictestRcdType([])).toBe('A');
+    expect(strictestRcdType(['AC', 'F', 'A'])).toBe('F');
+  });
+
+  it('an ELCB takes the strictest type of its circuits; Type A prints as before, others after the poles', () => {
+    const p = db(6);
+    expect(elcbGroups(p, board(p)).map((g) => [g.rcdType, g.label.endsWith('4P')])).toEqual([['A', true]]);
+    const ev = updateCircuit(p, 'DB-Y2', { remarks: 'EV charger' });
+    const g = elcbGroups(ev, board(ev))[0];
+    expect([g.rcdType, g.label]).toEqual(['B', `${g.ratingA} A ${g.sensitivityMa} mA 4P Type B`]);
+    expect(buildLoadScheduleHtml(ev, 'DB')).toContain(' 4P Type B');
+    const bom = buildBom(ev).map((l) => l.description).filter((d) => /^RCCB/.test(d));
+    expect(bom).toEqual([expect.stringMatching(/^RCCB \/ ELCB \d+ mA, TP\+N, \d+ A, Type B/)]);
+    expect(buildBom(p).map((l) => l.description).filter((d) => /^RCCB/.test(d))[0]).not.toMatch(/Type/);
+  });
+
+  it('the DB\'s choice covers ELCBs and RCBOs with none of their own; an ELCB or RCBO of its own wins', () => {
+    let p = withBoard(db(6), { rcdType: 'F' });
+    p = setRcbo(p, 'DB-B2', true);
+    expect(elcbGroups(p, board(p))[0].rcdType).toBe('F');
+    expect(rcbosOf(p, board(p))[0].label).toMatch(/2P Type F$/);
+    const own = editElcbAt(p, 'DB', 1, { rcdType: 'B' }).project;
+    expect(elcbGroups(own, board(own))[0].rcdType).toBe('B');
+    const r = setRcbo(p, 'DB-B2', true, undefined, 'afdd', 'A');
+    expect(rcbosOf(r, board(r))[0].label).toMatch(/2P \+ AFDD$/);
+    expect(buildBom(r).find((l) => /^AFDD/.test(l.description))!.description).not.toMatch(/Type/);
+    // undefined keeps the type, null goes back to Auto, off clears it.
+    expect(setRcbo(r, 'DB-B2', true, 10).feeders.find((f) => f.id === 'DB-B2')!.rcdType).toBe('A');
+    expect(setRcbo(r, 'DB-B2', true, undefined, undefined, null).feeders.find((f) => f.id === 'DB-B2')).not.toHaveProperty('rcdType');
+    expect(setRcbo(r, 'DB-B2', false).feeders.find((f) => f.id === 'DB-B2')).not.toHaveProperty('rcdType');
+    const b = setRcbo(withBoard(db(6), {}), 'DB-B2', true, undefined, undefined, 'B');
+    expect(buildBom(b).find((l) => /^RCBO/.test(l.description))!.description).toMatch(/^RCBO \d+ A, \d+ mA, SP\+N, Type B/);
   });
 });
 
