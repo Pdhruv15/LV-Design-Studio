@@ -18,9 +18,15 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.297', date: '2026-11-25',
+    version: '2.298', date: '2026-11-25',
     items: [
       { title: 'Load schedule: RCD type AC / A / F / B', text: 'Every ELCB and RCBO now has an RCD type. Auto picks Type B when a circuit\'s remarks name an EV charger, a 3-phase drive or PV, Type F for a 1-phase drive, else Type A. Choose a type for the whole DB in the board bar (RCD type), or for one ELCB or RCBO in its dialog. The schedule, PDF, Excel and BOQ show it only when it is not Type A.' }
+    ]
+  },
+  {
+    version: '2.297', date: '2026-11-25',
+    items: [
+      { title: 'Detect rooms from walls', text: 'In Design CAD, type DETECTROOMS (or ROOMSW), or right-click a reference drawing and choose Detect rooms from walls. Every room with its name written inside is found at once from the wall lines round it, doors up to 1.2 m bridged as Room area (RA) does for one click, and added to the level with its outline and area, named by that text. A room with two texts in it is added once, and running it again updates the rooms rather than adding them twice. No room-outline layer is needed.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {
