@@ -5701,6 +5701,25 @@ describe('right-click menus, phase 2: LV and ELV objects and the tools behind th
     expect(state.tool).toBe('lux');
   });
 
+  it('checks the level (CHK): the list is in the side panel, a line says where it goes, Light room starts on that room', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.actions.current.addFound());
+    await command('CHK');
+    expect(state.tool).toBe('check');
+    expect(document.body.textContent).toContain('Check level');
+    const lines = [...document.querySelectorAll('.cad-chk-line')] as HTMLButtonElement[];
+    const none = lines.find((b) => / — no light$/.test(b.textContent ?? ''))!;
+    expect(none).toBeDefined();
+    await act(async () => { none.click(); });
+    expect(hist()).toContain(`CHK  ${none.textContent}`);
+    const fix = none.closest('.cad-chk-row')!.querySelector('.cad-chk-fix') as HTMLButtonElement;
+    expect(fix.textContent).toBe('Light room');
+    await act(async () => { fix.click(); });
+    await flush();
+    expect(state.tool).toBe('lux');
+  });
+
   it('a cable route: Trace circuit picks its devices, Reverse direction; a tray: Size tray from cables, Fill ratio check, Cables in this route', async () => {
     const X = 200000;
     const route: SketchItem = { id: 'C1', kind: 'pline', layer: 'E-CABLE', pts: [[X, 0], [X + 4000, 0], [X + 4000, 3000]], cable: { feederId: 'DB-GF1-Y1' } };

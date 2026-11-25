@@ -8,7 +8,7 @@ import type { ElvSystem } from '../../elv/defaults';
 import type { ElvDeviceType } from '../../elv/devices';
 
 /** The tool working on the drawing: none (Select: a click inspects the object under it, Shift-click or a window picks
- * several devices or drawn objects), a measuring tool, an LV containment segment check (`containment`), a room tool (`room`
+ * several devices or drawn objects), a measuring tool, an LV containment segment check (`containment`), a level check (`check`: its list is in the side panel), a room tool (`room`
  * click inside, `trace` its corners, `name` pick its name), drawing a cable tray run (`tray`) or a feeder's cable route
  * (`cable`, or `link` a line of the drawing as it), placing a device (or `fill` a room with an ELV device)
  * (`dev`), wiring a circuit (`wire`, Wire one), devices along a line (`arl`) or
@@ -21,7 +21,7 @@ import type { ElvDeviceType } from '../../elv/devices';
  * `tcen` (centre between two points), `tcopy` (the words of another text), `tframe` (a circle, box or hexagon round them),
  * `tmask` (a paper-colour fill under them); `tcount` places or renumbers texts in sequence; `keynote` a numbered hexagon
  * with a legend line; `rtall` tags every room of the level. */
-export type CadTool = 'none' | 'dist' | 'area' | 'containment' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'lux' | 'roomtemplate' | 'em' | 'arl' | 'match' | 'wire' | 'move' | 'copy' | 'rotate' | 'mirror' | 'scale' | 'align' | 'stretch' | 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'array' | 'matchprop' | 'hatch' | 'leader' | 'rtag' | 'north' | 'line' | 'xline' | 'ray' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim' | 'xattach' | 'xclip'
+export type CadTool = 'none' | 'dist' | 'area' | 'containment' | 'check' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'lux' | 'roomtemplate' | 'em' | 'arl' | 'match' | 'wire' | 'move' | 'copy' | 'rotate' | 'mirror' | 'scale' | 'align' | 'stretch' | 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'array' | 'matchprop' | 'hatch' | 'leader' | 'rtag' | 'north' | 'line' | 'xline' | 'ray' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim' | 'xattach' | 'xclip'
   | 'polygon' | 'ellipse' | 'circle2p' | 'circle3p' | 'circled' | 'arcsce' | 'revcloud' | 'crop'
   | 'dimlin' | 'dimal' | 'dimcont' | 'dimbase' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'rtall' | 'tframe' | 'tmask' | 'tcount' | 'keynote' | 'mtext' | 'mleader' | 'mleaderadd' | 'mleaderremove' | 'mleaderalign' | 'mleadercollect' | 'draworder' | 'texttofront' | 'point' | 'divide' | 'measure' | 'block' | 'blockpick' | 'insert' | 'attedit' | 'attpick' | 'copybase' | 'paste'
   | 'zoom' | 'zoomwin' | 'zoomscale' | 'pan' | 'selsim' | 'dimrad' | 'dimdia' | 'dimang' | 'textedit' | 'hatchedit' | 'boundary';

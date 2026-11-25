@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Project } from '../../types';
-import { canFill, copyTo, coverageNote, deviceNear, elvLayer, fillAt, moveTo, placeAt, remove, rotate } from './elvPlan';
+import { canFill, copyTo, coverageGaps, coverageNote, deviceNear, elvLayer, fillAt, moveTo, placeAt, remove, rotate } from './elvPlan';
 
 const box = (x1: number, y1: number, x2: number, y2: number): [number, number][] => [[x1, y1], [x2, y1], [x2, y2], [x1, y2]];
 const L1 = { building: 'B', level: 'L1' };
@@ -72,5 +72,12 @@ describe('ELV layer of the Floor plan page', () => {
     expect(coverageNote('ceiling-speaker')).toBe(' · at most 6 m apart');
     expect(coverageNote('camera')).toBe(' · 100°: identify 3.2 m, recognise 6.4 m, observe 12.9 m');
     expect(coverageNote('data-outlet')).toBe('');
+  });
+  it('lists the rooms a system does not fully cover, only for systems with devices on the level', () => {
+    let p = placeAt(project(), L1, 'smoke-detector', [5, 5]).next;
+    expect(coverageGaps(p, L1)).toEqual([{ system: 'fire-alarm', label: expect.any(String), roomsNotCovered: 1 }]);
+    expect(coverageGaps(p, { building: 'B', level: 'L2' })).toEqual([]);
+    p = placeAt(p, L1, 'camera', [1, 1]).next;
+    expect(coverageGaps(p, L1).map((g) => g.system)).toEqual(['fire-alarm', 'cctv']);
   });
 });

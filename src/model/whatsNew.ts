@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.300', date: '2026-11-25',
+    items: [
+      { title: 'Design CAD: Check level', text: 'Level → Check level (CHK) lists what to look at on the level showing: rooms short of lights by the lumen method or with none, rooms with no socket, circuits over the most the Rules sheet allows, devices on a removed circuit or outside every room, ELV coverage gaps by system and boards not yet on the plan, with the counts by type. Click a line to go there; some lines open Light room or Coverage. It is worked out when you ask, and Check again repeats it.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.297', date: '2026-11-25',
     items: [
       { title: 'Detect rooms from walls', text: 'In Design CAD, type DETECTROOMS (or ROOMSW), or right-click a reference drawing and choose Detect rooms from walls. Every room with its name written inside is found at once from the wall lines round it, doors up to 1.2 m bridged as Room area (RA) does for one click, and added to the level with its outline and area, named by that text. A room with two texts in it is added once, and running it again updates the rooms rather than adding them twice. No room-outline layer is needed.', action: 'cad', actionLabel: 'Open Design CAD' }
