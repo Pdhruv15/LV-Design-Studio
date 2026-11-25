@@ -31,7 +31,7 @@ import { upsLoadingPct } from '../calc/sizing';
 import { isMotor, starterInfo, starterOf } from '../calc/motor';
 import { sldDevices } from '../diagram/sldDevices';
 import { breakerText, cableLines, fireRatedWarning, icuText, incomerReach, incomerTexts, isolatorText, busbarLines, sparePoles, spareText, supplyReach, textWidth } from '../diagram/panelLabels';
-import { supplyMode, supplyPoint } from '../diagram/supplyPoint';
+import { earthPitsByDefault, supplyMode, supplyPoint } from '../diagram/supplyPoint';
 import { SourceSym } from '../diagram/sourceSymbol';
 import { cableSizeText, faultCurrentKA, impedanceToBoard, runsOf, sourceAssumed, upstreamVoltageDropPct } from '../calc/electrical';
 import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun, type OutageScenario } from '../calc/scenario';
@@ -80,7 +80,7 @@ export const protectionOf = (b: Board): Board['protection'] | undefined => {
 
 /** Instruments and earthing default on for main boards. */
 export const hasInstruments = (b: Board) => b.instruments ?? !b.upstreamId;
-export const hasEarthPits = (b: Board) => b.earthing?.show ?? !b.upstreamId;
+export const hasEarthPits = (b: Board) => b.earthing?.show ?? earthPitsByDefault(b);
 /** DEWA-style LV earth pits outside a framed main board: pit pitch, the nearest pit's offset
  * left of the frame, and the room left of that for the pit tags and notes. */
 const PIT_PITCH = 56, PIT_NEAR = 34, PIT_TAG = 30;

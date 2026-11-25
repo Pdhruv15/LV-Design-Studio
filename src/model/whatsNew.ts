@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.296', date: '2026-11-25',
+    items: [
+      { title: 'No earth pits for a board fed from outside', text: 'A first board that is fed from a board outside the project no longer gets earth pits, a main earth terminal or pit lines in the earthing layout, the SLD and the BOQ, because its earth is at the board that feeds it. Tick Earth pit detail on the board to add them.' },
+      { title: 'Spare RMUs are priced', text: 'An RMU that no board uses yet is now in the BOQ as a ring main unit of its type, with no transformer or cable lines for it.' }
+    ]
+  },
+  {
     version: '2.295', date: '2026-11-25',
     items: [
       { title: 'Default texts no longer name one supply authority', text: 'Hints, placeholders, default report and drawing notes, the BOQ inspection line and similar texts now say "utility" or "authority" instead of one authority\'s name. Type the real name where you want it. Authority rule sets and forms keep their own names.' }
