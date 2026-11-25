@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.310', date: '2026-11-25',
+    items: [
+      { title: 'Design CAD: Socket room', text: 'Devices → Socket room (SOCK): point at a room to see sockets along its walls at the spacing you set, each turned to face into the room. Click a wall to leave it out, click a socket to take it off, then Place. The panel shows the circuits used before placing: 13 A sockets go on to the next circuit with room at the most the Rules sheet allows. Also on a room\'s right-click list.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.309', date: '2026-11-25',
     items: [
       { title: 'Room devices: all rooms like this', text: 'Room devices now has Rooms too: This room, Same type, Whole level. One approval places the template in every room of the choice: each room\'s lights on one lighting circuit (going on to the next with room), its twin sockets on the power circuit, and the ELV devices. Rooms that cannot be done are listed and left out. One undo step; up to 40 rooms and 400 devices a run.', action: 'cad', actionLabel: 'Open Design CAD' }

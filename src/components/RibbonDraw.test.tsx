@@ -719,7 +719,7 @@ describe('Design CAD ribbon: Devices and Level', () => {
   it('holds the tools of a whole room in Devices and those of the whole level in Level, the small ones named', () => {
     show();
     pick(ELEC);
-    expect(tools('Devices')).toEqual(['Add device', 'Fill room', 'Light room', 'Room devices', 'Emergency']);
+    expect(tools('Devices')).toEqual(['Add device', 'Fill room', 'Light room', 'Socket room', 'Room devices', 'Emergency']);
     expect(tools('Level')).toEqual(['Check level', 'Coverage', 'Copy to level']);
     for (const name of ['Room devices', 'Emergency', 'Coverage', 'Copy to level']) expect(tool(name).querySelector('span')?.textContent).toBe(name);
     expect(group('Rooms').querySelector('button[aria-label="Trace"] span')).toBeNull(); // a small tool of another panel stays icon only

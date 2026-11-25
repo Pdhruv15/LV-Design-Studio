@@ -1,6 +1,6 @@
 # UI UX proposal – Design CAD Devices tools (2026-11-23)
 
-Status: **approved 2026-11-23** ("go with recommendation": decisions A–F as recommended). Built so far: steps 1 (v2.275), 2 (v2.291), 3 (v2.307) and 4 (v2.308 Fill room and Light room, v2.309 Room devices); step 5 is next.
+Status: **approved 2026-11-23** ("go with recommendation": decisions A–F as recommended). Built so far: steps 1 (v2.275), 2 (v2.291), 3 (v2.307), 4 (v2.308 Fill room and Light room, v2.309 Room devices) and 5 (v2.310); step 6 is next.
 
 Mockup: `docs/mockups/cad-devices-panel-mockup.html` (image: `cad-devices-panel-mockup.png`).
 
@@ -78,7 +78,7 @@ As they were asked:
 2. Circuit list with the room left, and the next circuit with room on the command line. **Built (v2.291).** Each circuit shows the type it carries (a socket circuit shows its sockets even while a light is being placed); the next circuit offered is one that already carries the type, or an empty one.
 3. Check level. **Built (v2.307).** The lights a room needs come from the Light room settings, as Lux check; ELV coverage is listed for the systems that have devices on the level.
 4. All rooms like this: Fill room first (no circuits), then Light room and Room devices.
-5. Socket room.
+5. Socket room. **Built (v2.310).** One room per run; the spacing is typed (it starts at 3 m), and a socket takes the nearest right angle to its wall.
 6. Copy to levels for lights, sockets and switches.
 
 One PR per step, each with its tests. Steps 3, 5 and 6 add a typed command (CHK, SOCK, CL) and steps 3 to 5 an entry on a room's right-click menu.

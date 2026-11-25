@@ -61,6 +61,7 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['FILL', 'FR'], desc: 'Fill a room with an ELV device', tool: 'fill' },
   { aliases: ['CHK', 'CHECKLEVEL'], desc: 'Check this level: what is missing, over a limit or outside a room', tool: 'check' },
   { aliases: ['LUX', 'LIGHTROOM'], desc: 'Light a room by the lumen method', tool: 'lux' },
+  { aliases: ['SOCK', 'SOCKETROOM'], desc: 'Sockets along the walls of a room', tool: 'sockroom' },
   { aliases: ['RDT', 'ROOMDEVICES'], desc: 'Preview a coordinated room device template', tool: 'roomtemplate' },
   { aliases: ['EM', 'EMERGENCY'], desc: 'Emergency lighting', tool: 'em' },
   { aliases: ['SEL', 'SELECT'], desc: 'Select devices', action: 'select' },
