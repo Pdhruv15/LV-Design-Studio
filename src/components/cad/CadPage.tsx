@@ -20,6 +20,7 @@ import { clipPayload, clipText, lowerLeft, parseClip, pastedItems, withPasted, t
 import CadCommandLine from './CadCommandLine';
 import CadMenu from './CadMenu';
 import { addSelectedTool, blankMenu, commandMenu, countLine, measureOf, shownBy, SNAP_OVERRIDES, TOOL_MENU_ICON, type CtxEntry, type CtxHead, type CtxItem, type MenuCommon, type ObjectHide } from './cadContextMenu';
+import { compareLine, compareRefLines, type RefDiff } from '../../model/cadRefCompare';
 import { closeRefEdit, refEditOf, startRefEdit, workingSet } from '../../model/cadRefEdit';
 import { blockEditorChanged, blockEditorOf, closeBlockEditor, openBlockEditor, saveBlockEditor } from '../../model/cadBlockEditor';
 import { closedToggled, findCount, findReplace, gripMenu, withVertexAdded, withVertexRemoved } from './cadDrawnMenus';
@@ -130,7 +131,7 @@ import { PropertiesPalette } from './CadProperties';
 import { isTbFile, LOGO_BOX, logoItems, saveTitleBlockFromCad, TB_FIELDS, TB_LAYERS, tbIdOf } from '../../model/titleBlockCad';
 import { LOGO_FIELD } from '../../model/titleBlock';
 import { AttachDialog, RefLayersList, RefManager, useCadRefs } from './CadRefs';
-import { refGeometry, refNear, type CadRef } from '../../model/cadRefs';
+import { placeRef, refGeometry, refNear, type CadRef } from '../../model/cadRefs';
 import { standInHandle, standInsFor, takeOverNote, takeOverSummary, type TakeOverCtx } from '../../model/cadTakeOver';
 import { drawnLayers, effective, layerStylesOf, LINETYPES, matchedProps, styleOf, withProps, type ObjectProps } from '../../model/cadLayerStyle';
 import { colourCss, colourLabel } from '../../model/cadColours';
@@ -488,6 +489,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [beClose, setBeClose] = useState(false);
   /** REFCLOSE without Save or Discard: asked which. */
   const [reClose, setReClose] = useState(false);
+  /** XCOMPARE: a reference beside its new revision — the lines added and removed, the areas of change, the one shown. */
+  const [cmp, setCmp] = useState<{ ref: string; file: string; d: RefDiff; i: number } | null>(null);
   /** The object of the opened drawing, or the reference, the last right-click was on. */
   const ctxObj = useRef<{ dw?: CadObject; ref?: string; vp?: string; fvp?: number } | null>(null);
   /** The right-click menu on a layout's paper or one of its viewports (phase 3), at a point of the paper's stage. */
@@ -1026,6 +1029,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     onChange(next, said, join || undefined); cad.say(said); if (view) cad.markDirty(view.file);
   };
   const xr = useCadRefs({ project, view, tabOf: cad.tabOf, change, say: cad.say });
+  // XCOMPARE: the lines removed (the theme's bad colour, red) and added (its ok colour, green) over the references.
+  const cmpRefs = useMemo(() => {
+    if (!cmp) return xr.placed;
+    const tone = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+    return [...xr.placed,
+      { segs: cmp.d.removed, segLayers: new Uint16Array(cmp.d.removed.length / 4), colours: [tone('--bad', 'red')], fade: 0 },
+      { segs: cmp.d.added, segLayers: new Uint16Array(cmp.d.added.length / 4), colours: [tone('--ok', 'green')], fade: 0 }];
+  }, [xr.placed, cmp]);
   const snapRef = snapOnce ? (x: number, y: number, r: number) => { const q = xr.snap(x, y, r); return q && q.kind & snapBit ? q : undefined; } : xr.snap;
 
   // Layer palette (LM): the drawing's layer record (current layer, layers added, states), its rows, and the changes made
@@ -2475,11 +2486,46 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       case 'reload': xr.actions.reload(r); return;
       case 'unload': xr.actions.unload(r); return;
       case 'detach': xr.actions.detach(r); return;
+      case 'compare': void startCompare(r); return;
       case 'bind': { const c = copyOf(/^DXF/i.test(view.info.format) ? 'dxf' : 'dwg', true); if (c) void writeCopy({ ...c, path: undefined }, false, false); return; }
       case 'print': xr.actions.update(r, { print: !r.print }, r.print ? 'does not print on the plan sheets' : 'prints on the plan sheets'); return;
       case 'layers': setShowLM(true); return;
       case 'manager': setShowXR(true); return;
     }
+  }
+  /** XCOMPARE: the new revision chosen, placed as the reference is, its lines compared (5 mm; areas within 2 m). */
+  async function startCompare(r: CadRef) {
+    const now = xr.placed.find((x) => x.ref.name === r.name);
+    if (!now) { cad.say(`XCOMPARE  ${r.name} is not loaded: Reload it first.`); return; }
+    cad.say(`XCOMPARE  ${r.name}: choose the new revision of ${r.file}`);
+    const g = await xr.actions.newRevision();
+    if (!g) { cad.say('XCOMPARE  Nothing chosen.'); return; }
+    if (g.file.toLowerCase() === r.file.toLowerCase()) { cad.say(`XCOMPARE  That is ${r.file} itself: choose the new revision's file (another name).`); return; }
+    const d = compareRefLines(now.segs, placeRef(g, { ...r, file: g.file }).segs, 0.005 / units.factor, 2 / units.factor);
+    setCmp({ ref: r.name, file: g.file, d, i: -1 });
+    cad.say(compareLine(r.name, d));
+    cad.say(d.areas.length ? 'XCOMPARE  [Next/Clouds/Accept/Exit] <Next>:' : 'XCOMPARE  [Accept/Exit] <Exit>:');
+    input.current?.focus();
+  }
+  /** An option typed while comparing: the next area, clouds round every area, the new revision taken, or the end. */
+  function compareOption(c: string) {
+    if (!cmp) return;
+    const n = cmp.d.areas.length, a = c[0] ?? (n ? 'N' : 'E'), r = xr.refs.find((x) => x.name === cmp.ref);
+    const ask = n ? '[Next/Clouds/Accept/Exit] <Next>:' : '[Accept/Exit] <Exit>:';
+    if (a === 'N' && n) {
+      const i = (cmp.i + 1) % n, [x0, y0, x1, y1] = cmp.d.areas[i];
+      setCmp({ ...cmp, i }); zoomTo({ kind: 'window', a: [x0, y0], b: [x1, y1] });
+      cad.say(`XCOMPARE  Area ${i + 1} of ${n} · ${ask}`); return;
+    }
+    if (a === 'C' && n && view) {
+      const arc = 15 * unitsPerPaperMm(anno, units.factor);
+      const next = cmp.d.areas.reduce((q, [x0, y0, x1, y1]) => addSketch(q, view.file, { kind: 'pline', layer: ANNO_LAYER, closed: true, cloud: arc, pts: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] }).project, project);
+      change(next, `XCOMPARE  ${n} revision cloud${n === 1 ? '' : 's'} round the changes of ${cmp.ref} · ⌘Z to undo`);
+      cad.say(`XCOMPARE  ${ask}`); return;
+    }
+    if (a === 'A' && r) { setCmp(null); xr.actions.update(r, { file: cmp.file, unloaded: undefined }, `now the new revision ${cmp.file}`); return; }
+    if (a === 'E' || a === 'X') { setCmp(null); cad.say(`XCOMPARE  Done: ${cmp.ref} is still ${r?.file ?? ''}.`); return; }
+    cad.say(`XCOMPARE  ${ask}`);
   }
   /** A viewport or the paper of a layout, from its right-click menu. */
   function layoutAct(kind: 'vp' | 'paper', a: string) {
@@ -4136,6 +4182,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       change({ ...project, drawingSet: { ...set, sheets: set.sheets.map((x) => (x.id === id ? { ...x, title: raw } : x)) } }, `LAYOUT  renamed "${raw}" · ⌘Z to undo`);
       return;
     }
+    if (cmp) { compareOption(c); return; }
     if (reClose) {
       setReClose(false);
       const a = c[0];
@@ -4571,6 +4618,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       hideObjects: () => hideObjects('hide'),
       unisolateObjects: () => { if (objHide && objHide.file === view?.file) { setObjHide(null); setDwHide(null); cad.say('UNISOLATEOBJECTS  All objects shown again.'); } else cad.say('UNISOLATEOBJECTS  No objects are isolated or hidden.'); },
       addSelected: () => addSelected(),
+      xcompare: () => { const live = xr.refs.filter((x) => !x.unloaded); if (live.length === 1) void startCompare(live[0]); else cad.say(live.length ? 'XCOMPARE  Right-click the reference to compare: Compare with new revision…' : 'XCOMPARE  This drawing has no reference loaded (XA attaches one).'); },
       refedit: () => refEdit(),
       refclose: () => refClose(),
       bedit: () => blockEdit(),
@@ -4746,7 +4794,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (edNote) { const mlNew = !!edNote.ml; setEdNote(null); cad.say('*Cancel*'); if (tool === 'mtext') cad.setTool('none'); if (mlNew) { setPoints([]); cad.say(PROMPT.mleader); } }
     else if (points.length || objectMode || cad.textAt || mtAsk) { setPoints([]); setObjectMode(false); cad.setTextAt(null); setTextAsk(null); setEdAsk(null); setMtAsk(null); cad.say('*Cancel*'); }
     else if (edStep || edAsk === 'radius' || edAsk === 'd1' || edAsk === 'd2') { setEdStep(null); setEdAsk(null); cad.say('*Cancel*'); cad.say(tool === 'offset' ? PROMPT.offset : editPrompt(tool, edSet)); }
-    else if (renaming || roomAsk || findAsk || beClose || reClose) { setRenaming(null); setRoomAsk(null); setFindAsk(null); setBeClose(false); setReClose(false); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); setPicked([]); }
+    else if (renaming || roomAsk || findAsk || beClose || reClose || cmp) { setRenaming(null); setRoomAsk(null); setFindAsk(null); setBeClose(false); setReClose(false); setCmp(null); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); setPicked([]); }
   }
   /** What Space does in the command line: types a space in text (a name, TEXT contents, a leader's text); at TEXT's
    * height and rotation, where a word is the text, ends only an empty input or a number; else ends a whole word. */
@@ -5037,7 +5085,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
             <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} cursorMode={cursorMode} hover={hover} cutAway={cutPiece && edgeLine ? [{ ...cutPiece, id: edgeLine.id }] : undefined} meets={addPiece ? [addPiece[1]] : undefined} shadowDevices={shadow?.devs.length ? shadow.devs : undefined} movingPoints={stretchLook?.pts} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap, pixel) => setCursor({ at, snap, pixel })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={[...pickedSk.map((it) => it.id), ...(stretchLook?.sk.map((it) => it.id) ?? []), ...(tool === 'containment' && containmentSegment ? [containmentSegment] : [])]} extraSnaps={snapExtra} preview={[...preview, ...approvedElvRoutes, ...activeRoutePreview, ...emRoutes, ...(grip && cursor.at ? srcAll.filter((x) => x.id === grip.id).map((x) => gripMoved(x, grip.i, cursor.at!)) : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={routeLabels} covers={elv?.covers} gaps={elv?.gaps}
-              numbersTyped={valuesTyped} layerStyle={styles} refs={xr.placed} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || ((tool === 'mleaderalign' || tool === 'mleadercollect') && ml?.step === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
+              numbersTyped={valuesTyped} layerStyle={styles} refs={cmpRefs} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || ((tool === 'mleaderalign' || tool === 'mleadercollect') && ml?.step === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={gripList} hotGrip={gripOf(hotGrip)} pickedObjects={pickedDwIds} onGripStart={(k) => setGrip(gripList[k] ? { id: gripList[k].id, i: gripList[k].i } : null)}
               onGripEnd={(k, at, moved) => {
                 setGrip(null);

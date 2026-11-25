@@ -1,18 +1,19 @@
 import { useMemo, useState } from 'react';
 import { Modal } from '../ui';
-import { circuitCategory, circuitRef, elcbGroups, rcbosOf, scheduleCircuits, STANDARD_ELCB_A } from '../../calc/loadSchedule';
+import { circuitCategory, circuitRef, elcbGroups, RCBO_KIND_TEXT, rcbosOf, scheduleCircuits, STANDARD_ELCB_A } from '../../calc/loadSchedule';
 import { elcbPreview, elcbWaysProblem } from '../../model/elcbs';
 import type { Board, BoardElcb, Project } from '../../types';
 
-/** What the dialog is for: a 3-phase ELCB over ways (new, or the one over way `at`), or the earth leakage setting of an RCBO circuit. */
-export type ElcbTarget = { kind: 'elcb'; at?: number; from: number; to: number } | { kind: 'rcbo'; feederId: string };
-export interface ElcbValues { fromWay: number; toWay: number; poles: 3 | 4; ratingA?: number; sensitivityMa?: number }
+/** What the dialog is for: a 3-phase ELCB over ways (new, or the one over way `at`), the earth leakage setting of an RCBO
+ * circuit, or why a circuit has no RCD. */
+export type ElcbTarget = { kind: 'elcb'; at?: number; from: number; to: number } | { kind: 'rcbo'; feederId: string } | { kind: 'none'; feederId: string };
+export interface ElcbValues { fromWay: number; toWay: number; poles: 3 | 4; ratingA?: number; sensitivityMa?: number; reason?: string }
 
 const MA = [10, 30, 100, 300];
 const whole = (v: string) => (v === '' ? NaN : Math.round(+v));
 const pick = (v: string) => (v === '' ? undefined : +v);
 
-/** Add / edit an ELCB (RCCB) over ways of a DB, or set the sensitivity of an RCBO circuit. `onSave` returns a
+/** Add / edit an ELCB (RCCB) over ways of a DB, set the sensitivity of an RCBO circuit, or give why a circuit has no RCD. `onSave` returns a
  * reason when it cannot be applied (the dialog stays open and shows it); the Auto values are what the schedule would pick. */
 export default function ElcbDialog({ project, board, target, onSave, onClose }: {
   project: Project;
@@ -24,7 +25,8 @@ export default function ElcbDialog({ project, board, target, onSave, onClose }: 
   const at = target.kind === 'elcb' ? target.at : undefined;
   const group = at !== undefined ? elcbGroups(project, board).find((g) => g.ways.includes(at)) : undefined;
   const editing: BoardElcb | undefined = group?.byHand;
-  const rcboFeeder = target.kind === 'rcbo' ? project.feeders.find((f) => f.id === target.feederId) : undefined;
+  const rcboFeeder = target.kind !== 'elcb' ? project.feeders.find((f) => f.id === target.feederId) : undefined;
+  const [reason, setReason] = useState(target.kind === 'none' ? rcboFeeder?.noRcd ?? 'Fire alarm panel' : '');
   const [from, setFrom] = useState(target.kind === 'elcb' ? String(editing?.fromWay ?? target.from) : '');
   const [to, setTo] = useState(target.kind === 'elcb' ? String(editing?.toWay ?? target.to) : '');
   const [poles, setPoles] = useState<3 | 4>(editing?.poles ?? 4);
@@ -33,11 +35,12 @@ export default function ElcbDialog({ project, board, target, onSave, onClose }: 
   const [error, setError] = useState<string>();
 
   const fromWay = whole(from), toWay = whole(to);
-  const problem = target.kind === 'elcb' ? elcbWaysProblem({ fromWay, toWay }) : undefined;
+  const problem = target.kind === 'elcb' ? elcbWaysProblem({ fromWay, toWay }) : target.kind === 'none' && !reason.trim() ? 'Give the reason, e.g. fire alarm panel' : undefined;
 
   /** What Auto means here: the schedule's own pick for the group (or RCBO) with nothing chosen by hand. */
   const auto = useMemo(() => {
     const withBoard = (elcbs: BoardElcb[] | undefined, feeders = project.feeders): Project => ({ ...project, feeders, boards: project.boards.map((b) => (b.id === board.id ? { ...b, elcbs } : b)) });
+    if (target.kind === 'none') return undefined;
     if (target.kind === 'rcbo') {
       const next = withBoard(board.elcbs, project.feeders.map((f) => (f.id === target.feederId ? { ...f, rcbo: true, rcdMa: undefined } : f)));
       const r = rcbosOf(next, next.boards.find((b) => b.id === board.id)!).find((x) => x.circuit.id === target.feederId);
@@ -48,14 +51,16 @@ export default function ElcbDialog({ project, board, target, onSave, onClose }: 
   }, [project, board, target, at, fromWay, toWay, poles]);
 
   const circuits = target.kind === 'elcb' && !problem ? scheduleCircuits(project, board.id).filter((f) => f.way! >= fromWay && f.way! <= toWay) : [];
-  const number = target.kind === 'elcb' ? group?.index : rcbosOf(project, board).find((r) => r.circuit.id === target.feederId)?.index;
-  const title = target.kind === 'rcbo'
-    ? `RCBO-${number ?? ''} — ${rcboFeeder ? `${circuitRef(rcboFeeder) ?? rcboFeeder.id} ${rcboFeeder.room || rcboFeeder.name}`.trim() : ''}`
+  const number = target.kind === 'elcb' ? group?.index : undefined;
+  const own = target.kind === 'rcbo' ? rcbosOf(project, board).find((r) => r.circuit.id === target.feederId) : undefined;
+  const circuitName = rcboFeeder ? `${circuitRef(rcboFeeder) ?? rcboFeeder.id} ${rcboFeeder.room || rcboFeeder.name}`.trim() : '';
+  const title = target.kind === 'rcbo' ? `${own?.name ?? 'RCBO'} — ${circuitName}`
+    : target.kind === 'none' ? `No RCD — ${circuitName}`
     : group ? `ELCB-${number ?? ''} — ${board.id}` : `Add 3-phase ELCB — ${board.id}`;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const why = problem ?? onSave({ fromWay, toWay, poles, ratingA: pick(rating), sensitivityMa: pick(ma) });
+    const why = problem ?? onSave({ fromWay, toWay, poles, ratingA: pick(rating), sensitivityMa: pick(ma), reason: reason.trim() || undefined });
     if (why) setError(why); else onClose();
   };
   const shownError = problem ?? error;
@@ -83,19 +88,25 @@ export default function ElcbDialog({ project, board, target, onSave, onClose }: 
           </label>
         </>
       )}
-      {target.kind === 'rcbo' && <p className="m">Rating {rcboFeeder?.breakerRatingA} A (the circuit&apos;s breaker)</p>}
-      <label>Sensitivity
+      {target.kind === 'rcbo' && <p className="m">{own ? RCBO_KIND_TEXT[own.kind] : 'RCBO'}, rating {rcboFeeder?.breakerRatingA} A (the circuit&apos;s breaker), {rcboFeeder?.phase === 'RYB' ? '4P' : '2P'}</p>}
+      {target.kind === 'none' && (
+        <>
+          <label>Reason <input data-field="reason" value={reason} onChange={(e) => { setReason(e.target.value); setError(undefined); }} aria-invalid={!!problem} /></label>
+          <p className="m">The circuit leaves its ELCB and has no earth leakage device. Its earth fault check then has to pass on the MCB alone. The reason prints in the ELCB column.</p>
+        </>
+      )}
+      {target.kind !== 'none' && <label>Sensitivity
         <select value={ma} onChange={(e) => setMa(e.target.value)}>
           <option value="">Auto{auto ? ` — ${auto.sensitivityMa} mA (${auto.category} circuit)` : ''}</option>
           {MA.map((m) => <option key={m} value={m}>{m} mA</option>)}
         </select>
-      </label>
+      </label>}
       {target.kind === 'elcb' && <p className="m">ELCBs already over these ways give them up; no other ELCB moves. RCBO circuits in these ways keep their RCBO.</p>}
       {shownError && <p className="warn" role="alert">{shownError}</p>}
       <div className="modal-actions">
         <span className="sp" />
         <button type="button" className="chip" onClick={onClose}>Cancel</button>
-        <button type="submit" className="chip primary" disabled={!!problem}>{target.kind === 'rcbo' || group ? 'Save' : 'Add ELCB'}</button>
+        <button type="submit" className="chip primary" disabled={!!problem}>{target.kind !== 'elcb' || group ? 'Save' : 'Add ELCB'}</button>
       </div>
     </Modal>
   );

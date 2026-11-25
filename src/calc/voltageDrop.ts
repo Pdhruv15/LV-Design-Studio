@@ -1,4 +1,5 @@
 import { cables, getCable } from './cableTable';
+import { feederFamily } from './cableFamily';
 import { rule } from '../database/catalog';
 import { boardDemandKw, designCurrentA, incomerBasis, rOperatingOhmPerKm, runsOf, upstreamVoltageDropPct, type Status } from './electrical';
 import { isScheduleCircuit, scheduleCircuits } from './loadSchedule';
@@ -77,8 +78,9 @@ export function vdRow(project: Project, f: Feeder): VdRow {
   const threePhase = f.cores >= 3;
   // Ω/km equals mV per A per m; 3-phase: √3·Z against the line voltage,
   // single-phase: phase + neutral (2·Z) against the phase voltage.
-  const rOhmPerKm = rOperatingOhmPerKm(f.cableCsaMm2, project.vdTempC);
-  const xOhmPerKm = getCable(f.cableCsaMm2).xOhmPerKm;
+  const family = feederFamily(project, f);
+  const rOhmPerKm = rOperatingOhmPerKm(f.cableCsaMm2, project.vdTempC, family);
+  const xOhmPerKm = getCable(f.cableCsaMm2, family).xOhmPerKm;
   const z = (rOhmPerKm * vdPf + xOhmPerKm * sin) / runsOf(f);
   const mvPerAm = (threePhase ? SQRT3 : 2) * z;
   const vdV = (mvPerAm * vdA * f.lengthM) / 1000;

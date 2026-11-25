@@ -55,29 +55,31 @@ describe('Add → ELCB / RCD', () => {
     const ryb = scheduleCircuits(start, BOARD).find((f) => f.phase === 'RYB')!;
     mount();
     openMenu();
-    expect(items().map((b) => b.textContent)).toEqual(['3-phase ELCB (4P, TP&N) over ways…', '3-phase ELCB for the selected 3-phase circuit', '1-phase RCBO for the selected circuit', 'Re-group all ELCBs…']);
+    expect(items().map((b) => b.textContent)).toEqual(['3-phase ELCB (4P, TP&N) over ways…', '3-phase ELCB for the selected 3-phase circuit', 'RCBO for the selected circuit', 'AFDD + RCBO for the selected 1-phase circuit', 'MCB + RCD add-on block for the selected circuit', 'No RCD for the selected circuit…', 'Re-group all ELCBs…']);
     expect(item('3-phase ELCB for the selected 3-phase circuit').disabled).toBe(true);
-    expect(item('1-phase RCBO for the selected circuit').disabled).toBe(true);
+    expect(item('RCBO for the selected circuit').disabled).toBe(true);
     expect(item('3-phase ELCB (4P, TP&N) over ways…').disabled).toBe(false);
     press(roomOf('R1'));
     openMenu();
     expect(items().slice(0, 6).map((b) => b.textContent)).toEqual(['3 circuits', '6 circuits', '9 circuits', '12 circuits', 'Edit ELCB-1…', 'Remove ELCB-1']);
-    expect(item('1-phase RCBO for R1').disabled).toBe(false);
+    expect(item('RCBO for R1 (2P)').disabled).toBe(false);
     expect(item('3-phase ELCB for the selected 3-phase circuit').disabled).toBe(true);
     press(roomOf(`RYB${ryb.way}`));
     openMenu();
     expect(item(`3-phase ELCB for RYB${ryb.way} only`).disabled).toBe(false);
-    expect(item('1-phase RCBO for the selected circuit').disabled).toBe(true);
+    expect(item(`RCBO for RYB${ryb.way} (4P)`).disabled).toBe(false);
+    expect(item('AFDD + RCBO for the selected 1-phase circuit').disabled).toBe(true);
+    expect(item(`MCB + RCD add-on block for RYB${ryb.way}`).disabled).toBe(false);
   });
 
   it('makes the selected 1-phase circuit an RCBO and says so; it can be removed again', () => {
     mount();
     press(roomOf('R1'));
     openMenu();
-    act(() => item('1-phase RCBO for R1').click());
+    act(() => item('RCBO for R1 (2P)').click());
     const f = latest.feeders.find((x) => x.id === `${BOARD}-R1`)!;
     expect(f.rcbo).toBe(true);
-    expect(status).toHaveBeenLastCalledWith(expect.stringMatching(/^R1: RCBO \d+ A \d+ mA in place of the MCB; it leaves ELCB-1$/));
+    expect(status).toHaveBeenLastCalledWith(expect.stringMatching(/^R1: RCBO \d+ A \d+ mA 2P in place of the MCB \(RCBO-1\); it leaves ELCB-1$/));
     expect(document.querySelector('table.ls')!.textContent).toMatch(/RCBO-1.*this circuit/);
     press(roomOf('R1'));
     openMenu();
@@ -146,7 +148,7 @@ describe('Add → ELCB / RCD', () => {
     mount();
     press(roomOf('R1'));
     openMenu();
-    act(() => item('1-phase RCBO for R1').click());
+    act(() => item('RCBO for R1 (2P)').click());
     act(() => document.querySelector<HTMLTableCellElement>('table.ls td.elcb[rowspan]')!.click());
     act(() => [...document.querySelectorAll<HTMLButtonElement>('.menu-pop[role="menu"] button')].find((b) => b.textContent === '12 circuits')!.click());
     expect(board().elcbs!.length).toBeGreaterThan(0);
@@ -155,13 +157,70 @@ describe('Add → ELCB / RCD', () => {
     const dlg = document.querySelector('.elcb-dialog')!;
     expect(dlg.querySelector('h3')!.textContent).toBe(`Re-group all ELCBs — ${BOARD}`);
     expect(dlg.textContent).toMatch(/Now: \d+ ELCBs? \(12 · .*After: /);
-    const keepRcbos = [...dlg.querySelectorAll('label')].find((l) => l.textContent!.includes('Keep the RCBOs'))!.querySelector('input')!;
+    const keepRcbos = [...dlg.querySelectorAll('label')].find((l) => l.textContent!.includes('Keep the RCBOs and No RCD circuits'))!.querySelector('input')!;
     act(() => keepRcbos.click());
     act(() => dlg.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
     expect(document.querySelector('.elcb-dialog')).toBeNull();
     expect(board().elcbs).toBeUndefined();
     expect(latest.feeders.some((f) => f.rcbo)).toBe(false);
     expect(status).toHaveBeenLastCalledWith(`${BOARD}: ELCBs re-grouped into 6 circuits each`);
+  });
+
+  it('offers Make RCBO in the Check column for the one odd circuit of an ELCB', () => {
+    const g0 = elcbGroups(sampleProject, sampleProject.boards.find((b) => b.id === BOARD)!)[0];
+    const lighting = g0.circuits.find((f) => f.points?.ltg)!;
+    start = { ...sampleProject, feeders: sampleProject.feeders.map((f) => (g0.circuits.includes(f) ? { ...f, points: f.id === lighting.id ? { s13: 2 } : { ltg: 4 } } : f)) };
+    mount();
+    const btns = () => [...document.querySelectorAll<HTMLButtonElement>('table.ls button')].filter((b) => b.textContent === 'Make RCBO');
+    expect(btns()).toHaveLength(1);
+    expect(btns()[0].title).toBe(`Only power circuit on ELCB-${g0.index}: an RCBO in place of its MCB leaves ELCB-${g0.index} with lighting circuits only`);
+    act(() => btns()[0].click());
+    expect(latest.feeders.find((f) => f.id === lighting.id)!.rcbo).toBe(true);
+    expect(status).toHaveBeenLastCalledWith(expect.stringMatching(new RegExp(`; ELCB-${g0.index} is now \\d+ A 100 mA 4P \\(lighting\\)$`)));
+    expect(btns()).toHaveLength(0);
+  });
+
+  it('No RCD asks the reason, takes the circuit off its ELCB and shows it; Put back undoes it', () => {
+    mount();
+    press(roomOf('Y1'));
+    openMenu();
+    act(() => item('No RCD for Y1…').click());
+    const dlg = document.querySelector('.elcb-dialog')!;
+    expect(dlg.querySelector('h3')!.textContent).toMatch(/^No RCD — Y1/);
+    const reason = dlg.querySelector<HTMLInputElement>('input[data-field="reason"]')!;
+    expect(reason.value).toBe('Fire alarm panel');
+    type(reason, ' ');
+    expect(dlg.querySelector('[role="alert"]')!.textContent).toBe('Give the reason, e.g. fire alarm panel');
+    expect(dlg.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(true);
+    type(reason, 'Smoke extract fan');
+    act(() => dlg.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
+    expect(latest.feeders.find((f) => f.id === `${BOARD}-Y1`)!.noRcd).toBe('Smoke extract fan');
+    expect(status).toHaveBeenLastCalledWith(expect.stringMatching(/^Y1: no RCD \(Smoke extract fan\); it leaves ELCB-1\. Its earth fault check rests on the MCB alone$/));
+    expect(document.querySelector('table.ls')!.textContent).toContain('No RCDSmoke extract fan');
+    press(roomOf('Y1'));
+    openMenu();
+    expect(items().map((b) => b.textContent)).toContain('Edit the No RCD reason…');
+    act(() => item('Put Y1 back on its ELCB').click());
+    expect(latest.feeders.find((f) => f.id === `${BOARD}-Y1`)!.noRcd).toBeUndefined();
+  });
+
+  it('gives a circuit an AFDD + RCBO, then an RCD add-on block in its place, and names each', () => {
+    mount();
+    press(roomOf('Y1'));
+    openMenu();
+    act(() => item('AFDD + RCBO for Y1').click());
+    expect(latest.feeders.find((f) => f.id === `${BOARD}-Y1`)).toMatchObject({ rcbo: true, rcboKind: 'afdd' });
+    expect(status).toHaveBeenLastCalledWith(expect.stringMatching(/^Y1: AFDD \+ RCBO \d+ A \d+ mA 2P \+ AFDD in place of the MCB \(RCBO-1\); it leaves ELCB-1$/));
+    expect(document.querySelector('table.ls')!.textContent).toMatch(/RCBO-1\d+ A \d+ mA 2P \+ AFDDthis circuit/);
+    press(roomOf('Y1'));
+    openMenu();
+    expect(item('AFDD + RCBO for the selected 1-phase circuit').disabled).toBe(true);
+    act(() => item('MCB + RCD add-on block for Y1').click());
+    expect(latest.feeders.find((f) => f.id === `${BOARD}-Y1`)!.rcboKind).toBe('addon');
+    expect(document.querySelector('table.ls')!.textContent).toMatch(/RCD-1\d+ A \d+ mA 2P add-onthis circuit/);
+    press(roomOf('Y1'));
+    openMenu();
+    expect(items().map((b) => b.textContent)).toEqual(expect.arrayContaining(['Edit RCD-1…', 'Remove RCD-1']));
   });
 
   it('has no ELCB / RCD menu on the MD form', () => {

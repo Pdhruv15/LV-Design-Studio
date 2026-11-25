@@ -1,7 +1,7 @@
 import type { Project } from '../types';
 import { BUILTIN_CATALOGUES, type EnclosureCatalogue } from '../calc/enclosure';
 import { breakerTypeOf } from '../calc/earthing';
-import { elcbGroups, isRcbo, scheduleCircuits } from '../calc/loadSchedule';
+import { elcbGroups, hasNoRcd, isRcbo, scheduleCircuits } from '../calc/loadSchedule';
 import { spareBreaker, spareWaysOf } from './spareWays';
 import { BRAND_DEVICES } from '../data/brandDevices';
 import { pushLibrary } from '../database/librarySync';
@@ -84,7 +84,7 @@ export function importLibrary(text: string): { catalogues: number; devices: numb
 
 // ---- Device dimensions ------------------------------------------------------
 
-export type DeviceKind = 'MCB' | 'RCBO' | 'RCCB' | 'MCCB' | 'ACB' | 'Isolator' | 'SPD' | 'Contactor' | 'Meter' | 'Pilot light' | 'Other';
+export type DeviceKind = 'MCB' | 'RCBO' | 'AFDD+RCBO' | 'RCD add-on' | 'RCCB' | 'MCCB' | 'ACB' | 'Isolator' | 'SPD' | 'Contactor' | 'Meter' | 'Pilot light' | 'Other';
 export interface DeviceDim {
   id: string;
   manufacturer: string;
@@ -110,6 +110,8 @@ export const loadDevices = () => read<DeviceDim>(DEV_KEY);
 export const TYPICAL_DEVICES: DeviceDim[] = ([
   ['MCB', 1, 1, 63], ['MCB', 2, 2, 63], ['MCB', 3, 3, 63], ['MCB', 4, 4, 63],
   ['RCBO', 1, 2, 63], ['RCBO', 2, 2, 63], ['RCBO', 3, 4, 63], ['RCBO', 4, 4, 63],
+  ['AFDD+RCBO', 1, 2, 40], ['AFDD+RCBO', 2, 2, 40],
+  ['RCD add-on', 1, 2, 63], ['RCD add-on', 2, 2, 63], ['RCD add-on', 3, 4, 63], ['RCD add-on', 4, 4, 63],
   ['RCCB', 2, 2, 100], ['RCCB', 4, 4, 100],
   ['Isolator', 2, 2, 125], ['Isolator', 3, 3, 125], ['Isolator', 4, 4, 125]
 ] as [DeviceKind, number, number, number][]).map(([kind, poles, modules, max]) => ({
@@ -136,9 +138,15 @@ export function neededDevices(project: Project, boardId: string, devices: Device
   const groups = elcbGroups(project, board);
   const inGroup = new Set(groups.flatMap((g) => g.circuits.map((c) => c.id)));
   for (const f of circuits.length ? circuits : project.feeders.filter((x) => x.boardId === boardId)) {
-    const own = (isRcbo(f) || !!f.rcdMa) && !inGroup.has(f.id);
+    const own = (isRcbo(f) || !!f.rcdMa) && !inGroup.has(f.id) && !hasNoRcd(f);
     const t = breakerTypeOf(f);
-    list.push({ kind: own ? 'RCBO' : t === 'MCCB' || t === 'ACB' ? 'MCCB' : 'MCB', poles: f.cores === 2 ? 1 : 3, ratingA: f.breakerRatingA, what: own ? 'Circuit with RCBO' : 'Circuit breaker' });
+    const poles = f.cores === 2 ? 1 : 3;
+    const mcb: DeviceKind = t === 'MCCB' || t === 'ACB' ? 'MCCB' : 'MCB';
+    if (own && f.rcbo && f.rcboKind === 'addon') {
+      list.push({ kind: mcb, poles, ratingA: f.breakerRatingA, what: 'Circuit breaker' });
+      list.push({ kind: 'RCD add-on', poles, ratingA: f.breakerRatingA, what: 'RCD add-on block on its MCB' });
+    } else if (own && f.rcbo && f.rcboKind === 'afdd') list.push({ kind: 'AFDD+RCBO', poles, ratingA: f.breakerRatingA, what: 'Circuit with AFDD + RCBO' });
+    else list.push({ kind: own ? 'RCBO' : mcb, poles, ratingA: f.breakerRatingA, what: own ? 'Circuit with RCBO' : 'Circuit breaker' });
   }
   // Spares are breakers like the circuits; a space keeps room for the breaker it is meant for.
   for (const s of spareWaysOf(board)) {

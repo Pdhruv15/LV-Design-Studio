@@ -20,19 +20,19 @@ const E = 'engineering', D = 'drawing', C = 'commercial', A = 'admin', B = 'book
 export const FEEDER_CLASS: Record<keyof Feeder, ChangeClass> = {
   id: E, uid: B, boardId: E, name: D, loadKw: E, demandFactor: E, powerFactor: E, lengthM: E, cableCsaMm2: E, parallel: E, cores: E, breakerRatingA: E, breakerIcuKa: E,
   generation: E, existing: E, loadType: E, breakerType: E, breakerImMultiple: E, cpcMm2: E, installMethod: E, componentId: E, componentValues: E, standbyUnit: E, fromRoom: D, essential: E, phase: E, way: E,
-  room: D, points: E, loadItems: E, remarks: D, manualSize: E, starter: E, kvar: E, device: E, cableType: E, kwhMeter: E, circuitPurpose: E, rcdMa: E, localIsolator: E, rcbo: E, capSteps: E,
+  room: D, points: E, loadItems: E, remarks: D, manualSize: E, starter: E, kvar: E, device: E, cableType: E, kwhMeter: E, circuitPurpose: E, rcdMa: E, localIsolator: E, rcbo: E, rcboKind: E, noRcd: E, capSteps: E,
   detunedPct: E, trayRoute: E, cadVerticalM: E, lengthToCheck: B, sizingPending: B, elvLoad: B, feedsBoardId: E
 };
 
 export const BOARD_CLASS: Record<keyof Board, ChangeClass> = {
   id: E, uid: B, name: D, upstreamId: E, sourceKva: E, sourceImpedancePct: E, sourceXr: E, vectorGroup: E, kind: E, ratedCurrentA: E, busbarMaterial: E, busbarIcwKa: E, sections: D, ipRating: E, location: D, level: D, planPoint: D, earthRiser: D,
   manufacturer: E, model: E, standby: E, protection: E, instruments: D, incomerDevice: D, earthing: D, rmu: E, upsKva: E, spd: E, pmu: E, existing: E, supply: E, generated: B, enclosure: E, form4: E, substation: E, mdDemandFactor: E,
-  txRef: D, summaryLoad: E, summaryMeters: E, pointWatts: E, pointItems: D, spareNames: D, spareWays: E, elcbs: E, elcbGroupSize: E, elcbRatingA: E, elcbSensitivityMa: E
+  txRef: D, summaryLoad: E, summaryMeters: E, pointWatts: E, pointItems: D, spareNames: D, spareWays: E, elcbs: E, elcbGroupSize: E, elcbKeepApart: E, elcbRatingA: E, elcbSensitivityMa: E
 };
 
 export const PROJECT_CLASS: Record<keyof Project, ChangeClass> = {
   id: B, schemaVersion: B, createdAt: B, archivedAt: A, tags: A, notes: A, brief: A, baseline: B, modifications: A, exchange: A, elv: E, elvDevices: E, elvRoutes: E, elvDeviceSeq: B, elvRouteSeq: B, elvRemarks: D, elvBoq: C, folder: A, reviewComments: A, reviewReport: A, receivedDocs: A, origin: B, name: A, voltageV: E, frequencyHz: E, ambientC: E, vdLimitPct: E,
-  strictFinalDisconnection: E, strictCableData: E, groundTempC: E, soilResistivityKmW: E, panelPrefixes: D, vdTempC: E, vdFinalCircuits: E, vdSelection: A, pointTemplate: D, info: A, revisions: B, drawing: D, ties: E, earthingPlan: E,
+  strictFinalDisconnection: E, strictCableData: E, cableDataByType: E, baseMva: E, groundTempC: E, soilResistivityKmW: E, panelPrefixes: D, vdTempC: E, vdFinalCircuits: E, vdSelection: A, pointTemplate: D, info: A, revisions: B, drawing: D, ties: E, earthingPlan: E,
   earthPitIds: B, spacePlan: E, upsSystems: E, feederPresets: A, pv: E, lightning: E, sheets: E, scheduleFormats: D, spec: E, trays: E, cadBlocks: A, cadLength: E, cadPlanUnits: E, cadRoomLayer: A, cadLayers: A, cadRoomTypes: A, cadPlanLinks: A, cadSketch: D, cadLayerStyle: D, cadLayerFile: D, cadAnno: D, cadTextStyles: D, cadDimStyles: D, cadMleaderStyles: D, cadPointStyle: D, cadBlockDefs: D, cadPatterns: D, cadPlans: A, cadRefs: D, cadLayouts: D, cadErased: D, cadRefEdit: B, lvPoints: E, cadAccessories: E, lvPointSeq: B, cadAccessorySeq: B, cadWiring: D, substations: E, substationsKept: B, studyReport: D, calcReportDocNo: D, vdReportDocNo: D, studyReportPresets: A, calc: A, studySettings: E, designReference: E, designRules: E, standards: D, params: D,
   titleTemplates: D, drawingSet: D, plot: D, cableRefs: B, components: E, building: E, loadAssessment: E, boq: C, boqRevisions: B, variations: B, submissions: B, submissionDays: B, priceList: C, pfcCalc: E, containmentCalc: E, busRisers: E, busbarData: E, txGen: E, pfc: E, gridSources: E, rmus: E,
   status: A, stage: A, createdBy: B, updatedBy: B, boards: E, feeders: E, updatedAt: B

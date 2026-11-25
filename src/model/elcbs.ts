@@ -1,12 +1,13 @@
-import { elcbGroups, isScheduleCircuit, scheduleCircuits, type ElcbGroup } from '../calc/loadSchedule';
+import { elcbGroups, isScheduleCircuit, scheduleCircuits, type ElcbGroup, type RcboKind } from '../calc/loadSchedule';
 import type { BoardElcb, Project } from '../types';
 import { balancePhases, refreshBoard } from './schedule';
 import { isDbBoard } from './spareWays';
 
-/** ELCBs (RCCBs) over whole ways of a DB, and 1-phase RCBOs in place of a circuit's MCB. Every ELCB is a device of its
+/** ELCBs (RCCBs) over whole ways of a DB, RCBOs in place of a circuit's MCB (2P, or 4P on a 3-phase circuit), and
+ * circuits left with no RCD on purpose. Every ELCB is a device of its
  * own: resizing, editing, placing or removing one, or changing the "New ELCBs" size, first fixes the ELCBs the schedule
- * shows (fixElcbs), so no other ELCB moves; only Re-group all ELCBs cuts the whole DB again. A circuit has either an ELCB
- * or an RCBO, never both: an RCBO circuit leaves the ELCB of its ways. After each change the board's circuits are sized
+ * shows (fixElcbs), so no other ELCB moves; only Re-group all ELCBs cuts the whole DB again. A circuit has one earth
+ * leakage device: its ELCB, an RCBO, or none (No RCD); an RCBO or No RCD circuit leaves the ELCB of its ways. After each change the board's circuits are sized
  * again, because the earth-fault check (and so the MCB and wire) reads the earth leakage protection. */
 
 /** ELCB sizes in circuits (1 to 4 ways); 0 is no ELCB. */
@@ -62,19 +63,22 @@ function carve(list: BoardElcb[], a: number, b: number, keep?: string): BoardElc
 /** Whether ways a–b hold something an ELCB protects: a circuit that is not an RCBO, or a spare breaker. */
 function holds(project: Project, boardId: string, a: number, b: number): boolean {
   const inWays = (w?: number) => !!w && w >= a && w <= b;
-  return scheduleCircuits(project, boardId).some((f) => !f.rcbo && inWays(f.way))
+  return scheduleCircuits(project, boardId).some((f) => !f.rcbo && !f.noRcd && inWays(f.way))
     || !!project.boards.find((x) => x.id === boardId)?.spareWays?.some((sp) => sp.kind === 'spare' && inWays(sp.way));
 }
 
 /** Every ELCB the schedule shows becomes one of the board's own over the ways it has now, with rating, mA and poles left
- * Auto: nothing on the schedule or its prints changes. Afterwards the "New ELCBs" size reaches only ways with no ELCB. */
+ * Auto: nothing on the schedule or its prints changes. Afterwards the "New ELCBs" size reaches only ways with no ELCB,
+ * and those keep lighting and power apart (elcbKeepApart) unless Re-group turned that off. */
 export function fixElcbs(project: Project, boardId: string): Project {
   const board = boardOf(project, boardId);
   const auto = elcbGroups(project, board).filter((g) => !g.byHand);
-  if (!auto.length) return project;
+  if (!auto.length && board.elcbKeepApart !== undefined) return project;
   const list = [...(board.elcbs ?? [])];
   for (const g of auto) list.push({ id: nextId(list), fromWay: g.ways[0], toWay: g.ways[g.ways.length - 1] });
-  return { ...project, boards: project.boards.map((b) => (b.id === boardId ? { ...b, elcbs: list.sort(byWay) } : b)) };
+  // From now on new ELCBs keep lighting and power apart: every circuit is under an ELCB now, so nothing moves.
+  const keepApart = board.elcbKeepApart ?? true;
+  return { ...project, boards: project.boards.map((b) => (b.id === boardId ? { ...b, elcbs: list.length ? list.sort(byWay) : undefined, elcbKeepApart: keepApart } : b)) };
 }
 
 const withElcbs = (project: Project, boardId: string, list: BoardElcb[]): Project =>
@@ -183,11 +187,11 @@ export function setNewElcbSize(project: Project, boardId: string, size: ElcbSize
 export interface RegroupOptions { size: ElcbSize; keepApart: boolean; keepRcbos: boolean }
 
 /** Re-group all ELCBs: the DB is cut again into ELCBs of `size` circuits (none for 0), its own ELCBs go, and so do its
- * RCBOs unless kept. keepApart moves circuits so lighting and power start on ELCBs of their own (renumbering them);
- * without it no circuit moves. */
+ * RCBOs and No RCD circuits unless kept. keepApart moves circuits so lighting and power start on ELCBs of their own (renumbering them) and
+ * stays on for new ways; without it no circuit moves. */
 export function regroupElcbs(project: Project, boardId: string, o: RegroupOptions): Project {
   boardOf(project, boardId);
-  const sized = { ...project, boards: project.boards.map((b) => (b.id === boardId ? { ...b, elcbGroupSize: o.size } : b)) };
+  const sized = { ...project, boards: project.boards.map((b) => (b.id === boardId ? { ...b, elcbGroupSize: o.size, elcbKeepApart: o.keepApart } : b)) };
   let p = o.keepRcbos ? withElcbs(sized, boardId, []) : allAutomatic(sized, boardId);
   if (o.keepApart && o.size && scheduleCircuits(p, boardId).length >= 2) p = refreshBoard(balancePhases(p, boardId), boardId);
   return p;
@@ -202,32 +206,57 @@ export function regroupPreview(project: Project, boardId: string, o: RegroupOpti
   return { before: sizes(project), after: sizes(next), moved };
 }
 
-/** Makes a 1-phase circuit's breaker an RCBO (on), IΔn as given or Auto, or an MCB again (off). */
-export function setRcbo(project: Project, feederId: string, on: boolean, rcdMa?: number): Project {
+/** Gives a circuit an earth leakage device of its own (on): an RCBO in place of its MCB (2P, or 4P on a 3-phase circuit),
+ * an AFDD + RCBO (1-phase only), or an RCD add-on block on its MCB — `kind` as given, else the one it has; IΔn as given
+ * or Auto. Off: its MCB again, back on the ELCB of its ways. This replaces No RCD. */
+export function setRcbo(project: Project, feederId: string, on: boolean, rcdMa?: number, kind?: RcboKind): Project {
   const f = project.feeders.find((x) => x.id === feederId);
   if (!f || !isScheduleCircuit(f)) throw new Error('That circuit is no longer on a load schedule');
-  if (on && f.phase === 'RYB') throw new Error('An RCBO is for 1-phase circuits; use an ELCB for a 3-phase circuit');
+  const k = kind ?? f.rcboKind ?? 'rcbo';
+  if (on && k === 'afdd' && f.phase === 'RYB') throw new Error('An AFDD + RCBO is for 1-phase circuits; give a 3-phase circuit a 4P RCBO or an RCD add-on block');
   const next = { ...f };
   if (on) {
     next.rcbo = true;
+    if (k === 'rcbo') delete next.rcboKind;
+    else next.rcboKind = k;
+    delete next.noRcd;
     if (rcdMa) next.rcdMa = rcdMa;
     else delete next.rcdMa;
   } else {
     delete next.rcbo;
+    delete next.rcboKind;
     delete next.rcdMa;
   }
   return refreshBoard({ ...project, feeders: project.feeders.map((x) => (x.id === feederId ? next : x)) }, f.boardId);
 }
 
-/** Back to the board's automatic grouping: no ELCBs of its own and no RCBOs. */
+/** No earth leakage device for a circuit on purpose (fire alarm panel, life safety), with the reason; it leaves the ELCB
+ * of its ways and an RCBO it had. No reason puts it back on its ELCB. The earth fault check then rests on the MCB alone. */
+export function setNoRcd(project: Project, feederId: string, reason?: string): Project {
+  const f = project.feeders.find((x) => x.id === feederId);
+  if (!f || !isScheduleCircuit(f)) throw new Error('That circuit is no longer on a load schedule');
+  const next = { ...f };
+  const why = reason?.trim();
+  if (why) {
+    next.noRcd = why;
+    delete next.rcbo;
+    delete next.rcboKind;
+    delete next.rcdMa;
+  } else delete next.noRcd;
+  return refreshBoard({ ...project, feeders: project.feeders.map((x) => (x.id === feederId ? next : x)) }, f.boardId);
+}
+
+/** Back to the board's automatic grouping: no ELCBs of its own, no RCBOs and no No RCD circuits. */
 export function allAutomatic(project: Project, boardId: string): Project {
   boardOf(project, boardId);
-  const rcbos = new Set(scheduleCircuits(project, boardId).filter((f) => f.rcbo).map((f) => f.id));
+  const own = new Set(scheduleCircuits(project, boardId).filter((f) => f.rcbo || f.noRcd).map((f) => f.id));
   const feeders = project.feeders.map((f) => {
-    if (!rcbos.has(f.id)) return f;
+    if (!own.has(f.id)) return f;
     const rest = { ...f };
     delete rest.rcbo;
+    delete rest.rcboKind;
     delete rest.rcdMa;
+    delete rest.noRcd;
     return rest;
   });
   return withElcbs({ ...project, feeders }, boardId, []);

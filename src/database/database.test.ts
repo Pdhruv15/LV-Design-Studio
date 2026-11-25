@@ -108,3 +108,25 @@ describe('library sync', () => {
     expect(syncLibrary(r.project, db).changedBoards).toEqual([]); // already in sync
   });
 });
+
+describe('cable families in Cables.xlsx', () => {
+  const row = (over: Record<string, unknown>) => ({ _row: 2, csaMm2: 95, rOhmPerKm20C: 0.193, xOhmPerKm: 0.075, ampacityA: 300, ...over });
+
+  it('reads Conductor, Insulation and Form; blank is copper / XLPE / multicore; one row per family and size', () => {
+    const db = parseDatabase(raw({
+      cables: { file: 'Cables.xlsx', rows: [
+        row({}),
+        row({ _row: 3, conductor: 'Al', insulation: 'XLPE', form: 'Multicore', rOhmPerKm20C: 0.32, ampacityA: 230 }),
+        row({ _row: 4, conductor: 'Al', rOhmPerKm20C: 0.32, ampacityA: 231 }),
+        row({ _row: 5, conductor: 'Brass' }),
+        row({ _row: 6, conductor: 'Cu', insulation: 'xlpe', form: 'multicore' })
+      ] }
+    }));
+    expect(db.cables.map((c) => [c.family?.conductor ?? 'default', c.ampacityA])).toEqual([['default', 300], ['al', 230]]);
+    expect(db.issues).toEqual([
+      'Cables.xlsx row 4: duplicate size 95 mm² for Al/XLPE multicore — skipped',
+      'Cables.xlsx row 5: Conductor must be Cu or Al, Insulation XLPE or PVC, Form Multicore, Single-core trefoil or Single-core flat (or blank) — skipped',
+      'Cables.xlsx row 6: duplicate size 95 mm² — skipped'
+    ]);
+  });
+});

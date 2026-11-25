@@ -1,7 +1,8 @@
 import { boardOf, feedersOn, withNetwork } from './network';
-import { cpcOf, defaultCpcMm2, getCable } from './cableTable';
-import { DEFAULT_TRANSFORMER_XR, gridImpedance, gridSourceOf, rOperatingOhmPerKm, runsOf, sourceRatingHint, supplyImpedance, supplySourceLevel, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
-import { elcbGroups, isScheduleCircuit, rcbosOf } from './loadSchedule';
+import { cpcOf, defaultCpcMm2, getCable, resolveCable } from './cableTable';
+import { feederFamily, kCpcOf } from './cableFamily';
+import { DEFAULT_TRANSFORMER_XR, generatorMinSource, gridImpedance, gridSourceOf, rOperatingOhmPerKm, runsOf, sourceRatingHint, supplyImpedance, supplySourceLevel, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
+import { elcbGroups, hasNoRcd, isScheduleCircuit, rcbosOf } from './loadSchedule';
 import { lvSupplied, supplyFaultKa, supplyIncomerFeeder, supplyXr, type Board, type BreakerType, type Feeder, type Project } from '../types';
 import { fmtFixed } from '../util/format';
 
@@ -81,12 +82,15 @@ export function requiredDisconnectionS(f: Feeder, project?: Pick<Project, 'volta
 }
 
 /** Phase + protective conductor loop impedance of one cable run. */
-function cableLoop(f: Feeder): Impedance {
-  const km = f.lengthM / 1000;
+function cableLoop(project: Project, f: Feeder): Impedance {
+  const km = f.lengthM / 1000, family = feederFamily(project, f);
+  // The protective conductor is of the cable's family; a size that family is not made in (a small separate
+  // conductor beside an aluminium cable) is taken as copper.
+  const cpcFamily = resolveCable(cpcOf(f), family) ? family : undefined;
   return {
     // Each run carries its own protective conductor, in parallel too.
-    r: ((rOperatingOhmPerKm(f.cableCsaMm2) + rOperatingOhmPerKm(cpcOf(f))) * km) / runsOf(f),
-    x: (getCable(f.cableCsaMm2).xOhmPerKm * km) / runsOf(f)
+    r: ((rOperatingOhmPerKm(f.cableCsaMm2, undefined, family) + rOperatingOhmPerKm(cpcOf(f), undefined, cpcFamily)) * km) / runsOf(f),
+    x: (getCable(f.cableCsaMm2, family).xOhmPerKm * km) / runsOf(f)
   };
 }
 
@@ -99,14 +103,16 @@ function supplyEarthLoop(project: Project, board: Board): { z: Impedance; missin
   const level = supplySourceLevel(project, board), ka = supplyFaultKa(board), kaMin = sup.faultKaMin !== undefined && sup.faultKaMin > 0 ? sup.faultKaMin : undefined;
   // A calculated source (rating typed, no fault level): its impedance is the Ze estimate, said by what it rests on.
   const inverter = level.z.x === 0;
-  const from = inverter ? `the inverter fault current at ${board.id}` : `the generator's sub-transient reactance at ${board.id} (its sustained fault current is lower: type the minimum fault level)`;
+  // A generator: its transient reactance (or typed sustained current), not the sub-transient level.
+  const gen = generatorMinSource(project, board, C_MIN);
+  const from = inverter || !gen ? `the inverter fault current at ${board.id}` : `the generator's ${gen.text} at ${board.id}${gen.assumed ? ' (assumed: type X′d, the sustained fault current or the minimum fault level)' : ''}`;
   const base = ze !== undefined ? { z: { r: ze, x: 0 } } : ka || kaMin
     ? { z: supplyImpedance(kaMin ?? ka!, project.voltageV, supplyXr(board)), estimated: `Ze estimated from the supply ${kaMin ? 'minimum ' : ''}fault level at ${board.id}` }
     : level.basis === 'calculated'
-      ? { z: level.z, estimated: `Ze estimated from ${from}`, ...(inverter ? {} : { subTransient: true }) }
+      ? { z: gen?.z ?? level.z, estimated: `Ze estimated from ${from}`, ...(gen?.assumed ? { subTransient: true } : {}) }
       : undefined;
   const cable = supplyIncomerFeeder(board);
-  const c = cable ? cableLoop(cable) : { r: 0, x: 0 }; // the known part, even when there is no source data
+  const c = cable ? cableLoop(project, cable) : { r: 0, x: 0 }; // the known part, even when there is no source data
   if (!base) return { z: c, missing: `no source data at ${board.id} (transformer kVA and impedance %, or the supply fault level${sourceRatingHint(board)})` };
   return cable ? { ...base, z: { r: base.z.r + c.r, x: base.z.x + c.x } } : base;
 }
@@ -143,7 +149,7 @@ export function earthLoopPath(project: Project, boardId: string, seen = new Set<
   const incomer = feedersOn(project, board.upstreamId!).find((f) => f.feedsBoardId === board.id);
   const est = up.estimated ? { estimated: up.estimated, ...(up.subTransient ? { subTransient: true } : {}) } : {};
   if (!incomer) return { z: up.z, missing: up.missing ?? `no incomer feeder from ${board.upstreamId} to ${board.id}`, ...est };
-  const c = cableLoop(incomer);
+  const c = cableLoop(project, incomer);
   return { z: { r: up.z.r + c.r, x: up.z.x + c.x }, ...(up.missing ? { missing: up.missing } : {}), ...est };
 }
 
@@ -196,7 +202,7 @@ export interface EarthingResult {
 export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
   const u0 = project.voltageV / SQRT3;
   const { z: ze, missing: sourceMissing, estimated: sourceEstimated, subTransient } = earthLoopPath(project, f.boardId);
-  const c = cableLoop(f);
+  const c = cableLoop(project, f);
   const zs = { r: ze.r + c.r, x: ze.x + c.x };
   const zsOhm = zMagnitude(zs);
   // Incomplete path: the known loop only gives an upper bound on If (more impedance only lowers it), so it
@@ -230,8 +236,9 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
   const cpcMm2 = cpcOf(f);
   const runs = runsOf(f);
   const cpcCurrentA = faultA / runs;
-  const adiabaticWholeMm2 = (faultA * Math.sqrt(t)) / K_CPC_XLPE_CU;
-  const adiabaticMinMm2 = (cpcCurrentA * Math.sqrt(t)) / K_CPC_XLPE_CU;
+  const k = kCpcOf(feederFamily(project, f));
+  const adiabaticWholeMm2 = (faultA * Math.sqrt(t)) / k;
+  const adiabaticMinMm2 = (cpcCurrentA * Math.sqrt(t)) / k;
   // Unknown fault current and duration: the thermal check can't be decided either way.
   const adiabatic: Status = sourceMissing ? 'warn' : cpcMm2 >= adiabaticWholeMm2 ? 'ok' : cpcMm2 >= adiabaticMinMm2 ? 'warn' : 'bad';
   const adiabaticNote = runs > 1
@@ -272,7 +279,7 @@ export function disconnectionLabel(r: EarthingResult): string {
   if (r.disconnection === 'ok') return '< 0.1 s';
   if (r.belowRating) return `Will not disconnect — If ${fmtFixed(r.faultA, 1)} A is not above the ${r.feeder.breakerRatingA} A device rating`;
   if (r.disconnection === 'bad') return 'Too slow';
-  if (r.subTransientOnly && r.faultA >= r.tripA) return 'Not verified — sub-transient estimate, type the minimum fault level';
+  if (r.subTransientOnly && r.faultA >= r.tripA) return 'Not verified — generator X′d assumed, type X′d or the minimum fault level';
   return r.basisSupported ? `Thermal — check curve for ${r.requiredS} s` : 'Required time not determined for this supply';
 }
 /** Ze, Zs and If as text: an incomplete loop shows Ze unknown, Zs as a minimum and If as a maximum. */
@@ -285,6 +292,7 @@ const elcbCache = new WeakMap<Project, Map<string, number>>();
 /** Earth leakage protection of a circuit (mA): its own RCD, else the ELCB
  * group of its DB when it is a load schedule circuit. */
 export function rcdOf(project: Project, f: Feeder): number | undefined {
+  if (isScheduleCircuit(f) && hasNoRcd(f)) return undefined; // No RCD on purpose: the MCB alone clears an earth fault
   if (f.rcdMa) return f.rcdMa;
   if (!isScheduleCircuit(f)) return undefined;
   let m = elcbCache.get(project);

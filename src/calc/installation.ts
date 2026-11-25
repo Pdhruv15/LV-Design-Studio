@@ -2,6 +2,7 @@ import { ambientCorrectionFactor, cablesInUse, INSTALL_METHODS, isBuried, method
 import { bunchedFactor } from './cableTray';
 import { buriedGroupFactor, GROUND_TEMP_RANGE_C, groundTempFactor, SOIL_RANGE_KMW, soilFactor } from './containment';
 import type { Feeder, Project } from '../types';
+import { familyLabel, isDefaultFamily, type CableFamily } from './cableFamily';
 
 /** A cable's current rating Iz for its installation method (IEC 60364-5-52):
  * the method's tabulated rating × the correction factors × parallel runs.
@@ -35,8 +36,8 @@ export interface RatingBasis {
 export const methodLabel = (m: InstallMethod) => INSTALL_METHODS.find((x) => x.id === m)!.label;
 
 /** Iz of a cable size laid by `method`, with `runs` in parallel. `trayFactor`: grouping from a tray route (method E). */
-export function ratingBasis(project: Pick<Project, 'ambientC' | 'groundTempC' | 'soilResistivityKmW'>, csaMm2: number, method: InstallMethod, runs: number, trayFactor?: number, defaultGroup?: (runs: number) => number): RatingBasis {
-  const rating = methodRating(csaMm2, method);
+export function ratingBasis(project: Pick<Project, 'ambientC' | 'groundTempC' | 'soilResistivityKmW'>, csaMm2: number, method: InstallMethod, runs: number, trayFactor?: number, defaultGroup?: (runs: number) => number, family?: CableFamily): RatingBasis {
+  const rating = methodRating(csaMm2, method, family);
   const factors: RatingFactor[] = [];
   if (isBuried(method)) {
     const ducts = method === 'D1';
@@ -44,19 +45,19 @@ export function ratingBasis(project: Pick<Project, 'ambientC' | 'groundTempC' | 
     factors.push({ label: `ground ${t} °C`, value: groundTempFactor(t) }, { label: `soil ${rho} K·m/W`, value: soilFactor(rho, ducts) });
     factors.push({ label: `grouping, ${runs} ${ducts ? 'in ducts' : 'in the ground'}`, value: buriedGroupFactor(runs, ducts) });
   } else {
-    factors.push({ label: `ambient ${project.ambientC} °C`, value: ambientCorrectionFactor(project.ambientC) });
+    factors.push({ label: `ambient ${project.ambientC} °C`, value: ambientCorrectionFactor(project.ambientC, family) });
     if (method === 'E') factors.push({ label: trayFactor !== undefined ? 'grouping on the tray route' : `grouping, ${runs} on a tray`, value: trayFactor ?? (defaultGroup ? defaultGroup(runs) : 1) });
     else factors.push({ label: `grouping, ${runs} bunched`, value: bunchedFactor(runs) });
   }
-  if (!rating) return { method, factors, runs, iz: NaN, missing: `no ${method} rating for ${csaMm2} mm² (Cables.xlsx or reference)` };
+  if (!rating) return { method, factors, runs, iz: NaN, missing: isDefaultFamily(family) ? `no ${method} rating for ${csaMm2} mm² (Cables.xlsx or reference)` : `no ${method} rating for ${csaMm2} mm² ${familyLabel(family!)} (Cables.xlsx)` };
   const iz = rating.a * factors.reduce((p, f) => p * f.value, 1) * runs;
   return { method, baseA: rating.a, source: rating.source, factors, runs, iz };
 }
 
 /** The circuit's rating basis at its own (or a candidate) size and runs. */
-export function feederRatingBasis(project: Pick<Project, 'ambientC' | 'groundTempC' | 'soilResistivityKmW'>, f: Pick<Feeder, 'installMethod'>, csaMm2: number, runs: number, trayFactor: number | undefined, defaultGroup: (runs: number) => number): RatingBasis {
+export function feederRatingBasis(project: Pick<Project, 'ambientC' | 'groundTempC' | 'soilResistivityKmW'>, f: Pick<Feeder, 'installMethod'>, csaMm2: number, runs: number, trayFactor: number | undefined, defaultGroup: (runs: number) => number, family?: CableFamily): RatingBasis {
   const method = methodOf(f);
-  return ratingBasis(project, csaMm2, method, runs, method === 'E' ? trayFactor : undefined, defaultGroup);
+  return ratingBasis(project, csaMm2, method, runs, method === 'E' ? trayFactor : undefined, defaultGroup, family);
 }
 
 /** Text of the factors, e.g. "0.89 · 1.00 · 1.00". */

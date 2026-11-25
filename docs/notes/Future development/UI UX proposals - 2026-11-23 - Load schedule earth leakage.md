@@ -1,6 +1,6 @@
 # UI UX proposal – Load schedule earth leakage: ELCB sizes, board schemes and devices (2026-11-23)
 
-Status: **approved on 2026-11-23** ("ok go ahead" to the recommended plan below). Step 1 in PR 782 (v2.272); steps 2–5 wait.
+Status: **approved on 2026-11-23** ("ok go ahead" to the recommended plan below). Steps 1 (PR 782, v2.272) and 2 (PR 792, v2.284) merged 2026-11-24; step 3a (4P RCBO, No RCD) in PR 799 (v2.287); step 3b (AFDD + RCBO, MCB + RCD add-on) in PR 800 (v2.288, stacked on 799); 4 and 5 wait.
 
 Mockup: `docs/mockups/load-schedule-earth-leakage-mockup.html` (image: `load-schedule-earth-leakage-mockup.png`).
 
@@ -50,7 +50,7 @@ Check the edition and local rules of each project; the app applies no country by
 ## Build steps (one PR each)
 
 1. **ELCB as its own device:** click to resize, New ELCBs 3 / 6 / 9 / 12, Re-group all ELCBs…, Balance phases inside each ELCB. Data: the automatic sections are written into `Board.elcbs` before any ELCB is resized or the New ELCBs size changes, so nothing already on the DB moves; `elcbGroupSize` gains 9 and 12 and covers only ways with no ELCB.
-2. **Keep 30 mA and 100 mA apart** when ELCBs are made, and Make RCBO for one odd circuit.
+2. **Keep 30 mA and 100 mA apart** when ELCBs are made, and Make RCBO for one odd circuit. Built: `Board.elcbKeepApart` is set the first time a DB's ELCBs are changed (every circuit is under an ELCB then, so nothing moves) and by Re-group; with it, automatic ELCBs on new ways end where lighting and power meet. Old projects keep their ELCBs until one is changed. Make RCBO is offered for a single odd 1-phase circuit (power first when there is one of each).
 3. **Devices:** one earth leakage device kind on the circuit in place of the `rcbo` flag (old projects read as RCBO); 4P RCBO for RYB circuits; No RCD; then AFDD + RCBO and MCB + RCD add-on block. PDF, Excel, BOQ, enclosure list and earth fault check (`rcdOf`) follow.
 4. **RCD type** on `BoardElcb`, the board and the circuit device; counted in the BOQ.
 5. **Whole-board schemes** in Re-group.
