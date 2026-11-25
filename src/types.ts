@@ -440,6 +440,8 @@ export interface Board {
    * and below the board is then essential load for generator sizing. */
   standby?: {
     kva: number;
+    /** The set runs in parallel with the supply (synchronised): it adds to the maximum fault level at this board. */
+    parallel?: boolean;
     /** ACB: mains and generator incomers, each with its own breaker, electro-mechanically interlocked. */
     changeover?: 'ATS' | 'ACB';
     /** ATS rating (A); default the board's rating. The ATS is always 4P, switched neutral. */
@@ -711,6 +713,8 @@ export interface Project {
   /** Final design: every cable size must have manufacturer data in Cables.xlsx (reference, user-entered
    * and fallback values become failures in the to-do list instead of notes). */
   strictCableData?: boolean;
+  /** Running motors add to the maximum fault levels (off: neglected, as before). */
+  motorContribution?: boolean;
   /** Fault points placed on the SLD (F1, F2…), listed in the short circuit report. */
   faultPoints?: FaultPoint[];
   /** Base power of the per-unit tables in the short circuit report, MVA (absent = 100). */

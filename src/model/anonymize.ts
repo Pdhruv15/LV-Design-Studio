@@ -23,7 +23,7 @@ export interface AnonymizeResult {
 }
 
 /** Project fields kept as they are (numbers, flags and enums the calculations use). */
-const KEEP_PROJECT = ['schemaVersion', 'voltageV', 'frequencyHz', 'ambientC', 'vdLimitPct', 'strictFinalDisconnection', 'strictCableData', 'cableDataByType', 'baseMva', 'vdTempC', 'groundTempC', 'soilResistivityKmW', 'vdFinalCircuits', 'pointTemplate'] as const;
+const KEEP_PROJECT = ['schemaVersion', 'voltageV', 'frequencyHz', 'ambientC', 'vdLimitPct', 'strictFinalDisconnection', 'strictCableData', 'cableDataByType', 'baseMva', 'motorContribution', 'vdTempC', 'groundTempC', 'soilResistivityKmW', 'vdFinalCircuits', 'pointTemplate'] as const;
 /** Project fields rebuilt below (with ids rewritten or text removed). Everything else is dropped and listed. */
 const REBUILT_PROJECT = new Set<string>(['name', 'boards', 'feeders', 'ties', 'vdSelection', 'studySettings', 'calc', 'info', 'trays', 'updatedAt', 'id']);
 

@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.304', date: '2026-11-25',
+    items: [
+      { title: 'Generator in parallel with the supply', text: 'A board with a standby generator has a new tick box, Runs in parallel with the supply. Tick it for a set that is synchronised with the supply: its fault current then adds to the supply\'s at that board, and reaches the boards above and below through the cables. Left unticked (a set behind a changeover) nothing changes.' },
+      { title: 'Motor contribution to fault levels', text: 'Project settings has a new switch, Fault levels: include the contribution of running motors. With it on, each motor adds 5 × its rated current, behind its own cable, to the fault level at its board and, through the cables, at the other boards. Motors on a variable speed drive are left out. It is off unless you turn it on, so existing projects keep their numbers. Both additions show as rows in the per-unit table of the short circuit report.' }
+    ]
+  },
+  {
     version: '2.298', date: '2026-11-25',
     items: [
       { title: 'Fault points on the SLD', text: 'The SLD tab has a new tool, Fault point, beside Values. Click it, then click a busbar or a cable: a numbered mark (F1, F2…) appears there. A mark on a cable starts at its far end; right-click the circuit → Fault point to move it to the board, a quarter, half or three quarters of the way, or to remove it. Right-click a board → Fault point does the same for its busbar. The marks print on the SLD sheet and go out with the PDF, DXF and DWG.' },
