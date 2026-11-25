@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.295', date: '2026-11-25',
+    items: [
+      { title: 'Default texts no longer name one supply authority', text: 'Hints, placeholders, default report and drawing notes, the BOQ inspection line and similar texts now say "utility" or "authority" instead of one authority\'s name. Type the real name where you want it. Authority rule sets and forms keep their own names.' }
+    ]
+  },
+  {
     version: '2.294', date: '2026-11-25',
     items: [
       { title: 'Forms: calculated source fault level', text: 'The TCL summary and the maximum-demand form now print the fault level calculated from a generator or inverter source rating when none is typed, marked "(calc.)", with its basis in the remarks of the incomer line of the maximum-demand form.' }

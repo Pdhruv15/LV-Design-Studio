@@ -101,7 +101,7 @@ export default function SubmissionsView({ project, draft, me = '', onChange, onS
 function ResponseDays({ project, onChange }: { project: Project; onChange: (p: Project) => void }) {
   return (
     <div className="card">
-      <p className="m">Days a recipient has to respond, used when a submission has no due date of its own. Authorities (DEWA, ADDC…) are recognised by name.</p>
+      <p className="m">Days a recipient has to respond, used when a submission has no due date of its own. Authorities are recognised by name.</p>
       <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
         {Object.keys(DEFAULT_DAYS).map((k) => (
           <label key={k} className="row" style={{ gap: 6 }}>{k}
@@ -128,7 +128,7 @@ function SubEditor({ s: start, project, me, isNew, onSave, onDelete, onClose }: 
       <div className="form-kv">
         <label>Type <select className="chip" value={s.kind} onChange={(e) => set({ kind: e.target.value as SubKind })}>{SUB_KINDS.map((k) => <option key={k}>{k}</option>)}</select></label>
         <label>Title <input className="bi-text" autoFocus value={s.title} placeholder="e.g. Bill of quantities — addendum 1" onChange={(e) => set({ title: e.target.value })} /></label>
-        <label>Submitted to <input className="bi-text" list="sub-to" value={s.to} placeholder="Client, Consultant, Authority (DEWA)…" onChange={(e) => set({ to: e.target.value })} /></label>
+        <label>Submitted to <input className="bi-text" list="sub-to" value={s.to} placeholder="Client, Consultant, Authority…" onChange={(e) => set({ to: e.target.value })} /></label>
         <label>Attention <input className="bi-text" value={s.attention ?? ''} onChange={(e) => set({ attention: e.target.value || undefined })} /></label>
         <label>Address / department <input className="bi-text" value={s.address ?? ''} onChange={(e) => set({ address: e.target.value || undefined })} /></label>
         <label>Purpose <select className="chip" value={s.purpose} onChange={(e) => set({ purpose: e.target.value, status: e.target.value === 'For information' ? 'info' : s.status === 'info' ? 'submitted' : s.status })}>{[...new Set([...PURPOSES, s.purpose])].map((p) => <option key={p}>{p}</option>)}</select></label>

@@ -58,14 +58,14 @@ export function abbreviationsIn(svg: string): [string, string][] {
 
 /** General notes typical of a DEWA / DM LV submission; edit them to suit. */
 export const DEWA_GENERAL_NOTES = [
-  'All works shall comply with the latest DEWA Regulations for Electrical Installations and IEC 60364.',
+  'All works shall comply with the latest supply authority regulations for electrical installations and IEC 60364.',
   'System: {Voltage}, 3 phase + neutral, 50 Hz, TN-S earthing.',
   'All cables are XLPE/SWA/PVC copper unless noted otherwise; fire-rated cables where marked FR.',
   'Cable sizes are based on the installation method and derating stated in the cable schedule.',
-  'Voltage drop is within 4 % from the transformer / DEWA intake to the final load.',
+  'Voltage drop is within 4 % from the transformer / utility intake to the final load.',
   'Breaking capacity of all devices is not less than the prospective fault level at their point of installation.',
   'All MCCBs / ACBs shall have adjustable thermal and magnetic settings; settings as shown.',
-  'Earth leakage protection as per DEWA: 30 mA for socket outlets, 100 mA for lighting.',
+  'Earth leakage protection as per the supply authority: 30 mA for socket outlets, 100 mA for lighting.',
   'Contractor to verify loads and cable lengths on site before ordering equipment.',
   'Do not scale from this drawing.'
 ];

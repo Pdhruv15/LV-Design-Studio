@@ -119,7 +119,7 @@ function QuickCreate({ project, emergencyKva, onCreate, onList }: { project: Pro
           <p className="m">Spread evenly: SMDBs over the MDBs, DBs over the SMDBs (or the MDBs when there are no SMDBs). Names are incremental until levels are set. Set a count to 0 to skip it.</p>
           <label className="row"><input type="checkbox" checked={emg} onChange={(e) => setEmg(e.target.checked)} /> <b>Emergency panel (ATS)</b></label>
           {emg && <>
-            <p className="m">DEWA practice: one dedicated emergency panel with a dual supply through an ATS — mains from a normal panel, standby from the generator. Everything on and below it counts as essential load.</p>
+            <p className="m">Usual practice: one dedicated emergency panel with a dual supply through an ATS — mains from a normal panel, standby from the generator. Everything on and below it counts as essential load.</p>
             <div className="form-kv">
               <label>{prefixOf(project, 'EMDB')}s<input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={eCount} onChange={(e) => setECount(e.target.value)} /></label>
               <label>ATS mains from<select value={mainsFrom} onChange={(e) => setEMains(e.target.value)}>{mainsChoices.map((b) => <option key={b.id} value={b.id}>{b.id}</option>)}</select></label>

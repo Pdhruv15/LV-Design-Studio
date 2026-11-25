@@ -15,7 +15,7 @@ import { txt } from '../../util/format';
 
 
 const HINT: Record<PfcStrategy, string> = {
-  central: 'One automatic bank at the main board corrects the whole installation — the usual choice, and what DEWA looks at (PF at the intake).',
+  central: 'One automatic bank at the main board corrects the whole installation — the usual choice, and what the utility looks at (PF at the intake).',
   group: 'Banks at the boards you tick, e.g. a chiller SMDB or an MCC — they also unload those boards’ incomer cables. The main board takes what’s left.',
   individual: 'Fixed capacitors at the larger motors / HVAC units, switched with them. The main board takes what’s left.'
 };
@@ -70,7 +70,7 @@ export default function PfcStudy({ project, onChange, onStatus }: { project: Pro
 
   if (mode === 'calc') {
     return (
-      <Page title="Power factor correction" intro="A custom calculation, no design needed — e.g. an existing installation: enter what was measured (kW, kVA or V and A with the PF), the DEWA bill's kWh and kvarh, or a list of loads. The bank, its steps and detuning, the diagrams and the report update as you type." actions={modeSwitch}>
+      <Page title="Power factor correction" intro="A custom calculation, no design needed — e.g. an existing installation: enter what was measured (kW, kVA or V and A with the PF), the utility bill's kWh and kvarh, or a list of loads. The bank, its steps and detuning, the diagrams and the report update as you type." actions={modeSwitch}>
         <PfcCalculator project={project} onChange={onChange} onStatus={(m) => onStatus?.(m)} />
       </Page>
     );
