@@ -1,5 +1,5 @@
-import { elcbGroups, isScheduleCircuit, scheduleCircuits, type ElcbGroup, type RcboKind } from '../calc/loadSchedule';
-import type { BoardElcb, Project } from '../types';
+import { elcbGroups, isScheduleCircuit, rcbosOf, scheduleCircuits, type ElcbGroup, type RcboKind } from '../calc/loadSchedule';
+import type { BoardElcb, Project, RcdType } from '../types';
 import { balancePhases, refreshBoard } from './schedule';
 import { isDbBoard } from './spareWays';
 
@@ -97,9 +97,15 @@ function numberOf(project: Project, boardId: string, id: string): { n: number; l
   return g && { n: g.index, label: g.label };
 }
 
+const INCOMER_ONLY = 'This DB has one ELCB at the incomer over every way. Re-group all ELCBs… cuts it into ELCBs over ways first';
+/** Stops a change that would put an ELCB over ways next to (or cut) the one at the incomer. */
+function noIncomer(project: Project, boardId: string) {
+  if (boardOf(project, boardId).elcbs?.some((x) => x.incomer)) throw new Error(INCOMER_ONLY);
+}
+
 /** A new ELCB over ways: the ELCBs already there give those ways up, and no other ELCB moves. */
 export function addBoardElcb(project: Project, boardId: string, e: Omit<BoardElcb, 'id'>): ElcbResult {
-  boardOf(project, boardId);
+  noIncomer(project, boardId);
   checkWays(e);
   const fixed = fixElcbs(project, boardId);
   const list = carve(boardOf(fixed, boardId).elcbs ?? [], e.fromWay, e.toWay);
@@ -116,6 +122,13 @@ export function updateBoardElcb(project: Project, boardId: string, id: string, p
   if (!cur) throw new Error('That ELCB is no longer on the board');
   const merged: BoardElcb = { ...cur, ...patch };
   for (const k of Object.keys(patch) as (keyof BoardElcb)[]) if (patch[k as keyof typeof patch] === undefined) delete merged[k];
+  if (cur.incomer) {
+    // The ELCB at the incomer keeps covering every way: only its poles, rating, mA, type and S-type change.
+    const next = withElcbs(project, boardId, [{ ...merged, fromWay: cur.fromWay, toWay: cur.toWay, incomer: true }]);
+    const g = numberOf(next, boardId, id);
+    return { project: next, id, message: `ELCB-${g?.n ?? ''} at the incomer: ${g?.label ?? ''}` };
+  }
+  if (merged.incomer) throw new Error(INCOMER_ONLY);
   checkWays(merged);
   // Other ELCBs give up the ways it now takes; ways it gives up get an ELCB of their own when they hold something.
   let rest = carve(list.map((x) => (x.id === id ? merged : x)), merged.fromWay, merged.toWay, id);
@@ -151,6 +164,7 @@ export function editElcbAt(project: Project, boardId: string, way: number, patch
  * there (one left with no ways goes); smaller gives the ways it frees an ELCB of their own. No other ELCB moves. */
 export function resizeElcb(project: Project, boardId: string, way: number, circuits: number): ElcbResult {
   if (!(ELCB_SIZES as readonly number[]).includes(circuits)) throw new Error('An ELCB covers 3, 6, 9 or 12 circuits (1 to 4 ways)');
+  noIncomer(project, boardId);
   const at = fixedAt(project, boardId, way);
   const e = boardOf(at.project, boardId).elcbs!.find((x) => x.id === at.id)!;
   const toWay = e.fromWay + circuits / 3 - 1;
@@ -171,45 +185,68 @@ export function elcbPreview(project: Project, boardId: string, e: Pick<BoardElcb
   if (elcbWaysProblem(e)) return undefined;
   const fixed = fixElcbs(project, boardId);
   const list = boardOf(fixed, boardId).elcbs ?? [];
-  const id = (at !== undefined && list.find(covers(at))?.id) || 'new';
-  const elcbs = [...carve(list.filter((x) => x.id !== id), e.fromWay, e.toWay), { ...e, id }].sort(byWay);
+  const inc = list.find((x) => x.incomer);
+  const id = inc?.id ?? ((at !== undefined && list.find(covers(at))?.id) || 'new');
+  // The ELCB at the incomer stays over every way; another one shows with the ways it would have.
+  const elcbs = inc ? [{ id, fromWay: inc.fromWay, toWay: inc.toWay, poles: e.poles, incomer: true as const }]
+    : [...carve(list.filter((x) => x.id !== id), e.fromWay, e.toWay), { ...e, id }].sort(byWay);
   const next = { ...fixed, boards: fixed.boards.map((b) => (b.id === boardId ? { ...b, elcbs } : b)) };
   return elcbGroups(next, boardOf(next, boardId)).find((g) => g.byHand?.id === id);
 }
 
-/** Sets the "New ELCBs" size: the ELCBs already on the DB keep their ways; only ways with no ELCB take the new size. */
+/** Sets the "New ELCBs" size: the ELCBs already on the DB keep their ways; only ways with no ELCB take the new size.
+ * New circuits then get no RCBO of their own (it ends "RCBO on every circuit" for them). */
 export function setNewElcbSize(project: Project, boardId: string, size: ElcbSize): Project {
   boardOf(project, boardId);
   const fixed = fixElcbs(project, boardId);
-  return refreshBoard({ ...fixed, boards: fixed.boards.map((b) => (b.id === boardId ? { ...b, elcbGroupSize: size } : b)) }, boardId);
+  return refreshBoard({ ...fixed, boards: fixed.boards.map((b) => (b.id === boardId ? { ...b, elcbGroupSize: size, rcboEveryCircuit: undefined } : b)) }, boardId);
 }
 
-export interface RegroupOptions { size: ElcbSize; keepApart: boolean; keepRcbos: boolean }
+/** A whole-board scheme in place of ELCBs of one size: one ELCB at the incomer, or an RCBO on every circuit. */
+export type ElcbScheme = 'incomer' | 'rcbo';
+export interface RegroupOptions { size: ElcbSize; keepApart: boolean; keepRcbos: boolean; scheme?: ElcbScheme }
 
 /** Re-group all ELCBs: the DB is cut again into ELCBs of `size` circuits (none for 0), its own ELCBs go, and so do its
  * RCBOs and No RCD circuits unless kept. keepApart moves circuits so lighting and power start on ELCBs of their own (renumbering them) and
- * stays on for new ways; without it no circuit moves. */
+ * stays on for new ways; without it no circuit moves. A scheme moves no circuit: 'incomer' puts one ELCB at the incomer
+ * over every way, with the kept RCBOs below it; 'rcbo' gives every circuit without one an RCBO, and new circuits too. */
 export function regroupElcbs(project: Project, boardId: string, o: RegroupOptions): Project {
   boardOf(project, boardId);
-  const sized = { ...project, boards: project.boards.map((b) => (b.id === boardId ? { ...b, elcbGroupSize: o.size, elcbKeepApart: o.keepApart } : b)) };
+  const size = o.scheme ? 0 : o.size;
+  const sized = { ...project, boards: project.boards.map((b) => (b.id === boardId ? { ...b, elcbGroupSize: size, elcbKeepApart: o.keepApart, rcboEveryCircuit: o.scheme === 'rcbo' || undefined } : b)) };
   let p = o.keepRcbos ? withElcbs(sized, boardId, []) : allAutomatic(sized, boardId);
-  if (o.keepApart && o.size && scheduleCircuits(p, boardId).length >= 2) p = refreshBoard(balancePhases(p, boardId), boardId);
+  if (o.scheme === 'incomer') {
+    const board = boardOf(p, boardId);
+    const last = Math.max(1, ...scheduleCircuits(p, boardId).map((f) => f.way!), ...(board.spareWays ?? []).map((sp) => sp.way ?? 0));
+    p = withElcbs(p, boardId, [{ id: 'elcb1', fromWay: 1, toWay: last, incomer: true }]);
+  } else if (o.scheme === 'rcbo') {
+    const plain = new Set(scheduleCircuits(p, boardId).filter((f) => !f.rcbo && !f.noRcd).map((f) => f.id));
+    p = refreshBoard({ ...p, feeders: p.feeders.map((f) => (plain.has(f.id) ? { ...f, rcbo: true } : f)) }, boardId);
+  } else if (o.keepApart && size && scheduleCircuits(p, boardId).length >= 2) p = refreshBoard(balancePhases(p, boardId), boardId);
   return p;
 }
 
-/** What Re-group would do, for its dialog: circuits per ELCB now and after, and how many circuits change reference. */
-export function regroupPreview(project: Project, boardId: string, o: RegroupOptions): { before: number[]; after: number[]; moved: number } {
+/** What Re-group would do, for its dialog: circuits per ELCB now and after, how many circuits change reference, the
+ * RCBOs (and add-on blocks) after it, the ELCB at the incomer if there is one, and a warning when that ELCB is short of
+ * the incomer's rating. */
+export function regroupPreview(project: Project, boardId: string, o: RegroupOptions): { before: number[]; after: number[]; moved: number; rcbos: number; incomer?: string; warning?: string } {
   const sizes = (p: Project) => elcbGroups(p, boardOf(p, boardId)).map((g) => g.ways.length * 3);
   const next = regroupElcbs(project, boardId, o);
   const moved = next.feeders.length !== project.feeders.length ? 0
     : project.feeders.filter((f, i) => f.boardId === boardId && isScheduleCircuit(f) && (next.feeders[i].phase !== f.phase || next.feeders[i].way !== f.way)).length;
-  return { before: sizes(project), after: sizes(next), moved };
+  const nb = boardOf(next, boardId);
+  const inc = elcbGroups(next, nb).find((g) => g.incomer);
+  const incomerA = next.feeders.find((f) => f.feedsBoardId === boardId && f.boardId === nb.upstreamId)?.breakerRatingA ?? nb.ratedCurrentA ?? 0;
+  const warning = inc && !inc.byHand?.ratingA && incomerA > inc.ratingA
+    ? `The incomer is ${incomerA} A and an ELCB goes up to ${inc.ratingA} A: use an earth leakage relay on the incomer breaker instead` : undefined;
+  return { before: sizes(project), after: sizes(next), moved, rcbos: rcbosOf(next, nb).length, incomer: inc && `ELCB-${inc.index} ${inc.label}`, warning };
 }
 
 /** Gives a circuit an earth leakage device of its own (on): an RCBO in place of its MCB (2P, or 4P on a 3-phase circuit),
  * an AFDD + RCBO (1-phase only), or an RCD add-on block on its MCB — `kind` as given, else the one it has; IΔn as given
- * or Auto. Off: its MCB again, back on the ELCB of its ways. This replaces No RCD. */
-export function setRcbo(project: Project, feederId: string, on: boolean, rcdMa?: number, kind?: RcboKind): Project {
+ * or Auto; RCD type as given, null for Auto, else the one it has. Off: its MCB again, back on the ELCB of its ways. This
+ * replaces No RCD. */
+export function setRcbo(project: Project, feederId: string, on: boolean, rcdMa?: number, kind?: RcboKind, rcdType?: RcdType | null): Project {
   const f = project.feeders.find((x) => x.id === feederId);
   if (!f || !isScheduleCircuit(f)) throw new Error('That circuit is no longer on a load schedule');
   const k = kind ?? f.rcboKind ?? 'rcbo';
@@ -219,12 +256,16 @@ export function setRcbo(project: Project, feederId: string, on: boolean, rcdMa?:
     next.rcbo = true;
     if (k === 'rcbo') delete next.rcboKind;
     else next.rcboKind = k;
+    // RCD type: as given, null for Auto, unset (undefined) keeps the one it has.
+    if (rcdType) next.rcdType = rcdType;
+    else if (rcdType === null) delete next.rcdType;
     delete next.noRcd;
     if (rcdMa) next.rcdMa = rcdMa;
     else delete next.rcdMa;
   } else {
     delete next.rcbo;
     delete next.rcboKind;
+    delete next.rcdType;
     delete next.rcdMa;
   }
   return refreshBoard({ ...project, feeders: project.feeders.map((x) => (x.id === feederId ? next : x)) }, f.boardId);
@@ -241,6 +282,7 @@ export function setNoRcd(project: Project, feederId: string, reason?: string): P
     next.noRcd = why;
     delete next.rcbo;
     delete next.rcboKind;
+    delete next.rcdType;
     delete next.rcdMa;
   } else delete next.noRcd;
   return refreshBoard({ ...project, feeders: project.feeders.map((x) => (x.id === feederId ? next : x)) }, f.boardId);
@@ -255,6 +297,7 @@ export function allAutomatic(project: Project, boardId: string): Project {
     const rest = { ...f };
     delete rest.rcbo;
     delete rest.rcboKind;
+    delete rest.rcdType;
     delete rest.rcdMa;
     delete rest.noRcd;
     return rest;
