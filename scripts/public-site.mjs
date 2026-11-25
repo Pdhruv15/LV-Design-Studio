@@ -18,6 +18,49 @@ const SITE = 'https://pdhruv15.github.io/LV-Design-Studio';
 // Get involved: the reviewed content names a target; the address is fixed here, so no text in the content can become a link.
 const LINKEDIN_PAGE = /^https:\/\/www\.linkedin\.com\/(in|company)\/[A-Za-z0-9_%-]{3,100}\/?$/;
 const INVOLVED_TARGETS = { linkedin: (involved) => involved.linkedin, issue: () => `${REPOSITORY}/issues/new`, source: () => REPOSITORY };
+const OPEN_SOURCE_CREDITS = [
+  {
+    title: 'Application foundation',
+    description: 'provide the desktop runtime, interface, language and build system.',
+    projects: [
+      ['Electron', 'https://github.com/electron/electron'],
+      ['React', 'https://github.com/facebook/react'],
+      ['TypeScript', 'https://github.com/microsoft/TypeScript'],
+      ['Vite', 'https://github.com/vitejs/vite']
+    ]
+  },
+  {
+    title: 'Electrical cross-checks',
+    description: 'provide the optional independent load-flow and fault-study engines.',
+    projects: [
+      ['OpenDSSDirect.py', 'https://github.com/dss-extensions/OpenDSSDirect.py'],
+      ['pandapower', 'https://github.com/e2nIEE/pandapower']
+    ]
+  },
+  {
+    title: 'CAD interoperability',
+    description: 'provides the DWG and DXF foundation used by the built-in CAD reader.',
+    projects: [
+      ['acadrust', 'https://github.com/hakanaktt/acadrust']
+    ]
+  },
+  {
+    title: 'Documents and tools',
+    description: 'help create and preview documents, protect imported content, validate data, provide command integrations and supply interface icons.',
+    projects: [
+      ['ExcelJS', 'https://github.com/exceljs/exceljs'],
+      ['docx', 'https://github.com/dolanmiu/docx'],
+      ['pdf-lib', 'https://github.com/Hopding/pdf-lib'],
+      ['PDF.js', 'https://github.com/mozilla/pdf.js'],
+      ['JSZip', 'https://github.com/Stuk/jszip'],
+      ['DOMPurify', 'https://github.com/cure53/DOMPurify'],
+      ['Lucide', 'https://github.com/lucide-icons/lucide'],
+      ['Model Context Protocol SDK', 'https://github.com/modelcontextprotocol/typescript-sdk'],
+      ['Zod', 'https://github.com/colinhacks/zod'],
+      ['xmldom', 'https://github.com/xmldom/xmldom']
+    ]
+  }
+];
 
 const esc = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 const text = (value, name, max = 500) => {
@@ -185,12 +228,17 @@ export function renderAbout(product) {
   const headline = words.length > 2 ? `${esc(words.slice(0, -2).join(' '))} <em>${esc(words.slice(-2).join(' '))}</em>` : esc(product.tagline);
   const involved = product.getInvolved;
   const ways = involved.items.map((item, index) => `<article class="card${item.target === 'linkedin' ? ' lead' : ''}"><span class="tile">${icon(CARD_ICONS[4 + (index % 4)])}</span><h3>${esc(item.title)}</h3><p>${esc(item.description)}</p><a class="card-link" href="${esc(INVOLVED_TARGETS[item.target](involved))}">${esc(item.linkLabel)}${item.target === 'linkedin' ? '' : icon('arrow')}</a></article>`).join('');
+  const credits = OPEN_SOURCE_CREDITS.map((credit, index) => {
+    const projects = credit.projects.map(([name, url]) => `<a href="${esc(url)}">${esc(name)}</a>`).join(', ');
+    return `<article class="card"><span class="tile">${icon(CARD_ICONS[index % 4])}</span><h3>${esc(credit.title)}</h3><p>${projects} ${esc(credit.description)}</p></article>`;
+  }).join('');
   const body = `<main><section class="hero"><svg class="paper" aria-hidden="true"><defs><pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 .5H.5V24" fill="none" stroke="currentColor"/></pattern><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset=".35" style="stop-color:var(--bg);stop-opacity:0"/><stop offset="1" style="stop-color:var(--bg);stop-opacity:1"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#grid)"/><rect width="100%" height="100%" fill="url(#fade)"/></svg><div class="shell hero-grid"><div><ul class="chips"><li>Open source</li><li>Offline first</li><li>Engineer controlled</li></ul><h1>${headline}</h1><p class="lede">${esc(product.summary)}</p><div class="actions"><a class="button button-primary" href="../download/">Download a beta</a><a class="button" href="../">Open the browser app</a></div><ul class="facts">${facts}</ul></div><div class="stage">${stage}</div></div></section>
 <section class="section"><div class="shell intro"><div><p class="eyebrow">Introduction</p><h2>LV design in 30 seconds</h2><p class="section-intro">See how the single-line diagram, load schedules, electrical studies and engineering deliverables come together in one offline-first workspace.</p></div><video class="product-video" controls preload="metadata" playsinline aria-label="30-second introduction to LV Design Studio"><source src="../media/${INTRO_VIDEO_NAME}" type="video/mp4" />Your browser does not support embedded video.</video></div></section>
 <section class="section"><div class="shell"><div class="section-heading"><div><p class="eyebrow">What it does</p><h2>One project model</h2></div><p class="section-intro">Design information is shared across calculations, drawings and deliverables, reducing repeated entry while keeping the engineer responsible for every decision.</p></div><div class="cards">${capabilities}</div></div></section>
 <section class="section"><div class="shell"><div class="section-heading"><div><p class="eyebrow">Screens</p><h2>See the workspace</h2></div><p class="section-intro">Views of the built-in demonstration project: the same project model across the design stages, calculations, drawings and deliverables.</p></div><div class="gallery">${gallery}</div></div></section>
 <section class="section"><div class="shell two-column"><article class="note"><h2>${icon('lock')}Private by design</h2><p>The desktop application stores projects as local JSON files. The browser app keeps projects in that browser profile. No account, telemetry or hosted project database is required.</p><p>Back up project files regularly; clearing browser data removes browser-stored projects.</p></article><article class="note caution"><h2>${icon('alert')}Engineering responsibility</h2><p>${esc(product.engineeringStatus)}</p><a href="${REPOSITORY}/blob/main/docs/engineering/calculation-methods.md">Review calculation methods and limits${icon('arrow')}</a></article></div></section>
-<section class="section band"><div class="shell"><div class="section-heading"><div><p class="eyebrow">Community</p><h2>Get involved</h2></div><p class="section-intro">${esc(involved.intro)}</p></div><div class="cards">${ways}</div></div></section></main>`;
+<section class="section band"><div class="shell"><div class="section-heading"><div><p class="eyebrow">Acknowledgements</p><h2>Thank you, open source</h2></div><p class="section-intro">LV Design Studio stands on work shared by open-source maintainers. Thank you to the people behind these projects.</p></div><div class="cards">${credits}</div><p class="meta">Read the <a href="${REPOSITORY}/blob/main/NOTICE.md">project licensing details</a> and the <a href="../third-party-licences.md">JavaScript licence notices</a> included with each build.</p></div></section>
+<section class="section"><div class="shell"><div class="section-heading"><div><p class="eyebrow">Community</p><h2>Get involved</h2></div><p class="section-intro">${esc(involved.intro)}</p></div><div class="cards">${ways}</div></div></section></main>`;
   return page(`${product.name} — Offline low-voltage electrical design`, product.summary, 'About', body, product);
 }
 
