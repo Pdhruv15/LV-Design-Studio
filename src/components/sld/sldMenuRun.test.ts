@@ -23,6 +23,9 @@ describe('the SLD menu runner', () => {
     switch (action) {
       case 'edit': case 'addupstream': case 'schedule': case 'diagram': case 'copy': case 'paste': case 'duplicate': case 'repeat': case 'lengthchecked': case 'delete': case 'plan': case 'zoom': case 'properties': return [board, undefined];
       case 'add': return [board, 'load'];
+      case 'faultadd': return [board, undefined];
+      case 'faultremove': return [board, 'F1'];
+      case 'faultat': return [load, 'F1:0.5'];
       case 'together': return [{ kind: 'several', items: [load, { kind: 'feeder', id: 'FF-IT' }] }, undefined];
       case 'order': return [load, 'left'];
       case 'rename': return [board, 'SMDB-FF-X'];

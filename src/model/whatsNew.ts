@@ -24,6 +24,13 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.298', date: '2026-11-25',
+    items: [
+      { title: 'Fault points on the SLD', text: 'The SLD tab has a new tool, Fault point, beside Values. Click it, then click a busbar or a cable: a numbered mark (F1, F2…) appears there. A mark on a cable starts at its far end; right-click the circuit → Fault point to move it to the board, a quarter, half or three quarters of the way, or to remove it. Right-click a board → Fault point does the same for its busbar. The marks print on the SLD sheet and go out with the PDF, DXF and DWG.' },
+      { title: 'Fault points table in the short circuit report', text: 'The short circuit study report lists every fault point: where it is, the path impedance in per unit, X/R, Ik″, the peak current, the minimum line-to-earth current and the breaking capacity of the breaker that must clear it. The per-unit base now prints as a plain number (100 MVA).' }
+    ]
+  },
+  {
     version: '2.297', date: '2026-11-25',
     items: [
       { title: 'Detect rooms from walls', text: 'In Design CAD, type DETECTROOMS (or ROOMSW), or right-click a reference drawing and choose Detect rooms from walls. Every room with its name written inside is found at once from the wall lines round it, doors up to 1.2 m bridged as Room area (RA) does for one click, and added to the level with its outline and area, named by that text. A room with two texts in it is added once, and running it again updates the rooms rather than adding them twice. No room-outline layer is needed.', action: 'cad', actionLabel: 'Open Design CAD' }
