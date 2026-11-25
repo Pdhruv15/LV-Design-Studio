@@ -18,10 +18,17 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.290', date: '2026-11-25',
+    version: '2.294', date: '2026-11-25',
     items: [
       { title: 'Fault points on the SLD', text: 'The SLD tab has a new tool, Fault point, beside Values. Click it, then click a busbar or a cable: a numbered mark (F1, F2…) appears there. A mark on a cable starts at its far end; right-click the circuit → Fault point to move it to the board, a quarter, half or three quarters of the way, or to remove it. Right-click a board → Fault point does the same for its busbar. The marks print on the SLD sheet and go out with the PDF, DXF and DWG.' },
       { title: 'Fault points table in the short circuit report', text: 'The short circuit study report lists every fault point: where it is, the path impedance in per unit, X/R, Ik″, the peak current, the minimum line-to-earth current and the breaking capacity of the breaker that must clear it. The per-unit base now prints as a plain number (100 MVA).' }
+    ]
+  },
+  {
+    version: '2.291', date: '2026-11-25',
+    items: [
+      { title: 'Add device: the circuit list shows the room left', text: 'In the Add device panel the Circuit field now opens a list: the boards of this level first, each circuit with its points against the most the Rules sheet allows ("7 / 10"), full circuits marked, and a Find box. Lighting points and 13 A sockets have a limit; other circuits show their points.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'A full circuit offers the next one', text: 'Placing a light or a 13 A socket now says how full its circuit is ("7 of 10 on the circuit"). When the circuit is full, the command line names the next circuit with room: press Tab to go on with it, or pick another. It is a warning, not a stop.' }
     ]
   },
   {
