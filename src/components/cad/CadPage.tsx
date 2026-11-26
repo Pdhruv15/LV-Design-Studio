@@ -133,7 +133,7 @@ import DeviceToolbar from './DeviceToolbar';
 import { AnnoPanel, type HatchOpts } from './AnnotatePanel';
 import { HatchStrip, type HatchOriginAt, type HatchPick } from './HatchStrip';
 import { annoOf, centreOf, hatchArea, hatchBox, hatchBoundaryItems, hatchItem, hatchOutline, hatchOutlinePts, islandsIn, HATCH_START, leaderItems, northArrowItems, roomTagItems, symbolUnits, SYMBOL_R_MM, textUnits, unitsPerPaperMm, type HatchSpec } from '../../model/cadAnnotate';
-import { alignedTo, alignEdge, cased, centredAt, ISO_TEXT_MM, justLabel, keynoteItems, legendNext, nextKeynote, numberText, oriented, padOf, parseFrame, parseJust, rejustified, spaced, textBox, textWidth, untaggedRooms, withTextHeight, type AlignMode, type CaseMode, type OrientMode } from '../../model/cadText';
+import { alignedTo, alignEdge, cased, centredAt, ISO_TEXT_MM, justLabel, keynoteItems, legendNext, nextKeynote, numberText, oriented, padOf, parseFrame, parseJust, rejustified, spaced, textBox, textHeightInfo, textWidth, untaggedRooms, withTextHeight, type AlignMode, type CaseMode, type OrientMode } from '../../model/cadText';
 import { LayerPalette, layerRows, type LayerRow } from './CadLayerManager';
 import { PropertiesPalette } from './CadProperties';
 import { isTbFile, LOGO_BOX, logoItems, saveTitleBlockFromCad, TB_FIELDS, TB_LAYERS, tbIdOf } from '../../model/titleBlockCad';
@@ -164,7 +164,7 @@ const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.to
 const DOCK_W = 280, DOCK_MIN = 220, DOCK_MAX = 480, DOCK_KEY = 'lvds.cad.dock';
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'xline', 'ray', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'dimal', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TRACE (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · RDT (room device template) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGNH / ALIGNV / SPACE (the devices selected) · AL (align objects by points) · TR (trim) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · B (block from drawn objects: the dialog; -BLOCK on the command line) · I (the Blocks palette: this drawing, Recent, Library; -INSERT by name) · ATT (attribute definition for a block) · ATE (edit a block\'s attributes; or double-click it) · ATTEXT (the attributes as a table) · PO (point) · DIV (points at the divisions of an object) · ME (points every length along it) · PTYPE (point style) · DR (draw order: Front, Back, Above or Under an object) · TEXTTOFRONT (texts, dimensions, leaders over the rest) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · HE (edit a hatch: pattern, spacing, angle, origin, islands; or double-click it) · BO (boundary: a closed polyline round an area) · LE (leader) · RT (room tag) · NORTH · LA (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · XL (XLINE, construction line) · RAY · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · MLD (multileader) · MLEADERADD / MLEADERREMOVE · MLA (align multileaders) · MLC (collect them) · MLS (multileader style) · ED (edit a text, dimension or multileader in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM (click a line, arc or circle, or two points) · DLI (linear) · DAL (aligned) · DRA (radius) · DDI (diameter) · DAN (angular) · DAR (arc length) · DJO (jogged radius) · DOR (ordinate; D sets its datum) · QDIM (a row of dimensions over a pick) · DIMSPACE (space rows of dimensions) · DIMBREAK (gaps where lines cross a dimension) · DIMTEDIT (move or turn a dimension\'s text) · DIMLAYER (layer of new dimensions) · ST (text style) · D (dimension style; DIMSTYLE A updates the dimensions picked) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LAYERS (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TRACE (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · RDT (room device template) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGNH / ALIGNV / SPACE (the devices selected) · AL (align objects by points) · TR (trim) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · B (block from drawn objects: the dialog; -BLOCK on the command line) · I (the Blocks palette: this drawing, Recent, Library; -INSERT by name) · ATT (attribute definition for a block) · ATE (edit a block\'s attributes; or double-click it) · ATTEXT (the attributes as a table) · PO (point) · DIV (points at the divisions of an object) · ME (points every length along it) · PTYPE (point style) · DR (draw order: Front, Back, Above or Under an object) · TEXTTOFRONT (texts, dimensions, leaders over the rest) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · HE (edit a hatch: pattern, spacing, angle, origin, islands; or double-click it) · BO (boundary: a closed polyline round an area) · LE (leader) · RT (room tag) · NORTH · LA (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · XL (XLINE, construction line) · RAY · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · MLD (multileader) · MLEADERADD / MLEADERREMOVE · MLA (align multileaders) · MLC (collect them) · MLS (multileader style) · ED (edit a text, dimension or multileader in place, or double-click it) · TJ (justify texts) · TH (text height; TH and mm sets new text or the texts picked) · FIND (find and replace words in the texts; FIND and words) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM (click a line, arc or circle, or two points) · DLI (linear) · DAL (aligned) · DRA (radius) · DDI (diameter) · DAN (angular) · DAR (arc length) · DJO (jogged radius) · DOR (ordinate; D sets its datum) · QDIM (a row of dimensions over a pick) · DIMSPACE (space rows of dimensions) · DIMBREAK (gaps where lines cross a dimension) · DIMTEDIT (move or turn a dimension\'s text) · DIMLAYER (layer of new dimensions) · ST (text style; STYLE R and a name makes it current) · D (dimension style; DIMSTYLE A updates the dimensions picked) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LAYERS (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Bind's count in the Save line: reference lines, texts and hatches. */
 const boundText = (shapes: { kind: string }[]) => {
   const n = (k: string) => shapes.filter((x) => x.kind === k).length, en = (v: number) => v.toLocaleString('en-GB');
@@ -374,6 +374,8 @@ const TALIGN_PROMPT = 'TALIGN  Align [Left/Right/Centre/Top/Bottom/Spacing] <Lef
 const TCASE_PROMPT = 'TCASE  Case [Upper/Lower/Title/Sentence] <Upper>:';
 const TORIENT_PROMPT = 'TORIENT  Readable from [Bottom/Right/Both] <Both>:';
 const TJUST_PROMPT = (now: string) => `TJUST  Justify [Left/Centre/Right/TL/TC/TR/ML/MC/MR/BL/BC/BR] <${now}>:`;
+/** The objects TXTHEIGHT sets the height of. */
+const hasTextHeight = (it: SketchItem) => it.kind === 'text' || it.kind === 'mtext' || it.kind === 'dim';
 const TH_PROMPT = (mm: number, forNew: boolean) => `TXTHEIGHT  Height on paper (mm)${forNew ? ' for new text' : ''} ${ISO_TEXT_MM.join(' · ')} <${mm}>:`;
 const DRAW_TOOLS: CadTool[] = ['point', 'line', 'xline', 'ray', 'pline', 'tray', 'cable', 'rect', 'circle', 'arc', 'text', 'dim', 'dimlin', 'dimal', 'dimcont', 'dimbase', 'move', 'copy', 'rotate', 'polygon', 'ellipse', 'circle2p', 'circle3p', 'circled', 'arcsce', 'revcloud'];
 
@@ -1321,9 +1323,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       layers: lRows.filter((r) => r.group === 'drawn').map((r) => ({ name: r.name, color: colourCss(r.color), on: r.on, freeze: r.freeze, lock: r.lock })), current: curLayer, picked: pickedSk.length, blocks: defs.map((d) => d.name),
       props: pickedSk.length ? { color: shared('color'), lt: shared('lt'), lw: shared('lw') } : newProps, mleaderStyles: { names: mleaderStylesOf(project).styles.map((x) => x.name), current: mleaderStylesOf(project).current },
       dimStyles: { names: dimStylesOf(project).styles.map((x) => x.name), current: dimStylesOf(project).current, ...(pickedDimStyle(pickedSk) ? { picked: pickedDimStyle(pickedSk) } : {}) },
+      textStyles: { names: textStylesOf(project).styles.map((x) => x.name), current: textStylesOf(project).current }, textH: textHeightInfo(pickedSk, currentTextStyle(project).heightMm || anno.textMm, unitsPerPaperMm(anno, units.factor)),
       dimLayer: dimLayerSetting(project, view.file), scales: scalesOf(project), vp: vpState
     };
-  }, [view, lRows, curLayer, pickedSk, newProps, defs, project.plot?.scales, project.cadMleaderStyles, project.cadDimStyles, project.cadLayerFile, vpState?.locked, vpState?.frame]); // eslint-disable-line react-hooks/exhaustive-deps -- the scale list, not the whole project
+  }, [view, lRows, curLayer, pickedSk, newProps, defs, project.plot?.scales, project.cadMleaderStyles, project.cadDimStyles, project.cadTextStyles, project.cadAnno, units.factor, project.cadLayerFile, vpState?.locked, vpState?.frame]); // eslint-disable-line react-hooks/exhaustive-deps -- the scale list, not the whole project
   // Set by what it says, not by identity: the page draws on every mouse move, and the ribbon redraws with what it sets.
   const ribbonKey = JSON.stringify(ribbonInfo);
   useEffect(() => { cad.setRibbonInfo(ribbonInfo); }, [ribbonKey]); // eslint-disable-line react-hooks/exhaustive-deps -- by value
@@ -4581,6 +4584,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** Runs a recent command again (Enter or Space with no tool, Repeat in the right-click menu). */
   const repeat = (x: { tool?: CadTool; text?: string }) => { if (x.tool) cad.setTool(x.tool); else if (x.text) run(x.text); };
 
+  /** FIND's first answer: how many of the words are drawn here, then what replaces them. */
+  function findWhat(what: string) {
+    const n = findCount(sketch, what);
+    if (!n) { setFindAsk(null); cad.say(`FIND  "${what}" is not in the texts drawn here.`); return; }
+    setFindAsk({ step: 'with', what }); cad.say(`FIND  ${n} found for "${what}". Replace with (Enter: leave them):`);
+  }
   function run(text: string) {
     const raw = text.trim();
     const typedC = raw.toUpperCase().replace(/\s+/g, ' ');
@@ -4631,11 +4640,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     if (findAsk) {
       if (!raw) { setFindAsk(null); cad.say(findAsk.step === 'with' ? 'FIND  Nothing replaced.' : '*Cancel*'); return; }
-      if (findAsk.step === 'what') {
-        const n = findCount(sketch, raw);
-        if (!n) { setFindAsk(null); cad.say(`FIND  "${raw}" is not in the texts drawn here.`); return; }
-        setFindAsk({ step: 'with', what: raw }); cad.say(`FIND  ${n} found for "${raw}". Replace with (Enter: leave them):`); return;
-      }
+      if (findAsk.step === 'what') { findWhat(raw); return; }
       const r = findReplace(sketch, findAsk.what, raw);
       setFindAsk(null);
       change(r.changed.reduce((q, x) => updateSketch(q, fileOf(), x), project), `FIND  ${r.n} replaced: "${findAsk.what}" → "${raw}" in ${r.changed.length} object${r.changed.length === 1 ? '' : 's'} · ⌘Z to undo`); return;
@@ -4835,6 +4840,26 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (!row) cad.say(`CMLEADERSTYLE  There is no multileader style ${want}. MLS opens the styles.`);
       else if (row.name !== st.current) { const keep = mleaderStylesToStore({ ...st, current: row.name }), { cadMleaderStyles: _m, ...rest } = project; change(keep ? { ...project, cadMleaderStyles: keep } : rest, `CMLEADERSTYLE  Current multileader style: ${row.name} · ⌘Z to undo`); }
       return;
+    }
+    // STYLE R and a name: new text takes that text style (the Text panel's list). TH and mm: the height on paper of the
+    // texts picked, or of new text. FIND and words: as FIND with the words answered.
+    const tst = /^-?(?:STYLE|ST)\s+(?:R|RESTORE)\s+(.+)$/i.exec(raw.trim());
+    if (tst && view) {
+      const st = textStylesOf(project), want = tst[1].trim(), row = st.styles.find((x) => x.name.toLowerCase() === want.toLowerCase());
+      cad.say(`Command: ${raw.trim()}`);
+      if (!row) { cad.say(`STYLE  There is no text style ${want}. ST opens the styles.`); return; }
+      const keep = textStylesToStore({ ...st, current: row.name }), { cadTextStyles: _t, ...rest } = project;
+      if (JSON.stringify(keep) === JSON.stringify(project.cadTextStyles)) cad.say(`STYLE  ${row.name} is the current text style.`);
+      else change(keep ? { ...project, cadTextStyles: keep } : rest, `STYLE  ${row.name} is the current text style · ⌘Z to undo`);
+      return;
+    }
+    const thm = /^(?:TH|TXTHEIGHT|TEXTHEIGHT)\s+(\S+)$/i.exec(raw.trim());
+    if (thm && view && isNumber(thm[1]) && Number(thm[1]) > 0) { cad.say(`Command: ${raw.trim()}`); applyTextHeight(Number(thm[1])); return; }
+    const fnd = /^(?:FIND|FINDREPLACE)\s+(.+)$/i.exec(raw.trim());
+    if (fnd) {
+      cad.say(`Command: ${raw.trim()}`);
+      if (!view) { cad.say('FIND  Open a drawing first.'); return; }
+      findWhat(fnd[1].trim()); input.current?.focus(); return;
     }
     // DIMSTYLE A (Update): the dimensions picked take the current style, or the one named; DIMSTYLE R and a name: new
     // dimensions take it. The ribbon's style list runs these.
@@ -5092,7 +5117,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const texts = pickedSk.filter((it) => it.kind === 'text');
     if (t === 'tjust') return TJUST_PROMPT(justLabel(texts[0]?.just));
     if (t === 'th') {
-      const sized = pickedSk.filter((it) => it.kind === 'text' || it.kind === 'dim'), h = sized[0]?.h;
+      const sized = pickedSk.filter(hasTextHeight), h = sized[0]?.h;
       return TH_PROMPT(h ? Math.round((h / unitsPerPaperMm(anno, units.factor)) * 100) / 100 : anno.textMm, !sized.length);
     }
     if (t === 'talign') return TALIGN_PROMPT;
@@ -5160,9 +5185,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       changeTexts('TMASK', texts.map((it) => { const { mask: _m, ...rest } = it; return on ? { ...rest, mask: true } : rest; }), on ? 'masked' : 'unmasked'); return;
     }
     if (tool === 'tcen' || tool === 'tcopy') { cad.say(textToolPrompt(tool)); return; }
-    const sized = pickedSk.filter((it) => it.kind === 'text' || it.kind === 'dim');
+    const sized = pickedSk.filter(hasTextHeight);
     const mm = c ? Number(c) : sized[0]?.h ? Math.round((sized[0].h / unitsPerPaperMm(anno, units.factor)) * 100) / 100 : anno.textMm;
     if (c && (!isNumber(c) || !(mm > 0))) { cad.say(`TXTHEIGHT  Type the height on paper in mm. ${textToolPrompt(tool)}`); return; }
+    applyTextHeight(mm);
+  }
+  /** TXTHEIGHT's result (also TH and mm typed): the texts, notes and dimensions picked take the height on paper, or with
+   * none picked it is the height for new text. One undo step. */
+  function applyTextHeight(mm: number) {
+    const sized = pickedSk.filter(hasTextHeight), left = (n: number) => (n ? ` (${n} other object${n === 1 ? '' : 's'} left as ${n === 1 ? 'it is' : 'they are'})` : '');
     if (!sized.length) { change({ ...project, cadAnno: { ...anno, textMm: mm } }, `TXTHEIGHT  New text ${mm} mm on paper at 1:${anno.scale} · ⌘Z to undo`); cad.setTool('none'); return; }
     const h = textUnits({ ...anno, textMm: mm }, units.factor);
     let next = project;

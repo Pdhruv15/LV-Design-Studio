@@ -4701,6 +4701,57 @@ describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', 
     expect(last()).toBe('DIMSTYLE  There is no dimension style NOPE. D opens the styles.');
   });
 
+  it('STYLE R makes a text style current by name, whatever its case (v2.324)', async () => {
+    const styles = { styles: [{ name: 'Standard', font: 'Arial', heightMm: 0 }, { name: 'Notes 3.5', font: 'Arial', heightMm: 3.5 }], current: 'Standard' } as Project['cadTextStyles'];
+    const start: Project = { ...villa, cadTextStyles: styles, cadSketch: [{ file: F, items: [] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    expect(state.ribbonInfo!.textStyles).toEqual({ names: ['Standard', 'Notes 3.5'], current: 'Standard' });
+    await command('STYLE R notes 3.5');
+    expect(project.cadTextStyles!.current).toBe('Notes 3.5');
+    expect(last()).toBe('STYLE  Notes 3.5 is the current text style · ⌘Z to undo');
+    expect(state.ribbonInfo!.textStyles!.current).toBe('Notes 3.5');
+    expect(state.ribbonInfo!.textH).toEqual({ mm: 3.5, picked: false });
+    await command('-STYLE R Standard');
+    expect(project.cadTextStyles?.current ?? 'Standard').toBe('Standard');
+    await command('STYLE R NOPE');
+    expect(last()).toBe('STYLE  There is no text style NOPE. ST opens the styles.');
+  });
+
+  it('TH and mm sets the height of new text, or of the texts picked; the ribbon shows it, varies when they differ (v2.324)', async () => {
+    const start: Project = { ...villa, cadSketch: [{ file: F, items: [
+      { id: 'T1', kind: 'text', layer: 'LV-ANNO', pts: [[X, 0]], text: 'A', h: 250 }, { id: 'T2', kind: 'text', layer: 'LV-ANNO', pts: [[X, 5000]], text: 'B', h: 350 }] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    expect(state.ribbonInfo!.textH).toEqual({ mm: 2.5, picked: false });
+    await command('TH 3.5');
+    expect(last()).toContain('TXTHEIGHT  New text 3.5 mm on paper');
+    expect(project.cadAnno?.textMm).toBe(3.5);
+    expect(state.ribbonInfo!.textH).toEqual({ mm: 3.5, picked: false });
+    await command('TH abc'); // not a number: as before, not this command
+    expect(project.cadAnno?.textMm).toBe(3.5);
+    await command('SELECTALL');
+    expect(state.ribbonInfo!.textH).toEqual({ mm: 'varies', picked: true });
+    await command('TH 5');
+    expect(last()).toContain('TXTHEIGHT  2 objects 5 mm on paper');
+    expect(project.cadSketch![0].items.map((it) => it.h)).toEqual([500, 500]);
+    expect(state.ribbonInfo!.textH).toEqual({ mm: 5, picked: true });
+  });
+
+  it('FIND and words finds them at once, then asks what replaces them (v2.324)', async () => {
+    const start: Project = { ...villa, cadSketch: [{ file: F, items: [{ id: 'T1', kind: 'text', layer: '0', pts: [[X, 0]], text: 'DB-1 panel', h: 250 }] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    await command('FIND nothing here');
+    expect(last()).toBe('FIND  "nothing here" is not in the texts drawn here.');
+    await command('FINDREPLACE DB-1');
+    expect(last()).toBe('FIND  1 found for "DB-1". Replace with (Enter: leave them):');
+    await command('DB-2');
+    expect(project.cadSketch![0].items[0].text).toBe('DB-2 panel');
+    expect(last()).toBe('FIND  1 replaced: "DB-1" → "DB-2" in 1 object · ⌘Z to undo');
+  });
+
   it('QDIM dimensions a pick in one row: Baseline or Continuous, horizontal above it, each place once (v2.305)', async () => {
     const start: Project = { ...villa, cadLayerFile: undefined, cadSketch: [{ file: F, items: [
       { id: 'L1', kind: 'line', layer: 'LV-SKETCH', pts: [[X, 0], [X + 6000, 0]] },
