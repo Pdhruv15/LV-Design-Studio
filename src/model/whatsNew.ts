@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.325', date: '2026-11-26',
+    items: [
+      { title: 'Short circuit sketch', text: 'A new page, SC sketch on the Detailed tab: draw a simple network of sources, transformers, cables, generators and motors with fault data only, and read the fault level at each point. No panel names, breakers or circuits are needed. Sketches are saved with the project.' }
+    ]
+  },
+  {
     version: '2.323', date: '2026-11-26',
     items: [
       { title: 'Transformer primary voltage and tap', text: 'On the board form of a main board with a transformer, Primary voltage and Tap now sit beside Vector group. Pick the primary voltage from the usual list (it shows on the SLD and schedules), and a tap of −5 to +5 %. A minus tap raises the secondary voltage, so the voltage drop at every board is lower by that amount (tap −2.5 % gives +2.56 %); a plus tap does the opposite. Nothing changes until a tap is set.' },
