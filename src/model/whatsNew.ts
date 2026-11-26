@@ -18,10 +18,16 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.313', date: '2026-11-26',
+    version: '2.318', date: '2026-11-26',
     items: [
       { title: 'Generator in parallel with the supply', text: 'A board with a standby generator has a new tick box, Runs in parallel with the supply. Tick it for a set that is synchronised with the supply: its fault current then adds to the supply\'s at that board, and reaches the boards above and below through the cables. Left unticked (a set behind a changeover) nothing changes.' },
       { title: 'Motor contribution to fault levels', text: 'Project settings has a new switch, Fault levels: include the contribution of running motors. With it on, each motor adds 5 × its rated current, behind its own cable, to the fault level at its board and, through the cables, at the other boards. Motors on a variable speed drive are left out. It is off unless you turn it on, so existing projects keep their numbers. Both additions show as rows in the per-unit table of the short circuit report.' }
+    ]
+  },
+  {
+    version: '2.314', date: '2026-11-26',
+    items: [
+      { title: 'Cable data by type: ratings built in', text: 'With Cable data by type on, PVC, aluminium and single-core cables now have built-in current ratings for the default installation method (free air / on a tray): industry-standard values, shown as reference values like the copper ones. These cables no longer show DATA REQUIRED there. Single cores smaller than 25 mm² take the multicore rating, which is the lower one. A row in Cables.xlsx still replaces a built-in value, and other installation methods still need their rating from your datasheet.' }
     ]
   },
   {
