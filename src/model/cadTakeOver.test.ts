@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { drawnFromPieces, standInHandle, standInsFor, takeOverNote, takeOverSummary } from './cadTakeOver';
+import { blockStandIn, drawnFromPieces, standInHandle, standInsFor, takeOverNote, takeOverSummary, type BlockInfo } from './cadTakeOver';
+import { expandInsert } from './cadBlocks';
+import { gripMoved, gripsOf } from './cadEdit';
 import { placedLines } from './cadHatch';
 import { linetypeIdOf, lineweightOf } from './cadLayerStyle';
 import type { CadPiece } from './cadCrop';
@@ -168,5 +170,58 @@ describe('standInsFor: the drawn objects an opened drawing\'s object stands in a
     expect(standInHandle('dw:2A:1')).toBe('2A');
     expect(standInHandle('S12')).toBeUndefined();
     expect(standInsFor('2A', [])).toEqual([]);
+  });
+});
+
+describe('blockStandIn: a block of the opened drawing as one app block', () => {
+  const box: CadPiece[] = [{ layer: '0', kind: 'line', a: [0, 0], b: [10, 0] }, { layer: 'E-SYM', kind: 'circle', c: [5, 5], r: 2, color: 0xff0000 }];
+  const info = (over: Partial<BlockInfo> = {}): BlockInfo => ({ name: 'DB-SYM', at: [100, 50], sx: 1, sy: 1, rot: 0, flipped: false, rows: 1, cols: 1, base: [3, 4], s: { layer: 'E-LIGHT' }, items: box, attdefs: [], attribs: [], ...over });
+  const def = { tag: 'CCT', prompt: 'Circuit?', text: 'L1', at: [1, 2] as [number, number], h: 2, rot: 0, invisible: false, constant: false, preset: false, verify: false, s: { layer: '0' } };
+  const attrib = (at: [number, number], over = {}) => ({ tag: 'CCT', value: 'L1-07', at, h: 2, rot: 0, invisible: false, ...over });
+
+  it('gives one insert at the insertion point and the definition in block coordinates', () => {
+    const r = blockStandIn('3A', info({ sx: 2, sy: 2, rot: 0.5 }), [], 4)!;
+    expect(r.insert).toEqual({ id: 'dw:3A:0', kind: 'insert', layer: 'E-LIGHT', pts: [[100, 50]], block: 'DB-SYM', sc: 2, rot: 0.5 });
+    expect(r.def).toMatchObject({ name: 'DB-SYM', units: 4, explodable: true });
+    expect(r.def.items.map((x) => [x.kind, x.layer, x.pts])).toEqual([['line', '0', [[0, 0], [10, 0]]], ['circle', 'E-SYM', [[5, 5]]]]);
+    expect(r.def.items[1].color).toBe('#ff0000');
+  });
+  it('the insert has one grip, and dragging it moves the whole block', () => {
+    const { insert } = blockStandIn('3A', info(), [])!;
+    expect(gripsOf(insert)).toHaveLength(1);
+    expect(gripMoved(insert, 0, [130, 70])).toMatchObject({ kind: 'insert', pts: [[130, 70]], block: 'DB-SYM' });
+  });
+  it('the insert shows the drawing\'s layer 0 and ByBlock children in its own layer and colour', () => {
+    const r = blockStandIn('3A', info({ s: { layer: 'E-LIGHT', color: 0x00ff00 } }), [])!;
+    expect(r.insert.color).toBe('#00ff00');
+    const shown = expandInsert(r.insert, [r.def]);
+    expect(shown[0]).toMatchObject({ layer: 'E-LIGHT', color: '#00ff00', pts: [[100, 50], [110, 50]] });
+    expect(shown[1]).toMatchObject({ layer: 'E-SYM', color: '#ff0000' });
+  });
+  it('attributes become attribute definitions and values', () => {
+    const r = blockStandIn('3A', info({ rot: Math.PI / 2, sx: 2, sy: 2, attdefs: [{ ...def, invisible: false }], attribs: [attrib([96, 52], { h: 4, rot: Math.PI / 2 })] }), [])!;
+    expect(r.insert.attrs).toEqual({ CCT: 'L1-07' });
+    expect(r.def.items.find((x) => x.kind === 'attdef')).toMatchObject({ tag: 'CCT', prompt: 'Circuit?', text: 'L1', pts: [[1, 2]], h: 2, layer: '0' });
+    expect(blockStandIn('3A', info({ attdefs: [{ ...def, constant: true }] }), [])!.insert.attrs).toBeUndefined();
+  });
+  it('is none for the cases the app\'s insert cannot show', () => {
+    const sa = (i: Partial<BlockInfo>) => blockStandIn('3A', info(i), []);
+    expect(sa({ name: '*U12' })).toBeNull();
+    expect(sa({ rows: 2, cols: 3 })).toBeNull();
+    expect(sa({ sx: 2, sy: 1 })).toBeNull();
+    expect(sa({ sx: -1, sy: 1 })).toBeNull();
+    expect(sa({ flipped: true })).toBeNull();
+    expect(sa({ items: [] })).toBeNull();
+    expect(sa({ items: [{ layer: '0', kind: 'line', a: [0, 0], b: [1, 0], lt: 'DASHED' }] })).toBeNull();
+    expect(sa({ attribs: [attrib([101, 52])] })).toBeNull();
+    expect(sa({ attdefs: [def], attribs: [attrib([140, 90])] })).toBeNull();
+    expect(sa({ attdefs: [def], attribs: [attrib([101, 52], { invisible: true })] })).toBeNull();
+    expect(sa({ attdefs: [def], attribs: [] })).toBeNull();
+    expect(sa({ attdefs: [def], attribs: [attrib([101, 52])] })).not.toBeNull();
+  });
+  it('another block of that name in the project gives none; an equal one is reused', () => {
+    const mine = blockStandIn('3A', info(), [])!.def;
+    expect(blockStandIn('3B', info(), [{ ...mine, name: 'db-sym', items: mine.items.map((x, i) => ({ ...x, id: `p${i}`, pts: x.pts.map(([a, b]) => [a + 1e-9, b] as [number, number]) })) }])!.def.name).toBe('db-sym');
+    expect(blockStandIn('3B', info(), [{ ...mine, items: mine.items.slice(1) }])).toBeNull();
   });
 });

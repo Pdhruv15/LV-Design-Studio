@@ -80,6 +80,12 @@ export class CadDoc {
 }
 
 /**
+ * The block inserts among model-space objects (take-over as app blocks), by handle, as JSON {handle: info} — see
+ * `explode::block_inserts`: placement, the block's base point and its items in block coordinates, ATTDEFs and ATTRIBs.
+ */
+export function blockInserts(bytes: Uint8Array, handles_json: string): string;
+
+/**
  * The exact pieces of model-space objects (CROP), by handle, as JSON {pieces: {handle: [piece]}, truncated} — see
  * doc/explode.rs. Read from the drawing's bytes, like saving, so the open view keeps no second copy of the drawing.
  * `exact` (the take-over of objects): ellipses, paragraph texts, text alignment, hatch patterns and dimensions are kept whole.
@@ -103,6 +109,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_caddoc_free: (a: number, b: number) => void;
+    readonly blockInserts: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly caddoc_blocks: (a: number, b: number) => void;
     readonly caddoc_info: (a: number, b: number) => void;
     readonly caddoc_layouts: (a: number, b: number) => void;
@@ -123,9 +130,9 @@ export interface InitOutput {
     readonly exportDxf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => void;
     readonly readDrawing: (a: number, b: number, c: number) => void;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
-    readonly __wbindgen_export: (a: number, b: number, c: number) => void;
-    readonly __wbindgen_export2: (a: number, b: number) => number;
-    readonly __wbindgen_export3: (a: number, b: number, c: number, d: number) => number;
+    readonly __wbindgen_export: (a: number, b: number) => number;
+    readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
+    readonly __wbindgen_export3: (a: number, b: number, c: number) => void;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;

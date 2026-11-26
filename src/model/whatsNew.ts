@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.326', date: '2026-11-26',
+    items: [
+      { title: 'Design CAD: a drawing\'s block moves as one block', text: 'A block of the opened drawing now shows one grip at its base point; drag it to move the whole block, which stays a block when you edit it. Blocks the app cannot show exactly (mirrored, unevenly scaled, arrays) are still taken over as their separate objects.' }
+    ]
+  },
+  {
     version: '2.325', date: '2026-11-26',
     items: [
       { title: 'Short circuit sketch', text: 'A new page, SC sketch on the Detailed tab: draw a simple network of sources, transformers, cables, generators and motors with fault data only, and read the fault level at each point. No panel names, breakers or circuits are needed. Sketches are saved with the project.' }
