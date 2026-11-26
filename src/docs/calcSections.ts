@@ -94,7 +94,7 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
       const es = data.earthing.filter((e) => want.has(e.feeder.id)), onBoard = byBoard(es);
       s.inputs = [['Earthing arrangement', 'TN-S'], ['Supply loop (Ze)', 'From the source impedance to each board']];
       s.criteria = [['Disconnection time', `IEC 60364-4-41 Table 41.1: 0.4 s final circuits, 5 s distribution circuits${p.strictFinalDisconnection ? '; project rule: 0.4 s for every final circuit ≤ 63 A' : ''}`],
-        ['Fault current', 'Minimum, c = 0.95'], ['Protective conductor', 'Adiabatic, k = 143']];
+        ['Fault current', 'Minimum, c = 0.95'], ...(s.criteria ?? [])];
       s.verification = { title: 'Earth fault loop on each board', headers: ['Board', 'Circuits', 'Highest Zs ÷ max Zs', 'Pass / check / fail', 'Status'],
         rows: scope.boards.flatMap((b) => {
           const here = onBoard(b.id);
