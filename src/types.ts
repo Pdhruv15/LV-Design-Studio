@@ -2,6 +2,7 @@ import { CURRENT_SCHEMA, newProjectId } from './model/projectMigrate';
 import { withUids } from './model/stableIds';
 import type { AppliedReference } from './model/designReference';
 import type { DesignRule } from './model/designRules';
+import type { ScSketch } from './calc/scSketch';
 export type FeederStatus = 'ok' | 'warn' | 'bad';
 
 export type LoadType = 'general' | 'lighting' | 'sockets' | 'hvac' | 'motor' | 'fire-pump' | 'ev' | 'it' | 'pv' | 'capacitor';
@@ -744,6 +745,8 @@ export interface Project {
   faultPoints?: FaultPoint[];
   /** Base power of the per-unit tables in the short circuit report, MVA (absent = 100). */
   baseMva?: number;
+  /** Short circuit sketches: drawn networks with fault data only (src/calc/scSketch.ts), separate from the boards. */
+  scSketches?: ScSketch[];
   /** Cable data by type: each cable is calculated with the R, X, rating, temperature limits and k of its own
    * family (conductor, insulation, single-core or multicore; src/calc/cableFamily.ts). Off (older projects):
    * every cable is calculated as copper / XLPE / multicore. On for new projects. */

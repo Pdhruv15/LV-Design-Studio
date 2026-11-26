@@ -102,6 +102,7 @@ The 47 routes below were checked against `src/views.ts`, the workspace render an
 | busbar | `BusbarStudy` | 14 | schematic | yes | |
 | ups | `UpsStudy` | 15 | schematic | yes | |
 | solar | `SolarStudy` | 15 | schematic | yes | |
+| sc-sketch | [`ScSketchPage`](../../src/components/studies/ScSketchPage.tsx) | 06 | detailed | yes | Short circuit sketch: fault data only, saved in the project |
 | lightning | [`LightningStudy`](../../src/components/studies/LightningStudy.tsx) | — | schematic | yes | Concept sizing, preliminary risk assessment, plan placement and PDF/Word/Excel reports |
 | sheets | [`SheetsPage`](../../src/components/sheets/SheetsPage.tsx) | — | sheets | yes | Excel-style workbook editing and linked panel schedules |
 | specification | [`SpecPage`](../../src/components/spec/SpecPage.tsx) | — | spec | yes | Electrical and ELV specifications with project values and Word/PDF export |
